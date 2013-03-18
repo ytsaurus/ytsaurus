@@ -15,7 +15,6 @@ def merge(table):
         
         mode = "sorted" if yt.is_sorted(table) else "unordered"
         yt.run_merge(table, table, mode,
-                     table_writer={"codec":"gzip_best_compression"},
                      spec={"combine_chunks":"true",
                            "data_size_per_job": data_size_per_job,
                            "job_io": {"table_reader": {"prefetch_window": 100}}})
