@@ -141,6 +141,24 @@ dynamic_server = connect()
     })
     .use(yt.YtAssignRequestId())
     .use(yt.YtLogRequest(logger))
+    .use(function(req, rsp, next) {
+        "use strict";
+        var expected_http_method, actual_http_method = req.method;
+        if (actual_http_method === "OPTIONS") {
+            rsp.statusCode = 200;
+            rsp.setHeader("Access-Control-Allow-Origin", "*");
+            rsp.setHeader("Access-Control-Allow-Methods", "POST, PUT, GET, OPTIONS");
+            rsp.setHeader("Access-Control-Allow-Headers", "origin, content-type, accept, x-yt-parameters, x-yt-input-format, x-yt-output-format, authorization");
+            rsp.setHeader("Access-Control-Max-Age", "3600");
+            rsp.removeHeader("Transfer-Encoding");
+            rsp.removeHeader("Content-Encoding");
+            rsp.removeHeader("Vary");
+            rsp.end();
+            return;
+            //throw new YtError();
+        }
+        next();
+    })
     .use("/auth", yt.YtApplicationAuth(logger, config))
     .use("/ping", function(req, rsp, next) {
         "use strict";
