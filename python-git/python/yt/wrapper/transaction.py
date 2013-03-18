@@ -1,6 +1,7 @@
 import config
 import logger
-from common import require, YtError, get_value
+from common import require, get_value
+from errors import YtError
 from tree_commands import exists
 from transaction_commands import start_transaction, commit_transaction, abort_transaction, renew_transaction
 
