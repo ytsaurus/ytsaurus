@@ -94,7 +94,7 @@ def _prepare_binary(binary, operation_type, reduce_by=None):
     else:
         return binary, []
 
-def _prepare_destination_tables(tables, replication_factor):
+def _prepare_destination_tables(tables, replication_factor, compression_codec):
     if tables is None:
         if config.THROW_ON_EMPTY_DST_LIST:
             raise YtError("Destination tables are absent")
@@ -102,7 +102,7 @@ def _prepare_destination_tables(tables, replication_factor):
     tables = map(to_table, flatten(tables))
     for table in tables:
         if not exists(table.name):
-            create_table(table.name, replication_factor=replication_factor)
+            create_table(table.name, replication_factor=replication_factor, compression_codec=compression_codec)
         else:
             require(replication_factor is None,
                     YtError("Cannot append to table %s with set replication factor" %
@@ -209,13 +209,14 @@ class Buffer(object):
         return self._empty
 
 """ Common table methods """
-def create_table(path, recursive=None, replication_factor=None, attributes=None):
+def create_table(path, recursive=None, replication_factor=None, compression_codec=None, attributes=None):
     """ Creates empty table, use recursive for automatically creaation the path """
     table = TablePath(path)
     recursive = get_value(recursive, config.CREATE_RECURSIVE)
     attributes = get_value(attributes, {})
     if replication_factor is not None:
         attributes["replication_factor"] = replication_factor
+        attributes["compression_codec"] = compression_codec
     create("table", table.name, recursive=recursive, attributes=attributes)
 
 def create_temp_table(path=None, prefix=None):
@@ -236,7 +237,7 @@ def create_temp_table(path=None, prefix=None):
     return name
 
 
-def write_table(table, input_stream, format=None, table_writer=None, replication_factor=None):
+def write_table(table, input_stream, format=None, table_writer=None, replication_factor=None, compression_codec=None):
     """
     Writes rows from input_stream to table.
 
@@ -258,7 +259,7 @@ def write_table(table, input_stream, format=None, table_writer=None, replication
 
     with PingableTransaction(config.WRITE_TRANSACTION_TIMEOUT):
         if not exists(table.name):
-            create_table(table.name, replication_factor=replication_factor)
+            create_table(table.name, replication_factor=replication_factor, compression_codec=compression_codec)
         else:
             require(replication_factor is None,
                     YtError("Cannot write to existing table %s with set replication factor" % to_name(table)))
@@ -299,7 +300,7 @@ def write_table(table, input_stream, format=None, table_writer=None, replication
                 proxy=get_host_for_heavy_operation())
 
 
-def read_table(table, format=None, response_type=None):
+def read_table(table, format=None, table_reader=None, response_type=None):
     """
     Downloads file from path.
     Response type means the output format. By default it is line generator.
@@ -308,11 +309,14 @@ def read_table(table, format=None, response_type=None):
     format = _prepare_format(format)
     if config.TREAT_UNEXISTING_AS_EMPTY and not exists(table.name):
         return EMPTY_GENERATOR
+    
+    params = {"path": table.get_json()}
+    if table_reader is not None:
+        params["table_reader"] = table_reader
+
     response = _make_transactional_request(
         "read",
-        {
-            "path": table.get_json()
-        },
+        params,
         format=format,
         raw_response=True)
     return read_content(response, get_value(response_type, "iter_lines"))
@@ -410,13 +414,14 @@ def is_sorted(table):
         return parse_bool(get_attribute(to_name(table), "sorted", default="false"))
 
 def run_merge(source_table, destination_table, mode=None,
-              strategy=None, table_writer=None, replication_factor=None, spec=None):
+              strategy=None, table_writer=None,
+              replication_factor=None, compression_codec=None, spec=None):
     """
     Merge source tables and write it to destination table.
     Mode should be 'unordered', 'ordered', or 'sorted'.
     """
     source_table = _prepare_source_tables(source_table)
-    destination_table = unlist(_prepare_destination_tables(destination_table, replication_factor))
+    destination_table = unlist(_prepare_destination_tables(destination_table, replication_factor, compression_codec))
 
     spec = compose(
         _add_user_spec,
@@ -429,12 +434,14 @@ def run_merge(source_table, destination_table, mode=None,
     _make_operation_request("merge", spec, strategy, finalizer=None)
 
 def merge_tables(source_table, destination_table, mode=None,
-                 strategy=None, table_writer=None, replication_factor=None, spec=None):
+                 strategy=None, table_writer=None,
+                 replication_factor=None, compression_codec=None, spec=None):
     """ DEPRECATED: use run_merge"""
-    run_merge(source_table, destination_table, mode, strategy, table_writer, replication_factor, spec)
+    run_merge(source_table, destination_table, mode, strategy, table_writer, replication_factor, compression_codec, spec)
 
 def run_sort(source_table, destination_table=None, sort_by=None,
-             strategy=None, table_writer=None, replication_factor=None, spec=None):
+             strategy=None, table_writer=None, replication_factor=None,
+             compression_codec=None, spec=None):
     """
     Sort source table. If destination table is not specified, than it equals to source table.
     """
@@ -455,7 +462,7 @@ def run_sort(source_table, destination_table=None, sort_by=None,
                 YtError("You must specify destination sort table "
                         "in case of multiple source tables"))
         destination_table = source_table[0]
-    destination_table = unlist(_prepare_destination_tables(destination_table, replication_factor))
+    destination_table = unlist(_prepare_destination_tables(destination_table, replication_factor, compression_codec))
 
     if config.TREAT_UNEXISTING_AS_EMPTY and not source_table:
         _remove_tables([destination_table])
@@ -472,9 +479,10 @@ def run_sort(source_table, destination_table=None, sort_by=None,
     _make_operation_request("sort", spec, strategy, finalizer=None)
 
 def sort_table(source_table, destination_table=None, sort_by=None,
-               strategy=None, table_writer=None, replication_factor=None, spec=None):
+               strategy=None, table_writer=None,
+               replication_factor=None, compression_codec=None, spec=None):
     """ DEPRECATED: use run_sort"""
-    run_sort(source_table, destination_table, sort_by, strategy, table_writer, replication_factor, spec)
+    run_sort(source_table, destination_table, sort_by, strategy, table_writer, replication_factor, compression_codec, spec)
 
 
 """ Map and reduce methods """
@@ -521,7 +529,8 @@ class Finalizer(object):
 
 def run_map_reduce(mapper, reducer, source_table, destination_table,
                    format=None, input_format=None, output_format=None,
-                   strategy=None, table_writer=None, spec=None, replication_factor=None,
+                   strategy=None, table_writer=None, spec=None,
+                   replication_factor=None, compression_codec=None,
                    map_files=None, reduce_files=None,
                    map_file_paths=None, reduce_file_paths=None,
                    sort_by=None, reduce_by=None):
@@ -531,7 +540,7 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
         return spec
 
     source_table = _prepare_source_tables(source_table)
-    destination_table = _prepare_destination_tables(destination_table, replication_factor)
+    destination_table = _prepare_destination_tables(destination_table, replication_factor, compression_codec)
 
     if config.TREAT_UNEXISTING_AS_EMPTY and not source_table:
         _remove_tables([destination_table])
@@ -558,6 +567,7 @@ def run_operation(binary, source_table, destination_table,
                   strategy=None,
                   table_writer=None,
                   replication_factor=None,
+                  compression_codec=None,
                   spec=None,
                   op_name=None,
                   reduce_by=None):
@@ -593,7 +603,7 @@ def run_operation(binary, source_table, destination_table,
         else:
             reduce_by = _prepare_reduce_by(reduce_by)
 
-    destination_table = _prepare_destination_tables(destination_table, replication_factor)
+    destination_table = _prepare_destination_tables(destination_table, replication_factor, compression_codec)
     input_format, output_format = _prepare_formats(format, input_format, output_format)
 
     if config.TREAT_UNEXISTING_AS_EMPTY and not source_table:
