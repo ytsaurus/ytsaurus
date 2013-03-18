@@ -164,7 +164,7 @@ Examples:
     add_store_args(parser, action_stores + ["server", "lowerkey", "upperkey", "prefix", "codec",
                                             "format", "inputformat", "outputformat", "tx", "value",
                                             "replicationfactor", "memlimit", "timeout", "title", "fs", "rs",
-                                            "mode"])
+                                            "mode", "tablereader", "tablewriter"])
     add_multiple_args(parser, ["src", "dst", "dstappend", "dstsorted", "file", "mapfile", "reducefile", "ytfile", "opt", "ytspec", "sortby", "reduceby"])
     add_integer_args(parser, ["jobcount", "threadcount", "chunksize", "jcmultiplier", "detached"])
 
@@ -288,6 +288,10 @@ Examples:
              "NEW! start transaction, returns transaction id"),
             ("subkey",
              "turn on yamr format with subkey"),
+            ("tablereader",
+             "NEW! config of table reader for read operation"),
+            ("tablewriter",
+             "NEW! config of table writer for write operation"),
             ("timeout",
              "NEW! timeout for transaction"),
             ("title",
@@ -412,15 +416,15 @@ Examples:
     if args.detached is None or bool(args.detached):
         config.DETACHED = True
 
-    table_writer = {}
-    if args.codec is not None:
-        table_writer["codec"] = args.codec
-    if not table_writer:
-        table_writer = None
-
     replication_factor = args.replicationfactor
     if replication_factor is not None:
         replication_factor = int(args.replicationfactor)
+
+    if args.tablewriter is not None:
+        args.tablewriter = json.loads(args.tablewriter)
+    if args.tablereader is not None:
+        args.tablereader = json.loads(args.tablereader)
+
 
     if args.list:
         writelines_silently(imap(add_eoln, list_all_entities("table")))
@@ -437,11 +441,14 @@ Examples:
     if args.write is not None:
         args.write = yt.TablePath(args.write, append=args.append)
         yt.write_table(args.write, sys.stdin, format=outputformat,
-                       replication_factor=replication_factor, table_writer=table_writer)
+                       table_writer=args.tablewriter,
+                       replication_factor=replication_factor,
+                       compression_codec=args.codec)
     if args.writesorted is not None:
         args.writesorted = yt.TablePath(args.writesorted, append=args.append)#, sorted_by=["key", "subkey"])
         yt.write_table(args.writesorted, sys.stdin, format=outputformat,
-                       replication_factor=replication_factor, table_writer=table_writer)
+                       replication_factor=replication_factor,
+                       compression_codec=args.codec)
         # TODO: sorted_by has no proper support now. Delete it with remaking in system.
         yt.run_sort(args.writesorted)
     if mapreduce_case:
@@ -450,19 +457,22 @@ Examples:
                           map_file_paths=args.ytfile, reduce_file_paths=args.ytfile,
                           input_format=inputformat, output_format=outputformat,
                           sort_by=args.sortby, reduce_by=args.reduceby,
-                          table_writer=table_writer, replication_factor=replication_factor,
+                          replication_factor=replication_factor,
+                          compression_codec=args.codec,
                           spec=spec)
     elif args.map is not None:
         yt.run_map(args.map, args.src, dst, files=map_files, file_paths=args.ytfile,
                    input_format=inputformat, output_format=outputformat,
-                   table_writer=table_writer, replication_factor=args.replicationfactor,
+                   replication_factor=args.replicationfactor,
+                   compression_codec=args.codec,
                    spec=spec)
     elif args.reduce is not None or args.reducews is not None:
         op = args.reduce if args.reduce is not None else args.reducews
         yt.run_reduce(op, args.src, dst, files=reduce_files, file_paths=args.ytfile,
                       input_format=inputformat, output_format=outputformat,
                       reduce_by=args.reduceby,
-                      table_writer=table_writer, replication_factor=replication_factor,
+                      replication_factor=replication_factor,
+                      compression_codec=args.codec,
                       spec=spec)
     if args.drop is not None:
         if yt.exists(args.drop):
@@ -477,11 +487,15 @@ Examples:
     if args.copy:
         copy_table(args.src, unlist(dst))
     if args.sort:
-        yt.run_sort(args.src, unlist(dst), table_writer=table_writer, sort_by=args.sortby,
-                      replication_factor=replication_factor, spec=spec)
+        yt.run_sort(args.src, unlist(dst), sort_by=args.sortby,
+                      replication_factor=replication_factor,
+                      compression_codec=args.codec,
+                      spec=spec)
     if args.merge:
-        yt.run_merge(args.src, unlist(dst), mode=get_value(args.mode, "sorted"), table_writer=table_writer,
-                     replication_factor=replication_factor, spec=spec)
+        yt.run_merge(args.src, unlist(dst), mode=get_value(args.mode, "sorted"),
+                     replication_factor=replication_factor,
+                     compression_codec=args.codec,
+                     spec=spec)
 
     if args.erase is not None:
         yt.run_erase(args.erase)
