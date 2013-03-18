@@ -458,7 +458,7 @@ void TJob::SetResult(const TJobResult& jobResult)
         return;
     }
 
-    if (JobResult.HasValue() && JobResult->error().code() == TError::OK) {
+    if (JobResult.HasValue() && JobResult->error().code() != TError::OK) {
         return;
     }
 
