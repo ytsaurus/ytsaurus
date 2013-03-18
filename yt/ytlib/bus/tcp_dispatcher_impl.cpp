@@ -116,7 +116,7 @@ void TTcpDispatcher::TImpl::OnStop(ev::async&, int)
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
 
-    LOG_INFO("Stopping TCP bus dispatcher");
+    // NB: No logging here: logging thread may be inactive (e.g. when running with --version).
     EventLoop.break_loop();
 }
 

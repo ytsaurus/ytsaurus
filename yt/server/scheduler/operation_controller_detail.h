@@ -4,6 +4,7 @@
 #include "operation_controller.h"
 #include "chunk_pool.h"
 #include "chunk_list_pool.h"
+#include "job_resources.h"
 #include "private.h"
 
 #include <ytlib/misc/thread_affinity.h>
@@ -72,6 +73,19 @@ private:
     typedef TOperationControllerBase TThis;
 
 protected:
+    // Forward declarations.
+    struct TTaskGroup;
+
+    class TTask;
+    typedef TIntrusivePtr<TTask> TTaskPtr;
+
+    struct TJoblet;
+    typedef TIntrusivePtr<TJoblet> TJobletPtr;
+
+    struct TCompletedJob;
+    typedef TIntrusivePtr<TCompletedJob> TCompleteJobPtr;
+
+
     TSchedulerConfigPtr Config;
     IOperationHost* Host;
     TOperation* Operation;
@@ -95,8 +109,6 @@ protected:
     // Job counters.
     TProgressCounter JobCounter;
 
-    // Increments each time a new job is scheduled.
-    TIdGenerator<int> JobIndexGenerator;
 
     struct TTableBase
     {
@@ -104,7 +116,6 @@ protected:
         NObjectClient::TObjectId ObjectId;
     };
 
-    // Input tables.
     struct TInputTable
         : public TTableBase
     {
@@ -119,7 +130,7 @@ protected:
 
     std::vector<TInputTable> InputTables;
 
-    // Output tables.
+
     struct TOutputTable
         : public TTableBase
     {
@@ -169,7 +180,7 @@ protected:
         EOperationStage Stage;
     };
 
-    // Files.
+
     struct TRegularUserFile
         : public TUserFile
     {
@@ -178,7 +189,7 @@ protected:
 
     std::vector<TRegularUserFile> RegularFiles;
 
-    // Table files.
+
     struct TUserTableFile
         : public TUserFile
     {
@@ -188,17 +199,6 @@ protected:
     };
 
     std::vector<TUserTableFile> TableFiles;
-
-    // Forward declarations.
-
-    class TTask;
-    typedef TIntrusivePtr<TTask> TTaskPtr;
-
-    struct TJoblet;
-    typedef TIntrusivePtr<TJoblet> TJobletPtr;
-
-    struct TCompletedJob;
-    typedef TIntrusivePtr<TCompletedJob> TCompleteJobPtr;
 
 
     struct TJoblet
@@ -227,11 +227,6 @@ protected:
         std::vector<NChunkClient::TChunkListId> ChunkListIds;
 
     };
-
-    yhash_map<TJobPtr, TJobletPtr> JobletMap;
-
-    // The set of all input chunks. Used in #OnChunkFailed.
-    yhash_set<NChunkClient::TChunkId> InputChunkIds;
 
     struct TCompletedJob
         : public TIntrinsicRefCounted
@@ -265,7 +260,6 @@ protected:
         TExecNodePtr ExecNode;
     };
 
-    // Tasks management.
 
     class TTask
         : public TRefCounted
@@ -274,7 +268,7 @@ protected:
         explicit TTask(TOperationControllerBase* controller);
 
         virtual Stroka GetId() const = 0;
-        virtual int GetPriority() const;
+        virtual TTaskGroup* GetGroup() const = 0;
 
         virtual int GetPendingJobCount() const;
         int GetPendingJobCountDelta();
@@ -394,30 +388,36 @@ protected:
     virtual void CustomizeJoblet(TJobletPtr joblet);
     virtual void CustomizeJobSpec(TJobletPtr joblet, NProto::TJobSpec* jobSpec);
 
-    struct TPendingTaskInfo
+
+    //! Groups serve two purposes:
+    //! * Provide means to prioritize tasks
+    //! * Quickly skip a vast number of tasks whose resource requirements cannot be met
+    struct TTaskGroup
     {
-        // All non-local tasks.
+        TTaskGroup()
+            : MinNeededResources(ZeroNodeResources())
+        { }
+
+        //! No task from this group is considered for scheduling unless this
+        //! requirement is met.
+        NProto::TNodeResources MinNeededResources;
+
+        //! All non-local tasks.
         yhash_set<TTaskPtr> NonLocalTasks;
 
-        // Non-local tasks that may possibly be ready (but a delayed check is still needed)
-        // keyed by min memory demand (as reported by TTask::GetMinNeededResources).
+        //! Non-local tasks that may possibly be ready (but a delayed check is still needed)
+        //! keyed by min memory demand (as reported by TTask::GetMinNeededResources).
         std::multimap<i64, TTaskPtr> CandidateTasks;
 
-        // Non-local tasks keyed by deadline.
+        //! Non-local tasks keyed by deadline.
         std::multimap<TInstant, TTaskPtr> DelayedTasks;
 
-        // Local tasks keyed by address.
+        //! Local tasks keyed by address.
         yhash_map<Stroka, yhash_set<TTaskPtr>> LocalTasks;
     };
 
-    static const int MaxTaskPriority = 2;
-    std::vector<TPendingTaskInfo> PendingTaskInfos;
+    void RegisterTaskGroup(TTaskGroup* group);
 
-    int CachedPendingJobCount;
-    NProto::TNodeResources CachedNeededResources;
-
-    //! Maps intermediate chunk id to its originating completed job.
-    yhash_map<NChunkServer::TChunkId, TCompleteJobPtr> ChunkOriginMap;
 
     void OnTaskUpdated(TTaskPtr task);
 
@@ -426,7 +426,6 @@ protected:
     void AddTaskLocalityHint(TTaskPtr task, TChunkStripePtr stripe);
     void AddTaskPendingHint(TTaskPtr task);
     void ResetTaskLocalityDelays();
-    TPendingTaskInfo* GetPendingTaskInfo(TTaskPtr task);
 
     bool CheckJobLimits(TExecNodePtr node, TTaskPtr task, const NProto::TNodeResources& jobLimits);
 
@@ -603,6 +602,25 @@ protected:
 private:
     TOperationSpecBasePtr Spec;
     TChunkListPoolPtr ChunkListPool;
+
+    int CachedPendingJobCount;
+    NProto::TNodeResources CachedNeededResources;
+
+    //! All tasks declared by calling #RegisterTaskGroup, in the order of decreasing priority.
+    std::vector<TTaskGroup*> TaskGroups;
+
+    //! Maps intermediate chunk id to its originating completed job.
+    yhash_map<NChunkServer::TChunkId, TCompleteJobPtr> ChunkOriginMap;
+
+    //! Maps scheduler's jobs to controller's joblets.
+    yhash_map<TJobPtr, TJobletPtr> JobletMap;
+
+    //! Used to distinguish between input and intermediate chunks on failure.
+    yhash_set<NChunkClient::TChunkId> InputChunkIds;
+
+    //! Increments each time a new job is scheduled.
+    TIdGenerator<int> JobIndexGenerator;
+
 
     static const NProto::TUserJobResult* FindUserJobResult(TJobletPtr joblet);
 

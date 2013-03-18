@@ -116,6 +116,11 @@ protected:
                 : Sprintf("Merge(%d,%d)", TaskIndex, PartitionIndex);
         }
 
+        virtual TTaskGroup* GetGroup() const override
+        {
+            return &Controller->MergeTaskGroup;
+        }
+
         virtual TDuration GetLocalityTimeout() const override
         {
             return Controller->Spec->LocalityTimeout;
@@ -219,7 +224,8 @@ protected:
 
     typedef TIntrusivePtr<TMergeTask> TMergeTaskPtr;
 
-    std::vector<TMergeTaskPtr> Tasks;
+    TTaskGroup MergeTaskGroup;
+    std::vector<TMergeTaskPtr> MergeTasks;
 
     //! Resizes #CurrentTaskStripes appropriately and sets all its entries to |NULL|.
     void ClearCurrentTaskStripes()
@@ -240,10 +246,10 @@ protected:
         task->FinishInput();
 
         ++PartitionCount;
-        Tasks.push_back(task);
+        MergeTasks.push_back(task);
 
         LOG_DEBUG("Task finished (Task: %d, TaskDataSize: %" PRId64 ")",
-            static_cast<int>(Tasks.size()) - 1,
+            static_cast<int>(MergeTasks.size()) - 1,
             CurrentTaskDataSize);
 
         CurrentTaskDataSize = 0;
@@ -255,7 +261,7 @@ protected:
     {
         auto task = New<TMergeTask>(
             this,
-            static_cast<int>(Tasks.size()),
+            static_cast<int>(MergeTasks.size()),
             PartitionCount);
 
         EndTask(task);
@@ -303,7 +309,7 @@ protected:
         LOG_DEBUG("Pending chunk added (ChunkId: %s, Partition: %d, Task: %d, TableIndex: %d, DataSize: %" PRId64 ")",
             ~chunkId.ToString(),
             PartitionCount,
-            static_cast<int>(Tasks.size()),
+            static_cast<int>(MergeTasks.size()),
             inputChunk->table_index(),
             chunkDataSize);
     }
@@ -323,6 +329,13 @@ protected:
 
 
     // Custom bits of preparation pipeline.
+
+    virtual void DoInitialize() override
+    {
+        TOperationControllerBase::DoInitialize();
+
+        RegisterTaskGroup(&MergeTaskGroup);
+    }
 
     virtual TAsyncPipeline<void>::TPtr CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline) override
     {
@@ -377,14 +390,14 @@ protected:
     void FinishPreparation()
     {
         // Check for trivial inputs.
-        if (Tasks.empty()) {
+        if (MergeTasks.empty()) {
             LOG_INFO("Trivial merge");
             OnOperationCompleted();
             return;
         }
 
         // Init counters.
-        JobCounter.Set(static_cast<int>(Tasks.size()));
+        JobCounter.Set(static_cast<int>(MergeTasks.size()));
 
         InitJobIOConfig();
         InitJobSpecTemplate();
@@ -395,7 +408,7 @@ protected:
             JobCounter.GetTotal());
 
         // Kick-start the tasks.
-        FOREACH (auto task, Tasks) {
+        FOREACH (auto task, MergeTasks) {
             AddTaskPendingHint(task);
         }
     }
@@ -1061,7 +1074,7 @@ protected:
     {
         auto task = New<TManiacTask>(
             this,
-            static_cast<int>(Tasks.size()),
+            static_cast<int>(MergeTasks.size()),
             PartitionCount);
 
         EndTask(task);

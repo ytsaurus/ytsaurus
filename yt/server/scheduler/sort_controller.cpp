@@ -182,6 +182,10 @@ protected:
     TAutoPtr<IShuffleChunkPool> ShufflePool;
     TAutoPtr<IChunkPool> SimpleSortPool;
 
+    TTaskGroup PartitionTaskGroup;
+    TTaskGroup SortTaskGroup;
+    TTaskGroup MergeTaskGroup;
+
     TPartitionTaskPtr PartitionTask;
 
     //! Implements partition phase for sort operations and map phase for map-reduce operations.
@@ -201,9 +205,9 @@ protected:
             return "Partition";
         }
 
-        virtual int GetPriority() const override
+        virtual TTaskGroup* GetGroup() const override
         {
-            return 0;
+            return &Controller->PartitionTaskGroup;
         }
 
         virtual TDuration GetLocalityTimeout() const override
@@ -380,9 +384,9 @@ protected:
             : TPartitionBoundTask(controller, partition)
         { }
 
-        virtual int GetPriority() const override
+        virtual TTaskGroup* GetGroup() const override
         {
-            return 1;
+            return &Controller->SortTaskGroup;
         }
 
         virtual TNodeResources GetMinNeededResourcesHeavy() const override
@@ -657,9 +661,9 @@ protected:
             : TPartitionBoundTask(controller, partition)
         { }
 
-        virtual int GetPriority() const override
+        virtual TTaskGroup* GetGroup() const override
         {
-            return 2;
+            return &Controller->MergeTaskGroup;
         }
 
     private:
@@ -909,6 +913,22 @@ protected:
         }
 
     };
+
+
+    // Custom bits of preparation pipeline.
+    
+    virtual void DoInitialize() override
+    {
+        TOperationControllerBase::DoInitialize();
+
+        // NB: Register groups in the order of _descending_ priority.
+        RegisterTaskGroup(&MergeTaskGroup);
+
+        SortTaskGroup.MinNeededResources.set_network(Spec->ShuffleNetworkLimit);
+        RegisterTaskGroup(&SortTaskGroup);
+
+        RegisterTaskGroup(&PartitionTaskGroup);
+    }
 
 
     // Init/finish.

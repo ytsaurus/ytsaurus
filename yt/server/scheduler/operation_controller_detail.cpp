@@ -3,7 +3,6 @@
 #include "private.h"
 #include "chunk_list_pool.h"
 #include "chunk_pool.h"
-#include "job_resources.h"
 #include "helpers.h"
 
 #include <ytlib/transaction_client/transaction.h>
@@ -107,11 +106,6 @@ bool TOperationControllerBase::TTask::HasInputLocality()
     return true;
 }
 
-int TOperationControllerBase::TTask::GetPriority() const
-{
-    return 0;
-}
-
 IChunkPoolInput::TCookie TOperationControllerBase::TTask::AddInput(TChunkStripePtr stripe)
 {
     auto cookie = GetChunkPoolInput()->Add(stripe);
@@ -151,6 +145,8 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
 {
     int chunkListCount = GetChunkListCountPerJob();
     if (!Controller->HasEnoughChunkLists(chunkListCount)) {
+        LOG_DEBUG("Job chunk list demand is not met (Task: %s)",
+            ~GetId());
         return nullptr;
     }
 
@@ -162,6 +158,8 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
     auto* chunkPoolOutput = GetChunkPoolOutput();
     joblet->OutputCookie = chunkPoolOutput->Extract(address);
     if (joblet->OutputCookie == IChunkPoolOutput::NullCookie) {
+        LOG_DEBUG("Job input is empty (Task: %s)",
+            ~GetId());
         return nullptr;
     }
 
@@ -178,6 +176,10 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
 
     // Check the usage against the limits. This is the last chance to give up.
     if (!Dominates(jobLimits, neededResources)) {
+        LOG_DEBUG("Job actual resource demand is not met (Task: %s, Limits: {%s}, Demand: {%s})",
+            ~GetId(),
+            ~FormatResources(jobLimits),
+            ~FormatResources(neededResources));
         CheckResourceDemandSanity(node, neededResources);
         chunkPoolOutput->Aborted(joblet->OutputCookie);
         return nullptr;
@@ -211,7 +213,9 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
         neededResources,
         jobSpecBuilder);
 
-    LOG_INFO("Job scheduled (JobId: %s, OperationId: %s, JobType: %s, Address: %s, Task: %s, JobIndex: %d, ChunkCount: %d (%d local), Approximate: %s, DataSize: %" PRId64 ", RowCount: %" PRId64 ", ResourceLimits: {%s})",
+    LOG_INFO(
+        "Job scheduled (JobId: %s, OperationId: %s, JobType: %s, Address: %s, Task: %s, JobIndex: %d, ChunkCount: %d (%d local), "
+        "Approximate: %s, DataSize: %" PRId64 ", RowCount: %" PRId64 ", ResourceLimits: {%s})",
         ~ToString(joblet->Job->GetId()),
         ~ToString(Controller->Operation->GetOperationId()),
         ~jobType.ToString(),
@@ -537,10 +541,9 @@ TOperationControllerBase::TOperationControllerBase(
     , TotalInputDataSize(0)
     , TotalInputRowCount(0)
     , TotalInputValueCount(0)
-    , PendingTaskInfos(MaxTaskPriority + 1)
+    , Spec(spec)
     , CachedPendingJobCount(0)
     , CachedNeededResources(ZeroNodeResources())
-    , Spec(spec)
 {
     Logger.AddTag(Sprintf("OperationId: %s", ~operation->GetOperationId().ToString()));
 }
@@ -841,6 +844,11 @@ void TOperationControllerBase::CustomizeJobSpec(TJobletPtr joblet, TJobSpec* job
     UNUSED(jobSpec);
 }
 
+void TOperationControllerBase::RegisterTaskGroup(TTaskGroup* group)
+{
+    TaskGroups.push_back(group);
+}
+
 void TOperationControllerBase::OnTaskUpdated(TTaskPtr task)
 {
     int oldJobCount = CachedPendingJobCount;
@@ -860,10 +868,10 @@ void TOperationControllerBase::OnTaskUpdated(TTaskPtr task)
 void TOperationControllerBase::AddTaskPendingHint(TTaskPtr task)
 {
     if (task->GetPendingJobCount() > 0) {
-        auto* info = GetPendingTaskInfo(task);
-        if (info->NonLocalTasks.insert(task).second) {
+        auto* group = task->GetGroup();
+        if (group->NonLocalTasks.insert(task).second) {
             i64 minMemory = task->GetMinNeededResources().memory();
-            info->CandidateTasks.insert(std::make_pair(minMemory, task));
+            group->CandidateTasks.insert(std::make_pair(minMemory, task));
             LOG_DEBUG("Task pending hint added (Task: %s, MinMemory: %" PRId64 ")",
                 ~task->GetId(),
                 minMemory);
@@ -874,19 +882,12 @@ void TOperationControllerBase::AddTaskPendingHint(TTaskPtr task)
 
 void TOperationControllerBase::DoAddTaskLocalityHint(TTaskPtr task, const Stroka& address)
 {
-    auto* info = GetPendingTaskInfo(task);
-    if (info->LocalTasks[address].insert(task).second) {
+    auto* group = task->GetGroup();
+    if (group->LocalTasks[address].insert(task).second) {
         LOG_TRACE("Task locality hint added (Task: %s, Address: %s)",
             ~task->GetId(),
             ~address);
     }
-}
-
-TOperationControllerBase::TPendingTaskInfo* TOperationControllerBase::GetPendingTaskInfo(TTaskPtr task)
-{
-    int priority = task->GetPriority();
-    YASSERT(priority >= 0 && priority <= MaxTaskPriority);
-    return &PendingTaskInfos[priority];
 }
 
 void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, const Stroka& address)
@@ -908,15 +909,15 @@ void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, TChunkStripePt
 void TOperationControllerBase::ResetTaskLocalityDelays()
 {
     LOG_DEBUG("Task locality delays are reset");
-    FOREACH (auto& info, PendingTaskInfos) {
-        FOREACH (const auto& pair, info.DelayedTasks) {
+    FOREACH (auto* group, TaskGroups) {
+        FOREACH (const auto& pair, group->DelayedTasks) {
             auto task = pair.second;
             if (task->GetPendingJobCount() > 0) {
                 i64 minMemory = task->GetMinNeededResources().memory();
-                info.CandidateTasks.insert(std::make_pair(minMemory, task));
+                group->CandidateTasks.insert(std::make_pair(minMemory, task));
             }
         }
-        info.DelayedTasks.clear();
+        group->DelayedTasks.clear();
     }
 }
 
@@ -954,10 +955,13 @@ TJobPtr TOperationControllerBase::DoScheduleLocalJob(
     auto node = context->GetNode();
     auto address = node->GetAddress();
 
-    for (int priority = static_cast<int>(PendingTaskInfos.size()) - 1; priority >= 0; --priority) {
-        auto& info = PendingTaskInfos[priority];
-        auto localTasksIt = info.LocalTasks.find(address);
-        if (localTasksIt == info.LocalTasks.end()) {
+    FOREACH (auto* group, TaskGroups) {
+        if (!Dominates(jobLimits, group->MinNeededResources)) {
+            continue;
+        }
+
+        auto localTasksIt = group->LocalTasks.find(address);
+        if (localTasksIt == group->LocalTasks.end()) {
             continue;
         }
 
@@ -998,13 +1002,16 @@ TJobPtr TOperationControllerBase::DoScheduleLocalJob(
             bestTask = task;
         }
 
-        if (Running && bestTask) {
+        if (!Running) {
+            return nullptr;
+        }
+
+        if (bestTask) {
             LOG_DEBUG(
-                "Attempting to schedule a local job (Task: %s, Address: %s, Priority: %d, Locality: %" PRId64 ", JobLimits: {%s}, "
+                "Attempting to schedule a local job (Task: %s, Address: %s, Locality: %" PRId64 ", JobLimits: {%s}, "
                 "PendingDataSize: %" PRId64 ", PendingJobCount: %d)",
                 ~bestTask->GetId(),
                 ~address,
-                priority,
                 bestLocality,
                 ~FormatResources(jobLimits),
                 bestTask->GetPendingDataSize(),
@@ -1025,14 +1032,17 @@ TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(
     const NProto::TNodeResources& jobLimits)
 {
     auto now = TInstant::Now();
-    auto node = context->GetNode();
-    auto address = node->GetAddress();
+    const auto& node = context->GetNode();
+    const auto& address = node->GetAddress();
 
-    for (int priority = static_cast<int>(PendingTaskInfos.size()) - 1; priority >= 0; --priority) {
-        auto& info = PendingTaskInfos[priority];
-        auto& nonLocalTasks = info.NonLocalTasks;
-        auto& candidateTasks = info.CandidateTasks;
-        auto& delayedTasks = info.DelayedTasks;
+    FOREACH (auto* group, TaskGroups) {
+        if (!Dominates(jobLimits, group->MinNeededResources)) {
+            continue;
+        }
+
+        auto& nonLocalTasks = group->NonLocalTasks;
+        auto& candidateTasks = group->CandidateTasks;
+        auto& delayedTasks = group->DelayedTasks;
 
         // Move tasks from delayed to candidates.
         while (!delayedTasks.empty()) {
@@ -1096,15 +1106,14 @@ TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(
                 }
 
                 if (!Running) {
-                    break;
+                    return nullptr;
                 }
 
                 LOG_DEBUG(
-                    "Attempting to schedule a non-local job (Task: %s, Address: %s, Priority: %d, JobLimits: {%s}, "
+                    "Attempting to schedule a non-local job (Task: %s, Address: %s, JobLimits: {%s}, "
                     "PendingDataSize: %" PRId64 ", PendingJobCount: %d)",
                     ~task->GetId(),
                     ~address,
-                    priority,
                     ~FormatResources(jobLimits),
                     task->GetPendingDataSize(),
                     task->GetPendingJobCount());
