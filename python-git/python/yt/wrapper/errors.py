@@ -24,9 +24,9 @@ class YtTokenError(YtError):
 def format_error(error, indent=0):
     if config.ERROR_FORMAT == "json":
         return json.dumps(error)
-    elif config.ERROR_FORMAT == "json_indent":
+    elif config.ERROR_FORMAT == "json_pretty":
         return json.dumps(error, indent=2)
-    elif config.ERROR_FORMAT == "pretty":
+    elif config.ERROR_FORMAT == "text":
         return pretty_format(error)
     else:
         raise YtError("Incorrect error format: " + config.ERROR_FORMAT)
