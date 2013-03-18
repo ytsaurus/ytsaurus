@@ -541,9 +541,9 @@ TOperationControllerBase::TOperationControllerBase(
     , TotalInputDataSize(0)
     , TotalInputRowCount(0)
     , TotalInputValueCount(0)
+    , Spec(spec)
     , CachedPendingJobCount(0)
     , CachedNeededResources(ZeroNodeResources())
-    , Spec(spec)
 {
     Logger.AddTag(Sprintf("OperationId: %s", ~operation->GetOperationId().ToString()));
 }
