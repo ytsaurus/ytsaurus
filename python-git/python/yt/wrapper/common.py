@@ -1,30 +1,10 @@
-from yt.common import require, flatten, update, which, YtError
+from yt.common import require, flatten, update, which
 import yt.yson as yson
 
 from functools import partial
 import simplejson as json
 
-from cStringIO import StringIO
-
-
 EMPTY_GENERATOR = (i for i in [])
-
-class YtOperationFailedError(YtError):
-    """
-    Represents error that occurs when we synchronously wait operation that fails.
-    """
-    pass
-
-class YtResponseError(YtError):
-    """
-    Represents error that occurs when we have error in http response.
-
-    You should never caught this error.
-    """
-    pass
-
-class YtTokenError(YtError):
-    pass
 
 def compose(*args):
     def compose_two(f, g):
@@ -108,40 +88,4 @@ def execute_handling_sigint(action, except_action):
         raise
     except:
         raise
-
-def format_error(error, indent=0):
-    def format_attribute(name, value):
-        return (" " * (indent + 4)) + "%-15s %s" % (name, value)
-
-    lines = []
-    if "message" in error:
-        lines.append(error["message"])
-
-    if "code" in error:
-        lines.append(format_attribute("code", error["code"]))
-
-    attributes = error["attributes"]
-
-    origin_keys = ["host", "datetime", "pid", "tid"]
-    if all(key in attributes for key in origin_keys):
-        lines.append(
-            format_attribute(
-                "origin",
-                "%s in %s (pid %d, tid %x)" % (
-                    attributes["host"],
-                    attributes["datetime"],
-                    attributes["pid"],
-                    attributes["tid"])))
-
-    location_keys = ["file", "line"]
-    if all(key in attributes for key in location_keys):
-        lines.append(format_attribute("location", "%s:%d" % (attributes["file"], attributes["line"])))
-
-    result = " " * indent + (" " * (indent + 4) + "\n").join(lines)
-    if "inner_errors" in error:
-        for inner_error in error["inner_errors"]:
-            result += "\n" + format_error(inner_error, indent + 2)
-
-    return result
-    
 
