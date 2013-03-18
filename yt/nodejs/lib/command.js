@@ -643,8 +643,6 @@ YtCommand.prototype._logRequest = function() {
     });
 };
 
-var RE_WRITABLE = /^\/\/home|^\/\/tmp|^\/\/crypta|^\/\/statbox/;
-
 YtCommand.prototype._checkPermissions = function() {
     "use strict";
     this.__DBG("_checkPermissions");
@@ -674,13 +672,6 @@ YtCommand.prototype._checkPermissions = function() {
         collectFrom("/spec/input_table_paths");
         collectFrom("/spec/output_table_path");
         collectFrom("/spec/output_table_paths");
-
-        paths.forEach(function(path) {
-            if (!RE_WRITABLE.test(path)) {
-                self.rsp.statusCode = 403;
-                throw new YtError("Any mutating command is allowed only on //home, //tmp, //statbox and //maps. Violating path was: " + JSON.stringify(path));
-            }
-        });
     }
 };
 
