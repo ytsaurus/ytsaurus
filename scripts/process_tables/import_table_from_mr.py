@@ -89,9 +89,7 @@ def main():
         if args.job_count is not None:
             spec["job_count"] = args.job_count
 
-        table_writer = None
-        if args.codec is not None:
-            table_writer = {"codec": args.codec}
+        yt.set_attribute(destination, "compression_codec", "gzip_best_compression")
 
         if has_proxy:
             command = 'curl "http://${{server}}/table/{}?subkey=1&lenval=1&startindex=${{start}}&endindex=${{end}}"'.format(quote_plus(source))
@@ -114,7 +112,6 @@ def main():
                 input_format=yt.YamrFormat(lenval=False, has_subkey=True),
                 output_format=yt.YamrFormat(lenval=True, has_subkey=True),
                 files=args.mapreduce_binary,
-                table_writer=table_writer,
                 spec=spec)
 
     def push_table(source, destination, count):
@@ -164,11 +161,11 @@ def main():
             shell=True)
         
         if args.codec is not None:
+            yt.set_attribute(destination, "compression_codec", args.codec)
             yt.run_merge(
                 destination,
                 destination,
                 "unordered",
-                table_writer={"codec": args.codec},
                 spec={"combine_chunks": "true"})
 
 

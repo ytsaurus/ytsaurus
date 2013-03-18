@@ -12,7 +12,6 @@ def merge(table):
         data_size_per_job = max(1, int(min(16 * 1024 ** 3, 512 * 1024 ** 2 / compression_ratio)))
         
         yt.run_merge(table, table, "unordered",
-                     table_writer={"codec":"gzip_best_compression"},
                      spec={"combine_chunks":"true",
                            "data_size_per_job": data_size_per_job,
                            "job_io": {"table_reader": {"prefetch_window": 100}}})
