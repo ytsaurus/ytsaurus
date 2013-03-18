@@ -63,6 +63,7 @@ TJob::TJob(
     , ChunkCache(bootstrap->GetChunkCache())
     , JobState(EJobState::Waiting)
     , JobPhase(EJobPhase::Created)
+    , FinalJobState(EJobState::Completed)
     , Progress(0.0)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -412,21 +413,10 @@ void TJob::OnJobExit(TError exitError)
 
     JobPhase = EJobPhase::Completed;
 
-    // Deserialize and inspect the error.
-    auto resultError = FromProto(JobResult->error());
-    if (resultError.IsOK()) {
-        JobState = EJobState::Completed;
-    } else if (IsFatalError(resultError)) {
-        resultError.Attributes().Set("fatal", true);
-        JobState = EJobState::Failed;
-    } else if (IsRetriableSystemError(resultError)) {
-        JobState = EJobState::Aborted;
-    } else {
-        JobState = EJobState::Failed;
+    {
+        TGuard<TSpinLock> guard(ResultLock);
+        JobState = FinalJobState;
     }
-
-    // Serialize the error back (makes sense if we changed it).
-    ToProto(JobResult->mutable_error(), resultError);
 
     FinalizeJob();
 }
@@ -442,7 +432,7 @@ bool TJob::IsFatalError(const TError& error)
 
 bool TJob::IsRetriableSystemError(const TError& error)
 {
-    return 
+    return
         error.FindMatching(NChunkClient::EErrorCode::AllTargetNodesFailed) ||
         error.FindMatching(NTableClient::EErrorCode::MasterCommunicationFailed);
 }
@@ -461,12 +451,34 @@ void TJob::SetResult(const TJobResult& jobResult)
 {
     TGuard<TSpinLock> guard(ResultLock);
 
-    if (!JobResult.HasValue() || JobResult->error().code() == TError::OK) {
-        JobResult.Assign(jobResult);
+    if (JobState == EJobState::Completed ||
+        JobState == EJobState::Aborted ||
+        JobState == EJobState::Failed)
+    {
+        return;
+    }
+
+    if (JobResult.HasValue() && JobResult->error().code() == TError::OK) {
+        return;
+    }
+
+    JobResult.Assign(jobResult);
+
+    auto resultError = FromProto(jobResult.error());
+    if (resultError.IsOK()) {
+        return;
+    } else if (IsFatalError(resultError)) {
+        resultError.Attributes().Set("fatal", true);
+        ToProto(JobResult->mutable_error(), resultError);
+        FinalJobState = EJobState::Failed;
+    } else if (IsRetriableSystemError(resultError)) {
+        FinalJobState = EJobState::Aborted;
+    } else {
+        FinalJobState = EJobState::Failed;
     }
 }
 
-const TJobResult& TJob::GetResult() const
+TJobResult TJob::GetResult() const
 {
     TGuard<TSpinLock> guard(ResultLock);
     YCHECK(JobResult.HasValue());
@@ -482,6 +494,7 @@ void TJob::SetResult(const TError& error)
 
 EJobState TJob::GetState() const
 {
+    TGuard<TSpinLock> guard(ResultLock);
     return JobState;
 }
 
