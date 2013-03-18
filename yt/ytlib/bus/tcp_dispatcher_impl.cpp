@@ -81,6 +81,25 @@ void TTcpDispatcher::TImpl::Shutdown()
 
     StopWatcher.send();
     Thread.Join();
+
+    {
+        TUnregisterEntry entry;
+        while (UnregisterQueue.Dequeue(&entry))
+        { }
+    }
+
+    {
+        TRegisterEntry entry;
+        while (RegisterQueue.Dequeue(&entry))
+        { }
+    }
+
+    {
+        TEventEntry entry;
+        while (EventQueue.Dequeue(&entry))
+        { }
+    }
+
     Stopped = true;
 }
 
