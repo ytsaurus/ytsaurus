@@ -1,5 +1,6 @@
 import config
-from common import require, YtError
+from common import require
+from errors import YtError
 from http import read_content, get_host_for_heavy_operation
 from tree_commands import remove, exists, set_attribute, mkdir, find_free_subpath
 from transaction_commands import _make_transactional_request
