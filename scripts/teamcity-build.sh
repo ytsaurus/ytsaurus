@@ -144,6 +144,11 @@ package_ticket=
 if [[ ( $WITH_PACKAGE = "YES" ) ]]; then
     tc "progressMessage 'Packing...'"
 
+    echo "DEBFULLNAME:", $DEBFULLNAME
+    export EMAIL=buildfarm@yandex-team.ru
+    export DEBEMAIL=buildfarm@yandex-team.ru
+    export DEBFULLNAME=buildfarm
+
     make package
     make version
 
