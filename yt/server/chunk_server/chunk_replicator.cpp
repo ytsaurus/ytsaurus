@@ -837,16 +837,19 @@ void TChunkReplicator::OnRFUpdate()
         }
     }
 
-    if (request.updates_size() > 0) {
-        LOG_DEBUG("Starting RF update for %d chunks", request.updates_size());
-
-        auto invoker = Bootstrap->GetMetaStateFacade()->GetEpochInvoker();
-        chunkManager
-            ->CreateUpdateChunkReplicationFactorMutation(request)
-            ->OnSuccess(BIND(&TChunkReplicator::OnRFUpdateCommitSucceeded, MakeWeak(this)).Via(invoker))
-            ->OnError(BIND(&TChunkReplicator::OnRFUpdateCommitFailed, MakeWeak(this)).Via(invoker))
-            ->PostCommit();
+    if (request.updates_size() == 0) {
+        RFUpdateInvoker->ScheduleNext();
+        return;
     }
+
+    LOG_DEBUG("Starting RF update for %d chunks", request.updates_size());
+
+    auto invoker = Bootstrap->GetMetaStateFacade()->GetEpochInvoker();
+    chunkManager
+        ->CreateUpdateChunkReplicationFactorMutation(request)
+        ->OnSuccess(BIND(&TChunkReplicator::OnRFUpdateCommitSucceeded, MakeWeak(this)).Via(invoker))
+        ->OnError(BIND(&TChunkReplicator::OnRFUpdateCommitFailed, MakeWeak(this)).Via(invoker))
+        ->PostCommit();
 }
 
 void TChunkReplicator::OnRFUpdateCommitSucceeded()
