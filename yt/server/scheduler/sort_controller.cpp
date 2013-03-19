@@ -299,6 +299,14 @@ protected:
             Controller->SortDataSizeCounter.Increment(newSortDataSize - oldSortDataSize);
 
             Controller->CheckSortStartThreshold();
+
+            if (ChunkPool->IsCompleted()) {
+                // NB: don't move it to OnTaskCompleted since jobs may run after the task has been completed.
+                // Kick-start sort and unordered merge tasks.
+                Controller->AddSortTasksPendingHints();
+                Controller->AddMergeTasksPendingHints();
+            }
+
         }
 
         virtual void OnJobLost(TCompleteJobPtr completedJob) override
@@ -350,10 +358,6 @@ protected:
 
             Controller->AssignPartitions();
             Controller->CheckMergeStartThreshold();
-
-            // Kick-start sort and unordered merge tasks.
-            Controller->AddSortTasksPendingHints();
-            Controller->AddMergeTasksPendingHints();
         }
     };
 
@@ -505,6 +509,12 @@ protected:
             }
 
             Controller->CheckMergeStartThreshold();
+
+            if (GetChunkPoolOutput()->IsCompleted() &&
+                Controller->IsSortedMergeNeeded(Partition))
+            {
+                AddTaskPendingHint(partition->SortedMergeTask);
+            }
         }
 
         virtual void OnJobFailed(TJobletPtr joblet) override
@@ -916,7 +926,7 @@ protected:
 
 
     // Custom bits of preparation pipeline.
-    
+
     virtual void DoInitialize() override
     {
         TOperationControllerBase::DoInitialize();
@@ -1034,7 +1044,7 @@ protected:
 
     void InitSimpleSortPool(int sortJobCount)
     {
-        SimpleSortPool = CreateUnorderedChunkPool(sortJobCount);
+        SimpleSortPool = CreateUnorderedChunkPool(sortJobConut);
     }
 
     virtual void DoOperationCompleted() override
@@ -1111,7 +1121,7 @@ protected:
 
     void CheckMergeStartThreshold()
     {
-       if (MergeStartThresholdReached)
+        if (MergeStartThresholdReached)
             return;
 
         if (!SimpleSort) {
