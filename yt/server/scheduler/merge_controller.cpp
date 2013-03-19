@@ -192,14 +192,12 @@ protected:
         std::vector<TChunkStripeStatistics> UpdateChunkStripeStatistics(
             const std::vector<TChunkStripeStatistics>& statistics) const
         {
-            if (Controller->JobSpecTemplate.type() == EJobType::SortedMerge) {
+            if (Controller->JobSpecTemplate.type() == EJobType::SortedMerge ||
+                Controller->JobSpecTemplate.type() == EJobType::SortedReduce)
+            {
                 return statistics;
             } else {
-                std::vector<TChunkStripeStatistics> result(1);
-                FOREACH(const auto& stat, statistics) {
-                    result.back() += stat;
-                }
-                return result;
+                return AggregateStatistics(statistics);
             }
         }
 

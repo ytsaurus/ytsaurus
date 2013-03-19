@@ -274,6 +274,9 @@ protected:
         if (!reader)
             return;
 
+        PeerIndex = 0;
+        PeerAddressList.clear();
+
         LOG_INFO("Pass started: %d of %d",
             PassIndex + 1,
             reader->Config->PassCount);
@@ -438,9 +441,7 @@ private:
     {
         TSessionBase::NextPass();
 
-        PeerAddressList.clear();
         PeerBlocksMap.clear();
-        PeerIndex = 0;
 
         // Mark the seeds as having all blocks.
         FOREACH (const auto& address, SeedAddresses) {
@@ -746,9 +747,6 @@ private:
     //! Promise representing the session.
     IAsyncReader::TAsyncGetMetaPromise Promise;
 
-    //! Current index in #SeedAddresses.
-    int SeedIndex;
-
     std::vector<int> ExtensionTags;
     TNullable<int> PartitionTag;
     bool AllExtensionTags;
@@ -757,7 +755,6 @@ private:
     virtual void NextPass()
     {
         TSessionBase::NextPass();
-        PeerIndex = 0;
 
         FOREACH (const auto& address, SeedAddresses) {
             if (!IsPeerBanned(address)) {

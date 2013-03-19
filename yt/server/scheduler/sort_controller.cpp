@@ -299,6 +299,12 @@ protected:
             Controller->SortDataSizeCounter.Increment(newSortDataSize - oldSortDataSize);
 
             Controller->CheckSortStartThreshold();
+
+            // NB: don't move it to OnTaskCompleted since jobs may run after the task has been completed.
+            // Kick-start sort and unordered merge tasks.
+            Controller->AddSortTasksPendingHints();
+            Controller->AddMergeTasksPendingHints();
+
         }
 
         virtual void OnJobLost(TCompleteJobPtr completedJob) override
@@ -350,10 +356,6 @@ protected:
 
             Controller->AssignPartitions();
             Controller->CheckMergeStartThreshold();
-
-            // Kick-start sort and unordered merge tasks.
-            Controller->AddSortTasksPendingHints();
-            Controller->AddMergeTasksPendingHints();
         }
     };
 
@@ -505,6 +507,10 @@ protected:
             }
 
             Controller->CheckMergeStartThreshold();
+
+            if (Controller->IsSortedMergeNeeded(Partition)) {
+                Controller->AddTaskPendingHint(Partition->SortedMergeTask);
+            }
         }
 
         virtual void OnJobFailed(TJobletPtr joblet) override
@@ -916,7 +922,7 @@ protected:
 
 
     // Custom bits of preparation pipeline.
-    
+
     virtual void DoInitialize() override
     {
         TOperationControllerBase::DoInitialize();
@@ -1111,7 +1117,7 @@ protected:
 
     void CheckMergeStartThreshold()
     {
-       if (MergeStartThresholdReached)
+        if (MergeStartThresholdReached)
             return;
 
         if (!SimpleSort) {
