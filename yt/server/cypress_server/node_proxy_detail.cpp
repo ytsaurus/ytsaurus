@@ -483,12 +483,13 @@ void TNontemplateCypressNodeProxyBase::AttachChild(TCypressNodeBase* child)
     // Set parent for the trunk version of the parent.
     // This helps ensure that when a new node is created within a transaction
     // and then attached somewhere, its trunk copy gets a valid parent reference set.
-    if (!child->IsTrunk()) {
-        child->GetTrunkNode()->SetParent(TrunkNode);
+    auto* trunkChild = child->GetTrunkNode();
+    if (trunkChild != child) {
+        trunkChild->SetParent(TrunkNode);
     }
 
     auto objectManager = Bootstrap->GetObjectManager();
-    objectManager->RefObject(child->GetTrunkNode());
+    objectManager->RefObject(trunkChild);
 }
 
 void TNontemplateCypressNodeProxyBase::DetachChild(TCypressNodeBase* child, bool unref)
