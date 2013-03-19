@@ -71,11 +71,10 @@ def list(path, max_size=1000, format=None, absolute=False):
     Lists all items in the path. Paht should be map_node or list_node.
     In case of map_node it returns keys of the node.
     """
-    path = prepare_path(path)
     res = _make_transactional_request(
         "list",
         {
-            "path": path,
+            "path": prepare_path(path),
             "max_size": max_size
         },
         format=get_value(format, YsonFormat()))
