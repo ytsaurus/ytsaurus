@@ -100,8 +100,10 @@ void TNontemplateCypressNodeTypeHandlerBase::MergeCore(
     // Merge user attributes.
     objectManager->MergeAttributes(originatingId, branchedId);
 
-    // Merge parent.
-    originatingNode->SetParent(branchedNode->GetParent());
+    // Branched and originating nodes always have the same parent link.
+    // (See TNontemplateCypressNodeProxyBase::AttachChild.)
+    // Perform cleanup by resetting the parent link of the branched node.
+    YCHECK(originatingNode->GetParent() == branchedNode->GetParent());
     branchedNode->SetParent(nullptr);
 
     // Merge modification time.
@@ -331,6 +333,8 @@ void TMapNodeTypeHandler::DoClone(
     auto objectManager = Bootstrap->GetObjectManager();
     auto cypressManager = Bootstrap->GetCypressManager();
 
+    auto* clonedTrunkNode = clonedNode->GetTrunkNode();
+
     FOREACH (const auto& pair, keyToChildList) {
         const auto& key = pair.first;
         auto* childTrunkNode = pair.second;
@@ -343,8 +347,12 @@ void TMapNodeTypeHandler::DoClone(
         YCHECK(clonedNode->KeyToChild().insert(std::make_pair(key, clonedTrunkChildNode)).second);
         YCHECK(clonedNode->ChildToKey().insert(std::make_pair(clonedTrunkChildNode, key)).second);
 
-        clonedChildNode->SetParent(clonedNode->GetTrunkNode());
+        // Simulate TNontemplateCypressNodeProxyBase::AttachChild.
+		clonedTrunkChildNode->SetParent(clonedTrunkNode);
+        clonedChildNode->SetParent(clonedTrunkNode);
+
         objectManager->RefObject(clonedTrunkChildNode);
+        
         ++clonedNode->ChildCountDelta();
     }
 }
@@ -465,6 +473,8 @@ void TListNodeTypeHandler::DoClone(
     auto objectManager = Bootstrap->GetObjectManager();
     auto cypressManager = Bootstrap->GetCypressManager();
 
+    auto* clonedTrunkNode = clonedNode->GetTrunkNode();
+
     const auto& indexToChild = sourceNode->IndexToChild();
     for (int index = 0; index < indexToChild.size(); ++index) {
         auto* childNode = indexToChild[index];
@@ -474,7 +484,10 @@ void TListNodeTypeHandler::DoClone(
         clonedNode->IndexToChild().push_back(clonedChildTrunkNode);
         YCHECK(clonedNode->ChildToIndex().insert(std::make_pair(clonedChildTrunkNode, index)).second);
 
-        clonedChildNode->SetParent(clonedNode->GetTrunkNode());
+        // Simulate TNontemplateCypressNodeProxyBase::AttachChild.
+        clonedChildTrunkNode->SetParent(clonedTrunkNode);
+        clonedChildNode->SetParent(clonedTrunkNode);
+
         objectManager->RefObject(clonedChildTrunkNode);
     }
 }

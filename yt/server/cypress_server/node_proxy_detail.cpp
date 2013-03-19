@@ -480,6 +480,13 @@ void TNontemplateCypressNodeProxyBase::AttachChild(TCypressNodeBase* child)
 {
     child->SetParent(TrunkNode);
 
+    // Set parent for the trunk version of the parent.
+    // This helps ensure that when a new node is created within a transaction
+    // and then attached somewhere, its trunk copy gets a valid parent reference set.
+    if (!child->IsTrunk()) {
+        child->GetTrunkNode()->SetParent(TrunkNode);
+    }
+
     auto objectManager = Bootstrap->GetObjectManager();
     objectManager->RefObject(child->GetTrunkNode());
 }
@@ -653,6 +660,10 @@ DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
     auto sourceProxy = ResolveSourcePath(sourcePath);
     if (sourceProxy->GetId() == GetId()) {
         THROW_ERROR_EXCEPTION("Cannot copy a node to its child");
+    }
+
+    if (targetPath.Empty()) {
+        ThrowAlreadyExists(this);
     }
 
     if (!CanHaveChildren()) {
