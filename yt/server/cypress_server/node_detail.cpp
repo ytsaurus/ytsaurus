@@ -100,10 +100,7 @@ void TNontemplateCypressNodeTypeHandlerBase::MergeCore(
     // Merge user attributes.
     objectManager->MergeAttributes(originatingId, branchedId);
 
-    // Branched and originating nodes always have the same parent link.
-    // (See TNontemplateCypressNodeProxyBase::AttachChild.)
     // Perform cleanup by resetting the parent link of the branched node.
-    YCHECK(originatingNode->GetParent() == branchedNode->GetParent());
     branchedNode->SetParent(nullptr);
 
     // Merge modification time.
