@@ -136,6 +136,10 @@ public:
             return response;
         }
 
+        LOG_INFO("Command started (Command: %s, User: %s)",
+            ~request.CommandName,
+            ~ToString(request.AuthenticatedUser));
+
         const auto& entry = it->second;
 
         try {
@@ -169,10 +173,20 @@ public:
                 schedulerChannel,
                 transactionManager);
 
-            entry.Factory.Run(&context)->Execute();
+            auto command = entry.Factory.Run(&context);
+            command->Execute();
+            
             response = *context.GetResponse();
         } catch (const std::exception& ex) {
             response.Error = TError("Uncaught exception") << ex;
+        }
+
+        if (response.Error.IsOK()) {
+            LOG_INFO("Command completed (Command: %s)",
+                ~request.CommandName);
+        } else {
+            LOG_INFO(response.Error, "Command failed (Command: %s)",
+                ~request.CommandName);
         }
 
         return response;
