@@ -300,12 +300,10 @@ protected:
 
             Controller->CheckSortStartThreshold();
 
-            if (ChunkPool->IsCompleted()) {
-                // NB: don't move it to OnTaskCompleted since jobs may run after the task has been completed.
-                // Kick-start sort and unordered merge tasks.
-                Controller->AddSortTasksPendingHints();
-                Controller->AddMergeTasksPendingHints();
-            }
+            // NB: don't move it to OnTaskCompleted since jobs may run after the task has been completed.
+            // Kick-start sort and unordered merge tasks.
+            Controller->AddSortTasksPendingHints();
+            Controller->AddMergeTasksPendingHints();
 
         }
 
@@ -510,10 +508,8 @@ protected:
 
             Controller->CheckMergeStartThreshold();
 
-            if (GetChunkPoolOutput()->IsCompleted() &&
-                Controller->IsSortedMergeNeeded(Partition))
-            {
-                AddTaskPendingHint(partition->SortedMergeTask);
+            if (Controller->IsSortedMergeNeeded(Partition)) {
+                Controller->AddTaskPendingHint(Partition->SortedMergeTask);
             }
         }
 
@@ -1044,7 +1040,7 @@ protected:
 
     void InitSimpleSortPool(int sortJobCount)
     {
-        SimpleSortPool = CreateUnorderedChunkPool(sortJobConut);
+        SimpleSortPool = CreateUnorderedChunkPool(sortJobCount);
     }
 
     virtual void DoOperationCompleted() override
