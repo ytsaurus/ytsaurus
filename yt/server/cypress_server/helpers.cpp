@@ -124,7 +124,7 @@ void AttachChild(
         while (true) {
             TVersionedNodeId versionedId(child->GetId(), GetObjectId(transaction));
             auto* childOriginator = cypressManager->GetNode(versionedId);
-            if (!childOriginator->GetParent()) {
+            if (childOriginator->GetParent()) {
                 break;
             }
             childOriginator->SetParent(trunkParent);
