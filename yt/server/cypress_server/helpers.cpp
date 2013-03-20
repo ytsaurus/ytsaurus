@@ -120,17 +120,18 @@ void AttachChild(
     auto* trunkChild = child->GetTrunkNode();
     if (trunkChild != child) {
         auto cypressManager = bootstrap->GetCypressManager();
-        auto* transaction = child->GetTransaction();
+        auto* transaction = child->GetTransaction()->GetParent();
         while (true) {
-            transaction = transaction->GetParent();
-            if (!transaction)
-                break;
-            TVersionedNodeId versionedId(child->GetId(), transaction->GetId());
+            TVersionedNodeId versionedId(child->GetId(), GetObjectId(transaction));
             auto* childOriginator = cypressManager->GetNode(versionedId);
-            if (childOriginator->GetParent()) {
+            if (!childOriginator->GetParent()) {
                 break;
             }
             childOriginator->SetParent(trunkParent);
+            if (!transaction) {
+                break;
+            }
+            transaction = transaction->GetParent();
         }
     }
 
