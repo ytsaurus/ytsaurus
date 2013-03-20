@@ -80,23 +80,24 @@ public:
         TOutputStream* output,
         int jobDescriptor);
 
-    void PrepareJobDescriptors() override;
-    void PrepareProxyDescriptors() override;
+    virtual void PrepareJobDescriptors() override;
+    virtual void PrepareProxyDescriptors() override;
 
-    int GetEpollDescriptor() const override;
-    int GetEpollFlags() const override;
+    virtual int GetEpollDescriptor() const override;
+    virtual int GetEpollFlags() const override;
 
-    bool ProcessData(ui32 epollEvent) override;
-    void CloseHandles() override;
-    void Finish() override;
+    virtual bool ProcessData(ui32 epollEvent) override;
+    virtual void CloseHandles() override;
+    virtual void Finish() override;
 
 private:
     TOutputStream* OutputStream;
-
     int JobDescriptor;
     TPipe Pipe;
+
     bool IsFinished;
     bool IsClosed;
+    TBlob Buffer;
 
 };
 

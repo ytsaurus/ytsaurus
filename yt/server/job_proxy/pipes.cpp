@@ -3,6 +3,7 @@
 
 #include <ytlib/yson/yson_parser.h>
 #include <ytlib/yson/yson_consumer.h>
+
 #include <ytlib/table_client/table_producer.h>
 #include <ytlib/table_client/sync_reader.h>
 
@@ -15,6 +16,7 @@
     #include <fcntl.h>
     #include <sys/stat.h>
 #endif
+
 #if defined(_linux_)
     #include <sys/epoll.h>
 #endif
@@ -31,7 +33,9 @@ using namespace NTableClient;
 ////////////////////////////////////////////////////////////////////
 
 static auto& Logger = JobProxyLogger;
-static const int PipeBufferSize = 1 << 16;
+
+static const int InputBufferSize  = 64 * 1024 * 1024;
+static const int OutputBufferSize = 64 * 1024 * 1024;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -156,7 +160,7 @@ void ChmodJobDescriptor(int fd)
 }
 
 
-#elif defined _win_
+#else
 
 // Streaming jobs are not supposed to work on windows for now.
 
@@ -208,7 +212,10 @@ TOutputPipe::TOutputPipe(
     , Pipe(fd)
     , IsFinished(false)
     , IsClosed(false)
-{ }
+    , Buffer(OutputBufferSize)
+{
+    YCHECK(JobDescriptor);
+}
 
 void TOutputPipe::PrepareJobDescriptors()
 {
@@ -257,24 +264,21 @@ bool TOutputPipe::ProcessData(ui32 epollEvent)
 {
     YASSERT(!IsFinished);
 
-    const int bufferSize = 4096;
-    char buffer[bufferSize];
-    int size;
+    while (true) {
+        int bytesRead = ::read(Pipe.ReadFd, Buffer.data(), Buffer.size());
 
-    for ( ; ; ) {
-        size = ::read(Pipe.ReadFd, buffer, bufferSize);
+        LOG_TRACE("Read %d bytes from output pipe (JobDescriptor: %d)",
+            bytesRead,
+            JobDescriptor);
 
-        LOG_TRACE("Read %d bytes from output pipe (JobDescriptor: %d)", size, JobDescriptor);
-
-        if (size > 0) {
+        if (bytesRead > 0) {
             try {
-                OutputStream->Write(buffer, static_cast<size_t>(size));
+                OutputStream->Write(Buffer.data(), static_cast<size_t>(bytesRead));
             } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Failed to write into output (fd: %d)", JobDescriptor) << ex;
+                THROW_ERROR_EXCEPTION("Failed to write into output (fd: %d)",
+                    JobDescriptor) << ex;
             }
-
-            continue;
-        } else if (size == 0) {
+        } else if (bytesRead == 0) {
             return false;
         } else { // size < 0
             switch (errno) {
@@ -296,7 +300,8 @@ bool TOutputPipe::ProcessData(ui32 epollEvent)
 void TOutputPipe::CloseHandles()
 {
     SafeClose(Pipe.ReadFd);
-    LOG_DEBUG("Output pipe closed (JobDescriptor: %d)", JobDescriptor);
+    LOG_DEBUG("Output pipe closed (JobDescriptor: %d)",
+        JobDescriptor);
 }
 
 void TOutputPipe::Finish()
@@ -370,28 +375,32 @@ int TInputPipe::GetEpollFlags() const
 
 bool TInputPipe::ProcessData(ui32 epollEvents)
 {
-    if (IsFinished)
+    if (IsFinished) {
         return false;
+    }
 
     while (true) {
         if (Position == Buffer->GetSize()) {
             Position = 0;
             Buffer->Clear();
-            while (HasData && Buffer->GetSize() < PipeBufferSize) {
+            while (HasData && Buffer->GetSize() < InputBufferSize) {
                 HasData = TableProducer->ProduceRow();
             }
         }
 
         if (Position == Buffer->GetSize()) {
             YCHECK(!HasData);
-            LOG_TRACE("Input pipe finished writing (JobDescriptor: %d)", JobDescriptor);
+            LOG_TRACE("Input pipe finished writing (JobDescriptor: %d)",
+                JobDescriptor);
             return false;
         }
 
         YASSERT(Position < Buffer->GetSize());
 
-        auto res = ::write(Pipe.WriteFd, Buffer->Begin() + Position, Buffer->GetSize() - Position);
-        LOG_TRACE("Written %" PRIPDT " bytes to input pipe (JobDescriptor: %d)", res, JobDescriptor);
+        int res = ::write(Pipe.WriteFd, Buffer->Begin() + Position, Buffer->GetSize() - Position);
+        LOG_TRACE("Written %" PRIPDT " bytes to input pipe (JobDescriptor: %d)",
+            res,
+            JobDescriptor);
 
         if (res < 0)  {
             if (errno == EAGAIN) {
@@ -399,7 +408,7 @@ bool TInputPipe::ProcessData(ui32 epollEvents)
                 return true;
             } else {
                 // Error with pipe.
-                THROW_ERROR_EXCEPTION("Writing to pipe failed (fd: %d, job fd: %d)",
+                THROW_ERROR_EXCEPTION("Writing to pipe failed (fd: %d, JobDescriptor: %d)",
                     Pipe.WriteFd,
                     JobDescriptor)
                     << TError::FromSystem();
@@ -414,7 +423,8 @@ bool TInputPipe::ProcessData(ui32 epollEvents)
 
 void TInputPipe::CloseHandles()
 {
-    LOG_DEBUG("Input pipe closed (JobDescriptor: %d)", JobDescriptor);
+    LOG_DEBUG("Input pipe closed (JobDescriptor: %d)",
+        JobDescriptor);
     SafeClose(Pipe.WriteFd);
 }
 
