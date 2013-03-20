@@ -105,6 +105,56 @@ yhash_map<Stroka, NYTree::TYsonString> GetNodeAttributes(
     return result;
 }
 
+void AttachChild(
+    NCellMaster::TBootstrap* bootstrap,
+    TCypressNodeBase* trunkParent,
+    TCypressNodeBase* child)
+{
+    YCHECK(trunkParent->IsTrunk());
+
+    child->SetParent(trunkParent);
+
+    // Walk upwards along the transaction path and set missing parents
+    // This helps ensure that when a new node is created within a transaction
+    // and then attached somewhere, its originators have valid parent links.
+    auto* trunkChild = child->GetTrunkNode();
+    if (trunkChild != child) {
+        auto cypressManager = bootstrap->GetCypressManager();
+        auto* transaction = child->GetTransaction();
+        while (true) {
+            transaction = transaction->GetParent();
+            if (!transaction)
+                break;
+            TVersionedNodeId versionedId(child->GetId(), transaction->GetId());
+            auto* childOriginator = cypressManager->GetNode(versionedId);
+            if (childOriginator->GetParent()) {
+                break;
+            }
+            childOriginator->SetParent(trunkParent);
+        }
+    }
+
+    auto objectManager = bootstrap->GetObjectManager();
+    objectManager->RefObject(trunkChild);
+}
+
+void DetachChild(
+    NCellMaster::TBootstrap* bootstrap,
+    TCypressNodeBase* trunkParent,
+    TCypressNodeBase* child,
+    bool unref)
+{
+    UNUSED(trunkParent);
+
+    child->SetParent(nullptr);
+
+    if (unref) {
+        auto objectManager = bootstrap->GetObjectManager();
+        objectManager->UnrefObject(child->GetTrunkNode());
+    }
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NCypressServer

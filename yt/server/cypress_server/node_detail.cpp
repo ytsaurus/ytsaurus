@@ -344,12 +344,8 @@ void TMapNodeTypeHandler::DoClone(
         YCHECK(clonedNode->KeyToChild().insert(std::make_pair(key, clonedTrunkChildNode)).second);
         YCHECK(clonedNode->ChildToKey().insert(std::make_pair(clonedTrunkChildNode, key)).second);
 
-        // Simulate TNontemplateCypressNodeProxyBase::AttachChild.
-		clonedTrunkChildNode->SetParent(clonedTrunkNode);
-        clonedChildNode->SetParent(clonedTrunkNode);
-
-        objectManager->RefObject(clonedTrunkChildNode);
-        
+        AttachChild(Bootstrap, clonedTrunkNode, clonedChildNode);
+       
         ++clonedNode->ChildCountDelta();
     }
 }
@@ -481,11 +477,7 @@ void TListNodeTypeHandler::DoClone(
         clonedNode->IndexToChild().push_back(clonedChildTrunkNode);
         YCHECK(clonedNode->ChildToIndex().insert(std::make_pair(clonedChildTrunkNode, index)).second);
 
-        // Simulate TNontemplateCypressNodeProxyBase::AttachChild.
-        clonedChildTrunkNode->SetParent(clonedTrunkNode);
-        clonedChildNode->SetParent(clonedTrunkNode);
-
-        objectManager->RefObject(clonedChildTrunkNode);
+        AttachChild(Bootstrap, clonedTrunkNode, clonedChildNode);
     }
 }
 

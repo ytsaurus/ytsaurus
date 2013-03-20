@@ -476,44 +476,6 @@ const ICypressNodeProxy* TNontemplateCypressNodeProxyBase::ToProxy(IConstNodePtr
     return dynamic_cast<const ICypressNodeProxy*>(~node);
 }
 
-void TNontemplateCypressNodeProxyBase::AttachChild(TCypressNodeBase* child)
-{
-    child->SetParent(TrunkNode);
-
-    // Walk upwards along the transaction path and set missing parents
-    // This helps ensure that when a new node is created within a transaction
-    // and then attached somewhere, its trunk copy gets a valid parent reference set.
-    auto* trunkChild = child->GetTrunkNode();
-    if (trunkChild != child) {
-        auto cypressManager = Bootstrap->GetCypressManager();
-        auto* transaction = child->GetTransaction();
-        while (true) {
-            transaction = transaction->GetParent();
-            if (!transaction)
-                break;
-            TVersionedNodeId versionedId(child->GetId(), transaction->GetId());
-            auto* childOriginator = cypressManager->GetNode(versionedId);
-            if (childOriginator->GetParent()) {
-                break;
-            }
-            childOriginator->SetParent(TrunkNode);
-        }
-    }
-
-    auto objectManager = Bootstrap->GetObjectManager();
-    objectManager->RefObject(trunkChild);
-}
-
-void TNontemplateCypressNodeProxyBase::DetachChild(TCypressNodeBase* child, bool unref)
-{
-    child->SetParent(nullptr);
-
-    if (unref) {
-        auto objectManager = Bootstrap->GetObjectManager();
-        objectManager->UnrefObject(child->GetTrunkNode());
-    }
-}
-
 TAutoPtr<IAttributeDictionary> TNontemplateCypressNodeProxyBase::DoCreateUserAttributes()
 {
     return new TVersionedUserAttributeDictionary(
@@ -953,7 +915,7 @@ bool TMapNodeProxy::AddChild(INodePtr child, const Stroka& key)
     YCHECK(impl->ChildToKey().insert(std::make_pair(trunkChildImpl, key)).second);
     ++impl->ChildCountDelta();
 
-    AttachChild(childImpl);
+    AttachChild(Bootstrap, TrunkNode, childImpl);
 
     SetModified();
 
@@ -1007,11 +969,11 @@ void TMapNodeProxy::ReplaceChild(INodePtr oldChild, INodePtr newChild)
     auto& childToKey = impl->ChildToKey();
 
     bool ownsOldChild = keyToChild.find(key) != keyToChild.end();
-    DetachChild(oldChildImpl, ownsOldChild);
+    DetachChild(Bootstrap, TrunkNode, oldChildImpl, ownsOldChild);
 
     keyToChild[key] = newTrunkChildImpl;
     YCHECK(childToKey.insert(std::make_pair(newTrunkChildImpl, key)).second);
-    AttachChild(newChildImpl);
+    AttachChild(Bootstrap, TrunkNode, newChildImpl);
 
     SetModified();
 }
@@ -1072,16 +1034,16 @@ void TMapNodeProxy::DoRemoveChild(
         if (it == keyToChild.end()) {
             // TODO(babenko): remove cast when GCC supports native nullptr
             YCHECK(keyToChild.insert(std::make_pair(key, (TCypressNodeBase*) nullptr)).second);
-            DetachChild(childImpl, false);
+            DetachChild(Bootstrap, TrunkNode, childImpl, false);
         } else {
             it->second = nullptr;
             YCHECK(childToKey.erase(trunkChildImpl) == 1);
-            DetachChild(childImpl, true);
+            DetachChild(Bootstrap, TrunkNode, childImpl, true);
         }
     } else {
         YCHECK(keyToChild.erase(key) == 1);
         YCHECK(childToKey.erase(trunkChildImpl) == 1);
-        DetachChild(childImpl, true);
+        DetachChild(Bootstrap, TrunkNode, childImpl, true);
     }
     --impl->ChildCountDelta();
 }
@@ -1106,13 +1068,13 @@ void TListNodeProxy::Clear()
 
     // Lock children and collect impls.
     std::vector<TCypressNodeBase*> children;
-    FOREACH (auto* child, impl->IndexToChild()) {
-        children.push_back(LockImpl(child));
+    FOREACH (auto* trunkChild, impl->IndexToChild()) {
+        children.push_back(LockImpl(trunkChild));
     }
 
     // Detach children.
     FOREACH (auto* child, children) {
-        DetachChild(child, true);
+        DetachChild(Bootstrap, TrunkNode, child, true);
     }
 
     impl->IndexToChild().clear();
@@ -1168,7 +1130,7 @@ void TListNodeProxy::AddChild(INodePtr child, int beforeIndex /*= -1*/)
         list.insert(list.begin() + beforeIndex, trunkChildImpl);
     }
 
-    AttachChild(childImpl);
+    AttachChild(Bootstrap, TrunkNode, childImpl);
 
     SetModified();
 }
@@ -1193,7 +1155,7 @@ bool TListNodeProxy::RemoveChild(int index)
     // Remove the child.
     list.erase(list.begin() + index);
     YCHECK(impl->ChildToIndex().erase(trunkChildImpl));
-    DetachChild(childImpl, true);
+    DetachChild(Bootstrap, TrunkNode, childImpl, true);
 
     SetModified();
     return true;
@@ -1223,12 +1185,12 @@ void TListNodeProxy::ReplaceChild(INodePtr oldChild, INodePtr newChild)
 
     int index = it->second;
 
-    DetachChild(oldChildImpl, true);
+    DetachChild(Bootstrap, TrunkNode, oldChildImpl, true);
 
     impl->IndexToChild()[index] = newTrunkChildImpl;
     impl->ChildToIndex().erase(it);
     YCHECK(impl->ChildToIndex().insert(std::make_pair(newTrunkChildImpl, index)).second);
-    AttachChild(newChildImpl);
+    AttachChild(Bootstrap, TrunkNode, newChildImpl);
 
     SetModified();
 }

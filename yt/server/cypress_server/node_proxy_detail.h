@@ -105,9 +105,6 @@ public:
 
     virtual NSecurityServer::TClusterResources GetResourceUsage() const override;
 
-    void AttachChild(TCypressNodeBase* child);
-    void DetachChild(TCypressNodeBase* child, bool unref);
-
 protected:
     INodeTypeHandlerPtr TypeHandler;
     NCellMaster::TBootstrap* Bootstrap;
