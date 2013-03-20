@@ -115,7 +115,7 @@ void AttachChild(
     child->SetParent(trunkParent);
 
     // Walk upwards along the transaction path and set missing parents
-    // This helps ensure that when a new node is created within a transaction
+    // This ensures that when a new node is created within a transaction
     // and then attached somewhere, its originators have valid parent links.
     auto* trunkChild = child->GetTrunkNode();
     if (trunkChild != child) {
