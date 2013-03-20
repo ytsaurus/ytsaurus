@@ -56,7 +56,7 @@ public:
 
     //! Returns the list of all transaction ids on the path up to the root.
     //! This list includes #transaction itself and |nullptr|.
-    std::vector<TTransaction*> GetTransactionPath(TTransaction* transaction) const;
+    TTransactionPath GetTransactionPath(TTransaction* transaction) const;
 
 private:
     typedef TTransactionManager TThis;
