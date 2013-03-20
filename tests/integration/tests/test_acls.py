@@ -300,7 +300,7 @@ class TestAcls(YTEnvSetup):
     def test_create_in_tx2(self):
         create_user('u')
         tx = start_transaction()
-        create('table', '//tmp/a/b/c', tx=tx, user='u', recursive=true)
+        create('table', '//tmp/a/b/c', tx=tx, user='u', recursive='true')
         assert read('//tmp/a/b/c', tx=tx, user='u') == []
 
     @pytest.mark.xfail(run = False, reason = 'In progress')
