@@ -105,6 +105,9 @@ public:
 
     virtual NSecurityServer::TClusterResources GetResourceUsage() const override;
 
+    void AttachChild(TCypressNodeBase* child);
+    void DetachChild(TCypressNodeBase* child, bool unref);
+
 protected:
     INodeTypeHandlerPtr TypeHandler;
     NCellMaster::TBootstrap* Bootstrap;
@@ -141,9 +144,6 @@ protected:
     ICypressNodeProxyPtr GetProxy(TCypressNodeBase* trunkNode) const;
     static ICypressNodeProxy* ToProxy(NYTree::INodePtr node);
     static const ICypressNodeProxy* ToProxy(NYTree::IConstNodePtr node);
-
-    void AttachChild(TCypressNodeBase* child);
-    void DetachChild(TCypressNodeBase* child, bool unref);
 
     virtual TAutoPtr<NYTree::IAttributeDictionary> DoCreateUserAttributes() override;
     
