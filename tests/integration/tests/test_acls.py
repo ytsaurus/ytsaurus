@@ -291,6 +291,18 @@ class TestAcls(YTEnvSetup):
         self.assertItemsEqual(ls('//tmp/p', user='u'), ['a'])
         assert get('//tmp/p/a', user='u') == 'b'
 
+    def test_create_in_tx1(self):
+        create_user('u')
+        tx = start_transaction()
+        create('table', '//tmp/a', tx=tx, user='u')
+        assert read('//tmp/a', tx=tx, user='u') == []
+
+    def test_create_in_tx2(self):
+        create_user('u')
+        tx = start_transaction()
+        create('table', '//tmp/a/b/c', tx=tx, user='u', recursive='true')
+        assert read('//tmp/a/b/c', tx=tx, user='u') == []
+
     @pytest.mark.xfail(run = False, reason = 'In progress')
     def test_snapshot_remove(self):
         set('//tmp/a', {'b' : {'c' : 'd'}})

@@ -55,7 +55,7 @@ struct ILogWriter
             Register("file_name", FileName).Default();
         }
 
-        virtual void DoValidate() const
+        virtual void DoValidate() const override
         {
             if ((Type == EType::File || Type == EType::Raw) && FileName.empty()) {
                 THROW_ERROR_EXCEPTION("FileName is empty while type is File");

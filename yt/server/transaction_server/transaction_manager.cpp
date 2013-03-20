@@ -676,9 +676,9 @@ void TTransactionManager::OnTransactionExpired(const TTransactionId& id)
     }));
 }
 
-std::vector<TTransaction*> TTransactionManager::GetTransactionPath(TTransaction* transaction) const
+TTransactionPath TTransactionManager::GetTransactionPath(TTransaction* transaction) const
 {
-    std::vector<TTransaction*> result;
+    TTransactionPath result;
     while (true) {
         result.push_back(transaction);
         if (!transaction) {

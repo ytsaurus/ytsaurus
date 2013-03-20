@@ -142,9 +142,6 @@ protected:
     static ICypressNodeProxy* ToProxy(NYTree::INodePtr node);
     static const ICypressNodeProxy* ToProxy(NYTree::IConstNodePtr node);
 
-    void AttachChild(TCypressNodeBase* child);
-    void DetachChild(TCypressNodeBase* child, bool unref);
-
     virtual TAutoPtr<NYTree::IAttributeDictionary> DoCreateUserAttributes() override;
     
     // TSupportsPermissions members

@@ -68,6 +68,7 @@ public:
      */
     TCypressNodeBase* CreateNode(
         INodeTypeHandlerPtr handler,
+        //TCypressNodeBase* trunkParent,
         NTransactionServer::TTransaction* transaction,
         NSecurityServer::TAccount* account,
         NYTree::IAttributeDictionary* attributes,
@@ -82,7 +83,9 @@ public:
      *  - Sets accounts for the whole subtree to |context.Account|.
      *  - Locks the cloned node with exclusive mode for |context.Transaction|.
      */
-    TCypressNodeBase* CloneNode(TCypressNodeBase* sourceNode, const TCloneContext& context);
+    TCypressNodeBase* CloneNode(
+        TCypressNodeBase* sourceNode,
+        const TCloneContext& context);
 
     //! Returns the root node.
     TCypressNodeBase* GetRootNode() const;

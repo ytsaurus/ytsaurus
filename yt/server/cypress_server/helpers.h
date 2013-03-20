@@ -29,6 +29,17 @@ yhash_map<Stroka, NYTree::TYsonString> GetNodeAttributes(
     TCypressNodeBase* trunkNode,
     NTransactionServer::TTransaction* transaction);
 
+void AttachChild(
+    NCellMaster::TBootstrap* bootstrap,
+    TCypressNodeBase* trunkParent,
+    TCypressNodeBase* child);
+
+void DetachChild(
+    NCellMaster::TBootstrap* bootstrap,
+    TCypressNodeBase* trunkParent,
+    TCypressNodeBase* child,
+    bool unref);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NCypressServer

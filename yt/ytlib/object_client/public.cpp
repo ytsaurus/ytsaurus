@@ -20,11 +20,13 @@ bool TypeIsVersioned(EObjectType type)
            type == EObjectType::DoubleNode ||
            type == EObjectType::MapNode ||
            type == EObjectType::ListNode ||
-           type == EObjectType::LinkNode || 
            type == EObjectType::File ||
            type == EObjectType::Table ||
            type == EObjectType::ChunkMap ||
            type == EObjectType::LostChunkMap ||
+           type == EObjectType::OverreplicatedChunkMap ||
+           type == EObjectType::UnderreplicatedChunkMap ||
+           type == EObjectType::ChunkListMap ||
            type == EObjectType::TransactionMap ||
            type == EObjectType::TopmostTransactionMap ||
            type == EObjectType::NodeMap ||
@@ -33,7 +35,8 @@ bool TypeIsVersioned(EObjectType type)
            type == EObjectType::LostVitalChunkMap ||
            type == EObjectType::AccountMap ||
            type == EObjectType::UserMap ||
-           type == EObjectType::GroupMap;
+           type == EObjectType::GroupMap ||
+           type == EObjectType::LinkNode; 
 }
 
 EObjectType TypeFromId(const TObjectId& id)
