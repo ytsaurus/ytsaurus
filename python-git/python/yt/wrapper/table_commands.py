@@ -217,6 +217,7 @@ def create_table(path, recursive=None, replication_factor=None, compression_code
     attributes = get_value(attributes, {})
     if replication_factor is not None:
         attributes["replication_factor"] = replication_factor
+    if compression_codec is not None:
         attributes["compression_codec"] = compression_codec
     create("table", table.name, recursive=recursive, attributes=attributes)
 
