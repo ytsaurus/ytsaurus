@@ -7,7 +7,6 @@
 #   - CUSTOM_CMAKE_CXX_FLAGS
 #   - YT_BUILD_ENABLE_EXPERIMENTS
 #   - YT_BUILD_ENABLE_TESTS
-#   - YT_BUILD_WITH_STLPORT
 
 #################################################################################
 # Specify available build options.
@@ -17,7 +16,6 @@ option(YT_BUILD_ENABLE_EXPERIMENTS "Build experiments" TRUE)
 option(YT_BUILD_ENABLE_TESTS       "Build tests" TRUE)
 option(YT_BUILD_ENABLE_NODEJS      "Build NodeJS extensions" FALSE)
 option(YT_BUILD_ENABLE_PYTHON      "Build Python extensions" TRUE)
-option(YT_BUILD_WITH_STLPORT       "Build with STLport" FALSE)
 
 ################################################################################
 # Enforce developer to specify build type.
@@ -176,10 +174,6 @@ if ( "${CMAKE_BUILD_TYPE}" STREQUAL "Debug" )
   add_definitions(-DDEBUG)
 else()
   add_definitions(-DNDEBUG)
-endif()
-
-if (YT_BUILD_WITH_STLPORT)
-  include_directories("${CMAKE_SOURCE_DIR}/contrib/STLport/stlport")
 endif()
 
 #if (YT_WITH_VISIBILITY)

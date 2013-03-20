@@ -74,10 +74,6 @@ exec_program(
   ${CMAKE_BINARY_DIR}/debian
 )
 
-if (YT_BUILD_WITH_STLPORT)
-  add_subdirectory(contrib/STLport/build/cmake)
-endif()
-
 add_subdirectory(cmake/deps-arcadia-util)
 add_subdirectory(cmake/deps-protobuf)
 add_subdirectory(cmake/deps-ev)
