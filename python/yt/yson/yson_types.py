@@ -2,6 +2,7 @@
 #!-*-coding:utf-8-*-
 
 import copy
+import sys
 from itertools import imap
 
 class YsonType(object):
@@ -53,7 +54,7 @@ def convert_to_yson_type(value, attributes = None):
     return result
 
 def convert_to_yson_tree(json_tree):
-    has_attrs = "$value" in json_tree
+    has_attrs = hasattr(json_tree, "__contains__") and "$value" in json_tree
     value = json_tree["$value"] if has_attrs else json_tree
     if isinstance(value, basestring):
         result = YsonString(value)
@@ -64,9 +65,14 @@ def convert_to_yson_tree(json_tree):
     elif isinstance(value, float):
         result = YsonDouble(value)
     elif isinstance(value, list):
-        result = map(convert_to_yson_tree, YsonList(value))
+        result = YsonList(map(convert_to_yson_tree, value))
     elif isinstance(value, dict):
         result = YsonMap((k, convert_to_yson_tree(v)) for k, v in YsonMap(value).iteritems())
+    elif value is None:
+        result = YsonEntity()
+    else:
+        print >>sys.stderr, "Unknown type:", type(value)
+
     if has_attrs and json_tree["$attributes"]:
         result.attributes = convert_to_yson_tree(json_tree["$attributes"])
     return result

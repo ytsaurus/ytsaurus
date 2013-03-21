@@ -82,7 +82,7 @@ class Dumper(object):
             result = self._dump_map(obj)
         elif isinstance(obj, Iterable):
             result = self._dump_list(obj)
-        elif isinstance(obj, YsonEntity):
+        elif isinstance(obj, YsonEntity) or obj is None:
             result = "null"
         else:
             raise TypeError(repr(obj) + " is not Yson serializable.")
