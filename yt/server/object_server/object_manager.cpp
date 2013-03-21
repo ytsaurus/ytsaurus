@@ -561,6 +561,18 @@ void TObjectManager::LoadValues(const NCellMaster::TLoadContext& context)
 
     Attributes.LoadValues(context);
     GarbageCollector->Load(context);
+
+    // COMPAT(babenko)
+    std::vector<TVersionedObjectId> orphanedIds;
+    FOREACH (const auto& pair, Attributes) {
+        const auto& id = pair.first;
+        if (!FindObject(id.ObjectId)) {
+            orphanedIds.push_back(id);
+        }
+    }
+    FOREACH (const auto& id, orphanedIds) {
+        Attributes.Remove(id);
+    }
 }
 
 void TObjectManager::LoadSchemas(const NCellMaster::TLoadContext& context)
