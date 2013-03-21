@@ -695,6 +695,9 @@ DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
     auto* clonedTrunkImpl = clonedImpl->GetTrunkNode();
     auto clonedProxy = GetProxy(clonedTrunkImpl);
 
+    if (targetPath == "") {
+        THROW_ERROR_EXCEPTION("Cannot copy to existing node");
+    }
     SetChild(targetPath, clonedProxy, false);
 
     ToProto(response->mutable_object_id(), clonedTrunkImpl->GetId());
