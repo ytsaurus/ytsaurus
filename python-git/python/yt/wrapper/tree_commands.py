@@ -4,7 +4,7 @@ from format import JsonFormat, YsonFormat
 from transaction_commands import _make_transactional_request
 from table import prepare_path, to_name
 
-from yt.yson.yson_types import YsonString
+from yt.yson.yson_types import YsonString, convert_to_yson_tree
 
 import os
 import string
@@ -16,18 +16,26 @@ def get(path, attributes=None, format=None, spec=None):
     """
     Gets the tree growning from path.
     attributes -- attributes to provide for each node in the response.
-    format -- output format (by default it is json that automatically parsed to python structure).
+    format -- output format (by default it is yson that automatically parsed to python structure).
 
     Be carefull: attributes have weird representation in json format.
     """
-    return _make_transactional_request(
+    result = _make_transactional_request(
         "get",
         {
             "path": prepare_path(path),
             "attributes": get_value(attributes, []),
             "spec": {} if spec is None else spec
         },
-        format=get_value(format, YsonFormat()))
+        raw_response=format is not None,
+        format=get_value(format, JsonFormat()))
+    # Yson parser is too slow. By default we request result in JsonFormat
+    # and then convert it to yson.
+    if format is None:
+        result = convert_to_yson_tree(result)
+    else:
+        result = result.content
+    return result
 
 def set(path, value):
     """
@@ -66,20 +74,29 @@ def link(target_path, link_path, recursive=False, ignore_existing=False):
         })
 
 
-def list(path, max_size=1000, format=None, absolute=False):
+def list(path, max_size=1000, format=None, absolute=False, attributes=None):
     """
     Lists all items in the path. Paht should be map_node or list_node.
     In case of map_node it returns keys of the node.
     """
+    def join(elem):
+        full_path = YsonString(os.path.join(path, elem))
+        full_path.attributes = elem.attributes
+        return full_path
+
     res = _make_transactional_request(
         "list",
         {
             "path": prepare_path(path),
-            "max_size": max_size
+            "max_size": max_size,
+            "attributes": get_value(attributes, [])
         },
+        raw_response=format is not None,
         format=get_value(format, YsonFormat()))
-    if absolute:
-        res = map(lambda x: os.path.join(path, x), res)
+    if absolute and format is None:
+        res = map(join, res)
+    if format is not None:
+        res = res.content
     return res
 
 def exists(path):

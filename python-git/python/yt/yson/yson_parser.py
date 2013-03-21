@@ -40,9 +40,9 @@ class YsonParserBase(object):
 
     def _read_char(self, binary_input = False):
         if self._lookahead is None:
-            self._peek_char()
-
-        result = self._lookahead
+            result = self._stream.read(1)
+        else:
+            result = self._lookahead
         self._lookahead = None
 
         self._offset += 1

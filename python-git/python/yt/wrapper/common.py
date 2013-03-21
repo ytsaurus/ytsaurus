@@ -21,7 +21,7 @@ def parse_bool(word):
     elif word == "false":
         return False
     else:
-        raise YtError("Cannot parse word %s to boolean type" % word)
+        raise YtError("Cannot parse boolean from %s" % word)
 
 def bool_to_string(bool_value):
     if bool_value:
@@ -88,4 +88,11 @@ def execute_handling_sigint(action, except_action):
         raise
     except:
         raise
+
+def chunk_iter(stream, chunk_size=1024 * 1024):
+    while True:
+        chunk = stream.read(chunk_size)
+        if not chunk:
+            break
+        yield chunk
 

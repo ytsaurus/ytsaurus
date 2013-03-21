@@ -381,10 +381,6 @@ def run_erase(table, strategy=None):
         return
     _make_operation_request("erase", {"table_path": table.get_json()}, strategy)
 
-def erase_table(table, strategy=None):
-    """ DEPRECATED: use run_erase"""
-    run_erase(table, strategy)
-
 def records_count(table):
     """Return number of records in the table"""
     table = to_name(table)
@@ -435,12 +431,6 @@ def run_merge(source_table, destination_table, mode=None,
 
     _make_operation_request("merge", spec, strategy, finalizer=None)
 
-def merge_tables(source_table, destination_table, mode=None,
-                 strategy=None, table_writer=None,
-                 replication_factor=None, compression_codec=None, spec=None):
-    """ DEPRECATED: use run_merge"""
-    run_merge(source_table, destination_table, mode, strategy, table_writer, replication_factor, compression_codec, spec)
-
 def run_sort(source_table, destination_table=None, sort_by=None,
              strategy=None, table_writer=None, replication_factor=None,
              compression_codec=None, spec=None):
@@ -479,13 +469,6 @@ def run_sort(source_table, destination_table=None, sort_by=None,
     )(spec)
 
     _make_operation_request("sort", spec, strategy, finalizer=None)
-
-def sort_table(source_table, destination_table=None, sort_by=None,
-               strategy=None, table_writer=None,
-               replication_factor=None, compression_codec=None, spec=None):
-    """ DEPRECATED: use run_sort"""
-    run_sort(source_table, destination_table, sort_by, strategy, table_writer, replication_factor, compression_codec, spec)
-
 
 """ Map and reduce methods """
 class Finalizer(object):
@@ -570,6 +553,8 @@ def run_operation(binary, source_table, destination_table,
                   table_writer=None,
                   replication_factor=None,
                   compression_codec=None,
+                  job_count=None,
+                  memory_limit=None,
                   spec=None,
                   op_name=None,
                   reduce_by=None):
@@ -621,6 +606,8 @@ def run_operation(binary, source_table, destination_table,
         lambda _: _add_table_writer_spec("job_io", table_writer, _),
         lambda _: _add_input_output_spec(source_table, destination_table, _),
         lambda _: update({"reduce_by": _prepare_reduce_by(reduce_by)}, _) if op_name == "reduce" else _,
+        lambda _: update({"job_count": job_count}, _) if job_count is not None else _,
+        lambda _: update({"memory_limit": memory_limit}, _) if memory_limit is not None else _,
         lambda _: memorize_files(*_add_user_command_spec(op_type, binary, input_format, output_format, files, file_paths, len(destination_table), reduce_by, _)),
         lambda _: get_value(_, {})
     )(spec)
