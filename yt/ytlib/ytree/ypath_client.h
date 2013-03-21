@@ -213,7 +213,8 @@ INodePtr CloneNode(INodePtr node);
 //! Returns the resulting tree.
 INodePtr UpdateNode(INodePtr base, INodePtr patch);
 
-//! Check nodes represent the same data. Do not unfold entities.
+//! Checks given nodes for deep equality.
+// TODO(babenko): currently it ignores attributes
 bool AreNodesEqual(INodePtr lhs, INodePtr rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
