@@ -140,7 +140,7 @@ public:
         }
 
         // Remove user attributes, if any.
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = this->Bootstrap->GetObjectManager();
         objectManager->TryRemoveAttributes(TVersionedObjectId(object->GetId()));
 
         // Remove the object from the map but keep it alive.
