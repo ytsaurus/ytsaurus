@@ -673,8 +673,8 @@ public:
         Host->SubscribeJobUpdated(BIND(&TFairShareStrategy::OnJobUpdated, this));
 
         auto* masterConnector = Host->GetMasterConnector();
-        masterConnector->SubscribeWatcherRequest(BIND(&TFairShareStrategy::OnPoolsRequest, this));
-        masterConnector->SubscribeWatcherResponse(BIND(&TFairShareStrategy::OnPoolsResponse, this));
+        masterConnector->AddGlobalWatcherRequester(BIND(&TFairShareStrategy::RequestPools, this));
+        masterConnector->AddGlobalWatcherHandler(BIND(&TFairShareStrategy::HandlePools, this));
 
         RootElement = New<TRootElement>(Host);
     }
@@ -998,7 +998,7 @@ private:
     }
 
 
-    void OnPoolsRequest(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
+    void RequestPools(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
     {
         LOG_INFO("Updating pools");
 
@@ -1010,7 +1010,7 @@ private:
         batchReq->AddRequest(req, "get_pools");
     }
 
-    void OnPoolsResponse(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+    void HandlePools(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
     {
         auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_pools");
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);

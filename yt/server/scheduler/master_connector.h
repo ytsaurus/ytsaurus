@@ -24,6 +24,9 @@ struct TMasterHandshakeResult
     NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr WatcherResponses;
 };
 
+typedef TCallback<void(NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr)> TWatchRequester;
+typedef TCallback<void(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr)> TWatchHandler;
+
 //! Mediates communication between scheduler and master.
 class TMasterConnector
 {
@@ -43,8 +46,11 @@ public:
 
     void CreateJobNode(TJobPtr job, const NChunkClient::TChunkId& stdErrChunkId);
 
-    DECLARE_SIGNAL(void(NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr), WatcherRequest);
-    DECLARE_SIGNAL(void(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr), WatcherResponse);
+    void AddGlobalWatcherRequester(TWatchRequester requester);
+    void AddGlobalWatcherHandler(TWatchHandler handler);
+
+    void AddOperationWatcherRequester(TOperationPtr operation, TWatchRequester requester);
+    void AddOperationWatcherHandler(TOperationPtr operation, TWatchHandler handler);
 
     DECLARE_SIGNAL(void(const TMasterHandshakeResult& result), MasterConnected);
     DECLARE_SIGNAL(void(), MasterDisconnected);

@@ -121,11 +121,11 @@ public:
     {
         InitStrategy();
 
-        MasterConnector->SubscribeWatcherRequest(BIND(
-            &TThis::OnNodesRequest,
+        MasterConnector->AddGlobalWatcherRequester(BIND(
+            &TThis::RequestOnlineNodes,
             Unretained(this)));
-        MasterConnector->SubscribeWatcherResponse(BIND(
-            &TThis::OnNodesResponse,
+        MasterConnector->AddGlobalWatcherHandler(BIND(
+            &TThis::HandleOnlineNodes,
             Unretained(this)));
 
         MasterConnector->SubscribeMasterConnected(BIND(
@@ -393,7 +393,7 @@ private:
     }
 
 
-    void OnNodesRequest(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
+    void RequestOnlineNodes(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
     {
         LOG_INFO("Updating exec nodes");
 
@@ -401,7 +401,7 @@ private:
         batchReq->AddRequest(req, "get_online_nodes");
     }
 
-    void OnNodesResponse(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+    void HandleOnlineNodes(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
     {
         auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_online_nodes");
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting online nodes");
