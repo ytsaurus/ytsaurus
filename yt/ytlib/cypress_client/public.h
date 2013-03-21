@@ -27,7 +27,9 @@ DECLARE_ENUM(ELockMode,
 );
 
 DECLARE_ENUM(EErrorCode,
-    ((LockIsTakenByConcurrentTransaction)(400))
+    ((SameTransactionLockConflict)(400))
+    ((DescendantTransactionLockConflict)(401))
+    ((ConcurrentTransactionLockConflict)(402))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
