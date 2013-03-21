@@ -159,6 +159,7 @@ def make_request(command_name, params,
     # Prepare request url.
     if proxy is None:
         proxy = config.PROXY
+    require(proxy, YtError("You should specify proxy"))
 
     # prepare url
     url = "http://{0}/api/{1}".format(proxy, command_name)
@@ -187,7 +188,7 @@ def make_request(command_name, params,
             if not make_request.SHOW_TOKEN_WARNING:
                 make_request.SHOW_TOKEN_WARNING = True
                 if date.today() >= date(2013, 02, 01):
-                    print >>sys.stderr, "Please obtain an authentication token as soon as possible."
+                    print >>sys.stderr, "Authentication token is missing. Please obtain it as soon as possible."
                     print >>sys.stderr, "Refer to http://proxy.yt.yandex.net/auth/ for instructions."
                     if date.today() >= date(2013, 02, 07):
                         sys.exit(1)
@@ -225,7 +226,7 @@ def make_request(command_name, params,
         elif response.is_yson():
             return response.yson()
         else:
-            return response.content()
+            return response.content
     else:
         message = "Response to request {0} with headers {1} contains error:\n{2}".\
                   format(url, headers, response.error())
