@@ -26,6 +26,10 @@ DECLARE_ENUM(ELockMode,
     ((Exclusive)(3))
 );
 
+DECLARE_ENUM(EErrorCode,
+    ((LockIsTakenByConcurrentTransaction)(400))
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NCypressClient
