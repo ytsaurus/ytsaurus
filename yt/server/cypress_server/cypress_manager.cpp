@@ -496,6 +496,7 @@ void TCypressManager::ValidateLock(
                 return;
             }
             if (existingLock.Mode == ELockMode::Snapshot) {
+                NCypressClient::EErrorCode::SameTransactionLockConflict,
                 THROW_ERROR_EXCEPTION("Cannot take %s lock for node %s since %s lock is already taken by the same transaction",
                     ~FormatEnum(request.Mode).Quote(),
                     ~GetNodePath(trunkNode, transaction),
@@ -519,6 +520,7 @@ void TCypressManager::ValidateLock(
             IsParentTransaction(existingTransaction, transaction))
         {
             THROW_ERROR_EXCEPTION(
+                NCypressClient::EErrorCode::DescendantTransactionLockConflict,
                 "Cannot take %s lock for node %s since %s lock is taken by descendant transaction %s",
                 ~FormatEnum(request.Mode).Quote(),
                 ~GetNodePath(trunkNode, transaction),
@@ -532,7 +534,7 @@ void TCypressManager::ValidateLock(
                 existingLock.Mode == ELockMode::Exclusive && request.Mode != ELockMode::Snapshot)
             {
                 THROW_ERROR_EXCEPTION(
-                    NCypressClient::EErrorCode::LockIsTakenByConcurrentTransaction,
+                    NCypressClient::EErrorCode::ConcurrentTransactionLockConflict,
                     "Cannot take %s lock for node %s since %s lock is taken by concurrent transaction %s",
                     ~FormatEnum(request.Mode).Quote(),
                     ~GetNodePath(trunkNode, transaction),
@@ -546,7 +548,7 @@ void TCypressManager::ValidateLock(
                     existingLock.ChildKeys.find(request.ChildKey.Get()) != existingLock.ChildKeys.end())
                 {
                     THROW_ERROR_EXCEPTION(
-                        NCypressClient::EErrorCode::LockIsTakenByConcurrentTransaction,
+                        NCypressClient::EErrorCode::ConcurrentTransactionLockConflict,
                         "Cannot take %s lock for child %s of node %s since %s lock is taken by concurrent transaction %s",
                         ~FormatEnum(request.Mode).Quote(),
                         ~request.ChildKey.Get().Quote(),
@@ -558,7 +560,7 @@ void TCypressManager::ValidateLock(
                     existingLock.AttributeKeys.find(request.AttributeKey.Get()) != existingLock.AttributeKeys.end())
                 {
                     THROW_ERROR_EXCEPTION(
-                        NCypressClient::EErrorCode::LockIsTakenByConcurrentTransaction,
+                        NCypressClient::EErrorCode::ConcurrentTransactionLockConflict,
                         "Cannot take %s lock for attribute %s of node %s since %s lock is taken by concurrent transaction %s",
                         ~FormatEnum(request.Mode).Quote(),
                         ~request.AttributeKey.Get().Quote(),
