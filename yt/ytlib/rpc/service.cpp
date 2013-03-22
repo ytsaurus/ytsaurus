@@ -412,6 +412,11 @@ TServiceBase::TRuntimeMethodInfoPtr TServiceBase::GetMethodInfo(const Stroka& me
     return runtimeInfo;
 }
 
+IInvokerPtr TServiceBase::GetDefaultInvoker()
+{
+    return DefaultInvoker;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NRpc

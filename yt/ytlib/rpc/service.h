@@ -599,6 +599,10 @@ protected:
     //! Similar to #FindMethodInfo but fails if no method is found.
     TRuntimeMethodInfoPtr GetMethodInfo(const Stroka& method);
 
+    //! Returns the default invoker passed during construction.
+    IInvokerPtr GetDefaultInvoker();
+
+
 private:
     class TServiceContext;
 
@@ -632,7 +636,7 @@ private:
 
 #define DECLARE_RPC_SERVICE_METHOD(ns, method) \
     typedef ::NYT::NRpc::TTypedServiceContext<ns::TReq##method, ns::TRsp##method> TCtx##method; \
-    typedef TIntrusivePtr<TCtx##method> TCtx##method##Ptr; \
+    typedef ::NYT::TIntrusivePtr<TCtx##method> TCtx##method##Ptr; \
     typedef TCtx##method::TTypedRequest  TReq##method; \
     typedef TCtx##method::TTypedResponse TRsp##method; \
     \
@@ -664,7 +668,7 @@ private:
 #define RPC_SERVICE_METHOD_DESC(method) \
     ::NYT::NRpc::TServiceBase::TMethodDescriptor( \
         #method, \
-        BIND(&TThis::method##Thunk, Unretained(this)))
+        BIND(&TThis::method##Thunk, NYT::Unretained(this)))
 
 ////////////////////////////////////////////////////////////////////////////////
 
