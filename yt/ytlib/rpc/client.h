@@ -311,15 +311,15 @@ private:
     typedef ::NYT::NRpc::TTypedClientResponse<ns::TRsp##method> TRsp##method; \
     typedef ::NYT::NRpc::TTypedClientRequest<ns::TReq##method, TRsp##method> TReq##method; \
     \
-    typedef TIntrusivePtr<TRsp##method> TRsp##method##Ptr; \
-    typedef TIntrusivePtr<TReq##method> TReq##method##Ptr; \
+    typedef ::NYT::TIntrusivePtr<TRsp##method> TRsp##method##Ptr; \
+    typedef ::NYT::TIntrusivePtr<TReq##method> TReq##method##Ptr; \
     \
     typedef ::NYT::TFuture< TRsp##method##Ptr > TInv##method; \
     \
     TReq##method##Ptr method() \
     { \
         return \
-            New<TReq##method>(Channel, ServiceName, #method, false) \
+            ::NYT::New<TReq##method>(Channel, ServiceName, #method, false) \
             ->SetTimeout(DefaultTimeout_); \
     }
 
@@ -329,15 +329,15 @@ private:
     typedef ::NYT::NRpc::TOneWayClientResponse TRsp##method; \
     typedef ::NYT::NRpc::TTypedClientRequest<ns::TReq##method, TRsp##method> TReq##method; \
     \
-    typedef TIntrusivePtr<TRsp##method> TRsp##method##Ptr; \
-    typedef TIntrusivePtr<TReq##method> TReq##method##Ptr; \
+    typedef ::NYT::TIntrusivePtr<TRsp##method> TRsp##method##Ptr; \
+    typedef ::NYT::TIntrusivePtr<TReq##method> TReq##method##Ptr; \
     \
     typedef ::NYT::TFuture< TRsp##method##Ptr > TInv##method; \
     \
     TReq##method##Ptr method() \
     { \
         return \
-            New<TReq##method>(Channel, ServiceName, #method, true) \
+            ::NYT::New<TReq##method>(Channel, ServiceName, #method, true) \
             ->SetTimeout(DefaultTimeout_); \
     }
 
