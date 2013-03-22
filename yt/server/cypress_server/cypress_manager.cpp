@@ -97,7 +97,8 @@ private:
     virtual Stroka DoGetName(TCypressNodeBase* node) override
     {
         auto cypressManager = Bootstrap->GetCypressManager();
-        return Sprintf("node %s", ~cypressManager->GetNodePath(node->GetTrunkNode(), nullptr));
+        auto path = cypressManager->GetNodePath(node->GetTrunkNode(), node->GetTransaction());
+        return Sprintf("node %s", ~path);
     }
 
     virtual IObjectProxyPtr DoGetProxy(
