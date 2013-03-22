@@ -18,7 +18,8 @@ public:
         bool enableKeyEscaping,
         bool enableValueEscaping,
         char escapingSymbol,
-        bool hasSubkey);
+        bool hasSubkey,
+        bool escapeCarriageReturn);
 
     virtual void Read(const TStringBuf& data) override;
     virtual void Finish() override;
