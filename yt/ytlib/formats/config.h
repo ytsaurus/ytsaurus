@@ -126,8 +126,8 @@ struct TYamrFormatConfig
             .Default(false);
         Register("enable_escaping", EnableEscaping)
             .Default(false);
-        Register("escaping_symbol", EscapingSymbol)
-            .Default('\\');
+        Register("escape_carriage_return", EscapeCarriageReturn)
+            .Default(false);
         Register("escaping_symbol", EscapingSymbol)
             .Default('\\');
     }
