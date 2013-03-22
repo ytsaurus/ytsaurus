@@ -1000,7 +1000,8 @@ Stroka TMapNodeProxy::GetChildKey(IConstNodePtr child)
         }
     }
 
-    YUNREACHABLE();
+    // COMPAT(babenko)
+    return "(unknown)";
 }
 
 bool TMapNodeProxy::DoInvoke(NRpc::IServiceContextPtr context)
