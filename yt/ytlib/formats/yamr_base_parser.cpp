@@ -15,7 +15,8 @@ TYamrBaseParser::TYamrBaseParser(
     bool enableKeyEscaping,
     bool enableValueEscaping,
     char escapingSymbol,
-    bool hasSubkey)
+    bool hasSubkey,
+    bool escapeCarriageReturn)
     : FieldSeparator(fieldSeparator)
     , RecordSeparator(recordSeparator)
     , EscapingSymbol(escapingSymbol)
@@ -29,7 +30,8 @@ TYamrBaseParser::TYamrBaseParser(
         recordSeparator,
         enableKeyEscaping,
         enableValueEscaping,
-        escapingSymbol)
+        escapingSymbol,
+        escapeCarriageReturn)
 { }
 
 void TYamrBaseParser::Read(const TStringBuf& data)
