@@ -1,4 +1,4 @@
-from common import flatten, require, bool_to_string
+from common import flatten, require, bool_to_string, get_value
 from errors import YtError
 from http import make_request
 from format import YsonFormat
@@ -24,7 +24,7 @@ class TablePath(object):
     start_index, end_index
     """
     def __init__(self, name,
-                 append=False, sorted_by=None,
+                 append=None, sorted_by=None,
                  columns=None,
                  lower_key=None, upper_key=None,
                  start_index=None, end_index=None,
@@ -49,7 +49,10 @@ class TablePath(object):
             self.name.attributes = attributes
 
         attributes = self.name.attributes
-        attributes["overwrite"] = bool_to_string(not append)
+        if append is not None:
+            attributes["overwrite"] = bool_to_string(not append)
+        else:
+            attributes["overwrite"] = attributes.get("overwrite", "true")
         if sorted_by is not None:
             attributes["sorted_by"] = sorted_by
         if columns is not None:
