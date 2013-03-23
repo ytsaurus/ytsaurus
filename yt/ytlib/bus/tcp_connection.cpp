@@ -22,11 +22,11 @@ namespace NBus {
 
 static NProfiling::TProfiler& Profiler = BusProfiler;
 
-static const size_t MinBatchReadSize = 16 * 1024;
-static const size_t MaxBatchReadSize = 1024 * 1024;
+static const size_t MinBatchReadSize =  4 * 1024;
+static const size_t MaxBatchReadSize = 64 * 1024;
 
 static const size_t MaxFragmentsPerWrite = 256;
-static const size_t MaxBatchWriteSize = 1024 * 1024;
+static const size_t MaxBatchWriteSize = 64 * 1024;
 
 static NProfiling::TAggregateCounter ReceiveTime("/receive_time");
 static NProfiling::TAggregateCounter ReceiveSize("/receive_size");
