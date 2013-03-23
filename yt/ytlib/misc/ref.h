@@ -97,7 +97,10 @@ public:
     }
 
     //! Clears the instance but does not reclaim the memory.
-    void Clear();
+    FORCED_INLINE void Clear()
+    {
+        Size_ = 0;
+    }
 
     //! Returns |true| if size is zero.
     FORCED_INLINE bool IsEmpty() const
