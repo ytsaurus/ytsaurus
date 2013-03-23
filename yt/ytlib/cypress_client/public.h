@@ -20,16 +20,16 @@ typedef TObjectId TNodeId;
 typedef TVersionedObjectId TVersionedNodeId;
 
 DECLARE_ENUM(ELockMode,
-    ((None)(0))
-    ((Snapshot)(1))
-    ((Shared)(2))
-    ((Exclusive)(3))
+    ((None)      (0))
+    ((Snapshot)  (1))
+    ((Shared)    (2))
+    ((Exclusive) (3))
 );
 
 DECLARE_ENUM(EErrorCode,
-    ((SameTransactionLockConflict)(400))
-    ((DescendantTransactionLockConflict)(401))
-    ((ConcurrentTransactionLockConflict)(402))
+    ((SameTransactionLockConflict)         (400))
+    ((DescendantTransactionLockConflict)   (401))
+    ((ConcurrentTransactionLockConflict)   (402))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

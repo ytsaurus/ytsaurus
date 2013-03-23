@@ -498,8 +498,9 @@ void TCypressManager::ValidateLock(
                 return;
             }
             if (existingLock.Mode == ELockMode::Snapshot) {
-                NCypressClient::EErrorCode::SameTransactionLockConflict,
-                THROW_ERROR_EXCEPTION("Cannot take %s lock for node %s since %s lock is already taken by the same transaction",
+                THROW_ERROR_EXCEPTION(
+                    NCypressClient::EErrorCode::SameTransactionLockConflict,
+                    "Cannot take %s lock for node %s since %s lock is already taken by the same transaction",
                     ~FormatEnum(request.Mode).Quote(),
                     ~GetNodePath(trunkNode, transaction),
                     ~FormatEnum(existingLock.Mode).Quote());

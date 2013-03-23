@@ -167,10 +167,34 @@ public:
         list->PendingJobs.insert(std::make_pair(job, stdErrChunkId));
     }
 
-    DEFINE_SIGNAL(void(TObjectServiceProxy::TReqExecuteBatchPtr), WatcherRequest);
-    DEFINE_SIGNAL(void(TObjectServiceProxy::TRspExecuteBatchPtr), WatcherResponse);
+
+    void AddGlobalWatcherRequester(TWatcherRequester requester)
+    {
+        GlobalWatcherRequesters.push_back(requester);
+    }
+
+    void AddGlobalWatcherHandler(TWatcherHandler handler)
+    {
+        GlobalWatcherHandlers.push_back(handler);
+    }
+
+
+    void AddOperationWatcherRequester(TOperationPtr operation, TWatcherRequester requester)
+    {
+        auto* list = GetOrCreateWatcherList(operation);
+        list->WatcherRequesters.push_back(requester);
+    }
+
+    void AddOperationWatcherHandler(TOperationPtr operation, TWatcherHandler handler)
+    {
+        auto* list = GetOrCreateWatcherList(operation);
+        list->WatcherHandlers.push_back(handler);
+    }
+
+
     DEFINE_SIGNAL(void(const TMasterHandshakeResult& result), MasterConnected);
     DEFINE_SIGNAL(void(), MasterDisconnected);
+
     DEFINE_SIGNAL(void(TOperationPtr operation), UserTransactionAborted);
     DEFINE_SIGNAL(void(TOperationPtr operation), SchedulerTransactionAborted);
 
@@ -190,7 +214,10 @@ private:
     TPeriodicInvokerPtr TransactionRefreshInvoker;
     TPeriodicInvokerPtr ExecNodesRefreshInvoker;
     TPeriodicInvokerPtr OperationNodesUpdateInvoker;
-    TPeriodicInvokerPtr WatchersInvoker;
+    TPeriodicInvokerPtr WatcherInvoker;
+
+    std::vector<TWatcherRequester> GlobalWatcherRequesters;
+    std::vector<TWatcherHandler>   GlobalWatcherHandlers;
 
     DECLARE_ENUM(EUpdateListState,
         (Active)
@@ -220,6 +247,18 @@ private:
 
     yhash_map<TOperationId, TUpdateList> UpdateLists;
 
+    struct TWatcherList
+    {
+        explicit TWatcherList(TOperationPtr operation)
+            : Operation(operation)
+        { }
+
+        TOperationPtr Operation;
+        std::vector<TWatcherRequester> WatcherRequesters;
+        std::vector<TWatcherHandler>   WatcherHandlers;
+    };
+
+    yhash_map<TOperationId, TWatcherList> WatcherLists;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -262,7 +301,9 @@ private:
         FOREACH (auto operation, result.Operations) {
             CreateUpdateList(operation);
         }
-        WatcherResponse_.Fire(result.WatcherResponses);
+        FOREACH (auto handler, GlobalWatcherHandlers) {
+            handler.Run(result.WatcherResponses);
+        }
 
         LockTransaction->SubscribeAborted(
             BIND(&TImpl::OnLockTransactionAborted, MakeWeak(this))
@@ -504,7 +545,9 @@ private:
             }
 
             auto batchReq = Owner->StartBatchRequest();
-            Owner->WatcherRequest_.Fire(batchReq);
+            FOREACH (auto requester, Owner->GlobalWatcherRequesters) {
+                requester.Run(batchReq);
+            }
             return batchReq->Invoke();
         }
 
@@ -662,11 +705,11 @@ private:
             Config->OperationsUpdatePeriod);
         OperationNodesUpdateInvoker->Start();
 
-        WatchersInvoker = New<TPeriodicInvoker>(
+        WatcherInvoker = New<TPeriodicInvoker>(
             CancelableControlInvoker,
             BIND(&TImpl::UpdateWatchers, MakeWeak(this)),
             Config->WatchersUpdatePeriod);
-        WatchersInvoker->Start();
+        WatcherInvoker->Start();
     }
 
     void StopRefresh()
@@ -686,9 +729,9 @@ private:
             OperationNodesUpdateInvoker.Reset();
         }
 
-        if (WatchersInvoker) {
-            WatchersInvoker->Stop();
-            WatchersInvoker.Reset();
+        if (WatcherInvoker) {
+            WatcherInvoker->Stop();
+            WatcherInvoker.Reset();
         }
     }
 
@@ -791,11 +834,17 @@ private:
         return &pair.first->second;
     }
 
-    TUpdateList* GetUpdateList(TOperationPtr operation)
+    TUpdateList* FindUpdateList(TOperationPtr operation)
     {
         auto it = UpdateLists.find(operation->GetOperationId());
-        YCHECK(it != UpdateLists.end());
-        return &it->second;
+        return it == UpdateLists.end() ? nullptr : &it->second;
+    }
+
+    TUpdateList* GetUpdateList(TOperationPtr operation)
+    {
+        auto* result = FindUpdateList(operation);
+        YCHECK(result);
+        return result;
     }
 
     void RemoveUpdateList(TOperationPtr operation)
@@ -806,6 +855,24 @@ private:
     void ClearUpdateLists()
     {
         UpdateLists.clear();
+    }
+
+
+    TWatcherList* GetOrCreateWatcherList(TOperationPtr operation)
+    {
+        auto it = WatcherLists.find(operation->GetOperationId());
+        if (it == WatcherLists.end()) {
+            it = WatcherLists.insert(std::make_pair(
+                operation->GetOperationId(),
+                TWatcherList(operation))).first;
+        }
+        return &it->second;
+    }
+
+    TWatcherList* FindWatcherList(TOperationPtr operation)
+    {
+        auto it = WatcherLists.find(operation->GetOperationId());
+        return it == WatcherLists.end() ? nullptr : &it->second;
     }
 
 
@@ -1067,30 +1134,91 @@ private:
 
         LOG_INFO("Updating watchers");
 
-        // Create a batch update for all operations.
-        auto batchReq = StartBatchRequest();
-        WatcherRequest_.Fire(batchReq);
-        batchReq->Invoke().Subscribe(
-            BIND(&TImpl::OnWatchersUpdated, MakeStrong(this))
-                .Via(CancelableControlInvoker));
+        // Global watchers.
+        {
+            auto batchReq = StartBatchRequest();
+            FOREACH (auto requester, GlobalWatcherRequesters) {
+                requester.Run(batchReq);
+            }
+            batchReq->Invoke().Subscribe(
+                BIND(&TImpl::OnGlobalWatchersUpdated, MakeStrong(this))
+                    .Via(CancelableControlInvoker));
+        }
+
+        // Purge obsolete watchers.
+        {
+            auto it = WatcherLists.begin();
+            while (it != WatcherLists.end()) {
+                auto jt = it++;
+                const auto& list = jt->second;
+                if (list.Operation->IsFinishedState()) {
+                    WatcherLists.erase(jt);
+                }
+            }
+        }
+
+        // Per-operation watchers.
+        FOREACH (const auto& pair, WatcherLists) {
+            const auto& list = pair.second;
+            auto operation = list.Operation;
+            if (operation->GetState() != EOperationState::Running)
+                continue;
+
+            auto batchReq = StartBatchRequest();
+            FOREACH (auto requester, list.WatcherRequesters) {
+                requester.Run(batchReq);
+            }
+            batchReq->Invoke().Subscribe(
+                BIND(&TImpl::OnOperationWatchersUpdated, MakeStrong(this), operation)
+                    .Via(CancelableControlInvoker));
+        }
+
+        WatcherInvoker->ScheduleNext();
     }
 
-    void OnWatchersUpdated(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+    void OnGlobalWatchersUpdated(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected);
 
-        WatchersInvoker->ScheduleNext();
-
         auto error = batchRsp->GetCumulativeError();
         if (!error.IsOK()) {
-            LOG_ERROR(error, "Error updating watchers");
+            LOG_ERROR(error, "Error updating global watchers");
             return;
         }
 
-        WatcherResponse_.Fire(batchRsp);
+        FOREACH (auto handler, GlobalWatcherHandlers) {
+            handler.Run(batchRsp);
+        }
 
-        LOG_INFO("Watchers updated");
+        LOG_INFO("Global watchers updated");
+    }
+
+    void OnOperationWatchersUpdated(TOperationPtr operation, TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(Connected);
+
+        auto error = batchRsp->GetCumulativeError();
+        if (!error.IsOK()) {
+            LOG_ERROR(error, "Error updating operation watchers (OperationId: %s)",
+                ~ToString(operation->GetOperationId()));
+            return;
+        }
+
+        if (operation->GetState() != EOperationState::Running)
+            return;
+
+        auto* list = FindWatcherList(operation);
+        if (!list)
+            return;
+
+        FOREACH (auto handler, list->WatcherHandlers) {
+            handler.Run(batchRsp);
+        }
+
+        LOG_INFO("Operation watchers updated (OperationId: %s)",
+            ~ToString(operation->GetOperationId()));
     }
 };
 
@@ -1135,8 +1263,26 @@ void TMasterConnector::CreateJobNode(TJobPtr job, const TChunkId& stdErrChunkId)
     return Impl->CreateJobNode(job, stdErrChunkId);
 }
 
-DELEGATE_SIGNAL(TMasterConnector, void(TObjectServiceProxy::TReqExecuteBatchPtr), WatcherRequest, *Impl);
-DELEGATE_SIGNAL(TMasterConnector, void(TObjectServiceProxy::TRspExecuteBatchPtr), WatcherResponse, *Impl);
+void TMasterConnector::AddGlobalWatcherRequester(TWatcherRequester requester)
+{
+    Impl->AddGlobalWatcherRequester(requester);
+}
+
+void TMasterConnector::AddGlobalWatcherHandler(TWatcherHandler handler)
+{
+    Impl->AddGlobalWatcherHandler(handler);
+}
+
+void TMasterConnector::AddOperationWatcherRequester(TOperationPtr operation, TWatcherRequester requester)
+{
+    Impl->AddOperationWatcherRequester(operation, requester);
+}
+
+void TMasterConnector::AddOperationWatcherHandler(TOperationPtr operation, TWatcherHandler handler)
+{
+    Impl->AddOperationWatcherHandler(operation, handler);
+}
+
 DELEGATE_SIGNAL(TMasterConnector, void(const TMasterHandshakeResult& result), MasterConnected, *Impl);
 DELEGATE_SIGNAL(TMasterConnector, void(), MasterDisconnected, *Impl);
 DELEGATE_SIGNAL(TMasterConnector, void(TOperationPtr operation), UserTransactionAborted, *Impl)
