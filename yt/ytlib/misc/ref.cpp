@@ -95,12 +95,6 @@ void TBlob::Resize(size_t newSize, bool initializeStorage /*= true*/)
     Size_ = newSize;
 }
 
-void TBlob::Clear()
-{
-    delete[] Begin_;
-    Reset();
-}
-
 TBlob& TBlob::operator = (const TBlob& rhs)
 {
     if (this != &rhs) {
