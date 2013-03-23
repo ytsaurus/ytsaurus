@@ -333,7 +333,7 @@ void TOperationControllerBase::TTask::CheckResourceDemandSanity(
     TExecNodePtr node,
     const NProto::TNodeResources& neededResources)
 {
-    // The task is requesting more then some node is willing to provide it.
+    // The task is requesting more than some node is willing to provide it.
     // Maybe it's OK and we should wait for some time.
     // Or maybe it's not and the task is requesting something no one is able to provide.
 
