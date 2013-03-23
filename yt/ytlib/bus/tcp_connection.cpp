@@ -25,7 +25,8 @@ static NProfiling::TProfiler& Profiler = BusProfiler;
 static const size_t MinBatchReadSize = 16 * 1024;
 static const size_t MaxBatchReadSize = 1024 * 1024;
 
-static const size_t FragmentCountThreshold = 256;
+static const size_t MaxFragmentsPerWrite = 256;
+static const size_t MaxBatchWriteSize = 1024 * 1024;
 
 static NProfiling::TAggregateCounter ReceiveTime("/receive_time");
 static NProfiling::TAggregateCounter ReceiveSize("/receive_size");
@@ -755,40 +756,47 @@ bool TTcpConnection::HasUnsentData() const
 
 bool TTcpConnection::WriteFragments(size_t* bytesWritten)
 {
-    LOG_TRACE("Writing up to %" PRISZT " fragments", EncodedFragments.size());
+    LOG_TRACE("Writing fragments, %" PRISZT " encoded", EncodedFragments.size());
 
     auto fragmentIt = EncodedFragments.begin();
     auto fragmentEnd = EncodedFragments.end();
 
     SendVector.clear();
+    size_t vacantBytes = MaxBatchWriteSize;
 
-    while (fragmentIt != fragmentEnd && SendVector.size() < FragmentCountThreshold) {
-        auto& data = fragmentIt->Data;
+    while (fragmentIt != fragmentEnd &&
+           SendVector.size() < MaxFragmentsPerWrite &&
+           vacantBytes > 0)
+    {
+        const auto& chunk = fragmentIt->Chunk;
+        char* buffer = chunk.Begin();
+        size_t size = std::min(chunk.Size(), vacantBytes);
 #ifdef _WIN32
         WSABUF item;
-        item.buf = data.Begin();
-        item.len = static_cast<ULONG>(data.Size());
+        item.buf = buffer;
+        item.len = static_cast<ULONG>(size);
         SendVector.push_back(item);
 #else
         struct iovec item;
-        item.iov_base = data.Begin();
-        item.iov_len = data.Size();
+        item.iov_base = buffer;
+        item.iov_len = size;
         SendVector.push_back(item);
 #endif
         ++fragmentIt;
+        vacantBytes -= size;
     }
 
     ssize_t result;
 #ifdef _WIN32
     DWORD bytesWritten_ = 0;
     PROFILE_AGGREGATED_TIMING (SendTime) {
-        result = WSASend(Socket, &*SendVector.begin(), SendVector.size(), &bytesWritten_, 0, NULL, NULL);
+        result = WSASend(Socket, SendVector.data(), SendVector.size(), &bytesWritten_, 0, NULL, NULL);
     }
     *bytesWritten = static_cast<size_t>(bytesWritten_);
 #else
     PROFILE_AGGREGATED_TIMING (SendTime) {
         do {
-            result = writev(Socket, &*SendVector.begin(), SendVector.size());
+            result = writev(Socket, SendVector.data(), SendVector.size());
         } while (result < 0 && errno == EINTR);
     }
     *bytesWritten = result >= 0 ? result : 0;
@@ -811,13 +819,13 @@ void TTcpConnection::FlushWrittenFragments(size_t bytesWritten)
         YASSERT(!EncodedFragments.empty());
         auto& fragment = EncodedFragments.front();
 
-        auto& data = fragment.Data;
+        auto& data = fragment.Chunk;
         if (data.Size() > bytesToFlush) {
             size_t bytesRemaining = data.Size() - bytesToFlush;
             LOG_TRACE("Partial write (Size: %" PRISZT ", RemainingSize: %" PRISZT ")",
                 data.Size(),
                 bytesRemaining);
-            fragment.Data = TRef(data.End() - bytesRemaining, bytesRemaining);
+            fragment.Chunk = TRef(data.End() - bytesRemaining, bytesRemaining);
             break;
         }
 
@@ -834,7 +842,7 @@ void TTcpConnection::FlushWrittenFragments(size_t bytesWritten)
 
 bool TTcpConnection::EncodeMoreFragments()
 {
-    while (EncodedFragments.size() < FragmentCountThreshold && !QueuedPackets.empty()) {
+    while (EncodedFragments.size() < MaxFragmentsPerWrite && !QueuedPackets.empty()) {
         // Move the packet from queued to encoded.
         auto* queuedPacket = QueuedPackets.front();
         QueuedPackets.pop();
@@ -855,12 +863,12 @@ bool TTcpConnection::EncodeMoreFragments()
 
         TEncodedFragment fragment;
         do {
-            fragment.Data = encoder.GetChunk();
+            fragment.Chunk = encoder.GetChunk();
             encoder.NextChunk();
             fragment.IsLastInPacket = encoder.IsFinished();
             EncodedFragments.push_back(fragment);
             LOG_TRACE("Fragment encoded (Size: %" PRISZT ", IsLast: %d)",
-                fragment.Data.Size(),
+                fragment.Chunk.Size(),
                 fragment.IsLastInPacket);
         } while (!fragment.IsLastInPacket);
 
