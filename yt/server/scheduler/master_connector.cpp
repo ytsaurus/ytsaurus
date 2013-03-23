@@ -214,7 +214,7 @@ private:
     TPeriodicInvokerPtr TransactionRefreshInvoker;
     TPeriodicInvokerPtr ExecNodesRefreshInvoker;
     TPeriodicInvokerPtr OperationNodesUpdateInvoker;
-    TPeriodicInvokerPtr WatchInvoker;
+    TPeriodicInvokerPtr WatcherInvoker;
 
     std::vector<TWatcherRequester> GlobalWatcherRequesters;
     std::vector<TWatcherHandler>   GlobalWatcherHandlers;
@@ -705,11 +705,11 @@ private:
             Config->OperationsUpdatePeriod);
         OperationNodesUpdateInvoker->Start();
 
-        WatchInvoker = New<TPeriodicInvoker>(
+        WatcherInvoker = New<TPeriodicInvoker>(
             CancelableControlInvoker,
             BIND(&TImpl::UpdateWatchers, MakeWeak(this)),
             Config->WatchersUpdatePeriod);
-        WatchInvoker->Start();
+        WatcherInvoker->Start();
     }
 
     void StopRefresh()
@@ -729,9 +729,9 @@ private:
             OperationNodesUpdateInvoker.Reset();
         }
 
-        if (WatchInvoker) {
-            WatchInvoker->Stop();
-            WatchInvoker.Reset();
+        if (WatcherInvoker) {
+            WatcherInvoker->Stop();
+            WatcherInvoker.Reset();
         }
     }
 
@@ -1165,7 +1165,7 @@ private:
                 continue;
 
             auto batchReq = StartBatchRequest();
-            FOREACH (auto requester, list.WatchRequesters) {
+            FOREACH (auto requester, list.WatcherRequesters) {
                 requester.Run(batchReq);
             }
             batchReq->Invoke().Subscribe(
@@ -1173,7 +1173,7 @@ private:
                     .Via(CancelableControlInvoker));
         }
 
-        WatchInvoker->ScheduleNext();
+        WatcherInvoker->ScheduleNext();
     }
 
     void OnGlobalWatchersUpdated(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
