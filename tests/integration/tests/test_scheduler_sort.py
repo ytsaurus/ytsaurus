@@ -87,7 +87,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         with pytest.raises(YTError):
             sort(in_='//tmp/t_in',
-             out='//tmp/t_out',
+             out='<append=true>//tmp/t_out',
              sort_by='foo')
 
     def test_maniac(self):
@@ -99,7 +99,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         create('table', '//tmp/t_in')
         for i in xrange(0, 10):
-            write('//tmp/t_in', [v3, v5, v1, v2, v4]) # some random order
+            write('<append=true>//tmp/t_in', [v3, v5, v1, v2, v4]) # some random order
 
         create('table', '//tmp/t_out')
 
@@ -164,7 +164,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         create('table', input)
         create('table', output)
         for i in xrange(20, 0, -1):
-            write(input, [{'key': i}])
+            write("<append=true>" + input, [{'key': i}])
 
         args = {'in_': [input], 'out' : output, 'sort_by' : 'key'}
         args.update(kwargs)

@@ -3,6 +3,7 @@
 #include "key.h"
 #include "chunk_meta_extensions.h"
 
+#include <ytlib/ytree/attribute_helpers.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
 namespace NYT {
@@ -129,6 +130,21 @@ TRefCountedInputChunkPtr CreateCompleteChunk(TRefCountedInputChunkPtr inputChunk
 
     RemoveProtoExtension<NTableClient::NProto::TSizeOverrideExt>(chunk->mutable_extensions());
     return chunk;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExtractOverwriteFlag(const NYTree::IAttributeDictionary& attributes)
+{
+    auto overwriteFlag = attributes.Find<bool>("overwrite");
+    auto appendFlag = attributes.Find<bool>("append");
+    if (appendFlag) {
+        return !(*appendFlag);
+    }
+    if (overwriteFlag) {
+        return *overwriteFlag;
+    }
+    return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

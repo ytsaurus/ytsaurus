@@ -30,7 +30,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         create('table', '//tmp/t1')
         write_str('//tmp/t1', '{foo=bar}')
 
-        map(in_='//tmp/t1', out='//tmp/t1', command='cat')
+        map(in_='//tmp/t1', out='<append=true>//tmp/t1', command='cat')
 
         assert read('//tmp/t1') == [{'foo': 'bar'}, {'foo': 'bar'}]
 
@@ -100,15 +100,15 @@ class TestSchedulerMapCommands(YTEnvSetup):
     def test_sorted_output(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
-        write_str('//tmp/t1', '{key=foo;value=ninja}')
-        write_str('//tmp/t1', '{key=foo;value=ninja}')
+        write_str('<append=true>//tmp/t1', '{key=foo;value=ninja}')
+        write_str('<append=true>//tmp/t1', '{key=foo;value=ninja}')
 
         command = '''cat >/dev/null; k1="$YT_JOB_INDEX"0; k2="$YT_JOB_INDEX"1; echo "{key=$k1; value=one}; {key=$k2; value=two}"'''
 
         map(in_='//tmp/t1',
-            out='<sorted_by=[key]>//tmp/t2',
+            out='<sorted_by=[key];append=true>//tmp/t2',
             command=command,
-           opt=['/spec/job_count=2'])
+            opt=['/spec/job_count=2'])
 
         assert get('//tmp/t2/@sorted') == 'true'
         assert get('//tmp/t2/@sorted_by') == ['key']
@@ -117,8 +117,8 @@ class TestSchedulerMapCommands(YTEnvSetup):
     def test_sorted_output_overlap(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
-        write_str('//tmp/t1', '{key=foo;value=ninja}')
-        write_str('//tmp/t1', '{key=foo;value=ninja}')
+        write_str('<append=true>//tmp/t1', '{key=foo;value=ninja}')
+        write_str('<append=true>//tmp/t1', '{key=foo;value=ninja}')
 
         command = 'cat >/dev/null; echo "{key=1; value=one}; {key=2; value=two}"'
 
@@ -147,7 +147,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
     def test_job_count(self):
         create('table', '//tmp/t1')
         for i in xrange(5):
-            write_str('//tmp/t1', '{foo=bar}')
+            write_str('<append=true>//tmp/t1', '{foo=bar}')
 
         command = "cat > /dev/null; echo {hello=world}"
 

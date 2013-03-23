@@ -4,6 +4,8 @@
 
 #include <ytlib/misc/nullable.h>
 
+#include <ytlib/ytree/attributes.h>
+
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 #include <ytlib/table_client/table_reader.pb.h>
 
@@ -57,6 +59,10 @@ std::vector<TRefCountedInputChunkPtr> SliceChunkEvenly(
 //! and removes any limits.
 TRefCountedInputChunkPtr CreateCompleteChunk(
     TRefCountedInputChunkPtr inputChunk);
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExtractOverwriteFlag(const NYTree::IAttributeDictionary& attributes);
 
 ////////////////////////////////////////////////////////////////////////////////
 
