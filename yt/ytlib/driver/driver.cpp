@@ -98,8 +98,8 @@ public:
         REGISTER(TLockCommand,              "lock",              Null,       Null,       true,  false);
         REGISTER(TCopyCommand,              "copy",              Null,       Structured, true,  false);
         REGISTER(TMoveCommand,              "move",              Null,       Null,       true,  false);
+        REGISTER(TLinkCommand,              "link",              Null,       Structured, true,  false);
         REGISTER(TExistsCommand,            "exists",            Null,       Structured, false, false);
-        REGISTER(TLinkCommand,              "link",              Null,       Structured, false, false);
 
         REGISTER(TUploadCommand,            "upload",            Binary,     Structured, true,  true );
         REGISTER(TDownloadCommand,          "download",          Null,       Binary,     false, true );

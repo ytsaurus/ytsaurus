@@ -3,7 +3,6 @@
 from argparse import ArgumentParser, Action
 
 import yt.wrapper as yt
-from yt.wrapper.common import chunk_iter
 
 import os
 import sys
@@ -36,6 +35,12 @@ class ParseFormat(Action):
 class ParseStructure(Action):
     def __call__(self, parser, namespace, values, option_string=None):
         setattr(namespace, self.dest, get_structured_option_parser()(values))
+
+class ParseMemoryLimit(Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        if values is not None:
+            values = yt.config.MB * int(values)
+        setattr(namespace, self.dest, values)
 
 def get_structured_option_parser():
     option_format = os.environ.get("YT_STRUCTURED_OPTIONS_FORMAT", "yson")
@@ -132,7 +137,7 @@ def add_download_parser(add_parser):
     parser.set_defaults(func=download)
 
 def upload(args):
-    yt.upload_file(chunk_iter(sys.stdin), args.path)
+    yt.upload_file(sys.stdin, args.path)
     if args.executable:
         yt.set(args.path + "/@executable", "true")
 
@@ -143,7 +148,7 @@ def add_upload_parser(add_parser):
     parser.set_defaults(func=upload)
 
 def write(args):
-    yt.write_table(sys.stdin, args.path, format=args.format, table_writer=args.table_writer)
+    yt.write_table(args.path, sys.stdin, format=args.format, table_writer=args.table_writer)
 
 def add_write_parser(add_parser):
     parser = add_parser("write", help="write rows to table")
@@ -260,7 +265,7 @@ def add_erase_parser(add_parser):
 
 
 def merge(args):
-    yt.run_merge(args.src, args.dst, args.mode)
+    yt.run_merge(args.src, args.dst, args.mode, spec=args.spec)
 
 def add_merge_parser(add_parser):
     parser = add_parser("merge", help="merge given tables")
@@ -272,7 +277,7 @@ def add_merge_parser(add_parser):
 
 
 def sort(args):
-    yt.run_sort(args.src, args.dst, args.sort_by)
+    yt.run_sort(args.src, args.dst, args.sort_by, spec=args.spec)
 
 def add_sort_parser(add_parser):
     parser = add_parser("sort", help="sort given tables")
@@ -295,7 +300,7 @@ def operation_args(parser):
     parser.add_argument("--file", action="append")
     parser.add_argument("--local-file", action="append")
     parser.add_argument("--job-count", type=int)
-    parser.add_argument("--memory-limit", type=int)
+    parser.add_argument("--memory-limit", type=int, action=ParseMemoryLimit)
     parser.add_argument("--spec", action=ParseStructure)
     format_args(parser)
 
@@ -312,7 +317,7 @@ def add_map_parser(add_parser):
 
 def reduce(args):
     yt.run_reduce(args.command, args.src, args.dst, file_paths=args.file, files=args.local_file, reduce_by=args.reduce_by,
-                  format=args.format, input_format=args.input_format, output_format=args.output_format)
+                  format=args.format, input_format=args.input_format, output_format=args.output_format, spec=args.spec)
 
 def add_reduce_parser(add_parser):
     parser = add_parser("reduce", help="run map operation")
@@ -325,7 +330,10 @@ def map_reduce(args):
                       map_files=args.map_local_files, map_file_paths=args.map_files,
                       reduce_files=args.reduce_local_files, reduce_file_paths=args.reduce_files,
                       reduce_by=args.reduce_by, sort_by=args.sort_by,
-                      format=args.format, input_format=args.input_format, output_format=args.output_format)
+                      format=args.format, input_format=args.input_format, output_format=args.output_format,
+                      mapper_memory_limit=args.map_memory_limit,
+                      reducer_memory_limit=args.reduce_memory_limit,
+                      spec=args.spec)
 
 def add_map_reduce_parser(add_parser):
     parser = add_parser("map-reduce", help="run map_reduce operation")
@@ -337,8 +345,11 @@ def add_map_reduce_parser(add_parser):
     parser.add_argument("--map-local-file", action="append")
     parser.add_argument("--reduce-file", action="append")
     parser.add_argument("--reduce-local-file", action="append")
+    parser.add_argument("--map-memory-limit", type=int, action=ParseMemoryLimit)
+    parser.add_argument("--reduce-memory-limit", type=int, action=ParseMemoryLimit)
     parser.add_argument("--reduce-by", action="append", required=True)
     parser.add_argument("--sort-by", action="append")
+    parser.add_argument("--spec", action=ParseStructure)
     format_args(parser)
     parser.set_defaults(func=map_reduce)
 

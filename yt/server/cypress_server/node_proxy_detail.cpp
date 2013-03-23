@@ -1313,7 +1313,7 @@ IYPathServicePtr TLinkNodeProxy::GetTargetService() const
     const auto* impl = GetThisTypedImpl();
     const auto& targetId = impl->GetTargetId();
     auto* target = objectManager->FindObject(targetId);
-    if (!target) {
+    if (!IsObjectAlive(target)) {
         THROW_ERROR_EXCEPTION("Link target does not exist: %s", ~ToString(targetId));
     }
     return objectManager->GetProxy(target, Transaction);

@@ -1,5 +1,5 @@
 import config
-from common import require
+from common import require, chunk_iter
 from errors import YtError
 from http import read_content, get_host_for_heavy_operation
 from tree_commands import remove, exists, set_attribute, mkdir, find_free_subpath
@@ -22,6 +22,9 @@ def upload_file(stream, destination, yt_filename=None):
     Simply uploads data from stream to destination and
     set file_name attribute if yt_filename is specified
     """
+    if hasattr(stream, 'fileno'):
+        # read files by chunks, not by lines
+        stream = chunk_iter(stream)
     _make_transactional_request("upload", {"path": prepare_path(destination)}, data=stream, proxy=get_host_for_heavy_operation())
     if yt_filename is not None:
         set_attribute(destination, "file_name", yt_filename)
