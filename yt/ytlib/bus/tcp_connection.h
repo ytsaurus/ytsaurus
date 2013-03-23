@@ -113,7 +113,7 @@ private:
 
     struct TEncodedFragment
     {
-        TRef Data;
+        TRef Chunk;
         bool IsLastInPacket;
     };
 
