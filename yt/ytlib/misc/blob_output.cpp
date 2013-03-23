@@ -50,9 +50,9 @@ TSharedRef TBlobOutput::Flush()
     return TSharedRef::FromBlob<TBlobOutputTag>(std::move(Blob));
 }
 
-const TBlob* TBlobOutput::GetBlob() const
+const TBlob& TBlobOutput::GetBlob() const
 {
-    return &Blob;
+    return Blob;
 }
 
 TBlobOutput::TStoredType TBlobOutput::PutData(const TStringBuf& value)

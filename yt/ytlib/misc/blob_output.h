@@ -21,7 +21,7 @@ public:
 
     TStoredType PutData(const TStringBuf& value);
 
-    const TBlob* GetBlob() const;
+    const TBlob& GetBlob() const;
 
     const char* Begin() const;
     size_t GetSize() const;
