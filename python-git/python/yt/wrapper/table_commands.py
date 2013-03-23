@@ -115,12 +115,13 @@ def _remove_tables(tables):
         if exists(table) and get_type(table) == "table":
             remove(table)
 
-def _add_user_command_spec(op_type, binary, input_format, output_format, files, file_paths, fds_count, reduce_by, spec):
+def _add_user_command_spec(op_type, binary, input_format, output_format, files, file_paths, fds_count, memory_limit, reduce_by, spec):
     if binary is None:
         return spec, []
     files = _prepare_files(files)
     binary, additional_files = _prepare_binary(binary, op_type, reduce_by)
     binary = _add_output_fd_redirect(binary, fds_count)
+    memory_limit = get_value(memory_limit, config.MEMORY_LIMIT)
     spec = update(
         {
             op_type: {
@@ -128,7 +129,7 @@ def _add_user_command_spec(op_type, binary, input_format, output_format, files, 
                 "output_format": output_format.to_json(),
                 "command": binary,
                 "file_paths": flatten(files + additional_files + map(prepare_path, get_value(file_paths, []))),
-                "memory_limit": config.MEMORY_LIMIT
+                "memory_limit": memory_limit
             }
         },
     spec)
@@ -518,6 +519,7 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
                    replication_factor=None, compression_codec=None,
                    map_files=None, reduce_files=None,
                    map_file_paths=None, reduce_file_paths=None,
+                   mapper_memory_limit=None, reducer_memory_limit=None,
                    sort_by=None, reduce_by=None):
     run_map_reduce.files_to_remove = []
     def memorize_files(spec, files):
@@ -539,8 +541,8 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
         lambda _: _add_input_output_spec(source_table, destination_table, _),
         lambda _: update({"sort_by": _prepare_sort_by(sort_by),
                           "reduce_by": _prepare_reduce_by(reduce_by)}, _),
-        lambda _: memorize_files(*_add_user_command_spec("mapper", mapper, input_format, output_format, map_files, map_file_paths, 1, None, _)),
-        lambda _: memorize_files(*_add_user_command_spec("reducer", reducer, input_format, output_format, reduce_files, reduce_file_paths, len(destination_table), reduce_by, _)),
+        lambda _: memorize_files(*_add_user_command_spec("mapper", mapper, input_format, output_format, map_files, map_file_paths, 1, mapper_memory_limit, None, _)),
+        lambda _: memorize_files(*_add_user_command_spec("reducer", reducer, input_format, output_format, reduce_files, reduce_file_paths, len(destination_table), reducer_memory_limit, reduce_by, _)),
         lambda _: get_value(_, {})
     )(spec)
 
@@ -608,7 +610,7 @@ def run_operation(binary, source_table, destination_table,
         lambda _: update({"reduce_by": _prepare_reduce_by(reduce_by)}, _) if op_name == "reduce" else _,
         lambda _: update({"job_count": job_count}, _) if job_count is not None else _,
         lambda _: update({"memory_limit": memory_limit}, _) if memory_limit is not None else _,
-        lambda _: memorize_files(*_add_user_command_spec(op_type, binary, input_format, output_format, files, file_paths, len(destination_table), reduce_by, _)),
+        lambda _: memorize_files(*_add_user_command_spec(op_type, binary, input_format, output_format, files, file_paths, len(destination_table), memory_limit, reduce_by, _)),
         lambda _: get_value(_, {})
     )(spec)
 
