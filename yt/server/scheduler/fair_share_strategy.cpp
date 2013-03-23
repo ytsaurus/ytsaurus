@@ -667,8 +667,8 @@ public:
         : Config(config)
         , Host(host)
     {
-        Host->SubscribeOperationStarted(BIND(&TFairShareStrategy::OnOperationRegistered, this));
-        Host->SubscribeOperationFinished(BIND(&TFairShareStrategy::OnOperationUnregistered, this));
+        Host->SubscribeOperationRegistered(BIND(&TFairShareStrategy::OnOperationRegistered, this));
+        Host->SubscribeOperationUnregistered(BIND(&TFairShareStrategy::OnOperationUnregistered, this));
 
         Host->SubscribeJobStarted(BIND(&TFairShareStrategy::OnJobStarted, this));
         Host->SubscribeJobFinished(BIND(&TFairShareStrategy::OnJobFinished, this));

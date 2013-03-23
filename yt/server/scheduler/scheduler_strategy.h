@@ -19,8 +19,8 @@ struct ISchedulerStrategyHost
     virtual ~ISchedulerStrategyHost()
     { }
 
-    DECLARE_INTERFACE_SIGNAL(void(TOperationPtr), OperationStarted);
-    DECLARE_INTERFACE_SIGNAL(void(TOperationPtr), OperationFinished);
+    DECLARE_INTERFACE_SIGNAL(void(TOperationPtr), OperationRegistered);
+    DECLARE_INTERFACE_SIGNAL(void(TOperationPtr), OperationUnregistered);
 
     DECLARE_INTERFACE_SIGNAL(void(TJobPtr job), JobStarted);
     DECLARE_INTERFACE_SIGNAL(void(TJobPtr job), JobFinished);
