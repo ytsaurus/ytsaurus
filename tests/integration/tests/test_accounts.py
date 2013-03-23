@@ -256,7 +256,7 @@ class TestAccounts(YTEnvSetup):
 
         tx2 = start_transaction(tx=tx)
         assert self._get_node_disk_space('//tmp/t', tx=tx2) == space
-        write('//tmp/t', {'a' : 'b'}, tx=tx2)
+        write('<append=true>//tmp/t', {'a' : 'b'}, tx=tx2)
         assert self._get_node_disk_space('//tmp/t', tx=tx2) == space * 2
         assert self._get_account_disk_space('tmp') == space * 2
 
@@ -292,7 +292,7 @@ class TestAccounts(YTEnvSetup):
 
         self._set_account_disk_space_limit('max', self._get_account_disk_space('max'))
         assert self._is_account_over_disk_space_limit('max') == 'false'
-        write('//tmp/t', {'a' : 'b'}) 
+        write('<append=true>//tmp/t', {'a' : 'b'}) 
         assert self._is_account_over_disk_space_limit('max') == 'true'
 
     def test_disk_space_limits3(self):
@@ -323,7 +323,7 @@ class TestAccounts(YTEnvSetup):
         assert self._get_account_committed_disk_space('tmp') == space
 
         tx = start_transaction()
-        write('//tmp/t', {'a' : 'b'}, tx=tx)
+        write('<append=true>//tmp/t', {'a' : 'b'}, tx=tx)
         assert self._get_account_committed_disk_space('tmp') == space
 
         commit_transaction(tx)

@@ -555,7 +555,7 @@ void TOperationControllerBase::Initialize()
     FOREACH (const auto& path, GetOutputTablePaths()) {
         TOutputTable table;
         table.Path = path;
-        if (path.Attributes().Get<bool>("overwrite", false)) {
+        if (NTableClient::ExtractOverwriteFlag(path.Attributes())) {
             table.Clear = true;
             table.Overwrite = true;
             table.LockMode = ELockMode::Exclusive;

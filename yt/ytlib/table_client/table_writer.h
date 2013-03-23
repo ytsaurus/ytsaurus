@@ -78,7 +78,6 @@ private:
     TTableChunkSequenceWriterPtr Writer;
 
     DECLARE_THREAD_AFFINITY_SLOT(Client);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
