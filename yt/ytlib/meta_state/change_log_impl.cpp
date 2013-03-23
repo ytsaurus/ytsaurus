@@ -375,7 +375,7 @@ TNullable<TRecordInfo> ReadRecord(TCheckableFileReader<Stream>& input)
     }
 
     struct TChangeLogRecordTag { };
-    auto data = TSharedRef::Allocate<TChangeLogRecordTag>(header.DataLength);
+    auto data = TSharedRef::Allocate<TChangeLogRecordTag>(header.DataLength, false);
     readSize += ReadPadded(input, data);
     if (!input.Success()) {
         return Null;
@@ -580,7 +580,7 @@ TChangeLog::TImpl::TEnvelopeData TChangeLog::TImpl::ReadEnvelope(int firstRecord
         *it :
         TLogIndexRecord(RecordCount, CurrentFilePosition);
     struct TChangeLogEnvelopeTag { };
-    result.Blob = TSharedRef::Allocate<TChangeLogEnvelopeTag>(result.GetLength());
+    result.Blob = TSharedRef::Allocate<TChangeLogEnvelopeTag>(result.GetLength(), false);
     {
         TGuard<TMutex> guard(Mutex);
         size_t bytesRead = File->Pread(

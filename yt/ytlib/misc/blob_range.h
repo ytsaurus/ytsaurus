@@ -7,6 +7,7 @@ namespace NYT {
 
 ///////////////////////////////////////////////////////////////////////////////
 
+// TODO(babenko): refactor
 class TBlobRange
 {
 public:
@@ -16,7 +17,7 @@ public:
     //ToDo(psushin): consider removing this.
     TStringBuf GetStringBuf() const;
 
-    TBlob::const_iterator begin() const;
+    const char* begin() const;
     size_t size() const;
 
 private:

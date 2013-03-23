@@ -7,10 +7,124 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef std::vector<char> TBlob;
+// Forward declarations.
+class TBlob;
+class TRef;
+class TSharedRef;
 
-size_t RoundUpToPage(size_t bytes);
-void AppendToBlob(TBlob& blob, const void* buffer, size_t size);
+////////////////////////////////////////////////////////////////////////////////
+
+//! A home-grown optimized replacement for |std::vector<char>| suitable for carrying
+//! large chunks of data.
+/*!
+ *  Compared to |std::vector<char>|, this class supports uninitialized allocations
+ *  when explicitly requested to.
+ */
+// TODO(babenko): integrate with Ref Counted Tracker.
+class TBlob
+{
+public:
+    //! Constructs an empty blob.
+    TBlob();
+
+    //! Constructs a blob with a given size.
+    explicit TBlob(size_t size, bool initiailizeStorage = true);
+
+    //! Copies the data.
+    TBlob(const TBlob& other);
+
+    //! Moves the data (takes the ownership).
+    TBlob(TBlob&& other);
+
+    //! Copies a chunk of memory into a new instance.
+    TBlob(const void* data, size_t size);
+
+    //! Reclaims the memory.
+    ~TBlob();
+
+    //! Ensures that capacity is at least #capacity.
+    void Reserve(size_t newCapacity);
+
+    //! Changes the size to #newSize.
+    void Resize(size_t newSize, bool initializeStorage = true);
+
+    //! Returns the start pointer.
+    FORCED_INLINE const char* Begin() const
+    {
+        return Begin_;
+    }
+
+    //! Returns the start pointer.
+    FORCED_INLINE char* Begin()
+    {
+        return Begin_;
+    }
+
+    //! Returns the end pointer.
+    FORCED_INLINE const char* End() const
+    {
+        return Begin_ + Size_;
+    }
+
+    //! Returns the end pointer.
+    FORCED_INLINE char* End()
+    {
+        return Begin_ + Size_;
+    }
+
+    //! Returns the size.
+    FORCED_INLINE size_t Size() const
+    {
+        return Size_;
+    }
+
+    //! Returns the capacity.
+    FORCED_INLINE size_t Capacity() const
+    {
+        return Capacity_;
+    }
+
+    //! Provides by-value access to the underlying storage.
+    FORCED_INLINE char operator [] (size_t index) const
+    {
+        return Begin_[index];
+    }
+
+    //! Provides by-ref access to the underlying storage.
+    FORCED_INLINE char& operator [] (size_t index)
+    {
+        return Begin_[index];
+    }
+
+    //! Clears the instance but does not reclaim the memory.
+    void Clear();
+
+    //! Returns |true| if size is zero.
+    FORCED_INLINE bool IsEmpty() const
+    {
+        return Size_ == 0;
+    }
+
+    //! Overwrites the current instance.
+    TBlob& operator = (const TBlob& rhs);
+
+    //! Takes the ownership.
+    TBlob& operator = (TBlob&& rhs);
+
+    //! Appends a chunk of memory to the end.
+    void Append(const void* data, size_t size);
+
+    //! Appends a chunk of memory to the end.
+    void Append(const TRef& ref);
+
+private:
+    char* Begin_;
+    size_t Size_;
+    size_t Capacity_;
+
+    void Reset();
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,7 +159,7 @@ public:
     //! Creates a non-owning reference for a given blob.
     static TRef FromBlob(const TBlob& blob)
     {
-        return TRef(const_cast<char*>(&*blob.begin()), blob.size());
+        return TRef(const_cast<char*>(&*blob.Begin()), blob.Size());
     }
 
     //! Creates a non-owning reference for a given string.
@@ -64,7 +178,7 @@ public:
     }
 
     char* Begin() const
-    {
+        {
         return Data;
     }
 
@@ -129,8 +243,8 @@ struct TDefaultSharedRefTag { };
 
 //! A reference of a shared block of memory.
 /*!
- *  Internally it is represented a by a shared pointer to a TBlob holding the
- *  data and a TRef pointing inside the blob.
+ *  Internally it is represented a by a ref-counted structure with a TBlob holding the
+ *  actual data and a TRef pointing inside the blob.
  */
 class TSharedRef
 {
@@ -141,9 +255,9 @@ public:
 
     //! Allocates a new shared block of memory.
     template <class TTag>
-    static TSharedRef Allocate(size_t size)
+    static TSharedRef Allocate(size_t size, bool initializeStorage = true)
     {
-        auto result = AllocateImpl(size);
+        auto result = AllocateImpl(size, initializeStorage);
 #ifdef ENABLE_REF_COUNTED_TRACKING
         void* cookie = ::NYT::NDetail::GetRefCountedTrackerCookie<TTag>();
         result.Data->InitializeTracking(cookie);
@@ -151,9 +265,9 @@ public:
         return result;
     }
 
-    static TSharedRef Allocate(size_t size)
+    static TSharedRef Allocate(size_t size, bool initializeStorage = true)
     {
-        return Allocate<TDefaultSharedRefTag>(size);
+        return Allocate<TDefaultSharedRefTag>(size, initializeStorage);
     }
 
     //! Creates a non-owning reference from TPtr. Use it with caution!
@@ -260,11 +374,11 @@ public:
     }
 
 private:
-    struct TData
+    struct TSharedData
         : public TIntrinsicRefCounted
     {
-        explicit TData(TBlob&& blob);
-        ~TData();
+        explicit TSharedData(TBlob&& blob);
+        ~TSharedData();
 
         TBlob Blob;
 
@@ -276,7 +390,7 @@ private:
 #endif
     };
 
-    typedef TIntrusivePtr<TData> TDataPtr;
+    typedef TIntrusivePtr<TSharedData> TDataPtr;
 
     TDataPtr Data;
     TRef Ref;
@@ -286,7 +400,7 @@ private:
         , Ref(ref)
     { }
 
-    static TSharedRef AllocateImpl(size_t size);
+    static TSharedRef AllocateImpl(size_t size, bool initializeStorage);
     static TSharedRef FromBlobImpl(TBlob&& blob);
 
 };
@@ -295,6 +409,10 @@ Stroka ToString(const TRef& ref);
 
 void Save(TOutputStream* output, const NYT::TSharedRef& ref);
 void Load(TInputStream* input, NYT::TSharedRef& ref);
+
+////////////////////////////////////////////////////////////////////////////////
+
+size_t RoundUpToPage(size_t bytes);
 
 ////////////////////////////////////////////////////////////////////////////////
 

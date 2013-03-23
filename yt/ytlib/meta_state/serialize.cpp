@@ -22,7 +22,7 @@ TSharedRef SerializeMutationRecord(
         recordHeader.DataSize;
 
     struct TMutationRecordTag { };
-    auto recordData = TSharedRef::Allocate<TMutationRecordTag>(recordSize);
+    auto recordData = TSharedRef::Allocate<TMutationRecordTag>(recordSize, false);
     YASSERT(recordData.Size() >= recordSize);
 
     std::copy(

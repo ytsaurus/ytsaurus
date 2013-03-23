@@ -19,11 +19,12 @@ namespace {
 TSharedRef Xor(const std::vector<TSharedRef>& refs)
 {
     // TODO(ignat): optimize it using SSE
-    i64 length = refs.front().Size();
-    std::vector<char> result(length, 0);
-    for (int i = 0; i < refs.size(); ++i) {
-        for (i64 pos = 0; pos < length; ++pos) {
-            result[pos] ^= *(refs[i].Begin() + pos);
+    size_t size = refs.front().Size();
+    TBlob result(size); // this also fills it with zeros
+    FOREACH (const auto& ref, refs) {
+        const char* data = ref.Begin();
+        for (size_t pos = 0; pos < size; ++pos) {
+            result[pos] ^= data[pos];
         }
     }
     return TSharedRef::FromBlob(std::move(result));
@@ -31,7 +32,7 @@ TSharedRef Xor(const std::vector<TSharedRef>& refs)
 
 std::vector<int> UniqueSortedIndices(const std::vector<int>& indices)
 {
-    std::vector<int> copy = indices;
+    auto copy = indices;
     sort(copy.begin(), copy.end());
     copy.erase(unique(copy.begin(), copy.end()), copy.end());
     return copy;
@@ -72,7 +73,7 @@ TLrc::TLrc(int blockCount)
             if (row == 1) Matrix_[index] = isFirstHalf ? 0 : 1;
             
             // Let alpha_i be coefficient of first half and beta_i of the second half.
-            // Then matrix is non-singul iff:
+            // Then matrix is non-singular iff:
             //   a) alpha_i, beta_j != 0
             //   b) alpha_i != beta_j
             //   c) alpha_i + alpha_k != beta_j + beta_l
@@ -83,7 +84,7 @@ TLrc::TLrc(int blockCount)
                 Matrix_[index] = shift * (1 + relativeColumn);
             }
             
-            // The last row is square of the row before last
+            // The last row is the square of the row before last.
             if (row == 3) {
                 int prev = Matrix_[index - BlockCount_];
                 Matrix_[index] = galois_single_multiply(prev, prev, WordSize_);
@@ -123,7 +124,7 @@ std::vector<TSharedRef> TLrc::Decode(
 
     std::vector<int> indices = UniqueSortedIndices(erasedIndices);
     
-    // We can restore one block by xor
+    // We can restore one block by xor.
     if (indices.size() == 1) {
         int index = erasedIndices.front();
         for (int i = 0; i < 2; ++i) {
@@ -134,7 +135,7 @@ std::vector<TSharedRef> TLrc::Decode(
     }
 
     auto recoveryIndices = *GetRecoveryIndices(indices);
-    // We can restore two blocks from different groups using xor
+    // We can restore two blocks from different groups using xor.
     if (indices.size() == 2 &&
         indices.back() < BlockCount_ + 2 &&
         recoveryIndices.back() < BlockCount_ + 2)
@@ -193,7 +194,7 @@ TNullable<std::vector<int>> TLrc::GetRecoveryIndices(const std::vector<int>& era
         return Null;
     }
 
-    // One erasure from data or xor blocks
+    // One erasure from data or xor blocks.
     if (indices.size() == 1) {
         int index = indices.front();
         for (int i = 0; i < 2; ++i) {
@@ -203,7 +204,7 @@ TNullable<std::vector<int>> TLrc::GetRecoveryIndices(const std::vector<int>& era
         }
     }
 
-    // Null if we have 4 erasures in one group
+    // Null if we have 4 erasures in one group.
     if (indices.size() == ParityCount_) {
         bool intersectsAny = true;
         for (int i = 0; i < 2; ++i) {
@@ -216,7 +217,7 @@ TNullable<std::vector<int>> TLrc::GetRecoveryIndices(const std::vector<int>& era
         }
     }
     
-    // Calculate coverage of each group
+    // Calculate coverage of each group.
     int groupCoverage[2] = {0};
     FOREACH(int index, indices) {
         for (int i = 0; i < 2; ++i) {
@@ -226,7 +227,7 @@ TNullable<std::vector<int>> TLrc::GetRecoveryIndices(const std::vector<int>& era
         }
     }
 
-    // Two erasures, one in each group
+    // Two erasures, one in each group.
     if (indices.size() == 2 && groupCoverage[0] == 1 && groupCoverage[1] == 1) {
         return Difference(Union(Groups_[0], Groups_[1]), indices);
     }
@@ -236,7 +237,7 @@ TNullable<std::vector<int>> TLrc::GetRecoveryIndices(const std::vector<int>& era
         return Segment(0, BlockCount_);
     }
 
-    // Remove unnesessary xor parities.
+    // Remove unnecessary xor parities.
     std::vector<int> result = Difference(0, BlockCount_ + ParityCount_, indices);
     for (int i = 0; i < 2; ++i) {
         if (groupCoverage[i] == 0 && indices.size() <= 3) {

@@ -65,9 +65,9 @@ TVoid ReadRecord(TAsyncChangeLog* asyncChangeLog, i32 recordIndex)
 
 TSharedRef MakeData(i32 data)
 {
-    TBlob blob(sizeof(i32));
-    *reinterpret_cast<i32*>(&*blob.begin()) = static_cast<i32>(data);
-    return TSharedRef::FromBlob(std::move(blob));
+    auto result = TSharedRef::Allocate(sizeof(i32));
+    *reinterpret_cast<i32*>(&*result.Begin()) = static_cast<i32>(data);
+    return result;
 }
 
 } // namespace

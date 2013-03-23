@@ -287,8 +287,9 @@ TEST_F(TRpcTest, ManyAsyncSends)
 DEFINE_RPC_SERVICE_METHOD(TMyService, ModifyAttachments)
 {
     FOREACH (const auto& attachment, request->Attachments()) {
-        std::vector<char> data(attachment.Begin(), attachment.End());
-        data.push_back('_');
+        TBlob data;
+        data.Append(attachment);
+        data.Append("_", 1);
         response->Attachments().push_back(TSharedRef::FromBlob(std::move(data)));
     }
     context->Reply();
