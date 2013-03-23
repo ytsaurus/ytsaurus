@@ -24,7 +24,9 @@ using NYT::ToString;
 
 static NProfiling::TProfiler& Profiler = BusProfiler;
 
-static const size_t ReadChunkSize = 16 * 1024;
+static const size_t MinBatchReadSize = 16 * 1024;
+static const size_t MaxBatchReadSize = 1024 * 1024;
+
 static const size_t FragmentCountThreshold = 256;
 
 static NProfiling::TAggregateCounter ReceiveTime("/receive_time");
@@ -63,7 +65,7 @@ TTcpConnection::TTcpConnection(
     , Logger(BusLogger)
     , Port(0)
     , MessageEnqueuedSent(false)
-    , ReadBuffer(ReadChunkSize)
+    , ReadBuffer(MinBatchReadSize)
     , TerminatedPromise(NewPromise<TError>())
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -515,12 +517,15 @@ void TTcpConnection::OnSocketRead()
     while (true) {
         // Check if the decoder is expecting a chunk of large enough size.
         auto decoderChunk = Decoder.GetChunk();
-        LOG_TRACE("Decoder needs %" PRISZT " bytes", decoderChunk.Size());
-        if (decoderChunk.Size() >= ReadChunkSize) {
+        size_t decoderChunkSize = decoderChunk.Size();
+        LOG_TRACE("Decoder needs %" PRISZT " bytes", decoderChunkSize);
+
+        if (decoderChunkSize >= MinBatchReadSize) {
             // Read directly into the decoder buffer.
-            LOG_TRACE("Reading %" PRISZT " bytes into decoder", decoderChunk.Size());
+            size_t bytesToRead = std::min(decoderChunkSize, MaxBatchReadSize);
+            LOG_TRACE("Reading %" PRISZT " bytes into decoder", bytesToRead);
             size_t bytesRead;
-            if (!ReadSocket(decoderChunk.Begin(), decoderChunk.Size(), &bytesRead)) {
+            if (!ReadSocket(decoderChunk.Begin(), bytesToRead, &bytesRead)) {
                 break;
             }
             bytesReadTotal += bytesRead;
@@ -542,16 +547,17 @@ void TTcpConnection::OnSocketRead()
             size_t recvRemaining = bytesRead;
             while (recvRemaining != 0) {
                 decoderChunk = Decoder.GetChunk();
-                size_t advanceSize = std::min(recvRemaining, decoderChunk.Size());
-                LOG_TRACE("Decoder chunk size is %" PRISZT " bytes, advancing %" PRISZT " bytes",
-                    decoderChunk.Size(),
-                    advanceSize);
-                std::copy(recvBegin, recvBegin + advanceSize, decoderChunk.Begin());
-                if (!AdvanceDecoder(advanceSize)) {
+                decoderChunkSize = decoderChunk.Size();
+                size_t bytesToCopy = std::min(recvRemaining, decoderChunkSize);
+                LOG_TRACE("Decoder chunk size is %" PRISZT " bytes, copying %" PRISZT " bytes",
+                    decoderChunkSize,
+                    bytesToCopy);
+                std::copy(recvBegin, recvBegin + bytesToCopy, decoderChunk.Begin());
+                if (!AdvanceDecoder(bytesToCopy)) {
                     return;
                 }
-                recvBegin += advanceSize;
-                recvRemaining -= advanceSize;
+                recvBegin += bytesToCopy;
+                recvRemaining -= bytesToCopy;
             }
             LOG_TRACE("Buffer exhausted");
         }
