@@ -22,7 +22,8 @@ public:
               config->EnableEscaping, //Enable key escaping
               config->EnableEscaping, //Enable value escaping
               config->EscapingSymbol,
-              config->HasSubkey)
+              config->HasSubkey,
+              config->EscapeCarriageReturn)
         , Consumer(consumer)
         , Config(config)
     { }

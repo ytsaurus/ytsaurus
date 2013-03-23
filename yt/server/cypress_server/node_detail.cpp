@@ -51,10 +51,7 @@ void TNontemplateCypressNodeTypeHandlerBase::DestroyCore(TCypressNodeBase* node)
     auto securityManager = Bootstrap->GetSecurityManager();
 
     // Remove user attributes, if any.
-    auto id = node->GetVersionedId();
-    if (objectManager->FindAttributes(id)) {
-        objectManager->RemoveAttributes(id);
-    }
+    objectManager->TryRemoveAttributes(node->GetVersionedId());
 
     // Reset parent links from immediate descendants.
     FOREACH (auto* descendant, node->ImmediateDescendants()) {

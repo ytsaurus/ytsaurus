@@ -587,6 +587,8 @@ DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
         ThrowCannotHaveChildren(this);
     }
 
+    ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+
     auto objectManager = Bootstrap->GetObjectManager();
     auto cypressManager = Bootstrap->GetCypressManager();
     auto securityManager = Bootstrap->GetSecurityManager();
@@ -1000,7 +1002,8 @@ Stroka TMapNodeProxy::GetChildKey(IConstNodePtr child)
         }
     }
 
-    YUNREACHABLE();
+    // COMPAT(babenko)
+    return "(unknown)";
 }
 
 bool TMapNodeProxy::DoInvoke(NRpc::IServiceContextPtr context)

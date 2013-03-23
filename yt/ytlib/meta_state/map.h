@@ -101,6 +101,10 @@ public:
      */
     void Remove(const TKey& key);
 
+    //! Similar to #Remove but may also be called for missing keys.
+    //! Returns |true| if #key was found and removed.
+    bool TryRemove(const TKey& key);
+
     //! Similar to #Remove but does not delete the object and returns the pointer to it instead.
     TAutoPtr<TValue> Release(const TKey& key);
 

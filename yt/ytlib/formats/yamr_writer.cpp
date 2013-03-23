@@ -20,7 +20,8 @@ TYamrWriter::TYamrWriter(TOutputStream* stream, TYamrFormatConfigPtr config)
         Config->RecordSeparator,
         Config->EnableEscaping, // Enable key escaping
         Config->EnableEscaping, // Enable value escaping
-        Config->EscapingSymbol)
+        Config->EscapingSymbol, 
+        Config->EscapeCarriageReturn)
     , AllowBeginMap(true)
     , ExpectTableIndex(false)
     , State(EState::None)

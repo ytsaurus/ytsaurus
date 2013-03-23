@@ -26,7 +26,8 @@ public:
               config->EnableEscaping, // Enable key escaping
               false, // Enable value escaping
               config->EscapingSymbol,
-              config->HasSubkey)
+              config->HasSubkey,
+              config->EscapeCarriageReturn)
         , Consumer(consumer)
         , Config(config)
         , DsvParser(CreateParserForDsv(

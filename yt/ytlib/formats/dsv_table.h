@@ -15,28 +15,28 @@ struct TDsvTable
     TEscapeTable Escapes;
 
     TDsvTable(const TDsvFormatConfigPtr& config)
+        : Escapes(config->EscapeCarriageReturn)
     {
-        const char keyStopSymbols[] = {
-            config->RecordSeparator,
-            config->FieldSeparator,
-            config->KeyValueSeparator,
-            config->EscapingSymbol,
-            '\0'
-        };
+        std::vector<char> stopSymbols;
+        stopSymbols.push_back(config->RecordSeparator);
+        stopSymbols.push_back(config->FieldSeparator);
+        stopSymbols.push_back(config->EscapingSymbol);
+        stopSymbols.push_back('\0');
 
-        const char valueStopSymbols[] = {
-            config->RecordSeparator,
-            config->FieldSeparator,
-            config->EscapingSymbol,
-            '\0'
-        };
+        if (config->EscapeCarriageReturn) {
+            stopSymbols.push_back('\r');
+        }
 
-        KeyStops.Fill(
-            keyStopSymbols,
-            keyStopSymbols + sizeof(keyStopSymbols));
+        std::vector<char> valueStopSymbols(stopSymbols);
         ValueStops.Fill(
-            valueStopSymbols,
-            valueStopSymbols + sizeof(valueStopSymbols));
+            valueStopSymbols.data(),
+            valueStopSymbols.data() + valueStopSymbols.size());
+        
+        std::vector<char> keyStopSymbols(stopSymbols);
+        keyStopSymbols.push_back(config->KeyValueSeparator);
+        KeyStops.Fill(
+            keyStopSymbols.data(),
+            keyStopSymbols.data() + keyStopSymbols.size());
     }
 };
 

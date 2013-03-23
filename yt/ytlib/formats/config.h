@@ -18,6 +18,7 @@ struct TDsvFormatConfig
     TNullable<Stroka> LinePrefix;
 
     bool EnableEscaping;
+    bool EscapeCarriageReturn;
     char EscapingSymbol;
 
     bool WithAttributes;
@@ -41,6 +42,8 @@ struct TDsvFormatConfig
             .Default();
         Register("enable_escaping", EnableEscaping)
             .Default(true);
+        Register("escape_carriage_return", EscapeCarriageReturn)
+            .Default(false);
         Register("escaping_symbol", EscapingSymbol)
             .Default('\\');
         Register("with_attributes", WithAttributes)
@@ -97,6 +100,7 @@ struct TYamrFormatConfig
     
     // Escaping options
     bool EnableEscaping;
+    bool EscapeCarriageReturn;
     char EscapingSymbol;
 
     // make sense only in writer
@@ -121,6 +125,8 @@ struct TYamrFormatConfig
         Register("enable_table_index", EnableTableIndex)
             .Default(false);
         Register("enable_escaping", EnableEscaping)
+            .Default(false);
+        Register("escape_carriage_return", EscapeCarriageReturn)
             .Default(false);
         Register("escaping_symbol", EscapingSymbol)
             .Default('\\');

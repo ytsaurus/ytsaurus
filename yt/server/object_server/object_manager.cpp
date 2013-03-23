@@ -692,6 +692,13 @@ void TObjectManager::RemoveAttributes(const TVersionedObjectId& id)
     Attributes.Remove(id);
 }
 
+bool TObjectManager::TryRemoveAttributes(const TVersionedObjectId& id)
+{
+    VERIFY_THREAD_AFFINITY(StateThread);
+
+    return Attributes.TryRemove(id);
+}
+
 void TObjectManager::BranchAttributes(
     const TVersionedObjectId& originatingId,
     const TVersionedObjectId& branchedId)

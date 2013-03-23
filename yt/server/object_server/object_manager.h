@@ -101,6 +101,10 @@ public:
     //! Removes an existing attribute set.
     void RemoveAttributes(const TVersionedObjectId& id);
 
+    //! Similar to #RemoveAttributes but may also be called for missing keys.
+    //! Returns |true| if #id was found and removed.
+    bool TryRemoveAttributes(const TVersionedObjectId& id);
+
     //! Called when a versioned object is branched.
     void BranchAttributes(
         const TVersionedObjectId& originatingId,
