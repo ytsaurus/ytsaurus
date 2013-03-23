@@ -126,7 +126,7 @@ class TestAsyncAttributes(YTEnvSetup):
         write_str(table, '{foo=bar}')
 
         for i in xrange(8):
-            merge(in_=[table, table], out=table)
+            merge(in_=[table, table], out="<append=true>" + table)
 
         chunk_count = 3**8
         assert len(get('//tmp/t/@chunk_ids')) == chunk_count

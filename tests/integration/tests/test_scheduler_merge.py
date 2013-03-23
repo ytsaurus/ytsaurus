@@ -16,13 +16,13 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         create('table', t1)
         v1 = [{'key' + str(i) : 'value' + str(i)} for i in xrange(3)]
         for v in v1:
-            write(t1, v)
+            write("<append=true>" + t1, v)
 
         t2 = '//tmp/t2'
         create('table', t2)
         v2 = [{'another_key' + str(i) : 'another_value' + str(i)} for i in xrange(4)]
         for v in v2:
-            write(t2, v)
+            write("<append=true>" + t2, v)
 
         self.t1 = t1
         self.t2 = t2
@@ -204,7 +204,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         merge(mode='ordered',
                in_=['//tmp/t1', '//tmp/t2'],
-               out='//tmp/t_out')
+               out='<append=true>//tmp/t_out')
        
         assert read('//tmp/t_out') == [v3, v1, v2]
 
@@ -227,14 +227,14 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         v = {'foo': 'bar'}
 
-        write('//tmp/t_in', v)
-        write('//tmp/t_in', v)
+        write('<append=true>//tmp/t_in', v)
+        write('<append=true>//tmp/t_in', v)
 
 
         merge('--combine',
                mode='ordered',
                in_='//tmp/t_in',
-               out='//tmp/t_in')
+               out='<append=true>//tmp/t_in')
        
         assert read('//tmp/t_in') == [v, v, v, v]
         assert get('//tmp/t_in/@chunk_count') == 3 # only result of merge is combined

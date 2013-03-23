@@ -33,7 +33,7 @@ class TestSchedulerEraseCommands(YTEnvSetup):
         ]
 
         for row in self.v:
-            write(self.table, row)
+            write("<append=true>" + self.table, row)
 
     def test_no_selectors(self):
         self._prepare_table()
@@ -113,10 +113,10 @@ class TestSchedulerEraseCommands(YTEnvSetup):
             {'key' : -1},
             {'key' : 7}
         ]
-        write(self.table, self.v[0:2]) 
-        write(self.table, self.v[2:4]) 
-        write(self.table, self.v[4:6]) 
-        write(self.table, self.v[6:8]) 
+        write("<append=true>" + self.table, self.v[0:2]) 
+        write("<append=true>" + self.table, self.v[2:4]) 
+        write("<append=true>" + self.table, self.v[4:6]) 
+        write("<append=true>" + self.table, self.v[6:8]) 
 
         assert get(self.table + '/@chunk_count') == 4
     
