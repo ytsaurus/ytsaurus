@@ -648,8 +648,7 @@ IObjectProxyPtr TObjectManager::GetProxy(
     TTransaction* transaction)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
-    YCHECK(object);
-    YCHECK(object->IsAlive());
+    YCHECK(IsObjectAlive(object));
 
     const auto& id = object->GetId();
     auto handler = FindHandler(TypeFromId(id));
