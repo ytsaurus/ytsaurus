@@ -447,7 +447,7 @@ def main():
     args = parser.parse_args()
     if args.tx is not None:
         yt.config.TRANSACTION = args.tx
-        yt.config.PING_ANCESTOR_TRANSACTIONS = args.ping_ancestor_transactions
+        yt.config.PING_ANCESTOR_TRANSACTIONS = args.ping_ancestor_txs
     if args.proxy is not None:
         yt.config.PROXY = args.proxy
     args.func(args)
