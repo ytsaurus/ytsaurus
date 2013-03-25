@@ -12,7 +12,7 @@ from operation_commands import get_operation_state, abort_operation, WaitStrateg
 from file_commands import download_file, upload_file, smart_upload_file
 from transaction_commands import \
     start_transaction, abort_transaction, \
-    commit_transaction, renew_transaction, \
+    commit_transaction, ping_transaction, \
     lock
 from transaction import Transaction, PingableTransaction, PingTransaction
 from py_wrapper import aggregator, raw
