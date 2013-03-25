@@ -27,7 +27,7 @@ void TDownloadCommand::DoExecute()
         Context->GetMasterChannel(),
         GetTransaction(false),
         Context->GetBlockCache(),
-        Request->Path,
+        Request->Path.Simplify(),
         Request->Offset,
         Request->Length);
 
@@ -58,7 +58,7 @@ void TUploadCommand::DoExecute()
         Context->GetMasterChannel(),
         GetTransaction(false),
         Context->GetTransactionManager(),
-        Request->Path,
+        Request->Path.Simplify(),
         ~attributes);
     writer->Open();
 
