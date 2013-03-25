@@ -30,8 +30,6 @@ void TReadCommand::DoExecute()
     auto config = UpdateYsonSerializable(
         Context->GetConfig()->TableReader,
         Request->TableReaderConfig);
-
-    Request->Path = Request->Path.Simplify();
     auto reader = New<TTableReader>(
         config,
         Context->GetMasterChannel(),
@@ -55,8 +53,6 @@ void TWriteCommand::DoExecute()
     auto config = UpdateYsonSerializable(
         Context->GetConfig()->TableWriter,
         Request->TableWriterConfig);
-
-    Request->Path = Request->Path.Simplify();
     auto writer = New<TTableWriter>(
         config,
         Context->GetMasterChannel(),
