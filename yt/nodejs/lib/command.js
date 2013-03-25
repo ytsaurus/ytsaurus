@@ -273,6 +273,11 @@ YtCommand.prototype._getName = function() {
     if (!/^[a-z_]+$/.test(this.name)) {
         throw new YtError("Malformed command name " + JSON.stringify(this.name) + ".");
     }
+
+    // COMPAT(sandello): Renamed renew_tx to ping_tx on 25.03.
+    if (this.name === "renew_tx") {
+        this.name = "ping_tx";
+    }
 };
 
 YtCommand.prototype._getUser = function() {
