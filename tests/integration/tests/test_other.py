@@ -140,9 +140,9 @@ class TestAsyncAttributes(YTEnvSetup):
         
         tableB = '//tmp/b'
         create('table', tableB)
-        set_str('//tmp/b/@compression_codec', 'snappy')
+        set_str(tableB + '/@compression_codec', 'snappy')
 
-        merge(in_=[tableA], out="<overwrite=true>" + tableB)
+        map(in_=[tableA], out=["<overwrite=true>" + tableB], command="cat")
 
         codec_info = get(tableB + '/@compression_statistics')
         assert codec_info.keys() == ['snappy']

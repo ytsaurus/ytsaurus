@@ -522,7 +522,7 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consu
 
     if (key == "compression_codec") {
         BuildYsonFluently(consumer)
-            .Value(FormatEnum(node->GetCodec()));
+            .Value(FormatEnum(dynamic_cast<TTableNode*>(node->GetTrunkNode())->GetCodec()));
         return true;
     }
 
