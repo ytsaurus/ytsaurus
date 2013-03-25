@@ -168,7 +168,7 @@ void TSession::PutBlock(
 
     auto& slot = GetSlot(blockIndex);
     if (slot.State != ESlotState::Empty) {
-        if (TRef::CompareContent(slot.Block, data)) {
+        if (TRef::AreBiwiseEqual(slot.Block, data)) {
             LOG_WARNING("Block %d is already received", blockIndex);
             return;
         }
