@@ -50,9 +50,9 @@ class TablePath(object):
 
         attributes = self.name.attributes
         if append is not None:
-            attributes["overwrite"] = bool_to_string(not append)
+            attributes["append"] = bool_to_string(append)
         else:
-            attributes["overwrite"] = attributes.get("overwrite", "true")
+            attributes["append"] = attributes.get("append", "false")
         if sorted_by is not None:
             attributes["sorted_by"] = sorted_by
         if columns is not None:
@@ -78,7 +78,7 @@ class TablePath(object):
     @append.setter
     def append(self, value):
         self._append = value
-        self.name.attributes["overwrite"] = bool_to_string(not self._append)
+        self.name.attributes["append"] = bool_to_string(self._append)
 
     def has_delimiters(self):
         return any(key in self.name.attributes for key in ["channel", "lower_limit", "upper_limit"])
