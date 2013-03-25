@@ -30,12 +30,13 @@ void TReadCommand::DoExecute()
     auto config = UpdateYsonSerializable(
         Context->GetConfig()->TableReader,
         Request->TableReaderConfig);
+
     auto reader = New<TTableReader>(
         config,
         Context->GetMasterChannel(),
         GetTransaction(false),
         Context->GetBlockCache(),
-        Request->Path);
+        Request->Path.Simplify());
     reader->Open();
 
     auto driverRequest = Context->GetRequest();
@@ -53,6 +54,8 @@ void TWriteCommand::DoExecute()
     auto config = UpdateYsonSerializable(
         Context->GetConfig()->TableWriter,
         Request->TableWriterConfig);
+
+    Request->Path = Request->Path.Simplify();
     auto writer = New<TTableWriter>(
         config,
         Context->GetMasterChannel(),
