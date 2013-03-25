@@ -7,26 +7,33 @@ namespace NYT {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-// TODO(babenko): refactor
+//! A (non-owning) pointer to a const TBlob instance plus a range inside it (represented
+//! by start offset and size).
+/*!
+ *  TBlobRange provides a reallocation-tolerant way of keeping references inside TBlob.
+ */
 class TBlobRange
 {
 public:
     TBlobRange();
-    TBlobRange(const TBlob* blob, size_t offset, size_t length);
+    TBlobRange(const TBlob* blob, size_t offset, size_t size);
 
-    //ToDo(psushin): consider removing this.
-    TStringBuf GetStringBuf() const;
+    TStringBuf ToStringBuf() const;
 
+    // TODO(babenko): add more stuff when needed.
+    // TODO(babenko): consider adding FORCED_INLINE 
     const char* begin() const;
     size_t size() const;
 
 private:
     const TBlob* Blob;
     size_t Offset;
-    size_t Length;
+    size_t Size;
+
 };
 
-bool operator==(const TBlobRange& lhs, const TBlobRange& rhs);
+// TODO(babenko): add more stuff when needed.
+bool operator == (const TBlobRange& lhs, const TBlobRange& rhs);
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -36,8 +43,8 @@ bool operator==(const TBlobRange& lhs, const TBlobRange& rhs);
 template <>
 struct hash<NYT::TBlobRange>
 {
-    i32 operator()(const NYT::TBlobRange& blobRange) const
+    size_t operator()(const NYT::TBlobRange& value) const
     {
-        return THash<TStringBuf>()(blobRange.GetStringBuf());
+        return THash<TStringBuf>()(value.ToStringBuf());
     }
 };
