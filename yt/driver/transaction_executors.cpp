@@ -21,13 +21,13 @@ Stroka TStartTxExecutor::GetCommandName() const
 
 //////////////////////////////////////////////////////////////////////////////////
 
-TRenewTxExecutor::TRenewTxExecutor()
+TPingTxExecutor::TPingTxExecutor()
     : TTransactedExecutor(true, false)
 { }
 
-Stroka TRenewTxExecutor::GetCommandName() const
+Stroka TPingTxExecutor::GetCommandName() const
 {
-    return "renew_tx";
+    return "ping_tx";
 }
 
 //////////////////////////////////////////////////////////////////////////////////
