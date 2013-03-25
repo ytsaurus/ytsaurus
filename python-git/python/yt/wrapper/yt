@@ -395,6 +395,17 @@ def add_ping_tx_parser(add_parser):
     parser.add_argument("tx")
     parser.set_defaults(func=ping_tx)
 
+def check_permission(args):
+    print yt.check_permission(args.user, args.permission, args.path, format=args.format)
+
+def add_check_permission_parser(add_parser):
+    parser = add_parser("check_permission", help="check permission of given user at given path")
+    parser.add_argument("user")
+    parser.add_argument("permission")
+    parser.add_argument("path")
+    parser.add_argument("--format", action=ParseFormat, default=yt.YsonFormat())
+    parser.set_defaults(func=check_permission)
+
 def main():
     base_parser = ArgumentParser(add_help=False)
     base_parser.add_argument("--proxy")
@@ -430,6 +441,7 @@ def main():
     add_abort_tx_parser(add_parser)
     add_commit_tx_parser(add_parser)
     add_ping_tx_parser(add_parser)
+    add_check_permission_parser(add_parser)
     #add_cat_parser(add_parser)
 
     aliases_filename = os.path.join(os.path.expanduser("~"), ".yt/aliases")
