@@ -53,7 +53,7 @@ def get_structured_option_parser():
 
 def list(args):
     if args.format is not None and args.long_format:
-        raise yt.YtError("You can't specify --long-format and --structured simultaniously")
+        raise yt.YtError("You can't specify --long-format and --structured simultaneously")
 
     list = yt.list(args.path, max_size=args.max_size, attributes=args.attribute, format=args.format)
     if args.format is None:
