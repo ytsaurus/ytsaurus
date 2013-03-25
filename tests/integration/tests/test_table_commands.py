@@ -401,36 +401,36 @@ class TestTableCommands(YTEnvSetup):
                get('//tmp/@recursive_resource_usage')['disk_space']
 
     def test_chunk_tree_balancer(self):
-    	create('table', '//tmp/t')
-    	for i in xrange(0, 40):
-    		write('<append=true>//tmp/t', {'a' : 'b'})
-    	chunk_list_id = get('//tmp/t/@chunk_list_id')
-    	statistics = get('#' + chunk_list_id + '/@statistics')
-    	assert statistics['chunk_count'] == 40
-    	assert statistics['chunk_list_count'] == 2
-    	assert statistics['row_count'] == 40
-    	assert statistics['rank'] == 2
+        create('table', '//tmp/t')
+        for i in xrange(0, 40):
+            write('<append=true>//tmp/t', {'a' : 'b'})
+        chunk_list_id = get('//tmp/t/@chunk_list_id')
+        statistics = get('#' + chunk_list_id + '/@statistics')
+        assert statistics['chunk_count'] == 40
+        assert statistics['chunk_list_count'] == 2
+        assert statistics['row_count'] == 40
+        assert statistics['rank'] == 2
 
     def _check_replication_factor(self, path, expected_rf):
-    	chunk_ids = get(path + '/@chunk_ids')
-    	for id in chunk_ids:
-    		assert get('#' + id + '/@replication_factor') == expected_rf
+        chunk_ids = get(path + '/@chunk_ids')
+        for id in chunk_ids:
+            assert get('#' + id + '/@replication_factor') == expected_rf
 
     def test_replication_factor_update1(self):
-    	create('table', '//tmp/t')
-    	for i in xrange(0, 5):
-    		write('<append=true>//tmp/t', {'a' : 'b'})
-    	set('//tmp/t/@replication_factor', 4)
-    	sleep(3)
-    	self._check_replication_factor('//tmp/t', 4)
+        create('table', '//tmp/t')
+        for i in xrange(0, 5):
+            write('<append=true>//tmp/t', {'a' : 'b'})
+        set('//tmp/t/@replication_factor', 4)
+        sleep(3)
+        self._check_replication_factor('//tmp/t', 4)
 
     def test_replication_factor_update2(self):
-    	create('table', '//tmp/t')
-    	tx = start_transaction()
-    	for i in xrange(0, 5):
-    		write('<append=true>//tmp/t', {'a' : 'b'}, tx=tx)
-    	set('//tmp/t/@replication_factor', 4)
-    	commit_transaction(tx)
-    	sleep(3)
-    	self._check_replication_factor('//tmp/t', 4)
+        create('table', '//tmp/t')
+        tx = start_transaction()
+        for i in xrange(0, 5):
+            write('<append=true>//tmp/t', {'a' : 'b'}, tx=tx)
+        set('//tmp/t/@replication_factor', 4)
+        commit_transaction(tx)
+        sleep(3)
+        self._check_replication_factor('//tmp/t', 4)
 

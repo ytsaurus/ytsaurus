@@ -183,6 +183,10 @@ protected:
     TAutoPtr<IShuffleChunkPool> ShufflePool;
     TAutoPtr<IChunkPool> SimpleSortPool;
 
+    TTaskGroup PartitionTaskGroup;
+    TTaskGroup SortTaskGroup;
+    TTaskGroup MergeTaskGroup;
+
     TPartitionTaskPtr PartitionTask;
 
     //! Implements partition phase for sort operations and map phase for map-reduce operations.
@@ -204,9 +208,9 @@ protected:
             return "Partition";
         }
 
-        virtual int GetPriority() const override
+        virtual TTaskGroup* GetGroup() const override
         {
-            return 0;
+            return &Controller->PartitionTaskGroup;
         }
 
         virtual TDuration GetLocalityTimeout() const override
@@ -214,19 +218,10 @@ protected:
             return Controller->Spec->PartitionLocalityTimeout;
         }
 
-        virtual TNodeResources GetMinNeededResources() const override
+        virtual TNodeResources GetMinNeededResourcesHeavy() const override
         {
-            return GetAvgNeededResources();
-        }
-
-        virtual TNodeResources GetAvgNeededResources() const override
-        {
-            int jobCount = GetPendingJobCount();
-            if (jobCount == 0) {
-                return ZeroNodeResources();
-            }
             return Controller->GetPartitionResources(
-                ChunkPool->GetApproximateStripeStatistics());
+                ChunkPool->GetApproximateStripeStatistics());;
         }
 
         virtual TNodeResources GetNeededResources(TJobletPtr joblet) const override
@@ -302,6 +297,12 @@ protected:
             Controller->SortDataSizeCounter.Increment(newSortDataSize - oldSortDataSize);
 
             Controller->CheckSortStartThreshold();
+
+            // NB: don't move it to OnTaskCompleted since jobs may run after the task has been completed.
+            // Kick-start sort and unordered merge tasks.
+            Controller->AddSortTasksPendingHints();
+            Controller->AddMergeTasksPendingHints();
+
         }
 
         virtual void OnJobLost(TCompleteJobPtr completedJob) override
@@ -353,10 +354,6 @@ protected:
 
             Controller->AssignPartitions();
             Controller->CheckMergeStartThreshold();
-
-            // Kick-start sort and unordered merge tasks.
-            Controller->AddSortTasksPendingHints();
-            Controller->AddMergeTasksPendingHints();
         }
     };
 
@@ -387,23 +384,13 @@ protected:
             : TPartitionBoundTask(controller, partition)
         { }
 
-        virtual int GetPriority() const override
+        virtual TTaskGroup* GetGroup() const override
         {
-            return 1;
+            return &Controller->SortTaskGroup;
         }
 
-        virtual TNodeResources GetMinNeededResources() const override
+        virtual TNodeResources GetMinNeededResourcesHeavy() const override
         {
-            return GetAvgNeededResources();
-        }
-
-        virtual TNodeResources GetAvgNeededResources() const override
-        {
-            int jobCount = GetPendingJobCount();
-            if (jobCount == 0) {
-                return ZeroNodeResources();
-            }
-
             auto stat = Partition->ChunkPoolOutput->GetApproximateStripeStatistics();
             YCHECK(stat.size() == 1);
             return GetNeededResourcesForChunkStripe(stat.front());
@@ -513,6 +500,10 @@ protected:
             }
 
             Controller->CheckMergeStartThreshold();
+
+            if (Controller->IsSortedMergeNeeded(Partition)) {
+                Controller->AddTaskPendingHint(Partition->SortedMergeTask);
+            }
         }
 
         virtual void OnJobFailed(TJobletPtr joblet) override
@@ -669,9 +660,9 @@ protected:
             : TPartitionBoundTask(controller, partition)
         { }
 
-        virtual int GetPriority() const override
+        virtual TTaskGroup* GetGroup() const override
         {
-            return 2;
+            return &Controller->MergeTaskGroup;
         }
 
     private:
@@ -723,7 +714,7 @@ protected:
                 : Controller->Spec->MergeLocalityTimeout;
         }
 
-        virtual TNodeResources GetMinNeededResources() const override
+        virtual TNodeResources GetMinNeededResourcesHeavy() const override
         {
             return Controller->GetSortedMergeResources(
                 ChunkPool->GetApproximateStripeStatistics());
@@ -838,7 +829,7 @@ protected:
             return TDuration::Zero();
         }
 
-        virtual TNodeResources GetMinNeededResources() const override
+        virtual TNodeResources GetMinNeededResourcesHeavy() const override
         {
             return Controller->GetUnorderedMergeResources(
                 Partition->ChunkPoolOutput->GetApproximateStripeStatistics());
@@ -921,6 +912,22 @@ protected:
         }
 
     };
+
+
+    // Custom bits of preparation pipeline.
+
+    virtual void DoInitialize() override
+    {
+        TOperationControllerBase::DoInitialize();
+
+        // NB: Register groups in the order of _descending_ priority.
+        RegisterTaskGroup(&MergeTaskGroup);
+
+        SortTaskGroup.MinNeededResources.set_network(Spec->ShuffleNetworkLimit);
+        RegisterTaskGroup(&SortTaskGroup);
+
+        RegisterTaskGroup(&PartitionTaskGroup);
+    }
 
 
     // Init/finish.
@@ -1056,8 +1063,7 @@ protected:
             if (partition->ChunkPoolOutput->GetTotalJobCount() <= 1) {
                 return false;
             }
-        }
-        else {
+        } else {
             if (partition->Maniac) {
                 return false;
             }
@@ -1105,7 +1111,7 @@ protected:
 
     void CheckMergeStartThreshold()
     {
-       if (MergeStartThresholdReached)
+        if (MergeStartThresholdReached)
             return;
 
         if (!SimpleSort) {
@@ -1715,7 +1721,6 @@ private:
             GetFootprintMemorySize());
         result.set_network(Spec->ShuffleNetworkLimit);
 
-        Cout << stat.ChunkCount << " " << stat.RowCount << ' ' << stat.DataSize << ' '<< FormatResources(result) << Endl;
         return result;
     }
 

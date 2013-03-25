@@ -68,6 +68,7 @@ public:
      */
     TCypressNodeBase* CreateNode(
         INodeTypeHandlerPtr handler,
+        //TCypressNodeBase* trunkParent,
         NTransactionServer::TTransaction* transaction,
         NSecurityServer::TAccount* account,
         NYTree::IAttributeDictionary* attributes,
@@ -82,7 +83,9 @@ public:
      *  - Sets accounts for the whole subtree to |context.Account|.
      *  - Locks the cloned node with exclusive mode for |context.Transaction|.
      */
-    TCypressNodeBase* CloneNode(TCypressNodeBase* sourceNode, const TCloneContext& context);
+    TCypressNodeBase* CloneNode(
+        TCypressNodeBase* sourceNode,
+        const TCloneContext& context);
 
     //! Returns the root node.
     TCypressNodeBase* GetRootNode() const;
@@ -168,12 +171,18 @@ private:
     virtual void OnLeaderRecoveryComplete() override;
     virtual void OnStopLeading() override;
     virtual void OnRecoveryComplete() override;
+    void DoClear();
     virtual void Clear() override;
 
     void SaveKeys(const NCellMaster::TSaveContext& context) const;
     void SaveValues(const NCellMaster::TSaveContext& context) const;
+    
+    virtual void OnBeforeLoaded() override;
     void LoadKeys(const NCellMaster::TLoadContext& context);
     void LoadValues(const NCellMaster::TLoadContext& context);
+    virtual void OnAfterLoaded() override;
+
+    void InitBuiltin();
 
     void OnTransactionCommitted(NTransactionServer::TTransaction* transaction);
     void OnTransactionAborted(NTransactionServer::TTransaction* transaction);

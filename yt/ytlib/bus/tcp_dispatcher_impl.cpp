@@ -81,6 +81,25 @@ void TTcpDispatcher::TImpl::Shutdown()
 
     StopWatcher.send();
     Thread.Join();
+
+    {
+        TUnregisterEntry entry;
+        while (UnregisterQueue.Dequeue(&entry))
+        { }
+    }
+
+    {
+        TRegisterEntry entry;
+        while (RegisterQueue.Dequeue(&entry))
+        { }
+    }
+
+    {
+        TEventEntry entry;
+        while (EventQueue.Dequeue(&entry))
+        { }
+    }
+
     Stopped = true;
 }
 
@@ -116,7 +135,7 @@ void TTcpDispatcher::TImpl::OnStop(ev::async&, int)
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
 
-    LOG_INFO("Stopping TCP bus dispatcher");
+    // NB: No logging here: logging thread may be inactive (e.g. when running with --version).
     EventLoop.break_loop();
 }
 

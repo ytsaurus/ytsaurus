@@ -133,10 +133,15 @@ public:
 
     virtual void Destroy(TObjectBase* object) override
     {
+        // Clear ACD, if any.
         auto* acd = this->FindAcd(object);
         if (acd) {
             acd->Clear();
         }
+
+        // Remove user attributes, if any.
+        auto objectManager = this->Bootstrap->GetObjectManager();
+        objectManager->TryRemoveAttributes(TVersionedObjectId(object->GetId()));
 
         // Remove the object from the map but keep it alive.
         auto objectHolder = Map->Release(object->GetId());

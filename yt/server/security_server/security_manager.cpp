@@ -970,6 +970,12 @@ private:
         GroupMap.SaveValues(context);
     }
 
+
+    virtual void OnBeforeLoaded() override
+    {
+        DoClear();
+    }
+
     void LoadKeys(const NCellMaster::TLoadContext& context)
     {
         AccountMap.LoadKeys(context);
@@ -978,17 +984,6 @@ private:
             UserMap.LoadKeys(context);
             GroupMap.LoadKeys(context);
         }
-
-        SysAccount = GetAccount(SysAccountId);
-        TmpAccount = GetAccount(TmpAccountId);
-
-        RootUser = GetUser(RootUserId);
-        GuestUser = GetUser(GuestUserId);
-
-        EveryoneGroup = GetGroup(EveryoneGroupId);
-        UsersGroup = GetGroup(UsersGroupId);
-
-        InitAuthenticatedUser();
     }
 
     void LoadValues(const NCellMaster::TLoadContext& context)
@@ -1000,6 +995,10 @@ private:
             GroupMap.LoadValues(context);
         }
 
+    }
+
+    virtual void OnAfterLoaded() override
+    {
         // Reconstruct account name map.
         AccountNameMap.clear();
         FOREACH (const auto& pair, AccountMap) {
@@ -1016,59 +1015,32 @@ private:
 
         // Reconstruct group name map.
         GroupNameMap.clear();
-        FOREACH (const auto& pair, GroupNameMap) {
+        FOREACH (const auto& pair, GroupMap) {
             auto* group = pair.second;
             YCHECK(GroupNameMap.insert(std::make_pair(group->GetName(), group)).second);
         }
+
+        InitBuiltin();
+        InitAuthenticatedUser();
     }
 
 
-    virtual void Clear() override
+    void DoClear()
     {
         AccountMap.Clear();
         AccountNameMap.clear();
-        
+
         UserMap.Clear();
         UserNameMap.clear();
 
         GroupMap.Clear();
         GroupNameMap.clear();
+    }
 
-
-        // Initialize built-in groups.
-        // users
-        UsersGroup = DoCreateGroup(UsersGroupId, UsersGroupName);
-
-        // everyone
-        EveryoneGroup = DoCreateGroup(EveryoneGroupId, EveryoneGroupName);
-        DoAddMember(EveryoneGroup, UsersGroup);
-
-
-        // Initialize built-in users.
-        // root
-        RootUser = DoCreateUser(RootUserId, RootUserName);
-
-        // guest
-        GuestUser = DoCreateUser(GuestUserId, GuestUserName);
-
-
-        // Initialize built-in accounts.
-        // sys, 1 TB disk space, 100000 nodes, usage allowed for: root
-        SysAccount = DoCreateAccount(SysAccountId, SysAccountName);
-        SysAccount->ResourceLimits() = TClusterResources((i64) 1024 * 1024 * 1024 * 1024, 100000);
-        SysAccount->Acd().AddEntry(TAccessControlEntry(
-            ESecurityAction::Allow,
-            RootUser,
-            EPermission::Use));
-
-        // tmp, 1 TB disk space, 100000 nodes, usage allowed for: users
-        TmpAccount = DoCreateAccount(TmpAccountId, TmpAccountName);
-        TmpAccount->ResourceLimits() = TClusterResources((i64) 1024 * 1024 * 1024 * 1024, 100000);
-        TmpAccount->Acd().AddEntry(TAccessControlEntry(
-            ESecurityAction::Allow,
-            UsersGroup,
-            EPermission::Use));
-
+    virtual void Clear() override
+    {
+        DoClear();
+        InitBuiltin();
         InitAuthenticatedUser();
         InitDefaultSchemaAcds();
     }
@@ -1108,6 +1080,56 @@ private:
     bool IsRecovery() const
     {
         return Bootstrap->GetMetaStateFacade()->GetManager()->IsRecovery();
+    }
+
+    void InitBuiltin()
+    {
+        UsersGroup = FindGroup(UsersGroupId);
+        if (!UsersGroup) {
+            // users
+            UsersGroup = DoCreateGroup(UsersGroupId, UsersGroupName);
+        }
+
+        EveryoneGroup = FindGroup(EveryoneGroupId);
+        if (!EveryoneGroup) {
+            // everyone
+            EveryoneGroup = DoCreateGroup(EveryoneGroupId, EveryoneGroupName);
+            DoAddMember(EveryoneGroup, UsersGroup);
+        }
+
+        RootUser = FindUser(RootUserId);
+        if (!RootUser) {
+            // root
+            RootUser = DoCreateUser(RootUserId, RootUserName);
+        }
+
+        GuestUser = FindUser(GuestUserId);
+        if (!GuestUser) {
+            // guest
+            GuestUser = DoCreateUser(GuestUserId, GuestUserName);
+        }
+
+        SysAccount = FindAccount(SysAccountId);
+        if (!SysAccount) {
+            // sys, 1 TB disk space, 100000 nodes, usage allowed for: root
+            SysAccount = DoCreateAccount(SysAccountId, SysAccountName);
+            SysAccount->ResourceLimits() = TClusterResources((i64) 1024 * 1024 * 1024 * 1024, 100000);
+            SysAccount->Acd().AddEntry(TAccessControlEntry(
+                ESecurityAction::Allow,
+                RootUser,
+                EPermission::Use));
+        }
+
+        TmpAccount = FindAccount(TmpAccountId);
+        if (!TmpAccount) {
+            // tmp, 1 TB disk space, 100000 nodes, usage allowed for: users
+            TmpAccount = DoCreateAccount(TmpAccountId, TmpAccountName);
+            TmpAccount->ResourceLimits() = TClusterResources((i64) 1024 * 1024 * 1024 * 1024, 100000);
+            TmpAccount->Acd().AddEntry(TAccessControlEntry(
+                ESecurityAction::Allow,
+                UsersGroup,
+                EPermission::Use));
+        }
     }
 };
 

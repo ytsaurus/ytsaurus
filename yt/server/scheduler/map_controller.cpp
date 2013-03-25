@@ -75,12 +75,17 @@ private:
             return "Map";
         }
 
+        virtual TTaskGroup* GetGroup() const override
+        {
+            return &Controller->MapTaskGroup;
+        }
+
         virtual TDuration GetLocalityTimeout() const override
         {
             return Controller->Spec->LocalityTimeout;
         }
 
-        virtual TNodeResources GetMinNeededResources() const override
+        virtual TNodeResources GetMinNeededResourcesHeavy() const override
         {
             return GetMapResources(ChunkPool->GetApproximateStripeStatistics());
         }
@@ -152,11 +157,19 @@ private:
     typedef TIntrusivePtr<TMapTask> TMapTaskPtr;
 
     TMapTaskPtr MapTask;
+    TTaskGroup MapTaskGroup;
     TJobIOConfigPtr JobIOConfig;
     TJobSpec JobSpecTemplate;
 
 
     // Custom bits of preparation pipeline.
+
+    virtual void DoInitialize() override
+    {
+        TOperationControllerBase::DoInitialize();
+
+        RegisterTaskGroup(&MapTaskGroup);
+    }
 
     virtual std::vector<TRichYPath> GetInputTablePaths() const override
     {
@@ -185,6 +198,8 @@ private:
     TFuture<void> ProcessInputs()
     {
         PROFILE_TIMING ("/input_processing_time") {
+            LOG_INFO("Processing inputs");
+
             auto jobCount = SuggestJobCount(
                 TotalInputDataSize,
                 Spec->DataSizePerJob,

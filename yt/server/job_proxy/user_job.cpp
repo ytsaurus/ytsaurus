@@ -78,6 +78,7 @@ public:
         : TJob(host)
         , JobIO(userJobIO)
         , UserJobSpec(userJobSpec)
+        , IsInitCompleted(false)
         , InputThread(InputThreadFunc, (void*) this)
         , OutputThread(OutputThreadFunc, (void*) this)
         , MemoryUsage(UserJobSpec.memory_reserve())
@@ -136,7 +137,11 @@ public:
 
     virtual double GetProgress() const override
     {
-        return JobIO->GetProgress();
+        if (IsInitCompleted) {
+            return JobIO->GetProgress();
+        } else {
+            return 0;
+        }
     }
 
     std::vector<NChunkClient::TChunkId> GetFailedChunks() const override
@@ -429,7 +434,7 @@ private:
             if (config->UserId > 0) {
                 // Set unprivileged uid and gid for user process.
                 YCHECK(setuid(0) == 0);
-                YCHECK(setgid(config->UserId) == 0);
+                YCHECK(setresgid(config->UserId, config->UserId, config->UserId) == 0);
                 YCHECK(setuid(config->UserId) == 0);
             }
 
@@ -501,6 +506,8 @@ private:
 
     TAutoPtr<TUserJobIO> JobIO;
     NScheduler::NProto::TUserJobSpec UserJobSpec;
+
+    volatile bool IsInitCompleted;
 
     std::vector<IDataPipePtr> InputPipes;
     std::vector<IDataPipePtr> OutputPipes;

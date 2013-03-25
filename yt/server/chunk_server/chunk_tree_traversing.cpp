@@ -130,6 +130,7 @@ protected:
         int visitedChunkCount = 0;
         while (visitedChunkCount < MaxChunksPerAction) {
             if (IsStackEmpty()) {
+                Shutdown();
                 Visitor->OnFinish();
                 return;
             }
@@ -138,6 +139,7 @@ protected:
             auto* chunkList = entry.ChunkList;
 
             if (chunkList->GetVersion() != entry.ChunkListVersion) {
+                Shutdown();
                 Visitor->OnError(TError(
                     NRpc::EErrorCode::Unavailable,
                     "Optimistic locking failed for chunk list %s",
@@ -232,6 +234,7 @@ protected:
                 case EObjectType::Chunk: {
                     auto* childChunk = child->AsChunk();
                     if (!Visitor->OnChunk(childChunk, subtreeStartLimit, subtreeEndLimit)) {
+                        Shutdown();
                         return;
                     }
                     ++visitedChunkCount;
@@ -248,7 +251,11 @@ protected:
             auto invoker = Bootstrap->GetMetaStateFacade()->GetGuardedInvoker();
             auto result = invoker->Invoke(BIND(&TChunkTreeTraverser::DoTraverse, MakeStrong(this)));
             if (!result) {
-                Visitor->OnError(TError(NRpc::EErrorCode::Unavailable, "Yield error"));
+                Shutdown();
+                Visitor->OnError(TError(
+                    ETraversingError::Retriable,
+                    "Yield error"));
+
             }
         }
     }
@@ -358,6 +365,15 @@ protected:
         auto objectManager = Bootstrap->GetObjectManager();
         objectManager->UnlockObject(entry.ChunkList);
         Stack.pop_back();
+    }
+
+    void Shutdown()
+    {
+        auto objectManager = Bootstrap->GetObjectManager();
+        FOREACH (const auto& entry, Stack) {
+            objectManager->UnlockObject(entry.ChunkList);
+        }
+        Stack.clear();
     }
 
     TBootstrap* Bootstrap;

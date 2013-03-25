@@ -177,6 +177,10 @@ struct TObjectRefHashMapSerializer
                 return CompareObjectsForSerialization(lhs->first, rhs->first);
             });
 
+        for (int index = 0; index < static_cast<int>(sortedIterators.size()) - 1; ++index) {
+            YCHECK(CompareObjectsForSerialization(sortedIterators[index]->first, sortedIterators[index + 1]->first));
+        }
+
         FOREACH (const auto& it, sortedIterators) {
             SaveObjectRef(context, it->first);
             Save(context, it->second);

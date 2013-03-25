@@ -233,16 +233,19 @@ public:
         YCHECK(Context);
     }
 
-    void DeserializeRequest()
+    bool DeserializeRequest()
     {
         Request_ = ObjectPool<TTypedRequest>().Allocate();
         Request_->Context = Context.Get();
 
         if (!DeserializeFromProtoWithEnvelope(Request_.Get(), Context->GetRequestBody())) {
-            THROW_ERROR_EXCEPTION(
+            Context->Reply(TError(
                 EErrorCode::ProtocolError,
-                "Error deserializing request body");
+                "Error deserializing request body"));
+            return false;
         }
+
+        return true;
     }
 
     const TTypedRequest& Request() const
@@ -645,7 +648,9 @@ private:
         const ::NYT::NRpc::THandlerInvocationOptions& options) \
     { \
         auto typedContext = New<TCtx##method>(std::move(context), options); \
-        typedContext->DeserializeRequest(); \
+        if (!typedContext->DeserializeRequest()) { \
+            return TClosure(); \
+        } \
         return BIND([=] () { \
             this->method( \
                 &typedContext->Request(), \
@@ -682,7 +687,9 @@ private:
         const ::NYT::NRpc::THandlerInvocationOptions& options) \
     { \
         auto typedContext = New<TCtx##method>(std::move(context), options); \
-        typedContext->DeserializeRequest(); \
+        if (!typedContext->DeserializeRequest()) { \
+            return TClosure(); \
+        } \
         return BIND([=] () { \
             this->method( \
                 &typedContext->Request(), \

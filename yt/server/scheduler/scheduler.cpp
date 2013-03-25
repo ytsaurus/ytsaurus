@@ -121,11 +121,11 @@ public:
     {
         InitStrategy();
 
-        MasterConnector->SubscribeWatcherRequest(BIND(
-            &TThis::OnNodesRequest,
+        MasterConnector->AddGlobalWatcherRequester(BIND(
+            &TThis::RequestOnlineNodes,
             Unretained(this)));
-        MasterConnector->SubscribeWatcherResponse(BIND(
-            &TThis::OnNodesResponse,
+        MasterConnector->AddGlobalWatcherHandler(BIND(
+            &TThis::HandleOnlineNodes,
             Unretained(this)));
 
         MasterConnector->SubscribeMasterConnected(BIND(
@@ -169,8 +169,8 @@ public:
 
 
     // ISchedulerStrategyHost implementation
-    DEFINE_SIGNAL(void(TOperationPtr), OperationStarted);
-    DEFINE_SIGNAL(void(TOperationPtr), OperationFinished);
+    DEFINE_SIGNAL(void(TOperationPtr), OperationRegistered);
+    DEFINE_SIGNAL(void(TOperationPtr), OperationUnregistered);
 
     DEFINE_SIGNAL(void(TJobPtr job), JobStarted);
     DEFINE_SIGNAL(void(TJobPtr job), JobFinished);
@@ -393,7 +393,7 @@ private:
     }
 
 
-    void OnNodesRequest(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
+    void RequestOnlineNodes(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
     {
         LOG_INFO("Updating exec nodes");
 
@@ -401,7 +401,7 @@ private:
         batchReq->AddRequest(req, "get_online_nodes");
     }
 
-    void OnNodesResponse(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+    void HandleOnlineNodes(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
     {
         auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_online_nodes");
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting online nodes");
@@ -931,7 +931,7 @@ private:
     void RegisterOperation(TOperationPtr operation)
     {
         YCHECK(Operations.insert(std::make_pair(operation->GetOperationId(), operation)).second);
-        OperationStarted_.Fire(operation);
+        OperationRegistered_.Fire(operation);
         LOG_DEBUG("Operation registered (OperationId: %s)",
             ~ToString(operation->GetOperationId()));
     }
@@ -950,7 +950,7 @@ private:
     void UnregisterOperation(TOperationPtr operation)
     {
         YCHECK(Operations.erase(operation->GetOperationId()) == 1);
-        OperationFinished_.Fire(operation);
+        OperationUnregistered_.Fire(operation);
         LOG_DEBUG("Operation unregistered (OperationId: %s)",
             ~ToString(operation->GetOperationId()));
     }
