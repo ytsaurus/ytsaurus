@@ -43,7 +43,6 @@ yt.YtRegistry.register("logger", logger);
 
 // Hoist variable declaration.
 var static_server;
-var static_server_new;
 var dynamic_server;
 
 var violentlyDieTriggered = false;
@@ -118,9 +117,7 @@ process.on("message", function(message) {
 logger.info("Starting HTTP proxy worker", { wid : cluster.worker.id, pid : process.pid });
 
 // Setup application server.
-// COMPAT(sandello): Remove this.
-static_server = new node_static.Server("/usr/share/yt", { cache : 4 * 3600 });
-static_server_new = new node_static.Server("/usr/share/yt_new", { cache : 4 * 3600 });
+static_server = new node_static.Server("/usr/share/yt_new", { cache : 4 * 3600 });
 
 dynamic_server = connect()
     .use(connect.favicon())
@@ -199,10 +196,7 @@ dynamic_server = connect()
     .use("/ui", function(req, rsp, next) {
         "use strict";
         if (req.url === "/") {
-            rsp.statusCode = 302;
-            rsp.setHeader("Location", "/ui-new/");
-            rsp.end();
-            return;
+            req.url = "index.html";
         }
         req.on("end", function() {
             static_server.serve(req, rsp);
@@ -210,12 +204,9 @@ dynamic_server = connect()
     })
     .use("/ui-new", function(req, rsp, next) {
         "use strict";
-        if (req.url === "/") {
-            req.url = "index.html";
-        }
-        req.on("end", function() {
-            static_server_new.serve(req, rsp);
-        });
+        rsp.statusCode = 301;
+        rsp.setHeader("Location", "/ui" + req.url);
+        rsp.end();
     })
     .use("/__version__", function(req, rsp) {
         "use strict";
