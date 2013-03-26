@@ -277,7 +277,7 @@ TAsyncError TErasureWriter::WriteDataBlocks()
             }));
         }
         pipeline = pipeline->Add(BIND(&IAsyncWriter::AsyncClose, writer, ChunkMeta_));
-        parallelCollector->Collect(pipeline->Run());
+        parallelCollector->Collect(ConvertToTErrorFuture(pipeline->Run()));
     }
     return parallelCollector->Complete();
 }
@@ -353,8 +353,7 @@ TAsyncError TErasureWriter::AsyncClose(const NProto::TChunkMeta& chunkMeta)
     PrepareBlocks();
     PrepareChunkMeta(chunkMeta);
     
-    // TODO(ignat): add writer invoker
-    auto collector = New<TParallelCollector<void>>();
+    auto collector = New<TParallelCollector<void>>(TDispatcher::Get()->GetWriterInvoker());
     collector->Collect(WriteDataBlocks());
     collector->Collect(EncodeAndWriteParityBlocks());
     return collector->Complete();
