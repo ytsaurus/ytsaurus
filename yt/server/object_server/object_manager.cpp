@@ -479,6 +479,7 @@ void TObjectManager::UnrefObject(TObjectBase* object)
     YASSERT(object->IsTrunk());
 
     int refCounter = object->UnrefObject();
+    LOG_DEBUG_UNLESS(IsRecovery(), "Object unreferenced (Id: %s, RefCounter: %d, LockCounter: %d)",
         ~ToString(object->GetId()),
         refCounter,
         object->GetObjectLockCounter());

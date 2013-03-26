@@ -1,26 +1,29 @@
 #include <ytlib/misc/foreach.h>
+
 #include <ytlib/erasure_codecs/codec.h>
 
 #include <ytlib/chunk_client/file_reader.h>
 #include <ytlib/chunk_client/file_writer.h>
 #include <ytlib/chunk_client/erasure_writer.h>
 #include <ytlib/chunk_client/erasure_reader.h>
+#include <ytlib/chunk_client/config.h>
 
 #include <contrib/testing/framework.h>
 
 #include <util/random/randcpp.h>
 #include <util/system/fs.h>
+#include <util/stream/file.h>
 
 ////////////////////////////////////////////////////////////////////////////////
 
 using NYT::TRef;
 using NYT::TSharedRef;
-using NYT::NErasure::ECodec;
-using NYT::NErasure::GetCodec;
-using NYT::NErasure::ICodec;
-using namespace NYT::NChunkClient;
 
-Stroka ToString(TSharedRef ref) {
+using namespace NYT::NChunkClient;
+using namespace NYT::NErasure;
+
+Stroka ToString(TSharedRef ref)
+{
     return NYT::ToString(TRef(ref));
 }
 
@@ -66,7 +69,7 @@ TEST_F(TErasureCodingTest, RandomText)
         std::copy(parityBlocks.begin(), parityBlocks.end(), std::back_inserter(allBlocks));
 
         for (int mask = 0; mask < (1 << blocksCount); ++mask) {
-            std::vector<int> erasedIndices;
+            TBlockIndexList erasedIndices;
             for (int i = 0; i < blocksCount; ++i) {
                 if ((mask & (1 << i)) > 0) {
                     erasedIndices.push_back(i);
@@ -74,7 +77,7 @@ TEST_F(TErasureCodingTest, RandomText)
             }
             if (erasedIndices.size() == 1) continue;
 
-            auto recoveryIndices = codec->GetRecoveryIndices(erasedIndices);
+            auto recoveryIndices = codec->GetRepairIndices(erasedIndices);
             if (erasedIndices.size() <= guaranteedRecoveryCount[codecId]) {
                 EXPECT_TRUE(recoveryIndices);
             }
@@ -130,7 +133,7 @@ public:
         meta.set_type(1);
         meta.set_version(1);
 
-        auto erasureWriter = GetErasureWriter(config, codec, writers);
+        auto erasureWriter = CreateErasureWriter(config, codec, writers);
         FOREACH (const auto& ref, data) {
             erasureWriter->TryWriteBlock(ref);
         }
@@ -150,7 +153,7 @@ public:
             reader->Open();
             readers.push_back(reader);
         }
-        return CreateErasureReader(readers);
+        return CreateNonReparingErasureReader(readers);
     }
 
     static void Cleanup(ICodec* codec)
@@ -259,13 +262,13 @@ TEST_F(TErasureMixture, RepairTest)
 
     WriteErasureChunk(codec, dataRefs);
 
-    std::vector<int> erasedIndices;
+    TBlockIndexList erasedIndices;
     erasedIndices.push_back(0);
     erasedIndices.push_back(13);
 
     std::set<int> erasedIndicesSet(erasedIndices.begin(), erasedIndices.end());
 
-    std::vector<int> repairIndices = *(codec->GetRecoveryIndices(erasedIndices));
+    auto repairIndices = *codec->GetRepairIndices(erasedIndices);
     std::set<int> repairIndicesSet(repairIndices.begin(), repairIndices.end());
 
     for (int i = 0; i < erasedIndices.size(); ++i) {
@@ -332,14 +335,14 @@ TEST_F(TErasureMixture, RepairTestWithSeveralWindows)
         }
     }
 
-    std::vector<int> erasedIndices;
+    TBlockIndexList erasedIndices;
     erasedIndices.push_back(1);
     erasedIndices.push_back(8);
     erasedIndices.push_back(13);
     erasedIndices.push_back(15);
     std::set<int> erasedIndicesSet(erasedIndices.begin(), erasedIndices.end());
 
-    std::vector<int> repairIndices = *(codec->GetRecoveryIndices(erasedIndices));
+    auto repairIndices = *codec->GetRepairIndices(erasedIndices);
     std::set<int> repairIndicesSet(repairIndices.begin(), repairIndices.end());
 
     for (int i = 0; i < erasedIndices.size(); ++i) {

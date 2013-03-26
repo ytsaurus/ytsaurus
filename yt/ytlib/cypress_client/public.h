@@ -32,12 +32,6 @@ DECLARE_ENUM(EErrorCode,
     ((ConcurrentTransactionLockConflict)   (402))
 );
 
-DECLARE_ENUM(EErrorCode,
-    ((SameTransactionLockConflict)(400))
-    ((DescendantTransactionLockConflict)(401))
-    ((ConcurrentTransactionLockConflict)(402))
-);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NCypressClient

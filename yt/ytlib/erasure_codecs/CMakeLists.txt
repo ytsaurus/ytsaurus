@@ -6,6 +6,7 @@ include_directories(
 )
 
 set( SRCS
+  ${BASE}/public.cpp
   ${BASE}/codec.cpp
   ${BASE}/helpers.cpp
   ${BASE}/jerasure.cpp
@@ -14,6 +15,7 @@ set( SRCS
 )
 
 set( HDRS
+  ${BASE}/public.h
   ${BASE}/codec.h
   ${BASE}/helpers.h
   ${BASE}/jerasure.h

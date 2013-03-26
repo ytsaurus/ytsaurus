@@ -5,7 +5,6 @@
 #include <contrib/libs/jerasure/jerasure.h>
 
 namespace NYT {
-
 namespace NErasure {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -145,7 +144,7 @@ std::vector<TSharedRef> BitMatrixDecode(
     int wordSize,
     const TMatrix& bitMatrix,
     const std::vector<TSharedRef>& blocks,
-    const std::vector<int>& erasedIndices)
+    const TBlockIndexList& erasedIndices)
 {
     YCHECK(blocks.size() + erasedIndices.size() == blockCount + parityCount);
     
@@ -183,7 +182,7 @@ std::vector<TSharedRef> BitMatrixDecode(
     }
     YCHECK(erasureNumber == erasedIndices.size());
     
-    std::vector<int> preparedErasedIndices = erasedIndices;
+    auto preparedErasedIndices = erasedIndices;
     preparedErasedIndices.push_back(-1);
 
     YCHECK(blockPointers.size() == blockCount);
@@ -208,5 +207,4 @@ std::vector<TSharedRef> BitMatrixDecode(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NErasure
-
 } // namespace NYT

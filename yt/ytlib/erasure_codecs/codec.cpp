@@ -2,40 +2,14 @@
 #include "reed_solomon.h"
 #include "lrc.h"
 
-#include <ytlib/misc/lazy_ptr.h>
-#include <ytlib/misc/singleton.h>
+#include <util/generic/singleton.h>
 
 namespace NYT {
-
 namespace NErasure {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-struct TCauchyReedSolomonWrapper
-    : public TCauchyReedSolomon
-    , public TRefCounted
-{
-    TCauchyReedSolomonWrapper(int blockCount, int parityCount, int wordSize)
-        : TCauchyReedSolomon(blockCount, parityCount, wordSize)
-    { }
-};
-
-struct TLrcWrapper
-    : public TLrc
-    , public TRefCounted
-{
-    TLrcWrapper(int blockCount)
-        : TLrc(blockCount)
-    { }
-};
-
-} // anonymous namespace
-
-////////////////////////////////////////////////////////////////////////////////
-
-int ICodec::GetTotalBlockCount() const
+int ICodec::GetTotalBlockCount()
 {
     return GetDataBlockCount() + GetParityBlockCount();
 }
@@ -44,23 +18,31 @@ int ICodec::GetTotalBlockCount() const
 
 ICodec* GetCodec(ECodec id)
 {
-    static TLazyPtr<TCauchyReedSolomonWrapper> CauchyReedSolomon(
-        BIND([] () {
-            return New<TCauchyReedSolomonWrapper>(6, 3, 8);
-        })
-    );
-    
-    static TLazyPtr<TLrcWrapper> Lrc(
-        BIND([] () {
-            return New<TLrcWrapper>(12);
-        })
-    );
+    class TCauchyReedSolomonWrapper
+        : public TCauchyReedSolomon
+    {
+    public:
+        TCauchyReedSolomonWrapper()
+            : TCauchyReedSolomon(6, 3, 8)
+        { }
+    };
+
+    class TLrcWrapper
+        : public TLrc
+    {
+    public:
+        TLrcWrapper()
+            : TLrc(12)
+        { }
+    };
 
     switch (id) {
         case ECodec::ReedSolomon_6_3:
-            return CauchyReedSolomon.Get();
+            return Singleton<TCauchyReedSolomonWrapper>();
+
         case ECodec::Lrc_12_2_2:
-            return Lrc.Get();
+            return Singleton<TLrcWrapper>();
+
         default:
             YUNREACHABLE();
     }
@@ -69,5 +51,4 @@ ICodec* GetCodec(ECodec id)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NErasure
-
 } // namespace NYT

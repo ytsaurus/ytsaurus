@@ -1,22 +1,20 @@
 #pragma once
 
 #include "public.h"
-#include "private.h"
 
-#include <ytlib/rpc/public.h>
-#include <ytlib/erasure_codecs/codec.h>
+#include <ytlib/misc/error.h>
+
+#include <ytlib/erasure_codecs/public.h>
 
 namespace NYT {
 namespace NChunkClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-IAsyncReaderPtr CreateErasureReader(
+IAsyncReaderPtr CreateNonReparingErasureReader(
     const std::vector<IAsyncReaderPtr>& dataBlocksReaders);
 
-///////////////////////////////////////////////////////////////////////////////
-
-IAsyncReaderPtr CreateErasureRepairReader(
+IAsyncReaderPtr CreateReparingErasureReader(
     const NErasure::ICodec* codec,
     const std::vector<int>& erasedIndices,
     int chunkIndex,
@@ -25,8 +23,8 @@ IAsyncReaderPtr CreateErasureRepairReader(
 ///////////////////////////////////////////////////////////////////////////////
 
 TAsyncError RepairErasedBlocks(
-    const NErasure::ICodec* codec,
-    const std::vector<int>& erasedIndices,
+    NErasure::ICodec* codec,
+    const NErasure::TBlockIndexList& erasedIndices,
     const std::vector<IAsyncReaderPtr>& readers,
     const std::vector<IAsyncWriterPtr>& writers);
 

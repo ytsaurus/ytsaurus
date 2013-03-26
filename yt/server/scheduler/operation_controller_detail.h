@@ -113,6 +113,8 @@ protected:
     // Job counters.
     TProgressCounter JobCounter;
 
+    // Maps node ids seen in fetch responses to node descriptors.
+    NChunkClient::TNodeDirectoryPtr NodeDirectory;
 
     struct TTableBase
     {
@@ -621,7 +623,7 @@ private:
     yhash_set<NChunkClient::TChunkId> InputChunkIds;
 
     //! Increments each time a new job is scheduled.
-    TIdGenerator<int> JobIndexGenerator;
+    TIdGenerator JobIndexGenerator;
 
 
     static const NProto::TUserJobResult* FindUserJobResult(TJobletPtr joblet);

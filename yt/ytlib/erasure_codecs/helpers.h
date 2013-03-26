@@ -1,6 +1,6 @@
 #pragma once
 
-#include <vector>
+#include "public.h"
 
 namespace NYT {
 namespace NErasure {
@@ -9,21 +9,21 @@ namespace NErasure {
 
 // All vectors here are assumed to be sorted.
 
-std::vector<int> Segment(int begin, int end);
+TBlockIndexList MakeSegment(int begin, int end);
 
-std::vector<int> Element(int elem);
+TBlockIndexList MakeSingleton(int elem);
 
-std::vector<int> Difference(int begin, int end, const std::vector<int>& subtrahend);
+TBlockIndexList Difference(int begin, int end, const TBlockIndexList& subtrahend);
 
-std::vector<int> Difference(const std::vector<int>& first, const std::vector<int>& second);
+TBlockIndexList Difference(const TBlockIndexList& first, const TBlockIndexList& second);
 
-std::vector<int> Difference(const std::vector<int>& first, int elem);
+TBlockIndexList Difference(const TBlockIndexList& first, int elem);
 
-std::vector<int> Intersection(const std::vector<int>& first, const std::vector<int>& second);
+TBlockIndexList Intersection(const TBlockIndexList& first, const TBlockIndexList& second);
 
-std::vector<int> Union(const std::vector<int>& first, const std::vector<int>& second);
+TBlockIndexList Union(const TBlockIndexList& first, const TBlockIndexList& second);
 
-bool Contains(const std::vector<int>& set, int elem);
+bool Contains(const TBlockIndexList& set, int elem);
 
 ////////////////////////////////////////////////////////////////////////////////
 

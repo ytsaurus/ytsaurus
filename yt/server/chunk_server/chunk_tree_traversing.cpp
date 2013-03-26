@@ -252,10 +252,7 @@ protected:
             auto result = invoker->Invoke(BIND(&TChunkTreeTraverser::DoTraverse, MakeStrong(this)));
             if (!result) {
                 Shutdown();
-                Visitor->OnError(TError(
-                    ETraversingError::Retriable,
-                    "Yield error"));
-
+                Visitor->OnError(TError(NRpc::EErrorCode::Unavailable, "Yield error"));
             }
         }
     }

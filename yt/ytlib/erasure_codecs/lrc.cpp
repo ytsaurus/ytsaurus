@@ -7,7 +7,7 @@
 #include <contrib/libs/jerasure/jerasure.h>
 #include <contrib/libs/jerasure/cauchy.h>
 
-#include <iostream>
+#include <algorithm>
 
 namespace NYT {
 namespace NErasure {
@@ -30,18 +30,18 @@ TSharedRef Xor(const std::vector<TSharedRef>& refs)
     return TSharedRef::FromBlob(std::move(result));
 }
 
-std::vector<int> UniqueSortedIndices(const std::vector<int>& indices)
+TBlockIndexList UniqueSortedIndices(const TBlockIndexList& indices)
 {
     auto copy = indices;
-    sort(copy.begin(), copy.end());
-    copy.erase(unique(copy.begin(), copy.end()), copy.end());
+    std::sort(copy.begin(), copy.end());
+    copy.erase(std::unique(copy.begin(), copy.end()), copy.end());
     return copy;
 }
 
-std::vector<int> ExtractRows(const std::vector<int>& matrix, int width, const std::vector<int>& rows)
+TBlockIndexList ExtractRows(const TBlockIndexList& matrix, int width, const TBlockIndexList& rows)
 {
     YCHECK(matrix.size() % width == 0);
-    std::vector<int> result(width * rows.size());
+    TBlockIndexList result(width * rows.size());
     for (int i = 0; i < rows.size(); ++i) {
         auto start = matrix.begin() + rows[i] * width;
         std::copy(start, start + width, result.begin() + i * width); 
@@ -97,21 +97,21 @@ TLrc::TLrc(int blockCount)
 
 
 
-    Groups_[0] = Segment(0, BlockCount_ / 2);
+    Groups_[0] = MakeSegment(0, BlockCount_ / 2);
     Groups_[0].push_back(BlockCount_);
     
-    Groups_[1] = Segment(BlockCount_ / 2, BlockCount_);
+    Groups_[1] = MakeSegment(BlockCount_ / 2, BlockCount_);
     Groups_[1].push_back(BlockCount_ + 1);
 }
 
-std::vector<TSharedRef> TLrc::Encode(const std::vector<TSharedRef>& blocks) const
+std::vector<TSharedRef> TLrc::Encode(const std::vector<TSharedRef>& blocks)
 {
     return ScheduleEncode(BlockCount_, ParityCount_, WordSize_, Schedule_, blocks);
 }
 
 std::vector<TSharedRef> TLrc::Decode(
     const std::vector<TSharedRef>& blocks,
-    const std::vector<int>& erasedIndices) const
+    const TBlockIndexList& erasedIndices)
 {
     if (erasedIndices.empty()) {
         return std::vector<TSharedRef>();
@@ -122,7 +122,7 @@ std::vector<TSharedRef> TLrc::Decode(
         YCHECK(blocks[i].Size() == blockLength);
     }
 
-    std::vector<int> indices = UniqueSortedIndices(erasedIndices);
+    auto indices = UniqueSortedIndices(erasedIndices);
     
     // We can restore one block by xor.
     if (indices.size() == 1) {
@@ -134,7 +134,7 @@ std::vector<TSharedRef> TLrc::Decode(
         }
     }
 
-    auto recoveryIndices = *GetRecoveryIndices(indices);
+    auto recoveryIndices = *GetRepairIndices(indices);
     // We can restore two blocks from different groups using xor.
     if (indices.size() == 2 &&
         indices.back() < BlockCount_ + 2 &&
@@ -162,7 +162,7 @@ std::vector<TSharedRef> TLrc::Decode(
     // Choose subset of matrix rows, corresponding for erased and recovery indices.
     int parityCount = blocks.size() + indices.size() - BlockCount_;
     
-    std::vector<int> rows;
+    TBlockIndexList rows;
     for (int i = 0; i < recoveryIndices.size(); ++i) {
         if (recoveryIndices[i] >= BlockCount_) {
             rows.push_back(recoveryIndices[i] - BlockCount_);
@@ -182,13 +182,13 @@ std::vector<TSharedRef> TLrc::Decode(
     return BitMatrixDecode(BlockCount_, parityCount, WordSize_, bitMatrix, blocks, indices);
 }
 
-TNullable<std::vector<int>> TLrc::GetRecoveryIndices(const std::vector<int>& erasedIndices) const
+TNullable<TBlockIndexList> TLrc::GetRepairIndices(const TBlockIndexList& erasedIndices)
 {
     if (erasedIndices.empty()) {
-        return std::vector<int>();
+        return TBlockIndexList();
     }
     
-    std::vector<int> indices = UniqueSortedIndices(erasedIndices);
+    TBlockIndexList indices = UniqueSortedIndices(erasedIndices);
     
     if (indices.size() > ParityCount_) {
         return Null;
@@ -234,11 +234,11 @@ TNullable<std::vector<int>> TLrc::GetRecoveryIndices(const std::vector<int>& era
 
     // Erasures in only parity blocks.
     if (indices.front() >= BlockCount_) {
-        return Segment(0, BlockCount_);
+        return MakeSegment(0, BlockCount_);
     }
 
     // Remove unnecessary xor parities.
-    std::vector<int> result = Difference(0, BlockCount_ + ParityCount_, indices);
+    auto result = Difference(0, BlockCount_ + ParityCount_, indices);
     for (int i = 0; i < 2; ++i) {
         if (groupCoverage[i] == 0 && indices.size() <= 3) {
             result = Difference(result, BlockCount_ + i);
@@ -248,17 +248,17 @@ TNullable<std::vector<int>> TLrc::GetRecoveryIndices(const std::vector<int>& era
     return result;
 }
 
-int TLrc::GetDataBlockCount() const
+int TLrc::GetDataBlockCount()
 {
     return BlockCount_;
 }
 
-int TLrc::GetParityBlockCount() const
+int TLrc::GetParityBlockCount()
 {
     return ParityCount_;
 }
 
-int TLrc::GetWordSize() const
+int TLrc::GetWordSize()
 {
     return WordSize_ * 8;
 }

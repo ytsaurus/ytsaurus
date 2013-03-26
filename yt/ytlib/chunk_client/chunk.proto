@@ -72,7 +72,7 @@ message TErasurePlacementExt
     required int32 parity_block_count = 3;
     required int64 parity_block_size = 4;
     required int64 parity_last_block_size = 5;
-    required int64 repair_reader_memory_consumption = 6;
+    required int64 repair_reader_memory_limit = 6;
 }
 
 
