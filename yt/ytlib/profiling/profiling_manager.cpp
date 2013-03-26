@@ -26,6 +26,8 @@ using namespace NYTree;
 
 static NLog::TLogger Logger("Profiling");
 static TProfiler Profiler("/profiling", true);
+// TODO(babenko): make configurable
+const TDuration MaxKeepInterval = TDuration::Seconds(300);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -205,8 +207,6 @@ private:
     TIntrusivePtr<TResourceTracker> ResourceTracker;
 #endif
 
-    static const TDuration MaxKeepInterval;
-
     bool DequeueAndExecute()
     {
         // Handle pending callbacks first.
@@ -276,9 +276,6 @@ private:
         bucket->TrimSamples(MaxKeepInterval);
     }
 };
-
-// TODO(babenko): make configurable
-const TDuration TProfilingManager::TImpl::MaxKeepInterval = TDuration::Seconds(60);
 
 ////////////////////////////////////////////////////////////////////////////////
 
