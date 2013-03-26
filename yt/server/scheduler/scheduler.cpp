@@ -11,6 +11,7 @@
 #include "master_connector.h"
 #include "job_resources.h"
 #include "private.h"
+#include "snapshot_downloader.h"
 
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/periodic_invoker.h>
@@ -89,6 +90,7 @@ public:
             SchedulerLogger.GetCategory())
         , Config(config)
         , Bootstrap(bootstrap)
+        , SnapshotIOQueue(New<TActionQueue>("SnapshotIO"))
         , BackgroundQueue(New<TActionQueue>("Background"))
         , MasterConnector(new TMasterConnector(Config, Bootstrap))
         , TotalResourceLimitsProfiler(Profiler.GetPathPrefix() + "/total_resource_limits")
@@ -100,6 +102,7 @@ public:
         YCHECK(config);
         YCHECK(bootstrap);
         VERIFY_INVOKER_AFFINITY(GetControlInvoker(), ControlThread);
+        VERIFY_INVOKER_AFFINITY(GetSnapshotIOInvoker(), SnapshotIOThread);
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartOperation));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortOperation));
@@ -166,6 +169,10 @@ public:
         return operations;
     }
 
+    IInvokerPtr GetSnapshotIOInvoker()
+    {
+        return SnapshotIOQueue->GetInvoker();
+    }
 
     // ISchedulerStrategyHost implementation
     DEFINE_SIGNAL(void(TOperationPtr), OperationRegistered);
@@ -273,7 +280,9 @@ private:
 
     TSchedulerConfigPtr Config;
     TBootstrap* Bootstrap;
+
     TActionQueuePtr BackgroundQueue;
+    TActionQueuePtr SnapshotIOQueue;
 
     THolder<TMasterConnector> MasterConnector;
     TCancelableContextPtr CancelableConnectionContext;
@@ -299,6 +308,7 @@ private:
     NProto::TNodeResources TotalResourceUsage;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+    DECLARE_THREAD_AFFINITY_SLOT(SnapshotIOThread);
 
 
     void OnProfiling()
@@ -491,6 +501,7 @@ private:
             spec,
             user,
             TInstant::Now());
+        operation->SetCleanStart(true);
         operation->SetState(EOperationState::Initializing);
 
         LOG_INFO("Starting operation (OperationType: %s, OperationId: %s, TransactionId: %s, User: %s)",
@@ -788,15 +799,26 @@ private:
 
         auto invoker = controller->GetCancelableControlInvoker();
         auto this_ = MakeStrong(this);
-        StartAsyncPipeline(invoker)
-            ->Add(BIND(&TThis::StartSchedulerTransactions, this_, operation))
-            ->Add(BIND(&TThis::OnSchedulerTransactionStarted, this_, operation))
-            ->Add(BIND(&TThis::StartIOTransactions, this_, operation))
-            ->Add(BIND(&TThis::OnIOTransactionsStarted, this_, operation))
-            ->Add(BIND(&IOperationController::Revive, controller))
+        auto pipeline = StartAsyncPipeline(invoker);
+        if (operation->GetCleanStart()) {
+            pipeline = pipeline
+                ->Add(BIND(&TThis::StartSchedulerTransactions, this_, operation))
+                ->Add(BIND(&TThis::OnSchedulerTransactionStarted, this_, operation))
+                ->Add(BIND(&TThis::StartIOTransactions, this_, operation))
+                ->Add(BIND(&TThis::OnIOTransactionsStarted, this_, operation));
+        } else {
+            pipeline = pipeline
+                ->Add(BIND(&TThis::DownloadOperationSnapshot, this_, operation));
+        }
+        pipeline
+            ->Add(BIND(&TMasterConnector::ResetRevivingOperationNode, ~MasterConnector, operation))
+            ->Add(BIND(&TThis::DoReviveOperation, this_, operation))
             ->Add(BIND(&TThis::OnOperationRevived, this_, operation))
             ->Run()
             .Subscribe(BIND([=] (TValueOrError<void> result) {
+                // Discard the snapshot, if any.
+                operation->Snapshot() = Null;
+
                 if (!result.IsOK()) {
                     LOG_ERROR(result, "Operation has failed to revive (OperationId: %s)",
                         ~ToString(operation->GetOperationId()));
@@ -807,6 +829,33 @@ private:
                     this_->FinishOperation(operation);
                 }
             }).Via(invoker));
+    }
+
+    TFuture<void> DownloadOperationSnapshot(TOperationPtr operation)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto downloader = New<TSnapshotDownloader>(
+            Config,
+            Bootstrap,
+            operation);
+
+        return downloader->Run();
+    }
+
+    void DoReviveOperation(TOperationPtr operation)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto controller = operation->GetController();
+        
+        TAutoPtr<TMemoryInput> input;
+        if (operation->Snapshot()) {
+            auto& blob = *operation->Snapshot();
+            input = new TMemoryInput(blob.Begin(), blob.Size());
+        }
+
+        controller->Revive(~input);
     }
 
     void OnOperationRevived(TOperationPtr operation)
@@ -983,17 +1032,17 @@ private:
         TObjectServiceProxy proxy(GetMasterChannel());
         auto batchReq = proxy.ExecuteBatch();
 
-        auto addCommitRequest = [&] (ITransactionPtr transaction, const Stroka& key) {
+        auto scheduleCommit = [&] (ITransactionPtr transaction, const Stroka& key) {
             auto req = TTransactionYPathProxy::Commit(FromObjectId(transaction->GetId()));
             NMetaState::GenerateRpcMutationId(req);
             batchReq->AddRequest(req, key);
             transaction->Detach();
         };
 
-        addCommitRequest(operation->GetInputTransaction(), "commit_in_tx");
-        addCommitRequest(operation->GetOutputTransaction(), "commit_out_tx");
-        addCommitRequest(operation->GetSyncSchedulerTransaction(), "commit_sync_tx");
-        addCommitRequest(operation->GetAsyncSchedulerTransaction(), "commit_async_tx");
+        scheduleCommit(operation->GetInputTransaction(), "commit_in_tx");
+        scheduleCommit(operation->GetOutputTransaction(), "commit_out_tx");
+        scheduleCommit(operation->GetSyncSchedulerTransaction(), "commit_sync_tx");
+        scheduleCommit(operation->GetAsyncSchedulerTransaction(), "commit_async_tx");
 
         return batchReq->Invoke();
     }
@@ -1010,15 +1059,15 @@ private:
 
     void AbortOperationTransactions(TOperationPtr operation)
     {
-        auto abortTransaction = [&] (ITransactionPtr transaction) {
+        auto scheduleAbort = [&] (ITransactionPtr transaction) {
             if (transaction) {
                 // Fire-and-forget.
                 transaction->Abort();
             }
         };
 
-        abortTransaction(operation->GetSyncSchedulerTransaction());
-        abortTransaction(operation->GetAsyncSchedulerTransaction());
+        scheduleAbort(operation->GetSyncSchedulerTransaction());
+        scheduleAbort(operation->GetAsyncSchedulerTransaction());
         // No need to abort IO transactions since they are nested inside sync transaction.
     }
 
@@ -1028,6 +1077,7 @@ private:
         operation->SetController(nullptr);
         UnregisterOperation(operation);
     }
+
 
     void RegisterJob(TJobPtr job)
     {
@@ -1409,7 +1459,9 @@ private:
     void ValidateConnected()
     {
         if (!MasterConnector->IsConnected()) {
-            THROW_ERROR_EXCEPTION("Master is not connected");
+            THROW_ERROR_EXCEPTION(TError(
+                NRpc::EErrorCode::Unavailable,
+                "Master is not connected"));
         }
     }
 
@@ -1876,6 +1928,11 @@ std::vector<TOperationPtr> TScheduler::GetOperations()
 std::vector<TExecNodePtr> TScheduler::GetExecNodes()
 {
     return Impl->GetExecNodes();
+}
+
+IInvokerPtr TScheduler::GetSnapshotIOInvoker()
+{
+    return Impl->GetSnapshotIOInvoker();
 }
 
 ////////////////////////////////////////////////////////////////////

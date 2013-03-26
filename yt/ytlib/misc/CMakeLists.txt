@@ -24,7 +24,6 @@ set( SRCS
   ${BASE}/new.cpp
   ${BASE}/pattern_formatter.cpp
   ${BASE}/periodic_invoker.cpp
-  ${BASE}/proc.cpp
   ${BASE}/protobuf_helpers.cpp
   ${BASE}/random.cpp
   ${BASE}/ref.cpp
@@ -39,6 +38,7 @@ set( SRCS
   ${BASE}/tclap_helpers.cpp
   ${BASE}/thread.cpp
   ${BASE}/url.cpp
+  ${BASE}/proc.cpp
 )
 set( HDRS
   ${BASE}/blob.h
@@ -73,8 +73,6 @@ set( HDRS
   ${BASE}/lazy_holder.h
   ${BASE}/lazy_ptr.h
   ${BASE}/lease_manager.h
-  ${BASE}/memory_usage_tracker-inl.h
-  ${BASE}/memory_usage_tracker.h
   ${BASE}/metric.h
   ${BASE}/mpl.h
   ${BASE}/nullable.h
@@ -84,7 +82,6 @@ set( HDRS
   ${BASE}/pattern_formatter.h
   ${BASE}/periodic_invoker.h
   ${BASE}/preprocessor.h
-  ${BASE}/proc.h
   ${BASE}/property.h
   ${BASE}/protobuf_helpers-inl.h
   ${BASE}/protobuf_helpers.h
@@ -109,6 +106,7 @@ set( HDRS
   ${BASE}/thread_affinity.h
   ${BASE}/url.h
   ${BASE}/weak_ptr.h
+  ${BASE}/proc.h
 )
 
 list(APPEND YT_SOURCE_FILES

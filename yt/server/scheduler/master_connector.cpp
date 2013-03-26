@@ -3,6 +3,7 @@
 #include "scheduler.h"
 #include "private.h"
 #include "helpers.h"
+#include "snapshot_builder.h"
 
 #include <ytlib/misc/periodic_invoker.h>
 #include <ytlib/misc/thread_affinity.h>
@@ -11,6 +12,7 @@
 
 #include <ytlib/actions/async_pipeline.h>
 #include <ytlib/actions/parallel_awaiter.h>
+#include <ytlib/actions/action_queue.h>
 
 #include <ytlib/rpc/serialized_channel.h>
 
@@ -19,6 +21,8 @@
 #include <ytlib/transaction_client/transaction_ypath_proxy.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
+
+#include <ytlib/yson/yson_consumer.h>
 
 #include <ytlib/ytree/ypath_proxy.h>
 #include <ytlib/ytree/fluent.h>
@@ -38,6 +42,7 @@ namespace NYT {
 namespace NScheduler {
 
 using namespace NYTree;
+using namespace NYson;
 using namespace NCypressClient;
 using namespace NObjectClient;
 using namespace NChunkClient;
@@ -93,7 +98,8 @@ public:
         auto batchReq = StartBatchRequest(list);
         {
             auto req = TYPathProxy::Set(GetOperationPath(id));
-            req->set_value(BuildOperationYson(operation).Data());
+            TYsonProducer producer(BIND(&TImpl::BuildOperationNode, operation));
+            req->set_value(ConvertToYsonString(producer).Data());
             GenerateRpcMutationId(req);
             batchReq->AddRequest(req);
         }
@@ -104,6 +110,35 @@ public:
                 MakeStrong(this),
                 operation,
                 CancelableContext)
+            .AsyncVia(Bootstrap->GetControlInvoker()));
+    }
+
+    TAsyncError ResetRevivingOperationNode(TOperationPtr operation)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(Connected);
+        YCHECK(operation->GetState() == EOperationState::Reviving);
+
+        auto id = operation->GetOperationId();
+        LOG_INFO("Resetting reviving operation node (OperationId: %s)",
+            ~ToString(id));
+
+        auto* list = GetUpdateList(operation);
+
+        auto batchReq = StartBatchRequest(list);
+        {
+            auto req = TYPathProxy::Set(GetOperationPath(id) + "/@");
+            TYsonProducer producer(BIND(&TImpl::BuildRevivingOperationAttributes, operation));
+            req->set_value(ConvertToYsonString(producer).Data());
+            GenerateRpcMutationId(req);
+            batchReq->AddRequest(req);
+        }
+
+        return batchReq->Invoke().Apply(
+            BIND(
+                &TImpl::OnRevivingOperationNodeReset,
+                MakeStrong(this),
+                operation)
             .AsyncVia(Bootstrap->GetControlInvoker()));
     }
 
@@ -213,7 +248,8 @@ private:
 
     TPeriodicInvokerPtr TransactionRefreshInvoker;
     TPeriodicInvokerPtr OperationNodesUpdateInvoker;
-    TPeriodicInvokerPtr WatcherInvoker;
+    TPeriodicInvokerPtr WatchersInvoker;
+    TPeriodicInvokerPtr SnapshotInvoker;
 
     std::vector<TWatcherRequester> GlobalWatcherRequesters;
     std::vector<TWatcherHandler>   GlobalWatcherHandlers;
@@ -309,6 +345,7 @@ private:
                 .Via(CancelableControlInvoker));
 
         StartRefresh();
+        StartSnapshots();
 
         MasterConnected_.Fire(result);
     }
@@ -340,7 +377,8 @@ private:
                 ->Add(BIND(&TRegistrationPipeline::Round4, MakeStrong(this)))
                 ->Add(BIND(&TRegistrationPipeline::Round5, MakeStrong(this)))
                 ->Add(BIND(&TRegistrationPipeline::Round6, MakeStrong(this)))
-                ->Add(BIND(&TRegistrationPipeline::Round7, MakeStrong(this)));
+                ->Add(BIND(&TRegistrationPipeline::Round7, MakeStrong(this)))
+                ->Add(BIND(&TRegistrationPipeline::Round8, MakeStrong(this)));
         }
 
     private:
@@ -459,13 +497,15 @@ private:
                     static_cast<int>(OperationIds.size()));
                 FOREACH (const auto& operationId, OperationIds) {
                     auto req = TYPathProxy::Get(GetOperationPath(operationId));
-                    // Keep in sync with ParseOperationYson.
+                    // Keep in sync with CreateOperationFromAttributes.
                     auto* attributeFilter = req->mutable_attribute_filter();
                     attributeFilter->set_mode(EAttributeFilterMode::MatchingOnly);
                     attributeFilter->add_keys("operation_type");
                     attributeFilter->add_keys("user_transaction_id");
                     attributeFilter->add_keys("sync_scheduler_transaction_id");
                     attributeFilter->add_keys("async_scheduler_transaction_id");
+                    attributeFilter->add_keys("input_transaction_id");
+                    attributeFilter->add_keys("output_transaction_id");
                     attributeFilter->add_keys("spec");
                     attributeFilter->add_keys("authenticated_user");
                     attributeFilter->add_keys("start_time");
@@ -477,8 +517,10 @@ private:
         }
 
         // Round 5:
-        // - Abort previous incarnations of scheduler transactions.
-        // - Reset operation nodes.
+        // - Recreate operation instance from fetched data.
+        // - Try to ping the previous incarnations of scheduler transactions.
+        static const int TransactionsPerOperation = 5;
+
         TObjectServiceProxy::TInvExecuteBatch Round5(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
         {
             THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp);
@@ -493,7 +535,7 @@ private:
                     THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting operation attributes (OperationId: %s)",
                         ~ToString(operationId));
                     auto operationNode = ConvertToNode(TYsonString(rsp->value()));
-                    auto operation = Owner->ParseOperationYson(operationId, operationNode->Attributes());
+                    auto operation = Owner->CreateOperationFromAttributes(operationId, operationNode->Attributes());
                     Result.Operations.push_back(operation);
                 }
             }
@@ -502,47 +544,105 @@ private:
             FOREACH (auto operation, Result.Operations) {
                 operation->SetState(EOperationState::Reviving);
 
-                auto syncTransaction = operation->GetSyncSchedulerTransaction();
-                if (syncTransaction) {
-                    auto req = TTransactionYPathProxy::Abort(FromObjectId(syncTransaction->GetId()));
-                    GenerateRpcMutationId(req);
-                    batchReq->AddRequest(req, "abort_sync_scheduler_tx");
-                    operation->SetSyncSchedulerTransaction(nullptr);
-                }
+                auto schedulePing = [&] (ITransactionPtr transaction) {
+                    if (transaction) {
+                        auto req = TTransactionYPathProxy::RenewLease(FromObjectId(transaction->GetId()));
+                        batchReq->AddRequest(req, "ping_tx");
+                    } else {
+                        batchReq->AddRequest(nullptr, "ping_tx");
+                    }
+                };
 
-                auto asyncTransaction = operation->GetAsyncSchedulerTransaction();
-                if (asyncTransaction) {
-                    auto req = TTransactionYPathProxy::Abort(FromObjectId(asyncTransaction->GetId()));
-                    GenerateRpcMutationId(req);
-                    batchReq->AddRequest(req, "abort_async_scheduler_tx");
-                    operation->SetAsyncSchedulerTransaction(nullptr);
-                }
-
-                {
-                    auto req = TYPathProxy::Set(GetOperationPath(operation->GetOperationId()));
-                    req->set_value(BuildOperationYson(operation).Data());
-                    GenerateRpcMutationId(req);
-                    batchReq->AddRequest(req, "reset_op");
-                }
+                // See TransactionsPerOperation above.
+                schedulePing(operation->GetUserTransaction());
+                schedulePing(operation->GetSyncSchedulerTransaction());
+                schedulePing(operation->GetAsyncSchedulerTransaction());
+                schedulePing(operation->GetInputTransaction());
+                schedulePing(operation->GetOutputTransaction());
             }
 
             return batchReq->Invoke();
         }
 
         // Round 6:
-        // - Watcher requests.
+        // - Check ping responses.
+        // - If some of them have failed then abort all operations transactions and also
+        //   remove the snapshot.
         TObjectServiceProxy::TInvExecuteBatch Round6(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
         {
-            // NB: transaction aborts may have failed. Check individual responses.
             THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp);
 
             {
-                auto rsps = batchRsp->GetResponses<TYPathProxy::TRspSet>("reset_op");
-                FOREACH (auto rsp, rsps) {
-                    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+                auto rsps = batchRsp->GetResponses<TTransactionYPathProxy::TRspRenewLease>("ping_tx");
+                YCHECK(rsps.size() == 5 * Result.Operations.size());
+
+                for (int i = 0; i < static_cast<int>(Result.Operations.size()); ++i) {
+                    auto operation = Result.Operations[i];
+                    for (int j = i * TransactionsPerOperation; j < (i + 1) * TransactionsPerOperation; ++j) {
+                        auto rsp = rsps[j];
+                        if (rsp && !rsp->IsOK() && !operation->GetCleanStart()) {
+                            LOG_INFO("Error renewing operation transaction, will use clean start (OperationId: %s)",
+                                ~ToString(operation->GetOperationId()));
+                            operation->SetCleanStart(true);
+                        }
+                    }
                 }
             }
 
+            auto batchReq = Owner->StartBatchRequest();
+            FOREACH (auto operation, Result.Operations) {
+                if (!operation->GetCleanStart()) {
+                    LOG_INFO("Reusing operation transactions (OperationId: %s)",
+                        ~ToString(operation->GetOperationId()));
+                    continue;
+                }
+
+                auto scheduleAbort = [&] (ITransactionPtr transaction) {
+                    if (transaction) {
+                        auto req = TTransactionYPathProxy::Abort(FromObjectId(transaction->GetId()));
+                        batchReq->AddRequest(req, "abort_tx");
+                    }
+                };
+
+                // Abort transactions.
+                // NB: Don't touch user transaction.
+                scheduleAbort(operation->GetSyncSchedulerTransaction());
+                scheduleAbort(operation->GetAsyncSchedulerTransaction());
+                scheduleAbort(operation->GetInputTransaction());
+                scheduleAbort(operation->GetOutputTransaction());
+
+                operation->SetSyncSchedulerTransaction(nullptr);
+                operation->SetAsyncSchedulerTransaction(nullptr);
+                operation->SetInputTransaction(nullptr);
+                operation->SetOutputTransaction(nullptr);
+
+                // Remove snapshot.
+                {
+                    auto req = TYPathProxy::Remove(GetSnapshotPath(operation->GetOperationId()));
+                    batchReq->AddRequest(req, "remove_snapshot");
+                }
+            }
+
+            return batchReq->Invoke();
+        }
+
+
+        // Round 7:
+        // - Watcher requests.
+        TObjectServiceProxy::TInvExecuteBatch Round7(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+        {
+            THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp);
+
+            // NB: Don't check abort errors, some transactions may have already expired.
+
+            {
+                auto rsps = batchRsp->GetResponses<TYPathProxy::TRspRemove>("remove_snapshot");
+                FOREACH (auto rsp, rsps) {
+                    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error removing snapshot");
+                }
+            }
+
+            // Make watcher requests.
             auto batchReq = Owner->StartBatchRequest();
             FOREACH (auto requester, Owner->GlobalWatcherRequesters) {
                 requester.Run(batchReq);
@@ -550,11 +650,11 @@ private:
             return batchReq->Invoke();
         }
 
-        // Round 7:
+        // Round 8:
         // - Relax :)
-        TMasterHandshakeResult Round7(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+        TMasterHandshakeResult Round8(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
         {
-            THROW_ERROR_EXCEPTION_IF_FAILED(batchRsp->GetCumulativeError());
+            THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp);
 
             Result.WatcherResponses = batchRsp;
             return Result;
@@ -594,9 +694,14 @@ private:
         LOG_WARNING("Master disconnected");
 
         Connected = false;
+
         LockTransaction.Reset();
+
         ClearUpdateLists();
+        
         StopRefresh();
+        StopSnapshots();
+        
         CancelableContext->Cancel();
 
         MasterDisconnected_.Fire();
@@ -605,9 +710,9 @@ private:
     }
 
 
-    static TYsonString BuildOperationYson(TOperationPtr operation)
+    static void BuildOperationNode(TOperationPtr operation, IYsonConsumer* consumer)
     {
-        return BuildYsonStringFluently()
+        BuildYsonFluently(consumer)
             .BeginAttributes()
                 .Do(BIND(&BuildOperationAttributes, operation))
                 .Item("progress").BeginMap().EndMap()
@@ -622,58 +727,18 @@ private:
             .EndMap();
     }
 
-    TOperationPtr ParseOperationYson(const TOperationId& operationId, const IAttributeDictionary& attributes)
+    static void BuildRevivingOperationAttributes(TOperationPtr operation, IYsonConsumer* consumer)
     {
-        auto transactionManager = Bootstrap->GetTransactionManager();
-
-        auto userTransactionId = attributes.Get<TTransactionId>("user_transaction_id");
-        TTransactionAttachOptions userAttachOptions(userTransactionId);
-        userAttachOptions.AutoAbort = false;
-        userAttachOptions.Ping = false;
-        userAttachOptions.PingAncestors = false;
-        auto userTransaction =
-            userTransactionId == NullTransactionId
-            ? nullptr
-            : transactionManager->Attach(userAttachOptions);
-
-        auto syncTransactionId = attributes.Get<TTransactionId>("sync_scheduler_transaction_id");
-        TTransactionAttachOptions syncAttachOptions(syncTransactionId);
-        syncAttachOptions.AutoAbort = false;
-        syncAttachOptions.Ping = false;
-        syncAttachOptions.PingAncestors = false;
-        auto syncTransaction =
-            syncTransactionId == NullTransactionId
-            ? nullptr
-            : transactionManager->Attach(syncAttachOptions);
-
-        auto asyncTransactionId = attributes.Get<TTransactionId>("async_scheduler_transaction_id");
-        TTransactionAttachOptions asyncAttachOptions(syncTransactionId);
-        asyncAttachOptions.AutoAbort = false;
-        asyncAttachOptions.Ping = false;
-        asyncAttachOptions.PingAncestors = false;
-        auto asyncTransaction =
-            asyncTransactionId == NullTransactionId
-            ? nullptr
-            : transactionManager->Attach(asyncAttachOptions);
-
-        auto operation = New<TOperation>(
-            operationId,
-            attributes.Get<EOperationType>("operation_type"),
-            userTransaction,
-            attributes.Get<INodePtr>("spec")->AsMap(),
-            // COMPAT(babenko)
-            attributes.Get<Stroka>("authenticated_user", "root"),
-            attributes.Get<TInstant>("start_time"),
-            attributes.Get<EOperationState>("state"));
-        operation->SetSyncSchedulerTransaction(syncTransaction);
-        operation->SetAsyncSchedulerTransaction(asyncTransaction);
-
-        return operation;
+        BuildYsonFluently(consumer)
+            .BeginMap()
+                .Do(BIND(&BuildOperationAttributes, operation))
+                .Item("progress").BeginMap().EndMap()
+            .EndMap();
     }
 
-    static TYsonString BuildJobYson(TJobPtr job)
+    static void BuildJobNode(TJobPtr job, IYsonConsumer* consumer)
     {
-        return BuildYsonStringFluently()
+        BuildYsonFluently(consumer)
             .BeginAttributes()
                 .Do(BIND(&BuildJobAttributes, job))
             .EndAttributes()
@@ -681,12 +746,77 @@ private:
             .EndMap();
     }
 
-    static TYsonString BuildJobAttributesYson(TJobPtr job)
+
+    TOperationPtr CreateOperationFromAttributes(const TOperationId& operationId, const IAttributeDictionary& attributes)
     {
-        return BuildYsonStringFluently()
-            .BeginMap()
-                .Do(BIND(&BuildJobAttributes, job))
-            .EndMap();
+        auto transactionManager = Bootstrap->GetTransactionManager();
+
+        ITransactionPtr userTransaction;
+        {
+            auto id = attributes.Get<TTransactionId>("user_transaction_id");
+            TTransactionAttachOptions options(id);
+            options.AutoAbort = false;
+            options.Ping = false;
+            options.PingAncestors = false;
+            userTransaction = id == NullTransactionId ? nullptr : transactionManager->Attach(options);
+        }
+        
+        ITransactionPtr syncTransaction;
+        {
+            auto id = attributes.Get<TTransactionId>("sync_scheduler_transaction_id");
+            TTransactionAttachOptions options(id);
+            options.AutoAbort = false;
+            options.Ping = true;
+            options.PingAncestors = false;
+            syncTransaction = id == NullTransactionId ? nullptr : transactionManager->Attach(options);
+        }
+
+
+        ITransactionPtr asyncTransaction;
+        {
+            auto id = attributes.Get<TTransactionId>("async_scheduler_transaction_id");
+            TTransactionAttachOptions options(id);
+            options.AutoAbort = false;
+            options.Ping = true;
+            options.PingAncestors = false;
+            asyncTransaction = id == NullTransactionId ? nullptr : transactionManager->Attach(options);
+        }
+
+        ITransactionPtr inputTransaction;
+        {
+            auto id = attributes.Get<TTransactionId>("input_transaction_id");
+            TTransactionAttachOptions options(id);
+            options.AutoAbort = false;
+            options.Ping = true;
+            options.PingAncestors = false;
+            inputTransaction = id == NullTransactionId ? nullptr : transactionManager->Attach(options);
+        }
+
+        ITransactionPtr outputTransaction;
+        {
+            auto id = attributes.Get<TTransactionId>("output_transaction_id");
+            TTransactionAttachOptions options(id);
+            options.AutoAbort = false;
+            options.Ping = true;
+            options.PingAncestors = false;
+            outputTransaction = id == NullTransactionId ? nullptr : transactionManager->Attach(options);
+        }
+
+        auto operation = New<TOperation>(
+            operationId,
+            attributes.Get<EOperationType>("operation_type"),
+            userTransaction,
+            attributes.Get<INodePtr>("spec")->AsMap(),
+            attributes.Get<Stroka>("authenticated_user"),
+            attributes.Get<TInstant>("start_time"),
+            attributes.Get<EOperationState>("state"));
+
+        operation->SetSyncSchedulerTransaction(syncTransaction);
+        operation->SetAsyncSchedulerTransaction(asyncTransaction);
+        operation->SetInputTransaction(inputTransaction);
+        operation->SetOutputTransaction(outputTransaction);
+
+        return operation;
     }
 
 
@@ -706,7 +836,7 @@ private:
             EPeriodicInvokerMode::Manual);
         OperationNodesUpdateInvoker->Start();
 
-        WatcherInvoker = New<TPeriodicInvoker>(
+        WatchersInvoker = New<TPeriodicInvoker>(
             CancelableControlInvoker,
             BIND(&TImpl::UpdateWatchers, MakeWeak(this)),
             Config->WatchersUpdatePeriod,
@@ -726,9 +856,28 @@ private:
             OperationNodesUpdateInvoker.Reset();
         }
 
-        if (WatcherInvoker) {
-            WatcherInvoker->Stop();
-            WatcherInvoker.Reset();
+        if (WatchersInvoker) {
+            WatchersInvoker->Stop();
+            WatchersInvoker.Reset();
+        }
+    }
+
+    
+    void StartSnapshots()
+    {
+        SnapshotInvoker = New<TPeriodicInvoker>(
+            CancelableControlInvoker,
+            BIND(&TImpl::BuildSnapshot, MakeWeak(this)),
+            Config->SnapshotPeriod,
+            EPeriodicInvokerMode::Manual);
+        SnapshotInvoker->Start();
+    }
+
+    void StopSnapshots()
+    {
+        if (SnapshotInvoker) {
+            SnapshotInvoker->Stop();
+            SnapshotInvoker.Reset();
         }
     }
 
@@ -996,7 +1145,8 @@ private:
             auto chunkId = pair.second;
             auto jobPath = GetJobPath(operation->GetOperationId(), job->GetId());
             auto req = TYPathProxy::Set(jobPath);
-            req->set_value(BuildJobYson(job).Data());
+            TYsonProducer producer(BIND(&TImpl::BuildJobNode, job));
+            req->set_value(ConvertToYsonString(producer).Data());
             batchReq->AddRequest(req);
 
             if (chunkId != NullChunkId) {
@@ -1045,6 +1195,32 @@ private:
         }
 
         LOG_INFO("Operation node created (OperationId: %s)",
+            ~ToString(operationId));
+
+        return TError();
+    }
+
+    TError OnRevivingOperationNodeReset(
+        TOperationPtr operation,
+        TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(Connected);
+
+        auto operationId = operation->GetOperationId();
+
+        auto error = batchRsp->GetCumulativeError();
+
+        if (error.IsOK()) {
+        } else {
+            auto wrappedError = TError("Error resetting reviving operation node (OperationId: %s)",
+                ~ToString(operationId))
+                << error;
+            LOG_ERROR(wrappedError);
+            return wrappedError;
+        }
+
+        LOG_INFO("Reviving operation node reset (OperationId: %s)",
             ~ToString(operationId));
 
         return TError();
@@ -1170,7 +1346,7 @@ private:
                     .Via(CancelableControlInvoker));
         }
 
-        WatcherInvoker->ScheduleNext();
+        WatchersInvoker->ScheduleNext();
     }
 
     void OnGlobalWatchersUpdated(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
@@ -1217,6 +1393,19 @@ private:
         LOG_INFO("Operation watchers updated (OperationId: %s)",
             ~ToString(operation->GetOperationId()));
     }
+
+
+    void BuildSnapshot()
+    {
+        auto builder = New<TSnapshotBuilder>(Config, Bootstrap);
+        builder->Run().Subscribe(BIND(&TImpl::OnSnapshotBuilt, MakeWeak(this))
+            .Via(CancelableControlInvoker));
+    }
+
+    void OnSnapshotBuilt(TError error)
+    {
+        SnapshotInvoker->ScheduleNext();
+    }
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -1243,6 +1432,11 @@ bool TMasterConnector::IsConnected() const
 TAsyncError TMasterConnector::CreateOperationNode(TOperationPtr operation)
 {
     return Impl->CreateOperationNode(operation);
+}
+
+TAsyncError TMasterConnector::ResetRevivingOperationNode(TOperationPtr operation)
+{
+    return Impl->ResetRevivingOperationNode(operation);
 }
 
 TFuture<void> TMasterConnector::FlushOperationNode(TOperationPtr operation)

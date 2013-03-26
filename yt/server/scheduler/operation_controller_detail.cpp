@@ -625,9 +625,16 @@ TFuture<TError> TOperationControllerBase::Prepare()
         }));
 }
 
-TFuture<TError> TOperationControllerBase::Revive()
+void TOperationControllerBase::SaveSnapshot(TOutputStream* stream)
+{
+    *stream << "Hello! This is operation " << ToString(Operation->GetOperationId()) << ". Now is "
+        << ToString(TInstant::Now());
+}
+
+TFuture<TError> TOperationControllerBase::Revive(TInputStream* stream)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
+    UNUSED(stream);
 
     try {
         Initialize();
@@ -801,8 +808,6 @@ void TOperationControllerBase::Abort()
 
     Running = false;
     CancelableContext->Cancel();
-
-    AbortTransactions();
 
     LOG_INFO("Operation aborted");
 }
@@ -1216,22 +1221,6 @@ void TOperationControllerBase::DoOperationFailed(const TError& error)
     Running = false;
 
     Host->OnOperationFailed(Operation, error);
-}
-
-void TOperationControllerBase::AbortTransactions()
-{
-    LOG_INFO("Aborting transactions");
-
-    // Abort scheduler transactions, if any.
-    auto syncTransaction = Operation->GetSyncSchedulerTransaction();
-    if (syncTransaction) {
-        syncTransaction->Abort();
-    }
-
-    auto asyncTransaction = Operation->GetAsyncSchedulerTransaction();
-    if (asyncTransaction) {
-        asyncTransaction->Abort();
-    }
 }
 
 TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::CommitResults()

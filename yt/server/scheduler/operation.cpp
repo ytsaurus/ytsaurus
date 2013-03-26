@@ -30,6 +30,7 @@ TOperation::TOperation(
     , StartTime_(startTime)
     , StdErrCount_(0)
     , MaxStdErrCount_(0)
+    , CleanStart_(false)
     , FinishedPromise(NewPromise<void>())
 { }
 

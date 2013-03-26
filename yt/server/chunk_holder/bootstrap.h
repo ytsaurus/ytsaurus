@@ -8,9 +8,9 @@
 
 #include <ytlib/rpc/public.h>
 
-#include <ytlib/misc/memory_usage_tracker.h>
-
 #include <ytlib/chunk_client/node_directory.h>
+
+#include <server/misc/memory_usage_tracker.h>
 
 #include <server/cell_node/public.h>
 

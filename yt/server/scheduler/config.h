@@ -7,6 +7,8 @@
 
 #include <ytlib/table_client/config.h>
 
+#include <ytlib/file_client/config.h>
+
 #include <ytlib/rpc/retrying_channel.h>
 
 #include <server/job_proxy/config.h>
@@ -122,6 +124,12 @@ struct TSchedulerConfig
     // Default environment variables set for every job.
     yhash_map<Stroka, Stroka> Environment;
 
+    TDuration SnapshotPeriod;
+    TDuration SnapshotTimeout;
+    Stroka SnapshotTempPath;
+    NFileClient::TFileReaderConfigPtr SnapshotReader;
+    NFileClient::TFileWriterConfigPtr SnapshotWriter;
+
     NRpc::TRetryingChannelConfigPtr NodeChannel;
 
     TSchedulerConfig()
@@ -139,10 +147,9 @@ struct TSchedulerConfig
         Register("lock_transaction_timeout", LockTransactionTimeout)
             .Default(TDuration::Seconds(15));
         Register("operation_transaction_timeout", OperationTransactionTimeout)
-            .Default(TDuration::Seconds(15));
+            .Default(TDuration::Minutes(60));
         Register("node_rpc_timeout", NodeRpcTimeout)
             .Default(TDuration::Seconds(15));
-
 
         Register("strategy", Strategy)
             .Default(ESchedulerStrategy::Null);
@@ -224,6 +231,17 @@ struct TSchedulerConfig
             .Default(yhash_map<Stroka, Stroka>());
 
         Register("node_channel", NodeChannel)
+            .DefaultNew();
+
+        Register("snapshot_timeout", SnapshotTimeout)
+            .Default(TDuration::Seconds(60));
+        Register("snapshot_period", SnapshotPeriod)
+            .Default(TDuration::Seconds(300));
+        Register("snapshot_temp_path", SnapshotTempPath)
+            .NonEmpty();
+        Register("snapshot_reader", SnapshotReader)
+            .DefaultNew();
+        Register("snapshot_writer", SnapshotWriter)
             .DefaultNew();
     }
 };

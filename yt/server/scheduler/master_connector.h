@@ -41,6 +41,7 @@ public:
     bool IsConnected() const;
 
     TAsyncError CreateOperationNode(TOperationPtr operation);
+    TAsyncError ResetRevivingOperationNode(TOperationPtr operation);
     TFuture<void> FlushOperationNode(TOperationPtr operation);
     TFuture<void> FinalizeOperationNode(TOperationPtr operation);
 

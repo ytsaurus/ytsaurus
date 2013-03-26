@@ -49,6 +49,12 @@ typedef TIntrusivePtr<TChunkSplitsFetcher> TChunkSplitsFetcherPtr;
 typedef TChunkInfoCollector<TChunkSplitsFetcher> TChunkSplitsCollector;
 typedef TIntrusivePtr<TChunkSplitsCollector> TChunkSplitsCollectorPtr;
 
+class TSnapshotBuilder;
+typedef TIntrusivePtr<TSnapshotBuilder> TSnapshotBuilderPtr;
+
+class TSnapshotDownloader;
+typedef TIntrusivePtr<TSnapshotDownloader> TSnapshotDownloaderPtr;
+
 extern NLog::TLogger SchedulerLogger;
 extern NLog::TLogger OperationLogger;
 extern NProfiling::TProfiler SchedulerProfiler;

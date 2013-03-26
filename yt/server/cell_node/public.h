@@ -3,7 +3,8 @@
 #include "memory_consumer.h"
 
 #include <ytlib/misc/common.h>
-#include <ytlib/misc/memory_usage_tracker.h>
+
+#include <server/misc/memory_usage_tracker.h>
 
 namespace NYT {
 namespace NCellNode {

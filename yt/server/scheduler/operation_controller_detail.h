@@ -48,7 +48,8 @@ public:
 
     virtual void Initialize() override;
     virtual TFuture<TError> Prepare() override;
-    virtual TFuture<TError> Revive() override;
+    virtual void SaveSnapshot(TOutputStream* stream) override;
+    virtual TFuture<TError> Revive(TInputStream* steam) override;
     virtual TFuture<TError> Commit() override;
 
     virtual void OnJobRunning(TJobPtr job, const NProto::TJobStatus& status) override;
@@ -533,9 +534,6 @@ protected:
      *  The operation fails immediately.
      */
     void OnInputChunkFailed(const NChunkClient::TChunkId& chunkId);
-
-
-    void AbortTransactions();
 
     void OnOperationCompleted();
     virtual void DoOperationCompleted();
