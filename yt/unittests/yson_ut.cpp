@@ -117,6 +117,7 @@ TEST_F(TYsonTest, ConvertToForPODTypes)
         EXPECT_EQ("42", ysonStr.Data());
         EXPECT_EQ(42, ConvertTo<i32>(ysonStr));
         EXPECT_EQ(42, ConvertTo<i64>(ysonStr));
+        EXPECT_EQ(42.0, ConvertTo<double>(ysonStr));
     }
 
     {
