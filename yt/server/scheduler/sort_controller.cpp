@@ -353,6 +353,11 @@ protected:
             }
 
             Controller->AssignPartitions();
+
+            // NB: this is required at least to mark tasks completed, when there are no pending jobs.
+            // This couldn't have been done earlier since we've just finished populating shuffle pool.
+            Controller->AddSortTasksPendingHints();
+
             Controller->CheckMergeStartThreshold();
         }
     };
