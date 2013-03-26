@@ -14,7 +14,7 @@ namespace NYT {
 namespace NErasure {
 
 ////////////////////////////////////////////////////////////////////////////////
-    
+
 TCauchyReedSolomon::TCauchyReedSolomon(int blockCount, int parityCount, int wordSize)
     : BlockCount_(blockCount)
     , ParityCount_(parityCount)
@@ -36,7 +36,7 @@ std::vector<TSharedRef> TCauchyReedSolomon::Decode(
     if (erasedIndices.empty()) {
         return std::vector<TSharedRef>();
     }
-    
+
     return BitMatrixDecode(BlockCount_, ParityCount_, WordSize_, BitMatrix_, blocks, erasedIndices);
 }
 
@@ -45,16 +45,25 @@ TNullable<TBlockIndexList> TCauchyReedSolomon::GetRepairIndices(const TBlockInde
     if (erasedIndices.empty()) {
         return TBlockIndexList();
     }
-    
+
     TBlockIndexList indices = erasedIndices;
     std::sort(indices.begin(), indices.end());
     indices.erase(std::unique(indices.begin(), indices.end()), indices.end());
-    
+
     if (indices.size() > ParityCount_) {
         return Null;
     }
 
     return Difference(0, BlockCount_ + ParityCount_, indices);
+}
+
+bool TCauchyReedSolomon::CanRepair(const TBlockIndexList& erasedIndices)
+{
+    TBlockIndexList indices = erasedIndices;
+    std::sort(indices.begin(), indices.end());
+    indices.erase(std::unique(indices.begin(), indices.end()), indices.end());
+
+    return indices.size() <= ParityCount_;
 }
 
 int TCauchyReedSolomon::GetDataBlockCount()

@@ -23,14 +23,14 @@ DECLARE_ENUM(ECodec,
 /*!
  *  Given N data blocks (numbered from 0 to N - 1) one can call #Encode to generate
  *  another M parity blocks (numbered from N to N + M - 1).
- *  
+ *
  *  If some of the resulting N + M blocks ever become missing one can attempt to
  *  repair the missing blocks by calling #Decode.
- *  
+ *
  *  Here N and M are fixed (codec-specific) parameters.
  *  Call #GetDataBlockCount and #GetParityBlockCount to figure out the
  *  the values for N and M, respectively.
- *  
+ *
  */
 struct ICodec
 {
@@ -40,6 +40,14 @@ struct ICodec
      *  The size of the returned array is equal to #GetParityBlockCount.
      */
     virtual std::vector<TSharedRef> Encode(const std::vector<TSharedRef>& blocks) = 0;
+
+    //! Decodes (repairs) missing blocks.
+    /*!
+     *  #erasedIndices must contain the set of erased blocks indices.
+     *  #blocks must contain known blocks (in the order specified by #GetRepairIndices).
+     *  \returns The repaired blocks.
+     */
+    virtual std::vector<TSharedRef> Decode(const std::vector<TSharedRef>& blocks, const TBlockIndexList& erasedIndices) = 0;
 
     //! Given a set of missing block indices, returns |true| if missing blocks can be repaired.
     virtual bool CanRepair(const TBlockIndexList& erasedIndices) = 0;
@@ -52,14 +60,6 @@ struct ICodec
      *  (in this very order). Not all known blocks may be needed for repair.
      */
     virtual TNullable<TBlockIndexList> GetRepairIndices(const TBlockIndexList& erasedIndices) = 0;
-
-    //! Decodes (repairs) missing blocks.
-    /*!
-     *  #erasedIndices must contain the set of erased blocks indices.
-     *  #blocks must contain known blocks (in the order specified by #GetRepairIndices).
-     *  \returns The repaired blocks.
-     */
-    virtual std::vector<TSharedRef> Decode(const std::vector<TSharedRef>& blocks, const TBlockIndexList& erasedIndices) = 0;
 
     //! Returns the number of data blocks this codec can handle.
     virtual int GetDataBlockCount() = 0;

@@ -44,7 +44,7 @@ TBlockIndexList ExtractRows(const TBlockIndexList& matrix, int width, const TBlo
     TBlockIndexList result(width * rows.size());
     for (int i = 0; i < rows.size(); ++i) {
         auto start = matrix.begin() + rows[i] * width;
-        std::copy(start, start + width, result.begin() + i * width); 
+        std::copy(start, start + width, result.begin() + i * width);
     }
     return result;
 }
@@ -52,7 +52,7 @@ TBlockIndexList ExtractRows(const TBlockIndexList& matrix, int width, const TBlo
 } // anonymous namespace
 
 ////////////////////////////////////////////////////////////////////////////////
-    
+
 TLrc::TLrc(int blockCount)
     : BlockCount_(blockCount)
     , ParityCount_(4)
@@ -67,11 +67,11 @@ TLrc::TLrc(int blockCount)
     for (int row = 0; row < ParityCount_; ++row) {
         for (int column = 0; column < BlockCount_; ++column) {
             int index = row * BlockCount_ + column;
-            
+
             bool isFirstHalf = column < BlockCount_ / 2;
             if (row == 0) Matrix_[index] = isFirstHalf ? 1 : 0;
             if (row == 1) Matrix_[index] = isFirstHalf ? 0 : 1;
-            
+
             // Let alpha_i be coefficient of first half and beta_i of the second half.
             // Then matrix is non-singular iff:
             //   a) alpha_i, beta_j != 0
@@ -83,7 +83,7 @@ TLrc::TLrc(int blockCount)
                 int relativeColumn = isFirstHalf ? column : (column - (BlockCount_ / 2));
                 Matrix_[index] = shift * (1 + relativeColumn);
             }
-            
+
             // The last row is the square of the row before last.
             if (row == 3) {
                 int prev = Matrix_[index - BlockCount_];
@@ -99,7 +99,7 @@ TLrc::TLrc(int blockCount)
 
     Groups_[0] = MakeSegment(0, BlockCount_ / 2);
     Groups_[0].push_back(BlockCount_);
-    
+
     Groups_[1] = MakeSegment(BlockCount_ / 2, BlockCount_);
     Groups_[1].push_back(BlockCount_ + 1);
 }
@@ -123,7 +123,7 @@ std::vector<TSharedRef> TLrc::Decode(
     }
 
     auto indices = UniqueSortedIndices(erasedIndices);
-    
+
     // We can restore one block by xor.
     if (indices.size() == 1) {
         int index = erasedIndices.front();
@@ -144,7 +144,7 @@ std::vector<TSharedRef> TLrc::Decode(
         FOREACH (int index, indices) {
             for (int groupIndex = 0; groupIndex < 2; ++groupIndex) {
                 if (!Contains(Groups_[groupIndex], index)) continue;
-                
+
                 std::vector<TSharedRef> correspondingBlocks;
                 FOREACH (int pos, Groups_[groupIndex]) {
                     for (int i = 0; i < blocks.size(); ++i) {
@@ -152,7 +152,7 @@ std::vector<TSharedRef> TLrc::Decode(
                         correspondingBlocks.push_back(blocks[i]);
                     }
                 }
-                
+
                 result.push_back(Xor(correspondingBlocks));
             }
         }
@@ -161,7 +161,7 @@ std::vector<TSharedRef> TLrc::Decode(
 
     // Choose subset of matrix rows, corresponding for erased and recovery indices.
     int parityCount = blocks.size() + indices.size() - BlockCount_;
-    
+
     TBlockIndexList rows;
     for (int i = 0; i < recoveryIndices.size(); ++i) {
         if (recoveryIndices[i] >= BlockCount_) {
@@ -175,11 +175,39 @@ std::vector<TSharedRef> TLrc::Decode(
             indices[i] = BlockCount_ + rows.size() - 1;
         }
     }
-    
+
     auto matrix = ExtractRows(Matrix_, BlockCount_, rows);
     auto bitMatrix = TMatrix(jerasure_matrix_to_bitmatrix(BlockCount_, parityCount, WordSize_, matrix.data()));
 
     return BitMatrixDecode(BlockCount_, parityCount, WordSize_, bitMatrix, blocks, indices);
+}
+
+bool TLrc::CanRepair(const TBlockIndexList& erasedIndices)
+{
+    // TODO(ignat): it is not so fast. Does overlying layer guarantee that erasedIndices sorted and unique?
+    TBlockIndexList indices = UniqueSortedIndices(erasedIndices);
+    if (indices.size() > ParityCount_) {
+        return false;
+    }
+
+    if (indices.size() == 1) {
+        int index = indices.front();
+        for (int i = 0; i < 2; ++i) {
+            if (Contains(Groups_[i], index)) {
+                return true;
+            }
+        }
+    }
+
+    if (indices.size() == ParityCount_) {
+        for (int i = 0; i < 2; ++i) {
+            if (Intersection(indices, Groups_[i]).empty()) {
+                return false;
+            }
+        }
+    }
+
+    return true;
 }
 
 TNullable<TBlockIndexList> TLrc::GetRepairIndices(const TBlockIndexList& erasedIndices)
@@ -187,9 +215,9 @@ TNullable<TBlockIndexList> TLrc::GetRepairIndices(const TBlockIndexList& erasedI
     if (erasedIndices.empty()) {
         return TBlockIndexList();
     }
-    
+
     TBlockIndexList indices = UniqueSortedIndices(erasedIndices);
-    
+
     if (indices.size() > ParityCount_) {
         return Null;
     }
@@ -216,7 +244,7 @@ TNullable<TBlockIndexList> TLrc::GetRepairIndices(const TBlockIndexList& erasedI
             return Null;
         }
     }
-    
+
     // Calculate coverage of each group.
     int groupCoverage[2] = {0};
     FOREACH (int index, indices) {

@@ -47,8 +47,9 @@ TEST_F(TErasureCodingTest, RandomText)
     }
 
     FOREACH (auto codecId, ECodec::GetDomainValues()) {
-        if (codecId == ECodec::None)
+        if (codecId == ECodec::None) {
             continue;
+        }
 
         auto codec = GetCodec(codecId);
 
@@ -78,6 +79,7 @@ TEST_F(TErasureCodingTest, RandomText)
             if (erasedIndices.size() == 1) continue;
 
             auto recoveryIndices = codec->GetRepairIndices(erasedIndices);
+            ASSERT_EQ(static_cast<bool>(recoveryIndices), codec->CanRepair(erasedIndices));
             if (erasedIndices.size() <= guaranteedRecoveryCount[codecId]) {
                 EXPECT_TRUE(recoveryIndices);
             }

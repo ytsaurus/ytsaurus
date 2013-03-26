@@ -8,7 +8,7 @@ namespace NErasure {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-//! Locally Reconstructable Codes 
+//! Locally Reconstructable Codes
 /*!
  *  See https://www.usenix.org/conference/usenixfederatedconferencesweek/erasure-coding-windows-azure-storage
  *  for more details.
@@ -18,25 +18,21 @@ class TLrc
 {
 public:
     explicit TLrc(int blockCount);
-    
-    virtual std::vector<TSharedRef> Encode(const std::vector<TSharedRef>& blocks) override;
 
-    virtual bool CanRepair(const TBlockIndexList& erasedIndices) override
-    {
-        // TODO(babenko): move to cpp and fixme
-        return true;
-    }
+    virtual std::vector<TSharedRef> Encode(const std::vector<TSharedRef>& blocks) override;
 
     virtual std::vector<TSharedRef> Decode(
         const std::vector<TSharedRef>& blocks,
         const TBlockIndexList& erasedIndices) override;
 
+    virtual bool CanRepair(const TBlockIndexList& erasedIndices) override;
+
     virtual TNullable<TBlockIndexList> GetRepairIndices(const TBlockIndexList& erasedIndices) override;
-    
+
     virtual int GetDataBlockCount() override;
 
     virtual int GetParityBlockCount() override;
-    
+
     virtual int GetWordSize() override;
 
 private:
@@ -52,7 +48,7 @@ private:
     TBlockIndexList Groups_[2];
 
 };
-    
+
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace NErasure

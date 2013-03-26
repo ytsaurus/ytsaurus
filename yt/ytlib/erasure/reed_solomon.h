@@ -21,15 +21,11 @@ public:
 
     virtual std::vector<TSharedRef> Encode(const std::vector<TSharedRef>& blocks) override;
 
-    virtual bool CanRepair(const TBlockIndexList& erasedIndices) override
-    {
-        // TODO(babenko): move to cpp and fixme
-        return true;
-    }
-
     virtual std::vector<TSharedRef> Decode(
         const std::vector<TSharedRef>& blocks,
         const TBlockIndexList& erasedIndices) override;
+
+    virtual bool CanRepair(const TBlockIndexList& erasedIndices) override;
 
     virtual TNullable<TBlockIndexList> GetRepairIndices(const TBlockIndexList& erasedIndices) override;
 
