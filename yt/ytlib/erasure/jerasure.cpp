@@ -79,8 +79,7 @@ TMatrix& TMatrix::operator= (TMatrix&& other)
 }
 
 TMatrix::~TMatrix()
-{
-}
+{ }
 
 void TMatrix::Free()
 {

@@ -8,6 +8,11 @@ namespace NErasure {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Cauchy version of the standard Reed--Solomon encoding scheme.
+/*!
+ *  See http://en.wikipedia.org/wiki/Reed%E2%80%93Solomon_error_correction
+ *  for more details.
+ */
 class TCauchyReedSolomon
     : public ICodec
 {
