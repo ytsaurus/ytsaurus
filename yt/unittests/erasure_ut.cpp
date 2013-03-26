@@ -144,7 +144,7 @@ public:
         }
     }
 
-    static IAsyncReaderPtr GetErasureReader(ICodec* codec)
+    static IAsyncReaderPtr CreateErasureReader(ICodec* codec)
     {
         std::vector<IAsyncReaderPtr> readers;
         for (int i = 0; i < codec->GetDataBlockCount(); ++i) {
@@ -165,8 +165,6 @@ public:
         }
     }
 };
-
-
 
 TEST_F(TErasureMixture, WriterTest)
 {
