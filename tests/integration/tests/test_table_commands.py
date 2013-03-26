@@ -54,6 +54,32 @@ class TestTableCommands(YTEnvSetup):
         assert get('//tmp/table/@sorted') ==  'false'
         with pytest.raises(YTError): get('//tmp/table/@sorted_by')
 
+    def test_append_overwrite_write(self):
+        # Default (append).
+        # COMPAT(ignat): When migrating to overwrite semantics, change this to 1.
+        create('table', '//tmp/table1')
+        assert get('//tmp/table1/@row_count') == 0
+        write_str('//tmp/table1', '{a=0}')
+        assert get('//tmp/table1/@row_count') == 1
+        write_str('//tmp/table1', '{a=1}')
+        assert get('//tmp/table1/@row_count') == 2
+
+        # Append
+        create('table', '//tmp/table2')
+        assert get('//tmp/table2/@row_count') == 0
+        write_str('<append=true>//tmp/table2', '{a=0}')
+        assert get('//tmp/table2/@row_count') == 1
+        write_str('<append=true>//tmp/table2', '{a=1}')
+        assert get('//tmp/table2/@row_count') == 2
+
+        # Overwrite
+        create('table', '//tmp/table3')
+        assert get('//tmp/table3/@row_count') == 0
+        write_str('<append=false>//tmp/table3', '{a=0}')
+        assert get('//tmp/table3/@row_count') == 1
+        write_str('<append=false>//tmp/table3', '{a=1}')
+        assert get('//tmp/table3/@row_count') == 1
+
     def test_invalid_cases(self):
         create('table', '//tmp/table')
 
