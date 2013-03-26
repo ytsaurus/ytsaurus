@@ -46,7 +46,6 @@ class DsvFormat(Format):
 class YsonFormat(Format):
     def __init__(self, format=None):
         self.format = get_value(format, "pretty")
-        pass
 
     def _mime_type(self):
         return "application/x-yt-yson-" + self.format

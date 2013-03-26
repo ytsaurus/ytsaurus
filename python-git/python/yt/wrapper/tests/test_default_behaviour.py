@@ -4,6 +4,9 @@ from yt.wrapper.tests.base import YtTestBase, TEST_DIR
 from yt.environment import YTEnv
 import yt.wrapper as yt
 
+import os
+import subprocess
+
 class TestDefaultBehaviour(YtTestBase, YTEnv):
     @classmethod
     def setup_class(cls):
@@ -230,3 +233,10 @@ class TestDefaultBehaviour(YtTestBase, YTEnv):
 
         self.assertItemsEqual(["x=2\n", "y=2\n"], yt.read_table(table))
         
+    def test_yt_binary(self):
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        proc = subprocess.Popen(
+            "YT_PROXY=%s %s" % (yt.config.PROXY, os.path.join(current_dir, "../test_yt.sh")),
+            shell=True)
+        proc.communicate()
+        self.assertEqual(proc.returncode, 0)

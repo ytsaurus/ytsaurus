@@ -241,18 +241,21 @@ class TestMapreduceMode(YtTestBase, YTEnv):
 
     def test_many_output_tables(self):
         table = self.create_temp_table()
-        other_table = TEST_DIR + "/temp_other"
-        another_table = TEST_DIR + "/temp_another"
-        more_another_table = TEST_DIR + "/temp_more_another"
-        copy_table(table, another_table)
+        output_tables = []
+        for i in xrange(15):
+            output_tables.append(TEST_DIR + "/temp%d" % i)
+
+        append_table = TEST_DIR + "/temp_special"
+        copy_table(table, append_table)
 
         yt.run_map("PYTHONPATH=. ./many_output.py",
                    table,
-                   [other_table, TablePath(another_table, append=True), more_another_table],
+                   output_tables + [TablePath(append_table, append=True)],
                    files=_test_file_path("many_output.py"))
-        self.assertEqual(yt.records_count(other_table), 1)
-        self.assertEqual(yt.records_count(another_table), 11)
-        self.assertEqual(yt.records_count(more_another_table), 1)
+
+        for t in output_tables:
+            self.assertEqual(yt.records_count(t), 1)
+        self.assertEqual(yt.records_count(append_table), 11)
 
     def test_range_operations(self):
         table = self.create_dsv_table()

@@ -131,7 +131,7 @@ class YTEnv(object):
             if not p_ok: ok = False
             message += p_message
 
-        #assert ok, message
+        assert ok, message
 
     def _append_pid(self, pid):
         self.pids_file.write(str(pid) + '\n')
@@ -148,6 +148,9 @@ class YTEnv(object):
                              stdout=stdout, stderr=stderr)
         self.process_to_kill.append((p, name))
         self._append_pid(p.pid)
+
+        time.sleep(0.1)
+        assert not p.poll(), "Process unexpectedly terminated"
 
     def _run_ytserver(self, service_name, configs):
         for i in xrange(len(configs)):
@@ -328,6 +331,8 @@ class YTEnv(object):
         current_port = self._ports["scheduler"]
         config['rpc_port'] = current_port
         config['monitoring_port'] = current_port + 1
+
+        config['scheduler']['snapshot_temp_path'] = os.path.join(current, 'snapshots')
 
         self.modify_scheduler_config(config)
         update(config, self.DELTA_SCHEDULER_CONFIG)
