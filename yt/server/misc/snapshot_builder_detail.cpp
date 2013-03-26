@@ -41,7 +41,7 @@ TAsyncError TSnapshotBuilderBase::Run()
 
     ChildPid = fork();
     if (ChildPid < 0) {
-        return MakePromise(TError("Error building snapshot: fork failed",
+        return MakePromise(TError("Error building snapshot: fork failed")
             << TError::FromSystem());
     }
 
