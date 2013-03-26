@@ -185,7 +185,7 @@ IMPLEMENT_SUPPORTS_VERB_RESOLVE(Exists, { Reply(context, false); })
 void TSupportsExists::Reply(TCtxExistsPtr context, bool value)
 {
     context->Response().set_value(value);
-    context->SetResponseInfo(Sprintf("Result: %s", ~ToString(value)));
+    context->SetResponseInfo(Sprintf("Result: %s", ~FormatBool(value)));
     context->Reply();
 }
 
