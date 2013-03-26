@@ -42,6 +42,7 @@ struct TDriverConfig
         Register("block_cache", BlockCache)
             .DefaultNew();
         Register("read_from_followers", ReadFromFollowers)
+            .Describe("Enable read-only requests to followers")
             .Default(false);
     }
 };

@@ -192,7 +192,7 @@ inline bool IsPresent(TNullable<T>* parameter)
 template <class T>
 TParameter<T>::TParameter(T& parameter)
     : Parameter(parameter)
-    , Description("")
+    , Description(nullptr)
     , HasDefaultValue(false)
 { }
 
