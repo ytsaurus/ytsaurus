@@ -49,7 +49,7 @@ TAsyncError TSnapshotBuilderBase::Run()
         RunChild();
         _exit(0);
     } else {
-        RunParent(ChildPid);
+        RunParent();
     }
 #else
     try {
