@@ -331,7 +331,8 @@ class YTEnv(object):
         current_port = self._ports["scheduler"]
         config['rpc_port'] = current_port
         config['monitoring_port'] = current_port + 1
-        config['snapshot_temp_path'] = os.path.join(current, 'snapshots')
+
+        config['scheduler']['snapshot_temp_path'] = os.path.join(current, 'snapshots')
 
         self.modify_scheduler_config(config)
         update(config, self.DELTA_SCHEDULER_CONFIG)
