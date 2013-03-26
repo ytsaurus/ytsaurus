@@ -47,7 +47,7 @@ struct ICodec
     //! Given a set of missing block indices, checks if missing blocks can be repaired.
     /*!
      *  \returns
-     *  If repair if not possible, returns |Null|.
+     *  If repair is not possible, returns |Null|.
      *  Otherwise returns the indices of blocks (both data and parity) to be passed to #Decode
      *  (in this very order). Not all known blocks may be needed for repair.
      */
