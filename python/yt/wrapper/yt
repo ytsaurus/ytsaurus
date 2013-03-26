@@ -399,7 +399,7 @@ def check_permission(args):
     print yt.check_permission(args.user, args.permission, args.path, format=args.format)
 
 def add_check_permission_parser(add_parser):
-    parser = add_parser("check_permission", help="check permission of given user at given path")
+    parser = add_parser("check-permission", help="check permission of given user at given path")
     parser.add_argument("user")
     parser.add_argument("permission")
     parser.add_argument("path")

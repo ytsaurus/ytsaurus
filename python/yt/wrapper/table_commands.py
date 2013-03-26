@@ -105,9 +105,9 @@ def _prepare_destination_tables(tables, replication_factor, compression_codec):
         if not exists(table.name):
             create_table(table.name, replication_factor=replication_factor, compression_codec=compression_codec)
         else:
-            require(replication_factor is None,
-                    YtError("Cannot append to table %s with set replication factor" %
-                            table))
+            require(replication_factor is None and compression_codec is None, 
+                    YtError("Cannot append to table %s and set replication factor "
+                            "or compression codec" % table))
     return tables
 
 def _remove_tables(tables):
