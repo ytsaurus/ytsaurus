@@ -67,8 +67,6 @@ TJobProxy::TJobProxy(
 
 void TJobProxy::SendHeartbeat()
 {
-    HeartbeatInvoker->ScheduleNext();
-
     auto req = SupervisorProxy->OnJobProgress();
     ToProto(req->mutable_job_id(), JobId);
     req->set_progress(Job->GetProgress());

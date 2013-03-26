@@ -48,8 +48,6 @@ void TResourceTracker::Start()
 
 void TResourceTracker::EnqueueUsage()
 {
-    PeriodicInvoker->ScheduleNext();
-
     EnqueueMemoryUsage();
     EnqueueCpuUsage();
 }

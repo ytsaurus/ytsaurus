@@ -110,11 +110,6 @@ public:
                 .SetResponseHeavy(true)
                 .SetResponseCodec(NCompression::ECodec::Lz4)
                 .SetInvoker(Bootstrap->GetControlInvoker(EControlQueue::Heartbeat)));
-
-        ProfilingInvoker = New<TPeriodicInvoker>(
-            Bootstrap->GetControlInvoker(),
-            BIND(&TThis::OnProfiling, MakeWeak(this)),
-            ProfilingPeriod);
     }
 
     void Start()
@@ -144,6 +139,10 @@ public:
 
         MasterConnector->Start();
 
+        ProfilingInvoker = New<TPeriodicInvoker>(
+            Bootstrap->GetControlInvoker(),
+            BIND(&TThis::OnProfiling, MakeWeak(this)),
+            ProfilingPeriod);
         ProfilingInvoker->Start();
     }
 
@@ -316,8 +315,6 @@ private:
 
         ProfileResources(TotalResourceLimitsProfiler, TotalResourceLimits);
         ProfileResources(TotalResourceUsageProfiler, TotalResourceUsage);
-
-        ProfilingInvoker->ScheduleNext();
     }
 
 

@@ -495,10 +495,8 @@ private:
                 Host->SetResourceUsage(resourceUsage);
                 MemoryUsage += delta;
             }
-
-            MemoryWatchdogInvoker->ScheduleNext();
         } catch (const std::exception& ex) {
-            SetError(TError(ex));
+            SetError(ex);
             Kill();
         }
     }

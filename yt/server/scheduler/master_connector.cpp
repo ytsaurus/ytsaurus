@@ -212,7 +212,6 @@ private:
     NTransactionClient::ITransactionPtr LockTransaction;
 
     TPeriodicInvokerPtr TransactionRefreshInvoker;
-    TPeriodicInvokerPtr ExecNodesRefreshInvoker;
     TPeriodicInvokerPtr OperationNodesUpdateInvoker;
     TPeriodicInvokerPtr WatcherInvoker;
 
@@ -696,20 +695,23 @@ private:
         TransactionRefreshInvoker = New<TPeriodicInvoker>(
             CancelableControlInvoker,
             BIND(&TImpl::RefreshTransactions, MakeWeak(this)),
-            Config->TransactionsRefreshPeriod);
+            Config->TransactionsRefreshPeriod,
+            EPeriodicInvokerMode::Manual);
         TransactionRefreshInvoker->Start();
 
         OperationNodesUpdateInvoker = New<TPeriodicInvoker>(
             CancelableControlInvoker,
             BIND(&TImpl::UpdateOperationNodes, MakeWeak(this)),
-            Config->OperationsUpdatePeriod);
+            Config->OperationsUpdatePeriod,
+            EPeriodicInvokerMode::Manual);
         OperationNodesUpdateInvoker->Start();
 
         WatcherInvoker = New<TPeriodicInvoker>(
             CancelableControlInvoker,
             BIND(&TImpl::UpdateWatchers, MakeWeak(this)),
-            Config->WatchersUpdatePeriod);
-        WatcherInvoker->Start();
+            Config->WatchersUpdatePeriod,
+            EPeriodicInvokerMode::Manual);
+        WatchersInvoker->Start();
     }
 
     void StopRefresh()
@@ -717,11 +719,6 @@ private:
         if (TransactionRefreshInvoker) {
             TransactionRefreshInvoker->Stop();
             TransactionRefreshInvoker.Reset();
-        }
-
-        if (ExecNodesRefreshInvoker) {
-            ExecNodesRefreshInvoker->Stop();
-            ExecNodesRefreshInvoker.Reset();
         }
 
         if (OperationNodesUpdateInvoker) {

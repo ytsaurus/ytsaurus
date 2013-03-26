@@ -86,7 +86,8 @@ TChunkReplicator::TChunkReplicator(
     RFUpdateInvoker = New<TPeriodicInvoker>(
         Bootstrap->GetMetaStateFacade()->GetEpochInvoker(EStateThreadQueue::ChunkMaintenance),
         BIND(&TChunkReplicator::OnRFUpdate, MakeWeak(this)),
-        Config->ChunkRFUpdatePeriod);
+        Config->ChunkRFUpdatePeriod,
+        EPeriodicInvokerMode::Manual);
     RFUpdateInvoker->Start();
 }
 
@@ -656,7 +657,6 @@ void TChunkReplicator::OnRefresh()
     VERIFY_THREAD_AFFINITY(StateThread);
 
     if (RefreshList.empty()) {
-        RefreshInvoker->ScheduleNext();
         return;
     }
 
@@ -689,8 +689,6 @@ void TChunkReplicator::OnRefresh()
 
     LOG_DEBUG("Incremental chunk refresh completed, %d chunks processed",
         count);
-
-    RefreshInvoker->ScheduleNext();
 }
 
 bool TChunkReplicator::IsEnabled()
