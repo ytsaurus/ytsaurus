@@ -151,11 +151,7 @@ TFileReader::AsyncGetChunkMeta(
     return MakeFuture(TGetMetaResult(GetChunkMeta(tags)));
 }
 
-<<<<<<< HEAD
 TChunkId TFileReader::GetChunkId() const 
-=======
-TChunkId TFileReader::GetChunkId() const
->>>>>>> f7b604b748be590c83529a343fa5a7a0a7443895
 {
     YUNREACHABLE();
 }
