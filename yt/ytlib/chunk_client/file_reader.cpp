@@ -151,7 +151,7 @@ TFileReader::AsyncGetChunkMeta(
     return MakeFuture(TGetMetaResult(GetChunkMeta(tags)));
 }
 
-TChunkId TFileReader::GetChunkId() const override
+TChunkId TFileReader::GetChunkId() const 
 {
     YUNREACHABLE();
 }

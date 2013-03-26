@@ -345,7 +345,7 @@ TAsyncError TErasureWriter::CloseParityWriters()
     return collector->Complete();
 }
 
-TAsyncError TErasureWriter::AsyncClose(const NProto::TChunkMeta& chunkMeta) override
+TAsyncError TErasureWriter::AsyncClose(const NProto::TChunkMeta& chunkMeta) 
 {
     PrepareBlocks();
     PrepareChunkMeta(chunkMeta);
