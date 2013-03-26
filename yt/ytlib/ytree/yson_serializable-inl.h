@@ -192,6 +192,7 @@ inline bool IsPresent(TNullable<T>* parameter)
 template <class T>
 TParameter<T>::TParameter(T& parameter)
     : Parameter(parameter)
+    , Description("")
     , HasDefaultValue(false)
 { }
 
@@ -234,6 +235,13 @@ template <class T>
 bool TParameter<T>::IsPresent() const
 {
     return NConfig::IsPresent(&Parameter);
+}
+
+template <class T>
+TParameter<T>& TParameter<T>::Describe(const char* description)
+{
+    Description = description;
+    return *this;
 }
 
 template <class T>
