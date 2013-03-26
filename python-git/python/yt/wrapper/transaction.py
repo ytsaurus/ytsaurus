@@ -28,12 +28,12 @@ class Transaction(object):
     initial_transaction = "0-0-0-0"
     initial_ping_ansector_transactions = False
 
-    def __init__(self, timeout=None):
+    def __init__(self, timeout=None, attributes=None):
         if not Transaction.stack:
             Transaction.initial_transaction = config.TRANSACTION
             Transaction.initial_ping_ansector_transactions = config.PING_ANSECTOR_TRANSACTIONS
 
-        self.transaction_id = start_transaction(timeout=timeout)
+        self.transaction_id = start_transaction(timeout=timeout, attributes=attributes)
         Transaction.stack.append(self.transaction_id)
 
         self._update_global_config()
@@ -107,11 +107,12 @@ class PingTransaction(Thread):
 
 
 class PingableTransaction(object):
-    def __init__(self, timeout=None):
+    def __init__(self, timeout=None, attributes=None):
         self.timeout = get_value(timeout, config.TRANSACTION_TIMEOUT)
+        self.attributes = attributes
 
     def __enter__(self):
-        self.transaction = Transaction(self.timeout)
+        self.transaction = Transaction(self.timeout, self.attributes)
         self.transaction.__enter__()
 
         self.ping = PingTransaction(config.TRANSACTION, self.timeout / 10)

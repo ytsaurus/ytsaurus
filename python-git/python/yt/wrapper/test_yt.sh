@@ -1,11 +1,11 @@
 #!/bin/bash -eux
 
 set_up() {
-    yt create map_node //home/wrapper_test
+    ./yt create map_node //home/wrapper_test
 }
 
 tear_down() {
-    yt remove //home/wrapper_test --force --recursive
+    ./yt remove //home/wrapper_test --force --recursive
     
     for pid in `jobs -p`; do
         if ps ax | awk '{print $1}' | grep $pid; then
@@ -46,7 +46,7 @@ test_tree_commands()
     check "" "`yt list //home/wrapper_test`"
     check "" "`yt find //home/wrapper_test --name "xxx"`"
 
-    yt set //home/wrapper_test/folder {}
+    ./yt set //home/wrapper_test/folder {}
     check "" "`yt list //home/wrapper_test/folder`"
     check "folder" "`yt list //home/wrapper_test`"
     check "{\"folder\"={}}" "`yt get //home/wrapper_test --format "<format=text>yson"`"
@@ -60,17 +60,17 @@ test_file_commands()
     echo "grep x" >script
     chmod +x script
 
-    cat script | yt upload //home/wrapper_test/script --executable
+    cat script | ./yt upload //home/wrapper_test/script --executable
 
     check "grep x" "`yt download //home/wrapper_test/script`"
     
-    echo -e "value=y\nvalue=x\n" | yt write //home/wrapper_test/input_table --format dsv
+    echo -e "value=y\nvalue=x\n" | ./yt write //home/wrapper_test/input_table --format dsv
     
-    yt map "./script" --src //home/wrapper_test/input_table --dst //home/wrapper_test/output_table \
+    ./yt map "./script" --src //home/wrapper_test/input_table --dst //home/wrapper_test/output_table \
         --file //home/wrapper_test/script --format dsv
     check "value=x\n" "`yt read //home/wrapper_test/output_table --format dsv`"
     
-    yt map "./script" --src //home/wrapper_test/input_table --dst //home/wrapper_test/output_table \
+    ./yt map "./script" --src //home/wrapper_test/input_table --dst //home/wrapper_test/output_table \
         --local-file ./script --format dsv
     check "value=x\n" "`yt read //home/wrapper_test/output_table --format dsv`"
     
@@ -79,33 +79,33 @@ test_file_commands()
 
 test_copy_move_link()
 {
-    yt create table //home/wrapper_test/table
+    ./yt create table //home/wrapper_test/table
     check "table" "`yt list //home/wrapper_test`"
     
-    yt copy //home/wrapper_test/table //home/wrapper_test/other_table
+    ./yt copy //home/wrapper_test/table //home/wrapper_test/other_table
     check $'other_table\ntable' "`yt list //home/wrapper_test | sort`"
 
-    yt remove //home/wrapper_test/table
+    ./yt remove //home/wrapper_test/table
     check "other_table" "`yt list //home/wrapper_test`"
     
-    yt move //home/wrapper_test/other_table //home/wrapper_test/table
+    ./yt move //home/wrapper_test/other_table //home/wrapper_test/table
     check "table" "`yt list //home/wrapper_test`"
     
-    yt link //home/wrapper_test/table //home/wrapper_test/other_table
+    ./yt link //home/wrapper_test/table //home/wrapper_test/other_table
     check $'other_table\ntable' "`yt list //home/wrapper_test | sort`"
     
-    yt remove //home/wrapper_test/table
+    ./yt remove //home/wrapper_test/table
     check_failed "yt read //home/wrapper_test/other_table --format dsv"
 }
 
 test_merge_erase()
 {
     for i in {1..3}; do
-        echo -e "value=${i}\n" | yt write "//home/wrapper_test/table${i}"
+        echo -e "value=${i}\n" | ./yt write "//home/wrapper_test/table${i}"
     done
-    yt merge --src "//home/wrapper_test/table1" --src "//home/wrapper_test/table3" --dst "//home/wrapper_test/merge"
+    ./yt merge --src "//home/wrapper_test/table1" --src "//home/wrapper_test/table3" --dst "//home/wrapper_test/merge"
 }
 
-#run_test test_tree_commands
-#run_test test_file_commands
+run_test test_tree_commands
+run_test test_file_commands
 run_test test_copy_move_link

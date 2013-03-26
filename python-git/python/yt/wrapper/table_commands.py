@@ -170,7 +170,9 @@ def _make_operation_request(command_name, spec, strategy, finalizer=None, verbos
         get_value(strategy, config.DEFAULT_STRATEGY).process_operation(command_name, operation, finalizer)
 
     if not config.DETACHED:
-        transaction = PingableTransaction(config.OPERATION_TRANSACTION_TIMEOUT)
+        transaction = PingableTransaction(
+            config.OPERATION_TRANSACTION_TIMEOUT,
+            attributes={"title": "Python wrapper: evelope transaction of operation"})
         def run_in_transaction():
             def envelope_finalizer():
                 if finalizer is not None:
@@ -260,7 +262,9 @@ def write_table(table, input_stream, format=None, table_writer=None, replication
     elif isinstance(input_stream, str):
         input_stream = StringIO(input_stream)
 
-    with PingableTransaction(config.WRITE_TRANSACTION_TIMEOUT):
+    with PingableTransaction(
+            config.WRITE_TRANSACTION_TIMEOUT,
+            attributes={"title": "Python wrapper: write table %s" % table.name}):
         if not exists(table.name):
             create_table(table.name, replication_factor=replication_factor, compression_codec=compression_codec)
         else:
