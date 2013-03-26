@@ -434,8 +434,8 @@ private:
             }
 
             // do not search the PATH, inherit environment
-            execle("/bin/sh",
-                "/bin/sh",
+            execle("/bin/bash",
+                "/bin/bash",
                 "-c",
                 ~cmd,
                 (void*)NULL,
@@ -443,7 +443,7 @@ private:
 
             int _errno = errno;
 
-            fprintf(stderr, "Failed to exec job (/bin/sh -c '%s'): %s\n",
+            fprintf(stderr, "Failed to exec job (/bin/bash -c '%s'): %s\n",
                 ~cmd,
                 strerror(_errno));
             _exit(EJobProxyExitCode::ExecFailed);
