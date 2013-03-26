@@ -5,21 +5,13 @@
 #include "zlib.h"
 #include "lz.h"
 
-#include <ytlib/actions/bind.h>
-
-#include <ytlib/misc/lazy_ptr.h>
-#include <ytlib/misc/singleton.h>
-
-#include <util/generic/singleton.h>
-
 namespace NYT {
 namespace NCompression {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNoneCodec
-    : public TRefCounted
-    , public ICodec
+    : public ICodec
 {
 public:
     virtual TSharedRef Compress(const TSharedRef& block) override
@@ -46,8 +38,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSnappyCodec
-    : public TRefCounted
-    , public ICodec
+    : public ICodec
 {
 public:
     virtual TSharedRef Compress(const TSharedRef& block) override
@@ -75,8 +66,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TGzipCodec
-    : public TRefCounted
-    , public ICodec
+    : public ICodec
 {
 public:
     explicit TGzipCodec(int level)
@@ -120,7 +110,6 @@ private:
 
 class TLz4Codec
     : public ICodec
-    , public TRefCounted
 {
 public:
     explicit TLz4Codec(bool highCompression)
@@ -157,8 +146,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TQuickLzCodec
-    : public TRefCounted
-    , public ICodec
+    : public ICodec
 {
 public:
     explicit TQuickLzCodec()
@@ -189,55 +177,44 @@ private:
     NCompression::TConverter Compressor_;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 ICodec* GetCodec(ECodec id)
 {
-    using namespace NCompression;
-
-    static TLazyPtr<TGzipCodec> GzipCodecNormal(
-        BIND([] () {
-            return New<TGzipCodec>(6);
-        })
-    );
-
-    static TLazyPtr<TGzipCodec> GzipCodecBestCompression(
-        BIND([] () {
-            return New<TGzipCodec>(9);
-        })
-    );
-
-    static TLazyPtr<TLz4Codec> Lz4(
-        BIND([] () {
-            return New<TLz4Codec>(false);
-        })
-    );
-
-    static TLazyPtr<TLz4Codec> Lz4HighCompression(
-        BIND([] () {
-            return New<TLz4Codec>(true);
-        })
-    );
-
     switch (id) {
-        case ECodec::None:
-            return RefCountedSingleton<NCompression::TNoneCodec>().Get();
+        case ECodec::None: {
+            static TNoneCodec result;
+            return &result;
+        }
+        case ECodec::Snappy: {
+            static TSnappyCodec result;
+            return &result;
+        }
 
-        case ECodec::Snappy:
-            return RefCountedSingleton<NCompression::TSnappyCodec>().Get();
+        case ECodec::GzipNormal: {
+            static TGzipCodec result(6);
+            return &result;
+        }
 
-        case ECodec::GzipNormal:
-            return GzipCodecNormal.Get();
+        case ECodec::GzipBestCompression: {
+            static TGzipCodec result(9);
+            return &result;
+        }
 
-        case ECodec::GzipBestCompression:
-            return GzipCodecBestCompression.Get();
+        case ECodec::Lz4: {
+            static TLz4Codec result(false);
+            return &result;
+        }
 
-        case ECodec::Lz4:
-            return Lz4.Get();
+        case ECodec::Lz4HighCompression: {
+            static TLz4Codec result(true);
+            return &result;
+        }
 
-        case ECodec::Lz4HighCompression:
-            return Lz4HighCompression.Get();
-
-        case ECodec::QuickLz:
-            return RefCountedSingleton<NCompression::TQuickLzCodec>().Get();
+        case ECodec::QuickLz: {
+            static TQuickLzCodec result;
+            return &result;
+        }
 
         default:
             YUNREACHABLE();

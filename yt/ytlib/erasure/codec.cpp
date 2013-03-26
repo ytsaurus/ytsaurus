@@ -2,8 +2,6 @@
 #include "reed_solomon.h"
 #include "lrc.h"
 
-#include <util/generic/singleton.h>
-
 namespace NYT {
 namespace NErasure {
 
