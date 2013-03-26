@@ -768,15 +768,17 @@ private:
     {
         auto this_ = MakeStrong(this);
         return Readers_.front()->AsyncGetChunkMeta().Apply(
-            BIND([this, this_] (IAsyncReader::TGetMetaResult metaOrError) -> TAsyncError {
-                RETURN_PROMISE_IF_ERROR(metaOrError, TError);
-                auto collector = New<TParallelCollector<void>>();
-                FOREACH (auto writer, Writers_) {
-                    collector->Collect(writer->AsyncClose(metaOrError.Value()));
-                }
-                return collector->Complete();
-            })
-        );
+            BIND(&TRepairAllParts::OnGotChunkMeta, MakeStrong(this)));
+    }
+
+    TAsyncError OnGotChunkMeta(IAsyncReader::TGetMetaResult metaOrError)
+    {
+        RETURN_PROMISE_IF_ERROR(metaOrError, TError);
+        auto collector = New<TParallelCollector<void>>();
+        FOREACH (auto writer, Writers_) {
+            collector->Collect(writer->AsyncClose(metaOrError.Value()));
+        }
+        return collector->Complete();
     }
 
     TRepairReaderPtr Reader_;

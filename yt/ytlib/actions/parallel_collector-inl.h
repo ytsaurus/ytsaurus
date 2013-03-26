@@ -8,17 +8,82 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
+class TParallelCollectorStorage
+{
+public:
+    typedef std::vector<T> TResults;
+    typedef TValueOrError<T> TResultOrError;
+    typedef TValueOrError<TResults> TResultsOrError;
+
+    void Store(const TValueOrError<T>& valueOrError)
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+        Values.push_back(valueOrError.Value());
+    }
+
+    void SetPromise(TPromise<TResultsOrError> promise)
+    {
+        promise.Set(std::move(Values));
+    }
+
+private:
+    TSpinLock SpinLock;
+    TResults Values;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <>
+class TParallelCollectorStorage<void>
+{
+public:
+    typedef void TResults;
+    typedef TError TResultOrError;
+    typedef TError TResultsOrError;
+
+    void Store(const TValueOrError<void>& valueOrError)
+    {
+        UNUSED(valueOrError);
+    }
+
+    void SetPromise(TPromise<TResultsOrError> promise)
+    {
+        promise.Set(TError());
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+TParallelCollector<T>::TParallelCollector(
+    IInvokerPtr invoker,
+    NProfiling::TProfiler* profiler /* = nullptr */,
+    const NYPath::TYPath& timerPath /* = "" */)
+    : Awaiter(New<TParallelAwaiter>(invoker, profiler, timerPath))
+{
+    Init();
+}
+
+template <class T>
 TParallelCollector<T>::TParallelCollector(
     NProfiling::TProfiler* profiler /* = nullptr */,
     const NYPath::TYPath& timerPath /* = "" */)
     : Awaiter(New<TParallelAwaiter>(profiler, timerPath))
-    , Promise(NewPromise<TResultsOrError>())
-    , Completed(false)
-{ }
+{
+    Init();
+}
+
+template <class T>
+void TParallelCollector<T>::Init()
+{
+    Promise = NewPromise<TResultsOrError>();
+    Completed = false;
+}
 
 template <class T>
 void TParallelCollector<T>::Collect(
-    TFuture< TValueOrError<T> > future,
+    TFuture<TResultOrError> future,
     const Stroka& timerKey /* = "" */)
 {
     Awaiter->Await(
@@ -28,7 +93,7 @@ void TParallelCollector<T>::Collect(
 }
 
 template <class T>
-TFuture< TValueOrError< std::vector<T> > > TParallelCollector<T>::Complete()
+TFuture<typename TParallelCollector<T>::TResultsOrError> TParallelCollector<T>::Complete()
 {
     Awaiter->Complete(
         BIND(&TThis::OnCompleted, MakeStrong(this)));
@@ -36,11 +101,10 @@ TFuture< TValueOrError< std::vector<T> > > TParallelCollector<T>::Complete()
 }
 
 template <class T>
-void TParallelCollector<T>::OnResult(TValueOrError<T> result)
+void TParallelCollector<T>::OnResult(TResultOrError result)
 {
     if (result.IsOK()) {
-        TGuard<TSpinLock> guard(SpinLock);
-        Results.push_back(result.Value());
+        Results.Store(result);
     } else {
         if (TryLockCompleted()) {
             // NB: Do not replace TError(result) with result unless you understand
@@ -54,7 +118,7 @@ template <class T>
 void TParallelCollector<T>::OnCompleted()
 {
     if (TryLockCompleted()) {
-        Promise.Set(std::move(Results));
+        Results.SetPromise(Promise);
     }
 }
 
@@ -66,70 +130,4 @@ bool TParallelCollector<T>::TryLockCompleted()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline
-TParallelCollector<void>::TParallelCollector(
-    NProfiling::TProfiler* profiler /* = nullptr */,
-    const NYPath::TYPath& timerPath /* = "" */)
-    : Awaiter(New<TParallelAwaiter>(profiler, timerPath))
-    , Promise(NewPromise<TError>())
-    , Completed(false)
-{ }
-
-inline
-void TParallelCollector<void>::Collect(
-    TFuture<TError> future,
-    const Stroka& timerKey /* = "" */)
-{
-    Awaiter->Await(
-        future,
-        timerKey,
-        BIND(&TThis::OnResult, MakeStrong(this)));
-}
-
-inline
-void TParallelCollector<void>::Collect(
-    TFuture<TValueOrError<void>> future,
-    const Stroka& timerKey /* = "" */)
-{
-    Awaiter->Await(
-        future.Apply(BIND([](TValueOrError<void> error) -> TError {
-            return error; 
-        })),
-        timerKey,
-        BIND(&TThis::OnResult, MakeStrong(this)));
-}
-
-inline
-TFuture<TError> TParallelCollector<void>::Complete()
-{
-    Awaiter->Complete(
-        BIND(&TThis::OnCompleted, MakeStrong(this)));
-    return Promise;
-}
-
-inline
-void TParallelCollector<void>::OnResult(TError result)
-{
-    if (!result.IsOK()) {
-        if (TryLockCompleted()) {
-            Promise.Set(result);
-        }
-    }
-}
-
-inline
-void TParallelCollector<void>::OnCompleted()
-{
-    if (TryLockCompleted()) {
-        Promise.Set(TError());
-    }
-}
-
-inline
-bool TParallelCollector<void>::TryLockCompleted()
-{
-    return AtomicCas(&Completed, true, false);
-}
-
-////////////////////////////////////////////////////////////////////////////////
 } // namespace NYT
