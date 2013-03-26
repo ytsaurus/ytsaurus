@@ -1,6 +1,6 @@
 import os
 
-PROXY = "proxy.yt.yandex.net"
+PROXY = ""
 USE_HOSTS = False
 USE_TOKEN = True
 

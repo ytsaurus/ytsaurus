@@ -48,6 +48,9 @@ Stroka CombinePaths(const Stroka& path1, const Stroka& path2);
 //! Deletes all files with extension #TempFileSuffix in a given directory.
 void CleanTempFiles(const Stroka& path);
 
+//! Deletes all files in a given directory.
+void CleanFiles(const Stroka& path);
+
 //! Describes total, free, and available space on a disk drive.
 struct TDiskSpaceStatistics
 {

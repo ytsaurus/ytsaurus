@@ -49,7 +49,7 @@ Wish you were here.
         create('table', '//tmp/t_out', tx=tx)
 
         for line in text.split('\n'):
-            write('//tmp/t_in', {'line': line}, tx=tx)
+            write('<append=true>//tmp/t_in', {'line': line}, tx=tx)
         
         upload_file('//tmp/yt_streaming.py', os.path.join(TOOLS_ROOTDIR, 'yt_streaming.py'), tx=tx)
         upload_file('//tmp/mapper.py', os.path.join(TOOLS_ROOTDIR, 'wc_mapper.py'), tx=tx)

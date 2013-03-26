@@ -28,7 +28,7 @@ struct TCellConfig
             .NonEmpty();
     }
 
-    virtual void DoValidate() const
+    virtual void DoValidate() const override
     {
         if (Addresses.size() % 2 != 1) {
             THROW_ERROR_EXCEPTION("Number of masters must be odd");

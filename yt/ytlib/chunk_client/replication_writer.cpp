@@ -947,8 +947,6 @@ void TReplicationWriter::SendPing(TNodeWeakPtr node)
     auto req = node_->Proxy.PingSession();
     ToProto(req->mutable_chunk_id(), ChunkId);
     req->Invoke();
-
-    node_->PingInvoker->ScheduleNext();
 }
 
 void TReplicationWriter::StartPing(TNodePtr node)

@@ -40,9 +40,10 @@ public:
         NTransactionClient::ITransactionPtr transaction,
         NChunkClient::IBlockCachePtr blockCache,
         const NYPath::TRichYPath& richPath,
-        const TNullable<i64>& offset,
-        const TNullable<i64>& length);
+        const TNullable<i64>& offset = Null,
+        const TNullable<i64>& length = Null);
 
+    //! Reads and returns another block.
     TSharedRef Read();
 
     //! Returns the size of the file.

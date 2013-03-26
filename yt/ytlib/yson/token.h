@@ -69,6 +69,7 @@ public:
     Stroka ToString() const;
 
     void CheckType(ETokenType expectedType) const;
+    void CheckType(const std::vector<ETokenType>& expectedTypes) const;
 
 private:
     TStringBuf StringValue;

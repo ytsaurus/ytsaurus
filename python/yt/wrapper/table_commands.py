@@ -105,9 +105,9 @@ def _prepare_destination_tables(tables, replication_factor, compression_codec):
         if not exists(table.name):
             create_table(table.name, replication_factor=replication_factor, compression_codec=compression_codec)
         else:
-            require(replication_factor is None,
-                    YtError("Cannot append to table %s with set replication factor" %
-                            table))
+            require(replication_factor is None and compression_codec is None, 
+                    YtError("Cannot append to table %s and set replication factor "
+                            "or compression codec" % table))
     return tables
 
 def _remove_tables(tables):
@@ -115,12 +115,13 @@ def _remove_tables(tables):
         if exists(table) and get_type(table) == "table":
             remove(table)
 
-def _add_user_command_spec(op_type, binary, input_format, output_format, files, file_paths, fds_count, reduce_by, spec):
+def _add_user_command_spec(op_type, binary, input_format, output_format, files, file_paths, fds_count, memory_limit, reduce_by, spec):
     if binary is None:
         return spec, []
     files = _prepare_files(files)
     binary, additional_files = _prepare_binary(binary, op_type, reduce_by)
     binary = _add_output_fd_redirect(binary, fds_count)
+    memory_limit = get_value(memory_limit, config.MEMORY_LIMIT)
     spec = update(
         {
             op_type: {
@@ -128,7 +129,7 @@ def _add_user_command_spec(op_type, binary, input_format, output_format, files, 
                 "output_format": output_format.to_json(),
                 "command": binary,
                 "file_paths": flatten(files + additional_files + map(prepare_path, get_value(file_paths, []))),
-                "memory_limit": config.MEMORY_LIMIT
+                "memory_limit": memory_limit
             }
         },
     spec)
@@ -217,6 +218,7 @@ def create_table(path, recursive=None, replication_factor=None, compression_code
     attributes = get_value(attributes, {})
     if replication_factor is not None:
         attributes["replication_factor"] = replication_factor
+    if compression_codec is not None:
         attributes["compression_codec"] = compression_codec
     create("table", table.name, recursive=recursive, attributes=attributes)
 
@@ -380,10 +382,6 @@ def run_erase(table, strategy=None):
         return
     _make_operation_request("erase", {"table_path": table.get_json()}, strategy)
 
-def erase_table(table, strategy=None):
-    """ DEPRECATED: use run_erase"""
-    run_erase(table, strategy)
-
 def records_count(table):
     """Return number of records in the table"""
     table = to_name(table)
@@ -434,12 +432,6 @@ def run_merge(source_table, destination_table, mode=None,
 
     _make_operation_request("merge", spec, strategy, finalizer=None)
 
-def merge_tables(source_table, destination_table, mode=None,
-                 strategy=None, table_writer=None,
-                 replication_factor=None, compression_codec=None, spec=None):
-    """ DEPRECATED: use run_merge"""
-    run_merge(source_table, destination_table, mode, strategy, table_writer, replication_factor, compression_codec, spec)
-
 def run_sort(source_table, destination_table=None, sort_by=None,
              strategy=None, table_writer=None, replication_factor=None,
              compression_codec=None, spec=None):
@@ -478,13 +470,6 @@ def run_sort(source_table, destination_table=None, sort_by=None,
     )(spec)
 
     _make_operation_request("sort", spec, strategy, finalizer=None)
-
-def sort_table(source_table, destination_table=None, sort_by=None,
-               strategy=None, table_writer=None,
-               replication_factor=None, compression_codec=None, spec=None):
-    """ DEPRECATED: use run_sort"""
-    run_sort(source_table, destination_table, sort_by, strategy, table_writer, replication_factor, compression_codec, spec)
-
 
 """ Map and reduce methods """
 class Finalizer(object):
@@ -534,6 +519,7 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
                    replication_factor=None, compression_codec=None,
                    map_files=None, reduce_files=None,
                    map_file_paths=None, reduce_file_paths=None,
+                   mapper_memory_limit=None, reducer_memory_limit=None,
                    sort_by=None, reduce_by=None):
     run_map_reduce.files_to_remove = []
     def memorize_files(spec, files):
@@ -555,8 +541,8 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
         lambda _: _add_input_output_spec(source_table, destination_table, _),
         lambda _: update({"sort_by": _prepare_sort_by(sort_by),
                           "reduce_by": _prepare_reduce_by(reduce_by)}, _),
-        lambda _: memorize_files(*_add_user_command_spec("mapper", mapper, input_format, output_format, map_files, map_file_paths, 1, None, _)),
-        lambda _: memorize_files(*_add_user_command_spec("reducer", reducer, input_format, output_format, reduce_files, reduce_file_paths, len(destination_table), reduce_by, _)),
+        lambda _: memorize_files(*_add_user_command_spec("mapper", mapper, input_format, output_format, map_files, map_file_paths, 1, mapper_memory_limit, None, _)),
+        lambda _: memorize_files(*_add_user_command_spec("reducer", reducer, input_format, output_format, reduce_files, reduce_file_paths, len(destination_table), reducer_memory_limit, reduce_by, _)),
         lambda _: get_value(_, {})
     )(spec)
 
@@ -569,6 +555,8 @@ def run_operation(binary, source_table, destination_table,
                   table_writer=None,
                   replication_factor=None,
                   compression_codec=None,
+                  job_count=None,
+                  memory_limit=None,
                   spec=None,
                   op_name=None,
                   reduce_by=None):
@@ -620,7 +608,9 @@ def run_operation(binary, source_table, destination_table,
         lambda _: _add_table_writer_spec("job_io", table_writer, _),
         lambda _: _add_input_output_spec(source_table, destination_table, _),
         lambda _: update({"reduce_by": _prepare_reduce_by(reduce_by)}, _) if op_name == "reduce" else _,
-        lambda _: memorize_files(*_add_user_command_spec(op_type, binary, input_format, output_format, files, file_paths, len(destination_table), reduce_by, _)),
+        lambda _: update({"job_count": job_count}, _) if job_count is not None else _,
+        lambda _: update({"memory_limit": memory_limit}, _) if memory_limit is not None else _,
+        lambda _: memorize_files(*_add_user_command_spec(op_type, binary, input_format, output_format, files, file_paths, len(destination_table), memory_limit, reduce_by, _)),
         lambda _: get_value(_, {})
     )(spec)
 

@@ -1,5 +1,6 @@
 ﻿#include "stdafx.h"
 #include "table_writer.h"
+#include "helpers.h"
 #include "config.h"
 #include "private.h"
 #include "schema.h"
@@ -79,7 +80,7 @@ void TTableWriter::Open()
     LOG_INFO("Upload transaction created (TransactionId: %s)", ~ToString(uploadTransactionId));
 
     auto path = RichPath.GetPath();
-    bool overwrite = RichPath.Attributes().Get<bool>("overwrite", false);
+    bool overwrite = ExtractOverwriteFlag(RichPath.Attributes());
     bool clear = Options->KeyColumns.HasValue() || overwrite;
 
     LOG_INFO("Requesting table info");

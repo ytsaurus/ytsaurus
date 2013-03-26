@@ -1,11 +1,10 @@
 #pragma once
 
+#include "public.h"
+
 #include <ytlib/misc/ref.h>
 
-#include <vector>
-
 namespace NYT {
-
 namespace NErasure {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -71,10 +70,9 @@ std::vector<TSharedRef> BitMatrixDecode(
     int wordSize,
     const TMatrix& bitTMatrix,
     const std::vector<TSharedRef>& blocks,
-    const std::vector<int>& erasedIndices);
+    const TBlockIndexList& erasedIndices);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NErasure
-
 } // namespace NYT

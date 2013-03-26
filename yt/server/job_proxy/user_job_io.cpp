@@ -124,7 +124,7 @@ void TUserJobIO::SetStderrChunkId(const TChunkId& chunkId)
 std::vector<NChunkClient::TChunkId> TUserJobIO::GetFailedChunks() const
 {
     std::vector<NChunkClient::TChunkId> result;
-    FOREACH(const auto& input, Inputs) {
+    FOREACH (const auto& input, Inputs) {
         auto part = input->GetFailedChunks();
         result.insert(result.end(), part.begin(), part.end());
     }

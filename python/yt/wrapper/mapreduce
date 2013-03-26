@@ -514,7 +514,7 @@ Examples:
         print yt.exists(args.exists)
 
     if args.get is not None:
-        print json.dumps(yt.get(args.get, spec=spec, format=yt.JsonFormat()), indent=2)
+        print yt.get(args.get, spec=spec, format=yt.RawFormat.from_yson_string("<format=pretty>json"))
     if args.set is not None:
         if args.value is None:
             die("Value option is necessary for set command")

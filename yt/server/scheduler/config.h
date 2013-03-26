@@ -7,6 +7,8 @@
 
 #include <ytlib/table_client/config.h>
 
+#include <ytlib/file_client/config.h>
+
 #include <ytlib/rpc/retrying_channel.h>
 
 #include <server/job_proxy/config.h>
@@ -50,6 +52,8 @@ struct TSchedulerConfig
     : public TFairShareStrategyConfig
 {
     TDuration ConnectRetryPeriod;
+
+    TDuration NodeHearbeatTimeout;
 
     TDuration TransactionsRefreshPeriod;
 
@@ -122,12 +126,20 @@ struct TSchedulerConfig
     // Default environment variables set for every job.
     yhash_map<Stroka, Stroka> Environment;
 
+    TDuration SnapshotPeriod;
+    TDuration SnapshotTimeout;
+    Stroka SnapshotTempPath;
+    NFileClient::TFileReaderConfigPtr SnapshotReader;
+    NFileClient::TFileWriterConfigPtr SnapshotWriter;
+
     NRpc::TRetryingChannelConfigPtr NodeChannel;
 
     TSchedulerConfig()
     {
         Register("connect_retry_period", ConnectRetryPeriod)
             .Default(TDuration::Seconds(15));
+        Register("node_heartbeat_timeout", NodeHearbeatTimeout)
+            .Default(TDuration::Seconds(60));
         Register("transactions_refresh_period", TransactionsRefreshPeriod)
             .Default(TDuration::Seconds(3));
         Register("operations_update_period", OperationsUpdatePeriod)
@@ -139,10 +151,9 @@ struct TSchedulerConfig
         Register("lock_transaction_timeout", LockTransactionTimeout)
             .Default(TDuration::Seconds(15));
         Register("operation_transaction_timeout", OperationTransactionTimeout)
-            .Default(TDuration::Seconds(15));
+            .Default(TDuration::Minutes(60));
         Register("node_rpc_timeout", NodeRpcTimeout)
             .Default(TDuration::Seconds(15));
-
 
         Register("strategy", Strategy)
             .Default(ESchedulerStrategy::Null);
@@ -224,6 +235,17 @@ struct TSchedulerConfig
             .Default(yhash_map<Stroka, Stroka>());
 
         Register("node_channel", NodeChannel)
+            .DefaultNew();
+
+        Register("snapshot_timeout", SnapshotTimeout)
+            .Default(TDuration::Seconds(60));
+        Register("snapshot_period", SnapshotPeriod)
+            .Default(TDuration::Seconds(300));
+        Register("snapshot_temp_path", SnapshotTempPath)
+            .NonEmpty();
+        Register("snapshot_reader", SnapshotReader)
+            .DefaultNew();
+        Register("snapshot_writer", SnapshotWriter)
             .DefaultNew();
     }
 };

@@ -69,7 +69,7 @@ TEST(TPreprocessorTest, ForEach)
 #undef  my_functor
 }
 
-TEST(TPreprocessorTest, Element)
+TEST(TPreprocessorTest, MakeSingleton)
 {
     EXPECT_EQ(1, PP_ELEMENT((1), 0));
     EXPECT_EQ(1, PP_ELEMENT((1)(2), 0));

@@ -28,6 +28,11 @@ bool TExecNode::HasSpareResources() const
     return HasEnoughResources(LowWatermarkNodeResources());
 }
 
+const Stroka& TExecNode::GetAddress() const
+{
+    return Descriptor_.Address;
+}
+
 ////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler

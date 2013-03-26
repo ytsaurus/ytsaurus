@@ -30,8 +30,8 @@ struct TReaderOptions
 };
 
 DECLARE_ENUM(EErrorCode,
-    ((MasterCommunicationFailed)  (800))
-    ((SortOrderViolation)         (801))
+    ((MasterCommunicationFailed)  (300))
+    ((SortOrderViolation)         (301))
 );
 
 struct IAsyncWriter;

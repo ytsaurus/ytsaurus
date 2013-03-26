@@ -14,10 +14,12 @@ TPeriodicInvoker::TPeriodicInvoker(
     IInvokerPtr invoker,
     TClosure callback,
     TDuration period,
+    EPeriodicInvokerMode mode,
     TDuration splay)
     : Invoker(invoker)
     , Callback(callback)
     , Period(period)
+    , Mode(mode)
     , Splay(splay)
     , Started(false)
     , Busy(false)
@@ -82,6 +84,9 @@ void TPeriodicInvoker::PostCallback()
             AtomicSet(Busy, true);
             TDelayedInvoker::CancelAndClear(Cookie);
             Callback.Run();
+            if (Mode == EPeriodicInvokerMode::Automatic) {
+                ScheduleNext();
+            }
         }
     }));
     if (!result) {

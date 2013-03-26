@@ -19,7 +19,7 @@ struct THeader
 
 } // anonymous namespace
 
-void Lz4Compress(bool highCompression, StreamSource* source, std::vector<char>* output)
+void Lz4Compress(bool highCompression, StreamSource* source, TBlob* output)
 {
     size_t currentPos = 0;
     while (source->Available() > 0) {
@@ -29,12 +29,11 @@ void Lz4Compress(bool highCompression, StreamSource* source, std::vector<char>* 
         // LZ4 support only integer length
         YCHECK(len <= 1 << 30);
 
-        size_t bound = currentPos + sizeof(THeader) + LZ4_compressBound(len);
-
-        if (output->capacity() < bound) {
-            output->reserve(std::max(bound, 2 * output->size()));
-        }
-        output->resize(bound);
+        size_t bound =
+            currentPos +
+            sizeof(THeader) +
+            LZ4_compressBound(len);
+        output->Resize(bound, false);
 
         size_t headerPos = currentPos;
         currentPos += sizeof(THeader);
@@ -42,46 +41,43 @@ void Lz4Compress(bool highCompression, StreamSource* source, std::vector<char>* 
         THeader header;
         header.InputSize = len;
         if (highCompression) {
-            header.OutputSize = LZ4_compressHC(input, output->data() + currentPos, len);
+            header.OutputSize = LZ4_compressHC(input, output->Begin() + currentPos, len);
         }
         else {
-            header.OutputSize = LZ4_compress(input, output->data() + currentPos, len);
+            header.OutputSize = LZ4_compress(input, output->Begin() + currentPos, len);
         }
         YCHECK(header.OutputSize >= 0);
 
         currentPos += header.OutputSize;
-        output->resize(currentPos);
+        output->Resize(currentPos);
 
-        TMemoryOutput memoryOutput(output->data() + headerPos, sizeof(THeader));
+        TMemoryOutput memoryOutput(output->Begin() + headerPos, sizeof(THeader));
         WritePod(memoryOutput, header);
 
         source->Skip(len);
     }
 }
 
-void Lz4Decompress(StreamSource* source, std::vector<char>* output)
+void Lz4Decompress(StreamSource* source, TBlob* output)
 {
     while (source->Available() > 0) {
         THeader header;
         ReadPod(source, header);
 
-        size_t outputPos = output->size();
-        size_t newSize = output->size() + header.InputSize;
-        if (output->capacity() < newSize) {
-            output->reserve(std::max(newSize, 2 * output->capacity()));
-        }
-        output->resize(newSize);
+        size_t outputPos = output->Size();
+        size_t newSize = outputPos + header.InputSize;
+        output->Resize(newSize, false);
 
-        std::vector<char> input(header.OutputSize);
-        Read(source, input.data(), input.size());
+        TBlob input(header.OutputSize, false);
+        Read(source, input.Begin(), input.Size());
 
-        YCHECK(LZ4_uncompress(input.data(), output->data() + outputPos, header.InputSize) >= 0);
+        YCHECK(LZ4_uncompress(input.Begin(), output->Begin() + outputPos, header.InputSize) >= 0);
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void QuickLzCompress(StreamSource* source, std::vector<char>* output)
+void QuickLzCompress(StreamSource* source, TBlob* output)
 {
     size_t currentPos = 0;
     while (source->Available() > 0) {
@@ -90,33 +86,31 @@ void QuickLzCompress(StreamSource* source, std::vector<char>* output)
         size_t len;
         const char* input = source->Peek(&len);
 
-        size_t bound = currentPos + sizeof(THeader) +
+        size_t bound =
+            currentPos +
+            sizeof(THeader) +
             /* compressed bound */(len + 400);
-
-        if (output->capacity() < bound) {
-            output->reserve(std::max(bound, 2 * output->size()));
-        }
-        output->resize(bound);
+        output->Resize(bound, false);
 
         size_t headerPos = currentPos;
         currentPos += sizeof(THeader);
 
         THeader header;
         header.InputSize = len;
-        header.OutputSize = qlz_compress(input, output->data() + currentPos, len, &state);
+        header.OutputSize = qlz_compress(input, output->Begin() + currentPos, len, &state);
         YCHECK(header.OutputSize >= 0);
 
         currentPos += header.OutputSize;
-        output->resize(currentPos);
+        output->Resize(currentPos);
 
-        TMemoryOutput memoryOutput(output->data() + headerPos, sizeof(THeader));
+        TMemoryOutput memoryOutput(output->Begin() + headerPos, sizeof(THeader));
         WritePod(memoryOutput, header);
 
         source->Skip(len);
     }
 }
 
-void QuickLzDecompress(StreamSource* source, std::vector<char>* output)
+void QuickLzDecompress(StreamSource* source, TBlob* output)
 {
     while (source->Available() > 0) {
         qlz_state_decompress state;
@@ -124,23 +118,19 @@ void QuickLzDecompress(StreamSource* source, std::vector<char>* output)
         THeader header;
         ReadPod(source, header);
 
-        size_t outputPos = output->size();
-        size_t newSize = output->size() + header.InputSize;
-        if (output->capacity() < newSize) {
-            output->reserve(std::max(newSize, 2 * output->capacity()));
-        }
-        output->resize(newSize);
+        size_t outputPos = output->Size();
+        size_t newSize = outputPos + header.InputSize;
+        output->Resize(newSize, false);
 
-        std::vector<char> input(header.OutputSize);
-        Read(source, input.data(), input.size());
+        TBlob input(header.OutputSize, false);
+        Read(source, input.Begin(), input.Size());
 
-        YCHECK(qlz_decompress(input.data(), output->data() + outputPos, &state) >= 0);
+        YCHECK(qlz_decompress(input.Begin(), output->Begin() + outputPos, &state) >= 0);
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NCompression
-
 } // namespace NYT
 

@@ -1,0 +1,53 @@
+#pragma once
+
+#include "public.h"
+
+#include <ytlib/misc/error.h>
+
+#include <ytlib/misc/periodic_invoker.h>
+
+#include <ytlib/logging/log.h>
+
+namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Provides a generic infrastructure for building snapshots via fork.
+class TSnapshotBuilderBase
+    : public TRefCounted
+{
+public:
+    TSnapshotBuilderBase();
+    ~TSnapshotBuilderBase();
+
+    TAsyncError Run();
+
+protected:
+    //! Must be initialized in the deriving class.
+    NLog::TLogger Logger;
+
+    //! Returns the timeout for building a snapshot.
+    virtual TDuration GetTimeout() const = 0;
+
+    //! Called from the forked process to build the snapshot.
+    virtual void Build() = 0;
+
+private:
+    pid_t ChildPid;
+    TPromise<TError> Result;
+    TInstant Deadline;
+    TPeriodicInvokerPtr WatchdogInvoker;
+
+    void RunParent();
+    void RunChild();
+
+    void OnWatchdogCheck();
+
+    void Cleanup();
+    void KillChild();
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT

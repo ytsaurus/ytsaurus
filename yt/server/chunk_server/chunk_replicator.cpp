@@ -8,6 +8,7 @@
 #include "chunk_list.h"
 #include "job_list.h"
 #include "chunk_tree_traversing.h"
+#include "private.h"
 
 #include <ytlib/misc/foreach.h>
 #include <ytlib/misc/serialize.h>
@@ -19,6 +20,8 @@
 
 #include <ytlib/profiling/profiler.h>
 #include <ytlib/profiling/timing.h>
+
+#include <ytlib/profiling/profiler.h>
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/config.h>
@@ -42,8 +45,8 @@ using NChunkServer::NProto::TJobStopInfo;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("ChunkServer");
-static NProfiling::TProfiler Profiler("/chunk_server");
+static NLog::TLogger& Logger = ChunkServerLogger;
+static NProfiling::TProfiler& Profiler = ChunkServerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -68,8 +71,6 @@ TChunkReplicator::TChunkReplicator(
     , ChunkPlacement(chunkPlacement)
     , NodeLeaseTracker(nodeLeaseTracker)
     , ChunkRefreshDelay(DurationToCpuDuration(config->ChunkRefreshDelay))
-    , RefreshListSizeCounter("/refresh_list_size")
-    , RFUpdateListSizeCounter("/rf_update_list_size")
 {
     YCHECK(config);
     YCHECK(bootstrap);
@@ -80,22 +81,13 @@ TChunkReplicator::TChunkReplicator(
         Bootstrap->GetMetaStateFacade()->GetEpochInvoker(EStateThreadQueue::ChunkMaintenance),
         BIND(&TChunkReplicator::OnRefresh, MakeWeak(this)),
         Config->ChunkRefreshPeriod);
+    RefreshInvoker->Start();
 
     RFUpdateInvoker = New<TPeriodicInvoker>(
         Bootstrap->GetMetaStateFacade()->GetEpochInvoker(EStateThreadQueue::ChunkMaintenance),
         BIND(&TChunkReplicator::OnRFUpdate, MakeWeak(this)),
-        Config->ChunkRFUpdatePeriod);
-}
-
-void TChunkReplicator::Start()
-{
-    auto chunkManager = Bootstrap->GetChunkManager();
-    FOREACH (auto* chunk, chunkManager->GetChunks()) {
-        Refresh(chunk);
-        ScheduleRFUpdate(chunk);
-    }
-
-    RefreshInvoker->Start();
+        Config->ChunkRFUpdatePeriod,
+        EPeriodicInvokerMode::Manual);
     RFUpdateInvoker->Start();
 }
 
@@ -293,7 +285,7 @@ TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleReplicationJob(
 
     auto chunkManager = Bootstrap->GetChunkManager();
     auto* chunk = chunkManager->FindChunk(chunkId);
-    if (!chunk) {
+    if (!IsObjectAlive(chunk)) {
         return EScheduleFlags::Purged;
     }
 
@@ -654,7 +646,7 @@ void TChunkReplicator::ScheduleChunkRefresh(TChunk* chunk)
     entry.Chunk = chunk;
     entry.When = GetCpuInstant() + ChunkRefreshDelay;
     RefreshList.push_back(entry);
-    ProfileRefreshList();
+    chunk->SetRefreshScheduled(true);
 
     auto objectManager = Bootstrap->GetObjectManager();
     objectManager->LockObject(chunk);
@@ -665,7 +657,6 @@ void TChunkReplicator::OnRefresh()
     VERIFY_THREAD_AFFINITY(StateThread);
 
     if (RefreshList.empty()) {
-        RefreshInvoker->ScheduleNext();
         return;
     }
 
@@ -685,6 +676,7 @@ void TChunkReplicator::OnRefresh()
 
             auto* chunk = entry.Chunk;
             RefreshList.pop_front();
+            chunk->SetRefreshScheduled(false);
             ++count;
 
             if (IsObjectAlive(chunk)) {
@@ -695,12 +687,8 @@ void TChunkReplicator::OnRefresh()
         }
     }
 
-    ProfileRefreshList();
-
     LOG_DEBUG("Incremental chunk refresh completed, %d chunks processed",
         count);
-
-    RefreshInvoker->ScheduleNext();
 }
 
 bool TChunkReplicator::IsEnabled()
@@ -745,6 +733,16 @@ bool TChunkReplicator::IsEnabled()
     }
 
     return true;
+}
+
+int TChunkReplicator::GetRefreshListSize() const
+{
+    return static_cast<int>(RefreshList.size());
+}
+
+int TChunkReplicator::GetRFUpdateListSize() const
+{
+    return static_cast<int>(RFUpdateList.size());
 }
 
 void TChunkReplicator::ScheduleRFUpdate(TChunkTree* chunkTree)
@@ -815,11 +813,11 @@ void TChunkReplicator::ScheduleRFUpdate(TChunkList* chunkList)
 
 void TChunkReplicator::ScheduleRFUpdate(TChunk* chunk)
 {
-    if (!IsObjectAlive(chunk) || chunk->GetRefreshScheduled())
+    if (!IsObjectAlive(chunk) || chunk->GetRFUpdateScheduled())
         return;
 
     RFUpdateList.push_back(chunk);
-    ProfileRFUpdateList();
+    chunk->SetRFUpdateScheduled(true);
 
     auto objectManager = Bootstrap->GetObjectManager();
     objectManager->LockObject(chunk);
@@ -840,11 +838,13 @@ void TChunkReplicator::OnRFUpdate()
     NProto::TMetaReqUpdateChunkReplicationFactor request;
 
     PROFILE_TIMING ("/rf_update_time") {
-        int count = 0;
-        while (!RFUpdateList.empty() && count < Config->MaxChunksPerRFUpdate) {
+        for (int i = 0; i < Config->MaxChunksPerRFUpdate; ++i) {
+            if (RFUpdateList.empty())
+                break;
+
             auto* chunk = RFUpdateList.front();
             RFUpdateList.pop_front();
-            ++count;
+            chunk->SetRFUpdateScheduled(false);
 
             if (IsObjectAlive(chunk)) {
                 int replicationFactor = ComputeReplicationFactor(*chunk);
@@ -859,18 +859,19 @@ void TChunkReplicator::OnRFUpdate()
         }
     }
 
-    ProfileRFUpdateList();
-
-    if (request.updates_size() > 0) {
-        LOG_DEBUG("Starting RF update for %d chunks", request.updates_size());
-
-        auto invoker = Bootstrap->GetMetaStateFacade()->GetEpochInvoker();
-        chunkManager
-            ->CreateUpdateChunkReplicationFactorMutation(request)
-            ->OnSuccess(BIND(&TChunkReplicator::OnRFUpdateCommitSucceeded, MakeWeak(this)).Via(invoker))
-            ->OnError(BIND(&TChunkReplicator::OnRFUpdateCommitFailed, MakeWeak(this)).Via(invoker))
-            ->PostCommit();
+    if (request.updates_size() == 0) {
+        RFUpdateInvoker->ScheduleNext();
+        return;
     }
+
+    LOG_DEBUG("Starting RF update for %d chunks", request.updates_size());
+
+    auto invoker = Bootstrap->GetMetaStateFacade()->GetEpochInvoker();
+    chunkManager
+        ->CreateUpdateChunkReplicationFactorMutation(request)
+        ->OnSuccess(BIND(&TChunkReplicator::OnRFUpdateCommitSucceeded, MakeWeak(this)).Via(invoker))
+        ->OnError(BIND(&TChunkReplicator::OnRFUpdateCommitFailed, MakeWeak(this)).Via(invoker))
+        ->PostCommit();
 }
 
 void TChunkReplicator::OnRFUpdateCommitSucceeded()
@@ -949,16 +950,6 @@ TChunkList* TChunkReplicator::FollowParentLinks(TChunkList* chunkList)
         chunkList = *parents.begin();
     }
     return chunkList;
-}
-
-void TChunkReplicator::ProfileRefreshList()
-{
-    Profiler.Aggregate(RefreshListSizeCounter, RefreshList.size());
-}
-
-void TChunkReplicator::ProfileRFUpdateList()
-{
-    Profiler.Aggregate(RFUpdateListSizeCounter, RFUpdateList.size());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

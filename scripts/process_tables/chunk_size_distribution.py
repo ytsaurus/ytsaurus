@@ -33,8 +33,10 @@ if __name__ == "__main__":
 
             if args.create_merge_queue:
                 if weight < args.maximum_chunk_size and chunk_count > args.minimum_number_of_chunks:
-                    tables_to_merge.append(table)
+                    tables_to_merge.append(tuple([table.attributes["compressed_data_size"], table]))
 
+
+    tables_to_merge = map(lambda x: x[1], sorted(tables_to_merge))
     if args.create_merge_queue:
         yt.set("//home/ignat/tables_to_merge", tables_to_merge)
 

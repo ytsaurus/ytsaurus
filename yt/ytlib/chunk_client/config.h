@@ -105,7 +105,7 @@ struct TSequentialReaderConfig
             .GreaterThan(0);
     }
 
-    virtual void DoValidate() const
+    virtual void DoValidate() const override
     {
         if (GroupSize > WindowSize) {
             THROW_ERROR_EXCEPTION("\"group_size\" cannot be larger than \"window_size\"");
@@ -156,7 +156,7 @@ struct TReplicationWriterConfig
             .Default(false);
     }
 
-    virtual void DoValidate() const
+    virtual void DoValidate() const override
     {
         if (SendWindowSize < GroupSize) {
             THROW_ERROR_EXCEPTION("\"window_size\" cannot be less than \"group_size\"");

@@ -19,11 +19,11 @@ private:
 
 //////////////////////////////////////////////////////////////////////////////////
 
-class TRenewTxExecutor
+class TPingTxExecutor
     : public TTransactedExecutor
 {
 public:
-    TRenewTxExecutor();
+    TPingTxExecutor();
 
 private:
     virtual Stroka GetCommandName() const override;

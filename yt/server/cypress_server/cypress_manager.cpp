@@ -97,7 +97,8 @@ private:
     virtual Stroka DoGetName(TCypressNodeBase* node) override
     {
         auto cypressManager = Bootstrap->GetCypressManager();
-        return Sprintf("node %s", ~cypressManager->GetNodePath(node->GetTrunkNode(), nullptr));
+        auto path = cypressManager->GetNodePath(node->GetTrunkNode(), node->GetTransaction());
+        return Sprintf("node %s", ~path);
     }
 
     virtual IObjectProxyPtr DoGetProxy(
@@ -110,9 +111,7 @@ private:
 
     virtual TAccessControlDescriptor* DoFindAcd(TCypressNodeBase* node) override
     {
-        return node->GetLockMode() == ELockMode::Snapshot
-               ? &node->Acd()
-               : &node->GetTrunkNode()->Acd();
+        return &node->GetTrunkNode()->Acd();
     }
 
     virtual TObjectBase* DoGetParent(TCypressNodeBase* node) override
@@ -344,9 +343,8 @@ TCypressNodeBase* TCypressManager::CreateNode(
 
     RegisterNode(node, transaction, attributes);
 
-    auto securityManager = Bootstrap->GetSecurityManager();
-
     // Set account (if not given in attributes).
+    auto securityManager = Bootstrap->GetSecurityManager();
     if (!node_->GetAccount()) {
         securityManager->SetAccount(node_, account);
     }
@@ -496,7 +494,9 @@ void TCypressManager::ValidateLock(
                 return;
             }
             if (existingLock.Mode == ELockMode::Snapshot) {
-                THROW_ERROR_EXCEPTION("Cannot take %s lock for node %s since %s lock is already taken by the same transaction",
+                THROW_ERROR_EXCEPTION(
+                    NCypressClient::EErrorCode::SameTransactionLockConflict,
+                    "Cannot take %s lock for node %s since %s lock is already taken by the same transaction",
                     ~FormatEnum(request.Mode).Quote(),
                     ~GetNodePath(trunkNode, transaction),
                     ~FormatEnum(existingLock.Mode).Quote());
@@ -518,7 +518,9 @@ void TCypressManager::ValidateLock(
         if (request.Mode == ELockMode::Snapshot &&
             IsParentTransaction(existingTransaction, transaction))
         {
-            THROW_ERROR_EXCEPTION("Cannot take %s lock for node %s since %s lock is taken by descendant transaction %s",
+            THROW_ERROR_EXCEPTION(
+                NCypressClient::EErrorCode::DescendantTransactionLockConflict,
+                "Cannot take %s lock for node %s since %s lock is taken by descendant transaction %s",
                 ~FormatEnum(request.Mode).Quote(),
                 ~GetNodePath(trunkNode, transaction),
                 ~FormatEnum(existingLock.Mode).Quote(),
@@ -530,7 +532,9 @@ void TCypressManager::ValidateLock(
             if (request.Mode == ELockMode::Exclusive && existingLock.Mode != ELockMode::Snapshot ||
                 existingLock.Mode == ELockMode::Exclusive && request.Mode != ELockMode::Snapshot)
             {
-                THROW_ERROR_EXCEPTION("Cannot take %s lock for node %s since %s lock is taken by concurrent transaction %s",
+                THROW_ERROR_EXCEPTION(
+                    NCypressClient::EErrorCode::ConcurrentTransactionLockConflict,
+                    "Cannot take %s lock for node %s since %s lock is taken by concurrent transaction %s",
                     ~FormatEnum(request.Mode).Quote(),
                     ~GetNodePath(trunkNode, transaction),
                     ~FormatEnum(existingLock.Mode).Quote(),
@@ -542,7 +546,9 @@ void TCypressManager::ValidateLock(
                 if (request.ChildKey &&
                     existingLock.ChildKeys.find(request.ChildKey.Get()) != existingLock.ChildKeys.end())
                 {
-                    THROW_ERROR_EXCEPTION("Cannot take %s lock for child %s of node %s since %s lock is taken by concurrent transaction %s",
+                    THROW_ERROR_EXCEPTION(
+                        NCypressClient::EErrorCode::ConcurrentTransactionLockConflict,
+                        "Cannot take %s lock for child %s of node %s since %s lock is taken by concurrent transaction %s",
                         ~FormatEnum(request.Mode).Quote(),
                         ~request.ChildKey.Get().Quote(),
                         ~GetNodePath(trunkNode, transaction),
@@ -552,7 +558,9 @@ void TCypressManager::ValidateLock(
                 if (request.AttributeKey &&
                     existingLock.AttributeKeys.find(request.AttributeKey.Get()) != existingLock.AttributeKeys.end())
                 {
-                    THROW_ERROR_EXCEPTION("Cannot take %s lock for attribute %s of node %s since %s lock is taken by concurrent transaction %s",
+                    THROW_ERROR_EXCEPTION(
+                        NCypressClient::EErrorCode::ConcurrentTransactionLockConflict,
+                        "Cannot take %s lock for attribute %s of node %s since %s lock is taken by concurrent transaction %s",
                         ~FormatEnum(request.Mode).Quote(),
                         ~request.AttributeKey.Get().Quote(),
                         ~GetNodePath(trunkNode, transaction),
@@ -876,13 +884,18 @@ void TCypressManager::SaveValues(const NCellMaster::TSaveContext& context) const
     NodeMap.SaveValues(context);
 }
 
+void TCypressManager::OnBeforeLoaded()
+{
+    VERIFY_THREAD_AFFINITY(StateThread);
+
+    DoClear();
+}
+
 void TCypressManager::LoadKeys(const NCellMaster::TLoadContext& context)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
     NodeMap.LoadKeys(context);
-
-    RootNode = GetNode(TVersionedNodeId(RootNodeId));
 }
 
 void TCypressManager::LoadValues(const NCellMaster::TLoadContext& context)
@@ -890,7 +903,10 @@ void TCypressManager::LoadValues(const NCellMaster::TLoadContext& context)
     VERIFY_THREAD_AFFINITY(StateThread);
 
     NodeMap.LoadValues(context);
+}
 
+void TCypressManager::OnAfterLoaded()
+{
     // Reconstruct immediate ancestor sets.
     FOREACH (const auto& pair, NodeMap) {
         auto* node = pair.second;
@@ -912,29 +928,60 @@ void TCypressManager::LoadValues(const NCellMaster::TLoadContext& context)
             ++sysAccount->ResourceUsage().NodeCount;
         }
     }
+
+    // COMPAT(babenko)
+    // Fix parent links
+    FOREACH (const auto& pair1, NodeMap) {
+        auto* node = pair1.second;
+        if (TypeFromId(node->GetId()) == EObjectType::MapNode) {
+            auto* mapNode = static_cast<TMapNode*>(node);
+            FOREACH (const auto& pair2, mapNode->KeyToChild()) {
+                auto* child = pair2.second;
+                if (child && !child->GetParent()) {
+                    LOG_WARNING("Parent link fixed (ChildId: %s, ParentId: %s)",
+                        ~ToString(child->GetId()),
+                        ~ToString(node->GetId()));
+                    child->SetParent(node);
+                }
+            }
+        }
+    }
+    
+    InitBuiltin();
+}
+
+void TCypressManager::InitBuiltin()
+{
+    RootNode = FindNode(TVersionedNodeId(RootNodeId));
+    if (!RootNode) {
+        // Create the root.
+        auto securityManager = Bootstrap->GetSecurityManager();
+        RootNode = new TMapNode(TVersionedNodeId(RootNodeId));
+        RootNode->SetTrunkNode(RootNode);
+        RootNode->SetAccount(securityManager->GetSysAccount());
+        RootNode->Acd().SetInherit(false);
+        RootNode->Acd().AddEntry(TAccessControlEntry(
+            ESecurityAction::Allow,
+            securityManager->GetEveryoneGroup(),
+            EPermission::Read));
+        RootNode->Acd().SetOwner(securityManager->GetRootUser());
+
+        NodeMap.Insert(TVersionedNodeId(RootNodeId), RootNode);
+        YCHECK(RootNode->RefObject() == 1);
+    }
+}
+
+void TCypressManager::DoClear()
+{
+    NodeMap.Clear();
 }
 
 void TCypressManager::Clear()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    auto securityManager = Bootstrap->GetSecurityManager();
-
-    NodeMap.Clear();
-
-    // Create the root.
-    RootNode = new TMapNode(TVersionedNodeId(RootNodeId));
-    RootNode->SetTrunkNode(RootNode);
-    RootNode->SetAccount(securityManager->GetSysAccount());
-    RootNode->Acd().SetInherit(false);
-    RootNode->Acd().AddEntry(TAccessControlEntry(
-        ESecurityAction::Allow,
-        securityManager->GetEveryoneGroup(),
-        EPermission::Read));
-    RootNode->Acd().SetOwner(securityManager->GetRootUser());
-
-    NodeMap.Insert(TVersionedNodeId(RootNodeId), RootNode);
-    YCHECK(RootNode->RefObject() == 1);
+    DoClear();
+    InitBuiltin();
 }
 
 void TCypressManager::OnLeaderRecoveryComplete()

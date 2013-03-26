@@ -207,8 +207,6 @@ void TDataNodeService::OnProfiling()
     Profiler.Enqueue("/pending_read_size", GetPendingReadSize());
     Profiler.Enqueue("/pending_write_size", GetPendingWriteSize());
     Profiler.Enqueue("/session_count", Bootstrap->GetSessionManager()->GetSessionCount());
-
-    ProfilingInvoker->ScheduleNext();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

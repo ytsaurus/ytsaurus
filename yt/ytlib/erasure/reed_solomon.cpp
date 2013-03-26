@@ -7,14 +7,14 @@
 #include <contrib/libs/jerasure/cauchy.h>
 #include <contrib/libs/jerasure/jerasure.h>
 
-#include <iostream>
+#include <algorithm>
 
 namespace NYT {
 
 namespace NErasure {
 
 ////////////////////////////////////////////////////////////////////////////////
-    
+
 TCauchyReedSolomon::TCauchyReedSolomon(int blockCount, int parityCount, int wordSize)
     : BlockCount_(blockCount)
     , ParityCount_(parityCount)
@@ -24,32 +24,32 @@ TCauchyReedSolomon::TCauchyReedSolomon(int blockCount, int parityCount, int word
     , Schedule_(jerasure_smart_bitmatrix_to_schedule(blockCount, parityCount, wordSize, BitMatrix_.Get()))
 { }
 
-std::vector<TSharedRef> TCauchyReedSolomon::Encode(const std::vector<TSharedRef>& blocks) const
+std::vector<TSharedRef> TCauchyReedSolomon::Encode(const std::vector<TSharedRef>& blocks)
 {
     return ScheduleEncode(BlockCount_, ParityCount_, WordSize_, Schedule_, blocks);
 }
 
 std::vector<TSharedRef> TCauchyReedSolomon::Decode(
     const std::vector<TSharedRef>& blocks,
-    const std::vector<int>& erasedIndices) const
+    const TBlockIndexList& erasedIndices)
 {
     if (erasedIndices.empty()) {
         return std::vector<TSharedRef>();
     }
-    
+
     return BitMatrixDecode(BlockCount_, ParityCount_, WordSize_, BitMatrix_, blocks, erasedIndices);
 }
 
-TNullable<std::vector<int>> TCauchyReedSolomon::GetRecoveryIndices(const std::vector<int>& erasedIndices) const
+TNullable<TBlockIndexList> TCauchyReedSolomon::GetRepairIndices(const TBlockIndexList& erasedIndices)
 {
     if (erasedIndices.empty()) {
-        return std::vector<int>();
+        return TBlockIndexList();
     }
-    
-    std::vector<int> indices = erasedIndices;
-    sort(indices.begin(), indices.end());
-    indices.erase(unique(indices.begin(), indices.end()), indices.end());
-    
+
+    TBlockIndexList indices = erasedIndices;
+    std::sort(indices.begin(), indices.end());
+    indices.erase(std::unique(indices.begin(), indices.end()), indices.end());
+
     if (indices.size() > ParityCount_) {
         return Null;
     }
@@ -57,17 +57,26 @@ TNullable<std::vector<int>> TCauchyReedSolomon::GetRecoveryIndices(const std::ve
     return Difference(0, BlockCount_ + ParityCount_, indices);
 }
 
-int TCauchyReedSolomon::GetDataBlockCount() const
+bool TCauchyReedSolomon::CanRepair(const TBlockIndexList& erasedIndices)
+{
+    TBlockIndexList indices = erasedIndices;
+    std::sort(indices.begin(), indices.end());
+    indices.erase(std::unique(indices.begin(), indices.end()), indices.end());
+
+    return indices.size() <= ParityCount_;
+}
+
+int TCauchyReedSolomon::GetDataBlockCount()
 {
     return BlockCount_;
 }
 
-int TCauchyReedSolomon::GetParityBlockCount() const
+int TCauchyReedSolomon::GetParityBlockCount()
 {
     return ParityCount_;
 }
 
-int TCauchyReedSolomon::GetWordSize() const
+int TCauchyReedSolomon::GetWordSize()
 {
     return WordSize_ * 8;
 }

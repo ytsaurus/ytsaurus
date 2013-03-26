@@ -1,11 +1,12 @@
 #:yt-updatable
-set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/erasure_codecs )
+set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/erasure )
 
 include_directories(
   ${CMAKE_SOURCE_DIR}/contrib/libs/jerasure
 )
 
 set( SRCS
+  ${BASE}/public.cpp
   ${BASE}/codec.cpp
   ${BASE}/helpers.cpp
   ${BASE}/jerasure.cpp
@@ -14,6 +15,7 @@ set( SRCS
 )
 
 set( HDRS
+  ${BASE}/public.h
   ${BASE}/codec.h
   ${BASE}/helpers.h
   ${BASE}/jerasure.h

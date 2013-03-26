@@ -196,7 +196,7 @@ public:
     }
 
 private:
-    virtual void DoValidate() const
+    virtual void DoValidate() const override
     {
         FOREACH (const auto& rule, Rules) {
             FOREACH (const Stroka& writer, rule->Writers) {

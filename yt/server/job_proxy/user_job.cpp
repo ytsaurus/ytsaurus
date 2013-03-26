@@ -78,6 +78,7 @@ public:
         : TJob(host)
         , JobIO(userJobIO)
         , UserJobSpec(userJobSpec)
+        , IsInitCompleted(false)
         , InputThread(InputThreadFunc, (void*) this)
         , OutputThread(OutputThreadFunc, (void*) this)
         , MemoryUsage(UserJobSpec.memory_reserve())
@@ -136,7 +137,11 @@ public:
 
     virtual double GetProgress() const override
     {
-        return JobIO->GetProgress();
+        if (IsInitCompleted) {
+            return JobIO->GetProgress();
+        } else {
+            return 0;
+        }
     }
 
     std::vector<NChunkClient::TChunkId> GetFailedChunks() const override
@@ -429,13 +434,13 @@ private:
             if (config->UserId > 0) {
                 // Set unprivileged uid and gid for user process.
                 YCHECK(setuid(0) == 0);
-                YCHECK(setgid(config->UserId) == 0);
+                YCHECK(setresgid(config->UserId, config->UserId, config->UserId) == 0);
                 YCHECK(setuid(config->UserId) == 0);
             }
 
             // do not search the PATH, inherit environment
-            execle("/bin/sh",
-                "/bin/sh",
+            execle("/bin/bash",
+                "/bin/bash",
                 "-c",
                 ~cmd,
                 (void*)NULL,
@@ -443,7 +448,7 @@ private:
 
             int _errno = errno;
 
-            fprintf(stderr, "Failed to exec job (/bin/sh -c '%s'): %s\n",
+            fprintf(stderr, "Failed to exec job (/bin/bash -c '%s'): %s\n",
                 ~cmd,
                 strerror(_errno));
             _exit(EJobProxyExitCode::ExecFailed);
@@ -490,10 +495,8 @@ private:
                 Host->SetResourceUsage(resourceUsage);
                 MemoryUsage += delta;
             }
-
-            MemoryWatchdogInvoker->ScheduleNext();
         } catch (const std::exception& ex) {
-            SetError(TError(ex));
+            SetError(ex);
             Kill();
         }
     }
@@ -501,6 +504,8 @@ private:
 
     TAutoPtr<TUserJobIO> JobIO;
     NScheduler::NProto::TUserJobSpec UserJobSpec;
+
+    volatile bool IsInitCompleted;
 
     std::vector<IDataPipePtr> InputPipes;
     std::vector<IDataPipePtr> OutputPipes;

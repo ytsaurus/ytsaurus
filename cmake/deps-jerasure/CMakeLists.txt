@@ -7,7 +7,7 @@ IF(CMAKE_COMPILER_IS_GNUCXX)
 ENDIF(CMAKE_COMPILER_IS_GNUCXX)
 
 set(SRC
-  ${BASE}/cauchy.c
+  #${BASE}/cauchy.c
   ${BASE}/cauchy_best_r6.c
   ${BASE}/galois.c
   ${BASE}/jerasure.c

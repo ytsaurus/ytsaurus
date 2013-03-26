@@ -44,6 +44,13 @@ TYPath GetStdErrPath(const TOperationId& operationId, const TJobId& jobId)
         + "/stderr";
 }
 
+TYPath GetSnapshotPath(const TOperationId& operationId)
+{
+    return
+        GetOperationPath(operationId)
+        + "/snapshot";
+}
+
 bool IsOperationFinished(EOperationState state)
 {
     return

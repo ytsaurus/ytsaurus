@@ -249,6 +249,8 @@ void TServiceBase::OnRequest(
                 context));
     } else {
         auto preparedHandler = handler.Run(context, options);
+        if (preparedHandler.IsNull())
+            return;
         OnInvocationPrepared(
             std::move(activeRequest),
             std::move(context),
@@ -261,8 +263,9 @@ void TServiceBase::OnInvocationPrepared(
     IServiceContextPtr context,
     TClosure handler)
 {
+    if (handler.IsNull())
+        return;
     auto preparedHandler = PrepareHandler(context, std::move(handler));
-
     auto wrappedHandler = BIND([=] () {
         auto& timer = activeRequest->Timer;
         auto& runtimeInfo = activeRequest->RuntimeInfo;
@@ -410,6 +413,11 @@ TServiceBase::TRuntimeMethodInfoPtr TServiceBase::GetMethodInfo(const Stroka& me
     auto runtimeInfo = FindMethodInfo(method);
     YCHECK(runtimeInfo);
     return runtimeInfo;
+}
+
+IInvokerPtr TServiceBase::GetDefaultInvoker()
+{
+    return DefaultInvoker;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

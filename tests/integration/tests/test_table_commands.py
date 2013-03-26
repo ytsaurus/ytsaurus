@@ -35,7 +35,7 @@ class TestTableCommands(YTEnvSetup):
         assert get('//tmp/table/@row_count') == 1
         assert get('//tmp/table/@chunk_count') == 1
 
-        write_str('//tmp/table', '{b="2";a="1"};{x="10";y="20";a="30"}')
+        write_str('<append=true>//tmp/table', '{b="2";a="1"};{x="10";y="20";a="30"}')
         assert read('//tmp/table') == [{"b": "hello"}, {"a":"1", "b":"2"}, {"a":"30", "x":"10", "y":"20"}]
         assert get('//tmp/table/@row_count') == 3
         assert get('//tmp/table/@chunk_count') == 2
@@ -50,23 +50,49 @@ class TestTableCommands(YTEnvSetup):
         assert get('//tmp/table/@row_count') ==  4
 
         # sorted flag is discarded when writing to sorted table
-        write_str('//tmp/table', '{key = 4}')
+        write_str('<append=true>//tmp/table', '{key = 4}')
         assert get('//tmp/table/@sorted') ==  'false'
         with pytest.raises(YTError): get('//tmp/table/@sorted_by')
+
+    def test_append_overwrite_write(self):
+        # Default (append).
+        # COMPAT(ignat): When migrating to overwrite semantics, change this to 1.
+        create('table', '//tmp/table1')
+        assert get('//tmp/table1/@row_count') == 0
+        write_str('//tmp/table1', '{a=0}')
+        assert get('//tmp/table1/@row_count') == 1
+        write_str('//tmp/table1', '{a=1}')
+        assert get('//tmp/table1/@row_count') == 2
+
+        # Append
+        create('table', '//tmp/table2')
+        assert get('//tmp/table2/@row_count') == 0
+        write_str('<append=true>//tmp/table2', '{a=0}')
+        assert get('//tmp/table2/@row_count') == 1
+        write_str('<append=true>//tmp/table2', '{a=1}')
+        assert get('//tmp/table2/@row_count') == 2
+
+        # Overwrite
+        create('table', '//tmp/table3')
+        assert get('//tmp/table3/@row_count') == 0
+        write_str('<append=false>//tmp/table3', '{a=0}')
+        assert get('//tmp/table3/@row_count') == 1
+        write_str('<append=false>//tmp/table3', '{a=1}')
+        assert get('//tmp/table3/@row_count') == 1
 
     def test_invalid_cases(self):
         create('table', '//tmp/table')
 
         # we can write only list fragments
-        with pytest.raises(YTError): write_str('//tmp/table', 'string')
-        with pytest.raises(YTError): write_str('//tmp/table', '100')
-        with pytest.raises(YTError): write_str('//tmp/table', '3.14')
-        with pytest.raises(YTError): write_str('//tmp/table', '<>')
+        with pytest.raises(YTError): write_str('<append=true>//tmp/table', 'string')
+        with pytest.raises(YTError): write_str('<append=true>//tmp/table', '100')
+        with pytest.raises(YTError): write_str('<append=true>//tmp/table', '3.14')
+        with pytest.raises(YTError): write_str('<append=true>//tmp/table', '<>')
 
         # we can write sorted data only to empty table
-        write('//tmp/table', {'foo': 'bar'}, sorted_by='foo')
+        write('<append=true>//tmp/table', {'foo': 'bar'}, sorted_by='foo')
         with pytest.raises(YTError):
-            write('//tmp/table', {'foo': 'zzz_bar'}, sorted_by='foo')
+            write('"<append=true>" + //tmp/table', {'foo': 'zzz_bar'}, sorted_by='foo')
 
 
     def test_row_index_selector(self):
@@ -173,8 +199,8 @@ class TestTableCommands(YTEnvSetup):
         create('table', '//tmp/table')
         tx = start_transaction()
 
-        write_str('//tmp/table', '{a=1}', tx=tx)
-        write_str('//tmp/table', '{b=2}', tx=tx)
+        write_str('<append=true>//tmp/table', '{a=1}', tx=tx)
+        write_str('<append=true>//tmp/table', '{b=2}', tx=tx)
 
         assert read('//tmp/table') == []
         assert read('//tmp/table', tx=tx) == [{'a':1}, {'b':2}]
@@ -186,9 +212,9 @@ class TestTableCommands(YTEnvSetup):
         create('table', '//tmp/table')
         tx = start_transaction()
 
-        write_str('//tmp/table', '{a=1}', tx=tx)
-        write_str('//tmp/table', '{b=2}', tx=tx)
-        write_str('//tmp/table', '{c=3}', tx=tx)
+        write_str('<append=true>//tmp/table', '{a=1}', tx=tx)
+        write_str('<append=true>//tmp/table', '{b=2}', tx=tx)
+        write_str('<append=true>//tmp/table', '{c=3}', tx=tx)
 
         assert read('//tmp/table') == []
         assert read('//tmp/table', tx=tx) == [{'a':1}, {'b':2}, {'c' : 3}]
@@ -204,10 +230,10 @@ class TestTableCommands(YTEnvSetup):
         tx1 = start_transaction()
         tx2 = start_transaction()
 
-        write_str('//tmp/table', '{b=2}', tx=tx1)
+        write_str('<append=true>//tmp/table', '{b=2}', tx=tx1)
 
-        write_str('//tmp/table', '{c=3}', tx=tx2)
-        write_str('//tmp/table', '{d=4}', tx=tx2)
+        write_str('<append=true>//tmp/table', '{c=3}', tx=tx2)
+        write_str('<append=true>//tmp/table', '{d=4}', tx=tx2)
 
         # check which records are seen from different transactions
         assert read('//tmp/table') == [{'a' : 1}]
@@ -236,15 +262,15 @@ class TestTableCommands(YTEnvSetup):
 
         inner_tx = start_transaction(tx=outer_tx)
 
-        write('//tmp/table', v2, tx=inner_tx)
+        write('<append=true>//tmp/table', v2, tx=inner_tx)
         assert read('//tmp/table', tx=outer_tx) == [v1]
         assert read('//tmp/table', tx=inner_tx) == [v1, v2]
 
-        write('//tmp/table', v3, tx=outer_tx) # this won't be seen from inner
+        write('<append=true>//tmp/table', v3, tx=outer_tx) # this won't be seen from inner
         assert read('//tmp/table', tx=outer_tx) == [v1, v3]
         assert read('//tmp/table', tx=inner_tx) == [v1, v2]
 
-        write('//tmp/table', v4, tx=inner_tx)
+        write('<append=true>//tmp/table', v4, tx=inner_tx)
         assert read('//tmp/table', tx=outer_tx) == [v1, v3]
         assert read('//tmp/table', tx=inner_tx) == [v1, v2, v4]
 
@@ -375,36 +401,36 @@ class TestTableCommands(YTEnvSetup):
                get('//tmp/@recursive_resource_usage')['disk_space']
 
     def test_chunk_tree_balancer(self):
-    	create('table', '//tmp/t')
-    	for i in xrange(0, 40):
-    		write('//tmp/t', {'a' : 'b'})
-    	chunk_list_id = get('//tmp/t/@chunk_list_id')
-    	statistics = get('#' + chunk_list_id + '/@statistics')
-    	assert statistics['chunk_count'] == 40
-    	assert statistics['chunk_list_count'] == 2
-    	assert statistics['row_count'] == 40
-    	assert statistics['rank'] == 2
+        create('table', '//tmp/t')
+        for i in xrange(0, 40):
+            write('<append=true>//tmp/t', {'a' : 'b'})
+        chunk_list_id = get('//tmp/t/@chunk_list_id')
+        statistics = get('#' + chunk_list_id + '/@statistics')
+        assert statistics['chunk_count'] == 40
+        assert statistics['chunk_list_count'] == 2
+        assert statistics['row_count'] == 40
+        assert statistics['rank'] == 2
 
     def _check_replication_factor(self, path, expected_rf):
-    	chunk_ids = get(path + '/@chunk_ids')
-    	for id in chunk_ids:
-    		assert get('#' + id + '/@replication_factor') == expected_rf
+        chunk_ids = get(path + '/@chunk_ids')
+        for id in chunk_ids:
+            assert get('#' + id + '/@replication_factor') == expected_rf
 
     def test_replication_factor_update1(self):
-    	create('table', '//tmp/t')
-    	for i in xrange(0, 5):
-    		write('//tmp/t', {'a' : 'b'})
-    	set('//tmp/t/@replication_factor', 4)
-    	sleep(3)
-    	self._check_replication_factor('//tmp/t', 4)
+        create('table', '//tmp/t')
+        for i in xrange(0, 5):
+            write('<append=true>//tmp/t', {'a' : 'b'})
+        set('//tmp/t/@replication_factor', 4)
+        sleep(3)
+        self._check_replication_factor('//tmp/t', 4)
 
     def test_replication_factor_update2(self):
-    	create('table', '//tmp/t')
-    	tx = start_transaction()
-    	for i in xrange(0, 5):
-    		write('//tmp/t', {'a' : 'b'}, tx=tx)
-    	set('//tmp/t/@replication_factor', 4)
-    	commit_transaction(tx)
-    	sleep(3)
-    	self._check_replication_factor('//tmp/t', 4)
+        create('table', '//tmp/t')
+        tx = start_transaction()
+        for i in xrange(0, 5):
+            write('<append=true>//tmp/t', {'a' : 'b'}, tx=tx)
+        set('//tmp/t/@replication_factor', 4)
+        commit_transaction(tx)
+        sleep(3)
+        self._check_replication_factor('//tmp/t', 4)
 

@@ -38,7 +38,8 @@ void TGarbageCollector::StartSweep()
     SweepInvoker = New<TPeriodicInvoker>(
         Bootstrap->GetMetaStateFacade()->GetEpochInvoker(),
         BIND(&TGarbageCollector::OnSweep, MakeWeak(this)),
-        Config->GCSweepPeriod);
+        Config->GCSweepPeriod,
+        EPeriodicInvokerMode::Manual);
     SweepInvoker->Start();
 }
 
@@ -107,8 +108,12 @@ void TGarbageCollector::Enqueue(TObjectBase* object)
 
     if (object->IsLocked()) {
         YCHECK(LockedZombies.insert(object).second);
+        LOG_DEBUG("Object is put into locked zombie queue (ObjectId: %s)",
+            ~ToString(object->GetId()));
     } else {
         YCHECK(Zombies.insert(object).second);
+        LOG_TRACE("Object is put into zombie queue (ObjectId: %s)",
+            ~ToString(object->GetId()));
     }
 }
 
@@ -120,6 +125,9 @@ void TGarbageCollector::Unlock(TObjectBase* object)
 
     YCHECK(LockedZombies.erase(object) == 1);
     YCHECK(Zombies.insert(object).second);
+    
+    LOG_DEBUG("Object is unlocked and moved to zombie queue (ObjectId: %s)",
+        ~ToString(object->GetId()));
 }
 
 void TGarbageCollector::UnlockAll()

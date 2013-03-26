@@ -2,6 +2,8 @@
 #include "chunk_replica.h"
 #include "node_directory.h"
 
+#include <ytlib/erasure/public.h>
+
 #include <ytlib/misc/foreach.h>
 
 namespace NYT {
@@ -21,7 +23,7 @@ TChunkReplica::TChunkReplica(int nodeId, int index)
     : Value(nodeId | (index << 28))
 {
     YASSERT(nodeId >= 0 && nodeId <= MaxNodeId);
-    YASSERT(index >= 0 && index < 16);
+    YASSERT(index >= 0 && index < NErasure::MaxTotalBlockCount);
 }
 
 int TChunkReplica::GetNodeId() const

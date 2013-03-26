@@ -190,7 +190,7 @@ const char* TLookupTable::FindNext(const char* begin, const char* end) const
 #endif
 }
 
-TEscapeTable::TEscapeTable()
+TEscapeTable::TEscapeTable(bool EscapeCarriageReturn)
 {
     for (int i = 0; i < 256; ++i) {
         Forward[i] = i;
@@ -204,6 +204,11 @@ TEscapeTable::TEscapeTable()
     Backward['0'] = '\0';
     Backward['t'] = '\t';
     Backward['n'] = '\n';
+
+    if (EscapeCarriageReturn) {
+        Forward['\r'] = 'r';
+        Backward['r'] = '\r';
+    }
 }
 
 

@@ -87,8 +87,6 @@ void TMonitoringManager::Update()
             Root = newRoot;
         }
     }
-
-    PeriodicInvoker->ScheduleNext();
 }
 
 void TMonitoringManager::Visit(NYson::IYsonConsumer* consumer)

@@ -99,7 +99,7 @@ TSharedRef TFileReader::ReadBlock(int blockIndex)
 
     const auto& blockInfo = blocksExt.blocks(blockIndex);
     struct TFileChunkBlockTag { };
-    auto data = TSharedRef::Allocate<TFileChunkBlockTag>(blockInfo.size());
+    auto data = TSharedRef::Allocate<TFileChunkBlockTag>(blockInfo.size(), false);
     i64 offset = blockInfo.offset();
     DataFile->Pread(data.Begin(), data.Size(), offset);
 
@@ -151,7 +151,11 @@ TFileReader::AsyncGetChunkMeta(
     return MakeFuture(TGetMetaResult(GetChunkMeta(tags)));
 }
 
+<<<<<<< HEAD
 TChunkId TFileReader::GetChunkId() const 
+=======
+TChunkId TFileReader::GetChunkId() const
+>>>>>>> f7b604b748be590c83529a343fa5a7a0a7443895
 {
     YUNREACHABLE();
 }

@@ -23,7 +23,7 @@ TSharedRef MergeRefs(const std::vector<TSharedRef>& blocks)
 {
     size_t size = GetTotalSize(blocks);
     struct TMergedBlockTag { };
-    auto result = TSharedRef::Allocate<TMergedBlockTag>(size);
+    auto result = TSharedRef::Allocate<TMergedBlockTag>(size, false);
     size_t pos = 0;
     FOREACH (const auto& block, blocks) {
         std::copy(block.Begin(), block.End(), result.Begin() + pos);
@@ -100,20 +100,13 @@ void TVectorRefsSource::SkipCompletedBlocks()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDynamicByteArraySink::TDynamicByteArraySink(std::vector<char>* output)
+TDynamicByteArraySink::TDynamicByteArraySink(TBlob* output)
     : Output_(output)
 { }
 
 void TDynamicByteArraySink::Append(const char* data, size_t n)
 {
-    size_t newSize = Output_->size() + n;
-    if (newSize > Output_->capacity()) {
-        Output_->reserve(std::max(Output_->capacity() * 2, newSize));
-    }
-
-    auto outputPointer = Output_->data() + Output_->size();
-    Output_->resize(newSize);
-    std::copy(data, data + n, outputPointer);
+    Output_->Append(data, n);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

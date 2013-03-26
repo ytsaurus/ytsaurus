@@ -10,6 +10,12 @@ namespace NYT {
 class TPeriodicInvoker;
 typedef TIntrusivePtr<TPeriodicInvoker> TPeriodicInvokerPtr;
 
+//! Describes if manual calls to #TPeriodicInvoker::ScheduleNext are needed.
+DECLARE_ENUM(EPeriodicInvokerMode,
+    (Automatic)
+    (Manual)
+);
+
 //! Helps to perform certain actions periodically.
 class TPeriodicInvoker
     : public TRefCounted
@@ -29,6 +35,7 @@ public:
         IInvokerPtr invoker,
         TClosure callback,
         TDuration period,
+        EPeriodicInvokerMode mode = EPeriodicInvokerMode::Automatic,
         TDuration splay = TDuration::Zero());
 
     //! Starts the instance.
@@ -48,6 +55,7 @@ private:
     IInvokerPtr Invoker;
     TClosure Callback;
     TDuration Period;
+    EPeriodicInvokerMode Mode;
     TDuration Splay;
 
     TAtomic Started;

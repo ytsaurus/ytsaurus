@@ -29,6 +29,8 @@ public:
     std::vector<TOperationPtr> GetOperations();
     std::vector<TExecNodePtr> GetExecNodes();
 
+    IInvokerPtr GetSnapshotIOInvoker();
+
 private:
     class TImpl;
     TIntrusivePtr<TImpl> Impl;

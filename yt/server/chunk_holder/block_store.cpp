@@ -101,7 +101,7 @@ public:
             // check that the content is the same.
             auto block = result.Value();
 
-            if (!TRef::CompareContent(data, block->GetData())) {
+            if (!TRef::AreBiwiseEqual(data, block->GetData())) {
                 LOG_FATAL("Trying to cache a block for which a different cached copy already exists: %s",
                     ~ToString(blockId));
             }

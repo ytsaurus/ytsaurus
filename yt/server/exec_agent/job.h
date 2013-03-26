@@ -98,7 +98,7 @@ public:
     /*!
         \note Thread affinity: any.
      */
-    const NScheduler::NProto::TJobResult& GetResult() const;
+    NScheduler::NProto::TJobResult GetResult() const;
 
     /*!
         \note Thread affinity: any.
@@ -128,13 +128,15 @@ private:
     NScheduler::EJobState JobState;
     NScheduler::EJobPhase JobPhase;
 
+    NScheduler::EJobState FinalJobState;
+
     double Progress;
 
     std::vector<NChunkHolder::TCachedChunkPtr> CachedChunks;
 
     IProxyControllerPtr ProxyController;
 
-    // Protects #JobResult.
+    // Protects #JobResult and #JobState.
     TSpinLock ResultLock;
     TNullable<NScheduler::NProto::TJobResult> JobResult;
 

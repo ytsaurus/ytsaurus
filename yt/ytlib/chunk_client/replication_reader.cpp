@@ -290,7 +290,6 @@ protected:
         BannedPeers.clear();
     }
 
-
     virtual void NextPass() = 0;
 
     void OnRetryFailed()

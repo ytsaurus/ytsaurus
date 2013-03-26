@@ -21,7 +21,7 @@ typedef snappy::ByteArraySource ByteArraySource;
 size_t GetTotalSize(const std::vector<TSharedRef>& refs);
 TSharedRef MergeRefs(const std::vector<TSharedRef>& refs);
 
-typedef TCallback<void (StreamSource*, std::vector<char>*)> TConverter;
+typedef TCallback<void (StreamSource*, TBlob*)> TConverter;
 
 //TODO(ignat): rename these methods
 TSharedRef Apply(TConverter converter, const TSharedRef& ref);
@@ -57,12 +57,12 @@ class TDynamicByteArraySink
     : public StreamSink
 {
 public:
-    explicit TDynamicByteArraySink(std::vector<char>* output);
+    explicit TDynamicByteArraySink(TBlob* output);
 
     virtual void Append(const char* data, size_t n) override;
 
 private:
-    std::vector<char>* Output_;
+    TBlob* Output_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

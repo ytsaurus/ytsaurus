@@ -100,18 +100,6 @@ target_link_libraries( protoc
   protobuf
 )
 
-if (YT_BUILD_WITH_STLPORT)
-  target_link_libraries( protoc stlport )
-  if (CMAKE_COMPILER_IS_GNUCXX)
-    set_target_properties( protoc PROPERTIES LINK_FLAGS "-nodefaultlibs" )
-  endif()
-endif()
-
 if (MSVC)
-  if (YT_BUILD_WITH_STLPORT)
-    set_target_properties( protoc PROPERTIES
-      LINK_FLAGS "/LIBPATH:${CMAKE_BINARY_DIR}/bin"
-    )
-  endif()
   target_link_libraries( protoc ytext-zlib )
 endif()

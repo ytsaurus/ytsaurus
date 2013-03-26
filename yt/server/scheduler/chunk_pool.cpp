@@ -349,7 +349,7 @@ public:
     {
         std::vector<TChunkStripeStatistics> result;
         result.reserve(Stripes.size());
-        FOREACH(const auto& suspendableStripe, Stripes) {
+        FOREACH (const auto& suspendableStripe, Stripes) {
             auto stripe = suspendableStripe.GetStripe();
             result.push_back(stripe->GetStatistics());
         }
@@ -912,7 +912,7 @@ public:
         }
 
         // Cleanup the rest of elementary stripes.
-        for(int elementaryIndex = inputStripe.ElementaryIndexBegin + limit;
+        for (int elementaryIndex = inputStripe.ElementaryIndexBegin + limit;
             elementaryIndex < inputStripe.ElementaryIndexEnd;
             ++elementaryIndex)
         {
@@ -926,7 +926,7 @@ public:
             lastElementaryStripe->Chunks.push_back(chunk);
         }
 
-        for(int elementaryIndex = inputStripe.ElementaryIndexBegin;
+        for (int elementaryIndex = inputStripe.ElementaryIndexBegin;
             elementaryIndex < inputStripe.ElementaryIndexEnd;
             ++elementaryIndex)
         {
@@ -976,10 +976,12 @@ private:
         virtual std::vector<TChunkStripeStatistics> GetApproximateStripeStatistics() const
         {
             YCHECK(!Runs.empty());
+            YCHECK(GetPendingJobCount() > 0);
 
             std::vector<TChunkStripeStatistics> result(1);
-            auto& run = Runs.back();
-            auto& stat = result.back();
+            // First run should give a pretty good approximation.
+            auto& run = Runs.front();
+            auto& stat = result.front();
             stat.ChunkCount = run.ElementaryIndexEnd - run.ElementaryIndexBegin;
             stat.DataSize = run.TotalDataSize;
             stat.RowCount = run.TotalRowCount;

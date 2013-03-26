@@ -11,6 +11,7 @@
 #include "master_connector.h"
 #include "job_resources.h"
 #include "private.h"
+#include "snapshot_downloader.h"
 
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/periodic_invoker.h>
@@ -90,6 +91,7 @@ public:
         , Config(config)
         , Bootstrap(bootstrap)
         , BackgroundQueue(New<TActionQueue>("Background"))
+        , SnapshotIOQueue(New<TActionQueue>("SnapshotIO"))
         , MasterConnector(new TMasterConnector(Config, Bootstrap))
         , TotalResourceLimitsProfiler(Profiler.GetPathPrefix() + "/total_resource_limits")
         , TotalResourceUsageProfiler(Profiler.GetPathPrefix() + "/total_resource_usage")
@@ -100,6 +102,7 @@ public:
         YCHECK(config);
         YCHECK(bootstrap);
         VERIFY_INVOKER_AFFINITY(GetControlInvoker(), ControlThread);
+        VERIFY_INVOKER_AFFINITY(GetSnapshotIOInvoker(), SnapshotIOThread);
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartOperation));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortOperation));
@@ -110,23 +113,11 @@ public:
                 .SetResponseHeavy(true)
                 .SetResponseCodec(NCompression::ECodec::Lz4)
                 .SetInvoker(Bootstrap->GetControlInvoker(EControlQueue::Heartbeat)));
-
-        ProfilingInvoker = New<TPeriodicInvoker>(
-            Bootstrap->GetControlInvoker(),
-            BIND(&TThis::OnProfiling, MakeWeak(this)),
-            ProfilingPeriod);
     }
 
     void Start()
     {
         InitStrategy();
-
-        MasterConnector->SubscribeWatcherRequest(BIND(
-            &TThis::OnNodesRequest,
-            Unretained(this)));
-        MasterConnector->SubscribeWatcherResponse(BIND(
-            &TThis::OnNodesResponse,
-            Unretained(this)));
 
         MasterConnector->SubscribeMasterConnected(BIND(
             &TThis::OnMasterConnected,
@@ -144,6 +135,10 @@ public:
 
         MasterConnector->Start();
 
+        ProfilingInvoker = New<TPeriodicInvoker>(
+            Bootstrap->GetControlInvoker(),
+            BIND(&TThis::OnProfiling, MakeWeak(this)),
+            ProfilingPeriod);
         ProfilingInvoker->Start();
     }
 
@@ -167,10 +162,14 @@ public:
         return operations;
     }
 
+    IInvokerPtr GetSnapshotIOInvoker()
+    {
+        return SnapshotIOQueue->GetInvoker();
+    }
 
     // ISchedulerStrategyHost implementation
-    DEFINE_SIGNAL(void(TOperationPtr), OperationStarted);
-    DEFINE_SIGNAL(void(TOperationPtr), OperationFinished);
+    DEFINE_SIGNAL(void(TOperationPtr), OperationRegistered);
+    DEFINE_SIGNAL(void(TOperationPtr), OperationUnregistered);
 
     DEFINE_SIGNAL(void(TJobPtr job), JobStarted);
     DEFINE_SIGNAL(void(TJobPtr job), JobFinished);
@@ -274,7 +273,9 @@ private:
 
     TSchedulerConfigPtr Config;
     TBootstrap* Bootstrap;
+
     TActionQueuePtr BackgroundQueue;
+    TActionQueuePtr SnapshotIOQueue;
 
     THolder<TMasterConnector> MasterConnector;
     TCancelableContextPtr CancelableConnectionContext;
@@ -300,6 +301,7 @@ private:
     NProto::TNodeResources TotalResourceUsage;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+    DECLARE_THREAD_AFFINITY_SLOT(SnapshotIOThread);
 
 
     void OnProfiling()
@@ -316,8 +318,6 @@ private:
 
         ProfileResources(TotalResourceLimitsProfiler, TotalResourceLimits);
         ProfileResources(TotalResourceUsageProfiler, TotalResourceUsage);
-
-        ProfilingInvoker->ScheduleNext();
     }
 
 
@@ -393,78 +393,6 @@ private:
     }
 
 
-    void OnNodesRequest(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
-    {
-        LOG_INFO("Updating exec nodes");
-
-        auto req = TYPathProxy::Get("//sys/nodes/@online");
-        batchReq->AddRequest(req, "get_online_nodes");
-    }
-
-    void OnNodesResponse(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
-    {
-        auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_online_nodes");
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting online nodes");
-
-        auto newAddresses = ConvertTo< std::vector<Stroka> >(TYsonString(rsp->value()));
-        LOG_INFO("Exec nodes updated, %d found",
-            static_cast<int>(newAddresses.size()));
-
-        // Examine the list of nodes returned by master and figure out the difference.
-
-        yhash_set<Stroka> existingAddresses;
-        FOREACH (const auto& pair, Nodes) {
-            YCHECK(existingAddresses.insert(pair.first).second);
-        }
-
-        FOREACH (const auto& address, newAddresses) {
-            auto it = existingAddresses.find(address);
-            if (it == existingAddresses.end()) {
-                OnNodeOnline(address);
-            } else {
-                existingAddresses.erase(it);
-            }
-        }
-
-        FOREACH (const auto& address, existingAddresses) {
-            OnNodeOffline(address);
-        }
-
-        LOG_INFO("Exec nodes updated");
-    }
-
-    void OnNodeOnline(const Stroka& address)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        LOG_INFO("Node online: %s", ~address);
-
-        // TODO(babenko): fixme
-        TNodeDescriptor descriptor;
-        descriptor.Address = address;
-        auto node = New<TExecNode>(descriptor);
-        RegisterNode(node);
-
-        TotalResourceLimits += node->ResourceLimits();
-        TotalResourceUsage += node->ResourceUsage();
-    }
-
-    void OnNodeOffline(const Stroka& address)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        LOG_INFO("Node offline: %s", ~address);
-
-        // Tell each controller that node is offline.
-
-        auto node = GetNode(address);
-        UnregisterNode(node);
-
-        TotalResourceLimits -= node->ResourceLimits();
-        TotalResourceUsage -= node->ResourceUsage();
-    }
-
-
     typedef TValueOrError<TOperationPtr> TStartResult;
 
     TFuture<TStartResult> StartOperation(
@@ -494,6 +422,7 @@ private:
             spec,
             user,
             TInstant::Now());
+        operation->SetCleanStart(true);
         operation->SetState(EOperationState::Initializing);
 
         LOG_INFO("Starting operation (OperationType: %s, OperationId: %s, TransactionId: %s, User: %s)",
@@ -791,15 +720,26 @@ private:
 
         auto invoker = controller->GetCancelableControlInvoker();
         auto this_ = MakeStrong(this);
-        StartAsyncPipeline(invoker)
-            ->Add(BIND(&TThis::StartSchedulerTransactions, this_, operation))
-            ->Add(BIND(&TThis::OnSchedulerTransactionStarted, this_, operation))
-            ->Add(BIND(&TThis::StartIOTransactions, this_, operation))
-            ->Add(BIND(&TThis::OnIOTransactionsStarted, this_, operation))
-            ->Add(BIND(&IOperationController::Revive, controller))
+        auto pipeline = StartAsyncPipeline(invoker);
+        if (operation->GetCleanStart()) {
+            pipeline = pipeline
+                ->Add(BIND(&TThis::StartSchedulerTransactions, this_, operation))
+                ->Add(BIND(&TThis::OnSchedulerTransactionStarted, this_, operation))
+                ->Add(BIND(&TThis::StartIOTransactions, this_, operation))
+                ->Add(BIND(&TThis::OnIOTransactionsStarted, this_, operation));
+        } else {
+            pipeline = pipeline
+                ->Add(BIND(&TThis::DownloadOperationSnapshot, this_, operation));
+        }
+        pipeline
+            ->Add(BIND(&TMasterConnector::ResetRevivingOperationNode, ~MasterConnector, operation))
+            ->Add(BIND(&TThis::DoReviveOperation, this_, operation))
             ->Add(BIND(&TThis::OnOperationRevived, this_, operation))
             ->Run()
             .Subscribe(BIND([=] (TValueOrError<void> result) {
+                // Discard the snapshot, if any.
+                operation->Snapshot() = Null;
+
                 if (!result.IsOK()) {
                     LOG_ERROR(result, "Operation has failed to revive (OperationId: %s)",
                         ~ToString(operation->GetOperationId()));
@@ -810,6 +750,33 @@ private:
                     this_->FinishOperation(operation);
                 }
             }).Via(invoker));
+    }
+
+    TFuture<void> DownloadOperationSnapshot(TOperationPtr operation)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto downloader = New<TSnapshotDownloader>(
+            Config,
+            Bootstrap,
+            operation);
+
+        return downloader->Run();
+    }
+
+    void DoReviveOperation(TOperationPtr operation)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto controller = operation->GetController();
+        
+        TAutoPtr<TMemoryInput> input;
+        if (operation->Snapshot()) {
+            auto& blob = *operation->Snapshot();
+            input = new TMemoryInput(blob.Begin(), blob.Size());
+        }
+
+        controller->Revive(~input);
     }
 
     void OnOperationRevived(TOperationPtr operation)
@@ -872,6 +839,7 @@ private:
         return operation;
     }
 
+
     TExecNodePtr FindNode(const Stroka& address)
     {
         auto it = Nodes.find(address);
@@ -885,6 +853,20 @@ private:
         return node;
     }
 
+    TExecNodePtr GetOrCreateNode(const TNodeDescriptor& descriptor)
+    {
+        auto it = Nodes.find(descriptor.Address);
+        if (it == Nodes.end()) {
+            return RegisterNode(descriptor);
+        }
+
+        // Update the current descriptor, just in case.
+        auto node = it->second;
+        node->Descriptor() = descriptor;
+        return node;
+    }
+
+
     TJobPtr FindJob(const TJobId& jobId)
     {
         auto it = Jobs.find(jobId);
@@ -892,9 +874,25 @@ private:
     }
 
 
-    void RegisterNode(TExecNodePtr node)
+    TExecNodePtr RegisterNode(const TNodeDescriptor& descriptor)
     {
-        YCHECK(Nodes.insert(std::make_pair(node->GetDescriptor().Address, node)).second);
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        LOG_INFO("Node online (Descriptor: %s)", ~ToString(descriptor));
+
+        auto node = New<TExecNode>(descriptor);
+
+        auto lease = TLeaseManager::CreateLease(
+            Config->NodeHearbeatTimeout,
+            BIND(&TImpl::UnregisterNode, MakeWeak(this), node)
+                .Via(GetControlInvoker()));
+
+        node->SetLease(lease);
+
+        TotalResourceLimits += node->ResourceLimits();
+        TotalResourceUsage += node->ResourceUsage();
+
+        YCHECK(Nodes.insert(std::make_pair(node->GetAddress(), node)).second);
 
         FOREACH (const auto& pair, Operations) {
             auto operation = pair.second;
@@ -902,13 +900,22 @@ private:
                 operation->GetController()->OnNodeOnline(node);
             }
         }
+
+        return node;
     }
 
     void UnregisterNode(TExecNodePtr node)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        LOG_INFO("Node offline (Address: %s)", ~node->GetAddress());
+
+        TotalResourceLimits -= node->ResourceLimits();
+        TotalResourceUsage -= node->ResourceUsage();
+
         // Make a copy, the collection will be modified.
         auto jobs = node->Jobs();
-        const auto& address = node->GetDescriptor().Address;
+        const auto& address = node->GetAddress();
         FOREACH (auto job, jobs) {
             LOG_INFO("Aborting job on an offline node %s (JobId: %s, OperationId: %s)",
                 ~address,
@@ -931,7 +938,7 @@ private:
     void RegisterOperation(TOperationPtr operation)
     {
         YCHECK(Operations.insert(std::make_pair(operation->GetOperationId(), operation)).second);
-        OperationStarted_.Fire(operation);
+        OperationRegistered_.Fire(operation);
         LOG_DEBUG("Operation registered (OperationId: %s)",
             ~ToString(operation->GetOperationId()));
     }
@@ -950,7 +957,7 @@ private:
     void UnregisterOperation(TOperationPtr operation)
     {
         YCHECK(Operations.erase(operation->GetOperationId()) == 1);
-        OperationFinished_.Fire(operation);
+        OperationUnregistered_.Fire(operation);
         LOG_DEBUG("Operation unregistered (OperationId: %s)",
             ~ToString(operation->GetOperationId()));
     }
@@ -986,17 +993,17 @@ private:
         TObjectServiceProxy proxy(GetMasterChannel());
         auto batchReq = proxy.ExecuteBatch();
 
-        auto addCommitRequest = [&] (ITransactionPtr transaction, const Stroka& key) {
+        auto scheduleCommit = [&] (ITransactionPtr transaction, const Stroka& key) {
             auto req = TTransactionYPathProxy::Commit(FromObjectId(transaction->GetId()));
             NMetaState::GenerateRpcMutationId(req);
             batchReq->AddRequest(req, key);
             transaction->Detach();
         };
 
-        addCommitRequest(operation->GetInputTransaction(), "commit_in_tx");
-        addCommitRequest(operation->GetOutputTransaction(), "commit_out_tx");
-        addCommitRequest(operation->GetSyncSchedulerTransaction(), "commit_sync_tx");
-        addCommitRequest(operation->GetAsyncSchedulerTransaction(), "commit_async_tx");
+        scheduleCommit(operation->GetInputTransaction(), "commit_in_tx");
+        scheduleCommit(operation->GetOutputTransaction(), "commit_out_tx");
+        scheduleCommit(operation->GetSyncSchedulerTransaction(), "commit_sync_tx");
+        scheduleCommit(operation->GetAsyncSchedulerTransaction(), "commit_async_tx");
 
         return batchReq->Invoke();
     }
@@ -1013,15 +1020,15 @@ private:
 
     void AbortOperationTransactions(TOperationPtr operation)
     {
-        auto abortTransaction = [&] (ITransactionPtr transaction) {
+        auto scheduleAbort = [&] (ITransactionPtr transaction) {
             if (transaction) {
                 // Fire-and-forget.
                 transaction->Abort();
             }
         };
 
-        abortTransaction(operation->GetSyncSchedulerTransaction());
-        abortTransaction(operation->GetAsyncSchedulerTransaction());
+        scheduleAbort(operation->GetSyncSchedulerTransaction());
+        scheduleAbort(operation->GetAsyncSchedulerTransaction());
         // No need to abort IO transactions since they are nested inside sync transaction.
     }
 
@@ -1031,6 +1038,7 @@ private:
         operation->SetController(nullptr);
         UnregisterOperation(operation);
     }
+
 
     void RegisterJob(TJobPtr job)
     {
@@ -1395,7 +1403,7 @@ private:
     void BuildNodeYson(TExecNodePtr node, IYsonConsumer* consumer)
     {
         BuildYsonMapFluently(consumer)
-            .Item(node->GetDescriptor().Address).BeginMap()
+            .Item(node->GetAddress()).BeginMap()
                 .Do([=] (TFluentMap fluent) {
                     BuildExecNodeAttributes(node, fluent);
                 })
@@ -1412,7 +1420,9 @@ private:
     void ValidateConnected()
     {
         if (!MasterConnector->IsConnected()) {
-            THROW_ERROR_EXCEPTION("Master is not connected");
+            THROW_ERROR_EXCEPTION(TError(
+                NRpc::EErrorCode::Unavailable,
+                "Master is not connected"));
         }
     }
 
@@ -1520,12 +1530,9 @@ private:
 
         ValidateConnected();
 
-        const auto& address = descriptor.Address;
-        auto node = FindNode(address);
-        if (!node) {
-            context->Reply(TError("Node is not registered, heartbeat ignored"));
-            return;
-        }
+        auto node = GetOrCreateNode(descriptor);
+
+        TLeaseManager::RenewLease(node->GetLease());
 
         TotalResourceLimits -= node->ResourceLimits();
         TotalResourceUsage -= node->ResourceUsage();
@@ -1568,7 +1575,7 @@ private:
             // Check for missing jobs.
             FOREACH (auto job, missingJobs) {
                 LOG_ERROR("Job is missing (Address: %s, JobId: %s, OperationId: %s)",
-                    ~address,
+                    ~node->GetAddress(),
                     ~ToString(job->GetId()),
                     ~ToString(job->GetOperation()->GetOperationId()));
                 AbortJob(job, TError("Job vanished"));
@@ -1628,7 +1635,7 @@ private:
     {
         auto jobId = FromProto<TJobId>(jobStatus->job_id());
         auto state = EJobState(jobStatus->state());
-        const auto& jobAddress = node->GetDescriptor().Address;
+        const auto& jobAddress = node->GetAddress();
 
         NLog::TTaggedLogger Logger(SchedulerLogger);
         Logger.AddTag(Sprintf("Address: %s, JobId: %s",
@@ -1681,7 +1688,7 @@ private:
             ~ToString(operation->GetOperationId())));
 
         // Check if the job is running on a proper node.
-        auto expectedAddress = job->GetNode()->GetDescriptor().Address;
+        const auto& expectedAddress = job->GetNode()->GetAddress();
         if (jobAddress != expectedAddress) {
             // Job has moved from one node to another. No idea how this could happen.
             if (state == EJobState::Aborting) {
@@ -1725,7 +1732,7 @@ private:
             case EJobState::Waiting:
                 if (job->GetState() == EJobState::Aborted) {
                     LOG_INFO("Aborting job (Address: %s, JobType: %s, JobId: %s, OperationId: %s)",
-                        ~job->GetNode()->GetDescriptor().Address,
+                        ~jobAddress,
                         ~job->GetType().ToString(),
                         ~ToString(jobId),
                         ~ToString(operation->GetOperationId()));
@@ -1879,6 +1886,11 @@ std::vector<TOperationPtr> TScheduler::GetOperations()
 std::vector<TExecNodePtr> TScheduler::GetExecNodes()
 {
     return Impl->GetExecNodes();
+}
+
+IInvokerPtr TScheduler::GetSnapshotIOInvoker()
+{
+    return Impl->GetSnapshotIOInvoker();
 }
 
 ////////////////////////////////////////////////////////////////////

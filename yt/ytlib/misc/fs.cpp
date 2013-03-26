@@ -125,6 +125,25 @@ void CleanTempFiles(const Stroka& path)
     }
 }
 
+void CleanFiles(const Stroka& path)
+{
+    LOG_INFO("Cleaning files in directory: %s", ~path);
+
+    if (!isexist(~path))
+        return;
+
+    TFileList fileList;
+    fileList.Fill(path, TStringBuf(), TStringBuf(), Max<int>());
+    i32 size = fileList.Size();
+    for (i32 i = 0; i < size; ++i) {
+        Stroka fileName = NFS::CombinePaths(path, fileList.Next());
+        LOG_INFO("Removing file: %s", ~fileName);
+        if (!NFS::Remove(~fileName)) {
+            LOG_ERROR("Error removing file: %s",  ~fileName);
+        }
+    }
+}
+
 TDiskSpaceStatistics GetDiskSpaceStatistics(const Stroka& path)
 {
     TDiskSpaceStatistics result;

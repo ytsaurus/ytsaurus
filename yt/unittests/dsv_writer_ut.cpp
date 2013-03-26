@@ -309,6 +309,7 @@ TEST(TTskvWriterTest, Escaping)
 {
     auto config = New<TDsvFormatConfig>();
     config->LinePrefix = "tskv";
+    config->EscapeCarriageReturn = true;
 
     TStringStream outputStream;
     TDsvWriter writer(&outputStream, EYsonType::ListFragment, config);
@@ -317,8 +318,8 @@ TEST(TTskvWriterTest, Escaping)
     writer.OnBeginMap();
         writer.OnKeyedItem(Stroka("\0 is escaped", 12));
         writer.OnStringScalar(Stroka("\0 is escaped", 12));
-        writer.OnKeyedItem("Escaping in in key: \t \n \\ =");
-        writer.OnStringScalar("Escaping in value: \t \n \\ =");
+        writer.OnKeyedItem("Escaping in in key: \r \t \n \\ =");
+        writer.OnStringScalar("Escaping in value: \r \t \n \\ =");
     writer.OnEndMap();
 
     Stroka output =
@@ -331,11 +332,29 @@ TEST(TTskvWriterTest, Escaping)
 
         "\t"
 
-        "Escaping in in key: \\t \\n \\\\ \\="
+        "Escaping in in key: \\r \\t \\n \\\\ \\="
         "="
-        "Escaping in value: \\t \\n \\\\ =" // Note: = is not escaped
+        "Escaping in value: \\r \\t \\n \\\\ =" // Note: = is not escaped
 
         "\n";
+
+    EXPECT_EQ(outputStream.Str(), output);
+}
+
+TEST(TTskvWriterTest, WithoutEscapeCarriageReturn)
+{
+    auto config = New<TDsvFormatConfig>();
+
+    TStringStream outputStream;
+    TDsvWriter writer(&outputStream, EYsonType::ListFragment, config);
+
+    writer.OnListItem();
+    writer.OnBeginMap();
+        writer.OnKeyedItem(Stroka("x"));
+        writer.OnStringScalar(Stroka("\r"));
+    writer.OnEndMap();
+
+    Stroka output = "x=\r\n";
 
     EXPECT_EQ(outputStream.Str(), output);
 }

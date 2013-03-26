@@ -123,24 +123,23 @@ void TFileChunkOutput::DoWrite(const void* buf, size_t len)
     if (len == 0)
         return;
 
-    if (Buffer.empty()) {
-        Buffer.reserve(static_cast<size_t>(Config->BlockSize));
+    if (Buffer.IsEmpty()) {
+        Buffer.Reserve(static_cast<size_t>(Config->BlockSize));
     }
 
     size_t dataSize = len;
     const ui8* dataPtr = static_cast<const ui8*>(buf);
     while (dataSize != 0) {
         // Copy a part of data trying to fill up the current block.
-        size_t bufferSize = Buffer.size();
-        size_t remainingSize = static_cast<size_t>(Config->BlockSize) - Buffer.size();
-        size_t copySize = Min(dataSize, remainingSize);
-        Buffer.resize(Buffer.size() + copySize);
-        std::copy(dataPtr, dataPtr + copySize, Buffer.begin() + bufferSize);
-        dataPtr += copySize;
-        dataSize -= copySize;
+        size_t bufferSize = Buffer.Size();
+        size_t remainingSize = static_cast<size_t>(Config->BlockSize) - bufferSize;
+        size_t bytesToCopy = std::min(dataSize, remainingSize);
+        Buffer.Append(dataPtr, bytesToCopy);
+        dataPtr += bytesToCopy;
+        dataSize -= bytesToCopy;
 
         // Flush the block if full.
-        if (Buffer.size() == Config->BlockSize) {
+        if (Buffer.Size() == Config->BlockSize) {
             FlushBlock();
         }
     }
@@ -205,12 +204,12 @@ void TFileChunkOutput::DoFinish()
 
 void TFileChunkOutput::FlushBlock()
 {
-    if (Buffer.empty())
+    if (Buffer.IsEmpty())
         return;
 
     LOG_INFO("Writing block (BlockIndex: %d)", BlockCount);
     auto* block = BlocksExt.add_blocks();
-    block->set_size(Buffer.size());
+    block->set_size(Buffer.Size());
     try {
         struct TCompressedFileChunkBlockTag { };
         auto compressedBuffer = Codec->Compress(TSharedRef::FromBlob<TCompressedFileChunkBlockTag>(std::move(Buffer)));
@@ -224,7 +223,7 @@ void TFileChunkOutput::FlushBlock()
     }
     LOG_INFO("Block written (BlockIndex: %d)", BlockCount);
 
-    Buffer.clear();
+    Buffer.Clear();
     ++BlockCount;
 }
 

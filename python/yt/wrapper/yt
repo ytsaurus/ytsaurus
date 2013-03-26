@@ -34,35 +34,53 @@ class ParseFormat(Action):
 
 class ParseStructure(Action):
     def __call__(self, parser, namespace, values, option_string=None):
+        setattr(namespace, self.dest, get_structured_option_parser()(values))
 
-        option_format = os.environ.get("YT_STRUCTURED_OPTIONS_FORMAT", "yson")
-        if option_format == "json":
-            load_func = json.loads
-        elif option_format == "yson":
-            load_func = yson.loads
-        else:
-            raise Exception("Incorrect structured options format " + option_format)
+class ParseMemoryLimit(Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        if values is not None:
+            values = yt.config.MB * int(values)
+        setattr(namespace, self.dest, values)
 
-        setattr(namespace, self.dest, load_func(values))
+def get_structured_option_parser():
+    option_format = os.environ.get("YT_STRUCTURED_OPTIONS_FORMAT", "yson")
+    if option_format == "json":
+        return json.loads
+    elif option_format == "yson":
+        return yson.loads
+    else:
+        raise yt.YtError("Incorrect structured option format " + option_format)
 
 def list(args):
-    list = yt.list(args.path, max_size=args.max_size)
-    for elem in list:
-        path = args.path + "/" + elem
-        if args.long_format:
-            attrs = yt.get(path + "/@")
-            type = attrs["type"]
-            user = attrs["account"]
-            size = yt.get(path + "/@recursive_resource_usage/disk_space")
-            date, time = yt.get(path + "/@modification_time").split("T")
-            time = time[:5]
-            sys.stdout.write("%10s %20s %18r %10s %5s " % (type, user, size, date, time))
-        print elem
+    if args.format is not None and args.long_format:
+        raise yt.YtError("You can't specify --long-format and --structured simultaneously")
 
-def add_list_parser(subparsers):
-    parser = subparsers.add_parser("list")
+    list = yt.list(args.path, max_size=args.max_size, attributes=args.attribute, format=args.format)
+    if args.format is None:
+        if list.attributes.get("incomplete", "false") == "true":
+            print >>sys.stderr, "List is incomplete!"
+        if args.attribute is not None:
+            print >>sys.stderr, "Attributes is ignored if format is not specified!"
+        for elem in list:
+            if args.long_format:
+                path = args.path + "/" + elem
+                attrs = yt.get(path + "/@")
+                type = attrs["type"]
+                user = attrs["account"]
+                size = yt.get(path + "/@recursive_resource_usage/disk_space")
+                date, time = yt.get(path + "/@modification_time").split("T")
+                time = time[:5]
+                sys.stdout.write("%10s %20s %18r %10s %5s " % (type, user, size, date, time))
+            print elem
+    else:
+        print list
+
+def add_list_parser(add_parser):
+    parser = add_parser("list", help="list objects")
     parser.add_argument("path")
     parser.add_argument("-l", "--long-format", action="store_true", default=False)
+    parser.add_argument("--format", action=ParseFormat)
+    parser.add_argument("--attribute", action="append")
     parser.add_argument("--max-size", type=int, default=100)
     parser.set_defaults(func=list)
 
@@ -70,15 +88,15 @@ def add_list_parser(subparsers):
 def find(args):
     path_filter = None
     if args.name is not None:
-        path_filter = lambda path: fnmatch.fnmatch(path, args.name)
+        path_filter = lambda path: fnmatch.fnmatch(os.path.basename(path), args.name)
     res = yt.search(args.path, node_type=args.type, path_filter=path_filter)
     for table in res:
         print table
 
-def add_find_parser(subparsers):
-    parser = subparsers.add_parser("find")
+def add_find_parser(add_parser):
+    parser = add_parser("find", help="search objects")
     parser.add_argument("path")
-    parser.add_argument("--name")
+    parser.add_argument("--name", "-name")
     parser.add_argument("--type")
     parser.set_defaults(func=find)
 
@@ -94,8 +112,8 @@ def cat(args):
     else:
         die("Incorrect node type " + type)
 
-def add_cat_parser(subparsers):
-    parser = subparsers.add_parser("cat")
+def add_cat_parser(add_parser):
+    parser = add_parser("cat")
     parser.add_argument("path")
     parser.add_argument("--format", action=ParseFormat)
     parser.set_defaults(func=cat)
@@ -103,8 +121,8 @@ def add_cat_parser(subparsers):
 def read(args):
     writelines_silently(yt.read_table(args.path, format=args.format, table_reader=args.table_reader, response_type="iter_content"))
 
-def add_read_parser(subparsers):
-    parser = subparsers.add_parser("read")
+def add_read_parser(add_parser):
+    parser = add_parser("read", help="read rows from table")
     parser.add_argument("path")
     parser.add_argument("--format", action=ParseFormat)
     parser.add_argument("--table-reader", action=ParseStructure)
@@ -113,8 +131,8 @@ def add_read_parser(subparsers):
 def download(args):
     writelines_silently(yt.download_file(args.path, response_type="iter_content"))
 
-def add_download_parser(subparsers):
-    parser = subparsers.add_parser("download")
+def add_download_parser(add_parser):
+    parser = add_parser("download", help="download file")
     parser.add_argument("path")
     parser.set_defaults(func=download)
 
@@ -123,19 +141,19 @@ def upload(args):
     if args.executable:
         yt.set(args.path + "/@executable", "true")
 
-def add_upload_parser(subparsers):
-    parser = subparsers.add_parser("upload")
+def add_upload_parser(add_parser):
+    parser = add_parser("upload", help="upload file")
     parser.add_argument("path")
     parser.add_argument("--executable", action="store_true", default=False)
     parser.set_defaults(func=upload)
 
 def write(args):
-    yt.write_table(sys.stdin, args.path, format=args.format, table_writer=args.table_writer)
+    yt.write_table(args.path, sys.stdin, format=args.format, table_writer=args.table_writer)
 
-def add_write_parser(subparsers):
-    parser = subparsers.add_parser("write")
+def add_write_parser(add_parser):
+    parser = add_parser("write", help="write rows to table")
     parser.add_argument("path")
-    parser.add_argument("--format", action=ParseFormat)
+    parser.add_argument("--format", action=ParseFormat, required=True)
     parser.add_argument("--table-writer", action=ParseStructure)
     parser.set_defaults(func=write)
 
@@ -145,34 +163,32 @@ def create(args):
               recursive=args.recursive,
               attributes=args.attributes)
 
-def add_create_parser(subparsers):
-    parser = subparsers.add_parser("create")
+def add_create_parser(add_parser):
+    parser = add_parser("create", help="create object")
     parser.add_argument("type")
-    parser.add_argument("path", default=None)
+    parser.add_argument("path", nargs="?", default=None)
     parser.add_argument("-r", "--recursive", action="store_true", default=False)
     parser.add_argument("-i", "--ignore-existing", action="store_true", default=False)
     parser.add_argument("--attributes", action=ParseStructure)
     parser.set_defaults(func=create)
 
 def get(args):
-    if args.format is None:
-        print json.dumps(yt.get(args.path, format=yt.JsonFormat(), spec=args.spec), indent=2)
-    else:
-        print yt.get(args.path, format=args.format, spec=args.spec)
+    print yt.get(args.path, spec=args.spec, attributes=args.attribute, format=args.format)
 
-def add_get_parser(subparsers):
-    parser = subparsers.add_parser("get")
+def add_get_parser(add_parser):
+    parser = add_parser("get", help="get subtree of object in the given path")
     parser.add_argument("path")
-    parser.add_argument("--format")
+    parser.add_argument("--format", action=ParseFormat, default=yt.YsonFormat())
     parser.add_argument("--spec", action=ParseStructure)
+    parser.add_argument("--attribute", action="append")
     parser.set_defaults(func=get)
 
 
 def set(args):
     yt.set(args.path, args.value)
 
-def add_set_parser(subparsers):
-    parser = subparsers.add_parser("set")
+def add_set_parser(add_parser):
+    parser = add_parser("set", help="set value at the given path")
     parser.add_argument("path")
     parser.add_argument("value", action=ParseStructure)
     parser.set_defaults(func=set)
@@ -181,8 +197,8 @@ def add_set_parser(subparsers):
 def remove(args):
     yt.remove(args.path, recursive=args.recursive, force=args.force)
 
-def add_remove_parser(subparsers):
-    parser = subparsers.add_parser("remove")
+def add_remove_parser(add_parser):
+    parser = add_parser("remove", help="remove object")
     parser.add_argument("path")
     parser.add_argument("-r", "--recursive", action="store_true", default=False)
     parser.add_argument("-f", "--force", action="store_true", default=False)
@@ -191,8 +207,8 @@ def add_remove_parser(subparsers):
 def copy(args):
     yt.copy(args.src, args.dst)
 
-def add_copy_parser(subparsers):
-    parser = subparsers.add_parser("copy")
+def add_copy_parser(add_parser):
+    parser = add_parser("copy", help="copy")
     parser.add_argument("src")
     parser.add_argument("dst")
     parser.set_defaults(func=copy)
@@ -200,8 +216,8 @@ def add_copy_parser(subparsers):
 def move(args):
     yt.move(args.src, args.dst)
 
-def add_move_parser(subparsers):
-    parser = subparsers.add_parser("move")
+def add_move_parser(add_parser):
+    parser = add_parser("move", help="move")
     parser.add_argument("src")
     parser.add_argument("dst")
     parser.set_defaults(func=move)
@@ -211,8 +227,8 @@ def link(args):
             ignore_existing=args.ignore_existing,
             recursive=args.recursive)
 
-def add_link_parser(subparsers):
-    parser = subparsers.add_parser("link")
+def add_link_parser(add_parser):
+    parser = add_parser("link", help="create symbolic link")
     parser.add_argument("target_path")
     parser.add_argument("link_path")
     parser.add_argument("-r", "--recursive", action="store_true", default=False)
@@ -231,8 +247,8 @@ def add_link_parser(subparsers):
 #    else:
 #        die("Incorrect type: " + args.type)
 #
-#def add_upload_parser(subparsers):
-#    parser = subparsers.add_parser("upload")
+#def add_upload_parser(add_parser):
+#    parser = add_parser("upload")
 #    parser.add_argument("path")
 #    parser.add_argument("--executable", action="store_true", default=False)
 #    parser.add_argument("--format", action=ParseFormat)
@@ -242,32 +258,32 @@ def add_link_parser(subparsers):
 def erase(args):
     yt.run_erase(args.path)
 
-def add_erase_parser(subparsers):
-    parser = subparsers.add_parser("erase")
+def add_erase_parser(add_parser):
+    parser = add_parser("erase", help="erase data from table")
     parser.add_argument("path")
     parser.set_defaults(func=erase)
 
 
 def merge(args):
-    yt.run_merge(args.src, args.dst, args.mode)
+    yt.run_merge(args.src, args.dst, args.mode, spec=args.spec)
 
-def add_merge_parser(subparsers):
-    parser = subparsers.add_parser("merge")
-    parser.add_argument("--src", action="append")
-    parser.add_argument("--dst")
+def add_merge_parser(add_parser):
+    parser = add_parser("merge", help="merge given tables")
+    parser.add_argument("--src", action="append", required=True)
+    parser.add_argument("--dst", required=True)
     parser.add_argument("--mode", default="unordered")
     parser.add_argument("--spec", action=ParseStructure)
     parser.set_defaults(func=merge)
 
 
 def sort(args):
-    yt.run_sort(args.src, args.dst, args.sort_by)
+    yt.run_sort(args.src, args.dst, args.sort_by, spec=args.spec)
 
-def add_sort_parser(subparsers):
-    parser = subparsers.add_parser("sort")
-    parser.add_argument("--src", action="append")
-    parser.add_argument("--dst")
-    parser.add_argument("--sort-by", action="append")
+def add_sort_parser(add_parser):
+    parser = add_parser("sort", help="sort given tables")
+    parser.add_argument("--src", nargs="+", required=True)
+    parser.add_argument("--dst", required=True)
+    parser.add_argument("--sort-by", nargs="+", required=True)
     parser.add_argument("--spec", action=ParseStructure)
     parser.set_defaults(func=sort)
 
@@ -279,29 +295,32 @@ def format_args(parser):
 
 def operation_args(parser):
     parser.add_argument("command")
-    parser.add_argument("--src", action="append")
-    parser.add_argument("--dst", action="append")
+    parser.add_argument("--src", action="append", required=True)
+    parser.add_argument("--dst", action="append", required=True)
     parser.add_argument("--file", action="append")
     parser.add_argument("--local-file", action="append")
+    parser.add_argument("--job-count", type=int)
+    parser.add_argument("--memory-limit", type=int, action=ParseMemoryLimit)
     parser.add_argument("--spec", action=ParseStructure)
     format_args(parser)
 
 def map(args):
     yt.run_map(args.command, args.src, args.dst, file_paths=args.file, files=args.local_file,
-               format=args.format, input_format=args.input_format, output_format=args.output_format)
+               format=args.format, input_format=args.input_format, output_format=args.output_format,
+               job_count=args.job_count, memory_limit=args.memory_limit, spec=args.spec)
 
-def add_map_parser(subparsers):
-    parser = subparsers.add_parser("map")
+def add_map_parser(add_parser):
+    parser = add_parser("map", help="run map operation")
     operation_args(parser)
     parser.set_defaults(func=map)
 
 
 def reduce(args):
     yt.run_reduce(args.command, args.src, args.dst, file_paths=args.file, files=args.local_file, reduce_by=args.reduce_by,
-                  format=args.format, input_format=args.input_format, output_format=args.output_format)
+                  format=args.format, input_format=args.input_format, output_format=args.output_format, spec=args.spec)
 
-def add_reduce_parser(subparsers):
-    parser = subparsers.add_parser("reduce")
+def add_reduce_parser(add_parser):
+    parser = add_parser("reduce", help="run map operation")
     operation_args(parser)
     parser.add_argument("--reduce-by", action="append")
     parser.set_defaults(func=reduce)
@@ -311,20 +330,26 @@ def map_reduce(args):
                       map_files=args.map_local_files, map_file_paths=args.map_files,
                       reduce_files=args.reduce_local_files, reduce_file_paths=args.reduce_files,
                       reduce_by=args.reduce_by, sort_by=args.sort_by,
-                      format=args.format, input_format=args.input_format, output_format=args.output_format)
+                      format=args.format, input_format=args.input_format, output_format=args.output_format,
+                      mapper_memory_limit=args.map_memory_limit,
+                      reducer_memory_limit=args.reduce_memory_limit,
+                      spec=args.spec)
 
-def add_map_reduce_parser(subparsers):
-    parser = subparsers.add_parser("map-reduce")
-    parser.add_argument("--mapper")
-    parser.add_argument("--reducer")
-    parser.add_argument("--src", action="append")
-    parser.add_argument("--dst", action="append")
+def add_map_reduce_parser(add_parser):
+    parser = add_parser("map-reduce", help="run map_reduce operation")
+    parser.add_argument("--mapper", required=True)
+    parser.add_argument("--reducer", required=True)
+    parser.add_argument("--src", action="append", required=True)
+    parser.add_argument("--dst", action="append", required=True)
     parser.add_argument("--map-file", action="append")
     parser.add_argument("--map-local-file", action="append")
     parser.add_argument("--reduce-file", action="append")
     parser.add_argument("--reduce-local-file", action="append")
-    parser.add_argument("--reduce-by", action="append")
+    parser.add_argument("--map-memory-limit", type=int, action=ParseMemoryLimit)
+    parser.add_argument("--reduce-memory-limit", type=int, action=ParseMemoryLimit)
+    parser.add_argument("--reduce-by", action="append", required=True)
     parser.add_argument("--sort-by", action="append")
+    parser.add_argument("--spec", action=ParseStructure)
     format_args(parser)
     parser.set_defaults(func=map_reduce)
 
@@ -332,75 +357,92 @@ def add_map_reduce_parser(subparsers):
 def abort_op(args):
     yt.abort_operation(args.op)
 
-def add_abort_op_parser(subparsers):
-    parser = subparsers.add_parser("abort-op")
+def add_abort_op_parser(add_parser):
+    parser = add_parser("abort-op", help="abort operation")
     parser.add_argument("op")
     parser.set_defaults(func=abort_op)
 
 def start_tx(args):
-    print yt.start_transaction(attributes=args.attributes)
+    print yt.start_transaction(attributes=args.attributes, timeout=args.timeout)
 
-def add_start_tx_parser(subparsers):
-    parser = subparsers.add_parser("start-tx")
+def add_start_tx_parser(add_parser):
+    parser = add_parser("start-tx", help="start transaction")
     parser.add_argument("--attributes", action=ParseStructure)
+    parser.add_argument("--timeout", type=int)
     parser.set_defaults(func=start_tx)
 
 def commit_tx(args):
     yt.commit_transaction(args.tx)
 
-def add_commit_tx_parser(subparsers):
-    parser = subparsers.add_parser("commit-tx")
+def add_commit_tx_parser(add_parser):
+    parser = add_parser("commit-tx", help="commit transaction")
     parser.add_argument("tx")
     parser.set_defaults(func=commit_tx)
 
 def abort_tx(args):
     yt.abort_transaction(args.tx)
 
-def add_abort_tx_parser(subparsers):
-    parser = subparsers.add_parser("abort-tx")
+def add_abort_tx_parser(add_parser):
+    parser = add_parser("abort-tx", help="abort transaction")
     parser.add_argument("tx")
     parser.set_defaults(func=abort_tx)
 
 def ping_tx(args):
     yt.ping_transaction(args.tx)
 
-def add_ping_tx_parser(subparsers):
-    parser = subparsers.add_parser("ping-tx")
+def add_ping_tx_parser(add_parser):
+    parser = add_parser("ping-tx", help="ping transaction")
     parser.add_argument("tx")
     parser.set_defaults(func=ping_tx)
 
+def check_permission(args):
+    print yt.check_permission(args.user, args.permission, args.path, format=args.format)
+
+def add_check_permission_parser(add_parser):
+    parser = add_parser("check-permission", help="check permission of given user at given path")
+    parser.add_argument("user")
+    parser.add_argument("permission")
+    parser.add_argument("path")
+    parser.add_argument("--format", action=ParseFormat, default=yt.YsonFormat())
+    parser.set_defaults(func=check_permission)
+
 def main():
-    parser = ArgumentParser()
+    base_parser = ArgumentParser(add_help=False)
+    base_parser.add_argument("--proxy")
+    base_parser.add_argument("--tx")
+    base_parser.add_argument("--ping-ancestor-txs", action="store_true", default=False)
+    
+    parser = ArgumentParser(parents=[base_parser])
     subparsers = parser.add_subparsers()
+    def add_parser(*args, **kwargs):
+        return subparsers.add_parser(*args, parents=[base_parser], **kwargs)
 
-    add_list_parser(subparsers)
-    add_find_parser(subparsers)
-    add_create_parser(subparsers)
-    add_read_parser(subparsers)
-    add_write_parser(subparsers)
-    add_upload_parser(subparsers)
-    add_download_parser(subparsers)
-    add_get_parser(subparsers)
-    add_set_parser(subparsers)
-    add_copy_parser(subparsers)
-    add_move_parser(subparsers)
-    add_link_parser(subparsers)
-    add_remove_parser(subparsers)
-    add_erase_parser(subparsers)
-    add_merge_parser(subparsers)
-    add_sort_parser(subparsers)
-    add_map_parser(subparsers)
-    add_reduce_parser(subparsers)
-    add_map_reduce_parser(subparsers)
-    add_abort_op_parser(subparsers)
-    add_start_tx_parser(subparsers)
-    add_abort_tx_parser(subparsers)
-    add_commit_tx_parser(subparsers)
-    add_ping_tx_parser(subparsers)
-    #add_cat_parser(subparsers)
-
-    parser.add_argument("--tx")
-    parser.add_argument("--ping-ancestor-transactions", action="store_true", default=False)
+    add_list_parser(add_parser)
+    add_find_parser(add_parser)
+    add_create_parser(add_parser)
+    add_read_parser(add_parser)
+    add_write_parser(add_parser)
+    add_upload_parser(add_parser)
+    add_download_parser(add_parser)
+    add_get_parser(add_parser)
+    add_set_parser(add_parser)
+    add_copy_parser(add_parser)
+    add_move_parser(add_parser)
+    add_link_parser(add_parser)
+    add_remove_parser(add_parser)
+    add_erase_parser(add_parser)
+    add_merge_parser(add_parser)
+    add_sort_parser(add_parser)
+    add_map_parser(add_parser)
+    add_reduce_parser(add_parser)
+    add_map_reduce_parser(add_parser)
+    add_abort_op_parser(add_parser)
+    add_start_tx_parser(add_parser)
+    add_abort_tx_parser(add_parser)
+    add_commit_tx_parser(add_parser)
+    add_ping_tx_parser(add_parser)
+    add_check_permission_parser(add_parser)
+    #add_cat_parser(add_parser)
 
     aliases_filename = os.path.join(os.path.expanduser("~"), ".yt/aliases")
     if os.path.isfile(aliases_filename):
@@ -417,7 +459,9 @@ def main():
     args = parser.parse_args()
     if args.tx is not None:
         yt.config.TRANSACTION = args.tx
-        yt.config.PING_ANCESTOR_TRANSACTIONS = args.ping_ancestor_transactions
+        yt.config.PING_ANCESTOR_TRANSACTIONS = args.ping_ancestor_txs
+    if args.proxy is not None:
+        yt.config.PROXY = args.proxy
     args.func(args)
 
 if __name__ == "__main__":
@@ -425,14 +469,12 @@ if __name__ == "__main__":
         main()
     except KeyboardInterrupt:
         die("Shutdown requested... exiting")
-    except yt.YtOperationFailedError as error:
-        die(str(error))
-    except yt.YtResponseError as error:
-        die(str(error))
     except yt.ConnectionError as error:
         die("Connection problem: " + str(error))
     except yt.HTTPError as error:
         die("Connection was broken: " + str(error))
+    except yt.YtError as error:
+        die(str(error))
     except Exception:
         traceback.print_exc(file=sys.stderr)
         die()

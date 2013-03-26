@@ -233,16 +233,19 @@ public:
         YCHECK(Context);
     }
 
-    void DeserializeRequest()
+    bool DeserializeRequest()
     {
         Request_ = ObjectPool<TTypedRequest>().Allocate();
         Request_->Context = Context.Get();
 
         if (!DeserializeFromProtoWithEnvelope(Request_.Get(), Context->GetRequestBody())) {
-            THROW_ERROR_EXCEPTION(
+            Context->Reply(TError(
                 EErrorCode::ProtocolError,
-                "Error deserializing request body");
+                "Error deserializing request body"));
+            return false;
         }
+
+        return true;
     }
 
     const TTypedRequest& Request() const
@@ -599,6 +602,10 @@ protected:
     //! Similar to #FindMethodInfo but fails if no method is found.
     TRuntimeMethodInfoPtr GetMethodInfo(const Stroka& method);
 
+    //! Returns the default invoker passed during construction.
+    IInvokerPtr GetDefaultInvoker();
+
+
 private:
     class TServiceContext;
 
@@ -632,7 +639,7 @@ private:
 
 #define DECLARE_RPC_SERVICE_METHOD(ns, method) \
     typedef ::NYT::NRpc::TTypedServiceContext<ns::TReq##method, ns::TRsp##method> TCtx##method; \
-    typedef TIntrusivePtr<TCtx##method> TCtx##method##Ptr; \
+    typedef ::NYT::TIntrusivePtr<TCtx##method> TCtx##method##Ptr; \
     typedef TCtx##method::TTypedRequest  TReq##method; \
     typedef TCtx##method::TTypedResponse TRsp##method; \
     \
@@ -641,7 +648,9 @@ private:
         const ::NYT::NRpc::THandlerInvocationOptions& options) \
     { \
         auto typedContext = New<TCtx##method>(std::move(context), options); \
-        typedContext->DeserializeRequest(); \
+        if (!typedContext->DeserializeRequest()) { \
+            return TClosure(); \
+        } \
         return BIND([=] () { \
             this->method( \
                 &typedContext->Request(), \
@@ -664,7 +673,7 @@ private:
 #define RPC_SERVICE_METHOD_DESC(method) \
     ::NYT::NRpc::TServiceBase::TMethodDescriptor( \
         #method, \
-        BIND(&TThis::method##Thunk, Unretained(this)))
+        BIND(&TThis::method##Thunk, NYT::Unretained(this)))
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -678,7 +687,9 @@ private:
         const ::NYT::NRpc::THandlerInvocationOptions& options) \
     { \
         auto typedContext = New<TCtx##method>(std::move(context), options); \
-        typedContext->DeserializeRequest(); \
+        if (!typedContext->DeserializeRequest()) { \
+            return TClosure(); \
+        } \
         return BIND([=] () { \
             this->method( \
                 &typedContext->Request(), \

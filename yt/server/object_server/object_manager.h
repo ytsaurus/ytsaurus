@@ -101,6 +101,10 @@ public:
     //! Removes an existing attribute set.
     void RemoveAttributes(const TVersionedObjectId& id);
 
+    //! Similar to #RemoveAttributes but may also be called for missing keys.
+    //! Returns |true| if #id was found and removed.
+    bool TryRemoveAttributes(const TVersionedObjectId& id);
+
     //! Called when a versioned object is branched.
     void BranchAttributes(
         const TVersionedObjectId& originatingId,
@@ -185,6 +189,8 @@ private:
     TObjectManagerConfigPtr Config;
     NCellMaster::TBootstrap* Bootstrap;
 
+    NProfiling::TProfiler Profiler;
+
     struct TTypeEntry
     {
         IObjectTypeHandlerPtr Handler;
@@ -204,7 +210,7 @@ private:
 
     mutable TGuid CachedCellGuild;
 
-    TPeriodicInvokerPtr ProflilingInvoker;
+    TPeriodicInvokerPtr ProfilingInvoker;
 
     TGarbageCollectorPtr GarbageCollector;
 
@@ -215,17 +221,20 @@ private:
     //! Stores deltas from parent transaction.
     NMetaState::TMetaStateMap<TVersionedObjectId, TAttributeSet> Attributes;
 
-    void InitWellKnownSingletons();
-
     void SaveKeys(const NCellMaster::TSaveContext& context) const;
     void SaveValues(const NCellMaster::TSaveContext& context) const;
     void SaveSchemas(const NCellMaster::TSaveContext& context) const;
+
+    virtual void OnBeforeLoaded() override;
     void LoadKeys(const NCellMaster::TLoadContext& context);
     void LoadValues(const NCellMaster::TLoadContext& context);
     void LoadSchemas(const NCellMaster::TLoadContext& context);
+    virtual void OnAfterLoaded() override;
 
     virtual void OnRecoveryStarted() override;
     virtual void OnRecoveryComplete() override;
+
+    void DoClear();
     virtual void Clear() override;
 
     virtual void OnActiveQuorumEstablished() override;

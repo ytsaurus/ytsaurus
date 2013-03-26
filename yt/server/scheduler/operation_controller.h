@@ -128,18 +128,26 @@ struct IOperationController
      */
     virtual TFuture<TError> Commit() = 0;
 
-    //! Reactivates an already running operation.
+    //! Called from a forked copy of the scheduler to make a snapshot of operation's progress.
+    virtual void SaveSnapshot(TOutputStream* stream) = 0;
+
+    //! Reactivates an already running operation, possibly restoring its progress.
     /*!
      *  This method is called during scheduler state recovery for each existing operation.
+     *  
+     *  If #stream is not |nullptr| then it points to a stream containing
+     *  a snapshot earlier produced by #SaveSnapshot. The stream lives as long as the
+     *  revival process continues. Using this stream is optional.
      */
-    virtual TFuture<TError> Revive() = 0;
+    virtual TFuture<TError> Revive(TInputStream* stream) = 0;
 
-    //! Called by the scheduler notify the controller that the operation has been aborted.
+    //! Notifies the controller that the operation has been aborted.
     /*!
      *  All jobs are aborted automatically.
      *  The operation, however, may carry out any additional cleanup it finds necessary.
      */
     virtual void Abort() = 0;
+
 
 
     //! Returns the context that gets invalidated by #Abort.

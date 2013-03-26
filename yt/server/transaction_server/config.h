@@ -22,7 +22,7 @@ struct TTransactionManagerConfig
             .Default(TDuration::Seconds(15));
         Register("max_transaction_timeout", MaxTransactionTimeout)
             .GreaterThan(TDuration())
-            .Default(TDuration::Minutes(30));
+            .Default(TDuration::Minutes(60));
     }
 };
 

@@ -8,6 +8,8 @@
 #include <ytlib/ytree/ypath_proxy.h>
 #include <ytlib/ytree/fluent.h>
 
+#include <ytlib/scheduler/helpers.h>
+
 #include <ytlib/object_client/object_service_proxy.h>
 
 #include <ytlib/logging/log.h>
@@ -665,16 +667,16 @@ public:
         : Config(config)
         , Host(host)
     {
-        Host->SubscribeOperationStarted(BIND(&TFairShareStrategy::OnOperationRegistered, this));
-        Host->SubscribeOperationFinished(BIND(&TFairShareStrategy::OnOperationUnregistered, this));
+        Host->SubscribeOperationRegistered(BIND(&TFairShareStrategy::OnOperationRegistered, this));
+        Host->SubscribeOperationUnregistered(BIND(&TFairShareStrategy::OnOperationUnregistered, this));
 
         Host->SubscribeJobStarted(BIND(&TFairShareStrategy::OnJobStarted, this));
         Host->SubscribeJobFinished(BIND(&TFairShareStrategy::OnJobFinished, this));
         Host->SubscribeJobUpdated(BIND(&TFairShareStrategy::OnJobUpdated, this));
 
         auto* masterConnector = Host->GetMasterConnector();
-        masterConnector->SubscribeWatcherRequest(BIND(&TFairShareStrategy::OnPoolsRequest, this));
-        masterConnector->SubscribeWatcherResponse(BIND(&TFairShareStrategy::OnPoolsResponse, this));
+        masterConnector->AddGlobalWatcherRequester(BIND(&TFairShareStrategy::RequestPools, this));
+        masterConnector->AddGlobalWatcherHandler(BIND(&TFairShareStrategy::HandlePools, this));
 
         RootElement = New<TRootElement>(Host);
     }
@@ -877,19 +879,24 @@ private:
     }
 
 
+    TPooledOperationSpecPtr ParseSpec(TOperationPtr operation, INodePtr specNode)
+    {
+        try {
+            return ConvertTo<TPooledOperationSpecPtr>(specNode);
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Error parsing spec of pooled operation %s, defaults will be used",
+                ~ToString(operation->GetOperationId()));
+            return New<TPooledOperationSpec>();
+        }
+    }
+
+
     void OnOperationRegistered(TOperationPtr operation)
     {
         auto operationElement = New<TOperationElement>(Config, Host, operation);
         YCHECK(OperationToElement.insert(std::make_pair(operation, operationElement)).second);
 
-        TPooledOperationSpecPtr spec;
-        try {
-            spec = ConvertTo<TPooledOperationSpecPtr>(operation->GetSpec());
-        } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error parsing spec of pooled operation %s, defaults will be used",
-                ~ToString(operation->GetOperationId()));
-            spec = New<TPooledOperationSpec>();
-        }
+        auto spec = ParseSpec(operation, operation->GetSpec());
 
         auto poolId = spec->Pool ? spec->Pool.Get() : DefaultPoolId;
         auto pool = FindPool(poolId);
@@ -903,6 +910,13 @@ private:
         operationElement->SetPool(~pool);
         pool->AddChild(operationElement);
         pool->ResourceUsage() += operationElement->ResourceUsage();
+
+        Host->GetMasterConnector()->AddOperationWatcherRequester(
+            operation,
+            BIND(&TFairShareStrategy::RequestOperationSpec, this, operation));
+        Host->GetMasterConnector()->AddOperationWatcherHandler(
+            operation,
+            BIND(&TFairShareStrategy::HandleOperationSpec, this, operation));
 
         LOG_INFO("Operation added to pool (OperationId: %s, Pool: %s)",
             ~ToString(operation->GetOperationId()),
@@ -925,6 +939,30 @@ private:
         if (pool->IsEmpty() && pool->IsDefaultConfigured()) {
             UnregisterPool(pool);
         }
+    }
+
+
+    void RequestOperationSpec(
+        TOperationPtr operation,
+        TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
+    {
+        auto operationPath = GetOperationPath(operation->GetOperationId());
+        auto req = TYPathProxy::Get(operationPath + "/@spec");
+        batchReq->AddRequest(req, "get_spec");
+    }
+
+    void HandleOperationSpec(
+        TOperationPtr operation,
+        TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+    {
+        auto element = FindOperationElement(operation);
+        if (!element)
+            return;
+
+        auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_spec");
+        auto specNode = ConvertToNode(TYsonString(rsp->value()));
+        auto spec = ParseSpec(operation, specNode);
+        element->SetSpec(spec);
     }
 
 
@@ -998,7 +1036,7 @@ private:
     }
 
 
-    void OnPoolsRequest(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
+    void RequestPools(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
     {
         LOG_INFO("Updating pools");
 
@@ -1010,7 +1048,7 @@ private:
         batchReq->AddRequest(req, "get_pools");
     }
 
-    void OnPoolsResponse(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+    void HandlePools(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
     {
         auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_pools");
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);

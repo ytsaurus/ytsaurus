@@ -8,9 +8,13 @@
 #include <ytlib/actions/parallel_awaiter.h>
 #include <ytlib/actions/parallel_collector.h>
 
+#include <ytlib/erasure/codec.h>
+#include <ytlib/erasure/helpers.h>
+
 namespace NYT {
 namespace NChunkClient {
-namespace NInternal {
+
+using namespace NErasure;
 
 ///////////////////////////////////////////////////////////////////////////////
 // Helpers
@@ -29,7 +33,7 @@ namespace NInternal {
 
 namespace {
 
-IAsyncReader::TAsyncGetMetaResult AsyncGetPlacementMeta(IAsyncReader* reader)
+IAsyncReader::TAsyncGetMetaResult AsyncGetPlacementMeta(IAsyncReaderPtr reader)
 {
     std::vector<int> tags;
     tags.push_back(TProtoExtensionTag<NProto::TErasurePlacementExt>::Value);
@@ -41,13 +45,13 @@ IAsyncReader::TAsyncGetMetaResult AsyncGetPlacementMeta(IAsyncReader* reader)
 ///////////////////////////////////////////////////////////////////////////////
 
 ///////////////////////////////////////////////////////////////////////////////
-// Erasure reader without repair
+// Non-reparing reader
 
-class TErasureReaderSession
+class TNonReparingReaderSession
     : public TRefCounted
 {
 public:
-    TErasureReaderSession(
+    TNonReparingReaderSession(
         const std::vector<IAsyncReaderPtr>& readers,
         const std::vector<NProto::TPartInfo>& partInfos,
         const std::vector<int>& blockIndexes)
@@ -65,12 +69,12 @@ public:
         std::vector<
             std::pair<
                 std::vector<int>, // indices of blocks in the part
-                std::vector<int>  // indices of blocks in the requested blockIndexes
-            >> BlockLocations_(Readers_.size());
+                TBlockIndexList   // indices of blocks in the requested blockIndexes
+            > > BlockLocations_(Readers_.size());
 
         // Fill BlockLocations_ using information about blocks in parts
         int initialPosition = 0;
-        FOREACH(int blockIndex, BlockIndexes_) {
+        FOREACH (int blockIndex, BlockIndexes_) {
             YCHECK(blockIndex >= 0);
 
             // Searching for the part of given block
@@ -91,23 +95,24 @@ public:
             BlockLocations_[readerIndex].second.push_back(initialPosition++);
         }
 
+        auto this_ = MakeStrong(this);
         auto awaiter = New<TParallelAwaiter>(TDispatcher::Get()->GetReaderInvoker());
         for (int readerIndex = 0; readerIndex < Readers_.size(); ++readerIndex) {
             auto reader = Readers_[readerIndex];
             awaiter->Await(
                 reader->AsyncReadBlocks(BlockLocations_[readerIndex].first),
                 BIND(
-                    &TErasureReaderSession::OnBlocksRead,
-                    MakeStrong(this),
+                    &TNonReparingReaderSession::OnBlocksRead,
+                    this_,
                     BlockLocations_[readerIndex].second));
         }
 
-        awaiter->Complete(BIND(&TThis::OnComplete, MakeStrong(this)));
+        awaiter->Complete(BIND(&TThis::OnComplete, this_));
 
         return ResultPromise_;
     }
 
-    void OnBlocksRead(const std::vector<int>& indicesInPart, IAsyncReader::TReadResult readResult) {
+    void OnBlocksRead(const TBlockIndexList& indicesInPart, IAsyncReader::TReadResult readResult) {
         if (readResult.IsOK()) {
             auto dataRefs = readResult.Value();
             for (int i = 0; i < dataRefs.size(); ++i) {
@@ -132,7 +137,7 @@ public:
     }
 
 private:
-    typedef TErasureReaderSession TThis;
+    typedef TNonReparingReaderSession TThis;
 
     struct PartComparator {
         bool operator()(int position, const NProto::TPartInfo& info) {
@@ -154,11 +159,11 @@ private:
 
 ///////////////////////////////////////////////////////////////////////////////
 
-class TErasureReader
+class TNonReparingReader
     : public IAsyncReader
 {
 public:
-    explicit TErasureReader(const std::vector<IAsyncReaderPtr>& readers)
+    explicit TNonReparingReader(const std::vector<IAsyncReaderPtr>& readers)
         : Readers_(readers)
     {
         YCHECK(!Readers_.empty());
@@ -166,17 +171,19 @@ public:
 
     virtual TAsyncReadResult AsyncReadBlocks(const std::vector<int>& blockIndexes) override
     {
-        return PreparePartInfos().Apply(BIND([&](TError error) -> TAsyncReadResult {
-            RETURN_PROMISE_IF_ERROR(error, TReadResult);
-            return New<TErasureReaderSession>(Readers_, PartInfos_, blockIndexes)->Run();
-        }));
+        auto this_ = MakeStrong(this);
+        return PreparePartInfos().Apply(
+            BIND([this, this_, blockIndexes] (TError error) -> TAsyncReadResult {
+                RETURN_PROMISE_IF_ERROR(error, TReadResult);
+                return New<TNonReparingReaderSession>(Readers_, PartInfos_, blockIndexes)->Run();
+            }));
     }
 
     virtual TAsyncGetMetaResult AsyncGetChunkMeta(
         const TNullable<int>& partitionTag = Null,
-        const std::vector<int>* tags = NULL) override
+        const std::vector<int>* tags = nullptr) override
     {
-        // TODO(ignat): add check that requests extensions indepent of the chunk part
+        // TODO(ignat): check that no storage-layer extensions are being requested
         YCHECK(!partitionTag);
         return Readers_.front()->AsyncGetChunkMeta(partitionTag, tags);
     }
@@ -193,19 +200,21 @@ private:
     TAsyncError PreparePartInfos();
 };
 
-TAsyncError TErasureReader::PreparePartInfos()
+TAsyncError TNonReparingReader::PreparePartInfos()
 {
     if (!PartInfos_.empty()) {
         return MakePromise(TError());
     }
+
+    auto this_ = MakeStrong(this);
     return AsyncGetPlacementMeta(this).Apply(
-        BIND([&](IAsyncReader::TGetMetaResult metaOrError) {
+        BIND([this, this_] (IAsyncReader::TGetMetaResult metaOrError) -> TError {
             RETURN_IF_ERROR(metaOrError);
 
             auto extension = GetProtoExtension<NProto::TErasurePlacementExt>(metaOrError.Value().extensions());
             PartInfos_ = std::vector<NProto::TPartInfo>(extension.part_infos().begin(), extension.part_infos().end());
 
-            // Check that part infos are correct
+            // Check that part infos are correct.
             YCHECK(PartInfos_.front().start() == 0);
             for (int i = 0; i + 1 < PartInfos_.size(); ++i) {
                 YCHECK(PartInfos_[i].start() + PartInfos_[i].block_sizes().size() == PartInfos_[i + 1].start());
@@ -219,10 +228,10 @@ TAsyncError TErasureReader::PreparePartInfos()
 ///////////////////////////////////////////////////////////////////////////////
 
 ///////////////////////////////////////////////////////////////////////////////
-// Repair readers
+// Repairing readers
 
-// Asyncroniously read data by window of size windowSize.
-// It is garuanteed that each original block will be read only once.
+//! Asynchronously reads data by window of size windowSize.
+//! It is guaranteed that each original block will be read only once.
 class TWindowReader
     : public TRefCounted
 {
@@ -231,7 +240,7 @@ public:
     typedef TPromise<TReadResult> TReadPromise;
     typedef TFuture<TReadResult> TReadFuture;
 
-    explicit TWindowReader(IAsyncReaderPtr reader, int blockCount)
+    TWindowReader(IAsyncReaderPtr reader, int blockCount)
         : Reader_(reader)
         , BlockCount_(blockCount)
         , BlockIndex_(0)
@@ -240,12 +249,14 @@ public:
         , FirstBlockOffset_(0)
     { }
 
-    TReadFuture Read(i64 windowSize) {
+    TReadFuture Read(i64 windowSize)
+    {
         if (BlockIndex_ < BlockCount_ &&  BlocksDataSize_ < BuildDataSize_ + windowSize) {
             // Reader one more block if it is necessary
             auto blocksToRead = std::vector<int>(1, BlockIndex_);
-            return Reader_->AsyncReadBlocks(blocksToRead)
-                .Apply(BIND(&TWindowReader::OnBlockRead, MakeStrong(this), windowSize));
+            auto this_ = MakeStrong(this);
+            return Reader_->AsyncReadBlocks(blocksToRead).Apply(
+                BIND(&TWindowReader::OnBlockRead, this_, windowSize));
         } else {
             // We have enough block to build the window
             return MakePromise(TReadResult(BuildWindow(windowSize)));
@@ -320,9 +331,9 @@ private:
 
 typedef TIntrusivePtr<TWindowReader> TWindowReaderPtr;
 
-// This class is opposite to TWindowReader.
-// It consumes windows and returns blocks of the current part that
-// can be reconstructed.
+//! Does the job reverse to that of TWindowReader.
+//! Consumes windows and returns blocks of the current part that
+//! can be reconstructed.
 class TRepairPartReader
 {
 public:
@@ -371,6 +382,7 @@ private:
 
     TSharedRef CurrentBlock_;
     i64 CompletedOffset_;
+
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -380,14 +392,15 @@ private:
 //
 // We store repaired blocks queue. When RepairNextBlock() called, first
 // we check the queue, if it isn't empty then we extract block. Otherwise
-// we reader window from each part, repair windows of erased parts and add it
+// we read window from each part, repair windows of erased parts and add it
 // to blocks and add it to RepairPartReaders. All blocks that can be
 // reconstructed we add to queue.
 class TRepairReader
     : public TRefCounted
 {
 public:
-    struct TBlock {
+    struct TBlock
+    {
         TBlock()
         { }
 
@@ -400,14 +413,14 @@ public:
     };
 
     typedef TValueOrError<TBlock> TReadResult;
-    typedef TPromise<TValueOrError<TBlock>> TReadPromise;
-    typedef TFuture<TValueOrError<TBlock>> TReadFuture;
+    typedef TPromise< TValueOrError<TBlock> > TReadPromise;
+    typedef TFuture< TValueOrError<TBlock> > TReadFuture;
 
     TRepairReader(
-        const NErasure::ICodec* codec,
+        NErasure::ICodec* codec,
         const std::vector<IAsyncReaderPtr>& readers,
-        const std::vector<int>& erasedIndices,
-        const std::vector<int>& repairIndices)
+        const TBlockIndexList& erasedIndices,
+        const TBlockIndexList& repairIndices)
             : Codec_(codec)
             , Readers_(readers)
             , ErasedIndices_(erasedIndices)
@@ -416,8 +429,8 @@ public:
             , Finished_(false)
             , WindowIndex_(0)
     {
-        YASSERT(Codec_->GetRecoveryIndices(ErasedIndices_));
-        YASSERT(Codec_->GetRecoveryIndices(ErasedIndices_)->size() == Readers_.size());
+        YASSERT(Codec_->GetRepairIndices(ErasedIndices_));
+        YASSERT(Codec_->GetRepairIndices(ErasedIndices_)->size() == Readers_.size());
     }
 
     bool HasNextBlock() const
@@ -428,11 +441,11 @@ public:
     TReadFuture RepairNextBlock();
 
 private:
-    const NErasure::ICodec* Codec_;
+    NErasure::ICodec* Codec_;
     std::vector<IAsyncReaderPtr> Readers_;
 
-    std::vector<int> ErasedIndices_;
-    std::vector<int> RepairIndices_;
+    TBlockIndexList ErasedIndices_;
+    TBlockIndexList RepairIndices_;
 
     std::vector<TWindowReaderPtr> WindowReaders_;
     std::vector<TRepairPartReader> RepairBlockReaders_;
@@ -449,22 +462,27 @@ private:
 
     TAsyncError PrepareReaders();
     TAsyncError RepairIfNeeded();
+    TAsyncError OnReadersPrepared(TError error);
     TAsyncError OnBlockCollected(TValueOrError<std::vector<TSharedRef>> result);
     TAsyncError Repair(const std::vector<TSharedRef>& aliveWindows);
     TError OnGetMeta(IAsyncReader::TGetMetaResult metaOrError);
+
 };
 
 typedef TIntrusivePtr<TRepairReader> TRepairReaderPtr;
 
+///////////////////////////////////////////////////////////////////////////////
+
 TRepairReader::TReadFuture TRepairReader::RepairNextBlock()
 {
-    return RepairIfNeeded().Apply(BIND([&](TError error) -> TReadFuture {
+    auto this_ = MakeStrong(this);
+    return RepairIfNeeded().Apply(BIND([this, this_] (TError error) -> TReadFuture {
         RETURN_PROMISE_IF_ERROR(error, TReadResult);
         
         YCHECK(!RepairedBlocksQueue_.empty());
-        auto result = RepairedBlocksQueue_.front();
+        auto result = TRepairReader::TReadResult(RepairedBlocksQueue_.front());
         RepairedBlocksQueue_.pop_front();
-        return MakePromise<TReadResult>(result);
+        return MakePromise(result);
     }));
 }
 
@@ -499,29 +517,32 @@ TAsyncError TRepairReader::RepairIfNeeded()
 {
     if (!HasNextBlock()) {
         return MakePromise(TError("No blocks to make repair"));
-    }
-    else if (RepairedBlocksQueue_.empty()) {
-        return PrepareReaders()
-            .Apply(BIND([&] (TError error) -> TAsyncError { 
-                RETURN_PROMISE_IF_ERROR(error, TError);
-
-                WindowIndex_ += 1;
-                if (WindowIndex_ == WindowCount_) {
-                    Finished_ = true;
-                }
-                i64 windowSize = (WindowIndex_ == WindowCount_) ? LastWindowSize_ : WindowSize_;
-
-                auto collector = New<TParallelCollector<TSharedRef>>();
-                FOREACH (auto windowReader, WindowReaders_) {
-                    collector->Collect(windowReader->Read(windowSize));
-                }
-                return collector->Complete()
-                    .Apply(BIND(&TRepairReader::OnBlockCollected, MakeStrong(this)));
-            }));
-    }
-    else {
+    } else if (RepairedBlocksQueue_.empty()) {
+        return PrepareReaders().Apply(BIND(&TRepairReader::OnReadersPrepared, MakeStrong(this)));
+    } else {
         return MakePromise(TError());
     }
+    return MakeFuture(TError());
+}
+
+TAsyncError TRepairReader::OnReadersPrepared(TError error)
+{
+    RETURN_PROMISE_IF_ERROR(error, TError);
+
+    ++WindowIndex_;
+    if (WindowIndex_ == WindowCount_) {
+        Finished_ = true;
+    }
+
+    i64 windowSize = (WindowIndex_ == WindowCount_) ? LastWindowSize_ : WindowSize_;
+
+    auto collector = New<TParallelCollector<TSharedRef>>();
+    FOREACH (auto windowReader, WindowReaders_) {
+        collector->Collect(windowReader->Read(windowSize));
+    }
+
+    return collector->Complete().Apply(
+        BIND(&TRepairReader::OnBlockCollected, MakeStrong(this)));
 }
 
 TError TRepairReader::OnGetMeta(IAsyncReader::TGetMetaResult metaOrError)
@@ -533,7 +554,7 @@ TError TRepairReader::OnGetMeta(IAsyncReader::TGetMetaResult metaOrError)
     WindowCount_ = extension.parity_block_count();
     WindowSize_ = extension.parity_block_size();
     LastWindowSize_ = extension.parity_last_block_size();
-    auto recoveryIndices = Codec_->GetRecoveryIndices(ErasedIndices_);
+    auto recoveryIndices = Codec_->GetRepairIndices(ErasedIndices_);
     YCHECK(recoveryIndices);
     YCHECK(recoveryIndices->size() == Readers_.size());
     for (int i = 0; i < Readers_.size(); ++i) {
@@ -567,28 +588,28 @@ TError TRepairReader::OnGetMeta(IAsyncReader::TGetMetaResult metaOrError)
 TAsyncError TRepairReader::PrepareReaders()
 {
     YCHECK(!Readers_.empty());
+
     if (Prepared_) {
-        return MakePromise(TError());
+        return MakeFuture(TError());
     }
 
-    return AsyncGetPlacementMeta(Readers_.front().Get())
-        .Apply(BIND(&TRepairReader::OnGetMeta, MakeStrong(this)));
+    auto reader = Readers_.front();
+    return AsyncGetPlacementMeta(reader).Apply(
+        BIND(&TRepairReader::OnGetMeta, MakeStrong(this)));
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+// Repair reader of one part
 
-///////////////////////////////////////////////////////////////////////////////
-// Repiar reader of one part
-
-// Session of repairing block of one part.
-class TRepairOnePartSession
+// Repairs blocks of one part.
+class TSinglePartRepairSession
     : public TRefCounted
 {
 public:
-    TRepairOnePartSession(
-        const NErasure::ICodec* codec,
+    TSinglePartRepairSession(
+        NErasure::ICodec* codec,
         const std::vector<IAsyncReaderPtr>& readers,
-        const std::vector<int>& erasedIndices,
+        const TBlockIndexList& erasedIndices,
         int partIndex,
         const std::vector<int>& blockIndexes)
             : BlockIndexes_(blockIndexes)
@@ -597,7 +618,7 @@ public:
                     codec,
                     readers,
                     erasedIndices,
-                    std::vector<int>(1, partIndex)))
+                    MakeSingleton(partIndex)))
     { }
 
     IAsyncReader::TAsyncReadResult Run() {
@@ -612,32 +633,37 @@ private:
     IAsyncReader::TAsyncReadResult ReadBlock(int pos, int blockIndex)
     {
         if (pos == BlockIndexes_.size()) {
-            return MakePromise<IAsyncReader::TReadResult>(Result_);
+            return MakePromise(IAsyncReader::TReadResult(Result_));
         }
+        
         if (!Reader_->HasNextBlock()) {
             return MakePromise<IAsyncReader::TReadResult>(TError("Block index out of range"));
         }
 
+        auto this_ = MakeStrong(this);
         return Reader_->RepairNextBlock().Apply(
-            BIND([&] (TValueOrError<TRepairReader::TBlock> blockOrError) -> IAsyncReader::TAsyncReadResult {
+            BIND([this, this_, pos, blockIndex] (TValueOrError<TRepairReader::TBlock> blockOrError) mutable -> IAsyncReader::TAsyncReadResult {
                 RETURN_PROMISE_IF_ERROR(blockOrError, IAsyncReader::TReadResult);
+
                 if (BlockIndexes_[pos] == blockIndex) {
                     Result_.push_back(blockOrError.Value().Data);
                     pos += 1;
                 }
+
                 return ReadBlock(pos, blockIndex + 1);
             })
         );
     }
+
 };
 
-class TRepairOnePartReader
+class TSinglePartRepairReader
     : public IAsyncReader
 {
 public:
-    TRepairOnePartReader(
-        const NErasure::ICodec* codec,
-        const std::vector<int>& erasedIndices,
+    TSinglePartRepairReader(
+        NErasure::ICodec* codec,
+        const TBlockIndexList& erasedIndices,
         int partIndex,
         const std::vector<IAsyncReaderPtr>& readers)
             : Codec_(codec)
@@ -648,8 +674,8 @@ public:
 
     virtual TAsyncReadResult AsyncReadBlocks(const std::vector<int>& blockIndexes)
     {
-        auto session = New<TRepairOnePartSession>(Codec_, Readers_, ErasedIndices_, PartIndex_, blockIndexes);
-        return BIND(&TRepairOnePartSession::Run, session)
+        auto session = New<TSinglePartRepairSession>(Codec_, Readers_, ErasedIndices_, PartIndex_, blockIndexes);
+        return BIND(&TSinglePartRepairSession::Run, session)
             .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
             .Run();
     }
@@ -658,7 +684,7 @@ public:
         const TNullable<int>& partitionTag,
         const std::vector<int>* tags)
     {
-        // TODO(ignat): add check that requests extensions indepent of the chunk part
+        // TODO(ignat): check that no storage-layer extensions are being requested
         YCHECK(!partitionTag);
         return Readers_.front()->AsyncGetChunkMeta(partitionTag, tags);
     }
@@ -669,26 +695,27 @@ public:
     }
 
 private:
-    const NErasure::ICodec* Codec_;
+    NErasure::ICodec* Codec_;
 
-    std::vector<int> ErasedIndices_;
+    TBlockIndexList ErasedIndices_;
     int PartIndex_;
 
     std::vector<IAsyncReaderPtr> Readers_;
+
 };
 
 ///////////////////////////////////////////////////////////////////////////////
 
 ///////////////////////////////////////////////////////////////////////////////
-// Repiar reader of all parts
+// Repair reader of all parts
 
 class TRepairAllParts
     : public TRefCounted
 {
 public:
     TRepairAllParts(
-        const NErasure::ICodec* codec,
-        const std::vector<int>& erasedIndices,
+        NErasure::ICodec* codec,
+        const TBlockIndexList& erasedIndices,
         const std::vector<IAsyncReaderPtr>& readers,
         const std::vector<IAsyncWriterPtr>& writers)
             : Reader_(
@@ -722,24 +749,26 @@ private:
     TAsyncError OnBlockRepaired(TValueOrError<TRepairReader::TBlock> blockOrError)
     {
         RETURN_PROMISE_IF_ERROR(blockOrError, TError);
-        auto block = blockOrError.Value();
+        
+        const auto& block = blockOrError.Value();
         YCHECK(IndexToWriter_.find(block.Index) != IndexToWriter_.end());
         auto writer = IndexToWriter_[block.Index];
         writer->TryWriteBlock(block.Data);
         
+        auto this_ = MakeStrong(this);
         return writer->GetReadyEvent().Apply(
-            BIND([&] (TError error) -> TAsyncError {
+            BIND([this, this_] (TError error) -> TAsyncError {
                 RETURN_PROMISE_IF_ERROR(error, TError);
                 return Run();
             })
         );
     }
 
-
     TAsyncError Finalize()
     {
+        auto this_ = MakeStrong(this);
         return Readers_.front()->AsyncGetChunkMeta().Apply(
-            BIND([&] (IAsyncReader::TGetMetaResult metaOrError) -> TAsyncError {
+            BIND([this, this_] (IAsyncReader::TGetMetaResult metaOrError) -> TAsyncError {
                 RETURN_PROMISE_IF_ERROR(metaOrError, TError);
                 auto collector = New<TParallelCollector<void>>();
                 FOREACH (auto writer, Writers_) {
@@ -754,37 +783,34 @@ private:
     std::vector<IAsyncReaderPtr> Readers_;
     std::vector<IAsyncWriterPtr> Writers_;
     std::map<int, IAsyncWriterPtr> IndexToWriter_;
+
 };
-
-} // namespace NErasureReader
-
 
 ///////////////////////////////////////////////////////////////////////////////
 
-IAsyncReaderPtr CreateErasureReader(
-    const std::vector<IAsyncReaderPtr>& dataBlocksReaders)
+IAsyncReaderPtr CreateNonReparingErasureReader(
+    const std::vector<IAsyncReaderPtr>& dataBlockReaders)
 {
-    return New<NInternal::TErasureReader>(dataBlocksReaders);
+    return New<TNonReparingReader>(dataBlockReaders);
 }
 
-
-IAsyncReaderPtr CreateErasureRepairReader(
-    const NErasure::ICodec* codec,
-    const std::vector<int>& erasedIndices,
+IAsyncReaderPtr CreateReparingErasureReader(
+    NErasure::ICodec* codec,
+    const TBlockIndexList& erasedIndices,
     int partIndex,
     const std::vector<IAsyncReaderPtr>& readers)
 {
-    return New<NInternal::TRepairOnePartReader>(codec, erasedIndices, partIndex, readers);
+    return New<TSinglePartRepairReader>(codec, erasedIndices, partIndex, readers);
 }
 
 TAsyncError RepairErasedBlocks(
-    const NErasure::ICodec* codec,
-    const std::vector<int>& erasedIndices,
+    NErasure::ICodec* codec,
+    const TBlockIndexList& erasedIndices,
     const std::vector<IAsyncReaderPtr>& readers,
     const std::vector<IAsyncWriterPtr>& writers)
 {
-    auto repair = New<NInternal::TRepairAllParts>(codec, erasedIndices, readers, writers);
-    return BIND(&NInternal::TRepairAllParts::Run, repair)
+    auto repair = New<TRepairAllParts>(codec, erasedIndices, readers, writers);
+    return BIND(&TRepairAllParts::Run, repair)
         .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
         .Run();
 }

@@ -119,19 +119,33 @@ class TestAsyncAttributes(YTEnvSetup):
     NUM_NODES = 3
     START_SCHEDULER = True
 
-    def test(self):
+    def test1(self):
         table = '//tmp/t'
         create('table', table)
         set_str('//tmp/t/@compression_codec', 'snappy')
         write_str(table, '{foo=bar}')
 
         for i in xrange(8):
-            merge(in_=[table, table], out=table)
+            merge(in_=[table, table], out="<append=true>" + table)
 
         chunk_count = 3**8
         assert len(get('//tmp/t/@chunk_ids')) == chunk_count
         codec_info = get('//tmp/t/@compression_statistics')
         assert codec_info['snappy']['chunk_count'] == chunk_count
+    
+    def test2(self):
+        tableA = '//tmp/a'
+        create('table', tableA)
+        write_str(tableA, '{foo=bar}')
+        
+        tableB = '//tmp/b'
+        create('table', tableB)
+        set_str(tableB + '/@compression_codec', 'snappy')
+
+        map(in_=[tableA], out=["<overwrite=true>" + tableB], command="cat")
+
+        codec_info = get(tableB + '/@compression_statistics')
+        assert codec_info.keys() == ['snappy']
 
 ###################################################################################
 

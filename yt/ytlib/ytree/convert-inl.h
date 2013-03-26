@@ -9,11 +9,14 @@
 #include "yson_producer.h"
 #include "attribute_helpers.h"
 
+#include <ytlib/ypath/token.h>
 #include <ytlib/yson/tokenizer.h>
 #include <ytlib/yson/yson_parser.h>
 
 #include <util/generic/typehelpers.h>
 #include <util/generic/static_assert.h>
+
+#include <ytlib/misc/preprocessor.h>
 
 namespace NYT {
 namespace NYTree {
@@ -128,27 +131,38 @@ TTo ConvertTo(const TFrom& value)
     return ConvertTo<TTo>(ConvertToNode(value));
 }
 
-#define CONVERT_TO_PLAIN_TYPE(type, token_type) \
+// It cannot be builtin to CHECK_TYPE because
+// C++ has some issues while expanding type argument
+#define GET_VALUE(x) token.Get ## x ## Value()
+
+#define CHECK_TYPE(type) \
+    if (token.GetType() == ETokenType::type) { \
+        return GET_VALUE(type); \
+    } \
+    consideredTokens.push_back(ETokenType::type);
+
+#define CONVERT_TO_PLAIN_TYPE(type, token_types) \
     template <> \
     inline type ConvertTo(const TYsonString& str) \
     { \
+        using NYson::ETokenType; \
         NYson::TTokenizer tokenizer(str.Data()); \
         if (tokenizer.ParseNext()) \
         { \
             auto token = tokenizer.CurrentToken(); \
-            token.CheckType(NYson::ETokenType::token_type); \
-            if (!tokenizer.ParseNext()) { \
-                return token.Get##token_type##Value(); \
-            } \
+            std::vector<ETokenType> consideredTokens; \
+            PP_FOR_EACH(CHECK_TYPE, token_types); \
+            token.CheckType(consideredTokens); \
         } \
         THROW_ERROR_EXCEPTION("Cannot parse " PP_STRINGIZE(token_type) " from string %s", ~str.Data().Quote()); \
     }
 
-CONVERT_TO_PLAIN_TYPE(i64, Integer)
-CONVERT_TO_PLAIN_TYPE(double, Double)
-CONVERT_TO_PLAIN_TYPE(TStringBuf, String)
+CONVERT_TO_PLAIN_TYPE(i64, (Integer))
+CONVERT_TO_PLAIN_TYPE(double, (Double)(Integer))
+CONVERT_TO_PLAIN_TYPE(TStringBuf, (String))
 
 #undef CONVERT_TO_PLAIN_TYPE
+#undef CHECK_TYPE
 
 ////////////////////////////////////////////////////////////////////////////////
 

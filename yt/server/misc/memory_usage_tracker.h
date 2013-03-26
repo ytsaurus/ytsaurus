@@ -1,9 +1,11 @@
 #pragma once
 
-#include "common.h"
-#include "error.h"
+#include "public.h"
+
+#include <ytlib/misc/error.h>
 
 #include <ytlib/profiling/profiler.h>
+
 #include <ytlib/logging/log.h>
 
 namespace NYT {

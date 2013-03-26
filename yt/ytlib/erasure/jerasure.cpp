@@ -5,7 +5,6 @@
 #include <contrib/libs/jerasure/jerasure.h>
 
 namespace NYT {
-
 namespace NErasure {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -80,8 +79,7 @@ TMatrix& TMatrix::operator= (TMatrix&& other)
 }
 
 TMatrix::~TMatrix()
-{
-}
+{ }
 
 void TMatrix::Free()
 {
@@ -115,15 +113,15 @@ std::vector<TSharedRef> ScheduleEncode(
     }
 
     std::vector<char*> dataPointers;
-    FOREACH(const auto& block, dataBlocks) {
+    FOREACH (const auto& block, dataBlocks) {
         dataPointers.push_back(const_cast<char*>(block.Begin()));
     }
     
     std::vector<TSharedRef> parities(parityCount);
     std::vector<char*> parityPointers(parityCount);
     for (int i = 0; i < parityCount; ++i) {
-        parities[i] = TSharedRef::Allocate(blockLength);
-        parityPointers[i] = static_cast<char*>(parities[i].Begin());
+        parities[i] = TSharedRef::Allocate(blockLength, false);
+        parityPointers[i] = parities[i].Begin();
     }
 
     jerasure_schedule_encode(
@@ -145,7 +143,7 @@ std::vector<TSharedRef> BitMatrixDecode(
     int wordSize,
     const TMatrix& bitMatrix,
     const std::vector<TSharedRef>& blocks,
-    const std::vector<int>& erasedIndices)
+    const TBlockIndexList& erasedIndices)
 {
     YCHECK(blocks.size() + erasedIndices.size() == blockCount + parityCount);
     
@@ -167,7 +165,7 @@ std::vector<TSharedRef> BitMatrixDecode(
     for (int i = 0; i < blockCount + parityCount; ++i) {
         char* ref;
         if (erasureNumber < erasedIndices.size() && i == erasedIndices[erasureNumber]) {
-            repaired[erasureNumber] = TSharedRef::Allocate(blockLength);
+            repaired[erasureNumber] = TSharedRef::Allocate(blockLength, false);
             ref = repaired[erasureNumber].Begin();
             erasureNumber += 1;
         }
@@ -183,7 +181,7 @@ std::vector<TSharedRef> BitMatrixDecode(
     }
     YCHECK(erasureNumber == erasedIndices.size());
     
-    std::vector<int> preparedErasedIndices = erasedIndices;
+    auto preparedErasedIndices = erasedIndices;
     preparedErasedIndices.push_back(-1);
 
     YCHECK(blockPointers.size() == blockCount);
@@ -208,5 +206,4 @@ std::vector<TSharedRef> BitMatrixDecode(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NErasure
-
 } // namespace NYT

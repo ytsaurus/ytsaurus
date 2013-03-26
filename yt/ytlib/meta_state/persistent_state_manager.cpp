@@ -404,7 +404,7 @@ public:
             VERIFY_THREAD_AFFINITY(IOThread);
 
             struct TSnapshotBlockTag { };
-            auto buffer = TSharedRef::Allocate<TSnapshotBlockTag>(length);
+            auto buffer = TSharedRef::Allocate<TSnapshotBlockTag>(length, false);
             size_t bytesRead = 0;
             try {
                 snapshotFile->Seek(offset, sSet);

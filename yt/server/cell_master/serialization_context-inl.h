@@ -33,7 +33,7 @@ namespace NCellMaster {
 template <class TObject>
 void SaveObjectRef(const TSaveContext& context, TObject object)
 {
-	auto* output = context.GetOutput();
+    auto* output = context.GetOutput();
     auto id = GetObjectId(object);
     ::Save(output, id);
 }
@@ -177,6 +177,10 @@ struct TObjectRefHashMapSerializer
                 return CompareObjectsForSerialization(lhs->first, rhs->first);
             });
 
+        for (int index = 0; index < static_cast<int>(sortedIterators.size()) - 1; ++index) {
+            YCHECK(CompareObjectsForSerialization(sortedIterators[index]->first, sortedIterators[index + 1]->first));
+        }
+
         FOREACH (const auto& it, sortedIterators) {
             SaveObjectRef(context, it->first);
             Save(context, it->second);
@@ -261,7 +265,7 @@ void SaveNullableObjectRefs(const TSaveContext& context, const THolder<T>& objec
     if (objects.Get()) {
         SaveObjectRefs(context, *objects);
     } else {
-    	auto* output = context.GetOutput();
+        auto* output = context.GetOutput();
         ::SaveSize(output, 0);
     }
 }
@@ -269,13 +273,13 @@ void SaveNullableObjectRefs(const TSaveContext& context, const THolder<T>& objec
 template <class T>
 void LoadNullableObjectRefs(const TLoadContext& context, THolder<T>& objects)
 {
-	auto* input = context.GetInput();
+    auto* input = context.GetInput();
     size_t size = ::LoadSize(input);
     if (size == 0) {
         objects.Destroy();
     } else {
         objects.Reset(new T());
-	    typedef typename TObjectRefSerializerTraits<T>::TSerializer TSerializer;
+        typedef typename TObjectRefSerializerTraits<T>::TSerializer TSerializer;
         TSerializer::LoadRefs(context, size, *objects);
     }
 }

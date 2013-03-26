@@ -20,6 +20,8 @@ set( SRCS
   ${BASE}/samples_fetcher.cpp
   ${BASE}/scheduler.cpp
   ${BASE}/sort_controller.cpp
+  ${BASE}/snapshot_builder.cpp
+  ${BASE}/snapshot_downloader.cpp
 )
 set( HDRS
   ${BASE}/chunk_info_collector-inl.h
@@ -47,6 +49,8 @@ set( HDRS
   ${BASE}/scheduler.h
   ${BASE}/scheduler_strategy.h
   ${BASE}/sort_controller.h
+  ${BASE}/snapshot_builder.h
+  ${BASE}/snapshot_downloader.h
 )
 
 list(APPEND YT_SOURCE_FILES

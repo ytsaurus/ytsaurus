@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <ytlib/misc/property.h>
+#include <ytlib/misc/lease_manager.h>
 
 #include <ytlib/chunk_client/node_directory.h>
 
@@ -18,7 +19,7 @@ class TExecNode
     : public TRefCounted
 {
     //! Descriptor as reported by node.
-    DEFINE_BYVAL_RO_PROPERTY(NChunkClient::TNodeDescriptor, Descriptor);
+    DEFINE_BYREF_RW_PROPERTY(NChunkClient::TNodeDescriptor, Descriptor);
 
     //! Jobs that are currently running on this node.
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TJobPtr>, Jobs);
@@ -38,11 +39,16 @@ class TExecNode
     //! Used during preemption to allow second-chance scheduling.
     DEFINE_BYREF_RW_PROPERTY(NProto::TNodeResources, ResourceUsageDiscount);
 
+    //! Controls heartbeat expiration.
+    DEFINE_BYVAL_RW_PROPERTY(TLeaseManager::TLease, Lease);
+
     bool HasEnoughResources(const NProto::TNodeResources& neededResources) const;
     bool HasSpareResources() const;
 
+    const Stroka& GetAddress() const;
+
 public:
-    explicit TExecNode(const NChunkClient::TNodeDescriptor& descriptor);
+    TExecNode(const NChunkClient::TNodeDescriptor& descriptor);
 
 };
 

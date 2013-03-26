@@ -48,8 +48,6 @@ void TPeerBlockUpdater::Stop()
 
 void TPeerBlockUpdater::Update()
 {
-    PeriodicInvoker->ScheduleNext();
-
     LOG_INFO("Updating peer blocks");
 
     auto expirationTime = Config->PeerUpdateExpirationTimeout.ToDeadLine();

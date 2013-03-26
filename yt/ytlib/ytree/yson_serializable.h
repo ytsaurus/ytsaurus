@@ -52,7 +52,8 @@ public:
     virtual void Save(NYson::IYsonConsumer* consumer) const;
     virtual bool IsPresent() const;
 
-public: // for users
+public:
+    TParameter& Describe(const char* description);
     TParameter& Default(const T& defaultValue = T());
     TParameter& Default(T&& defaultValue);
     TParameter& DefaultNew();
@@ -66,6 +67,7 @@ public: // for users
 
 private:
     T& Parameter;
+    const char* Description;
     bool HasDefaultValue;
     std::vector<TValidator> Validators;
 };

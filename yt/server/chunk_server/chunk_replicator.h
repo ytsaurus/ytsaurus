@@ -9,7 +9,7 @@
 #include <ytlib/misc/periodic_invoker.h>
 #include <ytlib/misc/error.h>
 
-#include <ytlib/profiling/profiler.h>
+#include <ytlib/profiling/timing.h>
 
 #include <server/cell_master/public.h>
 
@@ -45,8 +45,6 @@ public:
         TChunkPlacementPtr chunkPlacement,
         TNodeLeaseTrackerPtr nodeLeaseTracker);
 
-    void Start();
-
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, LostChunks);
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, LostVitalChunks);
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, UnderreplicatedChunks);
@@ -64,6 +62,8 @@ public:
     void ScheduleChunkRemoval(TDataNode* node, TChunkPtrWithIndex chunkWithIndex);
 
     void ScheduleRFUpdate(TChunkTree* chunkTree);
+    void ScheduleRFUpdate(TChunk* chunk);
+    void ScheduleRFUpdate(TChunkList* chunkList);
 
     void ScheduleJobs(
         TDataNode* node,
@@ -73,6 +73,9 @@ public:
 
     bool IsEnabled();
 
+    int GetRefreshListSize() const;
+    int GetRFUpdateListSize() const;
+
 private:
     TChunkManagerConfigPtr Config;
     NCellMaster::TBootstrap* Bootstrap;
@@ -81,9 +84,6 @@ private:
 
     NProfiling::TCpuDuration ChunkRefreshDelay;
     TNullable<bool> LastEnabled;
-
-    NProfiling::TAggregateCounter RefreshListSizeCounter;
-    NProfiling::TAggregateCounter RFUpdateListSizeCounter;
 
     struct TRefreshEntry
     {
@@ -135,8 +135,6 @@ private:
     void Refresh(TChunk* chunk);
     static int ComputeReplicationPriority(const TReplicaStatistics& statistics);
 
-    void ScheduleRFUpdate(TChunk* chunk);
-    void ScheduleRFUpdate(TChunkList* chunkList);
     void OnRFUpdate();
     void OnRFUpdateCommitSucceeded();
     void OnRFUpdateCommitFailed(const TError& error);
@@ -147,9 +145,6 @@ private:
     //! Follows upward parent links.
     //! Stops when some owning nodes are discovered or parents become ambiguous.
     TChunkList* FollowParentLinks(TChunkList* chunkList);
-
-    void ProfileRefreshList();
-    void ProfileRFUpdateList();
 
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
 

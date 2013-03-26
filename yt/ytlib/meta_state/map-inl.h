@@ -82,10 +82,21 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::Remove(const TKey& key)
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 
+    YCHECK(TryRemove(key));
+}
+
+template <class TKey, class TValue, class TTraits, class THash>
+bool TMetaStateMap<TKey, TValue, TTraits, THash>::TryRemove(const TKey& key)
+{
+    VERIFY_THREAD_AFFINITY(UserThread);
+
     auto it = Map.find(key);
-    YASSERT(it != Map.end());
+    if (it == Map.end()) {
+        return false;
+    }
     delete it->second;
     Map.erase(it);
+    return true;
 }
 
 template <class TKey, class TValue, class TTraits, class THash>
@@ -218,7 +229,7 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::LoadKeys(const TLoadContext& c
         TKey key;
         ::Load(input, key);
 
-        YASSERT(index == 0 || previousKey < key);
+        YCHECK(index == 0 || previousKey < key);
 
         previousKey = key;
 
@@ -242,7 +253,7 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::LoadValues(const TContext& con
 
     FOREACH (const auto& key, keys) {
         auto it = Map.find(key);
-        YASSERT(it != Map.end());
+        YCHECK(it != Map.end());
         it->second->Load(context);
     }
 }

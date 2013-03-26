@@ -86,7 +86,7 @@ public:
         RegisterCommand<command>(TCommandDescriptor(name, EDataType::inDataType, EDataType::outDataType, isVolatile, isHeavy));
 
         REGISTER(TStartTransactionCommand,  "start_tx",          Null,       Structured, true,  false);
-        REGISTER(TRenewTransactionCommand,  "renew_tx",          Null,       Null,       true,  false);
+        REGISTER(TPingTransactionCommand,   "ping_tx",           Null,       Null,       true,  false);
         REGISTER(TCommitTransactionCommand, "commit_tx",         Null,       Null,       true,  false);
         REGISTER(TAbortTransactionCommand,  "abort_tx",          Null,       Null,       true,  false);
 
@@ -98,8 +98,8 @@ public:
         REGISTER(TLockCommand,              "lock",              Null,       Null,       true,  false);
         REGISTER(TCopyCommand,              "copy",              Null,       Structured, true,  false);
         REGISTER(TMoveCommand,              "move",              Null,       Null,       true,  false);
+        REGISTER(TLinkCommand,              "link",              Null,       Structured, true,  false);
         REGISTER(TExistsCommand,            "exists",            Null,       Structured, false, false);
-        REGISTER(TLinkCommand,              "link",              Null,       Structured, false, false);
 
         REGISTER(TUploadCommand,            "upload",            Binary,     Structured, true,  true );
         REGISTER(TDownloadCommand,          "download",          Null,       Binary,     false, true );
@@ -114,7 +114,7 @@ public:
         REGISTER(TReduceCommand,            "reduce",            Null,       Structured, true,  false);
         REGISTER(TMapReduceCommand,         "map_reduce",        Null,       Structured, true,  false);
         REGISTER(TAbortOperationCommand,    "abort_op",          Null,       Null,       true,  false);
-        
+
         REGISTER(TParseYPathCommand,        "parse_ypath",       Null,       Structured, false, false);
 
         REGISTER(TAddMemberCommand,         "add_member",        Structured, Null,       true,  false);

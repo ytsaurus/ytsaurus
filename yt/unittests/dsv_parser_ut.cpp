@@ -231,7 +231,7 @@ TEST_F(TTskvParserTest, Escaping)
     EXPECT_CALL(Mock, OnListItem());
     EXPECT_CALL(Mock, OnBeginMap());
         EXPECT_CALL(Mock, OnKeyedItem("key_with_\t,\\_and_\n"));
-        EXPECT_CALL(Mock, OnStringScalar("value_with_\t,\\_and_\n"));
+        EXPECT_CALL(Mock, OnStringScalar("value_with_\t,\\_and_\r\n"));
         EXPECT_CALL(Mock, OnKeyedItem("another_key"));
         EXPECT_CALL(Mock, OnStringScalar("another_value"));
     EXPECT_CALL(Mock, OnEndMap());
@@ -242,10 +242,12 @@ TEST_F(TTskvParserTest, Escaping)
         "tskv" "\t"
         "key_with_\\t,\\\\_and_\\n"
         "="
-        "value_with_\\t,\\\\_and_\\n"
+        "value_with_\\t,\\\\_and_\\r\\n"
         "\t"
         "an\\other_\\key=anoth\\er_v\\alue"
         "\n";
+
+    Config->EscapeCarriageReturn = true;
     ParseDsv(input, &Mock, Config);
 }
 

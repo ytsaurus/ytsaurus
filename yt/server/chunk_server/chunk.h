@@ -11,7 +11,7 @@
 
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 
-#include <ytlib/erasure_codecs/codec.h>
+#include <ytlib/erasure/codec.h>
 
 #include <server/cell_master/public.h>
 

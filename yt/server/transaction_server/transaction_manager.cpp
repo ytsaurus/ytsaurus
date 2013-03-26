@@ -558,6 +558,13 @@ void TTransactionManager::SaveValues(const NCellMaster::TSaveContext& context)
     TransactionMap.SaveValues(context);
 }
 
+void TTransactionManager::OnBeforeLoaded()
+{
+    VERIFY_THREAD_AFFINITY(StateThread);
+
+    DoClear();
+}
+
 void TTransactionManager::LoadKeys(const NCellMaster::TLoadContext& context)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
@@ -570,6 +577,11 @@ void TTransactionManager::LoadValues(const NCellMaster::TLoadContext& context)
     VERIFY_THREAD_AFFINITY(StateThread);
 
     TransactionMap.LoadValues(context);
+}
+
+void TTransactionManager::OnAfterLoaded()
+{
+    VERIFY_THREAD_AFFINITY(StateThread);
 
     // Reconstruct TopmostTransactions.
     TopmostTransactions_.clear();
@@ -581,12 +593,17 @@ void TTransactionManager::LoadValues(const NCellMaster::TLoadContext& context)
     }
 }
 
+void TTransactionManager::DoClear()
+{
+    TransactionMap.Clear();
+    TopmostTransactions_.clear();
+}
+
 void TTransactionManager::Clear()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    TransactionMap.Clear();
-    TopmostTransactions_.clear();
+    DoClear();
 }
 
 TDuration TTransactionManager::GetActualTimeout(TNullable<TDuration> timeout)
@@ -659,9 +676,9 @@ void TTransactionManager::OnTransactionExpired(const TTransactionId& id)
     }));
 }
 
-std::vector<TTransaction*> TTransactionManager::GetTransactionPath(TTransaction* transaction) const
+TTransactionPath TTransactionManager::GetTransactionPath(TTransaction* transaction) const
 {
-    std::vector<TTransaction*> result;
+    TTransactionPath result;
     while (true) {
         result.push_back(transaction);
         if (!transaction) {

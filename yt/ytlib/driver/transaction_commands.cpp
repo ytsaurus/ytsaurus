@@ -44,7 +44,7 @@ void TStartTransactionCommand::DoExecute()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TRenewTransactionCommand::DoExecute()
+void TPingTransactionCommand::DoExecute()
 {
     auto req = TTransactionYPathProxy::RenewLease(FromObjectId(GetTransactionId(true)));
     req->set_renew_ancestors(Request->PingAncestorTransactions);

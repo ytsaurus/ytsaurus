@@ -2,6 +2,7 @@
 #include "token.h"
 
 #include <ytlib/misc/error.h>
+#include <util/string/vector.h>
 
 namespace NYT {
 namespace NYson {
@@ -133,6 +134,30 @@ Stroka TToken::ToString() const
 
         default:
             return TokenTypeToString(Type_);
+    }
+}
+
+// Used below in JoinStroku
+Stroka ToString(ETokenType type)
+{
+    return type.ToString();
+}
+
+void TToken::CheckType(const std::vector<ETokenType>& expectedTypes) const
+{
+    if (expectedTypes.size() == 1) {
+        CheckType(expectedTypes.front());
+    }
+    else if (std::find(expectedTypes.begin(), expectedTypes.end(), Type_) == expectedTypes.end()) {
+        Stroka typesString = JoinStroku(expectedTypes.begin(), expectedTypes.end(), " or ");
+        if (Type_ == ETokenType::EndOfStream) {
+            THROW_ERROR_EXCEPTION("Unexpected end of stream (ExpectedType: %s)", ~typesString);
+        } else {
+            THROW_ERROR_EXCEPTION("Unexpected token (Token: %s, Type: %s, ExpectedTypes: %s)",
+                ~ToString().Quote(),
+                ~Type_.ToString(),
+                ~typesString);
+        }
     }
 }
 
