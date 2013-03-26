@@ -647,7 +647,7 @@ private:
 
                 if (BlockIndexes_[pos] == blockIndex) {
                     Result_.push_back(blockOrError.Value().Data);
-                    ++pos;
+                    pos += 1;
                 }
 
                 return ReadBlock(pos, blockIndex + 1);
