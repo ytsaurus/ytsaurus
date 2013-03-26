@@ -25,6 +25,7 @@ include(DumpCMakeVariables)
 
 include(LocalFunctions)
 include(LocalConfiguration)
+include(LocalXCode)
 
 include(Version)
 include(PCH)
