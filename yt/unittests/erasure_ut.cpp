@@ -216,7 +216,7 @@ TEST_F(TErasureMixture, ReaderTest)
 
     WriteErasureChunk(codec, dataRefs);
 
-    auto erasureReader = GetErasureReader(codec);
+    auto erasureReader = CreateErasureReader(codec);
 
     {
         // Check blocks separately
@@ -291,7 +291,7 @@ TEST_F(TErasureMixture, RepairTest)
 
     RepairErasedBlocks(codec, erasedIndices, readers, writers).Get();
 
-    auto erasureReader = GetErasureReader(codec);
+    auto erasureReader = CreateErasureReader(codec);
 
     int index = 0;
     FOREACH (const auto& ref, dataRefs) {
@@ -323,7 +323,7 @@ TEST_F(TErasureMixture, RepairTestWithSeveralWindows)
     WriteErasureChunk(codec, dataRefs);
 
     { // Check reader
-        auto erasureReader = GetErasureReader(codec);
+        auto erasureReader = CreateErasureReader(codec);
         for (int i = 0; i < dataRefs.size(); ++i ) {
             auto result = erasureReader->AsyncReadBlocks(std::vector<int>(1, i)).Get();
             EXPECT_TRUE(result.IsOK());
@@ -366,7 +366,7 @@ TEST_F(TErasureMixture, RepairTestWithSeveralWindows)
     RepairErasedBlocks(codec, erasedIndices, readers, writers).Get();
 
     { // Check reader
-        auto erasureReader = GetErasureReader(codec);
+        auto erasureReader = CreateErasureReader(codec);
         for (int i = 0; i < dataRefs.size(); ++i ) {
             auto result = erasureReader->AsyncReadBlocks(std::vector<int>(1, i)).Get();
             EXPECT_TRUE(result.IsOK());
