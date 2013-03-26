@@ -141,12 +141,12 @@ std::vector<TSharedRef> TLrc::Decode(
         recoveryIndices.back() < BlockCount_ + 2)
     {
         std::vector<TSharedRef> result;
-        FOREACH(int index, indices) {
+        FOREACH (int index, indices) {
             for (int groupIndex = 0; groupIndex < 2; ++groupIndex) {
                 if (!Contains(Groups_[groupIndex], index)) continue;
                 
                 std::vector<TSharedRef> correspondingBlocks;
-                FOREACH(int pos, Groups_[groupIndex]) {
+                FOREACH (int pos, Groups_[groupIndex]) {
                     for (int i = 0; i < blocks.size(); ++i) {
                         if (!(recoveryIndices[i] == pos)) continue;
                         correspondingBlocks.push_back(blocks[i]);
@@ -219,7 +219,7 @@ TNullable<TBlockIndexList> TLrc::GetRepairIndices(const TBlockIndexList& erasedI
     
     // Calculate coverage of each group.
     int groupCoverage[2] = {0};
-    FOREACH(int index, indices) {
+    FOREACH (int index, indices) {
         for (int i = 0; i < 2; ++i) {
             if (Contains(Groups_[i], index)) {
                 groupCoverage[i] += 1;

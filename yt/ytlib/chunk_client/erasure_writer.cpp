@@ -128,7 +128,7 @@ public:
 
     virtual void Open() override
     {
-        FOREACH(auto writer, Writers_) {
+        FOREACH (auto writer, Writers_) {
             writer->Open();
         }
     }
@@ -212,7 +212,7 @@ void TErasureWriter::PrepareBlocks()
     ParityDataSize_ = 0;
     FOREACH (const auto& group, Groups_) {
         i64 size = 0;
-        FOREACH(const auto& block, group) {
+        FOREACH (const auto& block, group) {
             size += block.Size();
         }
         ParityDataSize_ = std::max(ParityDataSize_, size);
@@ -270,7 +270,7 @@ TAsyncError TErasureWriter::WriteDataBlocks()
         const auto& group = Groups_[index];
         const auto& writer = Writers_[index];
         auto pipeline = StartAsyncPipeline(TDispatcher::Get()->GetWriterInvoker());
-        FOREACH(const auto& block, group) {
+        FOREACH (const auto& block, group) {
             pipeline = pipeline->Add(BIND([this, this_, block, writer] () -> TAsyncError {
                 writer->TryWriteBlock(block);
                 return writer->GetReadyEvent();

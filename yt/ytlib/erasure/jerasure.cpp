@@ -113,7 +113,7 @@ std::vector<TSharedRef> ScheduleEncode(
     }
 
     std::vector<char*> dataPointers;
-    FOREACH(const auto& block, dataBlocks) {
+    FOREACH (const auto& block, dataBlocks) {
         dataPointers.push_back(const_cast<char*>(block.Begin()));
     }
     

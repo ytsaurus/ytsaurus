@@ -30,9 +30,9 @@ void Lz4Compress(bool highCompression, StreamSource* source, TBlob* output)
         YCHECK(len <= 1 << 30);
 
         size_t bound =
-        	currentPos +
-        	sizeof(THeader) +
-        	LZ4_compressBound(len);
+            currentPos +
+            sizeof(THeader) +
+            LZ4_compressBound(len);
         output->Resize(bound, false);
 
         size_t headerPos = currentPos;
@@ -87,8 +87,8 @@ void QuickLzCompress(StreamSource* source, TBlob* output)
         const char* input = source->Peek(&len);
 
         size_t bound =
-        	currentPos +
-        	sizeof(THeader) +
+            currentPos +
+            sizeof(THeader) +
             /* compressed bound */(len + 400);
         output->Resize(bound, false);
 

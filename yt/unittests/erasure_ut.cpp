@@ -125,7 +125,7 @@ public:
             writers.push_back(NYT::New<TFileWriter>(filename));
         }
 
-        FOREACH(auto writer, writers) {
+        FOREACH (auto writer, writers) {
             writer->Open();
         }
 
@@ -139,7 +139,7 @@ public:
         }
         erasureWriter->AsyncClose(meta).Get();
 
-        FOREACH(auto writer, writers) {
+        FOREACH (auto writer, writers) {
             EXPECT_TRUE(writer->AsyncClose(meta).Get().IsOK());
         }
     }

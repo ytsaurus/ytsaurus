@@ -74,7 +74,7 @@ public:
 
         // Fill BlockLocations_ using information about blocks in parts
         int initialPosition = 0;
-        FOREACH(int blockIndex, BlockIndexes_) {
+        FOREACH (int blockIndex, BlockIndexes_) {
             YCHECK(blockIndex >= 0);
 
             // Searching for the part of given block
