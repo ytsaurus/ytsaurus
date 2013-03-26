@@ -57,29 +57,12 @@ public:
 
 template <class T>
 TParallelCollector<T>::TParallelCollector(
-    IInvokerPtr invoker,
-    NProfiling::TProfiler* profiler /* = nullptr */,
-    const NYPath::TYPath& timerPath /* = "" */)
-    : Awaiter(New<TParallelAwaiter>(invoker, profiler, timerPath))
-{
-    Init();
-}
-
-template <class T>
-TParallelCollector<T>::TParallelCollector(
     NProfiling::TProfiler* profiler /* = nullptr */,
     const NYPath::TYPath& timerPath /* = "" */)
     : Awaiter(New<TParallelAwaiter>(profiler, timerPath))
-{
-    Init();
-}
-
-template <class T>
-void TParallelCollector<T>::Init()
-{
-    Promise = NewPromise<TResultsOrError>();
-    Completed = false;
-}
+    , Promise(NewPromise<TResultsOrError>())
+    , Completed(false)
+{ }
 
 template <class T>
 void TParallelCollector<T>::Collect(

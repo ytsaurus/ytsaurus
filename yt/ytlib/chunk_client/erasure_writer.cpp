@@ -353,9 +353,16 @@ TAsyncError TErasureWriter::AsyncClose(const NProto::TChunkMeta& chunkMeta)
     PrepareBlocks();
     PrepareChunkMeta(chunkMeta);
     
-    auto collector = New<TParallelCollector<void>>(TDispatcher::Get()->GetWriterInvoker());
-    collector->Collect(WriteDataBlocks());
-    collector->Collect(EncodeAndWriteParityBlocks());
+    auto invoker = TDispatcher::Get()->GetWriterInvoker();
+    auto collector = New<TParallelCollector<void>>();
+    collector->Collect(
+        BIND(&TErasureWriter::WriteDataBlocks, MakeStrong(this))
+        .AsyncVia(invoker)
+        .Run());
+    collector->Collect(
+        BIND(&TErasureWriter::EncodeAndWriteParityBlocks, MakeStrong(this))
+        .AsyncVia(invoker)
+        .Run());
     return collector->Complete();
 }
 

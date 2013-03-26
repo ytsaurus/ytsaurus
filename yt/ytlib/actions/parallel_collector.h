@@ -21,11 +21,6 @@ public:
     typedef typename TParallelCollectorStorage<T>::TResults TResults;
 
     explicit TParallelCollector(
-        IInvokerPtr invoker,
-        NProfiling::TProfiler* profiler = nullptr,
-        const NYPath::TYPath& timerPath = "");
-
-    explicit TParallelCollector(
         NProfiling::TProfiler* profiler = nullptr,
         const NYPath::TYPath& timerPath = "");
 
@@ -43,8 +38,6 @@ private:
     TAtomic Completed;
 
     TParallelCollectorStorage<T> Results;
-
-    void Init();
 
     void OnResult(TResultOrError result);
     void OnCompleted();
