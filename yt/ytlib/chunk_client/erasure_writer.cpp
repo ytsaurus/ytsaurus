@@ -123,7 +123,6 @@ public:
     {
         YCHECK(writers.size() == codec->GetTotalBlockCount());
         VERIFY_INVOKER_AFFINITY(TDispatcher::Get()->GetWriterInvoker(), WriterThread);
-        VERIFY_INVOKER_AFFINITY(TDispatcher::Get()->GetErasureInvoker(), ErasureThread);
     }
 
     virtual void Open() override
@@ -197,7 +196,6 @@ private:
     std::vector<TPromise<void>> WindowEncodedPromise_;
 
     DECLARE_THREAD_AFFINITY_SLOT(WriterThread);
-    DECLARE_THREAD_AFFINITY_SLOT(ErasureThread);
 
 };
 
@@ -301,8 +299,6 @@ TAsyncError TErasureWriter::EncodeAndWriteParityBlocks()
         }
 
         TDispatcher::Get()->GetErasureInvoker()->Invoke(BIND([this, this_, windowIndex, slices] () {
-            VERIFY_THREAD_AFFINITY(ErasureThread);
-
             ParityBlocks_[windowIndex] = Codec_->Encode(slices);
             WindowEncodedPromise_[windowIndex].Set();
         }));
