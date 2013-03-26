@@ -51,7 +51,7 @@ def Record(*args, **kws):
     return SubkeyedRecord(*args[:3], **kws)
 
 
-""" Methods for records convertion """
+""" Methods for records conversion """
 # TODO(ignat): builtin full support of this methods to read/write and python operations
 def record_to_line(rec, eoln=True, format=None):
     def escape_dsv(value):
@@ -62,7 +62,7 @@ def record_to_line(rec, eoln=True, format=None):
     if format is None: format = config.DEFAULT_FORMAT
     
     if isinstance(format, YamrFormat):
-        require(not format.lenval, YtError("Lenval convertion is not supported now."))
+        require(not format.lenval, YtError("Lenval conversion is not supported now."))
         if format.has_subkey:
             fields = [rec.key, rec.subkey, rec.value]
         else:

@@ -1,10 +1,10 @@
 import config
 from common import parse_bool, flatten, get_value, bool_to_string
-from format import JsonFormat, YsonFormat
+from format import JsonFormat
 from transaction_commands import _make_transactional_request
 from table import prepare_path, to_name
 
-from yt.yson.yson_types import YsonString
+from yt.yson.yson_types import YsonString, convert_to_yson_tree
 
 import os
 import string
@@ -12,22 +12,36 @@ import random
 from copy import deepcopy
 import simplejson as json
 
+def _make_formatted_request(command_name, params, format, **kwargs):
+    result = _make_transactional_request(
+        command_name,
+        params,
+        raw_response=format is not None,
+        format=get_value(format, JsonFormat()))
+    # Yson parser is too slow. By default we request result in JsonFormat
+    # and then convert it to yson.
+    if format is None:
+        result = convert_to_yson_tree(result)
+    else:
+        result = result.content
+    return result
+
 def get(path, attributes=None, format=None, spec=None):
     """
     Gets the tree growning from path.
     attributes -- attributes to provide for each node in the response.
-    format -- output format (by default it is json that automatically parsed to python structure).
+    format -- output format (by default it is yson that automatically parsed to python structure).
 
     Be carefull: attributes have weird representation in json format.
     """
-    return _make_transactional_request(
+    return _make_formatted_request(
         "get",
         {
             "path": prepare_path(path),
             "attributes": get_value(attributes, []),
             "spec": {} if spec is None else spec
         },
-        format=get_value(format, YsonFormat()))
+        format=format)
 
 def set(path, value):
     """
@@ -66,21 +80,27 @@ def link(target_path, link_path, recursive=False, ignore_existing=False):
         })
 
 
-def list(path, max_size=1000, format=None, absolute=False):
+def list(path, max_size=1000, format=None, absolute=False, attributes=None):
     """
     Lists all items in the path. Paht should be map_node or list_node.
     In case of map_node it returns keys of the node.
     """
-    res = _make_transactional_request(
+    def join(elem):
+        full_path = YsonString(os.path.join(path, elem))
+        full_path.attributes = elem.attributes
+        return full_path
+
+    result = _make_formatted_request(
         "list",
         {
             "path": prepare_path(path),
-            "max_size": max_size
+            "max_size": max_size,
+            "attributes": get_value(attributes, [])
         },
-        format=get_value(format, YsonFormat()))
-    if absolute:
-        res = map(lambda x: os.path.join(path, x), res)
-    return res
+        format=format)
+    if absolute and format is None:
+        result = map(join, result)
+    return result
 
 def exists(path):
     return parse_bool(
@@ -111,6 +131,17 @@ def create(type, path=None, recursive=False, ignore_existing=False, attributes=N
 def mkdir(path, recursive=None):
     recursive = get_value(recursive, config.CREATE_RECURSIVE)
     create("map_node", path, recursive=recursive, ignore_existing=recursive)
+
+def check_permission(user, permission, path, format=None):
+    return _make_formatted_request(
+        "check_permission",
+        {
+            "user": user,
+            "permission": permission,
+            "path": path
+        },
+        format=format)
+
 
 # TODO: maybe remove this methods
 def get_attribute(path, attribute, default=None):
