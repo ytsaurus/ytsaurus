@@ -8,8 +8,8 @@
 #include <ytlib/actions/parallel_awaiter.h>
 #include <ytlib/actions/parallel_collector.h>
 
-#include <ytlib/erasure_codecs/codec.h>
-#include <ytlib/erasure_codecs/helpers.h>
+#include <ytlib/erasure/codec.h>
+#include <ytlib/erasure/helpers.h>
 
 namespace NYT {
 namespace NChunkClient {

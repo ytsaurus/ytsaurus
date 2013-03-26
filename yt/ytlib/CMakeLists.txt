@@ -3,7 +3,7 @@ set( DIRS
   election
   chunk_client
   compression
-  erasure_codecs
+  erasure
   transaction_client
   logging
   meta_state

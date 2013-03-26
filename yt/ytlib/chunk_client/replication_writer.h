@@ -4,7 +4,7 @@
 #include "config.h"
 #include "async_writer.h"
 
-#include <ytlib/erasure_codecs/codec.h>
+#include <ytlib/erasure/codec.h>
 
 namespace NYT {
 namespace NChunkClient {

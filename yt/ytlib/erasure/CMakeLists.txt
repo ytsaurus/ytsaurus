@@ -1,5 +1,5 @@
 #:yt-updatable
-set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/erasure_codecs )
+set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/erasure )
 
 include_directories(
   ${CMAKE_SOURCE_DIR}/contrib/libs/jerasure

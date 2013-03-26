@@ -30,7 +30,7 @@
 
 #include <ytlib/compression/codec.h>
 
-#include <ytlib/erasure_codecs/codec.h>
+#include <ytlib/erasure/codec.h>
 
 #include <ytlib/chunk_client/chunk_ypath.pb.h>
 #include <ytlib/chunk_client/chunk_list_ypath.pb.h>

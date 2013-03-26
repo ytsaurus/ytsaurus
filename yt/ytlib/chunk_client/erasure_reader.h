@@ -4,7 +4,7 @@
 
 #include <ytlib/misc/error.h>
 
-#include <ytlib/erasure_codecs/public.h>
+#include <ytlib/erasure/public.h>
 
 namespace NYT {
 namespace NChunkClient {

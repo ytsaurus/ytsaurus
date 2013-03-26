@@ -2,7 +2,7 @@
 #include "chunk_replica.h"
 #include "node_directory.h"
 
-#include <ytlib/erasure_codecs/public.h>
+#include <ytlib/erasure/public.h>
 
 #include <ytlib/misc/foreach.h>
 
