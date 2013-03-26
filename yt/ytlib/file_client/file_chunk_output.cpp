@@ -132,7 +132,7 @@ void TFileChunkOutput::DoWrite(const void* buf, size_t len)
     while (dataSize != 0) {
         // Copy a part of data trying to fill up the current block.
         size_t bufferSize = Buffer.Size();
-        size_t remainingSize = static_cast<size_t>(Config->BlockSize) - Buffer.Size();
+        size_t remainingSize = static_cast<size_t>(Config->BlockSize) - bufferSize;
         size_t bytesToCopy = std::min(dataSize, remainingSize);
         Buffer.Append(dataPtr, bytesToCopy);
         dataPtr += bytesToCopy;
