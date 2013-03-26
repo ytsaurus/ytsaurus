@@ -173,7 +173,7 @@ if [[ ( $WITH_PACKAGE = "YES" ) && ( $WITH_DEPLOY = "YES" ) ]]; then
         --silent --get \
         --data-urlencode "package[0]=yandex-yt" \
         --data-urlencode "version[0]=${package_version}" \
-        --data-urlencode "package[1]=yandex-yt-http-api" \
+        --data-urlencode "package[1]=yandex-yt-http-proxy" \
         --data-urlencode "version[1]=${package_version}" \
         --data-urlencode "ticket[branch]=testing" \
         --data-urlencode "ticket[mailcc]=yt-dev-root@yandex-team.ru" \
