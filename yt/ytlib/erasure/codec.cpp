@@ -18,30 +18,16 @@ int ICodec::GetTotalBlockCount()
 
 ICodec* GetCodec(ECodec id)
 {
-    class TCauchyReedSolomonWrapper
-        : public TCauchyReedSolomon
-    {
-    public:
-        TCauchyReedSolomonWrapper()
-            : TCauchyReedSolomon(6, 3, 8)
-        { }
-    };
-
-    class TLrcWrapper
-        : public TLrc
-    {
-    public:
-        TLrcWrapper()
-            : TLrc(12)
-        { }
-    };
-
     switch (id) {
-        case ECodec::ReedSolomon_6_3:
-            return Singleton<TCauchyReedSolomonWrapper>();
+        case ECodec::ReedSolomon_6_3: {
+            static TCauchyReedSolomon result(6, 3, 8);
+            return &result;
+        }
 
-        case ECodec::Lrc_12_2_2:
-            return Singleton<TLrcWrapper>();
+        case ECodec::Lrc_12_2_2: {
+            static TLrc result(12);
+            return &result;
+        }
 
         default:
             YUNREACHABLE();
