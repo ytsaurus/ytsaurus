@@ -1808,7 +1808,6 @@ private:
             Profiler.Enqueue("/refresh_list_size", ChunkReplicator->GetRefreshListSize());
             Profiler.Enqueue("/rf_update_list_size", ChunkReplicator->GetRFUpdateListSize());
         }
-        ProfilingInvoker->ScheduleNext();
     }
 
 
