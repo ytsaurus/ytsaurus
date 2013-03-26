@@ -137,9 +137,9 @@ add_custom_target( install-debian-yandex-yt
   COMMENT "Installing for package 'yandex-yt'..."
 )
 
-add_custom_target( install-debian-yandex-yt-http-api
+add_custom_target( install-debian-yandex-yt-http-proxy
   ${CMAKE_COMMAND}
     -DCOMPONENT=nodejs
     -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
-  COMMENT "Installing for package 'yandex-yt-http-api'..."
+  COMMENT "Installing for package 'yandex-yt-http-proxy'..."
 )
