@@ -19,18 +19,19 @@ namespace NBus {
 IMessagePtr CreateMessage(int numParts)
 {
     TBlob data(numParts);
+
     std::vector<TRef> parts;
-    parts.reserve(numParts);
     for (int i = 0; i < numParts; ++i) {
-        parts.push_back(TRef(&*data.begin() + i, 1));
+        parts.push_back(TRef(data.Begin() + i, 1));
     }
+
     return CreateMessageFromParts(std::move(data), parts);
 }
 
 IMessagePtr Serialize(Stroka str)
 {
-    TBlob data(str.begin(), str.vend());
-    return CreateMessageFromPart(TSharedRef::FromBlob(std::move(data)));
+    auto data = TSharedRef::FromString(str);
+    return CreateMessageFromPart(data);
 }
 
 Stroka Deserialize(IMessagePtr message)

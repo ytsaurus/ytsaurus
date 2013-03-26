@@ -7,9 +7,9 @@ namespace NCompression {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void SnappyCompress(StreamSource* source, std::vector<char>* output);
+void SnappyCompress(StreamSource* source, TBlob* output);
 
-void SnappyDecompress(StreamSource* source, std::vector<char>* output);
+void SnappyDecompress(StreamSource* source, TBlob* output);
 
 ////////////////////////////////////////////////////////////////////////////////
 

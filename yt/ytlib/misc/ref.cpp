@@ -12,30 +12,145 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t RoundUpToPage(size_t bytes)
+static const size_t InitialBlobCapacity = 16;
+static const double BlobCapacityMultiplier = 2.0;
+
+TBlob::TBlob()
 {
-    static const size_t PageSize = NSystemInfo::GetPageSize();
-    YASSERT((PageSize & (PageSize - 1)) == 0);
-    return (bytes + PageSize - 1) & (~(PageSize - 1));
+    Reset();
 }
 
-void AppendToBlob(TBlob& blob, const void* buffer, size_t size)
+TBlob::TBlob(size_t size, bool initiailizeStorage /*= true*/)
 {
-    blob.resize(blob.size() + size);
-    ::memcpy(&*(blob.end() - size), buffer, size);
+    if (size == 0) {
+        Reset();
+    } else {
+        Begin_ = new char[size];
+        Size_ = Capacity_ = size;
+        if (initiailizeStorage) {
+            memset(Begin_, 0, Size_);
+        }
+    }
+}
+
+TBlob::TBlob(const TBlob& other)
+{
+    if (other.Size_ == 0) {
+        Reset();
+    } else {
+        Begin_ = new char[other.Size_];
+        memcpy(Begin_, other.Begin_, other.Size_);
+        Size_ = Capacity_ = other.Size_;
+    }
+}
+
+TBlob::TBlob(TBlob&& other)
+    : Begin_(other.Begin_)
+    , Size_(other.Size_)
+    , Capacity_(other.Capacity_)
+{
+    other.Reset();
+}
+
+TBlob::TBlob(const void* data, size_t size)
+{
+    Reset();
+    Append(data, size);
+}
+
+TBlob::~TBlob()
+{
+    delete[] Begin_;
+}
+
+void TBlob::Reserve(size_t newCapacity)
+{
+    if (newCapacity > Capacity_) {
+        char* newBegin = new char[newCapacity];
+        memcpy(newBegin, Begin_, Size_);
+        delete[] Begin_;
+        Begin_ = newBegin;
+        Capacity_ = newCapacity;
+    }
+}
+
+void TBlob::Resize(size_t newSize, bool initializeStorage /*= true*/)
+{
+    if (newSize > Size_) {
+        if (newSize > Capacity_) {
+            if (Capacity_ == 0) {
+                Capacity_ = std::max(InitialBlobCapacity, newSize);
+            } else {
+                Capacity_ = std::max(static_cast<size_t>(Capacity_ * BlobCapacityMultiplier), newSize);
+            }
+            char* newBegin = new char[Capacity_];
+            memcpy(newBegin, Begin_, Size_);
+            delete[] Begin_;
+            Begin_ = newBegin;
+        }
+        if (initializeStorage) {
+            memset(Begin_ + Size_, 0, newSize - Size_);
+        }
+    }
+    Size_ = newSize;
+}
+
+void TBlob::Clear()
+{
+    delete[] Begin_;
+    Reset();
+}
+
+TBlob& TBlob::operator = (const TBlob& rhs)
+{
+    if (this != &rhs) {
+        delete[] Begin_;
+        Begin_ = new char[rhs.Size_];
+        memcpy(Begin_, rhs.Begin_, rhs.Size_);
+        Size_ = Capacity_ = rhs.Size_;
+    }
+    return *this;
+}
+
+TBlob& TBlob::operator = (TBlob&& rhs)
+{
+    if (this != &rhs) {
+        Begin_ = rhs.Begin_;
+        Size_ = rhs.Size_;
+        Capacity_ = rhs.Capacity_;
+        rhs.Begin_ = nullptr;
+        rhs.Size_ = rhs.Capacity_ = 0;
+    }
+    return *this;
+}
+
+void TBlob::Append(const void* data, size_t size)
+{
+    Resize(Size_ + size, false);
+    memcpy(Begin_ + Size_ - size, data, size);
+}
+
+void TBlob::Append(const TRef& ref)
+{
+    Append(ref.Begin(), ref.Size());
+}
+
+void TBlob::Reset()
+{
+    Begin_ = nullptr;   
+    Size_ = Capacity_ = 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef::TData::TData(TBlob&& blob)
+TSharedRef::TSharedData::TSharedData(TBlob&& blob)
+    : Blob(std::move(blob))
 #ifdef ENABLE_REF_COUNTED_TRACKING
-    : Cookie(nullptr)
+    , Cookie(nullptr)
 #endif
-{
-    Blob.swap(blob);
-}
+{ }
 
-TSharedRef::TData::~TData()
+TSharedRef::TSharedData::~TSharedData()
 {
 #ifdef ENABLE_REF_COUNTED_TRACKING
     FinalizeTracking();
@@ -44,33 +159,33 @@ TSharedRef::TData::~TData()
 
 #ifdef ENABLE_REF_COUNTED_TRACKING
 
-void TSharedRef::TData::InitializeTracking(void* cookie)
+void TSharedRef::TSharedData::InitializeTracking(void* cookie)
 {
     YASSERT(!Cookie);
     Cookie = cookie;
-    TRefCountedTracker::Get()->Allocate(Cookie, Blob.size());
+    TRefCountedTracker::Get()->Allocate(Cookie, Blob.Size());
 }
 
-void TSharedRef::TData::FinalizeTracking()
+void TSharedRef::TSharedData::FinalizeTracking()
 {
     YASSERT(Cookie);
-    TRefCountedTracker::Get()->Free(Cookie, Blob.size());
+    TRefCountedTracker::Get()->Free(Cookie, Blob.Size());
 }
 
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef TSharedRef::AllocateImpl(size_t size)
+TSharedRef TSharedRef::AllocateImpl(size_t size, bool initializeStorage)
 {
-    TBlob blob(size);
+    TBlob blob(size, initializeStorage);
     return FromBlobImpl(std::move(blob));
 }
 
 TSharedRef TSharedRef::FromBlobImpl(TBlob&& blob)
 {
     auto ref = TRef::FromBlob(blob);
-    auto data = New<TData>(std::move(blob));
+    auto data = New<TSharedData>(std::move(blob));
     return TSharedRef(data, ref);
 }
 
@@ -96,6 +211,15 @@ void Load(TInputStream* input, NYT::TSharedRef& ref)
         ref = TSharedRef::Allocate<TLoadedBlockTag>(size);
         YCHECK(input->Load(ref.Begin(), size) == size);
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+size_t RoundUpToPage(size_t bytes)
+{
+    static const size_t PageSize = NSystemInfo::GetPageSize();
+    YASSERT((PageSize & (PageSize - 1)) == 0);
+    return (bytes + PageSize - 1) & (~(PageSize - 1));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

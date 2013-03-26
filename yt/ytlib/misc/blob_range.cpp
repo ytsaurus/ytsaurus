@@ -19,12 +19,12 @@ TBlobRange::TBlobRange(const TBlob* blob, size_t offset, size_t length)
 
 TStringBuf TBlobRange::GetStringBuf() const
 {
-    return TStringBuf(&*Blob->begin() + Offset, Length);
+    return TStringBuf(Blob->Begin() + Offset, Length);
 }
 
-TBlob::const_iterator TBlobRange::begin() const
+const char* TBlobRange::begin() const
 {
-    return Blob->begin() + Offset;
+    return Blob->Begin() + Offset;
 }
 
 size_t TBlobRange::size() const

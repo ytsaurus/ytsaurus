@@ -14,7 +14,7 @@ bool SerializeToProto(const google::protobuf::Message& message, TSharedRef* data
 {
     size_t size = message.ByteSize();
     struct TSerializedMessageTag { };
-    *data = TSharedRef::Allocate<TSerializedMessageTag>(size);
+    *data = TSharedRef::Allocate<TSerializedMessageTag>(size, false);
     return message.SerializeToArray(data->Begin(), size);
 }
 
@@ -47,7 +47,7 @@ bool SerializeToProtoWithEnvelope(
 
     size_t messageSize = message.ByteSize();
     struct TSerializedMessageTag { };
-    auto serializedMessage = TSharedRef::Allocate<TSerializedMessageTag>(messageSize);
+    auto serializedMessage = TSharedRef::Allocate<TSerializedMessageTag>(messageSize, false);
     if (!message.SerializeToArray(serializedMessage.Begin(), messageSize)) {
         return false;
     }
@@ -64,7 +64,7 @@ bool SerializeToProtoWithEnvelope(
         fixedHeader.HeaderSize +
         fixedHeader.MessageSize;
 
-    *data = TSharedRef::Allocate<TSerializedMessageTag>(totalSize);
+    *data = TSharedRef::Allocate<TSerializedMessageTag>(totalSize, false);
 
     char* targetFixedHeader = data->Begin();
     char* targetHeader = targetFixedHeader + sizeof (TSerializedMessageFixedHeader);
@@ -135,7 +135,7 @@ void SaveProto(TOutputStream* output, const ::google::protobuf::Message& message
 void LoadProto(TInputStream* input, ::google::protobuf::Message& message)
 {
     size_t size = ::LoadSize(input);
-    auto data = TSharedRef::Allocate(size);
+    auto data = TSharedRef::Allocate(size, false);
     YCHECK(input->Load(data.Begin(), size) == size);
     YCHECK(DeserializeFromProtoWithEnvelope(&message, data));
 }

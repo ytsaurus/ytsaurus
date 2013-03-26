@@ -534,15 +534,15 @@ void TTcpConnection::OnSocketRead()
             }
         } else {
             // Read a chunk into the read buffer.
-            LOG_TRACE("Reading %" PRISZT " bytes into buffer", ReadBuffer.size());
+            LOG_TRACE("Reading %" PRISZT " bytes into buffer", ReadBuffer.Size());
             size_t bytesRead;
-            if (!ReadSocket(&*ReadBuffer.begin(), ReadBuffer.size(), &bytesRead)) {
+            if (!ReadSocket(ReadBuffer.Begin(), ReadBuffer.Size(), &bytesRead)) {
                 break;
             }
             bytesReadTotal += bytesRead;
 
             // Feed the read buffer to the decoder.
-            const char* recvBegin = &*ReadBuffer.begin();
+            const char* recvBegin = ReadBuffer.Begin();
             size_t recvRemaining = bytesRead;
             while (recvRemaining != 0) {
                 decoderChunk = Decoder.GetChunk();

@@ -51,12 +51,12 @@ void ZlibCompress(StreamSource* source, StreamSink* sink, int level)
     deflateEnd(&stream);
 }
 
-void ZlibCompress(int level, StreamSource* source, std::vector<char>* output)
+void ZlibCompress(int level, StreamSource* source, TBlob* output)
 {
-    output->resize(sizeof(size_t));
+    output->Resize(sizeof(size_t));
     {
         size_t available = source->Available();
-        TMemoryOutput memoryOutput(output->data(), sizeof(available));
+        TMemoryOutput memoryOutput(output->Begin(), sizeof(available));
         WritePod(memoryOutput, available);
     }
 
@@ -64,12 +64,12 @@ void ZlibCompress(int level, StreamSource* source, std::vector<char>* output)
     ZlibCompress(source, &sink, level);
 }
 
-void ZlibDecompress(StreamSource* source, std::vector<char>* output)
+void ZlibDecompress(StreamSource* source, TBlob* output)
 {
     size_t size;
     ReadPod(source, size);
     // We add one additional byte for process correctly last inflate
-    output->resize(size + 1);
+    output->Resize(size + 1, false);
 
     z_stream stream;
     stream.zalloc = Z_NULL;
@@ -89,19 +89,19 @@ void ZlibDecompress(StreamSource* source, std::vector<char>* output)
             break;
         }
 
-        stream.next_out = reinterpret_cast<Bytef*>(output->data() + currentPos);
-        stream.avail_out = output->size() - currentPos;
+        stream.next_out = reinterpret_cast<Bytef*>(output->Begin() + currentPos);
+        stream.avail_out = output->Size() - currentPos;
         returnCode = inflate(&stream, Z_NO_FLUSH);
         if (!(returnCode == Z_OK || returnCode == Z_STREAM_END)) {
             THROW_ERROR_EXCEPTION("Zlib decompression failed: %s", stream.msg);
         }
 
         source->Skip(available - stream.avail_in);
-        currentPos = output->size() - stream.avail_out;
+        currentPos = output->Size() - stream.avail_out;
     } while (returnCode != Z_STREAM_END);
 
-    YCHECK(currentPos + 1 == output->size());
-    output->resize(currentPos);
+    YCHECK(currentPos + 1 == output->Size());
+    output->Resize(currentPos);
 
     inflateEnd(&stream);
 }

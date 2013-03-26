@@ -8,27 +8,27 @@ namespace NCompression {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void SnappyCompress(StreamSource* source, std::vector<char>* output)
+void SnappyCompress(StreamSource* source, TBlob* output)
 {
-    output->resize(snappy::MaxCompressedLength(source->Available()));
-    snappy::UncheckedByteArraySink writer(output->data());
+    output->Resize(snappy::MaxCompressedLength(source->Available()), false);
+    snappy::UncheckedByteArraySink writer(output->Begin());
     size_t compressedSize = snappy::Compress(source, &writer);
-    output->resize(compressedSize);
+    output->Resize(compressedSize);
 }
 
-void SnappyDecompress(StreamSource* source, std::vector<char>* output)
+void SnappyDecompress(StreamSource* source, TBlob* output)
 {
     ui32 size = 0;
     {
-        // Piece of code from snappy implementation.
-        // Snappy libraries has no tools to determine uncompressed size from const Source
+        // Extracted from snappy implementation as it
+        // provides no means to determine uncompressed size from stream source.
         size_t len;
         const char* start = source->Peek(&len);
         const char* limit = start + len;
         YCHECK(snappy::Varint::Parse32WithLimit(start, limit, &size));
     }
-    output->resize(size);
-    YCHECK(snappy::RawUncompress(source, output->data()));
+    output->Resize(size, false);
+    YCHECK(snappy::RawUncompress(source, output->Begin()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
