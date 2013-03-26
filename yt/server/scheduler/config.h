@@ -53,6 +53,8 @@ struct TSchedulerConfig
 {
     TDuration ConnectRetryPeriod;
 
+    TDuration NodeHearbeatTimeout;
+
     TDuration TransactionsRefreshPeriod;
 
     TDuration OperationsUpdatePeriod;
@@ -136,6 +138,8 @@ struct TSchedulerConfig
     {
         Register("connect_retry_period", ConnectRetryPeriod)
             .Default(TDuration::Seconds(15));
+        Register("node_heartbeat_timeout", NodeHearbeatTimeout)
+            .Default(TDuration::Seconds(60));
         Register("transactions_refresh_period", TransactionsRefreshPeriod)
             .Default(TDuration::Seconds(3));
         Register("operations_update_period", OperationsUpdatePeriod)

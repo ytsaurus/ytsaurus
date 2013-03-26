@@ -119,13 +119,6 @@ public:
     {
         InitStrategy();
 
-        MasterConnector->AddGlobalWatcherRequester(BIND(
-            &TThis::RequestOnlineNodes,
-            Unretained(this)));
-        MasterConnector->AddGlobalWatcherHandler(BIND(
-            &TThis::HandleOnlineNodes,
-            Unretained(this)));
-
         MasterConnector->SubscribeMasterConnected(BIND(
             &TThis::OnMasterConnected,
             Unretained(this)));
@@ -397,78 +390,6 @@ private:
             EOperationState::Failing,
             EOperationState::Failed,
             TError("Scheduler transaction has been expired or was aborted"));
-    }
-
-
-    void RequestOnlineNodes(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
-    {
-        LOG_INFO("Updating exec nodes");
-
-        auto req = TYPathProxy::Get("//sys/nodes/@online");
-        batchReq->AddRequest(req, "get_online_nodes");
-    }
-
-    void HandleOnlineNodes(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
-    {
-        auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_online_nodes");
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting online nodes");
-
-        auto newAddresses = ConvertTo< std::vector<Stroka> >(TYsonString(rsp->value()));
-        LOG_INFO("Exec nodes updated, %d found",
-            static_cast<int>(newAddresses.size()));
-
-        // Examine the list of nodes returned by master and figure out the difference.
-
-        yhash_set<Stroka> existingAddresses;
-        FOREACH (const auto& pair, Nodes) {
-            YCHECK(existingAddresses.insert(pair.first).second);
-        }
-
-        FOREACH (const auto& address, newAddresses) {
-            auto it = existingAddresses.find(address);
-            if (it == existingAddresses.end()) {
-                OnNodeOnline(address);
-            } else {
-                existingAddresses.erase(it);
-            }
-        }
-
-        FOREACH (const auto& address, existingAddresses) {
-            OnNodeOffline(address);
-        }
-
-        LOG_INFO("Exec nodes updated");
-    }
-
-    void OnNodeOnline(const Stroka& address)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        LOG_INFO("Node online: %s", ~address);
-
-        // TODO(babenko): fixme
-        TNodeDescriptor descriptor;
-        descriptor.Address = address;
-        auto node = New<TExecNode>(descriptor);
-        RegisterNode(node);
-
-        TotalResourceLimits += node->ResourceLimits();
-        TotalResourceUsage += node->ResourceUsage();
-    }
-
-    void OnNodeOffline(const Stroka& address)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        LOG_INFO("Node offline: %s", ~address);
-
-        // Tell each controller that node is offline.
-
-        auto node = GetNode(address);
-        UnregisterNode(node);
-
-        TotalResourceLimits -= node->ResourceLimits();
-        TotalResourceUsage -= node->ResourceUsage();
     }
 
 
@@ -918,6 +839,7 @@ private:
         return operation;
     }
 
+
     TExecNodePtr FindNode(const Stroka& address)
     {
         auto it = Nodes.find(address);
@@ -931,6 +853,20 @@ private:
         return node;
     }
 
+    TExecNodePtr GetOrCreateNode(const TNodeDescriptor& descriptor)
+    {
+        auto it = Nodes.find(descriptor.Address);
+        if (it == Nodes.end()) {
+            return RegisterNode(descriptor);
+        }
+
+        // Update the current descriptor, just in case.
+        auto node = it->second;
+        node->Descriptor() = descriptor;
+        return node;
+    }
+
+
     TJobPtr FindJob(const TJobId& jobId)
     {
         auto it = Jobs.find(jobId);
@@ -938,9 +874,25 @@ private:
     }
 
 
-    void RegisterNode(TExecNodePtr node)
+    TExecNodePtr RegisterNode(const TNodeDescriptor& descriptor)
     {
-        YCHECK(Nodes.insert(std::make_pair(node->GetDescriptor().Address, node)).second);
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        LOG_INFO("Node online (Descriptor: %s)", ~ToString(descriptor));
+
+        auto node = New<TExecNode>(descriptor);
+
+        auto lease = TLeaseManager::CreateLease(
+            Config->NodeHearbeatTimeout,
+            BIND(&TImpl::UnregisterNode, MakeWeak(this), node)
+                .Via(GetControlInvoker()));
+
+        node->SetLease(lease);
+
+        TotalResourceLimits += node->ResourceLimits();
+        TotalResourceUsage += node->ResourceUsage();
+
+        YCHECK(Nodes.insert(std::make_pair(node->GetAddress(), node)).second);
 
         FOREACH (const auto& pair, Operations) {
             auto operation = pair.second;
@@ -948,13 +900,22 @@ private:
                 operation->GetController()->OnNodeOnline(node);
             }
         }
+
+        return node;
     }
 
     void UnregisterNode(TExecNodePtr node)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        LOG_INFO("Node offline (Address: %s)", ~node->GetAddress());
+
+        TotalResourceLimits -= node->ResourceLimits();
+        TotalResourceUsage -= node->ResourceUsage();
+
         // Make a copy, the collection will be modified.
         auto jobs = node->Jobs();
-        const auto& address = node->GetDescriptor().Address;
+        const auto& address = node->GetAddress();
         FOREACH (auto job, jobs) {
             LOG_INFO("Aborting job on an offline node %s (JobId: %s, OperationId: %s)",
                 ~address,
@@ -1442,7 +1403,7 @@ private:
     void BuildNodeYson(TExecNodePtr node, IYsonConsumer* consumer)
     {
         BuildYsonMapFluently(consumer)
-            .Item(node->GetDescriptor().Address).BeginMap()
+            .Item(node->GetAddress()).BeginMap()
                 .Do([=] (TFluentMap fluent) {
                     BuildExecNodeAttributes(node, fluent);
                 })
@@ -1569,12 +1530,9 @@ private:
 
         ValidateConnected();
 
-        const auto& address = descriptor.Address;
-        auto node = FindNode(address);
-        if (!node) {
-            context->Reply(TError("Node is not registered, heartbeat ignored"));
-            return;
-        }
+        auto node = GetOrCreateNode(descriptor);
+
+        TLeaseManager::RenewLease(node->GetLease());
 
         TotalResourceLimits -= node->ResourceLimits();
         TotalResourceUsage -= node->ResourceUsage();
@@ -1617,7 +1575,7 @@ private:
             // Check for missing jobs.
             FOREACH (auto job, missingJobs) {
                 LOG_ERROR("Job is missing (Address: %s, JobId: %s, OperationId: %s)",
-                    ~address,
+                    ~node->GetAddress(),
                     ~ToString(job->GetId()),
                     ~ToString(job->GetOperation()->GetOperationId()));
                 AbortJob(job, TError("Job vanished"));
@@ -1677,7 +1635,7 @@ private:
     {
         auto jobId = FromProto<TJobId>(jobStatus->job_id());
         auto state = EJobState(jobStatus->state());
-        const auto& jobAddress = node->GetDescriptor().Address;
+        const auto& jobAddress = node->GetAddress();
 
         NLog::TTaggedLogger Logger(SchedulerLogger);
         Logger.AddTag(Sprintf("Address: %s, JobId: %s",
@@ -1730,7 +1688,7 @@ private:
             ~ToString(operation->GetOperationId())));
 
         // Check if the job is running on a proper node.
-        auto expectedAddress = job->GetNode()->GetDescriptor().Address;
+        const auto& expectedAddress = job->GetNode()->GetAddress();
         if (jobAddress != expectedAddress) {
             // Job has moved from one node to another. No idea how this could happen.
             if (state == EJobState::Aborting) {
@@ -1774,7 +1732,7 @@ private:
             case EJobState::Waiting:
                 if (job->GetState() == EJobState::Aborted) {
                     LOG_INFO("Aborting job (Address: %s, JobType: %s, JobId: %s, OperationId: %s)",
-                        ~job->GetNode()->GetDescriptor().Address,
+                        ~jobAddress,
                         ~job->GetType().ToString(),
                         ~ToString(jobId),
                         ~ToString(operation->GetOperationId()));

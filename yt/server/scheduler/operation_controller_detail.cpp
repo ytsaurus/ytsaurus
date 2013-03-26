@@ -157,7 +157,7 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
     auto joblet = New<TJoblet>(this, jobIndex);
 
     auto node = context->GetNode();
-    const auto& address = node->GetDescriptor().Address;
+    const auto& address = node->GetAddress();
     auto* chunkPoolOutput = GetChunkPoolOutput();
     joblet->OutputCookie = chunkPoolOutput->Extract(address);
     if (joblet->OutputCookie == IChunkPoolOutput::NullCookie) {
@@ -222,7 +222,7 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
         ~ToString(joblet->Job->GetId()),
         ~ToString(Controller->Operation->GetOperationId()),
         ~jobType.ToString(),
-        ~context->GetNode()->GetDescriptor().Address,
+        ~context->GetNode()->GetAddress(),
         ~GetId(),
         jobIndex,
         joblet->InputStripeList->TotalChunkCount,
@@ -786,7 +786,7 @@ void TOperationControllerBase::OnIntermediateChunkFailed(const TChunkId& chunkId
         return;
 
     LOG_INFO("Job is lost (Address: %s, JobId: %s, SourceTask: %s, OutputCookie: %d, InputCookie: %d)",
-        ~completedJob->ExecNode->GetDescriptor().Address,
+        ~completedJob->ExecNode->GetAddress(),
         ~ToString(completedJob->JobId),
         ~completedJob->SourceTask->GetId(),
         completedJob->OutputCookie,
@@ -972,7 +972,7 @@ TJobPtr TOperationControllerBase::DoScheduleLocalJob(
     const NProto::TNodeResources& jobLimits)
 {
     auto node = context->GetNode();
-    const auto& address = node->GetDescriptor().Address;
+    const auto& address = node->GetAddress();
 
     FOREACH (auto* group, TaskGroups) {
         if (!Dominates(jobLimits, group->MinNeededResources)) {
@@ -1052,7 +1052,7 @@ TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(
 {
     auto now = TInstant::Now();
     const auto& node = context->GetNode();
-    const auto& address = node->GetDescriptor().Address;
+    const auto& address = node->GetAddress();
 
     FOREACH (auto* group, TaskGroups) {
         if (!Dominates(jobLimits, group->MinNeededResources)) {

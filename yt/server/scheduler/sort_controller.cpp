@@ -538,7 +538,7 @@ protected:
             auto stripeList = completedJob->SourceTask->GetChunkPoolOutput()->GetStripeList(completedJob->OutputCookie);
             Controller->SortDataSizeCounter.Lost(stripeList->TotalDataSize);
 
-            const auto& address = completedJob->ExecNode->GetDescriptor().Address;
+            const auto& address = completedJob->ExecNode->GetAddress();
             Partition->AddressToLocality[address] -= stripeList->TotalDataSize;
             YCHECK(Partition->AddressToLocality[address] >= 0);
 
@@ -617,7 +617,7 @@ protected:
         {
             // Increase data size for this address to ensure subsequent sort jobs
             // to be scheduled to this very node.
-            const auto& address = joblet->Job->GetNode()->GetDescriptor().Address;
+            const auto& address = joblet->Job->GetNode()->GetAddress();
             Partition->AddressToLocality[address] += joblet->InputStripeList->TotalDataSize;
 
             // Don't rely on static assignment anymore.
@@ -990,7 +990,7 @@ protected:
 
         FOREACH (auto partition, partitionsToAssign) {
             auto node = nodeHeap.front();
-            const auto& address = node->Node->GetDescriptor().Address;
+            const auto& address = node->Node->GetAddress();
 
             partition->AssignedAddress = address;
             AddTaskLocalityHint(partition->SortTask, address);
@@ -1008,7 +1008,7 @@ protected:
         FOREACH (auto node, nodeHeap) {
             if (node->AssignedDataSize > 0) {
                 LOG_DEBUG("Node used (Address: %s, Weight: %.4lf, AssignedDataSize: %" PRId64 ", AdjustedDataSize: %" PRId64 ")",
-                    ~node->Node->GetDescriptor().Address,
+                    ~node->Node->GetAddress(),
                     node->Weight,
                     node->AssignedDataSize,
                     static_cast<i64>(node->AssignedDataSize / node->Weight));
