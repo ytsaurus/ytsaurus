@@ -1070,7 +1070,7 @@ TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(
             if (now < deadline) {
                 break;
             }
-            const auto& task = it->second;
+            auto task = it->second;
             delayedTasks.erase(it);
             if (task->GetPendingJobCount() == 0) {
                 LOG_DEBUG("Task pending hint removed (Task: %s)",
@@ -1090,7 +1090,7 @@ TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(
         {
             auto it = candidateTasks.begin();
             while (it != candidateTasks.end()) {
-                const auto& task = it->second;
+                auto task = it->second;
 
                 // Check min memory demand for early exit.
                 if (task->GetMinNeededResources().memory() > jobLimits.memory()) {
