@@ -247,14 +247,16 @@ void DoNotOptimizeAway(T&& datum) {
  * friends below.
  */
 #define BENCHMARK_IMPL(function, name, argType, argName)        \
-    static void function(argType);                              \
+    static void follyBenchmarkFn##function(argType);            \
     static bool PP_ANONYMOUS_VARIABLE(follyBenchmarkUnused) = ( \
         ::NYT::AddBenchmark(                                    \
             __FILE__,                                           \
             name,                                               \
-            [] (argType argName) { function(argName); }),       \
+            [] (argType argName) {                              \
+                follyBenchmarkFn##function(argName);            \
+            }),                                                 \
         true);                                                  \
-    static void function(argType argName)
+    static void follyBenchmarkFn##function(argType argName)
 
 /**
  * Introduces a benchmark function. Use with either one one or two
