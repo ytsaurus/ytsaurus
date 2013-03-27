@@ -233,21 +233,40 @@ class TestDefaultBehaviour(YtTestBase, YTEnv):
                 sum += int(rec.get("y", 1))
             yield {"x": key["x"], "y": sum}
 
+
         table = TEST_DIR + "/table"
 
         yt.write_table(table, ["x=1\n", "y=2\n"])
         yt.run_map(change_x, table, table)
         self.assertItemsEqual(["x=2\n", "y=2\n"], yt.read_table(table))
 
+        yt.write_table(table, ["x=1\n", "y=2\n"])
+        yt.run_map(ChangeX__(), table, table)
+        self.assertItemsEqual(["x=2\n", "y=2\n"], yt.read_table(table))
+
         yt.write_table(table, ["x=2\n", "x=2\ty=2\n"])
         yt.run_sort(table, sort_by=["x"])
         yt.run_reduce(sum_y, table, table, reduce_by=["x"])
         self.assertItemsEqual(["x=2\ty=3\n"], yt.read_table(table))
+    
+    def test_binary_data_with_dsv(self):
+        record = {"\tke\n\\\\y=": "\\x\\y\tz\n"}
+
+        table = TEST_DIR + "/table"
+        yt.write_table(table, map(yt.record_to_line, [record]))
+        self.assertItemsEqual([record], map(yt.line_to_record, yt.read_table(table)))
 
     def test_yt_binary(self):
         current_dir = os.path.dirname(os.path.abspath(__file__))
         proc = subprocess.Popen(
-            "YT_PROXY=%s %s" % (yt.config.PROXY, os.path.join(current_dir, "../test_yt.sh")),
+            "YT_USE_TOKEN=0 YT_PROXY=%s %s" % (yt.config.PROXY, os.path.join(current_dir, "../test_yt.sh")),
             shell=True)
         proc.communicate()
         self.assertEqual(proc.returncode, 0)
+
+# Map method for test operations with python entities
+class ChangeX__(object):
+    def __call__(self, rec):
+        if "x" in rec:
+            rec["x"] = int(rec["x"]) + 1
+        yield rec

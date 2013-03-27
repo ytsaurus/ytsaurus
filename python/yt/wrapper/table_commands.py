@@ -78,7 +78,7 @@ def _prepare_format(format):
     return format
 
 def _prepare_binary(binary, operation_type, input_format=None, output_format=None, reduce_by=None):
-    if isinstance(binary, types.FunctionType):
+    if isinstance(binary, types.FunctionType) or hasattr(binary, "__call__"):
         binary, binary_file, files = py_wrapper.wrap(binary, operation_type, input_format, output_format, reduce_by)
         uploaded_files = _prepare_files([binary_file] + files)
         if config.REMOVE_TEMP_FILES:

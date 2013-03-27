@@ -54,11 +54,16 @@ def Record(*args, **kws):
 """ Methods for records conversion """
 # TODO(ignat): builtin full support of this methods to read/write and python operations
 def record_to_line(rec, format=None, eoln=True):
-    def escape_dsv(value):
-        escape_dict = {'\\': '\\\\', '\n': '\\n', '\t': '\\t', '=': '\\=', '\0': '\\0'}
+    def escape(string, escape_dict):
+        string = string.replace("\\", "\\\\")
         for sym, escaped in escape_dict.items():
-            value = value.replace(sym, escaped)
-        return value
+            string = string.replace(sym, escaped)
+        return string
+    def escape_key(string):
+        return escape(string, {'\n': '\\n', '\r': '\\r', '\t': '\\t', '\0': '\\0', '=': '\\='})
+    def escape_value(string):
+        return escape(string, {'\n': '\\n', '\r': '\\r', '\t': '\\t', '\0': '\\0'})
+
     if format is None: format = config.DEFAULT_FORMAT
     
     if isinstance(format, YamrFormat):
@@ -69,7 +74,7 @@ def record_to_line(rec, format=None, eoln=True):
             fields = [rec.key, rec.value]
         body = "\t".join(fields)
     elif isinstance(format, DsvFormat):
-        body = "\t".join("=".join(map(escape_dsv, map(str, item))) for item in rec.iteritems())
+        body = "\t".join("%s=%s" % (escape_key(str(item[0])), escape_value(str(item[1]))) for item in rec.iteritems())
     elif isinstance(format, YsonFormat):
         body = yson.dumps(rec) + ";"
     else:
@@ -79,12 +84,44 @@ def record_to_line(rec, format=None, eoln=True):
     return body
 
 def line_to_record(line, format=None):
+    def unescape_token(token, escape_dict):
+        for sym, unescaped in escape_dict.items():
+            token = token.replace(sym, unescaped)
+        return token.replace("\\", "")
+    def unescape_record(record):
+        tokens = record.split("\\\\")
+        key_tokens = []
+        value_tokens = []
+        inside_key = True
+        for token in tokens:
+            if inside_key:
+                index = -1
+                while True:
+                    index = token.find("=", index + 1)
+                    if index == -1:
+                        key_tokens.append(token)
+                        break
+                    if index == 0 or token[index - 1] != "\\":
+                        key_tokens.append(token[:index])
+                        value_tokens.append(token[index + 1:])
+                        inside_key = False
+                        break
+            else:
+                value_tokens.append(token)
+
+        value_dict = {'\\n': '\n', '\\r': '\r', '\\t': '\t', '\\0': '\0'}
+        key_dict = value_dict
+        key_dict['\\='] = '='
+
+        return ["\\".join(map(lambda t: unescape_token(t, key_dict), key_tokens)),
+                "\\".join(map(lambda t: unescape_token(t, value_dict), value_tokens))]
+    
     if format is None: format = config.DEFAULT_FORMAT
     
     if isinstance(format, YamrFormat):
         return Record(*line.strip("\n").split("\t", 1 + (1 if format.has_subkey else 0)))
     elif isinstance(format, DsvFormat):
-        return dict(field.split("=", 1) for field in line.strip("\n").split("\t") if field)
+        return dict(map(unescape_record, line.strip("\n").split("\t")))
     elif isinstance(format, YsonFormat):
         return yson.loads(line.rstrip(";\n"))
     else:
