@@ -187,6 +187,11 @@ DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TMyService, OneWay)
     UNUSED(request);
 }
 
+DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TMyService, NotRegistredOneWay)
+{
+    UNUSED(request);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRpcTest
