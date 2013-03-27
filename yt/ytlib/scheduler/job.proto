@@ -126,6 +126,8 @@ message TUserJobSpec
     // Transaction for creating stderr chunks.
     // If not set then no stderrs are captured.
     optional NYT.NProto.TGuid stderr_transaction_id = 8;
+
+    optional bool use_yamr_descriptors = 10 [default = false];
 }
 
 // User code result.
