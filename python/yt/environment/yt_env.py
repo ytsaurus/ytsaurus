@@ -88,8 +88,8 @@ class YTEnv(object):
         try:
             logging.info("Configuring...")
             self._run_masters()
-            self._run_nodes()
             self._run_schedulers()
+            self._run_nodes()
             self._prepare_driver()
             self._run_proxy()
         except:
@@ -297,6 +297,7 @@ class YTEnv(object):
         def all_nodes_ready():
             nodes_status = {}
 
+            scheduler_good_marker = re.compile(r".*Node online.*")
             good_marker = re.compile(r".*Node online .*NodeId: (\d+).*")
             bad_marker = re.compile(r".*Node unregistered .*NodeId: (\d+).*")
 
@@ -311,8 +312,13 @@ class YTEnv(object):
                 update_status(good_marker, line, nodes_status, True)
                 update_status(bad_marker, line, nodes_status, False)
 
+            ready = 0
+            for line in reversed(open(self.scheduler_log).readlines()):
+                if scheduler_good_marker.match(line):
+                    ready += 1
+
             if len(nodes_status) != self.NUM_NODES: return False
-            return all(nodes_status.values())
+            return all(nodes_status.values()) and ready == self.NUM_NODES
 
         self._wait_for(all_nodes_ready, name = "nodes",
                        max_wait_time = max(self.NUM_NODES * 6.0, 20))
@@ -345,6 +351,7 @@ class YTEnv(object):
             good_marker = 'Master connected'
 
             log = config['logging']['writers']['file']['file_name']
+            self.scheduler_log = log
             if not os.path.exists(log): return False
             for line in reversed(open(log).readlines()):
                 if good_marker in line:
