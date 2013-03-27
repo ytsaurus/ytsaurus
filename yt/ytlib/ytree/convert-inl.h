@@ -17,6 +17,7 @@
 #include <util/generic/static_assert.h>
 
 #include <ytlib/misc/preprocessor.h>
+#include <ytlib/misc/small_vector.h>
 
 namespace NYT {
 namespace NYTree {
@@ -149,9 +150,12 @@ TTo ConvertTo(const TFrom& value)
         NYson::TTokenizer tokenizer(str.Data()); \
         if (tokenizer.ParseNext()) { \
             auto token = tokenizer.CurrentToken(); \
-            std::vector<ETokenType> consideredTokens; \
+            TSmallVector<ETokenType, 2> consideredTokens; \
             PP_FOR_EACH(CHECK_TYPE, token_types); \
-            token.CheckType(consideredTokens); \
+            token.CheckType( \
+                std::vector<ETokenType>( \
+                    consideredTokens.begin(), \
+                    consideredTokens.end())); \
         } \
         THROW_ERROR_EXCEPTION("Cannot parse " PP_STRINGIZE(token_type) " from string %s", ~str.Data().Quote()); \
     }
