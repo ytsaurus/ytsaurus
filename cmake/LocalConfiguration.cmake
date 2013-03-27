@@ -78,8 +78,13 @@ if (CMAKE_COMPILER_IS_CLANG)
    # These are default (basic) compilation flags.
   set( CMAKE_C_FLAGS "${CUSTOM_CMAKE_C_FLAGS} -pthread -fPIC"
     CACHE STRING "(Auto-generated) C compiler flags" FORCE)
-  set( CMAKE_CXX_FLAGS "${CUSTOM_CMAKE_CXX_FLAGS} -std=c++11 -stdlib=libc++ -pthread -fPIC"
+  set( CMAKE_CXX_FLAGS "${CUSTOM_CMAKE_CXX_FLAGS} -std=c++11 -pthread -fPIC"
     CACHE STRING "(Auto-generated) C++ compiler flags" FORCE)
+
+  # Use libc++ instead of libstdc++ under Mac OS X, otherwise stick with libstdc++.
+  if (APPLE)
+    set ( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++" )
+  endif()
 
   # These are configuration-specific compilation flags.
   # http://gcc.gnu.org/onlinedocs/gcc/Option-Summary.html
