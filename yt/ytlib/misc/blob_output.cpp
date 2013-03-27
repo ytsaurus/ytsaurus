@@ -8,9 +8,7 @@ namespace NYT {
 struct TBlobOutputTag { };
 
 TBlobOutput::TBlobOutput()
-{
-    Reserve(1);
-}
+{ }
 
 TBlobOutput::TBlobOutput(size_t capacity)
 {
@@ -22,27 +20,27 @@ TBlobOutput::~TBlobOutput() throw()
 
 void TBlobOutput::DoWrite(const void* buffer, size_t length)
 {
-    AppendToBlob(Blob, buffer, length);
+    Blob.Append(buffer, length);
 }
 
 const char* TBlobOutput::Begin() const
 {
-    return &*Blob.begin();
+    return Blob.Begin();
 }
 
 size_t TBlobOutput::GetSize() const
 {
-    return Blob.size();
+    return Blob.Size();
 }
 
 void TBlobOutput::Reserve(size_t capacity)
 {
-    Blob.reserve(RoundUpToPage(capacity));
+    Blob.Reserve(RoundUpToPage(capacity));
 }
 
 void TBlobOutput::Clear()
 {
-    Blob.clear();
+    Blob.Clear();
 }
 
 TSharedRef TBlobOutput::Flush()
@@ -50,9 +48,9 @@ TSharedRef TBlobOutput::Flush()
     return TSharedRef::FromBlob<TBlobOutputTag>(std::move(Blob));
 }
 
-const TBlob* TBlobOutput::GetBlob() const
+const TBlob& TBlobOutput::GetBlob() const
 {
-    return &Blob;
+    return Blob;
 }
 
 TBlobOutput::TStoredType TBlobOutput::PutData(const TStringBuf& value)

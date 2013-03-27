@@ -61,12 +61,12 @@ void TUploadCommand::DoExecute()
 
     auto input = Context->GetRequest()->InputStream;
 
-    TBlob buffer(config->BlockSize);
+    TBlob buffer(config->BlockSize, false);
     while (true) {
-        size_t bytesRead = input->Read(&*buffer.begin(), buffer.size());
+        size_t bytesRead = input->Read(buffer.Begin(), buffer.Size());
         if (bytesRead == 0)
             break;
-        TRef block(buffer.data(), bytesRead);
+        TRef block(buffer.Begin(), bytesRead);
         writer->Write(block);
     }
 

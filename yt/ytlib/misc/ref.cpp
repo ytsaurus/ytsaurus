@@ -12,30 +12,25 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t RoundUpToPage(size_t bytes)
+bool TRef::AreBiwiseEqual(const TRef& lhs, const TRef& rhs)
 {
-    static const size_t PageSize = NSystemInfo::GetPageSize();
-    YASSERT((PageSize & (PageSize - 1)) == 0);
-    return (bytes + PageSize - 1) & (~(PageSize - 1));
-}
-
-void AppendToBlob(TBlob& blob, const void* buffer, size_t size)
-{
-    blob.resize(blob.size() + size);
-    ::memcpy(&*(blob.end() - size), buffer, size);
+    if (lhs.Size() != rhs.Size())
+        return false;
+    if (lhs.Size() == 0)
+        return true;
+    return memcmp(lhs.Begin(), rhs.Begin(), lhs.Size()) == 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef::TData::TData(TBlob&& blob)
+TSharedRef::TSharedData::TSharedData(TBlob&& blob)
+    : Blob(std::move(blob))
 #ifdef ENABLE_REF_COUNTED_TRACKING
-    : Cookie(nullptr)
+    , Cookie(nullptr)
 #endif
-{
-    Blob.swap(blob);
-}
+{ }
 
-TSharedRef::TData::~TData()
+TSharedRef::TSharedData::~TSharedData()
 {
 #ifdef ENABLE_REF_COUNTED_TRACKING
     FinalizeTracking();
@@ -44,33 +39,33 @@ TSharedRef::TData::~TData()
 
 #ifdef ENABLE_REF_COUNTED_TRACKING
 
-void TSharedRef::TData::InitializeTracking(void* cookie)
+void TSharedRef::TSharedData::InitializeTracking(void* cookie)
 {
     YASSERT(!Cookie);
     Cookie = cookie;
-    TRefCountedTracker::Get()->Allocate(Cookie, Blob.size());
+    TRefCountedTracker::Get()->Allocate(Cookie, Blob.Size());
 }
 
-void TSharedRef::TData::FinalizeTracking()
+void TSharedRef::TSharedData::FinalizeTracking()
 {
     YASSERT(Cookie);
-    TRefCountedTracker::Get()->Free(Cookie, Blob.size());
+    TRefCountedTracker::Get()->Free(Cookie, Blob.Size());
 }
 
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef TSharedRef::AllocateImpl(size_t size)
+TSharedRef TSharedRef::AllocateImpl(size_t size, bool initializeStorage)
 {
-    TBlob blob(size);
+    TBlob blob(size, initializeStorage);
     return FromBlobImpl(std::move(blob));
 }
 
 TSharedRef TSharedRef::FromBlobImpl(TBlob&& blob)
 {
     auto ref = TRef::FromBlob(blob);
-    auto data = New<TData>(std::move(blob));
+    auto data = New<TSharedData>(std::move(blob));
     return TSharedRef(data, ref);
 }
 
@@ -96,6 +91,15 @@ void Load(TInputStream* input, NYT::TSharedRef& ref)
         ref = TSharedRef::Allocate<TLoadedBlockTag>(size);
         YCHECK(input->Load(ref.Begin(), size) == size);
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+size_t RoundUpToPage(size_t bytes)
+{
+    static const size_t PageSize = NSystemInfo::GetPageSize();
+    YASSERT((PageSize & (PageSize - 1)) == 0);
+    return (bytes + PageSize - 1) & (~(PageSize - 1));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

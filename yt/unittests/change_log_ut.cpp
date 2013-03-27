@@ -51,7 +51,7 @@ protected:
         std::vector<TSharedRef> records(to - from);
         for (i32 recordId = from; recordId < to; ++recordId) {
             TBlob blob(sizeof(RecordType));
-            *reinterpret_cast<RecordType*>(&*blob.begin()) = static_cast<RecordType>(recordId);
+            *reinterpret_cast<RecordType*>(blob.Begin()) = static_cast<RecordType>(recordId);
             records[recordId - from] = TSharedRef::FromBlob(std::move(blob));
         }
         return records;
@@ -115,8 +115,9 @@ protected:
             // Add trash to file
             TFile changeLogFile(TemporaryFile->Name(), RdWr);
             changeLogFile.Seek(0, sEnd);
-            TBlob data(newFileSize - changeLogFile.GetLength(), -1);
-            changeLogFile.Write(&(*data.begin()), data.size());
+            TBlob data(newFileSize - changeLogFile.GetLength());
+            std::fill(data.Begin(), data.End(), -1);
+            changeLogFile.Write(data.Begin(), data.Size());
         }
         else {
             // Truncate file.

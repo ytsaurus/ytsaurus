@@ -8,33 +8,33 @@ namespace NYT {
 TBlobRange::TBlobRange()
     : Blob(NULL)
     , Offset(0)
-    , Length(0)
+    , Size(0)
 { }
 
 TBlobRange::TBlobRange(const TBlob* blob, size_t offset, size_t length)
     : Blob(blob)
     , Offset(offset)
-    , Length(length)
+    , Size(length)
 { }
 
-TStringBuf TBlobRange::GetStringBuf() const
+TStringBuf TBlobRange::ToStringBuf() const
 {
-    return TStringBuf(&*Blob->begin() + Offset, Length);
+    return TStringBuf(Blob->Begin() + Offset, Size);
 }
 
-TBlob::const_iterator TBlobRange::begin() const
+const char* TBlobRange::begin() const
 {
-    return Blob->begin() + Offset;
+    return Blob->Begin() + Offset;
 }
 
 size_t TBlobRange::size() const
 {
-    return Length;
+    return Size;
 }
 
 bool operator==(const TBlobRange& lhs, const TBlobRange& rhs)
 {
-    return lhs.GetStringBuf() == rhs.GetStringBuf();
+    return lhs.ToStringBuf() == rhs.ToStringBuf();
 }
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -1,6 +1,7 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/misc )
 set( SRCS
+  ${BASE}/blob.cpp
   ${BASE}/address.cpp
   ${BASE}/assert.cpp
   ${BASE}/async_stream_state.cpp
@@ -39,6 +40,7 @@ set( SRCS
   ${BASE}/url.cpp
 )
 set( HDRS
+  ${BASE}/blob.h
   ${BASE}/address.h
   ${BASE}/arcadia_helper.h
   ${BASE}/assert.h

@@ -265,7 +265,7 @@ bool TOutputPipe::ProcessData(ui32 epollEvent)
     YASSERT(!IsFinished);
 
     while (true) {
-        int bytesRead = ::read(Pipe.ReadFd, Buffer.data(), Buffer.size());
+        int bytesRead = ::read(Pipe.ReadFd, Buffer.Begin(), Buffer.Size());
 
         LOG_TRACE("Read %d bytes from output pipe (JobDescriptor: %d)",
             bytesRead,
@@ -273,7 +273,7 @@ bool TOutputPipe::ProcessData(ui32 epollEvent)
 
         if (bytesRead > 0) {
             try {
-                OutputStream->Write(Buffer.data(), static_cast<size_t>(bytesRead));
+                OutputStream->Write(Buffer.Begin(), static_cast<size_t>(bytesRead));
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Failed to write into output (fd: %d)",
                     JobDescriptor) << ex;

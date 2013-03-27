@@ -1,16 +1,10 @@
 #pragma once
 
 #include "common.h"
+#include "blob.h"
 #include "new.h"
 
 namespace NYT {
-
-////////////////////////////////////////////////////////////////////////////////
-
-typedef std::vector<char> TBlob;
-
-size_t RoundUpToPage(size_t bytes);
-void AppendToBlob(TBlob& blob, const void* buffer, size_t size);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,13 +16,13 @@ class TRef
 {
 public:
     //! Creates a null reference with zero size.
-    TRef()
+    FORCED_INLINE TRef()
         : Data(nullptr)
         , Size_(0)
     { }
 
     //! Creates a reference for a given block of memory.
-    TRef(void* data, size_t size)
+    FORCED_INLINE TRef(void* data, size_t size)
     {
         YASSERT(data || size == 0);
         Data = reinterpret_cast<char*>(data);
@@ -36,78 +30,70 @@ public:
     }
 
     //! Creates a reference for a given range of memory.
-    TRef(void* begin, void* end)
+    FORCED_INLINE TRef(void* begin, void* end)
     {
         Data = reinterpret_cast<char*>(begin);
         Size_ = reinterpret_cast<char*>(end) - Data;
     }
 
     //! Creates a non-owning reference for a given blob.
-    static TRef FromBlob(const TBlob& blob)
+    static FORCED_INLINE TRef FromBlob(const TBlob& blob)
     {
-        return TRef(const_cast<char*>(&*blob.begin()), blob.size());
+        return TRef(const_cast<char*>(&*blob.Begin()), blob.Size());
     }
 
     //! Creates a non-owning reference for a given string.
-    static TRef FromString(const Stroka& str)
+    static FORCED_INLINE TRef FromString(const Stroka& str)
     {
         return TRef(const_cast<char*>(str.data()), str.length());
     }
 
     //! Creates a non-owning reference for a given pod structure.
     template <class T>
-    static TRef FromPod(const T& data)
+    static FORCED_INLINE TRef FromPod(const T& data)
     {
         static_assert(TTypeTraits<T>::IsPod, "T must be a pod-type.");
-        // TODO(ignat): get rid of const_cast
         return TRef(const_cast<T*>(&data), sizeof (data));
     }
 
-    char* Begin() const
+    FORCED_INLINE char* Begin() const
     {
         return Data;
     }
 
-    char* End() const
+    FORCED_INLINE char* End() const
     {
         return Data + Size_;
     }
 
-    bool Empty() const
+    FORCED_INLINE bool Empty() const
     {
         return Size_ == 0;
     }
 
-    size_t Size() const
+    FORCED_INLINE size_t Size() const
     {
         return Size_;
     }
 
     //! Compares the pointer (not the content!) for equality.
-    bool operator == (const TRef& other) const
+    FORCED_INLINE bool operator == (const TRef& other) const
     {
         return Data == other.Data && Size_ == other.Size_;
     }
 
     //! Compares the pointer (not the content!) for inequality.
-    bool operator != (const TRef& other) const
+    FORCED_INLINE bool operator != (const TRef& other) const
     {
         return !(*this == other);
     }
 
-    //! Compares the content for equality.
-    static inline bool CompareContent(const TRef& lhs, const TRef& rhs)
-    {
-        if (lhs.Size() != rhs.Size())
-            return false;
-        if (lhs.Size() == 0)
-            return true;
-        return memcmp(lhs.Begin(), rhs.Begin(), lhs.Size()) == 0;
-    }
+    //! Compares the content for bitwise equality.
+    static bool AreBiwiseEqual(const TRef& lhs, const TRef& rhs);
 
     typedef char* TRef::*TUnspecifiedBoolType;
     //! Implicit conversion to bool.
-    operator TUnspecifiedBoolType() const
+    FORCED_INLINE operator TUnspecifiedBoolType() const
     {
         return Data ? &TRef::Data : nullptr;
     }
@@ -129,8 +115,8 @@ struct TDefaultSharedRefTag { };
 
 //! A reference of a shared block of memory.
 /*!
- *  Internally it is represented a by a shared pointer to a TBlob holding the
- *  data and a TRef pointing inside the blob.
+ *  Internally it is represented a by a ref-counted structure with a TBlob holding the
+ *  actual data and a TRef pointing inside the blob.
  */
 class TSharedRef
 {
@@ -141,9 +127,9 @@ public:
 
     //! Allocates a new shared block of memory.
     template <class TTag>
-    static TSharedRef Allocate(size_t size)
+    static TSharedRef Allocate(size_t size, bool initializeStorage = true)
     {
-        auto result = AllocateImpl(size);
+        auto result = AllocateImpl(size, initializeStorage);
 #ifdef ENABLE_REF_COUNTED_TRACKING
         void* cookie = ::NYT::NDetail::GetRefCountedTrackerCookie<TTag>();
         result.Data->InitializeTracking(cookie);
@@ -151,9 +137,9 @@ public:
         return result;
     }
 
-    static TSharedRef Allocate(size_t size)
+    static TSharedRef Allocate(size_t size, bool initializeStorage = true)
     {
-        return Allocate<TDefaultSharedRefTag>(size);
+        return Allocate<TDefaultSharedRefTag>(size, initializeStorage);
     }
 
     //! Creates a non-owning reference from TPtr. Use it with caution!
@@ -200,71 +186,71 @@ public:
         return TSharedRef(Data, sliceRef);
     }
 
-    operator const TRef&() const
+    FORCED_INLINE operator const TRef&() const
     {
         return Ref;
     }
 
-    const char* Begin() const
+    FORCED_INLINE const char* Begin() const
     {
         return Ref.Begin();
     }
 
-    char* Begin()
+    FORCED_INLINE char* Begin()
     {
         return Ref.Begin();
     }
 
-    const char* operator ~ () const
+    FORCED_INLINE const char* operator ~ () const
     {
         return Begin();
     }
 
-    const char* End() const
+    FORCED_INLINE const char* End() const
     {
         return Ref.End();
     }
 
-    char* End()
+    FORCED_INLINE char* End()
     {
         return Ref.End();
     }
 
-    size_t Size() const
+    FORCED_INLINE size_t Size() const
     {
         return Ref.Size();
     }
 
-    bool Empty() const
+    FORCED_INLINE bool Empty() const
     {
         return Ref.Empty();
     }
 
     //! Compares the pointer (not the content!) for equality.
-    bool operator == (const TSharedRef& other) const
+    FORCED_INLINE bool operator == (const TSharedRef& other) const
     {
         return Data == other.Data && Ref == other.Ref;
     }
 
     //! Compares the pointer (not the content!) for inequality.
-    bool operator != (const TSharedRef& other) const
+    FORCED_INLINE bool operator != (const TSharedRef& other) const
     {
         return !(*this == other);
     }
 
     // Implicit conversion to bool.
     typedef TRef TSharedRef::*TUnspecifiedBoolType;
-    operator TUnspecifiedBoolType() const
+    FORCED_INLINE operator TUnspecifiedBoolType() const
     {
         return Ref ? &TSharedRef::Ref : nullptr;
     }
 
 private:
-    struct TData
+    struct TSharedData
         : public TIntrinsicRefCounted
     {
-        explicit TData(TBlob&& blob);
-        ~TData();
+        explicit TSharedData(TBlob&& blob);
+        ~TSharedData();
 
         TBlob Blob;
 
@@ -276,7 +262,7 @@ private:
 #endif
     };
 
-    typedef TIntrusivePtr<TData> TDataPtr;
+    typedef TIntrusivePtr<TSharedData> TDataPtr;
 
     TDataPtr Data;
     TRef Ref;
@@ -286,13 +272,17 @@ private:
         , Ref(ref)
     { }
 
-    static TSharedRef AllocateImpl(size_t size);
+    static TSharedRef AllocateImpl(size_t size, bool initializeStorage);
     static TSharedRef FromBlobImpl(TBlob&& blob);
 
 };
 
 void Save(TOutputStream* output, const NYT::TSharedRef& ref);
 void Load(TInputStream* input, NYT::TSharedRef& ref);
+
+////////////////////////////////////////////////////////////////////////////////
+
+size_t RoundUpToPage(size_t bytes);
 
 ////////////////////////////////////////////////////////////////////////////////
 

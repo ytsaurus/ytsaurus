@@ -25,7 +25,7 @@ TSharedRef PackRefs(const std::vector<TSharedRef>& refs)
     }
 
     struct TPackedRefsTag { };
-    auto result = TSharedRef::Allocate<TPackedRefsTag>(size);
+    auto result = TSharedRef::Allocate<TPackedRefsTag>(size, false);
     TMemoryOutput output(result.Begin(), result.Size());
 
     WritePod(output, static_cast<i32>(refs.size()));
