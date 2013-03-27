@@ -3,7 +3,6 @@ def main():
     import sys
     import itertools
     import imp
-    import shelve
     import zipfile
 
     # Variable names start with "__" to avoid accidental intersection with scope of user function
@@ -26,7 +25,7 @@ def main():
         globals()[name] = sys.modules['__main__'].__dict__[name]
 
     from yt.wrapper.pickling import load
-    __operation, __attributes, __operation_type, __keys = load(open(__operation_dump))
+    __operation, __attributes, __operation_type, __input_format, __output_format, __keys = load(open(__operation_dump))
 
     import yt.wrapper.config as config
     config_dict = load(open(__config_dump_filename))
@@ -37,15 +36,15 @@ def main():
     if __attributes.get("is_raw", False):
         __result = itertools.chain(*itertools.imap(__operation, sys.stdin.xreadlines()))
     else:
-        __records = itertools.imap(yt.line_to_record, sys.stdin.xreadlines())
+        __records = itertools.imap(lambda line: yt.line_to_record(line, __input_format), sys.stdin.xreadlines())
         if __operation_type == "mapper":
             if __attributes.get("is_aggregator", False):
                 __result = __operation(__records)
             else:
                 __result = itertools.chain(*itertools.imap(__operation, __records))
         else:
-            __result = itertools.chain.from_iterable(itertools.starmap(__operation, itertools.groupby(__records, yt.extract_key)))
-        __result = itertools.imap(yt.record_to_line, __result)
+            __result = itertools.chain.from_iterable(itertools.starmap(__operation, itertools.groupby(__records, lambda rec: yt.extract_key(rec, __keys, __input_format))))
+        __result = itertools.imap(lambda rec: yt.record_to_line(rec, __output_format), __result)
     sys.stdout.writelines(__result)
 
 if __name__ == "__main__":

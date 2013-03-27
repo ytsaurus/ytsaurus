@@ -34,12 +34,12 @@ def module_relpath(module):
     #            relpath = relpath[1:]
     #        return relpath
 
-def wrap(function, operation_type, reduce_by=None):
+def wrap(function, operation_type, input_format=None, output_format=None, reduce_by=None):
     assert operation_type in ["mapper", "reducer"]
     function_filename = tempfile.mkstemp(dir="/tmp", prefix=".operation.dump")[1]
     with open(function_filename, "w") as fout:
         attributes = function.attributes if hasattr(function, "attributes") else {}
-        dump((function, attributes, operation_type, reduce_by), fout)
+        dump((function, attributes, operation_type, input_format, output_format, reduce_by), fout)
 
     zip_filename = tempfile.mkstemp(dir="/tmp", prefix=".modules.zip")[1]
 
@@ -51,7 +51,7 @@ def wrap(function, operation_type, reduce_by=None):
                 continue
             if hasattr(module, "__file__"):
                 relpath = module_relpath(module)
-                if relpath is None and config.PYTHON_FUNCTION_STRONG_CHECK:
+                if relpath is None and config.PYTHON_FUNCTION_CHECK_SENDING_ALL_MODULES:
                     raise YtError("Cannot determine relative path of module " + str(module))
                 zip.write(module.__file__, relpath)
 

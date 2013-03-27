@@ -77,9 +77,9 @@ def _prepare_format(format):
             YtError("You should specify format"))
     return format
 
-def _prepare_binary(binary, operation_type, reduce_by=None):
+def _prepare_binary(binary, operation_type, input_format=None, output_format=None, reduce_by=None):
     if isinstance(binary, types.FunctionType):
-        binary, binary_file, files = py_wrapper.wrap(binary, operation_type, reduce_by)
+        binary, binary_file, files = py_wrapper.wrap(binary, operation_type, input_format, output_format, reduce_by)
         uploaded_files = _prepare_files([binary_file] + files)
         if config.REMOVE_TEMP_FILES:
             for file in files:
@@ -112,7 +112,7 @@ def _add_user_command_spec(op_type, binary, input_format, output_format, files, 
     if binary is None:
         return spec, []
     files = _prepare_files(files)
-    binary, additional_files = _prepare_binary(binary, op_type, reduce_by)
+    binary, additional_files = _prepare_binary(binary, op_type, input_format, output_format, reduce_by)
     memory_limit = get_value(memory_limit, config.MEMORY_LIMIT)
     spec = update(
         {
