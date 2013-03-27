@@ -1,13 +1,13 @@
 from pickling import dump
 import config
 
+from common import get_value
 from errors import YtError
 
 from yt.zip import ZipFile
 
 import os
 import sys
-import shelve
 import shutil
 import tempfile
 import types
@@ -15,14 +15,15 @@ import types
 LOCATION = os.path.dirname(os.path.abspath(__file__))
 
 def module_relpath(module):
+    extensions = get_value(config.PYTHON_FUNCTION_SEARCH_EXTENSIONS, ["py", "pyc", "so"])
     if module.__name__ == "__main__":
         return module.__file__
     for init in ["", "/__init__"]:
-        for ext in ["py", "pyc", "so"]:
+        for ext in extensions:
             rel_path = "%s%s.%s" % (module.__name__.replace(".", "/"), init, ext)
             if module.__file__.endswith(rel_path):
                 return rel_path
-    raise YtError("Cannot determine relative path of module " + str(module))
+    return None
     #!!! It is wrong solution, beacause modules can affect sys.path while importing
     #!!! Do not delete it to prevent wrong refactoring in the future.
     # module_path = module.__file__
@@ -45,25 +46,29 @@ def wrap(function, operation_type, reduce_by=None):
     # We don't use with statement for compatibility with python2.6
     with ZipFile(zip_filename, "w") as zip:
         for module in sys.modules.values():
+            if config.PYTHON_FUNCTION_MODULE_FILTER is not None and \
+                    not config.PYTHON_FUNCTION_MODULE_FILTER(module):
+                continue
             if hasattr(module, "__file__"):
-                zip.write(module.__file__, module_relpath(module))
+                relpath = module_relpath(module)
+                if relpath is None and config.PYTHON_FUNCTION_STRONG_CHECK:
+                    raise YtError("Cannot determine relative path of module " + str(module))
+                zip.write(module.__file__, relpath)
 
     main_filename = tempfile.mkstemp(dir="/tmp", prefix="_main_module")[1] + ".py"
     shutil.copy(sys.modules['__main__'].__file__, main_filename)
 
-    config_filename = tempfile.mkstemp(dir="/tmp", prefix="config_dump")[1] + ".db"
-    config_shelve = shelve.open(config_filename)
-
-    try:
-        for key in dir(config):
-            value = config.__dict__[key]
-            is_bad = any(isinstance(value, type)
-                         for type in [types.ModuleType, types.FileType, types.EllipsisType])
-            if is_bad or key.startswith("__"):# or key == "DEFAULT_STRATEGY":
-                continue
-            config_shelve[key] = value
-    finally:
-        config_shelve.close()
+    config_filename = tempfile.mkstemp(dir="/tmp", prefix="config_dump")[1]
+    config_dict = {}
+    for key in dir(config):
+        value = config.__dict__[key]
+        is_bad = any(isinstance(value, type)
+                     for type in [types.ModuleType, types.FileType, types.EllipsisType])
+        if is_bad or key.startswith("__"):# or key == "DEFAULT_STRATEGY":
+            continue
+        config_dict[key] = value
+    with open(config_filename, "w") as fout:
+        dump(config_dict, fout)
 
     return ("python _py_runner.py " + " ".join([
                 os.path.basename(function_filename),

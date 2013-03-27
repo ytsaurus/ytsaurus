@@ -29,12 +29,9 @@ def main():
     __operation, __attributes, __operation_type, __keys = load(open(__operation_dump))
 
     import yt.wrapper.config as config
-    config_shelve = shelve.open(__config_dump_filename, flag='r')
-    try:
-        for key, value in config_shelve.iteritems():
-            config.__dict__[key] = value
-    finally:
-        config_shelve.close()
+    config_dict = load(open(__config_dump_filename))
+    for key, value in config_dict.iteritems():
+        config.__dict__[key] = value
 
     import yt.wrapper as yt
     if __attributes.get("is_raw", False):
