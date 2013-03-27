@@ -53,7 +53,7 @@ def Record(*args, **kws):
 
 """ Methods for records conversion """
 # TODO(ignat): builtin full support of this methods to read/write and python operations
-def record_to_line(rec, eoln=True, format=None):
+def record_to_line(rec, format=None, eoln=True):
     def escape_dsv(value):
         escape_dict = {'\\': '\\\\', '\n': '\\n', '\t': '\\t', '=': '\\=', '\0': '\\0'}
         for sym, escaped in escape_dict.items():
@@ -90,7 +90,7 @@ def line_to_record(line, format=None):
     else:
         raise YtError("Unrecognized format " + repr(format))
 
-def extract_key(rec, fields):
+def extract_key(rec, fields, format=None):
     if format is None: format = config.DEFAULT_FORMAT
 
     if isinstance(format, YamrFormat):
