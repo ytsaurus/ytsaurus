@@ -165,15 +165,21 @@ private:
         // A special option (ToDo(psushin): which one?) enables concatenating
         // all input streams into fd == 0.
 
-        int maxReservedDescriptor = std::max(
-            JobIO->GetInputCount(),
-            JobIO->GetOutputCount()) * 3;
+        int maxReservedDescriptor = 0;
+
+        if (UserJobSpec.use_yamr_descriptors()) {
+            maxReservedDescriptor = 2 + JobIO->GetOutputCount();
+        } else {
+            maxReservedDescriptor = std::max(
+                JobIO->GetInputCount(),
+                JobIO->GetOutputCount()) * 3;
+        }
 
         YASSERT(maxReservedDescriptor > 0);
 
         // To avoid descriptor collisions between pipes on this, proxy side,
         // and "standard" descriptor numbers in forked job (see comments above)
-        // we ensure that lower 3 * N descriptors are allocated before creating pipes.
+        // we ensure that enough lower descriptors are allocated before creating pipes.
 
         std::vector<int> reservedDescriptors;
         auto createPipe = [&] (int fd[2]) {
@@ -204,6 +210,8 @@ private:
 
         // Make pipe for each input and each output table.
         {
+            YCHECK(!UserJobSpec.use_yamr_descriptors() || JobIO->GetInputCount() == 1);
+
             auto format = ConvertTo<TFormat>(TYsonString(UserJobSpec.input_format()));
             for (int i = 0; i < JobIO->GetInputCount(); ++i) {
                 TAutoPtr<TBlobOutput> buffer(new TBlobOutput());
@@ -233,7 +241,12 @@ private:
                 auto parser = CreateParserForFormat(format, EDataType::Tabular, consumer.Get());
                 TableOutput[i] = new TTableOutput(parser, consumer, writer);
                 createPipe(pipe);
-                OutputPipes.push_back(New<TOutputPipe>(pipe, ~TableOutput[i], 3 * i + 1));
+
+                int jobDescriptor = UserJobSpec.use_yamr_descriptors()
+                    ? 3 + i
+                    : 3 * i + 1;
+
+                OutputPipes.push_back(New<TOutputPipe>(pipe, ~TableOutput[i], jobDescriptor));
             }
         }
 
@@ -402,6 +415,12 @@ private:
                 pipe->PrepareJobDescriptors();
             }
 
+            if (UserJobSpec.use_yamr_descriptors()) {
+                // This hack is to work around the fact that output pipe accepts single job descriptor,
+                // whilst yamr convention requires fds 1 and 3 to be the same.
+                SafeDup2(3, 1);
+            }
+
             // ToDo(psushin): handle errors.
             auto config = Host->GetConfig();
             ChDir(config->SandboxName);
@@ -434,8 +453,8 @@ private:
             }
 
             // do not search the PATH, inherit environment
-            execle("/bin/bash",
-                "/bin/bash",
+            execle("/bin/sh",
+                "/bin/sh",
                 "-c",
                 ~cmd,
                 (void*)NULL,
@@ -443,7 +462,7 @@ private:
 
             int _errno = errno;
 
-            fprintf(stderr, "Failed to exec job (/bin/bash -c '%s'): %s\n",
+            fprintf(stderr, "Failed to exec job (/bin/sh -c '%s'): %s\n",
                 ~cmd,
                 strerror(_errno));
             _exit(EJobProxyExitCode::ExecFailed);
