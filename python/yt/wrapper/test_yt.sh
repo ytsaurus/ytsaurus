@@ -1,5 +1,7 @@
 #!/bin/bash -eux
 
+cd $(dirname "${BASH_SOURCE[0]}")
+
 set_up() {
     ./yt create map_node //home/wrapper_test
 }
