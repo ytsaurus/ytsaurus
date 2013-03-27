@@ -172,7 +172,7 @@ def _make_operation_request(command_name, spec, strategy, finalizer=None, verbos
     if not config.DETACHED:
         transaction = PingableTransaction(
             config.OPERATION_TRANSACTION_TIMEOUT,
-            attributes={"title": "Python wrapper: evelope transaction of operation"})
+            attributes={"title": "Python wrapper: envelope transaction of operation"})
         def run_in_transaction():
             def envelope_finalizer():
                 if finalizer is not None:
