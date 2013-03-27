@@ -1,6 +1,6 @@
 import config
 import py_wrapper
-from common import flatten, require, unlist, update, EMPTY_GENERATOR, parse_bool, is_prefix, get_value, compose, execute_handling_sigint
+from common import flatten, require, unlist, update, EMPTY_GENERATOR, parse_bool, is_prefix, get_value, compose, execute_handling_sigint, bool_to_string
 from errors import YtError
 from version import VERSION
 from http import read_content, get_host_for_heavy_operation
@@ -61,13 +61,6 @@ def _prepare_files(files):
         file_paths.append(smart_upload_file(file))
     return file_paths
 
-def _add_output_fd_redirect(binary, dst_count):
-    if config.USE_MAPREDUCE_STYLE_DESTINATION_FDS:
-        for fd in xrange(3, 3 + dst_count):
-            yt_fd = 1 + (fd - 3) * 3
-            binary = binary + " %d>/dev/fd/%d" % (fd, yt_fd)
-    return binary
-
 def _prepare_formats(format, input_format, output_format):
     if format is None: format = config.DEFAULT_FORMAT
     if input_format is None: input_format = format
@@ -115,12 +108,11 @@ def _remove_tables(tables):
         if exists(table) and get_type(table) == "table":
             remove(table)
 
-def _add_user_command_spec(op_type, binary, input_format, output_format, files, file_paths, fds_count, memory_limit, reduce_by, spec):
+def _add_user_command_spec(op_type, binary, input_format, output_format, files, file_paths, memory_limit, reduce_by, spec):
     if binary is None:
         return spec, []
     files = _prepare_files(files)
     binary, additional_files = _prepare_binary(binary, op_type, reduce_by)
-    binary = _add_output_fd_redirect(binary, fds_count)
     memory_limit = get_value(memory_limit, config.MEMORY_LIMIT)
     spec = update(
         {
@@ -129,7 +121,8 @@ def _add_user_command_spec(op_type, binary, input_format, output_format, files, 
                 "output_format": output_format.to_json(),
                 "command": binary,
                 "file_paths": flatten(files + additional_files + map(prepare_path, get_value(file_paths, []))),
-                "memory_limit": memory_limit
+                "memory_limit": memory_limit,
+                "use_yamr_descriptors": bool_to_string(config.USE_MAPREDUCE_STYLE_DESTINATION_FDS)
             }
         },
     spec)
@@ -545,8 +538,8 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
         lambda _: _add_input_output_spec(source_table, destination_table, _),
         lambda _: update({"sort_by": _prepare_sort_by(sort_by),
                           "reduce_by": _prepare_reduce_by(reduce_by)}, _),
-        lambda _: memorize_files(*_add_user_command_spec("mapper", mapper, input_format, output_format, map_files, map_file_paths, 1, mapper_memory_limit, None, _)),
-        lambda _: memorize_files(*_add_user_command_spec("reducer", reducer, input_format, output_format, reduce_files, reduce_file_paths, len(destination_table), reducer_memory_limit, reduce_by, _)),
+        lambda _: memorize_files(*_add_user_command_spec("mapper", mapper, input_format, output_format, map_files, map_file_paths, mapper_memory_limit, None, _)),
+        lambda _: memorize_files(*_add_user_command_spec("reducer", reducer, input_format, output_format, reduce_files, reduce_file_paths, reducer_memory_limit, reduce_by, _)),
         lambda _: get_value(_, {})
     )(spec)
 
@@ -614,7 +607,7 @@ def run_operation(binary, source_table, destination_table,
         lambda _: update({"reduce_by": _prepare_reduce_by(reduce_by)}, _) if op_name == "reduce" else _,
         lambda _: update({"job_count": job_count}, _) if job_count is not None else _,
         lambda _: update({"memory_limit": memory_limit}, _) if memory_limit is not None else _,
-        lambda _: memorize_files(*_add_user_command_spec(op_type, binary, input_format, output_format, files, file_paths, len(destination_table), memory_limit, reduce_by, _)),
+        lambda _: memorize_files(*_add_user_command_spec(op_type, binary, input_format, output_format, files, file_paths, memory_limit, reduce_by, _)),
         lambda _: get_value(_, {})
     )(spec)
 
