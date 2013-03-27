@@ -227,12 +227,23 @@ class TestDefaultBehaviour(YtTestBase, YTEnv):
                 rec["x"] = int(rec["x"]) + 1
             yield rec
 
+        def sum_y(key, recs):
+            sum = 0
+            for rec in recs:
+                sum += int(rec.get("y", 1))
+            yield {"x": key["x"], "y": sum}
+
         table = TEST_DIR + "/table"
+
         yt.write_table(table, ["x=1\n", "y=2\n"])
         yt.run_map(change_x, table, table)
-
         self.assertItemsEqual(["x=2\n", "y=2\n"], yt.read_table(table))
-        
+
+        yt.write_table(table, ["x=2\n", "x=2\ty=2\n"])
+        yt.run_sort(table, sort_by=["x"])
+        yt.run_reduce(sum_y, table, table, reduce_by=["x"])
+        self.assertItemsEqual(["x=2\ty=3\n"], yt.read_table(table))
+
     def test_yt_binary(self):
         current_dir = os.path.dirname(os.path.abspath(__file__))
         proc = subprocess.Popen(
