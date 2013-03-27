@@ -89,6 +89,7 @@ struct TUserJobSpec
     double MemoryReserveFactor;
 
     bool EnableTableIndex;
+    bool UseYamrDescriptors;
 
     TUserJobSpec()
     {
@@ -113,6 +114,8 @@ struct TUserJobSpec
             .GreaterThan(0.)
             .LessThanOrEqual(1.);
         Register("enable_table_index", EnableTableIndex)
+            .Default(false);
+        Register("use_yamr_descriptors", UseYamrDescriptors)
             .Default(false);
     }
 };
