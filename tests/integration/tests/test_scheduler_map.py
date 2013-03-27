@@ -186,7 +186,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         assert read('//tmp/output') == [{'value': 42}, {'a': 'b'}, {"text": "info"}]
 
-    def test_many_output_tables(self):
+    def run_many_output_tables(self, yamr_mode=False):
         output_tables = ['//tmp/t%d' % i for i in range(3)]
 
         create('table', '//tmp/t_in')
@@ -195,24 +195,28 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         write_str('//tmp/t_in', '{a=b}')
 
-        mapper = \
-"""
-cat  > /dev/null
-echo {v = 0} >&1
-echo {v = 1} >&4
-echo {v = 2} >&7
+        if yamr_mode:
+            mapper = "cat  > /dev/null; echo {v = 0} >&3; echo {v = 1} >&4; echo {v = 2} >&5"
+        else:
+            mapper = "cat  > /dev/null; echo {v = 0} >&1; echo {v = 1} >&4; echo {v = 2} >&7"
 
-"""
         upload('//tmp/mapper.sh', mapper)
 
         map(in_='//tmp/t_in',
             out=output_tables,
             command='bash mapper.sh',
-            file='//tmp/mapper.sh')
+            file='//tmp/mapper.sh',
+            opt='/spec/mapper/use_yamr_descriptors=%s' % ('true' if yamr_mode else 'false'))
 
         assert read(output_tables[0]) == [{'v': 0}]
         assert read(output_tables[1]) == [{'v': 1}]
         assert read(output_tables[2]) == [{'v': 2}]
+
+    def test_many_output_yt(self):
+        self.run_many_output_tables()
+
+    def test_many_output_yamr(self):
+        self.run_many_output_tables(True)
 
     def test_tskv_input_format(self):
         create('table', '//tmp/t_in')
