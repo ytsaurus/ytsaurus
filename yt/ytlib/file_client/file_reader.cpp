@@ -32,6 +32,9 @@ TFileReader::TFileReader()
     VERIFY_THREAD_AFFINITY(ClientThread);
 }
 
+TFileReader::~TFileReader()
+{ }
+
 void TFileReader::Open(
     TFileReaderConfigPtr config,
     NRpc::IChannelPtr masterChannel,
