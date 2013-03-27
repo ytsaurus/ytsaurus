@@ -117,9 +117,6 @@ def make_request(command_name, params,
         to get, read, write, create ...
         Returns response content, raw_response option force
         to return request.Response instance"""
-    requests.adapters.DEFAULT_RETRIES = 10
-    if not "SHOW_TOKEN_WARNING" in make_request.__dict__:
-        make_request.SHOW_TOKEN_WARNING = False
     def print_info(msg, *args, **kwargs):
         # Verbose option is used for debugging because it is more
         # selective than logging
@@ -127,6 +124,9 @@ def make_request(command_name, params,
             # We don't use kwargs because python doesn't support such kind of formatting
             print >>sys.stderr, msg % args
         logger.debug(msg, *args, **kwargs)
+
+    # Trying to set http retries in requests
+    requests.adapters.DEFAULT_RETRIES = 10
 
     http_method = {
         "start_tx": "POST",
@@ -187,13 +187,10 @@ def make_request(command_name, params,
     if config.USE_TOKEN:
         token = get_token()
         if token is None:
-            if not make_request.SHOW_TOKEN_WARNING:
-                make_request.SHOW_TOKEN_WARNING = True
-                if date.today() >= date(2013, 02, 01):
-                    print >>sys.stderr, "Authentication token is missing. Please obtain it as soon as possible."
-                    print >>sys.stderr, "Refer to http://proxy.yt.yandex.net/auth/ for instructions."
-                    if date.today() >= date(2013, 02, 07):
-                        sys.exit(1)
+            # TODO(ignat): use YtError
+            print >>sys.stderr, "Authentication token is missing. Please obtain it as soon as possible."
+            print >>sys.stderr, "Refer to http://proxy.yt.yandex.net/auth/ for instructions."
+            sys.exit(1)
         else:
             headers["Authorization"] = "OAuth " + token
 
