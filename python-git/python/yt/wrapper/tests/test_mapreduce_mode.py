@@ -403,7 +403,7 @@ class TestMapreduceMode(YtTestBase, YTEnv):
         yt.mkdir("//statbox")
         yt.create_table("//statbox/table")
         proc = subprocess.Popen(
-            "YT_PROXY=%s %s" %
+            "YT_USE_TOKEN=0 YT_PROXY=%s %s" %
                 (config.PROXY,
                  os.path.join(LOCATION, "../test_mapreduce.sh")),
             shell=True)

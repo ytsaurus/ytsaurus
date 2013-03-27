@@ -42,8 +42,6 @@ def wrap(function, operation_type, input_format=None, output_format=None, reduce
         dump((function, attributes, operation_type, input_format, output_format, reduce_by), fout)
 
     zip_filename = tempfile.mkstemp(dir="/tmp", prefix=".modules.zip")[1]
-
-    # We don't use with statement for compatibility with python2.6
     with ZipFile(zip_filename, "w") as zip:
         for module in sys.modules.values():
             if config.PYTHON_FUNCTION_MODULE_FILTER is not None and \
