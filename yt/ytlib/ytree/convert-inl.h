@@ -131,7 +131,7 @@ TTo ConvertTo(const TFrom& value)
     return ConvertTo<TTo>(ConvertToNode(value));
 }
 
-// It cannot be builtin to CHECK_TYPE because
+// Cannot inline this into CHECK_TYPE because
 // C++ has some issues while expanding type argument
 #define GET_VALUE(x) token.Get ## x ## Value()
 
@@ -147,8 +147,7 @@ TTo ConvertTo(const TFrom& value)
     { \
         using NYson::ETokenType; \
         NYson::TTokenizer tokenizer(str.Data()); \
-        if (tokenizer.ParseNext()) \
-        { \
+        if (tokenizer.ParseNext()) { \
             auto token = tokenizer.CurrentToken(); \
             std::vector<ETokenType> consideredTokens; \
             PP_FOR_EACH(CHECK_TYPE, token_types); \
@@ -163,6 +162,7 @@ CONVERT_TO_PLAIN_TYPE(TStringBuf, (String))
 
 #undef CONVERT_TO_PLAIN_TYPE
 #undef CHECK_TYPE
+#undef GET_VALUE
 
 ////////////////////////////////////////////////////////////////////////////////
 

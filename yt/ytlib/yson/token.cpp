@@ -147,8 +147,7 @@ void TToken::CheckType(const std::vector<ETokenType>& expectedTypes) const
 {
     if (expectedTypes.size() == 1) {
         CheckType(expectedTypes.front());
-    }
-    else if (std::find(expectedTypes.begin(), expectedTypes.end(), Type_) == expectedTypes.end()) {
+    } else if (std::find(expectedTypes.begin(), expectedTypes.end(), Type_) == expectedTypes.end()) {
         Stroka typesString = JoinStroku(expectedTypes.begin(), expectedTypes.end(), " or ");
         if (Type_ == ETokenType::EndOfStream) {
             THROW_ERROR_EXCEPTION("Unexpected end of stream (ExpectedType: %s)", ~typesString);
