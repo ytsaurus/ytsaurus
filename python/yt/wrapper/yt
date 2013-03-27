@@ -73,7 +73,7 @@ def list(args):
                 sys.stdout.write("%10s %20s %18r %10s %5s " % (type, user, size, date, time))
             print elem
     else:
-        print list
+        sys.stdout.write(list)
 
 def add_list_parser(add_parser):
     parser = add_parser("list", help="list objects")
@@ -173,7 +173,7 @@ def add_create_parser(add_parser):
     parser.set_defaults(func=create)
 
 def get(args):
-    print yt.get(args.path, spec=args.spec, attributes=args.attribute, format=args.format)
+    sys.stdout.write(yt.get(args.path, spec=args.spec, attributes=args.attribute, format=args.format))
 
 def add_get_parser(add_parser):
     parser = add_parser("get", help="get subtree of object in the given path")
@@ -396,7 +396,7 @@ def add_ping_tx_parser(add_parser):
     parser.set_defaults(func=ping_tx)
 
 def check_permission(args):
-    print yt.check_permission(args.user, args.permission, args.path, format=args.format)
+    sys.stdout.write(yt.check_permission(args.user, args.permission, args.path, format=args.format))
 
 def add_check_permission_parser(add_parser):
     parser = add_parser("check-permission", help="check permission of given user at given path")
