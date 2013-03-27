@@ -312,19 +312,25 @@ class YTEnv(object):
                 update_status(good_marker, line, nodes_status, True)
                 update_status(bad_marker, line, nodes_status, False)
 
-            ready = 0
-            for line in reversed(open(self.scheduler_log).readlines()):
-                if scheduler_good_marker.match(line):
-                    ready += 1
+            scheduler_ready = False
+            if self.scheduler_log is not None:
+                ready = 0
+                for line in reversed(open(self.scheduler_log).readlines()):
+                    if scheduler_good_marker.match(line):
+                        ready += 1
+                scheduler_ready = (ready == self.NUM_NODES)
+            else:
+                scheduler_ready = True
 
             if len(nodes_status) != self.NUM_NODES: return False
-            return all(nodes_status.values()) and ready == self.NUM_NODES
+            return all(nodes_status.values()) and scheduler_ready
 
         self._wait_for(all_nodes_ready, name = "nodes",
                        max_wait_time = max(self.NUM_NODES * 6.0, 20))
 
 
     def _run_schedulers(self):
+        self.scheduler_log = None
         if not self.START_SCHEDULER: return
 
         current = os.path.join(self.path_to_run, 'scheduler')
