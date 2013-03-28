@@ -99,4 +99,6 @@ for key, value in os.environ.iteritems():
                 value = int(value)
             except:
                 pass
+        if isinstance(None, var_type):
+            var_type = str
         globals()[key] = var_type(value)

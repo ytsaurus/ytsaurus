@@ -166,7 +166,7 @@ def write(args):
 def add_write_parser(add_parser):
     parser = add_parser("write", help="write rows to table")
     parser.add_argument("path")
-    parser.add_argument("--format", action=ParseFormat, required=True)
+    parser.add_argument("--format", action=ParseFormat)
     parser.add_argument("--table-writer", action=ParseStructuredArgument)
     parser.set_defaults(func=write)
 
@@ -344,8 +344,8 @@ def add_reduce_parser(add_parser):
 
 def map_reduce(args):
     yt.run_map_reduce(args.mapper, args.reducer, args.src, args.dst,
-                      map_files=args.map_local_files, map_file_paths=args.map_files,
-                      reduce_files=args.reduce_local_files, reduce_file_paths=args.reduce_files,
+                      map_files=args.map_local_file, map_file_paths=args.map_file,
+                      reduce_files=args.reduce_local_file, reduce_file_paths=args.reduce_file,
                       reduce_by=args.reduce_by, sort_by=args.sort_by,
                       format=args.format, input_format=args.input_format, output_format=args.output_format,
                       mapper_memory_limit=args.map_memory_limit,

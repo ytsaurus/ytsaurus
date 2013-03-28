@@ -540,6 +540,9 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
 
     input_format, output_format = _prepare_formats(format, input_format, output_format)
 
+    if sort_by is None:
+        sort_by = reduce_by
+
     spec = compose(
         _add_user_spec,
         lambda _: _add_table_writer_spec(["map_job_io", "reduce_job_io", "sort_job_io"], table_writer, _),
