@@ -51,7 +51,7 @@ public:
         : ExitCode(0)
     {
         RegisterExecutor(New<TStartTxExecutor>());
-        RegisterExecutor(New<TRenewTxExecutor>());
+        RegisterExecutor(New<TPingTxExecutor>());
         RegisterExecutor(New<TCommitTxExecutor>());
         RegisterExecutor(New<TAbortTxExecutor>());
 

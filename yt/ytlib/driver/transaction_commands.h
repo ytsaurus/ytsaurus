@@ -38,17 +38,17 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TRenewTransactionRequest
+struct TPingTransactionRequest
     : public TTransactedRequest
 { };
 
-typedef TIntrusivePtr<TRenewTransactionRequest> TRenewRequestPtr;
+typedef TIntrusivePtr<TPingTransactionRequest> TRenewRequestPtr;
 
-class TRenewTransactionCommand
-    : public TTransactedCommandBase<TRenewTransactionRequest>
+class TPingTransactionCommand
+    : public TTransactedCommandBase<TPingTransactionRequest>
 {
 public:
-    explicit TRenewTransactionCommand(ICommandContext* host)
+    explicit TPingTransactionCommand(ICommandContext* host)
         : TTransactedCommandBase(host)
     { }
 

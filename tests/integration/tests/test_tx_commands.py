@@ -101,12 +101,12 @@ class TestTxCommands(YTEnvSetup):
         time.sleep(2)
         self.assertItemsEqual(get_transactions(), [])
 
-    def test_renew(self):
+    def test_ping(self):
         tx = start_transaction(opt = '/timeout=4000')
 
         time.sleep(2)
         self.assertItemsEqual(get_transactions(), [tx])
-        renew_transaction(tx)
+        ping_transaction(tx)
 
         time.sleep(3)
         self.assertItemsEqual(get_transactions(), [tx])
@@ -119,7 +119,7 @@ class TestTxCommands(YTEnvSetup):
 
         time.sleep(2)
         self.assertItemsEqual(get_transactions(), [tx_inner, tx_outer])
-        renew_transaction(tx_inner)
+        ping_transaction(tx_inner)
 
         time.sleep(3)
         # check that outer tx expired (and therefore inner was aborted)
@@ -131,7 +131,7 @@ class TestTxCommands(YTEnvSetup):
 
         time.sleep(2)
         self.assertItemsEqual(get_transactions(), [tx_inner, tx_outer])
-        renew_transaction(tx_inner, '--ping_ancestor_txs')
+        ping_transaction(tx_inner, '--ping_ancestor_txs')
 
         time.sleep(3)
         # check that all tx are still alive
