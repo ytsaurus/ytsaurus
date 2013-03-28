@@ -3,7 +3,7 @@ import logger
 from common import require, get_value
 from errors import YtError
 from tree_commands import exists
-from transaction_commands import start_transaction, commit_transaction, abort_transaction, renew_transaction
+from transaction_commands import start_transaction, commit_transaction, abort_transaction, ping_transaction
 
 import os
 from time import sleep
@@ -89,14 +89,14 @@ class PingTransaction(Thread):
 
     def stop(self):
         self.is_running = False
-        # 5.0 seconds correction for waiting response from renew
+        # 5.0 seconds correction for waiting response from ping
         self.join(5.0 + self.step)
         require(not self.is_alive(), YtError("Pinging thread is not terminated correctly"))
 
     def run(self):
         try:
             while self.is_running:
-                renew_transaction(self.transaction)
+                ping_transaction(self.transaction)
                 start_time = datetime.now()
                 while datetime.now() - start_time < timedelta(seconds=self.delay):
                     sleep(self.step)

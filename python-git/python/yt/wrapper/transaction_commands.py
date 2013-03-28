@@ -29,8 +29,8 @@ def abort_transaction(transaction, ping_ansector_transactions=None):
 def commit_transaction(transaction, ping_ansector_transactions=None):
     make_request("commit_tx", transaction_params(transaction, ping_ansector_transactions))
 
-def renew_transaction(transaction, ping_ansector_transactions=None):
-    make_request("renew_tx", transaction_params(transaction, ping_ansector_transactions))
+def ping_transaction(transaction, ping_ansector_transactions=None):
+    make_request("ping_tx", transaction_params(transaction, ping_ansector_transactions))
 
 def lock(path, mode=None):
     """
