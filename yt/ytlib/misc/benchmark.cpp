@@ -54,8 +54,11 @@ TBenchmarkSuspender::TNanosecondsSpent TBenchmarkSuspender::NsSpent;
 
 typedef TCallback< uint64_t(unsigned int) > TBenchmarkCallback;
 
-typedef std::vector<std::tuple<const char*, const char*, double>> TBenchmarkResults;
-typedef std::vector<std::tuple<const char*, const char*, TBenchmarkCallback>> TBenchmarkCallbacks;
+typedef std::tuple<const char*, const char*, double> TBenchmarkResultTuple;
+typedef std::tuple<const char*, const char*, TBenchmarkCallback> TBenchmarkCallbackTuple;
+
+typedef std::vector<TBenchmarkResultTuple> TBenchmarkResults;
+typedef std::vector<TBenchmarkCallbackTuple> TBenchmarkCallbacks;
 
 namespace NDetail {
 
@@ -308,8 +311,7 @@ static void PrintBenchmarkResultsAsTable(const TBenchmarkResults& data)
     separator('=');
 }
 
-static void PrintBenchmarkResults(
-    const std::vector<std::tuple<const char*, const char*, double> >& data)
+static void PrintBenchmarkResults(const TBenchmarkResults& data)
 {
     // TODO(sandello): Add JSON here.
     PrintBenchmarkResultsAsTable(data);
@@ -329,11 +331,11 @@ void RunBenchmarks()
     using NDetail::PrintBenchmarkResults;
     using NDetail::RunBenchmarkGetNSPerIteration;
 
-    const auto& benchmarks = GetBenchmarks();
+    auto& benchmarks = GetBenchmarks();
 
     YCHECK(!benchmarks.empty());
 
-    std::vector<std::tuple<const char*, const char*, double>> results;
+    TBenchmarkResults results;
     results.reserve(benchmarks.size() - 1);
 
 #if 0
@@ -343,14 +345,20 @@ void RunBenchmarks()
     }
 #endif
 
-    YCHECK(strcmp(get<1>(benchmarks.back()), "GlobalBenchmarkBaseline") == 0);
+    auto baselineIterator = std::find_if(
+        benchmarks.begin(),
+        benchmarks.end(),
+        [] (const TBenchmarkCallbackTuple& datum) {
+            return strcmp(get<1>(datum), "GlobalBenchmarkBaseline") == 0;
+        });
+
+    YCHECK(baselineIterator != benchmarks.end());
+    auto baseline = RunBenchmarkGetNSPerIteration(get<2>(*baselineIterator), 0);
+    benchmarks.erase(baselineIterator);
 
     // PLEASE KEEP QUIET. MEASUREMENTS IN PROGRESS.
-    auto const baseline = RunBenchmarkGetNSPerIteration(
-        get<2>(benchmarks.back()),
-        0);
 
-    for (size_t i = 0; i < benchmarks.size() - 1; ++i) {
+    for (size_t i = 0; i < benchmarks.size(); ++i) {
         const auto& benchmark = benchmarks[i];
         double elapsed = 0.0;
 
