@@ -108,6 +108,17 @@ test_merge_erase()
     ./yt merge --src "//home/wrapper_test/table1" --src "//home/wrapper_test/table3" --dst "//home/wrapper_test/merge"
 }
 
+test_map_reduce()
+{
+    export YT_DEFAULT_TABULAR_FORMAT="dsv"
+    ./yt write //home/wrapper_test/input_table < <(echo -e "value=1\nvalue=2")
+    check "2" `./yt get //home/wrapper_test/input_table/@row_count`
+
+    ./yt map-reduce --mapper cat --reducer "grep 2" --src //home/wrapper_test/input_table --dst //home/wrapper_test/input_table --reduce-by value
+    check "1" `./yt get //home/wrapper_test/input_table/@row_count`
+}
+
 run_test test_tree_commands
 run_test test_file_commands
 run_test test_copy_move_link
+run_test test_map_reduce
