@@ -62,7 +62,11 @@ def _prepare_files(files):
     return file_paths
 
 def _prepare_formats(format, input_format, output_format):
+    if format is None: format = config.DEFAULT_TABULAR_FORMAT
     if format is None: format = config.DEFAULT_FORMAT
+    if isinstance(format, str):
+        format = RawFormat.from_yson_string(format)
+
     if input_format is None: input_format = format
     require(input_format is not None,
             YtError("You should specify input format"))
@@ -72,7 +76,11 @@ def _prepare_formats(format, input_format, output_format):
     return input_format, output_format
 
 def _prepare_format(format):
+    if format is None: format = config.DEFAULT_TABULAR_FORMAT
     if format is None: format = config.DEFAULT_FORMAT
+    if isinstance(format, str):
+        format = RawFormat.from_yson_string(format)
+
     require(format is not None,
             YtError("You should specify format"))
     return format
@@ -98,7 +106,7 @@ def _prepare_destination_tables(tables, replication_factor, compression_codec):
         if not exists(table.name):
             create_table(table.name, replication_factor=replication_factor, compression_codec=compression_codec)
         else:
-            require(replication_factor is None and compression_codec is None, 
+            require(replication_factor is None and compression_codec is None,
                     YtError("Cannot append to table %s and set replication factor "
                             "or compression codec" % table))
     return tables
@@ -309,7 +317,7 @@ def read_table(table, format=None, table_reader=None, response_type=None):
     format = _prepare_format(format)
     if config.TREAT_UNEXISTING_AS_EMPTY and not exists(table.name):
         return EMPTY_GENERATOR
-    
+
     params = {"path": table.get_json()}
     if table_reader is not None:
         params["table_reader"] = table_reader
