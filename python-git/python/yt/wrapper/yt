@@ -3,12 +3,12 @@
 from argparse import ArgumentParser, Action
 
 import yt.wrapper as yt
+import yt.yson as yson
 
 import os
 import sys
 import traceback
 import simplejson as json
-import yt.yson as yson
 import fnmatch
 import shlex
 
@@ -32,9 +32,13 @@ class ParseFormat(Action):
     def __call__(self, parser, namespace, values, option_string=None):
         setattr(namespace, self.dest, yt.RawFormat.from_yson_string(values))
 
-class ParseStructure(Action):
+class ParseStructuredArgument(Action):
     def __call__(self, parser, namespace, values, option_string=None):
-        setattr(namespace, self.dest, get_structured_option_parser()(values))
+        setattr(namespace, self.dest, get_structure_parser("YT_ARGUMENTS_FORMAT")(values))
+
+class ParseStructuredData(Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        setattr(namespace, self.dest, get_structure_parser("YT_STRUCTURED_DATA_FORMAT")(values))
 
 class ParseMemoryLimit(Action):
     def __call__(self, parser, namespace, values, option_string=None):
@@ -42,14 +46,23 @@ class ParseMemoryLimit(Action):
             values = yt.config.MB * int(values)
         setattr(namespace, self.dest, values)
 
-def get_structured_option_parser():
-    option_format = os.environ.get("YT_STRUCTURED_OPTIONS_FORMAT", "yson")
+def get_structure_parser(env):
+    option_format = os.environ.get(env, "yson")
     if option_format == "json":
         return json.loads
     elif option_format == "yson":
         return yson.loads
     else:
-        raise yt.YtError("Incorrect structured option format " + option_format)
+        raise yt.YtError("Incorrect structured format " + option_format)
+
+def get_structure_writer(env):
+    option_format = os.environ.get(env, "yson")
+    if option_format == "json":
+        return lambda data: json.dumps(yson.convert_to_json_tree(data), indent=2)
+    elif option_format == "yson":
+        return lambda data: yson.dumps(data, indent="  ")
+    else:
+        raise yt.YtError("Incorrect structured format " + option_format)
 
 def list(args):
     if args.format is not None and args.long_format:
@@ -79,7 +92,7 @@ def add_list_parser(add_parser):
     parser = add_parser("list", help="list objects")
     parser.add_argument("path")
     parser.add_argument("-l", "--long-format", action="store_true", default=False)
-    parser.add_argument("--format", action=ParseFormat)
+    parser.add_argument("--format", action=ParseStructuredArgument)
     parser.add_argument("--attribute", action="append")
     parser.add_argument("--max-size", type=int, default=100)
     parser.set_defaults(func=list)
@@ -125,7 +138,7 @@ def add_read_parser(add_parser):
     parser = add_parser("read", help="read rows from table")
     parser.add_argument("path")
     parser.add_argument("--format", action=ParseFormat)
-    parser.add_argument("--table-reader", action=ParseStructure)
+    parser.add_argument("--table-reader", action=ParseStructuredArgument)
     parser.set_defaults(func=read)
 
 def download(args):
@@ -154,7 +167,7 @@ def add_write_parser(add_parser):
     parser = add_parser("write", help="write rows to table")
     parser.add_argument("path")
     parser.add_argument("--format", action=ParseFormat, required=True)
-    parser.add_argument("--table-writer", action=ParseStructure)
+    parser.add_argument("--table-writer", action=ParseStructuredArgument)
     parser.set_defaults(func=write)
 
 def create(args):
@@ -169,17 +182,21 @@ def add_create_parser(add_parser):
     parser.add_argument("path", nargs="?", default=None)
     parser.add_argument("-r", "--recursive", action="store_true", default=False)
     parser.add_argument("-i", "--ignore-existing", action="store_true", default=False)
-    parser.add_argument("--attributes", action=ParseStructure)
+    parser.add_argument("--attributes", action=ParseStructuredArgument)
     parser.set_defaults(func=create)
 
 def get(args):
-    sys.stdout.write(yt.get(args.path, spec=args.spec, attributes=args.attribute, format=args.format))
+    result = yt.get(args.path, spec=args.spec, attributes=args.attribute, format=args.format)
+    if args.format is None:
+        print get_structure_writer("YT_STRUCTURED_DATA_FORMAT")(result)
+    else:
+        sys.stdout.write(result)
 
 def add_get_parser(add_parser):
     parser = add_parser("get", help="get subtree of object in the given path")
     parser.add_argument("path")
-    parser.add_argument("--format", action=ParseFormat, default=yt.YsonFormat())
-    parser.add_argument("--spec", action=ParseStructure)
+    parser.add_argument("--format", action=ParseFormat)
+    parser.add_argument("--spec", action=ParseStructuredArgument)
     parser.add_argument("--attribute", action="append")
     parser.set_defaults(func=get)
 
@@ -190,7 +207,7 @@ def set(args):
 def add_set_parser(add_parser):
     parser = add_parser("set", help="set value at the given path")
     parser.add_argument("path")
-    parser.add_argument("value", action=ParseStructure)
+    parser.add_argument("value", action=ParseStructuredData)
     parser.set_defaults(func=set)
 
 
@@ -272,7 +289,7 @@ def add_merge_parser(add_parser):
     parser.add_argument("--src", action="append", required=True)
     parser.add_argument("--dst", required=True)
     parser.add_argument("--mode", default="unordered")
-    parser.add_argument("--spec", action=ParseStructure)
+    parser.add_argument("--spec", action=ParseStructuredArgument)
     parser.set_defaults(func=merge)
 
 
@@ -284,7 +301,7 @@ def add_sort_parser(add_parser):
     parser.add_argument("--src", nargs="+", required=True)
     parser.add_argument("--dst", required=True)
     parser.add_argument("--sort-by", nargs="+", required=True)
-    parser.add_argument("--spec", action=ParseStructure)
+    parser.add_argument("--spec", action=ParseStructuredArgument)
     parser.set_defaults(func=sort)
 
 
@@ -301,7 +318,7 @@ def operation_args(parser):
     parser.add_argument("--local-file", action="append")
     parser.add_argument("--job-count", type=int)
     parser.add_argument("--memory-limit", type=int, action=ParseMemoryLimit)
-    parser.add_argument("--spec", action=ParseStructure)
+    parser.add_argument("--spec", action=ParseStructuredArgument)
     format_args(parser)
 
 def map(args):
@@ -349,7 +366,7 @@ def add_map_reduce_parser(add_parser):
     parser.add_argument("--reduce-memory-limit", type=int, action=ParseMemoryLimit)
     parser.add_argument("--reduce-by", action="append", required=True)
     parser.add_argument("--sort-by", action="append")
-    parser.add_argument("--spec", action=ParseStructure)
+    parser.add_argument("--spec", action=ParseStructuredArgument)
     format_args(parser)
     parser.set_defaults(func=map_reduce)
 
@@ -367,7 +384,7 @@ def start_tx(args):
 
 def add_start_tx_parser(add_parser):
     parser = add_parser("start-tx", help="start transaction")
-    parser.add_argument("--attributes", action=ParseStructure)
+    parser.add_argument("--attributes", action=ParseStructuredArgument)
     parser.add_argument("--timeout", type=int)
     parser.set_defaults(func=start_tx)
 

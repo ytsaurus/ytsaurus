@@ -121,7 +121,7 @@ def line_to_record(line, format=None):
     if isinstance(format, YamrFormat):
         return Record(*line.strip("\n").split("\t", 1 + (1 if format.has_subkey else 0)))
     elif isinstance(format, DsvFormat):
-        return dict(map(unescape_record, line.strip("\n").split("\t")))
+        return dict(map(unescape_record, filter(None, line.strip("\n").split("\t"))))
     elif isinstance(format, YsonFormat):
         return yson.loads(line.rstrip(";\n"))
     else:
