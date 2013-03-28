@@ -34,9 +34,8 @@ class TestMapreduceMode(YtTestBase, YTEnv):
         YtTestBase._teardown_class()
 
     def read_records(self, table, format=None):
-        return filter(None,
-            map(partial(line_to_record, format=format),
-                yt.read_table(table, format)))
+        return map(partial(line_to_record, format=format),
+                   yt.read_table(table, format))
 
     def temp_records(self):
         columns = [string.digits, reversed(string.ascii_lowercase[:10]), string.ascii_uppercase[:10]]
@@ -280,7 +279,7 @@ class TestMapreduceMode(YtTestBase, YTEnv):
         self.assertEqual(
             self.read_records(TablePath(table, columns=["c"]),
                               format=yt.DsvFormat()),
-            [{"c": "17.5"}, {"c": "0.5"}])
+            [{}, {"c": "17.5"}, {"c": "0.5"}])
 
         self.assertEqual(
             self.read_records(TablePath(table, columns=["b"], end_index=2),
