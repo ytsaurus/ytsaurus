@@ -130,7 +130,7 @@ def make_request(command_name, params,
 
     http_method = {
         "start_tx": "POST",
-        "renew_tx": "POST",
+        "ping_tx": "POST",
         "commit_tx": "POST",
         "abort_tx": "POST",
         "create": "POST",
