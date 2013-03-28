@@ -289,8 +289,8 @@ tc "blockOpened name='JavaScript Tests'"
 shout "Running JavaScript tests..."
 tc "progressMessage 'Running JavaScript tests...'"
 
-cd $WORKING_DIRECTORY/yt/nodejs
-npm install && ./run_tests.sh -R xunit > $WORKING_DIRECTORY/test_javascript.xml
+(cd $WORKING_DIRECTORY/yt/nodejs && npm install && ./run_tests.sh -R xunit > $WORKING_DIRECTORY/test_javascript.xml)
+
 b=$?
 a=$((a+b))
 
