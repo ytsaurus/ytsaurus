@@ -110,7 +110,7 @@ test_merge_erase()
 
 test_map_reduce()
 {
-    export YT_DEFAULT_TABULAR_FORMAT="dsv"
+    export YT_TABULAR_DATA_FORMAT="dsv"
     ./yt write //home/wrapper_test/input_table < <(echo -e "value=1\nvalue=2")
     check "2" `./yt get //home/wrapper_test/input_table/@row_count`
 
