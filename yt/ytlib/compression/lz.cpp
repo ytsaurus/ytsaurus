@@ -26,7 +26,7 @@ void Lz4Compress(bool highCompression, StreamSource* source, TBlob* output)
         size_t len;
         const char* input = source->Peek(&len);
 
-        // LZ4 support only integer length
+        // LZ4 only supports i32 length.
         YCHECK(len <= 1 << 30);
 
         size_t bound =
