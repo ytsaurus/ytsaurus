@@ -6,8 +6,6 @@
 #include "dispatcher.h"
 #include "async_writer.h"
 
-#include <fstream>
-
 namespace NYT {
 namespace NChunkClient {
 
@@ -63,10 +61,22 @@ void TEncodingWriter::DoCompressBlock(const TSharedRef& block)
 
     LOG_DEBUG("Compressing block");
 
-    int delta = block.Size();
-    delta -= compressedBlock.Size();
+    int sizeToRelease = -compressedBlock.Size();
 
-    ProcessCompressedBlock(compressedBlock, delta);
+    if (!Config->VerifyCompression) {
+        // We immediately release original data.
+        sizeToRelease += block.Size();
+    }
+
+    ProcessCompressedBlock(compressedBlock, sizeToRelease);
+
+    if (Config->VerifyCompression) {
+        TDispatcher::Get()->GetCompressionInvoker()->Invoke(BIND(
+            &TEncodingWriter::VerifyBlock,
+            MakeWeak(this),
+            block,
+            compressedBlock));
+    }
 }
 
 void TEncodingWriter::DoCompressVector(const std::vector<TSharedRef>& vectorizedBlock)
@@ -82,20 +92,59 @@ void TEncodingWriter::DoCompressVector(const std::vector<TSharedRef>& vectorized
 
     CompressedSize_ += compressedBlock.Size();
 
-    int delta = UncompressedSize_ - oldSize;
-    delta -= compressedBlock.Size();
+    i64 sizeToRelease = -compressedBlock.Size();
 
-    ProcessCompressedBlock(compressedBlock, delta);
+    if (!Config->VerifyCompression) {
+        // We immediately release original data.
+        sizeToRelease += UncompressedSize_ - oldSize;
+    }
+
+    ProcessCompressedBlock(compressedBlock, sizeToRelease);
+
+    if (Config->VerifyCompression) {
+        TDispatcher::Get()->GetCompressionInvoker()->Invoke(BIND(
+            &TEncodingWriter::VerifyVector,
+            MakeWeak(this),
+            vectorizedBlock,
+            compressedBlock));
+    }
 }
 
-void TEncodingWriter::ProcessCompressedBlock(const TSharedRef& block, int delta)
+void TEncodingWriter::VerifyVector(
+    const std::vector<TSharedRef>& origin,
+    const TSharedRef& compressedBlock)
+{
+    auto decompressedBlock = Codec->Decompress(compressedBlock);
+
+    char* begin = decompressedBlock.Begin();
+    FOREACH (const auto& block, origin) {
+        LOG_FATAL_IF(
+            !TRef::AreBitwiseEqual(TRef(begin, block.Size()), block),
+            "Compression verification failed");
+        begin += block.Size();
+        Semaphore.Release(block.Size());
+    }
+}
+
+void TEncodingWriter::VerifyBlock(
+    const TSharedRef& origin,
+    const TSharedRef& compressedBlock)
+{
+    auto decompressedBlock = Codec->Decompress(compressedBlock);
+    LOG_FATAL_IF(
+        !TRef::AreBitwiseEqual(decompressedBlock, origin),
+        "Compression verification failed");
+    Semaphore.Release(origin.Size());
+}
+
+void TEncodingWriter::ProcessCompressedBlock(const TSharedRef& block, i64 sizeToRelease)
 {
     CompressionRatio_ = double(CompressedSize_) / UncompressedSize_;
 
-    if (delta > 0) {
-        Semaphore.Release(delta);
+    if (sizeToRelease > 0) {
+        Semaphore.Release(sizeToRelease);
     } else {
-        Semaphore.Acquire(-delta);
+        Semaphore.Acquire(-sizeToRelease);
     }
 
     PendingBlocks.push_back(block);

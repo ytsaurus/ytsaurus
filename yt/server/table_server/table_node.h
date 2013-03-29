@@ -32,6 +32,8 @@ public:
 
     virtual NSecurityServer::TClusterResources GetResourceUsage() const override;
 
+    TTableNode* GetTrunkNode() const;
+
     virtual void Save(const NCellMaster::TSaveContext& context) const;
     virtual void Load(const NCellMaster::TLoadContext& context);
 

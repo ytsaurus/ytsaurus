@@ -12,7 +12,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TRef::AreBiwiseEqual(const TRef& lhs, const TRef& rhs)
+bool TRef::AreBitwiseEqual(const TRef& lhs, const TRef& rhs)
 {
     if (lhs.Size() != rhs.Size())
         return false;

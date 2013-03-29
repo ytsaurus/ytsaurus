@@ -45,7 +45,7 @@ TTableReader::TTableReader(
     YCHECK(masterChannel);
 
     Logger.AddTag(Sprintf("Path: %s, TransactihonId: %s",
-        ~ToString(RichPath),
+        ~RichPath.GetPath(),
         ~ToString(TransactionId)));
 }
 

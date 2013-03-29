@@ -185,16 +185,18 @@ struct TEncodingWriterConfig
     : public virtual TYsonSerializable
 {
     i64 EncodeWindowSize;
-
-    double ExpectedCompressionRatio;
+    double DefaultCompressionRatio;
+    bool VerifyCompression;
 
     TEncodingWriterConfig()
     {
         Register("encode_window_size", EncodeWindowSize)
             .Default(4 * 1024 * 1024)
             .GreaterThan(0);
-        Register("expected_compression_ratio", ExpectedCompressionRatio)
+        Register("default_compression_ratio", DefaultCompressionRatio)
             .Default(0.2);
+        Register("verify_compression", VerifyCompression)
+            .Default(true);
     }
 };
 

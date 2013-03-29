@@ -19,8 +19,9 @@ TBlob::TBlob(size_t size, bool initiailizeStorage /*= true*/)
     if (size == 0) {
         Reset();
     } else {
-        Begin_ = new char[size];
-        Size_ = Capacity_ = size;
+        Capacity_ = std::max(size, InitialBlobCapacity);
+        Begin_ = new char[Capacity_];
+        Size_ = size;
         if (initiailizeStorage) {
             memset(Begin_, 0, Size_);
         }
@@ -32,9 +33,10 @@ TBlob::TBlob(const TBlob& other)
     if (other.Size_ == 0) {
         Reset();
     } else {
-        Begin_ = new char[other.Size_];
+        Capacity_ = std::max(InitialBlobCapacity, other.Size_);
+        Begin_ = new char[Capacity_];
         memcpy(Begin_, other.Begin_, other.Size_);
-        Size_ = Capacity_ = other.Size_;
+        Size_ = other.Size_;
     }
 }
 
@@ -93,9 +95,14 @@ TBlob& TBlob::operator = (const TBlob& rhs)
 {
     if (this != &rhs) {
         delete[] Begin_;
-        Begin_ = new char[rhs.Size_];
-        memcpy(Begin_, rhs.Begin_, rhs.Size_);
-        Size_ = Capacity_ = rhs.Size_;
+        if (rhs.Size_ == 0) {
+            Reset();
+        } else {
+            Capacity_ = std::max(InitialBlobCapacity, rhs.Size_);
+            Begin_ = new char[Capacity_];
+            memcpy(Begin_, rhs.Begin_, rhs.Size_);
+            Size_ = rhs.Size_;
+        }
     }
     return *this;
 }
@@ -106,8 +113,7 @@ TBlob& TBlob::operator = (TBlob&& rhs)
         Begin_ = rhs.Begin_;
         Size_ = rhs.Size_;
         Capacity_ = rhs.Capacity_;
-        rhs.Begin_ = nullptr;
-        rhs.Size_ = rhs.Capacity_ = 0;
+        rhs.Reset();
     }
     return *this;
 }

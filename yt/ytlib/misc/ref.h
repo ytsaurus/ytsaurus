@@ -89,7 +89,7 @@ public:
     }
 
     //! Compares the content for bitwise equality.
-    static bool AreBiwiseEqual(const TRef& lhs, const TRef& rhs);
+    static bool AreBitwiseEqual(const TRef& lhs, const TRef& rhs);
 
     typedef char* TRef::*TUnspecifiedBoolType;
     //! Implicit conversion to bool.
