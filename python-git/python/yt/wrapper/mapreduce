@@ -389,6 +389,13 @@ Examples:
         # Try it if occur problem with reduce_by and sort_by
         #config.USE_YAMR_SORT_REDUCE_COLUMNS = False
 
+    commands_that_use_format = ["get", "set", "read", "write", "writesorted", "map", "reduce", "reducews"]
+    if sum([vars(args)[arg] is not None for arg in commands_that_use_format]) == 0 \
+        and (any(vars(args)[option] is not None for option in ["format", "inputformat", "outputformat"])
+            or args.subkey or args.lenval):
+        die("You should not specify format for given command")
+
+
     for option in ["format", "inputformat", "outputformat"]:
         if vars(args)[option] is not None:
             vars(args)[option] = yt.RawFormat.from_yson_string(vars(args)[option])

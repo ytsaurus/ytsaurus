@@ -535,7 +535,7 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
     destination_table = _prepare_destination_tables(destination_table, replication_factor, compression_codec)
 
     if config.TREAT_UNEXISTING_AS_EMPTY and not source_table:
-        _remove_tables([destination_table])
+        _remove_tables(destination_table)
         return
 
     input_format, output_format = _prepare_formats(format, input_format, output_format)
