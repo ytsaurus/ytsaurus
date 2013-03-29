@@ -30,7 +30,7 @@ TTableReader::TTableReader(
     const NYPath::TRichYPath& richPath)
     : Config(config)
     , MasterChannel(masterChannel)
-    , Transaction(transaction)a
+    , Transaction(transaction)
     , TransactionId(transaction ? transaction->GetId() : NullTransactionId)
     , BlockCache(blockCache)
     , RichPath(richPath)
