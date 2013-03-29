@@ -116,10 +116,14 @@ void TScopedChannel::Terminate(const TError& error)
     if (Terminated) {
         return;
     }
+    
     Terminated = true;
+    TerminationError = error;
+
     if (OutstandingRequestCount == 0) {
         return;
     }
+
     guard.Release();
     OutstandingRequestsCompleted.Get();
 }
