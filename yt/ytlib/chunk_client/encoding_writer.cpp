@@ -21,7 +21,7 @@ TEncodingWriter::TEncodingWriter(
     IAsyncWriterPtr asyncWriter)
     : UncompressedSize_(0)
     , CompressedSize_(0)
-    , CompressionRatio_(config->ExpectedCompressionRatio)
+    , CompressionRatio_(config->DefaultCompressionRatio)
     , Config(config)
     , AsyncWriter(asyncWriter)
     , CompressionInvoker(CreateSerializedInvoker(TDispatcher::Get()->GetCompressionInvoker()))
