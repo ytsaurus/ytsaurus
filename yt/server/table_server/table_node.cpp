@@ -40,9 +40,7 @@ TTableNode::TTableNode(const TVersionedNodeId& id)
 
 int TTableNode::GetOwningReplicationFactor() const
 {
-    auto* trunkNode = TrunkNode_ == this ? this : dynamic_cast<TTableNode*>(TrunkNode_);
-    YCHECK(trunkNode);
-    return trunkNode->GetReplicationFactor();
+    return GetTrunkNode()->GetReplicationFactor();
 }
 
 EObjectType TTableNode::GetObjectType() const
@@ -82,6 +80,11 @@ TClusterResources TTableNode::GetResourceUsage() const
     const auto* chunkList = GetUsageChunkList();
     i64 diskSpace = chunkList ? chunkList->Statistics().DiskSpace * GetOwningReplicationFactor() : 0;
     return TClusterResources(diskSpace, 1);
+}
+
+TTableNode* TTableNode::GetTrunkNode() const
+{
+    return static_cast<TTableNode*>(TrunkNode_);
 }
 
 const TChunkList* TTableNode::GetUsageChunkList() const
@@ -350,7 +353,7 @@ protected:
         YCHECK(!clonedNode->GetChunkList());
         clonedNode->SetChunkList(chunkList);
         clonedNode->SetReplicationFactor(sourceNode->GetReplicationFactor());
-        clonedNode->SetCodec(sourceNode->GetCodec());
+        clonedNode->SetCodec(sourceNode->GetTrunkNode()->GetCodec());
         objectManager->RefObject(chunkList);
         YCHECK(chunkList->OwningNodes().insert(clonedNode).second);
     }
