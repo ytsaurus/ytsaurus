@@ -54,12 +54,19 @@ private:
 
     TCallback<void(TError)> WritePending;
 
-
     void WritePendingBlocks(TError error);
-    void ProcessCompressedBlock(const TSharedRef& block, int delta);
+    void ProcessCompressedBlock(const TSharedRef& block, i64 delta);
 
     void DoCompressBlock(const TSharedRef& block);
     void DoCompressVector(const std::vector<TSharedRef>& vectorizedBlock);
+
+    void VerifyBlock(
+        const TSharedRef& origin,
+        const TSharedRef& compressedBlock);
+
+    void VerifyVector(
+        const std::vector<TSharedRef>& origin,
+        const TSharedRef& compressedBlock);
 
 };
 
