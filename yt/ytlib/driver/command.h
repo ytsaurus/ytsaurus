@@ -49,13 +49,13 @@ struct TTransactedRequest
     : public TRequest
 {
     NObjectClient::TTransactionId TransactionId;
-    bool PingAncestorTransactions;
+    bool PingAncestors;
 
     TTransactedRequest()
     {
         Register("transaction_id", TransactionId)
             .Default(NObjectClient::NullTransactionId);
-        Register("ping_ancestor_transactions", PingAncestorTransactions)
+        Register("ping_ancestor_transactions", PingAncestors)
             .Default(false);
     }
 };
@@ -188,7 +188,7 @@ protected:
         NTransactionClient::TTransactionAttachOptions options(transactionId);
         options.AutoAbort = false;
         options.Ping = true;
-        options.PingAncestors = this->Request->PingAncestorTransactions;
+        options.PingAncestors = this->Request->PingAncestors;
         auto transactionManager = this->Context->GetTransactionManager();
         return transactionManager->Attach(options);
     }

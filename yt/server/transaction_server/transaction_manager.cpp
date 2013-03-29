@@ -60,7 +60,7 @@ public:
         DECLARE_YPATH_SERVICE_WRITE_METHOD(Abort);
         DECLARE_YPATH_SERVICE_WRITE_METHOD(CreateObject);
         DECLARE_YPATH_SERVICE_WRITE_METHOD(UnstageObject);
-        // NB: RenewLease is not logged and thus is not considered to be a write
+        // NB: Ping is not logged and thus is not considered to be a write
         // request. It can only be served at leaders though, so its handler explicitly
         // checks the status.
         return TBase::IsWriteRequest(context);
@@ -183,7 +183,7 @@ private:
     {
         DISPATCH_YPATH_SERVICE_METHOD(Commit);
         DISPATCH_YPATH_SERVICE_METHOD(Abort);
-        DISPATCH_YPATH_SERVICE_METHOD(RenewLease);
+        DISPATCH_YPATH_SERVICE_METHOD(Ping);
         DISPATCH_YPATH_SERVICE_METHOD(UnstageObject);
         return TBase::DoInvoke(context);
     }
@@ -232,12 +232,12 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NTransactionClient::NProto, RenewLease)
+    DECLARE_RPC_SERVICE_METHOD(NTransactionClient::NProto, Ping)
     {
         UNUSED(response);
 
-        bool renewAncestors = request->renew_ancestors();
-        context->SetRequestInfo("RenewAncestors: %s", ~FormatBool(renewAncestors));
+        bool pingAncestors = request->ping_ancestors();
+        context->SetRequestInfo("PingAncestors: %s", ~FormatBool(pingAncestors));
 
         ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
         ValidateActiveLeader();
@@ -246,7 +246,7 @@ private:
         ValidateTransactionIsActive(transaction);
 
         auto transactionManager = Bootstrap->GetTransactionManager();
-        transactionManager->RenewLease(transaction, renewAncestors);
+        transactionManager->Ping(transaction, pingAncestors);
 
         context->Reply();
     }
@@ -521,21 +521,21 @@ void TTransactionManager::FinishTransaction(TTransaction* transaction)
     objectManager->UnrefObject(transaction);
 }
 
-void TTransactionManager::RenewLease(const TTransaction* transaction, bool renewAncestors)
+void TTransactionManager::Ping(const TTransaction* transaction, bool pingAncestors)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
-    DoRenewLease(transaction);
+    DoPing(transaction);
 
-    if (renewAncestors) {
+    if (pingAncestors) {
         auto parentTransaction = transaction->GetParent();
         while (parentTransaction) {
-            DoRenewLease(parentTransaction);
+            DoPing(parentTransaction);
             parentTransaction = parentTransaction->GetParent();
         }
     }
 }
 
-void TTransactionManager::DoRenewLease(const TTransaction* transaction)
+void TTransactionManager::DoPing(const TTransaction* transaction)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
     YCHECK(transaction->IsActive());
@@ -544,7 +544,7 @@ void TTransactionManager::DoRenewLease(const TTransaction* transaction)
     YCHECK(it != LeaseMap.end());
     TLeaseManager::RenewLease(it->second);
 
-    LOG_DEBUG("Transaction lease renewed (TransactionId: %s)",
+    LOG_DEBUG("Transaction pinged (TransactionId: %s)",
         ~ToString(transaction->GetId()));
 }
 

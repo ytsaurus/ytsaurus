@@ -28,7 +28,7 @@ void TStartTransactionCommand::DoExecute()
     options.Timeout = Request->Timeout;
     options.ParentId = Request->TransactionId;
     options.Ping = true;
-    options.PingAncestors = Request->PingAncestorTransactions;
+    options.PingAncestors = Request->PingAncestors;
     if (Request->Attributes) {
         options.Attributes = ConvertToAttributes(Request->Attributes);
     }
@@ -46,8 +46,8 @@ void TStartTransactionCommand::DoExecute()
 
 void TPingTransactionCommand::DoExecute()
 {
-    auto req = TTransactionYPathProxy::RenewLease(FromObjectId(GetTransactionId(true)));
-    req->set_renew_ancestors(Request->PingAncestorTransactions);
+    auto req = TTransactionYPathProxy::Ping(FromObjectId(GetTransactionId(true)));
+    req->set_ping_ancestors(Request->PingAncestors);
 
     auto rsp = ObjectProxy->Execute(req).Get();
     THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);

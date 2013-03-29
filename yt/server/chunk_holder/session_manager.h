@@ -66,7 +66,7 @@ public:
     TAsyncError FlushBlock(int blockIndex);
 
     //! Renews the lease.
-    void RenewLease();
+    void Ping();
 
 private:
     friend class TSessionManager;

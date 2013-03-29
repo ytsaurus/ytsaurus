@@ -450,7 +450,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, PingSession)
     context->SetRequestInfo("ChunkId: %s", ~ToString(chunkId));
 
     auto session = GetSession(chunkId);
-    session->RenewLease();
+    session->Ping();
 
     context->Reply();
 }

@@ -546,7 +546,7 @@ private:
 
                 auto schedulePing = [&] (ITransactionPtr transaction) {
                     if (transaction) {
-                        auto req = TTransactionYPathProxy::RenewLease(FromObjectId(transaction->GetId()));
+                        auto req = TTransactionYPathProxy::Ping(FromObjectId(transaction->GetId()));
                         batchReq->AddRequest(req, "ping_tx");
                     } else {
                         batchReq->AddRequest(nullptr, "ping_tx");
@@ -573,7 +573,7 @@ private:
             THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp);
 
             {
-                auto rsps = batchRsp->GetResponses<TTransactionYPathProxy::TRspRenewLease>("ping_tx");
+                auto rsps = batchRsp->GetResponses<TTransactionYPathProxy::TRspPing>("ping_tx");
                 YCHECK(rsps.size() == 5 * Result.Operations.size());
 
                 for (int i = 0; i < static_cast<int>(Result.Operations.size()); ++i) {

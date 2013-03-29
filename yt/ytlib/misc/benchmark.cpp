@@ -22,6 +22,9 @@
 // @author Andrei Alexandrescu (andrei.alexandrescu@fb.com)
 
 #include "benchmark.h"
+
+#ifndef _win_
+
 #include "foreach.h"
 
 #include <algorithm>
@@ -382,3 +385,4 @@ void RunBenchmarks()
 
 } // namespace NYT
 
+#endif

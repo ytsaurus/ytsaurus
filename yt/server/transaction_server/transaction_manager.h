@@ -50,7 +50,7 @@ public:
     TTransaction* StartTransaction(TTransaction* parent, TNullable<TDuration> timeout);
     void CommitTransaction(TTransaction* transaction);
     void AbortTransaction(TTransaction* transaction);
-    void RenewLease(const TTransaction* transaction, bool renewAncestors = false);
+    void Ping(const TTransaction* transaction, bool pingAncestors = false);
 
     DECLARE_METAMAP_ACCESSORS(Transaction, TTransaction, TTransactionId);
 
@@ -76,7 +76,7 @@ private:
     void CloseLease(const TTransaction* transaction);
     void FinishTransaction(TTransaction* transaction);
 
-    void DoRenewLease(const TTransaction* transaction);
+    void DoPing(const TTransaction* transaction);
 
     // TMetaStatePart overrides
     virtual void OnActiveQuorumEstablished() override;

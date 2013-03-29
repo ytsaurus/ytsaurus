@@ -21,12 +21,12 @@ message TRspAbort
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqRenewLease
+message TReqPing
 {
-    optional bool renew_ancestors = 1 [default = false];
+    optional bool ping_ancestors = 1 [default = false];
 }
 
-message TRspRenewLease
+message TRspPing
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

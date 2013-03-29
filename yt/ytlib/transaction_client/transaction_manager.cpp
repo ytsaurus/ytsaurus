@@ -280,16 +280,16 @@ private:
 
     void SendPing()
     {
-        LOG_DEBUG("Renewing transaction lease: %s", ~ToString(Id));
+        LOG_DEBUG("Pinging transaction: %s", ~ToString(Id));
 
-        auto req = TTransactionYPathProxy::RenewLease(FromObjectId(Id));
-        req->set_renew_ancestors(PingAncestors);
+        auto req = TTransactionYPathProxy::Ping(FromObjectId(Id));
+        req->set_ping_ancestors(PingAncestors);
         Owner->ObjectProxy.Execute(req).Subscribe(BIND(
             &TTransaction::OnPingResponse,
             MakeWeak(this)));
     }
 
-    void OnPingResponse(TTransactionYPathProxy::TRspRenewLeasePtr rsp)
+    void OnPingResponse(TTransactionYPathProxy::TRspPingPtr rsp)
     {
         if (!rsp->IsOK()) {
             if (rsp->GetError().GetCode() == NYTree::EErrorCode::ResolveError) {
@@ -297,13 +297,13 @@ private:
                     ~ToString(Id));
                 HandleAbort();
             } else {
-                LOG_WARNING(*rsp, "Error renewing transaction lease: %s",
+                LOG_WARNING(*rsp, "Error pinging transaction: %s",
                     ~ToString(Id));
             }
             return;
         }
 
-        LOG_DEBUG("Transaction lease renewed: %s", ~ToString(Id));
+        LOG_DEBUG("Transaction pinged: %s", ~ToString(Id));
 
         SchedulePing();
     }

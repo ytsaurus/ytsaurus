@@ -21,6 +21,8 @@
 
 #pragma once
 
+#ifndef _win_
+
 #include "common.h"
 
 #include <ytlib/actions/callback.h>
@@ -419,3 +421,5 @@ void DoNotOptimizeAway(T&& datum) {
         ::NYT::TBenchmarkSuspender())                       \
     { } else
 
+
+#endif

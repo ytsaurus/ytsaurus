@@ -102,7 +102,7 @@ void TSession::SetLease(TLeaseManager::TLease lease)
     Lease = lease;
 }
 
-void TSession::RenewLease()
+void TSession::Ping()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -161,7 +161,7 @@ void TSession::PutBlock(
     TBlockId blockId(ChunkId, blockIndex);
 
     VerifyInWindow(blockIndex);
-    RenewLease();
+    Ping();
 
     if (!Location->HasEnoughSpace(data.Size())) {
         THROW_ERROR_EXCEPTION(
@@ -304,7 +304,7 @@ TAsyncError TSession::FlushBlock(int blockIndex)
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     VerifyInWindow(blockIndex);
-    RenewLease();
+    Ping();
 
     const auto& slot = GetSlot(blockIndex);
     if (slot.State == ESlotState::Empty) {
@@ -529,7 +529,7 @@ TSharedRef TSession::GetBlock(int blockIndex)
 
     VerifyInWindow(blockIndex);
 
-    RenewLease();
+    Ping();
 
     const auto& slot = GetSlot(blockIndex);
     if (slot.State == ESlotState::Empty) {
@@ -603,7 +603,7 @@ TSessionPtr TSessionManager::FindSession(const TChunkId& chunkId) const
         return NULL;
 
     auto session = it->second;
-    session->RenewLease();
+    session->Ping();
     return session;
 }
 
