@@ -297,6 +297,13 @@ class TestCypressCommands(YTEnvSetup):
         create('table', '//tmp/t2')
         with pytest.raises(YTError): copy('//tmp/t2', '//tmp/t1/xxx')
 
+    def test_copy_table_compression_codec(self):
+        create('table', '//tmp/t1')
+        assert get('//tmp/t1/@compression_codec') == 'lz4'
+        set('//tmp/t1/@compression_codec', 'gzip_normal')
+        copy('//tmp/t1', '//tmp/t2')
+        assert get('//tmp/t2/@compression_codec') == 'gzip_normal'
+
     def test_move_simple(self):
         set('//tmp/a', 1)
         move('//tmp/a', '//tmp/b')
