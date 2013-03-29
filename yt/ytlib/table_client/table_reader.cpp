@@ -30,7 +30,7 @@ TTableReader::TTableReader(
     const NYPath::TRichYPath& richPath)
     : Config(config)
     , MasterChannel(masterChannel)
-    , Transaction(transaction)
+    , Transaction(transaction)a
     , TransactionId(transaction ? transaction->GetId() : NullTransactionId)
     , BlockCache(blockCache)
     , RichPath(richPath)
@@ -42,7 +42,7 @@ TTableReader::TTableReader(
     YCHECK(masterChannel);
 
     Logger.AddTag(Sprintf("Path: %s, TransactihonId: %s",
-        ~ToString(RichPath),
+        ~RichPath.GetPath(),
         ~TransactionId.ToString()));
 }
 

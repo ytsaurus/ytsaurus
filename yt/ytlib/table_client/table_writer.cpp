@@ -52,7 +52,7 @@ TTableWriter::TTableWriter(
     Options->KeyColumns = keyColumns;
 
     Logger.AddTag(Sprintf("Path: %s, TransactionId: %s",
-        ~ToString(richPath),
+        ~richPath.GetPath(),
         ~TransactionId.ToString()));
 }
 
