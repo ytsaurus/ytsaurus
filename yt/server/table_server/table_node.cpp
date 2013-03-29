@@ -350,6 +350,7 @@ protected:
         YCHECK(!clonedNode->GetChunkList());
         clonedNode->SetChunkList(chunkList);
         clonedNode->SetReplicationFactor(sourceNode->GetReplicationFactor());
+        clonedNode->SetCodec(sourceNode->GetCodec());
         objectManager->RefObject(chunkList);
         YCHECK(chunkList->OwningNodes().insert(clonedNode).second);
     }
