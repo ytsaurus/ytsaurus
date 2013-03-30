@@ -50,6 +50,7 @@ struct ICodec
     virtual std::vector<TSharedRef> Decode(const std::vector<TSharedRef>& blocks, const TBlockIndexList& erasedIndices) = 0;
 
     //! Given a set of missing block indices, returns |true| if missing blocks can be repaired.
+    //! Due to performance issues assume that elements of erasedIndices are unique and sorted.
     virtual bool CanRepair(const TBlockIndexList& erasedIndices) = 0;
 
     //! Given a set of missing block indices, checks if missing blocks can be repaired.
