@@ -47,6 +47,10 @@ private:
     // Indices of data blocks and corresponding xor (we have two xor parities).
     TBlockIndexList Groups_[2];
 
+    static const int BITMASK_OPTIMIZATION_THRESHOLD;
+    std::vector<bool> CanRepair_;
+
+    bool CalculateCanRepair(const TBlockIndexList& erasedIndices);
 };
 
 ///////////////////////////////////////////////////////////////////////////////

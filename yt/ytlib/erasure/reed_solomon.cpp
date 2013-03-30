@@ -59,11 +59,7 @@ TNullable<TBlockIndexList> TCauchyReedSolomon::GetRepairIndices(const TBlockInde
 
 bool TCauchyReedSolomon::CanRepair(const TBlockIndexList& erasedIndices)
 {
-    TBlockIndexList indices = erasedIndices;
-    std::sort(indices.begin(), indices.end());
-    indices.erase(std::unique(indices.begin(), indices.end()), indices.end());
-
-    return indices.size() <= ParityCount_;
+    return erasedIndices.size() <= ParityCount_;
 }
 
 int TCauchyReedSolomon::GetDataBlockCount()

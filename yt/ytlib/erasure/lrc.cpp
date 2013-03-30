@@ -51,7 +51,7 @@ TBlockIndexList ExtractRows(const TBlockIndexList& matrix, int width, const TBlo
 
 } // anonymous namespace
 
-////////////////////////////////////////////////////////////////////////////////
+const int TLrc::BITMASK_OPTIMIZATION_THRESHOLD = 22;
 
 TLrc::TLrc(int blockCount)
     : BlockCount_(blockCount)
@@ -102,6 +102,20 @@ TLrc::TLrc(int blockCount)
 
     Groups_[1] = MakeSegment(BlockCount_ / 2, BlockCount_);
     Groups_[1].push_back(BlockCount_ + 1);
+
+    auto totalBlockCount = BlockCount_ + ParityCount_;
+    if (totalBlockCount <= BITMASK_OPTIMIZATION_THRESHOLD) {
+        CanRepair_.resize(1 << totalBlockCount);
+        for (int mask = 0; mask < (1 << totalBlockCount); ++mask) {
+            TBlockIndexList erasedIndices;
+            for (int i = 0; i < totalBlockCount; ++i) {
+                if ((mask & (1 << i)) == 0) {
+                    erasedIndices.push_back(i);
+                }
+            }
+            CanRepair_[mask] = CalculateCanRepair(erasedIndices);
+        }
+    }
 }
 
 std::vector<TSharedRef> TLrc::Encode(const std::vector<TSharedRef>& blocks)
@@ -184,7 +198,21 @@ std::vector<TSharedRef> TLrc::Decode(
 
 bool TLrc::CanRepair(const TBlockIndexList& erasedIndices)
 {
-    // TODO(ignat): it is not so fast. Does overlying layer guarantee that erasedIndices sorted and unique?
+    auto totalBlockCount = BlockCount_ + ParityCount_;
+    if (totalBlockCount <= BITMASK_OPTIMIZATION_THRESHOLD) {
+        int mask = (1 << (totalBlockCount)) - 1;
+        FOREACH(int index, erasedIndices) {
+            mask -= (1 << index);
+        }
+        return CanRepair_[mask];
+    }
+    else {
+        return CalculateCanRepair(erasedIndices);
+    }
+}
+
+bool TLrc::CalculateCanRepair(const TBlockIndexList& erasedIndices)
+{
     TBlockIndexList indices = UniqueSortedIndices(erasedIndices);
     if (indices.size() > ParityCount_) {
         return false;
