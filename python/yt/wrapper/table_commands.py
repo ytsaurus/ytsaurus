@@ -139,7 +139,6 @@ def _add_user_command_spec(op_type, binary, input_format, output_format, files, 
 def _add_user_spec(spec):
     return update(
         {
-            "system_user": os.environ.get("USER", ""),
             "wrapper_version": VERSION,
             "pool": os.environ.get("USER", "default")
         },
