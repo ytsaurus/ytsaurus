@@ -67,12 +67,7 @@ void TTableNode::Load(const NCellMaster::TLoadContext& context)
     LoadObjectRef(context, ChunkList_);
     ::Load(input, UpdateMode_);
     ::Load(input, ReplicationFactor_);
-    // COMPAT(psushin)
-    if (context.GetVersion() >= 8) {
-        ::Load(input, Codec_);
-    } else {
-        Codec_ = NCompression::ECodec::Lz4;
-    }
+    ::Load(input, Codec_);
 }
 
 TClusterResources TTableNode::GetResourceUsage() const

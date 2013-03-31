@@ -108,10 +108,7 @@ void TCypressNodeBase::Load(const TLoadContext& context)
     ::Load(input, ModificationTime_);
     LoadObjectRef(context, Account_);
     NSecurityServer::Load(context, CachedResourceUsage_);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 8) {
-        NSecurityServer::Load(context, Acd_);
-    }
+    NSecurityServer::Load(context, Acd_);
 
     if (TransactionId == NullTransactionId) {
         TrunkNode_ = this;

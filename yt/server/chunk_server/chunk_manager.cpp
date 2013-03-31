@@ -1097,11 +1097,6 @@ private:
         NodeMap.LoadValues(context);
         JobMap.LoadValues(context);
         JobListMap.LoadValues(context);
-
-        // COMPAT(ignat)
-        if (context.GetVersion() < 8) {
-            ScheduleRecomputeStatistics();
-        }
     }
 
     virtual void OnAfterLoaded() override

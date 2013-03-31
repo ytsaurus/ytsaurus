@@ -131,12 +131,7 @@ void LoadObjectRef(const TLoadContext& context, TChunkReplica& value)
     LoadObjectRef(context, node);
 
     int index;
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 8) {
-        Load(context, index);
-    } else {
-        index = 0;
-    }
+    Load(context, index);
 
     value = TChunkReplica(node, index);
 }

@@ -979,22 +979,15 @@ private:
     void LoadKeys(const NCellMaster::TLoadContext& context)
     {
         AccountMap.LoadKeys(context);
-        // COMPAT(babenko)
-        if (context.GetVersion() >= 8) {
-            UserMap.LoadKeys(context);
-            GroupMap.LoadKeys(context);
-        }
+        UserMap.LoadKeys(context);
+        GroupMap.LoadKeys(context);
     }
 
     void LoadValues(const NCellMaster::TLoadContext& context)
     {
         AccountMap.LoadValues(context);
-        // COMPAT(babenko)
-        if (context.GetVersion() >= 8) {
-            UserMap.LoadValues(context);
-            GroupMap.LoadValues(context);
-        }
-
+        UserMap.LoadValues(context);
+        GroupMap.LoadValues(context);
     }
 
     virtual void OnAfterLoaded() override

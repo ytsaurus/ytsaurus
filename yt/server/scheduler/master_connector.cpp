@@ -662,8 +662,7 @@ private:
             attributes.Get<EOperationType>("operation_type"),
             userTransaction,
             attributes.Get<INodePtr>("spec")->AsMap(),
-            // COMPAT(babenko)
-            attributes.Get<Stroka>("authenticated_user", "root"),
+            attributes.Get<Stroka>("authenticated_user"),
             attributes.Get<TInstant>("start_time"),
             attributes.Get<EOperationState>("state"));
         operation->SetSyncSchedulerTransaction(syncTransaction);
