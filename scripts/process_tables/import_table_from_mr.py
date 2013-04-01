@@ -189,7 +189,7 @@ def main():
             if args.import_type == "pull":
                 pull_table(table, destination, count)
             elif args.import_type == "push":
-                push_table(table, destination)
+                push_table(table, destination, count)
             else:
                 raise yt.YtError("Incorrect import type: " + args.import_type)
 
