@@ -14,6 +14,7 @@
 
 #ifdef _unix_
     #include <stdio.h>
+    #include <dirent.h>
     #include <sys/types.h>
     #include <sys/wait.h>
 #endif
@@ -198,17 +199,19 @@ TError StatusToError(int status)
 
 void CloseAllDescriptors()
 {
-    TFileList fileList;
-    fileList.Fill(
-        "/proc/self/fd",
-        TStringBuf(),
-        TStringBuf(),
-        std::numeric_limits<int>::max());
+    // Called after fork.
+    // Avoid allocations, may lead to deadlock in LFAlloc.
 
-    const char* fileName = nullptr;
-    while((fileName = fileList.Next()) != nullptr) {
-        SafeClose(FromString<int>(fileName));
+    DIR *dp;
+    struct dirent *ep;
+    dp = ::opendir("/proc/self/fd");
+
+    YCHECK(dp != NULL);
+    while (ep = ::readdir(dp)) {
+        YCHECK(::close(FromString<int>(ep->d_name)) == 0);
     }
+
+    YCHECK(::closedir(dp) == 0);
 }
 
 void SafeClose(int fd, bool ignoreInvalidFd)
