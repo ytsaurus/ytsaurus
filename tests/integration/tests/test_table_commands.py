@@ -62,7 +62,7 @@ class TestTableCommands(YTEnvSetup):
         write_str('//tmp/table1', '{a=0}')
         assert get('//tmp/table1/@row_count') == 1
         write_str('//tmp/table1', '{a=1}')
-        assert get('//tmp/table1/@row_count') == 2
+        assert get('//tmp/table1/@row_count') == 1
 
         # Append
         create('table', '//tmp/table2')
@@ -351,14 +351,14 @@ class TestTableCommands(YTEnvSetup):
 
     def test_exists(self):
         self.assertEqual(exists("//tmp/t"), "false")
-        self.assertEqual(exists("<overwrite=true>//tmp/t"), "false")
+        self.assertEqual(exists("<append=true>//tmp/t"), "false")
 
         create("table", "//tmp/t")
         self.assertEqual(exists("//tmp/t"), "true")
         self.assertEqual(exists("//tmp/t/x"), "false")
         self.assertEqual(exists("//tmp/t/1"), "false")
         self.assertEqual(exists("//tmp/t/1/t"), "false")
-        self.assertEqual(exists("<overwrite=true>//tmp/t"), "true")
+        self.assertEqual(exists("<append=false>//tmp/t"), "true")
         # These cases are not supported yet because of future changes in the table grammar
         self.assertEqual(exists("//tmp/t[:#100]"), "true")
         #self.assertEqual(exists("//tmp/t/xxx"), "false")

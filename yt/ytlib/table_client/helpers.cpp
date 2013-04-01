@@ -136,7 +136,7 @@ TRefCountedInputChunkPtr CreateCompleteChunk(TRefCountedInputChunkPtr inputChunk
 
 bool ExtractOverwriteFlag(const NYTree::IAttributeDictionary& attributes)
 {
-    return attributes.Get<bool>("append", true);
+    return !attributes.Get<bool>("append", false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
