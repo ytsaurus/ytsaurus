@@ -557,8 +557,8 @@ struct TPooledOperationSpec
             .InRange(0.0, 1.0)
             .Default(0.8);
         Register("fair_share_preemption_tolerance", FairSharePreemptionTolerance)
-            .InRange(0.0, 1.0)
-            .Default(0.9);
+            .GreaterThanOrEqual(0.0)
+            .Default(1.05);
     }
 };
 
