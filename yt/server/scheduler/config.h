@@ -40,7 +40,7 @@ struct TFairShareStrategyConfig
 
         Register("min_preemptable_ratio", MinPreemptableRatio)
             .InRange(0.0, 1.0)
-            .Default(0.01);
+            .Default(0.05);
     }
 };
 
