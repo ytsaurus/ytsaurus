@@ -10,6 +10,7 @@
 
 #include <util/folder/iterator.h>
 #include <util/folder/dirut.h>
+#include <util/folder/filelist.h>
 
 #ifdef _unix_
     #include <stdio.h>
@@ -195,6 +196,42 @@ TError StatusToError(int status)
     }
 }
 
+void CloseAllDescriptors()
+{
+    TFileList fileList;
+    fileList.Fill("/proc/self/fd");
+
+    const char* fileName = nullptr;
+    while((fileName = fileList.Next()) != nullptr) {
+        SafeClose(FromString<int>(fileName));
+    }
+}
+
+void SafeClose(int fd, bool ignoreInvalidFd)
+{
+    while (true) {
+        auto res = close(fd);
+        if (res == -1) {
+            switch (errno) {
+            case EINTR:
+                break;
+
+            case EBADF:
+                if (ignoreInvalidFd) {
+                    return;
+                } // otherwise fall through and throw exception.
+
+            default:
+                THROW_ERROR_EXCEPTION("close failed")
+                    << TError::FromSystem();
+            }
+        } else {
+            return;
+        }
+    }
+}
+
+
 #else
 
 void KillallByUser(int uid)
@@ -218,6 +255,16 @@ i64 GetUserRss(int uid)
 void RemoveDirAsRoot(const Stroka& path)
 {
     UNUSED(path);
+    YUNIMPLEMENTED();
+}
+
+void CloseAllDescriptors()
+{
+    YUNIMPLEMENTED();
+}
+
+void SafeClose(int fd, bool ignoreInvalidFd)
+{
     YUNIMPLEMENTED();
 }
 
