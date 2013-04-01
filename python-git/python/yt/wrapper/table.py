@@ -49,7 +49,10 @@ class TablePath(object):
             self.name.attributes = attributes
 
         attributes = self.name.attributes
-        attributes["overwrite"] = bool_to_string(not append)
+        if append is not None:
+            attributes["append"] = bool_to_string(append)
+        else:
+            attributes["append"] = attributes.get("append", "false")
         if sorted_by is not None:
             attributes["sorted_by"] = sorted_by
         if columns is not None:
