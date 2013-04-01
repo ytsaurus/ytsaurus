@@ -136,17 +136,7 @@ TRefCountedInputChunkPtr CreateCompleteChunk(TRefCountedInputChunkPtr inputChunk
 
 bool ExtractOverwriteFlag(const NYTree::IAttributeDictionary& attributes)
 {
-    // COMPAT(ignat): overwrite flag and false default value
-    // are necessary for compatibility.
-    auto overwriteFlag = attributes.Find<bool>("overwrite");
-    auto appendFlag = attributes.Find<bool>("append");
-    if (appendFlag) {
-        return !(*appendFlag);
-    }
-    if (overwriteFlag) {
-        return *overwriteFlag;
-    }
-    return false;
+    return !attributes.Get<bool>("append", false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

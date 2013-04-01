@@ -98,14 +98,14 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         create("table", t1)
         write(t1, v[0])
         sort(in_=t1,
-             out="<overwrite=true>" + t1,
+             out=t1,
              sort_by="key1")
         copy(t1, t2)
 
         create("table", "//tmp/t_out")
         merge(mode='sorted',
               in_=[t1, t2], 
-              out='<overwrite=true>//tmp/t_out')
+              out='//tmp/t_out')
         self.assertItemsEqual(read('//tmp/t_out'), sorted(v + v))
 
     def test_sorted_combine(self):
