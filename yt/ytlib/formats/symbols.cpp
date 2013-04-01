@@ -183,6 +183,9 @@ void TLookupTable::Fill(const std::string& s)
 
 const char* TLookupTable::FindNext(const char* begin, const char* end) const
 {
+    if (begin == end) {
+        return end;
+    }
 #ifdef _YT_USE_SSE42_
     return FindNextSymbol(begin, end, Symbols, SymbolCount);
 #else
