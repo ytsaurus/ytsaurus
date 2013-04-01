@@ -22,7 +22,7 @@ namespace {
 TFuture<TError> ConvertToTErrorFuture(TFuture<TValueOrError<void>> future)
 {
     return future.Apply(BIND([](TValueOrError<void> error) -> TError {
-        return error; 
+        return error;
     }));
 }
 
@@ -163,7 +163,7 @@ private:
     void PrepareChunkMeta(const NProto::TChunkMeta& chunkMeta);
 
     TAsyncError WriteDataBlocks();
-    
+
     TAsyncError EncodeAndWriteParityBlocks();
 
     TAsyncError WriteParityBlocks(int windowIndex);
@@ -175,14 +175,15 @@ private:
 
     std::vector<IAsyncWriterPtr> Writers_;
     std::vector<TSharedRef> Blocks_;
-    
+
     // Information about blocks, necessary to write blocks
     // and encode parity parts
     std::vector<std::vector<TSharedRef>> Groups_;
     std::vector<TSlicer> Slicers_;
     i64 ParityDataSize_;
     int WindowCount_;
-    
+    i64 MemoryConsumption_;
+
     // Chunk meta with information about block placement
     NChunkClient::NProto::TChunkMeta ChunkMeta_;
 
@@ -204,23 +205,28 @@ private:
 void TErasureWriter::PrepareBlocks()
 {
     Groups_ = SplitBlocks(Blocks_, Codec_->GetDataBlockCount());
-    
+
     // Calculate size of parity blocks and form slicers
     Slicers_.clear();
     ParityDataSize_ = 0;
+    MemoryConsumption_ = Codec_->GetDataBlockCount() * Config_->ErasureWindowSize;
     FOREACH (const auto& group, Groups_) {
         i64 size = 0;
+        i64 maxBlockSize = 0;
         FOREACH (const auto& block, group) {
             size += block.Size();
+            maxBlockSize = std::max(maxBlockSize, (i64)block.Size());
         }
         ParityDataSize_ = std::max(ParityDataSize_, size);
 
         Slicers_.push_back(TSlicer(group));
+
+        MemoryConsumption_ += maxBlockSize;
     }
 
     // Calculate number of windows
     ParityDataSize_ = RoundUp(ParityDataSize_, Codec_->GetWordSize());
-    
+
     WindowCount_ = ParityDataSize_ / Config_->ErasureWindowSize;
     if (ParityDataSize_ % Config_->ErasureWindowSize != 0) {
         WindowCount_ += 1;
@@ -250,9 +256,8 @@ void TErasureWriter::PrepareChunkMeta(const NProto::TChunkMeta& chunkMeta)
     placementExtension.set_parity_block_count(WindowCount_);
     placementExtension.set_parity_block_size(Config_->ErasureWindowSize);
     placementExtension.set_parity_last_block_size(ParityDataSize_ - (Config_->ErasureWindowSize * (WindowCount_ - 1)));
-    // TODO(ignat): add calculation of memory consumption
-    placementExtension.set_repair_reader_memory_limit(0);
-    
+    placementExtension.set_repair_reader_memory_limit(MemoryConsumption_);
+
     ChunkMeta_ = chunkMeta;
     SetProtoExtension(ChunkMeta_.mutable_extensions(), placementExtension);
 }
@@ -279,7 +284,7 @@ TAsyncError TErasureWriter::WriteDataBlocks()
     }
     return parallelCollector->Complete();
 }
-    
+
 TAsyncError TErasureWriter::EncodeAndWriteParityBlocks()
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
@@ -348,7 +353,7 @@ TAsyncError TErasureWriter::AsyncClose(const NProto::TChunkMeta& chunkMeta)
 {
     PrepareBlocks();
     PrepareChunkMeta(chunkMeta);
-    
+
     auto invoker = TDispatcher::Get()->GetWriterInvoker();
     auto collector = New<TParallelCollector<void>>();
     collector->Collect(
