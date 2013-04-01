@@ -101,9 +101,9 @@ public:
             // dup2(fd, STDOUT_FILENO);
             // dup2(fd, STDERR_FILENO);
 
-            CloseAllDescriptors();
+            //CloseAllDescriptors();
 
-            ChDir(WorkingDirectory);
+            YCHECK(chdir(~WorkingDirectory) == 0);
 
             auto memoryLimit = static_cast<rlim_t>(MemoryLimit);
             struct rlimit rlimit = {memoryLimit, RLIM_INFINITY};
