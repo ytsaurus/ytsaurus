@@ -25,7 +25,7 @@ void TDownloadCommand::DoExecute()
     reader->Open(
         config,
         Context->GetMasterChannel(),
-        GetTransaction(false),
+        GetTransaction(false, true),
         Context->GetBlockCache(),
         Request->Path,
         Request->Offset,
@@ -56,7 +56,7 @@ void TUploadCommand::DoExecute()
     auto writer = New<TFileWriter>(
         config,
         Context->GetMasterChannel(),
-        GetTransaction(false),
+        GetTransaction(false, true),
         Context->GetTransactionManager(),
         Request->Path,
         ~attributes);

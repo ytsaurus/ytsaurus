@@ -33,7 +33,7 @@ void TReadCommand::DoExecute()
     auto reader = New<TTableReader>(
         config,
         Context->GetMasterChannel(),
-        GetTransaction(false),
+        GetTransaction(false, true),
         Context->GetBlockCache(),
         Request->Path);
     reader->Open();
@@ -56,7 +56,7 @@ void TWriteCommand::DoExecute()
     auto writer = New<TTableWriter>(
         config,
         Context->GetMasterChannel(),
-        GetTransaction(false),
+        GetTransaction(false, true),
         Context->GetTransactionManager(),
         Request->Path,
         Request->Path.Attributes().Find<TKeyColumns>("sorted_by"));

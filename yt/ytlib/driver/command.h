@@ -18,6 +18,8 @@
 
 #include <ytlib/chunk_client/public.h>
 
+#include <ytlib/meta_state/public.h>
+
 #include <ytlib/transaction_client/transaction.h>
 #include <ytlib/transaction_client/transaction_manager.h>
 
@@ -33,7 +35,7 @@ namespace NDriver {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TRequest
-    : public TYsonSerializable
+    : public virtual TYsonSerializable
 {
     TRequest()
     {
@@ -46,7 +48,7 @@ typedef TIntrusivePtr<TRequest> TRequestPtr;
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TTransactedRequest
-    : public TRequest
+    : public virtual TRequest
 {
     NObjectClient::TTransactionId TransactionId;
     bool PingAncestors;
@@ -57,6 +59,18 @@ struct TTransactedRequest
             .Default(NObjectClient::NullTransactionId);
         RegisterParameter("ping_ancestor_transactions", PingAncestors)
             .Default(false);
+    }
+};
+
+struct TMutationRequest
+    : public virtual TRequest
+{
+    TNullable<NMetaState::TMutationId> MutationId;
+
+    TMutationRequest()
+    {
+        Register("mutation_id", MutationId)
+            .Default(Null);
     }
 };
 
@@ -170,11 +184,11 @@ public:
 protected:
     NTransactionClient::TTransactionId GetTransactionId(bool required)
     {
-        auto transaction = GetTransaction(required);
+        auto transaction = GetTransaction(required, true);
         return transaction ? transaction->GetId() : NTransactionClient::NullTransactionId;
     }
 
-    NTransactionClient::ITransactionPtr GetTransaction(bool required)
+    NTransactionClient::ITransactionPtr GetTransaction(bool required, bool ping)
     {
         if (required && this->Request->TransactionId == NTransactionClient::NullTransactionId) {
             THROW_ERROR_EXCEPTION("Transaction is required");
@@ -187,7 +201,7 @@ protected:
 
         NTransactionClient::TTransactionAttachOptions options(transactionId);
         options.AutoAbort = false;
-        options.Ping = true;
+        options.Ping = ping;
         options.PingAncestors = this->Request->PingAncestors;
         auto transactionManager = this->Context->GetTransactionManager();
         return transactionManager->Attach(options);

@@ -44,6 +44,7 @@ private:
 
 struct TSetRequest
     : public TTransactedRequest
+    , public TMutationRequest
 {
     NYPath::TRichYPath Path;
 
@@ -72,6 +73,7 @@ private:
 
 struct TRemoveRequest
     : public TTransactedRequest
+    , public TMutationRequest
 {
     NYPath::TRichYPath Path;
     bool Recursive;
@@ -139,6 +141,7 @@ private:
 
 struct TCreateRequest
     : public TTransactedRequest
+    , public TMutationRequest
 {
     TNullable<NYPath::TRichYPath> Path;
     NObjectClient::EObjectType Type;
@@ -178,6 +181,7 @@ private:
 
 struct TLockRequest
     : public TTransactedRequest
+    , public TMutationRequest
 {
     NYPath::TRichYPath Path;
     NCypressClient::ELockMode Mode;
@@ -209,6 +213,7 @@ private:
 
 struct TCopyRequest
     : public TTransactedRequest
+    , public TMutationRequest
 {
     NYPath::TRichYPath SourcePath;
     NYPath::TRichYPath DestinationPath;
@@ -239,6 +244,7 @@ private:
 
 struct TMoveRequest
     : public TTransactedRequest
+    , public TMutationRequest
 {
     NYPath::TRichYPath SourcePath;
     NYPath::TRichYPath DestinationPath;
@@ -297,6 +303,7 @@ private:
 
 struct TLinkRequest
     : public TTransactedRequest
+    , public TMutationRequest
 {
     NYPath::TRichYPath LinkPath;
     NYPath::TRichYPath TargetPath;

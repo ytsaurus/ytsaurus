@@ -4,6 +4,8 @@
 
 #include <ytlib/ytree/public.h>
 
+#include <ytlib/meta_state/public.h>
+
 #include <ytlib/object_client/object_service_proxy.h>
 
 #include <ytlib/transaction_client//transaction_ypath_proxy.h>
@@ -20,6 +22,7 @@ struct TTransactionStartOptions
     TTransactionStartOptions();
 
     TNullable<TDuration> Timeout;
+    TNullable<NMetaState::TMutationId> MutationId;
     TTransactionId ParentId;
     bool Ping;
     bool PingAncestors;

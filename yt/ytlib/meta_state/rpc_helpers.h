@@ -19,6 +19,7 @@ TCallback<void (const TError& error)> CreateRpcErrorHandler(TIntrusivePtr<TConte
 
 void SetRpcMutationId(NRpc::IClientRequestPtr request, const TMutationId& id);
 void GenerateRpcMutationId(NRpc::IClientRequestPtr request);
+void GenerateRpcMutationId(NRpc::IClientRequestPtr request, const TNullable<TMutationId>& id);
 TMutationId GetRpcMutationId(NRpc::IServiceContextPtr context);
 
 ////////////////////////////////////////////////////////////////////////////////

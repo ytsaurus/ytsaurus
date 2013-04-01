@@ -6,6 +6,8 @@
 
 #include <ytlib/rpc/public.h>
 
+#include <ytlib/meta_state/public.h>
+
 namespace NYT {
 namespace NTransactionClient {
 
@@ -23,7 +25,7 @@ struct ITransaction
      *
      *  \note Thread affinity: ClientThread
      */
-    virtual void Commit() = 0;
+    virtual void Commit(const TNullable<NMetaState::TMutationId>& mutationId = Null) = 0;
 
     //! Aborts the transaction.
     /*!
@@ -37,7 +39,7 @@ struct ITransaction
      *
      *  \note Thread affinity: any
      */
-    virtual void Abort(bool wait = false) = 0;
+    virtual void Abort(bool wait = false, const TNullable<NMetaState::TMutationId>& mutationId = Null) = 0;
 
     //! Detaches the transaction, i.e. makes the manager forget about it.
     /*!

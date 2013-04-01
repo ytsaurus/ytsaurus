@@ -40,7 +40,7 @@ void TAddMemberCommand::DoExecute()
 {
     auto req = TGroupYPathProxy::AddMember(GetGroupPath(Request->Group));
     req->set_name(Request->Member);
-    NMetaState::GenerateRpcMutationId(req);
+    NMetaState::GenerateRpcMutationId(req, Request->MutationId);
     auto rsp = ObjectProxy->Execute(req).Get();
     THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 }
@@ -51,7 +51,7 @@ void TRemoveMemberCommand::DoExecute()
 {
     auto req = TGroupYPathProxy::RemoveMember(GetGroupPath(Request->Group));
     req->set_name(Request->Member);
-    NMetaState::GenerateRpcMutationId(req);
+    NMetaState::GenerateRpcMutationId(req, Request->MutationId);
     auto rsp = ObjectProxy->Execute(req).Get();
     THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 }

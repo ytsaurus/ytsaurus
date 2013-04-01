@@ -22,6 +22,16 @@ void GenerateRpcMutationId(IClientRequestPtr request)
     SetRpcMutationId(request, TMutationId::Create());
 }
 
+void GenerateRpcMutationId(IClientRequestPtr request, const TNullable<TMutationId>& id)
+{
+    if (id) {
+        SetRpcMutationId(request, *id);
+    }
+    else {
+        SetRpcMutationId(request, TMutationId::Create());
+    }
+}
+
 void SetRpcMutationId(IClientRequestPtr request, const TMutationId& id)
 {
     request->MutableAttributes()->Set("mutation_id", id);

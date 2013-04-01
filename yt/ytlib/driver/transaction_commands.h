@@ -9,6 +9,7 @@ namespace NDriver {
 
 struct TStartTransactionRequest
     : public TTransactedRequest
+    , public TMutationRequest
 {
     TNullable<TDuration> Timeout;
     NYTree::INodePtr Attributes;
@@ -60,6 +61,7 @@ private:
 
 struct TCommitTransactionRequest
     : public TTransactedRequest
+    , public TMutationRequest
 { };
 
 typedef TIntrusivePtr<TCommitTransactionRequest> TCommitRequestPtr;
@@ -80,6 +82,7 @@ private:
 
 struct TAbortTransactionRequest
     : public TTransactedRequest
+    , public TMutationRequest
 { };
 
 typedef TIntrusivePtr<TAbortTransactionRequest> TAbortTransactionRequestPtr;

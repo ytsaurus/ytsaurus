@@ -10,7 +10,7 @@ namespace NDriver {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TUpdateMembershipRequest
-    : public TRequest
+    : public TMutationRequest
 {
     Stroka Group;
     Stroka Member;

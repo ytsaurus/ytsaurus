@@ -98,7 +98,7 @@ public:
         }
 
         if (options.ParentId != NullTransactionId) {
-            NMetaState::GenerateRpcMutationId(req);
+            NMetaState::GenerateRpcMutationId(req, options.MutationId);
         }
 
         auto rsp = Proxy.Execute(req).Get();
@@ -148,7 +148,7 @@ public:
         return Id;
     }
 
-    void Commit() override
+    void Commit(const TNullable<NMetaState::TMutationId>& mutationId) override
     {
         VERIFY_THREAD_AFFINITY(ClientThread);
 
@@ -175,7 +175,7 @@ public:
         LOG_INFO("Committing transaction (TransactionId: %s)", ~ToString(Id));
 
         auto req = TTransactionYPathProxy::Commit(FromObjectId(Id));
-        NMetaState::GenerateRpcMutationId(req);
+        NMetaState::GenerateRpcMutationId(req, mutationId);
 
         auto rsp = Proxy.Execute(req).Get();
         if (!rsp->IsOK()) {
@@ -193,13 +193,13 @@ public:
         LOG_INFO("Transaction committed (TransactionId: %s)", ~ToString(Id));
     }
 
-    void Abort(bool wait) override
+    void Abort(bool wait, const TNullable<NMetaState::TMutationId>& mutationId) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         LOG_INFO("Transaction aborted by client (TransactionId: %s)", ~ToString(Id));
 
-        InvokeAbort(wait);
+        InvokeAbort(wait, mutationId);
         HandleAbort();
     }
 
@@ -309,12 +309,12 @@ private:
     }
 
 
-    void InvokeAbort(bool wait)
+    void InvokeAbort(bool wait, const TNullable<NMetaState::TMutationId>& mutationId = Null)
     {
         // Fire and forget in case of no wait.
         auto req = TTransactionYPathProxy::Abort(FromObjectId(Id));
         if (wait) {
-            NMetaState::GenerateRpcMutationId(req);
+            NMetaState::GenerateRpcMutationId(req, mutationId);
         }
 
         auto asyncRsp = Proxy.Execute(req);
