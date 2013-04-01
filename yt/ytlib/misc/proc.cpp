@@ -199,7 +199,11 @@ TError StatusToError(int status)
 void CloseAllDescriptors()
 {
     TFileList fileList;
-    fileList.Fill("/proc/self/fd");
+    fileList.Fill(
+        "/proc/self/fd",
+        TStringBuf(),
+        TStringBuf(),
+        std::numeric_limits<int>::max());
 
     const char* fileName = nullptr;
     while((fileName = fileList.Next()) != nullptr) {

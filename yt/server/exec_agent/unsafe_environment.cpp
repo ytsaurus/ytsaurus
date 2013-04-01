@@ -95,24 +95,22 @@ public:
             // cause logging doesn't work here.
             // Use unnamed pipes with CLOEXEC.
 
-            ChDir(WorkingDirectory);
-
             // Redirect stderr and stdout to a file.
-            int fd = open("stderr.txt", O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
-            dup2(fd, STDOUT_FILENO);
-            dup2(fd, STDERR_FILENO);
+            // May be handy for debugging.
+            // int fd = open("stderr.txt", O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
+            // dup2(fd, STDOUT_FILENO);
+            // dup2(fd, STDERR_FILENO);
 
             CloseAllDescriptors();
+
+            ChDir(WorkingDirectory);
 
             auto memoryLimit = static_cast<rlim_t>(MemoryLimit);
             struct rlimit rlimit = {memoryLimit, RLIM_INFINITY};
 
             auto res = setrlimit(RLIMIT_AS, &rlimit);
             if (res) {
-                fprintf(stderr, "Failed to set resource limits (JobId: %s, MemoryLimit: %" PRId64 ")\n%s",
-                    ~JobId.ToString(),
-                    MemoryLimit,
-                    strerror(errno));
+                // Failed to set resource limits
                 _exit(EJobProxyExitCode::SetRLimitFailed);
             }
 
@@ -125,11 +123,7 @@ public:
                 "--job-id", ~JobId.ToString(),
                 (void*) NULL);
 
-            fprintf(stderr, "Failed to exec job proxy (ProxyPath: %s, ProxyConfig: %s, JobId: %s)\n%s",
-                ~ProxyPath,
-                ~ProxyConfigFileName,
-                ~JobId.ToString(),
-                strerror(errno));
+            // Failed to exec job proxy
             _exit(EJobProxyExitCode::ExecFailed);
         }
 
