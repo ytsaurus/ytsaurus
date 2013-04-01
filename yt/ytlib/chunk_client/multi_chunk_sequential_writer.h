@@ -2,15 +2,14 @@
 
 #include "public.h"
 #include "config.h"
+#include "remote_writer.h"
 
-#include <ytlib/misc/thread_affinity.h>
+//#include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/async_stream_state.h>
 
 #include <ytlib/actions/parallel_awaiter.h>
 
-#include <ytlib/chunk_client/public.h>
-#include <ytlib/chunk_client/remote_writer.h>
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
+//#include <ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <ytlib/table_client/table_reader.pb.h>
 
@@ -22,43 +21,45 @@
 #include <ytlib/logging/tagged_logger.h>
 
 namespace NYT {
-namespace NTableClient {
+namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TChunkWriter>
-class TChunkSequenceWriterBase
+class TMultiChunkSequentialWriter
     : virtual public TRefCounted
 {
 public:
-    TChunkSequenceWriterBase(
-        TTableWriterConfigPtr config,
-        TTableWriterOptionsPtr options,
+    typedef typename TChunkWriter::TProvider TProvider;
+    typedef TIntrusivePtr<TProvider> TProviderPtr;
+
+    typedef typename TChunkWriter::TFacade TFacade;
+
+    TMultiChunkSequentialWriter(
+        TMultiChunkWriterConfigPtr config,
+        TMultiChunkWriterOptionsPtr options,
+        TProviderPtr provider,
         NRpc::IChannelPtr masterChannel,
         const NTransactionClient::TTransactionId& transactionId,
         const NChunkClient::TChunkListId& parentChunkListId);
 
-    ~TChunkSequenceWriterBase();
+    ~TMultiChunkSequentialWriter();
 
     TAsyncError AsyncOpen();
-    virtual TAsyncError AsyncClose();
+    TAsyncError AsyncClose();
 
+    // Returns pointer to writer facade, which allows single write operation.
+    // In nullptr is returned, caller should subscribe to ReadyEvent.
+    TFacade* GetCurrentWriter();
     TAsyncError GetReadyEvent();
-
-    virtual bool TryWriteRow(const TRow& row);
-    virtual bool TryWriteRowUnsafe(const TRow& row);
 
     void SetProgress(double progress);
 
     /*!
      *  To get consistent data, should be called only when the writer is closed.
      */
-    const std::vector<NProto::TInputChunk>& GetWrittenChunks() const;
-
-    //! Current row count.
-    i64 GetRowCount() const;
-
-    const TNullable<TKeyColumns>& GetKeyColumns() const;
+    const std::vector<NTableClient::NProto::TInputChunk>& GetWrittenChunks() const;
+    TProviderPtr GetProvider();
 
 protected:
     struct TSession
@@ -87,7 +88,6 @@ protected:
     virtual void InitCurrentSession(TSession nextSession);
 
     void OnChunkCreated(NObjectClient::TMasterYPathProxy::TRspCreateObjectPtr rsp);
-    virtual void PrepareChunkWriter(TSession* newSession) = 0;
 
     void FinishCurrentSession();
 
@@ -113,17 +113,14 @@ protected:
 
     void SwitchSession();
 
-    const TTableWriterConfigPtr Config;
-    const TTableWriterOptionsPtr Options;
-    const int ReplicationFactor;
-    const int UploadReplicationFactor;
+    const TMultiChunkWriterConfigPtr Config;
+    const TMultiChunkWriterOptionsPtr Options;
     const NRpc::IChannelPtr MasterChannel;
-    const NObjectClient::TTransactionId TransactionId;
-    const Stroka Account;
+    const NTransactionClient::TTransactionId TransactionId;
     const NChunkClient::TChunkListId ParentChunkListId;
-    const TNullable<TKeyColumns> KeyColumns;
+    const int UploadReplicationFactor;
 
-    i64 RowCount;
+    TProviderPtr Provider;
 
     volatile double Progress;
 
@@ -138,7 +135,7 @@ protected:
     TParallelAwaiterPtr CloseChunksAwaiter;
 
     TSpinLock WrittenChunksGuard;
-    std::vector<NProto::TInputChunk> WrittenChunks;
+    std::vector<NTableClient::NProto::TInputChunk> WrittenChunks;
 
     NLog::TTaggedLogger Logger;
 
@@ -146,10 +143,10 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
+} // namespace NChunkClient
 } // namespace NYT
 
-#define CHUNK_SEQUENCE_WRITER_BASE_INL_H_
-#include "chunk_sequence_writer_base-inl.h"
-#undef CHUNK_SEQUENCE_WRITER_BASE_INL_H_
+#define MULTI_CHUNK_SEQUENTIAL_WRITER_INL_H_
+#include "multi_chunk_sequential_writer-inl.h"
+#undef MULTI_CHUNK_SEQUENTIAL_WRITER_INL_H_
 

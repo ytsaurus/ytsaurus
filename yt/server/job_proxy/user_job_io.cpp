@@ -7,8 +7,10 @@
 
 #include <ytlib/meta_state/config.h>
 
+#include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
+
 #include <ytlib/table_client/multi_chunk_parallel_reader.h>
-#include <ytlib/table_client/table_chunk_sequence_writer.h>
+#include <ytlib/table_client/table_chunk_writer.h>
 #include <ytlib/table_client/sync_writer.h>
 #include <ytlib/table_client/schema.h>
 
@@ -25,6 +27,8 @@ using namespace NScheduler;
 using namespace NTransactionClient;
 using namespace NChunkClient;
 using namespace NChunkServer;
+
+typedef TMultiChunkSequentialWriter<TTableChunkWriter> TWriter;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -68,22 +72,24 @@ ISyncWriterPtr TUserJobIO::CreateTableOutput(int index)
     auto options = New<TTableWriterOptions>();
     options->Load(ConvertToNode(TYsonString(outputSpec.table_writer_options())));
     auto chunkListId = TChunkListId::FromProto(outputSpec.chunk_list_id());
-    auto chunkSequenceWriter = New<TTableChunkSequenceWriter>(
+
+    auto writerProvider = New<TTableChunkWriterProvider>(
+        IOConfig->TableWriter,
+        options);
+
+    auto writer = CreateSyncWriter<TTableChunkWriter>(New<TWriter>(
         IOConfig->TableWriter,
         options,
+        writerProvider,
         Host->GetMasterChannel(),
         transactionId,
-        chunkListId);
-
-    auto syncWriter = CreateSyncWriter(chunkSequenceWriter);
+        chunkListId));
 
     YCHECK(Outputs.size() == index);
-    // NB: Save reader before opening! Otherwise failed chunks may not be collected.
-    Outputs.push_back(chunkSequenceWriter);
+    Outputs.push_back(writerProvider);
 
-    syncWriter->Open();
-
-    return syncWriter;
+    writer->Open();
+    return writer;
 }
 
 double TUserJobIO::GetProgress() const
@@ -136,8 +142,8 @@ void TUserJobIO::PopulateUserJobResult(TUserJobResult* result)
         *result->mutable_stderr_chunk_id() = StderrChunkId.ToProto();
     }
 
-    FOREACH (const auto& writer, Outputs) {
-        *result->add_output_boundary_keys() = writer->GetBoundaryKeys();
+    FOREACH (const auto& provider, Outputs) {
+        *result->add_output_boundary_keys() = provider->GetBoundaryKeys();
     }
 }
 

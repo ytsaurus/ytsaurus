@@ -58,6 +58,8 @@ DECLARE_ENUM(EErrorCode,
     ((ChunkPrecachingFailed) (709))
     ((OutOfSpace)            (710))
     ((IOError)               (711))
+
+    ((MasterCommunicationFailed)(712))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -76,6 +78,12 @@ typedef TIntrusivePtr<TEncodingWriterOptions> TEncodingWriterOptionsPtr;
 
 struct TDispatcherConfig;
 typedef TIntrusivePtr<TDispatcherConfig> TDispatcherConfigPtr;
+
+struct TMultiChunkWriterConfig;
+typedef TIntrusivePtr<TMultiChunkWriterConfig> TMultiChunkWriterConfigPtr;
+
+struct TMultiChunkWriterOptions;
+typedef TIntrusivePtr<TMultiChunkWriterOptions> TMultiChunkWriterOptionsPtr;
 
 class TEncodingWriter;
 typedef TIntrusivePtr<TEncodingWriter> TEncodingWriterPtr;
@@ -106,6 +114,9 @@ typedef TIntrusivePtr<TFileReader> TFileReaderPtr;
 
 class TFileWriter;
 typedef TIntrusivePtr<TFileWriter> TFileWriterPtr;
+
+template <class TChunkWriter>
+class TMultiChunkSequentialWriter;
 
 ///////////////////////////////////////////////////////////////////////////////
 

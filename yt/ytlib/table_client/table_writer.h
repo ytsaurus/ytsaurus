@@ -60,12 +60,13 @@ public:
 
 private:
     TTableWriterConfigPtr Config;
+    TTableWriterOptionsPtr Options;
+
     NRpc::IChannelPtr MasterChannel;
     NTransactionClient::ITransactionPtr Transaction;
     NTransactionClient::TTransactionId TransactionId;
     NTransactionClient::TTransactionManagerPtr TransactionManager;
     NYPath::TRichYPath RichPath;
-    TTableWriterOptionsPtr Options;
 
     bool IsOpen;
     bool IsClosed;
@@ -75,7 +76,7 @@ private:
     NTransactionClient::ITransactionPtr UploadTransaction;
     NChunkClient::TChunkListId ChunkListId;
 
-    TTableChunkSequenceWriterPtr Writer;
+    ISyncWriterPtr Writer;
 
     DECLARE_THREAD_AFFINITY_SLOT(Client);
 };

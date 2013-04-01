@@ -3,6 +3,8 @@
 #include "public.h"
 #include "key.h"
 
+#include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
+
 #include <ytlib/misc/ref_counted.h>
 #include <ytlib/misc/nullable.h>
 #include <ytlib/misc/sync.h>
@@ -18,10 +20,6 @@ struct ISyncWriter
     virtual void Open() = 0;
     virtual void Close() = 0;
 
-    /*!
-     *  \param key is used only if the table is sorted, e.g. GetKeyColumns
-     *  returns not null.
-     */
     virtual void WriteRow(const TRow& row) = 0;
 
     //! Returns all key columns seen so far.
@@ -31,70 +29,100 @@ struct ISyncWriter
     virtual i64 GetRowCount() const = 0;
 };
 
-////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
 
-template <class TAsyncWriter>
-class TSyncWriterAdapter
+struct ISyncWriterUnsafe
     : public ISyncWriter
 {
+    virtual void WriteRowUnsafe(const TRow& row) = 0;
+    virtual void WriteRowUnsafe(const TRow& row, const TNonOwningKey& key) = 0;
+
+    virtual const std::vector<NProto::TInputChunk>& GetWrittenChunks() const = 0;
+
+    virtual void SetProgress(double progress) = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TChunkWriter>
+class TSyncWriterAdapter
+    : public ISyncWriterUnsafe
+{
 public:
-    explicit TSyncWriterAdapter(TIntrusivePtr<TAsyncWriter> writer)
+    typedef NChunkClient::TMultiChunkSequentialWriter<TChunkWriter> TAsyncWriter;
+    typedef TIntrusivePtr<TAsyncWriter> TAsyncWriterPtr;
+
+    TSyncWriterAdapter(TAsyncWriterPtr writer)
         : Writer(writer)
     { }
 
-    void Open()
+    virtual void Open() override
     {
         Sync(~Writer, &TAsyncWriter::AsyncOpen);
     }
 
-
-    void WriteRow(const TRow& row)
+    virtual void WriteRow(const TRow& row) override
     {
-        while (!Writer->TryWriteRow(row)) {
-            Sync(~Writer, &TAsyncWriter::GetReadyEvent);
-        }
+        GetCurrentWriter()->WriteRow(row);
     }
 
-    void WriteRowUnsafe(const TRow& row)
+    virtual void WriteRowUnsafe(const TRow& row) override
     {
-        while (!Writer->TryWriteRowUnsafe(row)) {
-            Sync(~Writer, &TAsyncWriter::GetReadyEvent);
-        }
+        GetCurrentWriter()->WriteRowUnsafe(row);
     }
 
-    void WriteRowUnsafe(const TRow& row, const TNonOwningKey& key)
+    virtual void WriteRowUnsafe(const TRow& row, const TNonOwningKey& key) override
     {
-        while (!Writer->TryWriteRowUnsafe(row, key)) {
-            Sync(~Writer, &TAsyncWriter::GetReadyEvent);
-        }
+        GetCurrentWriter()->WriteRowUnsafe(row, key);
     }
 
-    void Close()
+    virtual void Close() override
     {
         Sync(~Writer, &TAsyncWriter::AsyncClose);
     }
 
-    const TNullable<TKeyColumns>& GetKeyColumns() const
+    virtual const TNullable<TKeyColumns>& GetKeyColumns() const override
     {
-        return Writer->GetKeyColumns();
+        return Writer->GetProvider()->GetKeyColumns();
     }
 
-    i64 GetRowCount() const
+    virtual i64 GetRowCount() const override
     {
-        return Writer->GetRowCount();
+        return Writer->GetProvider()->GetRowCount();
     }
+
+    virtual const std::vector<NProto::TInputChunk>& GetWrittenChunks() const override
+    {
+        return Writer->GetWrittenChunks();
+    }
+
+     virtual void SetProgress(double progress)
+     {
+        Writer->SetProgress(progress);
+     }
 
 private:
-    TIntrusivePtr<TAsyncWriter> Writer;
+    typename TChunkWriter::TFacade* GetCurrentWriter()
+    {
+        typename TChunkWriter::TFacade* facade = nullptr;
+
+        while ((facade = Writer->GetCurrentWriter()) == nullptr) {
+            Sync(~Writer, &TAsyncWriter::GetReadyEvent);
+        }
+        return facade;
+    }
+
+    TAsyncWriterPtr Writer;
 
 };
 
-////////////////////////////////////////////////////////////////////////////////s
+////////////////////////////////////////////////////////////////////////////////
 
-template <class TAsyncWriter>
-TIntrusivePtr< TSyncWriterAdapter<TAsyncWriter> > CreateSyncWriter(TIntrusivePtr<TAsyncWriter> asyncWriter)
+template <class TChunkWriter>
+ISyncWriterUnsafePtr CreateSyncWriter(
+    typename TSyncWriterAdapter<TChunkWriter>::TAsyncWriterPtr asyncWriter)
 {
-    return New< TSyncWriterAdapter<TAsyncWriter> >(asyncWriter);
+    return New< TSyncWriterAdapter<TChunkWriter> >(asyncWriter);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

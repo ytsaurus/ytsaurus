@@ -9,10 +9,11 @@
 #include <ytlib/chunk_client/async_reader.h>
 #include <ytlib/chunk_client/remote_reader.h>
 #include <ytlib/chunk_client/client_block_cache.h>
+#include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
 
 #include <ytlib/table_client/sync_writer.h>
 #include <ytlib/table_client/private.h>
-#include <ytlib/table_client/table_chunk_sequence_writer.h>
+#include <ytlib/table_client/table_chunk_writer.h>
 #include <ytlib/table_client/table_chunk_reader.h>
 #include <ytlib/table_client/multi_chunk_sequential_reader.h>
 #include <ytlib/table_client/merging_reader.h>
@@ -33,6 +34,8 @@ using namespace NScheduler::NProto;
 
 static NLog::TLogger& Logger = JobProxyLogger;
 static NProfiling::TProfiler& Profiler = JobProxyProfiler;
+
+typedef TMultiChunkSequentialWriter<TTableChunkWriter> TWriter;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -86,38 +89,42 @@ public:
             options->Load(ConvertToNode(TYsonString(outputSpec.table_writer_options())));
             options->KeyColumns = FromProto<Stroka>(mergeSpec.key_columns());
 
-            Writer = New<TTableChunkSequenceWriter>(
+            auto writerProvider = New<TTableChunkWriterProvider>(
+                config->JobIO->TableWriter,
+                options);
+
+            Writer = CreateSyncWriter<TTableChunkWriter>(New<TWriter>(
                 config->JobIO->TableWriter,
                 options,
+                writerProvider,
                 Host->GetMasterChannel(),
                 transactionId,
-                chunkListId);
+                chunkListId));
         }
     }
 
     virtual NScheduler::NProto::TJobResult Run() override
     {
-        PROFILE_TIMING ("/sorted_merge_time") {
-            auto writer = CreateSyncWriter(Writer);
+        PROFILE_TIMING ("/sorted_merge_time") {;
 
             // Open readers, remove invalid ones, and create the initial heap.
             LOG_INFO("Initializing");
             {
                 Reader->Open();
-                writer->Open();
+                Writer->Open();
             }
             PROFILE_TIMING_CHECKPOINT("init");
 
             // Run the actual merge.
             LOG_INFO("Merging");
             while (const TRow* row = Reader->GetRow()) {
-                writer->WriteRowUnsafe(*row, Reader->GetKey());
+                Writer->WriteRowUnsafe(*row, Reader->GetKey());
             }
             PROFILE_TIMING_CHECKPOINT("merge");
 
             LOG_INFO("Finalizing");
             {
-                writer->Close();
+                Writer->Close();
 
                 TJobResult result;
                 ToProto(result.mutable_error(), TError());
@@ -146,7 +153,7 @@ public:
 
 private:
     ISyncReaderPtr Reader;
-    TTableChunkSequenceWriterPtr Writer;
+    ISyncWriterUnsafePtr Writer;
 
 };
 

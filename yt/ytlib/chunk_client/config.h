@@ -223,5 +223,59 @@ struct TDispatcherConfig
 
 ///////////////////////////////////////////////////////////////////////////////
 
+struct TMultiChunkWriterConfig
+    : public TRemoteWriterConfig
+{
+    i64 DesiredChunkSize;
+    i64 MaxMetaSize;
+
+    int UploadReplicationFactor;
+
+    bool ChunksMovable;
+    bool ChunksVital;
+
+    bool PreferLocalHost;
+
+    TMultiChunkWriterConfig()
+    {
+        Register("desired_chunk_size", DesiredChunkSize)
+            .GreaterThan(0)
+            .Default(1024 * 1024 * 1024);
+        Register("max_meta_size", MaxMetaSize)
+            .GreaterThan(0)
+            .LessThanOrEqual(64 * 1024 * 1024)
+            .Default(30 * 1024 * 1024);
+        Register("upload_replication_factor", UploadReplicationFactor)
+            .GreaterThanOrEqual(1)
+            .Default(2);
+        Register("chunks_movable", ChunksMovable)
+            .Default(true);
+        Register("chunks_vital", ChunksVital)
+            .Default(true);
+        Register("prefer_local_host", PreferLocalHost)
+            .Default(true);
+    }
+};
+
+///////////////////////////////////////////////////////////////////////////////
+
+struct TMultiChunkWriterOptions
+    : public virtual TEncodingWriterOptions
+{
+    int ReplicationFactor;
+    Stroka Account;
+
+    TMultiChunkWriterOptions()
+    {
+        Register("replication_factor", ReplicationFactor)
+            .GreaterThanOrEqual(1)
+            .Default(3);
+        Register("account", Account)
+            .NonEmpty();
+    }
+};
+
+///////////////////////////////////////////////////////////////////////////////
+
 } // namespace NChunkClient
 } // namespace NYT

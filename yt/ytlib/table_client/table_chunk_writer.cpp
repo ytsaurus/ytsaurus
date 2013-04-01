@@ -29,13 +29,52 @@ static const int RangeColumnIndex = -1;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTableChunkWriterFacade::TTableChunkWriterFacade(TTableChunkWriterPtr writer)
+    : Writer(writer)
+    , IsReady(false)
+{ }
+
+void TTableChunkWriterFacade::WriteRow(const TRow& row)
+{
+    VERIFY_THREAD_AFFINITY(ClientThread);
+    YASSERT(IsReady);
+
+    Writer->WriteRow(row);
+    IsReady = false;
+}
+
+// Used internally. All column names are guaranteed to be unique.
+void TTableChunkWriterFacade::WriteRowUnsafe(const TRow& row, const TNonOwningKey& key)
+{
+    VERIFY_THREAD_AFFINITY(ClientThread);
+    Writer->WriteRowUnsafe(row, key);
+    IsReady = false;
+}
+
+void TTableChunkWriterFacade::WriteRowUnsafe(const TRow& row)
+{
+    VERIFY_THREAD_AFFINITY(ClientThread);
+    Writer->WriteRowUnsafe(row);
+    IsReady = false;
+}
+
+void TTableChunkWriterFacade::NextRow()
+{
+    VERIFY_THREAD_AFFINITY(ClientThread);
+    IsReady = true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TTableChunkWriter::TTableChunkWriter(
     TChunkWriterConfigPtr config,
-    TTableWriterOptionsPtr options,
-    NChunkClient::IAsyncWriterPtr chunkWriter)
+    TChunkWriterOptionsPtr options,
+    NChunkClient::IAsyncWriterPtr chunkWriter,
+    TOwningKey&& lastKey)
     : TChunkWriterBase(config, options, chunkWriter)
+    , Facade(this)
     , Channels(options->Channels)
-    , IsOpen(false)
+    , LastKey(lastKey)
     , SamplesSize(0)
     , IndexSize(0)
     , BasicMetaSize(0)
@@ -98,15 +137,14 @@ void TTableChunkWriter::SelectChannels(const TStringBuf& name, TColumnInfo& colu
     }
 }
 
-TAsyncError TTableChunkWriter::AsyncOpen()
+TTableChunkWriterFacade* TTableChunkWriter::GetFacade()
 {
-    // No thread affinity check here:
-    // TChunkSequenceWriter may call it from different threads.
-    YASSERT(!IsOpen);
-    YASSERT(!State.IsClosed());
+    if (State.IsActive() && EncodingWriter->IsReady()) {
+        Facade.NextRow();
+        return &Facade;
+    }
 
-    IsOpen = true;
-    return State.GetOperationError();
+    return nullptr;
 }
 
 void TTableChunkWriter::FinalizeRow(const TRow& row)
@@ -167,37 +205,54 @@ void TTableChunkWriter::WriteValue(const std::pair<TStringBuf, TStringBuf>& valu
     ValueCount += 1;
 }
 
-bool TTableChunkWriter::TryWriteRow(const TRow& row)
+void TTableChunkWriter::WriteRow(const TRow& row)
 {
-    YASSERT(IsOpen);
-    YASSERT(!State.IsClosed());
+    YASSERT(State.IsActive());
+    YASSERT(EncodingWriter->IsReady());
 
-    if (!State.IsActive() || !EncodingWriter->IsReady())
-        return false;
+    auto dataWeight = DataWeight;
 
     DataWeight += 1;
     FOREACH (const auto& pair, row) {
-        //ToDo: check column name length.
-        //ToDo: check column map size.
+        if (pair.first.length() > MaxColumnNameSize) {
+            State.Fail(TError(
+                "Too long column name %s, max size is %d symbols",
+                ~Stroka(pair.first).Quote(),
+                MaxColumnNameSize));
+            return;
+        }
 
         auto& columnInfo = GetColumnInfo(pair.first);
+
+        if (ColumnNames.size() > MaxColumnCount) {
+            State.Fail(TError(
+                "Too many different columns (Counnt: %d, MaxColumnCount: %d)",
+                static_cast<int>(ColumnNames.size()),
+                MaxColumnCount));
+            return;
+        }
 
         if (columnInfo.LastRow == RowCount) {
             if (Config->AllowDuplicateColumnNames) {
                 // Ignore second and subsequent values with the same column name.
                 continue;
             }
-            State.Fail(TError(Sprintf("Duplicate column name %s", ~Stroka(pair.first).Quote())));
-            return false;
+            State.Fail(TError("Duplicate column name %s", ~Stroka(pair.first).Quote()));
+            return;
         }
 
         columnInfo.LastRow = RowCount;
-
         WriteValue(pair, columnInfo);
 
         if (columnInfo.KeyColumnIndex >= 0) {
             CurrentKey.SetKeyPart(columnInfo.KeyColumnIndex, pair.second, Lexer);
         }
+    }
+
+    i64 rowWeight = DataWeight - dataWeight;
+    if (rowWeight > MaxRowWeight) {
+        State.Fail(TError("Table row is too large (RowWeight: %" PRId64 ")", rowWeight));
+        return;
     }
 
     FinalizeRow(row);
@@ -209,40 +264,29 @@ bool TTableChunkWriter::TryWriteRow(const TRow& row)
                 "Sort order violation (PreviousKey: %s, CurrentKey: %s)",
                 ~ToString(LastKey),
                 ~ToString(CurrentKey)));
-            return false;
+            return;
         }
 
         LastKey = CurrentKey;
         ProcessKey();
     }
-
-    return true;
 }
 
 // We beleive that
 //  1. row doesn't contain duplicate column names.
 //  2. data is sorted
 // All checks are disabled.
-
-bool TTableChunkWriter::TryWriteRowUnsafe(const TRow& row, const TNonOwningKey& key)
+void TTableChunkWriter::WriteRowUnsafe(const TRow& row, const TNonOwningKey& key)
 {
-    if (TryWriteRowUnsafe(row)) {
-        LastKey = key;
-        ProcessKey();
-
-        return true;
-    }
-
-    return false;
+    WriteRowUnsafe(row);
+    LastKey = key;
+    ProcessKey();
 }
 
-bool TTableChunkWriter::TryWriteRowUnsafe(const TRow& row)
+void TTableChunkWriter::WriteRowUnsafe(const TRow& row)
 {
-    YASSERT(IsOpen);
-    YASSERT(!State.IsClosed());
-
-    if (!State.IsActive() || !EncodingWriter->IsReady())
-        return false;
+    YASSERT(State.IsActive());
+    YASSERT(EncodingWriter->IsReady());
 
     DataWeight += 1;
     FOREACH (const auto& pair, row) {
@@ -251,8 +295,6 @@ bool TTableChunkWriter::TryWriteRowUnsafe(const TRow& row)
     }
 
     FinalizeRow(row);
-
-    return true;
 }
 
 void TTableChunkWriter::ProcessKey()
@@ -304,11 +346,6 @@ const TOwningKey& TTableChunkWriter::GetLastKey() const
     return LastKey;
 }
 
-void TTableChunkWriter::SetLastKey(const TOwningKey& key)
-{
-    LastKey = key;
-}
-
 i64 TTableChunkWriter::GetRowCount() const
 {
     return RowCount;
@@ -316,7 +353,6 @@ i64 TTableChunkWriter::GetRowCount() const
 
 TAsyncError TTableChunkWriter::AsyncClose()
 {
-    YASSERT(IsOpen);
     YASSERT(!State.IsClosed());
 
     LOG_DEBUG("Closing writer (KeyColumnCount: %d)", static_cast<int>(ColumnNames.size()));
@@ -444,6 +480,77 @@ i64 TTableChunkWriter::GetMetaSize() const
 {
     return BasicMetaSize + SamplesSize + IndexSize + (CurrentBlockIndex + 1) * sizeof(NProto::TBlockInfo);
 }
+
+const NProto::TBoundaryKeysExt& TTableChunkWriter::GetBoundaryKeys() const
+{
+    return BoundaryKeysExt;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TTableChunkWriterProvider::TTableChunkWriterProvider(
+    TChunkWriterConfigPtr config,
+    TChunkWriterOptionsPtr options)
+    : Config(config)
+    , Options(options)
+    , CreatedWriterCount(0)
+    , CompletedWriterCount(0)
+    , RowCount(0)
+{
+    BoundaryKeysExt.mutable_start();
+    BoundaryKeysExt.mutable_end();
+}
+
+TTableChunkWriterPtr TTableChunkWriterProvider::CreateChunkWriter(NChunkClient::IAsyncWriterPtr asyncWriter)
+{
+    YCHECK(CompletedWriterCount == CreatedWriterCount);
+    TOwningKey key;
+
+    if (CurrentWriter) {
+        RowCount += CurrentWriter->GetRowCount();
+        key = CurrentWriter->GetLastKey();
+    }
+
+    auto writer = New<TTableChunkWriter>(
+        Config,
+        Options,
+        asyncWriter,
+        std::move(key));
+    CurrentWriter = writer;
+    ++CreatedWriterCount;
+    return CurrentWriter;
+}
+
+void TTableChunkWriterProvider::OnChunkFinished()
+{
+    ++CompletedWriterCount;
+    YCHECK(CompletedWriterCount == CreatedWriterCount);
+
+    if (Options->KeyColumns) {
+        if (CompletedWriterCount == 1) {
+            const auto& boundaryKeys = CurrentWriter->GetBoundaryKeys();
+            *BoundaryKeysExt.mutable_start() = boundaryKeys.start();
+        }
+        *BoundaryKeysExt.mutable_end() = CurrentWriter->GetLastKey().ToProto();
+    }
+}
+
+const NProto::TBoundaryKeysExt& TTableChunkWriterProvider::GetBoundaryKeys() const
+{
+    return BoundaryKeysExt;
+}
+
+i64 TTableChunkWriterProvider::GetRowCount() const
+{
+    auto writer = CurrentWriter;
+    return RowCount + (writer ? writer->GetRowCount() : 0);
+}
+
+const TNullable<TKeyColumns>& TTableChunkWriterProvider::GetKeyColumns() const
+{
+    return Options->KeyColumns;
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
