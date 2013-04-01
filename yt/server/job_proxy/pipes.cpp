@@ -7,6 +7,8 @@
 #include <ytlib/table_client/table_producer.h>
 #include <ytlib/table_client/sync_reader.h>
 
+#include <ytlib/misc/proc.h>
+
 #include <util/system/file.h>
 
 #include <errno.h>
@@ -83,30 +85,6 @@ void SafeDup2(int oldFd, int newFd)
     }
 }
 
-void SafeClose(int fd, bool ignoreInvalidFd)
-{
-    while (true) {
-        auto res = close(fd);
-        if (res == -1) {
-            switch (errno) {
-            case EINTR:
-                break;
-
-            case EBADF:
-                if (ignoreInvalidFd) {
-                    return;
-                } // otherwise fall through and throw exception.
-
-            default:
-                THROW_ERROR_EXCEPTION("close failed")
-                    << TError::FromSystem();
-            }
-        } else {
-            return;
-        }
-    }
-}
-
 int SafePipe(int fd[2])
 {
     auto res = pipe(fd);
@@ -170,11 +148,6 @@ int SafeDup(int oldFd)
 }
 
 void SafeDup2(int oldFd, int newFd)
-{
-    YUNIMPLEMENTED();
-}
-
-void SafeClose(int fd, bool ignoreInvalidFd)
 {
     YUNIMPLEMENTED();
 }

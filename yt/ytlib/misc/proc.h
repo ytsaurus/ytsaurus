@@ -21,6 +21,10 @@ TError StatusToError(int status);
 
 void RemoveDirAsRoot(const Stroka& path);
 
+void SafeClose(int fd, bool ignoreInvalidFd = false);
+
+void CloseAllDescriptors();
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

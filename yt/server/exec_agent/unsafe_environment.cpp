@@ -102,8 +102,7 @@ public:
             dup2(fd, STDOUT_FILENO);
             dup2(fd, STDERR_FILENO);
 
-            // Separate process group for that job - required in non-container mode only.
-            //setpgid(0, 0);
+            CloseAllDescriptors();
 
             auto memoryLimit = static_cast<rlim_t>(MemoryLimit);
             struct rlimit rlimit = {memoryLimit, RLIM_INFINITY};
