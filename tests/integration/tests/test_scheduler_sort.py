@@ -193,7 +193,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         write('//tmp/t', [{'key' : 'b'}, {'key' : 'a'}])
 
         sort(in_='//tmp/t',
-             out='<overwrite=true> //tmp/t',
+             out='//tmp/t',
              sort_by='key')
 
         assert read('//tmp/t') == [{'key' : 'a'}, {'key' : 'b'}]

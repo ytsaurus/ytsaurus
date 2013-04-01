@@ -203,7 +203,7 @@ class TestAccounts(YTEnvSetup):
         assert space1 > 0
 
         tx = start_transaction()
-        write('<overwrite=true>//tmp/t', {'xxxx' : 'yyyy'}, tx=tx)
+        write('//tmp/t', {'xxxx' : 'yyyy'}, tx=tx)
         space2 = self._get_tx_disk_space(tx, 'tmp')
         assert space1 != space2
         assert self._get_account_disk_space('tmp') == space1 + space2
