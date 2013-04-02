@@ -391,8 +391,7 @@ Examples:
 
     commands_that_use_format = ["get", "set", "read", "write", "writesorted", "map", "reduce", "reducews"]
     if sum([vars(args)[arg] is not None for arg in commands_that_use_format]) == 0 \
-        and (any(vars(args)[option] is not None for option in ["format", "inputformat", "outputformat"])
-            or args.subkey or args.lenval):
+        and any(vars(args)[option] is not None for option in ["format", "inputformat", "outputformat"]):
         die("You should not specify format for given command")
 
 
