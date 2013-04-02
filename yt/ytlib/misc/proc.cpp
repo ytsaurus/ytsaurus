@@ -202,13 +202,22 @@ void CloseAllDescriptors()
     // Called after fork.
     // Avoid allocations, may lead to deadlock in LFAlloc.
 
-    DIR *dp;
-    struct dirent *ep;
-    dp = ::opendir("/proc/self/fd");
-
+    DIR *dp = ::opendir("/proc/self/fd");
     YCHECK(dp != NULL);
+
+    int dirfd = ::dirfd(dp);
+    YCHECK(dirfd >= 0);
+
+    struct dirent *ep;
     while (ep = ::readdir(dp)) {
-        YCHECK(::close(FromString<int>(ep->d_name)) == 0);
+        try {
+            int fd = FromString<int>(ep->d_name);
+            if (fd != dirfd) {
+                YCHECK(::close(fd) == 0);
+            }
+        } catch (...) {
+            // Ignore conversion errors, e.g. "." and ".."
+        }
     }
 
     YCHECK(::closedir(dp) == 0);
