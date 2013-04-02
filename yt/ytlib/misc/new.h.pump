@@ -4,6 +4,8 @@ $var n = 20 $$ The maximum arity.
 // vim:set ft=cpp:
 #pragma once
 
+#include "ref_counted_tracker.h"
+
 #include <typeinfo>
 
 #include <util/system/defaults.h>
@@ -64,26 +66,6 @@ namespace NYT {
  * would result in a dangling reference due to internals of #New<T> and
  * #TRefCountedBase.
  */
-
-namespace NDetail {
-
-////////////////////////////////////////////////////////////////////////////////
-
-void* GetRefCountedTrackerCookie(const void* key);
-
-template <class T>
-FORCED_INLINE void* GetRefCountedTrackerCookie()
-{
-    static void* cookie = nullptr;
-    if (UNLIKELY(!cookie)) {
-        cookie = ::NYT::NDetail::GetRefCountedTrackerCookie(&typeid(T));
-    }
-    return cookie;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NDetail
 
 #ifdef ENABLE_REF_COUNTED_TRACKING
 

@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <ytlib/misc/property.h>
+#include <ytlib/misc/ref_tracked.h>
 
 #include <ytlib/cypress_client/public.h>
 
@@ -31,6 +32,7 @@ DECLARE_ENUM(ETransactionState,
 
 class TTransaction
     : public NObjectServer::TNonversionedObjectBase
+    , public TRefTracked<TTransaction>
 {
     DEFINE_BYVAL_RW_PROPERTY(ETransactionState, State);
     DEFINE_BYVAL_RW_PROPERTY(TDuration, Timeout);
