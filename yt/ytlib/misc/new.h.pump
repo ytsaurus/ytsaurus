@@ -65,14 +65,27 @@ namespace NYT {
  * #TRefCountedBase.
  */
 
-#ifdef ENABLE_REF_COUNTED_TRACKING
-
 namespace NDetail {
 
+////////////////////////////////////////////////////////////////////////////////
+
+void* GetRefCountedTrackerCookie(const void* key);
+
 template <class T>
-void* GetRefCountedTrackerCookie();
+FORCED_INLINE void* GetRefCountedTrackerCookie()
+{
+    static void* cookie = nullptr;
+    if (UNLIKELY(!cookie)) {
+        cookie = ::NYT::NDetail::GetRefCountedTrackerCookie(&typeid(T));
+    }
+    return cookie;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NDetail
+
+#ifdef ENABLE_REF_COUNTED_TRACKING
 
 #define REF_COUNTED_NEW_PROLOGUE() \
     void* cookie = ::NYT::NDetail::GetRefCountedTrackerCookie<TType>()
