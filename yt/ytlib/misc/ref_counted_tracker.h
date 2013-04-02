@@ -6,24 +6,6 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NDetail {
-
-void* GetRefCountedTrackerCookie(const void* key);
-
-template <class T>
-FORCED_INLINE void* GetRefCountedTrackerCookie()
-{
-    static void* cookie = nullptr;
-    if (UNLIKELY(!cookie)) {
-        cookie = ::NYT::NDetail::GetRefCountedTrackerCookie(&typeid(T));
-    }
-    return cookie;
-}
-
-} // namespace NDetail
-
-////////////////////////////////////////////////////////////////////////////////
-
 // Reference tracking relies on uniqueness of std::type_info objects.
 // Without uniqueness reference tracking is still functional but lacks precision
 // (i. e. some types may have duplicate slots in the accumulated table).
