@@ -15,7 +15,7 @@ class YTError(Exception):
 
 
 debug_info = {}
-timeout = 600
+timeout = 60
 shared_output = None
 
 def communicate_with_process(process, data):
@@ -37,7 +37,7 @@ def send_data(process, data=None):
         print '!process exited with returncode:', process.returncode
         # add '!' before each line in stderr output
         print '\n'.join('!' + s for s in stderr.strip('\n').split('\n'))
-        print
+        print 
         raise YTError(stderr)
     print stdout
     return stdout.strip('\n')
@@ -74,7 +74,7 @@ def run_command(name, *args, **kwargs):
         stdin=subprocess.PIPE)
 
     debug_info[process.pid] = debug_string
-    return process
+    return process    
 
 ###########################################################################
 
@@ -125,7 +125,7 @@ def ping_transaction(tx, *args, **kwargs):
 def abort_transaction(tx, **kwargs):
     return command('abort_tx', tx, **kwargs)
 
-def upload(path, data, **kwargs):
+def upload(path, data, **kwargs): 
     process =  run_command('upload', path, **kwargs)
     return send_data(process, data)
 

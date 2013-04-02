@@ -208,12 +208,7 @@ void CloseAllDescriptors()
 
     YCHECK(dp != NULL);
     while (ep = ::readdir(dp)) {
-        try {
-            int fd = FromString<int>(ep->d_name);
-            YCHECK(::close(fd) == 0);
-        } catch (...) {
-            // Ignore conversion errors, e.g. "." and ".."
-        }
+        YCHECK(::close(FromString<int>(ep->d_name)) == 0);
     }
 
     YCHECK(::closedir(dp) == 0);
