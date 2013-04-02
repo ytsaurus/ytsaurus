@@ -65,12 +65,12 @@ struct TTransactedRequest
 struct TMutationRequest
     : public virtual TRequest
 {
-    TNullable<NMetaState::TMutationId> MutationId;
+    NMetaState::TMutationId MutationId;
 
     TMutationRequest()
     {
         Register("mutation_id", MutationId)
-            .Default(Null);
+            .Default(NMetaState::NullMutationId);
     }
 };
 

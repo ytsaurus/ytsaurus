@@ -22,7 +22,7 @@ struct TTransactionStartOptions
     TTransactionStartOptions();
 
     TNullable<TDuration> Timeout;
-    TNullable<NMetaState::TMutationId> MutationId;
+    NMetaState::TMutationId MutationId;
     TTransactionId ParentId;
     bool Ping;
     bool PingAncestors;

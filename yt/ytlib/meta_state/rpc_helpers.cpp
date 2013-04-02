@@ -22,13 +22,13 @@ void GenerateRpcMutationId(IClientRequestPtr request)
     SetRpcMutationId(request, TMutationId::Create());
 }
 
-void GenerateRpcMutationId(IClientRequestPtr request, const TNullable<TMutationId>& id)
+void GenerateRpcMutationId(IClientRequestPtr request, const TMutationId& id)
 {
-    if (id) {
-        SetRpcMutationId(request, *id);
+    if (id == NullMutationId) {
+        SetRpcMutationId(request, TMutationId::Create());
     }
     else {
-        SetRpcMutationId(request, TMutationId::Create());
+        SetRpcMutationId(request, id);
     }
 }
 

@@ -148,7 +148,7 @@ public:
         return Id;
     }
 
-    void Commit(const TNullable<NMetaState::TMutationId>& mutationId) override
+    void Commit(const NMetaState::TMutationId& mutationId) override
     {
         VERIFY_THREAD_AFFINITY(ClientThread);
 
@@ -193,7 +193,7 @@ public:
         LOG_INFO("Transaction committed (TransactionId: %s)", ~ToString(Id));
     }
 
-    void Abort(bool wait, const TNullable<NMetaState::TMutationId>& mutationId) override
+    void Abort(bool wait, const NMetaState::TMutationId& mutationId) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -309,7 +309,7 @@ private:
     }
 
 
-    void InvokeAbort(bool wait, const TNullable<NMetaState::TMutationId>& mutationId = Null)
+    void InvokeAbort(bool wait, const NMetaState::TMutationId& mutationId = NMetaState::NullMutationId)
     {
         // Fire and forget in case of no wait.
         auto req = TTransactionYPathProxy::Abort(FromObjectId(Id));

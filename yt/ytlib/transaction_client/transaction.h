@@ -25,7 +25,7 @@ struct ITransaction
      *
      *  \note Thread affinity: ClientThread
      */
-    virtual void Commit(const TNullable<NMetaState::TMutationId>& mutationId = Null) = 0;
+    virtual void Commit(const NMetaState::TMutationId& mutationId = NMetaState::NullMutationId) = 0;
 
     //! Aborts the transaction.
     /*!
@@ -39,7 +39,7 @@ struct ITransaction
      *
      *  \note Thread affinity: any
      */
-    virtual void Abort(bool wait = false, const TNullable<NMetaState::TMutationId>& mutationId = Null) = 0;
+    virtual void Abort(bool wait = false, const NMetaState::TMutationId& mutationId = NMetaState::NullMutationId) = 0;
 
     //! Detaches the transaction, i.e. makes the manager forget about it.
     /*!
