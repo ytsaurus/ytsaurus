@@ -92,7 +92,7 @@ def add_list_parser(add_parser):
     parser = add_parser("list", help="list objects")
     parser.add_argument("path")
     parser.add_argument("-l", "--long-format", action="store_true", default=False)
-    parser.add_argument("--format", action=ParseStructuredArgument)
+    parser.add_argument("--format", action=ParseFormat)
     parser.add_argument("--attribute", action="append")
     parser.add_argument("--max-size", type=int, default=100)
     parser.set_defaults(func=list)
