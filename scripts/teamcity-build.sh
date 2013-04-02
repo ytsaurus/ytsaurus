@@ -214,10 +214,8 @@ a=$((a+b))
 tc "blockClosed name='Unit Tests'"
 
 
-# TODO(ignat): add correct installation for package "python-requests (>=0.13.1)"
-# Unfortunetly python-requests of proper version is absent in debian repository.
-# So I need to use easy_install.
-# Now it is installed to teamcity manually.
+# Pre-install npm packages.
+(cd $WORKING_DIRECTORY/yt/nodejs && npm install)
 
 ulimit -c unlimited
 
@@ -289,7 +287,7 @@ tc "blockOpened name='JavaScript Tests'"
 shout "Running JavaScript tests..."
 tc "progressMessage 'Running JavaScript tests...'"
 
-(cd $WORKING_DIRECTORY/yt/nodejs && npm install && ./run_tests.sh -R xunit > $WORKING_DIRECTORY/test_javascript.xml)
+(cd $WORKING_DIRECTORY/yt/nodejs && ./run_tests.sh -R xunit > $WORKING_DIRECTORY/test_javascript.xml)
 
 b=$?
 a=$((a+b))
