@@ -250,7 +250,7 @@ test_smart_format()
     check "1 2\tz=10" "`./mapreduce -smartformat -read "ignat/smart_x"`"
 
     ./mapreduce -smartformat -copy -src "ignat/smart_x" -dst "ignat/smart_z"
-  
+
     ./mapreduce -smartformat -map "cat" -src "ignat/smart_x" -src "ignat/smart_z" -dst "ignat/smart_z"
     check "1 2\tz=10\n1 2\tz=10" "`./mapreduce -smartformat -read "ignat/smart_z"`"
 }
@@ -432,6 +432,41 @@ test_force_drop()
     check "" "`./mapreduce -read ignat/some_table`"
 }
 
+test_parallel_dstappend()
+{
+    echo -e "x\t10" | ./mapreduce -write ignat/table
+
+    run_op()
+    {
+        timeout 14s ./mapreduce -map "cat" -src ignat/table -dstappend ignat/output_table
+        if [ "$?" = 0 ]; then
+            echo "xxx" >> sync_file
+        fi
+    }
+
+    touch sync_file
+    ./mapreduce -createtable ignat/output_table
+    run_op &
+    run_op &
+
+    local ok=0
+    for i in {1..15}; do
+        lines=`cat sync_file | wc -l`
+        if [ "$lines" = "2" ]; then
+            rm -f sync_file
+            check "2" "`./mapreduce -read "ignat/output_table" | wc -l`"
+            ok=1
+            break
+        fi
+        sleep 1
+    done
+
+    if [ "$ok" = 0 ]; then
+        rm -f sync_file
+        die "Two simple operations doesn't finish correctly in 30 seconds"
+    fi
+}
+
 prepare_table_files
 test_sortby_reduceby
 test_base_functionality
@@ -459,5 +494,6 @@ test_unexisting_input_tables
 test_copy_files
 test_write_lenval
 test_force_drop
+test_parallel_dstappend
 
 cleanup
