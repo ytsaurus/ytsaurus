@@ -24,7 +24,7 @@ class TablePath(object):
     start_index, end_index
     """
     def __init__(self, name,
-                 append=False, sorted_by=None,
+                 append=None, sorted_by=None,
                  columns=None,
                  lower_key=None, upper_key=None,
                  start_index=None, end_index=None,
@@ -78,7 +78,7 @@ class TablePath(object):
     @append.setter
     def append(self, value):
         self._append = value
-        self.name.attributes["overwrite"] = bool_to_string(not self._append)
+        self.name.attributes["append"] = bool_to_string(self._append)
 
     def has_delimiters(self):
         return any(key in self.name.attributes for key in ["channel", "lower_limit", "upper_limit"])
