@@ -109,7 +109,7 @@ void TSequentialReader::OnGotBlocks(
         firstSequenceIndex,
         static_cast<int>(readResult.Value().size()));
 
-    TDispatcher::Get()->GetReaderInvoker()->Invoke(BIND(
+    TDispatcher::Get()->GetCompressionInvoker()->Invoke(BIND(
         &TSequentialReader::DecompressBlock,
         MakeWeak(this),
         firstSequenceIndex,
@@ -140,7 +140,7 @@ void TSequentialReader::DecompressBlock(
 
     ++blockIndex;
     if (blockIndex < readResult.Value().size()) {
-        TDispatcher::Get()->GetReaderInvoker()->Invoke(BIND(
+        TDispatcher::Get()->GetCompressionInvoker()->Invoke(BIND(
             &TSequentialReader::DecompressBlock,
             MakeWeak(this),
             firstSequenceIndex,
