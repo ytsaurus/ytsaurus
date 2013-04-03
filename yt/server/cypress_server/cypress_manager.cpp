@@ -327,7 +327,6 @@ INodeTypeHandlerPtr TCypressManager::GetHandler(const TCypressNodeBase* node)
 
 TCypressNodeBase* TCypressManager::CreateNode(
     INodeTypeHandlerPtr handler,
-    //TCypressNodeBase* trunkParent,
     TTransaction* transaction,
     TAccount* account,
     IAttributeDictionary* attributes,
@@ -343,9 +342,6 @@ TCypressNodeBase* TCypressManager::CreateNode(
     auto node_ = ~node;
 
     RegisterNode(node, transaction, attributes);
-
-    // Set parent.
-    //node_->SetParent(trunkParent);
 
     // Set account (if not given in attributes).
     auto securityManager = Bootstrap->GetSecurityManager();
