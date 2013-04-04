@@ -253,6 +253,9 @@ test_smart_format()
 
     ./mapreduce -smartformat -map "cat" -src "ignat/smart_x" -src "ignat/smart_z" -dst "ignat/smart_z"
     check "1 2\tz=10\n1 2\tz=10" "`./mapreduce -smartformat -read "ignat/smart_z"`"
+    
+    ./mapreduce -smartformat -map "cat" -reduce "cat" -src "ignat/smart_x" -dst "ignat/smart_y"
+    check "1 2\tz=10" "`./mapreduce -smartformat -read "ignat/smart_y"`"
 }
 
 test_drop()
