@@ -54,7 +54,7 @@ deb_without_test: clean
 clean:
 	$(PYTHON) setup.py clean
 	find . -name '*.pyc' -delete
-	sudo rm -rf tests Yt.egg-info yt/wrapper/mapreduce-yt yt/wrapper/yt2
+	sudo rm -rf tests Yt.egg-info yt/wrapper/mapreduce-yt yt/wrapper/yt2 yt/wrapper/tests/sandbox
 	sudo rm -rf build/ dist/ MANIFEST mapreduce.spec
 	sudo $(MAKE) -f $(CURDIR)/debian/rules clean
 
