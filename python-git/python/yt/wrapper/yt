@@ -347,7 +347,9 @@ def map_reduce(args):
                       map_files=args.map_local_file, map_file_paths=args.map_file,
                       reduce_files=args.reduce_local_file, reduce_file_paths=args.reduce_file,
                       reduce_by=args.reduce_by, sort_by=args.sort_by,
-                      format=args.format, input_format=args.input_format, output_format=args.output_format,
+                      format=args.format,
+                      map_input_format=args.map_input_format, map_output_format=args.map_output_format,
+                      reduce_input_format=args.reduce_input_format, reduce_output_format=args.reduce_output_format,
                       mapper_memory_limit=args.map_memory_limit,
                       reducer_memory_limit=args.reduce_memory_limit,
                       spec=args.spec)
@@ -367,7 +369,11 @@ def add_map_reduce_parser(add_parser):
     parser.add_argument("--reduce-by", action="append", required=True)
     parser.add_argument("--sort-by", action="append")
     parser.add_argument("--spec", action=ParseStructuredArgument)
-    format_args(parser)
+    parser.add_argument("--format", action=ParseFormat)
+    parser.add_argument("--map-input-format", action=ParseFormat)
+    parser.add_argument("--map-output-format", action=ParseFormat)
+    parser.add_argument("--reduce-input-format", action=ParseFormat)
+    parser.add_argument("--reduce-output-format", action=ParseFormat)
     parser.set_defaults(func=map_reduce)
 
 

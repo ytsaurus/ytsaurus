@@ -517,7 +517,9 @@ class Finalizer(object):
                        "}}'".format(table, mode, data_size_per_job))
 
 def run_map_reduce(mapper, reducer, source_table, destination_table,
-                   format=None, input_format=None, output_format=None,
+                   format=None,
+                   map_input_format=None, map_output_format=None,
+                   reduce_input_format=None, reduce_output_format=None,
                    strategy=None, table_writer=None, spec=None,
                    replication_factor=None, compression_codec=None,
                    map_files=None, reduce_files=None,
@@ -536,7 +538,8 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
         _remove_tables(destination_table)
         return
 
-    input_format, output_format = _prepare_formats(format, input_format, output_format)
+    map_input_format, map_output_format = _prepare_formats(format, map_input_format, map_output_format)
+    reduce_input_format, reduce_output_format = _prepare_formats(format, reduce_input_format, reduce_output_format)
 
     if sort_by is None:
         sort_by = reduce_by
@@ -547,8 +550,8 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
         lambda _: _add_input_output_spec(source_table, destination_table, _),
         lambda _: update({"sort_by": _prepare_sort_by(sort_by),
                           "reduce_by": _prepare_reduce_by(reduce_by)}, _),
-        lambda _: memorize_files(*_add_user_command_spec("mapper", mapper, input_format, output_format, map_files, map_file_paths, mapper_memory_limit, None, _)),
-        lambda _: memorize_files(*_add_user_command_spec("reducer", reducer, input_format, output_format, reduce_files, reduce_file_paths, reducer_memory_limit, reduce_by, _)),
+        lambda _: memorize_files(*_add_user_command_spec("mapper", mapper, map_input_format, map_output_format, map_files, map_file_paths, mapper_memory_limit, None, _)),
+        lambda _: memorize_files(*_add_user_command_spec("reducer", reducer, reduce_input_format, reduce_output_format, reduce_files, reduce_file_paths, reducer_memory_limit, reduce_by, _)),
         lambda _: get_value(_, {})
     )(spec)
 
@@ -586,8 +589,8 @@ def run_operation(binary, source_table, destination_table,
                     source_table=source_table,
                     destination_table=destination_table,
                     format=format,
-                    input_format=input_format,
-                    output_format=output_format,
+                    reduce_input_format=input_format,
+                    reduce_output_format=output_format,
                     table_writer=table_writer,
                     reduce_by=reduce_by,
                     sort_by=reduce_by,
