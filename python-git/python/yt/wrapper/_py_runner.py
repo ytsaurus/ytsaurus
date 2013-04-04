@@ -41,7 +41,7 @@ def main():
             if __attributes.get("is_aggregator", False):
                 __result = __operation(__records)
             else:
-                __result = itertools.chain(*itertools.imap(__operation, __records))
+                __result = itertools.chain.from_iterable(itertools.imap(__operation, __records))
         else:
             __result = itertools.chain.from_iterable(itertools.starmap(__operation, itertools.groupby(__records, lambda rec: yt.extract_key(rec, __keys, __input_format))))
         __result = itertools.imap(lambda rec: yt.record_to_line(rec, __output_format), __result)
