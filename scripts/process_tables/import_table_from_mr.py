@@ -44,7 +44,7 @@ def main():
         """ Extract value of given field from http page of the table """
         http_content = sh.curl("{}:{}/debug?info=table&table={}".format(args.server, args.http_port, table)).stdout
         records_line = filter(lambda line: line.find(field) != -1,  http_content.split("\n"))[0]
-        records_line = records_line.replace("</b>", "").replace(",", "")
+        records_line = records_line.replace("</b>", "").replace("<br>", "").replace("<b>", "").replace(",", "")
         return records_line.split(field + ":")[1].split()[0]
 
     def records_count(table):
@@ -54,7 +54,7 @@ def main():
         return int(field_from_page(table, "Size"))
 
     def is_sorted(table):
-        return field_from_page(table, "Size").lower() == "yes"
+        return field_from_page(table, "Sorted").lower() == "yes"
 
     def is_empty(table):
         """ Parse whether table is empty from html """
@@ -198,7 +198,7 @@ def main():
                 raise yt.YtError("Incorrect record count: expected=%d, actual=%d" % (count, yt.records_count(destination)))
 
             if sorted:
-                yt.run_sort(destination, sort_by=["key", "subkey"])
+                yt.run_sort(destination, sort_by=["key", "subkey"], spec={"parition_count": yt.get_attribute(destination, "chunk_count")})
         except yt.YtError:
             _, _, exc_traceback = sys.exc_info()
             traceback.print_tb(exc_traceback, file=sys.stdout)
