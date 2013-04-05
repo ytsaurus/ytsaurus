@@ -18,7 +18,7 @@ namespace NScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TJobIOConfig
-    : public TYsonSerializable
+    : public virtual TYsonSerializable
 {
     NTableClient::TTableReaderConfigPtr TableReader;
     NTableClient::TTableWriterConfigPtr TableWriter;
@@ -43,7 +43,7 @@ struct TJobIOConfig
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TOperationSpecBase
-    : public TYsonSerializable
+    : public virtual TYsonSerializable
 {
     Stroka IntermediateDataAccount;
 
@@ -52,10 +52,7 @@ struct TOperationSpecBase
     TNullable<int> MaxFailedJobCount;
     TNullable<int> MaxStdErrCount;
 
-    int MaxOutputTables;
-
     TOperationSpecBase()
-        : MaxOutputTables(16)
     {
         Register("intermediate_data_account", IntermediateDataAccount)
             .Default("tmp");
@@ -72,10 +69,35 @@ struct TOperationSpecBase
     }
 };
 
+////////////////////////////////////////////////////////////////////////////////\
+
+struct TMultipleOutputsSpecBase
+    : public virtual TYsonSerializable
+{
+    int MaxOutputTables;
+    std::vector<NYPath::TRichYPath> OutputTablePaths;
+
+    TMultipleOutputsSpecBase()
+        : MaxOutputTables(16)
+    {
+        Register("output_table_paths", OutputTablePaths);
+    }
+
+    virtual void DoValidate() const override
+    {
+        if (OutputTablePaths.size() > MaxOutputTables) {
+            THROW_ERROR_EXCEPTION(
+                "Too many output tables: maximum allowed %d, actual %zu",
+                MaxOutputTables,
+                OutputTablePaths.size());
+        }
+    }
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TUserJobSpec
-    : public TYsonSerializable
+    : public virtual TYsonSerializable
 {
     Stroka Command;
 
@@ -127,10 +149,10 @@ struct TUserJobSpec
 
 struct TMapOperationSpec
     : public TOperationSpecBase
+    , public TMultipleOutputsSpecBase
 {
     TUserJobSpecPtr Mapper;
     std::vector<NYPath::TRichYPath> InputTablePaths;
-    std::vector<NYPath::TRichYPath> OutputTablePaths;
     TNullable<int> JobCount;
     i64 JobSliceDataSize;
     i64 DataSizePerJob;
@@ -143,7 +165,6 @@ struct TMapOperationSpec
             .DefaultNew();
         Register("input_table_paths", InputTablePaths)
             .NonEmpty();
-        Register("output_table_paths", OutputTablePaths);
         Register("job_count", JobCount)
             .Default()
             .GreaterThan(0);
@@ -156,15 +177,6 @@ struct TMapOperationSpec
             .DefaultNew();
 
         JobIO->TableReader->PrefetchWindow = 10;
-    }
-
-    virtual void DoValidate() const override
-    {
-        if (OutputTablePaths.size() > MaxOutputTables) {
-            THROW_ERROR_EXCEPTION(
-                "Too many output tables. Maximum otput table count is %d",
-                MaxOutputTables);
-        }
     }
 };
 
@@ -274,10 +286,10 @@ struct TEraseOperationSpec
 
 struct TReduceOperationSpec
     : public TMergeOperationSpecBase
+    , public TMultipleOutputsSpecBase
 {
     TUserJobSpecPtr Reducer;
     std::vector<NYPath::TRichYPath> InputTablePaths;
-    std::vector<NYPath::TRichYPath> OutputTablePaths;
     TNullable< std::vector<Stroka> > ReduceBy;
 
     TReduceOperationSpec()
@@ -289,19 +301,10 @@ struct TReduceOperationSpec
             .DefaultNew();
         Register("input_table_paths", InputTablePaths)
             .NonEmpty();
-        Register("output_table_paths", OutputTablePaths);
         Register("reduce_by", ReduceBy)
             .Default();
     }
 
-    virtual void DoValidate() const override
-    {
-        if (OutputTablePaths.size() > MaxOutputTables) {
-            THROW_ERROR_EXCEPTION(
-                "Too many output tables. Maximum otput table count is %d",
-                MaxOutputTables);
-        }
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -430,9 +433,8 @@ struct TSortOperationSpec
 
 struct TMapReduceOperationSpec
     : public TSortOperationSpecBase
+    , public TMultipleOutputsSpecBase
 {
-    std::vector<NYPath::TRichYPath> OutputTablePaths;
-
     std::vector<Stroka> SortBy;
     std::vector<Stroka> ReduceBy;
 
@@ -445,7 +447,6 @@ struct TMapReduceOperationSpec
 
     TMapReduceOperationSpec()
     {
-        Register("output_table_paths", OutputTablePaths);
         Register("sort_by", SortBy)
             .NonEmpty();
         Register("reduce_by", ReduceBy)
@@ -491,15 +492,6 @@ struct TMapReduceOperationSpec
         SortJobIO->TableReader->PrefetchWindow = 10;
     }
 
-    virtual void DoValidate() const override
-    {
-        if (OutputTablePaths.size() > MaxOutputTables) {
-            THROW_ERROR_EXCEPTION(
-                "Too many output tables. Maximum otput table count is %d",
-                MaxOutputTables);
-        }
-    }
-
     virtual void OnLoaded() override
     {
         if (ReduceBy.empty()) {
@@ -516,7 +508,7 @@ DECLARE_ENUM(ESchedulingMode,
 );
 
 struct TPoolConfig
-    : public TYsonSerializable
+    : public virtual TYsonSerializable
 {
     double Weight;
     double MinShareRatio;
@@ -554,7 +546,7 @@ struct TPoolConfig
 ////////////////////////////////////////////////////////////////////
 
 struct TPooledOperationSpec
-    : public TYsonSerializable
+    : public virtual TYsonSerializable
 {
     TNullable<Stroka> Pool;
     double Weight;
