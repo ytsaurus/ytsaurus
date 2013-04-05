@@ -585,6 +585,13 @@ void TOperationControllerBase::Initialize()
     }
 
     try {
+        if (OutputTables.size() > Config->MaxOutputTables) {
+            THROW_ERROR_EXCEPTION(
+                "Too many output tables: maximum allowed %d, actual %zu",
+                Config->MaxOutputTables,
+                OutputTables.size());
+        }
+
         if (Host->GetExecNodes().empty()) {
             THROW_ERROR_EXCEPTION("No online exec nodes to start operation");
         }
