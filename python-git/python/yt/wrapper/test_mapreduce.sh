@@ -73,7 +73,8 @@ test_base_functionality()
 
 test_codec()
 {
-    ./mapreduce -write "ignat/temp" -codec "none" <table_file
+    ./mapreduce -write "ignat/temp" <table_file
+    check_failed './mapreduce -write "ignat/temp" -codec "none" <table_file'
 
     # We cannot write to existing table with replication factor
     ./mapreduce -drop "ignat/temp"
