@@ -103,12 +103,13 @@ def _prepare_destination_tables(tables, replication_factor, compression_codec):
         return []
     tables = map(to_table, flatten(tables))
     for table in tables:
-        if not exists(table.name):
-            create_table(table.name, replication_factor=replication_factor, compression_codec=compression_codec)
-        else:
+        if exists(table.name):
             require(replication_factor is None and compression_codec is None,
                     YtError("Cannot append to table %s and set replication factor "
                             "or compression codec" % table))
+        else:
+            create_table(table.name, ignore_existing=True,
+                         replication_factor=replication_factor, compression_codec=compression_codec)
     return tables
 
 def _remove_tables(tables):
@@ -212,7 +213,7 @@ class Buffer(object):
         return self._empty
 
 """ Common table methods """
-def create_table(path, recursive=None, replication_factor=None, compression_codec=None, attributes=None):
+def create_table(path, recursive=None, ignore_existing=False, replication_factor=None, compression_codec=None, attributes=None):
     """ Creates empty table, use recursive for automatically creaation the path """
     table = TablePath(path)
     recursive = get_value(recursive, config.CREATE_RECURSIVE)
@@ -221,7 +222,7 @@ def create_table(path, recursive=None, replication_factor=None, compression_code
         attributes["replication_factor"] = replication_factor
     if compression_codec is not None:
         attributes["compression_codec"] = compression_codec
-    create("table", table.name, recursive=recursive, attributes=attributes)
+    create("table", table.name, recursive=recursive, ignore_existing=ignore_existing, attributes=attributes)
 
 def create_temp_table(path=None, prefix=None):
     """ Creates temporary table by given path with given prefix """
@@ -264,11 +265,12 @@ def write_table(table, input_stream, format=None, table_writer=None, replication
     with PingableTransaction(
             config.WRITE_TRANSACTION_TIMEOUT,
             attributes={"title": "Python wrapper: write table %s" % table.name}):
-        if not exists(table.name):
-            create_table(table.name, replication_factor=replication_factor, compression_codec=compression_codec)
+        if exists(table.name):
+            require(replication_factor is None and compression_codec is None,
+                    YtError("Cannot write to existing table %s with set replication factor or compression codec" % to_name(table)))
         else:
-            require(replication_factor is None,
-                    YtError("Cannot write to existing table %s with set replication factor" % to_name(table)))
+            create_table(table.name, ignore_existing=True,
+                         replication_factor=replication_factor, compression_codec=compression_codec)
 
         if config.USE_RETRIES_DURING_WRITE and not isinstance(format, RawFormat):
             started = False
