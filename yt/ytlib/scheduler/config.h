@@ -52,7 +52,10 @@ struct TOperationSpecBase
     TNullable<int> MaxFailedJobCount;
     TNullable<int> MaxStdErrCount;
 
+    int MaxOutputTables;
+
     TOperationSpecBase()
+        : MaxOutputTables(16)
     {
         Register("intermediate_data_account", IntermediateDataAccount)
             .Default("tmp");
@@ -153,6 +156,15 @@ struct TMapOperationSpec
             .DefaultNew();
 
         JobIO->TableReader->PrefetchWindow = 10;
+    }
+
+    virtual void DoValidate() const override
+    {
+        if (OutputTablePaths.size() > MaxOutputTables) {
+            THROW_ERROR_EXCEPTION(
+                "Too many output tables. Maximum otput table count is %d",
+                MaxOutputTables);
+        }
     }
 };
 
@@ -280,6 +292,15 @@ struct TReduceOperationSpec
         Register("output_table_paths", OutputTablePaths);
         Register("reduce_by", ReduceBy)
             .Default();
+    }
+
+    virtual void DoValidate() const override
+    {
+        if (OutputTablePaths.size() > MaxOutputTables) {
+            THROW_ERROR_EXCEPTION(
+                "Too many output tables. Maximum otput table count is %d",
+                MaxOutputTables);
+        }
     }
 };
 
@@ -468,6 +489,15 @@ struct TMapReduceOperationSpec
         MapJobIO->TableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GB
 
         SortJobIO->TableReader->PrefetchWindow = 10;
+    }
+
+    virtual void DoValidate() const override
+    {
+        if (OutputTablePaths.size() > MaxOutputTables) {
+            THROW_ERROR_EXCEPTION(
+                "Too many output tables. Maximum otput table count is %d",
+                MaxOutputTables);
+        }
     }
 
     virtual void OnLoaded() override
