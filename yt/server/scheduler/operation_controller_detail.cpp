@@ -182,6 +182,8 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
             ~FormatResources(neededResources));
         CheckResourceDemandSanity(node, neededResources);
         chunkPoolOutput->Aborted(joblet->OutputCookie);
+        // Seems like cached min needed resources are too optimistic.
+        CachedMinNeededResources = GetMinNeededResourcesHeavy();
         return nullptr;
     }
 
