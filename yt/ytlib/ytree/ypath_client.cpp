@@ -561,6 +561,34 @@ INodePtr UpdateNode(INodePtr base, INodePtr patch)
 
 bool AreNodesEqual(INodePtr lhs, INodePtr rhs)
 {
+    // Check attributes.
+    const auto& lhsAttributes = lhs->Attributes();
+    const auto& rhsAttributes = rhs->Attributes();
+    
+    auto lhsAttributeKeys = lhsAttributes.List();
+    auto rhsAttributeKeys = rhsAttributes.List();
+    
+    if (lhsAttributeKeys.size() != rhsAttributeKeys.size()) {
+        return false;
+    }
+
+    std::sort(lhsAttributeKeys.begin(), lhsAttributeKeys.end());
+    std::sort(rhsAttributeKeys.begin(), rhsAttributeKeys.end());
+
+    for (size_t index = 0; index < lhsAttributeKeys.size(); ++index) {
+        if (lhsAttributeKeys[index] != rhsAttributeKeys[index]) {
+            return false;
+        }
+        auto lhsYson = lhsAttributes.GetYson(lhsAttributeKeys[index]);
+        auto rhsYson = lhsAttributes.GetYson(rhsAttributeKeys[index]);
+        auto lhsNode = ConvertToNode(lhsYson);
+        auto rhsNode = ConvertToNode(rhsYson);
+        if (!AreNodesEqual(lhsNode, rhsNode)) {
+            return false;
+        }
+    }
+
+    // Check content.
     if (lhs->GetType() == ENodeType::Map && rhs->GetType() == ENodeType::Map) {
         auto lhsMap = lhs->AsMap();
         auto lhsKeys = lhsMap->GetKeys();
