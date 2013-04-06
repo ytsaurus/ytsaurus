@@ -608,6 +608,8 @@ bool AreNodesEqual(INodePtr lhs, INodePtr rhs)
                 return false;
             }
 
+            std::sort(lhsKeys.begin(), lhsKeys.end());
+            std::sort(rhsKeys.begin(), rhsKeys.end());
 
             for (size_t index = 0; index < lhsKeys.size(); ++index) {
                 const auto& lhsKey = lhsKeys[index];
