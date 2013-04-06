@@ -483,7 +483,7 @@ private:
     void HandleConfig(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
     {
         auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_config");
-        if (rsp->GetError().GetCode() == NYTree::EErrorCode::ResolveError) {
+        if (rsp->GetError().FindMatching(NYTree::EErrorCode::ResolveError)) {
             // No config attribute, just ignore.
             return;
         }
