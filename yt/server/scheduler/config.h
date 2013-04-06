@@ -3,7 +3,6 @@
 #include "public.h"
 
 #include <ytlib/ytree/yson_serializable.h>
-#include <ytlib/ytree/ephemeral_node_factory.h>
 
 #include <ytlib/table_client/config.h>
 
@@ -211,23 +210,22 @@ struct TSchedulerConfig
             .Default()
             .GreaterThan(0);
 
-        auto factory = NYTree::GetEphemeralNodeFactory();
         Register("map_operation_spec", MapOperationSpec)
-            .Default(factory->CreateMap());
+            .Default(nullptr);
         Register("reduce_operation_spec", ReduceOperationSpec)
-            .Default(factory->CreateMap());
+            .Default(nullptr);
         Register("erase_operation_spec", EraseOperationSpec)
-            .Default(factory->CreateMap());
+            .Default(nullptr);
         Register("ordered_merge_operation_spec", OrderedMergeOperationSpec)
-            .Default(factory->CreateMap());
+            .Default(nullptr);
         Register("unordered_merge_operation_spec", UnorderedMergeOperationSpec)
-            .Default(factory->CreateMap());
+            .Default(nullptr);
         Register("sorted_merge_operation_spec", SortedMergeOperationSpec)
-            .Default(factory->CreateMap());
+            .Default(nullptr);
         Register("map_reduce_operation_spec", MapReduceOperationSpec)
-            .Default(factory->CreateMap());
+            .Default(nullptr);
         Register("sort_operation_spec", SortOperationSpec)
-            .Default(factory->CreateMap());
+            .Default(nullptr);
 
         Register("max_job_count", MaxJobCount)
             .Default(20000)
