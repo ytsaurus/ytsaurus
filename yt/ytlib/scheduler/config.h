@@ -175,7 +175,11 @@ struct TMergeOperationSpecBase
     TJobIOConfigPtr JobIO;
 
     TMergeOperationSpecBase()
+        : DataSizePerJob(-1)
     {
+        Register("data_size_per_job", DataSizePerJob)
+            .Default((i64) 1024 * 1024 * 1024)
+            .GreaterThan(0);
         Register("job_count", JobCount)
             .Default()
             .GreaterThan(0);
@@ -206,16 +210,13 @@ struct TMergeOperationSpec
 
     TMergeOperationSpec()
     {
-        Register("data_size_per_job", DataSizePerJob)
-            .Default((i64) 1024 * 1024 * 1024)
-            .GreaterThan(0);
         Register("input_table_paths", InputTablePaths)
             .NonEmpty();
         Register("output_table_path", OutputTablePath);
-        Register("combine_chunks", CombineChunks)
-            .Default(false);
         Register("mode", Mode)
             .Default(EMergeMode::Unordered);
+        Register("combine_chunks", CombineChunks)
+            .Default(false);
         Register("allow_passthrough_chunks", AllowPassthroughChunks)
             .Default(true);
         Register("merge_by", MergeBy)
@@ -270,9 +271,6 @@ struct TReduceOperationSpec
 
     TReduceOperationSpec()
     {
-        Register("data_size_per_job", DataSizePerJob)
-            .Default((i64) 32 * 1024 * 1024)
-            .GreaterThan(0);
         Register("reducer", Reducer)
             .DefaultNew();
         Register("input_table_paths", InputTablePaths)
@@ -280,6 +278,10 @@ struct TReduceOperationSpec
         Register("output_table_paths", OutputTablePaths);
         Register("reduce_by", ReduceBy)
             .Default();
+
+        RegisterInitializer([&] () {
+            DataSizePerJob = (i64) 32 * 1024 * 1024;
+        });
     }
 };
 
