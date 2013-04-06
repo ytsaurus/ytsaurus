@@ -176,9 +176,6 @@ struct TMergeOperationSpecBase
 
     TMergeOperationSpecBase()
     {
-        Register("data_size_per_job", DataSizePerJob)
-            .Default((i64) 1024 * 1024 * 1024)
-            .GreaterThan(0);
         Register("job_count", JobCount)
             .Default()
             .GreaterThan(0);
@@ -209,6 +206,9 @@ struct TMergeOperationSpec
 
     TMergeOperationSpec()
     {
+        Register("data_size_per_job", DataSizePerJob)
+            .Default((i64) 1024 * 1024 * 1024)
+            .GreaterThan(0);
         Register("input_table_paths", InputTablePaths)
             .NonEmpty();
         Register("output_table_path", OutputTablePath);
