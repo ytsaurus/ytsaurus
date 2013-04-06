@@ -555,7 +555,7 @@ private:
         // - Relax :)
         TMasterHandshakeResult Round7(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
         {
-            THROW_ERROR_EXCEPTION_IF_FAILED(batchRsp->GetCumulativeError());
+            THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp);
 
             Result.WatcherResponses = batchRsp;
             return Result;
