@@ -195,7 +195,6 @@ inline bool IsPresent(TNullable<T>* parameter)
 template <class T>
 TParameter<T>::TParameter(T& parameter)
     : Parameter(parameter)
-    , HasDefaultValue(false)
 { }
 
 template <class T>
@@ -205,11 +204,14 @@ void TParameter<T>::Load(NYTree::INodePtr node, const NYPath::TYPath& path)
         try {
             TLoadHelper<T>::Load(Parameter, node, path);
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error reading parameter: %s", ~path)
+            THROW_ERROR_EXCEPTION("Error reading parameter %s", ~path)
                 << ex;
         }
-    } else if (!HasDefaultValue) {
-        THROW_ERROR_EXCEPTION("Required parameter is missing: %s", ~path);
+    } else {
+        if (!DefaultValue) {
+            THROW_ERROR_EXCEPTION("Missing required parameter %s", ~path);
+        }
+        Parameter = *DefaultValue;
     }
 }
 
@@ -221,7 +223,7 @@ void TParameter<T>::Validate(const NYPath::TYPath& path) const
         try {
             validator.Run(Parameter);
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Validation failed: %s", ~path)
+            THROW_ERROR_EXCEPTION("Validation failed at %s", ~path)
                 << ex;
         }
     }
@@ -242,16 +244,8 @@ bool TParameter<T>::IsPresent() const
 template <class T>
 TParameter<T>& TParameter<T>::Default(const T& defaultValue)
 {
+    DefaultValue = defaultValue;
     Parameter = defaultValue;
-    HasDefaultValue = true;
-    return *this;
-}
-
-template <class T>
-TParameter<T>& TParameter<T>::Default(T&& defaultValue)
-{
-    Parameter = std::move(defaultValue);
-    HasDefaultValue = true;
     return *this;
 }
 

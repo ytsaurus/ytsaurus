@@ -54,7 +54,6 @@ public:
 
 public: // for users
     TParameter& Default(const T& defaultValue = T());
-    TParameter& Default(T&& defaultValue);
     TParameter& DefaultNew();
     TParameter& CheckThat(TValidator validator);
     TParameter& GreaterThan(TValueType value);
@@ -66,8 +65,9 @@ public: // for users
 
 private:
     T& Parameter;
-    bool HasDefaultValue;
+    TNullable<T> DefaultValue;
     std::vector<TValidator> Validators;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
