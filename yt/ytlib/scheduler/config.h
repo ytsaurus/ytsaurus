@@ -130,7 +130,6 @@ struct TMapOperationSpec
     std::vector<NYPath::TRichYPath> InputTablePaths;
     std::vector<NYPath::TRichYPath> OutputTablePaths;
     TNullable<int> JobCount;
-    i64 JobSliceDataSize;
     i64 DataSizePerJob;
     TDuration LocalityTimeout;
     TJobIOConfigPtr JobIO;
@@ -171,8 +170,6 @@ struct TMergeOperationSpecBase
     i64 DataSizePerJob;
 
     TNullable<int> JobCount;
-
-    i64 JobSliceDataSize;
 
     TDuration LocalityTimeout;
     TJobIOConfigPtr JobIO;
@@ -462,7 +459,6 @@ struct TMapReduceOperationSpec
             .GreaterThan(0);
 
         // The following settings are inherited from base but make no sense for map-reduce:
-        //   JobSliceDataSize
         //   DataSizePerUnorderedMergeJob
         //   SimpleSortLocalityTimeout
         //   SimpleMergeLocalityTimeout
