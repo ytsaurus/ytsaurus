@@ -17,6 +17,7 @@
 #include <ytlib/ypath/token.h>
 
 #include <ytlib/ytree/ypath_client.h>
+#include <ytlib/ytree/convert.h>
 
 #include <ytlib/actions/bind.h>
 
