@@ -69,8 +69,7 @@ ISyncWriterPtr TUserJobIO::CreateTableOutput(int index)
     auto transactionId = TTransactionId::FromProto(jobSpec.output_transaction_id());
     const auto& outputSpec = jobSpec.output_specs(index);
 
-    auto options = New<TTableWriterOptions>();
-    options->Load(ConvertToNode(TYsonString(outputSpec.table_writer_options())));
+    auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
     auto chunkListId = TChunkListId::FromProto(outputSpec.chunk_list_id());
 
     auto writerProvider = New<TTableChunkWriterProvider>(
