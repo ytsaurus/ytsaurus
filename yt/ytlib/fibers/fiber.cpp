@@ -1,12 +1,17 @@
 #include "stdafx.h"
 #include "fiber.h"
 
+// libcoro asserts that coro_create() is not thread-safe nor reenterant function.
 #ifdef _unix_
 #include <pthread.h>
 #define DEFINE_FIBER_CTOR_MUTEX() \
     static pthread_mutex_t FiberCtorMutex = PTHREAD_MUTEX_INITIALIZER;
 #define BEFORE_FIBER_CTOR() pthread_mutex_lock(&FiberCtorMutex)
 #define AFTER_FIBER_CTOR() pthread_mutex_unlock(&FiberCtorMutex)
+#else
+#define DEFINE_FIBER_CTOR_MUTEX()
+#define BEFORE_FIBER_CTOR()
+#define AFTER_FIBER_CTOR()
 #endif
 
 namespace NYT {
