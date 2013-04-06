@@ -1775,12 +1775,12 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 auto rsp = getTableFileSizeRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting table file size");
                 i64 tableSize = ConvertTo<i64>(TYsonString(rsp->value()));
-                if (tableSize > Config->TableFileSizeLimit) {
+                if (tableSize > Config->MaxTableFileSize) {
                     THROW_ERROR_EXCEPTION(
                         "Table file %s exceeds the size limit: " PRId64 " > " PRId64,
                         ~file.Path.GetPath(),
                         tableSize,
-                        Config->TableFileSizeLimit);
+                        Config->MaxTableFileSize);
                 }
             }
             {
