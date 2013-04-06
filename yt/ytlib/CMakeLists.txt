@@ -24,6 +24,7 @@ set( DIRS
   formats
   scheduler
   security_client
+  fibers
 )
 
 foreach( _d_ ${DIRS} )
@@ -43,9 +44,10 @@ add_library( ytlib STATIC
 
 target_link_libraries ( ytlib
   ytext-arcadia-util
+  ytext-coro
+  ytext-ev
   ytext-jerasure
   ytext-json
-  ytext-ev
   protobuf
 )
 
@@ -59,9 +61,6 @@ include_directories(
   ${CMAKE_SOURCE_DIR}/yt
 
   ${CMAKE_SOURCE_DIR}/contrib/tclap
-  ${CMAKE_SOURCE_DIR}/contrib/libuv/include
-  ${CMAKE_SOURCE_DIR}/contrib/libuv/include/uv-private
-  ${CMAKE_SOURCE_DIR}/contrib/libuv/src
 
   ${CMAKE_BINARY_DIR}
   ${CMAKE_BINARY_DIR}/include

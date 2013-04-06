@@ -5,10 +5,10 @@ set( SRCS
   ${BASE}/public.cpp
 )
 set( HDRS
+  ${BASE}/master_ypath_proxy.h
   ${BASE}/object_service_proxy-inl.h
   ${BASE}/object_service_proxy.h
   ${BASE}/object_ypath_proxy.h
-  ${BASE}/master_ypath_proxy.h
   ${BASE}/public.h
 )
 

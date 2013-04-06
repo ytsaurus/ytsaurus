@@ -1,12 +1,12 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/misc )
 set( SRCS
-  ${BASE}/blob.cpp
   ${BASE}/address.cpp
   ${BASE}/assert.cpp
   ${BASE}/async_stream_state.cpp
   ${BASE}/backtrace.cpp
   ${BASE}/benchmark.cpp
+  ${BASE}/blob.cpp
   ${BASE}/blob_output.cpp
   ${BASE}/blob_range.cpp
   ${BASE}/checksum.cpp
@@ -25,6 +25,7 @@ set( SRCS
   ${BASE}/new.cpp
   ${BASE}/pattern_formatter.cpp
   ${BASE}/periodic_invoker.cpp
+  ${BASE}/proc.cpp
   ${BASE}/protobuf_helpers.cpp
   ${BASE}/random.cpp
   ${BASE}/ref.cpp
@@ -39,16 +40,15 @@ set( SRCS
   ${BASE}/tclap_helpers.cpp
   ${BASE}/thread.cpp
   ${BASE}/url.cpp
-  ${BASE}/proc.cpp
 )
 set( HDRS
-  ${BASE}/blob.h
   ${BASE}/address.h
   ${BASE}/arcadia_helper.h
   ${BASE}/assert.h
   ${BASE}/async_stream_state.h
   ${BASE}/backtrace.h
   ${BASE}/benchmark.h
+  ${BASE}/blob.h
   ${BASE}/blob_output.h
   ${BASE}/blob_range.h
   ${BASE}/cache-inl.h
@@ -84,6 +84,7 @@ set( HDRS
   ${BASE}/pattern_formatter.h
   ${BASE}/periodic_invoker.h
   ${BASE}/preprocessor.h
+  ${BASE}/proc.h
   ${BASE}/property.h
   ${BASE}/protobuf_helpers-inl.h
   ${BASE}/protobuf_helpers.h
@@ -108,7 +109,6 @@ set( HDRS
   ${BASE}/thread_affinity.h
   ${BASE}/url.h
   ${BASE}/weak_ptr.h
-  ${BASE}/proc.h
 )
 
 list(APPEND YT_SOURCE_FILES

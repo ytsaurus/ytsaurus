@@ -19,6 +19,7 @@ set( SRCS
 set( HDRS
   ${BASE}/config.h
   ${BASE}/dsv_parser.h
+  ${BASE}/dsv_table.h
   ${BASE}/dsv_writer.h
   ${BASE}/format.h
   ${BASE}/helpers.h
@@ -29,6 +30,7 @@ set( HDRS
   ${BASE}/symbols.h
   ${BASE}/yamr_base_parser.h
   ${BASE}/yamr_parser.h
+  ${BASE}/yamr_table.h
   ${BASE}/yamr_writer.h
   ${BASE}/yamred_dsv_parser.h
   ${BASE}/yamred_dsv_writer.h

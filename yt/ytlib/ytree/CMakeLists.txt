@@ -12,6 +12,7 @@ set( SRCS
   ${BASE}/node.cpp
   ${BASE}/node_detail.cpp
   ${BASE}/null_yson_consumer.cpp
+  ${BASE}/permission.cpp
   ${BASE}/serialize.cpp
   ${BASE}/system_attribute_provider.cpp
   ${BASE}/tree_builder.cpp
@@ -25,7 +26,6 @@ set( SRCS
   ${BASE}/yson_serializable.cpp
   ${BASE}/yson_stream.cpp
   ${BASE}/yson_string.cpp
-  ${BASE}/permission.cpp
 )
 set( HDRS
   ${BASE}/attribute_consumer.h
@@ -44,6 +44,7 @@ set( HDRS
   ${BASE}/node.h
   ${BASE}/node_detail.h
   ${BASE}/null_yson_consumer.h
+  ${BASE}/permission.h
   ${BASE}/public.h
   ${BASE}/serialize-inl.h
   ${BASE}/serialize.h
@@ -63,7 +64,6 @@ set( HDRS
   ${BASE}/yson_serializable.h
   ${BASE}/yson_stream.h
   ${BASE}/yson_string.h
-  ${BASE}/permission.h
 )
 
 list(APPEND YT_SOURCE_FILES

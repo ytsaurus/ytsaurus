@@ -19,10 +19,10 @@ set( SRCS
   ${BASE}/job_list.cpp
   ${BASE}/node.cpp
   ${BASE}/node_authority.cpp
+  ${BASE}/node_directory_builder.cpp
   ${BASE}/node_lease_tracker.cpp
   ${BASE}/node_statistics.cpp
   ${BASE}/private.cpp
-  ${BASE}/node_directory_builder.cpp
 )
 set( HDRS
   ${BASE}/chunk.h
@@ -31,8 +31,8 @@ set( HDRS
   ${BASE}/chunk_manager.h
   ${BASE}/chunk_placement.h
   ${BASE}/chunk_proxy.h
-  ${BASE}/chunk_replica.h
   ${BASE}/chunk_replica-inl.h
+  ${BASE}/chunk_replica.h
   ${BASE}/chunk_replicator.h
   ${BASE}/chunk_service.h
   ${BASE}/chunk_service_proxy.h
@@ -46,11 +46,11 @@ set( HDRS
   ${BASE}/job_list.h
   ${BASE}/node.h
   ${BASE}/node_authority.h
+  ${BASE}/node_directory_builder.h
   ${BASE}/node_lease_tracker.h
   ${BASE}/node_statistics.h
   ${BASE}/private.h
   ${BASE}/public.h
-  ${BASE}/node_directory_builder.h
 )
 
 list(APPEND YT_SOURCE_FILES
