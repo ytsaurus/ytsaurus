@@ -561,6 +561,13 @@ INodePtr UpdateNode(INodePtr base, INodePtr patch)
 
 bool AreNodesEqual(INodePtr lhs, INodePtr rhs)
 {
+    // Check types.
+    auto lhsType = lhs->GetType();
+    auto rhsType = rhs->GetType();
+    if (lhsType != rhsType) {
+        return false;
+    }
+
     // Check attributes.
     const auto& lhsAttributes = lhs->Attributes();
     const auto& rhsAttributes = rhs->Attributes();
@@ -589,45 +596,67 @@ bool AreNodesEqual(INodePtr lhs, INodePtr rhs)
     }
 
     // Check content.
-    if (lhs->GetType() == ENodeType::Map && rhs->GetType() == ENodeType::Map) {
-        auto lhsMap = lhs->AsMap();
-        auto lhsKeys = lhsMap->GetKeys();
-        sort(lhsKeys.begin(), lhsKeys.end());
+    switch (lhsType) {
+        case ENodeType::Map: {
+            auto lhsMap = lhs->AsMap();
+            auto rhsMap = rhs->AsMap();
 
-        auto rhsMap = rhs->AsMap();
-        auto rhsKeys = rhsMap->GetKeys();
-        sort(rhsKeys.begin(), rhsKeys.end());
+            auto lhsKeys = lhsMap->GetKeys();
+            auto rhsKeys = rhsMap->GetKeys();
 
-        if (rhsKeys != lhsKeys) {
-            return false;
-        }
-
-        FOREACH (const auto& key, lhsKeys) {
-            if (!AreNodesEqual(lhsMap->FindChild(key), rhsMap->FindChild(key))) {
+            if (lhsKeys.size() != rhsKeys.size()) {
                 return false;
             }
-        }
-        return true;
-    } else if (lhs->GetType() == ENodeType::List && rhs->GetType() == ENodeType::List) {
-        auto lhsList = lhs->AsList();
-        auto lhsChildren = lhsList->GetChildren();
 
-        auto rhsList = rhs->AsList();
-        auto rhsChildren = rhsList->GetChildren();
 
-        if (lhsChildren.size() != rhsChildren.size()) {
-            return false;
+            for (size_t index = 0; index < lhsKeys.size(); ++index) {
+                const auto& lhsKey = lhsKeys[index];
+                const auto& rhsKey = rhsKeys[index];
+                if (lhsKey != rhsKey) {
+                    return false;
+                }
+                if (!AreNodesEqual(lhsMap->FindChild(lhsKey), rhsMap->FindChild(rhsKey))) {
+                    return false;
+                }
+            }
+
+            return true;
         }
-        for (size_t i = 0; i < lhsChildren.size(); ++i) {
-            if (!AreNodesEqual(lhsList->FindChild(i), rhsList->FindChild(i))) {
+
+        case ENodeType::List: {
+            auto lhsList = lhs->AsList();
+            auto lhsChildren = lhsList->GetChildren();
+
+            auto rhsList = rhs->AsList();
+            auto rhsChildren = rhsList->GetChildren();
+
+            if (lhsChildren.size() != rhsChildren.size()) {
                 return false;
             }
+
+            for (size_t index = 0; index < lhsChildren.size(); ++index) {
+                if (!AreNodesEqual(lhsList->FindChild(index), rhsList->FindChild(index))) {
+                    return false;
+                }
+            }
+
+            return true;
         }
-        return true;
-    } else if (lhs->GetType() == rhs->GetType()) {
-        return ConvertToYsonString(lhs) == ConvertToYsonString(rhs);
-    } else {
-        return false;
+
+        case ENodeType::String:
+            return lhs->GetValue<Stroka>() == rhs->GetValue<Stroka>();
+
+        case ENodeType::Integer:
+            return lhs->GetValue<i64>() == rhs->GetValue<i64>();
+
+        case ENodeType::Double:
+            return std::abs(lhs->GetValue<double>() - rhs->GetValue<double>()) < 1e-6;
+
+        case ENodeType::Entity:
+            return true;
+
+        default:
+            YUNREACHABLE();
     }
 }
 
