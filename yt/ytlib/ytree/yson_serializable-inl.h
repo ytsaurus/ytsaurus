@@ -16,6 +16,9 @@
 
 #include <ytlib/ypath/token.h>
 
+#include <ytlib/ytree/ypath_client.h>
+#include <ytlib/ytree/convert.h>
+
 #include <ytlib/actions/bind.h>
 
 #include <util/datetime/base.h>
@@ -47,7 +50,7 @@ struct TLoadHelper<
         if (!parameter) {
             parameter = New<T>();
         }
-        parameter->Load(node, false, path);
+        parameter->Load(node, false, false, path);
     }
 };
 
@@ -88,7 +91,7 @@ struct TLoadHelper<yhash_set<T>, void>
     static void Load(yhash_set<T>& parameter, NYTree::INodePtr node, const NYPath::TYPath& path)
     {
         auto listNode = node->AsList();
-        auto size = listNode->GetChildCount();
+        int  size = listNode->GetChildCount();
         for (int i = 0; i < size; ++i) {
             T value;
             TLoadHelper<T>::Load(
@@ -108,7 +111,7 @@ struct TLoadHelper<yhash_map<Stroka, T>, void>
     {
         auto mapNode = node->AsMap();
         FOREACH (const auto& pair, mapNode->GetChildren()) {
-            auto& key = pair.first;
+            const auto& key = pair.first;
             T value;
             TLoadHelper<T>::Load(
                 value,
@@ -122,46 +125,96 @@ struct TLoadHelper<yhash_map<Stroka, T>, void>
 ////////////////////////////////////////////////////////////////////////////////
 
 // all
-inline void ValidateSubconfigs(
+template <class F>
+void InvokeForComposites(
     const void* /* parameter */,
-    const NYPath::TYPath& /* path */)
+    const NYPath::TYPath& /* path */,
+    const F& /* func */)
 { }
 
 // TYsonSerializable
-template <class T>
-inline void ValidateSubconfigs(
+template <class T, class F>
+inline void InvokeForComposites(
     const TIntrusivePtr<T>* parameter,
     const NYPath::TYPath& path,
+    const F& func,
     typename NMpl::TEnableIf<NMpl::TIsConvertible< T*, TYsonSerializable* >, int>::TType = 0)
 {
-    if (*parameter) {
-        (*parameter)->Validate(path);
-    }
+    func(*parameter, path);
 }
 
 // std::vector
-template <class T>
-inline void ValidateSubconfigs(
+template <class T, class F>
+inline void InvokeForComposites(
     const std::vector<T>* parameter,
-    const NYPath::TYPath& path)
+    const NYPath::TYPath& path,
+    const F& func)
 {
-    for (int i = 0; i < parameter->size(); ++i) {
-        ValidateSubconfigs(
+    for (int i = 0; i < static_cast<int>(parameter->size()); ++i) {
+        InvokeForComposites(
             &(*parameter)[i],
-            path + "/" + NYPath::ToYPathLiteral(i));
+            path + "/" + NYPath::ToYPathLiteral(i),
+            func);
     }
 }
 
 // yhash_map
-template <class T>
-inline void ValidateSubconfigs(
+template <class T, class F>
+inline void InvokeForComposites(
     const yhash_map<Stroka, T>* parameter,
-    const NYPath::TYPath& path)
+    const NYPath::TYPath& path,
+    const F& func)
 {
     FOREACH (const auto& pair, *parameter) {
-        ValidateSubconfigs(
+        InvokeForComposites(
             &pair.second,
-            path + "/" + NYPath::ToYPathLiteral(pair.first));
+            path + "/" + NYPath::ToYPathLiteral(pair.first),
+            func);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// all
+template <class F>
+void InvokeForComposites(
+    const void* /* parameter */,
+    const F& /* func */)
+{ }
+
+// TYsonSerializable
+template <class T, class F>
+inline void InvokeForComposites(
+    const TIntrusivePtr<T>* parameter,
+    const F& func,
+    typename NMpl::TEnableIf<NMpl::TIsConvertible< T*, TYsonSerializable* >, int>::TType = 0)
+{
+    func(*parameter);
+}
+
+// std::vector
+template <class T, class F>
+inline void InvokeForComposites(
+    const std::vector<T>* parameter,
+    const F& func)
+{
+    for (int i = 0; i < static_cast<int>(parameter->size()); ++i) {
+        InvokeForComposites(
+            &(*parameter)[i],
+            func);
+    }
+}
+
+// yhash_map
+template <class T, class F>
+inline void InvokeForComposites(
+    const yhash_map<Stroka, T>* parameter,
+    const F& func)
+{
+    FOREACH (const auto& pair, *parameter) {
+        InvokeForComposites(
+            &pair.second,
+            func);
     }
 }
 
@@ -192,7 +245,6 @@ inline bool IsPresent(TNullable<T>* parameter)
 template <class T>
 TParameter<T>::TParameter(T& parameter)
     : Parameter(parameter)
-    , HasDefaultValue(false)
 { }
 
 template <class T>
@@ -202,26 +254,52 @@ void TParameter<T>::Load(NYTree::INodePtr node, const NYPath::TYPath& path)
         try {
             TLoadHelper<T>::Load(Parameter, node, path);
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error reading parameter: %s", ~path)
+            THROW_ERROR_EXCEPTION("Error reading parameter %s", ~path)
                 << ex;
         }
-    } else if (!HasDefaultValue) {
-        THROW_ERROR_EXCEPTION("Required parameter is missing: %s", ~path);
+    } else {
+        if (!DefaultValue) {
+            THROW_ERROR_EXCEPTION("Missing required parameter %s", ~path);
+        }
     }
 }
 
 template <class T>
 void TParameter<T>::Validate(const NYPath::TYPath& path) const
 {
-    ValidateSubconfigs(&Parameter, path);
     FOREACH (const auto& validator, Validators) {
         try {
             validator.Run(Parameter);
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Validation failed: %s", ~path)
+            THROW_ERROR_EXCEPTION("Validation failed at %s", ~path)
                 << ex;
         }
     }
+
+    InvokeForComposites(
+        &Parameter,
+        path,
+        [] (TIntrusivePtr<TYsonSerializable> obj, const NYPath::TYPath& subpath) {
+            if (obj) {
+                obj->Validate(subpath);
+            }
+        });
+}
+
+template <class T>
+void TParameter<T>::SetDefaults()
+{
+    if (DefaultValue) {
+        Parameter = *DefaultValue;
+    }
+
+    InvokeForComposites(
+        &Parameter,
+        [] (TIntrusivePtr<TYsonSerializable> obj) {
+            if (obj) {
+                obj->SetDefaults();
+            }
+        });
 }
 
 template <class T>
@@ -239,16 +317,8 @@ bool TParameter<T>::IsPresent() const
 template <class T>
 TParameter<T>& TParameter<T>::Default(const T& defaultValue)
 {
+    DefaultValue = defaultValue;
     Parameter = defaultValue;
-    HasDefaultValue = true;
-    return *this;
-}
-
-template <class T>
-TParameter<T>& TParameter<T>::Default(T&& defaultValue)
-{
-    Parameter = std::move(defaultValue);
-    HasDefaultValue = true;
     return *this;
 }
 
@@ -332,9 +402,21 @@ template <class T>
 NConfig::TParameter<T>& TYsonSerializableLite::Register(const Stroka& parameterName, T& value)
 {
     auto parameter = New< NConfig::TParameter<T> >(value);
-    YCHECK(Parameters.insert(
-        std::pair<Stroka, NConfig::IParameterPtr>(parameterName, parameter)).second);
+    YCHECK(Parameters.insert(std::pair<Stroka, NConfig::IParameterPtr>(parameterName, parameter)).second);
     return *parameter;
+}
+
+template <class F>
+void TYsonSerializableLite::RegisterInitializer(const F& func)
+{
+    func();
+    Initializers.push_back(BIND(func));
+}
+
+template <class F>
+void TYsonSerializableLite::RegisterValidator(const F& func)
+{
+    Validators.push_back(BIND(func));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -362,6 +444,33 @@ TIntrusivePtr<T> UpdateYsonSerializable(
     } else {
         return CloneYsonSerializable(obj);
     }
+}
+
+template <class T>
+bool ReconfigureYsonSerializable(
+    TIntrusivePtr<T> config,
+    const NYTree::TYsonString& newConfigYson)
+{
+    auto newConfig = ConvertToNode(newConfigYson);
+    return ReconfigureYsonSerializable(config, newConfig);
+}
+
+template <class T>
+bool ReconfigureYsonSerializable(
+    TIntrusivePtr<T> config,
+    NYTree::INodePtr newConfigNode)
+{
+    auto configNode = NYTree::ConvertToNode(config);
+
+    auto newConfig = NYTree::ConvertTo< TIntrusivePtr<T>>(newConfigNode);
+    auto newCanonicalConfigNode = NYTree::ConvertToNode(newConfig);
+
+    if (NYTree::AreNodesEqual(configNode, newCanonicalConfigNode)) {
+        return false;
+    }
+
+    config->Load(newConfigNode);
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

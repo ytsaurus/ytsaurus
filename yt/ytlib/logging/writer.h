@@ -52,16 +52,22 @@ struct ILogWriter
                         THROW_ERROR error;
                     }
                 }));
-            Register("file_name", FileName).Default();
+            Register("file_name", FileName)
+                .Default();
+
+            RegisterValidator([&] () {
+                DoValidate();
+            });
         }
 
-        virtual void DoValidate() const override
+        void DoValidate()
         {
             if ((Type == EType::File || Type == EType::Raw) && FileName.empty()) {
                 THROW_ERROR_EXCEPTION("FileName is empty while type is File");
             } else if (Type != EType::File && Type != EType::Raw && !FileName.empty()) {
                 THROW_ERROR_EXCEPTION("FileName is not empty while type is not File");
             }
+
             if (Type != EType::Raw && Pattern.empty()) {
                 THROW_ERROR_EXCEPTION("Pattern is empty while type is not Raw");
             }

@@ -105,7 +105,7 @@ private:
 
         TAutoPtr<IChunkPool> ChunkPool;
 
-        TNodeResources GetMapResources(const std::vector<TChunkStripeStatistics>& statistics) const
+        TNodeResources GetMapResources(const TChunkStripeStatisticsVector& statistics) const
         {
             TNodeResources result;
             result.set_slots(1);

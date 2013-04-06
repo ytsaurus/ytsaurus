@@ -89,7 +89,7 @@ i64 GetOutputWindowMemorySize(TJobIOConfigPtr ioConfig);
 i64 GetIOMemorySize(
     TJobIOConfigPtr ioConfig,
     int outputStreamCount,
-    const std::vector<TChunkStripeStatistics>& stat);
+    const TChunkStripeStatisticsVector& stat);
 
 namespace NProto {
 

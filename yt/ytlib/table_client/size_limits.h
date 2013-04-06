@@ -9,7 +9,8 @@ namespace NTableClient {
 
 extern const size_t MaxKeySize;
 extern const int MaxColumnCount;
-extern const i64 MaxRowSize;
+extern const int MaxColumnNameSize;
+extern const i64 MaxRowWeight;
 
 ////////////////////////////////////////////////////////////////////////////////
 

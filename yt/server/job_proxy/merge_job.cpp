@@ -7,12 +7,13 @@
 #include <ytlib/meta_state/master_channel.h>
 
 #include <ytlib/table_client/table_chunk_reader.h>
+#include <ytlib/table_client/table_chunk_writer.h>
 #include <ytlib/table_client/sync_reader.h>
-#include <ytlib/table_client/table_chunk_sequence_writer.h>
+#include <ytlib/table_client/sync_writer.h>
 #include <ytlib/table_client/multi_chunk_sequential_reader.h>
 #include <ytlib/table_client/multi_chunk_parallel_reader.h>
-#include <ytlib/table_client/sync_writer.h>
 
+#include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
 #include <ytlib/chunk_client/remote_reader.h>
 #include <ytlib/chunk_client/client_block_cache.h>
 
@@ -43,7 +44,8 @@ class TMergeJob
     : public TJob
 {
 public:
-    typedef TMultiChunkReader<TTableChunkReader> TTableMultiChunkReader;
+    typedef TMultiChunkReader<TTableChunkReader> TReader;
+    typedef TMultiChunkSequentialWriter<TTableChunkWriter> TWriter;
 
     explicit TMergeJob(IJobHost* host)
         : TJob(host)
@@ -60,13 +62,13 @@ public:
             }
         }
 
-        auto provider = New<TTableChunkReaderProvider>(config->JobIO->TableReader);
-        Reader = CreateSyncReader(New<TTableMultiChunkReader>(
+        auto readerProvider = New<TTableChunkReaderProvider>(config->JobIO->TableReader);
+        Reader = CreateSyncReader(New<TReader>(
             config->JobIO->TableReader,
             Host->GetMasterChannel(),
             Host->GetBlockCache(),
             std::move(inputChunks),
-            provider));
+            readerProvider));
 
         if (jobSpec.HasExtension(TMergeJobSpecExt::merge_job_spec_ext)) {
             const auto& mergeSpec = jobSpec.GetExtension(TMergeJobSpecExt::merge_job_spec_ext);
@@ -80,15 +82,20 @@ public:
         const auto& outputSpec = jobSpec.output_specs(0);
 
         auto chunkListId = TChunkListId::FromProto(outputSpec.chunk_list_id());
-        auto options = New<TTableWriterOptions>();
-        options->Load(ConvertToNode(TYsonString(outputSpec.table_writer_options())));
+        auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
         options->KeyColumns = KeyColumns;
-        Writer = New<TTableChunkSequenceWriter>(
+
+        auto writerProvider = New<TTableChunkWriterProvider>(
+            config->JobIO->TableWriter,
+            options);
+
+        Writer = CreateSyncWriter<TTableChunkWriter>(New<TWriter>(
             config->JobIO->TableWriter,
             options,
+            writerProvider,
             Host->GetMasterChannel(),
             transactionId,
-            chunkListId);
+            chunkListId));
     }
 
     virtual NScheduler::NProto::TJobResult Run() override
@@ -98,7 +105,6 @@ public:
 
             yhash_map<TStringBuf, int> keyColumnToIndex;
 
-            auto writer = CreateSyncWriter(Writer);
             {
                 if (KeyColumns) {
                     for (int i = 0; i < KeyColumns->size(); ++i) {
@@ -108,7 +114,7 @@ public:
                 }
 
                 Reader->Open();
-                writer->Open();
+                Writer->Open();
             }
             PROFILE_TIMING_CHECKPOINT("init");
 
@@ -130,9 +136,9 @@ public:
                                 key.SetKeyPart(it->second, pair.second, lexer);
                             }
                         }
-                        writer->WriteRowUnsafe(*row, key);
+                        Writer->WriteRowUnsafe(*row, key);
                     } else {
-                        writer->WriteRowUnsafe(*row);
+                        Writer->WriteRowUnsafe(*row);
                     }
                 }
             }
@@ -140,7 +146,7 @@ public:
 
             LOG_INFO("Finalizing");
             {
-                writer->Close();
+                Writer->Close();
 
                 TJobResult result;
                 ToProto(result.mutable_error(), TError());
@@ -169,7 +175,7 @@ public:
 
 private:
     ISyncReaderPtr Reader;
-    TTableChunkSequenceWriterPtr Writer;
+    ISyncWriterUnsafePtr Writer;
 
     TNullable<TKeyColumns> KeyColumns;
 

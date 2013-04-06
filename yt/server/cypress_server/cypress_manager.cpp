@@ -327,7 +327,6 @@ INodeTypeHandlerPtr TCypressManager::GetHandler(const TCypressNodeBase* node)
 
 TCypressNodeBase* TCypressManager::CreateNode(
     INodeTypeHandlerPtr handler,
-    //TCypressNodeBase* trunkParent,
     TTransaction* transaction,
     TAccount* account,
     IAttributeDictionary* attributes,
@@ -343,9 +342,6 @@ TCypressNodeBase* TCypressManager::CreateNode(
     auto node_ = ~node;
 
     RegisterNode(node, transaction, attributes);
-
-    // Set parent.
-    //node_->SetParent(trunkParent);
 
     // Set account (if not given in attributes).
     auto securityManager = Bootstrap->GetSecurityManager();
@@ -1082,13 +1078,9 @@ void TCypressManager::DestroyNode(TCypressNodeBase* trunkNode)
     VERIFY_THREAD_AFFINITY(StateThread);
     YCHECK(trunkNode->IsTrunk());
 
-    auto securityManager = Bootstrap->GetSecurityManager();
-
     DestroyNodeBehavior(trunkNode);
 
     auto nodeHolder = NodeMap.Release(trunkNode->GetVersionedId());
-
-    securityManager->ResetAccount(trunkNode);
 
     auto handler = GetHandler(trunkNode);
     handler->Destroy(trunkNode);
@@ -1207,16 +1199,12 @@ void TCypressManager::MergeNode(
         }
 
         // Update resource usage.
-        securityManager->ResetAccount(branchedNode);
         securityManager->UpdateAccountNodeUsage(originatingNode);
 
         LOG_INFO_UNLESS(IsRecovery(), "Node merged (NodeId: %s)", ~branchedId.ToString());
     } else {
         // Destroy the branched copy.
         handler->Destroy(branchedNode);
-
-        // Update resource usage.
-        securityManager->ResetAccount(branchedNode);
 
         LOG_INFO_UNLESS(IsRecovery(), "Node snapshot destroyed (NodeId: %s)", ~branchedId.ToString());
     }
@@ -1250,15 +1238,11 @@ void TCypressManager::ReleaseCreatedNodes(TTransaction* transaction)
 void TCypressManager::RemoveBranchedNode(TCypressNodeBase* branchedNode)
 {
     auto objectManager = Bootstrap->GetObjectManager();
-    auto securityManager = Bootstrap->GetSecurityManager();
 
     auto handler = GetHandler(branchedNode);
 
     auto* trunkNode = branchedNode->GetTrunkNode();
     auto branchedNodeId = branchedNode->GetVersionedId();
-
-    // Update resource usage.
-    securityManager->ResetAccount(branchedNode);
 
     // Drop the implicit reference to the originator.
     objectManager->UnrefObject(trunkNode);

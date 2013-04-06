@@ -26,13 +26,12 @@ struct TCellConfig
             .Default(9000);
         Register("addresses", Addresses)
             .NonEmpty();
-    }
 
-    virtual void DoValidate() const override
-    {
-        if (Addresses.size() % 2 != 1) {
-            THROW_ERROR_EXCEPTION("Number of masters must be odd");
-        }
+        RegisterValidator([&] () {
+            if (Addresses.size() % 2 != 1) {
+                THROW_ERROR_EXCEPTION("Number of masters must be odd");
+            }
+        });
     }
 };
 

@@ -69,10 +69,7 @@ void Load(const NCellMaster::TLoadContext& context, TClusterResources& resources
 {
     auto* input = context.GetInput();
     ::Load(input, resources.DiskSpace);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 8) {
-        ::Load(input, resources.NodeCount);
-    }
+    ::Load(input, resources.NodeCount);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

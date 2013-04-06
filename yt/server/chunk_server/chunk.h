@@ -6,6 +6,7 @@
 
 #include <ytlib/misc/property.h>
 #include <ytlib/misc/small_vector.h>
+#include <ytlib/misc/ref_tracked.h>
 
 #include <ytlib/chunk_client/chunk.pb.h>
 
@@ -25,6 +26,7 @@ namespace NChunkServer {
 class TChunk
     : public TChunkTree
     , public NObjectServer::TStagedObject
+    , public TRefTracked<TChunk>
 {
     DEFINE_BYREF_RW_PROPERTY(NChunkClient::NProto::TChunkMeta, ChunkMeta);
     DEFINE_BYREF_RW_PROPERTY(NChunkClient::NProto::TChunkInfo, ChunkInfo);

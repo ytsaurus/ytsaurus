@@ -182,6 +182,8 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
             ~FormatResources(neededResources));
         CheckResourceDemandSanity(node, neededResources);
         chunkPoolOutput->Aborted(joblet->OutputCookie);
+        // Seems like cached min needed resources are too optimistic.
+        CachedMinNeededResources = GetMinNeededResourcesHeavy();
         return nullptr;
     }
 
@@ -583,6 +585,13 @@ void TOperationControllerBase::Initialize()
     }
 
     try {
+        if (OutputTables.size() > Config->MaxOutputTableCount) {
+            THROW_ERROR_EXCEPTION(
+                "Too many output tables: maximum allowed %d, actual %" PRISZT,
+                Config->MaxOutputTableCount,
+                OutputTables.size());
+        }
+
         if (Host->GetExecNodes().empty()) {
             THROW_ERROR_EXCEPTION("No online exec nodes to start operation");
         }
@@ -1766,12 +1775,12 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 auto rsp = getTableFileSizeRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting table file size");
                 i64 tableSize = ConvertTo<i64>(TYsonString(rsp->value()));
-                if (tableSize > Config->TableFileSizeLimit) {
+                if (tableSize > Config->MaxTableFileSize) {
                     THROW_ERROR_EXCEPTION(
                         "Table file %s exceeds the size limit: " PRId64 " > " PRId64,
                         ~file.Path.GetPath(),
                         tableSize,
-                        Config->TableFileSizeLimit);
+                        Config->MaxTableFileSize);
                 }
             }
             {

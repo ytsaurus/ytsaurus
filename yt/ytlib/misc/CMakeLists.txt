@@ -93,6 +93,7 @@ set( HDRS
   ${BASE}/ref.h
   ${BASE}/ref_counted.h
   ${BASE}/ref_counted_tracker.h
+  ${BASE}/ref_tracked.h
   ${BASE}/semaphore.h
   ${BASE}/serialize.h
   ${BASE}/singleton.h

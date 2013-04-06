@@ -4,6 +4,7 @@
 #include "lock.h"
 
 #include <ytlib/misc/property.h>
+#include <ytlib/misc/ref_tracked.h>
 
 #include <ytlib/cypress_client/public.h>
 
@@ -24,6 +25,7 @@ namespace NCypressServer {
 //! Provides a common base for all versioned (aka Cypress) nodes.
 class TCypressNodeBase
     : public NObjectServer::TObjectBase
+    , public TRefTracked<TCypressNodeBase>
 {
 public:
     typedef yhash_map<NTransactionServer::TTransaction*, TLock> TLockMap;

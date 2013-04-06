@@ -33,10 +33,11 @@ struct TJobIOConfig
         Register("error_file_writer", ErrorFileWriter)
             .DefaultNew();
 
-        // We do not provide much fault tolerance for stderr by default.
-        ErrorFileWriter->ReplicationFactor = 1;
-        ErrorFileWriter->UploadReplicationFactor = 1;
-        ErrorFileWriter->ChunkVital = false;
+        RegisterInitializer([&] () {
+            ErrorFileWriter->ReplicationFactor = 1;
+            ErrorFileWriter->UploadReplicationFactor = 1;
+            ErrorFileWriter->ChunkVital = false;
+        });
     }
 };
 
@@ -129,7 +130,6 @@ struct TMapOperationSpec
     std::vector<NYPath::TRichYPath> InputTablePaths;
     std::vector<NYPath::TRichYPath> OutputTablePaths;
     TNullable<int> JobCount;
-    i64 JobSliceDataSize;
     i64 DataSizePerJob;
     TDuration LocalityTimeout;
     TJobIOConfigPtr JobIO;
@@ -152,7 +152,9 @@ struct TMapOperationSpec
         Register("job_io", JobIO)
             .DefaultNew();
 
-        JobIO->TableReader->PrefetchWindow = 10;
+        RegisterInitializer([&] () {
+            JobIO->TableReader->PrefetchWindow = 10;
+        });
     }
 };
 
@@ -169,13 +171,15 @@ struct TMergeOperationSpecBase
 
     TNullable<int> JobCount;
 
-    i64 JobSliceDataSize;
-
     TDuration LocalityTimeout;
     TJobIOConfigPtr JobIO;
 
     TMergeOperationSpecBase()
+        : DataSizePerJob(-1)
     {
+        Register("data_size_per_job", DataSizePerJob)
+            .Default((i64) 1024 * 1024 * 1024)
+            .GreaterThan(0);
         Register("job_count", JobCount)
             .Default()
             .GreaterThan(0);
@@ -206,16 +210,13 @@ struct TMergeOperationSpec
 
     TMergeOperationSpec()
     {
-        Register("data_size_per_job", DataSizePerJob)
-            .Default((i64) 1024 * 1024 * 1024)
-            .GreaterThan(0);
         Register("input_table_paths", InputTablePaths)
             .NonEmpty();
         Register("output_table_path", OutputTablePath);
-        Register("combine_chunks", CombineChunks)
-            .Default(false);
         Register("mode", Mode)
             .Default(EMergeMode::Unordered);
+        Register("combine_chunks", CombineChunks)
+            .Default(false);
         Register("allow_passthrough_chunks", AllowPassthroughChunks)
             .Default(true);
         Register("merge_by", MergeBy)
@@ -228,15 +229,15 @@ struct TUnorderedMergeOperationSpec
 {
     TUnorderedMergeOperationSpec()
     {
-        JobIO->TableReader->PrefetchWindow = 10;
+        RegisterInitializer([&] () {
+            JobIO->TableReader->PrefetchWindow = 10;
+        });
     }
 };
 
 struct TOrderedMergeOperationSpec
     : public TMergeOperationSpec
-{
-
-};
+{ };
 
 struct TSortedMergeOperationSpec
     : public TMergeOperationSpec
@@ -270,9 +271,6 @@ struct TReduceOperationSpec
 
     TReduceOperationSpec()
     {
-        Register("data_size_per_job", DataSizePerJob)
-            .Default((i64) 32 * 1024 * 1024)
-            .GreaterThan(0);
         Register("reducer", Reducer)
             .DefaultNew();
         Register("input_table_paths", InputTablePaths)
@@ -280,6 +278,10 @@ struct TReduceOperationSpec
         Register("output_table_paths", OutputTablePaths);
         Register("reduce_by", ReduceBy)
             .Default();
+
+        RegisterInitializer([&] () {
+            DataSizePerJob = (i64) 32 * 1024 * 1024;
+        });
     }
 };
 
@@ -396,12 +398,14 @@ struct TSortOperationSpec
         Register("merge_locality_timeout", MergeLocalityTimeout)
             .Default(TDuration::Minutes(1));
 
-        PartitionJobIO->TableReader->PrefetchWindow = 10;
-        PartitionJobIO->TableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GB
+        RegisterInitializer([&] () {
+            PartitionJobIO->TableReader->PrefetchWindow = 10;
+            PartitionJobIO->TableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GB
 
-        SortJobIO->TableReader->PrefetchWindow = 10;
+            SortJobIO->TableReader->PrefetchWindow = 10;
 
-        MapSelectivityFactor = 1.0;
+            MapSelectivityFactor = 1.0;
+        });
     }
 };
 
@@ -456,18 +460,18 @@ struct TMapReduceOperationSpec
             .Default(1.0)
             .GreaterThan(0);
 
-
         // The following settings are inherited from base but make no sense for map-reduce:
-        //   JobSliceDataSize
         //   DataSizePerUnorderedMergeJob
         //   SimpleSortLocalityTimeout
         //   SimpleMergeLocalityTimeout
         //   MapSelectivityFactor
 
-        MapJobIO->TableReader->PrefetchWindow = 10;
-        MapJobIO->TableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GB
+        RegisterInitializer([&] () {
+            MapJobIO->TableReader->PrefetchWindow = 10;
+            MapJobIO->TableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GB
 
-        SortJobIO->TableReader->PrefetchWindow = 10;
+            SortJobIO->TableReader->PrefetchWindow = 10;           
+        });
     }
 
     virtual void OnLoaded() override

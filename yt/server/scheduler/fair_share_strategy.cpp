@@ -13,6 +13,7 @@
 #include <ytlib/object_client/object_service_proxy.h>
 
 #include <ytlib/logging/log.h>
+#include <ytlib/logging/tagged_logger.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -159,7 +160,7 @@ public:
         TOperationPtr operation)
         : TSchedulableElementBase(host)
         , Operation_(operation)
-        , Pool_(NULL)
+        , Pool_(nullptr)
         , Starving_(false)
         , ResourceUsage_(ZeroNodeResources())
         , ResourceUsageDiscount_(ZeroNodeResources())
@@ -959,10 +960,22 @@ private:
         if (!element)
             return;
 
+        NLog::TTaggedLogger Logger(SchedulerLogger);
+        Logger.AddTag(Sprintf("OperationId: %s", ~ToString(operation->GetOperationId())));
+
         auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_spec");
-        auto specNode = ConvertToNode(TYsonString(rsp->value()));
-        auto spec = ParseSpec(operation, specNode);
-        element->SetSpec(spec);
+        if (!rsp->IsOK()) {
+            LOG_ERROR(*rsp, "Error updating operation spec");
+            return;
+        }
+
+        try {
+            ReconfigureYsonSerializable(element->GetSpec(), TYsonString(rsp->value()));
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Error parsing updated operation spec");
+        }
+
+        LOG_INFO("Operation spec updated");
     }
 
 
@@ -1051,7 +1064,10 @@ private:
     void HandlePools(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
     {
         auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_pools");
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+        if (!rsp->IsOK()) {
+            LOG_ERROR(*rsp, "Error updating pools");
+            return;
+        }
 
         // Build the set of potential orphans.
         yhash_set<Stroka> orphanPoolIds;

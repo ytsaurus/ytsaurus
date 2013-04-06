@@ -68,7 +68,6 @@ public:
      */
     TCypressNodeBase* CreateNode(
         INodeTypeHandlerPtr handler,
-        //TCypressNodeBase* trunkParent,
         NTransactionServer::TTransaction* transaction,
         NSecurityServer::TAccount* account,
         NYTree::IAttributeDictionary* attributes,

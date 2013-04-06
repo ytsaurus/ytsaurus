@@ -3,7 +3,6 @@
 #include "public.h"
 
 #include <ytlib/ytree/yson_serializable.h>
-#include <ytlib/ytree/ephemeral_node_factory.h>
 
 #include <ytlib/table_client/config.h>
 
@@ -107,7 +106,10 @@ struct TSchedulerConfig
     int MaxJobCount;
 
     //! Maximum size of table allowed to be passed as a file to jobs.
-    i64 TableFileSizeLimit;
+    i64 MaxTableFileSize;
+
+    //! Maximum number of output tables an operation can have.
+    int MaxOutputTableCount;
 
     //! Maximum number of jobs to start within a single heartbeat.
     TNullable<int> MaxStartedJobsPerHeartbeat;
@@ -196,30 +198,34 @@ struct TSchedulerConfig
             .Default(2000)
             .GreaterThan(0);
 
-        Register("table_file_size_limit", TableFileSizeLimit)
+        Register("table_file_size_limit", MaxTableFileSize)
             .Default((i64) 2 * 1024 * 1024 * 1024);
+
+        Register("max_output_table_count", MaxOutputTableCount)
+            .Default(20)
+            .GreaterThan(1)
+            .LessThan(1000);
 
         Register("max_started_jobs_per_heartbeat", MaxStartedJobsPerHeartbeat)
             .Default()
             .GreaterThan(0);
 
-        auto factory = NYTree::GetEphemeralNodeFactory();
         Register("map_operation_spec", MapOperationSpec)
-            .Default(factory->CreateMap());
+            .Default(nullptr);
         Register("reduce_operation_spec", ReduceOperationSpec)
-            .Default(factory->CreateMap());
+            .Default(nullptr);
         Register("erase_operation_spec", EraseOperationSpec)
-            .Default(factory->CreateMap());
+            .Default(nullptr);
         Register("ordered_merge_operation_spec", OrderedMergeOperationSpec)
-            .Default(factory->CreateMap());
+            .Default(nullptr);
         Register("unordered_merge_operation_spec", UnorderedMergeOperationSpec)
-            .Default(factory->CreateMap());
+            .Default(nullptr);
         Register("sorted_merge_operation_spec", SortedMergeOperationSpec)
-            .Default(factory->CreateMap());
+            .Default(nullptr);
         Register("map_reduce_operation_spec", MapReduceOperationSpec)
-            .Default(factory->CreateMap());
+            .Default(nullptr);
         Register("sort_operation_spec", SortOperationSpec)
-            .Default(factory->CreateMap());
+            .Default(nullptr);
 
         Register("max_job_count", MaxJobCount)
             .Default(20000)

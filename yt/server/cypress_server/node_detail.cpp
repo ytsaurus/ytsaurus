@@ -60,6 +60,9 @@ void TNontemplateCypressNodeTypeHandlerBase::DestroyCore(TCypressNodeBase* node)
     node->ImmediateDescendants().clear();
     node->SetParent(nullptr);
 
+    // Reset account.
+    securityManager->ResetAccount(node);
+
     // Clear ACD to unregister the node from linked objects.
     node->Acd().Clear();
 }
@@ -89,6 +92,7 @@ void TNontemplateCypressNodeTypeHandlerBase::MergeCore(
     TCypressNodeBase* branchedNode)
 {
     auto objectManager = Bootstrap->GetObjectManager();
+    auto securityManager = Bootstrap->GetSecurityManager();
 
     auto originatingId = originatingNode->GetVersionedId();
     auto branchedId = branchedNode->GetVersionedId();
@@ -99,6 +103,9 @@ void TNontemplateCypressNodeTypeHandlerBase::MergeCore(
 
     // Perform cleanup by resetting the parent link of the branched node.
     branchedNode->SetParent(nullptr);
+
+    // Reset account.
+    securityManager->ResetAccount(branchedNode);
 
     // Merge modification time.
     if (branchedNode->GetModificationTime() > originatingNode->GetModificationTime()) {

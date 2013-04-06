@@ -19,9 +19,11 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TPeerId, SelfId);
     DEFINE_BYVAL_RO_PROPERTY(Stroka, SelfAddress);
 
-    i32 GetQuorum() const;
-    i32 GetPeerCount() const;
-    Stroka GetPeerAddress(TPeerId id) const;
+    void Initialize();
+
+    int GetQuorum() const;
+    int GetPeerCount() const;
+    const Stroka& GetPeerAddress(TPeerId id) const;
     NRpc::IChannelPtr GetMasterChannel(TPeerId id) const;
 
 private:

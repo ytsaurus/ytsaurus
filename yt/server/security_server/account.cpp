@@ -37,18 +37,7 @@ void TAccount::Load(const NCellMaster::TLoadContext& context)
     NSecurityServer::Load(context, ResourceUsage_);
     NSecurityServer::Load(context, CommittedResourceUsage_);
     NSecurityServer::Load(context, ResourceLimits_);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 8) {
-        NSecurityServer::Load(context, Acd_);
-    }
-
-    // COMPAT(babenko)
-    if (context.GetVersion() < 8) {
-        int nodeCount;
-        NCellMaster::Load(context, nodeCount);
-        ResourceUsage_.NodeCount = nodeCount;
-        CommittedResourceUsage_.NodeCount = nodeCount;
-    }
+    NSecurityServer::Load(context, Acd_);
 }
 
 bool TAccount::IsOverDiskSpaceLimit() const

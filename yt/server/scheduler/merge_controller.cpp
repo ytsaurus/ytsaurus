@@ -189,8 +189,8 @@ protected:
             return Controller->OutputTables.size();
         }
 
-        std::vector<TChunkStripeStatistics> UpdateChunkStripeStatistics(
-            const std::vector<TChunkStripeStatistics>& statistics) const
+        TChunkStripeStatisticsVector UpdateChunkStripeStatistics(
+            const TChunkStripeStatisticsVector& statistics) const
         {
             if (Controller->JobSpecTemplate.type() == EJobType::SortedMerge ||
                 Controller->JobSpecTemplate.type() == EJobType::SortedReduce)

@@ -56,7 +56,7 @@ protected:
     NChunkClient::TChunkId StderrChunkId;
 
     std::vector<NTableClient::ISyncReaderPtr> Inputs;
-    std::vector<NTableClient::TTableChunkSequenceWriterPtr> Outputs;
+    std::vector<NTableClient::TTableChunkWriterProviderPtr> Outputs;
 
     NLog::TLogger& Logger;
 

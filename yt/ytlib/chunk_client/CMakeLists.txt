@@ -22,6 +22,8 @@ set( HDRS
   ${BASE}/chunk_list_ypath_proxy.h
   ${BASE}/chunk_meta_extensions.h
   ${BASE}/chunk_ypath_proxy.h
+  ${BASE}/multi_chunk_sequential_writer.h
+  ${BASE}/multi_chunk_sequential_writer-inl.h
   ${BASE}/client_block_cache.h
   ${BASE}/config.h
   ${BASE}/data_node_service_proxy.h

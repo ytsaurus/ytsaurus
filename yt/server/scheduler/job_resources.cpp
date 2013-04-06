@@ -365,7 +365,7 @@ i64 GetSortInputIOMemorySize(
 i64 GetIOMemorySize(
     TJobIOConfigPtr ioConfig,
     int outputStreamCount,
-    const std::vector<TChunkStripeStatistics>& stripeStatistics)
+    const TChunkStripeStatisticsVector& stripeStatistics)
 {
     i64 result = 0;
     FOREACH (const auto& stat, stripeStatistics) {

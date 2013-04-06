@@ -59,13 +59,12 @@ struct TLocationConfig
         Register("high_watermark", HighWatermark)
             .GreaterThanOrEqual(0)
             .Default((i64) 10 * 1024 * 1024 * 1024); // 10 Gb
-    }
 
-    virtual void DoValidate() const override
-    {
-        if (HighWatermark > LowWatermark) {
-            THROW_ERROR_EXCEPTION("\"high_watermark\" cannot greater than \"low_watermark\"");
-        }
+        RegisterValidator([&] () {
+            if (HighWatermark > LowWatermark) {
+                THROW_ERROR_EXCEPTION("\"high_watermark\" cannot greater than \"low_watermark\"");
+            }
+        });
     }
 };
 

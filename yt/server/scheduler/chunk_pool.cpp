@@ -68,14 +68,14 @@ TChunkStripeStatistics& operator += (
     return lhs;
 }
 
-std::vector<TChunkStripeStatistics> AggregateStatistics(
-    const std::vector<TChunkStripeStatistics>& statistics)
+TChunkStripeStatisticsVector AggregateStatistics(
+    const TChunkStripeStatisticsVector& statistics)
 {
     TChunkStripeStatistics sum;
     FOREACH (const auto& stat, statistics) {
         sum += stat;
     }
-    return std::vector<TChunkStripeStatistics>(1, sum);
+    return TChunkStripeStatisticsVector(1, sum);
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -89,9 +89,9 @@ TChunkStripeList::TChunkStripeList()
     , NonLocalChunkCount(0)
 { }
 
-std::vector<TChunkStripeStatistics> TChunkStripeList::GetStatistics() const
+TChunkStripeStatisticsVector TChunkStripeList::GetStatistics() const
 {
-    std::vector<TChunkStripeStatistics> result;
+    TChunkStripeStatisticsVector result;
     result.reserve(Stripes.size());
     FOREACH (const auto& stripe, Stripes) {
         result.push_back(stripe->GetStatistics());
@@ -273,9 +273,9 @@ public:
         }
     }
 
-    virtual std::vector<TChunkStripeStatistics> GetApproximateStripeStatistics() const override
+    virtual TChunkStripeStatisticsVector GetApproximateStripeStatistics() const override
     {
-        std::vector<TChunkStripeStatistics> result;
+        TChunkStripeStatisticsVector result;
         result.reserve(Stripes.size());
         FOREACH(const auto& suspendableStripe, Stripes) {
             auto stripe = suspendableStripe.GetStripe();
@@ -498,7 +498,7 @@ public:
         return LostCookies.empty() && PendingGlobalChunks.empty() ? 0 : JobCounter.GetPending();
     }
 
-    virtual std::vector<TChunkStripeStatistics> GetApproximateStripeStatistics() const override
+    virtual TChunkStripeStatisticsVector GetApproximateStripeStatistics() const override
     {
         if (!ExtractedLists.empty()) {
             auto stripeList = ExtractedLists.begin()->second;
@@ -516,7 +516,8 @@ public:
         stat.RowCount = std::max(
             static_cast<i64>(1),
             GetTotalRowCount() / GetTotalJobCount());
-        std::vector<TChunkStripeStatistics> result;
+
+        TChunkStripeStatisticsVector result;
         result.push_back(stat);
         return result;
     }
@@ -890,15 +891,20 @@ private:
             i64 RowCount;
         };
 
-        virtual std::vector<TChunkStripeStatistics> GetApproximateStripeStatistics() const
+        virtual TChunkStripeStatisticsVector GetApproximateStripeStatistics() const
         {
             YCHECK(!Runs.empty());
             YCHECK(GetPendingJobCount() > 0);
 
-            std::vector<TChunkStripeStatistics> result(1);
-            // First run should give a pretty good approximation.
-            auto& run = Runs.front();
+            TChunkStripeStatisticsVector result(1);
+
+            // This is the next run to be given by #Extract.
+            auto it = PendingRuns.begin();
+            auto cookie = *it;
+            auto& run = Runs[cookie];
+
             auto& stat = result.front();
+
             stat.ChunkCount = run.ElementaryIndexEnd - run.ElementaryIndexBegin;
             stat.DataSize = run.TotalDataSize;
             stat.RowCount = run.TotalRowCount;

@@ -19,24 +19,51 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TPartitionChunkWriterFacade
+    : public TNonCopyable
+{
+public:
+    TPartitionChunkWriterFacade(TPartitionChunkWriterPtr writer);
+
+    // Checks column names for uniqueness.
+    void WriteRow(const TRow& row);
+
+    // Used internally. All column names are guaranteed to be unique.
+    void WriteRowUnsafe(const TRow& row);
+
+    // Required by SyncWriterAdapter.
+    void WriteRowUnsafe(const TRow& row, const TNonOwningKey& key);
+
+private:
+    friend class TPartitionChunkWriter;
+    TPartitionChunkWriterPtr Writer;
+
+    bool IsReady;
+
+    void NextRow();
+
+    DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TPartitionChunkWriter
     : public TChunkWriterBase
 {
 public:
+    typedef TPartitionChunkWriterProvider TProvider;
+    typedef TPartitionChunkWriterFacade TFacade;
+
     TPartitionChunkWriter(
         TChunkWriterConfigPtr config,
-        TTableWriterOptionsPtr options,
+        TChunkWriterOptionsPtr options,
         NChunkClient::IAsyncWriterPtr chunkWriter,
         IPartitioner* partitioner);
 
     ~TPartitionChunkWriter();
 
-    // Checks column names for uniqueness.
-    bool TryWriteRow(const TRow& row);
-
-    // Used internally. All column names are guaranteed to be unique.
-    bool TryWriteRowUnsafe(const TRow& row);
-
+    TFacade* GetFacade();
     TAsyncError AsyncClose();
 
     i64 GetCurrentSize() const;
@@ -45,8 +72,12 @@ public:
     NChunkClient::NProto::TChunkMeta GetMasterMeta() const;
     NChunkClient::NProto::TChunkMeta GetSchedulerMeta() const;
 
+    void WriteRow(const TRow& row);
+    void WriteRowUnsafe(const TRow& row);
+
 private:
     IPartitioner* Partitioner;
+    TPartitionChunkWriterFacade Facade;
 
     NYson::TLexer Lexer;
     yhash_map<TStringBuf, int> KeyColumnIndexes;
@@ -56,8 +87,34 @@ private:
     NProto::TPartitionsExt PartitionsExt;
 
     void PrepareBlock();
-
     void OnFinalBlocksWritten(TError error);
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TPartitionChunkWriterProvider
+    : public virtual TRefCounted
+{
+public:
+    TPartitionChunkWriterProvider(
+        TChunkWriterConfigPtr config,
+        TChunkWriterOptionsPtr options,
+        IPartitioner* partitioner);
+
+    TPartitionChunkWriterPtr CreateChunkWriter(NChunkClient::IAsyncWriterPtr asyncWriter);
+    void OnChunkFinished();
+
+    // Required by sync writer.
+    i64 GetRowCount() const;
+    const TNullable<TKeyColumns>& GetKeyColumns() const;
+
+private:
+    TChunkWriterConfigPtr Config;
+    TChunkWriterOptionsPtr Options;
+    IPartitioner* Partitioner;
+
+    int ActiveWriters;
 
 };
 

@@ -59,67 +59,34 @@ struct TChunkWriterConfig
 
 struct TTableWriterConfig
     : public TChunkWriterConfig
-    , public NChunkClient::TRemoteWriterConfig
+    , public NChunkClient::TMultiChunkWriterConfig
+{ };
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TChunkWriterOptions
+    : public virtual NChunkClient::TEncodingWriterOptions
 {
-    i64 DesiredChunkSize;
-    i64 MaxMetaSize;
+    TNullable<TKeyColumns> KeyColumns;
+    TChannels Channels;
 
-    int UploadReplicationFactor;
-
-    bool ChunksMovable;
-    bool ChunksVital;
-
-    bool PreferLocalHost;
-
-    TTableWriterConfig()
+    TChunkWriterOptions()
     {
-        Register("desired_chunk_size", DesiredChunkSize)
-            .GreaterThan(0)
-            .Default(1024 * 1024 * 1024);
-        Register("max_meta_size", MaxMetaSize)
-            .GreaterThan(0)
-            .LessThanOrEqual(64 * 1024 * 1024)
-            .Default(30 * 1024 * 1024);
-        Register("upload_replication_factor", UploadReplicationFactor)
-            .GreaterThanOrEqual(1)
-            .Default(2);
-        Register("chunks_movable", ChunksMovable)
-            .Default(true);
-        Register("chunks_vital", ChunksVital)
-            .Default(true);
-        Register("prefer_local_host", PreferLocalHost)
-            .Default(true);
+        Register("key_columns", KeyColumns)
+            .Default(Null);
+        Register("channels", Channels)
+            .Default(TChannels());
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TTableWriterOptions
-    : public NChunkClient::TEncodingWriterOptions
+    : public NChunkClient::TMultiChunkWriterOptions
+    , public TChunkWriterOptions
 {
-    int ReplicationFactor;
-
-    Stroka Account;
-
-    TNullable<TKeyColumns> KeyColumns;
-
-    TChannels Channels;
-
     TTableWriterOptions()
     {
-        Register("replication_factor", ReplicationFactor)
-            .GreaterThanOrEqual(1)
-            .Default(3);
-
-        Register("account", Account)
-            .NonEmpty();
-
-        Register("key_columns", KeyColumns)
-            .Default(Null);
-
-        Register("channels", Channels)
-            .Default(TChannels());
-
         Codec = NCompression::ECodec::Lz4;
     }
 };

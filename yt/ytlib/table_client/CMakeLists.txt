@@ -8,7 +8,6 @@ set( SRCS
   ${BASE}/key.cpp
   ${BASE}/merging_reader.cpp
   ${BASE}/partition_chunk_reader.cpp
-  ${BASE}/partition_chunk_sequence_writer.cpp
   ${BASE}/partition_chunk_writer.cpp
   ${BASE}/partitioner.cpp
   ${BASE}/private.cpp
@@ -16,7 +15,6 @@ set( SRCS
   ${BASE}/size_limits.cpp
   ${BASE}/sync_reader.cpp
   ${BASE}/table_chunk_reader.cpp
-  ${BASE}/table_chunk_sequence_writer.cpp
   ${BASE}/table_chunk_writer.cpp
   ${BASE}/table_consumer.cpp
   ${BASE}/table_producer.cpp
@@ -30,8 +28,6 @@ set( HDRS
   ${BASE}/channel_reader.h
   ${BASE}/channel_writer.h
   ${BASE}/chunk_meta_extensions.h
-  ${BASE}/chunk_sequence_writer_base-inl.h
-  ${BASE}/chunk_sequence_writer_base.h
   ${BASE}/chunk_writer_base.h
   ${BASE}/config.h
   ${BASE}/helpers.h
@@ -44,7 +40,6 @@ set( HDRS
   ${BASE}/multi_chunk_sequential_reader-inl.h
   ${BASE}/multi_chunk_sequential_reader.h
   ${BASE}/partition_chunk_reader.h
-  ${BASE}/partition_chunk_sequence_writer.h
   ${BASE}/partition_chunk_writer.h
   ${BASE}/partitioner.h
   ${BASE}/private.h
@@ -54,7 +49,6 @@ set( HDRS
   ${BASE}/sync_reader.h
   ${BASE}/sync_writer.h
   ${BASE}/table_chunk_reader.h
-  ${BASE}/table_chunk_sequence_writer.h
   ${BASE}/table_chunk_writer.h
   ${BASE}/table_consumer.h
   ${BASE}/table_producer.h

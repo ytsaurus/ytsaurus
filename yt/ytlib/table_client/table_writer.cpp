@@ -4,7 +4,7 @@
 #include "config.h"
 #include "private.h"
 #include "schema.h"
-#include "table_chunk_sequence_writer.h"
+#include "table_chunk_writer.h"
 
 #include <ytlib/misc/sync.h>
 #include <ytlib/misc/nullable.h>
@@ -24,6 +24,8 @@ using namespace NCypressClient;
 using namespace NTransactionClient;
 using namespace NChunkClient;
 
+typedef TMultiChunkSequentialWriter<TTableChunkWriter> TTableMultiChunkWriter;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TTableWriter::TTableWriter(
@@ -34,12 +36,12 @@ TTableWriter::TTableWriter(
     const NYPath::TRichYPath& richPath,
     const TNullable<TKeyColumns>& keyColumns)
     : Config(config)
+    , Options(New<TTableWriterOptions>())
     , MasterChannel(masterChannel)
     , Transaction(transaction)
     , TransactionId(transaction ? transaction->GetId() : NullTransactionId)
     , TransactionManager(transactionManager)
     , RichPath(richPath)
-    , Options(New<TTableWriterOptions>())
     , IsOpen(false)
     , IsClosed(false)
     , ObjectProxy(masterChannel)
@@ -147,14 +149,18 @@ void TTableWriter::Open()
         ~chunkListId.ToString(),
         static_cast<int>(Options->Channels.size()));
 
-    Writer = New<TTableChunkSequenceWriter>(
+    auto provider = New<TTableChunkWriterProvider>(
+        Config,
+        Options);
+
+    Writer = CreateSyncWriter<TTableChunkWriter>(New<TTableMultiChunkWriter>(
         Config,
         Options,
+        provider,
         MasterChannel,
         uploadTransactionId,
-        chunkListId);
-
-    Sync(~Writer, &TTableChunkSequenceWriter::AsyncOpen);
+        chunkListId));
+    Writer->Open();
 
     if (Transaction) {
         ListenTransaction(Transaction);
@@ -171,9 +177,7 @@ void TTableWriter::WriteRow(const TRow& row)
     YCHECK(IsOpen);
 
     CheckAborted();
-    while (!Writer->TryWriteRow(row)) {
-        Sync(~Writer, &TTableChunkSequenceWriter::GetReadyEvent);
-    }
+    Writer->WriteRow(row);
 }
 
 void TTableWriter::Close()
@@ -191,7 +195,7 @@ void TTableWriter::Close()
     LOG_INFO("Closing table writer");
 
     LOG_INFO("Closing chunk writer");
-    Sync(~Writer, &TTableChunkSequenceWriter::AsyncClose);
+    Writer->Close();
     LOG_INFO("Chunk writer closed");
 
     auto path = RichPath.GetPath();

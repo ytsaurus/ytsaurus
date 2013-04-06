@@ -149,10 +149,6 @@ public:
 
         CellManager = New<TCellManager>(Config->Cell);
 
-        LOG_INFO("SelfAddress: %s, SelfId: %d",
-            ~CellManager->GetSelfAddress(),
-            CellManager->GetSelfId());
-
         ElectionManager = New<TElectionManager>(
             Config->Election,
             CellManager,
@@ -179,6 +175,11 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
         YCHECK(ControlStatus == EPeerStatus::Stopped);
+
+        CellManager->Initialize();
+        LOG_INFO("SelfAddress: %s, SelfId: %d",
+            ~CellManager->GetSelfAddress(),
+            CellManager->GetSelfId());
 
         ChangeLogCache->Start();
         SnapshotStore->Start();

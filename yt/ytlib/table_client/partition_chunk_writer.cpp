@@ -25,13 +25,54 @@ static NLog::TLogger& Logger = TableWriterLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TPartitionChunkWriterFacade::TPartitionChunkWriterFacade(TPartitionChunkWriterPtr writer)
+    : Writer(writer)
+    , IsReady(false)
+{ }
+
+void TPartitionChunkWriterFacade::WriteRow(const TRow& row)
+{
+    VERIFY_THREAD_AFFINITY(ClientThread);
+    YASSERT(IsReady);
+
+    Writer->WriteRow(row);
+    IsReady = false;
+}
+
+void TPartitionChunkWriterFacade::WriteRowUnsafe(const TRow& row)
+{
+    VERIFY_THREAD_AFFINITY(ClientThread);
+    YASSERT(IsReady);
+
+    Writer->WriteRowUnsafe(row);
+    IsReady = false;
+}
+
+void TPartitionChunkWriterFacade::WriteRowUnsafe(
+    const TRow& row,
+    const TNonOwningKey& key)
+{
+    UNUSED(key);
+    WriteRowUnsafe(row);
+}
+
+
+void TPartitionChunkWriterFacade::NextRow()
+{
+    VERIFY_THREAD_AFFINITY(ClientThread);
+    IsReady = true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TPartitionChunkWriter::TPartitionChunkWriter(
     TChunkWriterConfigPtr config,
-    TTableWriterOptionsPtr options,
+    TChunkWriterOptionsPtr options,
     NChunkClient::IAsyncWriterPtr chunkWriter,
     IPartitioner* partitioner)
     : TChunkWriterBase(config, options, chunkWriter)
     , Partitioner(partitioner)
+    , Facade(this)
     , BasicMetaSize(0)
 {
     for (int i = 0; i < options->KeyColumns.Get().size(); ++i) {
@@ -74,18 +115,26 @@ TPartitionChunkWriter::TPartitionChunkWriter(
 TPartitionChunkWriter::~TPartitionChunkWriter()
 { }
 
-bool TPartitionChunkWriter::TryWriteRow(const TRow& row)
+TPartitionChunkWriterFacade* TPartitionChunkWriter::GetFacade()
 {
-    // TODO(babenko): check column names
-    return TryWriteRowUnsafe(row);
+    if (State.IsActive() && EncodingWriter->IsReady()) {
+        Facade.NextRow();
+        return &Facade;
+    }
+
+    return nullptr;
 }
 
-bool TPartitionChunkWriter::TryWriteRowUnsafe(const TRow& row)
+void TPartitionChunkWriter::WriteRow(const TRow& row)
 {
-    YASSERT(!State.IsClosed());
+    // TODO(babenko): check column names
+    WriteRowUnsafe(row);
+}
 
-    if (!State.IsActive() || !EncodingWriter->IsReady())
-        return false;
+void TPartitionChunkWriter::WriteRowUnsafe(const TRow& row)
+{
+    YASSERT(State.IsActive());
+    YASSERT(EncodingWriter->IsReady());
 
     int keyColumnCount = Options->KeyColumns.Get().size();
     TNonOwningKey key(keyColumnCount);
@@ -133,7 +182,6 @@ bool TPartitionChunkWriter::TryWriteRowUnsafe(const TRow& row)
     }
 
     CurrentSize = EncodingWriter->GetCompressedSize() + channelWriter->GetCurrentSize();
-    return true;
 }
 
 void TPartitionChunkWriter::PrepareBlock()
@@ -229,6 +277,45 @@ void TPartitionChunkWriter::OnFinalBlocksWritten(TError error)
 
     SetProtoExtension(Meta.mutable_extensions(), PartitionsExt);
     FinalizeWriter();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TPartitionChunkWriterProvider::TPartitionChunkWriterProvider(
+    TChunkWriterConfigPtr config,
+    TChunkWriterOptionsPtr options,
+    IPartitioner* partitioner)
+    : Config(config)
+    , Options(options)
+    , Partitioner(partitioner)
+    , ActiveWriters(0)
+{ }
+
+TPartitionChunkWriterPtr TPartitionChunkWriterProvider::CreateChunkWriter(NChunkClient::IAsyncWriterPtr asyncWriter)
+{
+    YCHECK(ActiveWriters == 0);
+    ++ActiveWriters;
+    return New<TPartitionChunkWriter>(
+        Config,
+        Options,
+        asyncWriter,
+        Partitioner);
+}
+
+void TPartitionChunkWriterProvider::OnChunkFinished()
+{
+    YCHECK(ActiveWriters == 1);
+    --ActiveWriters;
+}
+
+const TNullable<TKeyColumns>& TPartitionChunkWriterProvider::GetKeyColumns() const
+{
+    return Options->KeyColumns;
+}
+
+i64 TPartitionChunkWriterProvider::GetRowCount() const
+{
+    YUNIMPLEMENTED();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

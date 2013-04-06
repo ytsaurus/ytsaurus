@@ -26,6 +26,7 @@ struct IParameter
     // node can be NULL
     virtual void Load(NYTree::INodePtr node, const NYPath::TYPath& path) = 0;
     virtual void Validate(const NYPath::TYPath& path) const = 0;
+    virtual void SetDefaults() = 0;
     virtual void Save(NYson::IYsonConsumer* consumer) const = 0;
     virtual bool IsPresent() const = 0;
 };
@@ -47,14 +48,14 @@ public:
 
     explicit TParameter(T& parameter);
 
-    virtual void Load(NYTree::INodePtr node, const NYPath::TYPath& path);
-    virtual void Validate(const NYPath::TYPath& path) const;
-    virtual void Save(NYson::IYsonConsumer* consumer) const;
-    virtual bool IsPresent() const;
+    virtual void Load(NYTree::INodePtr node, const NYPath::TYPath& path) override;
+    virtual void Validate(const NYPath::TYPath& path) const override;
+    virtual void SetDefaults() override;
+    virtual void Save(NYson::IYsonConsumer* consumer) const override;
+    virtual bool IsPresent() const override;
 
 public: // for users
     TParameter& Default(const T& defaultValue = T());
-    TParameter& Default(T&& defaultValue);
     TParameter& DefaultNew();
     TParameter& CheckThat(TValidator validator);
     TParameter& GreaterThan(TValueType value);
@@ -66,8 +67,9 @@ public: // for users
 
 private:
     T& Parameter;
-    bool HasDefaultValue;
+    TNullable<T> DefaultValue;
     std::vector<TValidator> Validators;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -81,8 +83,15 @@ class TYsonSerializableLite
 public:
     TYsonSerializableLite();
 
-    void Load(NYTree::INodePtr node, bool validate = true, const NYPath::TYPath& path = "");
+    void Load(
+        NYTree::INodePtr node,
+        bool validate = true,
+        bool setDefaults = true,
+        const NYPath::TYPath& path = "");
+    
     void Validate(const NYPath::TYPath& path = "") const;
+    
+    void SetDefaults();
 
     void Save(NYson::IYsonConsumer* consumer) const;
 
@@ -92,11 +101,17 @@ public:
     std::vector<Stroka> GetRegisteredKeys() const;
 
 protected:
-    virtual void DoValidate() const;
     virtual void OnLoaded();
 
+    // TODO(babenko): rename to RegisterParameter
     template <class T>
     NConfig::TParameter<T>& Register(const Stroka& parameterName, T& value);
+
+    template <class F>
+    void RegisterInitializer(const F& func);
+
+    template <class F>
+    void RegisterValidator(const F& func);
 
 private:
     template <class T>
@@ -106,6 +121,9 @@ private:
 
     TParameterMap Parameters;
     NYTree::IMapNodePtr Options;
+
+    std::vector<TClosure> Initializers;
+    std::vector<TClosure> Validators;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -127,6 +145,16 @@ template <class T>
 TIntrusivePtr<T> UpdateYsonSerializable(
     TIntrusivePtr<T> obj,
     NYTree::INodePtr patch);
+
+template <class T>
+bool ReconfigureYsonSerializable(
+    TIntrusivePtr<T> config,
+    const NYTree::TYsonString& newConfigYson);
+
+template <class T>
+bool ReconfigureYsonSerializable(
+    TIntrusivePtr<T> config,
+    NYTree::INodePtr newConfigNode);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -78,6 +78,7 @@
     #define nullptr NULL
 #endif
 
+#include "enum.h"
 #include "assert.h"
 #include "intrusive_ptr.h"
 #include "weak_ptr.h"
@@ -85,7 +86,6 @@
 #include "new.h"
 #include "arcadia_helper.h"
 #include "hash.h"
-#include "enum.h"
 #include "override.h"
 
 namespace NYT {

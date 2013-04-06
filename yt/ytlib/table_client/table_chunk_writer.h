@@ -24,38 +24,69 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Instance of facade returned from ChunkWriter allows to make single
+// write operation.
+
+class TTableChunkWriterFacade
+    : public TNonCopyable
+{
+public:
+    TTableChunkWriterFacade(TTableChunkWriterPtr writer);
+
+    // Checks column names for uniqueness.
+    void WriteRow(const TRow& row);
+
+    // Used internally. All column names are guaranteed to be unique.
+    void WriteRowUnsafe(const TRow& row, const TNonOwningKey& key);
+    void WriteRowUnsafe(const TRow& row);
+
+private:
+    friend class TTableChunkWriter;
+    TTableChunkWriterPtr Writer;
+
+    // If true, facade is ready to process next row.
+    bool IsReady;
+
+    // Called by TableChunkWriter when writer is ready to process new row.
+    void NextRow();
+
+    DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTableChunkWriter
     : public TChunkWriterBase
 {
 public:
+    typedef TTableChunkWriterProvider TProvider;
+    typedef TTableChunkWriterFacade TFacade;
+
     TTableChunkWriter(
         TChunkWriterConfigPtr config,
-        TTableWriterOptionsPtr options,
-        NChunkClient::IAsyncWriterPtr chunkWriter);
+        TChunkWriterOptionsPtr options,
+        NChunkClient::IAsyncWriterPtr chunkWriter,
+        TOwningKey&& lastKey);
 
     ~TTableChunkWriter();
 
-    TAsyncError AsyncOpen();
-
-    // Checks column names for uniqueness.
-    bool TryWriteRow(const TRow& row);
-
-    // Used internally. All column names are guaranteed to be unique.
-    bool TryWriteRowUnsafe(const TRow& row, const TNonOwningKey& key);
-    bool TryWriteRowUnsafe(const TRow& row);
-
+    TFacade* GetFacade();
     TAsyncError AsyncClose();
 
-    void SetLastKey(const TOwningKey& key);
-    const TOwningKey& GetLastKey() const;
-
-    i64 GetRowCount() const;
-
+    i64 GetMetaSize() const;
     i64 GetCurrentSize() const;
     NChunkClient::NProto::TChunkMeta GetMasterMeta() const;
     NChunkClient::NProto::TChunkMeta GetSchedulerMeta() const;
 
-    i64 GetMetaSize() const;
+    // Used by provider.
+    i64 GetRowCount() const;
+    const TOwningKey& GetLastKey() const;
+    const NProto::TBoundaryKeysExt& GetBoundaryKeys() const;
+
+    // Used by facade.
+    void WriteRow(const TRow& row);
+    void WriteRowUnsafe(const TRow& row, const TNonOwningKey& key);
+    void WriteRowUnsafe(const TRow& row);
 
 private:
     struct TChannelColumn
@@ -80,9 +111,8 @@ private:
         { }
     };
 
+    TTableChunkWriterFacade Facade;
     TChannels Channels;
-
-    bool IsOpen;
 
     //! Stores mapping from all key columns and channel non-range columns to indexes.
     yhash_map<TStringBuf, TColumnInfo> ColumnMap;
@@ -100,6 +130,7 @@ private:
     //! Approximate size of collected index.
     i64 IndexSize;
 
+    // Size of static part of meta, computed during initialization.
     i64 BasicMetaSize;
 
     NProto::TSamplesExt SamplesExt;
@@ -120,8 +151,39 @@ private:
     TColumnInfo& GetColumnInfo(const TStringBuf& name);
     void WriteValue(const std::pair<TStringBuf, TStringBuf>& value, const TColumnInfo& columnInfo);
 
-
     DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTableChunkWriterProvider
+    : public virtual TRefCounted
+{
+public:
+    TTableChunkWriterProvider(
+        TChunkWriterConfigPtr config,
+        TChunkWriterOptionsPtr options);
+
+    TTableChunkWriterPtr CreateChunkWriter(NChunkClient::IAsyncWriterPtr asyncWriter);
+    void OnChunkFinished();
+
+    const NProto::TBoundaryKeysExt& GetBoundaryKeys() const;
+    i64 GetRowCount() const;
+
+    const TNullable<TKeyColumns>& GetKeyColumns() const;
+
+private:
+    TChunkWriterConfigPtr Config;
+    TChunkWriterOptionsPtr Options;
+
+    int CreatedWriterCount;
+    int CompletedWriterCount;
+
+    i64 RowCount;
+
+    NProto::TBoundaryKeysExt BoundaryKeysExt;
+    TTableChunkWriterPtr CurrentWriter;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

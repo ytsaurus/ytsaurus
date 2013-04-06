@@ -51,10 +51,7 @@ void TChunkList::Load(const NCellMaster::TLoadContext& context)
     NChunkServer::Load(context, Statistics_);
     ::Load(input, SortedBy_);
     ::Load(input, RowCountSums_);
-    // COMPAT(ignat)
-    if (context.GetVersion() >= 8) {
-        ::Load(input, ChunkCountSums_);
-    }
+    ::Load(input, ChunkCountSums_);
 }
 
 TAtomic TChunkList::GenerateVisitMark()

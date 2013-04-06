@@ -631,12 +631,14 @@ private:
 namespace {
 
 template <class TSpec>
-TIntrusivePtr<TSpec> ParseOperationSpec(TOperation* operation, NYTree::INodePtr defaultSpec)
+TIntrusivePtr<TSpec> ParseOperationSpec(TOperation* operation, NYTree::INodePtr specTemplateNode)
 {
-    auto ysonSpec = NYTree::UpdateNode(defaultSpec, operation->GetSpec());
+    auto specNode = specTemplateNode
+        ? NYTree::UpdateNode(specTemplateNode, operation->GetSpec())
+        : operation->GetSpec();
     auto spec = New<TSpec>();
     try {
-        spec->Load(ysonSpec);
+        spec->Load(specNode);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error parsing operation spec") << ex;
     }

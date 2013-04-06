@@ -128,6 +128,13 @@ public:
             &TThis::HandleOnlineNodes,
             Unretained(this)));
 
+        MasterConnector->AddGlobalWatcherRequester(BIND(
+            &TThis::RequestConfig,
+            Unretained(this)));
+        MasterConnector->AddGlobalWatcherHandler(BIND(
+            &TThis::HandleConfig,
+            Unretained(this)));
+
         MasterConnector->SubscribeMasterConnected(BIND(
             &TThis::OnMasterConnected,
             Unretained(this)));
@@ -404,7 +411,10 @@ private:
     void HandleOnlineNodes(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
     {
         auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_online_nodes");
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting online nodes");
+        if (!rsp->IsOK()) {
+            LOG_ERROR(*rsp, "Error getting online nodes");
+            return;
+        }
 
         auto newAddresses = ConvertTo< std::vector<Stroka> >(TYsonString(rsp->value()));
         LOG_INFO("Exec nodes updated, %d found",
@@ -459,6 +469,37 @@ private:
 
         TotalResourceLimits -= node->ResourceLimits();
         TotalResourceUsage -= node->ResourceUsage();
+    }
+
+
+    void RequestConfig(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
+    {
+        LOG_INFO("Updating configuration");
+
+        auto req = TYPathProxy::Get("//sys/scheduler/@config");
+        batchReq->AddRequest(req, "get_config");
+    }
+
+    void HandleConfig(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+    {
+        auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_config");
+        if (rsp->GetError().FindMatching(NYTree::EErrorCode::ResolveError)) {
+            // No config attribute, just ignore.
+            return;
+        }
+        if (!rsp->IsOK()) {
+            LOG_ERROR(*rsp, "Error getting scheduler configuration");
+            return;
+        }
+
+        try {
+            if (!ReconfigureYsonSerializable(Config, TYsonString(rsp->value())))
+                return;
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Error parsing updated scheduler configuration");        
+        }
+
+        LOG_INFO("Scheduler configuration updated");
     }
 
 

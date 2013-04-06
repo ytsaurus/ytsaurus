@@ -40,6 +40,9 @@ typedef TIntrusivePtr<IAsyncWriter> IAsyncWriterPtr;
 struct ISyncWriter;
 typedef TIntrusivePtr<ISyncWriter> ISyncWriterPtr;
 
+struct ISyncWriterUnsafe;
+typedef TIntrusivePtr<ISyncWriterUnsafe> ISyncWriterUnsafePtr;
+
 struct ISyncReader;
 typedef TIntrusivePtr<ISyncReader> ISyncReaderPtr;
 
@@ -52,8 +55,18 @@ typedef TIntrusivePtr<TChunkWriterConfig> TChunkWriterConfigPtr;
 class TTableChunkWriter;
 typedef TIntrusivePtr<TTableChunkWriter> TTableChunkWriterPtr;
 
+class TTableChunkWriterFacade;
+
+class TTableChunkWriterProvider;
+typedef TIntrusivePtr<TTableChunkWriterProvider> TTableChunkWriterProviderPtr;
+
 class TPartitionChunkWriter;
 typedef TIntrusivePtr<TPartitionChunkWriter> TPartitionChunkWriterPtr;
+
+class TPartitionChunkWriterFacade;
+
+class TPartitionChunkWriterProvider;
+typedef TIntrusivePtr<TPartitionChunkWriterProvider> TPartitionChunkWriterProviderPtr;
 
 class TTableChunkReader;
 typedef TIntrusivePtr<TTableChunkReader> TTableChunkReaderPtr;
@@ -78,6 +91,12 @@ typedef TIntrusivePtr<TChannelWriter> TChannelWriterPtr;
 
 class TChannelReader;
 typedef TIntrusivePtr<TChannelReader> TChannelReaderPtr;
+
+struct TChunkWriterConfig;
+typedef TIntrusivePtr<TChunkWriterConfig> TChunkWriterConfigPtr;
+
+struct TChunkWriterOptions;
+typedef TIntrusivePtr<TChunkWriterOptions> TChunkWriterOptionsPtr;
 
 struct TTableWriterConfig;
 typedef TIntrusivePtr<TTableWriterConfig> TTableWriterConfigPtr;
