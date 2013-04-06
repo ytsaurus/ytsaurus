@@ -50,7 +50,7 @@ struct TLoadHelper<
         if (!parameter) {
             parameter = New<T>();
         }
-        parameter->Load(node, false, path);
+        parameter->Load(node, false, false, path);
     }
 };
 
@@ -411,6 +411,12 @@ void TYsonSerializableLite::RegisterInitializer(const F& func)
 {
     func();
     Initializers.push_back(BIND(func));
+}
+
+template <class F>
+void TYsonSerializableLite::RegisterValidator(const F& func)
+{
+    Validators.push_back(BIND(func));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

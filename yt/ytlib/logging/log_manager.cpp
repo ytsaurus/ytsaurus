@@ -108,6 +108,16 @@ public:
     {
         Register("writers", WriterConfigs);
         Register("rules", Rules);
+
+        RegisterValidator([&] () {
+            FOREACH (const auto& rule, Rules) {
+                FOREACH (const Stroka& writer, rule->Writers) {
+                    if (WriterConfigs.find(writer) == WriterConfigs.end()) {
+                        THROW_ERROR_EXCEPTION("Unknown writer: %s", ~writer.Quote());
+                    }
+                }
+            }
+        });
     }
 
     TLogWriters GetWriters(const TLogEvent& event)
@@ -185,28 +195,17 @@ public:
     static TLogConfigPtr CreateFromNode(INodePtr node, const TYPath& path = "")
     {
         auto config = New<TLogConfig>();
-        config->Load(node, true, path);
+        config->Load(node, true, true, path);
         config->CreateWriters();
         return config;
     }
 
-    int GetVersion()
+    int GetVersion() const
     {
         return Version;
     }
 
 private:
-    virtual void DoValidate() const override
-    {
-        FOREACH (const auto& rule, Rules) {
-            FOREACH (const Stroka& writer, rule->Writers) {
-                if (WriterConfigs.find(writer) == WriterConfigs.end()) {
-                    THROW_ERROR_EXCEPTION("Unknown writer: %s", ~writer.Quote());
-                }
-            }
-        }
-    }
-
     void CreateWriters()
     {
         FOREACH (const auto& pair, WriterConfigs) {

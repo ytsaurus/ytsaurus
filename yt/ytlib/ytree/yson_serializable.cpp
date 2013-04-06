@@ -33,11 +33,17 @@ std::vector<Stroka> TYsonSerializableLite::GetRegisteredKeys() const
     return result;
 }
 
-void TYsonSerializableLite::Load(INodePtr node, bool validate, const TYPath& path)
+void TYsonSerializableLite::Load(
+    INodePtr node,
+    bool validate,
+    bool setDefaults,
+    const TYPath& path)
 {
     YCHECK(node);
 
-    SetDefaults();
+    if (setDefaults) {
+        SetDefaults();
+    }
 
     auto mapNode = node->AsMap();
     FOREACH (const auto& pair, Parameters) {
@@ -70,8 +76,11 @@ void TYsonSerializableLite::Validate(const TYPath& path) const
     FOREACH (auto pair, Parameters) {
         pair.second->Validate(path + "/" + pair.first);
     }
+
     try {
-        DoValidate();
+        FOREACH (const auto& validator, Validators) {
+            validator.Run();
+        }
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Validation failed at %s", ~path)
             << ex;
@@ -87,9 +96,6 @@ void TYsonSerializableLite::SetDefaults()
         initializer.Run();
     }
 }
-
-void TYsonSerializableLite::DoValidate() const  
-{ }
 
 void TYsonSerializableLite::OnLoaded()
 { }

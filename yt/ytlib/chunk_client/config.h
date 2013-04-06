@@ -110,13 +110,12 @@ struct TSequentialReaderConfig
         Register("group_size", GroupSize)
             .Default(8 * 1024 * 1024)
             .GreaterThan(0);
-    }
 
-    virtual void DoValidate() const override
-    {
-        if (GroupSize > WindowSize) {
-            THROW_ERROR_EXCEPTION("\"group_size\" cannot be larger than \"window_size\"");
-        }
+        RegisterValidator([&] () {
+            if (GroupSize > WindowSize) {
+                THROW_ERROR_EXCEPTION("\"group_size\" cannot be larger than \"window_size\"");
+            }
+        });
     }
 };
 
@@ -161,13 +160,12 @@ struct TRemoteWriterConfig
             .Default(TDuration::Seconds(10));
         Register("enable_node_caching", EnableNodeCaching)
             .Default(false);
-    }
 
-    virtual void DoValidate() const override
-    {
-        if (SendWindowSize < GroupSize) {
-            THROW_ERROR_EXCEPTION("\"window_size\" cannot be less than \"group_size\"");
-        }
+        RegisterValidator([&] () {
+            if (SendWindowSize < GroupSize) {
+                THROW_ERROR_EXCEPTION("\"window_size\" cannot be less than \"group_size\"");
+            }
+        });
     }
 };
 

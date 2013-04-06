@@ -83,7 +83,11 @@ class TYsonSerializableLite
 public:
     TYsonSerializableLite();
 
-    void Load(NYTree::INodePtr node, bool validate = true, const NYPath::TYPath& path = "");
+    void Load(
+        NYTree::INodePtr node,
+        bool validate = true,
+        bool setDefaults = true,
+        const NYPath::TYPath& path = "");
     
     void Validate(const NYPath::TYPath& path = "") const;
     
@@ -97,14 +101,17 @@ public:
     std::vector<Stroka> GetRegisteredKeys() const;
 
 protected:
-    virtual void DoValidate() const;
     virtual void OnLoaded();
 
+    // TODO(babenko): rename to RegisterParameter
     template <class T>
     NConfig::TParameter<T>& Register(const Stroka& parameterName, T& value);
 
     template <class F>
     void RegisterInitializer(const F& func);
+
+    template <class F>
+    void RegisterValidator(const F& func);
 
 private:
     template <class T>
@@ -116,6 +123,7 @@ private:
     NYTree::IMapNodePtr Options;
 
     std::vector<TClosure> Initializers;
+    std::vector<TClosure> Validators;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
