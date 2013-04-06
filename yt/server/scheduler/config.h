@@ -109,7 +109,8 @@ struct TSchedulerConfig
     //! Maximum size of table allowed to be passed as a file to jobs.
     i64 TableFileSizeLimit;
 
-    i64 MaxOutputTables;
+    //! Maximum number of output tables an operation can have.
+    int MaxOutputTableCount;
 
     //! Maximum number of jobs to start within a single heartbeat.
     TNullable<int> MaxStartedJobsPerHeartbeat;
@@ -201,7 +202,7 @@ struct TSchedulerConfig
         Register("table_file_size_limit", TableFileSizeLimit)
             .Default((i64) 2 * 1024 * 1024 * 1024);
 
-        Register("max_output_tables", MaxOutputTables)
+        Register("max_output_table_count", MaxOutputTableCount)
             .Default(20)
             .GreaterThan(1)
             .LessThan(1000);

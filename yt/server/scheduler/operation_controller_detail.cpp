@@ -585,10 +585,10 @@ void TOperationControllerBase::Initialize()
     }
 
     try {
-        if (OutputTables.size() > Config->MaxOutputTables) {
+        if (OutputTables.size() > Config->MaxOutputTableCount) {
             THROW_ERROR_EXCEPTION(
-                "Too many output tables: maximum allowed %d, actual %zu",
-                Config->MaxOutputTables,
+                "Too many output tables: maximum allowed %d, actual %" PRISZT,
+                Config->MaxOutputTableCount,
                 OutputTables.size());
         }
 
