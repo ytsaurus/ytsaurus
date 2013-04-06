@@ -32,8 +32,10 @@ struct TJobIOConfig
             .DefaultNew();
         Register("error_file_writer", ErrorFileWriter)
             .DefaultNew();
+    }
 
-        // We do not provide much fault tolerance for stderr by default.
+    virtual void DoOverrideDefaults() override
+    {
         ErrorFileWriter->ReplicationFactor = 1;
         ErrorFileWriter->UploadReplicationFactor = 1;
         ErrorFileWriter->ChunkVital = false;
@@ -151,6 +153,11 @@ struct TMapOperationSpec
             .Default(TDuration::Seconds(5));
         Register("job_io", JobIO)
             .DefaultNew();
+    }
+
+    virtual void DoOverrideDefaults() override
+    {
+        TOperationSpecBase::DoOverrideDefaults();
 
         JobIO->TableReader->PrefetchWindow = 10;
     }
@@ -226,17 +233,17 @@ struct TMergeOperationSpec
 struct TUnorderedMergeOperationSpec
     : public TMergeOperationSpec
 {
-    TUnorderedMergeOperationSpec()
+    virtual void DoOverrideDefaults() override
     {
+        TMergeOperationSpec::DoOverrideDefaults();
+
         JobIO->TableReader->PrefetchWindow = 10;
     }
 };
 
 struct TOrderedMergeOperationSpec
     : public TMergeOperationSpec
-{
-
-};
+{ };
 
 struct TSortedMergeOperationSpec
     : public TMergeOperationSpec
@@ -395,6 +402,11 @@ struct TSortOperationSpec
             .Default(TDuration::Seconds(5));
         Register("merge_locality_timeout", MergeLocalityTimeout)
             .Default(TDuration::Minutes(1));
+    }
+
+    virtual void DoOverrideDefaults() override
+    {
+        TSortOperationSpecBase::DoOverrideDefaults();
 
         PartitionJobIO->TableReader->PrefetchWindow = 10;
         PartitionJobIO->TableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GB
@@ -456,18 +468,12 @@ struct TMapReduceOperationSpec
             .Default(1.0)
             .GreaterThan(0);
 
-
         // The following settings are inherited from base but make no sense for map-reduce:
         //   JobSliceDataSize
         //   DataSizePerUnorderedMergeJob
         //   SimpleSortLocalityTimeout
         //   SimpleMergeLocalityTimeout
         //   MapSelectivityFactor
-
-        MapJobIO->TableReader->PrefetchWindow = 10;
-        MapJobIO->TableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GB
-
-        SortJobIO->TableReader->PrefetchWindow = 10;
     }
 
     virtual void OnLoaded() override
@@ -475,6 +481,16 @@ struct TMapReduceOperationSpec
         if (ReduceBy.empty()) {
             ReduceBy = SortBy;
         }
+    }
+
+    virtual void DoOverrideDefaults() override
+    {
+        TSortOperationSpecBase::DoOverrideDefaults();
+
+        MapJobIO->TableReader->PrefetchWindow = 10;
+        MapJobIO->TableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GB
+
+        SortJobIO->TableReader->PrefetchWindow = 10;
     }
 };
 

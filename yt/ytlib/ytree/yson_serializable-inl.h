@@ -91,7 +91,7 @@ struct TLoadHelper<yhash_set<T>, void>
     static void Load(yhash_set<T>& parameter, NYTree::INodePtr node, const NYPath::TYPath& path)
     {
         auto listNode = node->AsList();
-        auto size = listNode->GetChildCount();
+        int  size = listNode->GetChildCount();
         for (int i = 0; i < size; ++i) {
             T value;
             TLoadHelper<T>::Load(
@@ -111,7 +111,7 @@ struct TLoadHelper<yhash_map<Stroka, T>, void>
     {
         auto mapNode = node->AsMap();
         FOREACH (const auto& pair, mapNode->GetChildren()) {
-            auto& key = pair.first;
+            const auto& key = pair.first;
             T value;
             TLoadHelper<T>::Load(
                 value,
@@ -125,46 +125,96 @@ struct TLoadHelper<yhash_map<Stroka, T>, void>
 ////////////////////////////////////////////////////////////////////////////////
 
 // all
-inline void ValidateSubconfigs(
+template <class F>
+void InvokeForComposites(
     const void* /* parameter */,
-    const NYPath::TYPath& /* path */)
+    const NYPath::TYPath& /* path */,
+    const F& /* func */)
 { }
 
 // TYsonSerializable
-template <class T>
-inline void ValidateSubconfigs(
+template <class T, class F>
+inline void InvokeForComposites(
     const TIntrusivePtr<T>* parameter,
     const NYPath::TYPath& path,
+    const F& func,
     typename NMpl::TEnableIf<NMpl::TIsConvertible< T*, TYsonSerializable* >, int>::TType = 0)
 {
-    if (*parameter) {
-        (*parameter)->Validate(path);
-    }
+    func(*parameter, path);
 }
 
 // std::vector
-template <class T>
-inline void ValidateSubconfigs(
+template <class T, class F>
+inline void InvokeForComposites(
     const std::vector<T>* parameter,
-    const NYPath::TYPath& path)
+    const NYPath::TYPath& path,
+    const F& func)
 {
-    for (int i = 0; i < parameter->size(); ++i) {
-        ValidateSubconfigs(
+    for (int i = 0; i < static_cast<int>(parameter->size()); ++i) {
+        InvokeForComposites(
             &(*parameter)[i],
-            path + "/" + NYPath::ToYPathLiteral(i));
+            path + "/" + NYPath::ToYPathLiteral(i),
+            func);
     }
 }
 
 // yhash_map
-template <class T>
-inline void ValidateSubconfigs(
+template <class T, class F>
+inline void InvokeForComposites(
     const yhash_map<Stroka, T>* parameter,
-    const NYPath::TYPath& path)
+    const NYPath::TYPath& path,
+    const F& func)
 {
     FOREACH (const auto& pair, *parameter) {
-        ValidateSubconfigs(
+        InvokeForComposites(
             &pair.second,
-            path + "/" + NYPath::ToYPathLiteral(pair.first));
+            path + "/" + NYPath::ToYPathLiteral(pair.first),
+            func);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// all
+template <class F>
+void InvokeForComposites(
+    const void* /* parameter */,
+    const F& /* func */)
+{ }
+
+// TYsonSerializable
+template <class T, class F>
+inline void InvokeForComposites(
+    const TIntrusivePtr<T>* parameter,
+    const F& func,
+    typename NMpl::TEnableIf<NMpl::TIsConvertible< T*, TYsonSerializable* >, int>::TType = 0)
+{
+    func(*parameter);
+}
+
+// std::vector
+template <class T, class F>
+inline void InvokeForComposites(
+    const std::vector<T>* parameter,
+    const F& func)
+{
+    for (int i = 0; i < static_cast<int>(parameter->size()); ++i) {
+        InvokeForComposites(
+            &(*parameter)[i],
+            func);
+    }
+}
+
+// yhash_map
+template <class T, class F>
+inline void InvokeForComposites(
+    const yhash_map<Stroka, T>* parameter,
+    const F& func)
+{
+    FOREACH (const auto& pair, *parameter) {
+        InvokeForComposites(
+            &pair.second,
+            func);
     }
 }
 
@@ -211,14 +261,12 @@ void TParameter<T>::Load(NYTree::INodePtr node, const NYPath::TYPath& path)
         if (!DefaultValue) {
             THROW_ERROR_EXCEPTION("Missing required parameter %s", ~path);
         }
-        Parameter = *DefaultValue;
     }
 }
 
 template <class T>
 void TParameter<T>::Validate(const NYPath::TYPath& path) const
 {
-    ValidateSubconfigs(&Parameter, path);
     FOREACH (const auto& validator, Validators) {
         try {
             validator.Run(Parameter);
@@ -227,6 +275,31 @@ void TParameter<T>::Validate(const NYPath::TYPath& path) const
                 << ex;
         }
     }
+
+    InvokeForComposites(
+        &Parameter,
+        path,
+        [] (TIntrusivePtr<TYsonSerializable> obj, const NYPath::TYPath& subpath) {
+            if (obj) {
+                obj->Validate(subpath);
+            }
+        });
+}
+
+template <class T>
+void TParameter<T>::SetDefaults()
+{
+    if (DefaultValue) {
+        Parameter = *DefaultValue;
+    }
+
+    InvokeForComposites(
+        &Parameter,
+        [] (TIntrusivePtr<TYsonSerializable> obj) {
+            if (obj) {
+                obj->SetDefaults();
+            }
+        });
 }
 
 template <class T>

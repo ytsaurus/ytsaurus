@@ -37,6 +37,8 @@ void TYsonSerializableLite::Load(INodePtr node, bool validate, const TYPath& pat
 {
     YCHECK(node);
 
+    SetDefaults();
+
     auto mapNode = node->AsMap();
     FOREACH (const auto& pair, Parameters) {
         auto name = pair.first;
@@ -76,10 +78,21 @@ void TYsonSerializableLite::Validate(const TYPath& path) const
     }
 }
 
-void TYsonSerializableLite::DoValidate() const
+void TYsonSerializableLite::SetDefaults()
+{
+    FOREACH (auto pair, Parameters) {
+        pair.second->SetDefaults();
+    }
+    DoOverrideDefaults();
+}
+
+void TYsonSerializableLite::DoValidate() const  
 { }
 
 void TYsonSerializableLite::OnLoaded()
+{ }
+
+void TYsonSerializableLite::DoOverrideDefaults()
 { }
 
 void TYsonSerializableLite::Save(IYsonConsumer* consumer) const

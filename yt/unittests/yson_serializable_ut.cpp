@@ -57,7 +57,10 @@ struct TTestConfig
         Register("sub", Subconfig).DefaultNew();
         Register("sub_list", SubconfigList).Default();
         Register("sub_map", SubconfigMap).Default();
+    }
 
+    virtual void DoOverrideDefaults() override
+    {
         Subconfig->MyInt = 200;
     }
 };
