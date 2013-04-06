@@ -167,7 +167,7 @@ void ResolveYPath(
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::ResolveError,
-                "Error resolving path: %s",
+                "Error resolving path %s",
                 ~path)
                 << TErrorAttribute("verb", ~verb)
                 << TErrorAttribute("resolved_path", TRawString(ComputeResolvedYPath(path, currentPath)))

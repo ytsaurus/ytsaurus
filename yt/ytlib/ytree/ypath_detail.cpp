@@ -375,8 +375,8 @@ TFuture< TValueOrError<TYsonString> > TSupportsAttributes::DoGetAttribute(const 
 
         auto ysonOrError = DoFindAttribute(key);
         if (!ysonOrError) {
-            return MakeFuture(TValueOrError<TYsonString>(TError("Attribute is not found: %s",
-                ~ToYPathLiteral(key))));
+            return MakeFuture(TValueOrError<TYsonString>(TError("Attribute %s is not found",
+                ~ToYPathLiteral(key).Quote())));
         }
 
         if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {

@@ -48,8 +48,8 @@ IYPathService::TResolveResult TVirtualMapBase::ResolveRecursive(
             return TResolveResult::Here(path);
         }
         // TODO(babenko): improve diagnostics
-        THROW_ERROR_EXCEPTION("Node has no child with key: %s",
-            ~ToYPathLiteral(key));
+        THROW_ERROR_EXCEPTION("Node has no child with key %s",
+            ~ToYPathLiteral(key).Quote());
     }
 
     return TResolveResult::There(service, tokenizer.GetSuffix());

@@ -37,42 +37,52 @@ void ThrowInvalidNodeType(IConstNodePtr node, ENodeType expectedType, ENodeType 
 
 void ThrowNoSuchChildKey(IConstNodePtr node, const Stroka& key)
 {
-    THROW_ERROR_EXCEPTION("%s has no child with key: %s",
+    THROW_ERROR_EXCEPTION(
+        NYTree::EErrorCode::ResolveError,
+        "%s has no child with key %s",
         ~GetNodePathHelper(node),
-        ~ToYPathLiteral(key));
+        ~ToYPathLiteral(key).Quote());
 }
 
 void ThrowNoSuchChildIndex(IConstNodePtr node, int index)
 {
-    THROW_ERROR_EXCEPTION("%s has no child with index: %d",
+    THROW_ERROR_EXCEPTION(
+        NYTree::EErrorCode::ResolveError,
+        "%s has no child with index %d",
         ~GetNodePathHelper(node),
         index);
 }
 
 void ThrowNoSuchAttribute(const Stroka& key)
 {
-    THROW_ERROR_EXCEPTION("Attribute is not found: %s",
-        ~ToYPathLiteral(key));
+    THROW_ERROR_EXCEPTION(
+        NYTree::EErrorCode::ResolveError,
+        "Attribute %s is not found",
+        ~ToYPathLiteral(key).Quote());
 }
 
 void ThrowNoSuchUserAttribute(const Stroka& key)
 {
-    THROW_ERROR_EXCEPTION("User attribute is not found: %s",
-        ~ToYPathLiteral(key));
+    THROW_ERROR_EXCEPTION(
+        NYTree::EErrorCode::ResolveError,
+        "User attribute %s is not found",
+        ~ToYPathLiteral(key).Quote());
 }
 
 void ThrowNoSuchSystemAttribute(const Stroka& key)
 {
-    THROW_ERROR_EXCEPTION("System attribute is not found: %s",
-        ~ToYPathLiteral(key));
+    THROW_ERROR_EXCEPTION(
+        NYTree::EErrorCode::ResolveError,
+        "System attribute %s is not found",
+        ~ToYPathLiteral(key).Quote());
 }
 
 void ThrowVerbNotSuppored(const Stroka& verb, const TNullable<Stroka>& resolveType)
 {
     auto error = TError(
         NRpc::EErrorCode::NoSuchVerb,
-        "Verb is not supported: %s",
-        ~verb);
+        "Verb %s is not supported",
+        ~verb.Quote());
     if (resolveType) {
         error.Attributes().Set("resolve_type", resolveType.Get());
     }
@@ -93,14 +103,14 @@ void ThrowAlreadyExists(IConstNodePtr node)
 
 void ThrowCannotRemoveAttribute(const Stroka& key)
 {
-    THROW_ERROR_EXCEPTION("Attribute cannot be removed: %s",
-        ~NYPath::ToYPathLiteral(key));
+    THROW_ERROR_EXCEPTION("Attribute %s cannot be removed",
+        ~ToYPathLiteral(key).Quote());
 }
 
 void ThrowCannotSetSystemAttribute(const Stroka& key)
 {
-    THROW_ERROR_EXCEPTION("System attribute cannot be set: %s",
-        ~NYPath::ToYPathLiteral(key));
+    THROW_ERROR_EXCEPTION("System attribute %s cannot be set",
+        ~ToYPathLiteral(key).Quote());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
