@@ -402,9 +402,15 @@ template <class T>
 NConfig::TParameter<T>& TYsonSerializableLite::Register(const Stroka& parameterName, T& value)
 {
     auto parameter = New< NConfig::TParameter<T> >(value);
-    YCHECK(Parameters.insert(
-        std::pair<Stroka, NConfig::IParameterPtr>(parameterName, parameter)).second);
+    YCHECK(Parameters.insert(std::pair<Stroka, NConfig::IParameterPtr>(parameterName, parameter)).second);
     return *parameter;
+}
+
+template <class F>
+void TYsonSerializableLite::RegisterInitializer(const F& func)
+{
+    func();
+    Initializers.push_back(BIND(func));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

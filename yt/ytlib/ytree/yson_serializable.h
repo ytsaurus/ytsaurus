@@ -99,10 +99,12 @@ public:
 protected:
     virtual void DoValidate() const;
     virtual void OnLoaded();
-    virtual void DoOverrideDefaults();
 
     template <class T>
     NConfig::TParameter<T>& Register(const Stroka& parameterName, T& value);
+
+    template <class F>
+    void RegisterInitializer(const F& func);
 
 private:
     template <class T>
@@ -112,6 +114,8 @@ private:
 
     TParameterMap Parameters;
     NYTree::IMapNodePtr Options;
+
+    std::vector<TClosure> Initializers;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

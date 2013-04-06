@@ -83,16 +83,15 @@ void TYsonSerializableLite::SetDefaults()
     FOREACH (auto pair, Parameters) {
         pair.second->SetDefaults();
     }
-    DoOverrideDefaults();
+    FOREACH (const auto& initializer, Initializers) {
+        initializer.Run();
+    }
 }
 
 void TYsonSerializableLite::DoValidate() const  
 { }
 
 void TYsonSerializableLite::OnLoaded()
-{ }
-
-void TYsonSerializableLite::DoOverrideDefaults()
 { }
 
 void TYsonSerializableLite::Save(IYsonConsumer* consumer) const

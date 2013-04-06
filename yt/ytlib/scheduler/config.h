@@ -32,13 +32,12 @@ struct TJobIOConfig
             .DefaultNew();
         Register("error_file_writer", ErrorFileWriter)
             .DefaultNew();
-    }
 
-    virtual void DoOverrideDefaults() override
-    {
-        ErrorFileWriter->ReplicationFactor = 1;
-        ErrorFileWriter->UploadReplicationFactor = 1;
-        ErrorFileWriter->ChunkVital = false;
+        RegisterInitializer([&] () {
+            ErrorFileWriter->ReplicationFactor = 1;
+            ErrorFileWriter->UploadReplicationFactor = 1;
+            ErrorFileWriter->ChunkVital = false;
+        });
     }
 };
 
@@ -153,13 +152,10 @@ struct TMapOperationSpec
             .Default(TDuration::Seconds(5));
         Register("job_io", JobIO)
             .DefaultNew();
-    }
 
-    virtual void DoOverrideDefaults() override
-    {
-        TOperationSpecBase::DoOverrideDefaults();
-
-        JobIO->TableReader->PrefetchWindow = 10;
+        RegisterInitializer([&] () {
+            JobIO->TableReader->PrefetchWindow = 10;
+        });
     }
 };
 
@@ -233,11 +229,11 @@ struct TMergeOperationSpec
 struct TUnorderedMergeOperationSpec
     : public TMergeOperationSpec
 {
-    virtual void DoOverrideDefaults() override
+    TUnorderedMergeOperationSpec()
     {
-        TMergeOperationSpec::DoOverrideDefaults();
-
-        JobIO->TableReader->PrefetchWindow = 10;
+        RegisterInitializer([&] () {
+            JobIO->TableReader->PrefetchWindow = 10;
+        });
     }
 };
 
@@ -402,18 +398,15 @@ struct TSortOperationSpec
             .Default(TDuration::Seconds(5));
         Register("merge_locality_timeout", MergeLocalityTimeout)
             .Default(TDuration::Minutes(1));
-    }
 
-    virtual void DoOverrideDefaults() override
-    {
-        TSortOperationSpecBase::DoOverrideDefaults();
+        RegisterInitializer([&] () {
+            PartitionJobIO->TableReader->PrefetchWindow = 10;
+            PartitionJobIO->TableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GB
 
-        PartitionJobIO->TableReader->PrefetchWindow = 10;
-        PartitionJobIO->TableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GB
+            SortJobIO->TableReader->PrefetchWindow = 10;
 
-        SortJobIO->TableReader->PrefetchWindow = 10;
-
-        MapSelectivityFactor = 1.0;
+            MapSelectivityFactor = 1.0;
+        });
     }
 };
 
@@ -474,6 +467,13 @@ struct TMapReduceOperationSpec
         //   SimpleSortLocalityTimeout
         //   SimpleMergeLocalityTimeout
         //   MapSelectivityFactor
+
+        RegisterInitializer([&] () {
+            MapJobIO->TableReader->PrefetchWindow = 10;
+            MapJobIO->TableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GB
+
+            SortJobIO->TableReader->PrefetchWindow = 10;           
+        });
     }
 
     virtual void OnLoaded() override
@@ -481,16 +481,6 @@ struct TMapReduceOperationSpec
         if (ReduceBy.empty()) {
             ReduceBy = SortBy;
         }
-    }
-
-    virtual void DoOverrideDefaults() override
-    {
-        TSortOperationSpecBase::DoOverrideDefaults();
-
-        MapJobIO->TableReader->PrefetchWindow = 10;
-        MapJobIO->TableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GB
-
-        SortJobIO->TableReader->PrefetchWindow = 10;
     }
 };
 
