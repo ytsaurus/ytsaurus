@@ -128,6 +128,16 @@ TIntrusivePtr<T> UpdateYsonSerializable(
     TIntrusivePtr<T> obj,
     NYTree::INodePtr patch);
 
+template <class T>
+bool ReconfigureYsonSerializable(
+    TIntrusivePtr<T> config,
+    const NYTree::TYsonString& newConfigYson);
+
+template <class T>
+bool ReconfigureYsonSerializable(
+    TIntrusivePtr<T> config,
+    NYTree::INodePtr newConfigNode);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

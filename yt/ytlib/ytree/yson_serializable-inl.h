@@ -364,6 +364,33 @@ TIntrusivePtr<T> UpdateYsonSerializable(
     }
 }
 
+template <class T>
+bool ReconfigureYsonSerializable(
+    TIntrusivePtr<T> config,
+    const NYTree::TYsonString& newConfigYson)
+{
+    auto newConfig = ConvertToNode(newConfigYson);
+    return ReconfigureYsonSerializable(config, newConfig);
+}
+
+template <class T>
+bool ReconfigureYsonSerializable(
+    TIntrusivePtr<T> config,
+    NYTree::INodePtr newConfigNode)
+{
+    auto configNode = ConvertToNode(config);
+
+    auto newConfig = ConvertTo< TIntrusivePtr<T>>(newConfigNode);
+    auto newCanonicalConfigNode = ConvertToNode(newConfig);
+
+    if (NYTree::AreNodesEqual(configNode, newCanonicalConfigNode)) {
+        return false;
+    }
+
+    config->Load(newConfigNode);
+    return true;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
