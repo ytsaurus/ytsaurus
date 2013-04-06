@@ -4,6 +4,7 @@ set( SRCS
   ${BASE}/fiber.cpp
 )
 set( HDRS
+  ${BASE}/coroutine.h
   ${BASE}/fiber.h
 )
 

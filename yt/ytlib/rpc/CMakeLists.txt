@@ -22,6 +22,7 @@ set( HDRS
   ${BASE}/channel.h
   ${BASE}/channel_cache.h
   ${BASE}/client.h
+  ${BASE}/config.h
   ${BASE}/dispatcher.h
   ${BASE}/message.h
   ${BASE}/private.h
@@ -34,7 +35,6 @@ set( HDRS
   ${BASE}/server.h
   ${BASE}/server_detail.h
   ${BASE}/service.h
-  ${BASE}/config.h
 )
 
 list(APPEND YT_SOURCE_FILES

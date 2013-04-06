@@ -6,10 +6,10 @@ set( SRCS
 )
 set( HDRS
   ${BASE}/account_ypath_proxy.h
-  ${BASE}/user_ypath_proxy.h
   ${BASE}/group_ypath_proxy.h
   ${BASE}/public.h
   ${BASE}/rpc_helpers.h
+  ${BASE}/user_ypath_proxy.h
 )
 
 list(APPEND YT_SOURCE_FILES

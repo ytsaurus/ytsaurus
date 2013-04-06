@@ -8,8 +8,8 @@ set( SRCS
   ${BASE}/private.cpp
 )
 set( HDRS
-  ${BASE}/config.h
   ${BASE}/chunk_meta_extensions.h
+  ${BASE}/config.h
   ${BASE}/file_chunk_output.h
   ${BASE}/file_reader.h
   ${BASE}/file_reader_base.h

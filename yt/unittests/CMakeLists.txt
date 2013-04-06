@@ -9,10 +9,12 @@ set( SRCS
   ${BASE}/callback_ut.cpp
   ${BASE}/change_log_ut.cpp
   ${BASE}/compression_ut.cpp
+  ${BASE}/coroutines_ut.cpp
   ${BASE}/dsv_parser_ut.cpp
   ${BASE}/dsv_writer_ut.cpp
   ${BASE}/enum_ut.cpp
   ${BASE}/erasure_ut.cpp
+  ${BASE}/fibers_ut.cpp
   ${BASE}/foreach_ut.cpp
   ${BASE}/guid_ut.cpp
   ${BASE}/heap_ut.cpp
@@ -36,6 +38,7 @@ set( SRCS
   ${BASE}/small_string_ut.cpp
   ${BASE}/small_vector_ut.cpp
   ${BASE}/snapshot_ut.cpp
+  ${BASE}/stdafx.cpp
   ${BASE}/thread_affinity_ut.cpp
   ${BASE}/tree_builder_ut.cpp
   ${BASE}/url_ut.cpp
@@ -55,8 +58,6 @@ set( SRCS
   ${BASE}/ytree_fluent_ut.cpp
   ${BASE}/yverify_ut.cpp
   ${BASE}/zigzag_ut.cpp
-  ${BASE}/fibers_ut.cpp
-  ${BASE}/coroutines_ut.cpp
 )
 
 protoc( rpc_ut.proto SRCS )
