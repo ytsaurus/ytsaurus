@@ -381,10 +381,10 @@ bool ReconfigureYsonSerializable(
     TIntrusivePtr<T> config,
     NYTree::INodePtr newConfigNode)
 {
-    auto configNode = ConvertToNode(config);
+    auto configNode = NYTree::ConvertToNode(config);
 
-    auto newConfig = ConvertTo< TIntrusivePtr<T>>(newConfigNode);
-    auto newCanonicalConfigNode = ConvertToNode(newConfig);
+    auto newConfig = NYTree::ConvertTo< TIntrusivePtr<T>>(newConfigNode);
+    auto newCanonicalConfigNode = NYTree::ConvertToNode(newConfig);
 
     if (NYTree::AreNodesEqual(configNode, newCanonicalConfigNode)) {
         return false;
