@@ -105,7 +105,7 @@ void Serialize(const TYsonSerializableLite& value, IYsonConsumer* consumer)
 
 void Deserialize(TYsonSerializableLite& value, INodePtr node)
 {
-    value.Load(node, false);
+    value.Load(node);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
