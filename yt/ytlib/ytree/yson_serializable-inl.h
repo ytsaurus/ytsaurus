@@ -16,6 +16,8 @@
 
 #include <ytlib/ypath/token.h>
 
+#include <ytlib/ytree/ypath_client.h>
+
 #include <ytlib/actions/bind.h>
 
 #include <util/datetime/base.h>
