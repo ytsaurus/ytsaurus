@@ -42,8 +42,7 @@ void Lz4Compress(bool highCompression, StreamSource* source, TBlob* output)
         header.InputSize = len;
         if (highCompression) {
             header.OutputSize = LZ4_compressHC(input, output->Begin() + currentPos, len);
-        }
-        else {
+        } else {
             header.OutputSize = LZ4_compress(input, output->Begin() + currentPos, len);
         }
         YCHECK(header.OutputSize >= 0);

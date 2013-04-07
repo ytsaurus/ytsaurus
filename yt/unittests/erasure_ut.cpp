@@ -188,14 +188,11 @@ TEST_F(TErasureMixture, WriterTest)
         Stroka filename = "block" + ToString(i + 1);
         if (i == 0) {
             EXPECT_EQ(Stroka("ab"), TFileInput("block" + ToString(i + 1)).ReadAll());
-        }
-        else if (i == 1) {
+        } else if (i == 1) {
             EXPECT_EQ(Stroka("Hello world"), TFileInput("block" + ToString(i + 1)).ReadAll());
-        }
-        else if (i < 12) {
+        } else if (i < 12) {
             EXPECT_EQ("", TFileInput("block" + ToString(i + 1)).ReadAll());
-        }
-        else {
+        } else {
             EXPECT_EQ(64, TFileInput("block" + ToString(i + 1)).ReadAll().Size());
         }
     }

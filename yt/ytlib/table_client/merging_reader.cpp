@@ -94,8 +94,7 @@ public:
 
         if (ReaderHeap.empty()) {
             return NULL;
-        }
-        else {
+        } else {
             return &(ReaderHeap.front()->CurrentReader()->GetRow());
         }
     }

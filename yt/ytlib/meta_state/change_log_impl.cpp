@@ -504,8 +504,7 @@ void TChangeLog::TImpl::ReadChangeLogUntilEnd()
     if (Index.empty()) {
         RecordCount = 0;
         CurrentFilePosition = sizeof(TLogHeader);
-    }
-    else {
+    } else {
         // Record count would be set below.
         CurrentFilePosition = Index.back().FilePosition;
     }

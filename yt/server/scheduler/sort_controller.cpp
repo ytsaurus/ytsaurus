@@ -1239,8 +1239,7 @@ protected:
                 TotalInputDataSize,
                 Spec->DataSizePerPartitionJob.Get(TotalInputDataSize),
                 Spec->PartitionJobCount);
-        }
-        else {
+        } else {
             // Experiments show that this number is suitable as default
             // both for partition count and for partition job count.
             int partitionCount = GetEmpiricalParitionCount(TotalInputDataSize);

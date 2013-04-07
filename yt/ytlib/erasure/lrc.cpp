@@ -201,12 +201,11 @@ bool TLrc::CanRepair(const TBlockIndexList& erasedIndices)
     auto totalBlockCount = BlockCount_ + ParityCount_;
     if (totalBlockCount <= BITMASK_OPTIMIZATION_THRESHOLD) {
         int mask = (1 << (totalBlockCount)) - 1;
-        FOREACH(int index, erasedIndices) {
+        FOREACH (int index, erasedIndices) {
             mask -= (1 << index);
         }
         return CanRepair_[mask];
-    }
-    else {
+    } else {
         return CalculateCanRepair(erasedIndices);
     }
 }

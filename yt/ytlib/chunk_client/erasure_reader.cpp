@@ -118,8 +118,7 @@ public:
             for (int i = 0; i < dataRefs.size(); ++i) {
                 Result_[indicesInPart[i]] = dataRefs[i];
             }
-        }
-        else {
+        } else {
             TGuard<TSpinLock> guard(AddReadErrorLock_);
             ReadErrors_.push_back(readResult);
         }
@@ -128,8 +127,7 @@ public:
     void OnComplete() {
         if (ReadErrors_.empty()) {
             ResultPromise_.Set(Result_);
-        }
-        else {
+        } else {
             auto error = TError("Failed read erasure chunk");
             error.InnerErrors() = ReadErrors_;
             ResultPromise_.Set(error);
@@ -300,8 +298,7 @@ private:
             if (endIndex == block.Size()) {
                 Blocks_.pop_front();
                 FirstBlockOffset_ = 0;
-            }
-            else {
+            } else {
                 break;
             }
         }
@@ -499,8 +496,7 @@ TAsyncError TRepairReader::Repair(const std::vector<TSharedRef>& aliveWindows)
 
     if (RepairedBlocksQueue_.empty()) {
         return RepairIfNeeded();
-    }
-    else {
+    } else {
         return MakePromise(TError());
     }
 }

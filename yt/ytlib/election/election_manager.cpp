@@ -143,8 +143,7 @@ private:
         {
             LOG_INFO("Follower %d is up, first success", id);
             ElectionManager->PotentialFollowers.erase(id);
-        }
-        else if (ElectionManager->AliveFollowers.find(id) ==
+        } else if (ElectionManager->AliveFollowers.find(id) ==
                  ElectionManager->AliveFollowers.end())
         {
             LOG_INFO("Follower %d is up", id);

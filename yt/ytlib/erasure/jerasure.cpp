@@ -168,14 +168,12 @@ std::vector<TSharedRef> BitMatrixDecode(
             repaired[erasureNumber] = TSharedRef::Allocate(blockLength, false);
             ref = repaired[erasureNumber].Begin();
             erasureNumber += 1;
-        }
-        else {
+        } else {
             ref = const_cast<char*>(blocks[blockNumber++].Begin());
         }
         if (i < blockCount) {
             blockPointers.push_back(ref);
-        }
-        else {
+        } else {
             parityPointers.push_back(ref);
         }
     }

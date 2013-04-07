@@ -112,19 +112,16 @@ void TYamredDsvWriter::RememberValue(const TStringBuf& value)
     {
         YASSERT(KeyFields.count(Key) == 0);
         KeyFields[Key] = value;
-    }
-    else if (
+    } else if (
         SubkeyFields.size() != SubkeyColumnNames.size() &&
         SubkeyColumnNames.count(Key))
     {
         YASSERT(SubkeyFields.count(Key) == 0);
         SubkeyFields[Key] = value;
-    }
-    else {
+    } else {
         if (IsValueEmpty) {
             IsValueEmpty = false;
-        }
-        else {
+        } else {
             ValueBuffer.Write(Config->FieldSeparator);
         }
 

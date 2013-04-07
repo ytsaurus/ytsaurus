@@ -429,12 +429,10 @@ void Serialize(const NProto::TReadLimit& readLimit, NYson::IYsonConsumer* consum
     if (readLimit.has_row_index()) {
         consumer->OnKeyedItem("row_index");
         consumer->OnIntegerScalar(readLimit.row_index());
-    }
-    else if (readLimit.has_chunk_index()) {
+    } else if (readLimit.has_chunk_index()) {
         consumer->OnKeyedItem("chunk_index");
         consumer->OnIntegerScalar(readLimit.chunk_index());
-    }
-    else if (readLimit.has_key()) {
+    } else if (readLimit.has_key()) {
         consumer->OnKeyedItem("key");
         consumer->OnBeginList();
         FOREACH (const auto& part, readLimit.key().parts()) {
@@ -472,14 +470,12 @@ void Deserialize(NProto::TReadLimit& readLimit, INodePtr node)
             THROW_ERROR_EXCEPTION("Unexpected row index token: %s", ~child->GetType().ToString());
         }
         readLimit.set_row_index(child->GetValue<i64>());
-    }
-    else if (auto child = mapNode->FindChild("chunk_index")) {
+    } else if (auto child = mapNode->FindChild("chunk_index")) {
         if (child->GetType() != ENodeType::Integer) {
             THROW_ERROR_EXCEPTION("Unexpected chunk index token: %s", ~child->GetType().ToString());
         }
         readLimit.set_chunk_index(child->GetValue<i64>());
-    }
-    else if (auto child = mapNode->FindChild("key")) {
+    } else if (auto child = mapNode->FindChild("key")) {
         if (child->GetType() != ENodeType::List) {
             THROW_ERROR_EXCEPTION("Unexpected key token: %s", ~child->GetType().ToString());
         }

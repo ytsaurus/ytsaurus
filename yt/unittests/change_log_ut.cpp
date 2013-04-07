@@ -118,8 +118,7 @@ protected:
             TBlob data(newFileSize - changeLogFile.GetLength());
             std::fill(data.Begin(), data.End(), -1);
             changeLogFile.Write(data.Begin(), data.Size());
-        }
-        else {
+        } else {
             // Truncate file.
             TFile changeLogFile(TemporaryFile->Name(), RdWr);
             changeLogFile.Resize(newFileSize);
@@ -287,8 +286,7 @@ TEST_F(TChangeLogTest, DISABLED_Profiling)
             std::cerr << "Make changelog of size " << recordsCount <<
                 ", with blob of size " << sizeof(ui32) <<
                 ", time " << ToString(timer.GetElapsed()) << std::endl;
-        }
-        else {
+        } else {
             recordsCount = 50;
             NProfiling::TScopedTimer timer;
             TChangeLogPtr changeLog = CreateChangeLog<BigStruct>(recordsCount);

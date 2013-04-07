@@ -155,8 +155,7 @@ const char* TDsvParser::Consume(const char* begin, const char* end)
         Consumer->OnStringScalar(CurrentToken);
         State = EState::InsideKey;
         FieldCount += 1;
-    }
-    else {
+    } else {
         YUNREACHABLE();
     }
 

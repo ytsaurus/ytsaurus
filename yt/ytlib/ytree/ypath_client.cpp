@@ -540,8 +540,7 @@ INodePtr UpdateNode(INodePtr base, INodePtr patch)
             if (baseMap->FindChild(key)) {
                 resultMap->RemoveChild(key);
                 resultMap->AddChild(UpdateNode(baseMap->GetChild(key), patchMap->GetChild(key)), key);
-            }
-            else {
+            } else {
                 resultMap->AddChild(CloneNode(patchMap->GetChild(key)), key);
             }
         }
