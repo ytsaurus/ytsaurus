@@ -3,18 +3,20 @@
 
 // libcoro asserts that coro_create() is not thread-safe nor reenterant function.
 #ifdef _unix_
-#include <pthread.h>
-#define DEFINE_FIBER_CTOR_MUTEX() \
-    static pthread_mutex_t FiberCtorMutex = PTHREAD_MUTEX_INITIALIZER;
-#define BEFORE_FIBER_CTOR() pthread_mutex_lock(&FiberCtorMutex)
-#define AFTER_FIBER_CTOR() pthread_mutex_unlock(&FiberCtorMutex)
+    #include <pthread.h>
+    #define DEFINE_FIBER_CTOR_MUTEX() \
+        static pthread_mutex_t FiberCtorMutex = PTHREAD_MUTEX_INITIALIZER;
+    #define BEFORE_FIBER_CTOR() pthread_mutex_lock(&FiberCtorMutex)
+    #define AFTER_FIBER_CTOR() pthread_mutex_unlock(&FiberCtorMutex)
 #else
-#define DEFINE_FIBER_CTOR_MUTEX()
-#define BEFORE_FIBER_CTOR()
-#define AFTER_FIBER_CTOR()
+    #define DEFINE_FIBER_CTOR_MUTEX()
+    #define BEFORE_FIBER_CTOR()
+    #define AFTER_FIBER_CTOR()
 #endif
 
 namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
 
 namespace {
     // Stack sizes are given in machine words.
@@ -25,7 +27,7 @@ namespace {
     TFiberPtr FiberMain;
 
     DEFINE_FIBER_CTOR_MUTEX();
-}
+} // namespace
 
 TFiber::TFiber()
     : State_(EState::Running)
@@ -110,7 +112,7 @@ void TFiber::Run()
     rawCaller = Caller.Get();
     YCHECK(rawCaller->State_ == EState::Running);
     TFiber::SetCurrent(this);
-    Caller->SwitchTo(*this);
+    Caller->SwitchTo(this);
     TFiber::SetCurrent(std::move(Caller));
     YCHECK(State_ == EState::Suspended || State_ == EState::Terminated);
     YCHECK(rawCaller->State_ == EState::Running);
@@ -130,12 +132,7 @@ void TFiber::Inject(std::exception_ptr ex)
     YUNIMPLEMENTED();
 }
 
-void TFiber::SwitchTo(TFiber& target)
-{
-    coro_transfer(&CoroContext, &target.CoroContext);
-}
-
-void TFiber::SwitchTo(const TFiberPtr& target)
+void TFiber::SwitchTo(TFiber* target)
 {
     coro_transfer(&CoroContext, &target->CoroContext);
 }
@@ -152,6 +149,7 @@ void TFiber::Trampoline(void* arg)
         fiber->Callee.Run();
         YASSERT(fiber->State_ == EState::Running);
     } catch (const std::exception& ex) {
+        // TODO(babenko): use an appropriate trap from assert.h
         fprintf(
             stderr,
             "*** Uncaught exception in TFiber: %s\n",
@@ -163,6 +161,8 @@ void TFiber::Trampoline(void* arg)
     fiber->SwitchTo(fiber->Caller.Get());
     YUNREACHABLE();
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 }
 

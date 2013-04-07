@@ -2,20 +2,26 @@
 
 #include <ytlib/misc/common.h>
 #include <ytlib/misc/property.h>
+
 #include <ytlib/actions/callback.h>
 
 #include <contrib/libcoro/coro.h>
-#ifdef _unix_
-#ifndef CORO_ASM
-#error "Using slow libcoro backend."
-#endif
+
+#if defined(_unix_) && !defined(CORO_ASM)
+    #error "Using slow libcoro backend"
 #endif
 
 #include <exception>
 #include <stdexcept>
 
+// You like WinAPI, don't you? :)
+#undef Yield
+
 namespace NYT {
 
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO(babenko): move to public.h
 class TFiber;
 typedef TIntrusivePtr<TFiber> TFiberPtr;
 
@@ -39,11 +45,13 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(EState, State);
 
 public:
+    // TODO(babenko): DECLARE_ENUM?
     enum EStack {
         SmallStack,
         LargeStack
     };
 
+    // TODO(babenko): explicit?
     TFiber(TClosure closure, EStack stack = SmallStack);
     virtual ~TFiber();
 
@@ -65,11 +73,11 @@ private:
     coro_context CoroContext;
     coro_stack CoroStack;
 
-    void SwitchTo(TFiber& target);
-    void SwitchTo(const TFiberPtr& target);
+    void SwitchTo(TFiber* target);
 
     static void Trampoline(void* arg);
 };
 
-}
+////////////////////////////////////////////////////////////////////////////////
 
+}
