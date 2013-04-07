@@ -17,7 +17,7 @@ protected:
     virtual void Trampoline() = 0;
 
 public:
-    TFiber::EState GetState() const
+    EFiberState GetState() const
     {
         return Fiber->GetState();
     }

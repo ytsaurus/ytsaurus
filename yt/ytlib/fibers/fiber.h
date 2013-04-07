@@ -5,17 +5,21 @@
 
 #include <ytlib/actions/callback.h>
 
-#include <contrib/libcoro/coro.h>
-
 #if defined(_unix_) && !defined(CORO_ASM)
-    #error "Using slow libcoro backend"
+#    error "Using slow libcoro backend (expecting CORO_ASM)"
 #endif
+#if defined(_win_)
+#    if !defined(CORO_FIBER)
+#        error "Using slow libcoro backend (expecting CORO_FIBER)"
+#    endif
+// You like WinAPI, don't you? :)
+#    undef Yield
+#endif
+
+#include <contrib/libcoro/coro.h>
 
 #include <exception>
 #include <stdexcept>
-
-// You like WinAPI, don't you? :)
-#undef Yield
 
 namespace NYT {
 
@@ -24,6 +28,18 @@ namespace NYT {
 // TODO(babenko): move to public.h
 class TFiber;
 typedef TIntrusivePtr<TFiber> TFiberPtr;
+
+DECLARE_ENUM(EFiberState,
+    (Initialized) // Initialized, but not run.
+    (Suspended) // Currently suspended.
+    (Running) // Currently executing.
+    (Terminated) // Terminated.
+);
+
+DECLARE_ENUM(EFiberStack,
+    (Small)
+    (Large)
+);
 
 // TODO(sandello): Proper support of exceptions in fibers.
 // TODO(sandello): Substitutive yield.
@@ -35,30 +51,15 @@ private:
     friend TIntrusivePtr<TFiber> New<TFiber>();
 
 public:
-    DECLARE_ENUM(EState,
-        (Initialized) // Initialized, but not run.
-        (Suspended) // Currently suspended.
-        (Running) // Currently executing.
-        (Terminated) // Terminated.
-    );
-
-    DEFINE_BYVAL_RO_PROPERTY(EState, State);
-
-public:
-    // TODO(babenko): DECLARE_ENUM?
-    enum EStack {
-        SmallStack,
-        LargeStack
-    };
-
-    // TODO(babenko): explicit?
-    TFiber(TClosure closure, EStack stack = SmallStack);
+    explicit TFiber(TClosure closure, EFiberStack stack = EFiberStack::Small);
     virtual ~TFiber();
 
     static TFiberPtr GetCurrent();
     static void SetCurrent(TFiberPtr fiber);
 
     static void Yield();
+
+    DEFINE_BYVAL_RO_PROPERTY(EFiberState, State);
 
     void Run();
     void Reset(TClosure closure);

@@ -16,8 +16,8 @@ void Fiber1(TFiberPtr main, TFiber* self, int* p)
     EXPECT_EQ(1, *p);
     EXPECT_EQ(TFiber::GetCurrent(), self);
     EXPECT_NE(TFiber::GetCurrent(), main);
-    EXPECT_EQ(self->GetState(), TFiber::EState::Running);
-    EXPECT_EQ(main->GetState(), TFiber::EState::Running);
+    EXPECT_EQ(self->GetState(), EFiberState::Running);
+    EXPECT_EQ(main->GetState(), EFiberState::Running);
 
     TFiber::Yield();
 
@@ -25,8 +25,8 @@ void Fiber1(TFiberPtr main, TFiber* self, int* p)
     EXPECT_EQ(3, *p);
     EXPECT_EQ(TFiber::GetCurrent(), self);
     EXPECT_NE(TFiber::GetCurrent(), main);
-    EXPECT_EQ(self->GetState(), TFiber::EState::Running);
-    EXPECT_EQ(main->GetState(), TFiber::EState::Running);
+    EXPECT_EQ(self->GetState(), EFiberState::Running);
+    EXPECT_EQ(main->GetState(), EFiberState::Running);
 }
 
 TEST(TFiberTest, Simple)
@@ -41,24 +41,24 @@ TEST(TFiberTest, Simple)
 
     EXPECT_EQ(0, v);
     EXPECT_EQ(TFiber::GetCurrent(), main);
-    EXPECT_EQ(main->GetState(), TFiber::EState::Running);
-    EXPECT_EQ(self->GetState(), TFiber::EState::Initialized);
+    EXPECT_EQ(main->GetState(), EFiberState::Running);
+    EXPECT_EQ(self->GetState(), EFiberState::Initialized);
 
     self->Run();
     ++v;
 
     EXPECT_EQ(2, v);
     EXPECT_EQ(TFiber::GetCurrent(), main);
-    EXPECT_EQ(main->GetState(), TFiber::EState::Running);
-    EXPECT_EQ(self->GetState(), TFiber::EState::Suspended);
+    EXPECT_EQ(main->GetState(), EFiberState::Running);
+    EXPECT_EQ(self->GetState(), EFiberState::Suspended);
 
     self->Run();
     ++v;
 
     EXPECT_EQ(4, v);
     EXPECT_EQ(TFiber::GetCurrent(), main);
-    EXPECT_EQ(main->GetState(), TFiber::EState::Running);
-    EXPECT_EQ(self->GetState(), TFiber::EState::Terminated);
+    EXPECT_EQ(main->GetState(), EFiberState::Running);
+    EXPECT_EQ(self->GetState(), EFiberState::Terminated);
 }
 
 void Fiber2A(TFiberPtr main, TFiber* fibA, TFiber* fibB, int* p)
@@ -68,9 +68,9 @@ void Fiber2A(TFiberPtr main, TFiber* fibA, TFiber* fibB, int* p)
     EXPECT_NE(TFiber::GetCurrent(), main);
     EXPECT_EQ(TFiber::GetCurrent(), fibA);
     EXPECT_NE(TFiber::GetCurrent(), fibB);
-    EXPECT_EQ(main->GetState(), TFiber::EState::Running);
-    EXPECT_EQ(fibA->GetState(), TFiber::EState::Running);
-    EXPECT_EQ(fibB->GetState(), TFiber::EState::Initialized);
+    EXPECT_EQ(main->GetState(), EFiberState::Running);
+    EXPECT_EQ(fibA->GetState(), EFiberState::Running);
+    EXPECT_EQ(fibB->GetState(), EFiberState::Initialized);
 
     fibB->Run();
 
@@ -79,9 +79,9 @@ void Fiber2A(TFiberPtr main, TFiber* fibA, TFiber* fibB, int* p)
     EXPECT_NE(TFiber::GetCurrent(), main);
     EXPECT_EQ(TFiber::GetCurrent(), fibA);
     EXPECT_NE(TFiber::GetCurrent(), fibB);
-    EXPECT_EQ(main->GetState(), TFiber::EState::Running);
-    EXPECT_EQ(fibA->GetState(), TFiber::EState::Running);
-    EXPECT_EQ(fibB->GetState(), TFiber::EState::Terminated);
+    EXPECT_EQ(main->GetState(), EFiberState::Running);
+    EXPECT_EQ(fibA->GetState(), EFiberState::Running);
+    EXPECT_EQ(fibB->GetState(), EFiberState::Terminated);
 }
 
 void Fiber2B(TFiberPtr main, TFiber* fibA, TFiber* fibB, int* p)
@@ -91,9 +91,9 @@ void Fiber2B(TFiberPtr main, TFiber* fibA, TFiber* fibB, int* p)
     EXPECT_NE(TFiber::GetCurrent(), main);
     EXPECT_NE(TFiber::GetCurrent(), fibA);
     EXPECT_EQ(TFiber::GetCurrent(), fibB);
-    EXPECT_EQ(main->GetState(), TFiber::EState::Running);
-    EXPECT_EQ(fibA->GetState(), TFiber::EState::Running);
-    EXPECT_EQ(fibB->GetState(), TFiber::EState::Running);
+    EXPECT_EQ(main->GetState(), EFiberState::Running);
+    EXPECT_EQ(fibA->GetState(), EFiberState::Running);
+    EXPECT_EQ(fibB->GetState(), EFiberState::Running);
 }
 
 TEST(TFiberTest, Nested)
@@ -113,18 +113,18 @@ TEST(TFiberTest, Nested)
 
     EXPECT_EQ(0, v);
     EXPECT_EQ(TFiber::GetCurrent(), main);
-    EXPECT_EQ(main->GetState(), TFiber::EState::Running);
-    EXPECT_EQ(fibA->GetState(), TFiber::EState::Initialized);
-    EXPECT_EQ(fibB->GetState(), TFiber::EState::Initialized);
+    EXPECT_EQ(main->GetState(), EFiberState::Running);
+    EXPECT_EQ(fibA->GetState(), EFiberState::Initialized);
+    EXPECT_EQ(fibB->GetState(), EFiberState::Initialized);
 
     fibA->Run();
     ++v;
 
     EXPECT_EQ(4, v);
     EXPECT_EQ(TFiber::GetCurrent(), main);
-    EXPECT_EQ(main->GetState(), TFiber::EState::Running);
-    EXPECT_EQ(fibA->GetState(), TFiber::EState::Terminated);
-    EXPECT_EQ(fibB->GetState(), TFiber::EState::Terminated);
+    EXPECT_EQ(main->GetState(), EFiberState::Running);
+    EXPECT_EQ(fibA->GetState(), EFiberState::Terminated);
+    EXPECT_EQ(fibB->GetState(), EFiberState::Terminated);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

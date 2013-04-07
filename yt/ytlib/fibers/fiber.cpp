@@ -30,7 +30,7 @@ namespace {
 } // namespace
 
 TFiber::TFiber()
-    : State_(EState::Running)
+    : State_(EFiberState::Running)
 {
     ::memset(&CoroContext, 0, sizeof(CoroContext));
     ::memset(&CoroStack, 0, sizeof(CoroStack));
@@ -40,8 +40,8 @@ TFiber::TFiber()
     AFTER_FIBER_CTOR();
 }
 
-TFiber::TFiber(TClosure closure, EStack stack)
-    : State_(EState::Initialized)
+TFiber::TFiber(TClosure closure, EFiberStack stack)
+    : State_(EFiberState::Initialized)
     , Callee(std::move(closure))
     , Caller(nullptr)
 {
@@ -51,10 +51,10 @@ TFiber::TFiber(TClosure closure, EStack stack)
     size_t stackSize = 0;
     switch (stack)
     {
-        case SmallStack:
+        case EFiberStack::Small:
             stackSize = SmallFiberStackSize;
             break;
-        case LargeStack:
+        case EFiberStack::Large:
             stackSize = LargeFiberStackSize;
             break;
     }
@@ -95,10 +95,10 @@ void TFiber::Yield()
     YASSERT(current);
     YASSERT(current->Caller);
 
-    YCHECK(current->State_ == EState::Running);
-    current->State_ = EState::Suspended;
+    YCHECK(current->State_ == EFiberState::Running);
+    current->State_ = EFiberState::Suspended;
     coro_transfer(&current->CoroContext, &current->Caller->CoroContext);
-    YCHECK(current->State_ == EState::Running);
+    YCHECK(current->State_ == EFiberState::Running);
 }
 
 void TFiber::Run()
@@ -106,25 +106,25 @@ void TFiber::Run()
     YASSERT(!Caller);
 
     TFiber* rawCaller = nullptr;
-    YCHECK(State_ == EState::Initialized || State_ == EState::Suspended);
-    State_ = EState::Running;
+    YCHECK(State_ == EFiberState::Initialized || State_ == EFiberState::Suspended);
+    State_ = EFiberState::Running;
     Caller = TFiber::GetCurrent();
     rawCaller = Caller.Get();
-    YCHECK(rawCaller->State_ == EState::Running);
+    YCHECK(rawCaller->State_ == EFiberState::Running);
     TFiber::SetCurrent(this);
     Caller->SwitchTo(this);
     TFiber::SetCurrent(std::move(Caller));
-    YCHECK(State_ == EState::Suspended || State_ == EState::Terminated);
-    YCHECK(rawCaller->State_ == EState::Running);
+    YCHECK(State_ == EFiberState::Suspended || State_ == EFiberState::Terminated);
+    YCHECK(rawCaller->State_ == EFiberState::Running);
 }
 
 void TFiber::Reset(TClosure closure)
 {
     YCHECK(!Caller);
-    YCHECK(State_ == EState::Initialized);
+    YCHECK(State_ == EFiberState::Initialized);
 
     Callee = std::move(closure);
-    State_ = EState::Initialized;
+    State_ = EFiberState::Initialized;
 }
 
 void TFiber::Inject(std::exception_ptr ex)
@@ -145,9 +145,9 @@ void TFiber::Trampoline(void* arg)
     YASSERT(!fiber->Callee.IsNull());
 
     try {
-        YASSERT(fiber->State_ == EState::Running);
+        YASSERT(fiber->State_ == EFiberState::Running);
         fiber->Callee.Run();
-        YASSERT(fiber->State_ == EState::Running);
+        YASSERT(fiber->State_ == EFiberState::Running);
     } catch (const std::exception& ex) {
         // TODO(babenko): use an appropriate trap from assert.h
         fprintf(
@@ -157,7 +157,7 @@ void TFiber::Trampoline(void* arg)
         abort();
     }
 
-    fiber->State_ = EState::Terminated;
+    fiber->State_ = EFiberState::Terminated;
     fiber->SwitchTo(fiber->Caller.Get());
     YUNREACHABLE();
 }

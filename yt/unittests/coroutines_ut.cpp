@@ -22,13 +22,13 @@ void Coroutine1(TCoroutine<int()>& self)
 TEST(TCoroutineTest, Simple)
 {
     TCoroutine<int()> coro(BIND(&Coroutine1));
-    EXPECT_EQ(coro.GetState(), TFiber::EState::Initialized);
+    EXPECT_EQ(coro.GetState(), EFiberState::Initialized);
 
     int i;
     TNullable<int> actual;
     for (i = 1; /**/; ++i) {
         actual = coro.Run();
-        if (coro.GetState() == TFiber::EState::Terminated) {
+        if (coro.GetState() == EFiberState::Terminated) {
             break;
         }
         EXPECT_TRUE(actual.HasValue());
