@@ -5,6 +5,6 @@ add_library( ytext-coro STATIC
 )
 
 if (WIN32)
-  add_definitions(-DCORO_FIBER)
+  add_definitions(-DCORO_FIBER=1)
 endif()
 
