@@ -54,10 +54,6 @@ using namespace NScheduler::NProto;
 
 ////////////////////////////////////////////////////////////////////
 
-static const double ApproximateSizesBoostFactor = 1.3;
-
-////////////////////////////////////////////////////////////////////
-
 TOperationControllerBase::TTask::TTask(TOperationControllerBase* controller)
     : Controller(controller)
     , CachedPendingJobCount(0)
@@ -145,8 +141,7 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
 {
     int chunkListCount = GetChunkListCountPerJob();
     if (!Controller->HasEnoughChunkLists(chunkListCount)) {
-        LOG_DEBUG("Job chunk list demand is not met (Task: %s)",
-            ~GetId());
+        LOG_DEBUG("Job chunk list demand is not met (Task: %s)", ~GetId());
         return nullptr;
     }
 
@@ -158,21 +153,12 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
     auto* chunkPoolOutput = GetChunkPoolOutput();
     joblet->OutputCookie = chunkPoolOutput->Extract(address);
     if (joblet->OutputCookie == IChunkPoolOutput::NullCookie) {
-        LOG_DEBUG("Job input is empty (Task: %s)",
-            ~GetId());
+        LOG_DEBUG("Job input is empty (Task: %s)", ~GetId());
         return nullptr;
     }
 
     joblet->InputStripeList = chunkPoolOutput->GetStripeList(joblet->OutputCookie);
-
-    // Compute the actual usage for this joblet.
-    // Adjust it if approximation flag is set.
     auto neededResources = GetNeededResources(joblet);
-    if (joblet->InputStripeList->IsApproximate) {
-        neededResources.set_memory(static_cast<i64>(
-            neededResources.memory() *
-            ApproximateSizesBoostFactor));
-    }
 
     // Check the usage against the limits. This is the last chance to give up.
     if (!Dominates(jobLimits, neededResources)) {
@@ -193,19 +179,7 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
     auto this_ = MakeStrong(this);
     auto jobSpecBuilder = BIND([=] (TJobSpec* jobSpec) -> TVoid {
         this_->BuildJobSpec(joblet, jobSpec);
-
         this_->Controller->CustomizeJobSpec(joblet, jobSpec);
-
-        // Adjust sizes if approximation flag is set.
-        if (joblet->InputStripeList->IsApproximate) {
-            jobSpec->set_input_uncompressed_data_size(static_cast<i64>(
-                jobSpec->input_uncompressed_data_size() *
-                ApproximateSizesBoostFactor));
-            jobSpec->set_input_row_count(static_cast<i64>(
-                jobSpec->input_row_count() *
-                ApproximateSizesBoostFactor));
-        }
-
         return TVoid();
     });
 

@@ -16,6 +16,11 @@ using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////
 
+static const double ApproximateSizesBoostFactor = 1.3;
+
+////////////////////////////////////////////////////////////////////////////////
+
+
 TChunkStripe::TChunkStripe()
 { }
 
@@ -908,6 +913,12 @@ private:
             stat.ChunkCount = run.ElementaryIndexEnd - run.ElementaryIndexBegin;
             stat.DataSize = run.TotalDataSize;
             stat.RowCount = run.TotalRowCount;
+
+            if (run.IsApproximate) {
+                stat.DataSize *= ApproximateSizesBoostFactor;
+                stat.RowCount *= ApproximateSizesBoostFactor;
+            }
+
             return result;
         }
 
@@ -1018,6 +1029,11 @@ private:
 
             list->TotalDataSize = run.TotalDataSize;
             list->TotalRowCount = run.TotalRowCount;
+
+            if (run.IsApproximate) {
+                list->TotalDataSize *= ApproximateSizesBoostFactor;
+                list->TotalRowCount *= ApproximateSizesBoostFactor;
+            }
 
             list->LocalChunkCount = 0;
             list->NonLocalChunkCount = list->TotalChunkCount;
