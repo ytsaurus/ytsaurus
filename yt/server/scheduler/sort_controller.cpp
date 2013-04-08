@@ -219,7 +219,6 @@ protected:
         {
             auto resources = Controller->GetPartitionResources(
                 ChunkPool->GetApproximateStripeStatistics());
-            LOG_DEBUG("MIN PART RES %s", ~FormatResources(resources));
             return resources;
         }
 
@@ -227,7 +226,6 @@ protected:
         {
             auto resources = Controller->GetPartitionResources(
                 joblet->InputStripeList->GetStatistics());
-            LOG_DEBUG("PART RES %s", ~FormatResources(resources));
             return resources;
         }
 

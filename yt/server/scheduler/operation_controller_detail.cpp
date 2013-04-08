@@ -1135,11 +1135,14 @@ TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(
                     return job;
                 }
 
-                // If task failed to schedule job, its min resources might have changed.
-                it = candidateTasks.erase(it);
-                candidateTasks.insert(std::make_pair(
-                    task->GetMinNeededResources().memory(),
-                    task));
+                // If task failed to schedule job, its min resources might have been updated.
+                auto minMemory = task->GetMinNeededResources().memory();
+                if (it->first == minMemory) {
+                    ++it;
+                } else {
+                    it = candidateTasks.erase(it);
+                    candidateTasks.insert(std::make_pair(minMemory, task));
+                }
             }
         }
     }
