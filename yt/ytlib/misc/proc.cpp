@@ -210,13 +210,11 @@ void CloseAllDescriptors()
 
     struct dirent *ep;
     while (ep = ::readdir(dp)) {
-        try {
-            int fd = FromString<int>(ep->d_name);
-            if (fd != dirfd) {
-                YCHECK(::close(fd) == 0);
-            }
-        } catch (...) {
-            // Ignore conversion errors, e.g. "." and ".."
+        char* begin = ep->d_name;
+        char* end = nullptr;
+        int fd = static_cast<int>(strtol(begin, &end, 10));
+        if (fd != dirfd && begin != end) {
+            YCHECK(::close(fd) == 0);
         }
     }
 
