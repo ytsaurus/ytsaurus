@@ -28,11 +28,6 @@ TTcpDispatcher* TTcpDispatcher::Get()
     return Singleton<TTcpDispatcher>();
 }
 
-void TTcpDispatcher::Initialize()
-{
-    Impl->Initialize();
-}
-
 void TTcpDispatcher::Shutdown()
 {
     Impl->Shutdown();

@@ -286,9 +286,6 @@ int Main(int argc, const char* argv[])
 {
     NYT::InstallCrashSignalHandler();
 
-    // Call this before setting away root uid.
-    NBus::TTcpDispatcher::Get()->Initialize();
-
 #ifdef _unix_
     sigset_t sigset;
     SigEmptySet(&sigset);
