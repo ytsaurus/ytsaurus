@@ -38,6 +38,7 @@
 #include <yt/build.h>
 
 #include <util/system/sigset.h>
+#include <util/system/execpath.h>
 
 namespace NYT {
 
@@ -285,6 +286,9 @@ EExitCode GuardedMain(int argc, const char* argv[])
 int Main(int argc, const char* argv[])
 {
     NYT::InstallCrashSignalHandler();
+
+    // If you ever try to remove this I will kill you. I promise. /@babenko
+    GetExecPath();
 
 #ifdef _unix_
     sigset_t sigset;
