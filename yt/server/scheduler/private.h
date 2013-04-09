@@ -49,6 +49,8 @@ typedef TIntrusivePtr<TChunkSplitsFetcher> TChunkSplitsFetcherPtr;
 typedef TChunkInfoCollector<TChunkSplitsFetcher> TChunkSplitsCollector;
 typedef TIntrusivePtr<TChunkSplitsCollector> TChunkSplitsCollectorPtr;
 
+extern const double ApproximateSizesBoostFactor;
+
 extern NLog::TLogger SchedulerLogger;
 extern NLog::TLogger OperationLogger;
 extern NProfiling::TProfiler SchedulerProfiler;

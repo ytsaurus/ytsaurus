@@ -180,6 +180,18 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
     auto jobSpecBuilder = BIND([=] (TJobSpec* jobSpec) -> TVoid {
         this_->BuildJobSpec(joblet, jobSpec);
         this_->Controller->CustomizeJobSpec(joblet, jobSpec);
+
+        // Adjust sizes if approximation flag is set.
+        if (joblet->InputStripeList->IsApproximate) {
+            jobSpec->set_input_uncompressed_data_size(static_cast<i64>(
+                jobSpec->input_uncompressed_data_size() *
+                ApproximateSizesBoostFactor));
+
+            jobSpec->set_input_row_count(static_cast<i64>(
+                jobSpec->input_row_count() *
+                ApproximateSizesBoostFactor));
+        }
+
         return TVoid();
     });
 
