@@ -24,9 +24,6 @@ using namespace NChunkClient::NProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = DataNodeLogger;
-static NProfiling::TProfiler& Profiler = DataNodeProfiler;
-
-static NProfiling::TRateCounter WriteThroughputCounter("/write_throughput");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,6 +41,7 @@ TSession::TSession(
     , Size(0)
     , WriteInvoker(CreateSerializedInvoker(Location->GetWriteInvoker()))
     , Logger(DataNodeLogger)
+    , Profiler(location->Profiler())
 {
     YCHECK(bootstrap);
     YCHECK(location);
@@ -82,7 +80,7 @@ void TSession::DoOpenFile()
         catch (const std::exception& ex) {
             OnIOError(TError(
                 NChunkClient::EErrorCode::IOError,
-                "Error creating chunk: %s",
+                "Error creating chunk %s",
                 ~ToString(ChunkId))
                 << ex);
             return;
@@ -269,7 +267,7 @@ TError TSession::DoWriteBlock(const TSharedRef& block, int blockIndex)
             TBlockId blockId(ChunkId, blockIndex);
             OnIOError(TError(
                 NChunkClient::EErrorCode::IOError,
-                "Error writing chunk block: %s",
+                "Error writing chunk block %s",
                 ~blockId.ToString())
                 << ex);
         }
@@ -278,7 +276,7 @@ TError TSession::DoWriteBlock(const TSharedRef& block, int blockIndex)
     LOG_DEBUG("Finished writing block %d", blockIndex);
 
     Profiler.Enqueue("/block_write_size", block.Size());
-    Profiler.Increment(WriteThroughputCounter, block.Size());
+    Profiler.Increment(Location->WriteThroughputCounter(), block.Size());
 
     return Error;
 }

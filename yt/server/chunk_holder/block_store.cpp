@@ -14,18 +14,19 @@
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/data_node_service_proxy.h>
 
+#include <ytlib/ypath/token.h>
+
 namespace NYT {
 namespace NChunkHolder {
 
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
+using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = DataNodeLogger;
 static NProfiling::TProfiler& Profiler = DataNodeProfiler;
-
-static NProfiling::TRateCounter ReadThroughputCounter("/read_throughput");
 static NProfiling::TRateCounter CacheReadThroughputCounter("/cache_read_throughput");
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -81,7 +82,7 @@ public:
                 auto block = New<TCachedBlock>(blockId, data, sourceAddress);
                 cookie.EndInsert(block);
 
-                LOG_DEBUG("Block is put into cache: %s (Size: %" PRISZT ", SourceAddress: %s)",
+                LOG_DEBUG("Block is put into cache (BlockId: %s, Size: %" PRISZT ", SourceAddress: %s)",
                     ~blockId.ToString(),
                     data.Size(),
                     ~ToString(sourceAddress));
@@ -107,7 +108,7 @@ public:
                     ~blockId.ToString());
             }
 
-            LOG_DEBUG("Block is resurrected in cache: %s", ~blockId.ToString());
+            LOG_DEBUG("Block is resurrected in cache (BlockId: %s)", ~blockId.ToString());
 
             return block;
         }
@@ -132,7 +133,7 @@ public:
         if (!chunk) {
             return MakeFuture(TGetBlockResult(TError(
                 NChunkClient::EErrorCode::NoSuchChunk,
-                "No such chunk: %s",
+                "No such chunk %s",
                 ~blockId.ChunkId.ToString())));
         }
 
@@ -148,7 +149,7 @@ public:
             return cookie->GetValue().Apply(BIND(&TStoreImpl::OnCacheHit, MakeStrong(this)));
         }
 
-        LOG_DEBUG("Block cache miss: %s", ~blockId.ToString());
+        LOG_DEBUG("Block cache miss (BlockId: %s)", ~blockId.ToString());
 
         i64 blockSize = -1;
         auto* meta = chunk->GetCachedMeta();
@@ -236,9 +237,11 @@ private:
             blockSize = IncreasePendingSize(chunkMeta, blockId.BlockIndex);
         }
 
-        LOG_DEBUG("Started reading block: %s (LocationId: %s)",
+        auto location = chunk->GetLocation();
+        auto& Profiler = location->Profiler();
+        LOG_DEBUG("Started reading block (BlockId: %s, LocationId: %s)",
             ~blockId.ToString(),
-            ~chunk->GetLocation()->GetId());
+            ~location->GetId());
 
         TSharedRef data;
         PROFILE_TIMING ("/block_read_time") {
@@ -247,7 +250,7 @@ private:
             } catch (const std::exception& ex) {
                 auto error = TError(
                     NChunkClient::EErrorCode::IOError,
-                    "Error reading chunk block: %s",
+                    "Error reading chunk block %s",
                     ~blockId.ToString())
                     << ex;
                 chunk->ReleaseReadLock();
@@ -258,9 +261,9 @@ private:
             }
         }
 
-        LOG_DEBUG("Finished reading block: %s (LocationId: %s)",
+        LOG_DEBUG("Finished reading block (BlockId: %s, LocationId: %s)",
             ~blockId.ToString(),
-            ~chunk->GetLocation()->GetId());
+            ~location->GetId());
 
         chunk->ReleaseReadLock();
 
@@ -269,7 +272,7 @@ private:
         if (!data) {
             cookie->Cancel(TError(
                 NChunkClient::EErrorCode::NoSuchBlock,
-                "No such chunk block: %s",
+                "No such chunk block %s",
                 ~blockId.ToString()));
             return;
         }
@@ -282,13 +285,13 @@ private:
         }
 
         Profiler.Enqueue("/block_read_size", blockSize);
-        Profiler.Increment(ReadThroughputCounter, blockSize);
+        Profiler.Increment(location->ReadThroughputCounter(), blockSize);
     }
 
     void LogCacheHit(TCachedBlockPtr block)
     {
         Profiler.Increment(CacheReadThroughputCounter, block->GetData().Size());
-        LOG_DEBUG("Block cache hit: %s", ~block->GetKey().ToString());
+        LOG_DEBUG("Block cache hit (BlockId: %s)", ~block->GetKey().ToString());
     }
 };
 
