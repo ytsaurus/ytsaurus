@@ -300,7 +300,7 @@ def add_sort_parser(add_parser):
     parser = add_parser("sort", help="sort given tables")
     parser.add_argument("--src", nargs="+", required=True)
     parser.add_argument("--dst", required=True)
-    parser.add_argument("--sort-by", nargs="+", required=True)
+    parser.add_argument("--sort-by", action="append", required=True)
     parser.add_argument("--spec", action=ParseStructuredArgument)
     parser.set_defaults(func=sort)
 
