@@ -126,14 +126,17 @@ class TestYsonParser(unittest.TestCase):
                 "y": {
                     "$value": 11,
                     "$attributes": {}
-                }
+                },
+                "z": u"Брюссельская капуста"
             },
             "$attributes": {
                 "$value": "abc",
                 "$attributes": {}
             }
         })
-        self.assertEqual(x, {"x": 10, "y": 11})
+
+        z = str(bytearray(u"Брюссельская капуста", "utf-8"))
+        self.assertEqual(x, {"x": 10, "y": 11, "z": z})
         self.assertEqual(x.attributes, "abc")
 
         self.assertEqual(yson_types.convert_to_yson_tree("abc"), "abc")

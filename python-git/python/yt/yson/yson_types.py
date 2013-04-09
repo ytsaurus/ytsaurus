@@ -35,7 +35,9 @@ class YsonEntity(YsonType):
     pass
 
 def convert_to_yson_type(value, attributes = None):
-    if isinstance(value, basestring):
+    if isinstance(value, unicode):
+        result = YsonString(str(bytearray(value, 'utf-8')))
+    if isinstance(value, str):
         result = YsonString(value)
     elif isinstance(value, int):
         result = YsonInteger(value)
@@ -56,7 +58,9 @@ def convert_to_yson_type(value, attributes = None):
 def convert_to_yson_tree(json_tree):
     has_attrs = hasattr(json_tree, "__contains__") and "$value" in json_tree
     value = json_tree["$value"] if has_attrs else json_tree
-    if isinstance(value, basestring):
+    if isinstance(value, unicode):
+        result = YsonString(str(bytearray(value, 'utf-8')))
+    elif isinstance(value, str):
         result = YsonString(value)
     elif isinstance(value, int):
         result = YsonInteger(value)
