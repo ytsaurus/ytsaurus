@@ -124,19 +124,20 @@ TAsyncError TChunk::ReadMeta()
 
     auto this_ = MakeStrong(this);
     return
-        BIND([=] () mutable -> TError {
-            LOG_DEBUG("Started reading meta (LocationId: %s, ChunkId: %s)",
-                ~this_->Location_->GetId(),
-                ~this_->Id_.ToString());
+        BIND([this, this_] () mutable -> TError {
+            auto& Profiler = Location_->Profiler();
+            LOG_DEBUG("Started reading meta (ChunkId: %s, LocationId: %s)",
+                ~Id_.ToString(),
+                ~Location_->GetId());
 
             NChunkClient::TFileReaderPtr reader;
             PROFILE_TIMING ("/meta_read_time") {
                 auto readerCache = this_->Location_->GetBootstrap()->GetReaderCache();
                 auto result = readerCache->GetReader(this_);
                 if (!result.IsOK()) {
-                    this_->ReleaseReadLock();
+                    ReleaseReadLock();
                     LOG_WARNING(result, "Error reading chunk meta (ChunkId: %s)",
-                        ~this_->Id_.ToString());
+                        ~Id_.ToString());
                     return TError(result);
                 }
                 reader = result.Value();
@@ -154,10 +155,10 @@ TAsyncError TChunk::ReadMeta()
                 }
             }
 
-            this_->ReleaseReadLock();
-            LOG_DEBUG("Finished reading meta (LocationId: %s, ChunkId: %s)",
-                ~this_->Location_->GetId(),
-                ~this_->Id_.ToString());
+            ReleaseReadLock();
+            LOG_DEBUG("Finished reading meta (ChunkId: %s, LocationId: %s)",
+                ~Id_.ToString(),
+                ~Location_->GetId());
 
             return TError();
         })

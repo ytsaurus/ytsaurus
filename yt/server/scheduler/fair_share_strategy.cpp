@@ -970,7 +970,8 @@ private:
         }
 
         try {
-            ReconfigureYsonSerializable(element->GetSpec(), TYsonString(rsp->value()));
+            if (!ReconfigureYsonSerializable(element->GetSpec(), TYsonString(rsp->value())))
+                return;
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error parsing updated operation spec");
         }
