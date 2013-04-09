@@ -5,6 +5,7 @@
 #include "multi_chunk_sequential_reader.h"
 #include "private.h"
 
+#include <ytlib/actions/async_pipeline.h>
 #include <ytlib/misc/sync.h>
 
 #include <ytlib/chunk_client/block_cache.h>
@@ -24,7 +25,14 @@ using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableReader::TTableReader(
+TFuture<TError> ConvertToTErrorFuture(TFuture<TValueOrError<void>> future)
+{
+    return future.Apply(BIND([](TValueOrError<void> error) -> TError {
+        return error;
+    }));
+}
+
+TAsyncTableReader::TAsyncTableReader(
     TTableReaderConfigPtr config,
     NRpc::IChannelPtr masterChannel,
     NTransactionClient::ITransactionPtr transaction,
@@ -38,7 +46,6 @@ TTableReader::TTableReader(
     , NodeDirectory(New<TNodeDirectory>())
     , RichPath(richPath)
     , IsOpen(false)
-    , IsReadStarted(false)
     , Proxy(masterChannel)
     , Logger(TableReaderLogger)
 {
@@ -49,13 +56,8 @@ TTableReader::TTableReader(
         ~ToString(TransactionId)));
 }
 
-void TTableReader::Open()
+TFuture<TTableYPathProxy::TRspFetchPtr> TAsyncTableReader::FetchTableInfo()
 {
-    VERIFY_THREAD_AFFINITY(Client);
-    YASSERT(!IsOpen);
-
-    LOG_INFO("Opening table reader");
-
     LOG_INFO("Fetching table info");
 
     auto fetchReq = TTableYPathProxy::Fetch(RichPath);
@@ -63,7 +65,11 @@ void TTableReader::Open()
     fetchReq->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
     // ToDo(psushin): enable ignoring lost chunks.
 
-    auto fetchRsp = Proxy.Execute(fetchReq).Get();
+    return Proxy.Execute(fetchReq);
+}
+
+TAsyncError TAsyncTableReader::OpenChunkReader(TTableYPathProxy::TRspFetchPtr fetchRsp)
+{
     THROW_ERROR_EXCEPTION_IF_FAILED(*fetchRsp, "Error fetching table info");
 
     NodeDirectory->MergeFrom(fetchRsp->node_directory());
@@ -78,8 +84,11 @@ void TTableReader::Open()
         NodeDirectory,
         std::move(inputChunks),
         provider);
-    Sync(~Reader, &TTableChunkSequenceReader::AsyncOpen);
+    return Reader->AsyncOpen();
+}
 
+void TAsyncTableReader::OnChunkReaderOpened()
+{
     if (Transaction) {
         ListenTransaction(Transaction);
     }
@@ -89,21 +98,109 @@ void TTableReader::Open()
     LOG_INFO("Table reader opened");
 }
 
-const TRow* TTableReader::GetRow()
+TAsyncError TAsyncTableReader::AsyncOpen()
+{
+    VERIFY_THREAD_AFFINITY(Client);
+    YASSERT(!IsOpen);
+
+    LOG_INFO("Opening table reader");
+
+    auto this_ = MakeStrong(this);
+    return ConvertToTErrorFuture(
+        StartAsyncPipeline(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
+            ->Add(BIND(&TThis::FetchTableInfo, this_))
+            ->Add(BIND(&TThis::OpenChunkReader, this_))
+            ->Add(BIND(&TThis::OnChunkReaderOpened, this_))
+            ->Run());
+}
+
+bool TAsyncTableReader::FetchNextItem()
 {
     VERIFY_THREAD_AFFINITY(Client);
     YASSERT(IsOpen);
 
-    CheckAborted();
+    if (Reader->IsValid()) {
+        return Reader->FetchNextItem();
+    }
+    return false;
+}
 
-    if (Reader->IsValid() && IsReadStarted) {
-        if (!Reader->FetchNextItem()) {
-            Sync(~Reader, &TTableChunkSequenceReader::GetReadyEvent);
+TAsyncError TAsyncTableReader::GetReadyEvent()
+{
+    if (IsAborted()) {
+        return MakePromise<TError>(TError("Transaction aborted"));
+    }
+    return Reader->GetReadyEvent();
+}
+
+bool TAsyncTableReader::HasRow() const
+{
+    return Reader->IsValid();
+}
+
+const TRow& TAsyncTableReader::GetRow() const
+{
+    return Reader->CurrentReader()->GetRow();
+}
+
+const TNonOwningKey& TAsyncTableReader::GetKey() const
+{
+    YUNREACHABLE();
+}
+
+i64 TAsyncTableReader::GetRowIndex() const
+{
+    return Reader->GetItemIndex();
+}
+
+i64 TAsyncTableReader::GetRowCount() const
+{
+    return Reader->GetItemCount();
+}
+
+std::vector<NChunkClient::TChunkId> TAsyncTableReader::GetFailedChunks() const
+{
+    return Reader->GetFailedChunks();
+}
+
+const NYTree::TYsonString& TAsyncTableReader::GetRowAttributes() const
+{
+    return Reader->CurrentReader()->GetRowAttributes();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TTableReader::TTableReader(
+    TTableReaderConfigPtr config,
+    NRpc::IChannelPtr masterChannel,
+    NTransactionClient::ITransactionPtr transaction,
+    NChunkClient::IBlockCachePtr blockCache,
+    const NYPath::TRichYPath& richPath)
+    : AsyncReader_(
+        New<TAsyncTableReader>(
+            config,
+            masterChannel,
+            transaction,
+            blockCache,
+            richPath))
+    , IsReadStarted_(false)
+{ }
+
+void TTableReader::Open()
+{
+    Sync(~AsyncReader_, &TAsyncTableReader::AsyncOpen);
+}
+
+const TRow* TTableReader::GetRow()
+{
+    if (AsyncReader_->HasRow() && IsReadStarted_) {
+        if (!AsyncReader_->FetchNextItem()) {
+            Sync(~AsyncReader_, &TAsyncTableReader::GetReadyEvent);
         }
     }
-    IsReadStarted = true;
+    IsReadStarted_ = true;
 
-    return Reader->IsValid() ? &(Reader->CurrentReader()->GetRow()) : NULL;
+    return AsyncReader_->HasRow() ? &(AsyncReader_->GetRow()) : nullptr;
 }
 
 const TNonOwningKey& TTableReader::GetKey() const
@@ -113,22 +210,22 @@ const TNonOwningKey& TTableReader::GetKey() const
 
 i64 TTableReader::GetRowIndex() const
 {
-    return Reader->GetItemIndex();
+    return AsyncReader_->GetRowIndex();
 }
 
 i64 TTableReader::GetRowCount() const
 {
-    return Reader->GetItemCount();
+    return AsyncReader_->GetRowCount();
 }
 
 std::vector<NChunkClient::TChunkId> TTableReader::GetFailedChunks() const
 {
-    return Reader->GetFailedChunks();
+    return AsyncReader_->GetFailedChunks();
 }
 
 const NYTree::TYsonString& TTableReader::GetRowAttributes() const
 {
-    return Reader->CurrentReader()->GetRowAttributes();
+    return AsyncReader_->GetRowAttributes();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

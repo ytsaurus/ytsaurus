@@ -20,9 +20,12 @@ protected:
     //! Checks if any of transactions that we are listening to were aborted.
     //! If so, raises an exception.
     void CheckAborted() const;
+    
+    //! Return is aborted flag.
+    bool IsAborted() const;
 
 private:
-    volatile bool IsAborted;
+    volatile bool IsAborted_;
 
     void OnAborted();
 

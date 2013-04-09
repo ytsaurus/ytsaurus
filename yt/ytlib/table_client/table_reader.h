@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "sync_reader.h"
+#include "async_reader.h"
 
 #include <ytlib/logging/tagged_logger.h>
 
@@ -25,6 +26,62 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TAsyncTableReader
+    : public NTransactionClient::TTransactionListener
+    , public IAsyncReader
+{
+public:
+    //! Initializes an instance.
+    TAsyncTableReader(
+        TTableReaderConfigPtr config,
+        NRpc::IChannelPtr masterChannel,
+        NTransactionClient::ITransactionPtr transaction,
+        NChunkClient::IBlockCachePtr blockCache,
+        const NYPath::TRichYPath& richPath);
+
+    virtual TAsyncError AsyncOpen();
+    
+    virtual bool FetchNextItem() override;
+    virtual TAsyncError GetReadyEvent() override;
+
+    virtual bool HasRow() const override;
+    virtual const TRow& GetRow() const override;
+    virtual const TNonOwningKey& GetKey() const override;
+    virtual const NYTree::TYsonString& GetRowAttributes() const override;
+
+    virtual i64 GetRowIndex() const override;
+    virtual i64 GetRowCount() const override;
+    virtual std::vector<NChunkClient::TChunkId> GetFailedChunks() const override;
+
+private:
+    typedef TAsyncTableReader TThis;
+
+    TFuture<TTableYPathProxy::TRspFetchPtr> FetchTableInfo();
+    TAsyncError OpenChunkReader(TTableYPathProxy::TRspFetchPtr fetchRsp);
+    void OnChunkReaderOpened();
+
+    TTableReaderConfigPtr Config;
+    NRpc::IChannelPtr MasterChannel;
+    NTransactionClient::ITransactionPtr Transaction;
+    NTransactionClient::TTransactionId TransactionId;
+    NChunkClient::IBlockCachePtr BlockCache;
+    NChunkClient::TNodeDirectoryPtr NodeDirectory;
+    NYPath::TRichYPath RichPath;
+    bool IsOpen;
+    NObjectClient::TObjectServiceProxy Proxy;
+    NLog::TTaggedLogger Logger;
+
+    TTableChunkSequenceReaderPtr Reader;
+    NCypressClient::TNodeId NodeId;
+
+    DECLARE_THREAD_AFFINITY_SLOT(Client);
+
+};
+
+typedef TIntrusivePtr<TAsyncTableReader> TAsyncTableReaderPtr;
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! A client-side facade for reading tables.
 /*!
  *  The client must first call #Open. This positions the reader before the first row.
@@ -34,8 +91,7 @@ namespace NTableClient {
  *
  */
 class TTableReader
-    : public NTransactionClient::TTransactionListener
-    , public ISyncReader
+    : public ISyncReader
 {
 public:
     //! Initializes an instance.
@@ -57,23 +113,8 @@ public:
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunks() const override;
 
 private:
-    TTableReaderConfigPtr Config;
-    NRpc::IChannelPtr MasterChannel;
-    NTransactionClient::ITransactionPtr Transaction;
-    NTransactionClient::TTransactionId TransactionId;
-    NChunkClient::IBlockCachePtr BlockCache;
-    NChunkClient::TNodeDirectoryPtr NodeDirectory;
-    NYPath::TRichYPath RichPath;
-    bool IsOpen;
-    bool IsReadStarted;
-    NObjectClient::TObjectServiceProxy Proxy;
-    NLog::TTaggedLogger Logger;
-
-    TTableChunkSequenceReaderPtr Reader;
-    NCypressClient::TNodeId NodeId;
-
-    DECLARE_THREAD_AFFINITY_SLOT(Client);
-
+    TAsyncTableReaderPtr AsyncReader_;
+    bool IsReadStarted_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

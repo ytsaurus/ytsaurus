@@ -10,7 +10,7 @@ namespace NTransactionClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 TTransactionListener::TTransactionListener()
-    : IsAborted(false)
+    : IsAborted_(false)
 { }
 
 void TTransactionListener::ListenTransaction(ITransactionPtr transaction)
@@ -23,12 +23,17 @@ void TTransactionListener::ListenTransaction(ITransactionPtr transaction)
 
 void TTransactionListener::OnAborted()
 {
-    IsAborted = true;
+    IsAborted_ = true;
+}
+
+bool TTransactionListener::IsAborted() const
+{
+    return IsAborted_;
 }
 
 void TTransactionListener::CheckAborted() const
 {
-    if (IsAborted) {
+    if (IsAborted_) {
         THROW_ERROR_EXCEPTION("Transaction aborted");
     }
 }
