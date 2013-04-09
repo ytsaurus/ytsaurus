@@ -31,7 +31,8 @@ TYamrBaseParser::TYamrBaseParser(
         enableKeyEscaping,
         enableValueEscaping,
         escapingSymbol,
-        escapeCarriageReturn)
+        escapeCarriageReturn,
+        false)
 { }
 
 void TYamrBaseParser::Read(const TStringBuf& data)

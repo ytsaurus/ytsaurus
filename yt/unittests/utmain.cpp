@@ -45,6 +45,11 @@ Matcher<const TStringBuf&>::Matcher(const char* s)
     *this = Eq(TStringBuf(s));
 }
 
+Matcher<const TStringBuf&>::Matcher(const TStringBuf& s)
+{
+    *this = Eq(s);
+}
+
 Matcher<const Stroka&>::Matcher(const Stroka& s)
 {
     *this = Eq(s);
