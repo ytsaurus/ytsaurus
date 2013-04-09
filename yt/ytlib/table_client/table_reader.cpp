@@ -46,6 +46,7 @@ TAsyncTableReader::TAsyncTableReader(
     , NodeDirectory(New<TNodeDirectory>())
     , RichPath(richPath)
     , IsOpen(false)
+    , IsReadStarted_(false)
     , Proxy(masterChannel)
     , Logger(TableReaderLogger)
 {
@@ -120,7 +121,11 @@ bool TAsyncTableReader::FetchNextItem()
     YASSERT(IsOpen);
 
     if (Reader->IsValid()) {
-        return Reader->FetchNextItem();
+        if (IsReadStarted_) {
+            return Reader->FetchNextItem();
+        }
+        IsReadStarted_ = true;
+        return true;
     }
     return false;
 }
@@ -133,7 +138,7 @@ TAsyncError TAsyncTableReader::GetReadyEvent()
     return Reader->GetReadyEvent();
 }
 
-bool TAsyncTableReader::HasRow() const
+bool TAsyncTableReader::IsValid() const
 {
     return Reader->IsValid();
 }
@@ -141,11 +146,6 @@ bool TAsyncTableReader::HasRow() const
 const TRow& TAsyncTableReader::GetRow() const
 {
     return Reader->CurrentReader()->GetRow();
-}
-
-const TNonOwningKey& TAsyncTableReader::GetKey() const
-{
-    YUNREACHABLE();
 }
 
 i64 TAsyncTableReader::GetRowIndex() const
@@ -183,7 +183,6 @@ TTableReader::TTableReader(
             transaction,
             blockCache,
             richPath))
-    , IsReadStarted_(false)
 { }
 
 void TTableReader::Open()
@@ -193,19 +192,11 @@ void TTableReader::Open()
 
 const TRow* TTableReader::GetRow()
 {
-    if (AsyncReader_->HasRow() && IsReadStarted_) {
-        if (!AsyncReader_->FetchNextItem()) {
-            Sync(~AsyncReader_, &TAsyncTableReader::GetReadyEvent);
-        }
+    if (AsyncReader_->IsValid() && !AsyncReader_->FetchNextItem()) {
+        Sync(~AsyncReader_, &TAsyncTableReader::GetReadyEvent);
     }
-    IsReadStarted_ = true;
 
-    return AsyncReader_->HasRow() ? &(AsyncReader_->GetRow()) : nullptr;
-}
-
-const TNonOwningKey& TTableReader::GetKey() const
-{
-    YUNREACHABLE();
+    return AsyncReader_->IsValid() ? &(AsyncReader_->GetRow()) : nullptr;
 }
 
 i64 TTableReader::GetRowIndex() const
@@ -226,6 +217,11 @@ std::vector<NChunkClient::TChunkId> TTableReader::GetFailedChunks() const
 const NYTree::TYsonString& TTableReader::GetRowAttributes() const
 {
     return AsyncReader_->GetRowAttributes();
+}
+
+const TNonOwningKey& TTableReader::GetKey() const
+{
+    YUNREACHABLE();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

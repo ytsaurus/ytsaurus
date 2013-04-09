@@ -44,9 +44,8 @@ public:
     virtual bool FetchNextItem() override;
     virtual TAsyncError GetReadyEvent() override;
 
-    virtual bool HasRow() const override;
+    virtual bool IsValid() const override;
     virtual const TRow& GetRow() const override;
-    virtual const TNonOwningKey& GetKey() const override;
     virtual const NYTree::TYsonString& GetRowAttributes() const override;
 
     virtual i64 GetRowIndex() const override;
@@ -68,6 +67,7 @@ private:
     NChunkClient::TNodeDirectoryPtr NodeDirectory;
     NYPath::TRichYPath RichPath;
     bool IsOpen;
+    bool IsReadStarted_;
     NObjectClient::TObjectServiceProxy Proxy;
     NLog::TTaggedLogger Logger;
 
@@ -114,7 +114,6 @@ public:
 
 private:
     TAsyncTableReaderPtr AsyncReader_;
-    bool IsReadStarted_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
