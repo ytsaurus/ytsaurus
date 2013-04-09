@@ -85,8 +85,8 @@ public:
 private:
     void DoFail();
 
-    bool IsOperationFinished;
-    bool IsActive_;
+    volatile bool IsOperationFinished;
+    volatile bool IsActive_;
 
     TSpinLock SpinLock;
 

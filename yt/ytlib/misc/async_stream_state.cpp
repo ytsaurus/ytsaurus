@@ -83,7 +83,7 @@ bool TAsyncStreamState::IsClosed() const
 bool TAsyncStreamState::HasRunningOperation() const
 {
     TGuard<TSpinLock> guard(SpinLock);
-    return !IsOperationFinished;
+    return !IsOperationFinished && IsActive_;
 }
 
 void TAsyncStreamState::Finish(const TError& error)
@@ -122,6 +122,7 @@ TAsyncError TAsyncStreamState::GetOperationError()
 void TAsyncStreamState::FinishOperation(const TError& error)
 {
     TGuard<TSpinLock> guard(SpinLock);
+
     YASSERT(!IsOperationFinished);
     IsOperationFinished = true;
     if (error.IsOK()) {
