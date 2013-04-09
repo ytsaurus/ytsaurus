@@ -3,7 +3,6 @@
 #include "delayed_invoker.h"
 #include "thread.h"
 
-#include <ytlib/logging/log.h>
 #include <ytlib/actions/action_queue.h>
 
 #include <util/system/thread.h>
@@ -13,7 +12,6 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("DelayedInvoker");
 static const TDuration SleepQuantum = TDuration::MilliSeconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -61,12 +59,6 @@ public:
             cookie->Iterator = pair.first;
         }
 
-        LOG_TRACE("Submitted delayed action (Action: %p, Cookie: %p, Deadline: %s, Count: %d)",
-            action.GetHandle(),
-            ~cookie,
-            ~cookie->Deadline.ToString(),
-            static_cast<int>(Entries.size()));
-
         return cookie;
     }
 
@@ -86,10 +78,6 @@ public:
             Entries.erase(cookie->Iterator);
             cookie->Valid = false;
         }
-
-        LOG_TRACE("Canceled delayed action (Cookie: %p, Count: %d)",
-            ~cookie,
-            static_cast<int>(Entries.size()));
 
         return true;
     }
@@ -128,31 +116,21 @@ private:
         NThread::SetCurrentThreadName("DelayedInvoker");
         while (!Finished) {
             auto now = TInstant::Now();
-            LOG_TRACE("Iteration started at %s", ~ToString(now));
             while (true) {
                 TCookie cookie;
                 {
                     TGuard<TSpinLock> guard(SpinLock);
                     if (Entries.empty()) {
-                        LOG_TRACE("Nothing to execute");
                         break;
                     }
                     cookie = *Entries.begin();
                     if (cookie->Deadline > now) {
-                        LOG_TRACE("Deadline is not reached yet (NextCookie: %p, NextDeadline: %s, Count: %d)",
-                            ~cookie,
-                            ~ToString(cookie->Deadline),
-                            static_cast<int>(Entries.size()));
                         break;
                     }
                     Entries.erase(cookie->Iterator);
                     cookie->Valid = false;
                 }
-                {
-                    LOG_TRACE("Action started (Cookie: %p)", ~cookie);
-                    cookie->Action.Run();
-                    LOG_TRACE("Action completed (Cookie: %p)", ~cookie);
-                }
+                cookie->Action.Run();
             }
             Sleep(SleepQuantum);
         }

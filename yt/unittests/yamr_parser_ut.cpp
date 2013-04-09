@@ -47,11 +47,11 @@ TEST(TYamrParserTest, ValueWithTabs)
 {
     StrictMock<NYTree::TMockYsonConsumer> Mock;
     InSequence dummy;
-
+    
     EXPECT_CALL(Mock, OnListItem());
     EXPECT_CALL(Mock, OnBeginMap());
         EXPECT_CALL(Mock, OnKeyedItem("key"));
-        EXPECT_CALL(Mock, OnStringScalar("key1"));
+        EXPECT_CALL(Mock, OnStringScalar(TStringBuf("key1\0", 5)));
         EXPECT_CALL(Mock, OnKeyedItem("value"));
         EXPECT_CALL(Mock, OnStringScalar("value with \t and some other"));
     EXPECT_CALL(Mock, OnEndMap());
@@ -60,12 +60,14 @@ TEST(TYamrParserTest, ValueWithTabs)
         EXPECT_CALL(Mock, OnKeyedItem("key"));
         EXPECT_CALL(Mock, OnStringScalar("key2"));
         EXPECT_CALL(Mock, OnKeyedItem("value"));
-        EXPECT_CALL(Mock, OnStringScalar("another value with \t"));
+        EXPECT_CALL(Mock, OnStringScalar(TStringBuf("another\0 value with \t", 21)));
     EXPECT_CALL(Mock, OnEndMap());
 
-    Stroka input =
-        "key1\tvalue with \t and some other\n"
-        "key2\tanother value with \t\n";
+    Stroka input(
+        "key1\0\tvalue with \t and some other\n"
+        "key2\tanother\0 value with \t\n", 
+        34 +
+        27);
 
     ParseYamr(input, &Mock);
 }

@@ -4,6 +4,7 @@
 
 #include <ytlib/misc/pattern_formatter.h>
 #include <ytlib/misc/raw_formatter.h>
+#include <ytlib/misc/periodic_invoker.h>
 
 #include <ytlib/actions/action_queue_detail.h>
 
@@ -106,6 +107,8 @@ public:
     TLogConfig()
         : Version(0)
     {
+        Register("flush_period", FlushPeriod)
+            .Default(TDuration::Zero());
         Register("writers", WriterConfigs);
         Register("rules", Rules);
 
@@ -159,7 +162,6 @@ public:
 
     void FlushWriters()
     {
-        AtomicIncrement(Version);
         FOREACH (auto& pair, Writers) {
             pair.second->Flush();
         }
@@ -205,6 +207,11 @@ public:
         return Version;
     }
 
+    TDuration GetFlushPeriod() const
+    {
+        return FlushPeriod;
+    }
+
 private:
     void CreateWriters()
     {
@@ -242,10 +249,14 @@ private:
 
     TAtomic Version;
 
+    TDuration FlushPeriod;
+
     std::vector<TRule::TPtr> Rules;
     yhash_map<Stroka, ILogWriter::TConfig::TPtr> WriterConfigs;
+    
     yhash_map<Stroka, ILogWriterPtr> Writers;
     ymap<std::pair<Stroka, ELogLevel>, TLogWriters> CachedWriters;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -265,15 +276,16 @@ class TLogManager::TImpl
 public:
     TImpl()
         : TActionQueueBase("Logging", false)
+        , QueueInvoker(New<TQueueInvoker>("", this, false))
         // Version forces this very module's Logger object to update to our own
         // default configuration (default level etc.).
         , Version(-1)
-        , Config(TLogConfig::CreateDefault())
         , EnqueueCounter("/enqueue_rate")
         , WriteCounter("/write_rate")
         , ReopenEnqueued(false)
     {
         SystemWriters.push_back(New<TStdErrLogWriter>(SystemPattern));
+        DoUpdateConfig(TLogConfig::CreateDefault());
         Start();
     }
 
@@ -387,6 +399,8 @@ public:
 
     virtual bool DequeueAndExecute() override
     {
+        auto actionsExecuted = QueueInvoker->DequeueAndExecute();
+
         bool configsUpdated = false;
         TLogConfigPtr config;
         while (ConfigsToUpdate.Dequeue(&config)) {
@@ -411,11 +425,11 @@ public:
             eventsWritten = true;
         }
 
-        if (eventsWritten) {
+        if (eventsWritten && Config->GetFlushPeriod() == TDuration::Zero()) {
             Config->FlushWriters();
         }
 
-        return configsUpdated || eventsWritten;
+        return actionsExecuted || configsUpdated || eventsWritten;
     }
 
     void Reopen()
@@ -445,14 +459,39 @@ private:
 
     void DoUpdateConfig(TLogConfigPtr config)
     {
-        Config->FlushWriters();
+        if (Config) {
+            Config->FlushWriters();
+        }
 
         {
             TGuard<TSpinLock> guard(&SpinLock);
+
             Config = config;
             AtomicIncrement(Version);
+
+            if (FlushInvoker) {
+                FlushInvoker->Stop();
+                FlushInvoker.Reset();
+            }
+
+            if (Config->GetFlushPeriod() != TDuration::Zero()) {
+                FlushInvoker = New<TPeriodicInvoker>(
+                    QueueInvoker,
+                    BIND(&TImpl::DoFlushWritersPeriodically, MakeStrong(this)),
+                    Config->GetFlushPeriod());
+                FlushInvoker->Start();
+            }
         }
     }
+
+    void DoFlushWritersPeriodically()
+    {
+        Config->FlushWriters();
+        FlushInvoker->ScheduleNext();
+    }
+
+
+    TQueueInvokerPtr QueueInvoker;
 
     // Configuration.
     TAtomic Version;
@@ -468,6 +507,8 @@ private:
     TWriters SystemWriters;
 
     volatile bool ReopenEnqueued;
+
+    TPeriodicInvokerPtr FlushInvoker;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
