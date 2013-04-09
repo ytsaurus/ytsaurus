@@ -68,6 +68,10 @@ add_msvc_precompiled_header(
   SRCS
 )
 
+if (MSVC)
+  add_definitions( -D_VARIADIC_MAX=10 )
+endif()
+
 include_directories(
   ../ytlib
 )
