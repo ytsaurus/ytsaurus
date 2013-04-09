@@ -127,7 +127,7 @@ public:
     DEFINE_SIGNAL(void(), Disabled);
 
     //! The profiler tagged with location id.
-    DEFINE_BYVAL_RW_PROPERTY(NProfiling::TProfiler, Profiler);
+    DEFINE_BYREF_RW_PROPERTY(NProfiling::TProfiler, Profiler);
 
     //! The counter for the location read throughput.
     DEFINE_BYREF_RW_PROPERTY(NProfiling::TRateCounter, ReadThroughputCounter);
