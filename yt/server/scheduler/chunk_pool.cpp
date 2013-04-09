@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "chunk_pool.h"
+#include "private.h"
 
 #include <ytlib/misc/id_generator.h>
 
@@ -15,11 +16,6 @@ using namespace NTableClient::NProto;
 using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////
-
-static const double ApproximateSizesBoostFactor = 1.3;
-
-////////////////////////////////////////////////////////////////////////////////
-
 
 TChunkStripe::TChunkStripe()
 { }
@@ -108,8 +104,13 @@ TChunkStripeStatistics TChunkStripeList::GetAggregateStatistics() const
 {
     TChunkStripeStatistics result;
     result.ChunkCount = TotalChunkCount;
-    result.RowCount = TotalRowCount;
-    result.DataSize = TotalDataSize;
+    if (IsApproximate) {
+        result.RowCount = TotalRowCount * ApproximateSizesBoostFactor;
+        result.DataSize = TotalDataSize * ApproximateSizesBoostFactor;
+    } else {
+        result.RowCount = TotalRowCount;
+        result.DataSize = TotalDataSize;
+    }
     return result;
 }
 
@@ -1027,13 +1028,10 @@ private:
                 list->TotalChunkCount += stripe->Chunks.size();
             }
 
+            // NB: never ever make TotalDataSize and TotalBoostFactor approximate.
+            // Otherwise sort data size and row counters will be severely corrupted
             list->TotalDataSize = run.TotalDataSize;
             list->TotalRowCount = run.TotalRowCount;
-
-            if (run.IsApproximate) {
-                list->TotalDataSize *= ApproximateSizesBoostFactor;
-                list->TotalRowCount *= ApproximateSizesBoostFactor;
-            }
 
             list->LocalChunkCount = 0;
             list->NonLocalChunkCount = list->TotalChunkCount;
