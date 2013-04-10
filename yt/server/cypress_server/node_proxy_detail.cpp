@@ -319,7 +319,8 @@ TVersionedObjectId TNontemplateCypressNodeProxyBase::GetVersionedId() const
 void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttributeInfo>* attributes)
 {
     const auto* node = GetThisImpl();
-    bool hasKey = node->GetParent() && node->GetParent()->GetType() == ENodeType::Map;
+    auto parent = node->GetParent();
+    bool hasKey = parent && parent->GetType() == ENodeType::Map;
     attributes->push_back(TAttributeInfo("parent_id", node->GetParent()));
     attributes->push_back("locks");
     attributes->push_back("lock_mode");
