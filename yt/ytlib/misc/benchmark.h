@@ -60,14 +60,18 @@ struct TBenchmarkSuspender
         NHRTimer::GetHRInstant(&Begin);
     }
 
+#ifndef _MSC_VER
     TBenchmarkSuspender(const TBenchmarkSuspender &) = delete;
+#endif
     TBenchmarkSuspender(TBenchmarkSuspender&& rhs)
     {
         Begin = rhs.Begin;
         rhs.Begin.Seconds = rhs.Begin.Nanoseconds = 0;
     }
 
+#ifndef _MSC_VER
     TBenchmarkSuspender& operator=(const TBenchmarkSuspender &) = delete;
+#endif
     TBenchmarkSuspender& operator=(TBenchmarkSuspender&& rhs)
     {
         if (Begin.Nanoseconds > 0 || Begin.Seconds > 0) {
