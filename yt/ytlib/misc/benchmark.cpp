@@ -141,7 +141,7 @@ static double RunBenchmarkGetNSPerIteration(
         }
         THRInstant now;
         GetHRInstant(&now);
-        if (GetHRDuration(now, global) >= maxTimeInNs) {
+        if (GetHRDuration(global, now) >= maxTimeInNs) {
             // No more time budget available.
             ++actualEpochs;
             break;
