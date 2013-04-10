@@ -6,7 +6,6 @@ set( SRCS
 )
 set( HDRS
   ${BASE}/fiber.h
-  ${BASE}/coroutine.h
 )
 
 list(APPEND YT_SOURCE_FILES
