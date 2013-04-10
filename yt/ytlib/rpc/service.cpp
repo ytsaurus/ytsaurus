@@ -15,18 +15,21 @@
 
 #include <ytlib/rpc/rpc.pb.h>
 
+#include <ytlib/profiling/timing.h>
+
 namespace NYT {
 namespace NRpc {
 
 using namespace NBus;
 using namespace NYPath;
 using namespace NYTree;
+using namespace NProfiling;
 using namespace NRpc::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = RpcServerLogger;
-static NProfiling::TProfiler& Profiler = RpcServerProfiler;
+static TProfiler& Profiler = RpcServerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,6 +48,8 @@ TServiceBase::TRuntimeMethodInfo::TRuntimeMethodInfo(
     const TYPath& profilingPath)
     : Descriptor(descriptor)
     , ProfilingPath(profilingPath)
+    , ProfilingTimePath(ProfilingPath + "/time")
+    , RemoteWaitCounter(ProfilingTimePath + "/remote_wait")
     , RequestCounter(profilingPath + "/request_count")
     , QueueSizeCounter(profilingPath + "/queue_size")
 { }
@@ -54,7 +59,7 @@ TServiceBase::TActiveRequest::TActiveRequest(
     i64 priority,
     IBusPtr replyBus,
     TRuntimeMethodInfoPtr runtimeInfo,
-    const NProfiling::TTimer& timer)
+    const TTimer& timer)
     : Id(id)
     , Priority(priority)
     , ReplyBus(std::move(replyBus))
@@ -156,7 +161,7 @@ void TServiceBase::Init(
     DefaultInvoker = defaultInvoker;
     ServiceName = serviceName;
     LoggingCategory = loggingCategory;
-    RequestCounter = NProfiling::TRateCounter("/services/" + ServiceName + "/request_rate");
+    RequestCounter = TRateCounter("/services/" + ServiceName + "/request_rate");
 }
 
 Stroka TServiceBase::GetServiceName() const
@@ -235,7 +240,22 @@ void TServiceBase::OnRequest(
     }
 
     Profiler.Increment(runtimeInfo->RequestCounter, +1);
-    auto timer = Profiler.TimingStart(runtimeInfo->ProfilingPath + "/time");
+
+    if (header.has_request_start_time() && header.has_retry_start_time()) {
+        // Decode timing information.
+        auto requestStart = TInstant(header.request_start_time());
+        auto retryStart = TInstant(header.retry_start_time());
+        auto now = CpuInstantToInstant(GetCpuInstant());
+
+        // Make sanity adjustments to account for possible clock skew.
+        retryStart = std::min(retryStart, now);
+        requestStart = std::min(requestStart, retryStart);
+
+        // TODO(babenko): make some use of retryStart
+        Profiler.Aggregate(runtimeInfo->RemoteWaitCounter, (now - requestStart).MicroSeconds());
+    }
+
+    auto timer = Profiler.TimingStart(runtimeInfo->ProfilingTimePath);
 
     i64 priority =
         runtimeInfo->Descriptor.EnableReorder && header.has_request_start_time()
@@ -302,7 +322,7 @@ void TServiceBase::OnInvocationPrepared(
         {
             // No need for a lock here.
             activeRequest->RunningSync = true;
-            Profiler.TimingCheckpoint(timer, "wait");
+            Profiler.TimingCheckpoint(timer, "local_wait");
         }
 
         preparedHandler.Run();

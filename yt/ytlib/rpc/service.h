@@ -541,8 +541,14 @@ protected:
 
         //! Path prefix for all profiling information regarding this method.
         NYPath::TYPath ProfilingPath;
+        
+        //! Path prefix for /time.
+        NYPath::TYPath ProfilingTimePath;
 
-        //! Increments with each method call.
+        //! The total remote wait time counter.
+        NProfiling::TAggregateCounter RemoteWaitCounter;
+
+        //! Counts the number of method calls.
         NProfiling::TAggregateCounter RequestCounter;
 
         //! The number of currently queued requests.
