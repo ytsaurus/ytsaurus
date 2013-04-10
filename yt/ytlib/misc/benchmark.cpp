@@ -51,9 +51,11 @@ using std::get;
 
 namespace NYT {
 
+using namespace NHRTimer;
+
 ////////////////////////////////////////////////////////////////////////////////
 
-TBenchmarkSuspender::TNanosecondsSpent TBenchmarkSuspender::NsSpent;
+THRDuration TBenchmarkSuspender::NsSpent;
 
 typedef TCallback< uint64_t(unsigned int) > TBenchmarkCallback;
 
@@ -101,17 +103,8 @@ static double RunBenchmarkGetNSPerIteration(
     const double baseline)
 {
     // They key here is accuracy; too low numbers means the accuracy was
-    // coarse. We up the ante until we get to at least minTimeInNs
+    // coarse. We up the ante until we get to at least |minTimeInNs|
     // timings.
-    static uint64_t resolutionInNs = 0;
-    if (!resolutionInNs) {
-        timespec ts;
-        YCHECK(0 == clock_getres(NDetail::DEFAULT_CLOCK_ID, &ts));
-        YCHECK(0 == ts.tv_sec && "Clock sucks.");
-        YCHECK(0 <  ts.tv_nsec && "Clock too fast for its own good.");
-        YCHECK(1 == ts.tv_nsec && "Clock too coarse, upgrade your kernel.");
-        resolutionInNs = ts.tv_nsec;
-    }
 
     // We do measurements in several epochs and take the minimum, to
     // account for jitter.
@@ -119,23 +112,24 @@ static double RunBenchmarkGetNSPerIteration(
 
     // We establish a total time budget as we don't want a measurement
     // to take too long. This will curtail the number of actual epochs.
-    static const uint64_t timeBudgetInNs = FLAGS_bm_max_secs * 1000000000UL;
+    static const uint64_t maxTimeInNs = FLAGS_bm_max_secs * 1000000000ULL;
 
     // We choose a minimum minimum (sic) of 100,000 nanoseconds, but if
     // the clock resolution is worse than that, it will be larger. In
     // essence we're aiming at making the quantization noise 0.01%.
-    static const uint64_t minTimeInNs = max(FLAGS_bm_min_usec * 1000UL,
-        min(resolutionInNs * 100000UL, 1000000000UL));
+    static const uint64_t minTimeInNs = max(
+        FLAGS_bm_min_usec * 1000ULL,
+        min(GetHRResolution() * 100000ULL, 1000000000ULL));
 
-    timespec global;
-    YCHECK(clock_gettime(CLOCK_REALTIME, &global) == 0);
+    THRInstant global;
+    GetHRInstant(&global);
 
     double epochResults[epochs] = { 0 };
     size_t actualEpochs = 0;
 
     for (; actualEpochs < epochs; ++actualEpochs) {
         for (unsigned int n = FLAGS_bm_min_iters; n < (1UL << 30); n *= 2) {
-            auto const result = function.Run(n);
+            const auto result = function.Run(n);
             if (result < minTimeInNs) {
                 continue;
             }
@@ -147,9 +141,9 @@ static double RunBenchmarkGetNSPerIteration(
             // Done with the current epoch, we got a meaningful timing.
             break;
         }
-        timespec now;
-        YCHECK(clock_gettime(CLOCK_REALTIME, &now) == 0);
-        if (NDetail::TimespecDiff(now, global) >= timeBudgetInNs) {
+        THRInstant now;
+        GetHRInstant(&now);
+        if (GetHRDuration(now, global) >= maxTimeInNs) {
             // No more time budget available.
             ++actualEpochs;
             break;

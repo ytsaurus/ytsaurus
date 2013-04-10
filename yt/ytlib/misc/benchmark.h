@@ -21,15 +21,12 @@
 
 #pragma once
 
-#ifndef _win_
-
 #include "common.h"
 
 #include <ytlib/actions/callback.h>
 #include <ytlib/misc/assert.h>
+#include <ytlib/misc/hr_timer.h>
 
-#include <cassert>
-#include <ctime>
 #include <functional>
 #include <limits>
 
@@ -43,13 +40,6 @@ void RunBenchmarks();
 namespace NDetail {
 
 /**
- * This is the clock ID used for measuring time. On older kernels, the
- * resolution of this clock will be very coarse, which will cause the
- * benchmarks to fail.
- */
-enum EClock { DEFAULT_CLOCK_ID = CLOCK_REALTIME };
-
-/**
  * Adds a benchmark wrapped in a TCallback.
  * Only used internally. Pass by value is intentional.
  */
@@ -57,52 +47,6 @@ void AddBenchmarkImpl(
     const char* file,
     const char* name,
     TCallback<uint64_t(unsigned int)>);
-
-/**
- * Takes the difference between two timespec values. end is assumed to
- * occur after start.
- */
-inline uint64_t TimespecDiff(timespec end, timespec start)
-{
-    if (end.tv_sec == start.tv_sec) {
-        YASSERT(end.tv_nsec >= start.tv_nsec);
-        return end.tv_nsec - start.tv_nsec;
-    }
-    YASSERT(
-        end.tv_sec > start.tv_sec &&
-        end.tv_sec - start.tv_sec < std::numeric_limits<uint64_t>::max() / 1000000000UL);
-    return
-        ( end.tv_sec  - start.tv_sec  ) * 1000000000UL
-        + end.tv_nsec - start.tv_nsec;
-}
-
-/**
- * Takes the difference between two sets of timespec values. The first
- * two come from a high-resolution clock whereas the other two come
- * from a low-resolution clock. The crux of the matter is that
- * high-res values may be bogus as documented in
- * http://linux.die.net/man/3/clock_gettime. The trouble is when the
- * running process migrates from one CPU to another, which is more
- * likely for long-running processes. Therefore we watch for high
- * differences between the two timings.
- *
- * This function is subject to further improvements.
- */
-inline uint64_t TimespecDiff(
-    timespec end,
-    timespec start,
-    timespec endCoarse,
-    timespec startCoarse)
-{
-    auto fine = TimespecDiff(end, start);
-    auto coarse = TimespecDiff(endCoarse, startCoarse);
-    if (coarse - fine >= 1000000) {
-        // The fine time is in all likelihood bogus.
-        return coarse;
-    } else {
-        return fine;
-    }
-}
 
 } // namespace NDetail
 
@@ -113,45 +57,45 @@ struct TBenchmarkSuspender
 {
     TBenchmarkSuspender()
     {
-        YCHECK(clock_gettime(NDetail::DEFAULT_CLOCK_ID, &start) == 0);
+        NHRTimer::GetHRInstant(&Begin);
     }
 
     TBenchmarkSuspender(const TBenchmarkSuspender &) = delete;
     TBenchmarkSuspender(TBenchmarkSuspender&& rhs)
     {
-        start = rhs.start;
-        rhs.start.tv_nsec = rhs.start.tv_sec = 0;
+        Begin = rhs.Begin;
+        rhs.Begin.Seconds = rhs.Begin.Nanoseconds = 0;
     }
 
     TBenchmarkSuspender& operator=(const TBenchmarkSuspender &) = delete;
     TBenchmarkSuspender& operator=(TBenchmarkSuspender&& rhs)
     {
-        if (start.tv_nsec > 0 || start.tv_sec > 0) {
+        if (Begin.Nanoseconds > 0 || Begin.Seconds > 0) {
             Tally();
         }
-        start = rhs.start;
-        rhs.start.tv_nsec = rhs.start.tv_sec = 0;
+        Begin = rhs.Begin;
+        rhs.Begin.Seconds = rhs.Begin.Nanoseconds = 0;
         return *this;
     }
 
     ~TBenchmarkSuspender()
     {
-        if (start.tv_nsec > 0 || start.tv_sec > 0) {
+        if (Begin.Nanoseconds > 0 || Begin.Seconds > 0) {
             Tally();
         }
     }
 
     void Dismiss()
     {
-        YASSERT(start.tv_nsec > 0 || start.tv_sec > 0);
+        YASSERT(Begin.Nanoseconds > 0 || Begin.Seconds > 0);
         Tally();
-        start.tv_nsec = start.tv_sec = 0;
+        Begin.Seconds = Begin.Nanoseconds = 0;
     }
 
     void Rehire()
     {
-        YASSERT(start.tv_nsec == 0 || start.tv_sec == 0);
-        YCHECK(clock_gettime(NDetail::DEFAULT_CLOCK_ID, &start) == 0);
+        YASSERT(Begin.Nanoseconds > 0 || Begin.Seconds > 0);
+        NHRTimer::GetHRInstant(&Begin);
     }
 
     /**
@@ -167,19 +111,18 @@ struct TBenchmarkSuspender
     /**
      * Accumulates nanoseconds spent outside benchmark.
      */
-    typedef uint64_t TNanosecondsSpent;
-    static TNanosecondsSpent NsSpent;
+    static NHRTimer::THRDuration NsSpent;
 
 private:
     void Tally()
     {
-        timespec end;
-        YCHECK(clock_gettime(NDetail::DEFAULT_CLOCK_ID, &end) == 0);
-        NsSpent += NDetail::TimespecDiff(end, start);
-        start = end;
+        using namespace NHRTimer;
+        THRInstant End;
+        GetHRInstant(&End);
+        NsSpent += GetHRDuration(Begin, End);
     }
 
-    timespec start;
+    NHRTimer::THRInstant Begin;
 };
 
 /**
@@ -195,19 +138,18 @@ typename NMpl::TEnableIfC<
 >::TType
 AddBenchmark(const char* file, const char* name, TLambda&& lambda) {
     auto execute = BIND([=] (unsigned int times) -> uint64_t {
+        using namespace NHRTimer;
+
         TBenchmarkSuspender::NsSpent = 0;
-        timespec start, end;
+        THRInstant begin, end;
 
         // CORE MEASUREMENT STARTS
-        auto const r1 = clock_gettime(NDetail::DEFAULT_CLOCK_ID, &start);
+        GetHRInstant(&begin);
         lambda(times);
-        auto const r2 = clock_gettime(NDetail::DEFAULT_CLOCK_ID, &end);
+        GetHRInstant(&end);
         // CORE MEASUREMENT ENDS
 
-        YCHECK(0 == r1);
-        YCHECK(0 == r2);
-
-        return NDetail::TimespecDiff(end, start) - TBenchmarkSuspender::NsSpent;
+        return GetHRDuration(begin, end) - TBenchmarkSuspender::NsSpent;
     });
 
     NDetail::AddBenchmarkImpl(file, name, std::move(execute));
@@ -420,6 +362,3 @@ void DoNotOptimizeAway(T&& datum) {
     if (auto PP_ANONYMOUS_VARIABLE(follyBenchmarkSuspend) = \
         ::NYT::TBenchmarkSuspender())                       \
     { } else
-
-
-#endif
