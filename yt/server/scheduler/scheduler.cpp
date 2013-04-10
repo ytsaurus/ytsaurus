@@ -1483,7 +1483,7 @@ private:
             ? TTransactionId::FromProto(request->transaction_id())
             : NullTransactionId;
 
-        auto maybeUser = FindRpcAuthenticatedUser(context->GetUntypedContext());
+        auto maybeUser = FindRpcAuthenticatedUser(context);
         auto user = maybeUser ? *maybeUser : RootUserName;
 
         IMapNodePtr spec;
