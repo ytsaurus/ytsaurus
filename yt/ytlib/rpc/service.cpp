@@ -56,12 +56,10 @@ TServiceBase::TRuntimeMethodInfo::TRuntimeMethodInfo(
 
 TServiceBase::TActiveRequest::TActiveRequest(
     const TRequestId& id,
-    i64 priority,
     IBusPtr replyBus,
     TRuntimeMethodInfoPtr runtimeInfo,
     const TTimer& timer)
     : Id(id)
-    , Priority(priority)
     , ReplyBus(std::move(replyBus))
     , RuntimeInfo(runtimeInfo)
     , RunningSync(false)
@@ -257,14 +255,8 @@ void TServiceBase::OnRequest(
 
     auto timer = Profiler.TimingStart(runtimeInfo->ProfilingTimePath);
 
-    i64 priority =
-        runtimeInfo->Descriptor.EnableReorder && header.has_request_start_time()
-        ? -header.request_start_time()
-        : 0;
-
     auto activeRequest = New<TActiveRequest>(
         requestId,
-        priority,
         replyBus,
         runtimeInfo,
         timer);
@@ -349,7 +341,8 @@ void TServiceBase::OnInvocationPrepared(
         invoker = DefaultInvoker;
     }
 
-    if (!invoker->Invoke(std::move(wrappedHandler), activeRequest->Priority)) {
+    i64 priority = runtimeInfo->Descriptor.EnableReorder ? context->GetPriority() : 0;
+    if (!invoker->Invoke(std::move(wrappedHandler), priority)) {
         context->Reply(TError(EErrorCode::Unavailable, "Service unavailable"));
     }
 }

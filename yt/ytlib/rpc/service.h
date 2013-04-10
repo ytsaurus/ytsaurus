@@ -45,6 +45,9 @@ struct IServiceContext
     //! Returns the instant when the current retry of request was issued by the client, if known.
     virtual TNullable<TInstant> GetRetryStartTime() const = 0;
 
+    //! Returns request priority for reordering purposes.
+    virtual i64 GetPriority() const = 0;
+
     //! Returns the requested path.
     virtual const Stroka& GetPath() const = 0;
 
@@ -563,16 +566,12 @@ protected:
     {
         TActiveRequest(
             const TRequestId& id,
-            i64 priority,
             NBus::IBusPtr replyBus,
             TRuntimeMethodInfoPtr runtimeInfo,
             const NProfiling::TTimer& timer);
 
         //! Request id.
         TRequestId Id;
-
-        //! Request priority.
-        i64 Priority;
 
         //! Bus for replying back to the client.
         NBus::IBusPtr ReplyBus;

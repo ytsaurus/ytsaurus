@@ -151,6 +151,11 @@ TNullable<TInstant> TServiceContextBase::GetRetryStartTime() const
     return Header.has_retry_start_time() ? TNullable<TInstant>(TInstant(Header.retry_start_time())) : Null;
 }
 
+i64 TServiceContextBase::GetPriority() const 
+{
+    return Header.has_request_start_time() ? -Header.request_start_time() : 0;
+}
+
 const Stroka& TServiceContextBase::GetPath() const
 {
     return Header.path();
@@ -253,6 +258,11 @@ TNullable<TInstant> TServiceContextWrapper::GetRequestStartTime() const
 TNullable<TInstant> TServiceContextWrapper::GetRetryStartTime() const 
 {
     return UnderlyingContext->GetRetryStartTime();
+}
+
+i64 TServiceContextWrapper::GetPriority() const 
+{
+    return UnderlyingContext->GetPriority();
 }
 
 const Stroka& TServiceContextWrapper::GetPath() const

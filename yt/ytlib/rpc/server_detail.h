@@ -19,6 +19,7 @@ public:
     virtual const TRequestId& GetRequestId() const override;
     virtual TNullable<TInstant> GetRequestStartTime() const override;
     virtual TNullable<TInstant> GetRetryStartTime() const override;
+    virtual i64 GetPriority() const override;
     virtual const Stroka& GetPath() const override;
     virtual const Stroka& GetVerb() const override;
 
@@ -101,6 +102,7 @@ public:
     virtual const NRpc::TRequestId& GetRequestId() const override;
     virtual TNullable<TInstant> GetRequestStartTime() const override;
     virtual TNullable<TInstant> GetRetryStartTime() const override;
+    virtual i64 GetPriority() const override;
     virtual const Stroka& GetPath() const override;
     virtual const Stroka& GetVerb() const override;
 
