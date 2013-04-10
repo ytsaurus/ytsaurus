@@ -170,6 +170,12 @@ public:
         const NYPath::TYPath& path,
         ETimerMode mode = ETimerMode::Simple);
 
+    //! Starts time measurement from a custom time instant.
+    TTimer TimingStart(
+        const NYPath::TYPath& path,
+        TCpuInstant start,
+        ETimerMode mode = ETimerMode::Simple);
+
     //! Marks a checkpoint and enqueues the corresponding sample.
     /*!
      *  Returns the time passed from the previous duration.
@@ -178,6 +184,9 @@ public:
      *  switched to Sequential mode.
      */
     TDuration TimingCheckpoint(TTimer& timer, const Stroka& key);
+
+    //! Similar to the usual #TimingCheckpoint but provides a custom current instant.
+    TDuration TimingCheckpoint(TTimer& timer, TCpuInstant now, const Stroka& key);
 
     //! Stops time measurement and enqueues the "total" sample.
     //! Returns the total duration.
