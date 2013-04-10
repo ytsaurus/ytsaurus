@@ -128,6 +128,8 @@ message TUserJobSpec
     optional NYT.NProto.TGuid stderr_transaction_id = 8;
 
     optional bool use_yamr_descriptors = 10 [default = false];
+
+    required int64 max_stderr_size = 11;
 }
 
 // User code result.

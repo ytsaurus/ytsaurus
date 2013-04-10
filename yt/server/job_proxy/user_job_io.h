@@ -42,7 +42,8 @@ public:
         int index);
 
     virtual TAutoPtr<TErrorOutput> CreateErrorOutput(
-        const NTransactionClient::TTransactionId& transactionId) const;
+        const NTransactionClient::TTransactionId& transactionId,
+        i64 maxSize) const;
 
     void SetStderrChunkId(const NChunkClient::TChunkId& chunkId);
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunks() const;

@@ -30,10 +30,12 @@ static NLog::TLogger& Logger = JobProxyLogger;
 TErrorOutput::TErrorOutput(
     TFileWriterConfigPtr config,
     IChannelPtr masterChannel,
-    const TTransactionId& transactionId)
+    const TTransactionId& transactionId,
+    i64 maxSize)
     : Config(config)
     , MasterChannel(masterChannel)
     , TransactionId(transactionId)
+    , MaxSize(maxSize)
     , IsClosed(false)
 { }
 
@@ -49,7 +51,8 @@ void TErrorOutput::DoWrite(const void* buf, size_t len)
             Config,
             MasterChannel,
             TransactionId,
-            NSecurityClient::SysAccountName);
+            NSecurityClient::SysAccountName,
+            MaxSize);
         FileWriter->Open();
 
         LOG_DEBUG("Stderr stream opened");

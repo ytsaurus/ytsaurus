@@ -111,12 +111,15 @@ double TUserJobIO::GetProgress() const
     }
 }
 
-TAutoPtr<TErrorOutput> TUserJobIO::CreateErrorOutput(const TTransactionId& transactionId) const
+TAutoPtr<TErrorOutput> TUserJobIO::CreateErrorOutput(
+    const TTransactionId& transactionId,
+    i64 maxSize) const
 {
     return new TErrorOutput(
         IOConfig->ErrorFileWriter,
         Host->GetMasterChannel(),
-        transactionId);
+        transactionId,
+        maxSize);
 }
 
 void TUserJobIO::SetStderrChunkId(const TChunkId& chunkId)

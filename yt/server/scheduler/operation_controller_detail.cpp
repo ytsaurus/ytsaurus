@@ -2112,6 +2112,7 @@ void TOperationControllerBase::InitUserJobSpec(
     i64 memoryReserve = static_cast<i64>(config->MemoryLimit * config->MemoryReserveFactor);
     jobSpec->set_memory_reserve(memoryReserve);
     jobSpec->set_use_yamr_descriptors(config->UseYamrDescriptors);
+    jobSpec->set_max_stderr_size(config->MaxStderrSize);
 
     {
         if (Operation->GetStdErrCount() < Operation->GetMaxStdErrCount()) {

@@ -33,10 +33,12 @@ TFileChunkOutput::TFileChunkOutput(
     TFileWriterConfigPtr config,
     NRpc::IChannelPtr masterChannel,
     const TTransactionId& transactionId,
-    const Stroka& account)
+    const Stroka& account,
+    i64 maxSize)
     : Config(config)
     , ReplicationFactor(Config->ReplicationFactor)
     , UploadReplicationFactor(std::min(Config->ReplicationFactor, Config->UploadReplicationFactor))
+    , MaxSize(maxSize)
     , MasterChannel(masterChannel)
     , TransactionId(transactionId)
     , Account(account)
@@ -140,6 +142,13 @@ void TFileChunkOutput::DoWrite(const void* buf, size_t len)
     }
 
     Size += len;
+
+    if (Size > MaxSize) {
+        THROW_ERROR_EXCEPTION(
+            "File is too large (Size: %" PRId64 ", MaxSize: %" PRId64 ")",
+            Size,
+            MaxSize);
+    }
 }
 
 void TFileChunkOutput::DoFinish()

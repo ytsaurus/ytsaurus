@@ -92,6 +92,8 @@ struct TUserJobSpec
     bool EnableTableIndex;
     bool UseYamrDescriptors;
 
+    i64 MaxStderrSize;
+
     TUserJobSpec()
     {
         Register("command", Command)
@@ -118,6 +120,10 @@ struct TUserJobSpec
             .Default(false);
         Register("use_yamr_descriptors", UseYamrDescriptors)
             .Default(false);
+        Register("max_stderr_size", MaxStderrSize)
+            .Default((i64)5 * 1024 * 1024) // 5MB
+            .GreaterThan(0)
+            .LessThanOrEqual((i64)1024 * 1024 * 1024);
     }
 };
 
