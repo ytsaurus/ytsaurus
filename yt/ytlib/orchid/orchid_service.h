@@ -15,9 +15,6 @@ class TOrchidService
     : public NRpc::TServiceBase
 {
 public:
-    typedef TIntrusivePtr<TOrchidService> TPtr;
-
-    //! Creates an instance.
     TOrchidService(
         NYTree::INodePtr root,
         IInvokerPtr invoker);

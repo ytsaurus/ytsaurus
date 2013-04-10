@@ -122,7 +122,10 @@ public:
         IInvokerPtr stateInvoker,
         IMetaStatePtr metaState,
         NRpc::IServerPtr server)
-        : TServiceBase(controlInvoker, TProxy::GetServiceName(), Logger.GetCategory())
+        : TServiceBase(
+            controlInvoker,
+            TProxy::GetServiceName(),
+            Logger.GetCategory())
         , Config(config)
         , ControlInvoker(controlInvoker)
         , StateInvoker(stateInvoker)

@@ -27,7 +27,7 @@ TOrchidService::TOrchidService(
         TOrchidServiceProxy::GetServiceName(),
         OrchidLogger.GetCategory())
 {
-    YASSERT(root);
+    YCHECK(root);
 
     RootService = CreateRootService(root);
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute));
@@ -47,8 +47,8 @@ DEFINE_RPC_SERVICE_METHOD(TOrchidService, Execute)
         THROW_ERROR_EXCEPTION("Error parsing request header");
     }
 
-    TYPath path = requestHeader.path();
-    Stroka verb = requestHeader.verb();
+    const auto& path = requestHeader.path();
+    const auto& verb = requestHeader.verb();
 
     context->SetRequestInfo("Path: %s, Verb: %s",
         ~path,
