@@ -229,8 +229,8 @@ void TObjectProxyBase::SerializeAttributes(
     IYsonConsumer* consumer,
     const TAttributeFilter& filter)
 {
-    if (filter.Mode == EAttributeFilterMode::None ||
-        filter.Mode == EAttributeFilterMode::MatchingOnly && filter.Keys.empty())
+    if ( filter.Mode == EAttributeFilterMode::None ||
+        (filter.Mode == EAttributeFilterMode::MatchingOnly && filter.Keys.empty()))
         return;
 
     const auto& userAttributes = Attributes();

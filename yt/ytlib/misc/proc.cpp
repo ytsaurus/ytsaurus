@@ -56,7 +56,7 @@ i64 GetUserRss(int uid)
     int rss;
     int n;
     while ((n = fscanf(fd, "%d", &rss)) != EOF) {
-        if (n = 1) {
+        if (n == 1) {
             result += rss;
         } else {
             THROW_ERROR_EXCEPTION(
@@ -209,7 +209,7 @@ void CloseAllDescriptors()
     YCHECK(dirfd >= 0);
 
     struct dirent *ep;
-    while (ep = ::readdir(dp)) {
+    while ((ep = ::readdir(dp)) != nullptr) {
         try {
             int fd = FromString<int>(ep->d_name);
             if (fd != dirfd) {

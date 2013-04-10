@@ -176,8 +176,9 @@ void TCompositeMetaState::Save(TOutputStream* output)
         infos.begin(),
         infos.end(),
         [] (const TSaverInfo& lhs, const TSaverInfo& rhs) {
-            return lhs.Priority < rhs.Priority ||
-                   lhs.Priority == rhs.Priority && lhs.Name < rhs.Name;
+            return
+                (lhs.Priority < rhs.Priority) ||
+                (lhs.Priority == rhs.Priority && lhs.Name < rhs.Name);
         });
 
     i32 partCount = static_cast<i32>(infos.size());

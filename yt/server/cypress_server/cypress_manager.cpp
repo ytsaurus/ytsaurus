@@ -529,8 +529,8 @@ void TCypressManager::ValidateLock(
 
         if (!transaction || IsConcurrentTransaction(transaction, existingTransaction)) {
             // For Exclusive locks we check locks held by concurrent transactions.
-            if (request.Mode == ELockMode::Exclusive && existingLock.Mode != ELockMode::Snapshot ||
-                existingLock.Mode == ELockMode::Exclusive && request.Mode != ELockMode::Snapshot)
+            if ((request.Mode == ELockMode::Exclusive && existingLock.Mode != ELockMode::Snapshot) ||
+                (existingLock.Mode == ELockMode::Exclusive && request.Mode != ELockMode::Snapshot))
             {
                 THROW_ERROR_EXCEPTION(
                     NCypressClient::EErrorCode::ConcurrentTransactionLockConflict,

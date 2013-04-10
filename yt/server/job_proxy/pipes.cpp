@@ -371,7 +371,7 @@ bool TInputPipe::ProcessData(ui32 epollEvents)
         YASSERT(Position < Buffer->GetSize());
 
         auto res = ::write(Pipe.WriteFd, Buffer->Begin() + Position, Buffer->GetSize() - Position);
-        LOG_TRACE("Written %" PRIPDT " bytes to input pipe (JobDescriptor: %d)",
+        LOG_TRACE("Written %" PRISZT " bytes to input pipe (JobDescriptor: %d)",
             res,
             JobDescriptor);
 

@@ -90,8 +90,8 @@ public:
         IYsonConsumer* consumer,
         const TAttributeFilter& filter) override
     {
-        if (filter.Mode == EAttributeFilterMode::None ||
-            filter.Mode == EAttributeFilterMode::MatchingOnly && filter.Keys.empty())
+        if ( filter.Mode == EAttributeFilterMode::None ||
+            (filter.Mode == EAttributeFilterMode::MatchingOnly && filter.Keys.empty()))
             return;
 
         if (!HasAttributes())

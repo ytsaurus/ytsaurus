@@ -343,8 +343,8 @@ TValueOrError<TNetworkAddress> TAddressResolver::DoResolve(const Stroka& hostNam
     TNullable<TNetworkAddress> result;
 
     for (auto* currentInfo = addrInfo; currentInfo; currentInfo = currentInfo->ai_next) {
-        if (currentInfo->ai_family == AF_INET && Config->EnableIPv4 ||
-            currentInfo->ai_family == AF_INET6 && Config->EnableIPv6)
+        if ((currentInfo->ai_family == AF_INET && Config->EnableIPv4) ||
+            (currentInfo->ai_family == AF_INET6 && Config->EnableIPv6))
         {
             result = TNetworkAddress(*currentInfo->ai_addr);
             break;
