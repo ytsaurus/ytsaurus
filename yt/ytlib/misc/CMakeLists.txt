@@ -5,7 +5,6 @@ set( SRCS
   ${BASE}/assert.cpp
   ${BASE}/async_stream_state.cpp
   ${BASE}/backtrace.cpp
-  ${BASE}/benchmark.cpp
   ${BASE}/blob.cpp
   ${BASE}/blob_output.cpp
   ${BASE}/blob_range.cpp
@@ -48,7 +47,6 @@ set( HDRS
   ${BASE}/assert.h
   ${BASE}/async_stream_state.h
   ${BASE}/backtrace.h
-  ${BASE}/benchmark.h
   ${BASE}/blob.h
   ${BASE}/blob_output.h
   ${BASE}/blob_range.h
@@ -117,6 +115,13 @@ list(APPEND YT_SOURCE_FILES
   ${SRCS}
   ${HDRS}
 )
+
+if (YT_BUILD_ENABLE_BENCHMARKS)
+  list(APPEND YT_SOURCE_FILES
+    ${BASE}/benchmark.h
+    ${BASE}/benchmark.cpp
+  )
+endif()
 
 protoc( ${BASE}/guid.proto YT_SOURCE_FILES )
 protoc( ${BASE}/protobuf_helpers.proto YT_SOURCE_FILES )
