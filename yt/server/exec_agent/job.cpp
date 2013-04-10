@@ -531,7 +531,7 @@ void TJob::Abort(const TError& error)
 
     if (JobState == EJobState::Waiting) {
         YCHECK(!Slot);
-        SetResult("Job aborted by scheduler");
+        SetResult(TError("Job aborted by scheduler"));
         JobState = EJobState::Aborted;
         SetResourceUsage(ZeroNodeResources());
         ResourcesReleased_.Fire();
