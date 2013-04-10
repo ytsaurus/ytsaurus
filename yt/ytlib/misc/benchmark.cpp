@@ -23,8 +23,6 @@
 
 #include "benchmark.h"
 
-#ifndef _win_
-
 #include "foreach.h"
 
 #include <algorithm>
@@ -39,9 +37,9 @@
 // DEFINE_string(bm_regex, "", "Only benchmarks whose names match this regex will be run.");
 
 // Minimum # of microseconds we'll accept for each benchmark.
-const uint64_t FLAGS_bm_min_usec = 100;
+const ui64 FLAGS_bm_min_usec = 100;
 // Minimum # of iterations we'll try for each benchmark.
-const uint64_t FLAGS_bm_min_iters = 1;
+const ui64 FLAGS_bm_min_iters = 1;
 // Maximum # of seconds we'll spend on each benchmark.
 const uint32_t FLAGS_bm_max_secs = 1;
 
@@ -57,7 +55,7 @@ using namespace NHRTimer;
 
 THRDuration TBenchmarkSuspender::NsSpent;
 
-typedef TCallback< uint64_t(unsigned int) > TBenchmarkCallback;
+typedef TCallback< ui64(unsigned int) > TBenchmarkCallback;
 
 typedef std::tuple<const char*, const char*, double> TBenchmarkResultTuple;
 typedef std::tuple<const char*, const char*, TBenchmarkCallback> TBenchmarkCallbackTuple;
@@ -112,12 +110,12 @@ static double RunBenchmarkGetNSPerIteration(
 
     // We establish a total time budget as we don't want a measurement
     // to take too long. This will curtail the number of actual epochs.
-    static const uint64_t maxTimeInNs = FLAGS_bm_max_secs * 1000000000ULL;
+    static const ui64 maxTimeInNs = FLAGS_bm_max_secs * 1000000000ULL;
 
     // We choose a minimum minimum (sic) of 100,000 nanoseconds, but if
     // the clock resolution is worse than that, it will be larger. In
     // essence we're aiming at making the quantization noise 0.01%.
-    static const uint64_t minTimeInNs = max(
+    static const ui64 minTimeInNs = max(
         FLAGS_bm_min_usec * 1000ULL,
         min(GetHRResolution() * 100000ULL, 1000000000ULL));
 
@@ -378,5 +376,3 @@ void RunBenchmarks()
 }
 
 } // namespace NYT
-
-#endif

@@ -5,7 +5,7 @@
 #elif defined(_darwin_)
 #include <mach/mach_time.h>
 #elif defined(_win_)
-#error "TODO"
+// Any other includes?
 #endif
 
 #include <limits>

@@ -46,7 +46,7 @@ namespace NDetail {
 void AddBenchmarkImpl(
     const char* file,
     const char* name,
-    TCallback<uint64_t(unsigned int)>);
+    TCallback<ui64(unsigned int)>);
 
 } // namespace NDetail
 
@@ -137,7 +137,7 @@ typename NMpl::TEnableIfC<
     NDetail::TRunnableAdapter<decltype(&TLambda::operator())>::Arity == 2
 >::TType
 AddBenchmark(const char* file, const char* name, TLambda&& lambda) {
-    auto execute = BIND([=] (unsigned int times) -> uint64_t {
+    auto execute = BIND([=] (unsigned int times) -> ui64 {
         using namespace NHRTimer;
 
         TBenchmarkSuspender::NsSpent = 0;
