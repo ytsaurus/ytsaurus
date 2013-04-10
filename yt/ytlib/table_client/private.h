@@ -10,8 +10,13 @@ namespace NTableClient {
 extern NLog::TLogger TableReaderLogger;
 extern NLog::TLogger TableWriterLogger;
 
-extern int DefaultPartitionTag;
-extern int FormatVersion;
+extern const int DefaultPartitionTag;
+extern const int FormatVersion;
+
+extern const int MaxPrefetchWindow;
+
+//! Estimated memory overhead per chunk reader.
+extern const i64 ChunkReaderMemorySize;
 
 ////////////////////////////////////////////////////////////////////////////////
 

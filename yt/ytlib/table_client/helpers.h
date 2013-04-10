@@ -35,9 +35,9 @@ struct TRefCountedInputChunk
 //! TSizeOverrideExt (if present) and then at TMiscExt.
 void GetStatistics(
     const NProto::TInputChunk& chunk,
-    i64* dataSize = NULL,
-    i64* rowCount = NULL,
-    i64* valueCount = NULL);
+    i64* dataSize = nullptr,
+    i64* rowCount = nullptr,
+    i64* valueCount = nullptr);
 
 //! Constructs a new chunk by slicing the original one and restricting
 //! it to a given range. The original chunk may already contain non-trivial limits.

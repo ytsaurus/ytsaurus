@@ -153,7 +153,7 @@ struct TMapOperationSpec
             .DefaultNew();
 
         RegisterInitializer([&] () {
-            JobIO->TableReader->PrefetchWindow = 10;
+            JobIO->TableReader->MaxBufferSize = 1024L * 1024 * 1024;
         });
     }
 };
@@ -230,7 +230,7 @@ struct TUnorderedMergeOperationSpec
     TUnorderedMergeOperationSpec()
     {
         RegisterInitializer([&] () {
-            JobIO->TableReader->PrefetchWindow = 10;
+            JobIO->TableReader->MaxBufferSize = 1024L * 1024 * 1024;
         });
     }
 };
@@ -399,10 +399,10 @@ struct TSortOperationSpec
             .Default(TDuration::Minutes(1));
 
         RegisterInitializer([&] () {
-            PartitionJobIO->TableReader->PrefetchWindow = 10;
+            PartitionJobIO->TableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
             PartitionJobIO->TableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GB
 
-            SortJobIO->TableReader->PrefetchWindow = 10;
+            SortJobIO->TableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
 
             MapSelectivityFactor = 1.0;
         });
@@ -467,10 +467,10 @@ struct TMapReduceOperationSpec
         //   MapSelectivityFactor
 
         RegisterInitializer([&] () {
-            MapJobIO->TableReader->PrefetchWindow = 10;
+            MapJobIO->TableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
             MapJobIO->TableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GB
 
-            SortJobIO->TableReader->PrefetchWindow = 10;           
+            SortJobIO->TableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
         });
     }
 

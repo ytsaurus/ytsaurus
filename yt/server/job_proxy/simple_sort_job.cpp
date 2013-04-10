@@ -59,8 +59,8 @@ public:
         KeyColumns = FromProto<Stroka>(jobSpecExt.key_columns());
 
         {
-            TReaderOptions options;
-            options.KeepBlocks = true;
+            auto options = New<TChunkReaderOptions>();
+            options->KeepBlocks = true;
 
             std::vector<NTableClient::NProto::TInputChunk> chunks(
                 jobSpec.input_specs(0).chunks().begin(),

@@ -16,19 +16,6 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TReaderOptions
-{
-    bool ReadKey;
-
-    // If set, reader keeps all memory buffers valid until destruction.
-    bool KeepBlocks;
-
-    TReaderOptions()
-        : ReadKey(false)
-        , KeepBlocks(false)
-    { }
-};
-
 DECLARE_ENUM(EErrorCode,
     ((MasterCommunicationFailed)(800))
     ((SortOrderViolation)(801))
@@ -106,6 +93,9 @@ typedef TIntrusivePtr<TTableWriterOptions> TTableWriterOptionsPtr;
 
 struct TTableReaderConfig;
 typedef TIntrusivePtr<TTableReaderConfig> TTableReaderConfigPtr;
+
+struct TChunkReaderOptions;
+typedef TIntrusivePtr<TChunkReaderOptions> TChunkReaderOptionsPtr;
 
 class TTableProducer;
 class TTableConsumer;

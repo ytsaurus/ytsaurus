@@ -53,8 +53,8 @@ public:
 
         {
             std::vector<TTableChunkSequenceReaderPtr> readers;
-            TReaderOptions options;
-            options.ReadKey = true;
+             auto options = New<TChunkReaderOptions>();
+            options->ReadKey = true;
 
             auto provider = New<TTableChunkReaderProvider>(config->JobIO->TableReader, options);
 

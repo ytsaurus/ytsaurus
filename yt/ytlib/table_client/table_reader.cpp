@@ -4,6 +4,7 @@
 #include "table_chunk_reader.h"
 #include "multi_chunk_sequential_reader.h"
 #include "private.h"
+#include "helpers.h"
 
 #include <ytlib/misc/sync.h>
 
@@ -68,7 +69,9 @@ void TTableReader::Open()
 
     auto inputChunks = FromProto<NProto::TInputChunk>(fetchRsp->chunks());
 
-    auto provider = New<TTableChunkReaderProvider>(Config);
+    auto provider = New<TTableChunkReaderProvider>(
+        Config,
+        New<TChunkReaderOptions>());
     Reader = New<TTableChunkSequenceReader>(
         Config,
         MasterChannel,

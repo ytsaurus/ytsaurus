@@ -43,8 +43,8 @@ public:
         YCHECK(index >= 0 && index < GetInputCount());
 
         std::vector<TTableChunkSequenceReaderPtr> readers;
-        TReaderOptions options;
-        options.ReadKey = true;
+        auto options = New<TChunkReaderOptions>();
+        options->ReadKey = true;
 
         auto provider = New<TTableChunkReaderProvider>(IOConfig->TableReader, options);
 

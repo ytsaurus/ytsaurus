@@ -62,6 +62,8 @@ protected:
     };
 
     TTableReaderConfigPtr Config;
+    int PrefetchWindow;
+
     NRpc::IChannelPtr MasterChannel;
 
     NChunkClient::IBlockCachePtr BlockCache;
