@@ -222,7 +222,7 @@ public:
         double tolerance =
             demandRatio < Attributes_.FairShareRatio + RatioComparisonPrecision
             ? 1.0
-            : Spec_->FairShareStarvationTolerance;
+            : Spec_->FairShareStarvationTolerance.Get(Config->FairShareStarvationTolerance);
 
         if (usageRatio > Attributes_.FairShareRatio * tolerance - RatioComparisonPrecision) {
             return EOperationStatus::Normal;
@@ -873,7 +873,8 @@ private:
         }
 
         const auto& attributes = element->Attributes();
-        if (usageRatio < attributes.FairShareRatio * spec->FairSharePreemptionTolerance) {
+        double tolerance = spec->FairSharePreemptionTolerance.Get(Config->FairSharePreemptionTolerance);
+        if (usageRatio < attributes.FairShareRatio * tolerance) {
             return false;
         }
 
@@ -1126,11 +1127,13 @@ private:
         auto status = element->GetStatus();
         auto now = TInstant::Now();
         auto spec = element->GetSpec();
+        auto minSharePreemptionTimeout = spec->MinSharePreemptionTimeout.Get(Config->MinSharePreemptionTimeout);
+        auto fairSharePreemptionTimeout = spec->FairSharePreemptionTimeout.Get(Config->FairSharePreemptionTimeout);
         switch (status) {
             case EOperationStatus::BelowMinShare:
                 if (!element->GetBelowMinShareSince()) {
                     element->SetBelowMinShareSince(now);
-                } else if (element->GetBelowMinShareSince().Get() < now - spec->MinSharePreemptionTimeout) {
+                } else if (element->GetBelowMinShareSince().Get() < now - minSharePreemptionTimeout) {
                     SetStarving(element, status);
                 }
                 break;
@@ -1138,7 +1141,7 @@ private:
             case EOperationStatus::BelowFairShare:
                 if (!element->GetBelowFairShareSince()) {
                     element->SetBelowFairShareSince(now);
-                } else if (element->GetBelowFairShareSince().Get() < now - spec->FairSharePreemptionTimeout) {
+                } else if (element->GetBelowFairShareSince().Get() < now - fairSharePreemptionTimeout) {
                     SetStarving(element, status);
                 }
                 element->SetBelowMinShareSince(Null);

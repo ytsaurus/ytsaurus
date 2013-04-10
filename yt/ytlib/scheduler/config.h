@@ -533,12 +533,13 @@ struct TPooledOperationSpec
     TNullable<Stroka> Pool;
     double Weight;
 
-    TDuration MinSharePreemptionTimeout;
     double MinShareRatio;
 
-    TDuration FairSharePreemptionTimeout;
-    double FairShareStarvationTolerance;
-    double FairSharePreemptionTolerance;
+    // The following settings override schedule configuration.
+    TNullable<TDuration> MinSharePreemptionTimeout;
+    TNullable<TDuration> FairSharePreemptionTimeout;
+    TNullable<double> FairShareStarvationTolerance;
+    TNullable<double> FairSharePreemptionTolerance;
 
     TPooledOperationSpec()
     {
@@ -549,20 +550,20 @@ struct TPooledOperationSpec
             .Default(1.0)
             .GreaterThanOrEqual(1.0);
 
-        Register("min_share_preemption_timeout", MinSharePreemptionTimeout)
-            .Default(TDuration::Seconds(15));
         Register("min_share_ratio", MinShareRatio)
             .Default(1.0)
             .InRange(0.0, 1.0);
 
+        Register("min_share_preemption_timeout", MinSharePreemptionTimeout)
+            .Default(Null);
         Register("fair_share_preemption_timeout", FairSharePreemptionTimeout)
-            .Default(TDuration::Seconds(30));
+            .Default(Null);
         Register("fair_share_starvation_tolerance", FairShareStarvationTolerance)
             .InRange(0.0, 1.0)
-            .Default(0.8);
+            .Default(Null);
         Register("fair_share_preemption_tolerance", FairSharePreemptionTolerance)
             .GreaterThanOrEqual(0.0)
-            .Default(1.05);
+            .Default(Null);
     }
 };
 

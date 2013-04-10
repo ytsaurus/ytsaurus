@@ -18,6 +18,12 @@ namespace NScheduler {
 struct TFairShareStrategyConfig
     : public TYsonSerializable
 {
+    // The following settings can be overridden in operation spec.
+    TDuration MinSharePreemptionTimeout;
+    TDuration FairSharePreemptionTimeout;
+    double FairShareStarvationTolerance;
+    double FairSharePreemptionTolerance;
+
     TDuration FairShareUpdatePeriod;
 
     double NewOperationWeightBoostFactor;
@@ -28,6 +34,17 @@ struct TFairShareStrategyConfig
 
     TFairShareStrategyConfig()
     {
+        Register("min_share_preemption_timeout", MinSharePreemptionTimeout)
+            .Default(TDuration::Seconds(15));
+        Register("fair_share_preemption_timeout", FairSharePreemptionTimeout)
+            .Default(TDuration::Seconds(30));
+        Register("fair_share_starvation_tolerance", FairShareStarvationTolerance)
+            .InRange(0.0, 1.0)
+            .Default(0.8);
+        Register("fair_share_preemption_tolerance", FairSharePreemptionTolerance)
+            .GreaterThanOrEqual(0.0)
+            .Default(1.05);
+
         Register("fair_share_update_period", FairShareUpdatePeriod)
             .Default(TDuration::MilliSeconds(1000));
 
