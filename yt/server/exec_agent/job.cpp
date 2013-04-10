@@ -438,6 +438,7 @@ bool TJob::IsRetriableSystemError(const TError& error)
 {
     return
         error.FindMatching(NChunkClient::EErrorCode::AllTargetNodesFailed) ||
+        error.FindMatching(NChunkClient::EErrorCode::MasterCommunicationFailed) ||
         error.FindMatching(NTableClient::EErrorCode::MasterCommunicationFailed);
 }
 
