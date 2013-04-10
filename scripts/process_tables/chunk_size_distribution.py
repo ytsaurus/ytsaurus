@@ -8,6 +8,7 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--create-merge-queue", action="store_true", default=False)
     parser.add_argument("--calculate-chunk-sizes", action="store_true", default=False)
+    parser.add_argument("--queue-path", default="//home/ignat/tables_to_merge")
 
     parser.add_argument("--minimum-number-of-chunks", type=int, default=10)
     parser.add_argument("--maximum-chunk-size", type=int, default=100 *1024 * 1024)
@@ -33,12 +34,13 @@ if __name__ == "__main__":
 
             if args.create_merge_queue:
                 if weight < args.maximum_chunk_size and chunk_count > args.minimum_number_of_chunks:
+                    #print table, chunk_count
                     tables_to_merge.append(tuple([table.attributes["compressed_data_size"], table]))
 
 
     tables_to_merge = map(lambda x: x[1], sorted(tables_to_merge))
     if args.create_merge_queue:
-        yt.set("//home/ignat/tables_to_merge", tables_to_merge)
+        yt.set(args.queue_path, tables_to_merge)
 
     if args.calculate_chunk_sizes:
         for size in sizes:
