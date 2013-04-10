@@ -7,6 +7,7 @@
 #include <ytlib/ytree/ypath_detail.h>
 
 #include <ytlib/rpc/message.h>
+#include <ytlib/rpc/service_detail.h>
 
 #include <ytlib/actions/parallel_awaiter.h>
 
@@ -57,7 +58,7 @@ public:
     void Run()
     {
         int requestCount = Context->Request().part_counts_size();
-        UserName = FindRpcAuthenticatedUser(Context->GetUntypedContext());
+        UserName = FindRpcAuthenticatedUser(Context);
 
         // TODO(babenko): let RPC subsystem log user name
         Context->SetRequestInfo("User: %s, RequestCount: %d",
@@ -152,7 +153,7 @@ private:
     void YieldAndContinue()
     {
         LOG_DEBUG("Yielding state thread (RequestId: %s)",
-            ~Context->GetUntypedContext()->GetRequestId().ToString());
+            ~Context->GetRequestId().ToString());
 
         auto invoker = Owner->Bootstrap->GetMetaStateFacade()->GetGuardedInvoker();
         if (!invoker->Invoke(BIND(&TExecuteSession::Continue, MakeStrong(this)))) {

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "service.h"
+
 #include <ytlib/rpc/rpc.pb.h>
 
 #include <ytlib/bus/message.h>
@@ -125,15 +126,19 @@ public:
     virtual NYTree::IAttributeDictionary& RequestAttributes() override;
     virtual NYTree::IAttributeDictionary& ResponseAttributes() override;
 
+    using IServiceContext::SetRequestInfo;
     virtual void SetRequestInfo(const Stroka& info) override;
+
     virtual Stroka GetRequestInfo() const override;
 
+    using IServiceContext::SetResponseInfo;
     virtual void SetResponseInfo(const Stroka& info) override;
+
     virtual Stroka GetResponseInfo() override;
 
     virtual TClosure Wrap(const TClosure& action) override;
 
-private:
+protected:
     IServiceContextPtr UnderlyingContext;
 
 };
