@@ -38,6 +38,7 @@ public:
 
     void Open();
     NChunkClient::TChunkId GetChunkId() const;
+    i64 GetSize() const;
 
 private:
     //! Adds another portion of data.

@@ -25,7 +25,7 @@ TMultiChunkParallelReader<TChunkReader>::TMultiChunkParallelReader(
 {
     ReadySessions.reserve(std::min(
         static_cast<int>(TBase::InputChunks.size()),
-        TBase::Config->PrefetchWindow));
+        TBase::PrefetchWindow));
 
     if (TBase::ReaderProvider->KeepInMemory()) {
         CompleteSessions.reserve(TBase::InputChunks.size());
@@ -40,7 +40,7 @@ TAsyncError TMultiChunkParallelReader<TChunkReader>::AsyncOpen()
     if (TBase::InputChunks.size() != 0) {
         State.StartOperation();
 
-        for (int i = 0; i < TBase::Config->PrefetchWindow; ++i) {
+        for (int i = 0; i < TBase::PrefetchWindow; ++i) {
             TBase::PrepareNextChunk();
         }
     }

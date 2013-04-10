@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "config.h"
 #include "table_chunk_reader.h"
 #include "channel_reader.h"
 #include "private.h"
@@ -156,7 +157,7 @@ public:
             tags.push_back(TProtoExtensionTag<NProto::TIndexExt>::Value);
         }
 
-        if (HasRangeRequest || chunkReader->Options.ReadKey) {
+        if (HasRangeRequest || chunkReader->Options->ReadKey) {
             tags.push_back(TProtoExtensionTag<NProto::TKeyColumnsExt>::Value);
         }
 
@@ -218,7 +219,7 @@ private:
             chunkReader->EndRowIndex = std::min(chunkReader->EndRowIndex, EndLimit.row_index());
         }
 
-        if (HasRangeRequest || chunkReader->Options.ReadKey) {
+        if (HasRangeRequest || chunkReader->Options->ReadKey) {
             if (!miscExt.sorted()) {
                 auto error = TError("Received key range read request for an unsorted chunk %s",
                     ~AsyncReader->GetChunkId().ToString());
@@ -468,7 +469,7 @@ private:
 
         auto& channelReader = chunkReader->ChannelReaders.back();
         auto decompressedBlock = chunkReader->SequentialReader->GetBlock();
-        if (chunkReader->Options.KeepBlocks)
+        if (chunkReader->Options->KeepBlocks)
             chunkReader->FetchedBlocks.push_back(decompressedBlock);
         channelReader->SetBlock(decompressedBlock);
 
@@ -682,7 +683,7 @@ TTableChunkReader::TTableChunkReader(TSequentialReaderConfigPtr config,
     const NProto::TReadLimit& endLimit,
     const NYTree::TYsonString& rowAttributes,
     int partitionTag,
-    TReaderOptions options)
+    TChunkReaderOptionsPtr options)
     : SequentialReader(NULL)
     , Channel(channel)
     , Options(options)
@@ -778,7 +779,7 @@ bool TTableChunkReader::ContinueNextRow(
     if (channelIndex >= 0) {
         auto& channel = ChannelReaders[channelIndex];
         auto decompressedBlock = SequentialReader->GetBlock();
-        if (Options.KeepBlocks)
+        if (Options->KeepBlocks)
             FetchedBlocks.push_back(decompressedBlock);
         channel->SetBlock(decompressedBlock);
     }
@@ -861,7 +862,7 @@ const TNonOwningKey& TTableChunkReader::GetKey() const
 {
     YASSERT(!ReaderState.HasRunningOperation());
     YASSERT(!Initializer);
-    YASSERT(Options.ReadKey);
+    YASSERT(Options->ReadKey);
 
     return CurrentKey;
 }
@@ -901,15 +902,16 @@ TFuture<void> TTableChunkReader::GetFetchingCompleteEvent()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableChunkReaderProvider::TTableChunkReaderProvider(const NChunkClient::TSequentialReaderConfigPtr& config,
-    const TReaderOptions& options)
+TTableChunkReaderProvider::TTableChunkReaderProvider(
+    const NChunkClient::TSequentialReaderConfigPtr& config,
+    const TChunkReaderOptionsPtr& options)
     : Config(config)
     , Options(options)
 { }
 
 bool TTableChunkReaderProvider::KeepInMemory() const
 {
-    return Options.KeepBlocks;
+    return Options->KeepBlocks;
 }
 
 TTableChunkReaderPtr TTableChunkReaderProvider::CreateNewReader(

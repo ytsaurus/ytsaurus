@@ -4,7 +4,7 @@
 #include "orchid_service_proxy.h"
 
 #include <ytlib/ytree/public.h>
-#include <ytlib/rpc/service.h>
+#include <ytlib/rpc/service_detail.h>
 
 namespace NYT {
 namespace NOrchid {
@@ -15,9 +15,6 @@ class TOrchidService
     : public NRpc::TServiceBase
 {
 public:
-    typedef TIntrusivePtr<TOrchidService> TPtr;
-
-    //! Creates an instance.
     TOrchidService(
         NYTree::INodePtr root,
         IInvokerPtr invoker);

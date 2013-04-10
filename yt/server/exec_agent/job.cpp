@@ -438,6 +438,7 @@ bool TJob::IsRetriableSystemError(const TError& error)
 {
     return
         error.FindMatching(NChunkClient::EErrorCode::AllTargetNodesFailed) ||
+        error.FindMatching(NChunkClient::EErrorCode::MasterCommunicationFailed) ||
         error.FindMatching(NTableClient::EErrorCode::MasterCommunicationFailed);
 }
 
@@ -530,6 +531,7 @@ void TJob::Abort(const TError& error)
 
     if (JobState == EJobState::Waiting) {
         YCHECK(!Slot);
+        SetResult(TError("Job aborted by scheduler"));
         JobState = EJobState::Aborted;
         SetResourceUsage(ZeroNodeResources());
         ResourcesReleased_.Fire();

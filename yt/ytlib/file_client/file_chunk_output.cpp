@@ -225,6 +225,11 @@ TChunkId TFileChunkOutput::GetChunkId() const
     return ChunkId;
 }
 
+i64 TFileChunkOutput::GetSize() const
+{
+    return Size;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NFileClient

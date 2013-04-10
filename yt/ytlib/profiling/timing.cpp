@@ -10,6 +10,7 @@ namespace NProfiling  {
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger Logger("Profiling");
+static const TDuration CalibrationInterval = TDuration::Seconds(3);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,9 +31,17 @@ public:
             : CalibrationInstant - CpuDurationToDuration(CalibrationCpuInstant - instant);
     }
 
-private:
-    static const TDuration CalibrationInterval;
+    TCpuInstant Convert(TInstant instant)
+    {
+        CalibrateIfNeeded();
+        // TDuration is unsigned and thus does not support negative values.
+        return
+            instant >= CalibrationInstant
+            ? CalibrationCpuInstant + DurationToCpuDuration(instant - CalibrationInstant)
+            : CalibrationCpuInstant - DurationToCpuDuration(CalibrationInstant - instant);
+    }
 
+private:
     void CalibrateIfNeeded()
     {
         auto nowClock = GetCpuInstant();
@@ -61,7 +70,7 @@ private:
 
 };
 
-const TDuration TClockConverter::CalibrationInterval = TDuration::Seconds(3);
+static TClockConverter ClockConverter;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -86,8 +95,12 @@ TCpuDuration DurationToCpuDuration(TDuration duration)
 
 TInstant CpuInstantToInstant(TCpuInstant instant)
 {
-    static TClockConverter converter;
-    return converter.Convert(instant);
+    return ClockConverter.Convert(instant);
+}
+
+TCpuInstant InstantToCpuInstant(TInstant instant)
+{
+    return ClockConverter.Convert(instant);
 }
 
 TValue DurationToValue(TDuration duration)

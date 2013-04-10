@@ -3,6 +3,7 @@
 #include "client.h"
 #include "service.h"
 #include "message.h"
+#include "private.h"
 
 #include <ytlib/bus/bus.h>
 #include <ytlib/bus/message.h>

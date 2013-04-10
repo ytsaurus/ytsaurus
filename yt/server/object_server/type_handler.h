@@ -7,7 +7,7 @@
 
 #include <ytlib/ytree/public.h>
 
-#include <ytlib/rpc/service.h>
+#include <ytlib/rpc/service_detail.h>
 
 #include <ytlib/object_client/master_ypath.pb.h>
 

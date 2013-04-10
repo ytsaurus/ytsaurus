@@ -216,8 +216,9 @@ void TTableChunkWriter::WriteRow(const TRow& row)
     FOREACH (const auto& pair, row) {
         if (pair.first.length() > MaxColumnNameSize) {
             State.Fail(TError(
-                "Too long column name %s, max size is %d symbols",
+                "Column column %s is too long: actual size %" PRISZT ", max size %" PRISZT,
                 ~Stroka(pair.first).Quote(),
+                pair.first.length(),
                 MaxColumnNameSize));
             return;
         }
@@ -226,8 +227,8 @@ void TTableChunkWriter::WriteRow(const TRow& row)
 
         if (ColumnNames.size() > MaxColumnCount) {
             State.Fail(TError(
-                "Too many different columns (Counnt: %d, MaxColumnCount: %d)",
-                static_cast<int>(ColumnNames.size()),
+                "Too many different columns: already found %" PRISZT ", limit %d",
+                ColumnNames.size(),
                 MaxColumnCount));
             return;
         }
@@ -237,7 +238,8 @@ void TTableChunkWriter::WriteRow(const TRow& row)
                 // Ignore second and subsequent values with the same column name.
                 continue;
             }
-            State.Fail(TError("Duplicate column name %s", ~Stroka(pair.first).Quote()));
+            State.Fail(TError("Duplicate column name %s",
+                ~Stroka(pair.first).Quote()));
             return;
         }
 
@@ -251,7 +253,9 @@ void TTableChunkWriter::WriteRow(const TRow& row)
 
     i64 rowWeight = DataWeight - dataWeight;
     if (rowWeight > MaxRowWeight) {
-        State.Fail(TError("Table row is too large (RowWeight: %" PRId64 ")", rowWeight));
+        State.Fail(TError("Table row is too large: current weight %" PRId64 ", max weight %" PRId64,
+            rowWeight,
+            MaxRowWeight));
         return;
     }
 
@@ -437,7 +441,7 @@ void TTableChunkWriter::EmitSample(const TRow& row)
             case ETokenType::String: {
                 auto* keyPart = part->mutable_key_part();
                 keyPart->set_type(EKeyPartType::String);
-                auto partSize = std::min(token.GetStringValue().size(), MaxKeySize);
+                size_t partSize = std::min(token.GetStringValue().size(), MaxKeySize);
                 keyPart->set_str_value(token.GetStringValue().begin(), partSize);
                 SamplesSize += partSize;
                 break;

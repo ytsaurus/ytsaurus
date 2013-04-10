@@ -185,7 +185,7 @@ IMPLEMENT_SUPPORTS_VERB_RESOLVE(Exists, { Reply(context, false); })
 void TSupportsExists::Reply(TCtxExistsPtr context, bool value)
 {
     context->Response().set_value(value);
-    context->SetResponseInfo(Sprintf("Result: %s", ~ToString(value)));
+    context->SetResponseInfo("Result: %s", ~FormatBool(value));
     context->Reply();
 }
 
@@ -984,8 +984,8 @@ protected:
         Stroka str;
         AppendInfo(str, RequestInfo);
         LOG_DEBUG("%s %s <- %s",
-            ~Verb,
-            ~Path,
+            ~GetVerb(),
+            ~GetPath(),
             ~str);
     }
 
@@ -995,8 +995,8 @@ protected:
         AppendInfo(str, Sprintf("Error: %s", ~ToString(error)));
         AppendInfo(str, ResponseInfo);
         LOG_DEBUG("%s %s -> %s",
-            ~Verb,
-            ~Path,
+            ~GetVerb(),
+            ~GetPath(),
             ~str);
     }
 

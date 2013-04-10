@@ -5,7 +5,7 @@
 #include "virtual.h"
 #include "convert.h"
 
-#include <ytlib/rpc/service.h>
+#include <ytlib/rpc/service_detail.h>
 #include <ytlib/rpc/server_detail.h>
 
 namespace NYT {

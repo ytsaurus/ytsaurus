@@ -449,4 +449,101 @@ IInvokerPtr CreateSerializedInvoker(IInvokerPtr underlyingInvoker)
 
 ///////////////////////////////////////////////////////////////////////////////
 
+class TPrioritizedInvoker
+    : public IPrioritizedInvoker
+{
+public:
+    explicit TPrioritizedInvoker(IInvokerPtr underlyingInvoker)
+        : UnderlyingInvoker(underlyingInvoker)
+    { }
+
+    virtual bool Invoke(const TClosure& action, i64 priority) override
+    {
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            TEntry entry;
+            entry.Action = std::move(action);
+            entry.Priority = priority;
+            EntryHeap.emplace_back(std::move(entry));
+            std::push_heap(EntryHeap.begin(), EntryHeap.end());
+        }
+        // TODO(babenko): there's no easy way to evict the entry; for now, we do not allow the
+        // underlying invoker to reject the action.
+        YCHECK(UnderlyingInvoker->Invoke(BIND(&TPrioritizedInvoker::DoExecute, MakeStrong(this))));
+        return true;
+    }
+
+    virtual bool Invoke(const TClosure& action) override
+    {
+        return Invoke(action, 0);
+    }
+
+private:
+    IInvokerPtr UnderlyingInvoker;
+
+    struct TEntry
+    {
+        TClosure Action;
+        i64 Priority;
+
+        bool operator < (const TEntry& other) const
+        {
+            return Priority < other.Priority;
+        }
+    };
+
+    TSpinLock SpinLock;
+    std::vector<TEntry> EntryHeap;
+
+    void DoExecute()
+    {
+        TClosure action;
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            std::pop_heap(EntryHeap.begin(), EntryHeap.end());
+            action = std::move(EntryHeap.back().Action);
+            EntryHeap.pop_back();
+        }
+        action.Run();
+    }
+
+};
+
+IPrioritizedInvokerPtr CreatePrioritizedInvoker(IInvokerPtr underlyingInvoker)
+{
+    return New<TPrioritizedInvoker>(underlyingInvoker);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+class TFakePrioritizedInvoker
+    : public IPrioritizedInvoker
+{
+public:
+    explicit TFakePrioritizedInvoker(IInvokerPtr underlyingInvoker)
+        : UnderlyingInvoker(underlyingInvoker)
+    { }
+
+    virtual bool Invoke(const TClosure& action, i64 /*priority*/) override
+    {
+        return UnderlyingInvoker->Invoke(action);
+    }
+
+    virtual bool Invoke(const TClosure& action) override
+    {
+        return UnderlyingInvoker->Invoke(action);
+    }
+
+private:
+    IInvokerPtr UnderlyingInvoker;
+
+};
+
+IPrioritizedInvokerPtr CreateFakePrioritizedInvoker(IInvokerPtr underlyingInvoker)
+{
+    return New<TFakePrioritizedInvoker>(underlyingInvoker);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT

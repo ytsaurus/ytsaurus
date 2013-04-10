@@ -22,7 +22,7 @@
 #include <ytlib/election/cell_manager.h>
 #include <ytlib/election/election_manager.h>
 
-#include <ytlib/rpc/service.h>
+#include <ytlib/rpc/service_detail.h>
 
 #include <ytlib/ytree/fluent.h>
 
@@ -122,7 +122,10 @@ public:
         IInvokerPtr stateInvoker,
         IMetaStatePtr metaState,
         NRpc::IServerPtr server)
-        : TServiceBase(controlInvoker, TProxy::GetServiceName(), Logger.GetCategory())
+        : TServiceBase(
+            controlInvoker,
+            TProxy::GetServiceName(),
+            Logger.GetCategory())
         , Config(config)
         , ControlInvoker(controlInvoker)
         , StateInvoker(stateInvoker)

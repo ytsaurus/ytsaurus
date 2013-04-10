@@ -17,7 +17,7 @@
 
 #include <ytlib/logging/log.h>
 
-#include <ytlib/rpc/service.h>
+#include <ytlib/rpc/service_detail.h>
 
 namespace NYT {
 namespace NYTree {

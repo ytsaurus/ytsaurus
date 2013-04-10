@@ -7,13 +7,26 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(babenko): move to public.h
+struct IInvoker;
+typedef TIntrusivePtr<IInvoker> IInvokerPtr;
+
+struct IPrioritizedInvoker;
+typedef TIntrusivePtr<IPrioritizedInvoker> IPrioritizedInvokerPtr;
+
 struct IInvoker
     : public virtual TRefCounted
 {
     virtual bool Invoke(const TClosure& action) = 0;
 };
 
-typedef TIntrusivePtr<IInvoker> IInvokerPtr;
+struct IPrioritizedInvoker
+    : public virtual IInvoker
+{
+    using IInvoker::Invoke;
+
+    virtual bool Invoke(const TClosure& action, i64 priority) = 0;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

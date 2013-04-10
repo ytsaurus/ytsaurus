@@ -92,6 +92,8 @@ struct TUserJobSpec
     bool EnableTableIndex;
     bool UseYamrDescriptors;
 
+    i64 MaxStderrSize;
+
     TUserJobSpec()
     {
         Register("command", Command)
@@ -118,6 +120,10 @@ struct TUserJobSpec
             .Default(false);
         Register("use_yamr_descriptors", UseYamrDescriptors)
             .Default(false);
+        Register("max_stderr_size", MaxStderrSize)
+            .Default((i64)5 * 1024 * 1024) // 5MB
+            .GreaterThan(0)
+            .LessThanOrEqual((i64)1024 * 1024 * 1024);
     }
 };
 
@@ -153,7 +159,7 @@ struct TMapOperationSpec
             .DefaultNew();
 
         RegisterInitializer([&] () {
-            JobIO->TableReader->PrefetchWindow = 10;
+            JobIO->TableReader->MaxBufferSize = 1024L * 1024 * 1024;
         });
     }
 };
@@ -230,7 +236,7 @@ struct TUnorderedMergeOperationSpec
     TUnorderedMergeOperationSpec()
     {
         RegisterInitializer([&] () {
-            JobIO->TableReader->PrefetchWindow = 10;
+            JobIO->TableReader->MaxBufferSize = 1024L * 1024 * 1024;
         });
     }
 };
@@ -399,10 +405,10 @@ struct TSortOperationSpec
             .Default(TDuration::Minutes(1));
 
         RegisterInitializer([&] () {
-            PartitionJobIO->TableReader->PrefetchWindow = 10;
+            PartitionJobIO->TableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
             PartitionJobIO->TableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GB
 
-            SortJobIO->TableReader->PrefetchWindow = 10;
+            SortJobIO->TableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
 
             MapSelectivityFactor = 1.0;
         });
@@ -467,10 +473,10 @@ struct TMapReduceOperationSpec
         //   MapSelectivityFactor
 
         RegisterInitializer([&] () {
-            MapJobIO->TableReader->PrefetchWindow = 10;
+            MapJobIO->TableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
             MapJobIO->TableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GB
 
-            SortJobIO->TableReader->PrefetchWindow = 10;           
+            SortJobIO->TableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
         });
     }
 
@@ -533,12 +539,13 @@ struct TPooledOperationSpec
     TNullable<Stroka> Pool;
     double Weight;
 
-    TDuration MinSharePreemptionTimeout;
     double MinShareRatio;
 
-    TDuration FairSharePreemptionTimeout;
-    double FairShareStarvationTolerance;
-    double FairSharePreemptionTolerance;
+    // The following settings override schedule configuration.
+    TNullable<TDuration> MinSharePreemptionTimeout;
+    TNullable<TDuration> FairSharePreemptionTimeout;
+    TNullable<double> FairShareStarvationTolerance;
+    TNullable<double> FairSharePreemptionTolerance;
 
     TPooledOperationSpec()
     {
@@ -549,20 +556,20 @@ struct TPooledOperationSpec
             .Default(1.0)
             .GreaterThanOrEqual(1.0);
 
-        Register("min_share_preemption_timeout", MinSharePreemptionTimeout)
-            .Default(TDuration::Seconds(15));
         Register("min_share_ratio", MinShareRatio)
             .Default(1.0)
             .InRange(0.0, 1.0);
 
+        Register("min_share_preemption_timeout", MinSharePreemptionTimeout)
+            .Default(Null);
         Register("fair_share_preemption_timeout", FairSharePreemptionTimeout)
-            .Default(TDuration::Seconds(30));
+            .Default(Null);
         Register("fair_share_starvation_tolerance", FairShareStarvationTolerance)
             .InRange(0.0, 1.0)
-            .Default(0.8);
+            .Default(Null);
         Register("fair_share_preemption_tolerance", FairSharePreemptionTolerance)
             .GreaterThanOrEqual(0.0)
-            .Default(1.05);
+            .Default(Null);
     }
 };
 

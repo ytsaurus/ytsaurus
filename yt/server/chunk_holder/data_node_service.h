@@ -5,7 +5,7 @@
 
 #include <ytlib/misc/periodic_invoker.h>
 
-#include <ytlib/rpc/service.h>
+#include <ytlib/rpc/service_detail.h>
 
 #include <ytlib/actions/action_queue.h>
 

@@ -11,8 +11,6 @@
 #include <ytlib/meta_state/mutation.h>
 #include <ytlib/meta_state/map.h>
 
-#include <ytlib/rpc/service.h>
-
 #include <server/chunk_server/chunk_manager.pb.h>
 
 #include <server/cell_master/public.h>

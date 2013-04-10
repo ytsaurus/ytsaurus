@@ -21,6 +21,7 @@
 #include <ytlib/actions/parallel_awaiter.h>
 
 #include <ytlib/rpc/dispatcher.h>
+#include <ytlib/rpc/service_detail.h>
 
 #include <ytlib/logging/tagged_logger.h>
 
@@ -92,6 +93,9 @@ public:
         , MasterConnector(new TMasterConnector(Config, Bootstrap))
         , TotalResourceLimitsProfiler(Profiler.GetPathPrefix() + "/total_resource_limits")
         , TotalResourceUsageProfiler(Profiler.GetPathPrefix() + "/total_resource_usage")
+        , TotalCompletedJobTimeCounter("/total_completed_job_time")
+        , TotalFailedJobTimeCounter("/total_failed_job_time")
+        , TotalAbortedJobTimeCounter("/total_aborted_job_time")
         , JobTypeCounters(EJobType::GetDomainSize())
         , TotalResourceLimits(ZeroNodeResources())
         , TotalResourceUsage(ZeroNodeResources())
@@ -300,6 +304,11 @@ private:
 
     NProfiling::TProfiler TotalResourceLimitsProfiler;
     NProfiling::TProfiler TotalResourceUsageProfiler;
+
+    NProfiling::TAggregateCounter TotalCompletedJobTimeCounter;
+    NProfiling::TAggregateCounter TotalFailedJobTimeCounter;
+    NProfiling::TAggregateCounter TotalAbortedJobTimeCounter;
+
     std::vector<int> JobTypeCounters;
     TPeriodicInvokerPtr ProfilingInvoker;
 
@@ -1208,7 +1217,22 @@ private:
 
     void OnJobFinished(TJobPtr job)
     {
-        job->SetFinishTime(TInstant::Now());
+        auto now = TInstant::Now();
+        job->SetFinishTime(now);
+        auto duration = now - job->GetStartTime();
+        switch (job->GetState()) {
+            case EJobState::Completed:
+                Profiler.Increment(TotalCompletedJobTimeCounter, duration.MicroSeconds());
+                break;
+            case EJobState::Failed:
+                Profiler.Increment(TotalFailedJobTimeCounter, duration.MicroSeconds());
+                break;
+            case EJobState::Aborted:
+                Profiler.Increment(TotalAbortedJobTimeCounter, duration.MicroSeconds());
+                break;
+            default:
+                YUNREACHABLE();
+        }
 
         const auto& result = job->Result();
         if (result.HasExtension(TMapJobResultExt::map_job_result_ext)) {
@@ -1459,7 +1483,7 @@ private:
             ? TTransactionId::FromProto(request->transaction_id())
             : NullTransactionId;
 
-        auto maybeUser = FindRpcAuthenticatedUser(context->GetUntypedContext());
+        auto maybeUser = FindRpcAuthenticatedUser(context);
         auto user = maybeUser ? *maybeUser : RootUserName;
 
         IMapNodePtr spec;

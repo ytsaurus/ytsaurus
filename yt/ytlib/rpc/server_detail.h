@@ -1,6 +1,7 @@
 #pragma once
 
 #include "service.h"
+
 #include <ytlib/rpc/rpc.pb.h>
 
 #include <ytlib/bus/message.h>
@@ -17,6 +18,9 @@ public:
     virtual NBus::IMessagePtr GetRequestMessage() const override;
 
     virtual const TRequestId& GetRequestId() const override;
+    virtual TNullable<TInstant> GetRequestStartTime() const override;
+    virtual TNullable<TInstant> GetRetryStartTime() const override;
+    virtual i64 GetPriority() const override;
     virtual const Stroka& GetPath() const override;
     virtual const Stroka& GetVerb() const override;
 
@@ -54,15 +58,14 @@ protected:
 
     TServiceContextBase(NBus::IMessagePtr requestMessage);
 
-    TRequestId RequestId;
-    Stroka Path;
-    Stroka Verb;
+    const NProto::TRequestHeader Header;
     NBus::IMessagePtr RequestMessage;
+
+    TRequestId RequestId;
 
     TSharedRef RequestBody;
     std::vector<TSharedRef> RequestAttachments_;
     TAutoPtr<NYTree::IAttributeDictionary> RequestAttributes_;
-    bool OneWay;
     bool Replied;
     TError Error;
 
@@ -98,7 +101,9 @@ public:
     virtual NBus::IMessagePtr GetRequestMessage() const override;
 
     virtual const NRpc::TRequestId& GetRequestId() const override;
-
+    virtual TNullable<TInstant> GetRequestStartTime() const override;
+    virtual TNullable<TInstant> GetRetryStartTime() const override;
+    virtual i64 GetPriority() const override;
     virtual const Stroka& GetPath() const override;
     virtual const Stroka& GetVerb() const override;
 
@@ -121,15 +126,19 @@ public:
     virtual NYTree::IAttributeDictionary& RequestAttributes() override;
     virtual NYTree::IAttributeDictionary& ResponseAttributes() override;
 
+    using IServiceContext::SetRequestInfo;
     virtual void SetRequestInfo(const Stroka& info) override;
+
     virtual Stroka GetRequestInfo() const override;
 
+    using IServiceContext::SetResponseInfo;
     virtual void SetResponseInfo(const Stroka& info) override;
+
     virtual Stroka GetResponseInfo() override;
 
     virtual TClosure Wrap(const TClosure& action) override;
 
-private:
+protected:
     IServiceContextPtr UnderlyingContext;
 
 };

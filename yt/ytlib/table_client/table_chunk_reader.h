@@ -25,7 +25,7 @@ class TTableChunkReaderProvider
 public:
     TTableChunkReaderProvider(
         const NChunkClient::TSequentialReaderConfigPtr& config,
-        const TReaderOptions& options = TReaderOptions());
+        const TChunkReaderOptionsPtr& options = New<TChunkReaderOptions>());
 
     TTableChunkReaderPtr CreateNewReader(
         const NProto::TInputChunk& inputChunk,
@@ -35,7 +35,7 @@ public:
 
 private:
     NChunkClient::TSequentialReaderConfigPtr Config;
-    TReaderOptions Options;
+    TChunkReaderOptionsPtr Options;
 
 };
 
@@ -57,7 +57,7 @@ public:
         const NProto::TReadLimit& endLimit,
         const NYTree::TYsonString& rowAttributes,
         int partitionTag,
-        TReaderOptions options);
+        TChunkReaderOptionsPtr options);
 
     TAsyncError AsyncOpen();
 
@@ -114,7 +114,7 @@ private:
     TAsyncStreamState ReaderState;
     TAsyncStreamState RowState;
 
-    TReaderOptions Options;
+    TChunkReaderOptionsPtr Options;
 
     NYTree::TYsonString RowAttributes;
     TRow CurrentRow;

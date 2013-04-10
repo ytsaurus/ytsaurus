@@ -5,6 +5,7 @@
 
 #include "private.h"
 #include "config.h"
+#include "helpers.h"
 
 #include <ytlib/chunk_client/block_cache.h>
 #include <ytlib/chunk_client/remote_reader.h>
@@ -39,10 +40,39 @@ TMultiChunkReaderBase<TChunkReader>::TMultiChunkReaderBase(
     , FetchingCompleteAwaiter(New<TParallelAwaiter>())
     , Logger(TableReaderLogger)
 {
+    std::vector<i64> chunkDataSizes;
+    chunkDataSizes.reserve(InputChunks.size());
+
     FOREACH (const auto& inputChunk, InputChunks) {
-        auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(inputChunk.extensions());
-        ItemCount_ += miscExt.row_count();
+        i64 dataSize, rowCount;
+        GetStatistics(inputChunk, &dataSize, &rowCount);
+        chunkDataSizes.push_back(dataSize);
+        ItemCount_ += rowCount;
     }
+
+    if (ReaderProvider->KeepInMemory()) {
+        PrefetchWindow = MaxPrefetchWindow;
+    } else {
+        std::sort(chunkDataSizes.begin(), chunkDataSizes.end(), std::greater<i64>());
+
+        PrefetchWindow = 0;
+        i64 bufferSize = 0;
+        while (PrefetchWindow < chunkDataSizes.size()) {
+            bufferSize += std::min(
+                chunkDataSizes[PrefetchWindow],
+                config->WindowSize) + ChunkReaderMemorySize;
+            if (bufferSize > Config->MaxBufferSize) {
+                break;
+            } else {
+                ++PrefetchWindow;
+            }
+        }
+
+        PrefetchWindow = std::min(PrefetchWindow, MaxPrefetchWindow);
+        PrefetchWindow = std::max(PrefetchWindow, 1);
+    }
+    LOG_DEBUG("Preparing reader (PrefetchWindow: %d)",
+        PrefetchWindow);
 }
 
 template <class TChunkReader>

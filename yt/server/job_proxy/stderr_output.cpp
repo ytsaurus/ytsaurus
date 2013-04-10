@@ -30,10 +30,12 @@ static NLog::TLogger& Logger = JobProxyLogger;
 TErrorOutput::TErrorOutput(
     TFileWriterConfigPtr config,
     IChannelPtr masterChannel,
-    const TTransactionId& transactionId)
+    const TTransactionId& transactionId,
+    i64 maxSize)
     : Config(config)
     , MasterChannel(masterChannel)
     , TransactionId(transactionId)
+    , MaxSize(maxSize)
     , IsClosed(false)
 { }
 
@@ -54,6 +56,9 @@ void TErrorOutput::DoWrite(const void* buf, size_t len)
 
         LOG_DEBUG("Stderr stream opened");
     }
+
+    if (FileWriter->GetSize() > MaxSize)
+        return;
 
     FileWriter->Write(buf, len);
 }

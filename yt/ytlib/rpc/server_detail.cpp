@@ -17,11 +17,9 @@ using namespace NYTree;
 TServiceContextBase::TServiceContextBase(
     const TRequestHeader& header,
     IMessagePtr requestMessage)
-    : RequestId(header.has_request_id() ? TRequestId::FromProto(header.request_id()) : NullRequestId)
-    , Path(header.path())
-    , Verb(header.verb())
+    : Header(header)
     , RequestMessage(requestMessage)
-    , OneWay(header.has_one_way() ? header.one_way() : false)
+    , RequestId(header.has_request_id() ? TRequestId::FromProto(header.request_id()) : NullRequestId)
     , Replied(false)
     , ResponseAttributes_(CreateEphemeralAttributes())
 {
@@ -82,7 +80,7 @@ void TServiceContextBase::Reply(IMessagePtr responseMessage)
 
 bool TServiceContextBase::IsOneWay() const
 {
-    return OneWay;
+    return Header.one_way();
 }
 
 bool TServiceContextBase::IsReplied() const
@@ -124,7 +122,7 @@ void TServiceContextBase::SetResponseBody(const TSharedRef& responseBody)
 
 std::vector<TSharedRef>& TServiceContextBase::ResponseAttachments()
 {
-    YASSERT(!OneWay);
+    YASSERT(!IsOneWay());
     return ResponseAttachments_;
 }
 
@@ -143,14 +141,29 @@ const TRequestId& TServiceContextBase::GetRequestId() const
     return RequestId;
 }
 
+TNullable<TInstant> TServiceContextBase::GetRequestStartTime() const 
+{
+    return Header.has_request_start_time() ? TNullable<TInstant>(TInstant(Header.request_start_time())) : Null;
+}
+
+TNullable<TInstant> TServiceContextBase::GetRetryStartTime() const 
+{
+    return Header.has_retry_start_time() ? TNullable<TInstant>(TInstant(Header.retry_start_time())) : Null;
+}
+
+i64 TServiceContextBase::GetPriority() const 
+{
+    return Header.has_request_start_time() ? -Header.request_start_time() : 0;
+}
+
 const Stroka& TServiceContextBase::GetPath() const
 {
-    return Path;
+    return Header.path();
 }
 
 const Stroka& TServiceContextBase::GetVerb() const
 {
-    return Verb;
+    return Header.verb();
 }
 
 void TServiceContextBase::SetRequestInfo(const Stroka& info)
@@ -208,7 +221,7 @@ void TServiceContextBase::CheckRepliable() const
     YASSERT(!Replied);
 
     // Failure here indicates an attempt to reply to a one-way request.
-    YASSERT(!OneWay);
+    YASSERT(!IsOneWay());
 }
 
 void TServiceContextBase::AppendInfo(Stroka& lhs, const Stroka& rhs)
@@ -235,6 +248,21 @@ IMessagePtr TServiceContextWrapper::GetRequestMessage() const
 const TRequestId& TServiceContextWrapper::GetRequestId() const
 {
     return UnderlyingContext->GetRequestId();
+}
+
+TNullable<TInstant> TServiceContextWrapper::GetRequestStartTime() const 
+{
+    return UnderlyingContext->GetRequestStartTime();
+}
+
+TNullable<TInstant> TServiceContextWrapper::GetRetryStartTime() const 
+{
+    return UnderlyingContext->GetRetryStartTime();
+}
+
+i64 TServiceContextWrapper::GetPriority() const 
+{
+    return UnderlyingContext->GetPriority();
 }
 
 const Stroka& TServiceContextWrapper::GetPath() const

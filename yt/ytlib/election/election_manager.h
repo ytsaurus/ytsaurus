@@ -8,8 +8,10 @@
 
 #include <ytlib/misc/delayed_invoker.h>
 #include <ytlib/misc/thread_affinity.h>
+
 #include <ytlib/actions/invoker.h>
-#include <ytlib/rpc/service.h>
+
+#include <ytlib/rpc/service_detail.h>
 
 namespace NYT {
 namespace NElection {
