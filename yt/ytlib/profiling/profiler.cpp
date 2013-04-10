@@ -86,12 +86,7 @@ void TProfiler::Enqueue(const TYPath& path, TValue value)
 
 TTimer TProfiler::TimingStart(const TYPath& path, ETimerMode mode)
 {
-    return TimingStart(path, GetCpuInstant(), mode);
-}
-
-TTimer TProfiler::TimingStart(const TYPath& path, TCpuInstant start, ETimerMode mode)
-{
-    return TTimer(path, start, mode);
+    return TTimer(path, GetCpuInstant(), mode);
 }
 
 TDuration TProfiler::TimingStop(TTimer& timer)
@@ -125,13 +120,10 @@ TDuration TProfiler::TimingStop(TTimer& timer)
 
 TDuration TProfiler::TimingCheckpoint(TTimer& timer, const Stroka& key)
 {
-    return TimingCheckpoint(timer, GetCpuInstant(), key);
-}
-
-TDuration TProfiler::TimingCheckpoint(TTimer& timer, TCpuInstant now, const Stroka& key)
-{
     // Failure here means that the timer was not started or already stopped.
     YASSERT(timer.Start != 0);
+
+    auto now = GetCpuInstant();
 
     // Upon receiving the first checkpoint Simple timer
     // is automatically switched into Sequential.
@@ -148,14 +140,14 @@ TDuration TProfiler::TimingCheckpoint(TTimer& timer, TCpuInstant now, const Stro
             Enqueue(path, duration);
             timer.LastCheckpoint = now;
             return CpuDurationToDuration(duration);
-                                     }
+        }
 
         case ETimerMode::Parallel: {
             auto duration = CpuDurationToValue(now - timer.Start);
             YASSERT(duration >= 0);
             Enqueue(path, duration);
             return CpuDurationToDuration(duration);
-                                   }
+        }
 
         default:
             YUNREACHABLE();
