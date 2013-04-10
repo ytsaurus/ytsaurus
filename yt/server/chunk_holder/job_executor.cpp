@@ -125,7 +125,7 @@ void TJob::RunReplicate()
     }
 
     auto this_ = MakeStrong(this);
-    chunk->GetMeta().Subscribe(BIND([=] (IAsyncReader::TGetMetaResult result) {
+    chunk->GetMeta(0).Subscribe(BIND([=] (IAsyncReader::TGetMetaResult result) {
         if (!result.IsOK()) {
             this_->SetFailed(TError(
                 "Error getting meta of chunk: %s",
@@ -178,11 +178,11 @@ void TJob::ReplicateBlock(int blockIndex, TError error)
 
     Bootstrap
         ->GetBlockStore()
-        ->GetBlock(blockId, false)
+        ->GetBlock(blockId, 0, false)
         .Subscribe(
-            BIND([=] (TBlockStore::TGetBlockResult result) {
+            BIND([this, this_, blockId, blockIndex] (TBlockStore::TGetBlockResult result) {
                 if (!result.IsOK()) {
-                    this_->SetFailed(TError(
+                    SetFailed(TError(
                         "Error retrieving block %d for replication",
                         ~blockId.ToString())
                         << result);
@@ -190,14 +190,14 @@ void TJob::ReplicateBlock(int blockIndex, TError error)
                 }
 
                 auto block = result.Value()->GetData();
-                auto nextBlockIndex = blockIndex;
+                int nextBlockIndex = blockIndex;
                 if (Writer->TryWriteBlock(block)) {
                     ++nextBlockIndex;
                 }
 
                 Writer->GetReadyEvent().Subscribe(
                     BIND(&TJob::ReplicateBlock, this_, nextBlockIndex)
-                    .Via(CancelableInvoker));
+                        .Via(CancelableInvoker));
             }).Via(CancelableInvoker));
 }
 

@@ -106,13 +106,13 @@ public:
     bool HasEnoughSpace(i64 size) const;
 
     //! Returns an invoker for reading chunk data.
-    IInvokerPtr GetDataReadInvoker();
+    IPrioritizedInvokerPtr GetDataReadInvoker();
 
     //! Returns an invoker for reading chunk meta.
-    IInvokerPtr GetMetaReadInvoker();
+    IPrioritizedInvokerPtr GetMetaReadInvoker();
 
     //! Returns an invoker for writing chunks.
-    IInvokerPtr GetWriteInvoker();
+    IPrioritizedInvokerPtr GetWriteInvoker();
 
     //! Returns True iff the location is enabled.
     bool IsEnabled() const;
@@ -151,7 +151,11 @@ private:
     int ChunkCount;
 
     TFairShareActionQueuePtr ReadQueue;
+    IPrioritizedInvokerPtr DataReadInvoker;
+    IPrioritizedInvokerPtr MetaReadInvoker;
+
     TActionQueuePtr WriteQueue;
+    IPrioritizedInvokerPtr WriteInvoker;
 
     TDiskHealthCheckerPtr HealthChecker;
 
