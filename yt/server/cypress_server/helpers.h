@@ -40,6 +40,10 @@ void DetachChild(
     TCypressNodeBase* child,
     bool unref);
 
+bool NodeHasKey(
+    NCellMaster::TBootstrap* bootstrap,
+    const TCypressNodeBase* node);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NCypressServer

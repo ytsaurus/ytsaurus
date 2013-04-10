@@ -319,8 +319,7 @@ TVersionedObjectId TNontemplateCypressNodeProxyBase::GetVersionedId() const
 void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttributeInfo>* attributes)
 {
     const auto* node = GetThisImpl();
-    auto parent = node->GetParent();
-    bool hasKey = parent && parent->GetType() == ENodeType::Map;
+    bool hasKey = NodeHasKey(Bootstrap, node);
     attributes->push_back(TAttributeInfo("parent_id", node->GetParent()));
     attributes->push_back("locks");
     attributes->push_back("lock_mode");
@@ -340,7 +339,7 @@ bool TNontemplateCypressNodeProxyBase::GetSystemAttribute(
 {
     const auto* node = GetThisImpl();
     const auto* trunkNode = node->GetTrunkNode();
-    bool hasKey = GetParent() && GetParent()->GetType() == ENodeType::Map;
+    bool hasKey = NodeHasKey(Bootstrap, node);
 
     if (key == "parent_id" && node->GetParent()) {
         BuildYsonFluently(consumer)

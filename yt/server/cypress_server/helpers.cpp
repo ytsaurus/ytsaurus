@@ -155,6 +155,18 @@ void DetachChild(
     }
 }
 
+bool NodeHasKey(
+    NCellMaster::TBootstrap* bootstrap,
+    const TCypressNodeBase* node)
+{
+    auto* parent = node->GetParent();
+    if (!parent) {
+        return false;
+    }
+    auto cypressManager = bootstrap->GetCypressManager();
+    auto handler = cypressManager->GetHandler(parent);
+    return handler->GetNodeType() == ENodeType::Map;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
