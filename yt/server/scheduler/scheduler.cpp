@@ -21,6 +21,7 @@
 #include <ytlib/actions/parallel_awaiter.h>
 
 #include <ytlib/rpc/dispatcher.h>
+#include <ytlib/rpc/service_detail.h>
 
 #include <ytlib/logging/tagged_logger.h>
 
