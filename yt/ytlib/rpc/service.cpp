@@ -37,6 +37,7 @@ TServiceBase::TMethodDescriptor::TMethodDescriptor(
     , Handler(std::move(handler))
     , OneWay(false)
     , MaxQueueSize(100000)
+    , EnableReorder(false)
 { }
 
 TServiceBase::TRuntimeMethodInfo::TRuntimeMethodInfo(
@@ -50,10 +51,12 @@ TServiceBase::TRuntimeMethodInfo::TRuntimeMethodInfo(
 
 TServiceBase::TActiveRequest::TActiveRequest(
     const TRequestId& id,
+    i64 priority,
     IBusPtr replyBus,
     TRuntimeMethodInfoPtr runtimeInfo,
     const NProfiling::TTimer& timer)
     : Id(id)
+    , Priority(priority)
     , ReplyBus(std::move(replyBus))
     , RuntimeInfo(runtimeInfo)
     , RunningSync(false)
@@ -102,7 +105,7 @@ private:
         AppendInfo(str, Sprintf("RequestId: %s", ~RequestId.ToString()));
         AppendInfo(str, RequestInfo);
         LOG_DEBUG("%s <- %s",
-            ~Verb,
+            ~GetVerb(),
             ~str);
     }
 
@@ -113,7 +116,7 @@ private:
         AppendInfo(str, Sprintf("Error: %s", ~ToString(error)));
         AppendInfo(str, ResponseInfo);
         LOG_DEBUG("%s -> %s",
-            ~Verb,
+            ~GetVerb(),
             ~str);
     }
 
@@ -122,19 +125,39 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TServiceBase::TServiceBase(
+    IPrioritizedInvokerPtr defaultInvoker,
+    const Stroka& serviceName,
+    const Stroka& loggingCategory)
+{
+    Init(
+        defaultInvoker,
+        serviceName,
+        loggingCategory);
+}
+
+TServiceBase::TServiceBase(
     IInvokerPtr defaultInvoker,
     const Stroka& serviceName,
     const Stroka& loggingCategory)
-    : DefaultInvoker(std::move(defaultInvoker))
-    , ServiceName(serviceName)
-    , LoggingCategory(loggingCategory)
-    , RequestCounter("/services/" + ServiceName + "/request_rate")
 {
-    YCHECK(DefaultInvoker);
+    Init(
+        CreateFakePrioritizedInvoker(defaultInvoker),
+        serviceName,
+        loggingCategory);
 }
 
-TServiceBase::~TServiceBase()
-{ }
+void TServiceBase::Init(
+    IPrioritizedInvokerPtr defaultInvoker,
+    const Stroka& serviceName,
+    const Stroka& loggingCategory)
+{
+    YCHECK(defaultInvoker);
+
+    DefaultInvoker = defaultInvoker;
+    ServiceName = serviceName;
+    LoggingCategory = loggingCategory;
+    RequestCounter = NProfiling::TRateCounter("/services/" + ServiceName + "/request_rate");
+}
 
 Stroka TServiceBase::GetServiceName() const
 {
@@ -214,8 +237,14 @@ void TServiceBase::OnRequest(
     Profiler.Increment(runtimeInfo->RequestCounter, +1);
     auto timer = Profiler.TimingStart(runtimeInfo->ProfilingPath + "/time");
 
+    i64 priority =
+        runtimeInfo->Descriptor.EnableReorder && header.has_request_start_time()
+        ? -header.request_start_time()
+        : 0;
+
     auto activeRequest = New<TActiveRequest>(
         requestId,
+        priority,
         replyBus,
         runtimeInfo,
         timer);
@@ -300,7 +329,7 @@ void TServiceBase::OnInvocationPrepared(
         invoker = DefaultInvoker;
     }
 
-    if (!invoker->Invoke(std::move(wrappedHandler))) {
+    if (!invoker->Invoke(std::move(wrappedHandler), activeRequest->Priority)) {
         context->Reply(TError(EErrorCode::Unavailable, "Service unavailable"));
     }
 }
@@ -413,6 +442,11 @@ TServiceBase::TRuntimeMethodInfoPtr TServiceBase::GetMethodInfo(const Stroka& me
     auto runtimeInfo = FindMethodInfo(method);
     YCHECK(runtimeInfo);
     return runtimeInfo;
+}
+
+IPrioritizedInvokerPtr TServiceBase::GetDefaultInvoker()
+{
+    return DefaultInvoker;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

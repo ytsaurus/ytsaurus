@@ -17,6 +17,8 @@ public:
     virtual NBus::IMessagePtr GetRequestMessage() const override;
 
     virtual const TRequestId& GetRequestId() const override;
+    virtual TNullable<TInstant> GetRequestStartTime() const override;
+    virtual TNullable<TInstant> GetRetryStartTime() const override;
     virtual const Stroka& GetPath() const override;
     virtual const Stroka& GetVerb() const override;
 
@@ -54,15 +56,14 @@ protected:
 
     TServiceContextBase(NBus::IMessagePtr requestMessage);
 
-    TRequestId RequestId;
-    Stroka Path;
-    Stroka Verb;
+    const NProto::TRequestHeader Header;
     NBus::IMessagePtr RequestMessage;
+
+    TRequestId RequestId;
 
     TSharedRef RequestBody;
     std::vector<TSharedRef> RequestAttachments_;
     TAutoPtr<NYTree::IAttributeDictionary> RequestAttributes_;
-    bool OneWay;
     bool Replied;
     TError Error;
 
@@ -98,7 +99,8 @@ public:
     virtual NBus::IMessagePtr GetRequestMessage() const override;
 
     virtual const NRpc::TRequestId& GetRequestId() const override;
-
+    virtual TNullable<TInstant> GetRequestStartTime() const override;
+    virtual TNullable<TInstant> GetRetryStartTime() const override;
     virtual const Stroka& GetPath() const override;
     virtual const Stroka& GetVerb() const override;
 

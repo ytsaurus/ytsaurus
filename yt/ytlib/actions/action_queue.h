@@ -4,6 +4,8 @@
 #include "invoker.h"
 #include "callback.h"
 
+#include <ytlib/misc/property.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -122,6 +124,17 @@ private:
 //! but in a serialized fashion (i.e. all queued actions are executed
 //! in the proper order and no two actions are executed in parallel).
 IInvokerPtr CreateSerializedInvoker(IInvokerPtr underlyingInvoker);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Creates a wrapper around IInvoker that supports action reordering.
+//! Actions with the highest priority are executed first.
+IPrioritizedInvokerPtr CreatePrioritizedInvoker(IInvokerPtr underlyingInvoker);
+
+//! Creates a wrapper around IInvoker that implements IPrioritizedInvoker but
+//! does not perform any actual reordering. Priorities passed to #IPrioritizedInvoker::Invoke
+//! are ignored.
+IPrioritizedInvokerPtr CreateFakePrioritizedInvoker(IInvokerPtr underlyingInvoker);
 
 ////////////////////////////////////////////////////////////////////////////////
 

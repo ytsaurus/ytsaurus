@@ -34,9 +34,16 @@ struct IServiceContext
     /*!
      *  These ids are assigned by the client to distinguish between responses.
      *  The server should not rely on their uniqueness.
+     *  
      *  #NullRequestId is a possible value.
      */
     virtual const TRequestId& GetRequestId() const = 0;
+
+    //! Returns the instant when the request was first issued by the client, if known.
+    virtual TNullable<TInstant> GetRequestStartTime() const = 0;
+
+    //! Returns the instant when the current retry of request was issued by the client, if known.
+    virtual TNullable<TInstant> GetRetryStartTime() const = 0;
 
     //! Returns the requested path.
     virtual const Stroka& GetPath() const = 0;
@@ -453,7 +460,7 @@ protected:
 
         //! Invoker used to executing the handler.
         //! If |nullptr| then the default one is used.
-        IInvokerPtr Invoker;
+        IPrioritizedInvokerPtr Invoker;
 
         //! Service method name.
         Stroka Verb;
@@ -470,9 +477,18 @@ protected:
         //! Maximum number of concurrent requests waiting in queue.
         int MaxQueueSize;
 
-        TMethodDescriptor& SetInvoker(IInvokerPtr value)
+        //! Should requests be reordered based on start time?
+        bool EnableReorder;
+
+        TMethodDescriptor& SetInvoker(IPrioritizedInvokerPtr value)
         {
             Invoker = value;
+            return *this;
+        }
+
+        TMethodDescriptor& SetInvoker(IInvokerPtr value)
+        {
+            Invoker = CreateFakePrioritizedInvoker(value);
             return *this;
         }
 
@@ -505,6 +521,12 @@ protected:
             MaxQueueSize = value;
             return *this;
         }
+
+        TMethodDescriptor& SetEnableReorder(bool value)
+        {
+            EnableReorder = value;
+            return *this;
+        }
     };
 
     //! Describes a service method and its runtime statistics.
@@ -535,12 +557,16 @@ protected:
     {
         TActiveRequest(
             const TRequestId& id,
+            i64 priority,
             NBus::IBusPtr replyBus,
             TRuntimeMethodInfoPtr runtimeInfo,
             const NProfiling::TTimer& timer);
 
         //! Request id.
         TRequestId Id;
+
+        //! Request priority.
+        i64 Priority;
 
         //! Bus for replying back to the client.
         NBus::IBusPtr ReplyBus;
@@ -577,11 +603,14 @@ protected:
      *  regarding service activity.
      */
     TServiceBase(
-        IInvokerPtr defaultInvoker,
+        IPrioritizedInvokerPtr defaultInvoker,
         const Stroka& serviceName,
         const Stroka& loggingCategory);
 
-    ~TServiceBase();
+    TServiceBase(
+        IInvokerPtr defaultInvoker,
+        const Stroka& serviceName,
+        const Stroka& loggingCategory);
 
     //! Registers a method.
     TRuntimeMethodInfoPtr RegisterMethod(const TMethodDescriptor& descriptor);
@@ -602,18 +631,27 @@ protected:
     //! Similar to #FindMethodInfo but fails if no method is found.
     TRuntimeMethodInfoPtr GetMethodInfo(const Stroka& method);
 
+    //! Returns the default invoker passed during construction.
+    IPrioritizedInvokerPtr GetDefaultInvoker();
+
+
 private:
     class TServiceContext;
 
-    IInvokerPtr DefaultInvoker;
+    IPrioritizedInvokerPtr DefaultInvoker;
     Stroka ServiceName;
     Stroka LoggingCategory;
     NProfiling::TRateCounter RequestCounter;
 
-    //! Protects #RuntimeMethodInfos and #ActiveRequests.
+    //! Protects the following data members.
     TSpinLock SpinLock;
     yhash_map<Stroka, TRuntimeMethodInfoPtr> RuntimeMethodInfos;
     yhash_set<TActiveRequestPtr> ActiveRequests;
+
+    void Init(
+        IPrioritizedInvokerPtr defaultInvoker,
+        const Stroka& serviceName,
+        const Stroka& loggingCategory);
 
     virtual Stroka GetServiceName() const override;
 

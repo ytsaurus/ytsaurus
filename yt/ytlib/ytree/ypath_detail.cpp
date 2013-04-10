@@ -984,8 +984,8 @@ protected:
         Stroka str;
         AppendInfo(str, RequestInfo);
         LOG_DEBUG("%s %s <- %s",
-            ~Verb,
-            ~Path,
+            ~GetVerb(),
+            ~GetPath(),
             ~str);
     }
 
@@ -995,8 +995,8 @@ protected:
         AppendInfo(str, Sprintf("Error: %s", ~ToString(error)));
         AppendInfo(str, ResponseInfo);
         LOG_DEBUG("%s %s -> %s",
-            ~Verb,
-            ~Path,
+            ~GetVerb(),
+            ~GetPath(),
             ~str);
     }
 

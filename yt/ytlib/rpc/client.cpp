@@ -41,6 +41,7 @@ TClientRequest::TClientRequest(
     , Verb(verb)
     , RequestId(TRequestId::Create())
     , OneWay(oneWay)
+    , StartTime(TInstant::Now())
     , Attributes_(CreateEphemeralAttributes())
 {
     YASSERT(channel);
@@ -53,6 +54,8 @@ IMessagePtr TClientRequest::Serialize() const
     header.set_path(Path);
     header.set_verb(Verb);
     header.set_one_way(OneWay);
+    header.set_request_start_time(StartTime.MicroSeconds());
+    header.set_retry_start_time(TInstant::Now().MicroSeconds());
     ToProto(header.mutable_attributes(), *Attributes_);
 
     auto bodyData = SerializeBody();

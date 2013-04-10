@@ -85,6 +85,7 @@ protected:
     Stroka Verb;
     TRequestId RequestId;
     bool OneWay;
+    TInstant StartTime;
 
     TAutoPtr<NYTree::IAttributeDictionary> Attributes_;
 
