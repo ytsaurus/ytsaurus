@@ -106,7 +106,7 @@ private:
             return;
         }
 
-        auto requestId = FromProto<TRequestId>(header.request_id());
+        auto requestId = TRequestId::FromProto(header.request_id());
         const auto& path = header.path();
         const auto& verb = header.verb();
         bool oneWay = header.has_one_way() ? header.one_way() : false;
