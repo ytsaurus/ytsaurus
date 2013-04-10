@@ -51,12 +51,14 @@ void TErrorOutput::DoWrite(const void* buf, size_t len)
             Config,
             MasterChannel,
             TransactionId,
-            NSecurityClient::SysAccountName,
-            MaxSize);
+            NSecurityClient::SysAccountName);
         FileWriter->Open();
 
         LOG_DEBUG("Stderr stream opened");
     }
+
+    if (FileWriter->GetSize() > MaxSize)
+        return;
 
     FileWriter->Write(buf, len);
 }

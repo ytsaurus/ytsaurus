@@ -13,8 +13,6 @@
 #include <ytlib/chunk_client/chunk.pb.h>
 #include <ytlib/rpc/public.h>
 
-#include <limits>
-
 namespace NYT {
 namespace NFileClient {
 
@@ -34,13 +32,13 @@ public:
         TFileWriterConfigPtr config,
         NRpc::IChannelPtr masterChannel,
         const NObjectClient::TTransactionId& transactionId,
-        const Stroka& account,
-        i64 maxSize = std::numeric_limits<i64>::max());
+        const Stroka& account);
 
     ~TFileChunkOutput() throw();
 
     void Open();
     NChunkClient::TChunkId GetChunkId() const;
+    i64 GetSize() const;
 
 private:
     //! Adds another portion of data.
@@ -57,7 +55,6 @@ private:
     const TFileWriterConfigPtr Config;
     const int ReplicationFactor;
     const int UploadReplicationFactor;
-    const i64 MaxSize;
 
     NRpc::IChannelPtr MasterChannel;
     NObjectClient::TTransactionId TransactionId;
