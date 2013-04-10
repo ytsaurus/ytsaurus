@@ -19,7 +19,7 @@ TServiceContextBase::TServiceContextBase(
     IMessagePtr requestMessage)
     : Header(header)
     , RequestMessage(requestMessage)
-    , RequestId(header.has_request_id() ? FromProto<TRequestId>(header.request_id()) : NullRequestId)
+    , RequestId(header.has_request_id() ? TRequestId::FromProto(header.request_id()) : NullRequestId)
     , Replied(false)
     , ResponseAttributes_(CreateEphemeralAttributes())
 {
