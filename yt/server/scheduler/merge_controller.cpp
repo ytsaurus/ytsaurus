@@ -38,7 +38,7 @@ using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger(OperationLogger);
+static NLog::TLogger& Logger = OperationLogger;
 static NProfiling::TProfiler Profiler("/operations/merge");
 
 ////////////////////////////////////////////////////////////////////
@@ -572,9 +572,11 @@ private:
     virtual void InitJobSpecTemplate() override
     {
         JobSpecTemplate.set_type(EJobType::UnorderedMerge);
-        JobSpecTemplate.set_lfalloc_buffer_size(GetLFAllocBufferSize());
-        ToProto(JobSpecTemplate.mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
-        JobSpecTemplate.set_io_config(ConvertToYsonString(JobIOConfig).Data());
+        auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+
+        schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
+        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
+        schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
     }
 };
 
@@ -652,9 +654,11 @@ private:
     virtual void InitJobSpecTemplate() override
     {
         JobSpecTemplate.set_type(EJobType::OrderedMerge);
-        JobSpecTemplate.set_lfalloc_buffer_size(GetLFAllocBufferSize());
-        ToProto(JobSpecTemplate.mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
-        JobSpecTemplate.set_io_config(ConvertToYsonString(JobIOConfig).Data());
+        auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+
+        schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
+        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
+        schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
     }
 
 };
@@ -729,9 +733,11 @@ private:
     virtual void InitJobSpecTemplate() override
     {
         JobSpecTemplate.set_type(EJobType::OrderedMerge);
-        JobSpecTemplate.set_lfalloc_buffer_size(GetLFAllocBufferSize());
-        ToProto(JobSpecTemplate.mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
-        JobSpecTemplate.set_io_config(ConvertToYsonString(JobIOConfig).Data());
+        auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+
+        schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
+        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
+        schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
 
         auto* jobSpecExt = JobSpecTemplate.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
         // If the input is sorted then the output must also be sorted.
@@ -1168,12 +1174,14 @@ private:
     virtual void InitJobSpecTemplate() override
     {
         JobSpecTemplate.set_type(EJobType::SortedMerge);
-        JobSpecTemplate.set_lfalloc_buffer_size(GetLFAllocBufferSize());
-        ToProto(JobSpecTemplate.mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
-        JobSpecTemplate.set_io_config(ConvertToYsonString(JobIOConfig).Data());
+        auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+        auto* mergeJobSpecExt = JobSpecTemplate.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
 
-        auto* jobSpecExt = JobSpecTemplate.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
-        ToProto(jobSpecExt->mutable_key_columns(), KeyColumns);
+        schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
+        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
+        schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
+
+        ToProto(mergeJobSpecExt->mutable_key_columns(), KeyColumns);
 
         ManiacJobSpecTemplate.CopyFrom(JobSpecTemplate);
         ManiacJobSpecTemplate.set_type(EJobType::UnorderedMerge);
@@ -1261,15 +1269,17 @@ private:
     virtual void InitJobSpecTemplate() override
     {
         JobSpecTemplate.set_type(EJobType::SortedReduce);
-        JobSpecTemplate.set_lfalloc_buffer_size(GetLFAllocBufferSize());
-        ToProto(JobSpecTemplate.mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
-        JobSpecTemplate.set_io_config(ConvertToYsonString(JobIOConfig).Data());
+        auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+        auto* reduceJobSpecExt = JobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
 
-        auto* jobSpecExt = JobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
-        ToProto(jobSpecExt->mutable_key_columns(), KeyColumns);
+        schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
+        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
+        schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
+
+        ToProto(reduceJobSpecExt->mutable_key_columns(), KeyColumns);
 
         InitUserJobSpec(
-            jobSpecExt->mutable_reducer_spec(),
+            reduceJobSpecExt->mutable_reducer_spec(),
             Spec->Reducer,
             RegularFiles,
             TableFiles);

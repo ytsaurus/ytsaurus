@@ -106,10 +106,11 @@ public:
     void SetResult(const NScheduler::NProto::TJobResult& jobResult);
 
 private:
-    const TJobId JobId;
-    const NScheduler::NProto::TJobSpec JobSpec;
-    const NScheduler::NProto::TNodeResources ResourceLimits;
+    TJobId JobId;
+    NScheduler::NProto::TJobSpec JobSpec;
     const NScheduler::NProto::TUserJobSpec* UserJobSpec;
+    NScheduler::NProto::TNodeResources ResourceLimits;
+    TBootstrap* Bootstrap;
 
     TSpinLock ResourcesLock;
     NScheduler::NProto::TNodeResources ResourceUsage;
@@ -118,8 +119,6 @@ private:
     i64 JobProxyMemoryLimit;
 
     NLog::TTaggedLogger Logger;
-
-    TBootstrap* Bootstrap;
 
     NChunkHolder::TChunkCachePtr ChunkCache;
 

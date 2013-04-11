@@ -265,19 +265,20 @@ private:
     void InitJobSpecTemplate()
     {
         JobSpecTemplate.set_type(EJobType::Map);
-        JobSpecTemplate.set_lfalloc_buffer_size(GetLFAllocBufferSize());
+        auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+        auto* mapJobSpecExt = JobSpecTemplate.MutableExtension(TMapJobSpecExt::map_job_spec_ext);
 
-        auto* jobSpecExt = JobSpecTemplate.MutableExtension(TMapJobSpecExt::map_job_spec_ext);
+        schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
 
         InitUserJobSpec(
-            jobSpecExt->mutable_mapper_spec(),
+            mapJobSpecExt->mutable_mapper_spec(),
             Spec->Mapper,
             RegularFiles,
             TableFiles);
 
-        ToProto(JobSpecTemplate.mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
+        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
 
-        JobSpecTemplate.set_io_config(ConvertToYsonString(JobIOConfig).Data());
+        schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
     }
 
 };

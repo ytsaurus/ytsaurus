@@ -139,10 +139,12 @@ TJobResult TJobProxy::DoRun()
         const auto& jobSpec = GetJobSpec();
         auto jobType = NScheduler::EJobType(jobSpec.type());
 
+        const auto& schedulerJobSpecExt = jobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+
         BlockCache = NChunkClient::CreateClientBlockCache(New<NChunkClient::TClientBlockCacheConfig>());
 
         NodeDirectory = New<TNodeDirectory>();
-        NodeDirectory->MergeFrom(jobSpec.node_directory());
+        NodeDirectory->MergeFrom(schedulerJobSpecExt.node_directory());
 
         HeartbeatInvoker = New<TPeriodicInvoker>(
             GetSyncInvoker(),
@@ -151,35 +153,35 @@ TJobResult TJobProxy::DoRun()
 
         NYT::NThread::SetCurrentThreadName(~jobType.ToString());
         
-        SetLargeBlockLimit(jobSpec.lfalloc_buffer_size());
+        SetLargeBlockLimit(schedulerJobSpecExt.lfalloc_buffer_size());
 
         switch (jobType) {
             case NScheduler::EJobType::Map: {
-                const auto& jobSpecExt = jobSpec.GetExtension(TMapJobSpecExt::map_job_spec_ext);
+                const auto& mapJobSpecExt = jobSpec.GetExtension(TMapJobSpecExt::map_job_spec_ext);
                 auto userJobIO = CreateMapJobIO(Config->JobIO, this);
-                Job = CreateUserJob(this, jobSpecExt.mapper_spec(), userJobIO);
+                Job = CreateUserJob(this, mapJobSpecExt.mapper_spec(), userJobIO);
                 break;
             }
 
             case NScheduler::EJobType::SortedReduce: {
-                const auto& jobSpecExt = jobSpec.GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
+                const auto& reduceJobSpecExt = jobSpec.GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
                 auto userJobIO = CreateSortedReduceJobIO(Config->JobIO, this);
-                Job = CreateUserJob(this, jobSpecExt.reducer_spec(), userJobIO);
+                Job = CreateUserJob(this, reduceJobSpecExt.reducer_spec(), userJobIO);
                 break;
             }
 
             case NScheduler::EJobType::PartitionMap: {
-                const auto& jobSpecExt = jobSpec.GetExtension(TPartitionJobSpecExt::partition_job_spec_ext);
-                YCHECK(jobSpecExt.has_mapper_spec());
+                const auto& partitionJobSpecExt = jobSpec.GetExtension(TPartitionJobSpecExt::partition_job_spec_ext);
+                YCHECK(partitionJobSpecExt.has_mapper_spec());
                 auto userJobIO = CreatePartitionMapJobIO(Config->JobIO, this);
-                Job = CreateUserJob(this, jobSpecExt.mapper_spec(), userJobIO);
+                Job = CreateUserJob(this, partitionJobSpecExt.mapper_spec(), userJobIO);
                 break;
             }
 
             case NScheduler::EJobType::PartitionReduce: {
-                const auto& jobSpecExt = jobSpec.GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
+                const auto& reduceJobSpecExt = jobSpec.GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
                 auto userJobIO = CreatePartitionReduceJobIO(Config->JobIO, this);
-                Job = CreateUserJob(this, jobSpecExt.reducer_spec(), userJobIO);
+                Job = CreateUserJob(this, reduceJobSpecExt.reducer_spec(), userJobIO);
                 break;
             }
 

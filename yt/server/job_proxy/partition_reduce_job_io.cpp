@@ -45,11 +45,14 @@ public:
         YCHECK(index == 0);
 
         const auto& jobSpec = Host->GetJobSpec();
-        YCHECK(jobSpec.input_specs_size() == 1);
+        const auto& schedulerJobSpecExt = jobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
+        YCHECK(schedulerJobSpecExt.input_specs_size() == 1);
+
+        const auto& inputSpec = schedulerJobSpecExt.input_specs(0);
         std::vector<NTableClient::NProto::TInputChunk> chunks(
-            jobSpec.input_specs(0).chunks().begin(),
-            jobSpec.input_specs(0).chunks().end());
+            inputSpec.chunks().begin(),
+            inputSpec.chunks().end());
 
         auto jobSpecExt = jobSpec.GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
         auto keyColumns = FromProto<Stroka>(jobSpecExt.key_columns());
@@ -62,8 +65,8 @@ public:
             keyColumns,
             BIND(&IJobHost::ReleaseNetwork, Host),
             std::move(chunks),
-            jobSpec.input_row_count(),
-            jobSpec.is_approximate());
+            schedulerJobSpecExt.input_row_count(),
+            schedulerJobSpecExt.is_approximate());
 
         YCHECK(index == Inputs.size());
 

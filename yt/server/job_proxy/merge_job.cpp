@@ -50,14 +50,15 @@ public:
 
     explicit TMergeJob(IJobHost* host)
         : TJob(host)
+        , JobSpec(Host->GetJobSpec())
+        , SchedulerJobSpecExt(JobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext))
     {
-        const auto& jobSpec = Host->GetJobSpec();
         auto config = Host->GetConfig();
 
-        YCHECK(jobSpec.output_specs_size() == 1);
+        YCHECK(SchedulerJobSpecExt.output_specs_size() == 1);
 
         std::vector<TInputChunk> inputChunks;
-        FOREACH (const auto& inputSpec, jobSpec.input_specs()) {
+        FOREACH (const auto& inputSpec, SchedulerJobSpecExt.input_specs()) {
             FOREACH (const auto& inputChunk, inputSpec.chunks()) {
                 inputChunks.push_back(inputChunk);
             }
@@ -72,17 +73,15 @@ public:
             std::move(inputChunks),
             readerProvider));
 
-        if (jobSpec.HasExtension(TMergeJobSpecExt::merge_job_spec_ext)) {
-            const auto& mergeSpec = jobSpec.GetExtension(TMergeJobSpecExt::merge_job_spec_ext);
-            KeyColumns.Assign(FromProto<Stroka>(mergeSpec.key_columns()));
-
+        if (JobSpec.HasExtension(TMergeJobSpecExt::merge_job_spec_ext)) {
+            const auto& mergeJobSpec = JobSpec.GetExtension(TMergeJobSpecExt::merge_job_spec_ext);
+            KeyColumns = FromProto<Stroka>(mergeJobSpec.key_columns());
             LOG_INFO("Ordered merge produces sorted output");
         }
 
         // ToDo(psushin): estimate row count for writer.
-        auto transactionId = FromProto<TTransactionId>(jobSpec.output_transaction_id());
-        const auto& outputSpec = jobSpec.output_specs(0);
-
+        auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt.output_transaction_id());
+        const auto& outputSpec = SchedulerJobSpecExt.output_specs(0);
         auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
         options->KeyColumns = KeyColumns;
@@ -125,8 +124,9 @@ public:
                 NYson::TLexer lexer;
                 // Unsorted write - use dummy key.
                 TNonOwningKey key;
-                if (KeyColumns)
+                if (KeyColumns) {
                     key.ClearAndResize(KeyColumns->size());
+                }
 
                 while (const TRow* row = Reader->GetRow()) {
                     if (KeyColumns) {
@@ -157,7 +157,7 @@ public:
         }
     }
 
-    double GetProgress() const override
+    virtual double GetProgress() const override
     {
         i64 total = Reader->GetRowCount();
         if (total == 0) {
@@ -170,12 +170,15 @@ public:
         }
     }
 
-    std::vector<NChunkClient::TChunkId> GetFailedChunks() const override
+    virtual std::vector<NChunkClient::TChunkId> GetFailedChunks() const override
     {
         return Reader->GetFailedChunks();
     }
 
 private:
+    const TJobSpec& JobSpec;
+    const TSchedulerJobSpecExt& SchedulerJobSpecExt;
+
     ISyncReaderPtr Reader;
     ISyncWriterUnsafePtr Writer;
 

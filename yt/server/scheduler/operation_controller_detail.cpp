@@ -189,12 +189,12 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
 
         // Adjust sizes if approximation flag is set.
         if (joblet->InputStripeList->IsApproximate) {
-            jobSpec->set_input_uncompressed_data_size(static_cast<i64>(
-                jobSpec->input_uncompressed_data_size() *
+            auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+            schedulerJobSpecExt->set_input_uncompressed_data_size(static_cast<i64>(
+                schedulerJobSpecExt->input_uncompressed_data_size() *
                 ApproximateSizesBoostFactor));
-
-            jobSpec->set_input_row_count(static_cast<i64>(
-                jobSpec->input_row_count() *
+            schedulerJobSpecExt->set_input_row_count(static_cast<i64>(
+                schedulerJobSpecExt->input_row_count() *
                 ApproximateSizesBoostFactor));
         }
 
@@ -374,8 +374,9 @@ void TOperationControllerBase::TTask::AddSequentialInputSpec(
     TJobletPtr joblet,
     bool enableTableIndex)
 {
-    TNodeDirectoryBuilder directoryBuilder(Controller->NodeDirectory, jobSpec->mutable_node_directory());
-    auto* inputSpec = jobSpec->add_input_specs();
+    auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+    TNodeDirectoryBuilder directoryBuilder(Controller->NodeDirectory, schedulerJobSpecExt->mutable_node_directory());
+    auto* inputSpec = schedulerJobSpecExt->add_input_specs();
     auto list = joblet->InputStripeList;
     FOREACH (const auto& stripe, list->Stripes) {
         AddChunksToInputSpec(&directoryBuilder, inputSpec, stripe, list->PartitionTag, enableTableIndex);
@@ -388,10 +389,11 @@ void TOperationControllerBase::TTask::AddParallelInputSpec(
     TJobletPtr joblet,
     bool enableTableIndex)
 {
-    TNodeDirectoryBuilder directoryBuilder(Controller->NodeDirectory, jobSpec->mutable_node_directory());
+    auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+    TNodeDirectoryBuilder directoryBuilder(Controller->NodeDirectory, schedulerJobSpecExt->mutable_node_directory());
     auto list = joblet->InputStripeList;
     FOREACH (const auto& stripe, list->Stripes) {
-        auto* inputSpec = jobSpec->add_input_specs();
+        auto* inputSpec = schedulerJobSpecExt->add_input_specs();
         AddChunksToInputSpec(&directoryBuilder, inputSpec, stripe, list->PartitionTag, enableTableIndex);
     }
     UpdateInputSpecTotals(jobSpec, joblet);
@@ -425,11 +427,12 @@ void TOperationControllerBase::TTask::UpdateInputSpecTotals(
     TJobletPtr joblet)
 {
     auto list = joblet->InputStripeList;
-    jobSpec->set_input_uncompressed_data_size(
-        jobSpec->input_uncompressed_data_size() +
+    auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+    schedulerJobSpecExt->set_input_uncompressed_data_size(
+        schedulerJobSpecExt->input_uncompressed_data_size() +
         list->TotalDataSize);
-    jobSpec->set_input_row_count(
-        jobSpec->input_row_count() +
+    schedulerJobSpecExt->set_input_row_count(
+        schedulerJobSpecExt->input_row_count() +
         list->TotalRowCount);
 }
 
@@ -438,9 +441,10 @@ void TOperationControllerBase::TTask::AddFinalOutputSpecs(
     TJobletPtr joblet)
 {
     YCHECK(joblet->ChunkListIds.size() == Controller->OutputTables.size());
+    auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
     for (int index = 0; index < static_cast<int>(Controller->OutputTables.size()); ++index) {
         const auto& table = Controller->OutputTables[index];
-        auto* outputSpec = jobSpec->add_output_specs();
+        auto* outputSpec = schedulerJobSpecExt->add_output_specs();
         outputSpec->set_table_writer_options(ConvertToYsonString(table.Options).Data());
         ToProto(outputSpec->mutable_chunk_list_id(), joblet->ChunkListIds[index]);
     }
@@ -451,7 +455,8 @@ void TOperationControllerBase::TTask::AddIntermediateOutputSpec(
     TJobletPtr joblet)
 {
     YCHECK(joblet->ChunkListIds.size() == 1);
-    auto* outputSpec = jobSpec->add_output_specs();
+    auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+    auto* outputSpec = schedulerJobSpecExt->add_output_specs();
     auto options = New<TTableWriterOptions>();
     options->Account = Controller->Spec->IntermediateDataAccount;
     options->ReplicationFactor = 1;

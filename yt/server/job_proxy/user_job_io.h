@@ -56,6 +56,9 @@ protected:
     NScheduler::TJobIOConfigPtr IOConfig;
     IJobHost* Host;
 
+    const NScheduler::NProto::TJobSpec& JobSpec;
+    const NScheduler::NProto::TSchedulerJobSpecExt& SchedulerJobSpecExt;
+
     NChunkClient::TChunkId StderrChunkId;
 
     std::vector<NTableClient::ISyncReaderPtr> Inputs;

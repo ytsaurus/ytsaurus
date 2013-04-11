@@ -45,11 +45,14 @@ class TSortedMergeJob
 public:
     explicit TSortedMergeJob(IJobHost* host)
         : TJob(host)
+        , JobSpec(Host->GetJobSpec())
+        , SchedulerJobSpecExt(JobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext))
+        , MergeJobSpecExt(JobSpec.GetExtension(TMergeJobSpecExt::merge_job_spec_ext))
     {
-        const auto& jobSpec = Host->GetJobSpec();
         auto config = Host->GetConfig();
 
-        YCHECK(jobSpec.output_specs_size() == 1);
+        YCHECK(SchedulerJobSpecExt.output_specs_size() == 1);
+        const auto& outputSpec = SchedulerJobSpecExt.output_specs(0);
 
         {
             std::vector<TTableChunkSequenceReaderPtr> readers;
@@ -58,7 +61,7 @@ public:
 
             auto provider = New<TTableChunkReaderProvider>(config->JobIO->TableReader, options);
 
-            FOREACH (const auto& inputSpec, jobSpec.input_specs()) {
+            FOREACH (const auto& inputSpec, SchedulerJobSpecExt.input_specs()) {
                 // ToDo(psushin): validate that input chunks are sorted.
                 std::vector<NTableClient::NProto::TInputChunk> chunks(
                     inputSpec.chunks().begin(),
@@ -79,15 +82,12 @@ public:
         }
 
         {
-            const auto& mergeSpec = jobSpec.GetExtension(TMergeJobSpecExt::merge_job_spec_ext);
-
             // ToDo(psushin): estimate row count for writer.
-            auto transactionId = FromProto<TTransactionId>(jobSpec.output_transaction_id());
-            const auto& outputSpec = jobSpec.output_specs(0);
+            auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt.output_transaction_id());
             auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
 
             auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
-            options->KeyColumns = FromProto<Stroka>(mergeSpec.key_columns());
+            options->KeyColumns = FromProto<Stroka>(MergeJobSpecExt.key_columns());
 
             auto writerProvider = New<TTableChunkWriterProvider>(
                 config->JobIO->TableWriter,
@@ -133,7 +133,7 @@ public:
         }
     }
 
-    double GetProgress() const override
+    virtual double GetProgress() const override
     {
         i64 total = Reader->GetRowCount();
         if (total == 0) {
@@ -146,12 +146,16 @@ public:
         }
     }
 
-    std::vector<NChunkClient::TChunkId> GetFailedChunks() const override
+    virtual std::vector<NChunkClient::TChunkId> GetFailedChunks() const override
     {
         return Reader->GetFailedChunks();
     }
 
 private:
+    const TJobSpec& JobSpec;
+    const TSchedulerJobSpecExt& SchedulerJobSpecExt;
+    const TMergeJobSpecExt& MergeJobSpecExt;
+
     ISyncReaderPtr Reader;
     ISyncWriterUnsafePtr Writer;
 

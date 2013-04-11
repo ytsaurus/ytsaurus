@@ -63,9 +63,7 @@ TJob::TJob(
     TJobSpec&& jobSpec,
     TBootstrap* bootstrap)
     : JobId(jobId)
-    , JobSpec(jobSpec)
     , ResourceLimits(resourceLimits)
-    , UserJobSpec(nullptr)
     , ResourceUsage(resourceLimits)
     , JobProxyMemoryLimit(resourceLimits.memory())
     , Logger(ExecAgentLogger)
@@ -79,17 +77,16 @@ TJob::TJob(
     VERIFY_THREAD_AFFINITY(ControlThread);
     Logger.AddTag(Sprintf("JobId: %s", ~ToString(jobId)));
 
+    JobSpec.Swap(&jobSpec);
+
+    UserJobSpec = nullptr;
     if (JobSpec.HasExtension(TMapJobSpecExt::map_job_spec_ext)) {
         const auto& jobSpecExt = JobSpec.GetExtension(TMapJobSpecExt::map_job_spec_ext);
         UserJobSpec = &jobSpecExt.mapper_spec();
-    }
-
-    if (JobSpec.HasExtension(TReduceJobSpecExt::reduce_job_spec_ext)) {
+    } else if (JobSpec.HasExtension(TReduceJobSpecExt::reduce_job_spec_ext)) {
         const auto& jobSpecExt = JobSpec.GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
         UserJobSpec = &jobSpecExt.reducer_spec();
-    }
-
-    if (JobSpec.HasExtension(TPartitionJobSpecExt::partition_job_spec_ext)) {
+    } else if (JobSpec.HasExtension(TPartitionJobSpecExt::partition_job_spec_ext)) {
         const auto& jobSpecExt = JobSpec.GetExtension(TPartitionJobSpecExt::partition_job_spec_ext);
         if (jobSpecExt.has_mapper_spec()) {
             UserJobSpec = &jobSpecExt.mapper_spec();
@@ -134,7 +131,8 @@ void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
     {
         INodePtr ioConfigNode;
         try {
-            ioConfigNode = ConvertToNode(TYsonString(JobSpec.io_config()));
+            auto* schedulerJobSpecExt = JobSpec.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+            ioConfigNode = ConvertToNode(TYsonString(schedulerJobSpecExt->io_config()));
         } catch (const std::exception& ex) {
             auto wrappedError = TError("Error deserializing job IO configuration")
                 << ex;

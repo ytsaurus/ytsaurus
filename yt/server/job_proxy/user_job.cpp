@@ -57,6 +57,7 @@ using namespace NYson;
 using namespace NTableClient;
 using namespace NFormats;
 using namespace NScheduler;
+using namespace NScheduler::NProto;
 using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -84,10 +85,11 @@ public:
         , MemoryUsage(UserJobSpec.memory_reserve())
         , ProcessId(-1)
     {
+        auto config = Host->GetConfig();
         MemoryWatchdogInvoker = New<TPeriodicInvoker>(
             GetSyncInvoker(),
             BIND(&TUserJob::CheckMemoryUsage, MakeWeak(this)),
-            Host->GetConfig()->MemoryWatchdogPeriod);
+            config->MemoryWatchdogPeriod);
     }
 
     virtual NScheduler::NProto::TJobResult Run() override
@@ -137,14 +139,10 @@ public:
 
     virtual double GetProgress() const override
     {
-        if (IsInitCompleted) {
-            return JobIO->GetProgress();
-        } else {
-            return 0;
-        }
+        return IsInitCompleted ? JobIO->GetProgress() : 0;
     }
 
-    std::vector<NChunkClient::TChunkId> GetFailedChunks() const override
+    virtual std::vector<NChunkClient::TChunkId> GetFailedChunks() const override
     {
         return JobIO->GetFailedChunks();
     }
@@ -510,7 +508,7 @@ private:
 
             if (rss > MemoryUsage) {
                 auto delta = rss - MemoryUsage;
-                LOG_INFO("Increase memory usage (Delta %" PRId64 ")", delta);
+                LOG_INFO("Memory usage increased by %" PRId64, delta);
                 auto resourceUsage = Host->GetResourceUsage();
                 resourceUsage.set_memory(resourceUsage.memory() + delta);
                 Host->SetResourceUsage(resourceUsage);
@@ -524,7 +522,8 @@ private:
 
 
     TAutoPtr<TUserJobIO> JobIO;
-    NScheduler::NProto::TUserJobSpec UserJobSpec;
+
+    const TJobSpec& JobSpec;
 
     volatile bool IsInitCompleted;
 

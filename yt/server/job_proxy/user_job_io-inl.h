@@ -26,11 +26,11 @@ TAutoPtr<NTableClient::TTableProducer> TUserJobIO::DoCreateTableInput(
     const auto& jobSpec = Host->GetJobSpec();
 
     std::vector<NTableClient::NProto::TInputChunk> chunks;
-    for (int i = 0; i < jobSpec.input_specs_size(); ++i) {
+    FOREACH (const auto& inputSpec, SchedulerJobSpecExt.input_specs()) {
         chunks.insert(
             chunks.end(),
-            jobSpec.input_specs(i).chunks().begin(),
-            jobSpec.input_specs(i).chunks().end());
+            inputSpec.chunks().begin(),
+            inputSpec.chunks().end());
     }
 
     LOG_DEBUG("Opening input %d with %d chunks",

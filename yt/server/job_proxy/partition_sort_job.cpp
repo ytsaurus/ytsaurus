@@ -43,20 +43,23 @@ class TPartitionSortJob
 public:
     explicit TPartitionSortJob(IJobHost* host)
         : TJob(host)
+        , JobSpec(Host->GetJobSpec())
+        , SchedulerJobSpecExt(JobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext))
+        , SortJobSpecExt(JobSpec.GetExtension(TSortJobSpecExt::sort_job_spec_ext))
     {
-        const auto& jobSpec = Host->GetJobSpec();
         auto config = Host->GetConfig();
 
-        YCHECK(jobSpec.input_specs_size() == 1);
-        YCHECK(jobSpec.output_specs_size() == 1);
+        YCHECK(SchedulerJobSpecExt.input_specs_size() == 1);
+        const auto& inputSpec = SchedulerJobSpecExt.input_specs(0);
 
-        auto jobSpecExt = jobSpec.GetExtension(TSortJobSpecExt::sort_job_spec_ext);
+        YCHECK(SchedulerJobSpecExt.output_specs_size() == 1);
+        const auto& outputSpec = SchedulerJobSpecExt.output_specs(0);
 
-        KeyColumns = FromProto<Stroka>(jobSpecExt.key_columns());
+        KeyColumns = FromProto<Stroka>(SortJobSpecExt.key_columns());
 
         std::vector<NTableClient::NProto::TInputChunk> chunks(
-            jobSpec.input_specs(0).chunks().begin(),
-            jobSpec.input_specs(0).chunks().end());
+            inputSpec.chunks().begin(),
+            inputSpec.chunks().end());
 
         srand(time(NULL));
         std::random_shuffle(chunks.begin(), chunks.end());
@@ -70,8 +73,7 @@ public:
             std::move(chunks),
             provider);
 
-        auto transactionId = FromProto<TTransactionId>(jobSpec.output_transaction_id());
-        const auto& outputSpec = jobSpec.output_specs(0);
+        auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt.output_transaction_id());
         auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
         options->KeyColumns = KeyColumns;
@@ -91,15 +93,17 @@ public:
 
     virtual NScheduler::NProto::TJobResult Run() override
     {
-        PROFILE_TIMING ("/sort_time") {
+        const auto& jobSpec = Host->GetJobSpec();
+        const auto& SchedulerJobSpecExt = jobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
+        PROFILE_TIMING ("/sort_time") {
             auto keyColumnCount = KeyColumns.size();
 
             std::vector<TSmallKeyPart> keyBuffer;
             std::vector<const char*> rowPtrBuffer;
             std::vector<ui32> rowIndexHeap;
 
-            i64 estimatedRowCount = Host->GetJobSpec().input_row_count();
+            i64 estimatedRowCount = SchedulerJobSpecExt.input_row_count();
 
             LOG_INFO("Initializing");
             {
@@ -134,7 +138,7 @@ public:
             LOG_INFO("Reading");
             {
                 bool isNetworkReleased = false;
-                auto jobSpecExt = Host->GetJobSpec().GetExtension(TSortJobSpecExt::sort_job_spec_ext);
+                const auto& sortJobSpecExt = Host->GetJobSpec().GetExtension(TSortJobSpecExt::sort_job_spec_ext);
 
                 NYson::TLexer lexer;
                 while (Reader->IsValid()) {
@@ -175,7 +179,7 @@ public:
             i64 totalRowCount = rowIndexHeap.size();
             LOG_INFO("Total row count: %" PRId64, totalRowCount);
 
-            if (!Host->GetJobSpec().is_approximate()) {
+            if (!SchedulerJobSpecExt.is_approximate()) {
                 YCHECK(totalRowCount == estimatedRowCount);
             }
 
@@ -289,7 +293,7 @@ public:
 
     double GetProgress() const override
     {
-        i64 total = Host->GetJobSpec().input_row_count();
+        i64 total = SchedulerJobSpecExt.input_row_count();
         if (total == 0) {
             LOG_WARNING("GetProgress: empty total");
             return 0;
@@ -309,7 +313,12 @@ public:
     }
 
 private:
+    const TJobSpec& JobSpec;
+    const TSchedulerJobSpecExt& SchedulerJobSpecExt;
+    const TSortJobSpecExt& SortJobSpecExt;
+
     TKeyColumns KeyColumns;
+
     TIntrusivePtr<TReader> Reader;
     TIntrusivePtr<TWriter> Writer;
 

@@ -47,24 +47,27 @@ class TSimpleSortJob
 public:
     explicit TSimpleSortJob(IJobHost* host)
         : TJob(host)
+        , JobSpec(Host->GetJobSpec())
+        , SchedulerJobSpecExt(JobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext))
+        , SortJobSpecExt(JobSpec.GetExtension(TSortJobSpecExt::sort_job_spec_ext))
     {
-        const auto& jobSpec = Host->GetJobSpec();
         auto config = Host->GetConfig();
 
-        YCHECK(jobSpec.input_specs_size() == 1);
-        YCHECK(jobSpec.output_specs_size() == 1);
+        YCHECK(SchedulerJobSpecExt.input_specs_size() == 1);
+        const auto& inputSpec = SchedulerJobSpecExt.input_specs(0);
 
-        auto jobSpecExt = jobSpec.GetExtension(TSortJobSpecExt::sort_job_spec_ext);
+        YCHECK(SchedulerJobSpecExt.output_specs_size() == 1);
+        const auto& outputSpec = SchedulerJobSpecExt.output_specs(0);
 
-        KeyColumns = FromProto<Stroka>(jobSpecExt.key_columns());
+        KeyColumns = FromProto<Stroka>(SortJobSpecExt.key_columns());
 
         {
             auto options = New<TChunkReaderOptions>();
             options->KeepBlocks = true;
 
             std::vector<NTableClient::NProto::TInputChunk> chunks(
-                jobSpec.input_specs(0).chunks().begin(),
-                jobSpec.input_specs(0).chunks().end());
+                inputSpec.chunks().begin(),
+                inputSpec.chunks().end());
 
             srand(time(NULL));
             std::random_shuffle(chunks.begin(), chunks.end());
@@ -81,8 +84,7 @@ public:
         }
 
         {
-            auto transactionId = FromProto<TTransactionId>(jobSpec.output_transaction_id());
-            const auto& outputSpec = jobSpec.output_specs(0);
+            auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt.output_transaction_id());
             auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
             auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
             options->KeyColumns = KeyColumns;
@@ -113,7 +115,7 @@ public:
             std::vector<ui32> valueIndexBuffer;
             std::vector<ui32> rowIndexBuffer;
 
-            auto estimatedRowCount = Host->GetJobSpec().input_row_count();
+            auto estimatedRowCount = SchedulerJobSpecExt.input_row_count();
 
             LOG_INFO("Initializing");
             {
@@ -231,9 +233,9 @@ public:
         }
     }
 
-    double GetProgress() const override
+    virtual double GetProgress() const override
     {
-        i64 total = Host->GetJobSpec().input_row_count();
+        i64 total = SchedulerJobSpecExt.input_row_count();
         if (total == 0) {
             LOG_WARNING("GetProgress: empty total");
             return 0;
@@ -247,13 +249,18 @@ public:
         }
     }
 
-    std::vector<NChunkClient::TChunkId> GetFailedChunks() const override
+    virtual std::vector<NChunkClient::TChunkId> GetFailedChunks() const override
     {
         return Reader->GetFailedChunks();
     }
 
 private:
+    const TJobSpec& JobSpec;
+    const TSchedulerJobSpecExt& SchedulerJobSpecExt;
+    const TSortJobSpecExt& SortJobSpecExt;
+
     TKeyColumns KeyColumns;
+
     TIntrusivePtr<TReader> Reader;
     ISyncWriterUnsafePtr Writer;
 

@@ -47,18 +47,21 @@ class TPartitionJob
 public:
     explicit TPartitionJob(IJobHost* host)
         : TJob(host)
+        , JobSpec(Host->GetJobSpec())
+        , SchedulerJobSpecExt(JobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext))
+        , PartitionJobSpecExt(JobSpec.GetExtension(TPartitionJobSpecExt::partition_job_spec_ext))
     {
-        const auto& jobSpec = Host->GetJobSpec();
         auto config = Host->GetConfig();
 
-        YCHECK(jobSpec.input_specs_size() == 1);
-        YCHECK(jobSpec.output_specs_size() == 1);
+        YCHECK(SchedulerJobSpecExt.input_specs_size() == 1);
+        const auto& inputSpec = SchedulerJobSpecExt.input_specs(0);
 
-        auto jobSpecExt = jobSpec.GetExtension(TPartitionJobSpecExt::partition_job_spec_ext);
+        YCHECK(SchedulerJobSpecExt.output_specs_size() == 1);
+        const auto& outputSpec = SchedulerJobSpecExt.output_specs(0);
 
         std::vector<NTableClient::NProto::TInputChunk> chunks(
-            jobSpec.input_specs(0).chunks().begin(),
-            jobSpec.input_specs(0).chunks().end());
+            inputSpec.chunks().begin(),
+            inputSpec.chunks().end());
 
         auto readerProvider = New<TTableChunkReaderProvider>(config->JobIO->TableReader);
         Reader = New<TReader>(
@@ -69,22 +72,21 @@ public:
             std::move(chunks),
             readerProvider);
 
-        if (jobSpecExt.partition_keys_size() > 0) {
-            YCHECK(jobSpecExt.partition_keys_size() + 1 == jobSpecExt.partition_count());
-            FOREACH (const auto& key, jobSpecExt.partition_keys()) {
+        if (PartitionJobSpecExt.partition_keys_size() > 0) {
+            YCHECK(PartitionJobSpecExt.partition_keys_size() + 1 == PartitionJobSpecExt.partition_count());
+            FOREACH (const auto& key, PartitionJobSpecExt.partition_keys()) {
                 PartitionKeys.push_back(TOwningKey::FromProto(key));
             }
             Partitioner = CreateOrderedPartitioner(&PartitionKeys);
         } else {
-            Partitioner = CreateHashPartitioner(jobSpecExt.partition_count());
+            Partitioner = CreateHashPartitioner(PartitionJobSpecExt.partition_count());
         }
 
-        auto transactionId = FromProto<TTransactionId>(jobSpec.output_transaction_id());
-        const auto& outputSpec = jobSpec.output_specs(0);
+        auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt.output_transaction_id());
         auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
 
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
-        options->KeyColumns = FromProto<Stroka>(jobSpecExt.key_columns());
+        options->KeyColumns = FromProto<Stroka>(PartitionJobSpecExt.key_columns());
 
         auto writerProvider = New<TPartitionChunkWriterProvider>(
             config->JobIO->TableWriter,
@@ -154,6 +156,10 @@ public:
     }
 
 private:
+    const TJobSpec& JobSpec;
+    const TSchedulerJobSpecExt& SchedulerJobSpecExt;
+    const TPartitionJobSpecExt& PartitionJobSpecExt;
+
     TIntrusivePtr<TReader> Reader;
     ISyncWriterUnsafePtr Writer;
     std::vector<TOwningKey> PartitionKeys;

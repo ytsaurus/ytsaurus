@@ -58,16 +58,17 @@ public:
         return 1;
     }
 
-    virtual ISyncWriterPtr CreateTableOutput(
-        int index) override
+    virtual ISyncWriterPtr CreateTableOutput(int index) override
     {
         YCHECK(index == 0);
 
         LOG_DEBUG("Opening partitioned output");
 
         const auto& jobSpec = Host->GetJobSpec();
-        auto transactionId = FromProto<TTransactionId>(jobSpec.output_transaction_id());
-        const auto& outputSpec = jobSpec.output_specs(0);
+        const auto& schedulerJobSpecExt = jobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+
+        auto transactionId = FromProto<TTransactionId>(schedulerJobSpecExt.output_transaction_id());
+        const auto& outputSpec = schedulerJobSpecExt.output_specs(0);
         auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
 
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));

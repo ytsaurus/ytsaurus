@@ -40,6 +40,8 @@ TUserJobIO::TUserJobIO(
     IJobHost* host)
     : IOConfig(ioConfig)
     , Host(host)
+    , JobSpec(Host->GetJobSpec())
+    , SchedulerJobSpecExt(JobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext))
     , Logger(JobProxyLogger)
 { }
 
@@ -59,7 +61,7 @@ TAutoPtr<TTableProducer> TUserJobIO::CreateTableInput(int index, IYsonConsumer* 
 
 int TUserJobIO::GetOutputCount() const
 {
-    return Host->GetJobSpec().output_specs_size();
+    return SchedulerJobSpecExt.output_specs_size();
 }
 
 ISyncWriterPtr TUserJobIO::CreateTableOutput(int index)
@@ -69,8 +71,8 @@ ISyncWriterPtr TUserJobIO::CreateTableOutput(int index)
     LOG_DEBUG("Opening output %d", index);
 
     const auto& jobSpec = Host->GetJobSpec();
-    auto transactionId = FromProto<TTransactionId>(jobSpec.output_transaction_id());
-    const auto& outputSpec = jobSpec.output_specs(index);
+    auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt.output_transaction_id());
+    const auto& outputSpec = SchedulerJobSpecExt.output_specs(index);
     auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
     auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
     auto writerProvider = New<TTableChunkWriterProvider>(

@@ -20,6 +20,16 @@ message TNodeResources
     optional int32 network = 4 [default = 0];
 }
 
+// Describes a job to be run at a node.
+message TJobSpec
+{
+    required int32 type = 1;
+
+    extensions 100 to max;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 // Describes a part of input table(s) to be processed by a job.
 message TTableInputSpec
 {
@@ -37,39 +47,39 @@ message TTableOutputSpec
     required string table_writer_options = 6;
 }
 
-// Sent from the scheduler to an exec node.
-// Describes a portion of processing for a job.
-message TJobSpec
+// Describes a job submitted by a scheduler.
+message TSchedulerJobSpecExt
 {
-    required int32 type = 1;
+    extend TJobSpec
+    {
+        optional TSchedulerJobSpecExt scheduler_job_spec_ext = 100;
+    }
 
     // Configuration for IO during job execution.
-    required bytes io_config = 2;
+    required bytes io_config = 1;
 
     // The transaction used for writing output chunks.
-    required NYT.NProto.TGuid output_transaction_id = 3;
+    required NYT.NProto.TGuid output_transaction_id = 2;
 
     // Job input.
-    repeated TTableInputSpec input_specs = 4;
+    repeated TTableInputSpec input_specs = 3;
 
     // Job output.
-    repeated TTableOutputSpec output_specs = 5;
+    repeated TTableOutputSpec output_specs = 4;
 
     // Maps node ids to descriptors for input chunks.
-    required NNodeTrackerClient.NProto.TNodeDirectory node_directory = 6;
+    required NNodeTrackerClient.NProto.TNodeDirectory node_directory = 5;
 
     // Total input uncompressed data size estimate.
-    optional int64 input_uncompressed_data_size = 7 [default = 0];
+    optional int64 input_uncompressed_data_size = 6 [default = 0];
 
     // Total input row count estimate.
-    optional int64 input_row_count = 8 [default = 0];
+    optional int64 input_row_count = 7 [default = 0];
 
-    required int64 lfalloc_buffer_size = 9;
+    required int64 lfalloc_buffer_size = 8;
 
     // True if data_size and row_count are approximate (e.g. restarted sort jobs).
-    optional bool is_approximate = 10 [default = false];
-
-    extensions 100 to max;
+    optional bool is_approximate = 9 [default = false];
 }
 
 // Typically sent from a job proxy to its supervisor
@@ -174,7 +184,7 @@ message TMapJobSpecExt
 {
     extend TJobSpec
     {
-        optional TMapJobSpecExt map_job_spec_ext = 100;
+        optional TMapJobSpecExt map_job_spec_ext = 101;
     }
 
     required TUserJobSpec mapper_spec = 1;
@@ -205,7 +215,7 @@ message TMergeJobSpecExt
 {
     extend TJobSpec
     {
-        optional TMergeJobSpecExt merge_job_spec_ext = 101;
+        optional TMergeJobSpecExt merge_job_spec_ext = 102;
     }
 
     // For EJobType::SortedMerge, contains columns used for comparison.

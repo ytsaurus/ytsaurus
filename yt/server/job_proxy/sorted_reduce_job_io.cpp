@@ -49,8 +49,9 @@ public:
         auto provider = New<TTableChunkReaderProvider>(IOConfig->TableReader, options);
 
         const auto& jobSpec = Host->GetJobSpec();
+        const auto& schedulerJobSpecExt = jobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
-        FOREACH (const auto& inputSpec, jobSpec.input_specs()) {
+        FOREACH (const auto& inputSpec, schedulerJobSpecExt.input_specs()) {
             // ToDo(psushin): validate that input chunks are sorted.
             std::vector<NTableClient::NProto::TInputChunk> chunks(
                 inputSpec.chunks().begin(),
