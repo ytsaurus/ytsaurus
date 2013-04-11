@@ -216,6 +216,9 @@ protected:
     //! Current index in #PeerAddressList.
     int PeerIndex;
 
+    //! The instant this session has started.
+    TInstant StartTime;
+
     NLog::TTaggedLogger Logger;
 
 
@@ -224,6 +227,7 @@ protected:
         , RetryIndex(0)
         , PassIndex(0)
         , PeerIndex(0)
+        , StartTime(TInstant::Now())
         , Logger(ChunkReaderLogger)
     {
         Logger.AddTag(Sprintf("ChunkId: %s", ~reader->ChunkId.ToString()));
@@ -575,6 +579,7 @@ private:
                 proxy.SetDefaultTimeout(reader->Config->NodeRpcTimeout);
 
                 auto request = proxy.GetBlocks();
+                request->SetStartTime(StartTime);
                 *request->mutable_chunk_id() = reader->ChunkId.ToProto();
                 ToProto(request->mutable_block_indexes(), unfetchedBlockIndexes);
                 request->set_enable_caching(reader->Config->EnableNodeCaching);
@@ -799,6 +804,7 @@ private:
         proxy.SetDefaultTimeout(reader->Config->NodeRpcTimeout);
 
         auto request = proxy.GetChunkMeta();
+        request->SetStartTime(StartTime);
         *request->mutable_chunk_id() = reader->ChunkId.ToProto();
         request->set_all_extension_tags(AllExtensionTags);
 
