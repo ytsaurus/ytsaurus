@@ -66,6 +66,9 @@ public:
     //! Returns a node registered at the given address (|nullptr| if none).
     TNode* FindNodeByAddress(const Stroka& address);
 
+    //! Returns a node registered at the given address (fails if none).
+    TNode* GetNodeByAddress(const Stroka& address);
+
     //! Returns an arbitrary node registered at the host (|nullptr| if none).
     TNode* FindNodeByHostName(const Stroka& hostName);
 

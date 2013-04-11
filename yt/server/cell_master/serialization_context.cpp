@@ -8,7 +8,9 @@
 
 #include <server/object_server/object_detail.h>
 
+#include <server/chunk_server/chunk.h>
 #include <server/chunk_server/chunk_list.h>
+#include <server/chunk_server/job.h>
 #include <server/chunk_server/chunk_manager.h>
 
 #include <server/cypress_server/cypress_manager.h>
@@ -69,12 +71,6 @@ template <>
 TChunk* TLoadContext::Get(const TObjectId& id) const
 {
     return Bootstrap_->GetChunkManager()->GetChunk(id);
-}
-
-template <>
-TJob* TLoadContext::Get(const TObjectId& id) const
-{
-    return Bootstrap_->GetChunkManager()->GetJob(id);
 }
 
 template <>

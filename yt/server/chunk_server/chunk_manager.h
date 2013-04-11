@@ -34,21 +34,14 @@ public:
 
     void Initialize();
 
-    NMetaState::TMutationPtr CreateUpdateJobsMutation(
-        const NProto::TMetaReqUpdateJobs& reuqest);
-
     NMetaState::TMutationPtr CreateUpdateChunkReplicationFactorMutation(
         const NProto::TMetaReqUpdateChunkReplicationFactor& request);
 
     DECLARE_METAMAP_ACCESSORS(Chunk, TChunk, TChunkId);
     DECLARE_METAMAP_ACCESSORS(ChunkList, TChunkList, TChunkListId);
-    DECLARE_METAMAP_ACCESSORS(JobList, TJobList, TChunkId);
-    DECLARE_METAMAP_ACCESSORS(Job, TJob, TJobId);
 
     TChunkTree* FindChunkTree(const TChunkTreeId& id);
     TChunkTree* GetChunkTree(const TChunkTreeId& id);
-
-    const TReplicationSink* FindReplicationSink(const Stroka& address);
 
     TSmallVector<TNode*, TypicalReplicationFactor> AllocateUploadTargets(
         int replicaCount,
@@ -81,11 +74,14 @@ public:
 
     void ClearChunkList(TChunkList* chunkList);
 
+    TJobPtr FindJob(const TJobId& id);
+    TJobListPtr FindJobList(const TChunkId& id);
+
     void ScheduleJobs(
         TNode* node,
-        const std::vector<NNodeTrackerClient::NProto::TJobInfo>& runningJobs,
-        std::vector<NNodeTrackerClient::NProto::TJobStartInfo>* jobsToStart,
-        std::vector<NNodeTrackerClient::NProto::TJobStopInfo>* jobsToStop);
+        const std::vector<TJobPtr>& currentJobs,
+        std::vector<TJobPtr>* jobsToStart,
+        std::vector<TJobPtr>* jobsToStop);
 
     bool IsReplicatorEnabled();
 

@@ -39,14 +39,20 @@ using NNodeTrackerServer::TNodeId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TJob;
+typedef TIntrusivePtr<TJob> TJobPtr;
+
+class TReplicationSink;
+typedef TIntrusivePtr<TReplicationSink> TReplicationSinkPtr;
+
+class TJobList;
+typedef TIntrusivePtr<TJobList> TJobListPtr;
+
 class TChunkTree;
 class TChunkReplica;
 class TChunk;  
 class TChunkList;
-class TJob;
-class TJobList;
 class TDataNode;
-class TReplicationSink;
 
 template <class T>
 class TPtrWithIndex;

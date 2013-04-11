@@ -44,6 +44,7 @@
 #include <server/node_tracker_server/cypress_integration.h>
 
 #include <server/chunk_server/chunk_manager.h>
+#include <server/chunk_server/job_tracker_service.h>
 #include <server/chunk_server/cypress_integration.h>
 
 #include <server/security_server/security_manager.h>
@@ -210,6 +211,7 @@ void TBootstrap::Run()
     RpcServer->RegisterService(New<TObjectService>(Config->ObjectManager, this));
     RpcServer->RegisterService(New<TNodeTrackerService>(Config->NodeTracker, this));
     RpcServer->RegisterService(New<TOrchidService>(orchidRoot, GetControlInvoker()));
+    RpcServer->RegisterService(New<TJobTrackerService>(this));
 
     CypressManager->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::ChunkMap));
     CypressManager->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::LostChunkMap));
@@ -232,7 +234,7 @@ void TBootstrap::Run()
 
     monitoringManager->Start();
 
-    ::THolder<NHttp::TServer> httpServer(new NHttp::TServer(Config->MonitoringPort));
+    THolder<NHttp::TServer> httpServer(new NHttp::TServer(Config->MonitoringPort));
     httpServer->Register(
         "/orchid",
         NMonitoring::GetYPathHttpHandler(orchidRoot->Via(GetControlInvoker())));

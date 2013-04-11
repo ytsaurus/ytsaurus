@@ -7,28 +7,6 @@ import "yt/ytlib/chunk_client/chunk.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Describes the current state of a storage location.
-message TLocationStatistics
-{
-    required int64 available_space = 1;
-    required int64 used_space = 2;
-    required int32 chunk_count = 3;
-    required int32 session_count = 4;
-    required bool enabled = 5;
-    required bool full = 6;
-}
-
-// Describes the current state of the whole node.
-message TNodeStatistics
-{
-    required int64 total_available_space = 1;
-    required int64 total_used_space = 2;
-    required int32 total_chunk_count = 3;
-    required int32 total_session_count = 4;
-    required bool full = 5;
-    repeated TLocationStatistics locations = 6;
-}
-
 // Chunk Manager stuff.
 
 message TChunkAddInfo
@@ -42,26 +20,6 @@ message TChunkRemoveInfo
 {
     required NYT.NProto.TGuid chunk_id = 1;
     required bool cached = 2;
-}
-
-message TJobInfo
-{
-    required NYT.NProto.TGuid job_id = 1;
-    required int32 state = 2;
-    optional NYT.NProto.TError error = 3;
-}
-
-message TJobStartInfo
-{
-    required int32 type = 1;
-    required NYT.NProto.TGuid job_id = 2;
-    required NYT.NProto.TGuid chunk_id = 3;
-    repeated NYT.NNodeTrackerClient.NProto.TNodeDescriptor targets = 4;
-}
-
-message TJobStopInfo
-{
-    required NYT.NProto.TGuid job_id = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -103,14 +61,9 @@ message TReqIncrementalHeartbeat
     // Chunk Manager stuff.
     repeated TChunkAddInfo added_chunks = 3;
     repeated TChunkRemoveInfo removed_chunks = 4;
-    repeated TJobInfo jobs = 5;
 }
 
 message TRspIncrementalHeartbeat
-{
-    // Chunk Manager stuff.
-    repeated TJobStartInfo jobs_to_start = 2;
-    repeated TJobStopInfo jobs_to_stop = 3;
-}
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////

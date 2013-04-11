@@ -8,6 +8,8 @@
 
 #include <ytlib/node_tracker_client/node_tracker_service_proxy.h>
 
+#include <ytlib/job_tracker_client/job_tracker_service_proxy.h>
+
 namespace NYT {
 namespace NChunkHolder {
 
@@ -42,8 +44,10 @@ public:
     TNodeId GetNodeId() const;
 
 private:
-    typedef NNodeTrackerClient::TNodeTrackerServiceProxy TProxy;
-    typedef yhash_set<TChunkPtr> TChunks;
+    typedef NNodeTrackerClient::TNodeTrackerServiceProxy TNodeProxy;
+    typedef NJobTrackerClient::TJobTrackerServiceProxy TJobProxy;
+
+    typedef yhash_set<TChunkPtr> TChunkSet;
 
     TDataNodeConfigPtr Config;
     TBootstrap* Bootstrap;
@@ -64,20 +68,23 @@ private:
     //! Node id assigned by master or |InvalidNodeId| is not registered.
     TNodeId NodeId;
 
-    //! Proxy for the master.
-    THolder<TProxy> Proxy;
+    //! Node Tracker proxy.
+    THolder<TNodeProxy> NodeProxy;
+
+    //! Job Tracker proxy.
+    THolder<TJobProxy> JobProxy;
 
     //! Chunks that were added since the last successful heartbeat.
-    TChunks AddedSinceLastSuccess;
+    TChunkSet AddedSinceLastSuccess;
 
     //! Store chunks that were removed since the last successful heartbeat.
-    TChunks RemovedSinceLastSuccess;
+    TChunkSet RemovedSinceLastSuccess;
 
     //! Store chunks that were reported added at the last heartbeat (for which no reply is received yet).
-    TChunks ReportedAdded;
+    TChunkSet ReportedAdded;
 
     //! Store chunks that were reported removed at the last heartbeat (for which no reply is received yet).
-    TChunks ReportedRemoved;
+    TChunkSet ReportedRemoved;
 
     //! Schedules a heartbeat via TDelayedInvoker.
     void ScheduleHeartbeat();
@@ -92,13 +99,16 @@ private:
     NNodeTrackerClient::NProto::TNodeStatistics ComputeStatistics();
 
     //! Handles registration response.
-    void OnRegisterResponse(TProxy::TRspRegisterNodePtr rsp);
+    void OnRegisterResponse(TNodeProxy::TRspRegisterNodePtr rsp);
 
     //! Sends out a full heartbeat.
-    void SendFullHeartbeat();
+    void SendFullNodeHeartbeat();
 
-    //! Sends out an incremental heartbeat.
-    void SendIncrementalHeartbeat();
+    //! Sends out an incremental heartbeat to Node Tracker.
+    void SendIncrementalNodeHeartbeat();
+
+    //! Sends out a heartbeat to Job Tracker.
+    void SendJobHeartbeat();
 
     //! Similar to #ForceRegister but handled in Control thread.
     void DoForceRegister();
@@ -109,11 +119,14 @@ private:
     //! Constructs a protobuf info for a removed chunk.
     static NNodeTrackerClient::NProto::TChunkRemoveInfo GetRemoveInfo(TChunkPtr chunk);
 
-    //! Handles full heartbeat response.
-    void OnFullHeartbeatResponse(TProxy::TRspFullHeartbeatPtr rsp);
+    //! Handles full heartbeat response from Node Tracker.
+    void OnFullNodeHeartbeatResponse(TNodeProxy::TRspFullHeartbeatPtr rsp);
 
-    //! Handles incremental heartbeat response.
-    void OnIncrementalHeartbeatResponse(TProxy::TRspIncrementalHeartbeatPtr rsp);
+    //! Handles incremental heartbeat response from Node Tracker.
+    void OnIncrementalNodeHeartbeatResponse(TNodeProxy::TRspIncrementalHeartbeatPtr rsp);
+
+    //! Handles heartbeat response from Job Tracker.
+    void OnJobHeartbeatResponse(TJobProxy::TRspHeartbeatPtr rsp);
 
     //! Handles errors occurring during heartbeats.
     void OnHeartbeatError(const TError& error);

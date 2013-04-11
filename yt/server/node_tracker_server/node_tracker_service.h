@@ -4,7 +4,6 @@
 
 #include <ytlib/rpc/service.h>
 
-#include <ytlib/node_tracker_client/node_tracker_service_proxy.h>
 #include <ytlib/node_tracker_client/node_tracker_service.pb.h>
 
 #include <server/cell_master/meta_state_service.h>

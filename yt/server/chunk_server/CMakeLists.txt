@@ -15,8 +15,9 @@ set( SRCS
   ${BASE}/chunk_tree_traversing.cpp
   ${BASE}/cypress_integration.cpp
   ${BASE}/job.cpp
-  ${BASE}/job_list.cpp
   ${BASE}/private.cpp
+  ${BASE}/node_directory_builder.cpp
+  ${BASE}/job_tracker_service.cpp
 )
 set( HDRS
   ${BASE}/chunk.h
@@ -35,9 +36,10 @@ set( HDRS
   ${BASE}/config.h
   ${BASE}/cypress_integration.h
   ${BASE}/job.h
-  ${BASE}/job_list.h
   ${BASE}/private.h
   ${BASE}/public.h
+  ${BASE}/node_directory_builder.h
+  ${BASE}/job_tracker_service.h
 )
 
 list(APPEND YT_SOURCE_FILES

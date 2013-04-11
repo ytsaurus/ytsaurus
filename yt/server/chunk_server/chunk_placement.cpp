@@ -2,7 +2,6 @@
 #include "chunk_placement.h"
 #include "chunk.h"
 #include "job.h"
-#include "job_list.h"
 #include "chunk_manager.h"
 #include "private.h"
 
@@ -34,7 +33,10 @@ TChunkPlacement::TChunkPlacement(
 {
     YCHECK(config);
     YCHECK(bootstrap);
+}
 
+void TChunkPlacement::Initialize()
+{
     auto nodeTracker = Bootstrap->GetNodeTracker();
     FOREACH (auto* node, nodeTracker->GetNodes()) {
         OnNodeRegistered(node);
@@ -171,9 +173,9 @@ TSmallVector<TNode*, TypicalReplicationFactor> TChunkPlacement::GetReplicationTa
         forbiddenNodes.insert(replica.GetPtr());
     }
 
-    const auto* jobList = chunkManager->FindJobList(chunk->GetId());
+    auto jobList = chunkManager->FindJobList(chunk->GetId());
     if (jobList) {
-        FOREACH (auto job, jobList->Jobs()) {
+        FOREACH (const auto& job, jobList->Jobs()) {
             if (job->GetType() == EJobType::Replicate && job->GetChunkId() == chunk->GetId()) {
                 FOREACH (const auto& targetAddress, job->TargetAddresses()) {
                     auto* targetNode = nodeTracker->FindNodeByAddress(targetAddress);
@@ -288,25 +290,10 @@ bool TChunkPlacement::IsValidBalancingTarget(TNode* targetNode, TChunkPtrWithInd
     }
 
     auto chunkManager = Bootstrap->GetChunkManager();
-    FOREACH (const auto* job, targetNode->Jobs()) {
+    FOREACH (const auto& job, targetNode->Jobs()) {
         if (job->GetChunkId() == chunkWithIndex.GetPtr()->GetId()) {
             // Do not balance to a node already having a job associated with this chunk.
             return false;
-        }
-    }
-
-    auto* sink = chunkManager->FindReplicationSink(targetNode->GetAddress());
-    if (sink) {
-        if (static_cast<int>(sink->Jobs().size()) >= Config->ChunkReplicator->MaxReplicationFanIn) {
-            // Do not balance to a node with too many incoming replication jobs.
-            return false;
-        }
-
-        FOREACH (const auto* job, sink->Jobs()) {
-            if (job->GetChunkId() == chunkWithIndex.GetPtr()->GetId()) {
-                // Do not balance to a node that is a replication target for the very same chunk.
-                return false;
-            }
         }
     }
 
@@ -319,7 +306,7 @@ std::vector<TChunkPtrWithIndex> TChunkPlacement::GetBalancingChunks(TNode* node,
     // Do not balance chunks that already have a job.
     yhash_set<TChunkId> forbiddenChunkIds;
     auto chunkManager = Bootstrap->GetChunkManager();
-    FOREACH (const auto* job, node->Jobs()) {
+    FOREACH (const auto& job, node->Jobs()) {
         forbiddenChunkIds.insert(job->GetChunkId());
     }
 

@@ -8,6 +8,8 @@
 #include <ytlib/misc/id_generator.h>
 #include <ytlib/misc/address.h>
 
+#include <server/chunk_server/job.h>
+
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/meta_state_facade.h>
 #include <server/cell_master/serialization_context.h>
@@ -128,17 +130,26 @@ public:
     DEFINE_SIGNAL(void(TNode* node, const NProto::TMetaReqIncrementalHeartbeat& request), IncrementalHeartbeat);
 
 
-    TNode* FindNodeByAddresss(const Stroka& address)
+    TNode* FindNodeByAddress(const Stroka& address)
     {
         auto it = NodeAddressMap.find(address);
         return it == NodeAddressMap.end() ? nullptr : it->second;
     }
+
+    TNode* GetNodeByAddress(const Stroka& address)
+    {
+        auto* node = FindNodeByAddress(address);
+        YCHECK(node);
+        return node;
+    }
+
 
     TNode* FindNodeByHostName(const Stroka& hostName)
     {
         auto it = NodeHostNameMap.find(hostName);
         return it == NodeAddressMap.end() ? nullptr : it->second;
     }
+
 
     TTotalNodeStatistics GetTotalNodeStatistics()
     {
@@ -209,7 +220,7 @@ private:
 
         // Kick-out any previous incarnation.
         {
-            auto* existingNode = FindNodeByAddresss(descriptor.Address);
+            auto* existingNode = FindNodeByAddress(descriptor.Address);
             if (existingNode) {
                 LOG_INFO_UNLESS(IsRecovery(), "Node kicked out due to address conflict (Address: %s, ExistingId: %d)",
                     ~address,
@@ -570,7 +581,12 @@ TNodeTracker::TNodeTracker(
 
 TNode* TNodeTracker::FindNodeByAddress(const Stroka& address)
 {
-    return Impl->FindNodeByAddresss(address);
+    return Impl->FindNodeByAddress(address);
+}
+
+TNode* TNodeTracker::GetNodeByAddress(const Stroka& address)
+{
+    return Impl->GetNodeByAddress(address);
 }
 
 TNode* TNodeTracker::FindNodeByHostName(const Stroka& hostName)

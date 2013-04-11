@@ -10,39 +10,73 @@ TJob::TJob(
     EJobType type,
     const TJobId& jobId,
     const TChunkId& chunkId,
-    const Stroka& Address,
+    NNodeTrackerServer::TNode* node,
     const std::vector<Stroka>& targetAddresses,
     TInstant startTime)
-    : TNonversionedObjectBase(jobId)
+    : JobId_(jobId)
     , Type_(type)
     , ChunkId_(chunkId)
-    , Address_(Address)
+    , Node_(node)
     , TargetAddresses_(targetAddresses)
     , StartTime_(startTime)
+    , State_(EJobState::Running)
 { }
 
-TJob::TJob(const TJobId& jobId)
-    : TNonversionedObjectBase(jobId)
-{ }
-
-void TJob::Save(const NCellMaster::TSaveContext& context) const
+TJobPtr TJob::CreateReplicate(
+    const TChunkId& chunkId,
+    NNodeTrackerServer::TNode* node,
+    const std::vector<Stroka>& targetAddresses)
 {
-    auto* output = context.GetOutput();
-    ::Save(output, Type_);
-    ::Save(output, ChunkId_);
-    ::Save(output, Address_);
-    ::Save(output, TargetAddresses_);
-    ::Save(output, StartTime_);
+    return New<TJob>(
+        EJobType::Replicate,
+        TJobId::Create(),
+        chunkId,
+        node,
+        targetAddresses,
+        TInstant::Now());
 }
 
-void TJob::Load(const NCellMaster::TLoadContext& context)
+TJobPtr TJob::CreateReplicate(
+    const TChunkId& chunkId,
+    NNodeTrackerServer::TNode* node,
+    const Stroka& targetAddress)
 {
-    auto* input = context.GetInput();
-    ::Load(input, Type_);
-    ::Load(input, ChunkId_);
-    ::Load(input, Address_);
-    ::Load(input, TargetAddresses_);
-    ::Load(input, StartTime_);
+    return New<TJob>(
+        EJobType::Replicate,
+        TJobId::Create(),
+        chunkId,
+        node,
+        std::vector<Stroka>(1, targetAddress),
+        TInstant::Now());
+}
+
+TJobPtr TJob::CreateRemove(
+    const TChunkId& chunkId,
+    NNodeTrackerServer::TNode* node)
+{
+    return New<TJob>(
+        EJobType::Remove,
+        TJobId::Create(),
+        chunkId,
+        node,
+        std::vector<Stroka>(),
+        TInstant::Now());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TJobList::TJobList(const TChunkId& chunkId)
+    : ChunkId_(chunkId)
+{ }
+
+void TJobList::AddJob(TJobPtr job)
+{
+    YCHECK(Jobs_.insert(job).second);
+}
+
+void TJobList::RemoveJob(TJobPtr job)
+{
+    YCHECK(Jobs_.erase(job) == 1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

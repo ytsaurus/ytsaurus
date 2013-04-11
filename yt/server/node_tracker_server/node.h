@@ -31,7 +31,7 @@ class TNode
     // Import third-party types into the scope.
     typedef NChunkServer::TChunkPtrWithIndex TChunkPtrWithIndex;
     typedef NChunkServer::TChunkId TChunkId;
-    typedef NChunkServer::TJob TJob;
+    typedef NChunkServer::TJobPtr TJobPtr;
 
     DEFINE_BYVAL_RO_PROPERTY(TNodeId, Id);
     DEFINE_BYVAL_RW_PROPERTY(ENodeState, State);
@@ -45,7 +45,7 @@ class TNode
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkPtrWithIndex>, StoredReplicas);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkPtrWithIndex>, CachedReplicas);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkPtrWithIndex>, UnapprovedReplicas);
-    DEFINE_BYREF_RO_PROPERTY(std::vector<TJob*>, Jobs);
+    DEFINE_BYREF_RO_PROPERTY(yhash_set<TJobPtr>, Jobs);
     DEFINE_BYVAL_RW_PROPERTY(int, HintedSessionCount);
 
     //! Indexed by priority.
@@ -78,8 +78,8 @@ public:
     bool HasUnapprovedReplica(TChunkPtrWithIndex replica) const;
     void ApproveReplica(TChunkPtrWithIndex replica);
 
-    void AddJob(TJob* job);
-    void RemoveJob(TJob* id);
+    void AddJob(TJobPtr job);
+    void RemoveJob(TJobPtr id);
 
     int GetTotalSessionCount() const;
 

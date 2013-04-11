@@ -3,7 +3,6 @@
 #include "public.h"
 #include "chunk_replica.h"
 
-#include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/property.h>
 #include <ytlib/misc/nullable.h>
 #include <ytlib/misc/periodic_invoker.h>
@@ -66,11 +65,14 @@ public:
     void ScheduleRFUpdate(TChunk* chunk);
     void ScheduleRFUpdate(TChunkList* chunkList);
 
+    TJobPtr FindJob(const TJobId& id);
+    TJobListPtr FindJobList(const TChunkId& id);
+
     void ScheduleJobs(
         TNode* node,
-        const std::vector<NNodeTrackerClient::NProto::TJobInfo>& runningJobs,
-        std::vector<NNodeTrackerClient::NProto::TJobStartInfo>* jobsToStart,
-        std::vector<NNodeTrackerClient::NProto::TJobStopInfo>* jobsToStop);
+        const std::vector<TJobPtr>& currentJobs,
+        std::vector<TJobPtr>* jobsToStart,
+        std::vector<TJobPtr>* jobsToStop);
 
     bool IsEnabled();
 
@@ -97,10 +99,13 @@ private:
     TPeriodicInvokerPtr RFUpdateInvoker;
     std::deque<TChunk*> RFUpdateList;
 
+    yhash_map<TJobId, TJobPtr> JobMap;
+    yhash_map<TChunkId, TJobListPtr> JobListMap;
+
     void ProcessExistingJobs(
         TNode* node,
-        const std::vector<NNodeTrackerClient::NProto::TJobInfo>& runningJobs,
-        std::vector<NNodeTrackerClient::NProto::TJobStopInfo>* jobsToStop,
+        const std::vector<TJobPtr>& currentJobs,
+        std::vector<TJobPtr>* jobsToStop,
         int* replicationJobCount,
         int* removalJobCount);
 
@@ -113,23 +118,23 @@ private:
     EScheduleFlags ScheduleReplicationJob(
         TNode* sourceNode,
         const TChunkId& chunkId,
-        std::vector<NNodeTrackerClient::NProto::TJobStartInfo>* jobsToStart);
+        std::vector<TJobPtr>* jobsToStart);
     EScheduleFlags ScheduleBalancingJob(
         TNode* sourceNode,
         TChunkPtrWithIndex chunkWithIndex,
         double maxFillCoeff,
-        std::vector<NNodeTrackerClient::NProto::TJobStartInfo>* jobsToStart);
+        std::vector<TJobPtr>* jobsToStart);
     EScheduleFlags ScheduleRemovalJob(
         TNode* node,
         const TChunkId& chunkId,
-        std::vector<NNodeTrackerClient::NProto::TJobStartInfo>* jobsToStart);
+        std::vector<TJobPtr>* jobsToStart);
     void ScheduleNewJobs(
         TNode* node,
         int maxReplicationJobsToStart,
         int maxRemovalJobsToStart,
-        std::vector<NNodeTrackerClient::NProto::TJobStartInfo>* jobsToStart);
+        std::vector<TJobPtr>* jobsToStart);
 
-    TReplicaStatistics GetReplicaStatistics(const TChunk& chunk);
+    TReplicaStatistics GetReplicaStatistics(const TChunk* chunk);
 
     void OnRefresh();
     void Refresh(TChunk* chunk);
@@ -140,13 +145,14 @@ private:
     void OnRFUpdateCommitFailed(const TError& error);
 
     //! Computes the actual replication factor the chunk must have.
-    int ComputeReplicationFactor(const TChunk& chunk);
+    int ComputeReplicationFactor(const TChunk* chunk);
 
     //! Follows upward parent links.
     //! Stops when some owning nodes are discovered or parents become ambiguous.
     TChunkList* FollowParentLinks(TChunkList* chunkList);
 
-    DECLARE_THREAD_AFFINITY_SLOT(StateThread);
+    void RegisterJob(TJobPtr job);
+    void UnregisterJob(TJobPtr job);
 
 };
 

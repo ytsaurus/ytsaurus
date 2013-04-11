@@ -3,11 +3,7 @@
 #include "public.h"
 
 #include <ytlib/misc/property.h>
-
-#include <server/cell_master/public.h>
-#include <server/cell_master/serialization_context.h>
-
-#include <server/object_server/object_detail.h>
+#include <ytlib/misc/error.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -15,43 +11,60 @@ namespace NChunkServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJob
-    : public NObjectServer::TNonversionedObjectBase
+    : public TRefCounted
 {
+    DEFINE_BYVAL_RO_PROPERTY(TJobId, JobId);
     DEFINE_BYVAL_RO_PROPERTY(EJobType, Type);
     // Don't try making it TChunk*.
     // Removal jobs may refer to nonexistent chunks.
     DEFINE_BYVAL_RO_PROPERTY(TChunkId, ChunkId);
-    DEFINE_BYVAL_RO_PROPERTY(Stroka, Address);
+    DEFINE_BYVAL_RO_PROPERTY(NNodeTrackerServer::TNode*, Node);
     DEFINE_BYREF_RO_PROPERTY(std::vector<Stroka>, TargetAddresses);
     DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
+    
+    // Current state (as reported by node).
+    DEFINE_BYVAL_RW_PROPERTY(EJobState, State);
+    // Failure reason (as reported by node).
+    DEFINE_BYREF_RW_PROPERTY(TError, Error);
 
 public:
+    static TJobPtr CreateReplicate(
+        const TChunkId& chunkId,
+        NNodeTrackerServer::TNode* node,
+        const std::vector<Stroka>& targetAddresses);
+
+    static TJobPtr CreateReplicate(
+        const TChunkId& chunkId,
+        NNodeTrackerServer::TNode* node,
+        const Stroka& targetAddress);
+
+    static TJobPtr CreateRemove(
+        const TChunkId& chunkId,
+        NNodeTrackerServer::TNode* node);
+
     TJob(
         EJobType type,
         const TJobId& jobId,
         const TChunkId& chunkId,
-        const Stroka& address,
+        NNodeTrackerServer::TNode* node,
         const std::vector<Stroka>& targetAddresses,
         TInstant startTime);
-
-    explicit TJob(const TJobId& jobId);
-
-    void Save(const NCellMaster::TSaveContext& context) const;
-    void Load(const NCellMaster::TLoadContext& context);
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReplicationSink
+class TJobList
+    : public TRefCounted
 {
-    DEFINE_BYVAL_RO_PROPERTY(Stroka, Address);
-    DEFINE_BYREF_RW_PROPERTY(yhash_set<TJob*>, Jobs);
+    DEFINE_BYVAL_RO_PROPERTY(TChunkId, ChunkId);
+    DEFINE_BYREF_RO_PROPERTY(yhash_set<TJobPtr>, Jobs);
 
 public:
-    explicit TReplicationSink(const Stroka& address)
-        : Address_(address)
-    { }
+    explicit TJobList(const TChunkId& chunkId);
+
+    void AddJob(TJobPtr job);
+    void RemoveJob(TJobPtr job);
 
 };
 

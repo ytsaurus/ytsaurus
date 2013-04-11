@@ -25,6 +25,7 @@ set( DIRS
   security_client
   fibers
   node_tracker_client
+  job_tracker_client
   transaction_client
 )
 

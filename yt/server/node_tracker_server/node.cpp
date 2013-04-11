@@ -54,7 +54,6 @@ void TNode::Save(const NCellMaster::TSaveContext& context) const
     SaveObjectRefs(context, StoredReplicas_);
     SaveObjectRefs(context, CachedReplicas_);
     SaveObjectRefs(context, UnapprovedReplicas_);
-    SaveObjectRefs(context, Jobs_);
 }
 
 void TNode::Load(const NCellMaster::TLoadContext& context)
@@ -66,20 +65,16 @@ void TNode::Load(const NCellMaster::TLoadContext& context)
     LoadObjectRefs(context, StoredReplicas_);
     LoadObjectRefs(context, CachedReplicas_);
     LoadObjectRefs(context, UnapprovedReplicas_);
-    LoadObjectRefs(context, Jobs_);
 }
 
-void TNode::AddJob(TJob* job)
+void TNode::AddJob(TJobPtr job)
 {
-    Jobs_.push_back(job);
+    YCHECK(Jobs_.insert(job).second);
 }
 
-void TNode::RemoveJob(TJob* job)
+void TNode::RemoveJob(TJobPtr job)
 {
-    auto it = std::find(Jobs_.begin(), Jobs_.end(), job);
-    if (it != Jobs_.end()) {
-        Jobs_.erase(it);
-    }
+    YCHECK(Jobs_.erase(job) == 1);
 }
 
 void TNode::AddReplica(TChunkPtrWithIndex replica, bool cached)

@@ -8,6 +8,8 @@
 
 #include <ytlib/meta_state/rpc_helpers.h>
 
+#include <ytlib/node_tracker_client/node_tracker_service_proxy.h>
+
 #include <server/object_server/object_manager.h>
 
 #include <server/chunk_server/chunk_manager.h>
@@ -23,12 +25,8 @@ using namespace NCellMaster;
 using namespace NNodeTrackerClient;
 using namespace NChunkServer;
 
-using NNodeTrackerClient::NProto::TJobInfo;
-using NNodeTrackerClient::NProto::TJobStartInfo;
-using NNodeTrackerClient::NProto::TJobStopInfo;
 using NNodeTrackerClient::NProto::TChunkAddInfo;
 using NNodeTrackerClient::NProto::TChunkRemoveInfo;
-using NChunkServer::NProto::TMetaReqUpdateJobs;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -74,8 +72,6 @@ void TNodeTrackerService::ValidateAuthorization(const Stroka& address)
             ~address);
     }
 }
-
-////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_RPC_SERVICE_METHOD(TNodeTrackerService, RegisterNode)
 {
@@ -190,48 +186,7 @@ DEFINE_RPC_SERVICE_METHOD(TNodeTrackerService, IncrementalHeartbeat)
     auto nodeTracker = Bootstrap->GetNodeTracker();
     nodeTracker
         ->CreateIncrementalHeartbeatMutation(heartbeatReq)
-        ->Commit();
-
-    auto chunkManager = Bootstrap->GetChunkManager();
-    std::vector<TJobInfo> runningJobs(request->jobs().begin(), request->jobs().end());
-    std::vector<TJobStartInfo> jobsToStart;
-    std::vector<TJobStopInfo> jobsToStop;
-    chunkManager->ScheduleJobs(
-        node,
-        runningJobs,
-        &jobsToStart,
-        &jobsToStop);
-
-    TMetaReqUpdateJobs updateJobsReq;
-    updateJobsReq.set_node_id(nodeId);
-
-    FOREACH (const auto& jobInfo, jobsToStart) {
-        *response->add_jobs_to_start() = jobInfo;
-        *updateJobsReq.add_started_jobs() = jobInfo;
-    }
-
-    yhash_set<TJobId> runningJobIds;
-    FOREACH (const auto& jobInfo, runningJobs) {
-        auto jobId = FromProto<TJobId>(jobInfo.job_id());
-        runningJobIds.insert(jobId);
-    }
-
-    FOREACH (const auto& jobInfo, jobsToStop) {
-        auto jobId = FromProto<TJobId>(jobInfo.job_id());
-        if (runningJobIds.find(jobId) != runningJobIds.end()) {
-            *response->add_jobs_to_stop() = jobInfo;
-        }
-        *updateJobsReq.add_stopped_jobs() = jobInfo;
-    }
-
-    chunkManager
-        ->CreateUpdateJobsMutation(updateJobsReq)
-        ->OnSuccess(BIND([=] () {
-            context->SetResponseInfo("JobsToStart: %d, JobsToStop: %d",
-                static_cast<int>(response->jobs_to_start_size()),
-                static_cast<int>(response->jobs_to_stop_size()));
-            context->Reply();
-        }))
+        ->OnSuccess(CreateRpcSuccessHandler(context))
         ->OnError(CreateRpcErrorHandler(context))
         ->Commit();
 }

@@ -4,7 +4,6 @@
 #include "chunk.h"
 #include "chunk_list.h"
 #include "job.h"
-#include "job_list.h"
 #include "chunk_placement.h"
 #include "chunk_replicator.h"
 #include "chunk_tree_balancer.h"
@@ -73,9 +72,6 @@ using namespace NChunkClient;
 using NYT::FromProto;
 using NChunkClient::NProto::TReqCreateChunkExt;
 using NChunkClient::NProto::TRspCreateChunkExt;
-using NNodeTrackerClient::NProto::TJobInfo;
-using NNodeTrackerClient::NProto::TJobStartInfo;
-using NNodeTrackerClient::NProto::TJobStopInfo;
 using NNodeTrackerClient::NProto::TChunkAddInfo;
 using NNodeTrackerClient::NProto::TChunkRemoveInfo;
 
@@ -230,13 +226,10 @@ public:
         , RemoveChunkCounter("/remove_chunk_rate")
         , AddChunkReplicaCounter("/add_chunk_replica_rate")
         , RemoveChunkReplicaCounter("/remove_chunk_replica_rate")
-        , StartJobCounter("/start_job_rate")
-        , StopJobCounter("/stop_job_rate")
     {
         YCHECK(config);
         YCHECK(bootstrap);
 
-        RegisterMethod(BIND(&TImpl::UpdateJobs, Unretained(this)));
         RegisterMethod(BIND(&TImpl::UpdateChunkReplicationFactor, Unretained(this)));
 
         {
@@ -294,14 +287,6 @@ public:
     }
 
 
-    TMutationPtr CreateUpdateJobsMutation(
-        const NProto::TMetaReqUpdateJobs& request)
-    {
-        return Bootstrap
-            ->GetMetaStateFacade()
-            ->CreateMutation(this, request, &TThis::UpdateJobs);
-    }
-
     TMutationPtr CreateUpdateChunkReplicationFactorMutation(
         const NProto::TMetaReqUpdateChunkReplicationFactor& request)
     {
@@ -313,8 +298,6 @@ public:
 
     DECLARE_METAMAP_ACCESSORS(Chunk, TChunk, TChunkId);
     DECLARE_METAMAP_ACCESSORS(ChunkList, TChunkList, TChunkListId);
-    DECLARE_METAMAP_ACCESSORS(JobList, TJobList, TChunkId);
-    DECLARE_METAMAP_ACCESSORS(Job, TJob, TJobId);
 
     TSmallVector<TNode*, TypicalReplicationFactor> AllocateUploadTargets(
         int replicaCount,
@@ -605,18 +588,26 @@ public:
     }
 
 
+    TJobPtr FindJob(const TJobId& id)
+    {
+        return ChunkReplicator->FindJob(id);
+    }
+
+    TJobListPtr FindJobList(const TChunkId& id)
+    {
+        return ChunkReplicator->FindJobList(id);
+    }
+
+
     void ScheduleJobs(
         TNode* node,
-        const std::vector<TJobInfo>& runningJobs,
-        std::vector<TJobStartInfo>* jobsToStart,
-        std::vector<TJobStopInfo>* jobsToStop)
+        const std::vector<TJobPtr>& currentJobs,
+        std::vector<TJobPtr>* jobsToStart,
+        std::vector<TJobPtr>* jobsToStop)
     {
-        ChunkReplicator->ScheduleJobs(
-            node,
-            runningJobs,
-            jobsToStart,
-            jobsToStop);
+        ChunkReplicator->ScheduleJobs(node, currentJobs, jobsToStart, jobsToStop);
     }
+
 
     const yhash_set<TChunk*>& LostChunks() const;
     const yhash_set<TChunk*>& LostVitalChunks() const;
@@ -677,13 +668,6 @@ public:
     }
 
 
-    const TReplicationSink* FindReplicationSink(const Stroka& address)
-    {
-        auto it = ReplicationSinkMap.find(address);
-        return it == ReplicationSinkMap.end() ? nullptr : &it->second;
-    }
-
-
     std::vector<TYPath> GetOwningNodes(TChunkTree* chunkTree)
     {
         auto cypressManager = Bootstrap->GetCypressManager();
@@ -728,20 +712,12 @@ private:
     NProfiling::TRateCounter RemoveChunkCounter;
     NProfiling::TRateCounter AddChunkReplicaCounter;
     NProfiling::TRateCounter RemoveChunkReplicaCounter;
-    NProfiling::TRateCounter StartJobCounter;
-    NProfiling::TRateCounter StopJobCounter;
 
     TChunkPlacementPtr ChunkPlacement;
     TChunkReplicatorPtr ChunkReplicator;
 
     TMetaStateMap<TChunkId, TChunk> ChunkMap;
     TMetaStateMap<TChunkListId, TChunkList> ChunkListMap;
-
-    TMetaStateMap<TChunkId, TJobList> JobListMap;
-    TMetaStateMap<TJobId, TJob> JobMap;
-
-    yhash_map<Stroka, TReplicationSink> ReplicationSinkMap;
-
 
     void DestroyChunk(TChunk* chunk)
     {
@@ -752,6 +728,7 @@ private:
             UnstageChunk(chunk);
         }
 
+        // Unregister chunk replicas from all known locations.
         auto scheduleRemoval = [&] (TNodePtrWithIndex nodeWithIndex, bool cached) {
             ScheduleChunkReplicaRemoval(
                 nodeWithIndex.GetPtr(),
@@ -759,24 +736,14 @@ private:
                 cached);
         };
 
-        // Unregister chunk replicas from all known locations.
         FOREACH (auto replica, chunk->StoredReplicas()) {
             scheduleRemoval(replica, false);
         }
+
         if (~chunk->CachedReplicas()) {
             FOREACH (auto replica, *chunk->CachedReplicas()) {
                 scheduleRemoval(replica, true);
             }
-        }
-
-        // Remove all associated jobs.
-        auto* jobList = FindJobList(chunkId);
-        if (jobList) {
-            FOREACH (auto job, jobList->Jobs()) {
-                // Suppress removal from job list.
-                RemoveJob(job, true, false);
-            }
-            JobListMap.Remove(chunkId);
         }
 
         // Notify the replicator about chunk's death.
@@ -848,11 +815,6 @@ private:
             RemoveChunkReplica(node, replica, true, ERemoveReplicaReason::Reset);
         }
 
-        FOREACH (auto* job, node->Jobs()) {
-            // Suppress removal of job from node.
-            RemoveJob(job, false, true);
-        }
-
         if (ChunkPlacement) {
             ChunkPlacement->OnNodeUnregistered(node);
         }
@@ -898,36 +860,6 @@ private:
     }
 
 
-    void UpdateJobs(const NProto::TMetaReqUpdateJobs& request)
-    {
-        PROFILE_TIMING ("/update_jobs_time") {
-            auto nodeId = request.node_id();
-
-            auto nodeTracker = Bootstrap->GetNodeTracker();
-            auto* node = nodeTracker->GetNode(nodeId);
-
-            FOREACH (const auto& startInfo, request.started_jobs()) {
-                AddJob(node, startInfo);
-            }
-
-            FOREACH (const auto& stopInfo, request.stopped_jobs()) {
-                auto jobId = FromProto<TJobId>(stopInfo.job_id());
-                auto* job = FindJob(jobId);
-                if (job) {
-                    // Remove from both job list and node.
-                    RemoveJob(job, true, true);
-                }
-            }
-
-            LOG_DEBUG_UNLESS(IsRecovery(), "Node jobs updated (NodeId: %d, Address: %s, JobsStarted: %d, JobsStopped: %d)",
-                nodeId,
-                ~node->GetAddress(),
-                static_cast<int>(request.started_jobs_size()),
-                static_cast<int>(request.stopped_jobs_size()));
-        }
-    }
-
-
     void UpdateChunkReplicationFactor(const NProto::TMetaReqUpdateChunkReplicationFactor& request)
     {
         FOREACH (const auto& update, request.updates()) {
@@ -950,16 +882,12 @@ private:
     {
         ChunkMap.SaveKeys(context);
         ChunkListMap.SaveKeys(context);
-        JobMap.SaveKeys(context);
-        JobListMap.SaveKeys(context);
     }
 
     void SaveValues(const NCellMaster::TSaveContext& context) const
     {
         ChunkMap.SaveValues(context);
         ChunkListMap.SaveValues(context);
-        JobMap.SaveValues(context);
-        JobListMap.SaveValues(context);
     }
 
 
@@ -977,8 +905,6 @@ private:
             size_t nodeCount = ::LoadSize(context.GetInput());
             YCHECK(nodeCount == 0);
         }
-        JobMap.LoadKeys(context);
-        JobListMap.LoadKeys(context);
     }
 
     void LoadValues(const NCellMaster::TLoadContext& context)
@@ -1000,12 +926,6 @@ private:
             ChunkReplicaCount += node->StoredReplicas().size();
             ChunkReplicaCount += node->CachedReplicas().size();
         }
-
-        // Reconstruct ReplicationSinkMap.
-        ReplicationSinkMap.clear();
-        FOREACH (auto& pair, JobMap) {
-            RegisterReplicationSinks(pair.second);
-        }
     }
 
 
@@ -1013,9 +933,6 @@ private:
     {
         ChunkMap.Clear();
         ChunkListMap.Clear();
-        JobMap.Clear();
-        JobListMap.Clear();
-        ReplicationSinkMap.clear();
         ChunkReplicaCount = 0;
     }
 
@@ -1114,7 +1031,10 @@ private:
         LOG_INFO("Full chunk refresh started");
         PROFILE_TIMING ("/full_chunk_refresh_time") {
             ChunkPlacement = New<TChunkPlacement>(Config, Bootstrap);
+            ChunkPlacement->Initialize();
+            
             ChunkReplicator = New<TChunkReplicator>(Config, Bootstrap, ChunkPlacement);
+            ChunkReplicator->Initialize();
         }
         LOG_INFO("Full chunk refresh completed");
     }
@@ -1234,82 +1154,6 @@ private:
     }
 
 
-    void AddJob(TNode* node, const TJobStartInfo& jobInfo)
-    {
-        auto* mutationContext = Bootstrap
-            ->GetMetaStateFacade()
-            ->GetManager()
-            ->GetMutationContext();
-
-        auto nodeId = node->GetId();
-        auto chunkId = FromProto<TChunkId>(jobInfo.chunk_id());
-        auto jobId = FromProto<TJobId>(jobInfo.job_id());
-        auto jobType = EJobType(jobInfo.type());
-        auto targets = FromProto<TNodeDescriptor>(jobInfo.targets());
-
-        std::vector<Stroka> targetAddresses;
-        FOREACH (const auto& target, targets) {
-            targetAddresses.push_back(target.Address);
-        }
-
-        auto* job = new TJob(
-            jobType,
-            jobId,
-            chunkId,
-            node->GetAddress(),
-            targetAddresses,
-            mutationContext->GetTimestamp());
-        JobMap.Insert(jobId, job);
-
-        auto* jobList = GetOrCreateJobList(chunkId);
-        jobList->AddJob(job);
-
-        node->AddJob(job);
-
-        RegisterReplicationSinks(job);
-
-        LOG_INFO_UNLESS(IsRecovery(), "Job added (JobId: %s, NodeId: %d, Address: %s, JobType: %s, ChunkId: %s)",
-            ~ToString(jobId),
-            nodeId,
-            ~node->GetAddress(),
-            ~jobType.ToString(),
-            ~ToString(chunkId));
-    }
-
-    void RemoveJob(
-        TJob* job,
-        bool removeFromNode,
-        bool removeFromJobList)
-    {
-        auto chunkId = job->GetChunkId();
-        auto jobId = job->GetId();
-        auto nodeTracker = Bootstrap->GetNodeTracker();
-
-        if (removeFromJobList) {
-            auto* jobList = GetJobList(chunkId);
-            jobList->RemoveJob(job);
-            DropJobListIfEmpty(jobList);
-        }
-
-        if (removeFromNode) {
-            auto* node = nodeTracker->FindNodeByAddress(job->GetAddress());
-            if (node) {
-                node->RemoveJob(job);
-            }
-        }
-
-        if (IsLeader()) {
-            ChunkReplicator->ScheduleChunkRefresh(chunkId);
-        }
-
-        UnregisterReplicationSinks(job);
-
-        JobMap.Remove(jobId);
-
-        LOG_INFO_UNLESS(IsRecovery(), "Job removed (JobId: %s)", ~ToString(jobId));
-    }
-
-
     void ProcessAddedChunk(
         TNode* node,
         const TChunkAddInfo& chunkAddInfo,
@@ -1401,87 +1245,6 @@ private:
     }
 
 
-    TJobList* GetOrCreateJobList(const TChunkId& id)
-    {
-        auto* jobList = FindJobList(id);
-        if (!jobList) {
-            jobList = new TJobList(id);
-            JobListMap.Insert(id, jobList);
-        }
-        return jobList;
-    }
-
-    void DropJobListIfEmpty(const TJobList* jobList)
-    {
-        if (jobList->Jobs().empty()) {
-            JobListMap.Remove(jobList->GetChunkId());
-        }
-    }
-
-
-    void RegisterReplicationSinks(TJob* job)
-    {
-        switch (job->GetType()) {
-            case EJobType::Replicate: {
-                FOREACH (const auto& address, job->TargetAddresses()) {
-                    auto* sink = GetOrCreateReplicationSink(address);
-                    YCHECK(sink->Jobs().insert(job).second);
-                }
-                break;
-            }
-
-            case EJobType::Remove:
-                break;
-
-            default:
-                YUNREACHABLE();
-        }
-    }
-
-    void UnregisterReplicationSinks(TJob* job)
-    {
-        switch (job->GetType()) {
-            case EJobType::Replicate: {
-                FOREACH (const auto& address, job->TargetAddresses()) {
-                    auto* sink = GetOrCreateReplicationSink(address);
-                    YCHECK(sink->Jobs().erase(job) == 1);
-                    DropReplicationSinkIfEmpty(sink);
-                }
-                break;
-            }
-
-            case EJobType::Remove:
-                break;
-
-            default:
-                YUNREACHABLE();
-        }
-    }
-
-    TReplicationSink* GetOrCreateReplicationSink(const Stroka& address)
-    {
-        auto it = ReplicationSinkMap.find(address);
-        if (it != ReplicationSinkMap.end()) {
-            return &it->second;
-        }
-
-        auto pair = ReplicationSinkMap.insert(std::make_pair(address, TReplicationSink(address)));
-        YCHECK(pair.second);
-
-        return &pair.first->second;
-    }
-
-    void DropReplicationSinkIfEmpty(const TReplicationSink* sink)
-    {
-        if (sink->Jobs().empty()) {
-            // NB: Do not try to inline this variable! erase() will destroy the object
-            // and will access the key afterwards.
-            auto address = sink->GetAddress();
-            YCHECK(ReplicationSinkMap.erase(address) == 1);
-        }
-    }
-
-
     static void GetOwningNodes(
         TChunkTree* chunkTree,
         yhash_set<TChunkTree*>& visited,
@@ -1518,14 +1281,11 @@ private:
             Profiler.Enqueue("/rf_update_list_size", ChunkReplicator->GetRFUpdateListSize());
         }
     }
-
-
+    
 };
 
 DEFINE_METAMAP_ACCESSORS(TChunkManager::TImpl, Chunk, TChunk, TChunkId, ChunkMap)
 DEFINE_METAMAP_ACCESSORS(TChunkManager::TImpl, ChunkList, TChunkList, TChunkListId, ChunkListMap)
-DEFINE_METAMAP_ACCESSORS(TChunkManager::TImpl, JobList, TJobList, TChunkId, JobListMap)
-DEFINE_METAMAP_ACCESSORS(TChunkManager::TImpl, Job, TJob, TJobId, JobMap)
 
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, LostChunks, *ChunkReplicator);
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, LostVitalChunks, *ChunkReplicator);
@@ -1703,22 +1463,11 @@ TChunkTree* TChunkManager::GetChunkTree(const TChunkTreeId& id)
     return Impl->GetChunkTree(id);
 }
 
-const TReplicationSink* TChunkManager::FindReplicationSink(const Stroka& address)
-{
-    return Impl->FindReplicationSink(address);
-}
-
 TSmallVector<TNode*, TypicalReplicationFactor> TChunkManager::AllocateUploadTargets(
     int replicaCount,
     const TNullable<Stroka>& preferredHostName)
 {
     return Impl->AllocateUploadTargets(replicaCount, preferredHostName);
-}
-
-TMutationPtr TChunkManager::CreateUpdateJobsMutation(
-    const NProto::TMetaReqUpdateJobs& request)
-{
-    return Impl->CreateUpdateJobsMutation(request);
 }
 
 TMutationPtr TChunkManager::CreateUpdateChunkReplicationFactorMutation(
@@ -1785,17 +1534,23 @@ void TChunkManager::ClearChunkList(TChunkList* chunkList)
     Impl->ClearChunkList(chunkList);
 }
 
+TJobPtr TChunkManager::FindJob(const TJobId& id)
+{
+    return Impl->FindJob(id);
+}
+
+TJobListPtr TChunkManager::FindJobList(const TChunkId& id)
+{
+    return Impl->FindJobList(id);
+}
+
 void TChunkManager::ScheduleJobs(
     TNode* node,
-    const std::vector<TJobInfo>& runningJobs,
-    std::vector<TJobStartInfo>* jobsToStart,
-    std::vector<TJobStopInfo>* jobsToStop)
+    const std::vector<TJobPtr>& currentJobs,
+    std::vector<TJobPtr>* jobsToStart,
+    std::vector<TJobPtr>* jobsToStop)
 {
-    Impl->ScheduleJobs(
-        node,
-        runningJobs,
-        jobsToStart,
-        jobsToStop);
+    Impl->ScheduleJobs(node, currentJobs, jobsToStart, jobsToStop);
 }
 
 bool TChunkManager::IsReplicatorEnabled()
@@ -1825,8 +1580,6 @@ std::vector<TYPath> TChunkManager::GetOwningNodes(TChunkTree* chunkTree)
 
 DELEGATE_METAMAP_ACCESSORS(TChunkManager, Chunk, TChunk, TChunkId, *Impl)
 DELEGATE_METAMAP_ACCESSORS(TChunkManager, ChunkList, TChunkList, TChunkListId, *Impl)
-DELEGATE_METAMAP_ACCESSORS(TChunkManager, JobList, TJobList, TChunkId, *Impl)
-DELEGATE_METAMAP_ACCESSORS(TChunkManager, Job, TJob, TJobId, *Impl)
 
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, LostChunks, *Impl);
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, LostVitalChunks, *Impl);

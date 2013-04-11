@@ -5,13 +5,6 @@ import "yt/ytlib/node_tracker_client/node_tracker_service.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TMetaReqUpdateJobs
-{
-    required int32 node_id = 1;
-    repeated NNodeTrackerClient.NProto.TJobStartInfo started_jobs = 2;
-    repeated NNodeTrackerClient.NProto.TJobStopInfo stopped_jobs = 3;
-}
-
 message TMetaReqUpdateChunkReplicationFactor
 {
     message TUpdate
