@@ -58,6 +58,16 @@ void TYPathRequest::SetPath(const Stroka& path)
     Path_ = path;
 }
 
+TInstant TYPathRequest::GetStartTime() const
+{
+    YUNREACHABLE();
+}
+
+void TYPathRequest::SetStartTime(TInstant /*value*/)
+{
+    YUNREACHABLE();
+}
+
 const IAttributeDictionary& TYPathRequest::Attributes() const
 {
     return TEphemeralAttributeOwner::Attributes();
