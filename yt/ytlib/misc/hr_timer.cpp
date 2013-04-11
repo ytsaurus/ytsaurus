@@ -39,15 +39,15 @@ void GetHRInstant(THRInstant* instant)
     instant->Seconds = time / NumberOfNsInS;
     instant->Nanoseconds = time % NumberOfNsInS;
 #elif defined(_win_)
-    static LARGE_INTEGER frequency = 0;
-    if (UNLIKELY(frequency == 0)) {
+    static LARGE_INTEGER frequency = { 0 };
+    if (UNLIKELY(frequency.QuadPart == 0)) {
         YCHECK(QueryPerformanceFrequency(&frequency));
 
     }
     LARGE_INTEGER time;
     YCHECK((QueryPerformanceCounter(&time)));
-    instant->Seconds = time / frequency;
-    instant->Nanoseconds = (time % frequency) * NumberOfNsInS / frequency;
+    instant->Seconds = time.QuadPart / frequency.QuadPart;
+    instant->Nanoseconds = (time.QuadPart % frequency.QuadPart) * NumberOfNsInS / frequency.QuadPart;
 #else
     #error "Unsupported architecture"
 #endif
