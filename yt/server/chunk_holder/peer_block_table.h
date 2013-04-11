@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/chunk_client/node_directory.h>
+#include <ytlib/node_tracker_client/node_directory.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -12,13 +12,13 @@ namespace NChunkHolder {
 //! Keeps information about a peer possibly holding a block.
 struct TPeerInfo
 {
-    NChunkClient::TNodeDescriptor Descriptor;
+    NNodeTrackerClient::TNodeDescriptor Descriptor;
     TInstant ExpirationTime;
 
     TPeerInfo()
     { }
 
-    TPeerInfo(const NChunkClient::TNodeDescriptor& descriptor, TInstant expirationTime)
+    TPeerInfo(const NNodeTrackerClient::TNodeDescriptor& descriptor, TInstant expirationTime)
         : Descriptor(descriptor)
         , ExpirationTime(expirationTime)
     { }

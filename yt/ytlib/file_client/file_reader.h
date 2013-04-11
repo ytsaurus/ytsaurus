@@ -30,12 +30,10 @@ class TFileReader
     : public NTransactionClient::TTransactionListener
 {
 public:
-    //! Initializes an instance.
     TFileReader();
 
     ~TFileReader();
 
-    //! Opens the reader.
     void Open(
         TFileReaderConfigPtr config,
         NRpc::IChannelPtr masterChannel,

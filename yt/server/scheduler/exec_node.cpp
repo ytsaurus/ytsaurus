@@ -10,7 +10,7 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////
 
-TExecNode::TExecNode(const NChunkClient::TNodeDescriptor& descriptor)
+TExecNode::TExecNode(const NNodeTrackerClient::TNodeDescriptor& descriptor)
     : Descriptor_(descriptor)
     , ResourceLimits_(ZeroNodeResources())
     , ResourceUsage_(ZeroNodeResources())

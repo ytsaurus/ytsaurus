@@ -3,7 +3,7 @@
 #include "public.h"
 
 namespace NYT {
-namespace NChunkServer {
+namespace NNodeTrackerServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -11,11 +11,12 @@ namespace NChunkServer {
 struct INodeAuthority
     : public virtual TRefCounted
 {
-    //! Returns true iff a node with the given address is authorized to register.
+    //! Returns |true| if a node with the given address is authorized to register.
+    // TODO(babenko): use descriptor instead
     virtual bool IsAuthorized(const Stroka& address) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
+} // namespace NNodeTrackerServer
 } // namespace NYT

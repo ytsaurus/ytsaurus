@@ -6,7 +6,8 @@
 #include <ytlib/misc/ref.h>
 
 #include <ytlib/chunk_client/public.h>
-#include <ytlib/chunk_client/node_directory.h>
+
+#include <ytlib/node_tracker_client/node_directory.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -22,12 +23,12 @@ public:
     TCachedBlock(
         const TBlockId& blockId,
         const TSharedRef& data,
-        const TNullable<NChunkClient::TNodeDescriptor>& source);
+        const TNullable<NNodeTrackerClient::TNodeDescriptor>& source);
 
     ~TCachedBlock();
 
     DEFINE_BYVAL_RO_PROPERTY(TSharedRef, Data);
-    DEFINE_BYREF_RO_PROPERTY(TNullable<NChunkClient::TNodeDescriptor>, Source);
+    DEFINE_BYREF_RO_PROPERTY(TNullable<NNodeTrackerClient::TNodeDescriptor>, Source);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -73,7 +74,7 @@ public:
     TCachedBlockPtr PutBlock(
         const TBlockId& blockId,
         const TSharedRef& data,
-        const TNullable<NChunkClient::TNodeDescriptor>& source);
+        const TNullable<NNodeTrackerClient::TNodeDescriptor>& source);
 
     //! Gets a vector of all blocks stored in the cache. Thread-safe.
     std::vector<TCachedBlockPtr> GetAllBlocks() const;

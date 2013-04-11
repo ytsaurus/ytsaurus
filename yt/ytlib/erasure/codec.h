@@ -10,14 +10,6 @@ namespace NErasure {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(ECodec,
-    ((None)           (0))
-    ((ReedSolomon_6_3)(1))
-    ((Lrc_12_2_2)     (2))
-);
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! Describes a generic way to generate parity blocks from data blocks and
 //! to recover (repair) missing blocks.
 /*!

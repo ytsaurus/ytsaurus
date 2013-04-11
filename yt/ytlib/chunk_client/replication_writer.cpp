@@ -1,8 +1,5 @@
 #include "stdafx.h"
-
-#include "node_directory.h"
 #include "replication_writer.h"
-
 #include "config.h"
 #include "dispatcher.h"
 #include "private.h"
@@ -26,6 +23,8 @@
 
 #include <ytlib/chunk_client/data_node_service.pb.h>
 
+#include <ytlib/node_tracker_client/node_directory.h>
+
 #include <util/generic/deque.h>
 
 namespace NYT {
@@ -34,6 +33,7 @@ namespace NChunkClient {
 ///////////////////////////////////////////////////////////////////////////////
 
 using namespace NRpc;
+using namespace NNodeTrackerClient;
 
 typedef TDataNodeServiceProxy TProxy;
     
@@ -1114,7 +1114,7 @@ const std::vector<int> TReplicationWriter::GetWrittenIndexes() const
 
 ///////////////////////////////////////////////////////////////////////////////
 
-IAsyncWriterPtr GetReplicationWriter(
+IAsyncWriterPtr CreateReplicationWriter(
     const TReplicationWriterConfigPtr& config,
     const TChunkId& chunkId,
     const std::vector<TNodeDescriptor>& targets)

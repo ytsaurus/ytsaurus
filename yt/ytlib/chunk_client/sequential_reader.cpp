@@ -4,6 +4,8 @@
 #include "private.h"
 #include "dispatcher.h"
 
+#include <ytlib/compression/codec.h>
+
 namespace NYT {
 namespace NChunkClient {
 

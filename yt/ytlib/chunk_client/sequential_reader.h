@@ -3,14 +3,17 @@
 #include "public.h"
 #include "async_reader.h"
 
-#include <ytlib/chunk_client/chunk.pb.h>
 #include <ytlib/actions/future.h>
 
 #include <ytlib/misc/async_stream_state.h>
 #include <ytlib/misc/semaphore.h>
 #include <ytlib/misc/thread_affinity.h>
-#include <ytlib/compression/codec.h>
 #include <ytlib/misc/ref.h>
+
+#include <ytlib/compression/public.h>
+
+#include <ytlib/chunk_client/chunk.pb.h>
+
 #include <ytlib/logging/tagged_logger.h>
 
 namespace NYT {

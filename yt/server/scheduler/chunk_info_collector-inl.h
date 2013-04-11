@@ -14,7 +14,7 @@ namespace NScheduler {
 
 template <class TFetcher>
 TChunkInfoCollector<TFetcher>::TChunkInfoCollector(
-    NChunkClient::TNodeDirectoryPtr nodeDirectory,
+    NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     TFetcherPtr fetcher,
     IInvokerPtr invoker)
     : NodeDirectory(nodeDirectory)
@@ -131,7 +131,7 @@ void TChunkInfoCollector<TFetcher>::SendRequests()
 
 template <class TFetcher>
 void TChunkInfoCollector<TFetcher>::OnResponse(
-    const NChunkClient::TNodeDescriptor& descriptor,
+    const NNodeTrackerClient::TNodeDescriptor& descriptor,
     std::vector<int> chunkIndexes,
     typename TFetcher::TResponsePtr rsp)
 {

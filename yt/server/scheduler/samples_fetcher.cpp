@@ -11,12 +11,15 @@
 
 #include <ytlib/misc/protobuf_helpers.h>
 
+#include <ytlib/node_tracker_client/node_directory.h>
+
 #include <ytlib/scheduler/config.h>
 
 namespace NYT {
 namespace NScheduler {
 
 using namespace NChunkClient;
+using namespace NNodeTrackerClient;
 
 using NTableClient::NProto::TKey;
 

@@ -5,17 +5,18 @@ set( DIRS
   cell_node
   cell_scheduler
   chunk_holder
+  scheduler
+  exec_agent
+  job_proxy
+  orchid
   chunk_server
   transaction_server
   cypress_server
   file_server
   table_server
   object_server
-  scheduler
-  exec_agent
-  job_proxy
-  orchid
   security_server
+  node_tracker_server
 )
 
 foreach( _d_ ${DIRS} )

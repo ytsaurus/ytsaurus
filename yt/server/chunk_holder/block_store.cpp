@@ -20,8 +20,7 @@ namespace NYT {
 namespace NChunkHolder {
 
 using namespace NChunkClient;
-using namespace NChunkClient::NProto;
-using namespace NYPath;
+using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 

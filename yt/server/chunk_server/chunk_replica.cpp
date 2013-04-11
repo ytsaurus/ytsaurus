@@ -1,10 +1,11 @@
 #include "stdafx.h"
 #include "chunk_replica.h"
-#include "node.h"
 #include "chunk.h"
 
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/chunk_replica.h>
+
+#include <server/node_tracker_server/node.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -13,7 +14,7 @@ using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka ToString(TDataNodePtrWithIndex value)
+Stroka ToString(TNodePtrWithIndex value)
 {
     return Sprintf("%s/%d", ~value.GetPtr()->GetAddress(), value.GetIndex());
 }
@@ -23,7 +24,7 @@ Stroka ToString(TChunkPtrWithIndex value)
     return Sprintf("%s/%d", ~ToString(value.GetPtr()->GetId()), value.GetIndex());
 }
 
-void ToProto(ui32* protoValue, TDataNodePtrWithIndex value)
+void ToProto(ui32* protoValue, TNodePtrWithIndex value)
 {
     NChunkClient::TChunkReplica clientReplica(
         value.GetPtr()->GetId(),

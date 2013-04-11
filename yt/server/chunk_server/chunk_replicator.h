@@ -11,9 +11,9 @@
 
 #include <ytlib/profiling/timing.h>
 
-#include <server/cell_master/public.h>
+#include <ytlib/node_tracker_client/node_tracker_service.pb.h>
 
-#include <server/chunk_server/chunk_service.pb.h>
+#include <server/cell_master/public.h>
 
 #include <deque>
 
@@ -42,34 +42,35 @@ public:
     TChunkReplicator(
         TChunkManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap,
-        TChunkPlacementPtr chunkPlacement,
-        TNodeLeaseTrackerPtr nodeLeaseTracker);
+        TChunkPlacementPtr chunkPlacement);
+
+    void Initialize();
+
+    void OnNodeRegistered(TNode* node);
+    void OnNodeUnregistered(TNode* node);
 
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, LostChunks);
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, LostVitalChunks);
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, UnderreplicatedChunks);
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, OverreplicatedChunks);
 
-    void OnNodeRegistered(TDataNode* node);
-    void OnNodeUnregistered(TDataNode* node);
-
     void OnChunkRemoved(TChunk* chunk);
 
     void ScheduleChunkRefresh(const TChunkId& chunkId);
     void ScheduleChunkRefresh(TChunk* chunk);
 
-    void ScheduleChunkRemoval(TDataNode* node, const TChunkId& chunkdId);
-    void ScheduleChunkRemoval(TDataNode* node, TChunkPtrWithIndex chunkWithIndex);
+    void ScheduleChunkRemoval(TNode* node, const TChunkId& chunkdId);
+    void ScheduleChunkRemoval(TNode* node, TChunkPtrWithIndex chunkWithIndex);
 
     void ScheduleRFUpdate(TChunkTree* chunkTree);
     void ScheduleRFUpdate(TChunk* chunk);
     void ScheduleRFUpdate(TChunkList* chunkList);
 
     void ScheduleJobs(
-        TDataNode* node,
-        const std::vector<NProto::TJobInfo>& runningJobs,
-        std::vector<NProto::TJobStartInfo>* jobsToStart,
-        std::vector<NProto::TJobStopInfo>* jobsToStop);
+        TNode* node,
+        const std::vector<NNodeTrackerClient::NProto::TJobInfo>& runningJobs,
+        std::vector<NNodeTrackerClient::NProto::TJobStartInfo>* jobsToStart,
+        std::vector<NNodeTrackerClient::NProto::TJobStopInfo>* jobsToStop);
 
     bool IsEnabled();
 
@@ -80,7 +81,6 @@ private:
     TChunkManagerConfigPtr Config;
     NCellMaster::TBootstrap* Bootstrap;
     TChunkPlacementPtr ChunkPlacement;
-    TNodeLeaseTrackerPtr NodeLeaseTracker;
 
     NProfiling::TCpuDuration ChunkRefreshDelay;
     TNullable<bool> LastEnabled;
@@ -98,9 +98,9 @@ private:
     std::deque<TChunk*> RFUpdateList;
 
     void ProcessExistingJobs(
-        TDataNode* node,
-        const std::vector<NProto::TJobInfo>& runningJobs,
-        std::vector<NProto::TJobStopInfo>* jobsToStop,
+        TNode* node,
+        const std::vector<NNodeTrackerClient::NProto::TJobInfo>& runningJobs,
+        std::vector<NNodeTrackerClient::NProto::TJobStopInfo>* jobsToStop,
         int* replicationJobCount,
         int* removalJobCount);
 
@@ -111,23 +111,23 @@ private:
     );
 
     EScheduleFlags ScheduleReplicationJob(
-        TDataNode* sourceNode,
+        TNode* sourceNode,
         const TChunkId& chunkId,
-        std::vector<NProto::TJobStartInfo>* jobsToStart);
+        std::vector<NNodeTrackerClient::NProto::TJobStartInfo>* jobsToStart);
     EScheduleFlags ScheduleBalancingJob(
-        TDataNode* sourceNode,
+        TNode* sourceNode,
         TChunkPtrWithIndex chunkWithIndex,
         double maxFillCoeff,
-        std::vector<NProto::TJobStartInfo>* jobsToStart);
+        std::vector<NNodeTrackerClient::NProto::TJobStartInfo>* jobsToStart);
     EScheduleFlags ScheduleRemovalJob(
-        TDataNode* node,
+        TNode* node,
         const TChunkId& chunkId,
-        std::vector<NProto::TJobStartInfo>* jobsToStart);
+        std::vector<NNodeTrackerClient::NProto::TJobStartInfo>* jobsToStart);
     void ScheduleNewJobs(
-        TDataNode* node,
+        TNode* node,
         int maxReplicationJobsToStart,
         int maxRemovalJobsToStart,
-        std::vector<NProto::TJobStartInfo>* jobsToStart);
+        std::vector<NNodeTrackerClient::NProto::TJobStartInfo>* jobsToStart);
 
     TReplicaStatistics GetReplicaStatistics(const TChunk& chunk);
 

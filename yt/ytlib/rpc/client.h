@@ -8,7 +8,7 @@
 #include <ytlib/misc/metric.h>
 #include <ytlib/misc/protobuf_helpers.h>
 
-#include <ytlib/compression/codec.h>
+#include <ytlib/compression/public.h>
 
 #include <ytlib/bus/client.h>
 #include <ytlib/bus/message.h>

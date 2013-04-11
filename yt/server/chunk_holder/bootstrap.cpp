@@ -178,7 +178,7 @@ IChannelPtr TBootstrap::GetMasterChannel() const
     return NodeBootstrap->GetMasterChannel();
 }
 
-const NChunkClient::TNodeDescriptor& TBootstrap::GetLocalDescriptor() const
+const NNodeTrackerClient::TNodeDescriptor& TBootstrap::GetLocalDescriptor() const
 {
     return NodeBootstrap->GetLocalDescriptor();
 }

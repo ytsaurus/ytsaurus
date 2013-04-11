@@ -6,7 +6,7 @@
 
 #include <ytlib/ytree/yson_serializable.h>
 
-#include <ytlib/compression/codec.h>
+#include <ytlib/compression/public.h>
 
 namespace NYT {
 namespace NChunkClient {

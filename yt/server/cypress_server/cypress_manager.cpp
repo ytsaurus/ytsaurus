@@ -2,6 +2,7 @@
 #include "cypress_manager.h"
 #include "node_detail.h"
 #include "node_proxy_detail.h"
+#include "private.h"
 
 #include <ytlib/misc/singleton.h>
 
@@ -41,7 +42,7 @@ using namespace NCypressClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("Cypress");
+static NLog::TLogger& Logger = CypressServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

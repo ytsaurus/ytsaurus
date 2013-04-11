@@ -57,8 +57,14 @@ public:
     const std::vector<NTableClient::NProto::TInputChunk>& GetWrittenChunks() const;
 
     //! Provides node id to descriptor mapping for chunks returned via #GetWrittenChunks.
-    TNodeDirectoryPtr GetNodeDirectory() const;
+    NNodeTrackerClient::TNodeDirectoryPtr GetNodeDirectory() const;
+
     TProviderPtr GetProvider();
+
+    //! Current row count.
+    i64 GetRowCount() const;
+
+    const TNullable<TKeyColumns>& GetKeyColumns() const;
 
 protected:
     struct TSession
@@ -121,7 +127,7 @@ protected:
     const NTransactionClient::TTransactionId TransactionId;
     const TChunkListId ParentChunkListId;
 
-    TNodeDirectoryPtr NodeDirectory;
+    NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
 
     const int UploadReplicationFactor;
 

@@ -9,7 +9,7 @@
 #include <ytlib/misc/semaphore.h>
 #include <ytlib/misc/async_stream_state.h>
 
-#include <ytlib/compression/codec.h>
+#include <ytlib/compression/public.h>
 
 namespace NYT {
 namespace NChunkClient {

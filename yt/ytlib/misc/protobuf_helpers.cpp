@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "protobuf_helpers.h"
 
+#include <ytlib/compression/codec.h>
+
 #include <contrib/libs/protobuf/io/zero_copy_stream.h>
 #include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
 

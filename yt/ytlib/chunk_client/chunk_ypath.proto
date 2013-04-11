@@ -1,6 +1,6 @@
 package NYT.NChunkClient.NProto;
 
-import "yt/ytlib/chunk_client/node.proto";
+import "yt/ytlib/node_tracker_client/node.proto";
 import "yt/ytlib/chunk_client/chunk.proto";
 import "yt/ytlib/object_client/master_ypath.proto";
 
@@ -11,7 +11,7 @@ message TReqLocate
 
 message TRspLocate
 {
-    required NYT.NChunkClient.NProto.TNodeDirectory node_directory = 1;
+    required NNodeTrackerClient.NProto.TNodeDirectory node_directory = 1;
     repeated fixed32 replicas = 2;
 }
 
@@ -20,8 +20,8 @@ message TRspLocate
 message TReqConfirm
 {
     repeated fixed32 replicas = 1;
-    required NYT.NChunkClient.NProto.TChunkMeta chunk_meta = 2;
-    required NYT.NChunkClient.NProto.TChunkInfo chunk_info = 3;
+    required NChunkClient.NProto.TChunkMeta chunk_meta = 2;
+    required NChunkClient.NProto.TChunkInfo chunk_info = 3;
 }
 
 message TRspConfirm
@@ -33,7 +33,7 @@ message TRspConfirm
 
 message TReqCreateChunkExt
 {
-    extend NYT.NObjectClient.NProto.TReqCreateObject
+    extend NObjectClient.NProto.TReqCreateObject
     {
         optional TReqCreateChunkExt create_chunk = 100;
     }
@@ -60,12 +60,12 @@ message TReqCreateChunkExt
 
 message TRspCreateChunkExt
 {
-    extend NYT.NObjectClient.NProto.TRspCreateObject
+    extend NObjectClient.NProto.TRspCreateObject
     {
         optional TRspCreateChunkExt create_chunk = 100;
     }
 
-    required TNodeDirectory node_directory = 1;
+    required NNodeTrackerClient.NProto.TNodeDirectory node_directory = 1;
     repeated fixed32 replicas = 2;
 }
 

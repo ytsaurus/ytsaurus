@@ -4,11 +4,15 @@
 #include "value.h"
 
 #include <ytlib/table_client/table_reader.pb.h>
-#include <ytlib/chunk_client/async_reader.h>
+
 #include <ytlib/chunk_client/public.h>
-#include <ytlib/logging/tagged_logger.h>
+#include <ytlib/chunk_client/async_reader.h>
+
 #include <ytlib/misc/async_stream_state.h>
-#include <ytlib/compression/codec.h>
+
+#include <ytlib/compression/public.h>
+
+#include <ytlib/logging/tagged_logger.h>
 
 namespace NYT {
 namespace NTableClient {

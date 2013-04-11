@@ -1,35 +1,47 @@
 #pragma once
 
 #include "public.h"
-#include "chunk_replica.h"
 
 #include <ytlib/misc/property.h>
+#include <ytlib/misc/lease_manager.h>
 
-#include <ytlib/chunk_client/node_directory.h>
+#include <ytlib/node_tracker_client/node_directory.h>
+#include <ytlib/node_tracker_client/node_tracker_service.pb.h>
+
+#include <server/chunk_server/chunk_replica.h>
 
 #include <server/cell_master/public.h>
 
-#include <server/chunk_server/chunk_service.pb.h>
-
 namespace NYT {
-namespace NChunkServer {
+namespace NNodeTrackerServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_ENUM(ENodeState,
     // Not registered.
     (Offline)
-    // Registered but did not report the full heartbeat yet.
+    // Registered but did not report the first heartbeat yet.
     (Registered)
-    // Registered and reported the full heartbeat.
+    // Registered and reported the first heartbeat.
     (Online)
 );
 
-class TDataNode
+class TNode
 {
+    // Import third-party types into the scope.
+    typedef NChunkServer::TChunkPtrWithIndex TChunkPtrWithIndex;
+    typedef NChunkServer::TChunkId TChunkId;
+    typedef NChunkServer::TJob TJob;
+
     DEFINE_BYVAL_RO_PROPERTY(TNodeId, Id);
     DEFINE_BYVAL_RW_PROPERTY(ENodeState, State);
-    DEFINE_BYREF_RW_PROPERTY(NProto::TNodeStatistics, Statistics);
+    DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeStatistics, Statistics);
+
+    // Lease tracking.
+    DEFINE_BYVAL_RW_PROPERTY(bool, Confirmed);
+    DEFINE_BYVAL_RW_PROPERTY(TLeaseManager::TLease, Lease);
+
+    // Chunk Manager stuff.
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkPtrWithIndex>, StoredReplicas);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkPtrWithIndex>, CachedReplicas);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkPtrWithIndex>, UnapprovedReplicas);
@@ -45,18 +57,19 @@ class TDataNode
     DEFINE_BYREF_RW_PROPERTY(TChunksToRemove, ChunksToRemove);
 
 public:
-    TDataNode(
+    TNode(
         TNodeId id,
-        const NChunkClient::TNodeDescriptor& descriptor);
+        const TNodeDescriptor& descriptor);
 
-    explicit TDataNode(TNodeId id);
+    explicit TNode(TNodeId id);
 
-    const NChunkClient::TNodeDescriptor& GetDescriptor() const;
+    const TNodeDescriptor& GetDescriptor() const;
     const Stroka& GetAddress() const;
 
     void Save(const NCellMaster::TSaveContext& context) const;
     void Load(const NCellMaster::TLoadContext& context);
 
+    // Chunk Manager stuff.
     void AddReplica(TChunkPtrWithIndex replica, bool cached);
     void RemoveReplica(TChunkPtrWithIndex replica, bool cached);
     bool HasReplica(TChunkPtrWithIndex, bool cached) const;
@@ -71,30 +84,16 @@ public:
     int GetTotalSessionCount() const;
 
 private:
-    NChunkClient::TNodeDescriptor Descriptor_;
+    TNodeDescriptor Descriptor_;
 
     void Init();
 
 };
 
-TNodeId GetObjectId(const TDataNode* node);
-bool CompareObjectsForSerialization(const TDataNode* lhs, const TDataNode* rhs);
+TNodeId GetObjectId(const TNode* node);
+bool CompareObjectsForSerialization(const TNode* lhs, const TNode* rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReplicationSink
-{
-    DEFINE_BYVAL_RO_PROPERTY(Stroka, Address);
-    DEFINE_BYREF_RW_PROPERTY(yhash_set<TJob*>, Jobs);
-
-public:
-    explicit TReplicationSink(const Stroka& address)
-        : Address_(address)
-    { }
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NChunkServer
+} // namespace NNodeTrackerServer
 } // namespace NYT

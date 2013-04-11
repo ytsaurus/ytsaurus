@@ -12,8 +12,13 @@
 #include <ytlib/chunk_client/async_reader.h>
 #include <ytlib/chunk_client/dispatcher.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
+
+#include <ytlib/node_tracker_client/node_directory.h>
+
 #include <ytlib/actions/parallel_awaiter.h>
+
 #include <ytlib/rpc/channel.h>
+
 #include <ytlib/misc/protobuf_helpers.h>
 
 namespace NYT {
@@ -26,7 +31,7 @@ TMultiChunkReaderBase<TChunkReader>::TMultiChunkReaderBase(
     TTableReaderConfigPtr config,
     NRpc::IChannelPtr masterChannel,
     NChunkClient::IBlockCachePtr blockCache,
-    NChunkClient::TNodeDirectoryPtr nodeDirectory,
+    NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     std::vector<NProto::TInputChunk>&& inputChunks,
     const TProviderPtr& readerProvider)
     : ItemIndex_(0)

@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <ytlib/node_tracker_client/public.h>
+
 #include <ytlib/chunk_client/public.h>
 
 #include <ytlib/rpc/public.h>
@@ -31,7 +33,7 @@ struct IJobHost
 
     virtual NChunkClient::IBlockCachePtr GetBlockCache() const = 0;
 
-    virtual NChunkClient::TNodeDirectoryPtr GetNodeDirectory() const = 0;
+    virtual NNodeTrackerClient::TNodeDirectoryPtr GetNodeDirectory() const = 0;
 
 };
 

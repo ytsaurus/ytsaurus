@@ -4,30 +4,23 @@
 
 #include <ytlib/rpc/client.h>
 
-#include <server/chunk_server/chunk_service.pb.h>
+#include <ytlib/node_tracker_client/node_tracker_service.pb.h>
 
 namespace NYT {
-namespace NChunkServer {
+namespace NNodeTrackerClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkServiceProxy
+class TNodeTrackerServiceProxy
     : public NRpc::TProxyBase
 {
 public:
     static Stroka GetServiceName()
     {
-        return "ChunkService";
+        return "NodeTracker";
     }
 
-    DECLARE_ENUM(EErrorCode,
-        ((NoSuchTransaction)(1))
-        ((NoSuchNode)(2))
-        ((InvalidState)(4))
-        ((NotAuthorized)(5))
-    );
-
-    explicit TChunkServiceProxy(NRpc::IChannelPtr channel)
+    explicit TNodeTrackerServiceProxy(NRpc::IChannelPtr channel)
         : TProxyBase(channel, GetServiceName())
     { }
 
@@ -39,5 +32,5 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
+} // namespace NNodeTrackerClient
 } // namespace NYT

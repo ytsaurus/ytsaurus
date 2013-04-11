@@ -20,6 +20,7 @@ namespace NYT {
 namespace NChunkHolder {
 
 using namespace NChunkClient;
+using namespace NNodeTrackerClient;
 
 using NChunkClient::NProto::TBlocksExt;
 
@@ -134,7 +135,7 @@ void TJob::RunReplicate()
 
         this_->ChunkMeta = result.Value();
 
-        this_->Writer = GetReplicationWriter(
+        this_->Writer = CreateReplicationWriter(
             this_->Bootstrap->GetConfig()->ReplicationRemoteWriter,
             this_->ChunkId,
             this_->Targets);

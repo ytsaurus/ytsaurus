@@ -11,11 +11,12 @@
 
 #include <ytlib/chunk_client/block_cache.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/chunk_client/node_directory.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
 #include <ytlib/transaction_client/transaction.h>
+
+#include <ytlib/node_tracker_client/node_directory.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -23,6 +24,7 @@ namespace NTableClient {
 using namespace NCypressClient;
 using namespace NTableClient;
 using namespace NChunkClient;
+using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 

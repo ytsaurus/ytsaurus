@@ -22,7 +22,8 @@
 #include <ytlib/table_client/config.h>
 
 #include <ytlib/chunk_client/client_block_cache.h>
-#include <ytlib/chunk_client/node_directory.h>
+
+#include <ytlib/node_tracker_client/node_directory.h>
 
 #include <ytlib/security_client/public.h>
 
@@ -48,7 +49,7 @@ using namespace NTableClient;
 using NChunkClient::InvalidNodeId;
 using NChunkClient::TChunkId;
 using NChunkClient::TChunkReplica;
-using NChunkClient::TNodeDirectory;
+using NNodeTrackerClient::TNodeDirectory;
 
 ////////////////////////////////////////////////////////////////////////////////
 

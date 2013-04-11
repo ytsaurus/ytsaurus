@@ -21,7 +21,7 @@
 
 #include <ytlib/logging/tagged_logger.h>
 
-#include <server/chunk_server/node_statistics.h>
+#include <ytlib/node_tracker_client/node_statistics.h>
 
 #include <util/random/random.h>
 
@@ -29,7 +29,7 @@ namespace NYT {
 namespace NChunkHolder {
 
 using namespace NRpc;
-using namespace NChunkClient;
+using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -139,9 +139,9 @@ void TMasterConnector::SendRegister()
         ~ToString(*request->mutable_statistics()));
 }
 
-NChunkServer::NProto::TNodeStatistics TMasterConnector::ComputeStatistics()
+NNodeTrackerClient::NProto::TNodeStatistics TMasterConnector::ComputeStatistics()
 {
-    NChunkServer::NProto::TNodeStatistics nodeStatistics;
+    NNodeTrackerClient::NProto::TNodeStatistics result;
 
     i64 totalAvailableSpace = 0;
     i64 totalUsedSpace = 0;
@@ -150,7 +150,7 @@ NChunkServer::NProto::TNodeStatistics TMasterConnector::ComputeStatistics()
     bool full = true;
 
     FOREACH (auto location, Bootstrap->GetChunkStore()->Locations()) {
-        auto* locationStatistics = nodeStatistics.add_locations();
+        auto* locationStatistics = result.add_locations();
 
         locationStatistics->set_available_space(location->GetAvailableSpace());
         locationStatistics->set_used_space(location->GetUsedSpace());
@@ -169,13 +169,13 @@ NChunkServer::NProto::TNodeStatistics TMasterConnector::ComputeStatistics()
         totalSessionCount += location->GetSessionCount();
     }
 
-    nodeStatistics.set_total_available_space(totalAvailableSpace);
-    nodeStatistics.set_total_used_space(totalUsedSpace);
-    nodeStatistics.set_total_chunk_count(totalChunkCount);
-    nodeStatistics.set_total_session_count(totalSessionCount);
-    nodeStatistics.set_full(full);
+    result.set_total_available_space(totalAvailableSpace);
+    result.set_total_used_space(totalUsedSpace);
+    result.set_total_chunk_count(totalChunkCount);
+    result.set_total_session_count(totalSessionCount);
+    result.set_full(full);
 
-    return nodeStatistics;
+    return result;
 }
 
 void TMasterConnector::OnRegisterResponse(TProxy::TRspRegisterNodePtr rsp)
@@ -278,21 +278,21 @@ void TMasterConnector::SendIncrementalHeartbeat()
         static_cast<int>(request->jobs_size()));
 }
 
-NChunkServer::NProto::TChunkAddInfo TMasterConnector::GetAddInfo(TChunkPtr chunk)
+NNodeTrackerClient::NProto::TChunkAddInfo TMasterConnector::GetAddInfo(TChunkPtr chunk)
 {
-    NChunkServer::NProto::TChunkAddInfo info;
-    ToProto(info.mutable_chunk_id(), chunk->GetId());
-    info.set_cached(chunk->GetLocation()->GetType() == ELocationType::Cache);
-    *info.mutable_chunk_info() = chunk->GetInfo();
-    return info;
+    NNodeTrackerClient::NProto::TChunkAddInfo result;
+    ToProto(result.mutable_chunk_id(), chunk->GetId());
+    result.set_cached(chunk->GetLocation()->GetType() == ELocationType::Cache);
+    *result.mutable_chunk_info() = chunk->GetInfo();
+    return result;
 }
 
-NChunkServer::NProto::TChunkRemoveInfo TMasterConnector::GetRemoveInfo(TChunkPtr chunk)
+NNodeTrackerClient::NProto::TChunkRemoveInfo TMasterConnector::GetRemoveInfo(TChunkPtr chunk)
 {
-    NChunkServer::NProto::TChunkRemoveInfo info;
-    ToProto(info.mutable_chunk_id(), chunk->GetId());
-    info.set_cached(chunk->GetLocation()->GetType() == ELocationType::Cache);
-    return info;
+    NNodeTrackerClient::NProto::TChunkRemoveInfo result;
+    ToProto(result.mutable_chunk_id(), chunk->GetId());
+    result.set_cached(chunk->GetLocation()->GetType() == ELocationType::Cache);
+    return result;
 }
 
 void TMasterConnector::OnFullHeartbeatResponse(TProxy::TRspFullHeartbeatPtr rsp)

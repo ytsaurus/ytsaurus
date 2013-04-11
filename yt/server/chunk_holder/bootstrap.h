@@ -8,7 +8,7 @@
 
 #include <ytlib/rpc/public.h>
 
-#include <ytlib/chunk_client/node_directory.h>
+#include <ytlib/node_tracker_client/node_directory.h>
 
 #include <server/misc/memory_usage_tracker.h>
 
@@ -41,7 +41,7 @@ public:
     TReaderCachePtr GetReaderCache() const;
     TMasterConnectorPtr GetMasterConnector() const;
     NRpc::IChannelPtr GetMasterChannel() const;
-    const NChunkClient::TNodeDescriptor& GetLocalDescriptor() const;
+    const NNodeTrackerClient::TNodeDescriptor& GetLocalDescriptor() const;
     TMemoryUsageTracker<NCellNode::EMemoryConsumer>& GetMemoryUsageTracker();
     const TGuid& GetCellGuid() const;
     void UpdateCellGuid(const TGuid& cellGuid);

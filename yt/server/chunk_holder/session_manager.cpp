@@ -9,8 +9,9 @@
 #include "bootstrap.h"
 
 #include <ytlib/chunk_client/file_writer.h>
-#include <ytlib/chunk_client/node_directory.h>
 #include <ytlib/chunk_client/chunk.pb.h>
+
+#include <ytlib/node_tracker_client/node_directory.h>
 
 #include <ytlib/misc/fs.h>
 #include <ytlib/misc/sync.h>
@@ -20,6 +21,7 @@ namespace NChunkHolder {
 
 using namespace NRpc;
 using namespace NChunkClient;
+using namespace NNodeTrackerClient;
 
 using NChunkClient::NProto::TChunkMeta;
 using NChunkClient::NProto::TChunkInfo;

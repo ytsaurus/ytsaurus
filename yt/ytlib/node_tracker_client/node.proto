@@ -1,10 +1,10 @@
-package NYT.NChunkClient.NProto;
+package NYT.NNodeTrackerClient.NProto;
 
 import "yt/ytlib/misc/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Describes a node holding a chunk.
+// Describes a cluster node.
 message TNodeDescriptor
 {
     required string address = 2;

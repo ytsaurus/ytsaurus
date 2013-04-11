@@ -11,7 +11,8 @@
 #include <ytlib/ytree/public.h>
 
 #include <ytlib/chunk_client/public.h>
-#include <ytlib/chunk_client/node_directory.h>
+
+#include <ytlib/node_tracker_client/node_directory.h>
 
 #include <server/chunk_holder/public.h>
 
@@ -37,7 +38,7 @@ public:
     NRpc::IChannelPtr GetMasterChannel() const;
     NRpc::IChannelPtr GetSchedulerChannel() const;
     NRpc::IServerPtr GetRpcServer() const;
-    const NChunkClient::TNodeDescriptor& GetLocalDescriptor() const;
+    const NNodeTrackerClient::TNodeDescriptor& GetLocalDescriptor() const;
     NYTree::IMapNodePtr GetOrchidRoot() const;
 
     NChunkHolder::TBootstrap* GetChunkHolderBootstrap() const;
@@ -56,7 +57,7 @@ private:
     NRpc::IServerPtr RpcServer;
     NRpc::IChannelPtr MasterChannel;
     NRpc::IChannelPtr SchedulerChannel;
-    NChunkClient::TNodeDescriptor LocalDescriptor;
+    NNodeTrackerClient::TNodeDescriptor LocalDescriptor;
     NYTree::IMapNodePtr OrchidRoot;
 
     THolder<NChunkHolder::TBootstrap> ChunkHolderBootstrap;

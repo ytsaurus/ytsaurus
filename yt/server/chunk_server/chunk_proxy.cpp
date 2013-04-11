@@ -3,7 +3,6 @@
 #include "private.h"
 #include "chunk_manager.h"
 #include "chunk.h"
-#include "node.h"
 #include "node_directory_builder.h"
 
 #include <ytlib/chunk_client/chunk.pb.h>
@@ -13,6 +12,8 @@
 #include <ytlib/table_client/schema.h>
 
 #include <ytlib/table_client/table_ypath.pb.h>
+
+#include <server/node_tracker_server/node.h>
 
 #include <server/object_server/object_detail.h>
 
@@ -30,7 +31,9 @@ using namespace NYson;
 using namespace NTableClient;
 using namespace NObjectServer;
 using namespace NChunkClient;
-using namespace NChunkClient::NProto;
+using namespace NNodeTrackerServer;
+
+using NChunkClient::NProto::TMiscExt;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -94,14 +97,14 @@ private:
             return true;
         }
 
-        typedef std::function<void(TFluentList fluent, TDataNodePtrWithIndex replica)> TReplicaSerializer;
+        typedef std::function<void(TFluentList fluent, TNodePtrWithIndex replica)> TReplicaSerializer;
 
-        auto serializeRegularReplica = [] (TFluentList fluent, TDataNodePtrWithIndex replica) {
+        auto serializeRegularReplica = [] (TFluentList fluent, TNodePtrWithIndex replica) {
             fluent.Item()
                 .Value(replica.GetPtr()->GetAddress());
         };
 
-        auto serializeErasureReplica = [] (TFluentList fluent, TDataNodePtrWithIndex replica) {
+        auto serializeErasureReplica = [] (TFluentList fluent, TNodePtrWithIndex replica) {
             fluent.Item()
                 .BeginAttributes()
                     .Item("index").Value(replica.GetIndex())

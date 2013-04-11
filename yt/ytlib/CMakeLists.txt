@@ -1,10 +1,8 @@
 set( DIRS
   actions
   election
-  chunk_client
   compression
   erasure
-  transaction_client
   logging
   meta_state
   misc
@@ -13,18 +11,21 @@ set( DIRS
   ytree
   yson
   ypath
-  cypress_client
   orchid
-  file_client
-  table_client
-  object_client
   monitoring
   profiling
   driver
   formats
   scheduler
+  chunk_client
+  cypress_client
+  file_client
+  table_client
+  object_client
   security_client
   fibers
+  node_tracker_client
+  transaction_client
 )
 
 foreach( _d_ ${DIRS} )

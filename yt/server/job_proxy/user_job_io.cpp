@@ -7,8 +7,9 @@
 
 #include <ytlib/meta_state/config.h>
 
-#include <ytlib/chunk_client/node_directory.h>
 #include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
+
+#include <ytlib/node_tracker_client/node_directory.h>
 
 #include <ytlib/table_client/multi_chunk_parallel_reader.h>
 #include <ytlib/table_client/table_chunk_writer.h>

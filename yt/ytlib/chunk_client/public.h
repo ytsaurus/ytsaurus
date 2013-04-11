@@ -120,11 +120,6 @@ typedef TIntrusivePtr<TFileReader> TFileReaderPtr;
 class TFileWriter;
 typedef TIntrusivePtr<TFileWriter> TFileWriterPtr;
 
-struct TNodeDescriptor;
-
-class TNodeDirectory;
-typedef TIntrusivePtr<TNodeDirectory> TNodeDirectoryPtr;
-
 ///////////////////////////////////////////////////////////////////////////////
 
 struct TChunkIdWithIndex

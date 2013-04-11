@@ -6,7 +6,7 @@
 
 #include <ytlib/misc/thread_affinity.h>
 
-#include <server/chunk_server/chunk_service_proxy.h>
+#include <ytlib/node_tracker_client/node_tracker_service_proxy.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -42,8 +42,7 @@ public:
     TNodeId GetNodeId() const;
 
 private:
-    typedef NChunkServer::TChunkServiceProxy TProxy;
-    typedef TProxy::EErrorCode EErrorCode;
+    typedef NNodeTrackerClient::TNodeTrackerServiceProxy TProxy;
     typedef yhash_set<TChunkPtr> TChunks;
 
     TDataNodeConfigPtr Config;
@@ -90,7 +89,7 @@ private:
     void SendRegister();
 
     //! Computes the current node statistics.
-    NChunkServer::NProto::TNodeStatistics ComputeStatistics();
+    NNodeTrackerClient::NProto::TNodeStatistics ComputeStatistics();
 
     //! Handles registration response.
     void OnRegisterResponse(TProxy::TRspRegisterNodePtr rsp);
@@ -105,10 +104,10 @@ private:
     void DoForceRegister();
 
     //! Constructs a protobuf info for an added chunk.
-    static NChunkServer::NProto::TChunkAddInfo GetAddInfo(TChunkPtr chunk);
+    static NNodeTrackerClient::NProto::TChunkAddInfo GetAddInfo(TChunkPtr chunk);
 
     //! Constructs a protobuf info for a removed chunk.
-    static NChunkServer::NProto::TChunkRemoveInfo GetRemoveInfo(TChunkPtr chunk);
+    static NNodeTrackerClient::NProto::TChunkRemoveInfo GetRemoveInfo(TChunkPtr chunk);
 
     //! Handles full heartbeat response.
     void OnFullHeartbeatResponse(TProxy::TRspFullHeartbeatPtr rsp);

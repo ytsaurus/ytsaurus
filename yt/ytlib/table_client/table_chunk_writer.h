@@ -3,7 +3,6 @@
 #include "public.h"
 #include "chunk_writer_base.h"
 #include "channel_writer.h"
-
 #include "schema.h"
 #include "key.h"
 
@@ -15,7 +14,7 @@
 
 #include <ytlib/chunk_client/public.h>
 
-#include <ytlib/compression/codec.h>
+#include <ytlib/compression/public.h>
 
 #include <ytlib/chunk_client/chunk_ypath_proxy.h>
 

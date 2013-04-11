@@ -21,6 +21,8 @@
 
 #include <ytlib/chunk_client/public.h>
 
+#include <ytlib/node_tracker_client/public.h>
+
 namespace NYT {
 namespace NTableClient {
 
@@ -64,7 +66,7 @@ private:
     NTransactionClient::ITransactionPtr Transaction;
     NTransactionClient::TTransactionId TransactionId;
     NChunkClient::IBlockCachePtr BlockCache;
-    NChunkClient::TNodeDirectoryPtr NodeDirectory;
+    NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
     NYPath::TRichYPath RichPath;
     bool IsOpen;
     bool IsReadStarted_;

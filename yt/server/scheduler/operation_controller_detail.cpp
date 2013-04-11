@@ -9,7 +9,9 @@
 
 #include <ytlib/chunk_client/chunk_list_ypath_proxy.h>
 #include <ytlib/chunk_client/chunk_replica.h>
-#include <ytlib/chunk_client/node_directory.h>
+
+#include <ytlib/node_tracker_client/node_directory.h>
+#include <ytlib/node_tracker_client/node_directory_builder.h>
 
 #include <ytlib/table_client/key.h>
 #include <ytlib/table_client/schema.h>
@@ -41,6 +43,7 @@
 namespace NYT {
 namespace NScheduler {
 
+using namespace NNodeTrackerClient;
 using namespace NCypressClient;
 using namespace NTransactionClient;
 using namespace NFileClient;

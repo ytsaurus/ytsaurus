@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <ytlib/node_tracker_client/public.h>
+
 #include <ytlib/misc/small_vector.h>
 
 #include <contrib/libs/protobuf/repeated_field.h>
@@ -48,8 +50,8 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 Stroka ToString(TChunkReplica replica);
-Stroka ToString(TChunkReplica replica, TNodeDirectoryPtr nodeDirectory);
-Stroka JoinToString(const TChunkReplicaList& replicas, TNodeDirectoryPtr nodeDirectory);
+Stroka ToString(TChunkReplica replica, NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory);
+Stroka JoinToString(const TChunkReplicaList& replicas, NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory);
 
 ////////////////////////////////////////////////////////////////////////////////
 

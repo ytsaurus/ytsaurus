@@ -11,7 +11,8 @@
 
 #include <server/cypress_server/node.h>
 
-#include <server/chunk_server/node.h>
+#include <server/node_tracker_server/node.h>
+
 #include <server/chunk_server/chunk.h>
 #include <server/chunk_server/chunk_replica.h>
 
@@ -51,7 +52,7 @@ template <class T>
 void LoadObjectRef(const TLoadContext& context, T& object)
 {
     // XXX(babenko): no idea why this is needed but ADL just does not work.
-    using NChunkServer::GetObjectId;
+    using NNodeTrackerServer::GetObjectId;
     using NObjectServer::GetObjectId;
     using NCypressServer::GetObjectId;
     typedef decltype(GetObjectId(object)) TId;

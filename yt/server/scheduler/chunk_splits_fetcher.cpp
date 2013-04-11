@@ -15,6 +15,7 @@
 namespace NYT {
 namespace NScheduler {
 
+using namespace NNodeTrackerClient;
 using namespace NChunkClient;
 using namespace NTableClient;
 

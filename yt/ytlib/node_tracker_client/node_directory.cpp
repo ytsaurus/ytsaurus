@@ -7,7 +7,9 @@
 #include <ytlib/misc/protobuf_helpers.h>
 
 namespace NYT {
-namespace NChunkClient {
+namespace NNodeTrackerClient {
+
+using namespace NChunkClient;
 
 using NYT::FromProto;
 
@@ -109,6 +111,6 @@ const TNodeDescriptor& TNodeDirectory::GetDescriptor(const Stroka& address)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
+} // namespace NNodeTrackerClient
 } // namespace NYT
 

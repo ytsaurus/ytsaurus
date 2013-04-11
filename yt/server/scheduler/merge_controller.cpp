@@ -17,7 +17,8 @@
 #include <ytlib/table_client/chunk_meta_extensions.h>
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/chunk_client/node_directory.h>
+
+#include <ytlib/node_tracker_client/node_directory.h>
 
 #include <cmath>
 

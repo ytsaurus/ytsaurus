@@ -4,7 +4,7 @@
 
 #include <ytlib/misc/error.h>
 
-#include <ytlib/chunk_client/node_directory.h>
+#include <ytlib/node_tracker_client/public.h>
 
 #include <ytlib/table_client/helpers.h>
 
@@ -21,7 +21,7 @@ public:
     typedef TIntrusivePtr<TFetcher> TFetcherPtr;
 
     TChunkInfoCollector(
-        NChunkClient::TNodeDirectoryPtr nodeDirectory,
+        NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         TFetcherPtr fetcher,
         IInvokerPtr invoker);
 
@@ -29,7 +29,7 @@ public:
     TFuture< TValueOrError<void> > Run();
 
 private:
-    NChunkClient::TNodeDirectoryPtr NodeDirectory;
+    NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
     TFetcherPtr Fetcher;
     IInvokerPtr Invoker;
 
@@ -50,7 +50,7 @@ private:
 
     void SendRequests();
     void OnResponse(
-        const NChunkClient::TNodeDescriptor& descriptor,
+        const NNodeTrackerClient::TNodeDescriptor& descriptor,
         std::vector<int> chunkIndexes,
         typename TFetcher::TResponsePtr rsp);
     void OnEndRound();

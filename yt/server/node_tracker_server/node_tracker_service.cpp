@@ -1,80 +1,75 @@
 #include "stdafx.h"
-#include "chunk_service.h"
-#include "node_statistics.h"
+#include "node_tracker_service.h"
 #include "node.h"
 #include "node_authority.h"
+#include "node_tracker.h"
 #include "private.h"
 #include "config.h"
 
-#include <ytlib/misc/string.h>
-
 #include <ytlib/meta_state/rpc_helpers.h>
 
-#include <ytlib/profiling/profiler.h>
-
 #include <server/object_server/object_manager.h>
+
+#include <server/chunk_server/chunk_manager.h>
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/meta_state_facade.h>
 
-#include <server/transaction_server/transaction_manager.h>
-
-#include <server/chunk_server/chunk_manager.h>
-
 namespace NYT {
-namespace NChunkServer {
+namespace NNodeTrackerServer {
 
-using namespace NRpc;
 using namespace NMetaState;
-using namespace NChunkClient;
-using namespace NObjectServer;
 using namespace NCellMaster;
-using namespace NChunkServer::NProto;
+using namespace NNodeTrackerClient;
+using namespace NChunkServer;
+
+using NNodeTrackerClient::NProto::TJobInfo;
+using NNodeTrackerClient::NProto::TJobStartInfo;
+using NNodeTrackerClient::NProto::TJobStopInfo;
+using NNodeTrackerClient::NProto::TChunkAddInfo;
+using NNodeTrackerClient::NProto::TChunkRemoveInfo;
+using NChunkServer::NProto::TMetaReqUpdateJobs;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = ChunkServerLogger;
-static NProfiling::TProfiler& Profiler = ChunkServerProfiler;
-
-////////////////////////////////////////////////////////////////////////////////
-
-TChunkService::TChunkService(
-    TChunkManagerConfigPtr config,
+TNodeTrackerService::TNodeTrackerService(
+    TNodeTrackerConfigPtr config,
     TBootstrap* bootstrap)
     : TMetaStateServiceBase(
         bootstrap,
-        TChunkServiceProxy::GetServiceName(),
-        ChunkServerLogger.GetCategory())
+        TNodeTrackerServiceProxy::GetServiceName(),
+        NodeTrackerServerLogger.GetCategory())
     , Config(config)
 {
     RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterNode));
     FullHeartbeatMethodInfo = RegisterMethod(
         RPC_SERVICE_METHOD_DESC(FullHeartbeat)
             .SetRequestHeavy(true)
-            .SetInvoker(bootstrap->GetMetaStateFacade()->GetGuardedInvoker(EStateThreadQueue::ChunkMaintenance)));
+            .SetInvoker(bootstrap->GetMetaStateFacade()->GetGuardedInvoker(EStateThreadQueue::Heartbeat)));
     RegisterMethod(
         RPC_SERVICE_METHOD_DESC(IncrementalHeartbeat)
             .SetRequestHeavy(true));
 }
 
-TDataNode* TChunkService::GetNode(TNodeId nodeId)
+TNode* TNodeTrackerService::GetNode(TNodeId nodeId)
 {
-    auto* node = Bootstrap->GetChunkManager()->FindNode(nodeId);
+    auto nodeTracker = Bootstrap->GetNodeTracker();
+    auto* node = nodeTracker->FindNode(nodeId);
     if (!node) {
         THROW_ERROR_EXCEPTION(
-            EErrorCode::NoSuchNode,
+            NNodeTrackerClient::EErrorCode::NoSuchNode,
             "Invalid or expired node id: %d",
             nodeId);
     }
     return node;
 }
 
-void TChunkService::ValidateAuthorization(const Stroka& address)
+void TNodeTrackerService::ValidateAuthorization(const Stroka& address)
 {
     auto nodeAuthority = Bootstrap->GetNodeAuthority();
     if (!nodeAuthority->IsAuthorized(address)) {
         THROW_ERROR_EXCEPTION(
-            EErrorCode::NotAuthorized,
+            NNodeTrackerClient::EErrorCode::NotAuthorized,
             "Node is not authorized: %s",
             ~address);
     }
@@ -82,13 +77,13 @@ void TChunkService::ValidateAuthorization(const Stroka& address)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterNode)
+DEFINE_RPC_SERVICE_METHOD(TNodeTrackerService, RegisterNode)
 {
     UNUSED(response);
 
     ValidateActiveLeader();
 
-    auto chunkManager = Bootstrap->GetChunkManager();
+    auto nodeTracker = Bootstrap->GetNodeTracker();
     auto objectManager = Bootstrap->GetObjectManager();
 
     auto descriptor = FromProto<TNodeDescriptor>(request->node_descriptor());
@@ -114,7 +109,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterNode)
     ValidateAuthorization(address);
 
     int fullHeartbeatQueueSize = FullHeartbeatMethodInfo->QueueSizeCounter.Current;
-    int registeredNodeCount = chunkManager->GetRegisteredNodeCount();
+    int registeredNodeCount = nodeTracker->GetRegisteredNodeCount();
     if (fullHeartbeatQueueSize + registeredNodeCount > Config->FullHeartbeatQueueSizeLimit) {
         context->Reply(TError(
             NRpc::EErrorCode::Unavailable,
@@ -125,13 +120,13 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterNode)
         return;
     }
 
-    TMetaReqRegisterNode registerReq;
+    NProto::TMetaReqRegisterNode registerReq;
     ToProto(registerReq.mutable_node_descriptor(), descriptor);
     *registerReq.mutable_statistics() = statistics;
-    chunkManager
+    nodeTracker
         ->CreateRegisterNodeMutation(registerReq)
-        ->OnSuccess(BIND([=] (const TMetaRspRegisterNode& registerRsp) {
-            TNodeId nodeId = registerRsp.node_id();
+        ->OnSuccess(BIND([=] (const NProto::TMetaRspRegisterNode& registerRsp) {
+            auto nodeId = registerRsp.node_id();
             context->Response().set_node_id(nodeId);
             ToProto(response->mutable_cell_guid(), expectedCellGuid);
             context->SetResponseInfo("NodeId: %d", nodeId);
@@ -141,11 +136,9 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterNode)
         ->Commit();
 }
 
-DEFINE_RPC_SERVICE_METHOD(TChunkService, FullHeartbeat)
+DEFINE_RPC_SERVICE_METHOD(TNodeTrackerService, FullHeartbeat)
 {
     ValidateActiveLeader();
-
-    auto chunkManager = Bootstrap->GetChunkManager();
 
     auto nodeId = request->node_id();
 
@@ -154,24 +147,24 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, FullHeartbeat)
     const auto* node = GetNode(nodeId);
     if (node->GetState() != ENodeState::Registered) {
         context->Reply(TError(
-            EErrorCode::InvalidState,
-            Sprintf("Cannot process a full heartbeat in %s state", ~node->GetState().ToString())));
+            NNodeTrackerClient::EErrorCode::InvalidState,
+            "Cannot process a full heartbeat in %s state",
+            ~FormatEnum(node->GetState()).Quote()));
         return;
     }
     ValidateAuthorization(node->GetAddress());
 
-    chunkManager
+    auto nodeTracker = Bootstrap->GetNodeTracker();
+    nodeTracker
         ->CreateFullHeartbeatMutation(context)
         ->OnSuccess(CreateRpcSuccessHandler(context))
         ->OnError(CreateRpcErrorHandler(context))
         ->Commit();
 }
 
-DEFINE_RPC_SERVICE_METHOD(TChunkService, IncrementalHeartbeat)
+DEFINE_RPC_SERVICE_METHOD(TNodeTrackerService, IncrementalHeartbeat)
 {
     ValidateActiveLeader();
-
-    auto chunkManager = Bootstrap->GetChunkManager();
 
     auto nodeId = request->node_id();
 
@@ -180,22 +173,26 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, IncrementalHeartbeat)
     auto* node = GetNode(nodeId);
     if (node->GetState() != ENodeState::Online) {
         context->Reply(TError(
-            EErrorCode::InvalidState,
-            Sprintf("Cannot process an incremental heartbeat in %s state", ~node->GetState().ToString())));
+            NNodeTrackerClient::EErrorCode::InvalidState,
+            "Cannot process an incremental heartbeat in %s state",
+            ~FormatEnum(node->GetState())));
         return;
     }
+
     ValidateAuthorization(node->GetAddress());
 
-    TMetaReqIncrementalHeartbeat heartbeatReq;
+    NProto::TMetaReqIncrementalHeartbeat heartbeatReq;
     heartbeatReq.set_node_id(nodeId);
     *heartbeatReq.mutable_statistics() = request->statistics();
     heartbeatReq.mutable_added_chunks()->MergeFrom(request->added_chunks());
     heartbeatReq.mutable_removed_chunks()->MergeFrom(request->removed_chunks());
 
-    chunkManager
+    auto nodeTracker = Bootstrap->GetNodeTracker();
+    nodeTracker
         ->CreateIncrementalHeartbeatMutation(heartbeatReq)
         ->Commit();
 
+    auto chunkManager = Bootstrap->GetChunkManager();
     std::vector<TJobInfo> runningJobs(request->jobs().begin(), request->jobs().end());
     std::vector<TJobStartInfo> jobsToStart;
     std::vector<TJobStopInfo> jobsToStop;
@@ -215,7 +212,8 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, IncrementalHeartbeat)
 
     yhash_set<TJobId> runningJobIds;
     FOREACH (const auto& jobInfo, runningJobs) {
-        runningJobIds.insert(FromProto<TJobId>(jobInfo.job_id()));
+        auto jobId = FromProto<TJobId>(jobInfo.job_id());
+        runningJobIds.insert(jobId);
     }
 
     FOREACH (const auto& jobInfo, jobsToStop) {
@@ -240,5 +238,5 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, IncrementalHeartbeat)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
+} // namespace NNodeTrackerServer
 } // namespace NYT

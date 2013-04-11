@@ -4,6 +4,8 @@
 
 #include <ytlib/misc/small_vector.h>
 
+#include <server/node_tracker_server/public.h>
+
 #include <server/cell_master/public.h>
 
 namespace NYT {
@@ -47,14 +49,14 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef TPtrWithIndex<TDataNode> TDataNodePtrWithIndex;
+typedef TPtrWithIndex<NNodeTrackerServer::TNode> TNodePtrWithIndex;
 typedef TPtrWithIndex<TChunk> TChunkPtrWithIndex;
-typedef TSmallVector<TDataNodePtrWithIndex, TypicalReplicationFactor> TDataNodePtrWithIndexList;
+typedef TSmallVector<TNodePtrWithIndex, TypicalReplicationFactor> TNodePtrWithIndexList;
 
-Stroka ToString(TDataNodePtrWithIndex value);
+Stroka ToString(TNodePtrWithIndex value);
 Stroka ToString(TChunkPtrWithIndex value);
 
-void ToProto(ui32* protoValue, TDataNodePtrWithIndex value);
+void ToProto(ui32* protoValue, TNodePtrWithIndex value);
 
 template <class T>
 bool CompareObjectsForSerialization(TPtrWithIndex<T> lhs, TPtrWithIndex<T> rhs);

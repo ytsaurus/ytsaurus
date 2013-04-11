@@ -10,7 +10,7 @@
 #include <ytlib/misc/protobuf_helpers.pb.h>
 #include <ytlib/misc/guid.pb.h>
 
-#include <ytlib/compression/codec.h>
+#include <ytlib/compression/public.h>
 
 #include <contrib/libs/protobuf/message.h>
 #include <contrib/libs/protobuf/repeated_field.h>

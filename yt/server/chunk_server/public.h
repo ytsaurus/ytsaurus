@@ -7,6 +7,8 @@
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/block_id.h>
 
+#include <server/node_tracker_server/public.h>
+
 namespace NYT {
 namespace NChunkServer {
 
@@ -32,6 +34,9 @@ using NChunkClient::TypicalReplicationFactor;
 using NObjectClient::TTransactionId;
 using NObjectClient::NullTransactionId;
 
+using NNodeTrackerServer::TNode;
+using NNodeTrackerServer::TNodeId;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkTree;
@@ -52,20 +57,11 @@ struct TTotalNodeStatistics;
 class TChunkManager;
 typedef TIntrusivePtr<TChunkManager> TChunkManagerPtr;
 
-struct INodeAuthority;
-typedef TIntrusivePtr<INodeAuthority> INodeAuthorityPtr;
-
-class TNodeLeaseTracker;
-typedef TIntrusivePtr<TNodeLeaseTracker> TNodeLeaseTrackerPtr;
-
 class TChunkReplicator;
 typedef TIntrusivePtr<TChunkReplicator> TChunkReplicatorPtr;
 
 class TChunkPlacement;
 typedef TIntrusivePtr<TChunkPlacement> TChunkPlacementPtr;
-
-class TChunkService;
-typedef TIntrusivePtr<TChunkService> TChunkServicePtr;
 
 struct TChunkReplicatorConfig;
 typedef TIntrusivePtr<TChunkReplicatorConfig> TChunkReplicatorConfigPtr;

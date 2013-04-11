@@ -1,12 +1,13 @@
 #pragma once
 
 #include "public.h"
-#include "chunk_replica.h"
 
-#include <ytlib/chunk_client/node.pb.h>
+#include <ytlib/chunk_client/chunk_replica.h>
+
+#include <ytlib/node_tracker_client/node_tracker_service.pb.h>
 
 namespace NYT {
-namespace NChunkClient {
+namespace NNodeTrackerClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,8 +43,8 @@ public:
 
     const TNodeDescriptor* FindDescriptor(TNodeId id) const;
     const TNodeDescriptor& GetDescriptor(TNodeId id) const;
-    const TNodeDescriptor& GetDescriptor(TChunkReplica replica) const;
-    std::vector<TNodeDescriptor> GetDescriptors(const std::vector<TChunkReplica>& replicas) const;
+    const TNodeDescriptor& GetDescriptor(NChunkClient::TChunkReplica replica) const;
+    std::vector<TNodeDescriptor> GetDescriptors(const std::vector<NChunkClient::TChunkReplica>& replicas) const;
 
     const TNodeDescriptor* FindDescriptor(const Stroka& address);
     const TNodeDescriptor& GetDescriptor(const Stroka& address);
@@ -59,6 +60,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkClient
+} // namespace NNodeTrackerClient
 } // namespace NYT
 

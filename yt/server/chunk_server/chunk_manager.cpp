@@ -1,32 +1,19 @@
 #include "stdafx.h"
 #include "chunk_manager.h"
 #include "config.h"
-#include "node.h"
 #include "chunk.h"
 #include "chunk_list.h"
 #include "job.h"
 #include "job_list.h"
 #include "chunk_placement.h"
 #include "chunk_replicator.h"
-#include "node_lease_tracker.h"
-#include "node_statistics.h"
-#include "chunk_service_proxy.h"
-#include "node_authority.h"
-#include "node_statistics.h"
 #include "chunk_tree_balancer.h"
 #include "chunk_proxy.h"
 #include "chunk_list_proxy.h"
 #include "node_directory_builder.h"
 #include "private.h"
 
-#include <ytlib/misc/foreach.h>
-#include <ytlib/misc/serialize.h>
-#include <ytlib/misc/guid.h>
-#include <ytlib/misc/id_generator.h>
-#include <ytlib/misc/address.h>
 #include <ytlib/misc/string.h>
-#include <ytlib/misc/protobuf_helpers.h>
-#include <ytlib/misc/periodic_invoker.h>
 
 #include <ytlib/compression/codec.h>
 
@@ -44,13 +31,13 @@
 #include <ytlib/meta_state/composite_meta_state.h>
 #include <ytlib/meta_state/map.h>
 
-#include <ytlib/ytree/fluent.h>
-
 #include <ytlib/logging/log.h>
 
 #include <ytlib/profiling/profiler.h>
 
 #include <server/chunk_server/chunk_manager.pb.h>
+
+#include <server/node_tracker_server/node_tracker.h>
 
 #include <server/cypress_server/cypress_manager.h>
 
@@ -72,6 +59,7 @@ namespace NChunkServer {
 
 using namespace NRpc;
 using namespace NMetaState;
+using namespace NNodeTrackerServer;
 using namespace NTransactionServer;
 using namespace NTransactionClient;
 using namespace NObjectServer;
@@ -81,11 +69,15 @@ using namespace NCellMaster;
 using namespace NCypressServer;
 using namespace NSecurityServer;
 using namespace NChunkClient;
-using namespace NChunkServer::NProto;
 
 using NYT::FromProto;
 using NChunkClient::NProto::TReqCreateChunkExt;
 using NChunkClient::NProto::TRspCreateChunkExt;
+using NNodeTrackerClient::NProto::TJobInfo;
+using NNodeTrackerClient::NProto::TJobStartInfo;
+using NNodeTrackerClient::NProto::TJobStopInfo;
+using NNodeTrackerClient::NProto::TChunkAddInfo;
+using NNodeTrackerClient::NProto::TChunkRemoveInfo;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -232,7 +224,6 @@ public:
         , Bootstrap(bootstrap)
         , ChunkTreeBalancer(Bootstrap)
         , ChunkReplicaCount(0)
-        , RegisteredNodeCount(0)
         , NeedToRecomputeStatistics(false)
         , Profiler(ChunkServerProfiler)
         , AddChunkCounter("/add_chunk_rate")
@@ -245,11 +236,7 @@ public:
         YCHECK(config);
         YCHECK(bootstrap);
 
-        RegisterMethod(BIND(&TImpl::FullHeartbeat, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::IncrementalHeartbeat, Unretained(this)));
         RegisterMethod(BIND(&TImpl::UpdateJobs, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::RegisterNode, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::UnregisterNode, Unretained(this)));
         RegisterMethod(BIND(&TImpl::UpdateChunkReplicationFactor, Unretained(this)));
 
         {
@@ -293,6 +280,12 @@ public:
         objectManager->RegisterHandler(New<TErasureChunkTypeHandler>(this));
         objectManager->RegisterHandler(New<TChunkListTypeHandler>(this));
 
+        auto nodeTracker = Bootstrap->GetNodeTracker();
+        nodeTracker->SubscribeNodeRegistered(BIND(&TThis::OnNodeRegistered, MakeWeak(this)));
+        nodeTracker->SubscribeNodeUnregistered(BIND(&TThis::OnNodeUnregistered, MakeWeak(this)));
+        nodeTracker->SubscribeFullHeartbeat(BIND(&TThis::OnFullHeartbeat, MakeWeak(this)));
+        nodeTracker->SubscribeIncrementalHeartbeat(BIND(&TThis::OnIncrementalHeartbeat, MakeWeak(this)));
+
         ProfilingInvoker = New<TPeriodicInvoker>(
             Bootstrap->GetMetaStateFacade()->GetInvoker(),
             BIND(&TThis::OnProfiling, MakeWeak(this)),
@@ -301,43 +294,8 @@ public:
     }
 
 
-    TMutationPtr CreateRegisterNodeMutation(
-        const TMetaReqRegisterNode& request)
-    {
-        return Bootstrap
-            ->GetMetaStateFacade()
-            ->CreateMutation(this, request, &TThis::RegisterNode);
-    }
-
-    TMutationPtr CreateUnregisterNodeMutation(
-        const TMetaReqUnregisterNode& request)
-    {
-        return Bootstrap
-            ->GetMetaStateFacade()
-            ->CreateMutation(this, request, &TThis::UnregisterNode);
-    }
-
-    TMutationPtr CreateFullHeartbeatMutation(
-        TCtxFullHeartbeatPtr context)
-    {
-        return Bootstrap
-            ->GetMetaStateFacade()
-            ->CreateMutation(EStateThreadQueue::Heartbeat)
-            ->SetRequestData(context->GetRequestBody())
-            ->SetType(context->Request().GetTypeName())
-            ->SetAction(BIND(&TThis::FullHeartbeatWithContext, MakeStrong(this), context));
-    }
-
-    TMutationPtr CreateIncrementalHeartbeatMutation(
-        const TMetaReqIncrementalHeartbeat& request)
-    {
-        return Bootstrap
-            ->GetMetaStateFacade()
-            ->CreateMutation(this, request, &TThis::IncrementalHeartbeat, EStateThreadQueue::Heartbeat);
-    }
-
     TMutationPtr CreateUpdateJobsMutation(
-        const TMetaReqUpdateJobs& request)
+        const NProto::TMetaReqUpdateJobs& request)
     {
         return Bootstrap
             ->GetMetaStateFacade()
@@ -355,33 +313,10 @@ public:
 
     DECLARE_METAMAP_ACCESSORS(Chunk, TChunk, TChunkId);
     DECLARE_METAMAP_ACCESSORS(ChunkList, TChunkList, TChunkListId);
-    DECLARE_METAMAP_ACCESSORS(Node, TDataNode, TNodeId);
     DECLARE_METAMAP_ACCESSORS(JobList, TJobList, TChunkId);
     DECLARE_METAMAP_ACCESSORS(Job, TJob, TJobId);
 
-    DEFINE_SIGNAL(void(const TDataNode*), NodeRegistered);
-    DEFINE_SIGNAL(void(const TDataNode*), NodeUnregistered);
-
-
-    TDataNode* FindNodeByAddresss(const Stroka& address)
-    {
-        auto it = NodeAddressMap.find(address);
-        return it == NodeAddressMap.end() ? nullptr : it->second;
-    }
-
-    TDataNode* FindNodeByHostName(const Stroka& hostName)
-    {
-        auto it = NodeHostNameMap.find(hostName);
-        return it == NodeAddressMap.end() ? nullptr : it->second;
-    }
-
-    const TReplicationSink* FindReplicationSink(const Stroka& address)
-    {
-        auto it = ReplicationSinkMap.find(address);
-        return it == ReplicationSinkMap.end() ? nullptr : &it->second;
-    }
-
-    TSmallVector<TDataNode*, TypicalReplicationFactor> AllocateUploadTargets(
+    TSmallVector<TNode*, TypicalReplicationFactor> AllocateUploadTargets(
         int replicaCount,
         const TNullable<Stroka>& preferredHostName)
     {
@@ -564,8 +499,10 @@ public:
         chunk->ChunkInfo().Swap(chunkInfo);
         chunk->ChunkMeta().Swap(chunkMeta);
 
+        auto nodeTracker = Bootstrap->GetNodeTracker();
+
         FOREACH (auto clientReplica, replicas) {
-            auto* node = FindNode(clientReplica.GetNodeId());
+            auto* node = nodeTracker->FindNode(clientReplica.GetNodeId());
             if (!node) {
                 LOG_DEBUG_UNLESS(IsRecovery(), "Tried to confirm chunk %s at an unknown node %d",
                     ~ToString(id),
@@ -573,7 +510,7 @@ public:
                 continue;
             }
 
-            TDataNodePtrWithIndex nodeWithIndex(node, clientReplica.GetIndex());
+            TNodePtrWithIndex nodeWithIndex(node, clientReplica.GetIndex());
             TChunkPtrWithIndex chunkWithIndex(chunk, clientReplica.GetIndex());
 
             if (node->GetState() != ENodeState::Online) {
@@ -669,7 +606,7 @@ public:
 
 
     void ScheduleJobs(
-        TDataNode* node,
+        TNode* node,
         const std::vector<TJobInfo>& runningJobs,
         std::vector<TJobStartInfo>* jobsToStart,
         std::vector<TJobStopInfo>* jobsToStop)
@@ -686,9 +623,9 @@ public:
     const yhash_set<TChunk*>& OverreplicatedChunks() const;
     const yhash_set<TChunk*>& UnderreplicatedChunks() const;
 
-    TDataNodePtrWithIndexList GetChunkReplicas(const TChunk* chunk)
+    TNodePtrWithIndexList GetChunkReplicas(const TChunk* chunk)
     {
-        TDataNodePtrWithIndexList result;
+        TNodePtrWithIndexList result;
 
         FOREACH (auto replica, chunk->StoredReplicas()) {
             result.push_back(replica);
@@ -703,35 +640,9 @@ public:
         return result;
     }
 
-    TTotalNodeStatistics GetTotalNodeStatistics()
-    {
-        TTotalNodeStatistics result;
-        FOREACH (const auto& pair, NodeMap) {
-            const auto* node = pair.second;
-            const auto& statistics = node->Statistics();
-            result.AvailbaleSpace += statistics.total_available_space();
-            result.UsedSpace += statistics.total_used_space();
-            result.ChunkCount += statistics.total_chunk_count();
-            result.SessionCount += statistics.total_session_count();
-            result.OnlineNodeCount++;
-        }
-        return result;
-    }
-
-    bool IsNodeConfirmed(const TDataNode* node)
-    {
-        return NodeLeaseTracker->IsNodeConfirmed(node);
-    }
-
-
     int GetChunkReplicaCount()
     {
         return ChunkReplicaCount;
-    }
-
-    int GetRegisteredNodeCount()
-    {
-        return RegisteredNodeCount;
     }
 
     bool IsReplicatorEnabled()
@@ -763,6 +674,13 @@ public:
         auto* chunkTree = FindChunkTree(id);
         YCHECK(chunkTree);
         return chunkTree;
+    }
+
+
+    const TReplicationSink* FindReplicationSink(const Stroka& address)
+    {
+        auto it = ReplicationSinkMap.find(address);
+        return it == ReplicationSinkMap.end() ? nullptr : &it->second;
     }
 
 
@@ -800,7 +718,6 @@ private:
     TChunkTreeBalancer ChunkTreeBalancer;
 
     int ChunkReplicaCount;
-    int RegisteredNodeCount;
 
     bool NeedToRecomputeStatistics;
 
@@ -816,16 +733,9 @@ private:
 
     TChunkPlacementPtr ChunkPlacement;
     TChunkReplicatorPtr ChunkReplicator;
-    TNodeLeaseTrackerPtr NodeLeaseTracker;
-
-    TIdGenerator NodeIdGenerator;
 
     TMetaStateMap<TChunkId, TChunk> ChunkMap;
     TMetaStateMap<TChunkListId, TChunkList> ChunkListMap;
-
-    TMetaStateMap<TNodeId, TDataNode> NodeMap;
-    yhash_map<Stroka, TDataNode*> NodeAddressMap;
-    yhash_multimap<Stroka, TDataNode*> NodeHostNameMap;
 
     TMetaStateMap<TChunkId, TJobList> JobListMap;
     TMetaStateMap<TJobId, TJob> JobMap;
@@ -842,7 +752,7 @@ private:
             UnstageChunk(chunk);
         }
 
-        auto scheduleRemoval = [&] (TDataNodePtrWithIndex nodeWithIndex, bool cached) {
+        auto scheduleRemoval = [&] (TNodePtrWithIndex nodeWithIndex, bool cached) {
             ScheduleChunkReplicaRemoval(
                 nodeWithIndex.GetPtr(),
                 TChunkPtrWithIndex(chunk, nodeWithIndex.GetIndex()),
@@ -917,170 +827,84 @@ private:
     }
 
 
-    TNodeId GenerateNodeId()
+    void OnNodeRegistered(TNode* node)
     {
-        TNodeId id;
-        while (true) {
-            id = NodeIdGenerator.Next();
-            // Beware of sentinels!
-            if (id == InvalidNodeId) {
-                // Just wait for the next attempt.
-            } else if (id > MaxNodeId) {
-                NodeIdGenerator.Reset();
-            } else {
-                break;
-            }
-        }
-        return id;
-    }
-
-    TMetaRspRegisterNode RegisterNode(const TMetaReqRegisterNode& request)
-    {
-        auto descriptor = FromProto<NChunkClient::TNodeDescriptor>(request.node_descriptor());
-        const auto& statistics = request.statistics();
-        const auto& address = descriptor.Address;
-
-        auto nodeId = GenerateNodeId();
-
-        auto* existingNode = FindNodeByAddresss(descriptor.Address);
-        if (existingNode) {
-            LOG_INFO_UNLESS(IsRecovery(), "Node kicked out due to address conflict (Address: %s, ExistingId: %d)",
-                ~address,
-                existingNode->GetId());
-            DoUnregisterNode(existingNode);
+        if (ChunkPlacement) {
+            ChunkPlacement->OnNodeRegistered(node);
         }
 
-        LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %d, Address: %s, %s)",
-            nodeId,
-            ~address,
-            ~ToString(statistics));
-
-        auto* newNode = new TDataNode(nodeId, descriptor);
-        newNode->SetState(ENodeState::Registered);
-        newNode->Statistics() = statistics;
-
-        NodeMap.Insert(nodeId, newNode);
-        NodeAddressMap.insert(std::make_pair(address, newNode));
-        NodeHostNameMap.insert(std::make_pair(Stroka(GetServiceHostName(address)), newNode));
-        ++RegisteredNodeCount;
-
-        if (IsLeader()) {
-            ChunkPlacement->OnNodeRegistered(newNode);
-            ChunkReplicator->OnNodeRegistered(newNode);
-            StartNodeTracking(newNode, false);
-        }
-
-        TMetaRspRegisterNode response;
-        response.set_node_id(nodeId);
-        return response;
-    }
-
-    void UnregisterNode(const TMetaReqUnregisterNode& request)
-    {
-        auto nodeId = request.node_id();
-
-        // Allow nodeId to be invalid, just ignore such obsolete requests.
-        auto* node = FindNode(nodeId);
-        if (node) {
-            DoUnregisterNode(node);
+        if (ChunkReplicator) {
+            ChunkReplicator->OnNodeRegistered(node);
         }
     }
 
-
-    void FullHeartbeatWithContext(TCtxFullHeartbeatPtr context)
+    void OnNodeUnregistered(TNode* node)
     {
-        return FullHeartbeat(context->Request());
-    }
+        FOREACH (auto replica, node->StoredReplicas()) {
+            RemoveChunkReplica(node, replica, false, ERemoveReplicaReason::Reset);
+        }
 
-    void FullHeartbeat(const TMetaReqFullHeartbeat& request)
-    {
-        PROFILE_TIMING ("/full_heartbeat_time") {
-            Profiler.Enqueue("/full_heartbeat_chunks", request.chunks_size());
+        FOREACH (auto replica, node->CachedReplicas()) {
+            RemoveChunkReplica(node, replica, true, ERemoveReplicaReason::Reset);
+        }
 
-            auto nodeId = request.node_id();
-            const auto& statistics = request.statistics();
+        FOREACH (auto* job, node->Jobs()) {
+            // Suppress removal of job from node.
+            RemoveJob(job, false, true);
+        }
 
-            auto* node = GetNode(nodeId);
+        if (ChunkPlacement) {
+            ChunkPlacement->OnNodeUnregistered(node);
+        }
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Full heartbeat received (NodeId: %d, Address: %s, State: %s, %s, Chunks: %d)",
-                nodeId,
-                ~node->GetAddress(),
-                ~node->GetState().ToString(),
-                ~ToString(statistics),
-                static_cast<int>(request.chunks_size()));
-
-            YCHECK(node->GetState() == ENodeState::Registered);
-            node->SetState(ENodeState::Online);
-            --RegisteredNodeCount;
-
-            node->Statistics() = statistics;
-
-            if (IsLeader()) {
-                NodeLeaseTracker->OnNodeOnline(node, false);
-                ChunkPlacement->OnNodeUpdated(node);
-            }
-
-            LOG_INFO_UNLESS(IsRecovery(), "Node online (NodeId: %d, Address: %s)",
-                nodeId,
-                ~node->GetAddress());
-
-            YCHECK(node->StoredReplicas().empty());
-            YCHECK(node->CachedReplicas().empty());
-
-            FOREACH (const auto& chunkInfo, request.chunks()) {
-                ProcessAddedChunk(node, chunkInfo, false);
-            }
+        if (ChunkReplicator) {
+            ChunkReplicator->OnNodeUnregistered(node);
         }
     }
 
-    void IncrementalHeartbeat(const TMetaReqIncrementalHeartbeat& request)
+    void OnFullHeartbeat(TNode* node, const NNodeTrackerServer::NProto::TMetaReqFullHeartbeat& request)
     {
-        Profiler.Enqueue("/incremental_heartbeat_chunks_added", request.added_chunks_size());
-        Profiler.Enqueue("/incremental_heartbeat_chunks_removed", request.removed_chunks_size());
-        PROFILE_TIMING ("/incremental_heartbeat_time") {
-            auto nodeId = request.node_id();
-            const auto& statistics = request.statistics();
+        YCHECK(node->StoredReplicas().empty());
+        YCHECK(node->CachedReplicas().empty());
 
-            auto* node = GetNode(nodeId);
+        FOREACH (const auto& chunkInfo, request.chunks()) {
+            ProcessAddedChunk(node, chunkInfo, false);
+        }
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Incremental heartbeat received (NodeId: %d, Address: %s, State: %s, %s, ChunksAdded: %d, ChunksRemoved: %d)",
-                nodeId,
-                ~node->GetAddress(),
-                ~node->GetState().ToString(),
-                ~ToString(statistics),
-                static_cast<int>(request.added_chunks_size()),
-                static_cast<int>(request.removed_chunks_size()));
+        if (ChunkPlacement) {
+            ChunkPlacement->OnNodeUpdated(node);
+        }
+    }
 
-            YCHECK(node->GetState() == ENodeState::Online);
-            node->Statistics() = statistics;
+    void OnIncrementalHeartbeat(TNode* node, const NNodeTrackerServer::NProto::TMetaReqIncrementalHeartbeat& request)
+    {
+        FOREACH (const auto& chunkInfo, request.added_chunks()) {
+            ProcessAddedChunk(node, chunkInfo, true);
+        }
 
-            if (IsLeader()) {
-                NodeLeaseTracker->OnNodeHeartbeat(node);
-                ChunkPlacement->OnNodeUpdated(node);
-            }
+        FOREACH (const auto& chunkInfo, request.removed_chunks()) {
+            ProcessRemovedChunk(node, chunkInfo);
+        }
 
-            FOREACH (const auto& chunkInfo, request.added_chunks()) {
-                ProcessAddedChunk(node, chunkInfo, true);
-            }
+        std::vector<TChunkPtrWithIndex> unapprovedReplicas(node->UnapprovedReplicas().begin(), node->UnapprovedReplicas().end());
+        FOREACH (auto replica, unapprovedReplicas) {
+            RemoveChunkReplica(node, replica, false, ERemoveReplicaReason::Unapproved);
+        }
+        node->UnapprovedReplicas().clear();
 
-            FOREACH (const auto& chunkInfo, request.removed_chunks()) {
-                ProcessRemovedChunk(node, chunkInfo);
-            }
-
-            std::vector<TChunkPtrWithIndex> unapprovedReplicas(node->UnapprovedReplicas().begin(), node->UnapprovedReplicas().end());
-            FOREACH (auto replica, unapprovedReplicas) {
-                RemoveChunkReplica(node, replica, false, ERemoveReplicaReason::Unapproved);
-            }
-            node->UnapprovedReplicas().clear();
+        if (ChunkPlacement) {
+            ChunkPlacement->OnNodeUpdated(node);
         }
     }
 
 
-    void UpdateJobs(const TMetaReqUpdateJobs& request)
+    void UpdateJobs(const NProto::TMetaReqUpdateJobs& request)
     {
         PROFILE_TIMING ("/update_jobs_time") {
             auto nodeId = request.node_id();
-            auto* node = GetNode(nodeId);
+
+            auto nodeTracker = Bootstrap->GetNodeTracker();
+            auto* node = nodeTracker->GetNode(nodeId);
 
             FOREACH (const auto& startInfo, request.started_jobs()) {
                 AddJob(node, startInfo);
@@ -1104,7 +928,7 @@ private:
     }
 
 
-    void UpdateChunkReplicationFactor(const TMetaReqUpdateChunkReplicationFactor& request)
+    void UpdateChunkReplicationFactor(const NProto::TMetaReqUpdateChunkReplicationFactor& request)
     {
         FOREACH (const auto& update, request.updates()) {
             auto chunkId = FromProto<TChunkId>(update.chunk_id());
@@ -1126,17 +950,14 @@ private:
     {
         ChunkMap.SaveKeys(context);
         ChunkListMap.SaveKeys(context);
-        NodeMap.SaveKeys(context);
         JobMap.SaveKeys(context);
         JobListMap.SaveKeys(context);
     }
 
     void SaveValues(const NCellMaster::TSaveContext& context) const
     {
-        Save(context, NodeIdGenerator);
         ChunkMap.SaveValues(context);
         ChunkListMap.SaveValues(context);
-        NodeMap.SaveValues(context);
         JobMap.SaveValues(context);
         JobListMap.SaveValues(context);
     }
@@ -1151,44 +972,33 @@ private:
     {
         ChunkMap.LoadKeys(context);
         ChunkListMap.LoadKeys(context);
-        NodeMap.LoadKeys(context);
+        // COMPAT(babenko)
+        if (context.GetVersion() < 10) {
+            size_t nodeCount = ::LoadSize(context.GetInput());
+            YCHECK(nodeCount == 0);
+        }
         JobMap.LoadKeys(context);
         JobListMap.LoadKeys(context);
     }
 
     void LoadValues(const NCellMaster::TLoadContext& context)
     {
-        Load(context, NodeIdGenerator);
         ChunkMap.LoadValues(context);
         ChunkListMap.LoadValues(context);
 
-        NodeMap.LoadValues(context);
         JobMap.LoadValues(context);
         JobListMap.LoadValues(context);
     }
 
     virtual void OnAfterLoaded() override
     {
+        auto nodeTracker = Bootstrap->GetNodeTracker();
+
         // Compute chunk replica count.
         ChunkReplicaCount = 0;
-        FOREACH (const auto& pair, NodeMap) {
-            const auto* node = pair.second;
+        FOREACH (auto* node, nodeTracker->GetNodes()) {
             ChunkReplicaCount += node->StoredReplicas().size();
             ChunkReplicaCount += node->CachedReplicas().size();
-        }
-
-        // Reconstruct address maps.
-        NodeAddressMap.clear();
-        NodeHostNameMap.clear();
-        RegisteredNodeCount = 0;
-        FOREACH (const auto& pair, NodeMap) {
-            auto* node = pair.second;
-            const auto& address = node->GetAddress();
-            YCHECK(NodeAddressMap.insert(std::make_pair(address, node)).second);
-            NodeHostNameMap.insert(std::make_pair(Stroka(GetServiceHostName(address)), node));
-            if (node->GetState() == ENodeState::Registered) {
-                ++RegisteredNodeCount;
-            }
         }
 
         // Reconstruct ReplicationSinkMap.
@@ -1201,22 +1011,12 @@ private:
 
     void DoClear()
     {
-        NodeIdGenerator.Reset();
-        // XXX(babenko): avoid generating InvalidNodeId
-        NodeIdGenerator.Next();
         ChunkMap.Clear();
         ChunkListMap.Clear();
-        NodeMap.Clear();
         JobMap.Clear();
         JobListMap.Clear();
-
-        NodeAddressMap.clear();
-        NodeHostNameMap.clear();
-
         ReplicationSinkMap.clear();
-
         ChunkReplicaCount = 0;
-        RegisteredNodeCount = 0;
     }
 
     virtual void Clear() override
@@ -1311,105 +1111,18 @@ private:
 
     virtual void OnLeaderRecoveryComplete() override
     {
-        NodeLeaseTracker = New<TNodeLeaseTracker>(Config, Bootstrap);
-        ChunkPlacement = New<TChunkPlacement>(Config, Bootstrap);
-        ChunkReplicator = New<TChunkReplicator>(Config, Bootstrap, ChunkPlacement, NodeLeaseTracker);
-
         LOG_INFO("Full chunk refresh started");
         PROFILE_TIMING ("/full_chunk_refresh_time") {
-            FOREACH (const auto& pair, ChunkMap) {
-                auto* chunk = pair.second;
-                ChunkReplicator->ScheduleChunkRefresh(chunk);
-                ChunkReplicator->ScheduleRFUpdate(chunk);
-            }
-            FOREACH (const auto& pair, NodeMap) {
-                auto* node = pair.second;
-                ChunkPlacement->OnNodeRegistered(node);
-                ChunkReplicator->OnNodeRegistered(node);
-            }
+            ChunkPlacement = New<TChunkPlacement>(Config, Bootstrap);
+            ChunkReplicator = New<TChunkReplicator>(Config, Bootstrap, ChunkPlacement);
         }
         LOG_INFO("Full chunk refresh completed");
-    }
-
-    virtual void OnActiveQuorumEstablished() override
-    {
-        // Assign initial leases to nodes.
-        // NB: Nodes will remain unconfirmed until the first heartbeat.
-        FOREACH (const auto& pair, NodeMap) {
-            StartNodeTracking(pair.second, true);
-        }
     }
 
     virtual void OnStopLeading() override
     {
         ChunkPlacement.Reset();
         ChunkReplicator.Reset();
-        NodeLeaseTracker.Reset();
-    }
-
-
-    void StartNodeTracking(TDataNode* node, bool recovery)
-    {
-        NodeLeaseTracker->OnNodeRegistered(node, recovery);
-        if (node->GetState() == ENodeState::Online) {
-            NodeLeaseTracker->OnNodeOnline(node, recovery);
-        }
-        NodeRegistered_.Fire(node);
-    }
-
-    void StopNodeTracking(TDataNode* node)
-    {
-        NodeLeaseTracker->OnNodeUnregistered(node);
-        NodeUnregistered_.Fire(node);
-    }
-
-
-    void DoUnregisterNode(TDataNode* node)
-    {
-        PROFILE_TIMING ("/node_unregistration_time") {
-            auto nodeId = node->GetId();
-
-            LOG_INFO_UNLESS(IsRecovery(), "Node unregistered (NodeId: %d, Address: %s)",
-                nodeId,
-                ~node->GetAddress());
-
-            if (IsLeader()) {
-                ChunkPlacement->OnNodeUnregistered(node);
-                ChunkReplicator->OnNodeUnregistered(node);
-                StopNodeTracking(node);
-            }
-
-            FOREACH (auto replica, node->StoredReplicas()) {
-                RemoveChunkReplica(node, replica, false, ERemoveReplicaReason::Reset);
-            }
-
-            FOREACH (auto replica, node->CachedReplicas()) {
-                RemoveChunkReplica(node, replica, true, ERemoveReplicaReason::Reset);
-            }
-
-            FOREACH (auto* job, node->Jobs()) {
-                // Suppress removal of job from node.
-                RemoveJob(job, false, true);
-            }
-
-            const auto& address = node->GetAddress();
-            YCHECK(NodeAddressMap.erase(address) == 1);
-            {
-                auto hostNameRange = NodeHostNameMap.equal_range(Stroka(GetServiceHostName(address)));
-                for (auto it = hostNameRange.first; it != hostNameRange.second; ++it) {
-                    if (it->second == node) {
-                        NodeHostNameMap.erase(it);
-                        break;
-                    }
-                }
-            }
-
-            if (node->GetState() == ENodeState::Registered) {
-                --RegisteredNodeCount;
-            }
-
-            NodeMap.Remove(nodeId);
-        }
     }
 
 
@@ -1419,11 +1132,11 @@ private:
         (Confirmation)
     );
 
-    void AddChunkReplica(TDataNode* node, TChunkPtrWithIndex chunkWithIndex, bool cached, EAddReplicaReason reason)
+    void AddChunkReplica(TNode* node, TChunkPtrWithIndex chunkWithIndex, bool cached, EAddReplicaReason reason)
     {
         auto* chunk = chunkWithIndex.GetPtr();
         auto nodeId = node->GetId();
-        TDataNodePtrWithIndex nodeWithIndex(node, chunkWithIndex.GetIndex());
+        TNodePtrWithIndex nodeWithIndex(node, chunkWithIndex.GetIndex());
 
         if (node->HasReplica(chunkWithIndex, cached)) {
             LOG_DEBUG_UNLESS(IsRecovery(), "Chunk replica is already added (ChunkId: %s, Cached: %s, Reason: %s, NodeId: %d, Address: %s)",
@@ -1458,7 +1171,7 @@ private:
         }
     }
 
-    void ScheduleChunkReplicaRemoval(TDataNode* node, TChunkPtrWithIndex chunkWithIndex, bool cached)
+    void ScheduleChunkReplicaRemoval(TNode* node, TChunkPtrWithIndex chunkWithIndex, bool cached)
     {
         node->RemoveReplica(chunkWithIndex, cached);
         if (!cached && IsLeader()) {
@@ -1472,11 +1185,11 @@ private:
         (Reset)
     );
 
-    void RemoveChunkReplica(TDataNode* node, TChunkPtrWithIndex chunkWithIndex, bool cached, ERemoveReplicaReason reason)
+    void RemoveChunkReplica(TNode* node, TChunkPtrWithIndex chunkWithIndex, bool cached, ERemoveReplicaReason reason)
     {
         auto* chunk = chunkWithIndex.GetPtr();
         auto nodeId = node->GetId();
-        TDataNodePtrWithIndex nodeWithIndex(node, chunkWithIndex.GetIndex());
+        TNodePtrWithIndex nodeWithIndex(node, chunkWithIndex.GetIndex());
 
         if (reason == ERemoveReplicaReason::IncrementalHeartbeat && !node->HasReplica(chunkWithIndex, cached)) {
             LOG_DEBUG_UNLESS(IsRecovery(), "Chunk replica is already removed (ChunkId: %s, Cached: %s, Reason: %s, NodeId: %d, Address: %s)",
@@ -1521,7 +1234,7 @@ private:
     }
 
 
-    void AddJob(TDataNode* node, const TJobStartInfo& jobInfo)
+    void AddJob(TNode* node, const TJobStartInfo& jobInfo)
     {
         auto* mutationContext = Bootstrap
             ->GetMetaStateFacade()
@@ -1570,6 +1283,7 @@ private:
     {
         auto chunkId = job->GetChunkId();
         auto jobId = job->GetId();
+        auto nodeTracker = Bootstrap->GetNodeTracker();
 
         if (removeFromJobList) {
             auto* jobList = GetJobList(chunkId);
@@ -1578,7 +1292,7 @@ private:
         }
 
         if (removeFromNode) {
-            auto* node = FindNodeByAddresss(job->GetAddress());
+            auto* node = nodeTracker->FindNodeByAddress(job->GetAddress());
             if (node) {
                 node->RemoveJob(job);
             }
@@ -1597,7 +1311,7 @@ private:
 
 
     void ProcessAddedChunk(
-        TDataNode* node,
+        TNode* node,
         const TChunkAddInfo& chunkAddInfo,
         bool incremental)
     {
@@ -1661,7 +1375,7 @@ private:
     }
 
     void ProcessRemovedChunk(
-        TDataNode* node,
+        TNode* node,
         const TChunkRemoveInfo& chunkInfo)
     {
         auto nodeId = node->GetId();
@@ -1810,7 +1524,6 @@ private:
 
 DEFINE_METAMAP_ACCESSORS(TChunkManager::TImpl, Chunk, TChunk, TChunkId, ChunkMap)
 DEFINE_METAMAP_ACCESSORS(TChunkManager::TImpl, ChunkList, TChunkList, TChunkListId, ChunkListMap)
-DEFINE_METAMAP_ACCESSORS(TChunkManager::TImpl, Node, TDataNode, TNodeId, NodeMap)
 DEFINE_METAMAP_ACCESSORS(TChunkManager::TImpl, JobList, TJobList, TChunkId, JobListMap)
 DEFINE_METAMAP_ACCESSORS(TChunkManager::TImpl, Job, TJob, TJobId, JobMap)
 
@@ -1879,7 +1592,7 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::Create(
         TSmallVector<Stroka, TypicalReplicationFactor> targetAddresses;
         for (int index = 0; index < static_cast<int>(targets.size()); ++index) {
             auto* target = targets[index];
-            NChunkServer::TDataNodePtrWithIndex replica(
+            NChunkServer::TNodePtrWithIndex replica(
                 target,
                 isErasure ? index : 0);
             builder.Add(replica);
@@ -1980,9 +1693,6 @@ void TChunkManager::Initialize()
     Impl->Initialize();
 }
 
-TChunkManager::~TChunkManager()
-{ }
-
 TChunkTree* TChunkManager::FindChunkTree(const TChunkTreeId& id)
 {
     return Impl->FindChunkTree(id);
@@ -1993,54 +1703,20 @@ TChunkTree* TChunkManager::GetChunkTree(const TChunkTreeId& id)
     return Impl->GetChunkTree(id);
 }
 
-TDataNode* TChunkManager::FindNodeByAddress(const Stroka& address)
-{
-    return Impl->FindNodeByAddresss(address);
-}
-
-TDataNode* TChunkManager::FindNodeByHostName(const Stroka& hostName)
-{
-    return Impl->FindNodeByHostName(hostName);
-}
-
 const TReplicationSink* TChunkManager::FindReplicationSink(const Stroka& address)
 {
     return Impl->FindReplicationSink(address);
 }
 
-TSmallVector<TDataNode*, TypicalReplicationFactor> TChunkManager::AllocateUploadTargets(
+TSmallVector<TNode*, TypicalReplicationFactor> TChunkManager::AllocateUploadTargets(
     int replicaCount,
     const TNullable<Stroka>& preferredHostName)
 {
     return Impl->AllocateUploadTargets(replicaCount, preferredHostName);
 }
 
-TMutationPtr TChunkManager::CreateRegisterNodeMutation(
-    const TMetaReqRegisterNode& request)
-{
-    return Impl->CreateRegisterNodeMutation(request);
-}
-
-TMutationPtr TChunkManager::CreateUnregisterNodeMutation(
-    const TMetaReqUnregisterNode& request)
-{
-    return Impl->CreateUnregisterNodeMutation(request);
-}
-
-TMutationPtr TChunkManager::CreateFullHeartbeatMutation(
-    TCtxFullHeartbeatPtr context)
-{
-    return Impl->CreateFullHeartbeatMutation(context);
-}
-
-TMutationPtr TChunkManager::CreateIncrementalHeartbeatMutation(
-    const TMetaReqIncrementalHeartbeat& request)
-{
-    return Impl->CreateIncrementalHeartbeatMutation(request);
-}
-
 TMutationPtr TChunkManager::CreateUpdateJobsMutation(
-    const TMetaReqUpdateJobs& request)
+    const NProto::TMetaReqUpdateJobs& request)
 {
     return Impl->CreateUpdateJobsMutation(request);
 }
@@ -2110,7 +1786,7 @@ void TChunkManager::ClearChunkList(TChunkList* chunkList)
 }
 
 void TChunkManager::ScheduleJobs(
-    TDataNode* node,
+    TNode* node,
     const std::vector<TJobInfo>& runningJobs,
     std::vector<TJobStartInfo>* jobsToStart,
     std::vector<TJobStopInfo>* jobsToStop)
@@ -2132,29 +1808,14 @@ void TChunkManager::ScheduleRFUpdate(TChunkTree* chunkTree)
     Impl->ScheduleRFUpdate(chunkTree);
 }
 
-TDataNodePtrWithIndexList TChunkManager::GetChunkReplicas(const TChunk* chunk)
+TNodePtrWithIndexList TChunkManager::GetChunkReplicas(const TChunk* chunk)
 {
     return Impl->GetChunkReplicas(chunk);
-}
-
-TTotalNodeStatistics TChunkManager::GetTotalNodeStatistics()
-{
-    return Impl->GetTotalNodeStatistics();
-}
-
-bool TChunkManager::IsNodeConfirmed(const TDataNode* node)
-{
-    return Impl->IsNodeConfirmed(node);
 }
 
 int TChunkManager::GetChunkReplicaCount()
 {
     return Impl->GetChunkReplicaCount();
-}
-
-int TChunkManager::GetRegisteredNodeCount()
-{
-    return Impl->GetRegisteredNodeCount();
 }
 
 std::vector<TYPath> TChunkManager::GetOwningNodes(TChunkTree* chunkTree)
@@ -2164,12 +1825,8 @@ std::vector<TYPath> TChunkManager::GetOwningNodes(TChunkTree* chunkTree)
 
 DELEGATE_METAMAP_ACCESSORS(TChunkManager, Chunk, TChunk, TChunkId, *Impl)
 DELEGATE_METAMAP_ACCESSORS(TChunkManager, ChunkList, TChunkList, TChunkListId, *Impl)
-DELEGATE_METAMAP_ACCESSORS(TChunkManager, Node, TDataNode, TNodeId, *Impl)
 DELEGATE_METAMAP_ACCESSORS(TChunkManager, JobList, TJobList, TChunkId, *Impl)
 DELEGATE_METAMAP_ACCESSORS(TChunkManager, Job, TJob, TJobId, *Impl)
-
-DELEGATE_SIGNAL(TChunkManager, void(const TDataNode*), NodeRegistered, *Impl);
-DELEGATE_SIGNAL(TChunkManager, void(const TDataNode*), NodeUnregistered, *Impl);
 
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, LostChunks, *Impl);
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, LostVitalChunks, *Impl);

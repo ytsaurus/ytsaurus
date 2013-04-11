@@ -4,17 +4,17 @@
 #include "config.h"
 #include "async_writer.h"
 
-#include <ytlib/erasure/codec.h>
+#include <ytlib/node_tracker_client/public.h>
 
 namespace NYT {
 namespace NChunkClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-IAsyncWriterPtr GetReplicationWriter(
+IAsyncWriterPtr CreateReplicationWriter(
     const TReplicationWriterConfigPtr& config,
     const TChunkId& chunkId,
-    const std::vector<TNodeDescriptor>& targets);
+    const std::vector<NNodeTrackerClient::TNodeDescriptor>& targets);
 
 ///////////////////////////////////////////////////////////////////////////////
 

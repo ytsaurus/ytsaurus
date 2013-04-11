@@ -2,7 +2,7 @@ package NYT.NFileClient.NProto;
 
 import "yt/ytlib/misc/guid.proto";
 import "yt/ytlib/cypress_client/cypress_ypath.proto";
-import "yt/ytlib/chunk_client/node.proto";
+import "yt/ytlib/node_tracker_client/node.proto";
 import "yt/ytlib/chunk_client/chunk.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -11,7 +11,7 @@ import "yt/ytlib/chunk_client/chunk.proto";
 
 message TReqCreateFileExt
 {
-    extend NYT.NCypressClient.NProto.TReqCreate
+    extend NCypressClient.NProto.TReqCreate
     {
         optional TReqCreateFileExt create_file = 100;
     }
@@ -37,7 +37,7 @@ message TReqFetchFile
 message TRspFetchFile
 {
     required NYT.NProto.TGuid chunk_id = 1;
-    required NYT.NChunkClient.NProto.TNodeDirectory node_directory = 2;
+    required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 2;
     repeated fixed32 replicas = 3;
     required string file_name = 4;
     required bool executable = 5;

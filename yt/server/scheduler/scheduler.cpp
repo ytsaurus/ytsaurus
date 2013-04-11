@@ -66,7 +66,7 @@ using namespace NScheduler::NProto;
 
 using NChunkClient::TChunkId;
 using NChunkClient::NullChunkId;
-using NChunkClient::TNodeDescriptor;
+using NNodeTrackerClient::TNodeDescriptor;
 
 ////////////////////////////////////////////////////////////////////
 

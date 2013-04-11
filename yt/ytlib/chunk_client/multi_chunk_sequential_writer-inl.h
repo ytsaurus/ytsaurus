@@ -15,6 +15,13 @@
 
 #include <ytlib/transaction_client/transaction_ypath_proxy.h>
 
+#include <ytlib/chunk_client/chunk_list_ypath_proxy.h>
+#include <ytlib/chunk_client/chunk_ypath_proxy.h>
+#include <ytlib/chunk_client/dispatcher.h>
+#include <ytlib/chunk_client/chunk_replica.h>
+
+#include <ytlib/node_tracker_client/node_directory.h>
+
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
 #include <ytlib/meta_state/rpc_helpers.h>
@@ -37,7 +44,7 @@ TMultiChunkSequentialWriter<TChunkWriter>::TMultiChunkSequentialWriter(
     , MasterChannel(masterChannel)
     , TransactionId(transactionId)
     , ParentChunkListId(parentChunkListId)
-    , NodeDirectory(New<TNodeDirectory>())
+    , NodeDirectory(New<NNodeTrackerClient::TNodeDirectory>())
     , UploadReplicationFactor(std::min(Options->ReplicationFactor, Config->UploadReplicationFactor))
     , Provider(provider)
     , Progress(0)
@@ -186,7 +193,7 @@ void TMultiChunkSequentialWriter<TChunkWriter>::OnChunkCreated(
 
     auto targets = NodeDirectory->GetDescriptors(session.Replicas);
     session.ChunkId = chunkId;
-    session.RemoteWriter = GetReplicationWriter(
+    session.RemoteWriter = CreateReplicationWriter(
         Config,
         chunkId,
         targets);
@@ -435,7 +442,7 @@ TMultiChunkSequentialWriter<TChunkWriter>::GetWrittenChunks() const
 }
 
 template <class TChunkWriter>
-TNodeDirectoryPtr TMultiChunkSequentialWriter<TChunkWriter>::GetNodeDirectory() const
+NNodeTrackerClient::TNodeDirectoryPtr TMultiChunkSequentialWriter<TChunkWriter>::GetNodeDirectory() const
 {
     return NodeDirectory;
 }

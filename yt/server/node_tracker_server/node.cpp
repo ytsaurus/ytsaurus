@@ -1,21 +1,19 @@
 #include "stdafx.h"
 #include "node.h"
-#include "job.h"
-#include "chunk.h"
 
-#include <ytlib/misc/assert.h>
-#include <ytlib/misc/protobuf_helpers.h>
-#include <ytlib/misc/serialize.h>
+#include <server/chunk_server/job.h>
+#include <server/chunk_server/chunk.h>
+
+#include <server/cell_master/serialization_context.h>
 
 namespace NYT {
-namespace NChunkServer {
+namespace NNodeTrackerServer {
 
-using namespace NCellMaster;
-using namespace NChunkClient;
+using namespace NChunkServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDataNode::TDataNode(
+TNode::TNode(
     TNodeId id,
     const TNodeDescriptor& descriptor)
     : Id_(id)
@@ -24,29 +22,30 @@ TDataNode::TDataNode(
     Init();
 }
 
-TDataNode::TDataNode(TNodeId id)
+TNode::TNode(TNodeId id)
     : Id_(id)
 {
     Init();
 }
 
-void TDataNode::Init()
+void TNode::Init()
 {
+    Confirmed_ = false;
     ChunksToReplicate_.resize(ReplicationPriorityCount);
     HintedSessionCount_ = 0;
 }
 
-const TNodeDescriptor& TDataNode::GetDescriptor() const
+const TNodeDescriptor& TNode::GetDescriptor() const
 {
     return Descriptor_;
 }
 
-const Stroka& TDataNode::GetAddress() const
+const Stroka& TNode::GetAddress() const
 {
     return Descriptor_.Address;
 }
 
-void TDataNode::Save(const NCellMaster::TSaveContext& context) const
+void TNode::Save(const NCellMaster::TSaveContext& context) const
 {
     auto* output = context.GetOutput();
     ::Save(output, Descriptor_.Address);
@@ -58,15 +57,10 @@ void TDataNode::Save(const NCellMaster::TSaveContext& context) const
     SaveObjectRefs(context, Jobs_);
 }
 
-void TDataNode::Load(const NCellMaster::TLoadContext& context)
+void TNode::Load(const NCellMaster::TLoadContext& context)
 {
     auto* input = context.GetInput();
     ::Load(input, Descriptor_.Address);
-    // COMPAT(babenko)
-    if (context.GetVersion() < 9) {
-        TGuid incarnationId;
-        ::Load(input, incarnationId);
-    }
     ::Load(input, State_);
     LoadProto(input, Statistics_);
     LoadObjectRefs(context, StoredReplicas_);
@@ -75,12 +69,12 @@ void TDataNode::Load(const NCellMaster::TLoadContext& context)
     LoadObjectRefs(context, Jobs_);
 }
 
-void TDataNode::AddJob(TJob* job)
+void TNode::AddJob(TJob* job)
 {
     Jobs_.push_back(job);
 }
 
-void TDataNode::RemoveJob(TJob* job)
+void TNode::RemoveJob(TJob* job)
 {
     auto it = std::find(Jobs_.begin(), Jobs_.end(), job);
     if (it != Jobs_.end()) {
@@ -88,7 +82,7 @@ void TDataNode::RemoveJob(TJob* job)
     }
 }
 
-void TDataNode::AddReplica(TChunkPtrWithIndex replica, bool cached)
+void TNode::AddReplica(TChunkPtrWithIndex replica, bool cached)
 {
     if (cached) {
         YCHECK(CachedReplicas_.insert(replica).second);
@@ -97,7 +91,7 @@ void TDataNode::AddReplica(TChunkPtrWithIndex replica, bool cached)
     }
 }
 
-void TDataNode::RemoveReplica(TChunkPtrWithIndex replica, bool cached)
+void TNode::RemoveReplica(TChunkPtrWithIndex replica, bool cached)
 {
     if (cached) {
         YCHECK(CachedReplicas_.erase(replica) == 1);
@@ -107,7 +101,7 @@ void TDataNode::RemoveReplica(TChunkPtrWithIndex replica, bool cached)
     }
 }
 
-bool TDataNode::HasReplica(TChunkPtrWithIndex replica, bool cached) const
+bool TNode::HasReplica(TChunkPtrWithIndex replica, bool cached) const
 {
     if (cached) {
         return CachedReplicas_.find(replica) != CachedReplicas_.end();
@@ -116,40 +110,40 @@ bool TDataNode::HasReplica(TChunkPtrWithIndex replica, bool cached) const
     }
 }
 
-void TDataNode::MarkReplicaUnapproved(TChunkPtrWithIndex replica)
+void TNode::MarkReplicaUnapproved(TChunkPtrWithIndex replica)
 {
     YASSERT(HasReplica(replica, false));
     YCHECK(UnapprovedReplicas_.insert(replica).second);
 }
 
-bool TDataNode::HasUnapprovedReplica(TChunkPtrWithIndex replica) const
+bool TNode::HasUnapprovedReplica(TChunkPtrWithIndex replica) const
 {
     return UnapprovedReplicas_.find(replica) != UnapprovedReplicas_.end();
 }
 
-void TDataNode::ApproveReplica(TChunkPtrWithIndex replica)
+void TNode::ApproveReplica(TChunkPtrWithIndex replica)
 {
     YASSERT(HasReplica(replica, false));
     YCHECK(UnapprovedReplicas_.erase(replica) == 1);
 }
 
-int TDataNode::GetTotalSessionCount() const
+int TNode::GetTotalSessionCount() const
 {
     return HintedSessionCount_ + Statistics_.total_session_count();
 }
 
-TNodeId GetObjectId(const TDataNode* node)
+TNodeId GetObjectId(const TNode* node)
 {
     return node->GetId();
 }
 
-bool CompareObjectsForSerialization(const TDataNode* lhs, const TDataNode* rhs)
+bool CompareObjectsForSerialization(const TNode* lhs, const TNode* rhs)
 {
     return GetObjectId(lhs) < GetObjectId(rhs);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
+} // namespace NNodeTrackerServer
 } // namespace NYT
 

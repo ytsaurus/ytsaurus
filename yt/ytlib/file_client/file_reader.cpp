@@ -12,16 +12,17 @@
 #include <ytlib/transaction_client/transaction.h>
 
 #include <ytlib/chunk_client/chunk_replica.h>
-#include <ytlib/chunk_client/node_directory.h>
+
+#include <ytlib/node_tracker_client/node_directory.h>
 
 namespace NYT {
 namespace NFileClient {
 
-//using namespace NCypressClient;
 using namespace NYTree;
 using namespace NYPath;
 using namespace NChunkClient;
 using namespace NTransactionClient;
+using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 

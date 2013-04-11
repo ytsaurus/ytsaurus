@@ -5,7 +5,7 @@
 #include <ytlib/misc/property.h>
 #include <ytlib/misc/lease_manager.h>
 
-#include <ytlib/chunk_client/node_directory.h>
+#include <ytlib/node_tracker_client/node_directory.h>
 
 #include <ytlib/scheduler/scheduler_service.pb.h>
 
@@ -19,7 +19,7 @@ class TExecNode
     : public TRefCounted
 {
     //! Descriptor as reported by node.
-    DEFINE_BYREF_RW_PROPERTY(NChunkClient::TNodeDescriptor, Descriptor);
+    DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::TNodeDescriptor, Descriptor);
 
     //! Jobs that are currently running on this node.
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TJobPtr>, Jobs);
@@ -48,7 +48,7 @@ class TExecNode
     const Stroka& GetAddress() const;
 
 public:
-    TExecNode(const NChunkClient::TNodeDescriptor& descriptor);
+    explicit TExecNode(const NNodeTrackerClient::TNodeDescriptor& descriptor);
 
 };
 

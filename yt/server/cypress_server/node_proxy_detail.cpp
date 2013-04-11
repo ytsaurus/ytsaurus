@@ -2,6 +2,7 @@
 #include "node_proxy_detail.h"
 #include "cypress_traversing.h"
 #include "helpers.h"
+#include "private.h"
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
@@ -211,7 +212,7 @@ TNontemplateCypressNodeProxyBase::TNontemplateCypressNodeProxyBase(
     YASSERT(trunkNode);
     YASSERT(trunkNode->IsTrunk());
 
-    Logger = NLog::TLogger("Cypress");
+    Logger = CypressServerLogger;
 }
 
 INodeFactoryPtr TNontemplateCypressNodeProxyBase::CreateFactory() const

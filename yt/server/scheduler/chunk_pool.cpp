@@ -4,7 +4,7 @@
 
 #include <ytlib/misc/id_generator.h>
 
-#include <ytlib/chunk_client/node_directory.h>
+#include <ytlib/node_tracker_client/node_directory.h>
 
 #include <ytlib/table_client/helpers.h>
 #include <ytlib/table_client/chunk_meta_extensions.h>
@@ -12,6 +12,7 @@
 namespace NYT {
 namespace NScheduler {
 
+using namespace NNodeTrackerClient;
 using namespace NChunkClient;
 using namespace NChunkServer;
 using namespace NTableClient;

@@ -8,8 +8,12 @@
 
 #include <ytlib/chunk_client/block_id.h>
 
+#include <ytlib/node_tracker_client/node_directory.h>
+
 namespace NYT {
 namespace NChunkClient {
+
+using namespace NNodeTrackerClient;
 
 ///////////////////////////////////////////////////////////////////////////////
 

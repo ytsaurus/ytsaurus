@@ -32,7 +32,7 @@ public:
         EJobType jobType,
         const TJobId& jobId,
         const TChunkId& chunkId,
-        const std::vector<NChunkClient::TNodeDescriptor>& targets);
+        const std::vector<NNodeTrackerClient::TNodeDescriptor>& targets);
 
     //! Returns the type.
     EJobType GetType() const;
@@ -54,7 +54,7 @@ private:
     TJobId JobId;
     EJobState State;
     TChunkId ChunkId;
-    std::vector<NChunkClient::TNodeDescriptor> Targets;
+    std::vector<NNodeTrackerClient::TNodeDescriptor> Targets;
 
     NChunkClient::NProto::TChunkMeta ChunkMeta;
     NChunkClient::IAsyncWriterPtr Writer;
@@ -112,7 +112,7 @@ public:
         EJobType jobType,
         const TJobId& jobId,
         const TChunkId& chunkId,
-        const std::vector<NChunkClient::TNodeDescriptor>& targets);
+        const std::vector<NNodeTrackerClient::TNodeDescriptor>& targets);
 
     //! Stops the job.
     void StopJob(TJobPtr job);

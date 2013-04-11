@@ -2,12 +2,12 @@
 #include "node_statistics.h"
 
 namespace NYT {
-namespace NChunkServer {
+namespace NNodeTrackerClient {
 namespace NProto {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka ToString(const NYT::NChunkServer::NProto::TNodeStatistics& statistics)
+Stroka ToString(const NYT::NNodeTrackerClient::NProto::TNodeStatistics& statistics)
 {
     return Sprintf("AvailableSpace: %" PRId64 ", UsedSpace: %" PRId64 ", ChunkCount: %d, SessionCount: %d",
         statistics.total_available_space(),
@@ -19,5 +19,5 @@ Stroka ToString(const NYT::NChunkServer::NProto::TNodeStatistics& statistics)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NProto
-} // namespace NChunkServer
+} // namespace NNodeTrackerClient
 } // namespace NYT

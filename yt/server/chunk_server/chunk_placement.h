@@ -7,6 +7,8 @@
 #include <ytlib/misc/small_set.h>
 #include <ytlib/misc/nullable.h>
 
+#include <server/node_tracker_server/node_tracker.h>
+
 #include <server/cell_master/public.h>
 
 namespace NYT {
@@ -22,39 +24,41 @@ public:
         TChunkManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap);
 
-    void OnNodeRegistered(TDataNode* node);
-    void OnNodeUnregistered(TDataNode* node);
-    void OnNodeUpdated(TDataNode* node);
+    void Initialize();
 
-    void OnSessionHinted(TDataNode* node);
+    void OnNodeRegistered(TNode* node);
+    void OnNodeUnregistered(TNode* node);
+    void OnNodeUpdated(TNode* node);
 
-    double GetLoadFactor(TDataNode* node) const;
-    double GetFillCoeff(TDataNode* node) const;
+    void OnSessionHinted(TNode* node);
 
-    TSmallVector<TDataNode*, TypicalReplicationFactor> GetUploadTargets(
+    double GetLoadFactor(TNode* node) const;
+    double GetFillCoeff(TNode* node) const;
+
+    TSmallVector<TNode*, TypicalReplicationFactor> GetUploadTargets(
         int replicaCount,
-        const TSmallSet<TDataNode*, TypicalReplicationFactor>* forbiddenNodes,
+        const TSmallSet<TNode*, TypicalReplicationFactor>* forbiddenNodes,
         const TNullable<Stroka>& preferredHostName);
 
-    TSmallVector<TDataNode*, TypicalReplicationFactor> GetRemovalTargets(
+    TSmallVector<TNode*, TypicalReplicationFactor> GetRemovalTargets(
         const TChunk* chunk,
         int count);
 
-    TSmallVector<TDataNode*, TypicalReplicationFactor> GetReplicationTargets(
+    TSmallVector<TNode*, TypicalReplicationFactor> GetReplicationTargets(
         const TChunk* chunk,
         int count);
 
-    TDataNode* GetReplicationSource(const TChunk* chunk);
+    TNode* GetReplicationSource(const TChunk* chunk);
 
     bool HasBalancingTargets(double maxFillCoeff);
 
-    std::vector<TChunkPtrWithIndex> GetBalancingChunks(TDataNode* node, int count);
+    std::vector<TChunkPtrWithIndex> GetBalancingChunks(TNode* node, int count);
 
-    TDataNode* GetBalancingTarget(TChunkPtrWithIndex chunkWithIndex, double maxFillCoeff);
+    TNode* GetBalancingTarget(TChunkPtrWithIndex chunkWithIndex, double maxFillCoeff);
 
 private:
-    typedef ymultimap<double, TDataNode*> TCoeffToNode;
-    typedef yhash_map<TDataNode*, TCoeffToNode::iterator> TNodeToCoeffIt;
+    typedef ymultimap<double, TNode*> TCoeffToNode;
+    typedef yhash_map<TNode*, TCoeffToNode::iterator> TNodeToCoeffIt;
 
     TChunkManagerConfigPtr Config;
     NCellMaster::TBootstrap* Bootstrap;
@@ -65,9 +69,9 @@ private:
     TCoeffToNode FillCoeffToNode;
     TNodeToCoeffIt NodeToFillCoeffIt;
 
-    static bool IsFull(TDataNode* node);
-    static bool IsValidUploadTarget(TDataNode* targetNode);
-    bool IsValidBalancingTarget(TDataNode* targetNode, TChunkPtrWithIndex chunkWithIndex) const;
+    static bool IsFull(TNode* node);
+    static bool IsValidUploadTarget(TNode* targetNode);
+    bool IsValidBalancingTarget(TNode* targetNode, TChunkPtrWithIndex chunkWithIndex) const;
 
 };
 

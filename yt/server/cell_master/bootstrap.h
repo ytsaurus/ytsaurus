@@ -3,12 +3,19 @@
 #include "public.h"
 
 #include <ytlib/actions/action_queue.h>
+
 #include <ytlib/rpc/public.h>
 
+#include <server/node_tracker_server/public.h>
+
 #include <server/object_server/public.h>
+
 #include <server/chunk_server/public.h>
+
 #include <server/transaction_server/public.h>
+
 #include <server/cypress_server/public.h>
+
 #include <server/security_server/public.h>
 
 namespace NYT {
@@ -29,6 +36,9 @@ public:
 
     NRpc::IServerPtr GetRpcServer() const;
 
+    NNodeTrackerServer::TNodeTrackerPtr GetNodeTracker() const;
+    NNodeTrackerServer::INodeAuthorityPtr GetNodeAuthority() const;
+
     NTransactionServer::TTransactionManagerPtr GetTransactionManager() const;
 
     NCypressServer::TCypressManagerPtr GetCypressManager() const;
@@ -38,7 +48,6 @@ public:
     NObjectServer::TObjectManagerPtr GetObjectManager() const;
 
     NChunkServer::TChunkManagerPtr GetChunkManager() const;
-    NChunkServer::INodeAuthorityPtr GetNodeAuthority() const;
 
     NSecurityServer::TSecurityManagerPtr GetSecurityManager() const;
 
@@ -52,6 +61,9 @@ private:
 
     NRpc::IServerPtr RpcServer;
 
+    NNodeTrackerServer::TNodeTrackerPtr NodeTracker;
+    NNodeTrackerServer::INodeAuthorityPtr NodeAuthority;
+
     NTransactionServer::TTransactionManagerPtr TransactionManager;
 
     NCypressServer::TCypressManagerPtr CypressManager;
@@ -61,7 +73,6 @@ private:
     NObjectServer::TObjectManagerPtr ObjectManager;
 
     NChunkServer::TChunkManagerPtr ChunkManager;
-    NChunkServer::INodeAuthorityPtr NodeAuthority;
 
     NSecurityServer::TSecurityManagerPtr SecurityManager;
 

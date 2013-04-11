@@ -1,6 +1,6 @@
 package NYT.NScheduler.NProto;
 
-import "yt/ytlib/chunk_client/node.proto";
+import "yt/ytlib/node_tracker_client/node.proto";
 import "yt/ytlib/chunk_client/chunk.proto";
 import "yt/ytlib/table_client/table_ypath.proto";
 import "yt/ytlib/table_client/table_reader.proto";
@@ -24,7 +24,7 @@ message TNodeResources
 message TTableInputSpec
 {
     // Chunks comprising the input.
-    repeated NYT.NTableClient.NProto.TInputChunk chunks = 1;
+    repeated NTableClient.NProto.TInputChunk chunks = 1;
 }
 
 // Defines how to store output from a job into a table.
@@ -56,7 +56,7 @@ message TJobSpec
     repeated TTableOutputSpec output_specs = 5;
 
     // Maps node ids to descriptors for input chunks.
-    required NYT.NChunkClient.NProto.TNodeDirectory node_directory = 6;
+    required NNodeTrackerClient.NProto.TNodeDirectory node_directory = 6;
 
     // Total input uncompressed data size estimate.
     optional int64 input_uncompressed_data_size = 7 [default = 0];
@@ -80,7 +80,7 @@ message TJobResult
     required NYT.NProto.TError error = 1;
 
     // Provides node id to descriptor mapping for |chunks|.
-    optional NYT.NChunkClient.NProto.TNodeDirectory node_directory = 2;
+    optional NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 2;
 
     // List of output chunks produced by the job.
     // NB: Only filled when neccessary.

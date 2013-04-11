@@ -7,7 +7,8 @@
 #include <ytlib/logging/tagged_logger.h>
 
 #include <ytlib/chunk_client/data_node_service_proxy.h>
-#include <ytlib/chunk_client/node_directory.h>
+
+#include <ytlib/node_tracker_client/public.h>
 
 #include <ytlib/table_client/public.h>
 #include <ytlib/table_client/table_chunk_meta.pb.h>
@@ -35,7 +36,7 @@ public:
 
     void Prepare(const std::vector<NTableClient::TRefCountedInputChunkPtr>& chunks);
 
-    void CreateNewRequest(const NChunkClient::TNodeDescriptor& descriptor);
+    void CreateNewRequest(const NNodeTrackerClient::TNodeDescriptor& descriptor);
 
     // If False is returned then samples from this chunk are not required.
     bool AddChunkToRequest(NTableClient::TRefCountedInputChunkPtr inputChunk);

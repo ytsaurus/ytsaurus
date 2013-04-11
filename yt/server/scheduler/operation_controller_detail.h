@@ -27,7 +27,8 @@
 #include <ytlib/ytree/yson_string.h>
 
 #include <ytlib/chunk_client/public.h>
-#include <ytlib/chunk_client/node_directory_builder.h>
+
+#include <ytlib/node_tracker_client/public.h>
 
 #include <server/chunk_server/public.h>
 
@@ -115,7 +116,7 @@ protected:
     TProgressCounter JobCounter;
 
     // Maps node ids seen in fetch responses to node descriptors.
-    NChunkClient::TNodeDirectoryPtr NodeDirectory;
+    NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
 
     struct TTableBase
     {
@@ -369,7 +370,7 @@ protected:
             TJobletPtr joblet,
             bool enableTableIndex = false);
         static void AddChunksToInputSpec(
-            NChunkClient::TNodeDirectoryBuilder* directoryBuilder,
+            NNodeTrackerClient::TNodeDirectoryBuilder* directoryBuilder,
             NScheduler::NProto::TTableInputSpec* inputSpec,
             TChunkStripePtr stripe,
             TNullable<int> partitionTag,

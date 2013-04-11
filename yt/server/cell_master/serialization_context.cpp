@@ -2,6 +2,8 @@
 #include "serialization_context.h"
 #include "bootstrap.h"
 
+#include <server/node_tracker_server/node_tracker.h>
+
 #include <server/transaction_server/transaction_manager.h>
 
 #include <server/object_server/object_detail.h>
@@ -18,6 +20,7 @@
 namespace NYT {
 namespace NCellMaster {
 
+using namespace NNodeTrackerServer;
 using namespace NObjectServer;
 using namespace NObjectClient;
 using namespace NTransactionServer;
@@ -30,8 +33,10 @@ using namespace NSecurityServer;
 NMetaState::TVersionValidator SnapshotVersionValidator()
 {
     static auto result = BIND([] (int version) {
-        YCHECK(version == 8 ||
-               version == 9);
+        YCHECK(version == 7 ||
+               version == 8 ||
+               version == 9 ||
+               version == 10);
     });
     return result;
 }
@@ -91,9 +96,9 @@ TAccount* TLoadContext::Get(const TObjectId& id) const
 }
 
 template <>
-TDataNode* TLoadContext::Get(NChunkServer::TNodeId id) const
+TNode* TLoadContext::Get(NNodeTrackerServer::TNodeId id) const
 {
-    return Bootstrap_->GetChunkManager()->GetNode(id);
+    return Bootstrap_->GetNodeTracker()->GetNode(id);
 }
 
 template <>

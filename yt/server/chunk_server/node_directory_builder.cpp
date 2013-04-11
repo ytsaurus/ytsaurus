@@ -1,19 +1,20 @@
 #include "stdafx.h"
 #include "node_directory_builder.h"
-#include "node.h"
 
 #include <ytlib/misc/foreach.h>
+
+#include <server/node_tracker_server/node.h>
 
 namespace NYT {
 namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNodeDirectoryBuilder::TNodeDirectoryBuilder(NChunkClient::NProto::TNodeDirectory* protoDirectory)
+TNodeDirectoryBuilder::TNodeDirectoryBuilder(NNodeTrackerClient::NProto::TNodeDirectory* protoDirectory)
     : ProtoDirectory(protoDirectory)
 { }
 
-void TNodeDirectoryBuilder::Add(TDataNode* node)
+void TNodeDirectoryBuilder::Add(TNode* node)
 {
     if (!ListedNodeIds.insert(node->GetId()).second)
         return;
@@ -23,12 +24,12 @@ void TNodeDirectoryBuilder::Add(TDataNode* node)
     ToProto(item->mutable_node_descriptor(), node->GetDescriptor());
 }
 
-void TNodeDirectoryBuilder::Add(TDataNodePtrWithIndex node)
+void TNodeDirectoryBuilder::Add(TNodePtrWithIndex node)
 {
     Add(node.GetPtr());
 }
 
-void TNodeDirectoryBuilder::Add(const TDataNodePtrWithIndexList& nodes)
+void TNodeDirectoryBuilder::Add(const TNodePtrWithIndexList& nodes)
 {
     FOREACH (auto node, nodes) {
         Add(node);

@@ -7,9 +7,12 @@
 #include <ytlib/misc/address.h>
 #include <ytlib/misc/protobuf_helpers.h>
 
+#include <ytlib/compression/codec.h>
+
 #include <ytlib/chunk_client/chunk_ypath_proxy.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/chunk_client/node_directory.h>
+
+#include <ytlib/node_tracker_client/node_directory.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
@@ -28,6 +31,7 @@ using namespace NYTree;
 using namespace NChunkClient;
 using namespace NObjectClient;
 using namespace NCypressClient;
+using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -99,7 +103,7 @@ void TFileChunkOutput::Open()
     LOG_INFO("Chunk created");
 
     auto targets = nodeDirectory->GetDescriptors(Replicas);
-    Writer = GetReplicationWriter(Config, ChunkId, targets);
+    Writer = CreateReplicationWriter(Config, ChunkId, targets);
     Writer->Open();
 
     IsOpen = true;

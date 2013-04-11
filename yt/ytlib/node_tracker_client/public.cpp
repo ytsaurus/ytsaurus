@@ -1,12 +1,13 @@
 #include "stdafx.h"
-#include "node_authority.h"
+#include "public.h"
 
 namespace NYT {
-namespace NChunkServer {
+namespace NNodeTrackerClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
+} // namespace NNodeTrackerClient
 } // namespace NYT
+

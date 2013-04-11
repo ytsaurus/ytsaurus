@@ -43,5 +43,19 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TReplicationSink
+{
+    DEFINE_BYVAL_RO_PROPERTY(Stroka, Address);
+    DEFINE_BYREF_RW_PROPERTY(yhash_set<TJob*>, Jobs);
+
+public:
+    explicit TReplicationSink(const Stroka& address)
+        : Address_(address)
+    { }
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NChunkServer
 } // namespace NYT

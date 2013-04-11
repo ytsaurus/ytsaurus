@@ -4,10 +4,17 @@
 #include "private.h"
 
 #include <ytlib/chunk_client/public.h>
+
 #include <ytlib/table_client/table_reader.pb.h>
+
+#include <ytlib/node_tracker_client/public.h>
+
 #include <ytlib/misc/async_stream_state.h>
-#include <ytlib/rpc/channel.h>
+
+#include <ytlib/rpc/public.h>
+
 #include <ytlib/actions/parallel_awaiter.h>
+
 #include <ytlib/logging/log.h>
 
 namespace NYT {
@@ -30,7 +37,7 @@ public:
         TTableReaderConfigPtr config,
         NRpc::IChannelPtr masterChannel,
         NChunkClient::IBlockCachePtr blockCache,
-        NChunkClient::TNodeDirectoryPtr nodeDirectory,
+        NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         std::vector<NProto::TInputChunk>&& inputChunks,
         const TProviderPtr& readerProvider);
 
@@ -67,7 +74,7 @@ protected:
 
     NRpc::IChannelPtr MasterChannel;
     NChunkClient::IBlockCachePtr BlockCache;
-    NChunkClient::TNodeDirectoryPtr NodeDirectory;
+    NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
     std::vector<NProto::TInputChunk> InputChunks;
 
     TProviderPtr ReaderProvider;

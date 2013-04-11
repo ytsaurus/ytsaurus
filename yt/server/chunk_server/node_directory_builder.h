@@ -3,7 +3,7 @@
 #include "public.h"
 #include "chunk_replica.h"
 
-#include <ytlib/chunk_client/node.pb.h>
+#include <ytlib/node_tracker_client/node.pb.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -14,14 +14,14 @@ namespace NChunkServer {
 class TNodeDirectoryBuilder
 {
 public:
-    explicit TNodeDirectoryBuilder(NChunkClient::NProto::TNodeDirectory* protoDirectory);
+    explicit TNodeDirectoryBuilder(NNodeTrackerClient::NProto::TNodeDirectory* protoDirectory);
 
-    void Add(TDataNode* node);
-    void Add(TDataNodePtrWithIndex node);
-    void Add(const TDataNodePtrWithIndexList& nodes);
+    void Add(TNode* node);
+    void Add(TNodePtrWithIndex node);
+    void Add(const TNodePtrWithIndexList& nodes);
 
 private:
-    NChunkClient::NProto::TNodeDirectory* ProtoDirectory;
+    NNodeTrackerClient::NProto::TNodeDirectory* ProtoDirectory;
     yhash_set<TNodeId> ListedNodeIds;
 
 };

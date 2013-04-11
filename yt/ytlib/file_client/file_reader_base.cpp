@@ -11,6 +11,8 @@
 #include <ytlib/chunk_client/replication_reader.h>
 #include <ytlib/chunk_client/block_cache.h>
 
+#include <ytlib/node_tracker_client/node_directory.h>
+
 #include <limits>
 
 namespace NYT {
@@ -18,6 +20,8 @@ namespace NFileClient {
 
 using namespace NYTree;
 using namespace NChunkClient;
+using namespace NTransactionClient;
+using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,13 +32,14 @@ TFileReaderBase::TFileReaderBase()
     , StartOffset(0)
     , EndOffset(std::numeric_limits<i64>::max())
     , Logger(FileReaderLogger)
+    , Codec(nullptr)
 { }
 
 void TFileReaderBase::Open(
     TFileReaderConfigPtr config,
     NRpc::IChannelPtr masterChannel,
     IBlockCachePtr blockCache,
-    NChunkClient::TNodeDirectoryPtr nodeDirectory,
+    TNodeDirectoryPtr nodeDirectory,
     const TChunkId& chunkId,
     const TChunkReplicaList& replicas,
     const TNullable<i64>& offset,

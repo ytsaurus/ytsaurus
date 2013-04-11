@@ -8,7 +8,7 @@ message TError
 {
     required int32 code = 1;
     optional string message = 2;
-    optional NYT.NYTree.NProto.TAttributes attributes = 3;
+    optional NYTree.NProto.TAttributes attributes = 3;
     repeated TError inner_errors = 4;
 }
 

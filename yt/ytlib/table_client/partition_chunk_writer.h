@@ -6,7 +6,8 @@
 #include "chunk_writer_base.h"
 
 #include <ytlib/misc/thread_affinity.h>
-#include <ytlib/compression/codec.h>
+
+#include <ytlib/compression/public.h>
 
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 #include <ytlib/chunk_client/chunk.pb.h>

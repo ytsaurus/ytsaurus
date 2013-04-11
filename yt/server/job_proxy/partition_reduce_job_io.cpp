@@ -12,6 +12,8 @@
 #include <ytlib/table_client/sync_reader.h>
 #include <ytlib/table_client/table_producer.h>
 
+#include <ytlib/node_tracker_client/node_directory.h>
+
 #include <ytlib/scheduler/config.h>
 
 #include <ytlib/rpc/channel.h>

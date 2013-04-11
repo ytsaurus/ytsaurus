@@ -147,10 +147,10 @@ struct IChunkPool
 { };
 
 TAutoPtr<IChunkPool> CreateAtomicChunkPool(
-    NChunkClient::TNodeDirectoryPtr nodeDirectory);
+    NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory);
 
 TAutoPtr<IChunkPool> CreateUnorderedChunkPool(
-    NChunkClient::TNodeDirectoryPtr nodeDirectory,
+    NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     int jobCount);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -165,7 +165,7 @@ struct IShuffleChunkPool
 };
 
 TAutoPtr<IShuffleChunkPool> CreateShuffleChunkPool(
-    NChunkClient::TNodeDirectoryPtr nodeDirectory,
+    NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     int partitionCount,
     i64 dataSizeThreshold);
 

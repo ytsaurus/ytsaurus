@@ -12,7 +12,7 @@
 
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 
-#include <ytlib/erasure/codec.h>
+#include <ytlib/erasure/public.h>
 
 #include <server/cell_master/public.h>
 
@@ -37,12 +37,12 @@ class TChunk
     DEFINE_BYREF_RW_PROPERTY(TParents, Parents);
 
     // This is usually small, e.g. has the length of 3.
-    typedef TSmallVector<TDataNodePtrWithIndex, TypicalReplicationFactor> TStoredReplicas;
+    typedef TSmallVector<TNodePtrWithIndex, TypicalReplicationFactor> TStoredReplicas;
     DEFINE_BYREF_RO_PROPERTY(TStoredReplicas, StoredReplicas);
 
     // This list is usually empty.
     // Keeping a holder is very space efficient (takes just 8 bytes).
-    typedef ::THolder< yhash_set<TDataNodePtrWithIndex> > TCachedReplicas;
+    typedef ::THolder< yhash_set<TNodePtrWithIndex> > TCachedReplicas;
     DEFINE_BYREF_RO_PROPERTY(TCachedReplicas, CachedReplicas);
 
 public:
@@ -57,9 +57,9 @@ public:
     void Save(const NCellMaster::TSaveContext& context) const;
     void Load(const NCellMaster::TLoadContext& context);
 
-    void AddReplica(TDataNodePtrWithIndex replica, bool cached);
-    void RemoveReplica(TDataNodePtrWithIndex replica, bool cached);
-    TSmallVector<TDataNodePtrWithIndex, TypicalReplicationFactor> GetReplicas() const;
+    void AddReplica(TNodePtrWithIndex replica, bool cached);
+    void RemoveReplica(TNodePtrWithIndex replica, bool cached);
+    TSmallVector<TNodePtrWithIndex, TypicalReplicationFactor> GetReplicas() const;
 
     bool ValidateChunkInfo(const NChunkClient::NProto::TChunkInfo& chunkInfo) const;
     bool IsConfirmed() const;

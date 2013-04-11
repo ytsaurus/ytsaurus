@@ -1,8 +1,6 @@
 #include "stdafx.h"
 #include "chunk_replicator.h"
-#include "node_lease_tracker.h"
 #include "chunk_placement.h"
-#include "node.h"
 #include "job.h"
 #include "chunk.h"
 #include "chunk_list.h"
@@ -16,7 +14,7 @@
 #include <ytlib/misc/small_vector.h>
 #include <ytlib/misc/protobuf_helpers.h>
 
-#include <ytlib/chunk_client/node_directory.h>
+#include <ytlib/node_tracker_client/node_directory.h>
 
 #include <ytlib/profiling/profiler.h>
 #include <ytlib/profiling/timing.h>
@@ -30,6 +28,8 @@
 #include <server/chunk_server/chunk_manager.h>
 #include <server/chunk_server/node_directory_builder.h>
 
+#include <server/node_tracker_server/node_tracker.h>
+
 namespace NYT {
 namespace NChunkServer {
 
@@ -37,11 +37,11 @@ using namespace NCellMaster;
 using namespace NObjectClient;
 using namespace NProfiling;
 using namespace NChunkClient;
-using namespace NChunkServer;
+using namespace NNodeTrackerClient;
 
-using NChunkServer::NProto::TJobInfo;
-using NChunkServer::NProto::TJobStartInfo;
-using NChunkServer::NProto::TJobStopInfo;
+using NNodeTrackerClient::NProto::TJobInfo;
+using NNodeTrackerClient::NProto::TJobStartInfo;
+using NNodeTrackerClient::NProto::TJobStopInfo;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,18 +64,15 @@ Stroka ToString(const TReplicaStatistics& statistics)
 TChunkReplicator::TChunkReplicator(
     TChunkManagerConfigPtr config,
     TBootstrap* bootstrap,
-    TChunkPlacementPtr chunkPlacement,
-    TNodeLeaseTrackerPtr nodeLeaseTracker)
+    TChunkPlacementPtr chunkPlacement)
     : Config(config)
     , Bootstrap(bootstrap)
     , ChunkPlacement(chunkPlacement)
-    , NodeLeaseTracker(nodeLeaseTracker)
     , ChunkRefreshDelay(DurationToCpuDuration(config->ChunkRefreshDelay))
 {
     YCHECK(config);
     YCHECK(bootstrap);
     YCHECK(chunkPlacement);
-    YCHECK(nodeLeaseTracker);
 
     RefreshInvoker = New<TPeriodicInvoker>(
         Bootstrap->GetMetaStateFacade()->GetEpochInvoker(EStateThreadQueue::ChunkMaintenance),
@@ -89,10 +86,21 @@ TChunkReplicator::TChunkReplicator(
         Config->ChunkRFUpdatePeriod,
         EPeriodicInvokerMode::Manual);
     RFUpdateInvoker->Start();
+
+    auto nodeTracker = Bootstrap->GetNodeTracker();
+    FOREACH (auto* node, nodeTracker->GetNodes()) {
+        OnNodeRegistered(node);
+    }
+
+    auto chunkManager = Bootstrap->GetChunkManager();
+    FOREACH (auto* chunk, chunkManager->GetChunks()) {
+        ScheduleChunkRefresh(chunk);
+        ScheduleRFUpdate(chunk);
+    }
 }
 
 void TChunkReplicator::ScheduleJobs(
-    TDataNode* node,
+    TNode* node,
     const std::vector<TJobInfo>& runningJobs,
     std::vector<TJobStartInfo>* jobsToStart,
     std::vector<TJobStopInfo>* jobsToStop)
@@ -117,7 +125,7 @@ void TChunkReplicator::ScheduleJobs(
     }
 }
 
-void TChunkReplicator::OnNodeRegistered(TDataNode* node)
+void TChunkReplicator::OnNodeRegistered(TNode* node)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -132,7 +140,7 @@ void TChunkReplicator::OnNodeRegistered(TDataNode* node)
     }
 }
 
-void TChunkReplicator::OnNodeUnregistered(TDataNode* node)
+void TChunkReplicator::OnNodeUnregistered(TNode* node)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -147,7 +155,7 @@ void TChunkReplicator::OnChunkRemoved(TChunk* chunk)
     OverreplicatedChunks_.erase(chunk);
 }
 
-void TChunkReplicator::ScheduleChunkRemoval(TDataNode* node, const TChunkId& chunkId)
+void TChunkReplicator::ScheduleChunkRemoval(TNode* node, const TChunkId& chunkId)
 {
     node->ChunksToRemove().insert(chunkId);
     FOREACH (auto& chunksToReplicate, node->ChunksToReplicate()) {
@@ -155,13 +163,13 @@ void TChunkReplicator::ScheduleChunkRemoval(TDataNode* node, const TChunkId& chu
     }
 }
 
-void TChunkReplicator::ScheduleChunkRemoval(TDataNode* node, TChunkPtrWithIndex chunkWithIndex)
+void TChunkReplicator::ScheduleChunkRemoval(TNode* node, TChunkPtrWithIndex chunkWithIndex)
 {
     ScheduleChunkRemoval(node, EncodeChunkId(chunkWithIndex));
 }
 
 void TChunkReplicator::ProcessExistingJobs(
-    TDataNode* node,
+    TNode* node,
     const std::vector<TJobInfo>& runningJobs,
     std::vector<TJobStopInfo>* jobsToStop,
     int* replicationJobCount,
@@ -276,7 +284,7 @@ void TChunkReplicator::ProcessExistingJobs(
 }
 
 TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleReplicationJob(
-    TDataNode* sourceNode,
+    TNode* sourceNode,
     const TChunkId& chunkId,
     std::vector<TJobStartInfo>* jobsToStart)
 {
@@ -318,7 +326,7 @@ TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleReplicationJob(
     ToProto(startInfo.mutable_chunk_id(), chunkId);
     std::vector<Stroka> targetAddresses;
     FOREACH (auto* target, targets) {
-        ToProto(startInfo.add_targets(), target->GetDescriptor());
+        NNodeTrackerClient::ToProto(startInfo.add_targets(), target->GetDescriptor());
         ChunkPlacement->OnSessionHinted(target);
         targetAddresses.push_back(target->GetAddress());
     }
@@ -338,7 +346,7 @@ TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleReplicationJob(
 }
 
 TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleBalancingJob(
-    TDataNode* sourceNode,
+    TNode* sourceNode,
     TChunkPtrWithIndex chunkWithIndex,
     double maxFillCoeff,
     std::vector<TJobStartInfo>* jobsToStart)
@@ -381,7 +389,7 @@ TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleBalancingJob(
 }
 
 TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleRemovalJob(
-    TDataNode* node,
+    TNode* node,
     const TChunkId& chunkId,
     std::vector<TJobStartInfo>* jobsToStart)
 {
@@ -412,7 +420,7 @@ TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleRemovalJob(
 }
 
 void TChunkReplicator::ScheduleNewJobs(
-    TDataNode* node,
+    TNode* node,
     int maxReplicationJobsToStart,
     int maxRemovalJobsToStart,
     std::vector<TJobStartInfo>* jobsToStart)
@@ -695,10 +703,13 @@ bool TChunkReplicator::IsEnabled()
 {
     // This method also logs state changes.
 
+    auto chunkManager = Bootstrap->GetChunkManager();
+    auto nodeTracker = Bootstrap->GetNodeTracker();
+
     auto config = Config->ChunkReplicator;
     if (config->MinOnlineNodeCount) {
         int needOnline = config->MinOnlineNodeCount.Get();
-        int gotOnline = NodeLeaseTracker->GetOnlineNodeCount();
+        int gotOnline = nodeTracker->GetOnlineNodeCount();
         if (gotOnline < needOnline) {
             if (!LastEnabled || LastEnabled.Get()) {
                 LOG_INFO("Chunk replicator disabled: too few online nodes, needed >= %d but got %d",
@@ -710,7 +721,6 @@ bool TChunkReplicator::IsEnabled()
         }
     }
 
-    auto chunkManager = Bootstrap->GetChunkManager();
     int chunkCount = chunkManager->GetChunkCount();
     int lostChunkCount = chunkManager->LostChunks().size();
     if (config->MaxLostChunkFraction && chunkCount > 0) {

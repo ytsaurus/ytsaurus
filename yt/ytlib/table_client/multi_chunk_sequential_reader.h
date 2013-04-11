@@ -18,7 +18,7 @@ public:
         TTableReaderConfigPtr config,
         NRpc::IChannelPtr masterChannel,
         NChunkClient::IBlockCachePtr blockCache,
-        NChunkClient::TNodeDirectoryPtr nodeDirectory,
+        NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         std::vector<NProto::TInputChunk>&& inputChunks,
         const typename TBase::TProviderPtr& readerProvider);
 

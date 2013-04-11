@@ -29,8 +29,9 @@
 #include <ytlib/table_client/size_limits.h>
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/chunk_client/node_directory.h>
 #include <ytlib/chunk_client/data_node_service.pb.h>
+
+#include <ytlib/node_tracker_client/node_directory.h>
 
 #include <cmath>
 
@@ -39,6 +40,7 @@ namespace NChunkHolder {
 
 using namespace NRpc;
 using namespace NChunkClient;
+using namespace NNodeTrackerClient;
 using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////

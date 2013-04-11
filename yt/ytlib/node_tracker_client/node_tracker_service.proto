@@ -1,12 +1,13 @@
-package NYT.NChunkServer.NProto;
+package NYT.NNodeTrackerClient.NProto;
 
 import "yt/ytlib/misc/guid.proto";
 import "yt/ytlib/misc/error.proto";
-import "yt/ytlib/chunk_client/node.proto";
+import "yt/ytlib/node_tracker_client/node.proto";
 import "yt/ytlib/chunk_client/chunk.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Describes the current state of a storage location.
 message TLocationStatistics
 {
     required int64 available_space = 1;
@@ -17,6 +18,7 @@ message TLocationStatistics
     required bool full = 6;
 }
 
+// Describes the current state of the whole node.
 message TNodeStatistics
 {
     required int64 total_available_space = 1;
@@ -26,6 +28,8 @@ message TNodeStatistics
     required bool full = 5;
     repeated TLocationStatistics locations = 6;
 }
+
+// Chunk Manager stuff.
 
 message TChunkAddInfo
 {
@@ -52,7 +56,7 @@ message TJobStartInfo
     required int32 type = 1;
     required NYT.NProto.TGuid job_id = 2;
     required NYT.NProto.TGuid chunk_id = 3;
-    repeated NYT.NChunkClient.NProto.TNodeDescriptor targets = 4;
+    repeated NYT.NNodeTrackerClient.NProto.TNodeDescriptor targets = 4;
 }
 
 message TJobStopInfo
@@ -64,7 +68,7 @@ message TJobStopInfo
 
 message TReqRegisterNode
 {
-    required NYT.NChunkClient.NProto.TNodeDescriptor node_descriptor = 1;
+    required TNodeDescriptor node_descriptor = 1;
     required TNodeStatistics statistics = 2;
     required NYT.NProto.TGuid cell_guid = 3;
 }
@@ -81,6 +85,8 @@ message TReqFullHeartbeat
 {
     required int32 node_id = 1;
     required TNodeStatistics statistics = 2;
+
+    // Chunk Manager stuff.
     repeated TChunkAddInfo chunks = 3;
 }
 
@@ -93,6 +99,8 @@ message TReqIncrementalHeartbeat
 {
     required int32 node_id = 1;
     required TNodeStatistics statistics = 2;
+
+    // Chunk Manager stuff.
     repeated TChunkAddInfo added_chunks = 3;
     repeated TChunkRemoveInfo removed_chunks = 4;
     repeated TJobInfo jobs = 5;
@@ -100,6 +108,7 @@ message TReqIncrementalHeartbeat
 
 message TRspIncrementalHeartbeat
 {
+    // Chunk Manager stuff.
     repeated TJobStartInfo jobs_to_start = 2;
     repeated TJobStopInfo jobs_to_stop = 3;
 }

@@ -2,7 +2,8 @@
 
 #include "public.h"
 #include "chunk_replica.h"
-#include "node_directory.h"
+
+#include <ytlib/node_tracker_client/public.h>
 
 #include <ytlib/misc/nullable.h>
 
@@ -17,8 +18,8 @@ IAsyncReaderPtr CreateReplicationReader(
     TRemoteReaderConfigPtr config,
     IBlockCachePtr blockCache,
     NRpc::IChannelPtr masterChannel,
-    TNodeDirectoryPtr nodeDirectory,
-    const TNullable<TNodeDescriptor>& localDescriptor,
+    NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
+    const TNullable<NNodeTrackerClient::TNodeDescriptor>& localDescriptor,
     const TChunkId& chunkId,
     const TChunkReplicaList& seedReplicas = TChunkReplicaList());
 

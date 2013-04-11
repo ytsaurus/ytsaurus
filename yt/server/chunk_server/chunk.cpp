@@ -102,11 +102,11 @@ void TChunk::Load(const NCellMaster::TLoadContext& context)
     LoadNullableObjectRefs(context, CachedReplicas_);
 }
 
-void TChunk::AddReplica(TDataNodePtrWithIndex replica, bool cached)
+void TChunk::AddReplica(TNodePtrWithIndex replica, bool cached)
 {
     if (cached) {
         if (!CachedReplicas_) {
-            CachedReplicas_.Reset(new yhash_set<TDataNodePtrWithIndex>());
+            CachedReplicas_.Reset(new yhash_set<TNodePtrWithIndex>());
         }
         YCHECK(CachedReplicas_->insert(replica).second);
     } else {
@@ -114,7 +114,7 @@ void TChunk::AddReplica(TDataNodePtrWithIndex replica, bool cached)
     }
 }
 
-void TChunk::RemoveReplica(TDataNodePtrWithIndex replica, bool cached)
+void TChunk::RemoveReplica(TNodePtrWithIndex replica, bool cached)
 {
     if (cached) {
         YASSERT(~CachedReplicas_);
@@ -133,9 +133,9 @@ void TChunk::RemoveReplica(TDataNodePtrWithIndex replica, bool cached)
     }
 }
 
-TSmallVector<TDataNodePtrWithIndex, TypicalReplicationFactor> TChunk::GetReplicas() const
+TSmallVector<TNodePtrWithIndex, TypicalReplicationFactor> TChunk::GetReplicas() const
 {
-    TSmallVector<TDataNodePtrWithIndex, TypicalReplicationFactor> result(StoredReplicas_.begin(), StoredReplicas_.end());
+    TSmallVector<TNodePtrWithIndex, TypicalReplicationFactor> result(StoredReplicas_.begin(), StoredReplicas_.end());
     if (~CachedReplicas_) {
         result.insert(result.end(), CachedReplicas_->begin(), CachedReplicas_->end());
     }

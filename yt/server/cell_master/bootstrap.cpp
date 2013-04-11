@@ -29,6 +29,8 @@
 
 #include <ytlib/profiling/profiling_manager.h>
 
+#include <server/node_tracker_server/node_tracker.h>
+
 #include <server/object_server/object_manager.h>
 #include <server/object_server/object_service.h>
 
@@ -37,10 +39,12 @@
 
 #include <server/cypress_server/cypress_manager.h>
 
+#include <server/node_tracker_server/node_authority.h>
+#include <server/node_tracker_server/node_tracker_service.h>
+#include <server/node_tracker_server/cypress_integration.h>
+
 #include <server/chunk_server/chunk_manager.h>
-#include <server/chunk_server/chunk_service.h>
 #include <server/chunk_server/cypress_integration.h>
-#include <server/chunk_server/node_authority.h>
 
 #include <server/security_server/security_manager.h>
 #include <server/security_server/cypress_integration.h>
@@ -62,6 +66,7 @@ using namespace NBus;
 using namespace NRpc;
 using namespace NYTree;
 using namespace NMetaState;
+using namespace NNodeTrackerServer;
 using namespace NTransactionServer;
 using namespace NChunkServer;
 using namespace NObjectServer;
@@ -100,6 +105,16 @@ IServerPtr TBootstrap::GetRpcServer() const
     return RpcServer;
 }
 
+TNodeTrackerPtr TBootstrap::GetNodeTracker() const
+{
+    return NodeTracker;
+}
+
+INodeAuthorityPtr TBootstrap::GetNodeAuthority() const
+{
+    return NodeAuthority;
+}
+
 TTransactionManagerPtr TBootstrap::GetTransactionManager() const
 {
     return TransactionManager;
@@ -123,11 +138,6 @@ TObjectManagerPtr TBootstrap::GetObjectManager() const
 TChunkManagerPtr TBootstrap::GetChunkManager() const
 {
     return ChunkManager;
-}
-
-INodeAuthorityPtr TBootstrap::GetNodeAuthority() const
-{
-    return NodeAuthority;
 }
 
 TSecurityManagerPtr TBootstrap::GetSecurityManager() const
@@ -155,19 +165,19 @@ void TBootstrap::Run()
 
     // NB: This is exactly the order in which parts get registered and there are some
     // dependencies in Clear methods.
-    ObjectManager = New<TObjectManager>(Config->Objects, this);
+    ObjectManager = New<TObjectManager>(Config->ObjectManager, this);
     SecurityManager = New<TSecurityManager>(this);
-    TransactionManager = New<TTransactionManager>(Config->Transactions, this);
+    NodeTracker = New<TNodeTracker>(Config->NodeTracker, this);
+    NodeAuthority = CreateNodeAuthority(this);
+    TransactionManager = New<TTransactionManager>(Config->TransactionManager, this);
     CypressManager = New<TCypressManager>(this);
-    ChunkManager = New<TChunkManager>(Config->Chunks, this);
+    ChunkManager = New<TChunkManager>(Config->ChunkManager, this);
 
     ObjectManager->Initialize();
     SecurityManager->Initialize();
     TransactionManager->Inititialize();
     CypressManager->Initialize();
     ChunkManager->Initialize();
-
-    NodeAuthority = CreateNodeAuthority(this);
 
     auto monitoringManager = New<TMonitoringManager>();
     monitoringManager->Register(
@@ -197,8 +207,8 @@ void TBootstrap::Run()
     SyncYPathSet(orchidRoot, "/@service_name", ConvertToYsonString("master"));
     SetBuildAttributes(orchidRoot);
 
-    RpcServer->RegisterService(New<TObjectService>(Config->Objects, this));
-    RpcServer->RegisterService(New<TChunkService>(Config->Chunks, this));
+    RpcServer->RegisterService(New<TObjectService>(Config->ObjectManager, this));
+    RpcServer->RegisterService(New<TNodeTrackerService>(Config->NodeTracker, this));
     RpcServer->RegisterService(New<TOrchidService>(orchidRoot, GetControlInvoker()));
 
     CypressManager->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::ChunkMap));

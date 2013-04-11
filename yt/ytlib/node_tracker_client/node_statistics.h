@@ -1,10 +1,11 @@
 #pragma once
 
 #include "public.h"
-#include <server/chunk_server/chunk_service.pb.h>
+
+#include <ytlib/node_tracker_client/node_tracker_service.pb.h>
 
 namespace NYT {
-namespace NChunkServer {
+namespace NNodeTrackerClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,11 +30,11 @@ struct TTotalNodeStatistics
 
 namespace NProto {
 
-Stroka ToString(const NYT::NChunkServer::NProto::TNodeStatistics& statistics);
+Stroka ToString(const NYT::NNodeTrackerClient::NProto::TNodeStatistics& statistics);
 
 } // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
+} // namespace NNodeTrackerClient
 } // namespace NYT

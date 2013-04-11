@@ -130,7 +130,7 @@ IChannelPtr TBootstrap::GetSchedulerChannel() const
     return NodeBootstrap->GetSchedulerChannel();
 }
 
-const NChunkClient::TNodeDescriptor& TBootstrap::GetLocalDescriptor() const
+const NNodeTrackerClient::TNodeDescriptor& TBootstrap::GetLocalDescriptor() const
 {
     return NodeBootstrap->GetLocalDescriptor();
 }

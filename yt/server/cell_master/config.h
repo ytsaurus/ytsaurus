@@ -3,9 +3,15 @@
 #include "public.h"
 
 #include <ytlib/meta_state/config.h>
+
+#include <server/node_tracker_server/config.h>
+
 #include <server/transaction_server/config.h>
+
 #include <server/chunk_server/config.h>
+
 #include <server/object_server/config.h>
+
 #include <server/bootstrap/config.h>
 
 namespace NYT {
@@ -20,11 +26,13 @@ struct TCellMasterConfig
     //! Meta state configuration.
     NMetaState::TPersistentStateManagerConfigPtr MetaState;
 
-    NTransactionServer::TTransactionManagerConfigPtr Transactions;
+    NNodeTrackerServer::TNodeTrackerConfigPtr NodeTracker;
 
-    NChunkServer::TChunkManagerConfigPtr Chunks;
+    NTransactionServer::TTransactionManagerConfigPtr TransactionManager;
 
-    NObjectServer::TObjectManagerConfigPtr Objects;
+    NChunkServer::TChunkManagerConfigPtr ChunkManager;
+
+    NObjectServer::TObjectManagerConfigPtr ObjectManager;
 
     //! HTTP monitoring interface port number.
     int MonitoringPort;
@@ -33,11 +41,13 @@ struct TCellMasterConfig
     {
         Register("meta_state", MetaState)
             .DefaultNew();
-        Register("transactions", Transactions)
+        Register("node_tracker", NodeTracker)
             .DefaultNew();
-        Register("chunks", Chunks)
+        Register("transaction_manager", TransactionManager)
             .DefaultNew();
-        Register("objects", Objects)
+        Register("chunk_manager", ChunkManager)
+            .DefaultNew();
+        Register("object_manager", ObjectManager)
             .DefaultNew();
         Register("monitoring_port", MonitoringPort)
             .Default(10000);

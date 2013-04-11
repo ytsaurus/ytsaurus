@@ -9,7 +9,6 @@ set( SRCS
   ${BASE}/chunk_proxy.cpp
   ${BASE}/chunk_replica.cpp
   ${BASE}/chunk_replicator.cpp
-  ${BASE}/chunk_service.cpp
   ${BASE}/chunk_tree.cpp
   ${BASE}/chunk_tree_balancer.cpp
   ${BASE}/chunk_tree_statistics.cpp
@@ -17,11 +16,6 @@ set( SRCS
   ${BASE}/cypress_integration.cpp
   ${BASE}/job.cpp
   ${BASE}/job_list.cpp
-  ${BASE}/node.cpp
-  ${BASE}/node_authority.cpp
-  ${BASE}/node_directory_builder.cpp
-  ${BASE}/node_lease_tracker.cpp
-  ${BASE}/node_statistics.cpp
   ${BASE}/private.cpp
 )
 set( HDRS
@@ -34,8 +28,6 @@ set( HDRS
   ${BASE}/chunk_replica-inl.h
   ${BASE}/chunk_replica.h
   ${BASE}/chunk_replicator.h
-  ${BASE}/chunk_service.h
-  ${BASE}/chunk_service_proxy.h
   ${BASE}/chunk_tree.h
   ${BASE}/chunk_tree_balancer.h
   ${BASE}/chunk_tree_statistics.h
@@ -44,11 +36,6 @@ set( HDRS
   ${BASE}/cypress_integration.h
   ${BASE}/job.h
   ${BASE}/job_list.h
-  ${BASE}/node.h
-  ${BASE}/node_authority.h
-  ${BASE}/node_directory_builder.h
-  ${BASE}/node_lease_tracker.h
-  ${BASE}/node_statistics.h
   ${BASE}/private.h
   ${BASE}/public.h
 )
@@ -59,7 +46,6 @@ list(APPEND YT_SOURCE_FILES
 )
 
 protoc( ${BASE}/chunk_manager.proto YT_SOURCE_FILES )
-protoc( ${BASE}/chunk_service.proto YT_SOURCE_FILES )
 
 include_directories(
   ${CMAKE_BINARY_DIR}/yt/ytlib/table_client

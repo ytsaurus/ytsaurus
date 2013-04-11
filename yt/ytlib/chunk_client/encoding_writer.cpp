@@ -1,10 +1,11 @@
 ﻿#include "stdafx.h"
 #include "encoding_writer.h"
-
 #include "config.h"
 #include "private.h"
 #include "dispatcher.h"
 #include "async_writer.h"
+
+#include <ytlib/compression/codec.h>
 
 namespace NYT {
 namespace NChunkClient {

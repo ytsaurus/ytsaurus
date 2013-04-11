@@ -16,6 +16,12 @@ typedef TSmallVector<int, MaxTotalBlockCount> TBlockIndexList;
 
 struct ICodec;
 
+DECLARE_ENUM(ECodec,
+    ((None)           (0))
+    ((ReedSolomon_6_3)(1))
+    ((Lrc_12_2_2)     (2))
+);
+
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace NErasure

@@ -7,6 +7,8 @@
 
 #include <ytlib/meta_state/composite_meta_state.h>
 
+#include <server/node_tracker_server/public.h>
+
 #include <server/object_server/public.h>
 
 #include <server/transaction_server/public.h>
@@ -27,7 +29,7 @@ DECLARE_ENUM(ESerializationPriority,
     (Values)
 );
 
-const int CurrentSnapshotVersion = 9;
+const int CurrentSnapshotVersion = 10;
 NMetaState::TVersionValidator SnapshotVersionValidator();
 
 struct TLoadContext
@@ -74,7 +76,7 @@ template <>
 NSecurityServer::TAccount* TLoadContext::Get(const NObjectClient::TObjectId& id) const;
 
 template <>
-NChunkServer::TDataNode* TLoadContext::Get(NChunkServer::TNodeId id) const;
+NNodeTrackerServer::TNode* TLoadContext::Get(NNodeTrackerServer::TNodeId id) const;
 
 template <>
 NSecurityServer::TSubject* TLoadContext::Get(const NObjectClient::TObjectId& id) const;

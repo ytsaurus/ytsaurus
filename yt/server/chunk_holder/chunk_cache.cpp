@@ -23,14 +23,14 @@
 #include <ytlib/chunk_client/replication_reader.h>
 #include <ytlib/chunk_client/sequential_reader.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/chunk_client/node_directory.h>
 
-#include <server/chunk_server/chunk_service_proxy.h>
+#include <ytlib/node_tracker_client/node_directory.h>
 
 namespace NYT {
 namespace NChunkHolder {
 
 using namespace NChunkClient;
+using namespace NNodeTrackerClient;
 using namespace NRpc;
 
 using NChunkClient::NProto::TChunkMeta;

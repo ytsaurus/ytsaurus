@@ -8,7 +8,6 @@
 #include "chunk_ypath_proxy.h"
 #include "data_node_service_proxy.h"
 #include "dispatcher.h"
-#include "node_directory.h"
 
 #include <ytlib/misc/foreach.h>
 #include <ytlib/misc/string.h>
@@ -22,6 +21,8 @@
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
+#include <ytlib/node_tracker_client/node_directory.h>
+
 #include <util/random/shuffle.h>
 
 namespace NYT {
@@ -30,6 +31,7 @@ namespace NChunkClient {
 using namespace NRpc;
 using namespace NObjectClient;
 using namespace NCypressClient;
+using namespace NNodeTrackerClient;
 
 using NYT::ToProto;
 using NYT::FromProto;

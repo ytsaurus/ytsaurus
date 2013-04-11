@@ -30,19 +30,19 @@
 #include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/chunk_client/replication_reader.h>
 #include <ytlib/chunk_client/async_reader.h>
-#include <ytlib/chunk_client/node_directory.h>
+
+#include <ytlib/node_tracker_client/node_directory.h>
 
 #include <ytlib/meta_state/master_channel.h>
 
-
-// Defined inside util/private/lf_alloc/lf_allocX64.cpp
+// Defined in util/private/lf_alloc/lf_allocX64.cpp
 void SetLargeBlockLimit(i64 limit);
 
 
 namespace NYT {
 namespace NJobProxy {
 
-using namespace NElection;
+using namespace NNodeTrackerClient;
 using namespace NScheduler;
 using namespace NExecAgent;
 using namespace NBus;
@@ -61,8 +61,6 @@ TJobProxy::TJobProxy(
     , Logger(JobProxyLogger)
 {
     Logger.AddTag(Sprintf("JobId: %s", ~ToString(JobId)));
-    
-    TAddressResolver::Get()->Configure(config->AddressResolver);
 }
 
 void TJobProxy::SendHeartbeat()

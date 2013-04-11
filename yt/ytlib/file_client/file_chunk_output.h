@@ -5,7 +5,7 @@
 
 #include <ytlib/misc/thread_affinity.h>
 
-#include <ytlib/compression/codec.h>
+#include <ytlib/compression/public.h>
 
 #include <ytlib/logging/tagged_logger.h>
 

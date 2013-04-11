@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "chunk_replica.h"
-#include "node_directory.h"
+
+#include <ytlib/node_tracker_client/node_directory.h>
 
 #include <ytlib/erasure/public.h>
 
@@ -8,6 +9,8 @@
 
 namespace NYT {
 namespace NChunkClient {
+
+using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
