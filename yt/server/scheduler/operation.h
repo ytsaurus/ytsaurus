@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "statistics.h"
 
 #include <ytlib/misc/property.h>
 #include <ytlib/misc/error.h>
@@ -74,6 +75,15 @@ class TOperation
 
     //! Operation result, becomes set when the operation finishes.
     DEFINE_BYREF_RW_PROPERTY(NProto::TOperationResult, Result);
+
+    //! The total statistics for all completed jobs.
+    DEFINE_BYREF_RW_PROPERTY(TTotalJobStatistics, CompletedJobStatistics);
+
+    //! The total statistics for all failed jobs.
+    DEFINE_BYREF_RW_PROPERTY(TTotalJobStatistics, FailedJobStatistics);
+
+    //! The total statistics for all aborted jobs.
+    DEFINE_BYREF_RW_PROPERTY(TTotalJobStatistics, AbortedJobStatistics);
 
     //! Gets set when the operation is finished.
     TFuture<void> GetFinished();

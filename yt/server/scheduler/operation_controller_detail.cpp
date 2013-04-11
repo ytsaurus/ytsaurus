@@ -2072,6 +2072,11 @@ void TOperationControllerBase::BuildProgressYson(IYsonConsumer* consumer)
             .Item("failed").Value(JobCounter.GetFailed())
             .Item("aborted").Value(JobCounter.GetAborted())
             .Item("lost").Value(JobCounter.GetLost())
+        .EndMap()
+        .Item("job_statistics").BeginMap()
+            .Item("completed").Value(Operation->CompletedJobStatistics())
+            .Item("failed").Value(Operation->FailedJobStatistics())
+            .Item("aborted").Value(Operation->AbortedJobStatistics())
         .EndMap();
 }
 
