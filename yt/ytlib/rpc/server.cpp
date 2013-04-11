@@ -107,15 +107,17 @@ private:
         }
 
         auto requestId = FromProto<TRequestId>(header.request_id());
-        Stroka path = header.path();
-        Stroka verb = header.verb();
+        const auto& path = header.path();
+        const auto& verb = header.verb();
         bool oneWay = header.has_one_way() ? header.one_way() : false;
 
-        LOG_DEBUG("Request received (Path: %s, Verb: %s, RequestId: %s, OneWay: %s)",
+        LOG_DEBUG("Request received (Path: %s, Verb: %s, RequestId: %s, OneWay: %s, RequestStartTime: %s, RetryStartTime: %s)",
             ~path,
             ~verb,
             ~ToString(requestId),
-            ~ToString(oneWay));
+            ~ToString(oneWay),
+            header.has_request_start_time() ? ~ToString(TInstant(header.request_start_time())) : "<Null>",
+            header.has_retry_start_time() ? ~ToString(TInstant(header.retry_start_time())) : "<Null>");
 
         if (!Started) {
             auto error = TError(

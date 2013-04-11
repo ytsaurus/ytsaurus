@@ -4,6 +4,7 @@
 
 #include <ytlib/misc/nullable.h>
 #include <ytlib/misc/property.h>
+#include <ytlib/misc/ref_tracked.h>
 
 #include <ytlib/ytree/public.h>
 #include <ytlib/ytree/yson_string.h>
@@ -16,6 +17,7 @@ namespace NObjectServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TAttributeSet
+    : public TRefTracked<TAttributeSet>
 {
     typedef yhash_map<Stroka, TNullable<NYTree::TYsonString> > TAttributeMap;
     DEFINE_BYREF_RW_PROPERTY(TAttributeMap, Attributes);

@@ -44,7 +44,8 @@ public:
         int index);
 
     virtual TAutoPtr<TErrorOutput> CreateErrorOutput(
-        const NTransactionClient::TTransactionId& transactionId) const;
+        const NTransactionClient::TTransactionId& transactionId,
+        i64 maxSize) const;
 
     void SetStderrChunkId(const NChunkClient::TChunkId& chunkId);
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunks() const;
@@ -58,7 +59,7 @@ protected:
     NChunkClient::TChunkId StderrChunkId;
 
     std::vector<NTableClient::ISyncReaderPtr> Inputs;
-    std::vector<NTableClient::TTableChunkSequenceWriterPtr> Outputs;
+    std::vector<NTableClient::TTableChunkWriterProviderPtr> Outputs;
 
     NLog::TLogger& Logger;
 

@@ -33,10 +33,11 @@ struct TJobIOConfig
         Register("error_file_writer", ErrorFileWriter)
             .DefaultNew();
 
-        // We do not provide much fault tolerance for stderr by default.
-        ErrorFileWriter->ReplicationFactor = 1;
-        ErrorFileWriter->UploadReplicationFactor = 1;
-        ErrorFileWriter->ChunkVital = false;
+        RegisterInitializer([&] () {
+            ErrorFileWriter->ReplicationFactor = 1;
+            ErrorFileWriter->UploadReplicationFactor = 1;
+            ErrorFileWriter->ChunkVital = false;
+        });
     }
 };
 
@@ -91,6 +92,8 @@ struct TUserJobSpec
     bool EnableTableIndex;
     bool UseYamrDescriptors;
 
+    i64 MaxStderrSize;
+
     TUserJobSpec()
     {
         Register("command", Command)
@@ -117,6 +120,10 @@ struct TUserJobSpec
             .Default(false);
         Register("use_yamr_descriptors", UseYamrDescriptors)
             .Default(false);
+        Register("max_stderr_size", MaxStderrSize)
+            .Default((i64)5 * 1024 * 1024) // 5MB
+            .GreaterThan(0)
+            .LessThanOrEqual((i64)1024 * 1024 * 1024);
     }
 };
 
@@ -129,7 +136,6 @@ struct TMapOperationSpec
     std::vector<NYPath::TRichYPath> InputTablePaths;
     std::vector<NYPath::TRichYPath> OutputTablePaths;
     TNullable<int> JobCount;
-    i64 JobSliceDataSize;
     i64 DataSizePerJob;
     TDuration LocalityTimeout;
     TJobIOConfigPtr JobIO;
@@ -152,7 +158,9 @@ struct TMapOperationSpec
         Register("job_io", JobIO)
             .DefaultNew();
 
-        JobIO->TableReader->PrefetchWindow = 10;
+        RegisterInitializer([&] () {
+            JobIO->TableReader->MaxBufferSize = 1024L * 1024 * 1024;
+        });
     }
 };
 
@@ -169,13 +177,15 @@ struct TMergeOperationSpecBase
 
     TNullable<int> JobCount;
 
-    i64 JobSliceDataSize;
-
     TDuration LocalityTimeout;
     TJobIOConfigPtr JobIO;
 
     TMergeOperationSpecBase()
+        : DataSizePerJob(-1)
     {
+        Register("data_size_per_job", DataSizePerJob)
+            .Default((i64) 1024 * 1024 * 1024)
+            .GreaterThan(0);
         Register("job_count", JobCount)
             .Default()
             .GreaterThan(0);
@@ -206,16 +216,13 @@ struct TMergeOperationSpec
 
     TMergeOperationSpec()
     {
-        Register("data_size_per_job", DataSizePerJob)
-            .Default((i64) 1024 * 1024 * 1024)
-            .GreaterThan(0);
         Register("input_table_paths", InputTablePaths)
             .NonEmpty();
         Register("output_table_path", OutputTablePath);
-        Register("combine_chunks", CombineChunks)
-            .Default(false);
         Register("mode", Mode)
             .Default(EMergeMode::Unordered);
+        Register("combine_chunks", CombineChunks)
+            .Default(false);
         Register("allow_passthrough_chunks", AllowPassthroughChunks)
             .Default(true);
         Register("merge_by", MergeBy)
@@ -228,15 +235,15 @@ struct TUnorderedMergeOperationSpec
 {
     TUnorderedMergeOperationSpec()
     {
-        JobIO->TableReader->PrefetchWindow = 10;
+        RegisterInitializer([&] () {
+            JobIO->TableReader->MaxBufferSize = 1024L * 1024 * 1024;
+        });
     }
 };
 
 struct TOrderedMergeOperationSpec
     : public TMergeOperationSpec
-{
-
-};
+{ };
 
 struct TSortedMergeOperationSpec
     : public TMergeOperationSpec
@@ -270,9 +277,6 @@ struct TReduceOperationSpec
 
     TReduceOperationSpec()
     {
-        Register("data_size_per_job", DataSizePerJob)
-            .Default((i64) 32 * 1024 * 1024)
-            .GreaterThan(0);
         Register("reducer", Reducer)
             .DefaultNew();
         Register("input_table_paths", InputTablePaths)
@@ -280,6 +284,10 @@ struct TReduceOperationSpec
         Register("output_table_paths", OutputTablePaths);
         Register("reduce_by", ReduceBy)
             .Default();
+
+        RegisterInitializer([&] () {
+            DataSizePerJob = (i64) 32 * 1024 * 1024;
+        });
     }
 };
 
@@ -396,12 +404,14 @@ struct TSortOperationSpec
         Register("merge_locality_timeout", MergeLocalityTimeout)
             .Default(TDuration::Minutes(1));
 
-        PartitionJobIO->TableReader->PrefetchWindow = 10;
-        PartitionJobIO->TableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GB
+        RegisterInitializer([&] () {
+            PartitionJobIO->TableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
+            PartitionJobIO->TableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GB
 
-        SortJobIO->TableReader->PrefetchWindow = 10;
+            SortJobIO->TableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
 
-        MapSelectivityFactor = 1.0;
+            MapSelectivityFactor = 1.0;
+        });
     }
 };
 
@@ -456,18 +466,18 @@ struct TMapReduceOperationSpec
             .Default(1.0)
             .GreaterThan(0);
 
-
         // The following settings are inherited from base but make no sense for map-reduce:
-        //   JobSliceDataSize
         //   DataSizePerUnorderedMergeJob
         //   SimpleSortLocalityTimeout
         //   SimpleMergeLocalityTimeout
         //   MapSelectivityFactor
 
-        MapJobIO->TableReader->PrefetchWindow = 10;
-        MapJobIO->TableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GB
+        RegisterInitializer([&] () {
+            MapJobIO->TableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
+            MapJobIO->TableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GB
 
-        SortJobIO->TableReader->PrefetchWindow = 10;
+            SortJobIO->TableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
+        });
     }
 
     virtual void OnLoaded() override
@@ -529,12 +539,13 @@ struct TPooledOperationSpec
     TNullable<Stroka> Pool;
     double Weight;
 
-    TDuration MinSharePreemptionTimeout;
     double MinShareRatio;
 
-    TDuration FairSharePreemptionTimeout;
-    double FairShareStarvationTolerance;
-    double FairSharePreemptionTolerance;
+    // The following settings override schedule configuration.
+    TNullable<TDuration> MinSharePreemptionTimeout;
+    TNullable<TDuration> FairSharePreemptionTimeout;
+    TNullable<double> FairShareStarvationTolerance;
+    TNullable<double> FairSharePreemptionTolerance;
 
     TPooledOperationSpec()
     {
@@ -545,20 +556,20 @@ struct TPooledOperationSpec
             .Default(1.0)
             .GreaterThanOrEqual(1.0);
 
-        Register("min_share_preemption_timeout", MinSharePreemptionTimeout)
-            .Default(TDuration::Seconds(15));
         Register("min_share_ratio", MinShareRatio)
             .Default(1.0)
             .InRange(0.0, 1.0);
 
+        Register("min_share_preemption_timeout", MinSharePreemptionTimeout)
+            .Default(Null);
         Register("fair_share_preemption_timeout", FairSharePreemptionTimeout)
-            .Default(TDuration::Seconds(30));
+            .Default(Null);
         Register("fair_share_starvation_tolerance", FairShareStarvationTolerance)
             .InRange(0.0, 1.0)
-            .Default(0.8);
+            .Default(Null);
         Register("fair_share_preemption_tolerance", FairSharePreemptionTolerance)
-            .InRange(0.0, 1.0)
-            .Default(0.9);
+            .GreaterThanOrEqual(0.0)
+            .Default(Null);
     }
 };
 

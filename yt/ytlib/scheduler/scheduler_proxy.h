@@ -3,7 +3,8 @@
 #include "public.h"
 
 #include <ytlib/scheduler/scheduler_service.pb.h>
-#include <ytlib/rpc/service.h>
+
+#include <ytlib/rpc/client.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -19,7 +20,7 @@ public:
         return "SchedulerService";
     }
 
-    TSchedulerServiceProxy(NRpc::IChannelPtr channel)
+    explicit TSchedulerServiceProxy(NRpc::IChannelPtr channel)
         : TProxyBase(channel, GetServiceName())
     { }
 

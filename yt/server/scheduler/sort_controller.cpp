@@ -220,14 +220,16 @@ protected:
 
         virtual TNodeResources GetMinNeededResourcesHeavy() const override
         {
-            return Controller->GetPartitionResources(
-                ChunkPool->GetApproximateStripeStatistics());;
+            auto resources = Controller->GetPartitionResources(
+                ChunkPool->GetApproximateStripeStatistics());
+            return resources;
         }
 
         virtual TNodeResources GetNeededResources(TJobletPtr joblet) const override
         {
-            return Controller->GetPartitionResources(
+            auto resources = Controller->GetPartitionResources(
                 joblet->InputStripeList->GetStatistics());
+            return resources;
         }
 
         virtual IChunkPoolInput* GetChunkPoolInput() const override
@@ -1161,7 +1163,7 @@ protected:
     virtual bool IsPartitionJobNonexpanding() const = 0;
 
     virtual TNodeResources GetPartitionResources(
-        const std::vector<TChunkStripeStatistics>& statistics) const = 0;
+        const TChunkStripeStatisticsVector& statistics) const = 0;
 
     virtual TNodeResources GetSimpleSortResources(
         const TChunkStripeStatistics& stat,
@@ -1172,10 +1174,10 @@ protected:
         const TChunkStripeStatistics& stat) const = 0;
 
     virtual TNodeResources GetSortedMergeResources(
-        const std::vector<TChunkStripeStatistics>& statistics) const = 0;
+        const TChunkStripeStatisticsVector& statistics) const = 0;
 
     virtual TNodeResources GetUnorderedMergeResources(
-        const std::vector<TChunkStripeStatistics>& statistics) const = 0;
+        const TChunkStripeStatisticsVector& statistics) const = 0;
 
 
     // Unsorted helpers.
@@ -1663,7 +1665,7 @@ private:
     }
 
     virtual TNodeResources GetPartitionResources(
-        const std::vector<TChunkStripeStatistics>& statistics) const override
+        const TChunkStripeStatisticsVector& statistics) const override
     {
         auto stat = AggregateStatistics(statistics).front();
 
@@ -1729,7 +1731,7 @@ private:
     }
 
     virtual TNodeResources GetSortedMergeResources(
-        const std::vector<TChunkStripeStatistics>& statistics) const override
+        const TChunkStripeStatisticsVector& statistics) const override
     {
         TNodeResources result;
         result.set_slots(1);
@@ -1741,7 +1743,7 @@ private:
     }
 
     virtual TNodeResources GetUnorderedMergeResources(
-        const std::vector<TChunkStripeStatistics>& statistics) const override
+        const TChunkStripeStatisticsVector& statistics) const override
     {
         TNodeResources result;
         result.set_slots(1);
@@ -2118,7 +2120,7 @@ private:
         return false;
     }
 
-    virtual TNodeResources GetPartitionResources(const std::vector<TChunkStripeStatistics>& statistics) const override
+    virtual TNodeResources GetPartitionResources(const TChunkStripeStatisticsVector& statistics) const override
     {
         auto stat = AggregateStatistics(statistics).front();
 
@@ -2185,7 +2187,7 @@ private:
     }
 
     virtual TNodeResources GetSortedMergeResources(
-        const std::vector<TChunkStripeStatistics>& statistics) const override
+        const TChunkStripeStatisticsVector& statistics) const override
     {
         TNodeResources result;
         result.set_slots(1);
@@ -2201,7 +2203,7 @@ private:
     }
 
     virtual TNodeResources GetUnorderedMergeResources(
-        const std::vector<TChunkStripeStatistics>& statistics) const override
+        const TChunkStripeStatisticsVector& statistics) const override
     {
         YUNREACHABLE();
     }
@@ -2210,7 +2212,6 @@ private:
     {
         return true;
     }
-
 
     // Progress reporting.
 

@@ -51,18 +51,19 @@ DECLARE_ENUM(EChunkType,
 );
 
 DECLARE_ENUM(EErrorCode,
-    ((AllTargetNodesFailed)     (700))
-    ((PipelineFailed)           (701))
-    ((NoSuchSession)            (702))
-    ((SessionAlreadyExists)     (703))
-    ((ChunkAlreadyExists)       (704))
-    ((WindowError)              (705))
-    ((BlockContentMismatch)     (706))
-    ((NoSuchBlock)              (707))
-    ((NoSuchChunk)              (708))
-    ((ChunkPrecachingFailed)    (709))
-    ((OutOfSpace)               (710))
-    ((IOError)                  (711))
+    ((AllTargetNodesFailed)  (700))
+    ((PipelineFailed)        (701))
+    ((NoSuchSession)         (702))
+    ((SessionAlreadyExists)  (703))
+    ((ChunkAlreadyExists)    (704))
+    ((WindowError)           (705))
+    ((BlockContentMismatch)  (706))
+    ((NoSuchBlock)           (707))
+    ((NoSuchChunk)           (708))
+    ((ChunkPrecachingFailed) (709))
+    ((OutOfSpace)            (710))
+    ((IOError)               (711))
+
     ((MasterCommunicationFailed)(712))
 );
 
@@ -82,6 +83,12 @@ typedef TIntrusivePtr<TEncodingWriterOptions> TEncodingWriterOptionsPtr;
 
 struct TDispatcherConfig;
 typedef TIntrusivePtr<TDispatcherConfig> TDispatcherConfigPtr;
+
+struct TMultiChunkWriterConfig;
+typedef TIntrusivePtr<TMultiChunkWriterConfig> TMultiChunkWriterConfigPtr;
+
+struct TMultiChunkWriterOptions;
+typedef TIntrusivePtr<TMultiChunkWriterOptions> TMultiChunkWriterOptionsPtr;
 
 class TEncodingWriter;
 typedef TIntrusivePtr<TEncodingWriter> TEncodingWriterPtr;
@@ -151,6 +158,8 @@ int PartIndexFromErasurePartId(const TChunkId& id);
 //! For usual chunks, preserves the id and returns zero index.
 //! For erasure chunks, constructs the whole chunk id and extracts index.
 TChunkIdWithIndex DecodeChunkId(const TChunkId& id);
+template <class TChunkWriter>
+class TMultiChunkSequentialWriter;
 
 ///////////////////////////////////////////////////////////////////////////////
 

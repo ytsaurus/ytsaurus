@@ -58,6 +58,16 @@ void TYPathRequest::SetPath(const Stroka& path)
     Path_ = path;
 }
 
+TInstant TYPathRequest::GetStartTime() const
+{
+    YUNREACHABLE();
+}
+
+void TYPathRequest::SetStartTime(TInstant /*value*/)
+{
+    YUNREACHABLE();
+}
+
 const IAttributeDictionary& TYPathRequest::Attributes() const
 {
     return TEphemeralAttributeOwner::Attributes();
@@ -167,7 +177,7 @@ void ResolveYPath(
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::ResolveError,
-                "Error resolving path: %s",
+                "Error resolving path %s",
                 ~path)
                 << TErrorAttribute("verb", ~verb)
                 << TErrorAttribute("resolved_path", TRawString(ComputeResolvedYPath(path, currentPath)))
@@ -560,45 +570,104 @@ INodePtr UpdateNode(INodePtr base, INodePtr patch)
 
 bool AreNodesEqual(INodePtr lhs, INodePtr rhs)
 {
-    if (lhs->GetType() == ENodeType::Map && rhs->GetType() == ENodeType::Map) {
-        auto lhsMap = lhs->AsMap();
-        auto lhsKeys = lhsMap->GetKeys();
-        sort(lhsKeys.begin(), lhsKeys.end());
-
-        auto rhsMap = rhs->AsMap();
-        auto rhsKeys = rhsMap->GetKeys();
-        sort(rhsKeys.begin(), rhsKeys.end());
-
-        if (rhsKeys != lhsKeys) {
-            return false;
-        }
-
-        FOREACH (const auto& key, lhsKeys) {
-            if (!AreNodesEqual(lhsMap->FindChild(key), rhsMap->FindChild(key))) {
-                return false;
-            }
-        }
-        return true;
-    } else if (lhs->GetType() == ENodeType::List && rhs->GetType() == ENodeType::List) {
-        auto lhsList = lhs->AsList();
-        auto lhsChildren = lhsList->GetChildren();
-
-        auto rhsList = rhs->AsList();
-        auto rhsChildren = rhsList->GetChildren();
-
-        if (lhsChildren.size() != rhsChildren.size()) {
-            return false;
-        }
-        for (size_t i = 0; i < lhsChildren.size(); ++i) {
-            if (!AreNodesEqual(lhsList->FindChild(i), rhsList->FindChild(i))) {
-                return false;
-            }
-        }
-        return true;
-    } else if (lhs->GetType() == rhs->GetType()) {
-        return ConvertToYsonString(lhs) == ConvertToYsonString(rhs);
-    } else {
+    // Check types.
+    auto lhsType = lhs->GetType();
+    auto rhsType = rhs->GetType();
+    if (lhsType != rhsType) {
         return false;
+    }
+
+    // Check attributes.
+    const auto& lhsAttributes = lhs->Attributes();
+    const auto& rhsAttributes = rhs->Attributes();
+    
+    auto lhsAttributeKeys = lhsAttributes.List();
+    auto rhsAttributeKeys = rhsAttributes.List();
+    
+    if (lhsAttributeKeys.size() != rhsAttributeKeys.size()) {
+        return false;
+    }
+
+    std::sort(lhsAttributeKeys.begin(), lhsAttributeKeys.end());
+    std::sort(rhsAttributeKeys.begin(), rhsAttributeKeys.end());
+
+    for (size_t index = 0; index < lhsAttributeKeys.size(); ++index) {
+        if (lhsAttributeKeys[index] != rhsAttributeKeys[index]) {
+            return false;
+        }
+        auto lhsYson = lhsAttributes.GetYson(lhsAttributeKeys[index]);
+        auto rhsYson = lhsAttributes.GetYson(rhsAttributeKeys[index]);
+        auto lhsNode = ConvertToNode(lhsYson);
+        auto rhsNode = ConvertToNode(rhsYson);
+        if (!AreNodesEqual(lhsNode, rhsNode)) {
+            return false;
+        }
+    }
+
+    // Check content.
+    switch (lhsType) {
+        case ENodeType::Map: {
+            auto lhsMap = lhs->AsMap();
+            auto rhsMap = rhs->AsMap();
+
+            auto lhsKeys = lhsMap->GetKeys();
+            auto rhsKeys = rhsMap->GetKeys();
+
+            if (lhsKeys.size() != rhsKeys.size()) {
+                return false;
+            }
+
+            std::sort(lhsKeys.begin(), lhsKeys.end());
+            std::sort(rhsKeys.begin(), rhsKeys.end());
+
+            for (size_t index = 0; index < lhsKeys.size(); ++index) {
+                const auto& lhsKey = lhsKeys[index];
+                const auto& rhsKey = rhsKeys[index];
+                if (lhsKey != rhsKey) {
+                    return false;
+                }
+                if (!AreNodesEqual(lhsMap->FindChild(lhsKey), rhsMap->FindChild(rhsKey))) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        case ENodeType::List: {
+            auto lhsList = lhs->AsList();
+            auto lhsChildren = lhsList->GetChildren();
+
+            auto rhsList = rhs->AsList();
+            auto rhsChildren = rhsList->GetChildren();
+
+            if (lhsChildren.size() != rhsChildren.size()) {
+                return false;
+            }
+
+            for (size_t index = 0; index < lhsChildren.size(); ++index) {
+                if (!AreNodesEqual(lhsList->FindChild(index), rhsList->FindChild(index))) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        case ENodeType::String:
+            return lhs->GetValue<Stroka>() == rhs->GetValue<Stroka>();
+
+        case ENodeType::Integer:
+            return lhs->GetValue<i64>() == rhs->GetValue<i64>();
+
+        case ENodeType::Double:
+            return std::abs(lhs->GetValue<double>() - rhs->GetValue<double>()) < 1e-6;
+
+        case ENodeType::Entity:
+            return true;
+
+        default:
+            YUNREACHABLE();
     }
 }
 

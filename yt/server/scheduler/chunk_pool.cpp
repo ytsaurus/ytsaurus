@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "chunk_pool.h"
+#include "private.h"
 
 #include <ytlib/misc/id_generator.h>
 
@@ -133,14 +134,14 @@ TChunkStripeStatistics& operator += (
     return lhs;
 }
 
-std::vector<TChunkStripeStatistics> AggregateStatistics(
-    const std::vector<TChunkStripeStatistics>& statistics)
+TChunkStripeStatisticsVector AggregateStatistics(
+    const TChunkStripeStatisticsVector& statistics)
 {
     TChunkStripeStatistics sum;
     FOREACH (const auto& stat, statistics) {
         sum += stat;
     }
-    return std::vector<TChunkStripeStatistics>(1, sum);
+    return TChunkStripeStatisticsVector(1, sum);
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -154,9 +155,9 @@ TChunkStripeList::TChunkStripeList()
     , NonLocalChunkCount(0)
 { }
 
-std::vector<TChunkStripeStatistics> TChunkStripeList::GetStatistics() const
+TChunkStripeStatisticsVector TChunkStripeList::GetStatistics() const
 {
-    std::vector<TChunkStripeStatistics> result;
+    TChunkStripeStatisticsVector result;
     result.reserve(Stripes.size());
     FOREACH (const auto& stripe, Stripes) {
         result.push_back(stripe->GetStatistics());
@@ -168,8 +169,13 @@ TChunkStripeStatistics TChunkStripeList::GetAggregateStatistics() const
 {
     TChunkStripeStatistics result;
     result.ChunkCount = TotalChunkCount;
-    result.RowCount = TotalRowCount;
-    result.DataSize = TotalDataSize;
+    if (IsApproximate) {
+        result.RowCount = TotalRowCount * ApproximateSizesBoostFactor;
+        result.DataSize = TotalDataSize * ApproximateSizesBoostFactor;
+    } else {
+        result.RowCount = TotalRowCount;
+        result.DataSize = TotalDataSize;
+    }
     return result;
 }
 
@@ -345,9 +351,9 @@ public:
         }
     }
 
-    virtual std::vector<TChunkStripeStatistics> GetApproximateStripeStatistics() const override
+    virtual TChunkStripeStatisticsVector GetApproximateStripeStatistics() const override
     {
-        std::vector<TChunkStripeStatistics> result;
+        TChunkStripeStatisticsVector result;
         result.reserve(Stripes.size());
         FOREACH (const auto& suspendableStripe, Stripes) {
             auto stripe = suspendableStripe.GetStripe();
@@ -572,7 +578,7 @@ public:
         return LostCookies.empty() && PendingGlobalChunks.empty() ? 0 : JobCounter.GetPending();
     }
 
-    virtual std::vector<TChunkStripeStatistics> GetApproximateStripeStatistics() const override
+    virtual TChunkStripeStatisticsVector GetApproximateStripeStatistics() const override
     {
         if (!ExtractedLists.empty()) {
             auto stripeList = ExtractedLists.begin()->second;
@@ -590,7 +596,8 @@ public:
         stat.RowCount = std::max(
             static_cast<i64>(1),
             GetTotalRowCount() / GetTotalJobCount());
-        std::vector<TChunkStripeStatistics> result;
+
+        TChunkStripeStatisticsVector result;
         result.push_back(stat);
         return result;
     }
@@ -973,18 +980,29 @@ private:
             i64 RowCount;
         };
 
-        virtual std::vector<TChunkStripeStatistics> GetApproximateStripeStatistics() const
+        virtual TChunkStripeStatisticsVector GetApproximateStripeStatistics() const
         {
             YCHECK(!Runs.empty());
             YCHECK(GetPendingJobCount() > 0);
 
-            std::vector<TChunkStripeStatistics> result(1);
-            // First run should give a pretty good approximation.
-            auto& run = Runs.front();
+            TChunkStripeStatisticsVector result(1);
+
+            // This is the next run to be given by #Extract.
+            auto it = PendingRuns.begin();
+            auto cookie = *it;
+            auto& run = Runs[cookie];
+
             auto& stat = result.front();
+
             stat.ChunkCount = run.ElementaryIndexEnd - run.ElementaryIndexBegin;
             stat.DataSize = run.TotalDataSize;
             stat.RowCount = run.TotalRowCount;
+
+            if (run.IsApproximate) {
+                stat.DataSize *= ApproximateSizesBoostFactor;
+                stat.RowCount *= ApproximateSizesBoostFactor;
+            }
+
             return result;
         }
 
@@ -1093,6 +1111,8 @@ private:
                 list->TotalChunkCount += stripe->Chunks.size();
             }
 
+            // NB: never ever make TotalDataSize and TotalBoostFactor approximate.
+            // Otherwise sort data size and row counters will be severely corrupted
             list->TotalDataSize = run.TotalDataSize;
             list->TotalRowCount = run.TotalRowCount;
 

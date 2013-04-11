@@ -11,15 +11,10 @@ using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////
 
-TYPath GetOperationsPath()
-{
-    return "//sys/operations";
-}
-
 TYPath GetOperationPath(const TOperationId& operationId)
 {
     return
-        GetOperationsPath() + "/" +
+        "//sys/operations/" +
         ToYPathLiteral(ToString(operationId));
 }
 

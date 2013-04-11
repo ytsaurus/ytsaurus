@@ -206,7 +206,9 @@ private:
         TOutputStream* stdErrOutput;
         if (UserJobSpec.has_stderr_transaction_id()) {
             auto stderrTransactionId = FromProto<TTransactionId>(UserJobSpec.stderr_transaction_id());
-            ErrorOutput = JobIO->CreateErrorOutput(stderrTransactionId);
+            ErrorOutput = JobIO->CreateErrorOutput(
+                stderrTransactionId,
+                UserJobSpec.max_stderr_size());
             stdErrOutput = ~ErrorOutput;
         } else {
             stdErrOutput = &NullErrorOutput;

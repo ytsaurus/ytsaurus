@@ -7,8 +7,10 @@
 #include <ytlib/misc/protobuf_helpers.h>
 
 #include <ytlib/table_client/partitioner.h>
-#include <ytlib/table_client/partition_chunk_sequence_writer.h>
+#include <ytlib/table_client/partition_chunk_writer.h>
 #include <ytlib/table_client/sync_writer.h>
+
+#include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
 
 #include <ytlib/ytree/yson_string.h>
 
@@ -32,6 +34,7 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = JobProxyLogger;
+typedef NChunkClient::TMultiChunkSequentialWriter<TPartitionChunkWriter> TWriter;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -66,20 +69,25 @@ public:
         auto transactionId = FromProto<TTransactionId>(jobSpec.output_transaction_id());
         const auto& outputSpec = jobSpec.output_specs(0);
         auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
+
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
         options->KeyColumns = KeyColumns;
-        Writer = New<TPartitionChunkSequenceWriter>(
+
+        auto writerProvider = New<TPartitionChunkWriterProvider>(
             IOConfig->TableWriter,
             options,
-            Host->GetMasterChannel(),
-            transactionId,
-            chunkListId,
             ~Partitioner);
 
-        auto syncWriter = CreateSyncWriter(Writer);
-        syncWriter->Open();
+        Writer = CreateSyncWriter<TPartitionChunkWriter>(New<TWriter>(
+            IOConfig->TableWriter,
+            options,
+            writerProvider,
+            Host->GetMasterChannel(),
+            transactionId,
+            chunkListId));
+        Writer->Open();
 
-        return syncWriter;
+        return Writer;
     }
 
     virtual void PopulateResult(NScheduler::NProto::TJobResult* result) override
@@ -94,7 +102,7 @@ public:
 private:
     TAutoPtr<IPartitioner> Partitioner;
     TKeyColumns KeyColumns;
-    mutable TPartitionChunkSequenceWriterPtr Writer;
+    ISyncWriterUnsafePtr Writer;
 
 };
 

@@ -5,6 +5,7 @@
 #include "chunk_tree_statistics.h"
 
 #include <ytlib/misc/property.h>
+#include <ytlib/misc/ref_tracked.h>
 
 #include <server/cell_master/public.h>
 
@@ -19,6 +20,7 @@ namespace NChunkServer {
 
 class TChunkList
     : public TChunkTree
+    , public TRefTracked<TChunkList>
 {
     DEFINE_BYREF_RW_PROPERTY(std::vector<TChunkTree*>, Children);
 

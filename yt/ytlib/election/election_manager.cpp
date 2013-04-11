@@ -415,9 +415,9 @@ TElectionManager::TElectionManager(
     IInvokerPtr controlInvoker,
     IElectionCallbacksPtr electionCallbacks)
     : TServiceBase(
-    controlInvoker,
-    TProxy::GetServiceName(),
-    Logger.GetCategory())
+        controlInvoker,
+        TProxy::GetServiceName(),
+        Logger.GetCategory())
     , State(EPeerState::Stopped)
     , VoteId(InvalidPeerId)
     , Config(config)

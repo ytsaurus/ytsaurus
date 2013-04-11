@@ -8,8 +8,9 @@
 #include <ytlib/table_client/value.h>
 #include <ytlib/table_client/partition_chunk_reader.h>
 #include <ytlib/table_client/multi_chunk_parallel_reader.h>
-#include <ytlib/table_client/table_chunk_sequence_writer.h>
+#include <ytlib/table_client/table_chunk_writer.h>
 #include <ytlib/meta_state/master_channel.h>
+#include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
 #include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/table_client/sync_writer.h>
 #include <ytlib/yson/lexer.h>
@@ -32,6 +33,7 @@ static NLog::TLogger& Logger = JobProxyLogger;
 static NProfiling::TProfiler& Profiler = JobProxyProfiler;
 
 typedef TMultiChunkParallelReader<TPartitionChunkReader> TReader;
+typedef TMultiChunkSequentialWriter<TTableChunkWriter> TWriter;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -73,9 +75,15 @@ public:
         auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
         options->KeyColumns = KeyColumns;
-        Writer = New<TTableChunkSequenceWriter>(
+
+        auto writerProvider = New<TTableChunkWriterProvider>(
+            config->JobIO->TableWriter,
+            options);
+
+        Writer = New<TWriter>(
             config->JobIO->TableWriter,
             options,
+            writerProvider,
             Host->GetMasterChannel(),
             transactionId,
             chunkListId);
@@ -173,7 +181,7 @@ public:
 
             LOG_INFO("Writing");
             {
-                auto syncWriter = CreateSyncWriter(Writer);
+                auto syncWriter = CreateSyncWriter<TTableChunkWriter>(Writer);
                 syncWriter->Open();
 
                 TMemoryInput input;
@@ -234,7 +242,10 @@ public:
                             isRowReady = true;
                         }
 
-                        if (!Writer->TryWriteRowUnsafe(row, key)) {
+                        auto* facade = Writer->GetCurrentWriter();
+                        if (facade) {
+                            facade->WriteRowUnsafe(row, key);
+                        } else {
                             break;
                         }
 
@@ -286,7 +297,7 @@ public:
             // Split progress evenly between reading and writing.
             double progress =
                 0.5 * Reader->GetItemIndex() / total +
-                0.5 * Writer->GetRowCount() / total;
+                0.5 * Writer->GetProvider()->GetRowCount() / total;
             LOG_DEBUG("GetProgress: %lf", progress);
             return progress;
         }
@@ -300,7 +311,7 @@ public:
 private:
     TKeyColumns KeyColumns;
     TIntrusivePtr<TReader> Reader;
-    TTableChunkSequenceWriterPtr Writer;
+    TIntrusivePtr<TWriter> Writer;
 
 };
 

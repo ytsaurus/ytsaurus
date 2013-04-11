@@ -124,10 +124,11 @@ TAsyncError TChunk::ReadMeta()
 
     auto this_ = MakeStrong(this);
     return
-        BIND([=] () mutable -> TError {
-            LOG_DEBUG("Started reading meta (LocationId: %s, ChunkId: %s)",
-                ~this_->Location_->GetId(),
-                ~ToString(this_->Id_));
+        BIND([ = ] () mutable -> TError {
+            auto& Profiler = Location_->Profiler();
+            LOG_DEBUG("Started reading meta (ChunkId: %s, LocationId: %s)",
+                ~ToString(this->Id_),
+                ~Location_->GetId());
 
             NChunkClient::TFileReaderPtr reader;
             PROFILE_TIMING ("/meta_read_time") {

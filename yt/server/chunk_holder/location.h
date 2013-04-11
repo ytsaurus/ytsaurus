@@ -7,6 +7,8 @@
 
 #include <ytlib/logging/tagged_logger.h>
 
+#include <ytlib/profiling/profiler.h>
+
 namespace NYT {
 namespace NChunkHolder {
 
@@ -123,6 +125,15 @@ public:
      *  Raised at most once in Control thread.
      */
     DEFINE_SIGNAL(void(), Disabled);
+
+    //! The profiler tagged with location id.
+    DEFINE_BYREF_RW_PROPERTY(NProfiling::TProfiler, Profiler);
+
+    //! The counter for the location read throughput.
+    DEFINE_BYREF_RW_PROPERTY(NProfiling::TRateCounter, ReadThroughputCounter);
+
+    //! The counter for the location write throughput.
+    DEFINE_BYREF_RW_PROPERTY(NProfiling::TRateCounter, WriteThroughputCounter);
 
 private:
     ELocationType Type;

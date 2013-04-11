@@ -103,13 +103,12 @@ struct TSequentialReaderConfig
         Register("group_size", GroupSize)
             .Default(8 * 1024 * 1024)
             .GreaterThan(0);
-    }
 
-    virtual void DoValidate() const override
-    {
-        if (GroupSize > WindowSize) {
-            THROW_ERROR_EXCEPTION("\"group_size\" cannot be larger than \"window_size\"");
-        }
+        RegisterValidator([&] () {
+            if (GroupSize > WindowSize) {
+                THROW_ERROR_EXCEPTION("\"group_size\" cannot be larger than \"window_size\"");
+            }
+        });
     }
 };
 
@@ -154,13 +153,12 @@ struct TReplicationWriterConfig
             .Default(TDuration::Seconds(10));
         Register("enable_node_caching", EnableNodeCaching)
             .Default(false);
-    }
 
-    virtual void DoValidate() const override
-    {
-        if (SendWindowSize < GroupSize) {
-            THROW_ERROR_EXCEPTION("\"window_size\" cannot be less than \"group_size\"");
-        }
+        RegisterValidator([&] () {
+            if (SendWindowSize < GroupSize) {
+                THROW_ERROR_EXCEPTION("\"window_size\" cannot be less than \"group_size\"");
+            }
+        });
     }
 };
 
@@ -230,6 +228,60 @@ struct TDispatcherConfig
         Register("erasure_pool_size", ErasurePoolSize)
             .Default(4)
             .GreaterThan(0);
+    }
+};
+
+///////////////////////////////////////////////////////////////////////////////
+
+struct TMultiChunkWriterConfig
+    : public TReplicationWriterConfig
+{
+    i64 DesiredChunkSize;
+    i64 MaxMetaSize;
+
+    int UploadReplicationFactor;
+
+    bool ChunksMovable;
+    bool ChunksVital;
+
+    bool PreferLocalHost;
+
+    TMultiChunkWriterConfig()
+    {
+        Register("desired_chunk_size", DesiredChunkSize)
+            .GreaterThan(0)
+            .Default(1024 * 1024 * 1024);
+        Register("max_meta_size", MaxMetaSize)
+            .GreaterThan(0)
+            .LessThanOrEqual(64 * 1024 * 1024)
+            .Default(30 * 1024 * 1024);
+        Register("upload_replication_factor", UploadReplicationFactor)
+            .GreaterThanOrEqual(1)
+            .Default(2);
+        Register("chunks_movable", ChunksMovable)
+            .Default(true);
+        Register("chunks_vital", ChunksVital)
+            .Default(true);
+        Register("prefer_local_host", PreferLocalHost)
+            .Default(true);
+    }
+};
+
+///////////////////////////////////////////////////////////////////////////////
+
+struct TMultiChunkWriterOptions
+    : public virtual TEncodingWriterOptions
+{
+    int ReplicationFactor;
+    Stroka Account;
+
+    TMultiChunkWriterOptions()
+    {
+        Register("replication_factor", ReplicationFactor)
+            .GreaterThanOrEqual(1)
+            .Default(3);
+        Register("account", Account)
+            .NonEmpty();
     }
 };
 

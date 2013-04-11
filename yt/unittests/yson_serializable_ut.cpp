@@ -58,7 +58,10 @@ struct TTestConfig
         Register("sub_list", SubconfigList).Default();
         Register("sub_map", SubconfigMap).Default();
 
-        Subconfig->MyInt = 200;
+        RegisterInitializer([&] () {
+            MyString = "x";
+            Subconfig->MyInt = 200;
+        });
     }
 };
 
@@ -75,9 +78,7 @@ void TestCompleteSubconfig(TTestSubconfig* subconfig)
 
 TEST(TConfigTest, Complete)
 {
-    auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
-    builder->BeginTree();
-    BuildYsonFluently(~builder)
+    auto configNode = BuildYsonNodeFluently()
         .BeginMap()
             .Item("my_string").Value("TestString")
             .Item("sub").BeginMap()
@@ -135,7 +136,6 @@ TEST(TConfigTest, Complete)
                 .EndMap()
             .EndMap()
         .EndMap();
-    auto configNode = builder->EndTree();
 
     auto config = New<TTestConfig>();
     config->Load(configNode->AsMap());
@@ -156,16 +156,13 @@ TEST(TConfigTest, Complete)
 
 TEST(TConfigTest, MissingParameter)
 {
-    auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
-    builder->BeginTree();
-    BuildYsonFluently(~builder)
+    auto configNode = BuildYsonNodeFluently()
         .BeginMap()
             .Item("my_string").Value("TestString")
             .Item("sub").BeginMap()
                 .Item("my_bool").Value(true)
             .EndMap()
         .EndMap();
-    auto configNode = builder->EndTree();
 
     auto config = New<TTestConfig>();
     config->Load(configNode->AsMap());
@@ -181,13 +178,10 @@ TEST(TConfigTest, MissingParameter)
 
 TEST(TConfigTest, MissingSubconfig)
 {
-    auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
-    builder->BeginTree();
-    BuildYsonFluently(~builder)
+    auto configNode = BuildYsonNodeFluently()
         .BeginMap()
             .Item("my_string").Value("TestString")
         .EndMap();
-    auto configNode = builder->EndTree();
 
     auto config = New<TTestConfig>();
     config->Load(configNode->AsMap());
@@ -203,14 +197,11 @@ TEST(TConfigTest, MissingSubconfig)
 
 TEST(TConfigTest, Options)
 {
-    auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
-    builder->BeginTree();
-    BuildYsonFluently(~builder)
+    auto configNode = BuildYsonNodeFluently()
         .BeginMap()
             .Item("my_string").Value("TestString")
             .Item("option").Value(1)
         .EndMap();
-    auto configNode = builder->EndTree();
 
     auto config = New<TTestConfig>();
     config->SetKeepOptions(true);
@@ -228,16 +219,13 @@ TEST(TConfigTest, Options)
 
 TEST(TConfigTest, MissingRequiredParameter)
 {
-    auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
-    builder->BeginTree();
-    BuildYsonFluently(~builder)
+    auto configNode = BuildYsonNodeFluently()
         .BeginMap()
             .Item("sub").BeginMap()
                 .Item("my_int").Value(99)
                 .Item("my_bool").Value(true)
             .EndMap()
         .EndMap();
-    auto configNode = builder->EndTree();
 
     auto config = New<TTestConfig>();
     EXPECT_THROW(config->Load(configNode->AsMap()), std::exception);

@@ -460,7 +460,7 @@ private:
                 batchReq->AddRequest(req, "set_orchid_address");
             }
             {
-                auto req = TYPathProxy::List(GetOperationsPath());
+                auto req = TYPathProxy::List("//sys/operations");
                 auto* attributeFilter = req->mutable_attribute_filter();
                 attributeFilter->set_mode(EAttributeFilterMode::MatchingOnly);
                 attributeFilter->add_keys("state");
@@ -1117,17 +1117,9 @@ private:
 
         // Set end time, if given.
         if (operation->GetFinishTime()) {
-            // COMPAT(babenko)
-            {
-                auto req = TYPathProxy::Set(operationPath + "/@end_time");
-                req->set_value(ConvertToYsonString(operation->GetFinishTime().Get()).Data());
-                batchReq->AddRequest(req);
-            }
-            {
-                auto req = TYPathProxy::Set(operationPath + "/@finish_time");
-                req->set_value(ConvertToYsonString(operation->GetFinishTime().Get()).Data());
-                batchReq->AddRequest(req);
-            }
+            auto req = TYPathProxy::Set(operationPath + "/@finish_time");
+            req->set_value(ConvertToYsonString(operation->GetFinishTime().Get()).Data());
+            batchReq->AddRequest(req);
         }
     }
 
@@ -1354,9 +1346,8 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected);
 
-        auto error = batchRsp->GetCumulativeError();
-        if (!error.IsOK()) {
-            LOG_ERROR(error, "Error updating global watchers");
+        if (!batchRsp->IsOK()) {
+            LOG_ERROR(*batchRsp, "Error updating global watchers");
             return;
         }
 
@@ -1372,9 +1363,8 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected);
 
-        auto error = batchRsp->GetCumulativeError();
-        if (!error.IsOK()) {
-            LOG_ERROR(error, "Error updating operation watchers (OperationId: %s)",
+        if (!batchRsp->IsOK()) {
+            LOG_ERROR(*batchRsp, "Error updating operation watchers (OperationId: %s)",
                 ~ToString(operation->GetOperationId()));
             return;
         }

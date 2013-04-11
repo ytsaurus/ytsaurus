@@ -3,6 +3,8 @@
 
 #include <ytlib/ytree/fluent.h>
 
+#include <ytlib/table_client/private.h>
+
 #include <server/job_proxy/config.h>
 
 namespace NYT {
@@ -12,6 +14,9 @@ using namespace NScheduler::NProto;
 using namespace NYTree;
 using namespace NYson;
 using namespace NJobProxy;
+
+using NTableClient::MaxPrefetchWindow;
+using NTableClient::ChunkReaderMemorySize;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -24,9 +29,6 @@ static const i64 LFAllocBufferSize = (i64) 64 * 1024 * 1024;
 
 //! Nodes having less free memory are considered fully occupied.
 static const i64 LowWatermarkMemorySize = (i64) 512 * 1024 * 1024;
-
-//! Estimated memory overhead per chunk reader.
-static const i64 ChunkReaderMemorySize = (i64) 16 * 1024;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -344,13 +346,15 @@ i64 GetInputIOMemorySize(
     const TChunkStripeStatistics& stat)
 {
     YCHECK(stat.ChunkCount > 0);
-    int concurrentReaders = std::min(
-        stat.ChunkCount,
-        ioConfig->TableReader->PrefetchWindow + 1);
 
-    return std::min(
-        ioConfig->TableReader->WindowSize * concurrentReaders,
-        stat.DataSize) + concurrentReaders * ChunkReaderMemorySize;
+    int concurrentReaders = std::min(stat.ChunkCount, MaxPrefetchWindow);
+
+    i64 bufferSize = std::min(
+        stat.DataSize,
+        concurrentReaders * ioConfig->TableReader->WindowSize);
+    bufferSize += concurrentReaders * ChunkReaderMemorySize;
+
+    return std::min(bufferSize, ioConfig->TableReader->MaxBufferSize);
 }
 
 i64 GetSortInputIOMemorySize(
@@ -358,14 +362,13 @@ i64 GetSortInputIOMemorySize(
     const TChunkStripeStatistics& stat)
 {
     YCHECK(stat.ChunkCount > 0);
-
     return stat.DataSize + stat.ChunkCount * ChunkReaderMemorySize;
 }
 
 i64 GetIOMemorySize(
     TJobIOConfigPtr ioConfig,
     int outputStreamCount,
-    const std::vector<TChunkStripeStatistics>& stripeStatistics)
+    const TChunkStripeStatisticsVector& stripeStatistics)
 {
     i64 result = 0;
     FOREACH (const auto& stat, stripeStatistics) {
@@ -374,7 +377,6 @@ i64 GetIOMemorySize(
     result += GetOutputIOMemorySize(ioConfig, outputStreamCount);
     return result;
 }
-
 
 namespace NProto {
 

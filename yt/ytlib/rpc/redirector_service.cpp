@@ -3,6 +3,7 @@
 #include "client.h"
 #include "service.h"
 #include "message.h"
+#include "private.h"
 
 #include <ytlib/bus/bus.h>
 #include <ytlib/bus/message.h>
@@ -62,6 +63,16 @@ public:
     virtual const Stroka& GetVerb() const override
     {
         return Header.verb();
+    }
+
+    virtual TInstant GetStartTime() const override
+    {
+        YUNREACHABLE();
+    }
+
+    virtual void SetStartTime(TInstant /*value*/) override
+    {
+        YUNREACHABLE();
     }
 
     virtual const NYTree::IAttributeDictionary& Attributes() const override

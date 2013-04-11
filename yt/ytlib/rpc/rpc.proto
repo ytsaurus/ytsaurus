@@ -13,6 +13,8 @@ message TRequestHeader
     required string verb = 3;
     optional bool one_way = 4;
     optional NYT.NYTree.NProto.TAttributes attributes = 5;
+    optional int64 request_start_time = 6;
+    optional int64 retry_start_time = 7;
 }
 
 message TResponseHeader

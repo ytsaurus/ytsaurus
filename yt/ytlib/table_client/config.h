@@ -59,67 +59,34 @@ struct TChunkWriterConfig
 
 struct TTableWriterConfig
     : public TChunkWriterConfig
-    , public NChunkClient::TReplicationWriterConfig
+    , public NChunkClient::TMultiChunkWriterConfig
+{ };
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TChunkWriterOptions
+    : public virtual NChunkClient::TEncodingWriterOptions
 {
-    i64 DesiredChunkSize;
-    i64 MaxMetaSize;
+    TNullable<TKeyColumns> KeyColumns;
+    TChannels Channels;
 
-    int UploadReplicationFactor;
-
-    bool ChunksMovable;
-    bool ChunksVital;
-
-    bool PreferLocalHost;
-
-    TTableWriterConfig()
+    TChunkWriterOptions()
     {
-        Register("desired_chunk_size", DesiredChunkSize)
-            .GreaterThan(0)
-            .Default(1024 * 1024 * 1024);
-        Register("max_meta_size", MaxMetaSize)
-            .GreaterThan(0)
-            .LessThanOrEqual(64 * 1024 * 1024)
-            .Default(30 * 1024 * 1024);
-        Register("upload_replication_factor", UploadReplicationFactor)
-            .GreaterThanOrEqual(1)
-            .Default(2);
-        Register("chunks_movable", ChunksMovable)
-            .Default(true);
-        Register("chunks_vital", ChunksVital)
-            .Default(true);
-        Register("prefer_local_host", PreferLocalHost)
-            .Default(true);
+        Register("key_columns", KeyColumns)
+            .Default(Null);
+        Register("channels", Channels)
+            .Default(TChannels());
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TTableWriterOptions
-    : public NChunkClient::TEncodingWriterOptions
+    : public NChunkClient::TMultiChunkWriterOptions
+    , public TChunkWriterOptions
 {
-    int ReplicationFactor;
-
-    Stroka Account;
-
-    TNullable<TKeyColumns> KeyColumns;
-
-    TChannels Channels;
-
     TTableWriterOptions()
     {
-        Register("replication_factor", ReplicationFactor)
-            .GreaterThanOrEqual(1)
-            .Default(3);
-
-        Register("account", Account)
-            .NonEmpty();
-
-        Register("key_columns", KeyColumns)
-            .Default(Null);
-
-        Register("channels", Channels)
-            .Default(TChannels());
-
         Codec = NCompression::ECodec::Lz4;
     }
 };
@@ -130,14 +97,40 @@ struct TTableReaderConfig
     : public NChunkClient::TRemoteReaderConfig
     , public NChunkClient::TSequentialReaderConfig
 {
-    int PrefetchWindow;
+    i64 MaxBufferSize;
 
     TTableReaderConfig()
     {
-        Register("prefetch_window", PrefetchWindow)
-            .GreaterThan(0)
-            .LessThanOrEqual(1000)
-            .Default(1);
+        Register("max_buffer_size", MaxBufferSize)
+            .GreaterThan(0L)
+            .LessThanOrEqual(10L * 1024 * 1024 * 1024)
+            .Default(256L * 1024 * 1024);
+
+        RegisterValidator([&] () {
+            if (MaxBufferSize < 2 * WindowSize) {
+                THROW_ERROR_EXCEPTION("\"max_buffer_size\" cannot be less than twice \"window_size\"");
+            }
+        });
+    }
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TChunkReaderOptions
+    : public virtual TYsonSerializable
+{
+    bool ReadKey;
+
+    // If set, reader keeps all memory buffers valid until destruction.
+    bool KeepBlocks;
+
+    TChunkReaderOptions()
+    {
+        Register("read_key", ReadKey)
+            .Default(false);
+        Register("keep_blocks", KeepBlocks)
+            .Default(false);
     }
 };
 

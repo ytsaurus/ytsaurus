@@ -61,10 +61,7 @@ void TTransaction::Load(const NCellMaster::TLoadContext& context)
     LoadObjectRefs(context, BranchedNodes_);
     LoadObjectRefs(context, StagedNodes_);
     LoadObjectRefs(context, AccountResourceUsage_);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 8) {
-        NSecurityServer::Load(context, Acd_);
-    }
+    NSecurityServer::Load(context, Acd_);
 }
 
 bool TTransaction::IsActive() const

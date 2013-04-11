@@ -323,7 +323,7 @@ public:
         return Bootstrap
             ->GetMetaStateFacade()
             ->CreateMutation(EStateThreadQueue::Heartbeat)
-            ->SetRequestData(context->GetUntypedContext()->GetRequestBody())
+            ->SetRequestData(context->GetRequestBody())
             ->SetType(context->Request().GetTypeName())
             ->SetAction(BIND(&TThis::FullHeartbeatWithContext, MakeStrong(this), context));
     }
@@ -1165,11 +1165,6 @@ private:
         NodeMap.LoadValues(context);
         JobMap.LoadValues(context);
         JobListMap.LoadValues(context);
-
-        // COMPAT(ignat)
-        if (context.GetVersion() < 8) {
-            ScheduleRecomputeStatistics();
-        }
     }
 
     virtual void OnAfterLoaded() override

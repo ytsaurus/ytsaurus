@@ -4,17 +4,20 @@
 #include "config.h"
 #include "partition_job.h"
 
+#include <server/chunk_server/public.h>
+
 #include <ytlib/misc/sync.h>
 
 #include <ytlib/meta_state/master_channel.h>
 
 #include <ytlib/chunk_client/client_block_cache.h>
-#include <server/chunk_server/public.h>
+#include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
 
-#include <ytlib/table_client/partition_chunk_sequence_writer.h>
+#include <ytlib/table_client/partition_chunk_writer.h>
 #include <ytlib/table_client/table_chunk_reader.h>
 #include <ytlib/table_client/multi_chunk_parallel_reader.h>
 #include <ytlib/table_client/partitioner.h>
+#include <ytlib/table_client/sync_writer.h>
 
 #include <ytlib/yson/lexer.h>
 
@@ -36,6 +39,7 @@ static NProfiling::TProfiler& Profiler = JobProxyProfiler;
 ////////////////////////////////////////////////////////////////////////////////
 
 typedef TMultiChunkParallelReader<TTableChunkReader> TReader;
+typedef TMultiChunkSequentialWriter<TPartitionChunkWriter> TWriter;
 
 class TPartitionJob
     : public TJob
@@ -56,14 +60,14 @@ public:
             jobSpec.input_specs(0).chunks().begin(),
             jobSpec.input_specs(0).chunks().end());
 
-        auto provider = New<TTableChunkReaderProvider>(config->JobIO->TableReader);
+        auto readerProvider = New<TTableChunkReaderProvider>(config->JobIO->TableReader);
         Reader = New<TReader>(
             config->JobIO->TableReader,
             Host->GetMasterChannel(),
             Host->GetBlockCache(),
             Host->GetNodeDirectory(),
             std::move(chunks),
-            provider);
+            readerProvider);
 
         if (jobSpecExt.partition_keys_size() > 0) {
             YCHECK(jobSpecExt.partition_keys_size() + 1 == jobSpecExt.partition_count());
@@ -78,15 +82,22 @@ public:
         auto transactionId = FromProto<TTransactionId>(jobSpec.output_transaction_id());
         const auto& outputSpec = jobSpec.output_specs(0);
         auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
+
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
         options->KeyColumns = FromProto<Stroka>(jobSpecExt.key_columns());
-        Writer = New<TPartitionChunkSequenceWriter>(
+
+        auto writerProvider = New<TPartitionChunkWriterProvider>(
             config->JobIO->TableWriter,
             options,
+            ~Partitioner);
+
+        Writer = CreateSyncWriter<TPartitionChunkWriter>(New<TWriter>(
+            config->JobIO->TableWriter,
+            options,
+            writerProvider,
             Host->GetMasterChannel(),
             transactionId,
-            chunkListId,
-            ~Partitioner);
+            chunkListId));
     }
 
     virtual NScheduler::NProto::TJobResult Run() override
@@ -95,22 +106,21 @@ public:
             LOG_INFO("Initializing");
             {
                 Sync(~Reader, &TReader::AsyncOpen);
-                Sync(~Writer, &TPartitionChunkSequenceWriter::AsyncOpen);
+                Writer->Open();
             }
             PROFILE_TIMING_CHECKPOINT("init");
 
             LOG_INFO("Partitioning");
             {
                 while (Reader->IsValid()) {
-                    while (!Writer->TryWriteRowUnsafe(Reader->CurrentReader()->GetRow())) {
-                        Sync(~Writer, &TPartitionChunkSequenceWriter::GetReadyEvent);
-                    }
+                    Writer->WriteRowUnsafe(Reader->CurrentReader()->GetRow());
+
                     if (!Reader->FetchNextItem()) {
                         Sync(~Reader, &TReader::GetReadyEvent);
                     }
                 }
 
-                Sync(~Writer, &TPartitionChunkSequenceWriter::AsyncClose);
+                Writer->Close();
             }
             PROFILE_TIMING_CHECKPOINT("partition");
 
@@ -145,7 +155,7 @@ public:
 
 private:
     TIntrusivePtr<TReader> Reader;
-    TPartitionChunkSequenceWriterPtr Writer;
+    ISyncWriterUnsafePtr Writer;
     std::vector<TOwningKey> PartitionKeys;
     TAutoPtr<IPartitioner> Partitioner;
 

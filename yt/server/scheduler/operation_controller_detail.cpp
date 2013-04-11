@@ -57,10 +57,6 @@ using namespace NScheduler::NProto;
 
 ////////////////////////////////////////////////////////////////////
 
-static const double ApproximateSizesBoostFactor = 1.3;
-
-////////////////////////////////////////////////////////////////////
-
 TOperationControllerBase::TTask::TTask(TOperationControllerBase* controller)
     : Controller(controller)
     , CachedPendingJobCount(0)
@@ -148,8 +144,7 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
 {
     int chunkListCount = GetChunkListCountPerJob();
     if (!Controller->HasEnoughChunkLists(chunkListCount)) {
-        LOG_DEBUG("Job chunk list demand is not met (Task: %s)",
-            ~GetId());
+        LOG_DEBUG("Job chunk list demand is not met (Task: %s)", ~GetId());
         return nullptr;
     }
 
@@ -161,21 +156,12 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
     auto* chunkPoolOutput = GetChunkPoolOutput();
     joblet->OutputCookie = chunkPoolOutput->Extract(address);
     if (joblet->OutputCookie == IChunkPoolOutput::NullCookie) {
-        LOG_DEBUG("Job input is empty (Task: %s)",
-            ~GetId());
+        LOG_DEBUG("Job input is empty (Task: %s)", ~GetId());
         return nullptr;
     }
 
     joblet->InputStripeList = chunkPoolOutput->GetStripeList(joblet->OutputCookie);
-
-    // Compute the actual usage for this joblet.
-    // Adjust it if approximation flag is set.
     auto neededResources = GetNeededResources(joblet);
-    if (joblet->InputStripeList->IsApproximate) {
-        neededResources.set_memory(static_cast<i64>(
-            neededResources.memory() *
-            ApproximateSizesBoostFactor));
-    }
 
     // Check the usage against the limits. This is the last chance to give up.
     if (!Dominates(jobLimits, neededResources)) {
@@ -185,6 +171,8 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
             ~FormatResources(neededResources));
         CheckResourceDemandSanity(node, neededResources);
         chunkPoolOutput->Aborted(joblet->OutputCookie);
+        // Seems like cached min needed resources are too optimistic.
+        CachedMinNeededResources = GetMinNeededResourcesHeavy();
         return nullptr;
     }
 
@@ -194,7 +182,6 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
     auto this_ = MakeStrong(this);
     auto jobSpecBuilder = BIND([=] (TJobSpec* jobSpec) -> TVoid {
         this_->BuildJobSpec(joblet, jobSpec);
-
         this_->Controller->CustomizeJobSpec(joblet, jobSpec);
 
         // Adjust sizes if approximation flag is set.
@@ -202,6 +189,7 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
             jobSpec->set_input_uncompressed_data_size(static_cast<i64>(
                 jobSpec->input_uncompressed_data_size() *
                 ApproximateSizesBoostFactor));
+
             jobSpec->set_input_row_count(static_cast<i64>(
                 jobSpec->input_row_count() *
                 ApproximateSizesBoostFactor));
@@ -584,6 +572,13 @@ void TOperationControllerBase::Initialize()
     }
 
     try {
+        if (OutputTables.size() > Config->MaxOutputTableCount) {
+            THROW_ERROR_EXCEPTION(
+                "Too many output tables: maximum allowed %d, actual %" PRISZT,
+                Config->MaxOutputTableCount,
+                OutputTables.size());
+        }
+
         if (Host->GetExecNodes().empty()) {
             THROW_ERROR_EXCEPTION("No online exec nodes to start operation");
         }
@@ -1145,7 +1140,14 @@ TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(
                     return job;
                 }
 
-                ++it;
+                // If task failed to schedule job, its min resources might have been updated.
+                auto minMemory = task->GetMinNeededResources().memory();
+                if (it->first == minMemory) {
+                    ++it;
+                } else {
+                    it = candidateTasks.erase(it);
+                    candidateTasks.insert(std::make_pair(minMemory, task));
+                }
             }
         }
     }
@@ -1773,12 +1775,12 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 auto rsp = getTableFileSizeRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting table file size");
                 i64 tableSize = ConvertTo<i64>(TYsonString(rsp->value()));
-                if (tableSize > Config->TableFileSizeLimit) {
+                if (tableSize > Config->MaxTableFileSize) {
                     THROW_ERROR_EXCEPTION(
                         "Table file %s exceeds the size limit: " PRId64 " > " PRId64,
                         ~file.Path.GetPath(),
                         tableSize,
-                        Config->TableFileSizeLimit);
+                        Config->MaxTableFileSize);
                 }
             }
             {
@@ -2078,6 +2080,11 @@ void TOperationControllerBase::BuildProgressYson(IYsonConsumer* consumer)
             .Item("failed").Value(JobCounter.GetFailed())
             .Item("aborted").Value(JobCounter.GetAborted())
             .Item("lost").Value(JobCounter.GetLost())
+        .EndMap()
+        .Item("job_statistics").BeginMap()
+            .Item("completed").Value(Operation->CompletedJobStatistics())
+            .Item("failed").Value(Operation->FailedJobStatistics())
+            .Item("aborted").Value(Operation->AbortedJobStatistics())
         .EndMap();
 }
 
@@ -2118,6 +2125,7 @@ void TOperationControllerBase::InitUserJobSpec(
     i64 memoryReserve = static_cast<i64>(config->MemoryLimit * config->MemoryReserveFactor);
     jobSpec->set_memory_reserve(memoryReserve);
     jobSpec->set_use_yamr_descriptors(config->UseYamrDescriptors);
+    jobSpec->set_max_stderr_size(config->MaxStderrSize);
 
     {
         if (Operation->GetStdErrCount() < Operation->GetMaxStdErrCount()) {

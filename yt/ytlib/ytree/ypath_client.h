@@ -34,6 +34,9 @@ public:
     virtual const Stroka& GetPath() const override;
     void SetPath(const Stroka& path);
 
+    virtual TInstant GetStartTime() const override;
+    virtual void SetStartTime(TInstant value) override;
+
     virtual const NYTree::IAttributeDictionary& Attributes() const override;
     virtual NYTree::IAttributeDictionary* MutableAttributes() override;
 

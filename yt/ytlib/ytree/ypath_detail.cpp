@@ -185,7 +185,7 @@ IMPLEMENT_SUPPORTS_VERB_RESOLVE(Exists, { Reply(context, false); })
 void TSupportsExists::Reply(TCtxExistsPtr context, bool value)
 {
     context->Response().set_value(value);
-    context->SetResponseInfo(Sprintf("Result: %s", ~FormatBool(value)));
+    context->SetResponseInfo("Result: %s", ~FormatBool(value));
     context->Reply();
 }
 
@@ -375,8 +375,10 @@ TFuture< TValueOrError<TYsonString> > TSupportsAttributes::DoGetAttribute(const 
 
         auto ysonOrError = DoFindAttribute(key);
         if (!ysonOrError) {
-            return MakeFuture(TValueOrError<TYsonString>(TError("Attribute is not found: %s",
-                ~ToYPathLiteral(key))));
+            return MakeFuture(TValueOrError<TYsonString>(TError(
+                NYTree::EErrorCode::ResolveError,
+                "Attribute %s is not found",
+                ~ToYPathLiteral(key).Quote())));
         }
 
         if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
@@ -476,7 +478,9 @@ TFuture< TValueOrError<TYsonString> > TSupportsAttributes::DoListAttribute(const
 
         auto ysonOrError = DoFindAttribute(key);
         if (!ysonOrError) {
-            return MakeFuture(TValueOrError<TYsonString>(TError("Attribute is not found: %s",
+            return MakeFuture(TValueOrError<TYsonString>(TError(
+                NYTree::EErrorCode::ResolveError,
+                "Attribute is not found: %s",
                 ~ToYPathLiteral(key))));
         }
 
@@ -980,8 +984,8 @@ protected:
         Stroka str;
         AppendInfo(str, RequestInfo);
         LOG_DEBUG("%s %s <- %s",
-            ~Verb,
-            ~Path,
+            ~GetVerb(),
+            ~GetPath(),
             ~str);
     }
 
@@ -991,8 +995,8 @@ protected:
         AppendInfo(str, Sprintf("Error: %s", ~ToString(error)));
         AppendInfo(str, ResponseInfo);
         LOG_DEBUG("%s %s -> %s",
-            ~Verb,
-            ~Path,
+            ~GetVerb(),
+            ~GetPath(),
             ~str);
     }
 

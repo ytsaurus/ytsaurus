@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/rpc/service.h>
+#include <ytlib/rpc/service_detail.h>
 
 #include <server/exec_agent/supervisor_service.pb.h>
 

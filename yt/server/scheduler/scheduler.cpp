@@ -22,6 +22,7 @@
 #include <ytlib/actions/parallel_awaiter.h>
 
 #include <ytlib/rpc/dispatcher.h>
+#include <ytlib/rpc/service_detail.h>
 
 #include <ytlib/logging/tagged_logger.h>
 
@@ -95,6 +96,9 @@ public:
         , MasterConnector(new TMasterConnector(Config, Bootstrap))
         , TotalResourceLimitsProfiler(Profiler.GetPathPrefix() + "/total_resource_limits")
         , TotalResourceUsageProfiler(Profiler.GetPathPrefix() + "/total_resource_usage")
+        , TotalCompletedJobTimeCounter("/total_completed_job_time")
+        , TotalFailedJobTimeCounter("/total_failed_job_time")
+        , TotalAbortedJobTimeCounter("/total_aborted_job_time")
         , JobTypeCounters(EJobType::GetDomainSize())
         , TotalResourceLimits(ZeroNodeResources())
         , TotalResourceUsage(ZeroNodeResources())
@@ -118,6 +122,13 @@ public:
     void Start()
     {
         InitStrategy();
+
+        MasterConnector->AddGlobalWatcherRequester(BIND(
+            &TThis::RequestConfig,
+            Unretained(this)));
+        MasterConnector->AddGlobalWatcherHandler(BIND(
+            &TThis::HandleConfig,
+            Unretained(this)));
 
         MasterConnector->SubscribeMasterConnected(BIND(
             &TThis::OnMasterConnected,
@@ -294,6 +305,11 @@ private:
 
     NProfiling::TProfiler TotalResourceLimitsProfiler;
     NProfiling::TProfiler TotalResourceUsageProfiler;
+
+    NProfiling::TAggregateCounter TotalCompletedJobTimeCounter;
+    NProfiling::TAggregateCounter TotalFailedJobTimeCounter;
+    NProfiling::TAggregateCounter TotalAbortedJobTimeCounter;
+
     std::vector<int> JobTypeCounters;
     TPeriodicInvokerPtr ProfilingInvoker;
 
@@ -392,6 +408,37 @@ private:
             TError("Scheduler transaction has been expired or was aborted"));
     }
 
+
+
+    void RequestConfig(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
+    {
+        LOG_INFO("Updating configuration");
+
+        auto req = TYPathProxy::Get("//sys/scheduler/@config");
+        batchReq->AddRequest(req, "get_config");
+    }
+
+    void HandleConfig(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+    {
+        auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_config");
+        if (rsp->GetError().FindMatching(NYTree::EErrorCode::ResolveError)) {
+            // No config attribute, just ignore.
+            return;
+        }
+        if (!rsp->IsOK()) {
+            LOG_ERROR(*rsp, "Error getting scheduler configuration");
+            return;
+        }
+
+        try {
+            if (!ReconfigureYsonSerializable(Config, TYsonString(rsp->value())))
+                return;
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Error parsing updated scheduler configuration");
+        }
+
+        LOG_INFO("Scheduler configuration updated");
+    }
 
     typedef TValueOrError<TOperationPtr> TStartResult;
 
@@ -769,7 +816,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto controller = operation->GetController();
-        
+
         TAutoPtr<TMemoryInput> input;
         if (operation->Snapshot()) {
             auto& blob = *operation->Snapshot();
@@ -1181,7 +1228,26 @@ private:
 
     void OnJobFinished(TJobPtr job)
     {
-        job->SetFinishTime(TInstant::Now());
+        auto now = TInstant::Now();
+        job->SetFinishTime(now);
+        auto operation = job->GetOperation();
+        auto duration = now - job->GetStartTime();
+        switch (job->GetState()) {
+            case EJobState::Completed:
+                Profiler.Increment(TotalCompletedJobTimeCounter, duration.MicroSeconds());
+                operation->CompletedJobStatistics().Time += duration;
+                break;
+            case EJobState::Failed:
+                Profiler.Increment(TotalFailedJobTimeCounter, duration.MicroSeconds());
+                operation->FailedJobStatistics().Time += duration;
+                break;
+            case EJobState::Aborted:
+                Profiler.Increment(TotalAbortedJobTimeCounter, duration.MicroSeconds());
+                operation->AbortedJobStatistics().Time += duration;
+                break;
+            default:
+                YUNREACHABLE();
+        }
 
         const auto& result = job->Result();
         if (result.HasExtension(TMapJobResultExt::map_job_result_ext)) {
@@ -1434,7 +1500,7 @@ private:
             ? FromProto<TTransactionId>(request->transaction_id())
             : NullTransactionId;
 
-        auto maybeUser = FindRpcAuthenticatedUser(context->GetUntypedContext());
+        auto maybeUser = FindRpcAuthenticatedUser(context);
         auto user = maybeUser ? *maybeUser : RootUserName;
 
         IMapNodePtr spec;

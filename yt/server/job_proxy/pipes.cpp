@@ -36,8 +36,8 @@ using namespace NTableClient;
 
 static auto& Logger = JobProxyLogger;
 
-static const int InputBufferSize  = 64 * 1024 * 1024;
-static const int OutputBufferSize = 64 * 1024 * 1024;
+static const int InputBufferSize  = 1 * 1024 * 1024;
+static const int OutputBufferSize = 1 * 1024 * 1024;
 
 ////////////////////////////////////////////////////////////////////
 

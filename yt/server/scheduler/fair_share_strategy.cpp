@@ -13,6 +13,7 @@
 #include <ytlib/object_client/object_service_proxy.h>
 
 #include <ytlib/logging/log.h>
+#include <ytlib/logging/tagged_logger.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -159,7 +160,7 @@ public:
         TOperationPtr operation)
         : TSchedulableElementBase(host)
         , Operation_(operation)
-        , Pool_(NULL)
+        , Pool_(nullptr)
         , Starving_(false)
         , ResourceUsage_(ZeroNodeResources())
         , ResourceUsageDiscount_(ZeroNodeResources())
@@ -221,7 +222,7 @@ public:
         double tolerance =
             demandRatio < Attributes_.FairShareRatio + RatioComparisonPrecision
             ? 1.0
-            : Spec_->FairShareStarvationTolerance;
+            : Spec_->FairShareStarvationTolerance.Get(Config->FairShareStarvationTolerance);
 
         if (usageRatio > Attributes_.FairShareRatio * tolerance - RatioComparisonPrecision) {
             return EOperationStatus::Normal;
@@ -799,7 +800,7 @@ public:
         const auto& attributes = element->Attributes();
         return Sprintf(
             "Scheduling = {Status: %s, Rank: %d, DominantResource: %s, Demand: %.4lf, "
-            "Usage: %.4lf, FairShare: %.4lf, AdjustedMinShare: %.4lf, MaxShare: %.4lf}",
+            "Usage: %.4lf, FairShare: %.4lf, AdjustedMinShare: %.4lf, MaxShare: %.4lf, Starving: %s}",
             ~element->GetStatus().ToString(),
             attributes.Rank,
             ~attributes.DominantResource.ToString(),
@@ -807,7 +808,8 @@ public:
             element->GetUsageRatio(),
             attributes.FairShareRatio,
             attributes.AdjustedMinShareRatio,
-            attributes.MaxShareRatio);
+            attributes.MaxShareRatio,
+            ~FormatBool(element->GetStarving()));
     }
 
     virtual void BuildOrchidYson(IYsonConsumer* consumer) override
@@ -871,7 +873,8 @@ private:
         }
 
         const auto& attributes = element->Attributes();
-        if (usageRatio < attributes.FairShareRatio * spec->FairSharePreemptionTolerance) {
+        double tolerance = spec->FairSharePreemptionTolerance.Get(Config->FairSharePreemptionTolerance);
+        if (usageRatio < attributes.FairShareRatio * tolerance) {
             return false;
         }
 
@@ -959,10 +962,23 @@ private:
         if (!element)
             return;
 
+        NLog::TTaggedLogger Logger(SchedulerLogger);
+        Logger.AddTag(Sprintf("OperationId: %s", ~ToString(operation->GetOperationId())));
+
         auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_spec");
-        auto specNode = ConvertToNode(TYsonString(rsp->value()));
-        auto spec = ParseSpec(operation, specNode);
-        element->SetSpec(spec);
+        if (!rsp->IsOK()) {
+            LOG_ERROR(*rsp, "Error updating operation spec");
+            return;
+        }
+
+        try {
+            if (!ReconfigureYsonSerializable(element->GetSpec(), TYsonString(rsp->value())))
+                return;
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Error parsing updated operation spec");
+        }
+
+        LOG_INFO("Operation spec updated");
     }
 
 
@@ -1051,7 +1067,10 @@ private:
     void HandlePools(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
     {
         auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_pools");
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+        if (!rsp->IsOK()) {
+            LOG_ERROR(*rsp, "Error updating pools");
+            return;
+        }
 
         // Build the set of potential orphans.
         yhash_set<Stroka> orphanPoolIds;
@@ -1108,11 +1127,13 @@ private:
         auto status = element->GetStatus();
         auto now = TInstant::Now();
         auto spec = element->GetSpec();
+        auto minSharePreemptionTimeout = spec->MinSharePreemptionTimeout.Get(Config->MinSharePreemptionTimeout);
+        auto fairSharePreemptionTimeout = spec->FairSharePreemptionTimeout.Get(Config->FairSharePreemptionTimeout);
         switch (status) {
             case EOperationStatus::BelowMinShare:
                 if (!element->GetBelowMinShareSince()) {
                     element->SetBelowMinShareSince(now);
-                } else if (element->GetBelowMinShareSince().Get() < now - spec->MinSharePreemptionTimeout) {
+                } else if (element->GetBelowMinShareSince().Get() < now - minSharePreemptionTimeout) {
                     SetStarving(element, status);
                 }
                 break;
@@ -1120,7 +1141,7 @@ private:
             case EOperationStatus::BelowFairShare:
                 if (!element->GetBelowFairShareSince()) {
                     element->SetBelowFairShareSince(now);
-                } else if (element->GetBelowFairShareSince().Get() < now - spec->FairSharePreemptionTimeout) {
+                } else if (element->GetBelowFairShareSince().Get() < now - fairSharePreemptionTimeout) {
                     SetStarving(element, status);
                 }
                 element->SetBelowMinShareSince(Null);

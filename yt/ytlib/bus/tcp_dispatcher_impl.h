@@ -38,7 +38,6 @@ public:
 
     static TImpl* Get();
 
-    void Initialize();
     void Shutdown();
 
     const ev::loop_ref& GetEventLoop() const;
@@ -52,7 +51,6 @@ public:
 
 private:
     TThread Thread;
-    TPromise<void> ThreadStarted;
     ev::dynamic_loop EventLoop;
 
     bool Stopped;

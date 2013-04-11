@@ -24,7 +24,8 @@ public:
     TErrorOutput(
         NFileClient::TFileWriterConfigPtr config,
         NRpc::IChannelPtr masterChannel,
-        const NTransactionClient::TTransactionId& transactionId);
+        const NTransactionClient::TTransactionId& transactionId,
+        i64 maxSize);
 
     ~TErrorOutput() throw();
 
@@ -38,6 +39,8 @@ private:
     NFileClient::TFileWriterConfigPtr Config;
     NRpc::IChannelPtr MasterChannel;
     NTransactionClient::TTransactionId TransactionId;
+    const i64 MaxSize;
+
     bool IsClosed;
 
     TAutoPtr<NFileClient::TFileChunkOutput> FileWriter;

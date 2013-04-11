@@ -5,10 +5,12 @@
 #include <ytlib/misc/lease_manager.h>
 #include <ytlib/misc/thread_affinity.h>
 
-#include <ytlib/logging/tagged_logger.h>
-
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/data_node_service_proxy.h>
+
+#include <ytlib/logging/tagged_logger.h>
+
+#include <ytlib/profiling/profiler.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -112,6 +114,7 @@ private:
     IInvokerPtr WriteInvoker;
 
     NLog::TTaggedLogger Logger;
+    NProfiling::TProfiler Profiler;
 
     TFuture< TValueOrError<TChunkPtr> > Finish(const NChunkClient::NProto::TChunkMeta& chunkMeta);
     void Cancel(const TError& error);

@@ -43,7 +43,6 @@ TNetworkAddress GetLocalBusAddress(int port)
 
 TTcpDispatcher::TImpl::TImpl()
     : Thread(ThreadFunc, (void*) this)
-    , ThreadStarted(NewPromise<void>())
     , Stopped(false)
     , StopWatcher(EventLoop)
     , RegisterWatcher(EventLoop)
@@ -66,11 +65,6 @@ TTcpDispatcher::TImpl::TImpl()
 TTcpDispatcher::TImpl::~TImpl()
 {
     Shutdown();
-}
-
-void TTcpDispatcher::TImpl::Initialize()
-{
-    ThreadStarted.Get();
 }
 
 void TTcpDispatcher::TImpl::Shutdown()
@@ -123,11 +117,6 @@ void TTcpDispatcher::TImpl::ThreadMain()
     // Bus is always started first to get advantange of the root privileges.
 
     NThread::SetCurrentThreadName("Bus");
-
-    NThread::RaiseCurrentThreadPriority();
-
-    ThreadStarted.Set();
-
     EventLoop.run(0);
 }
 

@@ -235,6 +235,9 @@ protected:
     //! Current index in #PeerList.
     int PeerIndex;
 
+    //! The instant this session has started.
+    TInstant StartTime;
+
     NLog::TTaggedLogger Logger;
 
 
@@ -244,6 +247,7 @@ protected:
         , RetryIndex(0)
         , PassIndex(0)
         , PeerIndex(0)
+        , StartTime(TInstant::Now())
         , Logger(ChunkReaderLogger)
     {
         Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(reader->ChunkId)));
@@ -622,6 +626,7 @@ private:
                 proxy.SetDefaultTimeout(reader->Config->NodeRpcTimeout);
 
                 auto request = proxy.GetBlocks();
+                request->SetStartTime(StartTime);
                 ToProto(request->mutable_chunk_id(), reader->ChunkId);
                 ToProto(request->mutable_block_indexes(), unfetchedBlockIndexes);
                 request->set_enable_caching(reader->Config->EnableNodeCaching);
@@ -801,7 +806,7 @@ private:
     bool AllExtensionTags;
 
 
-    virtual void NextPass() 
+    virtual void NextPass()
     {
         auto seedHandler = [&] (const TNodeDescriptor& descriptor) {
             PeerList.push_back(descriptor);
@@ -841,6 +846,7 @@ private:
         proxy.SetDefaultTimeout(reader->Config->NodeRpcTimeout);
 
         auto request = proxy.GetChunkMeta();
+        request->SetStartTime(StartTime);
         ToProto(request->mutable_chunk_id(), reader->ChunkId);
         request->set_all_extension_tags(AllExtensionTags);
 

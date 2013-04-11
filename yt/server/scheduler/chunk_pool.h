@@ -37,9 +37,11 @@ TChunkStripeStatistics& operator += (
     TChunkStripeStatistics& lhs,
     const TChunkStripeStatistics& rhs);
 
+typedef TSmallVector<TChunkStripeStatistics, 1> TChunkStripeStatisticsVector;
+
 //! Adds up input statistics and returns a single-item vector with the sum.
-std::vector<TChunkStripeStatistics> AggregateStatistics(
-    const std::vector<TChunkStripeStatistics>& statistics);
+TChunkStripeStatisticsVector AggregateStatistics(
+    const TChunkStripeStatisticsVector& statistics);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,7 +64,7 @@ struct TChunkStripeList
 {
     TChunkStripeList();
 
-    std::vector<TChunkStripeStatistics> GetStatistics() const;
+    TChunkStripeStatisticsVector GetStatistics() const;
     TChunkStripeStatistics GetAggregateStatistics() const;
 
     std::vector<TChunkStripePtr> Stripes;
@@ -122,7 +124,7 @@ struct IChunkPoolOutput
     virtual int GetPendingJobCount() const = 0;
 
     // Approximate average stripe list statistics to estimate memory usage.
-    virtual std::vector<TChunkStripeStatistics> GetApproximateStripeStatistics() const = 0;
+    virtual TChunkStripeStatisticsVector GetApproximateStripeStatistics() const = 0;
 
     virtual i64 GetLocality(const Stroka& address) const = 0;
 

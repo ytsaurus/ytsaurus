@@ -364,7 +364,7 @@ public:
         FOREACH (const auto& part, Parts) {
             result += part.GetSize();
         }
-        return std::min(result, MaxKeySize);
+        return std::min(result, static_cast<size_t>(MaxKeySize));
     }
 
     NProto::TKey ToProto() const

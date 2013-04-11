@@ -12,6 +12,8 @@
 
 #include <ytlib/chunk_client/format.h>
 
+#include <ytlib/ypath/token.h>
+
 #include <util/folder/filelist.h>
 #include <util/folder/dirut.h>
 
@@ -19,12 +21,13 @@ namespace NYT {
 namespace NChunkHolder {
 
 using namespace NChunkClient;
+using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = DataNodeLogger;
 
-const int Permissions = 0751;
+static const int Permissions = 0751;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,7 +52,10 @@ TLocation::TLocation(
     const Stroka& id,
     TLocationConfigPtr config,
     TBootstrap* bootstrap)
-    : Type(type)
+    : Profiler_(DataNodeProfiler.GetPathPrefix() + "/" + ToYPathLiteral(id))
+    , ReadThroughputCounter_("/read_throughput")
+    , WriteThroughputCounter_("/write_throughput")
+    , Type(type)
     , Id(id)
     , Config(config)
     , Bootstrap(bootstrap)

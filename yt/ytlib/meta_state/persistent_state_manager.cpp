@@ -22,7 +22,7 @@
 #include <ytlib/election/cell_manager.h>
 #include <ytlib/election/election_manager.h>
 
-#include <ytlib/rpc/service.h>
+#include <ytlib/rpc/service_detail.h>
 
 #include <ytlib/ytree/fluent.h>
 
@@ -122,7 +122,10 @@ public:
         IInvokerPtr stateInvoker,
         IMetaStatePtr metaState,
         NRpc::IServerPtr server)
-        : TServiceBase(controlInvoker, TProxy::GetServiceName(), Logger.GetCategory())
+        : TServiceBase(
+            controlInvoker,
+            TProxy::GetServiceName(),
+            Logger.GetCategory())
         , Config(config)
         , ControlInvoker(controlInvoker)
         , StateInvoker(stateInvoker)
@@ -148,10 +151,6 @@ public:
         VERIFY_INVOKER_AFFINITY(IOQueue->GetInvoker(), IOThread);
 
         CellManager = New<TCellManager>(Config->Cell);
-
-        LOG_INFO("SelfAddress: %s, SelfId: %d",
-            ~CellManager->GetSelfAddress(),
-            CellManager->GetSelfId());
 
         ElectionManager = New<TElectionManager>(
             Config->Election,
@@ -179,6 +178,11 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
         YCHECK(ControlStatus == EPeerStatus::Stopped);
+
+        CellManager->Initialize();
+        LOG_INFO("SelfAddress: %s, SelfId: %d",
+            ~CellManager->GetSelfAddress(),
+            CellManager->GetSelfId());
 
         ChangeLogCache->Start();
         SnapshotStore->Start();

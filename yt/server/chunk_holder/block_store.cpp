@@ -14,17 +14,19 @@
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/data_node_service_proxy.h>
 
+#include <ytlib/ypath/token.h>
+
 namespace NYT {
 namespace NChunkHolder {
 
 using namespace NChunkClient;
+using namespace NChunkClient::NProto;
+using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = DataNodeLogger;
 static NProfiling::TProfiler& Profiler = DataNodeProfiler;
-
-static NProfiling::TRateCounter ReadThroughputCounter("/read_throughput");
 static NProfiling::TRateCounter CacheReadThroughputCounter("/cache_read_throughput");
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -32,7 +34,7 @@ static NProfiling::TRateCounter CacheReadThroughputCounter("/cache_read_throughp
 TCachedBlock::TCachedBlock(
     const TBlockId& blockId,
     const TSharedRef& data,
-    const TNullable<TNodeDescriptor>& source)
+    const TNullable<NChunkClient::TNodeDescriptor>& source)
     : TCacheValueBase<TBlockId, TCachedBlock>(blockId)
     , Data_(data)
     , Source_(source)
@@ -72,7 +74,7 @@ public:
     TCachedBlockPtr Put(
         const TBlockId& blockId,
         const TSharedRef& data,
-        const TNullable<TNodeDescriptor>& source)
+        const TNullable<NChunkClient::TNodeDescriptor>& source)
     {
         while (true) {
             TInsertCookie cookie(blockId);
@@ -80,7 +82,7 @@ public:
                 auto block = New<TCachedBlock>(blockId, data, source);
                 cookie.EndInsert(block);
 
-                LOG_DEBUG("Block is put into cache: %s (Size: %" PRISZT ", Source: %s)",
+                LOG_DEBUG("Block is put into cache: %s (Size: %" PRISZT ", SourceAddress: %s)",
                     ~ToString(blockId),
                     data.Size(),
                     ~ToString(source));
@@ -106,7 +108,7 @@ public:
                     ~ToString(blockId));
             }
 
-            LOG_DEBUG("Block is resurrected in cache: %s", ~ToString(blockId));
+            LOG_DEBUG("Block is resurrected in cache (BlockId: %s)", ~ToString(blockId));
 
             return block;
         }
@@ -131,7 +133,7 @@ public:
         if (!chunk) {
             return MakeFuture(TGetBlockResult(TError(
                 NChunkClient::EErrorCode::NoSuchChunk,
-                "No such chunk: %s",
+                "No such chunk %s",
                 ~ToString(blockId.ChunkId))));
         }
 
@@ -147,7 +149,7 @@ public:
             return cookie->GetValue().Apply(BIND(&TStoreImpl::OnCacheHit, MakeStrong(this)));
         }
 
-        LOG_DEBUG("Block cache miss: %s", ~ToString(blockId));
+        LOG_DEBUG("Block cache miss (BlockId: %s)", ~ToString(blockId));
 
         i64 blockSize = -1;
         auto* meta = chunk->GetCachedMeta();
@@ -181,7 +183,7 @@ private:
 
     i64 IncreasePendingSize(const NChunkClient::NProto::TChunkMeta& chunkMeta, int blockIndex)
     {
-        const auto blocksExt = GetProtoExtension<NChunkClient::NProto::TBlocksExt>(chunkMeta.extensions());
+        const auto blocksExt = GetProtoExtension<TBlocksExt>(chunkMeta.extensions());
         const auto& blockInfo = blocksExt.blocks(blockIndex);
         auto blockSize = blockInfo.size();
 
@@ -235,9 +237,11 @@ private:
             blockSize = IncreasePendingSize(chunkMeta, blockId.BlockIndex);
         }
 
-        LOG_DEBUG("Started reading block: %s (LocationId: %s)",
+        auto location = chunk->GetLocation();
+        auto& Profiler = location->Profiler();
+        LOG_DEBUG("Started reading block (BlockId: %s, LocationId: %s)",
             ~ToString(blockId),
-            ~chunk->GetLocation()->GetId());
+            ~location->GetId());
 
         TSharedRef data;
         PROFILE_TIMING ("/block_read_time") {
@@ -246,7 +250,7 @@ private:
             } catch (const std::exception& ex) {
                 auto error = TError(
                     NChunkClient::EErrorCode::IOError,
-                    "Error reading chunk block: %s",
+                    "Error reading chunk block %s",
                     ~ToString(blockId))
                     << ex;
                 chunk->ReleaseReadLock();
@@ -257,9 +261,9 @@ private:
             }
         }
 
-        LOG_DEBUG("Finished reading block: %s (LocationId: %s)",
+        LOG_DEBUG("Finished reading block (BlockId: %s, LocationId: %s)",
             ~ToString(blockId),
-            ~chunk->GetLocation()->GetId());
+            ~location->GetId());
 
         chunk->ReleaseReadLock();
 
@@ -268,7 +272,7 @@ private:
         if (!data) {
             cookie->Cancel(TError(
                 NChunkClient::EErrorCode::NoSuchBlock,
-                "No such chunk block: %s",
+                "No such chunk block %s",
                 ~ToString(blockId)));
             return;
         }
@@ -281,13 +285,13 @@ private:
         }
 
         Profiler.Enqueue("/block_read_size", blockSize);
-        Profiler.Increment(ReadThroughputCounter, blockSize);
+        Profiler.Increment(location->ReadThroughputCounter(), blockSize);
     }
 
     void LogCacheHit(TCachedBlockPtr block)
     {
         Profiler.Increment(CacheReadThroughputCounter, block->GetData().Size());
-        LOG_DEBUG("Block cache hit: %s", ~ToString(block->GetKey()));
+        LOG_DEBUG("Block cache hit (BlockId: %s)", ~ToString(block->GetKey()));
     }
 };
 
@@ -304,7 +308,7 @@ public:
     void Put(
         const TBlockId& id,
         const TSharedRef& data,
-        const TNullable<TNodeDescriptor>& source)
+        const TNullable<NChunkClient::TNodeDescriptor>& source)
     {
         StoreImpl->Put(id, data, source);
     }
@@ -347,7 +351,7 @@ TCachedBlockPtr TBlockStore::FindBlock(const TBlockId& blockId)
 TCachedBlockPtr TBlockStore::PutBlock(
     const TBlockId& blockId,
     const TSharedRef& data,
-    const TNullable<TNodeDescriptor>& source)
+    const TNullable<NChunkClient::TNodeDescriptor>& source)
 {
     return StoreImpl->Put(blockId, data, source);
 }

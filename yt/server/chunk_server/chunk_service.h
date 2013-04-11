@@ -3,7 +3,7 @@
 #include "public.h"
 #include "chunk_service_proxy.h"
 
-#include <ytlib/rpc/service.h>
+#include <ytlib/rpc/service_detail.h>
 
 #include <server/cell_master/meta_state_service.h>
 

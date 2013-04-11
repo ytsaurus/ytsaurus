@@ -10,8 +10,9 @@
 #include <ytlib/meta_state/master_channel.h>
 
 #include <ytlib/chunk_client/client_block_cache.h>
+#include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
 
-#include <ytlib/table_client/table_chunk_sequence_writer.h>
+#include <ytlib/table_client/table_chunk_writer.h>
 #include <ytlib/table_client/table_chunk_reader.h>
 #include <ytlib/table_client/multi_chunk_parallel_reader.h>
 #include <ytlib/table_client/sync_writer.h>
@@ -34,6 +35,7 @@ static NLog::TLogger& Logger = JobProxyLogger;
 static NProfiling::TProfiler& Profiler = JobProxyProfiler;
 
 typedef TMultiChunkParallelReader<TTableChunkReader> TReader;
+typedef TMultiChunkSequentialWriter<TTableChunkWriter> TWriter;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -57,8 +59,8 @@ public:
         KeyColumns = FromProto<Stroka>(jobSpecExt.key_columns());
 
         {
-            TReaderOptions options;
-            options.KeepBlocks = true;
+            auto options = New<TChunkReaderOptions>();
+            options->KeepBlocks = true;
 
             std::vector<NTableClient::NProto::TInputChunk> chunks(
                 jobSpec.input_specs(0).chunks().begin(),
@@ -84,12 +86,18 @@ public:
             auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
             auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
             options->KeyColumns = KeyColumns;
-            Writer = New<TTableChunkSequenceWriter>(
+
+            auto writerProvider = New<TTableChunkWriterProvider>(
+                config->JobIO->TableWriter,
+                options);
+
+            Writer = CreateSyncWriter<TTableChunkWriter>(New<TWriter>(
                 config->JobIO->TableWriter,
                 options,
+                writerProvider,
                 Host->GetMasterChannel(),
                 transactionId,
-                chunkListId);
+                chunkListId));
         }
     }
 
@@ -179,8 +187,7 @@ public:
 
             LOG_INFO("Writing");
             {
-                auto writer = CreateSyncWriter(Writer);
-                writer->Open();
+                Writer->Open();
 
                 TRow row;
                 TNonOwningKey key(keyColumnCount);
@@ -201,14 +208,14 @@ public:
                         SetKeyPart(&key, keyPart, keyIndex);
                     }
 
-                    writer->WriteRowUnsafe(row, key);
+                    Writer->WriteRowUnsafe(row, key);
 
                     if (progressIndex % 1000 == 0) {
                         Writer->SetProgress(double(progressIndex) / rowIndexBuffer.size());
                     }
                 }
 
-                writer->Close();
+                Writer->Close();
             }
 
             PROFILE_TIMING_CHECKPOINT("write");
@@ -248,7 +255,7 @@ public:
 private:
     TKeyColumns KeyColumns;
     TIntrusivePtr<TReader> Reader;
-    TTableChunkSequenceWriterPtr Writer;
+    ISyncWriterUnsafePtr Writer;
 
 };
 

@@ -214,7 +214,7 @@ void InitializeTracking(TRefCountedBase* object, void* typeCookie, size_t instan
 
 #endif
 
-//! Base for any reference-counted.
+//! Base class for all reference-counted objects.
 class TRefCountedBase
     : private TNonCopyable
 {
@@ -249,7 +249,7 @@ FORCED_INLINE void InitializeTracking(TRefCountedBase* object, void* typeCookie,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Base for reference-counted objects with extrinsic reference counting.
+//! Base class for all reference-counted objects with extrinsic reference counting.
 class TExtrinsicRefCounted
     : public TRefCountedBase
 {
@@ -312,7 +312,7 @@ private:
 
 };
 
-//! Base for reference-counted objects with intrinsic reference counting.
+//! Base class for all reference-counted objects with intrinsic reference counting.
 class TIntrinsicRefCounted
     : public TRefCountedBase
 {

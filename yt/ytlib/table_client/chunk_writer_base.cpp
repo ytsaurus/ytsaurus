@@ -27,7 +27,7 @@ static NLog::TLogger& Logger = TableWriterLogger;
 
 TChunkWriterBase::TChunkWriterBase(
     TChunkWriterConfigPtr config,
-    TTableWriterOptionsPtr options,
+    TChunkWriterOptionsPtr options,
     NChunkClient::IAsyncWriterPtr chunkWriter)
     : Config(config)
     , Options(options)

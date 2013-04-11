@@ -40,7 +40,7 @@ TAsyncError TMultiChunkSequentialReader<TChunkReader>::AsyncOpen()
     YCHECK(CurrentReaderIndex == -1);
     YCHECK(!State.HasRunningOperation());
 
-    for (int i = 0; i < TBase::Config->PrefetchWindow; ++i) {
+    for (int i = 0; i < TBase::PrefetchWindow; ++i) {
         TBase::PrepareNextChunk();
     }
 

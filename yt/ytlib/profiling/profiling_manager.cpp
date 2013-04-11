@@ -234,6 +234,8 @@ private:
             auto bucket = it->second.Lock();
             if (bucket) {
                 return bucket;
+            } else {
+                PathToBucket.erase(it);
             }
         }
 

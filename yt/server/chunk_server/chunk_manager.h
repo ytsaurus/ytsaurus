@@ -14,7 +14,6 @@
 
 #include <ytlib/chunk_client/chunk_replica.h>
 
-#include <ytlib/rpc/service.h>
 
 #include <server/object_server/public.h>
 

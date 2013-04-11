@@ -2,16 +2,12 @@
 
 #include "public.h"
 #include "config.h"
+#include "chunk_replica.h"
+#include "replication_writer.h"
 
-#include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/async_stream_state.h>
 
 #include <ytlib/actions/parallel_awaiter.h>
-
-#include <ytlib/chunk_client/public.h>
-#include <ytlib/chunk_client/replication_writer.h>
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/chunk_client/chunk_replica.h>
 
 #include <ytlib/table_client/table_reader.pb.h>
 
@@ -23,52 +19,54 @@
 #include <ytlib/logging/tagged_logger.h>
 
 namespace NYT {
-namespace NTableClient {
+namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TChunkWriter>
-class TChunkSequenceWriterBase
+class TMultiChunkSequentialWriter
     : virtual public TRefCounted
 {
 public:
-    TChunkSequenceWriterBase(
-        TTableWriterConfigPtr config,
-        TTableWriterOptionsPtr options,
+    typedef typename TChunkWriter::TProvider TProvider;
+    typedef TIntrusivePtr<TProvider> TProviderPtr;
+
+    typedef typename TChunkWriter::TFacade TFacade;
+
+    TMultiChunkSequentialWriter(
+        TMultiChunkWriterConfigPtr config,
+        TMultiChunkWriterOptionsPtr options,
+        TProviderPtr provider,
         NRpc::IChannelPtr masterChannel,
         const NTransactionClient::TTransactionId& transactionId,
-        const NChunkClient::TChunkListId& parentChunkListId);
+        const TChunkListId& parentChunkListId);
 
-    ~TChunkSequenceWriterBase();
+    ~TMultiChunkSequentialWriter();
 
     TAsyncError AsyncOpen();
-    virtual TAsyncError AsyncClose();
+    TAsyncError AsyncClose();
 
+    // Returns pointer to writer facade, which allows single write operation.
+    // In nullptr is returned, caller should subscribe to ReadyEvent.
+    TFacade* GetCurrentWriter();
     TAsyncError GetReadyEvent();
-
-    virtual bool TryWriteRow(const TRow& row);
-    virtual bool TryWriteRowUnsafe(const TRow& row);
 
     void SetProgress(double progress);
 
     //! Only valid when the writer is closed.
-    const std::vector<NProto::TInputChunk>& GetWrittenChunks() const;
+    const std::vector<NTableClient::NProto::TInputChunk>& GetWrittenChunks() const;
 
     //! Provides node id to descriptor mapping for chunks returned via #GetWrittenChunks.
-    NChunkClient::TNodeDirectoryPtr GetNodeDirectory() const;
-
-    //! Current row count.
-    i64 GetRowCount() const;
-
-    const TNullable<TKeyColumns>& GetKeyColumns() const;
+    TNodeDirectoryPtr GetNodeDirectory() const;
+    TProviderPtr GetProvider();
 
 protected:
     struct TSession
     {
         TIntrusivePtr<TChunkWriter> ChunkWriter;
-        NChunkClient::IAsyncWriterPtr RemoteWriter;
-        std::vector<NChunkClient::TChunkReplica> Replicas;
-        NChunkClient::TChunkId ChunkId;
+        IAsyncWriterPtr RemoteWriter;
+        std::vector<TChunkReplica> Replicas;
+        TChunkId ChunkId;
 
         TSession()
             : ChunkWriter(NULL)
@@ -84,7 +82,7 @@ protected:
         {
             ChunkWriter.Reset();
             RemoteWriter.Reset();
-            ChunkId = NChunkClient::TChunkId();
+            ChunkId = TChunkId();
         }
     };
 
@@ -92,7 +90,6 @@ protected:
     virtual void InitCurrentSession(TSession nextSession);
 
     void OnChunkCreated(NObjectClient::TMasterYPathProxy::TRspCreateObjectPtr rsp);
-    virtual void PrepareChunkWriter(TSession* newSession) = 0;
 
     void FinishCurrentSession();
 
@@ -103,12 +100,12 @@ protected:
         TError error);
 
     void OnChunkConfirmed(
-        NChunkClient::TChunkId chunkId,
+        TChunkId chunkId,
         TAsyncErrorPromise finishResult,
         NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
 
     void OnChunkFinished(
-        NChunkClient::TChunkId chunkId,
+        TChunkId chunkId,
         TError error);
 
     void OnRowWritten();
@@ -118,18 +115,17 @@ protected:
 
     void SwitchSession();
 
-    const TTableWriterConfigPtr Config;
-    const TTableWriterOptionsPtr Options;
-    const int ReplicationFactor;
-    const int UploadReplicationFactor;
+    const TMultiChunkWriterConfigPtr Config;
+    const TMultiChunkWriterOptionsPtr Options;
     const NRpc::IChannelPtr MasterChannel;
-    const NObjectClient::TTransactionId TransactionId;
-    const Stroka Account;
-    const NChunkClient::TChunkListId ParentChunkListId;
+    const NTransactionClient::TTransactionId TransactionId;
+    const TChunkListId ParentChunkListId;
 
-    NChunkClient::TNodeDirectoryPtr NodeDirectory;
+    TNodeDirectoryPtr NodeDirectory;
 
-    i64 RowCount;
+    const int UploadReplicationFactor;
+
+    TProviderPtr Provider;
 
     volatile double Progress;
 
@@ -144,7 +140,7 @@ protected:
     TParallelAwaiterPtr CloseChunksAwaiter;
 
     TSpinLock WrittenChunksGuard;
-    std::vector<NProto::TInputChunk> WrittenChunks;
+    std::vector<NTableClient::NProto::TInputChunk> WrittenChunks;
 
     NLog::TTaggedLogger Logger;
 
@@ -152,10 +148,10 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
+} // namespace NChunkClient
 } // namespace NYT
 
-#define CHUNK_SEQUENCE_WRITER_BASE_INL_H_
-#include "chunk_sequence_writer_base-inl.h"
-#undef CHUNK_SEQUENCE_WRITER_BASE_INL_H_
+#define MULTI_CHUNK_SEQUENTIAL_WRITER_INL_H_
+#include "multi_chunk_sequential_writer-inl.h"
+#undef MULTI_CHUNK_SEQUENTIAL_WRITER_INL_H_
 

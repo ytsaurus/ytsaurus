@@ -52,6 +52,10 @@ using NChunkClient::TNodeDirectory;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const i64 MemoryLimitBoost = 2L * 1024 * 1024 * 1024;
+
+////////////////////////////////////////////////////////////////////////////////
+
 TJob::TJob(
     const TJobId& jobId,
     const NScheduler::NProto::TNodeResources& resourceLimits,
@@ -173,7 +177,7 @@ void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
             environmentType,
             JobId,
             Slot->GetWorkingDirectory(),
-            static_cast<i64>(JobProxyMemoryLimit * Bootstrap->GetConfig()->MemoryLimitMultiplier));
+            static_cast<i64>(JobProxyMemoryLimit * Bootstrap->GetConfig()->MemoryLimitMultiplier + MemoryLimitBoost));
     } catch (const std::exception& ex) {
         auto wrappedError = TError(
             "Failed to create proxy controller for environment %s",
@@ -531,6 +535,7 @@ void TJob::Abort(const TError& error)
 
     if (JobState == EJobState::Waiting) {
         YCHECK(!Slot);
+        SetResult(TError("Job aborted by scheduler"));
         JobState = EJobState::Aborted;
         SetResourceUsage(ZeroNodeResources());
         ResourcesReleased_.Fire();

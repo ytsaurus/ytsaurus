@@ -16,19 +16,6 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TReaderOptions
-{
-    bool ReadKey;
-
-    // If set, reader keeps all memory buffers valid until destruction.
-    bool KeepBlocks;
-
-    TReaderOptions()
-        : ReadKey(false)
-        , KeepBlocks(false)
-    { }
-};
-
 DECLARE_ENUM(EErrorCode,
     ((MasterCommunicationFailed)  (300))
     ((SortOrderViolation)         (301))
@@ -39,6 +26,9 @@ typedef TIntrusivePtr<IAsyncWriter> IAsyncWriterPtr;
 
 struct ISyncWriter;
 typedef TIntrusivePtr<ISyncWriter> ISyncWriterPtr;
+
+struct ISyncWriterUnsafe;
+typedef TIntrusivePtr<ISyncWriterUnsafe> ISyncWriterUnsafePtr;
 
 struct ISyncReader;
 typedef TIntrusivePtr<ISyncReader> ISyncReaderPtr;
@@ -52,8 +42,18 @@ typedef TIntrusivePtr<TChunkWriterConfig> TChunkWriterConfigPtr;
 class TTableChunkWriter;
 typedef TIntrusivePtr<TTableChunkWriter> TTableChunkWriterPtr;
 
+class TTableChunkWriterFacade;
+
+class TTableChunkWriterProvider;
+typedef TIntrusivePtr<TTableChunkWriterProvider> TTableChunkWriterProviderPtr;
+
 class TPartitionChunkWriter;
 typedef TIntrusivePtr<TPartitionChunkWriter> TPartitionChunkWriterPtr;
+
+class TPartitionChunkWriterFacade;
+
+class TPartitionChunkWriterProvider;
+typedef TIntrusivePtr<TPartitionChunkWriterProvider> TPartitionChunkWriterProviderPtr;
 
 class TTableChunkReader;
 typedef TIntrusivePtr<TTableChunkReader> TTableChunkReaderPtr;
@@ -79,6 +79,12 @@ typedef TIntrusivePtr<TChannelWriter> TChannelWriterPtr;
 class TChannelReader;
 typedef TIntrusivePtr<TChannelReader> TChannelReaderPtr;
 
+struct TChunkWriterConfig;
+typedef TIntrusivePtr<TChunkWriterConfig> TChunkWriterConfigPtr;
+
+struct TChunkWriterOptions;
+typedef TIntrusivePtr<TChunkWriterOptions> TChunkWriterOptionsPtr;
+
 struct TTableWriterConfig;
 typedef TIntrusivePtr<TTableWriterConfig> TTableWriterConfigPtr;
 
@@ -87,6 +93,9 @@ typedef TIntrusivePtr<TTableWriterOptions> TTableWriterOptionsPtr;
 
 struct TTableReaderConfig;
 typedef TIntrusivePtr<TTableReaderConfig> TTableReaderConfigPtr;
+
+struct TChunkReaderOptions;
+typedef TIntrusivePtr<TChunkReaderOptions> TChunkReaderOptionsPtr;
 
 class TTableProducer;
 class TTableConsumer;
