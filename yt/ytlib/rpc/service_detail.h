@@ -501,7 +501,7 @@ private:
 
 #define DECLARE_RPC_SERVICE_METHOD(ns, method) \
     typedef ::NYT::NRpc::TTypedServiceContext<ns::TReq##method, ns::TRsp##method> TCtx##method; \
-    typedef TIntrusivePtr<TCtx##method> TCtx##method##Ptr; \
+    typedef ::NYT::TIntrusivePtr<TCtx##method> TCtx##method##Ptr; \
     typedef TCtx##method::TTypedRequest  TReq##method; \
     typedef TCtx##method::TTypedResponse TRsp##method; \
     \
@@ -509,7 +509,7 @@ private:
         ::NYT::NRpc::IServiceContextPtr context, \
         const ::NYT::NRpc::THandlerInvocationOptions& options) \
     { \
-        auto typedContext = New<TCtx##method>(std::move(context), options); \
+        auto typedContext = ::NYT::New<TCtx##method>(std::move(context), options); \
         if (!typedContext->DeserializeRequest()) { \
             return TClosure(); \
         } \
@@ -535,20 +535,20 @@ private:
 #define RPC_SERVICE_METHOD_DESC(method) \
     ::NYT::NRpc::TServiceBase::TMethodDescriptor( \
         #method, \
-        BIND(&TThis::method##Thunk, Unretained(this)))
+        BIND(&TThis::method##Thunk, ::NYT::Unretained(this)))
 
 ////////////////////////////////////////////////////////////////////////////////
 
 #define DECLARE_ONE_WAY_RPC_SERVICE_METHOD(ns, method) \
     typedef ::NYT::NRpc::TOneWayTypedServiceContext<ns::TReq##method> TCtx##method; \
-    typedef TIntrusivePtr<TCtx##method> TCtx##method##Ptr; \
+    typedef ::NYT::TIntrusivePtr<TCtx##method> TCtx##method##Ptr; \
     typedef TCtx##method::TTypedRequest  TReq##method; \
     \
     TClosure method##Thunk( \
         ::NYT::NRpc::IServiceContextPtr context, \
         const ::NYT::NRpc::THandlerInvocationOptions& options) \
     { \
-        auto typedContext = New<TCtx##method>(std::move(context), options); \
+        auto typedContext = ::NYT::New<TCtx##method>(std::move(context), options); \
         if (!typedContext->DeserializeRequest()) { \
             return TClosure(); \
         } \
