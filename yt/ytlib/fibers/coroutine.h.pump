@@ -9,19 +9,19 @@ $range ARITY 0..MAX_ARITY
 
 #include <ytlib/misc/nullable.h>
 
+#include <tuple>
+
 #if defined(_MSC_VER) && (_MSC_VER < 1700)
-// Use tuple from tr1.
-#include <tr1/tuple>
 namespace std {
     using ::std::tr1::tuple;
     using ::std::tr1::tie;
     using ::std::tr1::get;
 } // namespace std
-#else
-#include <tuple>
 #endif
 
 namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
 
 template <class Signature>
 class TCoroutine;
@@ -128,5 +128,7 @@ $if ARITY > 0 [[
 };
 
 ]]
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
