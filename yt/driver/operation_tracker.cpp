@@ -174,8 +174,8 @@ EExitCode TOperationTracker::DumpResult()
         batchReq->AddRequest(req, "get_op_start_time");
     }
     {
-        auto req = TYPathProxy::Get(operationPath + "/@end_time");
-        batchReq->AddRequest(req, "get_op_end_time");
+        auto req = TYPathProxy::Get(operationPath + "/@finish_time");
+        batchReq->AddRequest(req, "get_op_finish_time");
     }
 
     {
@@ -206,8 +206,8 @@ EExitCode TOperationTracker::DumpResult()
 
             TInstant endTime;
             {
-                auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_op_end_time");
-                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting operation end time");
+                auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_op_finish_time");
+                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting operation finish time");
                 endTime = ConvertTo<TInstant>(TYsonString(rsp->value()));
             }
             TDuration duration = endTime - startTime;
