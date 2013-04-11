@@ -11,8 +11,6 @@ set( SRCS
   ${BASE}/erasure_writer.cpp
   ${BASE}/file_reader.cpp
   ${BASE}/file_writer.cpp
-  ${BASE}/node_directory.cpp
-  ${BASE}/node_directory_builder.cpp
   ${BASE}/private.cpp
   ${BASE}/public.cpp
   ${BASE}/replication_reader.cpp
@@ -40,8 +38,6 @@ set( HDRS
   ${BASE}/file_reader.h
   ${BASE}/file_writer.h
   ${BASE}/format.h
-  ${BASE}/node_directory.h
-  ${BASE}/node_directory_builder.h
   ${BASE}/private.h
   ${BASE}/public.h
   ${BASE}/replication_reader.h
