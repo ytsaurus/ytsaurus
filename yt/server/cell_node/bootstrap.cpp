@@ -37,6 +37,8 @@
 
 #include <ytlib/object_client/object_service_proxy.h>
 
+#include <server/misc/build_attributes.h>
+
 #include <server/chunk_holder/private.h>
 #include <server/chunk_holder/config.h>
 #include <server/chunk_holder/ytree_integration.h>
@@ -63,7 +65,10 @@
 #include <server/exec_agent/unsafe_environment.h>
 #include <server/exec_agent/scheduler_connector.h>
 
-#include <server/misc/build_attributes.h>
+#ifdef _unix_
+    #include <sys/types.h>
+    #include <sys/stat.h>
+#endif
 
 namespace NYT {
 namespace NCellNode {
@@ -211,7 +216,7 @@ void TBootstrap::Run()
     JobControlEnabled = false;
 
 #if defined(_unix_) && !defined(_darwin_)
-    if (Config->EnforceJobControl) {
+    if (Config->ExecAgent->EnforceJobControl) {
         uid_t ruid, euid, suid;
         YCHECK(getresuid(&ruid, &euid, &suid) == 0);
         if (suid == 0) {
