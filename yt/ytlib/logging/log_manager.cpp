@@ -487,7 +487,6 @@ private:
     void DoFlushWritersPeriodically()
     {
         Config->FlushWriters();
-        FlushInvoker->ScheduleNext();
     }
 
 
