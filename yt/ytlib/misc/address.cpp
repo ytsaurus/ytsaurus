@@ -433,8 +433,8 @@ Stroka TAddressResolver::DoGetLocalHostName()
     }
 
     for (auto* currentInfo = addrInfo; currentInfo; currentInfo = currentInfo->ai_next) {
-        if (currentInfo->ai_family == AF_INET && Config->EnableIPv4 ||
-            currentInfo->ai_family == AF_INET6 && Config->EnableIPv6)
+        if ((currentInfo->ai_family == AF_INET && Config->EnableIPv4) ||
+            (currentInfo->ai_family == AF_INET6 && Config->EnableIPv6))
         {
             LOG_INFO("LocalHost FQDN reported by getaddrinfo: %s", currentInfo->ai_canonname);
             return Stroka(currentInfo->ai_canonname);

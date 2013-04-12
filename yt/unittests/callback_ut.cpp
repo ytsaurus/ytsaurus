@@ -27,7 +27,7 @@ struct TFakeInvoker
 namespace NDetail {
 
 template <class Runnable, class Signature, class BoundArgs>
-struct TBindState;
+class TBindState;
 
 // White-box injection into a #TCallback<> object for checking
 // comparators and emptiness APIs. Use a #TBindState<> that is specialized
@@ -35,7 +35,7 @@ struct TBindState;
 // chance of colliding with another instantiation and breaking the
 // one-definition-rule.
 template <>
-struct TBindState<void(), void(), void(TFakeInvoker)>
+class TBindState<void(), void(), void(TFakeInvoker)>
     : public TBindStateBase
 {
 public:
@@ -48,7 +48,7 @@ public:
 };
 
 template <>
-struct TBindState<void(), void(), void(TFakeInvoker, TFakeInvoker)>
+class TBindState<void(), void(), void(TFakeInvoker, TFakeInvoker)>
     : public TBindStateBase
 {
 public:

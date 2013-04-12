@@ -131,7 +131,9 @@ private:
     int Socket;
     int Fd;
     Stroka Address;
+#ifdef _linux_
     int Priority;
+#endif
     IMessageHandlerPtr Handler;
 
     NLog::TTaggedLogger Logger;

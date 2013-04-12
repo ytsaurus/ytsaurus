@@ -59,7 +59,9 @@ TTcpConnection::TTcpConnection(
     , Socket(socket)
     , Fd(INVALID_SOCKET)
     , Address(address)
+#ifdef _linux_
     , Priority(priority)
+#endif
     , Handler(handler)
     , Logger(BusLogger)
     , Port(0)
@@ -366,7 +368,7 @@ void TTcpConnection::ConnectSocket(const TNetworkAddress& netAddress)
                     << TError::FromSystem();
             }
         }
-#if !defined(_win_) && !defined(__APPLE__)
+#ifdef _linux_
         {
             if (setsockopt(Socket, SOL_SOCKET, SO_PRIORITY, (const char*) &Priority, sizeof(Priority)) != 0) {
                 THROW_ERROR_EXCEPTION("Failed to set socket priority")

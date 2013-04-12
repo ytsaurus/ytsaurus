@@ -200,17 +200,17 @@ TEscapeTable::TEscapeTable(bool EscapeCarriageReturn)
         Backward[i] = i;
     }
 
-    Forward['\0'] = '0';
-    Forward['\n'] = 'n';
-    Forward['\t'] = 't';
+    Forward[static_cast<unsigned char>('\0')] = '0';
+    Forward[static_cast<unsigned char>('\n')] = 'n';
+    Forward[static_cast<unsigned char>('\t')] = 't';
 
-    Backward['0'] = '\0';
-    Backward['t'] = '\t';
-    Backward['n'] = '\n';
+    Backward[static_cast<unsigned char>('0')] = '\0';
+    Backward[static_cast<unsigned char>('t')] = '\t';
+    Backward[static_cast<unsigned char>('n')] = '\n';
 
     if (EscapeCarriageReturn) {
-        Forward['\r'] = 'r';
-        Backward['r'] = '\r';
+        Forward[static_cast<unsigned char>('\r')] = 'r';
+        Backward[static_cast<unsigned char>('r')] = '\r';
     }
 }
 

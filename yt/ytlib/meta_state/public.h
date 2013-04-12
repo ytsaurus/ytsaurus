@@ -13,9 +13,9 @@ namespace NMetaState {
 struct IMetaState;
 typedef TIntrusivePtr<IMetaState> IMetaStatePtr;
 
-struct TMutationContext;
 struct TMutationRequest;
 struct TMutationResponse;
+class TMutationContext;
 
 typedef TGuid TMutationId;
 extern TMutationId NullMutationId;

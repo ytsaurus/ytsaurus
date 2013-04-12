@@ -151,7 +151,7 @@ class TCallback;
 
 namespace NDetail {
     template <class Runnable, class Signature, class BoundArgs>
-    struct TBindState;
+    class TBindState;
 
     // TODO(sandello): Move these somewhere closer to TFuture & TPromise.
     template <class R>
