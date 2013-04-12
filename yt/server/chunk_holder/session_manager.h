@@ -12,6 +12,8 @@
 
 #include <ytlib/profiling/profiler.h>
 
+#include <server/cell_node/public.h>
+
 namespace NYT {
 namespace NChunkHolder {
 
@@ -24,7 +26,7 @@ class TSession
 public:
     TSession(
         TDataNodeConfigPtr config,
-        TBootstrap* bootstrap,
+        NCellNode::TBootstrap* bootstrap,
         const TChunkId& chunkId,
         TLocationPtr location);
 
@@ -96,7 +98,7 @@ private:
     typedef std::vector<TSlot> TWindow;
 
     TDataNodeConfigPtr Config;
-    TBootstrap* Bootstrap;
+    NCellNode::TBootstrap* Bootstrap;
     TChunkId ChunkId;
     TLocationPtr Location;
 
@@ -166,7 +168,7 @@ public:
 
     TSessionManager(
         TDataNodeConfigPtr config,
-        TBootstrap* bootstrap);
+        NCellNode::TBootstrap* bootstrap);
 
     //! Starts a new chunk upload session.
     TSessionPtr StartSession(const TChunkId& chunkId);
@@ -207,7 +209,7 @@ private:
     friend class TSession;
 
     TDataNodeConfigPtr Config;
-    TBootstrap* Bootstrap;
+    NCellNode::TBootstrap* Bootstrap;
 
     typedef yhash_map<TChunkId, TSessionPtr> TSessionMap;
     TSessionMap SessionMap;

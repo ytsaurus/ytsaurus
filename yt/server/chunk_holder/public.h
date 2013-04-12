@@ -9,8 +9,6 @@ namespace NChunkHolder {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBootstrap;
-
 class TLocationConfig;
 typedef TIntrusivePtr<TLocationConfig> TLocationConfigPtr;
 

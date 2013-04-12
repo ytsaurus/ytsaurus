@@ -13,6 +13,8 @@
 
 #include <ytlib/table_client/public.h>
 
+#include <server/cell_node/public.h>
+
 namespace NYT {
 namespace NChunkHolder {
 
@@ -24,7 +26,7 @@ class TDataNodeService
 public:
     TDataNodeService(
         TDataNodeConfigPtr config,
-        TBootstrap* bootstrap);
+        NCellNode::TBootstrap* bootstrap);
 
 private:
     typedef TDataNodeService TThis;
@@ -32,7 +34,7 @@ private:
 
     TDataNodeConfigPtr Config;
     TActionQueuePtr WorkerThread;
-    TBootstrap* Bootstrap;
+    NCellNode::TBootstrap* Bootstrap;
 
     TPeriodicInvokerPtr ProfilingInvoker;
 

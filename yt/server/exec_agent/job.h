@@ -27,6 +27,8 @@
 
 #include <server/chunk_holder/public.h>
 
+#include <server/cell_node/bootstrap.h>
+
 namespace NYT {
 namespace NExecAgent {
 
@@ -42,7 +44,7 @@ public:
         const TJobId& jobId,
         const NScheduler::NProto::TNodeResources& resourceLimits,
         NScheduler::NProto::TJobSpec&& jobSpec,
-        TBootstrap* bootstrap);
+        NCellNode::TBootstrap* bootstrap);
 
     /*!
         \note Thread affinity: control thread.
@@ -110,7 +112,7 @@ private:
     NScheduler::NProto::TJobSpec JobSpec;
     const NScheduler::NProto::TUserJobSpec* UserJobSpec;
     NScheduler::NProto::TNodeResources ResourceLimits;
-    TBootstrap* Bootstrap;
+    NCellNode::TBootstrap* Bootstrap;
 
     TSpinLock ResourcesLock;
     NScheduler::NProto::TNodeResources ResourceUsage;
@@ -119,8 +121,6 @@ private:
     i64 JobProxyMemoryLimit;
 
     NLog::TTaggedLogger Logger;
-
-    NChunkHolder::TChunkCachePtr ChunkCache;
 
     TSlotPtr Slot;
 

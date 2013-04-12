@@ -6,7 +6,6 @@
 #include "chunk.h"
 #include "block_store.h"
 #include "config.h"
-#include "bootstrap.h"
 #include "master_connector.h"
 
 #include <ytlib/misc/thread_affinity.h>
@@ -26,11 +25,14 @@
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
+#include <server/cell_node/bootstrap.h>
+
 namespace NYT {
 namespace NChunkHolder {
 
 using namespace NChunkClient;
 using namespace NNodeTrackerClient;
+using namespace NCellNode;
 using namespace NRpc;
 
 using NChunkClient::NProto::TChunkMeta;

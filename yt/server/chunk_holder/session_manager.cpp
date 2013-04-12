@@ -6,7 +6,6 @@
 #include "block_store.h"
 #include "chunk.h"
 #include "chunk_store.h"
-#include "bootstrap.h"
 
 #include <ytlib/chunk_client/file_writer.h>
 #include <ytlib/chunk_client/chunk.pb.h>
@@ -16,12 +15,15 @@
 #include <ytlib/misc/fs.h>
 #include <ytlib/misc/sync.h>
 
+#include <server/cell_node/bootstrap.h>
+
 namespace NYT {
 namespace NChunkHolder {
 
 using namespace NRpc;
 using namespace NChunkClient;
 using namespace NNodeTrackerClient;
+using namespace NCellNode;
 
 using NChunkClient::NProto::TChunkMeta;
 using NChunkClient::NProto::TChunkInfo;

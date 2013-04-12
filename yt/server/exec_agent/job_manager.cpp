@@ -3,7 +3,6 @@
 #include "config.h"
 #include "slot.h"
 #include "job.h"
-#include "bootstrap.h"
 #include "private.h"
 #include "environment.h"
 #include "environment_manager.h"
@@ -17,6 +16,8 @@
 #include <server/chunk_holder/chunk_cache.h>
 
 #include <server/scheduler/job_resources.h>
+
+#include <server/cell_node/bootstrap.h>
 
 namespace NYT {
 namespace NExecAgent {

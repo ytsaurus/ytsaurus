@@ -3,15 +3,17 @@
 #include "supervisor_service_proxy.h"
 #include "job_manager.h"
 #include "job.h"
-#include "bootstrap.h"
 #include "private.h"
 
 #include <server/scheduler/job_resources.h>
+
+#include <server/cell_node/bootstrap.h>
 
 namespace NYT {
 namespace NExecAgent {
 
 using namespace NScheduler;
+using namespace NCellNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 

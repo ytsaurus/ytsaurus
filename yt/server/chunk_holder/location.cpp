@@ -4,7 +4,6 @@
 #include "chunk.h"
 #include "reader_cache.h"
 #include "config.h"
-#include "bootstrap.h"
 #include "disk_health_checker.h"
 #include "master_connector.h"
 
@@ -14,6 +13,9 @@
 
 #include <ytlib/ypath/token.h>
 
+#include <server/cell_node/bootstrap.h>
+#include <server/cell_node/config.h>
+
 #include <util/folder/filelist.h>
 #include <util/folder/dirut.h>
 
@@ -22,6 +24,7 @@ namespace NChunkHolder {
 
 using namespace NChunkClient;
 using namespace NYPath;
+using namespace NCellNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -356,7 +359,7 @@ std::vector<TChunkDescriptor> TLocation::Initialize()
 
     // Initialize and start health checker.
     HealthChecker = New<TDiskHealthChecker>(
-        Bootstrap->GetConfig()->DiskHealthChecker,
+        Bootstrap->GetConfig()->DataNode->DiskHealthChecker,
         GetPath(),
         GetWriteInvoker());
     HealthChecker->SubscribeFailed(BIND(&TLocation::OnHealthCheckFailed, Unretained(this)));

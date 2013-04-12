@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "meta_state_service.h"
-#include "bootstrap.h"
 #include "meta_state_facade.h"
+#include "bootstrap.h"
 
 namespace NYT {
 namespace NCellMaster {

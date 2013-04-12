@@ -12,8 +12,6 @@ namespace NExecAgent {
 using NScheduler::TJobId;
 using NScheduler::TOperationId;
 
-class TBootstrap;
-
 class TJobManager;
 typedef TIntrusivePtr<TJobManager> TJobManagerPtr;
 

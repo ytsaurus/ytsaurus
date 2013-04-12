@@ -9,7 +9,6 @@
 #include "chunk_cache.h"
 #include "session_manager.h"
 #include "job_executor.h"
-#include "bootstrap.h"
 
 #include <ytlib/rpc/client.h>
 
@@ -23,6 +22,8 @@
 
 #include <ytlib/node_tracker_client/node_statistics.h>
 
+#include <server/cell_node/bootstrap.h>
+
 #include <util/random/random.h>
 
 namespace NYT {
@@ -30,6 +31,7 @@ namespace NChunkHolder {
 
 using namespace NRpc;
 using namespace NNodeTrackerClient;
+using namespace NCellNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 

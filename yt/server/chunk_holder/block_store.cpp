@@ -6,7 +6,6 @@
 #include "chunk_registry.h"
 #include "reader_cache.h"
 #include "location.h"
-#include "bootstrap.h"
 
 #include <ytlib/chunk_client/file_reader.h>
 #include <ytlib/chunk_client/block_cache.h>
@@ -14,11 +13,14 @@
 #include <ytlib/chunk_client/data_node_service_proxy.h>
 #include <ytlib/chunk_client/chunk.pb.h>
 
+#include <server/cell_node/bootstrap.h>
+
 namespace NYT {
 namespace NChunkHolder {
 
 using namespace NChunkClient;
 using namespace NNodeTrackerClient;
+using namespace NCellNode;
 
 using NChunkClient::NProto::TChunkMeta;
 using NChunkClient::NProto::TBlocksExt;

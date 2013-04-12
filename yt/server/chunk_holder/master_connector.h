@@ -10,6 +10,8 @@
 
 #include <ytlib/job_tracker_client/job_tracker_service_proxy.h>
 
+#include <server/cell_node/public.h>
+
 namespace NYT {
 namespace NChunkHolder {
 
@@ -26,7 +28,9 @@ class TMasterConnector
 {
 public:
     //! Creates an instance.
-    TMasterConnector(TDataNodeConfigPtr config, TBootstrap* bootstrap);
+    TMasterConnector(
+        TDataNodeConfigPtr config,
+        NCellNode::TBootstrap* bootstrap);
 
     //! Starts interaction with master.
     void Start();
@@ -50,7 +54,7 @@ private:
     typedef yhash_set<TChunkPtr> TChunkSet;
 
     TDataNodeConfigPtr Config;
-    TBootstrap* Bootstrap;
+    NCellNode::TBootstrap* Bootstrap;
     IInvokerPtr ControlInvoker;
 
     DECLARE_ENUM(EState,

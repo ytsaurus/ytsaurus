@@ -10,6 +10,8 @@
 
 #include <ytlib/chunk_client/data_node_service_proxy.h>
 
+#include <server/cell_node/public.h>
+
 namespace NYT {
 namespace NChunkHolder {
 
@@ -21,7 +23,7 @@ class TPeerBlockUpdater
 public:
     TPeerBlockUpdater(
         TDataNodeConfigPtr config,
-        TBootstrap* bootstrap);
+        NCellNode::TBootstrap* bootstrap);
 
     void Start();
     void Stop();
@@ -32,7 +34,7 @@ private:
     typedef NChunkClient::TDataNodeServiceProxy TProxy;
 
     TDataNodeConfigPtr Config;
-    TBootstrap* Bootstrap;
+    NCellNode::TBootstrap* Bootstrap;
     TPeriodicInvokerPtr PeriodicInvoker;
 
 };

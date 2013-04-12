@@ -2,8 +2,11 @@
 
 #include "public.h"
 
-#include <ytlib/scheduler/scheduler_proxy.h>
 #include <ytlib/misc/periodic_invoker.h>
+
+#include <ytlib/scheduler/scheduler_proxy.h>
+
+#include <server/cell_node/public.h>
 
 namespace NYT {
 namespace NExecAgent {
@@ -16,7 +19,7 @@ class TSchedulerConnector
 public:
     TSchedulerConnector(
         TSchedulerConnectorConfigPtr config,
-        TBootstrap* bootstrap);
+        NCellNode::TBootstrap* bootstrap);
 
     void Start();
 
@@ -24,7 +27,7 @@ private:
     typedef TSchedulerConnector TThis;
 
     TSchedulerConnectorConfigPtr Config;
-    TBootstrap* Bootstrap;
+    NCellNode::TBootstrap* Bootstrap;
     IInvokerPtr ControlInvoker;
 
     NScheduler::TSchedulerServiceProxy Proxy;

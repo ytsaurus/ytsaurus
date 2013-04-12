@@ -10,7 +10,6 @@
 #include "block_store.h"
 #include "peer_block_table.h"
 #include "session_manager.h"
-#include "bootstrap.h"
 
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/protobuf_helpers.h>
@@ -33,6 +32,8 @@
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
+#include <server/cell_node/bootstrap.h>
+
 #include <cmath>
 
 namespace NYT {
@@ -42,6 +43,7 @@ using namespace NRpc;
 using namespace NChunkClient;
 using namespace NNodeTrackerClient;
 using namespace NTableClient;
+using namespace NCellNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 

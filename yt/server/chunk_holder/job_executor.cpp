@@ -6,7 +6,6 @@
 #include "chunk.h"
 #include "config.h"
 #include "location.h"
-#include "bootstrap.h"
 #include "chunk_registry.h"
 
 #include <ytlib/misc/string.h>
@@ -16,11 +15,15 @@
 #include <ytlib/chunk_client/async_writer.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
+#include <server/cell_node/bootstrap.h>
+#include <server/cell_node/config.h>
+
 namespace NYT {
 namespace NChunkHolder {
 
 using namespace NChunkClient;
 using namespace NNodeTrackerClient;
+using namespace NCellNode;
 
 using NChunkClient::NProto::TBlocksExt;
 
@@ -136,7 +139,7 @@ void TJob::RunReplicate()
         this_->ChunkMeta = result.Value();
 
         this_->Writer = CreateReplicationWriter(
-            this_->Bootstrap->GetConfig()->ReplicationRemoteWriter,
+            this_->Bootstrap->GetConfig()->DataNode->ReplicationRemoteWriter,
             this_->ChunkId,
             this_->Targets);
         this_->Writer->Open();

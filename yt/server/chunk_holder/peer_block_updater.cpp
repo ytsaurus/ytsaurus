@@ -2,7 +2,6 @@
 #include "peer_block_updater.h"
 #include "private.h"
 #include "block_store.h"
-#include "bootstrap.h"
 #include "config.h"
 #include "master_connector.h"
 

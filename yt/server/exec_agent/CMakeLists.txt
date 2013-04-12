@@ -1,7 +1,6 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/server/exec_agent )
 set( SRCS
-  ${BASE}/bootstrap.cpp
   ${BASE}/environment_manager.cpp
   ${BASE}/job.cpp
   ${BASE}/job_manager.cpp
@@ -13,7 +12,6 @@ set( SRCS
 )
 
 set( HDRS
-  ${BASE}/bootstrap.h
   ${BASE}/config.h
   ${BASE}/environment.h
   ${BASE}/environment_manager.h

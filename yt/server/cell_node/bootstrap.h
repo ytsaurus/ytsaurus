@@ -20,6 +20,8 @@
 
 #include <server/exec_agent/public.h>
 
+#include <server/job_proxy/public.h>
+
 namespace NYT {
 namespace NCellNode {
 
@@ -38,13 +40,27 @@ public:
     NRpc::IChannelPtr GetMasterChannel() const;
     NRpc::IChannelPtr GetSchedulerChannel() const;
     NRpc::IServerPtr GetRpcServer() const;
-    const NNodeTrackerClient::TNodeDescriptor& GetLocalDescriptor() const;
     NYTree::IMapNodePtr GetOrchidRoot() const;
-
-    NChunkHolder::TBootstrap* GetChunkHolderBootstrap() const;
-    NExecAgent::TBootstrap* GetExecAgentBootstrap() const;
-
+    NExecAgent::TJobManagerPtr GetJobManager() const;
+    NExecAgent::TEnvironmentManagerPtr GetEnvironmentManager() const;
+    NJobProxy::TJobProxyConfigPtr GetJobProxyConfig() const;
     TNodeMemoryTracker& GetMemoryUsageTracker();
+    NChunkHolder::TChunkStorePtr GetChunkStore() const;
+    NChunkHolder::TChunkCachePtr GetChunkCache() const;
+    NChunkHolder::TChunkRegistryPtr GetChunkRegistry() const;
+    NChunkHolder::TSessionManagerPtr GetSessionManager() const;
+    NChunkHolder::TJobExecutorPtr GetJobExecutor() const;
+    NChunkHolder::TBlockStorePtr GetBlockStore();
+    NChunkHolder::TPeerBlockTablePtr GetPeerBlockTable() const;
+    NChunkHolder::TReaderCachePtr GetReaderCache() const;
+    NChunkHolder::TMasterConnectorPtr GetMasterConnector() const;
+
+    const NNodeTrackerClient::TNodeDescriptor& GetLocalDescriptor() const;
+
+    bool IsJobControlEnabled() const;
+
+    const TGuid& GetCellGuid() const;
+    void UpdateCellGuid(const TGuid& cellGuid);
 
     void Run();
 
@@ -54,15 +70,29 @@ private:
 
     TActionQueuePtr ControlQueue;
     NBus::IBusServerPtr BusServer;
-    NRpc::IServerPtr RpcServer;
     NRpc::IChannelPtr MasterChannel;
     NRpc::IChannelPtr SchedulerChannel;
-    NNodeTrackerClient::TNodeDescriptor LocalDescriptor;
+    NRpc::IServerPtr RpcServer;
     NYTree::IMapNodePtr OrchidRoot;
-
-    THolder<NChunkHolder::TBootstrap> ChunkHolderBootstrap;
-    THolder<NExecAgent::TBootstrap> ExecAgentBootstrap;
+    NExecAgent::TJobManagerPtr JobManager;
+    NExecAgent::TEnvironmentManagerPtr EnvironmentManager;
+    NJobProxy::TJobProxyConfigPtr JobProxyConfig;
     TMemoryUsageTracker<EMemoryConsumer> MemoryUsageTracker;
+    NExecAgent::TSchedulerConnectorPtr SchedulerConnector;
+    NChunkHolder::TChunkStorePtr ChunkStore;
+    NChunkHolder::TChunkCachePtr ChunkCache;
+    NChunkHolder::TChunkRegistryPtr ChunkRegistry;
+    NChunkHolder::TSessionManagerPtr SessionManager;
+    NChunkHolder::TJobExecutorPtr JobExecutor;
+    NChunkHolder::TBlockStorePtr BlockStore;
+    NChunkHolder::TPeerBlockTablePtr PeerBlockTable;
+    NChunkHolder::TPeerBlockUpdaterPtr PeerBlockUpdater;
+    NChunkHolder::TReaderCachePtr ReaderCache;
+    NChunkHolder::TMasterConnectorPtr MasterConnector;
+
+    NNodeTrackerClient::TNodeDescriptor LocalDescriptor;
+    bool JobControlEnabled;
+    TGuid CellGuid;
 
 };
 

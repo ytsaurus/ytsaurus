@@ -37,13 +37,33 @@
 
 #include <ytlib/object_client/object_service_proxy.h>
 
-#include <server/chunk_holder/bootstrap.h>
+#include <server/chunk_holder/private.h>
 #include <server/chunk_holder/config.h>
 #include <server/chunk_holder/ytree_integration.h>
 #include <server/chunk_holder/chunk_cache.h>
+#include <server/chunk_holder/peer_block_table.h>
+#include <server/chunk_holder/peer_block_updater.h>
+#include <server/chunk_holder/chunk_store.h>
+#include <server/chunk_holder/chunk_cache.h>
+#include <server/chunk_holder/chunk_registry.h>
+#include <server/chunk_holder/block_store.h>
+#include <server/chunk_holder/reader_cache.h>
+#include <server/chunk_holder/location.h>
+#include <server/chunk_holder/data_node_service.h>
+#include <server/chunk_holder/master_connector.h>
+#include <server/chunk_holder/session_manager.h>
+#include <server/chunk_holder/job_executor.h>
 
-#include <server/exec_agent/bootstrap.h>
+#include <server/exec_agent/private.h>
 #include <server/exec_agent/config.h>
+#include <server/exec_agent/job_manager.h>
+#include <server/exec_agent/supervisor_service.h>
+#include <server/exec_agent/environment.h>
+#include <server/exec_agent/environment_manager.h>
+#include <server/exec_agent/unsafe_environment.h>
+#include <server/exec_agent/scheduler_connector.h>
+
+#include <server/bootstrap/common.h>
 
 namespace NYT {
 namespace NCellNode {
@@ -56,6 +76,9 @@ using namespace NOrchid;
 using namespace NProfiling;
 using namespace NRpc;
 using namespace NScheduler;
+using namespace NExecAgent;
+using namespace NJobProxy;
+using namespace NChunkHolder;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -116,6 +139,108 @@ void TBootstrap::Run()
         BIND(&TRefCountedTracker::GetMonitoringInfo, TRefCountedTracker::Get()));
     monitoringManager->Start();
 
+    auto masterObjectServiceRedirector = CreateRedirectorService(
+        NObjectClient::TObjectServiceProxy::GetServiceName(),
+        MasterChannel);
+    RpcServer->RegisterService(masterObjectServiceRedirector);
+
+    ReaderCache = New<TReaderCache>(Config->DataNode);
+
+    ChunkRegistry = New<TChunkRegistry>(this);
+
+    BlockStore = New<TBlockStore>(Config->DataNode, this);
+
+    PeerBlockTable = New<TPeerBlockTable>(Config->DataNode->PeerBlockTable);
+
+    PeerBlockUpdater = New<TPeerBlockUpdater>(Config->DataNode, this);
+    PeerBlockUpdater->Start();
+
+    ChunkStore = New<TChunkStore>(Config->DataNode, this);
+    ChunkStore->Start();
+
+    ChunkCache = New<TChunkCache>(Config->DataNode, this);
+    ChunkCache->Start();
+
+    if (!ChunkStore->GetCellGuid().IsEmpty() && !ChunkCache->GetCellGuid().IsEmpty()) {
+        LOG_FATAL_IF(
+            ChunkStore->GetCellGuid().IsEmpty() != ChunkCache->GetCellGuid().IsEmpty(),
+            "Inconsistent cell guid (ChunkStore: %s, ChunkCache: %s)",
+            ~ToString(ChunkStore->GetCellGuid()),
+            ~ToString(ChunkCache->GetCellGuid()));
+        CellGuid = ChunkCache->GetCellGuid();
+    }
+
+    if (!ChunkStore->GetCellGuid().IsEmpty() && ChunkCache->GetCellGuid().IsEmpty()) {
+        CellGuid = ChunkStore->GetCellGuid();
+        ChunkCache->UpdateCellGuid(CellGuid);
+    }
+
+    if (ChunkStore->GetCellGuid().IsEmpty() && !ChunkCache->GetCellGuid().IsEmpty()) {
+        CellGuid = ChunkCache->GetCellGuid();
+        ChunkStore->SetCellGuid(CellGuid);
+    }
+
+    SessionManager = New<TSessionManager>(Config->DataNode, this);
+
+    JobExecutor = New<TJobExecutor>(this);
+
+    MasterConnector = New<TMasterConnector>(Config->DataNode, this);
+
+    auto dataNodeService = New<TDataNodeService>(Config->DataNode, this);
+    RpcServer->RegisterService(dataNodeService);
+
+    MasterConnector->Start();
+
+    JobProxyConfig = New<NJobProxy::TJobProxyConfig>();
+
+    JobProxyConfig->MemoryWatchdogPeriod = Config->ExecAgent->MemoryWatchdogPeriod;
+
+    JobProxyConfig->Logging = Config->ExecAgent->JobProxyLogging;
+
+    JobProxyConfig->MemoryLimitMultiplier = Config->ExecAgent->MemoryLimitMultiplier;
+
+    JobProxyConfig->SandboxName = SandboxDirectoryName;
+    JobProxyConfig->AddressResolver = Config->AddressResolver;
+    JobProxyConfig->SupervisorConnection = New<NBus::TTcpBusClientConfig>();
+    JobProxyConfig->SupervisorConnection->Address = LocalDescriptor.Address;
+    JobProxyConfig->SupervisorRpcTimeout = Config->ExecAgent->SupervisorRpcTimeout;
+    JobProxyConfig->MasterRpcTimeout = Config->Masters->RpcTimeout;
+    // TODO(babenko): consider making this priority configurable
+    JobProxyConfig->SupervisorConnection->Priority = 6;
+
+    JobControlEnabled = false;
+
+#if defined(_unix_) && !defined(_darwin_)
+    if (Config->EnforceJobControl) {
+        uid_t ruid, euid, suid;
+        YCHECK(getresuid(&ruid, &euid, &suid) == 0);
+        if (suid == 0) {
+            JobControlEnabled = true;
+        }
+        umask(0000);
+    }
+#endif
+
+    if (!JobControlEnabled) {
+        if (Config->ExecAgent->EnforceJobControl) {
+            LOG_FATAL("Job control disabled, please run as root");
+        } else {
+            LOG_WARNING("Job control disabled, cannot kill jobs and use memory limits watcher");
+        }
+    }
+
+    JobManager = New<TJobManager>(Config->ExecAgent->JobManager, this);
+    JobManager->Initialize();
+
+    auto supervisorService = New<TSupervisorService>(this);
+    RpcServer->RegisterService(supervisorService);
+
+    EnvironmentManager = New<TEnvironmentManager>(Config->ExecAgent->EnvironmentManager);
+    EnvironmentManager->Register("unsafe", CreateUnsafeEnvironmentBuilder());
+
+    SchedulerConnector = New<TSchedulerConnector>(Config->ExecAgent->SchedulerConnector, this);
+    SchedulerConnector->Start();
+
     OrchidRoot = GetEphemeralNodeFactory()->CreateMap();
     SetNodeByYPath(
         OrchidRoot,
@@ -125,33 +250,34 @@ void TBootstrap::Run()
         OrchidRoot,
         "/profiling",
         CreateVirtualNode(
-            TProfilingManager::Get()->GetRoot()
-            ->Via(TProfilingManager::Get()->GetInvoker())));
+        TProfilingManager::Get()->GetRoot()
+        ->Via(TProfilingManager::Get()->GetInvoker())));
     SetNodeByYPath(
         OrchidRoot,
         "/config",
         CreateVirtualNode(CreateYsonFileProducer(ConfigFileName)));
-
-    auto orchidService = New<TOrchidService>(
+    SetNodeByYPath(
         OrchidRoot,
-        GetControlInvoker());
-    RpcServer->RegisterService(orchidService);
-
-    auto masterObjectServiceRedirector = CreateRedirectorService(
-        NObjectClient::TObjectServiceProxy::GetServiceName(),
-        MasterChannel);
-    RpcServer->RegisterService(masterObjectServiceRedirector);
+        "/stored_chunks",
+        CreateVirtualNode(CreateStoredChunkMapService(~ChunkStore)));
+    SetNodeByYPath(
+        OrchidRoot,
+        "/cached_chunks",
+        CreateVirtualNode(CreateCachedChunkMapService(~ChunkCache)));
+    SyncYPathSet(
+        OrchidRoot,
+        "/@service_name", ConvertToYsonString("node"));
+    SetBuildAttributes(OrchidRoot);
 
     ::THolder<NHttp::TServer> httpServer(new NHttp::TServer(Config->MonitoringPort));
     httpServer->Register(
         "/orchid",
         NMonitoring::GetYPathHttpHandler(OrchidRoot->Via(GetControlInvoker())));
 
-    ChunkHolderBootstrap.Reset(new NChunkHolder::TBootstrap(Config->DataNode, this));
-    ChunkHolderBootstrap->Init();
-
-    ExecAgentBootstrap.Reset(new NExecAgent::TBootstrap(Config->ExecAgent, this));
-    ExecAgentBootstrap->Initialize();
+    auto orchidService = New<TOrchidService>(
+        OrchidRoot,
+        GetControlInvoker());
+    RpcServer->RegisterService(orchidService);
 
     LOG_INFO("Listening for HTTP requests on port %d", Config->MonitoringPort);
     httpServer->Start();
@@ -173,11 +299,6 @@ IInvokerPtr TBootstrap::GetControlInvoker() const
     return ControlQueue->GetInvoker();
 }
 
-IServerPtr TBootstrap::GetRpcServer() const
-{
-    return RpcServer;
-}
-
 IChannelPtr TBootstrap::GetMasterChannel() const
 {
     return MasterChannel;
@@ -188,9 +309,9 @@ IChannelPtr TBootstrap::GetSchedulerChannel() const
     return SchedulerChannel;
 }
 
-const NNodeTrackerClient::TNodeDescriptor& TBootstrap::GetLocalDescriptor() const
+IServerPtr TBootstrap::GetRpcServer() const
 {
-    return LocalDescriptor;
+    return RpcServer;
 }
 
 IMapNodePtr TBootstrap::GetOrchidRoot() const
@@ -198,19 +319,91 @@ IMapNodePtr TBootstrap::GetOrchidRoot() const
     return OrchidRoot;
 }
 
-NChunkHolder::TBootstrap* TBootstrap::GetChunkHolderBootstrap() const
+TJobManagerPtr TBootstrap::GetJobManager() const
 {
-    return ChunkHolderBootstrap.Get();
+    return JobManager;
 }
 
-NExecAgent::TBootstrap* TBootstrap::GetExecAgentBootstrap() const
+TEnvironmentManagerPtr TBootstrap::GetEnvironmentManager() const
 {
-    return ExecAgentBootstrap.Get();
+    return EnvironmentManager;
+}
+
+TJobProxyConfigPtr TBootstrap::GetJobProxyConfig() const
+{
+    return JobProxyConfig;
+}
+
+TChunkStorePtr TBootstrap::GetChunkStore() const
+{
+    return ChunkStore;
+}
+
+TChunkCachePtr TBootstrap::GetChunkCache() const
+{
+    return ChunkCache;
 }
 
 TNodeMemoryTracker& TBootstrap::GetMemoryUsageTracker()
 {
     return MemoryUsageTracker;
+}
+
+TChunkRegistryPtr TBootstrap::GetChunkRegistry() const
+{
+    return ChunkRegistry;
+}
+
+TSessionManagerPtr TBootstrap::GetSessionManager() const
+{
+    return SessionManager;
+}
+
+TJobExecutorPtr TBootstrap::GetJobExecutor() const
+{
+    return JobExecutor;
+}
+
+TBlockStorePtr TBootstrap::GetBlockStore()
+{
+    return BlockStore;
+}
+
+TPeerBlockTablePtr TBootstrap::GetPeerBlockTable() const
+{
+    return PeerBlockTable;
+}
+
+TReaderCachePtr TBootstrap::GetReaderCache() const
+{
+    return ReaderCache;
+}
+
+TMasterConnectorPtr TBootstrap::GetMasterConnector() const
+{
+    return MasterConnector;
+}
+
+const NNodeTrackerClient::TNodeDescriptor& TBootstrap::GetLocalDescriptor() const
+{
+    return LocalDescriptor;
+}
+
+bool TBootstrap::IsJobControlEnabled() const
+{
+    return JobControlEnabled;
+}
+
+const TGuid& TBootstrap::GetCellGuid() const
+{
+    return CellGuid;
+}
+
+void TBootstrap::UpdateCellGuid(const TGuid& cellGuid)
+{
+    CellGuid = cellGuid;
+    ChunkStore->SetCellGuid(CellGuid);
+    ChunkCache->UpdateCellGuid(CellGuid);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

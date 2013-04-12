@@ -4,7 +4,10 @@
 
 #include <ytlib/misc/property.h>
 #include <ytlib/misc/error.h>
+
 #include <ytlib/actions/signal.h>
+
+#include <server/cell_node/public.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -27,7 +30,7 @@ public:
     typedef std::vector<TCachedChunkPtr> TChunks;
 
     //! Constructs a new instance.
-    TChunkCache(TDataNodeConfigPtr config, TBootstrap* bootstrap);
+    TChunkCache(TDataNodeConfigPtr config, NCellNode::TBootstrap* bootstrap);
 
     //! Initializes the cache.
     void Start();

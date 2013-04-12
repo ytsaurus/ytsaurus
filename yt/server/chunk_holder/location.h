@@ -9,6 +9,8 @@
 
 #include <ytlib/profiling/profiler.h>
 
+#include <server/cell_node/public.h>
+
 namespace NYT {
 namespace NChunkHolder {
 
@@ -28,7 +30,7 @@ public:
         ELocationType type,
         const Stroka& id,
         TLocationConfigPtr config,
-        TBootstrap* bootstrap);
+        NCellNode::TBootstrap* bootstrap);
 
     ~TLocation();
 
@@ -65,7 +67,7 @@ public:
     i64 GetTotalSpace() const;
 
     //! Returns the bootstrap.
-    TBootstrap* GetBootstrap() const;
+    NCellNode::TBootstrap* GetBootstrap() const;
 
     //! Returns the number of bytes used at the location.
     /*!
@@ -139,7 +141,7 @@ private:
     ELocationType Type;
     Stroka Id;
     TLocationConfigPtr Config;
-    TBootstrap* Bootstrap;
+    NCellNode::TBootstrap* Bootstrap;
 
     TAtomic Enabled;
 

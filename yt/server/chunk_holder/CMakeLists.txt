@@ -2,7 +2,6 @@
 set( BASE ${CMAKE_SOURCE_DIR}/yt/server/chunk_holder )
 set( SRCS
   ${BASE}/block_store.cpp
-  ${BASE}/bootstrap.cpp
   ${BASE}/chunk.cpp
   ${BASE}/chunk_cache.cpp
   ${BASE}/chunk_registry.cpp
@@ -21,7 +20,6 @@ set( SRCS
 )
 set( HDRS
   ${BASE}/block_store.h
-  ${BASE}/bootstrap.h
   ${BASE}/chunk.h
   ${BASE}/chunk_cache.h
   ${BASE}/chunk_registry.h

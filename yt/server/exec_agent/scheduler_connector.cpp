@@ -1,17 +1,20 @@
 ﻿#include "stdafx.h"
 #include "scheduler_connector.h"
 #include "private.h"
-#include "bootstrap.h"
 #include "job_manager.h"
 #include "job.h"
+#include "config.h"
 
 #include <server/scheduler/job_resources.h>
+
+#include <server/cell_node/bootstrap.h>
 
 namespace NYT {
 namespace NExecAgent {
 
 using namespace NScheduler;
 using namespace NScheduler::NProto;
+using namespace NCellNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 

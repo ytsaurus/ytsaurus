@@ -4,7 +4,6 @@
 #include "slot.h"
 #include "environment.h"
 #include "private.h"
-#include "bootstrap.h"
 
 #include <ytlib/misc/fs.h>
 #include <ytlib/misc/assert.h>
@@ -35,6 +34,11 @@
 
 #include <server/scheduler/job_resources.h>
 
+#include <server/cell_node/bootstrap.h>
+#include <server/cell_node/config.h>
+
+#include <server/chunk_holder/config.h>
+
 namespace NYT {
 namespace NExecAgent {
 
@@ -45,6 +49,7 @@ using namespace NJobProxy;
 using namespace NYTree;
 using namespace NYson;
 using namespace NTableClient;
+using namespace NCellNode;
 
 using NChunkClient::InvalidNodeId;
 using NChunkClient::TChunkId;
@@ -53,7 +58,7 @@ using NNodeTrackerClient::TNodeDirectory;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const i64 MemoryLimitBoost = 2L * 1024 * 1024 * 1024;
+static const i64 MemoryLimitBoost = (i64) 2 * 1024 * 1024 * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -68,14 +73,12 @@ TJob::TJob(
     , ResourceUsage(resourceLimits)
     , JobProxyMemoryLimit(resourceLimits.memory())
     , Logger(ExecAgentLogger)
-    , ChunkCache(bootstrap->GetChunkCache())
     , JobState(EJobState::Waiting)
     , JobPhase(EJobPhase::Created)
     , FinalJobState(EJobState::Completed)
     , Progress(0.0)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
-    Logger.AddTag(Sprintf("JobId: %s", ~ToString(jobId)));
 
     JobSpec.Swap(&jobSpec);
 
@@ -97,6 +100,8 @@ TJob::TJob(
         JobProxyMemoryLimit -= UserJobSpec->memory_limit();
         ResourceUsage.set_memory(JobProxyMemoryLimit + UserJobSpec->memory_reserve());
     }
+
+    Logger.AddTag(Sprintf("JobId: %s", ~ToString(jobId)));
 }
 
 void TJob::Start(TEnvironmentManagerPtr environmentManager, TSlotPtr slot)
@@ -176,7 +181,7 @@ void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
             environmentType,
             JobId,
             Slot->GetWorkingDirectory(),
-            static_cast<i64>(JobProxyMemoryLimit * Bootstrap->GetConfig()->MemoryLimitMultiplier + MemoryLimitBoost));
+            static_cast<i64>(JobProxyMemoryLimit * Bootstrap->GetConfig()->ExecAgent->MemoryLimitMultiplier + MemoryLimitBoost));
     } catch (const std::exception& ex) {
         auto wrappedError = TError(
             "Failed to create proxy controller for environment %s",
@@ -205,8 +210,9 @@ TFuture<void> TJob::DownloadRegularFile(
         ~ToString(chunkId));
 
     auto awaiter = New<TParallelAwaiter>(Slot->GetInvoker());
+    auto chunkCache = Bootstrap->GetChunkCache();
     awaiter->Await(
-        ChunkCache->DownloadChunk(chunkId),
+        chunkCache->DownloadChunk(chunkId),
         BIND(&TJob::OnRegularFileChunkDownloaded, MakeWeak(this), descriptor));
 
     return awaiter->Complete();
@@ -267,9 +273,10 @@ TFuture<void> TJob::DownloadTableFile(
         ~JoinToString(chunkIds));
 
     auto awaiter = New<TParallelAwaiter>(Slot->GetInvoker());
+    auto chunkCache = Bootstrap->GetChunkCache();
     FOREACH (const auto& chunkId, chunkIds) {
         awaiter->Await(
-            ChunkCache->DownloadChunk(chunkId),
+            chunkCache->DownloadChunk(chunkId),
             BIND([=](NChunkHolder::TChunkCache::TDownloadResult result) {
                 if (!result.IsOK()) {
                     auto wrappedError = TError(

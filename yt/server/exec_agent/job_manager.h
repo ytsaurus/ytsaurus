@@ -3,9 +3,13 @@
 #include "public.h"
 
 #include <ytlib/actions/signal.h>
-#include <ytlib/scheduler/job.pb.h>
+
 #include <ytlib/misc/thread_affinity.h>
+
 #include <ytlib/scheduler/scheduler_service.pb.h>
+#include <ytlib/scheduler/job.pb.h>
+
+#include <server/cell_node/public.h>
 
 namespace NYT {
 namespace NExecAgent {
@@ -26,7 +30,7 @@ class TJobManager
 public:
     TJobManager(
         TJobManagerConfigPtr config,
-        TBootstrap* bootstrap);
+        NCellNode::TBootstrap* bootstrap);
 
     //! Initializes slots etc.
     void Initialize();
@@ -70,7 +74,7 @@ public:
 
 private:
     TJobManagerConfigPtr Config;
-    TBootstrap* Bootstrap;
+    NCellNode::TBootstrap* Bootstrap;
 
     std::vector<TSlotPtr> Slots;
     yhash_map<TJobId, TJobPtr> Jobs;

@@ -6,6 +6,8 @@
 
 #include <server/exec_agent/supervisor_service.pb.h>
 
+#include <server/cell_node/public.h>
+
 namespace NYT {
 namespace NExecAgent {
 
@@ -15,12 +17,12 @@ class TSupervisorService
     : public NRpc::TServiceBase
 {
 public:
-    explicit TSupervisorService(TBootstrap* bootstrap);
+    explicit TSupervisorService(NCellNode::TBootstrap* bootstrap);
 
 private:
     typedef TSupervisorService TThis;
 
-    TBootstrap* Bootstrap;
+    NCellNode::TBootstrap* Bootstrap;
 
     DECLARE_RPC_SERVICE_METHOD(NProto, GetJobSpec);
     DECLARE_RPC_SERVICE_METHOD(NProto, OnJobFinished);

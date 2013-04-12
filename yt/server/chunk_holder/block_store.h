@@ -9,6 +9,8 @@
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
+#include <server/cell_node/public.h>
+
 namespace NYT {
 namespace NChunkHolder {
 
@@ -41,7 +43,7 @@ public:
     //! Constructs a store.
     TBlockStore(
         TDataNodeConfigPtr config,
-        TBootstrap* bootstrap);
+        NCellNode::TBootstrap* bootstrap);
 
     ~TBlockStore();
 

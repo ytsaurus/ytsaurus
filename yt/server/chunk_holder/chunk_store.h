@@ -4,9 +4,13 @@
 
 #include <ytlib/misc/cache.h>
 #include <ytlib/misc/property.h>
+
 #include <ytlib/actions/action_queue.h>
 #include <ytlib/actions/signal.h>
+
 #include <ytlib/chunk_client/file_reader.h>
+
+#include <server/cell_node/public.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -22,7 +26,9 @@ public:
     typedef std::vector<TLocationPtr> TLocations;
 
     //! Constructs a new instance.
-    TChunkStore(TDataNodeConfigPtr config, TBootstrap* bootstrap);
+    TChunkStore(
+        TDataNodeConfigPtr config,
+        NCellNode::TBootstrap* bootstrap);
 
     //! Initializes the store.
     void Start();
@@ -67,7 +73,7 @@ public:
 
 private:
     TDataNodeConfigPtr Config;
-    TBootstrap* Bootstrap;
+    NCellNode::TBootstrap* Bootstrap;
 
     typedef yhash_map<TChunkId, TStoredChunkPtr> TChunkMap;
     TChunkMap ChunkMap;

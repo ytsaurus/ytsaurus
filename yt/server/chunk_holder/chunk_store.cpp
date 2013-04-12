@@ -4,10 +4,11 @@
 #include "location.h"
 #include "chunk.h"
 #include "chunk_store.h"
-#include "bootstrap.h"
 #include "master_connector.h"
 
 #include <ytlib/chunk_client/data_node_service_proxy.h>
+
+#include <server/cell_node/bootstrap.h>
 
 #include <util/random/random.h>
 
@@ -18,6 +19,7 @@ namespace NYT {
 namespace NChunkHolder {
 
 using namespace NChunkClient;
+using namespace NCellNode;
 using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////

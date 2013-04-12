@@ -28,7 +28,7 @@ class TJob
 {
 public:
     TJob(
-        TBootstrap* bootstrap,
+        NCellNode::TBootstrap* bootstrap,
         EJobType jobType,
         const TJobId& jobId,
         const TChunkId& chunkId,
@@ -49,7 +49,7 @@ public:
 private:
     friend class TJobExecutor;
 
-    TBootstrap* Bootstrap;
+    NCellNode::TBootstrap* Bootstrap;
     EJobType JobType;
     TJobId JobId;
     EJobState State;
@@ -105,7 +105,7 @@ class TJobExecutor
 {
 public:
     //! Constructs a new instance.
-    explicit TJobExecutor(TBootstrap* bootstrap);
+    explicit TJobExecutor(NCellNode::TBootstrap* bootstrap);
 
     //! Starts a new job with the given parameters.
     TJobPtr StartJob(
@@ -127,7 +127,7 @@ private:
     friend class TJob;
     typedef yhash_map<TJobId, TJobPtr> TJobMap;
 
-    TBootstrap* Bootstrap;
+    NCellNode::TBootstrap* Bootstrap;
 
     TJobMap Jobs;
 
