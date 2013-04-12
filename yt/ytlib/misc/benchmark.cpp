@@ -39,9 +39,9 @@
 // Minimum # of microseconds we'll accept for each benchmark.
 const ui64 FLAGS_bm_min_usec = 100;
 // Minimum # of iterations we'll try for each benchmark.
-const ui64 FLAGS_bm_min_iters = 1;
+const ui64 FLAGS_bm_min_iters = 100;
 // Maximum # of seconds we'll spend on each benchmark.
-const uint32_t FLAGS_bm_max_secs = 1;
+const uint32_t FLAGS_bm_max_secs = 15;
 
 using std::min;
 using std::max;
@@ -315,9 +315,14 @@ static void PrintBenchmarkResults(const TBenchmarkResults& data)
 } // namespace NDetail
 
 // Add the global baseline.
-BENCHMARK(GlobalBenchmarkBaseline)
+BENCHMARK(GlobalBenchmarkBaseline, times)
 {
-    asm volatile("");
+    // Note that we measure internal iterations to avoid inner
+    // function calls in arity-1 test wrapper. See benchmark.h
+    // for the implementation of AddBenchmark.
+    while (times--) {
+        asm volatile("");
+    }
 }
 
 void RunBenchmarks()
