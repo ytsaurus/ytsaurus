@@ -109,7 +109,12 @@ TFiber::~TFiber()
         // This is a main fiber.
         YCHECK(State_ == EFiberState::Running);
 
+#ifdef CORO_ASM
         YASSERT(CoroContext.sp == nullptr);
+#endif
+#ifdef CORO_FIBER
+        YASSERT(CoroContext.fiber == nullptr);
+#endif
     }
 }
 
