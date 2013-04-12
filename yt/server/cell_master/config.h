@@ -12,7 +12,7 @@
 
 #include <server/object_server/config.h>
 
-#include <server/bootstrap/config.h>
+#include <server/misc/config.h>
 
 namespace NYT {
 namespace NCellMaster {
@@ -24,7 +24,6 @@ class TCellMasterConfig
     : public TServerConfig
 {
 public:
-    //! Meta state configuration.
     NMetaState::TPersistentStateManagerConfigPtr MetaState;
 
     NNodeTrackerServer::TNodeTrackerConfigPtr NodeTracker;

@@ -1,8 +1,9 @@
 #include "stdafx.h"
-#include "common.h"
+#include "build_attributes.h"
 
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/ytree/convert.h>
+
 #include <yt/build.h>
 
 namespace NYT {

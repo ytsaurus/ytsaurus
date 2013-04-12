@@ -58,7 +58,7 @@
 
 #include <server/security_server/security_manager.h>
 
-#include <server/bootstrap/common.h>
+#include <server/misc/build_attributes.h>
 
 namespace NYT {
 namespace NCellMaster {

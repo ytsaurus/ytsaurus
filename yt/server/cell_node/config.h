@@ -2,7 +2,8 @@
 
 #include "public.h"
 
-#include <server/bootstrap/config.h>
+#include <server/misc/config.h>
+
 #include <server/exec_agent/config.h>
 
 namespace NYT {

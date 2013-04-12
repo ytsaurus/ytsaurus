@@ -35,7 +35,7 @@
 
 #include <ytlib/transaction_client/transaction_manager.h>
 
-#include <server/bootstrap/common.h>
+#include <server/misc/build_attributes.h>
 
 #include <server/job_proxy/config.h>
 

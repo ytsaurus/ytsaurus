@@ -63,7 +63,7 @@
 #include <server/exec_agent/unsafe_environment.h>
 #include <server/exec_agent/scheduler_connector.h>
 
-#include <server/bootstrap/common.h>
+#include <server/misc/build_attributes.h>
 
 namespace NYT {
 namespace NCellNode {

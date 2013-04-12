@@ -1,6 +1,5 @@
 set( DIRS
   misc
-  bootstrap
   cell_master
   cell_node
   cell_scheduler

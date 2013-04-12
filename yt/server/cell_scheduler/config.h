@@ -8,7 +8,8 @@
 
 #include <ytlib/rpc/retrying_channel.h>
 
-#include <server/bootstrap/config.h>
+#include <server/misc/config.h>
+
 #include <server/scheduler/config.h>
 
 namespace NYT {
