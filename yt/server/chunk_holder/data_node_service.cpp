@@ -819,7 +819,7 @@ void TDataNodeService::MakeChunkSplits(
             sizeOverride.set_uncompressed_data_size(dataSize);
             UpdateProtoExtension(currentSplit->mutable_extensions(), sizeOverride);
 
-            key = GetSuccessorKey(key);
+            key = GetKeySuccessor(key);
             *currentSplit->mutable_end_limit()->mutable_key() = key;
 
             createNewSplit();

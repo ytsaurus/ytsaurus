@@ -40,7 +40,7 @@ TKey GetMaxKey(const TChunk* chunk)
 {
     auto boundaryKeysExt = GetProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(
         chunk->ChunkMeta().extensions());
-    return GetSuccessorKey(boundaryKeysExt.end());
+    return GetKeySuccessor(boundaryKeysExt.end());
 }
 
 TKey GetMaxKey(const TChunkList* chunkList)
@@ -178,7 +178,7 @@ protected:
             } else if (entry.LowerBound.has_row_index()) {
                 childLowerBound.set_row_index(getChildLowerRowIndex());
             }
-            
+
             if (entry.UpperBound.has_chunk_index()) {
                 childLowerBound.set_chunk_index(getChildLowerRowIndex());
 
@@ -278,7 +278,7 @@ protected:
             index = std::max(index, childIndex);
             YCHECK(index < chunkList->Children().size());
         }
-        
+
         if (lowerBound.has_chunk_index()) {
             auto begin = chunkList->ChunkCountSums().begin();
             int childIndex = std::upper_bound(

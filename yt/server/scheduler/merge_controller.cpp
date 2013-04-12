@@ -890,10 +890,11 @@ protected:
         TNullable<NTableClient::NProto::TKey> lastBreakpoint;
 
         int endpointsCount = static_cast<int>(Endpoints.size());
+        int prefixLength = static_cast<int>(KeyColumns.size());
 
         auto flushOpenedChunks = [&] () {
             const auto& endpoint = Endpoints[currentIndex];
-            auto nextBreakpoint = GetSuccessorKey(endpoint.Key);
+            auto nextBreakpoint = GetKeyPrefixSuccessor(endpoint.Key, prefixLength);
             LOG_DEBUG("Finish current task, flushing %" PRISZT " chunks at key %s",
                 openedChunks.size(),
                 ~ToString(nextBreakpoint));
@@ -953,7 +954,7 @@ protected:
 
                     if (!openedChunks.empty() &&
                         HasLargeActiveTask() &&
-                        endpoint.Key < Endpoints[currentIndex + 1].Key)
+                        CompareKeys(endpoint.Key, Endpoints[currentIndex + 1].Key, prefixLength) < 0)
                     {
                         flushOpenedChunks();
                         EndTask();
@@ -974,7 +975,9 @@ protected:
                     do {
                         const auto& nextEndpoint = Endpoints[nextIndex];
 
-                        if (nextEndpoint.Type == EEndpointType::Maniac && nextEndpoint.Key == endpoint.Key) {
+                        if (nextEndpoint.Type == EEndpointType::Maniac &&
+                            CompareKeys(nextEndpoint.Key, endpoint.Key, prefixLength) == 0)
+                        {
                             i64 dataSize;
                             GetStatistics(*nextEndpoint.InputChunk, &dataSize);
                             if (IsLargeCompleteChunk(*nextEndpoint.InputChunk)) {
