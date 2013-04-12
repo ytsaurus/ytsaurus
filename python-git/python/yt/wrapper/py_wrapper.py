@@ -14,14 +14,14 @@ import types
 
 LOCATION = os.path.dirname(os.path.abspath(__file__))
 
-def module_relpath(module):
+def module_relpath(module_name, module_file):
     extensions = get_value(config.PYTHON_FUNCTION_SEARCH_EXTENSIONS, ["py", "pyc", "so"])
-    if module.__name__ == "__main__":
-        return module.__file__
+    if module_name == "__main__":
+        return module_file
     for init in ["", "/__init__"]:
         for ext in extensions:
-            rel_path = "%s%s.%s" % (module.__name__.replace(".", "/"), init, ext)
-            if module.__file__.endswith(rel_path):
+            rel_path = "%s%s.%s" % (module_name.replace(".", "/"), init, ext)
+            if module_file.endswith(rel_path):
                 return rel_path
     return None
     #!!! It is wrong solution, beacause modules can affect sys.path while importing
@@ -48,10 +48,13 @@ def wrap(function, operation_type, input_format=None, output_format=None, reduce
                     not config.PYTHON_FUNCTION_MODULE_FILTER(module):
                 continue
             if hasattr(module, "__file__"):
-                relpath = module_relpath(module)
+                file = module.__file__
+                if config.PYTHON_DO_NOT_USE_PYC and file.endswith(".pyc"):
+                    file = file[:-1]
+                relpath = module_relpath(module.__name__, file)
                 if relpath is None and config.PYTHON_FUNCTION_CHECK_SENDING_ALL_MODULES:
                     raise YtError("Cannot determine relative path of module " + str(module))
-                zip.write(module.__file__, relpath)
+                zip.write(file, relpath)
 
     main_filename = tempfile.mkstemp(dir="/tmp", prefix="_main_module")[1] + ".py"
     shutil.copy(sys.modules['__main__'].__file__, main_filename)
