@@ -579,6 +579,9 @@ TNodeTracker::TNodeTracker(
     : Impl(New<TImpl>(config, bootstrap))
 { }
 
+TNodeTracker::~TNodeTracker()
+{ }
+
 TNode* TNodeTracker::FindNodeByAddress(const Stroka& address)
 {
     return Impl->FindNodeByAddress(address);

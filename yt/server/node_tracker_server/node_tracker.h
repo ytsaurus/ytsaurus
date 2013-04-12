@@ -33,6 +33,8 @@ public:
         TNodeTrackerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap);
 
+    ~TNodeTracker();
+
     NMetaState::TMutationPtr CreateRegisterNodeMutation(
         const NProto::TMetaReqRegisterNode& request);
 

@@ -32,6 +32,8 @@ public:
         TChunkManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap);
 
+    ~TChunkManager();
+
     void Initialize();
 
     NMetaState::TMutationPtr CreateUpdateChunkReplicationFactorMutation(

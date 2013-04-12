@@ -209,7 +209,7 @@ void CloseAllDescriptors()
     YCHECK(dirfd >= 0);
 
     struct dirent *ep;
-    while (ep = ::readdir(dp)) {
+    while ((ep = ::readdir(dp)) != nullptr) {
         char* begin = ep->d_name;
         char* end = nullptr;
         int fd = static_cast<int>(strtol(begin, &end, 10));

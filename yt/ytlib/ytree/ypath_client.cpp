@@ -15,6 +15,8 @@
 #include <ytlib/ypath/token.h>
 #include <ytlib/ypath/tokenizer.h>
 
+#include <cmath>
+
 namespace NYT {
 namespace NYTree {
 

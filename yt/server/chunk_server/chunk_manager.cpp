@@ -1442,6 +1442,9 @@ TChunkManager::TChunkManager(
     : Impl(New<TImpl>(config, bootstrap))
 { }
 
+TChunkManager::~TChunkManager()
+{ }
+
 void TChunkManager::Initialize()
 {
     Impl->Initialize();
