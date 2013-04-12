@@ -24,7 +24,6 @@
 
 #include <ytlib/logging/tagged_logger.h>
 
-
 namespace NYT {
 namespace NFileClient {
 
@@ -74,7 +73,6 @@ private:
     NCompression::ICodec* Codec;
 
     Stroka FileName;
-    bool Executable;
 
     DECLARE_THREAD_AFFINITY_SLOT(Client);
 

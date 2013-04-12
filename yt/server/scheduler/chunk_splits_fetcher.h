@@ -56,11 +56,6 @@ private:
 
     NTableClient::TKeyColumns KeyColumns;
 
-    // Number of splits shouldn't exceed MaxChunkCount.
-    // If initial number of chunks is greater or equal to MaxChunkCount,
-    // collecting is not performed.
-    i64 MinSplitSize;
-
     NLog::TTaggedLogger Logger;
 
     //! All samples fetched so far.
