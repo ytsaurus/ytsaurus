@@ -22,7 +22,7 @@ using NObjectClient::NullTransactionId;
 class TObjectManager;
 typedef TIntrusivePtr<TObjectManager> TObjectManagerPtr;
 
-struct TObjectManagerConfig;
+class TObjectManagerConfig;
 typedef TIntrusivePtr<TObjectManagerConfig> TObjectManagerConfigPtr;
 
 class TObjectBase;

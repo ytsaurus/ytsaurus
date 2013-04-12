@@ -9,9 +9,10 @@ namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TRetryingChannelConfig
+class TRetryingChannelConfig
     : public TYsonSerializable
 {
+public:
     TDuration BackoffTime;
     int MaxAttempts;
 

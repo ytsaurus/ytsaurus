@@ -12,7 +12,7 @@ namespace NTransactionClient {
 using NObjectClient::TTransactionId;
 using NObjectClient::NullTransactionId;
 
-struct TTransactionManagerConfig;
+class TTransactionManagerConfig;
 typedef TIntrusivePtr<TTransactionManagerConfig> TTransactionManagerConfigPtr;
 
 class TTransactionManager;

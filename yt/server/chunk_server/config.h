@@ -12,9 +12,10 @@ namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TChunkReplicatorConfig
+class TChunkReplicatorConfig
     : public TYsonSerializable
 {
+public:
     //! Minimum number of nodes the cell must have online to enable starting new jobs.
     TNullable<int> MinOnlineNodeCount;
 
@@ -62,9 +63,10 @@ struct TChunkReplicatorConfig
     }
 };
 
-struct TChunkManagerConfig
+class TChunkManagerConfig
     : public TYsonSerializable
 {
+public:
     TDuration ChunkRefreshDelay;
     TDuration ChunkRefreshPeriod;
     int MaxChunksPerRefresh;

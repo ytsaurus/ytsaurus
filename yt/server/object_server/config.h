@@ -9,9 +9,10 @@ namespace NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TObjectManagerConfig
+class TObjectManagerConfig
     : public TYsonSerializable
 {
+public:
     //! A number identifying the cell in the whole world.
     ui16 CellId;
 

@@ -9,7 +9,7 @@ namespace NCellScheduler {
 
 class TBootstrap;
 
-struct TCellSchedulerConfig;
+class TCellSchedulerConfig;
 typedef TIntrusivePtr<TCellSchedulerConfig> TCellSchedulerConfigPtr;
 
 ////////////////////////////////////////////////////////////////////////////////

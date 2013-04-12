@@ -9,9 +9,10 @@ namespace NNodeTrackerServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TNodeTrackerConfig
+class TNodeTrackerConfig
     : public TYsonSerializable
 {
+public:
     TDuration OnlineNodeTimeout;
     TDuration RegisteredNodeTimeout;
     TDuration UnconfirmedNodeTimeout;

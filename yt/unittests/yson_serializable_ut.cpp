@@ -41,9 +41,10 @@ struct TTestSubconfig
     }
 };
 
-struct TTestConfig
+class TTestConfig
     : public TYsonSerializable
 {
+public:
     typedef TIntrusivePtr<TTestConfig> TPtr;
 
     Stroka MyString;

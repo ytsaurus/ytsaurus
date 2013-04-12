@@ -69,22 +69,22 @@ DECLARE_ENUM(EErrorCode,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TRemoteReaderConfig;
+class TRemoteReaderConfig;
 typedef TIntrusivePtr<TRemoteReaderConfig> TRemoteReaderConfigPtr;
 
-struct TClientBlockCacheConfig;
+class TClientBlockCacheConfig;
 typedef TIntrusivePtr<TClientBlockCacheConfig> TClientBlockCacheConfigPtr;
 
-struct TEncodingWriterConfig;
+class TEncodingWriterConfig;
 typedef TIntrusivePtr<TEncodingWriterConfig> TEncodingWriterConfigPtr;
 
 struct TEncodingWriterOptions;
 typedef TIntrusivePtr<TEncodingWriterOptions> TEncodingWriterOptionsPtr;
 
-struct TDispatcherConfig;
+class TDispatcherConfig;
 typedef TIntrusivePtr<TDispatcherConfig> TDispatcherConfigPtr;
 
-struct TMultiChunkWriterConfig;
+class TMultiChunkWriterConfig;
 typedef TIntrusivePtr<TMultiChunkWriterConfig> TMultiChunkWriterConfigPtr;
 
 struct TMultiChunkWriterOptions;
@@ -105,13 +105,13 @@ typedef TIntrusivePtr<TSequentialReader> TSequentialReaderPtr;
 struct IBlockCache;
 typedef TIntrusivePtr<IBlockCache> IBlockCachePtr;
 
-struct TSequentialReaderConfig;
+class TSequentialReaderConfig;
 typedef TIntrusivePtr<TSequentialReaderConfig> TSequentialReaderConfigPtr;
 
-struct TReplicationWriterConfig;
+class TReplicationWriterConfig;
 typedef TIntrusivePtr<TReplicationWriterConfig> TReplicationWriterConfigPtr;
 
-struct TErasureWriterConfig;
+class TErasureWriterConfig;
 typedef TIntrusivePtr<TErasureWriterConfig> TErasureWriterConfigPtr;
 
 class TFileReader;

@@ -10,9 +10,10 @@ namespace NCellNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCellNodeConfig
+class TCellNodeConfig
     : public TServerConfig
 {
+public:
     //! RPC interface port number.
     int RpcPort;
 

@@ -10,9 +10,10 @@ namespace NNodeJS {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct THttpProxyConfig
+class THttpProxyConfig
     : public TYsonSerializable
 {
+public:
     NYTree::INodePtr Logging;
     NChunkClient::TDispatcherConfigPtr ChunkClientDispatcher;
     NDriver::TDriverConfigPtr Driver;

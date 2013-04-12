@@ -16,9 +16,10 @@ namespace NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TJobProxyConfig
+class TJobProxyConfig
     : public TYsonSerializable
 {
+public:
     // Filled by exec agent.
     NBus::TTcpBusClientConfigPtr SupervisorConnection;
     TDuration SupervisorRpcTimeout;

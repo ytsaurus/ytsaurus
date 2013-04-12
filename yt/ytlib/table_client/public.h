@@ -36,7 +36,7 @@ typedef TIntrusivePtr<ISyncReader> ISyncReaderPtr;
 struct IAsyncReader;
 typedef TIntrusivePtr<IAsyncReader> IAsyncReaderPtr;
 
-struct TChunkWriterConfig;
+class TChunkWriterConfig;
 typedef TIntrusivePtr<TChunkWriterConfig> TChunkWriterConfigPtr;
 
 class TTableChunkWriter;
@@ -79,19 +79,19 @@ typedef TIntrusivePtr<TChannelWriter> TChannelWriterPtr;
 class TChannelReader;
 typedef TIntrusivePtr<TChannelReader> TChannelReaderPtr;
 
-struct TChunkWriterConfig;
+class TChunkWriterConfig;
 typedef TIntrusivePtr<TChunkWriterConfig> TChunkWriterConfigPtr;
 
 struct TChunkWriterOptions;
 typedef TIntrusivePtr<TChunkWriterOptions> TChunkWriterOptionsPtr;
 
-struct TTableWriterConfig;
+class TTableWriterConfig;
 typedef TIntrusivePtr<TTableWriterConfig> TTableWriterConfigPtr;
 
 struct TTableWriterOptions;
 typedef TIntrusivePtr<TTableWriterOptions> TTableWriterOptionsPtr;
 
-struct TTableReaderConfig;
+class TTableReaderConfig;
 typedef TIntrusivePtr<TTableReaderConfig> TTableReaderConfigPtr;
 
 struct TChunkReaderOptions;
@@ -100,7 +100,7 @@ typedef TIntrusivePtr<TChunkReaderOptions> TChunkReaderOptionsPtr;
 class TTableProducer;
 class TTableConsumer;
 
-struct TTableConsumerConfig;
+class TTableConsumerConfig;
 typedef TIntrusivePtr<TTableConsumerConfig> TTableConsumerConfigPtr;
 
 typedef TSmallVector< std::pair<TStringBuf, TStringBuf>, 32 > TRow;

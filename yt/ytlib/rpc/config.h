@@ -11,9 +11,10 @@ namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TServerConfig
+class TServerConfig
     : public TYsonSerializable
 {
+public:
     yhash_map<Stroka, NYTree::INodePtr> Services;
 
     TServerConfig()
@@ -23,9 +24,10 @@ struct TServerConfig
     }
 };
 
-struct TServiceConfig
+class TServiceConfig
     : public TYsonSerializable
 {
+public:
     yhash_map<Stroka, TMethodConfigPtr> Methods;
 
     TServiceConfig()
@@ -35,9 +37,10 @@ struct TServiceConfig
     }
 };
 
-struct TMethodConfig
+class TMethodConfig
     : public TYsonSerializable
 {
+public:
     TNullable<bool> RequestHeavy;
     TNullable<bool> ResponseHeavy;
     TNullable<NCompression::ECodec> ResponseCodec;

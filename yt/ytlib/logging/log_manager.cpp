@@ -90,7 +90,7 @@ struct TRule
 
 typedef std::vector<ILogWriterPtr> TLogWriters;
 
-struct TLogConfig;
+class TLogConfig;
 typedef TIntrusivePtr<TLogConfig> TLogConfigPtr;
 
 ////////////////////////////////////////////////////////////////////////////////

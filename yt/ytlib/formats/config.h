@@ -9,9 +9,10 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TDsvFormatConfig
+class TDsvFormatConfig
     : public TYsonSerializable
 {
+public:
     char RecordSeparator;
     char KeyValueSeparator;
     char FieldSeparator;
@@ -66,9 +67,10 @@ DECLARE_ENUM(EJsonAttributesMode,
     (OnDemand)
 );
 
-struct TJsonFormatConfig
+class TJsonFormatConfig
     : public TYsonSerializable
 {
+public:
     EJsonFormat Format;
     EJsonAttributesMode AttributesMode;
 
@@ -83,9 +85,10 @@ struct TJsonFormatConfig
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TYamrFormatConfig
+class TYamrFormatConfig
     : public TYsonSerializable
 {
+public:
     bool HasSubkey;
 
     Stroka Key;
@@ -135,9 +138,10 @@ struct TYamrFormatConfig
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TYamredDsvFormatConfig
+class TYamredDsvFormatConfig
     : public TDsvFormatConfig
 {
+public:
     bool HasSubkey;
     char YamrKeysSeparator;
 

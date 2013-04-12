@@ -7,16 +7,16 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TDsvFormatConfig;
+class TDsvFormatConfig;
 typedef TIntrusivePtr<TDsvFormatConfig> TDsvFormatConfigPtr;
 
-struct TJsonFormatConfig;
+class TJsonFormatConfig;
 typedef TIntrusivePtr<TJsonFormatConfig> TJsonFormatConfigPtr;
 
-struct TYamrFormatConfig;
+class TYamrFormatConfig;
 typedef TIntrusivePtr<TYamrFormatConfig> TYamrFormatConfigPtr;
 
-struct TYamredDsvFormatConfig;
+class TYamredDsvFormatConfig;
 typedef TIntrusivePtr<TYamredDsvFormatConfig> TYamredDsvFormatConfigPtr;
 
 struct IParser;

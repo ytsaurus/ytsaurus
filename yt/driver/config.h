@@ -13,9 +13,10 @@ namespace NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TFormatDefaultsConfig
+class TFormatDefaultsConfig
     : public TYsonSerializable
 {
+public:
     NFormats::TFormat Structured;
     NFormats::TFormat Tabular;
 
@@ -38,9 +39,10 @@ typedef TIntrusivePtr<TFormatDefaultsConfig> TFormatDefaultsConfigPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TExecutorConfig
+class TExecutorConfig
     : public NDriver::TDriverConfig
 {
+public:
     NYTree::INodePtr Logging;
     TFormatDefaultsConfigPtr FormatDefaults;
     TDuration OperationWaitTimeout;

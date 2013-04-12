@@ -10,9 +10,10 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TServerConfig
+class TServerConfig
     : public TYsonSerializable
 {
+public:
     TAddressResolverConfigPtr AddressResolver;
     NRpc::TServerConfigPtr RpcServer;
 

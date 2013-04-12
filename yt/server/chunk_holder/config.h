@@ -9,9 +9,10 @@ namespace NChunkHolder {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TPeerBlockTableConfig
+class TPeerBlockTableConfig
     : public TYsonSerializable
 {
+public:
     int MaxPeersPerBlock;
     TDuration SweepPeriod;
 
@@ -26,9 +27,10 @@ struct TPeerBlockTableConfig
 };
 
 //! Describes a chunk location.
-struct TLocationConfig
+class TLocationConfig
     : public TYsonSerializable
 {
+public:
     //! Location root path.
     Stroka Path;
 
@@ -69,9 +71,10 @@ struct TLocationConfig
 };
 
 //! Describes a configuration of TDiskHealthChecker.
-struct TDiskHealthCheckerConfig
+class TDiskHealthCheckerConfig
     : public TYsonSerializable
 {
+public:
     //! Period between consequent checks.
     TDuration CheckPeriod;
 
@@ -94,9 +97,10 @@ struct TDiskHealthCheckerConfig
 };
 
 //! Describes a configuration of TChunkHolder.
-struct TDataNodeConfig
+class TDataNodeConfig
     : public TYsonSerializable
 {
+public:
     //! Period between consequent heartbeats.
     TDuration HeartbeatPeriod;
 

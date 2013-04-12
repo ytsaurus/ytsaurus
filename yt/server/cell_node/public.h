@@ -13,7 +13,7 @@ namespace NCellNode {
 
 class TBootstrap;
 
-struct TCellNodeConfig;
+class TCellNodeConfig;
 typedef TIntrusivePtr<TCellNodeConfig> TCellNodeConfigPtr;
 
 typedef TMemoryUsageTracker<EMemoryConsumer> TNodeMemoryTracker;

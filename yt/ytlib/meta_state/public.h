@@ -34,34 +34,34 @@ typedef TIntrusivePtr<TMutation> TMutationPtr;
 
 struct TMetaVersion;
 
-struct TChangeLogDownloaderConfig;
+class TChangeLogDownloaderConfig;
 typedef TIntrusivePtr<TChangeLogDownloaderConfig> TChangeLogDownloaderConfigPtr;
 
-struct TSnapshotDownloaderConfig;
+class TSnapshotDownloaderConfig;
 typedef TIntrusivePtr<TSnapshotDownloaderConfig> TSnapshotDownloaderConfigPtr;
 
-struct TFollowerTrackerConfig;
+class TFollowerTrackerConfig;
 typedef TIntrusivePtr<TFollowerTrackerConfig> TFollowerTrackerConfigPtr;
 
-struct TLeaderCommitterConfig;
+class TLeaderCommitterConfig;
 typedef TIntrusivePtr<TLeaderCommitterConfig> TLeaderCommitterConfigPtr;
 
-struct TSnapshotBuilderConfig;
+class TSnapshotBuilderConfig;
 typedef TIntrusivePtr<TSnapshotBuilderConfig> TSnapshotBuilderConfigPtr;
 
-struct TChangeLogCacheConfig;
+class TChangeLogCacheConfig;
 typedef TIntrusivePtr<TChangeLogCacheConfig> TChangeLogCacheConfigPtr;
 
-struct TSnapshotStoreConfig;
+class TSnapshotStoreConfig;
 typedef TIntrusivePtr<TSnapshotStoreConfig> TSnapshotStoreConfigPtr;
 
-struct TPersistentStateManagerConfig;
+class TPersistentStateManagerConfig;
 typedef TIntrusivePtr<TPersistentStateManagerConfig> TPersistentStateManagerConfigPtr;
 
-struct TMasterDiscoveryConfig;
+class TMasterDiscoveryConfig;
 typedef TIntrusivePtr<TMasterDiscoveryConfig> TMasterDiscoveryConfigPtr;
 
-struct TResponseKeeperConfig;
+class TResponseKeeperConfig;
 typedef TIntrusivePtr<TResponseKeeperConfig> TResponseKeeperConfigPtr;
 
 class TMasterDiscovery;

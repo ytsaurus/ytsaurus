@@ -38,9 +38,10 @@ TStringBuf GetServiceHostName(const TStringBuf& address);
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Configuration for TAddressResolver singleton.
-struct TAddressResolverConfig
+class TAddressResolverConfig
     : public TYsonSerializable
 {
+public:
     bool EnableIPv4;
     bool EnableIPv6;
     TNullable<Stroka> LocalHostFqdn;

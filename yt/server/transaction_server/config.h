@@ -9,9 +9,10 @@ namespace NTransactionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTransactionManagerConfig
+class TTransactionManagerConfig
     : public TYsonSerializable
 {
+public:
     TDuration DefaultTransactionTimeout;
     TDuration MaxTransactionTimeout;
 

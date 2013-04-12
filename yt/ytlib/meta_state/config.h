@@ -13,9 +13,10 @@ namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TChangeLogDownloaderConfig
+class TChangeLogDownloaderConfig
     : public TYsonSerializable
 {
+public:
     TDuration LookupTimeout;
     TDuration ReadTimeout;
     i32 RecordsPerRequest;
@@ -36,9 +37,10 @@ struct TChangeLogDownloaderConfig
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSnapshotDownloaderConfig
+class TSnapshotDownloaderConfig
     : public TYsonSerializable
 {
+public:
     TDuration LookupTimeout;
     TDuration ReadTimeout;
     i32 BlockSize;
@@ -59,9 +61,10 @@ struct TSnapshotDownloaderConfig
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSnapshotBuilderConfig
+class TSnapshotBuilderConfig
     : public TYsonSerializable
 {
+public:
     TDuration RemoteTimeout;
     TDuration LocalTimeout;
 
@@ -78,9 +81,10 @@ struct TSnapshotBuilderConfig
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TFollowerTrackerConfig
+class TFollowerTrackerConfig
     : public TYsonSerializable
 {
+public:
     TDuration PingInterval;
     TDuration RpcTimeout;
 
@@ -97,9 +101,10 @@ struct TFollowerTrackerConfig
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TLeaderCommitterConfig
+class TLeaderCommitterConfig
     : public TYsonSerializable
 {
+public:
     TDuration RpcTimeout;
     TDuration MaxBatchDelay;
     int MaxBatchSize;
@@ -118,9 +123,10 @@ struct TLeaderCommitterConfig
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TChangeLogCacheConfig
+class TChangeLogCacheConfig
     : public TYsonSerializable
 {
+public:
     //! A path where changelogs are stored.
     Stroka Path;
 
@@ -144,9 +150,10 @@ struct TChangeLogCacheConfig
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSnapshotStoreConfig
+class TSnapshotStoreConfig
     : public TYsonSerializable
 {
+public:
     //! A path where snapshots are stored.
     Stroka Path;
 
@@ -163,9 +170,10 @@ struct TSnapshotStoreConfig
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TResponseKeeperConfig
+class TResponseKeeperConfig
     : public TYsonSerializable
 {
+public:
     //! How long responses are kept in memory.
     TDuration ExpirationPeriod;
     //! Interval between consequent attempts to sweep expired responses.
@@ -182,9 +190,10 @@ struct TResponseKeeperConfig
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TPersistentStateManagerConfig
+class TPersistentStateManagerConfig
     : public TYsonSerializable
 {
+public:
     TChangeLogCacheConfigPtr ChangeLogs;
     TSnapshotStoreConfigPtr Snapshots;
 
@@ -260,9 +269,10 @@ struct TPersistentStateManagerConfig
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Master discovery configuration.
-struct TMasterDiscoveryConfig
+class TMasterDiscoveryConfig
     : public NRpc::TRetryingChannelConfig
 {
+public:
     //! List of peer addresses.
     std::vector<Stroka> Addresses;
 

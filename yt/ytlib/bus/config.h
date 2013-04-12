@@ -9,9 +9,10 @@ namespace NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTcpBusConfig
+class TTcpBusConfig
     : public TYsonSerializable
 {
+public:
     int Priority;
     bool EnableNoDelay;
     bool EnableQuickAck;
@@ -28,9 +29,10 @@ struct TTcpBusConfig
     }
 };
 
-struct TTcpBusServerConfig
+class TTcpBusServerConfig
     : public TTcpBusConfig
 {
+public:
     int Port;
     int MaxBacklogSize;
 
@@ -43,9 +45,10 @@ struct TTcpBusServerConfig
     }
 };
 
-struct TTcpBusClientConfig
+class TTcpBusClientConfig
     : public TTcpBusConfig
 {
+public:
     Stroka Address;
 
     explicit TTcpBusClientConfig(const Stroka& address = "")

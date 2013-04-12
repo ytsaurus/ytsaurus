@@ -10,7 +10,7 @@ namespace NElection {
 class TCellManager;
 typedef TIntrusivePtr<TCellManager> TCellManagerPtr;
 
-struct TCellConfig;
+class TCellConfig;
 typedef TIntrusivePtr<TCellConfig> TCellConfigPtr;
 
 DECLARE_ENUM(EErrorCode,

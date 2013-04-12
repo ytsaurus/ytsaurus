@@ -11,9 +11,10 @@ namespace NElection {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCellConfig
+class TCellConfig
     : public TYsonSerializable
 {
+public:
     //! RPC interface port number.
     int RpcPort;
 
@@ -37,9 +38,10 @@ struct TCellConfig
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TElectionManagerConfig
+class TElectionManagerConfig
     : public TYsonSerializable
 {
+public:
     TDuration VotingRoundInterval;
     TDuration RpcTimeout;
     TDuration FollowerPingInterval;

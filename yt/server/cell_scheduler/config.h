@@ -16,9 +16,10 @@ namespace NCellScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCellSchedulerConfig
+class TCellSchedulerConfig
     : public TServerConfig
 {
+public:
     //! RPC interface port number.
     int RpcPort;
 

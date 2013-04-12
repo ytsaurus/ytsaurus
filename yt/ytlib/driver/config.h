@@ -14,9 +14,10 @@ namespace NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TDriverConfig
+class TDriverConfig
     : public TYsonSerializable
 {
+public:
     NMetaState::TMasterDiscoveryConfigPtr Masters;
     NTransactionClient::TTransactionManagerConfigPtr TransactionManager;
     NFileClient::TFileReaderConfigPtr FileReader;

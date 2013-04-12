@@ -20,9 +20,10 @@ namespace NCellMaster {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Describes a configuration of TCellMaster.
-struct TCellMasterConfig
+class TCellMasterConfig
     : public TServerConfig
 {
+public:
     //! Meta state configuration.
     NMetaState::TPersistentStateManagerConfigPtr MetaState;
 

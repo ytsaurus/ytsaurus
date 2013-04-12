@@ -17,9 +17,10 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TJobIOConfig
+class TJobIOConfig
     : public TYsonSerializable
 {
+public:
     NTableClient::TTableReaderConfigPtr TableReader;
     NTableClient::TTableWriterConfigPtr TableWriter;
     NFileClient::TFileWriterConfigPtr ErrorFileWriter;
@@ -495,9 +496,10 @@ DECLARE_ENUM(ESchedulingMode,
     (FairShare)
 );
 
-struct TPoolConfig
+class TPoolConfig
     : public TYsonSerializable
 {
+public:
     double Weight;
     double MinShareRatio;
 

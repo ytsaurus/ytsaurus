@@ -69,10 +69,10 @@ typedef TIntrusivePtr<TChunkReplicator> TChunkReplicatorPtr;
 class TChunkPlacement;
 typedef TIntrusivePtr<TChunkPlacement> TChunkPlacementPtr;
 
-struct TChunkReplicatorConfig;
+class TChunkReplicatorConfig;
 typedef TIntrusivePtr<TChunkReplicatorConfig> TChunkReplicatorConfigPtr;
 
-struct TChunkManagerConfig;
+class TChunkManagerConfig;
 typedef TIntrusivePtr<TChunkManagerConfig> TChunkManagerConfigPtr;
 
 //! Used as an expected upper bound in TSmallVector.

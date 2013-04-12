@@ -17,9 +17,10 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TFairShareStrategyConfig
+class TFairShareStrategyConfig
     : public TYsonSerializable
 {
+public:
     // The following settings can be overridden in operation spec.
     TDuration MinSharePreemptionTimeout;
     TDuration FairSharePreemptionTimeout;
@@ -64,9 +65,10 @@ struct TFairShareStrategyConfig
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSchedulerConfig
+class TSchedulerConfig
     : public TFairShareStrategyConfig
 {
+public:
     TDuration ConnectRetryPeriod;
 
     TDuration NodeHearbeatTimeout;

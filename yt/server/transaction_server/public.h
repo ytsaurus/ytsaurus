@@ -13,7 +13,7 @@ namespace NTransactionServer {
 class TTransactionManager;
 typedef TIntrusivePtr<TTransactionManager> TTransactionManagerPtr;
 
-struct TTransactionManagerConfig;
+class TTransactionManagerConfig;
 typedef TIntrusivePtr<TTransactionManagerConfig> TTransactionManagerConfigPtr;
 
 class TTransaction;

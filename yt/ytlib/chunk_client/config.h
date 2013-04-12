@@ -13,9 +13,10 @@ namespace NChunkClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-struct TRemoteReaderConfig
+class TRemoteReaderConfig
     : public virtual TYsonSerializable
 {
+public:
     //! Timeout for a block request.
     TDuration NodeRpcTimeout;
 
@@ -69,9 +70,10 @@ struct TRemoteReaderConfig
 
 ///////////////////////////////////////////////////////////////////////////////
 
-struct TClientBlockCacheConfig
+class TClientBlockCacheConfig
     : public virtual TYsonSerializable
 {
+public:
     //! The maximum number of bytes that block are allowed to occupy.
     //! Zero means that no blocks are cached.
     i64 MaxSize;
@@ -86,9 +88,10 @@ struct TClientBlockCacheConfig
 
 ///////////////////////////////////////////////////////////////////////////////
 
-struct TSequentialReaderConfig
+class TSequentialReaderConfig
     : public virtual TYsonSerializable
 {
+public:
     //! Prefetch window size (in bytes).
     i64 WindowSize;
 
@@ -114,9 +117,10 @@ struct TSequentialReaderConfig
 
 ///////////////////////////////////////////////////////////////////////////////
 
-struct TReplicationWriterConfig
+class TReplicationWriterConfig
     : public virtual TYsonSerializable
 {
+public:
     //! Maximum window size (in bytes).
     i64 SendWindowSize;
 
@@ -164,9 +168,10 @@ struct TReplicationWriterConfig
 
 ///////////////////////////////////////////////////////////////////////////////
 
-struct TErasureWriterConfig
+class TErasureWriterConfig
     : public virtual TYsonSerializable
 {
+public:
     i64 ErasureWindowSize;
 
     TErasureWriterConfig()
@@ -179,9 +184,10 @@ struct TErasureWriterConfig
 
 ///////////////////////////////////////////////////////////////////////////////
 
-struct TEncodingWriterConfig
+class TEncodingWriterConfig
     : public virtual TYsonSerializable
 {
+public:
     i64 EncodeWindowSize;
     double DefaultCompressionRatio;
     bool VerifyCompression;
@@ -214,9 +220,10 @@ struct TEncodingWriterOptions
 
 ///////////////////////////////////////////////////////////////////////////////
 
-struct TDispatcherConfig
+class TDispatcherConfig
     : public virtual TYsonSerializable
 {
+public:
     int CompressionPoolSize;
     int ErasurePoolSize;
 
@@ -233,9 +240,10 @@ struct TDispatcherConfig
 
 ///////////////////////////////////////////////////////////////////////////////
 
-struct TMultiChunkWriterConfig
+class TMultiChunkWriterConfig
     : public TReplicationWriterConfig
 {
+public:
     i64 DesiredChunkSize;
     i64 MaxMetaSize;
 

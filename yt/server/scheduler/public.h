@@ -26,10 +26,10 @@ typedef TIntrusivePtr<TJob> TJobPtr;
 class TExecNode;
 typedef TIntrusivePtr<TExecNode> TExecNodePtr;
 
-struct TFairShareStrategyConfig;
+class TFairShareStrategyConfig;
 typedef TIntrusivePtr<TFairShareStrategyConfig> TFairShareStrategyConfigPtr;
 
-struct TSchedulerConfig;
+class TSchedulerConfig;
 typedef TIntrusivePtr<TSchedulerConfig> TSchedulerConfigPtr;
 
 class TScheduler;

@@ -12,9 +12,10 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TChunkWriterConfig
+class TChunkWriterConfig
     : public NChunkClient::TEncodingWriterConfig
 {
+public:
     i64 BlockSize;
 
     //! Fraction of rows data size samples are allowed to occupy.
@@ -57,7 +58,7 @@ struct TChunkWriterConfig
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTableWriterConfig
+class TTableWriterConfig
     : public TChunkWriterConfig
     , public NChunkClient::TMultiChunkWriterConfig
 { };
@@ -93,10 +94,11 @@ struct TTableWriterOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTableReaderConfig
+class TTableReaderConfig
     : public NChunkClient::TRemoteReaderConfig
     , public NChunkClient::TSequentialReaderConfig
 {
+public:
     i64 MaxBufferSize;
 
     TTableReaderConfig()

@@ -11,19 +11,19 @@ namespace NChunkHolder {
 
 class TBootstrap;
 
-struct TLocationConfig;
+class TLocationConfig;
 typedef TIntrusivePtr<TLocationConfig> TLocationConfigPtr;
 
-struct TDiskHealthCheckerConfig;
+class TDiskHealthCheckerConfig;
 typedef TIntrusivePtr<TDiskHealthCheckerConfig> TDiskHealthCheckerConfigPtr;
 
-struct TDataNodeConfig;
+class TDataNodeConfig;
 typedef TIntrusivePtr<TDataNodeConfig> TDataNodeConfigPtr;
 
 class TMasterConnector;
 typedef TIntrusivePtr<TMasterConnector> TMasterConnectorPtr;
 
-struct TPeerBlockTableConfig;
+class TPeerBlockTableConfig;
 typedef TIntrusivePtr<TPeerBlockTableConfig> TPeerBlockTableConfigPtr;
 
 class TChunkStore;

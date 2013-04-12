@@ -23,7 +23,7 @@ class TNode;
 class TNodeTrackerService;
 typedef TIntrusivePtr<TNodeTrackerService> TNodeTrackerServicePtr;
 
-struct TNodeTrackerConfig;
+class TNodeTrackerConfig;
 typedef TIntrusivePtr<TNodeTrackerConfig> TNodeTrackerConfigPtr;
 
 ///////////////////////////////////////////////////////////////////////////////

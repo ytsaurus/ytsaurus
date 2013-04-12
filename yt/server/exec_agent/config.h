@@ -12,9 +12,10 @@ namespace NExecAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Describes configuration of a single environment.
-struct TEnvironmentConfig
+class TEnvironmentConfig
     : public TYsonSerializable
 {
+public:
     Stroka Type;
 
     // Type-dependent configuration is stored as options.
@@ -30,7 +31,7 @@ struct TEnvironmentConfig
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Describes configuration for a collection of named environments.
-struct TEnvironmentManagerConfig
+class TEnvironmentManagerConfig
     : public TYsonSerializable
 {
 public:
@@ -52,9 +53,10 @@ public:
 
 };
 
-struct TResourceLimitsConfig
+class TResourceLimitsConfig
     : public TYsonSerializable
 {
+public:
     int Slots;
     int Cpu;
     int Network;
@@ -72,9 +74,10 @@ struct TResourceLimitsConfig
     }
 };
 
-struct TJobManagerConfig
+class TJobManagerConfig
     : public TYsonSerializable
 {
+public:
     TResourceLimitsConfigPtr ResourceLimits;
     Stroka SlotLocation;
 
@@ -93,9 +96,10 @@ struct TJobManagerConfig
     }
 };
 
-struct TSchedulerConnectorConfig
+class TSchedulerConnectorConfig
     : public TYsonSerializable
 {
+public:
     //! Timeout for RPC requests to scheduler.
     TDuration RpcTimeout;
 
@@ -116,9 +120,10 @@ struct TSchedulerConnectorConfig
     }
 };
 
-struct TExecAgentConfig
+class TExecAgentConfig
     : public TYsonSerializable
 {
+public:
     TJobManagerConfigPtr JobManager;
     TEnvironmentManagerConfigPtr EnvironmentManager;
     TSchedulerConnectorConfigPtr SchedulerConnector;

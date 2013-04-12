@@ -17,10 +17,10 @@ typedef TIntrusivePtr<TFileWriter> TFileWriterPtr;
 class TFileReader;
 typedef TIntrusivePtr<TFileReader> TFileReaderPtr;
 
-struct TFileWriterConfig;
+class TFileWriterConfig;
 typedef TIntrusivePtr<TFileWriterConfig> TFileWriterConfigPtr;
 
-struct TFileReaderConfig;
+class TFileReaderConfig;
 typedef TIntrusivePtr<TFileReaderConfig> TFileReaderConfigPtr;
 
 ////////////////////////////////////////////////////////////////////////////////

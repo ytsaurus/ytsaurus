@@ -10,7 +10,7 @@ namespace NDriver {
 struct IDriver;
 typedef TIntrusivePtr<IDriver> IDriverPtr;
 
-struct TDriverConfig;
+class TDriverConfig;
 typedef TIntrusivePtr<TDriverConfig> TDriverConfigPtr;
 
 struct TCommandDescriptor;
