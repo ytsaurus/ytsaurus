@@ -73,8 +73,6 @@ DEFINE_RPC_SERVICE_METHOD(TJobTrackerService, Heartbeat)
         return;
     }
 
-    const auto& address = node->GetAddress();
-
     auto chunkManager = Bootstrap->GetChunkManager();
     auto nodeTracker = Bootstrap->GetNodeTracker();
     

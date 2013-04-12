@@ -7,7 +7,6 @@
 #include "chunk_list_ypath_proxy.h"
 #include "chunk_ypath_proxy.h"
 #include "dispatcher.h"
-#include "node_directory.h"
 
 #include <ytlib/misc/string.h>
 #include <ytlib/misc/address.h>

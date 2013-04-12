@@ -8,19 +8,20 @@
 #include "location.h"
 #include "bootstrap.h"
 
-#include <ytlib/chunk_client/chunk.pb.h>
 #include <ytlib/chunk_client/file_reader.h>
 #include <ytlib/chunk_client/block_cache.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/data_node_service_proxy.h>
-
-#include <ytlib/ypath/token.h>
+#include <ytlib/chunk_client/chunk.pb.h>
 
 namespace NYT {
 namespace NChunkHolder {
 
 using namespace NChunkClient;
 using namespace NNodeTrackerClient;
+
+using NChunkClient::NProto::TChunkMeta;
+using NChunkClient::NProto::TBlocksExt;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,7 +34,7 @@ static NProfiling::TRateCounter CacheReadThroughputCounter("/cache_read_throughp
 TCachedBlock::TCachedBlock(
     const TBlockId& blockId,
     const TSharedRef& data,
-    const TNullable<NChunkClient::TNodeDescriptor>& source)
+    const TNullable<TNodeDescriptor>& source)
     : TCacheValueBase<TBlockId, TCachedBlock>(blockId)
     , Data_(data)
     , Source_(source)
@@ -73,7 +74,7 @@ public:
     TCachedBlockPtr Put(
         const TBlockId& blockId,
         const TSharedRef& data,
-        const TNullable<NChunkClient::TNodeDescriptor>& source)
+        const TNullable<TNodeDescriptor>& source)
     {
         while (true) {
             TInsertCookie cookie(blockId);
@@ -180,7 +181,7 @@ private:
         return block->GetData().Size();
     }
 
-    i64 IncreasePendingSize(const NChunkClient::NProto::TChunkMeta& chunkMeta, int blockIndex)
+    i64 IncreasePendingSize(const TChunkMeta& chunkMeta, int blockIndex)
     {
         const auto blocksExt = GetProtoExtension<TBlocksExt>(chunkMeta.extensions());
         const auto& blockInfo = blocksExt.blocks(blockIndex);
@@ -307,7 +308,7 @@ public:
     void Put(
         const TBlockId& id,
         const TSharedRef& data,
-        const TNullable<NChunkClient::TNodeDescriptor>& source)
+        const TNullable<TNodeDescriptor>& source)
     {
         StoreImpl->Put(id, data, source);
     }
@@ -350,7 +351,7 @@ TCachedBlockPtr TBlockStore::FindBlock(const TBlockId& blockId)
 TCachedBlockPtr TBlockStore::PutBlock(
     const TBlockId& blockId,
     const TSharedRef& data,
-    const TNullable<NChunkClient::TNodeDescriptor>& source)
+    const TNullable<TNodeDescriptor>& source)
 {
     return StoreImpl->Put(blockId, data, source);
 }

@@ -10,6 +10,8 @@
 
 #include <ytlib/node_tracker_client/node_statistics.h>
 
+#include <ytlib/rpc/service_detail.h>
+
 #include <server/node_tracker_server/node_tracker.pb.h>
 
 #include <server/cell_master/public.h>

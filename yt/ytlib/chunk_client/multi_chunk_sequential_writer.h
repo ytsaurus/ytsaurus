@@ -64,7 +64,7 @@ public:
     //! Current row count.
     i64 GetRowCount() const;
 
-    const TNullable<TKeyColumns>& GetKeyColumns() const;
+    const TNullable<NTableClient::TKeyColumns>& GetKeyColumns() const;
 
 protected:
     struct TSession

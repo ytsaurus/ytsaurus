@@ -3,6 +3,8 @@
 #include "public.h"
 #include "key.h"
 
+#include <ytlib/node_tracker_client/public.h>
+
 #include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
 
 #include <ytlib/misc/ref_counted.h>
@@ -39,7 +41,7 @@ struct ISyncWriterUnsafe
 
     virtual const std::vector<NProto::TInputChunk>& GetWrittenChunks() const = 0;
 
-    virtual NChunkClient::TNodeDirectoryPtr GetNodeDirectory() const= 0;
+    virtual NNodeTrackerClient::TNodeDirectoryPtr GetNodeDirectory() const= 0;
 
     virtual void SetProgress(double progress) = 0;
 };
@@ -98,7 +100,7 @@ public:
         return Writer->GetWrittenChunks();
     }
 
-    virtual NChunkClient::TNodeDirectoryPtr GetNodeDirectory() const override
+    virtual NNodeTrackerClient::TNodeDirectoryPtr GetNodeDirectory() const override
     {
         return Writer->GetNodeDirectory();
     }

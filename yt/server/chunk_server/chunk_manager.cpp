@@ -721,8 +721,6 @@ private:
 
     void DestroyChunk(TChunk* chunk)
     {
-        auto chunkId = chunk->GetId();
-
         // Decrease staging resource usage.
         if (chunk->IsStaged()) {
             UnstageChunk(chunk);
@@ -911,16 +909,12 @@ private:
     {
         ChunkMap.LoadValues(context);
         ChunkListMap.LoadValues(context);
-
-        JobMap.LoadValues(context);
-        JobListMap.LoadValues(context);
     }
 
     virtual void OnAfterLoaded() override
     {
-        auto nodeTracker = Bootstrap->GetNodeTracker();
-
         // Compute chunk replica count.
+        auto nodeTracker = Bootstrap->GetNodeTracker();
         ChunkReplicaCount = 0;
         FOREACH (auto* node, nodeTracker->GetNodes()) {
             ChunkReplicaCount += node->StoredReplicas().size();

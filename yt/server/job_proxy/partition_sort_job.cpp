@@ -138,7 +138,6 @@ public:
             LOG_INFO("Reading");
             {
                 bool isNetworkReleased = false;
-                const auto& sortJobSpecExt = Host->GetJobSpec().GetExtension(TSortJobSpecExt::sort_job_spec_ext);
 
                 NYson::TLexer lexer;
                 while (Reader->IsValid()) {

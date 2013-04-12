@@ -108,7 +108,7 @@ public:
         return Bootstrap
             ->GetMetaStateFacade()
             ->CreateMutation(EStateThreadQueue::Heartbeat)
-            ->SetRequestData(context->GetUntypedContext()->GetRequestBody())
+            ->SetRequestData(context->GetRequestBody())
             ->SetType(context->Request().GetTypeName())
             ->SetAction(BIND(&TThis::FullHeartbeatWithContext, MakeStrong(this), context));
     }

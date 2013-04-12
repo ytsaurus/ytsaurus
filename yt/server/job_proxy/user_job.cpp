@@ -523,7 +523,7 @@ private:
 
     TAutoPtr<TUserJobIO> JobIO;
 
-    const TJobSpec& JobSpec;
+    const NScheduler::NProto::TUserJobSpec& UserJobSpec;
 
     volatile bool IsInitCompleted;
 

@@ -70,7 +70,6 @@ ISyncWriterPtr TUserJobIO::CreateTableOutput(int index)
 
     LOG_DEBUG("Opening output %d", index);
 
-    const auto& jobSpec = Host->GetJobSpec();
     auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt.output_transaction_id());
     const auto& outputSpec = SchedulerJobSpecExt.output_specs(index);
     auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
