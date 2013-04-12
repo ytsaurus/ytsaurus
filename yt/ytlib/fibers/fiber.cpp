@@ -77,6 +77,8 @@ TFiber::TFiber(TClosure closure, EFiberStack stack)
         case EFiberStack::Large:
             stackSize = LargeFiberStackSize;
             break;
+        default:
+            YUNREACHABLE();
     }
 
     coro_stack_alloc(&CoroStack, stackSize);
