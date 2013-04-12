@@ -24,8 +24,9 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("Profiling");
-static TProfiler Profiler("/profiling", true);
+static NLog::TLogger SILENT_UNUSED Logger("Profiling");
+static TProfiler SILENT_UNUSED Profiler("/profiling", true);
+
 // TODO(babenko): make configurable
 const TDuration MaxKeepInterval = TDuration::Seconds(300);
 

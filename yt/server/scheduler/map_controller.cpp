@@ -35,8 +35,8 @@ using namespace NScheduler::NProto;
 
 ////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger(OperationLogger);
-static NProfiling::TProfiler Profiler("/operations/map");
+static NLog::TLogger& SILENT_UNUSED Logger = OperationLogger;
+static NProfiling::TProfiler SILENT_UNUSED Profiler("/operations/map");
 
 ////////////////////////////////////////////////////////////////////
 

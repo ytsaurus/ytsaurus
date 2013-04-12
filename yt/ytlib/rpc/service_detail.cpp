@@ -23,8 +23,8 @@ using namespace NRpc::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = RpcServerLogger;
-static TProfiler& Profiler = RpcServerProfiler;
+static NLog::TLogger& SILENT_UNUSED Logger = RpcServerLogger;
+static TProfiler& SILENT_UNUSED Profiler = RpcServerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -77,7 +77,7 @@ using NNodeTrackerClient::NProto::TChunkRemoveInfo;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = ChunkServerLogger;
+static NLog::TLogger& SILENT_UNUSED Logger = ChunkServerLogger;
 static TDuration ProfilingPeriod = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////

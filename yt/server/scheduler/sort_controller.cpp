@@ -44,8 +44,8 @@ using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger(OperationLogger);
-static NProfiling::TProfiler Profiler("/operations/sort");
+static NLog::TLogger& SILENT_UNUSED Logger = OperationLogger;
+static NProfiling::TProfiler SILENT_UNUSED Profiler("/operations/sort");
 
 //! Maximum number of buckets for partition sizes aggregation.
 static const int MaxAggregatedPartitionBuckets = 100;

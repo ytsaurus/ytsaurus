@@ -35,8 +35,8 @@ using namespace NTableClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = JobProxyLogger;
-static NProfiling::TProfiler& Profiler = JobProxyProfiler;
+static NLog::TLogger& SILENT_UNUSED Logger = JobProxyLogger;
+static NProfiling::TProfiler& SILENT_UNUSED Profiler = JobProxyProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 

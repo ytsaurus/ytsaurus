@@ -38,8 +38,8 @@ using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = OperationLogger;
-static NProfiling::TProfiler Profiler("/operations/merge");
+static NLog::TLogger& SILENT_UNUSED Logger = OperationLogger;
+static NProfiling::TProfiler SILENT_UNUSED Profiler("/operations/merge");
 
 ////////////////////////////////////////////////////////////////////
 

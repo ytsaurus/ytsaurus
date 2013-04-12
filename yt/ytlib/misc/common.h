@@ -79,6 +79,14 @@
     #define nullptr NULL
 #endif
 
+// Used to mark Logger and Profiler static variables as probably unused
+// to silent static analyzer.
+#if defined(__GNUC__) || defined(__clang__)
+    #define SILENT_UNUSED __attribute__((unused))
+#else
+    #define SILENT_UNUSED
+#endif
+
 #include "enum.h"
 #include "assert.h"
 #include "intrusive_ptr.h"

@@ -58,7 +58,7 @@ using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = ObjectServerLogger;
+static NLog::TLogger& SILENT_UNUSED Logger = ObjectServerLogger;
 static TDuration ProfilingPeriod = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////

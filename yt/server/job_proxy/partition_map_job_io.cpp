@@ -33,7 +33,8 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = JobProxyLogger;
+static NLog::TLogger& SILENT_UNUSED Logger = JobProxyLogger;
+
 typedef NChunkClient::TMultiChunkSequentialWriter<TPartitionChunkWriter> TWriter;
 
 ////////////////////////////////////////////////////////////////////

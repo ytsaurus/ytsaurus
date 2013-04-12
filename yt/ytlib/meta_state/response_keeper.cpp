@@ -7,8 +7,8 @@ namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = MetaStateLogger;
-static NProfiling::TProfiler& Profiler = MetaStateProfiler;
+static NLog::TLogger& SILENT_UNUSED Logger = MetaStateLogger;
+static NProfiling::TProfiler& SILENT_UNUSED Profiler = MetaStateProfiler;
 
 static NProfiling::TAggregateCounter CountCounter("/kept_response_count");
 static NProfiling::TAggregateCounter SpaceCounter("/kept_response_space");

@@ -25,8 +25,9 @@ using NChunkClient::NProto::TBlocksExt;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = DataNodeLogger;
-static NProfiling::TProfiler& Profiler = DataNodeProfiler;
+static NLog::TLogger& SILENT_UNUSED Logger = DataNodeLogger;
+static NProfiling::TProfiler& SILENT_UNUSED Profiler = DataNodeProfiler;
+
 static NProfiling::TRateCounter CacheReadThroughputCounter("/cache_read_throughput");
 
 ////////////////////////////////////////////////////////////////////////////////

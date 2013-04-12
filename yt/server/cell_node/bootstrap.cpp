@@ -60,7 +60,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("Bootstrap");
+static NLog::TLogger SILENT_UNUSED Logger("Bootstrap");
 
 static const i64 FootprintMemorySize = (i64) 1024 * 1024 * 1024;
 

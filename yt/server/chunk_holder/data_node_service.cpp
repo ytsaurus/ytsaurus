@@ -45,8 +45,8 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = DataNodeLogger;
-static NProfiling::TProfiler& Profiler = DataNodeProfiler;
+static NLog::TLogger& SILENT_UNUSED Logger = DataNodeLogger;
+static NProfiling::TProfiler& SILENT_UNUSED Profiler = DataNodeProfiler;
 static TDuration ProfilingPeriod = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////

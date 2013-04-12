@@ -25,8 +25,9 @@ using NScheduler::NProto::TNodeResources;
 
 ////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = SchedulerLogger;
-static NProfiling::TProfiler& Profiler = SchedulerProfiler;
+static NLog::TLogger& SILENT_UNUSED Logger = SchedulerLogger;
+static NProfiling::TProfiler& SILENT_UNUSED Profiler = SchedulerProfiler;
+
 static Stroka DefaultPoolId("default");
 static const double RatioComputationPrecision = 1e-12;
 static const double RatioComparisonPrecision = 1e-6;

@@ -25,7 +25,7 @@ using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = DataNodeLogger;
+static NLog::TLogger& SILENT_UNUSED Logger = DataNodeLogger;
 
 static const int Permissions = 0751;
 

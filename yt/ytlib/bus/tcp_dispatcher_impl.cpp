@@ -15,8 +15,8 @@ namespace NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = BusLogger;
-static NProfiling::TProfiler& Profiler = BusProfiler;
+static NLog::TLogger& SILENT_UNUSED Logger = BusLogger;
+static NProfiling::TProfiler& SILENT_UNUSED Profiler = BusProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 

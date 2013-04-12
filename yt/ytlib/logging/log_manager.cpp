@@ -39,8 +39,8 @@ static const char* const DefaultStdErrPattern = "$(datetime) $(level) $(category
 
 static const char* const AllCategoriesName = "*";
 
-static TLogger Logger(SystemLoggingCategory);
-static NProfiling::TProfiler Profiler("/logging");
+static TLogger SILENT_UNUSED Logger(SystemLoggingCategory);
+static NProfiling::TProfiler SILENT_UNUSED Profiler("/logging");
 
 ////////////////////////////////////////////////////////////////////////////////
 

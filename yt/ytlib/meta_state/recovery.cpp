@@ -24,8 +24,8 @@ using namespace NElection;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = MetaStateLogger;
-static NProfiling::TProfiler& Profiler = MetaStateProfiler;
+static NLog::TLogger& SILENT_UNUSED Logger = MetaStateLogger;
+static NProfiling::TProfiler& SILENT_UNUSED Profiler = MetaStateProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -43,8 +43,8 @@ using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = ChunkServerLogger;
-static NProfiling::TProfiler& Profiler = ChunkServerProfiler;
+static NLog::TLogger& SILENT_UNUSED Logger = ChunkServerLogger;
+static NProfiling::TProfiler& SILENT_UNUSED Profiler = ChunkServerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
