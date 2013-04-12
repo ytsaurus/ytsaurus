@@ -7,34 +7,33 @@ def get_master_config():
     return yson.parse_string(
 """
 {
-  meta_state = {
-    cell = {
-      addresses = [ ];
+    meta_state = {
+        cell = {
+            addresses = [ ];
+        };
+        follower_tracker = {
+            ping_interval = 3000;
+        };
+        changelogs = {
+            path = "";
+        };
+        snapshots = {
+            path = "";
+        };
+        max_changes_between_snapshots = 1000000;
+        max_batch_delay = 0;
+        leader_committer = {
+            rpc_timeout = 10000;
+        };
     };
-    "follower_tracker" = {
-        "ping_interval" = 3000;
-    };
-    changelogs = {
-        path = "";
-    };
-    snapshots = {
-        path = "";
-    };
-    max_changes_between_snapshots = 1000000;
-    max_batch_delay = 0;
-    leader_committer = {
-      rpc_timeout = 10000;
-    };
-  };
   
-  transactions = {
-    default_transaction_timeout = 300000;
-  };
+    transaction_manager = {
+        default_transaction_timeout = 300000;
+    };
 
-  chunks = {
-    chunk_refresh_delay = 2000;
-  };
-
+    chunk_manager = {
+        chunk_refresh_delay = 1000;
+    };
 
     logging = {
         rules = [
@@ -254,8 +253,6 @@ def get_node_config():
                 };
             }
         };
-
-
     };
 
     "masters" = {
@@ -299,29 +296,29 @@ def get_proxy_config():
     return json.loads(
 """
 {
-  "port" : -1,
-  "log_port" : -1,
-  "address" : "localhost",
-  "number_of_workers" : 1,
-  "memory_limit" : 33554432,
-  "thread_limit" : 64,
-  "spare_threads" : 4,
+    "port" : -1,
+    "log_port" : -1,
+    "address" : "localhost",
+    "number_of_workers" : 1,
+    "memory_limit" : 33554432,
+    "thread_limit" : 64,
+    "spare_threads" : 4,
 
-  "neighbours" : [  ],
+    "neighbours" : [  ],
 
-  "logging" : {
-    "filename" : "/dev/null"
-  },
-
-  "locals" : { },
-  "disable_blackbox" : true,
-
-  "proxy" : {
     "logging" : {
-      "rules" : [ ],
-      "writers" : { }
+        "filename" : "/dev/null"
     },
-    "driver" : { }
-  }
+
+    "locals" : { },
+    "disable_blackbox" : true,
+
+    "proxy" : {
+        "logging" : {
+            "rules" : [ ],
+            "writers" : { }
+        },
+        "driver" : { }
+    }
 }
 """)
