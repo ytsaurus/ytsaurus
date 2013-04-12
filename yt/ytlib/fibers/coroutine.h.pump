@@ -117,12 +117,9 @@ private:
 $if ARITY > 0 [[, ]]
 $for ARG , [[std::get<$(ARG - 1)>(std::move(Arguments))]]);
             Result.Reset();
-        } catch(const std::exception& ex) {
-            fprintf(
-                stderr,
-                "*** Uncaught exception in TCoroutine: %s\n",
-                ex.what());
-            abort();
+        } catch(...) {
+            Result.Reset();
+            throw;
         }
     }
 
@@ -208,11 +205,8 @@ $if ARITY > 0 [[, ]]
 $for ARG , [[std::get<$(ARG - 1)>(std::move(Arguments))]]);
             Result = false;
         } catch(const std::exception& ex) {
-            fprintf(
-                stderr,
-                "*** Uncaught exception in TCoroutine: %s\n",
-                ex.what());
-            abort();
+            Result = false;
+            throw;
         }
     }
 
