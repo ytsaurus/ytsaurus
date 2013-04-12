@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "job_manager.h"
 #include "config.h"
 #include "slot.h"
@@ -239,7 +238,8 @@ void TJobManager::RemoveJob(const TJobId& jobId)
     LOG_INFO("Job removal requested (JobId: %s)", ~jobId.ToString());
     auto job = FindJob(jobId);
     if (job) {
-        YCHECK(job->GetPhase() > EJobPhase::Cleanup);
+        auto phase = job->GetPhase();
+        YCHECK(phase > EJobPhase::Cleanup || phase == EJobPhase::Created);
         YCHECK(job->GetResourceUsage() == ZeroNodeResources());
         YCHECK(Jobs.erase(jobId) == 1);
     } else {
