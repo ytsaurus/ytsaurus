@@ -1541,7 +1541,7 @@ private:
                 lastPartition->Maniac = true;
                 YCHECK(skippedCount >= 1);
 
-                auto successorKey = GetSuccessorKey(*sampleKey);
+                auto successorKey = GetKeySuccessor(*sampleKey);
                 AddPartition(successorKey);
             }
         }
@@ -1945,11 +1945,6 @@ private:
 
         // Don't create more partitions than allowed by the global config.
         partitionCount = std::min(partitionCount, Config->MaxPartitionCount);
-
-        // Single partition is a special case for sort and is not supported by map-reduce.
-        partitionCount = std::max(partitionCount, 2);
-
-        YCHECK(partitionCount >= 2);
 
         InitJobIOConfigs();
 

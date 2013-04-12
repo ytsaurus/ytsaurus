@@ -89,12 +89,27 @@ bool operator==(const NProto::TKey& lhs, const NProto::TKey& rhs)
     return CompareKeys(lhs, rhs) == 0;
 }
 
-NProto::TKey GetSuccessorKey(const NProto::TKey& key)
+NProto::TKey GetKeySuccessor(const NProto::TKey& key)
 {
     NProto::TKey result;
     result.CopyFrom(key);
     auto* sentinelPart = result.add_parts();
     sentinelPart->set_type(EKeyPartType::MinSentinel);
+    return result;
+}
+
+NProto::TKey GetKeyPrefixSuccessor(const NProto::TKey& key, int prefixLength)
+{
+    YCHECK(prefixLength >= 0);
+    NProto::TKey result;
+    result.CopyFrom(key);
+
+    while (result.parts_size() > prefixLength) {
+        result.mutable_parts()->RemoveLast();
+    }
+
+    auto* sentinelPart = result.add_parts();
+    sentinelPart->set_type(EKeyPartType::MaxSentinel);
     return result;
 }
 

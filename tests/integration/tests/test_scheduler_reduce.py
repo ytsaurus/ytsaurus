@@ -11,6 +11,44 @@ class TestSchedulerReduceCommands(YTEnvSetup):
     NUM_NODES = 5
     START_SCHEDULER = True
 
+    def test_tricky_chunk_boundaries(self):
+        create('table', '//tmp/in1')
+        write(
+            '//tmp/in1',
+            [
+                {'key': "0", 'value': 1},
+                {'key': "2", 'value': 2}
+            ],
+            sorted_by = 'key;value')
+
+        create('table', '//tmp/in2')
+        write(
+            '//tmp/in2',
+            [
+                {'key': "2", 'value': 6},
+                {'key': "5", 'value': 8}
+            ],
+            sorted_by = 'key;value')
+
+        create('table', '//tmp/out')
+
+        reduce(
+            in_ = ['//tmp/in1{key}', '//tmp/in2{key}'],
+            out = ['<sorted_by=[key]>//tmp/out'],
+            command = 'uniq',
+            reduce_by = 'key',
+            opt = ['/spec/reducer/format=<line_prefix=tskv>dsv',
+                   '/spec/data_size_per_job=1'])
+
+        assert read('//tmp/out') == \
+            [
+                {'key': "0"},
+                {'key': "2"},
+                {'key': "5"}
+            ]
+
+        assert get('//tmp/out/@sorted') == 'true'
+
     def test_cat(self):
         create('table', '//tmp/in1')
         write(

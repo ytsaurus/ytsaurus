@@ -19,7 +19,7 @@ namespace NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_ENUM(EKeyPartType,
-    // A special sentinel used by #GetSuccessorKey.
+    // A special sentinel used by #GetKeySuccessor.
     ((MinSentinel)(-1))
     // Denotes a missing (null) component in a composite key.
     ((Null)(0))
@@ -31,6 +31,9 @@ DECLARE_ENUM(EKeyPartType,
     ((String)(3))
     // Any structured value.
     ((Composite)(4))
+
+    // A special sentinel used by #GetKeyPrefixSuccessor.
+    ((MaxSentinel)(100))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -171,6 +174,7 @@ public:
             case EKeyPartType::MinSentinel:
             case EKeyPartType::Null:
             case EKeyPartType::Composite:
+            case EKeyPartType::MaxSentinel:
                 break;
 
             default:
@@ -219,6 +223,8 @@ Stroka ToString(const NYT::NTableClient::TKeyPart<TStrType>& keyPart)
             return "<Composite>";
         case NYT::NTableClient::EKeyPartType::MinSentinel:
             return "<Min>";
+        case NYT::NTableClient::EKeyPartType::MaxSentinel:
+            return "<Max>";
         case NYT::NTableClient::EKeyPartType::String:
             return keyPart.GetString().ToString().Quote();
         case NYT::NTableClient::EKeyPartType::Integer:
@@ -266,6 +272,7 @@ int CompareKeyParts(const TKeyPart<TLhsStrType>& lhs, const TKeyPart<TRhsStrType
         case EKeyPartType::Null:
         case EKeyPartType::Composite:
         case EKeyPartType::MinSentinel:
+        case EKeyPartType::MaxSentinel:
             return 0; // All sentinels are considered equal.
 
         default:
@@ -392,6 +399,7 @@ public:
             switch (partType) {
                 case EKeyPartType::Null:
                 case EKeyPartType::MinSentinel:
+                case EKeyPartType::MaxSentinel:
                 case EKeyPartType::Composite:
                     key.SetSentinel(i, partType);
                     break;
@@ -477,6 +485,7 @@ private:
                 case EKeyPartType::Composite:
                 case EKeyPartType::Null:
                 case EKeyPartType::MinSentinel:
+                case EKeyPartType::MaxSentinel:
                     SetSentinel(i, part.GetType());
                     break;
 
@@ -537,8 +546,12 @@ bool operator <= (const NProto::TKey& lhs, const NProto::TKey& rhs);
 bool operator == (const NProto::TKey& lhs, const NProto::TKey& rhs);
 
 //! Returns the successor of |key|, i.e. the key
-//! obtained from |key| by appending a sentinel part.
-NProto::TKey GetSuccessorKey(const NProto::TKey& key);
+//! obtained from |key| by appending a <min> sentinel part.
+NProto::TKey GetKeySuccessor(const NProto::TKey& key);
+
+//! Returns the successor of |key| trimmed to given length, i.e. the key
+//! obtained from trim(key) and appending a <max> sentinel part.
+NProto::TKey GetKeyPrefixSuccessor(const NProto::TKey& key, int prefixLength);
 
 } // namespace NProto
 
