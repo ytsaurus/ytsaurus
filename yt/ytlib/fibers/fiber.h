@@ -31,9 +31,9 @@
 #endif
 namespace __cxxabiv1 {
     // We do not care about actual type here, so erase it.
-    typedef void __cxa_exception;
+    typedef void __untyped_cxa_exception;
     struct __cxa_eh_globals {
-        __cxa_exception* caughtExceptions;
+        __untyped_cxa_exception* caughtExceptions;
         unsigned int uncaughtExceptions;
     };
     extern "C" __cxa_eh_globals* __cxa_get_globals() throw();
