@@ -16,7 +16,7 @@ struct TSchedulerRequest
 
     TSchedulerRequest()
     {
-        Register("spec", Spec);
+        RegisterParameter("spec", Spec);
     }
 };
 
@@ -116,7 +116,7 @@ struct TAbortOperationRequest
 
     TAbortOperationRequest()
     {
-        Register("operation_id", OperationId);
+        RegisterParameter("operation_id", OperationId);
     }
 };
 

@@ -91,9 +91,9 @@ struct TSerializableAccessControlEntry
 
     TSerializableAccessControlEntry()
     {
-        Register("action", Action);
-        Register("subjects", Subjects);
-        Register("permissions", Permissions);
+        RegisterParameter("action", Action);
+        RegisterParameter("subjects", Subjects);
+        RegisterParameter("permissions", Permissions);
     }
 };
 

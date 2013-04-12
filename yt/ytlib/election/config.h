@@ -23,9 +23,9 @@ public:
 
     TCellConfig()
     {
-        Register("rpc_port", RpcPort)
+        RegisterParameter("rpc_port", RpcPort)
             .Default(9000);
-        Register("addresses", Addresses)
+        RegisterParameter("addresses", Addresses)
             .NonEmpty();
 
         RegisterValidator([&] () {
@@ -51,22 +51,22 @@ public:
 
     TElectionManagerConfig()
     {
-        Register("voting_round_interval", VotingRoundInterval)
+        RegisterParameter("voting_round_interval", VotingRoundInterval)
             .GreaterThan(TDuration())
             .Default(TDuration::MilliSeconds(100));
-        Register("rpc_timeout", RpcTimeout)
+        RegisterParameter("rpc_timeout", RpcTimeout)
             .GreaterThan(TDuration())
             .Default(TDuration::MilliSeconds(1000));
-        Register("follower_ping_interval", FollowerPingInterval)
+        RegisterParameter("follower_ping_interval", FollowerPingInterval)
             .GreaterThan(TDuration())
             .Default(TDuration::MilliSeconds(1000));
-        Register("follower_ping_timeout", FollowerPingTimeout)
+        RegisterParameter("follower_ping_timeout", FollowerPingTimeout)
             .GreaterThan(TDuration())
             .Default(TDuration::MilliSeconds(5000));
-        Register("ready_to_follow_timeout", ReadyToFollowTimeout)
+        RegisterParameter("ready_to_follow_timeout", ReadyToFollowTimeout)
             .GreaterThan(TDuration())
             .Default(TDuration::MilliSeconds(5000));
-        Register("potential_follower_timeout", PotentialFollowerTimeout)
+        RegisterParameter("potential_follower_timeout", PotentialFollowerTimeout)
             .GreaterThan(TDuration())
             .Default(TDuration::MilliSeconds(5000));
     }

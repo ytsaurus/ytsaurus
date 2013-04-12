@@ -23,7 +23,7 @@ public:
     TEnvironmentConfig()
     {
         SetKeepOptions(true);
-        Register("type", Type)
+        RegisterParameter("type", Type)
             .NonEmpty();
     }
 };
@@ -37,7 +37,7 @@ class TEnvironmentManagerConfig
 public:
     TEnvironmentManagerConfig()
     {
-        Register("environments", Environments);
+        RegisterParameter("environments", Environments);
     }
 
     TEnvironmentConfigPtr FindEnvironment(const Stroka& name)
@@ -65,11 +65,11 @@ public:
     {
         // These are some very low default limits.
         // Override for production use.
-        Register("slots", Slots)
+        RegisterParameter("slots", Slots)
             .Default(2);
-        Register("cpu", Cpu)
+        RegisterParameter("cpu", Cpu)
             .Default(2);
-        Register("network", Network)
+        RegisterParameter("network", Network)
             .Default(100);
     }
 };
@@ -87,11 +87,11 @@ public:
 
     TJobManagerConfig()
     {
-        Register("resource_limits", ResourceLimits)
+        RegisterParameter("resource_limits", ResourceLimits)
             .DefaultNew();
-        Register("slot_location", SlotLocation)
+        RegisterParameter("slot_location", SlotLocation)
             .NonEmpty();
-        Register("start_user_id", StartUserId)
+        RegisterParameter("start_user_id", StartUserId)
             .Default(10000);
     }
 };
@@ -111,11 +111,11 @@ public:
 
     TSchedulerConnectorConfig()
     {
-        Register("rpc_timeout", RpcTimeout)
+        RegisterParameter("rpc_timeout", RpcTimeout)
             .Default(TDuration::Seconds(60));
-        Register("heartbeat_period", HeartbeatPeriod)
+        RegisterParameter("heartbeat_period", HeartbeatPeriod)
             .Default(TDuration::Seconds(5));
-        Register("heartbeat_splay", HeartbeatSplay)
+        RegisterParameter("heartbeat_splay", HeartbeatSplay)
             .Default(TDuration::Seconds(1));
     }
 };
@@ -141,21 +141,21 @@ public:
 
     TExecAgentConfig()
     {
-        Register("job_manager", JobManager)
+        RegisterParameter("job_manager", JobManager)
             .DefaultNew();
-        Register("environment_manager", EnvironmentManager)
+        RegisterParameter("environment_manager", EnvironmentManager)
             .DefaultNew();
-        Register("scheduler_connector", SchedulerConnector)
+        RegisterParameter("scheduler_connector", SchedulerConnector)
             .DefaultNew();
-        Register("job_proxy_logging", JobProxyLogging)
+        RegisterParameter("job_proxy_logging", JobProxyLogging)
             .Default(NULL);
-        Register("supervisor_rpc_timeout", SupervisorRpcTimeout)
+        RegisterParameter("supervisor_rpc_timeout", SupervisorRpcTimeout)
             .Default(TDuration::Seconds(60));
-        Register("memory_watchdog_period", MemoryWatchdogPeriod)
+        RegisterParameter("memory_watchdog_period", MemoryWatchdogPeriod)
             .Default(TDuration::Seconds(1));
-        Register("enforce_job_control", EnforceJobControl)
+        RegisterParameter("enforce_job_control", EnforceJobControl)
             .Default(false);
-        Register("memory_limit_multiplier", MemoryLimitMultiplier)
+        RegisterParameter("memory_limit_multiplier", MemoryLimitMultiplier)
             .Default(2.0);
     }
 };

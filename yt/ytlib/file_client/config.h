@@ -30,20 +30,20 @@ public:
 
     TFileWriterConfig()
     {
-        Register("block_size", BlockSize)
+        RegisterParameter("block_size", BlockSize)
             .Default(1024 * 1024)
             .GreaterThan(0);
-        Register("compression_codec", Codec)
+        RegisterParameter("compression_codec", Codec)
             .Default(NCompression::ECodec::None);
-        Register("replication_factor", ReplicationFactor)
+        RegisterParameter("replication_factor", ReplicationFactor)
             .Default(3)
             .GreaterThanOrEqual(1);
-        Register("upload_replication_factor", UploadReplicationFactor)
+        RegisterParameter("upload_replication_factor", UploadReplicationFactor)
             .Default(2)
             .GreaterThanOrEqual(1);
-        Register("chunk_movable", ChunkMovable)
+        RegisterParameter("chunk_movable", ChunkMovable)
             .Default(true);
-        Register("chunk_vital", ChunkVital)
+        RegisterParameter("chunk_vital", ChunkVital)
             .Default(true);
     }
 };

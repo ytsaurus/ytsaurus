@@ -18,10 +18,10 @@ public:
 
     TPeerBlockTableConfig()
     {
-        Register("max_peers_per_block", MaxPeersPerBlock)
+        RegisterParameter("max_peers_per_block", MaxPeersPerBlock)
             .GreaterThan(0)
             .Default(64);
-        Register("sweep_period", SweepPeriod)
+        RegisterParameter("sweep_period", SweepPeriod)
             .Default(TDuration::Minutes(10));
     }
 };
@@ -49,16 +49,16 @@ public:
 
     TLocationConfig()
     {
-        Register("path", Path)
+        RegisterParameter("path", Path)
             .NonEmpty();
-        Register("quota", Quota)
+        RegisterParameter("quota", Quota)
             .Default(TNullable<i64>());
-        Register("min_disk_space", MinDiskSpace)
+        RegisterParameter("min_disk_space", MinDiskSpace)
             .Default(TNullable<i64>());
-        Register("low_watermark", LowWatermark)
+        RegisterParameter("low_watermark", LowWatermark)
             .GreaterThanOrEqual(0)
             .Default((i64) 20 * 1024 * 1024 * 1024); // 20 Gb
-        Register("high_watermark", HighWatermark)
+        RegisterParameter("high_watermark", HighWatermark)
             .GreaterThanOrEqual(0)
             .Default((i64) 10 * 1024 * 1024 * 1024); // 10 Gb
 
@@ -86,12 +86,12 @@ public:
 
     TDiskHealthCheckerConfig()
     {
-        Register("check_period", CheckPeriod)
+        RegisterParameter("check_period", CheckPeriod)
             .Default(TDuration::Minutes(1));
-        Register("test_size", TestSize)
+        RegisterParameter("test_size", TestSize)
             .InRange(0, (i64) 1024 * 1024 * 1024)
             .Default((i64) 1024 * 1024);
-        Register("timeout", Timeout)
+        RegisterParameter("timeout", Timeout)
             .Default(TDuration::Seconds(5));
     }
 };
@@ -170,46 +170,46 @@ public:
      */
     TDataNodeConfig()
     {
-        Register("heartbeat_period", HeartbeatPeriod)
+        RegisterParameter("heartbeat_period", HeartbeatPeriod)
             .Default(TDuration::Seconds(5));
-        Register("heartbeat_splay", HeartbeatSplay)
+        RegisterParameter("heartbeat_splay", HeartbeatSplay)
             .Default(TDuration::Seconds(5));
-        Register("full_heartbeat_timeout", FullHeartbeatTimeout)
+        RegisterParameter("full_heartbeat_timeout", FullHeartbeatTimeout)
             .Default(TDuration::Seconds(60));
-        Register("max_cached_blocks_size", MaxCachedBlocksSize)
+        RegisterParameter("max_cached_blocks_size", MaxCachedBlocksSize)
             .GreaterThan(0)
             .Default(1024 * 1024);
-        Register("max_cached_readers", MaxCachedReaders)
+        RegisterParameter("max_cached_readers", MaxCachedReaders)
             .GreaterThan(0)
             .Default(10);
-        Register("session_timeout", SessionTimeout)
+        RegisterParameter("session_timeout", SessionTimeout)
             .Default(TDuration::Seconds(120));
-        Register("node_rpc_timeout", NodeRpcTimeout)
+        RegisterParameter("node_rpc_timeout", NodeRpcTimeout)
             .Default(TDuration::Seconds(120));
-        Register("peer_update_period", PeerUpdatePeriod)
+        RegisterParameter("peer_update_period", PeerUpdatePeriod)
             .Default(TDuration::Seconds(30));
-        Register("peer_update_expiration_timeout", PeerUpdateExpirationTimeout)
+        RegisterParameter("peer_update_expiration_timeout", PeerUpdateExpirationTimeout)
             .Default(TDuration::Seconds(40));
-        Register("read_throttling_size", ReadThrottlingSize)
+        RegisterParameter("read_throttling_size", ReadThrottlingSize)
             .GreaterThan(0)
             .Default((i64) 512 * 1024 * 1024);
-        Register("write_throttling_size", WriteThrottlingSize)
+        RegisterParameter("write_throttling_size", WriteThrottlingSize)
             .GreaterThan(0)
             // TODO(babenko): provide some meaningful default
             .Default((i64) 100 * 1024 * 1024 * 1024);
-        Register("store_locations", StoreLocations)
+        RegisterParameter("store_locations", StoreLocations)
             .NonEmpty();
-        Register("cache_location", CacheLocation)
+        RegisterParameter("cache_location", CacheLocation)
             .DefaultNew();
-        Register("cache_remote_reader", CacheRemoteReader)
+        RegisterParameter("cache_remote_reader", CacheRemoteReader)
             .DefaultNew();
-        Register("cache_sequential_reader", CacheSequentialReader)
+        RegisterParameter("cache_sequential_reader", CacheSequentialReader)
             .DefaultNew();
-        Register("replication_remote_writer", ReplicationRemoteWriter)
+        RegisterParameter("replication_remote_writer", ReplicationRemoteWriter)
             .DefaultNew();
-        Register("peer_block_table", PeerBlockTable)
+        RegisterParameter("peer_block_table", PeerBlockTable)
             .DefaultNew();
-        Register("disk_health_checker", DiskHealthChecker)
+        RegisterParameter("disk_health_checker", DiskHealthChecker)
             .DefaultNew();
     }
 };

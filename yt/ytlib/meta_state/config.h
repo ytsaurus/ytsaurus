@@ -23,13 +23,13 @@ public:
 
     TChangeLogDownloaderConfig()
     {
-        Register("lookup_timeout", LookupTimeout)
+        RegisterParameter("lookup_timeout", LookupTimeout)
             .GreaterThan(TDuration())
             .Default(TDuration::Seconds(5));
-        Register("read_timeout", ReadTimeout)
+        RegisterParameter("read_timeout", ReadTimeout)
             .GreaterThan(TDuration())
             .Default(TDuration::Seconds(10));
-        Register("records_per_request", RecordsPerRequest)
+        RegisterParameter("records_per_request", RecordsPerRequest)
             .GreaterThan(0)
             .Default(64 * 1024);
     }
@@ -47,13 +47,13 @@ public:
 
     TSnapshotDownloaderConfig()
     {
-        Register("lookup_timeout", LookupTimeout)
+        RegisterParameter("lookup_timeout", LookupTimeout)
             .GreaterThan(TDuration())
             .Default(TDuration::Seconds(2));
-        Register("read_timeout", ReadTimeout)
+        RegisterParameter("read_timeout", ReadTimeout)
             .GreaterThan(TDuration())
             .Default(TDuration::Seconds(10));
-        Register("block_size", BlockSize)
+        RegisterParameter("block_size", BlockSize)
             .GreaterThan(0)
             .Default(32 * 1024 * 1024);
     }
@@ -70,10 +70,10 @@ public:
 
     TSnapshotBuilderConfig()
     {
-        Register("remote_timeout", RemoteTimeout)
+        RegisterParameter("remote_timeout", RemoteTimeout)
             .GreaterThan(TDuration())
             .Default(TDuration::Minutes(5));
-        Register("local_timeout", LocalTimeout)
+        RegisterParameter("local_timeout", LocalTimeout)
             .GreaterThan(TDuration())
             .Default(TDuration::Minutes(5));
     }
@@ -90,10 +90,10 @@ public:
 
     TFollowerTrackerConfig()
     {
-        Register("ping_interval", PingInterval)
+        RegisterParameter("ping_interval", PingInterval)
             .GreaterThan(TDuration())
             .Default(TDuration::MilliSeconds(1000));
-        Register("rpc_timeout", RpcTimeout)
+        RegisterParameter("rpc_timeout", RpcTimeout)
             .GreaterThan(TDuration())
             .Default(TDuration::MilliSeconds(1000));
     }
@@ -111,12 +111,12 @@ public:
 
     TLeaderCommitterConfig()
     {
-        Register("rpc_timeout", RpcTimeout)
+        RegisterParameter("rpc_timeout", RpcTimeout)
             .GreaterThan(TDuration())
             .Default(TDuration::Seconds(3));
-        Register("max_batch_delay", MaxBatchDelay)
+        RegisterParameter("max_batch_delay", MaxBatchDelay)
             .Default(TDuration::MilliSeconds(10));
-        Register("max_batch_size", MaxBatchSize)
+        RegisterParameter("max_batch_size", MaxBatchSize)
             .Default(10000);
     }
 };
@@ -138,11 +138,11 @@ public:
 
     TChangeLogCacheConfig()
     {
-        Register("path", Path);
-        Register("max_size", MaxSize)
+        RegisterParameter("path", Path);
+        RegisterParameter("max_size", MaxSize)
             .GreaterThan(0)
             .Default(4);
-        Register("index_block_size", IndexBlockSize)
+        RegisterParameter("index_block_size", IndexBlockSize)
             .GreaterThan(0)
             .Default(1 * 1024 * 1024);
     }
@@ -162,8 +162,8 @@ public:
 
     TSnapshotStoreConfig()
     {
-        Register("path", Path);
-        Register("enable_compression", EnableCompression)
+        RegisterParameter("path", Path);
+        RegisterParameter("enable_compression", EnableCompression)
             .Default(true);
     }
 };
@@ -181,9 +181,9 @@ public:
 
     TResponseKeeperConfig()
     {
-        Register("expiration_period", ExpirationPeriod)
+        RegisterParameter("expiration_period", ExpirationPeriod)
             .Default(TDuration::Seconds(60));
-        Register("sweep_period", SweepPeriod)
+        RegisterParameter("sweep_period", SweepPeriod)
             .Default(TDuration::Seconds(5));
     }
 };
@@ -235,33 +235,33 @@ public:
 
     TPersistentStateManagerConfig()
     {
-        Register("changelogs", ChangeLogs);
-        Register("snapshots", Snapshots);
-        Register("max_changes_between_snapshots", MaxChangesBetweenSnapshots)
+        RegisterParameter("changelogs", ChangeLogs);
+        RegisterParameter("snapshots", Snapshots);
+        RegisterParameter("max_changes_between_snapshots", MaxChangesBetweenSnapshots)
             .Default()
             .GreaterThan(0);
-        Register("max_changelog_read_size", MaxChangeLogReadSize)
+        RegisterParameter("max_changelog_read_size", MaxChangeLogReadSize)
             .Default((i64) 128 * 1024 * 1024)
             .GreaterThan(0);
-        Register("rpc_timeout", RpcTimeout)
+        RegisterParameter("rpc_timeout", RpcTimeout)
             .Default(TDuration::MilliSeconds(3000));
-        Register("cell", Cell)
+        RegisterParameter("cell", Cell)
             .DefaultNew();
-        Register("election", Election)
+        RegisterParameter("election", Election)
             .DefaultNew();
-        Register("changelog_downloader", ChangeLogDownloader)
+        RegisterParameter("changelog_downloader", ChangeLogDownloader)
             .DefaultNew();
-        Register("snapshot_downloader", SnapshotDownloader)
+        RegisterParameter("snapshot_downloader", SnapshotDownloader)
             .DefaultNew();
-        Register("follower_tracker", FollowerTracker)
+        RegisterParameter("follower_tracker", FollowerTracker)
             .DefaultNew();
-        Register("leader_committer", LeaderCommitter)
+        RegisterParameter("leader_committer", LeaderCommitter)
             .DefaultNew();
-        Register("snapshot_builder", SnapshotBuilder)
+        RegisterParameter("snapshot_builder", SnapshotBuilder)
             .DefaultNew();
-        Register("change_log_cache", ChangeLogCache)
+        RegisterParameter("change_log_cache", ChangeLogCache)
             .DefaultNew();
-        Register("response_keeper", ResponseKeeper)
+        RegisterParameter("response_keeper", ResponseKeeper)
             .DefaultNew();
     }
 };
@@ -284,11 +284,11 @@ public:
 
     TMasterDiscoveryConfig()
     {
-        Register("addresses", Addresses)
+        RegisterParameter("addresses", Addresses)
             .NonEmpty();
-        Register("rpc_timeout", RpcTimeout)
+        RegisterParameter("rpc_timeout", RpcTimeout)
             .Default(TDuration::Seconds(30));
-        Register("connection_priority", ConnectionPriority)
+        RegisterParameter("connection_priority", ConnectionPriority)
             .InRange(0, 6)
             .Default(6);
     }

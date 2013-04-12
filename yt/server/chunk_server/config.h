@@ -42,23 +42,23 @@ public:
 
     TChunkReplicatorConfig()
     {
-        Register("min_online_node_count", MinOnlineNodeCount)
+        RegisterParameter("min_online_node_count", MinOnlineNodeCount)
             .GreaterThan(0)
             .Default(1);
-        Register("max_lost_chunk_fraction", MaxLostChunkFraction)
+        RegisterParameter("max_lost_chunk_fraction", MaxLostChunkFraction)
             .InRange(0.0, 1.0)
             .Default(0.5);
-        Register("max_replication_fan_out", MaxReplicationFanOut)
+        RegisterParameter("max_replication_fan_out", MaxReplicationFanOut)
             .Default(4);
-        Register("max_replication_fan_in", MaxReplicationFanIn)
+        RegisterParameter("max_replication_fan_in", MaxReplicationFanIn)
             .Default(8);
-        Register("max_removal_jobs_per_node", MaxRemovalJobsPerNode)
+        RegisterParameter("max_removal_jobs_per_node", MaxRemovalJobsPerNode)
             .Default(16);
-        Register("min_chunk_balancing_fill_coeff_diff", MinBalancingFillCoeffDiff)
+        RegisterParameter("min_chunk_balancing_fill_coeff_diff", MinBalancingFillCoeffDiff)
             .Default(0.2);
-        Register("min_chunk_balancing_fill_coeff", MinBalancingFillCoeff)
+        RegisterParameter("min_chunk_balancing_fill_coeff", MinBalancingFillCoeff)
             .Default(0.1);
-        Register("job_timeout", JobTimeout)
+        RegisterParameter("job_timeout", JobTimeout)
             .Default(TDuration::Minutes(5));
     }
 };
@@ -80,22 +80,22 @@ public:
 
     TChunkManagerConfig()
     {
-        Register("chunk_refresh_delay", ChunkRefreshDelay)
+        RegisterParameter("chunk_refresh_delay", ChunkRefreshDelay)
             .Default(TDuration::Seconds(15));
-        Register("chunk_refresh_period", ChunkRefreshPeriod)
+        RegisterParameter("chunk_refresh_period", ChunkRefreshPeriod)
             .Default(TDuration::MilliSeconds(100));
-        Register("max_chunks_per_refresh", MaxChunksPerRefresh)
+        RegisterParameter("max_chunks_per_refresh", MaxChunksPerRefresh)
             .Default(10000);
 
-        Register("chunk_rf_update_period", ChunkRFUpdatePeriod)
+        RegisterParameter("chunk_rf_update_period", ChunkRFUpdatePeriod)
             .Default(TDuration::MilliSeconds(1000));
-        Register("max_chunks_per_rf_update", MaxChunksPerRFUpdate)
+        RegisterParameter("max_chunks_per_rf_update", MaxChunksPerRFUpdate)
             .Default(10000);
 
-        Register("active_sessions_penality_coeff", ActiveSessionsPenalityCoeff)
+        RegisterParameter("active_sessions_penality_coeff", ActiveSessionsPenalityCoeff)
             .Default(0.0001);
 
-        Register("chunk_replicator", ChunkReplicator)
+        RegisterParameter("chunk_replicator", ChunkReplicator)
             .DefaultNew();
     }
 };

@@ -34,10 +34,10 @@ struct TTestSubconfig
 
     TTestSubconfig()
     {
-        Register("my_int", MyInt).Default(100).InRange(95, 205);
-        Register("my_bool", MyBool).Default(false);
-        Register("my_string_list", MyStringList).Default();
-        Register("my_enum", MyEnum).Default(ETestEnum::Value1);
+        RegisterParameter("my_int", MyInt).Default(100).InRange(95, 205);
+        RegisterParameter("my_bool", MyBool).Default(false);
+        RegisterParameter("my_string_list", MyStringList).Default();
+        RegisterParameter("my_enum", MyEnum).Default(ETestEnum::Value1);
     }
 };
 
@@ -54,10 +54,10 @@ public:
 
     TTestConfig()
     {
-        Register("my_string", MyString).NonEmpty();
-        Register("sub", Subconfig).DefaultNew();
-        Register("sub_list", SubconfigList).Default();
-        Register("sub_map", SubconfigMap).Default();
+        RegisterParameter("my_string", MyString).NonEmpty();
+        RegisterParameter("sub", Subconfig).DefaultNew();
+        RegisterParameter("sub_list", SubconfigList).Default();
+        RegisterParameter("sub_map", SubconfigMap).Default();
 
         RegisterInitializer([&] () {
             MyString = "x";

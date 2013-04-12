@@ -21,12 +21,12 @@ public:
 
     THttpProxyConfig()
     {
-        Register("logging", Logging);
-        Register("chunk_client_dispatcher", ChunkClientDispatcher)
+        RegisterParameter("logging", Logging);
+        RegisterParameter("chunk_client_dispatcher", ChunkClientDispatcher)
             .DefaultNew();
-        Register("driver", Driver)
+        RegisterParameter("driver", Driver)
             .DefaultNew();
-        Register("address_resolver", AddressResolver)
+        RegisterParameter("address_resolver", AddressResolver)
             .DefaultNew();
     }
 };

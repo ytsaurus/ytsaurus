@@ -407,7 +407,9 @@ DEFINE_VALIDATOR(
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-NConfig::TParameter<T>& TYsonSerializableLite::Register(const Stroka& parameterName, T& value)
+NConfig::TParameter<T>& TYsonSerializableLite::RegisterParameter(
+    const Stroka& parameterName,
+    T& value)
 {
     auto parameter = New< NConfig::TParameter<T> >(value);
     YCHECK(Parameters.insert(std::pair<Stroka, NConfig::IParameterPtr>(parameterName, parameter)).second);

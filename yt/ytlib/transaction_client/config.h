@@ -18,7 +18,7 @@ public:
 
     TTransactionManagerConfig()
     {
-        Register("ping_period", PingPeriod)
+        RegisterParameter("ping_period", PingPeriod)
             .Default(TDuration::Seconds(5));
     }
 };

@@ -43,32 +43,32 @@ public:
 
     TJobProxyConfig()
     {
-        Register("supervisor_connection", SupervisorConnection);
-        Register("supervisor_rpc_timeout", SupervisorRpcTimeout)
+        RegisterParameter("supervisor_connection", SupervisorConnection);
+        RegisterParameter("supervisor_rpc_timeout", SupervisorRpcTimeout)
             .Default(TDuration::Seconds(30));
-        Register("master_rpc_timeout", MasterRpcTimeout)
+        RegisterParameter("master_rpc_timeout", MasterRpcTimeout)
             .Default(TDuration::Seconds(30));
 
-        Register("sandbox_name", SandboxName)
+        RegisterParameter("sandbox_name", SandboxName)
             .NonEmpty();
         
-        Register("heartbeat_period", HeartbeatPeriod)
+        RegisterParameter("heartbeat_period", HeartbeatPeriod)
             .Default(TDuration::Seconds(5));
         
-        Register("memory_watchdog_period", MemoryWatchdogPeriod)
+        RegisterParameter("memory_watchdog_period", MemoryWatchdogPeriod)
             .Default(TDuration::Seconds(1));
-        Register("address_resolver", AddressResolver)
+        RegisterParameter("address_resolver", AddressResolver)
             .Default();
-        Register("memory_limit_multiplier", MemoryLimitMultiplier)
+        RegisterParameter("memory_limit_multiplier", MemoryLimitMultiplier)
             .Default(2.0);
         
-        Register("user_id", UserId).
+        RegisterParameter("user_id", UserId).
             Default(-1);
         
-        Register("job_io", JobIO)
+        RegisterParameter("job_io", JobIO)
             .DefaultNew();
         
-        Register("logging", Logging)
+        RegisterParameter("logging", Logging)
             .Default();
     }
 };

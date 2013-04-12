@@ -18,10 +18,10 @@ public:
 
     TTransactionManagerConfig()
     {
-        Register("default_transaction_timeout", DefaultTransactionTimeout)
+        RegisterParameter("default_transaction_timeout", DefaultTransactionTimeout)
             .GreaterThan(TDuration())
             .Default(TDuration::Seconds(15));
-        Register("max_transaction_timeout", MaxTransactionTimeout)
+        RegisterParameter("max_transaction_timeout", MaxTransactionTimeout)
             .GreaterThan(TDuration())
             .Default(TDuration::Minutes(60));
     }

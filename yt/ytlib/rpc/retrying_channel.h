@@ -18,9 +18,9 @@ public:
 
     TRetryingChannelConfig()
     {
-        Register("backoff_time", BackoffTime)
+        RegisterParameter("backoff_time", BackoffTime)
             .Default(TDuration::Seconds(3));
-        Register("max_attempts", MaxAttempts)
+        RegisterParameter("max_attempts", MaxAttempts)
             .GreaterThanOrEqual(1)
             .Default(10);
     }

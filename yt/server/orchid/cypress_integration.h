@@ -20,10 +20,10 @@ struct TOrchidManifest
 
     TOrchidManifest()
     {
-        Register("remote_address", RemoteAddress);
-        Register("remote_root", RemoteRoot)
+        RegisterParameter("remote_address", RemoteAddress);
+        RegisterParameter("remote_root", RemoteRoot)
             .Default("/");
-        Register("timeout", Timeout)
+        RegisterParameter("timeout", Timeout)
             .Default(TDuration::MilliSeconds(3000));
     }
 };

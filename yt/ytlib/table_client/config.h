@@ -33,24 +33,24 @@ public:
     TChunkWriterConfig()
     {
         // Block less than 1M is nonsense.
-        Register("block_size", BlockSize)
+        RegisterParameter("block_size", BlockSize)
             .GreaterThanOrEqual(1024 * 1024)
             .Default(16 * 1024 * 1024);
-        Register("sample_rate", SampleRate)
+        RegisterParameter("sample_rate", SampleRate)
             .GreaterThan(0)
             .LessThanOrEqual(0.001)
             .Default(0.0001);
-        Register("index_rate", IndexRate)
+        RegisterParameter("index_rate", IndexRate)
             .GreaterThan(0)
             .LessThanOrEqual(0.001)
             .Default(0.0001);
-        Register("estimated_compression_ratio", EstimatedCompressionRatio)
+        RegisterParameter("estimated_compression_ratio", EstimatedCompressionRatio)
             .GreaterThan(0)
             .LessThan(1)
             .Default(0.2);
-        Register("allow_duplicate_column_names", AllowDuplicateColumnNames)
+        RegisterParameter("allow_duplicate_column_names", AllowDuplicateColumnNames)
             .Default(true);
-        Register("max_buffer_size", MaxBufferSize)
+        RegisterParameter("max_buffer_size", MaxBufferSize)
             .GreaterThanOrEqual(1024 * 1024)
             .Default(32 * 1024 * 1024);
     }
@@ -73,9 +73,9 @@ struct TChunkWriterOptions
 
     TChunkWriterOptions()
     {
-        Register("key_columns", KeyColumns)
+        RegisterParameter("key_columns", KeyColumns)
             .Default(Null);
-        Register("channels", Channels)
+        RegisterParameter("channels", Channels)
             .Default(TChannels());
     }
 };
@@ -103,7 +103,7 @@ public:
 
     TTableReaderConfig()
     {
-        Register("max_buffer_size", MaxBufferSize)
+        RegisterParameter("max_buffer_size", MaxBufferSize)
             .GreaterThan(0L)
             .LessThanOrEqual(10L * 1024 * 1024 * 1024)
             .Default(256L * 1024 * 1024);
@@ -129,9 +129,9 @@ struct TChunkReaderOptions
 
     TChunkReaderOptions()
     {
-        Register("read_key", ReadKey)
+        RegisterParameter("read_key", ReadKey)
             .Default(false);
-        Register("keep_blocks", KeepBlocks)
+        RegisterParameter("keep_blocks", KeepBlocks)
             .Default(false);
     }
 };

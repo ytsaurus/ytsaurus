@@ -27,13 +27,13 @@ public:
 
     TObjectManagerConfig()
     {
-        Register("cell_id", CellId)
+        RegisterParameter("cell_id", CellId)
             .Default(0);
-        Register("max_objects_per_gc_sweep", MaxObjectsPerGCSweep)
+        RegisterParameter("max_objects_per_gc_sweep", MaxObjectsPerGCSweep)
             .Default(1000);
-        Register("gc_sweep_period", GCSweepPeriod)
+        RegisterParameter("gc_sweep_period", GCSweepPeriod)
             .Default(TDuration::MilliSeconds(1000));
-        Register("yield_timeout", YieldTimeout)
+        RegisterParameter("yield_timeout", YieldTimeout)
             .Default(TDuration::MilliSeconds(10));
     }
 };

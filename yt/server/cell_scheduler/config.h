@@ -32,15 +32,15 @@ public:
 
     TCellSchedulerConfig()
     {
-        Register("rpc_port", RpcPort)
+        RegisterParameter("rpc_port", RpcPort)
             .Default(9001);
-        Register("monitoring_port", MonitoringPort)
+        RegisterParameter("monitoring_port", MonitoringPort)
             .Default(10001);
-        Register("masters", Masters).
+        RegisterParameter("masters", Masters).
             DefaultNew();
-        Register("transaction_manager", TransactionManager)
+        RegisterParameter("transaction_manager", TransactionManager)
             .DefaultNew();
-        Register("scheduler", Scheduler)
+        RegisterParameter("scheduler", Scheduler)
             .DefaultNew();
     }
 };

@@ -19,8 +19,8 @@ struct TReadRequest
 
     TReadRequest()
     {
-        Register("path", Path);
-        Register("table_reader", TableReaderConfig)
+        RegisterParameter("path", Path);
+        RegisterParameter("table_reader", TableReaderConfig)
             .Default(NULL);
     }
 };
@@ -50,8 +50,8 @@ struct TWriteRequest
 
     TWriteRequest()
     {
-        Register("path", Path);
-        Register("table_writer", TableWriterConfig)
+        RegisterParameter("path", Path);
+        RegisterParameter("table_writer", TableWriterConfig)
             .Default(NULL);
     }
 };

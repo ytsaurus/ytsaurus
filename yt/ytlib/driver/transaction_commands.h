@@ -15,9 +15,9 @@ struct TStartTransactionRequest
 
     TStartTransactionRequest()
     {
-        Register("timeout", Timeout)
+        RegisterParameter("timeout", Timeout)
             .Default(Null);
-        Register("attributes", Attributes)
+        RegisterParameter("attributes", Attributes)
             .Default(nullptr);
     }
 };

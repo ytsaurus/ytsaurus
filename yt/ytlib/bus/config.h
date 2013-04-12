@@ -19,12 +19,12 @@ public:
 
     TTcpBusConfig()
     {
-        Register("priority", Priority)
+        RegisterParameter("priority", Priority)
             .InRange(0, 6)
             .Default(0);
-        Register("enable_no_delay", EnableNoDelay)
+        RegisterParameter("enable_no_delay", EnableNoDelay)
             .Default(true);
-        Register("enable_quick_ack", EnableQuickAck)
+        RegisterParameter("enable_quick_ack", EnableQuickAck)
             .Default(true);
     }
 };
@@ -39,8 +39,8 @@ public:
     explicit TTcpBusServerConfig(int port = -1)
         : Port(port)
     {
-        Register("port", Port);
-        Register("max_backlog_size", MaxBacklogSize)
+        RegisterParameter("port", Port);
+        RegisterParameter("max_backlog_size", MaxBacklogSize)
             .Default(8192);
     }
 };
@@ -54,7 +54,7 @@ public:
     explicit TTcpBusClientConfig(const Stroka& address = "")
         : Address(address)
     {
-        Register("address", Address)
+        RegisterParameter("address", Address)
             .NonEmpty();
     }
 };

@@ -48,11 +48,11 @@ public:
 
     TAddressResolverConfig()
     {
-        Register("enable_ipv4", EnableIPv4)
+        RegisterParameter("enable_ipv4", EnableIPv4)
             .Default(true);
-        Register("enable_ipv6", EnableIPv6)
+        RegisterParameter("enable_ipv6", EnableIPv6)
             .Default(true);
-        Register("localhost_fqdn", LocalHostFqdn)
+        RegisterParameter("localhost_fqdn", LocalHostFqdn)
             .Default(Null);
     }
 };

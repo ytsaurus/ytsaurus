@@ -47,23 +47,23 @@ public:
 
     TRemoteReaderConfig()
     {
-        Register("node_rpc_timeout", NodeRpcTimeout)
+        RegisterParameter("node_rpc_timeout", NodeRpcTimeout)
             .Default(TDuration::Seconds(120));
-        Register("retry_backoff_time", RetryBackoffTime)
+        RegisterParameter("retry_backoff_time", RetryBackoffTime)
             .Default(TDuration::Seconds(3));
-        Register("retry_count", RetryCount)
+        RegisterParameter("retry_count", RetryCount)
             .Default(20);
-        Register("pass_backoff_time", PassBackoffTime)
+        RegisterParameter("pass_backoff_time", PassBackoffTime)
             .Default(TDuration::Seconds(3));
-        Register("pass_count", PassCount)
+        RegisterParameter("pass_count", PassCount)
             .Default(500);
-        Register("fetch_from_peers", FetchFromPeers)
+        RegisterParameter("fetch_from_peers", FetchFromPeers)
             .Default(true);
-        Register("peer_expiration_timeout", PeerExpirationTimeout)
+        RegisterParameter("peer_expiration_timeout", PeerExpirationTimeout)
             .Default(TDuration::Seconds(300));
-        Register("enable_node_caching", EnableNodeCaching)
+        RegisterParameter("enable_node_caching", EnableNodeCaching)
             .Default(true);
-        Register("allow_fetching_seeds_from_master", AllowFetchingSeedsFromMaster)
+        RegisterParameter("allow_fetching_seeds_from_master", AllowFetchingSeedsFromMaster)
             .Default(true);
     }
 };
@@ -80,7 +80,7 @@ public:
 
     TClientBlockCacheConfig()
     {
-        Register("max_size", MaxSize)
+        RegisterParameter("max_size", MaxSize)
             .Default(0)
             .GreaterThanOrEqual(0);
     }
@@ -100,10 +100,10 @@ public:
 
     TSequentialReaderConfig()
     {
-        Register("window_size", WindowSize)
+        RegisterParameter("window_size", WindowSize)
             .Default(64 * 1024 * 1024)
             .GreaterThan(0);
-        Register("group_size", GroupSize)
+        RegisterParameter("group_size", GroupSize)
             .Default(8 * 1024 * 1024)
             .GreaterThan(0);
 
@@ -145,17 +145,17 @@ public:
 
     TReplicationWriterConfig()
     {
-        Register("send_window_size", SendWindowSize)
+        RegisterParameter("send_window_size", SendWindowSize)
             .Default(4 * 1024 * 1024)
             .GreaterThan(0);
-        Register("group_size", GroupSize)
+        RegisterParameter("group_size", GroupSize)
             .Default(1024 * 1024)
             .GreaterThan(0);
-        Register("node_rpc_timeout", NodeRpcTimeout)
+        RegisterParameter("node_rpc_timeout", NodeRpcTimeout)
             .Default(TDuration::Seconds(120));
-        Register("node_ping_interval", NodePingInterval)
+        RegisterParameter("node_ping_interval", NodePingInterval)
             .Default(TDuration::Seconds(10));
-        Register("enable_node_caching", EnableNodeCaching)
+        RegisterParameter("enable_node_caching", EnableNodeCaching)
             .Default(false);
 
         RegisterValidator([&] () {
@@ -176,7 +176,7 @@ public:
 
     TErasureWriterConfig()
     {
-        Register("erasure_window_size", ErasureWindowSize)
+        RegisterParameter("erasure_window_size", ErasureWindowSize)
             .Default(1024 * 1024)
             .GreaterThan(0);
     }
@@ -194,12 +194,12 @@ public:
 
     TEncodingWriterConfig()
     {
-        Register("encode_window_size", EncodeWindowSize)
+        RegisterParameter("encode_window_size", EncodeWindowSize)
             .Default(4 * 1024 * 1024)
             .GreaterThan(0);
-        Register("default_compression_ratio", DefaultCompressionRatio)
+        RegisterParameter("default_compression_ratio", DefaultCompressionRatio)
             .Default(0.2);
-        Register("verify_compression", VerifyCompression)
+        RegisterParameter("verify_compression", VerifyCompression)
             .Default(true);
     }
 };
@@ -213,7 +213,7 @@ struct TEncodingWriterOptions
 
     TEncodingWriterOptions()
     {
-        Register("compression_codec", Codec)
+        RegisterParameter("compression_codec", Codec)
             .Default(NCompression::ECodec::None);
     }
 };
@@ -229,10 +229,10 @@ public:
 
     TDispatcherConfig()
     {
-        Register("compression_pool_size", CompressionPoolSize)
+        RegisterParameter("compression_pool_size", CompressionPoolSize)
             .Default(4)
             .GreaterThan(0);
-        Register("erasure_pool_size", ErasurePoolSize)
+        RegisterParameter("erasure_pool_size", ErasurePoolSize)
             .Default(4)
             .GreaterThan(0);
     }
@@ -256,21 +256,21 @@ public:
 
     TMultiChunkWriterConfig()
     {
-        Register("desired_chunk_size", DesiredChunkSize)
+        RegisterParameter("desired_chunk_size", DesiredChunkSize)
             .GreaterThan(0)
             .Default(1024 * 1024 * 1024);
-        Register("max_meta_size", MaxMetaSize)
+        RegisterParameter("max_meta_size", MaxMetaSize)
             .GreaterThan(0)
             .LessThanOrEqual(64 * 1024 * 1024)
             .Default(30 * 1024 * 1024);
-        Register("upload_replication_factor", UploadReplicationFactor)
+        RegisterParameter("upload_replication_factor", UploadReplicationFactor)
             .GreaterThanOrEqual(1)
             .Default(2);
-        Register("chunks_movable", ChunksMovable)
+        RegisterParameter("chunks_movable", ChunksMovable)
             .Default(true);
-        Register("chunks_vital", ChunksVital)
+        RegisterParameter("chunks_vital", ChunksVital)
             .Default(true);
-        Register("prefer_local_host", PreferLocalHost)
+        RegisterParameter("prefer_local_host", PreferLocalHost)
             .Default(true);
     }
 };
@@ -285,10 +285,10 @@ struct TMultiChunkWriterOptions
 
     TMultiChunkWriterOptions()
     {
-        Register("replication_factor", ReplicationFactor)
+        RegisterParameter("replication_factor", ReplicationFactor)
             .GreaterThanOrEqual(1)
             .Default(3);
-        Register("account", Account)
+        RegisterParameter("account", Account)
             .NonEmpty();
     }
 };

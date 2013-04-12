@@ -27,11 +27,11 @@ public:
 
     TJobIOConfig()
     {
-        Register("table_reader", TableReader)
+        RegisterParameter("table_reader", TableReader)
             .DefaultNew();
-        Register("table_writer", TableWriter)
+        RegisterParameter("table_writer", TableWriter)
             .DefaultNew();
-        Register("error_file_writer", ErrorFileWriter)
+        RegisterParameter("error_file_writer", ErrorFileWriter)
             .DefaultNew();
 
         RegisterInitializer([&] () {
@@ -56,15 +56,15 @@ struct TOperationSpecBase
 
     TOperationSpecBase()
     {
-        Register("intermediate_data_account", IntermediateDataAccount)
+        RegisterParameter("intermediate_data_account", IntermediateDataAccount)
             .Default("tmp");
 
-        Register("ignore_lost_chunks", IgnoreLostChunks)
+        RegisterParameter("ignore_lost_chunks", IgnoreLostChunks)
             .Default(false);
 
-        Register("max_failed_job_count", MaxFailedJobCount)
+        RegisterParameter("max_failed_job_count", MaxFailedJobCount)
             .Default(Null);
-        Register("max_stderr_count", MaxStdErrCount)
+        RegisterParameter("max_stderr_count", MaxStdErrCount)
             .Default(Null);
 
         SetKeepOptions(true);
@@ -97,31 +97,31 @@ struct TUserJobSpec
 
     TUserJobSpec()
     {
-        Register("command", Command)
+        RegisterParameter("command", Command)
             .NonEmpty();
-        Register("file_paths", FilePaths)
+        RegisterParameter("file_paths", FilePaths)
             .Default();
-        Register("format", Format)
+        RegisterParameter("format", Format)
             .Default();
-        Register("input_format", InputFormat)
+        RegisterParameter("input_format", InputFormat)
             .Default();
-        Register("output_format", OutputFormat)
+        RegisterParameter("output_format", OutputFormat)
             .Default();
-        Register("environment", Environment)
+        RegisterParameter("environment", Environment)
             .Default();
-        Register("cpu_limit", CpuLimit)
+        RegisterParameter("cpu_limit", CpuLimit)
             .Default(1);
-        Register("memory_limit", MemoryLimit)
+        RegisterParameter("memory_limit", MemoryLimit)
             .Default((i64) 512 * 1024 * 1024);
-        Register("memory_reserve_factor", MemoryReserveFactor)
+        RegisterParameter("memory_reserve_factor", MemoryReserveFactor)
             .Default(0.5)
             .GreaterThan(0.)
             .LessThanOrEqual(1.);
-        Register("enable_table_index", EnableTableIndex)
+        RegisterParameter("enable_table_index", EnableTableIndex)
             .Default(false);
-        Register("use_yamr_descriptors", UseYamrDescriptors)
+        RegisterParameter("use_yamr_descriptors", UseYamrDescriptors)
             .Default(false);
-        Register("max_stderr_size", MaxStderrSize)
+        RegisterParameter("max_stderr_size", MaxStderrSize)
             .Default((i64)5 * 1024 * 1024) // 5MB
             .GreaterThan(0)
             .LessThanOrEqual((i64)1024 * 1024 * 1024);
@@ -143,20 +143,20 @@ struct TMapOperationSpec
 
     TMapOperationSpec()
     {
-        Register("mapper", Mapper)
+        RegisterParameter("mapper", Mapper)
             .DefaultNew();
-        Register("input_table_paths", InputTablePaths)
+        RegisterParameter("input_table_paths", InputTablePaths)
             .NonEmpty();
-        Register("output_table_paths", OutputTablePaths);
-        Register("job_count", JobCount)
+        RegisterParameter("output_table_paths", OutputTablePaths);
+        RegisterParameter("job_count", JobCount)
             .Default()
             .GreaterThan(0);
-        Register("data_size_per_job", DataSizePerJob)
+        RegisterParameter("data_size_per_job", DataSizePerJob)
             .Default((i64) 32 * 1024 * 1024)
             .GreaterThan(0);
-        Register("locality_timeout", LocalityTimeout)
+        RegisterParameter("locality_timeout", LocalityTimeout)
             .Default(TDuration::Seconds(5));
-        Register("job_io", JobIO)
+        RegisterParameter("job_io", JobIO)
             .DefaultNew();
 
         RegisterInitializer([&] () {
@@ -184,15 +184,15 @@ struct TMergeOperationSpecBase
     TMergeOperationSpecBase()
         : DataSizePerJob(-1)
     {
-        Register("data_size_per_job", DataSizePerJob)
+        RegisterParameter("data_size_per_job", DataSizePerJob)
             .Default((i64) 1024 * 1024 * 1024)
             .GreaterThan(0);
-        Register("job_count", JobCount)
+        RegisterParameter("job_count", JobCount)
             .Default()
             .GreaterThan(0);
-        Register("locality_timeout", LocalityTimeout)
+        RegisterParameter("locality_timeout", LocalityTimeout)
             .Default(TDuration::Seconds(5));
-        Register("job_io", JobIO)
+        RegisterParameter("job_io", JobIO)
             .DefaultNew();
     }
 };
@@ -217,16 +217,16 @@ struct TMergeOperationSpec
 
     TMergeOperationSpec()
     {
-        Register("input_table_paths", InputTablePaths)
+        RegisterParameter("input_table_paths", InputTablePaths)
             .NonEmpty();
-        Register("output_table_path", OutputTablePath);
-        Register("mode", Mode)
+        RegisterParameter("output_table_path", OutputTablePath);
+        RegisterParameter("mode", Mode)
             .Default(EMergeMode::Unordered);
-        Register("combine_chunks", CombineChunks)
+        RegisterParameter("combine_chunks", CombineChunks)
             .Default(false);
-        Register("allow_passthrough_chunks", AllowPassthroughChunks)
+        RegisterParameter("allow_passthrough_chunks", AllowPassthroughChunks)
             .Default(true);
-        Register("merge_by", MergeBy)
+        RegisterParameter("merge_by", MergeBy)
             .Default();
     }
 };
@@ -260,8 +260,8 @@ struct TEraseOperationSpec
 
     TEraseOperationSpec()
     {
-        Register("table_path", TablePath);
-        Register("combine_chunks", CombineChunks)
+        RegisterParameter("table_path", TablePath);
+        RegisterParameter("combine_chunks", CombineChunks)
             .Default(false);
     }
 };
@@ -278,12 +278,12 @@ struct TReduceOperationSpec
 
     TReduceOperationSpec()
     {
-        Register("reducer", Reducer)
+        RegisterParameter("reducer", Reducer)
             .DefaultNew();
-        Register("input_table_paths", InputTablePaths)
+        RegisterParameter("input_table_paths", InputTablePaths)
             .NonEmpty();
-        Register("output_table_paths", OutputTablePaths);
-        Register("reduce_by", ReduceBy)
+        RegisterParameter("output_table_paths", OutputTablePaths);
+        RegisterParameter("reduce_by", ReduceBy)
             .Default();
 
         RegisterInitializer([&] () {
@@ -331,28 +331,28 @@ struct TSortOperationSpecBase
 
     TSortOperationSpecBase()
     {
-        Register("input_table_paths", InputTablePaths)
+        RegisterParameter("input_table_paths", InputTablePaths)
             .NonEmpty();
-        Register("partition_count", PartitionCount)
+        RegisterParameter("partition_count", PartitionCount)
             .Default()
             .GreaterThan(0);
-        Register("partition_data_size", PartitionDataSize)
+        RegisterParameter("partition_data_size", PartitionDataSize)
             .Default()
             .GreaterThan(0);
-        Register("data_size_per_sort_job", DataSizePerSortJob)
+        RegisterParameter("data_size_per_sort_job", DataSizePerSortJob)
             .Default((i64)2 * 1024 * 1024 * 1024)
             .GreaterThan(0);
-        Register("shuffle_start_threshold", ShuffleStartThreshold)
+        RegisterParameter("shuffle_start_threshold", ShuffleStartThreshold)
             .Default(0.75)
             .InRange(0.0, 1.0);
-        Register("merge_start_threshold", MergeStartThreshold)
+        RegisterParameter("merge_start_threshold", MergeStartThreshold)
             .Default(0.9)
             .InRange(0.0, 1.0);
-        Register("sort_locality_timeout", SortLocalityTimeout)
+        RegisterParameter("sort_locality_timeout", SortLocalityTimeout)
             .Default(TDuration::Minutes(1));
-        Register("sort_assignment_timeout", SortAssignmentTimeout)
+        RegisterParameter("sort_assignment_timeout", SortAssignmentTimeout)
             .Default(TDuration::Seconds(5));
-        Register("shuffle_network_limit", ShuffleNetworkLimit)
+        RegisterParameter("shuffle_network_limit", ShuffleNetworkLimit)
             .Default(10);
     }
 
@@ -376,33 +376,33 @@ struct TSortOperationSpec
 
     TSortOperationSpec()
     {
-        Register("output_table_path", OutputTablePath);
-        Register("sort_by", SortBy)
+        RegisterParameter("output_table_path", OutputTablePath);
+        RegisterParameter("sort_by", SortBy)
             .NonEmpty();
-        Register("samples_per_partition", SamplesPerPartition)
+        RegisterParameter("samples_per_partition", SamplesPerPartition)
             .Default(10)
             .GreaterThan(1);
-        Register("partition_job_io", PartitionJobIO)
+        RegisterParameter("partition_job_io", PartitionJobIO)
             .DefaultNew();
-        Register("sort_job_io", SortJobIO)
+        RegisterParameter("sort_job_io", SortJobIO)
             .DefaultNew();
-        Register("merge_job_io", MergeJobIO)
+        RegisterParameter("merge_job_io", MergeJobIO)
             .DefaultNew();
 
         // Provide custom names for shared settings.
-        Register("partition_job_count", PartitionJobCount)
+        RegisterParameter("partition_job_count", PartitionJobCount)
             .Default()
             .GreaterThan(0);
-        Register("data_size_per_partition_job", DataSizePerPartitionJob)
+        RegisterParameter("data_size_per_partition_job", DataSizePerPartitionJob)
             .Default()
             .GreaterThan(0);
-        Register("simple_sort_locality_timeout", SimpleSortLocalityTimeout)
+        RegisterParameter("simple_sort_locality_timeout", SimpleSortLocalityTimeout)
             .Default(TDuration::Seconds(5));
-        Register("simple_merge_locality_timeout", SimpleMergeLocalityTimeout)
+        RegisterParameter("simple_merge_locality_timeout", SimpleMergeLocalityTimeout)
             .Default(TDuration::Seconds(5));
-        Register("partition_locality_timeout", PartitionLocalityTimeout)
+        RegisterParameter("partition_locality_timeout", PartitionLocalityTimeout)
             .Default(TDuration::Seconds(5));
-        Register("merge_locality_timeout", MergeLocalityTimeout)
+        RegisterParameter("merge_locality_timeout", MergeLocalityTimeout)
             .Default(TDuration::Minutes(1));
 
         RegisterInitializer([&] () {
@@ -435,35 +435,35 @@ struct TMapReduceOperationSpec
 
     TMapReduceOperationSpec()
     {
-        Register("output_table_paths", OutputTablePaths);
-        Register("sort_by", SortBy)
+        RegisterParameter("output_table_paths", OutputTablePaths);
+        RegisterParameter("sort_by", SortBy)
             .NonEmpty();
-        Register("reduce_by", ReduceBy)
+        RegisterParameter("reduce_by", ReduceBy)
             .Default();
         // Mapper can be absent - leave it NULL by default.
-        Register("mapper", Mapper)
+        RegisterParameter("mapper", Mapper)
             .Default();
-        Register("reducer", Reducer)
+        RegisterParameter("reducer", Reducer)
             .DefaultNew();
-        Register("map_job_io", MapJobIO)
+        RegisterParameter("map_job_io", MapJobIO)
             .DefaultNew();
-        Register("sort_job_io", SortJobIO)
+        RegisterParameter("sort_job_io", SortJobIO)
             .DefaultNew();
-        Register("reduce_job_io", ReduceJobIO)
+        RegisterParameter("reduce_job_io", ReduceJobIO)
             .DefaultNew();
 
         // Provide custom names for shared settings.
-        Register("map_job_count", PartitionJobCount)
+        RegisterParameter("map_job_count", PartitionJobCount)
             .Default()
             .GreaterThan(0);
-        Register("data_size_per_map_job", DataSizePerPartitionJob)
+        RegisterParameter("data_size_per_map_job", DataSizePerPartitionJob)
             .Default()
             .GreaterThan(0);
-        Register("map_locality_timeout", PartitionLocalityTimeout)
+        RegisterParameter("map_locality_timeout", PartitionLocalityTimeout)
             .Default(TDuration::Seconds(5));
-        Register("reduce_locality_timeout", MergeLocalityTimeout)
+        RegisterParameter("reduce_locality_timeout", MergeLocalityTimeout)
             .Default(TDuration::Minutes(1));
-        Register("map_selectivity_factor", MapSelectivityFactor)
+        RegisterParameter("map_selectivity_factor", MapSelectivityFactor)
             .Default(1.0)
             .GreaterThan(0);
 
@@ -511,23 +511,23 @@ public:
 
     TPoolConfig()
     {
-        Register("weight", Weight)
+        RegisterParameter("weight", Weight)
             .Default(1.0)
             .GreaterThanOrEqual(1.0);
-        Register("min_share_ratio", MinShareRatio)
+        RegisterParameter("min_share_ratio", MinShareRatio)
             .Default(0.0)
             .InRange(0.0, 1.0);
 
-        Register("mode", Mode)
+        RegisterParameter("mode", Mode)
             .Default(ESchedulingMode::FairShare);
 
-        Register("max_slots", MaxSlots)
+        RegisterParameter("max_slots", MaxSlots)
             .Default(Null)
             .GreaterThanOrEqual(0);
-        Register("max_cpu", MaxCpu)
+        RegisterParameter("max_cpu", MaxCpu)
             .Default(Null)
             .GreaterThanOrEqual(0);
-        Register("max_memory", MaxMemory)
+        RegisterParameter("max_memory", MaxMemory)
             .Default(Null)
             .GreaterThanOrEqual(0);
     }
@@ -551,25 +551,25 @@ struct TPooledOperationSpec
 
     TPooledOperationSpec()
     {
-        Register("pool", Pool)
+        RegisterParameter("pool", Pool)
             .Default(TNullable<Stroka>())
             .NonEmpty();
-        Register("weight", Weight)
+        RegisterParameter("weight", Weight)
             .Default(1.0)
             .GreaterThanOrEqual(1.0);
 
-        Register("min_share_ratio", MinShareRatio)
+        RegisterParameter("min_share_ratio", MinShareRatio)
             .Default(1.0)
             .InRange(0.0, 1.0);
 
-        Register("min_share_preemption_timeout", MinSharePreemptionTimeout)
+        RegisterParameter("min_share_preemption_timeout", MinSharePreemptionTimeout)
             .Default(Null);
-        Register("fair_share_preemption_timeout", FairSharePreemptionTimeout)
+        RegisterParameter("fair_share_preemption_timeout", FairSharePreemptionTimeout)
             .Default(Null);
-        Register("fair_share_starvation_tolerance", FairShareStarvationTolerance)
+        RegisterParameter("fair_share_starvation_tolerance", FairShareStarvationTolerance)
             .InRange(0.0, 1.0)
             .Default(Null);
-        Register("fair_share_preemption_tolerance", FairSharePreemptionTolerance)
+        RegisterParameter("fair_share_preemption_tolerance", FairSharePreemptionTolerance)
             .GreaterThanOrEqual(0.0)
             .Default(Null);
     }

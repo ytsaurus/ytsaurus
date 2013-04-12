@@ -19,8 +19,8 @@ struct TGetRequest
 
     TGetRequest()
     {
-        Register("path", Path);
-        Register("attributes", Attributes)
+        RegisterParameter("path", Path);
+        RegisterParameter("attributes", Attributes)
             .Default();
     }
 };
@@ -49,7 +49,7 @@ struct TSetRequest
 
     TSetRequest()
     {
-        Register("path", Path);
+        RegisterParameter("path", Path);
     }
 };
 
@@ -79,12 +79,12 @@ struct TRemoveRequest
 
     TRemoveRequest()
     {
-        Register("path", Path);
+        RegisterParameter("path", Path);
         // TODO(ignat): fix all places that use true default value
         // and change default value to false
-        Register("recursive", Recursive)
+        RegisterParameter("recursive", Recursive)
             .Default(true);
-        Register("force", Force)
+        RegisterParameter("force", Force)
             .Default(false);
     }
 };
@@ -114,8 +114,8 @@ struct TListRequest
 
     TListRequest()
     {
-        Register("path", Path);
-        Register("attributes", Attributes)
+        RegisterParameter("path", Path);
+        RegisterParameter("attributes", Attributes)
             .Default();
     }
 };
@@ -148,14 +148,14 @@ struct TCreateRequest
 
     TCreateRequest()
     {
-        Register("path", Path)
+        RegisterParameter("path", Path)
             .Default(Null);
-        Register("type", Type);
-        Register("attributes", Attributes)
+        RegisterParameter("type", Type);
+        RegisterParameter("attributes", Attributes)
             .Default(nullptr);
-        Register("recursive", Recursive)
+        RegisterParameter("recursive", Recursive)
             .Default(false);
-        Register("ignore_existing", IgnoreExisting)
+        RegisterParameter("ignore_existing", IgnoreExisting)
             .Default(false);
     }
 };
@@ -184,8 +184,8 @@ struct TLockRequest
 
     TLockRequest()
     {
-        Register("path", Path);
-        Register("mode", Mode)
+        RegisterParameter("path", Path);
+        RegisterParameter("mode", Mode)
             .Default(NCypressClient::ELockMode::Exclusive);
     }
 };
@@ -215,8 +215,8 @@ struct TCopyRequest
 
     TCopyRequest()
     {
-        Register("source_path", SourcePath);
-        Register("destination_path", DestinationPath);
+        RegisterParameter("source_path", SourcePath);
+        RegisterParameter("destination_path", DestinationPath);
     }
 };
 
@@ -245,8 +245,8 @@ struct TMoveRequest
 
     TMoveRequest()
     {
-        Register("source_path", SourcePath);
-        Register("destination_path", DestinationPath);
+        RegisterParameter("source_path", SourcePath);
+        RegisterParameter("destination_path", DestinationPath);
     }
 };
 
@@ -274,7 +274,7 @@ struct TExistsRequest
 
     TExistsRequest()
     {
-        Register("path", Path);
+        RegisterParameter("path", Path);
     }
 };
 
@@ -306,13 +306,13 @@ struct TLinkRequest
 
     TLinkRequest()
     {
-        Register("link_path", LinkPath);
-        Register("target_path", TargetPath);
-        Register("attributes", Attributes)
+        RegisterParameter("link_path", LinkPath);
+        RegisterParameter("target_path", TargetPath);
+        RegisterParameter("attributes", Attributes)
             .Default(nullptr);
-        Register("recursive", Recursive)
+        RegisterParameter("recursive", Recursive)
             .Default(false);
-        Register("ignore_existing", IgnoreExisting)
+        RegisterParameter("ignore_existing", IgnoreExisting)
             .Default(false);
     }
 };

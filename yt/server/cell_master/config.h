@@ -40,17 +40,17 @@ public:
 
     TCellMasterConfig()
     {
-        Register("meta_state", MetaState)
+        RegisterParameter("meta_state", MetaState)
             .DefaultNew();
-        Register("node_tracker", NodeTracker)
+        RegisterParameter("node_tracker", NodeTracker)
             .DefaultNew();
-        Register("transaction_manager", TransactionManager)
+        RegisterParameter("transaction_manager", TransactionManager)
             .DefaultNew();
-        Register("chunk_manager", ChunkManager)
+        RegisterParameter("chunk_manager", ChunkManager)
             .DefaultNew();
-        Register("object_manager", ObjectManager)
+        RegisterParameter("object_manager", ObjectManager)
             .DefaultNew();
-        Register("monitoring_port", MonitoringPort)
+        RegisterParameter("monitoring_port", MonitoringPort)
             .Default(10000);
     }
 };

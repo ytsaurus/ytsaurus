@@ -90,9 +90,9 @@ public:
         bool validate = true,
         bool setDefaults = true,
         const NYPath::TYPath& path = "");
-    
+
     void Validate(const NYPath::TYPath& path = "") const;
-    
+
     void SetDefaults();
 
     void Save(NYson::IYsonConsumer* consumer) const;
@@ -105,9 +105,10 @@ public:
 protected:
     virtual void OnLoaded();
 
-    // TODO(babenko): rename to RegisterParameter
     template <class T>
-    NConfig::TParameter<T>& Register(const Stroka& parameterName, T& value);
+    NConfig::TParameter<T>& RegisterParameter(
+        const Stroka& parameterName,
+        T& value);
 
     template <class F>
     void RegisterInitializer(const F& func);

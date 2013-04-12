@@ -43,8 +43,8 @@ struct ILogWriter
 
         TConfig()
         {
-            Register("type", Type);
-            Register("pattern", Pattern)
+            RegisterParameter("type", Type);
+            RegisterParameter("pattern", Pattern)
                 .Default()
                 .CheckThat(BIND([] (const Stroka& pattern) {
                     auto error = ValidatePattern(pattern);
@@ -52,7 +52,7 @@ struct ILogWriter
                         THROW_ERROR error;
                     }
                 }));
-            Register("file_name", FileName)
+            RegisterParameter("file_name", FileName)
                 .Default();
 
             RegisterValidator([&] () {

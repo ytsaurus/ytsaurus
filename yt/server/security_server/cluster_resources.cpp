@@ -34,9 +34,9 @@ struct TSerializableClusterAttributes
     TSerializableClusterAttributes(const TClusterResources& other = ZeroClusterResources())
         : TClusterResources(other)
     {
-        Register("disk_space", DiskSpace)
+        RegisterParameter("disk_space", DiskSpace)
             .GreaterThanOrEqual(0);
-        Register("node_count", NodeCount)
+        RegisterParameter("node_count", NodeCount)
             .GreaterThanOrEqual(0);
     }
 };

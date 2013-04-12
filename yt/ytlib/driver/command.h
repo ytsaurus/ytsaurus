@@ -53,9 +53,9 @@ struct TTransactedRequest
 
     TTransactedRequest()
     {
-        Register("transaction_id", TransactionId)
+        RegisterParameter("transaction_id", TransactionId)
             .Default(NObjectClient::NullTransactionId);
-        Register("ping_ancestor_transactions", PingAncestors)
+        RegisterParameter("ping_ancestor_transactions", PingAncestors)
             .Default(false);
     }
 };

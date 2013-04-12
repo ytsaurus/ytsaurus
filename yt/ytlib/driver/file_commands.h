@@ -16,10 +16,10 @@ struct TDownloadRequest
 
     TDownloadRequest()
     {
-        Register("path", Path);
-        Register("offset", Offset)
+        RegisterParameter("path", Path);
+        RegisterParameter("offset", Offset)
             .Default(Null);
-        Register("length", Length)
+        RegisterParameter("length", Length)
             .Default(Null);
     }
 };
@@ -48,8 +48,8 @@ struct TUploadRequest
 
     TUploadRequest()
     {
-        Register("path", Path);
-        Register("attributes", Attributes)
+        RegisterParameter("path", Path);
+        RegisterParameter("attributes", Attributes)
             .Default(NULL);
     }
 };

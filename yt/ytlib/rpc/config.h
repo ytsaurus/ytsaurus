@@ -19,7 +19,7 @@ public:
 
     TServerConfig()
     {
-        Register("services", Services)
+        RegisterParameter("services", Services)
             .Default();
     }
 };
@@ -32,7 +32,7 @@ public:
 
     TServiceConfig()
     {
-        Register("methods", Methods)
+        RegisterParameter("methods", Methods)
             .Default();
     }
 };
@@ -48,13 +48,13 @@ public:
 
     TMethodConfig()
     {
-        Register("request_heavy", RequestHeavy)
+        RegisterParameter("request_heavy", RequestHeavy)
             .Default();
-        Register("response_heavy", ResponseHeavy)
+        RegisterParameter("response_heavy", ResponseHeavy)
             .Default();
-        Register("response_codec", ResponseCodec)
+        RegisterParameter("response_codec", ResponseCodec)
             .Default();
-        Register("max_queue_size", MaxQueueSize)
+        RegisterParameter("max_queue_size", MaxQueueSize)
             .Default();
     }
 };

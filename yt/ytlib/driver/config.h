@@ -29,20 +29,20 @@ public:
 
     TDriverConfig()
     {
-        Register("masters", Masters);
-        Register("transaction_manager", TransactionManager)
+        RegisterParameter("masters", Masters);
+        RegisterParameter("transaction_manager", TransactionManager)
             .DefaultNew();
-        Register("file_reader", FileReader)
+        RegisterParameter("file_reader", FileReader)
             .DefaultNew();
-        Register("file_writer", FileWriter)
+        RegisterParameter("file_writer", FileWriter)
             .DefaultNew();
-        Register("table_reader", TableReader)
+        RegisterParameter("table_reader", TableReader)
             .DefaultNew();
-        Register("table_writer", TableWriter)
+        RegisterParameter("table_writer", TableWriter)
             .DefaultNew();
-        Register("block_cache", BlockCache)
+        RegisterParameter("block_cache", BlockCache)
             .DefaultNew();
-        Register("read_from_followers", ReadFromFollowers)
+        RegisterParameter("read_from_followers", ReadFromFollowers)
             .Describe("Enable read-only requests to followers")
             .Default(false);
     }

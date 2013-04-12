@@ -23,14 +23,14 @@ public:
 
     TNodeTrackerConfig()
     {
-        Register("online_node_timeout", OnlineNodeTimeout)
+        RegisterParameter("online_node_timeout", OnlineNodeTimeout)
             .Default(TDuration::Seconds(60));
-        Register("registered_node_timeout", RegisteredNodeTimeout)
+        RegisterParameter("registered_node_timeout", RegisteredNodeTimeout)
             .Default(TDuration::Seconds(10));
-        Register("unconfirmed_node_timeout", UnconfirmedNodeTimeout)
+        RegisterParameter("unconfirmed_node_timeout", UnconfirmedNodeTimeout)
             .Default(TDuration::Seconds(30));
 
-        Register("full_heartbeat_queue_size_limit", FullHeartbeatQueueSizeLimit)
+        RegisterParameter("full_heartbeat_queue_size_limit", FullHeartbeatQueueSizeLimit)
             .Default(20)
             .GreaterThan(0);
     }

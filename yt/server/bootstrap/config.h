@@ -19,9 +19,9 @@ public:
 
     TServerConfig()
     {
-        Register("address_resolver", AddressResolver)
+        RegisterParameter("address_resolver", AddressResolver)
             .DefaultNew();
-        Register("rpc_server", RpcServer)
+        RegisterParameter("rpc_server", RpcServer)
             .DefaultNew();
     }
 };

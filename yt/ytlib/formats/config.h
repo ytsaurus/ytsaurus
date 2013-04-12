@@ -33,23 +33,23 @@ public:
 
     TDsvFormatConfig()
     {
-        Register("record_separator", RecordSeparator)
+        RegisterParameter("record_separator", RecordSeparator)
             .Default('\n');
-        Register("key_value_separator", KeyValueSeparator)
+        RegisterParameter("key_value_separator", KeyValueSeparator)
             .Default('=');
-        Register("field_separator", FieldSeparator)
+        RegisterParameter("field_separator", FieldSeparator)
             .Default('\t');
-        Register("line_prefix", LinePrefix)
+        RegisterParameter("line_prefix", LinePrefix)
             .Default();
-        Register("enable_escaping", EnableEscaping)
+        RegisterParameter("enable_escaping", EnableEscaping)
             .Default(true);
-        Register("escape_carriage_return", EscapeCarriageReturn)
+        RegisterParameter("escape_carriage_return", EscapeCarriageReturn)
             .Default(false);
-        Register("escaping_symbol", EscapingSymbol)
+        RegisterParameter("escaping_symbol", EscapingSymbol)
             .Default('\\');
-        Register("with_attributes", WithAttributes)
+        RegisterParameter("with_attributes", WithAttributes)
             .Default(true);
-        Register("attributes_prefix", AttributesPrefix)
+        RegisterParameter("attributes_prefix", AttributesPrefix)
             .Default("@");
     }
 };
@@ -76,9 +76,9 @@ public:
 
     TJsonFormatConfig()
     {
-        Register("format", Format)
+        RegisterParameter("format", Format)
             .Default(EJsonFormat::Text);
-        Register("attributes_mode", AttributesMode)
+        RegisterParameter("attributes_mode", AttributesMode)
             .Default(EJsonAttributesMode::OnDemand);
     }
 };
@@ -111,27 +111,27 @@ public:
 
     TYamrFormatConfig()
     {
-        Register("has_subkey", HasSubkey)
+        RegisterParameter("has_subkey", HasSubkey)
             .Default(false);
-        Register("key", Key)
+        RegisterParameter("key", Key)
             .Default("key");
-        Register("subkey", Subkey)
+        RegisterParameter("subkey", Subkey)
             .Default("subkey");
-        Register("value", Value)
+        RegisterParameter("value", Value)
             .Default("value");
-        Register("lenval", Lenval)
+        RegisterParameter("lenval", Lenval)
             .Default(false);
-        Register("fs", FieldSeparator)
+        RegisterParameter("fs", FieldSeparator)
             .Default('\t');
-        Register("rs", RecordSeparator)
+        RegisterParameter("rs", RecordSeparator)
             .Default('\n');
-        Register("enable_table_index", EnableTableIndex)
+        RegisterParameter("enable_table_index", EnableTableIndex)
             .Default(false);
-        Register("enable_escaping", EnableEscaping)
+        RegisterParameter("enable_escaping", EnableEscaping)
             .Default(false);
-        Register("escape_carriage_return", EscapeCarriageReturn)
+        RegisterParameter("escape_carriage_return", EscapeCarriageReturn)
             .Default(false);
-        Register("escaping_symbol", EscapingSymbol)
+        RegisterParameter("escaping_symbol", EscapingSymbol)
             .Default('\\');
     }
 };
@@ -150,12 +150,12 @@ public:
 
     TYamredDsvFormatConfig()
     {
-        Register("has_subkey", HasSubkey)
+        RegisterParameter("has_subkey", HasSubkey)
             .Default(false);
-        Register("key_column_names", KeyColumnNames);
-        Register("subkey_column_names", SubkeyColumnNames)
+        RegisterParameter("key_column_names", KeyColumnNames);
+        RegisterParameter("subkey_column_names", SubkeyColumnNames)
             .Default();
-        Register("yamr_keys_separator", YamrKeysSeparator)
+        RegisterParameter("yamr_keys_separator", YamrKeysSeparator)
             .Default(' ');
     }
 };

@@ -17,8 +17,8 @@ struct TUpdateMembershipRequest
 
     TUpdateMembershipRequest()
     {
-        Register("group", Group);
-        Register("member", Member);
+        RegisterParameter("group", Group);
+        RegisterParameter("member", Member);
     }
 };
 
@@ -55,7 +55,7 @@ struct TParseYPathRequest
 
     TParseYPathRequest()
     {
-        Register("path", Path);
+        RegisterParameter("path", Path);
     }
 };
 
@@ -82,9 +82,9 @@ struct TCheckPermissionRequest
 
     TCheckPermissionRequest()
     {
-        Register("user", User);
-        Register("permission", Permission);
-        Register("path", Path);
+        RegisterParameter("user", User);
+        RegisterParameter("permission", Permission);
+        RegisterParameter("path", Path);
     }
 };
 

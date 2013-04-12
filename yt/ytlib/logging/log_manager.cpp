@@ -60,10 +60,10 @@ struct TRule
     TRule()
         : AllCategories(false)
     {
-        Register("categories", Categories).NonEmpty();
-        Register("min_level", MinLevel).Default(ELogLevel::Minimum);
-        Register("max_level", MaxLevel).Default(ELogLevel::Maximum);
-        Register("writers", Writers).NonEmpty();
+        RegisterParameter("categories", Categories).NonEmpty();
+        RegisterParameter("min_level", MinLevel).Default(ELogLevel::Minimum);
+        RegisterParameter("max_level", MaxLevel).Default(ELogLevel::Maximum);
+        RegisterParameter("writers", Writers).NonEmpty();
     }
 
     virtual void OnLoaded() override
@@ -107,10 +107,10 @@ public:
     TLogConfig()
         : Version(0)
     {
-        Register("flush_period", FlushPeriod)
+        RegisterParameter("flush_period", FlushPeriod)
             .Default(TDuration::Zero());
-        Register("writers", WriterConfigs);
-        Register("rules", Rules);
+        RegisterParameter("writers", WriterConfigs);
+        RegisterParameter("rules", Rules);
 
         RegisterValidator([&] () {
             FOREACH (const auto& rule, Rules) {

@@ -33,19 +33,19 @@ public:
 
     TCellNodeConfig()
     {
-        Register("rpc_port", RpcPort)
+        RegisterParameter("rpc_port", RpcPort)
             .Default(9000);
-        Register("monitoring_port", MonitoringPort)
+        RegisterParameter("monitoring_port", MonitoringPort)
             .Default(10000);
-        Register("masters", Masters)
+        RegisterParameter("masters", Masters)
             .DefaultNew();
-        Register("data_node", DataNode)
+        RegisterParameter("data_node", DataNode)
             .DefaultNew();
-        Register("exec_agent", ExecAgent)
+        RegisterParameter("exec_agent", ExecAgent)
             .DefaultNew();
 
         // Very low default, override in production installation.
-        Register("total_memory_size", TotalMemorySize)
+        RegisterParameter("total_memory_size", TotalMemorySize)
             .GreaterThanOrEqual((i64) 1024 * 1024 * 1024)
             .Default((i64)  5 * 1024 * 1024 * 1024);
 
