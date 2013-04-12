@@ -21,6 +21,25 @@
 #include <exception>
 #include <stdexcept>
 
+// MSVC compiler has /GT option for supporting fiber-safe thread-local storage.
+// For CXXABIv1-compliant systems we can hijack __cxa_eh_globals.
+// See http://mentorembedded.github.io/cxx-abi/abi-eh.html
+#if defined(__GNUC__) || defined(__clang__)
+#define CXXABIv1
+#ifdef HAVE_CXXABI_H
+#include <cxxabi.h>
+#endif
+namespace __cxxabiv1 {
+    // We do not care about actual type here, so erase it.
+    typedef void __cxa_exception;
+    struct __cxa_eh_globals {
+        __cxa_exception* caughtExceptions;
+        unsigned int uncaughtExceptions;
+    };
+    extern "C" __cxa_eh_globals* __cxa_get_globals() throw();
+} // namespace __cxxabiv1
+#endif
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -31,9 +50,10 @@ typedef TIntrusivePtr<TFiber> TFiberPtr;
 
 DECLARE_ENUM(EFiberState,
     (Initialized) // Initialized, but not run.
+    (Terminated) // Terminated.
+    (Exception) // Terminated because of exception.
     (Suspended) // Currently suspended.
     (Running) // Currently executing.
-    (Terminated) // Terminated.
 );
 
 DECLARE_ENUM(EFiberStack,
@@ -41,13 +61,29 @@ DECLARE_ENUM(EFiberStack,
     (Large)
 );
 
-// TODO(sandello): Proper support of exceptions in fibers.
+class TFiberExceptionHandler
+{
+public:
+    TFiberExceptionHandler();
+    ~TFiberExceptionHandler();
+    void Swap(TFiberExceptionHandler& other);
+private:
+#ifdef CXXABIv1
+    __cxxabiv1::__cxa_eh_globals EH;
+#endif
+};
+
 // TODO(sandello): Substitutive yield.
 class TFiber
     : public TIntrinsicRefCounted
 {
 private:
     TFiber();
+    TFiber(const TFiber&);
+    TFiber(TFiber&&);
+    TFiber& operator=(const TFiber&);
+    TFiber& operator=(TFiber&&);
+
     friend TIntrusivePtr<TFiber> New<TFiber>();
 
 public:
@@ -55,24 +91,26 @@ public:
     virtual ~TFiber();
 
     static TFiberPtr GetCurrent();
-    static void SetCurrent(TFiberPtr fiber);
-
+    static void SetCurrent(const TFiberPtr& fiber);
+    static void SetCurrent(TFiberPtr&& fiber);
     static void Yield();
 
     DEFINE_BYVAL_RO_PROPERTY(EFiberState, State);
 
     void Run();
+    void Reset();
     void Reset(TClosure closure);
-    void Inject(std::exception_ptr ex);
+    void Inject(std::exception_ptr&& exception);
 
 private:
     TClosure Callee;
     TFiberPtr Caller;
 
-    std::exception_ptr Exception;
-
     coro_context CoroContext;
     coro_stack CoroStack;
+
+    std::exception_ptr Exception;
+    TFiberExceptionHandler EH;
 
     void SwitchTo(TFiber* target);
 
