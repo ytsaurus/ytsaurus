@@ -73,9 +73,9 @@ def print_ratio(curr_time):
     aborted_ratio = aborted_dtime / full_dtime
     failed_ratio = failed_dtime / full_dtime
 
-    print "yt.scheduler.completed_ratio %d %f" % (int(curr_time), completed_ratio)
-    print "yt.scheduler.aborted_ratio %d %f" % (int(curr_time), aborted_ratio)
-    print "yt.scheduler.failed_ratio %d %f" % (int(curr_time), failed_ratio)
+    print "yt.scheduler.completed_job_time_ratio %d %f" % (int(curr_time), completed_ratio)
+    print "yt.scheduler.aborted_job_time_ratio %d %f" % (int(curr_time), aborted_ratio)
+    print "yt.scheduler.failed_job_time_ratio %d %f" % (int(curr_time), failed_ratio)
 
 
 def main():
