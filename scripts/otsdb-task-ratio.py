@@ -8,8 +8,9 @@ import os
 import urllib
 import traceback
 
-CONFIG = {'window' : 5 * 60,
-          'interval' : 15 * 60,
+CONFIG = {'fetch_window' : 5 * 60,
+          'smoothing_window' : 15 * 60,
+          'interval' : 1 * 60,
           'time_format' : '%Y/%m/%d-%H:%M:%S',
           'hosts' : [
               'w394.hdp.yandex.net:8444',
@@ -24,7 +25,7 @@ def get_timestamp_str(timestamp):
 
 
 def load_data(timestamp, metric):
-    params = {'start' : get_timestamp_str(timestamp - CONFIG['window']),
+    params = {'start' : get_timestamp_str(timestamp - CONFIG['fetch_window']),
               'end' : get_timestamp_str(timestamp),
               'm' : 'sum:' + metric + CONFIG['tags']}
     for host in CONFIG['hosts']:
@@ -54,7 +55,7 @@ def get_metric_value(timestamp, metric):
 
 
 def get_metric_diff(timestamp, metric):
-    prev_value = get_metric_value(timestamp - CONFIG['interval'], metric)
+    prev_value = get_metric_value(timestamp - CONFIG['smoothing_window'], metric)
     curr_value = get_metric_value(timestamp, metric)
     return curr_value - prev_value
 
