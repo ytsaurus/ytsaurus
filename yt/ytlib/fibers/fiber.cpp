@@ -96,7 +96,7 @@ TFiber::TFiber(TClosure closure, EFiberStack stack)
 TFiber::~TFiber()
 {
     YCHECK(!Caller);
-    YCHECK(!(Exception == std::exception_ptr()));
+    YCHECK(Exception == std::exception_ptr());
 
     if (LIKELY(CoroStack.sptr != nullptr && CoroStack.ssze != 0)) {
         // This is a spawned fiber.
