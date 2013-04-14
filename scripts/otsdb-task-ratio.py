@@ -49,7 +49,7 @@ def get_metric_value(timestamp, metric):
         if curr_time > timestamp:
             return prev_value
         else:
-            prev_time, prev_value = currtime, value
+            prev_time, prev_value = curr_time, curr_value
     return prev_value
 
 
