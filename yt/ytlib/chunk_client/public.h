@@ -4,6 +4,18 @@
 
 #include <ytlib/object_client/public.h>
 
+///////////////////////////////////////////////////////////////////////////////
+
+// Forward declarations.
+namespace NYT {
+
+class TBlobOutput;
+class TFakeStringBufStore;
+
+} // namespace NYT
+
+///////////////////////////////////////////////////////////////////////////////
+
 namespace NYT {
 namespace NChunkClient {
 
@@ -117,6 +129,21 @@ typedef TIntrusivePtr<TFileWriter> TFileWriterPtr;
 
 template <class TChunkWriter>
 class TMultiChunkSequentialWriter;
+
+template <class TBuffer>
+class TKey;
+
+template <class TStrType>
+class TKeyPart;
+
+typedef TKey<TBlobOutput> TOwningKey;
+typedef TKey<TFakeStringBufStore> TNonOwningKey;
+
+struct TRefCountedInputChunk;
+typedef TIntrusivePtr<TRefCountedInputChunk> TRefCountedInputChunkPtr;
+
+class TChannel;
+typedef std::vector<TChannel> TChannels;
 
 ///////////////////////////////////////////////////////////////////////////////
 

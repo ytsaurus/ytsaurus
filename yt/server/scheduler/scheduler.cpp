@@ -1219,16 +1219,20 @@ private:
     {
         auto now = TInstant::Now();
         job->SetFinishTime(now);
+        auto operation = job->GetOperation();
         auto duration = now - job->GetStartTime();
         switch (job->GetState()) {
             case EJobState::Completed:
                 Profiler.Increment(TotalCompletedJobTimeCounter, duration.MicroSeconds());
+                operation->CompletedJobStatistics().Time += duration;
                 break;
             case EJobState::Failed:
                 Profiler.Increment(TotalFailedJobTimeCounter, duration.MicroSeconds());
+                operation->FailedJobStatistics().Time += duration;
                 break;
             case EJobState::Aborted:
                 Profiler.Increment(TotalAbortedJobTimeCounter, duration.MicroSeconds());
+                operation->AbortedJobStatistics().Time += duration;
                 break;
             default:
                 YUNREACHABLE();

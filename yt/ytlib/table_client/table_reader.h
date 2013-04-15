@@ -49,7 +49,7 @@ public:
     virtual void Open() override;
 
     virtual const TRow* GetRow() override;
-    virtual const TNonOwningKey& GetKey() const override;
+    virtual const NChunkClient::TNonOwningKey& GetKey() const override;
     virtual const NYTree::TYsonString& GetRowAttributes() const override;
 
     virtual i64 GetRowIndex() const override;

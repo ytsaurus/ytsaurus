@@ -57,6 +57,9 @@ struct IClientRequest
     virtual const Stroka& GetPath() const = 0;
     virtual const Stroka& GetVerb() const = 0;
 
+    virtual TInstant GetStartTime() const = 0;
+    virtual void SetStartTime(TInstant value) = 0;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -67,6 +70,7 @@ class TClientRequest
     DEFINE_BYREF_RW_PROPERTY(std::vector<TSharedRef>, Attachments);
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TDuration>, Timeout);
     DEFINE_BYVAL_RW_PROPERTY(bool, Heavy);
+    DEFINE_BYVAL_RW_PROPERTY(TInstant, StartTime);
 
 public:
     virtual NBus::IMessagePtr Serialize() const override;
@@ -85,7 +89,6 @@ protected:
     Stroka Verb;
     TRequestId RequestId;
     bool OneWay;
-    TInstant StartTime;
 
     TAutoPtr<NYTree::IAttributeDictionary> Attributes_;
 

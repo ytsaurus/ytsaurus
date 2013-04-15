@@ -65,6 +65,16 @@ public:
         return Header.verb();
     }
 
+    virtual TInstant GetStartTime() const override
+    {
+        YUNREACHABLE();
+    }
+
+    virtual void SetStartTime(TInstant /*value*/) override
+    {
+        YUNREACHABLE();
+    }
+
     virtual const NYTree::IAttributeDictionary& Attributes() const override
     {
         YUNREACHABLE();

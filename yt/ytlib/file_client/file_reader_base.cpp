@@ -14,6 +14,7 @@
 #include <ytlib/transaction_client/transaction.h>
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
+#include <ytlib/chunk_client/chunk_meta_extensions.h>
 
 namespace NYT {
 namespace NFileClient {

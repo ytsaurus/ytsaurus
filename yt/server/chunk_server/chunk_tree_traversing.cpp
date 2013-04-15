@@ -6,7 +6,7 @@
 
 #include <ytlib/object_client/public.h>
 
-#include <ytlib/table_client/key.h>
+#include <ytlib/chunk_client/key.h>
 #include <ytlib/table_client/chunk_meta_extensions.h>
 
 #include <server/cell_master/bootstrap.h>
@@ -19,8 +19,8 @@ using namespace NCellMaster;
 using namespace NObjectClient;
 using namespace NTableClient;
 
-using NTableClient::NProto::TKey;
-using NTableClient::NProto::TReadLimit;
+using NChunkClient::NProto::TKey;
+using NChunkClient::NProto::TReadLimit;
 
 namespace {
 
@@ -40,7 +40,7 @@ TKey GetMaxKey(const TChunk* chunk)
 {
     auto boundaryKeysExt = GetProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(
         chunk->ChunkMeta().extensions());
-    return GetSuccessorKey(boundaryKeysExt.end());
+    return GetKeySuccessor(boundaryKeysExt.end());
 }
 
 TKey GetMaxKey(const TChunkList* chunkList)
@@ -178,7 +178,7 @@ protected:
             } else if (entry.LowerBound.has_row_index()) {
                 childLowerBound.set_row_index(getChildLowerRowIndex());
             }
-            
+
             if (entry.UpperBound.has_chunk_index()) {
                 childLowerBound.set_chunk_index(getChildLowerRowIndex());
 
@@ -210,8 +210,8 @@ protected:
 
             ++entry.ChildIndex;
 
-            NTableClient::NProto::TReadLimit subtreeStartLimit;
-            NTableClient::NProto::TReadLimit subtreeEndLimit;
+            NChunkClient::NProto::TReadLimit subtreeStartLimit;
+            NChunkClient::NProto::TReadLimit subtreeEndLimit;
             GetSubtreeLimits(
                 entry,
                 childLowerBound,
@@ -278,7 +278,7 @@ protected:
             index = std::max(index, childIndex);
             YCHECK(index < chunkList->Children().size());
         }
-        
+
         if (lowerBound.has_chunk_index()) {
             auto begin = chunkList->ChunkCountSums().begin();
             int childIndex = std::upper_bound(

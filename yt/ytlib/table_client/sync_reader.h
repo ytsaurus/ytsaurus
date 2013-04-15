@@ -1,7 +1,8 @@
 ﻿#pragma once
 
 #include "public.h"
-#include "key.h"
+
+#include <ytlib/chunk_client/key.h>
 
 #include <ytlib/misc/sync.h>
 #include <ytlib/misc/nullable.h>
@@ -25,7 +26,7 @@ struct ISyncReader
 
     //! Returns the key of the current row.
     //! Not all implementations support this call.
-    virtual const TNonOwningKey& GetKey() const = 0;
+    virtual const NChunkClient::TNonOwningKey& GetKey() const = 0;
 
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunks() const = 0;
     virtual const NYTree::TYsonString& GetRowAttributes() const = 0;
@@ -63,7 +64,7 @@ public:
         return AsyncReader->IsValid() ? &AsyncReader->CurrentReader()->GetRow() : NULL;
     }
 
-    virtual const TNonOwningKey& GetKey() const override
+    virtual const NChunkClient::TNonOwningKey& GetKey() const override
     {
         return AsyncReader->CurrentReader()->GetKey();
     }

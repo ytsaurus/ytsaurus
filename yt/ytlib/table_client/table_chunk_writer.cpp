@@ -216,7 +216,7 @@ void TTableChunkWriter::WriteRow(const TRow& row)
     FOREACH (const auto& pair, row) {
         if (pair.first.length() > MaxColumnNameSize) {
             State.Fail(TError(
-                "Column column %s is too long: actual size %" PRISZT ", max size %" PRISZT,
+                "Column name %s is too long: actual size %" PRISZT ", max size %" PRISZT,
                 ~Stroka(pair.first).Quote(),
                 pair.first.length(),
                 MaxColumnNameSize));

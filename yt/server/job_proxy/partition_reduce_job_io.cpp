@@ -45,7 +45,7 @@ public:
         const auto& jobSpec = Host->GetJobSpec();
         YCHECK(jobSpec.input_specs_size() == 1);
 
-        std::vector<NTableClient::NProto::TInputChunk> chunks(
+        std::vector<NChunkClient::NProto::TInputChunk> chunks(
             jobSpec.input_specs(0).chunks().begin(),
             jobSpec.input_specs(0).chunks().end());
 

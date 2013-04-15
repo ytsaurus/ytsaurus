@@ -24,10 +24,9 @@
 #include <ytlib/actions/parallel_awaiter.h>
 
 #include <ytlib/table_client/chunk_meta_extensions.h>
-#include <ytlib/table_client/key.h>
 #include <ytlib/table_client/private.h>
-#include <ytlib/table_client/size_limits.h>
 
+#include <ytlib/chunk_client/key.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/data_node_service.pb.h>
 
@@ -580,7 +579,7 @@ void TDataNodeService::ProcessSample(
 
         size_t size = 0;
         FOREACH (const auto& column, keyColumns) {
-            if (size >= NTableClient::MaxKeySize)
+            if (size >= MaxKeySize)
                 break;
 
             auto* keyPart = key->add_parts();
@@ -658,7 +657,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetChunkSplits)
 }
 
 void TDataNodeService::MakeChunkSplits(
-    const NTableClient::NProto::TInputChunk* inputChunk,
+    const NChunkClient::NProto::TInputChunk* inputChunk,
     NChunkClient::NProto::TRspGetChunkSplits::TChunkSplits* splittedChunk,
     i64 minSplitSize,
     const TKeyColumns& keyColumns,
@@ -723,7 +722,7 @@ void TDataNodeService::MakeChunkSplits(
         indexExt.items_size()));
 
     auto comparer = [&] (
-        const NTableClient::NProto::TReadLimit& limit,
+        const NChunkClient::NProto::TReadLimit& limit,
         const NTableClient::NProto::TIndexRow& indexRow,
         bool isStartLimit) -> int
     {
@@ -754,7 +753,7 @@ void TDataNodeService::MakeChunkSplits(
         indexExt.items().end(),
         inputChunk->start_limit(),
         [&] (const NTableClient::NProto::TIndexRow& indexRow,
-             const NTableClient::NProto::TReadLimit& limit)
+             const NChunkClient::NProto::TReadLimit& limit)
         {
             return comparer(limit, indexRow, true) > 0;
         });
@@ -763,13 +762,13 @@ void TDataNodeService::MakeChunkSplits(
         beginIt,
         indexExt.items().end(),
         inputChunk->end_limit(),
-        [&] (const NTableClient::NProto::TReadLimit& limit,
+        [&] (const NChunkClient::NProto::TReadLimit& limit,
              const NTableClient::NProto::TIndexRow& indexRow)
         {
             return comparer(limit, indexRow, false) < 0;
         });
 
-    NTableClient::NProto::TInputChunk* currentSplit;
+    NChunkClient::NProto::TInputChunk* currentSplit;
     NTableClient::NProto::TBoundaryKeysExt boundaryKeysExt;
     i64 endRowIndex = beginIt->row_index();
     i64 startRowIndex;
@@ -814,12 +813,12 @@ void TDataNodeService::MakeChunkSplits(
 
             endRowIndex = beginIt->row_index();
 
-            NTableClient::NProto::TSizeOverrideExt sizeOverride;
+            NChunkClient::NProto::TSizeOverrideExt sizeOverride;
             sizeOverride.set_row_count(endRowIndex - startRowIndex);
             sizeOverride.set_uncompressed_data_size(dataSize);
             UpdateProtoExtension(currentSplit->mutable_extensions(), sizeOverride);
 
-            key = GetSuccessorKey(key);
+            key = GetKeySuccessor(key);
             *currentSplit->mutable_end_limit()->mutable_key() = key;
 
             createNewSplit();
@@ -831,7 +830,7 @@ void TDataNodeService::MakeChunkSplits(
     UpdateProtoExtension(currentSplit->mutable_extensions(), boundaryKeysExt);
     endRowIndex = (--endIt)->row_index();
 
-    NTableClient::NProto::TSizeOverrideExt sizeOverride;
+    NChunkClient::NProto::TSizeOverrideExt sizeOverride;
     sizeOverride.set_row_count(endRowIndex - startRowIndex);
     sizeOverride.set_uncompressed_data_size(
         dataSize +

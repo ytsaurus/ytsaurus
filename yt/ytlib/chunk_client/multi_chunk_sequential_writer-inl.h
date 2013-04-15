@@ -232,7 +232,7 @@ void TMultiChunkSequentialWriter<TChunkWriter>::FinishCurrentSession()
 
         Provider->OnChunkFinished();
 
-        NTableClient::NProto::TInputChunk inputChunk;
+        NChunkClient::NProto::TInputChunk inputChunk;
         *inputChunk.mutable_chunk_id() = CurrentSession.RemoteWriter->GetChunkId().ToProto();
 
         TGuard<TSpinLock> guard(WrittenChunksGuard);
@@ -415,7 +415,7 @@ void TMultiChunkSequentialWriter<TChunkWriter>::OnClose(
 }
 
 template <class TChunkWriter>
-const std::vector<NTableClient::NProto::TInputChunk>& TMultiChunkSequentialWriter<TChunkWriter>::GetWrittenChunks() const
+const std::vector<NChunkClient::NProto::TInputChunk>& TMultiChunkSequentialWriter<TChunkWriter>::GetWrittenChunks() const
 {
     return WrittenChunks;
 }

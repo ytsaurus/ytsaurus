@@ -1,7 +1,7 @@
 ﻿#pragma once
 
 #include "public.h"
-#include "key.h"
+#include <ytlib/chunk_client/key.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -14,10 +14,10 @@ struct IPartitioner
     { }
 
     virtual int GetPartitionCount() = 0;
-    virtual int GetPartitionTag(const TNonOwningKey& key) = 0;
+    virtual int GetPartitionTag(const NChunkClient::TNonOwningKey& key) = 0;
 };
 
-TAutoPtr<IPartitioner> CreateOrderedPartitioner(const std::vector<TOwningKey>* keys);
+TAutoPtr<IPartitioner> CreateOrderedPartitioner(const std::vector<NChunkClient::TOwningKey>* keys);
 TAutoPtr<IPartitioner> CreateHashPartitioner(int partitionCount);
 
 ////////////////////////////////////////////////////////////////////////////////

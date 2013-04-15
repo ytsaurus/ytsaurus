@@ -1,38 +1,14 @@
 package NYT.NTableClient.NProto;
 
+import "yt/ytlib/chunk_client/input_chunk.proto";
+import "yt/ytlib/chunk_client/chunk.proto";
+
 ////////////////////////////////////////////////////////////////////////////////
-
-message TRange
-{
-    required bytes begin = 1;
-    required bytes end = 2;
-    required bool is_infinite = 3;
-}
-
-message TChannel 
-{
-    repeated bytes columns = 1;
-    repeated TRange ranges = 2;
-}
-
-message TKeyPart
-{
-    // EKeyPartType
-    required int32 type = 1;
-    optional bytes str_value = 2;
-    optional int64 int_value = 3;
-    optional double double_value = 4;
-}
-
-message TKey
-{
-    repeated TKeyPart parts = 1;
-}
 
 message TSamplePart
 {
     required bytes column = 1;
-    required TKeyPart key_part = 2;
+    required NChunkClient.NProto.TKeyPart key_part = 2;
 }
 
 message TSample
@@ -47,7 +23,7 @@ message TSamplesExt
 
 message TIndexRow
 {
-    required TKey key = 1;
+    required NChunkClient.NProto.TKey key = 1;
     required int64 row_index = 2;
 }
 
@@ -66,8 +42,8 @@ message TKeyColumnsExt
 // Chunk meta extension.
 message TBoundaryKeysExt
 {
-    required TKey start = 1;
-    required TKey end = 2;
+    required NChunkClient.NProto.TKey start = 1;
+    required NChunkClient.NProto.TKey end = 2;
 }
 
 message TBlockInfo
@@ -83,7 +59,7 @@ message TBlockInfo
 
 message TChunkChannel
 {
-    required TChannel channel = 1;
+    required NChunkClient.NProto.TChannel channel = 1;
     repeated TBlockInfo blocks = 2;
 }
 
@@ -93,16 +69,9 @@ message TChannelsExt
     repeated TChunkChannel items = 1;
 }
 
-// Used within sliced input chunks to override sizes provided in TMiscExt.
-message TSizeOverrideExt
-{
-    required int64 row_count = 1;
-    required int64 uncompressed_data_size = 2;
-}
-
 message TPartitionsExt
 {
-    repeated TSizeOverrideExt partitions = 1;
+    repeated NChunkClient.NProto.TSizeOverrideExt partitions = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,8 +1,8 @@
 set( DIRS
   actions
   election
-  chunk_client
   compression
+  chunk_client
   transaction_client
   logging
   meta_state

@@ -1,11 +1,11 @@
 #include "stdafx.h"
 #include "partitioner.h"
 
-#include "key.h"
+#include <ytlib/misc/blob_output.h>
 
 namespace NYT {
-namespace NTableClient {
 
+namespace NChunkClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 bool operator < (const TOwningKey& partitionKey, const TNonOwningKey& key)
@@ -13,11 +13,19 @@ bool operator < (const TOwningKey& partitionKey, const TNonOwningKey& key)
     return CompareKeys(partitionKey, key) < 0;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+}
+
+
+namespace NTableClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TOrderedPartitioner
     : public IPartitioner
 {
 public:
-    explicit TOrderedPartitioner(const std::vector<TOwningKey>* keys)
+    explicit TOrderedPartitioner(const std::vector<NChunkClient::TOwningKey>* keys)
         : Keys(keys)
     { }
 
@@ -26,18 +34,18 @@ public:
         return Keys->size() + 1;
     }
 
-    virtual int GetPartitionTag(const TNonOwningKey& key) override
+    virtual int GetPartitionTag(const NChunkClient::TNonOwningKey& key) override
     {
         auto it = std::upper_bound(Keys->begin(), Keys->end(), key);
         return std::distance(Keys->begin(), it);
     }
 
 private:
-    const std::vector<TOwningKey>* Keys;
+    const std::vector<NChunkClient::TOwningKey>* Keys;
 
 };
 
-TAutoPtr<IPartitioner> CreateOrderedPartitioner(const std::vector<TOwningKey>* keys)
+TAutoPtr<IPartitioner> CreateOrderedPartitioner(const std::vector<NChunkClient::TOwningKey>* keys)
 {
     return new TOrderedPartitioner(keys);
 }
@@ -57,7 +65,7 @@ public:
         return PartitionCount;
     }
 
-    virtual int GetPartitionTag(const TNonOwningKey& key) override
+    virtual int GetPartitionTag(const NChunkClient::TNonOwningKey& key) override
     {
         return key.GetHash() % PartitionCount;
     }

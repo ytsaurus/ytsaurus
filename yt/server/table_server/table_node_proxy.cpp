@@ -13,10 +13,10 @@
 #include <ytlib/ypath/token.h>
 
 #include <ytlib/table_client/table_ypath_proxy.h>
-#include <ytlib/table_client/schema.h>
-#include <ytlib/table_client/key.h>
 #include <ytlib/table_client/chunk_meta_extensions.h>
 
+#include <ytlib/chunk_client/schema.h>
+#include <ytlib/chunk_client/key.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <server/chunk_server/chunk.h>
@@ -32,6 +32,7 @@ namespace NYT {
 namespace NTableServer {
 
 using namespace NChunkServer;
+using namespace NChunkClient;
 using namespace NCypressServer;
 using namespace NYTree;
 using namespace NYson;
@@ -42,8 +43,8 @@ using namespace NCellMaster;
 using namespace NTransactionServer;
 using namespace NSecurityServer;
 
-using NTableClient::NProto::TReadLimit;
-using NTableClient::NProto::TKey;
+using NChunkClient::NProto::TReadLimit;
+using NChunkClient::NProto::TKey;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -80,9 +81,9 @@ private:
 
     void ParseYPath(
         const NYPath::TYPath& path,
-        NTableClient::TChannel* channel,
-        NTableClient::NProto::TReadLimit* lowerBound,
-        NTableClient::NProto::TReadLimit* upperBound);
+        NChunkClient::TChannel* channel,
+        NChunkClient::NProto::TReadLimit* lowerBound,
+        NChunkClient::NProto::TReadLimit* upperBound);
 
     DECLARE_RPC_SERVICE_METHOD(NTableClient::NProto, PrepareForUpdate);
     DECLARE_RPC_SERVICE_METHOD(NTableClient::NProto, Fetch);
@@ -317,8 +318,8 @@ public:
 
     virtual bool OnChunk(
         TChunk* chunk,
-        const NTableClient::NProto::TReadLimit& startLimit,
-        const NTableClient::NProto::TReadLimit& endLimit) override
+        const NChunkClient::NProto::TReadLimit& startLimit,
+        const NChunkClient::NProto::TReadLimit& endLimit) override
     {
         VERIFY_THREAD_AFFINITY(StateThread);
         UNUSED(startLimit);

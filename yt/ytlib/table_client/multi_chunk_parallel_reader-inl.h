@@ -13,7 +13,7 @@ TMultiChunkParallelReader<TChunkReader>::TMultiChunkParallelReader(
     TTableReaderConfigPtr config,
     NRpc::IChannelPtr masterChannel,
     NChunkClient::IBlockCachePtr blockCache,
-    std::vector<NProto::TInputChunk>&& inputChunks,
+    std::vector<NChunkClient::NProto::TInputChunk>&& inputChunks,
     const typename TBase::TProviderPtr& readerProvider)
     : TMultiChunkReaderBase<TChunkReader>(
         config,

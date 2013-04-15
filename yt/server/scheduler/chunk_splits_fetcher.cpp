@@ -2,8 +2,6 @@
 #include "chunk_splits_fetcher.h"
 #include "private.h"
 
-#include <ytlib/table_client/helpers.h>
-
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <ytlib/rpc/channel_cache.h>
@@ -15,9 +13,8 @@
 namespace NYT {
 namespace NScheduler {
 
-using namespace NChunkClient;
 using namespace NTableClient;
-using namespace NTableClient::NProto;
+using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////
@@ -46,7 +43,7 @@ NLog::TTaggedLogger& TChunkSplitsFetcher::GetLogger()
     return Logger;
 }
 
-void TChunkSplitsFetcher::Prepare(const std::vector<NTableClient::TRefCountedInputChunkPtr>& chunks)
+void TChunkSplitsFetcher::Prepare(const std::vector<NChunkClient::TRefCountedInputChunkPtr>& chunks)
 {
     LOG_INFO("Started fetching chunk splits (ChunkCount: %d)",
         static_cast<int>(chunks.size()));
@@ -70,7 +67,7 @@ void TChunkSplitsFetcher::CreateNewRequest(const Stroka& address)
     ToProto(CurrentRequest->mutable_key_columns(), KeyColumns);
 }
 
-bool TChunkSplitsFetcher::AddChunkToRequest(NTableClient::TRefCountedInputChunkPtr chunk)
+bool TChunkSplitsFetcher::AddChunkToRequest(NChunkClient::TRefCountedInputChunkPtr chunk)
 {
     auto chunkId = TChunkId::FromProto(chunk->chunk_id());
 

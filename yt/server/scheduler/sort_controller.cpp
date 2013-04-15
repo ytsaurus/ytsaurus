@@ -13,8 +13,8 @@
 
 #include <ytlib/ytree/fluent.h>
 
-#include <ytlib/table_client/schema.h>
-#include <ytlib/table_client/helpers.h>
+#include <ytlib/chunk_client/schema.h>
+#include <ytlib/chunk_client/input_chunk.h>
 #include <ytlib/table_client/channel_writer.h>
 #include <ytlib/table_client/chunk_meta_extensions.h>
 
@@ -1345,10 +1345,10 @@ private:
     TSamplesFetcherPtr SamplesFetcher;
     TSamplesCollectorPtr SamplesCollector;
 
-    std::vector<const NTableClient::NProto::TKey*> SortedSamples;
+    std::vector<const NChunkClient::NProto::TKey*> SortedSamples;
 
     //! |PartitionCount - 1| separating keys.
-    std::vector<NTableClient::NProto::TKey> PartitionKeys;
+    std::vector<NChunkClient::NProto::TKey> PartitionKeys;
 
 
     // Custom bits of preparation pipeline.
@@ -1424,7 +1424,7 @@ private:
         std::sort(
             SortedSamples.begin(),
             SortedSamples.end(),
-            [] (const NTableClient::NProto::TKey* lhs, const NTableClient::NProto::TKey* rhs) {
+            [] (const NChunkClient::NProto::TKey* lhs, const NChunkClient::NProto::TKey* rhs) {
                 return CompareKeys(*lhs, *rhs) < 0;
             }
         );
@@ -1484,9 +1484,9 @@ private:
         AddTaskPendingHint(partition->SortTask);
     }
 
-    void AddPartition(const NTableClient::NProto::TKey& key)
+    void AddPartition(const NChunkClient::NProto::TKey& key)
     {
-        using NTableClient::ToString;
+        using NChunkClient::ToString;
 
         int index = static_cast<int>(Partitions.size());
         LOG_DEBUG("Partition %d has starting key %s",
@@ -1543,7 +1543,7 @@ private:
                 lastPartition->Maniac = true;
                 YCHECK(skippedCount >= 1);
 
-                auto successorKey = GetSuccessorKey(*sampleKey);
+                auto successorKey = GetKeySuccessor(*sampleKey);
                 AddPartition(successorKey);
             }
         }
@@ -1937,11 +1937,6 @@ private:
 
         // Don't create more partitions than allowed by the global config.
         partitionCount = std::min(partitionCount, Config->MaxPartitionCount);
-
-        // Single partition is a special case for sort and is not supported by map-reduce.
-        partitionCount = std::max(partitionCount, 2);
-
-        YCHECK(partitionCount >= 2);
 
         InitJobIOConfigs();
 

@@ -8,8 +8,7 @@
 #include <ytlib/chunk_client/chunk.pb.h>
 #include <ytlib/chunk_client/chunk_ypath.pb.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
-
-#include <ytlib/table_client/schema.h>
+#include <ytlib/chunk_client/schema.h>
 
 #include <ytlib/table_client/table_ypath.pb.h>
 

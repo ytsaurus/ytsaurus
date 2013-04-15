@@ -8,13 +8,13 @@
 
 #include <ytlib/ytree/fluent.h>
 
-#include <ytlib/table_client/schema.h>
+#include <ytlib/chunk_client/schema.h>
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <ytlib/transaction_client/transaction.h>
 
-#include <ytlib/table_client/key.h>
+#include <ytlib/chunk_client/key.h>
 
 #include <server/job_proxy/config.h>
 

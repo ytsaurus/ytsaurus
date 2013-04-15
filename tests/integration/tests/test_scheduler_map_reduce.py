@@ -85,6 +85,16 @@ Wish you were here.
                        reducer_file=['//tmp/reducer.py', '//tmp/yt_streaming.py'],
                        opt=['/spec/partition_count=2', '/spec/mapper/format=dsv', '/spec/reducer/format=dsv'],
                        tx=tx)
+        elif method == 'map_reduce_1p':
+            map_reduce(in_='//tmp/t_in',
+                       out='//tmp/t_out',
+                       sort_by='word',
+                       mapper_command='python mapper.py',
+                       mapper_file=['//tmp/mapper.py', '//tmp/yt_streaming.py'],
+                       reducer_command='python reducer.py',
+                       reducer_file=['//tmp/reducer.py', '//tmp/yt_streaming.py'],
+                       opt=['/spec/partition_count=1', '/spec/mapper/format=dsv', '/spec/reducer/format=dsv'],
+                       tx=tx)
 
         commit_transaction(tx)
 
@@ -104,6 +114,9 @@ Wish you were here.
 
     def test_map_reduce(self):
         self.do_run_test('map_reduce')
+
+    def test_map_reduce_1partition(self):
+        self.do_run_test('map_reduce_1p')
 
     def test_many_output_tables(self):
         create('table', '//tmp/t_in')
