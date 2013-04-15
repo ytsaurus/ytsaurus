@@ -5,8 +5,8 @@
 #include "channel_writer.h"
 #include "chunk_meta_extensions.h"
 
-#include <ytlib/chunk_client/dispatcher.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
+#include <ytlib/chunk_client/dispatcher.h>
 #include <ytlib/chunk_client/async_writer.h>
 #include <ytlib/chunk_client/encoding_writer.h>
 
@@ -17,6 +17,7 @@
 namespace NYT {
 namespace NTableClient {
 
+using namespace NChunkClient;
 using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////

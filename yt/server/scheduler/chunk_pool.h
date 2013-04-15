@@ -4,7 +4,7 @@
 #include "progress_counter.h"
 
 #include <ytlib/misc/small_vector.h>
-#include <ytlib/table_client/table_reader.pb.h>
+#include <ytlib/chunk_client/input_chunk.h>
 
 #include <server/chunk_server/public.h>
 
@@ -46,12 +46,12 @@ struct TChunkStripe
     : public TIntrinsicRefCounted
 {
     TChunkStripe();
-    explicit TChunkStripe(NTableClient::TRefCountedInputChunkPtr inputChunk);
+    explicit TChunkStripe(NChunkClient::TRefCountedInputChunkPtr inputChunk);
     explicit TChunkStripe(const TChunkStripe& other);
 
     TChunkStripeStatistics GetStatistics() const;
 
-    TSmallVector<NTableClient::TRefCountedInputChunkPtr, 1> Chunks;
+    TSmallVector<NChunkClient::TRefCountedInputChunkPtr, 1> Chunks;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

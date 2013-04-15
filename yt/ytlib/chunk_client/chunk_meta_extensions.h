@@ -10,6 +10,7 @@ namespace NYT {
 
 DECLARE_PROTO_EXTENSION(NChunkClient::NProto::TMiscExt, 0)
 DECLARE_PROTO_EXTENSION(NChunkClient::NProto::TBlocksExt, 1)
+DECLARE_PROTO_EXTENSION(NChunkClient::NProto::TSizeOverrideExt, 16)
 
 ///////////////////////////////////////////////////////////////////////////////
 

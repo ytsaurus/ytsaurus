@@ -1,7 +1,6 @@
 ﻿#pragma once
 
 #include "public.h"
-#include "size_limits.h"
 
 #include <ytlib/misc/small_vector.h>
 #include <ytlib/misc/property.h>
@@ -9,12 +8,13 @@
 #include <ytlib/misc/string.h>
 #include <ytlib/misc/nullable.h>
 #include <ytlib/misc/blob_output.h>
+
 #include <ytlib/yson/lexer.h>
-#include <ytlib/table_client/table_chunk_meta.pb.h>
-#include <ytlib/table_client/table_reader.pb.h>
+
+#include <ytlib/chunk_client/input_chunk.pb.h>
 
 namespace NYT {
-namespace NTableClient {
+namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,6 +35,8 @@ DECLARE_ENUM(EKeyPartType,
     // A special sentinel used by #GetKeyPrefixSuccessor.
     ((MaxSentinel)(100))
 );
+
+extern const size_t MaxKeySize;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -214,22 +216,22 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TStrType>
-Stroka ToString(const NYT::NTableClient::TKeyPart<TStrType>& keyPart)
+Stroka ToString(const NYT::NChunkClient::TKeyPart<TStrType>& keyPart)
 {
     switch (keyPart.GetType()) {
-        case NYT::NTableClient::EKeyPartType::Null:
+        case NYT::NChunkClient::EKeyPartType::Null:
             return "<Null>";
-        case NYT::NTableClient::EKeyPartType::Composite:
+        case NYT::NChunkClient::EKeyPartType::Composite:
             return "<Composite>";
-        case NYT::NTableClient::EKeyPartType::MinSentinel:
+        case NYT::NChunkClient::EKeyPartType::MinSentinel:
             return "<Min>";
-        case NYT::NTableClient::EKeyPartType::MaxSentinel:
+        case NYT::NChunkClient::EKeyPartType::MaxSentinel:
             return "<Max>";
-        case NYT::NTableClient::EKeyPartType::String:
+        case NYT::NChunkClient::EKeyPartType::String:
             return keyPart.GetString().ToString().Quote();
-        case NYT::NTableClient::EKeyPartType::Integer:
+        case NYT::NChunkClient::EKeyPartType::Integer:
             return ::ToString(keyPart.GetInteger());
-        case NYT::NTableClient::EKeyPartType::Double:
+        case NYT::NChunkClient::EKeyPartType::Double:
             return ::ToString(keyPart.GetDouble());
         default:
             YUNREACHABLE();
@@ -286,7 +288,7 @@ template <class TBuffer>
 class TKey;
 
 template <class TBuffer>
-Stroka ToString(const NYT::NTableClient::TKey<TBuffer>& key);
+Stroka ToString(const NYT::NChunkClient::TKey<TBuffer>& key);
 
 //ToDo(psushin): make key-inl.h
 
@@ -557,6 +559,6 @@ NProto::TKey GetKeyPrefixSuccessor(const NProto::TKey& key, int prefixLength);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
+} // namespace NChunkClient
 } // namespace NYT
 

@@ -1,6 +1,6 @@
 package NYT.NTableClient.NProto;
 
-import "yt/ytlib/table_client/table_reader.proto";
+import "yt/ytlib/chunk_client/input_chunk.proto";
 import "yt/ytlib/misc/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -34,7 +34,7 @@ message TReqFetch
 
 message TRspFetch
 {
-    repeated NYT.NTableClient.NProto.TInputChunk chunks = 1;
+    repeated NYT.NChunkClient.NProto.TInputChunk chunks = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

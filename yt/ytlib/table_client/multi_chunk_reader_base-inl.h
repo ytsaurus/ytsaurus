@@ -5,12 +5,14 @@
 
 #include "private.h"
 #include "config.h"
-#include "helpers.h"
+
+//#include <ytlib/chunk_client/input_chunk.h>
 
 #include <ytlib/chunk_client/block_cache.h>
 #include <ytlib/chunk_client/remote_reader.h>
 #include <ytlib/chunk_client/async_reader.h>
 #include <ytlib/chunk_client/dispatcher.h>
+#include <ytlib/chunk_client/input_chunk.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/actions/parallel_awaiter.h>
 #include <ytlib/rpc/channel.h>
@@ -26,7 +28,7 @@ TMultiChunkReaderBase<TChunkReader>::TMultiChunkReaderBase(
     TTableReaderConfigPtr config,
     NRpc::IChannelPtr masterChannel,
     NChunkClient::IBlockCachePtr blockCache,
-    std::vector<NProto::TInputChunk>&& inputChunks,
+    std::vector<NChunkClient::NProto::TInputChunk>&& inputChunks,
     const TProviderPtr& readerProvider)
     : ItemIndex_(0)
     , ItemCount_(0)
@@ -45,7 +47,7 @@ TMultiChunkReaderBase<TChunkReader>::TMultiChunkReaderBase(
 
     FOREACH (const auto& inputChunk, InputChunks) {
         i64 dataSize, rowCount;
-        GetStatistics(inputChunk, &dataSize, &rowCount);
+        NChunkClient::GetStatistics(inputChunk, &dataSize, &rowCount);
         chunkDataSizes.push_back(dataSize);
         ItemCount_ += rowCount;
     }

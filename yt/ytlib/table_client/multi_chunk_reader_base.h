@@ -3,8 +3,9 @@
 #include "public.h"
 #include "private.h"
 
+#include <ytlib/chunk_client/input_chunk.pb.h>
+
 #include <ytlib/chunk_client/public.h>
-#include <ytlib/table_client/table_reader.pb.h>
 #include <ytlib/misc/async_stream_state.h>
 #include <ytlib/rpc/channel.h>
 #include <ytlib/actions/parallel_awaiter.h>
@@ -30,7 +31,7 @@ public:
         TTableReaderConfigPtr config,
         NRpc::IChannelPtr masterChannel,
         NChunkClient::IBlockCachePtr blockCache,
-        std::vector<NProto::TInputChunk>&& inputChunks,
+        std::vector<NChunkClient::NProto::TInputChunk>&& inputChunks,
         const TProviderPtr& readerProvider);
 
     const TIntrusivePtr<TChunkReader>& CurrentReader() const;
@@ -67,7 +68,7 @@ protected:
     NRpc::IChannelPtr MasterChannel;
 
     NChunkClient::IBlockCachePtr BlockCache;
-    std::vector<NProto::TInputChunk> InputChunks;
+    std::vector<NChunkClient::NProto::TInputChunk> InputChunks;
 
     TProviderPtr ReaderProvider;
 

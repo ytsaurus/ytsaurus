@@ -312,7 +312,7 @@ void TJob::OnTableDownloaded(
     YCHECK(JobPhase == EJobPhase::PreparingSandbox);
 
     // Preparing chunks
-    std::vector<NTableClient::NProto::TInputChunk> chunks;
+    std::vector<NChunkClient::NProto::TInputChunk> chunks;
     chunks.insert(
         chunks.end(),
         tableFileRsp.table().chunks().begin(),

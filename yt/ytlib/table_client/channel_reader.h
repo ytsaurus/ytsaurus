@@ -1,7 +1,7 @@
 ﻿#pragma once
 
 #include "public.h"
-#include "schema.h"
+#include <ytlib/chunk_client/schema.h>
 
 #include <ytlib/misc/ref.h>
 #include <util/stream/mem.h>
@@ -15,7 +15,7 @@ class TChannelReader
     : public virtual TRefCounted
 {
 public:
-    explicit TChannelReader(const TChannel& channel);
+    explicit TChannelReader(const NChunkClient::TChannel& channel);
     void SetBlock(const TSharedRef& block);
 
     bool NextRow();
@@ -25,7 +25,7 @@ public:
     const TStringBuf& GetValue() const;
 
 private:
-    const TChannel Channel;
+    const NChunkClient::TChannel Channel;
 
     TSharedRef CurrentBlock;
 

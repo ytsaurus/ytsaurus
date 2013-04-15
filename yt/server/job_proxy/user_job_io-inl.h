@@ -28,7 +28,7 @@ TAutoPtr<NTableClient::TTableProducer> TUserJobIO::DoCreateTableInput(
 
     const auto& jobSpec = Host->GetJobSpec();
 
-    std::vector<NTableClient::NProto::TInputChunk> chunks;
+    std::vector<NChunkClient::NProto::TInputChunk> chunks;
     for (int i = 0; i < jobSpec.input_specs_size(); ++i) {
         chunks.insert(
             chunks.end(),

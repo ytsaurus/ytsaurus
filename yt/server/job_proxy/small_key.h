@@ -1,8 +1,8 @@
 ﻿#pragma once
 
 #include "public.h"
-#include <ytlib/table_client/key.h>
-#include <ytlib/table_client/public.h>
+#include <ytlib/chunk_client/public.h>
+#include <ytlib/chunk_client/key.h>
 #include <ytlib/ytree/public.h>
 
 namespace NYT {
@@ -12,7 +12,7 @@ namespace NJobProxy {
 
 struct TSmallKeyPart
 {
-    NTableClient::EKeyPartType Type;
+    NChunkClient::EKeyPartType Type;
     ui32 Length;
 
     union {
@@ -27,13 +27,13 @@ struct TSmallKeyPart
     }
 
     TSmallKeyPart()
-        : Type(NTableClient::EKeyPartType::Null)
+        : Type(NChunkClient::EKeyPartType::Null)
     { }
 };
 
 void SetSmallKeyPart(TSmallKeyPart& keyPart, const TStringBuf& yson, NYson::TLexer& lexer);
 int CompareSmallKeyParts(const TSmallKeyPart& lhs, const TSmallKeyPart& rhs);
-void SetKeyPart(NTableClient::TNonOwningKey* key, const TSmallKeyPart& keyPart, int keyIndex);
+void SetKeyPart(NChunkClient::TNonOwningKey* key, const TSmallKeyPart& keyPart, int keyIndex);
 
 ////////////////////////////////////////////////////////////////////////////////
 

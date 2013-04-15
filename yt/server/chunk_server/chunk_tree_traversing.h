@@ -5,7 +5,7 @@
 #include <ytlib/misc/error.h>
 
 #include <ytlib/table_client/table_chunk_meta.pb.h>
-#include <ytlib/table_client/table_reader.pb.h>
+#include <ytlib/chunk_client/input_chunk.pb.h>
 
 #include <server/cell_master/public.h>
 
@@ -32,8 +32,8 @@ struct IChunkVisitor
      */
     virtual bool OnChunk(
         TChunk* chunk,
-        const NTableClient::NProto::TReadLimit& startLimit,
-        const NTableClient::NProto::TReadLimit& endLimit) = 0;
+        const NChunkClient::NProto::TReadLimit& startLimit,
+        const NChunkClient::NProto::TReadLimit& endLimit) = 0;
 
     virtual void OnError(const TError& error) = 0;
 
@@ -46,8 +46,8 @@ void TraverseChunkTree(
     NCellMaster::TBootstrap* bootstrap,
     IChunkVisitorPtr visitor,
     TChunkList* root,
-    const NTableClient::NProto::TReadLimit& lowerBound = NTableClient::NProto::TReadLimit(),
-    const NTableClient::NProto::TReadLimit& upperBound = NTableClient::NProto::TReadLimit());
+    const NChunkClient::NProto::TReadLimit& lowerBound = NChunkClient::NProto::TReadLimit(),
+    const NChunkClient::NProto::TReadLimit& upperBound = NChunkClient::NProto::TReadLimit());
 
 ////////////////////////////////////////////////////////////////////////////////
 

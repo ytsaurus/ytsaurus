@@ -30,7 +30,7 @@ using namespace NTableClient;
 using namespace NChunkClient;
 using namespace NChunkServer;
 using namespace NScheduler::NProto;
-using namespace NTableClient::NProto;
+using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 

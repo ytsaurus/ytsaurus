@@ -7,10 +7,10 @@
 #include <ytlib/logging/tagged_logger.h>
 
 #include <ytlib/chunk_client/data_node_service_proxy.h>
+#include <ytlib/chunk_client/input_chunk.h>
 
 #include <ytlib/table_client/public.h>
 #include <ytlib/table_client/table_chunk_meta.pb.h>
-#include <ytlib/table_client/table_reader.pb.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -32,21 +32,21 @@ public:
 
     void SetDesiredSampleCount(int desiredSampleCount);
 
-    void Prepare(const std::vector<NTableClient::TRefCountedInputChunkPtr>& chunks);
+    void Prepare(const std::vector<NChunkClient::TRefCountedInputChunkPtr>& chunks);
 
     void CreateNewRequest(const Stroka& address);
 
     // If False is returned then samples from this chunk are not required.
-    bool AddChunkToRequest(NTableClient::TRefCountedInputChunkPtr inputChunk);
+    bool AddChunkToRequest(NChunkClient::TRefCountedInputChunkPtr inputChunk);
 
     TFuture<TResponsePtr> InvokeRequest();
 
     TError ProcessResponseItem(
         TResponsePtr rsp,
         int index,
-        NTableClient::TRefCountedInputChunkPtr inputChunk);
+        NChunkClient::TRefCountedInputChunkPtr inputChunk);
 
-    const std::vector<NTableClient::NProto::TKey>& GetSamples() const;
+    const std::vector<NChunkClient::NProto::TKey>& GetSamples() const;
 
     NLog::TTaggedLogger& GetLogger();
 
@@ -62,7 +62,7 @@ private:
     NLog::TTaggedLogger Logger;
 
     //! All samples fetched so far.
-    std::vector<NTableClient::NProto::TKey> Samples;
+    std::vector<NChunkClient::NProto::TKey> Samples;
 
     NChunkClient::TDataNodeServiceProxy::TReqGetTableSamplesPtr CurrentRequest;
 

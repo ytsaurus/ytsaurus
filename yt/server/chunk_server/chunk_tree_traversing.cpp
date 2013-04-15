@@ -6,7 +6,7 @@
 
 #include <ytlib/object_client/public.h>
 
-#include <ytlib/table_client/key.h>
+#include <ytlib/chunk_client/key.h>
 #include <ytlib/table_client/chunk_meta_extensions.h>
 
 #include <server/cell_master/bootstrap.h>
@@ -19,8 +19,8 @@ using namespace NCellMaster;
 using namespace NObjectClient;
 using namespace NTableClient;
 
-using NTableClient::NProto::TKey;
-using NTableClient::NProto::TReadLimit;
+using NChunkClient::NProto::TKey;
+using NChunkClient::NProto::TReadLimit;
 
 namespace {
 
@@ -210,8 +210,8 @@ protected:
 
             ++entry.ChildIndex;
 
-            NTableClient::NProto::TReadLimit subtreeStartLimit;
-            NTableClient::NProto::TReadLimit subtreeEndLimit;
+            NChunkClient::NProto::TReadLimit subtreeStartLimit;
+            NChunkClient::NProto::TReadLimit subtreeEndLimit;
             GetSubtreeLimits(
                 entry,
                 childLowerBound,

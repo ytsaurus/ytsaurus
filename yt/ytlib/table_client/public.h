@@ -3,14 +3,6 @@
 #include <ytlib/misc/common.h>
 #include <ytlib/misc/small_vector.h>
 
-// Forward declarations.
-namespace NYT {
-
-class TBlobOutput;
-class TFakeStringBufStore;
-
-} // namespace NYT
-
 namespace NYT {
 namespace NTableClient {
 
@@ -106,22 +98,7 @@ typedef TIntrusivePtr<TTableConsumerConfig> TTableConsumerConfigPtr;
 typedef TSmallVector< std::pair<TStringBuf, TStringBuf>, 32 > TRow;
 typedef std::vector<Stroka> TKeyColumns;
 
-template <class TBuffer>
-class TKey;
-
-template <class TStrType>
-class TKeyPart;
-
-typedef TKey<TBlobOutput> TOwningKey;
-typedef TKey<TFakeStringBufStore> TNonOwningKey;
-
-struct TRefCountedInputChunk;
-typedef TIntrusivePtr<TRefCountedInputChunk> TRefCountedInputChunkPtr;
-
 struct IPartitioner;
-
-class TChannel;
-typedef std::vector<TChannel> TChannels;
 
 ////////////////////////////////////////////////////////////////////////////////
 

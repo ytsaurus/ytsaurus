@@ -4,14 +4,11 @@
 #include "config.h"
 #include "remote_writer.h"
 
-//#include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/async_stream_state.h>
 
 #include <ytlib/actions/parallel_awaiter.h>
 
-//#include <ytlib/chunk_client/chunk_meta_extensions.h>
-
-#include <ytlib/table_client/table_reader.pb.h>
+#include <ytlib/chunk_client/input_chunk.pb.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
 #include <ytlib/object_client/master_ypath_proxy.h>
@@ -58,7 +55,7 @@ public:
     /*!
      *  To get consistent data, should be called only when the writer is closed.
      */
-    const std::vector<NTableClient::NProto::TInputChunk>& GetWrittenChunks() const;
+    const std::vector<NChunkClient::NProto::TInputChunk>& GetWrittenChunks() const;
     TProviderPtr GetProvider();
 
 protected:
@@ -135,7 +132,7 @@ protected:
     TParallelAwaiterPtr CloseChunksAwaiter;
 
     TSpinLock WrittenChunksGuard;
-    std::vector<NTableClient::NProto::TInputChunk> WrittenChunks;
+    std::vector<NChunkClient::NProto::TInputChunk> WrittenChunks;
 
     NLog::TTaggedLogger Logger;
 

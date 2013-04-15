@@ -10,9 +10,9 @@
 
 #include <ytlib/ytree/fluent.h>
 
-#include <ytlib/table_client/key.h>
-#include <ytlib/table_client/schema.h>
-#include <ytlib/table_client/table_reader.pb.h>
+#include <ytlib/chunk_client/key.h>
+#include <ytlib/chunk_client/schema.h>
+#include <ytlib/chunk_client/input_chunk.pb.h>
 
 namespace NYT {
 
@@ -20,10 +20,10 @@ namespace NYPath {
 
 using namespace NYTree;
 using namespace NYson;
-using namespace NTableClient;
-using NTableClient::NProto::TKey;
-using NTableClient::NProto::TKeyPart;
-using NTableClient::NProto::TReadLimit;
+using namespace NChunkClient;
+using NChunkClient::NProto::TKey;
+using NChunkClient::NProto::TKeyPart;
+using NChunkClient::NProto::TReadLimit;
 
 ////////////////////////////////////////////////////////////////////////////////
 

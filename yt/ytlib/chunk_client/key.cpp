@@ -2,11 +2,13 @@
 #include "key.h"
 
 #include <ytlib/misc/string.h>
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/table_client/chunk_meta_extensions.h>
 
 namespace NYT {
-namespace NTableClient {
+namespace NChunkClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+const size_t MaxKeySize = 4 * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -117,5 +119,5 @@ NProto::TKey GetKeyPrefixSuccessor(const NProto::TKey& key, int prefixLength)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
+} // namespace NChunkClient
 } // namespace NYT

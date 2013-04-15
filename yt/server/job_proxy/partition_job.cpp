@@ -56,7 +56,7 @@ public:
 
         auto jobSpecExt = jobSpec.GetExtension(TPartitionJobSpecExt::partition_job_spec_ext);
 
-        std::vector<NTableClient::NProto::TInputChunk> chunks(
+        std::vector<NChunkClient::NProto::TInputChunk> chunks(
             jobSpec.input_specs(0).chunks().begin(),
             jobSpec.input_specs(0).chunks().end());
 

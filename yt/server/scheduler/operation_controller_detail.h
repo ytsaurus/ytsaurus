@@ -157,7 +157,7 @@ protected:
 
         struct TEndpoint
         {
-            NTableClient::NProto::TKey Key;
+            NChunkClient::NProto::TKey Key;
             bool Left;
             int ChunkTreeKey;
         };
@@ -379,7 +379,7 @@ protected:
             IChunkPoolInput* destinationPool);
 
         static TChunkStripePtr BuildIntermediateChunkStripe(
-            google::protobuf::RepeatedPtrField<NTableClient::NProto::TInputChunk>* inputChunks);
+            google::protobuf::RepeatedPtrField<NChunkClient::NProto::TInputChunk>* inputChunks);
 
         void RegisterOutput(TJobletPtr joblet, int key);
 
@@ -568,7 +568,7 @@ protected:
     NChunkClient::TChunkListId ExtractChunkList();
 
     //! Returns the list of all input chunks collected from all input tables.
-    std::vector<NTableClient::TRefCountedInputChunkPtr> CollectInputChunks();
+    std::vector<NChunkClient::TRefCountedInputChunkPtr> CollectInputChunks();
 
     //! Converts a list of input chunks into a list of chunk stripes for further
     //! processing. Each stripe receives exactly one chunk (as suitable for most

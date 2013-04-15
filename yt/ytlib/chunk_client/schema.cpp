@@ -10,7 +10,7 @@
 #include <ytlib/ytree/fluent.h>
 
 namespace NYT {
-namespace NTableClient {
+namespace NChunkClient {
 
 using namespace NYTree;
 
@@ -136,7 +136,7 @@ NProto::TChannel TChannel::ToProto() const
     return protoChannel;
 }
 
-NYT::NTableClient::TChannel TChannel::FromProto(const NProto::TChannel& protoChannel)
+NYT::NChunkClient::TChannel TChannel::FromProto(const NProto::TChannel& protoChannel)
 {
     TChannel result;
     for (int i = 0; i < protoChannel.columns_size(); ++i) {
@@ -461,7 +461,7 @@ void Deserialize(NProto::TReadLimit& readLimit, INodePtr node)
     if (node->GetType() != ENodeType::Map) {
         THROW_ERROR_EXCEPTION("Unexpected read limit token: %s", ~node->GetType().ToString());
     }
-    
+
     auto mapNode = node->AsMap();
     if (mapNode->GetChildCount() > 1) {
         THROW_ERROR_EXCEPTION("Too many children in read limit: %d > 1", mapNode->GetChildCount());
@@ -512,5 +512,5 @@ void Deserialize(NProto::TReadLimit& readLimit, INodePtr node)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
+} // namespace NChunkClient
 } // namespace NYT

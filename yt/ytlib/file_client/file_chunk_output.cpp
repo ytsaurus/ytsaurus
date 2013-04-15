@@ -159,7 +159,7 @@ void TFileChunkOutput::DoFinish()
         Meta.set_type(EChunkType::File);
         Meta.set_version(FormatVersion);
 
-        TMiscExt miscExt;
+        NChunkClient::NProto::TMiscExt miscExt;
         miscExt.set_uncompressed_data_size(Size);
         miscExt.set_compressed_data_size(Size);
         miscExt.set_meta_size(Meta.ByteSize());

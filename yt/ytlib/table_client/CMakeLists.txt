@@ -4,14 +4,11 @@ set( SRCS
   ${BASE}/channel_reader.cpp
   ${BASE}/channel_writer.cpp
   ${BASE}/chunk_writer_base.cpp
-  ${BASE}/helpers.cpp
-  ${BASE}/key.cpp
   ${BASE}/merging_reader.cpp
   ${BASE}/partition_chunk_reader.cpp
   ${BASE}/partition_chunk_writer.cpp
   ${BASE}/partitioner.cpp
   ${BASE}/private.cpp
-  ${BASE}/schema.cpp
   ${BASE}/size_limits.cpp
   ${BASE}/sync_reader.cpp
   ${BASE}/table_chunk_reader.cpp
@@ -30,8 +27,6 @@ set( HDRS
   ${BASE}/chunk_meta_extensions.h
   ${BASE}/chunk_writer_base.h
   ${BASE}/config.h
-  ${BASE}/helpers.h
-  ${BASE}/key.h
   ${BASE}/merging_reader.h
   ${BASE}/multi_chunk_parallel_reader-inl.h
   ${BASE}/multi_chunk_parallel_reader.h
@@ -44,7 +39,6 @@ set( HDRS
   ${BASE}/partitioner.h
   ${BASE}/private.h
   ${BASE}/public.h
-  ${BASE}/schema.h
   ${BASE}/size_limits.h
   ${BASE}/sync_reader.h
   ${BASE}/sync_writer.h
@@ -64,5 +58,4 @@ list(APPEND YT_SOURCE_FILES
 )
 
 protoc( ${BASE}/table_chunk_meta.proto YT_SOURCE_FILES )
-protoc( ${BASE}/table_reader.proto YT_SOURCE_FILES )
 protoc( ${BASE}/table_ypath.proto YT_SOURCE_FILES )

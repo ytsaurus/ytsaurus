@@ -4,15 +4,13 @@
 
 #include <ytlib/misc/id_generator.h>
 
-#include <ytlib/table_client/helpers.h>
 #include <ytlib/table_client/chunk_meta_extensions.h>
 
 namespace NYT {
 namespace NScheduler {
 
 using namespace NChunkServer;
-using namespace NTableClient;
-using namespace NTableClient::NProto;
+using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////
@@ -39,7 +37,7 @@ TChunkStripeStatistics TChunkStripe::GetStatistics() const
     FOREACH (const auto& chunk, Chunks) {
         i64 chunkDataSize;
         i64 chunkRowCount;
-        NYT::NTableClient::GetStatistics(*chunk, &chunkDataSize, &chunkRowCount);
+        NYT::NChunkClient::GetStatistics(*chunk, &chunkDataSize, &chunkRowCount);
         result.DataSize += chunkDataSize;
         result.RowCount += chunkRowCount;
         ++result.ChunkCount;

@@ -5,18 +5,16 @@
 #include <ytlib/misc/nullable.h>
 
 #include <ytlib/ytree/attributes.h>
-
-#include <ytlib/table_client/table_chunk_meta.pb.h>
-#include <ytlib/table_client/table_reader.pb.h>
+#include <ytlib/chunk_client/input_chunk.pb.h>
 
 namespace NYT {
-namespace NTableClient {
+namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TRefCountedInputChunk
     : public TIntrinsicRefCounted
-    , public NTableClient::NProto::TInputChunk
+    , public NChunkClient::NProto::TInputChunk
 {
     explicit TRefCountedInputChunk(
         const NProto::TInputChunk& other,
@@ -66,6 +64,6 @@ bool ExtractOverwriteFlag(const NYTree::IAttributeDictionary& attributes);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
+} // namespace NChunkClient
 } // namespace NYT
 
