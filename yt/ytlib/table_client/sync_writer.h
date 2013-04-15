@@ -1,10 +1,10 @@
 ﻿#pragma once
 
 #include "public.h"
-#include "key.h"
 
 #include <ytlib/node_tracker_client/public.h>
 
+#include <ytlib/chunk_client/key.h>
 #include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
 
 #include <ytlib/misc/ref_counted.h>
@@ -37,9 +37,9 @@ struct ISyncWriterUnsafe
     : public ISyncWriter
 {
     virtual void WriteRowUnsafe(const TRow& row) = 0;
-    virtual void WriteRowUnsafe(const TRow& row, const TNonOwningKey& key) = 0;
+    virtual void WriteRowUnsafe(const TRow& row, const NChunkClient::TNonOwningKey& key) = 0;
 
-    virtual const std::vector<NProto::TInputChunk>& GetWrittenChunks() const = 0;
+    virtual const std::vector<NChunkClient::NProto::TInputChunk>& GetWrittenChunks() const = 0;
 
     virtual NNodeTrackerClient::TNodeDirectoryPtr GetNodeDirectory() const= 0;
 
@@ -75,7 +75,7 @@ public:
         GetCurrentWriter()->WriteRowUnsafe(row);
     }
 
-    virtual void WriteRowUnsafe(const TRow& row, const TNonOwningKey& key) override
+    virtual void WriteRowUnsafe(const TRow& row, const NChunkClient::TNonOwningKey& key) override
     {
         GetCurrentWriter()->WriteRowUnsafe(row, key);
     }
@@ -95,7 +95,7 @@ public:
         return Writer->GetProvider()->GetRowCount();
     }
 
-    virtual const std::vector<NProto::TInputChunk>& GetWrittenChunks() const override
+    virtual const std::vector<NChunkClient::NProto::TInputChunk>& GetWrittenChunks() const override
     {
         return Writer->GetWrittenChunks();
     }

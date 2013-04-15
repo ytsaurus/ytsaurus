@@ -1,8 +1,9 @@
 ﻿#include "stdafx.h"
 #include "sync_writer.h"
 #include "table_consumer.h"
-#include "key.h"
 #include "config.h"
+
+#include <ytlib/chunk_client/key.h>
 
 namespace NYT {
 namespace NTableClient {

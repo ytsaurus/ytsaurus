@@ -53,7 +53,7 @@ protected:
 class TTableChunkReader::TKeyValidator
 {
 public:
-    TKeyValidator(const NProto::TKey& pivot, bool leftBoundary)
+    TKeyValidator(const NChunkClient::NProto::TKey& pivot, bool leftBoundary)
         : LeftBoundary(leftBoundary)
         , Pivot(TOwningKey::FromProto(pivot))
     { }
@@ -106,7 +106,7 @@ struct TBlockInfo
 template <template <typename T> class TComparator>
 struct TTableChunkReader::TIndexComparator
 {
-    bool operator()(const NProto::TKey& key, const NProto::TIndexRow& row)
+    bool operator()(const NChunkClient::NProto::TKey& key, const NProto::TIndexRow& row)
     {
         return Comparator(CompareKeys(key, row.key()), 0);
     }
@@ -125,8 +125,8 @@ public:
         TSequentialReaderConfigPtr config,
         TTableChunkReaderPtr chunkReader,
         NChunkClient::IAsyncReaderPtr asyncReader,
-        const NProto::TReadLimit& startLimit,
-        const NProto::TReadLimit& endLimit)
+        const NChunkClient::NProto::TReadLimit& startLimit,
+        const NChunkClient::NProto::TReadLimit& endLimit)
         : SequentialConfig(config)
         , AsyncReader(asyncReader)
         , ChunkReader(chunkReader)
@@ -545,8 +545,8 @@ private:
 
     TChannel Channel;
 
-    NProto::TReadLimit StartLimit;
-    NProto::TReadLimit EndLimit;
+    NChunkClient::NProto::TReadLimit StartLimit;
+    NChunkClient::NProto::TReadLimit EndLimit;
 
     THolder<TKeyValidator> StartValidator;
 
@@ -680,8 +680,8 @@ TTableChunkReader::TTableChunkReader(
     TSequentialReaderConfigPtr config,
     const TChannel& channel,
     NChunkClient::IAsyncReaderPtr chunkReader,
-    const NProto::TReadLimit& startLimit,
-    const NProto::TReadLimit& endLimit,
+    const NChunkClient::NProto::TReadLimit& startLimit,
+    const NChunkClient::NProto::TReadLimit& endLimit,
     const NYTree::TYsonString& rowAttributes,
     int partitionTag,
     TChunkReaderOptionsPtr options)
@@ -916,7 +916,7 @@ bool TTableChunkReaderProvider::KeepInMemory() const
 }
 
 TTableChunkReaderPtr TTableChunkReaderProvider::CreateNewReader(
-    const NProto::TInputChunk& inputChunk,
+    const NChunkClient::NProto::TInputChunk& inputChunk,
     const NChunkClient::IAsyncReaderPtr& chunkReader)
 {
     TYsonString rowAttributes;

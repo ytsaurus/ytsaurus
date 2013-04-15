@@ -3,8 +3,6 @@
 #include "private.h"
 #include "chunk_pool.h"
 
-#include <ytlib/table_client/helpers.h>
-
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <ytlib/rpc/channel_cache.h>
@@ -20,8 +18,7 @@ namespace NScheduler {
 
 using namespace NChunkClient;
 using namespace NNodeTrackerClient;
-
-using NTableClient::NProto::TKey;
+using NChunkClient::NProto::TKey;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -55,7 +52,7 @@ NLog::TTaggedLogger& TSamplesFetcher::GetLogger()
     return Logger;
 }
 
-void TSamplesFetcher::Prepare(const std::vector<NTableClient::TRefCountedInputChunkPtr>& chunks)
+void TSamplesFetcher::Prepare(const std::vector<NChunkClient::TRefCountedInputChunkPtr>& chunks)
 {
     YCHECK(DesiredSampleCount > 0);
 
@@ -79,7 +76,7 @@ void TSamplesFetcher::Prepare(const std::vector<NTableClient::TRefCountedInputCh
     CurrentSize = SizeBetweenSamples;
 }
 
-const std::vector<TKey>& TSamplesFetcher::GetSamples() const
+const std::vector<NChunkClient::NProto::TKey>& TSamplesFetcher::GetSamples() const
 {
     return Samples;
 }
@@ -95,7 +92,7 @@ void TSamplesFetcher::CreateNewRequest(const TNodeDescriptor& descriptor)
     ToProto(CurrentRequest->mutable_key_columns(), Spec->SortBy);
 }
 
-bool TSamplesFetcher::AddChunkToRequest(NTableClient::TRefCountedInputChunkPtr chunk)
+bool TSamplesFetcher::AddChunkToRequest(NChunkClient::TRefCountedInputChunkPtr chunk)
 {
     i64 chunkDataSize;
     GetStatistics(*chunk, &chunkDataSize);
@@ -127,7 +124,7 @@ auto TSamplesFetcher::InvokeRequest() -> TFuture<TResponsePtr>
 TError TSamplesFetcher::ProcessResponseItem(
     TResponsePtr rsp,
     int index,
-    NTableClient::TRefCountedInputChunkPtr chunk)
+    NChunkClient::TRefCountedInputChunkPtr chunk)
 {
     YCHECK(rsp->IsOK());
 

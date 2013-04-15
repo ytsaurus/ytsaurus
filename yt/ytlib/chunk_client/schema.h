@@ -2,14 +2,13 @@
 
 #include "public.h"
 
-#include <ytlib/table_client/table_chunk_meta.pb.h>
-#include <ytlib/table_client/table_reader.pb.h>
+#include <ytlib/chunk_client/input_chunk.pb.h>
 
 #include <ytlib/ytree/public.h>
 #include <ytlib/yson/yson_consumer.h>
 
 namespace NYT {
-namespace NTableClient {
+namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -99,5 +98,5 @@ void Deserialize(NProto::TReadLimit& readLimit, NYTree::INodePtr node);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
+} // namespace NChunkClient
 } // namespace NYT

@@ -2,7 +2,8 @@
 #include "merging_reader.h"
 #include "table_chunk_reader.h"
 #include "multi_chunk_sequential_reader.h"
-#include "key.h"
+
+#include <ytlib/chunk_client/key.h>
 
 #include <ytlib/misc/sync.h>
 #include <ytlib/misc/heap.h>
@@ -99,7 +100,7 @@ public:
         }
     }
 
-    virtual const TNonOwningKey& GetKey() const override
+    virtual const NChunkClient::TNonOwningKey& GetKey() const override
     {
         return ReaderHeap.front()->CurrentReader()->GetKey();
     }

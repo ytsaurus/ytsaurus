@@ -50,7 +50,7 @@ public:
         YCHECK(schedulerJobSpecExt.input_specs_size() == 1);
 
         const auto& inputSpec = schedulerJobSpecExt.input_specs(0);
-        std::vector<NTableClient::NProto::TInputChunk> chunks(
+        std::vector<NChunkClient::NProto::TInputChunk> chunks(
             inputSpec.chunks().begin(),
             inputSpec.chunks().end());
 

@@ -1,15 +1,13 @@
 #include "stdafx.h"
-#include "helpers.h"
+#include "input_chunk.h"
 #include "key.h"
 #include "chunk_meta_extensions.h"
 
 #include <ytlib/ytree/attribute_helpers.h>
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
 
 namespace NYT {
-namespace NTableClient {
+namespace NChunkClient {
 
-using namespace NTableClient::NProto;
 using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -40,7 +38,7 @@ void GetStatistics(
     i64* valueCount)
 {
     auto miscExt = GetProtoExtension<TMiscExt>(inputChunk.extensions());
-    auto sizeOverrideExt = FindProtoExtension<NTableClient::NProto::TSizeOverrideExt>(inputChunk.extensions());
+    auto sizeOverrideExt = FindProtoExtension<TSizeOverrideExt>(inputChunk.extensions());
     if (sizeOverrideExt) {
         if (dataSize) {
             *dataSize = sizeOverrideExt->uncompressed_data_size();
@@ -108,7 +106,7 @@ std::vector<TRefCountedInputChunkPtr> SliceChunkEvenly(TRefCountedInputChunkPtr 
             slicedChunk->mutable_end_limit()->set_row_index(sliceEndRowIndex);
 
             // This is merely an approximation.
-            NTableClient::NProto::TSizeOverrideExt sizeOverride;
+            TSizeOverrideExt sizeOverride;
             sizeOverride.set_row_count(sliceEndRowIndex - sliceStartRowIndex);
             sizeOverride.set_uncompressed_data_size(dataSize / count + 1);
             UpdateProtoExtension(slicedChunk->mutable_extensions(), sizeOverride);
@@ -128,7 +126,7 @@ TRefCountedInputChunkPtr CreateCompleteChunk(TRefCountedInputChunkPtr inputChunk
     chunk->mutable_end_limit()->clear_key();
     chunk->mutable_end_limit()->clear_row_index();
 
-    RemoveProtoExtension<NTableClient::NProto::TSizeOverrideExt>(chunk->mutable_extensions());
+    RemoveProtoExtension<TSizeOverrideExt>(chunk->mutable_extensions());
     return chunk;
 }
 

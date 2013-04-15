@@ -9,7 +9,7 @@
 
 #include <ytlib/actions/parallel_awaiter.h>
 
-#include <ytlib/table_client/table_reader.pb.h>
+#include <ytlib/chunk_client/input_chunk.pb.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
 #include <ytlib/object_client/master_ypath_proxy.h>
@@ -53,12 +53,13 @@ public:
 
     void SetProgress(double progress);
 
-    //! Only valid when the writer is closed.
-    const std::vector<NTableClient::NProto::TInputChunk>& GetWrittenChunks() const;
+    /*!
+     *  To get consistent data, should be called only when the writer is closed.
+     */
+    const std::vector<NChunkClient::NProto::TInputChunk>& GetWrittenChunks() const;
 
     //! Provides node id to descriptor mapping for chunks returned via #GetWrittenChunks.
     NNodeTrackerClient::TNodeDirectoryPtr GetNodeDirectory() const;
-
     TProviderPtr GetProvider();
 
     //! Current row count.
@@ -146,7 +147,7 @@ protected:
     TParallelAwaiterPtr CloseChunksAwaiter;
 
     TSpinLock WrittenChunksGuard;
-    std::vector<NTableClient::NProto::TInputChunk> WrittenChunks;
+    std::vector<NChunkClient::NProto::TInputChunk> WrittenChunks;
 
     NLog::TTaggedLogger Logger;
 

@@ -1,8 +1,6 @@
 ﻿#pragma once
 
 #include "public.h"
-#include "schema.h"
-#include "key.h"
 #include "chunk_writer_base.h"
 
 #include <ytlib/misc/thread_affinity.h>
@@ -13,6 +11,8 @@
 #include <ytlib/chunk_client/chunk.pb.h>
 
 #include <ytlib/chunk_client/public.h>
+#include <ytlib/chunk_client/schema.h>
+#include <ytlib/chunk_client/key.h>
 #include <ytlib/chunk_client/chunk_ypath_proxy.h>
 
 namespace NYT {
@@ -33,7 +33,7 @@ public:
     void WriteRowUnsafe(const TRow& row);
 
     // Required by SyncWriterAdapter.
-    void WriteRowUnsafe(const TRow& row, const TNonOwningKey& key);
+    void WriteRowUnsafe(const TRow& row, const NChunkClient::TNonOwningKey& key);
 
 private:
     friend class TPartitionChunkWriter;

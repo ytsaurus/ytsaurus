@@ -14,7 +14,7 @@ TMultiChunkSequentialReader<TChunkReader>::TMultiChunkSequentialReader(
     NRpc::IChannelPtr masterChannel,
     NChunkClient::IBlockCachePtr blockCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
-    std::vector<NProto::TInputChunk>&& inputChunks,
+    std::vector<NChunkClient::NProto::TInputChunk>&& inputChunks,
     const typename TBase::TProviderPtr& readerProvider)
     : TMultiChunkReaderBase<TChunkReader>(
         config,

@@ -4,7 +4,6 @@
 #include "table_chunk_reader.h"
 #include "multi_chunk_sequential_reader.h"
 #include "private.h"
-#include "helpers.h"
 
 #include <ytlib/actions/async_pipeline.h>
 #include <ytlib/misc/sync.h>
@@ -22,7 +21,6 @@ namespace NYT {
 namespace NTableClient {
 
 using namespace NCypressClient;
-using namespace NTableClient;
 using namespace NChunkClient;
 using namespace NNodeTrackerClient;
 
@@ -77,8 +75,7 @@ TAsyncError TAsyncTableReader::OpenChunkReader(TTableYPathProxy::TRspFetchPtr fe
     THROW_ERROR_EXCEPTION_IF_FAILED(*fetchRsp, "Error fetching table info");
 
     NodeDirectory->MergeFrom(fetchRsp->node_directory());
-
-    auto inputChunks = FromProto<NProto::TInputChunk>(fetchRsp->chunks());
+    auto inputChunks = FromProto<NChunkClient::NProto::TInputChunk>(fetchRsp->chunks());
 
     auto provider = New<TTableChunkReaderProvider>(
         Config,

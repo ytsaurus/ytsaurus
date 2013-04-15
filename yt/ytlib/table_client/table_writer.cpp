@@ -1,9 +1,7 @@
 ﻿#include "stdafx.h"
 #include "table_writer.h"
-#include "helpers.h"
 #include "config.h"
 #include "private.h"
-#include "schema.h"
 #include "table_chunk_writer.h"
 
 #include <ytlib/misc/sync.h>
@@ -11,6 +9,9 @@
 
 #include <ytlib/transaction_client/transaction.h>
 #include <ytlib/transaction_client/transaction_manager.h>
+
+#include <ytlib/chunk_client/schema.h>
+#include <ytlib/chunk_client/input_chunk.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
@@ -82,7 +83,8 @@ void TTableWriter::Open()
     LOG_INFO("Upload transaction created (TransactionId: %s)", ~ToString(uploadTransactionId));
 
     auto path = RichPath.GetPath();
-    bool overwrite = ExtractOverwriteFlag(RichPath.Attributes());
+
+    bool overwrite = NChunkClient::ExtractOverwriteFlag(RichPath.Attributes());
     bool clear = Options->KeyColumns.HasValue() || overwrite;
 
     LOG_INFO("Requesting table info");

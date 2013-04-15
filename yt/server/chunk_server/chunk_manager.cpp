@@ -21,10 +21,10 @@
 #include <ytlib/chunk_client/chunk_ypath.pb.h>
 #include <ytlib/chunk_client/chunk_list_ypath.pb.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
+#include <ytlib/chunk_client/schema.h>
 
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 #include <ytlib/table_client/table_ypath.pb.h>
-#include <ytlib/table_client/schema.h>
 
 #include <ytlib/meta_state/meta_state_manager.h>
 #include <ytlib/meta_state/composite_meta_state.h>

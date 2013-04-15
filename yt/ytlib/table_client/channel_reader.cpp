@@ -11,7 +11,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChannelReader::TChannelReader(const TChannel& channel)
+TChannelReader::TChannelReader(const NChunkClient::TChannel& channel)
     : Channel(channel)
     , ColumnBuffers(channel.GetColumns().size() + 1)
     , CurrentColumnIndex(-1)

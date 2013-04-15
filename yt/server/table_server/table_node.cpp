@@ -3,7 +3,7 @@
 #include "table_node_proxy.h"
 #include "private.h"
 
-#include <ytlib/table_client/schema.h>
+#include <ytlib/chunk_client/schema.h>
 
 #include <server/chunk_server/chunk.h>
 #include <server/chunk_server/chunk_list.h>

@@ -57,7 +57,7 @@ public:
 
         KeyColumns = FromProto<Stroka>(SortJobSpecExt.key_columns());
 
-        std::vector<NTableClient::NProto::TInputChunk> chunks(
+        std::vector<NChunkClient::NProto::TInputChunk> chunks(
             inputSpec.chunks().begin(),
             inputSpec.chunks().end());
 

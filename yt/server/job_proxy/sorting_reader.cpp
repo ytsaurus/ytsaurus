@@ -25,6 +25,7 @@ namespace NYT {
 namespace NJobProxy {
 
 using namespace NTableClient;
+using namespace NChunkClient;
 using namespace NYTree;
 using namespace NYson;
 
@@ -52,7 +53,7 @@ public:
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         const TKeyColumns& keyColumns,
         TClosure onNetworkReleased,
-        std::vector<NTableClient::NProto::TInputChunk>&& chunks,
+        std::vector<NChunkClient::NProto::TInputChunk>&& chunks,
         int estimatedRowCount,
         bool isApproximate)
         : KeyColumns(keyColumns)
@@ -475,7 +476,7 @@ ISyncReaderPtr CreateSortingReader(
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const TKeyColumns& keyColumns,
     TClosure onNetworkReleased,
-    std::vector<NTableClient::NProto::TInputChunk>&& chunks,
+    std::vector<NChunkClient::NProto::TInputChunk>&& chunks,
     int estimatedRowCount,
     bool isApproximate)
 {

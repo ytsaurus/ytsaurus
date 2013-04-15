@@ -3,16 +3,16 @@
 #include "public.h"
 #include "chunk_writer_base.h"
 #include "channel_writer.h"
-#include "schema.h"
-#include "key.h"
 
 #include <ytlib/table_client/table_chunk_meta.pb.h>
+
+#include <ytlib/chunk_client/public.h>
+#include <ytlib/chunk_client/schema.h>
+#include <ytlib/chunk_client/key.h>
 #include <ytlib/chunk_client/chunk.pb.h>
 
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/blob_output.h>
-
-#include <ytlib/chunk_client/public.h>
 
 #include <ytlib/compression/public.h>
 
@@ -36,7 +36,7 @@ public:
     void WriteRow(const TRow& row);
 
     // Used internally. All column names are guaranteed to be unique.
-    void WriteRowUnsafe(const TRow& row, const TNonOwningKey& key);
+    void WriteRowUnsafe(const TRow& row, const NChunkClient::TNonOwningKey& key);
     void WriteRowUnsafe(const TRow& row);
 
 private:
@@ -65,7 +65,7 @@ public:
         TChunkWriterConfigPtr config,
         TChunkWriterOptionsPtr options,
         NChunkClient::IAsyncWriterPtr chunkWriter,
-        TOwningKey&& lastKey);
+        NChunkClient::TOwningKey&& lastKey);
 
     ~TTableChunkWriter();
 
@@ -79,12 +79,12 @@ public:
 
     // Used by provider.
     i64 GetRowCount() const;
-    const TOwningKey& GetLastKey() const;
+    const NChunkClient::TOwningKey& GetLastKey() const;
     const NProto::TBoundaryKeysExt& GetBoundaryKeys() const;
 
     // Used by facade.
     void WriteRow(const TRow& row);
-    void WriteRowUnsafe(const TRow& row, const TNonOwningKey& key);
+    void WriteRowUnsafe(const TRow& row, const NChunkClient::TNonOwningKey& key);
     void WriteRowUnsafe(const TRow& row);
 
 private:
@@ -111,7 +111,7 @@ private:
     };
 
     TTableChunkWriterFacade Facade;
-    TChannels Channels;
+    NChunkClient::TChannels Channels;
 
     //! Stores mapping from all key columns and channel non-range columns to indexes.
     yhash_map<TStringBuf, TColumnInfo> ColumnMap;
@@ -120,8 +120,8 @@ private:
     // Used for key creation.
     NYson::TLexer Lexer;
 
-    TNonOwningKey CurrentKey;
-    TOwningKey LastKey;
+    NChunkClient::TNonOwningKey CurrentKey;
+    NChunkClient::TOwningKey LastKey;
 
     //! Approximate size of collected samples.
     i64 SamplesSize;

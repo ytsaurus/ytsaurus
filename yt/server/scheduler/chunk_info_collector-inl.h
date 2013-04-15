@@ -5,7 +5,7 @@
 
 #include <ytlib/actions/parallel_awaiter.h>
 
-#include <ytlib/table_client/key.h>
+#include <ytlib/chunk_client/key.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -25,7 +25,7 @@ TChunkInfoCollector<TFetcher>::TChunkInfoCollector(
 
 template <class TFetcher>
 void TChunkInfoCollector<TFetcher>::AddChunk(
-    NTableClient::TRefCountedInputChunkPtr chunk)
+    NChunkClient::TRefCountedInputChunkPtr chunk)
 {
     YCHECK(UnfetchedChunkIndexes.insert(static_cast<int>(Chunks.size())).second);
     Chunks.push_back(chunk);

@@ -1,18 +1,20 @@
 #pragma once
 
 #include "public.h"
-#include "schema.h"
-#include "key.h"
+
+#include <ytlib/chunk_client/public.h>
+#include <ytlib/chunk_client/schema.h>
+#include <ytlib/chunk_client/key.h>
+#include <ytlib/chunk_client/input_chunk.h>
+
+#include <ytlib/table_client/table_chunk_meta.pb.h>
+
+#include <ytlib/compression/public.h>
 
 #include <ytlib/misc/blob_output.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/async_stream_state.h>
 
-#include <ytlib/compression/public.h>
-
-#include <ytlib/table_client/table_reader.pb.h>
-
-#include <ytlib/chunk_client/public.h>
 
 #include <ytlib/ytree/public.h>
 #include <ytlib/ytree/yson_string.h>
@@ -33,7 +35,7 @@ public:
         const TChunkReaderOptionsPtr& options = New<TChunkReaderOptions>());
 
     TTableChunkReaderPtr CreateNewReader(
-        const NProto::TInputChunk& inputChunk,
+        const NChunkClient::NProto::TInputChunk& inputChunk,
         const NChunkClient::IAsyncReaderPtr& chunkReader);
 
     bool KeepInMemory() const;
@@ -56,10 +58,10 @@ public:
 
     TTableChunkReader(
         NChunkClient::TSequentialReaderConfigPtr config,
-        const TChannel& channel,
+        const NChunkClient::TChannel& channel,
         NChunkClient::IAsyncReaderPtr chunkReader,
-        const NProto::TReadLimit& startLimit,
-        const NProto::TReadLimit& endLimit,
+        const NChunkClient::NProto::TReadLimit& startLimit,
+        const NChunkClient::NProto::TReadLimit& endLimit,
         const NYTree::TYsonString& rowAttributes,
         int partitionTag,
         TChunkReaderOptionsPtr options);
@@ -72,7 +74,7 @@ public:
     bool IsValid() const;
 
     const TRow& GetRow() const;
-    const TNonOwningKey& GetKey() const;
+    const NChunkClient::TNonOwningKey& GetKey() const;
     const NYTree::TYsonString& GetRowAttributes() const;
 
     i64 GetRowIndex() const;
@@ -98,7 +100,7 @@ private:
     struct TIndexComparator;
 
     NChunkClient::TSequentialReaderPtr SequentialReader;
-    TChannel Channel;
+    NChunkClient::TChannel Channel;
 
     bool DoNextRow();
     bool ContinueNextRow(
@@ -123,7 +125,7 @@ private:
 
     NYTree::TYsonString RowAttributes;
     TRow CurrentRow;
-    TNonOwningKey CurrentKey;
+    NChunkClient::TNonOwningKey CurrentKey;
 
     NYson::TLexer Lexer;
 

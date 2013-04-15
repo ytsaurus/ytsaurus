@@ -65,7 +65,7 @@ public:
             auto options = New<TChunkReaderOptions>();
             options->KeepBlocks = true;
 
-            std::vector<NTableClient::NProto::TInputChunk> chunks(
+            std::vector<NChunkClient::NProto::TInputChunk> chunks(
                 inputSpec.chunks().begin(),
                 inputSpec.chunks().end());
 

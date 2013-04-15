@@ -3,9 +3,10 @@
 #include "public.h"
 
 #include <ytlib/table_client/public.h>
-#include <ytlib/table_client/table_reader.pb.h>
 
 #include <ytlib/chunk_client/public.h>
+
+#include <ytlib/chunk_client/input_chunk.h>
 
 #include <ytlib/node_tracker_client/public.h>
 
@@ -23,7 +24,7 @@ NTableClient::ISyncReaderPtr CreateSortingReader(
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const NTableClient::TKeyColumns& keyColumns,
     TClosure onNetworkReleased,
-    std::vector<NTableClient::NProto::TInputChunk>&& chunks,
+    std::vector<NChunkClient::NProto::TInputChunk>&& chunks,
     int estimatedRowCount,
     bool isApproximate);
 

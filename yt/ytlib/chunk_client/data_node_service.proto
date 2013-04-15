@@ -4,8 +4,7 @@ import "yt/ytlib/misc/guid.proto";
 import "yt/ytlib/misc/error.proto";
 import "yt/ytlib/node_tracker_client/node.proto";
 import "yt/ytlib/chunk_client/chunk.proto";
-import "yt/ytlib/table_client/table_reader.proto";
-import "yt/ytlib/table_client/table_chunk_meta.proto";
+import "yt/ytlib/chunk_client/input_chunk.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -108,7 +107,7 @@ message TReqGetChunkMeta
 {
     required NYT.NProto.TGuid chunk_id = 1;
     repeated int32 extension_tags = 2;
-    // If true, then extension_tags are ignored and 
+    // If true, then extension_tags are ignored and
     // the whole available meta is returned.
     optional bool all_extension_tags = 3 [default = false];
     optional int32 partition_tag = 4;
@@ -163,7 +162,7 @@ message TRspGetTableSamples
     message TChunkSamples
     {
         optional NYT.NProto.TError error = 1;
-        repeated NTableClient.NProto.TKey items = 2;
+        repeated NChunkClient.NProto.TKey items = 2;
     }
 
     repeated TChunkSamples samples = 1;
@@ -175,7 +174,7 @@ message TRspGetTableSamples
 // Scheduler calls this method to perform sorted merge.
 message TReqGetChunkSplits
 {
-    repeated NTableClient.NProto.TInputChunk input_chunks = 1;
+    repeated NChunkClient.NProto.TInputChunk input_chunks = 1;
     repeated string key_columns = 2;
     required int64 min_split_size = 3;
 }
@@ -185,7 +184,7 @@ message TRspGetChunkSplits
     message TChunkSplits
     {
         optional NYT.NProto.TError error = 1;
-        repeated NTableClient.NProto.TInputChunk input_chunks = 2;
+        repeated NChunkClient.NProto.TInputChunk input_chunks = 2;
     }
 
     repeated TChunkSplits splitted_chunks = 1;

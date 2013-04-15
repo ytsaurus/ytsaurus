@@ -204,7 +204,7 @@ TFuture<void> TJob::DownloadRegularFile(
 {
     const auto& fetchRsp = descriptor.file();
     auto chunkId = FromProto<TChunkId>(fetchRsp.chunk_id());
-    
+
     LOG_INFO("Downloading user file (FileName: %s, ChunkId: %s)",
         ~fetchRsp.file_name(),
         ~ToString(chunkId));
@@ -307,7 +307,7 @@ void TJob::OnTableChunksDownloaded(
     // TODO(babenko): change this to handle erasure chunks
     auto nodeDirectory = New<TNodeDirectory>();
     nodeDirectory->AddDescriptor(InvalidNodeId, Bootstrap->GetLocalDescriptor());
-    std::vector<NTableClient::NProto::TInputChunk> chunks;
+    std::vector<NChunkClient::NProto::TInputChunk> chunks;
     chunks.insert(
         chunks.end(),
         descriptor.table().chunks().begin(),

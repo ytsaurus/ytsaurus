@@ -3,10 +3,10 @@
 #include "public.h"
 #include "value.h"
 
-#include <ytlib/table_client/table_reader.pb.h>
 
-#include <ytlib/chunk_client/public.h>
+#include <ytlib/chunk_client/input_chunk.pb.h>
 #include <ytlib/chunk_client/async_reader.h>
+#include <ytlib/chunk_client/public.h>
 
 #include <ytlib/misc/async_stream_state.h>
 
@@ -26,7 +26,7 @@ public:
     TPartitionChunkReaderProvider(const NChunkClient::TSequentialReaderConfigPtr& config);
 
     TPartitionChunkReaderPtr CreateNewReader(
-        const NProto::TInputChunk& inputChunk,
+        const NChunkClient::NProto::TInputChunk& inputChunk,
         const NChunkClient::IAsyncReaderPtr& chunkReader);
 
     bool KeepInMemory() const;

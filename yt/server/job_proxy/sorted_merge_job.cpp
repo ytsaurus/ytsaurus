@@ -63,7 +63,7 @@ public:
 
             FOREACH (const auto& inputSpec, SchedulerJobSpecExt.input_specs()) {
                 // ToDo(psushin): validate that input chunks are sorted.
-                std::vector<NTableClient::NProto::TInputChunk> chunks(
+                std::vector<NChunkClient::NProto::TInputChunk> chunks(
                     inputSpec.chunks().begin(),
                     inputSpec.chunks().end());
 

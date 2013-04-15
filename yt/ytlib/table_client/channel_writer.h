@@ -1,7 +1,6 @@
 #pragma once
 
 #include "public.h"
-#include "schema.h"
 
 #include <ytlib/misc/chunked_output_stream.h>
 #include <ytlib/misc/property.h>

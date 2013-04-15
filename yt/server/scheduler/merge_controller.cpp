@@ -13,7 +13,7 @@
 
 #include <ytlib/transaction_client/transaction.h>
 
-#include <ytlib/table_client/helpers.h>
+#include <ytlib/chunk_client/input_chunk.h>
 #include <ytlib/table_client/chunk_meta_extensions.h>
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
@@ -360,7 +360,7 @@ protected:
                     auto chunkId = FromProto<TChunkId>(inputChunk.chunk_id());
 
                     i64 chunkDataSize;
-                    NTableClient::GetStatistics(inputChunk, &chunkDataSize);
+                    NChunkClient::GetStatistics(inputChunk, &chunkDataSize);
 
                     auto rcInputChunk = New<TRefCountedInputChunk>(inputChunk, tableIndex);
                     chunks.push_back(rcInputChunk);
@@ -483,7 +483,7 @@ protected:
     bool IsLargeChunk(const TInputChunk& inputChunk)
     {
         i64 chunkDataSize;
-        NTableClient::GetStatistics(inputChunk, &chunkDataSize);
+        NChunkClient::GetStatistics(inputChunk, &chunkDataSize);
 
         // ChunkSequenceWriter may actually produce a chunk a bit smaller than DesiredChunkSize,
         // so we have to be more flexible here.
@@ -797,7 +797,7 @@ protected:
     struct TKeyEndpoint
     {
         EEndpointType Type;
-        NTableClient::NProto::TKey Key;
+        NChunkClient::NProto::TKey Key;
         TRefCountedInputChunkPtr InputChunk;
     };
 
@@ -888,7 +888,7 @@ protected:
         yhash_set<TRefCountedInputChunkPtr> openedChunks;
 
         int currentIndex = 0;
-        TNullable<NTableClient::NProto::TKey> lastBreakpoint;
+        TNullable<NChunkClient::NProto::TKey> lastBreakpoint;
 
         int endpointsCount = static_cast<int>(Endpoints.size());
         int prefixLength = static_cast<int>(KeyColumns.size());

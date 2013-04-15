@@ -3,9 +3,9 @@
 #include "public.h"
 #include "private.h"
 
-#include <ytlib/chunk_client/public.h>
+#include <ytlib/chunk_client/input_chunk.pb.h>
 
-#include <ytlib/table_client/table_reader.pb.h>
+#include <ytlib/chunk_client/public.h>
 
 #include <ytlib/node_tracker_client/public.h>
 
@@ -38,7 +38,7 @@ public:
         NRpc::IChannelPtr masterChannel,
         NChunkClient::IBlockCachePtr blockCache,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
-        std::vector<NProto::TInputChunk>&& inputChunks,
+        std::vector<NChunkClient::NProto::TInputChunk>&& inputChunks,
         const TProviderPtr& readerProvider);
 
     const TIntrusivePtr<TChunkReader>& CurrentReader() const;
@@ -75,7 +75,8 @@ protected:
     NRpc::IChannelPtr MasterChannel;
     NChunkClient::IBlockCachePtr BlockCache;
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
-    std::vector<NProto::TInputChunk> InputChunks;
+
+    std::vector<NChunkClient::NProto::TInputChunk> InputChunks;
 
     TProviderPtr ReaderProvider;
 

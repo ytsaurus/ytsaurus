@@ -8,7 +8,7 @@ namespace NYT {
 namespace NJobProxy {
 
 using namespace NYTree;
-using namespace NTableClient;
+using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 

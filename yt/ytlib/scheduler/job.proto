@@ -2,8 +2,8 @@ package NYT.NScheduler.NProto;
 
 import "yt/ytlib/node_tracker_client/node.proto";
 import "yt/ytlib/chunk_client/chunk.proto";
+import "yt/ytlib/chunk_client/input_chunk.proto";
 import "yt/ytlib/table_client/table_ypath.proto";
-import "yt/ytlib/table_client/table_reader.proto";
 import "yt/ytlib/table_client/table_chunk_meta.proto";
 import "yt/ytlib/file_client/file_ypath.proto";
 import "yt/ytlib/misc/error.proto";
@@ -34,7 +34,7 @@ message TJobSpec
 message TTableInputSpec
 {
     // Chunks comprising the input.
-    repeated NTableClient.NProto.TInputChunk chunks = 1;
+    repeated NYT.NChunkClient.NProto.TInputChunk chunks = 1;
 }
 
 // Defines how to store output from a job into a table.
@@ -94,7 +94,7 @@ message TJobResult
 
     // List of output chunks produced by the job.
     // NB: Only filled when neccessary.
-    repeated NYT.NTableClient.NProto.TInputChunk chunks = 3;
+    repeated NYT.NChunkClient.NProto.TInputChunk chunks = 3;
 
     // List of input chunks the job was unable to read.
     repeated NYT.NProto.TGuid failed_chunk_ids = 4;
@@ -248,7 +248,7 @@ message TPartitionJobSpecExt
 
     // If empty then THashPartitioner is used.
     // Otherwise TOrderedPartitioner is used.
-    repeated NYT.NTableClient.NProto.TKey partition_keys = 2;
+    repeated NYT.NChunkClient.NProto.TKey partition_keys = 2;
 
     repeated string key_columns = 3;
 
@@ -262,7 +262,8 @@ message TPartitionJobResultExt
         optional TPartitionJobResultExt partition_job_result_ext = 102;
     }
 
-    optional TUserJobResult mapper_result = 3;
+    repeated NYT.NChunkClient.NProto.TInputChunk chunks = 1;
+    optional TUserJobResult mapper_result = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -283,6 +284,16 @@ message TSortJobSpecExt
     }
 
     repeated string key_columns = 5;
+}
+
+message TSortJobResultExt
+{
+    extend TJobResult
+    {
+        optional TSortJobResultExt sort_job_result_ext = 103;
+    }
+
+    repeated NYT.NChunkClient.NProto.TInputChunk chunks = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

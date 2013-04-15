@@ -5,8 +5,7 @@
 #include <ytlib/misc/error.h>
 
 #include <ytlib/node_tracker_client/public.h>
-
-#include <ytlib/table_client/helpers.h>
+#include <ytlib/chunk_client/input_chunk.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -25,7 +24,7 @@ public:
         TFetcherPtr fetcher,
         IInvokerPtr invoker);
 
-    void AddChunk(NTableClient::TRefCountedInputChunkPtr chunk);
+    void AddChunk(NChunkClient::TRefCountedInputChunkPtr chunk);
     TFuture< TValueOrError<void> > Run();
 
 private:
@@ -36,7 +35,7 @@ private:
     TPromise< TValueOrError<void> > Promise;
 
     //! All chunks for which info is to be fetched.
-    std::vector<NTableClient::TRefCountedInputChunkPtr> Chunks;
+    std::vector<NChunkClient::TRefCountedInputChunkPtr> Chunks;
 
     //! Indexes of chunks for which no info is fetched yet.
     yhash_set<int> UnfetchedChunkIndexes;

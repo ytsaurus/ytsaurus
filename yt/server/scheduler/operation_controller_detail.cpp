@@ -7,14 +7,11 @@
 
 #include <ytlib/transaction_client/transaction.h>
 
-#include <ytlib/chunk_client/chunk_list_ypath_proxy.h>
-#include <ytlib/chunk_client/chunk_replica.h>
-
-#include <ytlib/node_tracker_client/node_directory.h>
 #include <ytlib/node_tracker_client/node_directory_builder.h>
 
-#include <ytlib/table_client/key.h>
-#include <ytlib/table_client/schema.h>
+#include <ytlib/chunk_client/chunk_list_ypath_proxy.h>
+#include <ytlib/chunk_client/key.h>
+#include <ytlib/chunk_client/schema.h>
 
 #include <ytlib/object_client/object_ypath_proxy.h>
 
@@ -32,7 +29,7 @@
 
 #include <ytlib/scheduler/config.h>
 
-#include <ytlib/table_client/helpers.h>
+#include <ytlib/chunk_client/input_chunk.h>
 
 #include <ytlib/meta_state/rpc_helpers.h>
 
@@ -510,6 +507,16 @@ void TOperationControllerBase::TTask::RegisterIntermediateChunks(
     }
 }
 
+TChunkStripePtr TOperationControllerBase::TTask::BuildIntermediateChunkStripe(
+    google::protobuf::RepeatedPtrField<NChunkClient::NProto::TInputChunk>* inputChunks)
+{
+    auto stripe = New<TChunkStripe>();
+    FOREACH (auto& inputChunk, *inputChunks) {
+        stripe->Chunks.push_back(New<TRefCountedInputChunk>(std::move(inputChunk)));
+    }
+    return stripe;
+}
+
 void TOperationControllerBase::TTask::RegisterOutput(TJobletPtr joblet, int key)
 {
     Controller->RegisterOutput(joblet, key);
@@ -560,7 +567,7 @@ void TOperationControllerBase::Initialize()
     FOREACH (const auto& path, GetOutputTablePaths()) {
         TOutputTable table;
         table.Path = path;
-        if (NTableClient::ExtractOverwriteFlag(path.Attributes())) {
+        if (NChunkClient::ExtractOverwriteFlag(path.Attributes())) {
             table.Clear = true;
             table.Overwrite = true;
             table.LockMode = ELockMode::Exclusive;
@@ -1278,7 +1285,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::CommitResults()
                     [=] (const TOutputTable::TEndpoint& lhs, const TOutputTable::TEndpoint& rhs) -> bool {
                         // First sort by keys.
                         // Then sort by ChunkTreeKeys.
-                        auto keysResult = NTableClient::NProto::CompareKeys(lhs.Key, rhs.Key);
+                        auto keysResult = NChunkClient::NProto::CompareKeys(lhs.Key, rhs.Key);
                         if (keysResult != 0) {
                             return keysResult < 0;
                         }
@@ -1842,7 +1849,7 @@ TFuture<void> TOperationControllerBase::CompletePreparation()
             i64 chunkDataSize;
             i64 chunkRowCount;
             i64 chunkValueCount;
-            NTableClient::GetStatistics(chunk, &chunkDataSize, &chunkRowCount, &chunkValueCount);
+            NChunkClient::GetStatistics(chunk, &chunkDataSize, &chunkRowCount, &chunkValueCount);
 
             TotalInputDataSize += chunkDataSize;
             TotalInputRowCount += chunkRowCount;

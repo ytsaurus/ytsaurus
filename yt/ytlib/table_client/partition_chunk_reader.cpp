@@ -237,7 +237,7 @@ TPartitionChunkReaderProvider::TPartitionChunkReaderProvider(
 { }
 
 TPartitionChunkReaderPtr TPartitionChunkReaderProvider::CreateNewReader(
-    const NProto::TInputChunk& inputChunk,
+    const NChunkClient::NProto::TInputChunk& inputChunk,
     const NChunkClient::IAsyncReaderPtr& chunkReader)
 {
     auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(inputChunk.extensions());

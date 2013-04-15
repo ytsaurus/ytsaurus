@@ -13,7 +13,7 @@
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
-#include <limits>
+#include <ytlib/transaction_client/transaction.h>
 
 namespace NYT {
 namespace NFileClient {

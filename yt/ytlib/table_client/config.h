@@ -1,7 +1,7 @@
 #pragma once
 
 #include "public.h"
-#include "schema.h"
+#include <ytlib/chunk_client/schema.h>
 
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/config.h>
@@ -69,14 +69,14 @@ struct TChunkWriterOptions
     : public virtual NChunkClient::TEncodingWriterOptions
 {
     TNullable<TKeyColumns> KeyColumns;
-    TChannels Channels;
+    NChunkClient::TChannels Channels;
 
     TChunkWriterOptions()
     {
         RegisterParameter("key_columns", KeyColumns)
             .Default(Null);
         RegisterParameter("channels", Channels)
-            .Default(TChannels());
+            .Default(NChunkClient::TChannels());
     }
 };
 

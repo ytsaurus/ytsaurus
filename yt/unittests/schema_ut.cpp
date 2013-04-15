@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-#include <ytlib/table_client/schema.h>
+#include <ytlib/chunk_client/schema.h>
 
 #include <contrib/testing/framework.h>
 
@@ -9,7 +9,7 @@ namespace NUnitTest {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using namespace NYT::NTableClient;
+using namespace NYT::NChunkClient;
 
 class TSchemaTest : public ::testing::Test
 { };

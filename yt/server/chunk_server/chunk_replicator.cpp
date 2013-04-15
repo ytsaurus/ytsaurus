@@ -682,7 +682,7 @@ void TChunkReplicator::OnRefresh()
                 Refresh(chunk);
             }
 
-            objectManager->UnlockObject(chunk);        
+            objectManager->UnlockObject(chunk);
         }
     }
 
@@ -787,8 +787,8 @@ void TChunkReplicator::ScheduleRFUpdate(TChunkList* chunkList)
 
         virtual bool OnChunk(
             TChunk* chunk,
-            const NTableClient::NProto::TReadLimit& startLimit,
-            const NTableClient::NProto::TReadLimit& endLimit) override
+            const NChunkClient::NProto::TReadLimit& startLimit,
+            const NChunkClient::NProto::TReadLimit& endLimit) override
         {
             UNUSED(startLimit);
             UNUSED(endLimit);
