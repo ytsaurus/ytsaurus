@@ -88,10 +88,8 @@ void TDsvParser::Finish()
     if (ExpectingEscapedChar) {
         THROW_ERROR_EXCEPTION("Incomplete escape sequence in DSV");
     }
-    if (State == EState::InsideKey) {
-        if (!CurrentToken.empty()) {
-            THROW_ERROR_EXCEPTION("Missing value in DSV");
-        }
+    if (WrapWithMap && LastCharacter != Config->RecordSeparator) {
+        THROW_ERROR_EXCEPTION("Expected record to be terminated with record separator");
     }
     if (!CurrentToken.empty()) {
         StartRecordIfNeeded();
@@ -101,9 +99,6 @@ void TDsvParser::Finish()
     }
     if (State == EState::InsidePrefix && !CurrentToken.empty()) {
         ValidatePrefix(CurrentToken);
-    }
-    if (WrapWithMap && LastCharacter != Config->RecordSeparator) {
-        THROW_ERROR_EXCEPTION("Expected record to be terminated with record separator");
     }
     CurrentToken.clear();
     FinishRecord();
