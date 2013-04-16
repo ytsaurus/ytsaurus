@@ -110,13 +110,6 @@ TFiber::~TFiber()
     } else {
         // This is a main fiber.
         YCHECK(State_ == EFiberState::Running);
-
-#ifdef CORO_ASM
-        YASSERT(CoroContext.sp == nullptr);
-#endif
-#ifdef CORO_FIBER
-        YASSERT(CoroContext.fiber == nullptr);
-#endif
     }
 }
 
@@ -200,7 +193,7 @@ void TFiber::Run()
 void TFiber::Reset()
 {
     YASSERT(!Caller);
-    YASSERT(!(Exception == std::exception_ptr()));
+    YASSERT(Exception == std::exception_ptr());
     YCHECK(
         State_ == EFiberState::Initialized ||
         State_ == EFiberState::Terminated ||
