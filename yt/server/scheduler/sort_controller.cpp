@@ -400,7 +400,7 @@ protected:
 
         virtual TNodeResources GetMinNeededResourcesHeavy() const override
         {
-            auto stat = Partition->ChunkPoolOutput->GetApproximateStripeStatistics();
+            auto stat = GetChunkPoolOutput()->GetApproximateStripeStatistics();
             YCHECK(stat.size() == 1);
             return GetNeededResourcesForChunkStripe(stat.front());
         }
