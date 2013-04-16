@@ -114,7 +114,7 @@ def _prepare_destination_tables(tables, replication_factor, compression_codec):
 
 def _remove_tables(tables):
     for table in tables:
-        if exists(table) and get_type(table) == "table":
+        if exists(table) and get_type(table) == "table" and not table.append:
             remove(table)
 
 def _add_user_command_spec(op_type, binary, input_format, output_format, files, file_paths, memory_limit, reduce_by, spec):
