@@ -2,6 +2,7 @@
 #include "log_manager.h"
 #include "writer.h"
 
+#include <ytlib/misc/property.h>
 #include <ytlib/misc/pattern_formatter.h>
 #include <ytlib/misc/raw_formatter.h>
 #include <ytlib/misc/periodic_invoker.h>
@@ -43,6 +44,161 @@ static TLogger Logger(SystemLoggingCategory);
 static NProfiling::TProfiler Profiler("/logging");
 
 ////////////////////////////////////////////////////////////////////////////////
+
+#ifdef _linux_
+#include <sys/inotify.h>
+#endif
+
+class TNotificationHandle
+    : private TNonCopyable
+{
+public:
+    TNotificationHandle()
+        : Fd_(-1)
+    {
+#ifdef _linux_
+        Fd_ = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
+        YCHECK(Fd_ > 0);
+#endif
+    }
+
+    ~TNotificationHandle()
+    {
+#ifdef _linux_
+        YCHECK(Fd_ > 0);
+        ::close(Fd_);
+#endif
+    }
+
+    int Poll()
+    {
+#ifdef _linux_
+        YCHECK(Fd_ > 0);
+
+        char buffer[sizeof(struct inotify_event) + NAME_MAX + 1];
+        auto rv = ::read(Fd_, buffer, sizeof(buffer));
+
+        if (rv < 0) {
+            if (errno != EAGAIN) {
+                LOG_ERROR(
+                    TError::FromSystem(errno),
+                    "Unable to poll inotify() descriptor %d",
+                    Fd_);
+            }
+        } else if (rv > 0) {
+            YASSERT(rv >= sizeof(struct inotify_event));
+            struct inotify_event* event = (struct inotify_event*)buffer;
+
+            if (event->mask & IN_ATTRIB) {
+                LOG_DEBUG(
+                    "Watch %d has triggered metadata change (IN_ATTRIB)",
+                    event->wd);
+            }
+            if (event->mask & IN_DELETE_SELF) {
+                LOG_DEBUG(
+                    "Watch %d has triggered a deletion (IN_DELETE_SELF)",
+                    event->wd);
+            }
+            if (event->mask & IN_MOVE_SELF) {
+                LOG_DEBUG(
+                    "Watch %d has triggered a movement (IN_MOVE_SELF)",
+                    event->wd);
+            }
+
+            return event->wd;
+        } else {
+            // Do nothing.
+        }
+#endif
+        return 0;
+    }
+
+    DEFINE_BYVAL_RO_PROPERTY(int, Fd);
+};
+
+class TNotificationWatch
+    : private TNonCopyable
+{
+public:
+    TNotificationWatch(
+        TNotificationHandle* handle,
+        const Stroka& path,
+        TClosure callback)
+        : Fd_(-1)
+        , Wd_(-1)
+        , Path(path)
+        , Callback(std::move(callback))
+
+    {
+        Fd_ = handle->GetFd();
+        YCHECK(Fd_ > 0);
+
+        CreateWatch();
+    }
+
+    ~TNotificationWatch()
+    {
+        DropWatch();
+    }
+
+    DEFINE_BYVAL_RO_PROPERTY(int, Fd);
+    DEFINE_BYVAL_RO_PROPERTY(int, Wd);
+
+    void Run()
+    {
+        Callback.Run();
+        // Reinitialize watch to hook to the newly created file.
+        DropWatch();
+        CreateWatch();
+    }
+
+private:
+    void CreateWatch()
+    {
+        YCHECK(Wd_ <= 0);
+#ifdef _linux_
+        Wd_ = inotify_add_watch(
+            Fd_,
+            Path.c_str(),
+            IN_ATTRIB | IN_DELETE_SELF | IN_MOVE_SELF);
+
+        if (Wd_ < 0) {
+            LOG_ERROR(
+                TError::FromSystem(errno),
+                "Unable to register watch for path %s",
+                Path.Quote().c_str());
+            Wd_ = -1;
+        } else if (Wd_ > 0) {
+            LOG_DEBUG(
+                "Registered watch %d for path %s",
+                Wd_,
+                Path.Quote().c_str());
+        } else {
+            YUNREACHABLE();
+        }
+#else
+        Wd_ = -1;
+#endif
+    }
+
+    void DropWatch()
+    {
+#ifdef _linux_
+        if (Wd_ > 0) {
+            LOG_DEBUG(
+                "Unregistering watch %d for path %s",
+                Wd_,
+                Path.Quote().c_str());
+            inotify_rm_watch(Fd_, Wd_);
+        }
+#endif
+        Wd_ = -1;
+    }
+
+private:
+    Stroka Path;
+    TClosure Callback;
+};
 
 struct TRule
     : public TYsonSerializable
@@ -109,6 +265,8 @@ public:
     {
         Register("flush_period", FlushPeriod)
             .Default(TDuration::Zero());
+        Register("watch_period", WatchPeriod)
+            .Default(TDuration::Seconds(1));
         Register("writers", WriterConfigs);
         Register("rules", Rules);
 
@@ -167,6 +325,30 @@ public:
         }
     }
 
+    void WatchWriters()
+    {
+        int previousWd = -1, currentWd = -1;
+        while ((currentWd = NotificationHandle.Poll()) > 0) {
+            if (currentWd == previousWd) {
+                continue;
+            }
+            auto&& it = NotificationWatchesIndex.find(currentWd);
+            auto&& jt = NotificationWatchesIndex.end();
+            YCHECK(it != jt);
+
+            auto* watch = it->second;
+            watch->Run();
+
+            if (watch->GetWd() != currentWd) {
+                NotificationWatchesIndex.erase(it);
+                YCHECK(NotificationWatchesIndex.insert(
+                    std::make_pair(watch->GetWd(), watch)).second);
+            }
+
+            previousWd = currentWd;
+        }
+    }
+
     void ReloadWriters()
     {
         AtomicIncrement(Version);
@@ -212,6 +394,11 @@ public:
         return FlushPeriod;
     }
 
+    TDuration GetWatchPeriod() const
+    {
+        return WatchPeriod;
+    }
+
 private:
     void CreateWriters()
     {
@@ -219,30 +406,48 @@ private:
             const auto& name = pair.first;
             const auto& config = pair.second;
             const auto& pattern = config->Pattern;
+
+            ILogWriterPtr writer = nullptr;
+            std::unique_ptr<TNotificationWatch> notify = nullptr;
+
             switch (config->Type) {
-                case ILogWriter::EType::File:
-                    YCHECK(
-                        Writers.insert(std::make_pair(
-                            name, New<TFileLogWriter>(config->FileName, pattern))).second);
-                    break;
                 case ILogWriter::EType::StdOut:
-                    YCHECK(
-                        Writers.insert(std::make_pair(
-                            name, New<TStdOutLogWriter>(pattern))).second);
+                    writer = New<TStdOutLogWriter>(pattern);
                     break;
                 case ILogWriter::EType::StdErr:
-                    YCHECK(
-                        Writers.insert(std::make_pair(
-                            name, New<TStdErrLogWriter>(pattern))).second);
+                    writer = New<TStdErrLogWriter>(pattern);
+                    break;
+                case ILogWriter::EType::File:
+                    writer = New<TFileLogWriter>(config->FileName, pattern);
+                    notify = std::unique_ptr<TNotificationWatch>(
+                        new TNotificationWatch(
+                            &NotificationHandle,
+                            config->FileName.c_str(),
+                            BIND(&ILogWriter::Reload, writer)));
                     break;
                 case ILogWriter::EType::Raw:
-                    YCHECK(
-                        Writers.insert(std::make_pair(
-                            name, New<TRawFileLogWriter>(config->FileName))).second);
+                    writer = New<TRawFileLogWriter>(config->FileName);
+                    notify = std::unique_ptr<TNotificationWatch>(
+                        new TNotificationWatch(
+                            &NotificationHandle,
+                            config->FileName.c_str(),
+                            BIND(&ILogWriter::Reload, writer)));
                     break;
                 default:
                     YUNREACHABLE();
             }
+
+            if (writer) {
+                YCHECK(Writers.insert(
+                    std::make_pair(name, std::move(writer))).second);
+            }
+
+            if (notify) {
+                YCHECK(NotificationWatchesIndex.insert(
+                    std::make_pair(notify->GetWd(), notify.get())).second);
+                NotificationWatches.emplace_back(std::move(notify));
+            }
+
             AtomicIncrement(Version);
         }
     }
@@ -250,13 +455,19 @@ private:
     TAtomic Version;
 
     TDuration FlushPeriod;
+    TDuration WatchPeriod;
 
     std::vector<TRule::TPtr> Rules;
     yhash_map<Stroka, ILogWriter::TConfig::TPtr> WriterConfigs;
-    
+
     yhash_map<Stroka, ILogWriterPtr> Writers;
     ymap<std::pair<Stroka, ELogLevel>, TLogWriters> CachedWriters;
 
+#ifdef _linux_
+    TNotificationHandle NotificationHandle;
+    std::vector<std::unique_ptr<TNotificationWatch>> NotificationWatches;
+    std::map<int, TNotificationWatch*> NotificationWatchesIndex;
+#endif
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -474,12 +685,25 @@ private:
                 FlushInvoker.Reset();
             }
 
+            if (WatchInvoker) {
+                WatchInvoker->Stop();
+                WatchInvoker.Reset();
+            }
+
             if (Config->GetFlushPeriod() != TDuration::Zero()) {
                 FlushInvoker = New<TPeriodicInvoker>(
                     QueueInvoker,
                     BIND(&TImpl::DoFlushWritersPeriodically, MakeStrong(this)),
                     Config->GetFlushPeriod());
                 FlushInvoker->Start();
+            }
+
+            if (Config->GetWatchPeriod() != TDuration::Zero()) {
+                WatchInvoker = New<TPeriodicInvoker>(
+                    QueueInvoker,
+                    BIND(&TImpl::DoWatchWritersPeriodically, MakeStrong(this)),
+                    Config->GetWatchPeriod());
+                WatchInvoker->Start();
             }
         }
     }
@@ -490,6 +714,10 @@ private:
         FlushInvoker->ScheduleNext();
     }
 
+    void DoWatchWritersPeriodically()
+    {
+        Config->WatchWriters();
+    }
 
     TQueueInvokerPtr QueueInvoker;
 
@@ -509,6 +737,7 @@ private:
     volatile bool ReopenEnqueued;
 
     TPeriodicInvokerPtr FlushInvoker;
+    TPeriodicInvokerPtr WatchInvoker;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
