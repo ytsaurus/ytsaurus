@@ -413,7 +413,7 @@ def get_sorted_by(table, default=None):
 def is_sorted(table):
     """Checks that table is sorted"""
     if config.USE_YAMR_SORT_REDUCE_COLUMNS:
-        return get_sorted_by(table) == ["key", "subkey"]
+        return get_sorted_by(table, []) == ["key", "subkey"]
     else:
         return parse_bool(get_attribute(to_name(table), "sorted", default="false"))
 
