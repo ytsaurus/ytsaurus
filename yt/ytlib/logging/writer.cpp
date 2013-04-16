@@ -54,7 +54,9 @@ TFileLogWriter::TFileLogWriter(
     : FileName(fileName)
     , Pattern(pattern)
     , Initialized(false)
-{ }
+{
+    EnsureInitialized();
+}
 
 void TFileLogWriter::EnsureInitialized()
 {
@@ -85,7 +87,6 @@ void TFileLogWriter::EnsureInitialized()
 
 void TFileLogWriter::Write(const TLogEvent& event)
 {
-    EnsureInitialized();
     if (LogWriter) {
         LogWriter->Write(event);
     }
@@ -101,8 +102,13 @@ void TFileLogWriter::Flush()
 void TFileLogWriter::Reload()
 {
     Flush();
-    File->Close();
+
+    if (~File) {
+        File->Close();
+    }
+
     Initialized = false;
+    EnsureInitialized();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -111,7 +117,9 @@ TRawFileLogWriter::TRawFileLogWriter(const Stroka& fileName)
     : FileName(fileName)
     , Initialized(false)
     , Buffer(new TMessageBuffer())
-{ }
+{
+    EnsureInitialized();
+}
 
 void TRawFileLogWriter::EnsureInitialized()
 {
@@ -139,10 +147,9 @@ void TRawFileLogWriter::EnsureInitialized()
 
 void TRawFileLogWriter::Write(const TLogEvent& event)
 {
-    EnsureInitialized();
-
-    if (!FileOutput.Get())
+    if (!FileOutput.Get()) {
         return;
+    }
 
     auto* buffer = ~Buffer;
     buffer->Reset();
@@ -191,6 +198,7 @@ void TRawFileLogWriter::Reload()
     }
 
     Initialized = false;
+    EnsureInitialized();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
