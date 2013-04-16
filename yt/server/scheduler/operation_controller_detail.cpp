@@ -321,18 +321,8 @@ void TOperationControllerBase::TTask::OnTaskCompleted()
 }
 
 void TOperationControllerBase::TTask::CheckResourceDemandSanity(
-    TExecNodePtr node,
     const NProto::TNodeResources& neededResources)
 {
-    // The task is requesting more then some node is willing to provide it.
-    // Maybe it's OK and we should wait for some time.
-    // Or maybe it's not and the task is requesting something no one is able to provide.
-
-    // First check if this very node has enough resources (including those currently
-    // allocated by other jobs).
-    if (Dominates(node->ResourceLimits(), neededResources))
-        return;
-
     // Run sanity check to see if any node can provide enough resources.
     // Don't run these checks too often to avoid jeopardizing performance.
     auto now = TInstant::Now();
@@ -351,6 +341,22 @@ void TOperationControllerBase::TTask::CheckResourceDemandSanity(
         TError("No online exec node can satisfy the resource demand")
             << TErrorAttribute("task", TRawString(GetId()))
             << TErrorAttribute("needed_resources", neededResources));
+}
+
+void TOperationControllerBase::TTask::CheckResourceDemandSanity(
+    TExecNodePtr node,
+    const NProto::TNodeResources& neededResources)
+{
+    // The task is requesting more then some node is willing to provide it.
+    // Maybe it's OK and we should wait for some time.
+    // Or maybe it's not and the task is requesting something no one is able to provide.
+
+    // First check if this very node has enough resources (including those currently
+    // allocated by other jobs).
+    if (Dominates(node->ResourceLimits(), neededResources))
+        return;
+
+    CheckResourceDemandSanity(neededResources);
 }
 
 void TOperationControllerBase::TTask::AddPendingHint()
@@ -860,16 +866,27 @@ void TOperationControllerBase::OnTaskUpdated(TTaskPtr task)
     task->CheckCompleted();
 }
 
+void TOperationControllerBase::MoveTaskToCandidates(
+    TTaskPtr task,
+    std::multimap<i64, TTaskPtr>& candidateTasks)
+{
+    const auto& neededResources = task->GetMinNeededResources();
+    task->CheckResourceDemandSanity(neededResources);
+    i64 minMemory = neededResources.memory();
+    candidateTasks.insert(std::make_pair(minMemory, task));
+    LOG_DEBUG("Task moved to candidates (Task: %s, MinMemory: %" PRId64 ")",
+        ~task->GetId(),
+        minMemory);
+
+}
+
 void TOperationControllerBase::AddTaskPendingHint(TTaskPtr task)
 {
     if (task->GetPendingJobCount() > 0) {
         auto* group = task->GetGroup();
         if (group->NonLocalTasks.insert(task).second) {
-            i64 minMemory = task->GetMinNeededResources().memory();
-            group->CandidateTasks.insert(std::make_pair(minMemory, task));
-            LOG_DEBUG("Task pending hint added (Task: %s, MinMemory: %" PRId64 ")",
-                ~task->GetId(),
-                minMemory);
+            LOG_DEBUG("Task pending hint added (Task: %s)", ~task->GetId());
+            MoveTaskToCandidates(task, group->CandidateTasks);
         }
     }
     OnTaskUpdated(task);
@@ -908,8 +925,7 @@ void TOperationControllerBase::ResetTaskLocalityDelays()
         FOREACH (const auto& pair, group->DelayedTasks) {
             auto task = pair.second;
             if (task->GetPendingJobCount() > 0) {
-                i64 minMemory = task->GetMinNeededResources().memory();
-                group->CandidateTasks.insert(std::make_pair(minMemory, task));
+                MoveTaskToCandidates(task, group->CandidateTasks);
             }
         }
         group->DelayedTasks.clear();
@@ -1054,11 +1070,8 @@ TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(
                 YCHECK(nonLocalTasks.erase(task) == 1);
                 OnTaskUpdated(task);
             } else {
-                i64 minMemory = task->GetMinNeededResources().memory();
-                candidateTasks.insert(std::make_pair(minMemory, task));
-                LOG_DEBUG("Task delay deadline reached (Task: %s, MinMemory: % " PRId64 ")",
-                    ~task->GetId(),
-                    minMemory);
+                LOG_DEBUG("Task delay deadline reached (Task: %s)", ~task->GetId());
+                MoveTaskToCandidates(task, candidateTasks);
             }
         }
 
