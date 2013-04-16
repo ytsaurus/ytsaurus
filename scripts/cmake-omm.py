@@ -172,7 +172,7 @@ def update_list(list):
 
     pumps   = glob.glob(os.path.join(directory, '*.pump'))
     sources = glob.glob(os.path.join(directory, '*.cpp'))
-    sources = set(sources) - set(name[:-5] for name in pumps)
+    sources = set(sources) - set(name[:-5] for name in pumps) - set(["stdafx.cpp"])
     headers = glob.glob(os.path.join(directory, '*.h'))
     headers = set(headers) - set(name[:-5] for name in pumps)
 
