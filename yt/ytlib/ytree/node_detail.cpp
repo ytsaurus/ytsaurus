@@ -184,7 +184,7 @@ void TCompositeNodeMixin::RemoveRecursive(
     } else if (request->force()) {
         context->Reply();
     } else {
-        tokenizer.ThrowUnexpected();
+        ThrowNoSuchChildKey(this, tokenizer.GetLiteralValue());
     }
 }
 
