@@ -93,30 +93,6 @@ struct TTableWriterOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTableReaderConfig
-    : public NChunkClient::TRemoteReaderConfig
-    , public NChunkClient::TSequentialReaderConfig
-{
-    i64 MaxBufferSize;
-
-    TTableReaderConfig()
-    {
-        Register("max_buffer_size", MaxBufferSize)
-            .GreaterThan(0L)
-            .LessThanOrEqual(10L * 1024 * 1024 * 1024)
-            .Default(256L * 1024 * 1024);
-
-        RegisterValidator([&] () {
-            if (MaxBufferSize < 2 * WindowSize) {
-                THROW_ERROR_EXCEPTION("\"max_buffer_size\" cannot be less than twice \"window_size\"");
-            }
-        });
-    }
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TChunkReaderOptions
     : public virtual TYsonSerializable
 {
@@ -132,6 +108,14 @@ struct TChunkReaderOptions
         Register("keep_blocks", KeepBlocks)
             .Default(false);
     }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTableReaderConfig
+    : public NChunkClient::TMultiChunkReaderConfig
+{
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

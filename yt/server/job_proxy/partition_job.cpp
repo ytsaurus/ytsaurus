@@ -15,7 +15,7 @@
 
 #include <ytlib/table_client/partition_chunk_writer.h>
 #include <ytlib/table_client/table_chunk_reader.h>
-#include <ytlib/table_client/multi_chunk_parallel_reader.h>
+#include <ytlib/chunk_client/multi_chunk_parallel_reader.h>
 #include <ytlib/table_client/partitioner.h>
 #include <ytlib/table_client/sync_writer.h>
 
@@ -60,7 +60,10 @@ public:
             jobSpec.input_specs(0).chunks().begin(),
             jobSpec.input_specs(0).chunks().end());
 
-        auto readerProvider = New<TTableChunkReaderProvider>(config->JobIO->TableReader);
+        auto readerProvider = New<TTableChunkReaderProvider>(
+            chunks,
+            config->JobIO->TableReader);
+
         Reader = New<TReader>(
             config->JobIO->TableReader,
             Host->GetMasterChannel(),
@@ -111,10 +114,11 @@ public:
 
             LOG_INFO("Partitioning");
             {
-                while (Reader->IsValid()) {
-                    Writer->WriteRowUnsafe(Reader->CurrentReader()->GetRow());
+                const TReader::TFacade* facade;
+                while (facade = Reader->GetFacade()) {
+                    Writer->WriteRowUnsafe(facade->GetRow());
 
-                    if (!Reader->FetchNextItem()) {
+                    if (!Reader->FetchNext()) {
                         Sync(~Reader, &TReader::GetReadyEvent);
                     }
                 }
@@ -136,12 +140,12 @@ public:
 
     double GetProgress() const override
     {
-        i64 total = Reader->GetItemCount();
+        i64 total = Reader->GetProvider()->GetRowCount();
         if (total == 0) {
             LOG_WARNING("GetProgress: empty total");
             return 0.0;
         } else {
-            double progress = (double) Reader->GetItemIndex() / total;
+            double progress = (double) Reader->GetProvider()->GetRowIndex() / total;
             LOG_DEBUG("GetProgress: %lf", progress);
             return progress;
         }

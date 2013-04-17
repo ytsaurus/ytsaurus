@@ -6,7 +6,7 @@
 
 #include <ytlib/chunk_client/client_block_cache.h>
 
-#include <ytlib/table_client/multi_chunk_sequential_reader.h>
+#include <ytlib/chunk_client/multi_chunk_sequential_reader.h>
 #include <ytlib/table_client/table_chunk_reader.h>
 #include <ytlib/table_client/sync_reader.h>
 #include <ytlib/table_client/table_producer.h>
@@ -46,8 +46,6 @@ public:
         auto options = New<TChunkReaderOptions>();
         options->ReadKey = true;
 
-        auto provider = New<TTableChunkReaderProvider>(IOConfig->TableReader, options);
-
         const auto& jobSpec = Host->GetJobSpec();
 
         FOREACH (const auto& inputSpec, jobSpec.input_specs()) {
@@ -55,6 +53,11 @@ public:
             std::vector<NChunkClient::NProto::TInputChunk> chunks(
                 inputSpec.chunks().begin(),
                 inputSpec.chunks().end());
+
+            auto provider = New<TTableChunkReaderProvider>(
+                chunks,
+                IOConfig->TableReader,
+                options);
 
             auto reader = New<TTableChunkSequenceReader>(
                 IOConfig->TableReader,

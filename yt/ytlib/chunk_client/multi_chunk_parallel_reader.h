@@ -3,7 +3,7 @@
 #include "multi_chunk_reader_base.h"
 
 namespace NYT {
-namespace NTableClient {
+namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -15,30 +15,29 @@ public:
     typedef TMultiChunkReaderBase<TChunkReader> TBase;
 
     TMultiChunkParallelReader(
-        TTableReaderConfigPtr config,
+        TMultiChunkReaderConfigPtr config,
         NRpc::IChannelPtr masterChannel,
         NChunkClient::IBlockCachePtr blockCache,
         std::vector<NChunkClient::NProto::TInputChunk>&& inputChunks,
         const typename TBase::TProviderPtr& readerProvider);
 
     virtual TAsyncError AsyncOpen() override;
-    virtual bool FetchNextItem() override;
-    virtual bool IsValid() const override;
+    virtual bool FetchNext() override;
 
 private:
-    using typename TBase::TProviderPtr;
-    using typename TBase::TSession;
-
     using TBase::State;
     using TBase::Logger;
+    using TBase::InputChunks;
+    using TBase::PrefetchWindow;
     using TBase::CurrentSession;
+    using TBase::ReaderProvider;
 
     // Protects CompleteReaderCount, ReadySessions, CurrentSession.
     TSpinLock SpinLock;
     std::vector<typename TBase::TSession> ReadySessions;
     std::vector<typename TBase::TSession> CompleteSessions;
 
-    int CompleteReaderCount;
+    volatile int CompleteReaderCount;
 
     virtual void OnReaderOpened(
         const typename TBase::TSession& session,
@@ -53,7 +52,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
+} // namespace NChunkClient
 } // namespace NYT
 
 #define MULTI_CHUNK_PARALLEL_READER_INL_H_

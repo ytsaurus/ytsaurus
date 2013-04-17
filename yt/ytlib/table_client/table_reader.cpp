@@ -1,14 +1,15 @@
-﻿#include "stdafx.h"
+﻿
+#include "stdafx.h"
 #include "table_reader.h"
 #include "config.h"
 #include "table_chunk_reader.h"
-#include "multi_chunk_sequential_reader.h"
 #include "private.h"
 
 #include <ytlib/misc/sync.h>
 
 #include <ytlib/chunk_client/block_cache.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
+#include <ytlib/chunk_client/multi_chunk_sequential_reader.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
@@ -69,8 +70,10 @@ void TTableReader::Open()
     auto inputChunks = FromProto<NChunkClient::NProto::TInputChunk>(fetchRsp->chunks());
 
     auto provider = New<TTableChunkReaderProvider>(
+        inputChunks,
         Config,
         New<TChunkReaderOptions>());
+
     Reader = New<TTableChunkSequenceReader>(
         Config,
         MasterChannel,
@@ -95,29 +98,30 @@ const TRow* TTableReader::GetRow()
 
     CheckAborted();
 
-    if (Reader->IsValid() && IsReadingStarted) {
-        if (!Reader->FetchNextItem()) {
+    if ((Reader->GetFacade() != nullptr) && IsReadingStarted) {
+        if (!Reader->FetchNext()) {
             Sync(~Reader, &TTableChunkSequenceReader::GetReadyEvent);
         }
     }
     IsReadingStarted = true;
 
-    return Reader->IsValid() ? &(Reader->CurrentReader()->GetRow()) : NULL;
+    auto* facade = Reader->GetFacade();
+    return facade ? &(facade->GetRow()) : nullptr;
 }
 
 const TNonOwningKey& TTableReader::GetKey() const
 {
-    YUNREACHABLE();
+    return Reader->GetFacade()->GetKey();
 }
 
 i64 TTableReader::GetRowIndex() const
 {
-    return Reader->GetItemIndex();
+    return Reader->GetProvider()->GetRowIndex();
 }
 
 i64 TTableReader::GetRowCount() const
 {
-    return Reader->GetItemCount();
+    return Reader->GetProvider()->GetRowCount();
 }
 
 std::vector<NChunkClient::TChunkId> TTableReader::GetFailedChunks() const
@@ -127,7 +131,7 @@ std::vector<NChunkClient::TChunkId> TTableReader::GetFailedChunks() const
 
 const NYTree::TYsonString& TTableReader::GetRowAttributes() const
 {
-    return Reader->CurrentReader()->GetRowAttributes();
+    return Reader->GetFacade()->GetRowAttributes();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
