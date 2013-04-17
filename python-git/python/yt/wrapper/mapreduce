@@ -457,11 +457,8 @@ Examples:
         # TODO: sorted_by has no proper support now. Delete it with remaking in system.
         yt.run_sort(args.writesorted)
     if mapreduce_case:
-        if inputformat != outputformat:
-            map_input_format = inputformat
-            map_output_format = reduce_input_format = reduce_output_format = outputformat
-        else:
-            map_input_format = map_output_format = reduce_input_format = reduce_output_format = outputformat
+        map_input_format = inputformat
+        map_output_format = reduce_input_format = reduce_output_format = outputformat
         yt.run_map_reduce(args.map, args.reduce, args.src, dst,
                           map_files=map_files, reduce_files=reduce_files,
                           map_file_paths=args.ytfile, reduce_file_paths=args.ytfile,
