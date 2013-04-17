@@ -266,7 +266,7 @@ public:
         Register("flush_period", FlushPeriod)
             .Default(TDuration::Zero());
         Register("watch_period", WatchPeriod)
-            .Default(TDuration::Seconds(1));
+            .Default(TDuration::Zero());
         Register("writers", WriterConfigs);
         Register("rules", Rules);
 
