@@ -463,11 +463,9 @@ private:
     yhash_map<Stroka, ILogWriterPtr> Writers;
     ymap<std::pair<Stroka, ELogLevel>, TLogWriters> CachedWriters;
 
-#ifdef _linux_
     TNotificationHandle NotificationHandle;
     std::vector<std::unique_ptr<TNotificationWatch>> NotificationWatches;
     std::map<int, TNotificationWatch*> NotificationWatchesIndex;
-#endif
 };
 
 ////////////////////////////////////////////////////////////////////////////////
