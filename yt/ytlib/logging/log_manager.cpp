@@ -124,18 +124,13 @@ public:
         TNotificationHandle* handle,
         const Stroka& path,
         TClosure callback)
-        : Fd_(-1)
+        : Fd_(handle->GetFd())
         , Wd_(-1)
         , Path(path)
         , Callback(std::move(callback))
 
     {
-#ifdef _linux_
-        Fd_ = handle->GetFd();
-        YCHECK(Fd_ >= 0);
-
         CreateWatch();
-#endif
     }
 
     ~TNotificationWatch()
