@@ -57,8 +57,6 @@ private:
     bool AllowBeginMap;
     bool AllowAttributes;
 
-    NYson::TLexer Lexer;
-
     void EscapeAndWrite(const TStringBuf& string, bool inKey);
 };
 
