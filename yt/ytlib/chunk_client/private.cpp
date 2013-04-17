@@ -14,6 +14,9 @@ NLog::TLogger ChunkWriterLogger("ChunkWriter");
 
 TLazyHolder<NRpc::TChannelCache> NodeChannelCache;
 
+const int MaxPrefetchWindow = 250;
+const i64 ChunkReaderMemorySize = (i64) 16 * 1024;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkClient
