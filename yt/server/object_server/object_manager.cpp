@@ -561,16 +561,6 @@ void TObjectManager::LoadValues(const NCellMaster::TLoadContext& context)
 
     Attributes.LoadValues(context);
     GarbageCollector->Load(context);
-
-    // COMPAT(babenko)
-    if (context.GetVersion() < 9) {
-        FOREACH (const auto& pair, Attributes) {
-            auto type = TypeFromId(pair.first.ObjectId);
-            if ((type == EObjectType::User || type == EObjectType::Group || type == EObjectType::Account)) {
-                pair.second->Attributes().erase("name");
-            }
-        }
-    }
 }
 
 void TObjectManager::LoadSchemas(const NCellMaster::TLoadContext& context)
@@ -591,6 +581,16 @@ void TObjectManager::LoadSchemas(const NCellMaster::TLoadContext& context)
 void TObjectManager::OnAfterLoaded()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
+
+    // COMPAT(babenko)
+    if (context.GetVersion() < 9) {
+        FOREACH (const auto& pair, Attributes) {
+            auto type = TypeFromId(pair.first.ObjectId);
+            if ((type == EObjectType::User || type == EObjectType::Group || type == EObjectType::Account)) {
+                pair.second->Attributes().erase("name");
+            }
+        }
+    }
 }
 
 void TObjectManager::DoClear()
