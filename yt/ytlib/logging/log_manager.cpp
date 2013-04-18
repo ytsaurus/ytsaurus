@@ -24,6 +24,10 @@
     #include <unistd.h>
 #endif
 
+#ifdef _linux_
+    #include <sys/inotify.h>
+#endif
+
 namespace NYT {
 namespace NLog {
 
@@ -44,10 +48,6 @@ static TLogger SILENT_UNUSED Logger(SystemLoggingCategory);
 static NProfiling::TProfiler SILENT_UNUSED Profiler("/logging");
 
 ////////////////////////////////////////////////////////////////////////////////
-
-#ifdef _linux_
-#include <sys/inotify.h>
-#endif
 
 class TNotificationHandle
     : private TNonCopyable
@@ -264,7 +264,7 @@ public:
         : Version(0)
     {
         RegisterParameter("flush_period", FlushPeriod)
-            .Default(TDuration::Zero());
+            .Default(Null);
         RegisterParameter("watch_period", WatchPeriod)
             .Default(TDuration::Seconds(1));
         RegisterParameter("writers", WriterConfigs);
@@ -327,8 +327,11 @@ public:
 
     void WatchWriters()
     {
+        if (!NotificationHandle)
+            return;
+
         int previousWd = -1, currentWd = -1;
-        while ((currentWd = NotificationHandle.Poll()) > 0) {
+        while ((currentWd = NotificationHandle->Poll()) > 0) {
             if (currentWd == previousWd) {
                 continue;
             }
@@ -389,17 +392,34 @@ public:
         return Version;
     }
 
-    TDuration GetFlushPeriod() const
+    TNullable<TDuration> GetFlushPeriod() const
     {
         return FlushPeriod;
     }
 
-    TDuration GetWatchPeriod() const
+    TNullable<TDuration> GetWatchPeriod() const
     {
         return WatchPeriod;
     }
 
 private:
+    std::unique_ptr<TNotificationWatch> CreateNoficiationWatch(ILogWriterPtr writer, const Stroka& fileName)
+    {
+#ifdef _linux_
+        if (WatchPeriod) {
+            if (!NotificationHandle) {
+                NotificationHandle.reset(new TNotificationHandle());
+            }
+            return std::unique_ptr<TNotificationWatch>(
+                new TNotificationWatch(
+                NotificationHandle.get(),
+                fileName.c_str(),
+                BIND(&ILogWriter::Reload, writer)));
+        }
+#endif
+        return nullptr;
+    }
+
     void CreateWriters()
     {
         FOREACH (const auto& pair, WriterConfigs) {
@@ -407,31 +427,26 @@ private:
             const auto& config = pair.second;
             const auto& pattern = config->Pattern;
 
-            ILogWriterPtr writer = nullptr;
-            std::unique_ptr<TNotificationWatch> notify = nullptr;
+            ILogWriterPtr writer;
+            std::unique_ptr<TNotificationWatch> watch;
 
             switch (config->Type) {
                 case ILogWriter::EType::StdOut:
                     writer = New<TStdOutLogWriter>(pattern);
                     break;
+
                 case ILogWriter::EType::StdErr:
                     writer = New<TStdErrLogWriter>(pattern);
                     break;
+
                 case ILogWriter::EType::File:
                     writer = New<TFileLogWriter>(config->FileName, pattern);
-                    notify = std::unique_ptr<TNotificationWatch>(
-                        new TNotificationWatch(
-                            &NotificationHandle,
-                            config->FileName.c_str(),
-                            BIND(&ILogWriter::Reload, writer)));
+                    watch = CreateNoficiationWatch(writer, config->FileName);
                     break;
+
                 case ILogWriter::EType::Raw:
                     writer = New<TRawFileLogWriter>(config->FileName);
-                    notify = std::unique_ptr<TNotificationWatch>(
-                        new TNotificationWatch(
-                            &NotificationHandle,
-                            config->FileName.c_str(),
-                            BIND(&ILogWriter::Reload, writer)));
+                    watch = CreateNoficiationWatch(writer, config->FileName);
                     break;
                 default:
                     YUNREACHABLE();
@@ -442,10 +457,10 @@ private:
                     std::make_pair(name, std::move(writer))).second);
             }
 
-            if (notify) {
+            if (watch) {
                 YCHECK(NotificationWatchesIndex.insert(
-                    std::make_pair(notify->GetWd(), notify.get())).second);
-                NotificationWatches.emplace_back(std::move(notify));
+                    std::make_pair(watch->GetWd(), watch.get())).second);
+                NotificationWatches.emplace_back(std::move(watch));
             }
 
             AtomicIncrement(Version);
@@ -454,8 +469,8 @@ private:
 
     TAtomic Version;
 
-    TDuration FlushPeriod;
-    TDuration WatchPeriod;
+    TNullable<TDuration> FlushPeriod;
+    TNullable<TDuration> WatchPeriod;
 
     std::vector<TRule::TPtr> Rules;
     yhash_map<Stroka, ILogWriter::TConfig::TPtr> WriterConfigs;
@@ -463,7 +478,7 @@ private:
     yhash_map<Stroka, ILogWriterPtr> Writers;
     ymap<std::pair<Stroka, ELogLevel>, TLogWriters> CachedWriters;
 
-    TNotificationHandle NotificationHandle;
+    std::unique_ptr<TNotificationHandle> NotificationHandle;
     std::vector<std::unique_ptr<TNotificationWatch>> NotificationWatches;
     std::map<int, TNotificationWatch*> NotificationWatchesIndex;
 };
@@ -688,19 +703,21 @@ private:
                 WatchInvoker.Reset();
             }
 
-            if (Config->GetFlushPeriod() != TDuration::Zero()) {
+            auto flushPeriod = Config->GetFlushPeriod();
+            if (flushPeriod) {
                 FlushInvoker = New<TPeriodicInvoker>(
                     QueueInvoker,
                     BIND(&TImpl::DoFlushWritersPeriodically, MakeStrong(this)),
-                    Config->GetFlushPeriod());
+                    *flushPeriod);
                 FlushInvoker->Start();
             }
 
-            if (Config->GetWatchPeriod() != TDuration::Zero()) {
+            auto watchPeriod = Config->GetWatchPeriod();
+            if (watchPeriod) {
                 WatchInvoker = New<TPeriodicInvoker>(
                     QueueInvoker,
                     BIND(&TImpl::DoWatchWritersPeriodically, MakeStrong(this)),
-                    Config->GetWatchPeriod());
+                    *watchPeriod);
                 WatchInvoker->Start();
             }
         }
