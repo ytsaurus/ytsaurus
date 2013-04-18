@@ -2,6 +2,7 @@ from yt.common import require, flatten, update, which
 import yt.yson as yson
 
 from functools import partial
+from itertools import ifilter
 import simplejson as json
 
 EMPTY_GENERATOR = (i for i in [])
@@ -64,7 +65,7 @@ def remove_attributes(tree):
         return tree
 
 def first_not_none(iter):
-    return filter(None, iter)[0]
+    return ifilter(None, iter).next()
 
 def get_value(value, default):
     if value is None:
