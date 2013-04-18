@@ -31,7 +31,7 @@ TMultiChunkParallelReader<TChunkReader>::TMultiChunkParallelReader(
         PrefetchWindow));
 
     if (ReaderProvider->KeepInMemory()) {
-        CompleteSessions.reserve(InputChunks.size());
+        CompleteSessions.resize(InputChunks.size());
     }
 }
 
@@ -109,10 +109,10 @@ void TMultiChunkParallelReader<TChunkReader>::FinishReader(
 {
     VERIFY_THREAD_AFFINITY(TBase::ReaderThread);
 
-    LOG_DEBUG("Reader finished (CompleteReaderCount: %d)", CompleteReaderCount);
+    LOG_DEBUG("Reader finished (ChunkIndex: %d)", session.ChunkIndex);
 
     if (ReaderProvider->KeepInMemory()) {
-        CompleteSessions.push_back(session);
+        CompleteSessions[session.ChunkIndex] = session;
     }
     TBase::ProcessFinishedReader(session);
 }
