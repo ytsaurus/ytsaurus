@@ -292,6 +292,7 @@ private:
         if (chunkReader->CurrentRowIndex >= chunkReader->EndRowIndex) {
             LOG_WARNING("Nothing to read from the current chunk");
             chunkReader->Initializer.Reset();
+            chunkReader->IsFinished = true;
             chunkReader->ReaderState.FinishOperation();
             return;
         }
