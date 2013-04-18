@@ -51,7 +51,7 @@ class Server(Base):
 
         @propmethod
         def monport(cls):
-            return cls.port + 1000
+            return cls.port + 2000
 
 class Master(WinNode, Server):
         address = Subclass(MasterAddresses)
