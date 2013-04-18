@@ -531,7 +531,7 @@ void TChunkReplicator::ComputeRegularChunkStatus(TChunk* chunk)
 
         TSmallVector<Stroka, TypicalReplicationFactor> addresses;
         FOREACH (auto* node, nodes) {
-            node->ChunksToRemove().insert(chunkId);
+            YCHECK(node->ChunksToRemove().insert(chunkId).second);
             addresses.push_back(node->GetAddress());
         }
 
@@ -545,7 +545,7 @@ void TChunkReplicator::ComputeRegularChunkStatus(TChunk* chunk)
         auto* node = ChunkPlacement->GetReplicationSource(chunk);
 
         int priority = std::min(replicaCount, ReplicationPriorityCount) - 1;
-        node->ChunksToReplicate()[priority].insert(chunkId);
+        YCHECK(node->ChunksToReplicate()[priority].insert(chunkId).second);
 
         LOG_INFO("Chunk will be replicated (ChunkId: %s, ReplicaCount: %d, ReplicationFactor: %d, Address: %s)",
             ~ToString(chunkId),
@@ -606,12 +606,13 @@ void TChunkReplicator::ComputeErasureChunkStatus(TChunk* chunk)
     // Check for overreplicated parts.
     FOREACH (int index, overreplicatedIndexes) {
         TChunkPtrWithIndex chunkWithIndex(chunk, index);
+        auto encodedChunkId = EncodeChunkId(chunkWithIndex);
         int redundantCount = replicaCount[index] - 1;
         auto nodes = ChunkPlacement->GetRemovalTargets(chunkWithIndex, redundantCount);
 
         TSmallVector<Stroka, TypicalReplicationFactor> addresses;
         FOREACH (auto* node, nodes) {
-            node->ChunksToRemove().insert(chunkId);
+            YCHECK(node->ChunksToRemove().insert(encodedChunkId).second);
             addresses.push_back(node->GetAddress());
         }
 

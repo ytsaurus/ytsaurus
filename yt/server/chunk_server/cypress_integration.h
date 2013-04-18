@@ -11,9 +11,12 @@ namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NCypressServer::INodeTypeHandlerPtr CreateChunkMapTypeHandler(NCellMaster::TBootstrap* bootstrap, NObjectClient::EObjectType type);
+NCypressServer::INodeTypeHandlerPtr CreateChunkMapTypeHandler(
+    NCellMaster::TBootstrap* bootstrap,
+    NObjectClient::EObjectType type);
 
-NCypressServer::INodeTypeHandlerPtr CreateChunkListMapTypeHandler(NCellMaster::TBootstrap* bootstrap);
+NCypressServer::INodeTypeHandlerPtr CreateChunkListMapTypeHandler(
+    NCellMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

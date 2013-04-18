@@ -96,6 +96,8 @@ public:
     const yhash_set<TChunk*>& LostChunks() const;
     const yhash_set<TChunk*>& OverreplicatedChunks() const;
     const yhash_set<TChunk*>& UnderreplicatedChunks() const;
+    const yhash_set<TChunk*>& DataMissingChunks() const;
+    const yhash_set<TChunk*>& ParityMissingChunks() const;
 
     //! Returns the total number of all chunk replicas.
     int GetChunkReplicaCount();

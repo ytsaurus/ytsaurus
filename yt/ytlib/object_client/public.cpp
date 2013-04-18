@@ -26,6 +26,8 @@ bool TypeIsVersioned(EObjectType type)
            type == EObjectType::LostChunkMap ||
            type == EObjectType::OverreplicatedChunkMap ||
            type == EObjectType::UnderreplicatedChunkMap ||
+           type == EObjectType::DataMissingChunkMap ||
+           type == EObjectType::ParityMissingChunkMap ||
            type == EObjectType::ChunkListMap ||
            type == EObjectType::TransactionMap ||
            type == EObjectType::TopmostTransactionMap ||
@@ -36,7 +38,7 @@ bool TypeIsVersioned(EObjectType type)
            type == EObjectType::AccountMap ||
            type == EObjectType::UserMap ||
            type == EObjectType::GroupMap ||
-           type == EObjectType::LinkNode; 
+           type == EObjectType::LinkNode;
 }
 
 EObjectType TypeFromId(const TObjectId& id)

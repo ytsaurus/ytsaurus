@@ -53,6 +53,10 @@ private:
                 return chunkManager->OverreplicatedChunks();
             case EObjectType::UnderreplicatedChunkMap:
                 return chunkManager->UnderreplicatedChunks();
+            case EObjectType::DataMissingChunkMap:
+                return chunkManager->DataMissingChunks();
+            case EObjectType::ParityMissingChunkMap:
+                return chunkManager->ParityMissingChunks();
             default:
                 YUNREACHABLE();
         }

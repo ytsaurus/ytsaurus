@@ -615,6 +615,8 @@ public:
     const yhash_set<TChunk*>& LostVitalChunks() const;
     const yhash_set<TChunk*>& OverreplicatedChunks() const;
     const yhash_set<TChunk*>& UnderreplicatedChunks() const;
+    const yhash_set<TChunk*>& DataMissingChunks() const;
+    const yhash_set<TChunk*>& ParityMissingChunks() const;
 
     TNodePtrWithIndexList GetChunkReplicas(const TChunk* chunk)
     {
@@ -1287,6 +1289,8 @@ DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, LostChunks,
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, LostVitalChunks, *ChunkReplicator);
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, OverreplicatedChunks, *ChunkReplicator);
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, UnderreplicatedChunks, *ChunkReplicator);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, DataMissingChunks, *ChunkReplicator);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, ParityMissingChunks, *ChunkReplicator);
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -1591,6 +1595,8 @@ DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, LostChunks, *Impl)
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, LostVitalChunks, *Impl);
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, OverreplicatedChunks, *Impl);
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, UnderreplicatedChunks, *Impl);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, DataMissingChunks, *Impl);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, ParityMissingChunks, *Impl);
 
 ///////////////////////////////////////////////////////////////////////////////
 

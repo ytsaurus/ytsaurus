@@ -79,6 +79,8 @@ DECLARE_ENUM(EObjectType,
     ((LostChunkMap)               (403))
     ((OverreplicatedChunkMap)     (404))
     ((UnderreplicatedChunkMap)    (405))
+    ((DataMissingChunkMap)        (419))
+    ((ParityMissingChunkMap)      (420))
     ((ChunkListMap)               (406))
     ((TransactionMap)             (407))
     ((TopmostTransactionMap)      (418))

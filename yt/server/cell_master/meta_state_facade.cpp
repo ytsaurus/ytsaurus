@@ -364,6 +364,18 @@ private:
 
             CreateNode(
                 rootService,
+                "//sys/data_missing_chunks",
+                transactionId,
+                EObjectType::DataMissingChunkMap);
+
+            CreateNode(
+                rootService,
+                "//sys/parity_missing_chunks",
+                transactionId,
+                EObjectType::ParityMissingChunkMap);
+
+            CreateNode(
+                rootService,
                 "//sys/chunk_lists",
                 transactionId,
                 EObjectType::ChunkListMap);
