@@ -62,7 +62,7 @@ public:
         }
         IsReadingStarted = true;
         auto* facade = AsyncReader->GetFacade();
-        return facade ? nullptr: &facade->GetRow();
+        return facade ? &facade->GetRow() : nullptr;
     }
 
     virtual const NChunkClient::TNonOwningKey& GetKey() const override

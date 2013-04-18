@@ -739,6 +739,7 @@ bool TTableChunkReader::FetchNext()
 {
     YASSERT(!ReaderState.HasRunningOperation());
     YASSERT(!Initializer);
+    YASSERT(!IsFinished);
 
     if (DoFetchNextRow()) {
         return true;
@@ -763,6 +764,7 @@ bool TTableChunkReader::DoFetchNextRow()
     CurrentRowIndex = std::min(CurrentRowIndex + 1, EndRowIndex);
 
     if (CurrentRowIndex == EndRowIndex) {
+        LOG_DEBUG("Chunk reader finished");
         IsFinished = true;
         return true;
     }
@@ -811,6 +813,7 @@ bool TTableChunkReader::ContinueFetchNextRow(int channelIndex, TError error)
     MakeCurrentRow();
 
     if ((!!EndValidator) && !EndValidator->IsValid(CurrentKey)) {
+        LOG_DEBUG("Chunk reader finished");
         IsFinished = true;
     } else {
         ++Provider->RowIndex_;
