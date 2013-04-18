@@ -4,7 +4,7 @@
 
 #include <ytlib/misc/periodic_invoker.h>
 
-#include <ytlib/scheduler/scheduler_proxy.h>
+#include <ytlib/job_tracker_client/job_tracker_service_proxy.h>
 
 #include <server/cell_node/public.h>
 
@@ -30,16 +30,10 @@ private:
     NCellNode::TBootstrap* Bootstrap;
     IInvokerPtr ControlInvoker;
 
-    NScheduler::TSchedulerServiceProxy Proxy;
     TPeriodicInvokerPtr HeartbeatInvoker;
 
     void SendHeartbeat();
-    void OnHeartbeatResponse(NScheduler::TSchedulerServiceProxy::TRspHeartbeatPtr rsp);
-
-    // Non-const reference to swap out job spec.
-    void StartJob(NScheduler::NProto::TJobStartInfo& info);
-    void AbortJob(const TJobId& jobId);
-    void RemoveJob(const TJobId& jobId);
+    void OnHeartbeatResponse(NJobTrackerClient::TJobTrackerServiceProxy::TRspHeartbeatPtr rsp);
 
 };
 

@@ -43,10 +43,11 @@ using namespace NTransactionClient;
 using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NSecurityServer;
+using namespace NTransactionClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger SILENT_UNUSED Logger("Bootstrap");
+static NLog::TLogger Logger("Bootstrap");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -451,7 +452,7 @@ private:
         auto req = TMasterYPathProxy::CreateObject();
         req->set_type(EObjectType::Transaction);
 
-        req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction);
+        req->MutableExtension(TReqCreateTransactionExt::create_transaction_ext);
 
         auto attributes = CreateEphemeralAttributes();
         attributes->Set("title", "World initialization");

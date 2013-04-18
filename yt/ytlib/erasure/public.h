@@ -12,7 +12,10 @@ namespace NErasure {
 const int MaxTotalBlockCount = 16;
 
 //! A vector type for holding block indexes without allocations.
-typedef TSmallVector<int, MaxTotalBlockCount> TBlockIndexList; 
+typedef TSmallVector<int, MaxTotalBlockCount> TBlockIndexList;
+
+//! Each bit corresponds to a possible block index.
+typedef ui32 TBlockIndexSet;
 
 struct ICodec;
 

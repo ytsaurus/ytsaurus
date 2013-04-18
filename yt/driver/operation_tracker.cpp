@@ -3,7 +3,7 @@
 #include <ytlib/ytree/ypath_proxy.h>
 #include <ytlib/ytree/yson_string.h>
 
-#include <ytlib/scheduler/scheduler_proxy.h>
+#include <ytlib/scheduler/scheduler_service_proxy.h>
 #include <ytlib/scheduler/helpers.h>
 
 #include <ytlib/object_client/object_service_proxy.h>

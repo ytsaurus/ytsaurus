@@ -5,14 +5,16 @@
 #include <ytlib/misc/property.h>
 #include <ytlib/misc/error.h>
 
-#include <ytlib/scheduler/job.pb.h>
+#include <ytlib/job_tracker_client/job.pb.h>
+
+#include <ytlib/node_tracker_client/node.pb.h>
 
 namespace NYT {
 namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef TCallback<TVoid(NProto::TJobSpec* jobSpec)> TJobSpecBuilder;
+typedef TCallback<TVoid(NJobTrackerClient::NProto::TJobSpec* jobSpec)> TJobSpecBuilder;
 
 class TJob
     : public TRefCounted
@@ -34,7 +36,7 @@ class TJob
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, FinishTime);
 
     //! Job result returned by node.
-    DEFINE_BYREF_RW_PROPERTY(NProto::TJobResult, Result);
+    DEFINE_BYREF_RW_PROPERTY(NJobTrackerClient::NProto::TJobResult, Result);
 
     //! Some rough approximation that is updated with every heartbeat.
     DEFINE_BYVAL_RW_PROPERTY(EJobState, State);
@@ -44,7 +46,7 @@ class TJob
      *  Initially captures the limits suggested by the scheduler.
      *  May change afterwards on heartbeats.
      */
-    DEFINE_BYREF_RW_PROPERTY(NProto::TNodeResources, ResourceUsage);
+    DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceUsage);
 
     //! Asynchronous spec builder callback.
     DEFINE_BYVAL_RW_PROPERTY(TJobSpecBuilder, SpecBuilder);
@@ -56,7 +58,7 @@ public:
         TOperationPtr operation,
         TExecNodePtr node,
         TInstant startTime,
-        const NProto::TNodeResources& resourceUsage,
+        const NNodeTrackerClient::NProto::TNodeResources& resourceUsage,
         TJobSpecBuilder specBuilder);
 
 };

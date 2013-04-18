@@ -7,6 +7,10 @@
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/block_id.h>
 
+#include <ytlib/job_tracker_client/public.h>
+
+#include <ytlib/node_tracker_client/public.h>
+
 #include <server/node_tracker_server/public.h>
 
 namespace NYT {
@@ -20,30 +24,28 @@ using NChunkClient::TChunkTreeId;
 using NChunkClient::NullChunkId;
 using NChunkClient::NullChunkListId;
 using NChunkClient::NullChunkTreeId;
-using NChunkClient::TJobId;
-using NChunkClient::EJobState;
-using NChunkClient::EJobType;
 using NChunkClient::TBlockOffset;
 using NChunkClient::EChunkType;
 using NChunkClient::TBlockId;
-using NChunkClient::TNodeId;
-using NChunkClient::InvalidNodeId;
-using NChunkClient::MaxNodeId;
 using NChunkClient::TypicalReplicationFactor;
+
+using NJobTrackerClient::TJobId;
+using NJobTrackerClient::EJobType;
+using NJobTrackerClient::EJobState;
+
+using NNodeTrackerClient::TNodeId;
+using NNodeTrackerClient::InvalidNodeId;
+using NNodeTrackerClient::MaxNodeId;
 
 using NObjectClient::TTransactionId;
 using NObjectClient::NullTransactionId;
 
 using NNodeTrackerServer::TNode;
-using NNodeTrackerServer::TNodeId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJob;
 typedef TIntrusivePtr<TJob> TJobPtr;
-
-class TReplicationSink;
-typedef TIntrusivePtr<TReplicationSink> TReplicationSinkPtr;
 
 class TJobList;
 typedef TIntrusivePtr<TJobList> TJobListPtr;

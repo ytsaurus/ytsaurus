@@ -50,13 +50,13 @@ public:
     void SetStderrChunkId(const NChunkClient::TChunkId& chunkId);
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunks() const;
 
-    virtual void PopulateResult(NScheduler::NProto::TJobResult* result) = 0;
+    virtual void PopulateResult(NJobTrackerClient::NProto::TJobResult* result) = 0;
 
 protected:
     NScheduler::TJobIOConfigPtr IOConfig;
     IJobHost* Host;
 
-    const NScheduler::NProto::TJobSpec& JobSpec;
+    const NJobTrackerClient::NProto::TJobSpec& JobSpec;
     const NScheduler::NProto::TSchedulerJobSpecExt& SchedulerJobSpecExt;
 
     NChunkClient::TChunkId StderrChunkId;

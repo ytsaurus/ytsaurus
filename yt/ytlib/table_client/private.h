@@ -10,7 +10,6 @@ namespace NTableClient {
 extern NLog::TLogger TableReaderLogger;
 extern NLog::TLogger TableWriterLogger;
 
-extern const int DefaultPartitionTag;
 extern const int FormatVersion;
 
 extern const int MaxPrefetchWindow;

@@ -5,13 +5,12 @@
 #include "pipes.h"
 #include "job.h"
 
-#include <ytlib/scheduler/public.h>
-
 #include <ytlib/misc/periodic_invoker.h>
 
 #include <ytlib/logging/tagged_logger.h>
 
-#include <server/exec_agent/public.h>
+#include <server/job_agent/public.h>
+
 #include <server/exec_agent/supervisor_service_proxy.h>
 
 namespace NYT {
@@ -26,21 +25,21 @@ class TJobProxy
 public:
     TJobProxy(
         TJobProxyConfigPtr config,
-        const NScheduler::TJobId& jobId);
+        const NJobAgent::TJobId& jobId);
 
     //! Runs the job. Blocks until the job is complete.
     void Run();
 
 private:
-    NScheduler::NProto::TJobResult DoRun();
+    NJobTrackerClient::NProto::TJobResult DoRun();
     void SendHeartbeat();
     void OnHeartbeatResponse(NExecAgent::TSupervisorServiceProxy::TRspOnJobProgressPtr rsp);
 
     void RetrieveJobSpec();
-    void ReportResult(const NScheduler::NProto::TJobResult& result);
+    void ReportResult(const NJobTrackerClient::NProto::TJobResult& result);
 
     TJobProxyConfigPtr Config;
-    NScheduler::TJobId JobId;
+    NJobAgent::TJobId JobId;
     
     NLog::TTaggedLogger Logger;
 
@@ -55,15 +54,15 @@ private:
 
     TPeriodicInvokerPtr HeartbeatInvoker;
 
-    NScheduler::NProto::TJobSpec JobSpec;
-    NScheduler::NProto::TNodeResources ResourceUsage;
+    NJobTrackerClient::NProto::TJobSpec JobSpec;
+    NNodeTrackerClient::NProto::TNodeResources ResourceUsage;
 
     // IJobHost implementation.
     virtual TJobProxyConfigPtr GetConfig() override;
-    virtual const NScheduler::NProto::TJobSpec& GetJobSpec() const override;
+    virtual const NJobTrackerClient::NProto::TJobSpec& GetJobSpec() const override;
 
-    virtual const NScheduler::NProto::TNodeResources& GetResourceUsage() const override;
-    virtual void SetResourceUsage(const NScheduler::NProto::TNodeResources& usage) override;
+    virtual const NNodeTrackerClient::NProto::TNodeResources& GetResourceUsage() const override;
+    virtual void SetResourceUsage(const NNodeTrackerClient::NProto::TNodeResources& usage) override;
     void OnResourcesUpdated(NExecAgent::TSupervisorServiceProxy::TRspUpdateResourceUsagePtr rsp);
 
     virtual void ReleaseNetwork() override;

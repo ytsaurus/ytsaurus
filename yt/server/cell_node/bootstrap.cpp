@@ -39,7 +39,6 @@
 
 #include <server/misc/build_attributes.h>
 
-#include <server/chunk_holder/private.h>
 #include <server/chunk_holder/config.h>
 #include <server/chunk_holder/ytree_integration.h>
 #include <server/chunk_holder/chunk_cache.h>
@@ -54,21 +53,19 @@
 #include <server/chunk_holder/data_node_service.h>
 #include <server/chunk_holder/master_connector.h>
 #include <server/chunk_holder/session_manager.h>
-#include <server/chunk_holder/job_executor.h>
+#include <server/chunk_holder/job.h>
+
+#include <server/job_agent/job_controller.h>
 
 #include <server/exec_agent/private.h>
 #include <server/exec_agent/config.h>
-#include <server/exec_agent/job_manager.h>
+#include <server/exec_agent/slot_manager.h>
 #include <server/exec_agent/supervisor_service.h>
 #include <server/exec_agent/environment.h>
 #include <server/exec_agent/environment_manager.h>
 #include <server/exec_agent/unsafe_environment.h>
 #include <server/exec_agent/scheduler_connector.h>
-
-#ifdef _unix_
-    #include <sys/types.h>
-    #include <sys/stat.h>
-#endif
+#include <server/exec_agent/job.h>
 
 namespace NYT {
 namespace NCellNode {
@@ -81,6 +78,7 @@ using namespace NOrchid;
 using namespace NProfiling;
 using namespace NRpc;
 using namespace NScheduler;
+using namespace NJobAgent;
 using namespace NExecAgent;
 using namespace NJobProxy;
 using namespace NChunkHolder;
@@ -88,8 +86,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger SILENT_UNUSED Logger("Bootstrap");
-
+static NLog::TLogger Logger("Bootstrap");
 static const i64 FootprintMemorySize = (i64) 1024 * 1024 * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -99,7 +96,7 @@ TBootstrap::TBootstrap(
     TCellNodeConfigPtr config)
     : ConfigFileName(configFileName)
     , Config(config)
-    , MemoryUsageTracker(Config->TotalMemorySize, "/cell_node")
+    , MemoryUsageTracker(Config->ExecAgent->JobController->ResourceLimits->Memory, "/cell_node")
 { }
 
 TBootstrap::~TBootstrap()
@@ -107,23 +104,25 @@ TBootstrap::~TBootstrap()
 
 void TBootstrap::Run()
 {
-    srand(time(NULL));
+    srand(time(nullptr));
 
-    LocalDescriptor.Address = BuildServiceAddress(
-        TAddressResolver::Get()->GetLocalHostName(),
-        Config->RpcPort);
+    {
+        auto localHostName = TAddressResolver::Get()->GetLocalHostName();
+        LocalDescriptor.Address = BuildServiceAddress(localHostName, Config->RpcPort);
+    }
 
     LOG_INFO("Starting node (LocalDescriptor: %s, MasterAddresses: [%s])",
         ~ToString(LocalDescriptor),
         ~JoinToString(Config->Masters->Addresses));
 
-    auto result = MemoryUsageTracker.TryAcquire(
-        EMemoryConsumer::Footprint,
-        FootprintMemorySize);
-    if (!result.IsOK()) {
-        auto error = TError("Error allocating footprint memory") << result;
-        // TODO(psushin): no need to create core here.
-        LOG_FATAL(error);
+    {
+        auto result = MemoryUsageTracker.TryAcquire(
+            EMemoryConsumer::Footprint,
+            FootprintMemorySize);
+        if (!result.IsOK()) {
+            THROW_ERROR_EXCEPTION("Error allocating footprint memory")
+                << result;
+        }
     }
 
     MasterChannel = CreateLeaderChannel(Config->Masters);
@@ -161,17 +160,17 @@ void TBootstrap::Run()
     PeerBlockUpdater->Start();
 
     ChunkStore = New<TChunkStore>(Config->DataNode, this);
-    ChunkStore->Start();
+    ChunkStore->Initialize();
 
     ChunkCache = New<TChunkCache>(Config->DataNode, this);
-    ChunkCache->Start();
+    ChunkCache->Initialize();
 
     if (!ChunkStore->GetCellGuid().IsEmpty() && !ChunkCache->GetCellGuid().IsEmpty()) {
-        LOG_FATAL_IF(
-            ChunkStore->GetCellGuid().IsEmpty() != ChunkCache->GetCellGuid().IsEmpty(),
-            "Inconsistent cell guid (ChunkStore: %s, ChunkCache: %s)",
-            ~ToString(ChunkStore->GetCellGuid()),
-            ~ToString(ChunkCache->GetCellGuid()));
+        if (ChunkStore->GetCellGuid().IsEmpty() != ChunkCache->GetCellGuid().IsEmpty()) {
+            THROW_ERROR_EXCEPTION("Inconsistent cell guid (ChunkStore: %s, ChunkCache: %s)",
+                ~ToString(ChunkStore->GetCellGuid()),
+                ~ToString(ChunkCache->GetCellGuid()));
+        }
         CellGuid = ChunkCache->GetCellGuid();
     }
 
@@ -187,12 +186,9 @@ void TBootstrap::Run()
 
     SessionManager = New<TSessionManager>(Config->DataNode, this);
 
-    JobExecutor = New<TJobExecutor>(this);
-
     MasterConnector = New<TMasterConnector>(Config->DataNode, this);
 
-    auto dataNodeService = New<TDataNodeService>(Config->DataNode, this);
-    RpcServer->RegisterService(dataNodeService);
+    RpcServer->RegisterService(New<TDataNodeService>(Config->DataNode, this));
 
     MasterConnector->Start();
 
@@ -213,32 +209,65 @@ void TBootstrap::Run()
     // TODO(babenko): consider making this priority configurable
     JobProxyConfig->SupervisorConnection->Priority = 6;
 
-    JobControlEnabled = false;
+    SlotManager = New<TSlotManager>(Config->ExecAgent->SlotManager, this);
+    SlotManager->Initialize(Config->ExecAgent->JobController->ResourceLimits->UserSlots);
 
-#if defined(_unix_) && !defined(_darwin_)
-    if (Config->ExecAgent->EnforceJobControl) {
-        uid_t ruid, euid, suid;
-        YCHECK(getresuid(&ruid, &euid, &suid) == 0);
-        if (suid == 0) {
-            JobControlEnabled = true;
-        }
-        umask(0000);
-    }
-#endif
+    JobController = New<TJobController>(Config->ExecAgent->JobController, this);
 
-    if (!JobControlEnabled) {
-        if (Config->ExecAgent->EnforceJobControl) {
-            LOG_FATAL("Job control disabled, please run as root");
-        } else {
-            LOG_WARNING("Job control disabled, cannot kill jobs and use memory limits watcher");
-        }
-    }
+    auto createExecJob = BIND([this] (
+            const NJobAgent::TJobId& jobId,
+            const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
+            NJobTrackerClient::NProto::TJobSpec&& jobSpec) ->
+            NJobAgent::IJobPtr
+        {
+            return NExecAgent::CreateUserJob(
+                    jobId,
+                    resourceLimits,
+                    std::move(jobSpec),
+                    this);
+        });
+    JobController->RegisterFactory(NJobAgent::EJobType::Map,             createExecJob);
+    JobController->RegisterFactory(NJobAgent::EJobType::PartitionMap,    createExecJob);
+    JobController->RegisterFactory(NJobAgent::EJobType::SortedMerge,     createExecJob);
+    JobController->RegisterFactory(NJobAgent::EJobType::OrderedMerge,    createExecJob);
+    JobController->RegisterFactory(NJobAgent::EJobType::UnorderedMerge,  createExecJob);
+    JobController->RegisterFactory(NJobAgent::EJobType::Partition,       createExecJob);
+    JobController->RegisterFactory(NJobAgent::EJobType::SimpleSort,      createExecJob);
+    JobController->RegisterFactory(NJobAgent::EJobType::PartitionSort,   createExecJob);
+    JobController->RegisterFactory(NJobAgent::EJobType::SortedReduce,    createExecJob);
+    JobController->RegisterFactory(NJobAgent::EJobType::PartitionReduce, createExecJob);
 
-    JobManager = New<TJobManager>(Config->ExecAgent->JobManager, this);
-    JobManager->Initialize();
+    auto createRemovalJob = BIND([this] (
+            const NJobAgent::TJobId& jobId,
+            const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
+            NJobTrackerClient::NProto::TJobSpec&& jobSpec) ->
+            NJobAgent::IJobPtr
+        {
+            return NChunkHolder::CreateRemovalJob(
+                    jobId,
+                    std::move(jobSpec),
+                    resourceLimits,
+                    Config->DataNode,
+                    this);
+        });
+    JobController->RegisterFactory(NJobAgent::EJobType::RemoveChunk,     createRemovalJob);
 
-    auto supervisorService = New<TSupervisorService>(this);
-    RpcServer->RegisterService(supervisorService);
+    auto createReplicationJob = BIND([this] (
+            const NJobAgent::TJobId& jobId,
+            const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
+            NJobTrackerClient::NProto::TJobSpec&& jobSpec) ->
+            NJobAgent::IJobPtr
+        {
+            return NChunkHolder::CreateReplicationJob(
+                jobId,
+                std::move(jobSpec),
+                resourceLimits,
+                Config->DataNode,
+                this);
+        });
+    JobController->RegisterFactory(NJobAgent::EJobType::ReplicateChunk,  createReplicationJob);
+
+    RpcServer->RegisterService(New<TSupervisorService>(this));
 
     EnvironmentManager = New<TEnvironmentManager>(Config->ExecAgent->EnvironmentManager);
     EnvironmentManager->Register("unsafe", CreateUnsafeEnvironmentBuilder());
@@ -274,15 +303,14 @@ void TBootstrap::Run()
         "/@service_name", ConvertToYsonString("node"));
     SetBuildAttributes(OrchidRoot);
 
-    ::THolder<NHttp::TServer> httpServer(new NHttp::TServer(Config->MonitoringPort));
+    THolder<NHttp::TServer> httpServer(new NHttp::TServer(Config->MonitoringPort));
     httpServer->Register(
         "/orchid",
         NMonitoring::GetYPathHttpHandler(OrchidRoot->Via(GetControlInvoker())));
 
-    auto orchidService = New<TOrchidService>(
+    RpcServer->RegisterService(New<TOrchidService>(
         OrchidRoot,
-        GetControlInvoker());
-    RpcServer->RegisterService(orchidService);
+        GetControlInvoker()));
 
     LOG_INFO("Listening for HTTP requests on port %d", Config->MonitoringPort);
     httpServer->Start();
@@ -324,9 +352,14 @@ IMapNodePtr TBootstrap::GetOrchidRoot() const
     return OrchidRoot;
 }
 
-TJobManagerPtr TBootstrap::GetJobManager() const
+TJobTrackerPtr TBootstrap::GetJobController() const
 {
-    return JobManager;
+    return JobController;
+}
+
+TSlotManagerPtr TBootstrap::GetSlotManager() const
+{
+    return SlotManager;
 }
 
 TEnvironmentManagerPtr TBootstrap::GetEnvironmentManager() const
@@ -364,12 +397,7 @@ TSessionManagerPtr TBootstrap::GetSessionManager() const
     return SessionManager;
 }
 
-TJobExecutorPtr TBootstrap::GetJobExecutor() const
-{
-    return JobExecutor;
-}
-
-TBlockStorePtr TBootstrap::GetBlockStore()
+TBlockStorePtr TBootstrap::GetBlockStore() const
 {
     return BlockStore;
 }
@@ -392,11 +420,6 @@ TMasterConnectorPtr TBootstrap::GetMasterConnector() const
 const NNodeTrackerClient::TNodeDescriptor& TBootstrap::GetLocalDescriptor() const
 {
     return LocalDescriptor;
-}
-
-bool TBootstrap::IsJobControlEnabled() const
-{
-    return JobControlEnabled;
 }
 
 const TGuid& TBootstrap::GetCellGuid() const

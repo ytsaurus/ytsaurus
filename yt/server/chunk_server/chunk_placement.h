@@ -41,8 +41,8 @@ public:
         const TNullable<Stroka>& preferredHostName);
 
     TSmallVector<TNode*, TypicalReplicationFactor> GetRemovalTargets(
-        const TChunk* chunk,
-        int count);
+        TChunkPtrWithIndex chunkWithIndex,
+        int targetCount);
 
     TSmallVector<TNode*, TypicalReplicationFactor> GetReplicationTargets(
         const TChunk* chunk,

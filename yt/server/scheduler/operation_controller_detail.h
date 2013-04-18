@@ -29,6 +29,7 @@
 #include <ytlib/chunk_client/public.h>
 
 #include <ytlib/node_tracker_client/public.h>
+#include <ytlib/node_tracker_client/helpers.h>
 
 #include <server/chunk_server/public.h>
 
@@ -53,7 +54,7 @@ public:
     virtual TFuture<TError> Revive(TInputStream* steam) override;
     virtual TFuture<TError> Commit() override;
 
-    virtual void OnJobRunning(TJobPtr job, const NProto::TJobStatus& status) override;
+    virtual void OnJobRunning(TJobPtr job, const NJobTrackerClient::NProto::TJobStatus& status) override;
     virtual void OnJobCompleted(TJobPtr job) override;
     virtual void OnJobFailed(TJobPtr job) override;
     virtual void OnJobAborted(TJobPtr job) override;
@@ -63,14 +64,14 @@ public:
 
     virtual void Abort() override;
 
-    virtual TJobPtr ScheduleJob(ISchedulingContext* context, const NProto::TNodeResources& jobLimits) override;
+    virtual TJobPtr ScheduleJob(ISchedulingContext* context, const NNodeTrackerClient::NProto::TNodeResources& jobLimits) override;
 
     virtual TCancelableContextPtr GetCancelableContext() override;
     virtual IInvokerPtr GetCancelableControlInvoker() override;
     virtual IInvokerPtr GetCancelableBackgroundInvoker() override;
 
     virtual int GetPendingJobCount() override;
-    virtual NProto::TNodeResources GetNeededResources() override;
+    virtual NNodeTrackerClient::NProto::TNodeResources GetNeededResources() override;
 
     virtual void BuildProgressYson(NYson::IYsonConsumer* consumer) override;
     virtual void BuildResultYson(NYson::IYsonConsumer* consumer) override;
@@ -283,8 +284,8 @@ protected:
         virtual int GetPendingJobCount() const;
         int GetPendingJobCountDelta();
 
-        virtual NProto::TNodeResources GetTotalNeededResources() const;
-        NProto::TNodeResources GetTotalNeededResourcesDelta();
+        virtual NNodeTrackerClient::NProto::TNodeResources GetTotalNeededResources() const;
+        NNodeTrackerClient::NProto::TNodeResources GetTotalNeededResourcesDelta();
 
         virtual int GetChunkListCountPerJob() const = 0;
 
@@ -292,8 +293,8 @@ protected:
         virtual i64 GetLocality(const Stroka& address) const;
         virtual bool HasInputLocality();
 
-        const NProto::TNodeResources& GetMinNeededResources() const;
-        virtual NProto::TNodeResources GetNeededResources(TJobletPtr joblet) const;
+        const NNodeTrackerClient::NProto::TNodeResources& GetMinNeededResources() const;
+        virtual NNodeTrackerClient::NProto::TNodeResources GetNeededResources(TJobletPtr joblet) const;
 
         DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, DelayedTime);
 
@@ -304,7 +305,7 @@ protected:
 
         void CheckCompleted();
 
-        TJobPtr ScheduleJob(ISchedulingContext* context, const NProto::TNodeResources& jobLimits);
+        TJobPtr ScheduleJob(ISchedulingContext* context, const NNodeTrackerClient::NProto::TNodeResources& jobLimits);
 
         virtual void OnJobCompleted(TJobletPtr joblet);
         virtual void OnJobFailed(TJobletPtr joblet);
@@ -313,7 +314,7 @@ protected:
 
         void CheckResourceDemandSanity(
             TExecNodePtr node,
-            const NProto::TNodeResources& neededResources);
+            const NNodeTrackerClient::NProto::TNodeResources& neededResources);
 
         bool IsPending() const;
         bool IsCompleted() const;
@@ -329,8 +330,8 @@ protected:
         TOperationControllerBase* Controller;
 
         int CachedPendingJobCount;
-        NProto::TNodeResources CachedTotalNeededResources;
-        mutable TNullable<NProto::TNodeResources> CachedMinNeededResources;
+        NNodeTrackerClient::NProto::TNodeResources CachedTotalNeededResources;
+        mutable TNullable<NNodeTrackerClient::NProto::TNodeResources> CachedMinNeededResources;
 
         TInstant LastDemandSanityCheckTime;
         bool CompletedFired;
@@ -341,13 +342,13 @@ protected:
     protected:
         NLog::TTaggedLogger& Logger;
 
-        virtual NProto::TNodeResources GetMinNeededResourcesHeavy() const = 0;
+        virtual NNodeTrackerClient::NProto::TNodeResources GetMinNeededResourcesHeavy() const = 0;
 
         virtual void OnTaskCompleted();
 
         virtual EJobType GetJobType() const = 0;
         virtual void PrepareJoblet(TJobletPtr joblet);
-        virtual void BuildJobSpec(TJobletPtr joblet, NProto::TJobSpec* jobSpec) = 0;
+        virtual void BuildJobSpec(TJobletPtr joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec) = 0;
 
         virtual void OnJobStarted(TJobletPtr joblet);
 
@@ -362,11 +363,11 @@ protected:
         void ReinstallJob(TJobletPtr joblet, EJobReinstallReason reason);
 
         void AddSequentialInputSpec(
-            NScheduler::NProto::TJobSpec* jobSpec,
+            NJobTrackerClient::NProto::TJobSpec* jobSpec,
             TJobletPtr joblet,
             bool enableTableIndex = false);
         void AddParallelInputSpec(
-            NScheduler::NProto::TJobSpec* jobSpec,
+            NJobTrackerClient::NProto::TJobSpec* jobSpec,
             TJobletPtr joblet,
             bool enableTableIndex = false);
         static void AddChunksToInputSpec(
@@ -376,11 +377,11 @@ protected:
             TNullable<int> partitionTag,
             bool enableTableIndex);
 
-        void AddFinalOutputSpecs(NScheduler::NProto::TJobSpec* jobSpec, TJobletPtr joblet);
-        void AddIntermediateOutputSpec(NScheduler::NProto::TJobSpec* jobSpec, TJobletPtr joblet);
+        void AddFinalOutputSpecs(NJobTrackerClient::NProto::TJobSpec* jobSpec, TJobletPtr joblet);
+        void AddIntermediateOutputSpec(NJobTrackerClient::NProto::TJobSpec* jobSpec, TJobletPtr joblet);
 
         static void UpdateInputSpecTotals(
-            NScheduler::NProto::TJobSpec* jobSpec,
+            NJobTrackerClient::NProto::TJobSpec* jobSpec,
             TJobletPtr joblet);
 
         void RegisterIntermediateChunks(
@@ -395,7 +396,7 @@ protected:
     };
 
     virtual void CustomizeJoblet(TJobletPtr joblet);
-    virtual void CustomizeJobSpec(TJobletPtr joblet, NProto::TJobSpec* jobSpec);
+    virtual void CustomizeJobSpec(TJobletPtr joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec);
 
 
     //! Groups serve two purposes:
@@ -404,12 +405,12 @@ protected:
     struct TTaskGroup
     {
         TTaskGroup()
-            : MinNeededResources(ZeroNodeResources())
+            : MinNeededResources(NNodeTrackerClient::ZeroNodeResources())
         { }
 
         //! No task from this group is considered for scheduling unless this
         //! requirement is met.
-        NProto::TNodeResources MinNeededResources;
+        NNodeTrackerClient::NProto::TNodeResources MinNeededResources;
 
         //! All non-local tasks.
         yhash_set<TTaskPtr> NonLocalTasks;
@@ -436,11 +437,11 @@ protected:
     void AddTaskPendingHint(TTaskPtr task);
     void ResetTaskLocalityDelays();
 
-    bool CheckJobLimits(TExecNodePtr node, TTaskPtr task, const NProto::TNodeResources& jobLimits);
+    bool CheckJobLimits(TExecNodePtr node, TTaskPtr task, const NNodeTrackerClient::NProto::TNodeResources& jobLimits);
 
-    TJobPtr DoScheduleJob(ISchedulingContext* context, const NProto::TNodeResources& jobLimits);
-    TJobPtr DoScheduleLocalJob(ISchedulingContext* context, const NProto::TNodeResources& jobLimits);
-    TJobPtr DoScheduleNonLocalJob(ISchedulingContext* context, const NProto::TNodeResources& jobLimits);
+    TJobPtr DoScheduleJob(ISchedulingContext* context, const NNodeTrackerClient::NProto::TNodeResources& jobLimits);
+    TJobPtr DoScheduleLocalJob(ISchedulingContext* context, const NNodeTrackerClient::NProto::TNodeResources& jobLimits);
+    TJobPtr DoScheduleNonLocalJob(ISchedulingContext* context, const NNodeTrackerClient::NProto::TNodeResources& jobLimits);
 
     void OnJobStarted(TJobPtr job);
 
@@ -610,7 +611,7 @@ private:
     TChunkListPoolPtr ChunkListPool;
 
     int CachedPendingJobCount;
-    NProto::TNodeResources CachedNeededResources;
+    NNodeTrackerClient::NProto::TNodeResources CachedNeededResources;
 
     //! All tasks declared by calling #RegisterTaskGroup, in the order of decreasing priority.
     std::vector<TTaskGroup*> TaskGroups;

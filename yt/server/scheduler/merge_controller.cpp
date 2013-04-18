@@ -35,11 +35,13 @@ using namespace NCypressClient;
 using namespace NScheduler::NProto;
 using namespace NTableClient::NProto;
 using namespace NChunkClient::NProto;
+using namespace NJobTrackerClient::NProto;
+using namespace NNodeTrackerClient::NProto;
 
 ////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& SILENT_UNUSED Logger = OperationLogger;
-static NProfiling::TProfiler SILENT_UNUSED Profiler("/operations/merge");
+static NLog::TLogger& Logger = OperationLogger;
+static NProfiling::TProfiler Profiler("/operations/merge");
 
 ////////////////////////////////////////////////////////////////////
 
@@ -128,11 +130,11 @@ protected:
             return Controller->Spec->LocalityTimeout;
         }
 
-        virtual NProto::TNodeResources GetMinNeededResourcesHeavy() const override
+        virtual TNodeResources GetMinNeededResourcesHeavy() const override
         {
             TNodeResources result;
 
-            result.set_slots(1);
+            result.set_user_slots(1);
             result.set_cpu(1);
             result.set_memory(
                 GetIOMemorySize(
@@ -1296,7 +1298,7 @@ private:
         StartRowIndex += joblet->InputStripeList->TotalRowCount;
     }
 
-    virtual void CustomizeJobSpec(TJobletPtr joblet, NProto::TJobSpec* jobSpec) override
+    virtual void CustomizeJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
     {
         auto* jobSpecExt = jobSpec->MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
         AddUserJobEnvironment(jobSpecExt->mutable_reducer_spec(), joblet);

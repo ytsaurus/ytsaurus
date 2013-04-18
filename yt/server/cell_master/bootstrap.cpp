@@ -211,7 +211,7 @@ void TBootstrap::Run()
     RpcServer->RegisterService(New<TObjectService>(Config->ObjectManager, this));
     RpcServer->RegisterService(New<TNodeTrackerService>(Config->NodeTracker, this));
     RpcServer->RegisterService(New<TOrchidService>(orchidRoot, GetControlInvoker()));
-    RpcServer->RegisterService(New<TJobTrackerService>(this));
+    RpcServer->RegisterService(CreateJobTrackerService(this));
 
     CypressManager->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::ChunkMap));
     CypressManager->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::LostChunkMap));

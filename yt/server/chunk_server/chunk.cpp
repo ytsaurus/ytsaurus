@@ -7,6 +7,8 @@
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
+#include <ytlib/erasure/codec.h>
+
 #include <server/cell_master/serialization_context.h>
 
 namespace NYT {
@@ -229,6 +231,28 @@ void TChunk::SetErasureCodec(NErasure::ECodec value)
 bool TChunk::IsErasure() const
 {
     return GetErasureCodec() != NErasure::ECodec::None;
+}
+
+NErasure::TBlockIndexSet TChunk::GetReplicaIndexSet() const
+{
+    NErasure::TBlockIndexSet result = 0;
+    FOREACH (auto replica, StoredReplicas_) {
+        result |= (1 << replica.GetIndex());
+    }
+    return result;
+}
+
+bool TChunk::IsAvailable() const
+{
+    auto codecId = GetErasureCodec();
+    if (codecId == NErasure::ECodec::None) {
+        return !StoredReplicas_.empty();
+    } else {
+        auto set = GetReplicaIndexSet();
+        auto* codec = NErasure::GetCodec(codecId);
+        int dataBlockCount = codec->GetDataBlockCount();
+        return set == (1 << dataBlockCount) - 1;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -9,8 +9,6 @@ namespace NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using NScheduler::TJobId;
-
 class TJobProxyConfig;
 typedef TIntrusivePtr<TJobProxyConfig> TJobProxyConfigPtr;
 

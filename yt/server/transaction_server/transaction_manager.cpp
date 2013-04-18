@@ -312,7 +312,7 @@ public:
         UNUSED(account);
         UNUSED(response);
 
-        const auto* requestExt = &request->GetExtension(TReqCreateTransactionExt::create_transaction);
+        const auto* requestExt = &request->GetExtension(TReqCreateTransactionExt::create_transaction_ext);
         auto timeout =
             requestExt->has_timeout()
             ? TNullable<TDuration>(TDuration::MilliSeconds(requestExt->timeout()))

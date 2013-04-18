@@ -25,12 +25,10 @@ public:
     { }
 
     // From clients to scheduler.
-    DEFINE_RPC_PROXY_METHOD(NProto, StartOperation);
-    DEFINE_RPC_PROXY_METHOD(NProto, AbortOperation);
-    DEFINE_RPC_PROXY_METHOD(NProto, WaitForOperation);
+    DEFINE_RPC_PROXY_METHOD(NScheduler::NProto, StartOperation);
+    DEFINE_RPC_PROXY_METHOD(NScheduler::NProto, AbortOperation);
+    DEFINE_RPC_PROXY_METHOD(NScheduler::NProto, WaitForOperation);
 
-    // From nodes to scheduler.
-    DEFINE_RPC_PROXY_METHOD(NProto, Heartbeat);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -94,8 +94,7 @@ auto TMultiChunkSequentialWriter<TChunkWriter>::GetCurrentWriter() -> TFacade*
         if (expectedInputSize > Config->DesiredChunkSize ||
             CurrentSession.ChunkWriter->GetCurrentSize() > 2 * Config->DesiredChunkSize)
         {
-            LOG_DEBUG(
-                "Switching to next chunk: data is too large (CurrentSessionSize: %" PRId64 ", ExpectedInputSize: %" PRId64 ", DesiredChunkSize: %" PRId64 ")",
+            LOG_DEBUG("Switching to next chunk: data is too large (CurrentSessionSize: %" PRId64 ", ExpectedInputSize: %" PRId64 ", DesiredChunkSize: %" PRId64 ")",
                 CurrentSession.ChunkWriter->GetCurrentSize(),
                 expectedInputSize,
                 Config->DesiredChunkSize);
@@ -140,7 +139,7 @@ void TMultiChunkSequentialWriter<TChunkWriter>::CreateNextSession()
     req->set_account(Options->Account);
     NMetaState::GenerateRpcMutationId(req);
 
-    auto* reqExt = req->MutableExtension(NProto::TReqCreateChunkExt::create_chunk);
+    auto* reqExt = req->MutableExtension(NProto::TReqCreateChunkExt::create_chunk_ext);
     if (Config->PreferLocalHost) {
         reqExt->set_preferred_host_name(TAddressResolver::Get()->GetLocalHostName());
     }
@@ -174,7 +173,7 @@ void TMultiChunkSequentialWriter<TChunkWriter>::OnChunkCreated(
     }
 
     auto chunkId = NYT::FromProto<TChunkId>(rsp->object_id());
-    const auto& rspExt = rsp->GetExtension(NProto::TRspCreateChunkExt::create_chunk);
+    const auto& rspExt = rsp->GetExtension(NProto::TRspCreateChunkExt::create_chunk_ext);
 
     NodeDirectory->MergeFrom(rspExt.node_directory());
 

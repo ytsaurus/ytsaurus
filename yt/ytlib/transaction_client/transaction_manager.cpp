@@ -89,7 +89,7 @@ public:
             ToProto(req->mutable_transaction_id(), options.ParentId);
         }
 
-        auto* reqExt = req->MutableExtension(NProto::TReqCreateTransactionExt::create_transaction);
+        auto* reqExt = req->MutableExtension(NProto::TReqCreateTransactionExt::create_transaction_ext);
         reqExt->set_enable_uncommitted_accounting(options.EnableUncommittedAccounting);
         reqExt->set_enable_staged_accounting(options.EnableStagedAccounting);
         

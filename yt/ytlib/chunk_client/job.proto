@@ -1,0 +1,29 @@
+package NYT.NChunkClient.NProto;
+
+import "yt/ytlib/job_tracker_client/job.proto";
+import "yt/ytlib/node_tracker_client/node.proto";
+import "yt/ytlib/misc/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TChunkJobSpecExt
+{
+    extend NJobTrackerClient.NProto.TJobSpec
+    {
+        optional TChunkJobSpecExt chunk_job_spec_ext = 200;
+    }
+
+    required NYT.NProto.TGuid chunk_id = 1;
+}
+
+message TReplicationJobSpecExt
+{
+    extend NJobTrackerClient.NProto.TJobSpec
+    {
+        optional TReplicationJobSpecExt replication_job_spec_ext = 201;
+    }
+
+    repeated NNodeTrackerClient.NProto.TNodeDescriptor target_descriptors = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

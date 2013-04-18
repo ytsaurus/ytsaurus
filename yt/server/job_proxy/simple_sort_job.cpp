@@ -7,10 +7,9 @@
 
 #include <ytlib/misc/sync.h>
 
-#include <ytlib/meta_state/master_channel.h>
-
 #include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
+#include <ytlib/chunk_client/input_chunk.pb.h>
 
 #include <ytlib/table_client/table_chunk_writer.h>
 #include <ytlib/table_client/table_chunk_reader.h>
@@ -22,17 +21,18 @@
 namespace NYT {
 namespace NJobProxy {
 
-using namespace NElection;
 using namespace NTableClient;
 using namespace NChunkClient;
 using namespace NObjectClient;
 using namespace NYTree;
 using namespace NScheduler::NProto;
+using namespace NJobTrackerClient::NProto;
+using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& SILENT_UNUSED Logger = JobProxyLogger;
-static NProfiling::TProfiler& SILENT_UNUSED Profiler = JobProxyProfiler;
+static NLog::TLogger& Logger = JobProxyLogger;
+static NProfiling::TProfiler& Profiler = JobProxyProfiler;
 
 typedef TMultiChunkParallelReader<TTableChunkReader> TReader;
 typedef TMultiChunkSequentialWriter<TTableChunkWriter> TWriter;
@@ -65,9 +65,7 @@ public:
             auto options = New<TChunkReaderOptions>();
             options->KeepBlocks = true;
 
-            std::vector<NChunkClient::NProto::TInputChunk> chunks(
-                inputSpec.chunks().begin(),
-                inputSpec.chunks().end());
+            std::vector<TInputChunk> chunks(inputSpec.chunks().begin(), inputSpec.chunks().end());
 
             srand(time(NULL));
             std::random_shuffle(chunks.begin(), chunks.end());
@@ -103,7 +101,7 @@ public:
         }
     }
 
-    virtual NScheduler::NProto::TJobResult Run() override
+    virtual TJobResult Run() override
     {
         PROFILE_TIMING ("/sort_time") {
             size_t keyColumnCount = KeyColumns.size();
@@ -197,10 +195,10 @@ public:
                     row.clear();
                     key.Clear();
 
-                    auto rowIndex = rowIndexBuffer[progressIndex];
-                    for (auto valueIndex = valueIndexBuffer[rowIndex];
-                        valueIndex < valueIndexBuffer[rowIndex + 1];
-                        ++valueIndex)
+                    ui32 rowIndex = rowIndexBuffer[progressIndex];
+                    for (ui32 valueIndex = valueIndexBuffer[rowIndex];
+                         valueIndex < valueIndexBuffer[rowIndex + 1];
+                         ++valueIndex)
                     {
                         row.push_back(valueBuffer[valueIndex]);
                     }
@@ -226,8 +224,11 @@ public:
             {
                 TJobResult result;
                 ToProto(result.mutable_error(), TError());
-                Writer->GetNodeDirectory()->DumpTo(result.mutable_node_directory());
-                ToProto(result.mutable_chunks(), Writer->GetWrittenChunks());
+
+                auto* schedulerResultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+                Writer->GetNodeDirectory()->DumpTo(schedulerResultExt->mutable_node_directory());
+                ToProto(schedulerResultExt->mutable_chunks(), Writer->GetWrittenChunks());
+
                 return result;
             }
         }
@@ -249,7 +250,7 @@ public:
         }
     }
 
-    virtual std::vector<NChunkClient::TChunkId> GetFailedChunks() const override
+    virtual std::vector<TChunkId> GetFailedChunks() const override
     {
         return Reader->GetFailedChunks();
     }

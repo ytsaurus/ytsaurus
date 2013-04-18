@@ -30,8 +30,6 @@ public:
     //! Exec node configuration part.
     NExecAgent::TExecAgentConfigPtr ExecAgent;
 
-    i64 TotalMemorySize;
-
     TCellNodeConfig()
     {
         RegisterParameter("rpc_port", RpcPort)
@@ -44,11 +42,6 @@ public:
             .DefaultNew();
         RegisterParameter("exec_agent", ExecAgent)
             .DefaultNew();
-
-        // Very low default, override in production installation.
-        RegisterParameter("total_memory_size", TotalMemorySize)
-            .GreaterThanOrEqual((i64) 1024 * 1024 * 1024)
-            .Default((i64)  5 * 1024 * 1024 * 1024);
 
         SetKeepOptions(true);
     }

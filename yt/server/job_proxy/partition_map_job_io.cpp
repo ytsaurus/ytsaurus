@@ -27,13 +27,14 @@ namespace NJobProxy {
 using namespace NTableClient;
 using namespace NTransactionServer;
 using namespace NChunkServer;
+using namespace NYTree;
 using namespace NScheduler;
 using namespace NScheduler::NProto;
-using namespace NYTree;
+using namespace NJobTrackerClient::NProto;
 
 ////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& SILENT_UNUSED Logger = JobProxyLogger;
+static NLog::TLogger& Logger = JobProxyLogger;
 
 typedef NChunkClient::TMultiChunkSequentialWriter<TPartitionChunkWriter> TWriter;
 
@@ -92,13 +93,14 @@ public:
         return Writer;
     }
 
-    virtual void PopulateResult(NScheduler::NProto::TJobResult* result) override
+    virtual void PopulateResult(TJobResult* result) override
     {
-        Writer->GetNodeDirectory()->DumpTo(result->mutable_node_directory());
-        ToProto(result->mutable_chunks(), Writer->GetWrittenChunks());
+        auto* schedulerResultExt = result->MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+        Writer->GetNodeDirectory()->DumpTo(schedulerResultExt->mutable_node_directory());
+        ToProto(schedulerResultExt->mutable_chunks(), Writer->GetWrittenChunks());
 
-        auto* resultExt = result->MutableExtension(NScheduler::NProto::TPartitionJobResultExt::partition_job_result_ext);
-        PopulateUserJobResult(resultExt->mutable_mapper_result());
+        auto* partitionResultExt = result->MutableExtension(TPartitionJobResultExt::partition_job_result_ext);
+        PopulateUserJobResult(partitionResultExt->mutable_mapper_result());
     }
 
 private:

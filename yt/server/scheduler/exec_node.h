@@ -25,7 +25,7 @@ class TExecNode
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TJobPtr>, Jobs);
 
     //! Resource limits, as reported by the node.
-    DEFINE_BYREF_RW_PROPERTY(NProto::TNodeResources, ResourceLimits);
+    DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceLimits);
 
     //! The most recent resource usage, as reported by the node.
     /*!
@@ -34,15 +34,15 @@ class TExecNode
      *  E.g. when the scheduler decides to
      *  start a new job it decrements the appropriate counters.
      */
-    DEFINE_BYREF_RW_PROPERTY(NProto::TNodeResources, ResourceUsage);
+    DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceUsage);
 
     //! Used during preemption to allow second-chance scheduling.
-    DEFINE_BYREF_RW_PROPERTY(NProto::TNodeResources, ResourceUsageDiscount);
+    DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceUsageDiscount);
 
     //! Controls heartbeat expiration.
     DEFINE_BYVAL_RW_PROPERTY(TLeaseManager::TLease, Lease);
 
-    bool HasEnoughResources(const NProto::TNodeResources& neededResources) const;
+    bool HasEnoughResources(const NNodeTrackerClient::NProto::TNodeResources& neededResources) const;
     bool HasSpareResources() const;
 
     const Stroka& GetAddress() const;

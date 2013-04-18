@@ -4,15 +4,13 @@
 #include "job_detail.h"
 #include "config.h"
 
-#include <ytlib/meta_state/master_channel.h>
-
 #include <ytlib/chunk_client/async_reader.h>
 #include <ytlib/chunk_client/replication_reader.h>
 #include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
+#include <ytlib/chunk_client/input_chunk.pb.h>
 
 #include <ytlib/table_client/sync_writer.h>
-#include <ytlib/table_client/private.h>
 #include <ytlib/table_client/table_chunk_writer.h>
 #include <ytlib/table_client/table_chunk_reader.h>
 #include <ytlib/table_client/multi_chunk_sequential_reader.h>
@@ -26,14 +24,15 @@ namespace NJobProxy {
 using namespace NYTree;
 using namespace NTableClient;
 using namespace NChunkClient;
-using namespace NChunkClient;
+using namespace NChunkClient::NProto;
 using namespace NObjectClient;
 using namespace NScheduler::NProto;
+using namespace NJobTrackerClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& SILENT_UNUSED Logger = JobProxyLogger;
-static NProfiling::TProfiler& SILENT_UNUSED Profiler = JobProxyProfiler;
+static NLog::TLogger& Logger = JobProxyLogger;
+static NProfiling::TProfiler& Profiler = JobProxyProfiler;
 
 typedef TMultiChunkSequentialWriter<TTableChunkWriter> TWriter;
 
@@ -63,9 +62,7 @@ public:
 
             FOREACH (const auto& inputSpec, SchedulerJobSpecExt.input_specs()) {
                 // ToDo(psushin): validate that input chunks are sorted.
-                std::vector<NChunkClient::NProto::TInputChunk> chunks(
-                    inputSpec.chunks().begin(),
-                    inputSpec.chunks().end());
+                std::vector<TInputChunk> chunks(inputSpec.chunks().begin(), inputSpec.chunks().end());
 
                 auto reader = New<TTableChunkSequenceReader>(
                     config->JobIO->TableReader,
@@ -103,7 +100,7 @@ public:
         }
     }
 
-    virtual NScheduler::NProto::TJobResult Run() override
+    virtual TJobResult Run() override
     {
         PROFILE_TIMING ("/sorted_merge_time") {;
 

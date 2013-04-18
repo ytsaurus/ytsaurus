@@ -22,15 +22,6 @@ public:
     //! Max lost chunk fraction the cell is allowed to have to enable starting new jobs.
     TNullable<double> MaxLostChunkFraction;
 
-    //! Maximum number of upload targets during replication and balancing.
-    int MaxReplicationFanOut;
-
-    //! Maximum number of incoming upload sessions during replication and balancing.
-    int MaxReplicationFanIn;
-
-    //! Maximum number of concurrent removal jobs that can be scheduled to a node.
-    int MaxRemovalJobsPerNode;
-
     //! Minimum difference in fill coefficient (between the most and the least loaded nodes) to start balancing.
     double MinBalancingFillCoeffDiff;
 
@@ -48,12 +39,6 @@ public:
         RegisterParameter("max_lost_chunk_fraction", MaxLostChunkFraction)
             .InRange(0.0, 1.0)
             .Default(0.5);
-        RegisterParameter("max_replication_fan_out", MaxReplicationFanOut)
-            .Default(4);
-        RegisterParameter("max_replication_fan_in", MaxReplicationFanIn)
-            .Default(8);
-        RegisterParameter("max_removal_jobs_per_node", MaxRemovalJobsPerNode)
-            .Default(16);
         RegisterParameter("min_chunk_balancing_fill_coeff_diff", MinBalancingFillCoeffDiff)
             .Default(0.2);
         RegisterParameter("min_chunk_balancing_fill_coeff", MinBalancingFillCoeff)

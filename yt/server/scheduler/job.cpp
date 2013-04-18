@@ -3,10 +3,11 @@
 #include "operation.h"
 #include "exec_node.h"
 #include "operation_controller.h"
-#include "job_resources.h"
 
 namespace NYT {
 namespace NScheduler {
+
+using namespace NNodeTrackerClient::NProto;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -16,7 +17,7 @@ TJob::TJob(
     TOperationPtr operation,
     TExecNodePtr node,
     TInstant startTime,
-    const NProto::TNodeResources& resourceUsage,
+    const TNodeResources& resourceUsage,
     TJobSpecBuilder specBuilder)
     : Id_(id)
     , Type_(type)

@@ -68,16 +68,12 @@ using namespace NCellMaster;
 using namespace NCypressServer;
 using namespace NSecurityServer;
 using namespace NChunkClient;
-
-using NYT::FromProto;
-using NChunkClient::NProto::TReqCreateChunkExt;
-using NChunkClient::NProto::TRspCreateChunkExt;
-using NNodeTrackerClient::NProto::TChunkAddInfo;
-using NNodeTrackerClient::NProto::TChunkRemoveInfo;
+using namespace NChunkClient::NProto;
+using namespace NNodeTrackerClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& SILENT_UNUSED Logger = ChunkServerLogger;
+static NLog::TLogger& Logger = ChunkServerLogger;
 static TDuration ProfilingPeriod = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -603,9 +599,15 @@ public:
         TNode* node,
         const std::vector<TJobPtr>& currentJobs,
         std::vector<TJobPtr>* jobsToStart,
-        std::vector<TJobPtr>* jobsToStop)
+        std::vector<TJobPtr>* jobsToAbort,
+        std::vector<TJobPtr>* jobsToRemove)
     {
-        ChunkReplicator->ScheduleJobs(node, currentJobs, jobsToStart, jobsToStop);
+        ChunkReplicator->ScheduleJobs(
+            node,
+            currentJobs,
+            jobsToStart,
+            jobsToAbort,
+            jobsToRemove);
     }
 
 
@@ -1160,9 +1162,9 @@ private:
 
         auto* chunk = FindChunk(chunkIdWithIndex.Id);
         if (!IsObjectAlive(chunk)) {
-            // Nodes may still contain cached replicas of chunks that no longer exist.
-            // Here we just silently ignore this case.
             if (cached) {
+                // Nodes may still contain cached replicas of chunks that no longer exist.
+                // We just silently ignore this case.
                 return;
             }
 
@@ -1317,13 +1319,14 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::Create(
 
     auto type = GetType();
     bool isErasure = (type == EObjectType::ErasureChunk);
-    const auto* requestExt = &request->GetExtension(TReqCreateChunkExt::create_chunk);
+    const auto* requestExt = &request->GetExtension(TReqCreateChunkExt::create_chunk_ext);
 
     auto erasureCodecId = isErasure ? NErasure::ECodec(requestExt->erasure_codec()) : NErasure::ECodec(NErasure::ECodec::None);
     auto* erasureCodec = isErasure ? NErasure::GetCodec(erasureCodecId) : nullptr;
+    int replicationFactor = isErasure ? 1 : requestExt->replication_factor();
 
     auto* chunk = Owner->CreateChunk(type);
-    chunk->SetReplicationFactor(isErasure ? 1 : requestExt->replication_factor());
+    chunk->SetReplicationFactor(replicationFactor);
     chunk->SetErasureCodec(erasureCodecId);
     chunk->SetMovable(requestExt->movable());
     chunk->SetVital(requestExt->vital());
@@ -1335,13 +1338,13 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::Create(
             ? TNullable<Stroka>(requestExt->preferred_host_name())
             : Null;
 
-        int replicaCount = isErasure
+        int uploadReplicationFactor = isErasure
             ? erasureCodec->GetDataBlockCount() + erasureCodec->GetParityBlockCount()
             : requestExt->upload_replication_factor();
 
-        auto targets = Owner->AllocateUploadTargets(replicaCount, preferredHostName);
+        auto targets = Owner->AllocateUploadTargets(uploadReplicationFactor, preferredHostName);
 
-        auto* responseExt = response->MutableExtension(TRspCreateChunkExt::create_chunk);
+        auto* responseExt = response->MutableExtension(TRspCreateChunkExt::create_chunk_ext);
         TNodeDirectoryBuilder builder(responseExt->mutable_node_directory());
         TSmallVector<Stroka, TypicalReplicationFactor> targetAddresses;
         for (int index = 0; index < static_cast<int>(targets.size()); ++index) {
@@ -1545,9 +1548,15 @@ void TChunkManager::ScheduleJobs(
     TNode* node,
     const std::vector<TJobPtr>& currentJobs,
     std::vector<TJobPtr>* jobsToStart,
-    std::vector<TJobPtr>* jobsToStop)
+    std::vector<TJobPtr>* jobsToAbort,
+    std::vector<TJobPtr>* jobsToRemove)
 {
-    Impl->ScheduleJobs(node, currentJobs, jobsToStart, jobsToStop);
+    Impl->ScheduleJobs(
+        node,
+        currentJobs,
+        jobsToStart,
+        jobsToAbort,
+        jobsToRemove);
 }
 
 bool TChunkManager::IsReplicatorEnabled()

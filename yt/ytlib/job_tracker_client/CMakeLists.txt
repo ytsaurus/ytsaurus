@@ -13,4 +13,5 @@ list(APPEND YT_SOURCE_FILES
   ${HDRS}
 )
 
+protoc( ${BASE}/job.proto YT_SOURCE_FILES )
 protoc( ${BASE}/job_tracker_service.proto YT_SOURCE_FILES )

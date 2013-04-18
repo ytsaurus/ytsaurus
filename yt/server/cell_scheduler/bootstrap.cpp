@@ -40,6 +40,8 @@
 #include <server/job_proxy/config.h>
 
 #include <server/scheduler/scheduler.h>
+#include <server/scheduler/scheduler_service.h>
+#include <server/scheduler/job_tracker_service.h>
 #include <server/scheduler/config.h>
 
 namespace NYT {
@@ -126,17 +128,17 @@ void TBootstrap::Run()
     SyncYPathSet(orchidRoot, "/@service_name", ConvertToYsonString("scheduler"));
     SetBuildAttributes(orchidRoot);
 
-    auto orchidService = New<TOrchidService>(
+    rpcServer->RegisterService(New<TOrchidService>(
         orchidRoot,
-        GetControlInvoker());
-    rpcServer->RegisterService(orchidService);
+        GetControlInvoker()));
 
     ::THolder<NHttp::TServer> httpServer(new NHttp::TServer(Config->MonitoringPort));
     httpServer->Register(
         "/orchid",
         NMonitoring::GetYPathHttpHandler(orchidRoot->Via(GetControlInvoker())));
 
-    rpcServer->RegisterService(Scheduler->GetService());
+    rpcServer->RegisterService(CreateSchedulerService(this));
+    rpcServer->RegisterService(CreateJobTrackerService(this));
 
     LOG_INFO("Listening for HTTP requests on port %d", Config->MonitoringPort);
     httpServer->Start();
@@ -145,7 +147,7 @@ void TBootstrap::Run()
     rpcServer->Configure(Config->RpcServer);
     rpcServer->Start();
 
-    Scheduler->Start();
+    Scheduler->Initialize();
 
     Sleep(TDuration::Max());
 }

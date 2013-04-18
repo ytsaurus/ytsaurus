@@ -21,7 +21,7 @@ using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& SILENT_UNUSED Logger = ChunkServerLogger;
+static NLog::TLogger& Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -176,7 +176,7 @@ TSmallVector<TNode*, TypicalReplicationFactor> TChunkPlacement::GetReplicationTa
     auto jobList = chunkManager->FindJobList(chunk->GetId());
     if (jobList) {
         FOREACH (const auto& job, jobList->Jobs()) {
-            if (job->GetType() == EJobType::Replicate && job->GetChunkId() == chunk->GetId()) {
+            if (job->GetType() == EJobType::ReplicateChunk && job->GetChunkId() == chunk->GetId()) {
                 FOREACH (const auto& targetAddress, job->TargetAddresses()) {
                     auto* targetNode = nodeTracker->FindNodeByAddress(targetAddress);
                     if (targetNode) {
@@ -200,17 +200,20 @@ TNode* TChunkPlacement::GetReplicationSource(const TChunk* chunk)
 }
 
 TSmallVector<TNode*, TypicalReplicationFactor> TChunkPlacement::GetRemovalTargets(
-    const TChunk* chunk,
-    int count)
+    TChunkPtrWithIndex chunkWithIndex,
+    int targetCount)
 {
     // Construct a list of |(nodeId, loadFactor)| pairs.
     typedef std::pair<TNode*, double> TCandidatePair;
     TSmallVector<TCandidatePair, TypicalReplicationFactor> candidates;
+    auto* chunk = chunkWithIndex.GetPtr();
     candidates.reserve(chunk->StoredReplicas().size());
     FOREACH (auto replica, chunk->StoredReplicas()) {
-        auto* node = replica.GetPtr();
-        double fillCoeff = GetFillCoeff(node);
-        candidates.push_back(std::make_pair(node, fillCoeff));
+        if (replica.GetIndex() == chunkWithIndex.GetIndex()) {
+            auto* node = replica.GetPtr();
+            double fillCoeff = GetFillCoeff(node);
+            candidates.push_back(std::make_pair(node, fillCoeff));
+        }
     }
 
     // Sort by |fillCoeff| in descending order.
@@ -223,9 +226,9 @@ TSmallVector<TNode*, TypicalReplicationFactor> TChunkPlacement::GetRemovalTarget
 
     // Take first |count| nodes.
     TSmallVector<TNode*, TypicalReplicationFactor> result;
-    result.reserve(count);
+    result.reserve(targetCount);
     FOREACH (const auto& pair, candidates) {
-        if (static_cast<int>(result.size()) >= count) {
+        if (static_cast<int>(result.size()) >= targetCount) {
             break;
         }
         result.push_back(pair.first);

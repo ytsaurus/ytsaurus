@@ -57,6 +57,7 @@ list(APPEND YT_SOURCE_FILES
 )
 
 protoc( ${BASE}/input_chunk.proto YT_SOURCE_FILES )
+protoc( ${BASE}/job.proto YT_SOURCE_FILES )
 protoc( ${BASE}/chunk.proto YT_SOURCE_FILES )
 protoc( ${BASE}/data_node_service.proto YT_SOURCE_FILES )
 protoc( ${BASE}/chunk_ypath.proto YT_SOURCE_FILES )

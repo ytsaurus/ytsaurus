@@ -5,7 +5,7 @@
 #include "stderr_output.h"
 #include "job.h"
 
-#include <ytlib/meta_state/config.h>
+#include <ytlib/ytree/convert.h>
 
 #include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
 
@@ -16,20 +16,16 @@
 #include <ytlib/table_client/sync_writer.h>
 #include <ytlib/chunk_client/schema.h>
 
-#include <ytlib/scheduler/config.h>
-
 namespace NYT {
 namespace NJobProxy {
 
-using namespace NElection;
-using namespace NScheduler::NProto;
-using namespace NTableClient;
-using namespace NYTree;
 using namespace NYson;
+using namespace NYTree;
 using namespace NScheduler;
-using namespace NTransactionClient;
 using namespace NChunkClient;
-using namespace NChunkServer;
+using namespace NTableClient;
+using namespace NTransactionClient;
+using namespace NScheduler::NProto;
 
 typedef TMultiChunkSequentialWriter<TTableChunkWriter> TWriter;
 
@@ -130,9 +126,9 @@ void TUserJobIO::SetStderrChunkId(const TChunkId& chunkId)
     StderrChunkId = chunkId;
 }
 
-std::vector<NChunkClient::TChunkId> TUserJobIO::GetFailedChunks() const
+std::vector<TChunkId> TUserJobIO::GetFailedChunks() const
 {
-    std::vector<NChunkClient::TChunkId> result;
+    std::vector<TChunkId> result;
     FOREACH (const auto& input, Inputs) {
         auto part = input->GetFailedChunks();
         result.insert(result.end(), part.begin(), part.end());

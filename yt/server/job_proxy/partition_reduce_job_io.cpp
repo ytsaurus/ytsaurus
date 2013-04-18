@@ -14,10 +14,6 @@
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
-#include <ytlib/scheduler/config.h>
-
-#include <ytlib/rpc/channel.h>
-
 namespace NYT {
 namespace NJobProxy {
 
@@ -25,6 +21,7 @@ using namespace NScheduler;
 using namespace NScheduler::NProto;
 using namespace NTableClient;
 using namespace NChunkClient;
+using namespace NJobTrackerClient::NProto;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -80,7 +77,7 @@ public:
 
     virtual void PopulateResult(TJobResult* result) override
     {
-        auto* resultExt = result->MutableExtension(NScheduler::NProto::TReduceJobResultExt::reduce_job_result_ext);
+        auto* resultExt = result->MutableExtension(TReduceJobResultExt::reduce_job_result_ext);
         PopulateUserJobResult(resultExt->mutable_reducer_result());
     }
 

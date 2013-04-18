@@ -5,18 +5,24 @@
 #include "operation_controller.h"
 #include "job_resources.h"
 
+#include <ytlib/node_tracker_client/helpers.h>
+
 namespace NYT {
 namespace NScheduler {
 
+using namespace NNodeTrackerClient;
+using NNodeTrackerClient::TNodeDescriptor;
+using NNodeTrackerClient::NProto::TNodeResources;
+
 ////////////////////////////////////////////////////////////////////
 
-TExecNode::TExecNode(const NNodeTrackerClient::TNodeDescriptor& descriptor)
+TExecNode::TExecNode(const TNodeDescriptor& descriptor)
     : Descriptor_(descriptor)
     , ResourceLimits_(ZeroNodeResources())
     , ResourceUsage_(ZeroNodeResources())
 { }
 
-bool TExecNode::HasEnoughResources(const NProto::TNodeResources& neededResources) const
+bool TExecNode::HasEnoughResources(const TNodeResources& neededResources) const
 {
     return Dominates(
         ResourceLimits_ + ResourceUsageDiscount_,
@@ -25,7 +31,7 @@ bool TExecNode::HasEnoughResources(const NProto::TNodeResources& neededResources
 
 bool TExecNode::HasSpareResources() const
 {
-    return HasEnoughResources(LowWatermarkNodeResources());
+    return HasEnoughResources(MinSpareNodeResources());
 }
 
 const Stroka& TExecNode::GetAddress() const

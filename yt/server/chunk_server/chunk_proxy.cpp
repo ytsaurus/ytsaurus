@@ -112,8 +112,8 @@ private:
         };
 
         auto serializeReplica = chunk->IsErasure()
-            ? TReplicaSerializer(serializeRegularReplica)
-            : TReplicaSerializer(serializeErasureReplica);
+            ? TReplicaSerializer(serializeErasureReplica)
+            : TReplicaSerializer(serializeRegularReplica);
 
         if (key == "cached_replicas") {
             if (~chunk->CachedReplicas()) {

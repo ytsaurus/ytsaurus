@@ -188,11 +188,13 @@ class Holder(Server):
                     }
                 }
             },
-            'job_manager': {
+            'job_controller': {
                 'resource_limits' : {
                     'slots' : 24,
                     'cpu' : 22
-                },
+                }
+            },
+            'slot_manager' : {
                 'slot_location' : '%(work_dir)s/slots'
             },
             'job_proxy_logging' : proxyLogging,

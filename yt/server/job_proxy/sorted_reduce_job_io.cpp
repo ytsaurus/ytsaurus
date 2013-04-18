@@ -5,16 +5,13 @@
 #include "job.h"
 
 #include <ytlib/chunk_client/client_block_cache.h>
+#include <ytlib/chunk_client/input_chunk.pb.h>
 
 #include <ytlib/table_client/multi_chunk_sequential_reader.h>
 #include <ytlib/table_client/table_chunk_reader.h>
 #include <ytlib/table_client/sync_reader.h>
 #include <ytlib/table_client/table_producer.h>
 #include <ytlib/table_client/merging_reader.h>
-
-#include <ytlib/scheduler/config.h>
-
-#include <ytlib/rpc/channel.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -23,6 +20,8 @@ using namespace NScheduler;
 using namespace NScheduler::NProto;
 using namespace NTableClient;
 using namespace NChunkClient;
+using namespace NChunkClient::NProto;
+using namespace NJobTrackerClient::NProto;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -53,9 +52,7 @@ public:
 
         FOREACH (const auto& inputSpec, schedulerJobSpecExt.input_specs()) {
             // ToDo(psushin): validate that input chunks are sorted.
-            std::vector<NChunkClient::NProto::TInputChunk> chunks(
-                inputSpec.chunks().begin(),
-                inputSpec.chunks().end());
+            std::vector<TInputChunk> chunks(inputSpec.chunks().begin(), inputSpec.chunks().end());
 
             auto reader = New<TTableChunkSequenceReader>(
                 IOConfig->TableReader,
@@ -81,7 +78,7 @@ public:
 
     virtual void PopulateResult(TJobResult* result) override
     {
-        auto* resultExt = result->MutableExtension(NScheduler::NProto::TReduceJobResultExt::reduce_job_result_ext);
+        auto* resultExt = result->MutableExtension(TReduceJobResultExt::reduce_job_result_ext);
         PopulateUserJobResult(resultExt->mutable_reducer_result());
     }
 };

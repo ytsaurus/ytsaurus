@@ -49,26 +49,13 @@ TNodeTrackerService::TNodeTrackerService(
             .SetRequestHeavy(true));
 }
 
-TNode* TNodeTrackerService::GetNode(TNodeId nodeId)
-{
-    auto nodeTracker = Bootstrap->GetNodeTracker();
-    auto* node = nodeTracker->FindNode(nodeId);
-    if (!node) {
-        THROW_ERROR_EXCEPTION(
-            NNodeTrackerClient::EErrorCode::NoSuchNode,
-            "Invalid or expired node id: %d",
-            nodeId);
-    }
-    return node;
-}
-
 void TNodeTrackerService::ValidateAuthorization(const Stroka& address)
 {
     auto nodeAuthority = Bootstrap->GetNodeAuthority();
     if (!nodeAuthority->IsAuthorized(address)) {
         THROW_ERROR_EXCEPTION(
             NNodeTrackerClient::EErrorCode::NotAuthorized,
-            "Node is not authorized: %s",
+            "Node %s is not authorized",
             ~address);
     }
 }
@@ -140,7 +127,9 @@ DEFINE_RPC_SERVICE_METHOD(TNodeTrackerService, FullHeartbeat)
 
     context->SetRequestInfo("NodeId: %d", nodeId);
 
-    const auto* node = GetNode(nodeId);
+    auto nodeTracker = Bootstrap->GetNodeTracker();
+    auto* node = nodeTracker->GetNodeOrThrow(nodeId);
+
     if (node->GetState() != ENodeState::Registered) {
         context->Reply(TError(
             NNodeTrackerClient::EErrorCode::InvalidState,
@@ -148,9 +137,9 @@ DEFINE_RPC_SERVICE_METHOD(TNodeTrackerService, FullHeartbeat)
             ~FormatEnum(node->GetState()).Quote()));
         return;
     }
+
     ValidateAuthorization(node->GetAddress());
 
-    auto nodeTracker = Bootstrap->GetNodeTracker();
     nodeTracker
         ->CreateFullHeartbeatMutation(context)
         ->OnSuccess(CreateRpcSuccessHandler(context))
@@ -166,7 +155,9 @@ DEFINE_RPC_SERVICE_METHOD(TNodeTrackerService, IncrementalHeartbeat)
 
     context->SetRequestInfo("NodeId: %d", nodeId);
 
-    auto* node = GetNode(nodeId);
+    auto nodeTracker = Bootstrap->GetNodeTracker();
+    auto* node = nodeTracker->GetNodeOrThrow(nodeId);
+
     if (node->GetState() != ENodeState::Online) {
         context->Reply(TError(
             NNodeTrackerClient::EErrorCode::InvalidState,
@@ -183,7 +174,6 @@ DEFINE_RPC_SERVICE_METHOD(TNodeTrackerService, IncrementalHeartbeat)
     heartbeatReq.mutable_added_chunks()->MergeFrom(request->added_chunks());
     heartbeatReq.mutable_removed_chunks()->MergeFrom(request->removed_chunks());
 
-    auto nodeTracker = Bootstrap->GetNodeTracker();
     nodeTracker
         ->CreateIncrementalHeartbeatMutation(heartbeatReq)
         ->OnSuccess(CreateRpcSuccessHandler(context))

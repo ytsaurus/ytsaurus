@@ -9,7 +9,7 @@ set( HDRS
   ${BASE}/helpers.h
   ${BASE}/public.h
   ${BASE}/scheduler_channel.h
-  ${BASE}/scheduler_proxy.h
+  ${BASE}/scheduler_service_proxy.h
 )
 
 list(APPEND YT_SOURCE_FILES

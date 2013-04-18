@@ -21,11 +21,12 @@ using namespace NTransactionServer;
 using namespace NObjectServer;
 using namespace NSecurityServer;
 using namespace NFileClient;
+using namespace NFileClient::NProto;
 using namespace NCypressClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& SILENT_UNUSED Logger = FileServerLogger;
+static NLog::TLogger& Logger = FileServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -138,8 +139,8 @@ protected:
 
         TChunk* chunk = nullptr;
 
-        if (request->HasExtension(NFileClient::NProto::TReqCreateFileExt::create_file)) {
-            const auto& requestExt = request->GetExtension(NFileClient::NProto::TReqCreateFileExt::create_file);
+        if (request->HasExtension(TReqCreateFileExt::create_file_ext)) {
+            const auto& requestExt = request->GetExtension(TReqCreateFileExt::create_file_ext);
             auto chunkId = FromProto<TChunkId>(requestExt.chunk_id());
 
             chunk = chunkManager->FindChunk(chunkId);

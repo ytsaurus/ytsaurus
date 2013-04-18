@@ -3,38 +3,26 @@
 #include <ytlib/misc/common.h>
 #include <ytlib/misc/guid.h>
 
+#include <ytlib/job_tracker_client/public.h>
+
 namespace NYT {
 namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef TGuid TJobId;
+using NJobTrackerClient::TJobId;
+using NJobTrackerClient::EJobType;
+using NJobTrackerClient::EJobState;
+
 typedef TGuid TOperationId;
 
 DECLARE_ENUM(EOperationType,
-    ((Map)(0))
-    ((Merge)(1))
-    ((Erase)(2))
-    ((Sort)(3))
-    ((Reduce)(4))
-    ((MapReduce)(5))
-);
-
-DECLARE_ENUM(EJobType,
-    ((Map)(0))
-    ((PartitionMap)(1))
-
-    ((SortedMerge)(2))
-    ((OrderedMerge)(3))
-    ((UnorderedMerge)(4))
-
-    ((Partition)(5))
-
-    ((SimpleSort)(6))
-    ((PartitionSort)(7))
-
-    ((SortedReduce)(8))
-    ((PartitionReduce)(9))
+    (Map)
+    (Merge)
+    (Erase)
+    (Sort)
+    (Reduce)
+    (MapReduce)
 );
 
 DECLARE_ENUM(EOperationState,
@@ -48,32 +36,6 @@ DECLARE_ENUM(EOperationState,
     (Aborted)
     (Failing)
     (Failed)
-);
-
-DECLARE_ENUM(EJobState,
-    ((Running)(0))
-    ((Aborting)(1))
-    ((Completed)(2))
-    ((Failed)(3))
-    ((Aborted)(4))
-    ((Waiting)(5))
-);
-
-DECLARE_ENUM(EJobPhase,
-    ((Created)(0))
-    ((PreparingConfig)(1))
-    ((PreparingProxy)(2))
-
-    ((PreparingSandbox)(10))
-
-    ((StartedProxy)(50))
-    ((StartedJob)(51))
-    ((FinishedJob)(52))
-
-    ((Cleanup)(80))
-
-    ((Completed)(101))
-    ((Failed)(102))
 );
 
 class TSchedulerServiceProxy;
@@ -119,6 +81,9 @@ typedef TIntrusivePtr<TSortOperationSpec> TSortOperationSpecPtr;
 
 struct TMapReduceOperationSpec;
 typedef TIntrusivePtr<TMapReduceOperationSpec> TMapReduceOperationSpecPtr;
+
+class TPoolResourceLimitsConfig;
+typedef TIntrusivePtr<TPoolResourceLimitsConfig> TPoolResourceLimitsConfigPtr;
 
 class TPoolConfig;
 typedef TIntrusivePtr<TPoolConfig> TPoolConfigPtr;

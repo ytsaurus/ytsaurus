@@ -1,24 +1,27 @@
 ﻿#include "stdafx.h"
 #include "scheduler_connector.h"
 #include "private.h"
-#include "job_manager.h"
 #include "job.h"
 #include "config.h"
 
-#include <server/scheduler/job_resources.h>
+#include <ytlib/node_tracker_client/helpers.h>
+
+#include <server/job_agent/job_controller.h>
+
+#include <server/chunk_holder/master_connector.h>
 
 #include <server/cell_node/bootstrap.h>
 
 namespace NYT {
 namespace NExecAgent {
 
-using namespace NScheduler;
-using namespace NScheduler::NProto;
+using namespace NNodeTrackerClient;
+using namespace NJobTrackerClient;
 using namespace NCellNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& SILENT_UNUSED Logger = ExecAgentLogger;
+static NLog::TLogger& Logger = ExecAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,7 +31,6 @@ TSchedulerConnector::TSchedulerConnector(
     : Config(config)
     , Bootstrap(bootstrap)
     , ControlInvoker(bootstrap->GetControlInvoker())
-    , Proxy(bootstrap->GetSchedulerChannel())
 {
     YCHECK(config);
     YCHECK(bootstrap);
@@ -45,7 +47,8 @@ void TSchedulerConnector::Start()
 
     // Schedule an out-of-order heartbeat whenever a job finishes
     // or its resource usage is updated.
-    Bootstrap->GetJobManager()->SubscribeResourcesUpdated(BIND(
+    auto jobController = Bootstrap->GetJobController();
+    jobController->SubscribeResourcesUpdated(BIND(
         &TPeriodicInvoker::ScheduleOutOfBand,
         HeartbeatInvoker));
 
@@ -54,51 +57,27 @@ void TSchedulerConnector::Start()
 
 void TSchedulerConnector::SendHeartbeat()
 {
-    auto jobManager = Bootstrap->GetJobManager();
-
-    // Construct state snapshot.
-    auto req = Proxy.Heartbeat();
-    ToProto(req->mutable_node_descriptor(), Bootstrap->GetLocalDescriptor());
-    *req->mutable_resource_limits() = jobManager->GetResourceLimits();
-    *req->mutable_resource_usage() = jobManager->GetResourceUsage();
-
-    auto jobs = Bootstrap->GetJobManager()->GetJobs();
-    FOREACH (auto job, jobs) {
-        auto state = job->GetState();
-        auto* jobStatus = req->add_jobs();
-        ToProto(jobStatus->mutable_job_id(), job->GetId());
-        jobStatus->set_state(state);
-        jobStatus->set_phase(job->GetPhase());
-        jobStatus->set_progress(job->GetProgress());
-        switch (state) {
-            case EJobState::Running:
-                *jobStatus->mutable_resource_usage() = job->GetResourceUsage();
-                break;
-
-            case EJobState::Completed:
-            case EJobState::Aborted:
-            case EJobState::Failed: {
-                *jobStatus->mutable_result() = job->GetResult();
-                break;
-            }
-
-            default:
-                break;
-        }
+    auto masterConnector = Bootstrap->GetMasterConnector();
+    if (!masterConnector->IsConnected()) {
+        HeartbeatInvoker->ScheduleNext();
+        return;
     }
+
+    TJobTrackerServiceProxy proxy(Bootstrap->GetSchedulerChannel());
+    auto req = proxy.Heartbeat();
+
+    auto jobController = Bootstrap->GetJobController();
+    jobController->PrepareHeartbeat(~req);
 
     req->Invoke().Subscribe(
         BIND(&TSchedulerConnector::OnHeartbeatResponse, MakeStrong(this))
             .Via(ControlInvoker));
 
-    LOG_INFO("Scheduler heartbeat sent (JobCount: %d, ResourceUsage: {%s})",
-        req->jobs_size(),
-        ~FormatResourceUsage(
-            req->resource_usage(),
-            req->resource_limits()));
+    LOG_INFO("Scheduler heartbeat sent (ResourceUsage: {%s})",
+        ~FormatResourceUsage(req->resource_usage(), req->resource_limits()));
 }
 
-void TSchedulerConnector::OnHeartbeatResponse(TSchedulerServiceProxy::TRspHeartbeatPtr rsp)
+void TSchedulerConnector::OnHeartbeatResponse(TJobTrackerServiceProxy::TRspHeartbeatPtr rsp)
 {
     HeartbeatInvoker->ScheduleNext();
 
@@ -109,41 +88,8 @@ void TSchedulerConnector::OnHeartbeatResponse(TSchedulerServiceProxy::TRspHeartb
 
     LOG_INFO("Successfully reported heartbeat to scheduler");
 
-    // Handle actions requested by the scheduler.
-    auto jobManager = Bootstrap->GetJobManager();
-
-    FOREACH (const auto& protoJobId, rsp->jobs_to_remove()) {
-        auto jobId = FromProto<TJobId>(protoJobId);
-        RemoveJob(jobId);
-    }
-
-    FOREACH (const auto& protoJobId, rsp->jobs_to_abort()) {
-        auto jobId = FromProto<TJobId>(protoJobId);
-        AbortJob(jobId);
-    }
-
-    FOREACH (auto& info, *rsp->mutable_jobs_to_start()) {
-        StartJob(info);
-    }
-}
-
-void TSchedulerConnector::StartJob(TJobStartInfo& info)
-{
-    auto jobManager = Bootstrap->GetJobManager();
-    auto jobId = FromProto<TJobId>(info.job_id());
-    const auto& resourceLimits = info.resource_limits();
-    auto* spec = info.mutable_spec();
-    jobManager->CreateJob(jobId, resourceLimits, *spec);
-}
-
-void TSchedulerConnector::AbortJob(const TJobId& jobId)
-{
-    Bootstrap->GetJobManager()->AbortJob(jobId);
-}
-
-void TSchedulerConnector::RemoveJob(const TJobId& jobId)
-{
-    Bootstrap->GetJobManager()->RemoveJob(jobId);
+    auto jobController = Bootstrap->GetJobController();
+    jobController->ProcessHeartbeat(~rsp);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

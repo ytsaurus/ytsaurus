@@ -32,6 +32,7 @@ using namespace NChunkClient;
 using namespace NObjectClient;
 using namespace NCypressClient;
 using namespace NNodeTrackerClient;
+using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -76,7 +77,7 @@ void TFileChunkOutput::Open()
         req->set_account(Account);
         NMetaState::GenerateRpcMutationId(req);
 
-        auto* reqExt = req->MutableExtension(NChunkClient::NProto::TReqCreateChunkExt::create_chunk);
+        auto* reqExt = req->MutableExtension(TReqCreateChunkExt::create_chunk_ext);
         reqExt->set_preferred_host_name(TAddressResolver::Get()->GetLocalHostName());
         reqExt->set_upload_replication_factor(UploadReplicationFactor);
         reqExt->set_replication_factor(ReplicationFactor);
@@ -88,7 +89,7 @@ void TFileChunkOutput::Open()
 
         ChunkId = FromProto<TGuid>(rsp->object_id());
 
-        const auto& rspExt = rsp->GetExtension(NChunkClient::NProto::TRspCreateChunkExt::create_chunk);
+        const auto& rspExt = rsp->GetExtension(TRspCreateChunkExt::create_chunk_ext);
         nodeDirectory->MergeFrom(rspExt.node_directory());
         Replicas = FromProto<TChunkReplica>(rspExt.replicas());
         if (Replicas.size() < Config->UploadReplicationFactor) {
@@ -167,7 +168,7 @@ void TFileChunkOutput::DoFinish()
         Meta.set_type(EChunkType::File);
         Meta.set_version(FormatVersion);
 
-        NChunkClient::NProto::TMiscExt miscExt;
+        TMiscExt miscExt;
         miscExt.set_uncompressed_data_size(Size);
         miscExt.set_compressed_data_size(Size);
         miscExt.set_meta_size(Meta.ByteSize());

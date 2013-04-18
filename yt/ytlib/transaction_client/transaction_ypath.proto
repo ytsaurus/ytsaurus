@@ -48,7 +48,7 @@ message TReqCreateTransactionExt
 {
     extend NYT.NObjectClient.NProto.TReqCreateObject
     {
-        optional TReqCreateTransactionExt create_transaction = 101;
+        optional TReqCreateTransactionExt create_transaction_ext = 101;
     }
 
     // Transaction timeout (in ms).
