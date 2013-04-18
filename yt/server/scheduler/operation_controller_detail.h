@@ -319,9 +319,9 @@ protected:
 
         // Checks against all available nodes.
         void CheckResourceDemandSanity(
-            const NProto::TNodeResources& neededResources);
+            const NNodeTrackerClient::NProto::TNodeResources& neededResources);
 
-        void DoCheckResourceDemandSanity(const NProto::TNodeResources& neededResources);
+        void DoCheckResourceDemandSanity(const NNodeTrackerClient::NProto::TNodeResources& neededResources);
 
         bool IsPending() const;
         bool IsCompleted() const;

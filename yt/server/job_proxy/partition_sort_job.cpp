@@ -141,7 +141,7 @@ public:
             {
                 bool isNetworkReleased = false;
 
-                NYson::TLexer lexer;
+                NYson::TStatelessLexer lexer;
                 const TReader::TFacade* facade;
                 while (facade = Reader->GetFacade()) {
                     // Push row pointer.

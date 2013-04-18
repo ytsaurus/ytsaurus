@@ -17,21 +17,23 @@ namespace NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+
 class TStatelessLexer::TImpl
 {
 private:
-    THolder<TYsonStatelessLexerImplBase> Impl;
+    typedef NDetail::TLexer<TStringReader, false> TLexer;
+    TLexer Lexer;
 
 public:
-    TImpl(bool enableLinePositionInfo = false)
-        : Impl(enableLinePositionInfo? 
-        static_cast<TYsonStatelessLexerImplBase*>(new TYsonStatelessLexerImpl<true>()) 
-        : static_cast<TYsonStatelessLexerImplBase*>(new TYsonStatelessLexerImpl<false>()))
+    TImpl()
+        : Lexer(TStringReader())
     { }
-
+    
     size_t GetToken(const TStringBuf& data, TToken* token)
     {
-        return Impl->GetToken(data, token);
+        Lexer.SetBuffer(data.begin(), data.end());
+        Lexer.GetToken(token);
+        return Lexer.Begin() - data.begin();
     }
 };
 

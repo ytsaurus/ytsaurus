@@ -219,7 +219,7 @@ private:
         return false;
 
     done:
-        Advance(ptr - BeginByte());
+        TBaseStream::Advance(ptr - BeginByte());
         *value = result;
         return true;
     }

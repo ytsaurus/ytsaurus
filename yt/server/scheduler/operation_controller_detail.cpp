@@ -327,9 +327,8 @@ void TOperationControllerBase::TTask::OnTaskCompleted()
     LOG_DEBUG("Task completed (Task: %s)", ~GetId());
 }
 
-void TOperationControllerBase::TTask::CheckResourceDemandSanity(
-    TExecNodePtr node,
-    const NProto::TNodeResources& neededResources)
+void TOperationControllerBase::TTask::DoCheckResourceDemandSanity(
+    const TNodeResources& neededResources)
 {
     auto nodes = Controller->Host->GetExecNodes();
     FOREACH (auto node, nodes) {
@@ -345,7 +344,7 @@ void TOperationControllerBase::TTask::CheckResourceDemandSanity(
 }
 
 void TOperationControllerBase::TTask::CheckResourceDemandSanity(
-    const NProto::TNodeResources& neededResources)
+    const TNodeResources& neededResources)
 {
     // Run sanity check to see if any node can provide enough resources.
     // Don't run these checks too often to avoid jeopardizing performance.
@@ -363,7 +362,7 @@ void TOperationControllerBase::TTask::CheckResourceDemandSanity(
 
 void TOperationControllerBase::TTask::CheckResourceDemandSanity(
     TExecNodePtr node,
-    const NProto::TNodeResources& neededResources)
+    const TNodeResources& neededResources)
 {
     // The task is requesting more than some node is willing to provide it.
     // Maybe it's OK and we should wait for some time.
