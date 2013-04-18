@@ -10,11 +10,14 @@
 #include <ytlib/misc/sync.h>
 #include <ytlib/misc/protobuf_helpers.h>
 #include <ytlib/table_client/table_chunk_meta.pb.h>
+
 #include <ytlib/chunk_client/async_reader.h>
+#include <ytlib/chunk_client/input_chunk.h>
 #include <ytlib/chunk_client/sequential_reader.h>
 #include <ytlib/chunk_client/config.h>
 #include <ytlib/chunk_client/dispatcher.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
+
 #include <ytlib/yson/tokenizer.h>
 #include <ytlib/actions/invoker.h>
 #include <ytlib/logging/tagged_logger.h>
@@ -104,7 +107,7 @@ struct TBlockInfo
 ////////////////////////////////////////////////////////////////////////////////
 
 template <template <typename T> class TComparator>
-struct TTableChunkReader::TIndexComparator
+struct TIndexComparator
 {
     bool operator()(const NChunkClient::NProto::TKey& key, const NProto::TIndexRow& row)
     {
@@ -512,7 +515,7 @@ private:
 
         while (true) {
             LOG_TRACE("Validating row %" PRId64, chunkReader->CurrentRowIndex);
-            if (!chunkReader->IsValid()) {
+            if (!chunkReader->GetFacade()) {
                 // We have already exceed right reading limit.
                 break;
             }
@@ -521,7 +524,7 @@ private:
             if (~StartValidator && !StartValidator->IsValid(chunkReader->CurrentKey)) {
                 // This quick check is aimed to improve potential performance issue and
                 // eliminate unnecessary calls to Subscribe and BIND.
-                if (!chunkReader->DoNextRow()) {
+                if (!chunkReader->DoFetchNextRow()) {
                     chunkReader->RowState.GetOperationError().Subscribe(
                         BIND(&TRegularInitializer::ValidateRow, MakeWeak(this))
                             .Via(TDispatcher::Get()->GetReaderInvoker()));
@@ -660,7 +663,7 @@ public:
         chunkReader->ChannelReaders.push_back(New<TChannelReader>(
             TChannel::FromProto(channelsExt.items(0).channel())));
 
-        chunkReader->DoNextRow();
+        chunkReader->DoFetchNextRow();
         chunkReader->RowState.GetOperationError().Subscribe(BIND(
             &TTableChunkReader::OnRowFetched,
             chunkReader));
@@ -677,6 +680,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 TTableChunkReader::TTableChunkReader(
+    TTableChunkReaderProviderPtr provider,
     TSequentialReaderConfigPtr config,
     const TChannel& channel,
     NChunkClient::IAsyncReaderPtr chunkReader,
@@ -685,7 +689,10 @@ TTableChunkReader::TTableChunkReader(
     const NYTree::TYsonString& rowAttributes,
     int partitionTag,
     TChunkReaderOptionsPtr options)
-    : SequentialReader(nullptr)
+    : Provider(provider)
+    , Facade(this)
+    , IsFinished(false)
+    , SequentialReader(nullptr)
     , Channel(channel)
     , Options(options)
     , RowAttributes(rowAttributes)
@@ -728,13 +735,13 @@ TAsyncError TTableChunkReader::GetReadyEvent()
     return ReaderState.GetOperationError();
 }
 
-bool TTableChunkReader::FetchNextItem()
+bool TTableChunkReader::FetchNext()
 {
-    // No thread affinity, called from SetCurrentChunk of TChunkSequenceReader.
     YASSERT(!ReaderState.HasRunningOperation());
     YASSERT(!Initializer);
+    YASSERT(!IsFinished);
 
-    if (DoNextRow()) {
+    if (DoFetchNextRow()) {
         return true;
     }
 
@@ -752,23 +759,23 @@ void TTableChunkReader::OnRowFetched(TError error)
     }
 }
 
-bool TTableChunkReader::DoNextRow()
+bool TTableChunkReader::DoFetchNextRow()
 {
     CurrentRowIndex = std::min(CurrentRowIndex + 1, EndRowIndex);
 
     if (CurrentRowIndex == EndRowIndex) {
-         return true;
+        LOG_DEBUG("Chunk reader finished");
+        IsFinished = true;
+        return true;
     }
 
     CurrentRow.clear();
     CurrentKey.Clear();
 
-    return ContinueNextRow(-1, TError());
+    return ContinueFetchNextRow(-1, TError());
 }
 
-bool TTableChunkReader::ContinueNextRow(
-    int channelIndex,
-    TError error)
+bool TTableChunkReader::ContinueFetchNextRow(int channelIndex, TError error)
 {
     if (!error.IsOK()) {
         YCHECK(RowState.HasRunningOperation());
@@ -795,7 +802,7 @@ bool TTableChunkReader::ContinueNextRow(
             RowState.StartOperation();
 
             SequentialReader->AsyncNextBlock().Subscribe(BIND(
-                IgnoreResult(&TTableChunkReader::ContinueNextRow),
+                IgnoreResult(&TTableChunkReader::ContinueFetchNextRow),
                 MakeWeak(this),
                 channelIndex));
             return false;
@@ -804,6 +811,13 @@ bool TTableChunkReader::ContinueNextRow(
     }
 
     MakeCurrentRow();
+
+    if ((!!EndValidator) && !EndValidator->IsValid(CurrentKey)) {
+        LOG_DEBUG("Chunk reader finished");
+        IsFinished = true;
+    } else {
+        ++Provider->RowIndex_;
+    }
 
     if (RowState.HasRunningOperation())
         RowState.FinishOperation();
@@ -868,13 +882,9 @@ const TNonOwningKey& TTableChunkReader::GetKey() const
     return CurrentKey;
 }
 
-bool TTableChunkReader::IsValid() const
+auto TTableChunkReader::GetFacade() const -> const TFacade*
 {
-    if (CurrentRowIndex >= EndRowIndex)
-        return false;
-    if (!EndValidator)
-        return true;
-    return EndValidator->IsValid(CurrentKey);
+    return IsFinished ? nullptr : &Facade;
 }
 
 const TYsonString& TTableChunkReader::GetRowAttributes() const
@@ -897,6 +907,7 @@ TFuture<void> TTableChunkReader::GetFetchingCompleteEvent()
     if (SequentialReader) {
         return SequentialReader->GetFetchingCompleteEvent();
     } else {
+        // Error occured during initialization.
         return MakeFuture();
     }
 }
@@ -904,18 +915,43 @@ TFuture<void> TTableChunkReader::GetFetchingCompleteEvent()
 ////////////////////////////////////////////////////////////////////////////////
 
 TTableChunkReaderProvider::TTableChunkReaderProvider(
+    const std::vector<NChunkClient::NProto::TInputChunk>& inputChunks,
     const NChunkClient::TSequentialReaderConfigPtr& config,
     const TChunkReaderOptionsPtr& options)
-    : Config(config)
+    : RowIndex_(-1)
+    , RowCount_(0)
+    , Config(config)
     , Options(options)
-{ }
+{
+    FOREACH (const auto& inputChunk, inputChunks) {
+        i64 rowCount;
+        NChunkClient::GetStatistics(inputChunk, nullptr, &rowCount);
+        RowCount_ += rowCount;
+    }
+}
 
 bool TTableChunkReaderProvider::KeepInMemory() const
 {
     return Options->KeepBlocks;
 }
 
-TTableChunkReaderPtr TTableChunkReaderProvider::CreateNewReader(
+void TTableChunkReaderProvider::OnReaderOpened(
+    TTableChunkReaderPtr reader,
+    NChunkClient::NProto::TInputChunk& inputChunk)
+{
+    i64 rowCount;
+    NChunkClient::GetStatistics(inputChunk, nullptr, &rowCount);
+    // GetRowCount gives better estimation than original, based on meta extensions.
+    RowCount_ += reader->GetRowCount() - rowCount;
+}
+
+void TTableChunkReaderProvider::OnReaderFinished(TTableChunkReaderPtr reader)
+{
+    // Number of read row may be less than expected because of key read limits.
+    RowCount_ += reader->GetRowIndex() - reader->GetRowCount();
+}
+
+TTableChunkReaderPtr TTableChunkReaderProvider::CreateReader(
     const NChunkClient::NProto::TInputChunk& inputChunk,
     const NChunkClient::IAsyncReaderPtr& chunkReader)
 {
@@ -927,6 +963,7 @@ TTableChunkReaderPtr TTableChunkReaderProvider::CreateNewReader(
     }
 
     return New<TTableChunkReader>(
+        this,
         Config,
         inputChunk.has_channel() ? TChannel::FromProto(inputChunk.channel()) : TChannel::Universal(),
         chunkReader,
@@ -935,6 +972,27 @@ TTableChunkReaderPtr TTableChunkReaderProvider::CreateNewReader(
         rowAttributes,
         inputChunk.partition_tag(),
         Options);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TTableChunkReaderFacade::TTableChunkReaderFacade(TTableChunkReaderPtr reader)
+    : Reader(reader)
+{ }
+
+const TRow& TTableChunkReaderFacade::GetRow() const
+{
+    return Reader->GetRow();
+}
+
+const NChunkClient::TNonOwningKey& TTableChunkReaderFacade::GetKey() const
+{
+    return Reader->GetKey();
+}
+
+const NYTree::TYsonString& TTableChunkReaderFacade::GetRowAttributes() const
+{
+    return Reader->GetRowAttributes();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

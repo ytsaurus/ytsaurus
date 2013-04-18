@@ -10,12 +10,12 @@
 #include <ytlib/chunk_client/replication_reader.h>
 #include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
+#include <ytlib/chunk_client/multi_chunk_sequential_reader.h>
 
 #include <ytlib/table_client/sync_writer.h>
 #include <ytlib/table_client/private.h>
 #include <ytlib/table_client/table_chunk_writer.h>
 #include <ytlib/table_client/table_chunk_reader.h>
-#include <ytlib/table_client/multi_chunk_sequential_reader.h>
 #include <ytlib/table_client/merging_reader.h>
 
 #include <ytlib/ytree/yson_string.h>
@@ -59,13 +59,16 @@ public:
              auto options = New<TChunkReaderOptions>();
             options->ReadKey = true;
 
-            auto provider = New<TTableChunkReaderProvider>(config->JobIO->TableReader, options);
-
             FOREACH (const auto& inputSpec, SchedulerJobSpecExt.input_specs()) {
                 // ToDo(psushin): validate that input chunks are sorted.
                 std::vector<NChunkClient::NProto::TInputChunk> chunks(
                     inputSpec.chunks().begin(),
                     inputSpec.chunks().end());
+
+                auto provider = New<TTableChunkReaderProvider>(
+                    chunks,
+                    config->JobIO->TableReader,
+                    options);
 
                 auto reader = New<TTableChunkSequenceReader>(
                     config->JobIO->TableReader,

@@ -16,6 +16,11 @@ extern NLog::TLogger ChunkWriterLogger;
 
 extern TLazyHolder<NRpc::TChannelCache> NodeChannelCache;
 
+extern const int MaxPrefetchWindow;
+
+//! Estimated memory overhead per chunk reader.
+extern const i64 ChunkReaderMemorySize;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkClient

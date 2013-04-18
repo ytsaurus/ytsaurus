@@ -29,18 +29,30 @@ namespace NTableClient {
 class TTableChunkReaderProvider
     : public TRefCounted
 {
+    DEFINE_BYVAL_RO_PROPERTY(volatile i64, RowIndex);
+    DEFINE_BYVAL_RO_PROPERTY(volatile i64, RowCount);
+
 public:
     TTableChunkReaderProvider(
+        const std::vector<NChunkClient::NProto::TInputChunk>& inputChunks,
         const NChunkClient::TSequentialReaderConfigPtr& config,
         const TChunkReaderOptionsPtr& options = New<TChunkReaderOptions>());
 
-    TTableChunkReaderPtr CreateNewReader(
+    TTableChunkReaderPtr CreateReader(
         const NChunkClient::NProto::TInputChunk& inputChunk,
         const NChunkClient::IAsyncReaderPtr& chunkReader);
+
+    void OnReaderOpened(
+        TTableChunkReaderPtr reader,
+        NChunkClient::NProto::TInputChunk& inputChunk);
+
+    void OnReaderFinished(TTableChunkReaderPtr reader);
 
     bool KeepInMemory() const;
 
 private:
+    friend class TTableChunkReader;
+
     NChunkClient::TSequentialReaderConfigPtr Config;
     TChunkReaderOptionsPtr Options;
 
@@ -48,6 +60,22 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTableChunkReaderFacade
+    : public TNonCopyable
+{
+public:
+    TTableChunkReaderFacade(TTableChunkReaderPtr reader);
+
+    const TRow& GetRow() const;
+    const NChunkClient::TNonOwningKey& GetKey() const;
+    const NYTree::TYsonString& GetRowAttributes() const;
+
+private:
+    TTableChunkReaderPtr Reader;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
 
 //! Reads single table chunk row-after-row using given #NChunkClient::IAsyncReader.
 class TTableChunkReader
@@ -55,8 +83,10 @@ class TTableChunkReader
 {
 public:
     typedef TTableChunkReaderProvider TProvider;
+    typedef TTableChunkReaderFacade TFacade;
 
     TTableChunkReader(
+        TTableChunkReaderProviderPtr provider,
         NChunkClient::TSequentialReaderConfigPtr config,
         const NChunkClient::TChannel& channel,
         NChunkClient::IAsyncReaderPtr chunkReader,
@@ -68,18 +98,19 @@ public:
 
     TAsyncError AsyncOpen();
 
-    bool FetchNextItem();
+    bool FetchNext();
     TAsyncError GetReadyEvent();
 
-    bool IsValid() const;
-
-    const TRow& GetRow() const;
-    const NChunkClient::TNonOwningKey& GetKey() const;
-    const NYTree::TYsonString& GetRowAttributes() const;
+    const TFacade* GetFacade() const;
 
     i64 GetRowIndex() const;
     i64 GetRowCount() const;
     TFuture<void> GetFetchingCompleteEvent();
+
+    // Called by facade.
+    const TRow& GetRow() const;
+    const NChunkClient::TNonOwningKey& GetKey() const;
+    const NYTree::TYsonString& GetRowAttributes() const;
 
 private:
     struct TColumnInfo
@@ -96,36 +127,41 @@ private:
     };
 
     class TKeyValidator;
-    template <template <typename T> class TComparator>
-    struct TIndexComparator;
 
-    NChunkClient::TSequentialReaderPtr SequentialReader;
-    NChunkClient::TChannel Channel;
+    class TInitializer;
 
-    bool DoNextRow();
-    bool ContinueNextRow(
-        int channelIndex,
-        TError error);
+    //! Initializer for regular table chunks.
+    class TRegularInitializer;
+
+    //! Initializer for partition table chunks.
+    class TPartitionInitializer;
+
+    bool DoFetchNextRow();
+    bool ContinueFetchNextRow(int channelIndex, TError error);
 
     void MakeCurrentRow();
     void OnRowFetched(TError error);
 
     TColumnInfo& GetColumnInfo(const TStringBuf& column);
 
-    class TInitializer;
-    TIntrusivePtr<TInitializer> Initializer;
+    TTableChunkReaderProviderPtr Provider;
+    TTableChunkReaderFacade Facade;
 
-    class TRegularInitializer;
-    class TPartitionInitializer;
+    volatile bool IsFinished;
+
+    NChunkClient::TSequentialReaderPtr SequentialReader;
+    NChunkClient::TChannel Channel;
+
+    TIntrusivePtr<TInitializer> Initializer;
 
     TAsyncStreamState ReaderState;
     TAsyncStreamState RowState;
 
     TChunkReaderOptionsPtr Options;
 
-    NYTree::TYsonString RowAttributes;
     TRow CurrentRow;
     NChunkClient::TNonOwningKey CurrentKey;
+    NYTree::TYsonString RowAttributes;
 
     NYson::TLexer Lexer;
 

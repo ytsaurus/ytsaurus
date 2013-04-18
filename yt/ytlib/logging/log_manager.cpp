@@ -58,14 +58,14 @@ public:
     {
 #ifdef _linux_
         Fd_ = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
-        YCHECK(Fd_ > 0);
+        YCHECK(Fd_ >= 0);
 #endif
     }
 
     ~TNotificationHandle()
     {
 #ifdef _linux_
-        YCHECK(Fd_ > 0);
+        YCHECK(Fd_ >= 0);
         ::close(Fd_);
 #endif
     }
@@ -73,7 +73,7 @@ public:
     int Poll()
     {
 #ifdef _linux_
-        YCHECK(Fd_ > 0);
+        YCHECK(Fd_ >= 0);
 
         char buffer[sizeof(struct inotify_event) + NAME_MAX + 1];
         auto rv = ::read(Fd_, buffer, sizeof(buffer));
@@ -131,7 +131,7 @@ public:
 
     {
         Fd_ = handle->GetFd();
-        YCHECK(Fd_ > 0);
+        YCHECK(Fd_ >= 0);
 
         CreateWatch();
     }
@@ -266,7 +266,7 @@ public:
         RegisterParameter("flush_period", FlushPeriod)
             .Default(Null);
         RegisterParameter("watch_period", WatchPeriod)
-            .Default(TDuration::Seconds(1));
+            .Default(Null);
         RegisterParameter("writers", WriterConfigs);
         RegisterParameter("rules", Rules);
 
@@ -726,6 +726,7 @@ private:
     void DoFlushWritersPeriodically()
     {
         Config->FlushWriters();
+        FlushInvoker->ScheduleNext();
     }
 
     void DoWatchWritersPeriodically()

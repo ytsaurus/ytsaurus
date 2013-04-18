@@ -2,12 +2,11 @@
 #include "private.h"
 #include "partition_chunk_reader.h"
 
+#include <ytlib/chunk_client/config.h>
 #include <ytlib/chunk_client/dispatcher.h>
 #include <ytlib/chunk_client/sequential_reader.h>
-#include <ytlib/chunk_client/config.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
-#include <ytlib/table_client/table_chunk_meta.pb.h>
 #include <ytlib/table_client/chunk_meta_extensions.h>
 
 #include <ytlib/yson/varint.h>
@@ -21,17 +20,17 @@ using namespace NYson;
 ////////////////////////////////////////////////////////////////////////////////
 
 // ToDo(psushin): eliminate copy-paste from table_chunk_reader.cpp
-
 TPartitionChunkReader::TPartitionChunkReader(
+    TPartitionChunkReaderProviderPtr provider,
     const NChunkClient::TSequentialReaderConfigPtr& sequentialReader,
     const NChunkClient::IAsyncReaderPtr& asyncReader,
     int partitionTag,
     NCompression::ECodec codecId)
     : RowPointer_(NULL)
-    , RowCount_(0)
+    , Provider(provider)
+    , Facade(this)
     , SequentialConfig(sequentialReader)
     , AsyncReader(asyncReader)
-    , CurrentRowIndex(0)
     , PartitionTag(partitionTag)
     , CodecId(codecId)
     , Logger(TableReaderLogger)
@@ -85,7 +84,6 @@ void TPartitionChunkReader::OnGotMeta(NChunkClient::IAsyncReader::TGetMetaResult
             blockSequence.push_back(TSequentialReader::TBlockInfo(
                 blockInfo.block_index(),
                 blockInfo.block_size()));
-            RowCount_ += blockInfo.row_count();
         }
     }
 
@@ -117,7 +115,7 @@ void TPartitionChunkReader::OnNextBlock(TError error)
         return;
     }
 
-    LOG_DEBUG("Switching to next block at row %" PRId64, CurrentRowIndex);
+    LOG_DEBUG("Switching to next block at row %" PRId64, Provider->RowIndex_);
 
     Blocks.push_back(SequentialReader->GetBlock());
     YCHECK(Blocks.back().Size() > 0);
@@ -134,7 +132,6 @@ void TPartitionChunkReader::OnNextBlock(TError error)
     const char* dataEnd = RowPointer_ + dataSize;
     SizeBuffer.Reset(dataEnd, Blocks.back().End() - dataEnd);
 
-    ++CurrentRowIndex;
     YCHECK(NextRow());
     State.FinishOperation();
 }
@@ -161,6 +158,7 @@ bool TPartitionChunkReader::NextRow()
             DataBuffer.Skip(columnNameLength);
         }
 
+        ++Provider->RowIndex_;
         return true;
     } else {
         RowPointer_ = NULL;
@@ -168,15 +166,13 @@ bool TPartitionChunkReader::NextRow()
     }
 }
 
-bool TPartitionChunkReader::IsValid() const
+auto TPartitionChunkReader::GetFacade() const -> const TFacade*
 {
-    return RowPointer_ != NULL;
+    return RowPointer_ ?  &Facade : nullptr;
 }
 
-bool TPartitionChunkReader::FetchNextItem()
+bool TPartitionChunkReader::FetchNext()
 {
-    YASSERT(IsValid());
-
     if (!NextRow() && SequentialReader->HasNext()) {
         State.StartOperation();
         SequentialReader->AsyncNextBlock().Subscribe(BIND(
@@ -185,7 +181,6 @@ bool TPartitionChunkReader::FetchNextItem()
         return false;
     }
 
-    ++CurrentRowIndex;
     return true;
 }
 
@@ -194,9 +189,9 @@ TAsyncError TPartitionChunkReader::GetReadyEvent()
     return State.GetOperationError();
 }
 
-TValue TPartitionChunkReader::ReadValue(const TStringBuf& name)
+TValue TPartitionChunkReader::ReadValue(const TStringBuf& name) const
 {
-    YASSERT(IsValid());
+    YASSERT(RowPointer_);
 
     auto it = CurrentRow.find(name);
     if (it == CurrentRow.end()) {
@@ -212,37 +207,28 @@ TFuture<void> TPartitionChunkReader::GetFetchingCompleteEvent()
     return SequentialReader->GetFetchingCompleteEvent();
 }
 
-i64 TPartitionChunkReader::GetRowIndex() const
-{
-    return CurrentRowIndex;
-}
-
 void TPartitionChunkReader::OnFail(const TError& error)
 {
     LOG_WARNING(error);
     State.Fail(error);
 }
 
-const NYTree::TYsonString& TPartitionChunkReader::GetRowAttributes() const
-{
-    // When reading from partition chunk no row attributes are preserved.
-    YUNREACHABLE();
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TPartitionChunkReaderProvider::TPartitionChunkReaderProvider(
     const NChunkClient::TSequentialReaderConfigPtr& config)
-    : Config(config)
+    : RowIndex_(-1)
+    , Config(config)
 { }
 
-TPartitionChunkReaderPtr TPartitionChunkReaderProvider::CreateNewReader(
+TPartitionChunkReaderPtr TPartitionChunkReaderProvider::CreateReader(
     const NChunkClient::NProto::TInputChunk& inputChunk,
     const NChunkClient::IAsyncReaderPtr& chunkReader)
 {
     auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(inputChunk.extensions());
 
     return New<TPartitionChunkReader>(
+        this,
         Config,
         chunkReader,
         inputChunk.partition_tag(),
@@ -252,6 +238,35 @@ TPartitionChunkReaderPtr TPartitionChunkReaderProvider::CreateNewReader(
 bool TPartitionChunkReaderProvider::KeepInMemory() const
 {
     return true;
+}
+
+void TPartitionChunkReaderProvider::OnReaderOpened(
+    TPartitionChunkReaderPtr reader,
+    NChunkClient::NProto::TInputChunk& inputChunk)
+{
+    UNUSED(reader);
+    UNUSED(inputChunk);
+}
+
+void TPartitionChunkReaderProvider::OnReaderFinished(TPartitionChunkReaderPtr reader)
+{
+    UNUSED(reader);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TPartitionChunkReaderFacade::TPartitionChunkReaderFacade(TPartitionChunkReaderPtr reader)
+    : Reader(reader)
+{ }
+
+const char* TPartitionChunkReaderFacade::GetRowPointer() const
+{
+    return Reader->GetRowPointer();
+}
+
+TValue TPartitionChunkReaderFacade::ReadValue(const TStringBuf& name) const
+{
+    return Reader->ReadValue(name);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

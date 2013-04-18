@@ -4,9 +4,22 @@
 #include <ytlib/misc/small_vector.h>
 
 namespace NYT {
-namespace NTableClient {
+
+// Forward declarations.
+namespace NChunkClient
+{
+
+template <class TChunkReader>
+class TMultiChunkSequentialReader;
+
+template <class TChunkReader>
+class TMultiChunkParallelReader;
+
+}
 
 ////////////////////////////////////////////////////////////////////////////////
+
+namespace NTableClient {
 
 DECLARE_ENUM(EErrorCode,
     ((MasterCommunicationFailed)  (300))
@@ -50,20 +63,14 @@ typedef TIntrusivePtr<TPartitionChunkWriterProvider> TPartitionChunkWriterProvid
 class TTableChunkReader;
 typedef TIntrusivePtr<TTableChunkReader> TTableChunkReaderPtr;
 
-template <class TChunkReader>
-class TMultiChunkSequentialReader;
-
-typedef TMultiChunkSequentialReader<TTableChunkReader> TTableChunkSequenceReader;
-typedef TIntrusivePtr<TTableChunkSequenceReader> TTableChunkSequenceReaderPtr;
-
-class TTableChunkSequenceWriter;
-typedef TIntrusivePtr<TTableChunkSequenceWriter> TTableChunkSequenceWriterPtr;
+class TTableChunkReaderProvider;
+typedef TIntrusivePtr<TTableChunkReaderProvider> TTableChunkReaderProviderPtr;
 
 class TPartitionChunkReader;
 typedef TIntrusivePtr<TPartitionChunkReader> TPartitionChunkReaderPtr;
 
-class TPartitionChunkSequenceWriter;
-typedef TIntrusivePtr<TPartitionChunkSequenceWriter> TPartitionChunkSequenceWriterPtr;
+class TPartitionChunkReaderProvider;
+typedef TIntrusivePtr<TPartitionChunkReaderProvider> TPartitionChunkReaderProviderPtr;
 
 class TChannelWriter;
 typedef TIntrusivePtr<TChannelWriter> TChannelWriterPtr;
@@ -83,11 +90,11 @@ typedef TIntrusivePtr<TTableWriterConfig> TTableWriterConfigPtr;
 struct TTableWriterOptions;
 typedef TIntrusivePtr<TTableWriterOptions> TTableWriterOptionsPtr;
 
-class TTableReaderConfig;
-typedef TIntrusivePtr<TTableReaderConfig> TTableReaderConfigPtr;
-
 struct TChunkReaderOptions;
 typedef TIntrusivePtr<TChunkReaderOptions> TChunkReaderOptionsPtr;
+
+struct TTableReaderConfig;
+typedef TIntrusivePtr<TTableReaderConfig> TTableReaderConfigPtr;
 
 class TTableProducer;
 class TTableConsumer;
@@ -99,6 +106,9 @@ typedef TSmallVector< std::pair<TStringBuf, TStringBuf>, 32 > TRow;
 typedef std::vector<Stroka> TKeyColumns;
 
 struct IPartitioner;
+
+typedef NChunkClient::TMultiChunkSequentialReader<TTableChunkReader> TTableChunkSequenceReader;
+typedef TIntrusivePtr<TTableChunkSequenceReader> TTableChunkSequenceReaderPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 

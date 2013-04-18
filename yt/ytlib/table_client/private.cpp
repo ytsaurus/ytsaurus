@@ -12,10 +12,6 @@ NLog::TLogger TableWriterLogger("TableWriter");
 const int DefaultPartitionTag = -1;
 const int FormatVersion = 1;
 
-const int MaxPrefetchWindow = 250;
-
-const i64 ChunkReaderMemorySize = (i64) 16 * 1024;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTableClient

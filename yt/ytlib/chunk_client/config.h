@@ -295,5 +295,28 @@ struct TMultiChunkWriterOptions
 
 ///////////////////////////////////////////////////////////////////////////////
 
+struct TMultiChunkReaderConfig
+    : public virtual TRemoteReaderConfig
+    , public virtual TSequentialReaderConfig
+{
+    i64 MaxBufferSize;
+
+    TMultiChunkReaderConfig()
+    {
+        RegisterParameter("max_buffer_size", MaxBufferSize)
+            .GreaterThan(0L)
+            .LessThanOrEqual(10L * 1024 * 1024 * 1024)
+            .Default(256L * 1024 * 1024);
+
+        RegisterValidator([&] () {
+            if (MaxBufferSize < 2 * WindowSize) {
+                THROW_ERROR_EXCEPTION("\"max_buffer_size\" cannot be less than twice \"window_size\"");
+            }
+        });
+    }
+};
+
+///////////////////////////////////////////////////////////////////////////////
+
 } // namespace NChunkClient
 } // namespace NYT

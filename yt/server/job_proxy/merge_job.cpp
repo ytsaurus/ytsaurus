@@ -10,8 +10,8 @@
 #include <ytlib/table_client/table_chunk_writer.h>
 #include <ytlib/table_client/sync_reader.h>
 #include <ytlib/table_client/sync_writer.h>
-#include <ytlib/table_client/multi_chunk_sequential_reader.h>
-#include <ytlib/table_client/multi_chunk_parallel_reader.h>
+#include <ytlib/chunk_client/multi_chunk_sequential_reader.h>
+#include <ytlib/chunk_client/multi_chunk_parallel_reader.h>
 
 #include <ytlib/chunk_client/replication_reader.h>
 #include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
@@ -64,7 +64,10 @@ public:
             }
         }
 
-        auto readerProvider = New<TTableChunkReaderProvider>(config->JobIO->TableReader);
+        auto readerProvider = New<TTableChunkReaderProvider>(
+            inputChunks,
+            config->JobIO->TableReader);
+
         Reader = CreateSyncReader(New<TReader>(
             config->JobIO->TableReader,
             Host->GetMasterChannel(),

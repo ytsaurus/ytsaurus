@@ -1,8 +1,8 @@
-﻿#include "stdafx.h"
+﻿
+#include "stdafx.h"
 #include "table_reader.h"
 #include "config.h"
 #include "table_chunk_reader.h"
-#include "multi_chunk_sequential_reader.h"
 #include "private.h"
 
 #include <ytlib/actions/async_pipeline.h>
@@ -10,6 +10,7 @@
 
 #include <ytlib/chunk_client/block_cache.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
+#include <ytlib/chunk_client/multi_chunk_sequential_reader.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
@@ -78,8 +79,10 @@ TAsyncError TAsyncTableReader::OpenChunkReader(TTableYPathProxy::TRspFetchPtr fe
     auto inputChunks = FromProto<NChunkClient::NProto::TInputChunk>(fetchRsp->chunks());
 
     auto provider = New<TTableChunkReaderProvider>(
+        inputChunks,
         Config,
         New<TChunkReaderOptions>());
+
     Reader = New<TTableChunkSequenceReader>(
         Config,
         MasterChannel,
@@ -122,9 +125,9 @@ bool TAsyncTableReader::FetchNextItem()
     VERIFY_THREAD_AFFINITY(Client);
     YASSERT(IsOpen);
 
-    if (Reader->IsValid()) {
+    if (Reader->GetFacade()) {
         if (IsReadStarted_) {
-            return Reader->FetchNextItem();
+            return Reader->FetchNext();
         }
         IsReadStarted_ = true;
         return true;
@@ -132,32 +135,19 @@ bool TAsyncTableReader::FetchNextItem()
     return false;
 }
 
-TAsyncError TAsyncTableReader::GetReadyEvent()
-{
-    if (IsAborted()) {
-        return MakePromise<TError>(TError("Transaction aborted"));
-    }
-    return Reader->GetReadyEvent();
-}
-
-bool TAsyncTableReader::IsValid() const
-{
-    return Reader->IsValid();
-}
-
 const TRow& TAsyncTableReader::GetRow() const
 {
-    return Reader->CurrentReader()->GetRow();
+    return Reader->GetFacade()->GetRow();
 }
 
 i64 TAsyncTableReader::GetRowIndex() const
 {
-    return Reader->GetItemIndex();
+    return Reader->GetProvider()->GetRowIndex();
 }
 
 i64 TAsyncTableReader::GetRowCount() const
 {
-    return Reader->GetItemCount();
+    return Reader->GetProvider()->GetRowCount();
 }
 
 std::vector<NChunkClient::TChunkId> TAsyncTableReader::GetFailedChunks() const
@@ -167,7 +157,7 @@ std::vector<NChunkClient::TChunkId> TAsyncTableReader::GetFailedChunks() const
 
 const NYTree::TYsonString& TAsyncTableReader::GetRowAttributes() const
 {
-    return Reader->CurrentReader()->GetRowAttributes();
+    return Reader->GetFacade()->GetRowAttributes();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

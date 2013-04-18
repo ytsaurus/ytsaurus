@@ -14,7 +14,7 @@
 
 #include <ytlib/table_client/table_chunk_writer.h>
 #include <ytlib/table_client/table_chunk_reader.h>
-#include <ytlib/table_client/multi_chunk_parallel_reader.h>
+#include <ytlib/chunk_client/multi_chunk_parallel_reader.h>
 #include <ytlib/table_client/sync_writer.h>
 
 #include <ytlib/yson/lexer.h>
@@ -72,7 +72,10 @@ public:
             srand(time(NULL));
             std::random_shuffle(chunks.begin(), chunks.end());
 
-            auto provider = New<TTableChunkReaderProvider>(config->JobIO->TableReader, options);
+            auto provider = New<TTableChunkReaderProvider>(
+                chunks,
+                config->JobIO->TableReader,
+                options);
 
             Reader = New<TReader>(
                 config->JobIO->TableReader,
@@ -140,13 +143,14 @@ public:
             LOG_INFO("Reading");
             {
                 NYson::TLexer lexer;
-                while (Reader->IsValid()) {
+                const TReader::TFacade* facade;
+                while (facade = Reader->GetFacade()) {
                     rowIndexBuffer.push_back(rowIndexBuffer.size());
                     YASSERT(rowIndexBuffer.back() <= std::numeric_limits<ui32>::max());
 
                     keyBuffer.resize(keyBuffer.size() + keyColumnCount);
 
-                    FOREACH (const auto& pair, Reader->CurrentReader()->GetRow()) {
+                    FOREACH (const auto& pair, facade->GetRow()) {
                         auto it = keyColumnToIndex.find(pair.first);
                         if (it != keyColumnToIndex.end()) {
                             auto& keyPart = keyBuffer[rowIndexBuffer.back() * keyColumnCount + it->second];
@@ -157,7 +161,7 @@ public:
 
                     valueIndexBuffer.push_back(valueBuffer.size());
 
-                    if (!Reader->FetchNextItem()) {
+                    if (!Reader->FetchNext()) {
                         Sync(~Reader, &TReader::GetReadyEvent);
                     }
                 }
@@ -242,7 +246,7 @@ public:
         } else {
             // Split progress evenly between reading and writing.
             double progress =
-                0.5 * Reader->GetItemIndex() / total +
+                0.5 * Reader->GetProvider()->GetRowIndex() / total +
                 0.5 * Writer->GetRowCount() / total;
             LOG_DEBUG("GetProgress: %lf", progress);
             return progress;

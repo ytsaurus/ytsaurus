@@ -28,12 +28,6 @@ set( HDRS
   ${BASE}/chunk_writer_base.h
   ${BASE}/config.h
   ${BASE}/merging_reader.h
-  ${BASE}/multi_chunk_parallel_reader-inl.h
-  ${BASE}/multi_chunk_parallel_reader.h
-  ${BASE}/multi_chunk_reader_base-inl.h
-  ${BASE}/multi_chunk_reader_base.h
-  ${BASE}/multi_chunk_sequential_reader-inl.h
-  ${BASE}/multi_chunk_sequential_reader.h
   ${BASE}/partition_chunk_reader.h
   ${BASE}/partition_chunk_writer.h
   ${BASE}/partitioner.h

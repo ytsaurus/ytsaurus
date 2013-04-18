@@ -5,38 +5,33 @@
 
 #include "private.h"
 #include "config.h"
-
-#include <ytlib/chunk_client/block_cache.h>
-#include <ytlib/chunk_client/replication_reader.h>
-#include <ytlib/chunk_client/async_reader.h>
-#include <ytlib/chunk_client/dispatcher.h>
-#include <ytlib/chunk_client/input_chunk.h>
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
+#include "chunk_replica.h"
+#include "block_cache.h"
+#include "replication_reader.h"
+#include "async_reader.h"
+#include "dispatcher.h"
+#include "chunk_meta_extensions.h"
 
 #include <ytlib/node_tracker_client/node_directory.h>
-
-#include <ytlib/actions/parallel_awaiter.h>
 
 #include <ytlib/rpc/channel.h>
 
 #include <ytlib/misc/protobuf_helpers.h>
 
 namespace NYT {
-namespace NTableClient {
+namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TChunkReader>
 TMultiChunkReaderBase<TChunkReader>::TMultiChunkReaderBase(
-    TTableReaderConfigPtr config,
+    TMultiChunkReaderConfigPtr config,
     NRpc::IChannelPtr masterChannel,
     NChunkClient::IBlockCachePtr blockCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     std::vector<NChunkClient::NProto::TInputChunk>&& inputChunks,
     const TProviderPtr& readerProvider)
-    : ItemIndex_(0)
-    , ItemCount_(0)
-    , IsFetchingComplete_(false)
+    : IsFetchingComplete_(false)
     , Config(config)
     , MasterChannel(masterChannel)
     , BlockCache(blockCache)
@@ -45,16 +40,15 @@ TMultiChunkReaderBase<TChunkReader>::TMultiChunkReaderBase(
     , ReaderProvider(readerProvider)
     , LastPreparedReader(-1)
     , FetchingCompleteAwaiter(New<TParallelAwaiter>())
-    , Logger(TableReaderLogger)
+    , Logger(ChunkReaderLogger)
 {
     std::vector<i64> chunkDataSizes;
     chunkDataSizes.reserve(InputChunks.size());
 
     FOREACH (const auto& inputChunk, InputChunks) {
-        i64 dataSize, rowCount;
-        NChunkClient::GetStatistics(inputChunk, &dataSize, &rowCount);
+        i64 dataSize;
+        NChunkClient::GetStatistics(inputChunk, &dataSize);
         chunkDataSizes.push_back(dataSize);
-        ItemCount_ += rowCount;
     }
 
     if (ReaderProvider->KeepInMemory()) {
@@ -85,14 +79,14 @@ TMultiChunkReaderBase<TChunkReader>::TMultiChunkReaderBase(
 template <class TChunkReader>
 void TMultiChunkReaderBase<TChunkReader>::PrepareNextChunk()
 {
-    int chunkSlicesSize = static_cast<int>(InputChunks.size());
+    int inputChunksCount = static_cast<int>(InputChunks.size());
 
     int chunkIndex = -1;
 
     {
         TGuard<TSpinLock> guard(NextChunkLock);
-        LastPreparedReader = std::min(LastPreparedReader + 1, chunkSlicesSize);
-        if (LastPreparedReader == chunkSlicesSize) {
+        LastPreparedReader = std::min(LastPreparedReader + 1, inputChunksCount);
+        if (LastPreparedReader == inputChunksCount) {
             return;
         }
         chunkIndex = LastPreparedReader;
@@ -101,8 +95,8 @@ void TMultiChunkReaderBase<TChunkReader>::PrepareNextChunk()
     TSession session;
     session.ChunkIndex = chunkIndex;
     const auto& inputChunk = InputChunks[chunkIndex];
-    auto chunkId = FromProto<NChunkClient::TChunkId>(inputChunk.chunk_id());
-    auto replicas = FromProto<NChunkClient::TChunkReplica, NChunkClient::TChunkReplicaList>(inputChunk.replicas());
+    auto chunkId = NYT::FromProto<NChunkClient::TChunkId>(inputChunk.chunk_id());
+    auto replicas = NYT::FromProto<NChunkClient::TChunkReplica, NChunkClient::TChunkReplicaList>(inputChunk.replicas());
 
     LOG_DEBUG("Opening chunk (ChunkIndex: %d, ChunkId: %s)",
         chunkIndex,
@@ -117,7 +111,7 @@ void TMultiChunkReaderBase<TChunkReader>::PrepareNextChunk()
         chunkId,
         replicas);
 
-    session.Reader = ReaderProvider->CreateNewReader(inputChunk, remoteReader);
+    session.Reader = ReaderProvider->CreateReader(inputChunk, remoteReader);
 
     session.Reader->AsyncOpen()
         .Subscribe(BIND(
@@ -131,9 +125,8 @@ template <class TChunkReader>
 void TMultiChunkReaderBase<TChunkReader>::ProcessOpenedReader(const TSession& session)
 {
     LOG_DEBUG("Chunk opened (ChunkIndex: %d)", session.ChunkIndex);
-    auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(
-        InputChunks[session.ChunkIndex].extensions());
-    ItemCount_ += session.Reader->GetRowCount() - miscExt.row_count();
+    ReaderProvider->OnReaderOpened(session.Reader, InputChunks[session.ChunkIndex]);
+
     FetchingCompleteAwaiter->Await(session.Reader->GetFetchingCompleteEvent());
     if (FetchingCompleteAwaiter->GetRequestCount() == InputChunks.size()) {
         auto this_ = MakeStrong(this);
@@ -146,14 +139,14 @@ void TMultiChunkReaderBase<TChunkReader>::ProcessOpenedReader(const TSession& se
 template <class TChunkReader>
 void TMultiChunkReaderBase<TChunkReader>::ProcessFinishedReader(const TSession& session)
 {
-    ItemCount_ += session.Reader->GetRowIndex() - session.Reader->GetRowCount();
+    ReaderProvider->OnReaderFinished(session.Reader);
 }
 
 template <class TChunkReader>
 void TMultiChunkReaderBase<TChunkReader>::AddFailedChunk(const TSession& session)
 {
     const auto& inputChunk = InputChunks[session.ChunkIndex];
-    auto chunkId = FromProto<NChunkClient::TChunkId>(inputChunk.chunk_id());
+    auto chunkId = NYT::FromProto<NChunkClient::TChunkId>(inputChunk.chunk_id());
     LOG_DEBUG("Failed chunk added (ChunkId: %s)", ~ToString(chunkId));
     TGuard<TSpinLock> guard(FailedChunksLock);
     FailedChunks.push_back(chunkId);
@@ -173,12 +166,23 @@ TAsyncError TMultiChunkReaderBase<TChunkReader>::GetReadyEvent()
 }
 
 template <class TChunkReader>
-const TIntrusivePtr<TChunkReader>& TMultiChunkReaderBase<TChunkReader>::CurrentReader() const
+auto TMultiChunkReaderBase<TChunkReader>::GetFacade() const -> const TFacade*
 {
-    return CurrentSession.Reader;
+    YASSERT(!State.HasRunningOperation());
+    if (CurrentSession.Reader) {
+        return CurrentSession.Reader->GetFacade();
+    } else {
+        return nullptr;
+    }
+}
+
+template <class TChunkReader>
+auto TMultiChunkReaderBase<TChunkReader>::GetProvider() -> TProviderPtr
+{
+    return ReaderProvider;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
+} // namespace NChunkClient
 } // namespace NYT

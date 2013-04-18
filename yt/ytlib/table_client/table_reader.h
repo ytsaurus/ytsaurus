@@ -42,7 +42,7 @@ public:
         const NYPath::TRichYPath& richPath);
 
     virtual TAsyncError AsyncOpen();
-    
+
     virtual bool FetchNextItem() override;
     virtual TAsyncError GetReadyEvent() override;
 

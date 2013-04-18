@@ -4,13 +4,13 @@
 #undef MULTI_CHUNK_PARALLEL_READER_INL_H_
 
 namespace NYT {
-namespace NTableClient {
+namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TChunkReader>
 TMultiChunkParallelReader<TChunkReader>::TMultiChunkParallelReader(
-    TTableReaderConfigPtr config,
+    TMultiChunkReaderConfigPtr config,
     NRpc::IChannelPtr masterChannel,
     NChunkClient::IBlockCachePtr blockCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
@@ -25,12 +25,15 @@ TMultiChunkParallelReader<TChunkReader>::TMultiChunkParallelReader(
         readerProvider)
     , CompleteReaderCount(0)
 {
-    ReadySessions.reserve(std::min(
-        static_cast<int>(TBase::InputChunks.size()),
-        TBase::PrefetchWindow));
+    srand(time(nullptr));
+    std::random_shuffle(InputChunks.begin(), InputChunks.end());
 
-    if (TBase::ReaderProvider->KeepInMemory()) {
-        CompleteSessions.reserve(TBase::InputChunks.size());
+    ReadySessions.reserve(std::min(
+        static_cast<int>(InputChunks.size()),
+        PrefetchWindow));
+
+    if (ReaderProvider->KeepInMemory()) {
+        CompleteSessions.resize(InputChunks.size());
     }
 }
 
@@ -39,7 +42,7 @@ TAsyncError TMultiChunkParallelReader<TChunkReader>::AsyncOpen()
 {
     YASSERT(!State.HasRunningOperation());
 
-    if (TBase::InputChunks.size() != 0) {
+    if (InputChunks.size() != 0) {
         State.StartOperation();
 
         for (int i = 0; i < TBase::PrefetchWindow; ++i) {
@@ -70,7 +73,7 @@ template <class TChunkReader>
 void TMultiChunkParallelReader<TChunkReader>::ProcessReadyReader(
     typename TBase::TSession session)
 {
-    if (!session.Reader->IsValid()) {
+    if (!session.Reader->GetFacade()) {
         // Reader is not valid - shift window.
         TBase::PrepareNextChunk();
         FinishReader(session);
@@ -85,20 +88,19 @@ void TMultiChunkParallelReader<TChunkReader>::ProcessReadyReader(
         finishOperation = !CurrentSession.Reader;
 
         if (!session.Reader) {
-            isReadingComplete = (++CompleteReaderCount == TBase::InputChunks.size());
-        } else if (!CurrentSession.Reader) {
-            ++TBase::ItemIndex_;
+            ++CompleteReaderCount;
+            isReadingComplete = (CompleteReaderCount == InputChunks.size());
+        } else if (finishOperation) {
             CurrentSession = session;
         } else {
-            YCHECK(session.Reader);
-            // This is quick operation - no reallocation here due to reserve in ctor.
+            // This is quick - no reallocation here due to reserve in ctor.
             ReadySessions.push_back(session);
         }
     }
 
     if ((session.Reader || isReadingComplete) && finishOperation) {
         YCHECK(State.HasRunningOperation());
-        YCHECK(!CurrentSession.Reader || IsValid());
+        YCHECK(!CurrentSession.Reader || CurrentSession.Reader->GetFacade());
         State.FinishOperation();
     }
 }
@@ -109,10 +111,10 @@ void TMultiChunkParallelReader<TChunkReader>::FinishReader(
 {
     VERIFY_THREAD_AFFINITY(TBase::ReaderThread);
 
-    LOG_DEBUG("Reader finished (CompleteReaderCount: %d)", CompleteReaderCount);
+    LOG_DEBUG("Reader finished (ChunkIndex: %d)", session.ChunkIndex);
 
-    if (TBase::ReaderProvider->KeepInMemory()) {
-        CompleteSessions.push_back(session);
+    if (ReaderProvider->KeepInMemory()) {
+        CompleteSessions[session.ChunkIndex] = session;
     }
     TBase::ProcessFinishedReader(session);
 }
@@ -133,15 +135,13 @@ void TMultiChunkParallelReader<TChunkReader>::OnReaderReady(
 }
 
 template <class TChunkReader>
-bool TMultiChunkParallelReader<TChunkReader>::FetchNextItem()
+bool TMultiChunkParallelReader<TChunkReader>::FetchNext()
 {
     YASSERT(!State.HasRunningOperation());
-    YASSERT(IsValid());
 
     bool isReaderComplete = false;
-    if (CurrentSession.Reader->FetchNextItem()) {
-        if (CurrentSession.Reader->IsValid()) {
-            ++TBase::ItemIndex_;
+    if (CurrentSession.Reader->FetchNext()) {
+        if (CurrentSession.Reader->GetFacade()) {
             return true;
         }
 
@@ -159,10 +159,10 @@ bool TMultiChunkParallelReader<TChunkReader>::FetchNextItem()
             .Via(NChunkClient::TDispatcher::Get()->GetReaderInvoker()));
     }
 
-
     TGuard<TSpinLock> guard(SpinLock);
     if (isReaderComplete) {
-        if (++CompleteReaderCount == TBase::InputChunks.size()) {
+        ++CompleteReaderCount;
+        if (CompleteReaderCount == InputChunks.size()) {
             return true;
         }
     }
@@ -172,26 +172,13 @@ bool TMultiChunkParallelReader<TChunkReader>::FetchNextItem()
         State.StartOperation();
         return false;
     } else {
-        ++TBase::ItemIndex_;
         CurrentSession = ReadySessions.back();
         ReadySessions.pop_back();
         return true;
     }
 }
 
-template <class TChunkReader>
-bool TMultiChunkParallelReader<TChunkReader>::IsValid() const
-{
-    if (CompleteReaderCount == TBase::InputChunks.size())
-        return false;
-
-    YCHECK(CurrentSession.Reader);
-    YCHECK(CurrentSession.Reader->IsValid());
-
-    return true;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
+} // namespace NChunkClient
 } // namespace NYT

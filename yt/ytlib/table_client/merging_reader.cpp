@@ -1,9 +1,10 @@
 ﻿#include "stdafx.h"
 #include "merging_reader.h"
+#include "config.h"
 #include "table_chunk_reader.h"
-#include "multi_chunk_sequential_reader.h"
 
 #include <ytlib/chunk_client/key.h>
+#include <ytlib/chunk_client/multi_chunk_sequential_reader.h>
 
 #include <ytlib/misc/sync.h>
 #include <ytlib/misc/heap.h>
@@ -23,7 +24,7 @@ inline bool CompareReaders(
     const TTableChunkSequenceReader* lhs,
     const TTableChunkSequenceReader* rhs)
 {
-    return CompareKeys(lhs->CurrentReader()->GetKey(), rhs->CurrentReader()->GetKey()) < 0;
+    return CompareKeys(lhs->GetFacade()->GetKey(), rhs->GetFacade()->GetKey()) < 0;
 }
 
 } // namespace
@@ -66,7 +67,7 @@ public:
 
         // Push all non-empty readers to the heap.
         FOREACH (auto reader, Readers) {
-            if (reader->IsValid()) {
+            if (reader->GetFacade()) {
                 ReaderHeap.push_back(~reader);
             }
         }
@@ -81,10 +82,11 @@ public:
     {
         if (IsStarted_) {
             auto* currentReader = ReaderHeap.front();
-            if (!currentReader->FetchNextItem()) {
+            if (!currentReader->FetchNext()) {
                 Sync(currentReader, &TTableChunkSequenceReader::GetReadyEvent);
             }
-            if (currentReader->IsValid()) {
+            auto* readerFacade = currentReader->GetFacade();
+            if (readerFacade) {
                 AdjustHeap(ReaderHeap.begin(), ReaderHeap.end(), CompareReaders);
             } else {
                 ExtractHeap(ReaderHeap.begin(), ReaderHeap.end(), CompareReaders);
@@ -94,36 +96,36 @@ public:
         IsStarted_ = true;
 
         if (ReaderHeap.empty()) {
-            return NULL;
+            return nullptr;
         } else {
-            return &(ReaderHeap.front()->CurrentReader()->GetRow());
+            return &(ReaderHeap.front()->GetFacade()->GetRow());
         }
     }
 
     virtual const NChunkClient::TNonOwningKey& GetKey() const override
     {
-        return ReaderHeap.front()->CurrentReader()->GetKey();
+        return ReaderHeap.front()->GetFacade()->GetKey();
     }
 
     virtual i64 GetRowCount() const override
     {
         i64 total = 0;
         FOREACH (const auto& reader, Readers) {
-            total += reader->GetItemCount();
+            total += reader->GetProvider()->GetRowCount();
         }
         return total;
     }
 
     virtual const NYTree::TYsonString& GetRowAttributes() const override
     {
-        return ReaderHeap.front()->CurrentReader()->GetRowAttributes();
+        return ReaderHeap.front()->GetFacade()->GetRowAttributes();
     }
 
     virtual i64 GetRowIndex() const override
     {
         i64 total = 0;
         FOREACH (const auto& reader, Readers) {
-            total += reader->GetItemIndex();
+            total += reader->GetProvider()->GetRowIndex();
         }
         return total;
     }
