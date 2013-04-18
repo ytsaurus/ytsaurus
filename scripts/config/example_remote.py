@@ -64,6 +64,9 @@ class Master(Server):
     debug_log_path = Template("master-%(__name__)s.debug.log")
 
     config = Template({
+        'address_resolver' {
+            'enable_ipv6' : 'false'
+        },
         'meta_state' : {
             'leader_committer' : {
                 'max_batch_delay': 50
@@ -110,6 +113,9 @@ class Scheduler(Server):
     debug_log_path = "scheduler.debug.log"
 
     config = Template({
+        'address_resolver' {
+            'enable_ipv6' : 'false'
+        },
         'masters' : {
             'addresses' : MasterAddresses
         },
@@ -148,6 +154,9 @@ class Holder(Server):
     storeQuota = 1700 * 1024 * 1024 * 1024 # the actual limit is ~1740
     cacheQuota = 1 * 1024 * 1024 * 1024
     config = Template({ 
+        'address_resolver' {
+            'enable_ipv6' : 'false'
+        },
         'masters' : {
             'addresses' : MasterAddresses,
             'rpc_timeout' : 20000
