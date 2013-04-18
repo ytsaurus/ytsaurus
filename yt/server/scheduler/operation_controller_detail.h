@@ -306,9 +306,11 @@ protected:
             TExecNodePtr node,
             const NProto::TNodeResources& neededResources);
 
-        // Checks agains all available nodes.
+        // Checks against all available nodes.
         void CheckResourceDemandSanity(
             const NProto::TNodeResources& neededResources);
+
+        void DoCheckResourceDemandSanity(const NProto::TNodeResources& neededResources);
 
         bool IsPending() const;
         bool IsCompleted() const;
