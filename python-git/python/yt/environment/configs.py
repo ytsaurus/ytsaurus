@@ -194,8 +194,6 @@ def get_node_config():
     return yson.parse_string(
 """
 {
-    total_memory_size = 8000000000;
-    
     data_node = {
         cache_location = {
             path = "";
@@ -204,21 +202,26 @@ def get_node_config():
         heartbeat_period = 500;
     };
 
-    "exec_agent" = {
-        "environment_manager" = {
-            "environments" = {
-                "default" = {
-                    "type" = "unsafe";
+    exec_agent = {
+        environment_manager = {
+            environments = {
+                default = {
+                    type = unsafe;
                 };
             };
         };
-        "job_manager" = {
-            "resource_limits" = {
-                "slots" = 1;
+
+        job_controller = {
+            resource_limits = {
+                memory = 8000000000;
+                slots = 1;
             };
-            "slot_count" = 1;
-            "slot_location" = "";
         };
+
+        slot_manager = {
+            slot_location = "";
+        };
+
         job_proxy_logging = {
             rules = [
                 {
@@ -255,36 +258,36 @@ def get_node_config():
         };
     };
 
-    "masters" = {
-        "addresses" = [];
-        "rpc_timeout" = 5000
+    masters = {
+        addresses = [];
+        rpc_timeout = 5000
     };
 
     logging = {
         rules = [
             {
-                min_level = Info;
+                min_level = info;
                 writers = [ file ];
                 categories  = [ "*" ];
             };
             {
-                min_level = Debug;
+                min_level = debug;
                 writers = [ raw ];
                 categories  = [ "*" ];
             };
         ];
         writers = {
             stderr = {
-                type = StdErr;
+                type = std_err;
                 pattern = "$(datetime) $(level) $(category) $(message)";
             };
             file = {
-                type = File;
+                type = file;
                 file_name = "node-0.log";
                 pattern = "$(datetime) $(level) $(category) $(message)";
             };
             raw = {
-                type = Raw;
+                type = raw;
                 file_name = "node-0.debug.log";
             };
         }
