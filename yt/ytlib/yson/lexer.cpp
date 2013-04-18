@@ -3,11 +3,14 @@
 
 #include "token.h"
 #include "zigzag.h"
+#include "varint.h"
 
 #include <ytlib/misc/error.h>
 #include <ytlib/misc/property.h>
 
 #include <util/string/escape.h>
+
+#include "yson_lexer_detail.h"
 
 namespace NYT {
 namespace NYson {
@@ -16,17 +19,155 @@ namespace NYson {
 
 class TLexerImpl
 {
+private:
+    // EReadStartCase tree representation:
+    // Root                                =     xb
+    //     BinaryStringOrOtherSpecialToken =    x0b
+    //         BinaryString                =    00b
+    //         OtherSpecialToken           =    10b
+    //     Other                           =    x1b
+    //         BinaryIntegerOrBinaryDouble =   x01b
+    //             BinaryInteger           =   001b
+    //             BinaryDouble            =   101b
+    //         Other                       = xxx11b
+    //             Quote                   = 00011b
+    //             DigitOrMinus            = 00111b
+    //             String                  = 01011b
+    //             Space                   = 01111b
+    //             Plus                    = 10011b
+    //             None                    = 10111b
+    DECLARE_ENUM(EReadStartCase,
+        ((BinaryString)                 (0))    // =    00b
+        ((OtherSpecialToken)            (2))    // =    10b
+
+        ((BinaryInteger)                (1))    // =   001b
+        ((BinaryDouble)                 (5))    // =   101b
+
+        ((Quote)                        (3))    // = 00011b
+        ((DigitOrMinus)                 (7))    // = 00111b
+        ((String)                       (11))   // = 01011b
+        ((Space)                        (15))   // = 01111b
+        ((Plus)                         (19))   // = 10011b
+        ((None)                         (23))   // = 10111b
+    );
+
+    static EReadStartCase GetStartState(char ch)
+    {
+#define NN EReadStartCase::None
+#define BS EReadStartCase::BinaryString	
+#define BI EReadStartCase::BinaryInteger	
+#define BD EReadStartCase::BinaryDouble	
+#define SP EReadStartCase::Space
+#define DM EReadStartCase::DigitOrMinus
+#define ST EReadStartCase::String
+#define PL EReadStartCase::Plus
+#define QU EReadStartCase::Quote
+	
+        static const ui8 lookupTable[] = 
+        {
+            NN,BS,BI,BD,NN,NN,NN,NN,NN,SP,SP,SP,SP,SP,NN,NN,
+            NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,
+            // 32
+            SP,NN,QU,
+            ETokenType::Hash << 2 | EReadStartCase::OtherSpecialToken, // '#'
+            NN,
+            ST,NN,NN,
+            ETokenType::LeftParenthesis << 2 | EReadStartCase::OtherSpecialToken, // '('
+            ETokenType::RightParenthesis << 2 | EReadStartCase::OtherSpecialToken, // ')'
+            NN,
+            PL, // '+'
+            ETokenType::Comma << 2 | EReadStartCase::OtherSpecialToken, // ','
+            DM,NN,NN,
+            // 48
+            DM,DM,DM,DM,DM,DM,DM,DM,DM,DM,
+            ETokenType::Colon << 2 | EReadStartCase::OtherSpecialToken, // ':'
+            ETokenType::Semicolon << 2 | EReadStartCase::OtherSpecialToken, // ';'
+            ETokenType::LeftAngle << 2 | EReadStartCase::OtherSpecialToken, // '<'
+            ETokenType::Equals << 2 | EReadStartCase::OtherSpecialToken, // '='
+            ETokenType::RightAngle << 2 | EReadStartCase::OtherSpecialToken, // '>'
+            NN,
+            
+            // 64
+            NN,ST,ST,ST,ST,ST,ST,ST,ST,ST,ST,ST,ST,ST,ST,ST,
+            
+            ST,ST,ST,ST,ST,ST,ST,ST,ST,ST,ST,
+            ETokenType::LeftBracket << 2 | EReadStartCase::OtherSpecialToken, // '['
+            NN,
+            ETokenType::RightBracket << 2 | EReadStartCase::OtherSpecialToken, // ']'
+            NN,ST,
+            // 96
+            NN,ST,ST,ST,ST,ST,ST,ST,ST,ST,ST,ST,ST,ST,ST,ST,
+            
+            ST,ST,ST,ST,ST,ST,ST,ST,ST,ST,ST,
+            ETokenType::LeftBrace << 2 | EReadStartCase::OtherSpecialToken, // '{'
+            NN,
+            ETokenType::RightBrace << 2 | EReadStartCase::OtherSpecialToken, // '}'
+            NN,NN,
+            // 128
+            NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,
+            NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,
+            NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,
+            NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,
+
+            NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,
+            NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,
+            NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,
+            NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN,NN
+        };
+		
+#undef NN
+#undef BS
+#undef BI
+#undef BD
+#undef SP
+#undef DM
+#undef ST
+#undef PL
+#undef QU
+        return EReadStartCase(lookupTable[static_cast<ui8>(ch)]);
+    }
+
+    static bool IsSpaceFast(char ch)
+    {
+        static const ui8 lookupTable[] = 
+        {
+            0,0,0,0,0,0,0,0,0,1,1,1,1,1,0,0,
+            0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+            1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+            0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+     
+            0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+            0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+            0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+            0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+
+            0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+            0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+            0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+            0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+
+            0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+            0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+            0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+            0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        };
+        return lookupTable[static_cast<ui8>(ch)];
+    }
+
 public:
+    // Public state EState is encoded in four least significant bits of EInnerState.
+    // So, we can get EState by applying mask 0xf to EInnerState.
     DECLARE_ENUM(EInnerState,
-        (None)
-        (InsideBinaryInteger)
-        (InsideBinaryDouble)
-        (InsideBinaryString)
-        (InsideUnquotedString)
-        (InsideQuotedString)
-        (InsideNumeric)
-        (InsideDouble)
-        (AfterPlus)
+        ((None)                 (0x00 | TLexer::EState::None))
+        ((Terminal)             (0x10 | TLexer::EState::Terminal))
+        ((InsideBinaryInteger)  (0x20 | TLexer::EState::InProgress))
+        ((InsideBinaryDouble)   (0x30 | TLexer::EState::InProgress))
+        ((InsideBinaryString)   (0x40 | TLexer::EState::InProgress))
+        ((InsideUnquotedString) (0x50 | TLexer::EState::InProgress))
+        ((InsideQuotedString)   (0x60 | TLexer::EState::InProgress))
+        ((InsideNumeric)        (0x70 | TLexer::EState::InProgress))
+        ((InsideDouble)         (0x80 | TLexer::EState::InProgress))
+        ((AfterPlus)            (0x90 | TLexer::EState::InProgress))
     );
 
     TLexerImpl()
@@ -37,56 +178,51 @@ public:
 
     void Reset()
     {
-        State_ = TLexer::EState::None;
         InnerState = EInnerState::None;
-        Token = TToken();
+        Token.Reset();
         TokenBuffer.clear();
         BytesRead = 0;
     }
 
     const TToken& GetToken() const
     {
-        YASSERT(State_ == TLexer::EState::Terminal);
+        YASSERT(InnerState == EInnerState::Terminal);
         return Token;
     }
-
+    
     size_t Read(const TStringBuf& input)
     {
         auto begin = input.begin();
         auto end = input.end();
-        switch (State_) {
-            case TLexer::EState::None:
-                return ReadStart(begin, end) - begin;
 
-            case TLexer::EState::InProgress:
-                switch (InnerState) {
-                    case EInnerState::InsideUnquotedString:
-                        return ReadUnquotedString(begin, end) - begin;
+        if (InnerState == EInnerState::None) { 
+            return ReadStart(begin, end) - begin;
+        }
 
-                    case EInnerState::InsideQuotedString:
-                        return ReadQuotedString(begin, end) - begin;
+        switch (InnerState) {
+            case EInnerState::InsideUnquotedString:
+                return ReadUnquotedString(begin, end) - begin;
 
-                    case EInnerState::InsideBinaryString:
-                        return ReadBinaryString(begin, end) - begin;
+            case EInnerState::InsideQuotedString:
+                return ReadQuotedString(begin, end) - begin;
 
-                    case EInnerState::InsideNumeric:
-                        return ReadNumeric(begin, end) - begin;
+            case EInnerState::InsideBinaryString:
+                return ReadBinaryString(begin, end) - begin;
 
-                    case EInnerState::InsideDouble:
-                        return ReadDouble(begin, end) - begin;
+            case EInnerState::InsideNumeric:
+                return ReadNumeric(begin, end) - begin;
 
-                    case EInnerState::InsideBinaryInteger:
-                        return ReadBinaryInteger(begin, end) - begin;
+            case EInnerState::InsideDouble:
+                return ReadDouble(begin, end) - begin;
 
-                    case EInnerState::InsideBinaryDouble:
-                        return ReadBinaryDouble(begin, end) - begin;
+            case EInnerState::InsideBinaryInteger:
+                return ReadBinaryInteger(begin, end) - begin;
 
-                    case EInnerState::AfterPlus:
-                        return ReadAfterPlus(begin, end) - begin;
+            case EInnerState::InsideBinaryDouble:
+                return ReadBinaryDouble(begin, end) - begin;
 
-                    default:
-                        YUNREACHABLE();
-                }
+            case EInnerState::AfterPlus:
+                return ReadAfterPlus(begin, end) - begin;
 
             default:
                 // Should not consume chars in terminal states
@@ -96,115 +232,152 @@ public:
 
     void Finish()
     {
-        switch (State_) {
-            case TLexer::EState::InProgress:
-                switch (InnerState) {
-                    case EInnerState::InsideBinaryInteger:
-                    case EInnerState::InsideBinaryDouble:
-                    case EInnerState::InsideBinaryString:
-                    case EInnerState::InsideQuotedString:
-                        THROW_ERROR_EXCEPTION("Premature end of stream (LexerState: %s, BytesRead: %d)",
-                            ~InnerState.ToString(),
-                            BytesRead);
+        switch (InnerState) {
+            case EInnerState::InsideBinaryInteger:
+            case EInnerState::InsideBinaryDouble:
+            case EInnerState::InsideBinaryString:
+            case EInnerState::InsideQuotedString:
+                THROW_ERROR_EXCEPTION("Premature end of stream (LexerState: %s, BytesRead: %d)",
+                    ~InnerState.ToString(),
+                    BytesRead);
 
-                    case EInnerState::InsideUnquotedString:
-                        Token.StringValue = GetBufferAsStringBuf();
-                        FinishString();
-                        break;
+            case EInnerState::InsideUnquotedString:
+                Token.StringValue = GetBufferAsStringBuf();
+                FinishString();
+                break;
 
-                    case EInnerState::InsideNumeric:
-                        FinishNumeric();
-                        break;
+            case EInnerState::InsideNumeric:
+                FinishNumeric();
+                break;
 
-                    case EInnerState::InsideDouble:
-                        FinishDouble();
-                        break;
+            case EInnerState::InsideDouble:
+                FinishDouble();
+                break;
 
-                    case EInnerState::AfterPlus:
-                        FinishPlus();
-                        break;
-
-                    default:
-                        YUNREACHABLE();
-                }
+            case EInnerState::AfterPlus:
+                FinishPlus();
                 break;
 
             default:
                 break;
         }
-
     }
 
-    DEFINE_BYVAL_RO_PROPERTY(TLexer::EState, State)
+    TLexer::EState GetState() const
+    {
+        return TLexer::EState(InnerState & 0xf);
+    }
 
 private:
     static const int StringBufferSize = 1 << 16;
-
-    const char* ReadStart(const char* begin, const char* end)
+    
+    const char* ReadStartHelper(EReadStartCase state, const char* current, const char* end)
     {
-        const char* current = begin;
-        while (current != end && isspace(*current)) {
-            ++current;
-        }
-        if (current == end) {
-            return current;
-        }
-
         char ch = *current;
-        ++current;
-        switch (ch) {
-            case '"':
+
+        // EReadStartCase tree representation:
+        // ...
+        //     Other                           =    x1b
+        //         BinaryIntegerOrBinaryDouble =   x01b
+        //             BinaryInteger           =   001b
+        //             BinaryDouble            =   101b
+        //         Other                       = xxx11b
+        //             Quote                   = 00011b
+        //             DigitOrMinus            = 00111b
+        //             String                  = 01011b
+        //             Space                   = 01111b
+        //             Plus                    = 10011b
+        //             None                    = 10111b
+        if (state & 1 << 1) { // Other = xxx11b
+            if (state == EReadStartCase::Quote) {
+                ++current;
                 SetInProgressState(EInnerState::InsideQuotedString);
                 YASSERT(TokenBuffer.empty());
                 YASSERT(BytesRead == 0);
                 return ReadQuotedString(current, end);
-
-            case '\x01':
-                SetInProgressState(EInnerState::InsideBinaryString);
+            } else if (state == EReadStartCase::DigitOrMinus) { // case of '+' is handled in AfterPlus state
+                ++current;
                 YASSERT(TokenBuffer.empty());
-                YASSERT(BytesRead == 0);
-                return ReadBinaryString(current, end);
-
-            case '\x02':
-                SetInProgressState(EInnerState::InsideBinaryInteger);
-                YASSERT(Token.IntegerValue == 0);
-                YASSERT(BytesRead == 0);
-                return ReadBinaryInteger(current, end);
-
-            case '\x03':
+                TokenBuffer.push_back(ch);
+                SetInProgressState(EInnerState::InsideNumeric);
+                return ReadNumeric(current, end);
+            } else if (state == EReadStartCase::String) {
+                ++current;
+                YASSERT(TokenBuffer.empty());
+                TokenBuffer.push_back(ch);
+                SetInProgressState(EInnerState::InsideUnquotedString);
+                return ReadUnquotedString(current, end);
+            } else if (state == EReadStartCase::Space) {
+                while (current != end && IsSpaceFast(*current)) {
+                    ++current;
+                }
+                return ReadStart(current, end);
+            } else if (state == EReadStartCase::Plus) {
+                ++current;
+                SetInProgressState(EInnerState::AfterPlus);
+                return ReadAfterPlus(current, end);
+            } else { // None
+                YASSERT(state == EReadStartCase::None);
+                THROW_ERROR_EXCEPTION("Unexpected character %s",
+                    ~Stroka(ch).Quote());
+            }
+        } else { // BinaryIntegerOrBinaryDouble = x01b
+            if (state & 1 << 2) { // BinaryDouble = 101b
+                YASSERT(state == EReadStartCase::BinaryDouble);
+                ++current;
                 SetInProgressState(EInnerState::InsideBinaryDouble);
                 YASSERT(Token.DoubleValue == 0.0);
                 YASSERT(BytesRead == 0);
                 BytesRead = -static_cast<int>(sizeof(double));
                 return ReadBinaryDouble(current, end);
+            } else { // BinaryInteger = 001b
+                YASSERT(state == EReadStartCase::BinaryInteger);
+                ++current;
+                SetInProgressState(EInnerState::InsideBinaryInteger);
+                YASSERT(Token.IntegerValue == 0);
+                YASSERT(BytesRead == 0);
+                return ReadBinaryInteger(current, end);
+            }
+        }
 
-            case '+':
-                SetInProgressState(EInnerState::AfterPlus);
-                return ReadAfterPlus(current, end);
 
-            default: {
-                auto specialTokenType = CharToTokenType(ch);
-                if (specialTokenType != ETokenType::EndOfStream) {
-                    ProduceToken(specialTokenType);
-                    return current;
-                } else if (isdigit(ch) || ch == '-') { // case of '+' is handled in AfterPlus state
-                    YASSERT(TokenBuffer.empty());
-                    TokenBuffer.push_back(ch);
-                    SetInProgressState(EInnerState::InsideNumeric);
-                    return ReadNumeric(current, end);
-                } else if (isalpha(ch) || ch == '_' || ch == '%') {
-                    YASSERT(TokenBuffer.empty());
-                    TokenBuffer.push_back(ch);
-                    SetInProgressState(EInnerState::InsideUnquotedString);
-                    return ReadUnquotedString(current, end);
-                } else {
-                    THROW_ERROR_EXCEPTION("Unexpected character %s",
-                        ~Stroka(ch).Quote());
-                }
+    }
+
+    const char* ReadStart(const char* begin, const char* end)
+    {
+        const char* current = begin;
+
+        if (current == end) {
+            return current;
+        }
+        char ch = *current;
+        auto state = GetStartState(ch);
+
+        // EReadStartCase tree representation:
+        // Root                                =     xb
+        //     BinaryStringOrOtherSpecialToken =    x0b
+        //         BinaryString                =    00b
+        //         OtherSpecialToken           =    10b
+        //     Other                           =    x1b
+        //         ...
+        if (state & 1) { // Other = x1b
+            return ReadStartHelper(state, current, end);
+        } else { // BinaryStringOrOtherSpecialToken = x0b
+            ++current;
+            if (state & 1 << 1) { // OtherSpecialToken = 10b
+                YASSERT((state & 3) == EReadStartCase::OtherSpecialToken);
+                ProduceToken(ETokenType(state >> 2));
+                return current;
+            } else { // BinaryString = 00b
+                YASSERT((state & 3) == EReadStartCase::BinaryString);
+                SetInProgressState(EInnerState::InsideBinaryString);
+                YASSERT(TokenBuffer.empty());
+                YASSERT(BytesRead == 0);
+                return ReadBinaryString(current, end);
             }
         }
     }
-
+    
     const char* ReadUnquotedString(const char* begin, const char* end)
     {
         for (auto current = begin; current != end; ++current) {
@@ -267,6 +440,7 @@ private:
             if (7 * BytesRead > 8 * sizeof(ui64) ) {
                 THROW_ERROR_EXCEPTION("The data is too long to read binary Integer");
             }
+            
 
             ui64Value |= (static_cast<ui64> (byte & 0x7F)) << (7 * BytesRead);
             ++BytesRead;
@@ -281,13 +455,13 @@ private:
         Token.IntegerValue = static_cast<i64>(ui64Value);
         return end;
     }
-
+    
     const char* ReadBinaryString(const char* begin, const char* end)
     {
         // Reading length
         if (BytesRead >= 0) {
             begin = ReadBinaryInteger(begin, end);
-            if (State_ == TLexer::EState::Terminal) {
+            if (GetState() == TLexer::EState::Terminal) {
                 i64 length = Token.IntegerValue;
                 if (length < 0) {
                     THROW_ERROR_EXCEPTION("Error reading binary string: String cannot have negative length (Length: %" PRId64 ")",
@@ -448,19 +622,16 @@ private:
 
     void ProduceToken(ETokenType type)
     {
-        YASSERT(State_ != TLexer::EState::Terminal);
-        InnerState = EInnerState::None;
+        YASSERT(InnerState != EInnerState::Terminal);
         Token.Type_ = type;
-        State_ = TLexer::EState::Terminal;
+        InnerState = EInnerState::Terminal;
     }
 
     void SetInProgressState(EInnerState innerState)
     {
         YASSERT(innerState != EInnerState::None);
-        State_ = TLexer::EState::InProgress;
         InnerState = innerState;
     }
-
 
     TStringBuf GetBufferAsStringBuf()
     {
@@ -507,7 +678,6 @@ void TLexer::Reset()
 {
     Impl->Reset();
 }
-
 TLexer::EState TLexer::GetState() const
 {
     return Impl->GetState();
@@ -519,6 +689,38 @@ const TToken& TLexer::GetToken() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+class TStatelessLexer::TImpl
+{
+private:
+    THolder<TYsonStatelessLexerImplBase> Impl;
+
+public:
+    TImpl(bool enableLinePositionInfo = false)
+        : Impl(enableLinePositionInfo? 
+        static_cast<TYsonStatelessLexerImplBase*>(new TYsonStatelessLexerImpl<true>()) 
+        : static_cast<TYsonStatelessLexerImplBase*>(new TYsonStatelessLexerImpl<false>()))
+    { }
+
+    size_t GetToken(const TStringBuf& data, TToken* token)
+    {
+        return Impl->GetToken(data, token);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TStatelessLexer::TStatelessLexer()
+    : Impl(new TImpl())
+{ }
+
+TStatelessLexer::~TStatelessLexer()
+{ }
+
+size_t TStatelessLexer::GetToken(const TStringBuf& data, TToken* token)
+{
+    return Impl->GetToken(data, token);
+}
 
 } // namespace NYson
 } // namespace NYT

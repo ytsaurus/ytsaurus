@@ -52,6 +52,7 @@ public:
     //! Indicates the end-of-stream.
     void Finish();
 
+    //! Resets lexer's state.
     void Reset();
 
     //! Returns the current public state.
@@ -62,6 +63,22 @@ public:
 
 private:
     THolder<TLexerImpl> Impl;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TStatelessLexer
+{
+public:
+    TStatelessLexer();
+
+    ~TStatelessLexer();
+
+    size_t GetToken(const TStringBuf& data, TToken* token);
+
+private:
+    class TImpl;
+    THolder<TImpl> Impl;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
