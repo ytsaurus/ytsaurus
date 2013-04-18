@@ -4,14 +4,11 @@
 #include "config.h"
 #include "partition_job.h"
 
-#include <server/chunk_server/public.h>
-
 #include <ytlib/misc/sync.h>
-
-#include <ytlib/meta_state/master_channel.h>
 
 #include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
+#include <ytlib/chunk_client/input_chunk.pb.h>
 
 #include <ytlib/table_client/partition_chunk_writer.h>
 #include <ytlib/table_client/table_chunk_reader.h>
@@ -24,17 +21,18 @@
 namespace NYT {
 namespace NJobProxy {
 
-using namespace NElection;
 using namespace NTableClient;
 using namespace NChunkClient;
-using namespace NChunkServer;
+using namespace NChunkClient::NProto;
+using namespace NTransactionClient;
 using namespace NYTree;
 using namespace NScheduler::NProto;
+using namespace NJobTrackerClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& SILENT_UNUSED Logger = JobProxyLogger;
-static NProfiling::TProfiler& SILENT_UNUSED Profiler = JobProxyProfiler;
+static NLog::TLogger& Logger = JobProxyLogger;
+static NProfiling::TProfiler& Profiler = JobProxyProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,9 +57,7 @@ public:
         YCHECK(SchedulerJobSpecExt.output_specs_size() == 1);
         const auto& outputSpec = SchedulerJobSpecExt.output_specs(0);
 
-        std::vector<NChunkClient::NProto::TInputChunk> chunks(
-            inputSpec.chunks().begin(),
-            inputSpec.chunks().end());
+        std::vector<TInputChunk> chunks(inputSpec.chunks().begin(), inputSpec.chunks().end());
 
         auto readerProvider = New<TTableChunkReaderProvider>(
             chunks,
@@ -105,7 +101,7 @@ public:
             chunkListId));
     }
 
-    virtual NScheduler::NProto::TJobResult Run() override
+    virtual TJobResult Run() override
     {
         PROFILE_TIMING ("/partition_time") {
             LOG_INFO("Initializing");
@@ -134,8 +130,11 @@ public:
             {
                 TJobResult result;
                 ToProto(result.mutable_error(), TError());
-                Writer->GetNodeDirectory()->DumpTo(result.mutable_node_directory());
-                ToProto(result.mutable_chunks(), Writer->GetWrittenChunks());
+
+                auto* schedulerResultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+                Writer->GetNodeDirectory()->DumpTo(schedulerResultExt->mutable_node_directory());
+                ToProto(schedulerResultExt->mutable_chunks(), Writer->GetWrittenChunks());
+
                 return result;
             }
         }

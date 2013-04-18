@@ -53,7 +53,11 @@ using namespace NYPath;
 using namespace NFormats;
 using namespace NJobProxy;
 using namespace NSecurityClient;
+using namespace NJobTrackerClient;
+using namespace NNodeTrackerClient;
 using namespace NScheduler::NProto;
+using namespace NJobTrackerClient::NProto;
+using namespace NNodeTrackerClient::NProto;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -140,7 +144,7 @@ void TOperationControllerBase::TTask::CheckCompleted()
 
 TJobPtr TOperationControllerBase::TTask::ScheduleJob(
     ISchedulingContext* context,
-    const NProto::TNodeResources& jobLimits)
+    const TNodeResources& jobLimits)
 {
     int chunkListCount = GetChunkListCountPerJob();
     if (!Controller->HasEnoughChunkLists(chunkListCount)) {
@@ -323,7 +327,8 @@ void TOperationControllerBase::TTask::OnTaskCompleted()
     LOG_DEBUG("Task completed (Task: %s)", ~GetId());
 }
 
-void TOperationControllerBase::TTask::DoCheckResourceDemandSanity(
+void TOperationControllerBase::TTask::CheckResourceDemandSanity(
+    TExecNodePtr node,
     const NProto::TNodeResources& neededResources)
 {
     auto nodes = Controller->Host->GetExecNodes();
@@ -414,7 +419,7 @@ void TOperationControllerBase::TTask::AddParallelInputSpec(
 
 void TOperationControllerBase::TTask::AddChunksToInputSpec(
     TNodeDirectoryBuilder* directoryBuilder,
-    NScheduler::NProto::TTableInputSpec* inputSpec,
+    TTableInputSpec* inputSpec,
     TChunkStripePtr stripe,
     TNullable<int> partitionTag,
     bool enableTableIndex)
@@ -560,7 +565,7 @@ TOperationControllerBase::TOperationControllerBase(
     , TotalInputDataSize(0)
     , TotalInputRowCount(0)
     , TotalInputValueCount(0)
-    , NodeDirectory(New<TNodeDirectory>())
+    , NodeDirectory(New<NNodeTrackerClient::TNodeDirectory>())
     , Spec(spec)
     , CachedPendingJobCount(0)
     , CachedNeededResources(ZeroNodeResources())
@@ -687,7 +692,7 @@ TFuture<TError> TOperationControllerBase::Commit()
         }));
 }
 
-void TOperationControllerBase::OnJobRunning(TJobPtr job, const NProto::TJobStatus& status)
+void TOperationControllerBase::OnJobRunning(TJobPtr job, const TJobStatus& status)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
     UNUSED(job);
@@ -711,13 +716,14 @@ void TOperationControllerBase::OnJobCompleted(TJobPtr job)
     auto joblet = GetJoblet(job);
 
     auto& result = joblet->Job->Result();
+    const auto& schedulerResultEx = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
 
     // Populate node directory by adding additional nodes returned from the job.
-    NodeDirectory->MergeFrom(result.node_directory());
+    NodeDirectory->MergeFrom(schedulerResultEx.node_directory());
 
     // Construct a stripe representing job result.
     joblet->OutputStripe = New<TChunkStripe>();
-    FOREACH (auto& inputChunk, result.chunks()) {
+    FOREACH (auto& inputChunk, schedulerResultEx.chunks()) {
         joblet->OutputStripe->Chunks.push_back(New<TRefCountedInputChunk>(std::move(inputChunk)));
     }
 
@@ -736,11 +742,14 @@ void TOperationControllerBase::OnJobFailed(TJobPtr job)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
+    const auto& result = job->Result();
+    const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+
     // If some input chunks have failed then the job is considered aborted rather than failed.
-    if (job->Result().failed_chunk_ids_size() > 0) {
+    if (schedulerResultExt.failed_chunk_ids_size() > 0) {
         job->SetState(EJobState::Aborted);
         OnJobAborted(job);
-        FOREACH (const auto& chunkId, job->Result().failed_chunk_ids()) {
+        FOREACH (const auto& chunkId, schedulerResultExt.failed_chunk_ids()) {
             OnChunkFailed(FromProto<TChunkId>(chunkId));
         }
         return;
@@ -852,7 +861,7 @@ void TOperationControllerBase::OnNodeOffline(TExecNodePtr node)
 
 TJobPtr TOperationControllerBase::ScheduleJob(
     ISchedulingContext* context,
-    const NProto::TNodeResources& jobLimits)
+    const TNodeResources& jobLimits)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -976,7 +985,7 @@ void TOperationControllerBase::ResetTaskLocalityDelays()
     }
 }
 
-bool TOperationControllerBase::CheckJobLimits(TExecNodePtr node, TTaskPtr task, const NProto::TNodeResources& jobLimits)
+bool TOperationControllerBase::CheckJobLimits(TExecNodePtr node, TTaskPtr task, const TNodeResources& jobLimits)
 {
     auto neededResources = task->GetMinNeededResources();
     if (Dominates(jobLimits, neededResources)) {
@@ -988,7 +997,7 @@ bool TOperationControllerBase::CheckJobLimits(TExecNodePtr node, TTaskPtr task, 
 
 TJobPtr TOperationControllerBase::DoScheduleJob(
     ISchedulingContext* context,
-    const NProto::TNodeResources& jobLimits)
+    const TNodeResources& jobLimits)
 {
     auto localJob = DoScheduleLocalJob(context, jobLimits);
     if (localJob) {
@@ -1005,7 +1014,7 @@ TJobPtr TOperationControllerBase::DoScheduleJob(
 
 TJobPtr TOperationControllerBase::DoScheduleLocalJob(
     ISchedulingContext* context,
-    const NProto::TNodeResources& jobLimits)
+    const TNodeResources& jobLimits)
 {
     auto node = context->GetNode();
     const auto& address = node->GetAddress();
@@ -1084,7 +1093,7 @@ TJobPtr TOperationControllerBase::DoScheduleLocalJob(
 
 TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(
     ISchedulingContext* context,
-    const NProto::TNodeResources& jobLimits)
+    const TNodeResources& jobLimits)
 {
     auto now = TInstant::Now();
     const auto& node = context->GetNode();
@@ -1220,7 +1229,7 @@ int TOperationControllerBase::GetPendingJobCount()
     return CachedPendingJobCount;
 }
 
-NProto::TNodeResources TOperationControllerBase::GetNeededResources()
+TNodeResources TOperationControllerBase::GetNeededResources()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 

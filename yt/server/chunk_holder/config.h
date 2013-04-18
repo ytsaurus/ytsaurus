@@ -26,7 +26,6 @@ public:
     }
 };
 
-//! Describes a chunk location.
 class TLocationConfig
     : public TYsonSerializable
 {
@@ -70,7 +69,6 @@ public:
     }
 };
 
-//! Describes a configuration of TDiskHealthChecker.
 class TDiskHealthCheckerConfig
     : public TYsonSerializable
 {
@@ -96,7 +94,7 @@ public:
     }
 };
 
-//! Describes a configuration of TChunkHolder.
+//! Describes a configuration of a data node.
 class TDataNodeConfig
     : public TYsonSerializable
 {
@@ -155,7 +153,7 @@ public:
     NChunkClient::TSequentialReaderConfigPtr CacheSequentialReader;
 
     //! Remote writer configuration used to replicate chunks.
-    NChunkClient::TReplicationWriterConfigPtr ReplicationRemoteWriter;
+    NChunkClient::TReplicationWriterConfigPtr ReplicationWriter;
 
     //! Keeps chunk peering information.
     TPeerBlockTableConfigPtr PeerBlockTable;
@@ -163,11 +161,6 @@ public:
     //! Runs periodic checks against disks.
     TDiskHealthCheckerConfigPtr DiskHealthChecker;
 
-    //! Constructs a default instance.
-    /*!
-     *  By default, no master connection is configured. The holder will operate in
-     *  a standalone mode, which only makes sense for testing purposes.
-     */
     TDataNodeConfig()
     {
         RegisterParameter("heartbeat_period", HeartbeatPeriod)
@@ -205,7 +198,7 @@ public:
             .DefaultNew();
         RegisterParameter("cache_sequential_reader", CacheSequentialReader)
             .DefaultNew();
-        RegisterParameter("replication_remote_writer", ReplicationRemoteWriter)
+        RegisterParameter("replication_writer", ReplicationWriter)
             .DefaultNew();
         RegisterParameter("peer_block_table", PeerBlockTable)
             .DefaultNew();

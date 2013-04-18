@@ -22,7 +22,6 @@
 #include <ytlib/actions/parallel_awaiter.h>
 
 #include <ytlib/rpc/dispatcher.h>
-#include <ytlib/rpc/service_detail.h>
 
 #include <ytlib/logging/tagged_logger.h>
 
@@ -38,15 +37,14 @@
 #include <ytlib/object_client/object_ypath_proxy.h>
 #include <ytlib/object_client/master_ypath_proxy.h>
 
-#include <ytlib/scheduler/scheduler_proxy.h>
+#include <ytlib/node_tracker_client/helpers.h>
+
 #include <ytlib/scheduler/helpers.h>
 
 #include <ytlib/ytree/ypath_proxy.h>
 #include <ytlib/ytree/fluent.h>
 
 #include <ytlib/meta_state/rpc_helpers.h>
-
-#include <ytlib/security_client/rpc_helpers.h>
 
 #include <server/cell_scheduler/config.h>
 #include <server/cell_scheduler/bootstrap.h>
@@ -61,23 +59,25 @@ using namespace NYson;
 using namespace NCellScheduler;
 using namespace NObjectClient;
 using namespace NMetaState;
-using namespace NSecurityClient;
 using namespace NScheduler::NProto;
+using namespace NJobTrackerClient;
+using namespace NChunkClient;
+using namespace NNodeTrackerClient;
+using namespace NNodeTrackerClient::NProto;
+using namespace NJobTrackerClient::NProto;
 
-using NChunkClient::TChunkId;
-using NChunkClient::NullChunkId;
 using NNodeTrackerClient::TNodeDescriptor;
 
 ////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& SILENT_UNUSED Logger = SchedulerLogger;
-static NProfiling::TProfiler& SILENT_UNUSED Profiler = SchedulerProfiler;
+static NLog::TLogger& Logger = SchedulerLogger;
+static NProfiling::TProfiler& Profiler = SchedulerProfiler;
 static TDuration ProfilingPeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////
 
 class TScheduler::TImpl
-    : public NRpc::TServiceBase
+    : public TRefCounted
     , public IOperationHost
     , public ISchedulerStrategyHost
 {
@@ -85,11 +85,7 @@ public:
     TImpl(
         TSchedulerConfigPtr config,
         TBootstrap* bootstrap)
-        : NRpc::TServiceBase(
-            bootstrap->GetControlInvoker(),
-            TSchedulerServiceProxy::GetServiceName(),
-            SchedulerLogger.GetCategory())
-        , Config(config)
+        : Config(config)
         , Bootstrap(bootstrap)
         , BackgroundQueue(New<TActionQueue>("Background"))
         , SnapshotIOQueue(New<TActionQueue>("SnapshotIO"))
@@ -107,19 +103,9 @@ public:
         YCHECK(bootstrap);
         VERIFY_INVOKER_AFFINITY(GetControlInvoker(), ControlThread);
         VERIFY_INVOKER_AFFINITY(GetSnapshotIOInvoker(), SnapshotIOThread);
-
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(StartOperation));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortOperation));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(WaitForOperation));
-        RegisterMethod(
-            RPC_SERVICE_METHOD_DESC(Heartbeat)
-                .SetRequestHeavy(true)
-                .SetResponseHeavy(true)
-                .SetResponseCodec(NCompression::ECodec::Lz4)
-                .SetInvoker(Bootstrap->GetControlInvoker(EControlQueue::Heartbeat)));
     }
 
-    void Start()
+    void Initialize()
     {
         InitStrategy();
 
@@ -153,6 +139,7 @@ public:
         ProfilingInvoker->Start();
     }
 
+
     TYPathServiceProducer CreateOrchidProducer()
     {
         // TODO(babenko): virtualize
@@ -178,13 +165,292 @@ public:
         return SnapshotIOQueue->GetInvoker();
     }
 
+
+    bool IsConnected()
+    {
+        return MasterConnector->IsConnected();
+    }
+
+    void ValidateConnected()
+    {
+        if (!IsConnected()) {
+            THROW_ERROR_EXCEPTION(TError(
+                NRpc::EErrorCode::Unavailable,
+                "Master is not connected"));
+        }
+    }
+
+
+    TOperationPtr FindOperation(const TOperationId& id)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto it = Operations.find(id);
+        return it == Operations.end() ? nullptr : it->second;
+    }
+
+    TOperationPtr GetOperationOrThrow(const TOperationId& id)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto operation = FindOperation(id);
+        if (!operation) {
+            THROW_ERROR_EXCEPTION("No such operation %s", ~ToString(id));
+        }
+        return operation;
+    }
+
+
+    TExecNodePtr FindNode(const Stroka& address)
+    {
+        auto it = Nodes.find(address);
+        return it == Nodes.end() ? nullptr : it->second;
+    }
+
+    TExecNodePtr GetNode(const Stroka& address)
+    {
+        auto node = FindNode(address);
+        YCHECK(node);
+        return node;
+    }
+
+    TExecNodePtr GetOrCreateNode(const TNodeDescriptor& descriptor)
+    {
+        auto it = Nodes.find(descriptor.Address);
+        if (it == Nodes.end()) {
+            return RegisterNode(descriptor);
+        }
+
+        // Update the current descriptor, just in case.
+        auto node = it->second;
+        node->Descriptor() = descriptor;
+        return node;
+    }
+
+
+    TFuture<TStartResult> StartOperation(
+        EOperationType type,
+        const TTransactionId& transactionId,
+        IMapNodePtr spec,
+        const Stroka& user)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        // Attach user transaction if any. Don't ping it.
+        TTransactionAttachOptions userAttachOptions(transactionId);
+        userAttachOptions.AutoAbort = false;
+        userAttachOptions.Ping = false;
+        userAttachOptions.PingAncestors = false;
+        auto userTransaction =
+            transactionId == NullTransactionId
+            ? nullptr
+            : GetTransactionManager()->Attach(userAttachOptions);
+
+        // Create operation object.
+        auto operationId = TOperationId::Create();
+        auto operation = New<TOperation>(
+            operationId,
+            type,
+            userTransaction,
+            spec,
+            user,
+            TInstant::Now());
+        operation->SetCleanStart(true);
+        operation->SetState(EOperationState::Initializing);
+
+        LOG_INFO("Starting operation (OperationType: %s, OperationId: %s, TransactionId: %s, User: %s)",
+            ~type.ToString(),
+            ~ToString(operationId),
+            ~ToString(transactionId),
+            ~ToString(user));
+
+        IOperationControllerPtr controller;
+        try {
+            controller = CreateController(~operation);
+            operation->SetController(controller);
+            controller->Initialize();
+        } catch (const std::exception& ex) {
+            auto wrappedError = TError("Error initializing operation") << ex;
+            LOG_ERROR(wrappedError);
+            return MakeFuture(TStartResult(wrappedError));
+        }
+
+        RegisterOperation(operation);
+
+        auto invoker = controller->GetCancelableControlInvoker();
+        auto this_ = MakeStrong(this);
+        return StartAsyncPipeline(invoker)
+            ->Add(BIND(&TThis::StartSchedulerTransactions, this_, operation))
+            ->Add(BIND(&TThis::OnSchedulerTransactionStarted, this_, operation))
+            ->Add(BIND(&TThis::StartIOTransactions, this_, operation))
+            ->Add(BIND(&TThis::OnIOTransactionsStarted, this_, operation))
+            ->Add(BIND(&TMasterConnector::CreateOperationNode, ~MasterConnector, operation))
+            ->Add(BIND(&TThis::OnOperationNodeCreated, this_, operation))
+            ->Run()
+            .Apply(BIND([=] (TValueOrError<void> result) -> TValueOrError<TOperationPtr> {
+                VERIFY_THREAD_AFFINITY(ControlThread);
+
+                if (!result.IsOK()) {
+                    // NB: Operation node is created at the very last step of the pipeline.
+                    // Hence the failure implies that we don't have any node yet.
+
+                    LOG_ERROR(result, "Error starting operation (OperationId: %s)",
+                        ~ToString(operation->GetOperationId()));
+
+                    auto wrappedError = TError("Error starting operation") << result;
+                    this_->SetOperationFinalState(operation, EOperationState::Failed, wrappedError);
+                    this_->FinishOperation(operation);
+                    return wrappedError;
+                }
+
+                return operation;
+            }).AsyncVia(invoker));
+    }
+
+    TFuture<void> AbortOperation(TOperationPtr operation, const TError& error)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (operation->IsFinishingState()) {
+            LOG_INFO(error, "Operation is already finishing (OperationId: %s, State: %s)",
+                ~ToString(operation->GetOperationId()),
+                ~operation->GetState().ToString());
+            return operation->GetFinished();
+        }
+
+        if (operation->IsFinishedState()) {
+            LOG_INFO(error, "Operation is already finished (OperationId: %s, State: %s)",
+                ~ToString(operation->GetOperationId()),
+                ~operation->GetState().ToString());
+            return operation->GetFinished();
+        }
+
+        LOG_INFO(error, "Aborting operation (OperationId: %s, State: %s)",
+            ~ToString(operation->GetOperationId()),
+            ~operation->GetState().ToString());
+
+        DoOperationFailed(operation, EOperationState::Aborting, EOperationState::Aborted, error);
+
+        return operation->GetFinished();
+    }
+
+
+    void ProcessHeartbeat(TExecNodePtr node, TCtxHeartbeatPtr context)
+    {
+        auto* request = &context->Request();
+        auto* response = &context->Response();
+
+        const auto& resourceLimits = request->resource_limits();
+        const auto& resourceUsage = request->resource_usage();
+
+        TLeaseManager::RenewLease(node->GetLease());
+
+        TotalResourceLimits -= node->ResourceLimits();
+        TotalResourceUsage -= node->ResourceUsage();
+
+        node->ResourceLimits() = resourceLimits;
+        node->ResourceUsage() = resourceUsage;
+
+        std::vector<TJobPtr> runningJobs;
+        bool hasWaitingJobs = false;
+        yhash_set<TOperationPtr> operationsToLog;
+        PROFILE_TIMING ("/analysis_time") {
+            auto missingJobs = node->Jobs();
+
+            FOREACH (auto& jobStatus, *request->mutable_jobs()) {
+                auto jobType = EJobType(jobStatus.job_type());
+                // Skip jobs that are not issued by the scheduler.
+                if (jobType <= EJobType::SchedulerFirst || jobType >= EJobType::SchedulerLast)
+                    continue;
+
+                auto job = ProcessJobHeartbeat(
+                    node,
+                    request,
+                    response,
+                    &jobStatus);
+                if (job) {
+                    YCHECK(missingJobs.erase(job) == 1);
+                    switch (job->GetState()) {
+                        case EJobState::Completed:
+                        case EJobState::Failed:
+                        case EJobState::Aborted:
+                            operationsToLog.insert(job->GetOperation());
+                            break;
+                        case EJobState::Running:
+                            runningJobs.push_back(job);
+                            break;
+                        case EJobState::Waiting:
+                            hasWaitingJobs = true;
+                            break;
+                        default:
+                            break;
+                    }
+                }
+            }
+
+            // Check for missing jobs.
+            FOREACH (auto job, missingJobs) {
+                LOG_ERROR("Job is missing (Address: %s, JobId: %s, OperationId: %s)",
+                    ~node->GetAddress(),
+                    ~ToString(job->GetId()),
+                    ~ToString(job->GetOperation()->GetOperationId()));
+                AbortJob(job, TError("Job vanished"));
+                UnregisterJob(job);
+            }
+        }
+
+        auto schedulingContext = CreateSchedulingContext(node, runningJobs);
+
+        if (hasWaitingJobs) {
+            LOG_DEBUG("Waiting jobs found, suppressing new jobs scheduling");
+        } else {
+            PROFILE_TIMING ("/schedule_time") {
+                Strategy->ScheduleJobs(~schedulingContext);
+            }
+        }
+
+        TotalResourceLimits += node->ResourceLimits();
+        TotalResourceUsage += node->ResourceUsage();
+
+        FOREACH (auto job, schedulingContext->PreemptedJobs()) {
+            ToProto(response->add_jobs_to_abort(), job->GetId());
+        }
+
+        auto awaiter = New<TParallelAwaiter>();
+        auto specBuilderInvoker = NRpc::TDispatcher::Get()->GetPoolInvoker();
+        FOREACH (auto job, schedulingContext->StartedJobs()) {
+            auto* startInfo = response->add_jobs_to_start();
+            ToProto(startInfo->mutable_job_id(), job->GetId());
+            *startInfo->mutable_resource_limits() = job->ResourceUsage();
+
+            // Build spec asynchronously.
+            awaiter->Await(
+                BIND(job->GetSpecBuilder(), startInfo->mutable_spec())
+                    .AsyncVia(specBuilderInvoker)
+                    .Run());
+
+            // Release to avoid circular references.
+            job->SetSpecBuilder(TJobSpecBuilder());
+            operationsToLog.insert(job->GetOperation());
+        }
+
+        awaiter->Complete(BIND([=] () {
+            context->Reply();
+        }));
+
+        FOREACH (auto operation, operationsToLog) {
+            LogOperationProgress(operation);
+        }
+    }
+
+
     // ISchedulerStrategyHost implementation
     DEFINE_SIGNAL(void(TOperationPtr), OperationRegistered);
     DEFINE_SIGNAL(void(TOperationPtr), OperationUnregistered);
 
     DEFINE_SIGNAL(void(TJobPtr job), JobStarted);
     DEFINE_SIGNAL(void(TJobPtr job), JobFinished);
-    DEFINE_SIGNAL(void(TJobPtr, const NProto::TNodeResources& resourcesDelta), JobUpdated);
+    DEFINE_SIGNAL(void(TJobPtr, const TNodeResources& resourcesDelta), JobUpdated);
 
 
     virtual TMasterConnector* GetMasterConnector() override
@@ -192,7 +458,7 @@ public:
         return ~MasterConnector;
     }
 
-    virtual NProto::TNodeResources GetTotalResourceLimits() override
+    virtual TNodeResources GetTotalResourceLimits() override
     {
         return TotalResourceLimits;
     }
@@ -313,8 +579,8 @@ private:
     std::vector<int> JobTypeCounters;
     TPeriodicInvokerPtr ProfilingInvoker;
 
-    NProto::TNodeResources TotalResourceLimits;
-    NProto::TNodeResources TotalResourceUsage;
+    TNodeResources TotalResourceLimits;
+    TNodeResources TotalResourceUsage;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(SnapshotIOThread);
@@ -440,86 +706,6 @@ private:
         LOG_INFO("Scheduler configuration updated");
     }
 
-    typedef TValueOrError<TOperationPtr> TStartResult;
-
-    TFuture<TStartResult> StartOperation(
-        EOperationType type,
-        const TTransactionId& transactionId,
-        IMapNodePtr spec,
-        const Stroka& user)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        // Attach user transaction if any. Don't ping it.
-        TTransactionAttachOptions userAttachOptions(transactionId);
-        userAttachOptions.AutoAbort = false;
-        userAttachOptions.Ping = false;
-        userAttachOptions.PingAncestors = false;
-        auto userTransaction =
-            transactionId == NullTransactionId
-            ? nullptr
-            : GetTransactionManager()->Attach(userAttachOptions);
-
-        // Create operation object.
-        auto operationId = TOperationId::Create();
-        auto operation = New<TOperation>(
-            operationId,
-            type,
-            userTransaction,
-            spec,
-            user,
-            TInstant::Now());
-        operation->SetCleanStart(true);
-        operation->SetState(EOperationState::Initializing);
-
-        LOG_INFO("Starting operation (OperationType: %s, OperationId: %s, TransactionId: %s, User: %s)",
-            ~type.ToString(),
-            ~ToString(operationId),
-            ~ToString(transactionId),
-            ~ToString(user));
-
-        IOperationControllerPtr controller;
-        try {
-            controller = CreateController(~operation);
-            operation->SetController(controller);
-            controller->Initialize();
-        } catch (const std::exception& ex) {
-            auto wrappedError = TError("Error initializing operation") << ex;
-            LOG_ERROR(wrappedError);
-            return MakeFuture(TStartResult(wrappedError));
-        }
-
-        RegisterOperation(operation);
-
-        auto invoker = controller->GetCancelableControlInvoker();
-        auto this_ = MakeStrong(this);
-        return StartAsyncPipeline(invoker)
-            ->Add(BIND(&TThis::StartSchedulerTransactions, this_, operation))
-            ->Add(BIND(&TThis::OnSchedulerTransactionStarted, this_, operation))
-            ->Add(BIND(&TThis::StartIOTransactions, this_, operation))
-            ->Add(BIND(&TThis::OnIOTransactionsStarted, this_, operation))
-            ->Add(BIND(&TMasterConnector::CreateOperationNode, ~MasterConnector, operation))
-            ->Add(BIND(&TThis::OnOperationNodeCreated, this_, operation))
-            ->Run()
-            .Apply(BIND([=] (TValueOrError<void> result) -> TValueOrError<TOperationPtr> {
-                VERIFY_THREAD_AFFINITY(ControlThread);
-
-                if (!result.IsOK()) {
-                    // NB: Operation node is created at the very last step of the pipeline.
-                    // Hence the failure implies that we don't have any node yet.
-
-                    LOG_ERROR(result, "Error starting operation (OperationId: %s)",
-                        ~ToString(operation->GetOperationId()));
-
-                    auto wrappedError = TError("Error starting operation") << result;
-                    this_->SetOperationFinalState(operation, EOperationState::Failed, wrappedError);
-                    this_->FinishOperation(operation);
-                    return wrappedError;
-                }
-
-                return operation;
-            }).AsyncVia(invoker));
-    }
 
     TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> StartSchedulerTransactions(TOperationPtr operation)
     {
@@ -539,7 +725,7 @@ private:
             }
             req->set_type(EObjectType::Transaction);
 
-            auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction);
+            auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction_ext);
             reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
 
             auto attributes = CreateEphemeralAttributes();
@@ -555,7 +741,7 @@ private:
             auto req = TMasterYPathProxy::CreateObject();
             req->set_type(EObjectType::Transaction);
 
-            auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction);
+            auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction_ext);
             reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
 
             auto attributes = CreateEphemeralAttributes();
@@ -620,7 +806,7 @@ private:
             ToProto(req->mutable_transaction_id(), parentTransactionId);
             req->set_type(EObjectType::Transaction);
 
-            auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction);
+            auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction_ext);
             reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
 
             auto attributes = CreateEphemeralAttributes();
@@ -637,7 +823,7 @@ private:
             ToProto(req->mutable_transaction_id(), parentTransactionId);
             req->set_type(EObjectType::Transaction);
 
-            auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction);
+            auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction_ext);
             reqExt->set_enable_uncommitted_accounting(false);
             reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
 
@@ -839,81 +1025,6 @@ private:
     }
 
 
-    TFuture<void> AbortOperation(TOperationPtr operation, const TError& error)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        if (operation->IsFinishingState()) {
-            LOG_INFO(error, "Operation is already finishing (OperationId: %s, State: %s)",
-                ~ToString(operation->GetOperationId()),
-                ~operation->GetState().ToString());
-            return operation->GetFinished();
-        }
-
-        if (operation->IsFinishedState()) {
-            LOG_INFO(error, "Operation is already finished (OperationId: %s, State: %s)",
-                ~ToString(operation->GetOperationId()),
-                ~operation->GetState().ToString());
-            return operation->GetFinished();
-        }
-
-        LOG_INFO(error, "Aborting operation (OperationId: %s, State: %s)",
-            ~ToString(operation->GetOperationId()),
-            ~operation->GetState().ToString());
-
-        DoOperationFailed(operation, EOperationState::Aborting, EOperationState::Aborted, error);
-
-        return operation->GetFinished();
-    }
-
-
-    TOperationPtr FindOperation(const TOperationId& id)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto it = Operations.find(id);
-        return it == Operations.end() ? nullptr : it->second;
-    }
-
-    TOperationPtr GetOperation(const TOperationId& id)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto operation = FindOperation(id);
-        if (!operation) {
-            THROW_ERROR_EXCEPTION("No such operation: %s", ~ToString(id));
-        }
-        return operation;
-    }
-
-
-    TExecNodePtr FindNode(const Stroka& address)
-    {
-        auto it = Nodes.find(address);
-        return it == Nodes.end() ? nullptr : it->second;
-    }
-
-    TExecNodePtr GetNode(const Stroka& address)
-    {
-        auto node = FindNode(address);
-        YCHECK(node);
-        return node;
-    }
-
-    TExecNodePtr GetOrCreateNode(const TNodeDescriptor& descriptor)
-    {
-        auto it = Nodes.find(descriptor.Address);
-        if (it == Nodes.end()) {
-            return RegisterNode(descriptor);
-        }
-
-        // Update the current descriptor, just in case.
-        auto node = it->second;
-        node->Descriptor() = descriptor;
-        return node;
-    }
-
-
     TJobPtr FindJob(const TJobId& jobId)
     {
         auto it = Jobs.find(jobId);
@@ -1099,8 +1210,9 @@ private:
 
         JobStarted_.Fire(job);
 
-        LOG_DEBUG("Job registered (JobId: %s, OperationId: %s)",
+        LOG_DEBUG("Job registered (JobId: %s, JobType: %s, OperationId: %s)",
             ~ToString(job->GetId()),
+            ~job->GetType().ToString(),
             ~ToString(job->GetOperation()->GetOperationId()));
     }
 
@@ -1151,7 +1263,7 @@ private:
     }
 
 
-    void OnJobRunning(TJobPtr job, const NProto::TJobStatus& status)
+    void OnJobRunning(TJobPtr job, const TJobStatus& status)
     {
         auto operation = job->GetOperation();
         if (operation->GetState() == EOperationState::Running) {
@@ -1164,7 +1276,7 @@ private:
         // Do nothing.
     }
 
-    void OnJobCompleted(TJobPtr job, NProto::TJobResult* result)
+    void OnJobCompleted(TJobPtr job, TJobResult* result)
     {
         if (job->GetState() == EJobState::Running ||
             job->GetState() == EJobState::Waiting)
@@ -1183,7 +1295,7 @@ private:
         UnregisterJob(job);
     }
 
-    void OnJobFailed(TJobPtr job, NProto::TJobResult* result)
+    void OnJobFailed(TJobPtr job, TJobResult* result)
     {
         if (job->GetState() == EJobState::Running ||
             job->GetState() == EJobState::Waiting)
@@ -1202,7 +1314,7 @@ private:
         UnregisterJob(job);
     }
 
-    void OnJobAborted(TJobPtr job, NProto::TJobResult* result)
+    void OnJobAborted(TJobPtr job, TJobResult* result)
     {
         // Only update the result for the first time.
         // Typically the scheduler decides to abort the job on its own.
@@ -1477,227 +1589,11 @@ private:
     }
 
 
-    TAutoPtr<ISchedulingContext> CreateSchedulingContext(
-        TExecNodePtr node,
-        const std::vector<TJobPtr>& runningJobs);
-
-
-    // RPC handlers
-    void ValidateConnected()
-    {
-        if (!MasterConnector->IsConnected()) {
-            THROW_ERROR_EXCEPTION(TError(
-                NRpc::EErrorCode::Unavailable,
-                "Master is not connected"));
-        }
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NProto, StartOperation)
-    {
-        auto type = EOperationType(request->type());
-        auto transactionId =
-            request->has_transaction_id()
-            ? FromProto<TTransactionId>(request->transaction_id())
-            : NullTransactionId;
-
-        auto maybeUser = FindRpcAuthenticatedUser(context);
-        auto user = maybeUser ? *maybeUser : RootUserName;
-
-        IMapNodePtr spec;
-        try {
-            spec = ConvertToNode(TYsonString(request->spec()))->AsMap();
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error parsing operation spec")
-                << ex;
-        }
-
-        // TODO(babenko): let RPC subsystem log user name
-        context->SetRequestInfo("Type: %s, TransactionId: %s, User: %s",
-            ~type.ToString(),
-            ~ToString(transactionId),
-            ~user);
-
-        ValidateConnected();
-
-        StartOperation(
-            type,
-            transactionId,
-            spec,
-            user)
-        .Subscribe(BIND([=] (TValueOrError<TOperationPtr> result) {
-            if (!result.IsOK()) {
-                context->Reply(result);
-                return;
-            }
-            auto operation = result.Value();
-            auto id = operation->GetOperationId();
-            ToProto(response->mutable_operation_id(), id);
-            context->SetResponseInfo("OperationId: %s", ~ToString(id));
-            context->Reply();
-        }));
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NProto, AbortOperation)
-    {
-        auto operationId = FromProto<TTransactionId>(request->operation_id());
-
-        context->SetRequestInfo("OperationId: %s", ~ToString(operationId));
-
-        ValidateConnected();
-
-        auto operation = GetOperation(operationId);
-
-        AbortOperation(
-            operation,
-            TError("Operation aborted by user request"))
-        .Subscribe(BIND([=] () {
-            context->Reply();
-        }));
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NProto, WaitForOperation)
-    {
-        auto operationId = FromProto<TTransactionId>(request->operation_id());
-        auto timeout = TDuration(request->timeout());
-        context->SetRequestInfo("OperationId: %s, Timeout: %s",
-            ~ToString(operationId),
-            ~ToString(timeout));
-
-        ValidateConnected();
-
-        auto operation = GetOperation(operationId);
-        auto this_ = MakeStrong(this);
-        operation->GetFinished().Subscribe(
-            timeout,
-            BIND(&TThis::OnOperationWaitResult, this_, context, operation, true),
-            BIND(&TThis::OnOperationWaitResult, this_, context, operation, false));
-    }
-
-    void OnOperationWaitResult(
-        TCtxWaitForOperationPtr context,
-        TOperationPtr operation,
-        bool maybeFinished)
-    {
-        context->SetResponseInfo("MaybeFinished: %s", ~FormatBool(maybeFinished));
-        context->Response().set_maybe_finished(maybeFinished);
-        context->Reply();
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NProto, Heartbeat)
-    {
-        auto descriptor = FromProto<TNodeDescriptor>(request->node_descriptor());
-        const auto& resourceLimits = request->resource_limits();
-        const auto& resourceUsage = request->resource_usage();
-
-        context->SetRequestInfo("Descriptor: %s, JobCount: %d, ResourceUsage: {%s}",
-            ~ToString(descriptor),
-            request->jobs_size(),
-            ~FormatResourceUsage(resourceUsage, resourceLimits));
-
-        ValidateConnected();
-
-        auto node = GetOrCreateNode(descriptor);
-
-        TLeaseManager::RenewLease(node->GetLease());
-
-        TotalResourceLimits -= node->ResourceLimits();
-        TotalResourceUsage -= node->ResourceUsage();
-
-        node->ResourceLimits() = resourceLimits;
-        node->ResourceUsage() = resourceUsage;
-
-        std::vector<TJobPtr> runningJobs;
-        bool hasWaitingJobs = false;
-        yhash_set<TOperationPtr> operationsToLog;
-        PROFILE_TIMING ("/analysis_time") {
-            auto missingJobs = node->Jobs();
-
-            FOREACH (auto& jobStatus, *request->mutable_jobs()) {
-                auto job = ProcessJobHeartbeat(
-                    node,
-                    request,
-                    response,
-                    &jobStatus);
-                if (job) {
-                    YCHECK(missingJobs.erase(job) == 1);
-                    switch (job->GetState()) {
-                        case EJobState::Completed:
-                        case EJobState::Failed:
-                        case EJobState::Aborted:
-                            operationsToLog.insert(job->GetOperation());
-                            break;
-                        case EJobState::Running:
-                            runningJobs.push_back(job);
-                            break;
-                        case EJobState::Waiting:
-                            hasWaitingJobs = true;
-                            break;
-                        default:
-                            break;
-                    }
-                }
-            }
-
-            // Check for missing jobs.
-            FOREACH (auto job, missingJobs) {
-                LOG_ERROR("Job is missing (Address: %s, JobId: %s, OperationId: %s)",
-                    ~node->GetAddress(),
-                    ~ToString(job->GetId()),
-                    ~ToString(job->GetOperation()->GetOperationId()));
-                AbortJob(job, TError("Job vanished"));
-                UnregisterJob(job);
-            }
-        }
-
-        auto schedulingContext = CreateSchedulingContext(node, runningJobs);
-
-        if (hasWaitingJobs) {
-            LOG_DEBUG("Waiting jobs found, suppressing new jobs scheduling");
-        } else {
-            PROFILE_TIMING ("/schedule_time") {
-                Strategy->ScheduleJobs(~schedulingContext);
-            }
-        }
-
-        TotalResourceLimits += node->ResourceLimits();
-        TotalResourceUsage += node->ResourceUsage();
-
-        FOREACH (auto job, schedulingContext->PreemptedJobs()) {
-            ToProto(response->add_jobs_to_abort(), job->GetId());
-        }
-
-        auto awaiter = New<TParallelAwaiter>();
-        auto specBuilderInvoker = NRpc::TDispatcher::Get()->GetPoolInvoker();
-        FOREACH (auto job, schedulingContext->StartedJobs()) {
-            auto* startInfo = response->add_jobs_to_start();
-            ToProto(startInfo->mutable_job_id(), job->GetId());
-            *startInfo->mutable_resource_limits() = job->ResourceUsage();
-
-            // Build spec asynchronously.
-            awaiter->Await(
-                BIND(job->GetSpecBuilder(), startInfo->mutable_spec())
-                    .AsyncVia(specBuilderInvoker)
-                    .Run());
-
-            // Release to avoid circular references.
-            job->SetSpecBuilder(TJobSpecBuilder());
-            operationsToLog.insert(job->GetOperation());
-        }
-
-        awaiter->Complete(BIND([=] () {
-            context->Reply();
-        }));
-
-        FOREACH (auto operation, operationsToLog) {
-            LogOperationProgress(operation);
-        }
-    }
-
     TJobPtr ProcessJobHeartbeat(
         TExecNodePtr node,
-        NProto::TReqHeartbeat* request,
-        NProto::TRspHeartbeat* response,
-        NProto::TJobStatus* jobStatus)
+        NJobTrackerClient::NProto::TReqHeartbeat* request,
+        NJobTrackerClient::NProto::TRspHeartbeat* response,
+        TJobStatus* jobStatus)
     {
         auto jobId = FromProto<TJobId>(jobStatus->job_id());
         auto state = EJobState(jobStatus->state());
@@ -1838,6 +1734,9 @@ private:
         return job;
     }
 
+    TAutoPtr<ISchedulingContext> CreateSchedulingContext(
+        TExecNodePtr node,
+        const std::vector<TJobPtr>& runningJobs);
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -1878,7 +1777,7 @@ public:
     virtual TJobPtr StartJob(
         TOperationPtr operation,
         EJobType type,
-        const NProto::TNodeResources& resourceLimits,
+        const TNodeResources& resourceLimits,
         TJobSpecBuilder specBuilder) override
     {
         auto id = TJobId::Create();
@@ -1929,14 +1828,9 @@ TScheduler::TScheduler(
 TScheduler::~TScheduler()
 { }
 
-void TScheduler::Start()
+void TScheduler::Initialize()
 {
-    Impl->Start();
-}
-
-NRpc::IServicePtr TScheduler::GetService()
-{
-    return Impl;
+    Impl->Initialize();
 }
 
 TYPathServiceProducer TScheduler::CreateOrchidProducer()
@@ -1957,6 +1851,66 @@ std::vector<TExecNodePtr> TScheduler::GetExecNodes()
 IInvokerPtr TScheduler::GetSnapshotIOInvoker()
 {
     return Impl->GetSnapshotIOInvoker();
+}
+
+bool TScheduler::IsConnected()
+{
+    return Impl->IsConnected();
+}
+
+void TScheduler::ValidateConnected()
+{
+    Impl->ValidateConnected();
+}
+
+TOperationPtr TScheduler::FindOperation(const TOperationId& id)
+{
+    return Impl->FindOperation(id);
+}
+
+TOperationPtr TScheduler::GetOperationOrThrow(const TOperationId& id)
+{
+    return Impl->GetOperationOrThrow(id);
+}
+
+TExecNodePtr TScheduler::FindNode(const Stroka& address)
+{
+    return Impl->FindNode(address);
+}
+
+TExecNodePtr TScheduler::GetNode(const Stroka& address)
+{
+    return Impl->GetNode(address);
+}
+
+TExecNodePtr TScheduler::GetOrCreateNode(const TNodeDescriptor& descriptor)
+{
+    return Impl->GetOrCreateNode(descriptor);
+}
+
+TFuture<TScheduler::TStartResult> TScheduler::StartOperation(
+    EOperationType type,
+    const TTransactionId& transactionId,
+    IMapNodePtr spec,
+    const Stroka& user)
+{
+    return Impl->StartOperation(
+        type,
+        transactionId,
+        spec,
+        user);
+}
+
+TFuture<void> TScheduler::AbortOperation(
+    TOperationPtr operation,
+    const TError& error)
+{
+    return Impl->AbortOperation(operation, error);
+}
+
+void TScheduler::ProcessHeartbeat(TExecNodePtr node, TCtxHeartbeatPtr context)
+{
+    Impl->ProcessHeartbeat(node, context);
 }
 
 ////////////////////////////////////////////////////////////////////

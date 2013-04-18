@@ -273,11 +273,11 @@ class YTEnv(object):
                 {'path': os.path.join(current, 'chunk_store'),
                  'low_watermark' : 0,
                  'high_watermark' : 0})
-            config['exec_agent']['job_manager']['start_user_id'] = current_user
-            config['exec_agent']['job_manager']['slot_location'] = \
+            config['exec_agent']['slot_manager']['start_uid'] = current_user
+            config['exec_agent']['slot_manager']['slot_location'] = \
                 os.path.join(current, 'slot')
 
-            current_user += config['exec_agent']['job_manager']['resource_limits']['slots'] + 1
+            current_user += config['exec_agent']['job_controller']['resource_limits']['slots'] + 1
 
             init_logging(config['logging'], current, 'node-%d' % i)
             init_logging(config['exec_agent']['job_proxy_logging'], current, 'job_proxy-%d' % i)

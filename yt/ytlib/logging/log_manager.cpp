@@ -130,10 +130,12 @@ public:
         , Callback(std::move(callback))
 
     {
+#ifdef _linux_
         Fd_ = handle->GetFd();
         YCHECK(Fd_ >= 0);
 
         CreateWatch();
+#endif
     }
 
     ~TNotificationWatch()

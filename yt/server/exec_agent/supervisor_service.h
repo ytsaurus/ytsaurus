@@ -4,6 +4,8 @@
 
 #include <ytlib/rpc/service_detail.h>
 
+#include <server/job_agent/public.h>
+
 #include <server/exec_agent/supervisor_service.pb.h>
 
 #include <server/cell_node/public.h>

@@ -1,6 +1,7 @@
 package NYT.NScheduler.NProto;
 
 import "yt/ytlib/node_tracker_client/node.proto";
+import "yt/ytlib/job_tracker_client/job.proto";
 import "yt/ytlib/chunk_client/chunk.proto";
 import "yt/ytlib/chunk_client/input_chunk.proto";
 import "yt/ytlib/table_client/table_ypath.proto";
@@ -8,25 +9,6 @@ import "yt/ytlib/table_client/table_chunk_meta.proto";
 import "yt/ytlib/file_client/file_ypath.proto";
 import "yt/ytlib/misc/error.proto";
 import "yt/ytlib/misc/guid.proto";
-
-////////////////////////////////////////////////////////////////////////////////
-
-// Measures limits and utilization of various resources.
-message TNodeResources
-{
-    optional int32 slots   = 1 [default = 0];
-    optional int32 cpu     = 2 [default = 0];
-    optional int64 memory  = 3 [default = 0];
-    optional int32 network = 4 [default = 0];
-}
-
-// Describes a job to be run at a node.
-message TJobSpec
-{
-    required int32 type = 1;
-
-    extensions 100 to max;
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -50,7 +32,7 @@ message TTableOutputSpec
 // Describes a job submitted by a scheduler.
 message TSchedulerJobSpecExt
 {
-    extend TJobSpec
+    extend NJobTrackerClient.NProto.TJobSpec
     {
         optional TSchedulerJobSpecExt scheduler_job_spec_ext = 100;
     }
@@ -82,12 +64,12 @@ message TSchedulerJobSpecExt
     optional bool is_approximate = 9 [default = false];
 }
 
-// Typically sent from a job proxy to its supervisor
-// (but is also passed on to other parts of the system).
-// Describes the outcome of the job, in particular if it has finished successfully.
-message TJobResult
+message TSchedulerJobResultExt
 {
-    required NYT.NProto.TError error = 1;
+    extend NJobTrackerClient.NProto.TJobResult
+    {
+        optional TSchedulerJobResultExt scheduler_job_result_ext = 100;
+    }
 
     // Provides node id to descriptor mapping for |chunks|.
     optional NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 2;
@@ -98,12 +80,7 @@ message TJobResult
 
     // List of input chunks the job was unable to read.
     repeated NYT.NProto.TGuid failed_chunk_ids = 4;
-
-    extensions 100 to max;
 }
-
-message TJobProgress
-{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -182,7 +159,7 @@ message TUserJobResult
 
 message TMapJobSpecExt
 {
-    extend TJobSpec
+    extend NJobTrackerClient.NProto.TJobSpec
     {
         optional TMapJobSpecExt map_job_spec_ext = 101;
     }
@@ -192,9 +169,9 @@ message TMapJobSpecExt
 
 message TMapJobResultExt
 {
-    extend TJobResult
+    extend NJobTrackerClient.NProto.TJobResult
     {
-        optional TMapJobResultExt map_job_result_ext = 100;
+        optional TMapJobResultExt map_job_result_ext = 101;
     }
 
     required TUserJobResult mapper_result = 1;
@@ -213,7 +190,7 @@ message TMapJobResultExt
 
 message TMergeJobSpecExt
 {
-    extend TJobSpec
+    extend NJobTrackerClient.NProto.TJobSpec
     {
         optional TMergeJobSpecExt merge_job_spec_ext = 102;
     }
@@ -238,7 +215,7 @@ message TMergeJobSpecExt
 
 message TPartitionJobSpecExt
 {
-    extend TJobSpec
+    extend NJobTrackerClient.NProto.TJobSpec
     {
         optional TPartitionJobSpecExt partition_job_spec_ext = 103;
     }
@@ -257,7 +234,7 @@ message TPartitionJobSpecExt
 
 message TPartitionJobResultExt
 {
-    extend TJobResult
+    extend NJobTrackerClient.NProto.TJobResult
     {
         optional TPartitionJobResultExt partition_job_result_ext = 102;
     }
@@ -278,7 +255,7 @@ message TPartitionJobResultExt
  */
 message TSortJobSpecExt
 {
-    extend TJobSpec
+    extend NJobTrackerClient.NProto.TJobSpec
     {
         optional TSortJobSpecExt sort_job_spec_ext = 104;
     }
@@ -288,7 +265,7 @@ message TSortJobSpecExt
 
 message TSortJobResultExt
 {
-    extend TJobResult
+    extend  NJobTrackerClient.NProto.TJobResult
     {
         optional TSortJobResultExt sort_job_result_ext = 103;
     }
@@ -309,7 +286,7 @@ message TSortJobResultExt
 
 message TReduceJobSpecExt
 {
-    extend TJobSpec
+    extend NJobTrackerClient.NProto.TJobSpec
     {
         optional TReduceJobSpecExt reduce_job_spec_ext = 105;
     }
@@ -320,7 +297,7 @@ message TReduceJobSpecExt
 
 message TReduceJobResultExt
 {
-    extend TJobResult
+    extend NJobTrackerClient.NProto.TJobResult
     {
         optional TReduceJobResultExt reduce_job_result_ext = 104;
     }

@@ -496,6 +496,28 @@ DECLARE_ENUM(ESchedulingMode,
     (FairShare)
 );
 
+class TPoolResourceLimitsConfig
+    : public TYsonSerializable
+{
+public:
+    TNullable<int> UserSlots;
+    TNullable<int> Cpu;
+    TNullable<i64> Memory;
+
+    TPoolResourceLimitsConfig()
+    {
+        RegisterParameter("user_slots", UserSlots)
+            .Default(Null)
+            .GreaterThanOrEqual(0);
+        RegisterParameter("cpu", Cpu)
+            .Default(Null)
+            .GreaterThanOrEqual(0);
+        RegisterParameter("memory", Memory)
+            .Default(Null)
+            .GreaterThanOrEqual(0);
+    }
+};
+
 class TPoolConfig
     : public TYsonSerializable
 {
@@ -505,9 +527,7 @@ public:
 
     ESchedulingMode Mode;
 
-    TNullable<int> MaxSlots;
-    TNullable<int> MaxCpu;
-    TNullable<i64> MaxMemory;
+    TPoolResourceLimitsConfigPtr ResourceLimits;
 
     TPoolConfig()
     {
@@ -521,15 +541,8 @@ public:
         RegisterParameter("mode", Mode)
             .Default(ESchedulingMode::FairShare);
 
-        RegisterParameter("max_slots", MaxSlots)
-            .Default(Null)
-            .GreaterThanOrEqual(0);
-        RegisterParameter("max_cpu", MaxCpu)
-            .Default(Null)
-            .GreaterThanOrEqual(0);
-        RegisterParameter("max_memory", MaxMemory)
-            .Default(Null)
-            .GreaterThanOrEqual(0);
+        RegisterParameter("resource_limits", ResourceLimits)
+            .DefaultNew();
     }
 };
 

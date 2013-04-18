@@ -4,6 +4,7 @@
 
 #include <ytlib/misc/fs.h>
 #include <ytlib/misc/proc.h>
+
 #include <ytlib/ytree/yson_producer.h>
 
 #include <util/folder/dirut.h>
@@ -14,7 +15,7 @@ namespace NExecAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& SILENT_UNUSED Logger = ExecAgentLogger;
+static NLog::TLogger& Logger = ExecAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,6 +26,9 @@ TSlot::TSlot(const Stroka& path, int id, int userId)
     , Path(path)
     , UserId(userId)
     , SlotThread(New<TActionQueue>(Sprintf("ExecSlot:%d", id)))
+{ }
+
+void TSlot::Initialize()
 {
     try {
         NFS::ForcePath(Path);
@@ -44,6 +48,8 @@ TSlot::TSlot(const Stroka& path, int id, int userId)
         LOG_FATAL(ex, "Slot user cleanup failed (UserId: %d, Slot: %s)", UserId, ~Path.Quote());
     }
 #endif
+
+    Clean();
 }
 
 void TSlot::Acquire()
@@ -65,10 +71,11 @@ void TSlot::Clean()
 {
     try {
         if (isexist(~SandboxPath)) {
-            if (UserId == EmptyUserId)
+            if (UserId == EmptyUserId) {
                 RemoveDirWithContents(SandboxPath);
-            else
+            } else {
                 RemoveDirAsRoot(SandboxPath);
+            }
         }
         IsClean = true;
     } catch (const std::exception& ex) {
@@ -79,7 +86,7 @@ void TSlot::Clean()
 
 void TSlot::Release()
 {
-    YASSERT(IsClean);
+    YCHECK(IsClean);
     IsFree_ = true;
 }
 
@@ -105,7 +112,6 @@ void TSlot::MakeLink(
     NFS::MakeSymbolicLink(targetPath, linkPath);
     NFS::SetExecutableMode(linkPath, isExecutable);
 }
-
 
 void TSlot::MakeFile(
     const Stroka& fileName,

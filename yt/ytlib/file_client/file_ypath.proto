@@ -13,7 +13,7 @@ message TReqCreateFileExt
 {
     extend NCypressClient.NProto.TReqCreate
     {
-        optional TReqCreateFileExt create_file = 100;
+        optional TReqCreateFileExt create_file_ext = 100;
     }
 
     required NYT.NProto.TGuid chunk_id = 1;

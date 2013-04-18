@@ -24,6 +24,12 @@ from operator import attrgetter
 from functools import partial
 from itertools import imap
 
+def calculate_if_function(obj):
+    if hasattr(obj, '__call__'):
+        return obj()
+    else:
+        return obj
+
 def die(message=None, return_code=1):
     if message is not None:
         print >>sys.stderr, message
@@ -398,18 +404,18 @@ Examples:
         if vars(args)[option] is not None:
             vars(args)[option] = yt.RawFormat.from_yson_string(vars(args)[option])
 
-    inputformat = first_not_none(
+    inputformat = first_not_none(imap(calculate_if_function,
         [args.format,
          args.inputformat,
          args.dsv,
-         get_smart_format([args.src, args.read], args.smartformat, args.subkey),
-         config.DEFAULT_FORMAT])
-    outputformat = first_not_none(
+         lambda: get_smart_format([args.src, args.read], args.smartformat, args.subkey),
+         config.DEFAULT_FORMAT]))
+    outputformat = first_not_none(imap(calculate_if_function,
         [args.format,
          args.outputformat,
          args.dsv,
-         get_smart_format([dst, args.write], args.smartformat, args.subkey),
-         config.DEFAULT_FORMAT])
+         lambda: get_smart_format([dst, args.write], args.smartformat, args.subkey),
+         config.DEFAULT_FORMAT]))
 
     if args.tx is not None:
         config.TRANSACTION = args.tx

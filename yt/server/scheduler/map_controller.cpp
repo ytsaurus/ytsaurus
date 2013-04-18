@@ -32,11 +32,13 @@ using namespace NChunkServer;
 using namespace NJobProxy;
 using namespace NChunkClient;
 using namespace NScheduler::NProto;
+using namespace NNodeTrackerClient::NProto;
+using namespace NJobTrackerClient::NProto;
 
 ////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& SILENT_UNUSED Logger = OperationLogger;
-static NProfiling::TProfiler SILENT_UNUSED Profiler("/operations/map");
+static NLog::TLogger& Logger = OperationLogger;
+static NProfiling::TProfiler Profiler("/operations/map");
 
 ////////////////////////////////////////////////////////////////////
 
@@ -114,7 +116,7 @@ private:
         TNodeResources GetMapResources(const TChunkStripeStatisticsVector& statistics) const
         {
             TNodeResources result;
-            result.set_slots(1);
+            result.set_user_slots(1);
             result.set_cpu(Controller->Spec->Mapper->CpuLimit);
             result.set_memory(
                 GetIOMemorySize(

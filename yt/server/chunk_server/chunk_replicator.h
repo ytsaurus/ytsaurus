@@ -26,8 +26,8 @@ struct TReplicaStatistics
     int ReplicationFactor;
     int StoredCount;
     int CachedCount;
-    int PlusCount;
-    int MinusCount;
+    int ReplicationJobCount;
+    int RemovalJobCount;
 };
 
 Stroka ToString(const TReplicaStatistics& statistics);
@@ -52,6 +52,8 @@ public:
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, LostVitalChunks);
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, UnderreplicatedChunks);
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, OverreplicatedChunks);
+    DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, DataMissingChunks);
+    DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, ParityMissingChunks);
 
     void OnChunkRemoved(TChunk* chunk);
 
@@ -72,7 +74,8 @@ public:
         TNode* node,
         const std::vector<TJobPtr>& currentJobs,
         std::vector<TJobPtr>* jobsToStart,
-        std::vector<TJobPtr>* jobsToStop);
+        std::vector<TJobPtr>* jobsToAbort,
+        std::vector<TJobPtr>* jobsToRemove);
 
     bool IsEnabled();
 
@@ -105,9 +108,8 @@ private:
     void ProcessExistingJobs(
         TNode* node,
         const std::vector<TJobPtr>& currentJobs,
-        std::vector<TJobPtr>* jobsToStop,
-        int* replicationJobCount,
-        int* removalJobCount);
+        std::vector<TJobPtr>* jobsToAbort,
+        std::vector<TJobPtr>* jobsToRemove);
 
     DECLARE_FLAGGED_ENUM(EScheduleFlags,
         ((None)     (0x0000))
@@ -118,26 +120,27 @@ private:
     EScheduleFlags ScheduleReplicationJob(
         TNode* sourceNode,
         const TChunkId& chunkId,
-        std::vector<TJobPtr>* jobsToStart);
+        TJobPtr* job);
     EScheduleFlags ScheduleBalancingJob(
         TNode* sourceNode,
         TChunkPtrWithIndex chunkWithIndex,
         double maxFillCoeff,
-        std::vector<TJobPtr>* jobsToStart);
+        TJobPtr* jobsToStart);
     EScheduleFlags ScheduleRemovalJob(
         TNode* node,
         const TChunkId& chunkId,
-        std::vector<TJobPtr>* jobsToStart);
+        TJobPtr* jobsToStart);
     void ScheduleNewJobs(
         TNode* node,
-        int maxReplicationJobsToStart,
-        int maxRemovalJobsToStart,
         std::vector<TJobPtr>* jobsToStart);
 
     TReplicaStatistics GetReplicaStatistics(const TChunk* chunk);
 
     void OnRefresh();
     void Refresh(TChunk* chunk);
+    void ResetChunkStatus(TChunk* chunk);
+    void ComputeRegularChunkStatus(TChunk* chunk);
+    void ComputeErasureChunkStatus(TChunk* chunk);
     static int ComputeReplicationPriority(const TReplicaStatistics& statistics);
 
     void OnRFUpdate();

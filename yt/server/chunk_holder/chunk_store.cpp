@@ -33,7 +33,7 @@ TChunkStore::TChunkStore(TDataNodeConfigPtr config, TBootstrap* bootstrap)
     , Bootstrap(bootstrap)
 { }
 
-void TChunkStore::Start()
+void TChunkStore::Initialize()
 {
     LOG_INFO("Chunk store scan started");
 

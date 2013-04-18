@@ -19,6 +19,8 @@ set( SRCS
   ${BASE}/progress_counter.cpp
   ${BASE}/samples_fetcher.cpp
   ${BASE}/scheduler.cpp
+  ${BASE}/scheduler_service.cpp
+  ${BASE}/job_tracker_service.cpp
   ${BASE}/snapshot_builder.cpp
   ${BASE}/snapshot_downloader.cpp
   ${BASE}/sort_controller.cpp
@@ -48,6 +50,8 @@ set( HDRS
   ${BASE}/public.h
   ${BASE}/samples_fetcher.h
   ${BASE}/scheduler.h
+  ${BASE}/scheduler_service.h
+  ${BASE}/job_tracker_service.h
   ${BASE}/scheduler_strategy.h
   ${BASE}/snapshot_builder.h
   ${BASE}/snapshot_downloader.h

@@ -1,22 +1,24 @@
 #pragma once
 
 #include <ytlib/misc/common.h>
-#include <ytlib/misc/guid.h>
-#include <ytlib/scheduler/public.h>
+
+#include <ytlib/job_tracker_client/public.h>
 
 namespace NYT {
 namespace NExecAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using NScheduler::TJobId;
-using NScheduler::TOperationId;
-
-class TJobManager;
-typedef TIntrusivePtr<TJobManager> TJobManagerPtr;
+using NJobTrackerClient::TJobId;
+using NJobTrackerClient::EJobType;
+using NJobTrackerClient::EJobState;
+using NJobTrackerClient::EJobPhase;
 
 class TJob;
 typedef TIntrusivePtr<TJob> TJobPtr;
+
+class TSlotManager;
+typedef TIntrusivePtr<TSlotManager> TSlotManagerPtr;
 
 class TSlot;
 typedef TIntrusivePtr<TSlot> TSlotPtr;
@@ -39,17 +41,14 @@ typedef TIntrusivePtr<TEnvironmentConfig> TEnvironmentConfigPtr;
 class TEnvironmentManagerConfig;
 typedef TIntrusivePtr<TEnvironmentManagerConfig> TEnvironmentManagerConfigPtr;
 
-class TJobManagerConfig;
-typedef TIntrusivePtr<TJobManagerConfig> TJobManagerConfigPtr;
+class TSlotManagerConfig;
+typedef TIntrusivePtr<TSlotManagerConfig> TSlotManagerConfigPtr;
 
 class TSchedulerConnectorConfig;
 typedef TIntrusivePtr<TSchedulerConnectorConfig> TSchedulerConnectorConfigPtr;
 
 class TExecAgentConfig;
 typedef TIntrusivePtr<TExecAgentConfig> TExecAgentConfigPtr;
-
-class TResourceLimitsConfig;
-typedef TIntrusivePtr<TResourceLimitsConfig> TResourceLimitsConfigPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 

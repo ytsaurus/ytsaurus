@@ -6,6 +6,7 @@ set( DIRS
   chunk_holder
   scheduler
   exec_agent
+  job_agent
   job_proxy
   orchid
   chunk_server

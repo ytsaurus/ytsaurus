@@ -428,10 +428,10 @@ void TTableChunkWriter::EmitSample(const TRow& row)
         // sizeof(i32) for type field.
         SamplesSize += sizeof(i32);
 
-        Lexer.Reset();
-        YCHECK(Lexer.Read(pair.second));
-        YASSERT(Lexer.GetState() == TLexer::EState::Terminal);
-        auto& token = Lexer.GetToken();
+        NYson::TToken token;
+        Lexer.GetToken(pair.second, &token);
+        YCHECK(!token.IsEmpty());
+
         switch (token.GetType()) {
             case ETokenType::Integer:
                 *part->mutable_key_part() = TKeyPart<TStringBuf>::CreateValue(

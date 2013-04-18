@@ -56,9 +56,6 @@ typedef TIntrusivePtr<TSession> TSessionPtr;
 class TJob;
 typedef TIntrusivePtr<TJob> TJobPtr;
 
-class TJobExecutor;
-typedef TIntrusivePtr<TJobExecutor> TJobExecutorPtr;
-
 class TBlockStore;
 typedef TIntrusivePtr<TBlockStore> TBlockStorePtr;
 
@@ -81,11 +78,8 @@ class TDiskHealthChecker;
 typedef TIntrusivePtr<TDiskHealthChecker> TDiskHealthCheckerPtr;
 
 using NChunkClient::TChunkId;
-using NChunkServer::TJobId;
-using NChunkServer::EJobType;
-using NChunkServer::EJobState;
 using NChunkServer::TBlockId;
-using NChunkServer::TNodeId;
+using NNodeTrackerClient::TNodeId;
 
 ////////////////////////////////////////////////////////////////////////////////
 

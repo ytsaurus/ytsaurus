@@ -14,11 +14,11 @@ ETokenType CharToTokenType(char ch)
     switch (ch) {
         case ';': return ETokenType::Semicolon;
         case '=': return ETokenType::Equals;
+        case '{': return ETokenType::LeftBrace;
+        case '}': return ETokenType::RightBrace;
         case '#': return ETokenType::Hash;
         case '[': return ETokenType::LeftBracket;
         case ']': return ETokenType::RightBracket;
-        case '{': return ETokenType::LeftBrace;
-        case '}': return ETokenType::RightBrace;
         case '<': return ETokenType::LeftAngle;
         case '>': return ETokenType::RightAngle;
         case '(': return ETokenType::LeftParenthesis;
@@ -59,6 +59,12 @@ Stroka TokenTypeToString(ETokenType type)
 ////////////////////////////////////////////////////////////////////////////////
 
 const TToken TToken::EndOfStream;
+
+TToken::TToken()
+    : Type_(ETokenType::EndOfStream)
+    , IntegerValue(0)
+    , DoubleValue(0.0)
+{ }
 
 TToken::TToken(ETokenType type)
     : Type_(type)
@@ -174,6 +180,13 @@ void TToken::CheckType(ETokenType expectedType) const
         }
     }
 }
+
+void TToken::Reset()
+{
+    Type_ = ETokenType::EndOfStream;
+    IntegerValue = 0;
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -39,10 +39,12 @@ struct ICodec
      *  #blocks must contain known blocks (in the order specified by #GetRepairIndices).
      *  \returns The repaired blocks.
      */
-    virtual std::vector<TSharedRef> Decode(const std::vector<TSharedRef>& blocks, const TBlockIndexList& erasedIndices) = 0;
+    virtual std::vector<TSharedRef> Decode(
+        const std::vector<TSharedRef>& blocks,
+        const TBlockIndexList& erasedIndices) = 0;
 
     //! Given a set of missing block indices, returns |true| if missing blocks can be repaired.
-    //! Due to performance issues assume that elements of erasedIndices are unique and sorted.
+    //! Due to performance reasons the elements of #erasedIndices must unique and sorted.
     virtual bool CanRepair(const TBlockIndexList& erasedIndices) = 0;
 
     //! Given a set of missing block indices, checks if missing blocks can be repaired.

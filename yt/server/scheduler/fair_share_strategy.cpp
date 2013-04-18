@@ -12,6 +12,8 @@
 
 #include <ytlib/object_client/object_service_proxy.h>
 
+#include <ytlib/node_tracker_client/helpers.h>
+
 #include <ytlib/logging/log.h>
 #include <ytlib/logging/tagged_logger.h>
 
@@ -21,12 +23,13 @@ namespace NScheduler {
 using namespace NYTree;
 using namespace NYson;
 using namespace NObjectClient;
-using NScheduler::NProto::TNodeResources;
+using namespace NNodeTrackerClient;
+using namespace NNodeTrackerClient::NProto;
 
 ////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& SILENT_UNUSED Logger = SchedulerLogger;
-static NProfiling::TProfiler& SILENT_UNUSED Profiler = SchedulerProfiler;
+static NLog::TLogger& Logger = SchedulerLogger;
+static NProfiling::TProfiler& Profiler = SchedulerProfiler;
 
 static Stroka DefaultPoolId("default");
 static const double RatioComputationPrecision = 1e-12;
@@ -102,9 +105,9 @@ struct ISchedulableElement
 
     virtual TNodeResources GetDemand() const = 0;
 
-    virtual const NProto::TNodeResources& ResourceUsage() const = 0;
-    virtual const NProto::TNodeResources& ResourceUsageDiscount() const = 0;
-    virtual const NProto::TNodeResources& ResourceLimits() const = 0;
+    virtual const TNodeResources& ResourceUsage() const = 0;
+    virtual const TNodeResources& ResourceUsageDiscount() const = 0;
+    virtual const TNodeResources& ResourceLimits() const = 0;
 
     virtual double GetUsageRatio() const = 0;
     virtual double GetDemandRatio() const = 0;
@@ -200,7 +203,7 @@ public:
         return ResourceUsage_ + controller->GetNeededResources();
     }
 
-    virtual const NProto::TNodeResources& ResourceLimits() const
+    virtual const TNodeResources& ResourceLimits() const
     {
         return InfiniteNodeResources();
     }
@@ -585,14 +588,14 @@ public:
         DefaultConfigured = false;
 
         ResourceLimits_ = InfiniteNodeResources();
-        if (Config->MaxSlots) {
-            ResourceLimits_.set_slots(Config->MaxSlots.Get());
+        if (Config->ResourceLimits->UserSlots) {
+            ResourceLimits_.set_user_slots(*Config->ResourceLimits->UserSlots);
         }
-        if (Config->MaxCpu) {
-            ResourceLimits_.set_cpu(Config->MaxCpu.Get());
+        if (Config->ResourceLimits->Cpu) {
+            ResourceLimits_.set_cpu(*Config->ResourceLimits->Cpu);
         }
-        if (Config->MaxMemory) {
-            ResourceLimits_.set_memory(Config->MaxMemory.Get());
+        if (Config->ResourceLimits->Memory) {
+            ResourceLimits_.set_memory(*Config->ResourceLimits->Memory);
         }
     }
 
@@ -825,17 +828,6 @@ public:
                     .Item(id).BeginMap()
                         .Item("mode").Value(config->Mode)
                         .Item("max_share_ratio").Value(attributes.MaxShareRatio)
-                        .Item("resource_limits").BeginMap()
-                            .DoIf(config->MaxSlots, [&] (TFluentMap fluent) {
-                                fluent.Item("slots").Value(config->MaxSlots.Get());
-                            })
-                            .DoIf(config->MaxCpu, [&] (TFluentMap fluent) {
-                                fluent.Item("cpu").Value(config->MaxCpu.Get());
-                            })
-                            .DoIf(config->MaxSlots, [&] (TFluentMap fluent) {
-                                fluent.Item("memory").Value(config->MaxMemory.Get());
-                            })
-                        .EndMap()
                         .Do(BIND(&TFairShareStrategy::BuildElementYson, RootElement, pool))
                     .EndMap();
             });
@@ -1001,7 +993,7 @@ private:
         UpdateResourceUsage(job, -job->ResourceUsage());
     }
 
-    void OnJobUpdated(TJobPtr job, const NProto::TNodeResources& resourcesDelta)
+    void OnJobUpdated(TJobPtr job, const TNodeResources& resourcesDelta)
     {
         UpdateResourceUsage(job, resourcesDelta);
     }
@@ -1179,7 +1171,7 @@ private:
     }
 
 
-    void UpdateResourceUsage(TJobPtr job, const NProto::TNodeResources& resourcesDelta)
+    void UpdateResourceUsage(TJobPtr job, const TNodeResources& resourcesDelta)
     {
         auto operationElement = GetOperationElement(job->GetOperation());
         operationElement->ResourceUsage() += resourcesDelta;

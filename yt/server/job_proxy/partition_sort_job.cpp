@@ -9,10 +9,13 @@
 #include <ytlib/table_client/partition_chunk_reader.h>
 #include <ytlib/chunk_client/multi_chunk_parallel_reader.h>
 #include <ytlib/table_client/table_chunk_writer.h>
-#include <ytlib/meta_state/master_channel.h>
+
 #include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
 #include <ytlib/chunk_client/client_block_cache.h>
+#include <ytlib/chunk_client/input_chunk.pb.h>
+
 #include <ytlib/table_client/sync_writer.h>
+
 #include <ytlib/yson/lexer.h>
 #include <ytlib/yson/varint.h>
 
@@ -20,17 +23,18 @@ namespace NYT {
 namespace NJobProxy {
 
 using namespace NTableClient;
-using namespace NElection;
 using namespace NChunkClient;
-using namespace NTransactionClient;
-using namespace NScheduler::NProto;
+using namespace NChunkClient::NProto;
 using namespace NYTree;
 using namespace NYson;
+using namespace NTransactionClient;
+using namespace NScheduler::NProto;
+using namespace NJobTrackerClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& SILENT_UNUSED Logger = JobProxyLogger;
-static NProfiling::TProfiler& SILENT_UNUSED Profiler = JobProxyProfiler;
+static NLog::TLogger& Logger = JobProxyLogger;
+static NProfiling::TProfiler& Profiler = JobProxyProfiler;
 
 typedef TMultiChunkParallelReader<TPartitionChunkReader> TReader;
 typedef TMultiChunkSequentialWriter<TTableChunkWriter> TWriter;
@@ -57,9 +61,7 @@ public:
 
         KeyColumns = FromProto<Stroka>(SortJobSpecExt.key_columns());
 
-        std::vector<NChunkClient::NProto::TInputChunk> chunks(
-            inputSpec.chunks().begin(),
-            inputSpec.chunks().end());
+        std::vector<TInputChunk> chunks(inputSpec.chunks().begin(), inputSpec.chunks().end());
 
         srand(time(NULL));
         std::random_shuffle(chunks.begin(), chunks.end());
@@ -91,10 +93,10 @@ public:
             chunkListId);
     }
 
-    virtual NScheduler::NProto::TJobResult Run() override
+    virtual TJobResult Run() override
     {
         const auto& jobSpec = Host->GetJobSpec();
-        const auto& SchedulerJobSpecExt = jobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+        const auto& schedulerJobSpecExt = jobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
         PROFILE_TIMING ("/sort_time") {
             auto keyColumnCount = KeyColumns.size();
@@ -103,7 +105,7 @@ public:
             std::vector<const char*> rowPtrBuffer;
             std::vector<ui32> rowIndexHeap;
 
-            i64 estimatedRowCount = SchedulerJobSpecExt.input_row_count();
+            i64 estimatedRowCount = schedulerJobSpecExt.input_row_count();
 
             LOG_INFO("Initializing");
             {
@@ -179,7 +181,7 @@ public:
             i64 totalRowCount = rowIndexHeap.size();
             LOG_INFO("Total row count: %" PRId64, totalRowCount);
 
-            if (!SchedulerJobSpecExt.is_approximate()) {
+            if (!schedulerJobSpecExt.is_approximate()) {
                 YCHECK(totalRowCount == estimatedRowCount);
             }
 
@@ -284,8 +286,11 @@ public:
             {
                 TJobResult result;
                 ToProto(result.mutable_error(), TError());
-                Writer->GetNodeDirectory()->DumpTo(result.mutable_node_directory());
-                ToProto(result.mutable_chunks(), Writer->GetWrittenChunks());
+
+                auto* schedulerResultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+                Writer->GetNodeDirectory()->DumpTo(schedulerResultExt->mutable_node_directory());
+                ToProto(schedulerResultExt->mutable_chunks(), Writer->GetWrittenChunks());
+
                 return result;
             }
         }
@@ -307,7 +312,7 @@ public:
         }
     }
 
-    std::vector<NChunkClient::TChunkId> GetFailedChunks() const override
+    std::vector<TChunkId> GetFailedChunks() const override
     {
         return Reader->GetFailedChunks();
     }

@@ -76,6 +76,10 @@ public:
     //! Returns an arbitrary node registered at the host (|nullptr| if none).
     TNode* FindNodeByHostName(const Stroka& hostName);
 
+    //! Returns a node with a given id (throws if none).
+    TNode* GetNodeOrThrow(TNodeId id);
+
+
     NNodeTrackerClient::TTotalNodeStatistics GetTotalNodeStatistics();
 
     //! Returns the number of nodes in |Registered| state.

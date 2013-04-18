@@ -84,6 +84,10 @@ public:
 
     bool IsErasure() const;
 
+    NErasure::TBlockIndexSet GetReplicaIndexSet() const;
+
+    bool IsAvailable() const;
+
 private:
     struct {
         bool Movable : 1;

@@ -395,7 +395,7 @@ private:
                 auto req = TMasterYPathProxy::CreateObject();
                 req->set_type(EObjectType::Transaction);
 
-                auto* reqExt = req->MutableExtension(TReqCreateTransactionExt::create_transaction);
+                auto* reqExt = req->MutableExtension(TReqCreateTransactionExt::create_transaction_ext);
                 reqExt->set_timeout(Owner->Config->LockTransactionTimeout.MilliSeconds());
 
                 auto attributes = CreateEphemeralAttributes();
@@ -1153,7 +1153,7 @@ private:
                 attributes->Set("account", TmpAccountName);
                 ToProto(req->mutable_node_attributes(), *attributes);
 
-                auto* reqExt = req->MutableExtension(NFileClient::NProto::TReqCreateFileExt::create_file);
+                auto* reqExt = req->MutableExtension(NFileClient::NProto::TReqCreateFileExt::create_file_ext);
                 ToProto(reqExt->mutable_chunk_id(), chunkId);
 
                 batchReq->AddRequest(req);

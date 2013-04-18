@@ -36,6 +36,8 @@ class TNode
     DEFINE_BYVAL_RO_PROPERTY(TNodeId, Id);
     DEFINE_BYVAL_RW_PROPERTY(ENodeState, State);
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeStatistics, Statistics);
+    DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceLimits);
+    DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceUsage);
 
     // Lease tracking.
     DEFINE_BYVAL_RW_PROPERTY(bool, Confirmed);

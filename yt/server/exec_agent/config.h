@@ -4,6 +4,8 @@
 
 #include <ytlib/ytree/yson_serializable.h>
 
+#include <server/job_agent/config.h>
+
 #include <server/job_proxy/config.h>
 
 namespace NYT {
@@ -53,45 +55,27 @@ public:
 
 };
 
-class TResourceLimitsConfig
+class TSlotManagerConfig
     : public TYsonSerializable
 {
 public:
-    int Slots;
-    int Cpu;
-    int Network;
-
-    TResourceLimitsConfig()
-    {
-        // These are some very low default limits.
-        // Override for production use.
-        RegisterParameter("slots", Slots)
-            .Default(2);
-        RegisterParameter("cpu", Cpu)
-            .Default(2);
-        RegisterParameter("network", Network)
-            .Default(100);
-    }
-};
-
-class TJobManagerConfig
-    : public TYsonSerializable
-{
-public:
-    TResourceLimitsConfigPtr ResourceLimits;
     Stroka SlotLocation;
 
-    // User IDs from StartUid to StartUid + SlotLocation are used
-    // to run user jobs if job control is enabled.
-    int StartUserId;
+    //! When set to |true|, job proxies are run under per-slot pseudousers.
+    //! This option requires node server process to have root privileges.
+    bool EnforceJobControl;
 
-    TJobManagerConfig()
+    //! When job control is enabled, system runs user jobs under fake
+    //! uids in range [StartUid, StartUid + SlotCount - 1].
+    int StartUid;
+
+    TSlotManagerConfig()
     {
-        RegisterParameter("resource_limits", ResourceLimits)
-            .DefaultNew();
         RegisterParameter("slot_location", SlotLocation)
             .NonEmpty();
-        RegisterParameter("start_user_id", StartUserId)
+        RegisterParameter("enforce_job_control", EnforceJobControl)
+            .Default(false);
+        RegisterParameter("start_uid", StartUid)
             .Default(10000);
     }
 };
@@ -124,7 +108,8 @@ class TExecAgentConfig
     : public TYsonSerializable
 {
 public:
-    TJobManagerConfigPtr JobManager;
+    TSlotManagerConfigPtr SlotManager;
+    NJobAgent::TJobControllerConfigPtr JobController;
     TEnvironmentManagerConfigPtr EnvironmentManager;
     TSchedulerConnectorConfigPtr SchedulerConnector;
 
@@ -132,16 +117,13 @@ public:
     TDuration SupervisorRpcTimeout;
     TDuration MemoryWatchdogPeriod;
 
-    // When set, exec agent doesn't start if it doesn't have
-    // root privileges which allow calling setuid and enforcing
-    // pseudouser based restrictions on job control.
-    bool EnforceJobControl;
-
     double MemoryLimitMultiplier;
 
     TExecAgentConfig()
     {
-        RegisterParameter("job_manager", JobManager)
+        RegisterParameter("slot_manager", SlotManager)
+            .DefaultNew();
+        RegisterParameter("job_controller", JobController)
             .DefaultNew();
         RegisterParameter("environment_manager", EnvironmentManager)
             .DefaultNew();
@@ -153,8 +135,6 @@ public:
             .Default(TDuration::Seconds(60));
         RegisterParameter("memory_watchdog_period", MemoryWatchdogPeriod)
             .Default(TDuration::Seconds(1));
-        RegisterParameter("enforce_job_control", EnforceJobControl)
-            .Default(false);
         RegisterParameter("memory_limit_multiplier", MemoryLimitMultiplier)
             .Default(2.0);
     }

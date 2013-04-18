@@ -92,7 +92,7 @@ public:
             config->MemoryWatchdogPeriod);
     }
 
-    virtual NScheduler::NProto::TJobResult Run() override
+    virtual NJobTrackerClient::NProto::TJobResult Run() override
     {
         // ToDo(psushin): use tagged logger here.
         LOG_DEBUG("Starting job process");
@@ -105,7 +105,7 @@ public:
                 << TError::FromSystem();
         }
 
-        NScheduler::NProto::TJobResult result;
+        NJobTrackerClient::NProto::TJobResult result;
 
         if (ProcessId == 0) {
             // Child process.

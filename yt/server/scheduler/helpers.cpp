@@ -4,9 +4,10 @@
 #include "job.h"
 #include "exec_node.h"
 #include "operation_controller.h"
-#include "job_resources.h"
 
 #include <ytlib/ytree/fluent.h>
+
+#include <ytlib/node_tracker_client/helpers.h>
 
 namespace NYT {
 namespace NScheduler {

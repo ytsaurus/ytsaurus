@@ -132,6 +132,7 @@ EExitCode TExecutor::Execute(const std::vector<std::string>& args)
     InitConfig();
 
     NLog::TLogManager::Get()->Configure(Config->Logging);
+    TAddressResolver::Get()->Configure(Config->AddressResolver);
 
     Driver = CreateDriver(Config);
 

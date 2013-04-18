@@ -163,7 +163,7 @@ private:
     NChunkClient::TNonOwningKey CurrentKey;
     NYTree::TYsonString RowAttributes;
 
-    NYson::TLexer Lexer;
+    NYson::TStatelessLexer Lexer;
 
     yhash_map<TStringBuf, TColumnInfo> ColumnsMap;
     std::vector<Stroka> ColumnNames;

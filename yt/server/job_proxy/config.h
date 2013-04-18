@@ -58,7 +58,7 @@ public:
         RegisterParameter("memory_watchdog_period", MemoryWatchdogPeriod)
             .Default(TDuration::Seconds(1));
         RegisterParameter("address_resolver", AddressResolver)
-            .Default();
+            .DefaultNew();
         RegisterParameter("memory_limit_multiplier", MemoryLimitMultiplier)
             .Default(2.0);
         

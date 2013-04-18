@@ -34,14 +34,11 @@ using namespace NChunkClient;
 using namespace NNodeTrackerClient;
 using namespace NCellNode;
 using namespace NRpc;
-
-using NChunkClient::NProto::TChunkMeta;
-using NChunkClient::NProto::TChunkInfo;
-using NChunkClient::NProto::TBlocksExt;
+using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& SILENT_UNUSED Logger = DataNodeLogger;
+static NLog::TLogger& Logger = DataNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -57,7 +54,7 @@ public:
         , Bootstrap(bootstrap)
     { }
 
-    void Start()
+    void Initialize()
     {
         LOG_INFO("Chunk cache scan started");
 
@@ -360,9 +357,9 @@ TChunkCache::TChunkCache(TDataNodeConfigPtr config, TBootstrap* bootstrap)
     : Impl(New<TImpl>(config, bootstrap))
 { }
 
-void TChunkCache::Start()
+void TChunkCache::Initialize()
 {
-    Impl->Start();
+    Impl->Initialize();
 }
 
 TChunkCache::~TChunkCache()

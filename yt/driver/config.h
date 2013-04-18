@@ -1,5 +1,7 @@
 #pragma once
 
+#include <ytlib/misc/address.h>
+
 #include <ytlib/ytree/yson_serializable.h>
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/ytree/attribute_helpers.h>
@@ -44,12 +46,15 @@ class TExecutorConfig
 {
 public:
     NYTree::INodePtr Logging;
+    TAddressResolverConfigPtr AddressResolver;
     TFormatDefaultsConfigPtr FormatDefaults;
     TDuration OperationWaitTimeout;
 
     TExecutorConfig()
     {
         RegisterParameter("logging", Logging);
+        RegisterParameter("address_resolver", AddressResolver)
+            .DefaultNew();
         RegisterParameter("format_defaults", FormatDefaults)
             .DefaultNew();
         RegisterParameter("operation_wait_timeout", OperationWaitTimeout)

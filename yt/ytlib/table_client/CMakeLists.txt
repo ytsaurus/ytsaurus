@@ -8,6 +8,7 @@ set( SRCS
   ${BASE}/partition_chunk_reader.cpp
   ${BASE}/partition_chunk_writer.cpp
   ${BASE}/partitioner.cpp
+  ${BASE}/public.cpp
   ${BASE}/private.cpp
   ${BASE}/size_limits.cpp
   ${BASE}/sync_reader.cpp

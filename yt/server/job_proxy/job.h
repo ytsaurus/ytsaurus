@@ -22,10 +22,10 @@ struct IJobHost
     { }
 
     virtual TJobProxyConfigPtr GetConfig() = 0;
-    virtual const NScheduler::NProto::TJobSpec& GetJobSpec() const = 0;
+    virtual const NJobTrackerClient::NProto::TJobSpec& GetJobSpec() const = 0;
 
-    virtual const NScheduler::NProto::TNodeResources& GetResourceUsage() const = 0;
-    virtual void SetResourceUsage(const NScheduler::NProto::TNodeResources& usage) = 0;
+    virtual const NNodeTrackerClient::NProto::TNodeResources& GetResourceUsage() const = 0;
+    virtual void SetResourceUsage(const NNodeTrackerClient::NProto::TNodeResources& usage) = 0;
 
     virtual void ReleaseNetwork() = 0;
 
@@ -46,7 +46,7 @@ struct IJob
     virtual ~IJob()
     { }
 
-    virtual NScheduler::NProto::TJobResult Run() = 0;
+    virtual NJobTrackerClient::NProto::TJobResult Run() = 0;
     
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunks() const = 0;
     

@@ -8,7 +8,6 @@
 #include "chunk_store.h"
 #include "chunk_cache.h"
 #include "session_manager.h"
-#include "job_executor.h"
 
 #include <ytlib/rpc/client.h>
 
@@ -22,6 +21,8 @@
 
 #include <ytlib/node_tracker_client/node_statistics.h>
 
+#include <server/job_agent/job_controller.h>
+
 #include <server/cell_node/bootstrap.h>
 
 #include <util/random/random.h>
@@ -31,11 +32,13 @@ namespace NChunkHolder {
 
 using namespace NRpc;
 using namespace NNodeTrackerClient;
+using namespace NJobTrackerClient;
 using namespace NCellNode;
+using namespace NJobTrackerClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& SILENT_UNUSED Logger = DataNodeLogger;
+static NLog::TLogger& Logger = DataNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -53,10 +56,6 @@ TMasterConnector::TMasterConnector(TDataNodeConfigPtr config, TBootstrap* bootst
 
 void TMasterConnector::Start()
 {
-    // Create proxies.
-    NodeProxy.Reset(new TNodeProxy(Bootstrap->GetMasterChannel()));
-    JobProxy.Reset(new TJobProxy(Bootstrap->GetMasterChannel()));
-
     // Chunk store callbacks are always called in Control thread.
     Bootstrap->GetChunkStore()->SubscribeChunkAdded(
         BIND(&TMasterConnector::OnChunkAdded, MakeWeak(this)));
@@ -91,6 +90,13 @@ void TMasterConnector::DoForceRegister()
 
     Disconnect();
     OnHeartbeat();
+}
+
+bool TMasterConnector::IsConnected() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return NodeId != InvalidNodeId;
 }
 
 TNodeId TMasterConnector::GetNodeId() const
@@ -131,16 +137,17 @@ void TMasterConnector::OnHeartbeat()
 
 void TMasterConnector::SendRegister()
 {
-    auto request = NodeProxy->RegisterNode();
-    *request->mutable_statistics() = ComputeStatistics();
-    ToProto(request->mutable_node_descriptor(), Bootstrap->GetLocalDescriptor());
-    ToProto(request->mutable_cell_guid(), Bootstrap->GetCellGuid());
-    request->Invoke().Subscribe(
+    TNodeTrackerServiceProxy proxy(Bootstrap->GetMasterChannel());
+    auto req = proxy.RegisterNode();
+    *req->mutable_statistics() = ComputeStatistics();
+    ToProto(req->mutable_node_descriptor(), Bootstrap->GetLocalDescriptor());
+    ToProto(req->mutable_cell_guid(), Bootstrap->GetCellGuid());
+    req->Invoke().Subscribe(
         BIND(&TMasterConnector::OnRegisterResponse, MakeStrong(this))
             .Via(ControlInvoker));
 
     LOG_INFO("Node register request sent (%s)",
-        ~ToString(*request->mutable_statistics()));
+        ~ToString(*req->mutable_statistics()));
 }
 
 NNodeTrackerClient::NProto::TNodeStatistics TMasterConnector::ComputeStatistics()
@@ -182,7 +189,7 @@ NNodeTrackerClient::NProto::TNodeStatistics TMasterConnector::ComputeStatistics(
     return result;
 }
 
-void TMasterConnector::OnRegisterResponse(TNodeProxy::TRspRegisterNodePtr rsp)
+void TMasterConnector::OnRegisterResponse(TNodeTrackerServiceProxy::TRspRegisterNodePtr rsp)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -212,8 +219,8 @@ void TMasterConnector::OnRegisterResponse(TNodeProxy::TRspRegisterNodePtr rsp)
 
 void TMasterConnector::SendFullNodeHeartbeat()
 {
-    auto request = NodeProxy
-        ->FullHeartbeat()
+    TNodeTrackerServiceProxy proxy(Bootstrap->GetMasterChannel());
+    auto request = proxy.FullHeartbeat()
         ->SetCodec(NCompression::ECodec::Lz4)
         ->SetTimeout(Config->FullHeartbeatTimeout);
 
@@ -242,8 +249,8 @@ void TMasterConnector::SendFullNodeHeartbeat()
 
 void TMasterConnector::SendIncrementalNodeHeartbeat()
 {
-    auto request = NodeProxy
-        ->IncrementalHeartbeat()
+    TNodeTrackerServiceProxy proxy(Bootstrap->GetMasterChannel());
+    auto request = proxy.IncrementalHeartbeat()
         ->SetCodec(NCompression::ECodec::Lz4);
 
     YCHECK(NodeId != InvalidNodeId);
@@ -289,7 +296,7 @@ NNodeTrackerClient::NProto::TChunkRemoveInfo TMasterConnector::GetRemoveInfo(TCh
     return result;
 }
 
-void TMasterConnector::OnFullNodeHeartbeatResponse(TNodeProxy::TRspFullHeartbeatPtr rsp)
+void TMasterConnector::OnFullNodeHeartbeatResponse(TNodeTrackerServiceProxy::TRspFullHeartbeatPtr rsp)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -305,7 +312,7 @@ void TMasterConnector::OnFullNodeHeartbeatResponse(TNodeProxy::TRspFullHeartbeat
     State = EState::Online;
 }
 
-void TMasterConnector::OnIncrementalNodeHeartbeatResponse(TNodeProxy::TRspIncrementalHeartbeatPtr rsp)
+void TMasterConnector::OnIncrementalNodeHeartbeatResponse(TNodeTrackerServiceProxy::TRspIncrementalHeartbeatPtr rsp)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
     ScheduleHeartbeat();
@@ -336,30 +343,24 @@ void TMasterConnector::OnIncrementalNodeHeartbeatResponse(TNodeProxy::TRspIncrem
 
 void TMasterConnector::SendJobHeartbeat()
 {
-    auto request = JobProxy->Heartbeat();
-
     YCHECK(NodeId != InvalidNodeId);
-    request->set_node_id(NodeId);
 
-    auto jobs = Bootstrap->GetJobExecutor()->GetAllJobs();
-    FOREACH (auto job, jobs) {
-        auto* info = request->add_jobs();
-        ToProto(info->mutable_job_id(), job->GetJobId());
-        info->set_state(job->GetState());
-        if (job->GetState() == EJobState::Failed) {
-            ToProto(info->mutable_error(), job->GetError());
-        }
-    }
+    TJobTrackerServiceProxy proxy(Bootstrap->GetMasterChannel());
+    auto req = proxy.Heartbeat();
+    auto jobController = Bootstrap->GetJobController();
+    //std::vector<EJobType> jobTypes;
+    //jobTypes.push_back(EJobType::RemoveChunk);
+    //jobTypes.push_back(EJobType::ReplicateChunk);
+    jobController->PrepareHeartbeat(~req);
 
-    request->Invoke().Subscribe(
+    req->Invoke().Subscribe(
         BIND(&TMasterConnector::OnJobHeartbeatResponse, MakeStrong(this))
             .Via(ControlInvoker));
 
-    LOG_INFO("Job heartbeat sent (Jobs: %d)",
-        static_cast<int>(request->jobs_size()));
+    LOG_INFO("Job heartbeat sent");
 }
 
-void TMasterConnector::OnJobHeartbeatResponse(TJobProxy::TRspHeartbeatPtr rsp)
+void TMasterConnector::OnJobHeartbeatResponse(TJobTrackerServiceProxy::TRspHeartbeatPtr rsp)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -369,31 +370,9 @@ void TMasterConnector::OnJobHeartbeatResponse(TJobProxy::TRspHeartbeatPtr rsp)
     }
 
     LOG_INFO("Successfully reported job heartbeat");
-
-    auto jobExecutor = Bootstrap->GetJobExecutor();
-
-    FOREACH (const auto& jobInfo, rsp->jobs_to_stop()) {
-        auto jobId = FromProto<TJobId>(jobInfo.job_id());
-        auto job = jobExecutor->FindJob(jobId);
-        if (!job) {
-            LOG_WARNING("Request to stop a non-existing job (JobId: %s)",
-                ~ToString(jobId));
-            continue;
-        }
-        jobExecutor->StopJob(job);
-    }
-
-    FOREACH (const auto& startInfo, rsp->jobs_to_start()) {
-        auto jobId = FromProto<TJobId>(startInfo.job_id());
-        auto jobType = EJobType(startInfo.type());
-        auto chunkId = FromProto<TChunkId>(startInfo.chunk_id());
-        auto targets = FromProto<TNodeDescriptor>(startInfo.targets());
-        jobExecutor->StartJob(
-            jobType,
-            jobId,
-            chunkId,
-            targets);
-    }
+    
+    auto jobController = Bootstrap->GetJobController();
+    jobController->ProcessHeartbeat(~rsp);
 }
 
 void TMasterConnector::OnHeartbeatError(const TError& error)

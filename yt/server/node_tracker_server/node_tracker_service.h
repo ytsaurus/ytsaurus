@@ -28,8 +28,6 @@ private:
 
     TRuntimeMethodInfoPtr FullHeartbeatMethodInfo;
 
-    TNode* GetNode(TNodeId nodeId);
-
     void ValidateAuthorization(const Stroka& address);
 
     DECLARE_RPC_SERVICE_METHOD(NNodeTrackerClient::NProto, RegisterNode);

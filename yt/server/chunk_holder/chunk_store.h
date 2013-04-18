@@ -25,13 +25,11 @@ public:
     typedef std::vector<TStoredChunkPtr> TChunks;
     typedef std::vector<TLocationPtr> TLocations;
 
-    //! Constructs a new instance.
     TChunkStore(
         TDataNodeConfigPtr config,
         NCellNode::TBootstrap* bootstrap);
 
-    //! Initializes the store.
-    void Start();
+    void Initialize();
 
     //! Registers a chunk.
     void RegisterChunk(TStoredChunkPtr chunk);

@@ -143,11 +143,22 @@ public:
         return node;
     }
 
-
     TNode* FindNodeByHostName(const Stroka& hostName)
     {
         auto it = NodeHostNameMap.find(hostName);
         return it == NodeAddressMap.end() ? nullptr : it->second;
+    }
+
+    TNode* GetNodeOrThrow(TNodeId id)
+    {
+        auto* node = FindNode(id);
+        if (!node) {
+            THROW_ERROR_EXCEPTION(
+                NNodeTrackerClient::EErrorCode::NoSuchNode,
+                "Invalid or expired node id %d",
+                id);
+        }
+        return node;
     }
 
 
@@ -595,6 +606,11 @@ TNode* TNodeTracker::GetNodeByAddress(const Stroka& address)
 TNode* TNodeTracker::FindNodeByHostName(const Stroka& hostName)
 {
     return Impl->FindNodeByHostName(hostName);
+}
+
+TNode* TNodeTracker::GetNodeOrThrow(TNodeId id)
+{
+    return Impl->GetNodeOrThrow(id);
 }
 
 TMutationPtr TNodeTracker::CreateRegisterNodeMutation(

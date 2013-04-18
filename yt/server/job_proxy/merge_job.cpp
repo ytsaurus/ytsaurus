@@ -29,9 +29,11 @@ namespace NJobProxy {
 using namespace NYTree;
 using namespace NTableClient;
 using namespace NChunkClient;
+using namespace NChunkClient::NProto;
 using namespace NChunkServer;
 using namespace NScheduler::NProto;
-using namespace NChunkClient::NProto;
+using namespace NTableClient::NProto;
+using namespace NJobTrackerClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -102,7 +104,7 @@ public:
             chunkListId));
     }
 
-    virtual NScheduler::NProto::TJobResult Run() override
+    virtual NJobTrackerClient::NProto::TJobResult Run() override
     {
         PROFILE_TIMING ("/merge_time") {
             LOG_INFO("Initializing");
@@ -124,7 +126,7 @@ public:
 
             LOG_INFO("Merging");
             {
-                NYson::TLexer lexer;
+                NYson::TStatelessLexer lexer;
                 // Unsorted write - use dummy key.
                 TNonOwningKey key;
                 if (KeyColumns) {

@@ -25,7 +25,7 @@
 
 #include <ytlib/object_client/object_service_proxy.h>
 
-#include <ytlib/scheduler/scheduler_proxy.h>
+#include <ytlib/scheduler/scheduler_service_proxy.h>
 
 namespace NYT {
 namespace NDriver {

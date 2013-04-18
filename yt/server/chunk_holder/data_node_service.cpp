@@ -23,11 +23,11 @@
 #include <ytlib/actions/parallel_awaiter.h>
 
 #include <ytlib/table_client/chunk_meta_extensions.h>
-#include <ytlib/table_client/private.h>
 
 #include <ytlib/chunk_client/key.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/data_node_service.pb.h>
+#include <ytlib/chunk_client/input_chunk.pb.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
@@ -46,8 +46,8 @@ using namespace NCellNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& SILENT_UNUSED Logger = DataNodeLogger;
-static NProfiling::TProfiler& SILENT_UNUSED Profiler = DataNodeProfiler;
+static NLog::TLogger& Logger = DataNodeLogger;
+static NProfiling::TProfiler& Profiler = DataNodeProfiler;
 static TDuration ProfilingPeriod = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////

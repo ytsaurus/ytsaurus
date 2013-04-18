@@ -83,7 +83,8 @@ public:
         TNode* node,
         const std::vector<TJobPtr>& currentJobs,
         std::vector<TJobPtr>* jobsToStart,
-        std::vector<TJobPtr>* jobsToStop);
+        std::vector<TJobPtr>* jobsToAbort,
+        std::vector<TJobPtr>* jobsToRemove);
 
     bool IsReplicatorEnabled();
 

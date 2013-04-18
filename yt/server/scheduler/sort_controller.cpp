@@ -19,6 +19,7 @@
 #include <ytlib/table_client/chunk_meta_extensions.h>
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
+#include <ytlib/chunk_client/input_chunk.pb.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
@@ -39,13 +40,18 @@ using namespace NTableClient;
 using namespace NJobProxy;
 using namespace NObjectClient;
 using namespace NCypressClient;
+using namespace NNodeTrackerClient;
 using namespace NScheduler::NProto;
 using namespace NChunkClient::NProto;
+using namespace NJobTrackerClient::NProto;
+using namespace NNodeTrackerClient::NProto;
+
+using NChunkClient::NProto::TKey;
 
 ////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& SILENT_UNUSED Logger = OperationLogger;
-static NProfiling::TProfiler SILENT_UNUSED Profiler("/operations/sort");
+static NLog::TLogger& Logger = OperationLogger;
+static NProfiling::TProfiler Profiler("/operations/sort");
 
 //! Maximum number of buckets for partition sizes aggregation.
 static const int MaxAggregatedPartitionBuckets = 100;
@@ -1342,10 +1348,10 @@ private:
     TSamplesFetcherPtr SamplesFetcher;
     TSamplesCollectorPtr SamplesCollector;
 
-    std::vector<const NChunkClient::NProto::TKey*> SortedSamples;
+    std::vector<const TKey*> SortedSamples;
 
     //! |PartitionCount - 1| separating keys.
-    std::vector<NChunkClient::NProto::TKey> PartitionKeys;
+    std::vector<TKey> PartitionKeys;
 
 
     // Custom bits of preparation pipeline.
@@ -1422,7 +1428,7 @@ private:
         std::sort(
             SortedSamples.begin(),
             SortedSamples.end(),
-            [] (const NChunkClient::NProto::TKey* lhs, const NChunkClient::NProto::TKey* rhs) {
+            [] (const TKey* lhs, const TKey* rhs) {
                 return CompareKeys(*lhs, *rhs) < 0;
             }
         );
@@ -1482,7 +1488,7 @@ private:
         AddTaskPendingHint(partition->SortTask);
     }
 
-    void AddPartition(const NChunkClient::NProto::TKey& key)
+    void AddPartition(const TKey& key)
     {
         using NChunkClient::ToString;
 
@@ -1697,7 +1703,7 @@ private:
             PartitionJobIOConfig->TableWriter->MaxBufferSize);
 
         TNodeResources result;
-        result.set_slots(1);
+        result.set_user_slots(1);
         result.set_cpu(1);
         result.set_memory(
             // NB: due to large MaxBufferSize for partition that was accounted in buffer size
@@ -1714,7 +1720,7 @@ private:
         i64 valueCount) const override
     {
         TNodeResources result;
-        result.set_slots(1);
+        result.set_user_slots(1);
         result.set_cpu(1);
         result.set_memory(
             GetSortInputIOMemorySize(FinalSortJobIOConfig, stat) +
@@ -1734,7 +1740,7 @@ private:
     {
         auto ioConfig = IsSortedMergeNeeded(partition) ? IntermediateSortJobIOConfig : FinalSortJobIOConfig;
         TNodeResources result;
-        result.set_slots(1);
+        result.set_user_slots(1);
         result.set_cpu(1);
         result.set_memory(
             GetSortInputIOMemorySize(ioConfig, stat) +
@@ -1751,7 +1757,7 @@ private:
         const TChunkStripeStatisticsVector& statistics) const override
     {
         TNodeResources result;
-        result.set_slots(1);
+        result.set_user_slots(1);
         result.set_cpu(1);
         result.set_memory(
             GetIOMemorySize(SortedMergeJobIOConfig, 1, statistics) +
@@ -1763,7 +1769,7 @@ private:
         const TChunkStripeStatisticsVector& statistics) const override
     {
         TNodeResources result;
-        result.set_slots(1);
+        result.set_user_slots(1);
         result.set_cpu(1);
         result.set_memory(
             GetIOMemorySize(UnorderedMergeJobIOConfig, 1, AggregateStatistics(statistics)) +
@@ -2102,7 +2108,7 @@ private:
         }
     }
 
-    virtual void CustomizeJobSpec(TJobletPtr joblet, NProto::TJobSpec* jobSpec) override
+    virtual void CustomizeJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
     {
         switch (jobSpec->type()) {
             case EJobType::PartitionMap: {
@@ -2148,7 +2154,7 @@ private:
             PartitionJobIOConfig->TableWriter->MaxBufferSize);
 
         TNodeResources result;
-        result.set_slots(1);
+        result.set_user_slots(1);
         if (Spec->Mapper) {
             bufferSize += GetOutputWindowMemorySize(PartitionJobIOConfig);
             result.set_cpu(Spec->Mapper->CpuLimit);
@@ -2181,7 +2187,7 @@ private:
         const TChunkStripeStatistics& stat) const override
     {
         TNodeResources result;
-        result.set_slots(1);
+        result.set_user_slots(1);
         if (IsSortedMergeNeeded(partition)) {
             result.set_cpu(1);
             result.set_memory(
@@ -2208,7 +2214,7 @@ private:
         const TChunkStripeStatisticsVector& statistics) const override
     {
         TNodeResources result;
-        result.set_slots(1);
+        result.set_user_slots(1);
         result.set_cpu(Spec->Reducer->CpuLimit);
         result.set_memory(
             GetIOMemorySize(

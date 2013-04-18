@@ -9,10 +9,11 @@ namespace NExecAgent {
 NLog::TLogger ExecAgentLogger("ExecAgent");
 NProfiling::TProfiler ExecAgentProfiler("/exec_agent");
 
-const Stroka SandboxDirectoryName("sandbox");
-const Stroka ProxyConfigFileName("config.yson");
-
 const int EmptyUserId = -1;
+
+const Stroka SandboxDirectoryName("sandbox");
+
+const Stroka ProxyConfigFileName("config.yson");
 
 ////////////////////////////////////////////////////////////////////
 

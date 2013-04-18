@@ -32,6 +32,7 @@
 #include <ytlib/chunk_client/async_reader.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
+#include <ytlib/node_tracker_client/helpers.h>
 
 #include <ytlib/meta_state/master_channel.h>
 
@@ -42,7 +43,6 @@ void SetLargeBlockLimit(i64 limit);
 namespace NYT {
 namespace NJobProxy {
 
-using namespace NNodeTrackerClient;
 using namespace NScheduler;
 using namespace NExecAgent;
 using namespace NBus;
@@ -50,6 +50,9 @@ using namespace NRpc;
 using namespace NScheduler;
 using namespace NScheduler::NProto;
 using namespace NChunkClient;
+using namespace NNodeTrackerClient;
+using namespace NNodeTrackerClient::NProto;
+using namespace NJobTrackerClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -118,7 +121,9 @@ void TJobProxy::Run()
         std::vector<NChunkClient::TChunkId> failedChunks;
         GetFailedChunks(&failedChunks).Get();
         LOG_DEBUG("Found %d failed chunks", static_cast<int>(failedChunks.size()));
-        ToProto(result.mutable_failed_chunk_ids(), failedChunks);
+
+        auto* schedulerResultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+        ToProto(schedulerResultExt->mutable_failed_chunk_ids(), failedChunks);
     }
     
     ReportResult(result);
@@ -143,7 +148,7 @@ TJobResult TJobProxy::DoRun()
 
         BlockCache = NChunkClient::CreateClientBlockCache(New<NChunkClient::TClientBlockCacheConfig>());
 
-        NodeDirectory = New<TNodeDirectory>();
+        NodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
         NodeDirectory->MergeFrom(schedulerJobSpecExt.node_directory());
 
         HeartbeatInvoker = New<TPeriodicInvoker>(

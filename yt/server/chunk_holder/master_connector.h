@@ -43,14 +43,14 @@ public:
      */
     void ForceRegister();
 
+    //! Returns |true| iff node is currently connected to master.
+    bool IsConnected() const;
+
     //! Returns the node id assigned by master or |InvalidNodeId| if the node
     //! is not registered.
     TNodeId GetNodeId() const;
 
 private:
-    typedef NNodeTrackerClient::TNodeTrackerServiceProxy TNodeProxy;
-    typedef NJobTrackerClient::TJobTrackerServiceProxy TJobProxy;
-
     typedef yhash_set<TChunkPtr> TChunkSet;
 
     TDataNodeConfigPtr Config;
@@ -71,12 +71,6 @@ private:
 
     //! Node id assigned by master or |InvalidNodeId| is not registered.
     TNodeId NodeId;
-
-    //! Node Tracker proxy.
-    THolder<TNodeProxy> NodeProxy;
-
-    //! Job Tracker proxy.
-    THolder<TJobProxy> JobProxy;
 
     //! Chunks that were added since the last successful heartbeat.
     TChunkSet AddedSinceLastSuccess;
@@ -103,7 +97,7 @@ private:
     NNodeTrackerClient::NProto::TNodeStatistics ComputeStatistics();
 
     //! Handles registration response.
-    void OnRegisterResponse(TNodeProxy::TRspRegisterNodePtr rsp);
+    void OnRegisterResponse(NNodeTrackerClient::TNodeTrackerServiceProxy::TRspRegisterNodePtr rsp);
 
     //! Sends out a full heartbeat.
     void SendFullNodeHeartbeat();
@@ -124,13 +118,13 @@ private:
     static NNodeTrackerClient::NProto::TChunkRemoveInfo GetRemoveInfo(TChunkPtr chunk);
 
     //! Handles full heartbeat response from Node Tracker.
-    void OnFullNodeHeartbeatResponse(TNodeProxy::TRspFullHeartbeatPtr rsp);
+    void OnFullNodeHeartbeatResponse(NNodeTrackerClient::TNodeTrackerServiceProxy::TRspFullHeartbeatPtr rsp);
 
     //! Handles incremental heartbeat response from Node Tracker.
-    void OnIncrementalNodeHeartbeatResponse(TNodeProxy::TRspIncrementalHeartbeatPtr rsp);
+    void OnIncrementalNodeHeartbeatResponse(NNodeTrackerClient::TNodeTrackerServiceProxy::TRspIncrementalHeartbeatPtr rsp);
 
     //! Handles heartbeat response from Job Tracker.
-    void OnJobHeartbeatResponse(TJobProxy::TRspHeartbeatPtr rsp);
+    void OnJobHeartbeatResponse(NJobTrackerClient::TJobTrackerServiceProxy::TRspHeartbeatPtr rsp);
 
     //! Handles errors occurring during heartbeats.
     void OnHeartbeatError(const TError& error);

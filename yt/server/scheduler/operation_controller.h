@@ -16,7 +16,9 @@
 
 #include <ytlib/rpc/public.h>
 
-#include <ytlib/scheduler/scheduler_service.pb.h>
+#include <ytlib/node_tracker_client/node.pb.h>
+
+#include <ytlib/job_tracker_client/job.pb.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -100,7 +102,7 @@ struct ISchedulingContext
     virtual TJobPtr StartJob(
         TOperationPtr operation,
         EJobType type,
-        const NProto::TNodeResources& resourceLimits,
+        const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
         TJobSpecBuilder specBuilder) = 0;
 
     virtual void PreemptJob(TJobPtr job) = 0;
@@ -164,10 +166,10 @@ struct IOperationController
     virtual int GetPendingJobCount() = 0;
 
     //! Returns the total resources that are additionally needed.
-    virtual NProto::TNodeResources GetNeededResources() = 0;
+    virtual NNodeTrackerClient::NProto::TNodeResources GetNeededResources() = 0;
 
     //! Called during heartbeat processing to notify the controller that a job is running.
-    virtual void OnJobRunning(TJobPtr job, const NProto::TJobStatus& status) = 0;
+    virtual void OnJobRunning(TJobPtr job, const NJobTrackerClient::NProto::TJobStatus& status) = 0;
 
     //! Called during heartbeat processing to notify the controller that a job has completed.
     virtual void OnJobCompleted(TJobPtr job) = 0;
@@ -187,7 +189,7 @@ struct IOperationController
     //! Called during heartbeat processing to request actions the node must perform.
     virtual TJobPtr ScheduleJob(
         ISchedulingContext* context,
-        const NProto::TNodeResources& jobLimits) = 0;
+        const NNodeTrackerClient::NProto::TNodeResources& jobLimits) = 0;
 
     //! Called to construct a YSON representing the current progress.
     virtual void BuildProgressYson(NYson::IYsonConsumer* consumer) = 0;

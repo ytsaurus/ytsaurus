@@ -11,9 +11,9 @@
 namespace NYT {
 namespace NJobProxy {
 
-using namespace NTableClient;
-using namespace NYTree;
 using namespace NScheduler;
+using namespace NScheduler::NProto;
+using namespace NJobTrackerClient::NProto;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -27,9 +27,9 @@ public:
         : TUserJobIO(config, host)
     { }
 
-    virtual void PopulateResult(NScheduler::NProto::TJobResult* result) override
+    virtual void PopulateResult(TJobResult* result) override
     {
-        auto* resultExt = result->MutableExtension(NScheduler::NProto::TMapJobResultExt::map_job_result_ext);
+        auto* resultExt = result->MutableExtension(TMapJobResultExt::map_job_result_ext);
         PopulateUserJobResult(resultExt->mutable_mapper_result());
     }
 

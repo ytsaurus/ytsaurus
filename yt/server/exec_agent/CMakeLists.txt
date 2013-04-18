@@ -3,7 +3,7 @@ set( BASE ${CMAKE_SOURCE_DIR}/yt/server/exec_agent )
 set( SRCS
   ${BASE}/environment_manager.cpp
   ${BASE}/job.cpp
-  ${BASE}/job_manager.cpp
+  ${BASE}/slot_manager.cpp
   ${BASE}/private.cpp
   ${BASE}/scheduler_connector.cpp
   ${BASE}/slot.cpp
@@ -16,7 +16,7 @@ set( HDRS
   ${BASE}/environment.h
   ${BASE}/environment_manager.h
   ${BASE}/job.h
-  ${BASE}/job_manager.h
+  ${BASE}/slot_manager.h
   ${BASE}/private.h
   ${BASE}/public.h
   ${BASE}/scheduler_connector.h

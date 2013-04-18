@@ -17,6 +17,8 @@ class TSlot
 public:
     TSlot(const Stroka& path, int id, int userId);
 
+    void Initialize();
+
     bool IsFree() const;
     int GetUserId() const;
 

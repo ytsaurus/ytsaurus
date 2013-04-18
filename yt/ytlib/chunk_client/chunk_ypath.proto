@@ -35,7 +35,7 @@ message TReqCreateChunkExt
 {
     extend NObjectClient.NProto.TReqCreateObject
     {
-        optional TReqCreateChunkExt create_chunk = 100;
+        optional TReqCreateChunkExt create_chunk_ext = 100;
     }
 
     // Requested number of nodes to write.
@@ -62,7 +62,7 @@ message TRspCreateChunkExt
 {
     extend NObjectClient.NProto.TRspCreateObject
     {
-        optional TRspCreateChunkExt create_chunk = 100;
+        optional TRspCreateChunkExt create_chunk_ext = 100;
     }
 
     required NNodeTrackerClient.NProto.TNodeDirectory node_directory = 1;

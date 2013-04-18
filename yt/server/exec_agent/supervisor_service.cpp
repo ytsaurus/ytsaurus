@@ -1,23 +1,21 @@
 #include "stdafx.h"
 #include "supervisor_service.h"
 #include "supervisor_service_proxy.h"
-#include "job_manager.h"
 #include "job.h"
 #include "private.h"
 
-#include <server/scheduler/job_resources.h>
+#include <ytlib/node_tracker_client/helpers.h>
+
+#include <server/job_agent/job_controller.h>
 
 #include <server/cell_node/bootstrap.h>
 
 namespace NYT {
 namespace NExecAgent {
 
-using namespace NScheduler;
+using namespace NJobAgent;
+using namespace NNodeTrackerClient;
 using namespace NCellNode;
-
-////////////////////////////////////////////////////////////////////////////////
-
-static NLog::TLogger& SILENT_UNUSED Logger = ExecAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,7 +23,7 @@ TSupervisorService::TSupervisorService(TBootstrap* bootstrap)
     : NRpc::TServiceBase(
         bootstrap->GetControlInvoker(),
         TSupervisorServiceProxy::GetServiceName(),
-        Logger.GetCategory())
+        ExecAgentLogger.GetCategory())
     , Bootstrap(bootstrap)
 {
     RegisterMethod(
@@ -43,7 +41,9 @@ DEFINE_RPC_SERVICE_METHOD(TSupervisorService, GetJobSpec)
     auto jobId = FromProto<TJobId>(request->job_id());
     context->SetRequestInfo("JobId: %s", ~ToString(jobId));
 
-    auto job = Bootstrap->GetJobManager()->GetJob(jobId);
+    auto jobController = Bootstrap->GetJobController();
+    auto job = jobController->GetJobOrThrow(jobId);
+
     *response->mutable_job_spec() = job->GetSpec();
     *response->mutable_resource_usage() = job->GetResourceUsage();
 
@@ -53,13 +53,16 @@ DEFINE_RPC_SERVICE_METHOD(TSupervisorService, GetJobSpec)
 DEFINE_RPC_SERVICE_METHOD(TSupervisorService, OnJobFinished)
 {
     auto jobId = FromProto<TJobId>(request->job_id());
-    auto error = FromProto(request->result().error());
+    const auto& result = request->result();
+    auto error = FromProto(result.error());
     context->SetRequestInfo("JobId: %s, Error: %s",
         ~ToString(jobId),
         ~ToString(error));
 
-    auto job = Bootstrap->GetJobManager()->GetJob(jobId);
-    job->SetResult(request->result());
+    auto jobController = Bootstrap->GetJobController();
+    auto job = jobController->GetJobOrThrow(jobId);
+
+    jobController->SetJobResult(job, result);
 
     context->Reply();
 }
@@ -67,13 +70,16 @@ DEFINE_RPC_SERVICE_METHOD(TSupervisorService, OnJobFinished)
 DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TSupervisorService, OnJobProgress)
 {
     auto jobId = FromProto<TJobId>(request->job_id());
+    double progress = request->progress();
 
     context->SetRequestInfo("JobId: %s, Progress: %lf",
         ~ToString(jobId),
-        request->progress());
+        progress);
 
-    auto job = Bootstrap->GetJobManager()->GetJob(jobId);
-    job->UpdateProgress(request->progress());
+    auto jobController = Bootstrap->GetJobController();
+    auto job = jobController->GetJobOrThrow(jobId);
+
+    jobController->UpdateJobProgress(job, progress);
 }
 
 DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TSupervisorService, UpdateResourceUsage)
@@ -85,7 +91,10 @@ DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TSupervisorService, UpdateResourceUsage)
         ~ToString(jobId),
         ~FormatResources(resourceUsage));
 
-    Bootstrap->GetJobManager()->UpdateResourceUsage(jobId, resourceUsage);
+    auto jobController = Bootstrap->GetJobController();
+    auto job = jobController->GetJobOrThrow(jobId);
+
+    jobController->UpdateJobResourceUsage(job, resourceUsage);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

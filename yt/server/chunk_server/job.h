@@ -5,6 +5,8 @@
 #include <ytlib/misc/property.h>
 #include <ytlib/misc/error.h>
 
+#include <ytlib/node_tracker_client/node.pb.h>
+
 namespace NYT {
 namespace NChunkServer {
 
@@ -21,6 +23,7 @@ class TJob
     DEFINE_BYVAL_RO_PROPERTY(NNodeTrackerServer::TNode*, Node);
     DEFINE_BYREF_RO_PROPERTY(std::vector<Stroka>, TargetAddresses);
     DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
+    DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceLimits);
     
     // Current state (as reported by node).
     DEFINE_BYVAL_RW_PROPERTY(EJobState, State);
@@ -42,13 +45,18 @@ public:
         const TChunkId& chunkId,
         NNodeTrackerServer::TNode* node);
 
+    static TJobPtr CreateRepair(
+        const TChunkId& chunkId,
+        NNodeTrackerServer::TNode* node);
+
     TJob(
         EJobType type,
         const TJobId& jobId,
         const TChunkId& chunkId,
         NNodeTrackerServer::TNode* node,
         const std::vector<Stroka>& targetAddresses,
-        TInstant startTime);
+        TInstant startTime,
+        const NNodeTrackerClient::NProto::TNodeResources& resourceLimits);
 
 };
 

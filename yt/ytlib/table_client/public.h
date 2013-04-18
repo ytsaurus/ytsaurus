@@ -26,6 +26,10 @@ DECLARE_ENUM(EErrorCode,
     ((SortOrderViolation)         (301))
 );
 
+extern const int DefaultPartitionTag;
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct IAsyncWriter;
 typedef TIntrusivePtr<IAsyncWriter> IAsyncWriterPtr;
 

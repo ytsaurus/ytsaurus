@@ -18,6 +18,8 @@
 
 #include <server/chunk_server/public.h>
 
+#include <server/job_agent/public.h>
+
 #include <server/exec_agent/public.h>
 
 #include <server/job_proxy/public.h>
@@ -41,7 +43,8 @@ public:
     NRpc::IChannelPtr GetSchedulerChannel() const;
     NRpc::IServerPtr GetRpcServer() const;
     NYTree::IMapNodePtr GetOrchidRoot() const;
-    NExecAgent::TJobManagerPtr GetJobManager() const;
+    NJobAgent::TJobTrackerPtr GetJobController() const;
+    NExecAgent::TSlotManagerPtr GetSlotManager() const;
     NExecAgent::TEnvironmentManagerPtr GetEnvironmentManager() const;
     NJobProxy::TJobProxyConfigPtr GetJobProxyConfig() const;
     TNodeMemoryTracker& GetMemoryUsageTracker();
@@ -49,15 +52,12 @@ public:
     NChunkHolder::TChunkCachePtr GetChunkCache() const;
     NChunkHolder::TChunkRegistryPtr GetChunkRegistry() const;
     NChunkHolder::TSessionManagerPtr GetSessionManager() const;
-    NChunkHolder::TJobExecutorPtr GetJobExecutor() const;
-    NChunkHolder::TBlockStorePtr GetBlockStore();
+    NChunkHolder::TBlockStorePtr GetBlockStore() const;
     NChunkHolder::TPeerBlockTablePtr GetPeerBlockTable() const;
     NChunkHolder::TReaderCachePtr GetReaderCache() const;
     NChunkHolder::TMasterConnectorPtr GetMasterConnector() const;
 
     const NNodeTrackerClient::TNodeDescriptor& GetLocalDescriptor() const;
-
-    bool IsJobControlEnabled() const;
 
     const TGuid& GetCellGuid() const;
     void UpdateCellGuid(const TGuid& cellGuid);
@@ -74,7 +74,8 @@ private:
     NRpc::IChannelPtr SchedulerChannel;
     NRpc::IServerPtr RpcServer;
     NYTree::IMapNodePtr OrchidRoot;
-    NExecAgent::TJobManagerPtr JobManager;
+    NJobAgent::TJobTrackerPtr JobController;
+    NExecAgent::TSlotManagerPtr SlotManager;
     NExecAgent::TEnvironmentManagerPtr EnvironmentManager;
     NJobProxy::TJobProxyConfigPtr JobProxyConfig;
     TMemoryUsageTracker<EMemoryConsumer> MemoryUsageTracker;
@@ -83,7 +84,6 @@ private:
     NChunkHolder::TChunkCachePtr ChunkCache;
     NChunkHolder::TChunkRegistryPtr ChunkRegistry;
     NChunkHolder::TSessionManagerPtr SessionManager;
-    NChunkHolder::TJobExecutorPtr JobExecutor;
     NChunkHolder::TBlockStorePtr BlockStore;
     NChunkHolder::TPeerBlockTablePtr PeerBlockTable;
     NChunkHolder::TPeerBlockUpdaterPtr PeerBlockUpdater;
@@ -91,7 +91,6 @@ private:
     NChunkHolder::TMasterConnectorPtr MasterConnector;
 
     NNodeTrackerClient::TNodeDescriptor LocalDescriptor;
-    bool JobControlEnabled;
     TGuid CellGuid;
 
 };

@@ -6,8 +6,7 @@
 
 #include <ytlib/yson/public.h>
 
-#include <ytlib/scheduler/job.pb.h>
-#include <ytlib/scheduler/scheduler_service.pb.h>
+#include <ytlib/node_tracker_client/node.pb.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -24,11 +23,11 @@ struct ISchedulerStrategyHost
 
     DECLARE_INTERFACE_SIGNAL(void(TJobPtr job), JobStarted);
     DECLARE_INTERFACE_SIGNAL(void(TJobPtr job), JobFinished);
-    DECLARE_INTERFACE_SIGNAL(void(TJobPtr job, const NProto::TNodeResources& resourcesDelta), JobUpdated);
+    DECLARE_INTERFACE_SIGNAL(void(TJobPtr job, const NNodeTrackerClient::NProto::TNodeResources& resourcesDelta), JobUpdated);
 
     virtual TMasterConnector* GetMasterConnector() = 0;
 
-    virtual NProto::TNodeResources GetTotalResourceLimits() = 0;
+    virtual NNodeTrackerClient::NProto::TNodeResources GetTotalResourceLimits() = 0;
     virtual std::vector<TExecNodePtr> GetExecNodes() = 0;
 
 };
