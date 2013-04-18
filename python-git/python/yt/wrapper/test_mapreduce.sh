@@ -245,9 +245,14 @@ test_smart_format()
 
     unset SMART_FORMAT
     # write in yamr
-    echo -e "1 2\t\tz=10" | ./mapreduce -write "ignat/smart_y"
+    echo -e "1 2\t\tz=10" | ./mapreduce -subkey -write "ignat/smart_y"
     # convert to yamred_dsv
     ./mapreduce -smartformat -map "cat" -src "ignat/smart_y" -src "fake" -dst "ignat/smart_x"
+    check "1 2\tz=10" "`./mapreduce -smartformat -read "ignat/smart_x"`"
+
+    check_failed './mapreduce -smartformat -map "cat" -src "ignat/smart_y" -src "fake" -dst "ignat/smart_x" -dst "ignat/smart_z"'
+    ./mapreduce -smartformat -map "cat" -src "ignat/smart_y" -src "fake" -dst "ignat/smart_x" -dst "ignat/smart_z" -outputformat "yamr"
+    check "1 2\tz=10" "`./mapreduce -read "ignat/smart_x"`"
     check "1 2\tz=10" "`./mapreduce -smartformat -read "ignat/smart_x"`"
 
     ./mapreduce -smartformat -copy -src "ignat/smart_x" -dst "ignat/smart_z"
