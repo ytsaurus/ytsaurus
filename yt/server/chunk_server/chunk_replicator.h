@@ -1,4 +1,3 @@
-#pragma once
 
 #include "public.h"
 #include "chunk_replica.h"
@@ -18,19 +17,6 @@
 
 namespace NYT {
 namespace NChunkServer {
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TReplicaStatistics
-{
-    int ReplicationFactor;
-    int StoredCount;
-    int CachedCount;
-    int ReplicationJobCount;
-    int RemovalJobCount;
-};
-
-Stroka ToString(const TReplicaStatistics& statistics);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -134,14 +120,13 @@ private:
         TNode* node,
         std::vector<TJobPtr>* jobsToStart);
 
-    TReplicaStatistics GetReplicaStatistics(const TChunk* chunk);
-
     void OnRefresh();
     void Refresh(TChunk* chunk);
     void ResetChunkStatus(TChunk* chunk);
     void ComputeRegularChunkStatus(TChunk* chunk);
     void ComputeErasureChunkStatus(TChunk* chunk);
-    static int ComputeReplicationPriority(const TReplicaStatistics& statistics);
+
+    bool HasRunningJobs(const TChunkId& chunkId);
 
     void OnRFUpdate();
     void OnRFUpdateCommitSucceeded();

@@ -49,17 +49,6 @@ static NProfiling::TProfiler& Profiler = ChunkServerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka ToString(const TReplicaStatistics& statistics)
-{
-    return Sprintf("%d+%d+%d-%d",
-        statistics.StoredCount,
-        statistics.CachedCount,
-        statistics.ReplicationJobCount,
-        statistics.RemovalJobCount);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TChunkReplicator::TChunkReplicator(
     TChunkManagerConfigPtr config,
     TBootstrap* bootstrap,
@@ -285,20 +274,26 @@ TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleReplicationJob(
 {
     auto chunkManager = Bootstrap->GetChunkManager();
     auto* chunk = chunkManager->FindChunk(chunkId);
+
     if (!IsObjectAlive(chunk)) {
         return EScheduleFlags::Purged;
     }
 
     if (chunk->GetRefreshScheduled()) {
+        LOG_TRACE("Chunk we're about to replicate is scheduled for another refresh (ChunkId: %s)",
+            ~ToString(chunkId));
         return EScheduleFlags::Purged;
     }
 
-    auto statistics = GetReplicaStatistics(chunk);
+    if (HasRunningJobs(chunkId)) {
+        return EScheduleFlags::Purged;
+    }
 
-    int replicasNeeded = statistics.ReplicationFactor - (statistics.StoredCount + statistics.ReplicationJobCount);
+    int replicaCount = static_cast<int>(chunk->StoredReplicas().size());
+    int replicationFactor = chunk->GetReplicationFactor();
+    int replicasNeeded = replicationFactor - replicaCount;
     if (replicasNeeded <= 0) {
-        LOG_TRACE("Chunk %s we're about to replicate has enough replicas",
-            ~ToString(chunkId));
+        LOG_TRACE("Chunk we're about to replicate has enough replicas (ChunkId: %s)", ~ToString(chunkId));
         return EScheduleFlags::Purged;
     }
 
@@ -339,7 +334,7 @@ TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleBalancingJob(
     const auto& chunkId = chunk->GetId();
 
     if (chunk->GetRefreshScheduled()) {
-        return EScheduleFlags::None;
+        return EScheduleFlags::Purged;
     }
 
     auto* targetNode = ChunkPlacement->GetBalancingTarget(chunkWithIndex, maxFillCoeff);
@@ -368,16 +363,19 @@ TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleRemovalJob(
     TJobPtr* job)
 {
     auto chunkManager = Bootstrap->GetChunkManager();
+
     auto* chunk = chunkManager->FindChunk(chunkId);
     if (chunk && chunk->GetRefreshScheduled()) {
-        LOG_TRACE("Chunk %s we're about to remove is scheduled for another refresh",
-            ~ToString(chunkId));
-        return EScheduleFlags::None;
+        return EScheduleFlags::Purged;
+    }
+
+    if (HasRunningJobs(chunkId)) {
+        return EScheduleFlags::Purged;
     }
 
     *job = TJob::CreateRemove(chunkId, node);
 
-    LOG_INFO("Job %s is scheduled on %s: chunk %s will be removed",
+    LOG_INFO("Removal job scheduled (JobId: %s, Address: %s, ChunkId: %s)",
         ~ToString((*job)->GetJobId()),
         ~node->GetAddress(),
         ~ToString(chunkId));
@@ -389,7 +387,7 @@ void TChunkReplicator::ScheduleNewJobs(
     TNode* node,
     std::vector<TJobPtr>* jobsToStart)
 {
-    auto scheduleJob = [&] (TJobPtr job) {
+    auto registerJob = [&] (TJobPtr job) {
         jobsToStart->push_back(job);
         node->ResourceUsage() += job->ResourceLimits();
     };
@@ -406,11 +404,35 @@ void TChunkReplicator::ScheduleNewJobs(
 
             TJobPtr job;
             auto flags = ScheduleReplicationJob(node, chunkId, &job);
+
             if (flags & EScheduleFlags::Scheduled) {
-                scheduleJob(job);
+                registerJob(job);
             }
             if (flags & EScheduleFlags::Purged) {
                 chunksToReplicate.erase(jt);
+            }
+        }
+    }
+
+    // Schedule removal jobs.
+    {
+        auto& chunksToRemove = node->ChunksToRemove();
+        auto it = chunksToRemove.begin();
+        while (it != chunksToRemove.end()) {
+            if (node->ResourceUsage().removal_slots() >= node->ResourceLimits().removal_slots())
+                break;
+
+            auto jt = it++;
+            const auto& chunkId = *jt;
+
+            TJobPtr job;
+            auto flags = ScheduleRemovalJob(node, chunkId, &job);
+
+            if (flags & EScheduleFlags::Scheduled) {
+                registerJob(job);
+            }
+            if (flags & EScheduleFlags::Purged) {
+                chunksToRemove.erase(jt);
             }
         }
     }
@@ -430,92 +452,31 @@ void TChunkReplicator::ScheduleNewJobs(
 
             TJobPtr job;
             auto flags = ScheduleBalancingJob(node, chunkWithIndex, targetFillCoeff, &job);
+
             if (flags & EScheduleFlags::Scheduled) {
-                scheduleJob(job);
+                registerJob(job);
             }
         }
     }
 
-    // Schedule removal jobs.
-    {
-        auto& chunksToRemove = node->ChunksToRemove();
-        auto it = chunksToRemove.begin();
-        while (it != chunksToRemove.end()) {
-            auto jt = it++;
-            const auto& chunkId = *jt;
-
-            if (node->ResourceUsage().removal_slots() >= node->ResourceLimits().removal_slots())
-                break;
-
-            TJobPtr job;
-            auto flags = ScheduleRemovalJob(node, chunkId, &job);
-            if (flags & EScheduleFlags::Scheduled) {
-                scheduleJob(job);
-            }
-            if (flags & EScheduleFlags::Purged) {
-                chunksToRemove.erase(jt);
-            }
-        }
-    }
-}
-
-TReplicaStatistics TChunkReplicator::GetReplicaStatistics(const TChunk* chunk)
-{
-    TReplicaStatistics result;
-
-    result.ReplicationFactor = chunk->GetReplicationFactor();
-    result.StoredCount = static_cast<int>(chunk->StoredReplicas().size());
-    result.CachedCount = ~chunk->CachedReplicas() ? static_cast<int>(chunk->CachedReplicas()->size()) : 0;
-    result.ReplicationJobCount = 0;
-    result.RemovalJobCount = 0;
-
-    if (result.StoredCount == 0) {
-        return result;
-    }
-
-    auto chunkManager = Bootstrap->GetChunkManager();
-    auto jobList = FindJobList(chunk->GetId());
-    if (!jobList) {
-        return result;
-    }
-
-    TSmallSet<Stroka, TypicalReplicationFactor> storedAddresses;
-    FOREACH (auto replica, chunk->StoredReplicas()) {
-        storedAddresses.insert(replica.GetPtr()->GetAddress());
-    }
-
-    FOREACH (const auto& job, jobList->Jobs()) {
-        switch (job->GetType()) {
-            case EJobType::ReplicateChunk: {
-                FOREACH (const auto& address, job->TargetAddresses()) {
-                    if (!storedAddresses.count(address)) {
-                        ++result.ReplicationJobCount;
-                    }
-                }
-                break;
-            }
-
-            case EJobType::RemoveChunk: {
-                if (storedAddresses.count(job->GetNode()->GetAddress())) {
-                    ++result.RemovalJobCount;
-                }
-                break;
-            }
-
-            default:
-                YUNREACHABLE();
-        }
-    }
-
-    return result;
 }
 
 void TChunkReplicator::Refresh(TChunk* chunk)
 {
-    if (!chunk->IsConfirmed())
+    const auto& chunkId = chunk->GetId();
+
+    if (!chunk->IsConfirmed()) {
+        LOG_TRACE("Chunk is not confirmed, refresh postponed (ChunkId: %s)", ~ToString(chunkId));
         return;
+    }
+
+    if (HasRunningJobs(chunkId)) {
+        LOG_TRACE("Chunk has running jobs, refresh postponed (ChunkId: %s)", ~ToString(chunkId));
+        return;
+    }
 
     ResetChunkStatus(chunk);
+    
     if (chunk->IsErasure()) {
         ComputeErasureChunkStatus(chunk);
     } else {
@@ -538,36 +499,34 @@ void TChunkReplicator::ResetChunkStatus(TChunk* chunk)
 
     LostChunks_.erase(chunk);
     LostVitalChunks_.erase(chunk);
-    OverreplicatedChunks_.erase(chunk);
-    UnderreplicatedChunks_.erase(chunk);
+    
+    if (chunk->IsErasure()) {
+        DataMissingChunks_.erase(chunk);
+        ParityMissingChunks_.erase(chunk);  
+    } else {
+        OverreplicatedChunks_.erase(chunk);
+        UnderreplicatedChunks_.erase(chunk);  
+    }
 }
 
 void TChunkReplicator::ComputeRegularChunkStatus(TChunk* chunk)
 {
     const auto& chunkId = chunk->GetId();
-    auto statistics = GetReplicaStatistics(chunk);
-    if (statistics.StoredCount == 0) {
+    int replicaCount = static_cast<int>(chunk->StoredReplicas().size());
+    int replicationFactor = chunk->GetReplicationFactor();
+    if (replicaCount == 0) {
         // Lost!
         YCHECK(LostChunks_.insert(chunk).second);
         if (chunk->GetVital()) {
             YCHECK(LostVitalChunks_.insert(chunk).second);
         }
 
-        LOG_TRACE("Chunk %s is lost", ~ToString(chunkId));
-    } else if (statistics.StoredCount - statistics.RemovalJobCount > statistics.ReplicationFactor) {
+        LOG_TRACE("Chunk is lost (ChunkId: %s)", ~ToString(chunkId));
+    } else if (replicaCount > replicationFactor) {
         // Overreplicated chunk.
         YCHECK(OverreplicatedChunks_.insert(chunk).second);
 
-        // NB: Never start removal jobs if new replicas are on their way.
-        if (statistics.ReplicationJobCount > 0) {
-            LOG_WARNING("Chunk %s is over-replicated: %s replicas exist but only %d needed, waiting for pending replications to complete",
-                ~ToString(chunkId),
-                ~ToString(statistics),
-                statistics.ReplicationFactor);
-            return;
-        }
-
-        int redundantCount = statistics.StoredCount - statistics.RemovalJobCount - statistics.ReplicationFactor;
+        int redundantCount = replicaCount - replicationFactor;
         auto nodes = ChunkPlacement->GetRemovalTargets(TChunkPtrWithIndex(chunk), redundantCount);
 
         TSmallVector<Stroka, TypicalReplicationFactor> addresses;
@@ -576,45 +535,31 @@ void TChunkReplicator::ComputeRegularChunkStatus(TChunk* chunk)
             addresses.push_back(node->GetAddress());
         }
 
-        LOG_INFO("Removal of overreplicated chunk scheduled (ChunkId %s, RedundantCount: %d, TargetAddresses: [%s])",
+        LOG_INFO("Redundant chunk replicas will be removed (ChunkId %s, Addresses: [%s])",
             ~ToString(chunkId),
-            redundantCount,
             ~JoinToString(addresses));
-    } else if (statistics.StoredCount + statistics.ReplicationJobCount < statistics.ReplicationFactor) {
+    } else if (replicaCount < replicationFactor) {
         // Underreplicated chunk.
         YCHECK(UnderreplicatedChunks_.insert(chunk).second);
 
-        // NB: Never start replication jobs when removal jobs are in progress.
-        if (statistics.RemovalJobCount > 0) {
-            LOG_DEBUG("Chunk %s is under-replicated: %s replicas exist but %d needed, waiting for pending removals to complete",
-                ~ToString(chunkId),
-                ~ToString(statistics),
-                statistics.ReplicationFactor);
-            return;
-        }
-
         auto* node = ChunkPlacement->GetReplicationSource(chunk);
 
-        int priority = ComputeReplicationPriority(statistics);
+        int priority = std::min(replicaCount, ReplicationPriorityCount) - 1;
         node->ChunksToReplicate()[priority].insert(chunkId);
 
-        LOG_INFO("Chunk %s is under-replicated: %s replicas exist but %d needed, replication is scheduled on %s",
+        LOG_INFO("Chunk will be replicated (ChunkId: %s, ReplicaCount: %d, ReplicationFactor: %d, Address: %s)",
             ~ToString(chunkId),
-            ~ToString(statistics),
-            statistics.ReplicationFactor,
+            replicaCount,
+            replicationFactor,
             ~node->GetAddress());
     } else {
-        LOG_TRACE("Chunk %s is OK: %s replicas exist and %d needed",
-            ~ToString(chunkId),
-            ~ToString(statistics),
-            statistics.ReplicationFactor);
+        LOG_TRACE("Chunk is OK (ChunkId: %s)", ~ToString(chunkId));
     }
 }
 
 void TChunkReplicator::ComputeErasureChunkStatus(TChunk* chunk)
 {
     const auto& chunkId = chunk->GetId();
-    auto statistics = GetReplicaStatistics(chunk);
 
     // Check data and parity parts.
     NErasure::TBlockIndexSet replicaIndexSet(0);
@@ -661,7 +606,7 @@ void TChunkReplicator::ComputeErasureChunkStatus(TChunk* chunk)
                 YCHECK(LostVitalChunks_.insert(chunk).second);
             }
 
-            LOG_TRACE("Chunk %s is lost", ~ToString(chunkId));
+            LOG_TRACE("Chunk is lost (ChunkId: %s)", ~ToString(chunkId));
         }
     }
 
@@ -677,17 +622,17 @@ void TChunkReplicator::ComputeErasureChunkStatus(TChunk* chunk)
             addresses.push_back(node->GetAddress());
         }
 
-        LOG_INFO("Removal of overreplicated erasure chunk part scheduled (ChunkId: %s, RedundantCount: %d, TargetAddresses: [%s])",
+        LOG_INFO("Redundant chunk replicas will be removed (ChunkId: %s, Addresses: [%s])",
             ~ToString(chunkWithIndex),
-            redundantCount,
             ~JoinToString(addresses));
     }
 }
 
-int TChunkReplicator::ComputeReplicationPriority(const TReplicaStatistics& statistics)
+bool TChunkReplicator::HasRunningJobs(const TChunkId& chunkId)
 {
-    YASSERT(statistics.StoredCount > 0);
-    return std::min(statistics.StoredCount, ReplicationPriorityCount) - 1;
+    auto chunkManager = Bootstrap->GetChunkManager();
+    auto jobList = chunkManager->FindJobList(chunkId);
+    return jobList && !jobList->Jobs().empty();
 }
 
 void TChunkReplicator::ScheduleChunkRefresh(const TChunkId& chunkId)
