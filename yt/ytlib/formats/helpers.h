@@ -3,7 +3,7 @@
 #include "public.h"
 
 #include <ytlib/yson/yson_consumer.h>
-#include <ytlib/yson/lexer.h>
+#include <ytlib/yson/yson_parser.h>
 
 namespace NYT {
 namespace NFormats {
@@ -14,6 +14,8 @@ class TFormatsConsumerBase
     : public virtual NYson::TYsonConsumerBase
 {
 public:
+    TFormatsConsumerBase();
+
     virtual void OnStringScalar(const TStringBuf& value) = 0;
     virtual void OnIntegerScalar(i64 value) = 0;
     virtual void OnDoubleScalar(double value) = 0;
@@ -31,7 +33,7 @@ public:
     virtual void OnRaw(const TStringBuf& yson, NYson::EYsonType type) override;
 
 private:
-    NYson::TLexer Lexer;
+    NYson::TYsonStatelessParser StatelessParser;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

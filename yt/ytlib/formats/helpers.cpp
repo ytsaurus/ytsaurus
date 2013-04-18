@@ -15,45 +15,14 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TFormatsConsumerBase::TFormatsConsumerBase()
+    : StatelessParser(this)
+{ }
+    
+
 void TFormatsConsumerBase::OnRaw(const TStringBuf& yson, EYsonType type)
 {
-    // OnRaw is supported only on nodes
-    if (type != EYsonType::Node) {
-        TYsonConsumerBase::OnRaw(yson, type);
-        return;
-    }
-
-    // For peformance reason try to consume only one token first
-    Lexer.Reset();
-    Lexer.Read(yson);
-    Lexer.Finish();
-
-    YCHECK(Lexer.GetState() == TLexer::EState::Terminal);
-    auto token = Lexer.GetToken();
-    switch(token.GetType()) {
-        case ETokenType::String:
-            OnStringScalar(token.GetStringValue());
-            break;
-
-        case ETokenType::Integer:
-            OnIntegerScalar(token.GetIntegerValue());
-            break;
-
-        case ETokenType::Double:
-            OnDoubleScalar(token.GetDoubleValue());
-            break;
-
-        case EntityToken:
-        case BeginListToken:
-        case BeginMapToken:
-        case BeginAttributesToken:
-            // Fallback to usual OnRaw
-            TYsonConsumerBase::OnRaw(yson, type);
-            break;
-
-        default:
-            YUNREACHABLE();
-    }
+    StatelessParser.Parse(yson, type);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

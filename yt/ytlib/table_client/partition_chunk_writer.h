@@ -80,7 +80,7 @@ private:
     IPartitioner* Partitioner;
     TPartitionChunkWriterFacade Facade;
 
-    NYson::TLexer Lexer;
+    NYson::TStatelessLexer Lexer;
     yhash_map<TStringBuf, int> KeyColumnIndexes;
 
     i64 BasicMetaSize;

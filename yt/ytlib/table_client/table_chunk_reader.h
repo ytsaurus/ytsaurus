@@ -127,7 +127,7 @@ private:
     TRow CurrentRow;
     NChunkClient::TNonOwningKey CurrentKey;
 
-    NYson::TLexer Lexer;
+    NYson::TStatelessLexer Lexer;
 
     yhash_map<TStringBuf, TColumnInfo> ColumnsMap;
     std::vector<Stroka> ColumnNames;
