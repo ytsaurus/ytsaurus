@@ -14,14 +14,17 @@ TTokenizer::TTokenizer(const TStringBuf& input)
 bool TTokenizer::ParseNext()
 {
     Input = Input.Tail(Parsed);
-    Token.Reset();
-    Parsed = Lexer.GetToken(Input, &Token);
+    Lexer.Reset();
+    Parsed = Lexer.Read(Input);
+    Lexer.Finish();
     return !CurrentToken().IsEmpty();
 }
 
 const TToken& TTokenizer::CurrentToken() const
 {
-    return Token;
+    return Lexer.GetState() == TLexer::EState::Terminal
+        ? Lexer.GetToken()
+        : TToken::EndOfStream;
 }
 
 ETokenType TTokenizer::GetCurrentType() const

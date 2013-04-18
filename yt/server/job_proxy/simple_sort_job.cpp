@@ -137,7 +137,7 @@ public:
 
             LOG_INFO("Reading");
             {
-                NYson::TStatelessLexer lexer;
+                NYson::TLexer lexer;
                 while (Reader->IsValid()) {
                     rowIndexBuffer.push_back(rowIndexBuffer.size());
                     YASSERT(rowIndexBuffer.back() <= std::numeric_limits<ui32>::max());

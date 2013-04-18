@@ -141,7 +141,7 @@ public:
             {
                 bool isNetworkReleased = false;
 
-                NYson::TStatelessLexer lexer;
+                NYson::TLexer lexer;
                 while (Reader->IsValid()) {
                     // Push row pointer.
                     rowPtrBuffer.push_back(Reader->CurrentReader()->GetRowPointer());

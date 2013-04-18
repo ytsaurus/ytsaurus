@@ -22,8 +22,7 @@ public:
 
 private:
     TStringBuf Input;
-    TToken Token;
-    TStatelessLexer Lexer;
+    TLexer Lexer;
     size_t Parsed;
 };
 

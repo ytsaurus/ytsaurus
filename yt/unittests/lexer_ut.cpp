@@ -15,12 +15,13 @@ using ::ToString;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStatelessLexerTest
+class TLexerTest
     : public ::testing::Test
 {
 public:
+    typedef TLexer::EState EState;
 
-    THolder<TStatelessLexer> Lexer;
+    THolder<TLexer> Lexer;
 
     virtual void SetUp()
     {
@@ -29,25 +30,33 @@ public:
 
     void Reset()
     {
-        Lexer.Reset(new TStatelessLexer());
+        Lexer.Reset(new TLexer());
     }
 
-    void TestConsume(const TStringBuf& input)
+    void TestConsume(const TStringBuf& input, int expectedConsumed = -1)
     {
-        TToken token;
-        Lexer->GetToken(input, &token);
+        size_t expected = expectedConsumed == -1
+            ? input.size()
+            : static_cast<size_t>(expectedConsumed);
+        EXPECT_EQ(expected, Lexer->Read(input));
     }
 
-    TToken GetToken(const TStringBuf& input)
+    void CheckState(EState state)
     {
-        TToken token;
-        Lexer->GetToken(input, &token);
-        return token;
+        EXPECT_EQ(state, Lexer->GetState());
+    }
+
+    const TToken& GetToken(const TStringBuf& input)
+    {
+        TestConsume(input);
+        Lexer->Finish();
+        CheckState(EState::Terminal);
+        return Lexer->GetToken();
     }
 
     void TestToken(const TStringBuf& input, ETokenType expectedType, const Stroka& expectedValue)
     {
-        auto token = GetToken(input);
+        auto& token = GetToken(input);
         EXPECT_EQ(expectedType, token.GetType());
         EXPECT_EQ(expectedValue, token.ToString());
         Reset();
@@ -55,7 +64,7 @@ public:
 
     void TestDouble(const TStringBuf& input, double expectedValue)
     {
-        auto token = GetToken(input);
+        auto& token = GetToken(input);
         EXPECT_EQ(ETokenType::Double, token.GetType());
         EXPECT_DOUBLE_EQ(expectedValue, token.GetDoubleValue());
         Reset();
@@ -63,7 +72,7 @@ public:
 
     void TestSpecialValue(const TStringBuf& input, ETokenType expectedType)
     {
-        auto token = GetToken(input);
+        auto& token = GetToken(input);
         EXPECT_EQ(expectedType, token.GetType());
         EXPECT_EQ(input, token.ToString());
         Reset();
@@ -71,20 +80,85 @@ public:
 
     void TestIncorrectFinish(const TStringBuf& input)
     {
-        EXPECT_THROW(TestConsume(input), std::exception);
+        TestConsume(input);
+        EXPECT_THROW(Lexer->Finish(), std::exception);
         Reset();
     }
 
     void TestIncorrectInput(const TStringBuf& input)
     {
-        EXPECT_THROW(TestConsume(input), std::exception);
+        size_t length = input.length();
+        YASSERT(length > 0);
+        TestConsume(input.Head(length - 1));
+        EXPECT_THROW(Lexer->Read(input.Tail(length - 1)), std::exception);
         Reset();
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TStatelessLexerTest, Strings)
+TEST_F(TLexerTest, States)
+{
+    CheckState(EState::None);
+    TestConsume(" ");
+    CheckState(EState::None);
+    TestConsume(" ");
+    CheckState(EState::None);
+    TestConsume("1");
+    CheckState(EState::InProgress);
+    TestConsume("2");
+    CheckState(EState::InProgress);
+    TestConsume(" ", 0);
+    CheckState(EState::Terminal);
+
+    Lexer->Reset();
+
+    CheckState(EState::None);
+    TestConsume(" ");
+    CheckState(EState::None);
+    TestConsume("1");
+    CheckState(EState::InProgress);
+    TestConsume(";", 0);
+    CheckState(EState::Terminal);
+
+    Lexer->Reset();
+
+    CheckState(EState::None);
+    TestConsume(";");
+    CheckState(EState::Terminal);
+
+    Lexer->Reset();
+
+    CheckState(EState::None);
+    TestConsume("1");
+    CheckState(EState::InProgress);
+    TestConsume("2");
+    CheckState(EState::InProgress);
+    Lexer->Finish();
+    CheckState(EState::Terminal);
+
+    Lexer->Reset();
+
+    CheckState(EState::None);
+    TestConsume("\t");
+    CheckState(EState::None);
+    TestConsume("\r");
+    CheckState(EState::None);
+    TestConsume("\n");
+    CheckState(EState::None);
+    Lexer->Finish();
+    CheckState(EState::None);
+
+    Lexer->Reset();
+
+    CheckState(EState::None);
+    Lexer->Finish();
+    CheckState(EState::None);
+    Lexer->Finish();
+    CheckState(EState::None);
+}
+
+TEST_F(TLexerTest, Strings)
 {
     TestToken("abc_123.-%", ETokenType::String, "abc_123.-%");
     TestToken("%0-0-0-0", ETokenType::String, "%0-0-0-0"); // guids
@@ -99,7 +173,7 @@ TEST_F(TStatelessLexerTest, Strings)
     TestToken("\x01\x08\x01\x02\x03\x04", ETokenType::String, "\x01\x02\x03\x04");
 }
 
-TEST_F(TStatelessLexerTest, Integers)
+TEST_F(TLexerTest, Integers)
 {
     TestToken("123", ETokenType::Integer, "123");
     TestToken("0", ETokenType::Integer, "0");
@@ -114,7 +188,7 @@ TEST_F(TStatelessLexerTest, Integers)
     TestToken("\x02\x80\x80\x80\x02", ETokenType::Integer, ToString(1ull << 21));
 }
 
-TEST_F(TStatelessLexerTest, Doubles)
+TEST_F(TLexerTest, Doubles)
 {
     const double x = 3.1415926;
     TestDouble("3.1415926", x);
@@ -123,7 +197,7 @@ TEST_F(TStatelessLexerTest, Doubles)
     TestDouble(Stroka('\x03') + Stroka((const char*) &x, sizeof(x)), x);
 }
 
-TEST_F(TStatelessLexerTest, SpecialValues)
+TEST_F(TLexerTest, SpecialValues)
 {
     TestSpecialValue(";", ETokenType::Semicolon);
     TestSpecialValue("=", ETokenType::Equals);
@@ -141,7 +215,7 @@ TEST_F(TStatelessLexerTest, SpecialValues)
     TestSpecialValue(",", ETokenType::Comma);
 }
 
-TEST_F(TStatelessLexerTest, IncorrectChars)
+TEST_F(TLexerTest, IncorrectChars)
 {
     TestIncorrectInput("\x01\x03"); // Binary string with negative length
 
@@ -158,7 +232,7 @@ TEST_F(TStatelessLexerTest, IncorrectChars)
     TestIncorrectInput("$");
 }
 
-TEST_F(TStatelessLexerTest, IncorrectFinish)
+TEST_F(TLexerTest, IncorrectFinish)
 {
     TestIncorrectFinish("\"abc"); // no matching quote
     TestIncorrectFinish("\"abc\\\""); // no matching quote (\" is escaped quote)
@@ -169,6 +243,7 @@ TEST_F(TStatelessLexerTest, IncorrectFinish)
     TestIncorrectFinish("-"); // numeric not finished
 }
 
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYTree
 } // namespace NYT

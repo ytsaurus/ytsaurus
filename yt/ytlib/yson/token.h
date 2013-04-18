@@ -53,8 +53,8 @@ class TToken
 
 public:
     static const TToken EndOfStream;
-    TToken();
-    TToken(ETokenType type); // for special types
+
+    TToken(ETokenType type = ETokenType::EndOfStream); // for special types
     explicit TToken(const TStringBuf& stringValue); // for strings
     explicit TToken(i64 integerValue); // for integers
     explicit TToken(double doubleValue); // for doubles
@@ -70,7 +70,7 @@ public:
 
     void CheckType(ETokenType expectedType) const;
     void CheckType(const std::vector<ETokenType>& expectedTypes) const;
-    void Reset();
+
 private:
     TStringBuf StringValue;
     i64 IntegerValue;

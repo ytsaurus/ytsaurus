@@ -10,9 +10,6 @@ set( SRCS
   ${BASE}/yson_writer.cpp
 )
 set( HDRS
-  ${BASE}/yson_detail.h
-  ${BASE}/yson_lexer_detail.h
-  ${BASE}/yson_parser_detail.h
   ${BASE}/lexer.h
   ${BASE}/public.h
   ${BASE}/token.h

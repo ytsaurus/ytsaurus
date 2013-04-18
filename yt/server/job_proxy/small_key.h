@@ -31,7 +31,7 @@ struct TSmallKeyPart
     { }
 };
 
-void SetSmallKeyPart(TSmallKeyPart& keyPart, const TStringBuf& yson, NYson::TStatelessLexer& lexer);
+void SetSmallKeyPart(TSmallKeyPart& keyPart, const TStringBuf& yson, NYson::TLexer& lexer);
 int CompareSmallKeyParts(const TSmallKeyPart& lhs, const TSmallKeyPart& rhs);
 void SetKeyPart(NChunkClient::TNonOwningKey* key, const TSmallKeyPart& keyPart, int keyIndex);
 
