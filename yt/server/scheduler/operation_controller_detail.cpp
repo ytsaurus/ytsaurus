@@ -320,16 +320,9 @@ void TOperationControllerBase::TTask::OnTaskCompleted()
     LOG_DEBUG("Task completed (Task: %s)", ~GetId());
 }
 
-void TOperationControllerBase::TTask::CheckResourceDemandSanity(
+void TOperationControllerBase::TTask::DoCheckResourceDemandSanity(
     const NProto::TNodeResources& neededResources)
 {
-    // Run sanity check to see if any node can provide enough resources.
-    // Don't run these checks too often to avoid jeopardizing performance.
-    auto now = TInstant::Now();
-    if (now < LastDemandSanityCheckTime + Controller->Config->ResourceDemandSanityCheckPeriod)
-        return;
-    LastDemandSanityCheckTime = now;
-
     auto nodes = Controller->Host->GetExecNodes();
     FOREACH (auto node, nodes) {
         if (Dominates(node->ResourceLimits(), neededResources))
@@ -341,6 +334,23 @@ void TOperationControllerBase::TTask::CheckResourceDemandSanity(
         TError("No online exec node can satisfy the resource demand")
             << TErrorAttribute("task", TRawString(GetId()))
             << TErrorAttribute("needed_resources", neededResources));
+}
+
+void TOperationControllerBase::TTask::CheckResourceDemandSanity(
+    const NProto::TNodeResources& neededResources)
+{
+    // Run sanity check to see if any node can provide enough resources.
+    // Don't run these checks too often to avoid jeopardizing performance.
+    auto now = TInstant::Now();
+    if (now < LastDemandSanityCheckTime + Controller->Config->ResourceDemandSanityCheckPeriod)
+        return;
+    LastDemandSanityCheckTime = now;
+
+    // Schedule check in control thread.
+    Controller->GetCancelableControlInvoker()->Invoke(BIND(
+        &TTask::DoCheckResourceDemandSanity,
+        MakeWeak(this),
+        neededResources));
 }
 
 void TOperationControllerBase::TTask::CheckResourceDemandSanity(
