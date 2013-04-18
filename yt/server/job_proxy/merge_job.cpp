@@ -126,7 +126,7 @@ public:
 
             LOG_INFO("Merging");
             {
-                NYson::TStatelessLexer lexer;
+                NYson::TLexer lexer;
                 // Unsorted write - use dummy key.
                 TNonOwningKey key;
                 if (KeyColumns) {

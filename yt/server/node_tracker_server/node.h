@@ -50,12 +50,14 @@ class TNode
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TJobPtr>, Jobs);
     DEFINE_BYVAL_RW_PROPERTY(int, HintedSessionCount);
 
+    //! NB: Ids are used instead of raw pointers since these chunks are typically already dead.
+    typedef yhash_set<TChunkId> TChunkIdSet;
+
     //! Indexed by priority.
-    typedef std::vector< yhash_set<TChunkId> > TChunksToReplicate;
+    typedef std::vector<TChunkIdSet> TChunksToReplicate;
     DEFINE_BYREF_RW_PROPERTY(TChunksToReplicate, ChunksToReplicate);
 
-    //! NB: Ids are used instead of raw pointers since these chunks are typically already dead.
-    typedef yhash_set<TChunkId> TChunksToRemove;
+    typedef TChunkIdSet TChunksToRemove;
     DEFINE_BYREF_RW_PROPERTY(TChunksToRemove, ChunksToRemove);
 
 public:

@@ -425,12 +425,13 @@ public:
         return key;
     }
 
-    void SetKeyPart(int index, const TStringBuf& yson, NYson::TStatelessLexer& lexer)
+    void SetKeyPart(int index, const TStringBuf& yson, NYson::TLexer& lexer)
     {
-        NYson::TToken token;
-        lexer.GetToken(yson, &token);
-        YCHECK(!token.IsEmpty());
+        lexer.Reset();
+        YCHECK(lexer.Read(yson) > 0);
+        YASSERT(lexer.GetState() == NYson::TLexer::EState::Terminal);
 
+        const auto& token = lexer.GetToken();
         switch (token.GetType()) {
             case NYson::ETokenType::Integer:
                 SetValue(index, token.GetIntegerValue());

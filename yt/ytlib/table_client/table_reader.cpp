@@ -1,5 +1,4 @@
-﻿
-#include "stdafx.h"
+﻿#include "stdafx.h"
 #include "table_reader.h"
 #include "config.h"
 #include "table_chunk_reader.h"
@@ -133,6 +132,19 @@ bool TAsyncTableReader::FetchNextItem()
         return true;
     }
     return false;
+}
+
+TAsyncError TAsyncTableReader::GetReadyEvent()
+{
+    if (IsAborted()) {
+        return MakePromise<TError>(TError("Transaction aborted"));
+    }
+    return Reader->GetReadyEvent();
+}
+
+bool TAsyncTableReader::IsValid() const
+{
+    return Reader->GetFacade() != nullptr;
 }
 
 const TRow& TAsyncTableReader::GetRow() const

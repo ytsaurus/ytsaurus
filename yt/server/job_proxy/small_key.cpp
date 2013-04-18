@@ -12,12 +12,13 @@ using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void SetSmallKeyPart(TSmallKeyPart& keyPart, const TStringBuf& yson, NYson::TStatelessLexer& lexer)
+void SetSmallKeyPart(TSmallKeyPart& keyPart, const TStringBuf& yson, NYson::TLexer& lexer)
 {
-    NYson::TToken token;
-    lexer.GetToken(yson, &token);
-    YCHECK(!token.IsEmpty());
+    lexer.Reset();
+    YCHECK(lexer.Read(yson) > 0);
+    YASSERT(lexer.GetState() == NYson::TLexer::EState::Terminal);
 
+    const auto& token = lexer.GetToken();
     switch (token.GetType()) {
     case NYson::ETokenType::Integer:
         keyPart.Type = EKeyPartType::Integer;

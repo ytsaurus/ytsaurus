@@ -251,7 +251,7 @@ private:
         PROFILE_TIMING ("/reduce/read_time" ) {
             bool isNetworkReleased = false;
 
-            TStatelessLexer lexer;
+            TLexer lexer;
             int bucketId = 0;
             int bucketSize = 0;
             int rowIndex = 0;
