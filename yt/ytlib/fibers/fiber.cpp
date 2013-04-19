@@ -8,10 +8,12 @@
         static pthread_mutex_t FiberCtorMutex = PTHREAD_MUTEX_INITIALIZER;
     #define BEFORE_FIBER_CTOR() pthread_mutex_lock(&FiberCtorMutex)
     #define AFTER_FIBER_CTOR() pthread_mutex_unlock(&FiberCtorMutex)
+    #define TLS_STATIC static __thread
 #else
     #define DEFINE_FIBER_CTOR_MUTEX()
     #define BEFORE_FIBER_CTOR()
     #define AFTER_FIBER_CTOR()
+    #define TLS_STATIC __declspec(thread)
 #endif
 
 namespace NYT {
@@ -23,9 +25,8 @@ namespace {
     // Estimates in bytes are given for x86_64.
     static const size_t SmallFiberStackSize = 1 << 12; // 32K
     static const size_t LargeFiberStackSize = 1 << 20; // 8MB
-    TFiberPtr FiberCurrent;
-    TFiberPtr FiberMain;
 
+    TLS_STATIC TFiberPtr* FiberCurrent = 0;
     DEFINE_FIBER_CTOR_MUTEX();
 } // namespace
 
@@ -115,20 +116,22 @@ TFiber::~TFiber()
 
 TFiberPtr TFiber::GetCurrent()
 {
-    if (!FiberCurrent) {
-        FiberCurrent = New<TFiber>();
+    if (UNLIKELY(!FiberCurrent)) {
+        FiberCurrent = new TFiberPtr();
+        *FiberCurrent = New<TFiber>();
     }
-    return FiberCurrent;
+
+    return *FiberCurrent;
 }
 
 void TFiber::SetCurrent(const TFiberPtr& fiber)
 {
-    FiberCurrent = fiber;
+    *FiberCurrent = fiber;
 }
 
 void TFiber::SetCurrent(TFiberPtr&& fiber)
 {
-    FiberCurrent = std::move(fiber);
+    *FiberCurrent = std::move(fiber);
 }
 
 void TFiber::Yield()
