@@ -140,7 +140,7 @@ public:
 
             LOG_INFO("Reading");
             {
-                NYson::TLexer lexer;
+                NYson::TStatelessLexer lexer;
                 const TReader::TFacade* facade;
                 while ((facade = Reader->GetFacade()) != nullptr) {
                     rowIndexBuffer.push_back(rowIndexBuffer.size());

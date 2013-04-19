@@ -118,7 +118,7 @@ private:
     std::vector<Stroka> ColumnNames;
 
     // Used for key creation.
-    NYson::TLexer Lexer;
+    NYson::TStatelessLexer Lexer;
 
     NChunkClient::TNonOwningKey CurrentKey;
     NChunkClient::TOwningKey LastKey;
