@@ -267,7 +267,7 @@ private:
             SafePushBack(BucketStart, 0);
 
             const TReader::TFacade* facade;
-            while (facade = Reader->GetFacade()) {
+            while ((facade = Reader->GetFacade()) != nullptr) {
                 // Construct row entry.
                 SafePushBack(RowPtrBuffer, facade->GetRowPointer());
 

@@ -114,7 +114,7 @@ public:
             LOG_INFO("Partitioning");
             {
                 const TReader::TFacade* facade;
-                while (facade = Reader->GetFacade()) {
+                while ((facade = Reader->GetFacade()) != nullptr) {
                     Writer->WriteRowUnsafe(facade->GetRow());
 
                     if (!Reader->FetchNext()) {

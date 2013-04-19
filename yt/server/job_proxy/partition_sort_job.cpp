@@ -143,7 +143,7 @@ public:
 
                 NYson::TLexer lexer;
                 const TReader::TFacade* facade;
-                while (facade = Reader->GetFacade()) {
+                while ((facade = Reader->GetFacade()) != nullptr) {
                     // Push row pointer.
                     rowPtrBuffer.push_back(facade->GetRowPointer());
                     rowIndexHeap.push_back(rowIndexHeap.size());

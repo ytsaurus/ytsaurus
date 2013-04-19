@@ -590,7 +590,7 @@ void TChunkReplicator::ComputeErasureChunkStatus(TChunk* chunk)
         YCHECK(ParityMissingChunks_.insert(chunk).second);
     }
 
-    if (replicaIndexSet != dataIndexSet | parityIndexSet) {
+    if (replicaIndexSet != (dataIndexSet | parityIndexSet)) {
         // Something is damaged.
         // TODO(babenko): eliminate this
         NErasure::TBlockIndexList list;

@@ -18,6 +18,8 @@ public:
         TSlotManagerConfigPtr config,
         NCellNode::TBootstrap* bootstrap);
 
+    ~TSlotManager();
+
     //! Initializes slots etc.
     void Initialize(int slotCount);
 

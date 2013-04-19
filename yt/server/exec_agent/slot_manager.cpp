@@ -29,6 +29,9 @@ TSlotManager::TSlotManager(
     YCHECK(bootstrap);
 }
 
+TSlotManager::~TSlotManager()
+{ }
+
 void TSlotManager::Initialize(int slotCount)
 {
     bool jobControlEnabled = false;

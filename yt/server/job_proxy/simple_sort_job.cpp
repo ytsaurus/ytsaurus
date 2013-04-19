@@ -142,7 +142,7 @@ public:
             {
                 NYson::TLexer lexer;
                 const TReader::TFacade* facade;
-                while (facade = Reader->GetFacade()) {
+                while ((facade = Reader->GetFacade()) != nullptr) {
                     rowIndexBuffer.push_back(rowIndexBuffer.size());
                     YASSERT(rowIndexBuffer.back() <= std::numeric_limits<ui32>::max());
 
