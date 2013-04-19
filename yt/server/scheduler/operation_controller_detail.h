@@ -301,9 +301,16 @@ protected:
         virtual void OnJobAborted(TJobletPtr joblet);
         virtual void OnJobLost(TCompleteJobPtr completedJob);
 
+        // First checks against given node, then againts all nodes if needed.
         void CheckResourceDemandSanity(
             TExecNodePtr node,
             const NProto::TNodeResources& neededResources);
+
+        // Checks against all available nodes.
+        void CheckResourceDemandSanity(
+            const NProto::TNodeResources& neededResources);
+
+        void DoCheckResourceDemandSanity(const NProto::TNodeResources& neededResources);
 
         bool IsPending() const;
         bool IsCompleted() const;
@@ -426,6 +433,8 @@ protected:
     void AddTaskLocalityHint(TTaskPtr task, TChunkStripePtr stripe);
     void AddTaskPendingHint(TTaskPtr task);
     void ResetTaskLocalityDelays();
+
+    void MoveTaskToCandidates(TTaskPtr task, std::multimap<i64, TTaskPtr>& candidateTasks);
 
     bool CheckJobLimits(TExecNodePtr node, TTaskPtr task, const NProto::TNodeResources& jobLimits);
 

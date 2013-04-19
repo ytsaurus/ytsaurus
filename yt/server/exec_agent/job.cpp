@@ -18,7 +18,7 @@
 #include <ytlib/table_client/table_producer.h>
 #include <ytlib/table_client/table_reader.h>
 #include <ytlib/table_client/table_chunk_reader.h>
-#include <ytlib/table_client/multi_chunk_sequential_reader.h>
+#include <ytlib/chunk_client/multi_chunk_sequential_reader.h>
 #include <ytlib/table_client/config.h>
 
 #include <ytlib/chunk_client/client_block_cache.h>
@@ -326,12 +326,17 @@ void TJob::OnTableDownloaded(
     auto config = New<TTableReaderConfig>();
     auto blockCache = NChunkClient::CreateClientBlockCache(
         New<NChunkClient::TClientBlockCacheConfig>());
+
+    auto readerProvider = New<TTableChunkReaderProvider>(
+        chunks,
+        config);
+
     auto reader = New<TTableChunkSequenceReader>(
         config,
         Bootstrap->GetMasterChannel(),
         blockCache,
         std::move(chunks),
-        New<TTableChunkReaderProvider>(config));
+        readerProvider);
 
     auto syncReader = CreateSyncReader(reader);
     syncReader->Open();

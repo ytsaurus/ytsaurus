@@ -8,7 +8,7 @@
 
 #include <ytlib/actions/action_queue.h>
 
-#include <ytlib/table_client/multi_chunk_parallel_reader.h>
+#include <ytlib/chunk_client/multi_chunk_parallel_reader.h>
 #include <ytlib/table_client/sync_reader.h>
 #include <ytlib/table_client/partition_chunk_reader.h>
 
@@ -264,14 +264,15 @@ private:
 
             SafePushBack(BucketStart, 0);
 
-            while (Reader->IsValid()) {
+            const TReader::TFacade* facade;
+            while (facade = Reader->GetFacade()) {
                 // Construct row entry.
-                SafePushBack(RowPtrBuffer, Reader->CurrentReader()->GetRowPointer());
+                SafePushBack(RowPtrBuffer, facade->GetRowPointer());
 
                 // Construct key entry.
                 KeyBuffer.resize(KeyBuffer.size() + KeyColumnCount);
                 for (int i = 0; i < KeyColumnCount; ++i) {
-                    auto value = Reader->CurrentReader()->ReadValue(KeyColumns[i]);
+                    auto value = facade->ReadValue(KeyColumns[i]);
                     if (!value.IsNull()) {
                         auto& keyPart = KeyBuffer[rowIndex * KeyColumnCount + i];
                         SetSmallKeyPart(keyPart, value.ToStringBuf(), lexer);
@@ -291,7 +292,7 @@ private:
                     isNetworkReleased =  true;
                 }
 
-                if (!Reader->FetchNextItem()) {
+                if (!Reader->FetchNext()) {
                     Sync(~Reader, &TReader::GetReadyEvent);
                 }
             }

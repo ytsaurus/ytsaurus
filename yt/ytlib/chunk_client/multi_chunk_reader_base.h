@@ -1,18 +1,15 @@
 #pragma once
 
 #include "public.h"
-#include "private.h"
+#include "input_chunk.h"
 
-#include <ytlib/chunk_client/input_chunk.pb.h>
-
-#include <ytlib/chunk_client/public.h>
-#include <ytlib/misc/async_stream_state.h>
 #include <ytlib/rpc/channel.h>
+#include <ytlib/misc/async_stream_state.h>
 #include <ytlib/actions/parallel_awaiter.h>
 #include <ytlib/logging/log.h>
 
 namespace NYT {
-namespace NTableClient {
+namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,29 +17,34 @@ template <class TChunkReader>
 class TMultiChunkReaderBase
     : public virtual TRefCounted
 {
-    DEFINE_BYVAL_RO_PROPERTY(i64, ItemIndex);
-    DEFINE_BYVAL_RO_PROPERTY(i64, ItemCount);
-    DEFINE_BYVAL_RO_PROPERTY(bool, IsFetchingComplete);
+    DEFINE_BYVAL_RO_PROPERTY(volatile bool, IsFetchingComplete);
 
 public:
     typedef TIntrusivePtr<typename TChunkReader::TProvider> TProviderPtr;
 
+    // Facade provides item-level fine grained api, which differs from one chunk reader
+    // to anotherand therefore cannot be exposed by multi chunk reader
+    // (e.g compare facades for TableChunkReader and PartitionChunkReader).
+    typedef typename TChunkReader::TFacade TFacade;
+
     TMultiChunkReaderBase(
-        TTableReaderConfigPtr config,
+        TMultiChunkReaderConfigPtr config,
         NRpc::IChannelPtr masterChannel,
         NChunkClient::IBlockCachePtr blockCache,
         std::vector<NChunkClient::NProto::TInputChunk>&& inputChunks,
         const TProviderPtr& readerProvider);
 
-    const TIntrusivePtr<TChunkReader>& CurrentReader() const;
-
     virtual TAsyncError AsyncOpen() = 0;
-    virtual bool FetchNextItem() = 0;
+
+    virtual bool FetchNext() = 0;
+
+    // If nullptr is returned - reader is finished.
+    const TFacade* GetFacade() const;
     TAsyncError GetReadyEvent();
 
     std::vector<NChunkClient::TChunkId> GetFailedChunks() const;
 
-    virtual bool IsValid() const = 0;
+    TProviderPtr GetProvider();
 
 protected:
     typedef TIntrusivePtr<TChunkReader> TReaderPtr;
@@ -62,7 +64,7 @@ protected:
         { }
     };
 
-    TTableReaderConfigPtr Config;
+    TMultiChunkReaderConfigPtr Config;
     int PrefetchWindow;
 
     NRpc::IChannelPtr MasterChannel;
@@ -78,7 +80,7 @@ protected:
 
     // Protects LastPreparedReader;
     TSpinLock NextChunkLock;
-    int LastPreparedReader;
+    volatile int LastPreparedReader;
 
     TParallelAwaiterPtr FetchingCompleteAwaiter;
 
@@ -99,7 +101,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
+} // namespace NChunkClient
 } // namespace NYT
 
 #define MULTI_CHUNK_READER_BASE_INL_H_

@@ -9,7 +9,7 @@
 
 #include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
 
-#include <ytlib/table_client/multi_chunk_parallel_reader.h>
+#include <ytlib/chunk_client/multi_chunk_parallel_reader.h>
 #include <ytlib/table_client/table_chunk_writer.h>
 #include <ytlib/table_client/sync_writer.h>
 #include <ytlib/chunk_client/schema.h>

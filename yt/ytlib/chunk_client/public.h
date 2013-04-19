@@ -97,6 +97,9 @@ typedef TIntrusivePtr<TMultiChunkWriterConfig> TMultiChunkWriterConfigPtr;
 struct TMultiChunkWriterOptions;
 typedef TIntrusivePtr<TMultiChunkWriterOptions> TMultiChunkWriterOptionsPtr;
 
+struct TMultiChunkReaderConfig;
+typedef TIntrusivePtr<TMultiChunkReaderConfig> TMultiChunkReaderConfigPtr;
+
 class TEncodingWriter;
 typedef TIntrusivePtr<TEncodingWriter> TEncodingWriterPtr;
 

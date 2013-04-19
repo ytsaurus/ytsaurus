@@ -27,6 +27,12 @@ set( HDRS
   ${BASE}/chunk_ypath_proxy.h
   ${BASE}/multi_chunk_sequential_writer.h
   ${BASE}/multi_chunk_sequential_writer-inl.h
+  ${BASE}/multi_chunk_reader_base.h
+  ${BASE}/multi_chunk_reader_base-inl.h
+  ${BASE}/multi_chunk_parallel_reader.h
+  ${BASE}/multi_chunk_parallel_reader-inl.h
+  ${BASE}/multi_chunk_sequential_reader.h
+  ${BASE}/multi_chunk_sequential_reader-inl.h
   ${BASE}/client_block_cache.h
   ${BASE}/config.h
   ${BASE}/data_node_service_proxy.h

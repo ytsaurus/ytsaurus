@@ -55,28 +55,29 @@ public:
 
     virtual const TRow* GetRow() override
     {
-        if (IsReadingStarted && AsyncReader->IsValid()) {
-            if (!AsyncReader->FetchNextItem()) {
+        if (IsReadingStarted && AsyncReader->GetFacade() != nullptr) {
+            if (!AsyncReader->FetchNext()) {
                 Sync(~AsyncReader, &TAsyncReader::GetReadyEvent);
             }
         }
         IsReadingStarted = true;
-        return AsyncReader->IsValid() ? &AsyncReader->CurrentReader()->GetRow() : NULL;
+        auto* facade = AsyncReader->GetFacade();
+        return facade ? &facade->GetRow() : nullptr;
     }
 
     virtual const NChunkClient::TNonOwningKey& GetKey() const override
     {
-        return AsyncReader->CurrentReader()->GetKey();
+        return AsyncReader->GetFacade()->GetKey();
     }
 
     virtual i64 GetRowIndex() const
     {
-        return AsyncReader->GetItemIndex();
+        return AsyncReader->GetProvider()->GetRowIndex();
     }
 
     virtual i64 GetRowCount() const
     {
-        return AsyncReader->GetItemCount();
+        return AsyncReader->GetProvider()->GetRowCount();
     }
 
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunks() const
@@ -86,7 +87,7 @@ public:
 
     const NYTree::TYsonString& GetRowAttributes() const
     {
-        return AsyncReader->CurrentReader()->GetRowAttributes();
+        return AsyncReader->GetFacade()->GetRowAttributes();
     }
 
 private:

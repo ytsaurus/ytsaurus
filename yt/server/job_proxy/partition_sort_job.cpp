@@ -7,7 +7,7 @@
 
 #include <ytlib/table_client/value.h>
 #include <ytlib/table_client/partition_chunk_reader.h>
-#include <ytlib/table_client/multi_chunk_parallel_reader.h>
+#include <ytlib/chunk_client/multi_chunk_parallel_reader.h>
 #include <ytlib/table_client/table_chunk_writer.h>
 #include <ytlib/meta_state/master_channel.h>
 #include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
@@ -136,16 +136,17 @@ public:
                 auto jobSpecExt = Host->GetJobSpec().GetExtension(TSortJobSpecExt::sort_job_spec_ext);
 
                 NYson::TLexer lexer;
-                while (Reader->IsValid()) {
+                const TReader::TFacade* facade;
+                while (facade = Reader->GetFacade()) {
                     // Push row pointer.
-                    rowPtrBuffer.push_back(Reader->CurrentReader()->GetRowPointer());
+                    rowPtrBuffer.push_back(facade->GetRowPointer());
                     rowIndexHeap.push_back(rowIndexHeap.size());
                     YASSERT(rowIndexHeap.back() <= std::numeric_limits<ui32>::max());
 
                     // Push key.
                     keyBuffer.resize(keyBuffer.size() + keyColumnCount);
                     for (int i = 0; i < keyColumnCount; ++i) {
-                        auto value = Reader->CurrentReader()->ReadValue(KeyColumns[i]);
+                        auto value = facade->ReadValue(KeyColumns[i]);
                         if (!value.IsNull()) {
                             auto& keyPart = keyBuffer[rowIndexHeap.back() * keyColumnCount + i];
                             SetSmallKeyPart(keyPart, value.ToStringBuf(), lexer);
@@ -160,7 +161,7 @@ public:
                         isNetworkReleased =  true;
                     }
 
-                    if (!Reader->FetchNextItem()) {
+                    if (!Reader->FetchNext()) {
                         Sync(~Reader, &TReader::GetReadyEvent);
                     }
                 }
@@ -297,7 +298,7 @@ public:
         } else {
             // Split progress evenly between reading and writing.
             double progress =
-                0.5 * Reader->GetItemIndex() / total +
+                0.5 * Reader->GetProvider()->GetRowIndex() / total +
                 0.5 * Writer->GetProvider()->GetRowCount() / total;
             LOG_DEBUG("GetProgress: %lf", progress);
             return progress;

@@ -4,13 +4,13 @@
 #undef MULTI_CHUNK_SEQUENTIAL_READER_INL_H_
 
 namespace NYT {
-namespace NTableClient {
+namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TChunkReader>
 TMultiChunkSequentialReader<TChunkReader>::TMultiChunkSequentialReader(
-    TTableReaderConfigPtr config,
+    TMultiChunkReaderConfigPtr config,
     NRpc::IChannelPtr masterChannel,
     NChunkClient::IBlockCachePtr blockCache,
     std::vector<NChunkClient::NProto::TInputChunk>&& inputChunks,
@@ -24,10 +24,10 @@ TMultiChunkSequentialReader<TChunkReader>::TMultiChunkSequentialReader(
     , CurrentReaderIndex(-1)
 {
     LOG_DEBUG("Multi chunk sequential reader created (ChunkCount: %d)",
-        static_cast<int>(TBase::InputChunks.size()));
+        static_cast<int>(InputChunks.size()));
 
-    Sessions.reserve(TBase::InputChunks.size());
-    for (int i = 0; i < static_cast<int>(TBase::InputChunks.size()); ++i) {
+    Sessions.reserve(InputChunks.size());
+    for (int i = 0; i < static_cast<int>(InputChunks.size()); ++i) {
         Sessions.push_back(NewPromise<typename TBase::TSession>());
     }
 }
@@ -38,13 +38,13 @@ TAsyncError TMultiChunkSequentialReader<TChunkReader>::AsyncOpen()
     YCHECK(CurrentReaderIndex == -1);
     YCHECK(!State.HasRunningOperation());
 
-    for (int i = 0; i < TBase::PrefetchWindow; ++i) {
+    for (int i = 0; i < PrefetchWindow; ++i) {
         TBase::PrepareNextChunk();
     }
 
     ++CurrentReaderIndex;
 
-    if (CurrentReaderIndex < TBase::InputChunks.size()) {
+    if (CurrentReaderIndex < InputChunks.size()) {
         State.StartOperation();
         Sessions[CurrentReaderIndex].Subscribe(
             BIND(&TMultiChunkSequentialReader<TChunkReader>::SwitchCurrentChunk, MakeWeak(this))
@@ -73,15 +73,15 @@ template <class TChunkReader>
 void TMultiChunkSequentialReader<TChunkReader>::SwitchCurrentChunk(
     typename TBase::TSession nextSession)
 {
-    if (CurrentReaderIndex > 0 && !TBase::ReaderProvider->KeepInMemory()) {
+    if (CurrentReaderIndex > 0 && !ReaderProvider->KeepInMemory()) {
         Sessions[CurrentReaderIndex - 1].Reset();
     }
 
     LOG_DEBUG("Switching to reader %d", CurrentReaderIndex);
-    YCHECK(!TBase::CurrentSession.Reader);
+    YCHECK(!CurrentSession.Reader);
 
     if (nextSession.Reader) {
-        TBase::CurrentSession = nextSession;
+        CurrentSession = nextSession;
         TBase::PrepareNextChunk();
 
         if (!ValidateReader())
@@ -95,12 +95,12 @@ void TMultiChunkSequentialReader<TChunkReader>::SwitchCurrentChunk(
 template <class TChunkReader>
 bool TMultiChunkSequentialReader<TChunkReader>::ValidateReader()
 {
-    if (!TBase::CurrentSession.Reader->IsValid()) {
-        TBase::ProcessFinishedReader(TBase::CurrentSession);
-        TBase::CurrentSession = typename TBase::TSession();
+    if (!CurrentSession.Reader->GetFacade()) {
+        TBase::ProcessFinishedReader(CurrentSession);
+        CurrentSession = typename TBase::TSession();
 
         ++CurrentReaderIndex;
-        if (CurrentReaderIndex < TBase::InputChunks.size()) {
+        if (CurrentReaderIndex < InputChunks.size()) {
             if (!State.HasRunningOperation())
                 State.StartOperation();
 
@@ -115,24 +115,18 @@ bool TMultiChunkSequentialReader<TChunkReader>::ValidateReader()
 }
 
 template <class TChunkReader>
-bool TMultiChunkSequentialReader<TChunkReader>::FetchNextItem()
+bool TMultiChunkSequentialReader<TChunkReader>::FetchNext()
 {
     YCHECK(!State.HasRunningOperation());
-    YCHECK(IsValid());
+    YCHECK(TBase::GetFacade());
 
-    if (TBase::CurrentSession.Reader->FetchNextItem()) {
-        if (!ValidateReader()) {
-            return false;
-        }
-
-        if (TBase::CurrentSession.Reader) {
-            ++TBase::ItemIndex_;
-        }
-        return true;
+    if (CurrentSession.Reader->FetchNext()) {
+        return ValidateReader();
     } else {
         State.StartOperation();
-        TBase::CurrentSession.Reader->GetReadyEvent().Subscribe(
-            BIND(IgnoreResult(&TMultiChunkSequentialReader<TChunkReader>::OnItemFetched), MakeWeak(this)));
+        CurrentSession.Reader->GetReadyEvent().Subscribe(BIND(
+            IgnoreResult(&TMultiChunkSequentialReader<TChunkReader>::OnItemFetched),
+            MakeWeak(this)));
         return false;
     }
 }
@@ -141,26 +135,19 @@ template <class TChunkReader>
 void TMultiChunkSequentialReader<TChunkReader>::OnItemFetched(TError error)
 {
     YCHECK(State.HasRunningOperation());
+
     if (!error.IsOK()) {
-        TBase::AddFailedChunk(TBase::CurrentSession);
+        TBase::AddFailedChunk(CurrentSession);
         State.Fail(error);
         return;
     }
 
     if (ValidateReader()) {
-        ++TBase::ItemIndex_;
         State.FinishOperation();
     }
 }
 
-template <class TChunkReader>
-bool TMultiChunkSequentialReader<TChunkReader>::IsValid() const
-{
-    YCHECK(!State.HasRunningOperation());
-    return TBase::CurrentSession.Reader;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
+} // namespace NChunkClient
 } // namespace NYT

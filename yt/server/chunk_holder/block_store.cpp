@@ -116,6 +116,7 @@ public:
 
     TAsyncGetBlockResult Get(
         const TBlockId& blockId,
+        i64 priority,
         bool enableCaching)
     {
         // During block peering, data nodes exchange individual blocks, not the complete chunks.
@@ -158,17 +159,19 @@ public:
             blockSize = IncreasePendingSize(*meta, blockId.BlockIndex);
         }
 
+        auto action = BIND(
+            &TStoreImpl::DoReadBlock,
+            MakeStrong(this),
+            chunk,
+            blockId,
+            cookie,
+            blockSize,
+            enableCaching); 
+
         chunk
             ->GetLocation()
             ->GetDataReadInvoker()
-            ->Invoke(BIND(
-                &TStoreImpl::DoReadBlock,
-                MakeStrong(this),
-                chunk,
-                blockId,
-                cookie,
-                blockSize,
-                enableCaching));
+            ->Invoke(action, priority);
 
         return cookie->GetValue();
     }
@@ -338,9 +341,13 @@ TBlockStore::~TBlockStore()
 
 TBlockStore::TAsyncGetBlockResult TBlockStore::GetBlock(
     const TBlockId& blockId,
+    i64 priority,
     bool enableCaching)
 {
-    return StoreImpl->Get(blockId, enableCaching);
+    return StoreImpl->Get(
+        blockId,
+        priority,
+        enableCaching);
 }
 
 TCachedBlockPtr TBlockStore::FindBlock(const TBlockId& blockId)

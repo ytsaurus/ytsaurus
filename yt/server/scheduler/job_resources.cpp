@@ -3,7 +3,7 @@
 
 #include <ytlib/ytree/fluent.h>
 
-#include <ytlib/table_client/private.h>
+#include <ytlib/chunk_client/private.h>
 
 #include <server/job_proxy/config.h>
 
@@ -15,8 +15,8 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NJobProxy;
 
-using NTableClient::MaxPrefetchWindow;
-using NTableClient::ChunkReaderMemorySize;
+using NChunkClient::MaxPrefetchWindow;
+using NChunkClient::ChunkReaderMemorySize;
 
 ////////////////////////////////////////////////////////////////////
 
