@@ -17,12 +17,12 @@ int ICodec::GetTotalBlockCount()
 ICodec* GetCodec(ECodec id)
 {
     switch (id) {
-        case ECodec::ReedSolomon_6_3: {
+        case ECodec::ReedSolomon: {
             static TCauchyReedSolomon result(6, 3, 8);
             return &result;
         }
 
-        case ECodec::Lrc_12_2_2: {
+        case ECodec::Lrc: {
             static TLrc result(12);
             return &result;
         }
@@ -31,7 +31,7 @@ ICodec* GetCodec(ECodec id)
             YUNREACHABLE();
     }
 }
-    
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NErasure
