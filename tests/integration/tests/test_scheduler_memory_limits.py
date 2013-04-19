@@ -21,10 +21,13 @@ class TestSchedulerMemoryLimits(YTEnvSetup):
     NUM_NODES = 5
     START_SCHEDULER = True
 
-    DELTA_NODE_CONFIG = {'exec_agent' :
-        {'enforce_job_control' : 'true',
-         'memory_watchdog_period' : 100}}
-
+    DELTA_NODE_CONFIG = \
+        {'exec_agent' :
+            {'slot_manager' :
+                  {'enforce_job_control'    : 'true',
+                   'memory_watchdog_period' : 100}
+            }
+        }
 
     #pytest.mark.xfail(run = False, reason = 'Set-uid-root before running.')
     def test_map(self):
@@ -45,7 +48,8 @@ while True:
              in_='//tmp/t_in',
              out='//tmp/t_out',
              command="python mapper.py",
-             file='//tmp/mapper.py')
+             file='//tmp/mapper.py',
+             opt=['/spec/max_failed_job_count=5'])
 
         # if all jobs failed then operation is also failed
         with pytest.raises(YTError): track_op(op_id)
