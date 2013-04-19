@@ -3,7 +3,6 @@
 #include "public.h"
 #include "config.h"
 #include "chunk_replica.h"
-#include "replication_writer.h"
 
 #include <ytlib/misc/async_stream_state.h>
 
@@ -71,13 +70,13 @@ protected:
     struct TSession
     {
         TIntrusivePtr<TChunkWriter> ChunkWriter;
-        IAsyncWriterPtr RemoteWriter;
+        IAsyncWriterPtr AsyncWriter;
         std::vector<TChunkReplica> Replicas;
         TChunkId ChunkId;
 
         TSession()
             : ChunkWriter(NULL)
-            , RemoteWriter(NULL)
+            , AsyncWriter(NULL)
         { }
 
         bool IsNull() const
@@ -88,7 +87,7 @@ protected:
         void Reset()
         {
             ChunkWriter.Reset();
-            RemoteWriter.Reset();
+            AsyncWriter.Reset();
             ChunkId = TChunkId();
         }
     };

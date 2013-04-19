@@ -7,17 +7,17 @@
 #include "chunk_list_ypath_proxy.h"
 #include "chunk_ypath_proxy.h"
 #include "dispatcher.h"
+#include "chunk_ypath_proxy.h"
+#include "erasure_writer.h"
+#include "replication_writer.h"
+
+#include <ytlib/erasure/codec.h>
 
 #include <ytlib/misc/string.h>
 #include <ytlib/misc/address.h>
 #include <ytlib/misc/protobuf_helpers.h>
 
 #include <ytlib/transaction_client/transaction_ypath_proxy.h>
-
-#include <ytlib/chunk_client/chunk_list_ypath_proxy.h>
-#include <ytlib/chunk_client/chunk_ypath_proxy.h>
-#include <ytlib/chunk_client/dispatcher.h>
-#include <ytlib/chunk_client/chunk_replica.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
@@ -135,7 +135,11 @@ void TMultiChunkSequentialWriter<TChunkWriter>::CreateNextSession()
 
     auto req = NObjectClient::TMasterYPathProxy::CreateObject();
     ToProto(req->mutable_transaction_id(), TransactionId);
-    req->set_type(NObjectClient::EObjectType::Chunk);
+
+    req->set_type(Config->ErasureCodec == NErasure::ECodec::None
+        ? NObjectClient::EObjectType::Chunk
+        : NObjectClient::EObjectType::ErasureChunk);
+
     req->set_account(Options->Account);
     NMetaState::GenerateRpcMutationId(req);
 
@@ -147,6 +151,8 @@ void TMultiChunkSequentialWriter<TChunkWriter>::CreateNextSession()
     reqExt->set_upload_replication_factor(UploadReplicationFactor);
     reqExt->set_movable(Config->ChunksMovable);
     reqExt->set_vital(Config->ChunksVital);
+
+    reqExt->set_erasure_codec(Config->ErasureCodec);
 
     objectProxy.Execute(req).Subscribe(
         BIND(&TMultiChunkSequentialWriter::OnChunkCreated, MakeWeak(this))
@@ -189,14 +195,33 @@ void TMultiChunkSequentialWriter<TChunkWriter>::OnChunkCreated(
     LOG_DEBUG("Chunk created (ChunkId: %s)",
         ~ToString(chunkId));
 
-    auto targets = NodeDirectory->GetDescriptors(session.Replicas);
     session.ChunkId = chunkId;
-    session.RemoteWriter = CreateReplicationWriter(
-        Config,
-        chunkId,
-        targets);
-    session.RemoteWriter->Open();
 
+    if (Config->ErasureCodec == NErasure::ECodec::None) {
+        auto targets = NodeDirectory->GetDescriptors(session.Replicas);
+        session.AsyncWriter = CreateReplicationWriter(
+            Config,
+            chunkId,
+            targets);
+    } else {
+        auto* erasureCodec = NErasure::GetCodec(Config->ErasureCodec);
+        YCHECK(session.Replicas.size() == erasureCodec->GetTotalBlockCount());
+
+        std::vector<IAsyncWriterPtr> writers;
+        writers.reserve(erasureCodec->GetTotalBlockCount());
+
+        for (int i = 0; i < erasureCodec->GetTotalBlockCount(); ++i) {
+            auto partId = PartIdFromErasureChunkId(chunkId, i);
+            std::vector<NNodeTrackerClient::TNodeDescriptor> target(
+                1,
+                NodeDirectory->GetDescriptor(session.Replicas[i]));
+            writers.push_back(CreateReplicationWriter(Config, partId, target));
+        }
+
+        session.AsyncWriter = CreateErasureWriter(Config, erasureCodec, writers);
+    }
+
+    session.AsyncWriter->Open();
     NextSession.Set(session);
 }
 
@@ -211,7 +236,7 @@ void TMultiChunkSequentialWriter<TChunkWriter>::InitCurrentSession(TSession next
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    nextSession.ChunkWriter = Provider->CreateChunkWriter(nextSession.RemoteWriter);
+    nextSession.ChunkWriter = Provider->CreateChunkWriter(nextSession.AsyncWriter);
     CurrentSession = nextSession;
 
     NextSession.Reset();
@@ -287,7 +312,7 @@ void TMultiChunkSequentialWriter<TChunkWriter>::OnChunkClosed(
         return;
     }
 
-    auto remoteWriter = currentSession.RemoteWriter;
+    auto asyncWriter = currentSession.AsyncWriter;
     auto chunkWriter = currentSession.ChunkWriter;
 
     CompleteChunkSize += chunkWriter->GetCurrentSize();
@@ -296,7 +321,7 @@ void TMultiChunkSequentialWriter<TChunkWriter>::OnChunkClosed(
         ~ToString(currentSession.ChunkId));
 
     std::vector<TChunkReplica> replicas;
-    FOREACH (int index, remoteWriter->GetWrittenIndexes()) {
+    FOREACH (int index, asyncWriter->GetWrittenIndexes()) {
         replicas.push_back(currentSession.Replicas[index]);
     }
 
@@ -306,7 +331,7 @@ void TMultiChunkSequentialWriter<TChunkWriter>::OnChunkClosed(
         auto req = TChunkYPathProxy::Confirm(
             NCypressClient::FromObjectId(currentSession.ChunkId));
         NMetaState::GenerateRpcMutationId(req);
-        *req->mutable_chunk_info() = remoteWriter->GetChunkInfo();
+        *req->mutable_chunk_info() = asyncWriter->GetChunkInfo();
         NYT::ToProto(req->mutable_replicas(), replicas);
         *req->mutable_chunk_meta() = chunkWriter->GetMasterMeta();
 

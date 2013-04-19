@@ -7,6 +7,7 @@
 #include <ytlib/ytree/yson_serializable.h>
 
 #include <ytlib/compression/public.h>
+#include <ytlib/erasure/public.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -242,6 +243,7 @@ public:
 
 class TMultiChunkWriterConfig
     : public TReplicationWriterConfig
+    , public TErasureWriterConfig
 {
 public:
     i64 DesiredChunkSize;
@@ -253,6 +255,8 @@ public:
     bool ChunksVital;
 
     bool PreferLocalHost;
+
+    NErasure::ECodec ErasureCodec;
 
     TMultiChunkWriterConfig()
     {
@@ -272,6 +276,8 @@ public:
             .Default(true);
         RegisterParameter("prefer_local_host", PreferLocalHost)
             .Default(true);
+        RegisterParameter("erasure_codec", ErasureCodec)
+            .Default(NErasure::ECodec::None);
     }
 };
 
