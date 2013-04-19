@@ -97,7 +97,6 @@ void TMultiChunkParallelReader<TChunkReader>::ProcessReadyReader(
     }
 
     if ((session.Reader || isReadingComplete) && finishOperation) {
-        YCHECK(State.HasRunningOperation());
         YCHECK(!CurrentSession.Reader || CurrentSession.Reader->GetFacade());
         State.FinishOperation();
     }
