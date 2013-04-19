@@ -592,14 +592,7 @@ void TChunkReplicator::ComputeErasureChunkStatus(TChunk* chunk)
 
     if (replicaIndexSet != (dataIndexSet | parityIndexSet)) {
         // Something is damaged.
-        // TODO(babenko): eliminate this
-        NErasure::TBlockIndexList list;
-        for (int i = 0; i < dataBlockCount + partityBlockCount; ++i) {
-            if (replicaIndexSet & (1 << i)) {
-                list.push_back(i);
-            }
-        }
-        if (!codec->CanRepair(list)) {
+        if (!codec->CanRepair(replicaIndexSet)) {
             // Lost!
             YCHECK(LostChunks_.insert(chunk).second);
             if (chunk->GetVital()) {

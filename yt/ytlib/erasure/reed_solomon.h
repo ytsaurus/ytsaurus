@@ -27,6 +27,8 @@ public:
 
     virtual bool CanRepair(const TBlockIndexList& erasedIndices) override;
 
+    virtual bool CanRepair(const TBlockIndexSet& erasedIndicesMask) override;
+
     virtual TNullable<TBlockIndexList> GetRepairIndices(const TBlockIndexList& erasedIndices) override;
 
     virtual int GetDataBlockCount() override;

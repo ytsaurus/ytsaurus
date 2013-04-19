@@ -210,6 +210,24 @@ bool TLrc::CanRepair(const TBlockIndexList& erasedIndices)
     }
 }
 
+bool TLrc::CanRepair(const TBlockIndexSet& erasedIndicesMask)
+{
+    auto totalBlockCount = BlockCount_ + ParityCount_;
+    if (totalBlockCount <= BITMASK_OPTIMIZATION_THRESHOLD) {
+        auto mask = erasedIndicesMask;
+        return CanRepair_[mask.flip().to_ulong()];
+    }
+    else {
+        TBlockIndexList erasedIndices;
+        for (int i = 0; i < erasedIndicesMask.size(); ++i) {
+            if (erasedIndicesMask[i]) {
+                erasedIndices.push_back(i);
+            }
+        }
+        return CalculateCanRepair(erasedIndices);
+    }
+}
+
 bool TLrc::CalculateCanRepair(const TBlockIndexList& erasedIndices)
 {
     TBlockIndexList indices = UniqueSortedIndices(erasedIndices);

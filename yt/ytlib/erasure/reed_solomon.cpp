@@ -62,6 +62,11 @@ bool TCauchyReedSolomon::CanRepair(const TBlockIndexList& erasedIndices)
     return erasedIndices.size() <= ParityCount_;
 }
 
+bool TCauchyReedSolomon::CanRepair(const TBlockIndexSet& erasedIndices)
+{
+    return erasedIndices.count() <= ParityCount_;
+}
+
 int TCauchyReedSolomon::GetDataBlockCount()
 {
     return BlockCount_;

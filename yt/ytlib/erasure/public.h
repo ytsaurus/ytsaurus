@@ -3,6 +3,8 @@
 #include <ytlib/misc/common.h>
 #include <ytlib/misc/small_vector.h>
 
+#include <bitset>
+
 namespace NYT {
 namespace NErasure {
 
@@ -15,7 +17,7 @@ const int MaxTotalBlockCount = 16;
 typedef TSmallVector<int, MaxTotalBlockCount> TBlockIndexList;
 
 //! Each bit corresponds to a possible block index.
-typedef ui32 TBlockIndexSet;
+typedef std::bitset<MaxTotalBlockCount> TBlockIndexSet;
 
 struct ICodec;
 
