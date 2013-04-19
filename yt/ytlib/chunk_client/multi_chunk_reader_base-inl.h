@@ -7,10 +7,13 @@
 #include "config.h"
 #include "chunk_replica.h"
 #include "block_cache.h"
-#include "replication_reader.h"
 #include "async_reader.h"
 #include "dispatcher.h"
 #include "chunk_meta_extensions.h"
+#include "replication_reader.h"
+#include "erasure_reader.h"
+
+#include <ytlib/erasure/codec.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
@@ -95,23 +98,68 @@ void TMultiChunkReaderBase<TChunkReader>::PrepareNextChunk()
     TSession session;
     session.ChunkIndex = chunkIndex;
     const auto& inputChunk = InputChunks[chunkIndex];
-    auto chunkId = NYT::FromProto<NChunkClient::TChunkId>(inputChunk.chunk_id());
-    auto replicas = NYT::FromProto<NChunkClient::TChunkReplica, NChunkClient::TChunkReplicaList>(inputChunk.replicas());
+
+    auto chunkId = NYT::FromProto<TChunkId>(inputChunk.chunk_id());
+    auto replicas = NYT::FromProto<TChunkReplica, TChunkReplicaList>(inputChunk.replicas());
 
     LOG_DEBUG("Opening chunk (ChunkIndex: %d, ChunkId: %s)",
         chunkIndex,
         ~ToString(chunkId));
 
-    auto remoteReader = CreateReplicationReader(
-        Config,
-        BlockCache,
-        MasterChannel,
-        NodeDirectory,
-        Null,
-        chunkId,
-        replicas);
+    IAsyncReaderPtr asyncReader;
+    if (IsErasureChunkId(chunkId)) {
+        std::sort(
+            replicas.begin(),
+            replicas.end(),
+            [] (const TChunkReplica& lhs, const TChunkReplica& rhs) {
+                return lhs.GetIndex() < rhs.GetIndex();
+            });
 
-    session.Reader = ReaderProvider->CreateReader(inputChunk, remoteReader);
+        auto* erasureCodec = NErasure::GetCodec(NErasure::ECodec(inputChunk.erasure_codec()));
+        auto dataBlockCount = erasureCodec->GetDataBlockCount();
+
+        std::vector<IAsyncReaderPtr> readers;
+        readers.reserve(dataBlockCount);
+
+        TChunkReplicaList partReplicas;
+        FOREACH(const auto& replica, replicas) {
+            if (!partReplicas.empty()) {
+                auto partIndex = partReplicas.front().GetIndex();
+                if (replica.GetIndex() != partIndex) {
+                    readers.push_back(CreateReplicationReader(
+                        Config,
+                        BlockCache,
+                        MasterChannel,
+                        NodeDirectory,
+                        Null,
+                        PartIdFromErasureChunkId(chunkId, partIndex),
+                        partReplicas));
+                    partReplicas.clear();
+                }
+            }
+
+            if (replica.GetIndex() >= dataBlockCount) {
+                YCHECK(partReplicas.empty());
+                break;
+            }
+
+            partReplicas.push_back(replica);
+        }
+
+        YCHECK(readers.size() == dataBlockCount);
+        asyncReader = CreateNonReparingErasureReader(readers);
+    } else {
+        asyncReader = CreateReplicationReader(
+            Config,
+            BlockCache,
+            MasterChannel,
+            NodeDirectory,
+            Null,
+            chunkId,
+            replicas);
+    }
+
+    session.Reader = ReaderProvider->CreateReader(inputChunk, asyncReader);
 
     session.Reader->AsyncOpen()
         .Subscribe(BIND(

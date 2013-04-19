@@ -67,7 +67,6 @@ private:
     typedef TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, IEntityNode, TTableNode> TBase;
 
     class TFetchChunkVisitor;
-    typedef TIntrusivePtr<TFetchChunkVisitor> TFetchChunkProcessorPtr;
 
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override;
     virtual bool GetSystemAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
@@ -210,6 +209,7 @@ private:
         }
 
         ToProto(inputChunk->mutable_chunk_id(), chunk->GetId());
+        inputChunk->set_erasure_codec(chunk->GetErasureCodec());
         *inputChunk->mutable_start_limit() = startLimit;
         *inputChunk->mutable_end_limit() = endLimit;
 

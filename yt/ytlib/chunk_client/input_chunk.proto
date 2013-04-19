@@ -65,6 +65,8 @@ message TInputChunk
     optional int32 table_index = 7;
 
     optional int32 partition_tag = 8 [default = -1];
+
+    optional int32 erasure_codec = 9 [default = 0];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
