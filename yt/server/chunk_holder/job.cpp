@@ -199,9 +199,9 @@ protected:
     void SetFinished(const TError& error)
     {
         if (error.IsOK()) {
-            SetFailed(error);
-        } else {
             SetCompleted();
+        } else {
+            SetFailed(error);
         }
     }
 

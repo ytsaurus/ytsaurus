@@ -190,7 +190,6 @@ void TChunkReplicator::ProcessExistingJobs(
     auto chunkManager = Bootstrap->GetChunkManager();
     FOREACH (const auto& job, currentJobs) {
         const auto& jobId = job->GetJobId();
-        auto* chunk = chunkManager->FindChunk(job->GetChunkId());
 
         switch (job->GetState()) {
             case EJobState::Running:
@@ -211,11 +210,6 @@ void TChunkReplicator::ProcessExistingJobs(
             case EJobState::Failed:
             case EJobState::Aborted: {
                 jobsToRemove->push_back(job);
-
-                if (chunk) {
-                    ScheduleChunkRefresh(chunk);
-                }
-
                 switch (job->GetState()) {
                     case EJobState::Completed:
                         LOG_INFO("Job completed (JobId: %s, Address: %s)",
