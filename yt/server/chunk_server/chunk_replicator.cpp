@@ -610,8 +610,6 @@ void TChunkReplicator::ComputeRegularChunkStatus(TChunk* chunk)
 
 void TChunkReplicator::ComputeErasureChunkStatus(TChunk* chunk)
 {
-    const auto& chunkId = chunk->GetId();
-
     // Check data and parity parts.
     NErasure::TBlockIndexSet replicaIndexSet(0);
     int replicaCount[NErasure::MaxTotalBlockCount] = {};
