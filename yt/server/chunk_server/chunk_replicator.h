@@ -41,12 +41,12 @@ public:
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, DataMissingChunks);
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, ParityMissingChunks);
 
-    void OnChunkRemoved(TChunk* chunk);
+    void ResetChunk(TChunk* chunk);
 
     void ScheduleChunkRefresh(const TChunkId& chunkId);
     void ScheduleChunkRefresh(TChunk* chunk);
 
-    void ScheduleChunkRemoval(TNode* node, const TChunkId& chunkdId);
+    void ScheduleUnknownChunkRemoval(TNode* node, const TChunkId& chunkdId);
     void ScheduleChunkRemoval(TNode* node, TChunkPtrWithIndex chunkWithIndex);
 
     void ScheduleRFUpdate(TChunkTree* chunkTree);
@@ -91,6 +91,8 @@ private:
     yhash_map<TJobId, TJobPtr> JobMap;
     yhash_map<TChunkId, TJobListPtr> JobListMap;
 
+    yhash_set<TChunk*> ChunksToRepair;
+
     void ProcessExistingJobs(
         TNode* node,
         const std::vector<TJobPtr>& currentJobs,
@@ -105,7 +107,7 @@ private:
 
     EScheduleFlags ScheduleReplicationJob(
         TNode* sourceNode,
-        const TChunkId& chunkId,
+        TChunk* chunk,
         TJobPtr* job);
     EScheduleFlags ScheduleBalancingJob(
         TNode* sourceNode,
@@ -115,7 +117,11 @@ private:
     EScheduleFlags ScheduleRemovalJob(
         TNode* node,
         const TChunkId& chunkId,
-        TJobPtr* jobsToStart);
+        TJobPtr* job);
+    EScheduleFlags ScheduleRepairJobs(
+        TNode* node,
+        TChunk* chunk,
+        TJobPtr* job);
     void ScheduleNewJobs(
         TNode* node,
         std::vector<TJobPtr>* jobsToStart);

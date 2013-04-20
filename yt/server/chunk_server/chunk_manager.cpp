@@ -730,27 +730,29 @@ private:
             UnstageChunk(chunk);
         }
 
+        // Cancel all jobs, reset status etc.
+        if (ChunkReplicator) {
+            ChunkReplicator->ResetChunk(chunk);
+        }
+
         // Unregister chunk replicas from all known locations.
-        auto scheduleRemoval = [&] (TNodePtrWithIndex nodeWithIndex, bool cached) {
-            ScheduleChunkReplicaRemoval(
-                nodeWithIndex.GetPtr(),
-                TChunkPtrWithIndex(chunk, nodeWithIndex.GetIndex()),
-                cached);
+        auto unregisterReplica = [&] (TNodePtrWithIndex nodeWithIndex, bool cached) {
+            auto* node = nodeWithIndex.GetPtr();
+            TChunkPtrWithIndex chunkWithIndex(chunk, nodeWithIndex.GetIndex());
+            node->RemoveReplica(chunkWithIndex, cached);
+            if (ChunkReplicator && !cached) {
+                ChunkReplicator->ScheduleChunkRemoval(node, chunkWithIndex);
+            }
         };
 
         FOREACH (auto replica, chunk->StoredReplicas()) {
-            scheduleRemoval(replica, false);
+            unregisterReplica(replica, false);
         }
 
         if (~chunk->CachedReplicas()) {
             FOREACH (auto replica, *chunk->CachedReplicas()) {
-                scheduleRemoval(replica, true);
+                unregisterReplica(replica, true);
             }
-        }
-
-        // Notify the replicator about chunk's death.
-        if (ChunkReplicator) {
-            ChunkReplicator->OnChunkRemoved(chunk);
         }
 
         Profiler.Increment(RemoveChunkCounter);
@@ -1089,13 +1091,6 @@ private:
         }
     }
 
-    void ScheduleChunkReplicaRemoval(TNode* node, TChunkPtrWithIndex chunkWithIndex, bool cached)
-    {
-        node->RemoveReplica(chunkWithIndex, cached);
-        if (!cached && IsLeader()) {
-            ChunkReplicator->ScheduleChunkRemoval(node, chunkWithIndex);
-        }
-    }
 
     DECLARE_ENUM(ERemoveReplicaReason,
         (IncrementalHeartbeat)
@@ -1177,7 +1172,7 @@ private:
                 ~FormatBool(cached));
 
             if (IsLeader()) {
-                ChunkReplicator->ScheduleChunkRemoval(node, chunkId);
+                ChunkReplicator->ScheduleUnknownChunkRemoval(node, chunkId);
             }
 
             return;

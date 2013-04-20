@@ -31,6 +31,7 @@ class TNode
     // Import third-party types into the scope.
     typedef NChunkServer::TChunkPtrWithIndex TChunkPtrWithIndex;
     typedef NChunkServer::TChunkId TChunkId;
+    typedef NChunkServer::TChunk TChunk;
     typedef NChunkServer::TJobPtr TJobPtr;
 
     DEFINE_BYVAL_RO_PROPERTY(TNodeId, Id);
@@ -50,13 +51,14 @@ class TNode
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TJobPtr>, Jobs);
     DEFINE_BYVAL_RW_PROPERTY(int, HintedSessionCount);
 
-    //! NB: Ids are used instead of raw pointers since these chunks are typically already dead.
-    typedef yhash_set<TChunkId> TChunkIdSet;
 
+    typedef yhash_set<TChunk*> TChunkSet;
     //! Indexed by priority.
-    typedef std::vector<TChunkIdSet> TChunksToReplicate;
+    typedef std::vector<TChunkSet> TChunksToReplicate;
     DEFINE_BYREF_RW_PROPERTY(TChunksToReplicate, ChunksToReplicate);
 
+    //! NB: Ids are used instead of raw pointers since these chunks may already be dead.
+    typedef yhash_set<TChunkId> TChunkIdSet;
     typedef TChunkIdSet TChunksToRemove;
     DEFINE_BYREF_RW_PROPERTY(TChunksToRemove, ChunksToRemove);
 
