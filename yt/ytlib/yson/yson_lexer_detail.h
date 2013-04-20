@@ -301,6 +301,10 @@ class TYsonStatelessLexerImplBase
 {
 public:
     virtual size_t GetToken(const TStringBuf& data, TToken* token) = 0;
+
+    virtual ~TYsonStatelessLexerImplBase()
+    { }
+
 };
 
 template <bool EnableLinePositionInfo>
