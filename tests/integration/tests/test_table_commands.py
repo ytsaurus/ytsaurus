@@ -434,7 +434,7 @@ class TestTableCommands(YTEnvSetup):
         sleep(3)
         self._check_replication_factor('//tmp/t', 4)
 
-	def test_replication_factor_update3(self):
+    def test_replication_factor_update3(self):
         create('table', '//tmp/t')
         tx = start_transaction()
         for i in xrange(0, 5):
