@@ -297,25 +297,25 @@ public:
 /*! \endinternal */
 } // namespace NDetail
 
-class TYsonStatelessLexerImplBase
+class TStatelessYsonLexerImplBase
 {
 public:
     virtual size_t GetToken(const TStringBuf& data, TToken* token) = 0;
 
-    virtual ~TYsonStatelessLexerImplBase()
+    virtual ~TStatelessYsonLexerImplBase()
     { }
 
 };
 
 template <bool EnableLinePositionInfo>
-class TYsonStatelessLexerImpl : public TYsonStatelessLexerImplBase
+class TStatelesYsonLexerImpl : public TStatelessYsonLexerImplBase
 {
 private:
     typedef NDetail::TLexer<TStringReader, EnableLinePositionInfo> TLexer;
     TLexer Lexer;
 
 public:
-    TYsonStatelessLexerImpl()
+    TStatelesYsonLexerImpl()
         : Lexer(TStringReader())
     { }
     
