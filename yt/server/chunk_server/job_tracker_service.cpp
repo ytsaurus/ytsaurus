@@ -139,12 +139,17 @@ private:
                     break;
 
                 case EJobType::RepairChunk: {
-                    auto* repairJobSpecExt = jobSpec->MutableExtension(TRepairJobSpecExt::repair_job_spec_ext);
-                    TNodeDirectoryBuilder builder(repairJobSpecExt->mutable_node_directory());
                     auto chunk = chunkManager->GetChunk(job->GetChunkId());
+                    auto* repairJobSpecExt = jobSpec->MutableExtension(TRepairJobSpecExt::repair_job_spec_ext);
+                    repairJobSpecExt->set_erasure_codec(chunk->GetErasureCodec());
+                    TNodeDirectoryBuilder builder(repairJobSpecExt->mutable_node_directory());
                     FOREACH (auto replica, chunk->StoredReplicas()) {
                         builder.Add(replica);
                         repairJobSpecExt->add_replicas(NYT::ToProto<ui32>(replica));
+                    }
+                    FOREACH (const auto& targetAddress, job->TargetAddresses()) {
+                        auto* target = nodeTracker->FindNodeByAddress(targetAddress);
+                        ToProto(repairJobSpecExt->add_target_descriptors(), target->GetDescriptor());
                     }
                     break;
                 }

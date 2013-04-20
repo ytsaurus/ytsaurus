@@ -47,7 +47,8 @@ public:
 
     static TJobPtr CreateRepair(
         const TChunkId& chunkId,
-        NNodeTrackerServer::TNode* node);
+        NNodeTrackerServer::TNode* node,
+        const std::vector<Stroka>& targetAddresses);
 
     TJob(
         EJobType type,

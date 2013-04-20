@@ -14,7 +14,7 @@ namespace NChunkClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-class TRemoteReaderConfig
+class TReplicationReaderConfig
     : public virtual TYsonSerializable
 {
 public:
@@ -46,7 +46,7 @@ public:
     //! If True then the master may be asked for seeds.
     bool AllowFetchingSeedsFromMaster;
 
-    TRemoteReaderConfig()
+    TReplicationReaderConfig()
     {
         RegisterParameter("node_rpc_timeout", NodeRpcTimeout)
             .Default(TDuration::Seconds(120));
@@ -302,7 +302,7 @@ struct TMultiChunkWriterOptions
 ///////////////////////////////////////////////////////////////////////////////
 
 struct TMultiChunkReaderConfig
-    : public virtual TRemoteReaderConfig
+    : public virtual TReplicationReaderConfig
     , public virtual TSequentialReaderConfig
 {
     i64 MaxBufferSize;

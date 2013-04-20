@@ -52,7 +52,7 @@ public:
 
 class TFileReaderConfig
     : public NChunkClient::TSequentialReaderConfig
-    , public NChunkClient::TRemoteReaderConfig
+    , public NChunkClient::TReplicationReaderConfig
 { };
 
 ////////////////////////////////////////////////////////////////////////////////

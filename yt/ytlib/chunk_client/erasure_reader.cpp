@@ -705,11 +705,11 @@ private:
 ///////////////////////////////////////////////////////////////////////////////
 // Repair reader of all parts
 
-class TRepairAllParts
+class TRepairAllPartsSession
     : public TRefCounted
 {
 public:
-    TRepairAllParts(
+    TRepairAllPartsSession(
         NErasure::ICodec* codec,
         const TBlockIndexList& erasedIndices,
         const std::vector<IAsyncReaderPtr>& readers,
@@ -738,7 +738,7 @@ public:
             return Finalize();
         }
         return Reader_->RepairNextBlock()
-            .Apply(BIND(&TRepairAllParts::OnBlockRepaired, MakeStrong(this)));
+            .Apply(BIND(&TRepairAllPartsSession::OnBlockRepaired, MakeStrong(this)));
     }
     
 private:
@@ -764,7 +764,7 @@ private:
     {
         auto this_ = MakeStrong(this);
         return Readers_.front()->AsyncGetChunkMeta().Apply(
-            BIND(&TRepairAllParts::OnGotChunkMeta, MakeStrong(this)));
+            BIND(&TRepairAllPartsSession::OnGotChunkMeta, MakeStrong(this)));
     }
 
     TAsyncError OnGotChunkMeta(IAsyncReader::TGetMetaResult metaOrError)
@@ -807,8 +807,8 @@ TAsyncError RepairErasedBlocks(
     const std::vector<IAsyncReaderPtr>& readers,
     const std::vector<IAsyncWriterPtr>& writers)
 {
-    auto repair = New<TRepairAllParts>(codec, erasedIndices, readers, writers);
-    return BIND(&TRepairAllParts::Run, repair)
+    auto repair = New<TRepairAllPartsSession>(codec, erasedIndices, readers, writers);
+    return BIND(&TRepairAllPartsSession::Run, repair)
         .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
         .Run();
 }

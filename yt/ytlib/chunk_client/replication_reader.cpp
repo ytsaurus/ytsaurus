@@ -54,7 +54,7 @@ public:
     typedef TPromise<TGetSeedsResult> TAsyncGetSeedsPromise;
 
     TReplicationReader(
-        TRemoteReaderConfigPtr config,
+        TReplicationReaderConfigPtr config,
         IBlockCachePtr blockCache,
         IChannelPtr masterChannel,
         TNodeDirectoryPtr nodeDirectory,
@@ -109,7 +109,7 @@ private:
     friend class TReadSession;
     friend class TGetMetaSession;
 
-    TRemoteReaderConfigPtr Config;
+    TReplicationReaderConfigPtr Config;
     IBlockCachePtr BlockCache;
     TNodeDirectoryPtr NodeDirectory;
     TNullable<TNodeDescriptor> LocalDescriptor;
@@ -929,7 +929,7 @@ TReplicationReader::TAsyncGetMetaResult TReplicationReader::AsyncGetChunkMeta(
 ///////////////////////////////////////////////////////////////////////////////
 
 IAsyncReaderPtr CreateReplicationReader(
-    TRemoteReaderConfigPtr config,
+    TReplicationReaderConfigPtr config,
     IBlockCachePtr blockCache,
     NRpc::IChannelPtr masterChannel,
     TNodeDirectoryPtr nodeDirectory,

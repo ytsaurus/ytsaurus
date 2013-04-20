@@ -8,20 +8,28 @@
 #include "private.h"
 
 #include <ytlib/misc/protobuf_helpers.h>
+#include <ytlib/misc/string.h>
+
+#include <ytlib/erasure/codec.h>
 
 #include <ytlib/actions/cancelable_context.h>
 
 #include <ytlib/logging/tagged_logger.h>
 
 #include <ytlib/node_tracker_client/helpers.h>
+#include <ytlib/node_tracker_client/node_directory.h>
 
+#include <ytlib/chunk_client/erasure_reader.h>
 #include <ytlib/chunk_client/replication_writer.h>
+#include <ytlib/chunk_client/replication_reader.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
+#include <ytlib/chunk_client/block_cache.h>
 #include <ytlib/chunk_client/job.pb.h>
 
 #include <server/job_agent/job.h>
 
 #include <server/cell_node/bootstrap.h>
+#include <server/cell_node/config.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -73,6 +81,8 @@ public:
 
         const auto& chunkSpecExt = JobSpec.GetExtension(TChunkJobSpecExt::chunk_job_spec_ext);
         auto chunkId = FromProto<TChunkId>(chunkSpecExt.chunk_id());
+
+        Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(chunkId)));
 
         auto chunkStore = Bootstrap->GetChunkStore();
         Chunk = chunkStore->FindChunk(chunkId);
@@ -167,7 +177,36 @@ protected:
     virtual void DoStart() = 0;
 
 
-    void SetFinished(EJobState finalState, const TError& error)
+    void SetCompleted()
+    {
+        LOG_INFO("Job completed");
+        Progress = 1.0;
+        DoSetFinished(EJobState::Completed, TError());
+    }
+
+    void SetFailed(const TError& error)
+    {
+        LOG_ERROR(error, "Job failed");
+        DoSetFinished(EJobState::Failed, error);
+    }
+
+    void SetAborted(const TError& error)
+    {
+        LOG_INFO(error, "Job aborted");
+        DoSetFinished(EJobState::Aborted, error);
+    }
+
+    void SetFinished(const TError& error)
+    {
+        if (error.IsOK()) {
+            SetFailed(error);
+        } else {
+            SetCompleted();
+        }
+    }
+
+private:
+    void DoSetFinished(EJobState finalState, const TError& error)
     {
         if (JobState != EJobState::Running)
             return;
@@ -179,25 +218,6 @@ protected:
         Chunk.Reset();
         CancelableContext.Reset();
         CancelableInvoker.Reset();
-    }
-
-    void SetCompleted()
-    {
-        LOG_INFO("Job completed");
-        Progress = 1.0;
-        SetFinished(EJobState::Completed, TError());
-    }
-
-    void SetFailed(const TError& error)
-    {
-        LOG_ERROR(error, "Job failed");
-        SetFinished(EJobState::Failed, error);
-    }
-
-    void SetAborted(const TError& error)
-    {
-        LOG_INFO(error, "Job aborted");
-        SetFinished(EJobState::Aborted, error);
     }
 
 };
@@ -388,6 +408,85 @@ private:
 
     virtual void DoStart() override
     {
+        auto codecId = NErasure::ECodec(RepairJobSpecExt.erasure_codec());
+        auto* codec = NErasure::GetCodec(codecId);
+
+        auto replicas = FromProto<NChunkClient::TChunkReplica>(RepairJobSpecExt.replicas());
+        auto targets = FromProto<TNodeDescriptor>(RepairJobSpecExt.target_descriptors());
+
+        int totalBlockCount = codec->GetTotalBlockCount();
+        NErasure::TBlockIndexSet erasedIndexSet((1 << totalBlockCount) - 1);
+
+        // Figure out erased parts.
+        FOREACH (auto replica, replicas) {
+            int index = replica.GetIndex();
+            erasedIndexSet.reset(index);
+        }
+        NErasure::TBlockIndexList erasedIndexList;
+        for (int index = 0; index < totalBlockCount; ++index) {
+            if (erasedIndexSet[index])  {
+                erasedIndexList.push_back(index);
+            }
+        }
+
+        // Compute repair plan.
+        auto repairIndexes = codec->GetRepairIndices(erasedIndexList);
+        if (!repairIndexes) {
+            SetFailed(TError("Codec is unable to repair the chunk"));
+            return;
+        }
+
+        // TODO(babenko): move to RepairErasedBlocks
+        LOG_INFO("Preparing to repair (ErasedIndexes: [%s], RepairIndexes: [%s])",
+            ~JoinToString(erasedIndexList),
+            ~JoinToString(*repairIndexes));
+
+        auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
+        nodeDirectory->MergeFrom(RepairJobSpecExt.node_directory());
+
+        auto config = Bootstrap->GetConfig()->DataNode;
+
+        std::vector<IAsyncReaderPtr> readers;
+        FOREACH (int index, *repairIndexes) {
+            TChunkReplicaList partReplicas;
+            FOREACH (auto replica, replicas) {
+                if (replica.GetIndex() == index) {
+                    partReplicas.push_back(replica);
+                }
+            }
+
+            auto reader = CreateReplicationReader(
+                config->ReplicationReader,
+                Bootstrap->GetBlockStore()->GetBlockCache(),
+                Bootstrap->GetMasterChannel(),
+                nodeDirectory,
+                Bootstrap->GetLocalDescriptor(),
+                Chunk->GetId(),
+                partReplicas);
+            readers.push_back(reader);
+        }
+
+        std::vector<IAsyncWriterPtr> writers;
+        FOREACH (int index, erasedIndexList) {
+            auto writer = CreateReplicationWriter(
+                config->ReplicationWriter,
+                Chunk->GetId(),
+                targets);
+            writers.push_back(writer);            
+        }
+
+        RepairErasedBlocks(
+            codec,
+            erasedIndexList,
+            readers,
+            writers)
+        .Subscribe(BIND(&TRepairJob::OnRepaired, MakeStrong(this))
+            .Via(CancelableInvoker));
+    }
+
+    void OnRepaired(TError error)
+    {
+        SetFinished(error);
     }
 
 };

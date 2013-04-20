@@ -74,7 +74,8 @@ TJobPtr TJob::CreateRemove(
 
 TJobPtr TJob::CreateRepair(
     const TChunkId& chunkId,
-    NNodeTrackerServer::TNode* node)
+    NNodeTrackerServer::TNode* node,
+    const std::vector<Stroka>& targetAddresses)
 {
     TNodeResources resourceLimits;
     resourceLimits.set_repair_slots(1);
@@ -83,7 +84,7 @@ TJobPtr TJob::CreateRepair(
         TJobId::Create(),
         chunkId,
         node,
-        std::vector<Stroka>(),
+        targetAddresses,
         TInstant::Now(),
         resourceLimits);
 }

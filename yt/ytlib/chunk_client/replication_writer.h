@@ -12,7 +12,7 @@ namespace NChunkClient {
 ///////////////////////////////////////////////////////////////////////////////
 
 IAsyncWriterPtr CreateReplicationWriter(
-    const TReplicationWriterConfigPtr& config,
+    TReplicationWriterConfigPtr config,
     const TChunkId& chunkId,
     const std::vector<NNodeTrackerClient::TNodeDescriptor>& targets);
 

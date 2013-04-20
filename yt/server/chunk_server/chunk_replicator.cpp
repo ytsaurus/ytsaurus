@@ -393,12 +393,39 @@ TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleRepairJob(
         return EScheduleFlags::Purged;
     }
 
-    *job = TJob::CreateRepair(chunkId, node);
+    auto codecId = chunk->GetErasureCodec();
+    auto* codec = NErasure::GetCodec(codecId);
+    
+    auto totalBlockCount = codec->GetTotalBlockCount();
 
-    LOG_INFO("Repair job scheduled (JobId: %s, Address: %s, ChunkId: %s)",
+    NErasure::TBlockIndexSet replicaIndexSet((1 << totalBlockCount) - 1);
+    int erasedIndexCount = totalBlockCount;
+    FOREACH (auto replica, chunk->StoredReplicas()) {
+        int index = replica.GetIndex();
+        if (!replicaIndexSet[index]) {
+            replicaIndexSet.set(index);
+            --erasedIndexCount;
+        }
+    }
+   
+    auto targets = ChunkPlacement->GetReplicationTargets(chunk, erasedIndexCount);
+    if (targets.size() != erasedIndexCount) {
+        return EScheduleFlags::None;
+    }
+
+    std::vector<Stroka> targetAddresses;
+    FOREACH (auto* target, targets) {
+        ChunkPlacement->OnSessionHinted(target);
+        targetAddresses.push_back(target->GetAddress());
+    }
+
+    *job = TJob::CreateRepair(chunkId, node, targetAddresses);
+
+    LOG_INFO("Repair job scheduled (JobId: %s, Address: %s, ChunkId: %s, TargetAddresses: [%s])",
         ~ToString((*job)->GetJobId()),
         ~node->GetAddress(),
-        ~ToString(chunkId));
+        ~ToString(chunkId),
+        ~JoinToString(targetAddresses));
 
     return EScheduleFlags(EScheduleFlags::Purged | EScheduleFlags::Scheduled);
 }

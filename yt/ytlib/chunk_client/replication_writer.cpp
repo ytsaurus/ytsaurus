@@ -172,7 +172,7 @@ class TReplicationWriter
 {
 public:
     TReplicationWriter(
-        const TReplicationWriterConfigPtr& config,
+        TReplicationWriterConfigPtr config,
         const TChunkId& chunkId,
         const std::vector<TNodeDescriptor>& targets);
 
@@ -562,7 +562,7 @@ void TGroup::Process()
 ///////////////////////////////////////////////////////////////////////////////
 
 TReplicationWriter::TReplicationWriter(
-    const TReplicationWriterConfigPtr& config,
+    TReplicationWriterConfigPtr config,
     const TChunkId& chunkId,
     const std::vector<TNodeDescriptor>& targets)
     : Config(config)
@@ -1115,7 +1115,7 @@ const std::vector<int> TReplicationWriter::GetWrittenIndexes() const
 ///////////////////////////////////////////////////////////////////////////////
 
 IAsyncWriterPtr CreateReplicationWriter(
-    const TReplicationWriterConfigPtr& config,
+    TReplicationWriterConfigPtr config,
     const TChunkId& chunkId,
     const std::vector<TNodeDescriptor>& targets)
 {

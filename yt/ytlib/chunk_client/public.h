@@ -64,8 +64,8 @@ DECLARE_ENUM(EErrorCode,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRemoteReaderConfig;
-typedef TIntrusivePtr<TRemoteReaderConfig> TRemoteReaderConfigPtr;
+class TReplicationReaderConfig;
+typedef TIntrusivePtr<TReplicationReaderConfig> TReplicationReaderConfigPtr;
 
 class TClientBlockCacheConfig;
 typedef TIntrusivePtr<TClientBlockCacheConfig> TClientBlockCacheConfigPtr;

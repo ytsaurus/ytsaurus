@@ -147,12 +147,15 @@ public:
     TLocationConfigPtr CacheLocation;
 
     //! Remote reader configuration used to download chunks into cache.
-    NChunkClient::TRemoteReaderConfigPtr CacheRemoteReader;
+    NChunkClient::TReplicationReaderConfigPtr CacheRemoteReader;
 
     //! Sequential reader configuration used to download chunks into cache.
     NChunkClient::TSequentialReaderConfigPtr CacheSequentialReader;
 
-    //! Remote writer configuration used to replicate chunks.
+    //! Reader configuration used to repair chunks.
+    NChunkClient::TReplicationReaderConfigPtr ReplicationReader;
+
+    //! Writer configuration used to replicate and repair chunks.
     NChunkClient::TReplicationWriterConfigPtr ReplicationWriter;
 
     //! Keeps chunk peering information.
@@ -197,6 +200,8 @@ public:
         RegisterParameter("cache_remote_reader", CacheRemoteReader)
             .DefaultNew();
         RegisterParameter("cache_sequential_reader", CacheSequentialReader)
+            .DefaultNew();
+        RegisterParameter("replication_reader", ReplicationReader)
             .DefaultNew();
         RegisterParameter("replication_writer", ReplicationWriter)
             .DefaultNew();
