@@ -352,16 +352,6 @@ private:
                 .Via(CancelableInvoker));
     }
 
-    void OnWriterClosed(TError error)
-    {
-        if (!error.IsOK()) {
-            SetFailed(error);
-            return;
-        }
-
-        SetCompleted();
-    }
-
     void OnWriterReady(TBlockStore::TGetBlockResult result)
     {
         if (!result.IsOK()) {
@@ -378,6 +368,11 @@ private:
         Writer->GetReadyEvent().Subscribe(
             BIND(&TReplicationJob::ReplicateBlock, this_)
                 .Via(CancelableInvoker));
+    }
+
+    void OnWriterClosed(TError error)
+    {
+        SetFinished(error);
     }
 
 };
@@ -467,7 +462,7 @@ private:
         }
 
         std::vector<IAsyncWriterPtr> writers;
-        FOREACH (int index, erasedIndexList) {
+        for (int index = 0; index < static_cast<int>(erasedIndexList.size()); ++index) {
             auto writer = CreateReplicationWriter(
                 config->ReplicationWriter,
                 Chunk->GetId(),
