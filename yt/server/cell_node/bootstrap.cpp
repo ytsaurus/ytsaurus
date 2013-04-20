@@ -237,35 +237,22 @@ void TBootstrap::Run()
     JobController->RegisterFactory(NJobAgent::EJobType::SortedReduce,    createExecJob);
     JobController->RegisterFactory(NJobAgent::EJobType::PartitionReduce, createExecJob);
 
-    auto createRemovalJob = BIND([this] (
+    auto createChunkJob = BIND([this] (
             const NJobAgent::TJobId& jobId,
             const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
             NJobTrackerClient::NProto::TJobSpec&& jobSpec) ->
             NJobAgent::IJobPtr
         {
-            return NChunkHolder::CreateRemovalJob(
+            return NChunkHolder::CreateChunkJob(
                     jobId,
                     std::move(jobSpec),
                     resourceLimits,
                     Config->DataNode,
                     this);
         });
-    JobController->RegisterFactory(NJobAgent::EJobType::RemoveChunk,     createRemovalJob);
-
-    auto createReplicationJob = BIND([this] (
-            const NJobAgent::TJobId& jobId,
-            const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
-            NJobTrackerClient::NProto::TJobSpec&& jobSpec) ->
-            NJobAgent::IJobPtr
-        {
-            return NChunkHolder::CreateReplicationJob(
-                jobId,
-                std::move(jobSpec),
-                resourceLimits,
-                Config->DataNode,
-                this);
-        });
-    JobController->RegisterFactory(NJobAgent::EJobType::ReplicateChunk,  createReplicationJob);
+    JobController->RegisterFactory(NJobAgent::EJobType::RemoveChunk,     createChunkJob);
+    JobController->RegisterFactory(NJobAgent::EJobType::ReplicateChunk,  createChunkJob);
+    JobController->RegisterFactory(NJobAgent::EJobType::RepairChunk,     createChunkJob);
 
     RpcServer->RegisterService(New<TSupervisorService>(this));
 

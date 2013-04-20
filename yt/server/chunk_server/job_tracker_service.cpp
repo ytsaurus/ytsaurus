@@ -2,9 +2,12 @@
 #include "job_tracker_service.h"
 #include "chunk_manager.h"
 #include "job.h"
+#include "node_directory_builder.h"
+#include "chunk.h"
 #include "private.h"
 
 #include <ytlib/misc/string.h>
+#include <ytlib/misc/protobuf_helpers.h>
 
 #include <ytlib/meta_state/rpc_helpers.h>
 
@@ -134,6 +137,17 @@ private:
 
                 case EJobType::RemoveChunk:
                     break;
+
+                case EJobType::RepairChunk: {
+                    auto* repairJobSpecExt = jobSpec->MutableExtension(TRepairJobSpecExt::repair_job_spec_ext);
+                    TNodeDirectoryBuilder builder(repairJobSpecExt->mutable_node_directory());
+                    auto chunk = chunkManager->GetChunk(job->GetChunkId());
+                    FOREACH (auto replica, chunk->StoredReplicas()) {
+                        builder.Add(replica);
+                        repairJobSpecExt->add_replicas(NYT::ToProto<ui32>(replica));
+                    }
+                    break;
+                }
 
                 default:
                     YUNREACHABLE();

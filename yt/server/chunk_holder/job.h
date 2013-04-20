@@ -15,14 +15,7 @@ namespace NChunkHolder {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NJobAgent::IJobPtr CreateRemovalJob(
-    const NJobTrackerClient::TJobId& jobId,
-    NJobTrackerClient::NProto::TJobSpec&& jobSpec,
-    const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
-    TDataNodeConfigPtr config,
-    NCellNode::TBootstrap* bootstrap);
-
-NJobAgent::IJobPtr CreateReplicationJob(
+NJobAgent::IJobPtr CreateChunkJob(
     const NJobTrackerClient::TJobId& jobId,
     NJobTrackerClient::NProto::TJobSpec&& jobSpec,
     const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,

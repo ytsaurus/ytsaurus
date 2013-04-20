@@ -238,21 +238,6 @@ private:
 
 };
 
-IJobPtr CreateRemovalJob(
-    const TJobId& jobId,
-    TJobSpec&& jobSpec,
-    const TNodeResources& resourceLimits,
-    TDataNodeConfigPtr config,
-    TBootstrap* bootstrap)
-{
-    return New<TRemovalJob>(
-        jobId,
-        std::move(jobSpec),
-        resourceLimits,
-        config,
-        bootstrap);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TReplicationJob
@@ -377,19 +362,74 @@ private:
 
 };
 
-IJobPtr CreateReplicationJob(
+////////////////////////////////////////////////////////////////////////////////
+
+class TRepairJob
+    : public TJobBase
+{
+public:
+    TRepairJob(
+        const TJobId& jobId,
+        TJobSpec&& jobSpec,
+        const TNodeResources& resourceLimits,
+        TDataNodeConfigPtr config,
+        TBootstrap* bootstrap)
+        : TJobBase(
+            jobId,
+            std::move(jobSpec),
+            resourceLimits,
+            config,
+            bootstrap)
+        , RepairJobSpecExt(JobSpec.GetExtension(TRepairJobSpecExt::repair_job_spec_ext))
+    { }
+
+private:
+    TRepairJobSpecExt RepairJobSpecExt;
+
+    virtual void DoStart() override
+    {
+    }
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+IJobPtr CreateChunkJob(
     const TJobId& jobId,
     TJobSpec&& jobSpec,
     const TNodeResources& resourceLimits,
     TDataNodeConfigPtr config,
     TBootstrap* bootstrap)
 {
-    return New<TReplicationJob>(
-        jobId,
-        std::move(jobSpec),
-        resourceLimits,
-        config,
-        bootstrap);
+    auto type = EJobType(jobSpec.type());
+    switch (type) {
+        case EJobType::ReplicateChunk:
+            return New<TReplicationJob>(
+                jobId,
+                std::move(jobSpec),
+                resourceLimits,
+                config,
+                bootstrap);
+
+        case EJobType::RemoveChunk:
+            return New<TRemovalJob>(
+                jobId,
+                std::move(jobSpec),
+                resourceLimits,
+                config,
+                bootstrap);
+
+        case EJobType::RepairChunk:
+            return New<TRepairJob>(
+                jobId,
+                std::move(jobSpec),
+                resourceLimits,
+                config,
+                bootstrap);
+
+        default:
+            YUNREACHABLE();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

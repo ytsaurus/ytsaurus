@@ -374,12 +374,33 @@ TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleRemovalJob(
     return EScheduleFlags(EScheduleFlags::Purged | EScheduleFlags::Scheduled);
 }
 
-TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleRepairJobs(
-    TNode* /*node*/,
+TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleRepairJob(
+    TNode* node,
     TChunk* chunk,
     TJobPtr* job)
 {
-    return EScheduleFlags::None;
+    const auto& chunkId = chunk->GetId();
+
+    if (!IsObjectAlive(chunk)) {
+        return EScheduleFlags::Purged;
+    }
+
+    if (chunk->GetRefreshScheduled()) {
+        return EScheduleFlags::Purged;
+    }
+
+    if (HasRunningJobs(chunkId)) {
+        return EScheduleFlags::Purged;
+    }
+
+    *job = TJob::CreateRepair(chunkId, node);
+
+    LOG_INFO("Repair job scheduled (JobId: %s, Address: %s, ChunkId: %s)",
+        ~ToString((*job)->GetJobId()),
+        ~node->GetAddress(),
+        ~ToString(chunkId));
+
+    return EScheduleFlags(EScheduleFlags::Purged | EScheduleFlags::Scheduled);
 }
 
 void TChunkReplicator::ScheduleNewJobs(
@@ -468,7 +489,7 @@ void TChunkReplicator::ScheduleNewJobs(
             auto jt = it++;
 
             TJobPtr job;
-            auto flags = ScheduleRepairJobs(node, *it, &job);
+            auto flags = ScheduleRepairJob(node, *it, &job);
             if (flags & EScheduleFlags::Scheduled) {
                 registerJob(job);
             }
@@ -932,7 +953,7 @@ int TChunkReplicator::ComputeReplicationFactor(const TChunk* chunk)
         }
     }
 
-    return result == 0 ? chunk.GetReplicationFactor() : result;
+    return result == 0 ? chunk->GetReplicationFactor() : result;
 }
 
 TChunkList* TChunkReplicator::FollowParentLinks(TChunkList* chunkList)

@@ -118,7 +118,7 @@ private:
         TNode* node,
         const TChunkId& chunkId,
         TJobPtr* job);
-    EScheduleFlags ScheduleRepairJobs(
+    EScheduleFlags ScheduleRepairJob(
         TNode* node,
         TChunk* chunk,
         TJobPtr* job);
