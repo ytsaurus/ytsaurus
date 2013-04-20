@@ -8,8 +8,6 @@
 #include <ytlib/misc/foreach.h>
 #include <ytlib/misc/error.h>
 
-#include <stack>
-
 namespace NYT {
 namespace NYson {
 
@@ -22,7 +20,10 @@ private:
     TParser Parser;
 
 public:
-    TImpl(IYsonConsumer* consumer, EYsonType type, bool enableLinePositionInfo)
+    TImpl(
+        IYsonConsumer* consumer,
+        EYsonType type,
+        bool enableLinePositionInfo)
         : Parser(consumer, type, enableLinePositionInfo)
     { }
     
@@ -61,16 +62,19 @@ void TYsonParser::Finish()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYsonStatelessParser::TImpl
+class TStatelessYsonParser::TImpl
 {
 private:
-    THolder<TYsonStatelessParserImplBase> Impl;
+    std::unique_ptr<TStatelessYsonParserImplBase> Impl;
 
 public:
-    TImpl(IYsonConsumer *consumer, bool enableLinePositionInfo)
-        : Impl(enableLinePositionInfo? 
-        static_cast<TYsonStatelessParserImplBase*>(new TYsonStatelessParserImpl<IYsonConsumer, true>(consumer)) 
-        : static_cast<TYsonStatelessParserImplBase*>(new TYsonStatelessParserImpl<IYsonConsumer, false>(consumer)))
+    TImpl(
+        IYsonConsumer *consumer,
+        bool enableLinePositionInfo)
+        : Impl(
+            enableLinePositionInfo
+            ? static_cast<TStatelessYsonParserImplBase*>(new TStatelessYsonParserImpl<IYsonConsumer, true>(consumer)) 
+            : static_cast<TStatelessYsonParserImplBase*>(new TStatelessYsonParserImpl<IYsonConsumer, false>(consumer)))
     { }
 
     void Parse(const TStringBuf& data, EYsonType type = EYsonType::Node) 
@@ -81,25 +85,33 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYsonStatelessParser::TYsonStatelessParser(
+TStatelessYsonParser::TStatelessYsonParser(
     IYsonConsumer *consumer,
     bool enableLinePositionInfo)
     : Impl(new TImpl(consumer, enableLinePositionInfo))
 { }
 
-TYsonStatelessParser::~TYsonStatelessParser()
+TStatelessYsonParser::~TStatelessYsonParser()
 { }
 
-void TYsonStatelessParser::Parse(const TStringBuf& data, EYsonType type)
+void TStatelessYsonParser::Parse(const TStringBuf& data, EYsonType type)
 {
     Impl->Parse(data, type);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ParseStringBuf(const TStringBuf& buffer, IYsonConsumer* consumer, EYsonType type, bool enableLinePositionInfo)
+void ParseStringBuf(
+    const TStringBuf& buffer,
+    IYsonConsumer* consumer,
+    EYsonType type,
+    bool enableLinePositionInfo)
 {
-    ParseStreamImpl<IYsonConsumer, TStringReader>(TStringReader(buffer.begin(), buffer.end()), consumer, type, enableLinePositionInfo);
+    ParseStreamImpl<IYsonConsumer, TStringReader>(
+        TStringReader(buffer.begin(), buffer.end()),
+        consumer,
+        type,
+        enableLinePositionInfo);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

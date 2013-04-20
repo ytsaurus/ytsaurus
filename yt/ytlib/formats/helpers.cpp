@@ -16,13 +16,13 @@ namespace NFormats {
 ////////////////////////////////////////////////////////////////////////////////
 
 TFormatsConsumerBase::TFormatsConsumerBase()
-    : StatelessParser(this)
+    : Parser(this)
 { }
     
 
 void TFormatsConsumerBase::OnRaw(const TStringBuf& yson, EYsonType type)
 {
-    StatelessParser.Parse(yson, type);
+    Parser.Parse(yson, type);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

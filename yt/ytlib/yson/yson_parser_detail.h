@@ -306,21 +306,21 @@ void ParseStreamImpl(const TBlockStream& blockStream, IYsonConsumer* consumer, E
     }
 }
 
-class TYsonStatelessParserImplBase
+class TStatelessYsonParserImplBase
 {
 public:
     virtual void Parse(const TStringBuf& data, EYsonType type = EYsonType::Node) = 0;
 };
 
 template <class TConsumer, bool EnableLinePositionInfo>
-class TYsonStatelessParserImpl : public TYsonStatelessParserImplBase
+class TStatelessYsonParserImpl : public TStatelessYsonParserImplBase
 {
 private:
     typedef NDetail::TParser<TConsumer, TStringReader, EnableLinePositionInfo> TParser;
     TParser Parser;
 
 public:
-    TYsonStatelessParserImpl(TConsumer* consumer)
+    TStatelessYsonParserImpl(TConsumer* consumer)
         : Parser(TStringReader(), consumer)
     { }
     
@@ -387,11 +387,16 @@ public:
         TConsumer* consumer, 
         EYsonType parsingMode = EYsonType::Node, 
         bool enableLinePositionInfo = false) 
-        : ParserCoroutine(BIND([=](TParserCoroutine& self, const char* begin, const char* end, bool finish)
-        {
-            ParseStreamImpl<TConsumer, TBlockReader>(TBlockReader(self, begin, end, finish), consumer, parsingMode, enableLinePositionInfo);
-        }))
-    { }
+    {
+        typedef typename TYsonParserImpl<TConsumer>::TBlockReader TBlockReader;
+        ParserCoroutine = BIND([=] (TParserCoroutine& self, const char* begin, const char* end, bool finish) {
+            ParseStreamImpl<TConsumer, TBlockReader>(
+                TBlockReader(self, begin, end, finish),
+                consumer,
+                parsingMode,
+                enableLinePositionInfo);
+        });
+    }
 
     void Read(const char* begin, const char* end, bool finish = false)
     {

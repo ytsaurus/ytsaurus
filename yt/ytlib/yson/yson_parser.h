@@ -22,30 +22,36 @@ public:
 
 private:
     class TImpl;
-    THolder<TImpl> Impl;
+    std::unique_ptr<TImpl> Impl;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYsonStatelessParser
+class TStatelessYsonParser
 {
 public:
-    TYsonStatelessParser(
+    TStatelessYsonParser(
         IYsonConsumer* consumer,
         bool enableLinePositionInfo = false);
 
-    ~TYsonStatelessParser();
+    ~TStatelessYsonParser();
 
     void Parse(const TStringBuf& data, EYsonType type = EYsonType::Node);
 
 private:
     class TImpl;
-    THolder<TImpl> Impl;
+    std::unique_ptr<TImpl> Impl;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ParseStringBuf(const TStringBuf& buffer, IYsonConsumer* consumer, EYsonType type = EYsonType::Node, bool enableLinePositionInfo = false);
+void ParseStringBuf(
+    const TStringBuf& buffer,
+    IYsonConsumer* consumer,
+    EYsonType type = EYsonType::Node,
+    bool enableLinePositionInfo = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -33,7 +33,8 @@ public:
     virtual void OnRaw(const TStringBuf& yson, NYson::EYsonType type) override;
 
 private:
-    NYson::TYsonStatelessParser StatelessParser;
+    NYson::TStatelessYsonParser Parser;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
