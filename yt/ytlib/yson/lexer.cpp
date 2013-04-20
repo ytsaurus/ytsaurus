@@ -20,12 +20,12 @@ namespace NYson {
 class TStatelessLexer::TImpl
 {
 private:
-    THolder<TYsonStatelessLexerImplBase> Impl;
+    std::unique_ptr<TYsonStatelessLexerImplBase> Impl;
 
 public:
     TImpl(bool enableLinePositionInfo = false)
-        : Impl(enableLinePositionInfo? 
-        static_cast<TYsonStatelessLexerImplBase*>(new TYsonStatelessLexerImpl<true>()) 
+        : Impl(enableLinePositionInfo
+        ? static_cast<TYsonStatelessLexerImplBase*>(new TYsonStatelessLexerImpl<true>()) 
         : static_cast<TYsonStatelessLexerImplBase*>(new TYsonStatelessLexerImpl<false>()))
     { }
 
@@ -48,6 +48,8 @@ size_t TStatelessLexer::GetToken(const TStringBuf& data, TToken* token)
 {
     return Impl->GetToken(data, token);
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYson
 } // namespace NYT
