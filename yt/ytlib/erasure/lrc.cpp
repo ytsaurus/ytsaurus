@@ -51,7 +51,7 @@ TBlockIndexList ExtractRows(const TBlockIndexList& matrix, int width, const TBlo
 
 } // anonymous namespace
 
-const int TLrc::BITMASK_OPTIMIZATION_THRESHOLD = 22;
+const int TLrc::BitmaskOptimizationThreshold = 22;
 
 TLrc::TLrc(int blockCount)
     : BlockCount_(blockCount)
@@ -104,7 +104,7 @@ TLrc::TLrc(int blockCount)
     Groups_[1].push_back(BlockCount_ + 1);
 
     auto totalBlockCount = BlockCount_ + ParityCount_;
-    if (totalBlockCount <= BITMASK_OPTIMIZATION_THRESHOLD) {
+    if (totalBlockCount <= BitmaskOptimizationThreshold) {
         CanRepair_.resize(1 << totalBlockCount);
         for (int mask = 0; mask < (1 << totalBlockCount); ++mask) {
             TBlockIndexList erasedIndices;
@@ -199,7 +199,7 @@ std::vector<TSharedRef> TLrc::Decode(
 bool TLrc::CanRepair(const TBlockIndexList& erasedIndices)
 {
     auto totalBlockCount = BlockCount_ + ParityCount_;
-    if (totalBlockCount <= BITMASK_OPTIMIZATION_THRESHOLD) {
+    if (totalBlockCount <= BitmaskOptimizationThreshold) {
         int mask = (1 << (totalBlockCount)) - 1;
         FOREACH (int index, erasedIndices) {
             mask -= (1 << index);
@@ -213,11 +213,10 @@ bool TLrc::CanRepair(const TBlockIndexList& erasedIndices)
 bool TLrc::CanRepair(const TBlockIndexSet& erasedIndicesMask)
 {
     auto totalBlockCount = BlockCount_ + ParityCount_;
-    if (totalBlockCount <= BITMASK_OPTIMIZATION_THRESHOLD) {
+    if (totalBlockCount <= BitmaskOptimizationThreshold) {
         auto mask = erasedIndicesMask;
         return CanRepair_[mask.flip().to_ulong()];
-    }
-    else {
+    } else {
         TBlockIndexList erasedIndices;
         for (int i = 0; i < erasedIndicesMask.size(); ++i) {
             if (erasedIndicesMask[i]) {

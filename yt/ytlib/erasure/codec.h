@@ -48,7 +48,7 @@ struct ICodec
     virtual bool CanRepair(const TBlockIndexList& erasedIndices) = 0;
 
     //! Rapid version that works with set instead of list.
-    virtual bool CanRepair(const TBlockIndexSet& erasedIndicesMask) = 0;
+    virtual bool CanRepair(const TBlockIndexSet& erasedIndices) = 0;
 
     //! Given a set of missing block indices, checks if missing blocks can be repaired.
     /*!
