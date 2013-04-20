@@ -389,13 +389,13 @@ public:
         bool enableLinePositionInfo = false) 
     {
         typedef typename TYsonParserImpl<TConsumer>::TBlockReader TBlockReader;
-        ParserCoroutine = BIND([=] (TParserCoroutine& self, const char* begin, const char* end, bool finish) {
+        ParserCoroutine.Reset(BIND([=] (TParserCoroutine& self, const char* begin, const char* end, bool finish) {
             ParseStreamImpl<TConsumer, TBlockReader>(
                 TBlockReader(self, begin, end, finish),
                 consumer,
                 parsingMode,
                 enableLinePositionInfo);
-        });
+        }));
     }
 
     void Read(const char* begin, const char* end, bool finish = false)
