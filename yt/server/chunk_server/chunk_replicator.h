@@ -99,26 +99,26 @@ private:
         std::vector<TJobPtr>* jobsToAbort,
         std::vector<TJobPtr>* jobsToRemove);
 
-    DECLARE_FLAGGED_ENUM(EScheduleFlags,
+    DECLARE_FLAGGED_ENUM(EJobScheduleFlags,
         ((None)     (0x0000))
         ((Scheduled)(0x0001))
         ((Purged)   (0x0002))
     );
 
-    EScheduleFlags ScheduleReplicationJob(
+    EJobScheduleFlags ScheduleReplicationJob(
         TNode* sourceNode,
         TChunk* chunk,
         TJobPtr* job);
-    EScheduleFlags ScheduleBalancingJob(
+    EJobScheduleFlags ScheduleBalancingJob(
         TNode* sourceNode,
         TChunkPtrWithIndex chunkWithIndex,
         double maxFillCoeff,
         TJobPtr* jobsToStart);
-    EScheduleFlags ScheduleRemovalJob(
+    EJobScheduleFlags ScheduleRemovalJob(
         TNode* node,
         const TChunkId& chunkId,
         TJobPtr* job);
-    EScheduleFlags ScheduleRepairJob(
+    EJobScheduleFlags ScheduleRepairJob(
         TNode* node,
         TChunk* chunk,
         TJobPtr* job);
@@ -146,7 +146,15 @@ private:
     TChunkList* FollowParentLinks(TChunkList* chunkList);
 
     void RegisterJob(TJobPtr job);
-    void UnregisterJob(TJobPtr job);
+
+    DECLARE_FLAGGED_ENUM(EJobUnregisterFlags,
+        ((None)                  (0x0000))
+        ((UnregisterFromChunk)   (0x0001))
+        ((UnregisterFromNode)    (0x0002))
+        ((ScheduleChunkRefresh)  (0x0004))
+        ((All)                   (0xffff))
+    );
+    void UnregisterJob(TJobPtr job, EJobUnregisterFlags flags = EJobUnregisterFlags::All);
 
 };
 

@@ -67,16 +67,6 @@ void TNode::Load(const NCellMaster::TLoadContext& context)
     LoadObjectRefs(context, UnapprovedReplicas_);
 }
 
-void TNode::AddJob(TJobPtr job)
-{
-    YCHECK(Jobs_.insert(job).second);
-}
-
-void TNode::RemoveJob(TJobPtr job)
-{
-    YCHECK(Jobs_.erase(job) == 1);
-}
-
 void TNode::AddReplica(TChunkPtrWithIndex replica, bool cached)
 {
     if (cached) {

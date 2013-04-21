@@ -143,11 +143,12 @@ void TChunkReplicator::OnNodeRegistered(TNode* node)
 
 void TChunkReplicator::OnNodeUnregistered(TNode* node)
 {
-    // Make a copy, UnregisterJob will modify the collection.
-    auto jobs = node->Jobs();
     FOREACH (auto job, node->Jobs()) {
-        UnregisterJob(job);
+        UnregisterJob(
+            job,
+            EJobUnregisterFlags(EJobUnregisterFlags::UnregisterFromChunk | EJobUnregisterFlags::ScheduleChunkRefresh));
     }
+    node->Jobs().clear();
 }
 
 void TChunkReplicator::ResetChunk(TChunk* chunk)
@@ -159,10 +160,7 @@ void TChunkReplicator::ResetChunk(TChunk* chunk)
     if (it != JobListMap.end()) {
         auto jobList = it->second;
         FOREACH (auto job, jobList->Jobs()) {
-            LOG_INFO("Job unregistered (JobId: %s, Address: %s)",
-                ~ToString(job->GetJobId()),
-                ~job->GetNode()->GetAddress());
-            YCHECK(JobMap.erase(job->GetJobId()) == 1);
+            UnregisterJob(job, EJobUnregisterFlags::UnregisterFromChunk);
         }
         JobListMap.erase(it);
     }
@@ -257,7 +255,7 @@ void TChunkReplicator::ProcessExistingJobs(
     }
 }
 
-TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleReplicationJob(
+TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleReplicationJob(
     TNode* sourceNode,
     TChunk* chunk,
     TJobPtr* job)
@@ -266,27 +264,27 @@ TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleReplicationJob(
     auto chunkManager = Bootstrap->GetChunkManager();
 
     if (!IsObjectAlive(chunk)) {
-        return EScheduleFlags::Purged;
+        return EJobScheduleFlags::Purged;
     }
 
     if (chunk->GetRefreshScheduled()) {
-        return EScheduleFlags::Purged;
+        return EJobScheduleFlags::Purged;
     }
 
     if (HasRunningJobs(chunkId)) {
-        return EScheduleFlags::Purged;
+        return EJobScheduleFlags::Purged;
     }
 
     int replicaCount = static_cast<int>(chunk->StoredReplicas().size());
     int replicationFactor = chunk->GetReplicationFactor();
     int replicasNeeded = replicationFactor - replicaCount;
     if (replicasNeeded <= 0) {
-        return EScheduleFlags::Purged;
+        return EJobScheduleFlags::Purged;
     }
 
     auto targets = ChunkPlacement->GetReplicationTargets(chunk, replicasNeeded);
     if (targets.empty()) {
-        return EScheduleFlags::None;
+        return EJobScheduleFlags::None;
     }
 
     std::vector<Stroka> targetAddresses;
@@ -305,11 +303,11 @@ TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleReplicationJob(
 
     return
         targets.size() == replicasNeeded
-        ? EScheduleFlags(EScheduleFlags::Purged | EScheduleFlags::Scheduled)
-        : EScheduleFlags(EScheduleFlags::Scheduled);
+        ? EJobScheduleFlags(EJobScheduleFlags::Purged | EJobScheduleFlags::Scheduled)
+        : EJobScheduleFlags(EJobScheduleFlags::Scheduled);
 }
 
-TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleBalancingJob(
+TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleBalancingJob(
     TNode* sourceNode,
     TChunkPtrWithIndex chunkWithIndex,
     double maxFillCoeff,
@@ -319,14 +317,14 @@ TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleBalancingJob(
     const auto& chunkId = chunk->GetId();
 
     if (chunk->GetRefreshScheduled()) {
-        return EScheduleFlags::Purged;
+        return EJobScheduleFlags::Purged;
     }
 
     auto* targetNode = ChunkPlacement->GetBalancingTarget(chunkWithIndex, maxFillCoeff);
     if (!targetNode) {
         LOG_DEBUG("No suitable target nodes for balancing (ChunkId: %s)",
             ~ToString(chunkWithIndex));
-        return EScheduleFlags::None;
+        return EJobScheduleFlags::None;
     }
 
     ChunkPlacement->OnSessionHinted(targetNode);
@@ -339,10 +337,10 @@ TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleBalancingJob(
         ~ToString(chunkId),
         ~targetNode->GetAddress());
 
-    return EScheduleFlags(EScheduleFlags::Purged | EScheduleFlags::Scheduled);
+    return EJobScheduleFlags(EJobScheduleFlags::Purged | EJobScheduleFlags::Scheduled);
 }
 
-TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleRemovalJob(
+TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleRemovalJob(
     TNode* node,
     const TChunkId& chunkId,
     TJobPtr* job)
@@ -351,11 +349,11 @@ TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleRemovalJob(
 
     auto* chunk = chunkManager->FindChunk(chunkId);
     if (chunk && chunk->GetRefreshScheduled()) {
-        return EScheduleFlags::Purged;
+        return EJobScheduleFlags::Purged;
     }
 
     if (HasRunningJobs(chunkId)) {
-        return EScheduleFlags::Purged;
+        return EJobScheduleFlags::Purged;
     }
 
     *job = TJob::CreateRemove(chunkId, node);
@@ -365,10 +363,10 @@ TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleRemovalJob(
         ~node->GetAddress(),
         ~ToString(chunkId));
 
-    return EScheduleFlags(EScheduleFlags::Purged | EScheduleFlags::Scheduled);
+    return EJobScheduleFlags(EJobScheduleFlags::Purged | EJobScheduleFlags::Scheduled);
 }
 
-TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleRepairJob(
+TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleRepairJob(
     TNode* node,
     TChunk* chunk,
     TJobPtr* job)
@@ -376,15 +374,15 @@ TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleRepairJob(
     const auto& chunkId = chunk->GetId();
 
     if (!IsObjectAlive(chunk)) {
-        return EScheduleFlags::Purged;
+        return EJobScheduleFlags::Purged;
     }
 
     if (chunk->GetRefreshScheduled()) {
-        return EScheduleFlags::Purged;
+        return EJobScheduleFlags::Purged;
     }
 
     if (HasRunningJobs(chunkId)) {
-        return EScheduleFlags::Purged;
+        return EJobScheduleFlags::Purged;
     }
 
     auto codecId = chunk->GetErasureCodec();
@@ -404,7 +402,7 @@ TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleRepairJob(
    
     auto targets = ChunkPlacement->GetReplicationTargets(chunk, erasedIndexCount);
     if (targets.size() != erasedIndexCount) {
-        return EScheduleFlags::None;
+        return EJobScheduleFlags::None;
     }
 
     std::vector<Stroka> targetAddresses;
@@ -421,7 +419,7 @@ TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleRepairJob(
         ~ToString(chunkId),
         ~JoinToString(targetAddresses));
 
-    return EScheduleFlags(EScheduleFlags::Purged | EScheduleFlags::Scheduled);
+    return EJobScheduleFlags(EJobScheduleFlags::Purged | EJobScheduleFlags::Scheduled);
 }
 
 void TChunkReplicator::ScheduleNewJobs(
@@ -446,10 +444,10 @@ void TChunkReplicator::ScheduleNewJobs(
             TJobPtr job;
             auto flags = ScheduleReplicationJob(node, chunkId, &job);
 
-            if (flags & EScheduleFlags::Scheduled) {
+            if (flags & EJobScheduleFlags::Scheduled) {
                 registerJob(job);
             }
-            if (flags & EScheduleFlags::Purged) {
+            if (flags & EJobScheduleFlags::Purged) {
                 chunksToReplicate.erase(jt);
             }
         }
@@ -469,10 +467,10 @@ void TChunkReplicator::ScheduleNewJobs(
             TJobPtr job;
             auto flags = ScheduleRemovalJob(node, chunkId, &job);
 
-            if (flags & EScheduleFlags::Scheduled) {
+            if (flags & EJobScheduleFlags::Scheduled) {
                 registerJob(job);
             }
-            if (flags & EScheduleFlags::Purged) {
+            if (flags & EJobScheduleFlags::Purged) {
                 chunksToRemove.erase(jt);
             }
         }
@@ -494,7 +492,7 @@ void TChunkReplicator::ScheduleNewJobs(
             TJobPtr job;
             auto flags = ScheduleBalancingJob(node, chunkWithIndex, targetFillCoeff, &job);
 
-            if (flags & EScheduleFlags::Scheduled) {
+            if (flags & EJobScheduleFlags::Scheduled) {
                 registerJob(job);
             }
         }
@@ -511,10 +509,10 @@ void TChunkReplicator::ScheduleNewJobs(
 
             TJobPtr job;
             auto flags = ScheduleRepairJob(node, *it, &job);
-            if (flags & EScheduleFlags::Scheduled) {
+            if (flags & EJobScheduleFlags::Scheduled) {
                 registerJob(job);
             }
-            if (flags & EScheduleFlags::Purged) {
+            if (flags & EJobScheduleFlags::Purged) {
                 ChunksToRepair.erase(jt);
             }
         }
@@ -993,43 +991,51 @@ TChunkList* TChunkReplicator::FollowParentLinks(TChunkList* chunkList)
 
 void TChunkReplicator::RegisterJob(TJobPtr job)
 {
-    LOG_INFO("Job registered (JobId: %s, JobType: %s, Address: %s)",
-        ~ToString(job->GetJobId()),
-        ~job->GetType().ToString(),
-        ~job->GetNode()->GetAddress());
-
-    YCHECK(JobMap.insert(std::make_pair(job->GetJobId(), job)).second);
-    
-    job->GetNode()->AddJob(job);
-
+    const auto& jobId = job->GetJobId();
     const auto& chunkId = job->GetChunkId();
+
+    YCHECK(JobMap.insert(std::make_pair(jobId, job)).second);
+    YCHECK(job->GetNode()->Jobs().insert(job).second);
+
     auto jobList = FindJobList(chunkId);
     if (!jobList) {
         jobList = New<TJobList>(chunkId);
         YCHECK(JobListMap.insert(std::make_pair(chunkId, jobList)).second);
     }
     jobList->AddJob(job);
+
+    LOG_INFO("Job registered (JobId: %s, JobType: %s, Address: %s)",
+        ~ToString(job->GetJobId()),
+        ~job->GetType().ToString(),
+        ~job->GetNode()->GetAddress());
 }
 
-void TChunkReplicator::UnregisterJob(TJobPtr job)
+void TChunkReplicator::UnregisterJob(TJobPtr job, EJobUnregisterFlags flags)
 {
+    const auto& chunkId = job->GetChunkId();
+
+    YCHECK(JobMap.erase(job->GetJobId()) == 1);
+
+    if (flags & EJobUnregisterFlags::UnregisterFromNode) {
+        YCHECK(job->GetNode()->Jobs().erase(job) == 1);
+    }
+
+    if (flags & EJobUnregisterFlags::UnregisterFromChunk) {
+        auto jobList = FindJobList(chunkId);
+        YCHECK(jobList);
+        jobList->RemoveJob(job);
+        if (jobList->Jobs().empty()) {
+            YCHECK(JobListMap.erase(chunkId) == 1);
+        }
+    }
+
+    if (flags & EJobUnregisterFlags::ScheduleChunkRefresh) {
+        ScheduleChunkRefresh(chunkId);
+    }
+
     LOG_INFO("Job unregistered (JobId: %s, Address: %s)",
         ~ToString(job->GetJobId()),
         ~job->GetNode()->GetAddress());
-    
-    YCHECK(JobMap.erase(job->GetJobId()) == 1);
-
-    job->GetNode()->RemoveJob(job);
-
-    const auto& chunkId = job->GetChunkId();
-    auto jobList = FindJobList(chunkId);
-    YCHECK(jobList);
-    jobList->RemoveJob(job);
-    if (jobList->Jobs().empty()) {
-        YCHECK(JobListMap.erase(chunkId) == 1);
-    }
-
-    ScheduleChunkRefresh(job->GetChunkId());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

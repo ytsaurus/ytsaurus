@@ -48,7 +48,7 @@ class TNode
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkPtrWithIndex>, StoredReplicas);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkPtrWithIndex>, CachedReplicas);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkPtrWithIndex>, UnapprovedReplicas);
-    DEFINE_BYREF_RO_PROPERTY(yhash_set<TJobPtr>, Jobs);
+    DEFINE_BYREF_RW_PROPERTY(yhash_set<TJobPtr>, Jobs);
     DEFINE_BYVAL_RW_PROPERTY(int, HintedSessionCount);
 
 
@@ -83,9 +83,6 @@ public:
     void MarkReplicaUnapproved(TChunkPtrWithIndex replica);
     bool HasUnapprovedReplica(TChunkPtrWithIndex replica) const;
     void ApproveReplica(TChunkPtrWithIndex replica);
-
-    void AddJob(TJobPtr job);
-    void RemoveJob(TJobPtr id);
 
     int GetTotalSessionCount() const;
 
