@@ -1,5 +1,5 @@
-﻿
-#include "stdafx.h"
+﻿#include "stdafx.h"
+
 #include "table_reader.h"
 #include "config.h"
 #include "table_chunk_reader.h"
