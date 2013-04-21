@@ -805,7 +805,9 @@ TAsyncError RepairErasedBlocks(
     NErasure::ICodec* codec,
     const TBlockIndexList& erasedIndices,
     const std::vector<IAsyncReaderPtr>& readers,
-    const std::vector<IAsyncWriterPtr>& writers)
+    const std::vector<IAsyncWriterPtr>& writers,
+    TCancelableContextPtr cancelableContext,
+    TCallback<void(double)> onProgress)
 {
     auto repair = New<TRepairAllPartsSession>(codec, erasedIndices, readers, writers);
     return BIND(&TRepairAllPartsSession::Run, repair)

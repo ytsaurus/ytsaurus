@@ -474,7 +474,9 @@ private:
             codec,
             erasedIndexList,
             readers,
-            writers)
+            writers,
+            CancelableContext,
+            BIND(&TRepairJob::OnProgress, MakeWeak(this)).Via(CancelableInvoker))
         .Subscribe(BIND(&TRepairJob::OnRepaired, MakeStrong(this))
             .Via(CancelableInvoker));
     }
@@ -482,6 +484,11 @@ private:
     void OnRepaired(TError error)
     {
         SetFinished(error);
+    }
+
+    void OnProgress(double progress)
+    {
+        SetProgress(progress);
     }
 
 };
