@@ -25,6 +25,7 @@ public:
     TAsyncError GetReadyEvent();
 
     const TNullable<TKeyColumns>& GetKeyColumns() const;
+    const i64 GetRowCount() const;
 
 protected:
     TChunkWriterBase(

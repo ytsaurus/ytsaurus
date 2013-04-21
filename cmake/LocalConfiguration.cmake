@@ -44,13 +44,13 @@ if (CMAKE_COMPILER_IS_GNUCXX)
   message(STATUS "Looks like we are using gcc...")
 
   execute_process(
-    COMMAND ${CMAKE_CXX_COMPILER} -dumpversion
+    COMMAND ${CMAKE_CXX_COMPILER} ${CMAKE_CXX_COMPILER_ARG1} -dumpversion
     OUTPUT_VARIABLE GCC_VERSION
   )
 
-  if ( GCC_VERSION VERSION_LESS 4.5 )
-    message(FATAL_ERROR "g++ >= 4.5.0 is mandatory due to C++11 usage")
-  endif()
+  #if ( GCC_VERSION VERSION_LESS 4.5 )
+  #  message(FATAL_ERROR "g++ >= 4.5.0 is mandatory due to C++11 usage")
+  #endif()
 endif()
 
 if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
