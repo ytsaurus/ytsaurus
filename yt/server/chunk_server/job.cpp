@@ -17,24 +17,38 @@ TJob::TJob(
     TNode* node,
     const std::vector<Stroka>& targetAddresses,
     TInstant startTime,
-    const TNodeResources& resourceLimits)
+    const TNodeResources& resourceUsage)
     : JobId_(jobId)
     , Type_(type)
     , ChunkId_(chunkId)
     , Node_(node)
     , TargetAddresses_(targetAddresses)
     , StartTime_(startTime)
-    , ResourceLimits_(resourceLimits)
+    , ResourceUsage_(resourceUsage)
     , State_(EJobState::Running)
 { }
+
+TJobPtr TJob::CreateForeign(
+    const TJobId& jobId,
+    const NNodeTrackerClient::NProto::TNodeResources& resourceUsage)
+{
+    return New<TJob>(
+        EJobType::Foreign,
+        jobId,
+        NullChunkId,
+        nullptr,
+        std::vector<Stroka>(),
+        TInstant::Zero(),
+        resourceUsage);
+}
 
 TJobPtr TJob::CreateReplicate(
     const TChunkId& chunkId,
     TNode* node,
     const std::vector<Stroka>& targetAddresses)
 {
-    TNodeResources resourceLimits;
-    resourceLimits.set_replication_slots(1);
+    TNodeResources resourceUsage;
+    resourceUsage.set_replication_slots(1);
     return New<TJob>(
         EJobType::ReplicateChunk,
         TJobId::Create(),
@@ -42,7 +56,7 @@ TJobPtr TJob::CreateReplicate(
         node,
         targetAddresses,
         TInstant::Now(),
-        resourceLimits);
+        resourceUsage);
 }
 
 TJobPtr TJob::CreateReplicate(
@@ -60,8 +74,8 @@ TJobPtr TJob::CreateRemove(
     const TChunkId& chunkId,
     NNodeTrackerServer::TNode* node)
 {
-    TNodeResources resourceLimits;
-    resourceLimits.set_removal_slots(1);
+    TNodeResources resourceUsage;
+    resourceUsage.set_removal_slots(1);
     return New<TJob>(
         EJobType::RemoveChunk,
         TJobId::Create(),
@@ -69,7 +83,7 @@ TJobPtr TJob::CreateRemove(
         node,
         std::vector<Stroka>(),
         TInstant::Now(),
-        resourceLimits);
+        resourceUsage);
 }
 
 TJobPtr TJob::CreateRepair(
@@ -77,8 +91,8 @@ TJobPtr TJob::CreateRepair(
     NNodeTrackerServer::TNode* node,
     const std::vector<Stroka>& targetAddresses)
 {
-    TNodeResources resourceLimits;
-    resourceLimits.set_repair_slots(1);
+    TNodeResources resourceUsage;
+    resourceUsage.set_repair_slots(1);
     return New<TJob>(
         EJobType::RepairChunk,
         TJobId::Create(),
@@ -86,7 +100,7 @@ TJobPtr TJob::CreateRepair(
         node,
         targetAddresses,
         TInstant::Now(),
-        resourceLimits);
+        resourceUsage);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

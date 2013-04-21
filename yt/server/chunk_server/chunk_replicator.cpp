@@ -41,6 +41,8 @@ using namespace NObjectClient;
 using namespace NProfiling;
 using namespace NChunkClient;
 using namespace NNodeTrackerClient;
+using namespace NChunkClient::NProto;
+using namespace NChunkServer::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -116,7 +118,10 @@ void TChunkReplicator::ScheduleJobs(
         jobsToRemove);
 
     if (IsEnabled()) {
-        ScheduleNewJobs(node, jobsToStart);
+        ScheduleNewJobs(
+            node,
+            jobsToStart,
+            jobsToAbort);
     }
 
     FOREACH (auto job, *jobsToStart) {
@@ -187,8 +192,10 @@ void TChunkReplicator::ProcessExistingJobs(
 
     auto chunkManager = Bootstrap->GetChunkManager();
     FOREACH (const auto& job, currentJobs) {
-        const auto& jobId = job->GetJobId();
+        if (job->GetType() == EJobType::Foreign)
+            continue;
 
+        const auto& jobId = job->GetJobId();
         switch (job->GetState()) {
             case EJobState::Running:
                 if (TInstant::Now() - job->GetStartTime() > Config->ChunkReplicator->JobTimeout) {
@@ -424,11 +431,12 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleRepairJob(
 
 void TChunkReplicator::ScheduleNewJobs(
     TNode* node,
-    std::vector<TJobPtr>* jobsToStart)
+    std::vector<TJobPtr>* jobsToStart,
+    std::vector<TJobPtr>* jobsToAbort)
 {
     auto registerJob = [&] (TJobPtr job) {
         jobsToStart->push_back(job);
-        node->ResourceUsage() += job->ResourceLimits();
+        node->ResourceUsage() += job->ResourceUsage();
     };
 
     // Schedule replication jobs.
@@ -825,8 +833,8 @@ void TChunkReplicator::ScheduleRFUpdate(TChunkList* chunkList)
 
         virtual bool OnChunk(
             TChunk* chunk,
-            const NChunkClient::NProto::TReadLimit& startLimit,
-            const NChunkClient::NProto::TReadLimit& endLimit) override
+            const TReadLimit& startLimit,
+            const TReadLimit& endLimit) override
         {
             UNUSED(startLimit);
             UNUSED(endLimit);
@@ -872,7 +880,7 @@ void TChunkReplicator::OnRFUpdate()
     // Extract up to GCObjectsPerMutation objects and post a mutation.
     auto chunkManager = Bootstrap->GetChunkManager();
     auto objectManager = Bootstrap->GetObjectManager();
-    NProto::TMetaReqUpdateChunkReplicationFactor request;
+    TMetaReqUpdateChunkReplicationFactor request;
 
     PROFILE_TIMING ("/rf_update_time") {
         for (int i = 0; i < Config->MaxChunksPerRFUpdate; ++i) {

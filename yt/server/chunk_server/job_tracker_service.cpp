@@ -82,25 +82,30 @@ private:
 
         std::vector<TJobPtr> currentJobs;
         FOREACH (const auto& jobStatus, request->jobs()) {
-            auto jobType = EJobType(jobStatus.job_type());
-            // Skip jobs that are not issued by the scheduler.
-            if (jobType <= EJobType::MasterFirst || jobType >= EJobType::MasterLast)
-                continue;
-
             auto jobId = FromProto<TJobId>(jobStatus.job_id());
-            auto job = chunkManager->FindJob(jobId);
-            if (job) {
-                auto state = EJobState(jobStatus.state());
-                job->SetState(state);
-                if (state == EJobState::Completed || state == EJobState::Failed) {
-                    job->Error() = FromProto(jobStatus.result().error());
-                }
+            auto jobType = EJobType(jobStatus.job_type());
+            if (jobType <= EJobType::MasterFirst || jobType >= EJobType::MasterLast) {
+                // Create a foreign job.
+                auto job = TJob::CreateForeign(
+                    jobId,
+                    jobStatus.resource_usage());
                 currentJobs.push_back(job);
             } else {
-                LOG_WARNING("Stopping unknown or obsolete job (JobId: %s, Address: %s)",
-                    ~ToString(jobId),
-                    ~node->GetAddress());
-                ToProto(response->add_jobs_to_abort(), jobId);
+                // Lookup the master job.
+                auto job = chunkManager->FindJob(jobId);
+                if (job) {
+                    auto state = EJobState(jobStatus.state());
+                    job->SetState(state);
+                    if (state == EJobState::Completed || state == EJobState::Failed) {
+                        job->Error() = FromProto(jobStatus.result().error());
+                    }
+                    currentJobs.push_back(job);
+                } else {
+                    LOG_WARNING("Stopping unknown or obsolete job (JobId: %s, Address: %s)",
+                        ~ToString(jobId),
+                        ~node->GetAddress());
+                    ToProto(response->add_jobs_to_abort(), jobId);
+                }
             }
         }
 
@@ -117,7 +122,7 @@ private:
         FOREACH (auto job, jobsToStart) {
             auto* jobInfo = response->add_jobs_to_start();
             ToProto(jobInfo->mutable_job_id(), job->GetJobId());
-            *jobInfo->mutable_resource_limits() = job->ResourceLimits();
+            *jobInfo->mutable_resource_limits() = job->ResourceUsage();
 
             auto* jobSpec = jobInfo->mutable_spec();
             jobSpec->set_type(job->GetType());

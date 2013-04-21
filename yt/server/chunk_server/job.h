@@ -23,7 +23,7 @@ class TJob
     DEFINE_BYVAL_RO_PROPERTY(NNodeTrackerServer::TNode*, Node);
     DEFINE_BYREF_RO_PROPERTY(std::vector<Stroka>, TargetAddresses);
     DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
-    DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceLimits);
+    DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceUsage);
     
     // Current state (as reported by node).
     DEFINE_BYVAL_RW_PROPERTY(EJobState, State);
@@ -31,6 +31,10 @@ class TJob
     DEFINE_BYREF_RW_PROPERTY(TError, Error);
 
 public:
+    static TJobPtr CreateForeign(
+        const TJobId& jobId,
+        const NNodeTrackerClient::NProto::TNodeResources& resourceUsage);
+
     static TJobPtr CreateReplicate(
         const TChunkId& chunkId,
         NNodeTrackerServer::TNode* node,
@@ -57,7 +61,7 @@ public:
         NNodeTrackerServer::TNode* node,
         const std::vector<Stroka>& targetAddresses,
         TInstant startTime,
-        const NNodeTrackerClient::NProto::TNodeResources& resourceLimits);
+        const NNodeTrackerClient::NProto::TNodeResources& resourceUsage);
 
 };
 

@@ -124,7 +124,8 @@ private:
         TJobPtr* job);
     void ScheduleNewJobs(
         TNode* node,
-        std::vector<TJobPtr>* jobsToStart);
+        std::vector<TJobPtr>* jobsToStart,
+        std::vector<TJobPtr>* jobsToAbort);
 
     void OnRefresh();
     void Refresh(TChunk* chunk);

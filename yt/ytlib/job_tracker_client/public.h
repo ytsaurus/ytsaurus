@@ -28,9 +28,10 @@ DECLARE_ENUM(EJobType,
 
     // Master jobs
     ((MasterFirst)      (100)) // sentinel
-    ((ReplicateChunk)   (101))
-    ((RemoveChunk)      (102))
-    ((RepairChunk)      (103))
+    ((Foreign)          (101))
+    ((ReplicateChunk)   (102))
+    ((RemoveChunk)      (103))
+    ((RepairChunk)      (104))
     ((MasterLast)       (199)) // sentinel
 );
 
