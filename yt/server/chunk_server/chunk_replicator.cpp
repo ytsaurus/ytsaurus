@@ -151,7 +151,7 @@ void TChunkReplicator::OnNodeUnregistered(TNode* node)
     node->Jobs().clear();
 }
 
-void TChunkReplicator::ResetChunk(TChunk* chunk)
+void TChunkReplicator::OnChunkDestroyed(TChunk* chunk)
 {
     ResetChunkStatus(chunk);
 

@@ -732,7 +732,7 @@ private:
 
         // Cancel all jobs, reset status etc.
         if (ChunkReplicator) {
-            ChunkReplicator->ResetChunk(chunk);
+            ChunkReplicator->OnChunkDestroyed(chunk);
         }
 
         // Unregister chunk replicas from all known locations.

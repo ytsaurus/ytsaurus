@@ -41,7 +41,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, DataMissingChunks);
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, ParityMissingChunks);
 
-    void ResetChunk(TChunk* chunk);
+    void OnChunkDestroyed(TChunk* chunk);
 
     void ScheduleChunkRefresh(const TChunkId& chunkId);
     void ScheduleChunkRefresh(TChunk* chunk);
