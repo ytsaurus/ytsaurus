@@ -53,6 +53,8 @@ message TMiscExt
     // Number of key-value pairs across all rows in the chunk.
     optional int64 value_count = 8 [default = 0];
 
+    // Memory limit required to repair in bytes
+    optional int64 repair_memory_limit = 9 [default = 0];
 }
 
 message TChunkInfo
@@ -80,7 +82,6 @@ message TErasurePlacementExt
     required int32 parity_block_count = 3;
     required int64 parity_block_size = 4;
     required int64 parity_last_block_size = 5;
-    required int64 repair_reader_memory_limit = 6;
 }
 
 // TChunkMeta is stored in *.meta files on data nodes

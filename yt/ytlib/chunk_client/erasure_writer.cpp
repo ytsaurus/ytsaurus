@@ -256,10 +256,13 @@ void TErasureWriter::PrepareChunkMeta(const NProto::TChunkMeta& chunkMeta)
     placementExtension.set_parity_block_count(WindowCount_);
     placementExtension.set_parity_block_size(Config_->ErasureWindowSize);
     placementExtension.set_parity_last_block_size(ParityDataSize_ - (Config_->ErasureWindowSize * (WindowCount_ - 1)));
-    placementExtension.set_repair_reader_memory_limit(MemoryConsumption_);
 
     ChunkMeta_ = chunkMeta;
     SetProtoExtension(ChunkMeta_.mutable_extensions(), placementExtension);
+
+    NProto::TMiscExt miscExtension;
+    miscExtension.set_repair_memory_limit(MemoryConsumption_);
+    UpdateProtoExtension(ChunkMeta_.mutable_extensions(), miscExtension);
 }
 
 TAsyncError TErasureWriter::WriteDataBlocks()
