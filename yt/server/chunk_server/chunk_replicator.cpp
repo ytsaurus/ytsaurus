@@ -160,7 +160,7 @@ void TChunkReplicator::ResetChunk(TChunk* chunk)
     if (it != JobListMap.end()) {
         auto jobList = it->second;
         FOREACH (auto job, jobList->Jobs()) {
-            UnregisterJob(job, EJobUnregisterFlags::UnregisterFromChunk);
+            UnregisterJob(job, EJobUnregisterFlags::UnregisterFromNode);
         }
         JobListMap.erase(it);
     }
