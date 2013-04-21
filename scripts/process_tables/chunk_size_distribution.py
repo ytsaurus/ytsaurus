@@ -9,12 +9,15 @@ if __name__ == "__main__":
     parser.add_argument("--create-merge-queue", action="store_true", default=False)
     parser.add_argument("--calculate-chunk-sizes", action="store_true", default=False)
     parser.add_argument("--queue-path", default="//home/ignat/tables_to_merge")
+    parser.add_argument("--proxy", default="proxy.yt.yandex.net")
 
     parser.add_argument("--minimum-number-of-chunks", type=int, default=10)
     parser.add_argument("--maximum-chunk-size", type=int, default=100 *1024 * 1024)
     parser.add_argument("--filter-out", action="append")
     
     args = parser.parse_args()
+
+    yt.config.PROXY = args.proxy
 
     sizes = []
     tables_to_merge = []
