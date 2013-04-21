@@ -1475,7 +1475,9 @@ private:
     void ValidateConnected()
     {
         if (!MasterConnector->IsConnected()) {
-            THROW_ERROR_EXCEPTION("Master is not connected");
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::Unavailable,
+                "Master is not connected");
         }
     }
 

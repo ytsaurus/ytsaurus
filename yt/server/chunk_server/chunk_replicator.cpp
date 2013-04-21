@@ -869,7 +869,7 @@ void TChunkReplicator::OnRFUpdateCommitFailed(const TError& error)
 
 int TChunkReplicator::ComputeReplicationFactor(const TChunk& chunk)
 {
-    int result = chunk.GetReplicationFactor();
+    int result = 0;
 
     // Unique number used to distinguish already visited chunk lists.
     auto mark = TChunkList::GenerateVisitMark();
@@ -911,7 +911,7 @@ int TChunkReplicator::ComputeReplicationFactor(const TChunk& chunk)
         }
     }
 
-    return result;
+    return result == 0 ? chunk.GetReplicationFactor() : result;
 }
 
 TChunkList* TChunkReplicator::FollowParentLinks(TChunkList* chunkList)
