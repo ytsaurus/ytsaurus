@@ -31,7 +31,7 @@ TEncodingWriter::TEncodingWriter(
     , WritePending(
         BIND(&TEncodingWriter::WritePendingBlocks, MakeWeak(this))
             .Via(CompressionInvoker))
-{}
+{ }
 
 void TEncodingWriter::WriteBlock(const TSharedRef& block)
 {
@@ -53,6 +53,7 @@ void TEncodingWriter::WriteBlock(std::vector<TSharedRef>&& vectorizedBlock)
         std::move(vectorizedBlock)));
 }
 
+// Serialized compression invoker affinity (don't use thread affinity because of thread pool).
 void TEncodingWriter::DoCompressBlock(const TSharedRef& block)
 {
     auto compressedBlock = Codec->Compress(block);
@@ -80,6 +81,7 @@ void TEncodingWriter::DoCompressBlock(const TSharedRef& block)
     }
 }
 
+// Serialized compression invoker affinity (don't use thread affinity because of thread pool).
 void TEncodingWriter::DoCompressVector(const std::vector<TSharedRef>& vectorizedBlock)
 {
     auto compressedBlock = Codec->Compress(vectorizedBlock);
@@ -111,6 +113,7 @@ void TEncodingWriter::DoCompressVector(const std::vector<TSharedRef>& vectorized
     }
 }
 
+// Verification is run in thread pool without serialized invoker guard.
 void TEncodingWriter::VerifyVector(
     const std::vector<TSharedRef>& origin,
     const TSharedRef& compressedBlock)
@@ -127,6 +130,7 @@ void TEncodingWriter::VerifyVector(
     }
 }
 
+// Verification is run in compression thread pool without serialized invoker guard.
 void TEncodingWriter::VerifyBlock(
     const TSharedRef& origin,
     const TSharedRef& compressedBlock)
@@ -138,6 +142,7 @@ void TEncodingWriter::VerifyBlock(
     Semaphore.Release(origin.Size());
 }
 
+// Serialized compression invoker affinity (don't use thread affinity because of thread pool).
 void TEncodingWriter::ProcessCompressedBlock(const TSharedRef& block, i64 sizeToRelease)
 {
     CompressionRatio_ = double(CompressedSize_) / UncompressedSize_;
@@ -152,10 +157,11 @@ void TEncodingWriter::ProcessCompressedBlock(const TSharedRef& block, i64 sizeTo
     LOG_DEBUG("Pending block added");
 
     if (PendingBlocks.size() == 1) {
-        AsyncWriter->GetReadyEvent().Subscribe(WritePending);
+        WritePending.Run(TError());
     }
 }
 
+// Serialized compression invoker affinity (don't use thread affinity because of thread pool).
 void TEncodingWriter::WritePendingBlocks(TError error)
 {
     if (!error.IsOK()) {
