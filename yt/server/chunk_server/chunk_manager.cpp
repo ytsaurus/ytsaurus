@@ -656,6 +656,7 @@ public:
         auto type = TypeFromId(id);
         switch (type) {
             case EObjectType::Chunk:
+            case EObjectType::ErasureChunk:
                 return FindChunk(id);
             case EObjectType::ChunkList:
                 return FindChunkList(id);
@@ -1032,7 +1033,7 @@ private:
         PROFILE_TIMING ("/full_chunk_refresh_time") {
             ChunkPlacement = New<TChunkPlacement>(Config, Bootstrap);
             ChunkPlacement->Initialize();
-            
+
             ChunkReplicator = New<TChunkReplicator>(Config, Bootstrap, ChunkPlacement);
             ChunkReplicator->Initialize();
         }
@@ -1274,7 +1275,7 @@ private:
             Profiler.Enqueue("/rf_update_list_size", ChunkReplicator->GetRFUpdateListSize());
         }
     }
-    
+
 };
 
 DEFINE_METAMAP_ACCESSORS(TChunkManager::TImpl, Chunk, TChunk, TChunkId, ChunkMap)
