@@ -290,17 +290,23 @@ TPartitionChunkWriterProvider::TPartitionChunkWriterProvider(
     , Options(options)
     , Partitioner(partitioner)
     , ActiveWriters(0)
+    , RowCount(0)
 { }
 
 TPartitionChunkWriterPtr TPartitionChunkWriterProvider::CreateChunkWriter(NChunkClient::IAsyncWriterPtr asyncWriter)
 {
     YCHECK(ActiveWriters == 0);
+    if (CurrentWriter) {
+        RowCount += CurrentWriter->GetRowCount();
+    }
+
     ++ActiveWriters;
-    return New<TPartitionChunkWriter>(
+    CurrentWriter = New<TPartitionChunkWriter>(
         Config,
         Options,
         asyncWriter,
         Partitioner);
+    return CurrentWriter;
 }
 
 void TPartitionChunkWriterProvider::OnChunkFinished()
@@ -316,7 +322,8 @@ const TNullable<TKeyColumns>& TPartitionChunkWriterProvider::GetKeyColumns() con
 
 i64 TPartitionChunkWriterProvider::GetRowCount() const
 {
-    YUNIMPLEMENTED();
+    auto writer = CurrentWriter;
+    return RowCount + (writer ? writer->GetRowCount() : 0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
