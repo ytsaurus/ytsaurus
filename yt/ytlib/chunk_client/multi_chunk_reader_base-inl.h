@@ -5,7 +5,7 @@
 
 #include "private.h"
 #include "config.h"
-#include "chunk_replica.h"
+
 #include "block_cache.h"
 #include "async_reader.h"
 #include "dispatcher.h"

@@ -1150,6 +1150,8 @@ TObjectBase* TSecurityManager::TAccountTypeHandler::Create(
     UNUSED(response);
 
     auto name = attributes->Get<Stroka>("name");
+    attributes->Remove("name");
+
     auto* newAccount = Owner->CreateAccount(name);
     return newAccount;
 }
@@ -1187,6 +1189,8 @@ TObjectBase* TSecurityManager::TUserTypeHandler::Create(
     UNUSED(response);
 
     auto name = attributes->Get<Stroka>("name");
+    attributes->Remove("name");
+
     auto* newUser = Owner->CreateUser(name);
     return newUser;
 }
@@ -1224,6 +1228,8 @@ TObjectBase* TSecurityManager::TGroupTypeHandler::Create(
     UNUSED(response);
 
     auto name = attributes->Get<Stroka>("name");
+    attributes->Remove("name");
+
     auto* newGroup = Owner->CreateGroup(name);
     return newGroup;
 }

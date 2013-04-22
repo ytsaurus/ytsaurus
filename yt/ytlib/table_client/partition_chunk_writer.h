@@ -52,6 +52,8 @@ private:
 class TPartitionChunkWriter
     : public TChunkWriterBase
 {
+    DEFINE_BYVAL_RO_PROPERTY(i64, RowCount);
+
 public:
     typedef TPartitionChunkWriterProvider TProvider;
     typedef TPartitionChunkWriterFacade TFacade;
@@ -106,9 +108,8 @@ public:
     TPartitionChunkWriterPtr CreateChunkWriter(NChunkClient::IAsyncWriterPtr asyncWriter);
     void OnChunkFinished();
 
-    // Required by sync writer.
-    i64 GetRowCount() const;
     const TNullable<TKeyColumns>& GetKeyColumns() const;
+    i64 GetRowCount() const;
 
 private:
     TChunkWriterConfigPtr Config;
@@ -116,6 +117,9 @@ private:
     IPartitioner* Partitioner;
 
     int ActiveWriters;
+    i64 RowCount;
+
+    TPartitionChunkWriterPtr CurrentWriter;
 
 };
 

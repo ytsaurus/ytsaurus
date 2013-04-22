@@ -189,7 +189,10 @@ void TSession::PutBlock(
     slot.Block = data;
 
     if (enableCaching) {
-        Bootstrap->GetBlockStore()->PutBlock(blockId, data, Null);
+        Bootstrap->GetBlockStore()->PutBlock(
+            blockId,
+            data,
+            Null);
     }
 
     Location->UpdateUsedSpace(data.Size());

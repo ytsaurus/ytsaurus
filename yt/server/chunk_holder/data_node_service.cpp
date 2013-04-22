@@ -56,7 +56,7 @@ TDataNodeService::TDataNodeService(
     TDataNodeConfigPtr config,
     TBootstrap* bootstrap)
     : NRpc::TServiceBase(
-        bootstrap->GetControlInvoker(),
+        CreatePrioritizedInvoker(bootstrap->GetControlInvoker()),
         TProxy::GetServiceName(),
         DataNodeLogger.GetCategory())
     , Config(config)
@@ -68,12 +68,15 @@ TDataNodeService::TDataNodeService(
 
     RegisterMethod(RPC_SERVICE_METHOD_DESC(StartChunk));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(FinishChunk));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(PutBlocks));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(PutBlocks)
+        .SetEnableReorder(true));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(SendBlocks));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(FlushBlock));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(PingSession));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlocks));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkMeta));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlocks)
+        .SetEnableReorder(true));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkMeta)
+        .SetEnableReorder(true));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(PrecacheChunk));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdatePeer)
         .SetOneWay(true));
@@ -368,7 +371,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetBlocks)
             // Fetch the actual data (either from cache or from disk).
             LOG_DEBUG("GetBlocks: Fetching block %d", blockIndex);
             awaiter->Await(
-                blockStore->GetBlock(blockId, enableCaching),
+                blockStore->GetBlock(blockId, context->GetPriority(), enableCaching),
                 BIND([=] (TBlockStore::TGetBlockResult result) {
                     if (result.IsOK()) {
                         // Attach the real data.
@@ -474,9 +477,9 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetChunkMeta)
         ~ToString(partitionTag));
 
     auto chunk = GetChunk(chunkId);
-    auto asyncChunkMeta = chunk->GetMeta(request->all_extension_tags()
-        ? NULL
-        : &extensionTags);
+    auto asyncChunkMeta = chunk->GetMeta(
+        context->GetPriority(),
+        request->all_extension_tags() ? nullptr : &extensionTags);
 
     asyncChunkMeta.Subscribe(BIND(&TDataNodeService::OnGotChunkMeta,
         Unretained(this),
@@ -543,12 +546,14 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetTableSamples)
                 ~ToString(chunkId));
             ToProto(chunkSamples->mutable_error(), TError("No such chunk"));
         } else {
-            awaiter->Await(chunk->GetMeta(), BIND(
-                &TDataNodeService::ProcessSample,
-                MakeStrong(this),
-                &sampleRequest,
-                chunkSamples,
-                keyColumns));
+            awaiter->Await(
+                chunk->GetMeta(context->GetPriority()),
+                BIND(
+                    &TDataNodeService::ProcessSample,
+                    MakeStrong(this),
+                    &sampleRequest,
+                    chunkSamples,
+                    keyColumns));
         }
     }
 
@@ -647,13 +652,15 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetChunkSplits)
             LOG_ERROR(error);
             ToProto(splittedChunk->mutable_error(), error);
         } else {
-            awaiter->Await(chunk->GetMeta(), BIND(
-                &TDataNodeService::MakeChunkSplits,
-                MakeStrong(this),
-                &inputChunk,
-                splittedChunk,
-                request->min_split_size(),
-                keyColumns));
+            awaiter->Await(
+                chunk->GetMeta(context->GetPriority()),
+                BIND(
+                    &TDataNodeService::MakeChunkSplits,
+                    MakeStrong(this),
+                    &inputChunk,
+                    splittedChunk,
+                    request->min_split_size(),
+                    keyColumns));
         }
     }
 

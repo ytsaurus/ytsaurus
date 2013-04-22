@@ -49,6 +49,11 @@ const TNullable<TKeyColumns>& TChunkWriterBase::GetKeyColumns() const
     return Options->KeyColumns;
 }
 
+const i64 TChunkWriterBase::GetRowCount() const
+{
+    return RowCount;
+}
+
 void TChunkWriterBase::CheckBufferCapacity()
 {
     if (Config->MaxBufferSize < CurrentBufferCapacity) {

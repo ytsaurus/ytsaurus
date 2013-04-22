@@ -59,6 +59,7 @@ public:
      */
     TAsyncGetBlockResult GetBlock(
         const TBlockId& blockId,
+        i64 priority,
         bool enableCaching);
 
     //! Tries to find a block in the cache.

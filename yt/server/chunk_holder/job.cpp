@@ -292,7 +292,7 @@ private:
     {
         LOG_INFO("Retrieving chunk meta");
 
-        Chunk->GetMeta().Subscribe(
+        Chunk->GetMeta(0).Subscribe(
             BIND(&TReplicationJob::OnGotChunkMeta, MakeStrong(this))
                 .Via(CancelableInvoker));
     }
@@ -347,7 +347,7 @@ private:
 
         TBlockId blockId(Chunk->GetId(), CurrentBlockIndex);
         auto blockStore = Bootstrap->GetBlockStore();
-        blockStore->GetBlock(blockId, false).Subscribe(
+        blockStore->GetBlock(blockId, 0, false).Subscribe(
             BIND(&TReplicationJob::OnWriterReady, this_)
                 .Via(CancelableInvoker));
     }

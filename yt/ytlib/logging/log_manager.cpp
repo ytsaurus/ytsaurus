@@ -130,6 +130,9 @@ public:
         , Callback(std::move(callback))
 
     {
+        Fd_ = handle->GetFd();
+        YCHECK(Fd_ >= 0);
+
         CreateWatch();
     }
 

@@ -1,4 +1,4 @@
-﻿#include "stdafx.h"
+#include "stdafx.h"
 #include "private.h"
 #include "partition_chunk_reader.h"
 

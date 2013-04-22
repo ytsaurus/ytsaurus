@@ -803,9 +803,10 @@ public:
         auto element = GetOperationElement(operation);
         const auto& attributes = element->Attributes();
         return Sprintf(
-            "Scheduling = {Status: %s, Rank: %d, DominantResource: %s, Demand: %.4lf, "
+            "Scheduling = {Status: %s, Rank: %d+%d, DominantResource: %s, Demand: %.4lf, "
             "Usage: %.4lf, FairShare: %.4lf, AdjustedMinShare: %.4lf, MaxShare: %.4lf, Starving: %s}",
             ~element->GetStatus().ToString(),
+            element->GetPool()->Attributes().Rank,
             attributes.Rank,
             ~attributes.DominantResource.ToString(),
             attributes.DemandRatio,

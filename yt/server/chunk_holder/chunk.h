@@ -57,16 +57,19 @@ public:
 
     //! Returns chunk meta.
     /*!
+     *  \param priority Request priority.
      *  \param tags The list of extension tags to return. If NULL
      *  then all extensions are returned.
      *
      *  \note The meta is fetched asynchronously and is cached.
      */
-    TAsyncGetMetaResult GetMeta(const std::vector<int>* tags = NULL);
+    TAsyncGetMetaResult GetMeta(
+        i64 priority,
+        const std::vector<int>* tags = nullptr);
 
     //! Returns chunk meta.
     /*!
-        If chunk meta not cached, returns NULL.
+        If chunk meta not cached, returns |nullptr|.
         Pointer is assumed to be alive while you hold the chunk.
      */
     const NChunkClient::NProto::TChunkMeta* GetCachedMeta() const;
@@ -101,7 +104,8 @@ private:
     void Initialize();
     void DoRemoveChunk();
 
-    TAsyncError ReadMeta();
+    TAsyncError ReadMeta(i64 priority);
+    void DoReadMeta(TPromise<TError> promise);
 
     mutable TSpinLock SpinLock;
 

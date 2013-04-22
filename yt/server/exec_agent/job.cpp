@@ -17,8 +17,8 @@
 #include <ytlib/file_client/file_ypath_proxy.h>
 
 #include <ytlib/table_client/table_producer.h>
-#include <ytlib/table_client/table_reader.h>
 #include <ytlib/table_client/table_chunk_reader.h>
+#include <ytlib/table_client/sync_reader.h>
 #include <ytlib/table_client/config.h>
 
 #include <ytlib/chunk_client/multi_chunk_sequential_reader.h>

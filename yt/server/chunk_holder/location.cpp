@@ -68,7 +68,10 @@ TLocation::TLocation(
     , SessionCount(0)
     , ChunkCount(0)
     , ReadQueue(New<TFairShareActionQueue>(ELocationQueue::GetDomainNames(), Sprintf("Read:%s", ~Id)))
+    , DataReadInvoker(CreatePrioritizedInvoker(ReadQueue->GetInvoker(ELocationQueue::Data)))
+    , MetaReadInvoker(CreatePrioritizedInvoker(ReadQueue->GetInvoker(ELocationQueue::Meta)))
     , WriteQueue(New<TActionQueue>(Sprintf("Write:%s", ~Id)))
+    , WriteInvoker(CreatePrioritizedInvoker(WriteQueue->GetInvoker()))
     , Logger(DataNodeLogger)
 {
     Logger.AddTag(Sprintf("Path: %s", ~Config->Path));
@@ -204,19 +207,19 @@ bool TLocation::HasEnoughSpace(i64 size) const
     return GetAvailableSpace() - size >= Config->HighWatermark;
 }
 
-IInvokerPtr TLocation::GetDataReadInvoker()
+IPrioritizedInvokerPtr TLocation::GetDataReadInvoker()
 {
-    return ReadQueue->GetInvoker(ELocationQueue::Data);
+    return DataReadInvoker;
 }
 
-IInvokerPtr TLocation::GetMetaReadInvoker()
+IPrioritizedInvokerPtr TLocation::GetMetaReadInvoker()
 {
-    return ReadQueue->GetInvoker(ELocationQueue::Meta);
+    return MetaReadInvoker;
 }
 
-IInvokerPtr TLocation::GetWriteInvoker()
+IPrioritizedInvokerPtr TLocation::GetWriteInvoker()
 {
-    return WriteQueue->GetInvoker();
+    return WriteInvoker;
 }
 
 bool TLocation::IsEnabled() const

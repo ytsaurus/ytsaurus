@@ -1713,7 +1713,6 @@ private:
 
                         case EJobState::Waiting:
                             LOG_DEBUG("Job is waiting");
-                            YCHECK(job->GetState() == EJobState::Waiting);
                             OnJobWaiting(job);
                             break;
 

@@ -74,7 +74,9 @@ Stroka TChunk::GetFileName() const
     return Location_->GetChunkFileName(Id_);
 }
 
-TChunk::TAsyncGetMetaResult TChunk::GetMeta(const std::vector<int>* tags)
+TChunk::TAsyncGetMetaResult TChunk::GetMeta(
+    i64 priority,
+    const std::vector<int>* tags)
 {
     {
         TGuard<TSpinLock> guard(SpinLock);
@@ -97,7 +99,7 @@ TChunk::TAsyncGetMetaResult TChunk::GetMeta(const std::vector<int>* tags)
     auto tags_ = MakeNullable(tags);
     auto this_ = MakeStrong(this);
     auto invoker = Location_->GetBootstrap()->GetControlInvoker();
-    return ReadMeta().Apply(
+    return ReadMeta(priority).Apply(
         BIND([=] (TError error) -> TGetMetaResult {
             if (!error.IsOK()) {
                 return error;
@@ -116,55 +118,59 @@ const NChunkClient::NProto::TChunkMeta* TChunk::GetCachedMeta() const
     return HasMeta ? &Meta : nullptr;
 }
 
-TAsyncError TChunk::ReadMeta()
+TAsyncError TChunk::ReadMeta(i64 priority)
 {
     if (!TryAcquireReadLock()) {
         return MakeFuture(TError("Cannot read meta of chunk %s: chunk is scheduled for removal",
             ~ToString(Id_)));
     }
 
-    auto this_ = MakeStrong(this);
-    return
-        BIND([ = ] () mutable -> TError {
-            auto& Profiler = Location_->Profiler();
-            LOG_DEBUG("Started reading meta (ChunkId: %s, LocationId: %s)",
-                ~ToString(this->Id_),
-                ~Location_->GetId());
+    auto promise = NewPromise<TError>();
+    auto action = BIND(&TChunk::DoReadMeta, MakeStrong(this), promise);
+    Location_
+        ->GetMetaReadInvoker()
+        ->Invoke(action, priority);
+    return promise;
+}
 
-            NChunkClient::TFileReaderPtr reader;
-            PROFILE_TIMING ("/meta_read_time") {
-                auto readerCache = this_->Location_->GetBootstrap()->GetReaderCache();
-                auto result = readerCache->GetReader(this_);
-                if (!result.IsOK()) {
-                    this_->ReleaseReadLock();
-                    LOG_WARNING(result, "Error reading chunk meta (ChunkId: %s)",
-                        ~ToString(this_->Id_));
-                    return TError(result);
-                }
-                reader = result.Value();
-            }
+void TChunk::DoReadMeta(TPromise<TError> promise)
+{
+    auto& Profiler = Location_->Profiler();
+    LOG_DEBUG("Started reading meta (ChunkId: %s, LocationId: %s)",
+        ~ToString(Id_),
+        ~Location_->GetId());
 
-            {
-                TGuard<TSpinLock> guard(SpinLock);
-                // This check is important since this code may get triggered
-                // multiple times and readers do not use any locking.
-                if (!HasMeta) {
-                    // These are very quick getters.
-                    Meta = reader->GetChunkMeta();
-                    HasMeta = true;
-                    MemoryUsageTracker.Acquire(NCellNode::EMemoryConsumer::ChunkMeta, Meta.SpaceUsed());
-                }
-            }
+    NChunkClient::TFileReaderPtr reader;
+    PROFILE_TIMING ("/meta_read_time") {
+        auto readerCache = Location_->GetBootstrap()->GetReaderCache();
+        auto result = readerCache->GetReader(this);
+        if (!result.IsOK()) {
+            ReleaseReadLock();
+            LOG_WARNING(result, "Error reading chunk meta (ChunkId: %s)",
+                ~ToString(Id_));
+            promise.Set(result);
+        }
+        reader = result.Value();
+    }
 
-            this_->ReleaseReadLock();
-            LOG_DEBUG("Finished reading meta (LocationId: %s, ChunkId: %s)",
-                ~this_->Location_->GetId(),
-                ~ToString(this_->Id_));
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+        // This check is important since this code may get triggered
+        // multiple times and readers do not use any locking.
+        if (!HasMeta) {
+            // These are very quick getters.
+            Meta = reader->GetChunkMeta();
+            HasMeta = true;
+            MemoryUsageTracker.Acquire(NCellNode::EMemoryConsumer::ChunkMeta, Meta.SpaceUsed());
+        }
+    }
 
-            return TError();
-        })
-        .AsyncVia(Location_->GetMetaReadInvoker())
-        .Run();
+    ReleaseReadLock();
+    LOG_DEBUG("Finished reading meta (ChunkId: %s, LocationId: %s)",
+        ~ToString(Id_),
+        ~Location_->GetId());
+
+    promise.Set(TError());
 }
 
 bool TChunk::TryAcquireReadLock()

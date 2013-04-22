@@ -1,4 +1,5 @@
-﻿#include "stdafx.h"
+﻿
+#include "stdafx.h"
 #include "table_reader.h"
 #include "config.h"
 #include "table_chunk_reader.h"
@@ -124,7 +125,7 @@ bool TAsyncTableReader::FetchNextItem()
     VERIFY_THREAD_AFFINITY(Client);
     YASSERT(IsOpen);
 
-    if (Reader->GetFacade()) {
+    if (Reader->GetFacade() != nullptr) {
         if (IsReadStarted_) {
             return Reader->FetchNext();
         }
@@ -141,12 +142,10 @@ TAsyncError TAsyncTableReader::GetReadyEvent()
     }
     return Reader->GetReadyEvent();
 }
-
 bool TAsyncTableReader::IsValid() const
 {
     return Reader->GetFacade() != nullptr;
 }
-
 const TRow& TAsyncTableReader::GetRow() const
 {
     return Reader->GetFacade()->GetRow();

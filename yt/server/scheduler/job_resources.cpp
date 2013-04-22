@@ -12,6 +12,9 @@ using namespace NChunkClient;
 using namespace NTableClient;
 using namespace NNodeTrackerClient::NProto;
 
+using NChunkClient::MaxPrefetchWindow;
+using NChunkClient::ChunkReaderMemorySize;
+
 ////////////////////////////////////////////////////////////////////
 
 //! Additive term for each job memory usage.
