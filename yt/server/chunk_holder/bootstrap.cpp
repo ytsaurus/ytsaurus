@@ -56,6 +56,8 @@ TBootstrap::~TBootstrap()
 
 void TBootstrap::Init()
 {
+    Config->CacheRemoteReader->PeerAddress = GetPeerAddress();
+
     ReaderCache = New<TReaderCache>(Config);
 
     ChunkRegistry = New<TChunkRegistry>(this);
