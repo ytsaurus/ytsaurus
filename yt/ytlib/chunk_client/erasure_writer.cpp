@@ -176,6 +176,8 @@ private:
 
     TAsyncError CloseParityWriters();
 
+    TAsyncError OnClosed(TError error);
+
     TErasureWriterConfigPtr Config_;
     NErasure::ICodec* Codec_;
 
@@ -285,8 +287,10 @@ TAsyncError TErasureWriter::WriteDataBlocks()
         auto pipeline = StartAsyncPipeline(TDispatcher::Get()->GetWriterInvoker());
         FOREACH (const auto& block, group) {
             pipeline = pipeline->Add(BIND([this, this_, block, writer] () -> TAsyncError {
-                writer->WriteBlock(block);
-                return writer->GetReadyEvent();
+                if (!writer->WriteBlock(block)) {
+                    return writer->GetReadyEvent();
+                }
+                return MakeFuture(TError());
             }));
         }
         pipeline = pipeline->Add(BIND(&IAsyncWriter::AsyncClose, writer, ChunkMeta_));
@@ -322,7 +326,7 @@ TAsyncError TErasureWriter::EncodeAndWriteParityBlocks()
 
         ++windowIndex;
     }
-    pipeline->Add(BIND(&TErasureWriter::CloseParityWriters, this_));
+    pipeline = pipeline->Add(BIND(&TErasureWriter::CloseParityWriters, this_));
     return ConvertToTErrorFuture(pipeline->Run());
 }
 
@@ -364,6 +368,7 @@ TAsyncError TErasureWriter::AsyncClose(const NProto::TChunkMeta& chunkMeta)
     PrepareBlocks();
     PrepareChunkMeta(chunkMeta);
 
+    auto this_ = MakeStrong(this);
     auto invoker = TDispatcher::Get()->GetWriterInvoker();
     auto collector = New<TParallelCollector<void>>();
     collector->Collect(
@@ -374,7 +379,23 @@ TAsyncError TErasureWriter::AsyncClose(const NProto::TChunkMeta& chunkMeta)
         BIND(&TErasureWriter::EncodeAndWriteParityBlocks, MakeStrong(this))
         .AsyncVia(invoker)
         .Run());
-    return collector->Complete();
+    return collector->Complete().Apply(BIND(&TErasureWriter::OnClosed, MakeStrong(this)));
+}
+
+
+TAsyncError TErasureWriter::OnClosed(TError error)
+{
+    if (!error.IsOK()) {
+        return MakeFuture(error);
+    }
+
+    i64 chunkDataSize = 0;
+    for (auto writer: Writers_) {
+        chunkDataSize += writer->GetChunkInfo().size();
+    }
+    ChunkInfo_.set_size(chunkDataSize);
+
+    return MakeFuture(TError());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
