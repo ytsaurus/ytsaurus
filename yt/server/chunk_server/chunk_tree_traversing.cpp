@@ -53,12 +53,13 @@ TKey GetMaxKey(const TChunkList* chunkList)
 TKey GetMaxKey(const TChunkTree* chunkTree)
 {
     switch (chunkTree->GetType()) {
-        case EObjectType::Chunk: {
+        case EObjectType::Chunk:
+        case EObjectType::ErasureChunk:
             return GetMaxKey(chunkTree->AsChunk());
-        }
-        case EObjectType::ChunkList: {
+
+        case EObjectType::ChunkList:
             return GetMaxKey(chunkTree->AsChunkList());
-        }
+
         default:
             YUNREACHABLE();
     }
@@ -81,12 +82,13 @@ TKey GetMinKey(const TChunkList* chunkList)
 TKey GetMinKey(const TChunkTree* chunkTree)
 {
     switch (chunkTree->GetType()) {
-        case EObjectType::Chunk: {
+        case EObjectType::Chunk:
+        case EObjectType::ErasureChunk:
             return GetMinKey(chunkTree->AsChunk());
-        }
-        case EObjectType::ChunkList: {
+
+        case EObjectType::ChunkList:
             return GetMinKey(chunkTree->AsChunkList());
-        }
+
         default:
             YUNREACHABLE();
     }
@@ -231,7 +233,8 @@ protected:
                     break;
                 }
 
-                case EObjectType::Chunk: {
+                case EObjectType::Chunk:
+                case EObjectType::ErasureChunk: {
                     auto* childChunk = child->AsChunk();
                     if (!Visitor->OnChunk(childChunk, subtreeStartLimit, subtreeEndLimit)) {
                         Shutdown();

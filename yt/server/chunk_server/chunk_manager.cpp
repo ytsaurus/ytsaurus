@@ -333,6 +333,7 @@ public:
     {
         switch (chunkTree->GetType()) {
             case EObjectType::Chunk:
+            case EObjectType::ErasureChunk: 
                 return chunkTree->AsChunk()->GetStatistics();
             case EObjectType::ChunkList:
                 return chunkTree->AsChunkList()->Statistics();
@@ -551,6 +552,7 @@ public:
     {
         switch (child->GetType()) {
             case EObjectType::Chunk:
+            case EObjectType::ErasureChunk: 
                 child->AsChunk()->Parents().push_back(parent);
                 break;
             case EObjectType::ChunkList:
@@ -564,7 +566,8 @@ public:
     void ResetChunkTreeParent(TChunkList* parent, TChunkTree* child)
     {
         switch (child->GetType()) {
-            case EObjectType::Chunk: {
+            case EObjectType::Chunk:
+            case EObjectType::ErasureChunk: {
                 auto& parents = child->AsChunk()->Parents();
                 auto it = std::find(parents.begin(), parents.end(), parent);
                 YASSERT(it != parents.end());
@@ -956,6 +959,7 @@ private:
             FOREACH (auto* child, chunkList->Children()) {
                 switch (child->GetType()) {
                     case EObjectType::Chunk:
+                    case EObjectType::ErasureChunk: 
                         statistics.Accumulate(child->AsChunk()->GetStatistics());
                         break;
 
@@ -1248,7 +1252,8 @@ private:
             return;
         }
         switch (chunkTree->GetType()) {
-            case EObjectType::Chunk: {
+            case EObjectType::Chunk:
+            case EObjectType::ErasureChunk: {
                 FOREACH (auto* parent, chunkTree->AsChunk()->Parents()) {
                     GetOwningNodes(parent, visited, owningNodes);
                 }

@@ -16,13 +16,13 @@ TChunkTree::TChunkTree(const TChunkTreeId& id)
 
 TChunk* TChunkTree::AsChunk()
 {
-    YASSERT(GetType() == EObjectType::Chunk);
+    YASSERT(GetType() == EObjectType::Chunk || GetType() == EObjectType::ErasureChunk);
     return static_cast<TChunk*>(this);
 }
 
 const TChunk* TChunkTree::AsChunk() const
 {
-    YASSERT(GetType() == EObjectType::Chunk);
+    YASSERT(GetType() == EObjectType::Chunk || GetType() == EObjectType::ErasureChunk);
     return static_cast<const TChunk*>(this);
 }
 

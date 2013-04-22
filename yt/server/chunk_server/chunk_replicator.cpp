@@ -798,6 +798,9 @@ void TChunkReplicator::ScheduleRFUpdate(TChunkTree* chunkTree)
         case EObjectType::Chunk:
             ScheduleRFUpdate(chunkTree->AsChunk());
             break;
+        case EObjectType::ErasureChunk:
+            // Erasure chunks have no RF.
+            break;
         case EObjectType::ChunkList:
             ScheduleRFUpdate(chunkTree->AsChunkList());
             break;

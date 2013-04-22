@@ -168,7 +168,8 @@ void TChunkTreeBalancer::MergeChunkTrees(
     auto chunkManager = Bootstrap->GetChunkManager();
 
     switch (child->GetType()) {
-        case EObjectType::Chunk: {
+        case EObjectType::Chunk:
+        case EObjectType::ErasureChunk: {
             // Just adding the chunk to the last chunk list.
             chunkManager->AttachToChunkList(lastChunkList, child);
             break;

@@ -50,7 +50,8 @@ private:
     void TraverseTree(TChunkTree* chunkTree, NYson::IYsonConsumer* consumer)
     {
         switch (chunkTree->GetType()) {
-            case EObjectType::Chunk: {
+            case EObjectType::Chunk:
+            case EObjectType::ErasureChunk: {
                 consumer->OnStringScalar(ToString(chunkTree->GetId()));
                 break;
             }
