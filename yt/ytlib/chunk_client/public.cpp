@@ -35,7 +35,7 @@ bool IsErasureChunkId(const TChunkId& id)
     return TypeFromId(id) == EObjectType::ErasureChunk;
 }
 
-bool IsEasureChunkPartId(const TChunkId& id)
+bool IsErasureChunkPartId(const TChunkId& id)
 {
     auto type = TypeFromId(id);
     return type >= EObjectType::ErasureChunkPart_0 &&
@@ -61,7 +61,7 @@ int PartIndexFromErasurePartId(const TChunkId& id)
 
 TChunkIdWithIndex DecodeChunkId(const TChunkId& id)
 {
-    return IsErasureChunkId(id)
+    return IsErasureChunkPartId(id)
            ? TChunkIdWithIndex(ChunkIdFromErasurePartId(id), PartIndexFromErasurePartId(id))
            : TChunkIdWithIndex(id, 0);
 }

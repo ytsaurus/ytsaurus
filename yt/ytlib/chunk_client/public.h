@@ -140,7 +140,7 @@ Stroka ToString(const TChunkIdWithIndex& id);
 bool IsErasureChunkId(const TChunkId& id);
 
 //! Returns |true| iff this is a erasure chunk part.
-bool IsEasureChunkPartId(const TChunkId& id);
+bool IsErasureChunkPartId(const TChunkId& id);
 
 //! Returns id for a part of a given erasure chunk.
 TChunkId PartIdFromErasureChunkId(const TChunkId& id, int index);
