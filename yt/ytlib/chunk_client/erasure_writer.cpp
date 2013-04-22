@@ -132,7 +132,7 @@ public:
         }
     }
 
-    virtual bool TryWriteBlock(const TSharedRef& block) override
+    virtual bool WriteBlock(const TSharedRef& block) override
     {
         Blocks_.push_back(block);
         return true;
@@ -147,17 +147,17 @@ public:
 
     virtual const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const override
     {
+        YUNIMPLEMENTED();
+    }
+
+    virtual const std::vector<int> GetWrittenIndexes() const override
+    {
         std::vector<int> result;
         result.reserve(Codec_->GetTotalBlockCount());
         for (int i = 0; i < Codec_->GetTotalBlockCount(); ++i) {
             result.push_back(i);
         }
         return result;
-    }
-
-    virtual const std::vector<int> GetWrittenIndexes() const override
-    {
-
     }
 
     virtual TAsyncError AsyncClose(const NProto::TChunkMeta& chunkMeta) override;
@@ -283,7 +283,7 @@ TAsyncError TErasureWriter::WriteDataBlocks()
         auto pipeline = StartAsyncPipeline(TDispatcher::Get()->GetWriterInvoker());
         FOREACH (const auto& block, group) {
             pipeline = pipeline->Add(BIND([this, this_, block, writer] () -> TAsyncError {
-                writer->TryWriteBlock(block);
+                writer->WriteBlock(block);
                 return writer->GetReadyEvent();
             }));
         }
@@ -338,7 +338,7 @@ TAsyncError TErasureWriter::WriteParityBlocks(int windowIndex)
     auto collector = New<TParallelCollector<void>>();
     for (int i = 0; i < Codec_->GetParityBlockCount(); ++i) {
         auto& writer = Writers_[Codec_->GetDataBlockCount() + i];
-        writer->TryWriteBlock(parityBlocks[i]);
+        writer->WriteBlock(parityBlocks[i]);
         collector->Collect(writer->GetReadyEvent());
     }
     auto writeFuture = collector->Complete();
