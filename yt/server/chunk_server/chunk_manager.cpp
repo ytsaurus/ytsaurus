@@ -333,7 +333,7 @@ public:
     {
         switch (chunkTree->GetType()) {
             case EObjectType::Chunk:
-            case EObjectType::ErasureChunk: 
+            case EObjectType::ErasureChunk:
                 return chunkTree->AsChunk()->GetStatistics();
             case EObjectType::ChunkList:
                 return chunkTree->AsChunkList()->Statistics();
@@ -552,7 +552,7 @@ public:
     {
         switch (child->GetType()) {
             case EObjectType::Chunk:
-            case EObjectType::ErasureChunk: 
+            case EObjectType::ErasureChunk:
                 child->AsChunk()->Parents().push_back(parent);
                 break;
             case EObjectType::ChunkList:
@@ -959,7 +959,7 @@ private:
             FOREACH (auto* child, chunkList->Children()) {
                 switch (child->GetType()) {
                     case EObjectType::Chunk:
-                    case EObjectType::ErasureChunk: 
+                    case EObjectType::ErasureChunk:
                         statistics.Accumulate(child->AsChunk()->GetStatistics());
                         break;
 
@@ -1195,19 +1195,21 @@ private:
         }
 
         // Use the size reported by the node, but check it for consistency first.
-        if (!chunk->ValidateChunkInfo(chunkAddInfo.chunk_info())) {
-            auto error = TError("Mismatched chunk info reported by node (ChunkId: %s, Cached: %s, ExpectedInfo: {%s}, ReceivedInfo: {%s}, NodeId: %d, Address: %s)",
-                ~ToString(chunkWithIndex),
-                ~FormatBool(cached),
-                ~chunk->ChunkInfo().DebugString(),
-                ~chunkAddInfo.chunk_info().DebugString(),
-                nodeId,
-                ~node->GetAddress());
-            LOG_ERROR(error);
-            // TODO(babenko): return error to node
-            return;
+        if (!chunk->IsErasure()) {
+            if (!chunk->ValidateChunkInfo(chunkAddInfo.chunk_info())) {
+                auto error = TError("Mismatched chunk info reported by node (ChunkId: %s, Cached: %s, ExpectedInfo: {%s}, ReceivedInfo: {%s}, NodeId: %d, Address: %s)",
+                    ~ToString(chunkWithIndex),
+                    ~FormatBool(cached),
+                    ~chunk->ChunkInfo().DebugString(),
+                    ~chunkAddInfo.chunk_info().DebugString(),
+                    nodeId,
+                    ~node->GetAddress());
+                LOG_ERROR(error);
+                // TODO(babenko): return error to node
+                return;
+            }
+            chunk->ChunkInfo() = chunkAddInfo.chunk_info();
         }
-        chunk->ChunkInfo() = chunkAddInfo.chunk_info();
 
         AddChunkReplica(
             node,

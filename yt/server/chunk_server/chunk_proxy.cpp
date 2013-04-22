@@ -330,7 +330,7 @@ private:
 
         // Use the size reported by the client, but check it for consistency first.
         if (!chunk->ValidateChunkInfo(request->chunk_info())) {
-            LOG_FATAL("Invalid chunk info reported by client (ChunkId: %s, ExpectedInfo: {%s}, ReceivedInfo: {%s})",
+            THROW_ERROR_EXCEPTION("Invalid chunk info reported by client (ChunkId: %s, ExpectedInfo: {%s}, ReceivedInfo: {%s})",
                 ~ToString(chunk->GetId()),
                 ~chunk->ChunkInfo().DebugString(),
                 ~request->chunk_info().DebugString());
