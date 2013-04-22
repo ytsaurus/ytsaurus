@@ -135,11 +135,15 @@ public:
         meta.set_type(1);
         meta.set_version(1);
 
+        i64 dataSize = 0;
         auto erasureWriter = CreateErasureWriter(config, codec, writers);
         FOREACH (const auto& ref, data) {
             erasureWriter->WriteBlock(ref);
+            dataSize += ref.Size();
         }
         erasureWriter->AsyncClose(meta).Get();
+
+        EXPECT_TRUE(erasureWriter->GetChunkInfo().size() >= dataSize);
 
         FOREACH (auto writer, writers) {
             EXPECT_TRUE(writer->AsyncClose(meta).Get().IsOK());
