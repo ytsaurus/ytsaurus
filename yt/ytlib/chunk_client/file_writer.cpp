@@ -100,7 +100,7 @@ TAsyncError TFileWriter::AsyncClose(const NChunkClient::NProto::TChunkMeta& chun
 
     // Write meta.
     ChunkMeta.CopyFrom(chunkMeta);
-    UpdateProtoExtension(ChunkMeta.mutable_extensions(), BlocksExt);
+    SetProtoExtension(ChunkMeta.mutable_extensions(), BlocksExt);
 
     TSharedRef metaData;
     YCHECK(SerializeToProtoWithEnvelope(ChunkMeta, &metaData));

@@ -231,14 +231,9 @@ template <class T>
 TNullable<T> FindProtoExtension(const NProto::TExtensionSet& extensions);
 
 //! Serializes and stores an extension.
-//! Fails if extension with the same tag already exists.
-template <class T>
-void SetProtoExtension(NProto::TExtensionSet* extensions, const T& value);
-
-//! Serializes and stores an extension.
 //! Overwrites any extension with the same tag (if exists).
 template <class T>
-void UpdateProtoExtension(NProto::TExtensionSet* extensions, const T& value);
+void SetProtoExtension(NProto::TExtensionSet* extensions, const T& value);
 
 //! Tries to remove the extension.
 //! Returns |true| iff the proper extension is found.

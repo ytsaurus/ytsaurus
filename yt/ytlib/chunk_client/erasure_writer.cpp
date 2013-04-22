@@ -272,7 +272,7 @@ void TErasureWriter::PrepareChunkMeta(const NProto::TChunkMeta& chunkMeta)
     auto miscExt = FindProtoExtension<NProto::TMiscExt>(
         ChunkMeta_.extensions()).Get(NProto::TMiscExt());
     miscExt.set_repair_memory_limit(MemoryConsumption_);
-    UpdateProtoExtension(ChunkMeta_.mutable_extensions(), miscExt);
+    SetProtoExtension(ChunkMeta_.mutable_extensions(), miscExt);
 }
 
 TAsyncError TErasureWriter::WriteDataBlocks()

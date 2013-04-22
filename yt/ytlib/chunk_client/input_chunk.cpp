@@ -109,7 +109,7 @@ std::vector<TRefCountedInputChunkPtr> SliceChunkEvenly(TRefCountedInputChunkPtr 
             TSizeOverrideExt sizeOverride;
             sizeOverride.set_row_count(sliceEndRowIndex - sliceStartRowIndex);
             sizeOverride.set_uncompressed_data_size(dataSize / count + 1);
-            UpdateProtoExtension(slicedChunk->mutable_extensions(), sizeOverride);
+            SetProtoExtension(slicedChunk->mutable_extensions(), sizeOverride);
 
             result.push_back(slicedChunk);
         }

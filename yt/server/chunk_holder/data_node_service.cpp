@@ -162,7 +162,7 @@ void TDataNodeService::OnGotChunkMeta(TCtxGetChunkMetaPtr context, TNullable<int
         }
 
         ToProto(channelsExt.mutable_items(0)->mutable_blocks(), filteredBlocks);
-        UpdateProtoExtension(
+        SetProtoExtension(
             context->Response().mutable_chunk_meta()->mutable_extensions(),
             channelsExt);
     }
@@ -822,14 +822,14 @@ void TDataNodeService::MakeChunkSplits(
             }
 
             *boundaryKeysExt.mutable_end() = key;
-            UpdateProtoExtension(currentSplit->mutable_extensions(), boundaryKeysExt);
+            SetProtoExtension(currentSplit->mutable_extensions(), boundaryKeysExt);
 
             endRowIndex = beginIt->row_index();
 
             NChunkClient::NProto::TSizeOverrideExt sizeOverride;
             sizeOverride.set_row_count(endRowIndex - startRowIndex);
             sizeOverride.set_uncompressed_data_size(dataSize);
-            UpdateProtoExtension(currentSplit->mutable_extensions(), sizeOverride);
+            SetProtoExtension(currentSplit->mutable_extensions(), sizeOverride);
 
             key = GetKeySuccessor(key);
             *currentSplit->mutable_end_limit()->mutable_key() = key;
@@ -840,7 +840,7 @@ void TDataNodeService::MakeChunkSplits(
         }
     }
 
-    UpdateProtoExtension(currentSplit->mutable_extensions(), boundaryKeysExt);
+    SetProtoExtension(currentSplit->mutable_extensions(), boundaryKeysExt);
     endRowIndex = (--endIt)->row_index();
 
     NChunkClient::NProto::TSizeOverrideExt sizeOverride;
@@ -848,7 +848,7 @@ void TDataNodeService::MakeChunkSplits(
     sizeOverride.set_uncompressed_data_size(
         dataSize +
         (std::distance(beginIt, endIt) - 1) * dataSizeBetweenSamples);
-    UpdateProtoExtension(currentSplit->mutable_extensions(), sizeOverride);
+    SetProtoExtension(currentSplit->mutable_extensions(), sizeOverride);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
