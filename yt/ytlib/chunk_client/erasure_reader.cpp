@@ -265,7 +265,7 @@ private:
     TReadFuture OnBlockRead(i64 windowSize, IAsyncReader::TReadResult readResult)
     {
         RETURN_PROMISE_IF_ERROR(readResult, TReadResult);
-        
+
         YCHECK(readResult.Value().size() == 1);
         auto block = readResult.Value().front();
 
@@ -306,13 +306,13 @@ private:
 
         return result;
     }
-    
+
     std::deque<TSharedRef> Blocks_;
 
     IAsyncReaderPtr Reader_;
 
     int BlockCount_;
-    
+
     // Current number of read blocks.
     int BlockIndex_;
 
@@ -475,7 +475,7 @@ TRepairReader::TReadFuture TRepairReader::RepairNextBlock()
     auto this_ = MakeStrong(this);
     return RepairIfNeeded().Apply(BIND([this, this_] (TError error) -> TReadFuture {
         RETURN_PROMISE_IF_ERROR(error, TReadResult);
-        
+
         YCHECK(!RepairedBlocksQueue_.empty());
         auto result = TRepairReader::TReadResult(RepairedBlocksQueue_.front());
         RepairedBlocksQueue_.pop_front();
@@ -631,7 +631,7 @@ private:
         if (pos == BlockIndexes_.size()) {
             return MakePromise(IAsyncReader::TReadResult(Result_));
         }
-        
+
         if (!Reader_->HasNextBlock()) {
             return MakePromise<IAsyncReader::TReadResult>(TError("Block index out of range"));
         }
@@ -740,17 +740,17 @@ public:
         return Reader_->RepairNextBlock()
             .Apply(BIND(&TRepairAllPartsSession::OnBlockRepaired, MakeStrong(this)));
     }
-    
+
 private:
     TAsyncError OnBlockRepaired(TValueOrError<TRepairReader::TBlock> blockOrError)
     {
         RETURN_PROMISE_IF_ERROR(blockOrError, TError);
-        
+
         const auto& block = blockOrError.Value();
         YCHECK(IndexToWriter_.find(block.Index) != IndexToWriter_.end());
         auto writer = IndexToWriter_[block.Index];
-        writer->TryWriteBlock(block.Data);
-        
+        writer->WriteBlock(block.Data);
+
         auto this_ = MakeStrong(this);
         return writer->GetReadyEvent().Apply(
             BIND([this, this_] (TError error) -> TAsyncError {

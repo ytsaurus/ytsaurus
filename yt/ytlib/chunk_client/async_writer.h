@@ -19,7 +19,7 @@ struct IAsyncWriter
     //! Starts a new upload session.
     virtual void Open() = 0;
 
-    virtual bool TryWriteBlock(const TSharedRef& block) = 0;
+    virtual bool WriteBlock(const TSharedRef& block) = 0;
     virtual TAsyncError GetReadyEvent() = 0;
 
     //! Called when the client has added all blocks and is
@@ -29,7 +29,7 @@ struct IAsyncWriter
      *  set when the session is complete.
      *
      *  Should be called only once.
-     *  Calling #TryWriteBlock afterwards is an error.
+     *  Calling #WriteBlock afterwards is an error.
      */
     virtual TAsyncError AsyncClose(const NChunkClient::NProto::TChunkMeta& chunkMeta) = 0;
 

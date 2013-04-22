@@ -36,7 +36,7 @@ using namespace NRpc;
 using namespace NNodeTrackerClient;
 
 typedef TDataNodeServiceProxy TProxy;
-    
+
 ///////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& SILENT_UNUSED Logger = ChunkWriterLogger;
@@ -180,7 +180,7 @@ public:
 
     virtual void Open() override;
 
-    virtual bool TryWriteBlock(const TSharedRef& block) override;
+    virtual bool WriteBlock(const TSharedRef& block) override;
     virtual TAsyncError GetReadyEvent() override;
 
     virtual TAsyncError AsyncClose(const NChunkClient::NProto::TChunkMeta& chunkMeta) override;
@@ -972,14 +972,11 @@ void TReplicationWriter::CancelAllPings()
     }
 }
 
-bool TReplicationWriter::TryWriteBlock(const TSharedRef& block)
+bool TReplicationWriter::WriteBlock(const TSharedRef& block)
 {
     YCHECK(IsOpen);
     YCHECK(!IsClosing);
     YCHECK(!State.IsClosed());
-
-    if (!WindowSlots.IsReady())
-        return false;
 
     WindowSlots.Acquire(block.Size());
     TDispatcher::Get()->GetWriterInvoker()->Invoke(BIND(
@@ -987,7 +984,7 @@ bool TReplicationWriter::TryWriteBlock(const TSharedRef& block)
         MakeWeak(this),
         block));
 
-    return true;
+    return WindowSlots.IsReady();
 }
 
 TAsyncError TReplicationWriter::GetReadyEvent()

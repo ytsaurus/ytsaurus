@@ -137,7 +137,7 @@ public:
 
         auto erasureWriter = CreateErasureWriter(config, codec, writers);
         FOREACH (const auto& ref, data) {
-            erasureWriter->TryWriteBlock(ref);
+            erasureWriter->WriteBlock(ref);
         }
         erasureWriter->AsyncClose(meta).Get();
 

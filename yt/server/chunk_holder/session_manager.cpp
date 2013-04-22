@@ -264,7 +264,7 @@ TError TSession::DoWriteBlock(const TSharedRef& block, int blockIndex)
 
     PROFILE_TIMING ("/block_write_time") {
         try {
-            if (!Writer->TryWriteBlock(block)) {
+            if (!Writer->WriteBlock(block)) {
                 // This will throw...
                 Sync(~Writer, &TFileWriter::GetReadyEvent);
                 // ... so we never get here.

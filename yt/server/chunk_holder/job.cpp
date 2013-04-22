@@ -90,7 +90,7 @@ public:
             SetFailed(TError("No such chunk %s", ~ToString(chunkId)));
             return;
         }
-        
+
         DoStart();
     }
 
@@ -360,9 +360,9 @@ private:
         }
 
         auto block = result.Value()->GetData();
-        if (Writer->TryWriteBlock(block)) {
-            ++CurrentBlockIndex;
-        }
+
+        Writer->WriteBlock(block);
+        ++CurrentBlockIndex;
 
         auto this_ = MakeStrong(this);
         Writer->GetReadyEvent().Subscribe(
@@ -467,7 +467,7 @@ private:
                 config->ReplicationWriter,
                 Chunk->GetId(),
                 targets);
-            writers.push_back(writer);            
+            writers.push_back(writer);
         }
 
         RepairErasedBlocks(

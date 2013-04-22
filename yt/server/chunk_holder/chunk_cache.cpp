@@ -288,7 +288,7 @@ private:
             LOG_INFO("Writing block (BlockIndex: %d)", BlockIndex);
             // NB: This is always done synchronously.
             auto block = SequentialReader->GetBlock();
-            if (!FileWriter->TryWriteBlock(block)) {
+            if (!FileWriter->WriteBlock(block)) {
                 OnError(FileWriter->GetReadyEvent().Get());
                 return;
             }

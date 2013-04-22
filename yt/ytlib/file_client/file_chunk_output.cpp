@@ -218,7 +218,7 @@ void TFileChunkOutput::FlushBlock()
         struct TCompressedFileChunkBlockTag { };
         auto compressedBuffer = Codec->Compress(TSharedRef::FromBlob<TCompressedFileChunkBlockTag>(std::move(Buffer)));
 
-        while (!Writer->TryWriteBlock(compressedBuffer)) {
+        if (!Writer->WriteBlock(compressedBuffer)) {
             Sync(~Writer, &IAsyncWriter::GetReadyEvent);
         }
     } catch (const std::exception& ex) {

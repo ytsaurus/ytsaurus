@@ -172,13 +172,14 @@ void TEncodingWriter::WritePendingBlocks(TError error)
     while (!PendingBlocks.empty()) {
         LOG_DEBUG("Writing pending block");
         auto& front = PendingBlocks.front();
-        if (AsyncWriter->TryWriteBlock(front)) {
-            Semaphore.Release(front.Size());
-            PendingBlocks.pop_front();
-        } else {
+        auto result = AsyncWriter->WriteBlock(front);
+        Semaphore.Release(front.Size());
+        PendingBlocks.pop_front();
+
+        if (!result) {
             AsyncWriter->GetReadyEvent().Subscribe(WritePending);
             return;
-        };
+        }
     }
 }
 

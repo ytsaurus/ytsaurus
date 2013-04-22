@@ -45,7 +45,7 @@ void TFileWriter::Open()
     IsOpen = true;
 }
 
-bool TFileWriter::TryWriteBlock(const TSharedRef& block)
+bool TFileWriter::WriteBlock(const TSharedRef& block)
 {
     YCHECK(IsOpen);
     YCHECK(!IsClosed);

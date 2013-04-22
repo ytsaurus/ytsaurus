@@ -23,7 +23,7 @@ public:
 
     virtual void Open();
 
-    virtual bool TryWriteBlock(const TSharedRef& block);
+    virtual bool WriteBlock(const TSharedRef& block);
     virtual TAsyncError GetReadyEvent();
 
     virtual TAsyncError AsyncClose(const NChunkClient::NProto::TChunkMeta& chunkMeta);
@@ -35,7 +35,7 @@ public:
 
     //! Returns chunk meta. The writer must be already closed.
     const NChunkClient::NProto::TChunkMeta& GetChunkMeta() const;
-    
+
     virtual const std::vector<int> GetWrittenIndexes() const override;
 
 private:
