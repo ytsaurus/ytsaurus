@@ -42,10 +42,20 @@ endif()
 if (CMAKE_COMPILER_IS_GNUCXX)
   message(STATUS "Looks like we are using gcc...")
 
-  execute_process(
-    COMMAND ${CMAKE_CXX_COMPILER} -dumpversion
-    OUTPUT_VARIABLE GCC_VERSION
-  )
+  if ( CMAKE_CXX_COMPILER_ARG1 )
+    # workaround for ccache
+    string(REPLACE " " "" CMAKE_CXX_COMPILER_ARG1 ${CMAKE_CXX_COMPILER_ARG1})
+    execute_process( 
+      COMMAND ${CMAKE_CXX_COMPILER_ARG1} -dumpversion 
+      OUTPUT_VARIABLE GCC_VERSION
+    )
+  else ( CMAKE_CXX_COMPILER_ARG1 )
+    execute_process(
+      COMMAND ${CMAKE_CXX_COMPILER} -dumpversion
+      OUTPUT_VARIABLE GCC_VERSION
+    )
+  endif ( CMAKE_CXX_COMPILER_ARG1 )
+
 
   if ( GCC_VERSION VERSION_LESS 4.5 )
     message(FATAL_ERROR "g++ >= 4.5.0 is mandatory due to C++11 usage")
