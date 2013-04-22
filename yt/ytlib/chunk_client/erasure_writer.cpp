@@ -147,12 +147,17 @@ public:
 
     virtual const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const override
     {
-        YUNREACHABLE();
+        std::vector<int> result;
+        result.reserve(Codec_->GetTotalBlockCount());
+        for (int i = 0; i < Codec_->GetTotalBlockCount(); ++i) {
+            result.push_back(i);
+        }
+        return result;
     }
 
     virtual const std::vector<int> GetWrittenIndexes() const override
     {
-        YUNREACHABLE();
+
     }
 
     virtual TAsyncError AsyncClose(const NProto::TChunkMeta& chunkMeta) override;
