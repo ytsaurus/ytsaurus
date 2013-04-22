@@ -123,6 +123,7 @@ public:
     {
         YCHECK(writers.size() == codec->GetTotalBlockCount());
         VERIFY_INVOKER_AFFINITY(TDispatcher::Get()->GetWriterInvoker(), WriterThread);
+        ChunkInfo_.set_size(0);
     }
 
     virtual void Open() override
@@ -147,7 +148,7 @@ public:
 
     virtual const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const override
     {
-        YUNIMPLEMENTED();
+        return ChunkInfo_;
     }
 
     virtual const std::vector<int> GetWrittenIndexes() const override
@@ -191,6 +192,7 @@ private:
 
     // Chunk meta with information about block placement
     NChunkClient::NProto::TChunkMeta ChunkMeta_;
+    NChunkClient::NProto::TChunkInfo ChunkInfo_;
 
     // Parity blocks
     std::vector<std::vector<TSharedRef>> ParityBlocks_;
