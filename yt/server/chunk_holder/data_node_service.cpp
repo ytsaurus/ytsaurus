@@ -64,8 +64,7 @@ TDataNodeService::TDataNodeService(
 
     RegisterMethod(RPC_SERVICE_METHOD_DESC(StartChunk));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(FinishChunk));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(PutBlocks)
-        .SetEnableReorder(true));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(PutBlocks);
     RegisterMethod(RPC_SERVICE_METHOD_DESC(SendBlocks));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(FlushBlock));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(PingSession));
