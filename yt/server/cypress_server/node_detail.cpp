@@ -108,9 +108,12 @@ void TNontemplateCypressNodeTypeHandlerBase::MergeCore(
     securityManager->ResetAccount(branchedNode);
 
     // Merge modification time.
-    if (branchedNode->GetModificationTime() > originatingNode->GetModificationTime()) {
-        originatingNode->SetModificationTime(branchedNode->GetModificationTime());
-    }
+    auto* mutationContext = Bootstrap
+        ->GetMetaStateFacade()
+        ->GetManager()
+        ->GetMutationContext();
+
+    originatingNode->SetModificationTime(mutationContext->GetTimestamp());
 }
 
 TAutoPtr<TCypressNodeBase> TNontemplateCypressNodeTypeHandlerBase::CloneCorePrologue(
@@ -349,7 +352,7 @@ void TMapNodeTypeHandler::DoClone(
         YCHECK(clonedNode->ChildToKey().insert(std::make_pair(clonedTrunkChildNode, key)).second);
 
         AttachChild(Bootstrap, clonedTrunkNode, clonedChildNode);
-       
+
         ++clonedNode->ChildCountDelta();
     }
 }
@@ -491,7 +494,7 @@ TLinkNode::TLinkNode(const TVersionedNodeId& id)
     : TCypressNodeBase(id)
 { }
 
-void TLinkNode::Save(const NCellMaster::TSaveContext& context) const 
+void TLinkNode::Save(const NCellMaster::TSaveContext& context) const
 {
     TCypressNodeBase::Save(context);
     NCellMaster::Save(context, TargetId_);
