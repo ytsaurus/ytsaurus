@@ -127,12 +127,15 @@ public:
             // Keep reference to ErrorOutput in user_job_io.
             auto stderrChunkId = ErrorOutput->GetChunkId();
             if (stderrChunkId != NChunkServer::NullChunkId) {
-                JobIO->SetStderrChunkId(stderrChunkId);
+                auto* schedulerResultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+                ToProto(schedulerResultExt->mutable_stderr_chunk_id(), stderrChunkId);
                 LOG_INFO("Stderr chunk generated (ChunkId: %s)", ~ToString(stderrChunkId));
             }
         }
 
-        JobIO->PopulateResult(&result);
+        if (JobExitError.IsOK()) {
+            JobIO->PopulateResult(&result);
+        }
 
         return result;
     }

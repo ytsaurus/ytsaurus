@@ -114,7 +114,7 @@ public:
     IPrioritizedInvokerPtr GetMetaReadInvoker();
 
     //! Returns an invoker for writing chunks.
-    IPrioritizedInvokerPtr GetWriteInvoker();
+    IInvokerPtr GetWriteInvoker();
 
     //! Returns True iff the location is enabled.
     bool IsEnabled() const;
@@ -157,7 +157,7 @@ private:
     IPrioritizedInvokerPtr MetaReadInvoker;
 
     TActionQueuePtr WriteQueue;
-    IPrioritizedInvokerPtr WriteInvoker;
+    IInvokerPtr WriteInvoker;
 
     TDiskHealthCheckerPtr HealthChecker;
 

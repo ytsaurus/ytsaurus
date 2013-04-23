@@ -475,7 +475,7 @@ public:
 
     virtual bool Invoke(const TClosure& action) override
     {
-        return Invoke(action, 0);
+        return UnderlyingInvoker->Invoke(action);
     }
 
 private:

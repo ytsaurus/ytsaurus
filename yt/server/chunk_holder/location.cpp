@@ -71,7 +71,7 @@ TLocation::TLocation(
     , DataReadInvoker(CreatePrioritizedInvoker(ReadQueue->GetInvoker(ELocationQueue::Data)))
     , MetaReadInvoker(CreatePrioritizedInvoker(ReadQueue->GetInvoker(ELocationQueue::Meta)))
     , WriteQueue(New<TActionQueue>(Sprintf("Write:%s", ~Id)))
-    , WriteInvoker(CreatePrioritizedInvoker(WriteQueue->GetInvoker()))
+    , WriteInvoker(WriteQueue->GetInvoker())
     , Logger(DataNodeLogger)
 {
     Logger.AddTag(Sprintf("Path: %s", ~Config->Path));
@@ -217,7 +217,7 @@ IPrioritizedInvokerPtr TLocation::GetMetaReadInvoker()
     return MetaReadInvoker;
 }
 
-IPrioritizedInvokerPtr TLocation::GetWriteInvoker()
+IInvokerPtr TLocation::GetWriteInvoker()
 {
     return WriteInvoker;
 }
