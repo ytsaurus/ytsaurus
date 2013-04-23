@@ -125,7 +125,9 @@ public:
             }
         }
 
-        JobIO->PopulateResult(&result);
+        if (JobExitError.IsOK()) {
+            JobIO->PopulateResult(&result);
+        }
 
         return result;
     }

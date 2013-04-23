@@ -573,16 +573,19 @@ typename std::vector<T>::const_iterator FirstGreater(const std::vector<T>& vec, 
 TChangeLog::TImpl::TEnvelopeData TChangeLog::TImpl::ReadEnvelope(int firstRecordIndex, int lastRecordIndex)
 {
     TEnvelopeData result;
-    result.LowerBound = *LastNotGreater(Index, TLogIndexRecord(firstRecordIndex, -1));
-    auto it = FirstGreater(Index, TLogIndexRecord(lastRecordIndex, -1));
-    result.UpperBound =
-        it != Index.end() ?
-        *it :
-        TLogIndexRecord(RecordCount, CurrentFilePosition);
-    struct TChangeLogEnvelopeTag { };
-    result.Blob = TSharedRef::Allocate<TChangeLogEnvelopeTag>(result.GetLength(), false);
     {
         TGuard<TMutex> guard(Mutex);
+
+        // Index can be changes during Append, so we need search under the mutex
+        result.LowerBound = *LastNotGreater(Index, TLogIndexRecord(firstRecordIndex, -1));
+        auto it = FirstGreater(Index, TLogIndexRecord(lastRecordIndex, -1));
+        result.UpperBound =
+            it != Index.end() ?
+            *it :
+            TLogIndexRecord(RecordCount, CurrentFilePosition);
+        struct TChangeLogEnvelopeTag { };
+        result.Blob = TSharedRef::Allocate<TChangeLogEnvelopeTag>(result.GetLength(), false);
+
         size_t bytesRead = File->Pread(
             result.Blob.Begin(),
             result.GetLength(),
