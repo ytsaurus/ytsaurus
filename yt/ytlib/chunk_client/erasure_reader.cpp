@@ -427,6 +427,7 @@ public:
             , Finished_(false)
             , WindowIndex_(0)
             , ErasedDataSize_(0)
+            , ControlInvoker_(controlInvoker)
     {
         YASSERT(Codec_->GetRepairIndices(ErasedIndices_));
         YASSERT(Codec_->GetRepairIndices(ErasedIndices_)->size() == Readers_.size());
@@ -463,6 +464,8 @@ private:
     i64 LastWindowSize_;
 
     i64 ErasedDataSize_;
+    
+    IInvokerPtr ControlInvoker_;
 
     TAsyncError PrepareReaders();
     TAsyncError RepairIfNeeded();
@@ -470,8 +473,6 @@ private:
     TAsyncError OnBlockCollected(TValueOrError<std::vector<TSharedRef>> result);
     TAsyncError Repair(const std::vector<TSharedRef>& aliveWindows);
     TError OnGetMeta(IAsyncReader::TGetMetaResult metaOrError);
-
-    IInvokerPtr ControlInvoker_;
 };
 
 typedef TIntrusivePtr<TRepairReader> TRepairReaderPtr;
