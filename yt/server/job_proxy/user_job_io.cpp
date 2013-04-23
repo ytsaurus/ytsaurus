@@ -122,12 +122,6 @@ TAutoPtr<TErrorOutput> TUserJobIO::CreateErrorOutput(
         maxSize);
 }
 
-void TUserJobIO::SetStderrChunkId(const TChunkId& chunkId)
-{
-    YCHECK(chunkId != NullChunkId);
-    StderrChunkId = chunkId;
-}
-
 std::vector<NChunkClient::TChunkId> TUserJobIO::GetFailedChunks() const
 {
     std::vector<NChunkClient::TChunkId> result;
@@ -140,10 +134,6 @@ std::vector<NChunkClient::TChunkId> TUserJobIO::GetFailedChunks() const
 
 void TUserJobIO::PopulateUserJobResult(TUserJobResult* result)
 {
-    if (StderrChunkId != NullChunkId) {
-        *result->mutable_stderr_chunk_id() = StderrChunkId.ToProto();
-    }
-
     FOREACH (const auto& provider, Outputs) {
         *result->add_output_boundary_keys() = provider->GetBoundaryKeys();
     }

@@ -120,7 +120,7 @@ public:
             // Keep reference to ErrorOutput in user_job_io.
             auto stderrChunkId = ErrorOutput->GetChunkId();
             if (stderrChunkId != NChunkServer::NullChunkId) {
-                JobIO->SetStderrChunkId(stderrChunkId);
+                *result.mutable_stderr_chunk_id() = stderrChunkId.ToProto();
                 LOG_INFO("Stderr chunk generated (ChunkId: %s)", ~stderrChunkId.ToString());
             }
         }
