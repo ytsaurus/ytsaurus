@@ -337,6 +337,16 @@ public:
         UpdateLocality(suspendableStripe.GetStripe(), -1);
     }
 
+    virtual void Resume(IChunkPoolInput::TCookie cookie, TChunkStripePtr stripe) override
+    {
+        auto& suspendableStripe = Stripes[cookie];
+        suspendableStripe.Resume(stripe);
+        --SuspendedStripeCount;
+        UpdateLocality(suspendableStripe.GetStripe(), +1);
+    }
+
+    // IChunkPoolOutput implementation.
+
     virtual TChunkStripeStatisticsVector GetApproximateStripeStatistics() const override
     {
         TChunkStripeStatisticsVector result;
@@ -347,16 +357,6 @@ public:
         }
         return result;
     }
-
-    virtual void Resume(IChunkPoolInput::TCookie cookie, TChunkStripePtr stripe) override
-    {
-        auto& suspendableStripe = Stripes[cookie];
-        suspendableStripe.Resume(stripe);
-        --SuspendedStripeCount;
-        UpdateLocality(suspendableStripe.GetStripe(), +1);
-    }
-
-    // IChunkPoolOutput implementation.
 
     virtual bool IsCompleted() const override
     {
@@ -964,32 +964,6 @@ private:
             i64 RowCount;
         };
 
-        virtual TChunkStripeStatisticsVector GetApproximateStripeStatistics() const
-        {
-            YCHECK(!Runs.empty());
-            YCHECK(GetPendingJobCount() > 0);
-
-            TChunkStripeStatisticsVector result(1);
-
-            // This is the next run to be given by #Extract.
-            auto it = PendingRuns.begin();
-            auto cookie = *it;
-            auto& run = Runs[cookie];
-
-            auto& stat = result.front();
-
-            stat.ChunkCount = run.ElementaryIndexEnd - run.ElementaryIndexBegin;
-            stat.DataSize = run.TotalDataSize;
-            stat.RowCount = run.TotalRowCount;
-
-            if (run.IsApproximate) {
-                stat.DataSize *= ApproximateSizesBoostFactor;
-                stat.RowCount *= ApproximateSizesBoostFactor;
-            }
-
-            return result;
-        }
-
         void AddStripe(int elementaryIndex, i64 dataSize, i64 rowCount)
         {
             auto* run = &Runs.back();
@@ -1039,6 +1013,32 @@ private:
         }
 
         // IChunkPoolOutput implementation.
+
+        virtual TChunkStripeStatisticsVector GetApproximateStripeStatistics() const override
+        {
+            YCHECK(!Runs.empty());
+            YCHECK(GetPendingJobCount() > 0);
+
+            TChunkStripeStatisticsVector result(1);
+
+            // This is the next run to be given by #Extract.
+            auto it = PendingRuns.begin();
+            auto cookie = *it;
+            auto& run = Runs[cookie];
+
+            auto& stat = result.front();
+
+            stat.ChunkCount = run.ElementaryIndexEnd - run.ElementaryIndexBegin;
+            stat.DataSize = run.TotalDataSize;
+            stat.RowCount = run.TotalRowCount;
+
+            if (run.IsApproximate) {
+                stat.DataSize *= ApproximateSizesBoostFactor;
+                stat.RowCount *= ApproximateSizesBoostFactor;
+            }
+
+            return result;
+        }
 
         virtual bool IsCompleted() const override
         {
