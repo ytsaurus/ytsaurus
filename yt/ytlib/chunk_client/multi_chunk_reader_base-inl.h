@@ -111,34 +111,37 @@ void TMultiChunkReaderBase<TChunkReader>::PrepareNextChunk()
         std::sort(
             replicas.begin(),
             replicas.end(),
-            [] (const TChunkReplica& lhs, const TChunkReplica& rhs) {
+            [] (TChunkReplica lhs, TChunkReplica rhs) {
                 return lhs.GetIndex() < rhs.GetIndex();
             });
 
-        auto* erasureCodec = NErasure::GetCodec(NErasure::ECodec(inputChunk.erasure_codec()));
-        auto dataBlockCount = erasureCodec->GetDataBlockCount();
+        auto erasureCodecId = NErasure::ECodec(inputChunk.erasure_codec());
+        auto* erasureCodec = NErasure::GetCodec(erasureCodecId);
+        auto dataPartCount = erasureCodec->GetDataBlockCount();
 
         std::vector<IAsyncReaderPtr> readers;
-        readers.reserve(dataBlockCount);
+        readers.reserve(dataPartCount);
 
         TChunkReplicaList partReplicas;
-        FOREACH(const auto& replica, replicas) {
+        FOREACH (auto replica, replicas) {
             if (!partReplicas.empty()) {
                 auto partIndex = partReplicas.front().GetIndex();
                 if (replica.GetIndex() != partIndex) {
-                    readers.push_back(CreateReplicationReader(
+                    auto partId = PartIdFromErasureChunkId(chunkId, partIndex);
+                    auto reader = CreateReplicationReader(
                         Config,
                         BlockCache,
                         MasterChannel,
                         NodeDirectory,
                         Null,
-                        PartIdFromErasureChunkId(chunkId, partIndex),
-                        partReplicas));
+                        partId,
+                        partReplicas);
+                    readers.push_back(reader);
                     partReplicas.clear();
                 }
             }
 
-            if (replica.GetIndex() >= dataBlockCount) {
+            if (replica.GetIndex() >= dataPartCount) {
                 YCHECK(partReplicas.empty());
                 break;
             }
@@ -146,7 +149,7 @@ void TMultiChunkReaderBase<TChunkReader>::PrepareNextChunk()
             partReplicas.push_back(replica);
         }
 
-        YCHECK(readers.size() == dataBlockCount);
+        YCHECK(readers.size() == dataPartCount);
         asyncReader = CreateNonReparingErasureReader(readers);
     } else {
         asyncReader = CreateReplicationReader(
