@@ -2,7 +2,7 @@
 
 #include <contrib/libs/pycxx/Objects.hxx>
 
-#include <ytlib/yson/yson_consumer.h>
+#include <ytlib/yson/consumer.h>
 
 namespace NYT {
 namespace NYson {
