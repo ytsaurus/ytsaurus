@@ -4,8 +4,8 @@
 
 #include <ytlib/ytree/node.h>
 #include <ytlib/ytree/tree_builder.h>
-#include <ytlib/yson/yson_consumer.h>
-#include <ytlib/yson/yson_writer.h>
+#include <ytlib/yson/consumer.h>
+#include <ytlib/yson/writer.h>
 #include <ytlib/ytree/yson_string.h>
 #include <ytlib/ytree/ephemeral_node_factory.h>
 #include <ytlib/ytree/convert.h>
