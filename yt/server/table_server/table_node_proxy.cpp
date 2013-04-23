@@ -178,14 +178,12 @@ private:
             return false;
         }
 
-        auto replicas = chunk->GetReplicas();
-        if (replicas.empty()) {
-            // NB: make the check before calling add_chunks, otherwise response can be malformed.
+        if (!chunk->IsAvailable())  {
             if (Context->Request().skip_unavailable_chunks()) {
                 // Just ignore this chunk.
                 return true;
             } else {
-                ReplyError(TError("Chunk is lost %s",
+                ReplyError(TError("Chunk %s is unavailable",
                     ~ToString(chunk->GetId())));
                 return false;
             }
@@ -196,6 +194,7 @@ private:
             *inputChunk->mutable_channel() = Channel.ToProto();
         }
 
+        auto replicas = chunk->GetReplicas();
         NodeDirectoryBuilder.Add(replicas);
         ToProto(inputChunk->mutable_replicas(), replicas);
 
