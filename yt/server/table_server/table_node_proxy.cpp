@@ -436,7 +436,6 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attribut
     attributes->push_back("chunk_list_id");
     attributes->push_back(TAttributeInfo("chunk_ids", true, true));
     attributes->push_back(TAttributeInfo("compression_statistics", true, true));
-    attributes->push_back("compression_codec");
     attributes->push_back("chunk_count");
     attributes->push_back("uncompressed_data_size");
     attributes->push_back("compressed_data_size");
@@ -521,12 +520,6 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consu
         return true;
     }
 
-    if (key == "compression_codec") {
-        BuildYsonFluently(consumer)
-            .Value(FormatEnum(node->GetTrunkNode()->GetCodec()));
-        return true;
-    }
-
     return TBase::GetSystemAttribute(key, consumer);
 }
 
@@ -568,6 +561,14 @@ void TTableNodeProxy::ValidateUserAttributeUpdate(
         ConvertTo<TChannels>(newValue.Get());
         return;
     }
+
+    if (key == "compression_codec") {
+        if (!newValue) {
+            ThrowCannotRemoveAttribute(key);
+        }
+        ParseEnum<NCompression::ECodec>(ConvertTo<Stroka>(newValue.Get()));
+        return;
+    }
 }
 
 bool TTableNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& value)
@@ -599,16 +600,6 @@ bool TTableNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& v
             }
         }
 
-        return true;
-    }
-
-    if (key == "compression_codec") {
-        ValidateNoTransaction();
-
-        auto* node = GetThisTypedImpl();
-        YCHECK(node->IsTrunk());
-        auto codecName = ConvertTo<Stroka>(value);
-        node->SetCodec(ParseEnum<NCompression::ECodec>(codecName));
         return true;
     }
 

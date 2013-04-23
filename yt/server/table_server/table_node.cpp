@@ -35,7 +35,7 @@ TTableNode::TTableNode(const TVersionedNodeId& id)
     , ChunkList_(nullptr)
     , UpdateMode_(ETableUpdateMode::None)
     , ReplicationFactor_(0)
-    , Codec_(NCompression::ECodec::Lz4)
+    , Codec_(NCompression::ECodec::QuickLz)
 { }
 
 int TTableNode::GetOwningReplicationFactor() const
@@ -56,7 +56,6 @@ void TTableNode::Save(const NCellMaster::TSaveContext& context) const
     SaveObjectRef(context, ChunkList_);
     ::Save(output, UpdateMode_);
     ::Save(output, ReplicationFactor_);
-    ::Save(output, Codec_);
 }
 
 void TTableNode::Load(const NCellMaster::TLoadContext& context)
@@ -67,7 +66,11 @@ void TTableNode::Load(const NCellMaster::TLoadContext& context)
     LoadObjectRef(context, ChunkList_);
     ::Load(input, UpdateMode_);
     ::Load(input, ReplicationFactor_);
-    ::Load(input, Codec_);
+
+    // COMPAT(psushin)
+    if (context.GetVersion() < 10) {
+        ::Load(input, Codec_);
+    }
 }
 
 TClusterResources TTableNode::GetResourceUsage() const
@@ -95,7 +98,7 @@ const TChunkList* TTableNode::GetUsageChunkList() const
             const auto& children = ChunkList_->Children();
             YCHECK(children.size() == 2);
             return children[1]->AsChunkList();
-                                       }
+        }
 
         case ETableUpdateMode::Overwrite:
             return ChunkList_;
@@ -124,6 +127,12 @@ public:
         }
         if (!attributes->Contains("replication_factor")) {
             attributes->Set("replication_factor", 3);
+        }
+        if (!attributes->Contains("compression_codec")) {
+            NCompression::ECodec codec = NCompression::ECodec::QuickLz;
+            attributes->SetYson(
+                "compression_codec",
+                TYsonString(FormatEnum(codec)));
         }
     }
 
@@ -348,7 +357,6 @@ protected:
         YCHECK(!clonedNode->GetChunkList());
         clonedNode->SetChunkList(chunkList);
         clonedNode->SetReplicationFactor(sourceNode->GetReplicationFactor());
-        clonedNode->SetCodec(sourceNode->GetTrunkNode()->GetCodec());
         objectManager->RefObject(chunkList);
         YCHECK(chunkList->OwningNodes().insert(clonedNode).second);
     }

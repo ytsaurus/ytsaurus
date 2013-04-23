@@ -19,6 +19,10 @@
 
 #include <server/object_server/type_handler_detail.h>
 
+//COMPAT(psushin)
+// See OnAfterLoaded
+#include <server/table_server/table_node.h>
+
 #include <server/security_server/account.h>
 #include <server/security_server/group.h>
 #include <server/security_server/user.h>
@@ -946,7 +950,24 @@ void TCypressManager::OnAfterLoaded()
             }
         }
     }
-    
+
+    // COMPAT(psushin)
+    // Make compression_codec user attribute.
+    FOREACH (const auto& pair, NodeMap) {
+        auto* node = pair.second;
+        if (TypeFromId(node->GetId()) == EObjectType::Table) {
+            auto* tableNode = static_cast<NTableServer::TTableNode*>(node);
+            auto proxy = GetVersionedNodeProxy(tableNode, nullptr);
+            auto* attributes = proxy->MutableAttributes();
+
+            if (!attributes->Contains("compression_codec")) {
+                attributes->SetYson(
+                    "compression_codec",
+                    TYsonString(FormatEnum(tableNode->GetCodec())));
+            }
+        }
+    }
+
     InitBuiltin();
 }
 
@@ -1123,7 +1144,7 @@ void TCypressManager::ListSubtreeNodes(
     auto transactionManager = Bootstrap->GetTransactionManager();
 
     if (includeRoot) {
-        subtreeNodes->push_back(trunkNode);  
+        subtreeNodes->push_back(trunkNode);
     }
 
     switch (trunkNode->GetType()) {
