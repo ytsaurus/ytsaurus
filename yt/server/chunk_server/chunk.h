@@ -82,10 +82,14 @@ public:
     NErasure::ECodec GetErasureCodec() const;
     void SetErasureCodec(NErasure::ECodec value);
 
+    //! Returns |true| iff erasure codec is not #EErasureCodec::Null.
     bool IsErasure() const;
 
-    NErasure::TBlockIndexSet GetReplicaIndexSet() const;
-
+    //! Returns |true| iff the chunk can be read immediately, i.e. without repair.
+    /*!
+     *  For regular (non-erasure) chunk this is equivalent to the existence of any replica.
+     *  For erasure chunks this is equivalent to the existence of replicas for all data parts.
+     */
     bool IsAvailable() const;
 
 private:

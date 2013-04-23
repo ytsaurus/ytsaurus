@@ -193,6 +193,7 @@ TSmallVector<TNode*, TypicalReplicationFactor> TChunkPlacement::GetReplicationTa
 TNode* TChunkPlacement::GetReplicationSource(const TChunk* chunk)
 {
     // Right now we are just picking a random location (including cached ones).
+    YCHECK(!chunk->IsErasure());
     auto replicas = chunk->GetReplicas();
     YCHECK(!replicas.empty());
     int index = RandomNumber<size_t>(replicas.size());

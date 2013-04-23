@@ -233,25 +233,19 @@ bool TChunk::IsErasure() const
     return GetErasureCodec() != NErasure::ECodec::None;
 }
 
-NErasure::TBlockIndexSet TChunk::GetReplicaIndexSet() const
-{
-    NErasure::TBlockIndexSet result = 0;
-    FOREACH (auto replica, StoredReplicas_) {
-        result |= (1 << replica.GetIndex());
-    }
-    return result;
-}
-
 bool TChunk::IsAvailable() const
 {
     auto codecId = GetErasureCodec();
     if (codecId == NErasure::ECodec::None) {
         return !StoredReplicas_.empty();
     } else {
-        auto set = GetReplicaIndexSet();
         auto* codec = NErasure::GetCodec(codecId);
-        int dataBlockCount = codec->GetDataBlockCount();
-        return set == (1 << dataBlockCount) - 1;
+        int dataPartCount = codec->GetDataBlockCount();
+        NErasure::TBlockIndexSet missingIndexSet((1 << dataPartCount) - 1);
+        FOREACH (auto replica, StoredReplicas_) {
+            missingIndexSet.reset(replica.GetIndex());
+        }
+        return missingIndexSet.any();
     }
 }
 
