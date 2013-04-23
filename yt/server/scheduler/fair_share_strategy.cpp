@@ -804,7 +804,7 @@ public:
         const auto& attributes = element->Attributes();
         return Sprintf(
             "Scheduling = {Status: %s, Rank: %d+%d, DominantResource: %s, Demand: %.4lf, "
-            "Usage: %.4lf, FairShare: %.4lf, AdjustedMinShare: %.4lf, MaxShare: %.4lf, Starving: %s}",
+            "Usage: %.4lf, FairShare: %.4lf, AdjustedMinShare: %.4lf, MaxShare: %.4lf, Starving: %s, Weight: %lf}",
             ~element->GetStatus().ToString(),
             element->GetPool()->Attributes().Rank,
             attributes.Rank,
@@ -814,7 +814,8 @@ public:
             attributes.FairShareRatio,
             attributes.AdjustedMinShareRatio,
             attributes.MaxShareRatio,
-            ~FormatBool(element->GetStarving()));
+            ~FormatBool(element->GetStarving()),
+            attributes.Weight);
     }
 
     virtual void BuildOrchidYson(IYsonConsumer* consumer) override
