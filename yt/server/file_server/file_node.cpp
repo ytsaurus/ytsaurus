@@ -59,9 +59,7 @@ void TFileNode::Load(const NCellMaster::TLoadContext& context)
 
     auto* input = context.GetInput();
     LoadObjectRef(context, ChunkList_);
-    if (context.GetVersion() >= 6) {
-        ::Load(input, UpdateMode_);
-    }
+    ::Load(input, UpdateMode_);
     ::Load(input, ReplicationFactor_);
 }
 
