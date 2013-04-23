@@ -245,7 +245,7 @@ bool TChunk::IsAvailable() const
         FOREACH (auto replica, StoredReplicas_) {
             missingIndexSet.reset(replica.GetIndex());
         }
-        return missingIndexSet.any();
+        return !missingIndexSet.any();
     }
 }
 
