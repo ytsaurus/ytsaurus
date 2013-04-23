@@ -36,7 +36,7 @@ TJobPtr TJob::CreateForeign(
         EJobType::Foreign,
         jobId,
         NullChunkId,
-        nullptr,
+        static_cast<TNode*>(nullptr),
         std::vector<Stroka>(),
         TInstant::Zero(),
         resourceUsage);
