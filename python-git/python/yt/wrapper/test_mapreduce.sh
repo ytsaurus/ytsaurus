@@ -250,27 +250,29 @@ test_smart_format()
     ./mapreduce -smartformat -map "cat" -src "ignat/smart_y" -src "fake" -dst "ignat/smart_x"
     check "1 2\tz=10" "`./mapreduce -smartformat -read "ignat/smart_x"`"
 
-    check_failed './mapreduce -smartformat -map "cat" -src "ignat/smart_y" -src "fake" -dst "ignat/smart_x" -dst "ignat/smart_z"'
+    check_failed './mapreduce -smartformat -map "cat" -src "ignat/smart_y" -src "fake" -dst "ignat/smart_x" -dst "ignat/some_table"'
     ./mapreduce -smartformat -map "cat" -src "ignat/smart_y" -src "fake" -dst "ignat/smart_x" -dst "ignat/smart_z" -outputformat "yamr"
     check "1 2\tz=10" "`./mapreduce -read "ignat/smart_x"`"
-    check "1 2\tz=10" "`./mapreduce -smartformat -read "ignat/smart_x"`"
+    check_failed './mapreduce -smartformat -read "ignat/smart_x"'
 
-    ./mapreduce -smartformat -copy -src "ignat/smart_x" -dst "ignat/smart_z"
+    export SMART_FORMAT=1
+    echo -e "1 2\t\tz=10" | ./mapreduce -subkey -write "ignat/smart_x"
+    ./mapreduce -copy -src "ignat/smart_x" -dst "ignat/smart_z"
 
-    ./mapreduce -smartformat -map "cat" -src "ignat/smart_x" -src "ignat/smart_z" -dst "ignat/smart_z"
-    check "1 2\tz=10\n1 2\tz=10" "`./mapreduce -smartformat -read "ignat/smart_z"`"
+    ./mapreduce -map "cat" -src "ignat/smart_x" -src "ignat/smart_z" -dst "ignat/smart_z"
+    check "1 2\tz=10\n1 2\tz=10" "`./mapreduce -read "ignat/smart_z"`"
 
-    ./mapreduce -smartformat -map "cat" -reduce "cat" -src "ignat/smart_x" -dst "ignat/smart_y"
-    check "1 2\tz=10" "`./mapreduce -smartformat -read "ignat/smart_y"`"
+    ./mapreduce -map "cat" -reduce "cat" -src "ignat/smart_x" -dst "ignat/smart_y"
+    check "1 2\tz=10" "`./mapreduce -read "ignat/smart_y"`"
 
-    echo -e "1 1\t" | ./mapreduce -smartformat -write "ignat/smart_x" -append
-    ./mapreduce -smartformat -sort -src "ignat/smart_x" -dst "ignat/smart_x"
-    check "1 1\t\n1 2\tz=10" "`./mapreduce -smartformat -read "ignat/smart_x"`"
+    echo -e "1 1\t" | ./mapreduce -write "ignat/smart_x" -append
+    ./mapreduce -sort -src "ignat/smart_x" -dst "ignat/smart_x"
+    check "1 1\t\n1 2\tz=10" "`./mapreduce -read "ignat/smart_x"`"
 
     # TODO(ignat): improve this test to chech that reduce is made by proper columns
-    echo -e "1 2\t\tz=1" | ./mapreduce -smartformat -write "ignat/smart_x" -append
-    ./mapreduce -smartformat -reduce "tr '=' ' ' | awk '{sum+=\$4} END {print sum \"\t\"}'" -src "ignat/smart_x" -dst "ignat/output" -jobcount 2
-    check "11\t" "`./mapreduce -smartformat -read "ignat/output"`"
+    echo -e "1 2\t\tz=1" | ./mapreduce -write "ignat/smart_x" -append
+    ./mapreduce -reduce "tr '=' ' ' | awk '{sum+=\$4} END {print sum \"\t\"}'" -src "ignat/smart_x" -dst "ignat/output" -jobcount 2
+    check "11\t" "`./mapreduce -read "ignat/output"`"
 }
 
 test_drop()
