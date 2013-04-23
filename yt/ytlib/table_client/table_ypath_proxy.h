@@ -11,12 +11,6 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(ETableUpdateMode,
-    (None)
-    (Append)
-    (Overwrite)
-);
-
 struct TTableYPathProxy
     : public NYTree::TYPathProxy
 {

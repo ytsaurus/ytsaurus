@@ -74,6 +74,7 @@ DECLARE_ENUM(EErrorCode,
     ((MasterCommunicationFailed)(712))
 );
 
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TRemoteReaderConfig;

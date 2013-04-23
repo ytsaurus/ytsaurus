@@ -111,7 +111,7 @@ void TTableWriter::Open()
             auto req = TTableYPathProxy::PrepareForUpdate(path);
             SetTransactionId(req, uploadTransactionId);
             NMetaState::GenerateRpcMutationId(req);
-            req->set_mode(clear ? ETableUpdateMode::Overwrite : ETableUpdateMode::Append);
+            req->set_mode(clear ? NChunkClient::EUpdateMode::Overwrite : NChunkClient::EUpdateMode::Append);
             batchReq->AddRequest(req, "prepare_for_update");
         }
 

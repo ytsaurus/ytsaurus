@@ -33,7 +33,7 @@ static NLog::TLogger& Logger = TableServerLogger;
 TTableNode::TTableNode(const TVersionedNodeId& id)
     : TCypressNodeBase(id)
     , ChunkList_(nullptr)
-    , UpdateMode_(ETableUpdateMode::None)
+    , UpdateMode_(NChunkClient::EUpdateMode::None)
     , ReplicationFactor_(0)
     , Codec_(NCompression::ECodec::QuickLz)
 { }
@@ -88,19 +88,19 @@ TTableNode* TTableNode::GetTrunkNode() const
 const TChunkList* TTableNode::GetUsageChunkList() const
 {
     switch (UpdateMode_) {
-        case ETableUpdateMode::None:
+        case NChunkClient::EUpdateMode::None:
             if (Transaction_) {
                 return nullptr;;
             }
             return ChunkList_;
 
-        case ETableUpdateMode::Append: {
+        case NChunkClient::EUpdateMode::Append: {
             const auto& children = ChunkList_->Children();
             YCHECK(children.size() == 2);
             return children[1]->AsChunkList();
         }
 
-        case ETableUpdateMode::Overwrite:
+        case NChunkClient::EUpdateMode::Overwrite:
             return ChunkList_;
 
         default:
@@ -255,7 +255,7 @@ protected:
         YCHECK(branchedChunkList->OwningNodes().erase(branchedNode) == 1);
 
         // Check if we have anything to do at all.
-        if (branchedMode == ETableUpdateMode::None) {
+        if (branchedMode == NChunkClient::EUpdateMode::None) {
             objectManager->UnrefObject(branchedChunkList);
             return;
         }
@@ -266,7 +266,7 @@ protected:
             originatingNode->GetReplicationFactor() != branchedNode->GetReplicationFactor() &&
             metaStateManager->IsLeader();
 
-        if (branchedMode == ETableUpdateMode::Overwrite) {
+        if (branchedMode == NChunkClient::EUpdateMode::Overwrite) {
             YCHECK(originatingChunkList->OwningNodes().erase(originatingNode) == 1);
             YCHECK(branchedChunkList->OwningNodes().insert(originatingNode).second);
             originatingNode->SetChunkList(branchedChunkList);
@@ -276,8 +276,8 @@ protected:
             }
 
             objectManager->UnrefObject(originatingChunkList);
-        } else if ((originatingMode == ETableUpdateMode::None || originatingMode == ETableUpdateMode::Overwrite) &&
-                   branchedMode == ETableUpdateMode::Append)
+        } else if ((originatingMode == NChunkClient::EUpdateMode::None || originatingMode == NChunkClient::EUpdateMode::Overwrite) &&
+                   branchedMode == NChunkClient::EUpdateMode::Append)
         {
             YCHECK(branchedChunkList->Children().size() == 2);
             auto deltaRef = branchedChunkList->Children()[1];
@@ -299,8 +299,8 @@ protected:
 
             objectManager->UnrefObject(originatingChunkList);
             objectManager->UnrefObject(branchedChunkList);
-        } else if (originatingMode == ETableUpdateMode::Append &&
-                   branchedMode == ETableUpdateMode::Append)
+        } else if (originatingMode == NChunkClient::EUpdateMode::Append &&
+                   branchedMode == NChunkClient::EUpdateMode::Append)
         {
             YCHECK(originatingChunkList->Children().size() == 2);
             YCHECK(branchedChunkList->Children().size() == 2);
@@ -338,9 +338,9 @@ protected:
         } else {
             // Set proper originating mode.
             originatingNode->SetUpdateMode(
-                originatingMode == ETableUpdateMode::Overwrite || branchedMode == ETableUpdateMode::Overwrite
-                ? ETableUpdateMode::Overwrite
-                : ETableUpdateMode::Append);
+                originatingMode == NChunkClient::EUpdateMode::Overwrite || branchedMode == NChunkClient::EUpdateMode::Overwrite
+                ? NChunkClient::EUpdateMode::Overwrite
+                : NChunkClient::EUpdateMode::Append);
         }
     }
 

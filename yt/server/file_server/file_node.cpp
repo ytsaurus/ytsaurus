@@ -32,7 +32,7 @@ static NLog::TLogger& Logger = FileServerLogger;
 TFileNode::TFileNode(const TVersionedNodeId& id)
     : TCypressNodeBase(id)
     , ChunkList_(nullptr)
-    , UpdateMode_(EFileUpdateMode::None)
+    , UpdateMode_(NChunkClient::EUpdateMode::None)
     , ReplicationFactor_(0)
 { }
 
@@ -59,7 +59,27 @@ void TFileNode::Load(const NCellMaster::TLoadContext& context)
 
     auto* input = context.GetInput();
     LoadObjectRef(context, ChunkList_);
-    ::Load(input, UpdateMode_);
+
+    // COMPAT(psushin)
+    if (context.GetVersion() < 10) {
+        NFileClient::EFileUpdateMode legacyUpdateMode;
+        ::Load(input, legacyUpdateMode);
+        switch (legacyUpdateMode) {
+        case EFileUpdateMode::None:
+            UpdateMode_ = NChunkClient::EUpdateMode::None;
+            break;
+
+        case EFileUpdateMode::Overwrite:
+            UpdateMode_ = NChunkClient::EUpdateMode::Overwrite;
+            break;
+
+        default:
+            YUNREACHABLE();
+        };
+    } else {
+        ::Load(input, UpdateMode_);
+    }
+
     ::Load(input, ReplicationFactor_);
 }
 
@@ -95,6 +115,13 @@ public:
     {
         if (!attributes->Contains("replication_factor")) {
             attributes->Set("replication_factor", 3);
+        }
+
+        if (!attributes->Contains("compression_codec")) {
+            NCompression::ECodec codec = NCompression::ECodec::None;
+            attributes->SetYson(
+                "compression_codec",
+                TYsonString(FormatEnum(codec)));
         }
     }
 
@@ -233,7 +260,7 @@ protected:
         YCHECK(branchedChunkList->OwningNodes().erase(branchedNode) == 1);
 
         // Check if we have anything to do at all.
-        if (branchedMode == EFileUpdateMode::None) {
+        if (branchedMode == NChunkClient::EUpdateMode::None) {
             objectManager->UnrefObject(branchedChunkList);
             return;
         }
@@ -244,7 +271,7 @@ protected:
             originatingNode->GetReplicationFactor() != branchedNode->GetReplicationFactor() &&
             metaStateManager->IsLeader();
 
-        YCHECK(branchedMode == EFileUpdateMode::Overwrite);
+        YCHECK(branchedMode == NChunkClient::EUpdateMode::Overwrite);
         YCHECK(originatingChunkList->OwningNodes().erase(originatingNode) == 1);
         YCHECK(branchedChunkList->OwningNodes().insert(originatingNode).second);
         originatingNode->SetChunkList(branchedChunkList);
@@ -255,7 +282,7 @@ protected:
         }
 
         if (!isTopmostCommit) {
-            originatingNode->SetUpdateMode(EFileUpdateMode::Overwrite);
+            originatingNode->SetUpdateMode(NChunkClient::EUpdateMode::Overwrite);
         }
     }
 

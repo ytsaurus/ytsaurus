@@ -1583,7 +1583,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
             auto req = TTableYPathProxy::PrepareForUpdate(path);
             SetTransactionId(req, Operation->GetOutputTransaction());
             NMetaState::GenerateRpcMutationId(req);
-            req->set_mode(table.Clear ? ETableUpdateMode::Overwrite : ETableUpdateMode::Append);
+            req->set_mode(table.Clear ? NChunkClient::EUpdateMode::Overwrite : NChunkClient::EUpdateMode::Append);
             batchReq->AddRequest(req, "prepare_for_update");
         }
     }

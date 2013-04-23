@@ -22,6 +22,10 @@
 //COMPAT(psushin)
 // See OnAfterLoaded
 #include <server/table_server/table_node.h>
+#include <server/file_server/file_node.h>
+#include <server/chunk_server/chunk.h>
+#include <server/chunk_server/chunk_list.h>
+#include <ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <server/security_server/account.h>
 #include <server/security_server/group.h>
@@ -952,7 +956,7 @@ void TCypressManager::OnAfterLoaded()
     }
 
     // COMPAT(psushin)
-    // Make compression_codec user attribute.
+    // Make compression_codec user attribute for files and tables.
     FOREACH (const auto& pair, NodeMap) {
         auto* node = pair.second;
         if (TypeFromId(node->GetId()) == EObjectType::Table) {
@@ -964,6 +968,28 @@ void TCypressManager::OnAfterLoaded()
                 attributes->SetYson(
                     "compression_codec",
                     TYsonString(FormatEnum(tableNode->GetCodec())));
+            }
+        }
+
+        if (TypeFromId(node->GetId()) == EObjectType::File) {
+            auto* fileNode = static_cast<NFileServer::TFileNode*>(node);
+            auto proxy = GetVersionedNodeProxy(fileNode, nullptr);
+            auto* attributes = proxy->MutableAttributes();
+
+            const auto* chunkList = fileNode->GetChunkList();
+            YCHECK(chunkList->Children().size() <= 1);
+
+            NCompression::ECodec codecId;
+            if (chunkList->Children().empty()) {
+                codecId = NCompression::ECodec::None;
+            } else {
+                const auto* chunk = chunkList->Children()[0]->AsChunk();
+                auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunk->ChunkMeta().extensions());
+                codecId = NCompression::ECodec(miscExt.compression_codec());
+            }
+
+            if (!attributes->Contains("compression_codec")) {
+                attributes->SetYson("compression_codec", TYsonString(FormatEnum(codecId)));
             }
         }
     }

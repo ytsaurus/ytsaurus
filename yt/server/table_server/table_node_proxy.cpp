@@ -608,17 +608,17 @@ bool TTableNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& v
 
 DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, PrepareForUpdate)
 {
-    auto mode = ETableUpdateMode(request->mode());
-    YCHECK(mode == ETableUpdateMode::Append || mode == ETableUpdateMode::Overwrite);
+    auto mode = NChunkClient::EUpdateMode(request->mode());
+    YCHECK(mode == NChunkClient::EUpdateMode::Append || mode == NChunkClient::EUpdateMode::Overwrite);
 
     context->SetRequestInfo("Mode: %s", ~mode.ToString());
 
     ValidateTransaction();
     ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
 
-    auto* node = LockThisTypedImpl(mode == ETableUpdateMode::Append ? ELockMode::Shared : ELockMode::Exclusive);
+    auto* node = LockThisTypedImpl(mode == NChunkClient::EUpdateMode::Append ? ELockMode::Shared : ELockMode::Exclusive);
 
-    if (node->GetUpdateMode() != ETableUpdateMode::None) {
+    if (node->GetUpdateMode() != NChunkClient::EUpdateMode::None) {
         THROW_ERROR_EXCEPTION("Node is already in %s mode",
             ~FormatEnum(node->GetUpdateMode()).Quote());
     }
@@ -628,7 +628,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, PrepareForUpdate)
 
     TChunkList* resultChunkList;
     switch (mode) {
-        case ETableUpdateMode::Append: {
+        case NChunkClient::EUpdateMode::Append: {
             auto* snapshotChunkList = node->GetChunkList();
 
             auto* newChunkList = chunkManager->CreateChunkList();
@@ -656,7 +656,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, PrepareForUpdate)
             break;
         }
 
-        case ETableUpdateMode::Overwrite: {
+        case NChunkClient::EUpdateMode::Overwrite: {
             auto* oldChunkList = node->GetChunkList();
             YCHECK(oldChunkList->OwningNodes().erase(node) == 1);
             objectManager->UnrefObject(oldChunkList);
@@ -733,7 +733,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, SetSorted)
 
     auto* node = LockThisTypedImpl();
 
-    if (node->GetUpdateMode() != ETableUpdateMode::Overwrite) {
+    if (node->GetUpdateMode() != NChunkClient::EUpdateMode::Overwrite) {
         THROW_ERROR_EXCEPTION("Table node must be in overwrite mode");
     }
 

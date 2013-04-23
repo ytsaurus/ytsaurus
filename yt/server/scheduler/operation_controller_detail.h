@@ -16,6 +16,8 @@
 #include <ytlib/actions/async_pipeline.h>
 #include <ytlib/actions/cancelable_context.h>
 
+#include <ytlib/chunk_client/chunk_owner_ypath_proxy.h>
+
 #include <ytlib/table_client/table_ypath_proxy.h>
 #include <ytlib/table_client/config.h>
 

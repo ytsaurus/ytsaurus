@@ -72,7 +72,6 @@ private:
         attributes->push_back(TAttributeInfo("size", hasChunk));
         attributes->push_back(TAttributeInfo("compressed_size", hasChunk));
         attributes->push_back(TAttributeInfo("compression_ratio", hasChunk));
-        attributes->push_back(TAttributeInfo("compression_codec", hasChunk));
         attributes->push_back("chunk_list_id");
         attributes->push_back(TAttributeInfo("chunk_id", hasChunk));
         attributes->push_back("replication_factor");
@@ -107,13 +106,6 @@ private:
                     static_cast<double>(statistics.CompressedDataSize) / statistics.UncompressedDataSize : 0;
                 BuildYsonFluently(consumer)
                     .Value(ratio);
-                return true;
-            }
-
-            if (key == "compression_codec") {
-                auto codecId = NCompression::ECodec(miscExt.compression_codec());
-                BuildYsonFluently(consumer)
-                    .Value(CamelCaseToUnderscoreCase(codecId.ToString()));
                 return true;
             }
 
@@ -155,6 +147,14 @@ private:
             // File name must be string.
             // ToDo(psushin): write more sophisticated validation.
             ConvertTo<Stroka>(*newValue);
+            return;
+        }
+
+        if (key == "compression_codec") {
+            if (!newValue) {
+                ThrowCannotRemoveAttribute(key);
+            }
+            ParseEnum<NCompression::ECodec>(ConvertTo<Stroka>(newValue.Get()));
             return;
         }
     }
@@ -244,7 +244,7 @@ private:
 
         auto* node = LockThisTypedImpl();
 
-        if (node->GetUpdateMode() != EFileUpdateMode::None) {
+        if (node->GetUpdateMode() != NChunkClient::EUpdateMode::None) {
             THROW_ERROR_EXCEPTION("Node is already in %s mode",
                 ~FormatEnum(node->GetUpdateMode()).Quote());
         }
@@ -265,7 +265,7 @@ private:
             ~node->GetId().ToString(),
             ~newChunkList->GetId().ToString());
 
-        node->SetUpdateMode(EFileUpdateMode::Overwrite);
+        node->SetUpdateMode(NChunkClient::EUpdateMode::Overwrite);
 
         SetModified();
 
