@@ -45,10 +45,9 @@ TJobPtr TJob::CreateForeign(
 TJobPtr TJob::CreateReplicate(
     const TChunkId& chunkId,
     TNode* node,
-    const std::vector<Stroka>& targetAddresses)
+    const std::vector<Stroka>& targetAddresses,
+    const NNodeTrackerClient::NProto::TNodeResources& resourceUsage)
 {
-    TNodeResources resourceUsage;
-    resourceUsage.set_replication_slots(1);
     return New<TJob>(
         EJobType::ReplicateChunk,
         TJobId::Create(),
@@ -59,23 +58,11 @@ TJobPtr TJob::CreateReplicate(
         resourceUsage);
 }
 
-TJobPtr TJob::CreateReplicate(
-    const TChunkId& chunkId,
-    TNode* node,
-    const Stroka& targetAddress)
-{
-    return CreateReplicate(
-        chunkId,
-        node,
-        std::vector<Stroka>(1, targetAddress));
-}
-
 TJobPtr TJob::CreateRemove(
     const TChunkId& chunkId,
-    NNodeTrackerServer::TNode* node)
+    NNodeTrackerServer::TNode* node,
+    const NNodeTrackerClient::NProto::TNodeResources& resourceUsage)
 {
-    TNodeResources resourceUsage;
-    resourceUsage.set_removal_slots(1);
     return New<TJob>(
         EJobType::RemoveChunk,
         TJobId::Create(),
@@ -89,10 +76,9 @@ TJobPtr TJob::CreateRemove(
 TJobPtr TJob::CreateRepair(
     const TChunkId& chunkId,
     NNodeTrackerServer::TNode* node,
-    const std::vector<Stroka>& targetAddresses)
+    const std::vector<Stroka>& targetAddresses,
+    const NNodeTrackerClient::NProto::TNodeResources& resourceUsage)
 {
-    TNodeResources resourceUsage;
-    resourceUsage.set_repair_slots(1);
     return New<TJob>(
         EJobType::RepairChunk,
         TJobId::Create(),

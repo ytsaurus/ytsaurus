@@ -18,6 +18,8 @@
 
 #include <ytlib/erasure/codec.h>
 
+#include <ytlib/chunk_client/chunk_meta_extensions.h>
+
 #include <ytlib/profiling/profiler.h>
 #include <ytlib/profiling/timing.h>
 
@@ -40,8 +42,9 @@ using namespace NCellMaster;
 using namespace NObjectClient;
 using namespace NProfiling;
 using namespace NChunkClient;
-using namespace NNodeTrackerClient;
 using namespace NChunkClient::NProto;
+using namespace NNodeTrackerClient;
+using namespace NNodeTrackerClient::NProto;
 using namespace NChunkServer::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -300,7 +303,13 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleReplicationJob(
         targetAddresses.push_back(target->GetAddress());
     }
 
-    *job = TJob::CreateReplicate(chunkId, sourceNode, targetAddresses);
+    TNodeResources resourceUsage;
+    resourceUsage.set_replication_slots(1);
+    *job = TJob::CreateReplicate(
+        chunkId,
+        sourceNode,
+        targetAddresses,
+        resourceUsage);
 
     LOG_INFO("Replication job scheduled (JobId: %s, Address: %s, ChunkId: %s, TargetAddresses: [%s])",
         ~ToString((*job)->GetJobId()),
@@ -336,7 +345,13 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleBalancingJob(
 
     ChunkPlacement->OnSessionHinted(targetNode);
 
-    *job = TJob::CreateReplicate(chunkId, sourceNode, targetNode->GetAddress());
+    TNodeResources resourceUsage;
+    resourceUsage.set_replication_slots(1);
+    *job = TJob::CreateReplicate(
+        chunkId,
+        sourceNode,
+        std::vector<Stroka>(1, targetNode->GetAddress()),
+        resourceUsage);
 
     LOG_INFO("Balancing job scheduled (JobId: %s, Address: %s, ChunkId: %s, TargetAddress: %s)",
         ~ToString((*job)->GetJobId()),
@@ -363,7 +378,12 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleRemovalJob(
         return EJobScheduleFlags::Purged;
     }
 
-    *job = TJob::CreateRemove(chunkId, node);
+    TNodeResources resourceUsage;
+    resourceUsage.set_removal_slots(1);
+    *job = TJob::CreateRemove(
+        chunkId,
+        node,
+        resourceUsage);
 
     LOG_INFO("Removal job scheduled (JobId: %s, Address: %s, ChunkId: %s)",
         ~ToString((*job)->GetJobId()),
@@ -425,7 +445,16 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleRepairJob(
         targetAddresses.push_back(target->GetAddress());
     }
 
-    *job = TJob::CreateRepair(chunkId, node, targetAddresses);
+    auto miscExt = GetProtoExtension<TMiscExt>(chunk->ChunkMeta().extensions());
+
+    TNodeResources resourceUsage;
+    resourceUsage.set_repair_slots(1);
+    resourceUsage.set_memory(miscExt.repair_memory_limit());
+    *job = TJob::CreateRepair(
+        chunkId,
+        node,
+        targetAddresses,
+        resourceUsage);
 
     LOG_INFO("Repair job scheduled (JobId: %s, Address: %s, ChunkId: %s, TargetAddresses: [%s], ErasedIndexes: [%s])",
         ~ToString((*job)->GetJobId()),

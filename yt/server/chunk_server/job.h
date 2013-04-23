@@ -38,21 +38,19 @@ public:
     static TJobPtr CreateReplicate(
         const TChunkId& chunkId,
         NNodeTrackerServer::TNode* node,
-        const std::vector<Stroka>& targetAddresses);
-
-    static TJobPtr CreateReplicate(
-        const TChunkId& chunkId,
-        NNodeTrackerServer::TNode* node,
-        const Stroka& targetAddress);
+        const std::vector<Stroka>& targetAddresses,
+        const NNodeTrackerClient::NProto::TNodeResources& resourceUsage);
 
     static TJobPtr CreateRemove(
         const TChunkId& chunkId,
-        NNodeTrackerServer::TNode* node);
+        NNodeTrackerServer::TNode* node,
+        const NNodeTrackerClient::NProto::TNodeResources& resourceUsage);
 
     static TJobPtr CreateRepair(
         const TChunkId& chunkId,
         NNodeTrackerServer::TNode* node,
-        const std::vector<Stroka>& targetAddresses);
+        const std::vector<Stroka>& targetAddresses,
+        const NNodeTrackerClient::NProto::TNodeResources& resourceUsage);
 
     TJob(
         EJobType type,
