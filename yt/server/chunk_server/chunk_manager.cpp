@@ -621,22 +621,6 @@ public:
     const yhash_set<TChunk*>& DataMissingChunks() const;
     const yhash_set<TChunk*>& ParityMissingChunks() const;
 
-    TNodePtrWithIndexList GetChunkReplicas(const TChunk* chunk)
-    {
-        TNodePtrWithIndexList result;
-
-        FOREACH (auto replica, chunk->StoredReplicas()) {
-            result.push_back(replica);
-        }
-
-        if (~chunk->CachedReplicas()) {
-            FOREACH (auto replica, *chunk->CachedReplicas()) {
-                result.push_back(replica);
-            }
-        }
-
-        return result;
-    }
 
     int GetChunkReplicaCount()
     {
@@ -1574,11 +1558,6 @@ bool TChunkManager::IsReplicatorEnabled()
 void TChunkManager::ScheduleRFUpdate(TChunkTree* chunkTree)
 {
     Impl->ScheduleRFUpdate(chunkTree);
-}
-
-TNodePtrWithIndexList TChunkManager::GetChunkReplicas(const TChunk* chunk)
-{
-    return Impl->GetChunkReplicas(chunk);
 }
 
 int TChunkManager::GetChunkReplicaCount()

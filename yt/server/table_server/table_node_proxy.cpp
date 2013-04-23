@@ -178,7 +178,7 @@ private:
             return false;
         }
 
-        auto replicas = chunkManager->GetChunkReplicas(chunk);
+        auto replicas = chunk->GetReplicas();
         if (replicas.empty()) {
             // NB: make the check before calling add_chunks, otherwise response can be malformed.
             if (Context->Request().skip_unavailable_chunks()) {

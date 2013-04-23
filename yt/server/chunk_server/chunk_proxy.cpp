@@ -271,7 +271,7 @@ private:
 
         const auto* chunk = GetThisTypedImpl();
 
-        auto replicas = chunkManager->GetChunkReplicas(chunk);
+        auto replicas = chunk->GetReplicas();
 
         TNodeDirectoryBuilder nodeDirectoryBuilder(response->mutable_node_directory());
         nodeDirectoryBuilder.Add(replicas);
@@ -293,7 +293,7 @@ private:
             THROW_ERROR_EXCEPTION("Unable to execute Fetch verb for non-table chunk");
         }
 
-        auto replicas = chunkManager->GetChunkReplicas(chunk);
+        auto replicas = chunk->GetReplicas();
 
         TNodeDirectoryBuilder nodeDirectoryBuilder(response->mutable_node_directory());
         nodeDirectoryBuilder.Add(replicas);

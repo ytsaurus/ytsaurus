@@ -253,7 +253,7 @@ private:
         ToProto(response->mutable_chunk_id(), chunkId);
 
         auto chunkManager = Bootstrap->GetChunkManager();
-        auto replicas = chunkManager->GetChunkReplicas(chunk);
+        auto replicas = chunk->GetReplicas();
         ToProto(response->mutable_replicas(), replicas);
 
         TNodeDirectoryBuilder builder(response->mutable_node_directory());
