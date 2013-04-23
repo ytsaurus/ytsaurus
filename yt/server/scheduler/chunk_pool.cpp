@@ -324,13 +324,7 @@ public:
         DataSizeCounter.Increment(suspendableStripe.GetStatistics().DataSize);
         RowCounter.Increment(suspendableStripe.GetStatistics().RowCount);
 
-        FOREACH (const auto& chunk, stripe->Chunks) {
-            FOREACH (ui32 protoReplica, chunk->replicas()) {
-                auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
-                const auto& descriptor = NodeDirectory->GetDescriptor(replica);
-                AddressToLocality[descriptor.Address] += suspendableStripe.GetStatistics().DataSize;
-            }
-        }
+        UpdateLocality(stripe, +1);
 
         return cookie;
     }
@@ -340,14 +334,7 @@ public:
         ++SuspendedStripeCount;
         auto& suspendableStripe = Stripes[cookie];
         Stripes[cookie].Suspend();
-
-        FOREACH (const auto& chunk, suspendableStripe.GetStripe()->Chunks) {
-            FOREACH (ui32 protoReplica, chunk->replicas()) {
-                auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
-                const auto& descriptor = NodeDirectory->GetDescriptor(replica);
-                AddressToLocality[descriptor.Address] -= suspendableStripe.GetStatistics().DataSize;
-            }
-        }
+        UpdateLocality(suspendableStripe.GetStripe(), -1);
     }
 
     virtual TChunkStripeStatisticsVector GetApproximateStripeStatistics() const override
@@ -366,14 +353,7 @@ public:
         auto& suspendableStripe = Stripes[cookie];
         suspendableStripe.Resume(stripe);
         --SuspendedStripeCount;
-
-        FOREACH (const auto& chunk, suspendableStripe.GetStripe()->Chunks) {
-            FOREACH (ui32 protoReplica, chunk->replicas()) {
-                auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
-                const auto& descriptor = NodeDirectory->GetDescriptor(replica);
-                AddressToLocality[descriptor.Address] += suspendableStripe.GetStatistics().DataSize;
-            }
-        }
+        UpdateLocality(suspendableStripe.GetStripe(), +1);
     }
 
     // IChunkPoolOutput implementation.
@@ -498,6 +478,18 @@ private:
 
     int SuspendedStripeCount;
 
+    void UpdateLocality(TChunkStripePtr stripe, int delta)
+    {
+        FOREACH (const auto& chunk, stripe->Chunks) {
+            i64 localityDelta = NChunkClient::GetLocality(*chunk) * delta;
+            FOREACH (ui32 protoReplica, chunk->replicas()) {
+                auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
+                const auto& descriptor = NodeDirectory->GetDescriptor(replica);
+                AddressToLocality[descriptor.Address] += localityDelta;
+            }
+        }
+    }
+
 };
 
 TAutoPtr<IChunkPool> CreateAtomicChunkPool(TNodeDirectoryPtr nodeDirectory)
@@ -604,7 +596,7 @@ public:
     virtual i64 GetLocality(const Stroka& address) const override
     {
         auto it = PendingLocalChunks.find(address);
-        return it == PendingLocalChunks.end() ? 0 : it->second.TotalDataSize;
+        return it == PendingLocalChunks.end() ? 0 : it->second.Locality;
     }
 
     virtual IChunkPoolOutput::TCookie Extract(const Stroka& address) override
@@ -721,10 +713,10 @@ private:
     struct TLocalityEntry
     {
         TLocalityEntry()
-            : TotalDataSize(0)
+            : Locality(0)
         { }
 
-        i64 TotalDataSize;
+        i64 Locality;
         yhash_set<TChunkStripePtr> Stripes;
     };
 
@@ -740,36 +732,28 @@ private:
 
     void Register(TChunkStripePtr stripe)
     {
-        FOREACH (const auto& chunk, stripe->Chunks) {
-            i64 chunkDataSize;
-            GetStatistics(*chunk, &chunkDataSize);
-            FOREACH (ui32 protoReplica, chunk->replicas()) {
-                auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
-                const auto& descriptor = NodeDirectory->GetDescriptor(replica);
-                auto& entry = PendingLocalChunks[descriptor.Address];
-                YCHECK(entry.Stripes.insert(stripe).second);
-                entry.TotalDataSize += chunkDataSize;
-            }
-        }
-
+        UpdateLocality(stripe, +1);
         YCHECK(PendingGlobalChunks.insert(stripe).second);
     }
 
     void Unregister(TChunkStripePtr stripe)
     {
+        UpdateLocality(stripe, -1);
+        YCHECK(PendingGlobalChunks.erase(stripe) == 1);
+    }
+
+    void UpdateLocality(TChunkStripePtr stripe, int delta)
+    {
         FOREACH (const auto& chunk, stripe->Chunks) {
-            i64 chunkDataSize;
-            GetStatistics(*chunk, &chunkDataSize);
+            i64 localityDelta = NChunkClient::GetLocality(*chunk) * delta;
             FOREACH (ui32 protoReplica, chunk->replicas()) {
                 auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
                 const auto& descriptor = NodeDirectory->GetDescriptor(replica);
                 auto& entry = PendingLocalChunks[descriptor.Address];
                 YCHECK(entry.Stripes.erase(stripe) == 1);
-                entry.TotalDataSize -= chunkDataSize;
+                entry.Locality += localityDelta;
             }
         }
-
-        YCHECK(PendingGlobalChunks.erase(stripe) == 1);
     }
 
     template <class TIterator>
@@ -807,6 +791,7 @@ private:
             YCHECK(LostCookies.insert(cookie).second);
         }
     }
+
 };
 
 TAutoPtr<IChunkPool> CreateUnorderedChunkPool(

@@ -32,10 +32,12 @@ struct TRefCountedInputChunk
 //! Extracts various chunk statistics by first looking at
 //! TSizeOverrideExt (if present) and then at TMiscExt.
 void GetStatistics(
-    const NProto::TInputChunk& chunk,
+    const NProto::TInputChunk& inputChunk,
     i64* dataSize = nullptr,
     i64* rowCount = nullptr,
     i64* valueCount = nullptr);
+
+i64 GetLocality(const NProto::TInputChunk& inputChunk);
 
 //! Constructs a new chunk by slicing the original one and restricting
 //! it to a given range. The original chunk may already contain non-trivial limits.

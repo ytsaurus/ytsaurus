@@ -3,6 +3,8 @@
 #include "key.h"
 #include "chunk_meta_extensions.h"
 
+#include <ytlib/erasure/codec.h>
+
 #include <ytlib/ytree/attribute_helpers.h>
 
 namespace NYT {
@@ -39,6 +41,7 @@ void GetStatistics(
 {
     auto miscExt = GetProtoExtension<TMiscExt>(inputChunk.extensions());
     auto sizeOverrideExt = FindProtoExtension<TSizeOverrideExt>(inputChunk.extensions());
+
     if (sizeOverrideExt) {
         if (dataSize) {
             *dataSize = sizeOverrideExt->uncompressed_data_size();
@@ -54,9 +57,30 @@ void GetStatistics(
             *rowCount = miscExt.row_count();
         }
     }
+
     if (valueCount) {
         *valueCount = miscExt.value_count();
     }
+}
+
+i64 GetLocality(const NProto::TInputChunk& inputChunk)
+{
+    auto miscExt = GetProtoExtension<TMiscExt>(inputChunk.extensions());
+    auto sizeOverrideExt = FindProtoExtension<TSizeOverrideExt>(inputChunk.extensions());
+
+    i64 result = sizeOverrideExt
+        ? sizeOverrideExt->uncompressed_data_size()
+        : miscExt.uncompressed_data_size();
+
+    // For erasure chunks data size is assumed to be split evenly between data parts.
+    auto codecId = NErasure::ECodec(inputChunk.erasure_codec());
+    if (codecId != NErasure::ECodec::None) {
+        auto* codec = NErasure::GetCodec(codecId);
+        int dataPartCount = codec->GetDataBlockCount();
+        result = (result + dataPartCount - 1) / dataPartCount;
+    }
+
+    return result;
 }
 
 TRefCountedInputChunkPtr SliceChunk(
