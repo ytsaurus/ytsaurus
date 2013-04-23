@@ -20,7 +20,7 @@
 #include <ytlib/rpc/dispatcher.h>
 #include <ytlib/chunk_client/dispatcher.h>
 
-#include <ytlib/yson/yson_parser.h>
+#include <ytlib/yson/parser.h>
 
 #include <ytlib/misc/crash_handler.h>
 #include <ytlib/misc/thread.h>

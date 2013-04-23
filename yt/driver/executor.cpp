@@ -8,7 +8,7 @@
 #include <ytlib/misc/assert.h>
 
 #include <ytlib/yson/tokenizer.h>
-#include <ytlib/yson/yson_format.h>
+#include <ytlib/yson/format.h>
 #include <ytlib/ytree/fluent.h>
 
 #include <server/job_proxy/config.h>
