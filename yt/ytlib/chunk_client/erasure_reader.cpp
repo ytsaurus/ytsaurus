@@ -1,5 +1,4 @@
 #include "erasure_reader.h"
-
 #include "async_writer.h"
 #include "async_reader.h"
 #include "chunk_meta_extensions.h"
@@ -10,6 +9,8 @@
 
 #include <ytlib/erasure/codec.h>
 #include <ytlib/erasure/helpers.h>
+
+#include <numeric>
 
 namespace NYT {
 namespace NChunkClient {
@@ -587,7 +588,7 @@ TError TRepairReader::OnGetMeta(IAsyncReader::TGetMetaResult metaOrError)
                 extension.parity_block_size());
             blockSizes.back() = extension.parity_last_block_size();
         }
-        ErasedDataSize_ += accumulate(blockSizes.begin(), blockSizes.end(), 0);
+        ErasedDataSize_ += std::accumulate(blockSizes.begin(), blockSizes.end(), 0);
         RepairBlockReaders_.push_back(TRepairPartReader(blockSizes));
     }
     Prepared_ = true;

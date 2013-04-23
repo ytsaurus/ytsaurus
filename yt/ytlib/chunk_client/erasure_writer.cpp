@@ -391,7 +391,7 @@ TAsyncError TErasureWriter::OnClosed(TError error)
     }
 
     i64 chunkDataSize = 0;
-    for (auto writer: Writers_) {
+    FOREACH (auto writer, Writers_) {
         chunkDataSize += writer->GetChunkInfo().size();
     }
     ChunkInfo_.set_size(chunkDataSize);
