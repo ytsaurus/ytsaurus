@@ -1570,7 +1570,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
             auto req = TTableYPathProxy::Fetch(fetchPath);
             SetTransactionId(req, Operation->GetInputTransaction());
             req->set_fetch_all_meta_extensions(true);
-            req->set_ignore_lost_chunks(Spec->IgnoreLostChunks);
+            req->set_skip_unavailable_chunks(Spec->SkipUnavailableChunks);
             batchReq->AddRequest(req, "fetch_in");
         }
         {

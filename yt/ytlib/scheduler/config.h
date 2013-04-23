@@ -49,7 +49,7 @@ struct TOperationSpecBase
 {
     Stroka IntermediateDataAccount;
 
-    bool IgnoreLostChunks;
+    bool SkipUnavailableChunks;
 
     TNullable<int> MaxFailedJobCount;
     TNullable<int> MaxStdErrCount;
@@ -59,7 +59,7 @@ struct TOperationSpecBase
         RegisterParameter("intermediate_data_account", IntermediateDataAccount)
             .Default("tmp");
 
-        RegisterParameter("ignore_lost_chunks", IgnoreLostChunks)
+        RegisterParameter("skip_unavailable_chunks", SkipUnavailableChunks)
             .Default(false);
 
         RegisterParameter("max_failed_job_count", MaxFailedJobCount)

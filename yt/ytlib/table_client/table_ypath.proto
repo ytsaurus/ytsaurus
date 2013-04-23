@@ -29,9 +29,9 @@ message TReqFetch
     // Not yet supported.
     repeated int32 extension_tags = 3;
 
-    // When set master omits the lost chunks in the reply.
-    // Otherwise request fails in presence of the lost chunks.
-    optional bool ignore_lost_chunks = 4 [default = false];
+    // When set master omits unavailable chunks from the reply.
+    // Otherwise request fails in presence of unavailable chunks.
+    optional bool skip_unavailable_chunks = 4 [default = false];
 }
 
 message TRspFetch

@@ -181,7 +181,7 @@ private:
         auto replicas = chunkManager->GetChunkReplicas(chunk);
         if (replicas.empty()) {
             // NB: make the check before calling add_chunks, otherwise response can be malformed.
-            if (Context->Request().ignore_lost_chunks()) {
+            if (Context->Request().skip_unavailable_chunks()) {
                 // Just ignore this chunk.
                 return true;
             } else {
