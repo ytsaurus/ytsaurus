@@ -417,7 +417,8 @@ public:
         NErasure::ICodec* codec,
         const std::vector<IAsyncReaderPtr>& readers,
         const TBlockIndexList& erasedIndices,
-        const TBlockIndexList& repairIndices)
+        const TBlockIndexList& repairIndices,
+        IInvokerPtr controlInvoker)
             : Codec_(codec)
             , Readers_(readers)
             , ErasedIndices_(erasedIndices)
@@ -429,6 +430,7 @@ public:
     {
         YASSERT(Codec_->GetRepairIndices(ErasedIndices_));
         YASSERT(Codec_->GetRepairIndices(ErasedIndices_)->size() == Readers_.size());
+        YASSERT(ControlInvoker_);
     }
 
     bool HasNextBlock() const
@@ -469,6 +471,7 @@ private:
     TAsyncError Repair(const std::vector<TSharedRef>& aliveWindows);
     TError OnGetMeta(IAsyncReader::TGetMetaResult metaOrError);
 
+    IInvokerPtr ControlInvoker_;
 };
 
 typedef TIntrusivePtr<TRepairReader> TRepairReaderPtr;
@@ -478,14 +481,15 @@ typedef TIntrusivePtr<TRepairReader> TRepairReaderPtr;
 TRepairReader::TReadFuture TRepairReader::RepairNextBlock()
 {
     auto this_ = MakeStrong(this);
-    return RepairIfNeeded().Apply(BIND([this, this_] (TError error) -> TReadFuture {
-        RETURN_PROMISE_IF_ERROR(error, TReadResult);
+    return RepairIfNeeded()
+        .Apply(BIND([this, this_] (TError error) -> TReadFuture {
+            RETURN_PROMISE_IF_ERROR(error, TReadResult);
 
-        YCHECK(!RepairedBlocksQueue_.empty());
-        auto result = TRepairReader::TReadResult(RepairedBlocksQueue_.front());
-        RepairedBlocksQueue_.pop_front();
-        return MakePromise(result);
-    }));
+            YCHECK(!RepairedBlocksQueue_.empty());
+            auto result = TRepairReader::TReadResult(RepairedBlocksQueue_.front());
+            RepairedBlocksQueue_.pop_front();
+            return MakePromise(result);
+        }).AsyncVia(ControlInvoker_));
 }
 
 TAsyncError TRepairReader::Repair(const std::vector<TSharedRef>& aliveWindows)
@@ -519,7 +523,9 @@ TAsyncError TRepairReader::RepairIfNeeded()
     if (!HasNextBlock()) {
         return MakePromise(TError("No blocks to make repair"));
     } else if (RepairedBlocksQueue_.empty()) {
-        return PrepareReaders().Apply(BIND(&TRepairReader::OnReadersPrepared, MakeStrong(this)));
+        return PrepareReaders().Apply(
+            BIND(&TRepairReader::OnReadersPrepared, MakeStrong(this))
+                .AsyncVia(ControlInvoker_));
     } else {
         return MakeFuture(TError());
     }
@@ -542,7 +548,8 @@ TAsyncError TRepairReader::OnReadersPrepared(TError error)
     }
 
     return collector->Complete().Apply(
-        BIND(&TRepairReader::OnBlockCollected, MakeStrong(this)));
+            BIND(&TRepairReader::OnBlockCollected, MakeStrong(this))
+                .AsyncVia(ControlInvoker_));
 }
 
 TError TRepairReader::OnGetMeta(IAsyncReader::TGetMetaResult metaOrError)
@@ -596,7 +603,8 @@ TAsyncError TRepairReader::PrepareReaders()
 
     auto reader = Readers_.front();
     return AsyncGetPlacementMeta(reader).Apply(
-        BIND(&TRepairReader::OnGetMeta, MakeStrong(this)));
+        BIND(&TRepairReader::OnGetMeta, MakeStrong(this))
+            .AsyncVia(ControlInvoker_));
 }
 
 i64 TRepairReader::GetErasedDataSize() const
@@ -625,7 +633,8 @@ public:
                     codec,
                     readers,
                     erasedIndices,
-                    MakeSingleton(partIndex)))
+                    MakeSingleton(partIndex),
+                    TDispatcher::Get()->GetReaderInvoker()))
     { }
 
     IAsyncReader::TAsyncReadResult Run() {
@@ -725,17 +734,20 @@ public:
         const TBlockIndexList& erasedIndices,
         const std::vector<IAsyncReaderPtr>& readers,
         const std::vector<IAsyncWriterPtr>& writers,
-        TCallback<void(double)> onProgress)
+        TCallback<void(double)> onProgress,
+        IInvokerPtr controlInvoker)
             : Reader_(
                 New<TRepairReader>(
                     codec,
                     readers,
                     erasedIndices,
-                    erasedIndices))
+                    erasedIndices,
+                    controlInvoker))
             , Readers_(readers)
             , Writers_(writers)
             , OnProgress_(onProgress)
             , RepairedDataSize_(0)
+            , ControlInvoker_(controlInvoker)
     {
         YCHECK(erasedIndices.size() == writers.size());
         FOREACH (auto writer, writers) {
@@ -751,8 +763,9 @@ public:
         if (!Reader_->HasNextBlock()) {
             return Finalize();
         }
-        return Reader_->RepairNextBlock()
-            .Apply(BIND(&TRepairAllPartsSession::OnBlockRepaired, MakeStrong(this)));
+        return Reader_->RepairNextBlock().Apply(
+            BIND(&TRepairAllPartsSession::OnBlockRepaired, MakeStrong(this))
+                .AsyncVia(ControlInvoker_));
     }
 
 private:
@@ -778,7 +791,7 @@ private:
             BIND([this, this_] (TError error) -> TAsyncError {
                 RETURN_PROMISE_IF_ERROR(error, TError);
                 return Run();
-            })
+            }).AsyncVia(ControlInvoker_)
         );
     }
 
@@ -786,7 +799,8 @@ private:
     {
         auto this_ = MakeStrong(this);
         return Readers_.front()->AsyncGetChunkMeta().Apply(
-            BIND(&TRepairAllPartsSession::OnGotChunkMeta, MakeStrong(this)));
+            BIND(&TRepairAllPartsSession::OnGotChunkMeta, MakeStrong(this))
+                .AsyncVia(ControlInvoker_));
     }
 
     TAsyncError OnGotChunkMeta(IAsyncReader::TGetMetaResult metaOrError)
@@ -806,6 +820,8 @@ private:
 
     TCallback<void(double)> OnProgress_;
     i64 RepairedDataSize_;
+
+    IInvokerPtr ControlInvoker_;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -833,9 +849,13 @@ TAsyncError RepairErasedBlocks(
     TCancelableContextPtr cancelableContext,
     TCallback<void(double)> onProgress)
 {
-    auto repair = New<TRepairAllPartsSession>(codec, erasedIndices, readers, writers, onProgress);
+    auto invoker = TDispatcher::Get()->GetReaderInvoker();
+    if (cancelableContext) {
+        invoker = cancelableContext->CreateInvoker(invoker);
+    }
+    auto repair = New<TRepairAllPartsSession>(codec, erasedIndices, readers, writers, onProgress, invoker);
     return BIND(&TRepairAllPartsSession::Run, repair)
-        .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
+        .AsyncVia(invoker)
         .Run();
 }
 
