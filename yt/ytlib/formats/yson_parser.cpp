@@ -2,7 +2,7 @@
 #include "parser.h"
 #include "yson_parser.h"
 
-#include <ytlib/yson/yson_parser.h>
+#include <ytlib/yson/parser.h>
 
 namespace NYT {
 namespace NFormats {

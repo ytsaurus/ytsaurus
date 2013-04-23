@@ -2,7 +2,7 @@
 #include "table_output.h"
 
 #include <ytlib/formats/parser.h>
-#include <ytlib/yson/yson_consumer.h>
+#include <ytlib/yson/consumer.h>
 #include <ytlib/table_client/sync_writer.h>
 
 namespace NYT {

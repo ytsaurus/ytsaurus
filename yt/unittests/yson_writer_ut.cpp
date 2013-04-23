@@ -1,7 +1,7 @@
 #include "stdafx.h"
 
-#include <ytlib/yson/yson_writer.h>
-#include <ytlib/yson/yson_parser.h>
+#include <ytlib/yson/writer.h>
+#include <ytlib/yson/parser.h>
 #include <ytlib/ytree/yson_consumer-mock.h>
 #include <ytlib/ytree/yson_stream.h>
 

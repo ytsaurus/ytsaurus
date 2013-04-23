@@ -10,7 +10,7 @@
 
 #include <util/string/escape.h>
 
-#include "yson_lexer_detail.h"
+#include "lexer_detail.h"
 
 namespace NYT {
 namespace NYson {

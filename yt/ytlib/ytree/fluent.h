@@ -1,9 +1,9 @@
 #pragma once
 
 #include "public.h"
-#include <ytlib/yson/yson_consumer.h>
+#include <ytlib/yson/consumer.h>
 #include "yson_producer.h"
-#include <ytlib/yson/yson_parser.h>
+#include <ytlib/yson/parser.h>
 #include "tree_visitor.h"
 #include "tree_builder.h"
 #include "convert.h"

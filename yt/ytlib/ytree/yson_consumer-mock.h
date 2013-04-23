@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ytlib/yson/yson_consumer.h>
+#include <ytlib/yson/consumer.h>
 
 #include <contrib/testing/framework.h>
 

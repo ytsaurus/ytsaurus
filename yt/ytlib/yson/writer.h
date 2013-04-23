@@ -1,7 +1,7 @@
 #pragma once
 
 #include "public.h"
-#include "yson_consumer.h"
+#include "consumer.h"
 
 namespace NYT {
 namespace NYson {

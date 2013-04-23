@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/yson/yson_consumer.h>
+#include <ytlib/yson/consumer.h>
 #include <ytlib/misc/nullable.h>
 #include <ytlib/misc/property.h>
 

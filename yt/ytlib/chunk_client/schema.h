@@ -5,7 +5,7 @@
 #include <ytlib/chunk_client/input_chunk.pb.h>
 
 #include <ytlib/ytree/public.h>
-#include <ytlib/yson/yson_consumer.h>
+#include <ytlib/yson/consumer.h>
 
 namespace NYT {
 namespace NChunkClient {

@@ -11,7 +11,7 @@
 
 #include <ytlib/ytree/permission.h>
 
-#include <ytlib/yson/yson_writer.h>
+#include <ytlib/yson/writer.h>
 
 #include <tclap/CmdLine.h>
 

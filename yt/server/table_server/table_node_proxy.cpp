@@ -8,7 +8,7 @@
 
 #include <ytlib/ytree/tree_builder.h>
 #include <ytlib/ytree/ephemeral_node_factory.h>
-#include <ytlib/yson/yson_parser.h>
+#include <ytlib/yson/parser.h>
 #include <ytlib/yson/tokenizer.h>
 #include <ytlib/ypath/token.h>
 

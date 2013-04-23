@@ -1,8 +1,8 @@
 ﻿#include "stdafx.h"
 #include "pipes.h"
 
-#include <ytlib/yson/yson_parser.h>
-#include <ytlib/yson/yson_consumer.h>
+#include <ytlib/yson/parser.h>
+#include <ytlib/yson/consumer.h>
 
 #include <ytlib/table_client/table_producer.h>
 #include <ytlib/table_client/sync_reader.h>

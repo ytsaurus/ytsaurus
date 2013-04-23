@@ -7,7 +7,7 @@
 #include "ephemeral_attribute_owner.h"
 
 #include <ytlib/yson/tokenizer.h>
-#include <ytlib/yson/yson_writer.h>
+#include <ytlib/yson/writer.h>
 
 #include <ytlib/ypath/tokenizer.h>
 

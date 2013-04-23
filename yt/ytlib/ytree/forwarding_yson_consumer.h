@@ -1,7 +1,7 @@
 #pragma once
 
 #include "yson_string.h"
-#include <ytlib/yson/yson_consumer.h>
+#include <ytlib/yson/consumer.h>
 #include <ytlib/actions/callback.h>
 
 namespace NYT {

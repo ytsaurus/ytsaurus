@@ -2,7 +2,7 @@
 #include "monitoring_manager.h"
 
 #include <ytlib/ytree/ephemeral_node_factory.h>
-#include <ytlib/yson/yson_writer.h>
+#include <ytlib/yson/writer.h>
 #include <ytlib/ytree/tree_visitor.h>
 #include <ytlib/ytree/ypath_proxy.h>
 #include <ytlib/ytree/node.h>

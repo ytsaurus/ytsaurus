@@ -1,7 +1,7 @@
 #pragma once
 
 #include "public.h"
-#include <ytlib/yson/yson_consumer.h>
+#include <ytlib/yson/consumer.h>
 
 #include <ytlib/misc/error.h>
 

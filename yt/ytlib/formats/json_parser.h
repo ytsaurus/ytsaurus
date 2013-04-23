@@ -4,7 +4,7 @@
 #include "config.h"
 
 #include <ytlib/formats/parser.h>
-#include <ytlib/yson/yson_consumer.h>
+#include <ytlib/yson/consumer.h>
 
 #include <library/json/json_value.h>
 

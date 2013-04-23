@@ -7,8 +7,8 @@
 #include <ytlib/formats/format.h>
 
 #include <ytlib/ytree/public.h>
-#include <ytlib/yson/yson_consumer.h>
-#include <ytlib/yson/yson_writer.h>
+#include <ytlib/yson/consumer.h>
+#include <ytlib/yson/writer.h>
 
 #include <ytlib/rpc/public.h>
 

@@ -4,7 +4,7 @@
 #include "config.h"
 
 #include <ytlib/ytree/forwarding_yson_consumer.h>
-#include <ytlib/yson/yson_writer.h>
+#include <ytlib/yson/writer.h>
 
 #include <library/json/json_writer.h>
 

@@ -1,7 +1,7 @@
 #include "stdafx.h"
 
-#include "yson_writer.h"
-#include "yson_format.h"
+#include "writer.h"
+#include "format.h"
 #include "varint.h"
 
 namespace NYT {

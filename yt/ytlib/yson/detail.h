@@ -356,7 +356,7 @@ class TLexerBase
 {
 private:
     typedef TCodedStream<TCharStream<TBlockStream, TPositionInfo<EnableLinePositionInfo> > > TBaseStream;
-    std::vector<char> buffer;
+    std::vector<char> Buffer;
 
 public:
     TLexerBase(const TBlockStream& blockStream) 
@@ -370,14 +370,14 @@ protected:
     template <bool AllowFinish>
     bool ReadNumeric(TStringBuf* value)
     {
-        buffer.clear();
+        Buffer.clear();
         bool isDouble = false;
         while (true) {
             char ch = TBaseStream::template GetChar<AllowFinish>();
             if (isdigit(ch) || ch == '+' || ch == '-') { // Seems like it can't be '+' or '-'
-                buffer.push_back(ch);
+                Buffer.push_back(ch);
             } else if (ch == '.' || ch == 'e' || ch == 'E') {
-                buffer.push_back(ch);
+                Buffer.push_back(ch);
                 isDouble = true;
             } else if (isalpha(ch)) {
                 THROW_ERROR_EXCEPTION("Unexpected character in numeric (Char: %s) (%s)",
@@ -389,13 +389,13 @@ protected:
             TBaseStream::Advance(1);
         }
 
-        *value = TStringBuf(buffer.data(), buffer.size());
+        *value = TStringBuf(Buffer.data(), Buffer.size());
         return isDouble;
     }
 
     void ReadQuotedString(TStringBuf* value)
     {
-        buffer.clear();
+        Buffer.clear();
         while (true) {
             if (TBaseStream::IsEmpty()) {
                 TBaseStream::Refresh();
@@ -403,45 +403,45 @@ protected:
             char ch = *TBaseStream::Begin();
             TBaseStream::Advance(1);
             if (ch != '"') {
-                buffer.push_back(ch);
+                Buffer.push_back(ch);
             } else {
                 // We must count the number of '\' at the end of StringValue
                 // to check if it's not \"
                 int slashCount = 0;
-                int length = buffer.size();
-                while (slashCount < length && buffer[length - 1 - slashCount] == '\\') {
+                int length = Buffer.size();
+                while (slashCount < length && Buffer[length - 1 - slashCount] == '\\') {
                     ++slashCount;
                 }
                 if (slashCount % 2 == 0) {
                     break;
                 } else {
-                    buffer.push_back(ch);
+                    Buffer.push_back(ch);
                 }
             }            
         }
 
-        auto unquotedValue = UnescapeC(buffer.data(), buffer.size());
-        buffer.clear();
-        buffer.insert(buffer.end(), &*unquotedValue.begin(), &*unquotedValue.begin() + unquotedValue.size());
-        *value = TStringBuf(buffer.data(), buffer.size());
+        auto unquotedValue = UnescapeC(Buffer.data(), Buffer.size());
+        Buffer.clear();
+        Buffer.insert(Buffer.end(), unquotedValue.data(), unquotedValue.data() + unquotedValue.size());
+        *value = TStringBuf(Buffer.data(), Buffer.size());
     }
 
     template <bool AllowFinish>
     void ReadUnquotedString(TStringBuf* value)
     {
-        buffer.clear();
+        Buffer.clear();
         while (true) {
             char ch = TBaseStream::template GetChar<AllowFinish>();
             if (isalpha(ch) || isdigit(ch) ||
                 ch == '_' || ch == '-' || ch == '%' || ch == '.')
             {
-                buffer.push_back(ch);
+                Buffer.push_back(ch);
             } else {
                 break;
             }
             TBaseStream::Advance(1);
         }
-        *value = TStringBuf(buffer.data(), buffer.size());
+        *value = TStringBuf(Buffer.data(), Buffer.size());
     }
 
     void ReadUnquotedString(TStringBuf* value)
@@ -463,20 +463,20 @@ protected:
             if (TBaseStream::Begin() + length <= TBaseStream::End()) { 
                 *value = TStringBuf(TBaseStream::Begin(), length);
                 TBaseStream::Advance(length);
-            } else { // reading in buffer
+            } else { // reading in Buffer
                 size_t needToRead = length;
-                buffer.clear();
+                Buffer.clear();
                 while (needToRead) {
                     if (TBaseStream::IsEmpty()) {
                         TBaseStream::Refresh();
                         continue;
                     }
                     size_t readingBytes = needToRead < TBaseStream::Length() ? needToRead : TBaseStream::Length(); // TODO: min               
-                    buffer.insert(buffer.end(), TBaseStream::Begin(), TBaseStream::Begin() + readingBytes);
+                    Buffer.insert(Buffer.end(), TBaseStream::Begin(), TBaseStream::Begin() + readingBytes);
                     needToRead -= readingBytes;
                     TBaseStream::Advance(readingBytes);
                 }
-                *value = TStringBuf(buffer.data(), buffer.size());
+                *value = TStringBuf(Buffer.data(), Buffer.size());
             }
         } else {
             THROW_ERROR_EXCEPTION("Error while parsing varint (%s)", 
@@ -642,6 +642,51 @@ public:
         EndPtr = end;
     }
 };
+
+template <class TParserCoroutine>
+class TBlockReader
+{
+private:
+    TParserCoroutine& Coroutine;
+
+    const char* BeginPtr;
+    const char* EndPtr;
+    bool FinishFlag;
+
+public:
+    TBlockReader(TParserCoroutine& coroutine, const char* begin, const char* end, bool finish)
+        : Coroutine(coroutine)
+        , BeginPtr(begin)
+        , EndPtr(end)
+        , FinishFlag(finish)
+    { }
+
+    const char* Begin() const
+    {
+        return BeginPtr;
+    }
+
+    const char* End() const
+    {
+        return EndPtr;
+    }
+
+    void RefreshBlock()
+    {
+        std::tie(BeginPtr, EndPtr, FinishFlag) = Coroutine.Yield(0);
+    }
+
+    void Advance(size_t amount)
+    {
+        BeginPtr += amount;
+    }
+    
+    bool IsFinished() const
+    {
+        return FinishFlag;
+    }
+};
+
 
 } // namespace NYson
 } // namespace NYT

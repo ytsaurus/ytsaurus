@@ -8,7 +8,7 @@
 #include <ytlib/misc/guid.h>
 #include <ytlib/misc/small_vector.h>
 
-#include <ytlib/yson/yson_writer.h>
+#include <ytlib/yson/writer.h>
 
 namespace NYT {
 

@@ -1,6 +1,6 @@
 #include "yamred_dsv_writer.h"
 
-#include <yson/yson_format.h>
+#include <yson/format.h>
 
 namespace NYT {
 namespace NFormats {

@@ -10,7 +10,7 @@
 
 #include <ytlib/misc/protobuf_helpers.h>
 
-#include <ytlib/yson/yson_writer.h>
+#include <ytlib/yson/writer.h>
 #include <ytlib/yson/tokenizer.h>
 
 #include <ytlib/ypath/token.h>

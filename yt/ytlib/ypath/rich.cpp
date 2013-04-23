@@ -4,7 +4,7 @@
 
 #include <ytlib/misc/error.h>
 
-#include <ytlib/yson/yson_consumer.h>
+#include <ytlib/yson/consumer.h>
 #include <ytlib/yson/tokenizer.h>
 #include <ytlib/yson/token.h>
 

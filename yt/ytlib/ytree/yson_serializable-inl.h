@@ -6,7 +6,7 @@
 #include "convert.h"
 #include "tree_visitor.h"
 
-#include <ytlib/yson/yson_consumer.h>
+#include <ytlib/yson/consumer.h>
 
 #include <ytlib/misc/guid.h>
 #include <ytlib/misc/string.h>

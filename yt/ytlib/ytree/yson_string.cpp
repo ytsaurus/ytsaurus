@@ -4,8 +4,8 @@
 #include "yson_stream.h"
 #include "null_yson_consumer.h"
 
-#include <ytlib/yson/yson_parser.h>
-#include <ytlib/yson/yson_consumer.h>
+#include <ytlib/yson/parser.h>
+#include <ytlib/yson/consumer.h>
 
 namespace NYT {
 namespace NYTree {

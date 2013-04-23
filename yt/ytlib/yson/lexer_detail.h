@@ -1,6 +1,6 @@
 #pragma once
 
-#include "yson_detail.h"
+#include "detail.h"
 #include "token.h"
 
 namespace NYT {
@@ -304,7 +304,6 @@ public:
 
     virtual ~TStatelessYsonLexerImplBase()
     { }
-
 };
 
 template <bool EnableLinePositionInfo>

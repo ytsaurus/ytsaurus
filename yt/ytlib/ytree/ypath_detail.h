@@ -9,8 +9,8 @@
 
 #include <ytlib/misc/assert.h>
 
-#include <ytlib/yson/yson_consumer.h>
-#include <ytlib/yson/yson_writer.h>
+#include <ytlib/yson/consumer.h>
+#include <ytlib/yson/writer.h>
 
 #include <ytlib/ytree/node.h>
 #include <ytlib/ytree/ypath.pb.h>

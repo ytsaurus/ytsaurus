@@ -5,23 +5,23 @@ set( SRCS
   ${BASE}/token.cpp
   ${BASE}/tokenizer.cpp
   ${BASE}/varint.cpp
-  ${BASE}/yson_consumer.cpp
-  ${BASE}/yson_parser.cpp
-  ${BASE}/yson_writer.cpp
+  ${BASE}/consumer.cpp
+  ${BASE}/parser.cpp
+  ${BASE}/writer.cpp
 )
 set( HDRS
-  ${BASE}/yson_detail.h
-  ${BASE}/yson_lexer_detail.h
-  ${BASE}/yson_parser_detail.h
+  ${BASE}/detail.h
+  ${BASE}/lexer_detail.h
+  ${BASE}/parser_detail.h
   ${BASE}/lexer.h
   ${BASE}/public.h
   ${BASE}/token.h
   ${BASE}/tokenizer.h
   ${BASE}/varint.h
-  ${BASE}/yson_consumer.h
-  ${BASE}/yson_format.h
-  ${BASE}/yson_parser.h
-  ${BASE}/yson_writer.h
+  ${BASE}/consumer.h
+  ${BASE}/format.h
+  ${BASE}/parser.h
+  ${BASE}/writer.h
   ${BASE}/zigzag.h
 )
 

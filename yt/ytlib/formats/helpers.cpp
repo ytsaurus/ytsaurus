@@ -2,7 +2,7 @@
 
 #include <ytlib/misc/error.h>
 
-#include <ytlib/yson/yson_format.h>
+#include <ytlib/yson/format.h>
 #include <ytlib/ytree/yson_string.h>
 #include <ytlib/yson/token.h>
 

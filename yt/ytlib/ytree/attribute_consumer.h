@@ -4,7 +4,7 @@
 #include "forwarding_yson_consumer.h"
 #include "yson_stream.h"
 
-#include <ytlib/yson/yson_writer.h>
+#include <ytlib/yson/writer.h>
 
 namespace NYT {
 namespace NYTree {

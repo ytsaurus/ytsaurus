@@ -2,7 +2,7 @@
 
 #include <ytlib/ytree/yson_consumer-mock.h>
 
-#include <ytlib/yson/yson_parser.h>
+#include <ytlib/yson/parser.h>
 
 #include <util/stream/mem.h>
 

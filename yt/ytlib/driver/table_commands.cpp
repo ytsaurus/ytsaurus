@@ -4,7 +4,7 @@
 
 #include <ytlib/formats/format.h>
 
-#include <ytlib/yson/yson_parser.h>
+#include <ytlib/yson/parser.h>
 #include <ytlib/ytree/tree_visitor.h>
 
 #include <ytlib/transaction_client/transaction_manager.h>

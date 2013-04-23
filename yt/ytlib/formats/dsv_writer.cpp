@@ -3,7 +3,7 @@
 
 #include <ytlib/misc/error.h>
 
-#include <yson/yson_format.h>
+#include <yson/format.h>
 
 namespace NYT {
 namespace NFormats {

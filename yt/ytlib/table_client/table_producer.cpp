@@ -2,7 +2,7 @@
 #include "table_producer.h"
 #include "sync_reader.h"
 
-#include <ytlib/yson/yson_consumer.h>
+#include <ytlib/yson/consumer.h>
 #include <ytlib/ytree/yson_string.h>
 #include <ytlib/misc/foreach.h>
 

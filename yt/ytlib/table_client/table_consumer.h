@@ -4,7 +4,7 @@
 
 #include <ytlib/chunk_client/chunk.pb.h>
 #include <ytlib/ytree/forwarding_yson_consumer.h>
-#include <ytlib/yson/yson_writer.h>
+#include <ytlib/yson/writer.h>
 #include <ytlib/yson/lexer.h>
 #include <ytlib/misc/blob_output.h>
 #include <ytlib/misc/blob_range.h>

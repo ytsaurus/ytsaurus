@@ -11,7 +11,7 @@
 #include <ytlib/formats/format.h>
 #include <ytlib/formats/parser.h>
 
-#include <ytlib/yson/yson_writer.h>
+#include <ytlib/yson/writer.h>
 
 #include <ytlib/ytree/convert.h>
 

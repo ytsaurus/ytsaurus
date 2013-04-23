@@ -1,7 +1,6 @@
 #pragma once
 
-#include <ytlib/fibers/coroutine.h>
-#include "yson_detail.h"
+#include "detail.h"
 
 namespace NYT {
 namespace NYson {
@@ -293,16 +292,20 @@ public:
 } // namespace NDetail
 
 template <class TConsumer, class TBlockStream>
-void ParseStreamImpl(const TBlockStream& blockStream, IYsonConsumer* consumer, EYsonType parsingMode = EYsonType::Node, bool enableLinePositionInfo = false)
+void ParseYsonStreamImpl(
+    const TBlockStream& blockStream, 
+    IYsonConsumer* consumer, 
+    EYsonType parsingMode = EYsonType::Node, 
+    bool enableLinePositionInfo = false)
 {
     if (enableLinePositionInfo) {
         typedef NDetail::TParser<TConsumer, TBlockStream, true> TImpl;
-        TImpl rapidYsonParserImpl(blockStream, consumer);
-        rapidYsonParserImpl.DoParse(parsingMode);
+        TImpl impl(blockStream, consumer);
+        impl.DoParse(parsingMode);
     } else {
         typedef NDetail::TParser<TConsumer, TBlockStream, false> TImpl;
-        TImpl rapidYsonParserImpl(blockStream, consumer);
-        rapidYsonParserImpl.DoParse(parsingMode);
+        TImpl impl(blockStream, consumer);
+        impl.DoParse(parsingMode);
     }
 }
 
@@ -310,6 +313,9 @@ class TStatelessYsonParserImplBase
 {
 public:
     virtual void Parse(const TStringBuf& data, EYsonType type = EYsonType::Node) = 0;
+
+    virtual ~TStatelessYsonParserImplBase()
+    { }
 };
 
 template <class TConsumer, bool EnableLinePositionInfo>
@@ -328,93 +334,6 @@ public:
     {
         Parser.SetBuffer(data.begin(), data.end());
         Parser.DoParse(type);
-    }
-};
-
-template <class TConsumer>
-class TYsonParserImpl
-{   
-private:
-    typedef TCoroutine<int(const char* begin, const char* end, bool finish) > TParserCoroutine;
-    
-    class TBlockReader
-    {
-    private:
-        TParserCoroutine& Coroutine;
-
-        const char* BeginPtr;
-        const char* EndPtr;
-        bool FinishFlag;
-
-    public:
-        TBlockReader(TParserCoroutine& coroutine, const char* begin, const char* end, bool finish)
-            : Coroutine(coroutine)
-            , BeginPtr(begin)
-            , EndPtr(end)
-            , FinishFlag(finish)
-        { }
-
-        const char* Begin() const
-        {
-            return BeginPtr;
-        }
-
-        const char* End() const
-        {
-            return EndPtr;
-        }
-
-        void RefreshBlock()
-        {
-            std::tie(BeginPtr, EndPtr, FinishFlag) = Coroutine.Yield(0);
-        }
-
-        void Advance(size_t amount)
-        {
-            BeginPtr += amount;
-        }
-    
-        bool IsFinished() const
-        {
-            return FinishFlag;
-        }
-    };
-
-    TParserCoroutine ParserCoroutine;
-
-public:
-    TYsonParserImpl(
-        TConsumer* consumer, 
-        EYsonType parsingMode = EYsonType::Node, 
-        bool enableLinePositionInfo = false) 
-    {
-        typedef typename TYsonParserImpl<TConsumer>::TBlockReader TBlockReader;
-        ParserCoroutine.Reset(BIND([=] (TParserCoroutine& self, const char* begin, const char* end, bool finish) {
-            ParseStreamImpl<TConsumer, TBlockReader>(
-                TBlockReader(self, begin, end, finish),
-                consumer,
-                parsingMode,
-                enableLinePositionInfo);
-        }));
-    }
-
-    void Read(const char* begin, const char* end, bool finish = false)
-    {
-        if (ParserCoroutine.GetState() != EFiberState::Terminated) {
-            ParserCoroutine.Run(begin, end, finish);
-        } else {
-            THROW_ERROR_EXCEPTION("Input is already parsed");
-        }
-    }
-
-    void Read(const TStringBuf& data, bool finish = false)
-    {
-        Read(data.begin(), data.end(), finish);
-    }
-
-    void Finish()
-    {
-        Read(0, 0, true);
     }
 };
 
