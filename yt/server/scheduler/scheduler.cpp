@@ -505,7 +505,7 @@ private:
             if (!ReconfigureYsonSerializable(Config, TYsonString(rsp->value())))
                 return;
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error parsing updated scheduler configuration");        
+            LOG_ERROR(ex, "Error parsing updated scheduler configuration");
         }
 
         LOG_INFO("Scheduler configuration updated");
@@ -1238,61 +1238,27 @@ private:
                 YUNREACHABLE();
         }
 
-        const auto& result = job->Result();
-        if (result.HasExtension(TMapJobResultExt::map_job_result_ext)) {
-            const auto& resultExt = result.GetExtension(TMapJobResultExt::map_job_result_ext);
-            ProcessFinishedJobResult(job, resultExt.mapper_result());
-        } else if (result.HasExtension(TReduceJobResultExt::reduce_job_result_ext)) {
-            const auto& resultExt = result.GetExtension(TReduceJobResultExt::reduce_job_result_ext);
-            ProcessFinishedJobResult(job, resultExt.reducer_result());
-        } else if (result.HasExtension(TPartitionJobResultExt::partition_job_result_ext)) {
-            const auto& resultExt = result.GetExtension(TPartitionJobResultExt::partition_job_result_ext);
-            if (resultExt.has_mapper_result()) {
-                ProcessFinishedJobResult(job, resultExt.mapper_result());
-            }
-        } else {
-            // Dummy empty job result without stderr.
-            static TUserJobResult jobResult;
-            ProcessFinishedJobResult(job, jobResult);
-        }
+        ProcessFinishedJobResult(job, job->Result());
     }
 
-    void ProcessFinishedJobResult(TJobPtr job, const TUserJobResult& result)
+    void ProcessFinishedJobResult(TJobPtr job, const TJobResult& result)
     {
-        auto stderrChunkId =
-            result.has_stderr_chunk_id()
-            ? TChunkId::FromProto(result.stderr_chunk_id())
-            : NullChunkId;
+        auto jobFailed = job->GetState() == EJobState::Failed;
 
-        // Create job node either if the job has failed or it has produced an stderr.
-        bool stdErrSaved = true;
-        if (ShouldCreateJobNode(job, stderrChunkId)) {
-            MasterConnector->CreateJobNode(job, stderrChunkId);
-            if (stderrChunkId != NullChunkId) {
-                auto operation = job->GetOperation();
+        if (result.has_stderr_chunk_id()) {
+            auto operation = job->GetOperation();
+            auto stderrChunkId = TChunkId::FromProto(result.stderr_chunk_id());
+
+            if (jobFailed || operation->GetStdErrCount() < operation->GetMaxStdErrCount()) {
+                MasterConnector->CreateJobNode(job, stderrChunkId);
                 operation->SetStdErrCount(operation->GetStdErrCount() + 1);
-                stdErrSaved = true;
+            } else {
+                ReleaseStdErrChunk(job, stderrChunkId);
             }
-        }
 
-        // Drop redundant stderr.
-        if (stderrChunkId != NullChunkId && !stdErrSaved) {
-            ReleaseStdErrChunk(job, stderrChunkId);
+        } else if (jobFailed) {
+            MasterConnector->CreateJobNode(job, NullChunkId);
         }
-    }
-
-    bool ShouldCreateJobNode(TJobPtr job, const TChunkId& stdErrChunkId)
-    {
-        if (job->GetState() == EJobState::Failed) {
-            return true;
-        }
-
-        auto operation = job->GetOperation();
-        if (stdErrChunkId != NullChunkId && operation->GetStdErrCount() < operation->GetMaxStdErrCount()) {
-            return true;
-        }
-
-        return false;
     }
 
     void ReleaseStdErrChunk(TJobPtr job, const TChunkId& chunkId)
@@ -1318,7 +1284,6 @@ private:
             LOG_WARNING(*rsp, "Error releasing stderr chunk");
         }
     }
-
 
     void InitStrategy()
     {

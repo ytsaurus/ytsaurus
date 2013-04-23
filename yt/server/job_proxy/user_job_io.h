@@ -45,7 +45,6 @@ public:
         const NTransactionClient::TTransactionId& transactionId,
         i64 maxSize) const;
 
-    void SetStderrChunkId(const NChunkClient::TChunkId& chunkId);
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunks() const;
 
     virtual void PopulateResult(NScheduler::NProto::TJobResult* result) = 0;
@@ -53,8 +52,6 @@ public:
 protected:
     NScheduler::TJobIOConfigPtr IOConfig;
     IJobHost* Host;
-
-    NChunkClient::TChunkId StderrChunkId;
 
     std::vector<NTableClient::ISyncReaderPtr> Inputs;
     std::vector<NTableClient::TTableChunkWriterProviderPtr> Outputs;

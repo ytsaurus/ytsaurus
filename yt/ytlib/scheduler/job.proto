@@ -78,6 +78,8 @@ message TJobResult
     // List of chunks the job was unable to read.
     repeated NYT.NProto.TGuid failed_chunk_ids = 2;
 
+    optional NYT.NProto.TGuid stderr_chunk_id = 3;
+
     extensions 100 to max;
 }
 
@@ -135,8 +137,6 @@ message TUserJobSpec
 // User code result.
 message TUserJobResult
 {
-    optional NYT.NProto.TGuid stderr_chunk_id = 1;
-
     // Used for reordering chunks from operations that produce sorted output.
     repeated NTableClient.NProto.TBoundaryKeysExt output_boundary_keys = 2;
 }
