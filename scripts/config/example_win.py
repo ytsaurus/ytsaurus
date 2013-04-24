@@ -70,6 +70,9 @@ class Master(WinNode, Server):
                             'path' : r'%(work_dir)s\changelogs'
                         }
                 },
+                'node_tracker' : {
+                        'online_node_timeout' : 10000
+                },
                 'monitoring_port' : r'%(monport)d',
                 'logging' : Logging
         })
