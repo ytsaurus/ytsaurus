@@ -499,6 +499,13 @@ private:
             LOG_DEBUG("All starting blocks received");
 
             chunkReader->MakeCurrentRow();
+            // Check end validator.
+            if (!chunkReader->ValidateRow()) {
+                chunkReader->Initializer.Reset();
+                chunkReader->ReaderState.FinishOperation();
+                return;
+            }
+
             ValidateRow(TError());
         }
     }
@@ -813,15 +820,23 @@ bool TTableChunkReader::ContinueFetchNextRow(int channelIndex, TError error)
 
     MakeCurrentRow();
 
-    if ((!!EndValidator) && !EndValidator->IsValid(CurrentKey)) {
-        LOG_DEBUG("Chunk reader finished");
-        IsFinished = true;
-    } else {
+    if (ValidateRow()) {
         ++Provider->RowIndex_;
     }
 
     if (RowState.HasRunningOperation())
         RowState.FinishOperation();
+
+    return true;
+}
+
+bool TTableChunkReader::ValidateRow()
+{
+    if ((!!EndValidator) && !EndValidator->IsValid(CurrentKey)) {
+        LOG_DEBUG("Chunk reader finished");
+        IsFinished = true;
+        return false;
+    }
 
     return true;
 }

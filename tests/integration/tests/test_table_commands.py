@@ -131,6 +131,7 @@ class TestTableCommands(YTEnvSetup):
 
         # possible empty ranges
         assert read('//tmp/table[a : a]') == []
+        assert read('//tmp/table[(a, 1) : (a, 10)]') == []
         assert read('//tmp/table[b : a]') == []
         assert read('//tmp/table[(c, 0) : (a, 10)]') == []
         assert read('//tmp/table[(a, 10, 1e7) : (b, )]') == []
