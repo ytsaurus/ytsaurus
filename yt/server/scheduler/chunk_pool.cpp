@@ -732,28 +732,34 @@ private:
 
     void Register(TChunkStripePtr stripe)
     {
-        UpdateLocality(stripe, +1);
+        FOREACH (const auto& chunk, stripe->Chunks) {
+            i64 locality = GetLocality(*chunk);
+            FOREACH (ui32 protoReplica, chunk->replicas()) {
+                auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
+                const auto& descriptor = NodeDirectory->GetDescriptor(replica);
+                auto& entry = PendingLocalChunks[descriptor.Address];
+                YCHECK(entry.Stripes.insert(stripe).second);
+                entry.Locality += locality;
+            }
+        }
+
         YCHECK(PendingGlobalChunks.insert(stripe).second);
     }
 
     void Unregister(TChunkStripePtr stripe)
     {
-        UpdateLocality(stripe, -1);
-        YCHECK(PendingGlobalChunks.erase(stripe) == 1);
-    }
-
-    void UpdateLocality(TChunkStripePtr stripe, int delta)
-    {
         FOREACH (const auto& chunk, stripe->Chunks) {
-            i64 localityDelta = NChunkClient::GetLocality(*chunk) * delta;
+            i64 locality = GetLocality(*chunk);
             FOREACH (ui32 protoReplica, chunk->replicas()) {
                 auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
                 const auto& descriptor = NodeDirectory->GetDescriptor(replica);
                 auto& entry = PendingLocalChunks[descriptor.Address];
                 YCHECK(entry.Stripes.erase(stripe) == 1);
-                entry.Locality += localityDelta;
+                entry.Locality -= locality;
             }
         }
+
+        YCHECK(PendingGlobalChunks.erase(stripe) == 1);
     }
 
     template <class TIterator>
