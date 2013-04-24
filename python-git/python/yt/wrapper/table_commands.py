@@ -419,7 +419,8 @@ def is_sorted(table):
 
 def run_merge(source_table, destination_table, mode=None,
               strategy=None, table_writer=None,
-              replication_factor=None, compression_codec=None, spec=None):
+              replication_factor=None, compression_codec=None,
+              job_count=None, spec=None):
     """
     Merge source tables and write it to destination table.
     Mode should be 'unordered', 'ordered', or 'sorted'.
@@ -431,6 +432,7 @@ def run_merge(source_table, destination_table, mode=None,
         _add_user_spec,
         lambda _: _add_table_writer_spec("job_io", table_writer, _),
         lambda _: _add_input_output_spec(source_table, destination_table, _),
+        lambda _: update({"job_count": job_count}, _) if job_count is not None else _,
         lambda _: update({"mode": get_value(mode, "unordered")}, _),
         lambda _: get_value(_, {})
     )(spec)
@@ -583,6 +585,8 @@ def run_operation(binary, source_table, destination_table,
                 is_prefix(_prepare_reduce_by(reduce_by), get_sorted_by(table.name, []))
                 for table in source_table)
             if not are_input_tables_sorted:
+                if job_count is not None:
+                    spec = update({"partition_count": job_count}, spec)
                 run_map_reduce(
                     mapper=None,
                     reducer=binary,

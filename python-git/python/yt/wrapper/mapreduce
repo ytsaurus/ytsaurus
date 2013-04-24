@@ -361,8 +361,6 @@ Examples:
         config.TRANSACTION_TIMEOUT = int(args.timeout)
 
     spec = {}
-    if args.jobcount is not None:
-        spec.update({"job_count": args.jobcount})
     if vars(args)["ytspec"] is not None:
         for spec_arg in args.ytspec:
             spec.update(json.loads(spec_arg))
@@ -478,12 +476,14 @@ Examples:
                           sort_by=args.sortby, reduce_by=args.reduceby,
                           replication_factor=replication_factor,
                           compression_codec=args.codec,
+                          job_count=args.jobcount,
                           spec=spec)
     elif args.map is not None:
         yt.run_map(args.map, args.src, dst, files=map_files, file_paths=args.ytfile,
                    input_format=inputformat, output_format=outputformat,
                    replication_factor=args.replicationfactor,
                    compression_codec=args.codec,
+                   job_count=args.jobcount,
                    spec=spec)
     elif args.reduce is not None or args.reducews is not None:
         if isinstance(inputformat, yt.RawFormat) and inputformat._format == "yamred_dsv" and args.reduceby is None:
@@ -494,6 +494,7 @@ Examples:
                       reduce_by=args.reduceby,
                       replication_factor=replication_factor,
                       compression_codec=args.codec,
+                      job_count=args.jobcount,
                       spec=spec)
     if args.drop is not None:
         if yt.exists(args.drop):
@@ -519,6 +520,7 @@ Examples:
         yt.run_merge(args.src, unlist(dst), mode=get_value(args.mode, "sorted"),
                      replication_factor=replication_factor,
                      compression_codec=args.codec,
+                     job_count=args.jobcount,
                      spec=spec)
 
     if args.erase is not None:
