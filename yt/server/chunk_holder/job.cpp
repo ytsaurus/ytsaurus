@@ -501,7 +501,7 @@ private:
         }
 
         std::vector<IAsyncWriterPtr> writers;
-        for (int index = 0; index < static_cast<int>(erasedIndexList.size()); ++index) {
+        FOREACH (int index, erasedIndexList) {
             auto partId = PartIdFromErasureChunkId(ChunkId, index);
             auto writer = CreateReplicationWriter(
                 config->ReplicationWriter,
