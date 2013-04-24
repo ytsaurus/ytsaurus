@@ -733,7 +733,7 @@ private:
     void Register(TChunkStripePtr stripe)
     {
         FOREACH (const auto& chunk, stripe->Chunks) {
-            i64 locality = GetLocality(*chunk);
+            i64 locality = NChunkClient::GetLocality(*chunk);
             FOREACH (ui32 protoReplica, chunk->replicas()) {
                 auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
                 const auto& descriptor = NodeDirectory->GetDescriptor(replica);
@@ -749,7 +749,7 @@ private:
     void Unregister(TChunkStripePtr stripe)
     {
         FOREACH (const auto& chunk, stripe->Chunks) {
-            i64 locality = GetLocality(*chunk);
+            i64 locality = NChunkClient::GetLocality(*chunk);
             FOREACH (ui32 protoReplica, chunk->replicas()) {
                 auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
                 const auto& descriptor = NodeDirectory->GetDescriptor(replica);
