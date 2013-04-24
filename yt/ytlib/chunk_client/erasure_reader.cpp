@@ -80,7 +80,7 @@ public:
 
             // Searching for the part of given block
             auto it = upper_bound(PartInfos_.begin(), PartInfos_.end(), blockIndex, PartComparator());
-            YASSERT(it != PartInfos_.begin());
+            YCHECK(it != PartInfos_.begin());
             do {
                 --it;
             } while (it != PartInfos_.begin() && (it->start() > blockIndex || it->block_sizes().size() == 0));
@@ -336,7 +336,7 @@ class TRepairPartReader
 {
 public:
     explicit TRepairPartReader(const std::vector<i64>& blockSizes)
-        : BlockNumber_(0)
+        : BlockIndex_(0)
         , BlockSizes_(blockSizes)
     {
         PrepareNextBlock();
@@ -347,7 +347,7 @@ public:
         std::vector<TSharedRef> result;
 
         i64 offset = 0;
-        while (offset < window.Size() && BlockNumber_ < BlockSizes_.size()) {
+        while (offset < window.Size() && BlockIndex_ < BlockSizes_.size()) {
             i64 size = std::min(window.Size() - offset, CurrentBlock_.Size() - CompletedOffset_);
             std::copy(
                 window.Begin() + offset,
@@ -358,8 +358,8 @@ public:
             CompletedOffset_ += size;
             if (CompletedOffset_ == CurrentBlock_.Size()) {
                 result.push_back(CurrentBlock_);
-                BlockNumber_ += 1;
-                if (BlockNumber_ < BlockSizes_.size()) {
+                BlockIndex_ += 1;
+                if (BlockIndex_ < BlockSizes_.size()) {
                     PrepareNextBlock();
                 }
             }
@@ -372,10 +372,10 @@ private:
     void PrepareNextBlock()
     {
         CompletedOffset_ = 0;
-        CurrentBlock_ = TSharedRef::Allocate(BlockSizes_[BlockNumber_]);
+        CurrentBlock_ = TSharedRef::Allocate(BlockSizes_[BlockIndex_]);
     }
 
-    int BlockNumber_;
+    int BlockIndex_;
     std::vector<i64> BlockSizes_;
 
     TSharedRef CurrentBlock_;
@@ -385,11 +385,11 @@ private:
 
 ///////////////////////////////////////////////////////////////////////////////
 
-// This reader asynchronously repair blocks of given parts.
-// It designed to minimize memory consumption.
+// This reader asynchronously repairs blocks of given parts.
+// It is designed to minimize memory consumption.
 //
-// We store repaired blocks queue. When RepairNextBlock() called, first
-// we check the queue, if it isn't empty then we extract block. Otherwise
+// We store repaired blocks queue. When RepairNextBlock() is called,
+// we first check the queue, if it isn't empty then we extract the block. Otherwise
 // we read window from each part, repair windows of erased parts and add it
 // to blocks and add it to RepairPartReaders. All blocks that can be
 // reconstructed we add to queue.
@@ -400,10 +400,12 @@ public:
     struct TBlock
     {
         TBlock()
+            : Index(0)
         { }
 
         TBlock(TSharedRef data, int index)
-            : Data(data), Index(index)
+            : Data(data)
+            , Index(index)
         { }
 
         TSharedRef Data;
@@ -430,9 +432,9 @@ public:
             , ErasedDataSize_(0)
             , ControlInvoker_(controlInvoker)
     {
-        YASSERT(Codec_->GetRepairIndices(ErasedIndices_));
-        YASSERT(Codec_->GetRepairIndices(ErasedIndices_)->size() == Readers_.size());
-        YASSERT(ControlInvoker_);
+        YCHECK(Codec_->GetRepairIndices(ErasedIndices_));
+        YCHECK(Codec_->GetRepairIndices(ErasedIndices_)->size() == Readers_.size());
+        YCHECK(ControlInvoker_);
     }
 
     bool HasNextBlock() const
