@@ -83,6 +83,7 @@ TNodeResources TJobController::GetResourceLimits()
     result.set_network(Config->ResourceLimits->Network);
     result.set_replication_slots(Config->ResourceLimits->ReplicationSlots);
     result.set_removal_slots(Config->ResourceLimits->RemovalSlots);
+    result.set_repair_slots(Config->ResourceLimits->RepairSlots);
 
     const auto& tracker = Bootstrap->GetMemoryUsageTracker();
     result.set_memory(tracker.GetFree() + tracker.GetUsed(EMemoryConsumer::Job));

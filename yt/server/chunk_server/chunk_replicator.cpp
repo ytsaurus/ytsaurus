@@ -397,13 +397,20 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleRepairJob(
     
     auto totalBlockCount = codec->GetTotalBlockCount();
 
-    NErasure::TBlockIndexSet replicaIndexSet((1 << totalBlockCount) - 1);
+    NErasure::TBlockIndexSet replicaIndexSet;
     int erasedIndexCount = totalBlockCount;
     FOREACH (auto replica, chunk->StoredReplicas()) {
         int index = replica.GetIndex();
         if (!replicaIndexSet[index]) {
             replicaIndexSet.set(index);
             --erasedIndexCount;
+        }
+    }
+
+    NErasure::TBlockIndexList erasedIndexList;
+    for (int index = 0; index < totalBlockCount; ++index) {
+        if (!replicaIndexSet[index]) {
+            erasedIndexList.push_back(index);
         }
     }
    
@@ -420,11 +427,12 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleRepairJob(
 
     *job = TJob::CreateRepair(chunkId, node, targetAddresses);
 
-    LOG_INFO("Repair job scheduled (JobId: %s, Address: %s, ChunkId: %s, TargetAddresses: [%s])",
+    LOG_INFO("Repair job scheduled (JobId: %s, Address: %s, ChunkId: %s, TargetAddresses: [%s], ErasedIndexes: [%s])",
         ~ToString((*job)->GetJobId()),
         ~node->GetAddress(),
         ~ToString(chunkId),
-        ~JoinToString(targetAddresses));
+        ~JoinToString(targetAddresses),
+        ~JoinToString(erasedIndexList));
 
     return EJobScheduleFlags(EJobScheduleFlags::Purged | EJobScheduleFlags::Scheduled);
 }
@@ -514,9 +522,10 @@ void TChunkReplicator::ScheduleNewJobs(
                 break;
 
             auto jt = it++;
+            auto* chunk = *jt;
 
             TJobPtr job;
-            auto flags = ScheduleRepairJob(node, *it, &job);
+            auto flags = ScheduleRepairJob(node, chunk, &job);
             if (flags & EJobScheduleFlags::Scheduled) {
                 registerJob(job);
             }
@@ -611,7 +620,12 @@ void TChunkReplicator::ComputeRegularChunkStatus(TChunk* chunk)
 void TChunkReplicator::ComputeErasureChunkStatus(TChunk* chunk)
 {
     // Check data and parity parts.
-    NErasure::TBlockIndexSet replicaIndexSet(0);
+    auto* codec = NErasure::GetCodec(chunk->GetErasureCodec());
+    int totalPartCount = codec->GetTotalBlockCount();
+    int dataPartCount = codec->GetDataBlockCount();
+    int parityPartCount = codec->GetParityBlockCount();
+
+    NErasure::TBlockIndexSet missingIndexSet((1 << totalPartCount) - 1);
     int replicaCount[NErasure::MaxTotalBlockCount] = {};
     TSmallVector<int, NErasure::MaxTotalBlockCount> overreplicatedIndexes;
     FOREACH (auto replica, chunk->StoredReplicas()) {
@@ -619,30 +633,26 @@ void TChunkReplicator::ComputeErasureChunkStatus(TChunk* chunk)
         if (++replicaCount[index] > 1) {
             overreplicatedIndexes.push_back(index);
         }
-        replicaIndexSet.set(index);
+        missingIndexSet.reset(index);
     }
 
-    auto* codec = NErasure::GetCodec(chunk->GetErasureCodec());
-    int dataBlockCount = codec->GetDataBlockCount();
-    int partityBlockCount = codec->GetParityBlockCount();
+    auto dataIndexSet = NErasure::TBlockIndexSet((1 << dataPartCount) - 1);
+    auto parityIndexSet = NErasure::TBlockIndexSet(((1 << parityPartCount) - 1) << dataPartCount);
 
-    auto dataIndexSet = NErasure::TBlockIndexSet((1 << dataBlockCount) - 1);
-    auto parityIndexSet = NErasure::TBlockIndexSet(((1 << partityBlockCount) - 1) << dataBlockCount);
-
-    if ((replicaIndexSet & dataIndexSet) != dataIndexSet) {
+    if ((missingIndexSet & dataIndexSet).any()) {
         // Data is missing.
         YCHECK(DataMissingChunks_.insert(chunk).second);
     }
 
-    if ((replicaIndexSet & parityIndexSet) != parityIndexSet) {
+    if ((missingIndexSet & parityIndexSet).any()) {
        // Parity is missing.
         YCHECK(ParityMissingChunks_.insert(chunk).second);
     }
 
-    if (replicaIndexSet != (dataIndexSet | parityIndexSet)) {
+    if (missingIndexSet.any()) {
         // Something is damaged.
-        if (codec->CanRepair(replicaIndexSet)) {
-            // Will repair it.
+        if (codec->CanRepair(missingIndexSet)) {
+            // Will repair it!
             YCHECK(ChunksToRepair.insert(chunk).second);
         } else {
             // Lost!

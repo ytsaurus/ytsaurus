@@ -47,13 +47,13 @@ using NNodeTrackerClient::TNodeDescriptor;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJobBase
+class TChunkJobBase
     : public IJob
 {
     DEFINE_SIGNAL(void(), ResourcesReleased);
 
 public:
-    TJobBase(
+    TChunkJobBase(
         const TJobId& jobId,
         TJobSpec&& jobSpec,
         const TNodeResources& resourceLimits,
@@ -79,19 +79,12 @@ public:
         JobState = EJobState::Running;
         JobPhase = EJobPhase::Running;
 
-        const auto& chunkSpecExt = JobSpec.GetExtension(TChunkJobSpecExt::chunk_job_spec_ext);
-        auto chunkId = FromProto<TChunkId>(chunkSpecExt.chunk_id());
+        DoPrepare();
 
-        Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(chunkId)));
-
-        auto chunkStore = Bootstrap->GetChunkStore();
-        Chunk = chunkStore->FindChunk(chunkId);
-        if (!Chunk) {
-            SetFailed(TError("No such chunk %s", ~ToString(chunkId)));
+        if (JobState != EJobState::Running)
             return;
-        }
 
-        DoStart();
+        DoRun();
     }
 
     virtual void Abort(const TError& error) override
@@ -172,9 +165,18 @@ protected:
 
     TJobResult Result;
 
-    TStoredChunkPtr Chunk;
+    TChunkId ChunkId;
 
-    virtual void DoStart() = 0;
+
+    virtual void DoPrepare()
+    {
+        const auto& chunkSpecExt = JobSpec.GetExtension(TChunkJobSpecExt::chunk_job_spec_ext);
+        ChunkId = FromProto<TChunkId>(chunkSpecExt.chunk_id());
+
+        Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(ChunkId)));
+    }
+
+    virtual void DoRun() = 0;
 
 
     void SetCompleted()
@@ -215,7 +217,6 @@ private:
         JobState = finalState;
         ToProto(Result.mutable_error(), error);
 
-        Chunk.Reset();
         CancelableContext.Reset();
         CancelableInvoker.Reset();
     }
@@ -224,17 +225,54 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRemovalJob
-    : public TJobBase
+class TLocalChunkJobBase
+    : public TChunkJobBase
 {
 public:
-    TRemovalJob(
+    TLocalChunkJobBase(
         const TJobId& jobId,
         TJobSpec&& jobSpec,
         const TNodeResources& resourceLimits,
         TDataNodeConfigPtr config,
         TBootstrap* bootstrap)
-        : TJobBase(
+        : TChunkJobBase(
+            jobId,
+            std::move(jobSpec),
+            resourceLimits,
+            config,
+            bootstrap)
+    { }
+
+protected:
+    virtual void DoPrepare()
+    {
+        TChunkJobBase::DoPrepare();
+
+        auto chunkStore = Bootstrap->GetChunkStore();
+        Chunk = chunkStore->FindChunk(ChunkId);
+        if (!Chunk) {
+            SetFailed(TError("Chunk %s does not exists on node", ~ToString(ChunkId)));
+            return;
+        }
+    }
+
+    TStoredChunkPtr Chunk;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TChunkRemovalJob
+    : public TLocalChunkJobBase
+{
+public:
+    TChunkRemovalJob(
+        const TJobId& jobId,
+        TJobSpec&& jobSpec,
+        const TNodeResources& resourceLimits,
+        TDataNodeConfigPtr config,
+        TBootstrap* bootstrap)
+        : TLocalChunkJobBase(
             jobId,
             std::move(jobSpec),
             resourceLimits,
@@ -243,11 +281,11 @@ public:
     { }
 
 private:
-    virtual void DoStart() override
+    virtual void DoRun() override
     {
         auto chunkStore = Bootstrap->GetChunkStore();
         chunkStore->RemoveChunk(Chunk).Subscribe(BIND(
-            &TRemovalJob::OnChunkRemoved,
+            &TChunkRemovalJob::OnChunkRemoved,
             MakeStrong(this)));
     }
 
@@ -260,17 +298,17 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReplicationJob
-    : public TJobBase
+class TChunkReplicationJob
+    : public TLocalChunkJobBase
 {
 public:
-    TReplicationJob(
+    TChunkReplicationJob(
         const TJobId& jobId,
         TJobSpec&& jobSpec,
         const TNodeResources& resourceLimits,
         TDataNodeConfigPtr config,
         TBootstrap* bootstrap)
-        : TJobBase(
+        : TLocalChunkJobBase(
             jobId,
             std::move(jobSpec),
             resourceLimits,
@@ -288,12 +326,12 @@ private:
     TBlocksExt BlocksExt;
     IAsyncWriterPtr Writer;
 
-    virtual void DoStart() override
+    virtual void DoRun() override
     {
         LOG_INFO("Retrieving chunk meta");
 
         Chunk->GetMeta(0).Subscribe(
-            BIND(&TReplicationJob::OnGotChunkMeta, MakeStrong(this))
+            BIND(&TChunkReplicationJob::OnGotChunkMeta, MakeStrong(this))
                 .Via(CancelableInvoker));
     }
 
@@ -338,7 +376,7 @@ private:
             LOG_DEBUG("All blocks are enqueued for replication");
 
             Writer->AsyncClose(ChunkMeta).Subscribe(
-                BIND(&TReplicationJob::OnWriterClosed, this_)
+                BIND(&TChunkReplicationJob::OnWriterClosed, this_)
                     .Via(CancelableInvoker));
             return;
         }
@@ -348,7 +386,7 @@ private:
         TBlockId blockId(Chunk->GetId(), CurrentBlockIndex);
         auto blockStore = Bootstrap->GetBlockStore();
         blockStore->GetBlock(blockId, 0, false).Subscribe(
-            BIND(&TReplicationJob::OnWriterReady, this_)
+            BIND(&TChunkReplicationJob::OnWriterReady, this_)
                 .Via(CancelableInvoker));
     }
 
@@ -366,7 +404,7 @@ private:
 
         auto this_ = MakeStrong(this);
         Writer->GetReadyEvent().Subscribe(
-            BIND(&TReplicationJob::ReplicateBlock, this_)
+            BIND(&TChunkReplicationJob::ReplicateBlock, this_)
                 .Via(CancelableInvoker));
     }
 
@@ -379,17 +417,17 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRepairJob
-    : public TJobBase
+class TChunkRepairJob
+    : public TChunkJobBase
 {
 public:
-    TRepairJob(
+    TChunkRepairJob(
         const TJobId& jobId,
         TJobSpec&& jobSpec,
         const TNodeResources& resourceLimits,
         TDataNodeConfigPtr config,
         TBootstrap* bootstrap)
-        : TJobBase(
+        : TChunkJobBase(
             jobId,
             std::move(jobSpec),
             resourceLimits,
@@ -401,7 +439,7 @@ public:
 private:
     TRepairJobSpecExt RepairJobSpecExt;
 
-    virtual void DoStart() override
+    virtual void DoRun() override
     {
         auto codecId = NErasure::ECodec(RepairJobSpecExt.erasure_codec());
         auto* codec = NErasure::GetCodec(codecId);
@@ -450,22 +488,24 @@ private:
                 }
             }
 
+            auto partId = PartIdFromErasureChunkId(ChunkId, index);
             auto reader = CreateReplicationReader(
                 config->ReplicationReader,
                 Bootstrap->GetBlockStore()->GetBlockCache(),
                 Bootstrap->GetMasterChannel(),
                 nodeDirectory,
                 Bootstrap->GetLocalDescriptor(),
-                Chunk->GetId(),
+                partId,
                 partReplicas);
             readers.push_back(reader);
         }
 
         std::vector<IAsyncWriterPtr> writers;
         for (int index = 0; index < static_cast<int>(erasedIndexList.size()); ++index) {
+            auto partId = PartIdFromErasureChunkId(ChunkId, index);
             auto writer = CreateReplicationWriter(
                 config->ReplicationWriter,
-                Chunk->GetId(),
+                partId,
                 targets);
             writers.push_back(writer);
         }
@@ -476,8 +516,8 @@ private:
             readers,
             writers,
             CancelableContext,
-            BIND(&TRepairJob::OnProgress, MakeWeak(this)).Via(CancelableInvoker))
-        .Subscribe(BIND(&TRepairJob::OnRepaired, MakeStrong(this))
+            BIND(&TChunkRepairJob::OnProgress, MakeWeak(this)).Via(CancelableInvoker))
+        .Subscribe(BIND(&TChunkRepairJob::OnRepaired, MakeStrong(this))
             .Via(CancelableInvoker));
     }
 
@@ -505,7 +545,7 @@ IJobPtr CreateChunkJob(
     auto type = EJobType(jobSpec.type());
     switch (type) {
         case EJobType::ReplicateChunk:
-            return New<TReplicationJob>(
+            return New<TChunkReplicationJob>(
                 jobId,
                 std::move(jobSpec),
                 resourceLimits,
@@ -513,7 +553,7 @@ IJobPtr CreateChunkJob(
                 bootstrap);
 
         case EJobType::RemoveChunk:
-            return New<TRemovalJob>(
+            return New<TChunkRemovalJob>(
                 jobId,
                 std::move(jobSpec),
                 resourceLimits,
@@ -521,7 +561,7 @@ IJobPtr CreateChunkJob(
                 bootstrap);
 
         case EJobType::RepairChunk:
-            return New<TRepairJob>(
+            return New<TChunkRepairJob>(
                 jobId,
                 std::move(jobSpec),
                 resourceLimits,
