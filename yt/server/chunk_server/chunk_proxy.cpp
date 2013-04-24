@@ -139,7 +139,6 @@ private:
                     .Value(chunk->GetErasureCodec());
                 return true;
             }
-
         } else {
             if (key == "replication_factor") {
                 BuildYsonFluently(consumer)
