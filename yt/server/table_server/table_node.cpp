@@ -35,7 +35,7 @@ TTableNode::TTableNode(const TVersionedNodeId& id)
     , ChunkList_(nullptr)
     , UpdateMode_(NChunkClient::EUpdateMode::None)
     , ReplicationFactor_(0)
-    , Codec_(NCompression::ECodec::QuickLz)
+    , Codec_(NCompression::ECodec::Lz4)
 { }
 
 int TTableNode::GetOwningReplicationFactor() const
@@ -129,7 +129,7 @@ public:
             attributes->Set("replication_factor", 3);
         }
         if (!attributes->Contains("compression_codec")) {
-            NCompression::ECodec codec = NCompression::ECodec::QuickLz;
+            NCompression::ECodec codec = NCompression::ECodec::Lz4;
             attributes->SetYson(
                 "compression_codec",
                 TYsonString(FormatEnum(codec)));
