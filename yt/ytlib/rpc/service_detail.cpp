@@ -336,8 +336,11 @@ void TServiceBase::OnInvocationPrepared(
         invoker = DefaultInvoker;
     }
 
-    i64 priority = runtimeInfo->Descriptor.EnableReorder ? context->GetPriority() : 0;
-    if (!invoker->Invoke(std::move(wrappedHandler), priority)) {
+    bool result = runtimeInfo->Descriptor.EnableReorder
+        ? invoker->Invoke(std::move(wrappedHandler), context->GetPriority())
+        : invoker->Invoke(std::move(wrappedHandler));
+
+    if (!result) {
         context->Reply(TError(EErrorCode::Unavailable, "Service unavailable"));
     }
 }
