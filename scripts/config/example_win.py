@@ -107,6 +107,7 @@ class Holder(WinNode, Server):
                     'path' : r'%(work_dir)s\chunk_cache',
                     'quota' : 10 * 1024 * 1024
                 },
+                'session_timeout' : 10000
             },
             'exec_agent' : {
                 'job_controller': {
