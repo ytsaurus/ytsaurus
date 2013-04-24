@@ -135,6 +135,7 @@ private:
     bool ContinueFetchNextRow(int channelIndex, TError error);
 
     void MakeCurrentRow();
+    bool ValidateRow();
     void OnRowFetched(TError error);
 
     TColumnInfo& GetColumnInfo(const TStringBuf& column);
