@@ -64,7 +64,7 @@ class Master(Server):
     debug_log_path = Template("master-%(__name__)s.debug.log")
 
     config = Template({
-        'address_resolver' {
+        'address_resolver' : {
             'enable_ipv6' : 'false'
         },
         'meta_state' : {
@@ -105,7 +105,7 @@ class Master(Server):
         
 class Scheduler(Server):
     base_dir = '/yt/disk2/data'
-    address = MasterAddresses[1]
+    address = MasterAddresses[0]
     params = Template('--scheduler --config %(config_path)s')
 
     log_disk = 'disk1'
@@ -113,7 +113,7 @@ class Scheduler(Server):
     debug_log_path = "scheduler.debug.log"
 
     config = Template({
-        'address_resolver' {
+        'address_resolver' : {
             'enable_ipv6' : 'false'
         },
         'masters' : {
@@ -154,7 +154,7 @@ class Holder(Server):
     storeQuota = 1700 * 1024 * 1024 * 1024 # the actual limit is ~1740
     cacheQuota = 1 * 1024 * 1024 * 1024
     config = Template({ 
-        'address_resolver' {
+        'address_resolver' : {
             'enable_ipv6' : 'false'
         },
         'masters' : {
