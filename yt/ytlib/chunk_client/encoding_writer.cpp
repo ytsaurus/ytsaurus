@@ -95,7 +95,7 @@ void TEncodingWriter::DoCompressVector(const std::vector<TSharedRef>& vectorized
 
     CompressedSize_ += compressedBlock.Size();
 
-    i64 sizeToRelease = -compressedBlock.Size();
+    i64 sizeToRelease = -static_cast<i64>(compressedBlock.Size());
 
     if (!Config->VerifyCompression) {
         // We immediately release original data.
