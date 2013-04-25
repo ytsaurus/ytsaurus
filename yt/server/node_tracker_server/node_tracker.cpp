@@ -402,8 +402,11 @@ private:
 
             node->SetHintedSessionCount(0);
             
-            node->ChunksToReplicate().clear();
-            node->ChunksToRemove().clear();
+            FOREACH (auto& queue, node->ChunkReplicationQueues()) {
+                queue.clear();
+            }
+
+            node->ChunkRemovalQueue().clear();
         }
     }
 
@@ -550,7 +553,6 @@ private:
 
     void OnExpired(TNodeId nodeId)
     {
-        // Check if the node is still registered.
         auto* node = FindNode(nodeId);
         if (!node)
             return;

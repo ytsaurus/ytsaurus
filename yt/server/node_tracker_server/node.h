@@ -52,15 +52,13 @@ class TNode
     DEFINE_BYVAL_RW_PROPERTY(int, HintedSessionCount);
 
 
-    typedef yhash_set<TChunk*> TChunkSet;
     //! Indexed by priority.
-    typedef std::vector<TChunkSet> TChunksToReplicate;
-    DEFINE_BYREF_RW_PROPERTY(TChunksToReplicate, ChunksToReplicate);
+    typedef std::vector<yhash_set<TChunk*>> TChunkReplicationQueues;
+    DEFINE_BYREF_RW_PROPERTY(TChunkReplicationQueues, ChunkReplicationQueues);
 
     //! NB: Ids are used instead of raw pointers since these chunks may already be dead.
-    typedef yhash_set<TChunkId> TChunkIdSet;
-    typedef TChunkIdSet TChunksToRemove;
-    DEFINE_BYREF_RW_PROPERTY(TChunksToRemove, ChunksToRemove);
+    typedef yhash_set<TChunkId> TChunkRemovalQueue;
+    DEFINE_BYREF_RW_PROPERTY(TChunkRemovalQueue, ChunkRemovalQueue);
 
 public:
     TNode(

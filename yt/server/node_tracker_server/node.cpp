@@ -31,7 +31,7 @@ TNode::TNode(TNodeId id)
 void TNode::Init()
 {
     Confirmed_ = false;
-    ChunksToReplicate_.resize(ReplicationPriorityCount);
+    ChunkReplicationQueues_.resize(ReplicationPriorityCount);
     HintedSessionCount_ = 0;
 }
 

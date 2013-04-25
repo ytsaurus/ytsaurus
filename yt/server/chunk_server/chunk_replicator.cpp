@@ -215,10 +215,10 @@ void TChunkReplicator::ScheduleJobs(
 
 void TChunkReplicator::OnNodeRegistered(TNode* node)
 {
-    node->ChunksToRemove().clear();
+    node->ChunkRemovalQueue().clear();
 
-    FOREACH (auto& chunksToReplicate, node->ChunksToReplicate()) {
-        chunksToReplicate.clear();
+    FOREACH (auto& queue, node->ChunkReplicationQueues()) {
+        queue.clear();
     }
 
     FOREACH (auto replica, node->StoredReplicas()) {
@@ -253,13 +253,13 @@ void TChunkReplicator::OnChunkDestroyed(TChunk* chunk)
 
 void TChunkReplicator::ScheduleUnknownChunkRemoval(TNode* node, const TChunkId& chunkId)
 {
-    node->ChunksToRemove().insert(chunkId);
+    node->ChunkRemovalQueue().insert(chunkId);
 }
 
 void TChunkReplicator::ScheduleChunkRemoval(TNode* node, TChunkPtrWithIndex chunkWithIndex)
 {
     auto chunkId = EncodeChunkId(chunkWithIndex);
-    node->ChunksToRemove().insert(chunkId);
+    node->ChunkRemovalQueue().insert(chunkId);
 }
 
 void TChunkReplicator::ProcessExistingJobs(
@@ -555,9 +555,9 @@ void TChunkReplicator::ScheduleNewJobs(
     };
 
     // Schedule replication jobs.
-    FOREACH (auto& chunksToReplicate, node->ChunksToReplicate()) {
-        auto it = chunksToReplicate.begin();
-        while (it != chunksToReplicate.end()) {
+    FOREACH (auto& queue, node->ChunkReplicationQueues()) {
+        auto it = queue.begin();
+        while (it != queue.end()) {
             if (node->ResourceUsage().replication_slots() >= node->ResourceLimits().replication_slots())
                 break;
 
@@ -571,7 +571,7 @@ void TChunkReplicator::ScheduleNewJobs(
                 registerJob(job);
             }
             if (flags & EJobScheduleFlags::Purged) {
-                chunksToReplicate.erase(jt);
+                queue.erase(jt);
             }
         }
     }
@@ -601,9 +601,9 @@ void TChunkReplicator::ScheduleNewJobs(
 
     // Schedule removal jobs.
     {
-        auto& chunksToRemove = node->ChunksToRemove();
-        auto it = chunksToRemove.begin();
-        while (it != chunksToRemove.end()) {
+        auto& ChunkRemovalQueue = node->ChunkRemovalQueue();
+        auto it = ChunkRemovalQueue.begin();
+        while (it != ChunkRemovalQueue.end()) {
             if (node->ResourceUsage().removal_slots() >= node->ResourceLimits().removal_slots())
                 break;
 
@@ -617,7 +617,7 @@ void TChunkReplicator::ScheduleNewJobs(
                 registerJob(job);
             }
             if (flags & EJobScheduleFlags::Purged) {
-                chunksToRemove.erase(jt);
+                ChunkRemovalQueue.erase(jt);
             }
         }
     }
@@ -690,7 +690,7 @@ void TChunkReplicator::Refresh(TChunk* chunk)
 
                 auto encodedChunkId = EncodeChunkId(chunkWithIndex);
                 FOREACH (auto* node, nodes) {
-                    YCHECK(node->ChunksToRemove().insert(encodedChunkId).second);
+                    YCHECK(node->ChunkRemovalQueue().insert(encodedChunkId).second);
                 }
             }
         } else {
@@ -707,7 +707,7 @@ void TChunkReplicator::Refresh(TChunk* chunk)
         auto* node = ChunkPlacement->GetReplicationSource(chunk);
         
         int priority = std::min(replicaCount, ReplicationPriorityCount) - 1;
-        YCHECK(node->ChunksToReplicate()[priority].insert(chunk).second);
+        YCHECK(node->ChunkReplicationQueues()[priority].insert(chunk).second);
     }
 
     if (status & EChunkStatus::DataMissing) {
@@ -731,11 +731,11 @@ void TChunkReplicator::ResetChunkStatus(TChunk* chunk)
     FOREACH (auto nodeWithIndex, chunk->StoredReplicas()) {
         auto* node = nodeWithIndex.GetPtr();
         TChunkPtrWithIndex chunkWithIndex(chunk, nodeWithIndex.GetIndex());
-        FOREACH (auto& chunksToReplicate, node->ChunksToReplicate()) {
-            chunksToReplicate.erase(chunk);
+        FOREACH (auto& queue, node->ChunkReplicationQueues()) {
+            queue.erase(chunk);
         }
         auto chunkId = EncodeChunkId(chunkWithIndex);
-        node->ChunksToRemove().erase(chunkId);
+        node->ChunkRemovalQueue().erase(chunkId);
     }
 
     LostChunks_.erase(chunk);
