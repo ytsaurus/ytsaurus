@@ -10,7 +10,7 @@ import time
 
 class TestErasure(YTEnvSetup):
     NUM_MASTERS = 3
-    NUM_NODES = 32
+    NUM_NODES = 20
 
     def _do_test_simple(self, option):
         create('table', '//tmp/table')
@@ -53,11 +53,12 @@ class TestErasure(YTEnvSetup):
         for r in replicas:
             replica_index = r.attributes["index"]
             node_index = (int(r.rsplit(":", 1)[1]) - self.Env._ports["node"]) / 2
-            print "Killing node %d containing replica %d" % (node_index, replica_index)
+            print "Baning node %d containing replica %d" % (node_index, replica_index)
             for p, name in self.Env.process_to_kill:
                 if name == "node-%d" % node_index:
-                    self.kill_process(p, name)
-           
+                    set("//sys/nodes/%s/@banned" % r, "true")
+                    #self.kill_process(p, name)
+
             # This is slightly larger than the sum of chunk_refresh_delay and online_node_timeout
             time.sleep(2.0)
 
@@ -71,8 +72,11 @@ class TestErasure(YTEnvSetup):
             assert ok
             assert read('//tmp/table') == [{"b":"hello"}]
 
+            # Unbann node
+            set("//sys/nodes/%s/@banned" % r, "false")
+
     def test_reed_solomon_repair(self):
         self._test_repair("reed_solomon", 9, 6)
-    
+
     def test_lrc_repair(self):
         self._test_repair("lrc", 16, 12)
