@@ -12,17 +12,18 @@ namespace NCrcSSE0xE543279765927881
 {
     __m128i _mm_shift_right_si128(__m128i v, ui8 offset)
     {
-        static const ui8 rotatemask[] = 
-        {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,
-        0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80};
+        static const ui8 rotatemask[] = {
+            0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,
+            0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80
+        };
 
         return _mm_shuffle_epi8(v, _mm_loadu_si128((__m128i *) (rotatemask + offset)));
     }
 
     __m128i _mm_shift_left_si128(__m128i v, ui8 offset)
     {
-        static const ui8 rotatemask[] = 
-        {0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80,
+        static const ui8 rotatemask[] = {
+            0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80,
             0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F
         };
 
@@ -182,7 +183,7 @@ namespace NCrcSSE0xE543279765927881
 #ifdef _YT_USE_CRC_8TABLE
 namespace NCrcTable0xE543279765927881
 {
-    ui64 crcLookup[8][256] = {
+    ui64 CrcLookup[8][256] = {
         {
             ULL(0x0000000000000000), ULL(0x81789265972743e5), ULL(0x8389b6aeb968c52f), ULL(0x02f124cb2e4f86ca),
             ULL(0x06136d5d73d18a5f), ULL(0x876bff38e4f6c9ba), ULL(0x859adbf3cab94f70), ULL(0x04e249965d9e0c95),
@@ -729,30 +730,29 @@ namespace NCrcTable0xE543279765927881
         const unsigned char * ptrChar = (const unsigned char *) buf;
 
         while ((reinterpret_cast<size_t>(ptrChar) & 0x7) && buflen--) {
-            crcinit = crcLookup[0][(crcinit ^ *ptrChar++) & 0xFF] ^ (crcinit >> 8);
+            crcinit = CrcLookup[0][(crcinit ^ *ptrChar++) & 0xFF] ^ (crcinit >> 8);
         }
 
         const ui64* ptr = (const ui64 *) ptrChar;
 
-        for(; buflen >= 8; buflen -= 8)
-        {
+        for(; buflen >= 8; buflen -= 8) {
             ui64 val = crcinit ^ *ptr++;
 
             crcinit =
-               crcLookup[7][ val        & 0xFF] ^
-               crcLookup[6][(val >>  8) & 0xFF] ^
-               crcLookup[5][(val >> 16) & 0xFF] ^
-               crcLookup[4][(val >> 24) & 0xFF] ^
-               crcLookup[3][(val >> 32) & 0xFF] ^
-               crcLookup[2][(val >> 40) & 0xFF] ^
-               crcLookup[1][(val >> 48) & 0xFF] ^
-               crcLookup[0][ val >> 56        ];
+               CrcLookup[7][ val        & 0xFF] ^
+               CrcLookup[6][(val >>  8) & 0xFF] ^
+               CrcLookup[5][(val >> 16) & 0xFF] ^
+               CrcLookup[4][(val >> 24) & 0xFF] ^
+               CrcLookup[3][(val >> 32) & 0xFF] ^
+               CrcLookup[2][(val >> 40) & 0xFF] ^
+               CrcLookup[1][(val >> 48) & 0xFF] ^
+               CrcLookup[0][ val >> 56        ];
         }
 
         ptrChar = (const unsigned char *) ptr;
 
         while (buflen--) {
-            crcinit = crcLookup[0][(crcinit ^ *ptrChar++) & 0xFF] ^ (crcinit >> 8);
+            crcinit = CrcLookup[0][(crcinit ^ *ptrChar++) & 0xFF] ^ (crcinit >> 8);
         }
 
         return ReverseBytes(crcinit);
