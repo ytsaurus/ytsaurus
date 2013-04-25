@@ -68,10 +68,10 @@ private:
         attributes->push_back("movable");
         attributes->push_back("vital");
         attributes->push_back("overreplicated");
-        attributes->push_back("underreplicated");
+        attributes->push_back(TAttributeInfo("underreplicated", !chunk->IsErasure()));
         attributes->push_back("lost");
-        attributes->push_back("data_missing");
-        attributes->push_back("parity_missing");
+        attributes->push_back(TAttributeInfo("data_missing", chunk->IsErasure()));
+        attributes->push_back(TAttributeInfo("parity_missing", chunk->IsErasure()));
         attributes->push_back("confirmed");
         attributes->push_back("available");
         attributes->push_back("master_meta_size");
