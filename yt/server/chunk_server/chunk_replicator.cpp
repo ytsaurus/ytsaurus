@@ -95,6 +95,16 @@ void TChunkReplicator::Initialize()
     }
 }
 
+void TChunkReplicator::TouchChunk(TChunk* chunk)
+{
+    auto repairIt = chunk->GetRepairQueueIterator();
+    if (repairIt != TChunkRepairQueueIterator()) {
+        RepairQueue.erase(repairIt);
+        auto newRepairIt = RepairQueue.insert(RepairQueue.begin(), chunk);
+        chunk->SetRepairQueueIterator(newRepairIt);
+    }
+}
+
 TJobPtr TChunkReplicator::FindJob(const TJobId& id)
 {
     auto it = JobMap.find(id);
@@ -568,8 +578,8 @@ void TChunkReplicator::ScheduleNewJobs(
 
     // Schedule repair jobs.
     {
-        auto it = ChunksToRepair.begin();
-        while (it != ChunksToRepair.end()) {
+        auto it = RepairQueue.begin();
+        while (it != RepairQueue.end()) {
             if (node->ResourceUsage().repair_slots() >= node->ResourceLimits().repair_slots())
                 break;
 
@@ -583,7 +593,8 @@ void TChunkReplicator::ScheduleNewJobs(
                 registerJob(job);
             }
             if (flags & EJobScheduleFlags::Purged) {
-                ChunksToRepair.erase(jt);
+                chunk->SetRepairQueueIterator(TChunkRepairQueueIterator());
+                RepairQueue.erase(jt);
             }
         }
     }
@@ -710,7 +721,8 @@ void TChunkReplicator::Refresh(TChunk* chunk)
     if ((status & EChunkStatus(EChunkStatus::DataMissing | EChunkStatus::ParityMissing)) &&
         !(status & EChunkStatus::Lost))
     {
-        YCHECK(ChunksToRepair.insert(chunk).second);
+        auto repairIt = RepairQueue.insert(RepairQueue.end(), chunk);
+        chunk->SetRepairQueueIterator(repairIt);
     }
 }
 
@@ -732,8 +744,13 @@ void TChunkReplicator::ResetChunkStatus(TChunk* chunk)
 
     if (chunk->IsErasure()) {
         DataMissingChunks_.erase(chunk);
-        ParityMissingChunks_.erase(chunk);  
-        ChunksToRepair.erase(chunk);
+        ParityMissingChunks_.erase(chunk);
+        
+        auto repairIt = chunk->GetRepairQueueIterator();
+        if (repairIt != TChunkRepairQueueIterator()) {
+            RepairQueue.erase(repairIt);
+            chunk->SetRepairQueueIterator(TChunkRepairQueueIterator());
+        }
     } else {
         UnderreplicatedChunks_.erase(chunk);  
     }

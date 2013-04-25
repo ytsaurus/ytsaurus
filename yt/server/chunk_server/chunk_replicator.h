@@ -53,6 +53,8 @@ public:
     void ScheduleRFUpdate(TChunk* chunk);
     void ScheduleRFUpdate(TChunkList* chunkList);
 
+    void TouchChunk(TChunk* chunk);
+
     TJobPtr FindJob(const TJobId& id);
     TJobListPtr FindJobList(const TChunkId& id);
 
@@ -93,7 +95,7 @@ private:
     yhash_map<TJobId, TJobPtr> JobMap;
     yhash_map<TChunkId, TJobListPtr> JobListMap;
 
-    yhash_set<TChunk*> ChunksToRepair;
+    TChunkRepairQueue RepairQueue;
 
     void ProcessExistingJobs(
         TNode* node,

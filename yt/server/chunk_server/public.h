@@ -96,6 +96,9 @@ DECLARE_FLAGGED_ENUM(EChunkStatus,
     ((ParityMissing)     (0x0010))
 );
 
+typedef std::list<TChunk*> TChunkRepairQueue;
+typedef TChunkRepairQueue::iterator TChunkRepairQueueIterator;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkServer

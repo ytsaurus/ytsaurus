@@ -529,14 +529,21 @@ public:
 
     TNodePtrWithIndexList LocateChunk(TChunkPtrWithIndex chunkWithIndex)
     {
-        // TODO(babenko): move to front
+        auto* chunk = chunkWithIndex.GetPtr();
+        int index = chunkWithIndex.GetIndex();
+
+        if (ChunkReplicator) {
+            ChunkReplicator->TouchChunk(chunk);
+        }
+
         TNodePtrWithIndexList result;
-        auto replicas = chunkWithIndex.GetPtr()->GetReplicas();
+        auto replicas = chunk->GetReplicas();
         FOREACH (auto replica, replicas) {
-            if (replica.GetIndex() == chunkWithIndex.GetIndex()) {
+            if (replica.GetIndex() == index) {
                 result.push_back(replica);
             }
         }
+
         return result;
     }
 
@@ -1017,6 +1024,7 @@ private:
             chunk->SetRefreshScheduled(false);
             chunk->SetRFUpdateScheduled(false);
             chunk->ResetObjectLocks();
+            chunk->SetRepairQueueIterator(TChunkRepairQueueIterator());
         }
 
         FOREACH (const auto& pair, ChunkListMap) {
