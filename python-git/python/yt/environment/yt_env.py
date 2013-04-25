@@ -61,8 +61,11 @@ class YTEnv(object):
         self.supress_yt_output = supress_yt_output
         self.path_to_run = os.path.abspath(path_to_run)
         if os.path.exists(self.path_to_run):
-            shutil.rmtree(self.path_to_run)
-        os.makedirs(self.path_to_run)
+            shutil.rmtree(self.path_to_run, ignore_errors=True)
+        try:
+            os.makedirs(self.path_to_run)
+        except:
+            pass
 
         self._pids_filename = pids_filename
         self._kill_previously_run_services()
