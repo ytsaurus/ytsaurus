@@ -59,6 +59,10 @@ private:
             auto* info = response->add_chunks();
             ToProto(info->mutable_chunk_id(), chunkId);
             ToProto(info->mutable_replicas(), replicas);
+
+            FOREACH (auto replica, replicas) {
+                nodeDirectoryBuilder.Add(replica);
+            }
         }
 
         context->SetResponseInfo("ChunkCount: %d",
