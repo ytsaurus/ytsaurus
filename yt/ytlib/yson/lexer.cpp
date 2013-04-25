@@ -5,12 +5,12 @@
 #include "zigzag.h"
 #include "varint.h"
 
+#include "lexer_detail.h"
+
 #include <ytlib/misc/error.h>
 #include <ytlib/misc/property.h>
 
 #include <util/string/escape.h>
-
-#include "lexer_detail.h"
 
 namespace NYT {
 namespace NYson {

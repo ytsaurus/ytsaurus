@@ -1,12 +1,12 @@
 #pragma once
 
-#include <ytlib/yson/public.h>
-#include <ytlib/yson/zigzag.h>
-
-#include <ytlib/misc/common.h>
+#include "public.h"
+#include "zigzag.h"
 
 #include <ytlib/misc/error.h>
 #include <ytlib/misc/property.h>
+
+#include <ytlib/fibers/coroutine.h>
 
 #include <util/string/escape.h>
 
@@ -643,6 +643,8 @@ public:
     }
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TParserCoroutine>
 class TBlockReader
 {
@@ -654,7 +656,11 @@ private:
     bool FinishFlag;
 
 public:
-    TBlockReader(TParserCoroutine& coroutine, const char* begin, const char* end, bool finish)
+    TBlockReader(
+        TParserCoroutine& coroutine,
+        const char* begin,
+        const char* end,
+        bool finish)
         : Coroutine(coroutine)
         , BeginPtr(begin)
         , EndPtr(end)
@@ -687,6 +693,8 @@ public:
     }
 };
 
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYson
 } // namespace NYT

@@ -19,6 +19,10 @@ namespace std {
 } // namespace std
 #endif
 
+#if defined(_win_)
+#    undef Yield
+#endif
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////

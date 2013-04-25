@@ -8,11 +8,12 @@
 #if defined(_unix_) && !defined(CORO_ASM)
 #    error "Using slow libcoro backend (expecting CORO_ASM)"
 #endif
+
 #if defined(_win_)
 #    if !defined(CORO_FIBER)
 #        error "Using slow libcoro backend (expecting CORO_FIBER)"
 #    endif
-// You like WinAPI, don't you? :)
+//   You like WinAPI, don't you? :)
 #    undef Yield
 #endif
 
