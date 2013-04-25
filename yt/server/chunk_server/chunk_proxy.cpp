@@ -307,28 +307,9 @@ private:
 
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override
     {
-        DISPATCH_YPATH_SERVICE_METHOD(Locate);
         DISPATCH_YPATH_SERVICE_METHOD(Fetch);
         DISPATCH_YPATH_SERVICE_METHOD(Confirm);
         return TBase::DoInvoke(context);
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, Locate)
-    {
-        UNUSED(request);
-
-        auto chunkManager = Bootstrap->GetChunkManager();
-
-        const auto* chunk = GetThisTypedImpl();
-
-        auto replicas = chunk->GetReplicas();
-
-        TNodeDirectoryBuilder nodeDirectoryBuilder(response->mutable_node_directory());
-        nodeDirectoryBuilder.Add(replicas);
-
-        ToProto(response->mutable_replicas(), replicas);
-
-        context->Reply();
     }
 
     DECLARE_RPC_SERVICE_METHOD(NTableClient::NProto, Fetch)
@@ -338,9 +319,8 @@ private:
         auto chunkManager = Bootstrap->GetChunkManager();
         const auto* chunk = GetThisTypedImpl();
 
-        // TODO(babenko): fixme
         if (chunk->ChunkMeta().type() != EChunkType::Table) {
-            THROW_ERROR_EXCEPTION("Unable to execute Fetch verb for non-table chunk");
+            THROW_ERROR_EXCEPTION("Chunk is non-tabular");
         }
 
         auto replicas = chunk->GetReplicas();

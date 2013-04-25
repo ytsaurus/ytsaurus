@@ -74,6 +74,8 @@ public:
         NChunkClient::NProto::TChunkInfo* chunkInfo,
         NChunkClient::NProto::TChunkMeta* chunkMeta);
 
+    TNodePtrWithIndexList LocateChunk(TChunkPtrWithIndex chunkWithIndex);
+
     void ClearChunkList(TChunkList* chunkList);
 
     TJobPtr FindJob(const TJobId& id);

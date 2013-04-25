@@ -55,6 +55,7 @@ set( HDRS
   ${BASE}/key.h
   ${BASE}/schema.h
   ${BASE}/input_chunk.h
+  ${BASE}/chunk_service_proxy.h
 )
 
 list(APPEND YT_SOURCE_FILES
@@ -66,5 +67,6 @@ protoc( ${BASE}/input_chunk.proto YT_SOURCE_FILES )
 protoc( ${BASE}/job.proto YT_SOURCE_FILES )
 protoc( ${BASE}/chunk.proto YT_SOURCE_FILES )
 protoc( ${BASE}/data_node_service.proto YT_SOURCE_FILES )
+protoc( ${BASE}/chunk_service.proto YT_SOURCE_FILES )
 protoc( ${BASE}/chunk_ypath.proto YT_SOURCE_FILES )
 protoc( ${BASE}/chunk_list_ypath.proto YT_SOURCE_FILES )

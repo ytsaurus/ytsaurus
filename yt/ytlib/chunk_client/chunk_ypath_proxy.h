@@ -16,8 +16,6 @@ namespace NChunkClient {
 struct TChunkYPathProxy
     : public NObjectClient::TObjectYPathProxy
 {
-    DEFINE_YPATH_PROXY_METHOD(NProto, Locate);
-
     // NB: works only for table chunks.
     DEFINE_YPATH_PROXY_METHOD(NTableClient::NProto, Fetch);
     DEFINE_YPATH_PROXY_METHOD(NProto, Confirm);

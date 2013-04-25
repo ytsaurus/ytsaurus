@@ -527,6 +527,19 @@ public:
         LOG_DEBUG_UNLESS(IsRecovery(), "Chunk confirmed (ChunkId: %s)", ~ToString(id));
     }
 
+    TNodePtrWithIndexList LocateChunk(TChunkPtrWithIndex chunkWithIndex)
+    {
+        // TODO(babenko): move to front
+        TNodePtrWithIndexList result;
+        auto replicas = chunkWithIndex.GetPtr()->GetReplicas();
+        FOREACH (auto replica, replicas) {
+            if (replica.GetIndex() == chunkWithIndex.GetIndex()) {
+                result.push_back(replica);
+            }
+        }
+        return result;
+    }
+
 
     void ClearChunkList(TChunkList* chunkList)
     {
@@ -1494,6 +1507,11 @@ void TChunkManager::ConfirmChunk(
         replicas,
         chunkInfo,
         chunkMeta);
+}
+
+TNodePtrWithIndexList TChunkManager::LocateChunk(TChunkPtrWithIndex chunkWithIndex)
+{
+    return Impl->LocateChunk(chunkWithIndex);
 }
 
 void TChunkManager::AttachToChunkList(

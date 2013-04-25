@@ -6,17 +6,6 @@ import "yt/ytlib/object_client/master_ypath.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqLocate
-{ }
-
-message TRspLocate
-{
-    required NNodeTrackerClient.NProto.TNodeDirectory node_directory = 1;
-    repeated fixed32 replicas = 2;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 message TReqConfirm
 {
     repeated fixed32 replicas = 1;

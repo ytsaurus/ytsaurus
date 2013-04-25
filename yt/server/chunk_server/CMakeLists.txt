@@ -18,6 +18,7 @@ set( SRCS
   ${BASE}/private.cpp
   ${BASE}/node_directory_builder.cpp
   ${BASE}/job_tracker_service.cpp
+  ${BASE}/chunk_service.cpp
 )
 set( HDRS
   ${BASE}/chunk.h
@@ -40,6 +41,7 @@ set( HDRS
   ${BASE}/public.h
   ${BASE}/node_directory_builder.h
   ${BASE}/job_tracker_service.h
+  ${BASE}/chunk_service.h
 )
 
 list(APPEND YT_SOURCE_FILES

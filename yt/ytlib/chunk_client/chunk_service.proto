@@ -1,0 +1,25 @@
+package NYT.NChunkClient.NProto;
+
+import "yt/ytlib/misc/guid.proto";
+import "yt/ytlib/node_tracker_client/node.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqLocateChunks
+{
+    repeated NYT.NProto.TGuid chunk_ids = 1;
+}
+
+message TRspLocateChunks
+{
+    message TChunkInfo
+    {
+        required NYT.NProto.TGuid chunk_id = 1;
+        repeated fixed32 replicas = 2;
+    }
+
+    required NNodeTrackerClient.NProto.TNodeDirectory node_directory = 1;
+    repeated TChunkInfo chunks = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////

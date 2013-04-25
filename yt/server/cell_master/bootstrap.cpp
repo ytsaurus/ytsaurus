@@ -45,6 +45,7 @@
 
 #include <server/chunk_server/chunk_manager.h>
 #include <server/chunk_server/job_tracker_service.h>
+#include <server/chunk_server/chunk_service.h>
 #include <server/chunk_server/cypress_integration.h>
 
 #include <server/security_server/security_manager.h>
@@ -212,6 +213,7 @@ void TBootstrap::Run()
     RpcServer->RegisterService(New<TNodeTrackerService>(Config->NodeTracker, this));
     RpcServer->RegisterService(New<TOrchidService>(orchidRoot, GetControlInvoker()));
     RpcServer->RegisterService(CreateJobTrackerService(this));
+    RpcServer->RegisterService(CreateChunkService(this));
 
     CypressManager->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::ChunkMap));
     CypressManager->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::LostChunkMap));
