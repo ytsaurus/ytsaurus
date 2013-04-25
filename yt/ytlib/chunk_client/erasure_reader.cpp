@@ -280,37 +280,32 @@ private:
     {
         // Allocate the resulting window filling it with zeros (used as padding).
         struct TRepairWindowTag { };
-        auto window = TSharedRef::Allocate<TRepairWindowTag>(windowSize, true);
+        auto result = TSharedRef::Allocate<TRepairWindowTag>(windowSize, true);
 
-        // The current position to write and the remaining size to write.
-        char* currentWindowData = window.Begin();
-        i64 remainingWindowSize = windowSize;
-
-        while (remainingWindowSize > 0 && !Blocks_.empty()) {
-            // Figure out the current block to use...
+        i64 resultPosition = 0;
+        while (!Blocks_.empty()) {
             auto block = Blocks_.front();
 
-            // ...also its data and its (remaining) size.
-            char* blockData = block.Begin() + FirstBlockOffset_;           
-            i64 blockSize = static_cast<i64>(block.End() - blockData);
-            
-            // Do copying.
-            i64 bytesToCopy = std::min(remainingWindowSize, blockSize);
-            std::copy(blockData, blockData + bytesToCopy, currentWindowData);
+            // Begin and end inside of current block
 
-            // Advance.
-            currentWindowData += bytesToCopy;
-            FirstBlockOffset_ += bytesToCopy;
+            i64 beginIndex = FirstBlockOffset_;
+            i64 endIndex = std::min(beginIndex + windowSize - resultPosition, (i64)block.Size());
+            i64 size = endIndex - beginIndex;
 
-            // Switch to the next block when the current one is exhausted.
-            if (FirstBlockOffset_ == block.Size()) {
+            std::copy(block.Begin() + beginIndex, block.Begin() + endIndex, result.Begin() + resultPosition);
+            resultPosition += size;
+
+            FirstBlockOffset_ += size;
+            if (endIndex == block.Size()) {
                 Blocks_.pop_front();
                 FirstBlockOffset_ = 0;
+            } else {
+                break;
             }
         }
-
         BuildDataSize_ += windowSize;
-        return window;
+
+        return result;
     }
 
     std::deque<TSharedRef> Blocks_;
