@@ -35,6 +35,10 @@ def get_master_config():
         chunk_refresh_delay = 1000;
     };
 
+    node_tracker = {
+        online_node_timeout = 600;
+    };
+
     logging = {
         rules = [
             {

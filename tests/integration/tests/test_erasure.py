@@ -3,12 +3,14 @@ import pytest
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
+import time
+
 
 ##################################################################
 
 class TestErasure(YTEnvSetup):
     NUM_MASTERS = 3
-    NUM_NODES = 16
+    NUM_NODES = 32
 
     def _do_test_simple(self, option):
         create('table', '//tmp/table')
@@ -34,4 +36,41 @@ class TestErasure(YTEnvSetup):
 
     def test_lrc(self):
         self._do_test_simple('/table_writer/erasure_codec=lrc')
+
+    def test_repair(self):
+        for codec, replicas_count, data_replicas_count in [("reed_solomon", 9, 6), ("lrc", 16, 12)]:
+            remove('//tmp/table', '--force')
+            create('table', '//tmp/table')
+            write_str('//tmp/table', '{b="hello"}', config_opt="/table_writer/erasure_codec=" + codec)
+
+            chunks = get("//tmp/table/@chunk_ids")
+            assert len(chunks) == 1
+
+            replicas = get("//sys/chunks/%s/@stored_replicas" % chunks[0])
+            assert len(replicas) == replicas_count
+
+            assert len(get("//sys/data_missing_chunks")) == 0
+            assert len(get("//sys/parity_missing_chunks")) == 0
+            for r in replicas:
+                index = r.attributes["index"]
+                node_index = (int(r.rsplit(":", 1)[1]) - self.Env._ports["node"]) / 2
+                print node_index
+                for p, name in self.Env.process_to_kill:
+                    if name == "node-%d" % node_index:
+                        self.kill_process(p, name)
+                time.sleep(1.2)
+                if index < data_replicas_count:
+                    assert len(get("//sys/data_missing_chunks")) == 1
+                else:
+                    assert len(get("//sys/parity_missing_chunks")) == 1
+
+                ok = False
+                for i in xrange(10):
+                    if len(get("//sys/data_missing_chunks")) == 0 and len(get("//sys/parity_missing_chunks")) == 0:
+                        ok = True
+                        break
+                    time.sleep(2.0)
+
+                assert ok
+                assert read('//tmp/table') == [{"b":"hello"}]
 

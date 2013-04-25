@@ -245,14 +245,15 @@ class YTEnv(object):
         logging.info('(Leader is: %d)', self.leader_id)
 
 
-    def _run_nodes(self):
+    def _run_nodes(self, prepare_files=True):
         if self.NUM_NODES == 0: return
 
         self.node_configs = []
 
         config_paths = []
 
-        os.mkdir(os.path.join(self.path_to_run, 'node'))
+        if prepare_files:
+            os.mkdir(os.path.join(self.path_to_run, 'node'))
 
         current_user = 10000;
         current_port = self._ports["node"]
