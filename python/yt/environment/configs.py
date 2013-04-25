@@ -32,7 +32,7 @@ def get_master_config():
     };
 
     chunk_manager = {
-        chunk_refresh_delay = 1000;
+        chunk_refresh_delay = 700;
     };
 
     node_tracker = {

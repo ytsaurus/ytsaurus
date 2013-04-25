@@ -54,11 +54,13 @@ class TestErasure(YTEnvSetup):
             for r in replicas:
                 index = r.attributes["index"]
                 node_index = (int(r.rsplit(":", 1)[1]) - self.Env._ports["node"]) / 2
-                print node_index
+                print "NODE_INDEX", node_index, "INDEX", index
                 for p, name in self.Env.process_to_kill:
                     if name == "node-%d" % node_index:
                         self.kill_process(p, name)
-                time.sleep(1.2)
+               
+                # It is slightly larger than chunk_refresh_delay and online_node_timeout
+                time.sleep(0.8)
                 if index < data_replicas_count:
                     assert len(get("//sys/data_missing_chunks")) == 1
                 else:
@@ -69,7 +71,7 @@ class TestErasure(YTEnvSetup):
                     if len(get("//sys/data_missing_chunks")) == 0 and len(get("//sys/parity_missing_chunks")) == 0:
                         ok = True
                         break
-                    time.sleep(2.0)
+                    time.sleep(1.0)
 
                 assert ok
                 assert read('//tmp/table') == [{"b":"hello"}]
