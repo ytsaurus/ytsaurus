@@ -203,7 +203,7 @@ def get_node_config():
             path = "";
         };
         store_locations = [];
-        heartbeat_period = 500;
+        heartbeat_period = 200;
     };
 
     exec_agent = {
