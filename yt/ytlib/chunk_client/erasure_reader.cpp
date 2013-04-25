@@ -251,13 +251,13 @@ public:
     TReadFuture Read(i64 windowSize)
     {
         if (BlockIndex_ < BlockCount_ &&  BlocksDataSize_ < BuildDataSize_ + windowSize) {
-            // Reader one more block if it is necessary
+            // Read one more block if necessary.
             auto blocksToRead = std::vector<int>(1, BlockIndex_);
             auto this_ = MakeStrong(this);
             return Reader_->AsyncReadBlocks(blocksToRead).Apply(
                 BIND(&TWindowReader::OnBlockRead, this_, windowSize));
         } else {
-            // We have enough block to build the window
+            // We have enough blocks to build the window.
             return MakePromise(TReadResult(BuildWindow(windowSize)));
         }
     }
@@ -278,34 +278,39 @@ private:
 
     TSharedRef BuildWindow(i64 windowSize)
     {
-        // Allocate result with zeroes.
+        // Allocate the resulting window filling it with zeros (used as padding).
         struct TRepairWindowTag { };
-        auto result = TSharedRef::Allocate<TRepairWindowTag>(windowSize, true);
+        auto window = TSharedRef::Allocate<TRepairWindowTag>(windowSize, true);
 
-        i64 resultPosition = 0;
-        while (!Blocks_.empty()) {
+        // The current position to write and the remaining size to write.
+        char* currentWindowData = window.Begin();
+        i64 remainingWindowSize = windowSize;
+
+        while (remainingWindowSize > 0 && !Blocks_.empty()) {
+            // Figure out the current block to use...
             auto block = Blocks_.front();
 
-            // Begin and end inside of current block
+            // ...also its data and its (remaining) size.
+            char* blockData = block.Begin() + FirstBlockOffset_;           
+            i64 blockSize = static_cast<i64>(block.End() - blockData);
+            
+            // Do copying.
+            i64 bytesToCopy = std::min(remainingWindowSize, blockSize);
+            std::copy(blockData, blockData + bytesToCopy, currentWindowData);
 
-            i64 beginIndex = FirstBlockOffset_;
-            i64 endIndex = std::min(beginIndex + windowSize - resultPosition, (i64)block.Size());
-            i64 size = endIndex - beginIndex;
+            // Advance.
+            currentWindowData += bytesToCopy;
+            FirstBlockOffset_ += bytesToCopy;
 
-            std::copy(block.Begin() + beginIndex, block.Begin() + endIndex, result.Begin() + resultPosition);
-            resultPosition += size;
-
-            FirstBlockOffset_ += size;
-            if (endIndex == block.Size()) {
+            // Switch to the next block when the current one is exhausted.
+            if (FirstBlockOffset_ == block.Size()) {
                 Blocks_.pop_front();
                 FirstBlockOffset_ = 0;
-            } else {
-                break;
             }
         }
-        BuildDataSize_ += windowSize;
 
-        return result;
+        BuildDataSize_ += windowSize;
+        return window;
     }
 
     std::deque<TSharedRef> Blocks_;
@@ -564,12 +569,12 @@ TAsyncError TRepairReader::OnReadersPrepared(TError error)
 TError TRepairReader::OnGotMeta(IAsyncReader::TGetMetaResult metaOrError)
 {
     RETURN_IF_ERROR(metaOrError);
-    auto extension = GetProtoExtension<NProto::TErasurePlacementExt>(
+    auto placementExt = GetProtoExtension<NProto::TErasurePlacementExt>(
         metaOrError.Value().extensions());
 
-    WindowCount_ = extension.parity_block_count();
-    WindowSize_ = extension.parity_block_size();
-    LastWindowSize_ = extension.parity_last_block_size();
+    WindowCount_ = placementExt.parity_block_count();
+    WindowSize_ = placementExt.parity_block_size();
+    LastWindowSize_ = placementExt.parity_last_block_size();
     auto recoveryIndices = Codec_->GetRepairIndices(ErasedIndices_);
     YCHECK(recoveryIndices);
     YCHECK(recoveryIndices->size() == Readers_.size());
@@ -577,8 +582,8 @@ TError TRepairReader::OnGotMeta(IAsyncReader::TGetMetaResult metaOrError)
         int recoveryIndex = (*recoveryIndices)[i];
         int blockCount =
             recoveryIndex < Codec_->GetDataBlockCount()
-            ? extension.part_infos().Get((*recoveryIndices)[i]).block_sizes().size()
-            : extension.parity_block_count();
+            ? placementExt.part_infos().Get(recoveryIndex).block_sizes().size()
+            : placementExt.parity_block_count();
 
         WindowReaders_.push_back(New<TWindowReader>(Readers_[i], blockCount));
     }
@@ -587,13 +592,13 @@ TError TRepairReader::OnGotMeta(IAsyncReader::TGetMetaResult metaOrError)
         std::vector<i64> blockSizes;
         if (erasedIndex < Codec_->GetDataBlockCount()) {
             blockSizes = std::vector<i64>(
-                extension.part_infos().Get(erasedIndex).block_sizes().begin(),
-                extension.part_infos().Get(erasedIndex).block_sizes().end());
+                placementExt.part_infos().Get(erasedIndex).block_sizes().begin(),
+                placementExt.part_infos().Get(erasedIndex).block_sizes().end());
         } else {
             blockSizes = std::vector<i64>(
-                extension.parity_block_count(),
-                extension.parity_block_size());
-            blockSizes.back() = extension.parity_last_block_size();
+                placementExt.parity_block_count(),
+                placementExt.parity_block_size());
+            blockSizes.back() = placementExt.parity_last_block_size();
         }
         ErasedDataSize_ += std::accumulate(blockSizes.begin(), blockSizes.end(), 0);
         RepairBlockReaders_.push_back(TRepairPartReader(blockSizes));
