@@ -3,6 +3,7 @@ import os
 PROXY = ""
 USE_HOSTS = False
 USE_TOKEN = True
+TOKEN = None
 
 # Turn off gzip encoding if you want to speed up reading and writing tables
 ACCEPT_ENCODING = os.environ.get("ACCEPT_ENCODING", "identity, gzip")
