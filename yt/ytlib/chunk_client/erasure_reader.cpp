@@ -339,7 +339,7 @@ public:
         : BlockIndex_(0)
         , BlockSizes_(blockSizes)
     {
-        if (BlockSizes_.size() > 0) {
+        if (!BlockSizes_.empty()) {
             PrepareNextBlock();
         }
     }
@@ -431,9 +431,10 @@ public:
         , ErasedIndices_(erasedIndices)
         , RepairIndices_(repairIndices)
         , Prepared_(false)
-        , Finished_(false)
         , WindowIndex_(0)
         , ErasedDataSize_(0)
+        , ErasedBlockCount_(0)
+        , RepairedBlockCount_(0)
         , ControlInvoker_(controlInvoker)
     {
         YCHECK(Codec_->GetRepairIndices(ErasedIndices_));
@@ -441,9 +442,12 @@ public:
         YCHECK(ControlInvoker_);
     }
 
+    TAsyncError Prepare();
+
     bool HasNextBlock() const
     {
-        return !RepairedBlocksQueue_.empty() || !Finished_;
+        YCHECK(Prepared_);
+        return RepairedBlockCount_ < ErasedBlockCount_;
     }
 
     TReadFuture RepairNextBlock();
@@ -463,7 +467,6 @@ private:
     std::deque<TBlock> RepairedBlocksQueue_;
 
     bool Prepared_;
-    bool Finished_;
 
     int WindowIndex_;
     int WindowCount_;
@@ -471,12 +474,13 @@ private:
     i64 LastWindowSize_;
 
     i64 ErasedDataSize_;
-    
+
+    int ErasedBlockCount_;
+    int RepairedBlockCount_;
+
     IInvokerPtr ControlInvoker_;
 
-    TAsyncError PrepareReaders();
     TAsyncError RepairIfNeeded();
-    TAsyncError OnReadersPrepared(TError error);
     TAsyncError OnBlocksCollected(TValueOrError<std::vector<TSharedRef>> result);
     TAsyncError Repair(const std::vector<TSharedRef>& aliveWindows);
     TError OnGotMeta(IAsyncReader::TGetMetaResult metaOrError);
@@ -489,6 +493,9 @@ typedef TIntrusivePtr<TRepairReader> TRepairReaderPtr;
 
 TRepairReader::TReadFuture TRepairReader::RepairNextBlock()
 {
+    YCHECK(Prepared_);
+    YCHECK(HasNextBlock());
+
     auto this_ = MakeStrong(this);
     return RepairIfNeeded()
         .Apply(BIND([this, this_] (TError error) -> TReadFuture {
@@ -497,6 +504,7 @@ TRepairReader::TReadFuture TRepairReader::RepairNextBlock()
             YCHECK(!RepairedBlocksQueue_.empty());
             auto result = TRepairReader::TReadResult(RepairedBlocksQueue_.front());
             RepairedBlocksQueue_.pop_front();
+            RepairedBlockCount_ += 1;
             return MakePromise(result);
         }).AsyncVia(ControlInvoker_));
 }
@@ -529,36 +537,22 @@ TAsyncError TRepairReader::OnBlocksCollected(TValueOrError<std::vector<TSharedRe
 
 TAsyncError TRepairReader::RepairIfNeeded()
 {
-    if (!HasNextBlock()) {
-        return MakePromise(TError("No blocks to make repair"));
-    } else if (RepairedBlocksQueue_.empty()) {
-        return PrepareReaders().Apply(
-            BIND(&TRepairReader::OnReadersPrepared, MakeStrong(this))
-                .AsyncVia(ControlInvoker_));
+    YCHECK(HasNextBlock());
+    if (RepairedBlocksQueue_.empty()) {
+        WindowIndex_ += 1;
+        i64 windowSize = (WindowIndex_ == WindowCount_) ? LastWindowSize_ : WindowSize_;
+
+        auto collector = New<TParallelCollector<TSharedRef>>();
+        FOREACH (auto windowReader, WindowReaders_) {
+            collector->Collect(windowReader->Read(windowSize));
+        }
+
+        return collector->Complete().Apply(
+                BIND(&TRepairReader::OnBlocksCollected, MakeStrong(this))
+                    .AsyncVia(ControlInvoker_));
     } else {
         return MakeFuture(TError());
     }
-}
-
-TAsyncError TRepairReader::OnReadersPrepared(TError error)
-{
-    RETURN_PROMISE_IF_ERROR(error, TError);
-
-    WindowIndex_ += 1;
-    if (WindowIndex_ == WindowCount_) {
-        Finished_ = true;
-    }
-
-    i64 windowSize = (WindowIndex_ == WindowCount_) ? LastWindowSize_ : WindowSize_;
-
-    auto collector = New<TParallelCollector<TSharedRef>>();
-    FOREACH (auto windowReader, WindowReaders_) {
-        collector->Collect(windowReader->Read(windowSize));
-    }
-
-    return collector->Complete().Apply(
-            BIND(&TRepairReader::OnBlocksCollected, MakeStrong(this))
-                .AsyncVia(ControlInvoker_));
 }
 
 TError TRepairReader::OnGotMeta(IAsyncReader::TGetMetaResult metaOrError)
@@ -595,6 +589,7 @@ TError TRepairReader::OnGotMeta(IAsyncReader::TGetMetaResult metaOrError)
                 placementExt.parity_block_size());
             blockSizes.back() = placementExt.parity_last_block_size();
         }
+        ErasedBlockCount_ += blockSizes.size();
         ErasedDataSize_ += std::accumulate(blockSizes.begin(), blockSizes.end(), 0);
         RepairBlockReaders_.push_back(TRepairPartReader(blockSizes));
     }
@@ -602,13 +597,10 @@ TError TRepairReader::OnGotMeta(IAsyncReader::TGetMetaResult metaOrError)
     return TError();
 }
 
-TAsyncError TRepairReader::PrepareReaders()
+TAsyncError TRepairReader::Prepare()
 {
+    YCHECK(!Prepared_);
     YCHECK(!Readers_.empty());
-
-    if (Prepared_) {
-        return MakeFuture(TError());
-    }
 
     auto reader = Readers_.front();
     return AsyncGetPlacementMeta(reader).Apply(
@@ -625,6 +617,8 @@ i64 TRepairReader::GetErasedDataSize() const
 ///////////////////////////////////////////////////////////////////////////////
 // Repair reader of one part
 
+// TODO(ignat): we should remove this code or find application for it.
+// Now, it is broken (it don't call RepairReader::Prepare) and has no tests.
 // Repairs blocks of one part.
 class TSinglePartRepairSession
     : public TRefCounted
@@ -758,7 +752,7 @@ public:
         , ControlInvoker_(controlInvoker)
     {
         YCHECK(erasedIndices.size() == writers.size());
-        
+
         for (int i = 0; i < erasedIndices.size(); ++i) {
             IndexToWriter_[erasedIndices[i]] = writers[i];
         }
@@ -766,14 +760,24 @@ public:
 
     TAsyncError Run()
     {
-        FOREACH (auto writer, Writers_) {
-            writer->Open();
-        }
-        
-        return RepairNextBlock();
+        return Reader_->Prepare().Apply(
+            BIND(&TRepairAllPartsSession::OnReaderPrepared, MakeStrong(this))
+                .AsyncVia(ControlInvoker_));
     }
 
 private:
+    TAsyncError OnReaderPrepared(TError error)
+    {
+        RETURN_PROMISE_IF_ERROR(error, TError);
+
+        FOREACH (auto writer, Writers_) {
+            writer->Open();
+        }
+
+        return RepairNextBlock();
+    }
+
+
     TAsyncError RepairNextBlock()
     {
         if (!Reader_->HasNextBlock()) {
@@ -784,7 +788,7 @@ private:
             BIND(&TRepairAllPartsSession::OnBlockRepaired, MakeStrong(this))
                 .AsyncVia(ControlInvoker_));
     }
-    
+
     TAsyncError OnBlockRepaired(TValueOrError<TRepairReader::TBlock> blockOrError)
     {
         RETURN_PROMISE_IF_ERROR(blockOrError, TError);
@@ -824,7 +828,7 @@ private:
     {
         RETURN_PROMISE_IF_ERROR(metaOrError, TError);
         const auto& meta = metaOrError.Value();
-        
+
         auto collector = New<TParallelCollector<void>>();
         FOREACH (auto writer, Writers_) {
             collector->Collect(writer->AsyncClose(meta));
@@ -837,7 +841,7 @@ private:
     TError OnWritersClosed(TError error)
     {
         RETURN_IF_ERROR(error);
-        
+
         return TError();
     }
 

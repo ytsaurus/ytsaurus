@@ -248,7 +248,64 @@ TEST_F(TErasureMixture, ReaderTest)
     Cleanup(codec);
 }
 
-TEST_F(TErasureMixture, RepairTest)
+// TODO(ignat): refactor this tests to eliminate copy-paste
+TEST_F(TErasureMixture, RepairTest1)
+{
+    auto codec = GetCodec(ECodec::ReedSolomon);
+
+    // Prepare data
+    Stroka data[] = {"a"};
+    std::vector<Stroka> dataStrings(data, data + sizeof(data) / sizeof(Stroka));
+    auto dataRefs = ToSharedRefs(dataStrings);
+
+    WriteErasureChunk(codec, dataRefs);
+
+    TBlockIndexList erasedIndices;
+    erasedIndices.push_back(2);
+
+    std::set<int> erasedIndicesSet(erasedIndices.begin(), erasedIndices.end());
+
+    auto repairIndices = *codec->GetRepairIndices(erasedIndices);
+    std::set<int> repairIndicesSet(repairIndices.begin(), repairIndices.end());
+
+    for (int i = 0; i < erasedIndices.size(); ++i) {
+        Stroka filename = "block" + ToString(erasedIndices[i] + 1);
+        NFs::Remove(filename.c_str());
+        NFs::Remove((filename + ".meta").c_str());
+    }
+
+    std::vector<IAsyncReaderPtr> readers;
+    std::vector<IAsyncWriterPtr> writers;
+    for (int i = 0; i < codec->GetTotalBlockCount(); ++i) {
+        Stroka filename = "block" + ToString(i + 1);
+        if (erasedIndicesSet.find(i) != erasedIndicesSet.end()) {
+            writers.push_back(NYT::New<TFileWriter>(filename));
+        }
+        if (repairIndicesSet.find(i) != repairIndicesSet.end()) {
+            auto reader = NYT::New<TFileReader>(filename);
+            reader->Open();
+            readers.push_back(reader);
+        }
+    }
+
+    auto repairResult = RepairErasedBlocks(codec, erasedIndices, readers, writers).Get();
+    EXPECT_TRUE(repairResult.IsOK());
+
+    auto erasureReader = CreateErasureReader(codec);
+
+    int index = 0;
+    FOREACH (const auto& ref, dataRefs) {
+        auto result = erasureReader->AsyncReadBlocks(std::vector<int>(1, index++)).Get();
+        EXPECT_TRUE(result.IsOK());
+        auto resultRef = result.GetOrThrow().front();
+
+        EXPECT_EQ(ToString(ref), ToString(resultRef));
+    }
+
+    Cleanup(codec);
+}
+
+TEST_F(TErasureMixture, RepairTest2)
 {
     auto codec = GetCodec(ECodec::Lrc);
 
@@ -292,7 +349,8 @@ TEST_F(TErasureMixture, RepairTest)
         }
     }
 
-    RepairErasedBlocks(codec, erasedIndices, readers, writers).Get();
+    auto repairResult = RepairErasedBlocks(codec, erasedIndices, readers, writers).Get();
+    EXPECT_TRUE(repairResult.IsOK());
 
     auto erasureReader = CreateErasureReader(codec);
 
