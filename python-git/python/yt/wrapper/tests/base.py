@@ -21,7 +21,7 @@ class YtTestBase(object):
 
         ports = {
             "master": 18001,
-            "node": 17001,
+            "node": 17101,
             "scheduler": 18101,
             "proxy": 18080,
             "proxy_log": 18081}
