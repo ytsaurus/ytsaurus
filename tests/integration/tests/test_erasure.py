@@ -37,7 +37,7 @@ class TestErasure(YTEnvSetup):
     def test_lrc(self):
         self._do_test_simple('/table_writer/erasure_codec=lrc')
 
-    def _test_repair(self, codec, replicas_count, data_replicas_count):
+    def _test_repair(self, codec, replica_count, data_replica_count):
         remove('//tmp/table', '--force')
         create('table', '//tmp/table')
         write_str('//tmp/table', '{b="hello"}', config_opt="/table_writer/erasure_codec=" + codec)
@@ -46,14 +46,14 @@ class TestErasure(YTEnvSetup):
         assert len(chunks) == 1
 
         replicas = get("//sys/chunks/%s/@stored_replicas" % chunks[0])
-        assert len(replicas) == replicas_count
+        assert len(replicas) == replica_count
 
         assert len(get("//sys/data_missing_chunks")) == 0
         assert len(get("//sys/parity_missing_chunks")) == 0
         for r in replicas:
-            index = r.attributes["index"]
+            replica_index = r.attributes["index"]
             node_index = (int(r.rsplit(":", 1)[1]) - self.Env._ports["node"]) / 2
-            print "Killing node ", node_index, ", replica index ", index
+            print "Killing node %d containing replica %d" % (node_index, replica_index)
             for p, name in self.Env.process_to_kill:
                 if name == "node-%d" % node_index:
                     self.kill_process(p, name)
