@@ -61,13 +61,19 @@ private:
         auto miscExt = FindProtoExtension<TMiscExt>(chunk->ChunkMeta().extensions());
         YCHECK(!chunk->IsConfirmed() || miscExt);
 
-        attributes->push_back("confirmed");
         attributes->push_back("cached_replicas");
         attributes->push_back("stored_replicas");
         attributes->push_back(TAttributeInfo("replication_factor", !chunk->IsErasure(), false));
         attributes->push_back(TAttributeInfo("erasure_codec", chunk->IsErasure(), false));
         attributes->push_back("movable");
         attributes->push_back("vital");
+        attributes->push_back("overreplicated");
+        attributes->push_back("underreplicated");
+        attributes->push_back("lost");
+        attributes->push_back("data_missing");
+        attributes->push_back("parity_missing");
+        attributes->push_back("confirmed");
+        attributes->push_back("available");
         attributes->push_back("master_meta_size");
         attributes->push_back(TAttributeInfo("owning_nodes", true, true));
         attributes->push_back(TAttributeInfo("size", chunk->IsConfirmed()));
@@ -88,13 +94,8 @@ private:
     virtual bool GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
         auto chunkManager = Bootstrap->GetChunkManager();
-        const auto* chunk = GetThisTypedImpl();
-
-        if (key == "confirmed") {
-            BuildYsonFluently(consumer)
-                .Value(FormatBool(chunk->IsConfirmed()));
-            return true;
-        }
+        auto* chunk = GetThisTypedImpl();
+        auto status = chunkManager->ComputeChunkStatus(chunk);
 
         typedef std::function<void(TFluentList fluent, TNodePtrWithIndex replica)> TReplicaSerializer;
 
@@ -115,21 +116,29 @@ private:
             ? TReplicaSerializer(serializeErasureReplica)
             : TReplicaSerializer(serializeRegularReplica);
 
+        auto serializeReplicas = [&] (IYsonConsumer* consumer, TNodePtrWithIndexList& replicas) {
+            std::sort(
+                replicas.begin(),
+                replicas.end(),
+                [] (TNodePtrWithIndex lhs, TNodePtrWithIndex rhs) {
+                    return lhs.GetIndex() < rhs.GetIndex();
+                });
+            BuildYsonFluently(consumer)
+                .DoListFor(replicas, serializeReplica);
+        };
+
         if (key == "cached_replicas") {
+            TNodePtrWithIndexList replicas;
             if (~chunk->CachedReplicas()) {
-                BuildYsonFluently(consumer)
-                    .DoListFor(*chunk->CachedReplicas(), serializeReplica);
-            } else {
-                BuildYsonFluently(consumer)
-                    .BeginList()
-                    .EndList();
+                replicas = TNodePtrWithIndexList(chunk->CachedReplicas()->begin(), chunk->CachedReplicas()->end());
             }
+            serializeReplicas(consumer, replicas);
             return true;
         }
 
         if (key == "stored_replicas") {
-            BuildYsonFluently(consumer)
-                .DoListFor(chunk->StoredReplicas(), serializeReplica);
+            auto replicas = chunk->StoredReplicas();
+            serializeReplicas(consumer, replicas);
             return true;
         }
 
@@ -156,6 +165,48 @@ private:
         if (key == "vital") {
             BuildYsonFluently(consumer)
                 .Value(chunk->GetVital());
+            return true;
+        }
+
+        if (key == "underreplicated") {
+            BuildYsonFluently(consumer)
+                .Value((status & EChunkStatus::Underreplicated) != 0);
+            return true;
+        }
+
+        if (key == "overreplicated") {
+            BuildYsonFluently(consumer)
+                .Value((status & EChunkStatus::Overreplicated) != 0);
+            return true;
+        }
+
+        if (key == "lost") {
+            BuildYsonFluently(consumer)
+                .Value((status & EChunkStatus::Lost) != 0);
+            return true;
+        }
+
+        if (key == "data_missing") {
+            BuildYsonFluently(consumer)
+                .Value((status & EChunkStatus::DataMissing) != 0);
+            return true;
+        }
+
+        if (key == "parity_missing") {
+            BuildYsonFluently(consumer)
+                .Value((status & EChunkStatus::ParityMissing) != 0);
+            return true;
+        }
+
+        if (key == "confirmed") {
+            BuildYsonFluently(consumer)
+                .Value(FormatBool(chunk->IsConfirmed()));
+            return true;
+        }
+
+        if (key == "available") {
+            BuildYsonFluently(consumer)
+                .Value(chunk->IsAvailable());
             return true;
         }
 

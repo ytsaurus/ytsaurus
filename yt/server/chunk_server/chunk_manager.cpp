@@ -215,7 +215,7 @@ public:
         , Config(config)
         , Bootstrap(bootstrap)
         , ChunkTreeBalancer(Bootstrap)
-        , ChunkReplicaCount(0)
+        , TotalReplicaCount(0)
         , NeedToRecomputeStatistics(false)
         , Profiler(ChunkServerProfiler)
         , AddChunkCounter("/add_chunk_rate")
@@ -622,15 +622,16 @@ public:
     const yhash_set<TChunk*>& ParityMissingChunks() const;
 
 
-    int GetChunkReplicaCount()
+    int GetTotalReplicaCount()
     {
-        return ChunkReplicaCount;
+        return TotalReplicaCount;
     }
 
     bool IsReplicatorEnabled()
     {
         return ChunkReplicator->IsEnabled();
     }
+
 
     void ScheduleRFUpdate(TChunkTree* chunkTree)
     {
@@ -681,6 +682,11 @@ public:
         return paths;
     }
 
+    EChunkStatus ComputeChunkStatus(TChunk* chunk)
+    {
+        return ChunkReplicator->ComputeChunkStatus(chunk);
+    }
+
 private:
     typedef TImpl TThis;
     friend class TChunkTypeHandlerBase;
@@ -693,7 +699,7 @@ private:
 
     TChunkTreeBalancer ChunkTreeBalancer;
 
-    int ChunkReplicaCount;
+    int TotalReplicaCount;
 
     bool NeedToRecomputeStatistics;
 
@@ -909,10 +915,10 @@ private:
     {
         // Compute chunk replica count.
         auto nodeTracker = Bootstrap->GetNodeTracker();
-        ChunkReplicaCount = 0;
+        TotalReplicaCount = 0;
         FOREACH (auto* node, nodeTracker->GetNodes()) {
-            ChunkReplicaCount += node->StoredReplicas().size();
-            ChunkReplicaCount += node->CachedReplicas().size();
+            TotalReplicaCount += node->StoredReplicas().size();
+            TotalReplicaCount += node->CachedReplicas().size();
         }
     }
 
@@ -921,7 +927,7 @@ private:
     {
         ChunkMap.Clear();
         ChunkListMap.Clear();
-        ChunkReplicaCount = 0;
+        TotalReplicaCount = 0;
     }
 
     virtual void Clear() override
@@ -1560,14 +1566,19 @@ void TChunkManager::ScheduleRFUpdate(TChunkTree* chunkTree)
     Impl->ScheduleRFUpdate(chunkTree);
 }
 
-int TChunkManager::GetChunkReplicaCount()
+int TChunkManager::GetTotalReplicaCount()
 {
-    return Impl->GetChunkReplicaCount();
+    return Impl->GetTotalReplicaCount();
 }
 
 std::vector<TYPath> TChunkManager::GetOwningNodes(TChunkTree* chunkTree)
 {
     return Impl->GetOwningNodes(chunkTree);
+}
+
+EChunkStatus TChunkManager::ComputeChunkStatus(TChunk* chunk)
+{
+    return Impl->ComputeChunkStatus(chunk);
 }
 
 DELEGATE_METAMAP_ACCESSORS(TChunkManager, Chunk, TChunk, TChunkId, *Impl)

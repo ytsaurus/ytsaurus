@@ -56,6 +56,8 @@ public:
     TJobPtr FindJob(const TJobId& id);
     TJobListPtr FindJobList(const TChunkId& id);
 
+    EChunkStatus ComputeChunkStatus(TChunk* chunk);
+
     void ScheduleJobs(
         TNode* node,
         const std::vector<TJobPtr>& currentJobs,
@@ -130,8 +132,9 @@ private:
     void OnRefresh();
     void Refresh(TChunk* chunk);
     void ResetChunkStatus(TChunk* chunk);
-    void ComputeRegularChunkStatus(TChunk* chunk);
-    void ComputeErasureChunkStatus(TChunk* chunk);
+
+    EChunkStatus ComputeRegularChunkStatus(TChunk* chunk);
+    EChunkStatus ComputeErasureChunkStatus(TChunk* chunk);
 
     bool HasRunningJobs(const TChunkId& chunkId);
 
@@ -140,7 +143,7 @@ private:
     void OnRFUpdateCommitFailed(const TError& error);
 
     //! Computes the actual replication factor the chunk must have.
-    int ComputeReplicationFactor(const TChunk* chunk);
+    int ComputeReplicationFactor(TChunk* chunk);
 
     //! Follows upward parent links.
     //! Stops when some owning nodes are discovered or parents become ambiguous.

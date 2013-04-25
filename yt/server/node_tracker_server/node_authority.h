@@ -12,7 +12,6 @@ struct INodeAuthority
     : public virtual TRefCounted
 {
     //! Returns |true| if a node with the given address is authorized to register.
-    // TODO(babenko): use descriptor instead
     virtual bool IsAuthorized(const Stroka& address) = 0;
 };
 

@@ -107,6 +107,74 @@ TJobListPtr TChunkReplicator::FindJobList(const TChunkId& id)
     return it == JobListMap.end() ? nullptr : it->second;
 }
 
+EChunkStatus TChunkReplicator::ComputeChunkStatus(TChunk* chunk)
+{
+    return chunk->IsErasure()
+           ? ComputeErasureChunkStatus(chunk)
+           : ComputeRegularChunkStatus(chunk);
+}
+
+EChunkStatus TChunkReplicator::ComputeRegularChunkStatus(TChunk* chunk)
+{
+    EChunkStatus result;
+    
+    const auto& chunkId = chunk->GetId();
+    int replicaCount = static_cast<int>(chunk->StoredReplicas().size());
+    int replicationFactor = chunk->GetReplicationFactor();
+    
+    if (replicaCount == 0) {
+        result |= EChunkStatus::Lost;
+    } else if (replicaCount > replicationFactor) {
+        result |= EChunkStatus::Overreplicated;
+    } else if (replicaCount < replicationFactor) {
+        result |= EChunkStatus::Underreplicated;
+    }
+
+    return result;
+}
+
+EChunkStatus TChunkReplicator::ComputeErasureChunkStatus(TChunk* chunk)
+{
+    EChunkStatus result;
+
+    // Check data and parity parts.
+    auto* codec = NErasure::GetCodec(chunk->GetErasureCodec());
+    int totalPartCount = codec->GetTotalBlockCount();
+    int dataPartCount = codec->GetDataBlockCount();
+    int parityPartCount = codec->GetParityBlockCount();
+
+    NErasure::TBlockIndexSet missingIndexSet((1 << totalPartCount) - 1);
+    int replicaCount[NErasure::MaxTotalBlockCount] = {};
+    TSmallVector<int, NErasure::MaxTotalBlockCount> overreplicatedIndexes;
+    FOREACH (auto replica, chunk->StoredReplicas()) {
+        int index = replica.GetIndex();
+        if (++replicaCount[index] > 1) {
+            overreplicatedIndexes.push_back(index);
+        }
+        missingIndexSet.reset(index);
+    }
+
+    auto dataIndexSet = NErasure::TBlockIndexSet((1 << dataPartCount) - 1);
+    auto parityIndexSet = NErasure::TBlockIndexSet(((1 << parityPartCount) - 1) << dataPartCount);
+
+    if ((missingIndexSet & dataIndexSet).any()) {
+        result |= EChunkStatus::DataMissing;
+    }
+
+    if ((missingIndexSet & parityIndexSet).any()) {
+        result |= EChunkStatus::ParityMissing;
+    }
+
+    if (missingIndexSet.any()) {
+        // Something is damaged.
+        if (!codec->CanRepair(missingIndexSet)) {
+            result |= EChunkStatus::Lost;
+        }
+    }
+
+    return result;
+}
+
 void TChunkReplicator::ScheduleJobs(
     TNode* node,
     const std::vector<TJobPtr>& runningJobs,
@@ -374,7 +442,8 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleRemovalJob(
         return EJobScheduleFlags::Purged;
     }
 
-    if (HasRunningJobs(chunkId)) {
+    // NB: Allow more than one job for dead chunks.
+    if (chunk && HasRunningJobs(chunkId)) {
         return EJobScheduleFlags::Purged;
     }
 
@@ -580,10 +649,69 @@ void TChunkReplicator::Refresh(TChunk* chunk)
 
     ResetChunkStatus(chunk);
     
-    if (chunk->IsErasure()) {
-        ComputeErasureChunkStatus(chunk);
-    } else {
-        ComputeRegularChunkStatus(chunk);
+    auto status = ComputeChunkStatus(chunk);
+    int replicaCount = static_cast<int>(chunk->StoredReplicas().size());
+
+    if (status & EChunkStatus::Lost) {
+        YCHECK(LostChunks_.insert(chunk).second);
+
+        if (chunk->GetVital()) {
+            YCHECK(LostVitalChunks_.insert(chunk).second);
+        }
+    }
+
+    if (status & EChunkStatus::Overreplicated) {
+        YCHECK(OverreplicatedChunks_.insert(chunk).second);
+
+        if (chunk->IsErasure()) {
+            int replicaCount[NErasure::MaxTotalBlockCount] = {};
+            FOREACH (auto replica, chunk->StoredReplicas()) {
+                int index = replica.GetIndex();
+                ++replicaCount[index];
+            }
+
+            for (int index = 0; index < NErasure::MaxTotalBlockCount; ++index) {
+                if (replicaCount[index] <= 1)
+                    continue;
+
+                TChunkPtrWithIndex chunkWithIndex(chunk, index);              
+                int redundantCount = replicaCount[index] - 1;
+                auto nodes = ChunkPlacement->GetRemovalTargets(chunkWithIndex, redundantCount);
+
+                auto encodedChunkId = EncodeChunkId(chunkWithIndex);
+                FOREACH (auto* node, nodes) {
+                    YCHECK(node->ChunksToRemove().insert(encodedChunkId).second);
+                }
+            }
+        } else {
+            int replicationFactor = chunk->GetReplicationFactor();
+            int redundantCount = replicaCount - replicationFactor;
+            auto nodes = ChunkPlacement->GetRemovalTargets(TChunkPtrWithIndex(chunk), redundantCount);
+        }
+    }
+
+    if (status & EChunkStatus::Underreplicated) {
+        YCHECK(UnderreplicatedChunks_.insert(chunk).second);
+        
+        YCHECK(!chunk->IsErasure());
+        auto* node = ChunkPlacement->GetReplicationSource(chunk);
+        
+        int priority = std::min(replicaCount, ReplicationPriorityCount) - 1;
+        YCHECK(node->ChunksToReplicate()[priority].insert(chunk).second);
+    }
+
+    if (status & EChunkStatus::DataMissing) {
+        YCHECK(DataMissingChunks_.insert(chunk).second);
+    }
+
+    if (status & EChunkStatus::ParityMissing) {
+        YCHECK(ParityMissingChunks_.insert(chunk).second);
+    }
+
+    if ((status & EChunkStatus(EChunkStatus::DataMissing | EChunkStatus::ParityMissing)) &&
+        !(status & EChunkStatus::Lost))
+    {
+        YCHECK(ChunksToRepair.insert(chunk).second);
     }
 }
 
@@ -609,101 +737,6 @@ void TChunkReplicator::ResetChunkStatus(TChunk* chunk)
     } else {
         OverreplicatedChunks_.erase(chunk);
         UnderreplicatedChunks_.erase(chunk);  
-    }
-}
-
-void TChunkReplicator::ComputeRegularChunkStatus(TChunk* chunk)
-{
-    const auto& chunkId = chunk->GetId();
-    int replicaCount = static_cast<int>(chunk->StoredReplicas().size());
-    int replicationFactor = chunk->GetReplicationFactor();
-    if (replicaCount == 0) {
-        // Lost!
-        YCHECK(LostChunks_.insert(chunk).second);
-        if (chunk->GetVital()) {
-            YCHECK(LostVitalChunks_.insert(chunk).second);
-        }
-    } else if (replicaCount > replicationFactor) {
-        // Overreplicated chunk.
-        YCHECK(OverreplicatedChunks_.insert(chunk).second);
-
-        int redundantCount = replicaCount - replicationFactor;
-        auto nodes = ChunkPlacement->GetRemovalTargets(TChunkPtrWithIndex(chunk), redundantCount);
-
-        TSmallVector<Stroka, TypicalReplicationFactor> addresses;
-        FOREACH (auto* node, nodes) {
-            YCHECK(node->ChunksToRemove().insert(chunkId).second);
-            addresses.push_back(node->GetAddress());
-        }
-    } else if (replicaCount < replicationFactor) {
-        // Underreplicated chunk.
-        YCHECK(UnderreplicatedChunks_.insert(chunk).second);
-
-        auto* node = ChunkPlacement->GetReplicationSource(chunk);
-
-        int priority = std::min(replicaCount, ReplicationPriorityCount) - 1;
-        YCHECK(node->ChunksToReplicate()[priority].insert(chunk).second);
-    }
-}
-
-void TChunkReplicator::ComputeErasureChunkStatus(TChunk* chunk)
-{
-    // Check data and parity parts.
-    auto* codec = NErasure::GetCodec(chunk->GetErasureCodec());
-    int totalPartCount = codec->GetTotalBlockCount();
-    int dataPartCount = codec->GetDataBlockCount();
-    int parityPartCount = codec->GetParityBlockCount();
-
-    NErasure::TBlockIndexSet missingIndexSet((1 << totalPartCount) - 1);
-    int replicaCount[NErasure::MaxTotalBlockCount] = {};
-    TSmallVector<int, NErasure::MaxTotalBlockCount> overreplicatedIndexes;
-    FOREACH (auto replica, chunk->StoredReplicas()) {
-        int index = replica.GetIndex();
-        if (++replicaCount[index] > 1) {
-            overreplicatedIndexes.push_back(index);
-        }
-        missingIndexSet.reset(index);
-    }
-
-    auto dataIndexSet = NErasure::TBlockIndexSet((1 << dataPartCount) - 1);
-    auto parityIndexSet = NErasure::TBlockIndexSet(((1 << parityPartCount) - 1) << dataPartCount);
-
-    if ((missingIndexSet & dataIndexSet).any()) {
-        // Data is missing.
-        YCHECK(DataMissingChunks_.insert(chunk).second);
-    }
-
-    if ((missingIndexSet & parityIndexSet).any()) {
-       // Parity is missing.
-        YCHECK(ParityMissingChunks_.insert(chunk).second);
-    }
-
-    if (missingIndexSet.any()) {
-        // Something is damaged.
-        if (codec->CanRepair(missingIndexSet)) {
-            // Will repair it!
-            YCHECK(ChunksToRepair.insert(chunk).second);
-        } else {
-            // Lost!
-            YCHECK(LostChunks_.insert(chunk).second);
-            if (chunk->GetVital()) {
-                YCHECK(LostVitalChunks_.insert(chunk).second);
-            }
-        }
-    }
-
-    // Check for overreplicated parts.
-    FOREACH (int index, overreplicatedIndexes) {
-        TChunkPtrWithIndex chunkWithIndex(chunk, index);
-        auto encodedChunkId = EncodeChunkId(chunkWithIndex);
-        int redundantCount = replicaCount[index] - 1;
-        auto nodes = ChunkPlacement->GetRemovalTargets(chunkWithIndex, redundantCount);
-
-        TSmallVector<Stroka, TypicalReplicationFactor> addresses;
-        FOREACH (auto* node, nodes) {
-            YCHECK(node->ChunksToRemove().insert(encodedChunkId).second);
-            addresses.push_back(node->GetAddress());
-        }
     }
 }
 
@@ -976,7 +1009,7 @@ void TChunkReplicator::OnRFUpdateCommitFailed(const TError& error)
     RFUpdateInvoker->ScheduleNext();
 }
 
-int TChunkReplicator::ComputeReplicationFactor(const TChunk* chunk)
+int TChunkReplicator::ComputeReplicationFactor(TChunk* chunk)
 {
     int result = 0;
 

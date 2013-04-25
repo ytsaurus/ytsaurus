@@ -98,9 +98,11 @@ public:
     const yhash_set<TChunk*>& ParityMissingChunks() const;
 
     //! Returns the total number of all chunk replicas.
-    int GetChunkReplicaCount();
+    int GetTotalReplicaCount();
 
     std::vector<NYPath::TYPath> GetOwningNodes(TChunkTree* chunkTree);
+
+    EChunkStatus ComputeChunkStatus(TChunk* chunk);
 
 private:
     class TImpl;

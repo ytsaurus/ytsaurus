@@ -31,7 +31,7 @@ typedef NObjectClient::TObjectId TChunkTreeId;
 extern TChunkTreeId NullChunkTreeId;
 
 //! Used as an expected upper bound in TSmallVector.
-const int TypicalReplicationFactor = 4;
+const int TypicalReplicationFactor = 16;
 
 //! Represents an offset inside a chunk.
 typedef i64 TBlockOffset;

@@ -88,6 +88,14 @@ const int TypicalChunkParentCount = 2;
  */
 const int ReplicationPriorityCount = 3;
 
+DECLARE_FLAGGED_ENUM(EChunkStatus,
+    ((Underreplicated)   (0x0001))
+    ((Overreplicated)    (0x0002))
+    ((Lost)              (0x0004))
+    ((DataMissing)       (0x0008))
+    ((ParityMissing)     (0x0010))
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkServer
