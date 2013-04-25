@@ -432,12 +432,17 @@ Stroka TAddressResolver::DoGetLocalHostName()
             << gaiError;
     }
 
+    char* canonname = 0;
+    if (addrInfo) {
+        canonname = addrInfo->ai_canonname;
+    }
+
     for (auto* currentInfo = addrInfo; currentInfo; currentInfo = currentInfo->ai_next) {
         if (currentInfo->ai_family == AF_INET && Config->EnableIPv4 ||
             currentInfo->ai_family == AF_INET6 && Config->EnableIPv6)
         {
-            LOG_INFO("LocalHost FQDN reported by getaddrinfo: %s", currentInfo->ai_canonname);
-            return Stroka(currentInfo->ai_canonname);
+            LOG_INFO("LocalHost FQDN reported by getaddrinfo: %s", canonname);
+            return Stroka(canonname);
         }
     }
 
