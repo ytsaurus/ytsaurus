@@ -70,6 +70,9 @@ class TestErasure(YTEnvSetup):
                 if name == "node-%d" % node_index:
                     set("//sys/nodes/%s/@banned" % r, "true")
 
+            # Give it enough time to unregister the node
+            time.sleep(1.0)
+
             ok = False
             for i in xrange(10):
                 if self._is_chunk_ok(chunk_id):
