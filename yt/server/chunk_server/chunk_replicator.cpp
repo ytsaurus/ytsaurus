@@ -118,7 +118,6 @@ EChunkStatus TChunkReplicator::ComputeRegularChunkStatus(TChunk* chunk)
 {
     EChunkStatus result;
     
-    const auto& chunkId = chunk->GetId();
     int replicaCount = static_cast<int>(chunk->StoredReplicas().size());
     int replicationFactor = chunk->GetReplicationFactor();
     
