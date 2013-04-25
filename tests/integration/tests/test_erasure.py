@@ -60,7 +60,7 @@ class TestErasure(YTEnvSetup):
         replicas = get("#%s/@stored_replicas" % chunk_id)
         assert len(replicas) == replica_count
 
-        assert self._is_chunk_of(chunk_id)
+        assert self._is_chunk_ok(chunk_id)
 
         for r in replicas:
             replica_index = r.attributes["index"]
