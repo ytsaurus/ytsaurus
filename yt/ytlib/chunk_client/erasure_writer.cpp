@@ -250,24 +250,22 @@ void TErasureWriter::PrepareBlocks()
 void TErasureWriter::PrepareChunkMeta(const NProto::TChunkMeta& chunkMeta)
 {
     int start = 0;
-    NProto::TErasurePlacementExt placementExtension;
+    NProto::TErasurePlacementExt placementExt;
     FOREACH (const auto& group, Groups_) {
-        NProto::TPartInfo info;
-        info.set_start(start);
+        auto* info = placementExt.add_part_infos();
+        info->set_start(start);
         FOREACH (const auto& block, group) {
-            info.add_block_sizes(block.Size());
+            info->add_block_sizes(block.Size());
         }
         start += group.size();
-
-        *placementExtension.add_part_infos() = info;
     }
-    placementExtension.set_parity_part_count(Codec_->GetParityBlockCount());
-    placementExtension.set_parity_block_count(WindowCount_);
-    placementExtension.set_parity_block_size(Config_->ErasureWindowSize);
-    placementExtension.set_parity_last_block_size(ParityDataSize_ - (Config_->ErasureWindowSize * (WindowCount_ - 1)));
+    placementExt.set_parity_part_count(Codec_->GetParityBlockCount());
+    placementExt.set_parity_block_count(WindowCount_);
+    placementExt.set_parity_block_size(Config_->ErasureWindowSize);
+    placementExt.set_parity_last_block_size(ParityDataSize_ - (Config_->ErasureWindowSize * (WindowCount_ - 1)));
 
     ChunkMeta_ = chunkMeta;
-    SetProtoExtension(ChunkMeta_.mutable_extensions(), placementExtension);
+    SetProtoExtension(ChunkMeta_.mutable_extensions(), placementExt);
 
     auto miscExt = FindProtoExtension<NProto::TMiscExt>(
         ChunkMeta_.extensions()).Get(NProto::TMiscExt());
