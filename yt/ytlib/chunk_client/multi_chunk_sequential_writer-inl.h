@@ -197,28 +197,31 @@ void TMultiChunkSequentialWriter<TChunkWriter>::OnChunkCreated(
 
     session.ChunkId = chunkId;
 
-    if (Config->ErasureCodec == NErasure::ECodec::None) {
+    auto erasureCodecId = Config->ErasureCodec;
+    if (erasureCodecId == NErasure::ECodec::None) {
         auto targets = NodeDirectory->GetDescriptors(session.Replicas);
         session.AsyncWriter = CreateReplicationWriter(
             Config,
             chunkId,
             targets);
     } else {
-        auto* erasureCodec = NErasure::GetCodec(Config->ErasureCodec);
-        YCHECK(session.Replicas.size() == erasureCodec->GetTotalBlockCount());
+        auto* erasureCodec = NErasure::GetCodec(erasureCodecId);
+        int totalPartCount = erasureCodec->GetTotalBlockCount();
+        YCHECK(session.Replicas.size() == totalPartCount);
 
         std::vector<IAsyncWriterPtr> writers;
-        writers.reserve(erasureCodec->GetTotalBlockCount());
-
-        for (int i = 0; i < erasureCodec->GetTotalBlockCount(); ++i) {
-            auto partId = PartIdFromErasureChunkId(chunkId, i);
-            std::vector<NNodeTrackerClient::TNodeDescriptor> target(
-                1,
-                NodeDirectory->GetDescriptor(session.Replicas[i]));
-            writers.push_back(CreateReplicationWriter(Config, partId, target));
+        for (int index = 0; index < totalPartCount; ++index) {
+            auto partId = PartIdFromErasureChunkId(chunkId, index);
+            const auto& target = NodeDirectory->GetDescriptor(session.Replicas[index]);
+            std::vector<NNodeTrackerClient::TNodeDescriptor> targets(1, target);
+            auto writer = CreateReplicationWriter(Config, partId, targets);
+            writers.push_back(writer);
         }
 
-        session.AsyncWriter = CreateErasureWriter(Config, erasureCodec, writers);
+        session.AsyncWriter = CreateErasureWriter(
+            Config,
+            erasureCodec,
+            writers);
     }
 
     session.AsyncWriter->Open();
