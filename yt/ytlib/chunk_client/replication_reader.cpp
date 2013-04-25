@@ -168,7 +168,9 @@ private:
 
         LOG_INFO("Requesting chunk seeds from master");
 
-        auto req = TChunkYPathProxy::Locate(FromObjectId(ChunkId));
+        // Locate the chunk (referring to the whole chunk in case of erasure).
+        auto chunkIdToLocate = IsErasureChunkPartId(ChunkId) ? ChunkIdFromErasurePartId(ChunkId) : ChunkId;
+        auto req = TChunkYPathProxy::Locate(FromObjectId(chunkIdToLocate));
         ObjectProxy.Execute(req).Subscribe(
             BIND(&TReplicationReader::OnLocateChunkResponse, MakeStrong(this))
                 .Via(TDispatcher::Get()->GetReaderInvoker()));
@@ -191,7 +193,16 @@ private:
         }
 
         NodeDirectory->MergeFrom(rsp->node_directory());
-        auto seedReplicas = FromProto<TChunkReplica, TChunkReplicaList>(rsp->replicas());
+
+        // For erasure chunk parts we should also do replica filtering.
+        TChunkReplicaList seedReplicas;
+        int replicaIndex = IsErasureChunkPartId(ChunkId) ? PartIndexFromErasurePartId(ChunkId) : 0;
+        FOREACH (ui32 protoReplica, rsp->replicas()) {
+            auto replica = FromProto<TChunkReplica>(protoReplica);
+            if (replica.GetIndex() == replicaIndex) {
+                seedReplicas.push_back(replica);
+            }
+        }
 
         // TODO(babenko): use std::random_shuffle here but make sure it uses true randomness.
         Shuffle(seedReplicas.begin(), seedReplicas.end());
