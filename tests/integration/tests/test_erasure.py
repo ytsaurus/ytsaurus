@@ -59,12 +59,8 @@ class TestErasure(YTEnvSetup):
                     if name == "node-%d" % node_index:
                         self.kill_process(p, name)
                
-                # It is slightly larger than chunk_refresh_delay and online_node_timeout
-                time.sleep(0.8)
-                if index < data_replicas_count:
-                    assert len(get("//sys/data_missing_chunks")) == 1
-                else:
-                    assert len(get("//sys/parity_missing_chunks")) == 1
+                # This is slightly larger than the sum of chunk_refresh_delay and online_node_timeout
+                time.sleep(2.0)
 
                 ok = False
                 for i in xrange(10):
