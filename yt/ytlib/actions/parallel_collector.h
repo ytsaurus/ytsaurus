@@ -36,10 +36,10 @@ private:
     TParallelAwaiterPtr Awaiter;
     TPromise<TResultsOrError> Promise;
     TAtomic Completed;
-
+    TAtomic CurrentIndex;
     TParallelCollectorStorage<T> Results;
 
-    void OnResult(TResultOrError result);
+    void OnResult(int index, TResultOrError result);
     void OnCompleted();
 
     bool TryLockCompleted();

@@ -15,10 +15,13 @@ public:
     typedef TValueOrError<T> TResultOrError;
     typedef TValueOrError<TResults> TResultsOrError;
 
-    void Store(const TValueOrError<T>& valueOrError)
+    void Store(int index, const TValueOrError<T>& valueOrError)
     {
         TGuard<TSpinLock> guard(SpinLock);
-        Values.push_back(valueOrError.Value());
+        if (static_cast<int>(Values.size()) <= index) {
+            Values.resize(index + 1);
+        }
+        Values[index] = std::move(valueOrError.Value());
     }
 
     void SetPromise(TPromise<TResultsOrError> promise)
@@ -42,8 +45,9 @@ public:
     typedef TError TResultOrError;
     typedef TError TResultsOrError;
 
-    void Store(const TValueOrError<void>& valueOrError)
+    void Store(int index, const TValueOrError<void>& valueOrError)
     {
+        UNUSED(index);
         UNUSED(valueOrError);
     }
 
@@ -62,6 +66,7 @@ TParallelCollector<T>::TParallelCollector(
     : Awaiter(New<TParallelAwaiter>(profiler, timerPath))
     , Promise(NewPromise<TResultsOrError>())
     , Completed(false)
+    , CurrentIndex(0)
 { }
 
 template <class T>
@@ -69,10 +74,11 @@ void TParallelCollector<T>::Collect(
     TFuture<TResultOrError> future,
     const Stroka& timerKey /* = "" */)
 {
+    int index = AtomicIncrement(CurrentIndex) - 1;
     Awaiter->Await(
         future,
         timerKey,
-        BIND(&TThis::OnResult, MakeStrong(this)));
+        BIND(&TThis::OnResult, MakeStrong(this), index));
 }
 
 template <class T>
@@ -84,10 +90,10 @@ TFuture<typename TParallelCollector<T>::TResultsOrError> TParallelCollector<T>::
 }
 
 template <class T>
-void TParallelCollector<T>::OnResult(TResultOrError result)
+void TParallelCollector<T>::OnResult(int index, TResultOrError result)
 {
     if (result.IsOK()) {
-        Results.Store(result);
+        Results.Store(index, result);
     } else {
         if (TryLockCompleted()) {
             // NB: Do not replace TError(result) with result unless you understand
