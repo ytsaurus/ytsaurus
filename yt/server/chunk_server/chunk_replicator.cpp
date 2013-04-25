@@ -578,6 +578,7 @@ void TChunkReplicator::ScheduleNewJobs(
 
             TJobPtr job;
             auto flags = ScheduleRepairJob(node, chunk, &job);
+
             if (flags & EJobScheduleFlags::Scheduled) {
                 registerJob(job);
             }
@@ -727,13 +728,13 @@ void TChunkReplicator::ResetChunkStatus(TChunk* chunk)
 
     LostChunks_.erase(chunk);
     LostVitalChunks_.erase(chunk);
-    
+    OverreplicatedChunks_.erase(chunk);
+
     if (chunk->IsErasure()) {
         DataMissingChunks_.erase(chunk);
         ParityMissingChunks_.erase(chunk);  
         ChunksToRepair.erase(chunk);
     } else {
-        OverreplicatedChunks_.erase(chunk);
         UnderreplicatedChunks_.erase(chunk);  
     }
 }
