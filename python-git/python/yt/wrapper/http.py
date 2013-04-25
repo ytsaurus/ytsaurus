@@ -83,7 +83,7 @@ class Response(object):
         return self.http_response.content
 
 def get_token():
-    token = os.environ.get("YT_TOKEN", None)
+    token = config.token
     if token is None:
         token_path = os.path.join(os.path.expanduser("~"), ".yt/token")
         if os.path.isfile(token_path):
