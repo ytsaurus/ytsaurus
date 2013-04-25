@@ -66,12 +66,11 @@ class TestErasure(YTEnvSetup):
             replica_index = r.attributes["index"]
             node_index = (int(r.rsplit(":", 1)[1]) - self.Env._ports["node"]) / 2
             print "Banning node %d containing replica %d" % (node_index, replica_index)
-            for p, name in self.Env.process_to_kill:
-                if name == "node-%d" % node_index:
-                    set("//sys/nodes/%s/@banned" % r, "true")
+            set("//sys/nodes/%s/@banned" % r, "true")
 
             # Give it enough time to unregister the node
             time.sleep(1.0)
+            assert get("//sys/nodes/%s/@state" % r) == "offline"
 
             ok = False
             for i in xrange(10):
