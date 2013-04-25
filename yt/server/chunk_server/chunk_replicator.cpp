@@ -148,7 +148,7 @@ EChunkStatus TChunkReplicator::ComputeErasureChunkStatus(TChunk* chunk)
     FOREACH (auto replica, chunk->StoredReplicas()) {
         int index = replica.GetIndex();
         if (++replicaCount[index] > 1) {
-            overreplicatedIndexes.push_back(index);
+            result |= EChunkStatus::Overreplicated;
         }
         missingIndexSet.reset(index);
     }
@@ -566,6 +566,27 @@ void TChunkReplicator::ScheduleNewJobs(
         }
     }
 
+    // Schedule repair jobs.
+    {
+        auto it = ChunksToRepair.begin();
+        while (it != ChunksToRepair.end()) {
+            if (node->ResourceUsage().repair_slots() >= node->ResourceLimits().repair_slots())
+                break;
+
+            auto jt = it++;
+            auto* chunk = *jt;
+
+            TJobPtr job;
+            auto flags = ScheduleRepairJob(node, chunk, &job);
+            if (flags & EJobScheduleFlags::Scheduled) {
+                registerJob(job);
+            }
+            if (flags & EJobScheduleFlags::Purged) {
+                ChunksToRepair.erase(jt);
+            }
+        }
+    }
+
     // Schedule removal jobs.
     {
         auto& chunksToRemove = node->ChunksToRemove();
@@ -610,28 +631,6 @@ void TChunkReplicator::ScheduleNewJobs(
             }
         }
     }
-
-    // Schedule repair jobs.
-    {
-        auto it = ChunksToRepair.begin();
-        while (it != ChunksToRepair.end()) {
-            if (node->ResourceUsage().repair_slots() >= node->ResourceLimits().repair_slots())
-                break;
-
-            auto jt = it++;
-            auto* chunk = *jt;
-
-            TJobPtr job;
-            auto flags = ScheduleRepairJob(node, chunk, &job);
-            if (flags & EJobScheduleFlags::Scheduled) {
-                registerJob(job);
-            }
-            if (flags & EJobScheduleFlags::Purged) {
-                ChunksToRepair.erase(jt);
-            }
-        }
-    }
-
 }
 
 void TChunkReplicator::Refresh(TChunk* chunk)
