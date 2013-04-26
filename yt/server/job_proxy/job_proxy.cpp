@@ -16,6 +16,8 @@
 #include <ytlib/actions/invoker_util.h>
 #include <ytlib/actions/parallel_awaiter.h>
 
+#include <ytlib/misc/proc.h>
+
 #include <ytlib/logging/log_manager.h>
 
 #include <ytlib/scheduler/public.h>
@@ -39,7 +41,6 @@
 // Defined in util/private/lf_alloc/lf_allocX64.cpp
 void SetLargeBlockLimit(i64 limit);
 
-
 namespace NYT {
 namespace NJobProxy {
 
@@ -56,12 +57,17 @@ using namespace NJobTrackerClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static i64 InitialJobProxyMemoryLimit = (i64) 100 * 1024 * 1024;
+
+////////////////////////////////////////////////////////////////////////////////
+
 TJobProxy::TJobProxy(
     TJobProxyConfigPtr config,
     const TJobId& jobId)
     : Config(config)
     , JobId(jobId)
     , Logger(JobProxyLogger)
+    , JobProxyMemoryLimit(InitialJobProxyMemoryLimit)
 {
     Logger.AddTag(Sprintf("JobId: %s", ~ToString(JobId)));
 }
@@ -109,6 +115,8 @@ void TJobProxy::RetrieveJobSpec()
         ~NScheduler::EJobType(rsp->job_spec().type()).ToString(),
         ~FormatResources(ResourceUsage),
         ~rsp->job_spec().DebugString());
+
+    JobProxyMemoryLimit = rsp->resource_usage().memory();
 }
 
 void TJobProxy::Run()
@@ -131,10 +139,12 @@ void TJobProxy::Run()
             ToProto(schedulerResultExt->add_failed_chunk_ids(), actualChunkId);
         }
     }
-    
+
     ReportResult(result);
+
+    MemoryWatchdogInvoker->Stop();
 }
-   
+
 TJobResult TJobProxy::DoRun()
 {
     try {
@@ -162,15 +172,21 @@ TJobResult TJobProxy::DoRun()
             BIND(&TJobProxy::SendHeartbeat, MakeWeak(this)),
             Config->HeartbeatPeriod);
 
-        NYT::NThread::SetCurrentThreadName(~jobType.ToString());
-        
-        SetLargeBlockLimit(schedulerJobSpecExt.lfalloc_buffer_size());
+        MemoryWatchdogInvoker = New<TPeriodicInvoker>(
+            GetSyncInvoker(),
+            BIND(&TJobProxy::CheckMemoryUsage, MakeWeak(this)),
+            Config->MemoryWatchdogPeriod);
+
+        MemoryWatchdogInvoker->Start();
+
+        RetrieveJobSpec();
 
         switch (jobType) {
             case NScheduler::EJobType::Map: {
                 const auto& mapJobSpecExt = jobSpec.GetExtension(TMapJobSpecExt::map_job_spec_ext);
                 auto userJobIO = CreateMapJobIO(Config->JobIO, this);
                 Job = CreateUserJob(this, mapJobSpecExt.mapper_spec(), std::move(userJobIO));
+                JobProxyMemoryLimit -= mapJobSpecExt.mapper_spec().memory_limit();
                 break;
             }
 
@@ -178,6 +194,7 @@ TJobResult TJobProxy::DoRun()
                 const auto& reduceJobSpecExt = jobSpec.GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
                 auto userJobIO = CreateSortedReduceJobIO(Config->JobIO, this);
                 Job = CreateUserJob(this, reduceJobSpecExt.reducer_spec(), std::move(userJobIO));
+                JobProxyMemoryLimit -= reduceJobSpecExt.reducer_spec().memory_limit();
                 break;
             }
 
@@ -186,6 +203,7 @@ TJobResult TJobProxy::DoRun()
                 YCHECK(partitionJobSpecExt.has_mapper_spec());
                 auto userJobIO = CreatePartitionMapJobIO(Config->JobIO, this);
                 Job = CreateUserJob(this, partitionJobSpecExt.mapper_spec(), std::move(userJobIO));
+                JobProxyMemoryLimit -= partitionJobSpecExt.mapper_spec().memory_limit();
                 break;
             }
 
@@ -193,6 +211,7 @@ TJobResult TJobProxy::DoRun()
                 const auto& reduceJobSpecExt = jobSpec.GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
                 auto userJobIO = CreatePartitionReduceJobIO(Config->JobIO, this);
                 Job = CreateUserJob(this, reduceJobSpecExt.reducer_spec(), std::move(userJobIO));
+                JobProxyMemoryLimit -= reduceJobSpecExt.reducer_spec().memory_limit();
                 break;
             }
 
@@ -350,14 +369,25 @@ IChannelPtr TJobProxy::GetMasterChannel() const
     return MasterChannel;
 }
 
-IBlockCachePtr TJobProxy::GetBlockCache() const 
+IBlockCachePtr TJobProxy::GetBlockCache() const
 {
     return BlockCache;
 }
 
-TNodeDirectoryPtr TJobProxy::GetNodeDirectory() const 
+TNodeDirectoryPtr TJobProxy::GetNodeDirectory() const
 {
     return NodeDirectory;
+}
+
+void TJobProxy::CheckMemoryUsage()
+{
+    auto memoryUsage = GetProcessRss();
+    if (memoryUsage > JobProxyMemoryLimit) {
+        LOG_FATAL(
+            "Job proxy memory limit exceeded (Memory usage: %" PRId64 ", Memory limit: %" PRId64 ")",
+            memoryUsage,
+            JobProxyMemoryLimit);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

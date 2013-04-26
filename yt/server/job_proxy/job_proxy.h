@@ -40,7 +40,7 @@ private:
 
     TJobProxyConfigPtr Config;
     NJobAgent::TJobId JobId;
-    
+
     NLog::TTaggedLogger Logger;
 
     std::unique_ptr<NExecAgent::TSupervisorServiceProxy> SupervisorProxy;
@@ -52,7 +52,10 @@ private:
 
     TJobPtr Job;
 
+    volatile i64 JobProxyMemoryLimit;
+
     TPeriodicInvokerPtr HeartbeatInvoker;
+    TPeriodicInvokerPtr MemoryWatchdogInvoker;
 
     NJobTrackerClient::NProto::TJobSpec JobSpec;
     NNodeTrackerClient::NProto::TNodeResources ResourceUsage;
@@ -71,6 +74,8 @@ private:
 
     virtual NChunkClient::IBlockCachePtr GetBlockCache() const override;
     virtual NNodeTrackerClient::TNodeDirectoryPtr GetNodeDirectory() const override;
+
+    void CheckMemoryUsage();
 
     TFuture<void> GetFailedChunks(std::vector<NChunkClient::TChunkId>* failedChunks);
 };

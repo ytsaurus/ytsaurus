@@ -64,6 +64,8 @@ using namespace NTransactionClient;
 
 static NLog::TLogger& SILENT_UNUSED Logger = JobProxyLogger;
 
+static i64 MemoryLimitBoost = (i64) 2 * 1024 * 1024 * 1024;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 #ifdef _linux_
@@ -123,8 +125,6 @@ public:
         ToProto(result.mutable_error(), JobExitError);
 
         if (~ErrorOutput) {
-            // ToDo(psushin): fix this strange volleyball with StderrChunkId.
-            // Keep reference to ErrorOutput in user_job_io.
             auto stderrChunkId = ErrorOutput->GetChunkId();
             if (stderrChunkId != NChunkServer::NullChunkId) {
                 auto* schedulerResultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
@@ -445,6 +445,7 @@ private:
             envp[UserJobSpec.environment_size()] = NULL;
 
             auto memoryLimit = static_cast<rlim_t>(UserJobSpec.memory_limit() * config->MemoryLimitMultiplier);
+            memoryLimit += MemoryLimitBoost;
             struct rlimit rlimit = {memoryLimit, RLIM_INFINITY};
 
             auto res = setrlimit(RLIMIT_AS, &rlimit);
