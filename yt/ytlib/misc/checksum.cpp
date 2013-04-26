@@ -8,6 +8,44 @@ namespace NYT {
 //namespace {
 
 #ifdef _YT_USE_CRC_PCLMUL
+class TCheckPclmulSupport
+{
+    bool WasTested;
+    bool Result;
+
+    static void Cpuid(int regs[4], int mode)
+    {
+#ifdef _WIN32
+    __cpuid(regs, mode);
+#else
+    asm volatile
+        ("cpuid" : "=a" (regs[0]), "=b" (regs[1]), "=c" (regs[2]), "=d" (regs[3])
+        : "a" (mode), "c" (0));
+#endif
+    }
+
+public:
+    TCheckPclmulSupport() 
+        : WasTested(false)
+        , Result(false)
+    { }
+
+    bool operator() ()
+    {
+        if (WasTested) {
+            return Result;
+        } else {
+            int regs[4];
+            Cpuid(regs, 1);
+            Result = regs[2] & 2;
+            WasTested = true;
+            return Result;
+        }
+    }
+};
+
+TCheckPclmulSupport CheckPclmulSupport;
+
 namespace NCrcSSE0xE543279765927881
 {
     __m128i _mm_shift_right_si128(__m128i v, ui8 offset)
@@ -63,19 +101,19 @@ namespace NCrcSSE0xE543279765927881
     const ui64 XPow512ModPoly = ULL(0x209670022e7af509); // ModXPow_64(512, poly)
     const ui64 XPow576ModPoly = ULL(0xd85c929ddd7a7d69); // ModXPow_64(512 + 64, poly)
 
-    __m128i ReverseBytes(__m128i v)
+    inline __m128i ReverseBytes(__m128i v)
     {
         return _mm_shuffle_epi8(v, _mm_setr_epi8(0xF, 0xE, 0xD, 0xC, 0xB, 0xA, 0x9, 0x8, 0x7, 0x6, 0x5, 0x4, 0x3, 0x2, 0x1, 0x0));
     }
     
-    __m128i Fold(__m128i value, __m128i kk)
+    inline __m128i Fold(__m128i value, __m128i kk)
     {
         __m128i high = _mm_clmulepi64_si128(value, kk, 0x11);
         __m128i low = _mm_clmulepi64_si128(value, kk, 0x00);
         return _mm_xor_si128(high, low);
     }
 
-    __m128i Fold(__m128i value, __m128i data, __m128i kk)
+    inline __m128i Fold(__m128i value, __m128i data, __m128i kk)
     {
         return _mm_xor_si128(data, Fold(value, kk));
     }
@@ -763,7 +801,11 @@ namespace NCrcTable0xE543279765927881
 #ifdef _YT_USE_CRC_PCLMUL
 TChecksum GetChecksumImpl(const void* data, size_t length, TChecksum seed)
 {
-    return NCrcSSE0xE543279765927881::Crc(data, length, seed);
+    if (CheckPclmulSupport()) {
+        return NCrcSSE0xE543279765927881::Crc(data, length, seed);
+    } else {
+        return NCrcTable0xE543279765927881::Crc(data, length, seed);
+    }
 }
 #else
 TChecksum GetChecksumImpl(const void* data, size_t length, TChecksum seed)
