@@ -1598,6 +1598,20 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
             batchReq->AddRequest(req, "lock_regular_file");
         }
         {
+            auto req = TYPathProxy::GetKey(path);
+            SetTransactionId(req, Operation->GetInputTransaction()->GetId());
+            batchReq->AddRequest(req, "get_regular_file_name");
+        }
+        {
+            auto req = TYPathProxy::Get(path);
+            SetTransactionId(req, Operation->GetOutputTransaction());
+            TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly);
+            attributeFilter.Keys.push_back("executable");
+            attributeFilter.Keys.push_back("file_name");
+            *req->mutable_attribute_filter() = ToProto(attributeFilter);
+            batchReq->AddRequest(req, "get_regular_file_attributes");
+        }
+        {
             auto req = TFileYPathProxy::FetchFile(path);
             SetTransactionId(req, Operation->GetInputTransaction()->GetId());
             batchReq->AddRequest(req, "fetch_regular_file");
@@ -1747,8 +1761,11 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
     {
         auto lockRegularFileRsps = batchRsp->GetResponses<TCypressYPathProxy::TRspLock>("lock_regular_file");
         auto fetchRegularFileRsps = batchRsp->GetResponses<TFileYPathProxy::TRspFetchFile>("fetch_regular_file");
+        auto getRegularFileNameRsps = batchRsp->GetResponses<TYPathProxy::TRspGetKey>("get_regular_file_name");
+        auto getRegularFileAttributesRsps = batchRsp->GetResponses<TYPathProxy::TRspGetKey>("get_regular_file_attributes");
         for (int index = 0; index < static_cast<int>(RegularFiles.size()); ++index) {
             auto& file = RegularFiles[index];
+            Stroka fileName;
             {
                 auto rsp = lockRegularFileRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error locking regular file %s",
@@ -1758,17 +1775,39 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                     ~file.Path.GetPath());
             }
             {
-                auto rsp = fetchRegularFileRsps[index];
-                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error fetching regular files");
+                auto rsp = getRegularFileNameRsps[index];
+                THROW_ERROR_EXCEPTION_IF_FAILED(
+                    *rsp,
+                    "Error getting file name for regular file %s",
+                    ~file.Path.GetPath());
 
-                if (file.Path.Attributes().Contains("file_name")) {
-                    rsp->set_file_name(file.Path.Attributes().Get<Stroka>("file_name"));
-                }
+                fileName = ConvertTo<Stroka>(TYsonString(rsp->value()));
+            }
+            {
+                auto rsp = getRegularFileAttributesRsps[index];
+                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting attributes for regular file %s",
+                    ~file.Path.GetPath());
+
+                auto node = ConvertToNode(TYsonString(rsp->value()));
+                const auto& attributes = node->Attributes();
+
+                fileName = attributes.Get<Stroka>("file_name", fileName);
+                file.Executable = attributes.Get<bool>("executable", false);
+            }
+            {
+                auto rsp = fetchRegularFileRsps[index];
+                THROW_ERROR_EXCEPTION_IF_FAILED(
+                    *rsp,
+                    "Error fetching regular file %s",
+                    ~file.Path.GetPath());
+
                 file.FetchResponse = rsp;
                 LOG_INFO("File %s attributes received (ChunkId: %s)",
                     ~file.Path.GetPath(),
                     ~TChunkId::FromProto(rsp->chunk_id()).ToString());
             }
+
+            file.FileName = file.Path.Attributes().Get<Stroka>("file_name", fileName);
         }
     }
 
@@ -2186,7 +2225,10 @@ void TOperationControllerBase::InitUserJobSpec(
         ~Operation->GetOperationId().ToString()));
 
     FOREACH (const auto& file, regularFiles) {
-        *jobSpec->add_files() = *file.FetchResponse;
+        auto *regularFile = jobSpec->add_regular_files();
+        *regularFile->mutable_file() = *file.FetchResponse;
+        regularFile->set_executable(file.Executable);
+        regularFile->set_file_name(file.FileName);
     }
 
     FOREACH (const auto& file, tableFiles) {

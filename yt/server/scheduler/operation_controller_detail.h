@@ -185,6 +185,8 @@ protected:
         : public TUserFile
     {
         NFileClient::TFileYPathProxy::TRspFetchFilePtr FetchResponse;
+        bool Executable;
+        Stroka FileName;
     };
 
     std::vector<TRegularUserFile> RegularFiles;

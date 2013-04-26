@@ -202,33 +202,6 @@ private:
         return TBase::DoInvoke(context);
     }
 
-    bool IsExecutable()
-    {
-        return Attributes().Get("executable", false);
-    }
-
-    Stroka GetFileName()
-    {
-        // TODO(ignat): Remake wrapper and then delete this option
-        auto fileName = Attributes().Find<Stroka>("file_name");
-        if (fileName) {
-            return *fileName;
-        }
-
-        auto parent = GetParent();
-        YCHECK(parent);
-        switch (parent->GetType()) {
-            case ENodeType::Map:
-                return parent->AsMap()->GetChildKey(this);
-
-            case ENodeType::List:
-                return ToString(parent->AsList()->GetChildIndex(this));
-
-            default:
-                YUNREACHABLE();
-        }
-    }
-
     DECLARE_RPC_SERVICE_METHOD(NFileClient::NProto, FetchFile)
     {
         UNUSED(request);
@@ -255,13 +228,8 @@ private:
             response->add_node_addresses(address);
         }
 
-        response->set_executable(IsExecutable());
-        response->set_file_name(GetFileName());
-
-        context->SetResponseInfo("ChunkId: %s, FileName: %s, Executable: %s, Addresses: [%s]",
+        context->SetResponseInfo("ChunkId: %s, Addresses: [%s]",
             ~chunkId.ToString(),
-            ~response->file_name(),
-            ~ToString(response->executable()),
             ~JoinToString(addresses));
 
         context->Reply();

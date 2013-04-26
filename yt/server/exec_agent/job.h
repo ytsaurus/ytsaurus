@@ -149,7 +149,7 @@ private:
         const NYT::NScheduler::NProto::TTableFile& rsp);
 
     void OnChunkDownloaded(
-        const NFileClient::NProto::TRspFetchFile& fetchRsp,
+        const NScheduler::NProto::TRegularFile& regularFile,
         TValueOrError<NChunkHolder::TCachedChunkPtr> result);
 
     typedef std::vector< TValueOrError<NChunkHolder::TCachedChunkPtr> > TDownloadedChunks;
