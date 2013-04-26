@@ -966,10 +966,9 @@ void TCypressManager::OnAfterLoaded()
             auto* attributeSet = objectManager->GetOrCreateAttributes(tableNode->GetVersionedId());
             auto& attributes = attributeSet->Attributes();
 
-            if (attributes.find("compression_codec") == attributes.end()) {
-                auto value = MakeNullable(TYsonString(FormatEnum(tableNode->GetCodec())));
-                YCHECK(attributes.insert(std::make_pair("compression_codec", value)).second);
-            }
+            YCHECK(attributes.find("compression_codec") == attributes.end());
+            auto value = MakeNullable(ConvertToYsonString(tableNode->GetCodec()));
+            YCHECK(attributes.insert(std::make_pair("compression_codec", value)).second);
         }
 
         if (TypeFromId(node->GetId()) == EObjectType::File) {
@@ -989,10 +988,9 @@ void TCypressManager::OnAfterLoaded()
                 codecId = NCompression::ECodec(miscExt.compression_codec());
             }
 
-            if (attributes.find("compression_codec") == attributes.end()) {
-                auto value = MakeNullable(TYsonString(FormatEnum(codecId)));
-                YCHECK(attributes.insert(std::make_pair("compression_codec", value)).second);
-            }
+            YCHECK(attributes.find("compression_codec") == attributes.end());
+            auto value = MakeNullable(ConvertToYsonString(codecId));
+            YCHECK(attributes.insert(std::make_pair("compression_codec", value)).second);
         }
     }
 

@@ -131,7 +131,7 @@ public:
         if (!attributes->Contains("compression_codec")) {
             attributes->SetYson(
                 "compression_codec",
-                ConvertTo<TYsonString>(NCompression::ECodec::Lz4));
+                ConvertToYsonString(NCompression::ECodec::Lz4));
         }
     }
 
