@@ -767,8 +767,9 @@ namespace NCrcTable0xE543279765927881
 
         const unsigned char * ptrChar = (const unsigned char *) buf;
 
-        while ((reinterpret_cast<size_t>(ptrChar) & 0x7) && buflen--) {
+        while ((reinterpret_cast<size_t>(ptrChar) & 0x7) && buflen) {
             crcinit = CrcLookup[0][(crcinit ^ *ptrChar++) & 0xFF] ^ (crcinit >> 8);
+            --buflen;
         }
 
         const ui64* ptr = (const ui64 *) ptrChar;
