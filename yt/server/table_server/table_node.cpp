@@ -129,9 +129,10 @@ public:
             attributes->Set("replication_factor", 3);
         }
         if (!attributes->Contains("compression_codec")) {
+            NCompression::ECodec codecId = NCompression::ECodec::Lz4;
             attributes->SetYson(
                 "compression_codec",
-                ConvertToYsonString(NCompression::ECodec::Lz4));
+                ConvertToYsonString(codecId));
         }
     }
 
