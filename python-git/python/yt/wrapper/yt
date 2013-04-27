@@ -64,6 +64,14 @@ def get_structure_writer(env):
     else:
         raise yt.YtError("Incorrect structured format " + option_format)
 
+def exists(args):
+    sys.stdout.write("true" if yt.exists(args.path) else "false")
+
+def add_exists_parser(add_parser):
+    parser = add_parser("exists", help="check path exists")
+    parser.add_argument("path")
+    parser.set_defaults(func=exists)
+
 def list(args):
     if args.format is not None and args.long_format:
         raise yt.YtError("You can't specify --long-format and --structured simultaneously")
@@ -448,6 +456,7 @@ def main():
     def add_parser(*args, **kwargs):
         return subparsers.add_parser(*args, parents=[base_parser], **kwargs)
 
+    add_exists_parser(add_parser)
     add_list_parser(add_parser)
     add_find_parser(add_parser)
     add_create_parser(add_parser)
