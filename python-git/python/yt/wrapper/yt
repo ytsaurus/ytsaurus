@@ -102,7 +102,13 @@ def find(args):
     path_filter = None
     if args.name is not None:
         path_filter = lambda path: fnmatch.fnmatch(os.path.basename(path), args.name)
-    res = yt.search(args.path, node_type=args.type, path_filter=path_filter)
+    
+    fitler_args = ["account", "owner"]
+    attributes = filter(lambda x: vars(args)[x] is not None, fitler_args)
+    object_filter = lambda obj: \
+        all([obj.attributes[attr] == vars(args)[attr] for attr in attributes])
+
+    res = yt.search(args.path, node_type=args.type, path_filter=path_filter, attributes=attributes, object_filter=object_filter)
     for table in res:
         print table
 
@@ -111,6 +117,8 @@ def add_find_parser(add_parser):
     parser.add_argument("path")
     parser.add_argument("--name", "-name")
     parser.add_argument("--type")
+    parser.add_argument("--account")
+    parser.add_argument("--owner")
     parser.set_defaults(func=find)
 
 
