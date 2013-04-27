@@ -1781,7 +1781,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                     "Error getting file name for regular file %s",
                     ~file.Path.GetPath());
 
-                fileName = ConvertTo<Stroka>(TYsonString(rsp->value()));
+                fileName = rsp->value();
             }
             {
                 auto rsp = getRegularFileAttributesRsps[index];
