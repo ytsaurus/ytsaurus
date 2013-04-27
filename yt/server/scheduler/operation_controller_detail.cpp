@@ -1370,7 +1370,8 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::CreateLivePrevie
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
-    TObjectServiceProxy proxy(AuthenticatedMasterChannel);
+    // NB: use root credentials.
+    TObjectServiceProxy proxy(Host->GetMasterChannel());
     auto batchReq = proxy.ExecuteBatch();
 
     auto processTable = [&] (const Stroka& path, const Stroka& key) {
