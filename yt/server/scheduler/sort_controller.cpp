@@ -278,7 +278,7 @@ protected:
 
             auto stripe = BuildIntermediateChunkStripe(resultExt->mutable_chunks());
 
-            RegisterIntermediateChunks(
+            RegisterIntermediate(
                 joblet,
                 stripe,
                 Controller->ShufflePool->GetInput());
@@ -501,7 +501,7 @@ protected:
                 auto* resultExt = joblet->Job->Result().MutableExtension(TSortJobResultExt::sort_job_result_ext);
                 auto stripe = BuildIntermediateChunkStripe(resultExt->mutable_chunks());
 
-                RegisterIntermediateChunks(
+                RegisterIntermediate(
                     joblet,
                     stripe,
                     Partition->SortedMergeTask->GetChunkPoolInput());
@@ -2119,6 +2119,16 @@ private:
             return Spec->Mapper->EnableTableIndex;
 
         return false;
+    }
+
+    virtual bool IsOutputLivePreviewSupported() const override
+    {
+        return true;
+    }
+
+    virtual bool IsIntermediateLivePreviewSupported() const override
+    {
+        return true;
     }
 
     // Resource management.
