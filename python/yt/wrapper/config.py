@@ -1,7 +1,7 @@
 import os
 
 PROXY = ""
-USE_HOSTS = False
+USE_HOSTS = True
 USE_TOKEN = True
 TOKEN = None
 
