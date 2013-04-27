@@ -1433,7 +1433,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::PrepareLivePrevi
 
     auto processTable = [&] (const TLivePreviewTableBase& table, const Stroka& key) {
         auto req = TTableYPathProxy::PrepareForUpdate(FromObjectId(table.LivePreviewTableId));
-        req->set_mode(ETableUpdateMode::Overwrite);
+        req->set_mode(EUpdateMode::Overwrite);
         SetTransactionId(req, Operation->GetAsyncSchedulerTransaction());
         batchReq->AddRequest(req, key);
     };
