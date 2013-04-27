@@ -285,8 +285,8 @@ struct TMultiChunkReaderConfig
     {
         Register("max_buffer_size", MaxBufferSize)
             .GreaterThan(0L)
-            .LessThanOrEqual(10L * 1024 * 1024 * 1024)
-            .Default(256L * 1024 * 1024);
+            .LessThanOrEqual((i64) 10 * 1024 * 1024 * 1024)
+            .Default((i64) 256 * 1024 * 1024);
 
         RegisterValidator([&] () {
             if (MaxBufferSize < 2 * WindowSize) {
