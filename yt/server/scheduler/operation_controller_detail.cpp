@@ -12,6 +12,7 @@
 #include <ytlib/chunk_client/key.h>
 #include <ytlib/chunk_client/schema.h>
 
+#include <ytlib/object_client/object_service_proxy.h>
 #include <ytlib/object_client/object_ypath_proxy.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
@@ -534,7 +535,7 @@ TOperationControllerBase::TOperationControllerBase(
     : Config(config)
     , Host(host)
     , Operation(operation)
-    , ObjectProxy(CreateAuthenticatedChannel(
+    , AuthenticatedMasterChannel(CreateAuthenticatedChannel(
         host->GetMasterChannel(),
         operation->GetAuthenticatedUser()))
     , Logger(OperationLogger)
@@ -1266,7 +1267,8 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::CommitResults()
 
     LOG_INFO("Committing results");
 
-    auto batchReq = ObjectProxy.ExecuteBatch();
+    TObjectServiceProxy proxy(AuthenticatedMasterChannel);
+    auto batchReq = proxy.ExecuteBatch();
 
     FOREACH (auto& table, OutputTables) {
         auto path = FromObjectId(table.ObjectId);
@@ -1368,7 +1370,8 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::CreateLivePrevie
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
-    auto batchReq = ObjectProxy.ExecuteBatch();
+    TObjectServiceProxy proxy(AuthenticatedMasterChannel);
+    auto batchReq = proxy.ExecuteBatch();
 
     auto processTable = [&] (const Stroka& path, const Stroka& key) {
         auto req = TCypressYPathProxy::Create(path);
@@ -1429,7 +1432,9 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::PrepareLivePrevi
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
-    auto batchReq = ObjectProxy.ExecuteBatch();
+    // NB: use root credentials.
+    TObjectServiceProxy proxy(Host->GetMasterChannel());
+    auto batchReq = proxy.ExecuteBatch();
 
     auto processTable = [&] (const TLivePreviewTableBase& table, const Stroka& key) {
         auto req = TTableYPathProxy::PrepareForUpdate(FromObjectId(table.LivePreviewTableId));
@@ -1489,7 +1494,8 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::GetObjectIds()
 
     LOG_INFO("Getting object ids");
 
-    auto batchReq = ObjectProxy.ExecuteBatch();
+    TObjectServiceProxy proxy(AuthenticatedMasterChannel);
+    auto batchReq = proxy.ExecuteBatch();
 
     FOREACH (const auto& table, InputTables) {
         auto req = TObjectYPathProxy::GetId(table.Path.GetPath());
@@ -1547,7 +1553,8 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::GetInputTypes()
 
     LOG_INFO("Getting input object types");
 
-    auto batchReq = ObjectProxy.ExecuteBatch();
+    TObjectServiceProxy proxy(AuthenticatedMasterChannel);
+    auto batchReq = proxy.ExecuteBatch();
 
     FOREACH (const auto& table, InputTables) {
         auto req = TObjectYPathProxy::Get(FromObjectId(table.ObjectId) + "/@type");
@@ -1657,7 +1664,8 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
 
     LOG_INFO("Requesting inputs");
 
-    auto batchReq = ObjectProxy.ExecuteBatch();
+    TObjectServiceProxy proxy(AuthenticatedMasterChannel);
+    auto batchReq = proxy.ExecuteBatch();
 
     FOREACH (const auto& table, InputTables) {
         auto path = FromObjectId(table.ObjectId);

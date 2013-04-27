@@ -24,6 +24,7 @@
 #include <ytlib/file_client/file_ypath_proxy.h>
 
 #include <ytlib/cypress_client/public.h>
+
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/ytree/yson_string.h>
 
@@ -92,7 +93,7 @@ protected:
     IOperationHost* Host;
     TOperation* Operation;
 
-    NObjectClient::TObjectServiceProxy ObjectProxy;
+    NRpc::IChannelPtr AuthenticatedMasterChannel;
     mutable NLog::TTaggedLogger Logger;
 
     TCancelableContextPtr CancelableContext;
