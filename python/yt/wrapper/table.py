@@ -45,7 +45,7 @@ class TablePath(object):
                     YtError("PREFIX '%s' should end with /" % prefix))
             # TODO(ignat): refactor YsonString to fix this hack
             attributes = self.name.attributes
-            self.name = YsonString(prefix + self.name)
+            self.name = YsonString(prefix + self.name if self.name else prefix[:-1])
             self.name.attributes = attributes
 
         attributes = self.name.attributes
