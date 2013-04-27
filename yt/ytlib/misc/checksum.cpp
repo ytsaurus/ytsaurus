@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "checksum.h"
-
+#include <util/digest/crc.h>
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -809,10 +809,17 @@ TChecksum GetChecksumImpl(const void* data, size_t length, TChecksum seed)
     }
 }
 #else
+#ifdef _YT_USE_CRC_8TABLE
 TChecksum GetChecksumImpl(const void* data, size_t length, TChecksum seed)
 {
     return NCrcTable0xE543279765927881::Crc(data, length, seed);
 }
+#else 
+TChecksum GetChecksumImpl(const void* data, size_t length, TChecksum seed)
+{
+    return crc64(data, length, seed);
+}
+#endif
 #endif
 //} // namespace
 

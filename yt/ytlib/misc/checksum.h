@@ -5,8 +5,8 @@
 #include <util/stream/input.h>
 #include <util/stream/output.h>
 
-#define _YT_USE_CRC_8TABLE
-#define _YT_USE_CRC_PCLMUL
+//#define _YT_USE_CRC_8TABLE
+//#define _YT_USE_CRC_PCLMUL
 
 #ifdef _YT_USE_CRC_PCLMUL
 #include <tmmintrin.h>
