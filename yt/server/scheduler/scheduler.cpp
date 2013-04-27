@@ -377,6 +377,8 @@ private:
         }
 
         Jobs.clear();
+
+        std::fill(JobTypeCounters.begin(), JobTypeCounters.end(), 0);
     }
 
 
