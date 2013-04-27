@@ -509,7 +509,7 @@ protected:
     // Round 5:
     // - Prepare live preview tables for update
     NObjectClient::TObjectServiceProxy::TInvExecuteBatch PrepareLivePreviewTablesForUpdate();
-    void OnLiveTablesPreparedForUpdate(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
+    void OnLivePreviewTablesPreparedForUpdate(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
 
     //! Extensibility point for requesting additional info from master.
     virtual void RequestCustomInputs(NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr batchReq);
