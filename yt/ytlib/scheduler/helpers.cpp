@@ -39,6 +39,20 @@ TYPath GetStdErrPath(const TOperationId& operationId, const TJobId& jobId)
         + "/stderr";
 }
 
+TYPath GetLivePreviewOutputPath(const TOperationId& operationId, int tableIndex)
+{
+    return
+        GetOperationPath(operationId)
+        + "/output_" + ToString(tableIndex);
+}
+
+TYPath GetLivePreviewIntermediatePath(const TOperationId& operationId)
+{
+    return
+        GetOperationPath(operationId)
+        + "/intermediate";
+}
+
 bool IsOperationFinished(EOperationState state)
 {
     return

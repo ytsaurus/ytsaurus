@@ -118,10 +118,7 @@ void TUserAttributeDictionary::SetYson(
     const Stroka& key,
     const NYTree::TYsonString& value)
 {
-    auto* attributeSet = ObjectManager->FindAttributes(TVersionedObjectId(ObjectId));
-    if (!attributeSet) {
-        attributeSet = ObjectManager->CreateAttributes(TVersionedObjectId(ObjectId));
-    }
+    auto* attributeSet = ObjectManager->GetOrCreateAttributes(TVersionedObjectId(ObjectId));
     attributeSet->Attributes()[key] = value;
 }
 
@@ -372,7 +369,7 @@ bool TObjectProxyBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* cons
             .Value(Object->GetObjectLockCounter());
         return true;
     }
-    
+
     if (key == "supported_permissions") {
         auto handler = objectManager->GetHandler(Object);
         auto permissions = handler->GetSupportedPermissions();
@@ -394,7 +391,7 @@ bool TObjectProxyBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* cons
                 .Value(acd->Acl());
             return true;
         }
-        
+
         if (key == "owner" && acd->GetOwner()) {
             BuildYsonFluently(consumer)
                 .Value(acd->GetOwner()->GetName());
@@ -570,7 +567,7 @@ TNontemplateNonversionedObjectProxyBase::TNontemplateNonversionedObjectProxyBase
     : TObjectProxyBase(bootstrap, object)
 { }
 
-bool TNontemplateNonversionedObjectProxyBase::IsWriteRequest(IServiceContextPtr context) const 
+bool TNontemplateNonversionedObjectProxyBase::IsWriteRequest(IServiceContextPtr context) const
 {
     DECLARE_YPATH_SERVICE_WRITE_METHOD(Remove);
     return TObjectProxyBase::IsWriteRequest(context);

@@ -45,6 +45,11 @@ public:
     TFuture<void> FinalizeOperationNode(TOperationPtr operation);
 
     void CreateJobNode(TJobPtr job, const NChunkClient::TChunkId& stdErrChunkId);
+    
+    void AttachLivePreviewChunkTree(
+        TOperationPtr operation,
+        const NChunkClient::TChunkListId& chunkListId,
+        const NChunkClient::TChunkTreeId& chunkTreeId);
 
     void AddGlobalWatcherRequester(TWatcherRequester requester);
     void AddGlobalWatcherHandler(TWatcherHandler handler);

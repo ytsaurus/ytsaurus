@@ -89,6 +89,15 @@ message TJobProgress
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TRegularFile
+{
+    required NYT.NFileClient.NProto.TRspFetchFile file = 1;
+
+    required bool executable = 2;
+
+    required string file_name = 3;
+}
+
 message TTableFile
 {
     required NYT.NTableClient.NProto.TRspFetch table = 1;
@@ -102,7 +111,7 @@ message TTableFile
 message TUserJobSpec
 {
     // Additional files to be placed into the sandbox.
-    repeated NYT.NFileClient.NProto.TRspFetchFile files = 1;
+    repeated TRegularFile regular_files = 1;
 
     // Additional tables to be placed into the sandbox.
     repeated TTableFile table_files = 6;

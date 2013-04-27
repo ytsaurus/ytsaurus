@@ -18,6 +18,8 @@
 #include <ytlib/transaction_client/transaction.h>
 #include <ytlib/transaction_client/transaction_ypath_proxy.h>
 
+#include <ytlib/chunk_client/chunk_list_ypath_proxy.h>
+
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
 #include <ytlib/ytree/ypath_proxy.h>
@@ -164,7 +166,32 @@ public:
             ~stdErrChunkId.ToString());
 
         auto* list = GetUpdateList(job->GetOperation());
-        list->PendingJobs.insert(std::make_pair(job, stdErrChunkId));
+        
+        TJobRequest request;
+        request.Job = job;
+        request.StdErrChunkId = stdErrChunkId;
+        list->JobRequests.push_back(request);
+    }
+
+    void AttachLivePreviewChunkTree(
+        TOperationPtr operation,
+        const TChunkListId& chunkListId,
+        const TChunkTreeId& chunkTreeId)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(Connected);
+
+        LOG_DEBUG("Attaching live preview chunk tree (OperationId: %s, ChunkListId: %s, ChunkTreeId: %s)",
+            ~operation->GetOperationId().ToString(),
+            ~chunkListId.ToString(),
+            ~chunkTreeId.ToString());
+
+        auto* list = GetUpdateList(operation);
+
+        TLivePreviewRequest request;
+        request.ChunkListId = chunkListId;
+        request.ChunkTreeId = chunkTreeId;
+        list->LivePreviewRequests.push_back(request);
     }
 
 
@@ -227,6 +254,18 @@ private:
         (Finalized)
     );
 
+    struct TJobRequest
+    {
+        TJobPtr Job;
+        TChunkId StdErrChunkId;
+    };
+
+    struct TLivePreviewRequest
+    {
+        TChunkListId ChunkListId;
+        TChunkTreeId ChunkTreeId;
+    };
+
     struct TUpdateList
     {
         TUpdateList(IChannelPtr masterChannel, TOperationPtr operation)
@@ -238,7 +277,8 @@ private:
         { }
 
         TOperationPtr Operation;
-        yhash_map<TJobPtr, TChunkId> PendingJobs;
+        std::vector<TJobRequest> JobRequests;
+        std::vector<TLivePreviewRequest> LivePreviewRequests;
         EUpdateListState State;
         TPromise<void> FlushedPromise;
         TPromise<void> FinalizedPromise;
@@ -985,33 +1025,70 @@ private:
         PrepareOperationUpdate(operation, batchReq);
 
         // Create jobs.
-        FOREACH (const auto& pair, list->PendingJobs) {
-            auto job = pair.first;
-            auto chunkId = pair.second;
-            auto jobPath = GetJobPath(operation->GetOperationId(), job->GetId());
-            auto req = TYPathProxy::Set(jobPath);
-            req->set_value(BuildJobYson(job).Data());
-            batchReq->AddRequest(req);
-
-            if (chunkId != NullChunkId) {
-                auto stdErrPath = GetStdErrPath(operation->GetOperationId(), job->GetId());
-
-                auto req = TCypressYPathProxy::Create(stdErrPath);
-                GenerateRpcMutationId(req);
-                req->set_type(EObjectType::File);
-
-                auto attributes = CreateEphemeralAttributes();
-                attributes->Set("replication_factor", 1);
-                attributes->Set("account", TmpAccountName);
-                ToProto(req->mutable_node_attributes(), *attributes);
-
-                auto* reqExt = req->MutableExtension(NFileClient::NProto::TReqCreateFileExt::create_file);
-                *reqExt->mutable_chunk_id() = chunkId.ToProto();
-
+        {
+            auto& requests = list->JobRequests;
+            FOREACH (const auto& request, requests) {
+                auto job = request.Job;
+                auto operation = job->GetOperation();
+                auto jobPath = GetJobPath(operation->GetOperationId(), job->GetId());
+                auto req = TYPathProxy::Set(jobPath);
+                req->set_value(BuildJobYson(job).Data());
                 batchReq->AddRequest(req);
+
+                if (request.StdErrChunkId != NullChunkId) {
+                    auto stdErrPath = GetStdErrPath(operation->GetOperationId(), job->GetId());
+
+                    auto req = TCypressYPathProxy::Create(stdErrPath);
+                    GenerateRpcMutationId(req);
+                    req->set_type(EObjectType::File);
+
+                    auto attributes = CreateEphemeralAttributes();
+                    attributes->Set("replication_factor", 1);
+                    attributes->Set("account", TmpAccountName);
+                    ToProto(req->mutable_node_attributes(), *attributes);
+
+                    auto* reqExt = req->MutableExtension(NFileClient::NProto::TReqCreateFileExt::create_file);
+                    *reqExt->mutable_chunk_id() = request.StdErrChunkId.ToProto();
+
+                    batchReq->AddRequest(req);
+                }
             }
+            requests.clear();
         }
-        list->PendingJobs.clear();
+
+        // Attach live preview chunks.
+        {
+            auto& requests = list->LivePreviewRequests;
+
+            // Sort by chunk list.
+            std::sort(
+                requests.begin(),
+                requests.end(),
+                [] (const TLivePreviewRequest& lhs, const TLivePreviewRequest& rhs) {
+                    return lhs.ChunkListId < rhs.ChunkListId;
+                });
+
+            // Group by chunk list.
+            int rangeBegin = 0;
+            while (rangeBegin < static_cast<int>(requests.size())) {
+                int rangeEnd = rangeBegin; // non-inclusive
+                while (rangeEnd < static_cast<int>(requests.size()) &&
+                       requests[rangeBegin].ChunkListId == requests[rangeEnd].ChunkListId)
+                {
+                    ++rangeEnd;
+                }
+
+                auto req = TChunkListYPathProxy::Attach(FromObjectId(requests[rangeBegin].ChunkListId));
+                GenerateRpcMutationId(req);
+                for (int index = rangeBegin; index < rangeEnd; ++index) {
+                    *req->add_children_ids() = requests[index].ChunkTreeId.ToProto();
+                }
+                batchReq->AddRequest(req);
+
+                rangeBegin = rangeEnd;
+            }
+            requests.clear();
+        }
     }
 
 
@@ -1250,6 +1327,14 @@ TFuture<void> TMasterConnector::FinalizeOperationNode(TOperationPtr operation)
 void TMasterConnector::CreateJobNode(TJobPtr job, const TChunkId& stdErrChunkId)
 {
     return Impl->CreateJobNode(job, stdErrChunkId);
+}
+
+void TMasterConnector::AttachLivePreviewChunkTree(
+    TOperationPtr operation,
+    const TChunkListId& chunkListId,
+    const TChunkTreeId& chunkTreeId)
+{
+    Impl->AttachLivePreviewChunkTree(operation, chunkListId, chunkTreeId);
 }
 
 void TMasterConnector::AddGlobalWatcherRequester(TWatcherRequester requester)

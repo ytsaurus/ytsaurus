@@ -377,6 +377,8 @@ private:
         }
 
         Jobs.clear();
+
+        std::fill(JobTypeCounters.begin(), JobTypeCounters.end(), 0);
     }
 
 
@@ -628,6 +630,8 @@ private:
 
             auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction);
             reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
+            reqExt->set_enable_uncommitted_accounting(false);
+            reqExt->set_enable_staged_accounting(false);
 
             auto attributes = CreateEphemeralAttributes();
             attributes->Set("title", Sprintf("Scheduler async for operation %s",

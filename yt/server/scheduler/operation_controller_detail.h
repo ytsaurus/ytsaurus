@@ -16,12 +16,15 @@
 #include <ytlib/actions/async_pipeline.h>
 #include <ytlib/actions/cancelable_context.h>
 
+#include <ytlib/chunk_client/chunk_owner_ypath_proxy.h>
+
 #include <ytlib/table_client/table_ypath_proxy.h>
 #include <ytlib/table_client/config.h>
 
 #include <ytlib/file_client/file_ypath_proxy.h>
 
 #include <ytlib/cypress_client/public.h>
+
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/ytree/yson_string.h>
 
@@ -90,7 +93,7 @@ protected:
     IOperationHost* Host;
     TOperation* Operation;
 
-    NObjectClient::TObjectServiceProxy ObjectProxy;
+    NRpc::IChannelPtr AuthenticatedMasterChannel;
     mutable NLog::TTaggedLogger Logger;
 
     TCancelableContextPtr CancelableContext;
@@ -110,14 +113,24 @@ protected:
     TProgressCounter JobCounter;
 
 
-    struct TTableBase
+    struct TUserTableBase
     {
         NYPath::TRichYPath Path;
         NObjectClient::TObjectId ObjectId;
     };
 
+    struct TLivePreviewTableBase
+    {
+        // Live preview table id.
+        NCypressClient::TNodeId LivePreviewTableId;
+
+        // Chunk list for appending live preview results.
+        NChunkClient::TChunkListId LivePreviewChunkListId;
+    };
+
+
     struct TInputTable
-        : public TTableBase
+        : public TUserTableBase
     {
         TInputTable()
             : ComplementFetch(false)
@@ -132,7 +145,8 @@ protected:
 
 
     struct TOutputTable
-        : public TTableBase
+        : public TUserTableBase
+        , public TLivePreviewTableBase
     {
         TOutputTable()
             : Clear(false)
@@ -168,6 +182,13 @@ protected:
     std::vector<TOutputTable> OutputTables;
 
 
+    struct TIntermediateTable
+        : public TLivePreviewTableBase
+    { };
+
+    TIntermediateTable IntermediateTable;
+
+
     //! Describes which part of the operation needs a particular file.
     DECLARE_ENUM(EOperationStage,
         (Map)
@@ -185,6 +206,8 @@ protected:
         : public TUserFile
     {
         NFileClient::TFileYPathProxy::TRspFetchFilePtr FetchResponse;
+        bool Executable;
+        Stroka FileName;
     };
 
     std::vector<TRegularUserFile> RegularFiles;
@@ -380,7 +403,7 @@ protected:
             NScheduler::NProto::TJobSpec* jobSpec,
             TJobletPtr joblet);
 
-        void RegisterIntermediateChunks(
+        void RegisterIntermediate(
             TJobletPtr joblet,
             TChunkStripePtr stripe,
             IChunkPoolInput* destinationPool);
@@ -458,14 +481,12 @@ protected:
     // - Get input table ids
     // - Get output table ids
     NObjectClient::TObjectServiceProxy::TInvExecuteBatch GetObjectIds();
-
     void OnObjectIdsReceived(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
 
     // Round 2:
     // - Request file types
     // - Check that input and output are tables
     NObjectClient::TObjectServiceProxy::TInvExecuteBatch GetInputTypes();
-
     void OnInputTypesReceived(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
 
     // Round 3:
@@ -478,8 +499,17 @@ protected:
     // - (Custom)
 
     NObjectClient::TObjectServiceProxy::TInvExecuteBatch RequestInputs();
-
     void OnInputsReceived(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
+
+    // Round 4:
+    // - Create live preview tables, if needed
+    NObjectClient::TObjectServiceProxy::TInvExecuteBatch CreateLivePreviewTables();
+    void OnLivePreviewTablesCreated(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
+
+    // Round 5:
+    // - Prepare live preview tables for update
+    NObjectClient::TObjectServiceProxy::TInvExecuteBatch PrepareLivePreviewTablesForUpdate();
+    void OnLivePreviewTablesPreparedForUpdate(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
 
     //! Extensibility point for requesting additional info from master.
     virtual void RequestCustomInputs(NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr batchReq);
@@ -540,6 +570,9 @@ protected:
     void OnInputChunkFailed(const NChunkClient::TChunkId& chunkId);
 
 
+    virtual bool IsOutputLivePreviewSupported() const;
+    virtual bool IsIntermediateLivePreviewSupported() const;
+
     void AbortTransactions();
 
     void OnOperationCompleted();
@@ -572,6 +605,10 @@ protected:
     void RegisterOutput(
         TJobletPtr joblet,
         int key);
+
+    void RegisterIntermediate(
+        TCompleteJobPtr completedJob,
+        TChunkStripePtr stripe);
 
     bool HasEnoughChunkLists(int requestedCount);
     NChunkClient::TChunkListId ExtractChunkList();

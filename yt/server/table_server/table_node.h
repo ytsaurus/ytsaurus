@@ -3,6 +3,7 @@
 #include <ytlib/misc/property.h>
 
 #include <ytlib/table_client/table_ypath_proxy.h>
+#include <ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 
 #include <server/cypress_server/node_detail.h>
 
@@ -19,7 +20,7 @@ class TTableNode
     : public NCypressServer::TCypressNodeBase
 {
     DEFINE_BYVAL_RW_PROPERTY(NChunkServer::TChunkList*, ChunkList);
-    DEFINE_BYVAL_RW_PROPERTY(NTableClient::ETableUpdateMode, UpdateMode);
+    DEFINE_BYVAL_RW_PROPERTY(NChunkClient::EUpdateMode, UpdateMode);
     DEFINE_BYVAL_RW_PROPERTY(int, ReplicationFactor);
     DEFINE_BYVAL_RW_PROPERTY(NCompression::ECodec, Codec);
 

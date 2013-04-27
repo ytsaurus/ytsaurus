@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "sync_writer.h"
+#include "table_ypath_proxy.h"
 
 #include <ytlib/misc/thread_affinity.h>
 
@@ -13,8 +14,7 @@
 #include <ytlib/object_client/object_service_proxy.h>
 
 #include <ytlib/chunk_client/public.h>
-
-#include <ytlib/table_client/table_ypath_proxy.h>
+#include <ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 
 #include <ytlib/ypath/rich.h>
 

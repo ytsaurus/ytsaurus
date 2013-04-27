@@ -436,7 +436,6 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attribut
     attributes->push_back("chunk_list_id");
     attributes->push_back(TAttributeInfo("chunk_ids", true, true));
     attributes->push_back(TAttributeInfo("compression_statistics", true, true));
-    attributes->push_back("compression_codec");
     attributes->push_back("chunk_count");
     attributes->push_back("uncompressed_data_size");
     attributes->push_back("compressed_data_size");
@@ -521,12 +520,6 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consu
         return true;
     }
 
-    if (key == "compression_codec") {
-        BuildYsonFluently(consumer)
-            .Value(FormatEnum(node->GetTrunkNode()->GetCodec()));
-        return true;
-    }
-
     return TBase::GetSystemAttribute(key, consumer);
 }
 
@@ -568,6 +561,14 @@ void TTableNodeProxy::ValidateUserAttributeUpdate(
         ConvertTo<TChannels>(newValue.Get());
         return;
     }
+
+    if (key == "compression_codec") {
+        if (!newValue) {
+            ThrowCannotRemoveAttribute(key);
+        }
+        ParseEnum<NCompression::ECodec>(ConvertTo<Stroka>(newValue.Get()));
+        return;
+    }
 }
 
 bool TTableNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& value)
@@ -602,32 +603,22 @@ bool TTableNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& v
         return true;
     }
 
-    if (key == "compression_codec") {
-        ValidateNoTransaction();
-
-        auto* node = GetThisTypedImpl();
-        YCHECK(node->IsTrunk());
-        auto codecName = ConvertTo<Stroka>(value);
-        node->SetCodec(ParseEnum<NCompression::ECodec>(codecName));
-        return true;
-    }
-
     return TBase::SetSystemAttribute(key, value);
 }
 
 DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, PrepareForUpdate)
 {
-    auto mode = ETableUpdateMode(request->mode());
-    YCHECK(mode == ETableUpdateMode::Append || mode == ETableUpdateMode::Overwrite);
+    auto mode = NChunkClient::EUpdateMode(request->mode());
+    YCHECK(mode == NChunkClient::EUpdateMode::Append || mode == NChunkClient::EUpdateMode::Overwrite);
 
     context->SetRequestInfo("Mode: %s", ~mode.ToString());
 
     ValidateTransaction();
     ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
 
-    auto* node = LockThisTypedImpl(mode == ETableUpdateMode::Append ? ELockMode::Shared : ELockMode::Exclusive);
+    auto* node = LockThisTypedImpl(mode == NChunkClient::EUpdateMode::Append ? ELockMode::Shared : ELockMode::Exclusive);
 
-    if (node->GetUpdateMode() != ETableUpdateMode::None) {
+    if (node->GetUpdateMode() != NChunkClient::EUpdateMode::None) {
         THROW_ERROR_EXCEPTION("Node is already in %s mode",
             ~FormatEnum(node->GetUpdateMode()).Quote());
     }
@@ -637,7 +628,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, PrepareForUpdate)
 
     TChunkList* resultChunkList;
     switch (mode) {
-        case ETableUpdateMode::Append: {
+        case NChunkClient::EUpdateMode::Append: {
             auto* snapshotChunkList = node->GetChunkList();
 
             auto* newChunkList = chunkManager->CreateChunkList();
@@ -665,7 +656,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, PrepareForUpdate)
             break;
         }
 
-        case ETableUpdateMode::Overwrite: {
+        case NChunkClient::EUpdateMode::Overwrite: {
             auto* oldChunkList = node->GetChunkList();
             YCHECK(oldChunkList->OwningNodes().erase(node) == 1);
             objectManager->UnrefObject(oldChunkList);
@@ -742,7 +733,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, SetSorted)
 
     auto* node = LockThisTypedImpl();
 
-    if (node->GetUpdateMode() != ETableUpdateMode::Overwrite) {
+    if (node->GetUpdateMode() != NChunkClient::EUpdateMode::Overwrite) {
         THROW_ERROR_EXCEPTION("Table node must be in overwrite mode");
     }
 

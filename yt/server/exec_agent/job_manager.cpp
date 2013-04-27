@@ -183,8 +183,6 @@ void TJobManager::CreateJob(
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    auto slot = GetFreeSlot();
-
     LOG_INFO("Creating job (JobId: %s)", ~jobId.ToString());
 
     auto job = New<TJob>(

@@ -239,14 +239,14 @@ void TJob::PrepareUserJob(TParallelAwaiterPtr awaiter)
 {
     YCHECK(UserJobSpec);
 
-    FOREACH (const auto& fetchRsp, UserJobSpec->files()) {
-        auto chunkId = TChunkId::FromProto(fetchRsp.chunk_id());
+    FOREACH (const auto& regularFile, UserJobSpec->regular_files()) {
+        auto chunkId = TChunkId::FromProto(regularFile.file().chunk_id());
         LOG_INFO("Downloading user file (FileName: %s, ChunkId: %s)",
-            ~fetchRsp.file_name(),
+            ~regularFile.file_name(),
             ~chunkId.ToString());
         awaiter->Await(
             ChunkCache->DownloadChunk(chunkId),
-            BIND(&TJob::OnChunkDownloaded, MakeWeak(this), fetchRsp));
+            BIND(&TJob::OnChunkDownloaded, MakeWeak(this), regularFile));
     }
 
     FOREACH (const auto& rsp, UserJobSpec->table_files()) {
@@ -256,7 +256,7 @@ void TJob::PrepareUserJob(TParallelAwaiterPtr awaiter)
 }
 
 void TJob::OnChunkDownloaded(
-    const NFileClient::NProto::TRspFetchFile& fetchRsp,
+    const NScheduler::NProto::TRegularFile& regularFile,
     NChunkHolder::TChunkCache::TDownloadResult result)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
@@ -266,7 +266,7 @@ void TJob::OnChunkDownloaded(
 
     YCHECK(JobPhase == EJobPhase::PreparingSandbox);
 
-    auto fileName = fetchRsp.file_name();
+    auto fileName = regularFile.file_name();
 
     if (!result.IsOK()) {
         auto wrappedError = TError(
@@ -283,7 +283,7 @@ void TJob::OnChunkDownloaded(
         Slot->MakeLink(
             fileName,
             CachedChunks.back()->GetFileName(),
-            fetchRsp.executable());
+            regularFile.executable());
     } catch (const std::exception& ex) {
         auto wrappedError = TError(
             "Failed to create a symlink for %s",

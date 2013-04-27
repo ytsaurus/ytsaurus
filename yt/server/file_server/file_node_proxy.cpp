@@ -72,7 +72,6 @@ private:
         attributes->push_back(TAttributeInfo("size", hasChunk));
         attributes->push_back(TAttributeInfo("compressed_size", hasChunk));
         attributes->push_back(TAttributeInfo("compression_ratio", hasChunk));
-        attributes->push_back(TAttributeInfo("compression_codec", hasChunk));
         attributes->push_back("chunk_list_id");
         attributes->push_back(TAttributeInfo("chunk_id", hasChunk));
         attributes->push_back("replication_factor");
@@ -107,13 +106,6 @@ private:
                     static_cast<double>(statistics.CompressedDataSize) / statistics.UncompressedDataSize : 0;
                 BuildYsonFluently(consumer)
                     .Value(ratio);
-                return true;
-            }
-
-            if (key == "compression_codec") {
-                auto codecId = NCompression::ECodec(miscExt.compression_codec());
-                BuildYsonFluently(consumer)
-                    .Value(CamelCaseToUnderscoreCase(codecId.ToString()));
                 return true;
             }
 
@@ -155,6 +147,14 @@ private:
             // File name must be string.
             // ToDo(psushin): write more sophisticated validation.
             ConvertTo<Stroka>(*newValue);
+            return;
+        }
+
+        if (key == "compression_codec") {
+            if (!newValue) {
+                ThrowCannotRemoveAttribute(key);
+            }
+            ParseEnum<NCompression::ECodec>(ConvertTo<Stroka>(newValue.Get()));
             return;
         }
     }
@@ -202,33 +202,6 @@ private:
         return TBase::DoInvoke(context);
     }
 
-    bool IsExecutable()
-    {
-        return Attributes().Get("executable", false);
-    }
-
-    Stroka GetFileName()
-    {
-        // TODO(ignat): Remake wrapper and then delete this option
-        auto fileName = Attributes().Find<Stroka>("file_name");
-        if (fileName) {
-            return *fileName;
-        }
-
-        auto parent = GetParent();
-        YCHECK(parent);
-        switch (parent->GetType()) {
-            case ENodeType::Map:
-                return parent->AsMap()->GetChildKey(this);
-
-            case ENodeType::List:
-                return ToString(parent->AsList()->GetChildIndex(this));
-
-            default:
-                YUNREACHABLE();
-        }
-    }
-
     DECLARE_RPC_SERVICE_METHOD(NFileClient::NProto, FetchFile)
     {
         UNUSED(request);
@@ -255,13 +228,8 @@ private:
             response->add_node_addresses(address);
         }
 
-        response->set_executable(IsExecutable());
-        response->set_file_name(GetFileName());
-
-        context->SetResponseInfo("ChunkId: %s, FileName: %s, Executable: %s, Addresses: [%s]",
+        context->SetResponseInfo("ChunkId: %s, Addresses: [%s]",
             ~chunkId.ToString(),
-            ~response->file_name(),
-            ~ToString(response->executable()),
             ~JoinToString(addresses));
 
         context->Reply();
@@ -276,7 +244,7 @@ private:
 
         auto* node = LockThisTypedImpl();
 
-        if (node->GetUpdateMode() != EFileUpdateMode::None) {
+        if (node->GetUpdateMode() != NChunkClient::EUpdateMode::None) {
             THROW_ERROR_EXCEPTION("Node is already in %s mode",
                 ~FormatEnum(node->GetUpdateMode()).Quote());
         }
@@ -297,7 +265,7 @@ private:
             ~node->GetId().ToString(),
             ~newChunkList->GetId().ToString());
 
-        node->SetUpdateMode(EFileUpdateMode::Overwrite);
+        node->SetUpdateMode(NChunkClient::EUpdateMode::Overwrite);
 
         SetModified();
 

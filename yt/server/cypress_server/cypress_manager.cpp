@@ -19,6 +19,14 @@
 
 #include <server/object_server/type_handler_detail.h>
 
+//COMPAT(psushin)
+// See OnAfterLoaded. Remove this block of includes when not needed.
+#include <server/table_server/table_node.h>
+#include <server/file_server/file_node.h>
+#include <server/chunk_server/chunk.h>
+#include <server/chunk_server/chunk_list.h>
+#include <ytlib/chunk_client/chunk_meta_extensions.h>
+
 #include <server/security_server/account.h>
 #include <server/security_server/group.h>
 #include <server/security_server/user.h>
@@ -946,7 +954,46 @@ void TCypressManager::OnAfterLoaded()
             }
         }
     }
-    
+
+    // COMPAT(psushin)
+    // Make compression_codec user attribute for files and tables.
+    auto objectManager = Bootstrap->GetObjectManager();
+
+    FOREACH (const auto& pair, NodeMap) {
+        auto* node = pair.second;
+        if (TypeFromId(node->GetId()) == EObjectType::Table) {
+            auto* tableNode = static_cast<NTableServer::TTableNode*>(node);
+            auto* attributeSet = objectManager->GetOrCreateAttributes(tableNode->GetVersionedId());
+            auto& attributes = attributeSet->Attributes();
+
+            YCHECK(attributes.find("compression_codec") == attributes.end());
+            auto value = MakeNullable(ConvertToYsonString(tableNode->GetCodec()));
+            YCHECK(attributes.insert(std::make_pair("compression_codec", value)).second);
+        }
+
+        if (TypeFromId(node->GetId()) == EObjectType::File) {
+            auto* fileNode = static_cast<NFileServer::TFileNode*>(node);
+            auto* attributeSet = objectManager->GetOrCreateAttributes(fileNode->GetVersionedId());
+            auto& attributes = attributeSet->Attributes();
+
+            const auto* chunkList = fileNode->GetChunkList();
+            YCHECK(chunkList->Children().size() <= 1);
+
+            NCompression::ECodec codecId;
+            if (chunkList->Children().empty()) {
+                codecId = NCompression::ECodec::None;
+            } else {
+                const auto* chunk = chunkList->Children()[0]->AsChunk();
+                auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunk->ChunkMeta().extensions());
+                codecId = NCompression::ECodec(miscExt.compression_codec());
+            }
+
+            YCHECK(attributes.find("compression_codec") == attributes.end());
+            auto value = MakeNullable(ConvertToYsonString(codecId));
+            YCHECK(attributes.insert(std::make_pair("compression_codec", value)).second);
+        }
+    }
+
     InitBuiltin();
 }
 
@@ -1123,7 +1170,7 @@ void TCypressManager::ListSubtreeNodes(
     auto transactionManager = Bootstrap->GetTransactionManager();
 
     if (includeRoot) {
-        subtreeNodes->push_back(trunkNode);  
+        subtreeNodes->push_back(trunkNode);
     }
 
     switch (trunkNode->GetType()) {

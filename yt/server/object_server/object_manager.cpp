@@ -278,7 +278,7 @@ TObjectManager::TObjectManager(
     }
 
     RegisterHandler(CreateMasterTypeHandler(Bootstrap));
-    
+
     RegisterMethod(BIND(&TObjectManager::ReplayVerb, Unretained(this)));
     RegisterMethod(BIND(&TObjectManager::DestroyObjects, Unretained(this)));
 
@@ -345,7 +345,7 @@ IObjectProxyPtr TObjectManager::GetSchemaProxy(EObjectType type)
 
     int typeValue = static_cast<int>(type);
     YCHECK(typeValue >= 0 && typeValue <= MaxObjectType);
-    
+
     const auto& entry = TypeToEntry[typeValue];
     YCHECK(entry.SchemaProxy);
     return entry.SchemaProxy;
@@ -621,7 +621,7 @@ void TObjectManager::DoClear()
 void TObjectManager::Clear()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
-    
+
     DoClear();
 }
 
@@ -683,6 +683,18 @@ IObjectProxyPtr TObjectManager::GetProxy(
     }
 
     return handler->GetProxy(object, transaction);
+}
+
+TAttributeSet* TObjectManager::GetOrCreateAttributes(const TVersionedObjectId& id)
+{
+    VERIFY_THREAD_AFFINITY(StateThread);
+
+    auto* userAttributes = FindAttributes(id);
+    if (!userAttributes) {
+        userAttributes = CreateAttributes(id);
+    }
+
+    return userAttributes;
 }
 
 TAttributeSet* TObjectManager::CreateAttributes(const TVersionedObjectId& id)
@@ -921,10 +933,7 @@ TObjectBase* TObjectManager::CreateObject(
     auto attributeKeys = attributes->List();
     if (!attributeKeys.empty()) {
         // Copy attributes. Quick and dirty.
-        auto* attributeSet = FindAttributes(TVersionedObjectId(objectId));
-        if (!attributeSet) {
-            attributeSet = CreateAttributes(TVersionedObjectId(objectId));
-        }
+        auto* attributeSet = GetOrCreateAttributes(TVersionedObjectId(objectId));
 
         FOREACH (const auto& key, attributeKeys) {
             YCHECK(attributeSet->Attributes().insert(std::make_pair(
@@ -1032,7 +1041,7 @@ void TObjectManager::OnProfiling()
     Profiler.Enqueue("/created_object_count", CreatedObjectCount);
     Profiler.Enqueue("/destroyed_object_count", DestroyedObjectCount);
     Profiler.Enqueue("/locked_object_count", LockedObjectCount);
-    
+
     ProfilingInvoker->ScheduleNext();
 }
 
