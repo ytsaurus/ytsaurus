@@ -628,7 +628,7 @@ TFuture<TError> TOperationControllerBase::Prepare()
         ->Add(BIND(&TThis::CreateLivePreviewTables, this_))
         ->Add(BIND(&TThis::OnLivePreviewTablesCreated, this_))
         ->Add(BIND(&TThis::PrepareLivePreviewTablesForUpdate, this_))
-        ->Add(BIND(&TThis::OnLiveTablesPreparedForUpdate, this_))
+        ->Add(BIND(&TThis::OnLivePreviewTablesPreparedForUpdate, this_))
         ->Add(BIND(&TThis::CompletePreparation, this_));
      pipeline = CustomizePreparationPipeline(pipeline);
      return pipeline
@@ -1461,7 +1461,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::PrepareLivePrevi
     return batchReq->Invoke();
 }
 
-void TOperationControllerBase::OnLiveTablesPreparedForUpdate(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+void TOperationControllerBase::OnLivePreviewTablesPreparedForUpdate(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
@@ -1482,7 +1482,7 @@ void TOperationControllerBase::OnLiveTablesPreparedForUpdate(TObjectServiceProxy
     }
 
     if (IsIntermediateLivePreviewSupported()) {
-        auto rsp = batchRsp->GetResponse<TTableYPathProxy::TRspPrepareForUpdate>("create_intermediate");
+        auto rsp = batchRsp->GetResponse<TTableYPathProxy::TRspPrepareForUpdate>("prepare_intermediate");
         processTable(IntermediateTable, rsp);
 
         LOG_INFO("Intermediate live preview table prepared for update");
