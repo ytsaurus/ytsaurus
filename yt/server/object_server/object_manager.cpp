@@ -813,11 +813,7 @@ void TObjectManager::ExecuteVerb(
                 }
             }))
             ->OnSuccess(BIND([=] (const TMutationResponse& response) {
-                auto responseMessage =
-                    response.Applied
-                    ? wrappedContext->GetResponseMessage()
-                    : UnpackMessage(response.Data);
-                context->Reply(responseMessage);
+                context->Reply(wrappedContext->GetResponseMessage());
             }))
             ->OnError(CreateRpcErrorHandler(context))
             ->Commit();

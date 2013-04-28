@@ -307,8 +307,28 @@ public:
                 "No active quorum")));
         }
 
+        if (request.Id != NullMutationId) {
+            auto response = FindKeptResponse(request.Id);
+            if (response) {
+                return MakeFuture(TValueOrError<TMutationResponse>(*response));
+            }
+        }
+
         return epochContext->LeaderCommitter->Commit(request)
             .Apply(BIND(&TThis::OnMutationCommitted, MakeStrong(this)));
+    }
+
+    virtual TNullable<TMutationResponse> FindKeptResponse(const TMutationId& mutationId) override
+    {
+        TSharedRef responseData;
+        if (!DecoratedState->FindKeptResponse(mutationId, &responseData))
+            return Null;
+
+        LOG_DEBUG("Kept response returned (MutationId: %s)", ~ToString(mutationId));
+        
+        TMutationResponse response;
+        response.Data = std::move(responseData);
+        return response;
     }
 
     virtual TMutationContext* GetMutationContext() override

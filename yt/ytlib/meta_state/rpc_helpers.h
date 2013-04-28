@@ -5,6 +5,7 @@
 #include <ytlib/misc/error.h>
 
 #include <ytlib/rpc/public.h>
+#include <ytlib/rpc/rpc.pb.h>
 
 namespace NYT {
 namespace NMetaState {
@@ -20,6 +21,7 @@ TCallback<void (const TError& error)> CreateRpcErrorHandler(TIntrusivePtr<TConte
 NMetaState::TMutationId GenerateMutationId();
 
 TMutationId GetMutationId(NRpc::IServiceContextPtr context);
+TMutationId GetMutationId(const NRpc::NProto::TRequestHeader& header);
 
 void GenerateMutationId(NRpc::IClientRequestPtr request);
 void SetMutationId(NRpc::IClientRequestPtr request, const TMutationId& id);

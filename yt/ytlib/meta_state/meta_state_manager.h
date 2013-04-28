@@ -62,7 +62,7 @@ struct IMetaStateManager
     //! Returns the cell manager.
     virtual NElection::TCellManagerPtr GetCellManager() const = 0;
 
-    //! Commits the mutation.
+    //! Commits a mutation.
     /*!
      *  If the peer is not the leader then #ECommitResult::InvalidStatus is returned.
      *  If the peer is the leader but has no active quorum, then #ECommitResult::NotCommitted is returned.
@@ -76,6 +76,10 @@ struct IMetaStateManager
      *  \note Thread affinity: StateThread
      */
     virtual TFuture< TValueOrError<TMutationResponse> > CommitMutation(const TMutationRequest& request) = 0;
+
+    //! Finds the response for an earlier-committed mutation with a given id.
+    //! Returns |Null| if nothing is found.
+    virtual TNullable<TMutationResponse> FindKeptResponse(const TMutationId& mutationId) = 0;
 
     //! Returns the current mutation context or NULL if no mutation is currently being applied.
     /*!

@@ -33,11 +33,6 @@ struct TMutationRequest
 
 struct TMutationResponse
 {
-    TMutationResponse()
-        : Applied(false)
-    { }
-
-    bool Applied;
     TSharedRef Data;
 };
 

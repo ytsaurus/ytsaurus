@@ -14,6 +14,8 @@
 #include <ytlib/security_client/public.h>
 #include <ytlib/security_client/rpc_helpers.h>
 
+#include <ytlib/meta_state/rpc_helpers.h>
+
 #include <server/transaction_server/transaction.h>
 #include <server/transaction_server/transaction_manager.h>
 
@@ -86,7 +88,11 @@ private:
             auto startTime = TInstant::Now();
             auto& request = Context->Request();
             const auto& attachments = request.Attachments();
-            auto rootService = Owner->Bootstrap->GetObjectManager()->GetRootService();
+            
+            auto objectManager = Owner->Bootstrap->GetObjectManager();
+            auto rootService = objectManager->GetRootService();
+
+            auto metaStateManager = Owner->Bootstrap->GetMetaStateFacade()->GetManager();
 
             auto awaiter = Awaiter;
             if (!awaiter)
@@ -122,18 +128,32 @@ private:
 
                 const auto& path = requestHeader.path();
                 const auto& verb = requestHeader.verb();
+                auto mutationId = GetMutationId(requestHeader);
+
+                LOG_DEBUG("Execute[%d] <- %s %s (MutationId: %s)",
+                    CurrentRequestIndex,
+                    ~verb,
+                    ~path,
+                    ~ToString(mutationId));
 
                 if (AtomicGet(ReplyLock) != 0)
                     return;
 
-                LOG_DEBUG("Execute[%d] <- %s %s",
-                    CurrentRequestIndex,
-                    ~verb,
-                    ~path);
+                bool foundKeptResponse = false;
+                if (mutationId != NullMutationId) {
+                    auto keptResponse = metaStateManager->FindKeptResponse(mutationId);
+                    if (keptResponse) {
+                        auto responseMessage = UnpackMessage(keptResponse->Data);
+                        OnResponse(CurrentRequestIndex, std::move(responseMessage));
+                        foundKeptResponse = true;
+                    }
+                }
 
-                awaiter->Await(
-                    ExecuteVerb(rootService, requestMessage),
-                    BIND(&TExecuteSession::OnResponse, MakeStrong(this), CurrentRequestIndex));
+                if (!foundKeptResponse) {
+                    awaiter->Await(
+                        ExecuteVerb(rootService, requestMessage),
+                        BIND(&TExecuteSession::OnResponse, MakeStrong(this), CurrentRequestIndex));
+                }
 
                 ++CurrentRequestIndex;
                 CurrentRequestPartIndex += partCount;

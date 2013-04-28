@@ -300,17 +300,6 @@ TFuture< TValueOrError<TMutationResponse> > TLeaderCommitter::Commit(const TMuta
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    if (request.Id != NullMutationId) {
-        TSharedRef responseData;
-        if (DecoratedState->FindKeptResponse(request.Id, &responseData)) {
-            LOG_DEBUG("Kept response returned (MutationId: %s)", ~ToString(request.Id));
-            TMutationResponse response;
-            response.Applied = false;
-            response.Data = responseData;
-            return MakeFuture(TValueOrError<TMutationResponse>(response));
-        }
-    }
-
     auto timestamp = TInstant::Now();
     auto randomSeed = RandomNumber<ui64>();
 
@@ -346,8 +335,7 @@ TFuture< TValueOrError<TMutationResponse> > TLeaderCommitter::Commit(const TMuta
         return batchResult.Apply(BIND([=] (TError error) -> TValueOrError<TMutationResponse> {
             if (error.IsOK()) {
                 TMutationResponse response;
-                response.Applied = true;
-                response.Data = responseData;
+                response.Data = std::move(responseData);
                 return response;
             } else {
                 return error;

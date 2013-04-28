@@ -2,6 +2,7 @@
 #include "rpc_helpers.h"
 
 #include <ytlib/ytree/attribute_helpers.h>
+#include <ytlib/ytree/convert.h>
 
 #include <ytlib/rpc/service.h>
 
@@ -9,6 +10,7 @@ namespace NYT {
 namespace NMetaState {
 
 using namespace NRpc;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,6 +22,16 @@ TMutationId GenerateMutationId()
 TMutationId GetMutationId(IServiceContextPtr context)
 {
     return context->RequestAttributes().Get<TMutationId>("mutation_id", NullMutationId);
+}
+
+TMutationId GetMutationId(const NRpc::NProto::TRequestHeader& header)
+{
+    FOREACH (const auto& attribute, header.attributes().attributes()) {
+        if (attribute.key() == "mutation_id") {
+            return ConvertTo<TMutationId>(TYsonString(attribute.value()));
+        }
+    }
+    return NullMutationId;
 }
 
 void GenerateMutationId(IClientRequestPtr request)
