@@ -27,14 +27,11 @@ typedef TIntrusivePtr<TStartOperationRequest> TSchedulerRequestPtr;
 
 class TSchedulerCommandBase
     : public TTypedCommandBase<TStartOperationRequest>
-    , public TTransactionalCommandMixin
+    , public TTransactionalCommand
 {
 protected:
-    typedef TSchedulerCommandBase TThis;
-
-    explicit TSchedulerCommandBase(ICommandContext* context);
-
     void StartOperation(NScheduler::EOperationType type);
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -42,11 +39,9 @@ protected:
 class TMapCommand
     : public TSchedulerCommandBase
 {
-public:
-    explicit TMapCommand(ICommandContext* context);
-
 private:
     virtual void DoExecute();
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -54,11 +49,9 @@ private:
 class TMergeCommand
     : public TSchedulerCommandBase
 {
-public:
-    explicit TMergeCommand(ICommandContext* context);
-
 private:
     virtual void DoExecute();
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -66,11 +59,9 @@ private:
 class TSortCommand
     : public TSchedulerCommandBase
 {
-public:
-    explicit TSortCommand(ICommandContext* context);
-
 private:
     virtual void DoExecute();
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -78,11 +69,9 @@ private:
 class TEraseCommand
     : public TSchedulerCommandBase
 {
-public:
-    explicit TEraseCommand(ICommandContext* context);
-
 private:
     virtual void DoExecute();
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -90,11 +79,9 @@ private:
 class TReduceCommand
     : public TSchedulerCommandBase
 {
-public:
-    explicit TReduceCommand(ICommandContext* context);
-
 private:
     virtual void DoExecute();
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -102,11 +89,9 @@ private:
 class TMapReduceCommand
     : public TSchedulerCommandBase
 {
-public:
-    explicit TMapReduceCommand(ICommandContext* context);
-
 private:
     virtual void DoExecute();
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -127,11 +112,9 @@ typedef TIntrusivePtr<TAbortOperationRequest> TAbortOperationRequestPtr;
 class TAbortOperationCommand
     : public TTypedCommandBase<TAbortOperationRequest>
 {
-public:
-    explicit TAbortOperationCommand(ICommandContext* context);
-
 private:
     virtual void DoExecute();
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

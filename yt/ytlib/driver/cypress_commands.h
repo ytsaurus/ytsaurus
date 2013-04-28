@@ -29,14 +29,8 @@ typedef TIntrusivePtr<TGetRequest> TGetRequestPtr;
 
 class TGetCommand
     : public TTypedCommandBase<TGetRequest>
-    , public TTransactionalCommandMixin
+    , public TTransactionalCommand
 {
-public:
-    explicit TGetCommand(ICommandContext* context)
-        : TTypedCommandBase(context)
-        , TTransactionalCommandMixin(context, Request)
-   { }
-
 private:
     virtual void DoExecute() override;
 
@@ -60,16 +54,9 @@ typedef TIntrusivePtr<TSetRequest> TSetRequestPtr;
 
 class TSetCommand
     : public TTypedCommandBase<TSetRequest>
-    , public TTransactionalCommandMixin
-    , public TMutatingCommandMixin
+    , public TTransactionalCommand
+    , public TMutatingCommand
 {
-public:
-    explicit TSetCommand(ICommandContext* context)
-        : TTypedCommandBase(context)
-        , TTransactionalCommandMixin(context, Request)
-        , TMutatingCommandMixin(context, Request)
-    { }
-
 private:
     virtual void DoExecute() override;
 
@@ -101,16 +88,9 @@ typedef TIntrusivePtr<TRemoveRequest> TRemoveRequestPtr;
 
 class TRemoveCommand
     : public TTypedCommandBase<TRemoveRequest>
-    , public TTransactionalCommandMixin
-    , public TMutatingCommandMixin
+    , public TTransactionalCommand
+    , public TMutatingCommand
 {
-public:
-    explicit TRemoveCommand(ICommandContext* context)
-        : TTypedCommandBase(context)
-        , TTransactionalCommandMixin(context, Request)
-        , TMutatingCommandMixin(context, Request)
-    { }
-
 private:
     virtual void DoExecute() override;
 
@@ -136,14 +116,8 @@ typedef TIntrusivePtr<TListRequest> TListRequestPtr;
 
 class TListCommand
     : public TTypedCommandBase<TListRequest>
-    , public TTransactionalCommandMixin
+    , public TTransactionalCommand
 {
-public:
-    explicit TListCommand(ICommandContext* context)
-        : TTypedCommandBase(context)
-        , TTransactionalCommandMixin(context, Request)
-    { }
-
 private:
     virtual void DoExecute() override;
 
@@ -179,18 +153,12 @@ typedef TIntrusivePtr<TCreateRequest> TCreateRequestPtr;
 
 class TCreateCommand
     : public TTypedCommandBase<TCreateRequest>
-    , public TTransactionalCommandMixin
-    , public TMutatingCommandMixin
+    , public TTransactionalCommand
+    , public TMutatingCommand
 {
-public:
-    explicit TCreateCommand(ICommandContext* context)
-        : TTypedCommandBase(context)
-        , TTransactionalCommandMixin(context, Request)
-        , TMutatingCommandMixin(context, Request)
-   { }
-
 private:
     virtual void DoExecute() override;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -214,16 +182,9 @@ typedef TIntrusivePtr<TLockRequest> TLockRequestPtr;
 
 class TLockCommand
     : public TTypedCommandBase<TLockRequest>
-    , public TTransactionalCommandMixin
-    , public TMutatingCommandMixin
+    , public TTransactionalCommand
+    , public TMutatingCommand
 {
-public:
-    explicit TLockCommand(ICommandContext* context)
-        : TTypedCommandBase(context)
-        , TTransactionalCommandMixin(context, Request)
-        , TMutatingCommandMixin(context, Request)
-    { }
-
 private:
     virtual void DoExecute() override;
 
@@ -249,16 +210,9 @@ typedef TIntrusivePtr<TCopyRequest> TCopyRequestPtr;
 
 class TCopyCommand
     : public TTypedCommandBase<TCopyRequest>
-    , public TTransactionalCommandMixin
-    , public TMutatingCommandMixin
+    , public TTransactionalCommand
+    , public TMutatingCommand
 {
-public:
-    explicit TCopyCommand(ICommandContext* context)
-        : TTypedCommandBase(context)
-        , TTransactionalCommandMixin(context, Request)
-        , TMutatingCommandMixin(context, Request)
-    { }
-
 private:
     virtual void DoExecute() override;
 
@@ -284,16 +238,9 @@ typedef TIntrusivePtr<TMoveRequest> TMoveRequestPtr;
 
 class TMoveCommand
     : public TTypedCommandBase<TMoveRequest>
-    , public TTransactionalCommandMixin
-    , public TMutatingCommandMixin
+    , public TTransactionalCommand
+    , public TMutatingCommand
 {
-public:
-    explicit TMoveCommand(ICommandContext* context)
-        : TTypedCommandBase(context)
-        , TTransactionalCommandMixin(context, Request)
-        , TMutatingCommandMixin(context, Request)
-    { }
-
 private:
     virtual void DoExecute() override;
 
@@ -316,14 +263,8 @@ typedef TIntrusivePtr<TExistsRequest> TExistsRequestPtr;
 
 class TExistsCommand
     : public TTypedCommandBase<TExistsRequest>
-    , public TTransactionalCommandMixin
+    , public TTransactionalCommand
 {
-public:
-    explicit TExistsCommand(ICommandContext* context)
-        : TTypedCommandBase(context)
-        , TTransactionalCommandMixin(context, Request)
-   { }
-
 private:
     virtual void DoExecute() override;
 
@@ -358,16 +299,9 @@ typedef TIntrusivePtr<TLinkRequest> TLinkRequestPtr;
 
 class TLinkCommand
     : public TTypedCommandBase<TLinkRequest>
-    , public TTransactionalCommandMixin
-    , public TMutatingCommandMixin
+    , public TTransactionalCommand
+    , public TMutatingCommand
 {
-public:
-    explicit TLinkCommand(ICommandContext* context)
-        : TTypedCommandBase(context)
-        , TTransactionalCommandMixin(context, Request)
-        , TMutatingCommandMixin(context, Request)
-    { }
-
 private:
     virtual void DoExecute() override;
 

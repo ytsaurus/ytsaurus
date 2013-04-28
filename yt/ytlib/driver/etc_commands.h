@@ -24,30 +24,20 @@ struct TUpdateMembershipRequest
 
 class TAddMemberCommand
     : public TTypedCommandBase<TUpdateMembershipRequest>
-    , public TMutatingCommandMixin
+    , public TMutatingCommand
 {
-public:
-    explicit TAddMemberCommand(ICommandContext* context)
-        : TTypedCommandBase(context)
-        , TMutatingCommandMixin(context, Request)
-    { }
-
 private:
     virtual void DoExecute() override;
+
 };
 
 class TRemoveMemberCommand
     : public TTypedCommandBase<TUpdateMembershipRequest>
-    , public TMutatingCommandMixin
+    , public TMutatingCommand
 {
-public:
-    explicit TRemoveMemberCommand(ICommandContext* context)
-        : TTypedCommandBase(context)
-        , TMutatingCommandMixin(context, Request)
-    { }
-
 private:
     virtual void DoExecute() override;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -66,13 +56,9 @@ struct TParseYPathRequest
 class TParseYPathCommand
     : public TTypedCommandBase<TParseYPathRequest>
 {
-public:
-    explicit TParseYPathCommand(ICommandContext* context)
-        : TTypedCommandBase(context)
-    { }
-
 private:
     virtual void DoExecute() override;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -96,14 +82,8 @@ typedef TIntrusivePtr<TCheckPermissionRequest> TCheckPermissionRequestPtr;
 
 class TCheckPersmissionCommand
     : public TTypedCommandBase<TCheckPermissionRequest>
-    , public TTransactionalCommandMixin
+    , public TTransactionalCommand
 {
-public:
-    explicit TCheckPersmissionCommand(ICommandContext* context)
-        : TTypedCommandBase(context)
-        , TTransactionalCommandMixin(context, Request)
-    { }
-
 private:
     virtual void DoExecute() override;
 

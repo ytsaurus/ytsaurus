@@ -173,8 +173,8 @@ public:
                 schedulerChannel,
                 transactionManager);
 
-            auto command = entry.Factory.Run(&context);
-            command->Execute();
+            auto command = entry.Factory.Run();
+            command->Execute(&context);
             
             response = *context.GetResponse();
         } catch (const std::exception& ex) {
@@ -229,7 +229,7 @@ private:
     IChannelPtr SchedulerChannel;
     IBlockCachePtr BlockCache;
 
-    typedef TCallback< TAutoPtr<ICommand>(ICommandContext*) > TCommandFactory;
+    typedef TCallback<TAutoPtr<ICommand>()> TCommandFactory;
 
     struct TCommandEntry
     {
@@ -336,8 +336,8 @@ private:
     {
         TCommandEntry entry;
         entry.Descriptor = descriptor;
-        entry.Factory = BIND([] (ICommandContext* context) -> TAutoPtr<ICommand> {
-            return new TCommand(context);
+        entry.Factory = BIND([] () -> TAutoPtr<ICommand> {
+            return new TCommand();
         });
         YCHECK(Commands.insert(std::make_pair(descriptor.CommandName, entry)).second);
     }

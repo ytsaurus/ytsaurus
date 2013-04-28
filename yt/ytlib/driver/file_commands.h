@@ -31,14 +31,8 @@ typedef TIntrusivePtr<TDownloadRequest> TDownloadRequestPtr;
 
 class TDownloadCommand
     : public TTypedCommandBase<TDownloadRequest>
-    , public TTransactionalCommandMixin
+    , public TTransactionalCommand
 {
-public:
-    explicit TDownloadCommand(ICommandContext* context)
-        : TTypedCommandBase(context)
-        , TTransactionalCommandMixin(context, Request)
-    { }
-
 private:
     virtual void DoExecute();
 };
@@ -66,14 +60,8 @@ typedef TIntrusivePtr<TUploadRequest> TUploadRequestPtr;
 
 class TUploadCommand
     : public TTypedCommandBase<TUploadRequest>
-    , public TTransactionalCommandMixin
+    , public TTransactionalCommand
 {
-public:
-    explicit TUploadCommand(ICommandContext* context)
-        : TTypedCommandBase(context)
-        , TTransactionalCommandMixin(context, Request)
-    { }
-
 private:
     virtual void DoExecute();
 

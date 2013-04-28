@@ -16,18 +16,18 @@ using namespace NMetaState;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUntypedCommandBase::TUntypedCommandBase(ICommandContext* context)
-    : Context(context)
+TCommandBase::TCommandBase()
+    : Context(nullptr)
     , Replied(false)
 { }
 
-void TUntypedCommandBase::Prepare()
+void TCommandBase::Prepare()
 {
     ObjectProxy.Reset(new TObjectServiceProxy(Context->GetMasterChannel()));
     SchedulerProxy.Reset(new TSchedulerServiceProxy(Context->GetSchedulerChannel()));
 }
 
-void TUntypedCommandBase::ReplyError(const TError& error)
+void TCommandBase::ReplyError(const TError& error)
 {
     YCHECK(!Replied);
     YCHECK(!error.IsOK());
@@ -36,7 +36,7 @@ void TUntypedCommandBase::ReplyError(const TError& error)
     Replied = true;
 }
 
-void TUntypedCommandBase::ReplySuccess(const TYsonString& yson)
+void TCommandBase::ReplySuccess(const TYsonString& yson)
 {
     YCHECK(!Replied);
 
@@ -49,66 +49,71 @@ void TUntypedCommandBase::ReplySuccess(const TYsonString& yson)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTransactionalCommandMixin::TTransactionalCommandMixin(
-    ICommandContext* context,
-    TTransactionalRequestPtr request)
-    : PrivateContext(context)
-    , PrivateRequest(request)
-{ }
-
-TTransactionId TTransactionalCommandMixin::GetTransactionId(bool required)
+TTransactionId TTransactionalCommand::GetTransactionId(bool required)
 {
     auto transaction = GetTransaction(required, true);
-    return transaction ? transaction->GetId() : NTransactionClient::NullTransactionId;
+    return transaction ? transaction->GetId() : NullTransactionId;
 }
 
-ITransactionPtr TTransactionalCommandMixin::GetTransaction(bool required, bool ping)
+ITransactionPtr TTransactionalCommand::GetTransaction(bool required, bool ping)
 {
-    if (required && this->PrivateRequest->TransactionId == NTransactionClient::NullTransactionId) {
+    auto request = GetTransactionalRequest();
+    if (required && request->TransactionId == NullTransactionId) {
         THROW_ERROR_EXCEPTION("Transaction is required");
     }
 
-    auto transactionId = this->PrivateRequest->TransactionId;
-    if (transactionId == NTransactionClient::NullTransactionId) {
+    auto transactionId = request->TransactionId;
+    if (transactionId == NullTransactionId) {
         return nullptr;
     }
 
-    NTransactionClient::TTransactionAttachOptions options(transactionId);
+    TTransactionAttachOptions options(transactionId);
     options.AutoAbort = false;
     options.Ping = ping;
-    options.PingAncestors = this->PrivateRequest->PingAncestors;
-    auto transactionManager = this->PrivateContext->GetTransactionManager();
+    options.PingAncestors = request->PingAncestors;
+
+    auto transactionManager = Context->GetTransactionManager();
     return transactionManager->Attach(options);
 }
 
-void TTransactionalCommandMixin::SetTransactionId(NRpc::IClientRequestPtr request, bool required)
+void TTransactionalCommand::SetTransactionId(NRpc::IClientRequestPtr request, bool required)
 {
     NCypressClient::SetTransactionId(request, GetTransactionId(required));
 }
 
+TTransactionalRequestPtr TTransactionalCommand::GetTransactionalRequest()
+{
+    if (!TransactionalRequest) {
+        TransactionalRequest = dynamic_cast<TTransactionalRequest*>(~UntypedRequest);
+    }
+    return TransactionalRequest;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-TMutatingCommandMixin::TMutatingCommandMixin(
-    ICommandContext* context,
-    TMutatingRequestPtr request)
-    : PrivateContext(context)
-    , PrivateRequest(request)
-    , CurrentMutationId(
-        PrivateRequest->MutationId == NullMutationId
-        ? NMetaState::GenerateMutationId()
-        : PrivateRequest->MutationId)
-{ }
-
-TMutationId TMutatingCommandMixin::GenerateMutationId()
+TMutationId TMutatingCommand::GenerateMutationId()
 {
-    auto result = CurrentMutationId;
-    ++CurrentMutationId.Parts[0];
+    if (!CurrentMutationId) {
+        auto request = GetMutatingRequest();
+        CurrentMutationId = request->MutationId;
+    }
+
+    auto result = *CurrentMutationId;
+    ++(*CurrentMutationId).Parts[0];
     return result;
 }
 
-void TMutatingCommandMixin::GenerateMutationId(NRpc::IClientRequestPtr request)
+void TMutatingCommand::GenerateMutationId(NRpc::IClientRequestPtr request)
 {
     NMetaState::SetMutationId(request, GenerateMutationId());
+}
+
+TMutatingRequestPtr TMutatingCommand::GetMutatingRequest()
+{
+    if (!MutatingRequest) {
+        MutatingRequest = dynamic_cast<TMutatingRequest*>(~UntypedRequest);
+    }
+    return MutatingRequest;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

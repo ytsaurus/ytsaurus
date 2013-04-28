@@ -29,14 +29,8 @@ typedef TIntrusivePtr<TReadRequest> TReadRequestPtr;
 
 class TReadCommand
     : public TTypedCommandBase<TReadRequest>
-    , public TTransactionalCommandMixin
+    , public TTransactionalCommand
 {
-public:
-    explicit TReadCommand(ICommandContext* context)
-        : TTypedCommandBase(context)
-        , TTransactionalCommandMixin(context, Request)
-    { }
-
 private:
     virtual void DoExecute();
 
@@ -63,14 +57,8 @@ typedef TIntrusivePtr<TWriteRequest> TWriteRequestPtr;
 
 class TWriteCommand
     : public TTypedCommandBase<TWriteRequest>
-    , public TTransactionalCommandMixin
+    , public TTransactionalCommand
 {
-public:
-    explicit TWriteCommand(ICommandContext* context)
-        : TTypedCommandBase(context)
-        , TTransactionalCommandMixin(context, Request)
-    { }
-
 private:
     virtual void DoExecute();
 

@@ -107,23 +107,24 @@ struct ICommand
     virtual ~ICommand()
     { }
 
-    virtual void Execute() = 0;
+    virtual void Execute(ICommandContext* context) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUntypedCommandBase
+class TCommandBase
     : public ICommand
 {
 protected:
     ICommandContext* Context;
+    bool Replied;
 
     THolder<NObjectClient::TObjectServiceProxy> ObjectProxy;
     THolder<NScheduler::TSchedulerServiceProxy> SchedulerProxy;
 
-    bool Replied;
+    TRequestPtr UntypedRequest;
 
-    explicit TUntypedCommandBase(ICommandContext* context);
+    TCommandBase();
 
     void Prepare();
 
@@ -136,15 +137,12 @@ protected:
 
 template <class TRequest>
 class TTypedCommandBase
-    : public TUntypedCommandBase
+    : public virtual TCommandBase
 {
 public:
-    explicit TTypedCommandBase(ICommandContext* context)
-        : TUntypedCommandBase(context)
-    { }
-
-    virtual void Execute()
+    virtual void Execute(ICommandContext* context)
     {
+        Context = context;
         try {
             ParseRequest();
             Prepare();
@@ -164,8 +162,9 @@ private:
     {
         Request = New<TRequest>();
         try {
-            auto arguments = Context->GetRequest()->Arguments;
-            Request->Load(arguments);
+            auto arguments = Context->GetRequest()->Arguments;;
+            Request = ConvertTo<TIntrusivePtr<TRequest>>(arguments);
+            UntypedRequest = Request;
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing command arguments") <<
                 ex;
@@ -176,11 +175,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTransactionalCommandMixin
+class TTransactionalCommand
+    : public virtual TCommandBase
 {
-public:
-    TTransactionalCommandMixin(ICommandContext* context, TTransactionalRequestPtr request);
-
 protected:
     NTransactionClient::TTransactionId GetTransactionId(bool required);
     NTransactionClient::ITransactionPtr GetTransaction(bool required, bool ping);
@@ -188,27 +185,26 @@ protected:
     void SetTransactionId(NRpc::IClientRequestPtr request, bool required);
 
 private:
-    ICommandContext* PrivateContext;
-    TTransactionalRequestPtr PrivateRequest;
+    TTransactionalRequestPtr TransactionalRequest;
+
+    TTransactionalRequestPtr GetTransactionalRequest();
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMutatingCommandMixin
+class TMutatingCommand
+    : public virtual TCommandBase
 {
-public:
-    TMutatingCommandMixin(ICommandContext* context, TMutatingRequestPtr request);
-
 protected:
     NMetaState::TMutationId GenerateMutationId();
     void GenerateMutationId(NRpc::IClientRequestPtr request);
 
 private:
-    ICommandContext* PrivateContext;
-    TMutatingRequestPtr PrivateRequest;
+    TNullable<NMetaState::TMutationId> CurrentMutationId;
+    TMutatingRequestPtr MutatingRequest;
 
-    NMetaState::TMutationId CurrentMutationId;
+    TMutatingRequestPtr GetMutatingRequest();
 
 };
 

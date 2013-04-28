@@ -27,16 +27,9 @@ typedef TIntrusivePtr<TStartTransactionRequest> TStartRequestPtr;
 
 class TStartTransactionCommand
     : public TTypedCommandBase<TStartTransactionRequest>
-    , public TTransactionalCommandMixin
-    , public TMutatingCommandMixin
+    , public TTransactionalCommand
+    , public TMutatingCommand
 {
-public:
-    explicit TStartTransactionCommand(ICommandContext* context)
-        : TTypedCommandBase(context)
-        , TTransactionalCommandMixin(context, Request)
-        , TMutatingCommandMixin(context, Request)
-    { }
-
 private:
     virtual void DoExecute();
 
@@ -52,14 +45,8 @@ typedef TIntrusivePtr<TPingTransactionRequest> TRenewRequestPtr;
 
 class TPingTransactionCommand
     : public TTypedCommandBase<TPingTransactionRequest>
-    , public TTransactionalCommandMixin
+    , public TTransactionalCommand
 {
-public:
-    explicit TPingTransactionCommand(ICommandContext* context)
-        : TTypedCommandBase(context)
-        , TTransactionalCommandMixin(context, Request)
-    { }
-
 private:
     virtual void DoExecute();
 
@@ -76,16 +63,9 @@ typedef TIntrusivePtr<TCommitTransactionRequest> TCommitRequestPtr;
 
 class TCommitTransactionCommand
     : public TTypedCommandBase<TCommitTransactionRequest>
-    , public TTransactionalCommandMixin
-    , public TMutatingCommandMixin
+    , public TTransactionalCommand
+    , public TMutatingCommand
 {
-public:
-    explicit TCommitTransactionCommand(ICommandContext* context)
-        : TTypedCommandBase(context)
-        , TTransactionalCommandMixin(context, Request)
-        , TMutatingCommandMixin(context, Request)
-    { }
-
 private:
     virtual void DoExecute();
 
@@ -102,16 +82,9 @@ typedef TIntrusivePtr<TAbortTransactionRequest> TAbortTransactionRequestPtr;
 
 class TAbortTransactionCommand
     : public TTypedCommandBase<TAbortTransactionRequest>
-    , public TTransactionalCommandMixin
-    , public TMutatingCommandMixin
+    , public TTransactionalCommand
+    , public TMutatingCommand
 {
-public:
-    explicit TAbortTransactionCommand(ICommandContext* context)
-        : TTypedCommandBase(context)
-        , TTransactionalCommandMixin(context, Request)
-        , TMutatingCommandMixin(context, Request)
-    { }
-
 private:
     virtual void DoExecute();
 

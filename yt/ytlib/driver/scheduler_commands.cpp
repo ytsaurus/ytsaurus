@@ -18,11 +18,6 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSchedulerCommandBase::TSchedulerCommandBase(ICommandContext* context)
-    : TTypedCommandBase(context)
-    , TTransactionalCommandMixin(context, Request)
-{ }
-
 void TSchedulerCommandBase::StartOperation(EOperationType type)
 {
     TOperationId operationId;
@@ -45,20 +40,12 @@ void TSchedulerCommandBase::StartOperation(EOperationType type)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMapCommand::TMapCommand(ICommandContext* context)
-    : TSchedulerCommandBase(context)
-{ }
-
 void TMapCommand::DoExecute()
 {
     StartOperation(EOperationType::Map);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TMergeCommand::TMergeCommand(ICommandContext* context)
-    : TSchedulerCommandBase(context)
-{ }
 
 void TMergeCommand::DoExecute()
 {
@@ -67,20 +54,12 @@ void TMergeCommand::DoExecute()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSortCommand::TSortCommand(ICommandContext* context)
-    : TSchedulerCommandBase(context)
-{ }
-
 void TSortCommand::DoExecute()
 {
     StartOperation(EOperationType::Sort);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TEraseCommand::TEraseCommand(ICommandContext* context)
-    : TSchedulerCommandBase(context)
-{ }
 
 void TEraseCommand::DoExecute()
 {
@@ -89,10 +68,6 @@ void TEraseCommand::DoExecute()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TReduceCommand::TReduceCommand(ICommandContext* context)
-    : TSchedulerCommandBase(context)
-{ }
-
 void TReduceCommand::DoExecute()
 {
     StartOperation(EOperationType::Reduce);
@@ -100,20 +75,12 @@ void TReduceCommand::DoExecute()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMapReduceCommand::TMapReduceCommand(ICommandContext* context)
-    : TSchedulerCommandBase(context)
-{ }
-
 void TMapReduceCommand::DoExecute()
 {
     StartOperation(EOperationType::MapReduce);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TAbortOperationCommand::TAbortOperationCommand(ICommandContext* context)
-    : TTypedCommandBase(context)
-{ }
 
 void TAbortOperationCommand::DoExecute()
 {
