@@ -15,12 +15,12 @@ struct TReadRequest
     : public TTransactionalRequest
 {
     NYPath::TRichYPath Path;
-    NYTree::INodePtr TableReaderConfig;
+    NYTree::INodePtr TableReader;
 
     TReadRequest()
     {
         RegisterParameter("path", Path);
-        RegisterParameter("table_reader", TableReaderConfig)
+        RegisterParameter("table_reader", TableReader)
             .Default(nullptr);
     }
 };
@@ -49,12 +49,12 @@ struct TWriteRequest
 {
     NYPath::TRichYPath Path;
     TNullable<NTableClient::TKeyColumns> SortedBy;
-    NYTree::INodePtr TableWriterConfig;
+    NYTree::INodePtr TableWriter;
 
     TWriteRequest()
     {
         RegisterParameter("path", Path);
-        RegisterParameter("table_writer", TableWriterConfig)
+        RegisterParameter("table_writer", TableWriter)
             .Default(nullptr);
     }
 };

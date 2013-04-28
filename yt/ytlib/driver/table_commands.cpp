@@ -29,7 +29,7 @@ void TReadCommand::DoExecute()
 {
     auto config = UpdateYsonSerializable(
         Context->GetConfig()->TableReader,
-        Request->TableReaderConfig);
+        Request->TableReader);
     auto reader = New<TTableReader>(
         config,
         Context->GetMasterChannel(),
@@ -52,7 +52,7 @@ void TWriteCommand::DoExecute()
 {
     auto config = UpdateYsonSerializable(
         Context->GetConfig()->TableWriter,
-        Request->TableWriterConfig);
+        Request->TableWriter);
     auto writer = New<TTableWriter>(
         config,
         Context->GetMasterChannel(),
