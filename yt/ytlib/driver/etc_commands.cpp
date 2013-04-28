@@ -40,7 +40,8 @@ void TAddMemberCommand::DoExecute()
 {
     auto req = TGroupYPathProxy::AddMember(GetGroupPath(Request->Group));
     req->set_name(Request->Member);
-    NMetaState::GenerateRpcMutationId(req, Request->MutationId);
+    GenerateMutationId(req);
+
     auto rsp = ObjectProxy->Execute(req).Get();
     THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 }
@@ -51,7 +52,8 @@ void TRemoveMemberCommand::DoExecute()
 {
     auto req = TGroupYPathProxy::RemoveMember(GetGroupPath(Request->Group));
     req->set_name(Request->Member);
-    NMetaState::GenerateRpcMutationId(req, Request->MutationId);
+    GenerateMutationId(req);
+
     auto rsp = ObjectProxy->Execute(req).Get();
     THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 }
@@ -71,7 +73,7 @@ void TCheckPersmissionCommand::DoExecute()
     auto req = TObjectYPathProxy::CheckPermission(Request->Path.GetPath());
     req->set_user(Request->User);
     req->set_permission(Request->Permission);
-    SetTransactionId(req, GetTransactionId(false));
+    SetTransactionId(req, false);
 
     auto rsp = ObjectProxy->Execute(req).Get();
     THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);

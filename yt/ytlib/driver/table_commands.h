@@ -12,7 +12,7 @@ namespace NDriver {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TReadRequest
-    : public TTransactedRequest
+    : public TTransactionalRequest
 {
     NYPath::TRichYPath Path;
     NYTree::INodePtr TableReaderConfig;
@@ -21,28 +21,31 @@ struct TReadRequest
     {
         RegisterParameter("path", Path);
         RegisterParameter("table_reader", TableReaderConfig)
-            .Default(NULL);
+            .Default(nullptr);
     }
 };
 
 typedef TIntrusivePtr<TReadRequest> TReadRequestPtr;
 
 class TReadCommand
-    : public TTransactedCommandBase<TReadRequest>
+    : public TTypedCommandBase<TReadRequest>
+    , public TTransactionalCommandMixin
 {
 public:
-    explicit TReadCommand(ICommandContext* host)
-        : TTransactedCommandBase(host)
+    explicit TReadCommand(ICommandContext* context)
+        : TTypedCommandBase(context)
+        , TTransactionalCommandMixin(context, Request)
     { }
 
 private:
     virtual void DoExecute();
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TWriteRequest
-    : public TTransactedRequest
+    : public TTransactionalRequest
 {
     NYPath::TRichYPath Path;
     TNullable<NTableClient::TKeyColumns> SortedBy;
@@ -52,22 +55,25 @@ struct TWriteRequest
     {
         RegisterParameter("path", Path);
         RegisterParameter("table_writer", TableWriterConfig)
-            .Default(NULL);
+            .Default(nullptr);
     }
 };
 
 typedef TIntrusivePtr<TWriteRequest> TWriteRequestPtr;
 
 class TWriteCommand
-    : public TTransactedCommandBase<TWriteRequest>
+    : public TTypedCommandBase<TWriteRequest>
+    , public TTransactionalCommandMixin
 {
 public:
-    explicit TWriteCommand(ICommandContext* host)
-        : TTransactedCommandBase(host)
+    explicit TWriteCommand(ICommandContext* context)
+        : TTypedCommandBase(context)
+        , TTransactionalCommandMixin(context, Request)
     { }
 
 private:
     virtual void DoExecute();
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

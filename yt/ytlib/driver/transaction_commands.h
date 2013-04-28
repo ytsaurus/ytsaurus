@@ -8,8 +8,8 @@ namespace NDriver {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TStartTransactionRequest
-    : public TTransactedRequest
-    , public TMutationRequest
+    : public TTransactionalRequest
+    , public TMutatingRequest
 {
     TNullable<TDuration> Timeout;
     NYTree::INodePtr Attributes;
@@ -26,77 +26,95 @@ struct TStartTransactionRequest
 typedef TIntrusivePtr<TStartTransactionRequest> TStartRequestPtr;
 
 class TStartTransactionCommand
-    : public TTransactedCommandBase<TStartTransactionRequest>
+    : public TTypedCommandBase<TStartTransactionRequest>
+    , public TTransactionalCommandMixin
+    , public TMutatingCommandMixin
 {
 public:
-    explicit TStartTransactionCommand(ICommandContext* host)
-        : TTransactedCommandBase(host)
+    explicit TStartTransactionCommand(ICommandContext* context)
+        : TTypedCommandBase(context)
+        , TTransactionalCommandMixin(context, Request)
+        , TMutatingCommandMixin(context, Request)
     { }
 
 private:
     virtual void DoExecute();
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TPingTransactionRequest
-    : public TTransactedRequest
+    : public TTransactionalRequest
 { };
 
 typedef TIntrusivePtr<TPingTransactionRequest> TRenewRequestPtr;
 
 class TPingTransactionCommand
-    : public TTransactedCommandBase<TPingTransactionRequest>
+    : public TTypedCommandBase<TPingTransactionRequest>
+    , public TTransactionalCommandMixin
 {
 public:
-    explicit TPingTransactionCommand(ICommandContext* host)
-        : TTransactedCommandBase(host)
+    explicit TPingTransactionCommand(ICommandContext* context)
+        : TTypedCommandBase(context)
+        , TTransactionalCommandMixin(context, Request)
     { }
 
 private:
     virtual void DoExecute();
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TCommitTransactionRequest
-    : public TTransactedRequest
-    , public TMutationRequest
+    : public TTransactionalRequest
+    , public TMutatingRequest
 { };
 
 typedef TIntrusivePtr<TCommitTransactionRequest> TCommitRequestPtr;
 
 class TCommitTransactionCommand
-    : public TTransactedCommandBase<TCommitTransactionRequest>
+    : public TTypedCommandBase<TCommitTransactionRequest>
+    , public TTransactionalCommandMixin
+    , public TMutatingCommandMixin
 {
 public:
-    explicit TCommitTransactionCommand(ICommandContext* host)
-        : TTransactedCommandBase(host)
+    explicit TCommitTransactionCommand(ICommandContext* context)
+        : TTypedCommandBase(context)
+        , TTransactionalCommandMixin(context, Request)
+        , TMutatingCommandMixin(context, Request)
     { }
 
 private:
     virtual void DoExecute();
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TAbortTransactionRequest
-    : public TTransactedRequest
-    , public TMutationRequest
+    : public TTransactionalRequest
+    , public TMutatingRequest
 { };
 
 typedef TIntrusivePtr<TAbortTransactionRequest> TAbortTransactionRequestPtr;
 
 class TAbortTransactionCommand
-    : public TTransactedCommandBase<TAbortTransactionRequest>
+    : public TTypedCommandBase<TAbortTransactionRequest>
+    , public TTransactionalCommandMixin
+    , public TMutatingCommandMixin
 {
 public:
-    explicit TAbortTransactionCommand(ICommandContext* host)
-        : TTransactedCommandBase(host)
+    explicit TAbortTransactionCommand(ICommandContext* context)
+        : TTypedCommandBase(context)
+        , TTransactionalCommandMixin(context, Request)
+        , TMutatingCommandMixin(context, Request)
     { }
 
 private:
     virtual void DoExecute();
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -10,7 +10,7 @@ namespace NDriver {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TUpdateMembershipRequest
-    : public TMutationRequest
+    : public TMutatingRequest
 {
     Stroka Group;
     Stroka Member;
@@ -24,10 +24,12 @@ struct TUpdateMembershipRequest
 
 class TAddMemberCommand
     : public TTypedCommandBase<TUpdateMembershipRequest>
+    , public TMutatingCommandMixin
 {
 public:
     explicit TAddMemberCommand(ICommandContext* context)
         : TTypedCommandBase(context)
+        , TMutatingCommandMixin(context, Request)
     { }
 
 private:
@@ -36,10 +38,12 @@ private:
 
 class TRemoveMemberCommand
     : public TTypedCommandBase<TUpdateMembershipRequest>
+    , public TMutatingCommandMixin
 {
 public:
     explicit TRemoveMemberCommand(ICommandContext* context)
         : TTypedCommandBase(context)
+        , TMutatingCommandMixin(context, Request)
     { }
 
 private:
@@ -74,7 +78,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TCheckPermissionRequest
-    : public TTransactedRequest
+    : public TTransactionalRequest
 {
     Stroka User;
     NYPath::TRichYPath Path;
@@ -91,11 +95,13 @@ struct TCheckPermissionRequest
 typedef TIntrusivePtr<TCheckPermissionRequest> TCheckPermissionRequestPtr;
 
 class TCheckPersmissionCommand
-    : public TTransactedCommandBase<TCheckPermissionRequest>
+    : public TTypedCommandBase<TCheckPermissionRequest>
+    , public TTransactionalCommandMixin
 {
 public:
     explicit TCheckPersmissionCommand(ICommandContext* context)
-        : TTransactedCommandBase(context)
+        : TTypedCommandBase(context)
+        , TTransactionalCommandMixin(context, Request)
     { }
 
 private:

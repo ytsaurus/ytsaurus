@@ -1296,7 +1296,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::CommitResults()
             auto addChunkTree = [&] (const NChunkServer::TChunkTreeId chunkTreeId) {
                 if (!req) {
                     req = TChunkListYPathProxy::Attach(FromObjectId(table.OutputChunkListId));
-                    NMetaState::GenerateRpcMutationId(req);
+                    NMetaState::GenerateMutationId(req);
                 }
                 ToProto(req->add_children_ids(), chunkTreeId);
                 ++reqSize;
@@ -1358,7 +1358,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::CommitResults()
             auto req = TTableYPathProxy::SetSorted(path);
             SetTransactionId(req, Operation->GetOutputTransaction());
             ToProto(req->mutable_key_columns(), table.Options->KeyColumns.Get());
-            NMetaState::GenerateRpcMutationId(req);
+            NMetaState::GenerateMutationId(req);
             batchReq->AddRequest(req, "set_out_sorted");
         }
     }
@@ -1557,7 +1557,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
             auto req = TCypressYPathProxy::Lock(path);
             SetTransactionId(req, Operation->GetInputTransaction());
             req->set_mode(ELockMode::Snapshot);
-            NMetaState::GenerateRpcMutationId(req);
+            NMetaState::GenerateMutationId(req);
             batchReq->AddRequest(req, "lock_in");
         }
         {
@@ -1590,7 +1590,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
             auto req = TCypressYPathProxy::Lock(path);
             SetTransactionId(req, Operation->GetOutputTransaction());
             req->set_mode(table.LockMode);
-            NMetaState::GenerateRpcMutationId(req);
+            NMetaState::GenerateMutationId(req);
             batchReq->AddRequest(req, "lock_out");
         }
         {
@@ -1608,7 +1608,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
         {
             auto req = TTableYPathProxy::PrepareForUpdate(path);
             SetTransactionId(req, Operation->GetOutputTransaction());
-            NMetaState::GenerateRpcMutationId(req);
+            NMetaState::GenerateMutationId(req);
             req->set_mode(table.Clear ? ETableUpdateMode::Overwrite : ETableUpdateMode::Append);
             batchReq->AddRequest(req, "prepare_for_update");
         }
@@ -1620,7 +1620,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
             auto req = TCypressYPathProxy::Lock(path);
             SetTransactionId(req, Operation->GetInputTransaction());
             req->set_mode(ELockMode::Snapshot);
-            NMetaState::GenerateRpcMutationId(req);
+            NMetaState::GenerateMutationId(req);
             batchReq->AddRequest(req, "lock_regular_file");
         }
         {
@@ -1636,7 +1636,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
             auto req = TCypressYPathProxy::Lock(path);
             SetTransactionId(req, Operation->GetInputTransaction());
             req->set_mode(ELockMode::Snapshot);
-            NMetaState::GenerateRpcMutationId(req);
+            NMetaState::GenerateMutationId(req);
             batchReq->AddRequest(req, "lock_table_file");
         }
         {

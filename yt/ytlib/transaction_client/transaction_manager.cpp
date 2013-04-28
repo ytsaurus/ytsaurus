@@ -98,7 +98,7 @@ public:
         }
 
         if (options.ParentId != NullTransactionId) {
-            NMetaState::GenerateRpcMutationId(req, options.MutationId);
+            NMetaState::SetOrGenerateMutationId(req, options.MutationId);
         }
 
         auto rsp = Proxy.Execute(req).Get();
@@ -175,7 +175,7 @@ public:
         LOG_INFO("Committing transaction (TransactionId: %s)", ~ToString(Id));
 
         auto req = TTransactionYPathProxy::Commit(FromObjectId(Id));
-        NMetaState::GenerateRpcMutationId(req, mutationId);
+        NMetaState::SetOrGenerateMutationId(req, mutationId);
 
         auto rsp = Proxy.Execute(req).Get();
         if (!rsp->IsOK()) {
@@ -314,7 +314,7 @@ private:
         // Fire and forget in case of no wait.
         auto req = TTransactionYPathProxy::Abort(FromObjectId(Id));
         if (wait) {
-            NMetaState::GenerateRpcMutationId(req, mutationId);
+            NMetaState::SetOrGenerateMutationId(req, mutationId);
         }
 
         auto asyncRsp = Proxy.Execute(req);

@@ -100,7 +100,7 @@ public:
             auto req = TYPathProxy::Set(GetOperationPath(id));
             TYsonProducer producer(BIND(&TImpl::BuildOperationNode, operation));
             req->set_value(ConvertToYsonString(producer).Data());
-            GenerateRpcMutationId(req);
+            GenerateMutationId(req);
             batchReq->AddRequest(req);
         }
 
@@ -130,7 +130,7 @@ public:
             auto req = TYPathProxy::Set(GetOperationPath(id) + "/@");
             TYsonProducer producer(BIND(&TImpl::BuildRevivingOperationAttributes, operation));
             req->set_value(ConvertToYsonString(producer).Data());
-            GenerateRpcMutationId(req);
+            GenerateMutationId(req);
             batchReq->AddRequest(req);
         }
 
@@ -402,7 +402,7 @@ private:
                 attributes->Set("title", Sprintf("Scheduler lock at %s", ~TAddressResolver::Get()->GetLocalHostName()));
                 ToProto(req->mutable_object_attributes(), *attributes);
 
-                GenerateRpcMutationId(req);
+                GenerateMutationId(req);
                 batchReq->AddRequest(req, "start_lock_tx");
             }
             return batchReq->Invoke();
@@ -431,7 +431,7 @@ private:
                 auto req = TCypressYPathProxy::Lock("//sys/scheduler/lock");
                 SetTransactionId(req, Owner->LockTransaction);
                 req->set_mode(ELockMode::Exclusive);
-                GenerateRpcMutationId(req);
+                GenerateMutationId(req);
                 batchReq->AddRequest(req, "take_lock");
             }
             return batchReq->Invoke();
@@ -450,13 +450,13 @@ private:
             {
                 auto req = TYPathProxy::Set("//sys/scheduler/@address");
                 req->set_value(ConvertToYsonString(TRawString(schedulerAddress)).Data());
-                GenerateRpcMutationId(req);
+                GenerateMutationId(req);
                 batchReq->AddRequest(req, "set_scheduler_address");
             }
             {
                 auto req = TYPathProxy::Set("//sys/scheduler/orchid&/@remote_address");
                 req->set_value(ConvertToYsonString(TRawString(schedulerAddress)).Data());
-                GenerateRpcMutationId(req);
+                GenerateMutationId(req);
                 batchReq->AddRequest(req, "set_orchid_address");
             }
             {
@@ -1145,7 +1145,7 @@ private:
                 auto stdErrPath = GetStdErrPath(operation->GetOperationId(), job->GetId());
 
                 auto req = TCypressYPathProxy::Create(stdErrPath);
-                GenerateRpcMutationId(req);
+                GenerateMutationId(req);
                 req->set_type(EObjectType::File);
 
                 auto attributes = CreateEphemeralAttributes();

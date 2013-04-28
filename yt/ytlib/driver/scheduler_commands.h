@@ -10,7 +10,7 @@ namespace NDriver {
 //////////////////////////////////////////////////////////////////////////////
 
 struct TSchedulerRequest
-    : public TTransactedRequest
+    : public TTransactionalRequest
 {
     NYTree::INodePtr Spec;
 
@@ -25,7 +25,8 @@ typedef TIntrusivePtr<TSchedulerRequest> TSchedulerRequestPtr;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchedulerCommandBase
-    : public TTransactedCommandBase<TSchedulerRequest>
+    : public TTypedCommandBase<TSchedulerRequest>
+    , public TTransactionalCommandMixin
 {
 protected:
     typedef TSchedulerCommandBase TThis;
@@ -123,7 +124,7 @@ struct TAbortOperationRequest
 typedef TIntrusivePtr<TAbortOperationRequest> TAbortOperationRequestPtr;
 
 class TAbortOperationCommand
-    : public TTransactedCommandBase<TAbortOperationRequest>
+    : public TTypedCommandBase<TAbortOperationRequest>
 {
 public:
     explicit TAbortOperationCommand(ICommandContext* context);

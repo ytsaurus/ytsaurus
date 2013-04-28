@@ -794,7 +794,7 @@ void TObjectManager::ExecuteVerb(
 
         // Capture everything needed in lambdas below.
         auto wrappedContext = New<TServiceContextWrapper>(context);
-        auto mutationId = GetRpcMutationId(context);
+        auto mutationId = GetMutationId(context);
         auto metaStateManager = MetaStateManager;
 
         Bootstrap

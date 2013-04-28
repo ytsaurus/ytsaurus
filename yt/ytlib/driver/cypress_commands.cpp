@@ -25,7 +25,7 @@ using namespace NTransactionClient;
 void TGetCommand::DoExecute()
 {
     auto req = TYPathProxy::Get(Request->Path.GetPath());
-    SetTransactionId(req, GetTransactionId(false));
+    SetTransactionId(req, false);
 
     TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly, Request->Attributes);
     ToProto(req->mutable_attribute_filter(), attributeFilter);
@@ -42,8 +42,8 @@ void TGetCommand::DoExecute()
 void TSetCommand::DoExecute()
 {
     auto req = TYPathProxy::Set(Request->Path.GetPath());
-    SetTransactionId(req, GetTransactionId(false));
-    NMetaState::GenerateRpcMutationId(req, Request->MutationId);
+    SetTransactionId(req, false);
+    GenerateMutationId(req);
 
     auto producer = Context->CreateInputProducer();
     auto value = ConvertToYsonString(producer);
@@ -62,7 +62,7 @@ void TRemoveCommand::DoExecute()
     req->set_recursive(Request->Recursive);
     req->set_force(Request->Force);
     SetTransactionId(req, GetTransactionId(false));
-    NMetaState::GenerateRpcMutationId(req, Request->MutationId);
+    GenerateMutationId(req);
 
     req->MutableAttributes()->MergeFrom(Request->GetOptions());
     auto rsp = ObjectProxy->Execute(req).Get();
@@ -74,7 +74,7 @@ void TRemoveCommand::DoExecute()
 void TListCommand::DoExecute()
 {
     auto req = TYPathProxy::List(Request->Path.GetPath());
-    SetTransactionId(req, GetTransactionId(false));
+    SetTransactionId(req, false);
 
     TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly, Request->Attributes);
     ToProto(req->mutable_attribute_filter(), attributeFilter);
@@ -100,8 +100,8 @@ void TCreateCommand::DoExecute()
         req->set_type(Request->Type);
         req->set_recursive(Request->Recursive);
         req->set_ignore_existing(Request->IgnoreExisting);
-        SetTransactionId(req, GetTransactionId(false));
-        NMetaState::GenerateRpcMutationId(req, Request->MutationId);
+        SetTransactionId(req, false);
+        GenerateMutationId(req);
 
         if (Request->Attributes) {
             auto attributes = ConvertToAttributes(Request->Attributes);
@@ -125,7 +125,7 @@ void TCreateCommand::DoExecute()
             ToProto(req->mutable_transaction_id(), transactionId);
         }
         req->set_type(Request->Type);
-        NMetaState::GenerateRpcMutationId(req, Request->MutationId);
+        GenerateMutationId(req);
 
         if (Request->Attributes) {
             auto attributes = ConvertToAttributes(Request->Attributes);
@@ -148,8 +148,8 @@ void TLockCommand::DoExecute()
     auto req = TCypressYPathProxy::Lock(Request->Path.GetPath());
     req->set_mode(Request->Mode);
 
-    SetTransactionId(req, GetTransactionId(true));
-    NMetaState::GenerateRpcMutationId(req, Request->MutationId);
+    SetTransactionId(req, true);
+    GenerateMutationId(req);
 
     req->MutableAttributes()->MergeFrom(Request->GetOptions());
     auto rsp = ObjectProxy->Execute(req).Get();
@@ -161,8 +161,8 @@ void TLockCommand::DoExecute()
 void TCopyCommand::DoExecute()
 {
     auto req = TCypressYPathProxy::Copy(Request->DestinationPath.GetPath());
-    SetTransactionId(req, GetTransactionId(false));
-    NMetaState::GenerateRpcMutationId(req, Request->MutationId);
+    SetTransactionId(req, false);
+    GenerateMutationId(req);
     req->set_source_path(Request->SourcePath.GetPath());
 
     auto rsp = ObjectProxy->Execute(req).Get();
@@ -180,8 +180,8 @@ void TMoveCommand::DoExecute()
 {
     {
         auto req = TCypressYPathProxy::Copy(Request->DestinationPath.GetPath());
-        SetTransactionId(req, GetTransactionId(false));
-        NMetaState::GenerateRpcMutationId(req, Request->MutationId);
+        SetTransactionId(req, false);
+        GenerateMutationId(req);
         req->set_source_path(Request->SourcePath.GetPath());
         auto rsp = ObjectProxy->Execute(req).Get();
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
@@ -190,8 +190,8 @@ void TMoveCommand::DoExecute()
     {
         auto req = TYPathProxy::Remove(Request->SourcePath.GetPath());
         req->set_recursive(true);
-        SetTransactionId(req, GetTransactionId(false));
-        NMetaState::GenerateRpcMutationId(req, Request->MutationId);
+        SetTransactionId(req, false);
+        GenerateMutationId(req);
 
         auto rsp = ObjectProxy->Execute(req).Get();
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
@@ -203,7 +203,7 @@ void TMoveCommand::DoExecute()
 void TExistsCommand::DoExecute()
 {
     auto req = TYPathProxy::Exists(Request->Path.GetPath());
-    SetTransactionId(req, GetTransactionId(false));
+    SetTransactionId(req, false);
 
     auto rsp = ObjectProxy->Execute(req).Get();
     THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
@@ -218,7 +218,7 @@ void TLinkCommand::DoExecute()
     TObjectId targetId;
     {
         auto req = TCypressYPathProxy::Get(Request->TargetPath.GetPath() + "/@id");
-        SetTransactionId(req, GetTransactionId(false));
+        SetTransactionId(req, false);
 
         auto rsp = ObjectProxy->Execute(req).Get();
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
@@ -231,8 +231,8 @@ void TLinkCommand::DoExecute()
         req->set_type(EObjectType::LinkNode);
         req->set_recursive(Request->Recursive);
         req->set_ignore_existing(Request->IgnoreExisting);
-        SetTransactionId(req, GetTransactionId(false));
-        NMetaState::GenerateRpcMutationId(req, Request->MutationId);
+        SetTransactionId(req, false);
+        GenerateMutationId(req);
 
         auto attributes = Request->Attributes ? ConvertToAttributes(Request->Attributes) : CreateEphemeralAttributes();
         attributes->Set("target_id", targetId);

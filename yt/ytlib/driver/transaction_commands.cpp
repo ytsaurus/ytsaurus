@@ -27,7 +27,7 @@ void TStartTransactionCommand::DoExecute()
     TTransactionStartOptions options;
     options.Timeout = Request->Timeout;
     options.ParentId = Request->TransactionId;
-    options.MutationId = Request->MutationId;
+    options.MutationId = GenerateMutationId();
     options.Ping = true;
     options.PingAncestors = Request->PingAncestors;
     if (Request->Attributes) {
@@ -59,7 +59,7 @@ void TPingTransactionCommand::DoExecute()
 void TCommitTransactionCommand::DoExecute()
 {
     auto transaction = GetTransaction(true, false);
-    transaction->Commit(Request->MutationId);
+    transaction->Commit(GenerateMutationId());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -67,7 +67,7 @@ void TCommitTransactionCommand::DoExecute()
 void TAbortTransactionCommand::DoExecute()
 {
     auto transaction = GetTransaction(true, false);
-    transaction->Abort(true, Request->MutationId);
+    transaction->Abort(true, GenerateMutationId());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

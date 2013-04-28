@@ -110,7 +110,7 @@ void TTableWriter::Open()
         {
             auto req = TTableYPathProxy::PrepareForUpdate(path);
             SetTransactionId(req, uploadTransactionId);
-            NMetaState::GenerateRpcMutationId(req);
+            NMetaState::GenerateMutationId(req);
             req->set_mode(clear ? ETableUpdateMode::Overwrite : ETableUpdateMode::Append);
             batchReq->AddRequest(req, "prepare_for_update");
         }
@@ -204,7 +204,7 @@ void TTableWriter::Close()
 
         auto req = TTableYPathProxy::SetSorted(path);
         SetTransactionId(req, UploadTransaction);
-        NMetaState::GenerateRpcMutationId(req);
+        NMetaState::GenerateMutationId(req);
         ToProto(req->mutable_key_columns(), keyColumns);
 
         auto rsp = ObjectProxy.Execute(req).Get();

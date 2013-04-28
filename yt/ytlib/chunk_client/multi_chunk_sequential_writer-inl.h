@@ -141,7 +141,7 @@ void TMultiChunkSequentialWriter<TChunkWriter>::CreateNextSession()
         : NObjectClient::EObjectType::ErasureChunk);
 
     req->set_account(Options->Account);
-    NMetaState::GenerateRpcMutationId(req);
+    NMetaState::GenerateMutationId(req);
 
     auto* reqExt = req->MutableExtension(NProto::TReqCreateChunkExt::create_chunk_ext);
     if (Config->PreferLocalHost) {
@@ -333,7 +333,7 @@ void TMultiChunkSequentialWriter<TChunkWriter>::OnChunkClosed(
     {
         auto req = TChunkYPathProxy::Confirm(
             NCypressClient::FromObjectId(currentSession.ChunkId));
-        NMetaState::GenerateRpcMutationId(req);
+        NMetaState::GenerateMutationId(req);
         *req->mutable_chunk_info() = asyncWriter->GetChunkInfo();
         NYT::ToProto(req->mutable_replicas(), replicas);
         *req->mutable_chunk_meta() = chunkWriter->GetMasterMeta();
@@ -426,7 +426,7 @@ void TMultiChunkSequentialWriter<TChunkWriter>::AttachChunks()
         auto req = TChunkListYPathProxy::Attach(
             NCypressClient::FromObjectId(ParentChunkListId));
         *req->add_children_ids() = inputChunk.chunk_id();
-        NMetaState::GenerateRpcMutationId(req);
+        NMetaState::GenerateMutationId(req);
         batchReq->AddRequest(req);
     }
 

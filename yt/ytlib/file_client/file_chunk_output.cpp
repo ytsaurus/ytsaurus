@@ -75,7 +75,7 @@ void TFileChunkOutput::Open()
         ToProto(req->mutable_transaction_id(), TransactionId);
         req->set_type(EObjectType::Chunk);
         req->set_account(Account);
-        NMetaState::GenerateRpcMutationId(req);
+        NMetaState::GenerateMutationId(req);
 
         auto* reqExt = req->MutableExtension(TReqCreateChunkExt::create_chunk_ext);
         reqExt->set_preferred_host_name(TAddressResolver::Get()->GetLocalHostName());
@@ -196,7 +196,7 @@ void TFileChunkOutput::DoFinish()
             req->add_replicas(ToProto<ui32>(Replicas[index]));
         }
         *req->mutable_chunk_meta() = Meta;
-        NMetaState::GenerateRpcMutationId(req);
+        NMetaState::GenerateMutationId(req);
 
         auto rsp = proxy.Execute(req).Get();
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error confirming chunk");

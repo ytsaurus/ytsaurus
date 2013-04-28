@@ -86,7 +86,7 @@ void TFileWriter::Open()
     LOG_INFO("Creating file node");
     {
         auto req = TCypressYPathProxy::Create(RichPath);
-        NMetaState::GenerateRpcMutationId(req);
+        NMetaState::GenerateMutationId(req);
         SetTransactionId(req, UploadTransaction);
         req->set_type(EObjectType::File);
         ToProto(req->mutable_node_attributes(), *Attributes);
@@ -114,7 +114,7 @@ void TFileWriter::Open()
 
         {
             auto req = TFileYPathProxy::PrepareForUpdate(FromObjectId(NodeId));
-            NMetaState::GenerateRpcMutationId(req);
+            NMetaState::GenerateMutationId(req);
             SetTransactionId(req, UploadTransaction);
             batchReq->AddRequest(req, "prepare_for_update");
         }

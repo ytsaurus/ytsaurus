@@ -19,7 +19,8 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchedulerCommandBase::TSchedulerCommandBase(ICommandContext* context)
-    : TTransactedCommandBase(context)
+    : TTypedCommandBase(context)
+    , TTransactionalCommandMixin(context, Request)
 { }
 
 void TSchedulerCommandBase::StartOperation(EOperationType type)
@@ -110,7 +111,7 @@ void TMapReduceCommand::DoExecute()
 ////////////////////////////////////////////////////////////////////////////////
 
 TAbortOperationCommand::TAbortOperationCommand(ICommandContext* context)
-    : TTransactedCommandBase(context)
+    : TTypedCommandBase(context)
 { }
 
 void TAbortOperationCommand::DoExecute()

@@ -47,13 +47,13 @@ typedef TIntrusivePtr<TRequest> TRequestPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTransactedRequest
+struct TTransactionalRequest
     : public virtual TRequest
 {
     NObjectClient::TTransactionId TransactionId;
     bool PingAncestors;
 
-    TTransactedRequest()
+    TTransactionalRequest()
     {
         RegisterParameter("transaction_id", TransactionId)
             .Default(NObjectClient::NullTransactionId);
@@ -62,19 +62,23 @@ struct TTransactedRequest
     }
 };
 
-struct TMutationRequest
+typedef TIntrusivePtr<TTransactionalRequest> TTransactionalRequestPtr;
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TMutatingRequest
     : public virtual TRequest
 {
     NMetaState::TMutationId MutationId;
 
-    TMutationRequest()
+    TMutatingRequest()
     {
         Register("mutation_id", MutationId)
             .Default(NMetaState::NullMutationId);
     }
 };
 
-typedef TIntrusivePtr<TTransactedRequest> TTransactedRequestPtr;
+typedef TIntrusivePtr<TMutatingRequest> TMutatingRequestPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -172,40 +176,39 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TRequest>
-class TTransactedCommandBase
-    : public TTypedCommandBase<TRequest>
+class TTransactionalCommandMixin
 {
 public:
-    explicit TTransactedCommandBase(ICommandContext* context)
-        : TTypedCommandBase<TRequest>(context)
-    { }
+    TTransactionalCommandMixin(ICommandContext* context, TTransactionalRequestPtr request);
 
 protected:
-    NTransactionClient::TTransactionId GetTransactionId(bool required)
-    {
-        auto transaction = GetTransaction(required, true);
-        return transaction ? transaction->GetId() : NTransactionClient::NullTransactionId;
-    }
+    NTransactionClient::TTransactionId GetTransactionId(bool required);
+    NTransactionClient::ITransactionPtr GetTransaction(bool required, bool ping);
 
-    NTransactionClient::ITransactionPtr GetTransaction(bool required, bool ping)
-    {
-        if (required && this->Request->TransactionId == NTransactionClient::NullTransactionId) {
-            THROW_ERROR_EXCEPTION("Transaction is required");
-        }
+    void SetTransactionId(NRpc::IClientRequestPtr request, bool required);
 
-        auto transactionId = this->Request->TransactionId;
-        if (transactionId == NTransactionClient::NullTransactionId) {
-            return nullptr;
-        }
+private:
+    ICommandContext* PrivateContext;
+    TTransactionalRequestPtr PrivateRequest;
 
-        NTransactionClient::TTransactionAttachOptions options(transactionId);
-        options.AutoAbort = false;
-        options.Ping = ping;
-        options.PingAncestors = this->Request->PingAncestors;
-        auto transactionManager = this->Context->GetTransactionManager();
-        return transactionManager->Attach(options);
-    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMutatingCommandMixin
+{
+public:
+    TMutatingCommandMixin(ICommandContext* context, TMutatingRequestPtr request);
+
+protected:
+    NMetaState::TMutationId GenerateMutationId();
+    void GenerateMutationId(NRpc::IClientRequestPtr request);
+
+private:
+    ICommandContext* PrivateContext;
+    TMutatingRequestPtr PrivateRequest;
+
+    NMetaState::TMutationId CurrentMutationId;
 
 };
 

@@ -12,7 +12,7 @@ namespace NDriver {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TGetRequest
-    : public TTransactedRequest
+    : public TTransactionalRequest
 {
     NYPath::TRichYPath Path;
     std::vector<Stroka> Attributes;
@@ -28,11 +28,13 @@ struct TGetRequest
 typedef TIntrusivePtr<TGetRequest> TGetRequestPtr;
 
 class TGetCommand
-    : public TTransactedCommandBase<TGetRequest>
+    : public TTypedCommandBase<TGetRequest>
+    , public TTransactionalCommandMixin
 {
 public:
     explicit TGetCommand(ICommandContext* context)
-        : TTransactedCommandBase(context)
+        : TTypedCommandBase(context)
+        , TTransactionalCommandMixin(context, Request)
    { }
 
 private:
@@ -43,8 +45,8 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TSetRequest
-    : public TTransactedRequest
-    , public TMutationRequest
+    : public TTransactionalRequest
+    , public TMutatingRequest
 {
     NYPath::TRichYPath Path;
 
@@ -57,11 +59,13 @@ struct TSetRequest
 typedef TIntrusivePtr<TSetRequest> TSetRequestPtr;
 
 class TSetCommand
-    : public TTransactedCommandBase<TSetRequest>
+    : public TTypedCommandBase<TSetRequest>
+    , public TMutatingCommandMixin
 {
 public:
     explicit TSetCommand(ICommandContext* context)
-        : TTransactedCommandBase(context)
+        : TTypedCommandBase(context)
+        , TMutatingCommandMixin(context, Request)
     { }
 
 private:
@@ -72,8 +76,8 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TRemoveRequest
-    : public TTransactedRequest
-    , public TMutationRequest
+    : public TTransactionalRequest
+    , public TMutatingRequest
 {
     NYPath::TRichYPath Path;
     bool Recursive;
@@ -94,11 +98,13 @@ struct TRemoveRequest
 typedef TIntrusivePtr<TRemoveRequest> TRemoveRequestPtr;
 
 class TRemoveCommand
-    : public TTransactedCommandBase<TRemoveRequest>
+    : public TTypedCommandBase<TRemoveRequest>
+    , public TMutatingCommandMixin
 {
 public:
     explicit TRemoveCommand(ICommandContext* context)
-        : TTransactedCommandBase(context)
+        : TTypedCommandBase(context)
+        , TMutatingCommandMixin(context, Request)
     { }
 
 private:
@@ -109,7 +115,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TListRequest
-    : public TTransactedRequest
+    : public TTransactionalRequest
 {
     NYPath::TRichYPath Path;
     std::vector<Stroka> Attributes;
@@ -125,11 +131,13 @@ struct TListRequest
 typedef TIntrusivePtr<TListRequest> TListRequestPtr;
 
 class TListCommand
-    : public TTransactedCommandBase<TListRequest>
+    : public TTypedCommandBase<TListRequest>
+    , public TTransactionalCommandMixin
 {
 public:
     explicit TListCommand(ICommandContext* context)
-        : TTransactedCommandBase(context)
+        : TTypedCommandBase(context)
+        , TTransactionalCommandMixin(context, Request)
     { }
 
 private:
@@ -140,8 +148,8 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TCreateRequest
-    : public TTransactedRequest
-    , public TMutationRequest
+    : public TTransactionalRequest
+    , public TMutatingRequest
 {
     TNullable<NYPath::TRichYPath> Path;
     NObjectClient::EObjectType Type;
@@ -166,11 +174,15 @@ struct TCreateRequest
 typedef TIntrusivePtr<TCreateRequest> TCreateRequestPtr;
 
 class TCreateCommand
-    : public TTransactedCommandBase<TCreateRequest>
+    : public TTypedCommandBase<TCreateRequest>
+    , public TTransactionalCommandMixin
+    , public TMutatingCommandMixin
 {
 public:
     explicit TCreateCommand(ICommandContext* context)
-        : TTransactedCommandBase(context)
+        : TTypedCommandBase(context)
+        , TTransactionalCommandMixin(context, Request)
+        , TMutatingCommandMixin(context, Request)
    { }
 
 private:
@@ -180,8 +192,8 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TLockRequest
-    : public TTransactedRequest
-    , public TMutationRequest
+    : public TTransactionalRequest
+    , public TMutatingRequest
 {
     NYPath::TRichYPath Path;
     NCypressClient::ELockMode Mode;
@@ -197,11 +209,15 @@ struct TLockRequest
 typedef TIntrusivePtr<TLockRequest> TLockRequestPtr;
 
 class TLockCommand
-    : public TTransactedCommandBase<TLockRequest>
+    : public TTypedCommandBase<TLockRequest>
+    , public TTransactionalCommandMixin
+    , public TMutatingCommandMixin
 {
 public:
     explicit TLockCommand(ICommandContext* context)
-        : TTransactedCommandBase(context)
+        : TTypedCommandBase(context)
+        , TTransactionalCommandMixin(context, Request)
+        , TMutatingCommandMixin(context, Request)
     { }
 
 private:
@@ -212,8 +228,8 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TCopyRequest
-    : public TTransactedRequest
-    , public TMutationRequest
+    : public TTransactionalRequest
+    , public TMutatingRequest
 {
     NYPath::TRichYPath SourcePath;
     NYPath::TRichYPath DestinationPath;
@@ -228,11 +244,15 @@ struct TCopyRequest
 typedef TIntrusivePtr<TCopyRequest> TCopyRequestPtr;
 
 class TCopyCommand
-    : public TTransactedCommandBase<TCopyRequest>
+    : public TTypedCommandBase<TCopyRequest>
+    , public TTransactionalCommandMixin
+    , public TMutatingCommandMixin
 {
 public:
     explicit TCopyCommand(ICommandContext* context)
-        : TTransactedCommandBase(context)
+        : TTypedCommandBase(context)
+        , TTransactionalCommandMixin(context, Request)
+        , TMutatingCommandMixin(context, Request)
     { }
 
 private:
@@ -243,8 +263,8 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TMoveRequest
-    : public TTransactedRequest
-    , public TMutationRequest
+    : public TTransactionalRequest
+    , public TMutatingRequest
 {
     NYPath::TRichYPath SourcePath;
     NYPath::TRichYPath DestinationPath;
@@ -259,11 +279,15 @@ struct TMoveRequest
 typedef TIntrusivePtr<TMoveRequest> TMoveRequestPtr;
 
 class TMoveCommand
-    : public TTransactedCommandBase<TMoveRequest>
+    : public TTypedCommandBase<TMoveRequest>
+    , public TTransactionalCommandMixin
+    , public TMutatingCommandMixin
 {
 public:
     explicit TMoveCommand(ICommandContext* context)
-        : TTransactedCommandBase(context)
+        : TTypedCommandBase(context)
+        , TTransactionalCommandMixin(context, Request)
+        , TMutatingCommandMixin(context, Request)
     { }
 
 private:
@@ -274,7 +298,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TExistsRequest
-    : public TTransactedRequest
+    : public TTransactionalRequest
 {
     NYPath::TRichYPath Path;
 
@@ -287,11 +311,13 @@ struct TExistsRequest
 typedef TIntrusivePtr<TExistsRequest> TExistsRequestPtr;
 
 class TExistsCommand
-    : public TTransactedCommandBase<TExistsRequest>
+    : public TTypedCommandBase<TExistsRequest>
+    , public TTransactionalCommandMixin
 {
 public:
     explicit TExistsCommand(ICommandContext* context)
-        : TTransactedCommandBase(context)
+        : TTypedCommandBase(context)
+        , TTransactionalCommandMixin(context, Request)
    { }
 
 private:
@@ -302,8 +328,8 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TLinkRequest
-    : public TTransactedRequest
-    , public TMutationRequest
+    : public TTransactionalRequest
+    , public TMutatingRequest
 {
     NYPath::TRichYPath LinkPath;
     NYPath::TRichYPath TargetPath;
@@ -327,11 +353,15 @@ struct TLinkRequest
 typedef TIntrusivePtr<TLinkRequest> TLinkRequestPtr;
 
 class TLinkCommand
-    : public TTransactedCommandBase<TLinkRequest>
+    : public TTypedCommandBase<TLinkRequest>
+    , public TTransactionalCommandMixin
+    , public TMutatingCommandMixin
 {
 public:
     explicit TLinkCommand(ICommandContext* context)
-        : TTransactedCommandBase(context)
+        : TTypedCommandBase(context)
+        , TTransactionalCommandMixin(context, Request)
+        , TMutatingCommandMixin(context, Request)
     { }
 
 private:

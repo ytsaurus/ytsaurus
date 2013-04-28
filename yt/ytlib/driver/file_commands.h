@@ -8,7 +8,7 @@ namespace NDriver {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TDownloadRequest
-    : public TTransactedRequest
+    : public TTransactionalRequest
 {
     NYPath::TRichYPath Path;
     TNullable<i64> Offset;
@@ -27,11 +27,13 @@ struct TDownloadRequest
 typedef TIntrusivePtr<TDownloadRequest> TDownloadRequestPtr;
 
 class TDownloadCommand
-    : public TTransactedCommandBase<TDownloadRequest>
+    : public TTypedCommandBase<TDownloadRequest>
+    , public TTransactionalCommandMixin
 {
 public:
-    explicit TDownloadCommand(ICommandContext* host)
-        : TTransactedCommandBase(host)
+    explicit TDownloadCommand(ICommandContext* context)
+        : TTypedCommandBase(context)
+        , TTransactionalCommandMixin(context, Request)
     { }
 
 private:
@@ -41,7 +43,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TUploadRequest
-    : public TTransactedRequest
+    : public TTransactionalRequest
 {
     NYPath::TRichYPath Path;
     NYTree::INodePtr Attributes;
@@ -50,22 +52,25 @@ struct TUploadRequest
     {
         RegisterParameter("path", Path);
         RegisterParameter("attributes", Attributes)
-            .Default(NULL);
+            .Default(nullptr);
     }
 };
 
 typedef TIntrusivePtr<TUploadRequest> TUploadRequestPtr;
 
 class TUploadCommand
-    : public TTransactedCommandBase<TUploadRequest>
+    : public TTypedCommandBase<TUploadRequest>
+    , public TTransactionalCommandMixin
 {
 public:
-    explicit TUploadCommand(ICommandContext* host)
-        : TTransactedCommandBase(host)
+    explicit TUploadCommand(ICommandContext* context)
+        : TTypedCommandBase(context)
+        , TTransactionalCommandMixin(context, Request)
     { }
 
 private:
     virtual void DoExecute();
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

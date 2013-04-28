@@ -17,10 +17,13 @@ TClosure CreateRpcSuccessHandler(TIntrusivePtr<TContext> context);
 template <class TContext>
 TCallback<void (const TError& error)> CreateRpcErrorHandler(TIntrusivePtr<TContext> context);
 
-void SetRpcMutationId(NRpc::IClientRequestPtr request, const TMutationId& id);
-void GenerateRpcMutationId(NRpc::IClientRequestPtr request);
-void GenerateRpcMutationId(NRpc::IClientRequestPtr request, const TMutationId& id);
-TMutationId GetRpcMutationId(NRpc::IServiceContextPtr context);
+NMetaState::TMutationId GenerateMutationId();
+
+TMutationId GetMutationId(NRpc::IServiceContextPtr context);
+
+void GenerateMutationId(NRpc::IClientRequestPtr request);
+void SetMutationId(NRpc::IClientRequestPtr request, const TMutationId& id);
+void SetOrGenerateMutationId(NRpc::IClientRequestPtr request, const TMutationId& id);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -733,7 +733,7 @@ private:
                 ~ToString(operation->GetOperationId())));
             ToProto(req->mutable_object_attributes(), *attributes);
 
-            GenerateRpcMutationId(req);
+            GenerateMutationId(req);
             batchReq->AddRequest(req, "start_sync_tx");
         }
 
@@ -749,7 +749,7 @@ private:
                 ~ToString(operation->GetOperationId())));
             ToProto(req->mutable_object_attributes(), *attributes);
 
-            GenerateRpcMutationId(req);
+            GenerateMutationId(req);
             batchReq->AddRequest(req, "start_async_tx");
         }
 
@@ -814,7 +814,7 @@ private:
                 ~ToString(operation->GetOperationId())));
             ToProto(req->mutable_object_attributes(), *attributes);
 
-            NMetaState::GenerateRpcMutationId(req);
+            NMetaState::GenerateMutationId(req);
             batchReq->AddRequest(req, "start_in_tx");
         }
 
@@ -832,7 +832,7 @@ private:
                 ~ToString(operation->GetOperationId())));
             ToProto(req->mutable_object_attributes(), *attributes);
 
-            NMetaState::GenerateRpcMutationId(req);
+            NMetaState::GenerateMutationId(req);
             batchReq->AddRequest(req, "start_out_tx");
         }
 
@@ -1153,7 +1153,7 @@ private:
 
         auto scheduleCommit = [&] (ITransactionPtr transaction, const Stroka& key) {
             auto req = TTransactionYPathProxy::Commit(FromObjectId(transaction->GetId()));
-            NMetaState::GenerateRpcMutationId(req);
+            NMetaState::GenerateMutationId(req);
             batchReq->AddRequest(req, key);
             transaction->Detach();
         };
