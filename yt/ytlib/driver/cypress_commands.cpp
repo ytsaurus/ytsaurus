@@ -61,7 +61,7 @@ void TRemoveCommand::DoExecute()
     auto req = TYPathProxy::Remove(Request->Path.GetPath());
     req->set_recursive(Request->Recursive);
     req->set_force(Request->Force);
-    SetTransactionId(req, GetTransactionId(false));
+    SetTransactionId(req, false);
     GenerateMutationId(req);
 
     req->MutableAttributes()->MergeFrom(Request->GetOptions());

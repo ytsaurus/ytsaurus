@@ -60,11 +60,13 @@ typedef TIntrusivePtr<TSetRequest> TSetRequestPtr;
 
 class TSetCommand
     : public TTypedCommandBase<TSetRequest>
+    , public TTransactionalCommandMixin
     , public TMutatingCommandMixin
 {
 public:
     explicit TSetCommand(ICommandContext* context)
         : TTypedCommandBase(context)
+        , TTransactionalCommandMixin(context, Request)
         , TMutatingCommandMixin(context, Request)
     { }
 
@@ -99,11 +101,13 @@ typedef TIntrusivePtr<TRemoveRequest> TRemoveRequestPtr;
 
 class TRemoveCommand
     : public TTypedCommandBase<TRemoveRequest>
+    , public TTransactionalCommandMixin
     , public TMutatingCommandMixin
 {
 public:
     explicit TRemoveCommand(ICommandContext* context)
         : TTypedCommandBase(context)
+        , TTransactionalCommandMixin(context, Request)
         , TMutatingCommandMixin(context, Request)
     { }
 
