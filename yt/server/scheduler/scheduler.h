@@ -8,6 +8,8 @@
 
 #include <ytlib/transaction_client/public.h>
 
+#include <ytlib/meta_state/public.h>
+
 #include <ytlib/node_tracker_client/node_directory.h>
 
 #include <ytlib/job_tracker_client/job_tracker_service.pb.h>
@@ -52,6 +54,7 @@ public:
     TFuture<TStartResult> StartOperation(
         EOperationType type,
         const NTransactionClient::TTransactionId& transactionId,
+        const NMetaState::TMutationId& mutationId,
         NYTree::IMapNodePtr spec,
         const Stroka& user);
 

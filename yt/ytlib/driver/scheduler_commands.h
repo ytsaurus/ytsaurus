@@ -9,23 +9,24 @@ namespace NDriver {
 
 //////////////////////////////////////////////////////////////////////////////
 
-struct TSchedulerRequest
+struct TStartOperationRequest
     : public TTransactionalRequest
+    , public TMutatingRequest
 {
     NYTree::INodePtr Spec;
 
-    TSchedulerRequest()
+    TStartOperationRequest()
     {
         RegisterParameter("spec", Spec);
     }
 };
 
-typedef TIntrusivePtr<TSchedulerRequest> TSchedulerRequestPtr;
+typedef TIntrusivePtr<TStartOperationRequest> TSchedulerRequestPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchedulerCommandBase
-    : public TTypedCommandBase<TSchedulerRequest>
+    : public TTypedCommandBase<TStartOperationRequest>
     , public TTransactionalCommandMixin
 {
 protected:

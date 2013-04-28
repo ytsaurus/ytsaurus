@@ -44,6 +44,7 @@
 #include <ytlib/ytree/ypath_proxy.h>
 #include <ytlib/ytree/fluent.h>
 
+#include <ytlib/meta_state/public.h>
 #include <ytlib/meta_state/rpc_helpers.h>
 
 #include <server/cell_scheduler/config.h>
@@ -154,7 +155,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         std::vector<TOperationPtr> operations;
-        FOREACH (const auto& pair, Operations) {
+        FOREACH (const auto& pair, IdToOperation) {
             operations.push_back(pair.second);
         }
         return operations;
@@ -185,8 +186,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto it = Operations.find(id);
-        return it == Operations.end() ? nullptr : it->second;
+        auto it = IdToOperation.find(id);
+        return it == IdToOperation.end() ? nullptr : it->second;
     }
 
     TOperationPtr GetOperationOrThrow(const TOperationId& id)
@@ -200,11 +201,19 @@ public:
         return operation;
     }
 
+    TOperationPtr FindOperationByMutationId(const TOperationId& id)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto it = MutationIdToOperation.find(id);
+        return it == MutationIdToOperation.end() ? nullptr : it->second;
+    }
+
 
     TExecNodePtr FindNode(const Stroka& address)
     {
-        auto it = Nodes.find(address);
-        return it == Nodes.end() ? nullptr : it->second;
+        auto it = AddressToNode.find(address);
+        return it == AddressToNode.end() ? nullptr : it->second;
     }
 
     TExecNodePtr GetNode(const Stroka& address)
@@ -216,8 +225,8 @@ public:
 
     TExecNodePtr GetOrCreateNode(const TNodeDescriptor& descriptor)
     {
-        auto it = Nodes.find(descriptor.Address);
-        if (it == Nodes.end()) {
+        auto it = AddressToNode.find(descriptor.Address);
+        if (it == AddressToNode.end()) {
             return RegisterNode(descriptor);
         }
 
@@ -231,10 +240,19 @@ public:
     TFuture<TStartResult> StartOperation(
         EOperationType type,
         const TTransactionId& transactionId,
+        const TMutationId& mutationId,
         IMapNodePtr spec,
         const Stroka& user)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+
+        // Check for an already existing operation.
+        if (mutationId != NullMutationId) {
+            auto existingOperation = FindOperationByMutationId(mutationId);
+            if (existingOperation) {
+                return MakeFuture(TStartResult(existingOperation));
+            }
+        }
 
         // Attach user transaction if any. Don't ping it.
         TTransactionAttachOptions userAttachOptions(transactionId);
@@ -251,6 +269,7 @@ public:
         auto operation = New<TOperation>(
             operationId,
             type,
+            mutationId,
             userTransaction,
             spec,
             user,
@@ -258,11 +277,12 @@ public:
         operation->SetCleanStart(true);
         operation->SetState(EOperationState::Initializing);
 
-        LOG_INFO("Starting operation (OperationType: %s, OperationId: %s, TransactionId: %s, User: %s)",
+        LOG_INFO("Starting operation (OperationType: %s, OperationId: %s, TransactionId: %s, MutationId: %s, User: %s)",
             ~type.ToString(),
             ~ToString(operationId),
             ~ToString(transactionId),
-            ~ToString(user));
+            ~ToString(mutationId),
+            ~user);
 
         IOperationControllerPtr controller;
         try {
@@ -490,7 +510,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         std::vector<TExecNodePtr> result;
-        FOREACH (const auto& pair, Nodes) {
+        FOREACH (const auto& pair, AddressToNode) {
             result.push_back(pair.second);
         }
         return result;
@@ -561,13 +581,16 @@ private:
     TAutoPtr<ISchedulerStrategy> Strategy;
 
     typedef yhash_map<Stroka, TExecNodePtr> TExecNodeMap;
-    TExecNodeMap Nodes;
+    TExecNodeMap AddressToNode;
 
-    typedef yhash_map<TOperationId, TOperationPtr> TOperationMap;
-    TOperationMap Operations;
+    typedef yhash_map<TOperationId, TOperationPtr> TOperationIdMap;
+    TOperationIdMap IdToOperation;
+
+    typedef yhash_map<TMutationId, TOperationPtr> TOperationMutationIdMap;
+    TOperationMutationIdMap MutationIdToOperation;
 
     typedef yhash_map<TJobId, TJobPtr> TJobMap;
-    TJobMap Jobs;
+    TJobMap IdToJob;
 
     NProfiling::TProfiler TotalResourceLimitsProfiler;
     NProfiling::TProfiler TotalResourceUsageProfiler;
@@ -594,9 +617,9 @@ private:
             Profiler.Enqueue("/job_count/" + FormatEnum(EJobType(jobType)), JobTypeCounters[jobType]);
         }
 
-        Profiler.Enqueue("/job_count/total", Jobs.size());
-        Profiler.Enqueue("/operation_count", Operations.size());
-        Profiler.Enqueue("/node_count", Nodes.size());
+        Profiler.Enqueue("/job_count/total", IdToJob.size());
+        Profiler.Enqueue("/operation_count", IdToOperation.size());
+        Profiler.Enqueue("/node_count", AddressToNode.size());
 
         ProfileResources(TotalResourceLimitsProfiler, TotalResourceLimits);
         ProfileResources(TotalResourceUsageProfiler, TotalResourceUsage);
@@ -623,7 +646,7 @@ private:
         CancelableConnectionContext.Reset();
         CancelableConnectionControlInvoker.Reset();
 
-        auto operations = Operations;
+        auto operations = IdToOperation;
         FOREACH (const auto& pair, operations) {
             auto operation = pair.second;
             if (!operation->IsFinishedState()) {
@@ -635,14 +658,14 @@ private:
             }
             FinishOperation(operation);
         }
-        YCHECK(Operations.empty());
+        YCHECK(IdToOperation.empty());
 
-        FOREACH (const auto& pair, Nodes) {
+        FOREACH (const auto& pair, AddressToNode) {
             auto node = pair.second;
             node->Jobs().clear();
         }
 
-        Jobs.clear();
+        IdToJob.clear();
     }
 
 
@@ -922,7 +945,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YCHECK(Operations.empty());
+        YCHECK(IdToOperation.empty());
         FOREACH (auto operation, operations) {
             ReviveOperation(operation);
         }
@@ -1027,8 +1050,8 @@ private:
 
     TJobPtr FindJob(const TJobId& jobId)
     {
-        auto it = Jobs.find(jobId);
-        return it == Jobs.end() ? nullptr : it->second;
+        auto it = IdToJob.find(jobId);
+        return it == IdToJob.end() ? nullptr : it->second;
     }
 
 
@@ -1050,9 +1073,9 @@ private:
         TotalResourceLimits += node->ResourceLimits();
         TotalResourceUsage += node->ResourceUsage();
 
-        YCHECK(Nodes.insert(std::make_pair(node->GetAddress(), node)).second);
+        YCHECK(AddressToNode.insert(std::make_pair(node->GetAddress(), node)).second);
 
-        FOREACH (const auto& pair, Operations) {
+        FOREACH (const auto& pair, IdToOperation) {
             auto operation = pair.second;
             if (operation->GetState() == EOperationState::Running) {
                 operation->GetController()->OnNodeOnline(node);
@@ -1082,9 +1105,9 @@ private:
             AbortJob(job, TError("Node offline"));
             UnregisterJob(job);
         }
-        YCHECK(Nodes.erase(address) == 1);
+        YCHECK(AddressToNode.erase(address) == 1);
 
-        FOREACH (const auto& pair, Operations) {
+        FOREACH (const auto& pair, IdToOperation) {
             auto operation = pair.second;
             if (operation->GetState() == EOperationState::Running) {
                 operation->GetController()->OnNodeOffline(node);
@@ -1095,8 +1118,15 @@ private:
 
     void RegisterOperation(TOperationPtr operation)
     {
-        YCHECK(Operations.insert(std::make_pair(operation->GetOperationId(), operation)).second);
+        YCHECK(IdToOperation.insert(std::make_pair(operation->GetOperationId(), operation)).second);
+        
+        auto mutationId = operation->GetMutationId();
+        if (mutationId != NullMutationId) {
+            YCHECK(MutationIdToOperation.insert(std::make_pair(mutationId, operation)).second);
+        }
+        
         OperationRegistered_.Fire(operation);
+        
         LOG_DEBUG("Operation registered (OperationId: %s)",
             ~ToString(operation->GetOperationId()));
     }
@@ -1114,8 +1144,15 @@ private:
 
     void UnregisterOperation(TOperationPtr operation)
     {
-        YCHECK(Operations.erase(operation->GetOperationId()) == 1);
+        YCHECK(IdToOperation.erase(operation->GetOperationId()) == 1);
+
+        auto mutationId = operation->GetMutationId();
+        if (mutationId != NullMutationId) {
+            YCHECK(MutationIdToOperation.erase(operation->GetMutationId()) == 1);
+        }
+        
         OperationUnregistered_.Fire(operation);
+        
         LOG_DEBUG("Operation unregistered (OperationId: %s)",
             ~ToString(operation->GetOperationId()));
     }
@@ -1202,7 +1239,7 @@ private:
     {
         ++JobTypeCounters[job->GetType()];
 
-        YCHECK(Jobs.insert(std::make_pair(job->GetId(), job)).second);
+        YCHECK(IdToJob.insert(std::make_pair(job->GetId(), job)).second);
         YCHECK(job->GetOperation()->Jobs().insert(job).second);
         YCHECK(job->GetNode()->Jobs().insert(job).second);
 
@@ -1220,7 +1257,7 @@ private:
     {
         --JobTypeCounters[job->GetType()];
 
-        YCHECK(Jobs.erase(job->GetId()) == 1);
+        YCHECK(IdToJob.erase(job->GetId()) == 1);
         YCHECK(job->GetOperation()->Jobs().erase(job) == 1);
         YCHECK(job->GetNode()->Jobs().erase(job) == 1);
 
@@ -1504,10 +1541,10 @@ private:
                     .Item("resource_limits").Value(TotalResourceLimits)
                     .Item("resource_usage").Value(TotalResourceUsage)
                 .EndMap()
-                .Item("operations").DoMapFor(Operations, [=] (TFluentMap fluent, TOperationMap::value_type pair) {
+                .Item("operations").DoMapFor(IdToOperation, [=] (TFluentMap fluent, TOperationIdMap::value_type pair) {
                     BuildOperationYson(pair.second, fluent);
                 })
-                .Item("nodes").DoMapFor(Nodes, [=] (TFluentMap fluent, TExecNodeMap::value_type pair) {
+                .Item("nodes").DoMapFor(AddressToNode, [=] (TFluentMap fluent, TExecNodeMap::value_type pair) {
                     BuildNodeYson(pair.second, fluent);
                 })
                 .Do(BIND(&ISchedulerStrategy::BuildOrchidYson, ~Strategy))
@@ -1856,12 +1893,14 @@ TExecNodePtr TScheduler::GetOrCreateNode(const TNodeDescriptor& descriptor)
 TFuture<TScheduler::TStartResult> TScheduler::StartOperation(
     EOperationType type,
     const TTransactionId& transactionId,
+    const TMutationId& mutationId,
     IMapNodePtr spec,
     const Stroka& user)
 {
     return Impl->StartOperation(
         type,
         transactionId,
+        mutationId,
         spec,
         user);
 }

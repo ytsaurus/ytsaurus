@@ -46,10 +46,8 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, StartOperation)
     {
         auto type = EOperationType(request->type());
-        auto transactionId =
-            request->has_transaction_id()
-            ? FromProto<TTransactionId>(request->transaction_id())
-            : NullTransactionId;
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        auto mutationId = FromProto<TTransactionId>(request->mutation_id());
 
         auto maybeUser = FindRpcAuthenticatedUser(context);
         auto user = maybeUser ? *maybeUser : RootUserName;
@@ -63,9 +61,10 @@ private:
         }
 
         // TODO(babenko): let RPC subsystem log user name
-        context->SetRequestInfo("Type: %s, TransactionId: %s, User: %s",
+        context->SetRequestInfo("Type: %s, TransactionId: %s, MutationId: %s, User: %s",
             ~type.ToString(),
             ~ToString(transactionId),
+            ~ToString(mutationId),
             ~user);
 
         auto scheduler = Bootstrap->GetScheduler();
@@ -73,6 +72,7 @@ private:
         scheduler->StartOperation(
             type,
             transactionId,
+            mutationId,
             spec,
             user)
             .Subscribe(BIND([=] (TValueOrError<TOperationPtr> result) {

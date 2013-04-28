@@ -30,6 +30,7 @@ void TSchedulerCommandBase::StartOperation(EOperationType type)
         auto req = SchedulerProxy->StartOperation();
         req->set_type(type);
         ToProto(req->mutable_transaction_id(), GetTransactionId(false));
+        ToProto(req->mutable_mutation_id(), Request->MutationId);
         req->set_spec(ConvertToYsonString(Request->Spec).Data());
 
         auto rsp = req->Invoke().Get();

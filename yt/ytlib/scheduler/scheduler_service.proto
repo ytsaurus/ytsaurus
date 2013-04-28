@@ -15,11 +15,16 @@ message TReqStartOperation
 { 
     // EOperationType value.
     required int32 type = 1;
+    
     // User (typically top-level) transaction where the operation
     // processing must happen.
     required NYT.NProto.TGuid transaction_id = 2;
+    
     // Operation spec in YSON. 
     required bytes spec = 3;
+
+    // Mutation id helps preventing double starts on retries.
+    required NYT.NProto.TGuid mutation_id = 4;
 }
 
 message TRspStartOperation
