@@ -18,7 +18,9 @@ using namespace NYTree;
 
 void TDownloadCommand::DoExecute()
 {
-    auto config = Context->GetConfig()->FileReader;
+    auto config = UpdateYsonSerializable(
+        Context->GetConfig()->FileReader,
+        Request->FileReader);
 
     auto reader = New<TFileReader>();
 
@@ -46,7 +48,9 @@ void TDownloadCommand::DoExecute()
 
 void TUploadCommand::DoExecute()
 {
-    auto config = Context->GetConfig()->FileWriter;
+    auto config = UpdateYsonSerializable(
+        Context->GetConfig()->FileWriter,
+        Request->FileWriter);
 
     auto attributes =
         Request->Attributes

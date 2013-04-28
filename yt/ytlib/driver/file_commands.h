@@ -13,6 +13,7 @@ struct TDownloadRequest
     NYPath::TRichYPath Path;
     TNullable<i64> Offset;
     TNullable<i64> Length;
+    NYTree::INodePtr FileReader;
 
     TDownloadRequest()
     {
@@ -21,6 +22,8 @@ struct TDownloadRequest
             .Default(Null);
         RegisterParameter("length", Length)
             .Default(Null);
+        RegisterParameter("file_reader", FileReader)
+            .Default(nullptr);
     }
 };
 
@@ -47,11 +50,14 @@ struct TUploadRequest
 {
     NYPath::TRichYPath Path;
     NYTree::INodePtr Attributes;
+    NYTree::INodePtr FileWriter;
 
     TUploadRequest()
     {
         RegisterParameter("path", Path);
         RegisterParameter("attributes", Attributes)
+            .Default(nullptr);
+        RegisterParameter("file_writer", FileWriter)
             .Default(nullptr);
     }
 };

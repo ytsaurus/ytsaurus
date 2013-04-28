@@ -73,7 +73,7 @@ struct TMutatingRequest
 
     TMutatingRequest()
     {
-        Register("mutation_id", MutationId)
+        RegisterParameter("mutation_id", MutationId)
             .Default(NMetaState::NullMutationId);
     }
 };
