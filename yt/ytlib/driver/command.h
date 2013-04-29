@@ -164,7 +164,7 @@ private:
         Request = New<TRequest>();
         try {
             auto arguments = Context->GetRequest()->Arguments;;
-            Request = ConvertTo<TIntrusivePtr<TRequest>>(arguments);
+            Request = NYTree::ConvertTo<TIntrusivePtr<TRequest>>(arguments);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing command arguments") <<
                 ex;
