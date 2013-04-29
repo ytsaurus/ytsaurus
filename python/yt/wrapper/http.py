@@ -1,4 +1,5 @@
 import config
+import logger
 from common import require
 from errors import YtError, YtResponseError, YtTokenError, format_error
 from format import JsonFormat
@@ -10,8 +11,9 @@ import requests
 
 import os
 import sys
-import logger
 import string
+import uuid
+import time
 import simplejson as json
 from datetime import date
 
@@ -158,6 +160,26 @@ def make_request(command_name, params,
         "abort_op": "POST"
     }
 
+    nonvolatile_commands = [
+        "get",
+        "list",
+        "exists",
+        "parse_ypath",
+        "check_permission"
+    ]
+
+    heavy_commands = [
+        "read",
+        "write",
+        "upload",
+        "download"
+    ]
+    
+    make_retry = command_name in nonvolatile_commands or \
+            (config.RETRY_VOLATILE_COMMANDS and command_name not in heavy_commands)
+    if make_retry and command_name not in nonvolatile_commands and "mutation_id" not in params:
+        params["mutation_id"] = str(uuid.uuid4())
+
     # Prepare request url.
     if proxy is None:
         proxy = config.PROXY
@@ -203,15 +225,25 @@ def make_request(command_name, params,
     if command_name in ["read", "download"]:
         stream = True
 
-    response = Response(
-        requests.request(
-            url=url,
-            method=http_method[command_name],
-            headers=headers,
-            data=data,
-            files=files,
-            timeout=config.CONNECTION_TIMEOUT,
-            stream=stream))
+    
+    for r in xrange(config.HTTP_RETRIES_COUNT):
+        try:
+            response = Response(
+                requests.request(
+                    url=url,
+                    method=http_method[command_name],
+                    headers=headers,
+                    data=data,
+                    files=files,
+                    timeout=config.CONNECTION_TIMEOUT,
+                    stream=stream))
+            break
+        except requests.HTTPError, requests.ConnectionError:
+            if make_retry:
+                logger.warning("Retrying http request " + command_name)
+                time.sleep(config.HTTP_RETRY_TIMEOUT)
+            else:
+                raise
 
     if config.USE_TOKEN and "Authorization" in headers:
         headers["Authorization"] = "x" * 32
