@@ -6,10 +6,14 @@
 #include <ytlib/misc/string.h>
 #include <ytlib/misc/serialize.h>
 
+#include <ytlib/erasure/codec.h>
+
 #include <ytlib/ytree/tree_builder.h>
 #include <ytlib/ytree/ephemeral_node_factory.h>
+
 #include <ytlib/yson/parser.h>
 #include <ytlib/yson/tokenizer.h>
+
 #include <ytlib/ypath/token.h>
 
 #include <ytlib/table_client/table_ypath_proxy.h>
@@ -190,13 +194,24 @@ private:
         }
 
         auto* inputChunk = Context->Response().add_chunks();
+
         if (!Channel.IsUniversal()) {
             *inputChunk->mutable_channel() = Channel.ToProto();
         }
 
+        auto codecId = chunk->GetErasureCodec();
+        int firstParityPartIndex =
+            codecId == NErasure::ECodec::None
+            ? 1 // makes no sense anyway
+            : NErasure::GetCodec(codecId)->GetDataBlockCount();
+
         auto replicas = chunk->GetReplicas();
-        NodeDirectoryBuilder.Add(replicas);
-        ToProto(inputChunk->mutable_replicas(), replicas);
+        FOREACH (auto replica, replicas) {
+            if (replica.GetIndex() < firstParityPartIndex) {
+                NodeDirectoryBuilder.Add(replica);
+                inputChunk->add_replicas(ToProto<ui32>(replica));
+            }
+        }
 
         if (Context->Request().fetch_all_meta_extensions()) {
             *inputChunk->mutable_extensions() = chunk->ChunkMeta().extensions();
