@@ -23,8 +23,8 @@ struct ICodec;
 
 DECLARE_ENUM(ECodec,
     ((None)           (0))
-    ((ReedSolomon)    (1)) // ReedSolomon_6_3
-    ((Lrc)            (2)) // Lrc_12_2_2
+    ((ReedSolomon_6_3)(1)) // ReedSolomon_6_3
+    ((Lrc_12_2_2)     (2)) // Lrc_12_2_2
 );
 
 ///////////////////////////////////////////////////////////////////////////////

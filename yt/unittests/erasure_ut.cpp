@@ -38,8 +38,8 @@ TEST_F(TErasureCodingTest, RandomText)
     TRand rand;
 
     std::map<ECodec::EDomain, int> guaranteedRecoveryCount;
-    guaranteedRecoveryCount[ECodec::ReedSolomon] = 3;
-    guaranteedRecoveryCount[ECodec::Lrc] = 3;
+    guaranteedRecoveryCount[ECodec::ReedSolomon_6_3] = 3;
+    guaranteedRecoveryCount[ECodec::Lrc_12_2_2] = 3;
 
     std::vector<char> data;
     for (int i = 0; i < 16 * 64; ++i) {
@@ -174,7 +174,7 @@ public:
 
 TEST_F(TErasureMixture, WriterTest)
 {
-    auto codec = GetCodec(ECodec::Lrc);
+    auto codec = GetCodec(ECodec::Lrc_12_2_2);
 
     // Prepare data
     Stroka data[] = {
@@ -206,7 +206,7 @@ TEST_F(TErasureMixture, WriterTest)
 
 TEST_F(TErasureMixture, ReaderTest)
 {
-    auto codec = GetCodec(ECodec::Lrc);
+    auto codec = GetCodec(ECodec::Lrc_12_2_2);
 
     // Prepare data
     Stroka data[] = {
@@ -251,7 +251,7 @@ TEST_F(TErasureMixture, ReaderTest)
 // TODO(ignat): refactor this tests to eliminate copy-paste
 TEST_F(TErasureMixture, RepairTest1)
 {
-    auto codec = GetCodec(ECodec::ReedSolomon);
+    auto codec = GetCodec(ECodec::ReedSolomon_6_3);
 
     // Prepare data
     Stroka data[] = {"a"};
@@ -307,7 +307,7 @@ TEST_F(TErasureMixture, RepairTest1)
 
 TEST_F(TErasureMixture, RepairTest2)
 {
-    auto codec = GetCodec(ECodec::Lrc);
+    auto codec = GetCodec(ECodec::Lrc_12_2_2);
 
     // Prepare data
     Stroka data[] = {
@@ -370,7 +370,7 @@ TEST_F(TErasureMixture, RepairTestWithSeveralWindows)
 {
     TRand rand;
 
-    auto codec = GetCodec(ECodec::Lrc);
+    auto codec = GetCodec(ECodec::Lrc_12_2_2);
 
     // Prepare data
     std::vector<TSharedRef> dataRefs;

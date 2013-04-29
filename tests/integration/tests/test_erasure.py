@@ -32,10 +32,10 @@ class TestErasure(YTEnvSetup):
         assert get('//tmp/table/@chunk_count') == 2
 
     def test_reed_solomon(self):
-        self._do_test_simple('/table_writer/erasure_codec=reed_solomon')
+        self._do_test_simple('/table_writer/erasure_codec=reed_solomon_6_3')
 
     def test_lrc(self):
-        self._do_test_simple('/table_writer/erasure_codec=lrc')
+        self._do_test_simple('/table_writer/erasure_codec=lrc_12_2_2')
 
     def _is_chunk_ok(self, chunk_id):
         if get("#%s/@lost" % chunk_id) != "false":
@@ -85,7 +85,7 @@ class TestErasure(YTEnvSetup):
             set("//sys/nodes/%s/@banned" % r, "false")
 
     def test_reed_solomon_repair(self):
-        self._test_repair("reed_solomon", 9, 6)
+        self._test_repair("reed_solomon_6_3", 9, 6)
 
     def test_lrc_repair(self):
-        self._test_repair("lrc", 16, 12)
+        self._test_repair("lrc_12_2_2", 16, 12)
