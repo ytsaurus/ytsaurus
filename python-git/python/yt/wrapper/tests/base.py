@@ -31,6 +31,7 @@ class YtTestBase(object):
 
         config.PROXY = "localhost:%d" % ports["proxy"]
         config.USE_TOKEN = False
+        config.RETRY_VOLATILE_COMMANDS = True
 
     @classmethod
     def _teardown_class(cls):
