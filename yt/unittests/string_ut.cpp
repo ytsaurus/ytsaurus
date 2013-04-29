@@ -7,6 +7,8 @@
 namespace NYT {
 namespace {
 
+////////////////////////////////////////////////////////////////////////////////
+
 static struct TTestCase {
     const char* UnderCase;
     const char* CamelCase;
