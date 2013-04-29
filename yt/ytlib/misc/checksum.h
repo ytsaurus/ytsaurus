@@ -5,8 +5,8 @@
 #include <util/stream/input.h>
 #include <util/stream/output.h>
 
-//#define _YT_USE_CRC_8TABLE
-//#define _YT_USE_CRC_PCLMUL
+#define _YT_USE_CRC_8TABLE
+#define _YT_USE_CRC_PCLMUL
 
 #ifdef _YT_USE_CRC_PCLMUL
 #include <tmmintrin.h>
@@ -25,7 +25,7 @@
 
 namespace NYT {
 
-
+namespace NDetail {
 #ifdef _YT_USE_CRC_PCLMUL
 namespace NCrcSSE0xE543279765927881
 {
@@ -33,6 +33,7 @@ namespace NCrcSSE0xE543279765927881
 }
 #endif
 
+////////////////////////////////////////////////////////////////////////////////
 
 #ifdef _YT_USE_CRC_8TABLE
 namespace NCrcTable0xE543279765927881
@@ -40,6 +41,8 @@ namespace NCrcTable0xE543279765927881
     ui64 Crc(const void* buf, size_t buflen, ui64 crcinit);
 }
 #endif
+
+} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 
