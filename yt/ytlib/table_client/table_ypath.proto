@@ -24,14 +24,14 @@ message TRspPrepareForUpdate
 // Returns info describing a given portion of table.
 message TReqFetch
 {
-    optional bool fetch_all_meta_extensions = 2 [default = false];
+    optional bool fetch_all_meta_extensions = 1 [default = false];
 
     // Not yet supported.
-    repeated int32 extension_tags = 3;
+    repeated int32 extension_tags = 2;
 
-    // When set master omits unavailable chunks from the reply.
+    // When set, master omits unavailable chunks from the reply.
     // Otherwise request fails in presence of unavailable chunks.
-    optional bool skip_unavailable_chunks = 4 [default = false];
+    optional bool skip_unavailable_chunks = 3 [default = false];
 }
 
 message TRspFetch

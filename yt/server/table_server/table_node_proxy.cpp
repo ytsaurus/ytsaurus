@@ -199,11 +199,11 @@ private:
             *inputChunk->mutable_channel() = Channel.ToProto();
         }
 
-        auto codecId = chunk->GetErasureCodec();
+        auto erasureCodecId = chunk->GetErasureCodec();
         int firstParityPartIndex =
-            codecId == NErasure::ECodec::None
+            erasureCodecId == NErasure::ECodec::None
             ? 1 // makes no sense anyway
-            : NErasure::GetCodec(codecId)->GetDataBlockCount();
+            : NErasure::GetCodec(erasureCodecId)->GetDataBlockCount();
 
         auto replicas = chunk->GetReplicas();
         FOREACH (auto replica, replicas) {
@@ -212,6 +212,9 @@ private:
                 inputChunk->add_replicas(ToProto<ui32>(replica));
             }
         }
+
+        ToProto(inputChunk->mutable_chunk_id(), chunk->GetId());
+        inputChunk->set_erasure_codec(erasureCodecId);
 
         if (Context->Request().fetch_all_meta_extensions()) {
             *inputChunk->mutable_extensions() = chunk->ChunkMeta().extensions();
@@ -222,12 +225,23 @@ private:
                 ExtensionTags);
         }
 
-        ToProto(inputChunk->mutable_chunk_id(), chunk->GetId());
-        inputChunk->set_erasure_codec(chunk->GetErasureCodec());
-        *inputChunk->mutable_start_limit() = startLimit;
-        *inputChunk->mutable_end_limit() = endLimit;
+        // Try to keep responses small -- avoid producing redundant limits.
+        if (IsNontrivial(startLimit)) {
+            *inputChunk->mutable_start_limit() = startLimit;
+        }
+        if (IsNontrivial(endLimit)) {
+            *inputChunk->mutable_end_limit() = endLimit;
+        }
 
         return true;
+    }
+
+    static bool IsNontrivial(const TReadLimit& limit)
+    {
+        return limit.has_row_index() ||
+               limit.has_key() ||
+               limit.has_chunk_index() ||
+               limit.has_offset();
     }
 
     virtual void OnError(const TError& error) override
