@@ -31,29 +31,40 @@ def main():
 
     args = parser.parse_args()
     
+    server = args.server
     def records_count(table):
         """ Parse record count from the html """
-        http_content = sh.curl("{}:{}/debug?info=table&table={}".format(args.server, args.http_port, table)).stdout
+        http_content = sh.curl("{}:{}/debug?info=table&table={}".format(server, args.http_port, table)).stdout
         records_line = filter(lambda line: line.find("Records") != -1,  http_content.split("\n"))[0]
         records_line = records_line.replace("</b>", "").replace(",", "")
         return int(records_line.split("Records:")[1].split()[0])
 
     def is_sorted(table):
         """ Parse sorted from the html """
-        http_content = sh.curl("{}:{}/debug?info=table&table={}".format(args.server, args.http_port, table)).stdout
+        http_content = sh.curl("{}:{}/debug?info=table&table={}".format(server, args.http_port, table)).stdout
         sorted_line = filter(lambda line: line.find("Sorted") != -1,  http_content.split("\n"))[0]
         sorted_line = sorted_line.replace("</b>", "")
         return sorted_line.split("Sorted:")[1].strip().lower() == "yes"
 
     def is_empty(table):
         """ Parse whether table is empty from html """
-        http_content = sh.curl("{}:{}/debug?info=table&table={}".format(args.server, args.http_port, table)).stdout
+        http_content = sh.curl("{}:{}/debug?info=table&table={}".format(server, args.http_port, table)).stdout
         empty_lines = filter(lambda line: line.find("is empty") != -1,  http_content.split("\n"))
         return empty_lines and empty_lines[0].startswith("Table is empty")
     
 
-    def export_table(from_to):
-        yt_table, mr_table = from_to
+    def export_table(obj):
+        global server
+        mr_table = None
+        server = args.server
+        if isinstance(obj, tuple):
+            assert len(obj) == 2 or len(obj) == 3
+            yt_table, mr_table = obj[:2]
+            if len(obj) == 3:
+                server = obj[2]
+        else:
+            yt_table = obj
+            mr_table = obj.strip("/")
         
         if not yt.exists(yt_table):
             print >>sys.stderr, "Table %s is absent" % yt_table
@@ -65,7 +76,7 @@ def main():
             else:
                 subprocess.check_call("{} -server {}:{} -drop {}".format(
                         args.mapreduce_binary,
-                        args.server,
+                        server,
                         args.server_port,
                         mr_table),
                    shell=True) 
@@ -79,7 +90,7 @@ def main():
                 limit,
                 args.mr_user,
                 args.mapreduce_binary,
-                args.server,
+                server,
                 args.server_port,
                 mr_table),
             yt_table,
