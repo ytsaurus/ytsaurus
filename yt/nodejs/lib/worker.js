@@ -138,7 +138,7 @@ dynamic_server = connect()
     .use(connect.favicon())
     .use(yt.YtAssignRequestId())
     .use(yt.YtLogRequest(logger))
-    .use(function(req, rsp) {
+    .use(function(req, rsp, next) {
         var socket = req.connection;
         socket.setTimeout(5 * 60 * 1000);
         socket.setNoDelay(true);
