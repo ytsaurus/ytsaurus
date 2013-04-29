@@ -120,7 +120,6 @@ logger.info("Starting HTTP proxy worker", { wid : cluster.worker.id, pid : proce
 static_server = new node_static.Server("/usr/share/yt_new", { cache : 4 * 3600 });
 
 dynamic_server = connect()
-    .use(connect.favicon())
     .use(function(req, rsp, next) {
         var rd = domain.create();
         rd.on("error", function(err) {
@@ -136,8 +135,26 @@ dynamic_server = connect()
         });
         rd.run(next);
     })
+    .use(connect.favicon())
     .use(yt.YtAssignRequestId())
     .use(yt.YtLogRequest(logger))
+    .use(function(req, rsp) {
+        var socket = req.connection;
+        socket.setTimeout(5 * 60 * 1000);
+        socket.setNoDelay(true);
+        socket.setKeepAlive(true);
+        socket.on("timeout", function() {
+            logger.error("Socket timed out", {
+                request_id : req.uuid
+            });
+        });
+        socket.on("error", function(err) {
+            logger.error("Socket emitted an error", {
+                request_id : req.uuid,
+                error : err.toString()
+            });
+        });
+    })
     .use(function(req, rsp, next) {
         "use strict";
         var expected_http_method, actual_http_method = req.method;
@@ -181,7 +198,6 @@ dynamic_server = connect()
     // Begin of asynchronous middleware.
     .use(function(req, rsp, next) {
         req.pauser = yt.Pause(req);
-        req.connection.setNoDelay(true); // Disable Nagle.
         next();
     })
     .use(yt.YtBlackbox(logger, config))
