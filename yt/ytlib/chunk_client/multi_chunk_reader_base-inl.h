@@ -122,33 +122,29 @@ void TMultiChunkReaderBase<TChunkReader>::PrepareNextChunk()
         std::vector<IAsyncReaderPtr> readers;
         readers.reserve(dataPartCount);
 
-        TChunkReplicaList partReplicas;
-        FOREACH (auto replica, replicas) {
-            if (!partReplicas.empty()) {
-                auto partIndex = partReplicas.front().GetIndex();
-                if (replica.GetIndex() != partIndex) {
-                    auto partId = PartIdFromErasureChunkId(chunkId, partIndex);
-                    auto reader = CreateReplicationReader(
-                        Config,
-                        BlockCache,
-                        MasterChannel,
-                        NodeDirectory,
-                        Null,
-                        partId,
-                        partReplicas);
-                    readers.push_back(reader);
-                    partReplicas.clear();
+        {
+            auto it = replicas.begin();
+            while (it != replicas.end()) {
+                auto jt = it;
+                while (jt != replicas.end() && it->GetIndex() == jt->GetIndex()) {
+                    ++jt;
                 }
-            }
 
-            if (replica.GetIndex() >= dataPartCount) {
-                YCHECK(partReplicas.empty());
-                break;
-            }
+                TChunkReplicaList partReplicas(it, jt);
+                auto partId = PartIdFromErasureChunkId(chunkId, it->GetIndex());
+                auto reader = CreateReplicationReader(
+                    Config,
+                    BlockCache,
+                    MasterChannel,
+                    NodeDirectory,
+                    Null,
+                    partId,
+                    partReplicas);
+                readers.push_back(reader);
 
-            partReplicas.push_back(replica);
+                it = jt;
+            }
         }
-
         YCHECK(readers.size() == dataPartCount);
         asyncReader = CreateNonReparingErasureReader(readers);
     } else {
