@@ -78,7 +78,10 @@ TJsonWriter::TJsonWriter(TOutputStream* output,
 
 TJsonWriter::~TJsonWriter()
 {
-    Flush();
+    try {
+        Flush();
+    } catch (...) {
+    }
 }
 
 void TJsonWriter::EnterNode()

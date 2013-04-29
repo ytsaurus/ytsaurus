@@ -1044,7 +1044,6 @@ private:
         addCommitRequest(operation->GetInputTransaction(), "commit_in_tx");
         addCommitRequest(operation->GetOutputTransaction(), "commit_out_tx");
         addCommitRequest(operation->GetSyncSchedulerTransaction(), "commit_sync_tx");
-        addCommitRequest(operation->GetAsyncSchedulerTransaction(), "commit_async_tx");
 
         return batchReq->Invoke();
     }
@@ -1057,9 +1056,12 @@ private:
 
         LOG_INFO("Scheduler transactions committed (OperationId: %s)",
             ~ToString(operation->GetOperationId()));
+
+        // NB: Never commit async transaction since it's used for writing Live Preview tables.
+        operation->GetAsyncSchedulerTransaction()->Abort();
     }
 
-    void AbortOperationTransactions(TOperationPtr operation)
+    void AbortSchedulerTransactions(TOperationPtr operation)
     {
         auto abortTransaction = [&] (ITransactionPtr transaction) {
             if (transaction) {
@@ -1068,9 +1070,9 @@ private:
             }
         };
 
+        // NB: No need to abort IO transactions since they are nested inside sync transaction.
         abortTransaction(operation->GetSyncSchedulerTransaction());
         abortTransaction(operation->GetAsyncSchedulerTransaction());
-        // No need to abort IO transactions since they are nested inside sync transaction.
     }
 
     void FinishOperation(TOperationPtr operation)
@@ -1367,7 +1369,7 @@ private:
         pipeline
             ->Add(BIND(&IOperationController::Abort, controller))
             ->Add(BIND(&TThis::SetOperationFinalState, this_, operation, finalState, error))
-            ->Add(BIND(&TThis::AbortOperationTransactions, this_, operation))
+            ->Add(BIND(&TThis::AbortSchedulerTransactions, this_, operation))
             ->Add(BIND(&TMasterConnector::FinalizeOperationNode, ~MasterConnector, operation))
             ->Add(BIND(&TThis::FinishOperation, this_, operation))
             ->Run();
