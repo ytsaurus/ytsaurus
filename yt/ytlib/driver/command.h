@@ -9,6 +9,7 @@
 
 #include <ytlib/ytree/public.h>
 #include <ytlib/ytree/yson_serializable.h>
+#include <ytlib/ytree/convert.h>
 
 #include <ytlib/yson/consumer.h>
 #include <ytlib/yson/parser.h>
