@@ -32,6 +32,8 @@
 
 #include <ytlib/scheduler/scheduler_service_proxy.h>
 
+#include <ytlib/cypress_client/cypress_ypath_proxy.h>
+
 namespace NYT {
 namespace NDriver {
 
