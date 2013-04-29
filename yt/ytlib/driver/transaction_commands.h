@@ -26,9 +26,7 @@ struct TStartTransactionRequest
 typedef TIntrusivePtr<TStartTransactionRequest> TStartRequestPtr;
 
 class TStartTransactionCommand
-    : public TTypedCommandBase<TStartTransactionRequest>
-    , public TTransactionalCommand
-    , public TMutatingCommand
+    : public TTypedCommand<TStartTransactionRequest>
 {
 private:
     virtual void DoExecute();
@@ -44,8 +42,7 @@ struct TPingTransactionRequest
 typedef TIntrusivePtr<TPingTransactionRequest> TRenewRequestPtr;
 
 class TPingTransactionCommand
-    : public TTypedCommandBase<TPingTransactionRequest>
-    , public TTransactionalCommand
+    : public TTypedCommand<TPingTransactionRequest>
 {
 private:
     virtual void DoExecute();
@@ -62,9 +59,7 @@ struct TCommitTransactionRequest
 typedef TIntrusivePtr<TCommitTransactionRequest> TCommitRequestPtr;
 
 class TCommitTransactionCommand
-    : public TTypedCommandBase<TCommitTransactionRequest>
-    , public TTransactionalCommand
-    , public TMutatingCommand
+    : public TTypedCommand<TCommitTransactionRequest>
 {
 private:
     virtual void DoExecute();
@@ -81,9 +76,7 @@ struct TAbortTransactionRequest
 typedef TIntrusivePtr<TAbortTransactionRequest> TAbortTransactionRequestPtr;
 
 class TAbortTransactionCommand
-    : public TTypedCommandBase<TAbortTransactionRequest>
-    , public TTransactionalCommand
-    , public TMutatingCommand
+    : public TTypedCommand<TAbortTransactionRequest>
 {
 private:
     virtual void DoExecute();

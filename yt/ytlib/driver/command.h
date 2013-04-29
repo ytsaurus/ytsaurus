@@ -5,6 +5,7 @@
 #include "driver.h"
 
 #include <ytlib/misc/error.h>
+#include <ytlib/misc/mpl.h>
 
 #include <ytlib/ytree/public.h>
 #include <ytlib/ytree/yson_serializable.h>
@@ -19,6 +20,7 @@
 #include <ytlib/chunk_client/public.h>
 
 #include <ytlib/meta_state/public.h>
+#include <ytlib/meta_state/rpc_helpers.h>
 
 #include <ytlib/transaction_client/transaction.h>
 #include <ytlib/transaction_client/transaction_manager.h>
@@ -122,8 +124,6 @@ protected:
     THolder<NObjectClient::TObjectServiceProxy> ObjectProxy;
     THolder<NScheduler::TSchedulerServiceProxy> SchedulerProxy;
 
-    TRequestPtr UntypedRequest;
-
     TCommandBase();
 
     void Prepare();
@@ -164,7 +164,6 @@ private:
         try {
             auto arguments = Context->GetRequest()->Arguments;;
             Request = ConvertTo<TIntrusivePtr<TRequest>>(arguments);
-            UntypedRequest = Request;
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing command arguments") <<
                 ex;
@@ -175,38 +174,94 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTransactionalCommand
-    : public virtual TCommandBase
+template <class TRequest, class = void>
+class TTransactionalCommandBase
+{ };
+
+template <class TRequest>
+class TTransactionalCommandBase<
+    TRequest,
+    typename NMpl::TEnableIf<NMpl::TIsConvertible<TRequest&, TTransactionalRequest&> >::TType
+>
+    : public virtual TTypedCommandBase<TRequest>
 {
 protected:
-    NTransactionClient::TTransactionId GetTransactionId(bool required);
-    NTransactionClient::ITransactionPtr GetTransaction(bool required, bool ping);
+    NTransactionClient::TTransactionId GetTransactionId(bool required)
+    {
+        auto transaction = this->GetTransaction(required, true);
+        return transaction ? transaction->GetId() : NTransactionClient::NullTransactionId;
+    }
 
-    void SetTransactionId(NRpc::IClientRequestPtr request, bool required);
+    NTransactionClient::ITransactionPtr GetTransaction(bool required, bool ping)
+    {
+        if (required && this->Request->TransactionId == NTransactionClient::NullTransactionId) {
+            THROW_ERROR_EXCEPTION("Transaction is required");
+        }
 
-private:
-    TTransactionalRequestPtr TransactionalRequest;
+        auto transactionId = this->Request->TransactionId;
+        if (transactionId == NTransactionClient::NullTransactionId) {
+            return nullptr;
+        }
 
-    TTransactionalRequestPtr GetTransactionalRequest();
+        NTransactionClient::TTransactionAttachOptions options(transactionId);
+        options.AutoAbort = false;
+        options.Ping = ping;
+        options.PingAncestors = this->Request->PingAncestors;
+
+        auto transactionManager = this->Context->GetTransactionManager();
+        return transactionManager->Attach(options);
+    }
+
+    void SetTransactionId(NRpc::IClientRequestPtr request, bool required)
+    {
+        NCypressClient::SetTransactionId(request, this->GetTransactionId(required));
+    }
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMutatingCommand
-    : public virtual TCommandBase
+template <class TRequest, class = void>
+class TMutatingCommandBase
+{ };
+
+template <class TRequest>
+class TMutatingCommandBase <
+    TRequest,
+    typename NMpl::TEnableIf<NMpl::TIsConvertible<TRequest&, TMutatingRequest&> >::TType
+>
+    : public virtual TTypedCommandBase<TRequest>
 {
 protected:
-    NMetaState::TMutationId GenerateMutationId();
-    void GenerateMutationId(NRpc::IClientRequestPtr request);
+    NMetaState::TMutationId GenerateMutationId()
+    {
+        if (!this->CurrentMutationId) {
+            this->CurrentMutationId = this->Request->MutationId;
+        }
+
+        auto result = *this->CurrentMutationId;
+        ++(*this->CurrentMutationId).Parts[0];
+        return result;
+    }
+
+    void GenerateMutationId(NRpc::IClientRequestPtr request)
+    {
+        NMetaState::SetMutationId(request, this->GenerateMutationId());
+    }
 
 private:
     TNullable<NMetaState::TMutationId> CurrentMutationId;
-    TMutatingRequestPtr MutatingRequest;
-
-    TMutatingRequestPtr GetMutatingRequest();
 
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TRequest>
+class TTypedCommand
+    : public virtual TTypedCommandBase<TRequest>
+    , public TTransactionalCommandBase<TRequest>
+    , public TMutatingCommandBase<TRequest>
+{ };
 
 ////////////////////////////////////////////////////////////////////////////////
 

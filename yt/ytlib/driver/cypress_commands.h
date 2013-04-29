@@ -28,8 +28,7 @@ struct TGetRequest
 typedef TIntrusivePtr<TGetRequest> TGetRequestPtr;
 
 class TGetCommand
-    : public TTypedCommandBase<TGetRequest>
-    , public TTransactionalCommand
+    : public TTypedCommand<TGetRequest>
 {
 private:
     virtual void DoExecute() override;
@@ -53,9 +52,7 @@ struct TSetRequest
 typedef TIntrusivePtr<TSetRequest> TSetRequestPtr;
 
 class TSetCommand
-    : public TTypedCommandBase<TSetRequest>
-    , public TTransactionalCommand
-    , public TMutatingCommand
+    : public TTypedCommand<TSetRequest>
 {
 private:
     virtual void DoExecute() override;
@@ -87,9 +84,7 @@ struct TRemoveRequest
 typedef TIntrusivePtr<TRemoveRequest> TRemoveRequestPtr;
 
 class TRemoveCommand
-    : public TTypedCommandBase<TRemoveRequest>
-    , public TTransactionalCommand
-    , public TMutatingCommand
+    : public TTypedCommand<TRemoveRequest>
 {
 private:
     virtual void DoExecute() override;
@@ -115,8 +110,7 @@ struct TListRequest
 typedef TIntrusivePtr<TListRequest> TListRequestPtr;
 
 class TListCommand
-    : public TTypedCommandBase<TListRequest>
-    , public TTransactionalCommand
+    : public TTypedCommand<TListRequest>
 {
 private:
     virtual void DoExecute() override;
@@ -152,9 +146,7 @@ struct TCreateRequest
 typedef TIntrusivePtr<TCreateRequest> TCreateRequestPtr;
 
 class TCreateCommand
-    : public TTypedCommandBase<TCreateRequest>
-    , public TTransactionalCommand
-    , public TMutatingCommand
+    : public TTypedCommand<TCreateRequest>
 {
 private:
     virtual void DoExecute() override;
@@ -181,9 +173,7 @@ struct TLockRequest
 typedef TIntrusivePtr<TLockRequest> TLockRequestPtr;
 
 class TLockCommand
-    : public TTypedCommandBase<TLockRequest>
-    , public TTransactionalCommand
-    , public TMutatingCommand
+    : public TTypedCommand<TLockRequest>
 {
 private:
     virtual void DoExecute() override;
@@ -209,9 +199,7 @@ struct TCopyRequest
 typedef TIntrusivePtr<TCopyRequest> TCopyRequestPtr;
 
 class TCopyCommand
-    : public TTypedCommandBase<TCopyRequest>
-    , public TTransactionalCommand
-    , public TMutatingCommand
+    : public TTypedCommand<TCopyRequest>
 {
 private:
     virtual void DoExecute() override;
@@ -237,9 +225,7 @@ struct TMoveRequest
 typedef TIntrusivePtr<TMoveRequest> TMoveRequestPtr;
 
 class TMoveCommand
-    : public TTypedCommandBase<TMoveRequest>
-    , public TTransactionalCommand
-    , public TMutatingCommand
+    : public TTypedCommand<TMoveRequest>
 {
 private:
     virtual void DoExecute() override;
@@ -262,8 +248,7 @@ struct TExistsRequest
 typedef TIntrusivePtr<TExistsRequest> TExistsRequestPtr;
 
 class TExistsCommand
-    : public TTypedCommandBase<TExistsRequest>
-    , public TTransactionalCommand
+    : public TTypedCommand<TExistsRequest>
 {
 private:
     virtual void DoExecute() override;
@@ -298,9 +283,7 @@ struct TLinkRequest
 typedef TIntrusivePtr<TLinkRequest> TLinkRequestPtr;
 
 class TLinkCommand
-    : public TTypedCommandBase<TLinkRequest>
-    , public TTransactionalCommand
-    , public TMutatingCommand
+    : public TTypedCommand<TLinkRequest>
 {
 private:
     virtual void DoExecute() override;

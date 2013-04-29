@@ -30,8 +30,7 @@ struct TDownloadRequest
 typedef TIntrusivePtr<TDownloadRequest> TDownloadRequestPtr;
 
 class TDownloadCommand
-    : public TTypedCommandBase<TDownloadRequest>
-    , public TTransactionalCommand
+    : public TTypedCommand<TDownloadRequest>
 {
 private:
     virtual void DoExecute();
@@ -59,8 +58,7 @@ struct TUploadRequest
 typedef TIntrusivePtr<TUploadRequest> TUploadRequestPtr;
 
 class TUploadCommand
-    : public TTypedCommandBase<TUploadRequest>
-    , public TTransactionalCommand
+    : public TTypedCommand<TUploadRequest>
 {
 private:
     virtual void DoExecute();

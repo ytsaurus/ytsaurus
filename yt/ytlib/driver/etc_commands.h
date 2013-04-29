@@ -23,8 +23,7 @@ struct TUpdateMembershipRequest
 };
 
 class TAddMemberCommand
-    : public TTypedCommandBase<TUpdateMembershipRequest>
-    , public TMutatingCommand
+    : public TTypedCommand<TUpdateMembershipRequest>
 {
 private:
     virtual void DoExecute() override;
@@ -32,8 +31,7 @@ private:
 };
 
 class TRemoveMemberCommand
-    : public TTypedCommandBase<TUpdateMembershipRequest>
-    , public TMutatingCommand
+    : public TTypedCommand<TUpdateMembershipRequest>
 {
 private:
     virtual void DoExecute() override;
@@ -54,7 +52,7 @@ struct TParseYPathRequest
 };
 
 class TParseYPathCommand
-    : public TTypedCommandBase<TParseYPathRequest>
+    : public TTypedCommand<TParseYPathRequest>
 {
 private:
     virtual void DoExecute() override;
@@ -81,8 +79,7 @@ struct TCheckPermissionRequest
 typedef TIntrusivePtr<TCheckPermissionRequest> TCheckPermissionRequestPtr;
 
 class TCheckPersmissionCommand
-    : public TTypedCommandBase<TCheckPermissionRequest>
-    , public TTransactionalCommand
+    : public TTypedCommand<TCheckPermissionRequest>
 {
 private:
     virtual void DoExecute() override;

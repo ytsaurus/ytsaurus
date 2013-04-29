@@ -26,8 +26,7 @@ typedef TIntrusivePtr<TStartOperationRequest> TSchedulerRequestPtr;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchedulerCommandBase
-    : public TTypedCommandBase<TStartOperationRequest>
-    , public TTransactionalCommand
+    : public TTypedCommand<TStartOperationRequest>
 {
 protected:
     void StartOperation(NScheduler::EOperationType type);

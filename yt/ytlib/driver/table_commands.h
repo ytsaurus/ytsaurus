@@ -28,8 +28,7 @@ struct TReadRequest
 typedef TIntrusivePtr<TReadRequest> TReadRequestPtr;
 
 class TReadCommand
-    : public TTypedCommandBase<TReadRequest>
-    , public TTransactionalCommand
+    : public TTypedCommand<TReadRequest>
 {
 private:
     virtual void DoExecute();
@@ -56,8 +55,7 @@ struct TWriteRequest
 typedef TIntrusivePtr<TWriteRequest> TWriteRequestPtr;
 
 class TWriteCommand
-    : public TTypedCommandBase<TWriteRequest>
-    , public TTransactionalCommand
+    : public TTypedCommand<TWriteRequest>
 {
 private:
     virtual void DoExecute();
