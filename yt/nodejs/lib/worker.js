@@ -154,6 +154,7 @@ dynamic_server = connect()
                 error : err.toString()
             });
         });
+        next();
     })
     .use(function(req, rsp, next) {
         "use strict";
