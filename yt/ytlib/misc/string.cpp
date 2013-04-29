@@ -9,17 +9,23 @@ namespace NYT {
 Stroka UnderscoreCaseToCamelCase(const Stroka& data)
 {
     Stroka result;
+    result.reserve(data.length());
+    bool first = true;
     bool upper = true;
     FOREACH (char c, data) {
         if (c == '_') {
             upper = true;
         } else {
             if (upper) {
+                if (!std::isalpha(c) && !first) {
+                    result.push_back('_');
+                }
                 c = std::toupper(c);
             }
             result.push_back(c);
             upper = false;
         }
+        first = false;
     }
     return result;
 }
@@ -27,16 +33,16 @@ Stroka UnderscoreCaseToCamelCase(const Stroka& data)
 Stroka CamelCaseToUnderscoreCase(const Stroka& data)
 {
     Stroka result;
+    result.reserve(data.length() * 2);
     bool first = true;
     FOREACH (char c, data) {
-        if (std::isupper(c)) {
+        if (std::isupper(c) && std::isalpha(c)) {
             if (!first) {
                 result.push_back('_');
             }
-            result.push_back(std::tolower(c));
-        } else {
-            result.push_back(c);
+            c = std::tolower(c);
         }
+        result.push_back(c);
         first = false;
     }
     return result;
