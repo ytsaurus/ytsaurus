@@ -1046,6 +1046,8 @@ private:
                     if (IsLeader()) {
                         ChunkReplicator->ScheduleChunkRefresh(chunk);
                     }
+                } else {
+                    LOG_WARNING("Updating RF for staged chunk %s", ~chunkId.ToString());
                 }
             }
         }
