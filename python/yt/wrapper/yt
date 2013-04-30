@@ -114,7 +114,7 @@ def find(args):
     fitler_args = ["account", "owner"]
     attributes = filter(lambda x: vars(args)[x] is not None, fitler_args)
     object_filter = lambda obj: \
-        all([obj.attributes[attr] == vars(args)[attr] for attr in attributes])
+        all([obj.attributes.get(attr) == vars(args)[attr] for attr in attributes])
 
     res = yt.search(args.path, node_type=args.type, path_filter=path_filter, attributes=attributes, object_filter=object_filter)
     for table in res:
