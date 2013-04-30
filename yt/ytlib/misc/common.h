@@ -55,7 +55,13 @@
 // This define enables tracking of bind location
 #define ENABLE_BIND_LOCATION_TRACKING
 
-#ifdef _MSC_VER
+// XXX(sandello): Define this to enable SSE4.2-baked symbol lookup.
+#ifdef __SSE4_2__
+    #define YT_USE_SSE42
+    #define YT_USE_CRC_PCLMUL
+#endif
+
+#ifdef _win_
     // Someone above has defined this by including one of Windows headers.
     #undef GetMessage
 

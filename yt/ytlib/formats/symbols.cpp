@@ -1,6 +1,5 @@
+#include "stdafx.h"
 #include "symbols.h"
-
-#include <ytlib/misc/common.h>
 
 namespace NYT {
 namespace NFormats {
@@ -9,7 +8,7 @@ namespace NFormats {
 
 namespace {
 
-#ifdef _YT_USE_SSE42_
+#ifdef YT_USE_SSE42
 
 const char _m128i_shift_right[31] = {
      0,  1,  2,  3,  4,  5,  6,  7,
@@ -147,7 +146,7 @@ void TLookupTable::Fill(const char* begin, const char* end)
 {
     YCHECK(end - begin <= 16);
 
-#ifdef _YT_USE_SSE42_
+#ifdef YT_USE_SSE42
     char storage[16] = {0};
 
     SymbolCount = end - begin;
@@ -186,7 +185,7 @@ const char* TLookupTable::FindNext(const char* begin, const char* end) const
     if (begin == end) {
         return end;
     }
-#ifdef _YT_USE_SSE42_
+#ifdef YT_USE_SSE42
     return FindNextSymbol(begin, end, Symbols, SymbolCount);
 #else
     return FindNextSymbol(begin, end, Bitmap);
