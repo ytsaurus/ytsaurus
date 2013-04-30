@@ -360,16 +360,21 @@ public:
         auto* request = &context->Request();
         auto* response = &context->Response();
 
-        const auto& resourceLimits = request->resource_limits();
-        const auto& resourceUsage = request->resource_usage();
-
         TLeaseManager::RenewLease(node->GetLease());
 
-        TotalResourceLimits -= node->ResourceLimits();
-        TotalResourceUsage -= node->ResourceUsage();
+        auto oldResourceLimits = node->ResourceLimits();
+        auto oldResourceUsage = node->ResourceUsage();
 
-        node->ResourceLimits() = resourceLimits;
-        node->ResourceUsage() = resourceUsage;
+        const auto& newResourceLimits = request->resource_limits();
+        const auto& newResourceUsage = request->resource_usage();
+
+        node->ResourceLimits() = newResourceLimits;
+        node->ResourceUsage() = newResourceUsage;
+        
+        // Update total resource limits _before_ processing the heartbeat to give
+        // the scheduler the exact data on total resource limits.
+        TotalResourceLimits -= oldResourceLimits;
+        TotalResourceLimits += newResourceLimits;
 
         std::vector<TJobPtr> runningJobs;
         bool hasWaitingJobs = false;
@@ -461,6 +466,11 @@ public:
         FOREACH (auto operation, operationsToLog) {
             LogOperationProgress(operation);
         }
+
+        // Update total resource usage _after_ processing the heartbeat to avoid
+        // "unsaturated CPU" phenomenon.
+        TotalResourceUsage -= oldResourceUsage;
+        TotalResourceUsage += newResourceUsage;
     }
 
 
