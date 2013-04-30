@@ -57,22 +57,22 @@ namespace NCrcSSE0xE543279765927881 {
 
 __m128i _mm_shift_right_si128(__m128i v, ui8 offset)
 {
-    static const ui8 rotatemask[] = {
+    static const ui8 RotateMask[] = {
         0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
         0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80
     };
 
-    return _mm_shuffle_epi8(v, _mm_loadu_si128((__m128i *) (rotatemask + offset)));
+    return _mm_shuffle_epi8(v, _mm_loadu_si128((__m128i *) (RotateMask + offset)));
 }
 
 __m128i _mm_shift_left_si128(__m128i v, ui8 offset)
 {
-    static const ui8 rotatemask[] = {
+    static const ui8 RotateMask[] = {
         0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80,
         0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f
     };
 
-    return _mm_shuffle_epi8(v, _mm_loadu_si128((__m128i *) (rotatemask + 16 - offset)));
+    return _mm_shuffle_epi8(v, _mm_loadu_si128((__m128i *) (RotateMask + 16 - offset)));
 }
 
 
@@ -126,12 +126,12 @@ inline __m128i Fold(__m128i value, __m128i data, __m128i foldFactor)
     return _mm_xor_si128(data, Fold(value, foldFactor));
 }
 
-inline __m128i loadDataUnaligned(const void* buf)
+inline __m128i UnalignedLoad(const void* buf)
 {
     return ReverseBytes(_mm_loadu_si128((__m128i*) buf));
 }
 
-inline __m128i loadDataAligned(const void* buf)
+inline __m128i AlignedLoad(const void* buf)
 {
     return ReverseBytes(_mm_load_si128((__m128i*) buf));
 }
@@ -152,19 +152,19 @@ __m128i FoldTo128(const __m128i* buf128, size_t buflen, __m128i result)
         __m128i result0, result1, result2, result3;
 
         result0 = result;
-        result1 = loadDataAligned(buf128++);
-        result2 = loadDataAligned(buf128++);
-        result3 = loadDataAligned(buf128++);
+        result1 = AlignedLoad(buf128++);
+        result2 = AlignedLoad(buf128++);
+        result3 = AlignedLoad(buf128++);
         buflen -= 3;
 
         size_t count = buflen / 4;
         buflen = buflen % 4;
 
         while (count--) {
-            result0 = Fold(result0, loadDataAligned(buf128 + 0), FoldBy512_128);
-            result1 = Fold(result1, loadDataAligned(buf128 + 1), FoldBy512_128);
-            result2 = Fold(result2, loadDataAligned(buf128 + 2), FoldBy512_128);
-            result3 = Fold(result3, loadDataAligned(buf128 + 3), FoldBy512_128);
+            result0 = Fold(result0, AlignedLoad(buf128 + 0), FoldBy512_128);
+            result1 = Fold(result1, AlignedLoad(buf128 + 1), FoldBy512_128);
+            result2 = Fold(result2, AlignedLoad(buf128 + 2), FoldBy512_128);
+            result3 = Fold(result3, AlignedLoad(buf128 + 3), FoldBy512_128);
             buf128 += 4;
         }
 
@@ -174,7 +174,7 @@ __m128i FoldTo128(const __m128i* buf128, size_t buflen, __m128i result)
     }
 
     while (buflen--) {
-        result = Fold(result, loadDataAligned(buf128++), FoldBy128_128);
+        result = Fold(result, AlignedLoad(buf128++), FoldBy128_128);
     }
 
     return result;
@@ -208,13 +208,13 @@ ui64 Crc(const void* buf, size_t buflen, ui64 seed)
     __m128i result = _mm_set_epi64x(seed, 0);
 
     if (buflen >= 16) {
-        result = _mm_xor_si128(result, loadDataUnaligned(ptr));
+        result = _mm_xor_si128(result, UnalignedLoad(ptr));
         buflen -= 16;
         ptr += 16;
 
         if (buflen >= 16) {
             if (size_t offset = 16 - (reinterpret_cast<size_t>(ptr) % 16)) {
-                result = FoldTail(result, loadDataUnaligned(ptr), FoldBy128_128, offset);
+                result = FoldTail(result, UnalignedLoad(ptr), FoldBy128_128, offset);
                 buflen -= offset;
                 ptr += offset;
             }
@@ -226,7 +226,7 @@ ui64 Crc(const void* buf, size_t buflen, ui64 seed)
         } 
 
         if (buflen) {
-            result = FoldTail(result, loadDataUnaligned(ptr), FoldBy128_128, buflen);
+            result = FoldTail(result, UnalignedLoad(ptr), FoldBy128_128, buflen);
             buflen -= buflen;
             ptr += buflen;
         }
@@ -234,7 +234,7 @@ ui64 Crc(const void* buf, size_t buflen, ui64 seed)
         result = Fold(result, FoldBy64_128);
     } else if (buflen) {
         __m128i tail = _mm_shift_right_si128(_mm_shift_left_si128(result, buflen), 8);
-        result = _mm_shift_right_si128(_mm_xor_si128(result, loadDataUnaligned(ptr)), 16 - buflen);
+        result = _mm_shift_right_si128(_mm_xor_si128(result, UnalignedLoad(ptr)), 16 - buflen);
         result = Fold(result, tail, FoldBy64_128);
     } else {
         result = _mm_shift_right_si128(result, 8);
