@@ -192,7 +192,7 @@ const char* TLookupTable::FindNext(const char* begin, const char* end) const
 #endif
 }
 
-TEscapeTable::TEscapeTable(bool EscapeCarriageReturn)
+TEscapeTable::TEscapeTable(bool scapeCarriageReturn)
 {
     for (int i = 0; i < 256; ++i) {
         Forward[i] = i;
@@ -207,12 +207,13 @@ TEscapeTable::TEscapeTable(bool EscapeCarriageReturn)
     Backward[static_cast<unsigned char>('t')] = '\t';
     Backward[static_cast<unsigned char>('n')] = '\n';
 
-    if (EscapeCarriageReturn) {
+    if (scapeCarriageReturn) {
         Forward[static_cast<unsigned char>('\r')] = 'r';
         Backward[static_cast<unsigned char>('r')] = '\r';
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////
 
 void WriteEscaped(
     TOutputStream* stream,

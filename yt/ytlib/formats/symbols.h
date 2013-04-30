@@ -46,7 +46,7 @@ private:
 class TEscapeTable
 {
 public:
-    explicit TEscapeTable(bool EscapeCarriageReturn);
+    explicit TEscapeTable(bool escapeCarriageReturn);
 
     char Forward[256];
     char Backward[256];
