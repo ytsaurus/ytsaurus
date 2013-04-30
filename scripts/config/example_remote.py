@@ -120,7 +120,8 @@ class Scheduler(Server):
             'addresses' : MasterAddresses
         },
         'scheduler' : {   
-            'strategy' : 'fair_share'
+            'strategy' : 'fair_share',
+            'snapshot_temp_path' : '/yt/disk1/data/temp'
         },
         'rpc_port' : 9001,
         'monitoring_port' : 10001, 
