@@ -176,7 +176,7 @@ void TEncodingWriter::WritePendingBlocks(TError error)
         Semaphore.Release(front.Size());
         PendingBlocks.pop_front();
 
-        if (!result) {
+        if (!result && !PendingBlocks.empty()) {
             AsyncWriter->GetReadyEvent().Subscribe(WritePending);
             return;
         }
