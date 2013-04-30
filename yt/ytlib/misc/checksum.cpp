@@ -1,11 +1,11 @@
 #include "stdafx.h"
 #include "checksum.h"
-
+#include <util/digest/crc.h>
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NDetail {
+//namespace {
 
 #ifdef _YT_USE_CRC_PCLMUL
 class TCheckPclmulSupport
@@ -51,7 +51,7 @@ namespace NCrcSSE0xE543279765927881
     __m128i _mm_shift_right_si128(__m128i v, ui8 offset)
     {
         static const ui8 rotatemask[] = {
-            0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
+            0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,
             0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80
         };
 
@@ -62,7 +62,7 @@ namespace NCrcSSE0xE543279765927881
     {
         static const ui8 rotatemask[] = {
             0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80,
-            0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f
+            0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F
         };
 
         return _mm_shuffle_epi8(v, _mm_loadu_si128((__m128i *) (rotatemask + 16 - offset)));
@@ -101,63 +101,48 @@ namespace NCrcSSE0xE543279765927881
     const ui64 XPow512ModPoly = ULL(0x209670022e7af509); // ModXPow_64(512, poly)
     const ui64 XPow576ModPoly = ULL(0xd85c929ddd7a7d69); // ModXPow_64(512 + 64, poly)
 
-    inline __m128i ReverseBytes(__m128i value)
+    inline __m128i ReverseBytes(__m128i v)
     {
-        return _mm_shuffle_epi8(value, 
-            _mm_setr_epi8(0xf, 0xe, 0xd, 0xc, 0xb, 0xa, 0x9, 0x8, 0x7, 0x6, 0x5, 0x4, 0x3, 0x2, 0x1, 0x0));
+        return _mm_shuffle_epi8(v, _mm_setr_epi8(0xF, 0xE, 0xD, 0xC, 0xB, 0xA, 0x9, 0x8, 0x7, 0x6, 0x5, 0x4, 0x3, 0x2, 0x1, 0x0));
     }
     
-    inline __m128i Fold(__m128i value, __m128i foldFactor)
+    inline __m128i Fold(__m128i value, __m128i kk)
     {
-        __m128i high = _mm_clmulepi64_si128(value, foldFactor, 0x11);
-        __m128i low = _mm_clmulepi64_si128(value, foldFactor, 0x00);
+        __m128i high = _mm_clmulepi64_si128(value, kk, 0x11);
+        __m128i low = _mm_clmulepi64_si128(value, kk, 0x00);
         return _mm_xor_si128(high, low);
     }
 
-    inline __m128i Fold(__m128i value, __m128i data, __m128i foldFactor)
+    inline __m128i Fold(__m128i value, __m128i data, __m128i kk)
     {
-        return _mm_xor_si128(data, Fold(value, foldFactor));
-    }
-
-    inline __m128i loadDataUnaligned(const void* buf)
-    {
-        return ReverseBytes(_mm_loadu_si128((__m128i*) buf));
-    }
-
-    inline __m128i loadDataAligned(const void* buf)
-    {
-        return ReverseBytes(_mm_load_si128((__m128i*) buf));
-    }
-
-    __m128i FoldTail(__m128i result, __m128i tail, __m128i foldFactor, size_t tailLength)
-    {
-        tail = _mm_or_si128(_mm_shift_right_si128(tail, 16 - tailLength), _mm_shift_left_si128(result, tailLength));
-        result = _mm_shift_right_si128(result, 16 - tailLength);
-        return Fold(result, tail, foldFactor);
+        return _mm_xor_si128(data, Fold(value, kk));
     }
     
-    __m128i FoldTo128(const __m128i* buf128, size_t buflen, __m128i result)
+    __m128i FoldTo128_64(const __m128i* buf128, size_t buflen, __m128i result)
     {
+        
         const __m128i FoldBy128_128 = _mm_set_epi64x(XPow192ModPoly, XPow128ModPoly);
         const __m128i FoldBy512_128 = _mm_set_epi64x(XPow576ModPoly, XPow512ModPoly);
 
-        if (buflen >= 3) {
+        if (buflen >= 16 * 8) {
             __m128i result0, result1, result2, result3;
 
             result0 = result;
-            result1 = loadDataAligned(buf128++);
-            result2 = loadDataAligned(buf128++);
-            result3 = loadDataAligned(buf128++);
-            buflen -= 3;
+            result1 = ReverseBytes(*buf128++);
+            buflen -= 16;
+            result2 = ReverseBytes(*buf128++);
+            buflen -= 16;
+            result3 = ReverseBytes(*buf128++);
+            buflen -= 16;
 
-            size_t count = buflen / 4;
-            buflen = buflen % 4;
+            size_t count = buflen / (sizeof(__m128i) * 4);
+            buflen = buflen % (sizeof(__m128i) * 4);
 
             while (count--) {
-                result0 = Fold(result0, loadDataAligned(buf128 + 0), FoldBy512_128);
-                result1 = Fold(result1, loadDataAligned(buf128 + 1), FoldBy512_128);
-                result2 = Fold(result2, loadDataAligned(buf128 + 2), FoldBy512_128);
-                result3 = Fold(result3, loadDataAligned(buf128 + 3), FoldBy512_128);
+                result0 = Fold(result0, ReverseBytes(buf128[0]), FoldBy512_128);
+                result1 = Fold(result1, ReverseBytes(buf128[1]), FoldBy512_128);
+                result2 = Fold(result2, ReverseBytes(buf128[2]), FoldBy512_128);
+                result3 = Fold(result3, ReverseBytes(buf128[3]), FoldBy512_128);
                 buf128 += 4;
             }
 
@@ -166,8 +151,17 @@ namespace NCrcSSE0xE543279765927881
             result = Fold(result2, result3, FoldBy128_128);
         }
 
-        while (buflen--) {
-            result = Fold(result, loadDataAligned(buf128++), FoldBy128_128);
+        while (buflen >= 16) {
+            result = Fold(result, ReverseBytes(*buf128++), FoldBy128_128);
+            buflen -= 16;
+        }
+    
+        if (buflen) {
+            YASSERT(buflen < 16); 
+            __m128i lastdata = _mm_or_si128(_mm_shift_right_si128(ReverseBytes(*buf128), 16 - buflen),
+                _mm_shift_left_si128(result, buflen));
+            result = _mm_shift_right_si128(result, 16 - buflen);
+            result = Fold(result, lastdata, FoldBy128_128);
         }
 
         return result;
@@ -193,52 +187,36 @@ namespace NCrcSSE0xE543279765927881
 
     ui64 Crc(const void* buf, size_t buflen, ui64 seed)
     {
-        const ui8* ptr = reinterpret_cast<const ui8*>(buf);
+        size_t offset  = reinterpret_cast<size_t>(buf) & 0xf;
 
-        const __m128i FoldBy64_128 = _mm_set_epi64x(XPow128ModPoly, XPow64ModPoly);
-        const __m128i FoldBy128_128 = _mm_set_epi64x(XPow192ModPoly, XPow128ModPoly);
+        const __m128i* buf128 = (const __m128i*) (reinterpret_cast<size_t>(buf) - offset);
 
         __m128i result = _mm_set_epi64x(seed, 0);
+        const __m128i FoldBy64_128 = _mm_set_epi64x(XPow128ModPoly, XPow64ModPoly);
 
         if (buflen >= 16) {
-            result = _mm_xor_si128(result, loadDataUnaligned(ptr));
-            buflen -= 16;
-            ptr += 16;
-
-            if (buflen >= 16) {
-                if (size_t offset = 16 - (reinterpret_cast<size_t>(ptr) % 16)) {
-                    result = FoldTail(result, loadDataUnaligned(ptr), FoldBy128_128, offset);
-                    buflen -= offset;
-                    ptr += offset;
-                }
-
-                size_t rest = buflen % 16;
-                result = FoldTo128(reinterpret_cast<const __m128i*>(ptr), buflen / 16, result);
-                ptr += buflen - rest;
-                buflen = rest;
-            } 
-
-            if (buflen) {
-                result = FoldTail(result, loadDataUnaligned(ptr), FoldBy128_128, buflen);
-                buflen -= buflen;
-                ptr += buflen;
-            }
-
-            result = Fold(result, FoldBy64_128);
+            __m128i data = ReverseBytes(_mm_loadu_si128((__m128i*) buf));
+            result = _mm_shift_right_si128(_mm_xor_si128(result, data), offset);
+            buflen -= 16 - offset;
+            buf128++;
+            result = Fold(FoldTo128_64(buf128, buflen, result), FoldBy64_128);
+            
         } else if (buflen) {
-            __m128i tail = _mm_shift_right_si128(_mm_shift_left_si128(result, buflen), 8);
-            result = _mm_shift_right_si128(_mm_xor_si128(result, loadDataUnaligned(ptr)), 16 - buflen);
+            __m128i data = ReverseBytes(_mm_loadu_si128((__m128i*) buf));
+            __m128i tail = _mm_shift_left_si128(result, buflen);
+            tail = _mm_shift_right_si128(tail, 8);
+            result = _mm_xor_si128(result, data);        
+            result = _mm_shift_right_si128(result, 16 - buflen);
+
             result = Fold(result, tail, FoldBy64_128);
         } else {
             result = _mm_shift_right_si128(result, 8);
         }
-        
+
         return BarretReduction(result);
     }
 }
 #endif
-
-////////////////////////////////////////////////////////////////////////////////
 
 #ifdef _YT_USE_CRC_8TABLE
 namespace NCrcTable0xE543279765927881
@@ -790,7 +768,7 @@ namespace NCrcTable0xE543279765927881
         const unsigned char * ptrChar = (const unsigned char *) buf;
 
         while ((reinterpret_cast<size_t>(ptrChar) & 0x7) && buflen) {
-            crcinit = CrcLookup[0][(crcinit ^ *ptrChar++) & 0xff] ^ (crcinit >> 8);
+            crcinit = CrcLookup[0][(crcinit ^ *ptrChar++) & 0xFF] ^ (crcinit >> 8);
             --buflen;
         }
 
@@ -800,28 +778,26 @@ namespace NCrcTable0xE543279765927881
             ui64 val = crcinit ^ *ptr++;
 
             crcinit =
-               CrcLookup[7][ val        & 0xff] ^
-               CrcLookup[6][(val >>  8) & 0xff] ^
-               CrcLookup[5][(val >> 16) & 0xff] ^
-               CrcLookup[4][(val >> 24) & 0xff] ^
-               CrcLookup[3][(val >> 32) & 0xff] ^
-               CrcLookup[2][(val >> 40) & 0xff] ^
-               CrcLookup[1][(val >> 48) & 0xff] ^
+               CrcLookup[7][ val        & 0xFF] ^
+               CrcLookup[6][(val >>  8) & 0xFF] ^
+               CrcLookup[5][(val >> 16) & 0xFF] ^
+               CrcLookup[4][(val >> 24) & 0xFF] ^
+               CrcLookup[3][(val >> 32) & 0xFF] ^
+               CrcLookup[2][(val >> 40) & 0xFF] ^
+               CrcLookup[1][(val >> 48) & 0xFF] ^
                CrcLookup[0][ val >> 56        ];
         }
 
         ptrChar = (const unsigned char *) ptr;
 
         while (buflen--) {
-            crcinit = CrcLookup[0][(crcinit ^ *ptrChar++) & 0xff] ^ (crcinit >> 8);
+            crcinit = CrcLookup[0][(crcinit ^ *ptrChar++) & 0xFF] ^ (crcinit >> 8);
         }
 
         return ReverseBytes(crcinit);
     }
 }
 #endif
-
-////////////////////////////////////////////////////////////////////////////////
 
 #ifdef _YT_USE_CRC_PCLMUL
 TChecksum GetChecksumImpl(const void* data, size_t length, TChecksum seed)
@@ -833,19 +809,25 @@ TChecksum GetChecksumImpl(const void* data, size_t length, TChecksum seed)
     }
 }
 #else
+#ifdef _YT_USE_CRC_8TABLE
 TChecksum GetChecksumImpl(const void* data, size_t length, TChecksum seed)
 {
     return NCrcTable0xE543279765927881::Crc(data, length, seed);
 }
+#else 
+TChecksum GetChecksumImpl(const void* data, size_t length, TChecksum seed)
+{
+    return crc64(data, length, seed);
+}
 #endif
-
-} // namespace NDetail
+#endif
+//} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TChecksum GetChecksum(TRef data)
 {
-    return NDetail::GetChecksumImpl(data.Begin(), data.Size(), 0);
+    return GetChecksumImpl(data.Begin(), data.Size(), 0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -863,7 +845,7 @@ TChecksum TChecksumInput::GetChecksum() const
 size_t TChecksumInput::DoRead(void* buf, size_t len)
 {
     size_t res = Input->Read(buf, len);
-    Checksum = NDetail::GetChecksumImpl(buf, res, Checksum);
+    Checksum = GetChecksumImpl(buf, res, Checksum);
     return res;
 }
 
@@ -882,7 +864,7 @@ TChecksum TChecksumOutput::GetChecksum() const
 void TChecksumOutput::DoWrite(const void* buf, size_t len)
 {
     Output->Write(buf, len);
-    Checksum = NDetail::GetChecksumImpl(buf, len, Checksum);
+    Checksum = GetChecksumImpl(buf, len, Checksum);
 }
 
 void TChecksumOutput::DoFlush()
