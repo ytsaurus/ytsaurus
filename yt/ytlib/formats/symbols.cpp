@@ -23,7 +23,7 @@ const char _m128i_shift_right[31] = {
 // The length of the result is stored into |length|.
 //
 // Note that real motivation for this method is to avoid accidental page faults
-// with direct unaligend reads. I. e., if you have 4 bytes at the end of a page
+// with direct unaligned reads. I. e., if you have 4 bytes at the end of a page
 // then unaligned read will read 16 - 4 = 12 bytes from the next page causing
 // a page fault; if the next page is unmapped this will incur a segmentation
 // fault and terminate the process.
