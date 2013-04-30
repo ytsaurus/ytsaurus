@@ -238,7 +238,7 @@ def make_request(command_name, params,
                     timeout=config.CONNECTION_TIMEOUT,
                     stream=stream))
             break
-        except requests.HTTPError, requests.ConnectionError, requests.PoolError:
+        except (requests.HTTPError, requests.ConnectionError, requests.PoolError):
             if make_retry:
                 logger.warning("Retrying http request for command " + command_name)
                 time.sleep(config.HTTP_RETRY_TIMEOUT)
