@@ -1040,10 +1040,12 @@ private:
             auto* chunk = FindChunk(chunkId);
             if (IsObjectAlive(chunk) && chunk->GetReplicationFactor() != replicationFactor) {
                 // NB: Updating RF for staged chunks is forbidden.
-                YCHECK(!chunk->IsStaged());
-                chunk->SetReplicationFactor(replicationFactor);
-                if (IsLeader()) {
-                    ChunkReplicator->ScheduleChunkRefresh(chunk);
+                // COMPAT(babenko)
+                if (!chunk->IsStaged()) {
+                    chunk->SetReplicationFactor(replicationFactor);
+                    if (IsLeader()) {
+                        ChunkReplicator->ScheduleChunkRefresh(chunk);
+                    }
                 }
             }
         }
