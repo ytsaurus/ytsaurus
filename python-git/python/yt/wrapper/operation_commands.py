@@ -205,10 +205,11 @@ class WaitStrategy(object):
             operation_result = get_operation_result(operation)
             jobs_errors = get_jobs_errors(operation)
             raise YtOperationFailedError(
-                "Operation {0} failed!\n"
-                "Operation result: {1}\n\n"
-                "Failed jobs:\n{2}\n\n".format(
+                "Operation {0} {1}!\n"
+                "Operation result: {2}\n\n"
+                "Failed jobs:\n{3}\n\n".format(
                     operation,
+                    str(state),
                     operation_result,
                     jobs_errors))
         if config.PRINT_STDERRS:
