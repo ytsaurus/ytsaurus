@@ -37,7 +37,7 @@ Running over the same old ground.
 What have you found? The same old fears.
 Wish you were here.
 """
-        
+
         # remove punctuation from text
         stop_symbols = ",.?"
         for s in stop_symbols:
@@ -50,7 +50,11 @@ Wish you were here.
 
         for line in text.split('\n'):
             write('<append=true>//tmp/t_in', {'line': line}, tx=tx)
-        
+
+        create('file', '//tmp/yt_streaming.py')
+        create('file', '//tmp/mapper.py')
+        create('file', '//tmp/reducer.py')
+
         upload_file('//tmp/yt_streaming.py', os.path.join(TOOLS_ROOTDIR, 'yt_streaming.py'), tx=tx)
         upload_file('//tmp/mapper.py', os.path.join(TOOLS_ROOTDIR, 'wc_mapper.py'), tx=tx)
         upload_file('//tmp/reducer.py', os.path.join(TOOLS_ROOTDIR, 'wc_reducer.py'), tx=tx)

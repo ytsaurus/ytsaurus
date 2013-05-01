@@ -9,7 +9,17 @@ namespace NFileClient {
 
 class TFileChunkOutput;
 
-class TFileReaderBase;
+class TFileChunkReader;
+typedef TIntrusivePtr<TFileChunkReader> TFileChunkReaderPtr;
+
+class TFileChunkReaderProvider;
+typedef TIntrusivePtr<TFileChunkReaderProvider> TFileChunkReaderProviderPtr;
+
+class TFileChunkWriter;
+typedef TIntrusivePtr<TFileChunkWriter> TFileChunkWriterPtr;
+
+class TFileChunkWriterProvider;
+typedef TIntrusivePtr<TFileChunkWriterProvider> TFileChunkWriterProviderPtr;
 
 class TFileWriter;
 typedef TIntrusivePtr<TFileWriter> TFileWriterPtr;
@@ -17,7 +27,10 @@ typedef TIntrusivePtr<TFileWriter> TFileWriterPtr;
 class TFileReader;
 typedef TIntrusivePtr<TFileReader> TFileReaderPtr;
 
-class TFileWriterConfig;
+struct TFileChunkWriterConfig;
+typedef TIntrusivePtr<TFileChunkWriterConfig> TFileChunkWriterConfigPtr;
+
+struct TFileWriterConfig;
 typedef TIntrusivePtr<TFileWriterConfig> TFileWriterConfigPtr;
 
 class TFileReaderConfig;

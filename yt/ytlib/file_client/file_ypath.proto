@@ -19,28 +19,3 @@ message TReqCreateFileExt
     required NYT.NProto.TGuid chunk_id = 1;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-message TReqPrepareForUpdate
-{ }
-
-message TRspPrepareForUpdate
-{
-    required NYT.NProto.TGuid chunk_list_id = 1;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-message TReqFetchFile
-{ }
-
-message TRspFetchFile
-{
-    required NYT.NProto.TGuid chunk_id = 1;
-    required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 2;
-    repeated fixed32 replicas = 3;
-    required string file_name = 4;
-    required bool executable = 5;
-}
-
-////////////////////////////////////////////////////////////////////////////////

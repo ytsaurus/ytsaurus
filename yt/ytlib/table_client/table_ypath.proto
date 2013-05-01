@@ -1,45 +1,5 @@
 package NYT.NTableClient.NProto;
 
-import "yt/ytlib/chunk_client/input_chunk.proto";
-import "yt/ytlib/misc/guid.proto";
-import "yt/ytlib/node_tracker_client/node.proto";
-import "yt/ytlib/chunk_client/chunk.proto";
-
-////////////////////////////////////////////////////////////////////////////////
-
-// Branches the table returning the new root chunk list
-// where all new chunks must be added to.
-message TReqPrepareForUpdate
-{
-    required int32 mode = 1;
-}
-
-message TRspPrepareForUpdate
-{
-    required NYT.NProto.TGuid chunk_list_id = 1;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-// Returns info describing a given portion of table.
-message TReqFetch
-{
-    optional bool fetch_all_meta_extensions = 1 [default = false];
-
-    // Not yet supported.
-    repeated int32 extension_tags = 2;
-
-    // When set, master omits unavailable chunks from the reply.
-    // Otherwise request fails in presence of unavailable chunks.
-    optional bool skip_unavailable_chunks = 3 [default = false];
-}
-
-message TRspFetch
-{
-    required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 1;
-    repeated NYT.NChunkClient.NProto.TInputChunk chunks = 2;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 // Raises "sorted" flag for the root chunk list of the table.

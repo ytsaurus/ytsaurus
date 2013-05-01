@@ -171,6 +171,9 @@ class TestSchedulerMapCommands(YTEnvSetup):
         file1 = '//tmp/some_file.txt'
         file2 = '//tmp/renamed_file.txt'
 
+        create('file', file1)
+        create('file', file2)
+
         upload(file1, '{value=42};\n')
         upload(file2, '{a=b};\n')
 
@@ -200,6 +203,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         else:
             mapper = "cat  > /dev/null; echo {v = 0} >&1; echo {v = 1} >&4; echo {v = 2} >&7"
 
+        create('file', '//tmp/mapper.sh')
         upload('//tmp/mapper.sh', mapper)
 
         map(in_='//tmp/t_in',
@@ -230,6 +234,7 @@ assert input == ['tskv', 'foo=bar']
 print '{hello=world}'
 
 """
+        create('file', '//tmp/mapper.sh')
         upload('//tmp/mapper.sh', mapper)
 
         create('table', '//tmp/t_out')
@@ -253,6 +258,7 @@ assert input == '{"foo"="bar"};'
 print "tskv" + "\\t" + "hello=world"
 
 """
+        create('file', '//tmp/mapper.sh')
         upload('//tmp/mapper.sh', mapper)
 
         create('table', '//tmp/t_out')
@@ -278,6 +284,7 @@ assert input == '{"foo"="bar"};'
 print "key\\tsubkey\\tvalue"
 
 """
+        create('file', '//tmp/mapper.sh')
         upload('//tmp/mapper.sh', mapper)
 
         create('table', '//tmp/t_out')
@@ -303,6 +310,7 @@ assert input == ['key', 'subkey', 'value']
 print '{hello=world}'
 
 """
+        create('file', '//tmp/mapper.sh')
         upload('//tmp/mapper.sh', mapper)
 
         create('table', '//tmp/t_out')
@@ -323,7 +331,10 @@ print '{hello=world}'
 #!/bin/sh
 cat > /dev/null; echo {hello=world}
 """
+
+        create('file', '//tmp/mapper.sh')
         upload('//tmp/mapper.sh', mapper)
+
         set('//tmp/mapper.sh/@executable', "true")
 
         create('table', '//tmp/t_out')

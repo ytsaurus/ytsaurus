@@ -29,6 +29,7 @@ set( HDRS
   ${BASE}/chunk_meta_extensions.h
   ${BASE}/chunk_replica.h
   ${BASE}/chunk_ypath_proxy.h
+  ${BASE}/chunk_owner_ypath_proxy.h
   ${BASE}/multi_chunk_sequential_writer.h
   ${BASE}/multi_chunk_sequential_writer-inl.h
   ${BASE}/multi_chunk_reader_base.h
@@ -66,6 +67,7 @@ list(APPEND YT_SOURCE_FILES
 protoc( ${BASE}/input_chunk.proto YT_SOURCE_FILES )
 protoc( ${BASE}/job.proto YT_SOURCE_FILES )
 protoc( ${BASE}/chunk.proto YT_SOURCE_FILES )
+protoc( ${BASE}/chunk_owner_ypath.proto YT_SOURCE_FILES )
 protoc( ${BASE}/data_node_service.proto YT_SOURCE_FILES )
 protoc( ${BASE}/chunk_service.proto YT_SOURCE_FILES )
 protoc( ${BASE}/chunk_ypath.proto YT_SOURCE_FILES )

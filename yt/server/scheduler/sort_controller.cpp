@@ -284,7 +284,7 @@ protected:
 
             Controller->PartitionJobCounter.Completed(1);
 
-            RegisterIntermediateChunks(
+            RegisterIntermediate(
                 joblet,
                 Controller->ShufflePool->GetInput());
 
@@ -504,7 +504,7 @@ protected:
                 Controller->IntermediateSortJobCounter.Completed(1);
 
                 // Sort outputs in large partitions are queued for further merge.
-                RegisterIntermediateChunks(
+                RegisterIntermediate(
                     joblet,
                     Partition->SortedMergeTask->GetChunkPoolInput());
             } else {
@@ -2135,6 +2135,16 @@ private:
             return Spec->Mapper->EnableTableIndex;
 
         return false;
+    }
+
+    virtual bool IsOutputLivePreviewSupported() const override
+    {
+        return true;
+    }
+
+    virtual bool IsIntermediateLivePreviewSupported() const override
+    {
+        return true;
     }
 
     // Resource management.

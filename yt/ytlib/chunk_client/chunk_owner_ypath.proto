@@ -1,0 +1,45 @@
+package NYT.NChunkClient.NProto;
+
+// Basic ypath-rpc for all types of chunk list owners.
+
+import "yt/ytlib/chunk_client/input_chunk.proto";
+import "yt/ytlib/misc/guid.proto";
+import "yt/ytlib/node_tracker_client/node.proto";
+import "yt/ytlib/chunk_client/chunk.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Branches the table returning the new root chunk list
+// where all new chunks must be added to.
+message TReqPrepareForUpdate
+{
+    required int32 mode = 1;
+}
+
+message TRspPrepareForUpdate
+{
+    required NYT.NProto.TGuid chunk_list_id = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Returns info describing a given portion of table.
+message TReqFetch
+{
+    optional bool fetch_all_meta_extensions = 2 [default = false];
+
+    // Not yet supported.
+    repeated int32 extension_tags = 3;
+
+    // When set, master omits the lost chunks in the reply.
+    // Otherwise request fails in presence of the unavailable chunks.
+    optional bool skip_unavailable_chunks = 4 [default = false];
+}
+
+message TRspFetch
+{
+    required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 1;
+    repeated NChunkClient.NProto.TInputChunk chunks = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////

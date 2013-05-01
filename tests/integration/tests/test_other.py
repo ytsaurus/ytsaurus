@@ -65,6 +65,7 @@ class TestResourceLeak(YTEnvSetup):
         tx = start_transaction(opt = '/timeout=2000')
 
         # uploading from empty stream will fail
+        create('file', '//tmp/file')
         process = run_command('upload', '//tmp/file', tx = tx)
         time.sleep(1)
         process.kill()
@@ -83,6 +84,7 @@ class TestResourceLeak2(YTEnvSetup):
     NUM_NODES = 5
 
     def test_abort_snapshot_lock(self):
+        create('file', '//tmp/file')
         upload('//tmp/file', 'some_data')
 
         tx = start_transaction()
@@ -92,6 +94,7 @@ class TestResourceLeak2(YTEnvSetup):
         abort_transaction(tx)
 
     def test_commit_snapshot_lock(self):
+        create('file', '//tmp/file')
         upload('//tmp/file', 'some_data')
 
         tx = start_transaction()
@@ -132,12 +135,12 @@ class TestAsyncAttributes(YTEnvSetup):
         assert len(get('//tmp/t/@chunk_ids')) == chunk_count
         codec_info = get('//tmp/t/@compression_statistics')
         assert codec_info['snappy']['chunk_count'] == chunk_count
-    
+
     def test2(self):
         tableA = '//tmp/a'
         create('table', tableA)
         write_str(tableA, '{foo=bar}')
-        
+
         tableB = '//tmp/b'
         create('table', tableB)
         set_str(tableB + '/@compression_codec', 'snappy')

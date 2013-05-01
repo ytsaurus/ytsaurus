@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "file_writer.h"
-#include "file_chunk_output.h"
+#include "file_chunk_writer.h"
 #include "config.h"
 #include "private.h"
 
@@ -8,14 +8,16 @@
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
-#include <ytlib/chunk_client/chunk_list_ypath_proxy.h>
-
 #include <ytlib/file_client/file_ypath_proxy.h>
+
+#include <ytlib/chunk_client/input_chunk.h>
 
 #include <ytlib/transaction_client/transaction_manager.h>
 #include <ytlib/transaction_client/transaction.h>
 
 #include <ytlib/meta_state/rpc_helpers.h>
+
+#include <ytlib/misc/sync.h>
 
 namespace NYT {
 namespace NFileClient {
@@ -35,14 +37,12 @@ TFileWriter::TFileWriter(
     NRpc::IChannelPtr masterChannel,
     ITransactionPtr transaction,
     TTransactionManagerPtr transactionManager,
-    const TRichYPath& richPath,
-    IAttributeDictionary* attributes)
+    const TRichYPath& richPath)
     : Config(config)
     , MasterChannel(masterChannel)
     , Transaction(transaction)
     , TransactionManager(transactionManager)
     , RichPath(richPath)
-    , Attributes(attributes ? attributes->Clone() : CreateEphemeralAttributes())
     , Logger(FileWriterLogger)
 {
     YCHECK(transactionManager);
@@ -50,8 +50,6 @@ TFileWriter::TFileWriter(
     Logger.AddTag(Sprintf("Path: %s, TransactionId: %s",
         ~RichPath.GetPath(),
         transaction ? ~ToString(transaction->GetId()) : ~ToString(NullTransactionId)));
-
-    Attributes->Set("replication_factor", Config->ReplicationFactor);
 
     if (Transaction) {
         ListenTransaction(Transaction);
@@ -73,47 +71,39 @@ void TFileWriter::Open()
         options.Attributes->Set("title", Sprintf("File upload to %s", ~RichPath.GetPath()));
         UploadTransaction = TransactionManager->Start(options);
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error creating upload transaction")
-            << ex;
+        THROW_ERROR_EXCEPTION("Error creating upload transaction") << ex;
     }
 
     ListenTransaction(UploadTransaction);
+
     LOG_INFO("Upload transaction created (TransactionId: %s)",
         ~ToString(UploadTransaction->GetId()));
 
     TObjectServiceProxy proxy(MasterChannel);
 
-    LOG_INFO("Creating file node");
-    {
-        auto req = TCypressYPathProxy::Create(RichPath);
-        NMetaState::GenerateMutationId(req);
-        SetTransactionId(req, UploadTransaction);
-        req->set_type(EObjectType::File);
-        ToProto(req->mutable_node_attributes(), *Attributes);
-
-        auto rsp = proxy.Execute(req).Get();
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error creating file node");
-
-        NodeId = FromProto<NCypressClient::TNodeId>(rsp->node_id());
-    }
-    LOG_INFO("File node created (NodeId: %s)", ~ToString(NodeId));
-
     LOG_INFO("Requesting file info");
+    TChunkListId chunkListId;
+    auto options = New<TMultiChunkWriterOptions>();
     {
         auto batchReq = proxy.ExecuteBatch();
 
+        auto path = RichPath.GetPath();
+        bool overwrite = NChunkClient::ExtractOverwriteFlag(RichPath.Attributes());
+
         {
-            auto req = TCypressYPathProxy::Get(FromObjectId(NodeId));
+            auto req = TCypressYPathProxy::Get(path);
             SetTransactionId(req, UploadTransaction);
             TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly);
             attributeFilter.Keys.push_back("replication_factor");
             attributeFilter.Keys.push_back("account");
+            attributeFilter.Keys.push_back("compression_codec");
             ToProto(req->mutable_attribute_filter(), attributeFilter);
             batchReq->AddRequest(req, "get_attributes");
         }
 
         {
-            auto req = TFileYPathProxy::PrepareForUpdate(FromObjectId(NodeId));
+            auto req = TFileYPathProxy::PrepareForUpdate(path);
+            req->set_mode(overwrite ? EUpdateMode::Overwrite : EUpdateMode::Append);
             NMetaState::GenerateMutationId(req);
             SetTransactionId(req, UploadTransaction);
             batchReq->AddRequest(req, "prepare_for_update");
@@ -129,53 +119,56 @@ void TFileWriter::Open()
             auto node = ConvertToNode(TYsonString(rsp->value()));
             const auto& attributes = node->Attributes();
 
-            Config->ReplicationFactor = attributes.Get<int>("replication_factor");
-
-            Account = attributes.Get<Stroka>("account");
+            options->ReplicationFactor = attributes.Get<int>("replication_factor");
+            options->Account = attributes.Get<Stroka>("account");
+            options->Codec = attributes.Get<NCompression::ECodec>("compression_codec");
         }
 
         {
             auto rsp = batchRsp->GetResponse<TFileYPathProxy::TRspPrepareForUpdate>("prepare_for_update");
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error preparing file for update");
-            ChunkListId = FromProto<TChunkListId>(rsp->chunk_list_id());
+            chunkListId = FromProto<TChunkListId>(rsp->chunk_list_id());
         }
     }
-    LOG_INFO("File info received (Account: %s, ChunkListId: %s)",
-        ~Account,
-        ~ToString(ChunkListId));
 
-    Writer = new TFileChunkOutput(
+    LOG_INFO("File info received (Account: %s, ChunkListId: %s)",
+        ~options->Account,
+        ~ToString(chunkListId));
+
+    auto provider = New<TFileChunkWriterProvider>(
         Config,
+        options);
+
+    Writer = New<TWriter>(
+        Config,
+        options,
+        provider,
         MasterChannel,
         UploadTransaction->GetId(),
-        Account);
-    Writer->Open();
+        chunkListId);
+    Sync(~Writer, &TWriter::AsyncOpen);
+
 }
 
 void TFileWriter::Write(const TRef& data)
 {
     CheckAborted();
-    Writer->Write(data.Begin(), data.Size());
+    while (true) {
+        auto* facade = Writer->GetCurrentWriter();
+        if (!facade) {
+            Sync(~Writer, &TWriter::GetReadyEvent);
+        } else {
+            facade->Write(data);
+            break;
+        }
+    }
 }
 
 void TFileWriter::Close()
 {
     CheckAborted();
 
-    Writer->Finish();
-
-    TObjectServiceProxy proxy(MasterChannel);
-    auto chunkId = Writer->GetChunkId();
-
-    LOG_INFO("Attaching chunk (ChunkId: %s)", ~ToString(chunkId));
-    {
-        auto req = TChunkListYPathProxy::Attach(FromObjectId(ChunkListId));
-        ToProto(req->add_children_ids(), chunkId);
-
-        auto rsp = proxy.Execute(req).Get();
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error attaching chunk");
-    }
-    LOG_INFO("Chunk attached");
+    Sync(~Writer, &TWriter::AsyncClose);
 
     LOG_INFO("Committing upload transaction");
     try {
@@ -185,12 +178,6 @@ void TFileWriter::Close()
             << ex;
     }
     LOG_INFO("Upload transaction committed");
-}
-
-NCypressClient::TNodeId TFileWriter::GetNodeId() const
-{
-    YCHECK(NodeId != NullObjectId);
-    return NodeId;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

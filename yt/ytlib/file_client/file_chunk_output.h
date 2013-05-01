@@ -3,15 +3,12 @@
 #include "public.h"
 #include "chunk_meta_extensions.h"
 
-#include <ytlib/misc/thread_affinity.h>
 
-#include <ytlib/compression/public.h>
-
+#include <ytlib/compression/codec.h>
 #include <ytlib/logging/tagged_logger.h>
-
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/chunk_replica.h>
-#include <ytlib/chunk_client/chunk.pb.h>
+
 
 #include <ytlib/rpc/public.h>
 
@@ -35,9 +32,9 @@ public:
     //! Initializes an instance.
     TFileChunkOutput(
         TFileWriterConfigPtr config,
+        NChunkClient::TMultiChunkWriterOptionsPtr options,
         NRpc::IChannelPtr masterChannel,
-        const NObjectClient::TTransactionId& transactionId,
-        const Stroka& account);
+        const NObjectClient::TTransactionId& transactionId);
 
     ~TFileChunkOutput() throw();
 
@@ -58,24 +55,19 @@ private:
     void FlushBlock();
 
     const TFileWriterConfigPtr Config;
-    const int ReplicationFactor;
-    const int UploadReplicationFactor;
+    const NChunkClient::TMultiChunkWriterOptionsPtr Options;
+
+    bool IsOpen;
 
     NRpc::IChannelPtr MasterChannel;
     NObjectClient::TTransactionId TransactionId;
-    Stroka Account;
 
-    bool IsOpen;
-    i64 Size;
-    i32 BlockCount;
-    std::vector<NChunkClient::TChunkReplica> Replicas;
-    NChunkClient::IAsyncWriterPtr Writer;
     NChunkClient::TChunkId ChunkId;
-    NCompression::ICodec* Codec;
-    TBlob Buffer;
-    NChunkClient::NProto::TChunkMeta Meta;
-    NFileClient::NProto::TBlocksExt BlocksExt;
 
+    std::vector<NChunkClient::TChunkReplica> Replicas;
+
+    NChunkClient::IAsyncWriterPtr AsyncWriter;
+    TFileChunkWriterPtr Writer;
     NLog::TTaggedLogger Logger;
 };
 

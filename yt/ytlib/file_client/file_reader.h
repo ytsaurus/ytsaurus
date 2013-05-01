@@ -4,22 +4,21 @@
 
 #include <ytlib/object_client/object_service_proxy.h>
 
-#include <ytlib/transaction_client/public.h>
-#include <ytlib/transaction_client/transaction_listener.h>
-
-#include <ytlib/chunk_client/public.h>
-#include <ytlib/chunk_client/block_cache.h>
+#include <ytlib/chunk_client/multi_chunk_sequential_reader.h>
 
 #include <ytlib/ypath/rich.h>
 
-#include <ytlib/logging/tagged_logger.h>
+#include <ytlib/transaction_client/public.h>
+#include <ytlib/transaction_client/transaction_listener.h>
 
-#include <ytlib/misc/thread_affinity.h>
+#include <ytlib/logging/tagged_logger.h>
 
 namespace NYT {
 namespace NFileClient {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+typedef NChunkClient::TMultiChunkSequentialReader<TFileChunkReader> TFileChunkSequenceReader;
 
 //! A client-side facade for reading files.
 /*!
@@ -30,10 +29,12 @@ class TFileReader
     : public NTransactionClient::TTransactionListener
 {
 public:
+    //! Initializes an instance.
     TFileReader();
 
     ~TFileReader();
 
+    //! Opens the reader.
     void Open(
         TFileReaderConfigPtr config,
         NRpc::IChannelPtr masterChannel,
@@ -43,18 +44,17 @@ public:
         const TNullable<i64>& offset = Null,
         const TNullable<i64>& length = Null);
 
-    //! Reads and returns another block.
     TSharedRef Read();
 
-    //! Returns the size of the file.
     i64 GetSize() const;
 
 private:
-    TAutoPtr<TFileReaderBase> BaseReader;
+    bool IsFirstBlock;
+    TIntrusivePtr<TFileChunkSequenceReader> Reader;
+
+    i64 Size;
+
     NLog::TTaggedLogger Logger;
-
-    DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

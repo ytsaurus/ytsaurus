@@ -42,14 +42,11 @@ struct TUploadRequest
     : public TTransactionalRequest
 {
     NYPath::TRichYPath Path;
-    NYTree::INodePtr Attributes;
     NYTree::INodePtr FileWriter;
 
     TUploadRequest()
     {
         RegisterParameter("path", Path);
-        RegisterParameter("attributes", Attributes)
-            .Default(nullptr);
         RegisterParameter("file_writer", FileWriter)
             .Default(nullptr);
     }

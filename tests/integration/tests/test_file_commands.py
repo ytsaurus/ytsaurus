@@ -12,12 +12,13 @@ class TestFileCommands(YTEnvSetup):
 
     def test_simple(self):
         content = "some_data"
+        create('file', '//tmp/file')
         upload('//tmp/file', content)
         assert download('//tmp/file') == content
 
         chunk_id = get('//tmp/file/@chunk_id')
         assert get_chunks() == [chunk_id]
-        assert get('//tmp/file/@size') == len(content)
+        assert get('//tmp/file/@umcompressed_data_size') == len(content)
 
         # check that chunk was deleted
         remove('//tmp/file')
@@ -25,12 +26,13 @@ class TestFileCommands(YTEnvSetup):
 
     def test_empty(self):
         content = ""
+        create('file', '//tmp/file')
         upload('//tmp/file', content)
         assert download('//tmp/file') == content
 
         chunk_id = get('//tmp/file/@chunk_id')
         assert get_chunks() == [chunk_id]
-        assert get('//tmp/file/@size') == len(content)
+        assert get('//tmp/file/@uncompressed_data_size') == len(content)
 
         # check that chunk was deleted
         remove('//tmp/file')
@@ -38,6 +40,7 @@ class TestFileCommands(YTEnvSetup):
 
     def test_read_interval(self):
         content = ''.join(["data"] * 100)
+        create('file', '//tmp/file')
         upload('//tmp/file', content, config_opt='/file_writer/block_size=8')
 
         offset = 9
@@ -56,6 +59,7 @@ class TestFileCommands(YTEnvSetup):
 
     def test_copy(self):
         content = "some_data"
+        create('file', '//tmp/f')
         upload('//tmp/f', content)
 
         assert download('//tmp/f') == content
@@ -73,6 +77,7 @@ class TestFileCommands(YTEnvSetup):
 
     def test_copy_tx(self):
         content = "some_data"
+        create('file', '//tmp/f')
         upload('//tmp/f', content)
 
         tx = start_transaction()
@@ -91,6 +96,7 @@ class TestFileCommands(YTEnvSetup):
 
     def test_replication_factor_attr(self):
         content = "some_data"
+        create('file', '//tmp/f')
         upload('//tmp/f', content)
 
         get('//tmp/f/@replication_factor')
@@ -101,3 +107,13 @@ class TestFileCommands(YTEnvSetup):
 
         tx = start_transaction()
         with pytest.raises(YTError): set('//tmp/f/@replication_factor', 2, tx=tx)
+
+    def test_append(self):
+        content = "some_data"
+        create('file', '//tmp/f')
+        upload('//tmp/f', content)
+        upload('<append=true>//tmp/f', content)
+
+        assert len(get('//tmp/f/@chunk_ids')) == 2
+        assert get('//tmp/f/@uncompressed_data_size') == 18
+        assert download('//tmp/f') == content + content

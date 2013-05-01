@@ -236,6 +236,12 @@ private:
     }
 
 
+    virtual bool IsOutputLivePreviewSupported() const override
+    {
+        return true;
+    }
+
+
     // Progress reporting.
 
     virtual Stroka GetLoggingProgress() override

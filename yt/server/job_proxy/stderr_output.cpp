@@ -5,8 +5,6 @@
 #include <ytlib/file_client/config.h>
 #include <ytlib/file_client/file_chunk_output.h>
 
-#include <ytlib/chunk_client/chunk_list_ypath_proxy.h>
-
 #include <ytlib/transaction_client/transaction_ypath_proxy.h>
 
 #include <ytlib/security_client/public.h>
@@ -19,7 +17,7 @@ namespace NJobProxy {
 using namespace NFileClient;
 using namespace NRpc;
 using namespace NTransactionClient;
-using namespace NChunkServer;
+using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -47,11 +45,15 @@ void TErrorOutput::DoWrite(const void* buf, size_t len)
     if (!FileWriter) {
         LOG_DEBUG("Opening stderr stream");
 
+        auto options = New<TMultiChunkWriterOptions>();
+        options->Account = NSecurityClient::SysAccountName;
+        options->ReplicationFactor = 1;
+
         FileWriter = new TFileChunkOutput(
             Config,
+            options,
             MasterChannel,
-            TransactionId,
-            NSecurityClient::SysAccountName);
+            TransactionId);
         FileWriter->Open();
 
         LOG_DEBUG("Stderr stream opened");

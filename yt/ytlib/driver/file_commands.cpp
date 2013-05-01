@@ -52,18 +52,12 @@ void TUploadCommand::DoExecute()
         Context->GetConfig()->FileWriter,
         Request->FileWriter);
 
-    auto attributes =
-        Request->Attributes
-        ? ConvertToAttributes(Request->Attributes)
-        : CreateEphemeralAttributes();
-
     auto writer = New<TFileWriter>(
         config,
         Context->GetMasterChannel(),
         GetTransaction(false, true),
         Context->GetTransactionManager(),
-        Request->Path,
-        ~attributes);
+        Request->Path);
     writer->Open();
 
     auto input = Context->GetRequest()->InputStream;
@@ -78,10 +72,6 @@ void TUploadCommand::DoExecute()
     }
 
     writer->Close();
-
-    auto id = writer->GetNodeId();
-    BuildYsonFluently(~Context->CreateOutputConsumer())
-        .Value(ToString(id));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

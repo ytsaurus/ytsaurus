@@ -5,6 +5,8 @@ set( SRCS
   ${BASE}/chunk_list.cpp
   ${BASE}/chunk_list_proxy.cpp
   ${BASE}/chunk_manager.cpp
+  ${BASE}/chunk_owner_base.cpp
+  ${BASE}/chunk_owner_node_proxy.cpp
   ${BASE}/chunk_placement.cpp
   ${BASE}/chunk_proxy.cpp
   ${BASE}/chunk_replica.cpp
@@ -20,11 +22,15 @@ set( SRCS
   ${BASE}/job_tracker_service.cpp
   ${BASE}/chunk_service.cpp
 )
+
 set( HDRS
   ${BASE}/chunk.h
   ${BASE}/chunk_list.h
   ${BASE}/chunk_list_proxy.h
   ${BASE}/chunk_manager.h
+  ${BASE}/chunk_owner_base.h
+  ${BASE}/chunk_owner_type_handler.h
+  ${BASE}/chunk_owner_node_proxy.h
   ${BASE}/chunk_placement.h
   ${BASE}/chunk_proxy.h
   ${BASE}/chunk_replica-inl.h

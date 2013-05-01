@@ -54,12 +54,12 @@ class TPartitionChunkReaderFacade
     DECLARE_BYVAL_RO_PROPERTY(const char*, RowPointer);
 
 public:
-    TPartitionChunkReaderFacade(TPartitionChunkReaderPtr reader);
+    TPartitionChunkReaderFacade(TPartitionChunkReader* reader);
 
     TValue ReadValue(const TStringBuf& name) const;
 
 private:
-    TPartitionChunkReaderPtr Reader;
+    TPartitionChunkReader* Reader;
 
 };
 

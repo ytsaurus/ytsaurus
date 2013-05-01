@@ -98,6 +98,9 @@ public:
     //! Creates a new empty attribute set.
     TAttributeSet* CreateAttributes(const TVersionedObjectId& id);
 
+    //! Creates a new empty attribute set if not exists.
+    TAttributeSet* GetOrCreateAttributes(const TVersionedObjectId& id);
+
     //! Removes an existing attribute set.
     void RemoveAttributes(const TVersionedObjectId& id);
 
@@ -126,7 +129,7 @@ public:
      *  \see GetMasterObject
      */
     IObjectProxyPtr GetMasterProxy();
-    
+
     //! Finds a schema object for a given type, returns |nullptr| if nothing is found.
     TObjectBase* FindSchema(EObjectType type);
 
@@ -200,9 +203,9 @@ private:
 
     std::vector<EObjectType> RegisteredTypes;
     std::vector<TTypeEntry> TypeToEntry;
-    
+
     TRootServicePtr RootService;
-    
+
     TObjectId MasterObjectId;
     TAutoPtr<TMasterObject> MasterObject;
 

@@ -62,6 +62,7 @@ DECLARE_ENUM(EErrorCode,
     ((MasterCommunicationFailed)(712))
 );
 
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TReplicationReaderConfig;

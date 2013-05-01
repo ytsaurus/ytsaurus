@@ -40,6 +40,8 @@ a = list()
 while True:
     a.append(''.join(['xxx'] * 10000))
 """
+
+        create('file', '//tmp/mapper.py')
         upload('//tmp/mapper.py', mapper)
 
         create('table', '//tmp/t_out')

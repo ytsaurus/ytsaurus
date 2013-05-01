@@ -666,6 +666,8 @@ private:
         }
 
         IdToJob.clear();
+
+        std::fill(JobTypeCounters.begin(), JobTypeCounters.end(), 0);
     }
 
 
@@ -766,6 +768,8 @@ private:
 
             auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction_ext);
             reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
+            reqExt->set_enable_uncommitted_accounting(false);
+            reqExt->set_enable_staged_accounting(false);
 
             auto attributes = CreateEphemeralAttributes();
             attributes->Set("title", Sprintf("Scheduler async for operation %s",
@@ -1198,7 +1202,6 @@ private:
         scheduleCommit(operation->GetInputTransaction(), "commit_in_tx");
         scheduleCommit(operation->GetOutputTransaction(), "commit_out_tx");
         scheduleCommit(operation->GetSyncSchedulerTransaction(), "commit_sync_tx");
-        scheduleCommit(operation->GetAsyncSchedulerTransaction(), "commit_async_tx");
 
         return batchReq->Invoke();
     }
@@ -1211,19 +1214,22 @@ private:
 
         LOG_INFO("Scheduler transactions committed (OperationId: %s)",
             ~ToString(operation->GetOperationId()));
+
+        // NB: Never commit async transaction since it's used for writing Live Preview tables.
+        operation->GetAsyncSchedulerTransaction()->Abort();
     }
 
-    void AbortOperationTransactions(TOperationPtr operation)
+    void AbortSchedulerTransactions(TOperationPtr operation)
     {
-        auto scheduleAbort = [&] (ITransactionPtr transaction) {
+        auto abortTransaction = [&] (ITransactionPtr transaction) {
             if (transaction) {
                 // Fire-and-forget.
                 transaction->Abort();
             }
         };
 
-        scheduleAbort(operation->GetSyncSchedulerTransaction());
-        scheduleAbort(operation->GetAsyncSchedulerTransaction());
+        abortTransaction(operation->GetSyncSchedulerTransaction());
+        abortTransaction(operation->GetAsyncSchedulerTransaction());
         // No need to abort IO transactions since they are nested inside sync transaction.
     }
 
@@ -1524,7 +1530,7 @@ private:
         pipeline
             ->Add(BIND(&IOperationController::Abort, controller))
             ->Add(BIND(&TThis::SetOperationFinalState, this_, operation, finalState, error))
-            ->Add(BIND(&TThis::AbortOperationTransactions, this_, operation))
+            ->Add(BIND(&TThis::AbortSchedulerTransactions, this_, operation))
             ->Add(BIND(&TMasterConnector::FinalizeOperationNode, ~MasterConnector, operation))
             ->Add(BIND(&TThis::FinishOperation, this_, operation))
             ->Run();

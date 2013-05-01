@@ -3,8 +3,7 @@
 #include "public.h"
 
 #include <ytlib/chunk_client/chunk_ypath.pb.h>
-
-#include <ytlib/table_client/table_ypath.pb.h>
+#include <ytlib/chunk_client/chunk_owner_ypath.pb.h>
 
 #include <ytlib/object_client/object_ypath_proxy.h>
 
@@ -16,9 +15,11 @@ namespace NChunkClient {
 struct TChunkYPathProxy
     : public NObjectClient::TObjectYPathProxy
 {
-    // NB: works only for table chunks.
-    DEFINE_YPATH_PROXY_METHOD(NTableClient::NProto, Fetch);
+
     DEFINE_YPATH_PROXY_METHOD(NProto, Confirm);
+
+    // NB: works only for table chunks.
+    DEFINE_YPATH_PROXY_METHOD(NChunkClient::NProto, Fetch);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

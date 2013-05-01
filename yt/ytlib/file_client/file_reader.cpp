@@ -1,8 +1,8 @@
 #include "stdafx.h"
 #include "file_reader.h"
-#include "file_reader_base.h"
-#include "private.h"
+#include "file_chunk_reader.h"
 #include "config.h"
+#include "private.h"
 #include "file_ypath_proxy.h"
 
 #include <ytlib/object_client/object_service_proxy.h>
@@ -11,7 +11,11 @@
 
 #include <ytlib/transaction_client/transaction.h>
 
+#include <ytlib/misc/sync.h>
+
 #include <ytlib/chunk_client/chunk_replica.h>
+#include <ytlib/chunk_client/input_chunk.h>
+#include <ytlib/chunk_client/schema.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
@@ -27,11 +31,10 @@ using namespace NNodeTrackerClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 TFileReader::TFileReader()
-    : BaseReader(new TFileReaderBase())
+    : IsFirstBlock(true)
+    , Size(0)
     , Logger(FileReaderLogger)
-{
-    VERIFY_THREAD_AFFINITY(ClientThread);
-}
+{ }
 
 TFileReader::~TFileReader()
 { }
@@ -45,8 +48,6 @@ void TFileReader::Open(
     const TNullable<i64>& offset,
     const TNullable<i64>& length)
 {
-    VERIFY_THREAD_AFFINITY(ClientThread);
-
     YCHECK(config);
     YCHECK(masterChannel);
     YCHECK(blockCache);
@@ -58,51 +59,79 @@ void TFileReader::Open(
     LOG_INFO("Opening file reader");
 
     LOG_INFO("Fetching file info");
-    auto fetchReq = TFileYPathProxy::FetchFile(richPath);
+
+    auto path = richPath;
+    auto& attributes = path.Attributes();
+
+    i64 lowerLimit = offset ? offset.Get() : 0;
+    if (offset) {
+        NChunkClient::NProto::TReadLimit limit;
+        limit.set_offset(offset.Get());
+        attributes.SetYson("lower_limit", ConvertToYsonString(limit));
+    }
+
+    if (length) {
+        NChunkClient::NProto::TReadLimit limit;
+        limit.set_offset(lowerLimit + length.Get());
+        attributes.SetYson("upper_limit", ConvertToYsonString(limit));
+    }
+
+    auto fetchReq = TFileYPathProxy::Fetch(path);
     SetTransactionId(fetchReq, transaction);
+    fetchReq->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
 
     NObjectClient::TObjectServiceProxy proxy(masterChannel);
 
     auto fetchRsp = proxy.Execute(fetchReq).Get();
     THROW_ERROR_EXCEPTION_IF_FAILED(*fetchRsp, "Error fetching file info");
 
-    auto nodeDirectory = New<TNodeDirectory>();
+    TNodeDirectoryPtr nodeDirectory = New<TNodeDirectory>();
     nodeDirectory->MergeFrom(fetchRsp->node_directory());
-    auto chunkId = FromProto<TChunkId>(fetchRsp->chunk_id());
-    auto replicas = FromProto<TChunkReplica, TChunkReplicaList>(fetchRsp->replicas());
 
-    LOG_INFO("File info received (ChunkId: %s, Addresses: [%s])",
-        ~ToString(chunkId),
-        ~JoinToString(replicas, nodeDirectory));
+    std::vector<NChunkClient::NProto::TInputChunk> chunks =
+        FromProto<NChunkClient::NProto::TInputChunk>(fetchRsp->chunks());
 
-    BaseReader->Open(
+    FOREACH(const auto& chunk, chunks) {
+        i64 dataSize;
+        GetStatistics(chunk, &dataSize);
+        Size += dataSize;
+    }
+
+    auto provider = New<TFileChunkReaderProvider>(config);
+    Reader = New<TFileChunkSequenceReader>(
         config,
         masterChannel,
         blockCache,
         nodeDirectory,
-        chunkId,
-        replicas,
-        offset,
-        length);
+        std::move(chunks),
+        provider);
+
+    Sync(~Reader, &TFileChunkSequenceReader::AsyncOpen);
 
     if (transaction) {
         ListenTransaction(transaction);
     }
+
+    LOG_INFO("File reader opened");
 }
 
 TSharedRef TFileReader::Read()
 {
-    VERIFY_THREAD_AFFINITY(ClientThread);
-
     CheckAborted();
-    return BaseReader->Read();
+
+    if (IsFirstBlock) {
+        IsFirstBlock = false;
+    } else if (!Reader->FetchNext()) {
+        Sync(~Reader, &TFileChunkSequenceReader::GetReadyEvent);
+    }
+
+    auto* facade = Reader->GetFacade();
+    return facade ? facade->GetBlock() : TSharedRef();
 }
 
 i64 TFileReader::GetSize() const
 {
-    VERIFY_THREAD_AFFINITY(ClientThread);
-
-    return BaseReader->GetSize();
+    return Size;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

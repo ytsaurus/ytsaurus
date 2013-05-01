@@ -26,7 +26,7 @@ static NLog::TLogger& SILENT_UNUSED Logger = TableWriterLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPartitionChunkWriterFacade::TPartitionChunkWriterFacade(TPartitionChunkWriterPtr writer)
+TPartitionChunkWriterFacade::TPartitionChunkWriterFacade(TPartitionChunkWriter* writer)
     : Writer(writer)
     , IsReady(false)
 { }

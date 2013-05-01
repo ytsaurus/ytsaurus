@@ -35,9 +35,8 @@ public:
             .DefaultNew();
 
         RegisterInitializer([&] () {
-            ErrorFileWriter->ReplicationFactor = 1;
             ErrorFileWriter->UploadReplicationFactor = 1;
-            ErrorFileWriter->ChunkVital = false;
+            ErrorFileWriter->ChunksVital = false;
         });
     }
 };

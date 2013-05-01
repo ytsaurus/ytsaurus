@@ -947,7 +947,7 @@ void TCypressManager::OnAfterLoaded()
             }
         }
     }
-    
+
     InitBuiltin();
 }
 
@@ -1124,7 +1124,7 @@ void TCypressManager::ListSubtreeNodes(
     auto transactionManager = Bootstrap->GetTransactionManager();
 
     if (includeRoot) {
-        subtreeNodes->push_back(trunkNode);  
+        subtreeNodes->push_back(trunkNode);
     }
 
     switch (trunkNode->GetType()) {

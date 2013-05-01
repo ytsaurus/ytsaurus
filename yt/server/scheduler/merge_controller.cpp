@@ -1308,6 +1308,11 @@ private:
     {
         return Spec->Reducer->EnableTableIndex;
     }
+
+    virtual bool IsOutputLivePreviewSupported() const override
+    {
+        return true;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////

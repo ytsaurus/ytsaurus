@@ -10,7 +10,7 @@
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/schema.h>
 
-#include <ytlib/table_client/table_ypath.pb.h>
+#include <ytlib/chunk_client/chunk_owner_ypath.pb.h>
 
 #include <server/node_tracker_server/node.h>
 
@@ -312,7 +312,7 @@ private:
         return TBase::DoInvoke(context);
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NTableClient::NProto, Fetch)
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, Fetch)
     {
         UNUSED(request);
 

@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "file_chunk_output.h"
+#include "file_chunk_writer.h"
 #include "private.h"
 #include "config.h"
 
@@ -38,32 +39,26 @@ using namespace NChunkClient::NProto;
 
 TFileChunkOutput::TFileChunkOutput(
     TFileWriterConfigPtr config,
+    NChunkClient::TMultiChunkWriterOptionsPtr options,
     NRpc::IChannelPtr masterChannel,
-    const TTransactionId& transactionId,
-    const Stroka& account)
+    const NObjectClient::TTransactionId& transactionId)
     : Config(config)
-    , ReplicationFactor(Config->ReplicationFactor)
-    , UploadReplicationFactor(std::min(Config->ReplicationFactor, Config->UploadReplicationFactor))
+    , Options(options)
+    , IsOpen(false)
     , MasterChannel(masterChannel)
     , TransactionId(transactionId)
-    , Account(account)
-    , IsOpen(false)
-    , Size(0)
-    , BlockCount(0)
     , Logger(FileWriterLogger)
 {
     YCHECK(config);
     YCHECK(masterChannel);
-
-    Codec = NCompression::GetCodec(Config->Codec);
 }
 
 void TFileChunkOutput::Open()
 {
     LOG_INFO("Opening file chunk output (TransactionId: %s, Account: %s, ReplicationFactor: %d, UploadReplicationFactor: %d)",
         ~ToString(TransactionId),
-        ~Account,
-        Config->ReplicationFactor,
+        ~Options->Account,
+        Options->ReplicationFactor,
         Config->UploadReplicationFactor);
 
     LOG_INFO("Creating chunk");
@@ -74,15 +69,15 @@ void TFileChunkOutput::Open()
         auto req = TMasterYPathProxy::CreateObject();
         ToProto(req->mutable_transaction_id(), TransactionId);
         req->set_type(EObjectType::Chunk);
-        req->set_account(Account);
+        req->set_account(Options->Account);
         NMetaState::GenerateMutationId(req);
 
         auto* reqExt = req->MutableExtension(TReqCreateChunkExt::create_chunk_ext);
         reqExt->set_preferred_host_name(TAddressResolver::Get()->GetLocalHostName());
-        reqExt->set_upload_replication_factor(UploadReplicationFactor);
-        reqExt->set_replication_factor(ReplicationFactor);
-        reqExt->set_movable(Config->ChunkMovable);
-        reqExt->set_vital(Config->ChunkVital);
+        reqExt->set_upload_replication_factor(Config->UploadReplicationFactor);
+        reqExt->set_replication_factor(Options->ReplicationFactor);
+        reqExt->set_movable(Config->ChunksMovable);
+        reqExt->set_vital(Config->ChunksVital);
 
         auto rsp = proxy.Execute(req).Get();
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error creating file chunk");
@@ -95,7 +90,7 @@ void TFileChunkOutput::Open()
         if (Replicas.size() < Config->UploadReplicationFactor) {
             THROW_ERROR_EXCEPTION("Not enough data nodes available: %d received, %d needed",
                 static_cast<int>(Replicas.size()),
-                UploadReplicationFactor);
+                Config->UploadReplicationFactor);
         }
     }
 
@@ -104,8 +99,8 @@ void TFileChunkOutput::Open()
     LOG_INFO("Chunk created");
 
     auto targets = nodeDirectory->GetDescriptors(Replicas);
-    Writer = CreateReplicationWriter(Config, ChunkId, targets);
-    Writer->Open();
+    AsyncWriter = CreateReplicationWriter(Config, ChunkId, targets);
+    AsyncWriter->Open();
 
     IsOpen = true;
 
@@ -121,34 +116,12 @@ void TFileChunkOutput::DoWrite(const void* buf, size_t len)
 {
     YCHECK(IsOpen);
 
-    LOG_DEBUG("Writing data (ChunkId: %s, Size: %d)",
-        ~ToString(ChunkId),
-        static_cast<int>(len));
-
-    if (len == 0)
-        return;
-
-    if (Buffer.IsEmpty()) {
-        Buffer.Reserve(static_cast<size_t>(Config->BlockSize));
+    TFileChunkWriter::TFacade* facade = nullptr;
+    while ((facade = Writer->GetFacade()) == nullptr) {
+        Sync(~Writer, &TFileChunkWriter::GetReadyEvent);
     }
 
-    size_t dataSize = len;
-    const ui8* dataPtr = static_cast<const ui8*>(buf);
-    while (dataSize != 0) {
-        // Copy a part of data trying to fill up the current block.
-        size_t remainingSize = static_cast<size_t>(Config->BlockSize) - Buffer.Size();
-        size_t bytesToCopy = std::min(dataSize, remainingSize);
-        Buffer.Append(dataPtr, bytesToCopy);
-        dataPtr += bytesToCopy;
-        dataSize -= bytesToCopy;
-
-        // Flush the block if full.
-        if (Buffer.Size() == Config->BlockSize) {
-            FlushBlock();
-        }
-    }
-
-    Size += len;
+    facade->Write(TRef(const_cast<void*>(buf), len));
 }
 
 void TFileChunkOutput::DoFinish()
@@ -160,42 +133,18 @@ void TFileChunkOutput::DoFinish()
 
     LOG_INFO("Closing file writer");
 
-    // Flush the last block.
-    FlushBlock();
-
-    LOG_INFO("Closing chunk");
-    {
-        Meta.set_type(EChunkType::File);
-        Meta.set_version(FormatVersion);
-
-        TMiscExt miscExt;
-        miscExt.set_uncompressed_data_size(Size);
-        miscExt.set_compressed_data_size(Size);
-        miscExt.set_meta_size(Meta.ByteSize());
-        miscExt.set_compression_codec(Config->Codec);
-
-        SetProtoExtension(Meta.mutable_extensions(), miscExt);
-        SetProtoExtension(Meta.mutable_extensions(), BlocksExt);
-
-        try {
-            Sync(~Writer, &IAsyncWriter::AsyncClose, Meta);
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error closing chunk")
-                << ex;
-        }
-    }
-    LOG_INFO("Chunk closed");
+    Sync(~Writer, &TFileChunkWriter::AsyncClose);
 
     LOG_INFO("Confirming chunk");
     {
         TObjectServiceProxy proxy(MasterChannel);
 
         auto req = TChunkYPathProxy::Confirm(FromObjectId(ChunkId));
-        *req->mutable_chunk_info() = Writer->GetChunkInfo();
-        FOREACH (int index, Writer->GetWrittenIndexes()) {
+        *req->mutable_chunk_info() = AsyncWriter->GetChunkInfo();
+        FOREACH (int index, AsyncWriter->GetWrittenIndexes()) {
             req->add_replicas(ToProto<ui32>(Replicas[index]));
         }
-        *req->mutable_chunk_meta() = Meta;
+        *req->mutable_chunk_meta() = Writer->GetMasterMeta();
         NMetaState::GenerateMutationId(req);
 
         auto rsp = proxy.Execute(req).Get();
@@ -206,31 +155,6 @@ void TFileChunkOutput::DoFinish()
     LOG_INFO("File writer closed");
 }
 
-void TFileChunkOutput::FlushBlock()
-{
-    if (Buffer.IsEmpty())
-        return;
-
-    LOG_INFO("Writing block (BlockIndex: %d)", BlockCount);
-    auto* block = BlocksExt.add_blocks();
-    block->set_size(Buffer.Size());
-    try {
-        struct TCompressedFileChunkBlockTag { };
-        auto compressedBuffer = Codec->Compress(TSharedRef::FromBlob<TCompressedFileChunkBlockTag>(std::move(Buffer)));
-
-        if (!Writer->WriteBlock(compressedBuffer)) {
-            Sync(~Writer, &IAsyncWriter::GetReadyEvent);
-        }
-    } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error writing file block")
-            << ex;
-    }
-    LOG_INFO("Block written (BlockIndex: %d)", BlockCount);
-
-    Buffer.Clear();
-    ++BlockCount;
-}
-
 TChunkId TFileChunkOutput::GetChunkId() const
 {
     return ChunkId;
@@ -238,7 +162,7 @@ TChunkId TFileChunkOutput::GetChunkId() const
 
 i64 TFileChunkOutput::GetSize() const
 {
-    return Size;
+    return Writer->GetCurrentSize();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

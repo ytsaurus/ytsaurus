@@ -17,7 +17,6 @@ namespace NChunkServer {
 
 using namespace NCellMaster;
 using namespace NObjectClient;
-using namespace NTableClient;
 
 using NChunkClient::NProto::TKey;
 using NChunkClient::NProto::TReadLimit;
@@ -181,8 +180,13 @@ protected:
                 childLowerBound.set_row_index(getChildLowerRowIndex());
             }
 
+            auto getChildLowerChunkIndex = [&] () {
+                return entry.ChildIndex == 0
+                    ? 0
+                    : chunkList->ChunkCountSums()[entry.ChildIndex - 1];
+            };
             if (entry.UpperBound.has_chunk_index()) {
-                childLowerBound.set_chunk_index(getChildLowerRowIndex());
+                childLowerBound.set_chunk_index(getChildLowerChunkIndex());
 
                 if (entry.UpperBound.chunk_index() <= childLowerBound.chunk_index()) {
                     PopStack();
@@ -190,12 +194,34 @@ protected:
                 }
 
                 if (entry.ChildIndex == chunkList->Children().size() - 1) {
-                    childUpperBound.set_chunk_index(chunkList->Statistics().RowCount);
+                    childUpperBound.set_chunk_index(chunkList->Statistics().ChunkCount);
                 } else {
-                    childUpperBound.set_chunk_index(chunkList->RowCountSums()[entry.ChildIndex]);
+                    childUpperBound.set_chunk_index(chunkList->ChunkCountSums()[entry.ChildIndex]);
                 }
             } else if (entry.LowerBound.has_chunk_index()) {
-                childLowerBound.set_chunk_index(getChildLowerRowIndex());
+                childLowerBound.set_chunk_index(getChildLowerChunkIndex());
+            }
+
+            auto getChildLowerOffset = [&] () -> bool {
+                return entry.ChildIndex == 0
+                    ? 0
+                    : chunkList->DataSizeSums()[entry.ChildIndex - 1];
+            };
+            if (entry.UpperBound.has_offset()) {
+                childLowerBound.set_offset(getChildLowerOffset());
+
+                if (entry.UpperBound.offset() <= childLowerBound.offset()) {
+                    PopStack();
+                    continue;
+                }
+
+                if (entry.ChildIndex == chunkList->Children().size() - 1) {
+                    childUpperBound.set_offset(chunkList->Statistics().UncompressedDataSize);
+                } else {
+                    childUpperBound.set_offset(chunkList->DataSizeSums()[entry.ChildIndex]);
+                }
+            } else if (entry.LowerBound.has_offset()) {
+                childLowerBound.set_offset(getChildLowerOffset());
             }
 
             if (entry.UpperBound.has_key()) {
@@ -212,8 +238,8 @@ protected:
 
             ++entry.ChildIndex;
 
-            NChunkClient::NProto::TReadLimit subtreeStartLimit;
-            NChunkClient::NProto::TReadLimit subtreeEndLimit;
+            TReadLimit subtreeStartLimit;
+            TReadLimit subtreeEndLimit;
             GetSubtreeLimits(
                 entry,
                 childLowerBound,
@@ -285,6 +311,16 @@ protected:
             int childIndex = std::upper_bound(
                 begin,
                 chunkList->ChunkCountSums().end(),
+                lowerBound.chunk_index()) - begin;
+            index = std::max(index, childIndex);
+            YCHECK(index < chunkList->Children().size());
+        }
+
+        if (lowerBound.has_offset()) {
+            auto begin = chunkList->DataSizeSums().begin();
+            int childIndex = std::upper_bound(
+                begin,
+                chunkList->DataSizeSums().end(),
                 lowerBound.chunk_index()) - begin;
             index = std::max(index, childIndex);
             YCHECK(index < chunkList->Children().size());

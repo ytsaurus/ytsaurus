@@ -9,6 +9,7 @@
 #include <ytlib/cypress_client/public.h>
 
 #include <ytlib/chunk_client/public.h>
+#include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
 
 #include <ytlib/transaction_client/public.h>
 #include <ytlib/transaction_client/transaction_listener.h>
@@ -39,8 +40,7 @@ public:
         NRpc::IChannelPtr masterChannel,
         NTransactionClient::ITransactionPtr transaction,
         NTransactionClient::TTransactionManagerPtr transactionManager,
-        const NYPath::TRichYPath& richPath,
-        NYTree::IAttributeDictionary* attributes = nullptr);
+        const NYPath::TRichYPath& richPath);
 
     //! Destroys an instance.
     ~TFileWriter();
@@ -54,14 +54,9 @@ public:
     //! Closes the writer.
     void Close();
 
-    //! Returns the id of the created node.
-    /*!
-     *  \note
-     *  Can only be called after #Close.
-     */
-    NCypressClient::TNodeId GetNodeId() const;
-
 private:
+    typedef NChunkClient::TMultiChunkSequentialWriter<TFileChunkWriter> TWriter;
+
     TFileWriterConfigPtr Config;
     NRpc::IChannelPtr MasterChannel;
 
@@ -69,15 +64,12 @@ private:
     NTransactionClient::TTransactionManagerPtr TransactionManager;
     NTransactionClient::ITransactionPtr UploadTransaction;
     NYPath::TRichYPath RichPath;
-    TAutoPtr<NYTree::IAttributeDictionary> Attributes;
 
-    TAutoPtr<TFileChunkOutput> Writer;
+    TIntrusivePtr<TWriter> Writer;
 
     NLog::TTaggedLogger Logger;
 
     NCypressClient::TNodeId NodeId;
-    Stroka Account;
-    NChunkClient::TChunkListId ChunkListId;
 
 };
 

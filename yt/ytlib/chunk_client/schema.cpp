@@ -417,6 +417,7 @@ void Serialize(const NProto::TReadLimit& readLimit, NYson::IYsonConsumer* consum
     if (readLimit.has_row_index())   { fieldCount += 1; }
     if (readLimit.has_key())         { fieldCount += 1; }
     if (readLimit.has_chunk_index()) { fieldCount += 1; }
+    if (readLimit.has_offset())      { fieldCount += 1; }
 
     if (fieldCount == 0) {
         THROW_ERROR_EXCEPTION("Cannot serialize empty read limit");
@@ -432,6 +433,9 @@ void Serialize(const NProto::TReadLimit& readLimit, NYson::IYsonConsumer* consum
     } else if (readLimit.has_chunk_index()) {
         consumer->OnKeyedItem("chunk_index");
         consumer->OnIntegerScalar(readLimit.chunk_index());
+    } else if (readLimit.has_offset()) {
+        consumer->OnKeyedItem("offset");
+        consumer->OnIntegerScalar(readLimit.offset());
     } else if (readLimit.has_key()) {
         consumer->OnKeyedItem("key");
         consumer->OnBeginList();
@@ -475,6 +479,11 @@ void Deserialize(NProto::TReadLimit& readLimit, INodePtr node)
             THROW_ERROR_EXCEPTION("Unexpected chunk index token: %s", ~child->GetType().ToString());
         }
         readLimit.set_chunk_index(child->GetValue<i64>());
+    } else if (auto child = mapNode->FindChild("offset")) {
+        if (child->GetType() != ENodeType::Integer) {
+            THROW_ERROR_EXCEPTION("Unexpected chunk index token: %s", ~child->GetType().ToString());
+        }
+        readLimit.set_offset(child->GetValue<i64>());
     } else if (auto child = mapNode->FindChild("key")) {
         if (child->GetType() != ENodeType::List) {
             THROW_ERROR_EXCEPTION("Unexpected key token: %s", ~child->GetType().ToString());

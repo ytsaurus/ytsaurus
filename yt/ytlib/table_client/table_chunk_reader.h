@@ -64,14 +64,14 @@ class TTableChunkReaderFacade
     : public TNonCopyable
 {
 public:
-    TTableChunkReaderFacade(TTableChunkReaderPtr reader);
+    TTableChunkReaderFacade(TTableChunkReader* reader);
 
     const TRow& GetRow() const;
     const NChunkClient::TNonOwningKey& GetKey() const;
     const NYTree::TYsonString& GetRowAttributes() const;
 
 private:
-    TTableChunkReaderPtr Reader;
+    TTableChunkReader* Reader;
 
 };
 

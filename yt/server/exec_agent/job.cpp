@@ -507,11 +507,29 @@ private:
 
     TFuture<void> DownloadRegularFile(const TRegularFileDescriptor& descriptor)
     {
-        const auto& fetchRsp = descriptor.file();
-        auto chunkId = FromProto<TChunkId>(fetchRsp.chunk_id());
+        if (descriptor.file().chunks_size() > 1) {
+            auto error = TError(
+                "Only single chunk files can be used inside jobs. Failed to prepare file %s (ChunkCount: %d)",
+                ~descriptor.file_name(),
+                static_cast<int>(descriptor.file().chunks_size()));
+            DoAbort(error, EJobState::Failed);
+        }
 
+        const auto& chunk = descriptor.file().chunks(0);
+        auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunk.extensions());
+
+        auto codecId = NCompression::ECodec(miscExt.compression_codec());
+        if (codecId != NCompression::ECodec::None) {
+            auto error = TError(
+                "Only uncompressed files can be used inside jobs. Failed to prepare file %s (CompressionCodec: %d)",
+                ~descriptor.file_name(),
+                ~FormatEnum(codecId));
+            DoAbort(error, EJobState::Failed);
+        }
+
+        auto chunkId = FromProto<TChunkId>(chunk.chunk_id());
         LOG_INFO("Downloading user file (FileName: %s, ChunkId: %s)",
-            ~fetchRsp.file_name(),
+            ~descriptor.file_name(),
             ~ToString(chunkId));
 
         auto awaiter = New<TParallelAwaiter>(Slot->GetInvoker());
@@ -533,8 +551,7 @@ private:
             return;
         YCHECK(JobPhase == EJobPhase::PreparingSandbox);
 
-        const auto& fetchRsp = descriptor.file();
-        auto fileName = fetchRsp.file_name();
+        auto fileName = descriptor.file_name();
 
         if (!result.IsOK()) {
             auto wrappedError = TError(
@@ -551,7 +568,7 @@ private:
             Slot->MakeLink(
                 fileName,
                 CachedChunks.back()->GetFileName(),
-                fetchRsp.executable());
+                descriptor.executable());
         } catch (const std::exception& ex) {
             auto wrappedError = TError(
                 "Failed to create a symlink for %s",

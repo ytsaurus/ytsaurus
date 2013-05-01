@@ -46,6 +46,20 @@ TYPath GetSnapshotPath(const TOperationId& operationId)
         + "/snapshot";
 }
 
+TYPath GetLivePreviewOutputPath(const TOperationId& operationId, int tableIndex)
+{
+    return
+        GetOperationPath(operationId)
+        + "/output_" + ToString(tableIndex);
+}
+
+TYPath GetLivePreviewIntermediatePath(const TOperationId& operationId)
+{
+    return
+        GetOperationPath(operationId)
+        + "/intermediate";
+}
+
 bool IsOperationFinished(EOperationState state)
 {
     return

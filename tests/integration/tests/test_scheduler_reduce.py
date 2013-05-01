@@ -149,6 +149,7 @@ echo {v = 1} >&4
 echo {v = 2} >&7
 
 """
+        create('file', '//tmp/reducer.sh')
         upload('//tmp/reducer.sh', reducer)
 
         reduce(in_='//tmp/t_in',

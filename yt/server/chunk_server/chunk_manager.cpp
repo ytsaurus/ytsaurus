@@ -328,7 +328,6 @@ public:
         return chunkList;
     }
 
-
     static TChunkTreeStatistics GetChunkTreeStatistics(TChunkTree* chunkTree)
     {
         switch (chunkTree->GetType()) {
@@ -407,6 +406,10 @@ public:
                 chunkList->ChunkCountSums().push_back(
                     chunkList->Statistics().ChunkCount +
                     delta.ChunkCount);
+                chunkList->DataSizeSums().push_back(
+                    chunkList->Statistics().UncompressedDataSize +
+                    delta.UncompressedDataSize);
+
             }
             chunkList->Children().push_back(child);
             SetChunkTreeParent(chunkList, child);
@@ -920,7 +923,7 @@ private:
         ChunkMap.LoadKeys(context);
         ChunkListMap.LoadKeys(context);
         // COMPAT(babenko)
-        if (context.GetVersion() < 10) {
+        if (context.GetVersion() < 11) {
             size_t nodeCount = ::LoadSize(context.GetInput());
             YCHECK(nodeCount == 0);
         }
@@ -941,6 +944,9 @@ private:
             TotalReplicaCount += node->StoredReplicas().size();
             TotalReplicaCount += node->CachedReplicas().size();
         }
+
+        // COMPAT(psushin): required to properly initialize TChunkList::DataSizeSums.
+        RecomputeStatistics();
     }
 
 
@@ -956,7 +962,6 @@ private:
         DoClear();
     }
 
-
     void ScheduleRecomputeStatistics()
     {
         NeedToRecomputeStatistics = true;
@@ -967,21 +972,43 @@ private:
         auto& statistics = chunkList->Statistics();
         if (statistics.Rank == -1) {
             statistics = TChunkTreeStatistics();
-            FOREACH (auto* child, chunkList->Children()) {
+            int childrenCount = chunkList->Children().size();
+
+            auto& rowCountSums = chunkList->RowCountSums();
+            rowCountSums.clear();
+
+            auto& chunkCountSums = chunkList->ChunkCountSums();
+            chunkCountSums.clear();
+
+            auto& dataSizeSums = chunkList->DataSizeSums();
+            dataSizeSums.clear();
+
+            for (int childIndex = 0; childIndex < childrenCount; ++childIndex) {
+                auto* child = chunkList->Children()[childIndex];
+                TChunkTreeStatistics childStatistics;
                 switch (child->GetType()) {
                     case EObjectType::Chunk:
                     case EObjectType::ErasureChunk:
-                        statistics.Accumulate(child->AsChunk()->GetStatistics());
+                        childStatistics.Accumulate(child->AsChunk()->GetStatistics());
                         break;
 
                     case EObjectType::ChunkList:
-                        statistics.Accumulate(ComputeStatisticsFor(child->AsChunkList()));
+                        childStatistics = ComputeStatisticsFor(child->AsChunkList());
                         break;
 
                     default:
                         YUNREACHABLE();
                 }
+
+                if (childIndex + 1 < childrenCount) {
+                    rowCountSums.push_back(statistics.RowCount + childStatistics.RowCount);
+                    chunkCountSums.push_back(statistics.ChunkCount + childStatistics.ChunkCount);
+                    dataSizeSums.push_back(statistics.UncompressedDataSize + childStatistics.UncompressedDataSize);
+                }
+
+                statistics.Accumulate(childStatistics);
             }
+
             if (!chunkList->Children().empty()) {
                 ++statistics.Rank;
             }

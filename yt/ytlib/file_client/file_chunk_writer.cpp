@@ -1,0 +1,217 @@
+#include "stdafx.h"
+#include "file_chunk_writer.h"
+#include "private.h"
+#include "config.h"
+
+#include <ytlib/chunk_client/encoding_writer.h>
+#include <ytlib/chunk_client/async_writer.h>
+#include <ytlib/chunk_client/dispatcher.h>
+
+namespace NYT {
+namespace NFileClient {
+
+using namespace NChunkClient;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFileChunkWriter::TFileChunkWriter(
+    TFileChunkWriterConfigPtr config,
+    TEncodingWriterOptionsPtr options,
+    IAsyncWriterPtr chunkWriter)
+    : Config(config)
+    , Options(options)
+    , EncodingWriter(New<TEncodingWriter>(config, options, chunkWriter))
+    , AsyncWriter(chunkWriter)
+    , Facade(this)
+    , Size(0)
+    , BlockCount(0)
+    , Logger(FileWriterLogger)
+{ }
+
+TFileChunkWriter::~TFileChunkWriter()
+{ }
+
+auto TFileChunkWriter::GetFacade() -> TFacade*
+{
+    if (State.IsActive() && EncodingWriter->IsReady()) {
+        Facade.NextChunk();
+        return &Facade;
+    }
+
+    return nullptr;
+}
+
+TAsyncError TFileChunkWriter::GetReadyEvent()
+{
+    State.StartOperation();
+
+    auto this_ = MakeStrong(this);
+    EncodingWriter->GetReadyEvent().Subscribe(BIND([=](TError error){
+        this_->State.FinishOperation(error);
+    }));
+
+    return State.GetOperationError();
+}
+
+void TFileChunkWriter::FlushBlock()
+{
+    if (Buffer.IsEmpty())
+        return;
+
+    LOG_INFO("Writing block (BlockIndex: %d)", BlockCount);
+    auto* block = BlocksExt.add_blocks();
+    block->set_size(Buffer.Size());
+
+    struct TCompressedFileChunkBlockTag { };
+    EncodingWriter->WriteBlock(TSharedRef::FromBlob<TCompressedFileChunkBlockTag>(std::move(Buffer)));
+
+    Buffer.Clear();
+    ++BlockCount;
+}
+
+TAsyncError TFileChunkWriter::AsyncClose()
+{
+    YCHECK(!State.IsClosed());
+
+    State.StartOperation();
+
+    FlushBlock();
+
+    EncodingWriter->AsyncFlush().Subscribe(
+        BIND(&TFileChunkWriter::OnFinalBlocksWritten, MakeWeak(this))
+        .Via(TDispatcher::Get()->GetWriterInvoker()));
+
+    return State.GetOperationError();
+}
+
+void TFileChunkWriter::OnFinalBlocksWritten(TError error)
+{
+    if (!error.IsOK()) {
+        State.FinishOperation(error);
+        return;
+    }
+
+    NChunkClient::NProto::TChunkMeta meta;
+    meta.set_type(EChunkType::File);
+    meta.set_version(FormatVersion);
+
+    SetProtoExtension(meta.mutable_extensions(), BlocksExt);
+
+    MiscExt.set_uncompressed_data_size(EncodingWriter->GetUncompressedSize());
+    MiscExt.set_compressed_data_size(EncodingWriter->GetCompressedSize());
+    MiscExt.set_meta_size(meta.ByteSize());
+    MiscExt.set_compression_codec(Options->Codec);
+
+    SetProtoExtension(meta.mutable_extensions(), MiscExt);
+
+    auto this_ = MakeStrong(this);
+    AsyncWriter->AsyncClose(meta).Subscribe(BIND([=] (TError error) {
+        // ToDo(psushin): more verbose diagnostic.
+        this_->State.Finish(error);
+    }));
+}
+
+void TFileChunkWriter::Write(const TRef& data)
+{
+    LOG_DEBUG("Writing data (Size: %d)",
+        static_cast<int>(data.Size()));
+
+    if (data.Empty())
+        return;
+
+    if (Buffer.IsEmpty()) {
+        Buffer.Reserve(static_cast<size_t>(Config->BlockSize));
+    }
+
+    size_t dataSize = data.Size();
+    const char* dataPtr = data.Begin();
+    while (dataSize != 0) {
+        // Copy a part of data trying to fill up the current block.
+        size_t remainingSize = static_cast<size_t>(Config->BlockSize) - Buffer.Size();
+        size_t bytesToCopy = std::min(dataSize, remainingSize);
+        Buffer.Append(dataPtr, bytesToCopy);
+        dataPtr += bytesToCopy;
+        dataSize -= bytesToCopy;
+
+        // Flush the block if full.
+        if (Buffer.Size() == Config->BlockSize) {
+            FlushBlock();
+        }
+    }
+
+    Size += data.Size();
+}
+
+i64 TFileChunkWriter::GetCurrentSize() const
+{
+    return EncodingWriter->GetCompressedSize() + Buffer.Size();
+}
+
+i64 TFileChunkWriter::GetMetaSize() const
+{
+    return sizeof(NChunkClient::NProto::TMiscExt) +
+        BlockCount * sizeof(NProto::TBlockInfo) +
+        sizeof(NChunkClient::NProto::TChunkMeta);
+}
+
+NChunkClient::NProto::TChunkMeta TFileChunkWriter::GetMasterMeta() const
+{
+    NChunkClient::NProto::TChunkMeta meta;
+    meta.set_type(EChunkType::File);
+    meta.set_version(FormatVersion);
+
+    SetProtoExtension(meta.mutable_extensions(), MiscExt);
+    return meta;
+}
+
+NChunkClient::NProto::TChunkMeta TFileChunkWriter::GetSchedulerMeta() const
+{
+    return GetMasterMeta();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFileChunkWriterFacade::TFileChunkWriterFacade(TFileChunkWriter* writer)
+    : Writer(writer)
+    , IsReady(false)
+{ }
+
+void TFileChunkWriterFacade::Write(const TRef& data)
+{
+    YASSERT(IsReady);
+    Writer->Write(data);
+    IsReady = false;
+}
+
+void TFileChunkWriterFacade::NextChunk()
+{
+    IsReady = true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFileChunkWriterProvider::TFileChunkWriterProvider(
+    TFileChunkWriterConfigPtr config,
+    NChunkClient::TEncodingWriterOptionsPtr options)
+    : Config(config)
+    , Options(options)
+    , ActiveWriters(0)
+{ }
+
+TFileChunkWriterPtr TFileChunkWriterProvider::CreateChunkWriter(NChunkClient::IAsyncWriterPtr asyncWriter)
+{
+    YCHECK(ActiveWriters == 0);
+    ++ActiveWriters;
+    return New<TFileChunkWriter>(Config, Options, asyncWriter);
+}
+
+void TFileChunkWriterProvider::OnChunkFinished()
+{
+    --ActiveWriters;
+    YCHECK(ActiveWriters == 0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NFileClient
+} // namespace NYT

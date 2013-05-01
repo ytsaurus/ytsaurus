@@ -52,7 +52,7 @@ typedef TIntrusivePtr<TJobList> TJobListPtr;
 
 class TChunkTree;
 class TChunkReplica;
-class TChunk;  
+class TChunk;
 class TChunkList;
 class TDataNode;
 

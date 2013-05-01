@@ -94,7 +94,7 @@ void TTableWriter::Open()
 
         {
             auto req = TCypressYPathProxy::Get(path);
-            SetTransactionId(req, TransactionId);
+            SetTransactionId(req, uploadTransactionId);
             TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly);
             attributeFilter.Keys.push_back("replication_factor");
             attributeFilter.Keys.push_back("channels");
@@ -111,7 +111,7 @@ void TTableWriter::Open()
             auto req = TTableYPathProxy::PrepareForUpdate(path);
             SetTransactionId(req, uploadTransactionId);
             NMetaState::GenerateMutationId(req);
-            req->set_mode(clear ? ETableUpdateMode::Overwrite : ETableUpdateMode::Append);
+            req->set_mode(clear ? NChunkClient::EUpdateMode::Overwrite : NChunkClient::EUpdateMode::Append);
             batchReq->AddRequest(req, "prepare_for_update");
         }
 

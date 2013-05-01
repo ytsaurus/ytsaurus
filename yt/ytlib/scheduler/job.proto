@@ -4,7 +4,7 @@ import "yt/ytlib/node_tracker_client/node.proto";
 import "yt/ytlib/job_tracker_client/job.proto";
 import "yt/ytlib/chunk_client/chunk.proto";
 import "yt/ytlib/chunk_client/input_chunk.proto";
-import "yt/ytlib/table_client/table_ypath.proto";
+import "yt/ytlib/chunk_client/chunk_owner_ypath.proto";
 import "yt/ytlib/table_client/table_chunk_meta.proto";
 import "yt/ytlib/file_client/file_ypath.proto";
 import "yt/ytlib/misc/error.proto";
@@ -88,12 +88,16 @@ message TSchedulerJobResultExt
 
 message TRegularFileDescriptor
 {
-    required NYT.NFileClient.NProto.TRspFetchFile file = 1;
+    required NYT.NChunkClient.NProto.TRspFetch file = 1;
+
+    required bool executable = 2;
+
+    required string file_name = 3;
 }
 
 message TTableFileDescriptor
 {
-    required NYT.NTableClient.NProto.TRspFetch table = 1;
+    required NYT.NChunkClient.NProto.TRspFetch table = 1;
     required bytes format = 2;
     required string file_name = 3;
 }
