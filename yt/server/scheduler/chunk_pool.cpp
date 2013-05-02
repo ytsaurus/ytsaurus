@@ -821,6 +821,7 @@ public:
         int partitionCount,
         i64 dataSizeThreshold)
         : TChunkPoolInputBase(nodeDirectory)
+        , DataSizeThreshold(dataSizeThreshold)
     {
         Outputs.resize(partitionCount);
         for (int index = 0; index < partitionCount; ++index) {
