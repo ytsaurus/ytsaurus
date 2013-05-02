@@ -45,7 +45,7 @@ def process_tasks_from_list(list, action):
 
             if value in processed_values:
                 print >>sys.stderr, "We have already prosessed value %r, processing stopped." %value
-                print >>sys.stderr, "Put value %r back to the queue" % value
+                print >>sys.stderr, "Put value %s back to the queue" % str(value)
                 atomic_push(list, value)
                 break
 
@@ -55,7 +55,7 @@ def process_tasks_from_list(list, action):
             result = action(value)
             if result == -1:
                 print >>sys.stderr, "Action can not be done."
-                print >>sys.stderr, "Put value %r back to the queue" % value
+                print >>sys.stderr, "Put value %s back to the queue" % str(value)
                 atomic_push(list, value)
 
         except (Exception, KeyboardInterrupt) as e:
@@ -63,7 +63,7 @@ def process_tasks_from_list(list, action):
             _, _, exc_traceback = sys.exc_info()
             traceback.print_tb(exc_traceback, file=sys.stdout)
             if value is not None:
-                print >>sys.stderr, "Put value %r back to the queue" % value
+                print >>sys.stderr, "Put value %s back to the queue" % str(value)
                 atomic_push(list, value)
             break
 
