@@ -295,7 +295,7 @@ public:
     DECLARE_METAMAP_ACCESSORS(Chunk, TChunk, TChunkId);
     DECLARE_METAMAP_ACCESSORS(ChunkList, TChunkList, TChunkListId);
 
-    TSmallVector<TNode*, TypicalReplicationFactor> AllocateUploadTargets(
+    TSmallVector<TNode*, TypicalReplicaCount> AllocateUploadTargets(
         int replicaCount,
         const TNullable<Stroka>& preferredHostName)
     {
@@ -1365,7 +1365,7 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::Create(
 
         auto* responseExt = response->MutableExtension(TRspCreateChunkExt::create_chunk_ext);
         TNodeDirectoryBuilder builder(responseExt->mutable_node_directory());
-        TSmallVector<Stroka, TypicalReplicationFactor> targetAddresses;
+        TSmallVector<Stroka, TypicalReplicaCount> targetAddresses;
         for (int index = 0; index < static_cast<int>(targets.size()); ++index) {
             auto* target = targets[index];
             NChunkServer::TNodePtrWithIndex replica(
@@ -1482,7 +1482,7 @@ TChunkTree* TChunkManager::GetChunkTree(const TChunkTreeId& id)
     return Impl->GetChunkTree(id);
 }
 
-TSmallVector<TNode*, TypicalReplicationFactor> TChunkManager::AllocateUploadTargets(
+TSmallVector<TNode*, TypicalReplicaCount> TChunkManager::AllocateUploadTargets(
     int replicaCount,
     const TNullable<Stroka>& preferredHostName)
 {

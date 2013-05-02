@@ -27,7 +27,7 @@ using NChunkClient::NullChunkTreeId;
 using NChunkClient::TBlockOffset;
 using NChunkClient::EChunkType;
 using NChunkClient::TBlockId;
-using NChunkClient::TypicalReplicationFactor;
+using NChunkClient::TypicalReplicaCount;
 
 using NJobTrackerClient::TJobId;
 using NJobTrackerClient::EJobType;

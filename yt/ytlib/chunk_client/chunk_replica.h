@@ -15,7 +15,7 @@ namespace NChunkClient {
 
 // Forward declarations.
 class TChunkReplica;
-typedef TSmallVector<TChunkReplica, TypicalReplicationFactor> TChunkReplicaList;
+typedef TSmallVector<TChunkReplica, TypicalReplicaCount> TChunkReplicaList;
 
 void ToProto(ui32* value, TChunkReplica replica);
 void FromProto(TChunkReplica* replica, ui32 value);

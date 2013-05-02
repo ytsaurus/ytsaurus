@@ -87,12 +87,12 @@ void TChunkPlacement::OnSessionHinted(TNode* node)
     node->SetHintedSessionCount(node->GetHintedSessionCount() + 1);
 }
 
-TSmallVector<TNode*, TypicalReplicationFactor> TChunkPlacement::GetUploadTargets(
+TSmallVector<TNode*, TypicalReplicaCount> TChunkPlacement::GetUploadTargets(
     int replicaCount,
-    const TSmallSet<TNode*, TypicalReplicationFactor>* forbiddenNodes,
+    const TSmallSet<TNode*, TypicalReplicaCount>* forbiddenNodes,
     const TNullable<Stroka>& preferredHostName)
 {
-    TSmallVector<TNode*, TypicalReplicationFactor> resultNodes;
+    TSmallVector<TNode*, TypicalReplicaCount> resultNodes;
     resultNodes.reserve(replicaCount);
 
     typedef std::pair<TNode*, int> TFeasibleNode;
@@ -160,11 +160,11 @@ TSmallVector<TNode*, TypicalReplicationFactor> TChunkPlacement::GetUploadTargets
     return resultNodes;
 }
 
-TSmallVector<TNode*, TypicalReplicationFactor> TChunkPlacement::GetReplicationTargets(
+TSmallVector<TNode*, TypicalReplicaCount> TChunkPlacement::GetReplicationTargets(
     const TChunk* chunk,
     int count)
 {
-    TSmallSet<TNode*, TypicalReplicationFactor> forbiddenNodes;
+    TSmallSet<TNode*, TypicalReplicaCount> forbiddenNodes;
 
     auto nodeTracker = Bootstrap->GetNodeTracker();
     auto chunkManager = Bootstrap->GetChunkManager();
@@ -200,13 +200,13 @@ TNode* TChunkPlacement::GetReplicationSource(const TChunk* chunk)
     return replicas[index].GetPtr();
 }
 
-TSmallVector<TNode*, TypicalReplicationFactor> TChunkPlacement::GetRemovalTargets(
+TSmallVector<TNode*, TypicalReplicaCount> TChunkPlacement::GetRemovalTargets(
     TChunkPtrWithIndex chunkWithIndex,
     int targetCount)
 {
     // Construct a list of |(nodeId, loadFactor)| pairs.
     typedef std::pair<TNode*, double> TCandidatePair;
-    TSmallVector<TCandidatePair, TypicalReplicationFactor> candidates;
+    TSmallVector<TCandidatePair, TypicalReplicaCount> candidates;
     auto* chunk = chunkWithIndex.GetPtr();
     candidates.reserve(chunk->StoredReplicas().size());
     FOREACH (auto replica, chunk->StoredReplicas()) {
@@ -226,7 +226,7 @@ TSmallVector<TNode*, TypicalReplicationFactor> TChunkPlacement::GetRemovalTarget
         });
 
     // Take first |count| nodes.
-    TSmallVector<TNode*, TypicalReplicationFactor> result;
+    TSmallVector<TNode*, TypicalReplicaCount> result;
     result.reserve(targetCount);
     FOREACH (const auto& pair, candidates) {
         if (static_cast<int>(result.size()) >= targetCount) {

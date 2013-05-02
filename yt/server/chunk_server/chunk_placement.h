@@ -35,16 +35,16 @@ public:
     double GetLoadFactor(TNode* node) const;
     double GetFillCoeff(TNode* node) const;
 
-    TSmallVector<TNode*, TypicalReplicationFactor> GetUploadTargets(
+    TSmallVector<TNode*, TypicalReplicaCount> GetUploadTargets(
         int replicaCount,
-        const TSmallSet<TNode*, TypicalReplicationFactor>* forbiddenNodes,
+        const TSmallSet<TNode*, TypicalReplicaCount>* forbiddenNodes,
         const TNullable<Stroka>& preferredHostName);
 
-    TSmallVector<TNode*, TypicalReplicationFactor> GetRemovalTargets(
+    TSmallVector<TNode*, TypicalReplicaCount> GetRemovalTargets(
         TChunkPtrWithIndex chunkWithIndex,
         int targetCount);
 
-    TSmallVector<TNode*, TypicalReplicationFactor> GetReplicationTargets(
+    TSmallVector<TNode*, TypicalReplicaCount> GetReplicationTargets(
         const TChunk* chunk,
         int count);
 

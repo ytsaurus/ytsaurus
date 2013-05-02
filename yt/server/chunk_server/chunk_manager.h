@@ -45,7 +45,7 @@ public:
     TChunkTree* FindChunkTree(const TChunkTreeId& id);
     TChunkTree* GetChunkTree(const TChunkTreeId& id);
 
-    TSmallVector<TNode*, TypicalReplicationFactor> AllocateUploadTargets(
+    TSmallVector<TNode*, TypicalReplicaCount> AllocateUploadTargets(
         int replicaCount,
         const TNullable<Stroka>& preferredHostName);
 
