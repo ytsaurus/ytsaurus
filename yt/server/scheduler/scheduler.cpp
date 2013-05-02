@@ -434,7 +434,7 @@ public:
             }
         }
 
-        TotalResourceLimits += node->ResourceLimits();
+        TotalResourceUsage += node->ResourceLimits();
         TotalResourceUsage += node->ResourceUsage();
 
         FOREACH (auto job, schedulingContext->PreemptedJobs()) {
