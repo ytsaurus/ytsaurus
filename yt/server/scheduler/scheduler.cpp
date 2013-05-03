@@ -434,9 +434,6 @@ public:
             }
         }
 
-        TotalResourceUsage += node->ResourceLimits();
-        TotalResourceUsage += node->ResourceUsage();
-
         FOREACH (auto job, schedulingContext->PreemptedJobs()) {
             ToProto(response->add_jobs_to_abort(), job->GetId());
         }
