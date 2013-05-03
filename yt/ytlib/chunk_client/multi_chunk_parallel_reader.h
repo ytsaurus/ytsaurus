@@ -20,7 +20,7 @@ public:
         NChunkClient::IBlockCachePtr blockCache,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         std::vector<NChunkClient::NProto::TInputChunk>&& inputChunks,
-        const typename TBase::TProviderPtr& readerProvider);
+        typename TBase::TProviderPtr readerProvider);
 
     virtual TAsyncError AsyncOpen() override;
     virtual bool FetchNext() override;
