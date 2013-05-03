@@ -645,7 +645,7 @@ void TChunkReplicator::ScheduleNewJobs(
     }
 }
 
-void TChunkReplicator::Refresh(TChunk* chunk)
+void TChunkReplicator::RefreshChunk(TChunk* chunk)
 {
     const auto& chunkId = chunk->GetId();
 
@@ -685,10 +685,10 @@ void TChunkReplicator::Refresh(TChunk* chunk)
                     continue;
 
                 TChunkPtrWithIndex chunkWithIndex(chunk, index);              
+                auto encodedChunkId = EncodeChunkId(chunkWithIndex);
+
                 int redundantCount = replicaCount[index] - 1;
                 auto nodes = ChunkPlacement->GetRemovalTargets(chunkWithIndex, redundantCount);
-
-                auto encodedChunkId = EncodeChunkId(chunkWithIndex);
                 FOREACH (auto* node, nodes) {
                     YCHECK(node->ChunkRemovalQueue().insert(encodedChunkId).second);
                 }
@@ -697,6 +697,9 @@ void TChunkReplicator::Refresh(TChunk* chunk)
             int replicationFactor = chunk->GetReplicationFactor();
             int redundantCount = replicaCount - replicationFactor;
             auto nodes = ChunkPlacement->GetRemovalTargets(TChunkPtrWithIndex(chunk), redundantCount);
+            FOREACH (auto* node, nodes) {
+                YCHECK(node->ChunkRemovalQueue().insert(encodedChunkId).second);
+            }
         }
     }
 
@@ -813,7 +816,7 @@ void TChunkReplicator::OnRefresh()
             ++count;
 
             if (IsObjectAlive(chunk)) {
-                Refresh(chunk);
+                RefreshChunk(chunk);
             }
 
             objectManager->UnlockObject(chunk);
