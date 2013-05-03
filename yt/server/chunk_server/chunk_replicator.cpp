@@ -698,7 +698,7 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
             int redundantCount = replicaCount - replicationFactor;
             auto nodes = ChunkPlacement->GetRemovalTargets(TChunkPtrWithIndex(chunk), redundantCount);
             FOREACH (auto* node, nodes) {
-                YCHECK(node->ChunkRemovalQueue().insert(encodedChunkId).second);
+                YCHECK(node->ChunkRemovalQueue().insert(chunkId).second);
             }
         }
     }
