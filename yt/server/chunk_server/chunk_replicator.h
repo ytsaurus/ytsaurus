@@ -132,7 +132,7 @@ private:
         std::vector<TJobPtr>* jobsToAbort);
 
     void OnRefresh();
-    void Refresh(TChunk* chunk);
+    void RefreshChunk(TChunk* chunk);
     void ResetChunkStatus(TChunk* chunk);
 
     EChunkStatus ComputeRegularChunkStatus(TChunk* chunk);
