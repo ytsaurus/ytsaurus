@@ -126,7 +126,7 @@ void TJobProxy::Run()
         auto* schedulerResultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
         FOREACH (const auto& chunkId, failedChunkIds) {
             auto actualChunkId = IsErasureChunkPartId(chunkId)
-                ? ChunkIdFromErasurePartId(chunkId)
+                ? ErasureChunkIdFromPartId(chunkId)
                 : chunkId;
             ToProto(schedulerResultExt->add_failed_chunk_ids(), actualChunkId);
         }

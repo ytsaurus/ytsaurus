@@ -131,7 +131,7 @@ void TMultiChunkReaderBase<TChunkReader>::PrepareNextChunk()
                 }
 
                 TChunkReplicaList partReplicas(it, jt);
-                auto partId = PartIdFromErasureChunkId(chunkId, it->GetIndex());
+                auto partId = ErasurePartIdFromChunkId(chunkId, it->GetIndex());
                 auto reader = CreateReplicationReader(
                     Config,
                     BlockCache,

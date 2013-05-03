@@ -147,13 +147,13 @@ bool IsErasureChunkId(const TChunkId& id);
 bool IsErasureChunkPartId(const TChunkId& id);
 
 //! Returns id for a part of a given erasure chunk.
-TChunkId PartIdFromErasureChunkId(const TChunkId& id, int index);
+TChunkId ErasurePartIdFromChunkId(const TChunkId& id, int index);
 
 //! Returns the whole chunk id for a given erasure chunk part id.
-TChunkId ChunkIdFromErasurePartId(const TChunkId& id);
+TChunkId ErasureChunkIdFromPartId(const TChunkId& id);
 
 //! Returns part index for a given erasure chunk part id.
-int PartIndexFromErasurePartId(const TChunkId& id);
+int IndexFromErasurePartId(const TChunkId& id);
 
 //! For usual chunks, preserves the id and returns zero index.
 //! For erasure chunks, constructs the whole chunk id and extracts index.

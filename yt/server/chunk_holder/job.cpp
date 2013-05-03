@@ -488,7 +488,7 @@ private:
                 }
             }
 
-            auto partId = PartIdFromErasureChunkId(ChunkId, index);
+            auto partId = ErasurePartIdFromChunkId(ChunkId, index);
             auto reader = CreateReplicationReader(
                 config->ReplicationReader,
                 Bootstrap->GetBlockStore()->GetBlockCache(),
@@ -502,7 +502,7 @@ private:
 
         std::vector<IAsyncWriterPtr> writers;
         FOREACH (int index, erasedIndexList) {
-            auto partId = PartIdFromErasureChunkId(ChunkId, index);
+            auto partId = ErasurePartIdFromChunkId(ChunkId, index);
             auto writer = CreateReplicationWriter(
                 config->ReplicationWriter,
                 partId,
