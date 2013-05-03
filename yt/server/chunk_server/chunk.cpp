@@ -60,6 +60,15 @@ TChunkTreeStatistics TChunk::GetStatistics() const
     result.ChunkCount = 1;
     result.Rank = 0;
 
+    // Adjust disk space for erasure chunks.
+    auto codecId = GetErasureCodec();
+    if (codecId != NErasure::ECodec::None) {
+        auto* codec = NErasure::GetCodec(codecId);
+        // TODO(babenko): not exact
+        result.DiskSpace *= codec->GetTotalBlockCount();
+        result.DiskSpace /= codec->GetDataBlockCount();
+    }
+
     return result;
 }
 
