@@ -118,12 +118,18 @@ void TJobProxy::Run()
     if (Job) {
         HeartbeatInvoker->Stop();
 
-        std::vector<NChunkClient::TChunkId> failedChunks;
-        GetFailedChunks(&failedChunks).Get();
-        LOG_DEBUG("Found %d failed chunks", static_cast<int>(failedChunks.size()));
+        std::vector<NChunkClient::TChunkId> failedChunkIds;
+        GetFailedChunks(&failedChunkIds).Get();
+        LOG_INFO("Found %d failed chunks", static_cast<int>(failedChunkIds.size()));
 
+        // For erasure chunks, replace part id with whole chunk id.
         auto* schedulerResultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-        ToProto(schedulerResultExt->mutable_failed_chunk_ids(), failedChunks);
+        FOREACH (const auto& chunkId, failedChunkIds) {
+            auto actualChunkId = IsErasureChunkPartId(chunkId)
+                ? ChunkIdFromErasurePartId(chunkId)
+                : chunkId;
+            ToProto(schedulerResultExt->add_failed_chunk_ids(), actualChunkId);
+        }
     }
     
     ReportResult(result);
