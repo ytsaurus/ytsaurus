@@ -339,7 +339,7 @@ struct TSortOperationSpecBase
             .Default()
             .GreaterThan(0);
         Register("data_size_per_sort_job", DataSizePerSortJob)
-            .Default((i64)1024 * 1024 * 1024)
+            .Default((i64)2 * 1024 * 1024 * 1024)
             .GreaterThan(0);
         Register("shuffle_start_threshold", ShuffleStartThreshold)
             .Default(0.75)
