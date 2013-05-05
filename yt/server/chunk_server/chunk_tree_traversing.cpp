@@ -202,7 +202,7 @@ protected:
                 childLowerBound.set_chunk_index(getChildLowerChunkIndex());
             }
 
-            auto getChildLowerOffset = [&] () -> bool {
+            auto getChildLowerOffset = [&] () {
                 return entry.ChildIndex == 0
                     ? 0
                     : chunkList->DataSizeSums()[entry.ChildIndex - 1];
@@ -321,7 +321,7 @@ protected:
             int childIndex = std::upper_bound(
                 begin,
                 chunkList->DataSizeSums().end(),
-                lowerBound.chunk_index()) - begin;
+                lowerBound.offset()) - begin;
             index = std::max(index, childIndex);
             YCHECK(index < chunkList->Children().size());
         }
@@ -363,6 +363,21 @@ protected:
             i64 newUpperBound = stackEntry.UpperBound.row_index() - childLowerBound.row_index();
             YCHECK(newUpperBound > 0);
             endLimit->set_row_index(newUpperBound);
+        }
+
+        if (stackEntry.LowerBound.has_offset()) {
+            i64 newLowerBound = stackEntry.LowerBound.offset() - childLowerBound.offset();
+            if (newLowerBound > 0) {
+                startLimit->set_offset(newLowerBound);
+            }
+        }
+
+        if (stackEntry.UpperBound.has_offset() &&
+            stackEntry.UpperBound.offset() < childUpperBound.offset())
+        {
+            i64 newUpperBound = stackEntry.UpperBound.offset() - childLowerBound.offset();
+            YCHECK(newUpperBound > 0);
+            endLimit->set_offset(newUpperBound);
         }
 
         if (stackEntry.LowerBound.has_key() &&

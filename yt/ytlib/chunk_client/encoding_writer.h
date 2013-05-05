@@ -19,9 +19,9 @@ namespace NChunkClient {
 class TEncodingWriter
     : public TRefCounted
 {
-    DEFINE_BYVAL_RO_PROPERTY(i64, UncompressedSize);
-    DEFINE_BYVAL_RO_PROPERTY(i64, CompressedSize);
-    DEFINE_BYVAL_RO_PROPERTY(double, CompressionRatio);
+    DECLARE_BYVAL_RO_PROPERTY(i64, UncompressedSize);
+    DECLARE_BYVAL_RO_PROPERTY(i64, CompressedSize);
+    DECLARE_BYVAL_RO_PROPERTY(double, CompressionRatio);
 
 public:
     TEncodingWriter(
@@ -41,6 +41,13 @@ public:
     ~TEncodingWriter();
 
 private:
+    i64 UncompressedSize_;
+    i64 CompressedSize_;
+
+    // Protects #CompressionRatio_.
+    TSpinLock SpinLock;
+    double CompressionRatio_;
+
     TEncodingWriterConfigPtr Config;
     IAsyncWriterPtr AsyncWriter;
 
@@ -67,6 +74,8 @@ private:
     void VerifyVector(
         const std::vector<TSharedRef>& origin,
         const TSharedRef& compressedBlock);
+
+    void SetCompressionRatio(double value);
 
 };
 

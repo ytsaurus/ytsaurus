@@ -51,7 +51,7 @@ class TestFileCommands(YTEnvSetup):
 
         chunk_ids = get('//tmp/file/@chunk_ids')
         assert get_chunks() == chunk_ids
-        assert get('//tmp/file/@size') == len(content)
+        assert get('//tmp/file/@uncompressed_data_size') == len(content)
 
         # check that chunk was deleted
         remove('//tmp/file')

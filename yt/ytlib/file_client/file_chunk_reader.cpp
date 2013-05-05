@@ -15,6 +15,8 @@ namespace NFileClient {
 
 using namespace NChunkClient;
 
+static NLog::TLogger& SILENT_UNUSED Logger = FileReaderLogger;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TFileChunkReader::TFileChunkReader(
@@ -160,7 +162,7 @@ void TFileChunkReader::OnNextBlock(TError error)
 bool TFileChunkReader::FetchNext()
 {
     YCHECK(!State.HasRunningOperation());
-    auto block = GetBlock();
+    auto block = SequentialReader->GetBlock();
     StartOffset = std::max(StartOffset - static_cast<i64>(block.Size()), (i64)0);
     EndOffset = std::max(EndOffset - static_cast<i64>(block.Size()), (i64)0);
 
@@ -232,8 +234,13 @@ TFileChunkReaderPtr TFileChunkReaderProvider::CreateReader(
 
     i64 endOffset = std::numeric_limits<i64>::max();
     if (inputChunk.has_end_limit() && inputChunk.end_limit().has_offset()) {
-        startOffset = inputChunk.end_limit().offset();
+        endOffset = inputChunk.end_limit().offset();
     }
+
+    LOG_INFO(
+        "Creating file chunk reader (StartOffset: %" PRId64 ", EndOffset: %" PRId64 ")",
+        startOffset,
+        endOffset);
 
     return New<TFileChunkReader>(
         Config,

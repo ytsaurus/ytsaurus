@@ -76,6 +76,8 @@ void TFileReader::Open(
         attributes.SetYson("upper_limit", ConvertToYsonString(limit));
     }
 
+    LOG_DEBUG("Fetching file path: %s", ~ToString(path));
+
     auto fetchReq = TFileYPathProxy::Fetch(path);
     SetTransactionId(fetchReq, transaction);
     fetchReq->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);

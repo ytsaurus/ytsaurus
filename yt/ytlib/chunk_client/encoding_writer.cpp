@@ -35,6 +35,7 @@ TEncodingWriter::TEncodingWriter(
 
 void TEncodingWriter::WriteBlock(const TSharedRef& block)
 {
+    AtomicAdd(UncompressedSize_, block.Size());
     Semaphore.Acquire(block.Size());
     CompressionInvoker->Invoke(BIND(
         &TEncodingWriter::DoCompressBlock,
@@ -46,6 +47,7 @@ void TEncodingWriter::WriteBlock(std::vector<TSharedRef>&& vectorizedBlock)
 {
     FOREACH (const auto& part, vectorizedBlock) {
         Semaphore.Acquire(part.Size());
+        AtomicAdd(UncompressedSize_, part.Size());
     }
     CompressionInvoker->Invoke(BIND(
         &TEncodingWriter::DoCompressVector,
@@ -57,8 +59,6 @@ void TEncodingWriter::WriteBlock(std::vector<TSharedRef>&& vectorizedBlock)
 void TEncodingWriter::DoCompressBlock(const TSharedRef& block)
 {
     auto compressedBlock = Codec->Compress(block);
-
-    UncompressedSize_ += block.Size();
     CompressedSize_ += compressedBlock.Size();
 
     LOG_DEBUG("Compressing block");
@@ -85,21 +85,17 @@ void TEncodingWriter::DoCompressBlock(const TSharedRef& block)
 void TEncodingWriter::DoCompressVector(const std::vector<TSharedRef>& vectorizedBlock)
 {
     auto compressedBlock = Codec->Compress(vectorizedBlock);
-
-    auto oldSize = GetUncompressedSize();
-    FOREACH (const auto& part, vectorizedBlock) {
-        UncompressedSize_ += part.Size();
-    }
-
     LOG_DEBUG("Compressing block");
 
-    CompressedSize_ += compressedBlock.Size();
+    AtomicAdd(CompressedSize_, compressedBlock.Size());
 
     i64 sizeToRelease = -static_cast<i64>(compressedBlock.Size());
 
     if (!Config->VerifyCompression) {
         // We immediately release original data.
-        sizeToRelease += UncompressedSize_ - oldSize;
+        FOREACH (const auto& part, vectorizedBlock) {
+            sizeToRelease += part.Size();
+        }
     }
 
     ProcessCompressedBlock(compressedBlock, sizeToRelease);
@@ -145,7 +141,9 @@ void TEncodingWriter::VerifyBlock(
 // Serialized compression invoker affinity (don't use thread affinity because of thread pool).
 void TEncodingWriter::ProcessCompressedBlock(const TSharedRef& block, i64 sizeToRelease)
 {
-    CompressionRatio_ = double(CompressedSize_) / UncompressedSize_;
+    SetCompressionRatio(
+        double(AtomicGet(CompressedSize_)) /
+        AtomicGet(UncompressedSize_));
 
     if (sizeToRelease > 0) {
         Semaphore.Release(sizeToRelease);
@@ -216,6 +214,30 @@ TAsyncError TEncodingWriter::AsyncFlush()
 
 TEncodingWriter::~TEncodingWriter()
 { }
+
+i64 TEncodingWriter::GetUncompressedSize() const
+{
+    return AtomicGet(UncompressedSize_);
+}
+
+i64 TEncodingWriter::GetCompressedSize() const
+{
+    // NB: #CompressedSize_ may have not been updated yet (updated in compression invoker).
+    return static_cast<i64>(GetUncompressedSize() * GetCompressionRatio());
+}
+
+void TEncodingWriter::SetCompressionRatio(double value)
+{
+    TGuard<TSpinLock> guard(SpinLock);
+    CompressionRatio_ = value;
+}
+
+double TEncodingWriter::GetCompressionRatio() const
+{
+    TGuard<TSpinLock> guard(SpinLock);
+    return CompressionRatio_;
+}
+
 
 ///////////////////////////////////////////////////////////////////////////////
 
