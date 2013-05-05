@@ -1,8 +1,8 @@
 #include "stdafx.h"
 #include "cypress_integration.h"
 #include "node.h"
-#include "node_authority.h"
 #include "node_tracker.h"
+#include "config.h"
 
 #include <ytlib/ytree/virtual.h>
 #include <ytlib/ytree/fluent.h>
@@ -29,59 +29,18 @@ using namespace NCypressClient;
 using namespace NTransactionServer;
 using namespace NCellMaster;
 using namespace NObjectClient;
-
-using NNodeTrackerClient::NProto::TLocationStatistics;
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TNodeAuthority
-    : public INodeAuthority
-{
-public:
-    explicit TNodeAuthority(TBootstrap* bootstrap)
-        : Bootstrap(bootstrap)
-    { }
-
-    virtual bool IsAuthorized(const Stroka& address) override
-    {
-        auto cypressManager = Bootstrap->GetCypressManager();
-        auto resolver = cypressManager->CreateResolver();
-
-        auto nodesNode = resolver->ResolvePath("//sys/nodes");
-        YCHECK(nodesNode);
-
-        auto nodesMap = nodesNode->AsMap();
-        auto nodeNode = nodesMap->FindChild(address);
-
-        if (!nodeNode) {
-            // New node.
-            return true;
-        }
-
-        bool banned = nodeNode->Attributes().Get<bool>("banned", false);
-        return !banned;
-    }
-
-private:
-    TBootstrap* Bootstrap;
-
-};
-
-INodeAuthorityPtr CreateNodeAuthority(TBootstrap* bootstrap)
-{
-    return New<TNodeAuthority>(bootstrap);
-}
+using namespace NNodeTrackerClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDataNodeProxy
+class TCellNodeProxy
     : public TMapNodeProxy
 {
 public:
-    TDataNodeProxy(
+    TCellNodeProxy(
         INodeTypeHandlerPtr typeHandler,
         TBootstrap* bootstrap,
-        NTransactionServer::TTransaction* transaction,
+        TTransaction* transaction,
         TMapNode* trunkNode)
         : TMapNodeProxy(
             typeHandler,
@@ -91,7 +50,7 @@ public:
     { }
 
 private:
-    TNode* GetNode() const
+    TNode* FindNode() const
     {
         auto address = GetParent()->AsMap()->GetChildKey(this);
         auto nodeTracker = Bootstrap->GetNodeTracker();
@@ -100,7 +59,7 @@ private:
 
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
     {
-        const auto* node = GetNode();
+        const auto* node = FindNode();
         attributes->push_back(TAttributeInfo("state"));
         attributes->push_back(TAttributeInfo("confirmed", node));
         attributes->push_back(TAttributeInfo("statistics", node));
@@ -109,7 +68,7 @@ private:
 
     virtual bool GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
-        const auto* node = GetNode();
+        const auto* node = FindNode();
 
         if (key == "state") {
             auto state = node ? node->GetState() : ENodeState(ENodeState::Offline);
@@ -156,30 +115,39 @@ private:
 
     virtual void ValidateUserAttributeUpdate(
         const Stroka& key,
-        const TNullable<NYTree::TYsonString>& oldValue,
-        const TNullable<NYTree::TYsonString>& newValue) override
+        const TNullable<TYsonString>& oldValue,
+        const TNullable<TYsonString>& newValue) override
     {
         UNUSED(oldValue);
 
-        if (key == "banned") {
-            if (newValue) {
-                ConvertTo<bool>(*newValue);
-            }
-        }
+        // Update the attributes and check if they still deserialize OK.
+        auto attributes = Attributes().Clone();
+        attributes->Set(key, newValue);
+        ConvertTo<TNodeConfigPtr>(attributes->ToMap());
+    }
+
+    virtual void OnUserAttributesUpdated() override
+    {
+        auto* node = FindNode();
+        if (!node)
+            return;
+
+        auto nodeTracker = Bootstrap->GetNodeTracker();
+        nodeTracker->RefreshNodeConfig(node);
     }
 };
 
-class TNodeTypeHandler
+class TCellNodeTypeHandler
     : public TMapNodeTypeHandler
 {
 public:
-    explicit TNodeTypeHandler(TBootstrap* bootstrap)
+    explicit TCellNodeTypeHandler(TBootstrap* bootstrap)
         : TMapNodeTypeHandler(bootstrap)
     { }
 
     virtual EObjectType GetObjectType() override
     {
-        return EObjectType::Node;
+        return EObjectType::CellNode;
     }
 
 private:
@@ -187,7 +155,7 @@ private:
         TMapNode* trunkNode,
         TTransaction* transaction) override
     {
-        return New<TDataNodeProxy>(
+        return New<TCellNodeProxy>(
             this,
             Bootstrap,
             transaction,
@@ -195,81 +163,23 @@ private:
     }
 };
 
-INodeTypeHandlerPtr CreateNodeTypeHandler(TBootstrap* bootstrap)
+INodeTypeHandlerPtr CreateCellNodeTypeHandler(TBootstrap* bootstrap)
 {
     YASSERT(bootstrap);
 
-    return New<TNodeTypeHandler>(bootstrap);
+    return New<TCellNodeTypeHandler>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNodeMapBehavior
-    : public TNodeBehaviorBase<TMapNode, TMapNodeProxy>
-{
-public:
-    TNodeMapBehavior(TBootstrap* bootstrap, TMapNode* trunkNode)
-        : TNodeBehaviorBase<TMapNode, TMapNodeProxy>(bootstrap, trunkNode)
-    {
-        auto nodeTracker = bootstrap->GetNodeTracker();
-        nodeTracker->SubscribeNodeRegistered(BIND(
-            &TNodeMapBehavior::OnRegistered,
-            MakeWeak(this)));
-    }
-
-private:
-    void OnRegistered(TNode* node)
-    {
-        Stroka address = node->GetAddress();
-
-        auto metaStateFacade = Bootstrap->GetMetaStateFacade();
-
-        // We're already in the state thread but need to postpone the planned changes and enqueue a callback.
-        // Doing otherwise will turn node registration and Cypress update into a single
-        // logged change, which is undesirable.
-        BIND(&TNodeMapBehavior::CreateNodeIfNeeded, MakeStrong(this), address)
-            .Via(metaStateFacade->GetEpochInvoker())
-            .Run();
-    }
-
-    void CreateNodeIfNeeded(const Stroka& address)
-    {
-        auto proxy = GetProxy();
-
-        if (proxy->FindChild(address))
-            return;
-
-        // TODO(babenko): make a single transaction
-        // TODO(babenko): check for errors and retry
-
-        {
-            auto req = TCypressYPathProxy::Create("/" + ToYPathLiteral(address));
-            req->set_type(EObjectType::Node);
-            ExecuteVerb(proxy, req);
-        }
-
-        {
-            auto req = TCypressYPathProxy::Create("/" + ToYPathLiteral(address) + "/orchid");
-            req->set_type(EObjectType::Orchid);
-
-            auto attributes = CreateEphemeralAttributes();
-            attributes->Set("remote_address", address);
-            ToProto(req->mutable_node_attributes(), *attributes);
-
-            ExecuteVerb(proxy, req);
-        }
-    }
-
-};
-
-class TDataNodeMapProxy
+class TCellNodeMapProxy
     : public TMapNodeProxy
 {
 public:
-    TDataNodeMapProxy(
+    TCellNodeMapProxy(
         INodeTypeHandlerPtr typeHandler,
         TBootstrap* bootstrap,
-        NTransactionServer::TTransaction* transaction,
+        TTransaction* transaction,
         TMapNode* trunkNode)
         : TMapNodeProxy(
             typeHandler,
@@ -282,7 +192,6 @@ private:
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
     {
         attributes->push_back("offline");
-        attributes->push_back("banned");
         attributes->push_back("registered");
         attributes->push_back("online");
         attributes->push_back("unconfirmed");
@@ -307,16 +216,6 @@ private:
                     if (!nodeTracker->FindNodeByAddress(address) &&
                         !this->GetChild(address)->Attributes().Get<bool>("banned", false))
                     {
-                        fluent.Item().Value(address);
-                    }
-            });
-            return true;
-        }
-
-        if (key == "banned") {
-            BuildYsonFluently(consumer)
-                .DoListFor(GetKeys(), [=] (TFluentList fluent, Stroka address) {
-                    if (this->GetChild(address)->Attributes().Get<bool>("banned", false)) {
                         fluent.Item().Value(address);
                     }
             });
@@ -398,7 +297,7 @@ public:
 
     virtual EObjectType GetObjectType() override
     {
-        return EObjectType::NodeMap;
+        return EObjectType::CellNodeMap;
     }
 
 private:
@@ -406,21 +305,16 @@ private:
         TMapNode* trunkNode,
         TTransaction* transaction) override
     {
-        return New<TDataNodeMapProxy>(
+        return New<TCellNodeMapProxy>(
             this,
             Bootstrap,
             transaction,
             trunkNode);
     }
 
-    virtual INodeBehaviorPtr DoCreateBehavior(TMapNode* trunkNode) override
-    {
-        return New<TNodeMapBehavior>(Bootstrap, trunkNode);
-    }
-
 };
 
-INodeTypeHandlerPtr CreateNodeMapTypeHandler(TBootstrap* bootstrap)
+INodeTypeHandlerPtr CreateCellNodeMapTypeHandler(TBootstrap* bootstrap)
 {
     YCHECK(bootstrap);
 

@@ -6,7 +6,6 @@ from yt_commands import *
 import time
 import os
 
-
 ##################################################################
 
 class TestOrchid(YTEnvSetup):
@@ -149,24 +148,46 @@ class TestAsyncAttributes(YTEnvSetup):
 
 ###################################################################################
 
-class TestChunkInternals(YTEnvSetup):
+class TestChunkServer(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     START_SCHEDULER = True
 
     def test_owning_nodes1(self):
-    	create('table', '//tmp/t')
-    	write('//tmp/t', {'a' : 'b'})
-    	chunk_ids = get('//tmp/t/@chunk_ids')
-    	assert len(chunk_ids) == 1
-    	chunk_id = chunk_ids[0]
-    	assert get('#' + chunk_id + '/@owning_nodes') == ['//tmp/t']
+        create('table', '//tmp/t')
+        write('//tmp/t', {'a' : 'b'})
+        chunk_ids = get('//tmp/t/@chunk_ids')
+        assert len(chunk_ids) == 1
+        chunk_id = chunk_ids[0]
+        assert get('#' + chunk_id + '/@owning_nodes') == ['//tmp/t']
 
     def test_owning_nodes2(self):
-    	create('table', '//tmp/t')
-    	tx = start_transaction()
-    	write('//tmp/t', {'a' : 'b'}, tx=tx)
-    	chunk_ids = get('//tmp/t/@chunk_ids', tx=tx)
-    	assert len(chunk_ids) == 1
-    	chunk_id = chunk_ids[0]
-    	assert get('#' + chunk_id + '/@owning_nodes') == ['//tmp/t']
+        create('table', '//tmp/t')
+        tx = start_transaction()
+        write('//tmp/t', {'a' : 'b'}, tx=tx)
+        chunk_ids = get('//tmp/t/@chunk_ids', tx=tx)
+        assert len(chunk_ids) == 1
+        chunk_id = chunk_ids[0]
+        assert get('#' + chunk_id + '/@owning_nodes') == ['//tmp/t']
+
+###################################################################################
+
+class TestNodeTracker(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    START_SCHEDULER = False
+
+    def test_ban(self):
+        nodes = ls('//sys/nodes')
+        assert len(nodes) == 3
+
+        test_node = nodes[0]
+        assert get('//sys/nodes/%s/@state' % test_node) == 'online'
+
+        set('//sys/nodes/%s/@banned' % test_node, 'true')
+        time.sleep(1)      
+        assert get('//sys/nodes/%s/@state' % test_node) == 'offline'
+
+        set('//sys/nodes/%s/@banned' % test_node, 'false')
+        time.sleep(1)
+        assert get('//sys/nodes/%s/@state' % test_node) == 'online'

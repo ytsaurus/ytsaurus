@@ -11,11 +11,9 @@ namespace NNodeTrackerServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-INodeAuthorityPtr CreateNodeAuthority(NCellMaster::TBootstrap* bootstrap);
+NCypressServer::INodeTypeHandlerPtr CreateCellNodeTypeHandler(NCellMaster::TBootstrap* bootstrap);
 
-NCypressServer::INodeTypeHandlerPtr CreateNodeTypeHandler(NCellMaster::TBootstrap* bootstrap);
-
-NCypressServer::INodeTypeHandlerPtr CreateNodeMapTypeHandler(NCellMaster::TBootstrap* bootstrap);
+NCypressServer::INodeTypeHandlerPtr CreateCellNodeMapTypeHandler(NCellMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

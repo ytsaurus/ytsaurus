@@ -39,7 +39,6 @@
 
 #include <server/cypress_server/cypress_manager.h>
 
-#include <server/node_tracker_server/node_authority.h>
 #include <server/node_tracker_server/node_tracker_service.h>
 #include <server/node_tracker_server/cypress_integration.h>
 
@@ -112,11 +111,6 @@ TNodeTrackerPtr TBootstrap::GetNodeTracker() const
     return NodeTracker;
 }
 
-INodeAuthorityPtr TBootstrap::GetNodeAuthority() const
-{
-    return NodeAuthority;
-}
-
 TTransactionManagerPtr TBootstrap::GetTransactionManager() const
 {
     return TransactionManager;
@@ -170,7 +164,6 @@ void TBootstrap::Run()
     ObjectManager = New<TObjectManager>(Config->ObjectManager, this);
     SecurityManager = New<TSecurityManager>(this);
     NodeTracker = New<TNodeTracker>(Config->NodeTracker, this);
-    NodeAuthority = CreateNodeAuthority(this);
     TransactionManager = New<TTransactionManager>(Config->TransactionManager, this);
     CypressManager = New<TCypressManager>(this);
     ChunkManager = New<TChunkManager>(Config->ChunkManager, this);
@@ -226,8 +219,8 @@ void TBootstrap::Run()
     CypressManager->RegisterHandler(CreateTransactionMapTypeHandler(this, EObjectType::TransactionMap));
     CypressManager->RegisterHandler(CreateTransactionMapTypeHandler(this, EObjectType::TopmostTransactionMap));
     CypressManager->RegisterHandler(CreateOrchidTypeHandler(this));
-    CypressManager->RegisterHandler(CreateNodeTypeHandler(this));
-    CypressManager->RegisterHandler(CreateNodeMapTypeHandler(this));
+    CypressManager->RegisterHandler(CreateCellNodeTypeHandler(this));
+    CypressManager->RegisterHandler(CreateCellNodeMapTypeHandler(this));
     CypressManager->RegisterHandler(CreateFileTypeHandler(this));
     CypressManager->RegisterHandler(CreateTableTypeHandler(this));
     CypressManager->RegisterHandler(CreateAccountMapTypeHandler(this));

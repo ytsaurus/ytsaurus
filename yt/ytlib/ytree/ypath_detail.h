@@ -136,12 +136,14 @@ protected:
         TRspRemove* response,
         TCtxRemovePtr context) override;
 
-    // This method is called before the attribute with the corresponding key
-    // is updated (added, removed or changed).
+    //! Called before attribute #key is updated (added, removed or changed).
     virtual void ValidateUserAttributeUpdate(
         const Stroka& key,
         const TNullable<NYTree::TYsonString>& oldValue,
         const TNullable<NYTree::TYsonString>& newValue);
+
+    //! Called after some user attributes are change.
+    virtual void OnUserAttributesUpdated();
 
 private:
     TFuture< TValueOrError<TYsonString> > DoFindAttribute(const Stroka& key);
