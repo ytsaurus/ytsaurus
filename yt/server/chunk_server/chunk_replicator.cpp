@@ -54,6 +54,19 @@ static NProfiling::TProfiler& Profiler = ChunkServerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TChunkReplicator::TChunkStatistics::TChunkStatistics()
+{
+    memset(ReplicaCount, 0, sizeof (ReplicaCount));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TChunkReplicator::TRefreshEntry::TRefreshEntry()
+    : Chunk(nullptr)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 TChunkReplicator::TChunkReplicator(
     TChunkManagerConfigPtr config,
     TBootstrap* bootstrap,
@@ -119,32 +132,46 @@ TJobListPtr TChunkReplicator::FindJobList(const TChunkId& id)
 
 EChunkStatus TChunkReplicator::ComputeChunkStatus(TChunk* chunk)
 {
-    return chunk->IsErasure()
-           ? ComputeErasureChunkStatus(chunk)
-           : ComputeRegularChunkStatus(chunk);
+    auto statistics = ComputeChunkStatistics(chunk);
+    return statistics.Status;
 }
 
-EChunkStatus TChunkReplicator::ComputeRegularChunkStatus(TChunk* chunk)
+TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeChunkStatistics(TChunk* chunk)
 {
-    EChunkStatus result;
+    return chunk->IsErasure()
+        ? ComputeErasureChunkStatistics(chunk)
+        : ComputeRegularChunkStatistics(chunk);
+}
+
+TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatistics(TChunk* chunk)
+{
+    TChunkStatistics result;
     
-    int replicaCount = static_cast<int>(chunk->StoredReplicas().size());
+    int replicaCount = 0;
     int replicationFactor = chunk->GetReplicationFactor();
-    
-    if (replicaCount == 0) {
-        result |= EChunkStatus::Lost;
-    } else if (replicaCount > replicationFactor) {
-        result |= EChunkStatus::Overreplicated;
-    } else if (replicaCount < replicationFactor) {
-        result |= EChunkStatus::Underreplicated;
+
+    FOREACH (auto replica, chunk->StoredReplicas()) {
+        if (!IsReplicaDecommissioned(replica)) {
+            ++replicaCount;
+        }
     }
+    
+    if (replicaCount == 0 && chunk->StoredReplicas().empty()) {
+        result.Status |= EChunkStatus::Lost;
+    } else if (replicaCount > replicationFactor) {
+        result.Status |= EChunkStatus::Overreplicated;
+    } else if (replicaCount < replicationFactor) {
+        result.Status |= EChunkStatus::Underreplicated;
+    }
+
+    result.ReplicaCount[0] = replicaCount;
 
     return result;
 }
 
-EChunkStatus TChunkReplicator::ComputeErasureChunkStatus(TChunk* chunk)
+TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatistics(TChunk* chunk)
 {
-    EChunkStatus result;
+    TChunkStatistics result;
 
     // Check data and parity parts.
     auto* codec = NErasure::GetCodec(chunk->GetErasureCodec());
@@ -152,32 +179,35 @@ EChunkStatus TChunkReplicator::ComputeErasureChunkStatus(TChunk* chunk)
     int dataPartCount = codec->GetDataBlockCount();
     int parityPartCount = codec->GetParityBlockCount();
 
-    NErasure::TBlockIndexSet missingIndexSet((1 << totalPartCount) - 1);
-    int replicaCount[NErasure::MaxTotalBlockCount] = {};
+    auto missingIndexes = NErasure::TBlockIndexSet((1 << totalPartCount) - 1);  // ignores decommissioned replicas
+    auto lostIndexes    = NErasure::TBlockIndexSet((1 << totalPartCount) - 1);  // takes decommissioned replicas into account
     TSmallVector<int, NErasure::MaxTotalBlockCount> overreplicatedIndexes;
     FOREACH (auto replica, chunk->StoredReplicas()) {
         int index = replica.GetIndex();
-        if (++replicaCount[index] > 1) {
-            result |= EChunkStatus::Overreplicated;
+        if (!IsReplicaDecommissioned(replica)) {
+            if (++result.ReplicaCount[index] > 1) {
+                result.Status |= EChunkStatus::Overreplicated;
+            }
+            missingIndexes.reset(index);
         }
-        missingIndexSet.reset(index);
+        lostIndexes.reset(index);
     }
 
-    auto dataIndexSet = NErasure::TBlockIndexSet((1 << dataPartCount) - 1);
-    auto parityIndexSet = NErasure::TBlockIndexSet(((1 << parityPartCount) - 1) << dataPartCount);
 
-    if ((missingIndexSet & dataIndexSet).any()) {
-        result |= EChunkStatus::DataMissing;
+    auto dataIndexes = NErasure::TBlockIndexSet((1 << dataPartCount) - 1);
+    if ((missingIndexes & dataIndexes).any()) {
+        result.Status |= EChunkStatus::DataMissing;
     }
 
-    if ((missingIndexSet & parityIndexSet).any()) {
-        result |= EChunkStatus::ParityMissing;
+    auto parityIndexes = NErasure::TBlockIndexSet(((1 << parityPartCount) - 1) << dataPartCount);
+    if ((missingIndexes & parityIndexes).any()) {
+        result.Status |= EChunkStatus::ParityMissing;
     }
 
-    if (missingIndexSet.any()) {
+    if (lostIndexes.any()) {
         // Something is damaged.
-        if (!codec->CanRepair(missingIndexSet)) {
-            result |= EChunkStatus::Lost;
+        if (!codec->CanRepair(lostIndexes)) {
+            result.Status |= EChunkStatus::Lost;
         }
     }
 
@@ -659,10 +689,9 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
 
     ResetChunkStatus(chunk);
     
-    auto status = ComputeChunkStatus(chunk);
-    int replicaCount = static_cast<int>(chunk->StoredReplicas().size());
+    auto statistics = ComputeChunkStatistics(chunk);
 
-    if (status & EChunkStatus::Lost) {
+    if (statistics.Status & EChunkStatus::Lost) {
         YCHECK(LostChunks_.insert(chunk).second);
 
         if (chunk->GetVital()) {
@@ -670,59 +699,44 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
         }
     }
 
-    if (status & EChunkStatus::Overreplicated) {
+    if (statistics.Status & EChunkStatus::Overreplicated) {
         YCHECK(OverreplicatedChunks_.insert(chunk).second);
 
-        if (chunk->IsErasure()) {
-            int replicaCount[NErasure::MaxTotalBlockCount] = {};
-            FOREACH (auto replica, chunk->StoredReplicas()) {
-                int index = replica.GetIndex();
-                ++replicaCount[index];
-            }
+        for (int index = 0; index < NErasure::MaxTotalBlockCount; ++index) {
+            if (statistics.ReplicaCount[index] <= 1)
+                continue;
 
-            for (int index = 0; index < NErasure::MaxTotalBlockCount; ++index) {
-                if (replicaCount[index] <= 1)
-                    continue;
+            TChunkPtrWithIndex chunkWithIndex(chunk, index);              
+            auto encodedChunkId = EncodeChunkId(chunkWithIndex);
 
-                TChunkPtrWithIndex chunkWithIndex(chunk, index);              
-                auto encodedChunkId = EncodeChunkId(chunkWithIndex);
-
-                int redundantCount = replicaCount[index] - 1;
-                auto nodes = ChunkPlacement->GetRemovalTargets(chunkWithIndex, redundantCount);
-                FOREACH (auto* node, nodes) {
-                    YCHECK(node->ChunkRemovalQueue().insert(encodedChunkId).second);
-                }
-            }
-        } else {
-            int replicationFactor = chunk->GetReplicationFactor();
-            int redundantCount = replicaCount - replicationFactor;
-            auto nodes = ChunkPlacement->GetRemovalTargets(TChunkPtrWithIndex(chunk), redundantCount);
+            int redundantCount = statistics.ReplicaCount[index] - 1;
+            auto nodes = ChunkPlacement->GetRemovalTargets(chunkWithIndex, redundantCount);
             FOREACH (auto* node, nodes) {
-                YCHECK(node->ChunkRemovalQueue().insert(chunkId).second);
+                YCHECK(node->ChunkRemovalQueue().insert(encodedChunkId).second);
             }
         }
     }
 
-    if (status & EChunkStatus::Underreplicated) {
+    if (statistics.Status & EChunkStatus::Underreplicated) {
         YCHECK(UnderreplicatedChunks_.insert(chunk).second);
         
         YCHECK(!chunk->IsErasure());
         auto* node = ChunkPlacement->GetReplicationSource(chunk);
         
-        int priority = std::min(replicaCount, ReplicationPriorityCount) - 1;
+        int priority = std::min(statistics.ReplicaCount[0], ReplicationPriorityCount) - 1;
         YCHECK(node->ChunkReplicationQueues()[priority].insert(chunk).second);
     }
 
-    if (status & EChunkStatus::DataMissing) {
+    if (statistics.Status & EChunkStatus::DataMissing) {
         YCHECK(DataMissingChunks_.insert(chunk).second);
     }
 
-    if (status & EChunkStatus::ParityMissing) {
+    if (statistics.Status & EChunkStatus::ParityMissing) {
         YCHECK(ParityMissingChunks_.insert(chunk).second);
     }
 
-    if ((status & EChunkStatus(EChunkStatus::DataMissing | EChunkStatus::ParityMissing)) &&
-        !(status & EChunkStatus::Lost))
+    if ((statistics.Status & EChunkStatus(EChunkStatus::DataMissing | EChunkStatus::ParityMissing)) &&
+        !(statistics.Status & EChunkStatus::Lost))
     {
         auto repairIt = RepairQueue.insert(RepairQueue.end(), chunk);
         chunk->SetRepairQueueIterator(repairIt);
@@ -757,6 +771,12 @@ void TChunkReplicator::ResetChunkStatus(TChunk* chunk)
     } else {
         UnderreplicatedChunks_.erase(chunk);  
     }
+}
+
+bool TChunkReplicator::IsReplicaDecommissioned(TNodePtrWithIndex replica)
+{
+    auto* node = replica.GetPtr();
+    return node->GetConfig()->Decommissioned;
 }
 
 bool TChunkReplicator::HasRunningJobs(const TChunkId& chunkId)

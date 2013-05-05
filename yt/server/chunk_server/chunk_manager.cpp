@@ -272,6 +272,7 @@ public:
         auto nodeTracker = Bootstrap->GetNodeTracker();
         nodeTracker->SubscribeNodeRegistered(BIND(&TThis::OnNodeRegistered, MakeWeak(this)));
         nodeTracker->SubscribeNodeUnregistered(BIND(&TThis::OnNodeUnregistered, MakeWeak(this)));
+        nodeTracker->SubscribeNodeConfigUpdated(BIND(&TThis::OnNodeConfigUpdated, MakeWeak(this)));
         nodeTracker->SubscribeFullHeartbeat(BIND(&TThis::OnFullHeartbeat, MakeWeak(this)));
         nodeTracker->SubscribeIncrementalHeartbeat(BIND(&TThis::OnIncrementalHeartbeat, MakeWeak(this)));
 
@@ -840,6 +841,17 @@ private:
 
         if (ChunkReplicator) {
             ChunkReplicator->OnNodeUnregistered(node);
+        }
+    }
+
+    void OnNodeConfigUpdated(TNode* node)
+    {
+        if (node->GetConfig()->Decommissioned) {
+            LOG_INFO("Node decommissioned (Address: %s)", ~node->GetAddress());
+
+            FOREACH (auto replica, node->StoredReplicas()) {
+                ChunkReplicator->ScheduleChunkRefresh(replica.GetPtr());
+            }
         }
     }
 

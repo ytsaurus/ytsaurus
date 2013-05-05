@@ -65,6 +65,9 @@ public:
     //! Fired when a node gets unregistered.
     DECLARE_SIGNAL(void(TNode* node), NodeUnregistered);
 
+    //! Fired when node configuration changes.
+    DECLARE_SIGNAL(void(TNode* node), NodeConfigUpdated);
+
     //! Fired when a full heartbeat is received from a node.
     DECLARE_SIGNAL(void(TNode* node, const NProto::TMetaReqFullHeartbeat& request), FullHeartbeat);
 

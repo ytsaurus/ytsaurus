@@ -98,6 +98,8 @@ public:
                 BIND(&TImpl::SaveValues, MakeStrong(this)),
                 context);
         }
+
+        SubscribeNodeConfigUpdated(BIND(&TImpl::OnNodeConfigUpdated, Unretained(this)));
     }
 
 
@@ -146,15 +148,11 @@ public:
         if (!ReconfigureYsonSerializable(node->GetConfig(), attributes))
             return;
 
-        LOG_INFO("Node attributes updated (Address: %s)", ~node->GetAddress());
+        LOG_INFO("Node configuration updated (Address: %s)", ~node->GetAddress());
 
         // Check for runtime changes.
         if (IsLeader()) {
-            auto config = node->GetConfig();
-            if (config->Banned) {
-                LOG_INFO("Node is banned (Address: %s)", ~node->GetAddress());
-                PostUnregisterCommit(node->GetId());
-            }
+            NodeConfigUpdated_.Fire(node);
         }
     }
 
@@ -163,6 +161,7 @@ public:
 
     DEFINE_SIGNAL(void(TNode* node), NodeRegistered);
     DEFINE_SIGNAL(void(TNode* node), NodeUnregistered);
+    DEFINE_SIGNAL(void(TNode* node), NodeConfigUpdated);
     DEFINE_SIGNAL(void(TNode* node, const TMetaReqFullHeartbeat& request), FullHeartbeat);
     DEFINE_SIGNAL(void(TNode* node, const TMetaReqIncrementalHeartbeat& request), IncrementalHeartbeat);
 
@@ -709,6 +708,15 @@ private:
             nodeId);
     }
 
+
+    void OnNodeConfigUpdated(TNode* node)
+    {
+        if (node->GetConfig()->Banned) {
+            LOG_INFO("Node banned (Address: %s)", ~node->GetAddress());
+            PostUnregisterCommit(node->GetId());
+        }
+    }
+
 };
 
 DEFINE_METAMAP_ACCESSORS(TNodeTracker::TImpl, Node, TNode, TNodeId, NodeMap)
@@ -802,6 +810,7 @@ DELEGATE_METAMAP_ACCESSORS(TNodeTracker, Node, TNode, TNodeId, *Impl)
 
 DELEGATE_SIGNAL(TNodeTracker, void(TNode* node), NodeRegistered, *Impl);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode* node), NodeUnregistered, *Impl);
+DELEGATE_SIGNAL(TNodeTracker, void(TNode* node), NodeConfigUpdated, *Impl);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode* node, const TMetaReqFullHeartbeat& request), FullHeartbeat, *Impl);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode* node, const TMetaReqIncrementalHeartbeat& request), IncrementalHeartbeat, *Impl);
 

@@ -70,8 +70,10 @@ private:
     TNodeToCoeffIt NodeToFillCoeffIt;
 
     static bool IsFull(TNode* node);
-    static bool IsValidUploadTarget(TNode* targetNode);
-    bool IsValidBalancingTarget(TNode* targetNode, TChunkPtrWithIndex chunkWithIndex) const;
+
+    static bool IsValidUploadTarget(TNode* node);
+    bool IsValidBalancingTarget(TNode* node, TChunkPtrWithIndex chunkWithIndex) const;
+    bool IsValidRemovalTarget(TNode* node);
 
 };
 
