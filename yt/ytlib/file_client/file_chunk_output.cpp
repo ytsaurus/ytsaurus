@@ -102,6 +102,11 @@ void TFileChunkOutput::Open()
     AsyncWriter = CreateReplicationWriter(Config, ChunkId, targets);
     AsyncWriter->Open();
 
+    Writer = New<TFileChunkWriter>(
+        Config,
+        New<TEncodingWriterOptions>(),
+        AsyncWriter);
+
     IsOpen = true;
 
     LOG_INFO("File chunk output opened");
