@@ -47,7 +47,7 @@ public:
     {
         RegisterParameter("banned", Banned)
             .Default(false);
-        RegisterParameter("decommissioned", Banned)
+        RegisterParameter("decommissioned", Decommissioned)
             .Default(false);
     }
 };
