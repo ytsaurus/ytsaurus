@@ -606,22 +606,18 @@ void TOperationControllerBase::Initialize()
         OutputTables.push_back(table);
     }
 
-    try {
-        if (OutputTables.size() > Config->MaxOutputTableCount) {
-            THROW_ERROR_EXCEPTION(
-                "Too many output tables: maximum allowed %d, actual %" PRISZT,
-                Config->MaxOutputTableCount,
-                OutputTables.size());
-        }
-
-        if (Host->GetExecNodes().empty()) {
-            THROW_ERROR_EXCEPTION("No online exec nodes to start operation");
-        }
-        DoInitialize();
-    } catch (const std::exception& ex) {
-        LOG_INFO(ex, "Operation has failed to initialize");
-        throw;
+    if (OutputTables.size() > Config->MaxOutputTableCount) {
+        THROW_ERROR_EXCEPTION(
+            "Too many output tables: maximum allowed %d, actual %" PRISZT,
+            Config->MaxOutputTableCount,
+            OutputTables.size());
     }
+
+    if (Host->GetExecNodes().empty()) {
+        THROW_ERROR_EXCEPTION("No online exec nodes to start operation");
+    }
+
+    DoInitialize();
 
     LOG_INFO("Operation initialized");
 }
@@ -669,9 +665,7 @@ TFuture<TError> TOperationControllerBase::Revive(TInputStream* stream)
     try {
         Initialize();
     } catch (const std::exception& ex) {
-        auto wrappedError = TError("Operation has failed to initialize")
-            << ex;
-        return MakeFuture(wrappedError);
+        return MakeFuture(TError(ex));
     }
 
     return Prepare();
