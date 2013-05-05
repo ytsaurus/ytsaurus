@@ -144,7 +144,7 @@ public:
      */
     void AdvanceSegment();
 
-    //! Returns the current mutation context or NULL if no mutation is currently being applied.
+    //! Returns the current mutation context or |nullptr| if no mutation is currently being applied.
     TMutationContext* GetMutationContext();
 
 private:
