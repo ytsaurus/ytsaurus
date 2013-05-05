@@ -40,6 +40,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 Stroka ToString(const TRichYPath& path);
+std::vector<TRichYPath> Simplify(const std::vector<TRichYPath>& paths);
 void Serialize(const TRichYPath& richPath, NYson::IYsonConsumer* consumer);
 void Deserialize(TRichYPath& richPath, NYTree::INodePtr node);
 

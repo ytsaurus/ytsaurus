@@ -366,6 +366,15 @@ Stroka ToString(const TRichYPath& path)
         path.GetPath();
 }
 
+std::vector<TRichYPath> Simplify(const std::vector<TRichYPath>& paths)
+{
+    std::vector<TRichYPath> result;
+    FOREACH (const auto& path, paths) {
+        result.push_back(path.Simplify());
+    }
+    return result;
+}
+
 void Serialize(const TRichYPath& richPath, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)

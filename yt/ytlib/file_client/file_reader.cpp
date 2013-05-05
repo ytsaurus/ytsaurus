@@ -60,25 +60,25 @@ void TFileReader::Open(
 
     LOG_INFO("Fetching file info");
 
-    auto path = richPath;
-    auto& attributes = path.Attributes();
+    auto attributes = CreateEphemeralAttributes();
 
     i64 lowerLimit = offset ? offset.Get() : 0;
     if (offset) {
         NChunkClient::NProto::TReadLimit limit;
         limit.set_offset(offset.Get());
-        attributes.SetYson("lower_limit", ConvertToYsonString(limit));
+        attributes->SetYson("lower_limit", ConvertToYsonString(limit));
     }
 
     if (length) {
         NChunkClient::NProto::TReadLimit limit;
         limit.set_offset(lowerLimit + length.Get());
-        attributes.SetYson("upper_limit", ConvertToYsonString(limit));
+        attributes->SetYson("upper_limit", ConvertToYsonString(limit));
     }
 
-    LOG_DEBUG("Fetching file path: %s", ~ToString(path));
+    LOG_DEBUG("Fetching file path: %s", ~ToString(richPath));
 
-    auto fetchReq = TFileYPathProxy::Fetch(path);
+    auto fetchReq = TFileYPathProxy::Fetch(richPath.Simplify().GetPath());
+    ToProto(fetchReq->mutable_attributes(), *attributes);
     SetTransactionId(fetchReq, transaction);
     fetchReq->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
 

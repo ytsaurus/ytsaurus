@@ -42,7 +42,7 @@ TFileWriter::TFileWriter(
     , MasterChannel(masterChannel)
     , Transaction(transaction)
     , TransactionManager(transactionManager)
-    , RichPath(richPath)
+    , RichPath(richPath.Simplify())
     , Logger(FileWriterLogger)
 {
     YCHECK(transactionManager);

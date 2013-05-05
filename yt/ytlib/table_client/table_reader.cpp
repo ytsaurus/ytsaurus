@@ -46,7 +46,7 @@ TAsyncTableReader::TAsyncTableReader(
     , TransactionId(transaction ? transaction->GetId() : NullTransactionId)
     , BlockCache(blockCache)
     , NodeDirectory(New<TNodeDirectory>())
-    , RichPath(richPath)
+    , RichPath(richPath.Simplify())
     , IsOpen(false)
     , IsReadStarted_(false)
     , Proxy(masterChannel)
@@ -63,9 +63,10 @@ TFuture<TTableYPathProxy::TRspFetchPtr> TAsyncTableReader::FetchTableInfo()
 {
     LOG_INFO("Fetching table info");
 
-    auto fetchReq = TTableYPathProxy::Fetch(RichPath);
-    SetTransactionId(fetchReq, TransactionId);
+    auto fetchReq = TTableYPathProxy::Fetch(RichPath.GetPath());
+    ToProto(fetchReq->mutable_attributes(), RichPath.Attributes());
     fetchReq->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
+    SetTransactionId(fetchReq, TransactionId);
     // ToDo(psushin): enable ignoring lost chunks.
 
     return Proxy.Execute(fetchReq);

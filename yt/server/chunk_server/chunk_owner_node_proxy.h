@@ -13,6 +13,7 @@
 #include <ytlib/ytree/node.h>
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/ytree/system_attribute_provider.h>
+#include <ytlib/ytree/attribute_helpers.h>
 
 #include <server/cypress_server/node_proxy_detail.h>
 
@@ -436,8 +437,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkOwnerNodeProxy<TChunkOwner>, Fetch)
 
     const auto* node = TBase::GetThisTypedImpl();
 
-    auto attributes = NYTree::ConvertToAttributes(NYTree::TYsonString(
-        request->Attributes().GetYson("path_attributes")));
+    auto attributes = NYTree::FromProto(request->attributes());
     auto channelAttribute = attributes->Find<NChunkClient::TChannel>("channel");
     auto lowerLimit = attributes->Get("lower_limit", NChunkClient::NProto::TReadLimit());
     auto upperLimit = attributes->Get("upper_limit", NChunkClient::NProto::TReadLimit());

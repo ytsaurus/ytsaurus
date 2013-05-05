@@ -365,16 +365,13 @@ public:
         auto oldResourceLimits = node->ResourceLimits();
         auto oldResourceUsage = node->ResourceUsage();
 
-        const auto& newResourceLimits = request->resource_limits();
-        const auto& newResourceUsage = request->resource_usage();
-
-        node->ResourceLimits() = newResourceLimits;
-        node->ResourceUsage() = newResourceUsage;
+        node->ResourceLimits() = request->resource_limits();
+        node->ResourceUsage() = request->resource_usage();
         
         // Update total resource limits _before_ processing the heartbeat to give
         // the scheduler the exact data on total resource limits.
         TotalResourceLimits -= oldResourceLimits;
-        TotalResourceLimits += newResourceLimits;
+        TotalResourceLimits += node->ResourceLimits();
 
         std::vector<TJobPtr> runningJobs;
         bool hasWaitingJobs = false;
@@ -467,7 +464,7 @@ public:
         // Update total resource usage _after_ processing the heartbeat to avoid
         // "unsaturated CPU" phenomenon.
         TotalResourceUsage -= oldResourceUsage;
-        TotalResourceUsage += newResourceUsage;
+        TotalResourceUsage += node->ResourceUsage();
     }
 
 

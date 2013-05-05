@@ -6,6 +6,7 @@ import "yt/ytlib/chunk_client/input_chunk.proto";
 import "yt/ytlib/misc/guid.proto";
 import "yt/ytlib/node_tracker_client/node.proto";
 import "yt/ytlib/chunk_client/chunk.proto";
+import "yt/ytlib/ytree/attributes.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,6 +35,9 @@ message TReqFetch
     // When set, master omits the lost chunks in the reply.
     // Otherwise request fails in presence of the unavailable chunks.
     optional bool skip_unavailable_chunks = 4 [default = false];
+
+    // Range and column selectors etc.
+    optional NYT.NYTree.NProto.TAttributes attributes = 5;
 }
 
 message TRspFetch
