@@ -277,6 +277,12 @@ bool TChunkPlacement::IsValidUploadTarget(TNode* targetNode)
         return false;
     }
 
+    auto config = targetNode->GetConfig();
+    if (config->Decommissioned) {
+        // Do not upload anything to decommissioned nodes.
+        return false;
+    }
+
     // Seems OK :)
     return true;
 }

@@ -41,10 +41,13 @@ class TNodeConfig
 {
 public:
     bool Banned;
+    bool Decommissioned;
 
     TNodeConfig()
     {
         RegisterParameter("banned", Banned)
+            .Default(false);
+        RegisterParameter("decommissioned", Banned)
             .Default(false);
     }
 };
