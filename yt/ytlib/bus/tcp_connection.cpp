@@ -130,8 +130,6 @@ void TTcpConnection::SyncInitialize()
         case EConnectionType::Server:
             InitFd();
             SyncOpen();
-            // Simulate read-write notification.
-            OnSocket(*SocketWatcher, ev::READ|ev::WRITE);
             break;
 
         default:
@@ -203,6 +201,9 @@ void TTcpConnection::SyncOpen()
 
     // Flush messages that were enqueued when the connection was still opening.
     ProcessOutcomingMessages();
+    
+    // Simulate read-write notification.
+    OnSocket(*SocketWatcher, ev::READ|ev::WRITE);
 }
 
 void TTcpConnection::SyncResolve()
