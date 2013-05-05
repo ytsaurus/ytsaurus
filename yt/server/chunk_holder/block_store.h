@@ -40,10 +40,11 @@ class TBlockStore
     : public TRefCounted
 {
 public:
-    //! Constructs a store.
     TBlockStore(
         TDataNodeConfigPtr config,
         NCellNode::TBootstrap* bootstrap);
+
+    void Initialize();
 
     ~TBlockStore();
 
