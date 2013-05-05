@@ -52,16 +52,17 @@ private:
 
     void Calibrate()
     {
-        auto cpuNow = GetCpuInstant();
+        auto nowCpuInstant = GetCpuInstant();
         auto nowInstant = TInstant::Now();
-        if (NextCalibrationCpuInstant != 0) {
-            auto expected = (CalibrationInstant + CpuDurationToDuration(cpuNow - CalibrationCpuInstant)).MicroSeconds();
+        // Beware of local time readjustments!
+        if (NextCalibrationCpuInstant != 0 && nowCpuInstant >= CalibrationCpuInstant) {
+            auto expected = (CalibrationInstant + CpuDurationToDuration(nowCpuInstant - CalibrationCpuInstant)).MicroSeconds();
             auto actual = nowInstant.MicroSeconds();
             LOG_DEBUG("Clock recalibrated (Diff: %" PRId64 ")", expected - actual);
         }
-        CalibrationCpuInstant = cpuNow;
+        CalibrationCpuInstant = nowCpuInstant;
         CalibrationInstant = nowInstant;
-        NextCalibrationCpuInstant = cpuNow + DurationToCpuDuration(CalibrationInterval);
+        NextCalibrationCpuInstant = nowCpuInstant + DurationToCpuDuration(CalibrationInterval);
     }
 
     TInstant CalibrationInstant;
