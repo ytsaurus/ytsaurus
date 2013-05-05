@@ -162,6 +162,14 @@ struct TMapOperationSpec
             JobIO->TableReader->MaxBufferSize = 1024L * 1024 * 1024;
         });
     }
+
+    virtual void OnLoaded() override
+    {
+        TOperationSpecBase::OnLoaded();
+
+        InputTablePaths = NYT::NYPath::Simplify(InputTablePaths);
+        OutputTablePaths = NYT::NYPath::Simplify(OutputTablePaths);
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -228,6 +236,14 @@ struct TMergeOperationSpec
         RegisterParameter("merge_by", MergeBy)
             .Default();
     }
+
+    virtual void OnLoaded() override
+    {
+        TMergeOperationSpecBase::OnLoaded();
+
+        InputTablePaths = NYT::NYPath::Simplify(InputTablePaths);
+        OutputTablePath = OutputTablePath.Simplify();
+    }
 };
 
 struct TUnorderedMergeOperationSpec
@@ -263,6 +279,13 @@ struct TEraseOperationSpec
         RegisterParameter("combine_chunks", CombineChunks)
             .Default(false);
     }
+
+    virtual void OnLoaded() override
+    {
+        TMergeOperationSpecBase::OnLoaded();
+
+        TablePath = TablePath.Simplify();
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -288,6 +311,14 @@ struct TReduceOperationSpec
         RegisterInitializer([&] () {
             DataSizePerJob = (i64) 32 * 1024 * 1024;
         });
+    }
+
+    virtual void OnLoaded() override
+    {
+        TMergeOperationSpecBase::OnLoaded();
+
+        InputTablePaths = NYT::NYPath::Simplify(InputTablePaths);
+        OutputTablePaths = NYT::NYPath::Simplify(OutputTablePaths);
     }
 };
 
@@ -355,6 +386,12 @@ struct TSortOperationSpecBase
             .Default(10);
     }
 
+    virtual void OnLoaded() override
+    {
+        TOperationSpecBase::OnLoaded();
+
+        InputTablePaths = NYT::NYPath::Simplify(InputTablePaths);
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -413,6 +450,13 @@ struct TSortOperationSpec
             MapSelectivityFactor = 1.0;
         });
     }
+
+    virtual void OnLoaded() override
+    {
+        TSortOperationSpecBase::OnLoaded();
+
+        OutputTablePath = OutputTablePath.Simplify();
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -439,7 +483,7 @@ struct TMapReduceOperationSpec
             .NonEmpty();
         RegisterParameter("reduce_by", ReduceBy)
             .Default();
-        // Mapper can be absent - leave it NULL by default.
+        // Mapper can be absent -- leave it Null by default.
         RegisterParameter("mapper", Mapper)
             .Default();
         RegisterParameter("reducer", Reducer)
@@ -482,9 +526,13 @@ struct TMapReduceOperationSpec
 
     virtual void OnLoaded() override
     {
+        TSortOperationSpecBase::OnLoaded();
+
         if (ReduceBy.empty()) {
             ReduceBy = SortBy;
         }
+
+        OutputTablePaths = NYT::NYPath::Simplify(OutputTablePaths);
     }
 };
 

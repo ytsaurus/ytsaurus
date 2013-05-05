@@ -41,7 +41,7 @@ TFileWriter::TFileWriter(
     , MasterChannel(masterChannel)
     , Transaction(transaction)
     , TransactionManager(transactionManager)
-    , RichPath(richPath)
+    , RichPath(richPath.Simplify())
     , Attributes(attributes ? attributes->Clone() : CreateEphemeralAttributes())
     , Logger(FileWriterLogger)
 {
@@ -85,11 +85,11 @@ void TFileWriter::Open()
 
     LOG_INFO("Creating file node");
     {
-        auto req = TCypressYPathProxy::Create(RichPath);
+        auto req = TCypressYPathProxy::Create(RichPath.GetPath());
         NMetaState::GenerateMutationId(req);
-        SetTransactionId(req, UploadTransaction);
         req->set_type(EObjectType::File);
         ToProto(req->mutable_node_attributes(), *Attributes);
+        SetTransactionId(req, UploadTransaction);
 
         auto rsp = proxy.Execute(req).Get();
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error creating file node");

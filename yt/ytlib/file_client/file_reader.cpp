@@ -58,7 +58,7 @@ void TFileReader::Open(
     LOG_INFO("Opening file reader");
 
     LOG_INFO("Fetching file info");
-    auto fetchReq = TFileYPathProxy::FetchFile(richPath);
+    auto fetchReq = TFileYPathProxy::FetchFile(richPath.Simplify().GetPath());
     SetTransactionId(fetchReq, transaction);
 
     NObjectClient::TObjectServiceProxy proxy(masterChannel);

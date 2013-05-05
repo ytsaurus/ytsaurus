@@ -1350,8 +1350,8 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::CommitResults()
                 ~table.Path.GetPath(),
                 ~ConvertToYsonString(table.Options->KeyColumns.Get(), EYsonFormat::Text).Data());
             auto req = TTableYPathProxy::SetSorted(path);
-            SetTransactionId(req, Operation->GetOutputTransaction());
             ToProto(req->mutable_key_columns(), table.Options->KeyColumns.Get());
+            SetTransactionId(req, Operation->GetOutputTransaction());
             NMetaState::GenerateMutationId(req);
             batchReq->AddRequest(req, "set_out_sorted");
         }
@@ -1467,15 +1467,15 @@ void TOperationControllerBase::OnInputTypesReceived(TObjectServiceProxy::TRspExe
         auto getInputTypes = batchRsp->GetResponses<TObjectYPathProxy::TRspGet>("get_input_types");
         for (int index = 0; index < static_cast<int>(InputTables.size()); ++index) {
             auto& table = InputTables[index];
-            const auto& path = table.Path;
+            auto path = table.Path.GetPath();
             auto rsp = getInputTypes[index];
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting type for input %s",
-                ~path.GetPath());
+                ~path);
 
             auto type = ConvertTo<EObjectType>(TYsonString(rsp->value()));
             if (type != EObjectType::Table) {
                 THROW_ERROR_EXCEPTION("Object %s has invalid type: expected %s, actual %s",
-                    ~path.GetPath(),
+                    ~path,
                     ~FormatEnum(EObjectType(EObjectType::Table)).Quote(),
                     ~FormatEnum(type).Quote());
             }
@@ -1486,15 +1486,15 @@ void TOperationControllerBase::OnInputTypesReceived(TObjectServiceProxy::TRspExe
         auto getOutputTypes = batchRsp->GetResponses<TObjectYPathProxy::TRspGet>("get_output_types");
         for (int index = 0; index < static_cast<int>(OutputTables.size()); ++index) {
             auto& table = OutputTables[index];
-            const auto& path = table.Path;
+            auto path = table.Path.GetPath();
             auto rsp = getOutputTypes[index];
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting type for output %s",
-                ~path.GetPath());
+                ~path);
 
             auto type = ConvertTo<EObjectType>(TYsonString(rsp->value()));
             if (type != EObjectType::Table) {
                 THROW_ERROR_EXCEPTION("Object %s has invalid type: expected %s, actual %s",
-                    ~path.GetPath(),
+                    ~path,
                     ~FormatEnum(EObjectType(EObjectType::Table)).Quote(),
                     ~FormatEnum(type).Quote());
             }
@@ -1505,11 +1505,12 @@ void TOperationControllerBase::OnInputTypesReceived(TObjectServiceProxy::TRspExe
         auto paths = GetFilePaths();
         auto getFileTypes = batchRsp->GetResponses<TObjectYPathProxy::TRspGet>("get_file_types");
         for (int index = 0; index < static_cast<int>(paths.size()); ++index) {
-            auto path = paths[index].first;
+            auto richPath = paths[index].first;
+            auto path = richPath.GetPath();
             auto stage = paths[index].second;
             auto rsp = getFileTypes[index];
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting type for file %s",
-                ~path.GetPath());
+                ~path);
 
             auto type = ConvertTo<EObjectType>(TYsonString(rsp->value()));
             TUserFile* file;
@@ -1524,13 +1525,13 @@ void TOperationControllerBase::OnInputTypesReceived(TObjectServiceProxy::TRspExe
                     break;
                 default:
                     THROW_ERROR_EXCEPTION("Object %s has invalid type: expected %s or %s, actual %s",
-                        ~path.GetPath(),
+                        ~path,
                         ~FormatEnum(EObjectType(EObjectType::File)).Quote(),
                         ~FormatEnum(EObjectType(EObjectType::Table)).Quote(),
                         ~FormatEnum(type).Quote());
             }
             file->Stage = stage;
-            file->Path = path;
+            file->Path = richPath;
         }
     }
 
@@ -1549,31 +1550,30 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
         auto path = FromObjectId(table.ObjectId);
         {
             auto req = TCypressYPathProxy::Lock(path);
-            SetTransactionId(req, Operation->GetInputTransaction());
             req->set_mode(ELockMode::Snapshot);
+            SetTransactionId(req, Operation->GetInputTransaction());
             NMetaState::GenerateMutationId(req);
             batchReq->AddRequest(req, "lock_in");
         }
         {
-            // Construct rich YPath for fetch.
             auto attributes = table.Path.Attributes().Clone();
             if (table.ComplementFetch) {
                 attributes->Set("complement", !attributes->Get("complement", false));
             }
-            TRichYPath fetchPath(table.Path.GetPath(), *attributes);
-            auto req = TTableYPathProxy::Fetch(fetchPath);
-            SetTransactionId(req, Operation->GetInputTransaction());
+            auto req = TTableYPathProxy::Fetch(path);
             req->set_fetch_all_meta_extensions(true);
             req->set_skip_unavailable_chunks(Spec->SkipUnavailableChunks);
+            ToProto(req->mutable_attributes(), *attributes);
+            SetTransactionId(req, Operation->GetInputTransaction());
             batchReq->AddRequest(req, "fetch_in");
         }
         {
             auto req = TYPathProxy::Get(path);
-            SetTransactionId(req, Operation->GetInputTransaction());
             TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly);
             attributeFilter.Keys.push_back("sorted");
             attributeFilter.Keys.push_back("sorted_by");
             ToProto(req->mutable_attribute_filter(), attributeFilter);
+            SetTransactionId(req, Operation->GetInputTransaction());
             batchReq->AddRequest(req, "get_in_attributes");
         }
     }
@@ -1582,14 +1582,13 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
         auto path = FromObjectId(table.ObjectId);
         {
             auto req = TCypressYPathProxy::Lock(path);
-            SetTransactionId(req, Operation->GetOutputTransaction());
             req->set_mode(table.LockMode);
             NMetaState::GenerateMutationId(req);
+            SetTransactionId(req, Operation->GetOutputTransaction());
             batchReq->AddRequest(req, "lock_out");
         }
         {
             auto req = TYPathProxy::Get(path);
-            SetTransactionId(req, Operation->GetOutputTransaction());
             TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly);
             attributeFilter.Keys.push_back("channels");
             attributeFilter.Keys.push_back("compression_codec");
@@ -1597,13 +1596,14 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
             attributeFilter.Keys.push_back("replication_factor");
             attributeFilter.Keys.push_back("account");
             ToProto(req->mutable_attribute_filter(), attributeFilter);
+            SetTransactionId(req, Operation->GetOutputTransaction());
             batchReq->AddRequest(req, "get_out_attributes");
         }
         {
             auto req = TTableYPathProxy::PrepareForUpdate(path);
+            req->set_mode(table.Clear ? ETableUpdateMode::Overwrite : ETableUpdateMode::Append);
             SetTransactionId(req, Operation->GetOutputTransaction());
             NMetaState::GenerateMutationId(req);
-            req->set_mode(table.Clear ? ETableUpdateMode::Overwrite : ETableUpdateMode::Append);
             batchReq->AddRequest(req, "prepare_for_update");
         }
     }
@@ -1612,9 +1612,9 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
         auto path = file.Path.GetPath();
         {
             auto req = TCypressYPathProxy::Lock(path);
-            SetTransactionId(req, Operation->GetInputTransaction());
             req->set_mode(ELockMode::Snapshot);
             NMetaState::GenerateMutationId(req);
+            SetTransactionId(req, Operation->GetInputTransaction());
             batchReq->AddRequest(req, "lock_regular_file");
         }
         {
@@ -1625,17 +1625,18 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
     }
 
     FOREACH (const auto& file, TableFiles) {
-        auto path = file.Path;
+        auto path = file.Path.GetPath();
         {
             auto req = TCypressYPathProxy::Lock(path);
-            SetTransactionId(req, Operation->GetInputTransaction());
             req->set_mode(ELockMode::Snapshot);
             NMetaState::GenerateMutationId(req);
+            SetTransactionId(req, Operation->GetInputTransaction());
             batchReq->AddRequest(req, "lock_table_file");
         }
         {
             auto req = TTableYPathProxy::Fetch(path);
             req->set_fetch_all_meta_extensions(true);
+            ToProto(req->mutable_attributes(), file.Path.Attributes());
             SetTransactionId(req, Operation->GetInputTransaction()->GetId());
             batchReq->AddRequest(req, "fetch_table_file_chunks");
         }
@@ -1645,7 +1646,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
             batchReq->AddRequest(req, "get_table_file_name");
         }
         {
-            auto req = TYPathProxy::Get(file.Path.GetPath() + "/@uncompressed_data_size");
+            auto req = TYPathProxy::Get(path + "/@uncompressed_data_size");
             SetTransactionId(req, Operation->GetInputTransaction()->GetId());
             batchReq->AddRequest(req, "get_table_file_size");
         }
@@ -1668,18 +1669,19 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
         auto getInAttributesRsps = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_in_attributes");
         for (int index = 0; index < static_cast<int>(InputTables.size()); ++index) {
             auto& table = InputTables[index];
+            auto path = table.Path.GetPath();
             {
                 auto rsp = lockInRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error locking input table %s",
-                    ~table.Path.GetPath());
+                    ~path);
 
                 LOG_INFO("Input table %s locked",
-                    ~table.Path.GetPath());
+                    ~path);
             }
             {
                 auto rsp = fetchInRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error fetching input table %s",
-                    ~table.Path.GetPath());
+                    ~path);
 
                 NodeDirectory->MergeFrom(rsp->node_directory());
 
@@ -1690,13 +1692,13 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                     InputChunkIds.insert(chunkId);
                 }
                 LOG_INFO("Input table %s has %d chunks",
-                    ~table.Path.GetPath(),
+                    ~path,
                     rsp->chunks_size());
             }
             {
                 auto rsp = getInAttributesRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting attributes for input table %s",
-                    ~table.Path.GetPath());
+                    ~path);
 
                 auto node = ConvertToNode(TYsonString(rsp->value()));
                 const auto& attributes = node->Attributes();
@@ -1704,11 +1706,11 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 if (attributes.Get<bool>("sorted")) {
                     table.KeyColumns = attributes.Get< std::vector<Stroka> >("sorted_by");
                     LOG_INFO("Input table %s is sorted by %s",
-                        ~table.Path.GetPath(),
+                        ~path,
                         ~ConvertToYsonString(table.KeyColumns.Get(), EYsonFormat::Text).Data());
                 } else {
                     LOG_INFO("Input table %s is not sorted",
-                        ~table.Path.GetPath());
+                        ~path);
                 }
             }
         }
@@ -1720,18 +1722,19 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
         auto prepareForUpdateRsps = batchRsp->GetResponses<TTableYPathProxy::TRspPrepareForUpdate>("prepare_for_update");
         for (int index = 0; index < static_cast<int>(OutputTables.size()); ++index) {
             auto& table = OutputTables[index];
+            auto path = table.Path.GetPath();
             {
                 auto rsp = lockOutRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error locking output table %s",
-                    ~table.Path.GetPath());
+                    ~path);
 
                 LOG_INFO("Output table %s locked",
-                    ~table.Path.GetPath());
+                    ~path);
             }
             {
                 auto rsp = getOutAttributesRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting attributes for output table %s",
-                    ~table.Path.GetPath());
+                    ~path);
 
                 auto node = ConvertToNode(TYsonString(rsp->value()));
                 const auto& attributes = node->Attributes();
@@ -1750,17 +1753,17 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 table.Options->Account = attributes.Get<Stroka>("account");
 
                 LOG_INFO("Output table %s attributes received (Options: %s)",
-                    ~table.Path.GetPath(),
+                    ~path,
                     ~ConvertToYsonString(table.Options, EYsonFormat::Text).Data());
             }
             {
                 auto rsp = prepareForUpdateRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error preparing output table %s for update",
-                    ~table.Path.GetPath());
+                    ~path);
 
                 table.OutputChunkListId = FromProto<TChunkListId>(rsp->chunk_list_id());
                 LOG_INFO("Output table %s has output chunk list %s",
-                    ~table.Path.GetPath(),
+                    ~path,
                     ~ToString(table.OutputChunkListId));
             }
         }
@@ -1771,13 +1774,14 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
         auto fetchRegularFileRsps = batchRsp->GetResponses<TFileYPathProxy::TRspFetchFile>("fetch_regular_file");
         for (int index = 0; index < static_cast<int>(RegularFiles.size()); ++index) {
             auto& file = RegularFiles[index];
+            auto path = file.Path.GetPath();
             {
                 auto rsp = lockRegularFileRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error locking regular file %s",
-                    ~file.Path.GetPath());
+                    ~path);
 
                 LOG_INFO("Regular file %s locked",
-                    ~file.Path.GetPath());
+                    ~path);
             }
             {
                 auto rsp = fetchRegularFileRsps[index];
@@ -1790,7 +1794,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 }
                 file.FetchResponse = rsp;
                 LOG_INFO("File %s attributes received (ChunkId: %s)",
-                    ~file.Path.GetPath(),
+                    ~path,
                     ~ToString(FromProto<TChunkId>(rsp->chunk_id())));
             }
         }
@@ -1803,13 +1807,14 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
         auto getTableFileNameRsps = batchRsp->GetResponses<TYPathProxy::TRspGetKey>("get_table_file_name");
         for (int index = 0; index < static_cast<int>(TableFiles.size()); ++index) {
             auto& file = TableFiles[index];
+            auto path = file.Path.GetPath();
             {
                 auto rsp = lockTableFileRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error locking table file %s",
-                    ~file.Path.GetPath());
+                    ~path);
 
                 LOG_INFO("Table file %s locked",
-                    ~file.Path.GetPath());
+                    ~path);
             }
             {
                 auto rsp = getTableFileSizeRsps[index];
@@ -1818,7 +1823,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 if (tableSize > Config->MaxTableFileSize) {
                     THROW_ERROR_EXCEPTION(
                         "Table file %s exceeds the size limit: " PRId64 " > " PRId64,
-                        ~file.Path.GetPath(),
+                        ~path,
                         tableSize,
                         Config->MaxTableFileSize);
                 }
@@ -1842,7 +1847,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                     chunkIds.push_back(FromProto<TChunkId>(chunk.chunk_id()));
                 }
                 LOG_INFO("Table file %s attributes received (FileName: %s, Format: %s, ChunkIds: [%s])",
-                    ~file.Path.GetPath(),
+                    ~path,
                     ~file.FileName,
                     ~file.Format.Data(),
                     ~JoinToString(chunkIds));

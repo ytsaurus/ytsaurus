@@ -1,8 +1,9 @@
 package NYT.NTableClient.NProto;
 
-import "yt/ytlib/chunk_client/input_chunk.proto";
 import "yt/ytlib/misc/guid.proto";
+import "yt/ytlib/ytree/attributes.proto";
 import "yt/ytlib/node_tracker_client/node.proto";
+import "yt/ytlib/chunk_client/input_chunk.proto";
 import "yt/ytlib/chunk_client/chunk.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -32,6 +33,9 @@ message TReqFetch
     // When set, master omits unavailable chunks from the reply.
     // Otherwise request fails in presence of unavailable chunks.
     optional bool skip_unavailable_chunks = 3 [default = false];
+
+    // Range and column selectors etc.
+    optional NYT.NYTree.NProto.TAttributes attributes = 4;
 }
 
 message TRspFetch

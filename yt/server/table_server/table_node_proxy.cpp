@@ -10,6 +10,7 @@
 
 #include <ytlib/ytree/tree_builder.h>
 #include <ytlib/ytree/ephemeral_node_factory.h>
+#include <ytlib/ytree/attribute_helpers.h>
 
 #include <ytlib/yson/parser.h>
 #include <ytlib/yson/tokenizer.h>
@@ -728,7 +729,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
 
     const auto* node = GetThisTypedImpl();
 
-    auto attributes = ConvertToAttributes(TYsonString(request->Attributes().GetYson("path_attributes")));
+    auto attributes = FromProto(request->attributes());
     auto channel = attributes->Get("channel", TChannel::Universal());
     auto lowerLimit = attributes->Get("lower_limit", TReadLimit());
     auto upperLimit = attributes->Get("upper_limit", TReadLimit());

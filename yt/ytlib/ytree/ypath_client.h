@@ -118,12 +118,10 @@ protected:
     typedef TIntrusivePtr<TReq##method> TReq##method##Ptr; \
     typedef TIntrusivePtr<TRsp##method> TRsp##method##Ptr; \
     \
-    static TReq##method##Ptr method(const NYT::NYPath::TRichYPath& path = "") \
+    static TReq##method##Ptr method(const NYT::NYPath::TYPath& path = "") \
     { \
         auto req = New<TReq##method>(#method); \
-        auto simplified = path.Simplify(); \
-        req->SetPath(simplified.GetPath()); \
-        req->MutableAttributes()->SetYson("path_attributes", ConvertToYsonString(simplified.Attributes())); \
+        req->SetPath(path); \
         return req; \
     }
 
