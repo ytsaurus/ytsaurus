@@ -122,7 +122,11 @@ private:
 
         // Update the attributes and check if they still deserialize OK.
         auto attributes = Attributes().Clone();
-        attributes->Set(key, newValue);
+        if (newValue) {
+            attributes->Set(key, *newValue);
+        } else {
+            attributes->Remove(key);
+        }
         ConvertTo<TNodeConfigPtr>(attributes->ToMap());
     }
 
