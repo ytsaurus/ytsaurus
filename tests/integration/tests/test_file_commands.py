@@ -16,9 +16,9 @@ class TestFileCommands(YTEnvSetup):
         upload('//tmp/file', content)
         assert download('//tmp/file') == content
 
-        chunk_id = get('//tmp/file/@chunk_id')
-        assert get_chunks() == [chunk_id]
-        assert get('//tmp/file/@umcompressed_data_size') == len(content)
+        chunk_ids = get('//tmp/file/@chunk_ids')
+        assert get_chunks() == chunk_ids
+        assert get('//tmp/file/@uncompressed_data_size') == len(content)
 
         # check that chunk was deleted
         remove('//tmp/file')
@@ -30,8 +30,8 @@ class TestFileCommands(YTEnvSetup):
         upload('//tmp/file', content)
         assert download('//tmp/file') == content
 
-        chunk_id = get('//tmp/file/@chunk_id')
-        assert get_chunks() == [chunk_id]
+        chunk_ids = get('//tmp/file/@chunk_ids')
+        assert get_chunks() == chunk_ids
         assert get('//tmp/file/@uncompressed_data_size') == len(content)
 
         # check that chunk was deleted
@@ -49,8 +49,8 @@ class TestFileCommands(YTEnvSetup):
         assert download('//tmp/file', opt=['/length=%d' % length]) == content[:length]
         assert download('//tmp/file', opt=['/offset=%d' % offset, '/length=%d' % length]) == content[offset:offset + length]
 
-        chunk_id = get('//tmp/file/@chunk_id')
-        assert get_chunks() == [chunk_id]
+        chunk_ids = get('//tmp/file/@chunk_ids')
+        assert get_chunks() == chunk_ids
         assert get('//tmp/file/@size') == len(content)
 
         # check that chunk was deleted
