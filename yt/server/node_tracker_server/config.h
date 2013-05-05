@@ -36,6 +36,22 @@ public:
     }
 };
 
+class TNodeConfig
+    : public TYsonSerializable
+{
+public:
+    bool Banned;
+    bool Decommissioned;
+
+    TNodeConfig()
+    {
+        RegisterParameter("banned", Banned)
+            .Default(false);
+        RegisterParameter("decommissioned", Decommissioned)
+            .Default(false);
+    }
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NNodeTrackerServer

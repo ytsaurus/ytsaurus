@@ -15,15 +15,18 @@ using namespace NChunkServer;
 
 TNode::TNode(
     TNodeId id,
-    const TNodeDescriptor& descriptor)
+    const TNodeDescriptor& descriptor,
+    TNodeConfigPtr config)
     : Id_(id)
     , Descriptor_(descriptor)
+    , Config_(config)
 {
     Init();
 }
 
 TNode::TNode(TNodeId id)
     : Id_(id)
+    , Config_(New<TNodeConfig>())
 {
     Init();
 }
@@ -35,6 +38,9 @@ void TNode::Init()
     HintedSessionCount_ = 0;
 }
 
+TNode::~TNode()
+{ }
+
 const TNodeDescriptor& TNode::GetDescriptor() const
 {
     return Descriptor_;
@@ -43,6 +49,11 @@ const TNodeDescriptor& TNode::GetDescriptor() const
 const Stroka& TNode::GetAddress() const
 {
     return Descriptor_.Address;
+}
+
+const TNodeConfigPtr& TNode::GetConfig() const
+{
+    return Config_;
 }
 
 void TNode::Save(const NCellMaster::TSaveContext& context) const

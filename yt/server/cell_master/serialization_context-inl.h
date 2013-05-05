@@ -12,6 +12,7 @@
 #include <server/cypress_server/node.h>
 
 #include <server/node_tracker_server/node.h>
+#include <server/node_tracker_server/config.h>
 
 #include <server/chunk_server/chunk.h>
 #include <server/chunk_server/chunk_replica.h>

@@ -59,6 +59,10 @@ void TPeriodicInvoker::ScheduleNext()
     if (!AtomicGet(Started))
         return;
 
+    // There several reasons why this may fail:
+    // 1) Calling ScheduleNext outside of the periodic action
+    // 2) Calling ScheduleNext more than once
+    // 3) Calling ScheduleNext for an invoker in automatic mode
     YCHECK(AtomicCas(&Busy, false, true));
 
     if (AtomicCas(&OutOfBandRequested, false, true)) {

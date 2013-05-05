@@ -14,8 +14,8 @@ import sys
 import string
 import uuid
 import time
+import httplib
 import simplejson as json
-from datetime import date
 
 def iter_lines(response):
     """
@@ -238,7 +238,7 @@ def make_request(command_name, params,
                     timeout=config.CONNECTION_TIMEOUT,
                     stream=stream))
             break
-        except (requests.HTTPError, requests.ConnectionError, requests.Timeout):
+        except (requests.HTTPError, requests.ConnectionError, requests.Timeout, httplib.IncompleteRead):
             if make_retry:
                 logger.warning("Retrying http request for command " + command_name)
                 time.sleep(config.HTTP_RETRY_TIMEOUT)

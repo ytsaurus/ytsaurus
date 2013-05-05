@@ -2,13 +2,22 @@
 #include "node_tracker.h"
 #include "config.h"
 #include "node.h"
-#include "node_authority.h"
 #include "private.h"
 
 #include <ytlib/misc/id_generator.h>
 #include <ytlib/misc/address.h>
 
+#include <ytlib/ytree/convert.h>
+
+#include <ytlib/ypath/token.h>
+
+#include <ytlib/cypress_client/cypress_ypath_proxy.h>
+
+#include <ytlib/object_client/public.h>
+
 #include <server/chunk_server/job.h>
+
+#include <server/cypress_server/cypress_manager.h>
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/meta_state_facade.h>
@@ -17,13 +26,19 @@
 namespace NYT {
 namespace NNodeTrackerServer {
 
+using namespace NYTree;
+using namespace NYPath;
 using namespace NNodeTrackerClient;
+using namespace NNodeTrackerClient::NProto;
 using namespace NMetaState;
 using namespace NCellMaster;
+using namespace NObjectClient;
+using namespace NCypressClient;
+using namespace NNodeTrackerServer::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& SILENT_UNUSED Logger = NodeTrackerServerLogger;
+static NLog::TLogger& Logger = NodeTrackerServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -83,11 +98,13 @@ public:
                 BIND(&TImpl::SaveValues, MakeStrong(this)),
                 context);
         }
+
+        SubscribeNodeConfigUpdated(BIND(&TImpl::OnNodeConfigUpdated, Unretained(this)));
     }
 
 
     TMutationPtr CreateRegisterNodeMutation(
-        const NProto::TMetaReqRegisterNode& request)
+        const TMetaReqRegisterNode& request)
     {
         return Bootstrap
             ->GetMetaStateFacade()
@@ -95,7 +112,7 @@ public:
     }
 
     TMutationPtr CreateUnregisterNodeMutation(
-        const NProto::TMetaReqUnregisterNode& request)
+        const TMetaReqUnregisterNode& request)
     {
         return Bootstrap
             ->GetMetaStateFacade()
@@ -114,7 +131,7 @@ public:
     }
 
     TMutationPtr CreateIncrementalHeartbeatMutation(
-        const NProto::TMetaReqIncrementalHeartbeat& request)
+        const TMetaReqIncrementalHeartbeat& request)
     {
         return Bootstrap
             ->GetMetaStateFacade()
@@ -122,12 +139,31 @@ public:
     }
 
 
+    void RefreshNodeConfig(TNode* node)
+    {
+        auto attributes = DoFindNodeConfig(node->GetAddress());
+        if (!attributes)
+            return;
+
+        if (!ReconfigureYsonSerializable(node->GetConfig(), attributes))
+            return;
+
+        LOG_INFO("Node configuration updated (Address: %s)", ~node->GetAddress());
+
+        // Check for runtime changes.
+        if (IsLeader()) {
+            NodeConfigUpdated_.Fire(node);
+        }
+    }
+
+
     DECLARE_METAMAP_ACCESSORS(Node, TNode, TNodeId);
 
     DEFINE_SIGNAL(void(TNode* node), NodeRegistered);
     DEFINE_SIGNAL(void(TNode* node), NodeUnregistered);
-    DEFINE_SIGNAL(void(TNode* node, const NProto::TMetaReqFullHeartbeat& request), FullHeartbeat);
-    DEFINE_SIGNAL(void(TNode* node, const NProto::TMetaReqIncrementalHeartbeat& request), IncrementalHeartbeat);
+    DEFINE_SIGNAL(void(TNode* node), NodeConfigUpdated);
+    DEFINE_SIGNAL(void(TNode* node, const TMetaReqFullHeartbeat& request), FullHeartbeat);
+    DEFINE_SIGNAL(void(TNode* node, const TMetaReqIncrementalHeartbeat& request), IncrementalHeartbeat);
 
 
     TNode* FindNodeByAddress(const Stroka& address)
@@ -162,6 +198,28 @@ public:
     }
 
 
+    TNodeConfigPtr FindNodeConfigByAddress(const Stroka& address)
+    {
+        auto attributes = DoFindNodeConfig(address);
+        if (!attributes) {
+            return nullptr;
+        }
+
+        try {
+            return ConvertTo<TNodeConfigPtr>(attributes);
+        } catch (const std::exception& ex) {
+            LOG_WARNING(ex, "Error parsing configuration of node %s, defaults will be used", ~address);
+            return nullptr;
+        }
+    }
+
+    TNodeConfigPtr GetNodeConfigByAddress(const Stroka& address)
+    {
+        auto config = FindNodeConfigByAddress(address);
+        return config ? config : New<TNodeConfig>();
+    }
+
+    
     TTotalNodeStatistics GetTotalNodeStatistics()
     {
         TTotalNodeStatistics result;
@@ -222,8 +280,25 @@ private:
         return id;
     }
 
+    IMapNodePtr DoFindNodeConfig(const Stroka& address)
+    {
+        auto cypressManager = Bootstrap->GetCypressManager();
+        auto resolver = cypressManager->CreateResolver();
 
-    NProto::TMetaRspRegisterNode RegisterNode(const NProto::TMetaReqRegisterNode& request)
+        auto nodesNode = resolver->ResolvePath("//sys/nodes");
+        YCHECK(nodesNode);
+
+        auto nodesMap = nodesNode->AsMap();
+        auto nodeNode = nodesMap->FindChild(address);
+        if (!nodeNode) {
+            return nullptr;
+        }
+
+        return nodeNode->Attributes().ToMap();
+    }
+
+
+    TMetaRspRegisterNode RegisterNode(const TMetaReqRegisterNode& request)
     {
         auto descriptor = FromProto<NNodeTrackerClient::TNodeDescriptor>(request.node_descriptor());
         const auto& statistics = request.statistics();
@@ -242,20 +317,21 @@ private:
 
         auto* node = DoRegisterNode(descriptor, statistics);
 
-        NProto::TMetaRspRegisterNode response;
+        TMetaRspRegisterNode response;
         response.set_node_id(node->GetId());
         return response;
     }
 
-    void UnregisterNode(const NProto::TMetaReqUnregisterNode& request)
+    void UnregisterNode(const TMetaReqUnregisterNode& request)
     {
         auto nodeId = request.node_id();
 
         // Allow nodeId to be invalid, just ignore such obsolete requests.
         auto* node = FindNode(nodeId);
-        if (node) {
-            DoUnregisterNode(node);
-        }
+        if (!node)
+            return;
+
+        DoUnregisterNode(node);
     }
 
 
@@ -264,7 +340,7 @@ private:
         return FullHeartbeat(context->Request());
     }
 
-    void FullHeartbeat(const NProto::TMetaReqFullHeartbeat& request)
+    void FullHeartbeat(const TMetaReqFullHeartbeat& request)
     {
         PROFILE_TIMING ("/full_heartbeat_time") {
             auto nodeId = request.node_id();
@@ -298,7 +374,7 @@ private:
     }
 
 
-    void IncrementalHeartbeat(const NProto::TMetaReqIncrementalHeartbeat& request)
+    void IncrementalHeartbeat(const TMetaReqIncrementalHeartbeat& request)
     {
         PROFILE_TIMING ("/incremental_heartbeat_time") {
             auto nodeId = request.node_id();
@@ -380,6 +456,7 @@ private:
             NodeHostNameMap.insert(std::make_pair(Stroka(GetServiceHostName(address)), node));
 
             UpdateNodeCounters(node, +1);
+            RefreshNodeConfig(node);
         }
     }
 
@@ -485,14 +562,69 @@ private:
         }
     }
 
+    void OnExpired(TNodeId nodeId)
+    {
+        auto* node = FindNode(nodeId);
+        if (!node)
+            return;
 
-    TNode* DoRegisterNode(const TNodeDescriptor& descriptor, const NNodeTrackerClient::NProto::TNodeStatistics& statistics)
+        LOG_INFO("Node lease expired (NodeId: %d, Address: %s)",
+            nodeId,
+            ~node->GetAddress());
+
+        PostUnregisterCommit(nodeId);
+    }
+
+
+    void RegisterNodeInCypress(TNode* node)
+    {
+        // We're already in the state thread but need to postpone the planned changes and enqueue a callback.
+        // Doing otherwise will turn node registration and Cypress update into a single
+        // logged change, which is undesirable.
+        auto metaStateFacade = Bootstrap->GetMetaStateFacade();
+        const auto& address = node->GetAddress();
+        BIND(&TImpl::DoRegisterNodeInCypress, MakeStrong(this), address)
+            .Via(metaStateFacade->GetEpochInvoker())
+            .Run();
+    }
+
+    void DoRegisterNodeInCypress(const Stroka& address)
+    {
+        // TODO(babenko): make a single transaction
+        // TODO(babenko): check for errors and retry
+        auto addressToken = ToYPathLiteral(address);
+
+        auto cypressManager = Bootstrap->GetCypressManager();
+        auto rootService = cypressManager->GetRootService();
+        {
+            auto req = TCypressYPathProxy::Create("/sys/nodes/" + addressToken);
+            req->set_type(EObjectType::CellNode);
+            req->set_ignore_existing(true);
+            ExecuteVerb(rootService, req);
+        }
+
+        {
+            auto req = TCypressYPathProxy::Create("/sys/nodes/" + addressToken + "/orchid");
+            req->set_type(EObjectType::Orchid);
+            req->set_ignore_existing(true);
+
+            auto attributes = CreateEphemeralAttributes();
+            attributes->Set("remote_address", address);
+            ToProto(req->mutable_node_attributes(), *attributes);
+
+            ExecuteVerb(rootService, req);
+        }
+    }
+
+
+    TNode* DoRegisterNode(const TNodeDescriptor& descriptor, const TNodeStatistics& statistics)
     {
         PROFILE_TIMING ("/node_register_time") {
             const auto& address = descriptor.Address;
+            auto config = GetNodeConfigByAddress(address);
             auto nodeId = GenerateNodeId();
 
-            auto* node = new TNode(nodeId, descriptor);
+            auto* node = new TNode(nodeId, descriptor, config);
             node->SetState(ENodeState::Registered);
             node->Statistics() = statistics;
 
@@ -504,6 +636,7 @@ private:
 
             if (IsLeader()) {
                 StartNodeLease(node);
+                RegisterNodeInCypress(node);
             }
 
             LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %d, Address: %s, %s)",
@@ -551,35 +684,39 @@ private:
     }
 
 
-    void OnExpired(TNodeId nodeId)
+    void PostUnregisterCommit(TNodeId nodeId)
     {
-        auto* node = FindNode(nodeId);
-        if (!node)
-            return;
-        
-        LOG_INFO("Node lease expired (NodeId: %d)", nodeId);
-
-        NProto::TMetaReqUnregisterNode message;
+        TMetaReqUnregisterNode message;
         message.set_node_id(nodeId);
 
         auto invoker = Bootstrap->GetMetaStateFacade()->GetEpochInvoker();
         CreateUnregisterNodeMutation(message)
-            ->OnSuccess(BIND(&TThis::OnExpirationCommitSucceeded, MakeStrong(this), nodeId).Via(invoker))
-            ->OnError(BIND(&TThis::OnExpirationCommitFailed, MakeStrong(this), nodeId).Via(invoker))
-            ->Commit();
+            ->OnSuccess(BIND(&TThis::OnUnregisterCommitSucceeded, MakeStrong(this), nodeId).Via(invoker))
+            ->OnError(BIND(&TThis::OnUnregisterCommitFailed, MakeStrong(this), nodeId).Via(invoker))
+            ->PostCommit();
     }
 
-    void OnExpirationCommitSucceeded(TNodeId nodeId)
+    void OnUnregisterCommitSucceeded(TNodeId nodeId)
     {
-        LOG_INFO("Node expiration commit succeeded (NodeId: %d)",
+        LOG_INFO("Node unregister commit succeeded (NodeId: %d)",
             nodeId);
     }
 
-    void OnExpirationCommitFailed(TNodeId nodeId, const TError& error)
+    void OnUnregisterCommitFailed(TNodeId nodeId, const TError& error)
     {
-        LOG_ERROR(error, "Node expiration commit failed (NodeId: %d)",
+        LOG_ERROR(error, "Node unregister commit failed (NodeId: %d)",
             nodeId);
     }
+
+
+    void OnNodeConfigUpdated(TNode* node)
+    {
+        if (node->GetConfig()->Banned) {
+            LOG_INFO("Node banned (Address: %s)", ~node->GetAddress());
+            PostUnregisterCommit(node->GetId());
+        }
+    }
+
 };
 
 DEFINE_METAMAP_ACCESSORS(TNodeTracker::TImpl, Node, TNode, TNodeId, NodeMap)
@@ -615,14 +752,24 @@ TNode* TNodeTracker::GetNodeOrThrow(TNodeId id)
     return Impl->GetNodeOrThrow(id);
 }
 
+TNodeConfigPtr TNodeTracker::FindNodeConfigByAddress(const Stroka& address)
+{
+    return Impl->FindNodeConfigByAddress(address);
+}
+
+TNodeConfigPtr TNodeTracker::GetNodeConfigByAddress(const Stroka& address)
+{
+    return Impl->GetNodeConfigByAddress(address);
+}
+
 TMutationPtr TNodeTracker::CreateRegisterNodeMutation(
-    const NProto::TMetaReqRegisterNode& request)
+    const TMetaReqRegisterNode& request)
 {
     return Impl->CreateRegisterNodeMutation(request);
 }
 
 TMutationPtr TNodeTracker::CreateUnregisterNodeMutation(
-    const NProto::TMetaReqUnregisterNode& request)
+    const TMetaReqUnregisterNode& request)
 {
     return Impl->CreateUnregisterNodeMutation(request);
 }
@@ -634,9 +781,14 @@ TMutationPtr TNodeTracker::CreateFullHeartbeatMutation(
 }
 
 TMutationPtr TNodeTracker::CreateIncrementalHeartbeatMutation(
-    const NProto::TMetaReqIncrementalHeartbeat& request)
+    const TMetaReqIncrementalHeartbeat& request)
 {
     return Impl->CreateIncrementalHeartbeatMutation(request);
+}
+
+void TNodeTracker::RefreshNodeConfig(TNode* node)
+{
+    return Impl->RefreshNodeConfig(node);
 }
 
 TTotalNodeStatistics TNodeTracker::GetTotalNodeStatistics()
@@ -658,8 +810,9 @@ DELEGATE_METAMAP_ACCESSORS(TNodeTracker, Node, TNode, TNodeId, *Impl)
 
 DELEGATE_SIGNAL(TNodeTracker, void(TNode* node), NodeRegistered, *Impl);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode* node), NodeUnregistered, *Impl);
-DELEGATE_SIGNAL(TNodeTracker, void(TNode* node, const NProto::TMetaReqFullHeartbeat& request), FullHeartbeat, *Impl);
-DELEGATE_SIGNAL(TNodeTracker, void(TNode* node, const NProto::TMetaReqIncrementalHeartbeat& request), IncrementalHeartbeat, *Impl);
+DELEGATE_SIGNAL(TNodeTracker, void(TNode* node), NodeConfigUpdated, *Impl);
+DELEGATE_SIGNAL(TNodeTracker, void(TNode* node, const TMetaReqFullHeartbeat& request), FullHeartbeat, *Impl);
+DELEGATE_SIGNAL(TNodeTracker, void(TNode* node, const TMetaReqIncrementalHeartbeat& request), IncrementalHeartbeat, *Impl);
 
 ///////////////////////////////////////////////////////////////////////////////
 

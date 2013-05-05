@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "node_tracker_service.h"
 #include "node.h"
-#include "node_authority.h"
 #include "node_tracker.h"
 #include "private.h"
 #include "config.h"
@@ -49,17 +48,6 @@ TNodeTrackerService::TNodeTrackerService(
             .SetRequestHeavy(true));
 }
 
-void TNodeTrackerService::ValidateAuthorization(const Stroka& address)
-{
-    auto nodeAuthority = Bootstrap->GetNodeAuthority();
-    if (!nodeAuthority->IsAuthorized(address)) {
-        THROW_ERROR_EXCEPTION(
-            NNodeTrackerClient::EErrorCode::NotAuthorized,
-            "Node %s is not authorized",
-            ~address);
-    }
-}
-
 DEFINE_RPC_SERVICE_METHOD(TNodeTrackerService, RegisterNode)
 {
     UNUSED(response);
@@ -89,8 +77,6 @@ DEFINE_RPC_SERVICE_METHOD(TNodeTrackerService, RegisterNode)
             ~ToString(requestCellGuid));
     }
 
-    ValidateAuthorization(address);
-
     int fullHeartbeatQueueSize = FullHeartbeatMethodInfo->QueueSizeCounter.Current;
     int registeredNodeCount = nodeTracker->GetRegisteredNodeCount();
     if (fullHeartbeatQueueSize + registeredNodeCount > Config->FullHeartbeatQueueSizeLimit) {
@@ -101,6 +87,12 @@ DEFINE_RPC_SERVICE_METHOD(TNodeTrackerService, RegisterNode)
             << TErrorAttribute("registered_node_count", registeredNodeCount)
             << TErrorAttribute("limit", Config->FullHeartbeatQueueSizeLimit));
         return;
+    }
+
+
+    auto config = nodeTracker->FindNodeConfigByAddress(address);
+    if (config && config->Banned) {
+        THROW_ERROR_EXCEPTION("Node %s is banned", ~address);
     }
 
     NProto::TMetaReqRegisterNode registerReq;
@@ -138,8 +130,6 @@ DEFINE_RPC_SERVICE_METHOD(TNodeTrackerService, FullHeartbeat)
         return;
     }
 
-    ValidateAuthorization(node->GetAddress());
-
     nodeTracker
         ->CreateFullHeartbeatMutation(context)
         ->OnSuccess(CreateRpcSuccessHandler(context))
@@ -165,8 +155,6 @@ DEFINE_RPC_SERVICE_METHOD(TNodeTrackerService, IncrementalHeartbeat)
             ~FormatEnum(node->GetState())));
         return;
     }
-
-    ValidateAuthorization(node->GetAddress());
 
     NProto::TMetaReqIncrementalHeartbeat heartbeatReq;
     heartbeatReq.set_node_id(nodeId);

@@ -480,7 +480,7 @@ TFuture< TValueOrError<TYsonString> > TSupportsAttributes::DoListAttribute(const
         if (!ysonOrError) {
             return MakeFuture(TValueOrError<TYsonString>(TError(
                 NYTree::EErrorCode::ResolveError,
-                "Attribute is not found: %s",
+                "Attribute %s is not found",
                 ~ToYPathLiteral(key))));
         }
 
@@ -700,6 +700,8 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
             }
         }
     }
+
+    OnUserAttributesUpdated();
 }
 
 void TSupportsAttributes::SetAttribute(
@@ -784,6 +786,8 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
             }
         }
     }
+
+    OnUserAttributesUpdated();
 }
 
 void TSupportsAttributes::RemoveAttribute(
@@ -812,6 +816,9 @@ void TSupportsAttributes::ValidateUserAttributeUpdate(
     UNUSED(newValue);
 }
 
+void TSupportsAttributes::OnUserAttributesUpdated()
+{}
+
 IAttributeDictionary* TSupportsAttributes::GetUserAttributes()
 {
     return nullptr;
@@ -828,7 +835,8 @@ void TSupportsAttributes::GuardedSetSystemAttribute(const Stroka& key, const TYs
     try {
         result = GetSystemAttributeProvider()->SetSystemAttribute(key, yson);
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error setting system attribute: %s", ~key)
+        THROW_ERROR_EXCEPTION("Error setting system attribute %s",
+            ~ToYPathLiteral(key).Quote())
             << ex;
     }
 
@@ -846,10 +854,12 @@ void TSupportsAttributes::GuardedValidateUserAttributeUpdate(
         ValidateUserAttributeUpdate(key, oldValue, newValue);
     } catch (const std::exception& ex) {
         if (newValue) {
-            THROW_ERROR_EXCEPTION("Error setting user attribute: %s", ~key)
+            THROW_ERROR_EXCEPTION("Error setting user attribute %s",
+                ~ToYPathLiteral(key).Quote())
                 << ex;
         } else {
-            THROW_ERROR_EXCEPTION("Error removing user attribute: %s", ~key)
+            THROW_ERROR_EXCEPTION("Error removing user attribute %s",
+                ~ToYPathLiteral(key).Quote())
                 << ex;
         }
     }

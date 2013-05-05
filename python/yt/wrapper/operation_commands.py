@@ -54,15 +54,15 @@ class Timeout(object):
 
 
 def get_operation_state(operation):
-    old_timeout = config.CONNECTION_TIMEOUT
-    config.CONNECTION_TIMEOUT = config.WAIT_OPERATION_CONNECTION_TIMEOUT
+    old_retries_count = config.HTTP_RETRIES_COUNT
+    config.HTTP_RETRIES_COUNT = config.WAIT_OPERATION_RETRIES_COUNT
 
     operation_path = os.path.join(OPERATIONS_PATH, operation)
     require(exists(operation_path),
             YtError("Operation %s doesn't exist" % operation))
     state = OperationState(get_attribute(operation_path, "state"))
     
-    config.CONNECTION_TIMEOUT = old_timeout
+    config.HTTP_RETRIES_COUNT = old_retries_count
 
     return state
 

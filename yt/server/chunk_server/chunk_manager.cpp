@@ -272,6 +272,7 @@ public:
         auto nodeTracker = Bootstrap->GetNodeTracker();
         nodeTracker->SubscribeNodeRegistered(BIND(&TThis::OnNodeRegistered, MakeWeak(this)));
         nodeTracker->SubscribeNodeUnregistered(BIND(&TThis::OnNodeUnregistered, MakeWeak(this)));
+        nodeTracker->SubscribeNodeConfigUpdated(BIND(&TThis::OnNodeConfigUpdated, MakeWeak(this)));
         nodeTracker->SubscribeFullHeartbeat(BIND(&TThis::OnFullHeartbeat, MakeWeak(this)));
         nodeTracker->SubscribeIncrementalHeartbeat(BIND(&TThis::OnIncrementalHeartbeat, MakeWeak(this)));
 
@@ -295,7 +296,7 @@ public:
     DECLARE_METAMAP_ACCESSORS(Chunk, TChunk, TChunkId);
     DECLARE_METAMAP_ACCESSORS(ChunkList, TChunkList, TChunkListId);
 
-    TSmallVector<TNode*, TypicalReplicationFactor> AllocateUploadTargets(
+    TSmallVector<TNode*, TypicalReplicaCount> AllocateUploadTargets(
         int replicaCount,
         const TNullable<Stroka>& preferredHostName)
     {
@@ -846,6 +847,17 @@ private:
         }
     }
 
+    void OnNodeConfigUpdated(TNode* node)
+    {
+        if (node->GetConfig()->Decommissioned) {
+            LOG_INFO("Node decommissioned (Address: %s)", ~node->GetAddress());
+
+            FOREACH (auto replica, node->StoredReplicas()) {
+                ChunkReplicator->ScheduleChunkRefresh(replica.GetPtr());
+            }
+        }
+    }
+
     void OnFullHeartbeat(TNode* node, const NNodeTrackerServer::NProto::TMetaReqFullHeartbeat& request)
     {
         YCHECK(node->StoredReplicas().empty());
@@ -1392,7 +1404,7 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::Create(
 
         auto* responseExt = response->MutableExtension(TRspCreateChunkExt::create_chunk_ext);
         TNodeDirectoryBuilder builder(responseExt->mutable_node_directory());
-        TSmallVector<Stroka, TypicalReplicationFactor> targetAddresses;
+        TSmallVector<Stroka, TypicalReplicaCount> targetAddresses;
         for (int index = 0; index < static_cast<int>(targets.size()); ++index) {
             auto* target = targets[index];
             NChunkServer::TNodePtrWithIndex replica(
@@ -1509,7 +1521,7 @@ TChunkTree* TChunkManager::GetChunkTree(const TChunkTreeId& id)
     return Impl->GetChunkTree(id);
 }
 
-TSmallVector<TNode*, TypicalReplicationFactor> TChunkManager::AllocateUploadTargets(
+TSmallVector<TNode*, TypicalReplicaCount> TChunkManager::AllocateUploadTargets(
     int replicaCount,
     const TNullable<Stroka>& preferredHostName)
 {

@@ -12,7 +12,6 @@ set( HDRS
   ${BASE}/public.h
   ${BASE}/private.h
   ${BASE}/node.h
-  ${BASE}/node_authority.h
   ${BASE}/node_tracker.h
   ${BASE}/node_tracker_service.h
   ${BASE}/config.h

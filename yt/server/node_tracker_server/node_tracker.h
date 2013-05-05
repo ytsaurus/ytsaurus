@@ -35,6 +35,7 @@ public:
 
     ~TNodeTracker();
 
+
     NMetaState::TMutationPtr CreateRegisterNodeMutation(
         const NProto::TMetaReqRegisterNode& request);
 
@@ -52,6 +53,10 @@ public:
     NMetaState::TMutationPtr CreateIncrementalHeartbeatMutation(
         const NProto::TMetaReqIncrementalHeartbeat& request);
 
+
+    void RefreshNodeConfig(TNode* node);
+
+
     DECLARE_METAMAP_ACCESSORS(Node, TNode, TNodeId);
 
     //! Fired when a node gets registered.
@@ -59,6 +64,9 @@ public:
     
     //! Fired when a node gets unregistered.
     DECLARE_SIGNAL(void(TNode* node), NodeUnregistered);
+
+    //! Fired when node configuration changes.
+    DECLARE_SIGNAL(void(TNode* node), NodeConfigUpdated);
 
     //! Fired when a full heartbeat is received from a node.
     DECLARE_SIGNAL(void(TNode* node, const NProto::TMetaReqFullHeartbeat& request), FullHeartbeat);
@@ -78,6 +86,13 @@ public:
 
     //! Returns a node with a given id (throws if none).
     TNode* GetNodeOrThrow(TNodeId id);
+
+
+    //! Returns node configuration (extracted from //sys/nodes) or |nullptr| is there's none.
+    TNodeConfigPtr FindNodeConfigByAddress(const Stroka& address);
+
+    //! Similar to #FindNodeConfigByAddress but returns a default instance instead of |nullptr|.
+    TNodeConfigPtr GetNodeConfigByAddress(const Stroka& address);
 
 
     NNodeTrackerClient::TTotalNodeStatistics GetTotalNodeStatistics();

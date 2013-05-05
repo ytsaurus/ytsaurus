@@ -36,7 +36,7 @@ TChunkId EncodeChunkId(TChunkPtrWithIndex chunkWithIndex)
 {
     auto* chunk = chunkWithIndex.GetPtr();
     return chunk->IsErasure()
-           ? PartIdFromErasureChunkId(chunk->GetId(), chunkWithIndex.GetIndex())
+           ? ErasurePartIdFromChunkId(chunk->GetId(), chunkWithIndex.GetIndex())
            : chunk->GetId();
 }
 

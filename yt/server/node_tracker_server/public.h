@@ -15,9 +15,6 @@ using NNodeTrackerClient::TNodeDescriptor;
 class TNodeTracker;
 typedef TIntrusivePtr<TNodeTracker> TNodeTrackerPtr;
 
-struct INodeAuthority;
-typedef TIntrusivePtr<INodeAuthority> INodeAuthorityPtr;
-
 class TNode;
 
 class TNodeTrackerService;
@@ -25,6 +22,9 @@ typedef TIntrusivePtr<TNodeTrackerService> TNodeTrackerServicePtr;
 
 class TNodeTrackerConfig;
 typedef TIntrusivePtr<TNodeTrackerConfig> TNodeTrackerConfigPtr;
+
+class TNodeConfig;
+typedef TIntrusivePtr<TNodeConfig> TNodeConfigPtr;
 
 ///////////////////////////////////////////////////////////////////////////////
 

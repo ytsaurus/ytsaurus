@@ -37,6 +37,8 @@
 
 #include <ytlib/object_client/object_service_proxy.h>
 
+#include <ytlib/chunk_client/chunk_service_proxy.h>
+
 #include <server/misc/build_attributes.h>
 
 #include <server/chunk_holder/config.h>
@@ -143,16 +145,20 @@ void TBootstrap::Run()
         BIND(&TRefCountedTracker::GetMonitoringInfo, TRefCountedTracker::Get()));
     monitoringManager->Start();
 
-    auto masterObjectServiceRedirector = CreateRedirectorService(
+    RpcServer->RegisterService(CreateRedirectorService(
         NObjectClient::TObjectServiceProxy::GetServiceName(),
-        MasterChannel);
-    RpcServer->RegisterService(masterObjectServiceRedirector);
+        MasterChannel));
+
+    RpcServer->RegisterService(CreateRedirectorService(
+        NChunkClient::TChunkServiceProxy::GetServiceName(),
+        MasterChannel));
 
     ReaderCache = New<TReaderCache>(Config->DataNode);
 
     ChunkRegistry = New<TChunkRegistry>(this);
 
     BlockStore = New<TBlockStore>(Config->DataNode, this);
+    BlockStore->Initialize();
 
     PeerBlockTable = New<TPeerBlockTable>(Config->DataNode->PeerBlockTable);
 

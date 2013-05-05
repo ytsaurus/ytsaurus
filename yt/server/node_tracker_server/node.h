@@ -36,7 +36,9 @@ class TNode
 
     DEFINE_BYVAL_RO_PROPERTY(TNodeId, Id);
     DEFINE_BYVAL_RW_PROPERTY(ENodeState, State);
+    
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeStatistics, Statistics);
+
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceLimits);
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceUsage);
 
@@ -63,12 +65,16 @@ class TNode
 public:
     TNode(
         TNodeId id,
-        const TNodeDescriptor& descriptor);
-
+        const TNodeDescriptor& descriptor,
+        TNodeConfigPtr config);
     explicit TNode(TNodeId id);
+
+    ~TNode();
 
     const TNodeDescriptor& GetDescriptor() const;
     const Stroka& GetAddress() const;
+
+    const TNodeConfigPtr& GetConfig() const;
 
     void Save(const NCellMaster::TSaveContext& context) const;
     void Load(const NCellMaster::TLoadContext& context);
@@ -86,6 +92,7 @@ public:
 
 private:
     TNodeDescriptor Descriptor_;
+    TNodeConfigPtr Config_;
 
     void Init();
 

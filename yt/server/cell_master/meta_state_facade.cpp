@@ -296,7 +296,7 @@ private:
                 rootService,
                 "//sys/nodes",
                 transactionId,
-                EObjectType::NodeMap,
+                EObjectType::CellNodeMap,
                 BuildYsonStringFluently()
                     .BeginMap()
                         .Item("opaque").Value(true)

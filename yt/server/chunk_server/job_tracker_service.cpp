@@ -61,8 +61,12 @@ private:
         ValidateActiveLeader();
 
         auto nodeId = request->node_id();
+        const auto& resourceLimits = request->resource_limits();
+        const auto& resourceUsage = request->resource_usage();
 
-        context->SetRequestInfo("NodeId: %d", nodeId);
+        context->SetRequestInfo("NodeId: %d, ResourceUsage: {%s}",
+            nodeId,
+            ~FormatResourceUsage(resourceUsage, resourceLimits));
 
         auto nodeTracker = Bootstrap->GetNodeTracker();
         auto chunkManager = Bootstrap->GetChunkManager();
@@ -77,8 +81,8 @@ private:
             return;
         }
 
-        node->ResourceLimits() = request->resource_limits();
-        node->ResourceUsage() = request->resource_usage();
+        node->ResourceLimits() = resourceLimits;
+        node->ResourceUsage() = resourceUsage;
 
         std::vector<TJobPtr> currentJobs;
         FOREACH (const auto& jobStatus, request->jobs()) {

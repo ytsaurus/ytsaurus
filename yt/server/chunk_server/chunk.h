@@ -63,7 +63,7 @@ public:
 
     void AddReplica(TNodePtrWithIndex replica, bool cached);
     void RemoveReplica(TNodePtrWithIndex replica, bool cached);
-    TSmallVector<TNodePtrWithIndex, TypicalReplicationFactor> GetReplicas() const;
+    TSmallVector<TNodePtrWithIndex, TypicalReplicaCount> GetReplicas() const;
 
     bool ValidateChunkInfo(const NChunkClient::NProto::TChunkInfo& chunkInfo) const;
     bool IsConfirmed() const;

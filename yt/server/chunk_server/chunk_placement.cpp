@@ -87,12 +87,12 @@ void TChunkPlacement::OnSessionHinted(TNode* node)
     node->SetHintedSessionCount(node->GetHintedSessionCount() + 1);
 }
 
-TSmallVector<TNode*, TypicalReplicationFactor> TChunkPlacement::GetUploadTargets(
+TSmallVector<TNode*, TypicalReplicaCount> TChunkPlacement::GetUploadTargets(
     int replicaCount,
-    const TSmallSet<TNode*, TypicalReplicationFactor>* forbiddenNodes,
+    const TSmallSet<TNode*, TypicalReplicaCount>* forbiddenNodes,
     const TNullable<Stroka>& preferredHostName)
 {
-    TSmallVector<TNode*, TypicalReplicationFactor> resultNodes;
+    TSmallVector<TNode*, TypicalReplicaCount> resultNodes;
     resultNodes.reserve(replicaCount);
 
     typedef std::pair<TNode*, int> TFeasibleNode;
@@ -160,11 +160,11 @@ TSmallVector<TNode*, TypicalReplicationFactor> TChunkPlacement::GetUploadTargets
     return resultNodes;
 }
 
-TSmallVector<TNode*, TypicalReplicationFactor> TChunkPlacement::GetReplicationTargets(
+TSmallVector<TNode*, TypicalReplicaCount> TChunkPlacement::GetReplicationTargets(
     const TChunk* chunk,
     int count)
 {
-    TSmallSet<TNode*, TypicalReplicationFactor> forbiddenNodes;
+    TSmallSet<TNode*, TypicalReplicaCount> forbiddenNodes;
 
     auto nodeTracker = Bootstrap->GetNodeTracker();
     auto chunkManager = Bootstrap->GetChunkManager();
@@ -200,13 +200,13 @@ TNode* TChunkPlacement::GetReplicationSource(const TChunk* chunk)
     return replicas[index].GetPtr();
 }
 
-TSmallVector<TNode*, TypicalReplicationFactor> TChunkPlacement::GetRemovalTargets(
+TSmallVector<TNode*, TypicalReplicaCount> TChunkPlacement::GetRemovalTargets(
     TChunkPtrWithIndex chunkWithIndex,
     int targetCount)
 {
     // Construct a list of |(nodeId, loadFactor)| pairs.
     typedef std::pair<TNode*, double> TCandidatePair;
-    TSmallVector<TCandidatePair, TypicalReplicationFactor> candidates;
+    TSmallVector<TCandidatePair, TypicalReplicaCount> candidates;
     auto* chunk = chunkWithIndex.GetPtr();
     candidates.reserve(chunk->StoredReplicas().size());
     FOREACH (auto replica, chunk->StoredReplicas()) {
@@ -225,14 +225,18 @@ TSmallVector<TNode*, TypicalReplicationFactor> TChunkPlacement::GetRemovalTarget
             return lhs.second > rhs.second;
         });
 
-    // Take first |count| nodes.
-    TSmallVector<TNode*, TypicalReplicationFactor> result;
+    // Take first |count| nodes skipping decommissioned ones.
+    TSmallVector<TNode*, TypicalReplicaCount> result;
     result.reserve(targetCount);
     FOREACH (const auto& pair, candidates) {
         if (static_cast<int>(result.size()) >= targetCount) {
             break;
         }
-        result.push_back(pair.first);
+
+        auto* node = pair.first;
+        if (IsValidRemovalTarget(node)) {
+            result.push_back(node);
+        }
     }
 
     return result;
@@ -254,7 +258,7 @@ TNode* TChunkPlacement::GetBalancingTarget(TChunkPtrWithIndex chunkWithIndex, do
 {
     auto chunkManager = Bootstrap->GetChunkManager();
     FOREACH (const auto& pair, FillCoeffToNode) {
-        auto node = pair.second;
+        auto* node = pair.second;
         if (GetFillCoeff(node) > maxFillCoeff) {
             break;
         }
@@ -265,15 +269,21 @@ TNode* TChunkPlacement::GetBalancingTarget(TChunkPtrWithIndex chunkWithIndex, do
     return nullptr;
 }
 
-bool TChunkPlacement::IsValidUploadTarget(TNode* targetNode)
+bool TChunkPlacement::IsValidUploadTarget(TNode* node)
 {
-    if (targetNode->GetState() != ENodeState::Online) {
+    if (node->GetState() != ENodeState::Online) {
         // Do not upload anything to nodes before first heartbeat.
         return false;
     }
 
-    if (IsFull(targetNode)) {
+    if (IsFull(node)) {
         // Do not upload anything to full nodes.
+        return false;
+    }
+
+    const auto& config = node->GetConfig();
+    if (config->Decommissioned) {
+        // Do not upload anything to decommissioned nodes.
         return false;
     }
 
@@ -281,20 +291,20 @@ bool TChunkPlacement::IsValidUploadTarget(TNode* targetNode)
     return true;
 }
 
-bool TChunkPlacement::IsValidBalancingTarget(TNode* targetNode, TChunkPtrWithIndex chunkWithIndex) const
+bool TChunkPlacement::IsValidBalancingTarget(TNode* node, TChunkPtrWithIndex chunkWithIndex) const
 {
-    if (!IsValidUploadTarget(targetNode)) {
+    if (!IsValidUploadTarget(node)) {
         // Balancing implies upload, after all.
         return false;
     }
 
-    if (targetNode->StoredReplicas().find(chunkWithIndex) != targetNode->StoredReplicas().end())  {
+    if (node->StoredReplicas().find(chunkWithIndex) != node->StoredReplicas().end())  {
         // Do not balance to a node already having the chunk.
         return false;
     }
 
     auto chunkManager = Bootstrap->GetChunkManager();
-    FOREACH (const auto& job, targetNode->Jobs()) {
+    FOREACH (const auto& job, node->Jobs()) {
         if (job->GetChunkId() == chunkWithIndex.GetPtr()->GetId()) {
             // Do not balance to a node already having a job associated with this chunk.
             return false;
@@ -303,6 +313,11 @@ bool TChunkPlacement::IsValidBalancingTarget(TNode* targetNode, TChunkPtrWithInd
 
     // Seems OK :)
     return true;
+}
+
+bool TChunkPlacement::IsValidRemovalTarget(TNode* node)
+{
+    return !node->GetConfig()->Decommissioned;
 }
 
 std::vector<TChunkPtrWithIndex> TChunkPlacement::GetBalancingChunks(TNode* node, int count)

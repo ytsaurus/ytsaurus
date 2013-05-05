@@ -37,7 +37,6 @@ public:
     NRpc::IServerPtr GetRpcServer() const;
 
     NNodeTrackerServer::TNodeTrackerPtr GetNodeTracker() const;
-    NNodeTrackerServer::INodeAuthorityPtr GetNodeAuthority() const;
 
     NTransactionServer::TTransactionManagerPtr GetTransactionManager() const;
 
@@ -62,7 +61,6 @@ private:
     NRpc::IServerPtr RpcServer;
 
     NNodeTrackerServer::TNodeTrackerPtr NodeTracker;
-    NNodeTrackerServer::INodeAuthorityPtr NodeAuthority;
 
     NTransactionServer::TTransactionManagerPtr TransactionManager;
 

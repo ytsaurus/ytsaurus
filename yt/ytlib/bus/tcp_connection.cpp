@@ -20,7 +20,7 @@ namespace NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NProfiling::TProfiler& SILENT_UNUSED Profiler = BusProfiler;
+static NProfiling::TProfiler& Profiler = BusProfiler;
 
 static const size_t MinBatchReadSize =  4 * 1024;
 static const size_t MaxBatchReadSize = 64 * 1024;
@@ -201,6 +201,9 @@ void TTcpConnection::SyncOpen()
 
     // Flush messages that were enqueued when the connection was still opening.
     ProcessOutcomingMessages();
+    
+    // Simulate read-write notification.
+    OnSocket(*SocketWatcher, ev::READ|ev::WRITE);
 }
 
 void TTcpConnection::SyncResolve()

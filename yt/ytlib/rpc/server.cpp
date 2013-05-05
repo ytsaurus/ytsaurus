@@ -140,7 +140,7 @@ private:
         if (!service) {
             auto error = TError(
                 EErrorCode::NoSuchService,
-                "Unknown service: %s (RequestId: %s)",
+                "Unknown service %s (RequestId: %s)",
                 ~serviceName.Quote(),
                 ~ToString(requestId));
 

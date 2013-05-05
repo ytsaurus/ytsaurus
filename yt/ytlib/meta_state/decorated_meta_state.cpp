@@ -100,7 +100,7 @@ TDecoratedMetaState::TDecoratedMetaState(
     , SnapshotStore(snapshotStore)
     , ChangeLogCache(changeLogCache)
     , Started(false)
-    , MutationContext(NULL)
+    , MutationContext(nullptr)
 {
     YCHECK(config);
     YCHECK(state);
@@ -274,7 +274,7 @@ void TDecoratedMetaState::ApplyMutation(TMutationContext* context) throw()
     } else {
         action.Run();
     }
-    MutationContext = NULL;
+    MutationContext = nullptr;
 
     if (context->GetId() != NullMutationId) {
         ResponseKeeper->RegisterResponse(context->GetId(), context->GetResponseData());

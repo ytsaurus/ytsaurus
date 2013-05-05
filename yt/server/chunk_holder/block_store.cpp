@@ -61,17 +61,16 @@ public:
         TBootstrap* bootstrap)
         : TWeightLimitedCache<TBlockId, TCachedBlock>(config->MaxCachedBlocksSize)
         , PendingReadSize_(0)
+        , Config(config)
         , Bootstrap(bootstrap)
+    { }
+
+    void Initialize()
     {
         auto result = Bootstrap->GetMemoryUsageTracker().TryAcquire(
             NCellNode::EMemoryConsumer::BlockCache,
-            config->MaxCachedBlocksSize);
-        if (!result.IsOK()) {
-            auto error = TError("Error allocating memory for block cache")
-                << result;
-            //TODO(psushin): No need to create core here.
-            LOG_FATAL(error);
-        }
+            Config->MaxCachedBlocksSize);
+        THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error allocating memory for block cache");
     }
 
     TCachedBlockPtr Put(
@@ -180,6 +179,7 @@ public:
     }
 
 private:
+    TDataNodeConfigPtr Config;
     TBootstrap* Bootstrap;
 
     virtual i64 GetWeight(TCachedBlock* block) const
@@ -338,6 +338,11 @@ TBlockStore::TBlockStore(
     : StoreImpl(New<TStoreImpl>(config, bootstrap))
     , CacheImpl(New<TCacheImpl>(StoreImpl))
 { }
+
+void TBlockStore::Initialize()
+{
+    StoreImpl->Initialize();
+}
 
 TBlockStore::~TBlockStore()
 { }

@@ -190,7 +190,7 @@ class Holder(Server):
             },
             'job_controller': {
                 'resource_limits' : {
-                    'slots' : 24,
+                    'user_slots' : 24,
                     'cpu' : 22,
                     'memory' : 42 * 1024 * 1024 * 1024
                 }

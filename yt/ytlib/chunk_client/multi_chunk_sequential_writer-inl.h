@@ -211,7 +211,7 @@ void TMultiChunkSequentialWriter<TChunkWriter>::OnChunkCreated(
 
         std::vector<IAsyncWriterPtr> writers;
         for (int index = 0; index < totalPartCount; ++index) {
-            auto partId = PartIdFromErasureChunkId(chunkId, index);
+            auto partId = ErasurePartIdFromChunkId(chunkId, index);
             const auto& target = NodeDirectory->GetDescriptor(session.Replicas[index]);
             std::vector<NNodeTrackerClient::TNodeDescriptor> targets(1, target);
             auto writer = CreateReplicationWriter(Config, partId, targets);

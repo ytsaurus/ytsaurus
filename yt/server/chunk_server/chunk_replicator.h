@@ -7,6 +7,8 @@
 #include <ytlib/misc/periodic_invoker.h>
 #include <ytlib/misc/error.h>
 
+#include <ytlib/erasure/public.h>
+
 #include <ytlib/profiling/timing.h>
 
 #include <ytlib/node_tracker_client/node_tracker_service.pb.h>
@@ -73,18 +75,28 @@ public:
     int GetRFUpdateListSize() const;
 
 private:
+    struct TChunkStatistics
+    {
+        TChunkStatistics();
+
+        EChunkStatus Status;
+        int ReplicaCount[NErasure::MaxTotalBlockCount];
+    };
+
+    struct TRefreshEntry
+    {
+        TRefreshEntry();
+
+        TChunk* Chunk;
+        NProfiling::TCpuInstant When;
+    };
+
     TChunkManagerConfigPtr Config;
     NCellMaster::TBootstrap* Bootstrap;
     TChunkPlacementPtr ChunkPlacement;
 
     NProfiling::TCpuDuration ChunkRefreshDelay;
     TNullable<bool> LastEnabled;
-
-    struct TRefreshEntry
-    {
-        TChunk* Chunk;
-        NProfiling::TCpuInstant When;
-    };
 
     TPeriodicInvokerPtr RefreshInvoker;
     std::deque<TRefreshEntry> RefreshList;
@@ -132,11 +144,14 @@ private:
         std::vector<TJobPtr>* jobsToAbort);
 
     void OnRefresh();
-    void Refresh(TChunk* chunk);
+    void RefreshChunk(TChunk* chunk);
     void ResetChunkStatus(TChunk* chunk);
 
-    EChunkStatus ComputeRegularChunkStatus(TChunk* chunk);
-    EChunkStatus ComputeErasureChunkStatus(TChunk* chunk);
+    TChunkStatistics ComputeChunkStatistics(TChunk* chunk);
+    TChunkStatistics ComputeRegularChunkStatistics(TChunk* chunk);
+    TChunkStatistics ComputeErasureChunkStatistics(TChunk* chunk);
+
+    bool IsReplicaDecommissioned(TNodePtrWithIndex replica);
 
     bool HasRunningJobs(const TChunkId& chunkId);
 
