@@ -20,7 +20,7 @@ namespace NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NProfiling::TProfiler& SILENT_UNUSED Profiler = BusProfiler;
+static NProfiling::TProfiler& Profiler = BusProfiler;
 
 static const size_t MinBatchReadSize =  4 * 1024;
 static const size_t MaxBatchReadSize = 64 * 1024;
@@ -130,6 +130,8 @@ void TTcpConnection::SyncInitialize()
         case EConnectionType::Server:
             InitFd();
             SyncOpen();
+            // Simulate read-write notification.
+            OnSocket(*SocketWatcher, ev::READ|ev::WRITE);
             break;
 
         default:
@@ -715,7 +717,7 @@ void TTcpConnection::OnSocketWrite()
     if (Type == EConnectionType::Client && State == EState::Opening) {
         // Check if connection was established successfully.
         int error = GetSocketError();
-        if (error != 0) {
+        if (error != 0) {a
             auto wrappedErrror = TError(
                 NRpc::EErrorCode::TransportError,
                 "Failed to connect to %s",
