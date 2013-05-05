@@ -74,7 +74,7 @@ public:
     const TNodeDescriptor& GetDescriptor() const;
     const Stroka& GetAddress() const;
 
-    TNodeConfigPtr GetConfig() const;
+    const TNodeConfigPtr& GetConfig() const;
 
     void Save(const NCellMaster::TSaveContext& context) const;
     void Load(const NCellMaster::TLoadContext& context);

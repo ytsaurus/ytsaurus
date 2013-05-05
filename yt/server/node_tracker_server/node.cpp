@@ -51,7 +51,7 @@ const Stroka& TNode::GetAddress() const
     return Descriptor_.Address;
 }
 
-TNodeConfigPtr TNode::GetConfig() const
+const TNodeConfigPtr& TNode::GetConfig() const
 {
     return Config_;
 }
