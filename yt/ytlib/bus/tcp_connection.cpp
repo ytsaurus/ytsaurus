@@ -717,7 +717,7 @@ void TTcpConnection::OnSocketWrite()
     if (Type == EConnectionType::Client && State == EState::Opening) {
         // Check if connection was established successfully.
         int error = GetSocketError();
-        if (error != 0) {a
+        if (error != 0) {
             auto wrappedErrror = TError(
                 NRpc::EErrorCode::TransportError,
                 "Failed to connect to %s",
