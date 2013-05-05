@@ -314,10 +314,10 @@ public:
                     // NB: Operation node is created at the very last step of the pipeline.
                     // Hence the failure implies that we don't have any node yet.
 
-                    LOG_ERROR(result, "Error starting operation (OperationId: %s)",
+                    LOG_ERROR(result, "Operation has failed to initialize (OperationId: %s)",
                         ~ToString(operation->GetOperationId()));
 
-                    auto wrappedError = TError("Error starting operation") << result;
+                    auto wrappedError = TError("Operation has failed to initialize") << result;
                     this_->SetOperationFinalState(operation, EOperationState::Failed, wrappedError);
                     this_->FinishOperation(operation);
                     return wrappedError;
@@ -1027,7 +1027,7 @@ private:
         return downloader->Run();
     }
 
-    void DoReviveOperation(TOperationPtr operation)
+    TAsyncError DoReviveOperation(TOperationPtr operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1039,7 +1039,7 @@ private:
             input = new TMemoryInput(blob.Begin(), blob.Size());
         }
 
-        controller->Revive(~input);
+        return controller->Revive(~input);
     }
 
     void OnOperationRevived(TOperationPtr operation)
