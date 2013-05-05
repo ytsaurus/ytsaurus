@@ -217,12 +217,10 @@ private:
         if (key == "offline") {
             BuildYsonFluently(consumer)
                 .DoListFor(GetKeys(), [=] (TFluentList fluent, Stroka address) {
-                    if (!nodeTracker->FindNodeByAddress(address) &&
-                        !this->GetChild(address)->Attributes().Get<bool>("banned", false))
-                    {
+                    if (!nodeTracker->FindNodeByAddress(address)) {
                         fluent.Item().Value(address);
                     }
-            });
+                });
             return true;
         }
 
@@ -239,10 +237,10 @@ private:
 
         if (key == "unconfirmed" || key == "confirmed") {
             ValidateActiveLeader();
-            bool confirmedFilter = key == "confirmed";
+            bool expectedConfirmed = key == "confirmed";
             BuildYsonFluently(consumer)
                 .DoListFor(nodeTracker->GetNodes(), [=] (TFluentList fluent, TNode* node) {
-                    if (node->GetConfirmed() == confirmedFilter) {
+                    if (node->GetConfirmed() == expectedConfirmed) {
                         fluent.Item().Value(node->GetAddress());
                     }
                 });
