@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "timing.h"
 
-#include <ytlib/logging/log.h>
 #include <ytlib/misc/high_resolution_clock.h>
 
 namespace NYT {
@@ -9,7 +8,6 @@ namespace NProfiling  {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger SILENT_UNUSED Logger("Profiling");
 static const TDuration CalibrationInterval = TDuration::Seconds(3);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -19,55 +17,71 @@ class TClockConverter
 public:
     TClockConverter()
         : NextCalibrationCpuInstant(0)
-    { }
-
-    TInstant Convert(TCpuInstant instant)
+        , CalibrationLock(false)
     {
-        CalibrateIfNeeded();
-        // TDuration is unsigned and thus does not support negative values.
+        Calibrate(0);
+    }
+
+    // TDuration is unsigned and does not support negative values,
+    // thus we consider two cases separately.
+    
+    TInstant Convert(TCpuInstant cpuInstant)
+    {
+        auto state = GetCalibrationState();
         return
-            instant >= CalibrationCpuInstant
-            ? CalibrationInstant + CpuDurationToDuration(instant - CalibrationCpuInstant)
-            : CalibrationInstant - CpuDurationToDuration(CalibrationCpuInstant - instant);
+            cpuInstant >= state.CpuInstant
+            ? state.Instant + CpuDurationToDuration(cpuInstant - state.CpuInstant)
+            : state.Instant - CpuDurationToDuration(state.CpuInstant - cpuInstant);
     }
 
     TCpuInstant Convert(TInstant instant)
     {
-        CalibrateIfNeeded();
-        // TDuration is unsigned and thus does not support negative values.
+        auto state = GetCalibrationState();
         return
-            instant >= CalibrationInstant
-            ? CalibrationCpuInstant + DurationToCpuDuration(instant - CalibrationInstant)
-            : CalibrationCpuInstant - DurationToCpuDuration(CalibrationInstant - instant);
+            instant >= state.Instant
+            ? state.CpuInstant + DurationToCpuDuration(instant - state.Instant)
+            : state.CpuInstant - DurationToCpuDuration(state.Instant - instant);
     }
 
 private:
+    struct TCalibrationState
+    {
+        TCpuInstant CpuInstant;
+        TInstant Instant;
+    };
+
+    TCpuInstant NextCalibrationCpuInstant;
+    TAtomic CalibrationLock;
+    TCalibrationState CalibrationStates[2];
+    TAtomic CalibrationStateIndex;
+
+
     void CalibrateIfNeeded()
     {
-        auto nowClock = GetCpuInstant();
-        if (nowClock > NextCalibrationCpuInstant) {
-            Calibrate();
-        }
-    }
-
-    void Calibrate()
-    {
         auto nowCpuInstant = GetCpuInstant();
-        auto nowInstant = TInstant::Now();
-        // Beware of local time readjustments!
-        if (NextCalibrationCpuInstant != 0 && nowCpuInstant >= CalibrationCpuInstant) {
-            auto expected = (CalibrationInstant + CpuDurationToDuration(nowCpuInstant - CalibrationCpuInstant)).MicroSeconds();
-            auto actual = nowInstant.MicroSeconds();
-            LOG_DEBUG("Clock recalibrated (Diff: %" PRId64 ")", expected - actual);
+        if (nowCpuInstant > NextCalibrationCpuInstant) {
+            if (AtomicCas(&CalibrationLock, true, false)) {
+                Calibrate(1 - CalibrationStateIndex);
+                NextCalibrationCpuInstant += DurationToCpuDuration(CalibrationInterval);
+                AtomicSet(CalibrationLock, false);
+            }
         }
-        CalibrationCpuInstant = nowCpuInstant;
-        CalibrationInstant = nowInstant;
-        NextCalibrationCpuInstant = nowCpuInstant + DurationToCpuDuration(CalibrationInterval);
+    }
+    
+    void Calibrate(int index)
+    {
+        auto& state = CalibrationStates[index];
+        state.CpuInstant = GetCpuInstant();
+        state.Instant = TInstant::Now();
+        AtomicSet(CalibrationStateIndex, index);
     }
 
-    TInstant CalibrationInstant;
-    TCpuInstant CalibrationCpuInstant;
-    TCpuInstant NextCalibrationCpuInstant;
+    TCalibrationState GetCalibrationState()
+    {
+        CalibrateIfNeeded();
+        return CalibrationStates[CalibrationStateIndex];
+    }
+
 
 };
 
