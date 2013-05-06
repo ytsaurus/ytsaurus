@@ -404,15 +404,6 @@ private:
             YCHECK(node->GetState() == ENodeState::Online);
             node->Statistics() = statistics;
 
-            if (IsLeader()) {
-                if (!node->GetConfirmed()) {
-                    node->SetConfirmed(true);
-                    LOG_DEBUG_UNLESS(IsRecovery(), "Node confirmed (NodeId: %d, Address: %s)",
-                        nodeId,
-                        ~node->GetAddress());
-                }
-            }
-
             RenewNodeLease(node);
             
             IncrementalHeartbeat_.Fire(node, request);
@@ -484,8 +475,6 @@ private:
         // Reset runtime info.
         FOREACH (const auto& pair, NodeMap) {
             auto* node = pair.second;
-
-            node->SetConfirmed(false);
 
             node->SetHintedSessionCount(0);
             

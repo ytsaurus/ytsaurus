@@ -35,7 +35,6 @@ TNode::TNode(TNodeId id)
 
 void TNode::Init()
 {
-    Confirmed_ = false;
     Transaction_ = nullptr;
     ChunkReplicationQueues_.resize(ReplicationPriorityCount);
     HintedSessionCount_ = 0;

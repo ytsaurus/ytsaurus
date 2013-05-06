@@ -44,7 +44,6 @@ class TNode
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceUsage);
 
     // Lease tracking.
-    DEFINE_BYVAL_RW_PROPERTY(bool, Confirmed);
     DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransaction*, Transaction);
 
     // Chunk Manager stuff.

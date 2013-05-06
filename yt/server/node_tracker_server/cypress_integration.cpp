@@ -61,7 +61,6 @@ private:
     {
         const auto* node = FindNode();
         attributes->push_back(TAttributeInfo("state"));
-        attributes->push_back(TAttributeInfo("confirmed", node));
         attributes->push_back(TAttributeInfo("statistics", node));
         TMapNodeProxy::ListSystemAttributes(attributes);
     }
@@ -78,13 +77,6 @@ private:
         }
 
         if (node) {
-            if (key == "confirmed") {
-                ValidateActiveLeader();
-                BuildYsonFluently(consumer)
-                    .Value(FormatBool(node->GetConfirmed()));
-                return true;
-            }
-
             if (key == "statistics") {
                 const auto& nodeStatistics = node->Statistics();
                 BuildYsonFluently(consumer)
@@ -198,8 +190,6 @@ private:
         attributes->push_back("offline");
         attributes->push_back("registered");
         attributes->push_back("online");
-        attributes->push_back("unconfirmed");
-        attributes->push_back("confirmed");
         attributes->push_back("available_space");
         attributes->push_back("used_space");
         attributes->push_back("chunk_count");
@@ -229,18 +219,6 @@ private:
             BuildYsonFluently(consumer)
                 .DoListFor(nodeTracker->GetNodes(), [=] (TFluentList fluent, TNode* node) {
                     if (node->GetState() == expectedState) {
-                        fluent.Item().Value(node->GetAddress());
-                    }
-                });
-            return true;
-        }
-
-        if (key == "unconfirmed" || key == "confirmed") {
-            ValidateActiveLeader();
-            bool expectedConfirmed = key == "confirmed";
-            BuildYsonFluently(consumer)
-                .DoListFor(nodeTracker->GetNodes(), [=] (TFluentList fluent, TNode* node) {
-                    if (node->GetConfirmed() == expectedConfirmed) {
                         fluent.Item().Value(node->GetAddress());
                     }
                 });
