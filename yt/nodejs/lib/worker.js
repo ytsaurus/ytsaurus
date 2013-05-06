@@ -10,6 +10,9 @@ var winston_nssocket = require("winston-nssocket");
 
 var yt = require("yt");
 
+var profiler = require("profiler");
+var heapdump = require("heapdump");
+
 // Debugging stuff.
 var __DBG = require("./debug").that("C", "Cluster Worker");
 
@@ -97,6 +100,9 @@ if (!__DBG.On) {
 
     supervisor_liveness = setTimeout(gracefullyDie, 30000);
 }
+
+// Setup signal handlers.
+process.on("SIGUSR2", function() { heapdump.writeSnapshot(); });
 
 // Setup message handlers.
 process.on("message", function(message) {
