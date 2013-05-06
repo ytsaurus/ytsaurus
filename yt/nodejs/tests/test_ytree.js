@@ -88,7 +88,7 @@ var binding = require("../lib/ytnode");
     });
 });
 
-describe("INode conversion specifics", function() {
+describe("yson conversion specifics", function() {
     it("should properly convert i64 via our internals", function() {
         var node = new binding.TNodeWrap(
             "{\"key\":5000000000,\"min\":-9223372036854775807,\"max\":9223372036854775807}",
