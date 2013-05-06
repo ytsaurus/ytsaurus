@@ -129,7 +129,6 @@ config = {
     read_only         : opts.argv.read_only,
     profiler          : opts.argv.profiler,
     proxy             : { logging : { rules : [], writers : {} } },
-    locals            : {},
     services : {
         oauth : {
             host: "oauth.yandex-team.ru",
@@ -157,7 +156,6 @@ config = {
                 key: "local",
                 type: "local",
                 tokens: {
-
                 }
             },
             {
