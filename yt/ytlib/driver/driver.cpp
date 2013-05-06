@@ -101,7 +101,7 @@ public:
         REGISTER(TLinkCommand,              "link",              Null,       Structured, true,  false);
         REGISTER(TExistsCommand,            "exists",            Null,       Structured, false, false);
 
-        REGISTER(TUploadCommand,            "upload",            Binary,     Structured, true,  true );
+        REGISTER(TUploadCommand,            "upload",            Binary,     Null,       true,  true );
         REGISTER(TDownloadCommand,          "download",          Null,       Binary,     false, true );
 
         REGISTER(TWriteCommand,             "write",             Tabular,    Null,       true,  true );
