@@ -2,7 +2,7 @@ import config
 from common import require, chunk_iter
 from errors import YtError
 from http import read_content, get_host_for_heavy_operation
-from tree_commands import remove, exists, set_attribute, mkdir, find_free_subpath
+from tree_commands import remove, exists, set_attribute, mkdir, find_free_subpath, create
 from transaction_commands import _make_transactional_request
 from table import prepare_path
 
@@ -25,6 +25,8 @@ def upload_file(stream, destination, yt_filename=None):
     if hasattr(stream, 'fileno'):
         # read files by chunks, not by lines
         stream = chunk_iter(stream)
+    if config.CREATE_FILE_BEFORE_UPLOAD:
+        create("file", destination, ignore_existing=True)
     _make_transactional_request("upload", {"path": prepare_path(destination)}, data=stream, proxy=get_host_for_heavy_operation())
     if yt_filename is not None:
         set_attribute(destination, "file_name", yt_filename)
