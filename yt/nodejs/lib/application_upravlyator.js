@@ -19,20 +19,6 @@ function YtApplicationUpravlyator(config, logger, driver)
     this.config = config;
     this.logger = logger;
     this.driver = driver;
-
-    this.managed_users = {};
-    this.managed_groups = {};
-
-    if (this.config.cache) {
-        this.reload_interval_id = setInterval(
-            this._reloadManaged.bind(this),
-            this.config.reload_interval * 1000);
-        // Do not prevent event loop from exiting.
-        this.reload_interval_id.unref && this.reload_interval_id.unref();
-
-        // Fire initial reload.
-        this._reloadManaged();
-    }
 }
 
 YtApplicationUpravlyator.prototype._getFromYt = function(type, name)
@@ -107,9 +93,6 @@ YtApplicationUpravlyator.prototype._getManagedGroup = function(name)
 YtApplicationUpravlyator.prototype._getManagedUsers = function(force)
 {
     "use strict";
-    if (this.config.cache && !force) {
-        return this.managed_users;
-    }
 
     var logger = this.logger;
 
@@ -155,9 +138,6 @@ YtApplicationUpravlyator.prototype._getManagedUsers = function(force)
 YtApplicationUpravlyator.prototype._getManagedGroups = function()
 {
     "use strict";
-    if (this.config.cache && !force) {
-        return this.managed_groups;
-    }
 
     var logger = this.logger;
 
@@ -200,58 +180,6 @@ YtApplicationUpravlyator.prototype._getManagedGroups = function()
         logger.info(error.message, { error: error.toJson() });
         return Q.reject(error);
     });
-};
-
-YtApplicationUpravlyator.prototype._reloadManaged = function()
-{
-    "use strict";
-
-    var self = this;
-    self.logger.debug("Reloading lists of managed items");
-
-    Q
-    .all([ self._reloadManagedUsers(), self._reloadManagedGroups() ])
-    .then(function() {
-        self.logger.debug("Successfully reloaded lists of managed items");
-    })
-    .fail(function(err) {
-        var error = YtError.ensureWrapped(err);
-        self.logger.info(
-            "Failed to reload lists of managed items",
-            // XXX(sandello): Embed.
-            { error: error.toJson() });
-    })
-    .end();
-};
-
-YtApplicationUpravlyator.prototype._reloadManagedUsers = function()
-{
-    "use strict";
-
-    var self = this;
-    self.logger.debug("Reloading list of managed users");
-
-    Q
-    .when(self._getManagedUsers(true))
-    .then(
-    function(users) { self.managed_users = users; },
-    function(error) { })
-    .end();
-};
-
-YtApplicationUpravlyator.prototype._reloadManagedGroups = function()
-{
-    "use strict";
-
-    var self = this;
-    self.logger.debug("Reloading list of managed groups");
-
-    Q
-    .when(self._getManagedGroups(true))
-    .then(
-    function(groups) { self.managed_groups = groups; },
-    function(error) { })
-    .end();
 };
 
 YtApplicationUpravlyator.prototype.dispatch = function(req, rsp, next)

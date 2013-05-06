@@ -21,7 +21,7 @@ var _STATIC_STYLE = fs.readFileSync(__dirname + "/../static/bootstrap.min.css");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function YtApplicationAuth(config, logger, authority)
+function YtApplicationAuth(config, logger, driver, authority)
 {
     "use strict";
 

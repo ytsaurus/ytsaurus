@@ -175,7 +175,6 @@ config = {
         ],
     },
     upravlyator: {
-        reload_interval: 15
     }
 };
 

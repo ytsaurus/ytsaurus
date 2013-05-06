@@ -186,7 +186,7 @@ YtDriver.prototype.execute = function(name, user,
 YtDriver.prototype.executeSimple = function(name, parameters, data)
 {
     "use strict";
-    this.__DBG("executeAsRoot");
+    this.__DBG("executeSimple");
 
     var input_stream = new utils.MemoryInputStream(data);
     var output_stream = new utils.MemoryOutputStream();

@@ -144,10 +144,8 @@ dynamic_server = connect()
         });
         rd.run(next);
     })
-    .use(connect.favicon())
-    .use(yt.YtMarkRequest())
-    .use(yt.YtLogRequest())
     .use(function(req, rsp, next) {
+        "use strict";
         var socket = req.connection;
         socket.setTimeout(5 * 60 * 1000);
         socket.setNoDelay(true);
@@ -165,21 +163,18 @@ dynamic_server = connect()
         });
         next();
     })
+    .use(connect.favicon())
+    .use(yt.YtMarkRequest())
+    .use(yt.YtLogRequest())
     .use(function(req, rsp, next) {
         "use strict";
         // TODO(sandello): Refactor this.
-        var expected_http_method, actual_http_method = req.method;
-        if (actual_http_method === "OPTIONS") {
-            rsp.statusCode = 200;
+        if (req.method === "OPTIONS") {
             rsp.setHeader("Access-Control-Allow-Origin", "*");
             rsp.setHeader("Access-Control-Allow-Methods", "POST, PUT, GET, OPTIONS");
             rsp.setHeader("Access-Control-Allow-Headers", "origin, content-type, accept, x-yt-parameters, x-yt-input-format, x-yt-output-format, authorization");
             rsp.setHeader("Access-Control-Max-Age", "3600");
-            rsp.removeHeader("Transfer-Encoding");
-            rsp.removeHeader("Content-Encoding");
-            rsp.removeHeader("Vary");
-            rsp.end();
-            return;
+            return yt.utils.dispatchAs(rsp);
         }
         next();
     })
