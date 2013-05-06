@@ -1,8 +1,17 @@
 #include "stdafx.h"
 
+#include "private.h"
 #include "chunk_owner_node_proxy.h"
 #include "chunk.h"
+#include "chunk_list.h"
 #include "chunk_manager.h"
+#include "chunk_tree_traversing.h"
+#include "node_directory_builder.h"
+
+#include <ytlib/ytree/node.h>
+#include <ytlib/ytree/fluent.h>
+#include <ytlib/ytree/system_attribute_provider.h>
+#include <ytlib/ytree/attribute_helpers.h>
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/erasure/codec.h>
@@ -14,6 +23,63 @@ using namespace NChunkClient;
 using namespace NYson;
 using namespace NYTree;
 using NChunkClient::NProto::TReadLimit;
+
+static NLog::TLogger& SILENT_UNUSED Logger = ChunkServerLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TFetchChunkVisitor
+    : public IChunkVisitor
+{
+public:
+    typedef NYT::NRpc::TTypedServiceContext<
+        NChunkClient::NProto::TReqFetch,
+        NChunkClient::NProto::TRspFetch> TCtxFetch;
+
+    typedef TIntrusivePtr<TCtxFetch> TCtxFetchPtr;
+
+    TFetchChunkVisitor(
+        NCellMaster::TBootstrap* bootstrap,
+        TChunkList* chunkList,
+        TCtxFetchPtr context,
+        const NChunkClient::TChannel& channel);
+
+    void StartSession(
+        const NChunkClient::NProto::TReadLimit& lowerBound,
+        const NChunkClient::NProto::TReadLimit& upperBound);
+
+    void Complete();
+
+private:
+    NCellMaster::TBootstrap* Bootstrap;
+    TChunkList* ChunkList;
+    TCtxFetchPtr Context;
+    NChunkClient::TChannel Channel;
+
+    yhash_set<int> ExtensionTags;
+    TNodeDirectoryBuilder NodeDirectoryBuilder;
+    int SessionCount;
+    bool Completed;
+    bool Finished;
+
+    DECLARE_THREAD_AFFINITY_SLOT(StateThread);
+
+    void Reply();
+    void ReplyError(const TError& error);
+
+    virtual bool OnChunk(
+        TChunk* chunk,
+        const NChunkClient::NProto::TReadLimit& startLimit,
+        const NChunkClient::NProto::TReadLimit& endLimit) override;
+
+    virtual void OnError(const TError& error) override;
+    virtual void OnFinish() override;
+
+    static bool IsNontrivial(const NChunkClient::NProto::TReadLimit& limit);
+
+};
+
+typedef TIntrusivePtr<TFetchChunkVisitor> TFetchChunkVisitorPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -341,6 +407,331 @@ TAsyncError GetCodecStatisticsAttribute(
         consumer);
     return visitor->Run();
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TChunkOwnerNodeProxy::TChunkOwnerNodeProxy(
+    NCypressServer::INodeTypeHandlerPtr typeHandler,
+    NCellMaster::TBootstrap* bootstrap,
+    NTransactionServer::TTransaction* transaction,
+    TChunkOwnerBase* trunkNode)
+    : TBase(
+        typeHandler,
+        bootstrap,
+        transaction,
+        trunkNode)
+{ }
+
+bool TChunkOwnerNodeProxy::DoInvoke(NRpc::IServiceContextPtr context)
+{
+    DISPATCH_YPATH_SERVICE_METHOD(PrepareForUpdate);
+    DISPATCH_YPATH_HEAVY_SERVICE_METHOD(Fetch);
+    return DoInvoke(context);
+}
+
+bool TChunkOwnerNodeProxy::IsWriteRequest(NRpc::IServiceContextPtr context) const
+{
+    DECLARE_YPATH_SERVICE_WRITE_METHOD(PrepareForUpdate);
+    return IsWriteRequest(context);
+}
+
+NSecurityServer::TClusterResources TChunkOwnerNodeProxy::GetResourceUsage() const
+{
+    const auto* node = static_cast<const TChunkOwnerBase*>(GetThisImpl());
+    const auto* chunkList = node->GetChunkList();
+    i64 diskSpace = chunkList->Statistics().DiskSpace * node->GetReplicationFactor();
+    return NSecurityServer::TClusterResources(diskSpace, 1);
+}
+
+void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<NYTree::ISystemAttributeProvider::TAttributeInfo>* attributes)
+{
+    attributes->push_back("chunk_list_id");
+    attributes->push_back(NYTree::ISystemAttributeProvider::TAttributeInfo("chunk_ids", true, true));
+    attributes->push_back(NYTree::ISystemAttributeProvider::TAttributeInfo("compression_statistics", true, true));
+    attributes->push_back("chunk_count");
+    attributes->push_back("uncompressed_data_size");
+    attributes->push_back("compressed_data_size");
+    attributes->push_back("compression_ratio");
+    attributes->push_back("update_mode");
+    attributes->push_back("replication_factor");
+    ListSystemAttributes(attributes);
+}
+
+bool TChunkOwnerNodeProxy::GetSystemAttribute(
+    const Stroka& key,
+    NYson::IYsonConsumer* consumer)
+{
+    const auto* node = static_cast<TChunkOwnerBase*>(GetThisImpl());
+    const auto* chunkList = node->GetChunkList();
+    const auto& statistics = chunkList->Statistics();
+
+    if (key == "chunk_list_id") {
+        NYTree::BuildYsonFluently(consumer)
+            .Value(ToString(chunkList->GetId()));
+        return true;
+    }
+
+    if (key == "chunk_count") {
+        NYTree::BuildYsonFluently(consumer)
+            .Value(statistics.ChunkCount);
+        return true;
+    }
+
+    if (key == "uncompressed_data_size") {
+        NYTree::BuildYsonFluently(consumer)
+            .Value(statistics.UncompressedDataSize);
+        return true;
+    }
+
+    if (key == "compressed_data_size") {
+        NYTree::BuildYsonFluently(consumer)
+            .Value(statistics.CompressedDataSize);
+        return true;
+    }
+
+    if (key == "compression_ratio") {
+        double ratio =
+            statistics.UncompressedDataSize > 0
+            ? static_cast<double>(statistics.CompressedDataSize) / statistics.UncompressedDataSize
+            : 0;
+        NYTree::BuildYsonFluently(consumer)
+            .Value(ratio);
+        return true;
+    }
+
+    if (key == "update_mode") {
+        NYTree::BuildYsonFluently(consumer)
+            .Value(FormatEnum(node->GetUpdateMode()));
+        return true;
+    }
+
+    if (key == "replication_factor") {
+        NYTree::BuildYsonFluently(consumer)
+            .Value(node->GetReplicationFactor());
+        return true;
+    }
+
+    return GetSystemAttribute(key, consumer);
+}
+
+TAsyncError TChunkOwnerNodeProxy::GetSystemAttributeAsync(
+    const Stroka& key,
+    NYson::IYsonConsumer* consumer)
+{
+    const auto* node = static_cast<TChunkOwnerBase*>(GetThisImpl());
+    const auto* chunkList = node->GetChunkList();
+
+    if (key == "chunk_ids") {
+        return GetChunkIdsAttribute(
+            Bootstrap,
+            const_cast<TChunkList*>(chunkList),
+            consumer);
+    }
+
+    if (key == "compression_statistics") {
+        return GetCodecStatisticsAttribute(
+            Bootstrap,
+            const_cast<TChunkList*>(chunkList),
+            consumer);
+    }
+
+    return GetSystemAttributeAsync(key, consumer);
+}
+
+void TChunkOwnerNodeProxy::ValidateUserAttributeUpdate(
+    const Stroka& key,
+    const TNullable<NYTree::TYsonString>& oldValue,
+    const TNullable<NYTree::TYsonString>& newValue)
+{
+    UNUSED(oldValue);
+
+    if (key == "compression_codec") {
+        if (!newValue) {
+            NYTree::ThrowCannotRemoveAttribute(key);
+        }
+        ParseEnum<NCompression::ECodec>(NYTree::ConvertTo<Stroka>(newValue.Get()));
+        return;
+    }
+}
+
+bool TChunkOwnerNodeProxy::SetSystemAttribute(
+    const Stroka& key,
+    const NYTree::TYsonString& value)
+{
+    auto chunkManager = Bootstrap->GetChunkManager();
+
+    if (key == "replication_factor") {
+        ValidateNoTransaction();
+        int replicationFactor = NYTree::ConvertTo<int>(value);
+        const int MinReplicationFactor = 1;
+        const int MaxReplicationFactor = 10;
+        if (replicationFactor < MinReplicationFactor || replicationFactor > MaxReplicationFactor) {
+            THROW_ERROR_EXCEPTION("Value must be in range [%d,%d]",
+                MinReplicationFactor,
+                MaxReplicationFactor);
+        }
+
+        auto* node = static_cast<TChunkOwnerBase*>(GetThisImpl());
+        YCHECK(node->IsTrunk());
+
+        if (node->GetReplicationFactor() != replicationFactor) {
+            node->SetReplicationFactor(replicationFactor);
+
+            auto securityManager = Bootstrap->GetSecurityManager();
+            securityManager->UpdateAccountNodeUsage(node);
+
+            if (IsLeader()) {
+                chunkManager->ScheduleRFUpdate(node->GetChunkList());
+            }
+        }
+
+        return true;
+    }
+
+    return SetSystemAttribute(key, value);
+}
+
+void TChunkOwnerNodeProxy::ValidatePathAttributes(
+    const TNullable<NChunkClient::TChannel>& channel,
+    const NChunkClient::NProto::TReadLimit& upperLimit,
+    const NChunkClient::NProto::TReadLimit& lowerLimit)
+{
+    UNUSED(channel);
+    UNUSED(upperLimit);
+    UNUSED(lowerLimit);
+}
+
+DEFINE_RPC_SERVICE_METHOD(TChunkOwnerNodeProxy, PrepareForUpdate)
+{
+    auto mode = NChunkClient::EUpdateMode(request->mode());
+    YCHECK(mode == NChunkClient::EUpdateMode::Append || mode == NChunkClient::EUpdateMode::Overwrite);
+
+    context->SetRequestInfo("Mode: %s", ~FormatEnum(mode));
+
+    ValidateTransaction();
+    ValidatePermission(
+        NYTree::EPermissionCheckScope::This,
+        NSecurityServer::EPermission::Write);
+
+    auto* node = static_cast<TChunkOwnerBase*>(LockThisImpl(GetLockMode(mode)));
+
+    if (node->GetUpdateMode() != NChunkClient::EUpdateMode::None) {
+        THROW_ERROR_EXCEPTION("Node is already in %s mode",
+            ~FormatEnum(node->GetUpdateMode()).Quote());
+    }
+
+    auto chunkManager = Bootstrap->GetChunkManager();
+    auto objectManager = Bootstrap->GetObjectManager();
+
+    TChunkList* resultChunkList;
+    switch (mode) {
+        case NChunkClient::EUpdateMode::Append: {
+            auto* snapshotChunkList = node->GetChunkList();
+
+            auto* newChunkList = chunkManager->CreateChunkList();
+            YCHECK(newChunkList->OwningNodes().insert(node).second);
+
+            YCHECK(snapshotChunkList->OwningNodes().erase(node) == 1);
+            node->SetChunkList(newChunkList);
+            objectManager->RefObject(newChunkList);
+
+            newChunkList->SortedBy() = snapshotChunkList->SortedBy();
+            chunkManager->AttachToChunkList(newChunkList, snapshotChunkList);
+
+            auto* deltaChunkList = chunkManager->CreateChunkList();
+            chunkManager->AttachToChunkList(newChunkList, deltaChunkList);
+
+            objectManager->UnrefObject(snapshotChunkList);
+
+            resultChunkList = deltaChunkList;
+
+            LOG_DEBUG_UNLESS(
+                IsRecovery(),
+                "Node is switched to \"append\" mode (NodeId: %s, NewChunkListId: %s, SnapshotChunkListId: %s, DeltaChunkListId: %s)",
+                ~ToString(node->GetId()),
+                ~ToString(newChunkList->GetId()),
+                ~ToString(snapshotChunkList->GetId()),
+                ~ToString(deltaChunkList->GetId()));
+
+            break;
+        }
+
+        case NChunkClient::EUpdateMode::Overwrite: {
+            auto* oldChunkList = node->GetChunkList();
+            YCHECK(oldChunkList->OwningNodes().erase(node) == 1);
+            objectManager->UnrefObject(oldChunkList);
+
+            auto* newChunkList = chunkManager->CreateChunkList();
+            YCHECK(newChunkList->OwningNodes().insert(node).second);
+            node->SetChunkList(newChunkList);
+            objectManager->RefObject(newChunkList);
+
+            resultChunkList = newChunkList;
+
+            LOG_DEBUG_UNLESS(
+                IsRecovery(),
+                "Node is switched to \"overwrite\" mode (NodeId: %s, NewChunkListId: %s)",
+                ~ToString(node->GetId()),
+                ~ToString(newChunkList->GetId()));
+            break;
+        }
+
+        default:
+            YUNREACHABLE();
+    }
+
+    node->SetUpdateMode(mode);
+
+    SetModified();
+
+    ToProto(response->mutable_chunk_list_id(), resultChunkList->GetId());
+    context->SetResponseInfo("ChunkListId: %s", ~ToString(resultChunkList->GetId()));
+
+    context->Reply();
+}
+
+DEFINE_RPC_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
+{
+    context->SetRequestInfo("");
+
+    ValidatePermission(
+        NYTree::EPermissionCheckScope::This,
+        NSecurityServer::EPermission::Read);
+
+    const auto* node = static_cast<TChunkOwnerBase*>(GetThisImpl());
+
+    auto attributes = NYTree::FromProto(request->attributes());
+    auto channelAttribute = attributes->Find<NChunkClient::TChannel>("channel");
+    auto lowerLimit = attributes->Get("lower_limit", NChunkClient::NProto::TReadLimit());
+    auto upperLimit = attributes->Get("upper_limit", NChunkClient::NProto::TReadLimit());
+    bool complement = attributes->Get("complement", false);
+
+    ValidatePathAttributes(channelAttribute, lowerLimit, upperLimit);
+
+    auto channel = channelAttribute.Get(NChunkClient::TChannel::Universal());
+
+    auto* chunkList = node->GetChunkList();
+
+    auto visitor = New<TFetchChunkVisitor>(
+        Bootstrap,
+        chunkList,
+        context,
+        channel);
+
+    if (complement) {
+        if (lowerLimit.has_row_index() || lowerLimit.has_key()) {
+            visitor->StartSession(NChunkClient::NProto::TReadLimit(), lowerLimit);
+        }
+        if (upperLimit.has_row_index() || upperLimit.has_key()) {
+            visitor->StartSession(upperLimit, NChunkClient::NProto::TReadLimit());
+        }
+    } else {
+        visitor->StartSession(lowerLimit, upperLimit);
+    }
+
+    visitor->Complete();
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

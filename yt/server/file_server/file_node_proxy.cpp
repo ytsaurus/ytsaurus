@@ -31,7 +31,10 @@ using NChunkClient::NProto::TMiscExt;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFileNodeProxy
-    : public TChunkOwnerNodeProxy<TFileNode>
+    : public NCypressServer::TCypressNodeProxyBase<
+        TChunkOwnerNodeProxy,
+        NYTree::IEntityNode,
+        TFileNode>
 {
 public:
     TFileNodeProxy(
@@ -47,7 +50,7 @@ public:
     { }
 
 private:
-    typedef TChunkOwnerNodeProxy<TFileNode> TBase;
+    typedef NCypressServer::TCypressNodeProxyBase<TChunkOwnerNodeProxy, NYTree::IEntityNode, TFileNode> TBase;
 
     virtual void ValidateUserAttributeUpdate(
         const Stroka& key,

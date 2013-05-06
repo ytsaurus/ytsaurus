@@ -42,7 +42,10 @@ using NChunkClient::NProto::TKey;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTableNodeProxy
-    : public TChunkOwnerNodeProxy<TTableNode>
+    : public NCypressServer::TCypressNodeProxyBase<
+        TChunkOwnerNodeProxy,
+        NYTree::IEntityNode,
+        TTableNode>
 {
 public:
     TTableNodeProxy(
@@ -54,8 +57,7 @@ public:
     virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const override;
 
 private:
-    typedef TChunkOwnerNodeProxy<TTableNode> TBase;
-
+    typedef NCypressServer::TCypressNodeProxyBase<TChunkOwnerNodeProxy, NYTree::IEntityNode, TTableNode> TBase;
 
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override;
     virtual bool GetSystemAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
