@@ -34,10 +34,6 @@ YtAuthentication.prototype.dispatch = function(req, rsp, next)
         return this._epilogue(req, rsp, next);
     }
 
-    if (this._rejectBadClients(req, rsp)) {
-        return this._epilogue(req, rsp, next);
-    }
-
     var result = this.authority.authenticate(
         this.logger,
         req.connection.remoteAddress,
@@ -95,12 +91,31 @@ YtAuthentication.prototype._extractToken = function(req, rsp)
     "use strict";
     this.__DBG("_extractToken");
 
+    if (!this.config.enable) {
+        this.logger.debug("Authentication is disabled");
+        // Fallback to guest credentials.
+        this.login = "root";
+        this.realm = "root";
+        return true;
+    }
+
     if (!req.headers.hasOwnProperty("authorization")) {
         this.logger.debug("Client is missing Authorization header");
-        // Presumably allow guest access.
-        this.login = this.config.guest_login;
-        this.realm = this.config.guest_realm;
-        return false;
+        // Check for User-Agent header.
+        var ua = req.headers["user-agent"];
+        if (ua && (
+            ua.indexOf("Python wrapper") === 0 ||
+            ua.indexOf("C++ wrapper") === 0))
+        {
+            this.logger.debug(
+                "Client is required to provide Authorization header");
+        } else {
+            this.logger.debug(
+                "Client has been granted guest credentials");
+            this.login = this.config.guest_login;
+            this.realm = this.config.guest_realm;
+        }
+        return true;
     }
 
     var parts = req.headers["authorization"].split(/\s+/);
@@ -111,30 +126,6 @@ YtAuthentication.prototype._extractToken = function(req, rsp)
             header: req.headers["authorization"]
         });
         // Reject all invalid requests.
-        return true;
-    }
-
-    this.token = token;
-};
-
-YtAuthentication.prototype._rejectBadClients = function(req, rsp)
-{
-    "use strict";
-    this.__DBG("_rejectBadClients");
-
-    if (typeof(this.token) === "undefined") {
-        var ua = req.headers["user-agent"];
-        if (ua && (
-            ua.indexOf("Python wrapper") === 0 ||
-            ua.indexOf("C++ wrapper") === 0))
-        {
-            this.logger.debug(
-                "Client is required to provide Authorization token");
-            // Revoke guest access for Python and C++ clients.
-            this.login = false;
-            this.realm = false;
-        }
-        // If there is no token up to the moment then fail quickly.
         return true;
     }
 };
