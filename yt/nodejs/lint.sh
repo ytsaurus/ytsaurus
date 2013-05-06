@@ -17,7 +17,7 @@ function run_jshint()
 
 run_jshint ./bin/yt_http_proxy
 
-find ./lib/ -type f -name '*.js' -and -not -name 'test_*' -print0 | while IFS= read -r -d $'\0' file
+find ./lib -type f -name '*.js' -and -not -name 'test_*' -print0 | while IFS= read -r -d $'\0' file
 do
     run_jshint $file
 done

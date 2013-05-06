@@ -13,27 +13,6 @@ if (process.env.NODE_DEBUG && /YTTEST/.test(process.env.NODE_DEBUG)) {
     __DBG = function(){};
 }
 
-// A bunch of helpful assertions to use while testing HTTP.
-
-chai.Assertion.addProperty('http2xx', function() {
-    this._obj.statusCode.should.be.within(200, 300);
-});
-
-chai.Assertion.addProperty('http3xx', function() {
-    this._obj.statusCode.should.be.within(300, 400);
-});
-
-chai.Assertion.addProperty('http4xx', function() {
-    this._obj.statusCode.should.be.within(400, 500);
-});
-
-chai.Assertion.addProperty('http5xx', function() {
-    this._obj.statusCode.should.be.within(500, 600);
-});
-
-chai.Assertion.addMethod('content_type', function(mime) {
-    this._obj.headers["content-type"].should.eql(mime);
-});
 
 ////////////////////////////////////////////////////////////////////////////////
 

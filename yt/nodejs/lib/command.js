@@ -12,58 +12,51 @@ var YtError = require("./error").that;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-var __DBG;
-
-if (process.env.NODE_DEBUG && /YT(ALL|APP)/.test(process.env.NODE_DEBUG)) {
-    __DBG = function(x) { "use strict"; console.error("YT Command:", x); };
-    __DBG.UUID = require("node-uuid");
-} else {
-    __DBG = function(){};
-}
+var __DBG = require("./debug").that("C", "Command");
 
 // This mapping defines how MIME types map onto YT format specifications.
 var _MIME_TO_FORMAT = {
-    "application/json" : new binding.TNodeWrap({
-        $value : "json"
+    "application/json": new binding.TNodeWrap({
+        $value: "json"
     }),
-    "application/x-yamr-delimited" : new binding.TNodeWrap({
-        $attributes : { lenval : false, has_subkey : false },
-        $value : "yamr",
+    "application/x-yamr-delimited": new binding.TNodeWrap({
+        $attributes: { lenval: false, has_subkey: false },
+        $value: "yamr",
     }),
-    "application/x-yamr-lenval" : new binding.TNodeWrap({
-        $attributes : { lenval : true, has_subkey : false },
-        $value : "yamr"
+    "application/x-yamr-lenval": new binding.TNodeWrap({
+        $attributes: { lenval: true, has_subkey: false },
+        $value: "yamr"
     }),
-    "application/x-yamr-subkey-delimited" : new binding.TNodeWrap({
-        $attributes : { lenval : false, has_subkey : true },
-        $value : "yamr"
+    "application/x-yamr-subkey-delimited": new binding.TNodeWrap({
+        $attributes: { lenval: false, has_subkey: true },
+        $value: "yamr"
     }),
-    "application/x-yamr-subkey-lenval" : new binding.TNodeWrap({
-        $attributes : { lenval : true, has_subkey : true },
-        $value : "yamr"
+    "application/x-yamr-subkey-lenval": new binding.TNodeWrap({
+        $attributes: { lenval: true, has_subkey: true },
+        $value: "yamr"
     }),
-    "application/x-yt-yson-binary" : new binding.TNodeWrap({
-        $attributes : { format : "binary" },
-        $value : "yson"
+    "application/x-yt-yson-binary": new binding.TNodeWrap({
+        $attributes: { format: "binary" },
+        $value: "yson"
     }),
-    "application/x-yt-yson-pretty" : new binding.TNodeWrap({
-        $attributes : { format : "pretty" },
-        $value : "yson"
+    "application/x-yt-yson-pretty": new binding.TNodeWrap({
+        $attributes: { format: "pretty" },
+        $value: "yson"
     }),
-    "application/x-yt-yson-text" : new binding.TNodeWrap({
-        $attributes : { format : "text" },
-        $value : "yson"
+    "application/x-yt-yson-text": new binding.TNodeWrap({
+        $attributes: { format: "text" },
+        $value: "yson"
     }),
-    "text/csv" : new binding.TNodeWrap({
-        $attributes : { record_separator : ",", key_value_separator : ":" },
-        $value : "dsv"
+    "text/csv": new binding.TNodeWrap({
+        $attributes: { record_separator: ",", key_value_separator: ":" },
+        $value: "dsv"
     }),
-    "text/tab-separated-values" : new binding.TNodeWrap({
-        $value : "dsv"
+    "text/tab-separated-values": new binding.TNodeWrap({
+        $value: "dsv"
     }),
-    "text/x-tskv" : new binding.TNodeWrap({
-        $attributes : { line_prefix : "tskv" },
-        $value : "dsv"
+    "text/x-tskv": new binding.TNodeWrap({
+        $attributes: { line_prefix: "tskv" },
+        $value: "dsv"
     })
 };
 
@@ -88,21 +81,26 @@ _MIME_BY_OUTPUT_TYPE[binding.EDataType_Tabular] = [
     "text/x-tskv"
 ];
 
+// This mapping defines default output formats for data types.
+var _MIME_DEFAULT = {};
+_MIME_DEFAULT[binding.EDataType_Structured] = "application/json";
+_MIME_DEFAULT[binding.EDataType_Tabular] = "application/x-yt-yson-text";
+
 // This mapping defines how Content-Encoding and Accept-Encoding map onto YT compressors.
 var _ENCODING_TO_COMPRESSION = {
-    "gzip"      : binding.ECompression_Gzip,
-    "deflate"   : binding.ECompression_Deflate,
-    "x-lzop"    : binding.ECompression_LZOP,
-    "y-lzo"     : binding.ECompression_LZO,
-    "y-lzf"     : binding.ECompression_LZF,
-    "y-snappy"  : binding.ECompression_Snappy,
-    "identity"  : binding.ECompression_None
+    "gzip"     : binding.ECompression_Gzip,
+    "deflate"  : binding.ECompression_Deflate,
+    "x-lzop"   : binding.ECompression_LZOP,
+    "y-lzo"    : binding.ECompression_LZO,
+    "y-lzf"    : binding.ECompression_LZF,
+    "y-snappy" : binding.ECompression_Snappy,
+    "identity" : binding.ECompression_None
 };
 
 var _ENCODING_ALL = Object.keys(_ENCODING_TO_COMPRESSION);
 
-var _PREDEFINED_JSON_FORMAT = new binding.TNodeWrap({ $value : "json" });
-var _PREDEFINED_YSON_FORMAT = new binding.TNodeWrap({ $value : "yson" });
+var _PREDEFINED_JSON_FORMAT = new binding.TNodeWrap({ $value: "json" });
+var _PREDEFINED_YSON_FORMAT = new binding.TNodeWrap({ $value: "yson" });
 
 // === HTTP Status Codes
 // http://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html
@@ -115,14 +113,9 @@ var _PREDEFINED_YSON_FORMAT = new binding.TNodeWrap({ $value : "yson" });
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function YtCommand(logger, driver, watcher, fqdn, read_only, pause, req, rsp) {
+function YtCommand(logger, driver, watcher, fqdn, read_only, pause) {
     "use strict";
-    if (__DBG.UUID) {
-        this.__DBG  = function(x) { __DBG(this.__UUID + " -> " + x); };
-        this.__UUID = __DBG.UUID.v4();
-    } else {
-        this.__DBG  = function(){};
-    }
+    this.__DBG = __DBG.Tagged();
 
     this.logger = logger;
     this.driver = driver;
@@ -131,14 +124,12 @@ function YtCommand(logger, driver, watcher, fqdn, read_only, pause, req, rsp) {
     this.read_only = read_only;
     this.pause = pause;
 
-    this.req = req;
-    this.rsp = rsp;
-
-    this.__DBG("New");
-
     // This is a total list of class fields; keep this up to date to improve V8
     // performance (JIT code reuse depends on so-called "hidden class"; see links
     // on V8 optimization for more details).
+
+    this.req = null;
+    this.rsp = null;
 
     this.name = undefined;
     this.user = undefined;
@@ -158,13 +149,18 @@ function YtCommand(logger, driver, watcher, fqdn, read_only, pause, req, rsp) {
 
     this.bytes_in = undefined;
     this.bytes_out = undefined;
+
+    this.__DBG("New");
 }
 
-YtCommand.prototype.dispatch = function() {
+YtCommand.prototype.dispatch = function(req, rsp) {
     "use strict";
     this.__DBG("dispatch");
 
     var self = this;
+
+    self.req = req;
+    self.rsp = rsp;
 
     self.req.parsedUrl = url.parse(self.req.url);
     self.rsp.statusCode = 202; // "Accepted". This may change during the pipeline.
@@ -185,7 +181,6 @@ YtCommand.prototype.dispatch = function() {
         .then(self._captureParameters.bind(self))
         .then(function() {
             self._logRequest();
-            self._checkPermissions();
             self._addHeaders();
         })
         .then(self._execute.bind(self))
@@ -196,21 +191,6 @@ YtCommand.prototype.dispatch = function() {
         })
         .then(self._epilogue.bind(self))
         .end();
-};
-
-YtCommand.prototype._dispatchAsJson = function(body) {
-    "use strict";
-    this.__DBG("_dispatchAsJson");
-
-    this.rsp.removeHeader("Transfer-Encoding");
-    this.rsp.removeHeader("Content-Encoding");
-    this.rsp.removeHeader("Vary");
-    this.rsp.setHeader("Content-Type", "application/json");
-    this.rsp.setHeader("Content-Length", body.length);
-    this.rsp.setHeader("Connection", "close");
-    this.rsp.shouldKeepAlive = false;
-    this.rsp.writeHead(this.rsp.statusCode);
-    this.rsp.end(body);
 };
 
 YtCommand.prototype._epilogue = function(result) {
@@ -225,17 +205,16 @@ YtCommand.prototype._epilogue = function(result) {
         this.rsp.setHeader("X-YT-Response-Message", result.getMessage());
     } else {
         this.rsp.addTrailers({
-            "X-YT-Error" : result.toJson(),
-            "X-YT-Response-Code" : result.getCode(),
-            "X-YT-Response-Message" : result.getMessage()
+            "X-YT-Error": result.toJson(),
+            "X-YT-Response-Code": result.getCode(),
+            "X-YT-Response-Message": result.getMessage()
         });
     }
 
     this.logger.debug("Done (" + (result.isOK() ? "success" : "failure") + ")", {
-        request_id : this.req.uuid,
-        bytes_in   : this.bytes_in,
-        bytes_out  : this.bytes_out,
-        result     : result
+        bytes_in  : this.bytes_in,
+        bytes_out : this.bytes_out,
+        result    : result
     });
 
     if (result.isOK()) {
@@ -249,7 +228,10 @@ YtCommand.prototype._epilogue = function(result) {
             {
                 this.rsp.statusCode = 400;
             }
-            this._dispatchAsJson(result.toJson());
+            utils.dispatchAs(
+                this.rsp,
+                result.toJson(),
+                "application/json");
         }
     }
 
@@ -266,7 +248,10 @@ YtCommand.prototype._getName = function() {
         // Bail out to API description.
         this.rsp.statusCode = 200;
         this.rsp.setHeader("Access-Control-Allow-Origin", "*");
-        this._dispatchAsJson(JSON.stringify(this.driver.get_command_descriptors()));
+        utils.dispatchAs(
+            this.rsp,
+            JSON.stringify(this.driver.get_command_descriptors()),
+            "application/json");
         throw new YtError();
     }
 
@@ -302,8 +287,8 @@ YtCommand.prototype._redirectForMarkedRequests = function() {
         return;
     }
 
-    this.req.parsedUrl.pathname = '/' + this.name;
-    var target = 'http://' + this.fqdn + '/api' + url.format(this.req.parsedUrl);
+    this.req.parsedUrl.pathname = "/" + this.name;
+    var target = "http://" + this.fqdn + "/api" + url.format(this.req.parsedUrl);
 
     this.rsp.statusCode = 307;
     this.rsp.shouldKeepAlive = false;
@@ -425,7 +410,8 @@ YtCommand.prototype._getInputFormat = function() {
 
     // Lastly, provide a default option, i. e. YSON.
     if (typeof(result) === "undefined") {
-        result = _PREDEFINED_YSON_FORMAT;
+        var default_mime = _MIME_DEFAULT[this.descriptor.input_type_as_integer];
+        result = default_mime ? _MIME_TO_FORMAT[default_mime] : _PREDEFINED_YSON_FORMAT;
     }
 
     this.input_format = result;
@@ -469,9 +455,9 @@ YtCommand.prototype._getOutputFormat = function() {
         return;
     }
     if (this.descriptor.output_type_as_integer === binding.EDataType_Binary) {
-        // TODO(sandello): Replace with application/octet-stream and Content-Disposition.
+        // TODO(sandello): Set Content-Disposition.
         this.output_format = _PREDEFINED_YSON_FORMAT;
-        this.mime_type = "text/plain";
+        this.mime_type = "application/octet-stream";
         return;
     }
 
@@ -506,10 +492,10 @@ YtCommand.prototype._getOutputFormat = function() {
         }
     }
 
-    // Lastly, provide a default option, i. e. YSON.
+    // Lastly, provide a default option.
     if (typeof(result_format) === "undefined") {
-        result_mime = "text/plain";
-        result_format = _PREDEFINED_YSON_FORMAT;
+        result_mime = _MIME_DEFAULT[this.descriptor.output_type_as_integer];
+        result_format = _MIME_TO_FORMAT[result_mime];
     }
 
     this.output_format = result_format;
@@ -637,47 +623,14 @@ YtCommand.prototype._logRequest = function() {
     this.__DBG("_logRequest");
 
     this.logger.debug("Gathered request parameters", {
-        request_id              : this.req.uuid,
-        name                    : this.name,
-        user                    : this.user,
-        parameters              : this.parameters.Print(),
-        input_format            : this.input_format.Print(),
-        input_compression       : binding.ECompression[this.input_compression],
-        output_format           : this.output_format.Print(),
-        output_compression      : binding.ECompression[this.output_compression]
+        name               : this.name,
+        user               : this.user,
+        parameters         : this.parameters.Print(),
+        input_format       : this.input_format.Print(),
+        input_compression  : binding.ECompression[this.input_compression],
+        output_format      : this.output_format.Print(),
+        output_compression : binding.ECompression[this.output_compression]
     });
-};
-
-YtCommand.prototype._checkPermissions = function() {
-    "use strict";
-    this.__DBG("_checkPermissions");
-
-    if (this.descriptor.is_volatile) {
-        var self = this;
-        var paths = [];
-
-        // Collect all paths mentioned within a request.
-        // This is an approximation, but a decent one.
-        var collectFrom = function(ypath) {
-            try {
-                var tmp = self.parameters.Traverse(ypath).Get();
-                if (typeof(tmp) === "string") {
-                    paths.push(tmp);
-                } else if (tmp instanceof Array) {
-                    for (var i = 0, n = tmp.length; i < n; ++i) {
-                        paths.push(tmp[i]);
-                    }
-                }
-            } catch(err) {
-            }
-        };
-
-        collectFrom("/path");
-        collectFrom("/spec/input_table_path");
-        collectFrom("/spec/input_table_paths");
-        collectFrom("/spec/output_table_path");
-        collectFrom("/spec/output_table_paths");
-    }
 };
 
 YtCommand.prototype._addHeaders = function() {
@@ -714,13 +667,13 @@ YtCommand.prototype._execute = function(cb) {
         function(result) {
             self.logger.debug(
                 "Command '" + self.name + "' successfully executed",
-                { request_id : self.req.uuid, result : result });
+                { result: result });
             return arguments;
         },
         function(result) {
             self.logger.debug(
                 "Command '" + self.name + "' has failed to execute",
-                { request_id : self.req.uuid, result : result });
+                { result: result });
             return arguments;
         })
     .spread(function(result, bytes_in, bytes_out) {

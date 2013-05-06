@@ -36,12 +36,12 @@ TClientRequest::TClientRequest(
     const Stroka& verb,
     bool oneWay)
     : Heavy_(false)
+    , StartTime_(TInstant::Now())
     , Channel(channel)
     , Path(path)
     , Verb(verb)
     , RequestId(TRequestId::Create())
     , OneWay(oneWay)
-    , StartTime_(TInstant::Now())
     , Attributes_(CreateEphemeralAttributes())
 {
     YASSERT(channel);

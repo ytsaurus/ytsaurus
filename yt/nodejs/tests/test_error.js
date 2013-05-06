@@ -5,7 +5,9 @@ var YtError = require("../lib/error").that;
 ////////////////////////////////////////////////////////////////////////////////
 
 var makeError = function(code, message, attributes) {
-    return binding.SpawnBasicYtError(code,message,
+    return binding.SpawnBasicYtError(
+        code,
+        message,
         binding.CreateV8Node(attributes));
 };
 
@@ -160,5 +162,3 @@ describe("error serialization", function() {
             '}');
     });
 });
-
-////////////////////////////////////////////////////////////////////////////////

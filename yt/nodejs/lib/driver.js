@@ -1,3 +1,4 @@
+var buffertools = require("buffertools");
 var Q = require("q");
 
 var YtError = require("./error").that;
@@ -5,17 +6,14 @@ var YtReadableStream = require("./readable_stream").that;
 var YtWritableStream = require("./writable_stream").that;
 
 var binding = require("./ytnode");
+var utils = require("./utils");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-var __DBG;
+var __DBG = require("./debug").that("B", "Driver");
 
-if (process.env.NODE_DEBUG && /YT(ALL|NODE)/.test(process.env.NODE_DEBUG)) {
-    __DBG = function(x) { "use strict"; console.error("YT Driver:", x); };
-    __DBG.UUID = require("node-uuid");
-} else {
-    __DBG = function(){};
-}
+var _SIMPLE_EXECUTE_USER = "root";
+var _SIMPLE_EXECUTE_FORMAT = new binding.TNodeWrap({ $value : "json" });
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,15 +22,7 @@ function promisinglyPipe(source, destination)
     "use strict";
 
     var deferred = Q.defer();
-
-    var uuid = null;
-    var debug = function(){};
-
-    if (__DBG.UUID) {
-        uuid = __DBG.UUID.v4();
-        debug = function(x) { __DBG("Pipe " + uuid + " -> " + x); };
-        debug("New");
-    }
+    var debug = __DBG.Tagged("Pipe");
 
     function on_data(chunk) {
         if (destination.writable && destination.write(chunk) === false) {
@@ -109,17 +99,10 @@ function promisinglyPipe(source, destination)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function YtDriver(echo, config) {
+function YtDriver(config, echo)
+{
     "use strict";
-
-    if (__DBG.UUID) {
-        this.__DBG  = function(x) { __DBG(this.__UUID + " -> " + x); };
-        this.__UUID = __DBG.UUID.v4();
-    } else {
-        this.__DBG  = function(){};
-    }
-
-    this.__DBG("New");
+    this.__DBG = __DBG.Tagged();
 
     this.low_watermark = config.low_watermark;
     this.high_watermark = config.high_watermark;
@@ -127,14 +110,17 @@ function YtDriver(echo, config) {
     this.__DBG("low_watermark = " + this.low_watermark);
     this.__DBG("high_watermark = " + this.high_watermark);
 
-    this._binding = new binding.TDriverWrap(echo, config.proxy);
+    this._binding = new binding.TDriverWrap(!!echo, config.proxy);
+
+    this.__DBG("New");
 }
 
 YtDriver.prototype.execute = function(name, user,
     input_stream, input_compression, input_format,
     output_stream, output_compression, output_format,
     parameters
-) {
+)
+{
     "use strict";
     this.__DBG("execute");
 
@@ -197,10 +183,31 @@ YtDriver.prototype.execute = function(name, user,
         .spread(function(result, ir, or) { return result; });
 };
 
-YtDriver.prototype.find_command_descriptor = function(command_name) {
+YtDriver.prototype.executeSimple = function(name, parameters, data)
+{
+    "use strict";
+    this.__DBG("executeSimple");
+
+    var input_stream = new utils.MemoryInputStream(data);
+    var output_stream = new utils.MemoryOutputStream();
+
+    return this.execute(name, _SIMPLE_EXECUTE_USER,
+        input_stream, binding.ECompression_None, _SIMPLE_EXECUTE_FORMAT,
+        output_stream, binding.ECompression_None, _SIMPLE_EXECUTE_FORMAT,
+        new binding.TNodeWrap(parameters))
+    .then(function(result) {
+        var body = buffertools.concat.apply(undefined, output_stream.chunks);
+        if (body.length) {
+            return JSON.parse(body);
+        }
+    });
+};
+
+YtDriver.prototype.find_command_descriptor = function(name)
+{
     "use strict";
     this.__DBG("find_command_descriptor");
-    return this._binding.FindCommandDescriptor(command_name);
+    return this._binding.FindCommandDescriptor(name);
 };
 
 YtDriver.prototype.get_command_descriptors = function() {

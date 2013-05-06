@@ -147,17 +147,14 @@ struct TExecuteRequest
     {
         FOREACH (auto* current, OutputStack)
         {
-            current->Flush();
             current->Finish();
         }
     }
 };
 
+// Assuming presence of outer HandleScope.
 Local<Object> ConvertCommandDescriptorToV8Object(const TCommandDescriptor& descriptor)
 {
-    THREAD_AFFINITY_IS_V8();
-    HandleScope scope;
-
     Local<Object> result = Object::New();
     result->Set(
         DescriptorName,
@@ -187,9 +184,10 @@ Local<Object> ConvertCommandDescriptorToV8Object(const TCommandDescriptor& descr
         DescriptorIsHeavy,
         Boolean::New(descriptor.IsHeavy),
         v8::ReadOnly);
-    return scope.Close(result);
+    return result;
 }
 
+// Assuming presence of outer HandleScope.
 template <class E>
 void ExportEnumeration(
     const Handle<Object>& target,
@@ -209,6 +207,37 @@ void ExportEnumeration(
         mapping->Set(valueHandle, keyHandle);
     }
     target->Set(String::NewSymbol(name), mapping);
+}
+
+// Assuming presence of outer HandleScope.
+void Invoke(
+    const Handle<Function>& callback,
+    const Handle<Value>& a1)
+{
+    TryCatch catcher;
+
+    Handle<Value> args[] = { a1 };
+    callback->Call(Context::GetCurrent()->Global(), ARRAY_SIZE(args), args);
+    if (catcher.HasCaught()) {
+        node::FatalException(catcher);
+    }
+}
+
+// Assuming presence of outer HandleScope.
+void Invoke(
+    const Handle<Function>& callback,
+    const Handle<Value>& a1,
+    const Handle<Value>& a2,
+    const Handle<Value>& a3)
+{
+    HandleScope scope;
+    TryCatch catcher;
+
+    Handle<Value> args[] = { a1, a2, a3 };
+    callback->Call(Context::GetCurrent()->Global(), ARRAY_SIZE(args), args);
+    if (catcher.HasCaught()) {
+        node::FatalException(catcher);
+    }
 }
 
 } // namespace
@@ -333,7 +362,7 @@ Handle<Value> TDriverWrap::FindCommandDescriptor(const Arguments& args)
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    // Unwrap.
+    // Unwrap object.
     TDriverWrap* driver =
         ObjectWrap::Unwrap<TDriverWrap>(args.This());
 
@@ -342,22 +371,19 @@ Handle<Value> TDriverWrap::FindCommandDescriptor(const Arguments& args)
 
     EXPECT_THAT_IS(args[0], String);
 
-    // Do the work.
-    return scope.Close(driver->DoFindCommandDescriptor(args[0].As<String>()));
-}
-
-Handle<Value> TDriverWrap::DoFindCommandDescriptor(Handle<String> commandNameHandle)
-{
-    THREAD_AFFINITY_IS_V8();
-    HandleScope scope;
-
-    String::AsciiValue commandNameValue(commandNameHandle);
+    // Unwrap arguments.
+    String::Utf8Value commandNameValue(args[0]);
     Stroka commandName(*commandNameValue, commandNameValue.length());
 
+    // Do the work.
+    return scope.Close(driver->DoFindCommandDescriptor(commandName));
+}
+
+Handle<Value> TDriverWrap::DoFindCommandDescriptor(const Stroka& commandName)
+{
     auto maybeDescriptor = Driver->FindCommandDescriptor(commandName);
     if (maybeDescriptor) {
-        return scope.Close(
-            ConvertCommandDescriptorToV8Object(*maybeDescriptor));
+        return ConvertCommandDescriptorToV8Object(*maybeDescriptor);
     } else {
         return v8::Null();
     }
@@ -383,9 +409,6 @@ Handle<Value> TDriverWrap::GetCommandDescriptors(const Arguments& args)
 
 Handle<Value> TDriverWrap::DoGetCommandDescriptors()
 {
-    THREAD_AFFINITY_IS_V8();
-    HandleScope scope;
-
     Local<Array> result = Array::New();
 
     auto descriptors = Driver->GetCommandDescriptors();
@@ -394,7 +417,7 @@ Handle<Value> TDriverWrap::DoGetCommandDescriptors()
         result->Set(result->Length(), resultItem);
     }
 
-    return scope.Close(result);
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -448,28 +471,35 @@ Handle<Value> TDriverWrap::Execute(const Arguments& args)
     YCHECK(parameters);
     YCHECK(parameters->GetType() == ENodeType::Map);
 
-    TExecuteRequest* request = new TExecuteRequest(
+    THolder<TExecuteRequest> request(new TExecuteRequest(
         host,
         inputStream,
         outputStream,
-        callback);
+        callback));
 
-    request->SetCommand(
-        Stroka(*commandName, commandName.length()),
-        Stroka(*authenticatedUser, authenticatedUser.length()),
-        std::move(parameters));
+    try {
+        request->SetCommand(
+            Stroka(*commandName, commandName.length()),
+            Stroka(*authenticatedUser, authenticatedUser.length()),
+            std::move(parameters));
 
-    request->SetInputCompression(inputCompression);
-    request->SetInputFormat(std::move(inputFormat));
+        request->SetInputCompression(inputCompression);
+        request->SetInputFormat(std::move(inputFormat));
 
-    request->SetOutputCompression(outputCompression);
-    request->SetOutputFormat(std::move(outputFormat));
+        request->SetOutputCompression(outputCompression);
+        request->SetOutputFormat(std::move(outputFormat));
 
-    request->Prepare();
+        request->Prepare();
 
-    uv_queue_work(
-        uv_default_loop(), &request->Request,
-        TDriverWrap::ExecuteWork, TDriverWrap::ExecuteAfter);
+        uv_queue_work(
+            uv_default_loop(), &request.Release()->Request,
+            TDriverWrap::ExecuteWork, TDriverWrap::ExecuteAfter);
+    } catch (const std::exception& ex) {
+        TError error(ex);
+        LOG_DEBUG(error, "Unexpected exception while creating TExecuteRequest");
+
+        Invoke(request->Callback, ConvertErrorToV8(error));
+    }
 
     return Undefined();
 }
@@ -477,10 +507,11 @@ Handle<Value> TDriverWrap::Execute(const Arguments& args)
 void TDriverWrap::ExecuteWork(uv_work_t* workRequest)
 {
     THREAD_AFFINITY_IS_UV();
-
     TExecuteRequest* request = container_of(workRequest, TExecuteRequest, Request);
 
     if (LIKELY(!request->Host->Echo)) {
+        // Execute() method is guaranteed to be exception-safe,
+        // so no try-catch here.
         request->DriverResponse = request->Host->Driver->Execute(request->DriverRequest);
     } else {
         TTempBuf buffer;
@@ -500,63 +531,37 @@ void TDriverWrap::ExecuteAfter(uv_work_t* workRequest)
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    TExecuteRequest* request = container_of(workRequest, TExecuteRequest, Request);
+    THolder<TExecuteRequest> request(
+        container_of(workRequest, TExecuteRequest, Request));
 
-    if (!request->OutputStack.HasAnyData()) {
-        // In this case we have to prematurely destroy the stream to avoid
-        // writing middleware-induced framing overhead.
-        request->OutputStack.GetBaseStream()->DoDestroy();
-    } else {
-        try {
+    try {
+        if (LIKELY(request->OutputStack.HasAnyData())) {
             request->Finish();
-        } catch (const std::exception& ex) {
-            LOG_DEBUG(TError(ex), "Ignoring exception while closing driver output stream");
+        } else {
+            // In this case we have to prematurely destroy the stream to avoid
+            // writing middleware-induced framing overhead.
+            request->OutputStack.GetBaseStream()->DoDestroy();
         }
+    } catch (const std::exception& ex) {
+        LOG_DEBUG(TError(ex), "Ignoring exception while closing driver output stream");
     }
 
-    char buffer[32]; // This should be enough to stringify ui64.
-    size_t length;
+    // XXX(sandello): We cannot represent ui64 precisely in V8, because there
+    // is no native ui64 integer type. So we convert ui64 to double (v8::Number)
+    // to precisely represent all integers up to 2^52
+    // (see http://en.wikipedia.org/wiki/Double_precision).
+    double bytesIn = request->InputStack.GetBaseStream()->GetBytesEnqueued();
+    double bytesOut = request->OutputStack.GetBaseStream()->GetBytesEnqueued();
 
-    TryCatch catcher;
-
-    Handle<Value> args[] = {
-        Local<Value>::New(v8::Null()),
-        Local<Value>::New(v8::Null()),
-        Local<Value>::New(v8::Null())
-    };
-
-    args[0] = ConvertErrorToV8(request->DriverResponse.Error);
-
-    // XXX(sandello): Since counters are ui64 we cannot represent
-    // them precisely in V8. Therefore we pass them as strings
-    // because they are used only for debugging purposes.
-    auto* nodejsInputStream = request->InputStack.GetBaseStream();
-    length = ToString(
-        nodejsInputStream->GetBytesEnqueued(),
-        buffer,
-        sizeof(buffer));
-    args[1] = String::New(buffer, length);
-
-    auto* nodejsOutputStream = request->OutputStack.GetBaseStream();
-    length = ToString(
-        nodejsOutputStream->GetBytesEnqueued(),
-        buffer,
-        sizeof(buffer));
-    args[2] = String::New(buffer, length);
-
-    request->Callback->Call(
-        Context::GetCurrent()->Global(),
-        ARRAY_SIZE(args),
-        args);
-
-    delete request;
-
-    if (catcher.HasCaught()) {
-        node::FatalException(catcher);
-    }
+    Invoke(
+        request->Callback,
+        ConvertErrorToV8(request->DriverResponse.Error),
+        Number::New(bytesIn),
+        Number::New(bytesOut));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NNodeJS
 } // namespace NYT
+

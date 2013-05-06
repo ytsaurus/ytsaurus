@@ -23,7 +23,7 @@ function TraceUVTicks(n) {
     TraceUVTick();
 }
 
-function generateString(target_length) {
+function GenerateString(target_length) {
     var alphabet = "abcdefghijklmnopqrstuvwxyz01234567890";
     var result = "";
 
@@ -222,9 +222,9 @@ describe("input stream interface", function() {
         [ 
             [ "empty string",  ""                              ],
             [ "tiny string",   "hello"                         ],
-            [ "small string",  generateString(8 * 1024)        ],
-            [ "medium string", generateString(8 * 1024 * 8)    ],
-            [ "large string",  generateString(8 * 1024 * 1024) ],
+            [ "small string",  GenerateString(8 * 1024)        ],
+            [ "medium string", GenerateString(8 * 1024 * 8)    ],
+            [ "large string",  GenerateString(8 * 1024 * 1024) ],
         ].forEach(function(test_case) {
             var method      = test_setting[0];
             var compression = test_setting[1];
@@ -317,9 +317,9 @@ describe("output stream interface", function() {
         [
             [ "empty string",  ""                              ],
             [ "tiny string",   "hello"                         ],
-            [ "small string",  generateString(8 * 1024)        ],
-            [ "medium string", generateString(8 * 1024 * 8)    ],
-            [ "large string",  generateString(8 * 1024 * 1024) ],
+            [ "small string",  GenerateString(8 * 1024)        ],
+            [ "medium string", GenerateString(8 * 1024 * 8)    ],
+            [ "large string",  GenerateString(8 * 1024 * 1024) ],
         ].forEach(function(test_case) {
             var method        = test_setting[0];
             var decompression = test_setting[1];
@@ -340,7 +340,7 @@ describe("output stream interface", function() {
                             break;
                         }
                     }
-                    var compressed = buffertools.concat.apply(buffertools, chunks);
+                    var compressed = buffertools.concat.apply(undefined, chunks);
                     decompressor(compressed, function(err, decompressed) {
                         expect(err).to.be.null;
                         decompressed.length.should.be.equal(case_data.length);
