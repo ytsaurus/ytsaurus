@@ -19,6 +19,7 @@
 
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/ytree/convert.h>
+#include <ytlib/ytree/attribute_helpers.h>
 
 #include <ytlib/formats/format.h>
 
@@ -1376,8 +1377,15 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::CreateLivePrevie
 
     auto processTable = [&] (const Stroka& path, const Stroka& key) {
         auto req = TCypressYPathProxy::Create(path);
+
         req->set_type(EObjectType::Table);
         req->set_ignore_existing(true);
+
+        auto attributes = CreateEphemeralAttributes();
+        attributes->Set("replication_factor", 1);
+
+        ToProto(req->mutable_node_attributes(), *attributes);
+
         batchReq->AddRequest(req, key);
     };
 
