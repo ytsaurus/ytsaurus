@@ -386,7 +386,10 @@ IYPathServicePtr CreateRootService(IYPathServicePtr underlyingService);
 #define DISPATCH_YPATH_SERVICE_METHOD(method) \
     if (context->GetVerb() == #method) { \
         ::NYT::NRpc::THandlerInvocationOptions options; \
-        method##Thunk(context, options).Run(); \
+        auto action = method##Thunk(context, options); \
+        if (!action.IsNull()) { \
+            action.Run(); \
+        } \
         return true; \
     }
 
@@ -396,7 +399,10 @@ IYPathServicePtr CreateRootService(IYPathServicePtr underlyingService);
         ::NYT::NRpc::THandlerInvocationOptions options; \
         options.HeavyResponse = true; \
         options.ResponseCodec = NCompression::ECodec::Lz4; \
-        method##Thunk(context, options).Run(); \
+        auto action = method##Thunk(context, options); \
+        if (!action.IsNull()) { \
+            action.Run(); \
+        } \
         return true; \
     }
 
