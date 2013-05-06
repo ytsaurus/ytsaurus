@@ -128,6 +128,8 @@ YtAuthentication.prototype._extractToken = function(req, rsp)
         // Reject all invalid requests.
         return true;
     }
+
+    this.token = token;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
