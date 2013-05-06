@@ -584,24 +584,27 @@ private:
         if (!node)
             return;
 
-        // TODO(babenko): refactor
+        auto* transaction = node->GetTransaction();
+        if (!transaction)
+            return;
 
         const auto& address = node->GetAddress();
         auto addressToken = ToYPathLiteral(address);
 
-        auto cypressManager = Bootstrap->GetCypressManager();
-        auto rootService = cypressManager->GetRootService();
+        auto objectManager = Bootstrap->GetObjectManager();
+        auto rootService = objectManager->GetRootService();
 
         {
-            auto req = TCypressYPathProxy::Create("/sys/nodes/" + addressToken);
+            auto req = TCypressYPathProxy::Create("//sys/nodes/" + addressToken);
             req->set_type(EObjectType::CellNode);
             req->set_ignore_existing(true);
+
             ExecuteVerb(rootService, req).Subscribe(
                 BIND(&TImpl::CheckCypressResponse<TCypressYPathProxy::TRspCreate>, MakeStrong(this)));
         }
 
         {
-            auto req = TCypressYPathProxy::Create("/sys/nodes/" + addressToken + "/orchid");
+            auto req = TCypressYPathProxy::Create("//sys/nodes/" + addressToken + "/orchid");
             req->set_type(EObjectType::Orchid);
             req->set_ignore_existing(true);
 
@@ -613,9 +616,9 @@ private:
                 BIND(&TImpl::CheckCypressResponse<TCypressYPathProxy::TRspCreate>, MakeStrong(this)));
         }
 
-        auto* transaction = node->GetTransaction();
-        if (transaction) {
-            auto req = TCypressYPathProxy::Lock("/sys/nodes/" + addressToken);
+        {
+            auto req = TCypressYPathProxy::Lock("//sys/nodes/" + addressToken);
+            req->set_mode(ELockMode::Exclusive);
             SetTransactionId(req, transaction->GetId());
 
             ExecuteVerb(rootService, req).Subscribe(
@@ -627,7 +630,7 @@ private:
     void CheckCypressResponse(TIntrusivePtr<TResponse> rsp)
     {
         if (!rsp->IsOK()) {
-            LOG_ERROR(*rsp);
+            LOG_ERROR(*rsp, "Error registering node in Cypress");
         }
     }
 
