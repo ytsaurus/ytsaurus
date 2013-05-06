@@ -312,8 +312,9 @@ def get_proxy_config():
     "filename" : "/dev/null"
   },
 
-  "locals" : { },
-  "disable_blackbox" : true,
+  "authentication" : {
+    "enable" : false
+  },
 
   "proxy" : {
     "logging" : {
