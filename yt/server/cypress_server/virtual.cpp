@@ -148,12 +148,19 @@ public:
             transaction,
             trunkNode)
         , Service(service)
+        , RequireLeader(requireLeader)
     { }
 
     virtual TResolveResult Resolve(const TYPath& path, IServiceContextPtr context) override
     {
+        const auto& verb = context->GetVerb();
+
         NYPath::TTokenizer tokenizer(path);
-        if (tokenizer.Advance() == NYPath::ETokenType::Ampersand) {
+        auto type = tokenizer.Advance();
+        if (type == NYPath::ETokenType::Ampersand ||
+            type == NYPath::ETokenType::EndOfStream &&
+                (verb == "Create" || verb == "Remove"))
+        {
             return TBase::Resolve(tokenizer.GetSuffix(), context);
         }
 
