@@ -618,7 +618,7 @@ private:
 
         {
             auto req = TCypressYPathProxy::Lock("//sys/nodes/" + addressToken);
-            req->set_mode(ELockMode::Exclusive);
+            req->set_mode(ELockMode::Shared);
             SetTransactionId(req, transaction->GetId());
 
             ExecuteVerb(rootService, req).Subscribe(
