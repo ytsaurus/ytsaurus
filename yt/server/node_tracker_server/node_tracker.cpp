@@ -573,25 +573,31 @@ private:
         // Doing otherwise will turn node registration and Cypress update into a single
         // logged change, which is undesirable.
         auto metaStateFacade = Bootstrap->GetMetaStateFacade();
-        const auto& address = node->GetAddress();
-        BIND(&TImpl::DoRegisterNodeInCypress, MakeStrong(this), address)
+        BIND(&TImpl::DoRegisterNodeInCypress, MakeStrong(this), node->GetId())
             .Via(metaStateFacade->GetEpochInvoker())
             .Run();
     }
 
-    void DoRegisterNodeInCypress(const Stroka& address)
+    void DoRegisterNodeInCypress(TNodeId nodeId)
     {
-        // TODO(babenko): make a single transaction
-        // TODO(babenko): check for errors and retry
+        auto* node = FindNode(nodeId);
+        if (!node)
+            return;
+
+        // TODO(babenko): refactor
+
+        const auto& address = node->GetAddress();
         auto addressToken = ToYPathLiteral(address);
 
         auto cypressManager = Bootstrap->GetCypressManager();
         auto rootService = cypressManager->GetRootService();
+
         {
             auto req = TCypressYPathProxy::Create("/sys/nodes/" + addressToken);
             req->set_type(EObjectType::CellNode);
             req->set_ignore_existing(true);
-            ExecuteVerb(rootService, req);
+            ExecuteVerb(rootService, req).Subscribe(
+                BIND(&TImpl::CheckCypressResponse<TCypressYPathProxy::TRspCreate>, MakeStrong(this)));
         }
 
         {
@@ -603,7 +609,25 @@ private:
             attributes->Set("remote_address", address);
             ToProto(req->mutable_node_attributes(), *attributes);
 
-            ExecuteVerb(rootService, req);
+            ExecuteVerb(rootService, req).Subscribe(
+                BIND(&TImpl::CheckCypressResponse<TCypressYPathProxy::TRspCreate>, MakeStrong(this)));
+        }
+
+        auto* transaction = node->GetTransaction();
+        if (transaction) {
+            auto req = TCypressYPathProxy::Lock("/sys/nodes/" + addressToken);
+            SetTransactionId(req, transaction->GetId());
+
+            ExecuteVerb(rootService, req).Subscribe(
+                BIND(&TImpl::CheckCypressResponse<TCypressYPathProxy::TRspLock>, MakeStrong(this)));
+        }
+    }
+
+    template <class TResponse>
+    void CheckCypressResponse(TIntrusivePtr<TResponse> rsp)
+    {
+        if (!rsp->IsOK()) {
+            LOG_ERROR(*rsp);
         }
     }
 
