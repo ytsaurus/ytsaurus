@@ -3,6 +3,7 @@
 cd $(dirname "${BASH_SOURCE[0]}")
 
 export YT_PREFIX="//home/wrapper_tests/"
+export YT_CREATE_FILE_BEFORE_UPLOAD=1
 
 prepare_table_files() {
     set +x

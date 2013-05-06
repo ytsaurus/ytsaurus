@@ -3,6 +3,7 @@
 cd $(dirname "${BASH_SOURCE[0]}")
 
 set_up() {
+    export YT_CREATE_FILE_BEFORE_UPLOAD=1
     ./yt create map_node //home/wrapper_test
 }
 
