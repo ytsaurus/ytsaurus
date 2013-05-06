@@ -61,6 +61,7 @@ private:
     {
         const auto* node = FindNode();
         attributes->push_back(TAttributeInfo("state"));
+        attributes->push_back(TAttributeInfo("transaction_id", node && node->GetTransaction()));
         attributes->push_back(TAttributeInfo("statistics", node));
         TMapNodeProxy::ListSystemAttributes(attributes);
     }
@@ -77,6 +78,12 @@ private:
         }
 
         if (node) {
+            if (key == "transaction_id" && node->GetTransaction()) {
+                BuildYsonFluently(consumer)
+                    .Value(node->GetTransaction()->GetId());
+                return true;
+            }
+
             if (key == "statistics") {
                 const auto& nodeStatistics = node->Statistics();
                 BuildYsonFluently(consumer)
