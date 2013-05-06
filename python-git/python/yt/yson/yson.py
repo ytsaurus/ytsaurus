@@ -83,7 +83,7 @@ class Dumper(object):
         elif isinstance(obj, Iterable):
             result = self._dump_list(obj)
         elif isinstance(obj, YsonEntity) or obj is None:
-            result = "null"
+            result = "#"
         else:
             raise TypeError(repr(obj) + " is not Yson serializable.")
         self._level -= 1    
