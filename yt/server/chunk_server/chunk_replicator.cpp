@@ -146,7 +146,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeChunkStatistics(TChu
 TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatistics(TChunk* chunk)
 {
     TChunkStatistics result;
-    
+
     int replicaCount = 0;
     int replicationFactor = chunk->GetReplicationFactor();
 
@@ -155,7 +155,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
             ++replicaCount;
         }
     }
-    
+
     if (replicaCount == 0 && chunk->StoredReplicas().empty()) {
         result.Status |= EChunkStatus::Lost;
     } else if (replicaCount > replicationFactor) {
@@ -522,7 +522,7 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleRepairJob(
 
     auto codecId = chunk->GetErasureCodec();
     auto* codec = NErasure::GetCodec(codecId);
-    
+
     auto totalBlockCount = codec->GetTotalBlockCount();
 
     NErasure::TBlockIndexSet replicaIndexSet;
@@ -541,7 +541,7 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleRepairJob(
             erasedIndexList.push_back(index);
         }
     }
-   
+
     auto targets = ChunkPlacement->GetReplicationTargets(chunk, erasedIndexCount);
     if (targets.size() != erasedIndexCount) {
         return EJobScheduleFlags::None;
@@ -557,7 +557,8 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleRepairJob(
 
     TNodeResources resourceUsage;
     resourceUsage.set_repair_slots(1);
-    resourceUsage.set_memory(miscExt.repair_memory_limit());
+    // ToDo(babenko): use configurable default.
+    resourceUsage.set_memory(0); // miscExt.repair_memory_limit()
     *job = TJob::CreateRepair(
         chunkId,
         node,
@@ -688,7 +689,7 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
     }
 
     ResetChunkStatus(chunk);
-    
+
     auto statistics = ComputeChunkStatistics(chunk);
 
     if (statistics.Status & EChunkStatus::Lost) {
@@ -706,7 +707,7 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
             if (statistics.ReplicaCount[index] <= 1)
                 continue;
 
-            TChunkPtrWithIndex chunkWithIndex(chunk, index);              
+            TChunkPtrWithIndex chunkWithIndex(chunk, index);
             auto encodedChunkId = EncodeChunkId(chunkWithIndex);
 
             int redundantCount = statistics.ReplicaCount[index] - 1;
@@ -719,10 +720,10 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
 
     if (statistics.Status & EChunkStatus::Underreplicated) {
         YCHECK(UnderreplicatedChunks_.insert(chunk).second);
-        
+
         YCHECK(!chunk->IsErasure());
         auto* node = ChunkPlacement->GetReplicationSource(chunk);
-        
+
         int priority = std::min(statistics.ReplicaCount[0], ReplicationPriorityCount) - 1;
         YCHECK(node->ChunkReplicationQueues()[priority].insert(chunk).second);
     }
@@ -762,14 +763,14 @@ void TChunkReplicator::ResetChunkStatus(TChunk* chunk)
     if (chunk->IsErasure()) {
         DataMissingChunks_.erase(chunk);
         ParityMissingChunks_.erase(chunk);
-        
+
         auto repairIt = chunk->GetRepairQueueIterator();
         if (repairIt != TChunkRepairQueueIterator()) {
             RepairQueue.erase(repairIt);
             chunk->SetRepairQueueIterator(TChunkRepairQueueIterator());
         }
     } else {
-        UnderreplicatedChunks_.erase(chunk);  
+        UnderreplicatedChunks_.erase(chunk);
     }
 }
 

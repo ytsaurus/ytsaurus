@@ -465,13 +465,16 @@ NChunkClient::NProto::TChunkMeta TTableChunkWriter::GetMasterMeta() const
 {
     YASSERT(State.IsClosed());
 
-    NChunkClient::NProto::TChunkMeta meta;
-    meta.set_type(EChunkType::Table);
-    meta.set_version(FormatVersion);
-    SetProtoExtension(meta.mutable_extensions(), MiscExt);
-    if (Options->KeyColumns) {
-        SetProtoExtension(meta.mutable_extensions(), BoundaryKeysExt);
-    }
+    static const int masterMetaTagsArray[] = {
+        TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value,
+        TProtoExtensionTag<NProto::TBoundaryKeysExt>::Value };
+    static const yhash_set<int> masterMetaTags(masterMetaTagsArray, masterMetaTagsArray + 2);
+
+    auto meta = Meta;
+    FilterProtoExtensions(
+        meta.mutable_extensions(),
+        Meta.extensions(),
+        masterMetaTags);
 
     return meta;
 }

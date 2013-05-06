@@ -233,21 +233,31 @@ i64 TPartitionChunkWriter::GetMetaSize() const
 
 NChunkClient::NProto::TChunkMeta TPartitionChunkWriter::GetMasterMeta() const
 {
-    NChunkClient::NProto::TChunkMeta meta;
-    meta.set_type(EChunkType::Table);
-    meta.set_version(FormatVersion);
-    SetProtoExtension(meta.mutable_extensions(), MiscExt);
+    static const int masterMetaTagsArray[] = { TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value };
+    static const yhash_set<int> masterMetaTags(masterMetaTagsArray, masterMetaTagsArray + 1);
+
+    auto meta = Meta;
+    FilterProtoExtensions(
+        meta.mutable_extensions(),
+        Meta.extensions(),
+        masterMetaTags);
 
     return meta;
 }
 
 NChunkClient::NProto::TChunkMeta TPartitionChunkWriter::GetSchedulerMeta() const
 {
-    NChunkClient::NProto::TChunkMeta meta;
-    meta.set_type(EChunkType::Table);
-    meta.set_version(FormatVersion);
-    SetProtoExtension(meta.mutable_extensions(), MiscExt);
-    SetProtoExtension(meta.mutable_extensions(), PartitionsExt);
+    static const int schedulerMetaTagsArray[] = {
+        TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value,
+        TProtoExtensionTag<NProto::TPartitionsExt>::Value };
+
+    static const yhash_set<int> schedulerMetaTags(schedulerMetaTagsArray, schedulerMetaTagsArray + 2);
+
+    auto meta = Meta;
+    FilterProtoExtensions(
+        meta.mutable_extensions(),
+        Meta.extensions(),
+        schedulerMetaTags);
 
     return meta;
 }

@@ -147,8 +147,9 @@ private:
     void SelectChannels(const TStringBuf& name, TColumnInfo& columnInfo);
     void FinalizeRow(const TRow& row);
     void ProcessKey();
-    TColumnInfo& GetColumnInfo(const TStringBuf& name);
     void WriteValue(const std::pair<TStringBuf, TStringBuf>& value, const TColumnInfo& columnInfo);
+
+    TColumnInfo& GetColumnInfo(const TStringBuf& name);
 
     DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
 };

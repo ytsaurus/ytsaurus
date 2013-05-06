@@ -91,21 +91,20 @@ void TFileChunkWriter::OnFinalBlocksWritten(TError error)
         return;
     }
 
-    NChunkClient::NProto::TChunkMeta meta;
-    meta.set_type(EChunkType::File);
-    meta.set_version(FormatVersion);
+    Meta.set_type(EChunkType::File);
+    Meta.set_version(FormatVersion);
 
-    SetProtoExtension(meta.mutable_extensions(), BlocksExt);
+    SetProtoExtension(Meta.mutable_extensions(), BlocksExt);
 
     MiscExt.set_uncompressed_data_size(EncodingWriter->GetUncompressedSize());
     MiscExt.set_compressed_data_size(EncodingWriter->GetCompressedSize());
-    MiscExt.set_meta_size(meta.ByteSize());
+    MiscExt.set_meta_size(Meta.ByteSize());
     MiscExt.set_compression_codec(Options->Codec);
 
-    SetProtoExtension(meta.mutable_extensions(), MiscExt);
+    SetProtoExtension(Meta.mutable_extensions(), MiscExt);
 
     auto this_ = MakeStrong(this);
-    AsyncWriter->AsyncClose(meta).Subscribe(BIND([=] (TError error) {
+    AsyncWriter->AsyncClose(Meta).Subscribe(BIND([=] (TError error) {
         // ToDo(psushin): more verbose diagnostic.
         this_->State.Finish(error);
     }));
@@ -156,11 +155,14 @@ i64 TFileChunkWriter::GetMetaSize() const
 
 NChunkClient::NProto::TChunkMeta TFileChunkWriter::GetMasterMeta() const
 {
-    NChunkClient::NProto::TChunkMeta meta;
-    meta.set_type(EChunkType::File);
-    meta.set_version(FormatVersion);
+    static const int masterMetaTagsArray[] = { TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value };
+    static const yhash_set<int> masterMetaTags(masterMetaTagsArray, masterMetaTagsArray + 1);
 
-    SetProtoExtension(meta.mutable_extensions(), MiscExt);
+    auto meta = Meta;
+    FilterProtoExtensions(
+        meta.mutable_extensions(),
+        Meta.extensions(),
+        masterMetaTags);
     return meta;
 }
 

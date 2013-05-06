@@ -190,7 +190,6 @@ private:
     std::vector<TSlicer> Slicers_;
     i64 ParityDataSize_;
     int WindowCount_;
-    i64 MemoryConsumption_;
 
     // Chunk meta with information about block placement
     NChunkClient::NProto::TChunkMeta ChunkMeta_;
@@ -218,7 +217,6 @@ void TErasureWriter::PrepareBlocks()
     // Calculate size of parity blocks and form slicers
     Slicers_.clear();
     ParityDataSize_ = 0;
-    MemoryConsumption_ = Codec_->GetDataBlockCount() * Config_->ErasureWindowSize;
     FOREACH (const auto& group, Groups_) {
         i64 size = 0;
         i64 maxBlockSize = 0;
@@ -229,8 +227,6 @@ void TErasureWriter::PrepareBlocks()
         ParityDataSize_ = std::max(ParityDataSize_, size);
 
         Slicers_.push_back(TSlicer(group));
-
-        MemoryConsumption_ += maxBlockSize;
     }
 
     // Calculate number of windows
@@ -266,11 +262,6 @@ void TErasureWriter::PrepareChunkMeta(const NProto::TChunkMeta& chunkMeta)
 
     ChunkMeta_ = chunkMeta;
     SetProtoExtension(ChunkMeta_.mutable_extensions(), placementExt);
-
-    auto miscExt = FindProtoExtension<NProto::TMiscExt>(
-        ChunkMeta_.extensions()).Get(NProto::TMiscExt());
-    miscExt.set_repair_memory_limit(MemoryConsumption_);
-    SetProtoExtension(ChunkMeta_.mutable_extensions(), miscExt);
 }
 
 TAsyncError TErasureWriter::WriteDataBlocks()

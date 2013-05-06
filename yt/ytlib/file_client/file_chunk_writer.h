@@ -79,6 +79,8 @@ private:
     NChunkClient::NProto::TMiscExt MiscExt;
     NFileClient::NProto::TBlocksExt BlocksExt;
 
+    NChunkClient::NProto::TChunkMeta Meta;
+
     TAsyncStreamState State;
 
     NLog::TTaggedLogger Logger;
