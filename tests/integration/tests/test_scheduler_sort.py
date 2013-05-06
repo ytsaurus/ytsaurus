@@ -1,5 +1,6 @@
 import pytest
 
+from random import shuffle
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
@@ -31,7 +32,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         assert get('//tmp/t_out/@sorted') ==  'true'
         assert get('//tmp/t_out/@sorted_by') ==  ['key']
 
-    # the same as test_simple but within transaction        
+    # the same as test_simple but within transaction
     def test_simple_transacted(self):
         tx = start_transaction()
 
@@ -67,7 +68,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
             sort(in_='//tmp/t_in',
                  out='//tmp/t_out',
                  sort_by='')
-       
+
     def test_empty_in(self):
         create('table', '//tmp/t_in')
         create('table', '//tmp/t_out')
@@ -75,7 +76,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         sort(in_='//tmp/t_in',
              out='//tmp/t_out',
              sort_by='key')
-         
+
         assert read('//tmp/t_out') == []
 
     def test_non_empty_out(self):
@@ -106,6 +107,30 @@ class TestSchedulerSortCommands(YTEnvSetup):
         sort(in_='//tmp/t_in',
              out='//tmp/t_out',
              sort_by='missing_key',
+             opt=['/spec/partition_count=5',
+                  '/spec/partition_job_count=2',
+                  '/spec/data_size_per_sort_job=1'])
+
+        assert len(read('//tmp/t_out')) == 50
+
+    def test_many_merge(self):
+        v1 = {'key' : 'aaa'}
+        v2 = {'key' : 'bb'}
+        v3 = {'key' : 'bbxx'}
+        v4 = {'key' : 'zfoo'}
+        v5 = {'key' : 'zzz'}
+
+        create('table', '//tmp/t_in')
+        for i in xrange(0, 10):
+            row = [v1, v2, v3, v4, v5]
+            shuffle(row)
+            write('<append=true>//tmp/t_in', row) # some random order
+
+        create('table', '//tmp/t_out')
+
+        sort(in_='//tmp/t_in',
+             out='//tmp/t_out',
+             sort_by='key',
              opt=['/spec/partition_count=5',
                   '/spec/partition_job_count=2',
                   '/spec/data_size_per_sort_job=1'])
@@ -168,7 +193,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         args = {'in_': [input], 'out' : output, 'sort_by' : 'key'}
         args.update(kwargs)
-    
+
         sort(**args)
         assert get('//tmp/out/@sorted') == 'true'
         assert read(output) == [{'key': i} for i in xrange(1, 21)]

@@ -504,7 +504,7 @@ protected:
                 RegisterIntermediate(
                     joblet,
                     stripe,
-                    Partition->SortedMergeTask->GetChunkPoolInput());
+                    Partition->SortedMergeTask);
             } else {
                 Controller->FinalSortJobCounter.Completed(1);
 

@@ -119,7 +119,9 @@ IChunkPoolInput::TCookie TOperationControllerBase::TTask::AddInput(TChunkStripeP
 void TOperationControllerBase::TTask::AddInput(const std::vector<TChunkStripePtr>& stripes)
 {
     FOREACH (auto stripe, stripes) {
-        AddInput(stripe);
+        if (stripe) {
+            AddInput(stripe);
+        }
     }
 }
 
@@ -479,6 +481,19 @@ TNodeResources TOperationControllerBase::TTask::GetNeededResources(TJobletPtr jo
 {
     UNUSED(joblet);
     return GetMinNeededResources();
+}
+
+void TOperationControllerBase::TTask::RegisterIntermediate(
+    TJobletPtr joblet,
+    TChunkStripePtr stripe,
+    TTaskPtr destinationTask)
+{
+    RegisterIntermediate(joblet, stripe, destinationTask->GetChunkPoolInput());
+
+    if (destinationTask->HasInputLocality()) {
+        Controller->AddTaskLocalityHint(destinationTask, stripe);
+    }
+    destinationTask->AddPendingHint();
 }
 
 void TOperationControllerBase::TTask::RegisterIntermediate(
@@ -1425,14 +1440,14 @@ void TOperationControllerBase::OnLivePreviewTablesCreated(TObjectServiceProxy::T
         for (int index = 0; index < static_cast<int>(OutputTables.size()); ++index) {
             processTable(OutputTables[index], rsps[index]);
         }
-        
+
         LOG_INFO("Output live preview tables created");
     }
 
     if (IsIntermediateLivePreviewSupported()) {
         auto rsp = batchRsp->GetResponse<TCypressYPathProxy::TRspCreate>("create_intermediate");
         processTable(IntermediateTable, rsp);
-        
+
         LOG_INFO("Intermediate live preview table created");
     }
 }

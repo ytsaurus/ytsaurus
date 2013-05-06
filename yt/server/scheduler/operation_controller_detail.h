@@ -406,6 +406,11 @@ protected:
         void RegisterIntermediate(
             TJobletPtr joblet,
             TChunkStripePtr stripe,
+            TTaskPtr destinationTask);
+
+        void RegisterIntermediate(
+            TJobletPtr joblet,
+            TChunkStripePtr stripe,
             IChunkPoolInput* destinationPool);
 
         static TChunkStripePtr BuildIntermediateChunkStripe(
