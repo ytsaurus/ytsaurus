@@ -41,8 +41,8 @@ public:
     ~TEncodingWriter();
 
 private:
-    i64 UncompressedSize_;
-    i64 CompressedSize_;
+    TAtomic UncompressedSize_;
+    TAtomic CompressedSize_;
 
     // Protects #CompressionRatio_.
     TSpinLock SpinLock;

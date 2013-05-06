@@ -18,7 +18,7 @@ namespace NChunkHolder {
 struct TChunkDescriptor
 {
     TChunkId Id;
-    i64 Size;
+    i64 DiskSpace;
 };
 
 //! Describes chunk at a chunk holder.

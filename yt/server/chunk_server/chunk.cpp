@@ -22,9 +22,9 @@ using namespace NSecurityServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& SILENT_UNUSED Logger = ChunkServerLogger;
+static NLog::TLogger& Logger = ChunkServerLogger;
 
-const i64 TChunk::UnknownSize = -1;
+const i64 TChunk::UnknownDiskSpace = -1;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,7 +36,7 @@ TChunk::TChunk(const TChunkId& id)
     Zero(Flags);
 
     // Initialize required proto fields, otherwise #Save would fail.
-    ChunkInfo_.set_size(UnknownSize);
+    ChunkInfo_.set_disk_space(UnknownDiskSpace);
 
     ChunkMeta_.set_type(EChunkType::Unknown);
     ChunkMeta_.mutable_extensions();
@@ -49,14 +49,14 @@ TChunk::~TChunk()
 TChunkTreeStatistics TChunk::GetStatistics() const
 {
     auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(ChunkMeta_.extensions());
-    YASSERT(ChunkInfo_.size() != TChunk::UnknownSize);
+    YASSERT(ChunkInfo_.disk_space() != TChunk::UnknownDiskSpace);
 
     TChunkTreeStatistics result;
     result.RowCount = miscExt.row_count();
     result.UncompressedDataSize = miscExt.uncompressed_data_size();
     result.CompressedDataSize = miscExt.compressed_data_size();
     result.DataWeight = miscExt.data_weight();
-    result.DiskSpace = ChunkInfo_.size();
+    result.DiskSpace = ChunkInfo_.disk_space();
     result.ChunkCount = 1;
     result.Rank = 0;
 
@@ -65,7 +65,7 @@ TChunkTreeStatistics TChunk::GetStatistics() const
 
 TClusterResources TChunk::GetResourceUsage() const
 {
-    i64 diskSpace = IsConfirmed() ? ChunkInfo_.size() * GetReplicationFactor() : 0;
+    i64 diskSpace = IsConfirmed() ? ChunkInfo_.disk_space() * GetReplicationFactor() : 0;
     return TClusterResources(diskSpace, 1);
 }
 
@@ -152,7 +152,7 @@ bool TChunk::IsConfirmed() const
 
 bool TChunk::ValidateChunkInfo(const NChunkClient::NProto::TChunkInfo& chunkInfo) const
 {
-    if (ChunkInfo_.size() == UnknownSize)
+    if (ChunkInfo_.disk_space() == UnknownDiskSpace)
         return true;
 
     if (chunkInfo.has_meta_checksum() && ChunkInfo_.has_meta_checksum() &&
@@ -161,7 +161,7 @@ bool TChunk::ValidateChunkInfo(const NChunkClient::NProto::TChunkInfo& chunkInfo
         return false;
     }
 
-    if (ChunkInfo_.size() != chunkInfo.size()) {
+    if (ChunkInfo_.disk_space() != chunkInfo.disk_space()) {
         return false;
     }
 

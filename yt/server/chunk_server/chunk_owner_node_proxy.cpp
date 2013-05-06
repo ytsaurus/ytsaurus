@@ -75,7 +75,7 @@ void TFetchChunkVisitor::Reply()
 bool TFetchChunkVisitor::OnChunk(
     TChunk* chunk,
     const TReadLimit& startLimit,
-    const TReadLimit& endLimit) override
+    const TReadLimit& endLimit)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -149,7 +149,7 @@ bool TFetchChunkVisitor::IsNontrivial(const TReadLimit& limit)
            limit.has_offset();
 }
 
-void TFetchChunkVisitor::OnError(const TError& error) override
+void TFetchChunkVisitor::OnError(const TError& error)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -159,7 +159,7 @@ void TFetchChunkVisitor::OnError(const TError& error) override
     ReplyError(error);
 }
 
-void TFetchChunkVisitor::OnFinish() override
+void TFetchChunkVisitor::OnFinish()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 

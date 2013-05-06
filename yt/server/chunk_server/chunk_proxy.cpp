@@ -76,7 +76,7 @@ private:
         attributes->push_back("available");
         attributes->push_back("master_meta_size");
         attributes->push_back(TAttributeInfo("owning_nodes", true, true));
-        attributes->push_back(TAttributeInfo("size", chunk->IsConfirmed()));
+        attributes->push_back(TAttributeInfo("disk_space", chunk->IsConfirmed()));
         attributes->push_back(TAttributeInfo("chunk_type", chunk->IsConfirmed()));
         attributes->push_back(TAttributeInfo("meta_size", chunk->IsConfirmed() && miscExt->has_meta_size()));
         attributes->push_back(TAttributeInfo("compressed_data_size", chunk->IsConfirmed() && miscExt->has_compressed_data_size()));
@@ -226,9 +226,9 @@ private:
         if (chunk->IsConfirmed()) {
             auto miscExt = GetProtoExtension<TMiscExt>(chunk->ChunkMeta().extensions());
 
-            if (key == "size") {
+            if (key == "disk_space") {
                 BuildYsonFluently(consumer)
-                    .Value(chunk->ChunkInfo().size());
+                    .Value(chunk->ChunkInfo().disk_space());
                 return true;
             }
 
@@ -345,8 +345,8 @@ private:
         auto replicas = FromProto<NChunkClient::TChunkReplica>(request->replicas());
         YCHECK(!replicas.empty());
 
-        context->SetRequestInfo("Size: %" PRId64 ", Targets: [%s]",
-            request->chunk_info().size(),
+        context->SetRequestInfo("DiskSpace: %" PRId64 ", Targets: [%s]",
+            request->chunk_info().disk_space(),
             ~JoinToString(replicas));
 
         auto* chunk = GetThisTypedImpl();

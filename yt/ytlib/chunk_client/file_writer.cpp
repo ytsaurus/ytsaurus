@@ -146,7 +146,7 @@ TAsyncError TFileWriter::AsyncClose(const NChunkClient::NProto::TChunkMeta& chun
     }
 
     ChunkInfo.set_meta_checksum(ChecksumOutput.GetChecksum());
-    ChunkInfo.set_size(DataSize + metaData.Size() + sizeof (TChunkMetaHeader));
+    ChunkInfo.set_disk_space(DataSize + metaData.Size() + sizeof (TChunkMetaHeader));
 
     return MakeFuture(TError());
 }

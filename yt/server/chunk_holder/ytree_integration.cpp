@@ -57,7 +57,7 @@ private:
         return IYPathService::FromProducer(BIND([=] (IYsonConsumer* consumer) {
             BuildYsonFluently(consumer)
                 .BeginMap()
-                    .Item("size").Value(chunk->GetInfo().size())
+                    .Item("disk_space").Value(chunk->GetInfo().disk_space())
                     .Item("location").Value(chunk->GetLocation()->GetPath())
                 .EndMap();
         }));

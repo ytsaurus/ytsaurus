@@ -86,14 +86,14 @@ public:
     {
         auto location = chunk->GetLocation();
         location->UpdateChunkCount(+1);
-        location->UpdateUsedSpace(+chunk->GetInfo().size());
+        location->UpdateUsedSpace(+chunk->GetInfo().disk_space());
     }
 
     void Unregister(TCachedChunkPtr chunk)
     {
         auto location = chunk->GetLocation();
         location->UpdateChunkCount(-1);
-        location->UpdateUsedSpace(-chunk->GetInfo().size());
+        location->UpdateUsedSpace(-chunk->GetInfo().disk_space());
     }
 
     void Put(TCachedChunkPtr chunk)
@@ -141,7 +141,7 @@ private:
 
     virtual i64 GetWeight(TCachedChunk* chunk) const override
     {
-        return chunk->GetInfo().size();
+        return chunk->GetInfo().disk_space();
     }
 
     virtual void OnAdded(TCachedChunk* value) override

@@ -51,7 +51,7 @@ TChunk::TChunk(
     , HasMeta(false)
     , MemoryUsageTracker(memoryUsageTracker)
 {
-    Info_.set_size(descriptor.Size);
+    Info_.set_disk_space(descriptor.DiskSpace);
     Info_.clear_meta_checksum();
     Initialize();
 }

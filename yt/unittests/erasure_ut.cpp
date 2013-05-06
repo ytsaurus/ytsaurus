@@ -143,7 +143,7 @@ public:
         }
         erasureWriter->AsyncClose(meta).Get();
 
-        EXPECT_TRUE(erasureWriter->GetChunkInfo().size() >= dataSize);
+        EXPECT_TRUE(erasureWriter->GetChunkInfo().disk_space() >= dataSize);
 
         FOREACH (auto writer, writers) {
             EXPECT_TRUE(writer->AsyncClose(meta).Get().IsOK());

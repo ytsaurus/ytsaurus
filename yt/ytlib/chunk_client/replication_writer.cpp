@@ -884,14 +884,14 @@ void TReplicationWriter::OnChunkFinished(TNodePtr node, TProxy::TRspFinishChunkP
     VERIFY_THREAD_AFFINITY(WriterThread);
 
     auto& chunkInfo = rsp->chunk_info();
-    LOG_DEBUG("Chunk session is finished at %s (Size: %" PRId64 ")",
+    LOG_DEBUG("Chunk session is finished at %s (DiskSpace: %" PRId64 ")",
         ~node->Descriptor.Address,
-        chunkInfo.size());
+        chunkInfo.disk_space());
 
     // If ChunkInfo is set.
-    if (ChunkInfo.has_size()) {
+    if (ChunkInfo.has_disk_space()) {
         if (ChunkInfo.meta_checksum() != chunkInfo.meta_checksum() ||
-            ChunkInfo.size() != chunkInfo.size())
+            ChunkInfo.disk_space() != chunkInfo.disk_space())
         {
             LOG_FATAL("Mismatched chunk info reported by node (Address: %s, ExpectedInfo: {%s}, ReceivedInfo: {%s})",
                 ~node->Descriptor.Address,

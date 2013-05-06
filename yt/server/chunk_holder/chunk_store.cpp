@@ -99,11 +99,11 @@ void TChunkStore::RegisterChunk(TStoredChunkPtr chunk)
 
     auto location = chunk->GetLocation();
     location->UpdateChunkCount(+1);
-    location->UpdateUsedSpace(+chunk->GetInfo().size());
+    location->UpdateUsedSpace(+chunk->GetInfo().disk_space());
 
-    LOG_DEBUG("Chunk registered (ChunkId: %s, Size: %" PRId64 ")",
+    LOG_DEBUG("Chunk registered (ChunkId: %s, DiskSpace: %" PRId64 ")",
         ~ToString(chunk->GetId()),
-        chunk->GetInfo().size());
+        chunk->GetInfo().disk_space());
 
     ChunkAdded_.Fire(chunk);
 }
@@ -124,7 +124,7 @@ TFuture<void> TChunkStore::RemoveChunk(TStoredChunkPtr chunk)
 
             auto location = chunk->GetLocation();
             location->UpdateChunkCount(-1);
-            location->UpdateUsedSpace(-chunk->GetInfo().size());
+            location->UpdateUsedSpace(-chunk->GetInfo().disk_space());
 
             ChunkRemoved_.Fire(chunk);
             promise.Set();

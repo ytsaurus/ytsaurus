@@ -50,7 +50,7 @@ class TChunk
     DEFINE_BYVAL_RW_PROPERTY(TChunkRepairQueueIterator, RepairQueueIterator);
 
 public:
-    static const i64 UnknownSize;
+    static const i64 UnknownDiskSpace;
 
     explicit TChunk(const TChunkId& id);
     ~TChunk();

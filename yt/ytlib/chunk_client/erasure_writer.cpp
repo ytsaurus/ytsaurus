@@ -123,7 +123,7 @@ public:
     {
         YCHECK(writers.size() == codec->GetTotalBlockCount());
         VERIFY_INVOKER_AFFINITY(TDispatcher::Get()->GetWriterInvoker(), WriterThread);
-        ChunkInfo_.set_size(0);
+        ChunkInfo_.set_disk_space(0);
     }
 
     virtual void Open() override
@@ -388,11 +388,11 @@ TAsyncError TErasureWriter::OnClosed(TError error)
         return MakeFuture(error);
     }
 
-    i64 chunkDataSize = 0;
+    i64 diskSpace = 0;
     FOREACH (auto writer, Writers_) {
-        chunkDataSize += writer->GetChunkInfo().size();
+        diskSpace += writer->GetChunkInfo().disk_space();
     }
-    ChunkInfo_.set_size(chunkDataSize);
+    ChunkInfo_.set_disk_space(diskSpace);
 
     return MakeFuture(TError());
 }
