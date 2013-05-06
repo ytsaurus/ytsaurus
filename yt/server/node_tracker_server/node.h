@@ -3,12 +3,13 @@
 #include "public.h"
 
 #include <ytlib/misc/property.h>
-#include <ytlib/misc/lease_manager.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 #include <ytlib/node_tracker_client/node_tracker_service.pb.h>
 
 #include <server/chunk_server/chunk_replica.h>
+
+#include <server/transaction_server/public.h>
 
 #include <server/cell_master/public.h>
 
@@ -44,7 +45,7 @@ class TNode
 
     // Lease tracking.
     DEFINE_BYVAL_RW_PROPERTY(bool, Confirmed);
-    DEFINE_BYVAL_RW_PROPERTY(TLeaseManager::TLease, Lease);
+    DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransaction*, Transaction);
 
     // Chunk Manager stuff.
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkPtrWithIndex>, StoredReplicas);

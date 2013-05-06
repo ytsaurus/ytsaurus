@@ -170,6 +170,7 @@ void TBootstrap::Run()
 
     ObjectManager->Initialize();
     SecurityManager->Initialize();
+    NodeTracker->Initialize();
     TransactionManager->Inititialize();
     CypressManager->Initialize();
     ChunkManager->Initialize();

@@ -246,7 +246,7 @@ private:
         ValidateTransactionIsActive(transaction);
 
         auto transactionManager = Bootstrap->GetTransactionManager();
-        transactionManager->Ping(transaction, pingAncestors);
+        transactionManager->PingTransaction(transaction, pingAncestors);
 
         context->Reply();
     }
@@ -521,31 +521,35 @@ void TTransactionManager::FinishTransaction(TTransaction* transaction)
     objectManager->UnrefObject(transaction);
 }
 
-void TTransactionManager::Ping(const TTransaction* transaction, bool pingAncestors)
+void TTransactionManager::PingTransaction(const TTransaction* transaction, bool pingAncestors)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
-    DoPing(transaction);
+    DoPingTransaction(transaction);
 
     if (pingAncestors) {
         auto parentTransaction = transaction->GetParent();
         while (parentTransaction) {
-            DoPing(parentTransaction);
+            DoPingTransaction(parentTransaction);
             parentTransaction = parentTransaction->GetParent();
         }
     }
 }
 
-void TTransactionManager::DoPing(const TTransaction* transaction)
+void TTransactionManager::DoPingTransaction(const TTransaction* transaction)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
     YCHECK(transaction->IsActive());
 
     auto it = LeaseMap.find(transaction->GetId());
     YCHECK(it != LeaseMap.end());
-    TLeaseManager::RenewLease(it->second);
 
-    LOG_DEBUG("Transaction pinged (TransactionId: %s)",
-        ~ToString(transaction->GetId()));
+    auto timeout = transaction->GetTimeout();
+
+    TLeaseManager::RenewLease(it->second, timeout);
+
+    LOG_DEBUG("Transaction pinged (TransactionId: %s, Timeout: %" PRIu64 ")",
+        ~ToString(transaction->GetId()),
+        timeout.MilliSeconds());
 }
 
 void TTransactionManager::SaveKeys(const NCellMaster::TSaveContext& context)

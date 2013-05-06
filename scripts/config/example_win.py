@@ -71,6 +71,7 @@ class Master(WinNode, Server):
                         }
                 },
                 'node_tracker' : {
+                        'registered_node_timeout' : 5000,
                         'online_node_timeout' : 10000
                 },
                 'monitoring_port' : r'%(monport)d',

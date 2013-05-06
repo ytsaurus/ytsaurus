@@ -33,6 +33,8 @@ public:
         TNodeTrackerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap);
 
+    void Initialize();
+
     ~TNodeTracker();
 
 

@@ -4,6 +4,8 @@
 #include <server/chunk_server/job.h>
 #include <server/chunk_server/chunk.h>
 
+#include <server/transaction_server/transaction.h>
+
 #include <server/cell_master/serialization_context.h>
 
 namespace NYT {
@@ -34,6 +36,7 @@ TNode::TNode(TNodeId id)
 void TNode::Init()
 {
     Confirmed_ = false;
+    Transaction_ = nullptr;
     ChunkReplicationQueues_.resize(ReplicationPriorityCount);
     HintedSessionCount_ = 0;
 }
@@ -62,6 +65,7 @@ void TNode::Save(const NCellMaster::TSaveContext& context) const
     ::Save(output, Descriptor_.Address);
     ::Save(output, State_);
     SaveProto(output, Statistics_);
+    SaveObjectRef(context, Transaction_);
     SaveObjectRefs(context, StoredReplicas_);
     SaveObjectRefs(context, CachedReplicas_);
     SaveObjectRefs(context, UnapprovedReplicas_);
@@ -73,6 +77,7 @@ void TNode::Load(const NCellMaster::TLoadContext& context)
     ::Load(input, Descriptor_.Address);
     ::Load(input, State_);
     LoadProto(input, Statistics_);
+    LoadObjectRef(context, Transaction_);
     LoadObjectRefs(context, StoredReplicas_);
     LoadObjectRefs(context, CachedReplicas_);
     LoadObjectRefs(context, UnapprovedReplicas_);

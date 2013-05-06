@@ -19,6 +19,12 @@
 
 #include <server/cypress_server/cypress_manager.h>
 
+#include <server/transaction_server/transaction_manager.h>
+#include <server/transaction_server/transaction.h>
+
+#include <server/object_server/object_manager.h>
+#include <server/object_server/attribute_set.h>
+
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/meta_state_facade.h>
 #include <server/cell_master/serialization_context.h>
@@ -35,6 +41,7 @@ using namespace NCellMaster;
 using namespace NObjectClient;
 using namespace NCypressClient;
 using namespace NNodeTrackerServer::NProto;
+using namespace NTransactionServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -100,6 +107,13 @@ public:
         }
 
         SubscribeNodeConfigUpdated(BIND(&TImpl::OnNodeConfigUpdated, Unretained(this)));
+    }
+
+    void Initialize()
+    {
+        auto transactionManager = Bootstrap->GetTransactionManager();
+        transactionManager->SubscribeTransactionCommitted(BIND(&TImpl::OnTransactionFinished, MakeWeak(this)));
+        transactionManager->SubscribeTransactionAborted(BIND(&TImpl::OnTransactionFinished, MakeWeak(this)));
     }
 
 
@@ -168,8 +182,8 @@ public:
 
     TNode* FindNodeByAddress(const Stroka& address)
     {
-        auto it = NodeAddressMap.find(address);
-        return it == NodeAddressMap.end() ? nullptr : it->second;
+        auto it = AddressToNodeMap.find(address);
+        return it == AddressToNodeMap.end() ? nullptr : it->second;
     }
 
     TNode* GetNodeByAddress(const Stroka& address)
@@ -181,8 +195,8 @@ public:
 
     TNode* FindNodeByHostName(const Stroka& hostName)
     {
-        auto it = NodeHostNameMap.find(hostName);
-        return it == NodeAddressMap.end() ? nullptr : it->second;
+        auto it = HostNameToNodeMap.find(hostName);
+        return it == AddressToNodeMap.end() ? nullptr : it->second;
     }
 
     TNode* GetNodeOrThrow(TNodeId id)
@@ -259,8 +273,9 @@ private:
     TIdGenerator NodeIdGenerator;
 
     TMetaStateMap<TNodeId, TNode> NodeMap;
-    yhash_map<Stroka, TNode*> NodeAddressMap;
-    yhash_multimap<Stroka, TNode*> NodeHostNameMap;
+    yhash_map<Stroka, TNode*> AddressToNodeMap;
+    yhash_multimap<Stroka, TNode*> HostNameToNodeMap;
+    yhash_map<TTransaction*, TNode*> TransactionToNodeMap;
 
 
     TNodeId GenerateNodeId()
@@ -361,9 +376,7 @@ private:
             node->SetState(ENodeState::Online);
             UpdateNodeCounters(node, +1);
 
-            if (IsLeader()) {
-                RenewNodeLease(node);
-            }
+            RenewNodeLease(node);
 
             LOG_INFO_UNLESS(IsRecovery(), "Node online (NodeId: %d, Address: %s)",
                 nodeId,
@@ -398,10 +411,10 @@ private:
                         nodeId,
                         ~node->GetAddress());
                 }
-
-                RenewNodeLease(node);
             }
 
+            RenewNodeLease(node);
+            
             IncrementalHeartbeat_.Fire(node, request);
         }
     }
@@ -433,8 +446,9 @@ private:
     {
         NodeIdGenerator.Reset();
         NodeMap.Clear();
-        NodeAddressMap.clear();
-        NodeHostNameMap.clear();
+        AddressToNodeMap.clear();
+        HostNameToNodeMap.clear();
+        TransactionToNodeMap.clear();
         OnlineNodeCount = 0;
         RegisteredNodeCount = 0;
     }
@@ -442,8 +456,8 @@ private:
     virtual void OnAfterLoaded() override
     {
         // Reconstruct address maps, recompute statistics.
-        NodeAddressMap.clear();
-        NodeHostNameMap.clear();
+        AddressToNodeMap.clear();
+        HostNameToNodeMap.clear();
 
         OnlineNodeCount = 0;
         RegisteredNodeCount = 0;
@@ -452,11 +466,13 @@ private:
             auto* node = pair.second;
             const auto& address = node->GetAddress();
 
-            YCHECK(NodeAddressMap.insert(std::make_pair(address, node)).second);
-            NodeHostNameMap.insert(std::make_pair(Stroka(GetServiceHostName(address)), node));
+            YCHECK(AddressToNodeMap.insert(std::make_pair(address, node)).second);
+            HostNameToNodeMap.insert(std::make_pair(Stroka(GetServiceHostName(address)), node));
+            YCHECK(TransactionToNodeMap.insert(std::make_pair(node->GetTransaction(), node)).second);
 
             UpdateNodeCounters(node, +1);
             RefreshNodeConfig(node);
+            RegisterLeaseTransaction(node);
         }
     }
 
@@ -470,12 +486,6 @@ private:
             auto* node = pair.second;
 
             node->SetConfirmed(false);
-
-            auto lease = node->GetLease();
-            if (lease) {
-                TLeaseManager::CloseLease(lease);
-                node->SetLease(TLeaseManager::NullLease);
-            }
 
             node->SetHintedSessionCount(0);
             
@@ -493,24 +503,6 @@ private:
     }
 
 
-    virtual void OnActiveQuorumEstablished() override
-    {
-        // Assign initial leases to nodes.
-        // NB: Nodes will remain unconfirmed until the first heartbeat.
-        FOREACH (const auto& pair, NodeMap) {
-            StartNodeLease(pair.second);
-        }
-    }
-
-    virtual void OnStopLeading() override
-    {
-        // Stop existing leases.
-        FOREACH (const auto& pair, NodeMap) {
-            StopNodeLease(pair.second);
-        }
-    }
-
-
     void UpdateNodeCounters(TNode* node, int delta)
     {
         switch (node->GetState()) {
@@ -525,54 +517,64 @@ private:
         }
     }
 
-    void StartNodeLease(TNode* node)
+
+    void RegisterLeaseTransaction(TNode* node)
     {
-        auto metaStateFacade = Bootstrap->GetMetaStateFacade();
-        auto timeout = GetLeaseTimeout(node);
-        auto lease = TLeaseManager::CreateLease(
-            timeout,
-            BIND(&TThis::OnExpired, MakeStrong(this), node->GetId())
-                .Via(metaStateFacade->GetEpochInvoker(EStateThreadQueue::Heartbeat)));
-        node->SetLease(lease);
+        auto* transaction = node->GetTransaction();
+        YCHECK(transaction);
+        YCHECK(TransactionToNodeMap.insert(std::make_pair(transaction, node)).second);
     }
 
-    void StopNodeLease(TNode* node)
+    void UnregisterLeaseTransaction(TNode* node)
     {
-        auto lease = node->GetLease();
-        if (lease) {
-            TLeaseManager::CloseLease(node->GetLease());
-            node->SetLease(TLeaseManager::NullLease);
-        }
+        auto* transaction = node->GetTransaction();
+        if (!transaction)
+            return;
+
+        YCHECK(TransactionToNodeMap.erase(transaction) == 1);
+        node->SetTransaction(nullptr);
     }
 
     void RenewNodeLease(TNode* node)
     {
-        auto timeout = GetLeaseTimeout(node);
-        TLeaseManager::RenewLease(node->GetLease(), timeout);
-    }
+        auto* transaction = node->GetTransaction();
+        if (!transaction)
+            return;
 
-    TDuration GetLeaseTimeout(const TNode* node)
-    {
-        if (!node->GetConfirmed()) {
-            return Config->UnconfirmedNodeTimeout;
-        } else if (node->GetState() == ENodeState::Registered) {
-            return Config->RegisteredNodeTimeout;
-        } else {
-            return Config->OnlineNodeTimeout;
+        auto timeout = GetLeaseTimeout(node);
+        transaction->SetTimeout(timeout);
+
+        if (IsLeader()) {
+            auto transactionManager = Bootstrap->GetTransactionManager();
+            transactionManager->PingTransaction(transaction);
         }
     }
 
-    void OnExpired(TNodeId nodeId)
+    TDuration GetLeaseTimeout(TNode* node)
     {
-        auto* node = FindNode(nodeId);
-        if (!node)
+        switch (node->GetState()) {
+            case ENodeState::Registered:
+                return Config->RegisteredNodeTimeout;
+            case ENodeState::Online:
+                return Config->OnlineNodeTimeout;
+            default:
+                YUNREACHABLE();
+        }
+    }
+
+    void OnTransactionFinished(TTransaction* transaction)
+    {
+        auto it = TransactionToNodeMap.find(transaction);
+        if (it == TransactionToNodeMap.end())
             return;
 
+        auto* node = it->second;
         LOG_INFO("Node lease expired (NodeId: %d, Address: %s)",
-            nodeId,
+            node->GetId(),
             ~node->GetAddress());
 
-        PostUnregisterCommit(nodeId);
+        UnregisterLeaseTransaction(node);
+        PostUnregisterCommit(node);
     }
 
 
@@ -629,13 +631,25 @@ private:
             node->Statistics() = statistics;
 
             NodeMap.Insert(nodeId, node);
-            NodeAddressMap.insert(std::make_pair(address, node));
-            NodeHostNameMap.insert(std::make_pair(Stroka(GetServiceHostName(address)), node));
+            AddressToNodeMap.insert(std::make_pair(address, node));
+            HostNameToNodeMap.insert(std::make_pair(Stroka(GetServiceHostName(address)), node));
             
             UpdateNodeCounters(node, +1);
 
+            // Create lease transaction.
+            auto transactionManager = Bootstrap->GetTransactionManager();
+            auto timeout = GetLeaseTimeout(node);
+            auto* transaction = transactionManager->StartTransaction(nullptr, timeout);
+            node->SetTransaction(transaction);
+            RegisterLeaseTransaction(node);
+
+            // Set "title" attribute.
+            auto objectManager = Bootstrap->GetObjectManager();
+            auto* attributeSet = objectManager->GetOrCreateAttributes(TVersionedObjectId(transaction->GetId()));
+            auto title = ConvertToYsonString(TRawString(Sprintf("Lease for node %s", ~node->GetAddress())));
+            YCHECK(attributeSet->Attributes().insert(std::make_pair("title", title)).second);
+            
             if (IsLeader()) {
-                StartNodeLease(node);
                 RegisterNodeInCypress(node);
             }
 
@@ -659,17 +673,21 @@ private:
                 nodeId,
                 ~node->GetAddress());
 
-            if (IsLeader()) {
-                StopNodeLease(node);
+            auto* transaction = node->GetTransaction();
+            if (transaction && transaction->GetState() == ETransactionState::Active) {
+                auto transactionManager = Bootstrap->GetTransactionManager();
+                transactionManager->AbortTransaction(transaction);
             }
 
+            UnregisterLeaseTransaction(node);
+            
             const auto& address = node->GetAddress();
-            YCHECK(NodeAddressMap.erase(address) == 1);
+            YCHECK(AddressToNodeMap.erase(address) == 1);
             {
-                auto hostNameRange = NodeHostNameMap.equal_range(Stroka(GetServiceHostName(address)));
+                auto hostNameRange = HostNameToNodeMap.equal_range(Stroka(GetServiceHostName(address)));
                 for (auto it = hostNameRange.first; it != hostNameRange.second; ++it) {
                     if (it->second == node) {
-                        NodeHostNameMap.erase(it);
+                        HostNameToNodeMap.erase(it);
                         break;
                     }
                 }
@@ -684,8 +702,10 @@ private:
     }
 
 
-    void PostUnregisterCommit(TNodeId nodeId)
+    void PostUnregisterCommit(TNode* node)
     {
+        auto nodeId = node->GetId();
+
         TMetaReqUnregisterNode message;
         message.set_node_id(nodeId);
 
@@ -713,7 +733,7 @@ private:
     {
         if (node->GetConfig()->Banned) {
             LOG_INFO("Node banned (Address: %s)", ~node->GetAddress());
-            PostUnregisterCommit(node->GetId());
+            PostUnregisterCommit(node);
         }
     }
 
@@ -728,6 +748,11 @@ TNodeTracker::TNodeTracker(
     TBootstrap* bootstrap)
     : Impl(New<TImpl>(config, bootstrap))
 { }
+
+void TNodeTracker::Initialize()
+{
+    Impl->Initialize();
+}
 
 TNodeTracker::~TNodeTracker()
 { }
