@@ -99,10 +99,11 @@ YtClusterHandle.prototype.handleMessage = function(message)
             if (!__DBG.$) {
                 this.worker.send({ type : "heartbeat" });
             }
+            this.postponeDeath(TIMEOUT_HEARTBEAT);
             break;
         case "alive":
             this.state = "alive";
-            this.postponeDeath(TIMEOUT_HEARTBEAT);
+            this.postponeDeath(TIMEOUT_COOLDOWN);
             break;
         case "stopping":
             this.state = "stopping";
@@ -127,6 +128,7 @@ YtClusterHandle.prototype.postponeDeath = function(timeout)
 
     if (this.timeout_at) {
         clearTimeout(this.timeout_at);
+        this.timeout_at = null;
     }
 
     if (timeout) {

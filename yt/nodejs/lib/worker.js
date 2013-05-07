@@ -50,7 +50,7 @@ yt.configureSingletons(config.proxy);
 yt.YtRegistry.set("config", config);
 yt.YtRegistry.set("logger", logger);
 yt.YtRegistry.set("driver", new yt.YtDriver(config));
-yt.YtRegistry.set("authority", new yt.YtAuthority(config));
+yt.YtRegistry.set("authority", new yt.YtAuthority(config.authentication));
 
 // Hoist variable declaration.
 var static_server;
@@ -167,7 +167,8 @@ dynamic_server = connect()
             socket.once("error", function(err) {
                 logger.error("Socket emitted an error", {
                     request_id : socket.last_req_uuid,
-                    error : err.toString()
+                    // XXX(sandello): Embed.
+                    error : yt.YtError.ensureWrapped(err).toJson()
                 });
             });
         }
