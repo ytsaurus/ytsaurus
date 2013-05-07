@@ -48,7 +48,7 @@ public:
         TTransaction* transaction,
         TTableNode* trunkNode);
 
-    virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const override;
+    virtual bool IsWriteRequest(IServiceContextPtr context) const override;
 
 private:
     typedef TCypressNodeProxyBase<TChunkOwnerNodeProxy, IEntityNode, TTableNode> TBase;
