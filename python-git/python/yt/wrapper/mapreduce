@@ -480,7 +480,7 @@ Examples:
     elif args.map is not None:
         yt.run_map(args.map, args.src, dst, files=map_files, file_paths=args.ytfile,
                    input_format=inputformat, output_format=outputformat,
-                   replication_factor=args.replicationfactor,
+                   replication_factor=replication_factor,
                    compression_codec=args.codec,
                    job_count=args.jobcount,
                    spec=spec)
