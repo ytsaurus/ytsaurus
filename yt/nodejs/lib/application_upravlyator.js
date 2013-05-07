@@ -52,13 +52,15 @@ YtApplicationUpravlyator.prototype._getManagedUser = function(name)
         if (typeof(user) === "undefined") {
             return Q.reject(new YtError(
                 "No such user: " + JSON.stringify(name))
-                .withAttribute("is_fatal", 1));
+                .withAttribute("is_fatal", 1)
+                .withAttribute("missing", 1));
         }
         if (user.upravlyator_managed !== "true") {
             return Q.reject(new YtError(
                 "User " + JSON.stringify(name) +
                 " is not managed by Upravlyator")
-                .withAttribute("is_fatal", 1));
+                .withAttribute("is_fatal", 1)
+                .withAttribute("unmanaged", 1));
         }
         return user;
     });
@@ -78,13 +80,15 @@ YtApplicationUpravlyator.prototype._getManagedGroup = function(name)
         if (typeof(group) === "undefined") {
             return Q.reject(new YtError(
                 "No such group: " + JSON.stringify(name))
-                .withAttribute("is_fatal", 1));
+                .withAttribute("is_fatal", 1)
+                .withAttribute("missing", 1));
         }
         if (group.upravlyator_managed !== "true") {
             return Q.reject(new YtError(
                 "Group " + JSON.stringify(name) +
                 " is not managed by Upravlyator")
-                .withAttribute("is_fatal", 1));
+                .withAttribute("is_fatal", 1)
+                .withAttribute("unmanaged"));
         }
         return group;
     });
@@ -119,7 +123,7 @@ YtApplicationUpravlyator.prototype._getManagedUsers = function(force)
             return { name: value, member_of: member_of };
         });
 
-        total = users.total;
+        total = users.length;
         managed = result.length;
 
         logger.debug(
@@ -354,9 +358,23 @@ YtApplicationUpravlyator.prototype._dispatchGetUserRoles = function(req, rsp)
     var params = querystring.parse(url.parse(req.url).query);
     var login = params.login;
 
+    var maybe_user = Q
+    .when(self._getManagedUser(login))
+    .fail(function(err) {
+        var error = YtError.ensureWrapped(err);
+        if (error.attributes.missing || error.attributes.unmanaged) {
+            return;
+        } else {
+            return Q.reject(error);
+        }
+    });
+
     Q
-    .all([ self._getManagedUser(login), self._getManagedGroups() ])
+    .all([ maybe_user, self._getManagedGroups() ])
     .spread(function(user, groups) {
+        if (typeof(user) === "undefined") {
+            return utils.dispatchJson(rsp, { code: 0, roles: [] });
+        }
         var roles = user.member_of
         .filter(function(group) {
             return groups.hasOwnProperty(group);

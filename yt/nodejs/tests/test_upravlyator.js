@@ -12,20 +12,12 @@ var srv = require("./common_http").srv;
 
 function stubServer(done)
 {
-    return srv(
-        YtApplicationUpravlyator(),
-        done);
+    return srv(YtApplicationUpravlyator(), done);
 }
 
 function stubRegistry()
 {
-    var config = {
-        upravlyator: {
-            interval: 15000,
-            cache: false
-        },
-    };
-
+    var config = { upravlyator: {} };
     var logger = stubLogger();
 
     YtRegistry.set("config", config);
@@ -33,38 +25,21 @@ function stubRegistry()
     YtRegistry.set("driver", { executeSimple: function(){} });
 }
 
-var FIXTURE_LIST_GROUPS = [
-    "unmanaged1",
-    {
-        $value: "unmanaged2",
-        $attributes: {}
-    },
-    {
-        $value: "unmanaged3",
-        $attributes: { upravlyator_managed: "false" }
-    },
-    {
-        $value: "managed1",
-        $attributes: { upravlyator_managed: "true" }
-    },
-    {
-        $value: "managed2",
-        $attributes: {
-            upravlyator_managed: "true",
-            upravlyator_name: "islay",
+function map(object, iterator, context)
+{
+    var results = [];
+    for (var property in object) {
+        if (object.hasOwnProperty(property)) {
+            results[results.length] = iterator.call(
+                context,
+                property,
+                object[property]);
         }
-    },
-    {
-        $value: "managed3",
-        $attributes: {
-            upravlyator_managed: "true",
-            upravlyator_name: "speyside",
-            upravlyator_help: "delightful whiskey with a fruity taste",
-        }
-    },
-];
+    }
+    return results;
+}
 
-var FIXTURE_GET_USERS = {
+var FIXTURE_USERS = {
     "sandello": {
         name: "sandello",
         member_of: [ "unmanaged1", "managed1" ],
@@ -77,36 +52,110 @@ var FIXTURE_GET_USERS = {
     "unknown": Q.reject(new YtError("Not Found").withCode(500))
 };
 
-var FIXTURE_GET_GROUPS = {
-    "unmanaged1": { name: "unmanaged1" },
-    "unmanaged2": { name: "unmanaged2" },
-    "unmanaged3": { name: "unmanaged3", upravlyator_managed: "false" },
-    "managed1": { name: "managed1", upravlyator_managed: "true" },
-    "managed2": { name: "managed2", upravlyator_managed: "true" },
-    "managed3": { name: "managed3", upravlyator_managed: "true" },
-    "unknown": Q.reject(new YtError("Not Found").withCode(500))
+var FIXTURE_GROUPS = {
+    "unmanaged1": {
+        name: "unmanaged1",
+    },
+    "unmanaged2": {
+        name: "unmanaged2",
+    },
+    "unmanaged3": {
+        name: "unmanaged3",
+        upravlyator_managed: "false",
+    },
+    "managed1": {
+        name: "managed1",
+        upravlyator_managed: "true",
+    },
+    "managed2": {
+        name: "managed2",
+        upravlyator_managed: "true",
+        upravlyator_name: "islay",
+    },
+    "managed3": {
+        name: "managed3",
+        upravlyator_managed: "true",
+        upravlyator_name: "speyside",
+        upravlyator_help: "delightful whiskey with a fruity taste",
+    },
 };
 
 function mockGetUser(mock, name)
 {
+    var result;
+    if (typeof(FIXTURE_USERS[name]) === "undefined") {
+        result = Q.reject(new YtError("Not Found").withCode(500));
+    } else {
+        result = Q.resolve(FIXTURE_USERS[name]);
+    }
     return mock
         .expects("executeSimple")
         .once()
         .withExactArgs("get", sinon.match({
             path: "//sys/users/" + name + "/@"
         }))
-        .returns(Q.resolve(FIXTURE_GET_USERS[name]));
+        .returns(result);
 }
 
 function mockGetGroup(mock, name)
 {
+    var result;
+    if (typeof(FIXTURE_GROUPS[name]) === "undefined") {
+        result = Q.reject(new YtError("Not Found").withCode(500));
+    } else {
+        result = Q.resolve(FIXTURE_GROUPS[name]);
+    }
     return mock
         .expects("executeSimple")
         .once()
         .withExactArgs("get", sinon.match({
             path: "//sys/groups/" + name + "/@"
         }))
-        .returns(FIXTURE_GET_GROUPS[name]);
+        .returns(result);
+}
+
+function mockListUsers(mock)
+{
+    var result = Q.resolve(map(FIXTURE_USERS, function(value, attributes) {
+        return { $value: value, $attributes: attributes };
+    }));
+    return mock
+        .expects("executeSimple")
+        .once()
+        .withExactArgs("list", sinon.match({
+            path: "//sys/users",
+            attributes: [
+                "upravlyator_managed",
+                "member_of",
+            ],
+        }))
+        .returns(result);
+}
+
+function mockListGroups(mock)
+{
+    var result = Q.resolve(map(FIXTURE_GROUPS, function(value, attributes) {
+        return { $value: value, $attributes: attributes };
+    }));
+    return mock
+        .expects("executeSimple")
+        .once()
+        .withExactArgs("list", sinon.match({
+            path: "//sys/groups",
+            attributes: [
+                "upravlyator_managed",
+                "upravlyator_name",
+                "upravlyator_help",
+            ],
+        }))
+        .returns(result);
+}
+
+function mockMetaStateFailure(mock)
+{
+    return mock
+        .expects("executeSimple")
+        .returns(Q.reject(new YtError("Something is broken")));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -126,20 +175,7 @@ describe("Upravlyator", function() {
     describe("/info", function() {
         it("should report only managed groups", function(done) {
             var mock = sinon.mock(YtRegistry.get("driver"));
-            mock
-                .expects("executeSimple").once()
-                .withExactArgs(
-                    "list",
-                    sinon.match({
-                        path: "//sys/groups",
-                        attributes: [
-                            "upravlyator_managed",
-                            "upravlyator_name",
-                            "upravlyator_help"
-                        ]
-                    })
-                )
-                .returns(FIXTURE_LIST_GROUPS);
+            mockListGroups(mock);
             ask("GET", "/info", {}, function(rsp) {
                 rsp.should.be.http2xx;
                 mock.verify();
@@ -156,10 +192,7 @@ describe("Upravlyator", function() {
 
         it("should fail when metastate is not available", function(done) {
             var mock = sinon.mock(YtRegistry.get("driver"));
-            mock
-                .expects("executeSimple").once()
-                .withExactArgs("list", sinon.match({}))
-                .returns(Q.reject(new YtError("Something is broken")));
+            mockMetaStateFailure(mock).once();
             ask("GET", "/info", {}, function(rsp) {
                 rsp.should.be.http2xx;
                 mock.verify();
@@ -317,10 +350,7 @@ describe("Upravlyator", function() {
 
         it("should fail when metastate is not available", function(done) {
             var mock = sinon.mock(YtRegistry.get("driver"));
-            mock
-                .expects("executeSimple").twice()
-                .withArgs("get")
-                .returns(Q.reject(new YtError("Something is broken.")));
+            mockMetaStateFailure(mock).twice();
             ask("POST", method, {}, function(rsp) {
                 rsp.should.be.http2xx;
                 mock.verify();
@@ -335,14 +365,82 @@ describe("Upravlyator", function() {
     });
 
     describe("/get-user-roles", function() {
-        it("should fail on unknown user");
-        it("should properly show/hide (un)managed groups");
-        it("should fail when metastate is not available");
+        it("should return empty list on unknown user", function(done) {
+            var mock = sinon.mock(YtRegistry.get("driver"));
+            mockGetUser(mock, "unknown");
+            mockListGroups(mock);
+            ask("GET", "/get-user-roles?login=unknown", {}, function(rsp) {
+                rsp.should.be.http2xx;
+                mock.verify();
+                expect(rsp.json.code).to.eql(0);
+                expect(rsp.json.roles).to.be.an("array");
+                expect(rsp.json.roles).to.be.empty;
+            }, done).end();
+        });
+
+        it("should return empty list on unmanaged user", function(done) {
+            var mock = sinon.mock(YtRegistry.get("driver"));
+            mockGetUser(mock, "anonymous");
+            mockListGroups(mock);
+            ask("GET", "/get-user-roles?login=anonymous", {}, function(rsp) {
+                rsp.should.be.http2xx;
+                mock.verify();
+                expect(rsp.json.code).to.eql(0);
+                expect(rsp.json.roles).to.be.an("array");
+                expect(rsp.json.roles).to.be.empty;
+            }, done).end();
+        });
+
+        it("should properly show/hide (un)managed groups for managed users", function(done) {
+            var mock = sinon.mock(YtRegistry.get("driver"));
+            mockGetUser(mock, "sandello");
+            mockListGroups(mock);
+            ask("GET", "/get-user-roles?login=sandello", {}, function(rsp) {
+                rsp.should.be.http2xx;
+                mock.verify();
+                expect(rsp.json.code).to.eql(0);
+                expect(rsp.json.roles).to.be.an("array");
+                expect(rsp.json.roles).to.eql([ { group: "managed1" } ]);
+            }, done).end();
+        });
+
+        it("should fail when metastate is not available", function(done) {
+            var mock = sinon.mock(YtRegistry.get("driver"));
+            mockMetaStateFailure(mock).twice();
+            ask("GET", "/get-user-roles?login=sandello", {}, function(rsp) {
+                rsp.should.be.http2xx;
+                mock.verify();
+                expect(rsp.json.code).to.not.eql(0);
+                expect(rsp.json.error).to.be.a("string");
+            }, done).end();
+        });
     });
 
     describe("/get-all-roles", function() {
-        it("should properly show/hide (un)managed users");
-        it("should properly show/hide (un)managed groups");
-        it("should fail when metastate is not available");
+        it("should properly show/hide (un)managed users/groups", function(done) {
+            var mock = sinon.mock(YtRegistry.get("driver"));
+            mockListUsers(mock);
+            mockListGroups(mock);
+            ask("GET", "/get-all-roles", {}, function(rsp) {
+                rsp.should.be.http2xx;
+                mock.verify();
+                expect(rsp.json.code).to.eql(0);
+                expect(rsp.json.users).to.be.an("array");
+                expect(rsp.json.users).to.eql([
+                    { login: "sandello", roles: [ { group: "managed1" } ] }
+                ]);
+            }, done).end();
+        });
+
+        it("should fail when metastate is not available", function(done) {
+            var mock = sinon.mock(YtRegistry.get("driver"));
+            mockMetaStateFailure(mock).twice();
+            ask("GET", "/get-all-roles", {}, function(rsp) {
+                rsp.should.be.http2xx;
+                mock.verify();
+                expect(rsp.json.code).to.not.eql(0);
+                expect(rsp.json.error).to.be.a("string");
+            }, done).end();
+        });
     });
 });

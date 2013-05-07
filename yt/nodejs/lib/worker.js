@@ -153,20 +153,25 @@ dynamic_server = connect()
     .use(function(req, rsp, next) {
         "use strict";
         var socket = req.connection;
-        socket.setTimeout(5 * 60 * 1000);
-        socket.setNoDelay(true);
-        socket.setKeepAlive(true);
-        socket.on("timeout", function() {
-            logger.error("Socket timed out", {
-                request_id : req.uuid
+        // Since socket could be reused between multiple requests,
+        // we have to be careful when adding those event callbacks.
+        if (!socket.last_req_uuid) {
+            socket.setTimeout(5 * 60 * 1000);
+            socket.setNoDelay(true);
+            socket.setKeepAlive(true);
+            socket.once("timeout", function() {
+                logger.error("Socket timed out", {
+                    request_id : socket.last_req_uuid
+                });
             });
-        });
-        socket.on("error", function(err) {
-            logger.error("Socket emitted an error", {
-                request_id : req.uuid,
-                error : err.toString()
+            socket.once("error", function(err) {
+                logger.error("Socket emitted an error", {
+                    request_id : socket.last_req_uuid,
+                    error : err.toString()
+                });
             });
-        });
+        }
+        socket.last_req_uuid = req.uuid;
         next();
     })
     .use(connect.favicon())

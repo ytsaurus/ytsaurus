@@ -49,8 +49,8 @@ function stubRegistry()
                 {
                     key: "ytrealm-key",
                     type: "oauth",
-                    client_id: "ytrealm",
-                    client_secret: "ytrealm"
+                    client_id: "ytrealm-id",
+                    client_secret: "ytrealm-secret"
                 },
             ],
         },
@@ -103,7 +103,7 @@ describe("YtAuthentication", function() {
             .reply(200, {
                 error: "OK",
                 login: "anakin",
-                oauth: { client_id: "ytrealm", scope: "ytgrant" }
+                oauth: { client_id: "ytrealm-id", scope: "ytgrant" }
             });
         ask("GET", "/",
         { "Authorization": "OAuth remote-token" },
@@ -187,7 +187,7 @@ describe("YtAuthentication", function() {
             .reply(200, {
                 error: "OK",
                 login: "qui-gon",
-                oauth: { client_id: "ytrealm", scope: "force" }
+                oauth: { client_id: "ytrealm-id", scope: "force" }
             });
         ask("GET", "/",
         { "Authorization": "OAuth qui-gon-jinn" },
@@ -205,7 +205,7 @@ describe("YtAuthentication", function() {
             .reply(200, {
                 error: "OK",
                 login: "amidala",
-                oauth: { client_id: "ytrealm", scope: "ytgrant" }
+                oauth: { client_id: "ytrealm-id", scope: "ytgrant" }
             });
         ask("GET", "/",
         { "Authorization": "OAuth retryable-token" },
