@@ -50,7 +50,7 @@ yt.configureSingletons(config.proxy);
 yt.YtRegistry.set("config", config);
 yt.YtRegistry.set("logger", logger);
 yt.YtRegistry.set("driver", new yt.YtDriver(config));
-yt.YtRegistry.set("authority", new yt.YtAuthority(config));
+yt.YtRegistry.set("authority", new yt.YtAuthority(config.authentication));
 
 // Hoist variable declaration.
 var static_server;
