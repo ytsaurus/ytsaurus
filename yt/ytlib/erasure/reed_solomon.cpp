@@ -15,8 +15,8 @@ namespace NErasure {
 ////////////////////////////////////////////////////////////////////////////////
 
 TCauchyReedSolomon::TCauchyReedSolomon(int blockCount, int parityCount, int wordSize)
-    : BlockCount_(blockCount)
-    , ParityCount_(parityCount)
+    : DataPartCount_(blockCount)
+    , ParityPartCount_(parityCount)
     , WordSize_(wordSize)
     , Matrix_(cauchy_good_general_coding_matrix(blockCount, parityCount, wordSize))
     , BitMatrix_(jerasure_matrix_to_bitmatrix(blockCount, parityCount, wordSize, Matrix_.Get()))
@@ -25,55 +25,55 @@ TCauchyReedSolomon::TCauchyReedSolomon(int blockCount, int parityCount, int word
 
 std::vector<TSharedRef> TCauchyReedSolomon::Encode(const std::vector<TSharedRef>& blocks)
 {
-    return ScheduleEncode(BlockCount_, ParityCount_, WordSize_, Schedule_, blocks);
+    return ScheduleEncode(DataPartCount_, ParityPartCount_, WordSize_, Schedule_, blocks);
 }
 
 std::vector<TSharedRef> TCauchyReedSolomon::Decode(
     const std::vector<TSharedRef>& blocks,
-    const TBlockIndexList& erasedIndices)
+    const TPartIndexList& erasedIndices)
 {
     if (erasedIndices.empty()) {
         return std::vector<TSharedRef>();
     }
 
-    return BitMatrixDecode(BlockCount_, ParityCount_, WordSize_, BitMatrix_, blocks, erasedIndices);
+    return BitMatrixDecode(DataPartCount_, ParityPartCount_, WordSize_, BitMatrix_, blocks, erasedIndices);
 }
 
-TNullable<TBlockIndexList> TCauchyReedSolomon::GetRepairIndices(const TBlockIndexList& erasedIndices)
+TNullable<TPartIndexList> TCauchyReedSolomon::GetRepairIndices(const TPartIndexList& erasedIndices)
 {
     if (erasedIndices.empty()) {
-        return TBlockIndexList();
+        return TPartIndexList();
     }
 
-    TBlockIndexList indices = erasedIndices;
+    TPartIndexList indices = erasedIndices;
     std::sort(indices.begin(), indices.end());
     indices.erase(std::unique(indices.begin(), indices.end()), indices.end());
 
-    if (indices.size() > ParityCount_) {
+    if (indices.size() > ParityPartCount_) {
         return Null;
     }
 
-    return Difference(0, BlockCount_ + ParityCount_, indices);
+    return Difference(0, DataPartCount_ + ParityPartCount_, indices);
 }
 
-bool TCauchyReedSolomon::CanRepair(const TBlockIndexList& erasedIndices)
+bool TCauchyReedSolomon::CanRepair(const TPartIndexList& erasedIndices)
 {
-    return erasedIndices.size() <= ParityCount_;
+    return erasedIndices.size() <= ParityPartCount_;
 }
 
-bool TCauchyReedSolomon::CanRepair(const TBlockIndexSet& erasedIndices)
+bool TCauchyReedSolomon::CanRepair(const TPartIndexSet& erasedIndices)
 {
-    return erasedIndices.count() <= ParityCount_;
+    return erasedIndices.count() <= ParityPartCount_;
 }
 
-int TCauchyReedSolomon::GetDataBlockCount()
+int TCauchyReedSolomon::GetDataPartCount()
 {
-    return BlockCount_;
+    return DataPartCount_;
 }
 
-int TCauchyReedSolomon::GetParityBlockCount()
+int TCauchyReedSolomon::GetParityPartCount()
 {
-    return ParityCount_;
+    return ParityPartCount_;
 }
 
 int TCauchyReedSolomon::GetWordSize()

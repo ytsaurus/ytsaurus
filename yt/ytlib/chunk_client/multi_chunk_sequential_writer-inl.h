@@ -206,7 +206,7 @@ void TMultiChunkSequentialWriter<TChunkWriter>::OnChunkCreated(
             targets);
     } else {
         auto* erasureCodec = NErasure::GetCodec(erasureCodecId);
-        int totalPartCount = erasureCodec->GetTotalBlockCount();
+        int totalPartCount = erasureCodec->GetTotalPartCount();
         YCHECK(session.Replicas.size() == totalPartCount);
 
         std::vector<IAsyncWriterPtr> writers;

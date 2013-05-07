@@ -76,7 +76,7 @@ i64 GetLocality(const NProto::TInputChunk& inputChunk)
     auto codecId = NErasure::ECodec(inputChunk.erasure_codec());
     if (codecId != NErasure::ECodec::None) {
         auto* codec = NErasure::GetCodec(codecId);
-        int dataPartCount = codec->GetDataBlockCount();
+        int dataPartCount = codec->GetDataPartCount();
         result = (result + dataPartCount - 1) / dataPartCount;
     }
 

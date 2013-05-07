@@ -1397,7 +1397,7 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::Create(
             : Null;
 
         int uploadReplicationFactor = isErasure
-            ? erasureCodec->GetDataBlockCount() + erasureCodec->GetParityBlockCount()
+            ? erasureCodec->GetDataPartCount() + erasureCodec->GetParityPartCount()
             : requestExt->upload_replication_factor();
 
         auto targets = Owner->AllocateUploadTargets(uploadReplicationFactor, preferredHostName);

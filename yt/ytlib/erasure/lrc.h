@@ -23,36 +23,36 @@ public:
 
     virtual std::vector<TSharedRef> Decode(
         const std::vector<TSharedRef>& blocks,
-        const TBlockIndexList& erasedIndices) override;
+        const TPartIndexList& erasedIndices) override;
 
-    virtual bool CanRepair(const TBlockIndexList& erasedIndices) override;
+    virtual bool CanRepair(const TPartIndexList& erasedIndices) override;
 
-    virtual bool CanRepair(const TBlockIndexSet& erasedIndicesMask) override;
+    virtual bool CanRepair(const TPartIndexSet& erasedIndicesMask) override;
 
-    virtual TNullable<TBlockIndexList> GetRepairIndices(const TBlockIndexList& erasedIndices) override;
+    virtual TNullable<TPartIndexList> GetRepairIndices(const TPartIndexList& erasedIndices) override;
 
-    virtual int GetDataBlockCount() override;
+    virtual int GetDataPartCount() override;
 
-    virtual int GetParityBlockCount() override;
+    virtual int GetParityPartCount() override;
 
     virtual int GetWordSize() override;
 
 private:
-    int BlockCount_;
-    int ParityCount_;
+    int DataPartCount_;
+    int ParityPartCount_;
     int WordSize_;
 
-    TBlockIndexList Matrix_;
+    TPartIndexList Matrix_;
     TMatrix BitMatrix_;
     TSchedule Schedule_;
 
     // Indices of data blocks and corresponding xor (we have two xor parities).
-    TBlockIndexList Groups_[2];
+    TPartIndexList Groups_[2];
 
     static const int BitmaskOptimizationThreshold;
     std::vector<bool> CanRepair_;
 
-    bool CalculateCanRepair(const TBlockIndexList& erasedIndices);
+    bool CalculateCanRepair(const TPartIndexList& erasedIndices);
 };
 
 ///////////////////////////////////////////////////////////////////////////////

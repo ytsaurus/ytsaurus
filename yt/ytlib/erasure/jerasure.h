@@ -70,7 +70,7 @@ std::vector<TSharedRef> BitMatrixDecode(
     int wordSize,
     const TMatrix& bitTMatrix,
     const std::vector<TSharedRef>& blocks,
-    const TBlockIndexList& erasedIndices);
+    const TPartIndexList& erasedIndices);
 
 ////////////////////////////////////////////////////////////////////////////////
 

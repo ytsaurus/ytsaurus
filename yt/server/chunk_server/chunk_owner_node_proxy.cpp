@@ -180,7 +180,7 @@ bool TFetchChunkVisitor::OnChunk(
     int firstParityPartIndex =
         erasureCodecId == NErasure::ECodec::None
         ? 1 // makes no sense anyway
-        : NErasure::GetCodec(erasureCodecId)->GetDataBlockCount();
+        : NErasure::GetCodec(erasureCodecId)->GetDataPartCount();
 
     auto replicas = chunk->GetReplicas();
     FOREACH (auto replica, replicas) {

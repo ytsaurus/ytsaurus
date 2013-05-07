@@ -30,7 +30,7 @@ TSharedRef Xor(const std::vector<TSharedRef>& refs)
     return TSharedRef::FromBlob(std::move(result));
 }
 
-TBlockIndexList UniqueSortedIndices(const TBlockIndexList& indices)
+TPartIndexList UniqueSortedIndices(const TPartIndexList& indices)
 {
     auto copy = indices;
     std::sort(copy.begin(), copy.end());
@@ -38,10 +38,10 @@ TBlockIndexList UniqueSortedIndices(const TBlockIndexList& indices)
     return copy;
 }
 
-TBlockIndexList ExtractRows(const TBlockIndexList& matrix, int width, const TBlockIndexList& rows)
+TPartIndexList ExtractRows(const TPartIndexList& matrix, int width, const TPartIndexList& rows)
 {
     YCHECK(matrix.size() % width == 0);
-    TBlockIndexList result(width * rows.size());
+    TPartIndexList result(width * rows.size());
     for (int i = 0; i < rows.size(); ++i) {
         auto start = matrix.begin() + rows[i] * width;
         std::copy(start, start + width, result.begin() + i * width);
@@ -53,22 +53,22 @@ TBlockIndexList ExtractRows(const TBlockIndexList& matrix, int width, const TBlo
 
 const int TLrc::BitmaskOptimizationThreshold = 22;
 
-TLrc::TLrc(int blockCount)
-    : BlockCount_(blockCount)
-    , ParityCount_(4)
+TLrc::TLrc(int dataPartCount)
+    : DataPartCount_(dataPartCount)
+    , ParityPartCount_(4)
     , WordSize_(8)
 {
-    // Block count must be even
-    YCHECK(blockCount % 2 == 0);
-    // Block count should be enough small to construct proper matrix
-    YCHECK(1 + blockCount / 2 < (1 << (WordSize_ / 2)));
+    // Data part count must be even
+    YCHECK(dataPartCount % 2 == 0);
+    // Data part count should be enough small to construct proper matrix
+    YCHECK(1 + dataPartCount / 2 < (1 << (WordSize_ / 2)));
 
-    Matrix_.resize(ParityCount_ * BlockCount_);
-    for (int row = 0; row < ParityCount_; ++row) {
-        for (int column = 0; column < BlockCount_; ++column) {
-            int index = row * BlockCount_ + column;
+    Matrix_.resize(ParityPartCount_ * DataPartCount_);
+    for (int row = 0; row < ParityPartCount_; ++row) {
+        for (int column = 0; column < DataPartCount_; ++column) {
+            int index = row * DataPartCount_ + column;
 
-            bool isFirstHalf = column < BlockCount_ / 2;
+            bool isFirstHalf = column < DataPartCount_ / 2;
             if (row == 0) Matrix_[index] = isFirstHalf ? 1 : 0;
             if (row == 1) Matrix_[index] = isFirstHalf ? 0 : 1;
 
@@ -80,35 +80,35 @@ TLrc::TLrc(int blockCount)
             // for any i, j, k, l.
             if (row == 2) {
                 int shift = isFirstHalf ? 1 : (1 << (WordSize_ / 2));
-                int relativeColumn = isFirstHalf ? column : (column - (BlockCount_ / 2));
+                int relativeColumn = isFirstHalf ? column : (column - (DataPartCount_ / 2));
                 Matrix_[index] = shift * (1 + relativeColumn);
             }
 
             // The last row is the square of the row before last.
             if (row == 3) {
-                int prev = Matrix_[index - BlockCount_];
+                int prev = Matrix_[index - DataPartCount_];
                 Matrix_[index] = galois_single_multiply(prev, prev, WordSize_);
             }
         }
     }
 
-    BitMatrix_ = TMatrix(jerasure_matrix_to_bitmatrix(BlockCount_, ParityCount_, WordSize_, Matrix_.data()));
-    Schedule_ = TSchedule(jerasure_dumb_bitmatrix_to_schedule(BlockCount_, ParityCount_, WordSize_, BitMatrix_.Get()));
+    BitMatrix_ = TMatrix(jerasure_matrix_to_bitmatrix(DataPartCount_, ParityPartCount_, WordSize_, Matrix_.data()));
+    Schedule_ = TSchedule(jerasure_dumb_bitmatrix_to_schedule(DataPartCount_, ParityPartCount_, WordSize_, BitMatrix_.Get()));
 
 
 
-    Groups_[0] = MakeSegment(0, BlockCount_ / 2);
-    Groups_[0].push_back(BlockCount_);
+    Groups_[0] = MakeSegment(0, DataPartCount_ / 2);
+    Groups_[0].push_back(DataPartCount_);
 
-    Groups_[1] = MakeSegment(BlockCount_ / 2, BlockCount_);
-    Groups_[1].push_back(BlockCount_ + 1);
+    Groups_[1] = MakeSegment(DataPartCount_ / 2, DataPartCount_);
+    Groups_[1].push_back(DataPartCount_ + 1);
 
-    auto totalBlockCount = BlockCount_ + ParityCount_;
-    if (totalBlockCount <= BitmaskOptimizationThreshold) {
-        CanRepair_.resize(1 << totalBlockCount);
-        for (int mask = 0; mask < (1 << totalBlockCount); ++mask) {
-            TBlockIndexList erasedIndices;
-            for (int i = 0; i < totalBlockCount; ++i) {
+    auto totalPartCount = DataPartCount_ + ParityPartCount_;
+    if (totalPartCount <= BitmaskOptimizationThreshold) {
+        CanRepair_.resize(1 << totalPartCount);
+        for (int mask = 0; mask < (1 << totalPartCount); ++mask) {
+            TPartIndexList erasedIndices;
+            for (int i = 0; i < totalPartCount; ++i) {
                 if ((mask & (1 << i)) == 0) {
                     erasedIndices.push_back(i);
                 }
@@ -120,12 +120,12 @@ TLrc::TLrc(int blockCount)
 
 std::vector<TSharedRef> TLrc::Encode(const std::vector<TSharedRef>& blocks)
 {
-    return ScheduleEncode(BlockCount_, ParityCount_, WordSize_, Schedule_, blocks);
+    return ScheduleEncode(DataPartCount_, ParityPartCount_, WordSize_, Schedule_, blocks);
 }
 
 std::vector<TSharedRef> TLrc::Decode(
     const std::vector<TSharedRef>& blocks,
-    const TBlockIndexList& erasedIndices)
+    const TPartIndexList& erasedIndices)
 {
     if (erasedIndices.empty()) {
         return std::vector<TSharedRef>();
@@ -151,8 +151,8 @@ std::vector<TSharedRef> TLrc::Decode(
     auto recoveryIndices = *GetRepairIndices(indices);
     // We can restore two blocks from different groups using xor.
     if (indices.size() == 2 &&
-        indices.back() < BlockCount_ + 2 &&
-        recoveryIndices.back() < BlockCount_ + 2)
+        indices.back() < DataPartCount_ + 2 &&
+        recoveryIndices.back() < DataPartCount_ + 2)
     {
         std::vector<TSharedRef> result;
         FOREACH (int index, indices) {
@@ -174,33 +174,33 @@ std::vector<TSharedRef> TLrc::Decode(
     }
 
     // Choose subset of matrix rows, corresponding for erased and recovery indices.
-    int parityCount = blocks.size() + indices.size() - BlockCount_;
+    int parityCount = blocks.size() + indices.size() - DataPartCount_;
 
-    TBlockIndexList rows;
+    TPartIndexList rows;
     for (int i = 0; i < recoveryIndices.size(); ++i) {
-        if (recoveryIndices[i] >= BlockCount_) {
-            rows.push_back(recoveryIndices[i] - BlockCount_);
+        if (recoveryIndices[i] >= DataPartCount_) {
+            rows.push_back(recoveryIndices[i] - DataPartCount_);
         }
     }
 
     for (int i = 0; i < indices.size(); ++i) {
-        if (indices[i] >= BlockCount_) {
-            rows.push_back(indices[i] - BlockCount_);
-            indices[i] = BlockCount_ + rows.size() - 1;
+        if (indices[i] >= DataPartCount_) {
+            rows.push_back(indices[i] - DataPartCount_);
+            indices[i] = DataPartCount_ + rows.size() - 1;
         }
     }
 
-    auto matrix = ExtractRows(Matrix_, BlockCount_, rows);
-    auto bitMatrix = TMatrix(jerasure_matrix_to_bitmatrix(BlockCount_, parityCount, WordSize_, matrix.data()));
+    auto matrix = ExtractRows(Matrix_, DataPartCount_, rows);
+    auto bitMatrix = TMatrix(jerasure_matrix_to_bitmatrix(DataPartCount_, parityCount, WordSize_, matrix.data()));
 
-    return BitMatrixDecode(BlockCount_, parityCount, WordSize_, bitMatrix, blocks, indices);
+    return BitMatrixDecode(DataPartCount_, parityCount, WordSize_, bitMatrix, blocks, indices);
 }
 
-bool TLrc::CanRepair(const TBlockIndexList& erasedIndices)
+bool TLrc::CanRepair(const TPartIndexList& erasedIndices)
 {
-    auto totalBlockCount = BlockCount_ + ParityCount_;
-    if (totalBlockCount <= BitmaskOptimizationThreshold) {
-        int mask = (1 << (totalBlockCount)) - 1;
+    auto totalPartCount = DataPartCount_ + ParityPartCount_;
+    if (totalPartCount <= BitmaskOptimizationThreshold) {
+        int mask = (1 << (totalPartCount)) - 1;
         FOREACH (int index, erasedIndices) {
             mask -= (1 << index);
         }
@@ -210,14 +210,14 @@ bool TLrc::CanRepair(const TBlockIndexList& erasedIndices)
     }
 }
 
-bool TLrc::CanRepair(const TBlockIndexSet& erasedIndicesMask)
+bool TLrc::CanRepair(const TPartIndexSet& erasedIndicesMask)
 {
-    auto totalBlockCount = BlockCount_ + ParityCount_;
-    if (totalBlockCount <= BitmaskOptimizationThreshold) {
+    auto totalPartCount = DataPartCount_ + ParityPartCount_;
+    if (totalPartCount <= BitmaskOptimizationThreshold) {
         auto mask = erasedIndicesMask;
         return CanRepair_[mask.flip().to_ulong()];
     } else {
-        TBlockIndexList erasedIndices;
+        TPartIndexList erasedIndices;
         for (int i = 0; i < erasedIndicesMask.size(); ++i) {
             if (erasedIndicesMask[i]) {
                 erasedIndices.push_back(i);
@@ -227,10 +227,10 @@ bool TLrc::CanRepair(const TBlockIndexSet& erasedIndicesMask)
     }
 }
 
-bool TLrc::CalculateCanRepair(const TBlockIndexList& erasedIndices)
+bool TLrc::CalculateCanRepair(const TPartIndexList& erasedIndices)
 {
-    TBlockIndexList indices = UniqueSortedIndices(erasedIndices);
-    if (indices.size() > ParityCount_) {
+    TPartIndexList indices = UniqueSortedIndices(erasedIndices);
+    if (indices.size() > ParityPartCount_) {
         return false;
     }
 
@@ -243,7 +243,7 @@ bool TLrc::CalculateCanRepair(const TBlockIndexList& erasedIndices)
         }
     }
 
-    if (indices.size() == ParityCount_) {
+    if (indices.size() == ParityPartCount_) {
         for (int i = 0; i < 2; ++i) {
             if (Intersection(indices, Groups_[i]).empty()) {
                 return false;
@@ -254,15 +254,15 @@ bool TLrc::CalculateCanRepair(const TBlockIndexList& erasedIndices)
     return true;
 }
 
-TNullable<TBlockIndexList> TLrc::GetRepairIndices(const TBlockIndexList& erasedIndices)
+TNullable<TPartIndexList> TLrc::GetRepairIndices(const TPartIndexList& erasedIndices)
 {
     if (erasedIndices.empty()) {
-        return TBlockIndexList();
+        return TPartIndexList();
     }
 
-    TBlockIndexList indices = UniqueSortedIndices(erasedIndices);
+    TPartIndexList indices = UniqueSortedIndices(erasedIndices);
 
-    if (indices.size() > ParityCount_) {
+    if (indices.size() > ParityPartCount_) {
         return Null;
     }
 
@@ -277,7 +277,7 @@ TNullable<TBlockIndexList> TLrc::GetRepairIndices(const TBlockIndexList& erasedI
     }
 
     // Null if we have 4 erasures in one group.
-    if (indices.size() == ParityCount_) {
+    if (indices.size() == ParityPartCount_) {
         bool intersectsAny = true;
         for (int i = 0; i < 2; ++i) {
             if (Intersection(indices, Groups_[i]).empty()) {
@@ -305,29 +305,29 @@ TNullable<TBlockIndexList> TLrc::GetRepairIndices(const TBlockIndexList& erasedI
     }
 
     // Erasures in only parity blocks.
-    if (indices.front() >= BlockCount_) {
-        return MakeSegment(0, BlockCount_);
+    if (indices.front() >= DataPartCount_) {
+        return MakeSegment(0, DataPartCount_);
     }
 
     // Remove unnecessary xor parities.
-    auto result = Difference(0, BlockCount_ + ParityCount_, indices);
+    auto result = Difference(0, DataPartCount_ + ParityPartCount_, indices);
     for (int i = 0; i < 2; ++i) {
         if (groupCoverage[i] == 0 && indices.size() <= 3) {
-            result = Difference(result, BlockCount_ + i);
+            result = Difference(result, DataPartCount_ + i);
         }
     }
 
     return result;
 }
 
-int TLrc::GetDataBlockCount()
+int TLrc::GetDataPartCount()
 {
-    return BlockCount_;
+    return DataPartCount_;
 }
 
-int TLrc::GetParityBlockCount()
+int TLrc::GetParityPartCount()
 {
-    return ParityCount_;
+    return ParityPartCount_;
 }
 
 int TLrc::GetWordSize()

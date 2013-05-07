@@ -179,13 +179,13 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
 
     // Check data and parity parts.
     auto* codec = NErasure::GetCodec(chunk->GetErasureCodec());
-    int totalPartCount = codec->GetTotalBlockCount();
-    int dataPartCount = codec->GetDataBlockCount();
-    int parityPartCount = codec->GetParityBlockCount();
+    int totalPartCount = codec->GetTotalPartCount();
+    int dataPartCount = codec->GetDataPartCount();
+    int parityPartCount = codec->GetParityPartCount();
 
-    auto missingIndexes = NErasure::TBlockIndexSet((1 << totalPartCount) - 1);  // ignores decommissioned replicas
-    auto lostIndexes    = NErasure::TBlockIndexSet((1 << totalPartCount) - 1);  // takes decommissioned replicas into account
-    TSmallVector<int, NErasure::MaxTotalBlockCount> overreplicatedIndexes;
+    auto missingIndexes = NErasure::TPartIndexSet((1 << totalPartCount) - 1);  // ignores decommissioned replicas
+    auto lostIndexes    = NErasure::TPartIndexSet((1 << totalPartCount) - 1);  // takes decommissioned replicas into account
+    TSmallVector<int, NErasure::MaxTotalPartCount> overreplicatedIndexes;
     FOREACH (auto replica, chunk->StoredReplicas()) {
         int index = replica.GetIndex();
         if (!IsReplicaDecommissioned(replica)) {
@@ -198,12 +198,12 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
     }
 
 
-    auto dataIndexes = NErasure::TBlockIndexSet((1 << dataPartCount) - 1);
+    auto dataIndexes = NErasure::TPartIndexSet((1 << dataPartCount) - 1);
     if ((missingIndexes & dataIndexes).any()) {
         result.Status |= EChunkStatus::DataMissing;
     }
 
-    auto parityIndexes = NErasure::TBlockIndexSet(((1 << parityPartCount) - 1) << dataPartCount);
+    auto parityIndexes = NErasure::TPartIndexSet(((1 << parityPartCount) - 1) << dataPartCount);
     if ((missingIndexes & parityIndexes).any()) {
         result.Status |= EChunkStatus::ParityMissing;
     }
@@ -531,9 +531,9 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleRepairJob(
     auto codecId = chunk->GetErasureCodec();
     auto* codec = NErasure::GetCodec(codecId);
 
-    auto totalBlockCount = codec->GetTotalBlockCount();
+    auto totalBlockCount = codec->GetTotalPartCount();
 
-    NErasure::TBlockIndexSet replicaIndexSet;
+    NErasure::TPartIndexSet replicaIndexSet;
     int erasedIndexCount = totalBlockCount;
     FOREACH (auto replica, chunk->StoredReplicas()) {
         int index = replica.GetIndex();
@@ -543,7 +543,7 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleRepairJob(
         }
     }
 
-    NErasure::TBlockIndexList erasedIndexList;
+    NErasure::TPartIndexList erasedIndexList;
     for (int index = 0; index < totalBlockCount; ++index) {
         if (!replicaIndexSet[index]) {
             erasedIndexList.push_back(index);
@@ -711,7 +711,7 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
     if (statistics.Status & EChunkStatus::Overreplicated) {
         YCHECK(OverreplicatedChunks_.insert(chunk).second);
 
-        for (int index = 0; index < NErasure::MaxTotalBlockCount; ++index) {
+        for (int index = 0; index < NErasure::MaxTotalPartCount; ++index) {
             if (statistics.ReplicaCount[index] <= 1)
                 continue;
 

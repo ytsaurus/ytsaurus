@@ -117,7 +117,7 @@ void TMultiChunkReaderBase<TChunkReader>::PrepareNextChunk()
 
         auto erasureCodecId = NErasure::ECodec(inputChunk.erasure_codec());
         auto* erasureCodec = NErasure::GetCodec(erasureCodecId);
-        auto dataPartCount = erasureCodec->GetDataBlockCount();
+        auto dataPartCount = erasureCodec->GetDataPartCount();
 
         std::vector<IAsyncReaderPtr> readers;
         readers.reserve(dataPartCount);

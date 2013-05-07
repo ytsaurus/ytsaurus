@@ -70,7 +70,7 @@ public:
         std::vector<
             std::pair<
                 std::vector<int>, // indices of blocks in the part
-                TBlockIndexList   // indices of blocks in the requested blockIndexes
+                TPartIndexList   // indices of blocks in the requested blockIndexes
             > > BlockLocations_(Readers_.size());
 
         // Fill BlockLocations_ using information about blocks in parts
@@ -113,7 +113,7 @@ public:
         return ResultPromise_;
     }
 
-    void OnBlocksRead(const TBlockIndexList& indicesInPart, IAsyncReader::TReadResult readResult) {
+    void OnBlocksRead(const TPartIndexList& indicesInPart, IAsyncReader::TReadResult readResult) {
         if (readResult.IsOK()) {
             auto dataRefs = readResult.Value();
             for (int i = 0; i < dataRefs.size(); ++i) {
@@ -423,8 +423,8 @@ public:
     TRepairReader(
         NErasure::ICodec* codec,
         const std::vector<IAsyncReaderPtr>& readers,
-        const TBlockIndexList& erasedIndices,
-        const TBlockIndexList& repairIndices,
+        const TPartIndexList& erasedIndices,
+        const TPartIndexList& repairIndices,
         IInvokerPtr controlInvoker)
         : Codec_(codec)
         , Readers_(readers)
@@ -458,8 +458,8 @@ private:
     NErasure::ICodec* Codec_;
     std::vector<IAsyncReaderPtr> Readers_;
 
-    TBlockIndexList ErasedIndices_;
-    TBlockIndexList RepairIndices_;
+    TPartIndexList ErasedIndices_;
+    TPartIndexList RepairIndices_;
 
     std::vector<TWindowReaderPtr> WindowReaders_;
     std::vector<TRepairPartReader> RepairBlockReaders_;
@@ -570,7 +570,7 @@ TError TRepairReader::OnGotMeta(IAsyncReader::TGetMetaResult metaOrError)
     for (int i = 0; i < Readers_.size(); ++i) {
         int recoveryIndex = (*recoveryIndices)[i];
         int blockCount =
-            recoveryIndex < Codec_->GetDataBlockCount()
+            recoveryIndex < Codec_->GetDataPartCount()
             ? placementExt.part_infos().Get(recoveryIndex).block_sizes().size()
             : placementExt.parity_block_count();
 
@@ -579,7 +579,7 @@ TError TRepairReader::OnGotMeta(IAsyncReader::TGetMetaResult metaOrError)
 
     FOREACH (int erasedIndex, ErasedIndices_) {
         std::vector<i64> blockSizes;
-        if (erasedIndex < Codec_->GetDataBlockCount()) {
+        if (erasedIndex < Codec_->GetDataPartCount()) {
             blockSizes = std::vector<i64>(
                 placementExt.part_infos().Get(erasedIndex).block_sizes().begin(),
                 placementExt.part_infos().Get(erasedIndex).block_sizes().end());
@@ -627,7 +627,7 @@ public:
     TSinglePartRepairSession(
         NErasure::ICodec* codec,
         const std::vector<IAsyncReaderPtr>& readers,
-        const TBlockIndexList& erasedIndices,
+        const TPartIndexList& erasedIndices,
         int partIndex,
         const std::vector<int>& blockIndexes)
         : BlockIndexes_(blockIndexes)
@@ -682,7 +682,7 @@ class TSinglePartRepairReader
 public:
     TSinglePartRepairReader(
         NErasure::ICodec* codec,
-        const TBlockIndexList& erasedIndices,
+        const TPartIndexList& erasedIndices,
         int partIndex,
         const std::vector<IAsyncReaderPtr>& readers)
             : Codec_(codec)
@@ -716,7 +716,7 @@ public:
 private:
     NErasure::ICodec* Codec_;
 
-    TBlockIndexList ErasedIndices_;
+    TPartIndexList ErasedIndices_;
     int PartIndex_;
 
     std::vector<IAsyncReaderPtr> Readers_;
@@ -734,7 +734,7 @@ class TRepairAllPartsSession
 public:
     TRepairAllPartsSession(
         NErasure::ICodec* codec,
-        const TBlockIndexList& erasedIndices,
+        const TPartIndexList& erasedIndices,
         const std::vector<IAsyncReaderPtr>& readers,
         const std::vector<IAsyncWriterPtr>& writers,
         TCallback<void(double)> onProgress,
@@ -867,7 +867,7 @@ IAsyncReaderPtr CreateNonReparingErasureReader(
 
 IAsyncReaderPtr CreateReparingErasureReader(
     NErasure::ICodec* codec,
-    const TBlockIndexList& erasedIndices,
+    const TPartIndexList& erasedIndices,
     int partIndex,
     const std::vector<IAsyncReaderPtr>& readers)
 {
@@ -876,7 +876,7 @@ IAsyncReaderPtr CreateReparingErasureReader(
 
 TAsyncError RepairErasedBlocks(
     NErasure::ICodec* codec,
-    const TBlockIndexList& erasedIndices,
+    const TPartIndexList& erasedIndices,
     const std::vector<IAsyncReaderPtr>& readers,
     const std::vector<IAsyncWriterPtr>& writers,
     TCancelableContextPtr cancelableContext,

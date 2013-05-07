@@ -26,7 +26,7 @@ IAsyncReaderPtr CreateReparingErasureReader(
 
 TAsyncError RepairErasedBlocks(
     NErasure::ICodec* codec,
-    const NErasure::TBlockIndexList& erasedIndices,
+    const NErasure::TPartIndexList& erasedIndices,
     const std::vector<IAsyncReaderPtr>& readers,
     const std::vector<IAsyncWriterPtr>& writers,
     TCancelableContextPtr cancelableContext = nullptr,

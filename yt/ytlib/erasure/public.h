@@ -11,13 +11,13 @@ namespace NErasure {
 ///////////////////////////////////////////////////////////////////////////////
 
 //! The maximum total number of blocks our erasure codec can handle.
-const int MaxTotalBlockCount = 16;
+const int MaxTotalPartCount = 16;
 
 //! A vector type for holding block indexes without allocations.
-typedef TSmallVector<int, MaxTotalBlockCount> TBlockIndexList;
+typedef TSmallVector<int, MaxTotalPartCount> TPartIndexList;
 
 //! Each bit corresponds to a possible block index.
-typedef std::bitset<MaxTotalBlockCount> TBlockIndexSet;
+typedef std::bitset<MaxTotalPartCount> TPartIndexSet;
 
 struct ICodec;
 

@@ -8,26 +8,26 @@ namespace NErasure {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBlockIndexList MakeSegment(int begin, int end)
+TPartIndexList MakeSegment(int begin, int end)
 {
-    TBlockIndexList result(end - begin);
+    TPartIndexList result(end - begin);
     for (int i = begin; i < end; ++i) {
         result[i - begin] = i;
     }
     return result;
 }
 
-TBlockIndexList MakeSingleton(int elem)
+TPartIndexList MakeSingleton(int elem)
 {
-    TBlockIndexList result;
+    TPartIndexList result;
     result.push_back(elem);
     return result;
 }
 
-TBlockIndexList Difference(int begin, int end, const TBlockIndexList& subtrahend)
+TPartIndexList Difference(int begin, int end, const TPartIndexList& subtrahend)
 {
     int pos = 0;
-    TBlockIndexList result;
+    TPartIndexList result;
     for (int i = begin; i < end; ++i) {
         while (pos < subtrahend.size() && subtrahend[pos] < i) {
             pos += 1;
@@ -39,33 +39,33 @@ TBlockIndexList Difference(int begin, int end, const TBlockIndexList& subtrahend
     return result;
 }
 
-TBlockIndexList Difference(const TBlockIndexList& first, const TBlockIndexList& second)
+TPartIndexList Difference(const TPartIndexList& first, const TPartIndexList& second)
 {
-    TBlockIndexList result;
+    TPartIndexList result;
     std::set_difference(first.begin(), first.end(), second.begin(), second.end(), std::back_inserter(result));
     return result;
 }
 
-TBlockIndexList Difference(const TBlockIndexList& set, int subtrahend)
+TPartIndexList Difference(const TPartIndexList& set, int subtrahend)
 {
     return Difference(set, MakeSingleton(subtrahend));
 }
 
-TBlockIndexList Intersection(const TBlockIndexList& first, const TBlockIndexList& second)
+TPartIndexList Intersection(const TPartIndexList& first, const TPartIndexList& second)
 {
-    TBlockIndexList result;
+    TPartIndexList result;
     std::set_intersection(first.begin(), first.end(), second.begin(), second.end(), std::back_inserter(result));
     return result;
 }
 
-TBlockIndexList Union(const TBlockIndexList& first, const TBlockIndexList& second)
+TPartIndexList Union(const TPartIndexList& first, const TPartIndexList& second)
 {
-    TBlockIndexList result;
+    TPartIndexList result;
     std::set_union(first.begin(), first.end(), second.begin(), second.end(), std::back_inserter(result));
     return result;
 }
 
-bool Contains(const TBlockIndexList& set, int elem)
+bool Contains(const TPartIndexList& set, int elem)
 {
     return std::binary_search(set.begin(), set.end(), elem);
 }

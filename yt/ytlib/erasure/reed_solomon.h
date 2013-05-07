@@ -23,23 +23,23 @@ public:
 
     virtual std::vector<TSharedRef> Decode(
         const std::vector<TSharedRef>& blocks,
-        const TBlockIndexList& erasedIndices) override;
+        const TPartIndexList& erasedIndices) override;
 
-    virtual bool CanRepair(const TBlockIndexList& erasedIndices) override;
+    virtual bool CanRepair(const TPartIndexList& erasedIndices) override;
 
-    virtual bool CanRepair(const TBlockIndexSet& erasedIndicesMask) override;
+    virtual bool CanRepair(const TPartIndexSet& erasedIndicesMask) override;
 
-    virtual TNullable<TBlockIndexList> GetRepairIndices(const TBlockIndexList& erasedIndices) override;
+    virtual TNullable<TPartIndexList> GetRepairIndices(const TPartIndexList& erasedIndices) override;
 
-    virtual int GetDataBlockCount() override;
+    virtual int GetDataPartCount() override;
 
-    virtual int GetParityBlockCount() override;
+    virtual int GetParityPartCount() override;
 
     virtual int GetWordSize() override;
 
 private:
-    int BlockCount_;
-    int ParityCount_;
+    int DataPartCount_;
+    int ParityPartCount_;
     int WordSize_;
 
     TMatrix Matrix_;

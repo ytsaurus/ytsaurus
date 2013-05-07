@@ -26,7 +26,7 @@ TChunkReplica::TChunkReplica(int nodeId, int index)
     : Value(nodeId | (index << 28))
 {
     YASSERT(nodeId >= 0 && nodeId <= MaxNodeId);
-    YASSERT(index >= 0 && index < NErasure::MaxTotalBlockCount);
+    YASSERT(index >= 0 && index < NErasure::MaxTotalPartCount);
 }
 
 int TChunkReplica::GetNodeId() const

@@ -240,8 +240,8 @@ bool TChunk::IsAvailable() const
         return !StoredReplicas_.empty();
     } else {
         auto* codec = NErasure::GetCodec(codecId);
-        int dataPartCount = codec->GetDataBlockCount();
-        NErasure::TBlockIndexSet missingIndexSet((1 << dataPartCount) - 1);
+        int dataPartCount = codec->GetDataPartCount();
+        NErasure::TPartIndexSet missingIndexSet((1 << dataPartCount) - 1);
         FOREACH (auto replica, StoredReplicas_) {
             missingIndexSet.reset(replica.GetIndex());
         }

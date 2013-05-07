@@ -447,15 +447,15 @@ private:
         auto replicas = FromProto<NChunkClient::TChunkReplica>(RepairJobSpecExt.replicas());
         auto targets = FromProto<TNodeDescriptor>(RepairJobSpecExt.target_descriptors());
 
-        int totalBlockCount = codec->GetTotalBlockCount();
-        NErasure::TBlockIndexSet erasedIndexSet((1 << totalBlockCount) - 1);
+        int totalBlockCount = codec->GetTotalPartCount();
+        NErasure::TPartIndexSet erasedIndexSet((1 << totalBlockCount) - 1);
 
         // Figure out erased parts.
         FOREACH (auto replica, replicas) {
             int index = replica.GetIndex();
             erasedIndexSet.reset(index);
         }
-        NErasure::TBlockIndexList erasedIndexList;
+        NErasure::TPartIndexList erasedIndexList;
         for (int index = 0; index < totalBlockCount; ++index) {
             if (erasedIndexSet[index])  {
                 erasedIndexList.push_back(index);

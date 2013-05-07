@@ -81,7 +81,7 @@ private:
         TChunkStatistics();
 
         EChunkStatus Status;
-        int ReplicaCount[NErasure::MaxTotalBlockCount];
+        int ReplicaCount[NErasure::MaxTotalPartCount];
     };
 
     struct TRefreshEntry

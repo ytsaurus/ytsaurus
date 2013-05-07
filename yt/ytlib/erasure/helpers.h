@@ -9,21 +9,21 @@ namespace NErasure {
 
 // All vectors here are assumed to be sorted.
 
-TBlockIndexList MakeSegment(int begin, int end);
+TPartIndexList MakeSegment(int begin, int end);
 
-TBlockIndexList MakeSingleton(int elem);
+TPartIndexList MakeSingleton(int elem);
 
-TBlockIndexList Difference(int begin, int end, const TBlockIndexList& subtrahend);
+TPartIndexList Difference(int begin, int end, const TPartIndexList& subtrahend);
 
-TBlockIndexList Difference(const TBlockIndexList& first, const TBlockIndexList& second);
+TPartIndexList Difference(const TPartIndexList& first, const TPartIndexList& second);
 
-TBlockIndexList Difference(const TBlockIndexList& first, int elem);
+TPartIndexList Difference(const TPartIndexList& first, int elem);
 
-TBlockIndexList Intersection(const TBlockIndexList& first, const TBlockIndexList& second);
+TPartIndexList Intersection(const TPartIndexList& first, const TPartIndexList& second);
 
-TBlockIndexList Union(const TBlockIndexList& first, const TBlockIndexList& second);
+TPartIndexList Union(const TPartIndexList& first, const TPartIndexList& second);
 
-bool Contains(const TBlockIndexList& set, int elem);
+bool Contains(const TPartIndexList& set, int elem);
 
 ////////////////////////////////////////////////////////////////////////////////
 

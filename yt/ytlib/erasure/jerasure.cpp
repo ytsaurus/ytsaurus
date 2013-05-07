@@ -143,7 +143,7 @@ std::vector<TSharedRef> BitMatrixDecode(
     int wordSize,
     const TMatrix& bitMatrix,
     const std::vector<TSharedRef>& blocks,
-    const TBlockIndexList& erasedIndices)
+    const TPartIndexList& erasedIndices)
 {
     YCHECK(blocks.size() + erasedIndices.size() == blockCount + parityCount);
     

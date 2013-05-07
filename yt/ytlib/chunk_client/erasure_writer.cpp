@@ -121,7 +121,7 @@ public:
             , Codec_(codec)
             , Writers_(writers)
     {
-        YCHECK(writers.size() == codec->GetTotalBlockCount());
+        YCHECK(writers.size() == codec->GetTotalPartCount());
         VERIFY_INVOKER_AFFINITY(TDispatcher::Get()->GetWriterInvoker(), WriterThread);
         ChunkInfo_.set_disk_space(0);
     }
@@ -154,8 +154,8 @@ public:
     virtual const std::vector<int> GetWrittenIndexes() const override
     {
         std::vector<int> result;
-        result.reserve(Codec_->GetTotalBlockCount());
-        for (int i = 0; i < Codec_->GetTotalBlockCount(); ++i) {
+        result.reserve(Codec_->GetTotalPartCount());
+        for (int i = 0; i < Codec_->GetTotalPartCount(); ++i) {
             result.push_back(i);
         }
         return result;
@@ -212,7 +212,7 @@ private:
 
 void TErasureWriter::PrepareBlocks()
 {
-    Groups_ = SplitBlocks(Blocks_, Codec_->GetDataBlockCount());
+    Groups_ = SplitBlocks(Blocks_, Codec_->GetDataPartCount());
 
     // Calculate size of parity blocks and form slicers
     Slicers_.clear();
@@ -255,7 +255,7 @@ void TErasureWriter::PrepareChunkMeta(const NProto::TChunkMeta& chunkMeta)
         }
         start += group.size();
     }
-    placementExt.set_parity_part_count(Codec_->GetParityBlockCount());
+    placementExt.set_parity_part_count(Codec_->GetParityPartCount());
     placementExt.set_parity_block_count(WindowCount_);
     placementExt.set_parity_block_size(Config_->ErasureWindowSize);
     placementExt.set_parity_last_block_size(ParityDataSize_ - (Config_->ErasureWindowSize * (WindowCount_ - 1)));
@@ -332,8 +332,8 @@ TAsyncError TErasureWriter::WriteParityBlocks(int windowIndex)
 
     // Write blocks of current window in parallel manner
     auto collector = New<TParallelCollector<void>>();
-    for (int i = 0; i < Codec_->GetParityBlockCount(); ++i) {
-        auto& writer = Writers_[Codec_->GetDataBlockCount() + i];
+    for (int i = 0; i < Codec_->GetParityPartCount(); ++i) {
+        auto& writer = Writers_[Codec_->GetDataPartCount() + i];
         writer->WriteBlock(parityBlocks[i]);
         collector->Collect(writer->GetReadyEvent());
     }
@@ -346,8 +346,8 @@ TAsyncError TErasureWriter::CloseParityWriters()
     VERIFY_THREAD_AFFINITY(WriterThread);
 
     auto collector = New<TParallelCollector<void>>();
-    for (int i = 0; i < Codec_->GetParityBlockCount(); ++i) {
-        auto& writer = Writers_[Codec_->GetDataBlockCount() + i];
+    for (int i = 0; i < Codec_->GetParityPartCount(); ++i) {
+        auto& writer = Writers_[Codec_->GetDataPartCount() + i];
         collector->Collect(writer->AsyncClose(ChunkMeta_));
     }
     return collector->Complete();
