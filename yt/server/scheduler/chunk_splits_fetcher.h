@@ -37,8 +37,12 @@ public:
 
     void CreateNewRequest(const NNodeTrackerClient::TNodeDescriptor& descriptor);
 
-    // Returns false if samples from this chunk are not required.
-    bool AddChunkToRequest(NChunkClient::TRefCountedInputChunkPtr inputChunk);
+    //! If |false| is returned then this chunk has not been added to the request since
+    //! the chunk is already too small for splitting.
+    bool AddChunkToRequest(
+        NNodeTrackerClient::TNodeId nodeId,
+        NChunkClient::TRefCountedInputChunkPtr inputChunk);
+
     TFuture<TResponsePtr> InvokeRequest();
 
     TError ProcessResponseItem(

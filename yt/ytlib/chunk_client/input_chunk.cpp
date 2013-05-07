@@ -2,6 +2,9 @@
 #include "input_chunk.h"
 #include "key.h"
 #include "chunk_meta_extensions.h"
+#include "chunk_replica.h"
+
+#include <ytlib/misc/protobuf_helpers.h>
 
 #include <ytlib/erasure/codec.h>
 
@@ -11,6 +14,8 @@ namespace NYT {
 namespace NChunkClient {
 
 using namespace NChunkClient::NProto;
+
+using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -152,6 +157,25 @@ TRefCountedInputChunkPtr CreateCompleteChunk(TRefCountedInputChunkPtr inputChunk
 
     RemoveProtoExtension<TSizeOverrideExt>(chunk->mutable_extensions());
     return chunk;
+}
+
+TChunkId EncodeChunkId(
+    const NProto::TInputChunk& inputChunk,
+    NNodeTrackerClient::TNodeId nodeId)
+{
+    auto replicas = NYT::FromProto<TChunkReplica, TChunkReplicaList>(inputChunk.replicas());
+    auto replicaIt = std::find_if(
+        replicas.begin(),
+        replicas.end(),
+        [=] (TChunkReplica replica) {
+            return replica.GetNodeId() == nodeId;
+    });
+    YCHECK(replicaIt != replicas.end());
+
+    TChunkIdWithIndex chunkIdWithIndex(
+        FromProto<TChunkId>(inputChunk.chunk_id()),
+        replicaIt->GetIndex());
+    return EncodeChunkId(chunkIdWithIndex);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

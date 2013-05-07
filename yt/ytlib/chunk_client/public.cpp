@@ -59,6 +59,13 @@ int IndexFromErasurePartId(const TChunkId& id)
     return index;
 }
 
+TChunkId EncodeChunkId(const TChunkIdWithIndex& idWithIndex)
+{
+    return IsErasureChunkId(idWithIndex.Id)
+           ? ErasurePartIdFromChunkId(idWithIndex.Id, idWithIndex.Index)
+           : idWithIndex.Id;
+}
+
 TChunkIdWithIndex DecodeChunkId(const TChunkId& id)
 {
     return IsErasureChunkPartId(id)

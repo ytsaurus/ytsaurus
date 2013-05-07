@@ -12,11 +12,12 @@
 
 namespace NYT {
 namespace NScheduler {
+
 using namespace NNodeTrackerClient;
 using namespace NChunkClient;
+using namespace NChunkClient::NProto;
 using namespace NTableClient;
 using namespace NTableClient::NProto;
-using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -43,7 +44,7 @@ NLog::TTaggedLogger& TChunkSplitsFetcher::GetLogger()
     return Logger;
 }
 
-void TChunkSplitsFetcher::Prepare(const std::vector<NChunkClient::TRefCountedInputChunkPtr>& chunks)
+void TChunkSplitsFetcher::Prepare(const std::vector<TRefCountedInputChunkPtr>& chunks)
 {
     LOG_INFO("Started fetching chunk splits (ChunkCount: %d)",
         static_cast<int>(chunks.size()));
@@ -66,9 +67,11 @@ void TChunkSplitsFetcher::CreateNewRequest(const TNodeDescriptor& descriptor)
     ToProto(CurrentRequest->mutable_key_columns(), KeyColumns);
 }
 
-bool TChunkSplitsFetcher::AddChunkToRequest(NChunkClient::TRefCountedInputChunkPtr chunk)
+bool TChunkSplitsFetcher::AddChunkToRequest(
+    TNodeId nodeId,
+    TRefCountedInputChunkPtr chunk)
 {
-    auto chunkId = FromProto<TChunkId>(chunk->chunk_id());
+    auto chunkId = EncodeChunkId(*chunk, nodeId);
 
     i64 dataSize;
     GetStatistics(*chunk, &dataSize);
@@ -80,7 +83,10 @@ bool TChunkSplitsFetcher::AddChunkToRequest(NChunkClient::TRefCountedInputChunkP
         ChunkSplits.push_back(chunk);
         return false;
     } else {
-        *CurrentRequest->add_input_chunks() = *chunk;
+        auto* requestChunk = CurrentRequest->add_input_chunks();
+        *requestChunk = *chunk;
+        // Makes sense for erasure chunks only.
+        ToProto(requestChunk->mutable_chunk_id(), chunkId);
         return true;
     }
 }
@@ -99,17 +105,23 @@ TError TChunkSplitsFetcher::ProcessResponseItem(
 {
     YCHECK(rsp->IsOK());
 
-    const auto& splittedChunks = rsp->splitted_chunks(index);
-    if (splittedChunks.has_error()) {
-        return FromProto(splittedChunks.error());
+    const auto& responseChunks = rsp->splitted_chunks(index);
+    if (responseChunks.has_error()) {
+        return FromProto(responseChunks.error());
     }
 
     LOG_TRACE("Received %d chunk splits for chunk #%d",
-        splittedChunks.input_chunks_size(),
+        responseChunks.input_chunks_size(),
         index);
 
-    FOREACH (const auto& splittedChunk, splittedChunks.input_chunks()) {
-        ChunkSplits.push_back(New<TRefCountedInputChunk>(splittedChunk, inputChunk->table_index()));
+    FOREACH (auto& responseChunk, responseChunks.input_chunks()) {
+        auto split = New<TRefCountedInputChunk>(std::move(responseChunk));
+        // Adjust chunk id (makes sense for erasure chunks only).
+        auto chunkId = FromProto<TChunkId>(split->chunk_id());
+        auto chunkIdWithIndex = DecodeChunkId(chunkId);
+        ToProto(split->mutable_chunk_id(), chunkIdWithIndex.Id);
+        split->set_table_index(inputChunk->table_index());
+        ChunkSplits.push_back(split);
     }
 
     return TError();

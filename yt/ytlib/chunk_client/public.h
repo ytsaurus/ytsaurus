@@ -156,6 +156,10 @@ TChunkId ErasureChunkIdFromPartId(const TChunkId& id);
 //! Returns part index for a given erasure chunk part id.
 int IndexFromErasurePartId(const TChunkId& id);
 
+//! For usual chunks, preserves the id.
+//! For erasure chunks, constructs the part id using the given replica index.
+TChunkId EncodeChunkId(const TChunkIdWithIndex& idWithIndex);
+
 //! For usual chunks, preserves the id and returns zero index.
 //! For erasure chunks, constructs the whole chunk id and extracts index.
 TChunkIdWithIndex DecodeChunkId(const TChunkId& id);

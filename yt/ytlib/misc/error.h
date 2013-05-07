@@ -159,8 +159,7 @@ TException&& operator <<= (TException&& ex, const TError& error)
 
 #define THROW_ERROR_EXCEPTION_IF_FAILED(error, ...) \
     if ((error).IsOK()) {\
-    } \
-    else { \
+    } else { \
         auto PP_CONCAT(wrapperError_, __LINE__) = ::NYT::TError(__VA_ARGS__); \
         if (PP_CONCAT(wrapperError_, __LINE__).IsOK()) { \
             THROW_ERROR (error); \

@@ -5,6 +5,7 @@
 #include <ytlib/misc/error.h>
 
 #include <ytlib/node_tracker_client/public.h>
+
 #include <ytlib/chunk_client/input_chunk.h>
 
 namespace NYT {
@@ -40,17 +41,16 @@ private:
     //! Indexes of chunks for which no info is fetched yet.
     yhash_set<int> UnfetchedChunkIndexes;
 
-    //! Addresses of nodes that failed to reply.
-    yhash_set<Stroka> DeadNodes;
+    //! Ids of nodes that failed to reply.
+    yhash_set<NNodeTrackerClient::TNodeId> DeadNodeIds;
 
-    //! |(address, chunkId)| pairs for which an error was returned from the node.
-    // XXX(babenko): need to specialize hash to use yhash_set
-    std::set< std::pair<Stroka, NChunkClient::TChunkId> > DeadChunkIds;
+    //! |(nodeId, chunkId)| pairs for which an error was returned from the node.
+    std::set< std::pair<NNodeTrackerClient::TNodeId, NChunkClient::TChunkId> > DeadChunkIds;
 
     void SendRequests();
     void OnResponse(
-        const NNodeTrackerClient::TNodeDescriptor& descriptor,
-        std::vector<int> chunkIndexes,
+        NNodeTrackerClient::TNodeId nodeId,
+        const std::vector<int>& chunkIndexes,
         typename TFetcher::TResponsePtr rsp);
     void OnEndRound();
 };

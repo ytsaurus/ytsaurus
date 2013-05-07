@@ -18,6 +18,7 @@ namespace NScheduler {
 
 using namespace NChunkClient;
 using namespace NNodeTrackerClient;
+
 using NChunkClient::NProto::TKey;
 
 ////////////////////////////////////////////////////////////////////
@@ -52,7 +53,7 @@ NLog::TTaggedLogger& TSamplesFetcher::GetLogger()
     return Logger;
 }
 
-void TSamplesFetcher::Prepare(const std::vector<NChunkClient::TRefCountedInputChunkPtr>& chunks)
+void TSamplesFetcher::Prepare(const std::vector<TRefCountedInputChunkPtr>& chunks)
 {
     YCHECK(DesiredSampleCount > 0);
 
@@ -76,7 +77,7 @@ void TSamplesFetcher::Prepare(const std::vector<NChunkClient::TRefCountedInputCh
     CurrentSize = SizeBetweenSamples;
 }
 
-const std::vector<NChunkClient::NProto::TKey>& TSamplesFetcher::GetSamples() const
+const std::vector<TKey>& TSamplesFetcher::GetSamples() const
 {
     return Samples;
 }
@@ -92,7 +93,9 @@ void TSamplesFetcher::CreateNewRequest(const TNodeDescriptor& descriptor)
     ToProto(CurrentRequest->mutable_key_columns(), Spec->SortBy);
 }
 
-bool TSamplesFetcher::AddChunkToRequest(NChunkClient::TRefCountedInputChunkPtr chunk)
+bool TSamplesFetcher::AddChunkToRequest(
+    TNodeId nodeId,
+    TRefCountedInputChunkPtr chunk)
 {
     i64 chunkDataSize;
     GetStatistics(*chunk, &chunkDataSize);
@@ -103,11 +106,12 @@ bool TSamplesFetcher::AddChunkToRequest(NChunkClient::TRefCountedInputChunkPtr c
     if (sampleCount > CurrentSampleCount) {
         auto chunkSampleCount = sampleCount - CurrentSampleCount;
         CurrentSampleCount = sampleCount;
-        auto chunkId = FromProto<TChunkId>(chunk->chunk_id());
 
         auto* sampleRequest = CurrentRequest->add_sample_requests();
+        auto chunkId = EncodeChunkId(*chunk, nodeId);
         ToProto(sampleRequest->mutable_chunk_id(), chunkId);
         sampleRequest->set_sample_count(chunkSampleCount);
+
         return true;
     }
 
@@ -124,7 +128,7 @@ auto TSamplesFetcher::InvokeRequest() -> TFuture<TResponsePtr>
 TError TSamplesFetcher::ProcessResponseItem(
     TResponsePtr rsp,
     int index,
-    NChunkClient::TRefCountedInputChunkPtr chunk)
+    TRefCountedInputChunkPtr chunk)
 {
     YCHECK(rsp->IsOK());
 

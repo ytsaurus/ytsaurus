@@ -5,7 +5,10 @@
 #include <ytlib/misc/nullable.h>
 
 #include <ytlib/ytree/attributes.h>
+
 #include <ytlib/chunk_client/input_chunk.pb.h>
+
+#include <ytlib/node_tracker_client/public.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -59,6 +62,10 @@ std::vector<TRefCountedInputChunkPtr> SliceChunkEvenly(
 //! and removes any limits.
 TRefCountedInputChunkPtr CreateCompleteChunk(
     TRefCountedInputChunkPtr inputChunk);
+
+TChunkId EncodeChunkId(
+    const NProto::TInputChunk& inputChunk,
+    NNodeTrackerClient::TNodeId nodeId);
 
 ////////////////////////////////////////////////////////////////////////////////
 

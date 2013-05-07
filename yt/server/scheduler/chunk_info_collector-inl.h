@@ -45,8 +45,8 @@ void TChunkInfoCollector<TFetcher>::SendRequests()
     auto& Logger = Fetcher->GetLogger();
 
     // Construct address -> chunk* map.
-    typedef yhash_map<Stroka, std::vector<int> > TAddressToChunkIndexes;
-    TAddressToChunkIndexes addressToChunkIndexes;
+    typedef yhash_map<NNodeTrackerClient::TNodeId, std::vector<int> > TNodeIdToChunkIndexes;
+    TNodeIdToChunkIndexes nodeIdToChunkIndexes;
 
     FOREACH (auto chunkIndex, UnfetchedChunkIndexes) {
         const auto& chunk = Chunks[chunkIndex];
@@ -54,12 +54,11 @@ void TChunkInfoCollector<TFetcher>::SendRequests()
         bool chunkAvailable = false;
         auto replicas = FromProto<NChunkClient::TChunkReplica, NChunkClient::TChunkReplicaList>(chunk->replicas());
         FOREACH (auto replica, replicas) {
-            const auto& descriptor = NodeDirectory->GetDescriptor(replica);
-            const auto& address = descriptor.Address;
-            if (DeadNodes.find(address) == DeadNodes.end() &&
-                DeadChunkIds.find(std::make_pair(address, chunkId)) == DeadChunkIds.end())
+            auto nodeId = replica.GetNodeId();
+            if (DeadNodeIds.find(nodeId) == DeadNodeIds.end() &&
+                DeadChunkIds.find(std::make_pair(nodeId, chunkId)) == DeadChunkIds.end())
             {
-                addressToChunkIndexes[address].push_back(chunkIndex);
+                nodeIdToChunkIndexes[nodeId].push_back(chunkIndex);
                 chunkAvailable = true;
             }
         }
@@ -72,33 +71,35 @@ void TChunkInfoCollector<TFetcher>::SendRequests()
     }
 
     // Sort nodes by number of chunks (in decreasing order).
-    std::vector<TAddressToChunkIndexes::iterator> addressIts;
-    for (auto it = addressToChunkIndexes.begin(); it != addressToChunkIndexes.end(); ++it) {
-        addressIts.push_back(it);
+    std::vector<TNodeIdToChunkIndexes::iterator> nodeIts;
+    for (auto it = nodeIdToChunkIndexes.begin(); it != nodeIdToChunkIndexes.end(); ++it) {
+        nodeIts.push_back(it);
     }
     std::sort(
-        addressIts.begin(),
-        addressIts.end(),
-        [=] (const TAddressToChunkIndexes::iterator& lhs, const TAddressToChunkIndexes::iterator& rhs) {
+        nodeIts.begin(),
+        nodeIts.end(),
+        [=] (const TNodeIdToChunkIndexes::iterator& lhs, const TNodeIdToChunkIndexes::iterator& rhs) {
             return lhs->second.size() > rhs->second.size();
         });
 
     // Pick nodes greedily.
     auto awaiter = New<TParallelAwaiter>(Invoker);
     yhash_set<int> requestedChunkIndexes;
-    FOREACH (const auto& it, addressIts) {
-        const auto& address = it->first;
-        const auto& descriptor = NodeDirectory->GetDescriptor(address);
+    FOREACH (const auto& it, nodeIts) {
+        auto nodeId = it->first;
+        const auto& descriptor = NodeDirectory->GetDescriptor(nodeId);
+        const auto& address = descriptor.Address;
+
         Fetcher->CreateNewRequest(descriptor);
 
         auto& addressChunkIndexes = it->second;
         std::vector<int> requestChunkIndexes;
-        FOREACH (auto chunkIndex, addressChunkIndexes) {
+        FOREACH (int chunkIndex, addressChunkIndexes) {
             if (requestedChunkIndexes.find(chunkIndex) == requestedChunkIndexes.end()) {
                 YCHECK(requestedChunkIndexes.insert(chunkIndex).second);
 
                 auto& chunk = Chunks[chunkIndex];
-                if (Fetcher->AddChunkToRequest(chunk)) {
+                if (Fetcher->AddChunkToRequest(nodeId, chunk)) {
                     requestChunkIndexes.push_back(chunkIndex);
                 } else {
                     // We are not going to fetch info for this chunk.
@@ -118,8 +119,8 @@ void TChunkInfoCollector<TFetcher>::SendRequests()
                 BIND(
                     &TChunkInfoCollector<TFetcher>::OnResponse,
                     MakeStrong(this),
-                    descriptor,
-                    Passed(std::move(requestChunkIndexes))));
+                    nodeId,
+                    std::move(requestChunkIndexes)));
         }
     }
     awaiter->Complete(BIND(
@@ -131,11 +132,12 @@ void TChunkInfoCollector<TFetcher>::SendRequests()
 
 template <class TFetcher>
 void TChunkInfoCollector<TFetcher>::OnResponse(
-    const NNodeTrackerClient::TNodeDescriptor& descriptor,
-    std::vector<int> chunkIndexes,
+    NNodeTrackerClient::TNodeId nodeId,
+    const std::vector<int>& chunkIndexes,
     typename TFetcher::TResponsePtr rsp)
 {
     auto& Logger = Fetcher->GetLogger();
+    const auto& descriptor = NodeDirectory->GetDescriptor(nodeId);
     const auto& address = descriptor.Address;
 
     if (rsp->IsOK()) {
@@ -151,14 +153,14 @@ void TChunkInfoCollector<TFetcher>::OnResponse(
                 LOG_WARNING(result, "Unable to fetch info for chunk %s from %s",
                     ~ToString(chunkId),
                     ~address);
-                YCHECK(DeadChunkIds.insert(std::make_pair(address, chunkId)).second);
+                YCHECK(DeadChunkIds.insert(std::make_pair(nodeId, chunkId)).second);
             }
         }
         LOG_DEBUG("Received chunk info from %s", ~address);
     } else {
         LOG_WARNING(*rsp, "Error requesting chunk info from %s",
             ~address);
-        YCHECK(DeadNodes.insert(address).second);
+        YCHECK(DeadNodeIds.insert(nodeId).second);
     }
 }
 

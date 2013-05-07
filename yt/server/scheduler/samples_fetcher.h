@@ -38,8 +38,11 @@ public:
 
     void CreateNewRequest(const NNodeTrackerClient::TNodeDescriptor& descriptor);
 
-    // If False is returned then samples from this chunk are not required.
-    bool AddChunkToRequest(NChunkClient::TRefCountedInputChunkPtr inputChunk);
+    //! If |false| is returned then this chunk has not been added to the request since
+    //! its samples are not needed.
+    bool AddChunkToRequest(
+        NNodeTrackerClient::TNodeId nodeId,
+        NChunkClient::TRefCountedInputChunkPtr inputChunk);
 
     TFuture<TResponsePtr> InvokeRequest();
 
