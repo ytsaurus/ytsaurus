@@ -80,7 +80,7 @@ i64 GetInputIOMemorySize(
 
     i64 bufferSize = std::min(
         stat.DataSize,
-        concurrentReaders * ioConfig->TableReader->SendWindowSize);
+        concurrentReaders * ioConfig->TableReader->WindowSize);
     bufferSize += concurrentReaders * ChunkReaderMemorySize;
 
     return std::min(bufferSize, ioConfig->TableReader->MaxBufferSize);

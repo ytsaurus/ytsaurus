@@ -1089,7 +1089,9 @@ int TChunkReplicator::ComputeReplicationFactor(TChunk* chunk)
 
         // Examine owners, if any.
         FOREACH (const auto* owningNode, chunkList->OwningNodes()) {
-            result = std::max(result, owningNode->GetOwningReplicationFactor());
+            if (owningNode->IsTrunk()) {
+                result = std::max(result, owningNode->GetOwningReplicationFactor());
+            }
         }
 
         // Proceed to parents.

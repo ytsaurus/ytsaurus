@@ -1,9 +1,14 @@
-exports.TraceEvent = function(object, sname, ename) {
+var util = require("util");
+var uuid = require("node-uuid");
+
+exports.TraceEvent = function(object, sname, ename)
+{
     "use strict";
     object.on(ename, function() { console.log("---> %s : %s", sname, ename); });
 };
 
-exports.TraceReadableStream = function(stream, name) {
+exports.TraceReadableStream = function(stream, name)
+{
     "use strict";
     exports.TraceEvent(stream, name, "data");
     exports.TraceEvent(stream, name, "end");
@@ -11,7 +16,8 @@ exports.TraceReadableStream = function(stream, name) {
     exports.TraceEvent(stream, name, "close");
 };
 
-exports.TraceWritableStream = function(stream, name) {
+exports.TraceWritableStream = function(stream, name)
+{
     "use strict";
     exports.TraceEvent(stream, name, "drain");
     exports.TraceEvent(stream, name, "error");
@@ -19,7 +25,8 @@ exports.TraceWritableStream = function(stream, name) {
     exports.TraceEvent(stream, name, "pipe");
 };
 
-exports.TraceSocket = function(socket, name) {
+exports.TraceSocket = function(socket, name)
+{
     "use strict";
     exports.TraceEvent(socket, name, "connect");
     exports.TraceEvent(socket, name, "data");
@@ -30,7 +37,8 @@ exports.TraceSocket = function(socket, name) {
     exports.TraceEvent(socket, name, "close");
 };
 
-exports.TraceSocketActivity = function(socket, name) {
+exports.TraceSocketActivity = function(socket, name)
+{
     "use strict";
     setTimeout(function inner() {
         console.log("--? %s : Peer=%s:%s Recv=%s Send=%s Buffer=%s",
@@ -42,19 +50,36 @@ exports.TraceSocketActivity = function(socket, name) {
     }, 1000);
 };
 
-exports.that = function(key, name) {
+exports.that = function(key, name)
+{
     "use strict";
+
     var test = new RegExp("YT(" + [ "ALL", key ].join("|") + ")");
     var result;
 
     if (process.env.NODE_DEBUG && test.test(process.env.NODE_DEBUG)) {
-        result = function(x) {
-            "use strict";
-            console.error("YT: " + name + ":", x);
+        result = function() {
+            var s;
+            s = util.format.apply(
+                null,
+                arguments);
+            s = "YT: " + name + ": " + s;
+            console.error(s);
         };
-        result.UUID = require("node-uuid");
+        result.Tagged = function(tag)
+        {
+            var id = uuid.v4();
+            return function() {
+                var args = Array.prototype.slice.call(arguments);
+                args[0] = "(" + id + ") -> " + (tag ? tag + ": " : "") + args[0];
+                return result.apply(result, args);
+            };
+        };
+        result.On = true;
     } else {
         result = function(){};
+        result.Tagged = function(){ return function(){}; };
+        result.On = false;
     }
 
     return result;

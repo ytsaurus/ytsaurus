@@ -240,11 +240,7 @@ protected:
     {
         YCHECK(HasActiveTask());
 
-        FOREACH (auto stripe, CurrentTaskStripes) {
-            if (stripe) {
-                task->AddInput(stripe);
-            }
-        }
+        task->AddInput(CurrentTaskStripes);
         task->FinishInput();
 
         ++PartitionCount;

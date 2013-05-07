@@ -1232,9 +1232,9 @@ private:
             }
         };
 
+        // NB: No need to abort IO transactions since they are nested inside sync transaction.
         abortTransaction(operation->GetSyncSchedulerTransaction());
         abortTransaction(operation->GetAsyncSchedulerTransaction());
-        // No need to abort IO transactions since they are nested inside sync transaction.
     }
 
     void FinishOperation(TOperationPtr operation)

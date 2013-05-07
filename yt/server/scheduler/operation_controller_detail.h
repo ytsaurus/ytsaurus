@@ -413,9 +413,8 @@ protected:
             NJobTrackerClient::NProto::TJobSpec* jobSpec,
             TJobletPtr joblet);
 
-        void RegisterIntermediate(
-            TJobletPtr joblet,
-            IChunkPoolInput* destinationPool);
+        void RegisterIntermediate(TJobletPtr joblet, TChunkStripePtr stripe, TTaskPtr destinationTask);
+        void RegisterIntermediate(TJobletPtr joblet, TChunkStripePtr stripe, IChunkPoolInput* destinationPool);
 
         static TChunkStripePtr BuildIntermediateChunkStripe(
             google::protobuf::RepeatedPtrField<NChunkClient::NProto::TInputChunk>* inputChunks);
@@ -582,6 +581,7 @@ protected:
 
     virtual bool IsOutputLivePreviewSupported() const;
     virtual bool IsIntermediateLivePreviewSupported() const;
+    void AbortTransactions();
 
     void OnOperationCompleted();
     virtual void DoOperationCompleted();

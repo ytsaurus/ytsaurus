@@ -654,6 +654,7 @@ public:
             LOG_DEBUG("Nothing to read for partition %d", chunkReader->PartitionTag);
             chunkReader->CurrentRowIndex = chunkReader->EndRowIndex;
             chunkReader->Initializer.Reset();
+            chunkReader->IsFinished = true;
             chunkReader->ReaderState.FinishOperation();
             return;
         }

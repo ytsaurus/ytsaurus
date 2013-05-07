@@ -284,8 +284,13 @@ protected:
 
             Controller->PartitionJobCounter.Completed(1);
 
+            auto* resultExt = joblet->Job->Result().MutableExtension(TPartitionJobResultExt::partition_job_result_ext);
+
+            auto stripe = BuildIntermediateChunkStripe(resultExt->mutable_chunks());
+
             RegisterIntermediate(
                 joblet,
+                stripe,
                 Controller->ShufflePool->GetInput());
 
             // Kick-start sort and unordered merge tasks.
@@ -504,9 +509,14 @@ protected:
                 Controller->IntermediateSortJobCounter.Completed(1);
 
                 // Sort outputs in large partitions are queued for further merge.
+                // Construct a stripe consisting of sorted chunks and put it into the pool.
+                auto* resultExt = joblet->Job->Result().MutableExtension(TSortJobResultExt::sort_job_result_ext);
+                auto stripe = BuildIntermediateChunkStripe(resultExt->mutable_chunks());
+
                 RegisterIntermediate(
                     joblet,
-                    Partition->SortedMergeTask->GetChunkPoolInput());
+                    stripe,
+                    Partition->SortedMergeTask);
             } else {
                 Controller->FinalSortJobCounter.Completed(1);
 

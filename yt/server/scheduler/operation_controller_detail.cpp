@@ -21,6 +21,7 @@
 
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/ytree/convert.h>
+#include <ytlib/ytree/attribute_helpers.h>
 
 #include <ytlib/formats/format.h>
 
@@ -125,7 +126,9 @@ IChunkPoolInput::TCookie TOperationControllerBase::TTask::AddInput(TChunkStripeP
 void TOperationControllerBase::TTask::AddInput(const std::vector<TChunkStripePtr>& stripes)
 {
     FOREACH (auto stripe, stripes) {
-        AddInput(stripe);
+        if (stripe) {
+            AddInput(stripe);
+        }
     }
 }
 
@@ -501,11 +504,24 @@ TNodeResources TOperationControllerBase::TTask::GetNeededResources(TJobletPtr jo
 
 void TOperationControllerBase::TTask::RegisterIntermediate(
     TJobletPtr joblet,
+    TChunkStripePtr stripe,
+    TTaskPtr destinationTask)
+{
+    RegisterIntermediate(joblet, stripe, destinationTask->GetChunkPoolInput());
+
+    if (destinationTask->HasInputLocality()) {
+        Controller->AddTaskLocalityHint(destinationTask, stripe);
+    }
+    destinationTask->AddPendingHint();
+}
+
+void TOperationControllerBase::TTask::RegisterIntermediate(
+    TJobletPtr joblet,
+    TChunkStripePtr stripe,
     IChunkPoolInput* destinationPool)
 {
     IChunkPoolInput::TCookie inputCookie;
 
-    auto stripe = joblet->OutputStripe;
     auto lostIt = LostJobCookieMap.find(joblet->OutputCookie);
     if (lostIt == LostJobCookieMap.end()) {
         inputCookie = destinationPool->Add(stripe);
@@ -524,10 +540,9 @@ void TOperationControllerBase::TTask::RegisterIntermediate(
         inputCookie,
         joblet->Job->GetNode());
 
-    FOREACH (const auto& chunk, stripe->Chunks) {
-        auto chunkId = FromProto<TChunkId>(chunk->chunk_id());
-        YCHECK(Controller->ChunkOriginMap.insert(std::make_pair(chunkId, completedJob)).second);
-    }
+    Controller->RegisterIntermediate(
+        completedJob,
+        stripe);
 }
 
 TChunkStripePtr TOperationControllerBase::TTask::BuildIntermediateChunkStripe(
@@ -1397,8 +1412,15 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::CreateLivePrevie
 
     auto processTable = [&] (const Stroka& path, const Stroka& key) {
         auto req = TCypressYPathProxy::Create(path);
+
         req->set_type(EObjectType::Table);
         req->set_ignore_existing(true);
+
+        auto attributes = CreateEphemeralAttributes();
+        attributes->Set("replication_factor", 1);
+
+        ToProto(req->mutable_node_attributes(), *attributes);
+
         batchReq->AddRequest(req, key);
     };
 

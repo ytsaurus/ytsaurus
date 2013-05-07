@@ -9,12 +9,13 @@ var util = require("util");
 var stream = require("stream");
 
 // Redirects unless original URL is not a directory.
-exports.redirectUnlessDirectory = function(req, rsp) {
+exports.redirectUnlessDirectory = function(req, rsp)
+{
     "use strict";
-    if (req.url === "/" && req.originalUrl.substr(-1) !== "/") {
-        rsp.statusCode = 301;
-        rsp.setHeader("Location", req.originalUrl + "/");
-        rsp.end();
+    if (req.url === "/" &&
+        req.originalUrl && req.originalUrl.substr(-1) !== "/"
+    ) {
+        exports.redirectTo(rsp, req.originalUrl + "/", 301);
         return true;
     } else {
         return false;
@@ -22,28 +23,72 @@ exports.redirectUnlessDirectory = function(req, rsp) {
 };
 
 // Redirects request to a predefined location.
-exports.redirectTo = function(rsp, location, code) {
-    rsp.statusCode = code || 303;
-    rsp.setHeader("Location", location);
-    rsp.end();
-}
-
-// Dispatches request with a precomputed result.
-exports.dispatchAs = function(rsp, body, type) {
+exports.redirectTo = function(rsp, location, code)
+{
     "use strict";
+    rsp.removeHeader("Vary");
     rsp.removeHeader("Transfer-Encoding");
     rsp.removeHeader("Content-Encoding");
+    rsp.removeHeader("Content-Type");
+    rsp.setHeader("Location", location);
+    rsp.setHeader("Content-Length", 0);
+    rsp.writeHead(code || 303);
+    rsp.end();
+};
+
+// Dispatches request with a precomputed result.
+exports.dispatchAs = function(rsp, body, type)
+{
+    "use strict";
     rsp.removeHeader("Vary");
-    rsp.setHeader("Content-Type", type);
-    rsp.setHeader("Content-Length", typeof(body) === "string" ? Buffer.byteLength(body) : body.length);
+    rsp.removeHeader("Transfer-Encoding");
+    rsp.removeHeader("Content-Encoding");
+    if (typeof(type) === "string") {
+        rsp.setHeader("Content-Type", type);
+    } else {
+        rsp.removeHeader("Content-Type");
+    }
+    if (typeof(body) !== "undefined") {
+        rsp.setHeader("Content-Length",
+            typeof(body) === "string" ?
+            Buffer.byteLength(body) :
+            body.length);
+    } else {
+        rsp.setHeader("Content-Length", 0);
+    }
     rsp.setHeader("Connection", "close");
     rsp.shouldKeepAlive = false;
-    rsp.writeHead(rsp.statusCode);
+    rsp.writeHead(rsp.statusCode || 200);
     rsp.end(body);
 };
 
+exports.dispatchJson = function(rsp, object)
+{
+    "use strict";
+    exports.dispatchAs(rsp, JSON.stringify(object), "application/json");
+};
+
+// Dispatches a 401.
+exports.dispatchUnauthorized = function(rsp, scope)
+{
+    "use strict";
+    rsp.statusCode = 401;
+    rsp.setHeader("WWW-Authenticate", scope);
+    exports.dispatchAs(rsp);
+};
+
+// Dispatches a 503.
+exports.dispatchLater = function(rsp, after)
+{
+    "use strict";
+    rsp.statusCode = 503;
+    rsp.setHeader("Retry-After", after);
+    exports.dispatchAs(rsp);
+};
+
 // Checks whether MIME pattern |mime| matches actual MIME type |actual|.
-exports.matches = function(mime, actual) {
+exports.matches = function(mime, actual)
+{
     "use strict";
     if (!actual) {
         return false;
@@ -68,7 +113,8 @@ exports.matches = function(mime, actual) {
 };
 
 // Returns best MIME type in |mimes| which is accepted by Accept header |header|.
-exports.bestAcceptedType = function(mimes, header) {
+exports.bestAcceptedType = function(mimes, header)
+{
     "use strict";
     if (!header) {
         return mimes[0];
@@ -93,7 +139,8 @@ exports.bestAcceptedType = function(mimes, header) {
 };
 
 // Returns best encoding in |encodings| which is accepted by Accept-Encoding header |header|.
-exports.bestAcceptedEncoding = function(encodings, header) {
+exports.bestAcceptedEncoding = function(encodings, header)
+{
     "use strict";
     if (!header) {
         return encodings[0];
@@ -115,7 +162,8 @@ exports.bestAcceptedEncoding = function(encodings, header) {
 };
 
 // Auxiliary.
-exports.parseAcceptType = function(header) {
+exports.parseAcceptType = function(header)
+{
     "use strict";
     return header
         .split(/ *, */)
@@ -135,7 +183,8 @@ exports.parseAcceptType = function(header) {
 };
 
 // Auxiliary.
-exports.parseAcceptEncoding = function(header) {
+exports.parseAcceptEncoding = function(header)
+{
     "use strict";
     return header
         .split(/ *, */)
@@ -149,7 +198,8 @@ exports.parseAcceptEncoding = function(header) {
 };
 
 // Auxiliary.
-exports.parseQuality = function(header) {
+exports.parseQuality = function(header)
+{
     "use strict";
 
     var parts = header.split(/ *; */);
@@ -164,7 +214,8 @@ exports.parseQuality = function(header) {
  * Recursively traverses non-cyclic structure and replaces everything
  * that looks like a number with a number.
  */
-exports.numerify = function(obj) {
+exports.numerify = function(obj)
+{
     "use strict";
     if (typeof(obj) === "object") {
         for (var key in obj) {
@@ -189,7 +240,8 @@ exports.numerify = function(obj) {
  * Recursively merge properties of two objects.
  * Preference is given to right-hand side.
  */
-exports.merge = function (lhs, rhs) {
+exports.merge = function (lhs, rhs)
+{
     "use strict";
     for (var p in rhs) {
         try {
@@ -209,7 +261,8 @@ exports.merge = function (lhs, rhs) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-exports.NullStream = function() {
+exports.NullStream = function()
+{
     "use strict";
     stream.Stream.call(this);
 
@@ -231,7 +284,8 @@ exports.NullStream.prototype.destroy = function(){};
 
 ////////////////////////////////////////////////////////////////////////////////
 
-exports.Pause = function(slave) {
+exports.Pause = function(slave)
+{
     "use strict";
     var on_data, on_end, events = [];
     var dummy = function() {};
@@ -262,4 +316,121 @@ exports.Pause = function(slave) {
             this.unpause = dummy;
         }
     };
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+var TAGGED_LOGGER_LEVELS = [ "info", "warn", "debug", "error" ];
+
+exports.TaggedLogger = function(logger, delta)
+{
+    "use strict";
+
+    var level;
+    for (var i = 0; i < TAGGED_LOGGER_LEVELS.length; ++i) {
+        level = TAGGED_LOGGER_LEVELS[i];
+        if (logger.hasOwnProperty(level)) {
+            var func = logger[level];
+            this[level] = function(message, payload) {
+                payload = payload || {};
+                for (var p in delta) {
+                    if (delta.hasOwnProperty(p)) {
+                        payload[p] = delta[p];
+                    }
+                }
+                return func.call(logger, message, payload);
+            };
+        }
+    }
+
+    return this;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+exports.MemoryInputStream = function(data)
+{
+    "use strict";
+    stream.Stream.call(this);
+
+    this.readable = true;
+    this.writable = false;
+
+    var self = this;
+    process.nextTick(function() {
+        if (data) {
+            self.emit("data", data);
+        }
+        process.nextTick(function() {
+            self.emit("end");
+            self.readable = false;
+        });
+    });
+};
+
+util.inherits(exports.MemoryInputStream, stream.Stream);
+
+exports.MemoryInputStream.prototype.pause = function(){};
+exports.MemoryInputStream.prototype.resume = function(){};
+exports.MemoryInputStream.prototype.destroy = function(){};
+
+////////////////////////////////////////////////////////////////////////////////
+
+exports.MemoryOutputStream = function()
+{
+    "use strict";
+    stream.Stream.call(this);
+
+    this.readable = false;
+    this.writable = true;
+
+    this.chunks = [];
+};
+
+util.inherits(exports.MemoryOutputStream, stream.Stream);
+
+exports.MemoryOutputStream.prototype.write = function(chunk)
+{
+    "use strict";
+    if (chunk) {
+        this.chunks.push(chunk);
+    }
+    return true;
+};
+
+exports.MemoryOutputStream.prototype.end = function(chunk)
+{
+    "use strict";
+    if (chunk) {
+        this.chunks.push(chunk);
+    }
+    this.writable = false;
+};
+
+exports.MemoryOutputStream.prototype.destroy = function(){};
+
+////////////////////////////////////////////////////////////////////////////////
+
+exports.getYsonValue = function(x)
+{
+    "use strict";
+    if (typeof(x) === "object" && typeof(x.$value) !== "undefined") {
+        return x.$value;
+    } else {
+        return x;
+    }
+};
+
+exports.getYsonAttribute = function(x, attribute)
+{
+    "use strict";
+    if (typeof(x) === "object" && typeof(x.$attributes) !== "undefined") {
+        return x.$attributes[attribute];
+    }
+};
+
+exports.escapeYPath = function(s)
+{
+    "use strict";
+    return s.replace(/([\/@&])/g, '\\$1');
 };
