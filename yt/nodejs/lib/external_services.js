@@ -63,7 +63,7 @@ exports.blackboxValidateToken = function(logger, party, token)
             }
         })
         .fail(function(err) {
-            var error = YtError.ensureWrapped(error);
+            var error = YtError.ensureWrapped(err);
             tagged_logger.info("Retrying to query Blackbox", {
                 // XXX(sandello): Embed.
                 error: error.toJson()
@@ -124,7 +124,7 @@ exports.oAuthObtainToken = function(logger, client_id, client_secret, code)
             }
         })
         .fail(function(err) {
-            var error = YtError.ensureWrapped(error);
+            var error = YtError.ensureWrapped(err);
             tagged_logger.info("Retrying to query OAuth", {
                 // XXX(sandello): Embed.
                 error: error.toJson()

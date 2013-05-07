@@ -12,20 +12,12 @@ var srv = require("./common_http").srv;
 
 function stubServer(done)
 {
-    return srv(
-        YtApplicationUpravlyator(),
-        done);
+    return srv(YtApplicationUpravlyator(), done);
 }
 
 function stubRegistry()
 {
-    var config = {
-        upravlyator: {
-            interval: 15000,
-            cache: false
-        },
-    };
-
+    var config = { upravlyator: {} };
     var logger = stubLogger();
 
     YtRegistry.set("config", config);
@@ -446,7 +438,7 @@ describe("Upravlyator", function() {
             ask("GET", "/get-all-roles", {}, function(rsp) {
                 rsp.should.be.http2xx;
                 mock.verify();
-                expect(rsp.json.code).to.eql(0);
+                expect(rsp.json.code).to.not.eql(0);
                 expect(rsp.json.error).to.be.a("string");
             }, done).end();
         });
