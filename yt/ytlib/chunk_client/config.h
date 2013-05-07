@@ -102,10 +102,10 @@ public:
     TSequentialReaderConfig()
     {
         RegisterParameter("window_size", WindowSize)
-            .Default(64 * 1024 * 1024)
+            .Default((i64) 64 * 1024 * 1024)
             .GreaterThan(0);
         RegisterParameter("group_size", GroupSize)
-            .Default(8 * 1024 * 1024)
+            .Default((i64) 64 * 1024 * 1024)
             .GreaterThan(0);
 
         RegisterValidator([&] () {
@@ -147,10 +147,10 @@ public:
     TReplicationWriterConfig()
     {
         RegisterParameter("send_window_size", SendWindowSize)
-            .Default(4 * 1024 * 1024)
+            .Default((i64) 32 * 1024 * 1024)
             .GreaterThan(0);
         RegisterParameter("group_size", GroupSize)
-            .Default(1024 * 1024)
+            .Default((i64) 16 * 1024 * 1024)
             .GreaterThan(0);
         RegisterParameter("node_rpc_timeout", NodeRpcTimeout)
             .Default(TDuration::Seconds(120));
