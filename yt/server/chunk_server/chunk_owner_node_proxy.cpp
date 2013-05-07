@@ -430,13 +430,13 @@ bool TChunkOwnerNodeProxy::DoInvoke(NRpc::IServiceContextPtr context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(PrepareForUpdate);
     DISPATCH_YPATH_HEAVY_SERVICE_METHOD(Fetch);
-    return DoInvoke(context);
+    return TNontemplateCypressNodeProxyBase::DoInvoke(context);
 }
 
 bool TChunkOwnerNodeProxy::IsWriteRequest(NRpc::IServiceContextPtr context) const
 {
     DECLARE_YPATH_SERVICE_WRITE_METHOD(PrepareForUpdate);
-    return IsWriteRequest(context);
+    return TNontemplateCypressNodeProxyBase::IsWriteRequest(context);
 }
 
 NSecurityServer::TClusterResources TChunkOwnerNodeProxy::GetResourceUsage() const
@@ -458,7 +458,7 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<NYTree::ISystemAttri
     attributes->push_back("compression_ratio");
     attributes->push_back("update_mode");
     attributes->push_back("replication_factor");
-    ListSystemAttributes(attributes);
+    TNontemplateCypressNodeProxyBase::ListSystemAttributes(attributes);
 }
 
 bool TChunkOwnerNodeProxy::GetSystemAttribute(
@@ -515,7 +515,7 @@ bool TChunkOwnerNodeProxy::GetSystemAttribute(
         return true;
     }
 
-    return GetSystemAttribute(key, consumer);
+    return TNontemplateCypressNodeProxyBase::GetSystemAttribute(key, consumer);
 }
 
 TAsyncError TChunkOwnerNodeProxy::GetSystemAttributeAsync(
@@ -539,7 +539,7 @@ TAsyncError TChunkOwnerNodeProxy::GetSystemAttributeAsync(
             consumer);
     }
 
-    return GetSystemAttributeAsync(key, consumer);
+    return TNontemplateCypressNodeProxyBase::GetSystemAttributeAsync(key, consumer);
 }
 
 void TChunkOwnerNodeProxy::ValidateUserAttributeUpdate(
@@ -592,7 +592,7 @@ bool TChunkOwnerNodeProxy::SetSystemAttribute(
         return true;
     }
 
-    return SetSystemAttribute(key, value);
+    return TNontemplateCypressNodeProxyBase::SetSystemAttribute(key, value);
 }
 
 void TChunkOwnerNodeProxy::ValidatePathAttributes(
