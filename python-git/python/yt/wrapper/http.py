@@ -17,6 +17,10 @@ import time
 import httplib
 import simplejson as json
 
+# We cannot use requests.HTTPError in module namespace because of conflict with python3 http library
+from requests import HTTPError, ConnectionError, Timeout
+NETWORK_ERRORS = (HTTPError, ConnectionError, Timeout, httplib.IncompleteRead)
+
 def iter_lines(response):
     """
     Iterates over the response data, one line at a time.  This avoids reading
@@ -238,7 +242,7 @@ def make_request(command_name, params,
                     timeout=config.CONNECTION_TIMEOUT,
                     stream=stream))
             break
-        except (requests.HTTPError, requests.ConnectionError, requests.Timeout, httplib.IncompleteRead):
+        except NETWORK_ERRORS:
             if make_retry:
                 logger.warning("Retrying http request for command " + command_name)
                 time.sleep(config.HTTP_RETRY_TIMEOUT)

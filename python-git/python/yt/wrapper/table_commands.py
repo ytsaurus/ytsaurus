@@ -3,7 +3,7 @@ import py_wrapper
 from common import flatten, require, unlist, update, EMPTY_GENERATOR, parse_bool, is_prefix, get_value, compose, execute_handling_sigint, bool_to_string
 from errors import YtError
 from version import VERSION
-from http import read_content, get_host_for_heavy_operation
+from http import read_content, get_host_for_heavy_operation, NETWORK_ERRORS
 from table import TablePath, to_table, to_name, prepare_path
 from tree_commands import exists, remove, remove_with_empty_dirs, get_attribute, copy, move, mkdir, find_free_subpath, create, get_type
 from file_commands import smart_upload_file
@@ -291,7 +291,7 @@ def write_table(table, input_stream, format=None, table_writer=None, replication
                                 format=format,
                                 proxy=get_host_for_heavy_operation())
                         break
-                    except YtError as err:
+                    except (NETWORK_ERRORS, YtError) as err:
                         print >>sys.stderr, "Retry", i + 1, "failed with message", str(err)
                         if i + 1 == config.WRITE_RETRIES_COUNT:
                             raise
