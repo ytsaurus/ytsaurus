@@ -15,6 +15,10 @@ __DIE = function dieOfTrue(condition, message)
     }
 };
 
+var TIMEOUT_INITIAL   = 5000;
+var TIMEOUT_HEARTBEAT = 30000;
+var TIMEOUT_COOLDOWN  = 60000;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 function YtClusterHandle(logger, worker)
@@ -32,7 +36,8 @@ function YtClusterHandle(logger, worker)
     this.__cached_wid = undefined;
     this.__cached_pid = undefined;
 
-    this.postponeDeath(5000); // Initial startup should be fast; 5 seconds is enough.
+    this.postponeDeath(TIMEOUT_INITIAL);
+    // Initial startup should be fast; 5 seconds is enough.
 }
 
 YtClusterHandle.prototype.getWid = function()
@@ -89,10 +94,6 @@ YtClusterHandle.prototype.handleMessage = function(message)
         return; // Improper message format.
     }
 
-    if (this.state === "alive") {
-        this.postponeDeath(30000);
-    }
-
     switch (message.type) {
         case "heartbeat":
             if (!__DBG.$) {
@@ -100,9 +101,16 @@ YtClusterHandle.prototype.handleMessage = function(message)
             }
             break;
         case "alive":
+            this.state = "alive";
+            this.postponeDeath(TIMEOUT_HEARTBEAT);
+            break;
         case "stopping":
+            this.state = "stopping";
+            this.postponeDeath();
+            break;
         case "stopped":
-            this.state = message.type;
+            this.state = "stopped";
+            this.postponeDeath(TIMEOUT_COOLDOWN);
             break;
         default:
             this.logger.warn("Received unknown message of type '" + message.type + "' from worker " + this.toString());
@@ -121,8 +129,10 @@ YtClusterHandle.prototype.postponeDeath = function(timeout)
         clearTimeout(this.timeout_at);
     }
 
-    this.updated_at = new Date();
-    this.timeout_at = setTimeout(this.ageToDeath.bind(this), timeout);
+    if (timeout) {
+        this.updated_at = new Date();
+        this.timeout_at = setTimeout(this.ageToDeath.bind(this), timeout);
+    }
 };
 
 YtClusterHandle.prototype.ageToDeath = function()

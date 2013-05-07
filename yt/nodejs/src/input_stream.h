@@ -64,6 +64,7 @@ protected:
     size_t DoRead(void* data, size_t length) override;
 
 private:
+    void Dispose();
     void DisposeHandles(std::deque<TInputPart*>* queue);
     void UpdateV8Properties();
 

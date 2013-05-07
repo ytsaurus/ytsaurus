@@ -732,6 +732,7 @@ private:
     void DoWatchWritersPeriodically()
     {
         Config->WatchWriters();
+        WatchInvoker->ScheduleNext();
     }
 
     TQueueInvokerPtr QueueInvoker;
