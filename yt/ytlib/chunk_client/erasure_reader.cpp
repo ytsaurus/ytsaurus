@@ -79,7 +79,7 @@ public:
             YCHECK(blockIndex >= 0);
 
             // Searching for the part of given block
-            auto it = upper_bound(PartInfos_.begin(), PartInfos_.end(), blockIndex, PartComparator());
+            auto it = upper_bound(PartInfos_.begin(), PartInfos_.end(), blockIndex, TPartComparator());
             YCHECK(it != PartInfos_.begin());
             do {
                 --it;
@@ -138,8 +138,10 @@ public:
 private:
     typedef TNonReparingReaderSession TThis;
 
-    struct PartComparator {
-        bool operator()(int position, const NProto::TPartInfo& info) {
+    struct TPartComparator
+    {
+        bool operator()(int position, const NProto::TPartInfo& info) const
+        {
             return position < info.start();
         }
     };
