@@ -94,6 +94,7 @@ DECLARE_FLAGGED_ENUM(EChunkStatus,
     ((Lost)              (0x0004))
     ((DataMissing)       (0x0008))
     ((ParityMissing)     (0x0010))
+    ((Safe)              (0x0020))
 );
 
 typedef std::list<TChunk*> TChunkRepairQueue;

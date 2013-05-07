@@ -164,6 +164,10 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
         result.Status |= EChunkStatus::Underreplicated;
     }
 
+    if (replicaCount >= replicationFactor) {
+        result.Status |= EChunkStatus::Safe;
+    }
+
     result.ReplicaCount[0] = replicaCount;
 
     return result;
@@ -209,6 +213,10 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
         if (!codec->CanRepair(lostIndexes)) {
             result.Status |= EChunkStatus::Lost;
         }
+    }
+
+    if (!missingIndexes.any()) {
+        result.Status |= EChunkStatus::Safe;
     }
 
     return result;
