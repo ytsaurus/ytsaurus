@@ -130,11 +130,19 @@ public:
         TReqCreate* request,
         TRspCreate* response) override
     {
-        // TODO(babenko): Release is needed due to cast to ICypressNode.
-        return DoCreate(
+        auto objectManager = Bootstrap->GetObjectManager();
+        auto id = TVersionedNodeId(objectManager->GenerateId(GetObjectType()));
+
+        auto node = DoCreate(
+            id,
             transaction,
             request,
-            response).Release();
+            response);
+
+        node->SetTrunkNode(~node);
+
+        // TODO(babenko): Release is needed due to cast to ICypressNode.
+        return node.Release();
     }
 
     virtual void SetDefaultAttributes(NYTree::IAttributeDictionary* attributes) override
@@ -222,6 +230,7 @@ protected:
         NTransactionServer::TTransaction* transaction) = 0;
 
     virtual TAutoPtr<TImpl> DoCreate(
+        const NCypressServer::TVersionedNodeId& id,
         NTransactionServer::TTransaction* transaction,
         TReqCreate* request,
         TRspCreate* response)
@@ -230,14 +239,7 @@ protected:
         UNUSED(request);
         UNUSED(response);
 
-        auto objectManager = Bootstrap->GetObjectManager();
-
-        auto nodeId = TVersionedNodeId(objectManager->GenerateId(GetObjectType()));
-
-        TAutoPtr<TImpl> node(new TImpl(nodeId));
-        node->SetTrunkNode(~node);
-
-        return node;
+        return new TImpl(id);
     }
 
     virtual void DoDestroy(TImpl* node)

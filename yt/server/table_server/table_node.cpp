@@ -26,10 +26,6 @@ using namespace NSecurityServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& SILENT_UNUSED Logger = TableServerLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 TTableNode::TTableNode(const TVersionedNodeId& id)
     : TChunkOwnerBase(id)
 { }
@@ -65,10 +61,9 @@ public:
         }
 
         if (!attributes->Contains("compression_codec")) {
-            NCompression::ECodec codecId = NCompression::ECodec::Lz4;
             attributes->SetYson(
                 "compression_codec",
-                ConvertToYsonString(codecId));
+                ConvertToYsonString(NCompression::ECodec(NCompression::ECodec::Lz4)));
         }
     }
 

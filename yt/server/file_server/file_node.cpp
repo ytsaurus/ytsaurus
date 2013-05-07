@@ -26,10 +26,6 @@ using namespace NFileClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = FileServerLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 TFileNode::TFileNode(const TVersionedNodeId& id)
     : TChunkOwnerBase(id)
 { }
@@ -82,15 +78,12 @@ protected:
     }
 
     virtual TAutoPtr<TFileNode> DoCreate(
+        const NCypressServer::TVersionedNodeId& id,
         NTransactionServer::TTransaction* transaction,
         TReqCreate* request,
         TRspCreate* response) override
     {
-        YCHECK(request);
-        UNUSED(transaction);
-        UNUSED(response);
-
-        auto node = TBase::DoCreate(transaction, request, response);
+        auto node = TBase::DoCreate(id, transaction, request, response);
 
         if (request->HasExtension(TReqCreateFileExt::create_file_ext)) {
             const auto& requestExt = request->GetExtension(TReqCreateFileExt::create_file_ext);
@@ -99,10 +92,10 @@ protected:
             auto chunkManager = Bootstrap->GetChunkManager();
             auto* chunk = chunkManager->FindChunk(chunkId);
             if (!IsObjectAlive(chunk)) {
-                THROW_ERROR_EXCEPTION("No such chunk: %s", ~ToString(chunkId));
+                THROW_ERROR_EXCEPTION("No such chunk %s", ~ToString(chunkId));
             }
             if (!chunk->IsConfirmed()) {
-                THROW_ERROR_EXCEPTION("File chunk is not confirmed: %s", ~ToString(chunkId));
+                THROW_ERROR_EXCEPTION("Chunk %s is not confirmed", ~ToString(chunkId));
             }
 
             auto* chunkList = node->GetChunkList();

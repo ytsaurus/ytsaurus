@@ -38,9 +38,7 @@ class TFetchChunkVisitor
     : public IChunkVisitor
 {
 public:
-    typedef NYT::NRpc::TTypedServiceContext<
-        NChunkClient::NProto::TReqFetch,
-        NChunkClient::NProto::TRspFetch> TCtxFetch;
+    typedef NYT::NRpc::TTypedServiceContext<TReqFetch, TRspFetch> TCtxFetch;
 
     typedef TIntrusivePtr<TCtxFetch> TCtxFetchPtr;
 
@@ -48,11 +46,11 @@ public:
         NCellMaster::TBootstrap* bootstrap,
         TChunkList* chunkList,
         TCtxFetchPtr context,
-        const NChunkClient::TChannel& channel);
+        const TChannel& channel);
 
     void StartSession(
-        const NChunkClient::NProto::TReadLimit& lowerBound,
-        const NChunkClient::NProto::TReadLimit& upperBound);
+        const TReadLimit& lowerBound,
+        const TReadLimit& upperBound);
 
     void Complete();
 
@@ -60,7 +58,7 @@ private:
     NCellMaster::TBootstrap* Bootstrap;
     TChunkList* ChunkList;
     TCtxFetchPtr Context;
-    NChunkClient::TChannel Channel;
+    TChannel Channel;
 
     yhash_set<int> ExtensionTags;
     TNodeDirectoryBuilder NodeDirectoryBuilder;
@@ -75,13 +73,13 @@ private:
 
     virtual bool OnChunk(
         TChunk* chunk,
-        const NChunkClient::NProto::TReadLimit& startLimit,
-        const NChunkClient::NProto::TReadLimit& endLimit) override;
+        const TReadLimit& startLimit,
+        const TReadLimit& endLimit) override;
 
     virtual void OnError(const TError& error) override;
     virtual void OnFinish() override;
 
-    static bool IsNontrivial(const NChunkClient::NProto::TReadLimit& limit);
+    static bool IsNontrivial(const TReadLimit& limit);
 
 };
 
@@ -372,7 +370,7 @@ public:
         UNUSED(endLimit);
 
         const auto& chunkMeta = chunk->ChunkMeta();
-        auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunkMeta.extensions());
+        auto miscExt = GetProtoExtension<TMiscExt>(chunkMeta.extensions());
 
         CodecInfo[NCompression::ECodec(miscExt.compression_codec())].Accumulate(chunk->GetStatistics());
         return true;
@@ -467,7 +465,7 @@ bool TChunkOwnerNodeProxy::GetSystemAttribute(
     const Stroka& key,
     NYson::IYsonConsumer* consumer)
 {
-    const auto* node = static_cast<TChunkOwnerBase*>(GetThisImpl());
+    const auto* node = GetThisTypedImpl<TChunkOwnerBase>();
     const auto* chunkList = node->GetChunkList();
     const auto& statistics = chunkList->Statistics();
 
@@ -524,7 +522,7 @@ TAsyncError TChunkOwnerNodeProxy::GetSystemAttributeAsync(
     const Stroka& key,
     NYson::IYsonConsumer* consumer)
 {
-    const auto* node = static_cast<TChunkOwnerBase*>(GetThisImpl());
+    const auto* node = GetThisTypedImpl<TChunkOwnerBase>();
     const auto* chunkList = node->GetChunkList();
 
     if (key == "chunk_ids") {
@@ -577,7 +575,7 @@ bool TChunkOwnerNodeProxy::SetSystemAttribute(
                 MaxReplicationFactor);
         }
 
-        auto* node = static_cast<TChunkOwnerBase*>(GetThisImpl());
+        auto* node = GetThisTypedImpl<TChunkOwnerBase>();
         YCHECK(node->IsTrunk());
 
         if (node->GetReplicationFactor() != replicationFactor) {
@@ -598,9 +596,9 @@ bool TChunkOwnerNodeProxy::SetSystemAttribute(
 }
 
 void TChunkOwnerNodeProxy::ValidatePathAttributes(
-    const TNullable<NChunkClient::TChannel>& channel,
-    const NChunkClient::NProto::TReadLimit& upperLimit,
-    const NChunkClient::NProto::TReadLimit& lowerLimit)
+    const TNullable<TChannel>& channel,
+    const TReadLimit& upperLimit,
+    const TReadLimit& lowerLimit)
 {
     UNUSED(channel);
     UNUSED(upperLimit);
@@ -609,8 +607,8 @@ void TChunkOwnerNodeProxy::ValidatePathAttributes(
 
 DEFINE_RPC_SERVICE_METHOD(TChunkOwnerNodeProxy, PrepareForUpdate)
 {
-    auto mode = NChunkClient::EUpdateMode(request->mode());
-    YCHECK(mode == NChunkClient::EUpdateMode::Append || mode == NChunkClient::EUpdateMode::Overwrite);
+    auto mode = EUpdateMode(request->mode());
+    YCHECK(mode == EUpdateMode::Append || mode == EUpdateMode::Overwrite);
 
     context->SetRequestInfo("Mode: %s", ~FormatEnum(mode));
 
@@ -619,9 +617,9 @@ DEFINE_RPC_SERVICE_METHOD(TChunkOwnerNodeProxy, PrepareForUpdate)
         NYTree::EPermissionCheckScope::This,
         NSecurityServer::EPermission::Write);
 
-    auto* node = static_cast<TChunkOwnerBase*>(LockThisImpl(GetLockMode(mode)));
+    auto* node = LockThisTypedImpl<TChunkOwnerBase>(GetLockMode(mode));
 
-    if (node->GetUpdateMode() != NChunkClient::EUpdateMode::None) {
+    if (node->GetUpdateMode() != EUpdateMode::None) {
         THROW_ERROR_EXCEPTION("Node is already in %s mode",
             ~FormatEnum(node->GetUpdateMode()).Quote());
     }
@@ -631,7 +629,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkOwnerNodeProxy, PrepareForUpdate)
 
     TChunkList* resultChunkList;
     switch (mode) {
-        case NChunkClient::EUpdateMode::Append: {
+        case EUpdateMode::Append: {
             auto* snapshotChunkList = node->GetChunkList();
 
             auto* newChunkList = chunkManager->CreateChunkList();
@@ -662,7 +660,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkOwnerNodeProxy, PrepareForUpdate)
             break;
         }
 
-        case NChunkClient::EUpdateMode::Overwrite: {
+        case EUpdateMode::Overwrite: {
             auto* oldChunkList = node->GetChunkList();
             YCHECK(oldChunkList->OwningNodes().erase(node) == 1);
             objectManager->UnrefObject(oldChunkList);
@@ -704,17 +702,17 @@ DEFINE_RPC_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
         NYTree::EPermissionCheckScope::This,
         NSecurityServer::EPermission::Read);
 
-    const auto* node = static_cast<TChunkOwnerBase*>(GetThisImpl());
+    const auto* node = GetThisTypedImpl<TChunkOwnerBase>();
 
     auto attributes = NYTree::FromProto(request->attributes());
-    auto channelAttribute = attributes->Find<NChunkClient::TChannel>("channel");
-    auto lowerLimit = attributes->Get("lower_limit", NChunkClient::NProto::TReadLimit());
-    auto upperLimit = attributes->Get("upper_limit", NChunkClient::NProto::TReadLimit());
+    auto channelAttribute = attributes->Find<TChannel>("channel");
+    auto lowerLimit = attributes->Get("lower_limit", TReadLimit());
+    auto upperLimit = attributes->Get("upper_limit", TReadLimit());
     bool complement = attributes->Get("complement", false);
 
     ValidatePathAttributes(channelAttribute, lowerLimit, upperLimit);
 
-    auto channel = channelAttribute.Get(NChunkClient::TChannel::Universal());
+    auto channel = channelAttribute.Get(TChannel::Universal());
 
     auto* chunkList = node->GetChunkList();
 
@@ -726,10 +724,10 @@ DEFINE_RPC_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
 
     if (complement) {
         if (lowerLimit.has_row_index() || lowerLimit.has_key()) {
-            visitor->StartSession(NChunkClient::NProto::TReadLimit(), lowerLimit);
+            visitor->StartSession(TReadLimit(), lowerLimit);
         }
         if (upperLimit.has_row_index() || upperLimit.has_key()) {
-            visitor->StartSession(upperLimit, NChunkClient::NProto::TReadLimit());
+            visitor->StartSession(upperLimit, TReadLimit());
         }
     } else {
         visitor->StartSession(lowerLimit, upperLimit);

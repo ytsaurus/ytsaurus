@@ -1,9 +1,9 @@
 #pragma once
 
-#include "public.h"
-
 #include "private.h"
 #include "chunk_list.h"
+
+#include <ytlib/misc/property.h>
 
 #include <ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 
@@ -11,8 +11,6 @@
 #include <server/cypress_server/node.h>
 #include <server/cypress_server/node_detail.h>
 #include <server/cypress_server/cypress_manager.h>
-
-#include <ytlib/misc/property.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -51,18 +49,15 @@ protected:
     NLog::TLogger& Logger;
 
     virtual TAutoPtr<TChunkOwner> DoCreate(
+        const NCypressServer::TVersionedNodeId& id,
         NTransactionServer::TTransaction* transaction,
         NCypressServer::INodeTypeHandler::TReqCreate* request,
         NCypressServer::INodeTypeHandler::TRspCreate* response) override
     {
-        YCHECK(request);
-        UNUSED(transaction);
-        UNUSED(response);
+        auto chunkManager = this->Bootstrap->GetChunkManager();
+        auto objectManager = this->Bootstrap->GetObjectManager();
 
-        auto chunkManager = TBase::Bootstrap->GetChunkManager();
-        auto objectManager = TBase::Bootstrap->GetObjectManager();
-
-        auto node = TBase::DoCreate(transaction, request, response);
+        auto node = TBase::DoCreate(id, transaction, request, response);
 
         // Create an empty chunk list and reference it from the node.
         auto* chunkList = chunkManager->CreateChunkList();

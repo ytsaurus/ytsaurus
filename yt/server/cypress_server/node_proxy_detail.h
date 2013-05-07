@@ -124,6 +124,7 @@ protected:
 
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override;
 
+
     TCypressNodeBase* GetImpl(TCypressNodeBase* trunkNode) const;
 
     TCypressNodeBase* LockImpl(
@@ -137,6 +138,28 @@ protected:
     TCypressNodeBase* LockThisImpl(
         const TLockRequest& request = ELockMode::Exclusive,
         bool recursive = false);
+
+
+    template <class TImpl>
+    TImpl* GetThisTypedImpl()
+    {
+        return dynamic_cast<TImpl*>(GetThisImpl());
+    }
+
+    template <class TImpl>
+    const TImpl* GetThisTypedImpl() const
+    {
+        return dynamic_cast<const TImpl*>(GetThisImpl());
+    }
+
+    template <class TImpl>
+    TImpl* LockThisTypedImpl(
+        const TLockRequest& request = ELockMode::Exclusive,
+        bool recursive = false)
+    {
+        return dynamic_cast<TImpl*>(LockThisImpl(request, recursive));
+    }
+
 
     ICypressNodeProxyPtr GetProxy(TCypressNodeBase* trunkNode) const;
     static ICypressNodeProxy* ToProxy(NYTree::INodePtr node);
@@ -218,19 +241,19 @@ public:
 protected:
     TImpl* GetThisTypedImpl()
     {
-        return dynamic_cast<TImpl*>(this->GetThisImpl());
+        return TNontemplateCypressNodeProxyBase::GetThisTypedImpl<TImpl>();
     }
 
     const TImpl* GetThisTypedImpl() const
     {
-        return dynamic_cast<const TImpl*>(this->GetThisImpl());
+        return TNontemplateCypressNodeProxyBase::GetThisTypedImpl<TImpl>();
     }
 
     TImpl* LockThisTypedImpl(
         const TLockRequest& request = ELockMode::Exclusive,
         bool recursive = false)
     {
-        return dynamic_cast<TImpl*>(this->LockThisImpl(request, recursive));
+        return TNontemplateCypressNodeProxyBase::LockThisTypedImpl<TImpl>(request, recursive);
     }
 };
 
