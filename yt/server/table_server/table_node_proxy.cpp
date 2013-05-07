@@ -26,48 +26,42 @@ namespace NTableServer {
 
 using namespace NChunkServer;
 using namespace NChunkClient;
+using namespace NChunkClient::NProto;
 using namespace NCypressServer;
+using namespace NRpc;
 using namespace NYTree;
 using namespace NYson;
-using namespace NRpc;
-using namespace NObjectServer;
 using namespace NTableClient;
-using namespace NCellMaster;
 using namespace NTransactionServer;
-using namespace NSecurityServer;
 
-using NChunkClient::NProto::TReadLimit;
-using NChunkClient::NProto::TKey;
+using NChunkClient::TChannel;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTableNodeProxy
-    : public NCypressServer::TCypressNodeProxyBase<
-        TChunkOwnerNodeProxy,
-        NYTree::IEntityNode,
-        TTableNode>
+    : public TCypressNodeProxyBase<TChunkOwnerNodeProxy, IEntityNode, TTableNode>
 {
 public:
     TTableNodeProxy(
-        NCypressServer::INodeTypeHandlerPtr typeHandler,
+        INodeTypeHandlerPtr typeHandler,
         NCellMaster::TBootstrap* bootstrap,
-        NTransactionServer::TTransaction* transaction,
+        TTransaction* transaction,
         TTableNode* trunkNode);
 
     virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const override;
 
 private:
-    typedef NCypressServer::TCypressNodeProxyBase<TChunkOwnerNodeProxy, NYTree::IEntityNode, TTableNode> TBase;
+    typedef TCypressNodeProxyBase<TChunkOwnerNodeProxy, IEntityNode, TTableNode> TBase;
 
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override;
-    virtual bool GetSystemAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
+    virtual bool GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) override;
     virtual void ValidateUserAttributeUpdate(
         const Stroka& key,
-        const TNullable<NYTree::TYsonString>& oldValue,
-        const TNullable<NYTree::TYsonString>& newValue) override;
+        const TNullable<TYsonString>& oldValue,
+        const TNullable<TYsonString>& newValue) override;
 
-    virtual NCypressClient::ELockMode GetLockMode(NChunkClient::EUpdateMode updateMode) override;
-    virtual bool DoInvoke(NRpc::IServiceContextPtr context) override;
+    virtual NCypressClient::ELockMode GetLockMode(EUpdateMode updateMode) override;
+    virtual bool DoInvoke(IServiceContextPtr context) override;
 
     DECLARE_RPC_SERVICE_METHOD(NTableClient::NProto, SetSorted);
 
@@ -77,7 +71,7 @@ private:
 
 TTableNodeProxy::TTableNodeProxy(
     INodeTypeHandlerPtr typeHandler,
-    TBootstrap* bootstrap,
+    NCellMaster::TBootstrap* bootstrap,
     TTransaction* transaction,
     TTableNode* trunkNode)
     : TBase(
@@ -157,13 +151,11 @@ void TTableNodeProxy::ValidateUserAttributeUpdate(
     TBase::ValidateUserAttributeUpdate(key, oldValue, newValue);
 }
 
-NCypressClient::ELockMode TTableNodeProxy::GetLockMode(NChunkClient::EUpdateMode updateMode)
+ELockMode TTableNodeProxy::GetLockMode(NChunkClient::EUpdateMode updateMode)
 {
-    if (updateMode == NChunkClient::EUpdateMode::Append) {
-        return NCypressClient::ELockMode::Shared;
-    } else {
-        return NCypressClient::ELockMode::Exclusive;
-    }
+    return updateMode == EUpdateMode::Append
+        ? ELockMode::Shared
+        : ELockMode::Exclusive;
 }
 
 DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, SetSorted)
@@ -175,8 +167,8 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, SetSorted)
 
     auto* node = LockThisTypedImpl();
 
-    if (node->GetUpdateMode() != NChunkClient::EUpdateMode::Overwrite) {
-        THROW_ERROR_EXCEPTION("Table node must be in overwrite mode");
+    if (node->GetUpdateMode() != EUpdateMode::Overwrite) {
+        THROW_ERROR_EXCEPTION("Table node must be in \"overwrite\" mode");
     }
 
     node->GetChunkList()->SortedBy() = keyColumns;
@@ -189,9 +181,9 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, SetSorted)
 ////////////////////////////////////////////////////////////////////////////////
 
 ICypressNodeProxyPtr CreateTableNodeProxy(
-    NCypressServer::INodeTypeHandlerPtr typeHandler,
+    INodeTypeHandlerPtr typeHandler,
     NCellMaster::TBootstrap* bootstrap,
-    NTransactionServer::TTransaction* transaction,
+    TTransaction* transaction,
     TTableNode* trunkNode)
 {
     return New<TTableNodeProxy>(

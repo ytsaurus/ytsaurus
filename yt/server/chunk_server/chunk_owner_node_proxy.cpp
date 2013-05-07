@@ -1,5 +1,4 @@
 #include "stdafx.h"
-
 #include "private.h"
 #include "chunk_owner_node_proxy.h"
 #include "chunk.h"
@@ -14,17 +13,24 @@
 #include <ytlib/ytree/attribute_helpers.h>
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
+
 #include <ytlib/erasure/codec.h>
 
 namespace NYT {
 namespace NChunkServer {
 
 using namespace NChunkClient;
+using namespace NChunkClient::NProto;
+using namespace NCypressServer;
+using namespace NTransactionServer;
 using namespace NYson;
 using namespace NYTree;
-using NChunkClient::NProto::TReadLimit;
 
-static NLog::TLogger& SILENT_UNUSED Logger = ChunkServerLogger;
+using NChunkClient::TChannel;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static NLog::TLogger& Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -411,11 +417,11 @@ TAsyncError GetCodecStatisticsAttribute(
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkOwnerNodeProxy::TChunkOwnerNodeProxy(
-    NCypressServer::INodeTypeHandlerPtr typeHandler,
+    INodeTypeHandlerPtr typeHandler,
     NCellMaster::TBootstrap* bootstrap,
-    NTransactionServer::TTransaction* transaction,
+    TTransaction* transaction,
     TChunkOwnerBase* trunkNode)
-    : TBase(
+    : TNontemplateCypressNodeProxyBase(
         typeHandler,
         bootstrap,
         transaction,

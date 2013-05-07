@@ -17,24 +17,18 @@ namespace NFileServer {
 
 using namespace NChunkServer;
 using namespace NChunkClient;
+using namespace NChunkClient::NProto;
 using namespace NCypressServer;
 using namespace NYTree;
 using namespace NYson;
-using namespace NRpc;
-using namespace NObjectServer;
-using namespace NCellMaster;
 using namespace NTransactionServer;
-using namespace NSecurityServer;
 
-using NChunkClient::NProto::TMiscExt;
+using NChunkClient::TChannel;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFileNodeProxy
-    : public NCypressServer::TCypressNodeProxyBase<
-        TChunkOwnerNodeProxy,
-        NYTree::IEntityNode,
-        TFileNode>
+    : public TCypressNodeProxyBase<TChunkOwnerNodeProxy, IEntityNode, TFileNode>
 {
 public:
     TFileNodeProxy(
@@ -50,7 +44,7 @@ public:
     { }
 
 private:
-    typedef NCypressServer::TCypressNodeProxyBase<TChunkOwnerNodeProxy, NYTree::IEntityNode, TFileNode> TBase;
+    typedef TCypressNodeProxyBase<TChunkOwnerNodeProxy, IEntityNode, TFileNode> TBase;
 
     virtual void ValidateUserAttributeUpdate(
         const Stroka& key,
@@ -65,8 +59,6 @@ private:
         }
 
         if (key == "file_name" && newValue) {
-            // File name must be string.
-            // ToDo(psushin): write more sophisticated validation.
             ConvertTo<Stroka>(*newValue);
             return;
         }
@@ -74,28 +66,28 @@ private:
         TBase::ValidateUserAttributeUpdate(key, oldValue, newValue);
     }
 
-    virtual NCypressClient::ELockMode GetLockMode(NChunkClient::EUpdateMode updateMode) override
+    virtual ELockMode GetLockMode(EUpdateMode updateMode) override
     {
-        return NCypressClient::ELockMode::Exclusive;
+        return ELockMode::Exclusive;
     }
 
     virtual void ValidatePathAttributes(
-        const TNullable<NChunkClient::TChannel>& channel,
-        const NChunkClient::NProto::TReadLimit& upperLimit,
-        const NChunkClient::NProto::TReadLimit& lowerLimit) override
+        const TNullable<TChannel>& channel,
+        const TReadLimit& upperLimit,
+        const TReadLimit& lowerLimit) override
     {
         UNUSED(channel);
         UNUSED(upperLimit);
         UNUSED(lowerLimit);
 
         if (channel) {
-            THROW_ERROR_EXCEPTION("YT files do not support reading with channels");
+            THROW_ERROR_EXCEPTION("Column selectors are not supported for files");
         }
 
         if (upperLimit.has_key() || upperLimit.has_row_index() ||
             lowerLimit.has_key() || lowerLimit.has_row_index())
         {
-            THROW_ERROR_EXCEPTION("YT files do not support row selection");
+            THROW_ERROR_EXCEPTION("Row selectors are not supported for files");
         }
     }
 
@@ -104,9 +96,9 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 ICypressNodeProxyPtr CreateFileNodeProxy(
-    NCypressServer::INodeTypeHandlerPtr typeHandler,
+    INodeTypeHandlerPtr typeHandler,
     NCellMaster::TBootstrap* bootstrap,
-    NTransactionServer::TTransaction* transaction,
+    TTransaction* transaction,
     TFileNode* trunkNode)
 {
 

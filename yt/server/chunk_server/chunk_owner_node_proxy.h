@@ -28,8 +28,6 @@ public:
     virtual NSecurityServer::TClusterResources GetResourceUsage() const override;
 
 protected:
-    typedef NCypressServer::TNontemplateCypressNodeProxyBase TBase;
-
     virtual void ListSystemAttributes(std::vector<NYTree::ISystemAttributeProvider::TAttributeInfo>* attributes) override;
     virtual bool GetSystemAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
     virtual TAsyncError GetSystemAttributeAsync(const Stroka& key, NYson::IYsonConsumer* consumer) override;
