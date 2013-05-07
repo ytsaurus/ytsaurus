@@ -290,7 +290,7 @@ shout "Running JavaScript tests..."
 tc "progressMessage 'Running JavaScript tests...'"
 
 export MOCHA_OUTPUT_FILE=$WORKING_DIRECTORY/test_javascript.xml
-(cd $WORKING_DIRECTORY/yt/nodejs && npm install && ./run_tests.sh -R xunit)
+(cd $WORKING_DIRECTORY/yt/nodejs && ./run_tests.sh -R xunit)
 
 b=$?
 a=$((a+b))
