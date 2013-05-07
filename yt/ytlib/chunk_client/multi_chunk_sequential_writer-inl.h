@@ -136,7 +136,7 @@ void TMultiChunkSequentialWriter<TChunkWriter>::CreateNextSession()
     auto req = NObjectClient::TMasterYPathProxy::CreateObject();
     ToProto(req->mutable_transaction_id(), TransactionId);
 
-    req->set_type(Config->ErasureCodec == NErasure::ECodec::None
+    req->set_type(Options->ErasureCodec == NErasure::ECodec::None
         ? NObjectClient::EObjectType::Chunk
         : NObjectClient::EObjectType::ErasureChunk);
 
@@ -152,7 +152,7 @@ void TMultiChunkSequentialWriter<TChunkWriter>::CreateNextSession()
     reqExt->set_movable(Config->ChunksMovable);
     reqExt->set_vital(Config->ChunksVital);
 
-    reqExt->set_erasure_codec(Config->ErasureCodec);
+    reqExt->set_erasure_codec(Options->ErasureCodec);
 
     objectProxy.Execute(req).Subscribe(
         BIND(&TMultiChunkSequentialWriter::OnChunkCreated, MakeWeak(this))
@@ -197,7 +197,7 @@ void TMultiChunkSequentialWriter<TChunkWriter>::OnChunkCreated(
 
     session.ChunkId = chunkId;
 
-    auto erasureCodecId = Config->ErasureCodec;
+    auto erasureCodecId = Options->ErasureCodec;
     if (erasureCodecId == NErasure::ECodec::None) {
         auto targets = NodeDirectory->GetDescriptors(session.Replicas);
         session.AsyncWriter = CreateReplicationWriter(

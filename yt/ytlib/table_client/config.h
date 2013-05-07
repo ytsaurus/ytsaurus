@@ -88,7 +88,7 @@ struct TTableWriterOptions
 {
     TTableWriterOptions()
     {
-        Codec = NCompression::ECodec::Lz4;
+        CompressionCodec = NCompression::ECodec::Lz4;
     }
 };
 

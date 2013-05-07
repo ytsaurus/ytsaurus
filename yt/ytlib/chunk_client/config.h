@@ -210,11 +210,11 @@ public:
 struct TEncodingWriterOptions
     : public virtual TYsonSerializable
 {
-    NCompression::ECodec Codec;
+    NCompression::ECodec CompressionCodec;
 
     TEncodingWriterOptions()
     {
-        RegisterParameter("compression_codec", Codec)
+        RegisterParameter("compression_codec", CompressionCodec)
             .Default(NCompression::ECodec::None);
     }
 };
@@ -276,8 +276,6 @@ public:
             .Default(true);
         RegisterParameter("prefer_local_host", PreferLocalHost)
             .Default(true);
-        RegisterParameter("erasure_codec", ErasureCodec)
-            .Default(NErasure::ECodec::None);
     }
 };
 
@@ -289,6 +287,8 @@ struct TMultiChunkWriterOptions
     int ReplicationFactor;
     Stroka Account;
 
+    NErasure::ECodec ErasureCodec;
+
     TMultiChunkWriterOptions()
     {
         RegisterParameter("replication_factor", ReplicationFactor)
@@ -296,6 +296,8 @@ struct TMultiChunkWriterOptions
             .Default(3);
         RegisterParameter("account", Account)
             .NonEmpty();
+        RegisterParameter("erasure_codec", ErasureCodec)
+            .Default(NErasure::ECodec::None);
     }
 };
 

@@ -75,7 +75,7 @@ void TChunkWriterBase::FinalizeWriter()
         MiscExt.set_uncompressed_data_size(EncodingWriter->GetUncompressedSize());
         MiscExt.set_compressed_data_size(EncodingWriter->GetCompressedSize());
         MiscExt.set_meta_size(Meta.ByteSize());
-        MiscExt.set_compression_codec(Options->Codec);
+        MiscExt.set_compression_codec(Options->CompressionCodec);
         MiscExt.set_data_weight(DataWeight);
         MiscExt.set_row_count(RowCount);
         MiscExt.set_value_count(ValueCount);

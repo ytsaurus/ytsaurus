@@ -97,6 +97,7 @@ void TFileWriter::Open()
             attributeFilter.Keys.push_back("replication_factor");
             attributeFilter.Keys.push_back("account");
             attributeFilter.Keys.push_back("compression_codec");
+            attributeFilter.Keys.push_back("erasure_codec");
             ToProto(req->mutable_attribute_filter(), attributeFilter);
             batchReq->AddRequest(req, "get_attributes");
         }
@@ -121,7 +122,8 @@ void TFileWriter::Open()
 
             options->ReplicationFactor = attributes.Get<int>("replication_factor");
             options->Account = attributes.Get<Stroka>("account");
-            options->Codec = attributes.Get<NCompression::ECodec>("compression_codec");
+            options->CompressionCodec = attributes.Get<NCompression::ECodec>("compression_codec");
+            options->ErasureCodec = attributes.Get<NErasure::ECodec>("erasure_codec");
         }
 
         {

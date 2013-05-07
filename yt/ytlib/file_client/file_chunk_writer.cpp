@@ -99,7 +99,7 @@ void TFileChunkWriter::OnFinalBlocksWritten(TError error)
     MiscExt.set_uncompressed_data_size(EncodingWriter->GetUncompressedSize());
     MiscExt.set_compressed_data_size(EncodingWriter->GetCompressedSize());
     MiscExt.set_meta_size(Meta.ByteSize());
-    MiscExt.set_compression_codec(Options->Codec);
+    MiscExt.set_compression_codec(Options->CompressionCodec);
 
     SetProtoExtension(Meta.mutable_extensions(), MiscExt);
 

@@ -4,6 +4,7 @@
 #include "chunk_list.h"
 
 #include <ytlib/misc/property.h>
+#include <ytlib/erasure/public.h>
 
 #include <ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 
@@ -37,6 +38,12 @@ public:
 
         if (!attributes->Contains("replication_factor")) {
             attributes->Set("replication_factor", 3);
+        }
+
+        if (!attributes->Contains("erasure_codec")) {
+            attributes->SetYson(
+                "erasure_codec",
+                NYTree::ConvertToYsonString(NErasure::ECodec(NErasure::ECodec::None)));
         }
     }
 

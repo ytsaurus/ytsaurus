@@ -83,7 +83,7 @@ TTableChunkWriter::TTableChunkWriter(
     YCHECK(config);
     YCHECK(chunkWriter);
 
-    MiscExt.set_compression_codec(options->Codec);
+    MiscExt.set_compression_codec(options->CompressionCodec);
 
     // Init trash channel.
     auto trashChannel = TChannel::Universal();
