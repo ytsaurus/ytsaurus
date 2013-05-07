@@ -167,7 +167,8 @@ dynamic_server = connect()
             socket.once("error", function(err) {
                 logger.error("Socket emitted an error", {
                     request_id : socket.last_req_uuid,
-                    error : err.toString()
+                    // XXX(sandello): Embed.
+                    error : yt.YtError.ensureWrapped(err).toJson()
                 });
             });
         }
