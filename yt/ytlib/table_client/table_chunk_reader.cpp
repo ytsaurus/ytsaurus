@@ -328,7 +328,7 @@ private:
             ChunkChannels.push_back(TChannel::FromProto(ChannelsExt.items(i).channel()));
         }
 
-        // Heuristic: first try to find a channel that contain the whole read channel.
+        // Heuristic: first try to find a channel containing the whole read channel.
         // If several exists, choose the one with the minimum number of blocks.
         if (SelectSingleChannel(chunkReader))
             return;
