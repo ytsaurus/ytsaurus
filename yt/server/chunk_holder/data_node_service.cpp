@@ -328,7 +328,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetBlocks)
     int blockCount = static_cast<int>(request->block_indexes_size());
     bool enableCaching = request->enable_caching();
 
-    context->SetRequestInfo("ChunkId: %s, BlockIndexes: %s, EnableCaching: %s",
+    context->SetRequestInfo("ChunkId: %s, BlockIndexes: [%s], EnableCaching: %s",
         ~ToString(chunkId),
         ~JoinToString(request->block_indexes()),
         ~FormatBool(enableCaching));
