@@ -563,7 +563,10 @@ private:
             ~node->GetAddress());
 
         UnregisterLeaseTransaction(node);
-        PostUnregisterCommit(node);
+
+        if (IsLeader()) {
+            PostUnregisterCommit(node);
+        }
     }
 
 
