@@ -337,6 +337,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetBlocks)
 
     auto chunkStore = Bootstrap->GetChunkStore();
     auto blockStore = Bootstrap->GetBlockStore();
+    auto peerBlockTable = Bootstrap->GetPeerBlockTable();
 
     bool hasCompleteChunk = chunkStore->FindChunk(chunkId);
     response->set_has_complete_chunk(hasCompleteChunk);
@@ -346,7 +347,9 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetBlocks)
     // NB: All callbacks should be handled in the control thread.
     auto awaiter = New<TParallelAwaiter>(Bootstrap->GetControlInvoker());
 
-    auto peerBlockTable = Bootstrap->GetPeerBlockTable();
+    // Assign decreasing priorities to block requests to take advantage of sequential read.
+    i64 priority = context->GetPriority();
+
     for (int index = 0; index < blockCount; ++index) {
         int blockIndex = request->block_indexes(index);
         TBlockId blockId(chunkId, blockIndex);
@@ -370,7 +373,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetBlocks)
             // Fetch the actual data (either from cache or from disk).
             LOG_DEBUG("GetBlocks: Fetching block %d", blockIndex);
             awaiter->Await(
-                blockStore->GetBlock(blockId, context->GetPriority(), enableCaching),
+                blockStore->GetBlock(blockId, priority, enableCaching),
                 BIND([=] (TBlockStore::TGetBlockResult result) {
                     if (result.IsOK()) {
                         // Attach the real data.
@@ -390,6 +393,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetBlocks)
                         context->Reply(result);
                     }
                 }));
+            --priority;
         }
     }
 

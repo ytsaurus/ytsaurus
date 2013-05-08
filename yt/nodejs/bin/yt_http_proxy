@@ -62,15 +62,14 @@ var opts = optimist
     .describe("read_only", "Enable read-only mode")
     .default("read_only", false)
 
-    .boolean("profiler")
-    .describe("profiler", "Enable V8 profiler")
-    .default("profiler", false)
+    .boolean("agent")
+    .describe("agent", "Enable V8 profiler agent")
+    .default("agent", false)
     ;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 var agent;
-var profiler;
 var config;
 var version;
 
@@ -127,7 +126,7 @@ config = {
     spare_threads     : 4,
     user_interface    : opts.argv.user_interface,
     read_only         : opts.argv.read_only,
-    profiler          : opts.argv.profiler,
+    agent             : opts.argv.agent,
     proxy             : { logging : { rules : [], writers : {} } },
     services : {
         oauth : {
@@ -203,22 +202,21 @@ config = merge(config, {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-if (config.profiler) {
-    var agent = require("webkit-devtools-agent");
-    var profiler = require("v8-profiler");
+if (config.agent) {
+    agent = require("webkit-devtools-agent");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 function ensureFileExistsAndOwned(path, user, group) {
     return Q
-        .ncall(fs.exists, fs, path)
+        .nfcall(fs.exists, fs, path)
         .fail(function(exists) {
             return exists || Q
-                .ncall(fs.writeFile, fs, path, "")
+                .nfcall(fs.writeFile, fs, path, "")
                 .then(Q
-                    .ncall(uid_number, undefined, user || process.getuid(), group || process.getgid)
-                    .spread(Q.nbind(fs.chown, path))
+                    .nfcall(uid_number, undefined, user || process.getuid(), group || process.getgid)
+                    .spread(Q.nfbind(fs.chown, path))
                 );
         });
 };
@@ -306,4 +304,4 @@ function runProxy(logger) {
 ////////////////////////////////////////////////////////////////////////////////
 
 // Magic line.
-Q.all([ createLogger() ]).spread(runProxy).end();
+Q.all([ createLogger() ]).spread(runProxy).done();

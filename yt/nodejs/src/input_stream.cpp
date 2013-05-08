@@ -47,6 +47,11 @@ TInputStreamWrap::TInputStreamWrap(ui64 lowWatermark, ui64 highWatermark)
 TInputStreamWrap::~TInputStreamWrap() throw()
 {
     THREAD_AFFINITY_IS_V8();
+
+    Dispose();
+
+    YCHECK(ActiveQueue.size() == 0);
+    YCHECK(InactiveQueue.size() == 0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -241,16 +246,7 @@ void TInputStreamWrap::DoDestroy()
 {
     THREAD_AFFINITY_IS_V8();
 
-    {
-        TGuard<TMutex> guard(&Mutex);
-        DisposeHandles(&InactiveQueue);
-        DisposeHandles(&ActiveQueue);
-        AtomicSet(IsPushable, 0);
-        AtomicSet(IsReadable, 0);
-        AtomicBarrier();
-        Conditional.BroadCast();
-    }
-
+    Dispose();
     EnqueueDrain(true);
 }
 
@@ -467,6 +463,19 @@ void TInputStreamWrap::UpdateV8Properties()
         (v8::PropertyAttribute)(v8::ReadOnly | v8::DontDelete));
 }
 
+void TInputStreamWrap::Dispose()
+{
+    THREAD_AFFINITY_IS_V8();
+
+    TGuard<TMutex> guard(&Mutex);
+    DisposeHandles(&InactiveQueue);
+    DisposeHandles(&ActiveQueue);
+    AtomicSet(IsPushable, 0);
+    AtomicSet(IsReadable, 0);
+    AtomicBarrier();
+    Conditional.BroadCast();
+}
+
 void TInputStreamWrap::DisposeHandles(std::deque<TInputPart*>* queue)
 {
     THREAD_AFFINITY_IS_V8();
@@ -485,3 +494,4 @@ void TInputStreamWrap::DisposeHandles(std::deque<TInputPart*>* queue)
 
 } // namespace NNodeJS
 } // namespace NYT
+

@@ -10,8 +10,12 @@ var winston_nssocket = require("winston-nssocket");
 
 var yt = require("yt");
 
+var profiler = require("profiler");
+var heapdump = require("heapdump");
+
 // Debugging stuff.
 var __DBG = require("./debug").that("C", "Cluster Worker");
+var __PROFILE = false;
 
 // Load configuration and set up logging.
 var config = JSON.parse(process.env.YT_PROXY_CONFIGURATION);
@@ -25,6 +29,9 @@ var logger = new winston.Logger({
 });
 
 var version;
+
+// Speed stuff.
+require("q").longStackJumpLimit = 0;
 
 try {
     version = JSON.parse(fs.readFileSync(__dirname + "/../package.json"));
@@ -47,7 +54,7 @@ yt.configureSingletons(config.proxy);
 yt.YtRegistry.set("config", config);
 yt.YtRegistry.set("logger", logger);
 yt.YtRegistry.set("driver", new yt.YtDriver(config));
-yt.YtRegistry.set("authority", new yt.YtAuthority(config));
+yt.YtRegistry.set("authority", new yt.YtAuthority(config.authentication));
 
 // Hoist variable declaration.
 var static_server;
@@ -98,6 +105,22 @@ if (!__DBG.On) {
     supervisor_liveness = setTimeout(gracefullyDie, 30000);
 }
 
+// Setup signal handlers.
+process.on("SIGUSR2", function() {
+    console.error("Writing a heap snapshot.");
+    heapdump.writeSnapshot();
+});
+process.on("SIGUSR1", function() {
+    if (__PROFILE) {
+        console.error("Pausing V8 profiler.");
+        profiler.pause();
+    } else {
+        console.error("Resuming V8 profiler.");
+        profiler.resume();
+    }
+    __PROFILE = !__PROFILE;
+});
+
 // Setup message handlers.
 process.on("message", function(message) {
     "use strict";
@@ -144,28 +167,34 @@ dynamic_server = connect()
         });
         rd.run(next);
     })
-    .use(function(req, rsp, next) {
-        "use strict";
-        var socket = req.connection;
-        socket.setTimeout(5 * 60 * 1000);
-        socket.setNoDelay(true);
-        socket.setKeepAlive(true);
-        socket.on("timeout", function() {
-            logger.error("Socket timed out", {
-                request_id : req.uuid
-            });
-        });
-        socket.on("error", function(err) {
-            logger.error("Socket emitted an error", {
-                request_id : req.uuid,
-                error : err.toString()
-            });
-        });
-        next();
-    })
     .use(connect.favicon())
     .use(yt.YtMarkRequest())
     .use(yt.YtLogRequest())
+    .use(function(req, rsp, next) {
+        "use strict";
+        var socket = req.connection;
+        // Since socket could be reused between multiple requests,
+        // we have to be careful when adding those event callbacks.
+        if (!socket.last_req_uuid) {
+            socket.setTimeout(5 * 60 * 1000);
+            socket.setNoDelay(true);
+            socket.setKeepAlive(true);
+            socket.once("timeout", function() {
+                logger.error("Socket timed out", {
+                    request_id : socket.last_req_uuid
+                });
+            });
+            socket.once("error", function(err) {
+                logger.error("Socket emitted an error", {
+                    request_id : socket.last_req_uuid,
+                    // XXX(sandello): Embed.
+                    error : yt.YtError.ensureWrapped(err).toJson()
+                });
+            });
+        }
+        socket.last_req_uuid = req.uuid;
+        next();
+    })
     .use(function(req, rsp, next) {
         "use strict";
         // TODO(sandello): Refactor this.

@@ -30,7 +30,7 @@ class TTableChunkWriterFacade
     : public TNonCopyable
 {
 public:
-    TTableChunkWriterFacade(TTableChunkWriterPtr writer);
+    explicit TTableChunkWriterFacade(TTableChunkWriter* writer);
 
     // Checks column names for uniqueness.
     void WriteRow(const TRow& row);
@@ -41,7 +41,7 @@ public:
 
 private:
     friend class TTableChunkWriter;
-    TTableChunkWriterPtr Writer;
+    TTableChunkWriter* Writer;
 
     // If true, facade is ready to process next row.
     bool IsReady;

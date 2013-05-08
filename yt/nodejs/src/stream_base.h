@@ -39,7 +39,6 @@ protected:
 
     struct TInputPart
     {
-        uv_work_t Request;
         TNodeJSStreamBase* Stream;
         v8::Persistent<v8::Value> Handle;
 

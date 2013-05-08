@@ -24,7 +24,7 @@ class TPartitionChunkWriterFacade
     : public TNonCopyable
 {
 public:
-    TPartitionChunkWriterFacade(TPartitionChunkWriter* writer);
+    explicit TPartitionChunkWriterFacade(TPartitionChunkWriter* writer);
 
     // Checks column names for uniqueness.
     void WriteRow(const TRow& row);

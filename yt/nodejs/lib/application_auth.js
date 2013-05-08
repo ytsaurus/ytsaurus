@@ -17,6 +17,8 @@ var _TEMPLATE_LAYOUT = mustache.compile(fs.readFileSync(
     __dirname + "/../static/auth-layout.mustache").toString());
 var _TEMPLATE_TOKEN = mustache.compile(fs.readFileSync(
     __dirname + "/../static/auth-token.mustache").toString());
+var _TEMPLATE_ERROR = mustache.compile(fs.readFileSync(
+    __dirname + "/../static/auth-error.mustache").toString());
 var _STATIC_STYLE = fs.readFileSync(__dirname + "/../static/bootstrap.min.css");
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -49,7 +51,7 @@ YtApplicationAuth.prototype.dispatch = function(req, rsp, next)
         }
         throw new YtError("Unknown URI");
     } catch(err) {
-        return this._dispatchError(YtError.ensureWrapped(err));
+        return this._dispatchError(req, rsp, YtError.ensureWrapped(err));
     }
 };
 
@@ -57,9 +59,23 @@ YtApplicationAuth.prototype._dispatchError = function(req, rsp, error)
 {
     "use strict";
 
-    var body = _TEMPLATE_LAYOUT({ content: _TEMPLATE_TOKEN({
-        error: error.message
+    var message = error.message;
+    var description;
+
+    try {
+        if (error.attributes.stack) {
+            description = JSON.parse(error.attributes.stack);
+        } else {
+            description = JSON.stringify(JSON.parse(error.toJson()), null, 2);
+        }
+    } catch(err) {
+    }
+
+    var body = _TEMPLATE_LAYOUT({ content: _TEMPLATE_ERROR({
+        message: message,
+        description: description
     })});
+
     return utils.dispatchAs(rsp, body, "text/html; charset=utf-8");
 };
 
@@ -143,7 +159,7 @@ YtApplicationAuth.prototype._dispatchNewCallback = function(req, rsp, params)
         self.logger.info(error.message, { error: error.toJson() });
         return self._dispatchError(req, rsp, error);
     })
-    .end();
+    .done();
 };
 
 YtApplicationAuth.prototype._dispatchNewRedirect = function(req, rsp, params)
@@ -151,7 +167,7 @@ YtApplicationAuth.prototype._dispatchNewRedirect = function(req, rsp, params)
     "use strict";
 
     var state = params;
-    var target = this.authority.oAuthUrlToRedirect(
+    var target = this.authority.oAuthBuildUrlToRedirect(
         this.logger,
         req.connection.remoteAddress,
         state.realm,
@@ -163,17 +179,19 @@ YtApplicationAuth.prototype._ensureUser = function(name)
 {
     "use strict";
 
+    var self = this;
+
     return Q
     .when(name)
     .then(function(name) {
         var path = "//sys/users/" + utils.escapeYPath(name);
-        return this.driver.executeSimple("exists", { path: path });
+        return self.driver.executeSimple("exists", { path: path });
     })
     .then(function(exists) {
         if (exists === "true") {
             return;
         }
-        return this.driver.executeSimple("create", {
+        return self.driver.executeSimple("create", {
             type: "user",
             attributes: { name: name }
         });

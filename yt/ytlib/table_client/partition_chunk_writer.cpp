@@ -323,6 +323,7 @@ void TPartitionChunkWriterProvider::OnChunkFinished()
 {
     YCHECK(ActiveWriters == 1);
     --ActiveWriters;
+    CurrentWriter.Reset();
 }
 
 const TNullable<TKeyColumns>& TPartitionChunkWriterProvider::GetKeyColumns() const
