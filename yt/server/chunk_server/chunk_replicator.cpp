@@ -741,6 +741,7 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
 
         int replicaCount = static_cast<int>(chunk->StoredReplicas().size());
         YCHECK(replicaCount > 0);
+
         int priority = std::min(replicaCount, ReplicationPriorityCount) - 1;
         YCHECK(node->ChunkReplicationQueues()[priority].insert(chunk).second);
     }
