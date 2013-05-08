@@ -178,6 +178,8 @@ private:
                     repairJobSpecExt->set_erasure_codec(chunk->GetErasureCodec());
                     TNodeDirectoryBuilder builder(repairJobSpecExt->mutable_node_directory());
                     FOREACH (auto replica, chunk->StoredReplicas()) {
+                        // TODO(babenko): fixme
+                        if (replica.GetPtr()->GetDecommissioned()) continue;
                         builder.Add(replica);
                         repairJobSpecExt->add_replicas(NYT::ToProto<ui32>(replica));
                     }
