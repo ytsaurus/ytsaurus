@@ -42,7 +42,7 @@ std::vector<TSharedRef> TCauchyReedSolomon::Decode(
 TNullable<TPartIndexList> TCauchyReedSolomon::GetRepairIndices(const TPartIndexList& erasedIndices)
 {
     if (erasedIndices.empty()) {
-        return TPartIndexList();
+        return Null;
     }
 
     TPartIndexList indices = erasedIndices;

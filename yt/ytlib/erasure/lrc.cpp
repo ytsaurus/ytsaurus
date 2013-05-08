@@ -257,10 +257,10 @@ bool TLrc::CalculateCanRepair(const TPartIndexList& erasedIndices)
 TNullable<TPartIndexList> TLrc::GetRepairIndices(const TPartIndexList& erasedIndices)
 {
     if (erasedIndices.empty()) {
-        return TPartIndexList();
+        return Null;
     }
 
-    TPartIndexList indices = UniqueSortedIndices(erasedIndices);
+    auto indices = UniqueSortedIndices(erasedIndices);
 
     if (indices.size() > ParityPartCount_) {
         return Null;
