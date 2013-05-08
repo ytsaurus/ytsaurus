@@ -150,6 +150,9 @@ dynamic_server = connect()
         });
         rd.run(next);
     })
+    .use(connect.favicon())
+    .use(yt.YtMarkRequest())
+    .use(yt.YtLogRequest())
     .use(function(req, rsp, next) {
         "use strict";
         var socket = req.connection;
@@ -175,9 +178,6 @@ dynamic_server = connect()
         socket.last_req_uuid = req.uuid;
         next();
     })
-    .use(connect.favicon())
-    .use(yt.YtMarkRequest())
-    .use(yt.YtLogRequest())
     .use(function(req, rsp, next) {
         "use strict";
         // TODO(sandello): Refactor this.
