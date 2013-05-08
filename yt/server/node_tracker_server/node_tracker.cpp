@@ -162,7 +162,7 @@ public:
         if (!ReconfigureYsonSerializable(node->GetConfig(), attributes))
             return;
 
-        LOG_INFO("Node configuration updated (Address: %s)", ~node->GetAddress());
+        LOG_INFO_UNLESS(IsRecovery(), "Node configuration updated (Address: %s)", ~node->GetAddress());
 
         // Check for runtime changes.
         if (IsLeader()) {
@@ -558,7 +558,7 @@ private:
             return;
 
         auto* node = it->second;
-        LOG_INFO("Node lease expired (NodeId: %d, Address: %s)",
+        LOG_INFO_UNLESS(IsRecovery(), "Node lease expired (NodeId: %d, Address: %s)",
             node->GetId(),
             ~node->GetAddress());
 
