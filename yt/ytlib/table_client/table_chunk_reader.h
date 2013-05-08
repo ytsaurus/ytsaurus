@@ -21,52 +21,19 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTableChunkReaderProvider
-    : public TRefCounted
-{
-    DEFINE_BYVAL_RO_PROPERTY(volatile i64, RowIndex);
-    DEFINE_BYVAL_RO_PROPERTY(volatile i64, RowCount);
-
-public:
-    TTableChunkReaderProvider(
-        const std::vector<NChunkClient::NProto::TInputChunk>& inputChunks,
-        const NChunkClient::TSequentialReaderConfigPtr& config,
-        const TChunkReaderOptionsPtr& options = New<TChunkReaderOptions>());
-
-    TTableChunkReaderPtr CreateReader(
-        const NChunkClient::NProto::TInputChunk& inputChunk,
-        const NChunkClient::IAsyncReaderPtr& chunkReader);
-
-    void OnReaderOpened(
-        TTableChunkReaderPtr reader,
-        NChunkClient::NProto::TInputChunk& inputChunk);
-
-    void OnReaderFinished(TTableChunkReaderPtr reader);
-
-    bool KeepInMemory() const;
-
-private:
-    friend class TTableChunkReader;
-
-    NChunkClient::TSequentialReaderConfigPtr Config;
-    TChunkReaderOptionsPtr Options;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TTableChunkReaderFacade
     : public TNonCopyable
 {
 public:
-    explicit TTableChunkReaderFacade(TTableChunkReader* reader);
-
     const TRow& GetRow() const;
     const NChunkClient::TNonOwningKey& GetKey() const;
     const NYTree::TYsonString& GetRowAttributes() const;
 
 private:
+    friend class TTableChunkReader;
     TTableChunkReader* Reader;
+
+    explicit TTableChunkReaderFacade(TTableChunkReader* reader);
 
 };
 
@@ -191,6 +158,40 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
     DECLARE_THREAD_AFFINITY_SLOT(ReaderThread);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTableChunkReaderProvider
+    : public TRefCounted
+{
+    DEFINE_BYVAL_RO_PROPERTY(volatile i64, RowIndex);
+    DEFINE_BYVAL_RO_PROPERTY(volatile i64, RowCount);
+
+public:
+    TTableChunkReaderProvider(
+        const std::vector<NChunkClient::NProto::TInputChunk>& inputChunks,
+        const NChunkClient::TSequentialReaderConfigPtr& config,
+        const TChunkReaderOptionsPtr& options = New<TChunkReaderOptions>());
+
+    TTableChunkReaderPtr CreateReader(
+        const NChunkClient::NProto::TInputChunk& inputChunk,
+        const NChunkClient::IAsyncReaderPtr& chunkReader);
+
+    void OnReaderOpened(
+        TTableChunkReaderPtr reader,
+        NChunkClient::NProto::TInputChunk& inputChunk);
+
+    void OnReaderFinished(TTableChunkReaderPtr reader);
+
+    bool KeepInMemory() const;
+
+private:
+    friend class TTableChunkReader;
+
+    NChunkClient::TSequentialReaderConfigPtr Config;
+    TChunkReaderOptionsPtr Options;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -16,48 +16,19 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPartitionChunkReaderProvider
-    : public TRefCounted
-{
-    DEFINE_BYVAL_RO_PROPERTY(volatile i64, RowIndex);
-
-public:
-    TPartitionChunkReaderProvider(
-        const NChunkClient::TSequentialReaderConfigPtr& config);
-
-    TPartitionChunkReaderPtr CreateReader(
-        const NChunkClient::NProto::TInputChunk& inputChunk,
-        const NChunkClient::IAsyncReaderPtr& chunkReader);
-
-    void OnReaderOpened(
-        TPartitionChunkReaderPtr reader,
-        NChunkClient::NProto::TInputChunk& inputChunk);
-
-    void OnReaderFinished(TPartitionChunkReaderPtr reader);
-
-    bool KeepInMemory() const;
-
-private:
-    friend class TPartitionChunkReader;
-
-    NChunkClient::TSequentialReaderConfigPtr Config;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TPartitionChunkReaderFacade
     : public TNonCopyable
 {
     DECLARE_BYVAL_RO_PROPERTY(const char*, RowPointer);
 
 public:
-    explicit TPartitionChunkReaderFacade(TPartitionChunkReader* reader);
-
     TValue ReadValue(const TStringBuf& name) const;
 
 private:
+    friend class TPartitionChunkReader;
     TPartitionChunkReader* Reader;
+
+    explicit TPartitionChunkReaderFacade(TPartitionChunkReader* reader);
 
 };
 
@@ -122,6 +93,36 @@ private:
     bool NextRow();
 
     void OnFail(const TError& error);
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TPartitionChunkReaderProvider
+    : public TRefCounted
+{
+    DEFINE_BYVAL_RO_PROPERTY(volatile i64, RowIndex);
+
+public:
+    TPartitionChunkReaderProvider(
+        const NChunkClient::TSequentialReaderConfigPtr& config);
+
+    TPartitionChunkReaderPtr CreateReader(
+        const NChunkClient::NProto::TInputChunk& inputChunk,
+        const NChunkClient::IAsyncReaderPtr& chunkReader);
+
+    void OnReaderOpened(
+        TPartitionChunkReaderPtr reader,
+        NChunkClient::NProto::TInputChunk& inputChunk);
+
+    void OnReaderFinished(TPartitionChunkReaderPtr reader);
+
+    bool KeepInMemory() const;
+
+private:
+    friend class TPartitionChunkReader;
+
+    NChunkClient::TSequentialReaderConfigPtr Config;
 
 };
 
