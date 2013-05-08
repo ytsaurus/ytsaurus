@@ -739,7 +739,9 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
         YCHECK(!chunk->IsErasure());
         auto* node = ChunkPlacement->GetReplicationSource(chunk);
 
-        int priority = std::min(statistics.ReplicaCount[0], ReplicationPriorityCount) - 1;
+        int replicaCount = static_cast<int>(chunk->StoredReplicas().size());
+        YCHECK(replicaCount > 0);
+        int priority = std::min(replicaCount, ReplicationPriorityCount) - 1;
         YCHECK(node->ChunkReplicationQueues()[priority].insert(chunk).second);
     }
 
@@ -779,6 +781,9 @@ void TChunkReplicator::ResetChunkStatus(TChunk* chunk)
         }
         auto chunkId = EncodeChunkId(chunkWithIndex);
         node->ChunkRemovalQueue().erase(chunkId);
+        if (node->GetDecommissioned()) {
+            node->SafelyStoredReplicas().erase(chunkWithIndex);
+        }
     }
 
     LostChunks_.erase(chunk);
@@ -796,14 +801,6 @@ void TChunkReplicator::ResetChunkStatus(TChunk* chunk)
         }
     } else {
         UnderreplicatedChunks_.erase(chunk);
-    }
-
-    FOREACH (auto nodeWithIndex, chunk->StoredReplicas()) {
-        auto* node = nodeWithIndex.GetPtr();
-        TChunkPtrWithIndex chunkWithIndex(chunk, nodeWithIndex.GetIndex());
-        if (node->GetDecommissioned()) {
-            node->SafelyStoredReplicas().erase(chunkWithIndex);
-        }
     }
 }
 
