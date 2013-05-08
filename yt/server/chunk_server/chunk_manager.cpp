@@ -849,18 +849,23 @@ private:
 
     void OnNodeConfigUpdated(TNode* node)
     {
-        if (node->GetConfig()->Decommissioned) {
-            LOG_INFO("Node decommissioned (Address: %s)", ~node->GetAddress());
-
-            FOREACH (auto replica, node->StoredReplicas()) {
-                ChunkReplicator->ScheduleChunkRefresh(replica.GetPtr());
+        const auto& config = node->GetConfig();
+        if (config->Decommissioned != node->GetDecommissioned()) {
+            if (config->Decommissioned) {
+                LOG_INFO("Node decommissioned (Address: %s)", ~node->GetAddress());
+            } else {
+                LOG_INFO("Node is no longer decommissioned (Address: %s)", ~node->GetAddress());
             }
+
+            node->SetDecommissioned(config->Decommissioned);
+            ChunkReplicator->ScheduleNodeRefresh(node);
         }
     }
 
     void OnFullHeartbeat(TNode* node, const NNodeTrackerServer::NProto::TMetaReqFullHeartbeat& request)
     {
         YCHECK(node->StoredReplicas().empty());
+        YCHECK(node->SafelyStoredReplicas().empty());
         YCHECK(node->CachedReplicas().empty());
 
         FOREACH (const auto& chunkInfo, request.chunks()) {
@@ -1090,9 +1095,11 @@ private:
     {
         LOG_INFO("Full chunk refresh started");
         PROFILE_TIMING ("/full_chunk_refresh_time") {
+            YCHECK(!ChunkPlacement);
             ChunkPlacement = New<TChunkPlacement>(Config, Bootstrap);
             ChunkPlacement->Initialize();
 
+            YCHECK(!ChunkReplicator);
             ChunkReplicator = New<TChunkReplicator>(Config, Bootstrap, ChunkPlacement);
             ChunkReplicator->Initialize();
         }
@@ -1101,8 +1108,14 @@ private:
 
     virtual void OnStopLeading() override
     {
-        ChunkPlacement.Reset();
-        ChunkReplicator.Reset();
+        if (ChunkPlacement) {
+            ChunkPlacement.Reset();
+        }
+
+        if (ChunkReplicator) {
+            ChunkReplicator->Finalize();
+            ChunkReplicator.Reset();
+        }
     }
 
 

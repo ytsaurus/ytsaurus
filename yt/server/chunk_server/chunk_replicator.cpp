@@ -108,6 +108,14 @@ void TChunkReplicator::Initialize()
     }
 }
 
+void TChunkReplicator::Finalize()
+{
+    auto nodeTracker = Bootstrap->GetNodeTracker();
+    FOREACH (auto* node, nodeTracker->GetNodes()) {
+        node->SafelyStoredReplicas().clear();
+    }
+}
+
 void TChunkReplicator::TouchChunk(TChunk* chunk)
 {
     auto repairIt = chunk->GetRepairQueueIterator();
@@ -259,9 +267,7 @@ void TChunkReplicator::OnNodeRegistered(TNode* node)
         queue.clear();
     }
 
-    FOREACH (auto replica, node->StoredReplicas()) {
-        ScheduleChunkRefresh(replica.GetPtr());
-    }
+    ScheduleNodeRefresh(node);
 }
 
 void TChunkReplicator::OnNodeUnregistered(TNode* node)
@@ -385,6 +391,8 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleReplicationJob(
     TChunk* chunk,
     TJobPtr* job)
 {
+    YCHECK(!chunk->IsErasure());
+
     const auto& chunkId = chunk->GetId();
     auto chunkManager = Bootstrap->GetChunkManager();
 
@@ -400,9 +408,8 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleReplicationJob(
         return EJobScheduleFlags::Purged;
     }
 
-    int replicaCount = static_cast<int>(chunk->StoredReplicas().size());
-    int replicationFactor = chunk->GetReplicationFactor();
-    int replicasNeeded = replicationFactor - replicaCount;
+    auto statistics = ComputeChunkStatistics(chunk);
+    int replicasNeeded = chunk->GetReplicationFactor() - statistics.ReplicaCount[0];
     if (replicasNeeded <= 0) {
         return EJobScheduleFlags::Purged;
     }
@@ -750,6 +757,16 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
         auto repairIt = RepairQueue.insert(RepairQueue.end(), chunk);
         chunk->SetRepairQueueIterator(repairIt);
     }
+
+    if (statistics.Status & EChunkStatus::Safe) {
+        FOREACH (auto nodeWithIndex, chunk->StoredReplicas()) {
+            auto* node = nodeWithIndex.GetPtr();
+            TChunkPtrWithIndex chunkWithIndex(chunk, nodeWithIndex.GetIndex());
+            if (node->GetDecommissioned()) {
+                YCHECK(node->SafelyStoredReplicas().insert(chunkWithIndex).second);
+            }
+        }
+    }
 }
 
 void TChunkReplicator::ResetChunkStatus(TChunk* chunk)
@@ -780,12 +797,20 @@ void TChunkReplicator::ResetChunkStatus(TChunk* chunk)
     } else {
         UnderreplicatedChunks_.erase(chunk);
     }
+
+    FOREACH (auto nodeWithIndex, chunk->StoredReplicas()) {
+        auto* node = nodeWithIndex.GetPtr();
+        TChunkPtrWithIndex chunkWithIndex(chunk, nodeWithIndex.GetIndex());
+        if (node->GetDecommissioned()) {
+            node->SafelyStoredReplicas().erase(chunkWithIndex);
+        }
+    }
 }
 
 bool TChunkReplicator::IsReplicaDecommissioned(TNodePtrWithIndex replica)
 {
     auto* node = replica.GetPtr();
-    return node->GetConfig()->Decommissioned;
+    return node->GetDecommissioned();
 }
 
 bool TChunkReplicator::HasRunningJobs(const TChunkId& chunkId)
@@ -817,6 +842,17 @@ void TChunkReplicator::ScheduleChunkRefresh(TChunk* chunk)
 
     auto objectManager = Bootstrap->GetObjectManager();
     objectManager->LockObject(chunk);
+}
+
+void TChunkReplicator::ScheduleNodeRefresh(TNode* node)
+{
+    FOREACH (auto replica, node->StoredReplicas()) {
+        ScheduleChunkRefresh(replica.GetPtr());
+    }
+
+    if (!node->GetDecommissioned()) {
+        node->SafelyStoredReplicas().clear();
+    }
 }
 
 void TChunkReplicator::OnRefresh()

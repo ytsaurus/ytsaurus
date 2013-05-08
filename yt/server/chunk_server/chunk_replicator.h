@@ -33,6 +33,7 @@ public:
         TChunkPlacementPtr chunkPlacement);
 
     void Initialize();
+    void Finalize();
 
     void OnNodeRegistered(TNode* node);
     void OnNodeUnregistered(TNode* node);
@@ -48,6 +49,8 @@ public:
 
     void ScheduleChunkRefresh(const TChunkId& chunkId);
     void ScheduleChunkRefresh(TChunk* chunk);
+
+    void ScheduleNodeRefresh(TNode* node);
 
     void ScheduleUnknownChunkRemoval(TNode* node, const TChunkId& chunkdId);
     void ScheduleChunkRemoval(TNode* node, TChunkPtrWithIndex chunkWithIndex);

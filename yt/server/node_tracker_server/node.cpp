@@ -36,6 +36,7 @@ TNode::TNode(TNodeId id)
 void TNode::Init()
 {
     Transaction_ = nullptr;
+    Decommissioned_ = Config_->Decommissioned;
     ChunkReplicationQueues_.resize(ReplicationPriorityCount);
     HintedSessionCount_ = 0;
 }
@@ -97,6 +98,9 @@ void TNode::RemoveReplica(TChunkPtrWithIndex replica, bool cached)
         YCHECK(CachedReplicas_.erase(replica) == 1);
     } else {
         YCHECK(StoredReplicas_.erase(replica) == 1);
+        if (Decommissioned_) {
+            SafelyStoredReplicas_.erase(replica);
+        }
         UnapprovedReplicas_.erase(replica);
     }
 }

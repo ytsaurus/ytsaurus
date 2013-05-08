@@ -63,6 +63,9 @@ private:
         attributes->push_back(TAttributeInfo("state"));
         attributes->push_back(TAttributeInfo("transaction_id", node && node->GetTransaction()));
         attributes->push_back(TAttributeInfo("statistics", node));
+        attributes->push_back(TAttributeInfo("stored_chunk_count", node));
+        attributes->push_back(TAttributeInfo("safely_stored_chunk_count", node && node->GetDecommissioned()));
+        attributes->push_back(TAttributeInfo("cached_chunk_count", node));
         TMapNodeProxy::ListSystemAttributes(attributes);
     }
 
@@ -105,6 +108,25 @@ private:
                                 .EndMap();
                         })
                     .EndMap();
+                return true;
+            }
+
+            if (key == "stored_chunk_count") {
+                BuildYsonFluently(consumer)
+                    .Value(node->StoredReplicas().size());
+                return true;
+            }
+
+            if (key == "safely_stored_chunk_count" && node->GetDecommissioned()) {
+                ValidateActiveLeader();
+                BuildYsonFluently(consumer)
+                    .Value(node->SafelyStoredReplicas().size());
+                return true;
+            }
+
+            if (key == "cached_chunk_count") {
+                BuildYsonFluently(consumer)
+                    .Value(node->CachedReplicas().size());
                 return true;
             }
         }

@@ -192,9 +192,9 @@ TSmallVector<TNode*, TypicalReplicaCount> TChunkPlacement::GetReplicationTargets
 
 TNode* TChunkPlacement::GetReplicationSource(const TChunk* chunk)
 {
-    // Right now we are just picking a random location (including cached ones).
     YCHECK(!chunk->IsErasure());
-    auto replicas = chunk->GetReplicas();
+    // Pick a random location.
+    const auto& replicas = chunk->StoredReplicas();
     YCHECK(!replicas.empty());
     int index = RandomNumber<size_t>(replicas.size());
     return replicas[index].GetPtr();
@@ -281,7 +281,7 @@ bool TChunkPlacement::IsValidUploadTarget(TNode* node)
         return false;
     }
 
-    if (node->GetConfig()->Decommissioned) {
+    if (node->GetDecommissioned()) {
         // Do not upload anything to decommissioned nodes.
         return false;
     }
@@ -316,7 +316,8 @@ bool TChunkPlacement::IsValidBalancingTarget(TNode* node, TChunkPtrWithIndex chu
 
 bool TChunkPlacement::IsValidRemovalTarget(TNode* node)
 {
-    return !node->GetConfig()->Decommissioned;
+    // Always valid :)
+    return true;
 }
 
 std::vector<TChunkPtrWithIndex> TChunkPlacement::GetBalancingChunks(TNode* node, int count)
