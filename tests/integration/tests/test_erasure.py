@@ -25,9 +25,7 @@ class TestErasure(YTEnvSetup):
         assert get('//tmp/table/@row_count') == 1
         assert get('//tmp/table/@chunk_count') == 1
 
-        write_str(
-            '<append=true>//tmp/table', '{b="2";a="1"};{x="10";y="20";a="30"}',
-            config_opt=option)
+        write_str('<append=true>//tmp/table', '{b="2";a="1"};{x="10";y="20";a="30"}')
         assert read('//tmp/table') == [{"b": "hello"}, {"a":"1", "b":"2"}, {"a":"30", "x":"10", "y":"20"}]
         assert get('//tmp/table/@row_count') == 3
         assert get('//tmp/table/@chunk_count') == 2
