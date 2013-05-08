@@ -83,7 +83,7 @@ YtAuthentication.prototype._epilogue = function(req, rsp, next)
         self.logger.info(error.message, { error: error.toJson() });
         return utils.dispatchLater(rsp, 60);
     })
-    .end();
+    .done();
 };
 
 YtAuthentication.prototype._extractToken = function(req, rsp)

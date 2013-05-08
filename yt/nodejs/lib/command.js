@@ -190,7 +190,7 @@ YtCommand.prototype.dispatch = function(req, rsp) {
                 "Unhandled error in the command pipeline");
         })
         .then(self._epilogue.bind(self))
-        .end();
+        .done();
 };
 
 YtCommand.prototype._epilogue = function(result) {

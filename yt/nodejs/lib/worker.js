@@ -15,6 +15,7 @@ var heapdump = require("heapdump");
 
 // Debugging stuff.
 var __DBG = require("./debug").that("C", "Cluster Worker");
+var __PROFILE = false;
 
 // Load configuration and set up logging.
 var config = JSON.parse(process.env.YT_PROXY_CONFIGURATION);
@@ -28,6 +29,9 @@ var logger = new winston.Logger({
 });
 
 var version;
+
+// Speed stuff.
+require("q").longStackJumpLimit = 0;
 
 try {
     version = JSON.parse(fs.readFileSync(__dirname + "/../package.json"));
@@ -102,7 +106,20 @@ if (!__DBG.On) {
 }
 
 // Setup signal handlers.
-process.on("SIGUSR2", function() { heapdump.writeSnapshot(); });
+process.on("SIGUSR2", function() {
+    console.error("Writing a heap snapshot.");
+    heapdump.writeSnapshot();
+});
+process.on("SIGUSR1", function() {
+    if (__PROFILE) {
+        console.error("Pausing V8 profiler.");
+        profiler.pause();
+    } else {
+        console.error("Resuming V8 profiler.");
+        profiler.resume();
+    }
+    __PROFILE = !__PROFILE;
+});
 
 // Setup message handlers.
 process.on("message", function(message) {

@@ -159,7 +159,7 @@ YtApplicationAuth.prototype._dispatchNewCallback = function(req, rsp, params)
         self.logger.info(error.message, { error: error.toJson() });
         return self._dispatchError(req, rsp, error);
     })
-    .end();
+    .done();
 };
 
 YtApplicationAuth.prototype._dispatchNewRedirect = function(req, rsp, params)

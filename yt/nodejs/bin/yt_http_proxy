@@ -210,13 +210,13 @@ if (config.agent) {
 
 function ensureFileExistsAndOwned(path, user, group) {
     return Q
-        .ncall(fs.exists, fs, path)
+        .nfcall(fs.exists, fs, path)
         .fail(function(exists) {
             return exists || Q
-                .ncall(fs.writeFile, fs, path, "")
+                .nfcall(fs.writeFile, fs, path, "")
                 .then(Q
-                    .ncall(uid_number, undefined, user || process.getuid(), group || process.getgid)
-                    .spread(Q.nbind(fs.chown, path))
+                    .nfcall(uid_number, undefined, user || process.getuid(), group || process.getgid)
+                    .spread(Q.nfbind(fs.chown, path))
                 );
         });
 };
@@ -304,4 +304,4 @@ function runProxy(logger) {
 ////////////////////////////////////////////////////////////////////////////////
 
 // Magic line.
-Q.all([ createLogger() ]).spread(runProxy).end();
+Q.all([ createLogger() ]).spread(runProxy).done();
