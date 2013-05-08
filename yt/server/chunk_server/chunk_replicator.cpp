@@ -551,6 +551,10 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleRepairJob(
         }
     }
 
+    if (erasedIndexCount == 0) {
+        return EJobScheduleFlags::Purged;
+    }
+
     NErasure::TPartIndexList erasedIndexList;
     for (int index = 0; index < totalBlockCount; ++index) {
         if (!replicaIndexSet[index]) {
