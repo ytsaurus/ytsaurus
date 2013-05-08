@@ -213,7 +213,7 @@ message TMergeJobSpecExt
  * started sort jobs to fetch appropriate portions of data.
  *
  * The input spec should contain TPartitionJobSpecExt.
- * The result must contain TPartitionJobResultExt.
+ * The result must contain TSchedulerJobResultExt.
  *
  */
 
@@ -236,17 +236,6 @@ message TPartitionJobSpecExt
     optional TUserJobSpec mapper_spec = 4;
 }
 
-message TPartitionJobResultExt
-{
-    extend NJobTrackerClient.NProto.TJobResult
-    {
-        optional TPartitionJobResultExt partition_job_result_ext = 102;
-    }
-
-    repeated NYT.NChunkClient.NProto.TInputChunk chunks = 1;
-    optional TUserJobResult mapper_result = 2;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 // Sort jobs.
@@ -265,16 +254,6 @@ message TSortJobSpecExt
     }
 
     repeated string key_columns = 5;
-}
-
-message TSortJobResultExt
-{
-    extend  NJobTrackerClient.NProto.TJobResult
-    {
-        optional TSortJobResultExt sort_job_result_ext = 103;
-    }
-
-    repeated NYT.NChunkClient.NProto.TInputChunk chunks = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

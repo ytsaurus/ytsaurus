@@ -98,9 +98,6 @@ public:
         auto* schedulerResultExt = result->MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
         Writer->GetNodeDirectory()->DumpTo(schedulerResultExt->mutable_node_directory());
         ToProto(schedulerResultExt->mutable_chunks(), Writer->GetWrittenChunks());
-
-        auto* partitionResultExt = result->MutableExtension(TPartitionJobResultExt::partition_job_result_ext);
-        PopulateUserJobResult(partitionResultExt->mutable_mapper_result());
     }
 
 private:
