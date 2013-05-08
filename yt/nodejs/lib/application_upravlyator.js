@@ -248,7 +248,7 @@ YtApplicationUpravlyator.prototype._dispatchInfo = function(req, rsp)
         var error = YtError.ensureWrapped(err);
         self._dispatchError(req, rsp, error);
     })
-    .end();
+    .done();
 };
 
 YtApplicationUpravlyator.prototype._dispatchAddRole = function(req, rsp)
@@ -295,7 +295,7 @@ YtApplicationUpravlyator.prototype._dispatchAddRole = function(req, rsp)
         }
         self._dispatchError(req, rsp, error);
     })
-    .end();
+    .done();
 };
 
 YtApplicationUpravlyator.prototype._dispatchRemoveRole = function(req, rsp)
@@ -345,7 +345,7 @@ YtApplicationUpravlyator.prototype._dispatchRemoveRole = function(req, rsp)
         }
         self._dispatchError(req, rsp, error);
     })
-    .end();
+    .done();
 };
 
 YtApplicationUpravlyator.prototype._dispatchGetUserRoles = function(req, rsp)
@@ -394,7 +394,7 @@ YtApplicationUpravlyator.prototype._dispatchGetUserRoles = function(req, rsp)
         }
         self._dispatchError(req, rsp, error);
     })
-    .end();
+    .done();
 };
 
 YtApplicationUpravlyator.prototype._dispatchGetAllRoles = function(req, rsp)
@@ -430,7 +430,7 @@ YtApplicationUpravlyator.prototype._dispatchGetAllRoles = function(req, rsp)
         }
         self._dispatchError(req, rsp, error);
     })
-    .end();
+    .done();
 };
 
 YtApplicationUpravlyator.prototype._captureBody = function(req, rsp)
