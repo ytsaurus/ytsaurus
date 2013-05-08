@@ -59,7 +59,7 @@ class TTableChunkReaderFacade
     : public TNonCopyable
 {
 public:
-    TTableChunkReaderFacade(TTableChunkReader* reader);
+    explicit TTableChunkReaderFacade(TTableChunkReader* reader);
 
     const TRow& GetRow() const;
     const NChunkClient::TNonOwningKey& GetKey() const;
