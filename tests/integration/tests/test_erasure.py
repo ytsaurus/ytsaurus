@@ -12,14 +12,15 @@ class TestErasure(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 20
 
-    def _do_test_simple(self, option):
+    def _do_test_simple(self, erasure_codec):
         create('table', '//tmp/table')
+        set('//tmp/table/@erasure_codec', erasure_codec)
 
         assert read('//tmp/table') == []
         assert get('//tmp/table/@row_count') == 0
         assert get('//tmp/table/@chunk_count') == 0
 
-        write_str('//tmp/table', '{b="hello"}', config_opt=option)
+        write_str('//tmp/table', '{b="hello"}')
         assert read('//tmp/table') == [{"b":"hello"}]
         assert get('//tmp/table/@row_count') == 1
         assert get('//tmp/table/@chunk_count') == 1
@@ -32,10 +33,10 @@ class TestErasure(YTEnvSetup):
         assert get('//tmp/table/@chunk_count') == 2
 
     def test_reed_solomon(self):
-        self._do_test_simple('/table_writer/erasure_codec=reed_solomon_6_3')
+        self._do_test_simple('reed_solomon_6_3')
 
     def test_lrc(self):
-        self._do_test_simple('/table_writer/erasure_codec=lrc_12_2_2')
+        self._do_test_simple('lrc_12_2_2')
 
     def _is_chunk_ok(self, chunk_id):
         if get("#%s/@lost" % chunk_id) != "false":
@@ -51,7 +52,8 @@ class TestErasure(YTEnvSetup):
     def _test_repair(self, codec, replica_count, data_replica_count):
         remove('//tmp/table', '--force')
         create('table', '//tmp/table')
-        write_str('//tmp/table', '{b="hello"}', config_opt="/table_writer/erasure_codec=" + codec)
+        set('//tmp/table/@erasure_codec', codec)
+        write_str('//tmp/table', '{b="hello"}')
 
         chunk_ids = get("//tmp/table/@chunk_ids")
         assert len(chunk_ids) == 1
