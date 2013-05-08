@@ -205,7 +205,6 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
         lostIndexes.reset(index);
     }
 
-
     auto dataIndexes = NErasure::TPartIndexSet((1 << dataPartCount) - 1);
     if ((missingIndexes & dataIndexes).any()) {
         result.Status |= EChunkStatus::DataMissing;
@@ -543,10 +542,12 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleRepairJob(
     NErasure::TPartIndexSet replicaIndexSet;
     int erasedIndexCount = totalBlockCount;
     FOREACH (auto replica, chunk->StoredReplicas()) {
-        int index = replica.GetIndex();
-        if (!replicaIndexSet[index]) {
-            replicaIndexSet.set(index);
-            --erasedIndexCount;
+        if (!IsReplicaDecommissioned(replica)) {
+            int index = replica.GetIndex();
+            if (!replicaIndexSet[index]) {
+                replicaIndexSet.set(index);
+                --erasedIndexCount;
+            }
         }
     }
 
