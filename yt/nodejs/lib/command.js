@@ -455,9 +455,15 @@ YtCommand.prototype._getOutputFormat = function() {
         return;
     }
     if (this.descriptor.output_type_as_integer === binding.EDataType_Binary) {
-        // TODO(sandello): Set Content-Disposition.
         this.output_format = _PREDEFINED_YSON_FORMAT;
         this.mime_type = "application/octet-stream";
+
+        // TODO(sandello): Set Content-Disposition more intelligently.
+        if (this.name === "download") {
+            this.rsp.setHeader("Content-Disposition", "inline");
+        } else {
+            this.rsp.setHeader("Content-Disposition", "attachment");
+        }
         return;
     }
 

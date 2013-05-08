@@ -345,7 +345,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetBlocks)
     // NB: All callbacks should be handled in the control thread.
     auto awaiter = New<TParallelAwaiter>(Bootstrap->GetControlInvoker());
 
-    // Assign increasing priorities to block requests to take advantage of sequential read.
+    // Assign decreasing priorities to block requests to take advantage of sequential read.
     i64 priority = context->GetPriority();
 
     for (int index = 0; index < blockCount; ++index) {
@@ -391,7 +391,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetBlocks)
                         context->Reply(result);
                     }
                 }));
-            ++priority;
+            --priority;
         }
     }
 
