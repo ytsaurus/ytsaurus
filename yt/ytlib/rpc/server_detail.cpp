@@ -347,7 +347,7 @@ Stroka TServiceContextWrapper::GetRequestInfo() const
 
 void TServiceContextWrapper::SetResponseInfo(const Stroka& info)
 {
-    UnderlyingContext->SetRequestInfo(info);
+    UnderlyingContext->SetResponseInfo(info);
 }
 
 Stroka TServiceContextWrapper::GetResponseInfo()

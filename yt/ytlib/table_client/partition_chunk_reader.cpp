@@ -254,7 +254,7 @@ void TPartitionChunkReaderProvider::OnReaderFinished(TPartitionChunkReaderPtr re
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPartitionChunkReaderFacade::TPartitionChunkReaderFacade(TPartitionChunkReaderPtr reader)
+TPartitionChunkReaderFacade::TPartitionChunkReaderFacade(TPartitionChunkReader* reader)
     : Reader(reader)
 { }
 
