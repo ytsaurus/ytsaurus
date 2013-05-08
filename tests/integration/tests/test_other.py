@@ -153,8 +153,8 @@ class TestAsyncAttributes(YTEnvSetup):
 
 class TestChunkServer(YTEnvSetup):
     NUM_MASTERS = 1
-    NUM_NODES = 3
-    START_SCHEDULER = True
+    NUM_NODES = 4
+    START_SCHEDULER = False
 
     def test_owning_nodes1(self):
         create('table', '//tmp/t')
@@ -172,6 +172,37 @@ class TestChunkServer(YTEnvSetup):
         assert len(chunk_ids) == 1
         chunk_id = chunk_ids[0]
         assert get('#' + chunk_id + '/@owning_nodes') == ['//tmp/t']
+
+    def test_decommissioned_node(self):
+        create('table', '//tmp/t')
+        write('//tmp/t', {'a' : 'b'})
+
+        time.sleep(1) # wait for background replication
+
+        chunk_ids = get('//tmp/t/@chunk_ids')
+        assert len(chunk_ids) == 1
+        chunk_id = chunk_ids[0]
+
+        nodes = get('#%s/@stored_replicas' % chunk_id)
+        assert len(nodes) == 3
+
+        node_to_decommission = nodes[0]
+        assert get('//sys/nodes/%s/@stored_chunk_count' % node_to_decommission) == 1
+
+        set('//sys/nodes/%s/@decommissioned' % node_to_decommission, 'true')
+
+        time.sleep(3) # wait for background replication
+
+        assert get('//sys/nodes/%s/@safely_stored_chunk_count' % node_to_decommission) == 1
+        assert len(get('#%s/@stored_replicas' % chunk_id)) == 4
+
+        set('//sys/nodes/%s/@decommissioned' % node_to_decommission, 'false')
+
+        time.sleep(3) # wait for background removal
+
+        assert len(get('#%s/@stored_replicas' % chunk_id)) == 3
+
+
 
 ###################################################################################
 
