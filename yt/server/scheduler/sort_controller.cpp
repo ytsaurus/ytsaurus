@@ -679,10 +679,13 @@ protected:
             return &Controller->MergeTaskGroup;
         }
 
-        virtual void OnJobCompleted(TJobletPtr joblet) override
+    private:
+        virtual void OnTaskCompleted() override
         {
-            TPartitionBoundTask::OnJobCompleted(joblet);
+            // We believe that this task may only complete once.
             Controller->OnPartitionCompleted(Partition);
+
+            TPartitionBoundTask::OnTaskCompleted();
         }
 
     };
