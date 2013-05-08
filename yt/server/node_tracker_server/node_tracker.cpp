@@ -164,10 +164,7 @@ public:
 
         LOG_INFO_UNLESS(IsRecovery(), "Node configuration updated (Address: %s)", ~node->GetAddress());
 
-        // Check for runtime changes.
-        if (IsLeader()) {
-            NodeConfigUpdated_.Fire(node);
-        }
+        NodeConfigUpdated_.Fire(node);
     }
 
 

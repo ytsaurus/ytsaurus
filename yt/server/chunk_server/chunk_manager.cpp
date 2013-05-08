@@ -852,13 +852,16 @@ private:
         const auto& config = node->GetConfig();
         if (config->Decommissioned != node->GetDecommissioned()) {
             if (config->Decommissioned) {
-                LOG_INFO("Node decommissioned (Address: %s)", ~node->GetAddress());
+                LOG_INFO_UNLESS(IsRecovery(), "Node decommissioned (Address: %s)", ~node->GetAddress());
             } else {
-                LOG_INFO("Node is no longer decommissioned (Address: %s)", ~node->GetAddress());
+                LOG_INFO_UNLESS(IsRecovery(), "Node is no longer decommissioned (Address: %s)", ~node->GetAddress());
             }
 
             node->SetDecommissioned(config->Decommissioned);
-            ChunkReplicator->ScheduleNodeRefresh(node);
+
+            if (IsLeader()) {
+                ChunkReplicator->ScheduleNodeRefresh(node);
+            }
         }
     }
 
