@@ -29,7 +29,7 @@ static const int RangeColumnIndex = -1;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableChunkWriterFacade::TTableChunkWriterFacade(TTableChunkWriterPtr writer)
+TTableChunkWriterFacade::TTableChunkWriterFacade(TTableChunkWriter* writer)
     : Writer(writer)
     , IsReady(false)
 { }
@@ -537,6 +537,7 @@ void TTableChunkWriterProvider::OnChunkFinished()
         }
         *BoundaryKeysExt.mutable_end() = CurrentWriter->GetLastKey().ToProto();
     }
+    CurrentWriter.Reset();
 }
 
 const NProto::TBoundaryKeysExt& TTableChunkWriterProvider::GetBoundaryKeys() const

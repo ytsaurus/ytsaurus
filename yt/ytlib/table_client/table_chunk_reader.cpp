@@ -993,7 +993,7 @@ TTableChunkReaderPtr TTableChunkReaderProvider::CreateReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableChunkReaderFacade::TTableChunkReaderFacade(TTableChunkReaderPtr reader)
+TTableChunkReaderFacade::TTableChunkReaderFacade(TTableChunkReader* reader)
     : Reader(reader)
 { }
 

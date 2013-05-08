@@ -26,7 +26,7 @@ static NLog::TLogger& Logger = TableWriterLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPartitionChunkWriterFacade::TPartitionChunkWriterFacade(TPartitionChunkWriterPtr writer)
+TPartitionChunkWriterFacade::TPartitionChunkWriterFacade(TPartitionChunkWriter* writer)
     : Writer(writer)
     , IsReady(false)
 { }
@@ -313,6 +313,7 @@ void TPartitionChunkWriterProvider::OnChunkFinished()
 {
     YCHECK(ActiveWriters == 1);
     --ActiveWriters;
+    CurrentWriter.Reset();
 }
 
 const TNullable<TKeyColumns>& TPartitionChunkWriterProvider::GetKeyColumns() const
