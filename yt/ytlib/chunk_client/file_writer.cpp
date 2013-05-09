@@ -121,7 +121,8 @@ TAsyncError TFileWriter::AsyncClose(const NChunkClient::NProto::TChunkMeta& chun
 
 #ifdef _linux_
         if (fsync(chunkMetaFile.GetHandle()) != 0) {
-            THROW_ERROR_EXCEPTION("fsync failed: %s", strerror(errno));
+            THROW_ERROR_EXCEPTION("Error closing chunk: fsync failed")
+                << TError::FromSystem();
         }
 #endif
 
