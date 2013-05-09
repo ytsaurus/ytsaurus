@@ -884,12 +884,25 @@ TAsyncError RepairErasedBlocks(
     TCancelableContextPtr cancelableContext,
     TCallback<void(double)> onProgress)
 {
+    if (erasedIndices.empty()) {
+        YCHECK(readers.empty());
+        YCHECK(writers.empty());
+        return MakeFuture(TError());
+    }
+
     auto invoker = TDispatcher::Get()->GetReaderInvoker();
     if (cancelableContext) {
         invoker = cancelableContext->CreateInvoker(invoker);
     }
-    auto repair = New<TRepairAllPartsSession>(codec, erasedIndices, readers, writers, onProgress, invoker);
-    return BIND(&TRepairAllPartsSession::Run, repair)
+    
+    auto session = New<TRepairAllPartsSession>(
+        codec,
+        erasedIndices,
+        readers,
+        writers,
+        onProgress,
+        invoker);
+    return BIND(&TRepairAllPartsSession::Run, session)
         .AsyncVia(invoker)
         .Run();
 }
