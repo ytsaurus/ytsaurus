@@ -16,6 +16,7 @@ TJob::TJob(
     const TChunkId& chunkId,
     TNode* node,
     const std::vector<Stroka>& targetAddresses,
+    const NErasure::TPartIndexList& erasedIndexes,
     TInstant startTime,
     const TNodeResources& resourceUsage)
     : JobId_(jobId)
@@ -23,6 +24,7 @@ TJob::TJob(
     , ChunkId_(chunkId)
     , Node_(node)
     , TargetAddresses_(targetAddresses)
+    , ErasedIndexes_(erasedIndexes)
     , StartTime_(startTime)
     , ResourceUsage_(resourceUsage)
     , State_(EJobState::Running)
@@ -38,6 +40,7 @@ TJobPtr TJob::CreateForeign(
         NullChunkId,
         static_cast<TNode*>(nullptr),
         std::vector<Stroka>(),
+        NErasure::TPartIndexList(),
         TInstant::Zero(),
         resourceUsage);
 }
@@ -54,6 +57,7 @@ TJobPtr TJob::CreateReplicate(
         chunkId,
         node,
         targetAddresses,
+        NErasure::TPartIndexList(),
         TInstant::Now(),
         resourceUsage);
 }
@@ -69,6 +73,7 @@ TJobPtr TJob::CreateRemove(
         chunkId,
         node,
         std::vector<Stroka>(),
+        NErasure::TPartIndexList(),
         TInstant::Now(),
         resourceUsage);
 }
@@ -77,6 +82,7 @@ TJobPtr TJob::CreateRepair(
     const TChunkId& chunkId,
     NNodeTrackerServer::TNode* node,
     const std::vector<Stroka>& targetAddresses,
+    const NErasure::TPartIndexList& erasedIndexes,
     const NNodeTrackerClient::NProto::TNodeResources& resourceUsage)
 {
     return New<TJob>(
@@ -85,6 +91,7 @@ TJobPtr TJob::CreateRepair(
         chunkId,
         node,
         targetAddresses,
+        erasedIndexes,
         TInstant::Now(),
         resourceUsage);
 }

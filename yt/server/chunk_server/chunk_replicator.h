@@ -85,6 +85,7 @@ private:
 
         EChunkStatus Status;
         int ReplicaCount[NErasure::MaxTotalPartCount];
+        int DecommissionedReplicaCount[NErasure::MaxTotalPartCount];
     };
 
     struct TRefreshEntry
@@ -127,7 +128,7 @@ private:
 
     EJobScheduleFlags ScheduleReplicationJob(
         TNode* sourceNode,
-        TChunk* chunk,
+        const TChunkId& chunkId,
         TJobPtr* job);
     EJobScheduleFlags ScheduleBalancingJob(
         TNode* sourceNode,

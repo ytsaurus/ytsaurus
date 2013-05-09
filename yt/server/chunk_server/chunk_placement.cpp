@@ -190,14 +190,20 @@ TSmallVector<TNode*, TypicalReplicaCount> TChunkPlacement::GetReplicationTargets
     return GetUploadTargets(count, &forbiddenNodes, nullptr);
 }
 
-TNode* TChunkPlacement::GetReplicationSource(const TChunk* chunk)
+TNode* TChunkPlacement::GetReplicationSource(TChunkPtrWithIndex replica)
 {
-    YCHECK(!chunk->IsErasure());
-    // Pick a random location.
-    const auto& replicas = chunk->StoredReplicas();
-    YCHECK(!replicas.empty());
-    int index = RandomNumber<size_t>(replicas.size());
-    return replicas[index].GetPtr();
+    TNodePtrWithIndexList storedReplicas;
+    auto* chunk = replica.GetPtr();
+    FOREACH (auto storedReplica, chunk->StoredReplicas()) {
+        if (storedReplica.GetIndex() == replica.GetIndex()) {
+            storedReplicas.push_back(storedReplica);
+        }
+    }
+
+    // Pick a random location containing a matching replica.
+    YCHECK(!storedReplicas.empty());
+    int index = RandomNumber<size_t>(storedReplicas.size());
+    return storedReplicas[index].GetPtr();
 }
 
 TSmallVector<TNode*, TypicalReplicaCount> TChunkPlacement::GetRemovalTargets(

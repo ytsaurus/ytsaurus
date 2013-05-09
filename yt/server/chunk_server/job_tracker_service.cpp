@@ -162,10 +162,7 @@ private:
             switch (job->GetType()) {
                 case EJobType::ReplicateChunk: {
                     auto* replicationJobSpecExt = jobSpec->MutableExtension(TReplicationJobSpecExt::replication_job_spec_ext);
-                    FOREACH (const auto& targetAddress, job->TargetAddresses()) {
-                        auto* target = nodeTracker->FindNodeByAddress(targetAddress);
-                        ToProto(replicationJobSpecExt->add_target_descriptors(), target->GetDescriptor());
-                    }
+                    SerializeDescriptors(replicationJobSpecExt->mutable_target_descriptors(), job->TargetAddresses());
                     break;
                 }
 
@@ -174,19 +171,17 @@ private:
 
                 case EJobType::RepairChunk: {
                     auto chunk = chunkManager->GetChunk(job->GetChunkId());
+
                     auto* repairJobSpecExt = jobSpec->MutableExtension(TRepairJobSpecExt::repair_job_spec_ext);
                     repairJobSpecExt->set_erasure_codec(chunk->GetErasureCodec());
+                    ToProto(repairJobSpecExt->mutable_erased_indexes(), job->ErasedIndexes());
+
                     TNodeDirectoryBuilder builder(repairJobSpecExt->mutable_node_directory());
-                    FOREACH (auto replica, chunk->StoredReplicas()) {
-                        // TODO(babenko): fixme
-                        if (replica.GetPtr()->GetDecommissioned()) continue;
-                        builder.Add(replica);
-                        repairJobSpecExt->add_replicas(NYT::ToProto<ui32>(replica));
-                    }
-                    FOREACH (const auto& targetAddress, job->TargetAddresses()) {
-                        auto* target = nodeTracker->FindNodeByAddress(targetAddress);
-                        ToProto(repairJobSpecExt->add_target_descriptors(), target->GetDescriptor());
-                    }
+                    const auto& replicas = chunk->StoredReplicas();
+                    builder.Add(replicas);
+                    ToProto(repairJobSpecExt->mutable_replicas(), replicas);
+
+                    SerializeDescriptors(repairJobSpecExt->mutable_target_descriptors(), job->TargetAddresses());
                     break;
                 }
 
@@ -204,6 +199,17 @@ private:
         }
 
         context->Reply();
+    }
+
+    void SerializeDescriptors(
+        ::google::protobuf::RepeatedPtrField<NNodeTrackerClient::NProto::TNodeDescriptor>* protoDescriptors,
+        const std::vector<Stroka>& addresses)
+    {
+        auto nodeTracker = Bootstrap->GetNodeTracker();
+        FOREACH (const auto& address, addresses) {
+            auto* target = nodeTracker->GetNodeByAddress(address);
+            NNodeTrackerClient::ToProto(protoDescriptors->Add(), target->GetDescriptor());
+        }
     }
 
 };

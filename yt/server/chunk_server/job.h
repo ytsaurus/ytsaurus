@@ -5,6 +5,8 @@
 #include <ytlib/misc/property.h>
 #include <ytlib/misc/error.h>
 
+#include <ytlib/erasure/public.h>
+
 #include <ytlib/node_tracker_client/node.pb.h>
 
 namespace NYT {
@@ -22,6 +24,7 @@ class TJob
     DEFINE_BYVAL_RO_PROPERTY(TChunkId, ChunkId);
     DEFINE_BYVAL_RO_PROPERTY(NNodeTrackerServer::TNode*, Node);
     DEFINE_BYREF_RO_PROPERTY(std::vector<Stroka>, TargetAddresses);
+    DEFINE_BYREF_RO_PROPERTY(NErasure::TPartIndexList, ErasedIndexes);
     DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceUsage);
     
@@ -50,6 +53,7 @@ public:
         const TChunkId& chunkId,
         NNodeTrackerServer::TNode* node,
         const std::vector<Stroka>& targetAddresses,
+        const NErasure::TPartIndexList& erasedIndexes,
         const NNodeTrackerClient::NProto::TNodeResources& resourceUsage);
 
     TJob(
@@ -58,6 +62,7 @@ public:
         const TChunkId& chunkId,
         NNodeTrackerServer::TNode* node,
         const std::vector<Stroka>& targetAddresses,
+        const NErasure::TPartIndexList& erasedIndexes,
         TInstant startTime,
         const NNodeTrackerClient::NProto::TNodeResources& resourceUsage);
 

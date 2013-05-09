@@ -48,7 +48,7 @@ public:
         const TChunk* chunk,
         int count);
 
-    TNode* GetReplicationSource(const TChunk* chunk);
+    TNode* GetReplicationSource(TChunkPtrWithIndex replica);
 
     bool HasBalancingTargets(double maxFillCoeff);
 

@@ -57,10 +57,9 @@ class TNode
 
 
     //! Indexed by priority.
-    typedef std::vector<yhash_set<TChunk*>> TChunkReplicationQueues;
+    typedef std::vector<yhash_set<TChunkId>> TChunkReplicationQueues;
     DEFINE_BYREF_RW_PROPERTY(TChunkReplicationQueues, ChunkReplicationQueues);
 
-    //! NB: Ids are used instead of raw pointers since these chunks may already be dead.
     typedef yhash_set<TChunkId> TChunkRemovalQueue;
     DEFINE_BYREF_RW_PROPERTY(TChunkRemovalQueue, ChunkRemovalQueue);
 

@@ -448,22 +448,10 @@ private:
         auto targets = FromProto<TNodeDescriptor>(RepairJobSpecExt.target_descriptors());
 
         int totalBlockCount = codec->GetTotalPartCount();
-        NErasure::TPartIndexSet erasedIndexSet((1 << totalBlockCount) - 1);
-
-        // Figure out erased parts.
-        FOREACH (auto replica, replicas) {
-            int index = replica.GetIndex();
-            erasedIndexSet.reset(index);
-        }
-        NErasure::TPartIndexList erasedIndexList;
-        for (int index = 0; index < totalBlockCount; ++index) {
-            if (erasedIndexSet[index])  {
-                erasedIndexList.push_back(index);
-            }
-        }
+        auto erasedIndexes = FromProto<int, NErasure::TPartIndexList>(RepairJobSpecExt.erased_indexes());
 
         // Compute repair plan.
-        auto repairIndexes = codec->GetRepairIndices(erasedIndexList);
+        auto repairIndexes = codec->GetRepairIndices(erasedIndexes);
         if (!repairIndexes) {
             SetFailed(TError("Codec is unable to repair the chunk"));
             return;
@@ -471,7 +459,7 @@ private:
 
         // TODO(babenko): move to RepairErasedBlocks
         LOG_INFO("Preparing to repair (ErasedIndexes: [%s], RepairIndexes: [%s])",
-            ~JoinToString(erasedIndexList),
+            ~JoinToString(erasedIndexes),
             ~JoinToString(*repairIndexes));
 
         auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
@@ -487,6 +475,7 @@ private:
                     partReplicas.push_back(replica);
                 }
             }
+            YCHECK(!partReplicas.empty());
 
             auto partId = ErasurePartIdFromChunkId(ChunkId, index);
             auto reader = CreateReplicationReader(
@@ -501,7 +490,7 @@ private:
         }
 
         std::vector<IAsyncWriterPtr> writers;
-        FOREACH (int index, erasedIndexList) {
+        FOREACH (int index, erasedIndexes) {
             auto partId = ErasurePartIdFromChunkId(ChunkId, index);
             auto writer = CreateReplicationWriter(
                 config->ReplicationWriter,
@@ -512,7 +501,7 @@ private:
 
         RepairErasedBlocks(
             codec,
-            erasedIndexList,
+            erasedIndexes,
             readers,
             writers,
             CancelableContext,
