@@ -64,8 +64,9 @@ private:
     i64 Offset;
     i64 Record;
     i32 BufferPosition;
-    static const int BufferSize = 16;
-    char ContextBuffer[BufferSize];
+
+    static const int ContextBufferSize = 64;
+    char ContextBuffer[ContextBufferSize];
 
     TYamrTable Table;
 };

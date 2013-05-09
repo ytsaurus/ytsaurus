@@ -65,8 +65,8 @@ Stroka TYamrBaseParser::GetDebugInfo() const
 {
     Stroka context;
     const char* last = ContextBuffer + BufferPosition;
-    if (Offset >= BufferSize) {
-        context.append(last, ContextBuffer + BufferSize);
+    if (Offset >= ContextBufferSize) {
+        context.append(last, ContextBuffer + ContextBufferSize);
     }
     context.append(ContextBuffer, last);
     return Sprintf("Offset: %" PRId64 ", Record: %" PRId64 ", State: %s, Context: %s",
@@ -209,7 +209,7 @@ void TYamrBaseParser::ThrowIncorrectFormat() const
 void TYamrBaseParser::OnRangeConsumed(const char* begin, const char* end)
 {
     Offset += end - begin;
-    auto current = std::max(begin, end - BufferSize);
+    auto current = std::max(begin, end - ContextBufferSize);
     for ( ; current < end; ++current) {
         AppendToContextBuffer(*current);
     }
@@ -219,8 +219,8 @@ void TYamrBaseParser::AppendToContextBuffer(char symbol)
 {
     ContextBuffer[BufferPosition] = symbol;
     ++BufferPosition;
-    if (BufferPosition >= BufferSize) {
-        BufferPosition -= BufferSize;
+    if (BufferPosition >= ContextBufferSize) {
+        BufferPosition -= ContextBufferSize;
     }
 }
 
