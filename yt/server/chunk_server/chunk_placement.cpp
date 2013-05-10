@@ -173,6 +173,7 @@ TSmallVector<TNode*, TypicalReplicaCount> TChunkPlacement::GetReplicationTargets
         forbiddenNodes.insert(replica.GetPtr());
     }
 
+    // TODO(babenko): won't work for erasure chunks
     auto jobList = chunkManager->FindJobList(chunk->GetId());
     if (jobList) {
         FOREACH (const auto& job, jobList->Jobs()) {
