@@ -391,7 +391,7 @@ TSizeLimitedCache<TKey, TValue, THash>::TSizeLimitedCache(int maxSize)
 { }
 
 template <class TKey, class TValue, class THash>
-bool TSizeLimitedCache<TKey, TValue, THash>::NeedTrim() const
+bool TSizeLimitedCache<TKey, TValue, THash>::IsTrimNeeded() const
 {
     return this->GetSize() > MaxSize;
 }

@@ -86,7 +86,7 @@ protected:
     bool Remove(const TKey& key);
 
     //! Called under #SpinLock.
-    virtual bool NeedTrim() const = 0;
+    virtual bool IsTrimNeeded() const = 0;
 
     //! Must acquire #SpinLock if needed.
     virtual void OnAdded(TValue* value);
@@ -141,7 +141,7 @@ class TSizeLimitedCache
 protected:
     TSizeLimitedCache(int maxSize);
 
-    virtual bool NeedTrim() const;
+    virtual bool IsTrimNeeded() const;
 
 private:
     int MaxSize;
