@@ -461,7 +461,6 @@ private:
 
             YCHECK(AddressToNodeMap.insert(std::make_pair(address, node)).second);
             HostNameToNodeMap.insert(std::make_pair(Stroka(GetServiceHostName(address)), node));
-            YCHECK(TransactionToNodeMap.insert(std::make_pair(node->GetTransaction(), node)).second);
 
             UpdateNodeCounters(node, +1);
             RegisterLeaseTransaction(node);
