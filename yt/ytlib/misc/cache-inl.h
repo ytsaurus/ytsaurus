@@ -407,14 +407,14 @@ TWeightLimitedCache<TKey, TValue, THash>::TWeightLimitedCache(i64 maxWeight)
 template <class TKey, class TValue, class THash>
 void TWeightLimitedCache<TKey, TValue, THash>::OnAdded(TValue* value)
 {
-    TGuard<TSpinLock> guard(SpinLock);
+    TGuard<TSpinLock> guard(this->SpinLock);
     TotalWeight += GetWeight(value);
 }
 
 template <class TKey, class TValue, class THash>
 void TWeightLimitedCache<TKey, TValue, THash>::OnRemoved(TValue* value)
 {
-    TGuard<TSpinLock> guard(SpinLock);
+    TGuard<TSpinLock> guard(this->SpinLock);
     TotalWeight -= GetWeight(value);
 }
 
