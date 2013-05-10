@@ -190,12 +190,12 @@ TSmallVector<TNode*, TypicalReplicaCount> TChunkPlacement::GetReplicationTargets
     return GetUploadTargets(count, &forbiddenNodes, nullptr);
 }
 
-TNode* TChunkPlacement::GetReplicationSource(TChunkPtrWithIndex replica)
+TNode* TChunkPlacement::GetReplicationSource(TChunkPtrWithIndex chunkWithIndex)
 {
     TNodePtrWithIndexList storedReplicas;
-    auto* chunk = replica.GetPtr();
+    auto* chunk = chunkWithIndex.GetPtr();
     FOREACH (auto storedReplica, chunk->StoredReplicas()) {
-        if (storedReplica.GetIndex() == replica.GetIndex()) {
+        if (storedReplica.GetIndex() == chunkWithIndex.GetIndex()) {
             storedReplicas.push_back(storedReplica);
         }
     }
