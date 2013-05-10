@@ -434,18 +434,20 @@ private:
     {
         NodeIdGenerator.Reset();
         NodeMap.Clear();
+        
         AddressToNodeMap.clear();
         HostNameToNodeMap.clear();
         TransactionToNodeMap.clear();
+
         OnlineNodeCount = 0;
         RegisteredNodeCount = 0;
     }
 
     virtual void OnAfterLoaded() override
     {
-        // Reconstruct address maps, recompute statistics.
         AddressToNodeMap.clear();
         HostNameToNodeMap.clear();
+        TransactionToNodeMap.clear();
 
         OnlineNodeCount = 0;
         RegisteredNodeCount = 0;
