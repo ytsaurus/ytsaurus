@@ -68,7 +68,7 @@ private:
         attributes->push_back("movable");
         attributes->push_back("vital");
         attributes->push_back("overreplicated");
-        attributes->push_back(TAttributeInfo("underreplicated", !chunk->IsErasure()));
+        attributes->push_back("underreplicated");
         attributes->push_back("lost");
         attributes->push_back(TAttributeInfo("data_missing", chunk->IsErasure()));
         attributes->push_back(TAttributeInfo("parity_missing", chunk->IsErasure()));
