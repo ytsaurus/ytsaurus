@@ -716,8 +716,7 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
     }
 
     int partCount = chunk->IsErasure() ? NErasure::MaxTotalPartCount : 1;
-    // TODO(babenko): remove this hack
-    int replicationFactor = chunk->IsErasure() ? 1 : chunk->GetReplicationFactor();
+    int replicationFactor = chunk->GetReplicationFactor();
 
     ResetChunkStatus(chunk);
 
