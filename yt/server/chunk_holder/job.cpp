@@ -447,7 +447,6 @@ private:
         auto replicas = FromProto<NChunkClient::TChunkReplica>(RepairJobSpecExt.replicas());
         auto targets = FromProto<TNodeDescriptor>(RepairJobSpecExt.target_descriptors());
 
-        int totalBlockCount = codec->GetTotalPartCount();
         auto erasedIndexes = FromProto<int, NErasure::TPartIndexList>(RepairJobSpecExt.erased_indexes());
 
         // Compute repair plan.
