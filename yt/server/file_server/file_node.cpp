@@ -47,11 +47,6 @@ public:
         return EObjectType::File;
     }
 
-    virtual ENodeType GetNodeType() override
-    {
-        return ENodeType::Entity;
-    }
-
 protected:
 
     virtual void SetDefaultAttributes(NYTree::IAttributeDictionary* attributes) override
