@@ -1115,6 +1115,10 @@ void TChunkReplicator::OnRFUpdateCommitFailed(const TError& error)
 
 int TChunkReplicator::ComputeReplicationFactor(TChunk* chunk)
 {
+    if (chunk->IsErasure()) {
+        return 1;
+    }
+
     int result = 0;
 
     // Unique number used to distinguish already visited chunk lists.
