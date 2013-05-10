@@ -813,6 +813,7 @@ void TChunkReplicator::ResetChunkStatus(TChunk* chunk)
 
     LostChunks_.erase(chunk);
     LostVitalChunks_.erase(chunk);
+    UnderreplicatedChunks_.erase(chunk);
     OverreplicatedChunks_.erase(chunk);
 
     if (chunk->IsErasure()) {
@@ -824,8 +825,6 @@ void TChunkReplicator::ResetChunkStatus(TChunk* chunk)
             RepairQueue.erase(repairIt);
             chunk->SetRepairQueueIterator(TChunkRepairQueueIterator());
         }
-    } else {
-        UnderreplicatedChunks_.erase(chunk);
     }
 }
 
