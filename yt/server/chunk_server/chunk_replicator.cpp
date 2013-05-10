@@ -211,6 +211,8 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
     }
 
     for (int index = 0; index < NErasure::MaxTotalPartCount; ++index) {
+        int replicaCount = result.ReplicaCount[index];
+        int decommissionedReplicaCount = result.DecommissionedReplicaCount[index];
         if (result.ReplicaCount[index] > 1) {
             result.Status |= EChunkStatus::Overreplicated;
         }
@@ -222,6 +224,9 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
     auto allDataIndexes = NErasure::TPartIndexSet((1 << dataPartCount) - 1);
     if ((lostIndexes & allDataIndexes).any()) {
         result.Status |= EChunkStatus::DataMissing;
+            } else {
+                result.Status |= EChunkStatus::ParityMissing;
+            }
     }
 
     auto allParityIndexes = NErasure::TPartIndexSet(((1 << parityPartCount) - 1) << dataPartCount);
@@ -585,12 +590,9 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleRepairJob(
         targetAddresses.push_back(target->GetAddress());
     }
 
-    auto miscExt = GetProtoExtension<TMiscExt>(chunk->ChunkMeta().extensions());
-
     TNodeResources resourceUsage;
     resourceUsage.set_repair_slots(1);
-    // ToDo(babenko): use configurable default.
-    resourceUsage.set_memory(0); // miscExt.repair_memory_limit()
+    resourceUsage.set_memory(Config->ChunkReplicator->RepairJobMemoryUsage);
 
     *job = TJob::CreateRepair(
         chunkId,

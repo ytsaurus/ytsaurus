@@ -31,6 +31,9 @@ public:
     //! Maximum duration a job can run before it is considered dead.
     TDuration JobTimeout;
 
+    //! Memory usage assigned to every repair job.
+    i64 RepairJobMemoryUsage;
+
     TChunkReplicatorConfig()
     {
         RegisterParameter("min_online_node_count", MinOnlineNodeCount)
@@ -45,6 +48,9 @@ public:
             .Default(0.1);
         RegisterParameter("job_timeout", JobTimeout)
             .Default(TDuration::Minutes(5));
+        RegisterParameter("repair_job_memory_usage", RepairJobMemoryUsage)
+            .Default((i64) 256 * 1024 * 1024)
+            .GreaterThanOrEqual(0);
     }
 };
 
