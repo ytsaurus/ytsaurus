@@ -116,7 +116,7 @@ TCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
 template <class TKey, class TValue, class THash>
 bool TCacheBase<TKey, TValue, THash>::BeginInsert(TInsertCookie* cookie)
 {
-    YASSERT(!cookie->Active);
+    YCHECK(!cookie->Active);
     auto key = cookie->GetKey();
 
     while (true) {
@@ -170,7 +170,7 @@ bool TCacheBase<TKey, TValue, THash>::BeginInsert(TInsertCookie* cookie)
 template <class TKey, class TValue, class THash>
 void TCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value, TInsertCookie* cookie)
 {
-    YASSERT(cookie->Active);
+    YCHECK(cookie->Active);
 
     auto key = value->GetKey();
 
@@ -178,24 +178,24 @@ void TCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value, TInsertCookie* 
     {
         TGuard<TSpinLock> guard(SpinLock);
 
-        YASSERT(!value->Cache);
+        YCHECK(!value->Cache);
         value->Cache = this;
 
         auto it = ItemMap.find(key);
-        YASSERT(it != ItemMap.end());
+        YCHECK(it != ItemMap.end());
 
         auto* item = it->second;
         valueOrError = item->ValueOrError;
 
-        // TODO(sandello): Remove tilda from here when we migrate from STLport.
         YCHECK(ValueMap.insert(std::make_pair(key, ~value)).second);
 
         LruList.PushFront(item);
         ++Size;
-        OnAdded(~value);
     }
 
     valueOrError.Set(value);
+
+    OnAdded(~value);
     TrimIfNeeded();
 }
 
@@ -207,7 +207,7 @@ void TCacheBase<TKey, TValue, THash>::CancelInsert(const TKey& key, const TError
         TGuard<TSpinLock> guard(SpinLock);
 
         auto it = ItemMap.find(key);
-        YASSERT(it != ItemMap.end());
+        YCHECK(it != ItemMap.end());
 
         auto* item = it->second;
         valueOrError = item->ValueOrError;
@@ -224,7 +224,7 @@ template <class TKey, class TValue, class THash>
 void TCacheBase<TKey, TValue, THash>::Unregister(const TKey& key)
 {
     TGuard<TSpinLock> guard(SpinLock);
-    YASSERT(ItemMap.find(key) == ItemMap.end());
+    YCHECK(ItemMap.find(key) == ItemMap.end());
     YCHECK(ValueMap.erase(key) == 1);
 }
 
@@ -233,7 +233,7 @@ void TCacheBase<TKey, TValue, THash>::Touch(const TKey& key)
 {
     TGuard<TSpinLock> guard(SpinLock);
     auto it = ItemMap.find(key);
-    YASSERT(it != ItemMap.end());
+    YCHECK(it != ItemMap.end());
     auto* item = it->second;
     Touch(item);
 }
@@ -253,13 +253,12 @@ bool TCacheBase<TKey, TValue, THash>::Remove(const TKey& key)
     maybeValueOrError = item->ValueOrError.TryGet();
 
     YCHECK(maybeValueOrError);
-    YASSERT(maybeValueOrError->IsOK());
+    YCHECK(maybeValueOrError->IsOK());
     auto value = maybeValueOrError->Value();
 
     item->Unlink();
 
     --Size;
-    OnRemoved(~value);
 
     ItemMap.erase(it);
 
@@ -268,6 +267,8 @@ bool TCacheBase<TKey, TValue, THash>::Remove(const TKey& key)
     // to the value and thus cause an invocation of TCacheValueBase::~TCacheValueBase.
     // The latter will try to acquire the spinlock.
     guard.Release();
+
+    OnRemoved(~value);
 
     delete item;
 
@@ -308,16 +309,16 @@ void TCacheBase<TKey, TValue, THash>::TrimIfNeeded()
     while (true) {
         TGuard<TSpinLock> guard(SpinLock);
 
-        if (!NeedTrim())
+        if (!IsTrimNeeded())
             return;
 
-        YASSERT(Size > 0);
+        YCHECK(Size > 0);
         auto* item = LruList.PopBack();
 
         auto maybeValueOrError = item->ValueOrError.TryGet();
 
         YCHECK(maybeValueOrError);
-        YASSERT(maybeValueOrError->IsOK());
+        YCHECK(maybeValueOrError->IsOK());
 
         auto value = maybeValueOrError->Value();
 
@@ -377,7 +378,7 @@ void TCacheBase<TKey, TValue, THash>::TInsertCookie::Cancel(const TError& error)
 template <class TKey, class TValue, class THash>
 void TCacheBase<TKey, TValue, THash>::TInsertCookie::EndInsert(TValuePtr value)
 {
-    YASSERT(Active);
+    YCHECK(Active);
     Cache->EndInsert(value, this);
     Active = false;
 }
@@ -406,17 +407,19 @@ TWeightLimitedCache<TKey, TValue, THash>::TWeightLimitedCache(i64 maxWeight)
 template <class TKey, class TValue, class THash>
 void TWeightLimitedCache<TKey, TValue, THash>::OnAdded(TValue* value)
 {
+    TGuard<TSpinLock> guard(SpinLock);
     TotalWeight += GetWeight(value);
 }
 
 template <class TKey, class TValue, class THash>
 void TWeightLimitedCache<TKey, TValue, THash>::OnRemoved(TValue* value)
 {
+    TGuard<TSpinLock> guard(SpinLock);
     TotalWeight -= GetWeight(value);
 }
 
 template <class TKey, class TValue, class THash>
-bool TWeightLimitedCache<TKey, TValue, THash>::NeedTrim() const
+bool TWeightLimitedCache<TKey, TValue, THash>::IsTrimNeeded() const
 {
     return TotalWeight > MaxWeight;
 }
