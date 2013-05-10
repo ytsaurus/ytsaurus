@@ -415,7 +415,8 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleReplicationJob(
         return EJobScheduleFlags::Purged;
     }
 
-    int replicationFactor = chunk->GetReplicationFactor();
+    // TODO(babenko): remove this hack
+    int replicationFactor = chunk->IsErasure() ? 1 : chunk->GetReplicationFactor();
     auto statistics = ComputeChunkStatistics(chunk);
     int replicaCount = statistics.ReplicaCount[chunkIdWithIndex.Index];
     int decommissionedReplicaCount = statistics.DecommissionedReplicaCount[chunkIdWithIndex.Index];
@@ -715,7 +716,8 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
     }
 
     int partCount = chunk->IsErasure() ? NErasure::MaxTotalPartCount : 1;
-    int replicationFactor = chunk->GetReplicationFactor();
+    // TODO(babenko): remove this hack
+    int replicationFactor = chunk->IsErasure() ? 1 : chunk->GetReplicationFactor();
 
     ResetChunkStatus(chunk);
 
@@ -1037,7 +1039,7 @@ void TChunkReplicator::ScheduleRFUpdate(TChunkList* chunkList)
 
 void TChunkReplicator::ScheduleRFUpdate(TChunk* chunk)
 {
-    if (!IsObjectAlive(chunk) || chunk->GetRFUpdateScheduled())
+    if (!IsObjectAlive(chunk) || chunk->GetRFUpdateScheduled() || chunk->IsErasure())
         return;
 
     RFUpdateList.push_back(chunk);
@@ -1071,6 +1073,7 @@ void TChunkReplicator::OnRFUpdate()
             chunk->SetRFUpdateScheduled(false);
 
             if (IsObjectAlive(chunk)) {
+                YCHECK(!chunk->IsErasure());
                 int replicationFactor = ComputeReplicationFactor(chunk);
                 if (chunk->GetReplicationFactor() != replicationFactor) {
                     auto* update = request.add_updates();
