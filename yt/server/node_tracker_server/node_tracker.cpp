@@ -450,6 +450,9 @@ private:
         OnlineNodeCount = 0;
         RegisteredNodeCount = 0;
 
+        auto metaStateFacade = Bootstrap->GetMetaStateFacade();
+        auto invoker = metaStateFacade->GetEpochInvoker();
+
         FOREACH (const auto& pair, NodeMap) {
             auto* node = pair.second;
             const auto& address = node->GetAddress();
@@ -459,8 +462,12 @@ private:
             YCHECK(TransactionToNodeMap.insert(std::make_pair(node->GetTransaction(), node)).second);
 
             UpdateNodeCounters(node, +1);
-            RefreshNodeConfig(node);
             RegisterLeaseTransaction(node);
+
+            // Make this a postponed call since Cypress Manager might not be ready yet to handle
+            // such requests.
+        
+            invoker->Invoke(BIND(&TImpl::RefreshNodeConfig, MakeStrong(this), node));
         }
     }
 
