@@ -918,19 +918,6 @@ void TCypressManager::OnAfterLoaded()
     }
 
     // COMPAT(babenko)
-    // Replace every NULL account with sys
-    auto securityManager = Bootstrap->GetSecurityManager();
-    auto* sysAccount = securityManager->GetSysAccount();
-    FOREACH (const auto& pair, NodeMap) {
-        auto* node = pair.second;
-        if (!node->GetAccount()) {
-            node->SetAccount(sysAccount);
-            sysAccount->RefObject();
-            ++sysAccount->ResourceUsage().NodeCount;
-        }
-    }
-
-    // COMPAT(babenko)
     // Fix parent links
     FOREACH (const auto& pair1, NodeMap) {
         auto* node = pair1.second;
