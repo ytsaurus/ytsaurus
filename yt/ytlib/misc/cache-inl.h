@@ -96,9 +96,12 @@ TCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
                 auto* item = new TItem(value);
                 // This holds an extra reference to the promise state...
                 auto valueOrError = item->ValueOrError;
+                
                 LruList.PushFront(item);
+                
                 ++Size;
                 ItemMap.insert(std::make_pair(key, item));
+                
                 guard.Release();
 
                 // ...since the item can be dead at this moment.
@@ -145,10 +148,11 @@ bool TCacheBase<TKey, TValue, THash>::BeginInsert(TInsertCookie* cookie)
             auto value = TRefCounted::DangerousGetPtr(valueIt->second);
             if (value) {
                 auto* item = new TItem(value);
+
+                ++Size;
                 YCHECK(ItemMap.insert(std::make_pair(key, item)).second);
 
                 LruList.PushFront(item);
-                ++Size;
 
                 cookie->ValueOrError = item->ValueOrError;
 
@@ -187,10 +191,10 @@ void TCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value, TInsertCookie* 
         auto* item = it->second;
         valueOrError = item->ValueOrError;
 
+        ++Size;
         YCHECK(ValueMap.insert(std::make_pair(key, ~value)).second);
 
         LruList.PushFront(item);
-        ++Size;
     }
 
     valueOrError.Set(value);
@@ -259,7 +263,6 @@ bool TCacheBase<TKey, TValue, THash>::Remove(const TKey& key)
     item->Unlink();
 
     --Size;
-
     ItemMap.erase(it);
 
     // Release the guard right away to prevent recursive spinlock acquisition.
@@ -323,11 +326,11 @@ void TCacheBase<TKey, TValue, THash>::TrimIfNeeded()
         auto value = maybeValueOrError->Value();
 
         --Size;
-        OnRemoved(~value);
-
         ItemMap.erase(value->GetKey());
 
         guard.Release();
+
+        OnRemoved(~value);
 
         delete item;
     }
