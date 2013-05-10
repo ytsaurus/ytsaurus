@@ -754,7 +754,7 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
         for (int index = 0; index < partCount; ++index) {
             int replicaCount = statistics.ReplicaCount[index];
             int decommissionedReplicaCount = statistics.DecommissionedReplicaCount[index];
-            if (replicaCount + decommissionedReplicaCount > 0 && replicaCount < replicationFactor)
+            if (replicaCount + decommissionedReplicaCount == 0 || replicaCount >= replicationFactor)
                 continue;
 
             TChunkPtrWithIndex chunkWithIndex(chunk, index);
