@@ -147,9 +147,20 @@ EChunkStatus TChunkReplicator::ComputeChunkStatus(TChunk* chunk)
 
 TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeChunkStatistics(TChunk* chunk)
 {
-    return chunk->IsErasure()
+    auto result = chunk->IsErasure()
         ? ComputeErasureChunkStatistics(chunk)
         : ComputeRegularChunkStatistics(chunk);
+
+    if (!(result.Status & EChunkStatus(
+            EChunkStatus::Underreplicated |
+            EChunkStatus::Lost |
+            EChunkStatus::DataMissing |
+            EChunkStatus::ParityMissing)))
+    {
+        result.Status |= EChunkStatus::Safe;
+    }
+
+    return result;
 }
 
 TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatistics(TChunk* chunk)
@@ -168,6 +179,9 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
         }
     }
 
+    result.ReplicaCount[0] = replicaCount;
+    result.DecommissionedReplicaCount[0] = decommissionedReplicaCount;
+
     if (replicaCount == 0 && decommissionedReplicaCount == 0) {
         result.Status |= EChunkStatus::Lost;
     } else if (replicaCount > replicationFactor) {
@@ -176,13 +190,6 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
         result.Status |= EChunkStatus::Underreplicated;
     }
 
-    if (replicaCount >= replicationFactor) {
-        result.Status |= EChunkStatus::Safe;
-    }
-
-    result.ReplicaCount[0] = replicaCount;
-    result.DecommissionedReplicaCount[0] = decommissionedReplicaCount;
-
     return result;
 }
 
@@ -190,58 +197,41 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
 {
     TChunkStatistics result;
 
-    // Check data and parity parts.
     auto* codec = NErasure::GetCodec(chunk->GetErasureCodec());
     int totalPartCount = codec->GetTotalPartCount();
     int dataPartCount = codec->GetDataPartCount();
-    int parityPartCount = codec->GetParityPartCount();
 
-    auto missingIndexes = NErasure::TPartIndexSet((1 << totalPartCount) - 1);  // ignores decommissioned replicas
-    auto lostIndexes    = NErasure::TPartIndexSet((1 << totalPartCount) - 1);  // takes decommissioned replicas into account
-    TSmallVector<int, NErasure::MaxTotalPartCount> overreplicatedIndexes;
     FOREACH (auto replica, chunk->StoredReplicas()) {
         int index = replica.GetIndex();
         if (IsReplicaDecommissioned(replica)) {
             ++result.DecommissionedReplicaCount[index];
         } else {
             ++result.ReplicaCount[index];
-            missingIndexes.reset(index);
         }
-        lostIndexes.reset(index);
     }
 
-    for (int index = 0; index < NErasure::MaxTotalPartCount; ++index) {
+    NErasure::TPartIndexSet erasedIndexes;
+    for (int index = 0; index < totalPartCount; ++index) {
         int replicaCount = result.ReplicaCount[index];
         int decommissionedReplicaCount = result.DecommissionedReplicaCount[index];
-        if (result.ReplicaCount[index] > 1) {
+        if (replicaCount > 1) {
             result.Status |= EChunkStatus::Overreplicated;
         }
-        if (result.ReplicaCount[index] == 0 && result.DecommissionedReplicaCount[index] > 0) {
+        if (replicaCount == 0 && decommissionedReplicaCount > 0) {
             result.Status |= EChunkStatus::Underreplicated;
         }
-    }
-
-    auto allDataIndexes = NErasure::TPartIndexSet((1 << dataPartCount) - 1);
-    if ((lostIndexes & allDataIndexes).any()) {
-        result.Status |= EChunkStatus::DataMissing;
+        if (replicaCount == 0 && decommissionedReplicaCount == 0) {
+            erasedIndexes.set(index);
+            if (index < dataPartCount) {
+                result.Status |= EChunkStatus::DataMissing;
             } else {
                 result.Status |= EChunkStatus::ParityMissing;
             }
-    }
-
-    auto allParityIndexes = NErasure::TPartIndexSet(((1 << parityPartCount) - 1) << dataPartCount);
-    if ((lostIndexes & allParityIndexes).any()) {
-        result.Status |= EChunkStatus::ParityMissing;
-    }
-
-    if (lostIndexes.any()) {
-        if (!codec->CanRepair(lostIndexes)) {
-            result.Status |= EChunkStatus::Lost;
         }
     }
 
-    if (!missingIndexes.any()) {
-        result.Status |= EChunkStatus::Safe;
+    if (!codec->CanRepair(erasedIndexes)) {
+        result.Status |= EChunkStatus::Lost;
     }
 
     return result;
