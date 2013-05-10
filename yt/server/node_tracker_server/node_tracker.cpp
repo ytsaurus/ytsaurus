@@ -452,9 +452,6 @@ private:
         OnlineNodeCount = 0;
         RegisteredNodeCount = 0;
 
-        auto metaStateFacade = Bootstrap->GetMetaStateFacade();
-        auto invoker = metaStateFacade->GetEpochInvoker();
-
         FOREACH (const auto& pair, NodeMap) {
             auto* node = pair.second;
             const auto& address = node->GetAddress();
@@ -464,14 +461,8 @@ private:
 
             UpdateNodeCounters(node, +1);
             RegisterLeaseTransaction(node);
-
-            // Make this a postponed call since Cypress Manager might not be ready yet to handle
-            // such requests.
-        
-            invoker->Invoke(BIND(&TImpl::RefreshNodeConfig, MakeStrong(this), node));
         }
     }
-
 
     virtual void OnRecoveryStarted() override
     {
@@ -494,6 +485,11 @@ private:
     virtual void OnRecoveryComplete() override
     {
         Profiler.SetEnabled(true);
+
+        FOREACH (const auto& pair, NodeMap) {
+            auto* node = pair.second;
+            RefreshNodeConfig(node);
+        }
     }
 
 
