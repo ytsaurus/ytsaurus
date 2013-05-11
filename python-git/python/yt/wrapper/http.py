@@ -114,6 +114,22 @@ def get_host_for_heavy_operation():
             return hosts[0]
     return config.PROXY
 
+
+class Command(object):
+    def __init__(self, input_data_format, output_data_format, is_volatile, is_heavy):
+        self.input_data_format = input_data_format
+        self.output_data_format = output_data_format
+        self.is_volatile = is_volatile
+        self.is_heavy = is_heavy
+
+    def http_method(self):
+        if self.input_data_format is not None:
+            return "PUT"
+        elif self.is_volatile:
+            return "POST"
+        else:
+            return "GET"
+
 def make_request(command_name, params,
                  data=None, format=None, verbose=False, proxy=None,
                  raw_response=False, files=None):
@@ -134,54 +150,48 @@ def make_request(command_name, params,
     # Trying to set http retries in requests
     requests.adapters.DEFAULT_RETRIES = 10
 
-    http_method = {
-        "start_tx": "POST",
-        "ping_tx": "POST",
-        "commit_tx": "POST",
-        "abort_tx": "POST",
-        "create": "POST",
-        "remove": "POST",
-        "set": "PUT",
-        "get": "GET",
-        "list": "GET",
-        "lock": "POST",
-        "copy": "POST",
-        "move": "POST",
-        "link": "POST",
-        "exists": "GET",
-        "parse_ypath": "GET",
-        "check_permission": "GET",
-        "upload": "PUT",
-        "download": "GET",
-        "write": "PUT",
-        "read": "GET",
-        "merge": "POST",
-        "erase": "POST",
-        "map": "POST",
-        "reduce": "POST",
-        "map_reduce": "POST",
-        "sort": "POST",
-        "abort_op": "POST"
+    commands = {
+        "start_tx":      Command(None,         "structured", True,  False),
+        "ping_tx":       Command(None,         None,         True,  False),
+        "commit_tx":     Command(None,         None,         True,  False),
+        "abort_tx":      Command(None,         None,         True,  False),
+
+        "create":        Command(None,         "structured", True,  False),
+        "remove":        Command(None,         None,         True,  False),
+        "set":           Command("structured", None,         True,  False),
+        "get":           Command(None,         "structured", False, False),
+        "list":          Command(None,         "structured", False, False),
+        "lock":          Command(None,         None,         True,  False),
+        "copy":          Command(None,         "structured", True,  False),
+        "move":          Command(None,         None,         True,  False),
+        "link":          Command(None,         "structured", True,  False),
+        "exists":        Command(None,         "structured", False, False),
+
+        "upload":        Command("binary",     None,         True,  True ),
+        "download":      Command(None,         "binary",     False, True ),
+
+        "write":         Command("tabular",    None,         True,  True ),
+        "read":          Command(None,         "tabular",    False, True ),
+
+        "merge":         Command(None,         "structured", True,  False),
+        "erase":         Command(None,         "structured", True,  False),
+        "map":           Command(None,         "structured", True,  False),
+        "sort":          Command(None,         "structured", True,  False),
+        "reduce":        Command(None,         "structured", True,  False),
+        "map_reduce":    Command(None,         "structured", True,  False),
+        "abort_op":      Command(None,         None,         True,  False),
+
+        "parse_ypath":   Command(None,         "structured", False, False),
+
+        "add_member":    Command(None,         None,         True,  False),
+        "remove_member": Command(None,         None,         True,  False)
     }
 
-    nonvolatile_commands = [
-        "get",
-        "list",
-        "exists",
-        "parse_ypath",
-        "check_permission"
-    ]
-
-    heavy_commands = [
-        "read",
-        "write",
-        "upload",
-        "download"
-    ]
+    command = commands[command_name]
     
-    make_retry = command_name in nonvolatile_commands or \
-            (config.RETRY_VOLATILE_COMMANDS and command_name not in heavy_commands)
-    if make_retry and command_name not in nonvolatile_commands and "mutation_id" not in params:
+    make_retry = not command.is_volatile or \
+            (config.RETRY_VOLATILE_COMMANDS and not command.is_heavy)
+    if make_retry and command.is_volatile and "mutation_id" not in params:
         params["mutation_id"] = str(uuid.uuid4())
 
     # Prepare request url.
@@ -196,7 +206,8 @@ def make_request(command_name, params,
     # prepare params, format and headers
     headers = {"User-Agent": "Python wrapper " + VERSION,
                "Accept-Encoding": config.ACCEPT_ENCODING}
-    if http_method[command_name] == "POST":
+    # TODO(ignat) stop using http method for detection command properties
+    if command.http_method() == "POST":
         require(data is None and format is None,
                 YtError("Format and data should not be specified in POST methods"))
         headers.update(JsonFormat().to_input_http_header())
@@ -222,7 +233,7 @@ def make_request(command_name, params,
 
     print_info("Headers: %r", headers)
     print_info("Params: %r", params)
-    if http_method[command_name] != "PUT":
+    if command.http_method() != "PUT":
         print_info("Body: %r", data)
 
     stream = False
@@ -235,7 +246,7 @@ def make_request(command_name, params,
             response = Response(
                 requests.request(
                     url=url,
-                    method=http_method[command_name],
+                    method=command.http_method(),
                     headers=headers,
                     data=data,
                     files=files,
