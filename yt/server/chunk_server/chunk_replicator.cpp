@@ -291,14 +291,15 @@ void TChunkReplicator::OnChunkDestroyed(TChunk* chunk)
 {
     ResetChunkStatus(chunk);
 
-    const auto& chunkId = chunk->GetId();
-    auto it = JobListMap.find(chunkId);
-    if (it != JobListMap.end()) {
-        auto jobList = it->second;
-        FOREACH (auto job, jobList->Jobs()) {
-            UnregisterJob(job, EJobUnregisterFlags::UnregisterFromNode);
+    {
+        auto it = JobListMap.find(chunk->GetId());
+        if (it != JobListMap.end()) {
+            auto jobList = it->second;
+            FOREACH (auto job, jobList->Jobs()) {
+                UnregisterJob(job, EJobUnregisterFlags::UnregisterFromNode);
+            }
+            JobListMap.erase(it);
         }
-        JobListMap.erase(it);
     }
 }
 
@@ -415,8 +416,7 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleReplicationJob(
         return EJobScheduleFlags::Purged;
     }
 
-    // TODO(babenko): remove this hack
-    int replicationFactor = chunk->IsErasure() ? 1 : chunk->GetReplicationFactor();
+    int replicationFactor = chunk->GetReplicationFactor();
     auto statistics = ComputeChunkStatistics(chunk);
     int replicaCount = statistics.ReplicaCount[chunkIdWithIndex.Index];
     int decommissionedReplicaCount = statistics.DecommissionedReplicaCount[chunkIdWithIndex.Index];
@@ -507,13 +507,15 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleRemovalJob(
 
     auto chunkManager = Bootstrap->GetChunkManager();
     auto* chunk = chunkManager->FindChunk(chunkIdWithIndex.Id);
-    if (chunk && chunk->GetRefreshScheduled()) {
-        return EJobScheduleFlags::Purged;
-    }
-
     // NB: Allow more than one job for dead chunks.
-    if (chunk && HasRunningJobs(chunkId)) {
-        return EJobScheduleFlags::Purged;
+    if (chunk) {
+        if (chunk->GetRefreshScheduled()) {
+            return EJobScheduleFlags::Purged;
+        }
+
+        if (HasRunningJobs(chunkId)) {
+            return EJobScheduleFlags::Purged;
+        }
     }
 
     TNodeResources resourceUsage;
@@ -705,13 +707,11 @@ void TChunkReplicator::ScheduleNewJobs(
 
 void TChunkReplicator::RefreshChunk(TChunk* chunk)
 {
-    const auto& chunkId = chunk->GetId();
-
     if (!chunk->IsConfirmed()) {
         return;
     }
 
-    if (HasRunningJobs(chunkId)) {
+    if (HasRunningJobs(chunk->GetId())) {
         return;
     }
 
@@ -835,9 +835,19 @@ bool TChunkReplicator::IsReplicaDecommissioned(TNodePtrWithIndex replica)
 
 bool TChunkReplicator::HasRunningJobs(const TChunkId& chunkId)
 {
+    auto wholeChunkId = DecodeChunkId(chunkId).Id;
     auto chunkManager = Bootstrap->GetChunkManager();
-    auto jobList = chunkManager->FindJobList(chunkId);
-    return jobList && !jobList->Jobs().empty();
+    auto jobList = chunkManager->FindJobList(wholeChunkId);
+    if (!jobList) {
+        return false;
+    }
+
+    FOREACH (const auto& job, jobList->Jobs()) {
+        if (job->GetChunkId() == chunkId) {
+            return true;
+        }
+    }
+    return false;
 }
 
 void TChunkReplicator::ScheduleChunkRefresh(const TChunkId& chunkId)
@@ -1185,18 +1195,16 @@ TChunkList* TChunkReplicator::FollowParentLinks(TChunkList* chunkList)
 
 void TChunkReplicator::RegisterJob(TJobPtr job)
 {
-    const auto& jobId = job->GetJobId();
-    const auto& chunkId = job->GetChunkId();
-
-    YCHECK(JobMap.insert(std::make_pair(jobId, job)).second);
+    YCHECK(JobMap.insert(std::make_pair(job->GetJobId(), job)).second);
     YCHECK(job->GetNode()->Jobs().insert(job).second);
 
-    auto jobList = FindJobList(chunkId);
+    auto wholeChunkId = DecodeChunkId(job->GetChunkId()).Id;
+    auto jobList = FindJobList(wholeChunkId);
     if (!jobList) {
-        jobList = New<TJobList>(chunkId);
-        YCHECK(JobListMap.insert(std::make_pair(chunkId, jobList)).second);
+        jobList = New<TJobList>(wholeChunkId);
+        YCHECK(JobListMap.insert(std::make_pair(wholeChunkId, jobList)).second);
     }
-    jobList->AddJob(job);
+    YCHECK(jobList->Jobs().insert(job).second);
 
     LOG_INFO("Job registered (JobId: %s, JobType: %s, Address: %s)",
         ~ToString(job->GetJobId()),
@@ -1206,8 +1214,6 @@ void TChunkReplicator::RegisterJob(TJobPtr job)
 
 void TChunkReplicator::UnregisterJob(TJobPtr job, EJobUnregisterFlags flags)
 {
-    const auto& chunkId = job->GetChunkId();
-
     YCHECK(JobMap.erase(job->GetJobId()) == 1);
 
     if (flags & EJobUnregisterFlags::UnregisterFromNode) {
@@ -1215,16 +1221,17 @@ void TChunkReplicator::UnregisterJob(TJobPtr job, EJobUnregisterFlags flags)
     }
 
     if (flags & EJobUnregisterFlags::UnregisterFromChunk) {
-        auto jobList = FindJobList(chunkId);
+        auto wholeChunkId = DecodeChunkId(job->GetChunkId()).Id;
+        auto jobList = FindJobList(wholeChunkId);
         YCHECK(jobList);
-        jobList->RemoveJob(job);
+        YCHECK(jobList->Jobs().erase(job) == 1);
         if (jobList->Jobs().empty()) {
-            YCHECK(JobListMap.erase(chunkId) == 1);
+            YCHECK(JobListMap.erase(wholeChunkId) == 1);
         }
     }
 
     if (flags & EJobUnregisterFlags::ScheduleChunkRefresh) {
-        ScheduleChunkRefresh(chunkId);
+        ScheduleChunkRefresh(job->GetChunkId());
     }
 
     LOG_INFO("Job unregistered (JobId: %s, Address: %s)",

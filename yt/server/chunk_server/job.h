@@ -19,8 +19,11 @@ class TJob
 {
     DEFINE_BYVAL_RO_PROPERTY(TJobId, JobId);
     DEFINE_BYVAL_RO_PROPERTY(EJobType, Type);
-    // Don't try making it TChunk*.
-    // Removal jobs may refer to nonexistent chunks.
+    //! Encoded chunk id for for the job is running.
+    /*!
+     *  Don't try making it TChunk*.
+     *  Removal jobs may refer to nonexistent chunks.
+     */
     DEFINE_BYVAL_RO_PROPERTY(TChunkId, ChunkId);
     DEFINE_BYVAL_RO_PROPERTY(NNodeTrackerServer::TNode*, Node);
     DEFINE_BYREF_RO_PROPERTY(std::vector<Stroka>, TargetAddresses);
@@ -74,13 +77,10 @@ class TJobList
     : public TRefCounted
 {
     DEFINE_BYVAL_RO_PROPERTY(TChunkId, ChunkId);
-    DEFINE_BYREF_RO_PROPERTY(yhash_set<TJobPtr>, Jobs);
+    DEFINE_BYREF_RW_PROPERTY(yhash_set<TJobPtr>, Jobs);
 
 public:
     explicit TJobList(const TChunkId& chunkId);
-
-    void AddJob(TJobPtr job);
-    void RemoveJob(TJobPtr job);
 
 };
 

@@ -110,6 +110,7 @@ private:
     std::deque<TChunk*> RFUpdateList;
 
     yhash_map<TJobId, TJobPtr> JobMap;
+    //! Keyed by whole (not encoded) chunk ids.
     yhash_map<TChunkId, TJobListPtr> JobListMap;
 
     TChunkRepairQueue RepairQueue;

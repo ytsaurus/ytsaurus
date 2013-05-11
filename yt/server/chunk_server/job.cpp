@@ -102,16 +102,6 @@ TJobList::TJobList(const TChunkId& chunkId)
     : ChunkId_(chunkId)
 { }
 
-void TJobList::AddJob(TJobPtr job)
-{
-    YCHECK(Jobs_.insert(job).second);
-}
-
-void TJobList::RemoveJob(TJobPtr job)
-{
-    YCHECK(Jobs_.erase(job) == 1);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkServer
