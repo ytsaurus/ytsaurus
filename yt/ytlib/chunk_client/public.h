@@ -131,7 +131,7 @@ class TMultiChunkSequentialWriter;
 struct TChunkIdWithIndex
 {
     TChunkIdWithIndex();
-    TChunkIdWithIndex(const TChunkId& id, int index = 0);
+    TChunkIdWithIndex(const TChunkId& id, int index);
 
     TChunkId Id;
     int Index;

@@ -52,7 +52,7 @@ public:
 
     void ScheduleNodeRefresh(TNode* node);
 
-    void ScheduleUnknownChunkRemoval(TNode* node, const TChunkId& chunkdId);
+    void ScheduleUnknownChunkRemoval(TNode* node, const TChunkIdWithIndex& chunkdIdWithIndex);
     void ScheduleChunkRemoval(TNode* node, TChunkPtrWithIndex chunkWithIndex);
 
     void ScheduleRFUpdate(TChunkTree* chunkTree);
@@ -159,6 +159,7 @@ private:
 
     bool IsReplicaDecommissioned(TNodePtrWithIndex replica);
 
+    bool HasRunningJobs(const TChunkId& chunkId);
     bool HasRunningJobs(const TChunkIdWithIndex& chunkIdWithIndex);
 
     void OnRFUpdate();

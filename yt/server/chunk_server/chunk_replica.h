@@ -19,7 +19,7 @@ class TPtrWithIndex
 {
 public:
     TPtrWithIndex();
-    explicit TPtrWithIndex(T* node, int index = 0);
+    explicit TPtrWithIndex(T* node, int index);
 
     T* GetPtr() const;
     int GetIndex() const;

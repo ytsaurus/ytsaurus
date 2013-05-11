@@ -37,7 +37,7 @@ TJobPtr TJob::CreateForeign(
     return New<TJob>(
         EJobType::Foreign,
         jobId,
-        NullChunkId,
+        TChunkIdWithIndex(NullChunkId, 0),
         static_cast<TNode*>(nullptr),
         std::vector<Stroka>(),
         NErasure::TPartIndexList(),
@@ -88,7 +88,7 @@ TJobPtr TJob::CreateRepair(
     return New<TJob>(
         EJobType::RepairChunk,
         TJobId::Create(),
-        chunkId,
+        TChunkIdWithIndex(chunkId, 0),
         node,
         targetAddresses,
         erasedIndexes,

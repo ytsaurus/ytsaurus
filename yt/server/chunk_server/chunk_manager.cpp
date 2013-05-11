@@ -1248,7 +1248,7 @@ private:
                 ~FormatBool(cached));
 
             if (IsLeader()) {
-                ChunkReplicator->ScheduleUnknownChunkRemoval(node, chunkId);
+                ChunkReplicator->ScheduleUnknownChunkRemoval(node, chunkIdWithIndex);
             }
 
             return;
