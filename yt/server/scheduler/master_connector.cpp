@@ -493,7 +493,7 @@ private:
                 batchReq->AddRequest(req, "set_scheduler_address");
             }
             {
-                auto req = TYPathProxy::Set("//sys/scheduler/orchid&/@remote_address");
+                auto req = TYPathProxy::Set("//sys/scheduler/orchid/@remote_address");
                 req->set_value(ConvertToYsonString(TRawString(schedulerAddress)).Data());
                 GenerateMutationId(req);
                 batchReq->AddRequest(req, "set_orchid_address");
