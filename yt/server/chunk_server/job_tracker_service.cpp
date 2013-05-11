@@ -149,6 +149,8 @@ private:
             &jobsToRemove);
 
         FOREACH (auto job, jobsToStart) {
+            const auto& chunkIdWithIndex = job->GetChunkIdWithIndex();
+
             auto* jobInfo = response->add_jobs_to_start();
             ToProto(jobInfo->mutable_job_id(), job->GetJobId());
             *jobInfo->mutable_resource_limits() = job->ResourceUsage();
@@ -157,7 +159,7 @@ private:
             jobSpec->set_type(job->GetType());
 
             auto* chunkjobSpecExt = jobSpec->MutableExtension(TChunkJobSpecExt::chunk_job_spec_ext);
-            ToProto(chunkjobSpecExt->mutable_chunk_id(), job->GetChunkId());
+            ToProto(chunkjobSpecExt->mutable_chunk_id(), EncodeChunkId(chunkIdWithIndex));
 
             switch (job->GetType()) {
                 case EJobType::ReplicateChunk: {
@@ -170,7 +172,7 @@ private:
                     break;
 
                 case EJobType::RepairChunk: {
-                    auto chunk = chunkManager->GetChunk(job->GetChunkId());
+                    auto chunk = chunkManager->GetChunk(chunkIdWithIndex.Id);
 
                     auto* repairJobSpecExt = jobSpec->MutableExtension(TRepairJobSpecExt::repair_job_spec_ext);
                     repairJobSpecExt->set_erasure_codec(chunk->GetErasureCodec());

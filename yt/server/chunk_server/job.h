@@ -19,12 +19,12 @@ class TJob
 {
     DEFINE_BYVAL_RO_PROPERTY(TJobId, JobId);
     DEFINE_BYVAL_RO_PROPERTY(EJobType, Type);
-    //! Encoded chunk id for for the job is running.
+    //! Chunk id and index for for the job is running.
     /*!
-     *  Don't try making it TChunk*.
+     *  Don't try making it TChunkPtrWithIndex.
      *  Removal jobs may refer to nonexistent chunks.
      */
-    DEFINE_BYVAL_RO_PROPERTY(TChunkId, ChunkId);
+    DEFINE_BYVAL_RO_PROPERTY(TChunkIdWithIndex, ChunkIdWithIndex);
     DEFINE_BYVAL_RO_PROPERTY(NNodeTrackerServer::TNode*, Node);
     DEFINE_BYREF_RO_PROPERTY(std::vector<Stroka>, TargetAddresses);
     DEFINE_BYREF_RO_PROPERTY(NErasure::TPartIndexList, ErasedIndexes);
@@ -42,13 +42,13 @@ public:
         const NNodeTrackerClient::NProto::TNodeResources& resourceUsage);
 
     static TJobPtr CreateReplicate(
-        const TChunkId& chunkId,
+        const TChunkIdWithIndex& chunkIdWithIndex,
         NNodeTrackerServer::TNode* node,
         const std::vector<Stroka>& targetAddresses,
         const NNodeTrackerClient::NProto::TNodeResources& resourceUsage);
 
     static TJobPtr CreateRemove(
-        const TChunkId& chunkId,
+        const TChunkIdWithIndex& chunkIdWithIndex,
         NNodeTrackerServer::TNode* node,
         const NNodeTrackerClient::NProto::TNodeResources& resourceUsage);
 
@@ -62,7 +62,7 @@ public:
     TJob(
         EJobType type,
         const TJobId& jobId,
-        const TChunkId& chunkId,
+        const TChunkIdWithIndex& chunkIdWithIndex,
         NNodeTrackerServer::TNode* node,
         const std::vector<Stroka>& targetAddresses,
         const NErasure::TPartIndexList& erasedIndexes,

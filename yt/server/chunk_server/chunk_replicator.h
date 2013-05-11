@@ -129,7 +129,7 @@ private:
 
     EJobScheduleFlags ScheduleReplicationJob(
         TNode* sourceNode,
-        const TChunkId& chunkId,
+        const TChunkIdWithIndex& chunkIdWithIndex,
         TJobPtr* job);
     EJobScheduleFlags ScheduleBalancingJob(
         TNode* sourceNode,
@@ -138,7 +138,7 @@ private:
         TJobPtr* jobsToStart);
     EJobScheduleFlags ScheduleRemovalJob(
         TNode* node,
-        const TChunkId& chunkId,
+        const TChunkIdWithIndex& chunkIdWithIndex,
         TJobPtr* job);
     EJobScheduleFlags ScheduleRepairJob(
         TNode* node,
@@ -159,7 +159,7 @@ private:
 
     bool IsReplicaDecommissioned(TNodePtrWithIndex replica);
 
-    bool HasRunningJobs(const TChunkId& chunkId);
+    bool HasRunningJobs(const TChunkIdWithIndex& chunkIdWithIndex);
 
     void OnRFUpdate();
     void OnRFUpdateCommitSucceeded();

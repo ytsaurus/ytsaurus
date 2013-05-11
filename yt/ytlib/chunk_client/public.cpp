@@ -23,6 +23,17 @@ TChunkIdWithIndex::TChunkIdWithIndex(const TChunkId& id, int index)
     , Index(index)
 { }
 
+bool operator == (const TChunkIdWithIndex& lhs, const TChunkIdWithIndex& rhs)
+{
+    return lhs.Id == rhs.Id && lhs.Index == rhs.Index;
+}
+
+bool operator != (const TChunkIdWithIndex& lhs, const TChunkIdWithIndex& rhs)
+{
+
+    return !(lhs == rhs);
+}
+
 Stroka ToString(const TChunkIdWithIndex& id)
 {
     return Sprintf("%s/%d", ~ToString(id.Id), id.Index);

@@ -57,10 +57,10 @@ class TNode
 
 
     //! Indexed by priority.
-    typedef std::vector<yhash_set<TChunkId>> TChunkReplicationQueues;
+    typedef std::vector<yhash_set<NChunkClient::TChunkIdWithIndex>> TChunkReplicationQueues;
     DEFINE_BYREF_RW_PROPERTY(TChunkReplicationQueues, ChunkReplicationQueues);
 
-    typedef yhash_set<TChunkId> TChunkRemovalQueue;
+    typedef yhash_set<NChunkClient::TChunkIdWithIndex> TChunkRemovalQueue;
     DEFINE_BYREF_RW_PROPERTY(TChunkRemovalQueue, ChunkRemovalQueue);
 
 public:

@@ -131,11 +131,14 @@ class TMultiChunkSequentialWriter;
 struct TChunkIdWithIndex
 {
     TChunkIdWithIndex();
-    TChunkIdWithIndex(const TChunkId& id, int index);
+    TChunkIdWithIndex(const TChunkId& id, int index = 0);
 
     TChunkId Id;
     int Index;
 };
+
+bool operator == (const TChunkIdWithIndex& lhs, const TChunkIdWithIndex& rhs);
+bool operator != (const TChunkIdWithIndex& lhs, const TChunkIdWithIndex& rhs);
 
 Stroka ToString(const TChunkIdWithIndex& id);
 
@@ -183,3 +186,20 @@ typedef std::vector<TChannel> TChannels;
 
 } // namespace NChunkClient
 } // namespace NYT
+
+///////////////////////////////////////////////////////////////////////////////
+
+DECLARE_PODTYPE(NYT::NChunkClient::TChunkIdWithIndex)
+
+//! A hasher for TChunkIdWithIndex.
+template <>
+struct hash<NYT::NChunkClient::TChunkIdWithIndex>
+{
+    inline size_t operator()(const NYT::NChunkClient::TChunkIdWithIndex& value) const
+    {
+        return THash<NYT::NChunkClient::TChunkId>()(value.Id) * 497 +
+            value.Index;
+    }
+};
+
+///////////////////////////////////////////////////////////////////////////////

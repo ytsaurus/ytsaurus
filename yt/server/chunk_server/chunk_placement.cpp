@@ -311,7 +311,7 @@ bool TChunkPlacement::IsValidBalancingTarget(TNode* node, TChunkPtrWithIndex chu
 
     auto chunkManager = Bootstrap->GetChunkManager();
     FOREACH (const auto& job, node->Jobs()) {
-        if (job->GetChunkId() == chunkWithIndex.GetPtr()->GetId()) {
+        if (job->GetChunkIdWithIndex().Id == chunkWithIndex.GetPtr()->GetId()) {
             // Do not balance to a node already having a job associated with this chunk.
             return false;
         }
@@ -333,7 +333,7 @@ std::vector<TChunkPtrWithIndex> TChunkPlacement::GetBalancingChunks(TNode* node,
     yhash_set<TChunkId> forbiddenChunkIds;
     auto chunkManager = Bootstrap->GetChunkManager();
     FOREACH (const auto& job, node->Jobs()) {
-        forbiddenChunkIds.insert(job->GetChunkId());
+        forbiddenChunkIds.insert(job->GetChunkIdWithIndex().Id);
     }
 
     // Right now we just pick some (not even random!) chunks.

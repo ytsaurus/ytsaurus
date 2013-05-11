@@ -13,7 +13,7 @@ using namespace NNodeTrackerClient::NProto;
 TJob::TJob(
     EJobType type,
     const TJobId& jobId,
-    const TChunkId& chunkId,
+    const TChunkIdWithIndex& chunkIdWithIndex,
     TNode* node,
     const std::vector<Stroka>& targetAddresses,
     const NErasure::TPartIndexList& erasedIndexes,
@@ -21,7 +21,7 @@ TJob::TJob(
     const TNodeResources& resourceUsage)
     : JobId_(jobId)
     , Type_(type)
-    , ChunkId_(chunkId)
+    , ChunkIdWithIndex_(chunkIdWithIndex)
     , Node_(node)
     , TargetAddresses_(targetAddresses)
     , ErasedIndexes_(erasedIndexes)
@@ -46,7 +46,7 @@ TJobPtr TJob::CreateForeign(
 }
 
 TJobPtr TJob::CreateReplicate(
-    const TChunkId& chunkId,
+    const TChunkIdWithIndex& chunkIdWithIndex,
     TNode* node,
     const std::vector<Stroka>& targetAddresses,
     const NNodeTrackerClient::NProto::TNodeResources& resourceUsage)
@@ -54,7 +54,7 @@ TJobPtr TJob::CreateReplicate(
     return New<TJob>(
         EJobType::ReplicateChunk,
         TJobId::Create(),
-        chunkId,
+        chunkIdWithIndex,
         node,
         targetAddresses,
         NErasure::TPartIndexList(),
@@ -63,14 +63,14 @@ TJobPtr TJob::CreateReplicate(
 }
 
 TJobPtr TJob::CreateRemove(
-    const TChunkId& chunkId,
+    const TChunkIdWithIndex& chunkIdWithIndex,
     NNodeTrackerServer::TNode* node,
     const NNodeTrackerClient::NProto::TNodeResources& resourceUsage)
 {
     return New<TJob>(
         EJobType::RemoveChunk,
         TJobId::Create(),
-        chunkId,
+        chunkIdWithIndex,
         node,
         std::vector<Stroka>(),
         NErasure::TPartIndexList(),
