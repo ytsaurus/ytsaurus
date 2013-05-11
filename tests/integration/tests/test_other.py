@@ -187,13 +187,13 @@ class TestChunkServer(YTEnvSetup):
         assert len(nodes) == 3
 
         node_to_decommission = nodes[0]
-        assert get('//sys/nodes/%s/@stored_chunk_count' % node_to_decommission) == 1
+        assert get('//sys/nodes/%s/@stored_replica_count' % node_to_decommission) == 1
 
         set('//sys/nodes/%s/@decommissioned' % node_to_decommission, 'true')
 
         time.sleep(3) # wait for background replication
 
-        assert get('//sys/nodes/%s/@safely_stored_chunk_count' % node_to_decommission) == 1
+        assert get('//sys/nodes/%s/@safely_stored_replica_count' % node_to_decommission) == 1
         assert len(get('#%s/@stored_replicas' % chunk_id)) == 4
 
         set('//sys/nodes/%s/@decommissioned' % node_to_decommission, 'false')
