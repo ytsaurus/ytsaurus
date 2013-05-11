@@ -81,7 +81,7 @@ def list(args):
         if list.attributes.get("incomplete", "false") == "true":
             print >>sys.stderr, "List is incomplete!"
         if args.attribute is not None:
-            print >>sys.stderr, "Attributes is ignored if format is not specified!"
+            print >>sys.stderr, "Attributes are ignored if format is not specified!"
         for elem in list:
             if args.long_format:
                 path = args.path + "/" + elem
