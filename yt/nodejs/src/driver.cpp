@@ -52,7 +52,7 @@ static Persistent<String> DescriptorIsHeavy;
 struct TExecuteRequest
 {
     uv_work_t Request;
-    TDriverWrap* Host;
+    TDriverWrap* Wrap;
 
     TNodeJSInputStack InputStack;
     TNodeJSOutputStack OutputStack;
@@ -63,18 +63,19 @@ struct TExecuteRequest
     TDriverResponse DriverResponse;
 
     TExecuteRequest(
-        TDriverWrap* host,
+        TDriverWrap* wrap,
         TInputStreamWrap* inputStream,
         TOutputStreamWrap* outputStream,
         Handle<Function> callback)
-        : Host(host)
+        : Wrap(wrap)
         , InputStack(inputStream)
         , OutputStack(outputStream)
         , Callback(Persistent<Function>::New(callback))
     {
         THREAD_AFFINITY_IS_V8();
-        YASSERT(Host);
-        Host->Ref();
+        YASSERT(Wrap);
+
+        Wrap->Ref();
     }
 
     ~TExecuteRequest()
@@ -84,7 +85,7 @@ struct TExecuteRequest
         Callback.Dispose();
         Callback.Clear();
 
-        Host->Unref();
+        Wrap->Unref();
     }
 
     TInputStreamWrap* GetNodeJSInputStream()
@@ -112,19 +113,9 @@ struct TExecuteRequest
         InputStack.AddCompression(compression);
     }
 
-    void SetInputFormat(INodePtr format)
-    {
-        DriverRequest.InputFormat = ConvertTo<TFormat>(std::move(format));
-    }
-
     void SetOutputCompression(ECompression compression)
     {
         OutputStack.AddCompression(compression);
-    }
-
-    void SetOutputFormat(INodePtr format)
-    {
-        DriverRequest.OutputFormat = ConvertTo<TFormat>(std::move(format));
     }
 
     void Prepare()
@@ -217,6 +208,21 @@ void Invoke(
     TryCatch catcher;
 
     Handle<Value> args[] = { a1 };
+    callback->Call(Context::GetCurrent()->Global(), ARRAY_SIZE(args), args);
+    if (catcher.HasCaught()) {
+        node::FatalException(catcher);
+    }
+}
+
+// Assuming presence of outer HandleScope.
+void Invoke(
+    const Handle<Function>& callback,
+    const Handle<Value>& a1,
+    const Handle<Value>& a2)
+{
+    TryCatch catcher;
+
+    Handle<Value> args[] = { a1, a2 };
     callback->Call(Context::GetCurrent()->Global(), ARRAY_SIZE(args), args);
     if (catcher.HasCaught()) {
         node::FatalException(catcher);
@@ -334,21 +340,21 @@ Handle<Value> TDriverWrap::New(const Arguments& args)
     EXPECT_THAT_IS(args[0], Boolean);
     EXPECT_THAT_IS(args[1], Object);
 
-    TDriverWrap* host = NULL;
+    TDriverWrap* wrap = NULL;
     try {
-        host = new TDriverWrap(
+        wrap = new TDriverWrap(
             args[0]->BooleanValue(),
             args[1].As<Object>());
-        host->Wrap(args.This());
+        wrap->Wrap(args.This());
 
-        if (host->Driver) {
+        if (wrap->Driver) {
             return args.This();
         } else {
-            return ThrowException(Exception::Error(String::New(~host->Message)));
+            return ThrowException(Exception::Error(String::New(~wrap->Message)));
         }
     } catch (const std::exception& ex) {
-        if (host) {
-            delete host;
+        if (wrap) {
+            delete wrap;
         }
 
         return ThrowException(Exception::Error(String::New(ex.what())));
@@ -435,14 +441,12 @@ Handle<Value> TDriverWrap::Execute(const Arguments& args)
 
     EXPECT_THAT_HAS_INSTANCE(args[2], TInputStreamWrap); // InputStream
     EXPECT_THAT_IS(args[3], Uint32); // InputCompression
-    EXPECT_THAT_HAS_INSTANCE(args[4], TNodeWrap); // InputFormat
 
-    EXPECT_THAT_HAS_INSTANCE(args[5], TOutputStreamWrap); // OutputStream
-    EXPECT_THAT_IS(args[6], Uint32); // OutputCompression
-    EXPECT_THAT_HAS_INSTANCE(args[7], TNodeWrap); // OutputFormat)
+    EXPECT_THAT_HAS_INSTANCE(args[4], TOutputStreamWrap); // OutputStream
+    EXPECT_THAT_IS(args[5], Uint32); // OutputCompression
 
-    EXPECT_THAT_HAS_INSTANCE(args[8], TNodeWrap); // Parameters
-    EXPECT_THAT_IS(args[9], Function); // Callback
+    EXPECT_THAT_HAS_INSTANCE(args[6], TNodeWrap); // Parameters
+    EXPECT_THAT_IS(args[7], Function); // Callback
 
     // Unwrap arguments.
     TDriverWrap* host = ObjectWrap::Unwrap<TDriverWrap>(args.This());
@@ -454,20 +458,16 @@ Handle<Value> TDriverWrap::Execute(const Arguments& args)
         ObjectWrap::Unwrap<TInputStreamWrap>(args[2].As<Object>());
     ECompression inputCompression =
         (ECompression)args[3]->Uint32Value();
-    INodePtr inputFormat = TNodeWrap::UnwrapNode(args[4]);
 
     TOutputStreamWrap* outputStream =
-        ObjectWrap::Unwrap<TOutputStreamWrap>(args[5].As<Object>());
+        ObjectWrap::Unwrap<TOutputStreamWrap>(args[4].As<Object>());
     ECompression outputCompression =
-        (ECompression)args[6]->Uint32Value();
-    INodePtr outputFormat = TNodeWrap::UnwrapNode(args[7]);
+        (ECompression)args[5]->Uint32Value();
 
-    INodePtr parameters = TNodeWrap::UnwrapNode(args[8]);
-    Local<Function> callback = args[9].As<Function>();
+    INodePtr parameters = TNodeWrap::UnwrapNode(args[6]);
+    Local<Function> callback = args[7].As<Function>();
 
     // Build an atom of work.
-    YCHECK(inputFormat);
-    YCHECK(outputFormat);
     YCHECK(parameters);
     YCHECK(parameters->GetType() == ENodeType::Map);
 
@@ -484,16 +484,13 @@ Handle<Value> TDriverWrap::Execute(const Arguments& args)
             std::move(parameters));
 
         request->SetInputCompression(inputCompression);
-        request->SetInputFormat(std::move(inputFormat));
-
         request->SetOutputCompression(outputCompression);
-        request->SetOutputFormat(std::move(outputFormat));
 
         request->Prepare();
 
         uv_queue_work(
             uv_default_loop(), &request.Release()->Request,
-            TDriverWrap::ExecuteWork, TDriverWrap::ExecuteAfter);
+            &TDriverWrap::ExecuteWork, &TDriverWrap::ExecuteAfter);
     } catch (const std::exception& ex) {
         TError error(ex);
         LOG_DEBUG(error, "Unexpected exception while creating TExecuteRequest");
@@ -509,17 +506,17 @@ void TDriverWrap::ExecuteWork(uv_work_t* workRequest)
     THREAD_AFFINITY_IS_UV();
     TExecuteRequest* request = container_of(workRequest, TExecuteRequest, Request);
 
-    if (LIKELY(!request->Host->Echo)) {
+    if (LIKELY(!request->Wrap->Echo)) {
         // Execute() method is guaranteed to be exception-safe,
         // so no try-catch here.
-        request->DriverResponse = request->Host->Driver->Execute(request->DriverRequest);
+        request->DriverResponse = request->Wrap->Driver->Execute(request->DriverRequest);
     } else {
         TTempBuf buffer;
         auto inputStream = request->DriverRequest.InputStream;
         auto outputStream = request->DriverRequest.OutputStream;
 
-        while (size_t bytesRead = inputStream->Read(buffer.Data(), buffer.Size())) {
-            outputStream->Write(buffer.Data(), bytesRead);
+        while (size_t length = inputStream->Load(buffer.Data(), buffer.Size())) {
+            outputStream->Write(buffer.Data(), length);
         }
 
         request->DriverResponse = TDriverResponse();
