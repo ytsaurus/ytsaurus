@@ -163,7 +163,10 @@ private:
 
     virtual TResolveResult ResolveSelf(const TYPath& path, IServiceContextPtr context) override
     {
-        if (Options & EVirtualNodeOptions::RedirectSelf) {
+        const auto& verb = context->GetVerb();
+        if (Options & EVirtualNodeOptions::RedirectSelf &&
+            verb != "Remove")
+        {
             return TResolveResult::There(Service, path);
         } else {
             return TBase::ResolveSelf(path, context);
@@ -185,7 +188,7 @@ private:
 
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
     {
-        auto* provider = GetWrappedSystemAttributeProvider();
+        auto* provider = GetTargetSystemAttributeProvider();
         if (provider) {
             provider->ListSystemAttributes(attributes);
         }
@@ -195,7 +198,7 @@ private:
 
     virtual bool GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
-        auto* provider = GetWrappedSystemAttributeProvider();
+        auto* provider = GetTargetSystemAttributeProvider();
         if (provider && provider->GetSystemAttribute(key, consumer)) {
             return true;
         }
@@ -205,7 +208,7 @@ private:
 
     virtual bool SetSystemAttribute(const Stroka& key, const TYsonString& value) override
     {
-        auto* provider = GetWrappedSystemAttributeProvider();
+        auto* provider = GetTargetSystemAttributeProvider();
         if (provider && provider->SetSystemAttribute(key, value)) {
             return true;
         }
@@ -223,7 +226,7 @@ private:
         return TBase::DoInvoke(context);
     }
 
-    ISystemAttributeProvider* GetWrappedSystemAttributeProvider()
+    ISystemAttributeProvider* GetTargetSystemAttributeProvider()
     {
         return dynamic_cast<ISystemAttributeProvider*>(~Service);
     }
