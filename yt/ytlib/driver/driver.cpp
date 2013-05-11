@@ -117,8 +117,8 @@ public:
 
         REGISTER(TParseYPathCommand,        "parse_ypath",       Null,       Structured, false, false);
 
-        REGISTER(TAddMemberCommand,         "add_member",        Structured, Null,       true,  false);
-        REGISTER(TRemoveMemberCommand,      "remove_member",     Structured, Null,       true,  false);
+        REGISTER(TAddMemberCommand,         "add_member",        Null,       Null,       true,  false);
+        REGISTER(TRemoveMemberCommand,      "remove_member",     Null,       Null,       true,  false);
         REGISTER(TCheckPersmissionCommand,  "check_permission",  Null,       Structured, false, false);
 #undef REGISTER
     }
