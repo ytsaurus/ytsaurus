@@ -56,7 +56,7 @@ public:
         , TrunkNode(trunkNode)
         , Transaction(transaction)
     {
-        YASSERT(trunkNode->IsTrunk());
+        YCHECK(trunkNode->IsTrunk());
     }
 
     TResolveResult Resolve(
