@@ -35,7 +35,7 @@ class TablePath(object):
         else:
             self.name = YsonString(name)
 
-        if self.name != "/" and not self.name.startswith("//"):
+        if self.name != "/" and not self.name.startswith("//") and not self.name.startswith("#"):
             prefix = config.PREFIX
             require(prefix,
                     YtError("Path (%s) should be absolute or you should specify prefix" % self.name))

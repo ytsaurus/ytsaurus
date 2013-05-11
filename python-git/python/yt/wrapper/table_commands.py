@@ -513,11 +513,10 @@ class Finalizer(object):
         logger.warning("Chunks of output table {0} are too small. "
                        "This may cause suboptimal system performance. "
                        "If this table is not temporaty then consider running the following command:\n"
-                       "mapreduce-yt -merge -mode {1} -src {0} -dst {0} "
-                       "-ytspec '{{"
-                          "\"combine_chunks\": \"true\", "
-                          "\"job_io\":{{\"table_reader\":{{\"prefetch_window\":100}} }}, "
-                          "\"data_size_per_job\": {2}"
+                       "yt merge --mode {1} --src {0} --dst {0} "
+                       "--spec '{{"
+                          "combine_chunks=true;"
+                          "data_size_per_job={2}"
                        "}}'".format(table, mode, data_size_per_job))
 
 def run_map_reduce(mapper, reducer, source_table, destination_table,
