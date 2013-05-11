@@ -82,10 +82,12 @@ INodeTypeHandlerPtr CreateAccountMapTypeHandler(TBootstrap* bootstrap)
 {
     YCHECK(bootstrap);
 
+    auto service = New<TVirtualAccountMap>(bootstrap);
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::AccountMap,
-        New<TVirtualAccountMap>(bootstrap));
+        service,
+        EVirtualNodeOptions(EVirtualNodeOptions::RequireLeader | EVirtualNodeOptions::RedirectSelf));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -130,10 +132,12 @@ INodeTypeHandlerPtr CreateUserMapTypeHandler(TBootstrap* bootstrap)
 {
     YCHECK(bootstrap);
 
+    auto service = New<TVirtualUserMap>(bootstrap);
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::UserMap,
-        New<TVirtualUserMap>(bootstrap));
+        service,
+        EVirtualNodeOptions(EVirtualNodeOptions::RequireLeader | EVirtualNodeOptions::RedirectSelf));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -178,10 +182,12 @@ INodeTypeHandlerPtr CreateGroupMapTypeHandler(TBootstrap* bootstrap)
 {
     YCHECK(bootstrap);
 
+    auto service = New<TVirtualGroupMap>(bootstrap);
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::GroupMap,
-        New<TVirtualGroupMap>(bootstrap));
+        service,
+        EVirtualNodeOptions(EVirtualNodeOptions::RequireLeader | EVirtualNodeOptions::RedirectSelf));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

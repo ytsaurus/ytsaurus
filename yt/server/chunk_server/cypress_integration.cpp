@@ -121,7 +121,11 @@ INodeTypeHandlerPtr CreateChunkMapTypeHandler(TBootstrap* bootstrap, EObjectType
     YCHECK(bootstrap);
 
     auto service = New<TVirtualChunkMap>(bootstrap, type);
-    return CreateVirtualTypeHandler(bootstrap, type, service, true);
+    return CreateVirtualTypeHandler(
+        bootstrap,
+        type,
+        service,
+        EVirtualNodeOptions(EVirtualNodeOptions::RequireLeader | EVirtualNodeOptions::RedirectSelf));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -168,10 +172,12 @@ INodeTypeHandlerPtr CreateChunkListMapTypeHandler(TBootstrap* bootstrap)
 {
     YCHECK(bootstrap);
 
+    auto service = New<TVirtualChunkListMap>(bootstrap);
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::ChunkListMap,
-        New<TVirtualChunkListMap>(bootstrap));
+        service,
+        EVirtualNodeOptions(EVirtualNodeOptions::RequireLeader | EVirtualNodeOptions::RedirectSelf));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

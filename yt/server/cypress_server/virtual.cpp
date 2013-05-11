@@ -15,6 +15,8 @@ namespace NCypressServer {
 
 using namespace NRpc;
 using namespace NYTree;
+using namespace NYTree;
+using namespace NYson;
 using namespace NCellMaster;
 using namespace NTransactionServer;
 using namespace NObjectServer;
@@ -28,6 +30,7 @@ public:
     explicit TVirtualNode(const TVersionedNodeId& id)
         : TCypressNodeBase(id)
     { }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -68,7 +71,7 @@ public:
 
     // TODO(panin): remove this when getting rid of IAttributeProvider
     virtual void SerializeAttributes(
-        NYson::IYsonConsumer* consumer,
+        IYsonConsumer* consumer,
         const TAttributeFilter& filter) override
     {
         YUNREACHABLE();
@@ -117,7 +120,7 @@ public:
 
     // TODO(panin): remove this when getting rid of IAttributeProvider
     virtual void SerializeAttributes(
-        NYson::IYsonConsumer* consumer,
+        IYsonConsumer* consumer,
         const TAttributeFilter& filter) override
     {
         UnderlyingService->SerializeAttributes(consumer, filter);
@@ -141,49 +144,88 @@ public:
         TTransaction* transaction,
         TVirtualNode* trunkNode,
         IYPathServicePtr service,
-        bool requireLeader)
+        EVirtualNodeOptions options)
         : TBase(
             typeHandler,
             bootstrap,
             transaction,
             trunkNode)
         , Service(service)
-        , RequireLeader(requireLeader)
+        , Options(options)
     { }
-
-    virtual TResolveResult Resolve(const TYPath& path, IServiceContextPtr context) override
-    {
-        const auto& verb = context->GetVerb();
-
-        NYPath::TTokenizer tokenizer(path);
-        auto type = tokenizer.Advance();
-        if (type == NYPath::ETokenType::Ampersand ||
-            type == NYPath::ETokenType::EndOfStream &&
-                (verb == "Create" || verb == "Remove"))
-        {
-            return TBase::Resolve(tokenizer.GetSuffix(), context);
-        }
-
-        if (RequireLeader && !Bootstrap->GetMetaStateFacade()->IsActiveLeader()) {
-            return TResolveResult::Here(path);
-        }
-
-        return TResolveResult::There(Service, path);
-    }
 
 private:
     typedef TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, IEntityNode, TVirtualNode> TBase;
 
     IYPathServicePtr Service;
-    bool RequireLeader;
+    EVirtualNodeOptions Options;
+
+
+    virtual TResolveResult ResolveSelf(const TYPath& path, IServiceContextPtr context) override
+    {
+        if (Options & EVirtualNodeOptions::RedirectSelf) {
+            return TResolveResult::There(Service, path);
+        } else {
+            return TBase::ResolveSelf(path, context);
+        }
+    }
+
+    virtual TResolveResult ResolveRecursive(const TYPath& path, IServiceContextPtr context) override
+    {
+        NYPath::TTokenizer tokenizer(path);
+        switch (tokenizer.Advance()) {
+            case NYPath::ETokenType::EndOfStream:
+            case NYPath::ETokenType::Slash:
+                return TResolveResult::There(Service, path);
+            default:
+                return TResolveResult::There(Service, "/" + path);
+        }
+    }
+
+
+    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
+    {
+        auto* provider = GetWrappedSystemAttributeProvider();
+        if (provider) {
+            provider->ListSystemAttributes(attributes);
+        }
+
+        TBase::ListSystemAttributes(attributes);
+    }
+
+    virtual bool GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) override
+    {
+        auto* provider = GetWrappedSystemAttributeProvider();
+        if (provider && provider->GetSystemAttribute(key, consumer)) {
+            return true;
+        }
+
+        return TBase::GetSystemAttribute(key, consumer);
+    }
+
+    virtual bool SetSystemAttribute(const Stroka& key, const TYsonString& value) override
+    {
+        auto* provider = GetWrappedSystemAttributeProvider();
+        if (provider && provider->SetSystemAttribute(key, value)) {
+            return true;
+        }
+
+        return TBase::SetSystemAttribute(key, value);
+    }
 
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override
     {
         auto metaStateFacade = Bootstrap->GetMetaStateFacade();
-        if (RequireLeader && !metaStateFacade->GetManager()->GetMutationContext()) {
+        if ((Options & EVirtualNodeOptions::RequireLeader) && !metaStateFacade->GetManager()->GetMutationContext()) {
             metaStateFacade->ValidateActiveLeader();
         }
+
         return TBase::DoInvoke(context);
+    }
+
+    ISystemAttributeProvider* GetWrappedSystemAttributeProvider()
+    {
+        return dynamic_cast<ISystemAttributeProvider*>(~Service);
     }
 
 };
@@ -194,17 +236,15 @@ class TVirtualNodeTypeHandler
     : public TCypressNodeTypeHandlerBase<TVirtualNode>
 {
 public:
-    typedef TVirtualNodeTypeHandler TThis;
-
     TVirtualNodeTypeHandler(
         TBootstrap* bootstrap,
         TYPathServiceProducer producer,
         EObjectType objectType,
-        bool requireLeader)
+        EVirtualNodeOptions options)
         : TCypressNodeTypeHandlerBase<TVirtualNode>(bootstrap)
         , Producer(producer)
         , ObjectType(objectType)
-        , RequireLeader(requireLeader)
+        , Options(options)
     { }
 
     virtual EObjectType GetObjectType() override
@@ -220,7 +260,7 @@ public:
 private:
     TYPathServiceProducer Producer;
     EObjectType ObjectType;
-    bool RequireLeader;
+    EVirtualNodeOptions Options;
 
     virtual ICypressNodeProxyPtr DoGetProxy(
         TVirtualNode* trunkNode,
@@ -233,7 +273,7 @@ private:
             transaction,
             trunkNode,
             service,
-            RequireLeader);
+            Options);
     }
 
 
@@ -243,20 +283,20 @@ INodeTypeHandlerPtr CreateVirtualTypeHandler(
     TBootstrap* bootstrap,
     EObjectType objectType,
     TYPathServiceProducer producer,
-    bool requireLeader)
+    EVirtualNodeOptions options)
 {
     return New<TVirtualNodeTypeHandler>(
         bootstrap,
         producer,
         objectType,
-        requireLeader);
+        options);
 }
 
 INodeTypeHandlerPtr CreateVirtualTypeHandler(
     TBootstrap* bootstrap,
     EObjectType objectType,
     IYPathServicePtr service,
-    bool requireLeader)
+    EVirtualNodeOptions options)
 {
     return CreateVirtualTypeHandler(
         bootstrap,
@@ -266,7 +306,7 @@ INodeTypeHandlerPtr CreateVirtualTypeHandler(
             UNUSED(transaction);
             return service;
         }),
-        requireLeader);
+        options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

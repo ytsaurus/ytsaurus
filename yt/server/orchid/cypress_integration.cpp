@@ -185,7 +185,8 @@ INodeTypeHandlerPtr CreateOrchidTypeHandler(TBootstrap* bootstrap)
         EObjectType::Orchid,
         BIND([=] (TCypressNodeBase* trunkNode, TTransaction* transaction) -> IYPathServicePtr {
             return New<TOrchidYPathService>(bootstrap, trunkNode, transaction);
-        }));
+        }),
+        EVirtualNodeOptions::None);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

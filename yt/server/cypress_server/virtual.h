@@ -11,6 +11,12 @@ namespace NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_FLAGGED_ENUM(EVirtualNodeOptions,
+    ((None)            (0x0000))
+    ((RequireLeader)   (0x0001))
+    ((RedirectSelf)    (0x0002))
+);
+
 typedef
     TCallback< NYTree::IYPathServicePtr(TCypressNodeBase*, NTransactionServer::TTransaction*) >
     TYPathServiceProducer;
@@ -19,13 +25,13 @@ INodeTypeHandlerPtr CreateVirtualTypeHandler(
     NCellMaster::TBootstrap* bootstrap,
     NObjectClient::EObjectType objectType,
     TYPathServiceProducer producer,
-    bool requireLeader = false);
+    EVirtualNodeOptions options);
 
 INodeTypeHandlerPtr CreateVirtualTypeHandler(
     NCellMaster::TBootstrap* bootstrap,
     NObjectClient::EObjectType objectType,
     NYTree::IYPathServicePtr service,
-    bool requireLeader = false);
+    EVirtualNodeOptions options);
 
 ////////////////////////////////////////////////////////////////////////////////
 

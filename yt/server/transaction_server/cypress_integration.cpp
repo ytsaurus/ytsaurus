@@ -91,10 +91,12 @@ INodeTypeHandlerPtr CreateTransactionMapTypeHandler(TBootstrap* bootstrap, EObje
 {
     YCHECK(bootstrap);
 
+    auto service = New<TVirtualTransactionMap>(bootstrap, type);
     return CreateVirtualTypeHandler(
         bootstrap,
         type,
-        New<TVirtualTransactionMap>(bootstrap, type));
+        service,
+        EVirtualNodeOptions(EVirtualNodeOptions::RequireLeader | EVirtualNodeOptions::RedirectSelf));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
