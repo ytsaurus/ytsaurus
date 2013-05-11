@@ -1252,7 +1252,7 @@ IYPathService::TResolveResult TLinkNodeProxy::Resolve(
         case NYPath::ETokenType::Ampersand:
             return TBase::Resolve(tokenizer.GetSuffix(), context);
         case NYPath::ETokenType::EndOfStream:
-            // NB: Always handle RemoveThis locally.
+            // NB: Always handle Remove locally.
             return context->GetVerb() == "Remove"
                    ? TResolveResult::Here(path)
                    : TResolveResult::There(GetTargetService(), path);
