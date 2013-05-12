@@ -140,7 +140,7 @@ class YTEnv(object):
         self.pids_file.write(str(pid) + '\n')
         self.pids_file.flush();
 
-    def _run(self, args, name):
+    def _run(self, args, name, timeout=0.5):
         if self.supress_yt_output:
             stdout = open("/dev/null", "w")
             stderr = open("/dev/null", "w")
@@ -152,8 +152,11 @@ class YTEnv(object):
         self.process_to_kill.append((p, name))
         self._append_pid(p.pid)
 
-        time.sleep(0.1)
-        assert not p.poll(), "Process unexpectedly terminated"
+        time.sleep(timeout)
+        if p.poll():
+            print >>sys.stderr, "Process %s unexpectedly terminated." % name
+            print >>sys.stderr, "Check that there are no other incarnations of this process."
+            assert False, "Process unexpectedly terminated"
 
     def _run_ytserver(self, service_name, configs):
         for i in xrange(len(configs)):
@@ -391,7 +394,7 @@ class YTEnv(object):
         with open(config_path, "w") as f:
             f.write(json.dumps(proxy_config))
 
-        self._run(['run_proxy.sh', "-c", config_path, "-l", "/dev/null"], "proxy")
+        self._run(['run_proxy.sh', "-c", config_path, "-l", "/dev/null"], "proxy", timeout=5.0)
 
         def started():
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
