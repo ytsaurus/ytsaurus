@@ -435,14 +435,15 @@ test_force_drop()
     gen_data()
     {
         echo -e "a\tb"
-        sleep 100
+        sleep 4
         echo -e "x\ty"
     }
 
     ./mapreduce -drop "ignat/some_table" -force
     ./mapreduce -createtable "ignat/some_table"
 
-    gen_data 2 | ./mapreduce -append -write "ignat/some_table" &
+    gen_data | ./mapreduce -append -write "ignat/some_table" &
+    bg_pid=$!
 
     sleep 2
 
@@ -451,6 +452,8 @@ test_force_drop()
     ./mapreduce -drop "ignat/some_table" -force
 
     check "" "`./mapreduce -read ignat/some_table`"
+
+    kill $bg_pid
 }
 
 test_parallel_dstappend()
