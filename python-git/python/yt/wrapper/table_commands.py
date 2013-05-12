@@ -9,13 +9,12 @@ from tree_commands import exists, remove, remove_with_empty_dirs, get_attribute,
 from file_commands import smart_upload_file
 from transaction_commands import _make_transactional_request
 from transaction import PingableTransaction
-from string_iter_io import StringIterIO
 from format import RawFormat
+import logger
 
 import os
 import sys
 import types
-import logger
 from cStringIO import StringIO
 
 """ Auxiliary methods """
@@ -192,18 +191,18 @@ def _make_operation_request(command_name, spec, strategy, finalizer=None, verbos
 
 class Buffer(object):
     """ Reads line iterator by chunks """
-    def __init__(self, input_stream, format):
+    def __init__(self, input_stream):
         self._input_stream = input_stream
         self._empty = False
-        self._format = format
 
     def get(self, bytes=None):
         if bytes is None:
             bytes = config.WRITE_BUFFER_SIZE
         read_bytes = 0
         while read_bytes < bytes:
-            row = self._format.read_row(self._input_stream)
-            if not row:
+            try:
+                row = next(self._input_stream)
+            except StopIteration:
                 self._empty = True
                 break
             read_bytes += len(row)
@@ -257,10 +256,26 @@ def write_table(table, input_stream, format=None, table_writer=None, replication
     """
     table = to_table(table)
     format = _prepare_format(format)
+
+    def split_rows(stream):
+        while True:
+            row = format.read_row(stream)
+            if row:
+                yield row
+            else:
+                return
+
+    can_split_input = True
     if isinstance(input_stream, types.ListType):
-        input_stream = StringIterIO(iter(input_stream))
+        input_stream = iter(input_stream)
+    elif isinstance(input_stream, file) or \
+            (hasattr(input_stream, "read") and  hasattr(input_stream, "readline")):
+        if hasattr(format, "read_row"):
+            input_stream = split_rows(input_stream)
+        else:
+            can_split_input = False
     elif isinstance(input_stream, str):
-        input_stream = StringIO(input_stream)
+        input_stream = split_rows(StringIO(input_stream))
 
     with PingableTransaction(
             config.WRITE_TRANSACTION_TIMEOUT,
@@ -272,9 +287,9 @@ def write_table(table, input_stream, format=None, table_writer=None, replication
             create_table(table.name, ignore_existing=True,
                          replication_factor=replication_factor, compression_codec=compression_codec)
 
-        if config.USE_RETRIES_DURING_WRITE and not isinstance(format, RawFormat):
+        if config.USE_RETRIES_DURING_WRITE and can_split_input:
             started = False
-            buffer = Buffer(input_stream, format)
+            buffer = Buffer(input_stream)
             while not buffer.empty():
                 if started:
                     table.append = True
@@ -297,6 +312,8 @@ def write_table(table, input_stream, format=None, table_writer=None, replication
                             raise
                 started = True
         else:
+            if config.USE_RETRIES_DURING_WRITE:
+                logger.warning("Cannot split input into rows. Write is processing by one request.")
             params = {"path": table.get_json()}
             if table_writer is not None:
                 params["table_writer"] = table_writer
