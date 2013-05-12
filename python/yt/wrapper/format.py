@@ -15,9 +15,6 @@ class Format(object):
     def to_output_http_header(self):
         return {"Accept": self._mime_type()}
 
-    def read_row(self, stream):
-        raise YtError("Reading record from stream is not implemented for format " + repr(self))
-
     def __eq__(self, other):
         if hasattr(self, "to_json") and hasattr(other, "to_json"):
             return self.to_json() == other.to_json()
