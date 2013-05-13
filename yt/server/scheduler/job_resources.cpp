@@ -62,12 +62,11 @@ i64 GetOutputWindowMemorySize(TJobIOConfigPtr ioConfig)
         ioConfig->TableWriter->EncodeWindowSize;
 }
 
-i64 GetOutputIOMemorySize(TJobIOConfigPtr ioConfig, int outputStreamCount)
+i64 GetRegularOutputIOMemorySize(TJobIOConfigPtr ioConfig)
 {
     return
         (GetOutputWindowMemorySize(ioConfig) +
-        ioConfig->TableWriter->MaxBufferSize) *
-        outputStreamCount * 2; // possibly writing two (or even more) chunks at the time of chunk change
+        ioConfig->TableWriter->MaxBufferSize) * 2; // possibly writing two (or even more) chunks at the time of chunk change
 }
 
 i64 GetInputIOMemorySize(
@@ -92,19 +91,6 @@ i64 GetSortInputIOMemorySize(
 {
     YCHECK(stat.ChunkCount > 0);
     return stat.DataSize + stat.ChunkCount * ChunkReaderMemorySize;
-}
-
-i64 GetIOMemorySize(
-    TJobIOConfigPtr ioConfig,
-    int outputStreamCount,
-    const TChunkStripeStatisticsVector& stripeStatistics)
-{
-    i64 result = 0;
-    FOREACH (const auto& stat, stripeStatistics) {
-        result += GetInputIOMemorySize(ioConfig, stat);
-    }
-    result += GetOutputIOMemorySize(ioConfig, outputStreamCount);
-    return result;
 }
 
 ////////////////////////////////////////////////////////////////////

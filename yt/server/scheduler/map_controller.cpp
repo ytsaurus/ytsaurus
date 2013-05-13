@@ -119,9 +119,8 @@ private:
             result.set_user_slots(1);
             result.set_cpu(Controller->Spec->Mapper->CpuLimit);
             result.set_memory(
-                GetIOMemorySize(
+                Controller->GetFinalIOMemorySize(
                     Controller->Spec->JobIO,
-                    Controller->Spec->OutputTablePaths.size(),
                     AggregateStatistics(statistics)) +
                 GetFootprintMemorySize() +
                 Controller->Spec->Mapper->MemoryLimit);

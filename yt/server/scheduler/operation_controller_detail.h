@@ -648,6 +648,13 @@ protected:
         NScheduler::NProto::TUserJobSpec* proto,
         TJobletPtr joblet);
 
+    // Amount of memory reserved for output table writers in job proxy.
+    i64 GetFinalOutputIOMemorySize(TJobIOConfigPtr ioConfig) const;
+
+    i64 GetFinalIOMemorySize(
+        TJobIOConfigPtr ioConfig,
+        const TChunkStripeStatisticsVector& stripeStatistics) const;
+
     static void InitIntermediateInputConfig(TJobIOConfigPtr config);
 
     static void InitIntermediateOutputConfig(TJobIOConfigPtr config);

@@ -137,9 +137,8 @@ protected:
             result.set_user_slots(1);
             result.set_cpu(1);
             result.set_memory(
-                GetIOMemorySize(
+                Controller->GetFinalIOMemorySize(
                     Controller->Spec->JobIO,
-                    static_cast<int>(Controller->GetOutputTablePaths().size()),
                     UpdateChunkStripeStatistics(ChunkPool->GetApproximateStripeStatistics())) +
                 GetFootprintMemorySize() +
                 Controller->GetAdditionalMemorySize());
@@ -150,9 +149,8 @@ protected:
         {
             auto result = GetMinNeededResources();
             result.set_memory(
-                GetIOMemorySize(
+                Controller->GetFinalIOMemorySize(
                     Controller->Spec->JobIO,
-                    static_cast<int>(Controller->GetOutputTablePaths().size()),
                     UpdateChunkStripeStatistics(joblet->InputStripeList->GetStatistics())) +
                 GetFootprintMemorySize() +
                 Controller->GetAdditionalMemorySize());

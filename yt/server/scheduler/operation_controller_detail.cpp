@@ -13,6 +13,10 @@
 #include <ytlib/chunk_client/chunk_list_ypath_proxy.h>
 #include <ytlib/chunk_client/key.h>
 #include <ytlib/chunk_client/schema.h>
+#include <ytlib/chunk_client/chunk_meta_extensions.h>
+#include <ytlib/chunk_client/input_chunk.h>
+
+#include <ytlib/erasure/codec.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
 #include <ytlib/object_client/object_ypath_proxy.h>
@@ -25,15 +29,11 @@
 
 #include <ytlib/formats/format.h>
 
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
-
 #include <ytlib/transaction_client/transaction_ypath_proxy.h>
 #include <ytlib/transaction_client/transaction_manager.h>
 
 #include <ytlib/scheduler/config.h>
 #include <ytlib/scheduler/helpers.h>
-
-#include <ytlib/chunk_client/input_chunk.h>
 
 #include <ytlib/meta_state/rpc_helpers.h>
 
@@ -2470,6 +2470,35 @@ void TOperationControllerBase::AddUserJobEnvironment(
     if (joblet->StartRowIndex >= 0) {
         proto->add_environment(Sprintf("YT_START_ROW_INDEX=%" PRId64, joblet->StartRowIndex));
     }
+}
+
+i64 TOperationControllerBase::GetFinalOutputIOMemorySize(TJobIOConfigPtr ioConfig) const
+{
+    i64 result = 0;
+    FOREACH (const auto& outputTable, OutputTables) {
+        if (outputTable.Options->ErasureCodec == NErasure::ECodec::None) {
+            result += GetOutputWindowMemorySize(ioConfig) + ioConfig->TableWriter->MaxBufferSize;
+        } else {
+            auto* codec = NErasure::GetCodec(outputTable.Options->ErasureCodec);
+            double replicationFactor = (double) codec->GetTotalPartCount() / codec->GetDataPartCount();
+            result += static_cast<i64>(ioConfig->TableWriter->DesiredChunkSize * replicationFactor);
+        }
+    }
+
+    // Each writer may have up to 2 active chunks: closing one and current one.
+    return result *= 2;
+}
+
+i64 TOperationControllerBase::GetFinalIOMemorySize(
+    TJobIOConfigPtr ioConfig,
+    const TChunkStripeStatisticsVector& stripeStatistics) const
+{
+    i64 result = 0;
+    FOREACH (const auto& stat, stripeStatistics) {
+        result += GetInputIOMemorySize(ioConfig, stat);
+    }
+    result += GetFinalOutputIOMemorySize(ioConfig);
+    return result;
 }
 
 void TOperationControllerBase::InitIntermediateInputConfig(TJobIOConfigPtr config)
