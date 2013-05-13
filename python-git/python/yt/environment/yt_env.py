@@ -382,10 +382,17 @@ class YTEnv(object):
 
     def _run_proxy(self):
         if not self.START_PROXY: return
+
+        current = os.path.join(self.path_to_run, "proxy")
+        os.mkdir(current)
+
         driver_config = configs.get_driver_config()
         driver_config['masters']['addresses'] = self._master_addresses
+        init_logging(driver_config['logging'], current, 'node')
 
         proxy_config = configs.get_proxy_config()
+        proxy_config['proxy']['logging'] = driver_config['logging']
+        del driver_config['logging']
         proxy_config['proxy']['driver'] = driver_config
         proxy_config['port'] = self._ports["proxy"]
         proxy_config['log_port'] = self._ports["proxy_log"]
@@ -394,7 +401,8 @@ class YTEnv(object):
         with open(config_path, "w") as f:
             f.write(json.dumps(proxy_config))
 
-        self._run(['run_proxy.sh', "-c", config_path, "-l", "/dev/null"], "proxy", timeout=5.0)
+        log = os.path.join(current, "http_application.log")
+        self._run(['run_proxy.sh', "-c", config_path, "-l", log], "proxy", timeout=5.0)
 
         def started():
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
