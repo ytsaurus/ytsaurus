@@ -845,8 +845,7 @@ private:
         auto operation = New<TOperation>(
             operationId,
             attributes.Get<EOperationType>("operation_type"),
-            // COMPAT(babenko)
-            attributes.Get<TMutationId>("mutation_id", NullMutationId),
+            attributes.Get<TMutationId>("mutation_id"),
             userTransaction,
             attributes.Get<INodePtr>("spec")->AsMap(),
             attributes.Get<Stroka>("authenticated_user"),

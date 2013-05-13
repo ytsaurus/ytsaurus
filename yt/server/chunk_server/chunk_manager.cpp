@@ -947,7 +947,7 @@ private:
         ChunkMap.LoadKeys(context);
         ChunkListMap.LoadKeys(context);
         // COMPAT(babenko)
-        if (context.GetVersion() < 11) {
+        if (context.GetVersion() < 20) {
             size_t nodeCount = ::LoadSize(context.GetInput());
             YCHECK(nodeCount == 0);
         }
@@ -970,6 +970,7 @@ private:
         }
 
         // COMPAT(psushin): required to properly initialize TChunkList::DataSizeSums.
+        // XXX(babenko): check version and call ScheduleRecomputeStatistics instead
         RecomputeStatistics();
     }
 

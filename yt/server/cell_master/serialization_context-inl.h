@@ -374,12 +374,7 @@ void LoadObjectRef(const NCellMaster::TLoadContext& context, NChunkServer::TPtrW
     LoadObjectRef(context, ptr);
 
     int index;
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 8) {
-        Load(context, index);
-    } else {
-        index = 0;
-    }
+    Load(context, index);
 
     value = NChunkServer::TPtrWithIndex<T>(ptr, index);
 }
