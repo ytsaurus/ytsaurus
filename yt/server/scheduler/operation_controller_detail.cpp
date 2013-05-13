@@ -624,6 +624,13 @@ void TOperationControllerBase::Initialize()
         OutputTables.push_back(table);
     }
 
+    if (InputTables.size() > Config->MaxInputTableCount) {
+        THROW_ERROR_EXCEPTION(
+            "Too many input tables: maximum allowed %d, actual %" PRISZT,
+            Config->MaxInputTableCount,
+            InputTables.size());
+    }
+
     if (OutputTables.size() > Config->MaxOutputTableCount) {
         THROW_ERROR_EXCEPTION(
             "Too many output tables: maximum allowed %d, actual %" PRISZT,

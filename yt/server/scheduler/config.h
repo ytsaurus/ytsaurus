@@ -132,6 +132,8 @@ public:
     //! Maximum number of output tables an operation can have.
     int MaxOutputTableCount;
 
+    int MaxInputTableCount;
+
     //! Maximum number of jobs to start within a single heartbeat.
     TNullable<int> MaxStartedJobsPerHeartbeat;
 
@@ -225,6 +227,10 @@ public:
 
         RegisterParameter("table_file_size_limit", MaxTableFileSize)
             .Default((i64) 2 * 1024 * 1024 * 1024);
+
+        RegisterParameter("max_input_table_count", MaxInputTableCount)
+            .Default(1000)
+            .GreaterThan(1);
 
         RegisterParameter("max_output_table_count", MaxOutputTableCount)
             .Default(20)
