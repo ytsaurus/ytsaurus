@@ -617,6 +617,8 @@ private:
 
                 for (int i = 0; i < static_cast<int>(Result.Operations.size()); ++i) {
                     auto operation = Result.Operations[i];
+                    // TODO(babenko): loading from snapshot is not currently supported
+                    operation->SetCleanStart(true);
                     for (int j = i * TransactionsPerOperation; j < (i + 1) * TransactionsPerOperation; ++j) {
                         auto rsp = rsps[j];
                         if (rsp && !rsp->IsOK() && !operation->GetCleanStart()) {
