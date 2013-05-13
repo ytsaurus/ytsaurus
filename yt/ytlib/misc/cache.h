@@ -17,8 +17,6 @@ class TCacheValueBase
     : public virtual TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TValue> TPtr;
-
     virtual ~TCacheValueBase();
 
     TKey GetKey() const;
@@ -55,6 +53,8 @@ public:
     std::vector<TValuePtr> GetAll();
 
 protected:
+    TSpinLock SpinLock;
+
     class TInsertCookie
     {
     public:
@@ -85,9 +85,13 @@ protected:
     void Touch(const TKey& key);
     bool Remove(const TKey& key);
 
-    // Called under SpinLock.
-    virtual bool NeedTrim() const = 0;
+    //! Called under #SpinLock.
+    virtual bool IsTrimNeeded() const = 0;
+
+    //! Must acquire #SpinLock if needed.
     virtual void OnAdded(TValue* value);
+
+    //! Must acquire #SpinLock if needed.
     virtual void OnRemoved(TValue* value);
 
 private:
@@ -110,8 +114,6 @@ private:
 
         TAsyncValuePtrOrErrorPromise ValueOrError;
     };
-
-    TSpinLock SpinLock;
 
     typedef yhash_map<TKey, TValue*, THash> TValueMap;
     typedef yhash_map<TKey, TItem*, THash> TItemMap;
@@ -139,7 +141,7 @@ class TSizeLimitedCache
 protected:
     TSizeLimitedCache(int maxSize);
 
-    virtual bool NeedTrim() const;
+    virtual bool IsTrimNeeded() const;
 
 private:
     int MaxSize;
@@ -156,9 +158,11 @@ protected:
     TWeightLimitedCache(i64 maxWeight);
 
     virtual i64 GetWeight(TValue* value) const = 0;
-    virtual void OnAdded(TValue* value);
-    virtual void OnRemoved(TValue* value);
-    virtual bool NeedTrim() const;
+
+    virtual void OnAdded(TValue* value) override;
+    virtual void OnRemoved(TValue* value) override;
+
+    virtual bool IsTrimNeeded() const override;
 
 private:
     i64 TotalWeight;

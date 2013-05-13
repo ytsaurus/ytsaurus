@@ -682,8 +682,11 @@ protected:
     private:
         virtual void OnTaskCompleted() override
         {
-            // We believe that this task may only complete once.
-            Controller->OnPartitionCompleted(Partition);
+            if (!Partition->Completed) {
+                // In extremely rare situations we may want to complete partition twice,
+                // e.g. maniac partition with no data. Don't do that.
+                Controller->OnPartitionCompleted(Partition);
+            }
 
             TPartitionBoundTask::OnTaskCompleted();
         }
