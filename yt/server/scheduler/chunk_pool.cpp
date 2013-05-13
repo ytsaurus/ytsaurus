@@ -231,6 +231,7 @@ public:
     {
         YCHECK(Stripe);
         YCHECK(!Suspended);
+
         Suspended = true;
     }
 
@@ -716,8 +717,16 @@ private:
             : Locality(0)
         { }
 
+        //! The total locality associated with this address.
         i64 Locality;
-        yhash_set<TChunkStripePtr> Stripes;
+
+        //! Multiset of stripes having positive locality at this address.
+        /*!
+         *  Starting from 0.14, we allow multiple replicas of the same chunk to
+         *  reside at the same address. While this is not an expected case,
+         *  appearance of such replicas must not lead to scheduler crash.
+         */
+        yhash_multiset<TChunkStripePtr> Stripes;
     };
 
     yhash_map<Stroka, TLocalityEntry> PendingLocalChunks;
@@ -738,7 +747,7 @@ private:
                 auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
                 const auto& descriptor = NodeDirectory->GetDescriptor(replica);
                 auto& entry = PendingLocalChunks[descriptor.Address];
-                YCHECK(entry.Stripes.insert(stripe).second);
+                entry.Stripes.insert(stripe);
                 entry.Locality += locality;
             }
         }
@@ -754,7 +763,9 @@ private:
                 auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
                 const auto& descriptor = NodeDirectory->GetDescriptor(replica);
                 auto& entry = PendingLocalChunks[descriptor.Address];
-                YCHECK(entry.Stripes.erase(stripe) == 1);
+                auto it = entry.Stripes.find(stripe);
+                YCHECK(it != entry.Stripes.end());
+                entry.Stripes.erase(it);
                 entry.Locality -= locality;
             }
         }
