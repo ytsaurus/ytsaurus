@@ -153,7 +153,7 @@ def get_driver_config():
             };
             {
                 min_level = Debug;
-                writers = [ file_debug ];
+                writers = [ raw ];
                 categories  = [ "*" ];
             };
             {
@@ -172,7 +172,7 @@ def get_driver_config():
                 file_name = "ytdriver.log";
                 pattern = "$(datetime) $(level) $(category) $(message)";
             };
-            file_debug = {
+            raw = {
                 type = File;
                 file_name = "ytdriver.debug.log";
                 pattern = "$(datetime) $(level) $(category) $(message)";
