@@ -25,8 +25,11 @@ struct TChunkTreeStatistics
     //! Sum of data weights of chunks in the tree.
     i64 DataWeight;
 
-    //! Disk space occupied on data nodes (without replication).
-    i64 DiskSpace;
+    //! Disk space occupied on data nodes by regular chunks (without replication).
+    i64 RegularDiskSpace;
+
+    //! Disk space occupied on data nodes by erasure chunks (including parity parts).
+    i64 ErasureDiskSpace;
 
     //! Total number of chunks in the tree.
     i32 ChunkCount;

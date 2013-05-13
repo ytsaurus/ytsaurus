@@ -41,24 +41,23 @@ void TChunkOwnerBase::Load(const NCellMaster::TLoadContext& context)
     auto* input = context.GetInput();
     LoadObjectRef(context, ChunkList_);
     ::Load(input, UpdateMode_);
+    ::Load(input, ReplicationFactor_);
 
     // COMPAT(psushin)
-    if (context.GetVersion() < 11) {
-        // In previous version we used int for replication factor.
-        int replicationFactor;
-        ::Load(input, replicationFactor);
-        ReplicationFactor_ = static_cast<i16>(replicationFactor);
-    } else {
-        ::Load(input, ReplicationFactor_);
+    if (context.GetVersion() >= 20) {
         ::Load(input, Vital_);
     }
-
 }
 
 NSecurityServer::TClusterResources TChunkOwnerBase::GetResourceUsage() const
 {
     const auto* chunkList = GetUsageChunkList();
-    i64 diskSpace = chunkList ? chunkList->Statistics().DiskSpace * GetReplicationFactor() : 0;
+    i64 diskSpace = 0;
+    if (chunkList) {
+        diskSpace = chunkList->Statistics().RegularDiskSpace * GetReplicationFactor() +
+            chunkList->Statistics().ErasureDiskSpace;
+    }
+
     return NSecurityServer::TClusterResources(diskSpace, 1);
 }
 

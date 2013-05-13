@@ -1060,12 +1060,6 @@ private:
 
         LOG_INFO("Started recomputing statistics");
 
-        // Use Rank field for keeping track of already visited chunk lists.
-        FOREACH (auto& pair, ChunkListMap) {
-            auto* chunkList = pair.second;
-            chunkList->Statistics().Rank = -1;
-        }
-
         auto mark = TChunkList::GenerateVisitMark();
 
         // Force all statistics to be recalculated.

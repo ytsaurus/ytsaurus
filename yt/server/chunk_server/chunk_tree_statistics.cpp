@@ -18,7 +18,8 @@ TChunkTreeStatistics::TChunkTreeStatistics()
     , UncompressedDataSize(0)
     , CompressedDataSize(0)
     , DataWeight(0)
-    , DiskSpace(0)
+    , RegularDiskSpace(0)
+    , ErasureDiskSpace(0)
     , ChunkCount(0)
     , ChunkListCount(0)
     , Rank(0)
@@ -30,7 +31,8 @@ void TChunkTreeStatistics::Accumulate(const TChunkTreeStatistics& other)
     UncompressedDataSize += other.UncompressedDataSize;
     CompressedDataSize += other.CompressedDataSize;
     DataWeight += other.DataWeight;
-    DiskSpace += other.DiskSpace;
+    RegularDiskSpace += other.RegularDiskSpace;
+    ErasureDiskSpace += other.ErasureDiskSpace;
     ChunkCount += other.ChunkCount;
     ChunkListCount += other.ChunkListCount;
     Rank = std::max(Rank, other.Rank);
@@ -46,7 +48,8 @@ void Serialize(const TChunkTreeStatistics& statistics, NYson::IYsonConsumer* con
             .Item("uncompressed_data_size").Value(statistics.UncompressedDataSize)
             .Item("compressed_data_size").Value(statistics.CompressedDataSize)
             .Item("data_weight").Value(statistics.DataWeight)
-            .Item("disk_space").Value(statistics.DiskSpace)
+            .Item("regular_disk_space").Value(statistics.RegularDiskSpace)
+            .Item("erasure_disk_space").Value(statistics.ErasureDiskSpace)
             .Item("chunk_count").Value(statistics.ChunkCount)
             .Item("chunk_list_count").Value(statistics.ChunkListCount)
             .Item("rank").Value(statistics.Rank)
@@ -60,7 +63,8 @@ void Save(const NCellMaster::TSaveContext& context, const TChunkTreeStatistics& 
     ::Save(output, statistics.UncompressedDataSize);
     ::Save(output, statistics.CompressedDataSize);
     ::Save(output, statistics.DataWeight);
-    ::Save(output, statistics.DiskSpace);
+    ::Save(output, statistics.RegularDiskSpace);
+    ::Save(output, statistics.ErasureDiskSpace);
     ::Save(output, statistics.ChunkCount);
     ::Save(output, statistics.ChunkListCount);
     ::Save(output, statistics.Rank);
@@ -73,7 +77,12 @@ void Load(const NCellMaster::TLoadContext& context, TChunkTreeStatistics& statis
     ::Load(input, statistics.UncompressedDataSize);
     ::Load(input, statistics.CompressedDataSize);
     ::Load(input, statistics.DataWeight);
-    ::Load(input, statistics.DiskSpace);
+    ::Load(input, statistics.RegularDiskSpace);
+
+    // COMPAT(psushin)
+    if (context.GetVersion() >= 20) {
+        ::Load(input, statistics.ErasureDiskSpace);
+    }
     ::Load(input, statistics.ChunkCount);
     ::Load(input, statistics.ChunkListCount);
     ::Load(input, statistics.Rank);

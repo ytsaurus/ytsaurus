@@ -75,7 +75,13 @@ TChunkTreeStatistics TChunk::GetStatistics() const
     result.UncompressedDataSize = miscExt.uncompressed_data_size();
     result.CompressedDataSize = miscExt.compressed_data_size();
     result.DataWeight = miscExt.data_weight();
-    result.DiskSpace = ChunkInfo_.disk_space();
+
+    if (IsErasure()) {
+        result.ErasureDiskSpace = ChunkInfo_.disk_space();
+    } else {
+        result.RegularDiskSpace = ChunkInfo_.disk_space();
+    }
+
     result.ChunkCount = 1;
     result.Rank = 0;
 
