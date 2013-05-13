@@ -19,7 +19,7 @@ import simplejson as json
 
 # We cannot use requests.HTTPError in module namespace because of conflict with python3 http library
 from requests import HTTPError, ConnectionError, Timeout
-NETWORK_ERRORS = (HTTPError, ConnectionError, Timeout, httplib.IncompleteRead)
+NETWORK_ERRORS = (HTTPError, ConnectionError, Timeout, httplib.IncompleteRead, YtResponseError)
 
 def iter_lines(response):
     """
@@ -252,6 +252,8 @@ def make_request(command_name, params,
                     files=files,
                     timeout=config.CONNECTION_TIMEOUT,
                     stream=stream))
+            if response.is_json() and not response:
+                raise YtResponseError("Content is json but body is empty")
             break
         except NETWORK_ERRORS:
             if make_retry:
