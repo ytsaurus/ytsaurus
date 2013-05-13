@@ -252,7 +252,7 @@ def make_request(command_name, params,
                     files=files,
                     timeout=config.CONNECTION_TIMEOUT,
                     stream=stream))
-            if response.is_json() and not response:
+            if response.is_json() and not response.content:
                 raise YtResponseError("Content is json but body is empty")
             break
         except NETWORK_ERRORS:
