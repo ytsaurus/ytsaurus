@@ -442,7 +442,10 @@ bool TChunkOwnerNodeProxy::IsWriteRequest(NRpc::IServiceContextPtr context) cons
 NSecurityServer::TClusterResources TChunkOwnerNodeProxy::GetResourceUsage() const
 {
     const auto* node = GetThisTypedImpl<TChunkOwnerBase>();
-    return node->GetResourceUsage();
+    const auto* chunkList = node->GetChunkList();
+    i64 diskSpace = chunkList->Statistics().RegularDiskSpace * node->GetReplicationFactor() +
+        chunkList->Statistics().ErasureDiskSpace;
+    return NSecurityServer::TClusterResources(diskSpace, 1);
 }
 
 void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<NYTree::ISystemAttributeProvider::TAttributeInfo>* attributes)
