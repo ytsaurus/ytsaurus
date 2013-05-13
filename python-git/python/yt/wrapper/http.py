@@ -252,12 +252,12 @@ def make_request(command_name, params,
                     files=files,
                     timeout=config.CONNECTION_TIMEOUT,
                     stream=stream))
-            if response.is_json() and not response.content:
+            if response.is_ok() and not raw_response and response.is_json() and not response.content():
                 raise YtResponseError("Content is json but body is empty")
             break
-        except NETWORK_ERRORS:
+        except NETWORK_ERRORS as error:
             if make_retry:
-                logger.warning("Retrying http request for command " + command_name)
+                logger.warning("Http request (%s) has failed with error '%s'. Retrying...", command_name, str(error))
                 time.sleep(config.HTTP_RETRY_TIMEOUT)
             else:
                 raise
