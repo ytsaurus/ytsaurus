@@ -460,6 +460,7 @@ YtCommand.prototype._getOutputFormat = function() {
 
         // TODO(sandello): Set Content-Disposition more intelligently.
         if (this.name === "download") {
+            this.mime_type = "text/plain";
             this.rsp.setHeader("Content-Disposition", "inline");
         } else {
             this.rsp.setHeader("Content-Disposition", "attachment");
