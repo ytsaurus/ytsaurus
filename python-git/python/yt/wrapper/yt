@@ -353,7 +353,7 @@ def reduce(args):
                   format=args.format, input_format=args.input_format, output_format=args.output_format, spec=args.spec)
 
 def add_reduce_parser(add_parser):
-    parser = add_parser("reduce", help="run map operation")
+    parser = add_parser("reduce", help="run reduce operation")
     operation_args(parser)
     parser.add_argument("--reduce-by", action="append")
     parser.set_defaults(func=reduce)
