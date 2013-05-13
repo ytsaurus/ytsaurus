@@ -402,7 +402,7 @@ class YTEnv(object):
             f.write(json.dumps(proxy_config))
 
         log = os.path.join(current, "http_application.log")
-        self._run(['run_proxy.sh', "-c", config_path, "-l", log], "proxy", timeout=5.0)
+        self._run(['run_proxy.sh', "-c", config_path, "-l", log], "proxy", timeout=3.0)
 
         def started():
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
