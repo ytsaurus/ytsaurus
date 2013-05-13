@@ -20,14 +20,8 @@ TChunkOwnerBase::TChunkOwnerBase(const TVersionedNodeId& id)
     , ChunkList_(nullptr)
     , UpdateMode_(EUpdateMode::None)
     , ReplicationFactor_(0)
+    , Vital_(true)
 { }
-
-int TChunkOwnerBase::GetOwningReplicationFactor() const
-{
-    auto* trunkNode = TrunkNode_ == this ? this : dynamic_cast<TChunkOwnerBase*>(TrunkNode_);
-    YCHECK(trunkNode);
-    return trunkNode->GetReplicationFactor();
-}
 
 void TChunkOwnerBase::Save(const NCellMaster::TSaveContext& context) const
 {
@@ -37,6 +31,7 @@ void TChunkOwnerBase::Save(const NCellMaster::TSaveContext& context) const
     SaveObjectRef(context, ChunkList_);
     ::Save(output, UpdateMode_);
     ::Save(output, ReplicationFactor_);
+    ::Save(output, Vital_);
 }
 
 void TChunkOwnerBase::Load(const NCellMaster::TLoadContext& context)
@@ -46,13 +41,24 @@ void TChunkOwnerBase::Load(const NCellMaster::TLoadContext& context)
     auto* input = context.GetInput();
     LoadObjectRef(context, ChunkList_);
     ::Load(input, UpdateMode_);
-    ::Load(input, ReplicationFactor_);
+
+    // COMPAT(psushin)
+    if (context.GetVersion() < 11) {
+        // In previous version we used int for replication factor.
+        int replicationFactor;
+        ::Load(input, replicationFactor);
+        ReplicationFactor_ = static_cast<i16>(replicationFactor);
+    } else {
+        ::Load(input, ReplicationFactor_);
+        ::Load(input, Vital_);
+    }
+
 }
 
 NSecurityServer::TClusterResources TChunkOwnerBase::GetResourceUsage() const
 {
     const auto* chunkList = GetUsageChunkList();
-    i64 diskSpace = chunkList ? chunkList->Statistics().DiskSpace * GetOwningReplicationFactor() : 0;
+    i64 diskSpace = chunkList ? chunkList->Statistics().DiskSpace * GetReplicationFactor() : 0;
     return NSecurityServer::TClusterResources(diskSpace, 1);
 }
 
@@ -77,6 +83,11 @@ const TChunkList* TChunkOwnerBase::GetUsageChunkList() const
         default:
             YUNREACHABLE();
     }
+}
+
+bool CompareObjectsForSerialization(const TChunkOwnerBase* lhs, const TChunkOwnerBase* rhs)
+{
+    return NCypressServer::CompareObjectsForSerialization(lhs, rhs);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -67,11 +67,6 @@ TVersionedNodeId TCypressNodeBase::GetVersionedId() const
     return TVersionedNodeId(Id, TransactionId);
 }
 
-int TCypressNodeBase::GetOwningReplicationFactor() const
-{
-    YUNREACHABLE();
-}
-
 void TCypressNodeBase::Save(const NCellMaster::TSaveContext& context) const
 {
     TObjectBase::Save(context);
@@ -97,7 +92,7 @@ void TCypressNodeBase::Load(const TLoadContext& context)
 
     auto* input = context.GetInput();
     LoadObjectRefs(context, Locks_);
-    
+
     // TODO(babenko): refactor when new serialization API is ready
     TNodeId parentId;
     NYT::Load(input, parentId);

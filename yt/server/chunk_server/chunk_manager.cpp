@@ -3,6 +3,7 @@
 #include "config.h"
 #include "chunk.h"
 #include "chunk_list.h"
+#include "chunk_owner_base.h"
 #include "job.h"
 #include "chunk_placement.h"
 #include "chunk_replicator.h"
@@ -226,7 +227,7 @@ public:
         YCHECK(config);
         YCHECK(bootstrap);
 
-        RegisterMethod(BIND(&TImpl::UpdateChunkReplicationFactor, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::UpdateChunkProperties, Unretained(this)));
 
         {
             NCellMaster::TLoadContext context;
@@ -284,12 +285,12 @@ public:
     }
 
 
-    TMutationPtr CreateUpdateChunkReplicationFactorMutation(
-        const NProto::TMetaReqUpdateChunkReplicationFactor& request)
+    TMutationPtr CreateUpdateChunkPropertiesMutation(
+        const NProto::TMetaReqUpdateChunkProperties& request)
     {
         return Bootstrap
             ->GetMetaStateFacade()
-            ->CreateMutation(this, request, &TThis::UpdateChunkReplicationFactor);
+            ->CreateMutation(this, request, &TThis::UpdateChunkProperties);
     }
 
 
@@ -657,9 +658,9 @@ public:
     }
 
 
-    void ScheduleRFUpdate(TChunkTree* chunkTree)
+    void SchedulePropertiesUpdate(TChunkTree* chunkTree)
     {
-        ChunkReplicator->ScheduleRFUpdate(chunkTree);
+        ChunkReplicator->SchedulePropertiesUpdate(chunkTree);
     }
 
 
@@ -689,7 +690,7 @@ public:
     {
         auto cypressManager = Bootstrap->GetCypressManager();
 
-        yhash_set<TCypressNodeBase*> owningNodes;
+        yhash_set<TChunkOwnerBase*> owningNodes;
         yhash_set<TChunkTree*> visited;
         GetOwningNodes(chunkTree, visited, &owningNodes);
 
@@ -902,23 +903,33 @@ private:
     }
 
 
-    void UpdateChunkReplicationFactor(const NProto::TMetaReqUpdateChunkReplicationFactor& request)
+    void UpdateChunkProperties(const NProto::TMetaReqUpdateChunkProperties& request)
     {
         FOREACH (const auto& update, request.updates()) {
             auto chunkId = FromProto<TChunkId>(update.chunk_id());
-            int replicationFactor = update.replication_factor();
             auto* chunk = FindChunk(chunkId);
-            if (IsObjectAlive(chunk) && chunk->GetReplicationFactor() != replicationFactor) {
-                // NB: Updating RF for staged chunks is forbidden.
-                // COMPAT(babenko)
-                if (!chunk->IsStaged()) {
-                    chunk->SetReplicationFactor(replicationFactor);
-                    if (IsLeader()) {
-                        ChunkReplicator->ScheduleChunkRefresh(chunk);
-                    }
-                } else {
-                    LOG_WARNING("Updating RF for staged chunk %s", ~ToString(chunkId));
-                }
+            if (!IsObjectAlive(chunk))
+                continue;
+
+            if (chunk->IsStaged()) {
+                LOG_WARNING("Updating properties for staged chunk %s", ~ToString(chunkId));
+                continue;
+            }
+
+            bool hasChanged = false;
+            if (update.has_replication_factor() && chunk->GetReplicationFactor() != update.replication_factor()) {
+                YCHECK(!chunk->IsErasure());
+                hasChanged = true;
+                chunk->SetReplicationFactor(update.replication_factor());
+            }
+
+            if (update.has_vital() && chunk->GetVital() != update.vital()) {
+                hasChanged = true;
+                chunk->SetVital(update.vital());
+            }
+
+            if (IsLeader() && hasChanged) {
+                ChunkReplicator->ScheduleChunkRefresh(chunk);
             }
         }
     }
@@ -950,6 +961,9 @@ private:
         if (context.GetVersion() < 20) {
             size_t nodeCount = ::LoadSize(context.GetInput());
             YCHECK(nodeCount == 0);
+
+            // COMPAT(psushin): required to properly initialize TChunkList::DataSizeSums.
+            ScheduleRecomputeStatistics();
         }
     }
 
@@ -968,10 +982,6 @@ private:
             TotalReplicaCount += node->StoredReplicas().size();
             TotalReplicaCount += node->CachedReplicas().size();
         }
-
-        // COMPAT(psushin): required to properly initialize TChunkList::DataSizeSums.
-        // XXX(babenko): check version and call ScheduleRecomputeStatistics instead
-        RecomputeStatistics();
     }
 
 
@@ -992,10 +1002,12 @@ private:
         NeedToRecomputeStatistics = true;
     }
 
-    const TChunkTreeStatistics& ComputeStatisticsFor(TChunkList* chunkList)
+    const TChunkTreeStatistics& ComputeStatisticsFor(TChunkList* chunkList, TAtomic visitMark)
     {
         auto& statistics = chunkList->Statistics();
-        if (statistics.Rank == -1) {
+        if (chunkList->GetVisitMark() != visitMark) {
+            chunkList->SetVisitMark(visitMark);
+
             statistics = TChunkTreeStatistics();
             int childrenCount = chunkList->Children().size();
 
@@ -1018,7 +1030,7 @@ private:
                         break;
 
                     case EObjectType::ChunkList:
-                        childStatistics = ComputeStatisticsFor(child->AsChunkList());
+                        childStatistics = ComputeStatisticsFor(child->AsChunkList(), visitMark);
                         break;
 
                     default:
@@ -1054,10 +1066,12 @@ private:
             chunkList->Statistics().Rank = -1;
         }
 
+        auto mark = TChunkList::GenerateVisitMark();
+
         // Force all statistics to be recalculated.
         FOREACH (auto& pair, ChunkListMap) {
             auto* chunkList = pair.second;
-            ComputeStatisticsFor(chunkList);
+            ComputeStatisticsFor(chunkList, mark);
         }
 
         LOG_INFO("Finished recomputing statistics");
@@ -1074,7 +1088,7 @@ private:
         FOREACH (const auto& pair, ChunkMap) {
             auto* chunk = pair.second;
             chunk->SetRefreshScheduled(false);
-            chunk->SetRFUpdateScheduled(false);
+            chunk->SetPropertiesUpdateScheduled(false);
             chunk->ResetObjectLocks();
             chunk->SetRepairQueueIterator(TChunkRepairQueueIterator());
         }
@@ -1320,7 +1334,7 @@ private:
     static void GetOwningNodes(
         TChunkTree* chunkTree,
         yhash_set<TChunkTree*>& visited,
-        yhash_set<TCypressNodeBase*>* owningNodes)
+        yhash_set<TChunkOwnerBase*>* owningNodes)
     {
         if (!visited.insert(chunkTree).second) {
             return;
@@ -1351,7 +1365,7 @@ private:
     {
         if (ChunkReplicator) {
             Profiler.Enqueue("/refresh_list_size", ChunkReplicator->GetRefreshListSize());
-            Profiler.Enqueue("/rf_update_list_size", ChunkReplicator->GetRFUpdateListSize());
+            Profiler.Enqueue("/properties_update_list_size", ChunkReplicator->GetPropertiesUpdateListSize());
         }
     }
 
@@ -1549,10 +1563,10 @@ TSmallVector<TNode*, TypicalReplicaCount> TChunkManager::AllocateUploadTargets(
     return Impl->AllocateUploadTargets(replicaCount, preferredHostName);
 }
 
-TMutationPtr TChunkManager::CreateUpdateChunkReplicationFactorMutation(
-    const NProto::TMetaReqUpdateChunkReplicationFactor& request)
+TMutationPtr TChunkManager::CreateUpdateChunkPropertiesMutation(
+    const NProto::TMetaReqUpdateChunkProperties& request)
 {
-    return Impl->CreateUpdateChunkReplicationFactorMutation(request);
+    return Impl->CreateUpdateChunkPropertiesMutation(request);
 }
 
 TChunk* TChunkManager::CreateChunk(EObjectType type)
@@ -1648,9 +1662,9 @@ bool TChunkManager::IsReplicatorEnabled()
     return Impl->IsReplicatorEnabled();
 }
 
-void TChunkManager::ScheduleRFUpdate(TChunkTree* chunkTree)
+void TChunkManager::SchedulePropertiesUpdate(TChunkTree* chunkTree)
 {
-    Impl->ScheduleRFUpdate(chunkTree);
+    Impl->SchedulePropertiesUpdate(chunkTree);
 }
 
 int TChunkManager::GetTotalReplicaCount()

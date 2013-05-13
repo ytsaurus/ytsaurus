@@ -513,21 +513,31 @@ private:
                 ~descriptor.file_name(),
                 static_cast<int>(descriptor.file().chunks_size()));
             DoAbort(error, EJobState::Failed);
+            return MakeFuture();
         }
 
         const auto& chunk = descriptor.file().chunks(0);
         auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunk.extensions());
 
-        auto codecId = NCompression::ECodec(miscExt.compression_codec());
-        if (codecId != NCompression::ECodec::None) {
+        auto compressionCodecId = NCompression::ECodec(miscExt.compression_codec());
+        if (compressionCodecId != NCompression::ECodec::None) {
             auto error = TError(
                 "Only uncompressed files can be used inside jobs. Failed to prepare file %s (CompressionCodec: %d)",
                 ~descriptor.file_name(),
-                ~FormatEnum(codecId));
+                ~FormatEnum(compressionCodecId));
             DoAbort(error, EJobState::Failed);
+            return MakeFuture();
         }
 
         auto chunkId = FromProto<TChunkId>(chunk.chunk_id());
+        if (IsErasureChunkId(chunkId)) {
+            auto error = TError(
+                "Only non-erasure files can be used inside jobs. Failed to prepare file %s",
+                ~descriptor.file_name());
+            DoAbort(error, EJobState::Failed);
+            return MakeFuture();
+        }
+
         LOG_INFO("Downloading user file (FileName: %s, ChunkId: %s)",
             ~descriptor.file_name(),
             ~ToString(chunkId));

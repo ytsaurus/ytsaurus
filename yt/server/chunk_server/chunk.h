@@ -25,6 +25,19 @@ namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TChunkProperties
+{
+    TChunkProperties();
+
+    int ReplicationFactor;
+    bool Vital;
+};
+
+bool operator== (const TChunkProperties& lhs, const TChunkProperties& rhs);
+bool operator!= (const TChunkProperties& lhs, const TChunkProperties& rhs);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TChunk
     : public TChunkTree
     , public NObjectServer::TStagedObject
@@ -77,8 +90,8 @@ public:
     bool GetRefreshScheduled() const;
     void SetRefreshScheduled(bool value);
 
-    bool GetRFUpdateScheduled() const;
-    void SetRFUpdateScheduled(bool value);
+    bool GetPropertiesUpdateScheduled() const;
+    void SetPropertiesUpdateScheduled(bool value);
 
     int GetReplicationFactor() const;
     void SetReplicationFactor(int value);
@@ -96,12 +109,14 @@ public:
      */
     bool IsAvailable() const;
 
+    TChunkProperties GetChunkProperties() const;
+
 private:
     struct {
         bool Movable : 1;
-        bool Vital : 1; 
+        bool Vital : 1;
         bool RefreshScheduled : 1;
-        bool RFUpdateScheduled : 1;
+        bool PropertiesUpdateScheduled : 1;
     } Flags;
 
     i16 ReplicationFactor;

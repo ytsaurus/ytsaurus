@@ -36,8 +36,8 @@ public:
 
     void Initialize();
 
-    NMetaState::TMutationPtr CreateUpdateChunkReplicationFactorMutation(
-        const NProto::TMetaReqUpdateChunkReplicationFactor& request);
+    NMetaState::TMutationPtr CreateUpdateChunkPropertiesMutation(
+        const NProto::TMetaReqUpdateChunkProperties& request);
 
     DECLARE_METAMAP_ACCESSORS(Chunk, TChunk, TChunkId);
     DECLARE_METAMAP_ACCESSORS(ChunkList, TChunkList, TChunkListId);
@@ -90,7 +90,7 @@ public:
 
     bool IsReplicatorEnabled();
 
-    void ScheduleRFUpdate(TChunkTree* chunkTree);
+    void SchedulePropertiesUpdate(TChunkTree* chunkTree);
 
     const yhash_set<TChunk*>& LostVitalChunks() const;
     const yhash_set<TChunk*>& LostChunks() const;

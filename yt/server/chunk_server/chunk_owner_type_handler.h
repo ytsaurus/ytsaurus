@@ -101,6 +101,7 @@ protected:
         YCHECK(branchedNode->GetChunkList()->OwningNodes().insert(branchedNode).second);
 
         branchedNode->SetReplicationFactor(originatingNode->GetReplicationFactor());
+        branchedNode->SetVital(originatingNode->GetVital());
 
         LOG_DEBUG_UNLESS(
             TBase::IsRecovery(),
@@ -162,18 +163,18 @@ protected:
         }
 
         bool isTopmostCommit = !originatingNode->GetTransaction();
-        bool isRFUpdateNeeded =
-            isTopmostCommit &&
-            originatingNode->GetReplicationFactor() != branchedNode->GetReplicationFactor() &&
-            metaStateManager->IsLeader();
+        bool hasPropertiesChanged =
+            originatingNode->GetReplicationFactor() != branchedNode->GetReplicationFactor() ||
+            originatingNode->GetVital() != branchedNode->GetVital();
+        bool isPropertiesUpdateNeeded = isTopmostCommit && hasPropertiesChanged && metaStateManager->IsLeader();
 
         if (branchedMode == NChunkClient::EUpdateMode::Overwrite) {
             YCHECK(originatingChunkList->OwningNodes().erase(originatingNode) == 1);
             YCHECK(branchedChunkList->OwningNodes().insert(originatingNode).second);
             originatingNode->SetChunkList(branchedChunkList);
 
-            if (isRFUpdateNeeded) {
-                chunkManager->ScheduleRFUpdate(branchedChunkList);
+            if (isPropertiesUpdateNeeded) {
+                chunkManager->SchedulePropertiesUpdate(branchedChunkList);
             }
 
             objectManager->UnrefObject(originatingChunkList);
@@ -192,7 +193,7 @@ protected:
             objectManager->RefObject(newOriginatingChunkList);
 
             if (originatingMode == NChunkClient::EUpdateMode::Append) {
-                YCHECK(!isTopmostCommit); // No RF update needed.
+                YCHECK(!isTopmostCommit); // No need to update properties.
                 chunkManager->AttachToChunkList(newOriginatingChunkList, originatingChunkList->Children()[0]);
                 auto* newDeltaChunkList = chunkManager->CreateChunkList();
                 chunkManager->AttachToChunkList(newOriginatingChunkList, newDeltaChunkList);
@@ -202,8 +203,8 @@ protected:
                 chunkManager->AttachToChunkList(newOriginatingChunkList, originatingChunkList);
                 chunkManager->AttachToChunkList(newOriginatingChunkList, deltaRef);
 
-                if (isRFUpdateNeeded) {
-                    chunkManager->ScheduleRFUpdate(deltaRef);
+                if (isPropertiesUpdateNeeded) {
+                    chunkManager->SchedulePropertiesUpdate(deltaRef);
                 }
             }
 
@@ -237,6 +238,7 @@ protected:
         YCHECK(!clonedNode->GetChunkList());
         clonedNode->SetChunkList(chunkList);
         clonedNode->SetReplicationFactor(sourceNode->GetReplicationFactor());
+        clonedNode->SetVital(sourceNode->GetVital());
         objectManager->RefObject(chunkList);
         YCHECK(chunkList->OwningNodes().insert(clonedNode).second);
     }

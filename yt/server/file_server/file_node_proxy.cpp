@@ -76,10 +76,6 @@ private:
         const TReadLimit& upperLimit,
         const TReadLimit& lowerLimit) override
     {
-        UNUSED(channel);
-        UNUSED(upperLimit);
-        UNUSED(lowerLimit);
-
         if (channel) {
             THROW_ERROR_EXCEPTION("Column selectors are not supported for files");
         }

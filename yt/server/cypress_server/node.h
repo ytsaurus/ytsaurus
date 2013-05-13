@@ -59,8 +59,6 @@ public:
     //! Returns the composite (versioned) id of the node.
     TVersionedNodeId GetVersionedId() const;
 
-    virtual int GetOwningReplicationFactor() const;
-
     virtual NSecurityServer::TClusterResources GetResourceUsage() const;
 
     // Similar methods are also declared in TObjectBase but starting from TCypressNodeBase
@@ -77,7 +75,7 @@ private:
 NObjectServer::TVersionedObjectId GetObjectId(const TCypressNodeBase* object);
 bool CompareObjectsForSerialization(const TCypressNodeBase* lhs, const TCypressNodeBase* rhs);
 
-//////////////////////////////////////////////////////////////////////////////// 
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NCypressServer
 } // namespace NYT

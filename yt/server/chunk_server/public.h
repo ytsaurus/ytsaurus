@@ -55,6 +55,7 @@ class TChunkTree;
 class TChunkReplica;
 class TChunk;
 class TChunkList;
+class TChunkOwnerBase;
 class TDataNode;
 
 template <class T>

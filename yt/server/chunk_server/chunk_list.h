@@ -11,8 +11,6 @@
 
 #include <server/object_server/object_detail.h>
 
-#include <server/cypress_server/public.h>
-
 namespace NYT {
 namespace NChunkServer {
 
@@ -36,7 +34,7 @@ class TChunkList
 
     DEFINE_BYREF_RW_PROPERTY(yhash_multiset<TChunkList*>, Parents);
     DEFINE_BYREF_RW_PROPERTY(TChunkTreeStatistics, Statistics);
-    DEFINE_BYREF_RW_PROPERTY(yhash_set<NCypressServer::TCypressNodeBase*>, OwningNodes);
+    DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkOwnerBase*>, OwningNodes);
 
     // A tuple of key columns. If empty then the chunk list is not sorted.
     DEFINE_BYREF_RW_PROPERTY(std::vector<Stroka>, SortedBy);

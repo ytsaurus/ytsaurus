@@ -9,6 +9,7 @@
 #include <server/object_server/object_detail.h>
 
 #include <server/chunk_server/chunk.h>
+#include <server/chunk_server/chunk_owner_base.h>
 #include <server/chunk_server/chunk_list.h>
 #include <server/chunk_server/job.h>
 #include <server/chunk_server/chunk_manager.h>
@@ -69,6 +70,12 @@ template <>
 TChunk* TLoadContext::Get(const TObjectId& id) const
 {
     return Bootstrap_->GetChunkManager()->GetChunk(id);
+}
+
+template <>
+TChunkOwnerBase* TLoadContext::Get(const TVersionedNodeId& id) const
+{
+    return static_cast<TChunkOwnerBase*>(Get<TCypressNodeBase>(id));
 }
 
 template <>

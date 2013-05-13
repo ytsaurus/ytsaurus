@@ -2,8 +2,8 @@
 #include "chunk_replicator.h"
 #include "chunk_placement.h"
 #include "job.h"
-#include "chunk.h"
 #include "chunk_list.h"
+#include "chunk_owner_base.h"
 #include "chunk_tree_traversing.h"
 #include "private.h"
 
@@ -90,12 +90,12 @@ void TChunkReplicator::Initialize()
         Config->ChunkRefreshPeriod);
     RefreshInvoker->Start();
 
-    RFUpdateInvoker = New<TPeriodicInvoker>(
+    PropertiesUpdateInvoker = New<TPeriodicInvoker>(
         Bootstrap->GetMetaStateFacade()->GetEpochInvoker(EStateThreadQueue::ChunkMaintenance),
-        BIND(&TChunkReplicator::OnRFUpdate, MakeWeak(this)),
-        Config->ChunkRFUpdatePeriod,
+        BIND(&TChunkReplicator::OnPropertiesUpdate, MakeWeak(this)),
+        Config->ChunkPropertiesUpdatePeriod,
         EPeriodicInvokerMode::Manual);
-    RFUpdateInvoker->Start();
+    PropertiesUpdateInvoker->Start();
 
     auto nodeTracker = Bootstrap->GetNodeTracker();
     FOREACH (auto* node, nodeTracker->GetNodes()) {
@@ -105,7 +105,7 @@ void TChunkReplicator::Initialize()
     auto chunkManager = Bootstrap->GetChunkManager();
     FOREACH (auto* chunk, chunkManager->GetChunks()) {
         ScheduleChunkRefresh(chunk);
-        ScheduleRFUpdate(chunk);
+        SchedulePropertiesUpdate(chunk);
     }
 }
 
@@ -974,29 +974,29 @@ int TChunkReplicator::GetRefreshListSize() const
     return static_cast<int>(RefreshList.size());
 }
 
-int TChunkReplicator::GetRFUpdateListSize() const
+int TChunkReplicator::GetPropertiesUpdateListSize() const
 {
-    return static_cast<int>(RFUpdateList.size());
+    return static_cast<int>(PropertiesUpdateList.size());
 }
 
-void TChunkReplicator::ScheduleRFUpdate(TChunkTree* chunkTree)
+void TChunkReplicator::SchedulePropertiesUpdate(TChunkTree* chunkTree)
 {
     switch (chunkTree->GetType()) {
         case EObjectType::Chunk:
-            ScheduleRFUpdate(chunkTree->AsChunk());
-            break;
         case EObjectType::ErasureChunk:
-            // Erasure chunks have no RF.
+            // Erasure chunks have no RF but still can update Vital.
+            SchedulePropertiesUpdate(chunkTree->AsChunk());
             break;
+
         case EObjectType::ChunkList:
-            ScheduleRFUpdate(chunkTree->AsChunkList());
+            SchedulePropertiesUpdate(chunkTree->AsChunkList());
             break;
         default:
             YUNREACHABLE();
     }
 }
 
-void TChunkReplicator::ScheduleRFUpdate(TChunkList* chunkList)
+void TChunkReplicator::SchedulePropertiesUpdate(TChunkList* chunkList)
 {
     class TVisitor
         : public IChunkVisitor
@@ -1029,13 +1029,13 @@ void TChunkReplicator::ScheduleRFUpdate(TChunkList* chunkList)
             UNUSED(startLimit);
             UNUSED(endLimit);
 
-            Replicator->ScheduleRFUpdate(chunk);
+            Replicator->SchedulePropertiesUpdate(chunk);
             return true;
         }
 
         virtual void OnError(const TError& error) override
         {
-            LOG_ERROR(error, "Error traversing chunk tree for RF update");
+            LOG_ERROR(error, "Error traversing chunk tree for properties update");
         }
 
         virtual void OnFinish() override
@@ -1046,48 +1046,58 @@ void TChunkReplicator::ScheduleRFUpdate(TChunkList* chunkList)
     New<TVisitor>(Bootstrap, this, chunkList)->Run();
 }
 
-void TChunkReplicator::ScheduleRFUpdate(TChunk* chunk)
+void TChunkReplicator::SchedulePropertiesUpdate(TChunk* chunk)
 {
-    if (!IsObjectAlive(chunk) || chunk->GetRFUpdateScheduled() || chunk->IsErasure())
+
+    if (!IsObjectAlive(chunk) || chunk->GetPropertiesUpdateScheduled())
         return;
 
-    RFUpdateList.push_back(chunk);
-    chunk->SetRFUpdateScheduled(true);
+    PropertiesUpdateList.push_back(chunk);
+    chunk->SetPropertiesUpdateScheduled(true);
 
     auto objectManager = Bootstrap->GetObjectManager();
     objectManager->LockObject(chunk);
 }
 
-void TChunkReplicator::OnRFUpdate()
+void TChunkReplicator::OnPropertiesUpdate()
 {
-    if (RFUpdateList.empty() ||
+    if (PropertiesUpdateList.empty() ||
         !Bootstrap->GetMetaStateFacade()->GetManager()->HasActiveQuorum())
     {
-        RFUpdateInvoker->ScheduleNext();
+        PropertiesUpdateInvoker->ScheduleNext();
         return;
     }
 
-    // Extract up to GCObjectsPerMutation objects and post a mutation.
+    // Extract up to MaxChunksPerPropertiesUpdate objects and post a mutation.
     auto chunkManager = Bootstrap->GetChunkManager();
     auto objectManager = Bootstrap->GetObjectManager();
-    TMetaReqUpdateChunkReplicationFactor request;
+    TMetaReqUpdateChunkProperties request;
 
-    PROFILE_TIMING ("/rf_update_time") {
-        for (int i = 0; i < Config->MaxChunksPerRFUpdate; ++i) {
-            if (RFUpdateList.empty())
+    PROFILE_TIMING ("/properties_update_time") {
+        for (int i = 0; i < Config->MaxChunksPerPropertiesUpdate; ++i) {
+            if (PropertiesUpdateList.empty())
                 break;
 
-            auto* chunk = RFUpdateList.front();
-            RFUpdateList.pop_front();
-            chunk->SetRFUpdateScheduled(false);
+            auto* chunk = PropertiesUpdateList.front();
+            PropertiesUpdateList.pop_front();
+            chunk->SetPropertiesUpdateScheduled(false);
 
             if (IsObjectAlive(chunk)) {
+
                 YCHECK(!chunk->IsErasure());
-                int replicationFactor = ComputeReplicationFactor(chunk);
-                if (chunk->GetReplicationFactor() != replicationFactor) {
+
+                auto newProperties = ComputeChunkProperties(chunk);
+                auto oldProperties = chunk->GetChunkProperties();
+                if (newProperties != oldProperties) {
+
                     auto* update = request.add_updates();
                     ToProto(update->mutable_chunk_id(), chunk->GetId());
-                    update->set_replication_factor(replicationFactor);
+
+                    if (newProperties.ReplicationFactor != oldProperties.ReplicationFactor)
+                        update->set_replication_factor(newProperties.ReplicationFactor);
+
+                    if (newProperties.Vital != oldProperties.Vital)
+                        update->set_vital(newProperties.Vital);
                 }
             }
 
@@ -1096,42 +1106,43 @@ void TChunkReplicator::OnRFUpdate()
     }
 
     if (request.updates_size() == 0) {
-        RFUpdateInvoker->ScheduleNext();
+        PropertiesUpdateInvoker->ScheduleNext();
         return;
     }
 
-    LOG_DEBUG("Starting RF update for %d chunks", request.updates_size());
+    LOG_DEBUG("Starting properties update for %d chunks", request.updates_size());
 
     auto invoker = Bootstrap->GetMetaStateFacade()->GetEpochInvoker();
     chunkManager
-        ->CreateUpdateChunkReplicationFactorMutation(request)
-        ->OnSuccess(BIND(&TChunkReplicator::OnRFUpdateCommitSucceeded, MakeWeak(this)).Via(invoker))
-        ->OnError(BIND(&TChunkReplicator::OnRFUpdateCommitFailed, MakeWeak(this)).Via(invoker))
+        ->CreateUpdateChunkPropertiesMutation(request)
+        ->OnSuccess(BIND(&TChunkReplicator::OnPropertiesUpdateCommitSucceeded, MakeWeak(this)).Via(invoker))
+        ->OnError(BIND(&TChunkReplicator::OnPropertiesUpdateCommitFailed, MakeWeak(this)).Via(invoker))
         ->PostCommit();
 }
 
-void TChunkReplicator::OnRFUpdateCommitSucceeded()
+void TChunkReplicator::OnPropertiesUpdateCommitSucceeded()
 {
-    LOG_DEBUG("RF update commit succeeded");
+    LOG_DEBUG("Properties update commit succeeded");
 
-    RFUpdateInvoker->ScheduleOutOfBand();
-    RFUpdateInvoker->ScheduleNext();
+    PropertiesUpdateInvoker->ScheduleOutOfBand();
+    PropertiesUpdateInvoker->ScheduleNext();
 }
 
-void TChunkReplicator::OnRFUpdateCommitFailed(const TError& error)
+void TChunkReplicator::OnPropertiesUpdateCommitFailed(const TError& error)
 {
-    LOG_WARNING(error, "RF update commit failed");
+    LOG_WARNING(error, "Properties update commit failed");
 
-    RFUpdateInvoker->ScheduleNext();
+    PropertiesUpdateInvoker->ScheduleNext();
 }
 
-int TChunkReplicator::ComputeReplicationFactor(TChunk* chunk)
+TChunkProperties TChunkReplicator::ComputeChunkProperties(TChunk* chunk)
 {
+    bool parentsVisited = false;
+    TChunkProperties properties;
+
     if (chunk->IsErasure()) {
-        return 1;
+        properties.ReplicationFactor = 1;
     }
-
-    int result = 0;
 
     // Unique number used to distinguish already visited chunk lists.
     auto mark = TChunkList::GenerateVisitMark();
@@ -1162,7 +1173,15 @@ int TChunkReplicator::ComputeReplicationFactor(TChunk* chunk)
         // Examine owners, if any.
         FOREACH (const auto* owningNode, chunkList->OwningNodes()) {
             if (owningNode->IsTrunk()) {
-                result = std::max(result, owningNode->GetOwningReplicationFactor());
+                parentsVisited = true;
+
+                if (!chunk->IsErasure()) {
+                    properties.ReplicationFactor = std::max(
+                        properties.ReplicationFactor,
+                        owningNode->GetReplicationFactor());
+                }
+
+                properties.Vital |= owningNode->GetVital();
             }
         }
 
@@ -1175,7 +1194,7 @@ int TChunkReplicator::ComputeReplicationFactor(TChunk* chunk)
         }
     }
 
-    return result == 0 ? chunk->GetReplicationFactor() : result;
+    return parentsVisited ? properties : chunk->GetChunkProperties();
 }
 
 TChunkList* TChunkReplicator::FollowParentLinks(TChunkList* chunkList)

@@ -417,6 +417,25 @@ class TestTableCommands(YTEnvSetup):
         for id in chunk_ids:
             assert get('#' + id + '/@replication_factor') == expected_rf
 
+    def test_vital_update(self):
+        create('table', '//tmp/t')
+        for i in xrange(0, 5):
+            write('<append=true>//tmp/t', {'a' : 'b'})
+
+        def check_vital_chunks(is_vital):
+            chunk_ids = get('//tmp/t/@chunk_ids')
+            for id in chunk_ids:
+                assert get('#' + id + '/@vital') == is_vital
+
+        assert get('//tmp/t/@vital') == 'true'
+        check_vital_chunks('true')
+
+        set('//tmp/t/@vital', 'false')
+        assert get('//tmp/t/@vital') == 'false'
+        sleep(3)
+
+        check_vital_chunks('false')
+
     def test_replication_factor_update1(self):
         create('table', '//tmp/t')
         for i in xrange(0, 5):

@@ -67,6 +67,9 @@ template <>
 NChunkServer::TJob* TLoadContext::Get(const NObjectClient::TObjectId& id) const;
 
 template <>
+NChunkServer::TChunkOwnerBase* TLoadContext::Get(const NCypressClient::TVersionedNodeId& id) const;
+
+template <>
 NCypressServer::TCypressNodeBase* TLoadContext::Get(const NCypressClient::TNodeId& id) const;
 
 template <>

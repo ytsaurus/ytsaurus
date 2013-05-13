@@ -60,6 +60,11 @@ private:
         const TNullable<TYsonString>& oldValue,
         const TNullable<TYsonString>& newValue) override;
 
+    virtual void ValidatePathAttributes(
+        const TNullable<TChannel>& channel,
+        const TReadLimit& upperLimit,
+        const TReadLimit& lowerLimit) override;
+
     virtual NCypressClient::ELockMode GetLockMode(EUpdateMode updateMode) override;
     virtual bool DoInvoke(IServiceContextPtr context) override;
 
@@ -102,6 +107,18 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attribut
     attributes->push_back("sorted");
     attributes->push_back(TAttributeInfo("sorted_by", !chunkList->SortedBy().empty()));
     TBase::ListSystemAttributes(attributes);
+}
+
+void TTableNodeProxy::ValidatePathAttributes(
+    const TNullable<TChannel>& channel,
+    const TReadLimit& upperLimit,
+    const TReadLimit& lowerLimit)
+{
+    UNUSED(channel);
+
+    if (upperLimit.has_offset() || lowerLimit.has_offset()) {
+        THROW_ERROR_EXCEPTION("Offset selectors are not supported for tables");
+    }
 }
 
 bool TTableNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer)

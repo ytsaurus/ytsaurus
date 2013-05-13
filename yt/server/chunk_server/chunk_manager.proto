@@ -5,12 +5,13 @@ import "yt/ytlib/node_tracker_client/node_tracker_service.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TMetaReqUpdateChunkReplicationFactor
+message TMetaReqUpdateChunkProperties
 {
     message TUpdate
     {
         required NYT.NProto.TGuid chunk_id = 1;
-        required int32 replication_factor = 2;
+        optional int32 replication_factor = 2;
+        optional bool vital = 3;
     }
 
     repeated TUpdate updates = 1;

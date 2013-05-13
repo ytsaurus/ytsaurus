@@ -458,6 +458,7 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<NYTree::ISystemAttri
     attributes->push_back("compression_ratio");
     attributes->push_back("update_mode");
     attributes->push_back("replication_factor");
+    attributes->push_back("vital");
     TNontemplateCypressNodeProxyBase::ListSystemAttributes(attributes);
 }
 
@@ -515,6 +516,12 @@ bool TChunkOwnerNodeProxy::GetSystemAttribute(
         return true;
     }
 
+    if (key == "vital") {
+        NYTree::BuildYsonFluently(consumer)
+            .Value(node->GetVital());
+        return true;
+    }
+
     return TNontemplateCypressNodeProxyBase::GetSystemAttribute(key, consumer);
 }
 
@@ -553,7 +560,15 @@ void TChunkOwnerNodeProxy::ValidateUserAttributeUpdate(
         if (!newValue) {
             NYTree::ThrowCannotRemoveAttribute(key);
         }
-        ParseEnum<NCompression::ECodec>(NYTree::ConvertTo<Stroka>(newValue.Get()));
+        ParseEnum<NCompression::ECodec>(ConvertTo<Stroka>(newValue.Get()));
+        return;
+    }
+
+    if (key == "erasure_codec") {
+        if (!newValue) {
+            NYTree::ThrowCannotRemoveAttribute(key);
+        }
+        ParseEnum<NErasure::ECodec>(ConvertTo<Stroka>(newValue.Get()));
         return;
     }
 }
@@ -585,7 +600,24 @@ bool TChunkOwnerNodeProxy::SetSystemAttribute(
             securityManager->UpdateAccountNodeUsage(node);
 
             if (IsLeader()) {
-                chunkManager->ScheduleRFUpdate(node->GetChunkList());
+                chunkManager->SchedulePropertiesUpdate(node->GetChunkList());
+            }
+        }
+        return true;
+    }
+
+    if (key == "vital") {
+        ValidateNoTransaction();
+        bool vital = NYTree::ConvertTo<bool>(value);
+
+        auto* node = GetThisTypedImpl<TChunkOwnerBase>();
+        YCHECK(node->IsTrunk());
+
+        if (node->GetVital() != vital) {
+            node->SetVital(vital);
+
+            if (IsLeader()) {
+                chunkManager->SchedulePropertiesUpdate(node->GetChunkList());
             }
         }
 

@@ -28,6 +28,25 @@ const i64 TChunk::UnknownDiskSpace = -1;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TChunkProperties::TChunkProperties()
+    : ReplicationFactor(0)
+    , Vital(false)
+{ }
+
+bool operator== (const TChunkProperties& lhs, const TChunkProperties& rhs)
+{
+    return
+        lhs.ReplicationFactor == rhs.ReplicationFactor &&
+        lhs.Vital == rhs.Vital;
+}
+
+bool operator!= (const TChunkProperties& lhs, const TChunkProperties& rhs)
+{
+    return !(lhs == rhs);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TChunk::TChunk(const TChunkId& id)
     : TChunkTree(id)
     , ReplicationFactor(1)
@@ -198,14 +217,14 @@ void TChunk::SetRefreshScheduled(bool value)
     Flags.RefreshScheduled = value;
 }
 
-bool TChunk::GetRFUpdateScheduled() const
+bool TChunk::GetPropertiesUpdateScheduled() const
 {
-    return Flags.RFUpdateScheduled;
+    return Flags.PropertiesUpdateScheduled;
 }
 
-void TChunk::SetRFUpdateScheduled(bool value)
+void TChunk::SetPropertiesUpdateScheduled(bool value)
 {
-    Flags.RFUpdateScheduled = value;
+    Flags.PropertiesUpdateScheduled = value;
 }
 
 int TChunk::GetReplicationFactor() const
@@ -247,6 +266,14 @@ bool TChunk::IsAvailable() const
         }
         return !missingIndexSet.any();
     }
+}
+
+TChunkProperties TChunk::GetChunkProperties() const
+{
+    TChunkProperties result;
+    result.ReplicationFactor = GetReplicationFactor();
+    result.Vital = GetVital();
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

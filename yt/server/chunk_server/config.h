@@ -64,8 +64,8 @@ public:
 
     double ActiveSessionsPenalityCoeff;
 
-    TDuration ChunkRFUpdatePeriod;
-    int MaxChunksPerRFUpdate;
+    TDuration ChunkPropertiesUpdatePeriod;
+    int MaxChunksPerPropertiesUpdate;
 
     TChunkReplicatorConfigPtr ChunkReplicator;
 
@@ -78,9 +78,9 @@ public:
         RegisterParameter("max_chunks_per_refresh", MaxChunksPerRefresh)
             .Default(10000);
 
-        RegisterParameter("chunk_rf_update_period", ChunkRFUpdatePeriod)
+        RegisterParameter("chunk_properties_update_period", ChunkPropertiesUpdatePeriod)
             .Default(TDuration::MilliSeconds(1000));
-        RegisterParameter("max_chunks_per_rf_update", MaxChunksPerRFUpdate)
+        RegisterParameter("max_chunks_per_properties_update", MaxChunksPerPropertiesUpdate)
             .Default(10000);
 
         RegisterParameter("active_sessions_penality_coeff", ActiveSessionsPenalityCoeff)

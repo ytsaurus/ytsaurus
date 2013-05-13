@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "chunk.h"
 #include "chunk_replica.h"
 
 #include <ytlib/misc/property.h>
@@ -55,9 +56,9 @@ public:
     void ScheduleUnknownChunkRemoval(TNode* node, const TChunkIdWithIndex& chunkdIdWithIndex);
     void ScheduleChunkRemoval(TNode* node, TChunkPtrWithIndex chunkWithIndex);
 
-    void ScheduleRFUpdate(TChunkTree* chunkTree);
-    void ScheduleRFUpdate(TChunk* chunk);
-    void ScheduleRFUpdate(TChunkList* chunkList);
+    void SchedulePropertiesUpdate(TChunkTree* chunkTree);
+    void SchedulePropertiesUpdate(TChunk* chunk);
+    void SchedulePropertiesUpdate(TChunkList* chunkList);
 
     void TouchChunk(TChunk* chunk);
 
@@ -76,7 +77,7 @@ public:
     bool IsEnabled();
 
     int GetRefreshListSize() const;
-    int GetRFUpdateListSize() const;
+    int GetPropertiesUpdateListSize() const;
 
 private:
     struct TChunkStatistics
@@ -106,8 +107,8 @@ private:
     TPeriodicInvokerPtr RefreshInvoker;
     std::deque<TRefreshEntry> RefreshList;
 
-    TPeriodicInvokerPtr RFUpdateInvoker;
-    std::deque<TChunk*> RFUpdateList;
+    TPeriodicInvokerPtr PropertiesUpdateInvoker;
+    std::deque<TChunk*> PropertiesUpdateList;
 
     yhash_map<TJobId, TJobPtr> JobMap;
     //! Keyed by whole (not encoded) chunk ids.
@@ -162,12 +163,12 @@ private:
     bool HasRunningJobs(const TChunkId& chunkId);
     bool HasRunningJobs(const TChunkIdWithIndex& chunkIdWithIndex);
 
-    void OnRFUpdate();
-    void OnRFUpdateCommitSucceeded();
-    void OnRFUpdateCommitFailed(const TError& error);
+    void OnPropertiesUpdate();
+    void OnPropertiesUpdateCommitSucceeded();
+    void OnPropertiesUpdateCommitFailed(const TError& error);
 
-    //! Computes the actual replication factor the chunk must have.
-    int ComputeReplicationFactor(TChunk* chunk);
+    //! Computes the actual properties the chunk must have.
+    TChunkProperties ComputeChunkProperties(TChunk* chunk);
 
     //! Follows upward parent links.
     //! Stops when some owning nodes are discovered or parents become ambiguous.
