@@ -173,7 +173,7 @@ def get_driver_config():
                 pattern = "$(datetime) $(level) $(category) $(message)";
             };
             raw = {
-                type = File;
+                type = Raw;
                 file_name = "ytdriver.debug.log";
                 pattern = "$(datetime) $(level) $(category) $(message)";
             };
