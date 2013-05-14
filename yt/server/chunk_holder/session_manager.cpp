@@ -288,7 +288,7 @@ TError TSession::DoWriteBlock(const TSharedRef& block, int blockIndex)
     locationProfiler.Enqueue("/block_write_time", writeTime.MilliSeconds());
     locationProfiler.Enqueue("/block_write_speed", block.Size() * 1000000 / (1 + writeTime.MicroSeconds()));
 
-    Profiler.Increment(DiskWriteThroughputCounter, block.Size());
+    DataNodeProfiler.Increment(DiskWriteThroughputCounter, block.Size());
 
     return Error;
 }
