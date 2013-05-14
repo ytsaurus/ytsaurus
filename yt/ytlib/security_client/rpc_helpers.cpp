@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "rpc_helpers.h"
 
+#include <ytlib/security_client/rpc_helpers.pb.h>
+
 #include <ytlib/ytree/attribute_helpers.h>
 
 #include <ytlib/rpc/service.h>
@@ -9,24 +11,38 @@ namespace NYT {
 namespace NSecurityClient {
 
 using namespace NRpc;
+using namespace NRpc::NProto;
+using namespace NSecurityClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void SetRpcAuthenticatedUser(NRpc::IClientRequestPtr request, const Stroka& user)
+void SetAuthenticatedUser(TRequestHeader* header, const Stroka& user)
 {
-    request->MutableAttributes()->Set("authenticated_user", user);
+    header->SetExtension(TAuthenticatedExt::authenticated_user, user);
 }
 
-TNullable<Stroka> FindRpcAuthenticatedUser(NRpc::IServiceContextPtr context)
+void SetAuthenticatedUser(IClientRequestPtr request, const Stroka& user)
 {
-    return context->RequestAttributes().Find<Stroka>("authenticated_user");
+    SetAuthenticatedUser(&request->Header(), user);
 }
 
-Stroka GetRpcAuthenticatedUser(NRpc::IServiceContextPtr context)
+TNullable<Stroka> FindAuthenticatedUser(const TRequestHeader& header)
 {
-    auto user = FindRpcAuthenticatedUser(context);
+    return header.HasExtension(TAuthenticatedExt::authenticated_user)
+           ? TNullable<Stroka>(header.GetExtension(TAuthenticatedExt::authenticated_user))
+           : Null;
+}
+
+TNullable<Stroka> FindAuthenticatedUser(IServiceContextPtr context)
+{
+    return FindAuthenticatedUser(context->RequestHeader());
+}
+
+Stroka GetAuthenticatedUserOrThrow(IServiceContextPtr context)
+{
+    auto user = FindAuthenticatedUser(context);
     if (!user) {
-        THROW_ERROR_EXCEPTION("Must specify authenticated user in request attributes");
+        THROW_ERROR_EXCEPTION("Must specify authenticated user in request header");
     }
     return user.Get();
 }
@@ -57,7 +73,7 @@ public:
         IClientResponseHandlerPtr responseHandler,
         TNullable<TDuration> timeout) override
     {
-        SetRpcAuthenticatedUser(request, User);
+        SetAuthenticatedUser(request, User);
         UnderlyingChannel->Send(request, responseHandler, timeout);
     }
 

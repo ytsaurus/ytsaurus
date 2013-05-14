@@ -40,7 +40,7 @@ using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& SILENT_UNUSED Logger = ObjectServerLogger;
+static NLog::TLogger& Logger = ObjectServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -60,12 +60,9 @@ public:
     void Run()
     {
         int requestCount = Context->Request().part_counts_size();
-        UserName = FindRpcAuthenticatedUser(Context);
+        UserName = FindAuthenticatedUser(Context);
 
-        // TODO(babenko): let RPC subsystem log user name
-        Context->SetRequestInfo("User: %s, RequestCount: %d",
-            ~ToString(UserName),
-            requestCount);
+        Context->SetRequestInfo("RequestCount: %d", requestCount);
 
         ResponseMessages.resize(requestCount);
         Continue();

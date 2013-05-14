@@ -1,0 +1,16 @@
+package NYT.NMetaState.NProto;
+
+import "yt/ytlib/misc/guid.proto";
+import "yt/ytlib/rpc/rpc.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TMutatingExt
+{
+    extend NRpc.NProto.TRequestHeader
+    {
+        optional NYT.NProto.TGuid mutation_id = 101;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////

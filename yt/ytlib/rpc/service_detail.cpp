@@ -10,6 +10,8 @@
 
 #include <ytlib/bus/bus.h>
 
+#include <ytlib/security_client/rpc_helpers.h>
+
 #include <ytlib/profiling/timing.h>
 
 namespace NYT {
@@ -23,8 +25,8 @@ using namespace NRpc::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& SILENT_UNUSED Logger = RpcServerLogger;
-static TProfiler& SILENT_UNUSED Profiler = RpcServerProfiler;
+static NLog::TLogger& Logger = RpcServerLogger;
+static TProfiler& Profiler = RpcServerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -100,10 +102,18 @@ private:
     virtual void LogRequest() override
     {
         Stroka str;
+
         if (RequestId != NullRequestId) {
             AppendInfo(str, Sprintf("RequestId: %s", ~ToString(RequestId)));
         }
+
+        auto user = NSecurityClient::FindAuthenticatedUser(RequestHeader_);
+        if (user) {
+            AppendInfo(str, Sprintf("User: %s", ~*user));
+        }
+
         AppendInfo(str, RequestInfo);
+
         LOG_DEBUG("%s <- %s",
             ~GetVerb(),
             ~str);
@@ -112,11 +122,15 @@ private:
     virtual void LogResponse(const TError& error) override
     {
         Stroka str;
+
         if (RequestId != NullRequestId) {
             AppendInfo(str, Sprintf("RequestId: %s", ~ToString(RequestId)));
         }
+
         AppendInfo(str, Sprintf("Error: %s", ~ToString(error)));
+
         AppendInfo(str, ResponseInfo);
+
         LOG_DEBUG("%s -> %s",
             ~GetVerb(),
             ~str);
@@ -405,8 +419,8 @@ void TServiceBase::Configure(INodePtr configNode)
             const auto& methodConfig = pair.second;
             auto runtimeInfo = FindMethodInfo(methodName);
             if (!runtimeInfo) {
-                THROW_ERROR_EXCEPTION("Cannot find RPC method to configure: %s",
-                    ~methodName);
+                THROW_ERROR_EXCEPTION("Cannot find RPC method %s to configure",
+                    ~methodName.Quote());
             }
 
             auto& descriptor = runtimeInfo->Descriptor;
@@ -424,8 +438,8 @@ void TServiceBase::Configure(INodePtr configNode)
             }
         }
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error configuring RPC service: %s",
-            ~ServiceName)
+        THROW_ERROR_EXCEPTION("Error configuring RPC service %s",
+            ~ServiceName.Quote())
             << ex;
     }
 }

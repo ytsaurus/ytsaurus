@@ -74,3 +74,4 @@ list(APPEND YT_SOURCE_FILES
 )
 
 protoc( ${BASE}/meta_state_manager.proto YT_SOURCE_FILES )
+protoc( ${BASE}/rpc_helpers.proto YT_SOURCE_FILES )
