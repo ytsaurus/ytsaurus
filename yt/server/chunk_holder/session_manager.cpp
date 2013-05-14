@@ -14,6 +14,8 @@
 #include <ytlib/misc/fs.h>
 #include <ytlib/misc/sync.h>
 
+#include <ytlib/profiling/scoped_timer.h>
+
 namespace NYT {
 namespace NChunkHolder {
 
@@ -24,6 +26,7 @@ using namespace NChunkClient::NProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = DataNodeLogger;
+static NProfiling::TRateCounter DiskWriteThroughputCounter("/disk_write_throughput");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -258,28 +261,34 @@ TError TSession::DoWriteBlock(const TSharedRef& block, int blockIndex)
 
     LOG_DEBUG("Started writing block %d", blockIndex);
 
-    PROFILE_TIMING ("/block_write_time") {
-        try {
-            if (!Writer->TryWriteBlock(block)) {
-                // This will throw...
-                Sync(~Writer, &TFileWriter::GetReadyEvent);
-                // ... so we never get here.
-                YUNREACHABLE();
-            }
-        } catch (const std::exception& ex) {
-            TBlockId blockId(ChunkId, blockIndex);
-            OnIOError(TError(
-                NChunkClient::EErrorCode::IOError,
-                "Error writing chunk block %s",
-                ~blockId.ToString())
-                << ex);
+    TScopedTimer timer;
+    
+    try {
+        if (!Writer->TryWriteBlock(block)) {
+            // This will throw...
+            Sync(~Writer, &TFileWriter::GetReadyEvent);
+            // ... so we never get here.
+            YUNREACHABLE();
         }
+    } catch (const std::exception& ex) {
+        TBlockId blockId(ChunkId, blockIndex);
+        OnIOError(TError(
+            NChunkClient::EErrorCode::IOError,
+            "Error writing chunk block %s",
+            ~blockId.ToString())
+            << ex);
     }
+
+    auto writeTime = timer.GetElapsed();
 
     LOG_DEBUG("Finished writing block %d", blockIndex);
 
-    Profiler.Enqueue("/block_write_size", block.Size());
-    Profiler.Increment(Location->WriteThroughputCounter(), block.Size());
+    auto& locationProfiler = Location->Profiler();
+    locationProfiler.Enqueue("/block_write_size", block.Size());
+    locationProfiler.Enqueue("/block_write_time", writeTime.MilliSeconds());
+    locationProfiler.Enqueue("/block_write_speed", block.Size() * 1000 / writeTime.MilliSeconds());
+
+    Profiler.Increment(DiskWriteThroughputCounter, block.Size());
 
     return Error;
 }
