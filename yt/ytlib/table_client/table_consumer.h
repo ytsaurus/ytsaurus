@@ -41,8 +41,7 @@ private:
 
     void OnEndList();
     void OnEndAttributes();
-    void OnRaw(const TStringBuf& yson, NYson
-        ::EYsonType type);
+    void OnRaw(const TStringBuf& yson, NYson::EYsonType type);
 
     ISyncWriterPtr Writer;
 
