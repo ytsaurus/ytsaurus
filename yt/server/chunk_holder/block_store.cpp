@@ -294,7 +294,7 @@ private:
         auto& locationProfiler = location->Profiler();
         locationProfiler.Enqueue("/block_read_size", blockSize);
         locationProfiler.Enqueue("/block_read_time", readTime.MilliSeconds());
-        locationProfiler.Enqueue("/block_read_speed", blockSize * 1000 / (1 + readTime.MilliSeconds()));
+        locationProfiler.Enqueue("/block_read_speed", blockSize * 1000000 / (1 + readTime.MicroSeconds()));
 
         DataNodeProfiler.Increment(DiskReadThroughputCounter, blockSize);
     }
