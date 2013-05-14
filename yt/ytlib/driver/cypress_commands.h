@@ -16,11 +16,14 @@ struct TGetRequest
 {
     NYPath::TRichYPath Path;
     std::vector<Stroka> Attributes;
+    TNullable<i64> MaxSize;
 
     TGetRequest()
     {
         RegisterParameter("path", Path);
         RegisterParameter("attributes", Attributes)
+            .Default();
+        RegisterParameter("max_size", MaxSize)
             .Default();
     }
 };
@@ -98,11 +101,14 @@ struct TListRequest
 {
     NYPath::TRichYPath Path;
     std::vector<Stroka> Attributes;
+    TNullable<i64> MaxSize;
 
     TListRequest()
     {
         RegisterParameter("path", Path);
         RegisterParameter("attributes", Attributes)
+            .Default();
+        RegisterParameter("max_size", MaxSize)
             .Default();
     }
 };
