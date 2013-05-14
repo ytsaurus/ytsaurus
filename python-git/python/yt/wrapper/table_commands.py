@@ -55,8 +55,6 @@ def _prepare_files(files):
 
     file_paths = []
     for file in flatten(files):
-        if config.DO_NOT_UPLOAD_EMPTY_FILES and os.path.getsize(file) == 0:
-            continue
         file_paths.append(smart_upload_file(file))
     return file_paths
 
