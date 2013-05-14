@@ -9,15 +9,15 @@ namespace NYT {
 namespace NRpc {
 
 using namespace NBus;
-using namespace NProto;
 using namespace NYTree;
+using namespace NRpc::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TServiceContextBase::TServiceContextBase(
     const TRequestHeader& header,
     IMessagePtr requestMessage)
-    : Header(header)
+    : RequestHeader_(header)
     , RequestMessage(requestMessage)
     , RequestId(header.has_request_id()
         ? FromProto<TRequestId>(header.request_id())
@@ -82,7 +82,7 @@ void TServiceContextBase::Reply(IMessagePtr responseMessage)
 
 bool TServiceContextBase::IsOneWay() const
 {
-    return Header.one_way();
+    return RequestHeader_.one_way();
 }
 
 bool TServiceContextBase::IsReplied() const
@@ -145,27 +145,37 @@ TRequestId TServiceContextBase::GetRequestId() const
 
 TNullable<TInstant> TServiceContextBase::GetRequestStartTime() const
 {
-    return Header.has_request_start_time() ? TNullable<TInstant>(TInstant(Header.request_start_time())) : Null;
+    return RequestHeader_.has_request_start_time() ? TNullable<TInstant>(TInstant(RequestHeader_.request_start_time())) : Null;
 }
 
 TNullable<TInstant> TServiceContextBase::GetRetryStartTime() const
 {
-    return Header.has_retry_start_time() ? TNullable<TInstant>(TInstant(Header.retry_start_time())) : Null;
+    return RequestHeader_.has_retry_start_time() ? TNullable<TInstant>(TInstant(RequestHeader_.retry_start_time())) : Null;
 }
 
 i64 TServiceContextBase::GetPriority() const
 {
-    return Header.has_request_start_time() ? -Header.request_start_time() : 0;
+    return RequestHeader_.has_request_start_time() ? -RequestHeader_.request_start_time() : 0;
 }
 
 const Stroka& TServiceContextBase::GetPath() const
 {
-    return Header.path();
+    return RequestHeader_.path();
 }
 
 const Stroka& TServiceContextBase::GetVerb() const
 {
-    return Header.verb();
+    return RequestHeader_.verb();
+}
+
+const TRequestHeader& TServiceContextBase::RequestHeader() const
+{
+    return RequestHeader_;
+}
+
+TRequestHeader& TServiceContextBase::RequestHeader()
+{
+    return RequestHeader_;
 }
 
 void TServiceContextBase::SetRequestInfo(const Stroka& info)
@@ -335,6 +345,16 @@ IAttributeDictionary& TServiceContextWrapper::RequestAttributes()
 IAttributeDictionary& TServiceContextWrapper::ResponseAttributes()
 {
     return UnderlyingContext->ResponseAttributes();
+}
+
+const NProto::TRequestHeader& TServiceContextWrapper::RequestHeader() const 
+{
+    return UnderlyingContext->RequestHeader();
+}
+
+NProto::TRequestHeader& TServiceContextWrapper::RequestHeader()
+{
+    return UnderlyingContext->RequestHeader();
 }
 
 void TServiceContextWrapper::SetRequestInfo(const Stroka& info)

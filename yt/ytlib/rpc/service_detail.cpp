@@ -100,7 +100,9 @@ private:
     virtual void LogRequest() override
     {
         Stroka str;
-        AppendInfo(str, Sprintf("RequestId: %s", ~ToString(RequestId)));
+        if (RequestId != NullRequestId) {
+            AppendInfo(str, Sprintf("RequestId: %s", ~ToString(RequestId)));
+        }
         AppendInfo(str, RequestInfo);
         LOG_DEBUG("%s <- %s",
             ~GetVerb(),
@@ -110,7 +112,9 @@ private:
     virtual void LogResponse(const TError& error) override
     {
         Stroka str;
-        AppendInfo(str, Sprintf("RequestId: %s", ~ToString(RequestId)));
+        if (RequestId != NullRequestId) {
+            AppendInfo(str, Sprintf("RequestId: %s", ~ToString(RequestId)));
+        }
         AppendInfo(str, Sprintf("Error: %s", ~ToString(error)));
         AppendInfo(str, ResponseInfo);
         LOG_DEBUG("%s -> %s",

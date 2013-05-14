@@ -46,6 +46,9 @@ public:
     virtual NYTree::IAttributeDictionary& RequestAttributes() override;
     virtual NYTree::IAttributeDictionary& ResponseAttributes() override;
 
+    virtual const NProto::TRequestHeader& RequestHeader() const override;
+    virtual NProto::TRequestHeader& RequestHeader() override;
+
     virtual void SetRequestInfo(const Stroka& info) override;
     virtual Stroka GetRequestInfo() const override;
 
@@ -61,7 +64,7 @@ protected:
 
     TServiceContextBase(NBus::IMessagePtr requestMessage);
 
-    const NProto::TRequestHeader Header;
+    NProto::TRequestHeader RequestHeader_;
     NBus::IMessagePtr RequestMessage;
 
     TRequestId RequestId;
@@ -131,6 +134,9 @@ public:
 
     virtual NYTree::IAttributeDictionary& RequestAttributes() override;
     virtual NYTree::IAttributeDictionary& ResponseAttributes() override;
+
+    virtual const NProto::TRequestHeader& RequestHeader() const override;
+    virtual NProto::TRequestHeader& RequestHeader() override;
 
     using IServiceContext::SetRequestInfo;
     virtual void SetRequestInfo(const Stroka& info) override;
