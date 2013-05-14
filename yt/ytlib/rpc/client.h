@@ -13,6 +13,8 @@
 #include <ytlib/bus/client.h>
 #include <ytlib/bus/message.h>
 
+#include <ytlib/rpc/rpc.pb.h>
+
 #include <ytlib/actions/future.h>
 
 #include <ytlib/ytree/attributes.h>
@@ -51,15 +53,19 @@ struct IClientRequest
 {
     virtual NBus::IMessagePtr Serialize() const = 0;
 
+    virtual const NProto::TRequestHeader& Header() const = 0;
+    virtual NProto::TRequestHeader& Header() = 0;
+
     virtual bool IsOneWay() const = 0;
     virtual bool IsHeavy() const = 0;
-    virtual const TRequestId& GetRequestId() const = 0;
+
+    virtual TRequestId GetRequestId() const = 0;
+
     virtual const Stroka& GetPath() const = 0;
     virtual const Stroka& GetVerb() const = 0;
 
     virtual TInstant GetStartTime() const = 0;
     virtual void SetStartTime(TInstant value) = 0;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -67,28 +73,29 @@ struct IClientRequest
 class TClientRequest
     : public IClientRequest
 {
+    DEFINE_BYREF_RW_PROPERTY(NProto::TRequestHeader, Header);
     DEFINE_BYREF_RW_PROPERTY(std::vector<TSharedRef>, Attachments);
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TDuration>, Timeout);
     DEFINE_BYVAL_RW_PROPERTY(bool, Heavy);
-    DEFINE_BYVAL_RW_PROPERTY(TInstant, StartTime);
 
 public:
     virtual NBus::IMessagePtr Serialize() const override;
 
     virtual bool IsOneWay() const override;
-    virtual const TRequestId& GetRequestId() const override;
+    
+    virtual TRequestId GetRequestId() const override;
+
     virtual const Stroka& GetPath() const override;
     virtual const Stroka& GetVerb() const override;
+
+    virtual TInstant GetStartTime() const override;
+    virtual void SetStartTime(TInstant value) override;
 
     virtual const NYTree::IAttributeDictionary& Attributes() const override;
     virtual NYTree::IAttributeDictionary* MutableAttributes();
 
 protected:
     IChannelPtr Channel;
-    Stroka Path;
-    Stroka Verb;
-    TRequestId RequestId;
-    bool OneWay;
 
     TAutoPtr<NYTree::IAttributeDictionary> Attributes_;
 

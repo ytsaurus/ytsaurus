@@ -27,7 +27,7 @@ public:
     explicit TYPathRequest(const Stroka& verb);
 
     virtual bool IsOneWay() const override;
-    virtual const NRpc::TRequestId& GetRequestId() const override;
+    virtual NRpc::TRequestId GetRequestId() const override;
 
     virtual const Stroka& GetVerb() const override;
 
@@ -36,15 +36,17 @@ public:
 
     virtual TInstant GetStartTime() const override;
     virtual void SetStartTime(TInstant value) override;
-
+    
     virtual const NYTree::IAttributeDictionary& Attributes() const override;
     virtual NYTree::IAttributeDictionary* MutableAttributes() override;
+
+    virtual const NRpc::NProto::TRequestHeader& Header() const override;
+    virtual NRpc::NProto::TRequestHeader& Header() override;
 
     virtual NBus::IMessagePtr Serialize() const override;
 
 protected:
-    Stroka Verb_;
-    Stroka Path_;
+    NRpc::NProto::TRequestHeader Header_;
     std::vector<TSharedRef> Attachments_;
 
     virtual bool IsHeavy() const override;

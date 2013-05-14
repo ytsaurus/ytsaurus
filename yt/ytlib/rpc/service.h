@@ -27,7 +27,7 @@ struct IServiceContext
      *  
      *  #NullRequestId is a possible value.
      */
-    virtual const TRequestId& GetRequestId() const = 0;
+    virtual TRequestId GetRequestId() const = 0;
 
     //! Returns the instant when the request was first issued by the client, if known.
     virtual TNullable<TInstant> GetRequestStartTime() const = 0;

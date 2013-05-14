@@ -138,7 +138,7 @@ IMessagePtr TServiceContextBase::GetRequestMessage() const
     return RequestMessage;
 }
 
-const TRequestId& TServiceContextBase::GetRequestId() const
+TRequestId TServiceContextBase::GetRequestId() const
 {
     return RequestId;
 }
@@ -247,7 +247,7 @@ IMessagePtr TServiceContextWrapper::GetRequestMessage() const
     return UnderlyingContext->GetRequestMessage();
 }
 
-const TRequestId& TServiceContextWrapper::GetRequestId() const
+TRequestId TServiceContextWrapper::GetRequestId() const
 {
     return UnderlyingContext->GetRequestId();
 }

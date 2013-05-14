@@ -17,7 +17,7 @@ using namespace NBus;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& SILENT_UNUSED Logger = RpcServerLogger;
+static NLog::TLogger& Logger = RpcServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,9 +30,9 @@ public:
     TRedirectedRequest(
         const NProto::TRequestHeader& header,
         IMessagePtr message)
-        : Header(header)
+        : Header_(header)
         , Message(message)
-        , RequestId(FromProto<TRequestId>(Header.request_id()))
+        , RequestId(FromProto<TRequestId>(Header_.request_id()))
     { }
 
     virtual IMessagePtr Serialize() const override
@@ -42,7 +42,7 @@ public:
 
     virtual bool IsOneWay() const override
     {
-        return Header.one_way();
+        return Header_.one_way();
     }
 
     virtual bool IsHeavy() const override
@@ -50,19 +50,19 @@ public:
         return false;
     }
 
-    virtual const TRequestId& GetRequestId() const override
+    virtual TRequestId GetRequestId() const override
     {
         return RequestId;
     }
 
     virtual const Stroka& GetPath() const override
     {
-        return Header.path();
+        return Header_.path();
     }
 
     virtual const Stroka& GetVerb() const override
     {
-        return Header.verb();
+        return Header_.verb();
     }
 
     virtual TInstant GetStartTime() const override
@@ -73,6 +73,16 @@ public:
     virtual void SetStartTime(TInstant /*value*/) override
     {
         YUNREACHABLE();
+    }
+
+    virtual const NProto::TRequestHeader& Header() const override
+    {
+        return Header_;
+    }
+
+    virtual NProto::TRequestHeader& Header() override
+    {
+        return Header_;
     }
 
     virtual const NYTree::IAttributeDictionary& Attributes() const override
@@ -86,7 +96,7 @@ public:
     }
 
 private:
-    NProto::TRequestHeader Header;
+    NProto::TRequestHeader Header_;
     IMessagePtr Message;
 
     TRequestId RequestId;
