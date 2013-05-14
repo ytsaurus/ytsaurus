@@ -248,13 +248,13 @@ private:
             const auto* transaction = transactionManager->FindTransaction(id);
             if (!transaction) {
                 Reply(TError(
-                    "Prerequisite transaction is missing: %s",
+                    "Prerequisite transaction %s is missing",
                     ~ToString(id)));
                 return false;
             }
             if (transaction->GetState() != ETransactionState::Active) {
                 Reply(TError(
-                    "Prerequisite transaction is not active: %s",
+                    "Prerequisite transaction %s is not active",
                     ~ToString(id)));
                 return false;
             }
@@ -273,7 +273,7 @@ private:
         if (!IsObjectAlive(user)) {
             THROW_ERROR_EXCEPTION(
                 NSecurityClient::EErrorCode::AuthenticationError,
-                "No such user: %s", ~*UserName);
+                "No such user %s", ~UserName->Quote());
         }
 
         return user;
