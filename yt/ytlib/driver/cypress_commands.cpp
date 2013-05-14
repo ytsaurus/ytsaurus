@@ -29,7 +29,7 @@ void TGetCommand::DoExecute()
     TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly, Request->Attributes);
     ToProto(req->mutable_attribute_filter(), attributeFilter);
     if (Request->MaxSize) {
-        req->set_max_size(Request->MaxSize);
+        req->set_max_size(*Request->MaxSize);
     }
 
     auto rsp = ObjectProxy->Execute(req).Get();
@@ -77,7 +77,7 @@ void TListCommand::DoExecute()
     TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly, Request->Attributes);
     ToProto(req->mutable_attribute_filter(), attributeFilter);
     if (Request->MaxSize) {
-        req->set_max_size(Request->MaxSize);
+        req->set_max_size(*Request->MaxSize);
     }
     
     auto rsp = ObjectProxy->Execute(req).Get();
