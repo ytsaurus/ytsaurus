@@ -19,7 +19,7 @@ using namespace NChunkClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = DataNodeLogger;
-static NProfiling::TProfiler& Profiler = DataNodeProfiler;
+//static NProfiling::TProfiler& Profiler = DataNodeProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -56,6 +56,9 @@ public:
 
     TGetReaderResult Get(TChunkPtr chunk)
     {
+        auto location = chunk->GetLocation();
+        auto& Profiler = location->Profiler();
+
         auto chunkId = chunk->GetId();
         TInsertCookie cookie(chunkId);
         if (BeginInsert(&cookie)) {
@@ -68,7 +71,7 @@ public:
             }
 
             LOG_DEBUG("Started opening chunk reader (LocationId: %s, ChunkId: %s)",
-                ~chunk->GetLocation()->GetId(),
+                ~location->GetId(),
                 ~chunkId.ToString());
 
             PROFILE_TIMING ("/chunk_reader_open_time") {

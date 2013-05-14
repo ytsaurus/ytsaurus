@@ -53,8 +53,6 @@ TLocation::TLocation(
     TLocationConfigPtr config,
     TBootstrap* bootstrap)
     : Profiler_(DataNodeProfiler.GetPathPrefix() + "/" + ToYPathLiteral(id))
-    , ReadThroughputCounter_("/read_throughput")
-    , WriteThroughputCounter_("/write_throughput")
     , Type(type)
     , Id(id)
     , Config(config)
