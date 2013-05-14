@@ -23,7 +23,7 @@ i64 GetSortInputIOMemorySize(
     TJobIOConfigPtr ioConfig,
     const TChunkStripeStatistics& stat);
 
-i64 GetRegularOutputIOMemorySize(TJobIOConfigPtr ioConfig);
+i64 GetIntermediateOutputIOMemorySize(TJobIOConfigPtr ioConfig);
 
 i64 GetOutputWindowMemorySize(TJobIOConfigPtr ioConfig);
 

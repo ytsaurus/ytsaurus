@@ -358,6 +358,8 @@ struct TSortOperationSpecBase
 
     int ShuffleNetworkLimit;
 
+    std::vector<Stroka> SortBy;
+
     TSortOperationSpecBase()
     {
         RegisterParameter("input_table_paths", InputTablePaths)
@@ -383,6 +385,9 @@ struct TSortOperationSpecBase
             .Default(TDuration::Seconds(5));
         RegisterParameter("shuffle_network_limit", ShuffleNetworkLimit)
             .Default(10);
+
+        RegisterParameter("sort_by", SortBy)
+            .NonEmpty();
     }
 
     virtual void OnLoaded() override
@@ -400,8 +405,6 @@ struct TSortOperationSpec
 {
     NYPath::TRichYPath OutputTablePath;
 
-    std::vector<Stroka> SortBy;
-
     // Desired number of samples per partition.
     int SamplesPerPartition;
 
@@ -412,8 +415,6 @@ struct TSortOperationSpec
     TSortOperationSpec()
     {
         RegisterParameter("output_table_path", OutputTablePath);
-        RegisterParameter("sort_by", SortBy)
-            .NonEmpty();
         RegisterParameter("samples_per_partition", SamplesPerPartition)
             .Default(10)
             .GreaterThan(1);
@@ -465,7 +466,6 @@ struct TMapReduceOperationSpec
 {
     std::vector<NYPath::TRichYPath> OutputTablePaths;
 
-    std::vector<Stroka> SortBy;
     std::vector<Stroka> ReduceBy;
 
     TUserJobSpecPtr Mapper;
@@ -478,8 +478,6 @@ struct TMapReduceOperationSpec
     TMapReduceOperationSpec()
     {
         RegisterParameter("output_table_paths", OutputTablePaths);
-        RegisterParameter("sort_by", SortBy)
-            .NonEmpty();
         RegisterParameter("reduce_by", ReduceBy)
             .Default();
         // Mapper can be absent -- leave it Null by default.

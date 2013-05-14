@@ -62,7 +62,7 @@ i64 GetOutputWindowMemorySize(TJobIOConfigPtr ioConfig)
         ioConfig->TableWriter->EncodeWindowSize;
 }
 
-i64 GetRegularOutputIOMemorySize(TJobIOConfigPtr ioConfig)
+i64 GetIntermediateOutputIOMemorySize(TJobIOConfigPtr ioConfig)
 {
     return
         (GetOutputWindowMemorySize(ioConfig) +

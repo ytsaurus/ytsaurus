@@ -2493,7 +2493,8 @@ i64 TOperationControllerBase::GetFinalOutputIOMemorySize(TJobIOConfigPtr ioConfi
     }
 
     // Each writer may have up to 2 active chunks: closing one and current one.
-    return result *= 2;
+    result *= 2;
+    return result;
 }
 
 i64 TOperationControllerBase::GetFinalIOMemorySize(

@@ -1202,6 +1202,11 @@ protected:
 
     // Unsorted helpers.
 
+    i64 GetSortBuffersMemorySize(const TChunkStripeStatistics& stat) const
+    {
+        return (i64) 16 * Spec->SortBy.size() * stat.RowCount + (i64) 12 * stat.RowCount;
+    }
+
     i64 GetRowCountEstimate(TPartitionPtr partition, i64 dataSize) const
     {
         i64 totalDataSize = partition->ChunkPoolOutput->GetTotalDataSize();
@@ -1735,8 +1740,7 @@ private:
         result.set_memory(
             GetSortInputIOMemorySize(FinalSortJobIOConfig, stat) +
             GetFinalOutputIOMemorySize(FinalSortJobIOConfig) +
-            (i64) 16 * Spec->SortBy.size() * stat.RowCount +
-            (i64) 16 * stat.RowCount +
+            GetSortBuffersMemorySize(stat) +
             // TODO(babenko): *2 are due to lack of reserve, remove this once simple sort
             // starts reserving arrays of appropriate sizes.
             (i64) 32 * valueCount * 2 +
@@ -1748,26 +1752,22 @@ private:
         TPartitionPtr partition,
         const TChunkStripeStatistics& stat) const override
     {
+        i64 memory = GetSortBuffersMemorySize(stat) + GetFootprintMemorySize();
+
+        if (IsSortedMergeNeeded(partition)) {
+            memory += GetSortInputIOMemorySize(IntermediateSortJobIOConfig, stat);
+            memory += GetIntermediateOutputIOMemorySize(IntermediateSortJobIOConfig);
+        } else {
+            memory += GetSortInputIOMemorySize(FinalSortJobIOConfig, stat);
+            memory += GetFinalOutputIOMemorySize(FinalSortJobIOConfig);
+        }
+
+
         TNodeResources result;
         result.set_user_slots(1);
         result.set_cpu(1);
+        result.set_memory(memory);
         result.set_network(Spec->ShuffleNetworkLimit);
-
-        if (IsSortedMergeNeeded(partition)) {
-            result.set_memory(
-                GetSortInputIOMemorySize(IntermediateSortJobIOConfig, stat) +
-                GetRegularOutputIOMemorySize(IntermediateSortJobIOConfig) +
-                (i64) 16 * Spec->SortBy.size() * stat.RowCount +
-                (i64) 12 * stat.RowCount +
-                GetFootprintMemorySize());
-        } else {
-            result.set_memory(
-                GetSortInputIOMemorySize(FinalSortJobIOConfig, stat) +
-                GetFinalOutputIOMemorySize(FinalSortJobIOConfig) +
-                (i64) 16 * Spec->SortBy.size() * stat.RowCount +
-                (i64) 12 * stat.RowCount +
-                GetFootprintMemorySize());
-        }
 
         return result;
     }
@@ -2221,17 +2221,15 @@ private:
             result.set_cpu(1);
             result.set_memory(
                 GetSortInputIOMemorySize(IntermediateSortJobIOConfig, stat) +
-                GetRegularOutputIOMemorySize(IntermediateSortJobIOConfig) +
-                (i64) 16 * Spec->SortBy.size() * stat.RowCount +
-                (i64) 12 * stat.RowCount +
+                GetIntermediateOutputIOMemorySize(IntermediateSortJobIOConfig) +
+                GetSortBuffersMemorySize(stat) +
                 GetFootprintMemorySize());
         } else {
             result.set_cpu(Spec->Reducer->CpuLimit);
             result.set_memory(
                 GetSortInputIOMemorySize(FinalSortJobIOConfig, stat) +
                 GetFinalOutputIOMemorySize(FinalSortJobIOConfig) +
-                (i64) 16 * Spec->SortBy.size() * stat.RowCount +
-                (i64) 16 * stat.RowCount +
+                GetSortBuffersMemorySize(stat) +
                 Spec->Reducer->MemoryLimit +
                 GetFootprintMemorySize());
         }
