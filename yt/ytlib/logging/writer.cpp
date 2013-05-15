@@ -4,15 +4,32 @@
 
 #include <ytlib/misc/fs.h>
 
+#include <yt/build.h>
+
 namespace NYT {
 namespace NLog {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 const char* const SystemLoggingCategory = "Logging";
-static TLogger SILENT_UNUSED Logger(SystemLoggingCategory);
+static TLogger Logger(SystemLoggingCategory);
 
 ////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+TLogEvent GetBannerEvent()
+{
+    return TLogEvent(
+        SystemLoggingCategory,
+        ELogLevel::Info,
+        Sprintf("Logging started (Version: %s, BuildHost: %s, BuildTime: %s)",
+            YT_VERSION,
+            YT_BUILD_HOST,
+            YT_BUILD_TIME));
+}
+
+} // namespace
 
 TStreamLogWriter::TStreamLogWriter(
     TOutputStream* stream,
@@ -77,10 +94,7 @@ void TFileLogWriter::EnsureInitialized()
     }
 
     LogWriter = New<TStreamLogWriter>(~FileOutput, Pattern);
-    LogWriter->Write(TLogEvent(
-        SystemLoggingCategory,
-        ELogLevel::Info,
-        "Log file opened"));
+    LogWriter->Write(GetBannerEvent());
 
     Initialized = true;
 }
@@ -139,10 +153,7 @@ void TRawFileLogWriter::EnsureInitialized()
 
     Initialized = true;
 
-    Write(TLogEvent(
-        SystemLoggingCategory,
-        ELogLevel::Info,
-        "Log file opened"));
+    Write(GetBannerEvent());
 }
 
 void TRawFileLogWriter::Write(const TLogEvent& event)
