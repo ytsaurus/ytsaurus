@@ -176,6 +176,11 @@ const TChunkMeta& TFileWriter::GetChunkMeta() const
     return ChunkMeta;
 }
 
+i64 TFileWriter::GetDataSize() const
+{
+    return DataSize;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkClient

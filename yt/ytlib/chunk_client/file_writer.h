@@ -36,6 +36,8 @@ public:
     //! Returns chunk meta. The writer must be already closed.
     const NChunkClient::NProto::TChunkMeta& GetChunkMeta() const;
 
+    i64 GetDataSize() const;
+
 private:
     Stroka FileName;
     bool IsOpen;

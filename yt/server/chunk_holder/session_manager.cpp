@@ -259,10 +259,9 @@ TError TSession::DoWriteBlock(const TSharedRef& block, int blockIndex)
         return Error;
     }
 
-    LOG_DEBUG("Started writing block %d", blockIndex);
+    LOG_DEBUG("Started writing block %d (BlockSize: %" PRISZT ")", blockIndex, block.Size());
 
     TScopedTimer timer;
-    
     try {
         if (!Writer->TryWriteBlock(block)) {
             // This will throw...
@@ -439,7 +438,7 @@ TError TSession::DoCloseFile(const TChunkMeta& chunkMeta)
         return Error;
     }
 
-    LOG_DEBUG("Started closing chunk writer");
+    LOG_DEBUG("Started closing chunk writer (ChunkSize: %" PRId64 ")", Writer->GetDataSize());
 
     PROFILE_TIMING ("/chunk_writer_close_time") {
         try {
