@@ -34,7 +34,7 @@ struct TChunkWriterConfig
         // Block less than 1M is nonsense.
         Register("block_size", BlockSize)
             .GreaterThanOrEqual(1024 * 1024)
-            .Default(16 * 1024 * 1024);
+            .Default(64 * 1024 * 1024);
         Register("sample_rate", SampleRate)
             .GreaterThan(0)
             .LessThanOrEqual(0.001)
@@ -51,7 +51,7 @@ struct TChunkWriterConfig
             .Default(true);
         Register("max_buffer_size", MaxBufferSize)
             .GreaterThanOrEqual(1024 * 1024)
-            .Default(32 * 1024 * 1024);
+            .Default(64 * 1024 * 1024);
     }
 };
 

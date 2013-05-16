@@ -30,7 +30,7 @@ struct TFileWriterConfig
     TFileWriterConfig()
     {
         Register("block_size", BlockSize)
-            .Default(1024 * 1024)
+            .Default(16 * 1024 * 1024)
             .GreaterThan(0);
         Register("compression_codec", Codec)
             .Default(NCompression::ECodec::None);

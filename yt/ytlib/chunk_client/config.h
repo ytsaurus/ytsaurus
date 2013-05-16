@@ -149,10 +149,10 @@ struct TRemoteWriterConfig
     TRemoteWriterConfig()
     {
         Register("send_window_size", SendWindowSize)
-            .Default(4 * 1024 * 1024)
+            .Default(64 * 1024 * 1024)
             .GreaterThan(0);
         Register("group_size", GroupSize)
-            .Default(1024 * 1024)
+            .Default(16 * 1024 * 1024)
             .GreaterThan(0);
         Register("node_rpc_timeout", NodeRpcTimeout)
             .Default(TDuration::Seconds(120));
@@ -181,7 +181,7 @@ struct TEncodingWriterConfig
     TEncodingWriterConfig()
     {
         Register("encode_window_size", EncodeWindowSize)
-            .Default(4 * 1024 * 1024)
+            .Default(64 * 1024 * 1024)
             .GreaterThan(0);
         Register("default_compression_ratio", DefaultCompressionRatio)
             .Default(0.2);
