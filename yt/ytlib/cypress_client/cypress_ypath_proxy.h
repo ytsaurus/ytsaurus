@@ -24,6 +24,8 @@ NYPath::TYPath FromObjectId(const TObjectId& id);
 TTransactionId GetTransactionId(NRpc::IServiceContextPtr context);
 
 //! Extracts transaction id associated with the given request.
+TTransactionId GetTransactionId(const NRpc::NProto::TRequestHeader& header);
+
 //! Attaches transaction id to the request.
 void SetTransactionId(NRpc::IClientRequestPtr request, const TTransactionId& transactionId);
 

@@ -20,3 +20,4 @@ list(APPEND YT_SOURCE_FILES
 protoc( ${BASE}/account_ypath.proto YT_SOURCE_FILES )
 protoc( ${BASE}/user_ypath.proto YT_SOURCE_FILES )
 protoc( ${BASE}/group_ypath.proto YT_SOURCE_FILES )
+protoc( ${BASE}/rpc_helpers.proto YT_SOURCE_FILES )

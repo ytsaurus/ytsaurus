@@ -16,7 +16,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& SILENT_UNUSED Logger = RpcClientLogger;
+static NLog::TLogger& Logger = RpcClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,25 +36,21 @@ TClientRequest::TClientRequest(
     const Stroka& verb,
     bool oneWay)
     : Heavy_(false)
-    , StartTime_(TInstant::Now())
     , Channel(channel)
-    , Path(path)
-    , Verb(verb)
-    , RequestId(TRequestId::Create())
-    , OneWay(oneWay)
     , Attributes_(CreateEphemeralAttributes())
 {
-    YASSERT(channel);
+    YCHECK(channel);
+
+    Header_.set_path(path);
+    Header_.set_verb(verb);
+    Header_.set_one_way(oneWay);
+    Header_.set_request_start_time(TInstant::Now().MicroSeconds());
+    ToProto(Header_.mutable_request_id(), TRequestId::Create());
 }
 
 IMessagePtr TClientRequest::Serialize() const
 {
-    NProto::TRequestHeader header;
-    ToProto(header.mutable_request_id(), RequestId);
-    header.set_path(Path);
-    header.set_verb(Verb);
-    header.set_one_way(OneWay);
-    header.set_request_start_time(StartTime_.MicroSeconds());
+    auto header = Header_;
     header.set_retry_start_time(TInstant::Now().MicroSeconds());
     ToProto(header.mutable_attributes(), *Attributes_);
 
@@ -73,17 +69,17 @@ void TClientRequest::DoInvoke(IClientResponseHandlerPtr responseHandler)
 
 const Stroka& TClientRequest::GetPath() const
 {
-    return Path;
+    return Header_.path();
 }
 
 const Stroka& TClientRequest::GetVerb() const
 {
-    return Verb;
+    return Header_.verb();
 }
 
 bool TClientRequest::IsOneWay() const
 {
-    return OneWay;
+    return Header_.one_way();
 }
 
 bool TClientRequest::IsHeavy() const
@@ -91,9 +87,19 @@ bool TClientRequest::IsHeavy() const
     return Heavy_;
 }
 
-const TRequestId& TClientRequest::GetRequestId() const
+TRequestId TClientRequest::GetRequestId() const
 {
-    return RequestId;
+    return FromProto<TRequestId>(Header_.request_id());
+}
+
+TInstant TClientRequest::GetStartTime() const
+{
+    return TInstant(Header_.request_start_time());
+}
+
+void TClientRequest::SetStartTime(TInstant value)
+{
+    Header_.set_request_start_time(value.MicroSeconds());
 }
 
 const NYTree::IAttributeDictionary& TClientRequest::Attributes() const

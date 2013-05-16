@@ -132,60 +132,6 @@ public:
         : TBase(blockStream)
     { }
 
-    // return true if success
-    // or returns 0 if success and non zero value (number bo bytes to read) in other case
-
-    //bool Parse(TToken* token)
-    //{
-    //    char ch = TBase::SkipSpaceAndGetChar();
-    //    if (ch == BeginAttributesSymbol) {
-    //        return;
-    //    }
-    //    switch (ch) { 
-    //        case BeginMapSymbol:
-    //        case BeginListSymbol:
-    //        case EntitySymbol:
-    //            break;
-
-    //        case '"': {
-    //            TBase::Advance(1);
-    //            ReadQuotedString(&token->StringValue);
-    //            token->Type_ = ETokenType::String;
-    //            break;
-    //        }
-    //        case StringMarker: {
-    //            TBase::Advance(1);
-    //            ReadBinaryString(&token->StringValue);
-    //            token->Type_ = ETokenType::String;
-    //            break;
-    //        }
-    //        case IntegerMarker:{
-    //            TBase::Advance(1);
-    //            ReadBinaryInteger(&token->IntegerValue);
-    //            token->Type_ = ETokenType::Integer;
-    //            break;
-    //        }
-    //        case DoubleMarker: {
-    //            TBase::Advance(1);
-    //            ReadBinaryInteger(&token->DoubleValue);
-    //            token->Type_ = ETokenType::Double;
-    //            break;
-    //        }  
-    //        default: {
-    //            if (isdigit(ch) || ch == '-' || ch == '+') { // case of '+' is handled in AfterPlus state
-    //                ReadNumeric<true>(token);
-    //            } else if (isalpha(ch) || ch == '_' || ch == '%') {
-    //                ReadUnquotedString<true>(&token->StringValue);
-    //                token->Type_ = ETokenType::String;
-    //            } else {
-    //                THROW_ERROR_EXCEPTION("Unexpected character %s while parsing Node (%s)",
-    //                    ~Stroka(ch).Quote(),
-    //                    ~TBase::GetPositionInfo());
-    //            }
-    //        }
-    //    }
-    //}
-
     void GetToken(TToken* token)
     {
         char ch = TBase::SkipSpaceAndGetChar();

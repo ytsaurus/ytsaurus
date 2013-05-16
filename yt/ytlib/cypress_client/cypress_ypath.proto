@@ -1,7 +1,18 @@
 package NYT.NCypressClient.NProto;
 
 import "yt/ytlib/misc/guid.proto";
+import "yt/ytlib/rpc/rpc.proto";
 import "yt/ytlib/ytree/attributes.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TTransactionalExt
+{
+    extend NRpc.NProto.TRequestHeader
+    {
+        optional NYT.NProto.TGuid transaction_id = 100;
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

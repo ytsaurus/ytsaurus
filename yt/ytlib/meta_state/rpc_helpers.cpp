@@ -1,16 +1,19 @@
 #include "stdafx.h"
 #include "rpc_helpers.h"
 
-#include <ytlib/ytree/attribute_helpers.h>
-#include <ytlib/ytree/convert.h>
+#include <ytlib/misc/protobuf_helpers.h>
 
+#include <ytlib/meta_state/rpc_helpers.pb.h>
+
+#include <ytlib/rpc/client.h>
 #include <ytlib/rpc/service.h>
 
 namespace NYT {
 namespace NMetaState {
 
 using namespace NRpc;
-using namespace NYTree;
+using namespace NRpc::NProto;
+using namespace NMetaState::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,19 +22,16 @@ TMutationId GenerateMutationId()
     return TMutationId::Create();
 }
 
-TMutationId GetMutationId(IServiceContextPtr context)
+TMutationId GetMutationId(const TRequestHeader& header)
 {
-    return context->RequestAttributes().Get<TMutationId>("mutation_id", NullMutationId);
+    return header.HasExtension(TMutatingExt::mutation_id)
+           ? FromProto<TMutationId>(header.GetExtension(TMutatingExt::mutation_id))
+           : NullMutationId;
 }
 
-TMutationId GetMutationId(const NRpc::NProto::TRequestHeader& header)
+TMutationId GetMutationId(IServiceContextPtr context)
 {
-    FOREACH (const auto& attribute, header.attributes().attributes()) {
-        if (attribute.key() == "mutation_id") {
-            return ConvertTo<TMutationId>(TYsonString(attribute.value()));
-        }
-    }
-    return NullMutationId;
+    return GetMutationId(context->RequestHeader());
 }
 
 void GenerateMutationId(IClientRequestPtr request)
@@ -39,9 +39,14 @@ void GenerateMutationId(IClientRequestPtr request)
     SetMutationId(request, GenerateMutationId());
 }
 
+void SetMutationId(TRequestHeader* header, const TMutationId& id)
+{
+    ToProto(header->MutableExtension(TMutatingExt::mutation_id), id);
+}
+
 void SetMutationId(IClientRequestPtr request, const TMutationId& id)
 {
-    request->MutableAttributes()->Set("mutation_id", id);
+    SetMutationId(&request->Header(), id);
 }
 
 void SetOrGenerateMutationId(IClientRequestPtr request, const TMutationId& id)

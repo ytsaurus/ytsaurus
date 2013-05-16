@@ -11,10 +11,8 @@ namespace NCypressClient {
 
 using namespace NYTree;
 using namespace NRpc;
-
-////////////////////////////////////////////////////////////////////////////////
-
-static Stroka TransactionIdAttribute("transaction_id");
+using namespace NRpc::NProto;
+using namespace NCypressClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,28 +25,24 @@ TYPath FromObjectId(const TObjectId& id)
 
 TTransactionId GetTransactionId(IServiceContextPtr context)
 {
-    return context->RequestAttributes().Get<TTransactionId>(TransactionIdAttribute, NullTransactionId);
+    return GetTransactionId(context->RequestHeader());
 }
 
-void SetTransactionId(IAttributeDictionary* attributes, const TTransactionId& transactionId)
+TTransactionId GetTransactionId(const TRequestHeader& header)
 {
-    if (transactionId == NullTransactionId) {
-        attributes->Remove(TransactionIdAttribute);
-    } else {
-        attributes->Set(TransactionIdAttribute, transactionId);
-    }
+    return header.HasExtension(TTransactionalExt::transaction_id)
+           ? FromProto<TTransactionId>(header.GetExtension(TTransactionalExt::transaction_id))
+           : NullTransactionId;
 }
 
 void SetTransactionId(IClientRequestPtr request, const TTransactionId& transactionId)
 {
-    SetTransactionId(request->MutableAttributes(), transactionId);
+    SetTransactionId(&request->Header(), transactionId);
 }
 
 void SetTransactionId(NRpc::NProto::TRequestHeader* header, const TTransactionId& transactionId)
 {
-    auto attributes = FromProto(header->attributes());
-    SetTransactionId(~attributes, transactionId);
-    ToProto(header->mutable_attributes(), *attributes);
+    ToProto(header->MutableExtension(TTransactionalExt::transaction_id), transactionId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

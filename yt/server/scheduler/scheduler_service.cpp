@@ -49,7 +49,7 @@ private:
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto mutationId = FromProto<TTransactionId>(request->mutation_id());
 
-        auto maybeUser = FindRpcAuthenticatedUser(context);
+        auto maybeUser = FindAuthenticatedUser(context);
         auto user = maybeUser ? *maybeUser : RootUserName;
 
         IMapNodePtr spec;
@@ -60,12 +60,10 @@ private:
                 << ex;
         }
 
-        // TODO(babenko): let RPC subsystem log user name
-        context->SetRequestInfo("Type: %s, TransactionId: %s, MutationId: %s, User: %s",
+        context->SetRequestInfo("Type: %s, TransactionId: %s, MutationId: %s",
             ~type.ToString(),
             ~ToString(transactionId),
-            ~ToString(mutationId),
-            ~user);
+            ~ToString(mutationId));
 
         auto scheduler = Bootstrap->GetScheduler();
         scheduler->ValidateConnected();
@@ -85,7 +83,7 @@ private:
                 ToProto(response->mutable_operation_id(), id);
                 context->SetResponseInfo("OperationId: %s", ~ToString(id));
                 context->Reply();
-        }));
+            }));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, AbortOperation)

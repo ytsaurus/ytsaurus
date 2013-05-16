@@ -27,7 +27,7 @@ struct IServiceContext
      *  
      *  #NullRequestId is a possible value.
      */
-    virtual const TRequestId& GetRequestId() const = 0;
+    virtual TRequestId GetRequestId() const = 0;
 
     //! Returns the instant when the request was first issued by the client, if known.
     virtual TNullable<TInstant> GetRequestStartTime() const = 0;
@@ -44,10 +44,10 @@ struct IServiceContext
     //! Returns the requested verb.
     virtual const Stroka& GetVerb() const = 0;
 
-    //! Returns True if the request if one-way, i.e. replying to it is not possible.
+    //! Returns |true| if the request if one-way, i.e. replying to it is not possible.
     virtual bool IsOneWay() const = 0;
 
-    //! Returns True if the request was already replied.
+    //! Returns |true| if the request was already replied.
     virtual bool IsReplied() const = 0;
 
     //! Signals that the request processing is complete and sends reply to the client.
@@ -82,6 +82,12 @@ struct IServiceContext
 
     //! Returns response attributes.
     virtual NYTree::IAttributeDictionary& ResponseAttributes() = 0;
+
+    //! Returns immutable request header.
+    virtual const NProto::TRequestHeader& RequestHeader() const = 0;
+
+    //! Returns mutable request header.
+    virtual NProto::TRequestHeader& RequestHeader() = 0;
 
     //! Sets and immediately logs the request logging info.
     virtual void SetRequestInfo(const Stroka& info) = 0;

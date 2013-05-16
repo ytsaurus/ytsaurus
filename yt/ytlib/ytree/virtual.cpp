@@ -64,9 +64,9 @@ void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr co
         ? NYT::FromProto<TAttributeFilter>(request->attribute_filter())
         : TAttributeFilter::None;
 
-    size_t max_size = request->Attributes().Get<int>("max_size", DefaultMaxSize);
+    size_t maxSize = request->has_max_size() ? request->max_size() : DefaultMaxSize;
 
-    auto keys = GetKeys(max_size);
+    auto keys = GetKeys(maxSize);
     size_t size = GetSize();
 
     TStringStream stream;
@@ -96,12 +96,12 @@ void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr co
 
 void TVirtualMapBase::ListSelf(TReqList* request, TRspList* response, TCtxListPtr context)
 {
-    size_t maxSize = request->Attributes().Get<int>("max_size", DefaultMaxSize);
-
     auto attributeFilter =
         request->has_attribute_filter()
         ? NYT::FromProto<TAttributeFilter>(request->attribute_filter())
         : TAttributeFilter::None;
+
+    size_t maxSize = request->has_max_size() ? request->max_size() : DefaultMaxSize;
 
     auto keys = GetKeys(maxSize);
     size_t size = GetSize();

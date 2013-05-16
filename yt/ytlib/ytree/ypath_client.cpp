@@ -27,8 +27,9 @@ using namespace NYPath;
 ////////////////////////////////////////////////////////////////////////////////
 
 TYPathRequest::TYPathRequest(const Stroka& verb)
-    : Verb_(verb)
-{ }
+{
+    Header_.set_verb(verb);
+}
 
 bool TYPathRequest::IsOneWay() const
 {
@@ -40,24 +41,24 @@ bool TYPathRequest::IsHeavy() const
     return false;
 }
 
-const TRequestId& TYPathRequest::GetRequestId() const
+TRequestId TYPathRequest::GetRequestId() const
 {
     return NullRequestId;
 }
 
 const Stroka& TYPathRequest::GetVerb() const
 {
-    return Verb_;
+    return Header_.verb();
 }
 
 const Stroka& TYPathRequest::GetPath() const
 {
-    return Path_;
+    return Header_.path();
 }
 
 void TYPathRequest::SetPath(const Stroka& path)
 {
-    Path_ = path;
+    Header_.set_path(path);
 }
 
 TInstant TYPathRequest::GetStartTime() const
@@ -80,13 +81,21 @@ IAttributeDictionary* TYPathRequest::MutableAttributes()
     return TEphemeralAttributeOwner::MutableAttributes();
 }
 
+const NRpc::NProto::TRequestHeader& TYPathRequest::Header() const 
+{
+    return Header_;
+}
+
+NRpc::NProto::TRequestHeader& TYPathRequest::Header()
+{
+    return Header_;
+}
+
 IMessagePtr TYPathRequest::Serialize() const
 {
     auto bodyData = SerializeBody();
 
-    NRpc::NProto::TRequestHeader header;
-    header.set_path(Path_);
-    header.set_verb(Verb_);
+    auto header = Header_;
     if (HasAttributes()) {
         ToProto(header.mutable_attributes(), Attributes());
     }

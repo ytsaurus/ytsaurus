@@ -15,6 +15,9 @@ message TRequestHeader
     optional NYT.NYTree.NProto.TAttributes attributes = 5;
     optional int64 request_start_time = 6;
     optional int64 retry_start_time = 7;
+
+    extensions 100 to max;
+
 }
 
 message TResponseHeader

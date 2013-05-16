@@ -36,8 +36,8 @@ using namespace NTableClient;
 
 static auto& Logger = JobProxyLogger;
 
-static const int InputBufferSize  = 1 * 1024 * 1024;
-static const int OutputBufferSize = 1 * 1024 * 1024;
+static const i64 InputBufferSize  = (i64) 1 * 1024 * 1024;
+static const i64 OutputBufferSize = (i64) 1 * 1024 * 1024;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -76,7 +76,9 @@ void SafeDup2(int oldFd, int newFd)
                 break;
 
             default:
-                THROW_ERROR_EXCEPTION("dup2 failed (oldfd: %d, newfd: %d)", oldFd, newFd)
+                THROW_ERROR_EXCEPTION("dup2 failed (OldFd: %d, NewFd: %d)",
+                    oldFd,
+                    newFd)
                     << TError::FromSystem();
             }
         } else {
@@ -116,12 +118,12 @@ void CheckJobDescriptor(int fd)
 {
     auto res = fcntl(fd, F_GETFD);
     if (res == -1) {
-        THROW_ERROR_EXCEPTION("Job descriptor is not valid (fd: %d)", fd)
+        THROW_ERROR_EXCEPTION("Job descriptor is not valid (Fd: %d)", fd)
             << TError::FromSystem();
     }
 
     if (res & FD_CLOEXEC) {
-        THROW_ERROR_EXCEPTION("CLOEXEC flag is set for job descriptor (fd: %d)", fd);
+        THROW_ERROR_EXCEPTION("CLOEXEC flag is set for job descriptor (Fd: %d)", fd);
     }
 }
 
@@ -132,7 +134,9 @@ void ChmodJobDescriptor(int fd)
     auto res = chmod(~procPath, permissions);
 
     if (res == -1) {
-        THROW_ERROR_EXCEPTION("Failed to chmod job descriptor (fd: %d, permissions: %d)", fd, permissions)
+        THROW_ERROR_EXCEPTION("Failed to chmod job descriptor (Fd: %d, Permissions: %d)",
+            fd,
+            permissions)
             << TError::FromSystem();
     }
 }
@@ -248,7 +252,7 @@ bool TOutputPipe::ProcessData(ui32 epollEvent)
             try {
                 OutputStream->Write(Buffer.Begin(), static_cast<size_t>(bytesRead));
             } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Failed to write into output (fd: %d)",
+                THROW_ERROR_EXCEPTION("Failed to write into output (Fd: %d)",
                     JobDescriptor) << ex;
             }
         } else if (bytesRead == 0) {
@@ -381,7 +385,7 @@ bool TInputPipe::ProcessData(ui32 epollEvents)
                 return true;
             } else {
                 // Error with pipe.
-                THROW_ERROR_EXCEPTION("Writing to pipe failed (fd: %d, JobDescriptor: %d)",
+                THROW_ERROR_EXCEPTION("Writing to pipe failed (Fd: %d, JobDescriptor: %d)",
                     Pipe.WriteFd,
                     JobDescriptor)
                     << TError::FromSystem();
@@ -414,7 +418,7 @@ void TInputPipe::Finish()
     SafeClose(Pipe.ReadFd);
 
     if (!dataConsumed) {
-        THROW_ERROR_EXCEPTION("Some data was not consumed by job (fd: %d, job fd: %d)",
+        THROW_ERROR_EXCEPTION("Input stream was not fully consumed by user process (Fd: %d, JobDescriptor: %d)",
             Pipe.WriteFd,
             JobDescriptor);
     }
