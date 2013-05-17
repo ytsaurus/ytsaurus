@@ -33,6 +33,7 @@ using NChunkClient::NProto::TChunkInfo;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = DataNodeLogger;
+static NProfiling::TRateCounter DiskWriteThroughputCounter("/disk_write_throughput_counter");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -271,7 +272,7 @@ TError TSession::DoWriteBlock(const TSharedRef& block, int blockIndex)
 
     TScopedTimer timer;
     try {
-        if (!Writer->TryWriteBlock(block)) {
+        if (!Writer->WriteBlock(block)) {
             // This will throw...
             Sync(~Writer, &TFileWriter::GetReadyEvent);
             // ... so we never get here.
