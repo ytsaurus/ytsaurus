@@ -147,7 +147,7 @@ public:
     TReplicationWriterConfig()
     {
         RegisterParameter("send_window_size", SendWindowSize)
-            .Default((i64) 32 * 1024 * 1024)
+            .Default((i64) 64 * 1024 * 1024)
             .GreaterThan(0);
         RegisterParameter("group_size", GroupSize)
             .Default((i64) 16 * 1024 * 1024)
@@ -178,7 +178,7 @@ public:
     TErasureWriterConfig()
     {
         RegisterParameter("erasure_window_size", ErasureWindowSize)
-            .Default(1024 * 1024)
+            .Default((i64) 1024 * 1024)
             .GreaterThan(0);
     }
 };
@@ -196,7 +196,7 @@ public:
     TEncodingWriterConfig()
     {
         RegisterParameter("encode_window_size", EncodeWindowSize)
-            .Default(4 * 1024 * 1024)
+            .Default((i64) 64 * 1024 * 1024)
             .GreaterThan(0);
         RegisterParameter("default_compression_ratio", DefaultCompressionRatio)
             .Default(0.2);

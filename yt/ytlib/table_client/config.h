@@ -34,8 +34,8 @@ public:
     {
         // Block less than 1M is nonsense.
         RegisterParameter("block_size", BlockSize)
-            .GreaterThanOrEqual(1024 * 1024)
-            .Default(16 * 1024 * 1024);
+            .GreaterThanOrEqual((i64) 1024 * 1024)
+            .Default((i64) 64 * 1024 * 1024);
         RegisterParameter("sample_rate", SampleRate)
             .GreaterThan(0)
             .LessThanOrEqual(0.001)
@@ -52,7 +52,7 @@ public:
             .Default(true);
         RegisterParameter("max_buffer_size", MaxBufferSize)
             .GreaterThanOrEqual(1024 * 1024)
-            .Default(32 * 1024 * 1024);
+            .Default(64 * 1024 * 1024);
     }
 };
 
@@ -65,9 +65,10 @@ class TTableWriterConfig
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TChunkWriterOptions
+class TChunkWriterOptions
     : public virtual NChunkClient::TEncodingWriterOptions
 {
+public:
     TNullable<TKeyColumns> KeyColumns;
     NChunkClient::TChannels Channels;
 
@@ -82,10 +83,11 @@ struct TChunkWriterOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTableWriterOptions
+class TTableWriterOptions
     : public NChunkClient::TMultiChunkWriterOptions
     , public TChunkWriterOptions
 {
+public:
     TTableWriterOptions()
     {
         CompressionCodec = NCompression::ECodec::Lz4;
@@ -94,9 +96,10 @@ struct TTableWriterOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TChunkReaderOptions
+class TChunkReaderOptions
     : public virtual TYsonSerializable
 {
+public:
     bool ReadKey;
 
     // If set, reader keeps all memory buffers valid until destruction.
@@ -113,11 +116,9 @@ struct TChunkReaderOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTableReaderConfig
+class TTableReaderConfig
     : public NChunkClient::TMultiChunkReaderConfig
-{
-
-};
+{ };
 
 ////////////////////////////////////////////////////////////////////////////////
 

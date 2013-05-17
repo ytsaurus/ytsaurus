@@ -15,6 +15,8 @@
 
 #include <server/cell_node/bootstrap.h>
 
+#include <ytlib/profiling/scoped_timer.h>
+
 namespace NYT {
 namespace NChunkHolder {
 
@@ -31,6 +33,7 @@ static NLog::TLogger& SILENT_UNUSED Logger = DataNodeLogger;
 static NProfiling::TProfiler& SILENT_UNUSED Profiler = DataNodeProfiler;
 
 static NProfiling::TRateCounter CacheReadThroughputCounter("/cache_read_throughput");
+static NProfiling::TRateCounter DiskReadThroughputCounter("/disk_read_throughput");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -244,28 +247,29 @@ private:
         }
 
         auto location = chunk->GetLocation();
-        auto& Profiler = location->Profiler();
         LOG_DEBUG("Started reading block (BlockId: %s, LocationId: %s)",
             ~ToString(blockId),
             ~location->GetId());
 
         TSharedRef data;
-        PROFILE_TIMING ("/block_read_time") {
-            try {
-                data = reader->ReadBlock(blockId.BlockIndex);
-            } catch (const std::exception& ex) {
-                auto error = TError(
-                    NChunkClient::EErrorCode::IOError,
-                    "Error reading chunk block %s",
-                    ~ToString(blockId))
-                    << ex;
-                chunk->ReleaseReadLock();
-                cookie->Cancel(error);
-                chunk->GetLocation()->Disable();
-                DecreasePendingSize(blockSize);
-                return;
-            }
+        NProfiling::TScopedTimer timer; 
+
+        try {
+            data = reader->ReadBlock(blockId.BlockIndex);
+        } catch (const std::exception& ex) {
+            auto error = TError(
+                NChunkClient::EErrorCode::IOError,
+                "Error reading chunk block %s",
+                ~ToString(blockId))
+                << ex;
+            chunk->ReleaseReadLock();
+            cookie->Cancel(error);
+            chunk->GetLocation()->Disable();
+            DecreasePendingSize(blockSize);
+            return;
         }
+
+        auto readTime = timer.GetElapsed();
 
         LOG_DEBUG("Finished reading block (BlockId: %s, LocationId: %s)",
             ~ToString(blockId),
@@ -290,8 +294,12 @@ private:
             Remove(blockId);
         }
 
-        Profiler.Enqueue("/block_read_size", blockSize);
-        Profiler.Increment(location->ReadThroughputCounter(), blockSize);
+        auto& locationProfiler = location->Profiler();
+        locationProfiler.Enqueue("/block_read_size", blockSize);
+        locationProfiler.Enqueue("/block_read_time", readTime.MicroSeconds());
+        locationProfiler.Enqueue("/block_read_speed", blockSize * 1000000 / (1 + readTime.MicroSeconds()));
+
+        DataNodeProfiler.Increment(DiskReadThroughputCounter, blockSize);
     }
 
     void LogCacheHit(TCachedBlockPtr block)

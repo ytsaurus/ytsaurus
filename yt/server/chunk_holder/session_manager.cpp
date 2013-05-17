@@ -15,6 +15,8 @@
 #include <ytlib/misc/fs.h>
 #include <ytlib/misc/sync.h>
 
+#include <ytlib/profiling/scoped_timer.h>
+
 #include <server/cell_node/bootstrap.h>
 
 namespace NYT {
@@ -30,7 +32,7 @@ using NChunkClient::NProto::TChunkInfo;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& SILENT_UNUSED Logger = DataNodeLogger;
+static NLog::TLogger& Logger = DataNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -263,30 +265,37 @@ TError TSession::DoWriteBlock(const TSharedRef& block, int blockIndex)
         return Error;
     }
 
-    LOG_DEBUG("Started writing block %d", blockIndex);
+    LOG_DEBUG("Started writing block %d (BlockSize: %" PRISZT ")",
+    	blockIndex,
+    	block.Size());
 
-    PROFILE_TIMING ("/block_write_time") {
-        try {
-            if (!Writer->WriteBlock(block)) {
-                // This will throw...
-                Sync(~Writer, &TFileWriter::GetReadyEvent);
-                // ... so we never get here.
-                YUNREACHABLE();
-            }
-        } catch (const std::exception& ex) {
-            TBlockId blockId(ChunkId, blockIndex);
-            OnIOError(TError(
-                NChunkClient::EErrorCode::IOError,
-                "Error writing chunk block %s",
-                ~ToString(blockId))
-                << ex);
+    TScopedTimer timer;
+    try {
+        if (!Writer->TryWriteBlock(block)) {
+            // This will throw...
+            Sync(~Writer, &TFileWriter::GetReadyEvent);
+            // ... so we never get here.
+            YUNREACHABLE();
         }
+    } catch (const std::exception& ex) {
+        TBlockId blockId(ChunkId, blockIndex);
+        OnIOError(TError(
+            NChunkClient::EErrorCode::IOError,
+            "Error writing chunk block %s",
+            ~ToString(blockId))
+            << ex);
     }
+
+    auto writeTime = timer.GetElapsed();
 
     LOG_DEBUG("Finished writing block %d", blockIndex);
 
-    Profiler.Enqueue("/block_write_size", block.Size());
-    Profiler.Increment(Location->WriteThroughputCounter(), block.Size());
+    auto& locationProfiler = Location->Profiler();
+    locationProfiler.Enqueue("/block_write_size", block.Size());
+    locationProfiler.Enqueue("/block_write_time", writeTime.MicroSeconds());
+    locationProfiler.Enqueue("/block_write_speed", block.Size() * 1000000 / (1 + writeTime.MicroSeconds()));
+
+    DataNodeProfiler.Increment(DiskWriteThroughputCounter, block.Size());
 
     return Error;
 }
@@ -437,7 +446,7 @@ TError TSession::DoCloseFile(const TChunkMeta& chunkMeta)
         return Error;
     }
 
-    LOG_DEBUG("Started closing chunk writer");
+    LOG_DEBUG("Started closing chunk writer (ChunkSize: %" PRId64 ")", Writer->GetDataSize());
 
     PROFILE_TIMING ("/chunk_writer_close_time") {
         try {

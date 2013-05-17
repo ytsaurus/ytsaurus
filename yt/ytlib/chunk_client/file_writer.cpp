@@ -177,10 +177,14 @@ const TChunkMeta& TFileWriter::GetChunkMeta() const
     return ChunkMeta;
 }
 
-
 const std::vector<int> TFileWriter::GetWrittenIndexes() const
 {
     YUNIMPLEMENTED();
+}
+
+i64 TFileWriter::GetDataSize() const
+{
+    return DataSize;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -31,12 +31,15 @@ public:
     void Abort();
 
     //! Returns chunk info. The writer must be already closed.
-    const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const;
-
-    //! Returns chunk meta. The writer must be already closed.
-    const NChunkClient::NProto::TChunkMeta& GetChunkMeta() const;
+    virtual const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const override;
 
     virtual const std::vector<int> GetWrittenIndexes() const override;
+
+    //! The writer must be already closed.
+    const NChunkClient::NProto::TChunkMeta& GetChunkMeta() const;
+
+    //! Can be called at any time.
+    i64 GetDataSize() const;
 
 private:
     Stroka FileName;

@@ -24,7 +24,7 @@ public:
     TFileChunkWriterConfig()
     {
         RegisterParameter("block_size", BlockSize)
-            .Default(1024 * 1024)
+            .Default((i64) 16 * 1024 * 1024)
             .GreaterThan(0);
     }
 };
@@ -34,9 +34,7 @@ public:
 struct TFileWriterConfig
     : public NChunkClient::TMultiChunkWriterConfig
     , public TFileChunkWriterConfig
-{
-
-};
+{ };
 
 ////////////////////////////////////////////////////////////////////////////////
 
