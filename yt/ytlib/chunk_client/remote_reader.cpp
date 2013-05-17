@@ -569,7 +569,7 @@ private:
 
                 IChannelPtr channel;
                 try {
-                    channel = NodeChannelCache->GetChannel(address);
+                    channel = LightNodeChannelCache->GetChannel(address);
                 } catch (const std::exception& ex) {
                     RegisterError(ex);
                     continue;
@@ -794,7 +794,7 @@ private:
 
         IChannelPtr channel;
         try {
-            channel = NodeChannelCache->GetChannel(address);
+            channel = LightNodeChannelCache->GetChannel(address);
         } catch (const std::exception& ex) {
             OnGetChunkMetaResponseFailed(address, ex);
             return;

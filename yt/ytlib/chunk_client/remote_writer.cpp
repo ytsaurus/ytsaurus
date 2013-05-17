@@ -160,13 +160,15 @@ struct TRemoteWriter::TImpl::TNode
     int Index;
     TError Error;
     const Stroka Address;
-    TProxy Proxy;
+    TProxy LightProxy;
+    TProxy HeavyProxy;
     TPeriodicInvokerPtr PingInvoker;
 
     TNode(int index, const Stroka& address)
         : Index(index)
         , Address(address)
-        , Proxy(NodeChannelCache->GetChannel(address))
+        , LightProxy(LightNodeChannelCache->GetChannel(address))
+        , HeavyProxy(HeavyNodeChannelCache->GetChannel(address))
     { }
 
     bool IsAlive() const
@@ -356,7 +358,7 @@ TRemoteWriter::TImpl::TGroup::PutBlocks(TNodePtr node)
 
     VERIFY_THREAD_AFFINITY(writer->WriterThread);
 
-    auto req = node->Proxy.PutBlocks();
+    auto req = node->HeavyProxy.PutBlocks();
     *req->mutable_chunk_id() = writer->ChunkId.ToProto();
     req->set_start_block_index(StartBlockIndex);
     req->Attachments().insert(req->Attachments().begin(), Blocks.begin(), Blocks.end());
@@ -426,7 +428,7 @@ TRemoteWriter::TImpl::TGroup::SendBlocks(
         ~srcNode->Address,
         ~dstNod->Address);
 
-    auto req = srcNode->Proxy.SendBlocks();
+    auto req = srcNode->LightProxy.SendBlocks();
 
     // Set double timeout for SendBlocks, because it implies another rpc call from one src to dst node.
     req->SetTimeout(writer->Config->NodeRpcTimeout + writer->Config->NodeRpcTimeout);
@@ -576,7 +578,8 @@ TRemoteWriter::TImpl::TImpl(
     for (int index = 0; index < static_cast<int>(addresses.size()); ++index) {
         auto address = addresses[index];
         auto node = New<TNode>(index, address);
-        node->Proxy.SetDefaultTimeout(Config->NodeRpcTimeout);
+        node->LightProxy.SetDefaultTimeout(Config->NodeRpcTimeout);
+        node->HeavyProxy.SetDefaultTimeout(Config->NodeRpcTimeout);
         node->PingInvoker = New<TPeriodicInvoker>(
             TDispatcher::Get()->GetWriterInvoker(),
             BIND(&TRemoteWriter::TImpl::SendPing, MakeWeak(this), MakeWeak(~node)),
@@ -680,7 +683,7 @@ TRemoteWriter::TImpl::FlushBlock(TNodePtr node, int blockIndex)
         blockIndex,
         ~node->Address);
 
-    auto req = node->Proxy.FlushBlock();
+    auto req = node->LightProxy.FlushBlock();
     *req->mutable_chunk_id() = ChunkId.ToProto();
     req->set_block_index(blockIndex);
     return req->Invoke();
@@ -798,7 +801,7 @@ TRemoteWriter::TImpl::StartChunk(TNodePtr node)
 {
     LOG_DEBUG("Starting chunk session at %s", ~node->Address);
 
-    auto req = node->Proxy.StartChunk();
+    auto req = node->LightProxy.StartChunk();
     *req->mutable_chunk_id() = ChunkId.ToProto();
     return req->Invoke();
 }
@@ -893,7 +896,7 @@ TRemoteWriter::TImpl::FinishChunk(TNodePtr node)
 
     LOG_DEBUG("Finishing chunk session at %s", ~node->Address);
 
-    auto req = node->Proxy.FinishChunk();
+    auto req = node->LightProxy.FinishChunk();
     *req->mutable_chunk_id() = ChunkId.ToProto();
     *req->mutable_chunk_meta() = ChunkMeta;
     req->set_block_count(BlockCount);
@@ -928,7 +931,7 @@ void TRemoteWriter::TImpl::SendPing(TNodeWeakPtr node)
 
     LOG_DEBUG("Sending ping to %s", ~node_->Address);
 
-    auto req = node_->Proxy.PingSession();
+    auto req = node_->LightProxy.PingSession();
     *req->mutable_chunk_id() = ChunkId.ToProto();
     req->Invoke();
 
