@@ -51,13 +51,15 @@ struct TNode
     int Index;
     TError Error;
     TNodeDescriptor Descriptor;
-    TProxy Proxy;
+    TProxy LightProxy;
+    TProxy HeavyProxy;
     TPeriodicInvokerPtr PingInvoker;
 
     TNode(int index, const TNodeDescriptor& descriptor)
         : Index(index)
         , Descriptor(descriptor)
-        , Proxy(NodeChannelCache->GetChannel(descriptor.Address))
+        , LightProxy(LightNodeChannelCache->GetChannel(address))
+        , HeavyProxy(HeavyNodeChannelCache->GetChannel(address))
     { }
 
     bool IsAlive() const
@@ -373,7 +375,7 @@ TProxy::TInvPutBlocks TGroup::PutBlocks(TNodePtr node)
 
     VERIFY_THREAD_AFFINITY(writer->WriterThread);
 
-    auto req = node->Proxy.PutBlocks();
+    auto req = node->HeavyProxy.PutBlocks();
     ToProto(req->mutable_chunk_id(), writer->ChunkId);
     req->set_start_block_index(StartBlockIndex);
     req->Attachments().insert(req->Attachments().begin(), Blocks.begin(), Blocks.end());
@@ -450,7 +452,7 @@ TProxy::TInvSendBlocks TGroup::SendBlocks(
         ~srcNode->Descriptor.Address,
         ~dstNode->Descriptor.Address);
 
-    auto req = srcNode->Proxy.SendBlocks();
+    auto req = srcNode->LightProxy.SendBlocks();
 
     // Set double timeout for SendBlocks since executing it implies another (src->dst) RPC call.
     req->SetTimeout(writer->Config->NodeRpcTimeout + writer->Config->NodeRpcTimeout);
@@ -602,7 +604,8 @@ TReplicationWriter::TReplicationWriter(
     for (int index = 0; index < static_cast<int>(targets.size()); ++index) {
         auto replica = targets[index];
         auto node = New<TNode>(index, Targets[index]);
-        node->Proxy.SetDefaultTimeout(Config->NodeRpcTimeout);
+        node->LightProxy.SetDefaultTimeout(Config->NodeRpcTimeout);
+        node->HeavyProxy.SetDefaultTimeout(Config->NodeRpcTimeout);
         node->PingInvoker = New<TPeriodicInvoker>(
             TDispatcher::Get()->GetWriterInvoker(),
             BIND(&TReplicationWriter::SendPing, MakeWeak(this), MakeWeak(~node)),
@@ -705,7 +708,7 @@ TProxy::TInvFlushBlock TReplicationWriter::FlushBlock(TNodePtr node, int blockIn
         blockIndex,
         ~node->Descriptor.Address);
 
-    auto req = node->Proxy.FlushBlock();
+    auto req = node->LightProxy.FlushBlock();
     ToProto(req->mutable_chunk_id(), ChunkId);
     req->set_block_index(blockIndex);
     return req->Invoke();
@@ -822,7 +825,7 @@ TProxy::TInvStartChunk TReplicationWriter::StartChunk(TNodePtr node)
 {
     LOG_DEBUG("Starting chunk (Address: %s)", ~node->Descriptor.Address);
 
-    auto req = node->Proxy.StartChunk();
+    auto req = node->LightProxy.StartChunk();
     ToProto(req->mutable_chunk_id(), ChunkId);
     return req->Invoke();
 }
@@ -917,7 +920,7 @@ TProxy::TInvFinishChunk TReplicationWriter::FinishChunk(TNodePtr node)
     LOG_DEBUG("Finishing chunk (Address: %s)",
         ~node->Descriptor.Address);
 
-    auto req = node->Proxy.FinishChunk();
+    auto req = node->LightProxy.FinishChunk();
     ToProto(req->mutable_chunk_id(), ChunkId);
     *req->mutable_chunk_meta() = ChunkMeta;
     req->set_block_count(BlockCount);
@@ -953,7 +956,7 @@ void TReplicationWriter::SendPing(TNodeWeakPtr node)
     LOG_DEBUG("Sending ping (Address: %s)",
         ~node_->Descriptor.Address);
 
-    auto req = node_->Proxy.PingSession();
+    auto req = node_->LightProxy.PingSession();
     ToProto(req->mutable_chunk_id(), ChunkId);
     req->Invoke();
 }
