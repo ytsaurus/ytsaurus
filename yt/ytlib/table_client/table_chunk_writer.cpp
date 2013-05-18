@@ -560,7 +560,6 @@ const TNullable<TKeyColumns>& TTableChunkWriterProvider::GetKeyColumns() const
     return Options->KeyColumns;
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTableClient
