@@ -58,10 +58,10 @@ void TEncodingWriter::WriteBlock(std::vector<TSharedRef>&& vectorizedBlock)
 // Serialized compression invoker affinity (don't use thread affinity because of thread pool).
 void TEncodingWriter::DoCompressBlock(const TSharedRef& block)
 {
+    LOG_DEBUG("Compressing block");
+
     auto compressedBlock = Codec->Compress(block);
     CompressedSize_ += compressedBlock.Size();
-
-    LOG_DEBUG("Compressing block");
 
     int sizeToRelease = -compressedBlock.Size();
 
@@ -84,9 +84,9 @@ void TEncodingWriter::DoCompressBlock(const TSharedRef& block)
 // Serialized compression invoker affinity (don't use thread affinity because of thread pool).
 void TEncodingWriter::DoCompressVector(const std::vector<TSharedRef>& vectorizedBlock)
 {
-    auto compressedBlock = Codec->Compress(vectorizedBlock);
     LOG_DEBUG("Compressing block");
 
+    auto compressedBlock = Codec->Compress(vectorizedBlock);
     AtomicAdd(CompressedSize_, compressedBlock.Size());
 
     i64 sizeToRelease = -static_cast<i64>(compressedBlock.Size());

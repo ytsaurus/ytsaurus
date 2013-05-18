@@ -125,7 +125,7 @@ void TChunkWriterBase::AdjustBufferHeap(int updatedBufferIndex)
 
 void TChunkWriterBase::PopBufferHeap()
 {
-    LOG_DEBUG("Finish block (CurrentBufferCapacity: %" PRId64 ", CurrentBlockSize: %" PRId64 ")",
+    LOG_DEBUG("Block is finished (CurrentBufferCapacity: %" PRId64 ", CurrentBlockSize: %" PRId64 ")",
         CurrentBufferCapacity,
         BuffersHeap.front()->GetCurrentSize());
 
