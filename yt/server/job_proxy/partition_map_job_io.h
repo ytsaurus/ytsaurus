@@ -7,7 +7,7 @@ namespace NJobProxy {
 
 ////////////////////////////////////////////////////////////////////
 
-TAutoPtr<TUserJobIO> CreatePartitionMapJobIO(
+std::unique_ptr<TUserJobIO> CreatePartitionMapJobIO(
     NScheduler::TJobIOConfigPtr ioConfig,
     IJobHost* host);
 

@@ -78,9 +78,9 @@ TSnapshotReader::~TSnapshotReader()
 
 void TSnapshotReader::Open()
 {
-    File.Reset(new TFile(FileName, OpenExisting | CloseOnExec));
+    File.reset(new TFile(FileName, OpenExisting | CloseOnExec));
 
-    Header.Reset(new TSnapshotHeader());
+    Header.reset(new TSnapshotHeader());
     ReadPod(*File, *Header);
 
     Header->Validate();
@@ -89,42 +89,42 @@ void TSnapshotReader::Open()
         "Invalid snapshot id in header: expected %d, got %d", SnapshotId, Header->SegmentId);
     YCHECK(Header->DataLength + sizeof(*Header) == static_cast<ui64>(File->GetLength()));
 
-    FileInput.Reset(new TBufferedFileInput(*File));
+    FileInput.reset(new TBufferedFileInput(*File));
     TInputStream* inputStream = ~FileInput;
     if (EnableCompression) {
-        DecompressedInput.Reset(new TDecompressedInput(inputStream));
+        DecompressedInput.reset(new TDecompressedInput(inputStream));
         inputStream = ~DecompressedInput;
     }
-    ChecksummableInput.Reset(new TChecksumInput(inputStream));
+    ChecksummableInput.reset(new TChecksumInput(inputStream));
 }
 
 TInputStream* TSnapshotReader::GetStream() const
 {
-    YCHECK(~ChecksummableInput);
+    YCHECK(ChecksummableInput);
     return ~ChecksummableInput;
 }
 
 i64 TSnapshotReader::GetLength() const
 {
-    YCHECK(~File);
+    YCHECK(File);
     return File->GetLength();
 }
 
 TChecksum TSnapshotReader::GetChecksum() const
 {
-    YCHECK(~Header);
+    YCHECK(Header);
     return Header->Checksum;
 }
 
 i32 TSnapshotReader::GetPrevRecordCount() const
 {
-    YCHECK(~Header);
+    YCHECK(Header);
     return Header->PrevRecordCount;
 }
 
 const TEpochId& TSnapshotReader::GetEpoch() const
 {
-    YCHECK(~Header);
+    YCHECK(Header);
     return Header->Epoch;
 }
 
@@ -153,20 +153,20 @@ void TSnapshotWriter::Open(i32 prevRecordCount, const TEpochId& epoch)
     Header->PrevRecordCount = prevRecordCount;
     Header->Epoch = epoch;
 
-    File.Reset(new TBufferedFile(TempFileName, RdWr | CreateAlways));
+    File.reset(new TBufferedFile(TempFileName, RdWr | CreateAlways));
     File->Resize(sizeof(TSnapshotHeader));
     File->Seek(0, sEnd);
 
     TOutputStream* output = File->GetOutputStream();
     if (EnableCompression) {
-        CompressedOutput.Reset(new TCompressedOutput(output));
+        CompressedOutput.reset(new TCompressedOutput(output));
         output = ~CompressedOutput;
     }
 
-    BufferedOutput.Reset(new TBufferedOutput(output, 64 * 1024));
+    BufferedOutput.reset(new TBufferedOutput(output, 64 * 1024));
     BufferedOutput->SetFinishPropagateMode(true);
 
-    ChecksummableOutput.Reset(new TChecksumOutput(~BufferedOutput));
+    ChecksummableOutput.reset(new TChecksumOutput(~BufferedOutput));
 
     State = EState::Opened;
 }

@@ -49,7 +49,7 @@ int TUserJobIO::GetInputCount() const
     return 1;
 }
 
-TAutoPtr<TTableProducer> TUserJobIO::CreateTableInput(int index, IYsonConsumer* consumer)
+std::unique_ptr<TTableProducer> TUserJobIO::CreateTableInput(int index, IYsonConsumer* consumer)
 {
     return DoCreateTableInput<TMultiChunkParallelReader>(index, consumer);
 }
@@ -108,15 +108,15 @@ double TUserJobIO::GetProgress() const
     }
 }
 
-TAutoPtr<TErrorOutput> TUserJobIO::CreateErrorOutput(
+std::unique_ptr<TErrorOutput> TUserJobIO::CreateErrorOutput(
     const TTransactionId& transactionId,
     i64 maxSize) const
 {
-    return new TErrorOutput(
+    return std::unique_ptr<TErrorOutput>(new TErrorOutput(
         IOConfig->ErrorFileWriter,
         Host->GetMasterChannel(),
         transactionId,
-        maxSize);
+        maxSize));
 }
 
 std::vector<NChunkClient::TChunkId> TUserJobIO::GetFailedChunks() const

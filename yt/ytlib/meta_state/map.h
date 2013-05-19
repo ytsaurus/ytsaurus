@@ -14,7 +14,7 @@ namespace NMetaState {
 template <class TKey, class TValue>
 struct TDefaultMetaMapTraits
 {
-    TAutoPtr<TValue> Create(const TKey& key) const;
+    std::unique_ptr<TValue> Create(const TKey& key) const;
 };
 
 //! Map type used to store various meta-state tables.
@@ -106,7 +106,7 @@ public:
     bool TryRemove(const TKey& key);
 
     //! Similar to #Remove but does not delete the object and returns the pointer to it instead.
-    TAutoPtr<TValue> Release(const TKey& key);
+    std::unique_ptr<TValue> Release(const TKey& key);
 
     //! Checks whether the key exists in the map.
     /*!

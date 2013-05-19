@@ -35,7 +35,7 @@ struct ITreeBuilder
 /*!
  *  \param factory A factory used for materializing the nodes.
  */
-TAutoPtr<ITreeBuilder> CreateBuilderFromFactory(INodeFactoryPtr factory);
+std::unique_ptr<ITreeBuilder> CreateBuilderFromFactory(INodeFactoryPtr factory);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -187,8 +187,8 @@ protected:
     TJobIOConfigPtr SortedMergeJobIOConfig;
     TJobIOConfigPtr UnorderedMergeJobIOConfig;
 
-    TAutoPtr<IShuffleChunkPool> ShufflePool;
-    TAutoPtr<IChunkPool> SimpleSortPool;
+    std::unique_ptr<IShuffleChunkPool> ShufflePool;
+    std::unique_ptr<IChunkPool> SimpleSortPool;
 
     TTaskGroup PartitionTaskGroup;
     TTaskGroup SortTaskGroup;
@@ -252,7 +252,7 @@ protected:
     private:
         TSortControllerBase* Controller;
 
-        TAutoPtr<IChunkPool> ChunkPool;
+        std::unique_ptr<IChunkPool> ChunkPool;
 
         virtual int GetChunkListCountPerJob() const override
         {
@@ -761,7 +761,7 @@ protected:
         }
 
     private:
-        TAutoPtr<IChunkPool> ChunkPool;
+        std::unique_ptr<IChunkPool> ChunkPool;
 
         virtual IChunkPoolOutput* GetChunkPoolOutput() const override
         {

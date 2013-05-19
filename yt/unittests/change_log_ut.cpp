@@ -17,21 +17,21 @@ class TChangeLogTest
     : public ::testing::Test
 {
 protected:
-    THolder<TTempFile> TemporaryFile;
-    THolder<TTempFile> TemporaryIndexFile;
+    std::unique_ptr<TTempFile> TemporaryFile;
+    std::unique_ptr<TTempFile> TemporaryIndexFile;
     i64 IndexSize;
 
     virtual void SetUp()
     {
-        TemporaryFile.Reset(new TTempFile(GenerateRandomFileName("ChangeLog")));
-        TemporaryIndexFile.Reset(new TTempFile(TemporaryFile->Name() + ".index"));
+        TemporaryFile.reset(new TTempFile(GenerateRandomFileName("ChangeLog")));
+        TemporaryIndexFile.reset(new TTempFile(TemporaryFile->Name() + ".index"));
         IndexSize = 64;
     }
 
     virtual void TearDown()
     {
-        TemporaryFile.Reset(0);
-        TemporaryIndexFile.Reset(0);
+        TemporaryFile.reset();
+        TemporaryIndexFile.reset();
     }
 
     template <class RecordType>

@@ -77,7 +77,7 @@ private:
 
     struct TStoredSample;
 
-    // Cannot use THolder here since TImpl inherits from TActionQueueBase
+    // Cannot use |std::unique_ptr| here since TImpl inherits from TActionQueueBase
     // and is thus ref-counted.
     TIntrusivePtr<TImpl> Impl;
 };

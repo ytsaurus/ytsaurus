@@ -20,17 +20,17 @@ IAttributeDictionary* TEphemeralAttributeOwner::MutableAttributes()
     if (!HasAttributes()) {
         Attributes_ = CreateEphemeralAttributes();
     }
-    return Attributes_.Get();
+    return ~Attributes_;
 }
 
 bool TEphemeralAttributeOwner::HasAttributes() const
 {
-    return Attributes_.Get();
+    return Attributes_ != nullptr;
 }
 
-void TEphemeralAttributeOwner::SetAttributes(TAutoPtr<IAttributeDictionary> attributes)
+void TEphemeralAttributeOwner::SetAttributes(std::unique_ptr<IAttributeDictionary> attributes)
 {
-    Attributes_ = attributes;
+    Attributes_ = std::move(attributes);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

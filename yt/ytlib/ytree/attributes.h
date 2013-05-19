@@ -56,7 +56,7 @@ struct IAttributeDictionary
     void Set(const Stroka& key, const T& value);
 
     //! Constructs an instance from a map node (by serializing the values).
-    static TAutoPtr<IAttributeDictionary> FromMap(IMapNodePtr node);
+    static std::unique_ptr<IAttributeDictionary> FromMap(IMapNodePtr node);
 
     //! Converts attributes to map node.
     IMapNodePtr ToMap() const;
@@ -68,7 +68,7 @@ struct IAttributeDictionary
     void MergeFrom(const IAttributeDictionary& other);
 
     //! Constructs an ephemeral copy.
-    TAutoPtr<IAttributeDictionary> Clone() const;
+    std::unique_ptr<IAttributeDictionary> Clone() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

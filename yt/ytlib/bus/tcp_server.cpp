@@ -61,7 +61,7 @@ public:
         OpenServerSocket();
 
         const auto& eventLoop = TTcpDispatcher::TImpl::Get()->GetEventLoop();
-        AcceptWatcher.Reset(new ev::io(eventLoop));
+        AcceptWatcher.reset(new ev::io(eventLoop));
         AcceptWatcher->set<TBusServerBase, &TBusServerBase::OnAccept>(this);
         AcceptWatcher->start(ServerFd, ev::READ);
     }
@@ -70,7 +70,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(EventLoop);
 
-        AcceptWatcher.Destroy();
+        AcceptWatcher.reset();
 
         CloseServerSocket();
 
@@ -92,7 +92,7 @@ protected:
 
     NLog::TTaggedLogger Logger;
 
-    THolder<ev::io> AcceptWatcher;
+    std::unique_ptr<ev::io> AcceptWatcher;
 
     int ServerSocket;
     int ServerFd;

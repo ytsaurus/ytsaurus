@@ -47,7 +47,7 @@ public:
     const NYTree::IAttributeDictionary& Attributes() const;
 
 private:
-    TAutoPtr<NYTree::IAttributeDictionary> Attributes_;
+    std::unique_ptr<NYTree::IAttributeDictionary> Attributes_;
 
 };
 
@@ -56,7 +56,7 @@ void Deserialize(TFormat& value, NYTree::INodePtr node);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAutoPtr<NYson::IYsonConsumer> CreateConsumerForFormat(
+std::unique_ptr<NYson::IYsonConsumer> CreateConsumerForFormat(
     const TFormat& format,
     EDataType dataType,
     TOutputStream* output);
@@ -66,7 +66,7 @@ NYTree::TYsonProducer CreateProducerForFormat(
     EDataType dataType,
     TInputStream* input);
 
-TAutoPtr<IParser> CreateParserForFormat(
+std::unique_ptr<IParser> CreateParserForFormat(
     const TFormat& format,
     EDataType dataType,
     NYson::IYsonConsumer* consumer);

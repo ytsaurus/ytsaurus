@@ -72,7 +72,7 @@ protected:
             trunkNode);
     }
 
-    virtual TAutoPtr<TFileNode> DoCreate(
+    virtual std::unique_ptr<TFileNode> DoCreate(
         const NCypressServer::TVersionedNodeId& id,
         NTransactionServer::TTransaction* transaction,
         TReqCreate* request,

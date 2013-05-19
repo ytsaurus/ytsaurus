@@ -102,7 +102,7 @@ struct ICommandContext
     virtual TDriverResponse* GetResponse() = 0;
 
     virtual NYTree::TYsonProducer CreateInputProducer() = 0;
-    virtual TAutoPtr<NYson::IYsonConsumer> CreateOutputConsumer() = 0;
+    virtual std::unique_ptr<NYson::IYsonConsumer> CreateOutputConsumer() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -124,8 +124,8 @@ protected:
     ICommandContext* Context;
     bool Replied;
 
-    THolder<NObjectClient::TObjectServiceProxy> ObjectProxy;
-    THolder<NScheduler::TSchedulerServiceProxy> SchedulerProxy;
+    std::unique_ptr<NObjectClient::TObjectServiceProxy> ObjectProxy;
+    std::unique_ptr<NScheduler::TSchedulerServiceProxy> SchedulerProxy;
 
     TCommandBase();
 

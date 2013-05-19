@@ -7,7 +7,6 @@
 #include "job.h"
 
 #include <ytlib/table_client/table_chunk_reader.h>
-
 #include <ytlib/table_client/sync_reader.h>
 #include <ytlib/table_client/table_producer.h>
 
@@ -17,7 +16,7 @@ namespace NJobProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <template <typename> class TMultiChunkReader>
-TAutoPtr<NTableClient::TTableProducer> TUserJobIO::DoCreateTableInput(
+std::unique_ptr<NTableClient::TTableProducer> TUserJobIO::DoCreateTableInput(
     int index,
     NYson::IYsonConsumer* consumer)
 {
@@ -54,7 +53,7 @@ TAutoPtr<NTableClient::TTableProducer> TUserJobIO::DoCreateTableInput(
 
     syncReader->Open();
 
-    return new NTableClient::TTableProducer(syncReader, consumer);
+    return std::unique_ptr<NTableClient::TTableProducer>(new NTableClient::TTableProducer(syncReader, consumer));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

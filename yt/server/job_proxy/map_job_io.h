@@ -7,7 +7,7 @@ namespace NJobProxy {
 
 ////////////////////////////////////////////////////////////////////
 
-TAutoPtr<TUserJobIO> CreateMapJobIO(
+std::unique_ptr<TUserJobIO> CreateMapJobIO(
     NScheduler::TJobIOConfigPtr ioConfig,
     IJobHost* host);
 

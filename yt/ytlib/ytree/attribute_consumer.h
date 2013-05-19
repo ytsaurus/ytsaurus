@@ -34,7 +34,7 @@ protected:
 private:
     IAttributeDictionary* Attributes;
     TStringStream Output;
-    THolder<NYson::TYsonWriter> Writer;
+    std::unique_ptr<NYson::TYsonWriter> Writer;
 
     void ThrowMapExpected();
 

@@ -40,7 +40,7 @@ void TFileWriter::Open()
 
     ui32 oMode = CreateAlways | WrOnly | Seq | CloseOnExec |
         AR | AWUser | AWGroup;
-    DataFile.Reset(new TFile(FileName + NFS::TempFileSuffix, oMode));
+    DataFile.reset(new TFile(FileName + NFS::TempFileSuffix, oMode));
 
     IsOpen = true;
 }
@@ -91,7 +91,7 @@ TAsyncError TFileWriter::AsyncClose(const NChunkClient::NProto::TChunkMeta& chun
         }
 #endif
         DataFile->Close();
-        DataFile.Destroy();
+        DataFile.reset();
     } catch (const std::exception& ex) {
         return MakeFuture(
             TError("Failed to close chunk data file %s", ~FileName)
@@ -161,7 +161,7 @@ void TFileWriter::Abort()
     IsClosed = true;
     IsOpen = false;
 
-    DataFile.Destroy();
+    DataFile.reset();
     NFS::Remove(FileName + NFS::TempFileSuffix);
 }
 

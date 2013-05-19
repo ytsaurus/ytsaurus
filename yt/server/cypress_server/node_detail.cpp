@@ -116,7 +116,7 @@ void TNontemplateCypressNodeTypeHandlerBase::MergeCore(
     originatingNode->SetModificationTime(mutationContext->GetTimestamp());
 }
 
-TAutoPtr<TCypressNodeBase> TNontemplateCypressNodeTypeHandlerBase::CloneCorePrologue(
+std::unique_ptr<TCypressNodeBase> TNontemplateCypressNodeTypeHandlerBase::CloneCorePrologue(
     TCypressNodeBase* sourceNode,
     const TCloneContext& context)
 {

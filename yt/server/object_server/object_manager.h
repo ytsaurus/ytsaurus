@@ -197,17 +197,17 @@ private:
     struct TTypeEntry
     {
         IObjectTypeHandlerPtr Handler;
-        TAutoPtr<TSchemaObject> SchemaObject;
+        std::unique_ptr<TSchemaObject> SchemaObject;
         IObjectProxyPtr SchemaProxy;
     };
 
     std::vector<EObjectType> RegisteredTypes;
-    std::vector<TTypeEntry> TypeToEntry;
+    TTypeEntry TypeToEntry[NObjectClient::MaxObjectType];
 
     TRootServicePtr RootService;
 
     TObjectId MasterObjectId;
-    TAutoPtr<TMasterObject> MasterObject;
+    std::unique_ptr<TMasterObject> MasterObject;
 
     IObjectProxyPtr MasterProxy;
 

@@ -75,9 +75,9 @@ public:
     TUserJob(
         IJobHost* host,
         const NScheduler::NProto::TUserJobSpec& userJobSpec,
-        TAutoPtr<TUserJobIO> userJobIO)
+        std::unique_ptr<TUserJobIO> userJobIO)
         : TJob(host)
-        , JobIO(userJobIO)
+        , JobIO(std::move(userJobIO))
         , UserJobSpec(userJobSpec)
         , IsInitCompleted(false)
         , InputThread(InputThreadFunc, (void*) this)
@@ -222,18 +222,18 @@ private:
 
             auto format = ConvertTo<TFormat>(TYsonString(UserJobSpec.input_format()));
             for (int i = 0; i < JobIO->GetInputCount(); ++i) {
-                TAutoPtr<TBlobOutput> buffer(new TBlobOutput());
-                TAutoPtr<IYsonConsumer> consumer = CreateConsumerForFormat(
+                std::unique_ptr<TBlobOutput> buffer(new TBlobOutput());
+                auto consumer = CreateConsumerForFormat(
                     format,
                     EDataType::Tabular,
-                    buffer.Get());
+                    ~buffer);
 
                 createPipe(pipe);
                 InputPipes.push_back(New<TInputPipe>(
                     pipe,
-                    JobIO->CreateTableInput(i, consumer.Get()),
-                    buffer,
-                    consumer,
+                    JobIO->CreateTableInput(i, ~consumer),
+                    std::move(buffer),
+                    std::move(consumer),
                     3 * i));
             }
         }
@@ -245,9 +245,12 @@ private:
 
             for (int i = 0; i < outputCount; ++i) {
                 auto writer = JobIO->CreateTableOutput(i);
-                TAutoPtr<IYsonConsumer> consumer(new TTableConsumer(writer));
-                auto parser = CreateParserForFormat(format, EDataType::Tabular, consumer.Get());
-                TableOutput[i] = new TTableOutput(parser, consumer, writer);
+                std::unique_ptr<IYsonConsumer> consumer(new TTableConsumer(writer));
+                auto parser = CreateParserForFormat(format, EDataType::Tabular, ~consumer);
+                TableOutput[i].reset(new TTableOutput(
+                    std::move(parser),
+                    std::move(consumer),
+                    std::move(writer)));
                 createPipe(pipe);
 
                 int jobDescriptor = UserJobSpec.use_yamr_descriptors()
@@ -524,7 +527,7 @@ private:
     }
 
 
-    TAutoPtr<TUserJobIO> JobIO;
+    std::unique_ptr<TUserJobIO> JobIO;
 
     const NScheduler::NProto::TUserJobSpec& UserJobSpec;
 
@@ -543,9 +546,9 @@ private:
 
     TPeriodicInvokerPtr MemoryWatchdogInvoker;
 
-    TAutoPtr<TErrorOutput> ErrorOutput;
+    std::unique_ptr<TErrorOutput> ErrorOutput;
     TNullOutput NullErrorOutput;
-    std::vector< TAutoPtr<TOutputStream> > TableOutput;
+    std::vector< std::unique_ptr<TOutputStream> > TableOutput;
 
     int ProcessId;
 };
@@ -553,12 +556,12 @@ private:
 TJobPtr CreateUserJob(
     IJobHost* host,
     const NScheduler::NProto::TUserJobSpec& userJobSpec,
-    TAutoPtr<TUserJobIO> userJobIO)
+    std::unique_ptr<TUserJobIO> userJobIO)
 {
     return New<TUserJob>(
         host,
         userJobSpec,
-        userJobIO);
+        std::move(userJobIO));
 }
 
 #else
@@ -566,7 +569,7 @@ TJobPtr CreateUserJob(
 TJobPtr CreateUserJob(
     IJobHost* host,
     const NScheduler::NProto::TUserJobSpec& userJobSpec,
-    TAutoPtr<TUserJobIO> userJobIO)
+    std::unique_ptr<TUserJobIO> userJobIO)
 {
     THROW_ERROR_EXCEPTION("Streaming jobs are supported only under Linux");
 }

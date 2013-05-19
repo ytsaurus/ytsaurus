@@ -39,7 +39,7 @@ public:
 private:
     IYsonConsumer* Consumer;
     TYamredDsvFormatConfigPtr Config;
-    TAutoPtr<IParser> DsvParser;
+    std::unique_ptr<IParser> DsvParser;
 
     void ConsumeFields(
         const std::vector<Stroka>& fieldNames,
@@ -92,11 +92,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAutoPtr<IParser> CreateParserForYamredDsv(
+std::unique_ptr<IParser> CreateParserForYamredDsv(
     IYsonConsumer* consumer,
     TYamredDsvFormatConfigPtr config)
 {
-    return new TYamredDsvParser(consumer, config);
+    return std::unique_ptr<IParser>(new TYamredDsvParser(consumer, config));
 }
 
 ///////////////////////////////////////////////////////////////////////////////

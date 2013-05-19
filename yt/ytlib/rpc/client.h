@@ -97,7 +97,7 @@ public:
 protected:
     IChannelPtr Channel;
 
-    TAutoPtr<NYTree::IAttributeDictionary> Attributes_;
+    std::unique_ptr<NYTree::IAttributeDictionary> Attributes_;
 
     TClientRequest(
         IChannelPtr channel,
@@ -247,7 +247,7 @@ protected:
 private:
     // Protected by #SpinLock.
     NBus::IMessagePtr ResponseMessage;
-    TAutoPtr<NYTree::IAttributeDictionary> Attributes_;
+    std::unique_ptr<NYTree::IAttributeDictionary> Attributes_;
 
     // IClientResponseHandler implementation.
     virtual void OnAcknowledgement() override;

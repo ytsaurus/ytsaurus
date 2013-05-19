@@ -412,7 +412,7 @@ private:
             }
             return std::unique_ptr<TNotificationWatch>(
                 new TNotificationWatch(
-                NotificationHandle.get(),
+                ~NotificationHandle,
                 fileName.c_str(),
                 BIND(&ILogWriter::Reload, writer)));
         }
@@ -459,7 +459,7 @@ private:
 
             if (watch) {
                 YCHECK(NotificationWatchesIndex.insert(
-                    std::make_pair(watch->GetWd(), watch.get())).second);
+                    std::make_pair(watch->GetWd(), ~watch)).second);
                 NotificationWatches.emplace_back(std::move(watch));
             }
 

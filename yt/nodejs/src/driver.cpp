@@ -471,7 +471,7 @@ Handle<Value> TDriverWrap::Execute(const Arguments& args)
     YCHECK(parameters);
     YCHECK(parameters->GetType() == ENodeType::Map);
 
-    THolder<TExecuteRequest> request(new TExecuteRequest(
+    std::unique_ptr<TExecuteRequest> request(new TExecuteRequest(
         host,
         inputStream,
         outputStream,
@@ -492,7 +492,7 @@ Handle<Value> TDriverWrap::Execute(const Arguments& args)
         request->Prepare();
 
         uv_queue_work(
-            uv_default_loop(), &request.Release()->Request,
+            uv_default_loop(), &request.release()->Request,
             TDriverWrap::ExecuteWork, TDriverWrap::ExecuteAfter);
     } catch (const std::exception& ex) {
         TError error(ex);
@@ -531,7 +531,7 @@ void TDriverWrap::ExecuteAfter(uv_work_t* workRequest)
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    THolder<TExecuteRequest> request(
+    std::unique_ptr<TExecuteRequest> request(
         container_of(workRequest, TExecuteRequest, Request));
 
     try {

@@ -8,7 +8,7 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAutoPtr<IParser> CreateParserForYamr(
+std::unique_ptr<IParser> CreateParserForYamr(
     NYson::IYsonConsumer* consumer,
     TYamrFormatConfigPtr config = NULL);
 

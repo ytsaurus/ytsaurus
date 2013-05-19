@@ -35,11 +35,11 @@ public:
 
 };
 
-TAutoPtr<TUserJobIO> CreateMapJobIO(
+std::unique_ptr<TUserJobIO> CreateMapJobIO(
     TJobIOConfigPtr ioConfig,
     IJobHost* host)
 {
-    return new TMapJobIO(ioConfig, host);
+    return std::unique_ptr<TUserJobIO>(new TMapJobIO(ioConfig, host));
 }
 
 ////////////////////////////////////////////////////////////////////

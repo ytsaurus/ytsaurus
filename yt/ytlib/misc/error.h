@@ -64,7 +64,7 @@ public:
 private:
     int Code_;
     Stroka Message_;
-    TAutoPtr<NYTree::IAttributeDictionary> Attributes_;
+    std::unique_ptr<NYTree::IAttributeDictionary> Attributes_;
     std::vector<TError> InnerErrors_;
 
     void CaptureOriginAttributes();

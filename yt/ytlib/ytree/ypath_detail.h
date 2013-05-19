@@ -200,7 +200,7 @@ protected:
     INodePtr Node;
     ITreeBuilder* TreeBuilder;
     INodeFactoryPtr NodeFactory;
-    THolder<TAttributesSetter> AttributesSetter;
+    std::unique_ptr<TAttributesSetter> AttributesSetter;
 
 };
 

@@ -300,14 +300,14 @@ TFuture< TValueOrError<TYsonString> > TSupportsAttributes::DoFindAttribute(const
             }
         };
 
-        TAutoPtr<TStringStream> asyncStream(new TStringStream());
-        TAutoPtr<NYson::TYsonWriter> asyncWriter(new NYson::TYsonWriter(~asyncStream));
+        std::unique_ptr<TStringStream> asyncStream(new TStringStream());
+        std::unique_ptr<NYson::TYsonWriter> asyncWriter(new NYson::TYsonWriter(~asyncStream));
         auto asyncResult = systemAttributeProvider->GetSystemAttributeAsync(key, ~asyncWriter);
         if (asyncResult) {
             return asyncResult.Apply(BIND(
                 onAsyncAttribute,
-                Owned(asyncStream.Release()),
-                Owned(asyncWriter.Release())));
+                Owned(asyncStream.release()),
+                Owned(asyncWriter.release())));
         }
     }
 
@@ -879,16 +879,16 @@ private:
     IAttributeDictionary* Attributes;
 
     TStringStream AttributeStream;
-    THolder<NYson::TYsonWriter> AttributeWriter;
+    std::unique_ptr<NYson::TYsonWriter> AttributeWriter;
 
     virtual void OnMyKeyedItem(const TStringBuf& key) override
     {
         Stroka localKey(key);
-        AttributeWriter.Reset(new NYson::TYsonWriter(&AttributeStream));
+        AttributeWriter.reset(new NYson::TYsonWriter(&AttributeStream));
         Forward(
             ~AttributeWriter,
             BIND ([=] () {
-                AttributeWriter.Reset(nullptr);
+                AttributeWriter.reset();
                 Attributes->SetYson(localKey, TYsonString(AttributeStream.Str()));
                 AttributeStream.clear();
             }));
@@ -953,13 +953,13 @@ void TNodeSetterBase::OnMyBeginMap()
 
 void TNodeSetterBase::OnMyBeginAttributes()
 {
-    AttributesSetter.Reset(new TAttributesSetter(Node->MutableAttributes()));
+    AttributesSetter.reset(new TAttributesSetter(Node->MutableAttributes()));
     Forward(~AttributesSetter, TClosure(), NYson::EYsonType::MapFragment);
 }
 
 void TNodeSetterBase::OnMyEndAttributes()
 {
-    AttributesSetter.Destroy();
+    AttributesSetter.reset();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

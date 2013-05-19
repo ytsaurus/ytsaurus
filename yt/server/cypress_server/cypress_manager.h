@@ -140,7 +140,7 @@ private:
     public:
         explicit TNodeMapTraits(TCypressManager* cypressManager);
 
-        TAutoPtr<TCypressNodeBase> Create(const TVersionedNodeId& id) const;
+        std::unique_ptr<TCypressNodeBase> Create(const TVersionedNodeId& id) const;
 
     private:
         TCypressManager* CypressManager;
@@ -160,7 +160,7 @@ private:
     yhash_map<TCypressNodeBase*, INodeBehaviorPtr> NodeBehaviors;
 
     void RegisterNode(
-        TAutoPtr<TCypressNodeBase> node,
+        std::unique_ptr<TCypressNodeBase> node,
         NTransactionServer::TTransaction* transaction,
         NYTree::IAttributeDictionary* attributes = nullptr);
 

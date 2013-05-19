@@ -16,10 +16,10 @@ public:
 
 protected:
     bool HasAttributes() const;
-    void SetAttributes(TAutoPtr<IAttributeDictionary> attributes);
+    void SetAttributes(std::unique_ptr<IAttributeDictionary> attributes);
 
 private:
-    TAutoPtr<IAttributeDictionary> Attributes_;
+    std::unique_ptr<IAttributeDictionary> Attributes_;
 
 };
 

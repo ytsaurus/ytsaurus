@@ -134,7 +134,7 @@ void TChunk::AddReplica(TNodePtrWithIndex replica, bool cached)
 {
     if (cached) {
         if (!CachedReplicas_) {
-            CachedReplicas_.Reset(new yhash_set<TNodePtrWithIndex>());
+            CachedReplicas_.reset(new yhash_set<TNodePtrWithIndex>());
         }
         YCHECK(CachedReplicas_->insert(replica).second);
     } else {
@@ -148,7 +148,7 @@ void TChunk::RemoveReplica(TNodePtrWithIndex replica, bool cached)
         YASSERT(~CachedReplicas_);
         YCHECK(CachedReplicas_->erase(replica) == 1);
         if (CachedReplicas_->empty()) {
-            CachedReplicas_.Destroy();
+            CachedReplicas_.reset();
         }
     } else {
         for (auto it = StoredReplicas_.begin(); it != StoredReplicas_.end(); ++it) {

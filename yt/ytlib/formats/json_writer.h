@@ -76,7 +76,7 @@ public:
 private:
     TJsonWriter(NJson::TJsonWriter* jsonWriter, TJsonFormatConfigPtr config);
 
-    THolder<NJson::TJsonWriter> UnderlyingJsonWriter;
+    std::unique_ptr<NJson::TJsonWriter> UnderlyingJsonWriter;
     NJson::TJsonWriter* JsonWriter;
     TJsonFormatConfigPtr Config;
     NYson::EYsonType Type;

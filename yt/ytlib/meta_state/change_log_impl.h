@@ -232,8 +232,8 @@ private:
 
     std::vector<TLogIndexRecord> Index;
 
-    THolder<TBufferedFile> File;
-    THolder<TFile> IndexFile;
+    std::unique_ptr<TBufferedFile> File;
+    std::unique_ptr<TFile> IndexFile;
 
     //! Auxiliary data.
     //! Protects file resources.

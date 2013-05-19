@@ -52,7 +52,7 @@ public:
 private:
     Stroka FileName;
     bool Opened;
-    THolder<TFile> DataFile;
+    std::unique_ptr<TFile> DataFile;
     i64 InfoSize;
     i64 DataSize;
     NChunkClient::NProto::TChunkMeta ChunkMeta;

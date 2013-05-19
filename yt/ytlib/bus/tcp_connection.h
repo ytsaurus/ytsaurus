@@ -149,7 +149,7 @@ private:
     TSpinLock TerminationSpinLock;
     TError TerminationError;
 
-    THolder<ev::io> SocketWatcher;
+    std::unique_ptr<ev::io> SocketWatcher;
 
     TBlob ReadBuffer;
     TPacketDecoder Decoder;

@@ -154,7 +154,7 @@ private:
     explicit TFuture(const TIntrusivePtr< NYT::NDetail::TPromiseState<T> >& state);
     explicit TFuture(TIntrusivePtr< NYT::NDetail::TPromiseState<T> >&& state);
 
-    TIntrusivePtr< NYT::NDetail::TPromiseState<T> > Impl;
+    TIntrusivePtr< NYT::NDetail::TPromiseState<T> > Impl    ;
 
 private:
     friend class TPromise<T>;

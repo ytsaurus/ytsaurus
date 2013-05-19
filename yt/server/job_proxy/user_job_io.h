@@ -36,14 +36,14 @@ public:
 
     virtual double GetProgress() const;
 
-    virtual TAutoPtr<NTableClient::TTableProducer> CreateTableInput(
+    virtual std::unique_ptr<NTableClient::TTableProducer> CreateTableInput(
         int index,
         NYson::IYsonConsumer* consumer);
 
     virtual NTableClient::ISyncWriterPtr CreateTableOutput(
         int index);
 
-    virtual TAutoPtr<TErrorOutput> CreateErrorOutput(
+    virtual std::unique_ptr<TErrorOutput> CreateErrorOutput(
         const NTransactionClient::TTransactionId& transactionId,
         i64 maxSize) const;
 
@@ -64,7 +64,7 @@ protected:
     NLog::TLogger& Logger;
 
     template <template <typename> class TMultiChunkReader>
-    TAutoPtr<NTableClient::TTableProducer> DoCreateTableInput(
+    std::unique_ptr<NTableClient::TTableProducer> DoCreateTableInput(
         int index,
         NYson::IYsonConsumer* consumer);
 

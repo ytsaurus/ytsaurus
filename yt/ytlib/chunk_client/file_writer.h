@@ -46,7 +46,7 @@ private:
     bool IsOpen;
     bool IsClosed;
     i64 DataSize;
-    THolder<TFile> DataFile;
+    std::unique_ptr<TFile> DataFile;
     NChunkClient::NProto::TChunkInfo ChunkInfo;
     NChunkClient::NProto::TBlocksExt BlocksExt;
     NChunkClient::NProto::TChunkMeta ChunkMeta;

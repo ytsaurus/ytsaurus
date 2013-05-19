@@ -99,7 +99,7 @@ EYsonType DataTypeToYsonType(EDataType dataType)
     }
 }
 
-TAutoPtr<IYsonConsumer> CreateConsumerForYson(
+std::unique_ptr<IYsonConsumer> CreateConsumerForYson(
     EDataType dataType,
     const IAttributeDictionary& attributes,
     TOutputStream* output)
@@ -110,10 +110,10 @@ TAutoPtr<IYsonConsumer> CreateConsumerForYson(
     public:
         explicit TNewlineAppendingConsumer(
             TOutputStream* output,
-            TAutoPtr<IYsonConsumer> underlyingConsumer,
+            std::unique_ptr<IYsonConsumer> underlyingConsumer,
             EYsonType ysonType)
             : Output(output)
-            , UnderlyingConsumer(underlyingConsumer)
+            , UnderlyingConsumer(std::move(underlyingConsumer))
         {
             Forward(
                 ~UnderlyingConsumer,
@@ -123,7 +123,7 @@ TAutoPtr<IYsonConsumer> CreateConsumerForYson(
 
     private:
         TOutputStream* Output;
-        TAutoPtr<IYsonConsumer> UnderlyingConsumer;
+        std::unique_ptr<IYsonConsumer> UnderlyingConsumer;
 
         void OnFinished()
         {
@@ -145,37 +145,43 @@ TAutoPtr<IYsonConsumer> CreateConsumerForYson(
             }
         }
 
-        TAutoPtr<IYsonConsumer> writer(new TYsonWriter(output, *ysonFormat, ysonType, *enableRaw));
-        return *ysonFormat == EYsonFormat::Binary
-            ? writer
-            : new TNewlineAppendingConsumer(output, writer, ysonType);
+        std::unique_ptr<IYsonConsumer> writer(new TYsonWriter(output, *ysonFormat, ysonType, *enableRaw));
+
+        if (*ysonFormat != EYsonFormat::Binary) {
+            writer = std::unique_ptr<IYsonConsumer>(new TNewlineAppendingConsumer(
+                output,
+                std::move(writer),
+                ysonType));
+        }
+
+        return writer;
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error parsing YSON output format")
             << ex;;
     }
 }
 
-TAutoPtr<IYsonConsumer> CreateConsumerForJson(
+std::unique_ptr<IYsonConsumer> CreateConsumerForJson(
     EDataType dataType,
     const IAttributeDictionary& attributes,
     TOutputStream* output)
 {
     auto config = New<TJsonFormatConfig>();
     config->Load(ConvertToNode(&attributes)->AsMap());
-    return new TJsonWriter(output, DataTypeToYsonType(dataType), config);
+    return std::unique_ptr<IYsonConsumer>(new TJsonWriter(output, DataTypeToYsonType(dataType), config));
 }
 
-TAutoPtr<IYsonConsumer> CreateConsumerForDsv(
+std::unique_ptr<IYsonConsumer> CreateConsumerForDsv(
     EDataType dataType,
     const IAttributeDictionary& attributes,
     TOutputStream* output)
 {
     auto config = New<TDsvFormatConfig>();
     config->Load(ConvertToNode(&attributes)->AsMap());
-    return new TDsvWriter(output, DataTypeToYsonType(dataType), config);
+    return std::unique_ptr<IYsonConsumer>(new TDsvWriter(output, DataTypeToYsonType(dataType), config));
 }
 
-TAutoPtr<IYsonConsumer> CreateConsumerForYamr(
+std::unique_ptr<IYsonConsumer> CreateConsumerForYamr(
     EDataType dataType,
     const IAttributeDictionary& attributes,
     TOutputStream* output)
@@ -185,10 +191,10 @@ TAutoPtr<IYsonConsumer> CreateConsumerForYamr(
     }
     auto config = New<TYamrFormatConfig>();
     config->Load(ConvertToNode(&attributes)->AsMap());
-    return new TYamrWriter(output, config);
+    return std::unique_ptr<IYsonConsumer>(new TYamrWriter(output, config));
 }
 
-TAutoPtr<IYsonConsumer> CreateConsumerForYamredDsv(
+std::unique_ptr<IYsonConsumer> CreateConsumerForYamredDsv(
     EDataType dataType,
     const IAttributeDictionary& attributes,
     TOutputStream* output)
@@ -198,11 +204,11 @@ TAutoPtr<IYsonConsumer> CreateConsumerForYamredDsv(
     }
     auto config = New<TYamredDsvFormatConfig>();
     config->Load(ConvertToNode(&attributes)->AsMap());
-    return new TYamredDsvWriter(output, config);
+    return std::unique_ptr<IYsonConsumer>(new TYamredDsvWriter(output, config));
 }
 
 
-TAutoPtr<IYsonConsumer> CreateConsumerForFormat(const TFormat& format, EDataType dataType, TOutputStream* output)
+std::unique_ptr<IYsonConsumer> CreateConsumerForFormat(const TFormat& format, EDataType dataType, TOutputStream* output)
 {
     switch (format.GetType()) {
         case EFormatType::Yson:
@@ -310,7 +316,7 @@ TYsonProducer CreateProducerForFormat(const TFormat& format, EDataType dataType,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAutoPtr<IParser> CreateParserForFormat(const TFormat& format, EDataType dataType, IYsonConsumer* consumer)
+std::unique_ptr<IParser> CreateParserForFormat(const TFormat& format, EDataType dataType, IYsonConsumer* consumer)
 {
     switch (format.GetType()) {
         case EFormatType::Yson:
@@ -319,7 +325,7 @@ TAutoPtr<IParser> CreateParserForFormat(const TFormat& format, EDataType dataTyp
         case EFormatType::Json: {
             auto config = New<TJsonFormatConfig>();
             config->Load(ConvertToNode(&format.Attributes())->AsMap());
-            return new TJsonParser(consumer);
+            return std::unique_ptr<IParser>(new TJsonParser(consumer));
         }
         case EFormatType::Dsv: {
             auto config = New<TDsvFormatConfig>();

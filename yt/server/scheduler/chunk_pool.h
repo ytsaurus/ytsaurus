@@ -145,10 +145,10 @@ struct IChunkPool
     , public virtual IChunkPoolOutput
 { };
 
-TAutoPtr<IChunkPool> CreateAtomicChunkPool(
+std::unique_ptr<IChunkPool> CreateAtomicChunkPool(
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory);
 
-TAutoPtr<IChunkPool> CreateUnorderedChunkPool(
+std::unique_ptr<IChunkPool> CreateUnorderedChunkPool(
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     int jobCount);
 
@@ -163,7 +163,7 @@ struct IShuffleChunkPool
     virtual IChunkPoolOutput* GetOutput(int partitionIndex) = 0;
 };
 
-TAutoPtr<IShuffleChunkPool> CreateShuffleChunkPool(
+std::unique_ptr<IShuffleChunkPool> CreateShuffleChunkPool(
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     int partitionCount,
     i64 dataSizeThreshold);

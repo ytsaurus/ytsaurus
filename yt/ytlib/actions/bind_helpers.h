@@ -316,9 +316,9 @@ static inline NYT::NDetail::TPassedWrapper<T> Passed(T* x)
 }
 
 template <class T>
-static inline NYT::NDetail::TPassedWrapper<T*> Passed(THolder<T>&& x)
+static inline NYT::NDetail::TPassedWrapper<T*> Passed(std::unique_ptr<T>&& x)
 {
-    return NYT::NDetail::TPassedWrapper<T*>(x.Release());
+    return NYT::NDetail::TPassedWrapper<T*>(x.release());
 }
 
 template <class T>

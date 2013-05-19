@@ -166,7 +166,7 @@ private:
     TIntrusivePtr<TReader> Reader;
     ISyncWriterUnsafePtr Writer;
     std::vector<TOwningKey> PartitionKeys;
-    TAutoPtr<IPartitioner> Partitioner;
+    std::unique_ptr<IPartitioner> Partitioner;
 
 };
 

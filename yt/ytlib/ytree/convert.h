@@ -29,7 +29,7 @@ INodePtr ConvertToNode(
     INodeFactoryPtr factory = GetEphemeralNodeFactory());
 
 template <class T>
-TAutoPtr<IAttributeDictionary> ConvertToAttributes(const T& value);
+std::unique_ptr<IAttributeDictionary> ConvertToAttributes(const T& value);
 
 ////////////////////////////////////////////////////////////////////////////////
 

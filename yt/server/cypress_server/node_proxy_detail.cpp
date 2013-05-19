@@ -480,12 +480,12 @@ const ICypressNodeProxy* TNontemplateCypressNodeProxyBase::ToProxy(IConstNodePtr
     return dynamic_cast<const ICypressNodeProxy*>(~node);
 }
 
-TAutoPtr<IAttributeDictionary> TNontemplateCypressNodeProxyBase::DoCreateUserAttributes()
+std::unique_ptr<IAttributeDictionary> TNontemplateCypressNodeProxyBase::DoCreateUserAttributes()
 {
-    return new TVersionedUserAttributeDictionary(
+    return std::unique_ptr<IAttributeDictionary>(new TVersionedUserAttributeDictionary(
         TrunkNode,
         Transaction,
-        Bootstrap);
+        Bootstrap));
 }
 
 void TNontemplateCypressNodeProxyBase::ValidatePermission(

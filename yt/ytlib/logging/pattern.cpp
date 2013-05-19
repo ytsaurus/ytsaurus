@@ -48,7 +48,7 @@ Stroka ToString(const TMessageBuffer& out)
 
 void SetupFormatter(TPatternFormatter* formatter, const TLogEvent& event)
 {
-    TAutoPtr<TMessageBuffer> out(new TMessageBuffer());
+    std::unique_ptr<TMessageBuffer> out(new TMessageBuffer());
 
     out->Reset();
     FormatLevel(~out, event.Level);

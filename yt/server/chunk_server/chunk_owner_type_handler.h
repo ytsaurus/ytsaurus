@@ -55,7 +55,7 @@ public:
 protected:
     NLog::TLogger& Logger;
 
-    virtual TAutoPtr<TChunkOwner> DoCreate(
+    virtual std::unique_ptr<TChunkOwner> DoCreate(
         const NCypressServer::TVersionedNodeId& id,
         NTransactionServer::TTransaction* transaction,
         NCypressServer::INodeTypeHandler::TReqCreate* request,

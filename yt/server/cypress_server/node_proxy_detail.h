@@ -165,7 +165,7 @@ protected:
     static ICypressNodeProxy* ToProxy(NYTree::INodePtr node);
     static const ICypressNodeProxy* ToProxy(NYTree::IConstNodePtr node);
 
-    virtual TAutoPtr<NYTree::IAttributeDictionary> DoCreateUserAttributes() override;
+    virtual std::unique_ptr<NYTree::IAttributeDictionary> DoCreateUserAttributes() override;
     
     // TSupportsPermissions members
     virtual void ValidatePermission(

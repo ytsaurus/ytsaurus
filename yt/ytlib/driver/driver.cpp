@@ -229,7 +229,7 @@ private:
     IChannelPtr SchedulerChannel;
     IBlockCachePtr BlockCache;
 
-    typedef TCallback<TAutoPtr<ICommand>()> TCommandFactory;
+    typedef TCallback<std::unique_ptr<ICommand>()> TCommandFactory;
 
     struct TCommandEntry
     {
@@ -309,7 +309,7 @@ private:
                 Request->InputStream);
         }
 
-        virtual TAutoPtr<IYsonConsumer> CreateOutputConsumer() override
+        virtual std::unique_ptr<IYsonConsumer> CreateOutputConsumer() override
         {
             return CreateConsumerForFormat(
                 Request->OutputFormat,
@@ -336,8 +336,8 @@ private:
     {
         TCommandEntry entry;
         entry.Descriptor = descriptor;
-        entry.Factory = BIND([] () -> TAutoPtr<ICommand> {
-            return new TCommand();
+        entry.Factory = BIND([] () -> std::unique_ptr<ICommand> {
+            return std::unique_ptr<ICommand>(new TCommand());
         });
         YCHECK(Commands.insert(std::make_pair(descriptor.CommandName, entry)).second);
     }

@@ -43,7 +43,7 @@ private:
 
     bool IsClosed;
 
-    TAutoPtr<NFileClient::TFileChunkOutput> FileWriter;
+    std::unique_ptr<NFileClient::TFileChunkOutput> FileWriter;
 };
 
 ////////////////////////////////////////////////////////////////////

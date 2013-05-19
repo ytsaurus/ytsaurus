@@ -515,7 +515,7 @@ public:
     }
 
 private:
-    TAutoPtr<ITreeBuilder> Builder;
+    std::unique_ptr<ITreeBuilder> Builder;
 
 };
 

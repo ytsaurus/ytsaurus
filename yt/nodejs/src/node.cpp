@@ -349,8 +349,8 @@ Handle<Value> TNodeWrap::New(const Arguments& args)
                 "There are only 0-ary, 1-ary and 3-ary constructors of TNodeWrap");
         }
 
-        THolder<TNodeWrap> wrappedNode(new TNodeWrap(node));
-        wrappedNode.Release()->Wrap(args.This());
+        std::unique_ptr<TNodeWrap> wrappedNode(new TNodeWrap(node));
+        wrappedNode.release()->Wrap(args.This());
 
         return args.This();
     } catch (const std::exception& ex) {

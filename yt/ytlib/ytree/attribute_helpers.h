@@ -12,7 +12,7 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Creates attributes dictionary in memory
-TAutoPtr<IAttributeDictionary> CreateEphemeralAttributes();
+std::unique_ptr<IAttributeDictionary> CreateEphemeralAttributes();
 
 //! Creates empty attributes dictionary with deprecated method Set
 const IAttributeDictionary& EmptyAttributes();
@@ -22,7 +22,7 @@ void Serialize(const IAttributeDictionary& attributes, NYson::IYsonConsumer* con
 
 //! Protobuf conversion methods.
 void ToProto(NProto::TAttributes* protoAttributes, const IAttributeDictionary& attributes);
-TAutoPtr<IAttributeDictionary> FromProto(const NProto::TAttributes& protoAttributes);
+std::unique_ptr<IAttributeDictionary> FromProto(const NProto::TAttributes& protoAttributes);
 
 ////////////////////////////////////////////////////////////////////////////////
 

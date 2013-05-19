@@ -7,7 +7,7 @@ namespace NJobProxy {
 
 ////////////////////////////////////////////////////////////////////
 
-TAutoPtr<TUserJobIO> CreateSortedReduceJobIO(
+std::unique_ptr<TUserJobIO> CreateSortedReduceJobIO(
     NScheduler::TJobIOConfigPtr ioConfig,
     IJobHost* host);
 

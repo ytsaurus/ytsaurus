@@ -132,8 +132,8 @@ void TBootstrap::Run()
         orchidRoot,
         GetControlInvoker()));
 
-    ::THolder<NHttp::TServer> httpServer(new NHttp::TServer(Config->MonitoringPort));
-    httpServer->Register(
+    NHttp::TServer httpServer(Config->MonitoringPort);
+    httpServer.Register(
         "/orchid",
         NMonitoring::GetYPathHttpHandler(orchidRoot->Via(GetControlInvoker())));
 
@@ -141,7 +141,7 @@ void TBootstrap::Run()
     rpcServer->RegisterService(CreateJobTrackerService(this));
 
     LOG_INFO("Listening for HTTP requests on port %d", Config->MonitoringPort);
-    httpServer->Start();
+    httpServer.Start();
 
     LOG_INFO("Listening for RPC requests on port %d", Config->RpcPort);
     rpcServer->Configure(Config->RpcServer);

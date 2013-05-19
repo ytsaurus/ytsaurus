@@ -101,17 +101,17 @@ public:
     }
 
 private:
-    TAutoPtr<IPartitioner> Partitioner;
+    std::unique_ptr<IPartitioner> Partitioner;
     TKeyColumns KeyColumns;
     ISyncWriterUnsafePtr Writer;
 
 };
 
-TAutoPtr<TUserJobIO> CreatePartitionMapJobIO(
+std::unique_ptr<TUserJobIO> CreatePartitionMapJobIO(
     TJobIOConfigPtr ioConfig,
     IJobHost* host)
 {
-    return new TPartitionMapJobIO(ioConfig, host);
+    return std::unique_ptr<TUserJobIO>(new TPartitionMapJobIO(ioConfig, host));
 }
 
 ////////////////////////////////////////////////////////////////////

@@ -49,11 +49,11 @@ void TErrorOutput::DoWrite(const void* buf, size_t len)
         options->Account = NSecurityClient::SysAccountName;
         options->ReplicationFactor = 1;
 
-        FileWriter = new TFileChunkOutput(
+        FileWriter.reset(new TFileChunkOutput(
             Config,
             options,
             MasterChannel,
-            TransactionId);
+            TransactionId));
         FileWriter->Open();
 
         LOG_DEBUG("Stderr stream opened");

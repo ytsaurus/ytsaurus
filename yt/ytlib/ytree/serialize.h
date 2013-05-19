@@ -128,7 +128,7 @@ template <class T>
 void Deserialize(TIntrusivePtr<T>& value, INodePtr node);
 
 template <class T>
-void Deserialize(TAutoPtr<T>& value, INodePtr node);
+void Deserialize(std::unique_ptr<T>& value, INodePtr node);
 
 // i64
 void Deserialize(i64& value, INodePtr node);

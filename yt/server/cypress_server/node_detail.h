@@ -91,7 +91,7 @@ protected:
         TCypressNodeBase* originatingNode,
         TCypressNodeBase* branchedNode);
 
-    TAutoPtr<TCypressNodeBase> CloneCorePrologue(
+    std::unique_ptr<TCypressNodeBase> CloneCorePrologue(
         TCypressNodeBase* sourceNode,
         const TCloneContext& context);
 
@@ -120,12 +120,12 @@ public:
         return DoGetProxy(dynamic_cast<TImpl*>(trunkNode), transaction);
     }
 
-    virtual TAutoPtr<TCypressNodeBase> Instantiate(const TVersionedNodeId& id) override
+    virtual std::unique_ptr<TCypressNodeBase> Instantiate(const TVersionedNodeId& id) override
     {
-        return new TImpl(id);
+        return std::unique_ptr<TCypressNodeBase>(new TImpl(id));
     }
 
-    virtual TAutoPtr<TCypressNodeBase> Create(
+    virtual std::unique_ptr<TCypressNodeBase> Create(
         NTransactionServer::TTransaction* transaction,
         TReqCreate* request,
         TRspCreate* response) override
@@ -141,8 +141,7 @@ public:
 
         node->SetTrunkNode(~node);
 
-        // TODO(babenko): Release is needed due to cast to ICypressNode.
-        return node.Release();
+        return std::move(node);
     }
 
     virtual void SetDefaultAttributes(NYTree::IAttributeDictionary* attributes) override
@@ -159,7 +158,7 @@ public:
         DoDestroy(dynamic_cast<TImpl*>(node));
     }
 
-    virtual TAutoPtr<TCypressNodeBase> Branch(
+    virtual std::unique_ptr<TCypressNodeBase> Branch(
         TCypressNodeBase* originatingNode,
         NTransactionServer::TTransaction* transaction,
         ELockMode mode) override
@@ -167,7 +166,7 @@ public:
         // Instantiate a branched copy.
         auto originatingId = originatingNode->GetVersionedId();
         auto branchedId = TVersionedNodeId(originatingId.ObjectId, GetObjectId(transaction));
-        TAutoPtr<TImpl> branchedNode(new TImpl(branchedId));
+        std::unique_ptr<TImpl> branchedNode(new TImpl(branchedId));
 
         // Run core stuff.
         BranchCore(
@@ -181,7 +180,7 @@ public:
             dynamic_cast<const TImpl*>(originatingNode),
             ~branchedNode);
 
-        return branchedNode.Release();
+        return std::move(branchedNode);
     }
 
     virtual void Merge(
@@ -204,7 +203,7 @@ public:
         return DoCreateBehavior(dynamic_cast<TImpl*>(trunkNode));
     }
 
-    virtual TAutoPtr<TCypressNodeBase> Clone(
+    virtual std::unique_ptr<TCypressNodeBase> Clone(
         TCypressNodeBase* sourceNode,
         const TCloneContext& context) override
     {
@@ -229,7 +228,7 @@ protected:
         TImpl* trunkNode,
         NTransactionServer::TTransaction* transaction) = 0;
 
-    virtual TAutoPtr<TImpl> DoCreate(
+    virtual std::unique_ptr<TImpl> DoCreate(
         const NCypressServer::TVersionedNodeId& id,
         NTransactionServer::TTransaction* transaction,
         TReqCreate* request,
@@ -239,7 +238,7 @@ protected:
         UNUSED(request);
         UNUSED(response);
 
-        return new TImpl(id);
+        return std::unique_ptr<TImpl>(new TImpl(id));
     }
 
     virtual void DoDestroy(TImpl* node)

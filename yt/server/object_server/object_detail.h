@@ -88,7 +88,7 @@ public:
 protected:
     NCellMaster::TBootstrap* Bootstrap;
     TObjectBase* Object;
-    TAutoPtr<NYTree::IAttributeDictionary> UserAttributes;
+    std::unique_ptr<NYTree::IAttributeDictionary> UserAttributes;
 
     DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, GetId);
     DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, CheckPermission);
@@ -109,7 +109,7 @@ protected:
     virtual NYTree::IAttributeDictionary* GetUserAttributes() override;
     virtual ISystemAttributeProvider* GetSystemAttributeProvider() override;
 
-    virtual TAutoPtr<NYTree::IAttributeDictionary> DoCreateUserAttributes();
+    virtual std::unique_ptr<NYTree::IAttributeDictionary> DoCreateUserAttributes();
 
     // NYTree::ISystemAttributeProvider members
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override;

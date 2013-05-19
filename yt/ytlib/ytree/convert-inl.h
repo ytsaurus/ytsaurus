@@ -108,10 +108,10 @@ INodePtr ConvertToNode(
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-TAutoPtr<IAttributeDictionary> ConvertToAttributes(const T& value)
+std::unique_ptr<IAttributeDictionary> ConvertToAttributes(const T& value)
 {
     auto attributes = CreateEphemeralAttributes();
-    TAttributeConsumer consumer(attributes.Get());
+    TAttributeConsumer consumer(~attributes);
     Consume(value, &consumer);
     return attributes;
 }

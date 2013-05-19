@@ -290,15 +290,15 @@ void TOutputPipe::Finish()
 
 TInputPipe::TInputPipe(
     int fd[2],
-    TAutoPtr<NTableClient::TTableProducer> tableProducer,
-    TAutoPtr<TBlobOutput> buffer,
-    TAutoPtr<NYson::IYsonConsumer> consumer,
+    std::unique_ptr<NTableClient::TTableProducer> tableProducer,
+    std::unique_ptr<TBlobOutput> buffer,
+    std::unique_ptr<NYson::IYsonConsumer> consumer,
     int jobDescriptor)
     : Pipe(fd)
     , JobDescriptor(jobDescriptor)
-    , TableProducer(tableProducer)
-    , Buffer(buffer)
-    , Consumer(consumer)
+    , TableProducer(std::move(tableProducer))
+    , Buffer(std::move(buffer))
+    , Consumer(std::move(consumer))
     , Position(0)
     , HasData(true)
     , IsFinished(false)

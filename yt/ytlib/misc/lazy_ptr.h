@@ -78,7 +78,7 @@ public:
         if (!Value) {
             TGuard<TLock> guard(Lock);
             if (!Value) {
-                Value = Factory.IsNull() ? new T() : Factory.Run();
+                Value.reset(Factory.IsNull() ? new T() : Factory.Run());
             }
         }
         return ~Value;
@@ -87,7 +87,7 @@ public:
 private:
     TLock Lock;
     TFactory Factory;
-    mutable TAutoPtr<T> Value;
+    mutable std::unique_ptr<T> Value;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

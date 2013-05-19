@@ -111,8 +111,8 @@ private:
     typedef yhash_map<Stroka, TAsyncHandler> TAsyncHandlerMap;
 
 private:
-    THolder<TCallback> Callback;
-    THolder<THttpServer> Server;
+    std::unique_ptr<TCallback> Callback;
+    std::unique_ptr<THttpServer> Server;
     
     TSyncHandlerMap SyncHandlers;
     TAsyncHandlerMap AsyncHandlers;
@@ -120,8 +120,8 @@ private:
 public:
     TImpl(int port)
     {
-        Callback.Reset(new TCallback(*this));
-        Server.Reset(new THttpServer(~Callback,
+        Callback.reset(new TCallback(*this));
+        Server.reset(new THttpServer(~Callback,
             THttpServerOptions(static_cast<ui16>(port))
         ));
     }

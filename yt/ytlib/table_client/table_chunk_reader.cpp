@@ -251,7 +251,7 @@ private:
                 result.Value().extensions());
 
             if (StartLimit.has_key() && StartLimit.key().parts_size() > 0) {
-                StartValidator.Reset(new TKeyValidator(StartLimit.key(), true));
+                StartValidator.reset(new TKeyValidator(StartLimit.key(), true));
 
                 typedef decltype(indexExt.items().begin()) TSampleIter;
                 std::reverse_iterator<TSampleIter> rbegin(indexExt.items().end());
@@ -268,7 +268,7 @@ private:
             }
 
             if (EndLimit.has_key() && EndLimit.key().parts_size() > 0) {
-                chunkReader->EndValidator.Reset(new TKeyValidator(EndLimit.key(), false));
+                chunkReader->EndValidator.reset(new TKeyValidator(EndLimit.key(), false));
 
                 auto it = std::upper_bound(
                     indexExt.items().begin(),
@@ -559,7 +559,7 @@ private:
     NChunkClient::NProto::TReadLimit StartLimit;
     NChunkClient::NProto::TReadLimit EndLimit;
 
-    THolder<TKeyValidator> StartValidator;
+    std::unique_ptr<TKeyValidator> StartValidator;
 
     NProto::TChannelsExt ChannelsExt;
     TChannels ChunkChannels;

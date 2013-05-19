@@ -64,7 +64,7 @@ TJsonWriter::TJsonWriter(TOutputStream* output,
         THROW_ERROR_EXCEPTION("Map fragments are not supported by Json");
     }
 
-    UnderlyingJsonWriter.Reset(new NJson::TJsonWriter(
+    UnderlyingJsonWriter.reset(new NJson::TJsonWriter(
         output,
         Config->Format == EJsonFormat::Pretty));
     JsonWriter = ~UnderlyingJsonWriter;

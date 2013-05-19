@@ -55,7 +55,7 @@ struct INodeTypeHandler
     virtual NYTree::ENodeType GetNodeType() = 0;
 
     //! Create an empty instance of the node (used during snapshot deserialization).
-    virtual TAutoPtr<TCypressNodeBase> Instantiate(const TVersionedNodeId& id) = 0;
+    virtual std::unique_ptr<TCypressNodeBase> Instantiate(const TVersionedNodeId& id) = 0;
 
     typedef NRpc::TTypedServiceRequest<NCypressClient::NProto::TReqCreate> TReqCreate;
     typedef NRpc::TTypedServiceResponse<NCypressClient::NProto::TRspCreate> TRspCreate;
@@ -63,7 +63,7 @@ struct INodeTypeHandler
     /*!
      *  This is called during |Create|.
      */
-    virtual TAutoPtr<TCypressNodeBase> Create(
+    virtual std::unique_ptr<TCypressNodeBase> Create(
         NTransactionServer::TTransaction* transaction,
         TReqCreate* request,
         TRspCreate* response) = 0;
@@ -86,7 +86,7 @@ struct INodeTypeHandler
      *  \param mode The lock mode for which the node is being branched.
      *  \returns The branched node.
      */
-    virtual TAutoPtr<TCypressNodeBase> Branch(
+    virtual std::unique_ptr<TCypressNodeBase> Branch(
         TCypressNodeBase* originatingNode,
         NTransactionServer::TTransaction* transaction,
         ELockMode mode) = 0;
@@ -103,7 +103,7 @@ struct INodeTypeHandler
         TCypressNodeBase* branchedNode) = 0;
 
     //! Constructs a deep copy of the node.
-    virtual TAutoPtr<TCypressNodeBase> Clone(
+    virtual std::unique_ptr<TCypressNodeBase> Clone(
         TCypressNodeBase* sourceNode,
         const TCloneContext& context) = 0;
 

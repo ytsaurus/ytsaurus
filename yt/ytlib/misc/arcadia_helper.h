@@ -14,15 +14,9 @@ T* operator~(const TIntrusivePtr<T>& ptr)
 }
 
 template <class T>
-T* operator~(const ::TAutoPtr<T>& ptr)
+T* operator~(const ::std::unique_ptr<T>& ptr)
 {
-    return ptr.Get();
-}
-
-template <class T>
-T* operator~(const ::THolder<T>& ptr)
-{
-    return ptr.Get();
+    return ptr.get();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

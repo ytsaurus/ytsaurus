@@ -37,12 +37,12 @@ private:
     i32 SnapshotId;
     bool EnableCompression;
 
-    THolder<TSnapshotHeader> Header;
+    std::unique_ptr<TSnapshotHeader> Header;
 
-    THolder<TFile> File;
-    THolder<TBufferedFileInput> FileInput;
-    THolder<TInputStream> DecompressedInput;
-    THolder<TChecksumInput> ChecksummableInput;
+    std::unique_ptr<TFile> File;
+    std::unique_ptr<TBufferedFileInput> FileInput;
+    std::unique_ptr<TInputStream> DecompressedInput;
+    std::unique_ptr<TChecksumInput> ChecksummableInput;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -75,12 +75,12 @@ private:
     Stroka TempFileName;
     bool EnableCompression;
 
-    THolder<TSnapshotHeader> Header;
+    std::unique_ptr<TSnapshotHeader> Header;
 
-    THolder<TBufferedFile> File;
-    THolder<TOutputStream> CompressedOutput;
-    THolder<TBufferedOutput> BufferedOutput;
-    THolder<TChecksumOutput> ChecksummableOutput;
+    std::unique_ptr<TBufferedFile> File;
+    std::unique_ptr<TOutputStream> CompressedOutput;
+    std::unique_ptr<TBufferedOutput> BufferedOutput;
+    std::unique_ptr<TChecksumOutput> ChecksummableOutput;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

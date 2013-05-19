@@ -112,9 +112,9 @@ public:
      */
     TInputPipe(
         int fd[2],
-        TAutoPtr<NTableClient::TTableProducer> tableProducer,
-        TAutoPtr<TBlobOutput> buffer,
-        TAutoPtr<NYson::IYsonConsumer> consumer,
+        std::unique_ptr<NTableClient::TTableProducer> tableProducer,
+        std::unique_ptr<TBlobOutput> buffer,
+        std::unique_ptr<NYson::IYsonConsumer> consumer,
         int jobDescriptor);
 
     void PrepareJobDescriptors() override;
@@ -132,9 +132,9 @@ private:
     TPipe Pipe;
     int JobDescriptor;
 
-    TAutoPtr<NTableClient::TTableProducer> TableProducer;
-    TAutoPtr<TBlobOutput> Buffer;
-    TAutoPtr<NYson::IYsonConsumer> Consumer;
+    std::unique_ptr<NTableClient::TTableProducer> TableProducer;
+    std::unique_ptr<TBlobOutput> Buffer;
+    std::unique_ptr<NYson::IYsonConsumer> Consumer;
     int Position;
 
     bool HasData;

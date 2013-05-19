@@ -51,7 +51,7 @@ public:
     typedef TCallback<TFuture<Stroka>(Stroka)> TAsyncHandler;
 
 public:
-    TServer(int port);
+    explicit TServer(int port);
     ~TServer();
 
     void Register(const Stroka& prefix, TSyncHandler handler);
@@ -62,7 +62,8 @@ public:
 
 private:
     class TImpl;
-    THolder<TImpl> Impl;
+    std::unique_ptr<TImpl> Impl;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

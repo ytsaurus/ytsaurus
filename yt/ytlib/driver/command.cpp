@@ -19,8 +19,8 @@ TCommandBase::TCommandBase()
 
 void TCommandBase::Prepare()
 {
-    ObjectProxy.Reset(new TObjectServiceProxy(Context->GetMasterChannel()));
-    SchedulerProxy.Reset(new TSchedulerServiceProxy(Context->GetSchedulerChannel()));
+    ObjectProxy.reset(new TObjectServiceProxy(Context->GetMasterChannel()));
+    SchedulerProxy.reset(new TSchedulerServiceProxy(Context->GetSchedulerChannel()));
 }
 
 void TCommandBase::ReplyError(const TError& error)

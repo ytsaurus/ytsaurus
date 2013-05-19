@@ -262,9 +262,9 @@ void LoadObjectRefs(const TLoadContext& context, T& objects)
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-void SaveNullableObjectRefs(const TSaveContext& context, const THolder<T>& objects)
+void SaveNullableObjectRefs(const TSaveContext& context, const std::unique_ptr<T>& objects)
 {
-    if (objects.Get()) {
+    if (objects) {
         SaveObjectRefs(context, *objects);
     } else {
         auto* output = context.GetOutput();
@@ -273,14 +273,14 @@ void SaveNullableObjectRefs(const TSaveContext& context, const THolder<T>& objec
 }
 
 template <class T>
-void LoadNullableObjectRefs(const TLoadContext& context, THolder<T>& objects)
+void LoadNullableObjectRefs(const TLoadContext& context, std::unique_ptr<T>& objects)
 {
     auto* input = context.GetInput();
     size_t size = ::LoadSize(input);
     if (size == 0) {
-        objects.Destroy();
+        objects.reset();
     } else {
-        objects.Reset(new T());
+        objects.reset(new T());
         typedef typename TObjectRefSerializerTraits<T>::TSerializer TSerializer;
         TSerializer::LoadRefs(context, size, *objects);
     }

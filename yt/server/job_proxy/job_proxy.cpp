@@ -141,7 +141,7 @@ TJobResult TJobProxy::DoRun()
         auto supervisorClient = CreateTcpBusClient(Config->SupervisorConnection);
 
         auto supervisorChannel = CreateBusChannel(supervisorClient, Config->SupervisorRpcTimeout);
-        SupervisorProxy.Reset(new TSupervisorServiceProxy(supervisorChannel));
+        SupervisorProxy.reset(new TSupervisorServiceProxy(supervisorChannel));
 
         MasterChannel = CreateBusChannel(supervisorClient, Config->MasterRpcTimeout);
 
@@ -170,14 +170,14 @@ TJobResult TJobProxy::DoRun()
             case NScheduler::EJobType::Map: {
                 const auto& mapJobSpecExt = jobSpec.GetExtension(TMapJobSpecExt::map_job_spec_ext);
                 auto userJobIO = CreateMapJobIO(Config->JobIO, this);
-                Job = CreateUserJob(this, mapJobSpecExt.mapper_spec(), userJobIO);
+                Job = CreateUserJob(this, mapJobSpecExt.mapper_spec(), std::move(userJobIO));
                 break;
             }
 
             case NScheduler::EJobType::SortedReduce: {
                 const auto& reduceJobSpecExt = jobSpec.GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
                 auto userJobIO = CreateSortedReduceJobIO(Config->JobIO, this);
-                Job = CreateUserJob(this, reduceJobSpecExt.reducer_spec(), userJobIO);
+                Job = CreateUserJob(this, reduceJobSpecExt.reducer_spec(), std::move(userJobIO));
                 break;
             }
 
@@ -185,14 +185,14 @@ TJobResult TJobProxy::DoRun()
                 const auto& partitionJobSpecExt = jobSpec.GetExtension(TPartitionJobSpecExt::partition_job_spec_ext);
                 YCHECK(partitionJobSpecExt.has_mapper_spec());
                 auto userJobIO = CreatePartitionMapJobIO(Config->JobIO, this);
-                Job = CreateUserJob(this, partitionJobSpecExt.mapper_spec(), userJobIO);
+                Job = CreateUserJob(this, partitionJobSpecExt.mapper_spec(), std::move(userJobIO));
                 break;
             }
 
             case NScheduler::EJobType::PartitionReduce: {
                 const auto& reduceJobSpecExt = jobSpec.GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
                 auto userJobIO = CreatePartitionReduceJobIO(Config->JobIO, this);
-                Job = CreateUserJob(this, reduceJobSpecExt.reducer_spec(), userJobIO);
+                Job = CreateUserJob(this, reduceJobSpecExt.reducer_spec(), std::move(userJobIO));
                 break;
             }
 

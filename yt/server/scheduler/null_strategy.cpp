@@ -39,10 +39,10 @@ public:
     }
 };
 
-TAutoPtr<ISchedulerStrategy> CreateNullStrategy(ISchedulerStrategyHost* host)
+std::unique_ptr<ISchedulerStrategy> CreateNullStrategy(ISchedulerStrategyHost* host)
 {
     UNUSED(host);
-    return new TNullStrategy();
+    return std::unique_ptr<ISchedulerStrategy>(new TNullStrategy());
 }
 
 ////////////////////////////////////////////////////////////////////

@@ -30,7 +30,7 @@ public:
 private:
     TNullable<T> Value;
     mutable TSpinLock SpinLock;
-    mutable ::THolder<Event> ReadyEvent;
+    mutable std::unique_ptr<Event> ReadyEvent;
 
     TListeners Listeners;
 
@@ -56,7 +56,7 @@ public:
         }
 
         if (!ReadyEvent) {
-            ReadyEvent.Reset(new Event());
+            ReadyEvent.reset(new Event());
         }
 
         guard.Release();
@@ -199,7 +199,7 @@ public:
 private:
     bool ValueIsInitialized;
     mutable TSpinLock SpinLock;
-    mutable ::THolder<Event> ReadyEvent;
+    mutable std::unique_ptr<Event> ReadyEvent;
 
     TListeners Listeners;
 
@@ -247,7 +247,7 @@ public:
         }
 
         if (!ReadyEvent) {
-            ReadyEvent.Reset(new Event());
+            ReadyEvent.reset(new Event());
         }
 
         guard.Release();
@@ -341,12 +341,10 @@ inline void TPromiseState<void>::Subscribe(
 
 template <class T>
 inline TFuture<T>::TFuture()
-    : Impl(NULL)
 { }
 
 template <class T>
 inline TFuture<T>::TFuture(TNull)
-    : Impl(NULL)
 { }
 
 template <class T>
@@ -362,7 +360,7 @@ inline TFuture<T>::TFuture(TFuture<T>&& other)
 template <class T>
 inline TFuture<T>::operator TUnspecifiedBoolType() const
 {
-    return Impl ? &TFuture::Impl : NULL;
+    return Impl ? &TFuture::Impl : nullptr;
 }
 
 template <class T>

@@ -15,9 +15,9 @@ class TTableOutput
 {
 public:
     TTableOutput(
-        TAutoPtr<NFormats::IParser> parser,
-        TAutoPtr<NYson::IYsonConsumer> consumer,
-        const NTableClient::ISyncWriterPtr& writer);
+        std::unique_ptr<NFormats::IParser> parser,
+        std::unique_ptr<NYson::IYsonConsumer> consumer,
+        NTableClient::ISyncWriterPtr writer);
 
     ~TTableOutput() throw();
 
@@ -25,10 +25,10 @@ private:
     void DoWrite(const void* buf, size_t len);
     void DoFinish();
 
-    TAutoPtr<NFormats::IParser> Parser;
+    std::unique_ptr<NFormats::IParser> Parser;
 
     // Just holds the consumer that parser is using.
-    TAutoPtr<NYson::IYsonConsumer> Consumer;
+    std::unique_ptr<NYson::IYsonConsumer> Consumer;
     NTableClient::ISyncWriterPtr SyncWriter;
 };
 

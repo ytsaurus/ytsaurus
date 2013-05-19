@@ -35,7 +35,7 @@ public:
         : TUserJobIO(ioConfig, host)
     { }
 
-    TAutoPtr<TTableProducer> CreateTableInput(
+    std::unique_ptr<TTableProducer> CreateTableInput(
         int index,
         NYson::IYsonConsumer* consumer) override
     {
@@ -76,7 +76,7 @@ public:
 
         reader->Open();
 
-        return new TTableProducer(reader, consumer);
+        return std::unique_ptr<TTableProducer>(new TTableProducer(reader, consumer));
     }
 
     virtual void PopulateResult(TJobResult* result) override
@@ -86,11 +86,11 @@ public:
     }
 };
 
-TAutoPtr<TUserJobIO> CreateSortedReduceJobIO(
+std::unique_ptr<TUserJobIO> CreateSortedReduceJobIO(
     TJobIOConfigPtr ioConfig,
     IJobHost* host)
 {
-    return new TSortedReduceJobIO(ioConfig, host);
+    return std::unique_ptr<TUserJobIO>(new TSortedReduceJobIO(ioConfig, host));
 }
 
 ////////////////////////////////////////////////////////////////////

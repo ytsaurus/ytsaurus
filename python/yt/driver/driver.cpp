@@ -109,12 +109,12 @@ public:
         ExtractFormat(GetAttr(pyRequest, "input_format"), request.InputFormat);
         ExtractFormat(GetAttr(pyRequest, "output_format"), request.OutputFormat);
 
-        TAutoPtr<TPythonInputStream> inputStream(
+        std::unique_ptr<TPythonInputStream> inputStream(
             new TPythonInputStream(GetAttr(pyRequest, "input_stream")));
-        TAutoPtr<TPythonOutputStream> outputStream(
+        std::unique_ptr<TPythonOutputStream> outputStream(
             new TPythonOutputStream(GetAttr(pyRequest, "output_stream")));
-        request.InputStream = inputStream.Get();
-        request.OutputStream = outputStream.Get();
+        request.InputStream = ~inputStream;
+        request.OutputStream = ~outputStream;
 
         auto response = DriverInstance_->Execute(request);
         return ConvertToPythonString(ToString(response.Error));

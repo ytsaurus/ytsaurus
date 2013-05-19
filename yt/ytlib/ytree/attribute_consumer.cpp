@@ -23,9 +23,9 @@ IAttributeDictionary* TAttributeConsumer::GetAttributes() const
 void TAttributeConsumer::OnMyKeyedItem(const TStringBuf& key)
 {
     Stroka localKey(key);
-    Writer.Reset(new TYsonWriter(&Output));
-    Forward(Writer.Get(), BIND([=] () {
-        Writer.Reset(NULL);
+    Writer.reset(new TYsonWriter(&Output));
+    Forward(~Writer, BIND([=] () {
+        Writer.reset();
         Attributes->SetYson(localKey, TYsonString(Output.Str()));
         Output.clear();
     }));

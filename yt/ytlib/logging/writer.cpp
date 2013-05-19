@@ -82,8 +82,8 @@ void TFileLogWriter::EnsureInitialized()
 
     try {
         NFS::ForcePath(NFS::GetDirectoryName(FileName));
-        File.Reset(new TFile(FileName, OpenAlways|ForAppend|WrOnly|Seq|CloseOnExec));
-        FileOutput.Reset(new TBufferedFileOutput(*File, BufferSize));
+        File.reset(new TFile(FileName, OpenAlways|ForAppend|WrOnly|Seq|CloseOnExec));
+        FileOutput.reset(new TBufferedFileOutput(*File, BufferSize));
         FileOutput->SetFinishPropagateMode(true);
         *FileOutput << Endl;
     } catch (const std::exception& ex) {
@@ -142,8 +142,8 @@ void TRawFileLogWriter::EnsureInitialized()
 
     try {
         NFS::ForcePath(NFS::GetDirectoryName(FileName));
-        File.Reset(new TFile(FileName, OpenAlways|ForAppend|WrOnly|Seq|CloseOnExec));
-        FileOutput.Reset(new TBufferedFileOutput(*File, BufferSize));
+        File.reset(new TFile(FileName, OpenAlways|ForAppend|WrOnly|Seq|CloseOnExec));
+        FileOutput.reset(new TBufferedFileOutput(*File, BufferSize));
         FileOutput->SetFinishPropagateMode(true);
         *FileOutput << Endl;
     } catch (const std::exception& ex) {
@@ -158,7 +158,7 @@ void TRawFileLogWriter::EnsureInitialized()
 
 void TRawFileLogWriter::Write(const TLogEvent& event)
 {
-    if (!FileOutput.Get()) {
+    if (!FileOutput) {
         return;
     }
 

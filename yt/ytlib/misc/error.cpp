@@ -49,7 +49,7 @@ TError::TError(const TError& other)
 TError::TError(TError&& other)
     : Code_(other.Code_)
     , Message_(std::move(other.Message_))
-    , Attributes_(other.Attributes_)
+    , Attributes_(std::move(other.Attributes_))
     , InnerErrors_(std::move(other.InnerErrors_))
 { }
 
@@ -113,7 +113,7 @@ TError& TError::operator= (TError&& other)
     if (this != &other) {
         Code_ = other.Code_;
         Message_ = std::move(other.Message_);
-        Attributes_ = other.Attributes_;
+        Attributes_ = std::move(other.Attributes_);
         InnerErrors_ = std::move(other.InnerErrors_);
     }
     return *this;

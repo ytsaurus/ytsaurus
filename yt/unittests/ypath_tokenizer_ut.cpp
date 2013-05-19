@@ -16,14 +16,14 @@ class TYPathTokenizerTest
     : public ::testing::Test
 {
 private:
-    THolder<TTokenizer> Tokenizer;
+    std::unique_ptr<TTokenizer> Tokenizer;
     std::vector<ETokenType> TokenTypes;
     std::vector<Stroka> Literals;
 
 public:
     void Prepare(const char* input)
     {
-        Tokenizer.Reset(new TTokenizer(input));
+        Tokenizer.reset(new TTokenizer(input));
         TokenTypes.clear();
         Literals.clear();
     }

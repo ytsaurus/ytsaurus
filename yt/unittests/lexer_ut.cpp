@@ -19,8 +19,7 @@ class TStatelessLexerTest
     : public ::testing::Test
 {
 public:
-
-    THolder<TStatelessLexer> Lexer;
+    std::unique_ptr<TStatelessLexer> Lexer;
 
     virtual void SetUp()
     {
@@ -29,7 +28,7 @@ public:
 
     void Reset()
     {
-        Lexer.Reset(new TStatelessLexer());
+        Lexer.reset(new TStatelessLexer());
     }
 
     void TestConsume(const TStringBuf& input)

@@ -58,7 +58,7 @@ using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& SILENT_UNUSED Logger = ObjectServerLogger;
+static NLog::TLogger& Logger = ObjectServerLogger;
 static TDuration ProfilingPeriod = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -137,10 +137,10 @@ public:
         if (transactionId != NullTransactionId) {
             transaction = transactionManager->FindTransaction(transactionId);
             if (!transaction) {
-                THROW_ERROR_EXCEPTION("No such transaction: %s", ~ToString(transactionId));
+                THROW_ERROR_EXCEPTION("No such transaction %s", ~ToString(transactionId));
             }
             if (transaction->GetState() != ETransactionState::Active) {
-                THROW_ERROR_EXCEPTION("Transaction is not active: %s", ~ToString(transactionId));
+                THROW_ERROR_EXCEPTION("Transaction %s is not active", ~ToString(transactionId));
             }
         }
 
@@ -165,12 +165,12 @@ public:
                 TStringBuf objectIdString(token.begin() + ObjectIdPathPrefix.length(), token.end());
                 TObjectId objectId;
                 if (!TObjectId::FromString(objectIdString, &objectId)) {
-                    THROW_ERROR_EXCEPTION("Error parsing object id: %s", ~objectIdString);
+                    THROW_ERROR_EXCEPTION("Error parsing object id %s", ~objectIdString);
                 }
 
                 auto* object = objectManager->FindObject(objectId);
                 if (!IsObjectAlive(object)) {
-                    THROW_ERROR_EXCEPTION("No such object: %s", ~ToString(objectId));
+                    THROW_ERROR_EXCEPTION("No such object %s", ~ToString(objectId));
                 }
 
                 auto proxy = objectManager->GetProxy(object, transaction);
@@ -191,7 +191,7 @@ public:
 
     virtual Stroka GetLoggingCategory() const override
     {
-        return NObjectServer::Logger.GetCategory();
+        return ObjectServerLogger.GetCategory();
     }
 
     virtual bool IsWriteRequest(IServiceContextPtr context) const override
@@ -224,7 +224,6 @@ TObjectManager::TObjectManager(
     , Config(config)
     , Bootstrap(bootstrap)
     , Profiler(ObjectServerProfiler)
-    , TypeToEntry(MaxObjectType)
     , RootService(New<TRootService>(bootstrap))
     , GarbageCollector(New<TGarbageCollector>(config, bootstrap))
     , CreatedObjectCount(0)
@@ -585,7 +584,7 @@ void TObjectManager::OnAfterLoaded()
 
 void TObjectManager::DoClear()
 {
-    MasterObject = new TMasterObject(MasterObjectId);
+    MasterObject.reset(new TMasterObject(MasterObjectId));
     MasterObject->RefObject();
 
     MasterProxy = CreateMasterProxy(Bootstrap, ~MasterObject);
@@ -593,7 +592,7 @@ void TObjectManager::DoClear()
     FOREACH (auto type, RegisteredTypes)  {
         auto& entry = TypeToEntry[static_cast<int>(type)];
         if (TypeHasSchema(type)) {
-            entry.SchemaObject = new TSchemaObject(MakeSchemaObjectId(type, GetCellId()));
+            entry.SchemaObject.reset(new TSchemaObject(MakeSchemaObjectId(type, GetCellId())));
             entry.SchemaObject->RefObject();
             entry.SchemaProxy = CreateSchemaProxy(Bootstrap, ~entry.SchemaObject);
         }
@@ -734,7 +733,7 @@ void TObjectManager::MergeAttributes(
 
     if (!originatingAttributes) {
         auto attributeSet = Attributes.Release(branchedId);
-        Attributes.Insert(originatingId, attributeSet.Release());
+        Attributes.Insert(originatingId, attributeSet.release());
     } else {
         FOREACH (const auto& pair, branchedAttributes->Attributes()) {
             if (!pair.second && !originatingId.IsBranched()) {

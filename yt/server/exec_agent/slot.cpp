@@ -120,11 +120,11 @@ void TSlot::MakeFile(
 {
     TFileOutput fileOutput(NFS::CombinePaths(SandboxPath, fileName));
 
-    producer.Run(
-        CreateConsumerForFormat(
-            format,
-            NFormats::EDataType::Tabular,
-            &fileOutput).Get());
+    auto consumer = CreateConsumerForFormat(
+        format,
+        NFormats::EDataType::Tabular,
+        &fileOutput);
+    producer.Run(~consumer);
 }
 
 const Stroka& TSlot::GetWorkingDirectory() const

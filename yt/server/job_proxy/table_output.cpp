@@ -14,12 +14,12 @@ using namespace NTableClient;
 ////////////////////////////////////////////////////////////////////
 
 TTableOutput::TTableOutput(
-    TAutoPtr<IParser> parser,
-    TAutoPtr<NYson::IYsonConsumer> consumer,
-    const ISyncWriterPtr& syncWriter)
-    : Parser(parser)
-    , Consumer(consumer)
-    , SyncWriter(syncWriter)
+    std::unique_ptr<IParser> parser,
+    std::unique_ptr<NYson::IYsonConsumer> consumer,
+    ISyncWriterPtr syncWriter)
+    : Parser(std::move(parser))
+    , Consumer(std::move(consumer))
+    , SyncWriter(std::move(syncWriter))
 { }
 
 TTableOutput::~TTableOutput() throw()

@@ -137,8 +137,8 @@ private:
     Stroka FileName;
     Stroka Pattern;
     bool Initialized;
-    THolder<TFile> File;
-    THolder<TBufferedFileOutput> FileOutput;
+    std::unique_ptr<TFile> File;
+    std::unique_ptr<TBufferedFileOutput> FileOutput;
     ILogWriterPtr LogWriter;
 
 };
@@ -162,9 +162,9 @@ private:
 
     Stroka FileName;
     bool Initialized;
-    THolder<TMessageBuffer> Buffer;
-    THolder<TFile> File;
-    THolder<TBufferedFileOutput> FileOutput;
+    std::unique_ptr<TMessageBuffer> Buffer;
+    std::unique_ptr<TFile> File;
+    std::unique_ptr<TBufferedFileOutput> FileOutput;
 
 };
 

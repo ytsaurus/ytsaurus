@@ -120,9 +120,9 @@ TError TSnapshotDownloader::DownloadSnapshot(
 
     auto sourceId = snapshotInfo.SourceId;
 
-    TAutoPtr<TFile> file;
+    std::unique_ptr<TFile> file;
     try {
-        file = new TFile(fileName, CreateAlways | WrOnly | Seq | CloseOnExec);
+        file.reset(new TFile(fileName, CreateAlways | WrOnly | Seq | CloseOnExec));
         file->Resize(snapshotInfo.Length);
     } catch (const std::exception& ex) {
         LOG_FATAL(ex, "IO error opening snapshot %d for writing",

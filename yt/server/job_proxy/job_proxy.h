@@ -43,7 +43,7 @@ private:
     
     NLog::TTaggedLogger Logger;
 
-    THolder<NExecAgent::TSupervisorServiceProxy> SupervisorProxy;
+    std::unique_ptr<NExecAgent::TSupervisorServiceProxy> SupervisorProxy;
 
     NRpc::IChannelPtr MasterChannel;
 

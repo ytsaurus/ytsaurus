@@ -23,14 +23,14 @@ namespace {
 static int ConstructorShadowState = 0;
 static int DestructorShadowState = 0;
 
-THolder<Event> DeathEvent;
+std::unique_ptr<Event> DeathEvent;
 
 void ResetShadowState()
 {
     ConstructorShadowState = 0;
     DestructorShadowState = 0;
 
-    DeathEvent.Reset(new Event());
+    DeathEvent.reset(new Event());
 }
 
 class TIntricateObject

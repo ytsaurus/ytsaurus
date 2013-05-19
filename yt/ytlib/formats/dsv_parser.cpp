@@ -207,7 +207,7 @@ void ParseDsv(
     TDsvFormatConfigPtr config)
 {
     auto parser = CreateParserForDsv(consumer, config);
-    Parse(input, consumer, parser.Get());
+    Parse(input, consumer, ~parser);
 }
 
 void ParseDsv(
@@ -220,12 +220,12 @@ void ParseDsv(
     parser->Finish();
 }
 
-TAutoPtr<IParser> CreateParserForDsv(
+std::unique_ptr<IParser> CreateParserForDsv(
     IYsonConsumer* consumer,
     TDsvFormatConfigPtr config,
     bool wrapWithMap)
 {
-    return new TDsvParser(consumer, config, wrapWithMap);
+    return std::unique_ptr<IParser>(new TDsvParser(consumer, config, wrapWithMap));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

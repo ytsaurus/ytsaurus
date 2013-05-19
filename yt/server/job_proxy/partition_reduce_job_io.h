@@ -7,7 +7,7 @@ namespace NJobProxy {
 
 ////////////////////////////////////////////////////////////////////
 
-TAutoPtr<TUserJobIO> CreatePartitionReduceJobIO(
+std::unique_ptr<TUserJobIO> CreatePartitionReduceJobIO(
     NScheduler::TJobIOConfigPtr config,
     IJobHost* host);
 

@@ -493,9 +493,9 @@ private:
 
 };
 
-TAutoPtr<IChunkPool> CreateAtomicChunkPool(TNodeDirectoryPtr nodeDirectory)
+std::unique_ptr<IChunkPool> CreateAtomicChunkPool(TNodeDirectoryPtr nodeDirectory)
 {
-    return new TAtomicChunkPool(nodeDirectory);
+    return std::unique_ptr<IChunkPool>(new TAtomicChunkPool(nodeDirectory));
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -811,13 +811,13 @@ private:
 
 };
 
-TAutoPtr<IChunkPool> CreateUnorderedChunkPool(
+std::unique_ptr<IChunkPool> CreateUnorderedChunkPool(
     TNodeDirectoryPtr nodeDirectory,
     int jobCount)
 {
-    return new TUnorderedChunkPool(
+    return std::unique_ptr<IChunkPool>(new TUnorderedChunkPool(
         nodeDirectory,
-        jobCount);
+        jobCount));
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -836,7 +836,7 @@ public:
     {
         Outputs.resize(partitionCount);
         for (int index = 0; index < partitionCount; ++index) {
-            Outputs[index] = new TOutput(this, index);
+            Outputs[index].reset(new TOutput(this, index));
         }
     }
 
@@ -1268,8 +1268,8 @@ private:
 
     i64 DataSizeThreshold;
 
-    // One should use TAutoPtr with care :)
-    std::vector< TAutoPtr<TOutput> > Outputs;
+    // One should use std::unique_ptr with care :)
+    std::vector< std::unique_ptr<TOutput> > Outputs;
 
     struct TInputStripe
     {
@@ -1281,15 +1281,15 @@ private:
     std::vector<TChunkStripePtr> ElementaryStripes;
 };
 
-TAutoPtr<IShuffleChunkPool> CreateShuffleChunkPool(
+std::unique_ptr<IShuffleChunkPool> CreateShuffleChunkPool(
     TNodeDirectoryPtr nodeDirectory,
     int partitionCount,
     i64 dataSizeThreshold)
 {
-    return new TShuffleChunkPool(
+    return std::unique_ptr<IShuffleChunkPool>(new TShuffleChunkPool(
         nodeDirectory,
         partitionCount,
-        dataSizeThreshold);
+        dataSizeThreshold));
 }
 
 ////////////////////////////////////////////////////////////////////

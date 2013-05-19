@@ -196,7 +196,7 @@ TCypressManager::TNodeMapTraits::TNodeMapTraits(TCypressManager* cypressManager)
     : CypressManager(cypressManager)
 { }
 
-TAutoPtr<TCypressNodeBase> TCypressManager::TNodeMapTraits::Create(const TVersionedNodeId& id) const
+std::unique_ptr<TCypressNodeBase> TCypressManager::TNodeMapTraits::Create(const TVersionedNodeId& id) const
 {
     auto type = TypeFromId(id.ObjectId);
     auto handler = CypressManager->GetHandler(type);
@@ -342,7 +342,7 @@ TCypressNodeBase* TCypressManager::CreateNode(
     auto node = handler->Create(transaction, request, response);
     auto node_ = ~node;
 
-    RegisterNode(node, transaction, attributes);
+    RegisterNode(std::move(node), transaction, attributes);
 
     // Set account (if not given in attributes).
     auto securityManager = Bootstrap->GetSecurityManager();
@@ -372,7 +372,7 @@ TCypressNodeBase* TCypressManager::CloneNode(
 
     // Make a rawptr copy and transfer the ownership.
     auto clonedNode_ = ~clonedNode;
-    RegisterNode(clonedNode, context.Transaction);
+    RegisterNode(std::move(clonedNode), context.Transaction);
 
     return LockVersionedNode(clonedNode_, context.Transaction, ELockMode::Exclusive);
 }
@@ -852,7 +852,7 @@ TCypressNodeBase* TCypressManager::BranchNode(
     auto handler = GetHandler(originatingNode);
     auto branchedNode = handler->Branch(originatingNode, transaction, mode);
     YCHECK(branchedNode->GetLockMode() == mode);
-    auto* branchedNode_ = branchedNode.Release();
+    auto* branchedNode_ = branchedNode.release();
 
     TVersionedNodeId versionedId(id, transaction->GetId());
     NodeMap.Insert(versionedId, branchedNode_);
@@ -1002,7 +1002,7 @@ void TCypressManager::OnRecoveryComplete()
 }
 
 void TCypressManager::RegisterNode(
-    TAutoPtr<TCypressNodeBase> node,
+    std::unique_ptr<TCypressNodeBase> node,
     TTransaction* transaction,
     IAttributeDictionary* attributes)
 {
@@ -1021,8 +1021,8 @@ void TCypressManager::RegisterNode(
     node->SetCreationTime(mutationContext->GetTimestamp());
     node->SetModificationTime(mutationContext->GetTimestamp());
 
-    auto node_ = node.Get();
-    NodeMap.Insert(TVersionedNodeId(nodeId), node.Release());
+    auto node_ = ~node;
+    NodeMap.Insert(TVersionedNodeId(nodeId), node.release());
 
     // TODO(babenko): setting attributes here, in RegisterNode
     // is somewhat weird. Moving this logic to some other place, however,

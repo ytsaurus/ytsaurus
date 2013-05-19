@@ -28,7 +28,7 @@ struct TTransactionStartOptions
     bool PingAncestors;
     bool EnableUncommittedAccounting;
     bool EnableStagedAccounting;
-    TAutoPtr<NYTree::IAttributeDictionary> Attributes;
+    std::unique_ptr<NYTree::IAttributeDictionary> Attributes;
 };
 
 //! Describes settings used for attaching to existing transactions.

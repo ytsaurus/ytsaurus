@@ -224,18 +224,17 @@ const char* TYamrLenvalParser::ConsumeData(const char* begin, const char* end)
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TAutoPtr<IParser> CreateParserForYamr(
+std::unique_ptr<IParser> CreateParserForYamr(
     NYson::IYsonConsumer* consumer,
     TYamrFormatConfigPtr config)
 {
     if (!config) {
         config = New<TYamrFormatConfig>();
     }
-    if (config->Lenval) {
-        return new TYamrLenvalParser(consumer, config);
-    } else {
-        return new TYamrDelimitedParser(consumer, config);
-    }
+    
+    return config->Lenval
+        ? std::unique_ptr<IParser>(new TYamrLenvalParser(consumer, config))
+        : std::unique_ptr<IParser>(new TYamrDelimitedParser(consumer, config));
 }
 
 ///////////////////////////////////////////////////////////////////////////////

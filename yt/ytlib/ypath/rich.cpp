@@ -58,7 +58,7 @@ TRichYPath::TRichYPath(const TYPath& path)
 
 TRichYPath::TRichYPath(TRichYPath&& other)
     : Path_(std::move(other.Path_))
-    , Attributes_(other.Attributes_)
+    , Attributes_(std::move(other.Attributes_))
 { }
 
 TRichYPath::TRichYPath(const TYPath& path, const IAttributeDictionary& attributes)
@@ -323,7 +323,7 @@ TRichYPath TRichYPath::Parse(const Stroka& str)
 {
     auto attributes = CreateEphemeralAttributes();
 
-    auto strWithoutAttributes = ParseAttributes(str, attributes.Get());
+    auto strWithoutAttributes = ParseAttributes(str, ~attributes);
     TTokenizer ypathTokenizer(strWithoutAttributes);
 
     while (ypathTokenizer.GetType() != ETokenType::EndOfStream && ypathTokenizer.GetType() != ETokenType::Range) {
@@ -335,8 +335,8 @@ TRichYPath TRichYPath::Parse(const Stroka& str)
     if (ypathTokenizer.GetType() == ETokenType::Range) {
         NYson::TTokenizer ysonTokenizer(rangeStr);
         ysonTokenizer.ParseNext();
-        ParseChannel(ysonTokenizer, attributes.Get());
-        ParseRowLimits(ysonTokenizer, attributes.Get());
+        ParseChannel(ysonTokenizer, ~attributes);
+        ParseRowLimits(ysonTokenizer, ~attributes);
         ysonTokenizer.CurrentToken().CheckType(NYson::ETokenType::EndOfStream);
     }
 

@@ -14,7 +14,7 @@ namespace NFormats {
  *  \param wrapWithMap If True then the parser wraps values with calls to
  *  #IYsonConsumer::OnBeginMap and #IYsonConsumer::OnEndMap.
  */
-TAutoPtr<IParser> CreateParserForDsv(
+std::unique_ptr<IParser> CreateParserForDsv(
     NYson::IYsonConsumer* consumer,
     TDsvFormatConfigPtr config = New<TDsvFormatConfig>(),
     bool wrapWithMap = true);

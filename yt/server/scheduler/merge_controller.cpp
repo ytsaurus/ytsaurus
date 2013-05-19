@@ -177,7 +177,7 @@ protected:
     private:
         TMergeControllerBase* Controller;
 
-        TAutoPtr<IChunkPool> ChunkPool;
+        std::unique_ptr<IChunkPool> ChunkPool;
 
         //! The position in #TMergeControllerBase::Tasks.
         int TaskIndex;

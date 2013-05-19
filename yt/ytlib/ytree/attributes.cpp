@@ -38,7 +38,7 @@ void IAttributeDictionary::MergeFrom(const IAttributeDictionary& other)
     }
 }
 
-TAutoPtr<IAttributeDictionary> IAttributeDictionary::Clone() const
+std::unique_ptr<IAttributeDictionary> IAttributeDictionary::Clone() const
 {
     auto attributes = CreateEphemeralAttributes();
     attributes->MergeFrom(*this);
@@ -58,7 +58,7 @@ bool IAttributeDictionary::Contains(const Stroka& key) const
     return FindYson(key);
 }
 
-TAutoPtr<IAttributeDictionary> IAttributeDictionary::FromMap(IMapNodePtr node)
+std::unique_ptr<IAttributeDictionary> IAttributeDictionary::FromMap(IMapNodePtr node)
 {
     auto attributes = CreateEphemeralAttributes();
     auto children = node->GetChildren();

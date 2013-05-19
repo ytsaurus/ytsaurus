@@ -182,7 +182,7 @@ void LoadSet(TInputStream* input, TSet& set)
 }
 
 template <class TSet>
-void SaveNullableSet(TOutputStream* output, const THolder<TSet>& set)
+void SaveNullableSet(TOutputStream* output, const std::unique_ptr<TSet>& set)
 {
     if (~set) {
         SaveSet(output, *set);
@@ -192,7 +192,7 @@ void SaveNullableSet(TOutputStream* output, const THolder<TSet>& set)
 }
 
 template <class TSet>
-void LoadNullableSet(TInputStream* input, THolder<TSet>& set)
+void LoadNullableSet(TInputStream* input, std::unique_ptr<TSet>& set)
 {
     typedef typename TSet::key_type TKey;
 

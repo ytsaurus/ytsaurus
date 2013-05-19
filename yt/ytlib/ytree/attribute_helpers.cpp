@@ -43,9 +43,9 @@ class TEphemeralAttributeDictionary
     }
 };
 
-TAutoPtr<IAttributeDictionary> CreateEphemeralAttributes()
+std::unique_ptr<IAttributeDictionary> CreateEphemeralAttributes()
 {
-    return new TEphemeralAttributeDictionary();
+    return std::unique_ptr<IAttributeDictionary>(new TEphemeralAttributeDictionary());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -93,7 +93,7 @@ void ToProto(NProto::TAttributes* protoAttributes, const IAttributeDictionary& a
     }
 }
 
-TAutoPtr<IAttributeDictionary> FromProto(const NProto::TAttributes& protoAttributes)
+std::unique_ptr<IAttributeDictionary> FromProto(const NProto::TAttributes& protoAttributes)
 {
     auto attributes = CreateEphemeralAttributes();
     FOREACH (const auto& protoAttribute, protoAttributes.attributes()) {

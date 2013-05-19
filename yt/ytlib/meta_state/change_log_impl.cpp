@@ -125,19 +125,19 @@ void TChangeLog::TImpl::Read(
 
 namespace {
 
-template <class FileType, class HeaderType>
+template <class TFile, class THeader>
 void AtomicWriteHeader(
     const Stroka& fileName,
-    const HeaderType& header,
-    THolder<FileType>* fileHolder)
+    const THeader& header,
+    std::unique_ptr<TFile>* fileHolder)
 {
     Stroka tempFileName(fileName + NFS::TempFileSuffix);
-    FileType tempFile(tempFileName, WrOnly|CreateAlways);
+    TFile tempFile(tempFileName, WrOnly|CreateAlways);
     WritePod(tempFile, header);
     tempFile.Close();
 
     CheckedMoveFile(tempFileName, fileName);
-    fileHolder->Reset(new FileType(fileName, RdWr));
+    fileHolder->reset(new TFile(fileName, RdWr));
     (*fileHolder)->Seek(0, sEnd);
 }
 
@@ -193,7 +193,7 @@ void TChangeLog::TImpl::Open()
 
     TGuard<TMutex> guard(Mutex);
 
-    File.Reset(new TBufferedFile(FileName, RdWr|Seq));
+    File.reset(new TBufferedFile(FileName, RdWr|Seq));
 
     // Read and check header of changelog.
     TLogHeader header;
@@ -483,7 +483,7 @@ void TChangeLog::TImpl::ReadIndex()
         LOG_ERROR_IF(correctPrefixSize < Index.size(), "Changelog index contains incorrect records");
         Index.resize(correctPrefixSize);
 
-        IndexFile.Reset(new TFile(IndexFileName, RdWr|Seq|CloseOnExec));
+        IndexFile.reset(new TFile(IndexFileName, RdWr|Seq|CloseOnExec));
         IndexFile->Resize(sizeof(TLogIndexHeader) + Index.size() * sizeof(TLogIndexRecord));
         IndexFile->Seek(0, sEnd);
     }

@@ -109,10 +109,10 @@ void LoadObjectRefs(const TLoadContext& context, T& object);
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-void SaveNullableObjectRefs(const TSaveContext& context, const THolder<T>& objects);
+void SaveNullableObjectRefs(const TSaveContext& context, const std::unique_ptr<T>& objects);
 
 template <class T>
-void LoadNullableObjectRefs(const TLoadContext& context, THolder<T>& objects);
+void LoadNullableObjectRefs(const TLoadContext& context, std::unique_ptr<T>& objects);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -308,10 +308,10 @@ bool TObjectProxyBase::IsWriteRequest(IServiceContextPtr context) const
 
 IAttributeDictionary* TObjectProxyBase::GetUserAttributes()
 {
-    if (!UserAttributes.Get()) {
+    if (!UserAttributes) {
         UserAttributes = DoCreateUserAttributes();
     }
-    return UserAttributes.Get();
+    return ~UserAttributes;
 }
 
 ISystemAttributeProvider* TObjectProxyBase::GetSystemAttributeProvider()
@@ -319,11 +319,11 @@ ISystemAttributeProvider* TObjectProxyBase::GetSystemAttributeProvider()
     return this;
 }
 
-TAutoPtr<IAttributeDictionary> TObjectProxyBase::DoCreateUserAttributes()
+std::unique_ptr<IAttributeDictionary> TObjectProxyBase::DoCreateUserAttributes()
 {
-    return new TUserAttributeDictionary(
+    return std::unique_ptr<IAttributeDictionary>(new TUserAttributeDictionary(
         Bootstrap->GetObjectManager(),
-        GetId());
+        GetId()));
 }
 
 void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeInfo>* attributes)

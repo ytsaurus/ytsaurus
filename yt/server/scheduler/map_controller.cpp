@@ -111,7 +111,7 @@ private:
     private:
         TMapController* Controller;
 
-        TAutoPtr<IChunkPool> ChunkPool;
+        std::unique_ptr<IChunkPool> ChunkPool;
 
         TNodeResources GetMapResources(const TChunkStripeStatisticsVector& statistics) const
         {

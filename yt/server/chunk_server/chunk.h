@@ -55,7 +55,7 @@ class TChunk
 
     // This list is usually empty.
     // Keeping a holder is very space efficient (takes just 8 bytes).
-    typedef ::THolder< yhash_set<TNodePtrWithIndex> > TCachedReplicas;
+    typedef std::unique_ptr< yhash_set<TNodePtrWithIndex> > TCachedReplicas;
     DEFINE_BYREF_RO_PROPERTY(TCachedReplicas, CachedReplicas);
 
     //! Contains a valid iterator for those chunks belonging to the repair queue

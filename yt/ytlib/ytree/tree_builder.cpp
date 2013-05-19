@@ -107,15 +107,15 @@ public:
     virtual void OnMyBeginAttributes() override
     {
         YASSERT(!AttributeConsumer);
-        Attributes.Reset(CreateEphemeralAttributes().Release());
-        AttributeConsumer.Reset(new TAttributeConsumer(Attributes.Get()));
+        Attributes = CreateEphemeralAttributes();
+        AttributeConsumer.reset(new TAttributeConsumer(~Attributes));
         Forward(~AttributeConsumer, TClosure(), NYson::EYsonType::MapFragment);
     }
 
     virtual void OnMyEndAttributes() override
     {
-        AttributeConsumer.Destroy();
-        YASSERT(Attributes.Get());
+        AttributeConsumer.reset();
+        YASSERT(Attributes);
     }
 
 private:
@@ -124,14 +124,14 @@ private:
     std::stack<INodePtr> NodeStack;
     TNullable<Stroka> Key;
     INodePtr ResultNode;
-    THolder<TAttributeConsumer> AttributeConsumer;
-    THolder<IAttributeDictionary> Attributes;
+    std::unique_ptr<TAttributeConsumer> AttributeConsumer;
+    std::unique_ptr<IAttributeDictionary> Attributes;
 
     void AddNode(INodePtr node, bool push)
     {
-        if (Attributes.Get()) {
+        if (Attributes) {
             node->MutableAttributes()->MergeFrom(*Attributes);
-            Attributes.Destroy();
+            Attributes.reset();
         }
 
         if (NodeStack.empty()) {
@@ -154,9 +154,9 @@ private:
     }
 };
 
-TAutoPtr<ITreeBuilder> CreateBuilderFromFactory(INodeFactoryPtr factory)
+std::unique_ptr<ITreeBuilder> CreateBuilderFromFactory(INodeFactoryPtr factory)
 {
-    return new TTreeBuilder(factory);
+    return std::unique_ptr<ITreeBuilder>(new TTreeBuilder(factory));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

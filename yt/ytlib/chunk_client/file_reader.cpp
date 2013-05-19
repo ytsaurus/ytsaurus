@@ -58,7 +58,7 @@ void TFileReader::Open()
             ~FileName);
     }
 
-    DataFile.Reset(new TFile(FileName, OpenExisting | RdOnly | CloseOnExec));
+    DataFile.reset(new TFile(FileName, OpenExisting | RdOnly | CloseOnExec));
     Opened = true;
 }
 

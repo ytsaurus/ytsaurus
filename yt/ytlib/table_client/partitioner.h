@@ -17,8 +17,8 @@ struct IPartitioner
     virtual int GetPartitionTag(const NChunkClient::TNonOwningKey& key) = 0;
 };
 
-TAutoPtr<IPartitioner> CreateOrderedPartitioner(const std::vector<NChunkClient::TOwningKey>* keys);
-TAutoPtr<IPartitioner> CreateHashPartitioner(int partitionCount);
+std::unique_ptr<IPartitioner> CreateOrderedPartitioner(const std::vector<NChunkClient::TOwningKey>* keys);
+std::unique_ptr<IPartitioner> CreateHashPartitioner(int partitionCount);
 
 ////////////////////////////////////////////////////////////////////////////////
 

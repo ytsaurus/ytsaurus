@@ -9,9 +9,9 @@ namespace NMetaState {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TKey, class TValue>
-TAutoPtr<TValue> TDefaultMetaMapTraits<TKey, TValue>::Create(const TKey& key) const
+std::unique_ptr<TValue> TDefaultMetaMapTraits<TKey, TValue>::Create(const TKey& key) const
 {
-    return new TValue(key);
+    return std::unique_ptr<TValue>(new TValue(key));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -100,7 +100,7 @@ bool TMetaStateMap<TKey, TValue, TTraits, THash>::TryRemove(const TKey& key)
 }
 
 template <class TKey, class TValue, class TTraits, class THash>
-TAutoPtr<TValue> TMetaStateMap<TKey, TValue, TTraits, THash>::Release(const TKey& key)
+std::unique_ptr<TValue> TMetaStateMap<TKey, TValue, TTraits, THash>::Release(const TKey& key)
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 
@@ -108,7 +108,7 @@ TAutoPtr<TValue> TMetaStateMap<TKey, TValue, TTraits, THash>::Release(const TKey
     YASSERT(it != Map.end());
     auto* value = it->second;
     Map.erase(it);
-    return value;
+    return std::unique_ptr<TValue>(value);
 }
 
 template <class TKey, class TValue, class TTraits, class THash>
@@ -234,7 +234,7 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::LoadKeys(const TLoadContext& c
         previousKey = key;
 
         auto value = Traits.Create(key);
-        YCHECK(Map.insert(std::make_pair(key, value.Release())).second);
+        YCHECK(Map.insert(std::make_pair(key, value.release())).second);
     }
 }
 

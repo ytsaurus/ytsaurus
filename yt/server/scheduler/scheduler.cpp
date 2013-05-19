@@ -578,11 +578,11 @@ private:
     TActionQueuePtr BackgroundQueue;
     TActionQueuePtr SnapshotIOQueue;
 
-    THolder<TMasterConnector> MasterConnector;
+    std::unique_ptr<TMasterConnector> MasterConnector;
     TCancelableContextPtr CancelableConnectionContext;
     IInvokerPtr CancelableConnectionControlInvoker;
 
-    TAutoPtr<ISchedulerStrategy> Strategy;
+    std::unique_ptr<ISchedulerStrategy> Strategy;
 
     typedef yhash_map<Stroka, TExecNodePtr> TExecNodeMap;
     TExecNodeMap AddressToNode;
@@ -1034,10 +1034,10 @@ private:
 
         auto controller = operation->GetController();
 
-        TAutoPtr<TMemoryInput> input;
+        std::unique_ptr<TMemoryInput> input;
         if (operation->Snapshot()) {
             auto& blob = *operation->Snapshot();
-            input = new TMemoryInput(blob.Begin(), blob.Size());
+            input.reset(new TMemoryInput(blob.Begin(), blob.Size()));
         }
 
         return controller->Revive(~input);
@@ -1746,7 +1746,7 @@ private:
         return job;
     }
 
-    TAutoPtr<ISchedulingContext> CreateSchedulingContext(
+    std::unique_ptr<ISchedulingContext> CreateSchedulingContext(
         TExecNodePtr node,
         const std::vector<TJobPtr>& runningJobs);
 };
@@ -1819,14 +1819,14 @@ private:
 
 };
 
-TAutoPtr<ISchedulingContext> TScheduler::TImpl::CreateSchedulingContext(
+std::unique_ptr<ISchedulingContext> TScheduler::TImpl::CreateSchedulingContext(
     TExecNodePtr node,
     const std::vector<TJobPtr>& runningJobs)
 {
-    return new TSchedulingContext(
+    return std::unique_ptr<ISchedulingContext>(new TSchedulingContext(
         this,
         node,
-        runningJobs);
+        runningJobs));
 }
 
 ////////////////////////////////////////////////////////////////////

@@ -286,7 +286,7 @@ void TTcpConnection::SyncClose(const TError& error)
     AtomicSet(State, EState::Closed);
 
     // Stop all watchers.
-    SocketWatcher.Destroy();
+    SocketWatcher.reset();
 
     // Close the socket.
     CloseSocket();
@@ -322,7 +322,7 @@ void TTcpConnection::InitFd()
 
     const auto& eventLoop = TTcpDispatcher::TImpl::Get()->GetEventLoop();
 
-    SocketWatcher.Reset(new ev::io(eventLoop));
+    SocketWatcher.reset(new ev::io(eventLoop));
     SocketWatcher->set<TTcpConnection, &TTcpConnection::OnSocket>(this);
     SocketWatcher->start(Fd, ev::READ|ev::WRITE);
 }

@@ -71,13 +71,13 @@ protected:
 
     TSharedRef RequestBody;
     std::vector<TSharedRef> RequestAttachments_;
-    TAutoPtr<NYTree::IAttributeDictionary> RequestAttributes_;
+    std::unique_ptr<NYTree::IAttributeDictionary> RequestAttributes_;
     bool Replied;
     TError Error;
 
     TSharedRef ResponseBody;
     std::vector<TSharedRef> ResponseAttachments_;
-    TAutoPtr<NYTree::IAttributeDictionary> ResponseAttributes_;
+    std::unique_ptr<NYTree::IAttributeDictionary> ResponseAttributes_;
 
     Stroka RequestInfo;
     Stroka ResponseInfo;

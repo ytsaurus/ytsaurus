@@ -17,24 +17,24 @@ class TAsyncChangeLogTest
     : public ::testing::Test
 {
 protected:
-    THolder<TTempFile> TemporaryFile;
-    THolder<TTempFile> TemporaryIndexFile;
+    std::unique_ptr<TTempFile> TemporaryFile;
+    std::unique_ptr<TTempFile> TemporaryIndexFile;
 
     TChangeLogPtr ChangeLog;
-    THolder<TAsyncChangeLog> AsyncChangeLog;
+    std::unique_ptr<TAsyncChangeLog> AsyncChangeLog;
 
     TActionQueuePtr ActionQueue;
     IInvokerPtr Invoker;
 
     virtual void SetUp()
     {
-        TemporaryFile.Reset(new TTempFile(GenerateRandomFileName("AsyncChangeLog")));
-        TemporaryIndexFile.Reset(new TTempFile(TemporaryFile->Name() + ".index"));
+        TemporaryFile.reset(new TTempFile(GenerateRandomFileName("AsyncChangeLog")));
+        TemporaryIndexFile.reset(new TTempFile(TemporaryFile->Name() + ".index"));
 
         ChangeLog = New<TChangeLog>(TemporaryFile->Name(), 0, /*index block size*/ 64);
         ChangeLog->Create(0, TEpochId());
 
-        AsyncChangeLog.Reset(new TAsyncChangeLog(ChangeLog));
+        AsyncChangeLog.reset(new TAsyncChangeLog(ChangeLog));
 
         ActionQueue = New<TActionQueue>();
         Invoker = ActionQueue->GetInvoker();

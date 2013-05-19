@@ -1234,11 +1234,11 @@ bool TOperationElement::ScheduleJobs(
     return result;
 }
 
-TAutoPtr<ISchedulerStrategy> CreateFairShareStrategy(
+std::unique_ptr<ISchedulerStrategy> CreateFairShareStrategy(
     TFairShareStrategyConfigPtr config,
     ISchedulerStrategyHost* host)
 {
-    return new TFairShareStrategy(config, host);
+    return std::unique_ptr<ISchedulerStrategy>(new TFairShareStrategy(config, host));
 }
 
 ////////////////////////////////////////////////////////////////////

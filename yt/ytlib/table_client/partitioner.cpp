@@ -45,9 +45,9 @@ private:
 
 };
 
-TAutoPtr<IPartitioner> CreateOrderedPartitioner(const std::vector<NChunkClient::TOwningKey>* keys)
+std::unique_ptr<IPartitioner> CreateOrderedPartitioner(const std::vector<NChunkClient::TOwningKey>* keys)
 {
-    return new TOrderedPartitioner(keys);
+    return std::unique_ptr<IPartitioner>(new TOrderedPartitioner(keys));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -75,9 +75,9 @@ private:
 
 };
 
-TAutoPtr<IPartitioner> CreateHashPartitioner(int partitionCount)
+std::unique_ptr<IPartitioner> CreateHashPartitioner(int partitionCount)
 {
-    return new THashPartitioner(partitionCount);
+    return std::unique_ptr<IPartitioner>(new THashPartitioner(partitionCount));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

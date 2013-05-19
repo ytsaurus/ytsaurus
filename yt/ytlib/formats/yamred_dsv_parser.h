@@ -8,7 +8,7 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAutoPtr<IParser> CreateParserForYamredDsv(
+std::unique_ptr<IParser> CreateParserForYamredDsv(
     NYson::IYsonConsumer* consumer,
     TYamredDsvFormatConfigPtr config = NULL);
 

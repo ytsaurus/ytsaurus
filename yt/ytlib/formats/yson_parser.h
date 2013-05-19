@@ -9,7 +9,7 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAutoPtr<IParser> CreateParserForYson(
+std::unique_ptr<IParser> CreateParserForYson(
     NYson::IYsonConsumer* consumer,
     NYson::EYsonType type = NYson::EYsonType::Node,
     bool enableLinePositionInfo = false);

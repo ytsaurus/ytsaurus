@@ -38,12 +38,12 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAutoPtr<IParser> CreateParserForYson(
+std::unique_ptr<IParser> CreateParserForYson(
     NYson::IYsonConsumer* consumer,
     NYson::EYsonType type,
     bool enableLinePositionInfo)
 {
-    return new TYsonParser(consumer, type, enableLinePositionInfo);
+    return std::unique_ptr<IParser>(new TYsonParser(consumer, type, enableLinePositionInfo));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

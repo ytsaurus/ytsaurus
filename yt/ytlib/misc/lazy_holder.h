@@ -15,7 +15,7 @@ class TLazyHolder
     : public TPointerCommon<TLazyHolder<T, TLock>, T>
 {
     TLock Lock;
-    mutable THolder<T> Value;
+    mutable std::unique_ptr<T> Value;
 
 public:
     inline T* Get() const throw()

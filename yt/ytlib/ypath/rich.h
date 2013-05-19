@@ -33,7 +33,7 @@ public:
 
 private:
     TYPath Path_;
-    TAutoPtr<NYTree::IAttributeDictionary> Attributes_;
+    std::unique_ptr<NYTree::IAttributeDictionary> Attributes_;
 
 };
 

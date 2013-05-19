@@ -21,16 +21,16 @@ class TSnapshotTest
     : public ::testing::Test
 {
 protected:
-    THolder<TTempFile> TemporaryFile;
+    std::unique_ptr<TTempFile> TemporaryFile;
 
     virtual void SetUp()
     {
-        TemporaryFile.Reset(new TTempFile(GenerateRandomFileName("Snapshot")));
+        TemporaryFile.reset(new TTempFile(GenerateRandomFileName("Snapshot")));
     }
 
     virtual void TearDown()
     {
-        TemporaryFile.Reset(NULL);
+        TemporaryFile.reset();
     }
 };
 

@@ -144,7 +144,7 @@ private:
 
     TCallback<void(TError)> OnRowFetchedCallback;
 
-    THolder<TKeyValidator> EndValidator;
+    std::unique_ptr<TKeyValidator> EndValidator;
 
     NProto::TKeyColumnsExt KeyColumnsExt;
 
