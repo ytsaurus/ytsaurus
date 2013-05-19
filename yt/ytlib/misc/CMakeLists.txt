@@ -39,6 +39,7 @@ set( SRCS
   ${BASE}/string.cpp
   ${BASE}/tclap_helpers.cpp
   ${BASE}/thread.cpp
+  ${BASE}/throughput_throttler.cpp
   ${BASE}/url.cpp
 )
 set( HDRS
@@ -108,6 +109,7 @@ set( HDRS
   ${BASE}/tclap_helpers.h
   ${BASE}/thread.h
   ${BASE}/thread_affinity.h
+  ${BASE}/throughput_throttler.h
   ${BASE}/url.h
   ${BASE}/weak_ptr.h
 )
