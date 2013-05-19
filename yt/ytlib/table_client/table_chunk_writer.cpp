@@ -327,7 +327,7 @@ void TTableChunkWriter::PrepareBlock()
     ++CurrentBlockIndex;
 
     int size = 0;
-    auto blockParts(channel->FlushBlock());
+    auto blockParts = channel->FlushBlock();
     FOREACH (const auto& part, blockParts) {
         size += part.Size();
     }
