@@ -36,7 +36,7 @@ private:
 
     TPromise<void> ReadyEvent;
     TPromise<void> FreeEvent;
-    const TPromise<void> StaticResult;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

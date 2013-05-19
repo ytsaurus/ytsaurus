@@ -6,35 +6,40 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static TFuture<void> PresetResult = MakePromise();
+
 TAsyncSemaphore::TAsyncSemaphore(i64 maxFreeSlots)
     : MaxFreeSlots(maxFreeSlots)
     , FreeSlotCount(maxFreeSlots)
-    , StaticResult(MakePromise())
 { }
 
 void TAsyncSemaphore::Release(i64 slots /* = 1 */)
 {
-    TGuard<TSpinLock> guard(SpinLock);
-    FreeSlotCount += slots;
-    YASSERT(FreeSlotCount <= MaxFreeSlots);
-
     TPromise<void> ready;
     TPromise<void> free;
 
-    if (!ReadyEvent.IsNull() && FreeSlotCount > 0) {
-        ready.Swap(ReadyEvent);
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+
+        FreeSlotCount += slots;
+        YASSERT(FreeSlotCount <= MaxFreeSlots);
+
+        if (!ReadyEvent.IsNull() && FreeSlotCount > 0) {
+            ready.Swap(ReadyEvent);
+        }
+
+        if (!FreeEvent.IsNull() && FreeSlotCount == MaxFreeSlots) {
+            free.Swap(FreeEvent);
+        }
     }
 
-    if (!FreeEvent.IsNull() && FreeSlotCount == MaxFreeSlots) {
-        free.Swap(FreeEvent);
-    }
-
-    guard.Release();
-    if (!ready.IsNull())
+    if (!ready.IsNull()) {
         ready.Set();
+    }
 
-    if (!free.IsNull())
+    if (!free.IsNull()) {
         free.Set();
+    }
 }
 
 void TAsyncSemaphore::Acquire(i64 slots /* = 1 */)
@@ -51,9 +56,10 @@ bool TAsyncSemaphore::IsReady() const
 TFuture<void> TAsyncSemaphore::GetReadyEvent()
 {
     TGuard<TSpinLock> guard(SpinLock);
+
     if (IsReady()) {
-        YASSERT(ReadyEvent.IsNull());
-        return StaticResult;
+        YCHECK(ReadyEvent.IsNull());
+        return PresetResult;
     } else if (ReadyEvent.IsNull()) {
         ReadyEvent = NewPromise<void>();
     }
@@ -64,9 +70,10 @@ TFuture<void> TAsyncSemaphore::GetReadyEvent()
 TFuture<void> TAsyncSemaphore::GetFreeEvent()
 {
     TGuard<TSpinLock> guard(SpinLock);
+
     if (FreeSlotCount == MaxFreeSlots) {
-        YASSERT(FreeEvent.IsNull());
-        return StaticResult;
+        YCHECK(FreeEvent.IsNull());
+        return PresetResult;
     } else if (FreeEvent.IsNull()) {
         FreeEvent = NewPromise<void>();
     }
