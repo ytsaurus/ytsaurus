@@ -245,8 +245,7 @@ public:
             }
         }
 
-        minThread->GetInvoker()->Invoke(action);
-        return true;
+        return minThread->GetInvoker()->Invoke(action);
     }
 
 private:
