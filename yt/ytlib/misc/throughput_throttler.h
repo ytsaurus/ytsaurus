@@ -30,10 +30,10 @@ public:
             .GreaterThanOrEqual(0);
     }
 
-    //! Gives a period for which the bandwidth limit applies.
+    //! Period for which the bandwidth limit applies.
     TDuration Period;
 
-    //! Gives a limit on average throughput (per sec). Null means unlimited.
+    //! Limit on average throughput (per sec). Null means unlimited.
     TNullable<i64> Limit;
 };
 

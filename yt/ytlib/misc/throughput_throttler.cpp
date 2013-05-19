@@ -71,6 +71,8 @@ private:
 
     void OnTick()
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         std::vector<TPromise<void>> releaseList;
 
         {
