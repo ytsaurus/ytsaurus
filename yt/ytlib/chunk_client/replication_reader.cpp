@@ -688,7 +688,8 @@ private:
         }
 
         ProcessResponse(requestedDescriptor, req, rsp)
-            .Subscribe(BIND(&TReadSession::RequestBlocks, MakeStrong(this)));
+            .Subscribe(BIND(&TReadSession::RequestBlocks, MakeStrong(this))
+                .Via(TDispatcher::Get()->GetReaderInvoker()));
     }
 
     TFuture<void> ProcessResponse(
