@@ -173,7 +173,7 @@ void TBootstrap::Run()
 
     if (!ChunkStore->GetCellGuid().IsEmpty() && !ChunkCache->GetCellGuid().IsEmpty()) {
         if (ChunkStore->GetCellGuid().IsEmpty() != ChunkCache->GetCellGuid().IsEmpty()) {
-            THROW_ERROR_EXCEPTION("Inconsistent cell guid (ChunkStore: %s, ChunkCache: %s)",
+            THROW_ERROR_EXCEPTION("Inconsistent cell GUID (ChunkStore: %s, ChunkCache: %s)",
                 ~ToString(ChunkStore->GetCellGuid()),
                 ~ToString(ChunkCache->GetCellGuid()));
         }
@@ -193,6 +193,10 @@ void TBootstrap::Run()
     SessionManager = New<TSessionManager>(Config->DataNode, this);
 
     MasterConnector = New<TMasterConnector>(Config->DataNode, this);
+
+    ReplicationOutThrottler = CreateThrottler(Config->DataNode->ReplicationOutThrottler);
+    RepairInThrottler = CreateThrottler(Config->DataNode->RepairInThrottler);
+    RepairOutThrottler = CreateThrottler(Config->DataNode->RepairOutThrottler);
 
     RpcServer->RegisterService(New<TDataNodeService>(Config->DataNode, this));
 
@@ -425,6 +429,21 @@ void TBootstrap::UpdateCellGuid(const TGuid& cellGuid)
     CellGuid = cellGuid;
     ChunkStore->SetCellGuid(CellGuid);
     ChunkCache->UpdateCellGuid(CellGuid);
+}
+
+IThroughputThrottlerPtr TBootstrap::GetReplicationOutThrottler() const
+{
+    return RepairOutThrottler;
+}
+
+IThroughputThrottlerPtr TBootstrap::GetRepairInThrottler() const
+{
+    return RepairInThrottler;
+}
+
+IThroughputThrottlerPtr TBootstrap::GetRepairOutThrottler() const
+{
+    return RepairOutThrottler;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

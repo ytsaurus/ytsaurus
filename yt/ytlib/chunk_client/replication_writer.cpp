@@ -39,7 +39,7 @@ typedef TDataNodeServiceProxy TProxy;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& SILENT_UNUSED Logger = ChunkWriterLogger;
+static auto& Logger = ChunkWriterLogger;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -174,7 +174,8 @@ public:
     TReplicationWriter(
         TReplicationWriterConfigPtr config,
         const TChunkId& chunkId,
-        const std::vector<TNodeDescriptor>& targets);
+        const std::vector<TNodeDescriptor>& targets,
+        IThroughputThrottlerPtr throttler);
 
     ~TReplicationWriter();
 
@@ -196,6 +197,7 @@ private:
     TReplicationWriterConfigPtr Config;
     TChunkId ChunkId;
     std::vector<TNodeDescriptor> Targets;
+    IThroughputThrottlerPtr Throttler;
 
     TAsyncStreamState State;
 
@@ -377,12 +379,20 @@ TProxy::TInvPutBlocks TGroup::PutBlocks(TNodePtr node)
     req->Attachments().insert(req->Attachments().begin(), Blocks.begin(), Blocks.end());
     req->set_enable_caching(writer->Config->EnableNodeCaching);
 
-    LOG_DEBUG("Putting blocks %d-%d to %s",
+    LOG_DEBUG("Ready to put blocks (Blocks: %d-%d, Address: %s, Size: %" PRId64 ")",
         StartBlockIndex,
         GetEndBlockIndex(),
-        ~node->Descriptor.Address);
+        ~node->Descriptor.Address,
+        Size);
 
-    return req->Invoke();
+    return writer->Throttler->Throttle(Size).Apply(BIND([=] () -> TProxy::TInvPutBlocks {
+        LOG_DEBUG("Putting blocks (Blocks: %d-%d, Address: %s)",
+            StartBlockIndex,
+            GetEndBlockIndex(),
+            ~node->Descriptor.Address);
+
+        return req->Invoke();
+    }));
 }
 
 void TGroup::OnPutBlocks(TNodePtr node, TProxy::TRspPutBlocksPtr rsp)
@@ -396,7 +406,7 @@ void TGroup::OnPutBlocks(TNodePtr node, TProxy::TRspPutBlocksPtr rsp)
 
     IsSentTo[node->Index] = true;
 
-    LOG_DEBUG("Blocks %d-%d are put to %s",
+    LOG_DEBUG("Blocks are put (Blocks: %d-%d, Address: %s)",
         StartBlockIndex,
         GetEndBlockIndex(),
         ~node->Descriptor.Address);
@@ -434,7 +444,7 @@ TProxy::TInvSendBlocks TGroup::SendBlocks(
 
     VERIFY_THREAD_AFFINITY(writer->WriterThread);
 
-    LOG_DEBUG("Sending blocks %d-%d from %s to %s",
+    LOG_DEBUG("Sending blocks (Blocks: %d-%d, SrcAddress: %s, DstAddress: %s)",
         StartBlockIndex,
         GetEndBlockIndex(),
         ~srcNode->Descriptor.Address,
@@ -490,7 +500,7 @@ void TGroup::OnSentBlocks(
     UNUSED(rsp);
     VERIFY_THREAD_AFFINITY(writer->WriterThread);
 
-    LOG_DEBUG("Blocks %d-%d are sent from %s to %s",
+    LOG_DEBUG("Blocks are sent (Blocks: %d-%d, SrcAddress: %s, DstAddress: %s)",
         StartBlockIndex,
         GetEndBlockIndex(),
         ~srcNode->Descriptor.Address,
@@ -533,7 +543,7 @@ void TGroup::Process()
 
     YCHECK(writer->IsInitComplete);
 
-    LOG_DEBUG("Processing blocks %d-%d",
+    LOG_DEBUG("Processing blocks (Blocks: %d-%d)",
         StartBlockIndex,
         GetEndBlockIndex());
 
@@ -564,10 +574,12 @@ void TGroup::Process()
 TReplicationWriter::TReplicationWriter(
     TReplicationWriterConfigPtr config,
     const TChunkId& chunkId,
-    const std::vector<TNodeDescriptor>& targets)
+    const std::vector<TNodeDescriptor>& targets,
+    IThroughputThrottlerPtr throttler)
     : Config(config)
     , ChunkId(chunkId)
     , Targets(targets)
+    , Throttler(throttler)
     , IsOpen(false)
     , IsInitComplete(false)
     , IsClosing(false)
@@ -618,7 +630,7 @@ void TReplicationWriter::Open()
         targetAddresses.push_back(target.Address);
     }
 
-    LOG_INFO("Opening writer (Targets: [%s], EnableCaching: %s)",
+    LOG_INFO("Opening writer (Addresses: [%s], EnableCaching: %s)",
         ~NYT::JoinToString(targetAddresses),
         ~FormatBool(Config->EnableNodeCaching));
 
@@ -694,7 +706,7 @@ TProxy::TInvFlushBlock TReplicationWriter::FlushBlock(TNodePtr node, int blockIn
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
-    LOG_DEBUG("Flushing block %d at %s",
+    LOG_DEBUG("Flushing block (Block: %d, Address: %s)",
         blockIndex,
         ~node->Descriptor.Address);
 
@@ -709,7 +721,7 @@ void TReplicationWriter::OnBlockFlushed(TNodePtr node, int blockIndex, TProxy::T
     UNUSED(rsp);
     VERIFY_THREAD_AFFINITY(WriterThread);
 
-    LOG_DEBUG("Block %d is flushed at %s",
+    LOG_DEBUG("Block flushed (Block: %d, Address: %s)",
         blockIndex,
         ~node->Descriptor.Address);
 }
@@ -730,7 +742,7 @@ void TReplicationWriter::OnWindowShifted(int lastFlushedBlock)
         if (group->GetEndBlockIndex() > lastFlushedBlock)
             return;
 
-        LOG_DEBUG("Window %d-%d shifted (Size: %" PRId64 ")",
+        LOG_DEBUG("Window shifted (Blocks: %d-%d, Size: %" PRId64 ")",
             group->GetStartBlockIndex(),
             group->GetEndBlockIndex(),
             group->GetSize());
@@ -752,7 +764,7 @@ void TReplicationWriter::AddGroup(TGroupPtr group)
     if (!State.IsActive())
         return;
 
-    LOG_DEBUG("Added block group (Group: %p, BlockIndexes: %d-%d)",
+    LOG_DEBUG("Block group added (Group: %p, Blocks: %d-%d)",
         ~group,
         group->GetStartBlockIndex(),
         group->GetEndBlockIndex());
@@ -771,7 +783,7 @@ void TReplicationWriter::OnNodeFailed(TNodePtr node, const TError& error)
     if (!node->IsAlive())
         return;
 
-    auto wrappedError = TError("Node failed: %s",
+    auto wrappedError = TError("Node %s failed",
         ~node->Descriptor.Address)
         << error;
     LOG_ERROR(wrappedError);
@@ -813,7 +825,7 @@ void TReplicationWriter::CheckResponse(
 
 TProxy::TInvStartChunk TReplicationWriter::StartChunk(TNodePtr node)
 {
-    LOG_DEBUG("Starting chunk session at %s", ~node->Descriptor.Address);
+    LOG_DEBUG("Starting chunk (Address: %s)", ~node->Descriptor.Address);
 
     auto req = node->Proxy.StartChunk();
     ToProto(req->mutable_chunk_id(), ChunkId);
@@ -825,7 +837,7 @@ void TReplicationWriter::OnChunkStarted(TNodePtr node, TProxy::TRspStartChunkPtr
     UNUSED(rsp);
     VERIFY_THREAD_AFFINITY(WriterThread);
 
-    LOG_DEBUG("Chunk session started at %s", ~node->Descriptor.Address);
+    LOG_DEBUG("Chunk started (Address: %s)", ~node->Descriptor.Address);
 
     StartPing(node);
 }
@@ -884,7 +896,7 @@ void TReplicationWriter::OnChunkFinished(TNodePtr node, TProxy::TRspFinishChunkP
     VERIFY_THREAD_AFFINITY(WriterThread);
 
     auto& chunkInfo = rsp->chunk_info();
-    LOG_DEBUG("Chunk session is finished at %s (DiskSpace: %" PRId64 ")",
+    LOG_DEBUG("Chunk finished (Address: %s, DiskSpace: %" PRId64 ")",
         ~node->Descriptor.Address,
         chunkInfo.disk_space());
 
@@ -907,7 +919,8 @@ TProxy::TInvFinishChunk TReplicationWriter::FinishChunk(TNodePtr node)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
-    LOG_DEBUG("Finishing chunk session at %s", ~node->Descriptor.Address);
+    LOG_DEBUG("Finishing chunk (Address: %s)",
+        ~node->Descriptor.Address);
 
     auto req = node->Proxy.FinishChunk();
     ToProto(req->mutable_chunk_id(), ChunkId);
@@ -942,7 +955,8 @@ void TReplicationWriter::SendPing(TNodeWeakPtr node)
         return;
     }
 
-    LOG_DEBUG("Sending ping to %s", ~node_->Descriptor.Address);
+    LOG_DEBUG("Sending ping (Address: %s)",
+        ~node_->Descriptor.Address);
 
     auto req = node_->Proxy.PingSession();
     ToProto(req->mutable_chunk_id(), ChunkId);
@@ -1016,7 +1030,7 @@ void TReplicationWriter::AddBlock(const TSharedRef& block)
 
     CurrentGroup->AddBlock(block);
 
-    LOG_DEBUG("Added block %d (Group: %p, Size: %" PRISZT ")",
+    LOG_DEBUG("Block added (Block: %d, Group: %p, Size: %" PRISZT ")",
         BlockCount,
         ~CurrentGroup,
         block.Size());
@@ -1114,9 +1128,14 @@ const std::vector<int> TReplicationWriter::GetWrittenIndexes() const
 IAsyncWriterPtr CreateReplicationWriter(
     TReplicationWriterConfigPtr config,
     const TChunkId& chunkId,
-    const std::vector<TNodeDescriptor>& targets)
+    const std::vector<TNodeDescriptor>& targets,
+    IThroughputThrottlerPtr throttler)
 {
-    return New<TReplicationWriter>(config, chunkId, targets);
+    return New<TReplicationWriter>(
+        config,
+        chunkId,
+        targets,
+        throttler);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

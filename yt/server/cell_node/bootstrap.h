@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <ytlib/misc/throughput_throttler.h>
+
 #include <ytlib/actions/action_queue.h>
 
 #include <ytlib/bus/public.h>
@@ -56,6 +58,9 @@ public:
     NChunkHolder::TPeerBlockTablePtr GetPeerBlockTable() const;
     NChunkHolder::TReaderCachePtr GetReaderCache() const;
     NChunkHolder::TMasterConnectorPtr GetMasterConnector() const;
+    IThroughputThrottlerPtr GetReplicationOutThrottler() const;
+    IThroughputThrottlerPtr GetRepairInThrottler() const;
+    IThroughputThrottlerPtr GetRepairOutThrottler() const;
 
     const NNodeTrackerClient::TNodeDescriptor& GetLocalDescriptor() const;
 
@@ -89,6 +94,9 @@ private:
     NChunkHolder::TPeerBlockUpdaterPtr PeerBlockUpdater;
     NChunkHolder::TReaderCachePtr ReaderCache;
     NChunkHolder::TMasterConnectorPtr MasterConnector;
+    IThroughputThrottlerPtr ReplicationOutThrottler;
+    IThroughputThrottlerPtr RepairInThrottler;
+    IThroughputThrottlerPtr RepairOutThrottler;
 
     NNodeTrackerClient::TNodeDescriptor LocalDescriptor;
     TGuid CellGuid;

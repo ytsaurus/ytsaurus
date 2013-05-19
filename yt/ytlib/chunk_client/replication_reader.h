@@ -3,11 +3,12 @@
 #include "public.h"
 #include "chunk_replica.h"
 
-#include <ytlib/node_tracker_client/public.h>
-
 #include <ytlib/misc/nullable.h>
+#include <ytlib/misc/throughput_throttler.h>
 
 #include <ytlib/rpc/public.h>
+
+#include <ytlib/node_tracker_client/public.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -21,7 +22,8 @@ IAsyncReaderPtr CreateReplicationReader(
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const TNullable<NNodeTrackerClient::TNodeDescriptor>& localDescriptor,
     const TChunkId& chunkId,
-    const TChunkReplicaList& seedReplicas = TChunkReplicaList());
+    const TChunkReplicaList& seedReplicas = TChunkReplicaList(),
+    IThroughputThrottlerPtr throttler = GetUnlimitedThrottler());
 
 ///////////////////////////////////////////////////////////////////////////////
 

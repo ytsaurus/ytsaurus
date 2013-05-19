@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <ytlib/misc/throughput_throttler.h>
+
 #include <ytlib/chunk_client/config.h>
 
 namespace NYT {
@@ -158,6 +160,15 @@ public:
     //! Writer configuration used to replicate and repair chunks.
     NChunkClient::TReplicationWriterConfigPtr ReplicationWriter;
 
+    //! Controls outcoming bandwidth used by replication jobs.
+    TThroughputThrottlerConfigPtr ReplicationOutThrottler;
+
+    //! Controls incoming bandwidth used by repair jobs.
+    TThroughputThrottlerConfigPtr RepairInThrottler;
+
+    //! Controls outcoming bandwidth used by repair jobs.
+    TThroughputThrottlerConfigPtr RepairOutThrottler;
+
     //! Keeps chunk peering information.
     TPeerBlockTableConfigPtr PeerBlockTable;
 
@@ -204,6 +215,12 @@ public:
         RegisterParameter("replication_reader", ReplicationReader)
             .DefaultNew();
         RegisterParameter("replication_writer", ReplicationWriter)
+            .DefaultNew();
+        RegisterParameter("replication_out_throttler", ReplicationOutThrottler)
+            .DefaultNew();
+        RegisterParameter("repair_in_throttler", RepairInThrottler)
+            .DefaultNew();
+        RegisterParameter("repair_out_throttler", RepairOutThrottler)
             .DefaultNew();
         RegisterParameter("peer_block_table", PeerBlockTable)
             .DefaultNew();

@@ -354,7 +354,8 @@ private:
         Writer = CreateReplicationWriter(
             Config->ReplicationWriter,
             Chunk->GetId(),
-            targets);
+            targets,
+            Bootstrap->GetReplicationOutThrottler());
         Writer->Open();
 
         ReplicateBlock(TError());
@@ -456,7 +457,6 @@ private:
             return;
         }
 
-        // TODO(babenko): move to RepairErasedBlocks
         LOG_INFO("Preparing to repair (ErasedIndexes: [%s], RepairIndexes: [%s])",
             ~JoinToString(erasedIndexes),
             ~JoinToString(*repairIndexes));
@@ -484,7 +484,8 @@ private:
                 nodeDirectory,
                 Bootstrap->GetLocalDescriptor(),
                 partId,
-                partReplicas);
+                partReplicas,
+                Bootstrap->GetRepairInThrottler());
             readers.push_back(reader);
         }
 
@@ -494,7 +495,8 @@ private:
             auto writer = CreateReplicationWriter(
                 config->ReplicationWriter,
                 partId,
-                targets);
+                targets,
+                Bootstrap->GetRepairOutThrottler());
             writers.push_back(writer);
         }
 

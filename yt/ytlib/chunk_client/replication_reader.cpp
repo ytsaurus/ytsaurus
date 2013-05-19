@@ -38,7 +38,6 @@ using namespace NNodeTrackerClient;
 using NYT::ToProto;
 using NYT::FromProto;
 using ::ToString;
-using NYT::ToString;
 using NYT::JoinToString;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -62,12 +61,14 @@ public:
         TNodeDirectoryPtr nodeDirectory,
         const TNullable<TNodeDescriptor>& localDescriptor,
         const TChunkId& chunkId,
-        const TChunkReplicaList& seedReplicas)
+        const TChunkReplicaList& seedReplicas,
+        IThroughputThrottlerPtr throttler)
         : Config(config)
         , BlockCache(blockCache)
         , NodeDirectory(nodeDirectory)
         , LocalDescriptor(localDescriptor)
         , ChunkId(chunkId)
+        , Throttler(throttler)
         , Logger(ChunkReaderLogger)
         , ObjectServiceProxy(masterChannel)
         , ChunkServiceProxy(masterChannel)
@@ -117,6 +118,7 @@ private:
     TNodeDirectoryPtr NodeDirectory;
     TNullable<TNodeDescriptor> LocalDescriptor;
     TChunkId ChunkId;
+    IThroughputThrottlerPtr Throttler;
     NLog::TTaggedLogger Logger;
 
     TObjectServiceProxy ObjectServiceProxy;
@@ -271,7 +273,7 @@ protected:
     void BanPeer(const Stroka& address)
     {
         if (BannedPeers.insert(address).second) {
-            LOG_INFO("Node %s is banned for the current retry",
+            LOG_INFO("Node is banned for the current retry (Address: %s)",
                 ~address);
         }
     }
@@ -593,7 +595,7 @@ private:
                 TBlockId blockId(reader->ChunkId, blockIndex);
                 auto block = reader->BlockCache->Find(blockId);
                 if (block) {
-                    LOG_INFO("Block %d is fetched from cache", blockIndex);
+                    LOG_INFO("Block is fetched from cache (Block: %d)", blockIndex);
                     YCHECK(FetchedBlocks.insert(std::make_pair(blockIndex, block)).second);
                 }
             }
@@ -606,6 +608,8 @@ private:
         auto reader = Reader.Lock();
         if (!reader)
             return;
+
+        LOG_INFO("Looking for blocks to request");
 
         while (true) {
             FetchBlocksFromCache();
@@ -625,7 +629,7 @@ private:
             auto blockIndexes = GetRequestBlockIndexes(currentDescriptor, unfetchedBlockIndexes);
 
             if (!IsPeerBanned(currentDescriptor.Address) && !blockIndexes.empty()) {
-                LOG_INFO("Requesting blocks from peer %s (BlockIndexes: [%s])",
+                LOG_INFO("Requesting blocks from peer (Address: %s, Blocks: [%s])",
                     ~currentDescriptor.Address,
                     ~JoinToString(unfetchedBlockIndexes));
 
@@ -661,53 +665,57 @@ private:
                 break;
             }
 
-            LOG_INFO("Skipping peer %s", ~currentDescriptor.Address);
+            LOG_INFO("Skipping peer (Address: %s)", ~currentDescriptor.Address);
         }
     }
 
     void OnGetBlocksResponse(
         const TNodeDescriptor& requestedDescriptor,
-        TDataNodeServiceProxy::TReqGetBlocksPtr request,
-        TDataNodeServiceProxy::TRspGetBlocksPtr response)
+        TDataNodeServiceProxy::TReqGetBlocksPtr req,
+        TDataNodeServiceProxy::TRspGetBlocksPtr rsp)
     {
         const auto& requestedAddress = requestedDescriptor.Address;
-        if (response->IsOK()) {
-            ProcessResponse(requestedDescriptor, request, response);
-        } else {
-            RegisterError(TError("Error fetching blocks from %s",
+        if (!rsp->IsOK()) {
+            RegisterError(TError("Error fetching blocks from node %s",
                 ~requestedAddress)
-                << *response);
-            if (response->GetError().GetCode() != NRpc::EErrorCode::Unavailable) {
+                << *rsp);
+            if (rsp->GetError().GetCode() != NRpc::EErrorCode::Unavailable) {
                 // Do not ban node if it says "Unavailable".
                 BanPeer(requestedAddress);
             }
+            RequestBlocks();
+            return;
         }
 
-        RequestBlocks();
+        ProcessResponse(requestedDescriptor, req, rsp)
+            .Subscribe(BIND(&TReadSession::RequestBlocks, MakeStrong(this)));
     }
 
-    void ProcessResponse(
+    TFuture<void> ProcessResponse(
         const TNodeDescriptor& requestedDescriptor,
         TDataNodeServiceProxy::TReqGetBlocksPtr req,
         TDataNodeServiceProxy::TRspGetBlocksPtr rsp)
     {
         auto reader = Reader.Lock();
-        if (!reader)
-            return;
+        if (!reader) {
+            return MakeFuture();
+        }
 
         const auto& requestedAddress = requestedDescriptor.Address;
-        LOG_INFO("Response received from %s", ~requestedAddress);
+        LOG_INFO("Started processing block response (Address: %s)", ~requestedAddress);
 
         size_t blockCount = req->block_indexes_size();
         YCHECK(rsp->blocks_size() == blockCount);
         YCHECK(rsp->Attachments().size() == blockCount);
+
+        i64 totalSize = 0;
 
         for (int index = 0; index < static_cast<int>(blockCount); ++index) {
             int blockIndex = req->block_indexes(index);
             TBlockId blockId(reader->ChunkId, blockIndex);
             const auto& blockInfo = rsp->blocks(index);
             if (blockInfo.data_attached()) {
-                LOG_INFO("Received data for block %d",
+                LOG_INFO("Block data received (Block: %d)",
                     blockIndex);
                 auto block = rsp->Attachments()[index];
                 YCHECK(block);
@@ -719,11 +727,12 @@ private:
                 reader->BlockCache->Put(blockId, block, source);
 
                 YCHECK(FetchedBlocks.insert(std::make_pair(blockIndex, block)).second);
+                totalSize += block.Size();
             } else if (reader->Config->FetchFromPeers) {
                 FOREACH (const auto& protoP2PDescriptor, blockInfo.p2p_descriptors()) {
                     auto p2pDescriptor= FromProto<TNodeDescriptor>(protoP2PDescriptor);
                     AddPeer(p2pDescriptor, blockIndex);
-                    LOG_INFO("P2P descriptor received (BlockIndex: %d, Address: %s)",
+                    LOG_INFO("P2P descriptor received (Block: %d, Address: %s)",
                         blockIndex,
                         ~p2pDescriptor.Address);
                 }
@@ -731,10 +740,15 @@ private:
         }
 
         if (IsSeed(requestedAddress) && !rsp->has_complete_chunk()) {
-            LOG_INFO("Seed %s does not contain the chunk",
+            LOG_INFO("Seed does not contain the chunk (Address: %s)",
                 ~requestedAddress);
             BanPeer(requestedAddress);
         }
+
+        LOG_INFO("Finished processing block response (TotalSize: %" PRId64 ")",
+            totalSize);
+
+        return reader->Throttler->Throttle(totalSize);
     }
 
 
@@ -847,7 +861,7 @@ private:
         const auto& descriptor = PeerList[PeerIndex];
         const auto& address = descriptor.Address;
 
-        LOG_INFO("Requesting chunk meta from %s", ~address);
+        LOG_INFO("Requesting chunk meta (Address: %s)", ~address);
 
         IChannelPtr channel;
         try {
@@ -893,7 +907,7 @@ private:
     {
         const auto& address = descriptor.Address;
 
-        LOG_WARNING(error, "Error requesting chunk meta from %s",
+        LOG_WARNING(error, "Error requesting chunk meta (Address: %s)",
             ~address);
 
         RegisterError(error);
@@ -920,7 +934,7 @@ private:
             return;
 
         auto error = BuildCombinedError(TError(
-            "Error getting meta for chunk %s",
+            "Error fetching meta for chunk %s",
             ~ToString(reader->ChunkId)));
         Promise.Set(error);
     }
@@ -948,7 +962,8 @@ IAsyncReaderPtr CreateReplicationReader(
     TNodeDirectoryPtr nodeDirectory,
     const TNullable<TNodeDescriptor>& localDescriptor,
     const TChunkId& chunkId,
-    const TChunkReplicaList& seedReplicas)
+    const TChunkReplicaList& seedReplicas,
+    IThroughputThrottlerPtr throttler)
 {
     YCHECK(config);
     YCHECK(blockCache);
@@ -962,7 +977,8 @@ IAsyncReaderPtr CreateReplicationReader(
         nodeDirectory,
         localDescriptor,
         chunkId,
-        seedReplicas);
+        seedReplicas,
+        throttler);
     reader->Initialize();
     return reader;
 }
