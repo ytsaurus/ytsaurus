@@ -73,9 +73,6 @@ typedef TIntrusivePtr<TChunkReplicator> TChunkReplicatorPtr;
 class TChunkPlacement;
 typedef TIntrusivePtr<TChunkPlacement> TChunkPlacementPtr;
 
-class TChunkReplicatorConfig;
-typedef TIntrusivePtr<TChunkReplicatorConfig> TChunkReplicatorConfigPtr;
-
 class TChunkManagerConfig;
 typedef TIntrusivePtr<TChunkManagerConfig> TChunkManagerConfigPtr;
 

@@ -330,7 +330,7 @@ void TChunkReplicator::ProcessExistingJobs(
         const auto& jobId = job->GetJobId();
         switch (job->GetState()) {
             case EJobState::Running:
-                if (TInstant::Now() - job->GetStartTime() > Config->ChunkReplicator->JobTimeout) {
+                if (TInstant::Now() - job->GetStartTime() > Config->JobTimeout) {
                     jobsToAbort->push_back(job);
                     LOG_WARNING("Job timed out (JobId: %s, Address: %s, Duration: %s)",
                         ~ToString(jobId),
@@ -580,7 +580,7 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleRepairJob(
 
     TNodeResources resourceUsage;
     resourceUsage.set_repair_slots(1);
-    resourceUsage.set_memory(Config->ChunkReplicator->RepairJobMemoryUsage);
+    resourceUsage.set_memory(Config->RepairJobMemoryUsage);
 
     *job = TJob::CreateRepair(
         chunkId,
@@ -679,9 +679,9 @@ void TChunkReplicator::ScheduleNewJobs(
 
     // Schedule balancing jobs.
     double sourceFillCoeff = ChunkPlacement->GetFillCoeff(node);
-    double targetFillCoeff = sourceFillCoeff - Config->ChunkReplicator->MinBalancingFillCoeffDiff;
+    double targetFillCoeff = sourceFillCoeff - Config->MinBalancingFillCoeffDiff;
     if (node->ResourceUsage().replication_slots() < node->ResourceLimits().replication_slots() &&
-        sourceFillCoeff > Config->ChunkReplicator->MinBalancingFillCoeff &&
+        sourceFillCoeff > Config->MinBalancingFillCoeff &&
         ChunkPlacement->HasBalancingTargets(targetFillCoeff))
     {
         int maxJobs = std::max(0, node->ResourceLimits().replication_slots() - node->ResourceUsage().replication_slots());
@@ -930,9 +930,8 @@ bool TChunkReplicator::IsEnabled()
     auto chunkManager = Bootstrap->GetChunkManager();
     auto nodeTracker = Bootstrap->GetNodeTracker();
 
-    auto config = Config->ChunkReplicator;
-    if (config->MinOnlineNodeCount) {
-        int needOnline = config->MinOnlineNodeCount.Get();
+    if (Config->SafeOnlineNodeCount) {
+        int needOnline = *Config->SafeOnlineNodeCount;
         int gotOnline = nodeTracker->GetOnlineNodeCount();
         if (gotOnline < needOnline) {
             if (!LastEnabled || LastEnabled.Get()) {
@@ -947,8 +946,8 @@ bool TChunkReplicator::IsEnabled()
 
     int chunkCount = chunkManager->GetChunkCount();
     int lostChunkCount = chunkManager->LostChunks().size();
-    if (config->MaxLostChunkFraction && chunkCount > 0) {
-        double needFraction = config->MaxLostChunkFraction.Get();
+    if (Config->SafeLostChunkFraction && chunkCount > 0) {
+        double needFraction = *Config->SafeLostChunkFraction;
         double gotFraction = (double) lostChunkCount / chunkCount;
         if (gotFraction > needFraction) {
             if (!LastEnabled || LastEnabled.Get()) {
@@ -961,7 +960,7 @@ bool TChunkReplicator::IsEnabled()
         }
     }
 
-    if (!LastEnabled || !LastEnabled.Get()) {
+    if (!LastEnabled || !*LastEnabled) {
         LOG_INFO("Chunk replicator enabled");
         LastEnabled = true;
     }

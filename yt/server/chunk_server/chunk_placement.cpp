@@ -360,7 +360,7 @@ double TChunkPlacement::GetLoadFactor(TNode* node) const
 {
     return
         GetFillCoeff(node) +
-        Config->ActiveSessionsPenalityCoeff * node->GetTotalSessionCount();
+        Config->ActiveSessionPenalityCoeff * node->GetTotalSessionCount();
 }
 
 double TChunkPlacement::GetFillCoeff(TNode* node) const

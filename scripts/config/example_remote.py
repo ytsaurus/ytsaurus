@@ -86,12 +86,6 @@ class Master(Server):
                 'records_per_request' : 10240
             },
         },
-        'chunks' : {
-            'registered_node_timeout' : 180000,
-            'chunk_replicator' : {
-                'max_lost_chunk_fraction' : 0.01
-            }
-        },
         'monitoring_port' : 10000, 
         'logging' : Logging
     })

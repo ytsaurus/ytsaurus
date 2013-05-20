@@ -12,15 +12,17 @@ namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkReplicatorConfig
+class TChunkManagerConfig
     : public TYsonSerializable
 {
 public:
-    //! Minimum number of nodes the cell must have online to enable starting new jobs.
-    TNullable<int> MinOnlineNodeCount;
+    //! When the number of online nodes drops below this margin,
+    //! replicator gets disabled.
+    TNullable<int> SafeOnlineNodeCount;
 
-    //! Max lost chunk fraction the cell is allowed to have to enable starting new jobs.
-    TNullable<double> MaxLostChunkFraction;
+    //! When the fraction of lost chunks grows above this margin,
+    //! replicator gets disabled.
+    TNullable<double> SafeLostChunkFraction;
 
     //! Minimum difference in fill coefficient (between the most and the least loaded nodes) to start balancing.
     double MinBalancingFillCoeffDiff;
@@ -34,43 +36,46 @@ public:
     //! Memory usage assigned to every repair job.
     i64 RepairJobMemoryUsage;
 
-    TChunkReplicatorConfig()
+    //! Graceful delay before chunk refresh.
+    TDuration ChunkRefreshDelay;
+
+    //! Interval between consequent chunk refresh scans.
+    TDuration ChunkRefreshPeriod;
+
+    //! Maximum number of chunks to process during a refresh scan.
+    int MaxChunksPerRefresh;
+
+    //! Each active upload session adds |ActiveSessionPenalityCoeff| to effective load factor
+    //! when picking an upload target.
+    double ActiveSessionPenalityCoeff;
+
+    //! Interval between consequent chunk properties update scans.
+    TDuration ChunkPropertiesUpdatePeriod;
+
+    //! Maximum number of chunks to process during a properties update scan.
+    int MaxChunksPerPropertiesUpdate;
+
+    TChunkManagerConfig()
     {
-        RegisterParameter("min_online_node_count", MinOnlineNodeCount)
+        RegisterParameter("safe_online_node_count", SafeOnlineNodeCount)
             .GreaterThan(0)
             .Default(1);
-        RegisterParameter("max_lost_chunk_fraction", MaxLostChunkFraction)
+        RegisterParameter("safe_lost_chunk_fraction", SafeLostChunkFraction)
             .InRange(0.0, 1.0)
             .Default(0.5);
+
         RegisterParameter("min_chunk_balancing_fill_coeff_diff", MinBalancingFillCoeffDiff)
             .Default(0.2);
         RegisterParameter("min_chunk_balancing_fill_coeff", MinBalancingFillCoeff)
             .Default(0.1);
+
         RegisterParameter("job_timeout", JobTimeout)
             .Default(TDuration::Minutes(5));
+
         RegisterParameter("repair_job_memory_usage", RepairJobMemoryUsage)
             .Default((i64) 256 * 1024 * 1024)
             .GreaterThanOrEqual(0);
-    }
-};
 
-class TChunkManagerConfig
-    : public TYsonSerializable
-{
-public:
-    TDuration ChunkRefreshDelay;
-    TDuration ChunkRefreshPeriod;
-    int MaxChunksPerRefresh;
-
-    double ActiveSessionsPenalityCoeff;
-
-    TDuration ChunkPropertiesUpdatePeriod;
-    int MaxChunksPerPropertiesUpdate;
-
-    TChunkReplicatorConfigPtr ChunkReplicator;
-
-    TChunkManagerConfig()
-    {
         RegisterParameter("chunk_refresh_delay", ChunkRefreshDelay)
             .Default(TDuration::Seconds(15));
         RegisterParameter("chunk_refresh_period", ChunkRefreshPeriod)
@@ -83,11 +88,8 @@ public:
         RegisterParameter("max_chunks_per_properties_update", MaxChunksPerPropertiesUpdate)
             .Default(10000);
 
-        RegisterParameter("active_sessions_penality_coeff", ActiveSessionsPenalityCoeff)
+        RegisterParameter("active_session_penality_coeff", ActiveSessionPenalityCoeff)
             .Default(0.0001);
-
-        RegisterParameter("chunk_replicator", ChunkReplicator)
-            .DefaultNew();
     }
 };
 
