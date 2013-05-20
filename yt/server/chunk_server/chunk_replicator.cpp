@@ -604,9 +604,40 @@ void TChunkReplicator::ScheduleNewJobs(
     std::vector<TJobPtr>* jobsToStart,
     std::vector<TJobPtr>* jobsToAbort)
 {
+    auto chunkManager = Bootstrap->GetChunkManager();
+
+    i64 runningReplicationSize = 0;
+    i64 runningRepairSize = 0;
+    auto increaseRunningSizes = [&] (TJobPtr job) {
+        auto type = job->GetType();
+        if (type != EJobType::ReplicateChunk && type != EJobType::RepairChunk)
+            return;
+
+        auto* chunk = chunkManager->FindChunk(job->GetChunkIdWithIndex().Id);
+        if (!chunk)
+            return;
+
+        i64 size = chunk->ChunkInfo().disk_space();
+        // XXX(babenko): this static_cast is clearly redundant but required to compile it with VS2010
+        switch (static_cast<int>(type)) {
+            case EJobType::ReplicateChunk:
+                runningReplicationSize += size;
+                break;
+            case EJobType::RepairChunk:
+                runningRepairSize += size;
+                break;
+        }
+    };
+
+    // Compute current data sizes for running replication and repair jobs.
+    FOREACH (auto job, node->Jobs()) {
+        increaseRunningSizes(job);
+    }
+
     auto registerJob = [&] (TJobPtr job) {
         jobsToStart->push_back(job);
         node->ResourceUsage() += job->ResourceUsage();
+        increaseRunningSizes(job);
     };
 
     // Schedule replication jobs.
@@ -614,6 +645,8 @@ void TChunkReplicator::ScheduleNewJobs(
         auto it = queue.begin();
         while (it != queue.end()) {
             if (node->ResourceUsage().replication_slots() >= node->ResourceLimits().replication_slots())
+                break;
+            if (runningReplicationSize > Config->MaxTotalReplicationJobsSize)
                 break;
 
             auto jt = it++;
@@ -636,6 +669,8 @@ void TChunkReplicator::ScheduleNewJobs(
         auto it = RepairQueue.begin();
         while (it != RepairQueue.end()) {
             if (node->ResourceUsage().repair_slots() >= node->ResourceLimits().repair_slots())
+                break;
+            if (runningRepairSize > Config->MaxTotalRepairJobsSize)
                 break;
 
             auto jt = it++;

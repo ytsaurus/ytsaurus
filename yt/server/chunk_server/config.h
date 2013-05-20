@@ -33,6 +33,12 @@ public:
     //! Maximum duration a job can run before it is considered dead.
     TDuration JobTimeout;
 
+    //! Maximum total size of chunks assigned for replication (per node).
+    i64 MaxTotalReplicationJobsSize;
+
+    //! Maximum total size of chunks assigned for repair (per node).
+    i64 MaxTotalRepairJobsSize;
+
     //! Memory usage assigned to every repair job.
     i64 RepairJobMemoryUsage;
 
@@ -71,6 +77,13 @@ public:
 
         RegisterParameter("job_timeout", JobTimeout)
             .Default(TDuration::Minutes(5));
+
+        RegisterParameter("max_total_replication_jobs_size", MaxTotalReplicationJobsSize)
+            .Default((i64) 1024 * 1024 * 1024)
+            .GreaterThanOrEqual(0);
+        RegisterParameter("max_total_repair_jobs_size", MaxTotalRepairJobsSize)
+            .Default((i64) 4 * 1024 * 1024 * 1024)
+            .GreaterThanOrEqual(0);
 
         RegisterParameter("repair_job_memory_usage", RepairJobMemoryUsage)
             .Default((i64) 256 * 1024 * 1024)
