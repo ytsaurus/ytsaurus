@@ -177,7 +177,8 @@ private:
             activeRequest.ResponseHandler = responseHandler;
             activeRequest.Timer = Profiler.TimingStart(
                 "/services/" +
-                ToYPathLiteral(request->GetPath()) + "/" +
+                ToYPathLiteral(request->GetPath()) +
+                "/methods/" +
                 ToYPathLiteral(request->GetVerb()) +
                 "/time",
                 NProfiling::ETimerMode::Sequential);
