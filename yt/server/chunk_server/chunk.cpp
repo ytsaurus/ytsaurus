@@ -102,7 +102,7 @@ void TChunk::Save(const NCellMaster::TSaveContext& context) const
     auto* output = context.GetOutput();
     SaveProto(output, ChunkInfo_);
     SaveProto(output, ChunkMeta_);
-    ::Save(output, GetReplicationFactor());
+    ::Save(output, ReplicationFactor);
     ::Save(output, GetErasureCodec());
     ::Save(output, GetMovable());
     ::Save(output, GetVital());
@@ -119,8 +119,9 @@ void TChunk::Load(const NCellMaster::TLoadContext& context)
     auto* input = context.GetInput();
     LoadProto(input, ChunkInfo_);
     LoadProto(input, ChunkMeta_);
-    SetReplicationFactor(NCellMaster::Load<int>(context));
-    if (context.GetVersion() >= 9) {
+    SetReplicationFactor(NCellMaster::Load<i16>(context));
+    // COMPAT(psushin)
+    if (context.GetVersion() >= 20) {
         SetErasureCodec(NCellMaster::Load<NErasure::ECodec>(context));
     }
     SetMovable(NCellMaster::Load<bool>(context));

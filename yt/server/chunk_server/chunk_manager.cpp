@@ -962,6 +962,12 @@ private:
             size_t nodeCount = ::LoadSize(context.GetInput());
             YCHECK(nodeCount == 0);
 
+            size_t jobCount = ::LoadSize(context.GetInput());
+            YCHECK(jobCount == 0);
+
+            size_t jobListCount = ::LoadSize(context.GetInput());
+            YCHECK(jobListCount == 0);
+
             // COMPAT(psushin): required to properly initialize TChunkList::DataSizeSums.
             ScheduleRecomputeStatistics();
         }
@@ -969,6 +975,11 @@ private:
 
     void LoadValues(const NCellMaster::TLoadContext& context)
     {
+        // COMPAT(psushin)
+        if (context.GetVersion() < 20) {
+            // Skip NodeIdGenerator.
+            context.GetInput()->Skip(8);
+        }
         ChunkMap.LoadValues(context);
         ChunkListMap.LoadValues(context);
     }
