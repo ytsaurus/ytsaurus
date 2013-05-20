@@ -726,13 +726,11 @@ private:
     void DoFlushWritersPeriodically()
     {
         Config->FlushWriters();
-        FlushInvoker->ScheduleNext();
     }
 
     void DoWatchWritersPeriodically()
     {
         Config->WatchWriters();
-        WatchInvoker->ScheduleNext();
     }
 
     TQueueInvokerPtr QueueInvoker;
