@@ -592,23 +592,33 @@ private:
         if (!transaction)
             return;
 
-        const auto& address = node->GetAddress();
-        auto addressToken = ToYPathLiteral(address);
-
         auto objectManager = Bootstrap->GetObjectManager();
         auto rootService = objectManager->GetRootService();
 
-        {
-            auto req = TCypressYPathProxy::Create("//sys/nodes/" + addressToken);
+        const auto& address = node->GetAddress();
+        
+        auto nodePath = "//sys/nodes/" + ToYPathLiteral(address);
+        auto orchidPath = nodePath + "/orchid";
+
+        bool nodeExists = SyncYPathExists(rootService, nodePath);
+        bool orchidExists = SyncYPathExists(rootService, orchidPath);
+
+        if (!nodeExists) {
+            LOG_INFO("Registering node in Cypress (Address: %s)", ~address);
+
+            auto req = TCypressYPathProxy::Create(nodePath);
             req->set_type(EObjectType::CellNode);
             req->set_ignore_existing(true);
+
+            auto defaultAttributes = ConvertToAttributes(New<TNodeConfig>());
+            ToProto(req->mutable_node_attributes(), *defaultAttributes);
 
             ExecuteVerb(rootService, req).Subscribe(
                 BIND(&TImpl::CheckCypressResponse<TCypressYPathProxy::TRspCreate>, MakeStrong(this)));
         }
 
-        {
-            auto req = TCypressYPathProxy::Create("//sys/nodes/" + addressToken + "/orchid");
+        if (!orchidExists) {
+            auto req = TCypressYPathProxy::Create();
             req->set_type(EObjectType::Orchid);
             req->set_ignore_existing(true);
 
@@ -621,7 +631,7 @@ private:
         }
 
         {
-            auto req = TCypressYPathProxy::Lock("//sys/nodes/" + addressToken);
+            auto req = TCypressYPathProxy::Lock(nodePath);
             req->set_mode(ELockMode::Shared);
             SetTransactionId(req, transaction->GetId());
 
@@ -724,6 +734,11 @@ private:
 
     void PostUnregisterCommit(TNode* node)
     {
+        // Prevent multiple attempts to unregister the node.
+        if (node->GetUnregisterPending())
+            return;
+        node->SetUnregisterPending(true);
+
         auto nodeId = node->GetId();
 
         TMetaReqUnregisterNode message;
@@ -752,7 +767,8 @@ private:
     void OnNodeConfigUpdated(TNode* node)
     {
         if (node->GetConfig()->Banned) {
-            LOG_INFO("Node banned (Address: %s)", ~node->GetAddress());
+            LOG_INFO_UNLESS(IsRecovery(), "Node banned (Address: %s)",
+                ~node->GetAddress());
             PostUnregisterCommit(node);
         }
     }

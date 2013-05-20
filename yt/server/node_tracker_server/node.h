@@ -37,6 +37,7 @@ class TNode
 
     DEFINE_BYVAL_RO_PROPERTY(TNodeId, Id);
     DEFINE_BYVAL_RW_PROPERTY(ENodeState, State);
+    DEFINE_BYVAL_RW_PROPERTY(bool, UnregisterPending);
     
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeStatistics, Statistics);
 

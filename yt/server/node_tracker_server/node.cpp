@@ -35,6 +35,7 @@ TNode::TNode(TNodeId id)
 
 void TNode::Init()
 {
+    UnregisterPending_ = false;
     Transaction_ = nullptr;
     Decommissioned_ = Config_->Decommissioned;
     ChunkReplicationQueues_.resize(ReplicationPriorityCount);

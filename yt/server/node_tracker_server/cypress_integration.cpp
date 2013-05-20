@@ -6,6 +6,7 @@
 
 #include <ytlib/ytree/virtual.h>
 #include <ytlib/ytree/fluent.h>
+#include <ytlib/ytree/exception_helpers.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
@@ -140,6 +141,15 @@ private:
         const TNullable<TYsonString>& newValue) override
     {
         UNUSED(oldValue);
+
+        // Forbid to remove configuration attributes.
+        static auto nodeConfigTemplate = New<TNodeConfig>();
+        static auto nodeConfigKeys = nodeConfigTemplate->GetRegisteredKeys();
+        if (!newValue &&
+            std::find(nodeConfigKeys.begin(), nodeConfigKeys.end(), key) != nodeConfigKeys.end())
+        {
+            ThrowCannotRemoveAttribute(key);
+        }
 
         // Update the attributes and check if they still deserialize OK.
         auto attributes = Attributes().Clone();
