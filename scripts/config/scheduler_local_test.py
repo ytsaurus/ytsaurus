@@ -60,12 +60,10 @@ class Master(UnixNode, Server):
                 'records_per_request' : 10240
             },
         },
-        'chunks' : {
-            'registered_holder_timeout' : 180000,
-            'jobs' : {
-                'min_online_holder_count' : 3, # for local testing run
-                'max_lost_chunk_fraction' : 0.01
-            }
+        'chunk_manager' : {
+            'registered_node_timeout' : 180000,
+            'safe_online_node_count' : 3, # for local testing run
+            'safe_lost_chunk_fraction' : 0.01
         },
         'logging' : Logging
     })
@@ -76,7 +74,7 @@ class Scheduler(UnixNode, Server):
 
     config = Template({
         'masters' : {
-			'addresses' : MasterAddresses
+            'addresses' : MasterAddresses
         },
         'scheduler' : {
             'strategy' : 'fair_share'
