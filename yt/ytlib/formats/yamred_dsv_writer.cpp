@@ -15,6 +15,7 @@ TYamredDsvWriter::TYamredDsvWriter(TOutputStream* stream, TYamredDsvFormatConfig
     , State(EState::None)
     , IsValueEmpty(true)
     , AllowBeginMap(true)
+    , ExpectTableIndex(false)
     , Table(config)
 {
     FOREACH (const auto& val, Config->KeyColumnNames) {
@@ -30,7 +31,13 @@ TYamredDsvWriter::~TYamredDsvWriter()
 
 void TYamredDsvWriter::OnIntegerScalar(i64 value)
 {
-    RememberValue(ToString(value));
+    if (ExpectTableIndex) {
+        YASSERT(value < std::numeric_limits<i64>::max());
+        WritePod(*Stream, static_cast<i16>(value));
+        ExpectTableIndex = false;
+    } else {
+        RememberValue(ToString(value));
+    }
 }
 
 void TYamredDsvWriter::OnDoubleScalar(double value)
@@ -80,8 +87,15 @@ void TYamredDsvWriter::OnKeyedItem(const TStringBuf& key)
         // TODO(babenko): improve diagnostics
         THROW_ERROR_EXCEPTION("Missing value in YAMRed DSV");
     }
-    Key = key;
-    State = EState::ExpectingValue;
+
+    if (key == "table_index") {
+        ExpectTableIndex = true;
+    }
+    else {
+        Key = key;
+        State = EState::ExpectingValue;
+    }
+
 }
 
 void TYamredDsvWriter::OnEndMap()
@@ -92,12 +106,16 @@ void TYamredDsvWriter::OnEndMap()
 
 void TYamredDsvWriter::OnBeginAttributes()
 {
-    THROW_ERROR_EXCEPTION("Attributes are not supported by YAMRed DSV");
+    if (!Config->EnableTableIndex) {
+        THROW_ERROR_EXCEPTION("Attributes are not supported by YAMRed DSV");
+    }
 }
 
 void TYamredDsvWriter::OnEndAttributes()
 {
-    YUNREACHABLE();
+    if (!Config->EnableTableIndex) {
+        YUNREACHABLE();
+    }
 }
 
 void TYamredDsvWriter::RememberValue(const TStringBuf& value)

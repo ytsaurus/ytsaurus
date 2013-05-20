@@ -146,6 +146,9 @@ public:
     bool Lenval;
     char YamrKeysSeparator;
 
+    // make sense only in writer
+    bool EnableTableIndex;
+
     std::vector<Stroka> KeyColumnNames;
     std::vector<Stroka> SubkeyColumnNames;
 
@@ -160,6 +163,8 @@ public:
             .Default();
         RegisterParameter("yamr_keys_separator", YamrKeysSeparator)
             .Default(' ');
+        Register("enable_table_index", EnableTableIndex)
+            .Default(false);
     }
 };
 
