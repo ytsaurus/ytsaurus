@@ -142,6 +142,9 @@ struct TYamredDsvFormatConfig
     bool Lenval;
     char YamrKeysSeparator;
 
+    // make sense only in writer
+    bool EnableTableIndex;
+
     std::vector<Stroka> KeyColumnNames;
     std::vector<Stroka> SubkeyColumnNames;
 
@@ -156,6 +159,8 @@ struct TYamredDsvFormatConfig
             .Default();
         Register("yamr_keys_separator", YamrKeysSeparator)
             .Default(' ');
+        Register("enable_table_index", EnableTableIndex)
+            .Default(false);
     }
 };
 

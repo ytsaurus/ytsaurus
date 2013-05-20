@@ -148,6 +148,37 @@ TEST(TYamredDsvWriterTest, Lenval)
     EXPECT_EQ(output, outputStream.Str());
 }
 
+TEST(TYamredDsvWriterTest, TableIndex)
+{
+    TStringStream outputStream;
+    auto config = New<TYamredDsvFormatConfig>();
+    config->Lenval = true;
+    config->EnableTableIndex = true;
+    config->KeyColumnNames.push_back("key");
+    TYamredDsvWriter writer(&outputStream, config);
+
+    writer.OnListItem();
+    writer.OnBeginAttributes();
+        writer.OnKeyedItem("table_index");
+        writer.OnIntegerScalar(0);
+    writer.OnEndAttributes();
+    writer.OnBeginMap();
+        writer.OnKeyedItem("key");
+        writer.OnStringScalar("x");
+        writer.OnKeyedItem("value");
+        writer.OnStringScalar("y");
+    writer.OnEndMap();
+    
+    Stroka output = Stroka(
+        "\x00\x00"
+        "\x01\x00\x00\x00" "x"
+        "\x07\x00\x00\x00" "value=y"
+        , 2 + 2 * 4 + 1 + 7
+    );
+
+    EXPECT_EQ(output, outputStream.Str());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NFormats
