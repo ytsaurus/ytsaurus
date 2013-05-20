@@ -9,15 +9,17 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYamrBaseParser::TYamrBaseParser(
+TYamrDelimitedBaseParser::TYamrDelimitedBaseParser(
+    IYamrConsumerPtr consumer,
+    bool hasSubkey,
     char fieldSeparator,
     char recordSeparator,
     bool enableKeyEscaping,
     bool enableValueEscaping,
     char escapingSymbol,
-    bool hasSubkey,
     bool escapeCarriageReturn)
-    : FieldSeparator(fieldSeparator)
+    : Consumer(consumer)
+    , FieldSeparator(fieldSeparator)
     , RecordSeparator(recordSeparator)
     , EscapingSymbol(escapingSymbol)
     , ExpectingEscapedChar(false)
@@ -35,7 +37,7 @@ TYamrBaseParser::TYamrBaseParser(
         false)
 { }
 
-void TYamrBaseParser::Read(const TStringBuf& data)
+void TYamrDelimitedBaseParser::Read(const TStringBuf& data)
 {
     auto current = data.begin();
     auto end = data.end();
@@ -44,7 +46,7 @@ void TYamrBaseParser::Read(const TStringBuf& data)
     }
 }
 
-void TYamrBaseParser::Finish()
+void TYamrDelimitedBaseParser::Finish()
 {
     if (ExpectingEscapedChar) {
         ThrowIncorrectFormat();
@@ -61,7 +63,7 @@ void TYamrBaseParser::Finish()
     }
 }
 
-Stroka TYamrBaseParser::GetDebugInfo() const
+Stroka TYamrDelimitedBaseParser::GetDebugInfo() const
 {
     Stroka context;
     const char* last = ContextBuffer + BufferPosition;
@@ -76,33 +78,33 @@ Stroka TYamrBaseParser::GetDebugInfo() const
             ~context.Quote());
 }
 
-void TYamrBaseParser::ProcessKey(const TStringBuf& key)
+void TYamrDelimitedBaseParser::ProcessKey(const TStringBuf& key)
 {
     YASSERT(!ExpectingEscapedChar);
     YASSERT(State == EState::InsideKey);
-    ConsumeKey(key);
+    Consumer->ConsumeKey(key);
     State = HasSubkey ? EState::InsideSubkey : EState::InsideValue;
 }
 
-void TYamrBaseParser::ProcessSubkey(const TStringBuf& subkey)
+void TYamrDelimitedBaseParser::ProcessSubkey(const TStringBuf& subkey)
 {
     YASSERT(!ExpectingEscapedChar);
     YASSERT(State == EState::InsideSubkey);
-    ConsumeSubkey(subkey);
+    Consumer->ConsumeSubkey(subkey);
     State = EState::InsideValue;
 }
 
-void TYamrBaseParser::ProcessValue(const TStringBuf& value)
+void TYamrDelimitedBaseParser::ProcessValue(const TStringBuf& value)
 {
     YASSERT(!ExpectingEscapedChar);
     YASSERT(State == EState::InsideValue);
-    ConsumeValue(value);
+    Consumer->ConsumeValue(value);
     State = EState::InsideKey;
     Record += 1;
 }
 
 
-const char* TYamrBaseParser::Consume(const char* begin, const char* end)
+const char* TYamrDelimitedBaseParser::Consume(const char* begin, const char* end)
 {
     // Try parse whole record (it usually works faster)
     if (!ExpectingEscapedChar && State == EState::InsideKey && CurrentToken.empty()) {
@@ -158,7 +160,7 @@ const char* TYamrBaseParser::Consume(const char* begin, const char* end)
     return next + 1;
 }
 
-const char* TYamrBaseParser::TryConsumeRecord(const char* begin, const char* end)
+const char* TYamrDelimitedBaseParser::TryConsumeRecord(const char* begin, const char* end)
 {
     const char* endOfKey = Table.KeyStops.FindNext(begin, end);
     const char* endOfSubkey =
@@ -198,7 +200,7 @@ const char* TYamrBaseParser::TryConsumeRecord(const char* begin, const char* end
     return endOfValue + 1;
 }
 
-void TYamrBaseParser::ThrowIncorrectFormat() const
+void TYamrDelimitedBaseParser::ThrowIncorrectFormat() const
 {
     THROW_ERROR_EXCEPTION("Unexpected symbol in YAMR row: expected %s, found: %s (%s)",
         ~Stroka(FieldSeparator).Quote(),
@@ -206,7 +208,7 @@ void TYamrBaseParser::ThrowIncorrectFormat() const
         ~GetDebugInfo());
 }
 
-void TYamrBaseParser::OnRangeConsumed(const char* begin, const char* end)
+void TYamrDelimitedBaseParser::OnRangeConsumed(const char* begin, const char* end)
 {
     Offset += end - begin;
     auto current = std::max(begin, end - BufferSize);
@@ -215,7 +217,7 @@ void TYamrBaseParser::OnRangeConsumed(const char* begin, const char* end)
     }
 }
 
-void TYamrBaseParser::AppendToContextBuffer(char symbol)
+void TYamrDelimitedBaseParser::AppendToContextBuffer(char symbol)
 {
     ContextBuffer[BufferPosition] = symbol;
     ++BufferPosition;
@@ -224,6 +226,120 @@ void TYamrBaseParser::AppendToContextBuffer(char symbol)
     }
 }
 
+
+////////////////////////////////////////////////////////////////////////////////
+
+TYamrLenvalBaseParser::TYamrLenvalBaseParser(
+    IYamrConsumerPtr consumer,
+    bool hasSubkey)
+        : Consumer(consumer)
+        , HasSubkey(hasSubkey)
+        , ReadingLength(true)
+        , BytesToRead(4)
+        , State(EState::InsideKey)
+{ }
+
+void TYamrLenvalBaseParser::Read(const TStringBuf& data)
+{
+    auto current = data.begin();
+    while (current != data.end()) {
+        current = Consume(current, data.end());
+    }
+}
+
+void TYamrLenvalBaseParser::Finish()
+{
+    if (State == EState::InsideValue && !ReadingLength && BytesToRead == 0) {
+        Consumer->ConsumeValue(CurrentToken);
+        return;
+    }
+
+    if (!(State == EState::InsideKey && ReadingLength && BytesToRead == 4)) {
+        THROW_ERROR_EXCEPTION("Premature end of stream");
+    }
+}
+
+const char* TYamrLenvalBaseParser::Consume(const char* begin, const char* end)
+{
+    if (ReadingLength) {
+        return ConsumeLength(begin, end);
+    } else {
+        return ConsumeData(begin, end);
+    }
+}
+
+const char* TYamrLenvalBaseParser::ConsumeLength(const char* begin, const char* end)
+{
+    const char* current = begin;
+    while (BytesToRead != 0 && current != end) {
+        if (ReadingLength) {
+            Union.Bytes[4 - BytesToRead] = *current;
+        }
+        ++current;
+        --BytesToRead;
+    }
+
+    if (!ReadingLength) {
+        CurrentToken.append(begin, current);
+    }
+
+    if (BytesToRead != 0) {
+        return current;
+    }
+
+    if (Union.Length > MaxFieldLength) {
+        THROW_ERROR_EXCEPTION("Field is too long: length %d, limit %d",
+            static_cast<int>(Union.Length),
+            static_cast<int>(MaxFieldLength));
+    }
+
+    ReadingLength = false;
+    BytesToRead = Union.Length;
+    return current;
+}
+
+const char* TYamrLenvalBaseParser::ConsumeData(const char* begin, const char* end)
+{
+    TStringBuf data;
+    const char* current = begin + BytesToRead;
+
+    if (current > end) {
+        CurrentToken.append(begin, end);
+        BytesToRead -= (end - begin);
+        YCHECK(BytesToRead > 0);
+        return end;
+    }
+
+    if (CurrentToken.empty()) {
+        data = TStringBuf(begin, current);
+    } else {
+        CurrentToken.append(begin, current);
+        data = CurrentToken;
+    }
+
+    switch (State) {
+        case EState::InsideKey:
+            Consumer->ConsumeKey(data);
+            State = HasSubkey ? EState::InsideSubkey : EState::InsideValue;
+            break;
+        case EState::InsideSubkey:
+            Consumer->ConsumeSubkey(data);
+            State = EState::InsideValue;
+            break;
+        case EState::InsideValue:
+            Consumer->ConsumeValue(data);
+            State = EState::InsideKey;
+            break;
+        default:
+            YUNREACHABLE();
+    }
+
+    CurrentToken.clear();
+    ReadingLength = true;
+    BytesToRead = 4;
+
+    return current;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

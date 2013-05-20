@@ -115,6 +115,41 @@ TEST(TYamredDsvWriterTest, Escaping)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TYamredDsvWriterTest, Lenval)
+{
+    TStringStream outputStream;
+    auto config = New<TYamredDsvFormatConfig>();
+    config->Lenval = true;
+    config->HasSubkey = true;
+    config->KeyColumnNames.push_back("key_a");
+    config->KeyColumnNames.push_back("key_b");
+    config->SubkeyColumnNames.push_back("subkey");
+    TYamredDsvWriter writer(&outputStream, config);
+
+    writer.OnListItem();
+    writer.OnBeginMap();
+        writer.OnKeyedItem("subkey");
+        writer.OnStringScalar("xxx");
+        writer.OnKeyedItem("key_a");
+        writer.OnStringScalar("a");
+        writer.OnKeyedItem("column");
+        writer.OnStringScalar("value");
+        writer.OnKeyedItem("key_b");
+        writer.OnStringScalar("b");
+    writer.OnEndMap();
+    
+    Stroka output = Stroka(
+        "\x03\x00\x00\x00" "a b"
+        "\x03\x00\x00\x00" "xxx"
+        "\x0C\x00\x00\x00" "column=value"
+        , 3 * 4 + 3 + 3 + 12
+    );
+
+    EXPECT_EQ(output, outputStream.Str());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NFormats
 } // namespace NYT
 

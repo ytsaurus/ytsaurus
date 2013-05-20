@@ -141,25 +141,57 @@ void TYamredDsvWriter::WriteRow()
     if (Config->HasSubkey) {
         WriteYamrField(Config->SubkeyColumnNames, SubkeyFields);
     }
-    Stream->Write(ValueBuffer.Begin(), ValueBuffer.GetSize());
-    Stream->Write(Config->RecordSeparator);
+    if (Config->Lenval) {
+        WritePod(*Stream, static_cast<i32>(ValueBuffer.GetSize()));
+        Stream->Write(ValueBuffer.Begin(), ValueBuffer.GetSize());
+    }
+    else {
+        Stream->Write(ValueBuffer.Begin(), ValueBuffer.GetSize());
+        Stream->Write(Config->RecordSeparator);
+    }
 }
 
 void TYamredDsvWriter::WriteYamrField(
     const std::vector<Stroka>& columnNames,
     const std::map<Stroka, Stroka>& fieldValues)
 {
-    for (int i = 0; i < columnNames.size(); ++i) {
-        auto it = fieldValues.find(columnNames[i]);
-        if (it == fieldValues.end()) {
-            THROW_ERROR_EXCEPTION("Missing required column in YAMRed DSV: %s", ~columnNames[i]);
+    if (Config->Lenval) {
+        if (columnNames.size() == 0) {
+            WritePod(*Stream, 0);
         }
-        EscapeAndWrite(Stream, it->second, false);
-        if (i + 1 != columnNames.size()) {
-            Stream->Write(Config->YamrKeysSeparator);
+        else {
+            i32 length = (columnNames.size() - 1);
+            for (int i = 0; i < columnNames.size(); ++i) {
+                auto it = fieldValues.find(columnNames[i]);
+                if (it == fieldValues.end()) {
+                    THROW_ERROR_EXCEPTION("Missing required column in YAMRed DSV: %s", ~columnNames[i]);
+                }
+                length += it->second.size();
+            }
+            WritePod(*Stream, length);
+
+            for (int i = 0; i < columnNames.size(); ++i) {
+                auto it = fieldValues.find(columnNames[i]);
+                Stream->Write(it->second);
+                if (i + 1 != columnNames.size()) {
+                    Stream->Write(Config->YamrKeysSeparator);
+                }
+            }
         }
     }
-    Stream->Write(Config->FieldSeparator);
+    else {
+        for (int i = 0; i < columnNames.size(); ++i) {
+            auto it = fieldValues.find(columnNames[i]);
+            if (it == fieldValues.end()) {
+                THROW_ERROR_EXCEPTION("Missing required column in YAMRed DSV: %s", ~columnNames[i]);
+            }
+            EscapeAndWrite(Stream, it->second, false);
+            if (i + 1 != columnNames.size()) {
+                Stream->Write(Config->YamrKeysSeparator);
+            }
+        }
+        Stream->Write(Config->FieldSeparator);
+    }
 }
 
 void TYamredDsvWriter::EscapeAndWrite(TOutputStream* outputStream, const TStringBuf& string, bool inKey)

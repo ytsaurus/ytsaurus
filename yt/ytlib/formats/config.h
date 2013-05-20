@@ -139,6 +139,7 @@ struct TYamredDsvFormatConfig
     : public TDsvFormatConfig
 {
     bool HasSubkey;
+    bool Lenval;
     char YamrKeysSeparator;
 
     std::vector<Stroka> KeyColumnNames;
@@ -147,6 +148,8 @@ struct TYamredDsvFormatConfig
     TYamredDsvFormatConfig()
     {
         Register("has_subkey", HasSubkey)
+            .Default(false);
+        Register("lenval", Lenval)
             .Default(false);
         Register("key_column_names", KeyColumnNames);
         Register("subkey_column_names", SubkeyColumnNames)
