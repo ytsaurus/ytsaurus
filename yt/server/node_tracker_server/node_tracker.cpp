@@ -618,7 +618,7 @@ private:
         }
 
         if (!orchidExists) {
-            auto req = TCypressYPathProxy::Create();
+            auto req = TCypressYPathProxy::Create(orchidPath);
             req->set_type(EObjectType::Orchid);
             req->set_ignore_existing(true);
 
