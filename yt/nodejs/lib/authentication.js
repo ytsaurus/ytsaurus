@@ -93,7 +93,7 @@ YtAuthentication.prototype._extractToken = function(req, rsp)
 
     if (!this.config.enable) {
         this.logger.debug("Authentication is disabled");
-        // Fallback to guest credentials.
+        // Fallback to root credentials.
         this.login = "root";
         this.realm = "root";
         return true;
@@ -101,20 +101,9 @@ YtAuthentication.prototype._extractToken = function(req, rsp)
 
     if (!req.headers.hasOwnProperty("authorization")) {
         this.logger.debug("Client is missing Authorization header");
-        // Check for User-Agent header.
-        var ua = req.headers["user-agent"];
-        if (ua && (
-            ua.indexOf("Python wrapper") === 0 ||
-            ua.indexOf("C++ wrapper") === 0))
-        {
-            this.logger.debug(
-                "Client is required to provide Authorization header");
-        } else {
-            this.logger.debug(
-                "Client has been granted guest credentials");
-            this.login = this.config.guest_login;
-            this.realm = this.config.guest_realm;
-        }
+        // Fallback to guest credentials.
+        this.login = this.config.guest_login;
+        this.realm = this.config.guest_realm;
         return true;
     }
 
