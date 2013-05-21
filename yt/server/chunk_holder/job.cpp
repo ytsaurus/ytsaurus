@@ -447,8 +447,8 @@ private:
 
         auto replicas = FromProto<NChunkClient::TChunkReplica>(RepairJobSpecExt.replicas());
         auto targets = FromProto<TNodeDescriptor>(RepairJobSpecExt.target_descriptors());
-
         auto erasedIndexes = FromProto<int, NErasure::TPartIndexList>(RepairJobSpecExt.erased_indexes());
+        YCHECK(targets.size() == erasedIndexes.size());
 
         // Compute repair plan.
         auto repairIndexes = codec->GetRepairIndices(erasedIndexes);
@@ -457,9 +457,10 @@ private:
             return;
         }
 
-        LOG_INFO("Preparing to repair (ErasedIndexes: [%s], RepairIndexes: [%s])",
+        LOG_INFO("Preparing to repair (ErasedIndexes: [%s], RepairIndexes: [%s], Targets: [%s])",
             ~JoinToString(erasedIndexes),
-            ~JoinToString(*repairIndexes));
+            ~JoinToString(*repairIndexes),
+            ~JoinToString(targets));
 
         auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
         nodeDirectory->MergeFrom(RepairJobSpecExt.node_directory());
@@ -467,16 +468,16 @@ private:
         auto config = Bootstrap->GetConfig()->DataNode;
 
         std::vector<IAsyncReaderPtr> readers;
-        FOREACH (int index, *repairIndexes) {
+        FOREACH (int partIndex, *repairIndexes) {
             TChunkReplicaList partReplicas;
             FOREACH (auto replica, replicas) {
-                if (replica.GetIndex() == index) {
+                if (replica.GetIndex() == partIndex) {
                     partReplicas.push_back(replica);
                 }
             }
             YCHECK(!partReplicas.empty());
 
-            auto partId = ErasurePartIdFromChunkId(ChunkId, index);
+            auto partId = ErasurePartIdFromChunkId(ChunkId, partIndex);
             auto reader = CreateReplicationReader(
                 config->ReplicationReader,
                 Bootstrap->GetBlockStore()->GetBlockCache(),
@@ -490,12 +491,14 @@ private:
         }
 
         std::vector<IAsyncWriterPtr> writers;
-        FOREACH (int index, erasedIndexes) {
-            auto partId = ErasurePartIdFromChunkId(ChunkId, index);
+        for (int index = 0; index < static_cast<int>(erasedIndexes.size()); ++index) {
+            int partIndex = erasedIndexes[index];
+            const auto& target = targets[index];
+            auto partId = ErasurePartIdFromChunkId(ChunkId, partIndex);
             auto writer = CreateReplicationWriter(
                 config->ReplicationWriter,
                 partId,
-                targets,
+                std::vector<TNodeDescriptor>(1, target),
                 Bootstrap->GetRepairOutThrottler());
             writers.push_back(writer);
         }
