@@ -245,8 +245,10 @@ TNode* TChunkPlacement::GetReplicationSource(TChunkPtrWithIndex chunkWithIndex)
 
 TNodeList TChunkPlacement::GetRemovalTargets(
     TChunkPtrWithIndex chunkWithIndex,
-    int targetCount)
+    int replicaCount)
 {
+    TNodeList targets;
+
     // Construct a list of |(nodeId, loadFactor)| pairs.
     typedef std::pair<TNode*, double> TCandidatePair;
     TSmallVector<TCandidatePair, TypicalReplicaCount> candidates;
@@ -268,21 +270,20 @@ TNodeList TChunkPlacement::GetRemovalTargets(
             return lhs.second > rhs.second;
         });
 
-    // Take first |count| nodes skipping decommissioned ones.
-    TNodeList result;
-    result.reserve(targetCount);
+    // Take first |count| nodes.
+    targets.reserve(replicaCount);
     FOREACH (const auto& pair, candidates) {
-        if (static_cast<int>(result.size()) >= targetCount) {
+        if (static_cast<int>(targets.size()) >= replicaCount) {
             break;
         }
 
         auto* node = pair.first;
         if (IsValidRemovalTarget(node)) {
-            result.push_back(node);
+            targets.push_back(node);
         }
     }
 
-    return result;
+    return targets;
 }
 
 bool TChunkPlacement::HasBalancingTargets(double maxFillCoeff)
@@ -378,7 +379,9 @@ bool TChunkPlacement::IsValidRemovalTarget(TNode* node)
     return true;
 }
 
-std::vector<TChunkPtrWithIndex> TChunkPlacement::GetBalancingChunks(TNode* node, int count)
+std::vector<TChunkPtrWithIndex> TChunkPlacement::GetBalancingChunks(
+    TNode* node,
+    int replicaCount)
 {
     // Do not balance chunks that already have a job.
     yhash_set<TChunkId> forbiddenChunkIds;
@@ -389,10 +392,10 @@ std::vector<TChunkPtrWithIndex> TChunkPlacement::GetBalancingChunks(TNode* node,
 
     // Right now we just pick some (not even random!) chunks.
     std::vector<TChunkPtrWithIndex> result;
-    result.reserve(count);
+    result.reserve(replicaCount);
     FOREACH (auto replica, node->StoredReplicas()) {
         auto* chunk = replica.GetPtr();
-        if (static_cast<int>(result.size()) >= count) {
+        if (static_cast<int>(result.size()) >= replicaCount) {
             break;
         }
         if (!chunk->GetMovable()) {

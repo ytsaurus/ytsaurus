@@ -55,6 +55,13 @@ static NProfiling::TProfiler& Profiler = ChunkServerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TChunkReplicator::TJobRequest::TJobRequest(int index, int count)
+    : Index(index)
+    , Count(count)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 TChunkReplicator::TChunkStatistics::TChunkStatistics()
 {
     Zero(ReplicaCount);
@@ -171,10 +178,12 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
     int replicaCount = 0;
     int decommissionedReplicaCount = 0;
     int replicationFactor = chunk->GetReplicationFactor();
+    TNodePtrWithIndexList decommissionedReplicas;
 
     FOREACH (auto replica, chunk->StoredReplicas()) {
         if (IsReplicaDecommissioned(replica)) {
             ++decommissionedReplicaCount;
+            decommissionedReplicas.push_back(replica);
         } else {
             ++replicaCount;
         }
@@ -185,10 +194,21 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
 
     if (replicaCount == 0 && decommissionedReplicaCount == 0) {
         result.Status |= EChunkStatus::Lost;
-    } else if (replicaCount > replicationFactor) {
+    }
+    
+    if (replicaCount == replicationFactor && decommissionedReplicaCount > 0) {
         result.Status |= EChunkStatus::Overreplicated;
-    } else if (replicaCount < replicationFactor) {
+        result.DecommissionedRemovalRequests.append(decommissionedReplicas.begin(), decommissionedReplicas.end());
+    }
+
+    if (replicaCount > replicationFactor && decommissionedReplicaCount == 0) {
+        result.Status |= EChunkStatus::Overreplicated;
+        result.BalancingRemovalRequests.push_back(TJobRequest(0, replicaCount - replicationFactor));
+    }
+
+    if (replicaCount < replicationFactor) {
         result.Status |= EChunkStatus::Underreplicated;
+        result.ReplicationRequests.push_back(TJobRequest(0, replicationFactor - replicaCount));
     }
 
     return result;
@@ -201,26 +221,43 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
     auto* codec = NErasure::GetCodec(chunk->GetErasureCodec());
     int totalPartCount = codec->GetTotalPartCount();
     int dataPartCount = codec->GetDataPartCount();
+    TNodePtrWithIndexList decommissionedReplicas[NErasure::MaxTotalPartCount];
+
+    auto mark = TNode::GenerateVisitMark();
 
     FOREACH (auto replica, chunk->StoredReplicas()) {
+        auto* node = replica.GetPtr();
         int index = replica.GetIndex();
-        if (IsReplicaDecommissioned(replica)) {
+        if (IsReplicaDecommissioned(replica) || node->GetVisitMark() == mark) {
             ++result.DecommissionedReplicaCount[index];
+            decommissionedReplicas[index].push_back(replica);
         } else {
             ++result.ReplicaCount[index];
         }
+        node->SetVisitMark(mark);
     }
 
     NErasure::TPartIndexSet erasedIndexes;
     for (int index = 0; index < totalPartCount; ++index) {
         int replicaCount = result.ReplicaCount[index];
         int decommissionedReplicaCount = result.DecommissionedReplicaCount[index];
-        if (replicaCount > 1) {
+        
+        if (replicaCount == 1 && decommissionedReplicaCount > 0) {
             result.Status |= EChunkStatus::Overreplicated;
+            const auto& replicas = decommissionedReplicas[index];
+            result.DecommissionedRemovalRequests.append(replicas.begin(), replicas.end());
         }
+
+        if (replicaCount > 1 && decommissionedReplicaCount == 0) {
+            result.Status |= EChunkStatus::Overreplicated;
+            result.BalancingRemovalRequests.push_back(TJobRequest(index, replicaCount - 1));
+        }
+
         if (replicaCount == 0 && decommissionedReplicaCount > 0) {
             result.Status |= EChunkStatus::Underreplicated;
+            result.ReplicationRequests.push_back(TJobRequest(index, 1));
         }
+        
         if (replicaCount == 0 && decommissionedReplicaCount == 0) {
             erasedIndexes.set(index);
             if (index < dataPartCount) {
@@ -678,9 +715,9 @@ void TChunkReplicator::ScheduleNewJobs(
 
     // Schedule removal jobs.
     {
-        auto& ChunkRemovalQueue = node->ChunkRemovalQueue();
-        auto it = ChunkRemovalQueue.begin();
-        while (it != ChunkRemovalQueue.end()) {
+        auto& removalQueue = node->ChunkRemovalQueue();
+        auto it = removalQueue.begin();
+        while (it != removalQueue.end()) {
             if (node->ResourceUsage().removal_slots() >= node->ResourceLimits().removal_slots())
                 break;
 
@@ -694,7 +731,7 @@ void TChunkReplicator::ScheduleNewJobs(
                 registerJob(job);
             }
             if (flags & EJobScheduleFlags::Purged) {
-                ChunkRemovalQueue.erase(jt);
+                removalQueue.erase(jt);
             }
         }
     }
@@ -732,9 +769,6 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
         return;
     }
 
-    int partCount = chunk->IsErasure() ? NErasure::MaxTotalPartCount : 1;
-    int replicationFactor = chunk->GetReplicationFactor();
-
     ResetChunkStatus(chunk);
 
     auto statistics = ComputeChunkStatistics(chunk);
@@ -750,18 +784,20 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
     if (statistics.Status & EChunkStatus::Overreplicated) {
         YCHECK(OverreplicatedChunks_.insert(chunk).second);
 
-        for (int index = 0; index < partCount; ++index) {
-            int replicaCount = statistics.ReplicaCount[index];
-            int redundantCount = replicaCount - replicationFactor;
-            if (redundantCount <= 0)
-                continue;
+        FOREACH (auto nodeWithIndex, statistics.DecommissionedRemovalRequests) {
+            int index = nodeWithIndex.GetIndex();
+            TChunkIdWithIndex chunkIdWithIndex(chunk->GetId(), index);
+            YCHECK(nodeWithIndex.GetPtr()->ChunkRemovalQueue().insert(chunkIdWithIndex).second);
+        }
 
+        FOREACH (const auto& request, statistics.BalancingRemovalRequests) {
+            int index = request.Index;
             TChunkPtrWithIndex chunkWithIndex(chunk, index);
             TChunkIdWithIndex chunkIdWithIndex(chunk->GetId(), index);
 
-            auto nodes = ChunkPlacement->GetRemovalTargets(chunkWithIndex, redundantCount);
-            FOREACH (auto* node, nodes) {
-                YCHECK(node->ChunkRemovalQueue().insert(chunkIdWithIndex).second);
+            auto targets = ChunkPlacement->GetRemovalTargets(chunkWithIndex, request.Count);
+            FOREACH (auto* target, targets) {
+                YCHECK(target->ChunkRemovalQueue().insert(chunkIdWithIndex).second);
             }
         }
     }
@@ -769,16 +805,13 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
     if (statistics.Status & EChunkStatus::Underreplicated) {
         YCHECK(UnderreplicatedChunks_.insert(chunk).second);
 
-        for (int index = 0; index < partCount; ++index) {
-            int replicaCount = statistics.ReplicaCount[index];
-            int decommissionedReplicaCount = statistics.DecommissionedReplicaCount[index];
-            if (replicaCount + decommissionedReplicaCount == 0 || replicaCount >= replicationFactor)
-                continue;
-
+        FOREACH (const auto& request, statistics.ReplicationRequests) {
+            int index = request.Index;
             TChunkPtrWithIndex chunkWithIndex(chunk, index);
             TChunkIdWithIndex chunkIdWithIndex(chunk->GetId(), index);
 
             // Cap replica count minus one against the range [0, ReplicationPriorityCount - 1].
+            int replicaCount = statistics.ReplicaCount[index];
             int priority = std::max(std::min(replicaCount - 1, ReplicationPriorityCount - 1), 0);
 
             auto* node = ChunkPlacement->GetReplicationSource(chunkWithIndex);

@@ -36,6 +36,7 @@ TNode::TNode(TNodeId id)
 void TNode::Init()
 {
     UnregisterPending_ = false;
+    VisitMark_ = 0;
     Transaction_ = nullptr;
     Decommissioned_ = Config_->Decommissioned;
     ChunkReplicationQueues_.resize(ReplicationPriorityCount);
@@ -136,6 +137,14 @@ int TNode::GetTotalSessionCount() const
 {
     return HintedSessionCount_ + Statistics_.total_session_count();
 }
+
+TAtomic TNode::GenerateVisitMark()
+{
+    static TAtomic result = 0;
+    return AtomicIncrement(result);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 TNodeId GetObjectId(const TNode* node)
 {

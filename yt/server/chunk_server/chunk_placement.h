@@ -44,13 +44,15 @@ public:
 
     TNodeList GetRemovalTargets(
         TChunkPtrWithIndex chunkWithIndex,
-        int targetCount);
+        int replicaCount);
 
     TNode* GetReplicationSource(TChunkPtrWithIndex chunkWithIndex);
 
     bool HasBalancingTargets(double maxFillCoeff);
 
-    std::vector<TChunkPtrWithIndex> GetBalancingChunks(TNode* node, int count);
+    std::vector<TChunkPtrWithIndex> GetBalancingChunks(
+        TNode* node,
+        int replicaCount);
 
     TNode* AllocateBalancingTarget(
         TChunkPtrWithIndex chunkWithIndex,

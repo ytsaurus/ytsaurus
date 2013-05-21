@@ -35,9 +35,12 @@ class TNode
     typedef NChunkServer::TChunk TChunk;
     typedef NChunkServer::TJobPtr TJobPtr;
 
+    // Non-persistent properties.
+    DEFINE_BYVAL_RW_PROPERTY(bool, UnregisterPending);
+    DEFINE_BYVAL_RW_PROPERTY(TAtomic, VisitMark);
+
     DEFINE_BYVAL_RO_PROPERTY(TNodeId, Id);
     DEFINE_BYVAL_RW_PROPERTY(ENodeState, State);
-    DEFINE_BYVAL_RW_PROPERTY(bool, UnregisterPending);
     
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeStatistics, Statistics);
 
@@ -91,6 +94,8 @@ public:
     void ApproveReplica(TChunkPtrWithIndex replica);
 
     int GetTotalSessionCount() const;
+
+    static TAtomic GenerateVisitMark();
 
 private:
     TNodeDescriptor Descriptor_;

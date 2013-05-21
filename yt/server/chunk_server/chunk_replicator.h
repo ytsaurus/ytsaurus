@@ -80,13 +80,40 @@ public:
     int GetPropertiesUpdateListSize() const;
 
 private:
+    struct TJobRequest
+    {
+        TJobRequest(int index, int count);
+
+        //! Part index the request applies to.
+        int Index;
+
+        //! Number of replicas to create/remove.
+        int Count;
+    };
+
     struct TChunkStatistics
     {
         TChunkStatistics();
 
         EChunkStatus Status;
+
+        //! Number of active replicas, indexed by part index.
         int ReplicaCount[NErasure::MaxTotalPartCount];
+        
+        //! Number of decommissioned replicas, indexed by part index.
         int DecommissionedReplicaCount[NErasure::MaxTotalPartCount];
+
+        //! Recommended replications.
+        TSmallVector<TJobRequest, TypicalReplicaCount> ReplicationRequests;
+        
+        //! Recommended removals of decommissioned replicas. 
+        TSmallVector<TNodePtrWithIndex, TypicalReplicaCount> DecommissionedRemovalRequests;
+
+        //! Recommended removals to active replicas.
+        //! Removal targets must be selected among most loaded nodes.
+        //! This can only be nonempty if |DecommissionedRemovalRequests| is empty.
+        TSmallVector<TJobRequest, TypicalReplicaCount> BalancingRemovalRequests;
+        
     };
 
     struct TRefreshEntry
