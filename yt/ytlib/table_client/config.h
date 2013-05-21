@@ -35,7 +35,7 @@ public:
         // Block less than 1M is nonsense.
         RegisterParameter("block_size", BlockSize)
             .GreaterThanOrEqual((i64) 1024 * 1024)
-            .Default((i64) 64 * 1024 * 1024);
+            .Default((i64) 32 * 1024 * 1024);
         RegisterParameter("sample_rate", SampleRate)
             .GreaterThan(0)
             .LessThanOrEqual(0.001)
@@ -52,7 +52,7 @@ public:
             .Default(true);
         RegisterParameter("max_buffer_size", MaxBufferSize)
             .GreaterThanOrEqual(1024 * 1024)
-            .Default(64 * 1024 * 1024);
+            .Default(32 * 1024 * 1024);
     }
 };
 
