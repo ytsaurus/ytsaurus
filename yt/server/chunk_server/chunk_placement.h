@@ -30,23 +30,21 @@ public:
     void OnNodeUnregistered(TNode* node);
     void OnNodeUpdated(TNode* node);
 
-    void OnSessionHinted(TNode* node);
-
     double GetLoadFactor(TNode* node) const;
     double GetFillCoeff(TNode* node) const;
 
-    TSmallVector<TNode*, TypicalReplicaCount> GetUploadTargets(
+    TNodeList AllocateUploadTargets(
         int replicaCount,
         const TSmallSet<TNode*, TypicalReplicaCount>* forbiddenNodes,
         const TNullable<Stroka>& preferredHostName);
 
-    TSmallVector<TNode*, TypicalReplicaCount> GetRemovalTargets(
-        TChunkPtrWithIndex chunkWithIndex,
+    TNodeList AllocateReplicationTargets(
+        const TChunk* chunk,
         int targetCount);
 
-    TSmallVector<TNode*, TypicalReplicaCount> GetReplicationTargets(
-        const TChunk* chunk,
-        int count);
+    TNodeList GetRemovalTargets(
+        TChunkPtrWithIndex chunkWithIndex,
+        int targetCount);
 
     TNode* GetReplicationSource(TChunkPtrWithIndex chunkWithIndex);
 
@@ -54,7 +52,9 @@ public:
 
     std::vector<TChunkPtrWithIndex> GetBalancingChunks(TNode* node, int count);
 
-    TNode* GetBalancingTarget(TChunkPtrWithIndex chunkWithIndex, double maxFillCoeff);
+    TNode* AllocateBalancingTarget(
+        TChunkPtrWithIndex chunkWithIndex,
+        double maxFillCoeff);
 
 private:
     typedef ymultimap<double, TNode*> TCoeffToNode;
@@ -68,6 +68,21 @@ private:
 
     TCoeffToNode FillCoeffToNode;
     TNodeToCoeffIt NodeToFillCoeffIt;
+
+    TNodeList GetUploadTargets(
+        int targetCount,
+        const TSmallSet<TNode*, TypicalReplicaCount>* forbiddenNodes,
+        const TNullable<Stroka>& preferredHostName);
+
+    TNodeList GetReplicationTargets(
+        const TChunk* chunk,
+        int targetCount);
+
+    TNode* GetBalancingTarget(
+        TChunkPtrWithIndex chunkWithIndex,
+        double maxFillCoeff);
+
+    void OnSessionHinted(TNode* node);
 
     static bool IsFull(TNode* node);
 

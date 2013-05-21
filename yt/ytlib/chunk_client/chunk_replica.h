@@ -4,18 +4,10 @@
 
 #include <ytlib/node_tracker_client/public.h>
 
-#include <ytlib/misc/small_vector.h>
-
-#include <contrib/libs/protobuf/repeated_field.h>
-
 namespace NYT {
 namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-// Forward declarations.
-class TChunkReplica;
-typedef TSmallVector<TChunkReplica, TypicalReplicaCount> TChunkReplicaList;
 
 void ToProto(ui32* value, TChunkReplica replica);
 void FromProto(TChunkReplica* replica, ui32 value);
@@ -50,8 +42,16 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 Stroka ToString(TChunkReplica replica);
-Stroka ToString(TChunkReplica replica, NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory);
-Stroka JoinToString(const TChunkReplicaList& replicas, NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory);
+
+struct TChunkReplicaAddressFormatter
+{
+    explicit TChunkReplicaAddressFormatter(NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory);
+
+    Stroka Format(TChunkReplica replica) const;
+
+    NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

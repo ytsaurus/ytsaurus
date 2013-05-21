@@ -38,7 +38,6 @@ using namespace NNodeTrackerClient;
 using NYT::ToProto;
 using NYT::FromProto;
 using ::ToString;
-using NYT::JoinToString;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -91,7 +90,7 @@ public:
         }
 
         LOG_INFO("Reader initialized (InitialSeedReplicas: [%s], FetchPromPeers: %s, LocalDescriptor: %s, EnableCaching: %s)",
-            ~JoinToString(InitialSeedReplicas, NodeDirectory),
+            ~JoinToString(InitialSeedReplicas, TChunkReplicaAddressFormatter(NodeDirectory)),
             ~ToString(Config->FetchFromPeers),
             LocalDescriptor ? ~ToString(LocalDescriptor->Address) : "<Null>",
             ~FormatBool(Config->EnableNodeCaching));
@@ -211,7 +210,8 @@ private:
         // TODO(babenko): use std::random_shuffle here but make sure it uses true randomness.
         Shuffle(seedReplicas.begin(), seedReplicas.end());
 
-        LOG_INFO("Chunk seeds received (SeedReplicas: [%s])", ~JoinToString(seedReplicas, NodeDirectory));
+        LOG_INFO("Chunk seeds received (SeedReplicas: [%s])",
+            ~JoinToString(seedReplicas, TChunkReplicaAddressFormatter(NodeDirectory)));
 
         YCHECK(!GetSeedsPromise.IsSet());
         GetSeedsPromise.Set(seedReplicas);

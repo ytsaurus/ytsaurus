@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <ytlib/misc/common.h>
+#include <ytlib/misc/small_vector.h>
 
 #include <ytlib/object_client/public.h>
 
@@ -36,6 +37,9 @@ extern TChunkTreeId NullChunkTreeId;
  *  Additional +8 enables some flexibility during balancing.
  */
 const int TypicalReplicaCount = 24;
+
+class TChunkReplica;
+typedef TSmallVector<TChunkReplica, TypicalReplicaCount> TChunkReplicaList;
 
 //! Represents an offset inside a chunk.
 typedef i64 TBlockOffset;

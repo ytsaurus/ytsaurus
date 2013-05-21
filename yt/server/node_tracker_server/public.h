@@ -1,8 +1,11 @@
 #pragma once
 
 #include <ytlib/misc/common.h>
+#include <ytlib/misc/small_vector.h>
 
 #include <ytlib/node_tracker_client/public.h>
+
+#include <ytlib/chunk_client/public.h>
 
 namespace NYT {
 namespace NNodeTrackerServer {
@@ -16,6 +19,7 @@ class TNodeTracker;
 typedef TIntrusivePtr<TNodeTracker> TNodeTrackerPtr;
 
 class TNode;
+typedef TSmallVector<TNode*, NChunkClient::TypicalReplicaCount> TNodeList;
 
 class TNodeTrackerService;
 typedef TIntrusivePtr<TNodeTrackerService> TNodeTrackerServicePtr;

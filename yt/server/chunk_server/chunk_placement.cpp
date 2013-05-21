@@ -87,19 +87,36 @@ void TChunkPlacement::OnSessionHinted(TNode* node)
     node->SetHintedSessionCount(node->GetHintedSessionCount() + 1);
 }
 
-TSmallVector<TNode*, TypicalReplicaCount> TChunkPlacement::GetUploadTargets(
-    int replicaCount,
+TNodeList TChunkPlacement::AllocateUploadTargets(
+    int targetCount,
     const TSmallSet<TNode*, TypicalReplicaCount>* forbiddenNodes,
     const TNullable<Stroka>& preferredHostName)
 {
-    TSmallVector<TNode*, TypicalReplicaCount> resultNodes;
-    resultNodes.reserve(replicaCount);
+    auto targets = GetUploadTargets(
+        targetCount,
+        forbiddenNodes,
+        preferredHostName);
+
+    FOREACH (auto* target, targets) {
+        OnSessionHinted(target);
+    }
+
+    return targets;
+}
+
+TNodeList TChunkPlacement::GetUploadTargets(
+    int targetCount,
+    const TSmallSet<TNode*, TypicalReplicaCount>* forbiddenNodes,
+    const TNullable<Stroka>& preferredHostName)
+{
+    TNodeList targets;
 
     typedef std::pair<TNode*, int> TFeasibleNode;
     std::vector<TFeasibleNode> feasibleNodes;
     feasibleNodes.reserve(LoadFactorToNode.size());
 
     TNode* preferredNode = nullptr;
+    int remainingCount = targetCount;
 
     auto nodeTracker = Bootstrap->GetNodeTracker();
 
@@ -107,8 +124,8 @@ TSmallVector<TNode*, TypicalReplicaCount> TChunkPlacement::GetUploadTargets(
     if (preferredHostName) {
         preferredNode = nodeTracker->FindNodeByHostName(*preferredHostName);
         if (preferredNode && IsValidUploadTarget(preferredNode)) {
-            resultNodes.push_back(preferredNode);
-            --replicaCount;
+            targets.push_back(preferredNode);
+            --remainingCount;
         }
     }
 
@@ -132,7 +149,7 @@ TSmallVector<TNode*, TypicalReplicaCount> TChunkPlacement::GetUploadTargets(
         });
 
     auto beginGroupIt = feasibleNodes.begin();
-    while (beginGroupIt != feasibleNodes.end() && replicaCount > 0) {
+    while (beginGroupIt != feasibleNodes.end() && remainingCount > 0) {
         auto endGroupIt = beginGroupIt;
         int groupSize = 0;
         while (endGroupIt != feasibleNodes.end() && beginGroupIt->second == endGroupIt->second) {
@@ -140,7 +157,7 @@ TSmallVector<TNode*, TypicalReplicaCount> TChunkPlacement::GetUploadTargets(
             ++groupSize;
         }
 
-        int sampleCount = std::min(replicaCount, groupSize);
+        int sampleCount = std::min(remainingCount, groupSize);
 
         std::vector<TFeasibleNode> currentResult;
         RandomSampleN(
@@ -150,19 +167,38 @@ TSmallVector<TNode*, TypicalReplicaCount> TChunkPlacement::GetUploadTargets(
             sampleCount);
 
         FOREACH (const auto& feasibleNode, currentResult) {
-            resultNodes.push_back(feasibleNode.first);
+            targets.push_back(feasibleNode.first);
         }
 
         beginGroupIt = endGroupIt;
-        replicaCount -= sampleCount;
+        remainingCount -= sampleCount;
     }
 
-    return resultNodes;
+    if (targets.size() != targetCount) {
+        targets.clear();
+    }
+
+    return targets;
 }
 
-TSmallVector<TNode*, TypicalReplicaCount> TChunkPlacement::GetReplicationTargets(
+TNodeList TChunkPlacement::AllocateReplicationTargets(
     const TChunk* chunk,
-    int count)
+    int targetCount)
+{
+    auto targets = GetReplicationTargets(
+        chunk,
+        targetCount);
+
+    FOREACH (auto* target, targets) {
+        OnSessionHinted(target);
+    }
+
+    return targets;
+}
+
+TNodeList TChunkPlacement::GetReplicationTargets(
+    const TChunk* chunk,
+    int targetCount)
 {
     TSmallSet<TNode*, TypicalReplicaCount> forbiddenNodes;
 
@@ -188,7 +224,7 @@ TSmallVector<TNode*, TypicalReplicaCount> TChunkPlacement::GetReplicationTargets
         }
     }
 
-    return GetUploadTargets(count, &forbiddenNodes, nullptr);
+    return GetUploadTargets(targetCount, &forbiddenNodes, nullptr);
 }
 
 TNode* TChunkPlacement::GetReplicationSource(TChunkPtrWithIndex chunkWithIndex)
@@ -207,7 +243,7 @@ TNode* TChunkPlacement::GetReplicationSource(TChunkPtrWithIndex chunkWithIndex)
     return storedReplicas[index].GetPtr();
 }
 
-TSmallVector<TNode*, TypicalReplicaCount> TChunkPlacement::GetRemovalTargets(
+TNodeList TChunkPlacement::GetRemovalTargets(
     TChunkPtrWithIndex chunkWithIndex,
     int targetCount)
 {
@@ -233,7 +269,7 @@ TSmallVector<TNode*, TypicalReplicaCount> TChunkPlacement::GetRemovalTargets(
         });
 
     // Take first |count| nodes skipping decommissioned ones.
-    TSmallVector<TNode*, TypicalReplicaCount> result;
+    TNodeList result;
     result.reserve(targetCount);
     FOREACH (const auto& pair, candidates) {
         if (static_cast<int>(result.size()) >= targetCount) {
@@ -259,6 +295,21 @@ bool TChunkPlacement::HasBalancingTargets(double maxFillCoeff)
 
     auto* node = FillCoeffToNode.begin()->second;
     return GetFillCoeff(node) < maxFillCoeff;
+}
+
+TNode* TChunkPlacement::AllocateBalancingTarget(
+    TChunkPtrWithIndex chunkWithIndex,
+    double maxFillCoeff)
+{
+    auto* target = GetBalancingTarget(
+        chunkWithIndex,
+        maxFillCoeff);
+
+    if (target) {
+        OnSessionHinted(target);
+    }
+
+    return target;
 }
 
 TNode* TChunkPlacement::GetBalancingTarget(TChunkPtrWithIndex chunkWithIndex, double maxFillCoeff)

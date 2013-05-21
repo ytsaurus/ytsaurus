@@ -625,13 +625,8 @@ TReplicationWriter::~TReplicationWriter()
 
 void TReplicationWriter::Open()
 {
-    std::vector<Stroka> targetAddresses;
-    FOREACH (const auto& target, Targets) {
-        targetAddresses.push_back(target.Address);
-    }
-
     LOG_INFO("Opening writer (Addresses: [%s], EnableCaching: %s)",
-        ~NYT::JoinToString(targetAddresses),
+        ~JoinToString(Targets),
         ~FormatBool(Config->EnableNodeCaching));
 
     auto awaiter = New<TParallelAwaiter>(TDispatcher::Get()->GetWriterInvoker());

@@ -45,6 +45,7 @@ using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
+using namespace NNodeTrackerServer;
 using namespace NChunkServer::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -423,15 +424,9 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleReplicationJob(
     }
 
     int replicasNeeded = replicationFactor - replicaCount;
-    auto targets = ChunkPlacement->GetReplicationTargets(chunk, replicasNeeded);
+    auto targets = ChunkPlacement->AllocateReplicationTargets(chunk, replicasNeeded);
     if (targets.empty()) {
         return EJobScheduleFlags::None;
-    }
-
-    std::vector<Stroka> targetAddresses;
-    FOREACH (auto* target, targets) {
-        ChunkPlacement->OnSessionHinted(target);
-        targetAddresses.push_back(target->GetAddress());
     }
 
     TNodeResources resourceUsage;
@@ -440,14 +435,14 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleReplicationJob(
     *job = TJob::CreateReplicate(
         chunkIdWithIndex,
         sourceNode,
-        targetAddresses,
+        targets,
         resourceUsage);
 
     LOG_INFO("Replication job scheduled (JobId: %s, Address: %s, ChunkId: %s, TargetAddresses: [%s])",
         ~ToString((*job)->GetJobId()),
         ~sourceNode->GetAddress(),
         ~ToString(chunkIdWithIndex),
-        ~JoinToString(targetAddresses));
+        ~JoinToString(targets, TNodePtrAddressFormatter()));
 
     return
         targets.size() == replicasNeeded
@@ -468,14 +463,12 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleBalancingJob(
         return EJobScheduleFlags::Purged;
     }
 
-    auto* targetNode = ChunkPlacement->GetBalancingTarget(chunkWithIndex, maxFillCoeff);
-    if (!targetNode) {
+    auto* target = ChunkPlacement->AllocateBalancingTarget(chunkWithIndex, maxFillCoeff);
+    if (!target) {
         LOG_DEBUG("No suitable target nodes for balancing (ChunkId: %s)",
             ~ToString(chunkWithIndex));
         return EJobScheduleFlags::None;
     }
-
-    ChunkPlacement->OnSessionHinted(targetNode);
 
     TNodeResources resourceUsage;
     resourceUsage.set_replication_slots(1);
@@ -483,14 +476,14 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleBalancingJob(
     *job = TJob::CreateReplicate(
         chunkIdWithIndex,
         sourceNode,
-        std::vector<Stroka>(1, targetNode->GetAddress()),
+        TNodeList(1, target),
         resourceUsage);
 
     LOG_INFO("Balancing job scheduled (JobId: %s, Address: %s, ChunkId: %s, TargetAddress: %s)",
         ~ToString((*job)->GetJobId()),
         ~sourceNode->GetAddress(),
         ~ToString(chunkIdWithIndex),
-        ~targetNode->GetAddress());
+        ~target->GetAddress());
 
     return EJobScheduleFlags(EJobScheduleFlags::Purged | EJobScheduleFlags::Scheduled);
 }
@@ -567,15 +560,9 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleRepairJob(
         return EJobScheduleFlags::Purged;
     }
 
-    auto targets = ChunkPlacement->GetReplicationTargets(chunk, erasedIndexCount);
-    if (targets.size() != erasedIndexCount) {
+    auto targets = ChunkPlacement->AllocateReplicationTargets(chunk, erasedIndexCount);
+    if (targets.empty()) {
         return EJobScheduleFlags::None;
-    }
-
-    std::vector<Stroka> targetAddresses;
-    FOREACH (auto* target, targets) {
-        ChunkPlacement->OnSessionHinted(target);
-        targetAddresses.push_back(target->GetAddress());
     }
 
     TNodeResources resourceUsage;
@@ -585,7 +572,7 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleRepairJob(
     *job = TJob::CreateRepair(
         chunkId,
         node,
-        targetAddresses,
+        targets,
         erasedIndexes,
         resourceUsage);
 
@@ -593,7 +580,7 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleRepairJob(
         ~ToString((*job)->GetJobId()),
         ~node->GetAddress(),
         ~ToString(chunkId),
-        ~JoinToString(targetAddresses),
+        ~JoinToString(targets, TNodePtrAddressFormatter()),
         ~JoinToString(erasedIndexes));
 
     return EJobScheduleFlags(EJobScheduleFlags::Purged | EJobScheduleFlags::Scheduled);
@@ -1117,21 +1104,20 @@ void TChunkReplicator::OnPropertiesUpdate()
             chunk->SetPropertiesUpdateScheduled(false);
 
             if (IsObjectAlive(chunk)) {
-
-                YCHECK(!chunk->IsErasure());
-
                 auto newProperties = ComputeChunkProperties(chunk);
                 auto oldProperties = chunk->GetChunkProperties();
                 if (newProperties != oldProperties) {
-
                     auto* update = request.add_updates();
                     ToProto(update->mutable_chunk_id(), chunk->GetId());
 
-                    if (newProperties.ReplicationFactor != oldProperties.ReplicationFactor)
+                    if (newProperties.ReplicationFactor != oldProperties.ReplicationFactor) {
+                        YCHECK(!chunk->IsErasure());
                         update->set_replication_factor(newProperties.ReplicationFactor);
+                    }
 
-                    if (newProperties.Vital != oldProperties.Vital)
+                    if (newProperties.Vital != oldProperties.Vital) {
                         update->set_vital(newProperties.Vital);
+                    }
                 }
             }
 

@@ -297,20 +297,14 @@ public:
     DECLARE_METAMAP_ACCESSORS(Chunk, TChunk, TChunkId);
     DECLARE_METAMAP_ACCESSORS(ChunkList, TChunkList, TChunkListId);
 
-    TSmallVector<TNode*, TypicalReplicaCount> AllocateUploadTargets(
+    TNodeList AllocateUploadTargets(
         int replicaCount,
         const TNullable<Stroka>& preferredHostName)
     {
-        auto nodes = ChunkPlacement->GetUploadTargets(
+        return ChunkPlacement->AllocateUploadTargets(
             replicaCount,
             nullptr,
             preferredHostName);
-
-        FOREACH (auto* node, nodes) {
-            ChunkPlacement->OnSessionHinted(node);
-        }
-
-        return nodes;
     }
 
     TChunk* CreateChunk(EObjectType type)
@@ -1444,7 +1438,6 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::Create(
 
         auto* responseExt = response->MutableExtension(TRspCreateChunkExt::create_chunk_ext);
         TNodeDirectoryBuilder builder(responseExt->mutable_node_directory());
-        TSmallVector<Stroka, TypicalReplicaCount> targetAddresses;
         for (int index = 0; index < static_cast<int>(targets.size()); ++index) {
             auto* target = targets[index];
             NChunkServer::TNodePtrWithIndex replica(
@@ -1452,7 +1445,6 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::Create(
                 isErasure ? index : 0);
             builder.Add(replica);
             responseExt->add_replicas(NYT::ToProto<ui32>(replica));
-            targetAddresses.push_back(target->GetAddress());
         }
 
         LOG_DEBUG_UNLESS(Owner->IsRecovery(),
@@ -1462,7 +1454,7 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::Create(
             ~ToString(chunk->GetId()),
             ~ToString(transaction->GetId()),
             ~account->GetName(),
-            ~JoinToString(targetAddresses),
+            ~JoinToString(targets, TNodePtrAddressFormatter()),
             ~ToString(preferredHostName),
             chunk->GetReplicationFactor(),
             uploadReplicationFactor,
@@ -1561,7 +1553,7 @@ TChunkTree* TChunkManager::GetChunkTree(const TChunkTreeId& id)
     return Impl->GetChunkTree(id);
 }
 
-TSmallVector<TNode*, TypicalReplicaCount> TChunkManager::AllocateUploadTargets(
+TNodeList TChunkManager::AllocateUploadTargets(
     int replicaCount,
     const TNullable<Stroka>& preferredHostName)
 {

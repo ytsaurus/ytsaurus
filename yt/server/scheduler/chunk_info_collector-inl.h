@@ -63,9 +63,9 @@ void TChunkInfoCollector<TFetcher>::SendRequests()
             }
         }
         if (!chunkAvailable) {
-            Promise.Set(TError("Unable to fetch chunk info for chunk %s from any of nodes [%s]",
+            Promise.Set(TError("Unable to fetch info for chunk %s from any of nodes [%s]",
                 ~ToString(chunkId),
-                ~JoinToString(replicas, NodeDirectory)));
+                ~JoinToString(replicas, NChunkClient::TChunkReplicaAddressFormatter(NodeDirectory))));
             return;
         }
     }
