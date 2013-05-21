@@ -36,10 +36,10 @@ static const int Permissions = 0751;
 
 namespace {
 
-void RemoveFileOrDie(const Stroka& fileName)
+void RemoveFileOrThrow(const Stroka& fileName)
 {
     if (!NFS::Remove(fileName)) {
-        LOG_FATAL("Error deleting %s", ~fileName.Quote());
+        THROW_ERROR_EXCEPTION("Error deleting %s", ~fileName.Quote());
     }
 }
 
@@ -331,10 +331,10 @@ std::vector<TChunkDescriptor> TLocation::Initialize()
             descriptors.push_back(descriptor);
         } else if (!hasMeta) {
             LOG_WARNING("Missing meta file, removing data file: %s", ~chunkDataFileName);
-            RemoveFileOrDie(chunkDataFileName);
+            RemoveFileOrThrow(chunkDataFileName);
         } else if (!hasData) {
             LOG_WARNING("Missing data file, removing meta file: %s", ~chunkMetaFileName);
-            RemoveFileOrDie(chunkMetaFileName);
+            RemoveFileOrThrow(chunkMetaFileName);
         }
     }
 

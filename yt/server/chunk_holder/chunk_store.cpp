@@ -7,6 +7,7 @@
 #include "master_connector.h"
 
 #include <ytlib/chunk_client/data_node_service_proxy.h>
+#include <ytlib/misc/fs.h>
 
 #include <server/cell_node/bootstrap.h>
 
@@ -37,57 +38,56 @@ void TChunkStore::Initialize()
 {
     LOG_INFO("Chunk store scan started");
 
-    try {
-        for (int i = 0; i < Config->StoreLocations.size(); ++i) {
-            auto locationConfig = Config->StoreLocations[i];
+    for (int i = 0; i < Config->StoreLocations.size(); ++i) {
+        auto locationConfig = Config->StoreLocations[i];
 
-            auto location = New<TLocation>(
-                ELocationType::Store,
-                "store" + ToString(i),
-                locationConfig,
-                Bootstrap);
+        auto location = New<TLocation>(
+            ELocationType::Store,
+            "store" + ToString(i),
+            locationConfig,
+            Bootstrap);
 
-            location->SubscribeDisabled(BIND(&TChunkStore::OnLocationDisabled, Unretained(this), location));
+        location->SubscribeDisabled(BIND(&TChunkStore::OnLocationDisabled, Unretained(this), location));
 
-            Locations_.push_back(location);
+        Locations_.push_back(location);
 
+        try {
             auto descriptors = location->Initialize();
             FOREACH (const auto& descriptor, descriptors) {
                 auto chunk = New<TStoredChunk>(
                     location,
                     descriptor,
                     Bootstrap->GetMemoryUsageTracker());
-                RegisterChunk(chunk);
+                RegisterExistingChunk(chunk);
             }
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Failed to initialize location %s", ~location->GetPath().Quote());
+            location->Disable();
         }
-
-        FOREACH (const auto& location, Locations_) {
-            const auto& locationCellGuid = location->GetCellGuid();
-            if (locationCellGuid.IsEmpty())
-                continue;
-
-            if (CellGuid.IsEmpty()) {
-                CellGuid = locationCellGuid;
-            } else if (CellGuid != locationCellGuid) {
-                LOG_FATAL("Inconsistent cell guid across chunk store locations: %s vs %s",
-                    ~ToString(CellGuid),
-                    ~ToString(locationCellGuid));
-            }
-        }
-
-        if (!CellGuid.IsEmpty()) {
-            DoSetCellGuid();
-        }
-
-    } catch (const std::exception& ex) {
-        LOG_FATAL(ex, "Failed to initialize storage locations");
     }
 
-    LOG_INFO("Chunk store scan complete, %d chunks found",
-        GetChunkCount());
+    FOREACH (const auto& location, Locations_) {
+        const auto& locationCellGuid = location->GetCellGuid();
+        if (locationCellGuid.IsEmpty())
+            continue;
+
+        if (CellGuid.IsEmpty()) {
+            CellGuid = locationCellGuid;
+        } else if (CellGuid != locationCellGuid) {
+            LOG_FATAL("Inconsistent cell guid across chunk store locations: %s vs %s",
+                ~ToString(CellGuid),
+                ~ToString(locationCellGuid));
+        }
+    }
+
+    if (!CellGuid.IsEmpty()) {
+        DoSetCellGuid();
+    }
+
+    LOG_INFO("Chunk store scan complete, %d chunks found", GetChunkCount());
 }
 
-void TChunkStore::RegisterChunk(TStoredChunkPtr chunk)
+void TChunkStore::RegisterNewChunk(TStoredChunkPtr chunk)
 {
     auto result = ChunkMap.insert(std::make_pair(chunk->GetId(), chunk));
     if (!result.second) {
@@ -97,6 +97,45 @@ void TChunkStore::RegisterChunk(TStoredChunkPtr chunk)
             ~oldChunk->GetLocation()->GetChunkFileName(oldChunk->GetId()));
     }
 
+    DoRegisterChunk(chunk);
+}
+
+void TChunkStore::RegisterExistingChunk(TStoredChunkPtr chunk)
+{
+    auto result = ChunkMap.insert(std::make_pair(chunk->GetId(), chunk));
+    if (!result.second) {
+        auto oldChunk = result.first->second;
+        auto oldPath = oldChunk->GetLocation()->GetChunkFileName(oldChunk->GetId());
+        auto currentPath = chunk->GetLocation()->GetChunkFileName(chunk->GetId());
+
+        // Compare if replicas are equal.
+        LOG_FATAL_IF(
+            oldChunk->GetInfo().disk_space() != chunk->GetInfo().disk_space(),
+            "Duplicate chunks with different size (Current: %s, Previous: %s)",
+            ~currentPath,
+            ~oldPath);
+
+        // Check that replicas point to the different inodes.
+        LOG_FATAL_IF(
+            NFS::IsInodeIdentical(oldPath, currentPath),
+            "Duplicate chunks point to the same inode (Current: %s, Previous: %s)",
+            ~currentPath,
+            ~oldPath);
+
+        // Remove duplicate replica.
+        LOG_WARNING("Removing duplicate chunk (Current: %s, Previous: %s)",
+            ~currentPath,
+            ~oldPath);
+
+        chunk->ScheduleRemoval().Get();
+        return;
+    }
+
+    DoRegisterChunk(chunk);
+}
+
+void TChunkStore::DoRegisterChunk(TStoredChunkPtr chunk)
+{
     auto location = chunk->GetLocation();
     location->UpdateChunkCount(+1);
     location->UpdateUsedSpace(+chunk->GetInfo().disk_space());

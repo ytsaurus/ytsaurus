@@ -31,8 +31,11 @@ public:
 
     void Initialize();
 
-    //! Registers a chunk.
-    void RegisterChunk(TStoredChunkPtr chunk);
+    //! Registers a just-written chunk.
+    void RegisterNewChunk(TStoredChunkPtr chunk);
+
+    //! Registers a chunk at startup.
+    void RegisterExistingChunk(TStoredChunkPtr chunk);
 
     //! Finds chunk by id. Returns NULL if no chunk exists.
     TStoredChunkPtr FindChunk(const TChunkId& chunkId) const;
@@ -79,6 +82,7 @@ private:
     TGuid CellGuid;
 
     void DoSetCellGuid();
+    void DoRegisterChunk(TStoredChunkPtr chunk);
     void OnLocationDisabled(TLocationPtr location);
 
 };

@@ -82,6 +82,8 @@ void SetExecutableMode(const Stroka& path, bool executable);
 //! Makes a symbolic link on file #fileName with #linkName.
 void MakeSymbolicLink(const Stroka& filePath, const Stroka& linkPath);
 
+bool IsInodeIdentical(const Stroka& lhsPath, const Stroka& rhsPath);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NFS

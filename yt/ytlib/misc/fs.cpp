@@ -191,7 +191,7 @@ i64 GetFileSize(const Stroka& path)
     if (handle == INVALID_HANDLE_VALUE) {
 #endif
         THROW_ERROR_EXCEPTION("Failed to get the size of %s",
-            ~path.Quote());
+            ~path.Quote()) << TError::FromSystem();
     }
 
 #if !defined(_win_)
@@ -301,6 +301,28 @@ void MakeSymbolicLink(const Stroka& filePath, const Stroka& linkPath)
             ~linkPath.Quote())
             << TError::FromSystem();
     }
+}
+
+bool IsInodeIdentical(const Stroka& lhsPath, const Stroka& rhsPath)
+{
+#ifdef _linux_
+    auto wrappedStat = [] (const Stroka& path, struct stat* buffer) {
+        auto result = stat(~path, buffer);
+        if (result) {
+            THROW_ERROR_EXCEPTION(
+                "Failed to check for identical inodes. stat() for file %s failed.",
+                ~path.Quote()) << TError::FromSystem();
+        }
+    };
+
+    struct stat lhsBuffer, rhsBuffer;
+    wrappedStat(lhsPath, &lhsBuffer);
+    wrappedStat(rhsPath, &rhsBuffer);
+
+    return (lhsBuffer.st_dev == rhsBuffer.st_dev) && (lhsBuffer.st_ino == rhsBuffer.st_ino);
+#else
+    return false;
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////

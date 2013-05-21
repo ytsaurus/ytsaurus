@@ -481,7 +481,7 @@ TValueOrError<TChunkPtr> TSession::OnFileClosed(TError error)
         Writer->GetChunkMeta(),
         Writer->GetChunkInfo(),
         Bootstrap->GetMemoryUsageTracker());
-    Bootstrap->GetChunkStore()->RegisterChunk(chunk);
+    Bootstrap->GetChunkStore()->RegisterNewChunk(chunk);
     return TChunkPtr(chunk);
 }
 
