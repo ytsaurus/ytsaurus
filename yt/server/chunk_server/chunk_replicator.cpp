@@ -117,14 +117,6 @@ void TChunkReplicator::Initialize()
     }
 }
 
-void TChunkReplicator::Finalize()
-{
-    auto nodeTracker = Bootstrap->GetNodeTracker();
-    FOREACH (auto* node, nodeTracker->GetNodes()) {
-        node->SafelyStoredReplicas().clear();
-    }
-}
-
 void TChunkReplicator::TouchChunk(TChunk* chunk)
 {
     auto repairIt = chunk->GetRepairQueueIterator();
@@ -155,20 +147,9 @@ EChunkStatus TChunkReplicator::ComputeChunkStatus(TChunk* chunk)
 
 TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeChunkStatistics(TChunk* chunk)
 {
-    auto result = chunk->IsErasure()
+    return chunk->IsErasure()
         ? ComputeErasureChunkStatistics(chunk)
         : ComputeRegularChunkStatistics(chunk);
-
-    if (!(result.Status & EChunkStatus(
-            EChunkStatus::Underreplicated |
-            EChunkStatus::Lost |
-            EChunkStatus::DataMissing |
-            EChunkStatus::ParityMissing)))
-    {
-        result.Status |= EChunkStatus::Safe;
-    }
-
-    return result;
 }
 
 TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatistics(TChunk* chunk)
@@ -833,16 +814,6 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
         auto repairIt = RepairQueue.insert(RepairQueue.end(), chunk);
         chunk->SetRepairQueueIterator(repairIt);
     }
-
-    if (statistics.Status & EChunkStatus::Safe) {
-        FOREACH (auto nodeWithIndex, chunk->StoredReplicas()) {
-            auto* node = nodeWithIndex.GetPtr();
-            TChunkPtrWithIndex chunkWithIndex(chunk, nodeWithIndex.GetIndex());
-            if (node->GetDecommissioned()) {
-                YCHECK(node->SafelyStoredReplicas().insert(chunkWithIndex).second);
-            }
-        }
-    }
 }
 
 void TChunkReplicator::ResetChunkStatus(TChunk* chunk)
@@ -855,9 +826,6 @@ void TChunkReplicator::ResetChunkStatus(TChunk* chunk)
             queue.erase(chunkIdWithIndex);
         }
         node->ChunkRemovalQueue().erase(chunkIdWithIndex);
-        if (node->GetDecommissioned()) {
-            node->SafelyStoredReplicas().erase(chunkWithIndex);
-        }
     }
 
     LostChunks_.erase(chunk);
@@ -934,10 +902,6 @@ void TChunkReplicator::ScheduleNodeRefresh(TNode* node)
 {
     FOREACH (auto replica, node->StoredReplicas()) {
         ScheduleChunkRefresh(replica.GetPtr());
-    }
-
-    if (!node->GetDecommissioned()) {
-        node->SafelyStoredReplicas().clear();
     }
 }
 

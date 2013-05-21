@@ -72,7 +72,6 @@ private:
         attributes->push_back("lost");
         attributes->push_back(TAttributeInfo("data_missing", chunk->IsErasure()));
         attributes->push_back(TAttributeInfo("parity_missing", chunk->IsErasure()));
-        attributes->push_back("safe");
         attributes->push_back("confirmed");
         attributes->push_back("available");
         attributes->push_back("master_meta_size");
@@ -196,12 +195,6 @@ private:
         if (key == "parity_missing") {
             BuildYsonFluently(consumer)
                 .Value((status & EChunkStatus::ParityMissing) != 0);
-            return true;
-        }
-
-        if (key == "safe") {
-            BuildYsonFluently(consumer)
-                .Value((status & EChunkStatus::Safe) != 0);
             return true;
         }
 

@@ -53,7 +53,6 @@ class TNode
     // Chunk Manager stuff.
     DEFINE_BYVAL_RW_PROPERTY(bool, Decommissioned); // kept in sync with |GetConfig()->Decommissioned|.
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkPtrWithIndex>, StoredReplicas);
-    DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkPtrWithIndex>, SafelyStoredReplicas);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkPtrWithIndex>, CachedReplicas);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkPtrWithIndex>, UnapprovedReplicas);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TJobPtr>, Jobs);

@@ -34,7 +34,6 @@ public:
         TChunkPlacementPtr chunkPlacement);
 
     void Initialize();
-    void Finalize();
 
     void OnNodeRegistered(TNode* node);
     void OnNodeUnregistered(TNode* node);

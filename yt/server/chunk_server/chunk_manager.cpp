@@ -863,7 +863,6 @@ private:
     void OnFullHeartbeat(TNode* node, const NNodeTrackerServer::NProto::TMetaReqFullHeartbeat& request)
     {
         YCHECK(node->StoredReplicas().empty());
-        YCHECK(node->SafelyStoredReplicas().empty());
         YCHECK(node->CachedReplicas().empty());
 
         FOREACH (const auto& chunkInfo, request.chunks()) {
@@ -1125,14 +1124,8 @@ private:
 
     virtual void OnStopLeading() override
     {
-        if (ChunkPlacement) {
-            ChunkPlacement.Reset();
-        }
-
-        if (ChunkReplicator) {
-            ChunkReplicator->Finalize();
-            ChunkReplicator.Reset();
-        }
+        ChunkPlacement.Reset();
+        ChunkReplicator.Reset();
     }
 
 

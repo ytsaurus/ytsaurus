@@ -65,7 +65,6 @@ private:
         attributes->push_back(TAttributeInfo("transaction_id", node && node->GetTransaction()));
         attributes->push_back(TAttributeInfo("statistics", node));
         attributes->push_back(TAttributeInfo("stored_replica_count", node));
-        attributes->push_back(TAttributeInfo("safely_stored_replica_count", node && node->GetDecommissioned()));
         attributes->push_back(TAttributeInfo("cached_replica_count", node));
         TMapNodeProxy::ListSystemAttributes(attributes);
     }
@@ -115,13 +114,6 @@ private:
             if (key == "stored_replica_count") {
                 BuildYsonFluently(consumer)
                     .Value(node->StoredReplicas().size());
-                return true;
-            }
-
-            if (key == "safely_stored_replica_count" && node->GetDecommissioned()) {
-                ValidateActiveLeader();
-                BuildYsonFluently(consumer)
-                    .Value(node->SafelyStoredReplicas().size());
                 return true;
             }
 

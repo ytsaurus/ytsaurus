@@ -100,9 +100,6 @@ void TNode::RemoveReplica(TChunkPtrWithIndex replica, bool cached)
         YCHECK(CachedReplicas_.erase(replica) == 1);
     } else {
         YCHECK(StoredReplicas_.erase(replica) == 1);
-        if (Decommissioned_) {
-            SafelyStoredReplicas_.erase(replica);
-        }
         UnapprovedReplicas_.erase(replica);
     }
 }
