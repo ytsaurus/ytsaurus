@@ -3,6 +3,7 @@ import pytest
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
+import sys
 
 ##################################################################
 
@@ -30,6 +31,7 @@ class TestSchedulerMemoryLimits(YTEnvSetup):
         }
 
     #pytest.mark.xfail(run = False, reason = 'Set-uid-root before running.')
+    @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
     def test_map(self):
         create('table', '//tmp/t_in')
         write_str('//tmp/t_in', '{value=value;subkey=subkey;key=key;a=another}')

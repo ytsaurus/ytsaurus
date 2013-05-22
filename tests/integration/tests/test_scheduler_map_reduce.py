@@ -4,7 +4,7 @@ from yt_env_setup import YTEnvSetup, TOOLS_ROOTDIR
 from yt_commands import *
 
 import os
-
+import sys
 
 from collections import defaultdict
 
@@ -113,15 +113,19 @@ Wish you were here.
 
         self.assertItemsEqual(read('//tmp/t_out'), output)
 
+    @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
     def test_map_sort_reduce(self):
         self.do_run_test('map_sort_reduce')
 
+    @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
     def test_map_reduce(self):
         self.do_run_test('map_reduce')
 
+    @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
     def test_map_reduce_1partition(self):
         self.do_run_test('map_reduce_1p')
 
+    @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
     def test_many_output_tables(self):
         create('table', '//tmp/t_in')
         create('table', '//tmp/t_out1')

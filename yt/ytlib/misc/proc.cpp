@@ -202,6 +202,7 @@ void CloseAllDescriptors()
     // Called after fork.
     // Avoid allocations, may lead to deadlock in LFAlloc.
 
+#ifdef _linux_
     DIR *dp = ::opendir("/proc/self/fd");
     YCHECK(dp != NULL);
 
@@ -219,6 +220,7 @@ void CloseAllDescriptors()
     }
 
     YCHECK(::closedir(dp) == 0);
+#endif
 }
 
 void SafeClose(int fd, bool ignoreInvalidFd)
