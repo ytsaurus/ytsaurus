@@ -169,7 +169,7 @@ TChunkId EncodeChunkId(
         replicas.end(),
         [=] (TChunkReplica replica) {
             return replica.GetNodeId() == nodeId;
-    });
+        });
     YCHECK(replicaIt != replicas.end());
 
     TChunkIdWithIndex chunkIdWithIndex(
