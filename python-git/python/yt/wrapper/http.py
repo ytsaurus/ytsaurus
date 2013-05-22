@@ -188,6 +188,9 @@ def make_request(command_name, params,
     }
 
     command = commands[command_name]
+
+    if command.is_volatile and config.MUTATION_ID is not None:
+        params["mutation_id"] = config.MUTATION_ID
     
     make_retry = not command.is_volatile or \
             (config.RETRY_VOLATILE_COMMANDS and not command.is_heavy)
