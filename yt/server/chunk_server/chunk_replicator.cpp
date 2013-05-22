@@ -187,7 +187,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
         result.BalancingRemovalRequests.push_back(TJobRequest(0, replicaCount - replicationFactor));
     }
 
-    if (replicaCount < replicationFactor) {
+    if (replicaCount < replicationFactor && replicaCount > 0) {
         result.Status |= EChunkStatus::Underreplicated;
         result.ReplicationRequests.push_back(TJobRequest(0, replicationFactor - replicaCount));
     }
