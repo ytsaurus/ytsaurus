@@ -198,10 +198,10 @@ class TestChunkServer(YTEnvSetup):
         assert len(get('#%s/@stored_replicas' % chunk_id)) == replica_count
 
     def test_decommission_regular(self):
-        self._test_decommision('none', 3)
+        self._test_decommission('none', 3)
 
     def test_decommission_erasure(self):
-        self._test_decommision('lrc_12_2_2', 16)
+        self._test_decommission('lrc_12_2_2', 16)
 
 ###################################################################################
 
