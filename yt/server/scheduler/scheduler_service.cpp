@@ -47,7 +47,7 @@ private:
     {
         auto type = EOperationType(request->type());
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        auto mutationId = FromProto<TTransactionId>(request->mutation_id());
+        auto mutationId = FromProto<NMetaState::TMutationId>(request->mutation_id());
 
         auto maybeUser = FindAuthenticatedUser(context);
         auto user = maybeUser ? *maybeUser : RootUserName;

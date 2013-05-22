@@ -5,6 +5,7 @@ from yt.environment import YTEnv
 import yt.wrapper as yt
 
 import os
+import uuid
 import subprocess
 
 class TestDefaultBehaviour(YtTestBase, YTEnv):
@@ -248,7 +249,7 @@ class TestDefaultBehaviour(YtTestBase, YTEnv):
         yt.run_sort(table, sort_by=["x"])
         yt.run_reduce(sum_y, table, table, reduce_by=["x"])
         self.assertItemsEqual(["x=2\ty=3\n"], yt.read_table(table))
-    
+
     def test_binary_data_with_dsv(self):
         record = {"\tke\n\\\\y=": "\\x\\y\tz\n"}
 
@@ -263,6 +264,74 @@ class TestDefaultBehaviour(YtTestBase, YTEnv):
             shell=True)
         proc.communicate()
         self.assertEqual(proc.returncode, 0)
+
+
+    def check_command(self, command, post_action=None, check_action=None):
+        mutation_id = str(uuid.uuid4())
+        def run_command():
+            yt.config.MUTATION_ID = mutation_id
+            result = command()
+            yt.config.MUTATION_ID = None
+            return result
+
+        result = run_command()
+        if post_action is not None:
+            post_action()
+        for _ in xrange(5):
+            assert result == run_command()
+            if check_action is not None:
+                assert check_action()
+
+
+    def test_master_mutation_id(self):
+        test_dir = os.path.join(TEST_DIR, "test")
+        test_dir2 = os.path.join(TEST_DIR, "test2")
+
+        self.check_command(
+            lambda: yt.set(test_dir, {"a": "b"}),
+            lambda: yt.set(test_dir, {}),
+            lambda: yt.get(test_dir) == {})
+
+        self.check_command(
+            lambda: yt.remove("//tmp"),
+            lambda: yt.mkdir("//tmp"),
+            lambda: yt.get("//tmp") == {})
+
+        parent_tx = yt.start_transaction()
+        transaction_count = yt.get("//sys/transactions/@count")
+        self.check_command(
+            lambda: yt.start_transaction(parent_tx),
+            None,
+            lambda: yt.get("//sys/transactions/@count") == transaction_count + 1)
+
+        id = yt.start_transaction()
+        self.check_command(lambda: yt.abort_transaction(id))
+
+        id = yt.start_transaction()
+        self.check_command(lambda: yt.commit_transaction(id))
+
+        self.check_command(lambda: yt.move(test_dir, test_dir2))
+
+    def test_scheduler_mutation_id(self):
+        table = TEST_DIR + "/table"
+        other_table = TEST_DIR + "/other_table"
+        yt.write_table(table, ["x=1\n", "x=2\n"])
+        yt.create_table(other_table)
+
+        for command, params in \
+            [(
+                "map",
+                {"spec":
+                    {"mapper":
+                        {"command": "sleep 1; cat"},
+                     "input_table_paths": [table],
+                     "output_table_paths": [other_table]}})]:
+
+            op_count = yt.get("//sys/operations/@count")
+            self.check_command(
+                lambda: yt.http.make_request(command, params),
+                None,
+                lambda: yt.get("//sys/operations/@count") == op_count + 1)
 
 # Map method for test operations with python entities
 class ChangeX__(object):

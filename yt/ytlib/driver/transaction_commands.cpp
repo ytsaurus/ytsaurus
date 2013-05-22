@@ -27,7 +27,7 @@ void TStartTransactionCommand::DoExecute()
     TTransactionStartOptions options;
     options.Timeout = Request->Timeout;
     options.ParentId = Request->TransactionId;
-    options.MutationId = GenerateMutationId();
+    options.MutationId = Request->MutationId;
     options.Ping = true;
     options.PingAncestors = Request->PingAncestors;
     if (Request->Attributes) {
