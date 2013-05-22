@@ -49,6 +49,8 @@ public:
     const TGuid& GetCellGuid() const;
     void UpdateCellGuid(const TGuid& cellGuid);
 
+    bool IsEnabled() const;
+
     typedef TValueOrError<TCachedChunkPtr> TDownloadResult;
     typedef TFuture<TDownloadResult> TAsyncDownloadResult;
 

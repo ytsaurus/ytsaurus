@@ -6,6 +6,7 @@
 #include <ytlib/misc/fs.h>
 
 #include <server/cell_node/bootstrap.h>
+#include <server/chunk_holder/chunk_cache.h>
 
 #ifdef _unix_
     #include <sys/types.h>
@@ -19,11 +20,16 @@ using namespace NCellNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static NLog::TLogger& SILENT_UNUSED Logger = ExecAgentLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 TSlotManager::TSlotManager(
     TSlotManagerConfigPtr config,
     TBootstrap* bootstrap)
     : Config(config)
     , Bootstrap(bootstrap)
+    , IsEnabled(true)
 {
     YCHECK(config);
     YCHECK(bootstrap);
@@ -48,14 +54,21 @@ void TSlotManager::Initialize(int slotCount)
     }
 #endif
 
-    for (int slotIndex = 0; slotIndex < slotCount; ++slotIndex) {
-        auto slotName = ToString(slotIndex);
-        auto slotPath = NFS::CombinePaths(Config->SlotLocation, slotName);
-        int uid = jobControlEnabled ? Config->StartUid + slotIndex : EmptyUserId;
-        auto slot = New<TSlot>(slotPath, slotIndex, uid);
-        slot->Initialize();
-        Slots.push_back(slot);
+    try {
+        for (int slotIndex = 0; slotIndex < slotCount; ++slotIndex) {
+            auto slotName = ToString(slotIndex);
+            auto slotPath = NFS::CombinePaths(Config->SlotLocation, slotName);
+            int uid = jobControlEnabled ? Config->StartUid + slotIndex : EmptyUserId;
+            auto slot = New<TSlot>(slotPath, slotIndex, uid);
+            slot->Initialize();
+            Slots.push_back(slot);
+        }
+    } catch (const std::exception& ex) {
+        LOG_WARNING(ex, "Failed to initilize slots");
+        IsEnabled = false;
     }
+
+    IsEnabled &= Bootstrap->GetChunkCache()->IsEnabled();
 }
 
 TSlotPtr TSlotManager::FindFreeSlot()
@@ -66,6 +79,11 @@ TSlotPtr TSlotManager::FindFreeSlot()
         }
     }
     return nullptr;
+}
+
+int TSlotManager::GetSlotCount() const
+{
+    return IsEnabled ? static_cast<int>(Slots.size()) : 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

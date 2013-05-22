@@ -26,11 +26,15 @@ public:
     //! Returns a free slot or |nullptr| if there are none.
     TSlotPtr FindFreeSlot();
 
+    int GetSlotCount() const;
+
 private:
     TSlotManagerConfigPtr Config;
     NCellNode::TBootstrap* Bootstrap;
 
     std::vector<TSlotPtr> Slots;
+
+    bool IsEnabled;
 
 };
 

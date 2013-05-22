@@ -34,8 +34,8 @@ void TSlot::Initialize()
         NFS::ForcePath(Path);
         SandboxPath = NFS::CombinePaths(Path, "sandbox");
     } catch (const std::exception& ex) {
-        LOG_FATAL(ex, "Failed to create slot directory: %s",
-            ~Path.Quote());
+        THROW_ERROR_EXCEPTION("Failed to create slot directory: %s",
+            ~Path.Quote()) << ex;
     }
 
 #ifdef _linux_

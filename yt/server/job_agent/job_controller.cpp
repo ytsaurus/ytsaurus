@@ -10,6 +10,8 @@
 
 #include <server/chunk_holder/master_connector.h>
 
+#include <server/exec_agent/slot_manager.h>
+
 #include <server/cell_node/bootstrap.h>
 
 namespace NYT {
@@ -23,7 +25,7 @@ using namespace NCellNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = JobTrackerServerLogger;
+static NLog::TLogger& SILENT_UNUSED Logger = JobTrackerServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -78,7 +80,7 @@ std::vector<IJobPtr> TJobController::GetJobs()
 TNodeResources TJobController::GetResourceLimits()
 {
     TNodeResources result;
-    result.set_user_slots(Config->ResourceLimits->UserSlots);
+    result.set_user_slots(Bootstrap->GetSlotManager()->GetSlotCount());
     result.set_cpu(Config->ResourceLimits->Cpu);
     result.set_network(Config->ResourceLimits->Network);
     result.set_replication_slots(Config->ResourceLimits->ReplicationSlots);
@@ -161,7 +163,7 @@ IJobPtr TJobController::CreateJob(
     auto type = EJobType(jobSpec.type());
 
     auto factory = GetFactory(type);
-    
+
     auto job = factory.Run(
         jobId,
         resourceLimits,

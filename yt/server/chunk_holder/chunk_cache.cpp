@@ -76,7 +76,9 @@ public:
                 Put(chunk);
             }
         } catch (const std::exception& ex) {
-            LOG_FATAL(ex, "Failed to initialize storage locations");
+            Location->Disable();
+            LOG_WARNING(ex, "Failed to initialize storage locations");
+            return;
         }
 
         LOG_INFO("Chunk cache scan completed, %d chunks found", GetSize());
@@ -131,6 +133,11 @@ public:
         Location->SetCellGuid(cellGuid);
     }
 
+    bool IsEnabled() const
+    {
+        return Location->IsEnabled();
+    }
+
 private:
     TDataNodeConfigPtr Config;
     TBootstrap* Bootstrap;
@@ -156,10 +163,13 @@ private:
         ChunkRemoved_.Fire(value);
     }
 
-
     void OnLocationDisabled()
     {
-        LOG_FATAL("Cannot proceed with cache location disabled");
+        LOG_WARNING("Chunk cache disabled");
+        Clear();
+
+        auto masterConnector = Bootstrap->GetMasterConnector();
+        masterConnector->ForceRegister();
     }
 
 
@@ -405,6 +415,13 @@ void TChunkCache::UpdateCellGuid(const TGuid& cellGuid)
     VERIFY_THREAD_AFFINITY_ANY();
 
     return Impl->UpdateCellGuid(cellGuid);
+}
+
+bool TChunkCache::IsEnabled() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return Impl->IsEnabled();
 }
 
 DELEGATE_SIGNAL(TChunkCache, void(TChunkPtr), ChunkAdded, *Impl);
