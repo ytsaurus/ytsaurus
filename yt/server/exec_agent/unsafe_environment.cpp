@@ -11,7 +11,6 @@
 #include <server/job_proxy/public.h>
 
 #include <util/system/execpath.h>
-#include <util/folder/dirut.h>
 
 #include <fcntl.h>
 
@@ -103,15 +102,6 @@ public:
 
             CloseAllDescriptors();
 
-            ChDir(WorkingDirectory);
-
-            auto res = SetMemoryLimit(MemoryLimit);
-
-            if (res) {
-                // Failed to set resource limits
-                _exit(EJobProxyExitCode::SetRLimitFailed);
-            }
-
             // Search the PATH, inherit environment.
             execlp(
                 ~ProxyPath,
@@ -119,6 +109,8 @@ public:
                 "--job-proxy",
                 "--config", ~ProxyConfigFileName,
                 "--job-id", ~ToString(JobId),
+                "--working-dir", ~ToString(WorkingDirectory),
+                "--memory-limit", ~ToString(MemoryLimit),
                 (void*) NULL);
 
             // Failed to exec job proxy
