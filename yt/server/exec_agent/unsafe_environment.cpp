@@ -105,10 +105,8 @@ public:
 
             ChDir(WorkingDirectory);
 
-            auto memoryLimit = static_cast<rlim_t>(MemoryLimit);
-            struct rlimit rlimit = {memoryLimit, RLIM_INFINITY};
+            auto res = SetMemoryLimit(MemoryLimit);
 
-            auto res = setrlimit(RLIMIT_AS, &rlimit);
             if (res) {
                 // Failed to set resource limits
                 _exit(EJobProxyExitCode::SetRLimitFailed);
