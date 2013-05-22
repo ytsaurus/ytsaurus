@@ -348,36 +348,14 @@ protected:
 
             ClearCurrentTaskStripes();
 
-            std::vector<TRefCountedInputChunkPtr> chunks;
-            i64 totalDataSize = 0;
-            for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables.size()); ++tableIndex) {
-                const auto& table = InputTables[tableIndex];
-                FOREACH (const auto& inputChunk, *table.FetchResponse->mutable_chunks()) {
-                    auto chunkId = FromProto<TChunkId>(inputChunk.chunk_id());
-
-                    i64 chunkDataSize;
-                    NChunkClient::GetStatistics(inputChunk, &chunkDataSize);
-
-                    auto rcInputChunk = New<TRefCountedInputChunk>(inputChunk, tableIndex);
-                    chunks.push_back(rcInputChunk);
-
-                    totalDataSize += chunkDataSize;
-
-                    LOG_DEBUG("Processing chunk (ChunkId: %s, DataSize: %" PRId64 ", TableIndex: %d)",
-                        ~ToString(chunkId),
-                        chunkDataSize,
-                        rcInputChunk->table_index());
-                }
-            }
-
             auto jobCount = SuggestJobCount(
-                totalDataSize,
+                TotalInputDataSize,
                 Spec->DataSizePerJob,
                 Spec->JobCount);
 
-            MaxDataSizePerJob = 1 + totalDataSize / jobCount;
+            MaxDataSizePerJob = 1 + TotalInputDataSize / jobCount;
 
-            FOREACH (auto chunk, chunks) {
+            FOREACH (auto chunk, CollectInputChunks()) {
                 ProcessInputChunk(chunk);
             }
         }
