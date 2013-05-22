@@ -743,12 +743,6 @@ void TOperationControllerBase::OnJobCompleted(TJobPtr job)
     // Populate node directory by adding additional nodes returned from the job.
     NodeDirectory->MergeFrom(schedulerResultEx.node_directory());
 
-    // Construct a stripe representing job result.
-    joblet->OutputStripe = New<TChunkStripe>();
-    FOREACH (auto& inputChunk, schedulerResultEx.chunks()) {
-        joblet->OutputStripe->Chunks.push_back(New<TRefCountedInputChunk>(std::move(inputChunk)));
-    }
-
     joblet->Task->OnJobCompleted(joblet);
 
     RemoveJoblet(job);

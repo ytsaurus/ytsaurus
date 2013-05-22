@@ -256,9 +256,6 @@ protected:
          *  For jobs with final output this list typically contains one element per each output table.
          */
         std::vector<NChunkClient::TChunkListId> ChunkListIds;
-
-        //! Chunk stripe constructed from job result.
-        TChunkStripePtr OutputStripe;
     };
 
     struct TCompletedJob
