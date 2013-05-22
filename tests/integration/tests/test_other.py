@@ -5,6 +5,7 @@ from yt_commands import *
 
 import time
 import os
+import sys
 
 ##################################################################
 
@@ -135,6 +136,7 @@ class TestAsyncAttributes(YTEnvSetup):
         codec_info = get('//tmp/t/@compression_statistics')
         assert codec_info['snappy']['chunk_count'] == chunk_count
 
+    @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
     def test2(self):
         tableA = '//tmp/a'
         create('table', tableA)

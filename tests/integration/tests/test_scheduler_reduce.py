@@ -3,6 +3,7 @@ import pytest
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
+import sys
 
 ##################################################################
 
@@ -11,6 +12,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
     NUM_NODES = 5
     START_SCHEDULER = True
 
+    @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
     def test_tricky_chunk_boundaries(self):
         create('table', '//tmp/in1')
         write(
@@ -49,6 +51,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
 
         assert get('//tmp/out/@sorted') == 'true'
 
+    @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
     def test_cat(self):
         create('table', '//tmp/in1')
         write(
@@ -132,6 +135,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
                 command = 'cat',
                 reduce_by='subkey')
 
+    @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
     def test_many_output_tables(self):
         output_tables = ['//tmp/t%d' % i for i in range(3)]
 

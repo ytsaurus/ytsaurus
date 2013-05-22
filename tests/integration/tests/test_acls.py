@@ -1,4 +1,5 @@
 import pytest
+import sys
 
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
@@ -261,16 +262,19 @@ class TestAcls(YTEnvSetup):
         # just a sanity check
         map(in_='//tmp/t1', out='//tmp/t2', command='cat', user='u')
 
+    @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
     def test_scheduler_in_acl(self):
         self._prepare_scheduler_test()
         set('//tmp/t1/@acl/end', self._make_ace('deny', 'u', 'read'))
         with pytest.raises(YTError): map(in_='//tmp/t1', out='//tmp/t2', command='cat', user='u')
 
+    @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
     def test_scheduler_out_acl(self):
         self._prepare_scheduler_test()
         set('//tmp/t2/@acl/end', self._make_ace('deny', 'u', 'write'))
         with pytest.raises(YTError): map(in_='//tmp/t1', out='//tmp/t2', command='cat', user='u')
 
+    @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
     def test_scheduler_account_quota(self):
         self._prepare_scheduler_test()
         set('//tmp/t2/@account', 'a')
