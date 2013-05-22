@@ -60,6 +60,7 @@ public:
         TDataNodeConfigPtr config,
         TBootstrap* bootstrap)
         : JobId(jobId)
+        , ResourceLimits(resourceLimits)
         , Config(config)
         , Bootstrap(bootstrap)
         , Logger(DataNodeLogger)
