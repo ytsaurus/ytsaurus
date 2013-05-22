@@ -623,6 +623,14 @@ void TChunkReplicator::ScheduleNewJobs(
             return;
 
         i64 size = chunk->ChunkInfo().disk_space();
+
+        // NB: Erasure chunks have replicas much smaller than reported by chunk info.
+        auto codecId = chunk->GetErasureCodec();
+        if (codecId != NErasure::ECodec::None) {
+            auto* codec = NErasure::GetCodec(codecId);
+            size /= codec->GetTotalPartCount();
+        }
+
         // XXX(babenko): this static_cast is clearly redundant but required to compile it with VS2010
         switch (static_cast<int>(type)) {
             case EJobType::ReplicateChunk:
