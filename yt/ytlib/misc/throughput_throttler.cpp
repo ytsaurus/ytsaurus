@@ -49,7 +49,7 @@ public:
         // Enqueue request to be executed later.
         TRequest request;
         request.Count = count;
-        request.Promise = MakePromise();
+        request.Promise = NewPromise();
         Requests.push(request);
         return request.Promise;
     }
