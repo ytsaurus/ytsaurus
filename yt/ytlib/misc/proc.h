@@ -4,6 +4,10 @@
 
 #include <ytlib/misc/error.h>
 
+#ifdef _linux_
+    #include <sys/resource.h>
+#endif
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
