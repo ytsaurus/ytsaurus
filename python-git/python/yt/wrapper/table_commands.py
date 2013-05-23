@@ -343,7 +343,7 @@ def read_table(table, format=None, table_reader=None, response_type=None):
         "read",
         params,
         format=format,
-        raw_response=True)
+        return_raw_response=True)
     return read_content(response, get_value(response_type, "iter_lines"))
 
 def _are_nodes(source_tables, destination_table):
