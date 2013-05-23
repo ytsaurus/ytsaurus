@@ -112,10 +112,28 @@ def get_token():
         token = None
     return token
 
+def make_request_with_retries(request, make_retries=False, url="", return_raw_response=False):
+    for attempt in xrange(config.HTTP_RETRIES_COUNT):
+        try:
+            response = request()
+            if not return_raw_response and response.is_json() and not response.content():
+                raise YtResponseError("Content is json but body is empty")
+            return response
+        except NETWORK_ERRORS as error:
+            if make_retries:
+                logger.warning("Http request (%s) has failed with error '%s'. Retrying...", url, str(error))
+                time.sleep(config.HTTP_RETRY_TIMEOUT)
+            else:
+                raise
+
 def get_hosts(proxy=None):
     if proxy is None:
         proxy = config.PROXY
-    return requests.get("http://{0}/hosts".format(proxy)).json()
+    url = "http://{0}/hosts".format(proxy)
+    return make_request_with_retries(
+        lambda: Response(requests.get(url)),
+        True,
+        url).json()
 
 def get_host_for_heavy_operation():
     if config.USE_HOSTS:
@@ -142,7 +160,7 @@ class Command(object):
 
 def make_request(command_name, params,
                  data=None, format=None, verbose=False, proxy=None,
-                 raw_response=False, files=None):
+                 return_raw_response=False, files=None):
     """ Makes request to yt proxy.
         http_method may be equal to GET, POST or PUT,
         command_name is type of driver command, it may be equal
@@ -202,9 +220,9 @@ def make_request(command_name, params,
     if command.is_volatile and config.MUTATION_ID is not None:
         params["mutation_id"] = config.MUTATION_ID
 
-    make_retry = not command.is_volatile or \
+    make_retries = not command.is_volatile or \
             (config.RETRY_VOLATILE_COMMANDS and not command.is_heavy)
-    if make_retry and command.is_volatile and "mutation_id" not in params:
+    if make_retries and command.is_volatile and "mutation_id" not in params:
         params["mutation_id"] = str(uuid.uuid4())
 
     # Prepare request url.
@@ -253,33 +271,26 @@ def make_request(command_name, params,
     if command_name in ["read", "download"]:
         stream = True
 
-    for r in xrange(config.HTTP_RETRIES_COUNT):
-        try:
-            response = Response(
-                requests.request(
-                    url=url,
-                    method=command.http_method(),
-                    headers=headers,
-                    data=data,
-                    files=files,
-                    timeout=config.CONNECTION_TIMEOUT,
-                    stream=stream))
-            if not raw_response and response.is_json() and not response.content():
-                raise YtResponseError("Content is json but body is empty")
-            break
-        except NETWORK_ERRORS as error:
-            if make_retry:
-                logger.warning("Http request (%s) has failed with error '%s'. Retrying...", command_name, str(error))
-                time.sleep(config.HTTP_RETRY_TIMEOUT)
-            else:
-                raise
+    response = make_request_with_retries(
+        lambda: Response(
+            requests.request(
+                url=url,
+                method=command.http_method(),
+                headers=headers,
+                data=data,
+                files=files,
+                timeout=config.CONNECTION_TIMEOUT,
+                stream=stream)),
+        make_retries,
+        url,
+        return_raw_response)
 
     if config.USE_TOKEN and "Authorization" in headers:
         headers["Authorization"] = "x" * 32
 
     print_info("Response header %r", response.http_response.headers)
     if response.is_ok():
-        if raw_response:
+        if return_raw_response:
             return response.http_response
         elif response.is_json():
             return response.json()
