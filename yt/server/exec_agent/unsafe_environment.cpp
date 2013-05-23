@@ -13,12 +13,12 @@
 #include <util/system/execpath.h>
 
 #include <fcntl.h>
+#include <spawn.h>
 
 #ifndef _win_
 
 #include <sys/types.h>
 #include <sys/wait.h>
-#include <sys/resource.h>
 
 #endif
 
@@ -84,32 +84,42 @@ public:
         LOG_INFO("Starting job proxy in unsafe environment (WorkDir: %s)",
             ~WorkingDirectory);
 
-        ProcessId = fork();
+        std::vector<int> fileIds = GetAllDescriptors();
 
-        if (ProcessId == 0) {
-            // ToDo(psushin): pass errors to parent process
-            // cause logging doesn't work here.
-            // Use unnamed pipes with CLOEXEC.
+        auto storeStrings = [](std::initializer_list<const char*> strings) -> std::vector<std::vector<char>> {
+            std::vector<std::vector<char>> result;
+            for (auto item : strings) {
+                result.push_back(std::vector<char>(item, item + strlen(item) + 1));
+            }
+            return result;
+        };
 
-            // Redirect stderr and stdout to a file.
-            // May be handy for debugging.
-            // int fd = open("stderr.txt", O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
-            // dup2(fd, STDOUT_FILENO);
-            // dup2(fd, STDERR_FILENO);
+        std::vector<std::vector<char>> argContainer = storeStrings({
+            ~ProxyPath,
+            "--job-proxy",
+            "--config",
+            ~ProxyConfigFileName,
+            "--job-id",
+            ~ToString(JobId),
+            "--working-dir",
+            ~ToString(WorkingDirectory),
+            "--memory-limit",
+            ~ToString(MemoryLimit)
+        });
 
-            CloseAllDescriptors();
+        std::vector<char *> args;
+        for (auto& x : argContainer) {
+            args.push_back(&x[0]);
+        }
+        args.push_back(NULL);
 
-            // Search the PATH, inherit environment.
-            execlp(
-                ~ProxyPath,
-                ~ProxyPath,
-                "--job-proxy",
-                "--config", ~ProxyConfigFileName,
-                "--job-id", ~ToString(JobId),
-                "--working-dir", ~ToString(WorkingDirectory),
-                "--memory-limit", ~ToString(MemoryLimit),
-                (void*) NULL);
-
+        int err_code = posix_spawn(&ProcessId,
+                                   ~ProxyPath,
+                                   NULL,
+                                   NULL,
+                                   &args[0],
+                                   NULL);
+        if (err_code != 0) {
             // Failed to exec job proxy
             _exit(EJobProxyExitCode::ExecFailed);
         }

@@ -4,6 +4,10 @@
 
 #include <ytlib/misc/error.h>
 
+#ifdef _linux_
+    #include <sys/resource.h>
+#endif
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -22,6 +26,8 @@ TError StatusToError(int status);
 void RemoveDirAsRoot(const Stroka& path);
 
 void SafeClose(int fd, bool ignoreInvalidFd = false);
+
+std::vector<int> GetAllDescriptors();
 
 void CloseAllDescriptors();
 
