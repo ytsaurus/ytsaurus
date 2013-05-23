@@ -55,21 +55,14 @@ def read_content(response, type):
 class Response(object):
     def __init__(self, http_response):
         self.http_response = http_response
-        if not str(http_response.status_code).startswith("2"):
-            # 401 is case of incorrect token
-            if http_response.status_code == 401:
-                raise YtTokenError(
-                    "Your authentication token was rejected by the server (X-YT-Request-ID: %s).\n"
-                    "Please refer to http://proxy.yt.yandex.net/auth/ for obtaining a valid token or contact us at yt@yandex-team.ru." %
-                    http_response.headers.get("X-YT-Request-ID", "absent"))
-            self._error = format_error(http_response.json())
-        elif int(http_response.headers.get("x-yt-response-code", 0)) != 0:
-            self._error = format_error(json.loads(http_response.headers["x-yt-error"]))
+        self._return_code_processed = False
 
     def error(self):
+        self._process_return_code()
         return self._error
 
     def is_ok(self):
+        self._process_return_code()
         return not hasattr(self, "_error")
 
     def is_json(self):
@@ -87,6 +80,23 @@ class Response(object):
 
     def content(self):
         return self.http_response.content
+
+    def _process_return_code(self):
+        if self._return_code_processed:
+            return
+
+        if not str(self.http_response.status_code).startswith("2"):
+            # 401 is case of incorrect token
+            if self.http_response.status_code == 401:
+                raise YtTokenError(
+                    "Your authentication token was rejected by the server (X-YT-Request-ID: %s).\n"
+                    "Please refer to http://proxy.yt.yandex.net/auth/ for obtaining a valid token or contact us at yt@yandex-team.ru." %
+                    self.http_response.headers.get("X-YT-Request-ID", "absent"))
+            self._error = format_error(self.http_response.json())
+        elif int(self.http_response.headers.get("x-yt-response-code", 0)) != 0:
+            self._error = format_error(json.loads(self.http_response.headers["x-yt-error"]))
+        self._return_code_processed = True
+
 
 def get_token():
     token = config.TOKEN
@@ -191,7 +201,7 @@ def make_request(command_name, params,
 
     if command.is_volatile and config.MUTATION_ID is not None:
         params["mutation_id"] = config.MUTATION_ID
-    
+
     make_retry = not command.is_volatile or \
             (config.RETRY_VOLATILE_COMMANDS and not command.is_heavy)
     if make_retry and command.is_volatile and "mutation_id" not in params:
@@ -243,7 +253,6 @@ def make_request(command_name, params,
     if command_name in ["read", "download"]:
         stream = True
 
-    
     for r in xrange(config.HTTP_RETRIES_COUNT):
         try:
             response = Response(
@@ -255,7 +264,7 @@ def make_request(command_name, params,
                     files=files,
                     timeout=config.CONNECTION_TIMEOUT,
                     stream=stream))
-            if response.is_ok() and not raw_response and response.is_json() and not response.content():
+            if not raw_response and response.is_json() and not response.content():
                 raise YtResponseError("Content is json but body is empty")
             break
         except NETWORK_ERRORS as error:
