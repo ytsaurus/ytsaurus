@@ -286,6 +286,7 @@ class TestDefaultBehaviour(YtTestBase, YTEnv):
     def test_master_mutation_id(self):
         test_dir = os.path.join(TEST_DIR, "test")
         test_dir2 = os.path.join(TEST_DIR, "test2")
+        test_dir3 = os.path.join(TEST_DIR, "test3")
 
         self.check_command(
             lambda: yt.set(test_dir, {"a": "b"}),
@@ -293,9 +294,9 @@ class TestDefaultBehaviour(YtTestBase, YTEnv):
             lambda: yt.get(test_dir) == {})
 
         self.check_command(
-            lambda: yt.remove("//tmp"),
-            lambda: yt.mkdir("//tmp"),
-            lambda: yt.get("//tmp") == {})
+            lambda: yt.remove(test_dir3),
+            lambda: yt.mkdir(test_dir3),
+            lambda: yt.get(test_dir3) == {})
 
         parent_tx = yt.start_transaction()
         transaction_count = yt.get("//sys/transactions/@count")
