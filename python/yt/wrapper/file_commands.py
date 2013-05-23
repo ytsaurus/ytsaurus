@@ -14,7 +14,7 @@ def download_file(path, response_type=None):
     Response type means the output format. By default it is line generator.
     """
     if response_type is None: response_type = "iter_lines"
-    response = _make_transactional_request("download", {"path": prepare_path(path)}, raw_response=True)
+    response = _make_transactional_request("download", {"path": prepare_path(path)}, return_raw_response=True)
     return read_content(response, response_type)
 
 def upload_file(stream, destination, yt_filename=None):
