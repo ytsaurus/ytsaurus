@@ -164,18 +164,21 @@ class TSessionManager
     : public TRefCounted
 {
 public:
-    typedef std::vector<TSessionPtr> TSessions;
-
     TSessionManager(
         TDataNodeConfigPtr config,
         NCellNode::TBootstrap* bootstrap);
 
     //! Starts a new chunk upload session.
+    /*!
+     *  Thread affinity: Control
+     */
     TSessionPtr StartSession(const TChunkId& chunkId);
 
     //! Completes an earlier opened upload session.
     /*!
      *  The call returns a result that gets set when the session is finished.
+     *
+     *  Thread affinity: Control
      */
     TFuture< TValueOrError<TChunkPtr> > FinishSession(
         TSessionPtr session,
@@ -184,6 +187,8 @@ public:
     //! Cancels an earlier opened upload session.
     /*!
      *  Chunk file is closed asynchronously, however the call returns immediately.
+     *  
+     *  Thread affinity: Control
      */
     void CancelSession(TSessionPtr session, const TError& error);
 
@@ -203,7 +208,10 @@ public:
     i64 GetPendingWriteSize() const;
 
     //! Returns the list of all registered sessions.
-    TSessions GetSessions() const;
+    /*!
+     *  Thread affinity: Control
+     */
+    std::vector<TSessionPtr> GetSessions() const;
 
 private:
     friend class TSession;
@@ -220,6 +228,8 @@ private:
     TValueOrError<TChunkPtr> OnSessionFinished(TSessionPtr session, TValueOrError<TChunkPtr> chunkOrError);
 
     void UpdatePendingWriteSize(i64 delta);
+
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
 };
 

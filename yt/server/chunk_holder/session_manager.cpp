@@ -183,9 +183,9 @@ void TSession::PutBlock(
 
         THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::BlockContentMismatch,
-            "Block %d with a different content already received (WindowStart: %d)",
-            blockIndex,
-            WindowStartIndex);
+            "Block %d with a different content already received",
+            blockIndex)
+            << TErrorAttribute("window_start", WindowStartIndex);
     }
 
     slot.State = ESlotState::Received;
@@ -455,7 +455,7 @@ TError TSession::DoCloseFile(const TChunkMeta& chunkMeta)
         } catch (const std::exception& ex) {
             OnIOError(TError(
                 NChunkClient::EErrorCode::IOError,
-                "Error closing chunk: %s",
+                "Error closing chunk %s",
                 ~ToString(ChunkId))
                 << ex);
         }
@@ -609,13 +609,16 @@ TSessionManager::TSessionManager(
 {
     YCHECK(config);
     YCHECK(bootstrap);
+    VERIFY_INVOKER_AFFINITY(Bootstrap->GetControlInvoker(), ControlThread);
 }
 
 TSessionPtr TSessionManager::FindSession(const TChunkId& chunkId) const
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     auto it = SessionMap.find(chunkId);
     if (it == SessionMap.end())
-        return NULL;
+        return nullptr;
 
     auto session = it->second;
     session->Ping();
@@ -624,6 +627,8 @@ TSessionPtr TSessionManager::FindSession(const TChunkId& chunkId) const
 
 TSessionPtr TSessionManager::StartSession(const TChunkId& chunkId)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     auto location = Bootstrap->GetChunkStore()->GetNewChunkLocation();
 
     auto session = New<TSession>(Config, Bootstrap, chunkId, location);
@@ -646,6 +651,8 @@ TSessionPtr TSessionManager::StartSession(const TChunkId& chunkId)
 
 void TSessionManager::CancelSession(TSessionPtr session, const TError& error)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     auto chunkId = session->GetChunkId();
 
     YCHECK(SessionMap.erase(chunkId) == 1);
@@ -661,53 +668,74 @@ TFuture< TValueOrError<TChunkPtr> > TSessionManager::FinishSession(
     TSessionPtr session,
     const TChunkMeta& chunkMeta)
 {
-    return session
-        ->Finish(chunkMeta)
-        .Apply(BIND(
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    return session->Finish(chunkMeta).Apply(
+        BIND(
             &TSessionManager::OnSessionFinished,
             MakeStrong(this),
-            session));
+            session)
+        .AsyncVia(Bootstrap->GetControlInvoker()));
 }
 
 TValueOrError<TChunkPtr> TSessionManager::OnSessionFinished(TSessionPtr session, TValueOrError<TChunkPtr> chunkOrError)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     YCHECK(SessionMap.erase(session->GetChunkId()) == 1);
+    
     AtomicDecrement(SessionCount);
-    LOG_INFO("Session finished (ChunkId: %s)", ~ToString(session->GetChunkId()));
+    LOG_INFO("Session finished (ChunkId: %s)",
+        ~ToString(session->GetChunkId()));
+    
     return chunkOrError;
 }
 
 void TSessionManager::OnLeaseExpired(TSessionPtr session)
 {
-    if (SessionMap.find(session->GetChunkId()) != SessionMap.end()) {
-        LOG_INFO("Session %s lease expired", ~ToString(session->GetChunkId()));
-        CancelSession(session, TError("Session lease expired"));
-    }
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    if (SessionMap.find(session->GetChunkId()) == SessionMap.end())
+        return;
+
+    LOG_INFO("Session lease expired (ChunkId: %s)",
+        ~ToString(session->GetChunkId()));
+
+    CancelSession(session, TError("Session lease expired"));
 }
 
 int TSessionManager::GetSessionCount() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return SessionCount;
 }
 
 i64 TSessionManager::GetPendingWriteSize() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return static_cast<i64>(PendingWriteSize);
 }
 
 void TSessionManager::UpdatePendingWriteSize(i64 delta)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     AtomicIncrement(PendingWriteSize, delta);
 }
 
-TSessionManager::TSessions TSessionManager::GetSessions() const
+std::vector<TSessionPtr> TSessionManager::GetSessions() const
 {
-    TSessions result;
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    std::vector<TSessionPtr> result;
     YCHECK(SessionMap.size() == SessionCount);
-    result.reserve(SessionMap.ysize());
+    result.reserve(SessionMap.size());
     FOREACH (const auto& pair, SessionMap) {
         result.push_back(pair.second);
     }
+
     return result;
 }
 
