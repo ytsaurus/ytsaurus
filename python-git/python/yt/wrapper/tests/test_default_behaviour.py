@@ -294,7 +294,7 @@ class TestDefaultBehaviour(YtTestBase, YTEnv):
             lambda: yt.get(test_dir) == {})
 
         self.check_command(
-            lambda: yt.remove(test_dir3),
+            lambda: yt.remove(test_dir3, force=True),
             lambda: yt.mkdir(test_dir3),
             lambda: yt.get(test_dir3) == {})
 
