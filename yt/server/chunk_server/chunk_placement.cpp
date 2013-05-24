@@ -51,9 +51,9 @@ void TChunkPlacement::OnNodeRegistered(TNode* node)
         YCHECK(NodeToLoadFactorIt.insert(std::make_pair(node, it)).second);
     }
     {
-        double fillCoeff = GetFillCoeff(node);
-        auto it = FillCoeffToNode.insert(std::make_pair(fillCoeff, node));
-        YCHECK(NodeToFillCoeffIt.insert(std::make_pair(node, it)).second);
+        double fillFactor = GetFillFactor(node);
+        auto it = FillFactorToNode.insert(std::make_pair(fillFactor, node));
+        YCHECK(NodeToFilFactorIt.insert(std::make_pair(node, it)).second);
     }
 }
 
@@ -67,11 +67,11 @@ void TChunkPlacement::OnNodeUnregistered(TNode* node)
         NodeToLoadFactorIt.erase(itIt);
     }
     {
-        auto itIt = NodeToFillCoeffIt.find(node);
-        YCHECK(itIt != NodeToFillCoeffIt.end());
+        auto itIt = NodeToFilFactorIt.find(node);
+        YCHECK(itIt != NodeToFilFactorIt.end());
         auto it = itIt->second;
-        FillCoeffToNode.erase(it);
-        NodeToFillCoeffIt.erase(itIt);
+        FillFactorToNode.erase(it);
+        NodeToFilFactorIt.erase(itIt);
     }
 }
 
@@ -182,7 +182,7 @@ TNodeList TChunkPlacement::GetUploadTargets(
 }
 
 TNodeList TChunkPlacement::AllocateReplicationTargets(
-    const TChunk* chunk,
+    TChunk* chunk,
     int targetCount)
 {
     auto targets = GetReplicationTargets(
@@ -197,7 +197,7 @@ TNodeList TChunkPlacement::AllocateReplicationTargets(
 }
 
 TNodeList TChunkPlacement::GetReplicationTargets(
-    const TChunk* chunk,
+    TChunk* chunk,
     int targetCount)
 {
     TSmallSet<TNode*, TypicalReplicaCount> forbiddenNodes;
@@ -209,7 +209,7 @@ TNodeList TChunkPlacement::GetReplicationTargets(
         forbiddenNodes.insert(replica.GetPtr());
     }
 
-    auto jobList = chunkManager->FindJobList(chunk->GetId());
+    auto jobList = chunkManager->FindJobList(chunk);
     if (jobList) {
         FOREACH (const auto& job, jobList->Jobs()) {
             auto type = job->GetType();
@@ -257,12 +257,12 @@ TNodeList TChunkPlacement::GetRemovalTargets(
     FOREACH (auto replica, chunk->StoredReplicas()) {
         if (replica.GetIndex() == chunkWithIndex.GetIndex()) {
             auto* node = replica.GetPtr();
-            double fillCoeff = GetFillCoeff(node);
-            candidates.push_back(std::make_pair(node, fillCoeff));
+            double fillFactor = GetFillFactor(node);
+            candidates.push_back(std::make_pair(node, fillFactor));
         }
     }
 
-    // Sort by |fillCoeff| in descending order.
+    // Sort by fillFactor in descending order.
     std::sort(
         candidates.begin(),
         candidates.end(),
@@ -270,7 +270,7 @@ TNodeList TChunkPlacement::GetRemovalTargets(
             return lhs.second > rhs.second;
         });
 
-    // Take first |count| nodes.
+    // Take first count nodes.
     targets.reserve(replicaCount);
     FOREACH (const auto& pair, candidates) {
         if (static_cast<int>(targets.size()) >= replicaCount) {
@@ -286,25 +286,25 @@ TNodeList TChunkPlacement::GetRemovalTargets(
     return targets;
 }
 
-bool TChunkPlacement::HasBalancingTargets(double maxFillCoeff)
+bool TChunkPlacement::HasBalancingTargets(double maxFillFactor)
 {
-    if (maxFillCoeff < 0)
+    if (maxFillFactor < 0)
         return false;
 
-    if (FillCoeffToNode.empty())
+    if (FillFactorToNode.empty())
         return false;
 
-    auto* node = FillCoeffToNode.begin()->second;
-    return GetFillCoeff(node) < maxFillCoeff;
+    auto* node = FillFactorToNode.begin()->second;
+    return GetFillFactor(node) < maxFillFactor;
 }
 
 TNode* TChunkPlacement::AllocateBalancingTarget(
     TChunkPtrWithIndex chunkWithIndex,
-    double maxFillCoeff)
+    double maxFillFactor)
 {
     auto* target = GetBalancingTarget(
         chunkWithIndex,
-        maxFillCoeff);
+        maxFillFactor);
 
     if (target) {
         OnSessionHinted(target);
@@ -313,12 +313,14 @@ TNode* TChunkPlacement::AllocateBalancingTarget(
     return target;
 }
 
-TNode* TChunkPlacement::GetBalancingTarget(TChunkPtrWithIndex chunkWithIndex, double maxFillCoeff)
+TNode* TChunkPlacement::GetBalancingTarget(
+    TChunkPtrWithIndex chunkWithIndex,
+    double maxFillFactor)
 {
     auto chunkManager = Bootstrap->GetChunkManager();
-    FOREACH (const auto& pair, FillCoeffToNode) {
+    FOREACH (const auto& pair, FillFactorToNode) {
         auto* node = pair.second;
-        if (GetFillCoeff(node) > maxFillCoeff) {
+        if (GetFillFactor(node) > maxFillFactor) {
             break;
         }
         if (IsValidBalancingTarget(node, chunkWithIndex)) {
@@ -383,16 +385,11 @@ std::vector<TChunkPtrWithIndex> TChunkPlacement::GetBalancingChunks(
     TNode* node,
     int replicaCount)
 {
-    // Do not balance chunks that already have a job.
-    yhash_set<TChunkId> forbiddenChunkIds;
-    auto chunkManager = Bootstrap->GetChunkManager();
-    FOREACH (const auto& job, node->Jobs()) {
-        forbiddenChunkIds.insert(job->GetChunkIdWithIndex().Id);
-    }
-
-    // Right now we just pick some (not even random!) chunks.
     std::vector<TChunkPtrWithIndex> result;
     result.reserve(replicaCount);
+
+    auto chunkManager = Bootstrap->GetChunkManager();
+
     FOREACH (auto replica, node->StoredReplicas()) {
         auto* chunk = replica.GetPtr();
         if (static_cast<int>(result.size()) >= replicaCount) {
@@ -401,7 +398,7 @@ std::vector<TChunkPtrWithIndex> TChunkPlacement::GetBalancingChunks(
         if (!chunk->GetMovable()) {
             continue;
         }
-        if (forbiddenChunkIds.find(chunk->GetId()) != forbiddenChunkIds.end()) {
+        if (chunkManager->FindJobList(chunk)) {
             continue;
         }
         result.push_back(replica);
@@ -413,11 +410,11 @@ std::vector<TChunkPtrWithIndex> TChunkPlacement::GetBalancingChunks(
 double TChunkPlacement::GetLoadFactor(TNode* node) const
 {
     return
-        GetFillCoeff(node) +
-        Config->ActiveSessionPenalityCoeff * node->GetTotalSessionCount();
+        GetFillFactor(node) +
+        Config->ActiveSessionPenality * node->GetTotalSessionCount();
 }
 
-double TChunkPlacement::GetFillCoeff(TNode* node) const
+double TChunkPlacement::GetFillFactor(TNode* node) const
 {
     const auto& statistics = node->Statistics();
     return statistics.total_used_space() /
