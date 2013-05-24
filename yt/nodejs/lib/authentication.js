@@ -36,7 +36,7 @@ YtAuthentication.prototype.dispatch = function(req, rsp, next)
 
     var result = this.authority.authenticate(
         this.logger,
-        req.connection.remoteAddress,
+        req.origin || req.connection.remoteAddress,
         this.token);
 
     if (Q.isPromise(result)) {

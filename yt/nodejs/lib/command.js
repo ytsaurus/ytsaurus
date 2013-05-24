@@ -247,7 +247,6 @@ YtCommand.prototype._getName = function() {
     if (!this.name.length) {
         // Bail out to API description.
         this.rsp.statusCode = 200;
-        this.rsp.setHeader("Access-Control-Allow-Origin", "*");
         utils.dispatchAs(
             this.rsp,
             JSON.stringify(this.driver.get_command_descriptors()),
@@ -329,19 +328,6 @@ YtCommand.prototype._checkHttpMethod = function() {
             expected_http_method = "GET";
         }
     }
-
-    //if (actual_http_method === "OPTIONS") {
-    //    this.rsp.statusCode = 200;
-    //    this.rsp.setHeader("Access-Control-Allow-Origin", "*");
-    //    this.rsp.setHeader("Access-Control-Allow-Methods", "POST, PUT, GET, OPTIONS");
-    //    this.rsp.setHeader("Access-Control-Allow-Headers", "origin, content-type, accept, x-yt-parameters, x-yt-input-format, x-yt-output-format, authorization");
-    //    this.rsp.setHeader("Access-Control-Max-Age", "3600");
-    //    this.rsp.removeHeader("Transfer-Encoding");
-    //    this.rsp.removeHeader("Content-Encoding");
-    //    this.rsp.removeHeader("Vary");
-    //    this.rsp.end();
-    //    throw new YtError();
-    //}
 
     if (actual_http_method !== expected_http_method) {
         this.rsp.statusCode = 405;
@@ -654,7 +640,6 @@ YtCommand.prototype._addHeaders = function() {
     }
 
     this.rsp.setHeader("Transfer-Encoding", "chunked");
-    this.rsp.setHeader("Access-Control-Allow-Origin", "*");
     this.rsp.setHeader("Trailer", "X-YT-Error, X-YT-Response-Code, X-YT-Response-Message");
 };
 

@@ -49,7 +49,6 @@ var FIXTURE_USERS = {
         name: "anonymous",
         member_of: [ "unmanaged2", "managed2" ]
     },
-    "unknown": Q.reject(new YtError("Not Found").withCode(500))
 };
 
 var FIXTURE_GROUPS = {
@@ -160,7 +159,7 @@ function mockMetaStateFailure(mock)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-describe("Upravlyator", function() {
+describe("ApplicationUpravlyator", function() {
     beforeEach(function(done) {
         stubRegistry();
         this.server = stubServer(done);

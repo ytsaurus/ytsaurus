@@ -36,6 +36,9 @@ global.HTTP_HOST = "127.0.0.1";
 var sinonChai = require("sinon-chai");
 chai.use(sinonChai);
 
+// Capture long traces in testing mode.
+require("q").longStackJumpLimit = 12;
+
 // A bunch of helpful assertions to use while testing HTTP.
 
 chai.Assertion.addProperty("http2xx", function() {
@@ -89,3 +92,4 @@ chai.Assertion.addMethod("yt_error", function() {
     rsp.should.have.content_type("application/json");
     rsp.body.should.be.yt_error;
 });
+

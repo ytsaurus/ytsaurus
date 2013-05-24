@@ -42,7 +42,8 @@ binding.BasicYtError.prototype.__proto__ = YtError.prototype; // As in buffer.js
 
 // Static method.
 
-YtError.ensureWrapped = function(err, message) {
+YtError.ensureWrapped = function(err, message)
+{
     "use strict";
     if (err instanceof YtError) {
         return err;

@@ -76,7 +76,7 @@ function stubRegistry()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-describe("XAuth", function() {
+describe("ApplicationAuth", function() {
     beforeEach(function(done) {
         stubRegistry();
         this.server = stubServer(done);
