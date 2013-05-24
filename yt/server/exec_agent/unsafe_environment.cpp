@@ -13,10 +13,10 @@
 #include <util/system/execpath.h>
 
 #include <fcntl.h>
-#include <spawn.h>
 
 #ifndef _win_
 
+#include <spawn.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 
