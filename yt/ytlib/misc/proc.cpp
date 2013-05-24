@@ -12,6 +12,8 @@
 #include <util/folder/dirut.h>
 #include <util/folder/filelist.h>
 
+#include <spawn.h>
+
 #ifdef _unix_
     #include <stdio.h>
     #include <dirent.h>
@@ -280,6 +282,56 @@ int SetMemoryLimit(rlim_t memoryLimit)
     return setrlimit(RLIMIT_AS, &rlimit);
 }
 
+int Spawn(const char* path,
+          std::initializer_list<const char*> arguments,
+          const std::vector<int>& fileIdsToClose)
+{
+    auto storeStrings = [](std::initializer_list<const char*> strings) -> std::vector<std::vector<char>> {
+        std::vector<std::vector<char>> result;
+        for (auto item : strings) {
+            result.push_back(std::vector<char>(item, item + strlen(item) + 1));
+        }
+        return result;
+    };
+
+    posix_spawn_file_actions_t fileActions;
+    YCHECK(0 == posix_spawn_file_actions_init(&fileActions));
+
+    for (auto fileId : fileIdsToClose) {
+        YCHECK(0 == posix_spawn_file_actions_addclose(&fileActions, fileId));
+    }
+
+    posix_spawnattr_t attributes;
+    YCHECK(0 == posix_spawnattr_init(&attributes));
+#ifdef POSIX_SPAWN_USEVFORK
+    posix_spawnattr_setflags(&attributes, POSIX_SPAWN_USEVFORK);
+#endif
+
+    std::vector<std::vector<char>> argContainer = storeStrings(arguments);
+
+    std::vector<char *> args;
+    for (auto& x : argContainer) {
+        args.push_back(&x[0]);
+    }
+    args.push_back(NULL);
+
+    int processId;
+    int errCode = posix_spawnp(&processId,
+                               path,
+                               &fileActions,
+                               &attributes,
+                               &args[0],
+                               NULL);
+
+    posix_spawnattr_destroy(&attributes);
+    posix_spawn_file_actions_destroy(&fileActions);
+
+    if (errCode != 0) {
+        THROW_ERROR_EXCEPTION("posix_spawn failed. Path=%s. %s", path, strerror(errCode));
+    }
+    return processId;
+}
+
 #else
 
 void KillallByUser(int uid)
@@ -312,6 +364,21 @@ void CloseAllDescriptors()
 }
 
 void SafeClose(int fd, bool ignoreInvalidFd)
+{
+    YUNIMPLEMENTED();
+}
+
+int Spawn(const char* path,
+          std::initializer_list<const char*> arguments,
+          const std::vector<int>& fileIdsToClose)
+{
+    UNUSED(path);
+    UNUSED(arguments);
+    UNUSED(fileIdsToClose);
+    YUNIMPLEMENTED();
+}
+
+std::vector<int> GetAllDescriptors()
 {
     YUNIMPLEMENTED();
 }
