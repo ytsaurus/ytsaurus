@@ -301,6 +301,12 @@ int Spawn(const char* path,
         YCHECK(0 == posix_spawn_file_actions_addclose(&fileActions, fileId));
     }
 
+    posix_spawnattr_t attributes;
+    YCHECK(0 == posix_spawnattr_init(&attributes));
+#ifdef POSIX_SPAWN_USEVFORK
+    posix_spawnattr_setflags(&attributes, POSIX_SPAWN_USEVFORK);
+#endif
+
     std::vector<std::vector<char>> argContainer = storeStrings(arguments);
 
     std::vector<char *> args;
@@ -313,9 +319,13 @@ int Spawn(const char* path,
     int errCode = posix_spawnp(&processId,
                                path,
                                &fileActions,
-                               NULL,
+                               &attributes,
                                &args[0],
                                NULL);
+
+    posix_spawnattr_destroy(&attributes);
+    posix_spawn_file_actions_destroy(&fileActions);
+
     if (errCode != 0) {
         THROW_ERROR_EXCEPTION("posix_spawn failed. Path=%s. %s", path, strerror(errCode));
     }
