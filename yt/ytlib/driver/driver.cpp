@@ -164,10 +164,9 @@ public:
                 this,
                 entry.Descriptor,
                 &request,
-                masterChannel,
-                masterChannel,
-                schedulerChannel,
-                transactionManager);
+                std::move(masterChannel),
+                std::move(schedulerChannel),
+                std::move(transactionManager));
 
             entry.Factory.Run(&context)->Execute();
             response = *context.GetResponse();
@@ -233,16 +232,15 @@ private:
             TDriver* driver,
             const TCommandDescriptor& descriptor,
             const TDriverRequest* request,
-            IChannelPtr leaderChannel,
             IChannelPtr masterChannel,
             IChannelPtr schedulerChannel,
             TTransactionManagerPtr transactionManager)
             : Driver(driver)
             , Descriptor(descriptor)
             , Request(request)
-            , MasterChannel(masterChannel)
-            , SchedulerChannel(schedulerChannel)
-            , TransactionManager(transactionManager)
+            , MasterChannel(std::move(masterChannel))
+            , SchedulerChannel(std::move(schedulerChannel))
+            , TransactionManager(std::move(transactionManager))
         { }
 
         ~TCommandContext()
@@ -289,16 +287,20 @@ private:
 
         virtual TYsonProducer CreateInputProducer() override
         {
+            auto&& format = ConvertTo<TFormat>(
+                Request->Arguments->FindChild("input_format"));
             return CreateProducerForFormat(
-                Request->InputFormat,
+                std::move(format),
                 Descriptor.InputType,
                 Request->InputStream);
         }
 
         virtual TAutoPtr<IYsonConsumer> CreateOutputConsumer() override
         {
+            auto&& format = ConvertTo<TFormat>(
+                Request->Arguments->FindChild("output_format"));
             return CreateConsumerForFormat(
-                Request->OutputFormat,
+                format,
                 Descriptor.OutputType,
                 Request->OutputStream);
         }
@@ -313,7 +315,6 @@ private:
         TTransactionManagerPtr TransactionManager;
 
         TDriverResponse Response;
-
     };
 
 

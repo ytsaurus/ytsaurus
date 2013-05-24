@@ -118,6 +118,10 @@ void ConsumeV8Value(Handle<Value> value, IYsonConsumer* consumer)
             consumer->OnDoubleScalar(value->NumberValue());
         }
     } else if (value->IsObject()) {
+        if (TNodeWrap::HasInstance(value)) {
+            Consume(TNodeWrap::UnwrapNode(value), consumer);
+            return;
+        }
         if (value->IsArray()) {
             ConsumeV8Array(
                 Local<Array>::Cast(Local<Value>::New(value)),

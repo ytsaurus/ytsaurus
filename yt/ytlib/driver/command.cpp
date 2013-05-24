@@ -37,8 +37,7 @@ void TUntypedCommandBase::ReplySuccess(const TYsonString& yson)
 {
     YCHECK(!Replied);
 
-    auto consumer = Context->CreateOutputConsumer();
-    Consume(yson, ~consumer);
+    Consume(yson, ~Context->CreateOutputConsumer());
 
     Context->GetResponse()->Error = TError();
     Replied = true;

@@ -192,18 +192,20 @@ EExitCode TRequestExecutor::DoExecute()
 
     request.InputStream = GetInputStream();
     try {
-        request.InputFormat = GetFormat(descriptor.InputType, inputFormat);
+        request.Arguments->AddChild(
+            ConvertToNode(GetFormat(descriptor.InputType, inputFormat)),
+            "input_format");
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error parsing input format")
-            << ex;
+        THROW_ERROR_EXCEPTION("Error parsing input format") << ex;
     }
 
     request.OutputStream = &outputStream;
     try {
-        request.OutputFormat = GetFormat(descriptor.OutputType, outputFormat);
+        request.Arguments->AddChild(
+            ConvertToNode(GetFormat(descriptor.OutputType, outputFormat)),
+            "output_format");
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error parsing output format")
-            << ex;
+        THROW_ERROR_EXCEPTION("Error parsing output format") << ex;
     }
 
     return DoExecute(request);

@@ -39,7 +39,12 @@ EExitCode TStartOpExecutor::DoExecute(const TDriverRequest& request)
     TDriverRequest requestCopy = request;
 
     TStringStream output;
-    requestCopy.OutputFormat = TFormat(EFormatType::Yson);
+    requestCopy.Arguments->AddChild(
+        ConvertToNode(TFormat(EFormatType::Yson)),
+        "input_format");
+    requestCopy.Arguments->AddChild(
+        ConvertToNode(TFormat(EFormatType::Yson)),
+        "output_format");
     requestCopy.OutputStream = &output;
 
     auto response = Driver->Execute(requestCopy);

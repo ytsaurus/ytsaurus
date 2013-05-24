@@ -29,6 +29,7 @@ void TStartTransactionCommand::DoExecute()
     options.ParentId = Request->TransactionId;
     options.Ping = true;
     options.PingAncestors = Request->PingAncestorTransactions;
+
     if (Request->Attributes) {
         options.Attributes = ConvertToAttributes(Request->Attributes);
     }

@@ -149,8 +149,7 @@ private:
             auto arguments = Context->GetRequest()->Arguments;
             Request->Load(arguments);
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error parsing command arguments") <<
-                ex;
+            THROW_ERROR_EXCEPTION("Error parsing command arguments") << ex;
         }
     }
 
@@ -171,7 +170,9 @@ protected:
     NTransactionClient::TTransactionId GetTransactionId(bool required)
     {
         auto transaction = GetTransaction(required);
-        return transaction ? transaction->GetId() : NTransactionClient::NullTransactionId;
+        return transaction
+            ? transaction->GetId()
+            : NTransactionClient::NullTransactionId;
     }
 
     NTransactionClient::ITransactionPtr GetTransaction(bool required)
