@@ -55,7 +55,7 @@ std::unique_ptr<IParser> CreateParserForYamr(
     if (!config) {
         config = New<TYamrFormatConfig>();
     }
-    
+
     auto yamrConsumer = New<TYamrConsumer>(consumer, config);
 
     return config->Lenval

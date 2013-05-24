@@ -29,15 +29,9 @@ struct TDriverRequest
     //! The stream must stay alive for the duration of #IDriver::Execute.
     TInputStream* InputStream;
 
-    //! Format used for reading the input.
-    NFormats::TFormat InputFormat;
-
     //! Stream where the command output is written.
     //! The stream must stay alive for the duration of #IDriver::Execute.
     TOutputStream* OutputStream;
-
-    //! Format used for writing the output.
-    NFormats::TFormat OutputFormat;
 
     //! A map containing command arguments.
     NYTree::IMapNodePtr Arguments;

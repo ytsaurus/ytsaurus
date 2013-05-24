@@ -1,3 +1,5 @@
+var uuid = require("node-uuid");
+
 var YtRegistry = require("../registry").that;
 
 var utils = require("../utils");
@@ -8,30 +10,49 @@ exports.that = function Middleware__YtLogRequest()
 {
     "use strict";
 
+    var fqdn = YtRegistry.get("config", "fqdn");
     var logger = YtRegistry.get("logger");
+    var buffer = new Buffer(16);
 
     return function(req, rsp, next) {
+        req.uuid = uuid.v4(undefined, buffer).toString("base64");
+        req.connection.last_request_id = req.uuid;
+
+        // Store useful information.
+        var request_id = req.uuid;
+        var socket_id = req.connection.uuid;
+        var correlation_id = req.headers["x-yt-correlation-id"];
+
+        // We are actually keeping tagged logger lean.
+        req.logger = new utils.TaggedLogger(logger, { request_id: request_id });
+        req.origin = req.headers["x-forwarded-for"] || req.connection.remoteAddress;
+
         req._ts = new Date();
         req._bytes_in = 0;
         req._bytes_out = 0;
 
-        if (req.logger) {
-            return next();
-        } else {
-            req.logger = new utils.TaggedLogger(logger, {
-                request_id: req.uuid,
-                correlation_id: req.headers["x-yt-correlation-id"]
-            });
+        // Make client aware of our identificators.
+        rsp.setHeader("X-YT-Proxy", fqdn);
+        rsp.setHeader("X-YT-Request-Id", request_id);
+
+        if (typeof(socket_id) !== "undefined") {
+            rsp.setHeader("X-YT-Socket-Id", socket_id);
         }
 
+        if (typeof(correlation_id) !== "undefined") {
+            rsp.setHeader("X-YT-Correlation-Id", correlation_id);
+        }
+
+        // Log all useful information.
         var meta = {
-            request_id     : req.uuid,
-            correlation_id : req.headers["x-yt-correlation-id"],
+            // To avoid extra indirection through tagged logger.
+            request_id     : request_id,
+            socket_id      : socket_id,
+            correlation_id : correlation_id,
             method         : req.method,
-            url            : req.originalUrl,
+            url            : req.originalUrl || req.url,
+            origin         : req.origin || req.connection.remoteAddress,
             referrer       : req.headers["referer"] || req.headers["referrer"],
-            remote_address : (req.connection && req.connection.remoteAddress) ||
-                             (req.socket && req.socket.remoteAddress),
             user_agent     : req.headers["user-agent"]
         };
 
@@ -62,13 +83,14 @@ exports.that = function Middleware__YtLogRequest()
             }
             rsp.end = end;
             rsp.end(chunk, encoding);
-
             logger.debug("Handled request", {
-                request_id   : req.uuid,
-                request_time : new Date() - req._ts,
-                status_code  : rsp.statusCode,
-                req_bytes    : req._bytes_in,
-                rsp_bytes    : req._bytes_out
+                request_id     : request_id,
+                request_time   : new Date() - req._ts,
+                socket_id      : socket_id,
+                correlation_id : correlation_id,
+                status_code    : rsp.statusCode,
+                req_bytes      : req._bytes_in,
+                rsp_bytes      : req._bytes_out
             });
         };
 

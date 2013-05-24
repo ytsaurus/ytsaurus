@@ -247,7 +247,6 @@ YtCommand.prototype._getName = function() {
     if (!this.name.length) {
         // Bail out to API description.
         this.rsp.statusCode = 200;
-        this.rsp.setHeader("Access-Control-Allow-Origin", "*");
         utils.dispatchAs(
             this.rsp,
             JSON.stringify(this.driver.get_command_descriptors()),
@@ -329,19 +328,6 @@ YtCommand.prototype._checkHttpMethod = function() {
             expected_http_method = "GET";
         }
     }
-
-    //if (actual_http_method === "OPTIONS") {
-    //    this.rsp.statusCode = 200;
-    //    this.rsp.setHeader("Access-Control-Allow-Origin", "*");
-    //    this.rsp.setHeader("Access-Control-Allow-Methods", "POST, PUT, GET, OPTIONS");
-    //    this.rsp.setHeader("Access-Control-Allow-Headers", "origin, content-type, accept, x-yt-parameters, x-yt-input-format, x-yt-output-format, authorization");
-    //    this.rsp.setHeader("Access-Control-Max-Age", "3600");
-    //    this.rsp.removeHeader("Transfer-Encoding");
-    //    this.rsp.removeHeader("Content-Encoding");
-    //    this.rsp.removeHeader("Vary");
-    //    this.rsp.end();
-    //    throw new YtError();
-    //}
 
     if (actual_http_method !== expected_http_method) {
         this.rsp.statusCode = 405;
@@ -548,11 +534,21 @@ YtCommand.prototype._captureParameters = function() {
     this.__DBG("_captureParameters");
 
     var header;
-    var parameters_from_url, parameters_from_header, parameters_from_body;
+    var from_formats, from_url, from_header, from_body;
 
     try {
-        parameters_from_url = utils.numerify(qs.parse(this.req.parsedUrl.query));
-        parameters_from_url = new binding.TNodeWrap(parameters_from_url);
+        from_formats = {
+            input_format: this.input_format,
+            output_format: this.output_format
+        };
+        from_formats = new binding.TNodeWrap(from_formats);
+    } catch(err) {
+        throw new YtError("Unable to parse formats.", err);
+    }
+
+    try {
+        from_url = utils.numerify(qs.parse(this.req.parsedUrl.query));
+        from_url = new binding.TNodeWrap(from_url);
     } catch(err) {
         throw new YtError("Unable to parse parameters from the query string.", err);
     }
@@ -560,7 +556,7 @@ YtCommand.prototype._captureParameters = function() {
     try {
         header = this.req.headers["x-yt-parameters"];
         if (typeof(header) === "string") {
-            parameters_from_header = new binding.TNodeWrap(
+            from_header = new binding.TNodeWrap(
                 header,
                 binding.ECompression_None,
                 _PREDEFINED_JSON_FORMAT);
@@ -573,12 +569,12 @@ YtCommand.prototype._captureParameters = function() {
         // Here we heavily rely on fact that HTTP method was checked beforehand.
         // Moreover, there is a convention that mutating commands with structured input
         // are served with POST method (see |_checkHttpMethod|).
-        parameters_from_body = this._captureBody();
+        from_body = this._captureBody();
         this.input_stream = new utils.NullStream();
         this.output_stream = this.rsp;
         this.pause = utils.Pause(this.input_stream);
     } else {
-        parameters_from_body = Q.resolve();
+        from_body = Q.resolve();
         this.input_stream = this.req;
         this.output_stream = this.rsp;
     }
@@ -586,9 +582,11 @@ YtCommand.prototype._captureParameters = function() {
     var self = this;
 
     return Q
-        .all([ parameters_from_url, parameters_from_header, parameters_from_body ])
-        .spread(function(from_url, from_header, from_body) {
-            self.parameters = binding.CreateMergedNode(from_url, from_header, from_body);
+        .all([from_formats, from_url, from_header, from_body])
+        .spread(function() {
+            self.parameters = binding.CreateMergedNode.apply(
+                undefined,
+                arguments);
         });
 };
 
@@ -654,7 +652,6 @@ YtCommand.prototype._addHeaders = function() {
     }
 
     this.rsp.setHeader("Transfer-Encoding", "chunked");
-    this.rsp.setHeader("Access-Control-Allow-Origin", "*");
     this.rsp.setHeader("Trailer", "X-YT-Error, X-YT-Response-Code, X-YT-Response-Message");
 };
 
@@ -667,8 +664,8 @@ YtCommand.prototype._execute = function(cb) {
     process.nextTick(function() { self.pause.unpause(); });
 
     return this.driver.execute(this.name, this.user,
-        this.input_stream, this.input_compression, this.input_format,
-        this.output_stream, this.output_compression, this.output_format,
+        this.input_stream, this.input_compression,
+        this.output_stream, this.output_compression,
         this.parameters)
     .spread(
         function(result) {

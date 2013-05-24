@@ -30,6 +30,7 @@ void TStartTransactionCommand::DoExecute()
     options.MutationId = Request->MutationId;
     options.Ping = true;
     options.PingAncestors = Request->PingAncestors;
+
     if (Request->Attributes) {
         options.Attributes = ConvertToAttributes(Request->Attributes);
     }
