@@ -51,16 +51,6 @@ Py::Object ExtractArgument(Py::Tuple& args, Py::Dict& kwds, const std::string& n
     return result;
 }
 
-void ExtractFormat(const Py::Object& obj, TFormat& format)
-{
-    if (obj.isNone()) {
-        format = TFormat(EFormatType::Null);
-    }
-    else {
-        Deserialize(format, ConvertToNode(obj));
-    }
-}
-
 class Driver
     : public Py::PythonClass<Driver>
 {
@@ -106,8 +96,6 @@ public:
         TDriverRequest request;
         request.CommandName = ConvertToStroka(Py::String(GetAttr(pyRequest, "command_name")));
         request.Arguments = ConvertToNode(GetAttr(pyRequest, "arguments"))->AsMap();
-        ExtractFormat(GetAttr(pyRequest, "input_format"), request.InputFormat);
-        ExtractFormat(GetAttr(pyRequest, "output_format"), request.OutputFormat);
 
         std::unique_ptr<TPythonInputStream> inputStream(
             new TPythonInputStream(GetAttr(pyRequest, "input_stream")));
