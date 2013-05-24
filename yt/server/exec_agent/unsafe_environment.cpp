@@ -16,7 +16,6 @@
 
 #ifndef _win_
 
-#include <spawn.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 
@@ -86,42 +85,25 @@ public:
 
         std::vector<int> fileIds = GetAllDescriptors();
 
-        auto storeStrings = [](std::initializer_list<const char*> strings) -> std::vector<std::vector<char>> {
-            std::vector<std::vector<char>> result;
-            for (auto item : strings) {
-                result.push_back(std::vector<char>(item, item + strlen(item) + 1));
-            }
-            return result;
-        };
-
-        std::vector<std::vector<char>> argContainer = storeStrings({
-            ~ProxyPath,
-            "--job-proxy",
-            "--config",
-            ~ProxyConfigFileName,
-            "--job-id",
-            ~ToString(JobId),
-            "--working-dir",
-            ~ToString(WorkingDirectory),
-            "--memory-limit",
-            ~ToString(MemoryLimit)
-        });
-
-        std::vector<char *> args;
-        for (auto& x : argContainer) {
-            args.push_back(&x[0]);
-        }
-        args.push_back(NULL);
-
-        int err_code = posix_spawn(&ProcessId,
-                                   ~ProxyPath,
-                                   NULL,
-                                   NULL,
-                                   &args[0],
-                                   NULL);
-        if (err_code != 0) {
+        try {
+            ProcessId = Spawn(~ProxyPath,
+                             {
+                                 ~ProxyPath,
+                                 "--job-proxy",
+                                 "--config",
+                                 ~ProxyConfigFileName,
+                                 "--job-id",
+                                 ~ToString(JobId),
+                                 "--working-dir",
+                                 ~ToString(WorkingDirectory),
+                                 "--memory-limit",
+                                 ~ToString(MemoryLimit)
+                             },
+                             fileIds);
+        } catch (const std::exception& ) {
             // Failed to exec job proxy
-            _exit(EJobProxyExitCode::ExecFailed);
+            THROW_ERROR_EXCEPTION("Failed to start job proxy: Spawn failed")
+                << TError::FromSystem();
         }
 
         if (ProcessId < 0) {
