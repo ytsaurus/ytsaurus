@@ -23,4 +23,3 @@ NJobAgent::IJobPtr CreateUserJob(
 
 } // namespace NExecAgent
 } // namespace NYT
-

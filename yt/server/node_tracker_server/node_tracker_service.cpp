@@ -116,9 +116,12 @@ DEFINE_RPC_SERVICE_METHOD(TNodeTrackerService, FullHeartbeat)
     ValidateActiveLeader();
 
     auto nodeId = request->node_id();
+    const auto& statistics = request->statistics();
 
-    context->SetRequestInfo("NodeId: %d", nodeId);
-
+    context->SetRequestInfo("NodeId: %d, %s",
+        nodeId,
+        ~ToString(statistics));
+    
     auto nodeTracker = Bootstrap->GetNodeTracker();
     auto* node = nodeTracker->GetNodeOrThrow(nodeId);
 
@@ -142,8 +145,11 @@ DEFINE_RPC_SERVICE_METHOD(TNodeTrackerService, IncrementalHeartbeat)
     ValidateActiveLeader();
 
     auto nodeId = request->node_id();
+    const auto& statistics = request->statistics();
 
-    context->SetRequestInfo("NodeId: %d", nodeId);
+    context->SetRequestInfo("NodeId: %d, %s",
+        nodeId,
+        ~ToString(statistics));
 
     auto nodeTracker = Bootstrap->GetNodeTracker();
     auto* node = nodeTracker->GetNodeOrThrow(nodeId);

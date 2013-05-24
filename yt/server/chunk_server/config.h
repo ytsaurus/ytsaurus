@@ -25,10 +25,10 @@ public:
     TNullable<double> SafeLostChunkFraction;
 
     //! Minimum difference in fill coefficient (between the most and the least loaded nodes) to start balancing.
-    double MinBalancingFillCoeffDiff;
+    double MinBalancingFillFactorDiff;
 
     //! Minimum fill coefficient of the most loaded node to start balancing.
-    double MinBalancingFillCoeff;
+    double MinBalancingFillFactor;
 
     //! Maximum duration a job can run before it is considered dead.
     TDuration JobTimeout;
@@ -51,9 +51,9 @@ public:
     //! Maximum number of chunks to process during a refresh scan.
     int MaxChunksPerRefresh;
 
-    //! Each active upload session adds |ActiveSessionPenalityCoeff| to effective load factor
+    //! Each active upload session adds |ActiveSessionPenality| to effective load factor
     //! when picking an upload target.
-    double ActiveSessionPenalityCoeff;
+    double ActiveSessionPenality;
 
     //! Interval between consequent chunk properties update scans.
     TDuration ChunkPropertiesUpdatePeriod;
@@ -70,9 +70,9 @@ public:
             .InRange(0.0, 1.0)
             .Default(0.5);
 
-        RegisterParameter("min_chunk_balancing_fill_coeff_diff", MinBalancingFillCoeffDiff)
+        RegisterParameter("min_chunk_balancing_fill_factor_diff", MinBalancingFillFactorDiff)
             .Default(0.2);
-        RegisterParameter("min_chunk_balancing_fill_coeff", MinBalancingFillCoeff)
+        RegisterParameter("min_chunk_balancing_fill_factor", MinBalancingFillFactor)
             .Default(0.1);
 
         RegisterParameter("job_timeout", JobTimeout)
@@ -101,7 +101,7 @@ public:
         RegisterParameter("max_chunks_per_properties_update", MaxChunksPerPropertiesUpdate)
             .Default(10000);
 
-        RegisterParameter("active_session_penality_coeff", ActiveSessionPenalityCoeff)
+        RegisterParameter("active_session_penality", ActiveSessionPenality)
             .Default(0.0001);
     }
 };

@@ -43,8 +43,7 @@ public:
     IProxyControllerPtr CreateProxyController(
         NYTree::INodePtr config,
         const TJobId& jobId,
-        const Stroka& workingDirectory,
-        i64 jobProxyMemoryLimit) override;
+        const Stroka& workingDirectory) override;
 
 private:
     friend class TUnsafeProxyController;
@@ -64,12 +63,10 @@ public:
         const Stroka& proxyPath,
         const TJobId& jobId,
         const Stroka& workingDirectory,
-        i64 memoryLimit,
         TUnsafeEnvironmentBuilder* envBuilder)
         : ProxyPath(proxyPath)
         , WorkingDirectory(workingDirectory)
         , JobId(jobId)
-        , MemoryLimit(memoryLimit)
         , Logger(ExecAgentLogger)
         , ProcessId(-1)
         , EnvironmentBuilder(envBuilder)
@@ -99,8 +96,6 @@ public:
                                  ~ToString(JobId),
                                  "--working-dir",
                                  ~ToString(WorkingDirectory),
-                                 "--memory-limit",
-                                 ~ToString(MemoryLimit)
                              },
                              fileIds);
         } catch (const std::exception& ) {
@@ -221,7 +216,6 @@ private:
     const Stroka ProxyPath;
     const Stroka WorkingDirectory;
     const TJobId JobId;
-    const i64 MemoryLimit;
 
     NLog::TTaggedLogger Logger;
 
@@ -307,11 +301,10 @@ private:
 IProxyControllerPtr TUnsafeEnvironmentBuilder::CreateProxyController(
     NYTree::INodePtr config,
     const TJobId& jobId,
-    const Stroka& workingDirectory,
-    i64 jobProxyMemoryLimit)
+    const Stroka& workingDirectory)
 {
 #ifndef _win_
-    return New<TUnsafeProxyController>(ProxyPath, jobId, workingDirectory, jobProxyMemoryLimit, this);
+    return New<TUnsafeProxyController>(ProxyPath, jobId, workingDirectory, this);
 #else
     UNUSED(config);
     UNUSED(workingDirectory);

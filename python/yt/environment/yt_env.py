@@ -413,7 +413,7 @@ class YTEnv(object):
             except:
                 return False
 
-        self._wait_for(started, name="proxy")
+        self._wait_for(started, name="proxy", max_wait_time=90)
 
     def _wait_for(self, condition, max_wait_time=20, sleep_quantum=0.5, name=""):
         current_wait_time = 0

@@ -30,19 +30,17 @@ void TReadCommand::DoExecute()
     auto config = UpdateYsonSerializable(
         Context->GetConfig()->TableReader,
         Request->TableReader);
+
     auto reader = New<TTableReader>(
         config,
         Context->GetMasterChannel(),
         GetTransaction(false, true),
         Context->GetBlockCache(),
         Request->Path);
+
     reader->Open();
 
-    auto driverRequest = Context->GetRequest();
-    auto writer = CreateConsumerForFormat(
-        driverRequest->OutputFormat,
-        EDataType::Tabular,
-        driverRequest->OutputStream);
+    auto writer = Context->CreateOutputConsumer();
     ProduceYson(reader, ~writer);
 }
 
@@ -53,6 +51,7 @@ void TWriteCommand::DoExecute()
     auto config = UpdateYsonSerializable(
         Context->GetConfig()->TableWriter,
         Request->TableWriter);
+
     auto writer = New<TTableWriter>(
         config,
         Context->GetMasterChannel(),
@@ -60,15 +59,11 @@ void TWriteCommand::DoExecute()
         Context->GetTransactionManager(),
         Request->Path,
         Request->Path.Attributes().Find<TKeyColumns>("sorted_by"));
+
     writer->Open();
 
     TTableConsumer consumer(writer);
-
-    auto driverRequest = Context->GetRequest();
-    auto producer = CreateProducerForFormat(
-        driverRequest->InputFormat,
-        EDataType::Tabular,
-        driverRequest->InputStream);
+    auto producer = Context->CreateInputProducer();
     producer.Run(&consumer);
 
     writer->Close();

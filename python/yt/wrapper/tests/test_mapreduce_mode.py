@@ -452,3 +452,8 @@ class TestMapreduceMode(YtTestBase, YTEnv):
         yt.run_erase(TablePath(table, start_index=0, end_index=5))
         self.assertEqual(yt.records_count(table), 0)
 
+    def test_empty_write(self):
+        table = self.create_temp_table()
+        yt.write_table(table, [])
+        self.assertFalse(yt.exists(table))
+

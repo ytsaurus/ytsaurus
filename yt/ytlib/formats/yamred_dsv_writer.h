@@ -61,6 +61,8 @@ private:
     bool IsValueEmpty;
     bool AllowBeginMap;
 
+    bool ExpectTableIndex;
+
     TDsvTable Table;
 
     void RememberValue(const TStringBuf& value);

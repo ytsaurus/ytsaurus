@@ -51,8 +51,7 @@ struct IEnvironmentBuilder
     virtual IProxyControllerPtr CreateProxyController(
         NYTree::INodePtr config,
         const TJobId& jobId,
-        const Stroka& workingDirectory,
-        i64 jobProxyMemoryLimit) = 0;
+        const Stroka& workingDirectory) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

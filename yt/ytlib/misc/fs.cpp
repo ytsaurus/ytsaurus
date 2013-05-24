@@ -10,22 +10,22 @@
 
 // For GetAvaibaleSpace().
 #if defined(_linux_)
-#include <sys/vfs.h>
-#include <sys/stat.h>
+    #include <sys/vfs.h>
+    #include <sys/stat.h>
 #elif defined(_freebsd_) || defined(_darwin_)
-#include <sys/param.h>
-#include <sys/mount.h>
+    #include <sys/param.h>
+    #include <sys/mount.h>
 #elif defined (_win_)
-#include <windows.h>
+    #include <windows.h>
 #endif
 
 // For JoinPaths
 #ifdef _win_
-static const char PATH_DELIM = '\\';
-static const char PATH_DELIM2 = '/';
+    static const char PATH_DELIM = '\\';
+    static const char PATH_DELIM2 = '/';
 #else
-static const char PATH_DELIM = '/';
-static const char PATH_DELIM2 = 0;
+    static const char PATH_DELIM = '/';
+    static const char PATH_DELIM2 = 0;
 #endif
 
 namespace NYT {
@@ -106,7 +106,8 @@ Stroka GetFileNameWithoutExtension(const Stroka& path)
 
 void CleanTempFiles(const Stroka& path)
 {
-    LOG_INFO("Cleaning temp files in directory: %s", ~path);
+    LOG_INFO("Cleaning temp files in %s",
+        ~path.Quote());
 
     if (!isexist(~path))
         return;
@@ -117,9 +118,11 @@ void CleanTempFiles(const Stroka& path)
     for (i32 i = 0; i < size; ++i) {
         Stroka fileName = NFS::CombinePaths(path, fileList.Next());
         if (fileName.has_suffix(TempFileSuffix)) {
-            LOG_INFO("Removing temp file: %s", ~fileName);
+            LOG_INFO("Removing temp file %s",
+                ~fileName.Quote());
             if (!NFS::Remove(~fileName)) {
-                LOG_ERROR("Error removing temp file: %s",  ~fileName);
+                LOG_ERROR("Error removing temp file %s", 
+                    ~fileName.Quote());
             }
         }
     }
@@ -127,7 +130,8 @@ void CleanTempFiles(const Stroka& path)
 
 void CleanFiles(const Stroka& path)
 {
-    LOG_INFO("Cleaning files in directory: %s", ~path);
+    LOG_INFO("Cleaning files in %s",
+        ~path.Quote());
 
     if (!isexist(~path))
         return;
@@ -137,9 +141,11 @@ void CleanFiles(const Stroka& path)
     i32 size = fileList.Size();
     for (i32 i = 0; i < size; ++i) {
         Stroka fileName = NFS::CombinePaths(path, fileList.Next());
-        LOG_INFO("Removing file: %s", ~fileName);
+        LOG_INFO("Removing file %s",
+            ~fileName.Quote());
         if (!NFS::Remove(~fileName)) {
-            LOG_ERROR("Error removing file: %s",  ~fileName);
+            LOG_ERROR("Error removing file %s",
+                ~fileName.Quote());
         }
     }
 }
@@ -191,7 +197,8 @@ i64 GetFileSize(const Stroka& path)
     if (handle == INVALID_HANDLE_VALUE) {
 #endif
         THROW_ERROR_EXCEPTION("Failed to get the size of %s",
-            ~path.Quote()) << TError::FromSystem();
+            ~path.Quote())
+            << TError::FromSystem();
     }
 
 #if !defined(_win_)
@@ -303,15 +310,16 @@ void MakeSymbolicLink(const Stroka& filePath, const Stroka& linkPath)
     }
 }
 
-bool IsInodeIdentical(const Stroka& lhsPath, const Stroka& rhsPath)
+bool AreInodesIdentical(const Stroka& lhsPath, const Stroka& rhsPath)
 {
 #ifdef _linux_
     auto wrappedStat = [] (const Stroka& path, struct stat* buffer) {
         auto result = stat(~path, buffer);
         if (result) {
             THROW_ERROR_EXCEPTION(
-                "Failed to check for identical inodes. stat() for file %s failed.",
-                ~path.Quote()) << TError::FromSystem();
+                "Failed to check for identical inodes: stat failed for %s",
+                ~path.Quote())
+                << TError::FromSystem();
         }
     };
 

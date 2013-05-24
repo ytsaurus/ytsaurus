@@ -116,8 +116,8 @@ function YtDriver(config, echo)
 }
 
 YtDriver.prototype.execute = function(name, user,
-    input_stream, input_compression, input_format,
-    output_stream, output_compression, output_format,
+    input_stream, input_compression,
+    output_stream, output_compression,
     parameters
 )
 {
@@ -159,8 +159,8 @@ YtDriver.prototype.execute = function(name, user,
         });
 
     this._binding.Execute(name, user,
-        wrapped_input_stream._binding, input_compression, input_format,
-        wrapped_output_stream._binding, output_compression, output_format,
+        wrapped_input_stream._binding, input_compression,
+        wrapped_output_stream._binding, output_compression,
         parameters, function(result)
     {
         self.__DBG("execute -> (on-execute callback)");
@@ -191,9 +191,12 @@ YtDriver.prototype.executeSimple = function(name, parameters, data)
     var input_stream = new utils.MemoryInputStream(data);
     var output_stream = new utils.MemoryOutputStream();
 
+    parameters.input_format = "json";
+    parameters.output_format = "json";
+
     return this.execute(name, _SIMPLE_EXECUTE_USER,
-        input_stream, binding.ECompression_None, _SIMPLE_EXECUTE_FORMAT,
-        output_stream, binding.ECompression_None, _SIMPLE_EXECUTE_FORMAT,
+        input_stream, binding.ECompression_None,
+        output_stream, binding.ECompression_None,
         new binding.TNodeWrap(parameters))
     .then(function(result) {
         var body = buffertools.concat.apply(undefined, output_stream.chunks);

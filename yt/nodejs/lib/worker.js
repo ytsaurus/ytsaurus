@@ -1,14 +1,17 @@
 // Dependencies.
-var fs = require("fs");
 var cluster = require("cluster");
-var domain = require("domain");
+var fs = require("fs");
+var http = require("http");
+var https = require("https");
+
+var yt = require("yt");
 
 var connect = require("connect");
 var node_static = require("node-static");
 var winston = require("winston");
 var winston_nssocket = require("winston-nssocket");
 
-var yt = require("yt");
+var Q = require("q");
 
 var profiler = require("profiler");
 var heapdump = require("heapdump");
@@ -31,7 +34,7 @@ var logger = new winston.Logger({
 var version;
 
 // Speed stuff.
-require("q").longStackJumpLimit = 0;
+Q.longStackJumpLimit = 0;
 
 try {
     version = JSON.parse(fs.readFileSync(__dirname + "/../package.json"));
@@ -57,17 +60,23 @@ yt.YtRegistry.set("driver", new yt.YtDriver(config));
 yt.YtRegistry.set("authority", new yt.YtAuthority(config.authentication));
 
 // Hoist variable declaration.
-var static_server;
-var dynamic_server;
+var static_application;
+var dynamic_application;
+
+var insecure_server;
+var secure_server;
+
+var insecure_listening_deferred = Q.defer();
+var secure_listening_deferred = Q.defer();
+
+var insecure_close_deferred = Q.defer();
+var secure_close_deferred = Q.defer();
 
 var violentlyDieTriggered = false;
 var violentlyDie = function violentDeath() {
     "use strict";
     if (violentlyDieTriggered) { return; }
     violentlyDieTriggered = true;
-
-    logger.info("Dying", { wid : cluster.worker.id, pid : process.pid });
-    process.send({ type: "stopped" });
 
     process.nextTick(function() {
         cluster.worker.disconnect();
@@ -85,11 +94,8 @@ var gracefullyDie = function gracefulDeath() {
     logger.info("Prepairing to die", { wid : cluster.worker.id, pid : process.pid });
     process.send({ type : "stopping" });
 
-    if (dynamic_server && dynamic_server.close) {
-        dynamic_server.close(violentlyDie);
-    } else {
-        violentlyDie();
-    }
+    !!insecure_server ? insecure_server.close() : secure_close_deferred.resolve();
+    !!secure_server ? secure_server.close() : secure_close_deferred.resolve();
 };
 
 // Fire up the heart.
@@ -110,6 +116,7 @@ process.on("SIGUSR2", function() {
     console.error("Writing a heap snapshot.");
     heapdump.writeSnapshot();
 });
+
 process.on("SIGUSR1", function() {
     if (__PROFILE) {
         console.error("Pausing V8 profiler.");
@@ -147,77 +154,17 @@ process.on("message", function(message) {
 // Fire up the head.
 logger.info("Starting HTTP proxy worker", { wid : cluster.worker.id, pid : process.pid });
 
-// Setup application server.
-static_server = new node_static.Server("/usr/share/yt_new", { cache : 4 * 3600 });
-
-dynamic_server = connect()
-    .use(function(req, rsp, next) {
-        "use strict";
-        var rd = domain.create();
-        rd.on("error", function(err) {
-            var body = (new yt.YtError("Unhandled error in the request domain", err)).toJson();
-
-            logger.error("Unhandled error in the request domain", {
-                request_id : req.uuid,
-                error : body
-            });
-
-            yt.utils.dispatchAs(rsp, body, "application/json");
-            rd.dispose();
-        });
-        rd.run(next);
-    })
-    .use(connect.favicon())
-    .use(yt.YtMarkRequest())
+// Setup application servers.
+static_application = new node_static.Server("/usr/share/yt_new", { cache : 4 * 3600 });
+dynamic_application = connect()
+    .use(yt.YtIsolateRequest())
     .use(yt.YtLogRequest())
-    .use(function(req, rsp, next) {
-        "use strict";
-        var socket = req.connection;
-        // Since socket could be reused between multiple requests,
-        // we have to be careful when adding those event callbacks.
-        if (!socket.last_req_uuid) {
-            socket.setTimeout(5 * 60 * 1000);
-            socket.setNoDelay(true);
-            socket.setKeepAlive(true);
-            socket.once("timeout", function() {
-                logger.error("Socket timed out", {
-                    request_id : socket.last_req_uuid
-                });
-            });
-            socket.once("error", function(err) {
-                logger.error("Socket emitted an error", {
-                    request_id : socket.last_req_uuid,
-                    // XXX(sandello): Embed.
-                    error : yt.YtError.ensureWrapped(err).toJson()
-                });
-            });
-        }
-        socket.last_req_uuid = req.uuid;
-        next();
-    })
-    .use(function(req, rsp, next) {
-        "use strict";
-        // TODO(sandello): Refactor this.
-        if (req.method === "OPTIONS") {
-            rsp.setHeader("Access-Control-Allow-Origin", "*");
-            rsp.setHeader("Access-Control-Allow-Methods", "POST, PUT, GET, OPTIONS");
-            // Some of this headers are not supported by commands that differ from 'api'
-            // TODO(sandello): remake it
-            rsp.setHeader("Access-Control-Allow-Headers", "origin, content-type, accept, x-yt-parameters, x-yt-input-format, x-yt-output-format, authorization");
-            rsp.setHeader("Access-Control-Max-Age", "3600");
-            return yt.utils.dispatchAs(rsp);
-        }
-        next();
-    })
-    .use("/auth", yt.YtApplicationAuth(logger, config))
-    .use("/ping", function(req, rsp, next) {
-        "use strict";
-        req.on("end", function() {
-            rsp.writeHead(200, { "Content-Length" : 0 });
-            rsp.end();
-        });
-    })
-    .use("/hosts", yt.YtHostDiscovery(config.neighbours))
+    .use(yt.YtAcao())
+    .use(connect.favicon())
+    .use("/hosts", yt.YtHostDiscovery())
+    .use("/auth", yt.YtApplicationAuth())
+    .use("/upravlyator", yt.YtApplicationUpravlyator())
+    // TODO(sandello): Can we remove this?
     .use("/_check_availability_time", function(req, rsp, next) {
         "use strict";
         fs.readFile("/var/lock/yt_check_availability_time", function(err, data) {
@@ -231,6 +178,7 @@ dynamic_server = connect()
             }
         });
     })
+    // TODO(sandello): This would be deprecated with nodejs 0.10.
     // Begin of asynchronous middleware.
     .use(function(req, rsp, next) {
         "use strict";
@@ -245,70 +193,112 @@ dynamic_server = connect()
         next();
     })
     // End of asynchronous middleware.
+    .use("/ping", function(req, rsp, next) {
+        "use strict";
+        if (req.url === "/") {
+            return void yt.utils.dispatchAs(rsp, "");
+        }
+        next();
+    })
+    .use("/version", function(req, rsp, next) {
+        "use strict";
+        if (req.url === "/") {
+            return void yt.utils.dispatchAs(rsp, version.versionFull, "text/plain");
+        }
+        next();
+    })
     .use("/ui", function(req, rsp, next) {
         "use strict";
         if (req.url === "/") {
             req.url = "index.html";
         }
         req.on("end", function() {
-            static_server.serve(req, rsp);
-        });
-    })
-    .use("/ui-new", function(req, rsp, next) {
-        "use strict";
-        rsp.statusCode = 301;
-        rsp.setHeader("Location", "/ui" + req.url);
-        rsp.end();
-    })
-    .use("/__version__", function(req, rsp) {
-        "use strict";
-        req.on("end", function() {
-            rsp.setHeader("Access-Control-Allow-Origin", "*");
-            rsp.setHeader("Content-Type", "text/plain");
-            rsp.end(version.versionFull);
-        });
-    })
-    .use("/__config__", function(req, rsp) {
-        "use strict";
-        req.on("end", function() {
-            rsp.setHeader("Access-Control-Allow-Origin", "*");
-            rsp.setHeader("Content-Type", "application/json");
-            rsp.end(JSON.stringify(config));
-        });
-    })
-    .use("/__env__", function(req, rsp) {
-        "use strict";
-        req.on("end", function() {
-            rsp.setHeader("Access-Control-Allow-Origin", "*");
-            rsp.setHeader("Content-Type", "application/json");
-            rsp.end(JSON.stringify(process.env));
+            static_application.serve(req, rsp);
         });
     })
     .use("/", function(req, rsp, next) {
         "use strict";
         if (req.url === "/") {
-            rsp.writeHead(303, {
-                "Location" : "/ui-new/",
-                "Content-Length" : 0,
-                "Content-Type" : "application/json"
-            });
-            rsp.end();
-        } else {
-            next();
+            return void yt.utils.redirectTo(rsp, "/ui/");
         }
+        next();
     })
     .use(function(req, rsp) {
         "use strict";
-        rsp.writeHead(404, { "Content-Type" : "text/plain" });
-        rsp.end("Invalid URI " + JSON.stringify(req.url) + ". Please refer to documentation at http://wiki.yandex-team.ru/YT/ to learn more about HTTP API.");
-    })
-    .listen(config.port, config.address, function() {
+        rsp.statusCode = 404;
+        return void yt.utils.dispatchAs(
+            rsp, "Invalid URI " + JSON.stringify(req.url) + ". " +
+            "Please refer to documentation at http://wiki.yandex-team.ru/YT/ " +
+            "to learn more about HTTP API.",
+            "text/plain");
+    });
+
+// Bind servers.
+if (config.port && config.address) {
+    logger.info("Binding to insecure socket", {
+        wid: cluster.worker.id,
+        pid: process.pid,
+        address: config.address,
+        port: config.port
+    });
+
+    insecure_server = http.createServer(dynamic_application);
+    insecure_server.listen(config.port, config.address);
+
+    insecure_server.on("close", insecure_close_deferred.resolve.bind(insecure_close_deferred));
+    insecure_server.on("listening", insecure_listening_deferred.resolve.bind(insecure_listening_deferred));
+    insecure_server.on("connection", yt.YtLogSocket());
+    insecure_server.on("connection", function(socket) {
+        socket.setTimeout(5 * 60 * 1000);
+        socket.setNoDelay(true);
+        socket.setKeepAlive(true);
+    });
+} else {
+    insecure_close_deferred.reject(new Error("Insecure server is not enabled"));
+    insecure_listening_deferred.reject(new Error("Insecure server is not enabled"));
+}
+
+if (config.ssl_port && config.ssl_address) {
+    logger.info("Binding to secure socket", {
+        wid: cluster.worker.id,
+        pid: process.pid,
+        address: config.ssl_address,
+        port: config.ssl_port
+    });
+
+    secure_server = https.createServer({
+        key: fs.readFileSync(config.ssl_key),
+        cert: fs.readFileSync(config.ssl_cert),
+        ca: [ fs.readFileSync(config.ssl_ca) ],
+        ciphers: config.ssl_ciphers,
+        requestCert: true,
+        rejectUnauthorized: true,
+    }, dynamic_application);
+    secure_server.listen(config.ssl_port, config.ssl_address);
+
+    secure_server.on("close", secure_close_deferred.resolve.bind(secure_close_deferred));
+    secure_server.on("listening", secure_listening_deferred.resolve.bind(secure_listening_deferred));
+    secure_server.on("secureConnection", yt.YtLogSocket());
+} else {
+    secure_close_deferred.reject(new Error("Secure server is not enabled"));
+    secure_listening_deferred.reject(new Error("Secure server is not enabled"));
+}
+
+// TODO(sandello): Add those checks in |secureConnection|.
+// $ssl_client_i_dn == "/DC=ru/DC=yandex/DC=ld/CN=YandexExternalCA";
+// $ssl_client_s_dn == "/C=RU/ST=Russia/L=Moscow/O=Yandex/OU=Information Security/CN=agranat.yandex-team.ru/emailAddress=security@yandex-team.ru";
+
+Q
+    .allResolved([ insecure_listening_deferred.promise, secure_listening_deferred.promise ])
+    .then(function() {
         "use strict";
-        logger.info("Worker is listening", {
+        logger.info("Worker is up and running", {
             wid : cluster.worker.id,
             pid : process.pid
         });
         process.send({ type : "alive" });
-    })
-    .on("close", violentlyDie);
+    });
 
+Q
+    .allResolved([ insecure_close_deferred.promise, secure_close_deferred.promise ])
+    .then(violentlyDie);

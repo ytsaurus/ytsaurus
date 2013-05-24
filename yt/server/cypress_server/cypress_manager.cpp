@@ -83,7 +83,8 @@ public:
     {
         return EPermissionSet(
             EPermission::Read |
-            EPermission::Write);
+            EPermission::Write |
+            EPermission::Administer);
     }
 
 private:

@@ -12,7 +12,11 @@ namespace NChunkClient {
 NLog::TLogger ChunkReaderLogger("ChunkReader");
 NLog::TLogger ChunkWriterLogger("ChunkWriter");
 
-TLazyHolder<NRpc::TChannelCache> NodeChannelCache;
+// For light requests (e.g. SendBlocks, GetBlocks, etc).
+TLazyHolder<NRpc::TChannelCache> LightNodeChannelCache;
+
+// For heavy requests (e.g. PutBlocks).
+TLazyHolder<NRpc::TChannelCache> HeavyNodeChannelCache;
 
 const int MaxPrefetchWindow = 250;
 const i64 ChunkReaderMemorySize = (i64) 16 * 1024;

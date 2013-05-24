@@ -433,7 +433,7 @@ void TBootstrap::UpdateCellGuid(const TGuid& cellGuid)
 
 IThroughputThrottlerPtr TBootstrap::GetReplicationOutThrottler() const
 {
-    return RepairOutThrottler;
+    return ReplicationOutThrottler;
 }
 
 IThroughputThrottlerPtr TBootstrap::GetRepairInThrottler() const

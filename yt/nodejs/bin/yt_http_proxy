@@ -116,9 +116,15 @@ function merge(lhs, rhs) {
 
 config = {
     port              : 80,
-    log_port          : 59999,
     address           : "::",
+    log_port          : 59999,
     log_address       : "::1",
+    ssl_port          : null,
+    ssl_address       : null,
+    ssl_key           : "/dev/null",
+    ssl_cert          : "/dev/null",
+    ssl_ca            : "/dev/null",
+    ssl_ciphers       : "!aNULL:!LOW:!MD5:!EXP:RC4:CAMELLIA:AES128:3DES:SEED:AES256",
     neighbours        : [ "::1" ],
     number_of_workers : 4,
     memory_limit      : 32 * 1024 * 1024,

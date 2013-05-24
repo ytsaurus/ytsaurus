@@ -422,6 +422,7 @@ bool TObjectProxyBase::SetSystemAttribute(const Stroka& key, const TYsonString& 
     if (acd) {
         if (key == "inherit_acl") {
             ValidateNoTransaction();
+            ValidatePermission(EPermissionCheckScope::This, EPermission::Administer);
 
             acd->SetInherit(ConvertTo<bool>(value));
             return true;
@@ -429,6 +430,7 @@ bool TObjectProxyBase::SetSystemAttribute(const Stroka& key, const TYsonString& 
 
         if (key == "acl") {
             ValidateNoTransaction();
+            ValidatePermission(EPermissionCheckScope::This, EPermission::Administer);
 
             auto supportedPermissions = securityManager->GetSupportedPermissions(Object);
             auto valueNode = ConvertToNode(value);
@@ -449,7 +451,7 @@ bool TObjectProxyBase::SetSystemAttribute(const Stroka& key, const TYsonString& 
             auto name = ConvertTo<Stroka>(value);
             auto* owner = securityManager->FindSubjectByName(name);
             if (!IsObjectAlive(owner)) {
-                THROW_ERROR_EXCEPTION("No such subject: %s", ~name);
+                THROW_ERROR_EXCEPTION("No such subject %s", ~name.Quote());
             }
 
             auto* user = securityManager->GetAuthenticatedUser();

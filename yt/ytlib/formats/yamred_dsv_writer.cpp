@@ -15,6 +15,7 @@ TYamredDsvWriter::TYamredDsvWriter(TOutputStream* stream, TYamredDsvFormatConfig
     , State(EState::None)
     , IsValueEmpty(true)
     , AllowBeginMap(true)
+    , ExpectTableIndex(false)
     , Table(config)
 {
     FOREACH (const auto& val, Config->KeyColumnNames) {
@@ -30,7 +31,13 @@ TYamredDsvWriter::~TYamredDsvWriter()
 
 void TYamredDsvWriter::OnIntegerScalar(i64 value)
 {
-    RememberValue(ToString(value));
+    if (ExpectTableIndex) {
+        YASSERT(value < std::numeric_limits<i64>::max());
+        WritePod(*Stream, static_cast<i16>(value));
+        ExpectTableIndex = false;
+    } else {
+        RememberValue(ToString(value));
+    }
 }
 
 void TYamredDsvWriter::OnDoubleScalar(double value)
@@ -80,8 +87,15 @@ void TYamredDsvWriter::OnKeyedItem(const TStringBuf& key)
         // TODO(babenko): improve diagnostics
         THROW_ERROR_EXCEPTION("Missing value in YAMRed DSV");
     }
-    Key = key;
-    State = EState::ExpectingValue;
+
+    if (key == "table_index") {
+        ExpectTableIndex = true;
+    }
+    else {
+        Key = key;
+        State = EState::ExpectingValue;
+    }
+
 }
 
 void TYamredDsvWriter::OnEndMap()
@@ -92,12 +106,16 @@ void TYamredDsvWriter::OnEndMap()
 
 void TYamredDsvWriter::OnBeginAttributes()
 {
-    THROW_ERROR_EXCEPTION("Attributes are not supported by YAMRed DSV");
+    if (!Config->EnableTableIndex) {
+        THROW_ERROR_EXCEPTION("Attributes are not supported by YAMRed DSV");
+    }
 }
 
 void TYamredDsvWriter::OnEndAttributes()
 {
-    YUNREACHABLE();
+    if (!Config->EnableTableIndex) {
+        YUNREACHABLE();
+    }
 }
 
 void TYamredDsvWriter::RememberValue(const TStringBuf& value)
@@ -138,25 +156,57 @@ void TYamredDsvWriter::WriteRow()
     if (Config->HasSubkey) {
         WriteYamrField(Config->SubkeyColumnNames, SubkeyFields);
     }
-    Stream->Write(ValueBuffer.Begin(), ValueBuffer.GetSize());
-    Stream->Write(Config->RecordSeparator);
+    if (Config->Lenval) {
+        WritePod(*Stream, static_cast<i32>(ValueBuffer.GetSize()));
+        Stream->Write(ValueBuffer.Begin(), ValueBuffer.GetSize());
+    }
+    else {
+        Stream->Write(ValueBuffer.Begin(), ValueBuffer.GetSize());
+        Stream->Write(Config->RecordSeparator);
+    }
 }
 
 void TYamredDsvWriter::WriteYamrField(
     const std::vector<Stroka>& columnNames,
     const std::map<Stroka, Stroka>& fieldValues)
 {
-    for (int i = 0; i < columnNames.size(); ++i) {
-        auto it = fieldValues.find(columnNames[i]);
-        if (it == fieldValues.end()) {
-            THROW_ERROR_EXCEPTION("Missing required column in YAMRed DSV: %s", ~columnNames[i]);
+    if (Config->Lenval) {
+        if (columnNames.size() == 0) {
+            WritePod(*Stream, 0);
         }
-        EscapeAndWrite(Stream, it->second, false);
-        if (i + 1 != columnNames.size()) {
-            Stream->Write(Config->YamrKeysSeparator);
+        else {
+            i32 length = (columnNames.size() - 1);
+            for (int i = 0; i < columnNames.size(); ++i) {
+                auto it = fieldValues.find(columnNames[i]);
+                if (it == fieldValues.end()) {
+                    THROW_ERROR_EXCEPTION("Missing required column in YAMRed DSV: %s", ~columnNames[i]);
+                }
+                length += it->second.size();
+            }
+            WritePod(*Stream, length);
+
+            for (int i = 0; i < columnNames.size(); ++i) {
+                auto it = fieldValues.find(columnNames[i]);
+                Stream->Write(it->second);
+                if (i + 1 != columnNames.size()) {
+                    Stream->Write(Config->YamrKeysSeparator);
+                }
+            }
         }
     }
-    Stream->Write(Config->FieldSeparator);
+    else {
+        for (int i = 0; i < columnNames.size(); ++i) {
+            auto it = fieldValues.find(columnNames[i]);
+            if (it == fieldValues.end()) {
+                THROW_ERROR_EXCEPTION("Missing required column in YAMRed DSV: %s", ~columnNames[i]);
+            }
+            EscapeAndWrite(Stream, it->second, false);
+            if (i + 1 != columnNames.size()) {
+                Stream->Write(Config->YamrKeysSeparator);
+            }
+        }
+        Stream->Write(Config->FieldSeparator);
+    }
 }
 
 void TYamredDsvWriter::EscapeAndWrite(TOutputStream* outputStream, const TStringBuf& string, bool inKey)

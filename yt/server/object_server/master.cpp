@@ -215,9 +215,7 @@ public:
 
     virtual EPermissionSet GetSupportedPermissions() const override
     {
-        return EPermissionSet(
-            EPermission::Read |
-            EPermission::Write);
+        return NonePermissions;
     }
 
 private:

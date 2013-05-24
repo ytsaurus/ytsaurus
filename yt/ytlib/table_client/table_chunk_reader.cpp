@@ -942,7 +942,7 @@ TTableChunkReaderProvider::TTableChunkReaderProvider(
 {
     FOREACH (const auto& inputChunk, inputChunks) {
         i64 rowCount;
-        NChunkClient::GetStatistics(inputChunk, nullptr, &rowCount);
+        GetStatistics(inputChunk, nullptr, &rowCount);
         RowCount_ += rowCount;
     }
 }
@@ -957,7 +957,7 @@ void TTableChunkReaderProvider::OnReaderOpened(
     NChunkClient::NProto::TInputChunk& inputChunk)
 {
     i64 rowCount;
-    NChunkClient::GetStatistics(inputChunk, nullptr, &rowCount);
+    GetStatistics(inputChunk, nullptr, &rowCount);
     // GetRowCount gives better estimation than original, based on meta extensions.
     RowCount_ += reader->GetRowCount() - rowCount;
 }

@@ -100,6 +100,7 @@ public:
         return EPermissionSet(
             EPermissionSet::Read |
             EPermissionSet::Write |
+            EPermissionSet::Administer |
             EPermission::Use);
     }
 

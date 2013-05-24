@@ -115,6 +115,72 @@ TEST(TYamredDsvWriterTest, Escaping)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TYamredDsvWriterTest, Lenval)
+{
+    TStringStream outputStream;
+    auto config = New<TYamredDsvFormatConfig>();
+    config->Lenval = true;
+    config->HasSubkey = true;
+    config->KeyColumnNames.push_back("key_a");
+    config->KeyColumnNames.push_back("key_b");
+    config->SubkeyColumnNames.push_back("subkey");
+    TYamredDsvWriter writer(&outputStream, config);
+
+    writer.OnListItem();
+    writer.OnBeginMap();
+        writer.OnKeyedItem("subkey");
+        writer.OnStringScalar("xxx");
+        writer.OnKeyedItem("key_a");
+        writer.OnStringScalar("a");
+        writer.OnKeyedItem("column");
+        writer.OnStringScalar("value");
+        writer.OnKeyedItem("key_b");
+        writer.OnStringScalar("b");
+    writer.OnEndMap();
+    
+    Stroka output = Stroka(
+        "\x03\x00\x00\x00" "a b"
+        "\x03\x00\x00\x00" "xxx"
+        "\x0C\x00\x00\x00" "column=value"
+        , 3 * 4 + 3 + 3 + 12
+    );
+
+    EXPECT_EQ(output, outputStream.Str());
+}
+
+TEST(TYamredDsvWriterTest, TableIndex)
+{
+    TStringStream outputStream;
+    auto config = New<TYamredDsvFormatConfig>();
+    config->Lenval = true;
+    config->EnableTableIndex = true;
+    config->KeyColumnNames.push_back("key");
+    TYamredDsvWriter writer(&outputStream, config);
+
+    writer.OnListItem();
+    writer.OnBeginAttributes();
+        writer.OnKeyedItem("table_index");
+        writer.OnIntegerScalar(0);
+    writer.OnEndAttributes();
+    writer.OnBeginMap();
+        writer.OnKeyedItem("key");
+        writer.OnStringScalar("x");
+        writer.OnKeyedItem("value");
+        writer.OnStringScalar("y");
+    writer.OnEndMap();
+    
+    Stroka output = Stroka(
+        "\x00\x00"
+        "\x01\x00\x00\x00" "x"
+        "\x07\x00\x00\x00" "value=y"
+        , 2 + 2 * 4 + 1 + 7
+    );
+
+    EXPECT_EQ(output, outputStream.Str());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NFormats
 } // namespace NYT
 

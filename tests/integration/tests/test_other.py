@@ -155,7 +155,7 @@ class TestAsyncAttributes(YTEnvSetup):
 
 class TestChunkServer(YTEnvSetup):
     NUM_MASTERS = 1
-    NUM_NODES = 4
+    NUM_NODES = 20
     START_SCHEDULER = False
 
     def test_owning_nodes1(self):
@@ -175,8 +175,9 @@ class TestChunkServer(YTEnvSetup):
         chunk_id = chunk_ids[0]
         assert get('#' + chunk_id + '/@owning_nodes') == ['//tmp/t']
 
-    def test_decommissioned_node(self):
+    def _test_decommission(self, erasure_codec, replica_count):
         create('table', '//tmp/t')
+        set('//tmp/t/@erasure_codec', erasure_codec)
         write('//tmp/t', {'a' : 'b'})
 
         time.sleep(1) # wait for background replication
@@ -186,7 +187,7 @@ class TestChunkServer(YTEnvSetup):
         chunk_id = chunk_ids[0]
 
         nodes = get('#%s/@stored_replicas' % chunk_id)
-        assert len(nodes) == 3
+        assert len(nodes) == replica_count
 
         node_to_decommission = nodes[0]
         assert get('//sys/nodes/%s/@stored_replica_count' % node_to_decommission) == 1
@@ -196,8 +197,13 @@ class TestChunkServer(YTEnvSetup):
         time.sleep(3) # wait for background replication
 
         assert get('//sys/nodes/%s/@stored_replica_count' % node_to_decommission) == 0
-        assert len(get('#%s/@stored_replicas' % chunk_id)) == 3
+        assert len(get('#%s/@stored_replicas' % chunk_id)) == replica_count
 
+    def test_decommission_regular(self):
+        self._test_decommission('none', 3)
+
+    def test_decommission_erasure(self):
+        self._test_decommission('lrc_12_2_2', 16)
 
 ###################################################################################
 

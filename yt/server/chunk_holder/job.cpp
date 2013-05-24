@@ -60,6 +60,7 @@ public:
         TDataNodeConfigPtr config,
         TBootstrap* bootstrap)
         : JobId(jobId)
+        , ResourceLimits(resourceLimits)
         , Config(config)
         , Bootstrap(bootstrap)
         , Logger(DataNodeLogger)
@@ -216,6 +217,7 @@ private:
         JobPhase = EJobPhase::Finished;
         JobState = finalState;
         ToProto(Result.mutable_error(), error);
+        ResourceLimits = ZeroNodeResources();
 
         CancelableContext.Reset();
         CancelableInvoker.Reset();

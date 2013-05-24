@@ -77,7 +77,6 @@ public:
         , JobProxy("", "job-proxy", "start job proxy")
         , JobId("", "job-id", "job id (for job proxy mode)", false, "", "ID")
         , WorkingDirectory("", "working-dir", "working directory", false, "", "DIR")
-        , MemoryLimit("", "memory-limit", "soft memory limit", false, 0, "SIZE")
         , Config("", "config", "configuration file", false, "", "FILE")
         , ConfigTemplate("", "config-template", "print configuration file template")
     {
@@ -87,7 +86,6 @@ public:
         CmdLine.add(JobProxy);
         CmdLine.add(JobId);
         CmdLine.add(WorkingDirectory);
-        CmdLine.add(MemoryLimit);
         CmdLine.add(Config);
         CmdLine.add(ConfigTemplate);
     }
@@ -101,7 +99,6 @@ public:
 
     TCLAP::ValueArg<Stroka> JobId;
     TCLAP::ValueArg<Stroka> WorkingDirectory;
-    TCLAP::ValueArg<rlim_t> MemoryLimit;
     TCLAP::ValueArg<Stroka> Config;
     TCLAP::SwitchArg ConfigTemplate;
 };
@@ -127,7 +124,6 @@ EExitCode GuardedMain(int argc, const char* argv[])
     Stroka configFileName = parser.Config.getValue();
 
     Stroka workingDirectory = parser.WorkingDirectory.getValue();
-    rlim_t memoryLimit = parser.MemoryLimit.getValue();
 
     int modeCount = 0;
     if (isCellNode) {
@@ -150,14 +146,6 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
     if (!workingDirectory.empty()) {
         ChDir(workingDirectory);
-    }
-
-    if (memoryLimit > 0) {
-        auto res = SetMemoryLimit(memoryLimit);
-        if (res) {
-            //  To save backward compatibility
-            _exit(EJobProxyExitCode::SetRLimitFailed);
-        }
     }
 
     INodePtr configNode;

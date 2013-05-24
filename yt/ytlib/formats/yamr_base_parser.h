@@ -8,29 +8,52 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYamrBaseParser
+struct IYamrConsumer
+    : public TRefCounted
+{
+    virtual void ConsumeKey(const TStringBuf& key) = 0;
+    virtual void ConsumeSubkey(const TStringBuf& subkey) = 0;
+    virtual void ConsumeValue(const TStringBuf& value) = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TYamrDelimitedBaseParser
     : public IParser
 {
 public:
-    TYamrBaseParser(
+    TYamrDelimitedBaseParser(
+        IYamrConsumerPtr consumer,
+        bool hasSubkey,
         char fieldSeparator,
         char recordSeparator,
         bool enableKeyEscaping,
         bool enableValueEscaping,
         char escapingSymbol,
-        bool hasSubkey,
         bool escapeCarriageReturn);
 
     virtual void Read(const TStringBuf& data) override;
     virtual void Finish() override;
 
-protected:
-    virtual void ConsumeKey(const TStringBuf& key) = 0;
-    virtual void ConsumeSubkey(const TStringBuf& subkey) = 0;
-    virtual void ConsumeValue(const TStringBuf& value) = 0;
+private:
+    const char* Consume(const char* begin, const char* end);
+
+    // returns pointer to next fragment or NULL if record is not fully present in [begin, end)
+    const char* TryConsumeRecord(const char* begin, const char *end);
+
+    void ProcessKey(const TStringBuf& key);
+    void ProcessSubkey(const TStringBuf& subkey);
+    void ProcessValue(const TStringBuf& value);
+
+    void ThrowIncorrectFormat() const;
+
+    void OnRangeConsumed(const char* begin, const char* end);
+    void AppendToContextBuffer(char symbol);
 
     Stroka GetDebugInfo() const;
-private:
+
+    IYamrConsumerPtr Consumer;
+    
     DECLARE_ENUM(EState,
         (InsideKey)
         (InsideSubkey)
@@ -46,20 +69,6 @@ private:
 
     Stroka CurrentToken;
 
-    const char* Consume(const char* begin, const char* end);
-
-    // returns pointer to next fragment or NULL if record is not fully present in [begin, end)
-    const char* TryConsumeRecord(const char* begin, const char *end);
-
-    void ProcessKey(const TStringBuf& key);
-    void ProcessSubkey(const TStringBuf& subkey);
-    void ProcessValue(const TStringBuf& value);
-
-    void ThrowIncorrectFormat() const;
-
-    void OnRangeConsumed(const char* begin, const char* end);
-    void AppendToContextBuffer(char symbol);
-
     // Diagnostic Info
     i64 Offset;
     i64 Record;
@@ -69,6 +78,54 @@ private:
     char ContextBuffer[ContextBufferSize];
 
     TYamrTable Table;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TYamrLenvalBaseParser
+    : public IParser
+{
+public:
+    TYamrLenvalBaseParser(
+        IYamrConsumerPtr consumer,
+        bool hasSubkey);
+
+    virtual void Read(const TStringBuf& data) override;
+    virtual void Finish() override;
+
+private:
+    Stroka GetDebugInfo() const;
+
+    const char* Consume(const char* begin, const char* end);
+    const char* ConsumeLength(const char* begin, const char* end);
+    const char* ConsumeData(const char* begin, const char* end);
+
+    IYamrConsumerPtr Consumer;
+
+    bool HasSubkey;
+
+    Stroka CurrentToken;
+
+    union {
+        ui32 Length;
+        char Bytes[4];
+    } Union;
+
+    bool ReadingLength;
+    ui32 BytesToRead;
+
+    DECLARE_ENUM(EState,
+        (InsideKey)
+        (InsideSubkey)
+        (InsideValue)
+    );
+
+    EState State;
+
+    static const ui32 MaxFieldLength = 16 * 1024 * 1024;
+    static const int BufferSize = 16;
+    char ContextBuffer[BufferSize];
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

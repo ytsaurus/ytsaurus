@@ -70,10 +70,6 @@ using NScheduler::NProto::TUserJobSpec;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const i64 MemoryLimitBoost = (i64) 4 * 1024 * 1024 * 1024;
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TJob
     : public NJobAgent::IJob
 {
@@ -89,7 +85,6 @@ public:
         , ResourceLimits(resourceLimits)
         , Bootstrap(bootstrap)
         , ResourceUsage(resourceLimits)
-        , JobProxyMemoryLimit(resourceLimits.memory())
         , Logger(ExecAgentLogger)
         , JobState(EJobState::Waiting)
         , JobPhase(EJobPhase::Created)
@@ -112,11 +107,6 @@ public:
             if (jobSpecExt.has_mapper_spec()) {
                 UserJobSpec = &jobSpecExt.mapper_spec();
             }
-        }
-
-        if (UserJobSpec) {
-            JobProxyMemoryLimit -= UserJobSpec->memory_limit();
-            ResourceUsage.set_memory(JobProxyMemoryLimit + UserJobSpec->memory_reserve());
         }
 
         Logger.AddTag(Sprintf("JobId: %s", ~ToString(jobId)));
@@ -256,9 +246,6 @@ private:
     TSpinLock ResourcesLock;
     TNodeResources ResourceUsage;
 
-    // Memory usage estimation for JobProxy, not including user process.
-    i64 JobProxyMemoryLimit;
-
     NLog::TTaggedLogger Logger;
 
     TSlotPtr Slot;
@@ -334,7 +321,6 @@ private:
 
         Stroka environmentType = "default";
         try {
-            YCHECK(JobProxyMemoryLimit > 0);
             auto environmentManager = Bootstrap->GetEnvironmentManager();
             ProxyController = environmentManager->CreateProxyController(
                 //XXX(psushin): execution environment type must not be directly
@@ -342,8 +328,7 @@ private:
                 //jobSpec.operation_spec().environment(),
                 environmentType,
                 JobId,
-                Slot->GetWorkingDirectory(),
-                static_cast<i64>(JobProxyMemoryLimit * Bootstrap->GetConfig()->ExecAgent->MemoryLimitMultiplier + MemoryLimitBoost));
+                Slot->GetWorkingDirectory());
         } catch (const std::exception& ex) {
             auto wrappedError = TError(
                 "Failed to create proxy controller for environment %s",

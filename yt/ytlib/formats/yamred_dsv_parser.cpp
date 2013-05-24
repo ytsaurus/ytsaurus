@@ -13,28 +13,40 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYamredDsvParser
-    : public TYamrBaseParser
+class TYamredDsvConsumer
+    : public IYamrConsumer
 {
 public:
-    TYamredDsvParser(
+    TYamredDsvConsumer(
         IYsonConsumer* consumer,
         TYamredDsvFormatConfigPtr config)
-        : TYamrBaseParser(
-              config->FieldSeparator,
-              config->RecordSeparator,
-              config->EnableEscaping, // Enable key escaping
-              false, // Enable value escaping
-              config->EscapingSymbol,
-              config->HasSubkey,
-              config->EscapeCarriageReturn)
-        , Consumer(consumer)
-        , Config(config)
-        , DsvParser(CreateParserForDsv(
-            Consumer,
-            Config,
-            /*wrapWithMap*/ false))
+            : Consumer(consumer)
+            , Config(config)
+            , DsvParser(
+                CreateParserForDsv(
+                    Consumer,
+                    Config,
+                    /*wrapWithMap*/ false))
     { }
+
+    void ConsumeKey(const TStringBuf& key) override
+    {
+        Consumer->OnListItem();
+        Consumer->OnBeginMap();
+        ConsumeFields(Config->KeyColumnNames, key);
+    }
+
+    void ConsumeSubkey(const TStringBuf& subkey) override
+    {
+        ConsumeFields(Config->SubkeyColumnNames, subkey);
+    }
+
+    void ConsumeValue(const TStringBuf& value) override
+    {
+        DsvParser->Read(value);
+        DsvParser->Finish();
+        Consumer->OnEndMap();
+    }
 
 private:
     IYsonConsumer* Consumer;
@@ -70,33 +82,31 @@ private:
         }
     }
 
-    void ConsumeKey(const TStringBuf& key)
-    {
-        Consumer->OnListItem();
-        Consumer->OnBeginMap();
-        ConsumeFields(Config->KeyColumnNames, key);
-    }
-
-    void ConsumeSubkey(const TStringBuf& subkey)
-    {
-        ConsumeFields(Config->SubkeyColumnNames, subkey);
-    }
-
-    void ConsumeValue(const TStringBuf& value)
-    {
-        DsvParser->Read(value);
-        DsvParser->Finish();
-        Consumer->OnEndMap();
-    }
 };
-
+        
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IParser> CreateParserForYamredDsv(
     IYsonConsumer* consumer,
     TYamredDsvFormatConfigPtr config)
 {
-    return std::unique_ptr<IParser>(new TYamredDsvParser(consumer, config));
+    auto yamredDsvConsumer = New<TYamredDsvConsumer>(consumer, config);
+
+    return config->Lenval
+        ? std::unique_ptr<IParser>(
+            new TYamrLenvalBaseParser(
+                yamredDsvConsumer,
+                config->HasSubkey))
+        : std::unique_ptr<IParser>(
+            new TYamrDelimitedBaseParser(
+                yamredDsvConsumer,
+                config->HasSubkey,
+                config->FieldSeparator,
+                config->RecordSeparator,
+                config->EnableEscaping, // Enable key escaping
+                false, // Enable value escaping
+                config->EscapingSymbol,
+                config->EscapeCarriageReturn));
 }
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -14,7 +14,8 @@ namespace NChunkClient {
 extern NLog::TLogger ChunkReaderLogger;
 extern NLog::TLogger ChunkWriterLogger;
 
-extern TLazyHolder<NRpc::TChannelCache> NodeChannelCache;
+extern TLazyHolder<NRpc::TChannelCache> HeavyNodeChannelCache;
+extern TLazyHolder<NRpc::TChannelCache> LightNodeChannelCache;
 
 extern const int MaxPrefetchWindow;
 

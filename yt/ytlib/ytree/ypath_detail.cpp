@@ -586,6 +586,8 @@ void TSupportsAttributes::ExistsAttribute(
 
 void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& newYson)
 {
+    ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+
     auto userAttributes = GetUserAttributes();
     auto systemAttributeProvider = GetSystemAttributeProvider();
 
@@ -619,8 +621,6 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
              }
              return;
         }
-
-        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
 
         auto oldUserKeys = userAttributes->List();
 
@@ -679,8 +679,6 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
             if (!userAttributes) {
                 THROW_ERROR_EXCEPTION("User attributes are not supported");
             }
-            
-            ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
             
             auto oldWholeYson = userAttributes->FindYson(key);
             if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {

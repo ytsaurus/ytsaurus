@@ -143,7 +143,11 @@ class TYamredDsvFormatConfig
 {
 public:
     bool HasSubkey;
+    bool Lenval;
     char YamrKeysSeparator;
+
+    // make sense only in writer
+    bool EnableTableIndex;
 
     std::vector<Stroka> KeyColumnNames;
     std::vector<Stroka> SubkeyColumnNames;
@@ -152,11 +156,15 @@ public:
     {
         RegisterParameter("has_subkey", HasSubkey)
             .Default(false);
+        RegisterParameter("lenval", Lenval)
+            .Default(false);
         RegisterParameter("key_column_names", KeyColumnNames);
         RegisterParameter("subkey_column_names", SubkeyColumnNames)
             .Default();
         RegisterParameter("yamr_keys_separator", YamrKeysSeparator)
             .Default(' ');
+        RegisterParameter("enable_table_index", EnableTableIndex)
+            .Default(false);
     }
 };
 

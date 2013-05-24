@@ -201,7 +201,7 @@ public:
         return operation;
     }
 
-    TOperationPtr FindOperationByMutationId(const TOperationId& id)
+    TOperationPtr FindOperationByMutationId(const TMutationId& id)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -367,7 +367,7 @@ public:
 
         node->ResourceLimits() = request->resource_limits();
         node->ResourceUsage() = request->resource_usage();
-        
+
         // Update total resource limits _before_ processing the heartbeat to give
         // the scheduler the exact data on total resource limits.
         TotalResourceLimits -= oldResourceLimits;
@@ -1127,14 +1127,14 @@ private:
     void RegisterOperation(TOperationPtr operation)
     {
         YCHECK(IdToOperation.insert(std::make_pair(operation->GetOperationId(), operation)).second);
-        
+
         auto mutationId = operation->GetMutationId();
         if (mutationId != NullMutationId) {
             YCHECK(MutationIdToOperation.insert(std::make_pair(mutationId, operation)).second);
         }
-        
+
         OperationRegistered_.Fire(operation);
-        
+
         LOG_DEBUG("Operation registered (OperationId: %s)",
             ~ToString(operation->GetOperationId()));
     }
@@ -1158,9 +1158,9 @@ private:
         if (mutationId != NullMutationId) {
             YCHECK(MutationIdToOperation.erase(operation->GetMutationId()) == 1);
         }
-        
+
         OperationUnregistered_.Fire(operation);
-        
+
         LOG_DEBUG("Operation unregistered (OperationId: %s)",
             ~ToString(operation->GetOperationId()));
     }

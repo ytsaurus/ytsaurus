@@ -40,6 +40,7 @@ void TDownloadCommand::DoExecute()
         if (!block) {
             break;
         }
+
         output->Write(block.Begin(), block.Size());
     }
 }
@@ -63,12 +64,8 @@ void TUploadCommand::DoExecute()
     auto input = Context->GetRequest()->InputStream;
 
     TBlob buffer(config->BlockSize, false);
-    while (true) {
-        size_t bytesRead = input->Read(buffer.Begin(), buffer.Size());
-        if (bytesRead == 0)
-            break;
-        TRef block(buffer.Begin(), bytesRead);
-        writer->Write(block);
+    while (size_t length = input->Load(buffer.Begin(), buffer.Size())) {
+        writer->Write(TRef(buffer.Begin(), length));
     }
 
     writer->Close();

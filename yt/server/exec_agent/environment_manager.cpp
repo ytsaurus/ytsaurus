@@ -27,8 +27,7 @@ void TEnvironmentManager::Register(
 IProxyControllerPtr TEnvironmentManager::CreateProxyController(
     const Stroka& envName,
     const TJobId& jobId,
-    const Stroka& workingDirectory,
-    i64 jobProxyMemoryLimit)
+    const Stroka& workingDirectory)
 {
     auto env = Config->FindEnvironment(envName);
 
@@ -40,8 +39,7 @@ IProxyControllerPtr TEnvironmentManager::CreateProxyController(
     return it->second->CreateProxyController(
         env->GetOptions(),
         jobId,
-        workingDirectory,
-        jobProxyMemoryLimit);
+        workingDirectory);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

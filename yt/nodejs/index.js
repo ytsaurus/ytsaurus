@@ -1,10 +1,13 @@
 // Middleware.
 exports.YtApplicationApi = require("./lib/middleware/application_api").that;
 exports.YtApplicationAuth = require("./lib/middleware/application_auth").that;
+exports.YtApplicationUpravlyator = require("./lib/middleware/application_upravlyator").that;
 
+exports.YtAcao = require("./lib/middleware/acao").that;
 exports.YtAuthentication = require("./lib/middleware/authentication").that;
-exports.YtMarkRequest = require("./lib/middleware/mark_request").that;
+exports.YtIsolateRequest = require("./lib/middleware/isolate_request").that;
 exports.YtLogRequest = require("./lib/middleware/log_request").that;
+exports.YtLogSocket = require("./lib/middleware/log_socket").that;
 
 // Objects.
 exports.YtAuthority = require("./lib/authority").that;

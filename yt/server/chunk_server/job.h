@@ -76,11 +76,7 @@ public:
 class TJobList
     : public TRefCounted
 {
-    DEFINE_BYVAL_RO_PROPERTY(TChunkId, ChunkId);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TJobPtr>, Jobs);
-
-public:
-    explicit TJobList(const TChunkId& chunkId);
 
 };
 

@@ -23,6 +23,9 @@ DECLARE_FLAGGED_ENUM(EPermission,
     // Applies to: accounts
     ((Use)(0x0004))
 
+    // Applies to: all objects
+    ((Administer)(0x0008))
+
     //! Applies to: schemas
     ((Create)(0x0100))
 );

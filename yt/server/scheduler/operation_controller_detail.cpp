@@ -429,10 +429,10 @@ void TOperationControllerBase::TTask::AddChunksToInputSpec(
     TNullable<int> partitionTag,
     bool enableTableIndex)
 {
-    FOREACH (const auto& stripeChunk, stripe->Chunks) {
+    FOREACH (const auto& chunkSlice, stripe->ChunkSlices) {
         auto* inputChunk = inputSpec->add_chunks();
-        *inputChunk = *stripeChunk;
-        FOREACH (ui32 protoReplica, stripeChunk->replicas()) {
+        ToProto(inputChunk, *chunkSlice);
+        FOREACH (ui32 protoReplica, chunkSlice->GetInputChunk()->replicas()) {
             auto replica = FromProto<TChunkReplica>(protoReplica);
             directoryBuilder->Add(replica);
         }
@@ -550,7 +550,8 @@ TChunkStripePtr TOperationControllerBase::TTask::BuildIntermediateChunkStripe(
 {
     auto stripe = New<TChunkStripe>();
     FOREACH (auto& inputChunk, *inputChunks) {
-        stripe->Chunks.push_back(New<TRefCountedInputChunk>(std::move(inputChunk)));
+        auto chunkSlice = CreateChunkSlice(New<TRefCountedInputChunk>(std::move(inputChunk)));
+        stripe->ChunkSlices.push_back(chunkSlice);
     }
     return stripe;
 }
@@ -742,13 +743,6 @@ void TOperationControllerBase::OnJobCompleted(TJobPtr job)
 
     // Populate node directory by adding additional nodes returned from the job.
     NodeDirectory->MergeFrom(schedulerResultEx.node_directory());
-
-    // Construct a stripe representing job result.
-    joblet->OutputStripe = New<TChunkStripe>();
-    FOREACH (auto& inputChunk, schedulerResultEx.chunks()) {
-        joblet->OutputStripe->Chunks.push_back(New<TRefCountedInputChunk>(std::move(inputChunk)));
-    }
-
     joblet->Task->OnJobCompleted(joblet);
 
     RemoveJoblet(job);
@@ -993,11 +987,14 @@ void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, const Stroka& 
 
 void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, TChunkStripePtr stripe)
 {
-    FOREACH (const auto& chunk, stripe->Chunks) {
-        FOREACH (ui32 protoReplica, chunk->replicas()) {
+    FOREACH (const auto& chunkSlice, stripe->ChunkSlices) {
+        FOREACH (ui32 protoReplica, chunkSlice->GetInputChunk()->replicas()) {
             auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
-            const auto& descriptor = NodeDirectory->GetDescriptor(replica);
-            DoAddTaskLocalityHint(task, descriptor.Address);
+
+            if (chunkSlice->GetLocality(replica.GetIndex()) > 0) {
+                const auto& descriptor = NodeDirectory->GetDescriptor(replica);
+                DoAddTaskLocalityHint(task, descriptor.Address);
+            }
         }
     }
     OnTaskUpdated(task);
@@ -2128,60 +2125,62 @@ TAsyncPipeline<void>::TPtr TOperationControllerBase::CustomizePreparationPipelin
     return pipeline;
 }
 
-std::vector<TRefCountedInputChunkPtr> TOperationControllerBase::CollectInputChunks()
+std::vector<TRefCountedInputChunkPtr> TOperationControllerBase::CollectInputChunks() const
 {
     std::vector<TRefCountedInputChunkPtr> result;
     for (int tableIndex = 0; tableIndex < InputTables.size(); ++tableIndex) {
         const auto& table = InputTables[tableIndex];
         FOREACH (const auto& inputChunk, table.FetchResponse->chunks()) {
-            result.push_back(New<TRefCountedInputChunk>(inputChunk, tableIndex));
+            auto chunk = New<TRefCountedInputChunk>(inputChunk);
+            chunk->set_table_index(tableIndex);
+            result.push_back(chunk);
         }
     }
     return result;
 }
 
-std::vector<TChunkStripePtr> TOperationControllerBase::SliceInputChunks(i64 maxSliceDataSize, int* jobCount)
+std::vector<TInputChunkSlicePtr> TOperationControllerBase::CollectInputChunkSlices() const
 {
-    auto inputChunks = CollectInputChunks();
+    std::vector<TInputChunkSlicePtr> result;
+    FOREACH (const auto& inputChunk, CollectInputChunks()) {
+        bool hasNontrivialLimits =
+            (inputChunk->has_start_limit() && IsNontrivial(inputChunk->start_limit())) ||
+            (inputChunk->has_end_limit() && IsNontrivial(inputChunk->end_limit()));
 
-    i64 sliceDataSize = std::min(maxSliceDataSize, TotalInputDataSize / (*jobCount) + 1);
-    YCHECK(sliceDataSize > 0);
-
-    // Ensure that no input chunk has size larger than sliceSize.
-    std::vector<TChunkStripePtr> stripes;
-    FOREACH (auto inputChunk, inputChunks) {
-        auto chunkId = FromProto<TChunkId>(inputChunk->chunk_id());
-
-        i64 dataSize;
-        GetStatistics(*inputChunk, &dataSize);
-
-        if (dataSize > sliceDataSize) {
-            int sliceCount = (int) std::ceil((double) dataSize / (double) sliceDataSize);
-            auto slicedInputChunks = SliceChunkEvenly(inputChunk, sliceCount);
-            FOREACH (auto slicedInputChunk, slicedInputChunks) {
-                auto stripe = New<TChunkStripe>(slicedInputChunk);
-                stripes.push_back(stripe);
-            }
-            LOG_TRACE("Slicing chunk (ChunkId: %s, SliceCount: %d)",
-                ~ToString(chunkId),
-                sliceCount);
+        auto codecId = NErasure::ECodec(inputChunk->erasure_codec());
+        if (hasNontrivialLimits || codecId == NErasure::ECodec::None) {
+            result.push_back(CreateChunkSlice(inputChunk));
         } else {
-            auto stripe = New<TChunkStripe>(inputChunk);
-            stripes.push_back(stripe);
-            LOG_TRACE("Taking whole chunk (ChunkId: %s)",
-                ~ToString(chunkId));
+            AppendErasureChunkSlices(inputChunk, codecId, &result);
         }
     }
+    return result;
+}
 
-    *jobCount = std::min(*jobCount, static_cast<int>(stripes.size()));
+std::vector<TChunkStripePtr> TOperationControllerBase::SliceInputChunks(i64 maxSliceDataSize, int jobCount)
+{
+    auto inputSlices = CollectInputChunkSlices();
 
-    LOG_DEBUG("Sliced chunks prepared (InputChunkCount: %d, SlicedChunkCount: %d, JobCount: %d, MaxSliceDataSize: %" PRId64 ", SliceDataSize: %" PRId64 ")",
-        static_cast<int>(inputChunks.size()),
+    i64 sliceDataSize = std::min(maxSliceDataSize, TotalInputDataSize / jobCount + 1);
+    YCHECK(sliceDataSize > 0);
+
+    std::vector<TChunkStripePtr> stripes;
+    FOREACH (auto inputSlice, inputSlices) {
+        auto chunkSlices = inputSlice->SliceEvenly(sliceDataSize);
+        FOREACH (auto chunkSlice, chunkSlices) {
+            auto stripe = New<TChunkStripe>(chunkSlice);
+            stripes.push_back(stripe);
+        }
+        LOG_TRACE("Slicing chunk (ChunkId: %s, SliceCount: %d)",
+            ~ToString(FromProto<TChunkId>(inputSlice->GetInputChunk()->chunk_id())),
+            static_cast<int>(chunkSlices.size()));
+    }
+
+    LOG_DEBUG("Sliced chunks prepared (InputSlicesCount: %d, SlicedChunkCount: %d, MaxSliceDataSize: %" PRId64 ", SliceDataSize: %" PRId64 ")",
+        static_cast<int>(inputSlices.size()),
         static_cast<int>(stripes.size()),
-        *jobCount,
         maxSliceDataSize,
         sliceDataSize);
-
 
     return stripes;
 }
@@ -2309,8 +2308,8 @@ void TOperationControllerBase::RegisterIntermediate(
     TCompleteJobPtr completedJob,
     TChunkStripePtr stripe)
 {
-    FOREACH (const auto& chunk, stripe->Chunks) {
-        auto chunkId = FromProto<TChunkId>(chunk->chunk_id());
+    FOREACH (const auto& chunkSlice, stripe->ChunkSlices) {
+        auto chunkId = FromProto<TChunkId>(chunkSlice->GetInputChunk()->chunk_id());
         YCHECK(ChunkOriginMap.insert(std::make_pair(chunkId, completedJob)).second);
 
         if (IsIntermediateLivePreviewSupported()) {

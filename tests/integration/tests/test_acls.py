@@ -326,3 +326,14 @@ class TestAcls(YTEnvSetup):
         tx = start_transaction()
         lock('//tmp/a', mode='snapshot', tx=tx)
         assert get('//tmp/a/@inherit_acl', tx=tx) == 'false'
+
+    def test_administer_permission1(self):
+        create_user('u')
+        create('table', '//tmp/t')
+        with pytest.raises(YTError): set('//tmp/t/@acl', [], user='u')
+
+    def test_administer_permission2(self):
+        create_user('u')
+        create('table', '//tmp/t')
+        set('//tmp/@acl/end', self._make_ace('allow', 'u', 'administer'))
+        set('//tmp/t/@acl', [], user='u')

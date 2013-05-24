@@ -53,7 +53,7 @@ public:
 
     // IEventLoopObject implementation.
 
-    virtual void SyncInitialize()
+    virtual void SyncInitialize() override
     {
         VERIFY_THREAD_AFFINITY(EventLoop);
 
@@ -66,7 +66,7 @@ public:
         AcceptWatcher->start(ServerFd, ev::READ);
     }
 
-    virtual void SyncFinalize()
+    virtual void SyncFinalize() override
     {
         VERIFY_THREAD_AFFINITY(EventLoop);
 
@@ -79,7 +79,7 @@ public:
         }
     }
 
-    virtual Stroka GetLoggingId() const
+    virtual Stroka GetLoggingId() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 

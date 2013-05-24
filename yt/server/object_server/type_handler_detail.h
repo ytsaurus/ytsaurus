@@ -77,7 +77,8 @@ public:
     {
         return NYTree::EPermissionSet(
             NYTree::EPermission::Read |
-            NYTree::EPermission::Write);
+            NYTree::EPermission::Write |
+            NYTree::EPermission::Administer);
     }
     
 protected:

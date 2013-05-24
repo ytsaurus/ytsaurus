@@ -20,6 +20,7 @@
 #include <ytlib/logging/tagged_logger.h>
 
 #include <ytlib/node_tracker_client/node_statistics.h>
+#include <ytlib/node_tracker_client/helpers.h>
 
 #include <server/job_agent/job_controller.h>
 
@@ -348,16 +349,14 @@ void TMasterConnector::SendJobHeartbeat()
     TJobTrackerServiceProxy proxy(Bootstrap->GetMasterChannel());
     auto req = proxy.Heartbeat();
     auto jobController = Bootstrap->GetJobController();
-    //std::vector<EJobType> jobTypes;
-    //jobTypes.push_back(EJobType::RemoveChunk);
-    //jobTypes.push_back(EJobType::ReplicateChunk);
     jobController->PrepareHeartbeat(~req);
 
     req->Invoke().Subscribe(
         BIND(&TMasterConnector::OnJobHeartbeatResponse, MakeStrong(this))
             .Via(ControlInvoker));
 
-    LOG_INFO("Job heartbeat sent");
+    LOG_INFO("Job heartbeat sent (ResourceUsage: {%s})",
+        ~FormatResourceUsage(req->resource_usage(), req->resource_limits()));
 }
 
 void TMasterConnector::OnJobHeartbeatResponse(TJobTrackerServiceProxy::TRspHeartbeatPtr rsp)

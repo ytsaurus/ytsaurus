@@ -16,7 +16,7 @@ def _make_formatted_request(command_name, params, format, **kwargs):
     result = _make_transactional_request(
         command_name,
         params,
-        raw_response=format is not None,
+        return_raw_response=format is not None,
         format=get_value(format, JsonFormat()))
     # Yson parser is too slow. By default we request result in JsonFormat
     # and then convert it to yson.

@@ -117,7 +117,7 @@ void TChunkStore::RegisterExistingChunk(TStoredChunkPtr chunk)
 
         // Check that replicas point to the different inodes.
         LOG_FATAL_IF(
-            NFS::IsInodeIdentical(oldPath, currentPath),
+            NFS::AreInodesIdentical(oldPath, currentPath),
             "Duplicate chunks point to the same inode (Current: %s, Previous: %s)",
             ~currentPath,
             ~oldPath);
