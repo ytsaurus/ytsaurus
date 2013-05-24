@@ -737,6 +737,8 @@ void TChunkReplicator::ScheduleNewJobs(
         FOREACH (auto chunkWithIndex, chunksToBalance) {
             if (node->ResourceUsage().replication_slots() >= node->ResourceLimits().replication_slots())
                 break;
+            if (runningReplicationSize > Config->MaxTotalReplicationJobsSize)
+                break;
 
             TJobPtr job;
             auto flags = ScheduleBalancingJob(node, chunkWithIndex, targetFillCoeff, &job);
