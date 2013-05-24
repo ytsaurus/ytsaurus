@@ -163,7 +163,7 @@ public:
             .Default();
         RegisterParameter("yamr_keys_separator", YamrKeysSeparator)
             .Default(' ');
-        Register("enable_table_index", EnableTableIndex)
+        RegisterParameter("enable_table_index", EnableTableIndex)
             .Default(false);
     }
 };
