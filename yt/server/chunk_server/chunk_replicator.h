@@ -62,7 +62,7 @@ public:
     void TouchChunk(TChunk* chunk);
 
     TJobPtr FindJob(const TJobId& id);
-    TJobListPtr FindJobList(const TChunkId& id);
+    TJobListPtr FindJobList(TChunk* chunk);
 
     EChunkStatus ComputeChunkStatus(TChunk* chunk);
 
@@ -137,8 +137,7 @@ private:
     std::deque<TChunk*> PropertiesUpdateList;
 
     yhash_map<TJobId, TJobPtr> JobMap;
-    //! Keyed by whole (not encoded) chunk ids.
-    yhash_map<TChunkId, TJobListPtr> JobListMap;
+    yhash_map<TChunk*, TJobListPtr> JobListMap;
 
     TChunkRepairQueue RepairQueue;
 
@@ -156,7 +155,7 @@ private:
 
     EJobScheduleFlags ScheduleReplicationJob(
         TNode* sourceNode,
-        const TChunkIdWithIndex& chunkIdWithIndex,
+        TChunkPtrWithIndex chunkWithIndex,
         TJobPtr* job);
     EJobScheduleFlags ScheduleBalancingJob(
         TNode* sourceNode,
@@ -178,7 +177,9 @@ private:
 
     void OnRefresh();
     void RefreshChunk(TChunk* chunk);
+
     void ResetChunkStatus(TChunk* chunk);
+    void ResetChunkJobs(TChunk* chunk);
 
     TChunkStatistics ComputeChunkStatistics(TChunk* chunk);
     TChunkStatistics ComputeRegularChunkStatistics(TChunk* chunk);
@@ -186,8 +187,8 @@ private:
 
     bool IsReplicaDecommissioned(TNodePtrWithIndex replica);
 
-    bool HasRunningJobs(const TChunkId& chunkId);
-    bool HasRunningJobs(const TChunkIdWithIndex& chunkIdWithIndex);
+    bool HasRunningJobs(TChunk* chunk);
+    bool HasRunningJobs(TChunkPtrWithIndex replica);
 
     void OnPropertiesUpdate();
     void OnPropertiesUpdateCommitSucceeded();

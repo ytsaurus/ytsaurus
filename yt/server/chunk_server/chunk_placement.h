@@ -31,7 +31,7 @@ public:
     void OnNodeUpdated(TNode* node);
 
     double GetLoadFactor(TNode* node) const;
-    double GetFillCoeff(TNode* node) const;
+    double GetFillFactor(TNode* node) const;
 
     TNodeList AllocateUploadTargets(
         int replicaCount,
@@ -39,7 +39,7 @@ public:
         const TNullable<Stroka>& preferredHostName);
 
     TNodeList AllocateReplicationTargets(
-        const TChunk* chunk,
+        TChunk* chunk,
         int targetCount);
 
     TNodeList GetRemovalTargets(
@@ -48,7 +48,7 @@ public:
 
     TNode* GetReplicationSource(TChunkPtrWithIndex chunkWithIndex);
 
-    bool HasBalancingTargets(double maxFillCoeff);
+    bool HasBalancingTargets(double maxFillFactor);
 
     std::vector<TChunkPtrWithIndex> GetBalancingChunks(
         TNode* node,
@@ -56,20 +56,20 @@ public:
 
     TNode* AllocateBalancingTarget(
         TChunkPtrWithIndex chunkWithIndex,
-        double maxFillCoeff);
+        double maxFillFactor);
 
 private:
-    typedef ymultimap<double, TNode*> TCoeffToNode;
-    typedef yhash_map<TNode*, TCoeffToNode::iterator> TNodeToCoeffIt;
+    typedef ymultimap<double, TNode*> TFactorToNode;
+    typedef yhash_map<TNode*, TFactorToNode::iterator> TNodeToFactorIt;
 
     TChunkManagerConfigPtr Config;
     NCellMaster::TBootstrap* Bootstrap;
 
-    TCoeffToNode LoadFactorToNode;
-    TNodeToCoeffIt NodeToLoadFactorIt;
+    TFactorToNode LoadFactorToNode;
+    TNodeToFactorIt NodeToLoadFactorIt;
 
-    TCoeffToNode FillCoeffToNode;
-    TNodeToCoeffIt NodeToFillCoeffIt;
+    TFactorToNode FillFactorToNode;
+    TNodeToFactorIt NodeToFilFactorIt;
 
     TNodeList GetUploadTargets(
         int targetCount,
@@ -77,12 +77,12 @@ private:
         const TNullable<Stroka>& preferredHostName);
 
     TNodeList GetReplicationTargets(
-        const TChunk* chunk,
+        TChunk* chunk,
         int targetCount);
 
     TNode* GetBalancingTarget(
         TChunkPtrWithIndex chunkWithIndex,
-        double maxFillCoeff);
+        double maxFillFactor);
 
     void OnSessionHinted(TNode* node);
 
