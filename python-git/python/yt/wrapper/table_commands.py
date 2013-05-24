@@ -321,6 +321,8 @@ def write_table(table, input_stream, format=None, table_writer=None, replication
                 data=input_stream,
                 format=format,
                 proxy=get_host_for_heavy_operation())
+    if config.TREAT_UNEXISTING_AS_EMPTY and is_empty(table):
+        remove(table)
 
 
 def read_table(table, format=None, table_reader=None, response_type=None):
@@ -341,7 +343,7 @@ def read_table(table, format=None, table_reader=None, response_type=None):
         "read",
         params,
         format=format,
-        raw_response=True)
+        return_raw_response=True)
     return read_content(response, get_value(response_type, "iter_lines"))
 
 def _are_nodes(source_tables, destination_table):
