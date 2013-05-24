@@ -73,7 +73,6 @@ private:
     i64 Offset;
     i64 Record;
     i32 BufferPosition;
-<<<<<<< HEAD
 
     static const int ContextBufferSize = 64;
     char ContextBuffer[ContextBufferSize];
@@ -126,52 +125,6 @@ private:
     static const ui32 MaxFieldLength = 16 * 1024 * 1024;
     static const int BufferSize = 16;
     char ContextBuffer[BufferSize];
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TYamrLenvalBaseParser
-    : public IParser
-{
-public:
-    TYamrLenvalBaseParser(
-        IYamrConsumerPtr consumer,
-        bool hasSubkey);
-
-    virtual void Read(const TStringBuf& data) override;
-    virtual void Finish() override;
-
-private:
-    Stroka GetDebugInfo() const;
-
-    const char* Consume(const char* begin, const char* end);
-    const char* ConsumeLength(const char* begin, const char* end);
-    const char* ConsumeData(const char* begin, const char* end);
-
-    IYamrConsumerPtr Consumer;
-
-    bool HasSubkey;
-
-    Stroka CurrentToken;
-
-    union {
-        ui32 Length;
-        char Bytes[4];
-    } Union;
-
-    bool ReadingLength;
-    ui32 BytesToRead;
-
-    DECLARE_ENUM(EState,
-        (InsideKey)
-        (InsideSubkey)
-        (InsideValue)
-    );
-
-    EState State;
-
-    static const ui32 MaxFieldLength = 16 * 1024 * 1024;
 
 };
 
