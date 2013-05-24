@@ -368,6 +368,21 @@ void SafeClose(int fd, bool ignoreInvalidFd)
     YUNIMPLEMENTED();
 }
 
+int Spawn(const char* path,
+          std::initializer_list<const char*> arguments,
+          const std::vector<int>& fileIdsToClose)
+{
+    UNUSED(path);
+    UNUSED(arguments);
+    UNUSED(fileIdsToClose);
+    YUNIMPLEMENTED();
+}
+
+std::vector<int> GetAllDescriptors()
+{
+    YUNIMPLEMENTED();
+}
+
 #endif
 
 
