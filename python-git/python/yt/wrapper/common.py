@@ -97,3 +97,8 @@ def chunk_iter(stream, chunk_size=1024 * 1024):
             break
         yield chunk
 
+def add_mutation_id(params):
+    if config.MUTATION_ID is not None:
+        params["mutation_id"] = config.MUTATION_ID
+    return params
+
