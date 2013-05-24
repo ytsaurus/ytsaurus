@@ -211,14 +211,16 @@ void TTcpConnection::SyncResolve()
     VERIFY_THREAD_AFFINITY(EventLoop);
 
     TStringBuf hostName;
+    bool isLocal;
     try {
         ParseServiceAddress(Address, &hostName, &Port);
+        isLocal = IsLocal(hostName);
     } catch (const std::exception& ex) {
         SyncClose(TError(ex).SetCode(NRpc::EErrorCode::TransportError));
         return;
     }
 
-    if (IsLocal(hostName)) {
+    if (isLocal) {
         LOG_DEBUG("Address resolved as local, connecting");
 
         auto netAddress = GetLocalBusAddress(Port);
