@@ -38,29 +38,41 @@ YtApplicationAuth.prototype.dispatch = function(req, rsp, next)
 {
     "use strict";
 
-    try {
+    var self = this;
+    self.logger.debug("Auth call on '" + req.url + "'");
+
+    return Q.try(function() {
         switch (url.parse(req.url).pathname) {
             case "/":
             case "/index":
-                return this._dispatchIndex(req, rsp);
+                return self._dispatchIndex(req, rsp);
             case "/new":
-                return this._dispatchNew(req, rsp);
+                return self._dispatchNew(req, rsp);
             // There are only static routes below.
             case "/style":
                 return utils.dispatchAs(rsp, _STATIC_STYLE, "text/css");
         }
         throw new YtError("Unknown URI");
-    } catch(err) {
-        return this._dispatchError(req, rsp, YtError.ensureWrapped(err));
-    }
+    })
+    .fail(self._dispatchError.bind(self, req, rsp));
 };
 
-YtApplicationAuth.prototype._dispatchError = function(req, rsp, error)
+YtApplicationAuth.prototype._dispatchError = function(req, rsp, err)
 {
     "use strict";
 
+    var error = YtError.ensureWrapped(err);
+    var logger = req.logger || this.logger;
+
     var message = error.message;
     var description;
+
+    if (message) {
+        logger.info("Error was caught in ApplicationAuth", {
+            // TODO(sandello): Embed.
+            error: error.toJson()
+        });
+    }
 
     try {
         if (error.attributes.stack) {
@@ -68,7 +80,7 @@ YtApplicationAuth.prototype._dispatchError = function(req, rsp, error)
         } else {
             description = JSON.stringify(JSON.parse(error.toJson()), null, 2);
         }
-    } catch(err) {
+    } catch (err) {
     }
 
     var body = _TEMPLATE_LAYOUT({ content: _TEMPLATE_ERROR({
@@ -106,21 +118,21 @@ YtApplicationAuth.prototype._dispatchNewCallback = function(req, rsp, params)
     "use strict";
 
     var self = this;
+    var logger = req.logger || self.logger;
+    var origin = req.origin || req.connection.remoteAddress;
+
     var state = JSON.parse(params.state);
 
-    Q
+    return Q
     .when(self.authority.oAuthObtainToken(
-        self.logger,
-        req.connection.remoteAddress,
+        logger,
+        origin,
         state.realm,
         params.code))
     .then(function(token) {
         return Q.all([
             token,
-            self.authority.authenticate(
-                self.logger,
-                req.connection.remoteAddress,
-                token)
+            self.authority.authenticate(logger, origin, token)
         ]);
     })
     .spread(function(token, result) {
@@ -152,26 +164,26 @@ YtApplicationAuth.prototype._dispatchNewCallback = function(req, rsp, params)
         }
     })
     .fail(function(err) {
-        var error = new YtError(
+        return Q.reject(new YtError(
             "Failed to receive OAuth token or Blackbox login",
-            err);
-        // XXX(sandello): Embed.
-        self.logger.info(error.message, { error: error.toJson() });
-        return self._dispatchError(req, rsp, error);
-    })
-    .done();
+            err));
+    });
 };
 
 YtApplicationAuth.prototype._dispatchNewRedirect = function(req, rsp, params)
 {
     "use strict";
 
+    var logger = req.logger || this.logger;
+    var origin = req.origin || req.connection.remoteAddress;
+
     var state = params;
     var target = this.authority.oAuthBuildUrlToRedirect(
-        this.logger,
-        req.connection.remoteAddress,
+        logger,
+        origin,
         state.realm,
         state);
+
     return utils.redirectTo(rsp, target, 303);
 };
 
