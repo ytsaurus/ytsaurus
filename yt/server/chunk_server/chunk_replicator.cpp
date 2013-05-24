@@ -466,7 +466,7 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleReplicationJob(
 TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleBalancingJob(
     TNode* sourceNode,
     TChunkPtrWithIndex chunkWithIndex,
-    double maxFillCoeff,
+    double maxFillFactor,
     TJobPtr* job)
 {
     TChunkIdWithIndex chunkIdWithIndex(chunkWithIndex.GetPtr()->GetId(), chunkWithIndex.GetIndex());
@@ -476,7 +476,7 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleBalancingJob(
         return EJobScheduleFlags::Purged;
     }
 
-    auto* target = ChunkPlacement->AllocateBalancingTarget(chunkWithIndex, maxFillCoeff);
+    auto* target = ChunkPlacement->AllocateBalancingTarget(chunkWithIndex, maxFillFactor);
     if (!target) {
         LOG_DEBUG("No suitable target nodes for balancing (ChunkId: %s)",
             ~ToString(chunkWithIndex));
@@ -722,10 +722,10 @@ void TChunkReplicator::ScheduleNewJobs(
 
     // Schedule balancing jobs.
     double sourceFillFactor = ChunkPlacement->GetFillFactor(node);
-    double targetFillCoeff = sourceFillFactor - Config->MinBalancingFillFactorDiff;
+    double targetFillFactor = sourceFillFactor - Config->MinBalancingFillFactorDiff;
     if (node->ResourceUsage().replication_slots() < node->ResourceLimits().replication_slots() &&
         sourceFillFactor > Config->MinBalancingFillFactor &&
-        ChunkPlacement->HasBalancingTargets(targetFillCoeff))
+        ChunkPlacement->HasBalancingTargets(targetFillFactor))
     {
         int maxJobs = std::max(0, node->ResourceLimits().replication_slots() - node->ResourceUsage().replication_slots());
         auto chunksToBalance = ChunkPlacement->GetBalancingChunks(node, maxJobs);
@@ -736,7 +736,7 @@ void TChunkReplicator::ScheduleNewJobs(
                 break;
 
             TJobPtr job;
-            auto flags = ScheduleBalancingJob(node, chunkWithIndex, targetFillCoeff, &job);
+            auto flags = ScheduleBalancingJob(node, chunkWithIndex, targetFillFactor, &job);
 
             if (flags & EJobScheduleFlags::Scheduled) {
                 registerJob(job);
