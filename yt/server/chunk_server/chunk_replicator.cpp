@@ -1264,9 +1264,9 @@ void TChunkReplicator::RegisterJob(TJobPtr job)
 
 void TChunkReplicator::UnregisterJob(TJobPtr job, EJobUnregisterFlags flags)
 {
-    auto chunkId = job->GetChunkIdWithIndex().Id;
     auto chunkManager = Bootstrap->GetChunkManager();
-    auto* chunk = chunkManager->FindChunk(job->GetChunkIdWithIndex().Id);
+    auto chunkId = job->GetChunkIdWithIndex().Id;
+    auto* chunk = chunkManager->FindChunk(chunkId);
 
     YCHECK(JobMap.erase(job->GetJobId()) == 1);
 
