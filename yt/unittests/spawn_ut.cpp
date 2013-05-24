@@ -12,8 +12,22 @@ TEST(TSpawnTest, Basic) {
     EXPECT_NE(pid, 0);
 }
 
+
 TEST(TSpawnTest, InvalidPath) {
+#ifdef __darwin__
     EXPECT_THROW(Spawn("/some/bad/path/binary", {"binary"}, std::vector<int>()), std::exception);
+#endif
+
+#ifdef __linux__
+    int pid = Spawn("/some/bad/path/binary", {"binary"}, std::vector<int>());
+    ASSERT_GT(pid, 0);
+
+    int status;
+    int result = waitpid(pid, &status, 0);
+    ASSERT_EQ(result, pid);
+    ASSERT_TRUE(WIFEXITED(status));
+    EXPECT_EQ(WEXITSTATUS(status), 127);
+#endif
 }
 
 TEST(TSpawnTest, BasicUsePATH) {
