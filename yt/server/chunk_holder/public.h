@@ -2,6 +2,8 @@
 
 #include <ytlib/misc/common.h>
 
+#include <ytlib/chunk_client/public.h>
+
 #include <server/chunk_server/public.h>
 
 namespace NYT {
@@ -78,6 +80,7 @@ class TDiskHealthChecker;
 typedef TIntrusivePtr<TDiskHealthChecker> TDiskHealthCheckerPtr;
 
 using NChunkClient::TChunkId;
+using NChunkClient::EWriteSessionType;
 using NChunkServer::TBlockId;
 using NNodeTrackerClient::TNodeId;
 

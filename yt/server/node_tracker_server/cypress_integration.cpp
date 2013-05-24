@@ -88,15 +88,15 @@ private:
             }
 
             if (key == "statistics") {
-                const auto& nodeStatistics = node->Statistics();
+                const auto& statistics = node->Statistics();
                 BuildYsonFluently(consumer)
                     .BeginMap()
-                        .Item("total_available_space").Value(nodeStatistics.total_available_space())
-                        .Item("total_used_space").Value(nodeStatistics.total_used_space())
-                        .Item("total_chunk_count").Value(nodeStatistics.total_chunk_count())
+                        .Item("total_available_space").Value(statistics.total_available_space())
+                        .Item("total_used_space").Value(statistics.total_used_space())
+                        .Item("total_chunk_count").Value(statistics.total_chunk_count())
                         .Item("total_session_count").Value(node->GetTotalSessionCount())
-                        .Item("full").Value(nodeStatistics.full())
-                        .Item("locations").DoListFor(nodeStatistics.locations(), [] (TFluentList fluent, const TLocationStatistics& locationStatistics) {
+                        .Item("full").Value(statistics.full())
+                        .Item("locations").DoListFor(statistics.locations(), [] (TFluentList fluent, const TLocationStatistics& locationStatistics) {
                             fluent
                                 .Item().BeginMap()
                                     .Item("available_space").Value(locationStatistics.available_space())
@@ -272,12 +272,6 @@ private:
         if (key == "chunk_count") {
             BuildYsonFluently(consumer)
                 .Value(statistics.ChunkCount);
-            return true;
-        }
-
-        if (key == "session_count") {
-            BuildYsonFluently(consumer)
-                .Value(statistics.SessionCount);
             return true;
         }
 

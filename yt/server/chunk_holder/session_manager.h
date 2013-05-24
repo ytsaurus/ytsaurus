@@ -4,8 +4,8 @@
 
 #include <ytlib/misc/lease_manager.h>
 #include <ytlib/misc/thread_affinity.h>
+#include <ytlib/misc/throughput_throttler.h>
 
-#include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/data_node_service_proxy.h>
 
 #include <ytlib/logging/tagged_logger.h>
@@ -28,6 +28,7 @@ public:
         TDataNodeConfigPtr config,
         NCellNode::TBootstrap* bootstrap,
         const TChunkId& chunkId,
+        EWriteSessionType type,
         TLocationPtr location);
 
     //! Starts the session.
@@ -37,6 +38,9 @@ public:
 
     //! Returns the TChunkId being uploaded.
     TChunkId GetChunkId() const;
+
+    //! Returns session type provided by the client during handshake.
+    EWriteSessionType GetType() const;
 
     //! Returns target chunk location.
     TLocationPtr GetLocation() const;
@@ -49,10 +53,10 @@ public:
     //! Returns the info of the just-uploaded chunk
     NChunkClient::NProto::TChunkInfo GetChunkInfo() const;
 
-    //! Puts a block into the window.
-    void PutBlock(
-        int blockIndex,
-        const TSharedRef& data,
+    //! Puts a contiguous range of blocks into the window.
+    TAsyncError PutBlocks(
+        int startblockIndex,
+        const std::vector<TSharedRef>& blocks,
         bool enableCaching);
 
     //! Sends a range of blocks (from the current window) to another data node.
@@ -100,6 +104,7 @@ private:
     TDataNodeConfigPtr Config;
     NCellNode::TBootstrap* Bootstrap;
     TChunkId ChunkId;
+    EWriteSessionType Type;
     TLocationPtr Location;
 
     TError Error;
@@ -109,6 +114,8 @@ private:
     i64 Size;
 
     Stroka FileName;
+    IThroughputThrottlerPtr InThrottler;
+    IThroughputThrottlerPtr OutThrottler;
     NChunkClient::TFileWriterPtr Writer;
 
     TLeaseManager::TLease Lease;
@@ -117,6 +124,8 @@ private:
 
     NLog::TTaggedLogger Logger;
     NProfiling::TProfiler Profiler;
+
+    static TAsyncError DoSendBlocks(TProxy::TReqPutBlocksPtr req);
 
     TFuture< TValueOrError<TChunkPtr> > Finish(const NChunkClient::NProto::TChunkMeta& chunkMeta);
     void Cancel(const TError& error);
@@ -172,7 +181,9 @@ public:
     /*!
      *  Thread affinity: Control
      */
-    TSessionPtr StartSession(const TChunkId& chunkId);
+    TSessionPtr StartSession(
+        const TChunkId& chunkId,
+        EWriteSessionType type);
 
     //! Completes an earlier opened upload session.
     /*!
@@ -225,7 +236,13 @@ private:
     TAtomic PendingWriteSize;
 
     void OnLeaseExpired(TSessionPtr session);
-    TValueOrError<TChunkPtr> OnSessionFinished(TSessionPtr session, TValueOrError<TChunkPtr> chunkOrError);
+
+    TValueOrError<TChunkPtr> OnSessionFinished(
+        TSessionPtr session,
+        TValueOrError<TChunkPtr> chunkOrError);
+
+    void RegisterSession(TSessionPtr session);
+    void UnregisterSession(TSessionPtr session);
 
     void UpdatePendingWriteSize(i64 delta);
 

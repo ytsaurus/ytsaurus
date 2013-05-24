@@ -177,6 +177,7 @@ public:
         TReplicationWriterConfigPtr config,
         const TChunkId& chunkId,
         const std::vector<TNodeDescriptor>& targets,
+        EWriteSessionType sessionType,
         IThroughputThrottlerPtr throttler);
 
     ~TReplicationWriter();
@@ -199,6 +200,7 @@ private:
     TReplicationWriterConfigPtr Config;
     TChunkId ChunkId;
     std::vector<TNodeDescriptor> Targets;
+    EWriteSessionType SessionType;
     IThroughputThrottlerPtr Throttler;
 
     TAsyncStreamState State;
@@ -577,10 +579,12 @@ TReplicationWriter::TReplicationWriter(
     TReplicationWriterConfigPtr config,
     const TChunkId& chunkId,
     const std::vector<TNodeDescriptor>& targets,
+    EWriteSessionType sessionType,
     IThroughputThrottlerPtr throttler)
     : Config(config)
     , ChunkId(chunkId)
     , Targets(targets)
+    , SessionType(sessionType)
     , Throttler(throttler)
     , IsOpen(false)
     , IsInitComplete(false)
@@ -597,9 +601,11 @@ TReplicationWriter::TReplicationWriter(
     , FinishChunkTiming(0, 1000, 20)
     , Logger(ChunkWriterLogger)
 {
-    YCHECK(AliveNodeCount > 0);
+    YCHECK(!targets.empty());
 
-    Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(ChunkId)));
+    Logger.AddTag(Sprintf("ChunkId: %s, SessionType: %s",
+        ~ToString(ChunkId),
+        ~SessionType.ToString()));
 
     for (int index = 0; index < static_cast<int>(targets.size()); ++index) {
         auto replica = targets[index];
@@ -608,7 +614,7 @@ TReplicationWriter::TReplicationWriter(
         node->HeavyProxy.SetDefaultTimeout(Config->NodeRpcTimeout);
         node->PingInvoker = New<TPeriodicInvoker>(
             TDispatcher::Get()->GetWriterInvoker(),
-            BIND(&TReplicationWriter::SendPing, MakeWeak(this), MakeWeak(~node)),
+            BIND(&TReplicationWriter::SendPing, MakeWeak(this), MakeWeak(node)),
             Config->NodePingInterval);
         Nodes.push_back(node);
     }
@@ -827,6 +833,7 @@ TProxy::TInvStartChunk TReplicationWriter::StartChunk(TNodePtr node)
 
     auto req = node->LightProxy.StartChunk();
     ToProto(req->mutable_chunk_id(), ChunkId);
+    req->set_session_type(SessionType);
     return req->Invoke();
 }
 
@@ -1127,12 +1134,14 @@ IAsyncWriterPtr CreateReplicationWriter(
     TReplicationWriterConfigPtr config,
     const TChunkId& chunkId,
     const std::vector<TNodeDescriptor>& targets,
+    EWriteSessionType sessionType,
     IThroughputThrottlerPtr throttler)
 {
     return New<TReplicationWriter>(
         config,
         chunkId,
         targets,
+        sessionType,
         throttler);
 }
 

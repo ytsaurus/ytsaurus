@@ -11,6 +11,7 @@ import "yt/ytlib/chunk_client/input_chunk.proto";
 message TReqStartChunk
 {
     required NYT.NProto.TGuid chunk_id = 1;
+    required int32 session_type = 2;
 }
 
 message TRspStartChunk

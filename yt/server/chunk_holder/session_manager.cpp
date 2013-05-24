@@ -7,13 +7,13 @@
 #include "chunk.h"
 #include "chunk_store.h"
 
+#include <ytlib/misc/fs.h>
+#include <ytlib/misc/sync.h>
+
 #include <ytlib/chunk_client/file_writer.h>
 #include <ytlib/chunk_client/chunk.pb.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
-
-#include <ytlib/misc/fs.h>
-#include <ytlib/misc/sync.h>
 
 #include <ytlib/profiling/scoped_timer.h>
 
@@ -41,10 +41,12 @@ TSession::TSession(
     TDataNodeConfigPtr config,
     TBootstrap* bootstrap,
     const TChunkId& chunkId,
+    NChunkClient::EWriteSessionType type,
     TLocationPtr location)
     : Config(config)
     , Bootstrap(bootstrap)
     , ChunkId(chunkId)
+    , Type(type)
     , Location(location)
     , WindowStartIndex(0)
     , WriteIndex(0)
@@ -56,12 +58,33 @@ TSession::TSession(
     YCHECK(bootstrap);
     YCHECK(location);
 
-    Logger.AddTag(Sprintf("LocationId: %s, ChunkId: %s",
+    Logger.AddTag(Sprintf("LocationId: %s, ChunkId: %s, SessionType: %s",
         ~Location->GetId(),
-        ~ToString(ChunkId)));
+        ~ToString(ChunkId),
+        ~Type.ToString()));
 
     Location->UpdateSessionCount(+1);
     FileName = Location->GetChunkFileName(ChunkId);
+
+    switch (Type) {
+        case EWriteSessionType::User:
+            InThrottler = GetUnlimitedThrottler();
+            OutThrottler = GetUnlimitedThrottler();
+            break;
+
+        case EWriteSessionType::Repair:
+            InThrottler = Bootstrap->GetRepairInThrottler();
+            OutThrottler = Bootstrap->GetRepairOutThrottler();
+            break;
+
+        case EWriteSessionType::Replication:
+            InThrottler = Bootstrap->GetReplicationInThrottler();
+            OutThrottler = Bootstrap->GetReplicationOutThrottler();
+            break;
+
+        default:
+            YUNREACHABLE();
+    }
 }
 
 TSession::~TSession()
@@ -123,9 +146,12 @@ void TSession::CloseLease()
 
 TChunkId TSession::GetChunkId() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
-
     return ChunkId;
+}
+
+EWriteSessionType TSession::GetType() const
+{
+    return Type;
 }
 
 TLocationPtr TSession::GetLocation() const
@@ -156,54 +182,65 @@ TChunkInfo TSession::GetChunkInfo() const
     return Writer->GetChunkInfo();
 }
 
-void TSession::PutBlock(
-    int blockIndex,
-    const TSharedRef& data,
+TAsyncError TSession::PutBlocks(
+    int startBlockIndex,
+    const std::vector<TSharedRef>& blocks,
     bool enableCaching)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    TBlockId blockId(ChunkId, blockIndex);
-
-    VerifyInWindow(blockIndex);
     Ping();
 
-    if (!Location->HasEnoughSpace(data.Size())) {
-        THROW_ERROR_EXCEPTION(
-            NChunkClient::EErrorCode::OutOfSpace,
-            "No enough space left on node");
-    }
+    auto blockStore = Bootstrap->GetBlockStore();
 
-    auto& slot = GetSlot(blockIndex);
-    if (slot.State != ESlotState::Empty) {
-        if (TRef::AreBitwiseEqual(slot.Block, data)) {
-            LOG_WARNING("Block %d is already received", blockIndex);
-            return;
+    int blockIndex = startBlockIndex;
+    i64 requestSize = 0;
+    
+    FOREACH (const auto& block, blocks) {
+        TBlockId blockId(ChunkId, blockIndex);
+        VerifyInWindow(blockIndex);
+
+        if (!Location->HasEnoughSpace(block.Size())) {
+            return MakeFuture(TError(
+                NChunkClient::EErrorCode::OutOfSpace,
+                "No enough space left on node"));
         }
 
-        THROW_ERROR_EXCEPTION(
-            NChunkClient::EErrorCode::BlockContentMismatch,
-            "Block %d with a different content already received",
-            blockIndex)
-            << TErrorAttribute("window_start", WindowStartIndex);
+        auto& slot = GetSlot(blockIndex);
+        if (slot.State != ESlotState::Empty) {
+            if (TRef::AreBitwiseEqual(slot.Block, block)) {
+                LOG_WARNING("Block is already received (Block: %d)", blockIndex);
+                continue;
+            }
+
+            return MakeFuture(TError(
+                NChunkClient::EErrorCode::BlockContentMismatch,
+                "Block %d with a different content already received",
+                blockIndex)
+                << TErrorAttribute("window_start", WindowStartIndex));
+        }
+
+        slot.State = ESlotState::Received;
+        slot.Block = block;
+
+        if (enableCaching) {
+            blockStore->PutBlock(blockId, block, Null);
+        }
+
+        Location->UpdateUsedSpace(block.Size());
+        Size += block.Size();
+        requestSize += block.Size();
+
+        LOG_DEBUG("Chunk block received (Block: %d)", blockIndex);
+
+        ++blockIndex;
     }
-
-    slot.State = ESlotState::Received;
-    slot.Block = data;
-
-    if (enableCaching) {
-        Bootstrap->GetBlockStore()->PutBlock(
-            blockId,
-            data,
-            Null);
-    }
-
-    Location->UpdateUsedSpace(data.Size());
-    Size += data.Size();
-
-    LOG_DEBUG("Chunk block %d received", blockIndex);
 
     EnqueueWrites();
+
+    return InThrottler->Throttle(requestSize).Apply(BIND([] () {
+        return TError();
+    }));
 }
 
 TAsyncError TSession::SendBlocks(
@@ -213,6 +250,8 @@ TAsyncError TSession::SendBlocks(
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
+    Ping();
+
     TProxy proxy(ChannelCache.GetChannel(target.Address));
     proxy.SetDefaultTimeout(Config->NodeRpcTimeout);
 
@@ -220,11 +259,20 @@ TAsyncError TSession::SendBlocks(
     ToProto(req->mutable_chunk_id(), ChunkId);
     req->set_start_block_index(startBlockIndex);
 
+    i64 requestSize = 0;
     for (int blockIndex = startBlockIndex; blockIndex < startBlockIndex + blockCount; ++blockIndex) {
         auto block = GetBlock(blockIndex);
         req->Attachments().push_back(block);
+        requestSize += block.Size();
     }
 
+    return OutThrottler->Throttle(requestSize).Apply(BIND([=] () {
+        return DoSendBlocks(req);
+    }));
+}
+
+TAsyncError TSession::DoSendBlocks(TProxy::TReqPutBlocksPtr req)
+{
     return req->Invoke().Apply(BIND([=] (TProxy::TRspPutBlocksPtr rsp) {
         return rsp->GetError();
     }));
@@ -625,14 +673,24 @@ TSessionPtr TSessionManager::FindSession(const TChunkId& chunkId) const
     return session;
 }
 
-TSessionPtr TSessionManager::StartSession(const TChunkId& chunkId)
+TSessionPtr TSessionManager::StartSession(
+    const TChunkId& chunkId,
+    EWriteSessionType type)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    auto location = Bootstrap->GetChunkStore()->GetNewChunkLocation();
+    auto chunkStore = Bootstrap->GetChunkStore();
+    auto location = chunkStore->GetNewChunkLocation();
 
-    auto session = New<TSession>(Config, Bootstrap, chunkId, location);
+    auto session = New<TSession>(
+        Config,
+        Bootstrap,
+        chunkId,
+        type,
+        location);
     session->Start();
+
+    RegisterSession(session);
 
     auto lease = TLeaseManager::CreateLease(
         Config->SessionTimeout,
@@ -643,9 +701,6 @@ TSessionPtr TSessionManager::StartSession(const TChunkId& chunkId)
         .Via(Bootstrap->GetControlInvoker()));
     session->SetLease(lease);
 
-    AtomicIncrement(SessionCount);
-    YCHECK(SessionMap.insert(std::make_pair(chunkId, session)).second);
-
     return session;
 }
 
@@ -653,15 +708,12 @@ void TSessionManager::CancelSession(TSessionPtr session, const TError& error)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    auto chunkId = session->GetChunkId();
-
-    YCHECK(SessionMap.erase(chunkId) == 1);
-    AtomicDecrement(SessionCount);
+    UnregisterSession(session);
 
     session->Cancel(error);
 
     LOG_INFO(error, "Session canceled (ChunkId: %s)",
-        ~ToString(chunkId));
+        ~ToString(session->GetChunkId()));
 }
 
 TFuture< TValueOrError<TChunkPtr> > TSessionManager::FinishSession(
@@ -682,9 +734,8 @@ TValueOrError<TChunkPtr> TSessionManager::OnSessionFinished(TSessionPtr session,
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    YCHECK(SessionMap.erase(session->GetChunkId()) == 1);
-    
-    AtomicDecrement(SessionCount);
+    UnregisterSession(session);
+
     LOG_INFO("Session finished (ChunkId: %s)",
         ~ToString(session->GetChunkId()));
     
@@ -718,6 +769,18 @@ i64 TSessionManager::GetPendingWriteSize() const
     return static_cast<i64>(PendingWriteSize);
 }
 
+void TSessionManager::RegisterSession(TSessionPtr session)
+{
+    AtomicIncrement(SessionCount);
+    YCHECK(SessionMap.insert(std::make_pair(session->GetChunkId(), session)).second);
+}
+
+void TSessionManager::UnregisterSession( TSessionPtr session )
+{
+    AtomicDecrement(SessionCount);
+    YCHECK(SessionMap.erase(session->GetChunkId()) == 1);
+}
+
 void TSessionManager::UpdatePendingWriteSize(i64 delta)
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -730,8 +793,6 @@ std::vector<TSessionPtr> TSessionManager::GetSessions() const
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     std::vector<TSessionPtr> result;
-    YCHECK(SessionMap.size() == SessionCount);
-    result.reserve(SessionMap.size());
     FOREACH (const auto& pair, SessionMap) {
         result.push_back(pair.second);
     }

@@ -70,6 +70,11 @@ DECLARE_ENUM(EErrorCode,
     ((MasterCommunicationFailed)(712))
 );
 
+DECLARE_ENUM(EWriteSessionType,
+    ((User)                     (0))
+    ((Replication)              (1))
+    ((Repair)                   (2))
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 

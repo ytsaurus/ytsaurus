@@ -194,6 +194,7 @@ void TBootstrap::Run()
 
     MasterConnector = New<TMasterConnector>(Config->DataNode, this);
 
+    ReplicationInThrottler = CreateThrottler(Config->DataNode->ReplicationInThrottler);
     ReplicationOutThrottler = CreateThrottler(Config->DataNode->ReplicationOutThrottler);
     RepairInThrottler = CreateThrottler(Config->DataNode->RepairInThrottler);
     RepairOutThrottler = CreateThrottler(Config->DataNode->RepairOutThrottler);
@@ -429,6 +430,11 @@ void TBootstrap::UpdateCellGuid(const TGuid& cellGuid)
     CellGuid = cellGuid;
     ChunkStore->SetCellGuid(CellGuid);
     ChunkCache->UpdateCellGuid(CellGuid);
+}
+
+IThroughputThrottlerPtr TBootstrap::GetReplicationInThrottler() const
+{
+    return ReplicationInThrottler;
 }
 
 IThroughputThrottlerPtr TBootstrap::GetReplicationOutThrottler() const

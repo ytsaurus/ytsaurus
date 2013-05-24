@@ -58,6 +58,7 @@ public:
     NChunkHolder::TPeerBlockTablePtr GetPeerBlockTable() const;
     NChunkHolder::TReaderCachePtr GetReaderCache() const;
     NChunkHolder::TMasterConnectorPtr GetMasterConnector() const;
+    IThroughputThrottlerPtr GetReplicationInThrottler() const;
     IThroughputThrottlerPtr GetReplicationOutThrottler() const;
     IThroughputThrottlerPtr GetRepairInThrottler() const;
     IThroughputThrottlerPtr GetRepairOutThrottler() const;
@@ -94,6 +95,7 @@ private:
     NChunkHolder::TPeerBlockUpdaterPtr PeerBlockUpdater;
     NChunkHolder::TReaderCachePtr ReaderCache;
     NChunkHolder::TMasterConnectorPtr MasterConnector;
+    IThroughputThrottlerPtr ReplicationInThrottler;
     IThroughputThrottlerPtr ReplicationOutThrottler;
     IThroughputThrottlerPtr RepairInThrottler;
     IThroughputThrottlerPtr RepairOutThrottler;

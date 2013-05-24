@@ -221,14 +221,17 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, StartChunk)
     UNUSED(response);
 
     auto chunkId = FromProto<TChunkId>(request->chunk_id());
+    auto sessionType = EWriteSessionType(request->session_type());
 
-    context->SetRequestInfo("ChunkId: %s",
-        ~ToString(chunkId));
+    context->SetRequestInfo("ChunkId: %s, SessionType: %s",
+        ~ToString(chunkId),
+        ~sessionType.ToString());
 
     ValidateNoSession(chunkId);
     ValidateNoChunk(chunkId);
 
-    Bootstrap->GetSessionManager()->StartSession(chunkId);
+    auto sessionManager = Bootstrap->GetSessionManager();
+    sessionManager->StartSession(chunkId, sessionType);
 
     context->Reply();
 }
@@ -266,7 +269,9 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, PutBlocks)
     UNUSED(response);
 
     if (IsWriteThrottling()) {
-        context->Reply(TError(NRpc::EErrorCode::Unavailable, "Write throttling is active"));
+        context->Reply(TError(
+            NRpc::EErrorCode::Unavailable,
+            "Write throttling is active"));
         return;
     }
 
@@ -274,21 +279,18 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, PutBlocks)
     int startBlockIndex = request->start_block_index();
     bool enableCaching = request->enable_caching();
 
-    context->SetRequestInfo("ChunkId: %s, StartBlockIndex: %d, BlockCount: %d, EnableCaching: %s",
+    context->SetRequestInfo("ChunkId: %s, StartBlock: %d, BlockCount: %d, EnableCaching: %s",
         ~ToString(chunkId),
         startBlockIndex,
         request->Attachments().size(),
         ~FormatBool(enableCaching));
 
     auto session = GetSession(chunkId);
-
-    int blockIndex = startBlockIndex;
-    FOREACH (const auto& block, request->Attachments()) {
-        session->PutBlock(blockIndex, block, enableCaching);
-        ++blockIndex;
-    }
-
-    context->Reply();
+    session
+        ->PutBlocks(startBlockIndex, request->Attachments(), enableCaching)
+        .Subscribe(BIND([=] (TError error) {
+            context->Reply(error);
+        }));
 }
 
 DEFINE_RPC_SERVICE_METHOD(TDataNodeService, SendBlocks)
@@ -300,7 +302,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, SendBlocks)
     int blockCount = request->block_count();
     auto target = FromProto<TNodeDescriptor>(request->target());
 
-    context->SetRequestInfo("ChunkId: %s, StartBlockIndex: %d, BlockCount: %d, TargetAddress: %s",
+    context->SetRequestInfo("ChunkId: %s, StartBlock: %d, BlockCount: %d, TargetAddress: %s",
         ~ToString(chunkId),
         startBlockIndex,
         blockCount,
@@ -328,7 +330,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetBlocks)
     int blockCount = static_cast<int>(request->block_indexes_size());
     bool enableCaching = request->enable_caching();
 
-    context->SetRequestInfo("ChunkId: %s, BlockIndexes: [%s], EnableCaching: %s",
+    context->SetRequestInfo("ChunkId: %s, Blocks: [%s], EnableCaching: %s",
         ~ToString(chunkId),
         ~JoinToString(request->block_indexes()),
         ~FormatBool(enableCaching));
@@ -439,7 +441,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, FlushBlock)
     auto chunkId = FromProto<TChunkId>(request->chunk_id());
     int blockIndex = request->block_index();
 
-    context->SetRequestInfo("ChunkId: %s, BlockIndex: %d",
+    context->SetRequestInfo("ChunkId: %s, Block: %d",
         ~ToString(chunkId),
         blockIndex);
 

@@ -160,6 +160,9 @@ public:
     //! Writer configuration used to replicate and repair chunks.
     NChunkClient::TReplicationWriterConfigPtr ReplicationWriter;
 
+    //! Controls incoming bandwidth used by replication jobs.
+    TThroughputThrottlerConfigPtr ReplicationInThrottler;
+
     //! Controls outcoming bandwidth used by replication jobs.
     TThroughputThrottlerConfigPtr ReplicationOutThrottler;
 
@@ -215,6 +218,8 @@ public:
         RegisterParameter("replication_reader", ReplicationReader)
             .DefaultNew();
         RegisterParameter("replication_writer", ReplicationWriter)
+            .DefaultNew();
+        RegisterParameter("replication_in_throttler", ReplicationInThrottler)
             .DefaultNew();
         RegisterParameter("replication_out_throttler", ReplicationOutThrottler)
             .DefaultNew();

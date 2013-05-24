@@ -17,6 +17,7 @@ IAsyncWriterPtr CreateReplicationWriter(
     TReplicationWriterConfigPtr config,
     const TChunkId& chunkId,
     const std::vector<NNodeTrackerClient::TNodeDescriptor>& targets,
+    EWriteSessionType sessionType = EWriteSessionType::User,
     IThroughputThrottlerPtr throttler = GetUnlimitedThrottler());
 
 ///////////////////////////////////////////////////////////////////////////////

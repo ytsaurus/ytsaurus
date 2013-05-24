@@ -240,7 +240,6 @@ public:
             result.AvailbaleSpace += statistics.total_available_space();
             result.UsedSpace += statistics.total_used_space();
             result.ChunkCount += statistics.total_chunk_count();
-            result.SessionCount += statistics.total_session_count();
             result.OnlineNodeCount++;
         }
         return result;

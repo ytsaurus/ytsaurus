@@ -357,6 +357,7 @@ private:
             Config->ReplicationWriter,
             Chunk->GetId(),
             targets,
+            EWriteSessionType::Replication,
             Bootstrap->GetReplicationOutThrottler());
         Writer->Open();
 
@@ -501,6 +502,7 @@ private:
                 config->ReplicationWriter,
                 partId,
                 std::vector<TNodeDescriptor>(1, target),
+                EWriteSessionType::Repair,
                 Bootstrap->GetRepairOutThrottler());
             writers.push_back(writer);
         }
