@@ -1484,7 +1484,8 @@ private:
                 1 + TotalInputDataSize / Spec->DataSizePerSortJob,
                 1,
                 Config->MaxJobCount));
-        auto stripes = SliceInputChunks(Config->SortJobMaxSliceDataSize, &sortJobCount);
+        auto stripes = SliceInputChunks(Config->SortJobMaxSliceDataSize, sortJobCount);
+        sortJobCount = std::min(sortJobCount, static_cast<int>(stripes.size()));
 
         // Initialize counters.
         PartitionJobCounter.Set(0);
@@ -1573,7 +1574,8 @@ private:
         InitShufflePool();
 
         int partitionJobCount = SuggestPartitionJobCount();
-        auto stripes = SliceInputChunks(Config->PartitionJobMaxSliceDataSize, &partitionJobCount);
+        auto stripes = SliceInputChunks(Config->PartitionJobMaxSliceDataSize, partitionJobCount);
+        partitionJobCount = std::min(static_cast<int>(stripes.size()), partitionJobCount);
 
         PartitionJobCounter.Set(partitionJobCount);
 
@@ -1993,7 +1995,8 @@ private:
 
         auto stripes = SliceInputChunks(
             Config->PartitionJobMaxSliceDataSize,
-            &partitionJobCount);
+            partitionJobCount);
+        partitionJobCount = std::min(static_cast<int>(stripes.size()), partitionJobCount);
 
         PartitionJobCounter.Set(partitionJobCount);
 

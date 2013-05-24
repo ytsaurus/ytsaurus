@@ -285,28 +285,26 @@ protected:
     }
 
     //! Add chunk to the current task's pool.
-    void AddPendingChunk(TRefCountedInputChunkPtr inputChunk)
+    void AddPendingChunk(TInputChunkSlicePtr chunkSlice)
     {
-        auto stripe = CurrentTaskStripes[inputChunk->table_index()];
+        auto stripe = CurrentTaskStripes[chunkSlice->GetInputChunk()->table_index()];
         if (!stripe) {
-            stripe = CurrentTaskStripes[inputChunk->table_index()] = New<TChunkStripe>();
+            stripe = CurrentTaskStripes[chunkSlice->GetInputChunk()->table_index()] = New<TChunkStripe>();
         }
 
-        i64 chunkDataSize;
-        GetStatistics(*inputChunk, &chunkDataSize);
-
+        i64 chunkDataSize = chunkSlice->GetDataSize();
         TotalDataSize += chunkDataSize;
         ++TotalChunkCount;
 
         CurrentTaskDataSize += chunkDataSize;
-        stripe->Chunks.push_back(inputChunk);
+        stripe->ChunkSlices.push_back(chunkSlice);
 
-        auto chunkId = FromProto<TChunkId>(inputChunk->chunk_id());
+        auto chunkId = FromProto<TChunkId>(chunkSlice->GetInputChunk()->chunk_id());
         LOG_DEBUG("Pending chunk added (ChunkId: %s, Partition: %d, Task: %d, TableIndex: %d, DataSize: %" PRId64 ")",
             ~ToString(chunkId),
             PartitionCount,
             static_cast<int>(MergeTasks.size()),
-            inputChunk->table_index(),
+            chunkSlice->GetInputChunk()->table_index(),
             chunkDataSize);
     }
 
@@ -539,7 +537,7 @@ private:
         }
 
         // NB: During unordered merge all chunks go to a single chunk stripe.
-        AddPendingChunk(inputChunk);
+        AddPendingChunk(CreateChunkSlice(inputChunk));
         EndTaskIfLarge();
     }
 
@@ -582,7 +580,7 @@ private:
         }
 
         // NB: During ordered merge all chunks go to a single chunk stripe.
-        AddPendingChunk(inputChunk);
+        AddPendingChunk(CreateChunkSlice(inputChunk));
         EndTaskIfLarge();
     }
 };
@@ -875,7 +873,10 @@ protected:
                 ~ToString(nextBreakpoint));
 
             FOREACH (const auto& inputChunk, openedChunks) {
-                this->AddPendingChunk(SliceChunk(inputChunk, lastBreakpoint, nextBreakpoint));
+                this->AddPendingChunk(CreateChunkSlice(
+                    inputChunk,
+                    lastBreakpoint,
+                    nextBreakpoint));
             }
             lastBreakpoint = nextBreakpoint;
         };
@@ -892,12 +893,8 @@ protected:
                         // Trying to reconstruct passthrough chunk from chunk slices.
                         auto chunkId = FromProto<TChunkId>(endpoint.InputChunk->chunk_id());
                         auto tableIndex = endpoint.InputChunk->table_index();
-                        auto nextIndex = currentIndex;
-                        while (true) {
-                            ++nextIndex;
-                            if (nextIndex == endpointsCount) {
-                                break;
-                            }
+                        auto nextIndex = currentIndex + 1;
+                        for (; nextIndex < endpointsCount; ++nextIndex) {
                             auto nextChunkId = FromProto<TChunkId>(Endpoints[nextIndex].InputChunk->chunk_id());
                             auto nextTableIndex = Endpoints[nextIndex].InputChunk->table_index();
                             if (nextChunkId != chunkId || tableIndex != nextTableIndex) {
@@ -905,10 +902,10 @@ protected:
                             }
                         }
 
-                        auto lastEndpoint = Endpoints[nextIndex - 1];
+                        const auto& lastEndpoint = Endpoints[nextIndex - 1];
                         if (lastEndpoint.Type == EEndpointType::Right && IsEndingSlice(*lastEndpoint.InputChunk)) {
-                            if (IsLargeEnoughToPassthrough(*endpoint.InputChunk)) {
-                                auto chunk = CreateCompleteChunk(endpoint.InputChunk);
+                            auto chunk = CreateCompleteChunk(endpoint.InputChunk);
+                            if (IsLargeEnoughToPassthrough(*chunk)) {
                                 if (HasActiveTask()) {
                                    EndTask();
                                 }
@@ -924,7 +921,7 @@ protected:
                     break;
 
                 case EEndpointType::Right:
-                    AddPendingChunk(SliceChunk(endpoint.InputChunk, lastBreakpoint, Null));
+                    AddPendingChunk(CreateChunkSlice(endpoint.InputChunk, lastBreakpoint, Null));
                     YCHECK(openedChunks.erase(endpoint.InputChunk) == 1);
 
                     if (!openedChunks.empty() &&
@@ -974,7 +971,7 @@ protected:
 
                         if (!hasManiacTask) {
                             FOREACH (const auto& chunk, partialChunks) {
-                                AddPendingChunk(chunk);
+                                AddPendingChunk(CreateChunkSlice(chunk));
                             }
                         }
 
@@ -990,7 +987,7 @@ protected:
                             YCHECK(!HasActiveTask());
                             // Create special maniac task.
                             FOREACH (const auto& chunk, partialChunks) {
-                                AddPendingChunk(chunk);
+                                AddPendingChunk(CreateChunkSlice(chunk));
                                 if (HasLargeActiveTask()) {
                                     EndManiacTask();
                                 }
@@ -1020,11 +1017,11 @@ protected:
                         }
 
                         FOREACH (const auto& chunk, partialChunks) {
-                            AddPendingChunk(chunk);
+                            AddPendingChunk(CreateChunkSlice(chunk));
                         }
 
                         FOREACH (const auto& chunk, completeLargeChunks) {
-                            AddPendingChunk(chunk);
+                            AddPendingChunk(CreateChunkSlice(chunk));
                         }
 
                         if (hasManiacTask) {

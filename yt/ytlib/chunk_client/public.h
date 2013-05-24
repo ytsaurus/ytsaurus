@@ -183,6 +183,9 @@ typedef TKey<TFakeStringBufStore> TNonOwningKey;
 struct TRefCountedInputChunk;
 typedef TIntrusivePtr<TRefCountedInputChunk> TRefCountedInputChunkPtr;
 
+struct TInputChunkSlice;
+typedef TIntrusivePtr<TInputChunkSlice> TInputChunkSlicePtr;
+
 class TChannel;
 typedef std::vector<TChannel> TChannels;
 

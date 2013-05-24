@@ -48,12 +48,12 @@ struct TChunkStripe
     : public TIntrinsicRefCounted
 {
     TChunkStripe();
-    explicit TChunkStripe(NChunkClient::TRefCountedInputChunkPtr inputChunk);
+    explicit TChunkStripe(NChunkClient::TInputChunkSlicePtr inputChunkSlice);
     explicit TChunkStripe(const TChunkStripe& other);
 
     TChunkStripeStatistics GetStatistics() const;
 
-    TSmallVector<NChunkClient::TRefCountedInputChunkPtr, 1> Chunks;
+    TSmallVector<NChunkClient::TInputChunkSlicePtr, 1> ChunkSlices;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

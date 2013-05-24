@@ -13,6 +13,7 @@
 #include <ytlib/ytree/attribute_helpers.h>
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
+#include <ytlib/chunk_client/input_chunk.h>
 
 #include <ytlib/erasure/codec.h>
 
@@ -78,8 +79,6 @@ private:
 
     virtual void OnError(const TError& error) override;
     virtual void OnFinish() override;
-
-    static bool IsNontrivial(const TReadLimit& limit);
 
 };
 
@@ -209,14 +208,6 @@ bool TFetchChunkVisitor::OnChunk(
     }
 
     return true;
-}
-
-bool TFetchChunkVisitor::IsNontrivial(const TReadLimit& limit)
-{
-    return limit.has_row_index() ||
-           limit.has_key() ||
-           limit.has_chunk_index() ||
-           limit.has_offset();
 }
 
 void TFetchChunkVisitor::OnError(const TError& error)

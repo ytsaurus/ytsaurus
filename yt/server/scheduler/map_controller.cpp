@@ -207,7 +207,8 @@ private:
                 Spec->DataSizePerJob,
                 Spec->JobCount);
 
-            auto stripes = SliceInputChunks(Config->MapJobMaxSliceDataSize, &jobCount);
+            auto stripes = SliceInputChunks(Config->MapJobMaxSliceDataSize, jobCount);
+            jobCount = std::min(jobCount, static_cast<int>(stripes.size()));
 
             JobCounter.Set(jobCount);
 

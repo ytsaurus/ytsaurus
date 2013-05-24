@@ -31,15 +31,13 @@ void GetStatistics(
         *totalRowCount = 0;
     }
 
-    FOREACH (const auto& chunk, stripe->Chunks) {
-        i64 chunkDataSize;
-        i64 chunkRowCount;
-        GetStatistics(*chunk, &chunkDataSize, &chunkRowCount);
+    FOREACH (const auto& chunkSlice, stripe->ChunkSlices) {
         if (totalDataSize) {
-            *totalDataSize += chunkDataSize;
+            *totalDataSize += chunkSlice->GetDataSize();
         }
+
         if (totalRowCount) {
-            *totalRowCount += chunkRowCount;
+            *totalRowCount += chunkSlice->GetRowCount();
         }
     }
 }
@@ -56,14 +54,14 @@ void AddStripeToList(
     list->TotalDataSize += stripeDataSize;
     list->TotalRowCount += stripeRowCount;
 
-    list->TotalChunkCount += stripe->Chunks.size();
+    list->TotalChunkCount += stripe->ChunkSlices.size();
     if (address) {
-        FOREACH (const auto& chunk, stripe->Chunks) {
+        FOREACH (const auto& chunkSlice, stripe->ChunkSlices) {
             bool isLocal = false;
-            FOREACH (ui32 protoReplica, chunk->replicas()) {
+            FOREACH (ui32 protoReplica, chunkSlice->GetInputChunk()->replicas()) {
                 auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
                 const auto& descriptor = nodeDirectory->GetDescriptor(replica);
-                if (descriptor.Address == *address) {
+                if (descriptor.Address == *address && chunkSlice->GetLocality(replica.GetIndex()) > 0) {
                     isLocal = true;
                     break;
                 }
@@ -75,7 +73,7 @@ void AddStripeToList(
             }
         }
     } else {
-        list->NonLocalChunkCount += stripe->Chunks.size();
+        list->NonLocalChunkCount += stripe->ChunkSlices.size();
     }
 }
 
@@ -84,15 +82,15 @@ void AddStripeToList(
 TChunkStripe::TChunkStripe()
 { }
 
-TChunkStripe::TChunkStripe(TRefCountedInputChunkPtr inputChunk)
+TChunkStripe::TChunkStripe(TInputChunkSlicePtr inputChunkSlice)
 {
-    Chunks.push_back(inputChunk);
+    ChunkSlices.push_back(inputChunkSlice);
 }
 
 TChunkStripe::TChunkStripe(const TChunkStripe& other)
 {
-    FOREACH (const auto& chunk, other.Chunks) {
-        Chunks.push_back(New<TRefCountedInputChunk>(*chunk));
+    FOREACH (const auto& chunkSlice, other.ChunkSlices) {
+        ChunkSlices.push_back(New<TInputChunkSlice>(*chunkSlice));
     }
 }
 
@@ -100,12 +98,9 @@ TChunkStripeStatistics TChunkStripe::GetStatistics() const
 {
     TChunkStripeStatistics result;
 
-    FOREACH (const auto& chunk, Chunks) {
-        i64 chunkDataSize;
-        i64 chunkRowCount;
-        NYT::NChunkClient::GetStatistics(*chunk, &chunkDataSize, &chunkRowCount);
-        result.DataSize += chunkDataSize;
-        result.RowCount += chunkRowCount;
+    FOREACH (const auto& chunkSlice, ChunkSlices) {
+        result.DataSize += chunkSlice->GetDataSize();
+        result.RowCount += chunkSlice->GetRowCount();
         ++result.ChunkCount;
     }
 
@@ -481,11 +476,11 @@ private:
 
     void UpdateLocality(TChunkStripePtr stripe, int delta)
     {
-        FOREACH (const auto& chunk, stripe->Chunks) {
-            i64 localityDelta = NChunkClient::GetLocality(*chunk) * delta;
-            FOREACH (ui32 protoReplica, chunk->replicas()) {
+        FOREACH (const auto& chunkSlice, stripe->ChunkSlices) {
+            FOREACH (ui32 protoReplica, chunkSlice->GetInputChunk()->replicas()) {
                 auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
                 const auto& descriptor = NodeDirectory->GetDescriptor(replica);
+                i64 localityDelta = chunkSlice->GetLocality(replica.GetIndex()) * delta;
                 AddressToLocality[descriptor.Address] += localityDelta;
             }
         }
@@ -741,14 +736,13 @@ private:
 
     void Register(TChunkStripePtr stripe)
     {
-        FOREACH (const auto& chunk, stripe->Chunks) {
-            i64 locality = NChunkClient::GetLocality(*chunk);
-            FOREACH (ui32 protoReplica, chunk->replicas()) {
+        FOREACH (const auto& chunkSlice, stripe->ChunkSlices) {
+            FOREACH (ui32 protoReplica, chunkSlice->GetInputChunk()->replicas()) {
                 auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
                 const auto& descriptor = NodeDirectory->GetDescriptor(replica);
                 auto& entry = PendingLocalChunks[descriptor.Address];
                 entry.Stripes.insert(stripe);
-                entry.Locality += locality;
+                entry.Locality += chunkSlice->GetLocality(replica.GetIndex());
             }
         }
 
@@ -757,16 +751,15 @@ private:
 
     void Unregister(TChunkStripePtr stripe)
     {
-        FOREACH (const auto& chunk, stripe->Chunks) {
-            i64 locality = NChunkClient::GetLocality(*chunk);
-            FOREACH (ui32 protoReplica, chunk->replicas()) {
+        FOREACH (const auto& chunkSlice, stripe->ChunkSlices) {
+            FOREACH (ui32 protoReplica, chunkSlice->GetInputChunk()->replicas()) {
                 auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
                 const auto& descriptor = NodeDirectory->GetDescriptor(replica);
                 auto& entry = PendingLocalChunks[descriptor.Address];
                 auto it = entry.Stripes.find(stripe);
                 YCHECK(it != entry.Stripes.end());
                 entry.Stripes.erase(it);
-                entry.Locality -= locality;
+                entry.Locality -= chunkSlice->GetLocality(replica.GetIndex());
             }
         }
 
@@ -863,12 +856,13 @@ public:
         TInputStripe inputStripe;
         inputStripe.ElementaryIndexBegin = static_cast<int>(ElementaryStripes.size());
 
-        FOREACH (const auto& chunk, stripe->Chunks) {
+        FOREACH (const auto& chunkSlice, stripe->ChunkSlices) {
             int elementaryIndex = static_cast<int>(ElementaryStripes.size());
-            auto elementaryStripe = New<TChunkStripe>(chunk);
+            auto elementaryStripe = New<TChunkStripe>(chunkSlice);
             ElementaryStripes.push_back(elementaryStripe);
 
-            auto partitionsExt = GetProtoExtension<NTableClient::NProto::TPartitionsExt>(chunk->extensions());
+            auto partitionsExt = GetProtoExtension<NTableClient::NProto::TPartitionsExt>(
+                chunkSlice->GetInputChunk()->extensions());
             YCHECK(partitionsExt.partitions_size() == Outputs.size());
 
             for (int index = 0; index < static_cast<int>(Outputs.size()); ++index) {
@@ -879,7 +873,8 @@ public:
                     partitionAttributes.row_count());
             }
 
-            RemoveProtoExtension<NTableClient::NProto::TPartitionsExt>(chunk->mutable_extensions());
+            RemoveProtoExtension<NTableClient::NProto::TPartitionsExt>(
+                chunkSlice->GetInputChunk()->mutable_extensions());
         }
 
         inputStripe.ElementaryIndexEnd = static_cast<int>(ElementaryStripes.size());
@@ -901,8 +896,9 @@ public:
     virtual void Resume(IChunkPoolInput::TCookie cookie, TChunkStripePtr stripe) override
     {
         // Remove all partition extensions.
-        FOREACH (auto chunk, stripe->Chunks) {
-            RemoveProtoExtension<NTableClient::NProto::TPartitionsExt>(chunk->mutable_extensions());
+        FOREACH (auto chunkSlice, stripe->ChunkSlices) {
+            RemoveProtoExtension<NTableClient::NProto::TPartitionsExt>(
+                chunkSlice->GetInputChunk()->mutable_extensions());
         }
 
         // Although the sizes and even the row count may have changed (mind unordered reader and
@@ -911,13 +907,13 @@ public:
         // incorrect memory consumption estimates but significant bias is very unlikely.
         const auto& inputStripe = InputStripes[cookie];
         int stripeCount = inputStripe.ElementaryIndexEnd - inputStripe.ElementaryIndexBegin;
-        int limit = std::min(static_cast<int>(stripe->Chunks.size()), stripeCount - 1);
+        int limit = std::min(static_cast<int>(stripe->ChunkSlices.size()), stripeCount - 1);
 
         // Fill the initial range of elementary stripes with new chunks (one per stripe).
         for (int index = 0; index < limit; ++index) {
-            auto chunk = stripe->Chunks[index];
+            auto chunkSlice = stripe->ChunkSlices[index];
             int elementaryIndex = index + inputStripe.ElementaryIndexBegin;
-            ElementaryStripes[elementaryIndex] = New<TChunkStripe>(chunk);
+            ElementaryStripes[elementaryIndex] = New<TChunkStripe>(chunkSlice);
         }
 
         // Cleanup the rest of elementary stripes.
@@ -930,9 +926,9 @@ public:
 
         // Put remaining chunks (if any) into the last stripe.
         auto& lastElementaryStripe = ElementaryStripes[inputStripe.ElementaryIndexBegin + limit];
-        for (int index = limit; index < static_cast<int>(stripe->Chunks.size()); ++index) {
-            auto chunk = stripe->Chunks[index];
-            lastElementaryStripe->Chunks.push_back(chunk);
+        for (int index = limit; index < static_cast<int>(stripe->ChunkSlices.size()); ++index) {
+            auto chunkSlice = stripe->ChunkSlices[index];
+            lastElementaryStripe->ChunkSlices.push_back(chunkSlice);
         }
 
         for (int elementaryIndex = inputStripe.ElementaryIndexBegin;
@@ -1110,7 +1106,7 @@ private:
             for (int index = run.ElementaryIndexBegin; index < run.ElementaryIndexEnd; ++index) {
                 auto stripe = Owner->ElementaryStripes[index];
                 list->Stripes.push_back(stripe);
-                list->TotalChunkCount += stripe->Chunks.size();
+                list->TotalChunkCount += stripe->ChunkSlices.size();
             }
 
             // NB: never ever make TotalDataSize and TotalBoostFactor approximate.

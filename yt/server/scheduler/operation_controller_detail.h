@@ -619,7 +619,9 @@ protected:
     NChunkClient::TChunkListId ExtractChunkList();
 
     //! Returns the list of all input chunks collected from all input tables.
-    std::vector<NChunkClient::TRefCountedInputChunkPtr> CollectInputChunks();
+    std::vector<NChunkClient::TRefCountedInputChunkPtr> CollectInputChunks() const;
+
+    std::vector<NChunkClient::TInputChunkSlicePtr> CollectInputChunkSlices() const;
 
     //! Converts a list of input chunks into a list of chunk stripes for further
     //! processing. Each stripe receives exactly one chunk (as suitable for most
@@ -628,7 +630,7 @@ protected:
     //! |TotalInputDataSize / jobCount|, whichever is smaller. If the resulting
     //! list contains less than |jobCount| stripes then |jobCount| is decreased
     //! appropriately.
-    std::vector<TChunkStripePtr> SliceInputChunks(i64 maxSliceDataSize, int* jobCount);
+    std::vector<TChunkStripePtr> SliceInputChunks(i64 maxSliceDataSize, int jobCount);
 
     int SuggestJobCount(
         i64 totalDataSize,

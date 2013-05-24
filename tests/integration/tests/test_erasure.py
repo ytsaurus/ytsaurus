@@ -11,6 +11,7 @@ import time
 class TestErasure(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 20
+    START_SCHEDULER = True
 
     def _do_test_simple(self, erasure_codec):
         create('table', '//tmp/table')
@@ -89,3 +90,35 @@ class TestErasure(YTEnvSetup):
 
     def test_lrc_repair(self):
         self._test_repair("lrc_12_2_2", 16, 12)
+
+    def test_map(self):
+        create('table', '//tmp/t1')
+        set('//tmp/t1/@erasure_codec', 'reed_solomon_6_3')
+        create('table', '//tmp/t2')
+        set('//tmp/t2/@erasure_codec', 'lrc_12_2_2')
+        write_str('//tmp/t1', '{a=b}')
+        map(in_='//tmp/t1', out='//tmp/t2', command='cat')
+
+        assert read('//tmp/t2') == [{'a' : 'b'}]
+
+    def test_sort(self):
+        v1 = {'key' : 'aaa'}
+        v2 = {'key' : 'bb'}
+        v3 = {'key' : 'bbxx'}
+        v4 = {'key' : 'zfoo'}
+        v5 = {'key' : 'zzz'}
+
+        create('table', '//tmp/t_in')
+        set('//tmp/t_in/@erasure_codec', 'lrc_12_2_2')
+        write('//tmp/t_in', [v3, v5, v1, v2, v4]) # some random order
+
+        create('table', '//tmp/t_out')
+        set('//tmp/t_in/@erasure_codec', 'reed_solomon_6_3')
+
+        sort(in_='//tmp/t_in',
+             out='//tmp/t_out',
+             sort_by='key')
+
+        assert read('//tmp/t_out') == [v1, v2, v3, v4, v5]
+        assert get('//tmp/t_out/@sorted') ==  'true'
+        assert get('//tmp/t_out/@sorted_by') ==  ['key']

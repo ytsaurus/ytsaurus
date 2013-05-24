@@ -19,16 +19,18 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRefCountedInputChunk::TRefCountedInputChunk(const TInputChunk& other, int tableIndex)
+int DefaultPartIndex = -1;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TRefCountedInputChunk::TRefCountedInputChunk(const TInputChunk& other)
 {
     CopyFrom(other);
-    set_table_index(tableIndex);
 }
 
-TRefCountedInputChunk::TRefCountedInputChunk(TInputChunk&& other, int tableIndex)
+TRefCountedInputChunk::TRefCountedInputChunk(TInputChunk&& other)
 {
     Swap(&other);
-    set_table_index(tableIndex);
 }
 
 TRefCountedInputChunk::TRefCountedInputChunk(const TRefCountedInputChunk& other)
@@ -37,6 +39,175 @@ TRefCountedInputChunk::TRefCountedInputChunk(const TRefCountedInputChunk& other)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TInputChunkSlice::TInputChunkSlice(const TInputChunkSlice& other)
+{
+    InputChunk = other.InputChunk;
+    PartIndex = other.PartIndex;
+    StartLimit.CopyFrom(other.StartLimit);
+    EndLimit.CopyFrom(other.EndLimit);
+    SizeOverrideExt.CopyFrom(other.SizeOverrideExt);
+}
+
+TInputChunkSlice::TInputChunkSlice()
+    : PartIndex(DefaultPartIndex)
+{ }
+
+std::vector<TInputChunkSlicePtr> TInputChunkSlice::SliceEvenly(i64 sliceDataSize) const
+{
+    YCHECK(sliceDataSize > 0);
+
+    std::vector<TInputChunkSlicePtr> result;
+
+    i64 dataSize = GetDataSize();
+    i64 rowCount = GetRowCount();
+
+    // Inclusive.
+    i64 startRowIndex = StartLimit.has_row_index() ? StartLimit.row_index() : 0;
+    i64 endRowIndex = EndLimit.has_row_index() ? EndLimit.row_index() : rowCount;
+
+    rowCount = endRowIndex - startRowIndex;
+    int count = std::ceil((double)dataSize / (double)sliceDataSize);
+
+    for (int i = 0; i < count; ++i) {
+        i64 sliceStartRowIndex = startRowIndex + rowCount * i / count;
+        i64 sliceEndRowIndex = startRowIndex + rowCount * (i + 1) / count;
+        if (sliceStartRowIndex < sliceEndRowIndex) {
+            auto chunkSlice = New<TInputChunkSlice>(*this);
+            chunkSlice->StartLimit.set_row_index(sliceStartRowIndex);
+            chunkSlice->EndLimit.set_row_index(sliceEndRowIndex);
+            chunkSlice->SizeOverrideExt.set_row_count(rowCount);
+            chunkSlice->SizeOverrideExt.set_uncompressed_data_size((dataSize + count - 1) / count);
+
+            result.push_back(chunkSlice);
+        }
+    }
+
+    return result;
+}
+
+i64 TInputChunkSlice::GetLocality(int replicaPartIndex) const
+{
+    i64 result = GetDataSize();
+
+    if (PartIndex == DefaultPartIndex) {
+        // For erasure chunks without specified part index,
+        // data size is assumed to be split evenly between data parts.
+        auto codecId = NErasure::ECodec(InputChunk->erasure_codec());
+        if (codecId != NErasure::ECodec::None) {
+            auto* codec = NErasure::GetCodec(codecId);
+            int dataPartCount = codec->GetDataPartCount();
+            result = (result + dataPartCount - 1) / dataPartCount;
+        }
+    } else if (PartIndex != replicaPartIndex) {
+        result = 0;
+    }
+
+    return result;
+}
+
+TRefCountedInputChunkPtr TInputChunkSlice::GetInputChunk() const
+{
+    return InputChunk;
+}
+
+i64 TInputChunkSlice::GetDataSize() const
+{
+    return SizeOverrideExt.uncompressed_data_size();
+}
+
+i64 TInputChunkSlice::GetRowCount() const
+{
+    return SizeOverrideExt.row_count();
+}
+
+TInputChunkSlicePtr CreateChunkSlice(
+    TRefCountedInputChunkPtr inputChunk,
+    const TNullable<NProto::TKey>& startKey /*= Null*/,
+    const TNullable<NProto::TKey>& endKey /*= Null*/)
+{
+    i64 dataSize;
+    i64 rowCount;
+    GetStatistics(*inputChunk, &dataSize, &rowCount);
+
+    auto result = New<TInputChunkSlice>();
+    result->InputChunk = inputChunk;
+    result->SizeOverrideExt.set_uncompressed_data_size(dataSize);
+    result->SizeOverrideExt.set_row_count(rowCount);
+    result->PartIndex = DefaultPartIndex;
+
+    if (inputChunk->has_start_limit()) {
+        result->StartLimit.CopyFrom(inputChunk->start_limit());
+    }
+
+    if (inputChunk->has_end_limit()) {
+        result->EndLimit.CopyFrom(inputChunk->end_limit());
+    }
+
+    if (startKey && (!result->StartLimit.has_key() || result->StartLimit.key() < startKey.Get())) {
+        *result->StartLimit.mutable_key() = startKey.Get();
+    }
+
+    if (endKey && (!result->EndLimit.has_key() || result->EndLimit.key() > endKey.Get())) {
+        *result->EndLimit.mutable_key() = endKey.Get();
+    }
+
+    return result;
+}
+
+void AppendErasureChunkSlices(
+    TRefCountedInputChunkPtr inputChunk,
+    NErasure::ECodec codecId,
+    std::vector<TInputChunkSlicePtr>* slices)
+{
+    i64 dataSize;
+    i64 rowCount;
+    GetStatistics(*inputChunk, &dataSize, &rowCount);
+
+    auto* codec = NErasure::GetCodec(codecId);
+    int dataPartCount = codec->GetDataPartCount();
+
+    for (int partIndex = 0; partIndex < dataPartCount; ++partIndex) {
+        i64 sliceStartRowIndex = rowCount * partIndex / dataPartCount;
+        i64 sliceEndRowIndex = rowCount * (partIndex + 1) / dataPartCount;
+        if (sliceStartRowIndex < sliceEndRowIndex) {
+            auto slicedChunk = New<TInputChunkSlice>();
+            slicedChunk->InputChunk = inputChunk;
+            slicedChunk->PartIndex = partIndex;
+            slicedChunk->StartLimit.set_row_index(sliceStartRowIndex);
+            slicedChunk->EndLimit.set_row_index(sliceEndRowIndex);
+            slicedChunk->SizeOverrideExt.set_row_count(sliceEndRowIndex - sliceStartRowIndex);
+            slicedChunk->SizeOverrideExt.set_uncompressed_data_size((dataSize + dataPartCount - 1) / dataPartCount);
+
+            slices->push_back(slicedChunk);
+        }
+    }
+}
+
+void ToProto(NProto::TInputChunk* inputChunk, const TInputChunkSlice& chunkSlice)
+{
+    inputChunk->CopyFrom(*chunkSlice.InputChunk);
+    if (IsNontrivial(chunkSlice.StartLimit)) {
+        inputChunk->mutable_start_limit()->CopyFrom(chunkSlice.StartLimit);
+    }
+
+    if (IsNontrivial(chunkSlice.EndLimit)) {
+        inputChunk->mutable_end_limit()->CopyFrom(chunkSlice.EndLimit);
+    }
+
+    SetProtoExtension(inputChunk->mutable_extensions(), chunkSlice.SizeOverrideExt);
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsNontrivial(const NProto::TReadLimit& limit)
+{
+    return limit.has_row_index() ||
+        limit.has_key() ||
+        limit.has_chunk_index() ||
+        limit.has_offset();
+}
 
 void GetStatistics(
     const TInputChunk& inputChunk,
@@ -68,95 +239,15 @@ void GetStatistics(
     }
 }
 
-i64 GetLocality(const NProto::TInputChunk& inputChunk)
-{
-    auto miscExt = GetProtoExtension<TMiscExt>(inputChunk.extensions());
-    auto sizeOverrideExt = FindProtoExtension<TSizeOverrideExt>(inputChunk.extensions());
-
-    i64 result = sizeOverrideExt
-        ? sizeOverrideExt->uncompressed_data_size()
-        : miscExt.uncompressed_data_size();
-
-    // For erasure chunks data size is assumed to be split evenly between data parts.
-    auto codecId = NErasure::ECodec(inputChunk.erasure_codec());
-    if (codecId != NErasure::ECodec::None) {
-        auto* codec = NErasure::GetCodec(codecId);
-        int dataPartCount = codec->GetDataPartCount();
-        result = (result + dataPartCount - 1) / dataPartCount;
-    }
-
-    return result;
-}
-
-TRefCountedInputChunkPtr SliceChunk(
-    TRefCountedInputChunkPtr inputChunk,
-    const TNullable<NProto::TKey>& startKey /*= Null*/,
-    const TNullable<NProto::TKey>& endKey /*= Null*/)
-{
-    auto result = New<TRefCountedInputChunk>(*inputChunk);
-
-    if (startKey && (!inputChunk->start_limit().has_key() || inputChunk->start_limit().key() < startKey.Get())) {
-        *result->mutable_start_limit()->mutable_key() = startKey.Get();
-    }
-
-    if (endKey && (!inputChunk->end_limit().has_key() || inputChunk->end_limit().key() > endKey.Get())) {
-        *result->mutable_end_limit()->mutable_key() = endKey.Get();
-    }
-
-    return result;
-}
-
-std::vector<TRefCountedInputChunkPtr> SliceChunkEvenly(TRefCountedInputChunkPtr inputChunk, int count)
-{
-    YCHECK(count > 0);
-
-    std::vector<TRefCountedInputChunkPtr> result;
-
-    i64 dataSize;
-    i64 rowCount;
-    GetStatistics(*inputChunk, &dataSize, &rowCount);
-
-    const auto& startLimit = inputChunk->start_limit();
-    // Inclusive.
-    i64 startRowIndex = startLimit.has_row_index() ? startLimit.row_index() : 0;
-
-    const auto& endLimit = inputChunk->end_limit();
-    // Exclusive.
-    i64 endRowIndex = endLimit.has_row_index() ? endLimit.row_index() : rowCount;
-
-    rowCount = endRowIndex - startRowIndex;
-
-    for (int i = 0; i < count; ++i) {
-        i64 sliceStartRowIndex = startRowIndex + rowCount * i / count;
-        i64 sliceEndRowIndex = startRowIndex + rowCount * (i + 1) / count;
-        if (sliceStartRowIndex < sliceEndRowIndex) {
-            auto slicedChunk = New<TRefCountedInputChunk>(*inputChunk);
-            slicedChunk->mutable_start_limit()->set_row_index(sliceStartRowIndex);
-            slicedChunk->mutable_end_limit()->set_row_index(sliceEndRowIndex);
-
-            // This is merely an approximation.
-            TSizeOverrideExt sizeOverride;
-            sizeOverride.set_row_count(sliceEndRowIndex - sliceStartRowIndex);
-            sizeOverride.set_uncompressed_data_size(dataSize / count + 1);
-            SetProtoExtension(slicedChunk->mutable_extensions(), sizeOverride);
-
-            result.push_back(slicedChunk);
-        }
-    }
-
-    return result;
-}
-
 TRefCountedInputChunkPtr CreateCompleteChunk(TRefCountedInputChunkPtr inputChunk)
 {
-    auto chunk = New<TRefCountedInputChunk>(*inputChunk);
-    chunk->mutable_start_limit()->clear_key();
-    chunk->mutable_start_limit()->clear_row_index();
-    chunk->mutable_end_limit()->clear_key();
-    chunk->mutable_end_limit()->clear_row_index();
+    auto result = New<TRefCountedInputChunk>(*inputChunk);
+    result->clear_start_limit();
+    result->clear_end_limit();
 
-    RemoveProtoExtension<TSizeOverrideExt>(chunk->mutable_extensions());
-    return chunk;
+    RemoveProtoExtension<TMiscExt>(result->mutable_extensions());
+
+    return result;
 }
 
 TChunkId EncodeChunkId(
