@@ -481,8 +481,6 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleBalancingJob(
 
     auto* target = ChunkPlacement->AllocateBalancingTarget(chunkWithIndex, maxFillFactor);
     if (!target) {
-        LOG_DEBUG("No suitable target nodes for balancing (ChunkId: %s)",
-            ~ToString(chunkWithIndex));
         return EJobScheduleFlags::None;
     }
 
