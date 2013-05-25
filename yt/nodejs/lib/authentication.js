@@ -39,13 +39,11 @@ YtAuthentication.prototype.dispatch = function(req, rsp, next)
         req.origin || req.connection.remoteAddress,
         this.token);
 
-    if (Q.isPromise(result)) {
-        this.login = result.get("login");
-        this.realm = result.get("realm");
-    } else {
-        this.login = result.login;
-        this.realm = result.realm;
-    }
+    // XXX(sandello): Q is not able to determine that we have handled a rejection.
+    Q.isPromise(result) && result.fail(function(){});
+
+    this.login = Q(result).get("login");
+    this.realm = Q(result).get("realm");
 
     return this._epilogue(req, rsp, next);
 };
@@ -57,8 +55,8 @@ YtAuthentication.prototype._epilogue = function(req, rsp, next)
 
     var self = this;
 
-    Q
-    .all([self.login, self.realm])
+    return void Q
+    .all([ self.login, self.realm ])
     .spread(
     function(login, realm) {
         if (typeof(login) === "string" && typeof(realm) === "string") {
