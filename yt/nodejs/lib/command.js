@@ -14,6 +14,12 @@ var YtError = require("./error").that;
 
 var __DBG = require("./debug").that("C", "Command");
 
+// This mapping defines the supported API versions.
+var _VERSION_TO_FACADE = {
+    "v1": require("./driver_facade_v1").that,
+    "v2": require("./driver_facade_v2").that,
+};
+
 // This mapping defines how MIME types map onto YT format specifications.
 var _MIME_TO_FORMAT = {
     "application/json": new binding.TNodeWrap({
@@ -57,7 +63,7 @@ var _MIME_TO_FORMAT = {
     "text/x-tskv": new binding.TNodeWrap({
         $attributes: { line_prefix: "tskv" },
         $value: "dsv"
-    })
+    }),
 };
 
 // This mapping defines which MIME types could be used to encode specific data type.
@@ -66,7 +72,7 @@ _MIME_BY_OUTPUT_TYPE[binding.EDataType_Structured] = [
     "application/json",
     "application/x-yt-yson-pretty",
     "application/x-yt-yson-text",
-    "application/x-yt-yson-binary"
+    "application/x-yt-yson-binary",
 ];
 _MIME_BY_OUTPUT_TYPE[binding.EDataType_Tabular] = [
     "application/x-yamr-delimited",
@@ -78,7 +84,7 @@ _MIME_BY_OUTPUT_TYPE[binding.EDataType_Tabular] = [
     "application/x-yt-yson-pretty",
     "text/csv",
     "text/tab-separated-values",
-    "text/x-tskv"
+    "text/x-tskv",
 ];
 
 // This mapping defines default output formats for data types.
@@ -94,7 +100,7 @@ var _ENCODING_TO_COMPRESSION = {
     "y-lzo"    : binding.ECompression_LZO,
     "y-lzf"    : binding.ECompression_LZF,
     "y-snappy" : binding.ECompression_Snappy,
-    "identity" : binding.ECompression_None
+    "identity" : binding.ECompression_None,
 };
 
 var _ENCODING_ALL = Object.keys(_ENCODING_TO_COMPRESSION);
@@ -242,26 +248,56 @@ YtCommand.prototype._getName = function() {
     "use strict";
     this.__DBG("_getName");
 
-    this.name = this.req.parsedUrl.pathname.slice(1).toLowerCase();
+    var versioned_name = this.req.parsedUrl.pathname.slice(1).toLowerCase();
 
-    if (!this.name.length) {
-        // Bail out to API description.
+    var version;
+    var name;
+    var facade;
+    var driver;
+
+    if (!versioned_name.length) {
         this.rsp.statusCode = 200;
-        utils.dispatchAs(
-            this.rsp,
-            JSON.stringify(this.driver.get_command_descriptors()),
-            "application/json");
+        utils.dispatchJson(this.rsp, Object.keys(_VERSION_TO_FACADE));
         throw new YtError();
     }
 
-    if (!/^[a-z_]+$/.test(this.name)) {
-        throw new YtError("Malformed command name " + JSON.stringify(this.name) + ".");
+    var p = versioned_name.indexOf("/");
+    if (p === -1) {
+        if (!/^v[0-9]+/.test(versioned_name)) {
+            // COMPAT(sandello): Treat everything as V1.
+            version = "v1";
+            name = versioned_name;
+        } else {
+            version = versioned_name;
+            name = "";
+        }
+    } else {
+        version = versioned_name.substr(0, p);
+        name = versioned_name.substr(p + 1);
     }
 
-    // COMPAT(sandello): Renamed renew_tx to ping_tx on 25.03.
-    if (this.name === "renew_tx") {
-        this.name = "ping_tx";
+    if (!_VERSION_TO_FACADE.hasOwnProperty(version)) {
+        throw new YtError("Unsupported API version " + JSON.stringify(version) + ".");
     }
+
+    facade = _VERSION_TO_FACADE[version];
+    driver = facade(this.driver);
+
+    if (!name.length) {
+        // Bail out to API description.
+        this.rsp.statusCode = 200;
+        utils.dispatchJson(
+            this.rsp,
+            driver.get_command_descriptors());
+        throw new YtError();
+    }
+
+    if (!/^[a-z_]+$/.test(name)) {
+        throw new YtError("Malformed command name " + JSON.stringify(name) + ".");
+    }
+
+    this.name = name;
+    this.driver = driver;
 };
 
 YtCommand.prototype._getUser = function() {
