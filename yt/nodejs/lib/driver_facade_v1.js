@@ -1,5 +1,5 @@
 var binding = require("./ytnode");
-var utils = require("./utils").that;
+var utils = require("./utils");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -15,14 +15,13 @@ var FAKE_UPLOAD_DESCRIPTOR = {
 Object.defineProperty(
     FAKE_UPLOAD_DESCRIPTOR,
     "input_type_as_integer",
-    { enumerable: false });
+    { enumerable: false, value: binding.EDataType_Binary });
 Object.defineProperty(
     FAKE_UPLOAD_DESCRIPTOR,
     "output_type_as_integer",
-    { enumerable: false });
+    { enumerable: false, value: binding.EDataType_Structured });
 
-FAKE_UPLOAD_DESCRIPTOR.input_type_as_integer = binding.EDataType_Binary;
-FAKE_UPLOAD_DESCRIPTOR.output_type_as_integer = binding.EDataType_Structured;
+var FAKE_UPLOAD_PREPARAMETERS = new binding.TNodeWrap({ type: "file" });
 
 function YtDriverFacadeV1(driver)
 {
@@ -61,14 +60,11 @@ YtDriverFacadeV1.prototype.execute = function(name, user,
         "create", user,
         slack_input, binding.ECompression_None,
         output_pause, output_compression,
-        new binding.TNodeWrap({
-            type: "file",
-            path: parameters.Traverse("/path").Get()
-        }))
-    .then(function(result, bytes_in, bytes_out) {
+        binding.CreateMergedNode(parameters, FAKE_UPLOAD_PREPARAMETERS))
+    .spread(function(result, bytes_in, bytes_out) {
         slack_bytes = bytes_out;
 
-        process.nextTick(function() { input_pause.unpause(); pause = null; });
+        process.nextTick(function() { input_pause.unpause(); input_pause = null; });
 
         return self.driver.execute(
             "upload", user,
@@ -76,7 +72,7 @@ YtDriverFacadeV1.prototype.execute = function(name, user,
             slack_output, binding.ECompression_None,
             parameters);
     })
-    .then(function(result, bytes_in, bytes_out) {
+    .spread(function(result, bytes_in, bytes_out) {
         for (var chunk in output_pause.chunks) {
             output_stream.write(chunk);
         }

@@ -113,8 +113,9 @@ describe("YtCommand - command name", function() {
         }, done).end();
     });
 
+    [ "v1", "v2" ].forEach(function(version) {
     it("should display a reference when the name is empty", function(done) {
-        ask("GET", "", {},
+        ask("GET", "/" + version, {},
         function(rsp) {
             rsp.should.be.http2xx;
             rsp.should.have.content_type("application/json");
@@ -129,6 +130,7 @@ describe("YtCommand - command name", function() {
                 item.should.have.property("is_heavy");
             });
         }, done).end();
+    });
     });
 });
 
@@ -357,7 +359,7 @@ describe("YtCommand - input format selection", function() {
         }, done).end();
     });
 
-    it("should use 'yson' as a default for binary data", function(done) {
+    xit("should use 'yson' as a default for binary data", function(done) {
         var stub = this.stub;
         ask("PUT", "/upload", {},
         function(rsp) {
