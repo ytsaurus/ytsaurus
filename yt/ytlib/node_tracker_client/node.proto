@@ -18,26 +18,26 @@ message TLocationStatistics
 // Describes the current state of the whole node.
 message TNodeStatistics
 {
-    required int64 total_available_space = 1;
-    required int64 total_used_space = 2;
-    required int32 total_chunk_count = 3;
-    required int32 total_user_session_count = 4;
-    required int32 total_replication_session_count = 7 [default = 0];
-    required int32 total_repair_session_count = 8 [default = 0];
-    required bool full = 5;
+    optional int64 total_available_space = 1;
+    optional int64 total_used_space = 2;
+    optional int32 total_chunk_count = 3;
+    optional int32 total_user_session_count = 4;
+    optional int32 total_replication_session_count = 7;
+    optional int32 total_repair_session_count = 8;
+    optional bool full = 5;
     repeated TLocationStatistics locations = 6;
 }
 
 // Measures limits and utilization of various resources.
 message TNodeResources
 {
-    optional int32 user_slots        = 1 [default = 0];
-    optional int32 cpu               = 2 [default = 0];
-    optional int64 memory            = 3 [default = 0];
-    optional int32 network           = 4 [default = 0];
-    optional int32 replication_slots = 5 [default = 0];
-    optional int32 removal_slots     = 6 [default = 0];
-    optional int32 repair_slots      = 7 [default = 0];
+    optional int32 user_slots        = 1;
+    optional int32 cpu               = 2;
+    optional int64 memory            = 3;
+    optional int32 network           = 4;
+    optional int32 replication_slots = 5;
+    optional int32 removal_slots     = 6;
+    optional int32 repair_slots      = 7;
 }
 
 // Describes a cluster node.
