@@ -116,7 +116,8 @@ def make_request_with_retries(request, make_retries=False, url="", return_raw_re
     for attempt in xrange(config.HTTP_RETRIES_COUNT):
         try:
             response = request()
-            if not return_raw_response and response.is_json() and not response.content():
+            is_json = response.is_json() or not str(response.http_response.status_code).startswith("2")
+            if not return_raw_response and is_json and not response.content():
                 raise YtResponseError("Content is json but body is empty")
             return response
         except NETWORK_ERRORS as error:
