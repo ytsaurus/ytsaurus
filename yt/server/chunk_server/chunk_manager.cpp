@@ -297,14 +297,15 @@ public:
     DECLARE_METAMAP_ACCESSORS(Chunk, TChunk, TChunkId);
     DECLARE_METAMAP_ACCESSORS(ChunkList, TChunkList, TChunkListId);
 
-    TNodeList AllocateUploadTargets(
+    TNodeList AllocateWriteTargets(
         int replicaCount,
         const TNullable<Stroka>& preferredHostName)
     {
-        return ChunkPlacement->AllocateUploadTargets(
+        return ChunkPlacement->AllocateWriteTargets(
             replicaCount,
             nullptr,
-            preferredHostName);
+            preferredHostName,
+            EWriteSessionType::User);
     }
 
     TChunk* CreateChunk(EObjectType type)
@@ -1427,7 +1428,7 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::Create(
             ? erasureCodec->GetDataPartCount() + erasureCodec->GetParityPartCount()
             : requestExt->upload_replication_factor();
 
-        auto targets = Owner->AllocateUploadTargets(uploadReplicationFactor, preferredHostName);
+        auto targets = Owner->AllocateWriteTargets(uploadReplicationFactor, preferredHostName);
 
         auto* responseExt = response->MutableExtension(TRspCreateChunkExt::create_chunk_ext);
         TNodeDirectoryBuilder builder(responseExt->mutable_node_directory());
@@ -1550,7 +1551,7 @@ TNodeList TChunkManager::AllocateUploadTargets(
     int replicaCount,
     const TNullable<Stroka>& preferredHostName)
 {
-    return Impl->AllocateUploadTargets(replicaCount, preferredHostName);
+    return Impl->AllocateWriteTargets(replicaCount, preferredHostName);
 }
 
 TMutationPtr TChunkManager::CreateUpdateChunkPropertiesMutation(

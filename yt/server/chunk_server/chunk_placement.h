@@ -33,14 +33,16 @@ public:
     double GetLoadFactor(TNode* node) const;
     double GetFillFactor(TNode* node) const;
 
-    TNodeList AllocateUploadTargets(
+    TNodeList AllocateWriteTargets(
         int replicaCount,
         const TSmallSet<TNode*, TypicalReplicaCount>* forbiddenNodes,
-        const TNullable<Stroka>& preferredHostName);
+        const TNullable<Stroka>& preferredHostName,
+        NChunkClient::EWriteSessionType sessionType);
 
-    TNodeList AllocateReplicationTargets(
+    TNodeList AllocateWriteTargets(
         TChunk* chunk,
-        int targetCount);
+        int targetCount,
+        NChunkClient::EWriteSessionType sessionType);
 
     TNodeList GetRemovalTargets(
         TChunkPtrWithIndex chunkWithIndex,
@@ -71,14 +73,16 @@ private:
     TFactorToNode FillFactorToNode;
     TNodeToFactorIt NodeToFilFactorIt;
 
-    TNodeList GetUploadTargets(
+    TNodeList GetWriteTargets(
         int targetCount,
         const TSmallSet<TNode*, TypicalReplicaCount>* forbiddenNodes,
-        const TNullable<Stroka>& preferredHostName);
+        const TNullable<Stroka>& preferredHostName,
+        NChunkClient::EWriteSessionType sessionType);
 
-    TNodeList GetReplicationTargets(
+    TNodeList GetWriteTargets(
         TChunk* chunk,
-        int targetCount);
+        int targetCount,
+        NChunkClient::EWriteSessionType sessionType);
 
     TNode* GetBalancingTarget(
         TChunkPtrWithIndex chunkWithIndex,
@@ -86,8 +90,14 @@ private:
 
     static bool IsFull(TNode* node);
 
-    static bool IsValidUploadTarget(TNode* node);
-    bool IsValidBalancingTarget(TNode* node, TChunkPtrWithIndex chunkWithIndex) const;
+    static bool IsValidWriteTarget(
+        TNode* node,
+        NChunkClient::EWriteSessionType sessionType);
+    
+    bool IsValidBalancingTarget(
+        TNode* node,
+        TChunkPtrWithIndex chunkWithIndex) const;
+    
     bool IsValidRemovalTarget(TNode* node);
 
 };

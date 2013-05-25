@@ -437,7 +437,10 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleReplicationJob(
     }
 
     int replicasNeeded = replicationFactor - replicaCount;
-    auto targets = ChunkPlacement->AllocateReplicationTargets(chunk, replicasNeeded);
+    auto targets = ChunkPlacement->AllocateWriteTargets(
+        chunk,
+        replicasNeeded,
+        EWriteSessionType::Replication);
     if (targets.empty()) {
         return EJobScheduleFlags::None;
     }
@@ -572,7 +575,10 @@ TChunkReplicator::EJobScheduleFlags TChunkReplicator::ScheduleRepairJob(
         return EJobScheduleFlags::Purged;
     }
 
-    auto targets = ChunkPlacement->AllocateReplicationTargets(chunk, erasedIndexCount);
+    auto targets = ChunkPlacement->AllocateWriteTargets(
+        chunk,
+        erasedIndexCount,
+        EWriteSessionType::Repair);
     if (targets.empty()) {
         return EJobScheduleFlags::None;
     }

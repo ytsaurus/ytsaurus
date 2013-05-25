@@ -11,6 +11,7 @@
 namespace NYT {
 namespace NNodeTrackerServer {
 
+using namespace NChunkClient;
 using namespace NChunkServer;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -137,19 +138,37 @@ void TNode::ResetSessionHints()
     HintedRepairSessionCount_ = 0;
 }
 
-void TNode::AddUserSessionHint()
+void TNode::AddSessionHint(EWriteSessionType sessionType)
 {
-    ++HintedUserSessionCount_;
+    switch (sessionType) {
+        case EWriteSessionType::User:
+            ++HintedUserSessionCount_;
+            break;
+        case EWriteSessionType::Replication:
+            ++HintedReplicationSessionCount_;
+            break;
+        case EWriteSessionType::Repair:
+            ++HintedRepairSessionCount_;
+            break;
+        default:
+            YUNREACHABLE();
+    }
 }
 
-void TNode::AddReplicationSessionHint()
+bool TNode::HasSpareSession(EWriteSessionType sessionType) const
 {
-    ++HintedReplicationSessionCount_;
-}
-
-void TNode::AddRepairSessionHint()
-{
-    ++HintedRepairSessionCount_;
+    switch (sessionType) {
+        case EWriteSessionType::User:
+            return true;
+        case EWriteSessionType::Replication:
+            return Statistics_.total_replication_session_count() + HintedReplicationSessionCount_ <
+                   Statistics_.max_replication_session_count();
+        case EWriteSessionType::Repair:
+            return Statistics_.total_repair_session_count() + HintedRepairSessionCount_ <
+                   Statistics_.max_repair_session_count();
+        default:
+            YUNREACHABLE();
+    }
 }
 
 int TNode::GetTotalSessionCount() const

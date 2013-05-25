@@ -91,9 +91,8 @@ public:
     void ApproveReplica(TChunkPtrWithIndex replica);
 
     void ResetSessionHints();
-    void AddUserSessionHint();
-    void AddReplicationSessionHint();
-    void AddRepairSessionHint();
+    void AddSessionHint(NChunkClient::EWriteSessionType sessionType);
+    bool HasSpareSession(NChunkClient::EWriteSessionType sessionType) const;
     int GetTotalSessionCount() const;
 
     static TAtomic GenerateVisitMark();

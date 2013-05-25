@@ -16,6 +16,7 @@
 namespace NYT {
 namespace NChunkServer {
 
+using namespace NChunkClient;
 using namespace NNodeTrackerServer;
 using namespace NCellMaster;
 
@@ -82,27 +83,30 @@ void TChunkPlacement::OnNodeUpdated(TNode* node)
     node->ResetSessionHints();
 }
 
-TNodeList TChunkPlacement::AllocateUploadTargets(
+TNodeList TChunkPlacement::AllocateWriteTargets(
     int targetCount,
     const TSmallSet<TNode*, TypicalReplicaCount>* forbiddenNodes,
-    const TNullable<Stroka>& preferredHostName)
+    const TNullable<Stroka>& preferredHostName,
+    EWriteSessionType sessionType)
 {
-    auto targets = GetUploadTargets(
+    auto targets = GetWriteTargets(
         targetCount,
         forbiddenNodes,
-        preferredHostName);
+        preferredHostName,
+        EWriteSessionType::User);
 
     FOREACH (auto* target, targets) {
-        target->AddUserSessionHint();
+        target->AddSessionHint(sessionType);
     }
 
     return targets;
 }
 
-TNodeList TChunkPlacement::GetUploadTargets(
+TNodeList TChunkPlacement::GetWriteTargets(
     int targetCount,
     const TSmallSet<TNode*, TypicalReplicaCount>* forbiddenNodes,
-    const TNullable<Stroka>& preferredHostName)
+    const TNullable<Stroka>& preferredHostName,
+    EWriteSessionType sessionType)
 {
     TNodeList targets;
 
@@ -118,7 +122,7 @@ TNodeList TChunkPlacement::GetUploadTargets(
     // Look for preferred node first.
     if (preferredHostName) {
         preferredNode = nodeTracker->FindNodeByHostName(*preferredHostName);
-        if (preferredNode && IsValidUploadTarget(preferredNode)) {
+        if (preferredNode && IsValidWriteTarget(preferredNode, sessionType)) {
             targets.push_back(preferredNode);
             --remainingCount;
         }
@@ -128,7 +132,7 @@ TNodeList TChunkPlacement::GetUploadTargets(
     FOREACH (auto& pair, LoadFactorToNode) {
         auto* node = pair.second;
         if (node != preferredNode &&
-            IsValidUploadTarget(node) &&
+            IsValidWriteTarget(node, sessionType) &&
             !(forbiddenNodes && forbiddenNodes->count(node)))
         {
             feasibleNodes.push_back(std::make_pair(node, node->GetTotalSessionCount()));
@@ -176,24 +180,27 @@ TNodeList TChunkPlacement::GetUploadTargets(
     return targets;
 }
 
-TNodeList TChunkPlacement::AllocateReplicationTargets(
+TNodeList TChunkPlacement::AllocateWriteTargets(
     TChunk* chunk,
-    int targetCount)
+    int targetCount,
+    EWriteSessionType sessionType)
 {
-    auto targets = GetReplicationTargets(
+    auto targets = GetWriteTargets(
         chunk,
-        targetCount);
+        targetCount,
+        sessionType);
 
     FOREACH (auto* target, targets) {
-        target->AddReplicationSessionHint();
+        target->AddSessionHint(sessionType);
     }
 
     return targets;
 }
 
-TNodeList TChunkPlacement::GetReplicationTargets(
+TNodeList TChunkPlacement::GetWriteTargets(
     TChunk* chunk,
-    int targetCount)
+    int targetCount,
+    EWriteSessionType sessionType)
 {
     TSmallSet<TNode*, TypicalReplicaCount> forbiddenNodes;
 
@@ -219,7 +226,7 @@ TNodeList TChunkPlacement::GetReplicationTargets(
         }
     }
 
-    return GetUploadTargets(targetCount, &forbiddenNodes, nullptr);
+    return GetWriteTargets(targetCount, &forbiddenNodes, Null, sessionType);
 }
 
 TNode* TChunkPlacement::GetReplicationSource(TChunkPtrWithIndex chunkWithIndex)
@@ -302,7 +309,7 @@ TNode* TChunkPlacement::AllocateBalancingTarget(
         maxFillFactor);
 
     if (target) {
-        target->AddReplicationSessionHint();
+        target->AddSessionHint(EWriteSessionType::Replication);
     }
 
     return target;
@@ -325,20 +332,27 @@ TNode* TChunkPlacement::GetBalancingTarget(
     return nullptr;
 }
 
-bool TChunkPlacement::IsValidUploadTarget(TNode* node)
+bool TChunkPlacement::IsValidWriteTarget(
+    TNode* node,
+    EWriteSessionType sessionType)
 {
     if (node->GetState() != ENodeState::Online) {
-        // Do not upload anything to nodes before first heartbeat.
+        // Do not write anything to nodes before first heartbeat.
         return false;
     }
 
     if (IsFull(node)) {
-        // Do not upload anything to full nodes.
+        // Do not write anything to full nodes.
         return false;
     }
 
     if (node->GetDecommissioned()) {
-        // Do not upload anything to decommissioned nodes.
+        // Do not write anything to decommissioned nodes.
+        return false;
+    }
+
+    if (!node->HasSpareSession(sessionType)) {
+        // Do not write anything to nodes already having too many write sessions.
         return false;
     }
 
@@ -348,7 +362,7 @@ bool TChunkPlacement::IsValidUploadTarget(TNode* node)
 
 bool TChunkPlacement::IsValidBalancingTarget(TNode* node, TChunkPtrWithIndex chunkWithIndex) const
 {
-    if (!IsValidUploadTarget(node)) {
+    if (!IsValidWriteTarget(node, EWriteSessionType::Replication)) {
         // Balancing implies upload, after all.
         return false;
     }

@@ -181,6 +181,13 @@ public:
     //! Runs periodic checks against disks.
     TDiskHealthCheckerConfigPtr DiskHealthChecker;
 
+    //! Maximum number of concurrent replication write sessions the node is willing to handle.
+    int MaxReplicationSessions;
+
+    //! Maximum number of concurrent repair write sessions the node is willing to handle.
+    int MaxRepairSessions;
+
+
     TDataNodeConfig()
     {
         RegisterParameter("heartbeat_period", HeartbeatPeriod)
@@ -236,6 +243,12 @@ public:
             .DefaultNew();
         RegisterParameter("disk_health_checker", DiskHealthChecker)
             .DefaultNew();
+        RegisterParameter("max_replication_sessions", MaxReplicationSessions)
+            .Default(16)
+            .GreaterThanOrEqual(0);
+        RegisterParameter("max_repair_sessions", MaxRepairSessions)
+            .Default(16)
+            .GreaterThanOrEqual(0);
     }
 };
 
