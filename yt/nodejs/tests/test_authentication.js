@@ -27,7 +27,7 @@ function stubRegistry()
                 host: "localhost",
                 port: 9000,
                 nodelay: true,
-                timeout: 1000,
+                timeout: 100,
                 retries: 2
             }
         },

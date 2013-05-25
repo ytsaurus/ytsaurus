@@ -68,7 +68,9 @@ exports.blackboxValidateToken = function(logger, party, token)
                 // XXX(sandello): Embed.
                 error: error.toJson()
             });
-            return inner(retry + 1);
+            return Q
+            .delay(config.timeout * retry)
+            .then(inner.bind(undefined, retry + 1));
         });
     })(0);
 };
@@ -129,7 +131,9 @@ exports.oAuthObtainToken = function(logger, client_id, client_secret, code)
                 // XXX(sandello): Embed.
                 error: error.toJson()
             });
-            return inner(retry + 1);
+            return Q
+            .delay(config.timeout * retry)
+            .then(inner.bind(undefined, retry + 1));
         });
     })(0);
 };
