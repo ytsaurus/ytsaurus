@@ -98,8 +98,9 @@ set -x
 
 ################################################################################
 
+tc "progressMessage 'Cleaning other builds...'"
+rm -rf /home/teamcity/build/YT*
 mkdir -p $WORKING_DIRECTORY
-
 cd $WORKING_DIRECTORY
 
 tc "blockOpened name='CMake'"
