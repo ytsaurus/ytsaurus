@@ -50,8 +50,7 @@ exports.blackboxValidateToken = function(logger, party, token)
         .fire()
         .then(function(data) {
             if (typeof(data.exception) !== "undefined") {
-                var error = new YtError(
-                    "Blackbox returned an exception: " + data.exception);
+                var error = new YtError("Blackbox returned an exception");
                 error.attributes.raw_data = data;
                 tagged_logger.info(error.message, { data: data });
                 return Q.reject(error);
