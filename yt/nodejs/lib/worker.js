@@ -161,7 +161,7 @@ dynamic_application = connect()
     .use(yt.YtLogRequest())
     .use(yt.YtAcao())
     .use(connect.favicon())
-    .use("/hosts", yt.YtHostDiscovery())
+    .use("/hosts", yt.YtHostDiscovery(config.neighbours))
     .use("/auth", yt.YtApplicationAuth())
     .use("/upravlyator", yt.YtApplicationUpravlyator())
     // TODO(sandello): Can we remove this?
