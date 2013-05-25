@@ -482,7 +482,7 @@ private:
 
             auto partId = ErasurePartIdFromChunkId(ChunkId, partIndex);
             auto reader = CreateReplicationReader(
-                config->ReplicationReader,
+                config->RepairReader,
                 Bootstrap->GetBlockStore()->GetBlockCache(),
                 Bootstrap->GetMasterChannel(),
                 nodeDirectory,
@@ -500,7 +500,7 @@ private:
             const auto& target = targets[index];
             auto partId = ErasurePartIdFromChunkId(ChunkId, partIndex);
             auto writer = CreateReplicationWriter(
-                config->ReplicationWriter,
+                config->RepairWriter,
                 partId,
                 std::vector<TNodeDescriptor>(1, target),
                 EWriteSessionType::Repair,

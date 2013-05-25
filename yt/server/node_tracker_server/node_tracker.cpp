@@ -471,7 +471,7 @@ private:
         FOREACH (const auto& pair, NodeMap) {
             auto* node = pair.second;
 
-            node->SetHintedSessionCount(0);
+            node->ResetSessionHints();
             
             FOREACH (auto& queue, node->ChunkReplicationQueues()) {
                 queue.clear();

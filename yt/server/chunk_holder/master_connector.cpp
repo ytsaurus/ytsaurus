@@ -184,8 +184,12 @@ NNodeTrackerClient::NProto::TNodeStatistics TMasterConnector::ComputeStatistics(
     result.set_total_available_space(totalAvailableSpace);
     result.set_total_used_space(totalUsedSpace);
     result.set_total_chunk_count(totalChunkCount);
-    result.set_total_session_count(totalSessionCount);
     result.set_full(full);
+
+    auto sessionManager = Bootstrap->GetSessionManager();
+    result.set_total_user_session_count(sessionManager->GetSessionCount(EWriteSessionType::User));
+    result.set_total_replication_session_count(sessionManager->GetSessionCount(EWriteSessionType::Replication));
+    result.set_total_repair_session_count(sessionManager->GetSessionCount(EWriteSessionType::Repair));
 
     return result;
 }

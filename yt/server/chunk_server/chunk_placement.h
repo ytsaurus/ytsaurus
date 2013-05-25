@@ -84,8 +84,6 @@ private:
         TChunkPtrWithIndex chunkWithIndex,
         double maxFillFactor);
 
-    void OnSessionHinted(TNode* node);
-
     static bool IsFull(TNode* node);
 
     static bool IsValidUploadTarget(TNode* node);

@@ -30,7 +30,7 @@ struct TTotalNodeStatistics
 
 namespace NProto {
 
-Stroka ToString(const NYT::NNodeTrackerClient::NProto::TNodeStatistics& statistics);
+Stroka ToString(const TNodeStatistics& statistics);
 
 } // namespace NProto
 

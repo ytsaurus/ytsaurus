@@ -58,10 +58,9 @@ TSession::TSession(
     YCHECK(bootstrap);
     YCHECK(location);
 
-    Logger.AddTag(Sprintf("LocationId: %s, ChunkId: %s, SessionType: %s",
+    Logger.AddTag(Sprintf("LocationId: %s, ChunkId: %s",
         ~Location->GetId(),
-        ~ToString(ChunkId),
-        ~Type.ToString()));
+        ~ToString(ChunkId)));
 
     Location->UpdateSessionCount(+1);
     FileName = Location->GetChunkFileName(ChunkId);
@@ -76,7 +75,8 @@ void TSession::Start()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    LOG_DEBUG("Session started");
+    LOG_DEBUG("Session started (SessionType: %s)",
+        ~Type.ToString());
 
     WriteInvoker->Invoke(BIND(&TSession::DoOpenFile, MakeStrong(this)));
 }
@@ -634,7 +634,7 @@ TSessionManager::TSessionManager(
     TBootstrap* bootstrap)
     : Config(config)
     , Bootstrap(bootstrap)
-    , SessionCount(0)
+    , SessionCounts(EWriteSessionType::GetDomainSize())
     , PendingWriteSize(0)
 {
     YCHECK(config);
@@ -737,11 +737,11 @@ void TSessionManager::OnLeaseExpired(TSessionPtr session)
     CancelSession(session, TError("Session lease expired"));
 }
 
-int TSessionManager::GetSessionCount() const
+int TSessionManager::GetSessionCount(EWriteSessionType type) const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    VERIFY_THREAD_AFFINITY(ControlThread);
 
-    return SessionCount;
+    return SessionCounts[static_cast<int>(type)];
 }
 
 i64 TSessionManager::GetPendingWriteSize() const
@@ -753,13 +753,13 @@ i64 TSessionManager::GetPendingWriteSize() const
 
 void TSessionManager::RegisterSession(TSessionPtr session)
 {
-    AtomicIncrement(SessionCount);
+    ++SessionCounts[session->GetType()];
     YCHECK(SessionMap.insert(std::make_pair(session->GetChunkId(), session)).second);
 }
 
 void TSessionManager::UnregisterSession( TSessionPtr session )
 {
-    AtomicDecrement(SessionCount);
+    --SessionCounts[session->GetType()];
     YCHECK(SessionMap.erase(session->GetChunkId()) == 1);
 }
 

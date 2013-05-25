@@ -79,12 +79,7 @@ void TChunkPlacement::OnNodeUpdated(TNode* node)
 {
     OnNodeUnregistered(node);
     OnNodeRegistered(node);
-    node->SetHintedSessionCount(0);
-}
-
-void TChunkPlacement::OnSessionHinted(TNode* node)
-{
-    node->SetHintedSessionCount(node->GetHintedSessionCount() + 1);
+    node->ResetSessionHints();
 }
 
 TNodeList TChunkPlacement::AllocateUploadTargets(
@@ -98,7 +93,7 @@ TNodeList TChunkPlacement::AllocateUploadTargets(
         preferredHostName);
 
     FOREACH (auto* target, targets) {
-        OnSessionHinted(target);
+        target->AddUserSessionHint();
     }
 
     return targets;
@@ -190,7 +185,7 @@ TNodeList TChunkPlacement::AllocateReplicationTargets(
         targetCount);
 
     FOREACH (auto* target, targets) {
-        OnSessionHinted(target);
+        target->AddReplicationSessionHint();
     }
 
     return targets;
@@ -307,7 +302,7 @@ TNode* TChunkPlacement::AllocateBalancingTarget(
         maxFillFactor);
 
     if (target) {
-        OnSessionHinted(target);
+        target->AddReplicationSessionHint();
     }
 
     return target;

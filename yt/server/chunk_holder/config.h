@@ -136,11 +136,11 @@ public:
     //! Updated expiration timeout (see TPeerBlockUpdater).
     TDuration PeerUpdateExpirationTimeout;
 
-    //! Read requests are throttled when pending read size (including bus buffers) reaches this limit.
-    i64 ReadThrottlingSize;
+    //! Read requests are throttled when pending outcoming size (including bus buffers) reaches this limit.
+    i64 BusOutThrottlingLimit;
 
-    //! Write requests are throttled when pending write size reaches this limit.
-    i64 WriteThrottlingSize;
+    //! Write requests are throttled when pending incoming size reaches this limit.
+    i64 BusInThrottlingLimit;
 
     //! Regular storage locations.
     std::vector<TLocationConfigPtr> StoreLocations;
@@ -154,11 +154,14 @@ public:
     //! Sequential reader configuration used to download chunks into cache.
     NChunkClient::TSequentialReaderConfigPtr CacheSequentialReader;
 
-    //! Reader configuration used to repair chunks.
-    NChunkClient::TReplicationReaderConfigPtr ReplicationReader;
-
-    //! Writer configuration used to replicate and repair chunks.
+    //! Writer configuration used to replicate chunks.
     NChunkClient::TReplicationWriterConfigPtr ReplicationWriter;
+
+    //! Reader configuration used to repair chunks.
+    NChunkClient::TReplicationReaderConfigPtr RepairReader;
+
+    //! Writer configuration used to repair chunks.
+    NChunkClient::TReplicationWriterConfigPtr RepairWriter;
 
     //! Controls incoming bandwidth used by replication jobs.
     TThroughputThrottlerConfigPtr ReplicationInThrottler;
@@ -200,10 +203,10 @@ public:
             .Default(TDuration::Seconds(30));
         RegisterParameter("peer_update_expiration_timeout", PeerUpdateExpirationTimeout)
             .Default(TDuration::Seconds(40));
-        RegisterParameter("read_throttling_size", ReadThrottlingSize)
+        RegisterParameter("bus_out_throttling_limit", BusOutThrottlingLimit)
             .GreaterThan(0)
             .Default((i64) 512 * 1024 * 1024);
-        RegisterParameter("write_throttling_size", WriteThrottlingSize)
+        RegisterParameter("bus_in_throttling_limit", BusInThrottlingLimit)
             .GreaterThan(0)
             // TODO(babenko): provide some meaningful default
             .Default((i64) 100 * 1024 * 1024 * 1024);
@@ -215,9 +218,11 @@ public:
             .DefaultNew();
         RegisterParameter("cache_sequential_reader", CacheSequentialReader)
             .DefaultNew();
-        RegisterParameter("replication_reader", ReplicationReader)
-            .DefaultNew();
         RegisterParameter("replication_writer", ReplicationWriter)
+            .DefaultNew();
+        RegisterParameter("repair_reader", RepairReader)
+            .DefaultNew();
+        RegisterParameter("repair_writer", RepairWriter)
             .DefaultNew();
         RegisterParameter("replication_in_throttler", ReplicationInThrottler)
             .DefaultNew();

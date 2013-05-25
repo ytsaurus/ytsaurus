@@ -40,8 +40,10 @@ namespace NChunkHolder {
 
 using namespace NRpc;
 using namespace NChunkClient;
+using namespace NChunkClient::NProto;
 using namespace NNodeTrackerClient;
 using namespace NTableClient;
+using namespace NTableClient::NProto;
 using namespace NCellNode;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -98,7 +100,7 @@ void TDataNodeService::ValidateNoSession(const TChunkId& chunkId)
     if (Bootstrap->GetSessionManager()->FindSession(chunkId)) {
         THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::SessionAlreadyExists,
-            "Session already exists: %s",
+            "Session %s already exists",
             ~ToString(chunkId));
     }
 }
@@ -108,7 +110,7 @@ void TDataNodeService::ValidateNoChunk(const TChunkId& chunkId)
     if (Bootstrap->GetChunkStore()->FindChunk(chunkId)) {
         THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::ChunkAlreadyExists,
-            "Chunk already exists: %s",
+            "Chunk %s already exists",
             ~ToString(chunkId));
     }
 }
@@ -119,7 +121,7 @@ TSessionPtr TDataNodeService::GetSession(const TChunkId& chunkId)
     if (!session) {
         THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::NoSuchSession,
-            "Session is invalid or expired: %s",
+            "Session %s is invalid or expired",
             ~ToString(chunkId));
     }
     return session;
@@ -131,7 +133,7 @@ TChunkPtr TDataNodeService::GetChunk(const TChunkId& chunkId)
     if (!chunk) {
         THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::NoSuchChunk,
-            "No such chunk: %s",
+            "No such chunk %s",
             ~ToString(chunkId));
     }
     return chunk;
@@ -151,13 +153,13 @@ void TDataNodeService::OnGotChunkMeta(
 
     if (partitionTag) {
         std::vector<NTableClient::NProto::TBlockInfo> filteredBlocks;
-        auto channelsExt = GetProtoExtension<NTableClient::NProto::TChannelsExt>(
+        auto channelsExt = GetProtoExtension<TChannelsExt>(
             result.Value().extensions());
         // Partition chunks must have only one channel.
         YCHECK(channelsExt.items_size() == 1);
 
         FOREACH (const auto& blockInfo, channelsExt.items(0).blocks()) {
-            YCHECK(blockInfo.partition_tag() != NTableClient::DefaultPartitionTag);
+            YCHECK(blockInfo.partition_tag() != DefaultPartitionTag);
             if (blockInfo.partition_tag() == partitionTag.Get()) {
                 filteredBlocks.push_back(blockInfo);
             }
@@ -172,38 +174,38 @@ void TDataNodeService::OnGotChunkMeta(
     context->Reply();
 }
 
-i64 TDataNodeService::GetPendingReadSize() const
+i64 TDataNodeService::GetPendingOutSize() const
 {
     return
         NBus::TTcpDispatcher::Get()->GetStatistics().PendingOutSize +
         Bootstrap->GetBlockStore()->GetPendingReadSize();
 }
 
-i64 TDataNodeService::GetPendingWriteSize() const
+i64 TDataNodeService::GetPendingInSize() const
 {
     return Bootstrap->GetSessionManager()->GetPendingWriteSize();
 }
 
-bool TDataNodeService::IsReadThrottling() const
+bool TDataNodeService::IsOutThrottling() const
 {
-    i64 pendingSize = GetPendingReadSize();
-    if (pendingSize > Config->ReadThrottlingSize) {
-        LOG_DEBUG("Read throttling is active: %" PRId64 " > %" PRId64,
+    i64 pendingSize = GetPendingOutSize();
+    if (pendingSize > Config->BusOutThrottlingLimit) {
+        LOG_DEBUG("Outcoming throttling is active: %" PRId64 " > %" PRId64,
             pendingSize,
-            Config->ReadThrottlingSize);
+            Config->BusOutThrottlingLimit);
         return true;
     } else {
         return false;
     }
 }
 
-bool TDataNodeService::IsWriteThrottling() const
+bool TDataNodeService::IsInThrottling() const
 {
-    i64 pendingSize = GetPendingWriteSize();
-    if (pendingSize > Config->WriteThrottlingSize) {
-        LOG_DEBUG("Write throttling is active: %" PRId64 " > %" PRId64,
+    i64 pendingSize = GetPendingInSize();
+    if (pendingSize > Config->BusInThrottlingLimit) {
+        LOG_DEBUG("Incoming throttling is active: %" PRId64 " > %" PRId64,
             pendingSize,
-            Config->WriteThrottlingSize);
+            Config->BusInThrottlingLimit);
         return true;
     } else {
         return false;
@@ -212,9 +214,14 @@ bool TDataNodeService::IsWriteThrottling() const
 
 void TDataNodeService::OnProfiling()
 {
-    Profiler.Enqueue("/pending_read_size", GetPendingReadSize());
-    Profiler.Enqueue("/pending_write_size", GetPendingWriteSize());
-    Profiler.Enqueue("/session_count", Bootstrap->GetSessionManager()->GetSessionCount());
+    Profiler.Enqueue("/pending_out_size", GetPendingOutSize());
+    Profiler.Enqueue("/pending_in_size", GetPendingInSize());
+
+    auto sessionManager = Bootstrap->GetSessionManager();
+    FOREACH (auto typeValue, EWriteSessionType::GetDomainValues()) {
+        auto type = EWriteSessionType(typeValue);
+        Profiler.Enqueue("/session_count/" + FormatEnum(type), sessionManager->GetSessionCount(type));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -271,7 +278,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, PutBlocks)
 {
     UNUSED(response);
 
-    if (IsWriteThrottling()) {
+    if (IsInThrottling()) {
         context->Reply(TError(
             NRpc::EErrorCode::Unavailable,
             "Write throttling is active"));
@@ -340,7 +347,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetBlocks)
         ~FormatBool(enableCaching),
         ~sessionType.ToString());
 
-    bool isThrottling = IsReadThrottling();
+    bool isThrottling = IsOutThrottling();
 
     auto chunkStore = Bootstrap->GetChunkStore();
     auto blockStore = Bootstrap->GetBlockStore();
@@ -592,8 +599,8 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetTableSamples)
 }
 
 void TDataNodeService::ProcessSample(
-    const NChunkClient::NProto::TReqGetTableSamples::TSampleRequest* sampleRequest,
-    NChunkClient::NProto::TRspGetTableSamples::TChunkSamples* chunkSamples,
+    const TReqGetTableSamples::TSampleRequest* sampleRequest,
+    TRspGetTableSamples::TChunkSamples* chunkSamples,
     const TKeyColumns& keyColumns,
     TChunk::TGetMetaResult result)
 {
@@ -699,8 +706,8 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetChunkSplits)
 }
 
 void TDataNodeService::MakeChunkSplits(
-    const NChunkClient::NProto::TInputChunk* inputChunk,
-    NChunkClient::NProto::TRspGetChunkSplits::TChunkSplits* splittedChunk,
+    const TInputChunk* inputChunk,
+    TRspGetChunkSplits::TChunkSplits* splittedChunk,
     i64 minSplitSize,
     const TKeyColumns& keyColumns,
     TChunk::TGetMetaResult result)
@@ -717,7 +724,7 @@ void TDataNodeService::MakeChunkSplits(
 
     YCHECK(result.Value().type() == EChunkType::Table);
 
-    auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(result.Value().extensions());
+    auto miscExt = GetProtoExtension<TMiscExt>(result.Value().extensions());
     if (!miscExt.sorted()) {
         auto error =  TError("GetChunkSplits: Requested chunk splits for unsorted chunk %s",
             ~ToString(chunkId));
@@ -764,7 +771,7 @@ void TDataNodeService::MakeChunkSplits(
         indexExt.items_size()));
 
     auto comparer = [&] (
-        const NChunkClient::NProto::TReadLimit& limit,
+        const TReadLimit& limit,
         const NTableClient::NProto::TIndexRow& indexRow,
         bool isStartLimit) -> int
     {
@@ -795,7 +802,7 @@ void TDataNodeService::MakeChunkSplits(
         indexExt.items().end(),
         inputChunk->start_limit(),
         [&] (const NTableClient::NProto::TIndexRow& indexRow,
-             const NChunkClient::NProto::TReadLimit& limit)
+             const TReadLimit& limit)
         {
             return comparer(limit, indexRow, true) > 0;
         });
@@ -804,13 +811,13 @@ void TDataNodeService::MakeChunkSplits(
         beginIt,
         indexExt.items().end(),
         inputChunk->end_limit(),
-        [&] (const NChunkClient::NProto::TReadLimit& limit,
+        [&] (const TReadLimit& limit,
              const NTableClient::NProto::TIndexRow& indexRow)
         {
             return comparer(limit, indexRow, false) < 0;
         });
 
-    NChunkClient::NProto::TInputChunk* currentSplit;
+    TInputChunk* currentSplit;
     NTableClient::NProto::TBoundaryKeysExt boundaryKeysExt;
     i64 endRowIndex = beginIt->row_index();
     i64 startRowIndex;
@@ -855,7 +862,7 @@ void TDataNodeService::MakeChunkSplits(
 
             endRowIndex = beginIt->row_index();
 
-            NChunkClient::NProto::TSizeOverrideExt sizeOverride;
+            TSizeOverrideExt sizeOverride;
             sizeOverride.set_row_count(endRowIndex - startRowIndex);
             sizeOverride.set_uncompressed_data_size(dataSize);
             SetProtoExtension(currentSplit->mutable_extensions(), sizeOverride);
@@ -872,7 +879,7 @@ void TDataNodeService::MakeChunkSplits(
     SetProtoExtension(currentSplit->mutable_extensions(), boundaryKeysExt);
     endRowIndex = (--endIt)->row_index();
 
-    NChunkClient::NProto::TSizeOverrideExt sizeOverride;
+    TSizeOverrideExt sizeOverride;
     sizeOverride.set_row_count(endRowIndex - startRowIndex);
     sizeOverride.set_uncompressed_data_size(
         dataSize +

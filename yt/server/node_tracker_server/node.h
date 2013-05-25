@@ -56,8 +56,6 @@ class TNode
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkPtrWithIndex>, CachedReplicas);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkPtrWithIndex>, UnapprovedReplicas);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TJobPtr>, Jobs);
-    DEFINE_BYVAL_RW_PROPERTY(int, HintedSessionCount);
-
 
     //! Indexed by priority.
     typedef std::vector<yhash_set<NChunkServer::TChunkPtrWithIndex>> TChunkReplicationQueues;
@@ -92,6 +90,10 @@ public:
     bool HasUnapprovedReplica(TChunkPtrWithIndex replica) const;
     void ApproveReplica(TChunkPtrWithIndex replica);
 
+    void ResetSessionHints();
+    void AddUserSessionHint();
+    void AddReplicationSessionHint();
+    void AddRepairSessionHint();
     int GetTotalSessionCount() const;
 
     static TAtomic GenerateVisitMark();
@@ -99,6 +101,9 @@ public:
 private:
     TNodeDescriptor Descriptor_;
     TNodeConfigPtr Config_;
+    int HintedUserSessionCount_;
+    int HintedReplicationSessionCount_;
+    int HintedRepairSessionCount_;
 
     void Init();
 

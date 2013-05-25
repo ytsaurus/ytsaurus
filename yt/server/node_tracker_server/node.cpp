@@ -40,7 +40,7 @@ void TNode::Init()
     Transaction_ = nullptr;
     Decommissioned_ = Config_->Decommissioned;
     ChunkReplicationQueues_.resize(ReplicationPriorityCount);
-    HintedSessionCount_ = 0;
+    ResetSessionHints();
 }
 
 TNode::~TNode()
@@ -130,9 +130,34 @@ void TNode::ApproveReplica(TChunkPtrWithIndex replica)
     YCHECK(UnapprovedReplicas_.erase(replica) == 1);
 }
 
+void TNode::ResetSessionHints()
+{
+    HintedUserSessionCount_ = 0;
+    HintedReplicationSessionCount_ = 0;
+    HintedRepairSessionCount_ = 0;
+}
+
+void TNode::AddUserSessionHint()
+{
+    ++HintedUserSessionCount_;
+}
+
+void TNode::AddReplicationSessionHint()
+{
+    ++HintedReplicationSessionCount_;
+}
+
+void TNode::AddRepairSessionHint()
+{
+    ++HintedRepairSessionCount_;
+}
+
 int TNode::GetTotalSessionCount() const
 {
-    return HintedSessionCount_ + Statistics_.total_session_count();
+    return
+        Statistics_.total_user_session_count() + HintedUserSessionCount_ +
+        Statistics_.total_replication_session_count() + HintedReplicationSessionCount_ +
+        Statistics_.total_repair_session_count() + HintedRepairSessionCount_;
 }
 
 TAtomic TNode::GenerateVisitMark()

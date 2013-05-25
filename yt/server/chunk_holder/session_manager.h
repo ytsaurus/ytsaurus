@@ -48,6 +48,7 @@ public:
     //! Returns the total data size received so far.
     i64 GetSize() const;
 
+    //! Returns the number of blocks that have already been flushed out of the window.
     int GetWrittenBlockCount() const;
 
     //! Returns the info of the just-uploaded chunk
@@ -167,6 +168,9 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Manages chunk uploads.
+/*!
+ *  Thread affinity: Control
+ */
 class TSessionManager
     : public TRefCounted
 {
@@ -177,7 +181,7 @@ public:
 
     //! Starts a new chunk upload session.
     /*!
-     *  Thread affinity: Control
+     *  Chunk file is opened asynchronously, however the call returns immediately.
      */
     TSessionPtr StartSession(
         const TChunkId& chunkId,
@@ -186,8 +190,6 @@ public:
     //! Completes an earlier opened upload session.
     /*!
      *  The call returns a result that gets set when the session is finished.
-     *
-     *  Thread affinity: Control
      */
     TFuture< TValueOrError<TChunkPtr> > FinishSession(
         TSessionPtr session,
@@ -196,31 +198,23 @@ public:
     //! Cancels an earlier opened upload session.
     /*!
      *  Chunk file is closed asynchronously, however the call returns immediately.
-     *  
-     *  Thread affinity: Control
      */
     void CancelSession(TSessionPtr session, const TError& error);
 
     //! Finds a session by TChunkId. Returns NULL when no session is found.
     TSessionPtr FindSession(const TChunkId& chunkId) const;
 
-    //! Returns the number of currently active session.
-    /*!
-     *  Thread affinity: any
-     */
-    int GetSessionCount() const;
+    //! Returns the number of currently active sessions of a given type.
+    int GetSessionCount(EWriteSessionType type) const;
+
+    //! Returns the list of all registered sessions.
+    std::vector<TSessionPtr> GetSessions() const;
 
     //! Returns the number of bytes pending for write.
     /*!
      *  Thread affinity: any
      */
     i64 GetPendingWriteSize() const;
-
-    //! Returns the list of all registered sessions.
-    /*!
-     *  Thread affinity: Control
-     */
-    std::vector<TSessionPtr> GetSessions() const;
 
 private:
     friend class TSession;
@@ -230,7 +224,7 @@ private:
 
     typedef yhash_map<TChunkId, TSessionPtr> TSessionMap;
     TSessionMap SessionMap;
-    TAtomic SessionCount;
+    std::vector<int> SessionCounts;
     TAtomic PendingWriteSize;
 
     void OnLeaseExpired(TSessionPtr session);

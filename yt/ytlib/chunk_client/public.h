@@ -70,6 +70,7 @@ DECLARE_ENUM(EErrorCode,
     ((MasterCommunicationFailed)(712))
 );
 
+//! Values must be contiguous.
 DECLARE_ENUM(EWriteSessionType,
     ((User)                     (0))
     ((Replication)              (1))

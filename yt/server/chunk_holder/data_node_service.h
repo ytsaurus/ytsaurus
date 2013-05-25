@@ -77,11 +77,11 @@ private:
 
     void OnGotBlocks(TCtxGetBlocksPtr context);
 
-    i64 GetPendingReadSize() const;
-    i64 GetPendingWriteSize() const;
+    i64 GetPendingOutSize() const;
+    i64 GetPendingInSize() const;
 
-    bool IsReadThrottling() const;
-    bool IsWriteThrottling() const;
+    bool IsOutThrottling() const;
+    bool IsInThrottling() const;
 
     void OnProfiling();
 
