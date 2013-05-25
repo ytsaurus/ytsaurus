@@ -123,7 +123,7 @@ private:
 
     TWeakPtr<TReplicationWriter> Writer;
 
-    NLog::TTaggedLogger& Logger;
+    NLog::TTaggedLogger Logger;
 
     /*!
      * \note Thread affinity: WriterThread.
@@ -389,7 +389,8 @@ TProxy::TInvPutBlocks TGroup::PutBlocks(TNodePtr node)
         ~node->Descriptor.Address,
         Size);
 
-    return writer->Throttler->Throttle(Size).Apply(BIND([=] () -> TProxy::TInvPutBlocks {
+    auto this_ = MakeStrong(this);
+    return writer->Throttler->Throttle(Size).Apply(BIND([this, this_, req, node] () -> TProxy::TInvPutBlocks {
         LOG_DEBUG("Putting blocks (Blocks: %d-%d, Address: %s)",
             StartBlockIndex,
             GetEndBlockIndex(),
@@ -603,9 +604,7 @@ TReplicationWriter::TReplicationWriter(
 {
     YCHECK(!targets.empty());
 
-    Logger.AddTag(Sprintf("ChunkId: %s, SessionType: %s",
-        ~ToString(ChunkId),
-        ~SessionType.ToString()));
+    Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(ChunkId)));
 
     for (int index = 0; index < static_cast<int>(targets.size()); ++index) {
         auto replica = targets[index];
@@ -634,9 +633,10 @@ TReplicationWriter::~TReplicationWriter()
 
 void TReplicationWriter::Open()
 {
-    LOG_INFO("Opening writer (Addresses: [%s], EnableCaching: %s)",
+    LOG_INFO("Opening writer (Addresses: [%s], EnableCaching: %s, SessionType: %s)",
         ~JoinToString(Targets),
-        ~FormatBool(Config->EnableNodeCaching));
+        ~FormatBool(Config->EnableNodeCaching),
+        ~SessionType.ToString());
 
     auto awaiter = New<TParallelAwaiter>(TDispatcher::Get()->GetWriterInvoker());
     FOREACH (auto node, Nodes) {
@@ -1017,8 +1017,8 @@ TAsyncError TReplicationWriter::GetReadyEvent()
         State.StartOperation();
 
         auto this_ = MakeStrong(this);
-        WindowSlots.GetReadyEvent().Subscribe(BIND([=] () {
-            this_->State.FinishOperation(TError());
+        WindowSlots.GetReadyEvent().Subscribe(BIND([this, this_] () {
+            State.FinishOperation(TError());
         }));
     }
 
