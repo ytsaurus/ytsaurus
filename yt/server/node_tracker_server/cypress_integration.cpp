@@ -224,7 +224,6 @@ private:
         attributes->push_back("available_space");
         attributes->push_back("used_space");
         attributes->push_back("chunk_count");
-        attributes->push_back("session_count");
         attributes->push_back("online_node_count");
         attributes->push_back("chunk_replicator_enabled");
         TMapNodeProxy::ListSystemAttributes(attributes);
