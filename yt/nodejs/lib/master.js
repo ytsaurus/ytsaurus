@@ -29,6 +29,7 @@ function YtClusterHandle(logger, worker)
     this.worker     = worker;
     this.state      = "unknown";
     this.young      = true;
+    this.alive      = true;
     this.created_at = new Date();
     this.updated_at = new Date();
     this.timeout_at = null;
@@ -58,26 +59,6 @@ YtClusterHandle.prototype.getPid = function()
     return this.__cached_pid;
 };
 
-YtClusterHandle.prototype.kill = function()
-{
-    "use strict";
-    this.worker.send({ type : "gracefullyDie" });
-};
-
-YtClusterHandle.prototype.destroy = function()
-{
-    "use strict";
-    if (this.timeout_at) {
-        clearTimeout(this.timeout_at);
-    }
-
-    this.logger     = null;
-    this.worker     = null;
-    this.state      = "destroyed";
-    this.updated_at = new Date();
-    this.timeout_at = null;
-};
-
 YtClusterHandle.prototype.toString = function()
 {
     "use strict";
@@ -87,9 +68,42 @@ YtClusterHandle.prototype.toString = function()
         this.state);
 };
 
+YtClusterHandle.prototype.kill = function()
+{
+    "use strict";
+    if (!this.alive) {
+        return;
+    }
+
+    this.worker.send({ type : "gracefullyDie" });
+};
+
+YtClusterHandle.prototype.destroy = function()
+{
+    "use strict";
+    if (!this.alive) {
+        return;
+    }
+
+    if (this.timeout_at) {
+        clearTimeout(this.timeout_at);
+        this.timeout_at = null;
+    }
+
+    this.logger     = null;
+    this.worker     = null;
+    this.state      = "destroyed";
+    this.alive      = false;
+    this.updated_at = new Date();
+};
+
 YtClusterHandle.prototype.handleMessage = function(message)
 {
     "use strict";
+    if (!this.alive) {
+        return; // We are not interested anymore.
+    }
+
     if (!message || !message.type) {
         return; // Improper message format.
     }
@@ -114,7 +128,9 @@ YtClusterHandle.prototype.handleMessage = function(message)
             this.postponeDeath(TIMEOUT_COOLDOWN);
             break;
         default:
-            this.logger.warn("Received unknown message of type '" + message.type + "' from worker " + this.toString());
+            this.logger.warn(
+                "Received unknown message of type '" + message.type +
+                "' from worker " + this.toString());
             break;
     }
 };
@@ -122,6 +138,10 @@ YtClusterHandle.prototype.handleMessage = function(message)
 YtClusterHandle.prototype.postponeDeath = function(timeout)
 {
     "use strict";
+    if (!this.alive) {
+        return;
+    }
+
     if (__DBG.$) {
         return;
     }
@@ -140,29 +160,35 @@ YtClusterHandle.prototype.postponeDeath = function(timeout)
 YtClusterHandle.prototype.ageToDeath = function()
 {
     "use strict";
+    if (!this.alive) {
+        return;
+    }
+
     this.logger.info("Worker is not responding", {
         wid : this.getWid(),
         pid : this.getPid(),
         handle : this.toString()
     });
+
     this.certifyDeath();
 };
 
 YtClusterHandle.prototype.certifyDeath = function()
 {
     "use strict";
-    try {
-        this.logger.info("Worker is dead", {
-            wid : this.getWid(),
-            pid : this.getPid(),
-            handle : this.toString()
-        });
-
-        this.worker.send("violentlyDie");
-        this.worker.disconnect();
-        this.worker.process.kill("SIGKILL");
-    } catch (ex) {
+    if (!this.alive) {
+        return;
     }
+
+    this.logger.info("Worker is dead", {
+        wid : this.getWid(),
+        pid : this.getPid(),
+        handle : this.toString()
+    });
+
+    this.worker.send("violentlyDie");
+    this.worker.disconnect();
+    this.worker.process.kill("SIGKILL");
 
     this.destroy();
 };
