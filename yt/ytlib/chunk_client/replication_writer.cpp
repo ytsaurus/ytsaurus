@@ -593,7 +593,6 @@ TReplicationWriter::TReplicationWriter(
     , IsCloseRequested(false)
     , WindowSlots(config->SendWindowSize)
     , AliveNodeCount(targets.size())
-    , CurrentGroup(New<TGroup>(AliveNodeCount, 0, this))
     , BlockCount(0)
     , StartChunkTiming(0, 1000, 20)
     , PutBlocksTiming(0, 1000, 20)
@@ -605,6 +604,8 @@ TReplicationWriter::TReplicationWriter(
     YCHECK(!targets.empty());
 
     Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(ChunkId)));
+
+    CurrentGroup = New<TGroup>(AliveNodeCount, 0, this);
 
     for (int index = 0; index < static_cast<int>(targets.size()); ++index) {
         auto replica = targets[index];
