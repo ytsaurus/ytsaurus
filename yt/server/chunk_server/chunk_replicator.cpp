@@ -611,6 +611,9 @@ void TChunkReplicator::ScheduleNewJobs(
 {
     auto chunkManager = Bootstrap->GetChunkManager();
 
+    const auto& resourceLimits = node->ResourceLimits();
+    auto& resourceUsage = node->ResourceUsage();
+
     i64 runningReplicationSize = 0;
     i64 runningRepairSize = 0;
     auto increaseRunningSizes = [&] (TJobPtr job) {
@@ -631,7 +634,7 @@ void TChunkReplicator::ScheduleNewJobs(
             size /= codec->GetTotalPartCount();
         }
 
-        // XXX(babenko): this static_cast is clearly redundant but required to compile it with VS2010
+        // XXX(babenko): this static_cast is clearly redundant but required to compile it with VS2010.
         switch (static_cast<int>(type)) {
             case EJobType::ReplicateChunk:
                 runningReplicationSize += size;
@@ -650,7 +653,7 @@ void TChunkReplicator::ScheduleNewJobs(
     auto registerJob = [&] (TJobPtr job) {
         jobsToStart->push_back(job);
         RegisterJob(job);
-        node->ResourceUsage() += job->ResourceUsage();
+        resourceUsage += job->ResourceUsage();
         increaseRunningSizes(job);
     };
 
@@ -658,7 +661,7 @@ void TChunkReplicator::ScheduleNewJobs(
     FOREACH (auto& queue, node->ChunkReplicationQueues()) {
         auto it = queue.begin();
         while (it != queue.end()) {
-            if (node->ResourceUsage().replication_slots() >= node->ResourceLimits().replication_slots())
+            if (resourceUsage.replication_slots() >= resourceLimits.replication_slots())
                 break;
             if (runningReplicationSize > Config->MaxTotalReplicationJobsSize)
                 break;
@@ -682,7 +685,7 @@ void TChunkReplicator::ScheduleNewJobs(
     {
         auto it = RepairQueue.begin();
         while (it != RepairQueue.end()) {
-            if (node->ResourceUsage().repair_slots() >= node->ResourceLimits().repair_slots())
+            if (resourceUsage.repair_slots() >= resourceLimits.repair_slots())
                 break;
             if (runningRepairSize > Config->MaxTotalRepairJobsSize)
                 break;
@@ -708,7 +711,7 @@ void TChunkReplicator::ScheduleNewJobs(
         auto& removalQueue = node->ChunkRemovalQueue();
         auto it = removalQueue.begin();
         while (it != removalQueue.end()) {
-            if (node->ResourceUsage().removal_slots() >= node->ResourceLimits().removal_slots())
+            if (resourceUsage.removal_slots() >= resourceLimits.removal_slots())
                 break;
 
             auto jt = it++;
@@ -729,14 +732,14 @@ void TChunkReplicator::ScheduleNewJobs(
     // Schedule balancing jobs.
     double sourceFillFactor = ChunkPlacement->GetFillFactor(node);
     double targetFillFactor = sourceFillFactor - Config->MinBalancingFillFactorDiff;
-    if (node->ResourceUsage().replication_slots() < node->ResourceLimits().replication_slots() &&
+    if (resourceUsage.replication_slots() < resourceLimits.replication_slots() &&
         sourceFillFactor > Config->MinBalancingFillFactor &&
         ChunkPlacement->HasBalancingTargets(targetFillFactor))
     {
-        int maxJobs = std::max(0, node->ResourceLimits().replication_slots() - node->ResourceUsage().replication_slots());
+        int maxJobs = std::max(0, resourceLimits.replication_slots() - resourceUsage.replication_slots());
         auto chunksToBalance = ChunkPlacement->GetBalancingChunks(node, maxJobs);
         FOREACH (auto chunkWithIndex, chunksToBalance) {
-            if (node->ResourceUsage().replication_slots() >= node->ResourceLimits().replication_slots())
+            if (resourceUsage.replication_slots() >= resourceLimits.replication_slots())
                 break;
             if (runningReplicationSize > Config->MaxTotalReplicationJobsSize)
                 break;
