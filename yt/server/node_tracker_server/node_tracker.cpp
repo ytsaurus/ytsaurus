@@ -237,7 +237,7 @@ public:
         FOREACH (const auto& pair, NodeMap) {
             const auto* node = pair.second;
             const auto& statistics = node->Statistics();
-            result.AvailbaleSpace += statistics.total_available_space();
+            result.AvailableSpace += statistics.total_available_space();
             result.UsedSpace += statistics.total_used_space();
             result.ChunkCount += statistics.total_chunk_count();
             result.OnlineNodeCount++;

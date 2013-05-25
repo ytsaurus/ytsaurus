@@ -11,14 +11,14 @@ namespace NNodeTrackerClient {
 
 struct TTotalNodeStatistics
 {
-    i64 AvailbaleSpace;
+    i64 AvailableSpace;
     i64 UsedSpace;
     int ChunkCount;
     int SessionCount;
     int OnlineNodeCount;
 
     TTotalNodeStatistics()
-        : AvailbaleSpace(0)
+        : AvailableSpace(0)
         , UsedSpace(0)
         , ChunkCount(0)
         , SessionCount(0)

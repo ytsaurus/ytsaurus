@@ -259,7 +259,7 @@ private:
         auto statistics = nodeTracker->GetTotalNodeStatistics();
         if (key == "available_space") {
             BuildYsonFluently(consumer)
-                .Value(statistics.AvailbaleSpace);
+                .Value(statistics.AvailableSpace);
             return true;
         }
 
