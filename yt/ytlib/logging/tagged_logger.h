@@ -10,7 +10,6 @@ namespace NLog {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTaggedLogger
-    : private TNonCopyable
 {
 public:
     explicit TTaggedLogger(TLogger& innerLogger);
