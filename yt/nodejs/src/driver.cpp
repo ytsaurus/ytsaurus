@@ -434,7 +434,7 @@ Handle<Value> TDriverWrap::Execute(const Arguments& args)
     HandleScope scope;
 
     // Validate arguments.
-    YASSERT(args.Length() == 10);
+    YASSERT(args.Length() == 8);
 
     EXPECT_THAT_IS(args[0], String); // CommandName
     EXPECT_THAT_IS(args[1], String); // AuthenticatedUser
