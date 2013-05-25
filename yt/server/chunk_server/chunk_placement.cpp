@@ -251,7 +251,7 @@ TNodeList TChunkPlacement::GetRemovalTargets(
 {
     TNodeList targets;
 
-    // Construct a list of |(nodeId, loadFactor)| pairs.
+    // Construct a list of (node, loadFactor) pairs.
     typedef std::pair<TNode*, double> TCandidatePair;
     TSmallVector<TCandidatePair, TypicalReplicaCount> candidates;
     auto* chunk = chunkWithIndex.GetPtr();
@@ -264,7 +264,7 @@ TNodeList TChunkPlacement::GetRemovalTargets(
         }
     }
 
-    // Sort by fillFactor in descending order.
+    // Sort by loadFactor in descending order.
     std::sort(
         candidates.begin(),
         candidates.end(),
