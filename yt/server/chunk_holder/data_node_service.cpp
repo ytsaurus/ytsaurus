@@ -137,7 +137,10 @@ TChunkPtr TDataNodeService::GetChunk(const TChunkId& chunkId)
     return chunk;
 }
 
-void TDataNodeService::OnGotChunkMeta(TCtxGetChunkMetaPtr context, TNullable<int> partitionTag, TChunk::TGetMetaResult result)
+void TDataNodeService::OnGotChunkMeta(
+    TCtxGetChunkMetaPtr context,
+    TNullable<int> partitionTag,
+    TChunk::TGetMetaResult result)
 {
     if (!result.IsOK()) {
         context->Reply(result);
@@ -329,11 +332,13 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetBlocks)
     auto chunkId = FromProto<TChunkId>(request->chunk_id());
     int blockCount = static_cast<int>(request->block_indexes_size());
     bool enableCaching = request->enable_caching();
+    auto sessionType = EReadSessionType(request->session_type());
 
-    context->SetRequestInfo("ChunkId: %s, Blocks: [%s], EnableCaching: %s",
+    context->SetRequestInfo("ChunkId: %s, Blocks: [%s], EnableCaching: %s, SessionType: %s",
         ~ToString(chunkId),
         ~JoinToString(request->block_indexes()),
-        ~FormatBool(enableCaching));
+        ~FormatBool(enableCaching),
+        ~sessionType.ToString());
 
     bool isThrottling = IsReadThrottling();
 
@@ -389,8 +394,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetBlocks)
                         LOG_DEBUG("GetBlocks: Chunk is missing, block %d is not cached", blockIndex);
                     } else {
                         // Something went wrong while fetching the block.
-                        // The most probable cause is that a non-existing block was requested for a chunk
-                        // that is registered at the holder.
+                        // The most probable cause is that a non-existing block was requested.
                         awaiter->Cancel();
                         context->Reply(result);
                     }
@@ -399,38 +403,58 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetBlocks)
         }
     }
 
-    awaiter->Complete(BIND([=] () {
-        // Compute statistics.
-        int blocksWithData = 0;
-        int blocksWithP2P = 0;
-        FOREACH (const auto& blockInfo, response->blocks()) {
-            if (blockInfo.data_attached()) {
-                ++blocksWithData;
-            }
-            if (blockInfo.p2p_descriptors_size() != 0) {
-                ++blocksWithP2P;
+    awaiter->Complete(BIND(&TDataNodeService::OnGotBlocks, MakeStrong(this), context));
+}
+
+void TDataNodeService::OnGotBlocks(TCtxGetBlocksPtr context)
+{
+    auto* request = &context->Request();
+    auto* response = &context->Response();
+
+    auto chunkId = FromProto<TChunkId>(request->chunk_id());
+    int blockCount = static_cast<int>(request->block_indexes_size());
+    auto sessionType = EReadSessionType(request->session_type());
+
+    auto peerBlockTable = Bootstrap->GetPeerBlockTable();
+
+    // Compute statistics.
+    int blocksWithData = 0;
+    int blocksWithP2P = 0;
+    FOREACH (const auto& blockInfo, response->blocks()) {
+        if (blockInfo.data_attached()) {
+            ++blocksWithData;
+        }
+        if (blockInfo.p2p_descriptors_size() != 0) {
+            ++blocksWithP2P;
+        }
+    }
+
+    i64 totalSize = 0;
+    FOREACH (const auto& block, response->Attachments()) {
+        totalSize += block.Size();
+    }
+
+    // Register the peer that we had just sent the reply to.
+    if (request->has_peer_descriptor() && request->has_peer_expiration_time()) {
+        auto descriptor = FromProto<TNodeDescriptor>(request->peer_descriptor());
+        auto expirationTime = TInstant(request->peer_expiration_time());
+        TPeerInfo peerInfo(descriptor, expirationTime);
+        for (int index = 0; index < blockCount; ++index) {
+            if (response->blocks(index).data_attached()) {
+                TBlockId blockId(chunkId, request->block_indexes(index));
+                peerBlockTable->UpdatePeer(blockId, peerInfo);
             }
         }
+    }
 
-        context->SetResponseInfo("HasCompleteChunk: %s, BlocksWithData: %d, BlocksWithP2P: %d",
-            ~FormatBool(response->has_complete_chunk()),
-            blocksWithData,
-            blocksWithP2P);
+    context->SetResponseInfo("HasCompleteChunk: %s, BlocksWithData: %d, BlocksWithP2P: %d",
+        ~FormatBool(response->has_complete_chunk()),
+        blocksWithData,
+        blocksWithP2P);
 
+    auto throttler = Bootstrap->GetOutThrottler(sessionType);
+    throttler->Throttle(totalSize).Subscribe(BIND([=] () {
         context->Reply();
-
-        // Register the peer that we had just sent the reply to.
-        if (request->has_peer_descriptor() && request->has_peer_expiration_time()) {
-            auto descriptor = FromProto<TNodeDescriptor>(request->peer_descriptor());
-            auto expirationTime = TInstant(request->peer_expiration_time());
-            TPeerInfo peerInfo(descriptor, expirationTime);
-            for (int index = 0; index < blockCount; ++index) {
-                if (response->blocks(index).data_attached()) {
-                    TBlockId blockId(chunkId, request->block_indexes(index));
-                    peerBlockTable->UpdatePeer(blockId, peerInfo);
-                }
-            }
-        }
     }));
 }
 

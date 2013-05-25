@@ -56,6 +56,7 @@ private:
 
     TIntrusivePtr<TSession> GetSession(const TChunkId& chunkId);
     TIntrusivePtr<TChunk> GetChunk(const TChunkId& chunkId);
+
     void ProcessSample(
         const NChunkClient::NProto::TReqGetTableSamples::TSampleRequest* sampleRequest,
         NChunkClient::NProto::TRspGetTableSamples::TChunkSamples* chunkSamples,
@@ -69,7 +70,12 @@ private:
         const NTableClient::TKeyColumns& keyColumns,
         TChunk::TGetMetaResult result);
 
-    void OnGotChunkMeta(TCtxGetChunkMetaPtr context, TNullable<int> artitionTag, TChunk::TGetMetaResult result);
+    void OnGotChunkMeta(
+        TCtxGetChunkMetaPtr context,
+        TNullable<int> partitionTag,
+        TChunk::TGetMetaResult result);
+
+    void OnGotBlocks(TCtxGetBlocksPtr context);
 
     i64 GetPendingReadSize() const;
     i64 GetPendingWriteSize() const;

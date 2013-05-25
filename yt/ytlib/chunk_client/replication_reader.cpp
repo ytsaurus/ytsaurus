@@ -61,12 +61,14 @@ public:
         const TNullable<TNodeDescriptor>& localDescriptor,
         const TChunkId& chunkId,
         const TChunkReplicaList& seedReplicas,
+        EReadSessionType sessionType,
         IThroughputThrottlerPtr throttler)
         : Config(config)
         , BlockCache(blockCache)
         , NodeDirectory(nodeDirectory)
         , LocalDescriptor(localDescriptor)
         , ChunkId(chunkId)
+        , SessionType(sessionType)
         , Throttler(throttler)
         , Logger(ChunkReaderLogger)
         , ObjectServiceProxy(masterChannel)
@@ -117,6 +119,7 @@ private:
     TNodeDirectoryPtr NodeDirectory;
     TNullable<TNodeDescriptor> LocalDescriptor;
     TChunkId ChunkId;
+    EReadSessionType SessionType;
     IThroughputThrottlerPtr Throttler;
     NLog::TTaggedLogger Logger;
 
@@ -649,6 +652,7 @@ private:
                 ToProto(request->mutable_chunk_id(), reader->ChunkId);
                 ToProto(request->mutable_block_indexes(), unfetchedBlockIndexes);
                 request->set_enable_caching(reader->Config->EnableNodeCaching);
+                request->set_session_type(reader->SessionType);
                 if (reader->LocalDescriptor) {
                     auto expirationTime = TInstant::Now() + reader->Config->PeerExpirationTimeout;
                     ToProto(request->mutable_peer_descriptor(), reader->LocalDescriptor.Get());
@@ -964,6 +968,7 @@ IAsyncReaderPtr CreateReplicationReader(
     const TNullable<TNodeDescriptor>& localDescriptor,
     const TChunkId& chunkId,
     const TChunkReplicaList& seedReplicas,
+    EReadSessionType sessionType,
     IThroughputThrottlerPtr throttler)
 {
     YCHECK(config);
@@ -979,6 +984,7 @@ IAsyncReaderPtr CreateReplicationReader(
         localDescriptor,
         chunkId,
         seedReplicas,
+        sessionType,
         throttler);
     reader->Initialize();
     return reader;

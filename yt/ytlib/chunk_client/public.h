@@ -76,6 +76,11 @@ DECLARE_ENUM(EWriteSessionType,
     ((Repair)                   (2))
 );
 
+DECLARE_ENUM(EReadSessionType,
+    ((User)                     (0))
+    ((Repair)                   (1))
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TReplicationReaderConfig;

@@ -23,6 +23,7 @@ IAsyncReaderPtr CreateReplicationReader(
     const TNullable<NNodeTrackerClient::TNodeDescriptor>& localDescriptor,
     const TChunkId& chunkId,
     const TChunkReplicaList& seedReplicas = TChunkReplicaList(),
+    EReadSessionType sessionType = EReadSessionType::User,
     IThroughputThrottlerPtr throttler = GetUnlimitedThrottler());
 
 ///////////////////////////////////////////////////////////////////////////////

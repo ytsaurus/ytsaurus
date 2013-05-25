@@ -489,6 +489,7 @@ private:
                 Bootstrap->GetLocalDescriptor(),
                 partId,
                 partReplicas,
+                EReadSessionType::Repair,
                 Bootstrap->GetRepairInThrottler());
             readers.push_back(reader);
         }

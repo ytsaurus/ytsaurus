@@ -65,26 +65,6 @@ TSession::TSession(
 
     Location->UpdateSessionCount(+1);
     FileName = Location->GetChunkFileName(ChunkId);
-
-    switch (Type) {
-        case EWriteSessionType::User:
-            InThrottler = GetUnlimitedThrottler();
-            OutThrottler = GetUnlimitedThrottler();
-            break;
-
-        case EWriteSessionType::Repair:
-            InThrottler = Bootstrap->GetRepairInThrottler();
-            OutThrottler = Bootstrap->GetRepairOutThrottler();
-            break;
-
-        case EWriteSessionType::Replication:
-            InThrottler = Bootstrap->GetReplicationInThrottler();
-            OutThrottler = Bootstrap->GetReplicationOutThrottler();
-            break;
-
-        default:
-            YUNREACHABLE();
-    }
 }
 
 TSession::~TSession()
@@ -238,7 +218,8 @@ TAsyncError TSession::PutBlocks(
 
     EnqueueWrites();
 
-    return InThrottler->Throttle(requestSize).Apply(BIND([] () {
+    auto throttler = Bootstrap->GetInThrottler(Type);
+    return throttler->Throttle(requestSize).Apply(BIND([] () {
         return TError();
     }));
 }
@@ -266,7 +247,8 @@ TAsyncError TSession::SendBlocks(
         requestSize += block.Size();
     }
 
-    return OutThrottler->Throttle(requestSize).Apply(BIND([=] () {
+    auto throttler = Bootstrap->GetOutThrottler(Type);
+    return throttler->Throttle(requestSize).Apply(BIND([=] () {
         return DoSendBlocks(req);
     }));
 }

@@ -114,8 +114,6 @@ private:
     i64 Size;
 
     Stroka FileName;
-    IThroughputThrottlerPtr InThrottler;
-    IThroughputThrottlerPtr OutThrottler;
     NChunkClient::TFileWriterPtr Writer;
 
     TLeaseManager::TLease Lease;

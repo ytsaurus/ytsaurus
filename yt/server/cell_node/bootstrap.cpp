@@ -73,6 +73,7 @@ namespace NYT {
 namespace NCellNode {
 
 using namespace NBus;
+using namespace NChunkClient;
 using namespace NChunkServer;
 using namespace NElection;
 using namespace NMonitoring;
@@ -450,6 +451,55 @@ IThroughputThrottlerPtr TBootstrap::GetRepairInThrottler() const
 IThroughputThrottlerPtr TBootstrap::GetRepairOutThrottler() const
 {
     return RepairOutThrottler;
+}
+
+IThroughputThrottlerPtr TBootstrap::GetInThrottler(EWriteSessionType sessionType) const
+{
+    switch (sessionType) {
+        case EWriteSessionType::User:
+            return GetUnlimitedThrottler();
+
+        case EWriteSessionType::Repair:
+            return RepairInThrottler;
+
+        case EWriteSessionType::Replication:
+            return ReplicationInThrottler;
+
+        default:
+            YUNREACHABLE();
+    }
+}
+
+
+IThroughputThrottlerPtr TBootstrap::GetOutThrottler(EWriteSessionType sessionType) const
+{
+    switch (sessionType) {
+        case EWriteSessionType::User:
+            return GetUnlimitedThrottler();
+
+        case EWriteSessionType::Repair:
+            return RepairOutThrottler;
+
+        case EWriteSessionType::Replication:
+            return ReplicationOutThrottler;
+
+        default:
+            YUNREACHABLE();
+    }
+}
+
+IThroughputThrottlerPtr TBootstrap::GetOutThrottler(EReadSessionType sessionType) const
+{
+    switch (sessionType) {
+        case EReadSessionType::User:
+            return GetUnlimitedThrottler();
+
+        case EReadSessionType::Repair:
+            return RepairOutThrottler;
+
+        default:
+            YUNREACHABLE();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

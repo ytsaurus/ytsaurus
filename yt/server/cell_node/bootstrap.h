@@ -58,10 +58,15 @@ public:
     NChunkHolder::TPeerBlockTablePtr GetPeerBlockTable() const;
     NChunkHolder::TReaderCachePtr GetReaderCache() const;
     NChunkHolder::TMasterConnectorPtr GetMasterConnector() const;
+
     IThroughputThrottlerPtr GetReplicationInThrottler() const;
     IThroughputThrottlerPtr GetReplicationOutThrottler() const;
     IThroughputThrottlerPtr GetRepairInThrottler() const;
     IThroughputThrottlerPtr GetRepairOutThrottler() const;
+    
+    IThroughputThrottlerPtr GetInThrottler(NChunkClient::EWriteSessionType sessionType) const;
+    IThroughputThrottlerPtr GetOutThrottler(NChunkClient::EWriteSessionType sessionType) const;
+    IThroughputThrottlerPtr GetOutThrottler(NChunkClient::EReadSessionType sessionType) const;
 
     const NNodeTrackerClient::TNodeDescriptor& GetLocalDescriptor() const;
 

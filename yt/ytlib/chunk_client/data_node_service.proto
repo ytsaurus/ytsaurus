@@ -78,6 +78,7 @@ message TReqGetBlocks
     optional NYT.NNodeTrackerClient.NProto.TNodeDescriptor peer_descriptor = 3;
     optional uint64 peer_expiration_time = 4;
     optional bool enable_caching = 5 [default = true];
+    required int32 session_type = 6;
 }
 
 message TRspGetBlocks
