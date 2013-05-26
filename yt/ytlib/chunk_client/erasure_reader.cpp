@@ -16,6 +16,7 @@ namespace NYT {
 namespace NChunkClient {
 
 using namespace NErasure;
+using namespace NChunkClient::NProto;
 
 ///////////////////////////////////////////////////////////////////////////////
 // Helpers
@@ -37,7 +38,7 @@ namespace {
 IAsyncReader::TAsyncGetMetaResult AsyncGetPlacementMeta(IAsyncReaderPtr reader)
 {
     std::vector<int> tags;
-    tags.push_back(TProtoExtensionTag<NProto::TErasurePlacementExt>::Value);
+    tags.push_back(TProtoExtensionTag<TErasurePlacementExt>::Value);
     return reader->AsyncGetChunkMeta(Null, &tags);
 }
 
@@ -54,7 +55,7 @@ class TNonReparingReaderSession
 public:
     TNonReparingReaderSession(
         const std::vector<IAsyncReaderPtr>& readers,
-        const std::vector<NProto::TPartInfo>& partInfos,
+        const std::vector<TPartInfo>& partInfos,
         const std::vector<int>& blockIndexes)
             : Readers_(readers)
             , PartInfos_(partInfos)
@@ -140,14 +141,14 @@ private:
 
     struct TPartComparator
     {
-        bool operator()(int position, const NProto::TPartInfo& info) const
+        bool operator()(int position, const TPartInfo& info) const
         {
             return position < info.start();
         }
     };
 
     std::vector<IAsyncReaderPtr> Readers_;
-    std::vector<NProto::TPartInfo> PartInfos_;
+    std::vector<TPartInfo> PartInfos_;
 
     std::vector<int> BlockIndexes_;
 
@@ -196,7 +197,7 @@ public:
 
 private:
     std::vector<IAsyncReaderPtr> Readers_;
-    std::vector<NProto::TPartInfo> PartInfos_;
+    std::vector<TPartInfo> PartInfos_;
 
     TAsyncError PreparePartInfos();
 };
@@ -212,8 +213,8 @@ TAsyncError TNonReparingReader::PreparePartInfos()
         BIND([this, this_] (IAsyncReader::TGetMetaResult metaOrError) -> TError {
             RETURN_IF_ERROR(metaOrError);
 
-            auto extension = GetProtoExtension<NProto::TErasurePlacementExt>(metaOrError.Value().extensions());
-            PartInfos_ = std::vector<NProto::TPartInfo>(extension.part_infos().begin(), extension.part_infos().end());
+            auto extension = GetProtoExtension<TErasurePlacementExt>(metaOrError.Value().extensions());
+            PartInfos_ = std::vector<TPartInfo>(extension.part_infos().begin(), extension.part_infos().end());
 
             // Check that part infos are correct.
             YCHECK(PartInfos_.front().start() == 0);
@@ -241,13 +242,17 @@ public:
     typedef TPromise<TReadResult> TReadPromise;
     typedef TFuture<TReadResult> TReadFuture;
 
-    TWindowReader(IAsyncReaderPtr reader, int blockCount)
-        : Reader_(reader)
-        , BlockCount_(blockCount)
-        , BlockIndex_(0)
-        , BlocksDataSize_(0)
-        , BuildDataSize_(0)
-        , FirstBlockOffset_(0)
+    TWindowReader(
+        IAsyncReaderPtr reader,
+        int blockCount,
+        IInvokerPtr controlInvoker)
+            : Reader_(reader)
+            , BlockCount_(blockCount)
+            , ControlInvoker_(controlInvoker)
+            , BlockIndex_(0)
+            , BlocksDataSize_(0)
+            , BuildDataSize_(0)
+            , FirstBlockOffset_(0)
     { }
 
     TReadFuture Read(i64 windowSize)
@@ -257,7 +262,8 @@ public:
             auto blocksToRead = std::vector<int>(1, BlockIndex_);
             auto this_ = MakeStrong(this);
             return Reader_->AsyncReadBlocks(blocksToRead).Apply(
-                BIND(&TWindowReader::OnBlockRead, this_, windowSize));
+                BIND(&TWindowReader::OnBlockRead, this_, windowSize)
+                    .AsyncVia(ControlInvoker_));
         } else {
             // We have enough blocks to build the window.
             return MakePromise(TReadResult(BuildWindow(windowSize)));
@@ -310,22 +316,22 @@ private:
         return result;
     }
 
-    std::deque<TSharedRef> Blocks_;
-
     IAsyncReaderPtr Reader_;
-
     int BlockCount_;
+    IInvokerPtr ControlInvoker_;
+
+    std::deque<TSharedRef> Blocks_;
 
     // Current number of read blocks.
     int BlockIndex_;
 
-    // Total blocks data size.
+    //! Total blocks data size.
     i64 BlocksDataSize_;
 
-    // Total size of data that returned by Read()
+    //! Total size of data returned from |Read|
     i64 BuildDataSize_;
 
-    // Offset of used data in first block.
+    //! Offset of used data in the first block.
     i64 FirstBlockOffset_;
 };
 
@@ -561,15 +567,17 @@ TAsyncError TRepairReader::RepairIfNeeded()
 TError TRepairReader::OnGotMeta(IAsyncReader::TGetMetaResult metaOrError)
 {
     RETURN_IF_ERROR(metaOrError);
-    auto placementExt = GetProtoExtension<NProto::TErasurePlacementExt>(
+    auto placementExt = GetProtoExtension<TErasurePlacementExt>(
         metaOrError.Value().extensions());
 
     WindowCount_ = placementExt.parity_block_count();
     WindowSize_ = placementExt.parity_block_size();
     LastWindowSize_ = placementExt.parity_last_block_size();
+    
     auto recoveryIndices = Codec_->GetRepairIndices(ErasedIndices_);
     YCHECK(recoveryIndices);
     YCHECK(recoveryIndices->size() == Readers_.size());
+
     for (int i = 0; i < Readers_.size(); ++i) {
         int recoveryIndex = (*recoveryIndices)[i];
         int blockCount =
@@ -577,7 +585,10 @@ TError TRepairReader::OnGotMeta(IAsyncReader::TGetMetaResult metaOrError)
             ? placementExt.part_infos().Get(recoveryIndex).block_sizes().size()
             : placementExt.parity_block_count();
 
-        WindowReaders_.push_back(New<TWindowReader>(Readers_[i], blockCount));
+        WindowReaders_.push_back(New<TWindowReader>(
+            Readers_[i],
+            blockCount,
+            ControlInvoker_));
     }
 
     FOREACH (int erasedIndex, ErasedIndices_) {
@@ -596,6 +607,7 @@ TError TRepairReader::OnGotMeta(IAsyncReader::TGetMetaResult metaOrError)
         ErasedDataSize_ += std::accumulate(blockSizes.begin(), blockSizes.end(), 0);
         RepairBlockReaders_.push_back(TRepairPartReader(blockSizes));
     }
+
     Prepared_ = true;
     return TError();
 }
