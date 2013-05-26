@@ -122,7 +122,7 @@ private:
     TValueMap ValueMap;
     TItemMap ItemMap;
     TItemList LruList;
-    int Size;
+    int ItemMapSize;
 
     void EndInsert(TValuePtr value, TInsertCookie* cookie);
     void CancelInsert(const TKey& key, const TError& error);
