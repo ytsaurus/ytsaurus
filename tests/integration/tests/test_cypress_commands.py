@@ -292,7 +292,7 @@ class TestCypressCommands(YTEnvSetup):
     def test_copy_unexisting_path(self):
         with pytest.raises(YTError): copy('//tmp/x', '//tmp/y')
 
-    def test_copy_cannot_have_childref(self):
+    def test_copy_cannot_have_children(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
         with pytest.raises(YTError): copy('//tmp/t2', '//tmp/t1/xxx')
