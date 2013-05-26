@@ -325,7 +325,7 @@ void TCacheBase<TKey, TValue, THash>::TrimIfNeeded()
     while (true) {
         TGuard<TSpinLock> guard(SpinLock);
 
-        if (!IsTrimNeeded())
+        if (LruList.Empty() || !IsTrimNeeded())
             return;
 
         auto* item = LruList.PopBack();
