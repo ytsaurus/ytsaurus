@@ -186,8 +186,12 @@ YtClusterHandle.prototype.certifyDeath = function()
         handle : this.toString()
     });
 
-    this.worker.send("violentlyDie");
-    this.worker.disconnect();
+    try {
+        this.worker.send("violentlyDie");
+        this.worker.disconnect();
+    } catch (err) {
+    }
+
     this.worker.process.kill("SIGKILL");
 
     this.destroy();
