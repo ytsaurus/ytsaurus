@@ -1208,6 +1208,7 @@ private:
                     req->set_type(EObjectType::File);
 
                     auto attributes = CreateEphemeralAttributes();
+                    attributes->Set("vital", false);
                     attributes->Set("replication_factor", 1);
                     attributes->Set("account", TmpAccountName);
                     ToProto(req->mutable_node_attributes(), *attributes);
