@@ -142,8 +142,6 @@ bool TCacheBase<TKey, TValue, THash>::BeginInsert(TInsertCookie* cookie)
                 YCHECK(ItemMap.insert(std::make_pair(key, item)).second);
                 ++ItemMapSize;
 
-                LruList.PushFront(item);
-
                 cookie->ValueOrError = item->ValueOrError;
                 cookie->Active = true;
                 cookie->Cache = this;
@@ -202,6 +200,11 @@ void TCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value, TInsertCookie* 
 
     valueOrError.Set(value);
 
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+        LruList.PushFront(item);
+    }
+
     OnAdded(~value);
     TrimIfNeeded();
 }
@@ -221,8 +224,6 @@ void TCacheBase<TKey, TValue, THash>::CancelInsert(const TKey& key, const TError
 
         ItemMap.erase(it);
         --ItemMapSize;
-
-        item->Unlink();
 
         delete item;
     }
@@ -270,7 +271,9 @@ bool TCacheBase<TKey, TValue, THash>::Remove(const TKey& key)
     ItemMap.erase(it);
     --ItemMapSize;
 
-    item->Unlink();
+    if (!item->Empty()) {
+        item->Unlink();
+    }
 
     // Release the guard right away to prevent recursive spinlock acquisition.
     // Indeed, the item's dtor may drop the last reference
@@ -321,7 +324,6 @@ void TCacheBase<TKey, TValue, THash>::TrimIfNeeded()
         if (!IsTrimNeeded())
             return;
 
-        YCHECK(ItemMapSize > 0);
         auto* item = LruList.PopBack();
 
         auto maybeValueOrError = item->ValueOrError.TryGet();
