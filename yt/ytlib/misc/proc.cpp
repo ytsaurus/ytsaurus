@@ -12,9 +12,8 @@
 #include <util/folder/dirut.h>
 #include <util/folder/filelist.h>
 
-#include <spawn.h>
-
 #ifdef _unix_
+    #include <spawn.h>
     #include <stdio.h>
     #include <dirent.h>
     #include <sys/types.h>
