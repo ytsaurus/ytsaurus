@@ -6,6 +6,8 @@
 
 #include <ytlib/ytree/yson_serializable.h>
 
+#include <ytlib/ypath/public.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -24,7 +26,7 @@ public:
     TThroughputThrottlerConfig()
     {
         RegisterParameter("period", Period)
-            .Default(TDuration::Seconds(5));
+            .Default(TDuration::MilliSeconds(1000));
         RegisterParameter("limit", Limit)
             .Default(Null)
             .GreaterThanOrEqual(0);
@@ -54,7 +56,16 @@ struct IThroughputThrottler
     virtual TFuture<void> Throttle(i64 count) = 0;
 };
 
-IThroughputThrottlerPtr CreateThrottler(TThroughputThrottlerConfigPtr config);
+//! Returns a throttler from #config.
+IThroughputThrottlerPtr CreateLimitedThrottler(TThroughputThrottlerConfigPtr config);
+
+//! Creates a wrapper that delegates all calls to #underlyingThrottler and
+//! captures profiling statistics.
+IThroughputThrottlerPtr CreateProfilingThrottlerWrapper(
+    IThroughputThrottlerPtr underlyingThrottler,
+    const NYPath::TYPath& pathPrefix);
+
+//! Returns a throttler that imposes no throughput limit.
 IThroughputThrottlerPtr GetUnlimitedThrottler();
 
 ////////////////////////////////////////////////////////////////////////////////

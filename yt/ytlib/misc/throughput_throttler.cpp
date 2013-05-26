@@ -6,6 +6,8 @@
 
 #include <ytlib/actions/invoker_util.h>
 
+#include <ytlib/profiling/profiler.h>
+
 #include <queue>
 
 namespace NYT {
@@ -14,17 +16,17 @@ namespace NYT {
 
 static TFuture<void> PresetResult = MakePromise();
 
-class TThroughputThrottler
+class TLimitedThroughputThrottler
     : public IThroughputThrottler
 {
 public:
-    explicit TThroughputThrottler(TThroughputThrottlerConfigPtr config)
+    explicit TLimitedThroughputThrottler(TThroughputThrottlerConfigPtr config)
         : ThroughputPerPeriod(static_cast<i64>(config->Period.SecondsFloat() * (*config->Limit)))
         , Available(ThroughputPerPeriod)
     {
         Invoker = New<TPeriodicInvoker>(
             GetSyncInvoker(),
-            BIND(&TThroughputThrottler::OnTick, MakeWeak(this)),
+            BIND(&TLimitedThroughputThrottler::OnTick, MakeWeak(this)),
             config->Period);
         Invoker->Start();
     }
@@ -92,9 +94,50 @@ private:
     }
 };
 
-IThroughputThrottlerPtr CreateThrottler(TThroughputThrottlerConfigPtr config)
+IThroughputThrottlerPtr CreateLimitedThrottler(TThroughputThrottlerConfigPtr config)
 {
-    return config->Limit ? New<TThroughputThrottler>(config) : GetUnlimitedThrottler();
+    return config->Limit
+           ? New<TLimitedThroughputThrottler>(config)
+           : GetUnlimitedThrottler();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TProfilingThrottlerWrapper
+    : public IThroughputThrottler
+{
+public:
+    TProfilingThrottlerWrapper(
+        IThroughputThrottlerPtr underlyingThrottler,
+        const NYPath::TYPath& pathPrefix)
+        : UnderlyingThrottler(underlyingThrottler)
+        , Profiler(pathPrefix)
+        , TotalCounter("/total")
+        , RateCounter("/rate")
+    { }
+
+    virtual TFuture<void> Throttle(i64 count) override
+    {
+        Profiler.Increment(TotalCounter, count);
+        Profiler.Increment(RateCounter, count);
+        return UnderlyingThrottler->Throttle(count);
+    }
+
+private:
+    IThroughputThrottlerPtr UnderlyingThrottler;
+    NProfiling::TProfiler Profiler;
+    NProfiling::TAggregateCounter TotalCounter;
+    NProfiling::TRateCounter RateCounter;
+
+};
+
+IThroughputThrottlerPtr CreateProfilingThrottlerWrapper(
+    IThroughputThrottlerPtr underlyingThrottler,
+    const NYPath::TYPath& pathPrefix)
+{
+    return New<TProfilingThrottlerWrapper>(
+        underlyingThrottler,
+        pathPrefix);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

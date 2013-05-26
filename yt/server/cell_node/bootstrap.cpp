@@ -56,6 +56,7 @@
 #include <server/chunk_holder/master_connector.h>
 #include <server/chunk_holder/session_manager.h>
 #include <server/chunk_holder/job.h>
+#include <server/chunk_holder/private.h>
 
 #include <server/job_agent/job_controller.h>
 
@@ -195,10 +196,18 @@ void TBootstrap::Run()
 
     MasterConnector = New<TMasterConnector>(Config->DataNode, this);
 
-    ReplicationInThrottler = CreateThrottler(Config->DataNode->ReplicationInThrottler);
-    ReplicationOutThrottler = CreateThrottler(Config->DataNode->ReplicationOutThrottler);
-    RepairInThrottler = CreateThrottler(Config->DataNode->RepairInThrottler);
-    RepairOutThrottler = CreateThrottler(Config->DataNode->RepairOutThrottler);
+    ReplicationInThrottler = CreateProfilingThrottlerWrapper(
+        CreateLimitedThrottler(Config->DataNode->ReplicationInThrottler),
+        DataNodeProfiler.GetPathPrefix() + "/replication_in");
+    ReplicationOutThrottler = CreateProfilingThrottlerWrapper(
+        CreateLimitedThrottler(Config->DataNode->ReplicationOutThrottler),
+        DataNodeProfiler.GetPathPrefix() + "/replication_out");
+    RepairInThrottler = CreateProfilingThrottlerWrapper(
+        CreateLimitedThrottler(Config->DataNode->RepairInThrottler),
+        DataNodeProfiler.GetPathPrefix() + "/repair_in");
+    RepairOutThrottler = CreateProfilingThrottlerWrapper(
+        CreateLimitedThrottler(Config->DataNode->RepairOutThrottler),
+        DataNodeProfiler.GetPathPrefix() + "/repair_out");
 
     RpcServer->RegisterService(New<TDataNodeService>(Config->DataNode, this));
 
