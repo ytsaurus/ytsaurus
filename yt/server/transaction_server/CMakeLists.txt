@@ -4,6 +4,7 @@ set( SRCS
   ${BASE}/cypress_integration.cpp
   ${BASE}/transaction.cpp
   ${BASE}/transaction_manager.cpp
+  ${BASE}/private.cpp
 )
 set( HDRS
   ${BASE}/config.h
@@ -11,6 +12,7 @@ set( HDRS
   ${BASE}/public.h
   ${BASE}/transaction.h
   ${BASE}/transaction_manager.h
+  ${BASE}/private.h
 )
 
 list(APPEND YT_SOURCE_FILES

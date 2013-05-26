@@ -125,7 +125,7 @@ class Holder(UnixNode, Server):
                 }
             },
             'job_manager': {
-                'slot_location' : r'%(work_dir)s/slots',
+                'path' : r'%(work_dir)s/slots',
             },
             'job_proxy_logging' : proxyLogging,
         },

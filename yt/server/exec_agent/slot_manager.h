@@ -23,8 +23,8 @@ public:
     //! Initializes slots etc.
     void Initialize(int slotCount);
 
-    //! Returns a free slot or |nullptr| if there are none.
-    TSlotPtr FindFreeSlot();
+    //! Acquires and returns a free slot. Fails if there's none.
+    TSlotPtr AcquireSlot();
 
     int GetSlotCount() const;
 

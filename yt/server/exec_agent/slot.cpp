@@ -15,18 +15,17 @@ namespace NExecAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = ExecAgentLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
-// ToDo(psushin): think about more complex logic of handling fs errors.
-TSlot::TSlot(const Stroka& path, int id, int userId)
+TSlot::TSlot(const Stroka& path, int slotId, int userId)
     : IsFree_(true)
     , IsClean(true)
     , Path(path)
+    , SlotId(slotId)
     , UserId(userId)
-    , SlotThread(New<TActionQueue>(Sprintf("ExecSlot:%d", id)))
-{ }
+    , SlotThread(New<TActionQueue>(Sprintf("ExecSlot:%d", slotId)))
+    , Logger(ExecAgentLogger)
+{
+    Logger.AddTag(Sprintf("SlotId: %d", SlotId));
+}
 
 void TSlot::Initialize()
 {
@@ -34,7 +33,7 @@ void TSlot::Initialize()
         NFS::ForcePath(Path);
         SandboxPath = NFS::CombinePaths(Path, "sandbox");
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Failed to create slot directory: %s",
+        THROW_ERROR_EXCEPTION("Failed to create slot directory %s",
             ~Path.Quote()) << ex;
     }
 
@@ -45,7 +44,9 @@ void TSlot::Initialize()
             KillallByUser(UserId);
         }
     } catch (const std::exception& ex) {
-        LOG_FATAL(ex, "Slot user cleanup failed (UserId: %d, Slot: %s)", UserId, ~Path.Quote());
+        // ToDo(psushin): think about more complex logic of handling fs errors.
+        LOG_FATAL(ex, "Slot user cleanup failed (UserId: %d)",
+            UserId);
     }
 #endif
 
@@ -79,7 +80,7 @@ void TSlot::Clean()
         }
         IsClean = true;
     } catch (const std::exception& ex) {
-        LOG_FATAL(ex, "Failed to clean sandbox directory: %s",
+        LOG_FATAL(ex, "Failed to clean sandbox directory %s",
             ~SandboxPath.Quote());
     }
 }
@@ -92,15 +93,19 @@ void TSlot::Release()
 
 void TSlot::InitSandbox()
 {
-    YASSERT(!IsFree_);
+    YCHECK(!IsFree_);
+    
     try {
         NFS::ForcePath(SandboxPath, 0777);
     } catch (const std::exception& ex) {
-        LOG_FATAL(ex, "Failed to create sandbox directory: %s",
+        LOG_FATAL(ex, "Failed to create sandbox directory %s",
             ~SandboxPath.Quote());
     }
+
+    LOG_INFO("Created slot sandbox directory %s",
+        ~SandboxPath.Quote());
+
     IsClean = false;
-    LOG_TRACE("Slot created sandbox path: %s", ~SandboxPath);
 }
 
 void TSlot::MakeLink(

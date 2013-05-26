@@ -122,10 +122,7 @@ public:
         JobState = EJobState::Running;
 
         auto slotManager = Bootstrap->GetSlotManager();
-        Slot = slotManager->FindFreeSlot();
-        YCHECK(Slot);
-
-        Slot->Acquire();
+        Slot = slotManager->AcquireSlot();
 
         VERIFY_INVOKER_AFFINITY(Slot->GetInvoker(), JobThread);
 

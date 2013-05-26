@@ -114,7 +114,7 @@ class Holder(WinNode, Server):
                 'job_controller': {
                 },
                 'slot_manager': {
-                    'slot_location' : r'%(work_dir)s\slots'
+                    'path' : r'%(work_dir)s\slots'
                 },
                 'environment_manager' : {
                     'environments' : {

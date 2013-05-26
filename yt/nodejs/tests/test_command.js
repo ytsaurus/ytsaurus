@@ -9,6 +9,7 @@ var utils = require("../lib/utils");
 
 var ask = require("./common_http").ask;
 var srv = require("./common_http").srv;
+var die = require("./common_http").die;
 
 // This will spawn a (mock of a) real API server.
 function spawnServer(driver, watcher, done) {
@@ -51,7 +52,7 @@ describe("YtCommand - http method selection", function() {
     });
 
     after(function(done) {
-        this.server.close(done);
+        die(this.server, done);
         this.server = null;
     });
 
@@ -88,7 +89,7 @@ describe("YtCommand - command name", function() {
     });
 
     after(function(done) {
-        this.server.close(done);
+        die(this.server, done);
         this.server = null;
     });
 
@@ -152,7 +153,7 @@ describe("YtCommand - command heaviness", function() {
         });
 
         after(function(done) {
-            this.server.close(done);
+            die(this.server, done);
             this.server = null;
         });
 
@@ -173,7 +174,7 @@ describe("YtCommand - command heaviness", function() {
         });
 
         after(function(done) {
-            this.server.close(done);
+            die(this.server, done);
             this.server = null;
         });
 
@@ -199,7 +200,7 @@ describe("YtCommand - command parameters", function() {
     });
 
     afterEach(function(done) {
-        this.server.close(done);
+        die(this.server, done);
         this.driver = null;
         this.server = null;
         this.stub   = null;
@@ -333,7 +334,7 @@ describe("YtCommand - input format selection", function() {
     });
 
     afterEach(function(done) {
-        this.server.close(done);
+        die(this.server, done);
         this.driver = null;
         this.server = null;
         this.stub   = null;
@@ -435,7 +436,7 @@ describe("YtCommand - output format selection", function() {
     });
 
     afterEach(function(done) {
-        this.server.close(done);
+        die(this.server, done);
         this.driver = null;
         this.server = null;
         this.stub   = null;

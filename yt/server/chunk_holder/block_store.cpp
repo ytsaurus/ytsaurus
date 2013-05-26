@@ -62,7 +62,7 @@ public:
     TStoreImpl(
         TDataNodeConfigPtr config,
         TBootstrap* bootstrap)
-        : TWeightLimitedCache<TBlockId, TCachedBlock>(config->MaxCachedBlocksSize)
+        : TWeightLimitedCache<TBlockId, TCachedBlock>(config->BlockCacheSize)
         , PendingReadSize_(0)
         , Config(config)
         , Bootstrap(bootstrap)
@@ -72,7 +72,7 @@ public:
     {
         auto result = Bootstrap->GetMemoryUsageTracker().TryAcquire(
             NCellNode::EMemoryConsumer::BlockCache,
-            Config->MaxCachedBlocksSize);
+            Config->BlockCacheSize);
         THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error allocating memory for block cache");
     }
 

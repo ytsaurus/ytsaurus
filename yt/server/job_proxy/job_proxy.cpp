@@ -17,6 +17,7 @@
 #include <ytlib/actions/parallel_awaiter.h>
 
 #include <ytlib/misc/proc.h>
+#include <ytlib/misc/ref_counted_tracker.h>
 
 #include <ytlib/logging/log_manager.h>
 
@@ -161,6 +162,7 @@ TJobResult TJobProxy::DoRun()
         auto jobType = NScheduler::EJobType(jobSpec.type());
 
         const auto& schedulerJobSpecExt = jobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+        SetLargeBlockLimit(schedulerJobSpecExt.lfalloc_buffer_size());
 
         BlockCache = NChunkClient::CreateClientBlockCache(New<NChunkClient::TClientBlockCacheConfig>());
 
@@ -384,9 +386,10 @@ void TJobProxy::CheckMemoryUsage()
     auto memoryUsage = GetProcessRss();
     if (memoryUsage > JobProxyMemoryLimit) {
         LOG_FATAL(
-            "Job proxy memory limit exceeded (Memory usage: %" PRId64 ", Memory limit: %" PRId64 ")",
+            "Job proxy memory limit exceeded (Memory usage: %" PRId64 ", Memory limit: %" PRId64 ", RefCountedTracker: %s)",
             memoryUsage,
-            JobProxyMemoryLimit);
+            JobProxyMemoryLimit,
+            ~TRefCountedTracker::Get()->GetDebugInfo(2));
     }
 }
 

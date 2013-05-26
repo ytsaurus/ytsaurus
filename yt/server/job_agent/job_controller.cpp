@@ -199,7 +199,7 @@ void TJobController::AbortJob(IJobPtr job)
 
 void TJobController::RemoveJob(IJobPtr job)
 {
-    LOG_INFO("Job removal requested (JobId: %s)",
+    LOG_INFO("Job removed (JobId: %s)",
         ~ToString(job->GetId()));
 
     YCHECK(job->GetPhase() > EJobPhase::Cleanup);

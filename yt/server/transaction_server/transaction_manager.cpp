@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "transaction_manager.h"
 #include "transaction.h"
+#include "private.h"
 
 #include <ytlib/misc/string.h>
 
@@ -40,7 +41,7 @@ using namespace NTransactionClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger SILENT_UNUSED Logger("TransactionServer");
+static auto& Logger = TransactionServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,7 +52,7 @@ public:
     TTransactionProxy(NCellMaster::TBootstrap* bootstrap, TTransaction* transaction)
         : TBase(bootstrap, transaction)
     {
-        Logger = NTransactionServer::Logger;
+        Logger = TransactionServerLogger;
     }
 
     virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const

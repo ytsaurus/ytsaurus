@@ -13,12 +13,19 @@ exports.srv = function srv()
 
     var middleware = Array.prototype.slice.call(arguments);
     var done = middleware.pop();
+    var doneRight = function() { setTimeout(done, 1); };
+
     middleware.forEach(function(step) { server.use(step); });
 
     return server
         .use(function(req, rsp) { rsp.end("Rabbit Hole"); })
-        .listen(HTTP_PORT, HTTP_HOST, done);
-}
+        .listen(HTTP_PORT, HTTP_HOST, doneRight);
+};
+
+exports.die = function die(server, done)
+{
+    server.close(function() { setTimeout(done, 1); });
+};
 
 exports.ask = function ask(method, path, headers, verify, callback)
 {

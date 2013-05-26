@@ -6,6 +6,8 @@
 
 #include <ytlib/formats/format.h>
 
+#include <ytlib/logging/tagged_logger.h>
+
 namespace NYT {
 namespace NExecAgent {
 
@@ -15,7 +17,7 @@ class TSlot
     : public TRefCounted
 {
 public:
-    TSlot(const Stroka& path, int id, int userId);
+    TSlot(const Stroka& path, int slotId, int userId);
 
     void Initialize();
 
@@ -51,11 +53,15 @@ private:
     bool IsClean;
 
     Stroka Path;
-    Stroka SandboxPath;
-
+    int SlotId;
     int UserId;
 
+    Stroka SandboxPath;
+
     TActionQueuePtr SlotThread;
+
+    NLog::TTaggedLogger Logger;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

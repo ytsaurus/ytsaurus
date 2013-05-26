@@ -9,6 +9,7 @@ var YtRegistry = require("../lib/registry").that;
 
 var ask = require("./common_http").ask;
 var srv = require("./common_http").srv;
+var die = require("./common_http").die;
 
 function stubServer(done)
 {
@@ -166,7 +167,7 @@ describe("ApplicationUpravlyator", function() {
     });
 
     afterEach(function(done) {
-        this.server.close(done);
+        die(this.server, done);
         this.server = null;
         YtRegistry.clear();
     });
