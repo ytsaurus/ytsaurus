@@ -190,7 +190,7 @@ class Holder(Server):
                 }
             },
             'slot_manager' : {
-                'slot_location' : '%(work_dir)s/slots'
+                'path' : '%(work_dir)s/slots'
             },
             'job_proxy_logging' : proxyLogging,
         },

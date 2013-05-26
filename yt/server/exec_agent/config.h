@@ -59,7 +59,8 @@ class TSlotManagerConfig
     : public TYsonSerializable
 {
 public:
-    Stroka SlotLocation;
+    //! Root path for slot directories.
+    Stroka Path;
 
     //! When set to |true|, job proxies are run under per-slot pseudousers.
     //! This option requires node server process to have root privileges.
@@ -71,7 +72,7 @@ public:
 
     TSlotManagerConfig()
     {
-        RegisterParameter("slot_location", SlotLocation)
+        RegisterParameter("path", Path)
             .NonEmpty();
         RegisterParameter("enforce_job_control", EnforceJobControl)
             .Default(false);
