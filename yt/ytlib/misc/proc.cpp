@@ -288,21 +288,21 @@ int Spawn(const char* path,
 {
     auto storeStrings = [](std::initializer_list<const char*> strings) -> std::vector<std::vector<char>> {
         std::vector<std::vector<char>> result;
-        for (auto item : strings) {
+        FOREACH (auto item, strings) {
             result.push_back(std::vector<char>(item, item + strlen(item) + 1));
         }
         return result;
     };
 
     posix_spawn_file_actions_t fileActions;
-    YCHECK(0 == posix_spawn_file_actions_init(&fileActions));
+    YCHECK(posix_spawn_file_actions_init(&fileActions) == 0);
 
-    for (auto fileId : fileIdsToClose) {
-        YCHECK(0 == posix_spawn_file_actions_addclose(&fileActions, fileId));
+    FOREACH (auto fileId, fileIdsToClose) {
+        YCHECK(posix_spawn_file_actions_addclose(&fileActions, fileId) == 0);
     }
 
     posix_spawnattr_t attributes;
-    YCHECK(0 == posix_spawnattr_init(&attributes));
+    YCHECK(posix_spawnattr_init(&attributes) == 0);
 #ifdef POSIX_SPAWN_USEVFORK
     posix_spawnattr_setflags(&attributes, POSIX_SPAWN_USEVFORK);
 #endif
@@ -310,7 +310,7 @@ int Spawn(const char* path,
     std::vector<std::vector<char>> argContainer = storeStrings(arguments);
 
     std::vector<char *> args;
-    for (auto& x : argContainer) {
+    FOREACH (auto& x, argContainer) {
         args.push_back(&x[0]);
     }
     args.push_back(NULL);

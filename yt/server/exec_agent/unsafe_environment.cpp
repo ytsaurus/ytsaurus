@@ -95,7 +95,7 @@ public:
                                  "--job-id",
                                  ~ToString(JobId),
                                  "--working-dir",
-                                 ~ToString(WorkingDirectory),
+                                 ~WorkingDirectory,
                              },
                              fileIds);
         } catch (const std::exception& ) {
