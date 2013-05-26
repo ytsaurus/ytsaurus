@@ -327,7 +327,9 @@ int Spawn(
     posix_spawn_file_actions_destroy(&fileActions);
 
     if (errCode != 0) {
-        THROW_ERROR_EXCEPTION("posix_spawn failed. Path=%s. %s", path, strerror(errCode));
+        THROW_ERROR_EXCEPTION("posix_spawn failed")
+            << TErrorAttribute("path", path)
+            << TError::FromSystem(errCode);
     }
     return processId;
 }
