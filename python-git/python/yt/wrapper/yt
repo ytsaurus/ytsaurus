@@ -401,6 +401,15 @@ def add_abort_op_parser(add_parser):
     parser.add_argument("op")
     parser.set_defaults(func=abort_op)
 
+def track_op(args):
+    yt.config.KEYBOARD_ABORT = False
+    yt.WaitStrategy().process_operation("unknown", args.op)
+
+def add_track_op_parser(add_parser):
+    parser = add_parser("track-op", help="track operation")
+    parser.add_argument("op")
+    parser.set_defaults(func=track_op)
+
 def start_tx(args):
     print yt.start_transaction(attributes=args.attributes, timeout=args.timeout)
 
@@ -477,6 +486,7 @@ def main():
     add_reduce_parser(add_parser)
     add_map_reduce_parser(add_parser)
     add_abort_op_parser(add_parser)
+    add_track_op_parser(add_parser)
     add_start_tx_parser(add_parser)
     add_abort_tx_parser(add_parser)
     add_commit_tx_parser(add_parser)
