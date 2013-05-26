@@ -126,7 +126,7 @@ void TTableWriter::Open()
             auto node = ConvertToNode(TYsonString(rsp->value()));
             const auto& attributes = node->Attributes();
 
-            // ToDo(psushin): keep in sync with operation_controller_detail OnInputsReceived. Consider
+            // TODO(psushin): Keep in sync with OnInputsReceived (operation_controller_detail.cpp).
             if (Options->KeyColumns.HasValue() && !overwrite) {
                 if (attributes.Get<i64>("row_count") > 0) {
                     THROW_ERROR_EXCEPTION("Cannot write sorted data into a non-empty table");
@@ -136,7 +136,8 @@ void TTableWriter::Open()
             Options->Channels = attributes.Get<TChannels>("channels");
             Options->ReplicationFactor = attributes.Get<int>("replication_factor");
             Options->CompressionCodec = attributes.Get<NCompression::ECodec>("compression_codec");
-            Options->ErasureCodec = attributes.Get<NErasure::ECodec>("erasure_codec");
+            // COMPAT(babenko)
+            Options->ErasureCodec = attributes.Get<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
             Options->Account = attributes.Get<Stroka>("account");
         }
 

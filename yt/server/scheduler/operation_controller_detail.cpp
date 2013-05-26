@@ -1935,7 +1935,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                         ~table.Path.GetPath());
                 }
                 table.Options->CompressionCodec = attributes.Get<NCompression::ECodec>("compression_codec");
-                table.Options->ErasureCodec = attributes.Get<NErasure::ECodec>("erasure_codec");
+                table.Options->ErasureCodec = attributes.Get<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
                 table.Options->ReplicationFactor = attributes.Get<int>("replication_factor");
                 table.Options->Account = attributes.Get<Stroka>("account");
 

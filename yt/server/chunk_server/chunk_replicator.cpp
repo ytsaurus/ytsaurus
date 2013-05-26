@@ -385,6 +385,11 @@ void TChunkReplicator::ProcessExistingJobs(
                 break;
             }
 
+            case EJobState::Waiting:
+                LOG_INFO("Job is waiting (JobId: %s, Address: %s)",
+                    ~ToString(jobId),
+                    ~address);
+                break;
 
             default:
                 YUNREACHABLE();

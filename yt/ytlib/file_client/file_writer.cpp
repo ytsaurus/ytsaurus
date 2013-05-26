@@ -123,7 +123,8 @@ void TFileWriter::Open()
             options->ReplicationFactor = attributes.Get<int>("replication_factor");
             options->Account = attributes.Get<Stroka>("account");
             options->CompressionCodec = attributes.Get<NCompression::ECodec>("compression_codec");
-            options->ErasureCodec = attributes.Get<NErasure::ECodec>("erasure_codec");
+            // COMPAT(babenko)
+            options->ErasureCodec = attributes.Get<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
         }
 
         {

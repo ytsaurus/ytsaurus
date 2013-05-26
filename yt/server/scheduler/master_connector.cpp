@@ -540,6 +540,7 @@ private:
                     auto* attributeFilter = req->mutable_attribute_filter();
                     attributeFilter->set_mode(EAttributeFilterMode::MatchingOnly);
                     attributeFilter->add_keys("operation_type");
+                    attributeFilter->add_keys("mutation_id");
                     attributeFilter->add_keys("user_transaction_id");
                     attributeFilter->add_keys("sync_scheduler_transaction_id");
                     attributeFilter->add_keys("async_scheduler_transaction_id");
@@ -660,6 +661,7 @@ private:
                 // Remove snapshot.
                 {
                     auto req = TYPathProxy::Remove(GetSnapshotPath(operation->GetOperationId()));
+                    req->set_force(true);
                     batchReq->AddRequest(req, "remove_snapshot");
                 }
             }
