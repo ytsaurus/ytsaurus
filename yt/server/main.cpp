@@ -1,11 +1,8 @@
-#define HAVE_LONG_LONG
-
 #include "stdafx.h"
 
 #include <ytlib/misc/crash_handler.h>
 #include <ytlib/misc/tclap_helpers.h>
 #include <ytlib/misc/address.h>
-#include <ytlib/misc/proc.h>
 
 #include <ytlib/bus/tcp_dispatcher.h>
 

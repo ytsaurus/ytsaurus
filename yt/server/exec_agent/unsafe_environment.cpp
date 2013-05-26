@@ -95,9 +95,7 @@ public:
                                  "--job-id",
                                  ~ToString(JobId),
                                  "--working-dir",
-                                 ~ToString(WorkingDirectory),
-                                 "--memory-limit",
-                                 ~ToString(MemoryLimit)
+                                 ~WorkingDirectory,
                              },
                              fileIds);
         } catch (const std::exception& ) {
