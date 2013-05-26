@@ -24,7 +24,10 @@ TSharedRef MergeRefs(const std::vector<TSharedRef>& refs);
 typedef TCallback<void (StreamSource*, TBlob*)> TConverter;
 
 //TODO(ignat): rename these methods
+template<class TBlockTag>
 TSharedRef Apply(TConverter converter, const TSharedRef& ref);
+
+template<class TBlockTag>
 TSharedRef Apply(TConverter converter, const std::vector<TSharedRef>& refs);
 
 ////////////////////////////////////////////////////////////////////////////////

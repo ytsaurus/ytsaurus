@@ -8,6 +8,10 @@
 namespace NYT {
 namespace NCompression {
 
+struct TCompressedBlockTag { };
+
+struct TDecompressedBlockTag { };
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNoneCodec
@@ -43,17 +47,17 @@ class TSnappyCodec
 public:
     virtual TSharedRef Compress(const TSharedRef& block) override
     {
-        return NCompression::Apply(BIND(NCompression::SnappyCompress), block);
+        return Apply<TCompressedBlockTag>(BIND(NCompression::SnappyCompress), block);
     }
 
     virtual TSharedRef Compress(const std::vector<TSharedRef>& blocks) override
     {
-        return NCompression::Apply(BIND(NCompression::SnappyCompress), blocks);
+        return Apply<TCompressedBlockTag>(BIND(NCompression::SnappyCompress), blocks);
     }
 
     virtual TSharedRef Decompress(const TSharedRef& block) override
     {
-        return NCompression::Apply(BIND(NCompression::SnappyDecompress), block);
+        return Apply<TDecompressedBlockTag>(BIND(NCompression::SnappyDecompress), block);
     }
 
     virtual ECodec GetId() const override
@@ -76,17 +80,17 @@ public:
 
     virtual TSharedRef Compress(const TSharedRef& block) override
     {
-        return NCompression::Apply(Compressor_, block);
+        return Apply<TCompressedBlockTag>(Compressor_, block);
     }
 
     virtual TSharedRef Compress(const std::vector<TSharedRef>& blocks) override
     {
-        return NCompression::Apply(Compressor_, blocks);
+        return Apply<TCompressedBlockTag>(Compressor_, blocks);
     }
 
     virtual TSharedRef Decompress(const TSharedRef& block) override
     {
-        return NCompression::Apply(BIND(NCompression::ZlibDecompress), block);
+        return Apply<TDecompressedBlockTag>(BIND(NCompression::ZlibDecompress), block);
     }
 
     virtual ECodec GetId() const override
@@ -119,17 +123,17 @@ public:
 
     virtual TSharedRef Compress(const TSharedRef& block) override
     {
-        return NCompression::Apply(Compressor_, block);
+        return Apply<TCompressedBlockTag>(Compressor_, block);
     }
 
     virtual TSharedRef Compress(const std::vector<TSharedRef>& blocks) override
     {
-        return NCompression::Apply(Compressor_, blocks);
+        return Apply<TCompressedBlockTag>(Compressor_, blocks);
     }
 
     virtual TSharedRef Decompress(const TSharedRef& block) override
     {
-        return NCompression::Apply(BIND(NCompression::Lz4Decompress), block);
+        return Apply<TDecompressedBlockTag>(BIND(NCompression::Lz4Decompress), block);
     }
 
     virtual ECodec GetId() const override
@@ -155,17 +159,17 @@ public:
 
     virtual TSharedRef Compress(const TSharedRef& block) override
     {
-        return NCompression::Apply(Compressor_, block);
+        return Apply<TCompressedBlockTag>(Compressor_, block);
     }
 
     virtual TSharedRef Compress(const std::vector<TSharedRef>& blocks) override
     {
-        return NCompression::Apply(Compressor_, blocks);
+        return Apply<TCompressedBlockTag>(Compressor_, blocks);
     }
 
     virtual TSharedRef Decompress(const TSharedRef& block) override
     {
-        return NCompression::Apply(BIND(NCompression::QuickLzDecompress), block);
+        return Apply<TDecompressedBlockTag>(BIND(NCompression::QuickLzDecompress), block);
     }
 
     virtual ECodec GetId() const override
