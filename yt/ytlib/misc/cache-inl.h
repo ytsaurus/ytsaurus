@@ -34,14 +34,16 @@ template <class TKey, class TValue, class THash>
 void TCacheBase<TKey, TValue, THash>::Clear()
 {
     TGuard<TSpinLock> guard(SpinLock);
+
     ItemMap.clear();
+    ItemMapSize = 0;
+
     LruList.Clear();
-    Size = 0;
 }
 
 template <class TKey, class TValue, class THash>
 TCacheBase<TKey, TValue, THash>::TCacheBase()
-    : Size(0)
+    : ItemMapSize(0)
 { }
 
 template <class TKey, class TValue, class THash>
@@ -51,7 +53,7 @@ TCacheBase<TKey, TValue, THash>::Find(const TKey& key)
     TGuard<TSpinLock> guard(SpinLock);
     auto it = ValueMap.find(key);
     if (it == ValueMap.end()) {
-        return NULL;
+        return nullptr;
     }
     return TRefCounted::DangerousGetPtr<TValue>(it->second);
 }
@@ -62,7 +64,7 @@ TCacheBase<TKey, TValue, THash>::GetAll()
 {
     std::vector<TValuePtr> result;
     TGuard<TSpinLock> guard(SpinLock);
-    result.reserve(ValueMap.ysize());
+    result.reserve(ValueMap.size());
     FOREACH (const auto& pair, ValueMap) {
         auto value = TRefCounted::DangerousGetPtr<TValue>(pair.second);
         if (value) {
@@ -81,7 +83,7 @@ TCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
             TGuard<TSpinLock> guard(SpinLock);
             auto itemIt = ItemMap.find(key);
             if (itemIt != ItemMap.end()) {
-                TItem* item = itemIt->second;
+                auto* item = itemIt->second;
                 Touch(item);
                 return item->ValueOrError;
             }
@@ -97,11 +99,11 @@ TCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
                 // This holds an extra reference to the promise state...
                 auto valueOrError = item->ValueOrError;
                 
-                LruList.PushFront(item);
-                
-                ++Size;
                 ItemMap.insert(std::make_pair(key, item));
+                ++ItemMapSize;
                 
+                LruList.PushFront(item);
+
                 guard.Release();
 
                 // ...since the item can be dead at this moment.
@@ -136,7 +138,11 @@ bool TCacheBase<TKey, TValue, THash>::BeginInsert(TInsertCookie* cookie)
             auto valueIt = ValueMap.find(key);
             if (valueIt == ValueMap.end()) {
                 auto* item = new TItem();
-                ItemMap.insert(std::make_pair(key, item));
+
+                YCHECK(ItemMap.insert(std::make_pair(key, item)).second);
+                ++ItemMapSize;
+
+                LruList.PushFront(item);
 
                 cookie->ValueOrError = item->ValueOrError;
                 cookie->Active = true;
@@ -149,8 +155,8 @@ bool TCacheBase<TKey, TValue, THash>::BeginInsert(TInsertCookie* cookie)
             if (value) {
                 auto* item = new TItem(value);
 
-                ++Size;
                 YCHECK(ItemMap.insert(std::make_pair(key, item)).second);
+                ++ItemMapSize;
 
                 LruList.PushFront(item);
 
@@ -191,10 +197,7 @@ void TCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value, TInsertCookie* 
         auto* item = it->second;
         valueOrError = item->ValueOrError;
 
-        ++Size;
         YCHECK(ValueMap.insert(std::make_pair(key, ~value)).second);
-
-        LruList.PushFront(item);
     }
 
     valueOrError.Set(value);
@@ -217,6 +220,9 @@ void TCacheBase<TKey, TValue, THash>::CancelInsert(const TKey& key, const TError
         valueOrError = item->ValueOrError;
 
         ItemMap.erase(it);
+        --ItemMapSize;
+
+        item->Unlink();
 
         delete item;
     }
@@ -228,7 +234,8 @@ template <class TKey, class TValue, class THash>
 void TCacheBase<TKey, TValue, THash>::Unregister(const TKey& key)
 {
     TGuard<TSpinLock> guard(SpinLock);
-    YCHECK(ItemMap.find(key) == ItemMap.end());
+    
+    YCHECK(ItemMap.find(key) == ItemMap.end());   
     YCHECK(ValueMap.erase(key) == 1);
 }
 
@@ -260,10 +267,10 @@ bool TCacheBase<TKey, TValue, THash>::Remove(const TKey& key)
     YCHECK(maybeValueOrError->IsOK());
     auto value = maybeValueOrError->Value();
 
-    item->Unlink();
-
-    --Size;
     ItemMap.erase(it);
+    --ItemMapSize;
+
+    item->Unlink();
 
     // Release the guard right away to prevent recursive spinlock acquisition.
     // Indeed, the item's dtor may drop the last reference
@@ -287,7 +294,6 @@ void TCacheBase<TKey, TValue, THash>::Touch(TItem* item)
     }
 }
 
-
 template <class TKey, class TValue, class THash>
 void TCacheBase<TKey, TValue, THash>::OnAdded(TValue* value)
 {
@@ -303,7 +309,7 @@ void TCacheBase<TKey, TValue, THash>::OnRemoved(TValue* value)
 template <class TKey, class TValue, class THash>
 int TCacheBase<TKey, TValue, THash>::GetSize() const
 {
-    return Size;
+    return ItemMapSize;
 }
 
 template <class TKey, class TValue, class THash>
@@ -315,7 +321,7 @@ void TCacheBase<TKey, TValue, THash>::TrimIfNeeded()
         if (!IsTrimNeeded())
             return;
 
-        YCHECK(Size > 0);
+        YCHECK(ItemMapSize > 0);
         auto* item = LruList.PopBack();
 
         auto maybeValueOrError = item->ValueOrError.TryGet();
@@ -325,8 +331,8 @@ void TCacheBase<TKey, TValue, THash>::TrimIfNeeded()
 
         auto value = maybeValueOrError->Value();
 
-        --Size;
-        ItemMap.erase(value->GetKey());
+        YCHECK(ItemMap.erase(value->GetKey()) == 1);
+        --ItemMapSize;
 
         guard.Release();
 
