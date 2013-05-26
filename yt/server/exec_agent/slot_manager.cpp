@@ -20,7 +20,7 @@ using namespace NCellNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& SILENT_UNUSED Logger = ExecAgentLogger;
+static auto& Logger = ExecAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,7 +47,7 @@ void TSlotManager::Initialize(int slotCount)
         uid_t ruid, euid, suid;
         YCHECK(getresuid(&ruid, &euid, &suid) == 0);
         if (suid != 0) {
-            THROW_ERROR_EXCEPTION("Cannot enable job control, please run as root");
+            THROW_ERROR_EXCEPTION("Failed to initialize job control, make sure you run as root");
         }
         umask(0000);
         jobControlEnabled = true;
@@ -55,30 +55,32 @@ void TSlotManager::Initialize(int slotCount)
 #endif
 
     try {
-        for (int slotIndex = 0; slotIndex < slotCount; ++slotIndex) {
-            auto slotName = ToString(slotIndex);
+        for (int slotId = 0; slotId < slotCount; ++slotId) {
+            auto slotName = ToString(slotId);
             auto slotPath = NFS::CombinePaths(Config->Path, slotName);
-            int uid = jobControlEnabled ? Config->StartUid + slotIndex : EmptyUserId;
-            auto slot = New<TSlot>(slotPath, slotIndex, uid);
+            int userId = jobControlEnabled ? Config->StartUid + slotId : EmptyUserId;
+            auto slot = New<TSlot>(slotPath, slotId, userId);
             slot->Initialize();
             Slots.push_back(slot);
         }
     } catch (const std::exception& ex) {
-        LOG_WARNING(ex, "Failed to initilize slots");
+        LOG_WARNING(ex, "Failed to initialize slots");
         IsEnabled = false;
     }
 
-    IsEnabled &= Bootstrap->GetChunkCache()->IsEnabled();
+    auto chunkCache = Bootstrap->GetChunkCache();
+    IsEnabled &= chunkCache->IsEnabled();
 }
 
-TSlotPtr TSlotManager::FindFreeSlot()
+TSlotPtr TSlotManager::AcquireSlot()
 {
     FOREACH (auto slot, Slots) {
         if (slot->IsFree()) {
+            slot->Acquire();
             return slot;
         }
     }
-    return nullptr;
+    YUNREACHABLE();
 }
 
 int TSlotManager::GetSlotCount() const
