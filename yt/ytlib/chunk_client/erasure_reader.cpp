@@ -540,21 +540,22 @@ TAsyncError TRepairReader::OnBlocksCollected(TValueOrError<std::vector<TSharedRe
 TAsyncError TRepairReader::RepairIfNeeded()
 {
     YCHECK(HasNextBlock());
-    if (RepairedBlocksQueue_.empty()) {
-        WindowIndex_ += 1;
-        i64 windowSize = (WindowIndex_ == WindowCount_) ? LastWindowSize_ : WindowSize_;
 
-        auto collector = New<TParallelCollector<TSharedRef>>();
-        FOREACH (auto windowReader, WindowReaders_) {
-            collector->Collect(windowReader->Read(windowSize));
-        }
-
-        return collector->Complete().Apply(
-                BIND(&TRepairReader::OnBlocksCollected, MakeStrong(this))
-                    .AsyncVia(ControlInvoker_));
-    } else {
+    if (!RepairedBlocksQueue_.empty()) {
         return MakeFuture(TError());
     }
+
+    WindowIndex_ += 1;
+    i64 windowSize = (WindowIndex_ == WindowCount_) ? LastWindowSize_ : WindowSize_;
+
+    auto collector = New<TParallelCollector<TSharedRef>>();
+    FOREACH (auto windowReader, WindowReaders_) {
+        collector->Collect(windowReader->Read(windowSize));
+    }
+
+    return collector->Complete().Apply(
+            BIND(&TRepairReader::OnBlocksCollected, MakeStrong(this))
+                .AsyncVia(ControlInvoker_));
 }
 
 TError TRepairReader::OnGotMeta(IAsyncReader::TGetMetaResult metaOrError)
