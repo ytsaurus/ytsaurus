@@ -1116,7 +1116,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected);
 
-        auto error = batchRsp->GetCumulativeError();
+        auto error = GetOperationNodeUpdateError(operation, batchRsp);
         if (!error.IsOK()) {
             LOG_ERROR(error, "Error updating operation node (OperationId: %s)",
                 ~ToString(operation->GetOperationId()));
@@ -1151,7 +1151,7 @@ private:
             auto req = TYPathProxy::Set(operationPath + "/@state");
             auto state = operation->GetState();
             req->set_value(ConvertToYsonString(state).Data());
-            batchReq->AddRequest(req);
+            batchReq->AddRequest(req, "update_op_node");
         }
 
         // Set progress.
@@ -1161,7 +1161,7 @@ private:
                 .BeginMap()
                     .Do(BIND(&IOperationController::BuildProgressYson, operation->GetController()))
                 .EndMap().Data());
-            batchReq->AddRequest(req);
+            batchReq->AddRequest(req, "update_op_node");
         }
 
         // Set result.
@@ -1170,14 +1170,14 @@ private:
             req->set_value(ConvertToYsonString(BIND(
                 &IOperationController::BuildResultYson,
                 operation->GetController())).Data());
-            batchReq->AddRequest(req);
+            batchReq->AddRequest(req, "update_op_node");
         }
 
         // Set end time, if given.
         if (operation->GetFinishTime()) {
             auto req = TYPathProxy::Set(operationPath + "/@finish_time");
             req->set_value(ConvertToYsonString(operation->GetFinishTime().Get()).Data());
-            batchReq->AddRequest(req);
+            batchReq->AddRequest(req, "update_op_node");
         }
     }
 
@@ -1198,7 +1198,7 @@ private:
                 auto jobPath = GetJobPath(operation->GetOperationId(), job->GetId());
                 auto req = TYPathProxy::Set(jobPath);
                 req->set_value(BuildJobYson(job).Data());
-                batchReq->AddRequest(req);
+                batchReq->AddRequest(req, "update_op_node");
 
                 if (request.StdErrChunkId != NullChunkId) {
                     auto stdErrPath = GetStdErrPath(operation->GetOperationId(), job->GetId());
@@ -1215,7 +1215,7 @@ private:
                     auto* reqExt = req->MutableExtension(NFileClient::NProto::TReqCreateFileExt::create_file_ext);
                     ToProto(reqExt->mutable_chunk_id(), request.StdErrChunkId);
 
-                    batchReq->AddRequest(req);
+                    batchReq->AddRequest(req, "create_std_err");
                 }
             }
             requests.clear();
@@ -1248,7 +1248,7 @@ private:
                 for (int index = rangeBegin; index < rangeEnd; ++index) {
                     ToProto(req->add_children_ids(), requests[index].ChunkTreeId);
                 }
-                batchReq->AddRequest(req);
+                batchReq->AddRequest(req, "update_live_preview");
 
                 rangeBegin = rangeEnd;
             }
@@ -1256,6 +1256,59 @@ private:
         }
     }
 
+    TError GetOperationNodeUpdateError(
+        TOperationPtr operation,
+        TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+    {
+        auto operationId = operation->GetOperationId();
+
+        if (!batchRsp->IsOK()) {
+            return TError(
+                "Error updating operation node (OperationId: %s)",
+                ~ToString(operationId))
+                << batchRsp->GetError();
+        }
+
+        {
+            auto rsps = batchRsp->GetResponses("update_op_node");
+            FOREACH (auto rsp, rsps) {
+                if (!rsp->IsOK()) {
+                    return TError(
+                        "Error updating operation node (OperationId: %s)",
+                        ~ToString(operationId))
+                        << rsp->GetError();
+                }
+            }
+        }
+
+        // NB: Here we silently ignore (but still log down) create_std_err and update_live_preview failures.
+        // These requests may fail due to user transaction being aborted.
+        {
+            auto rsps = batchRsp->GetResponses("create_std_err");
+            FOREACH (auto rsp, rsps) {
+                if (!rsp->IsOK()) {
+                    LOG_WARNING(
+                        rsp->GetError(),
+                        "Error creating stderr node (OperationId: %s)",
+                        ~ToString(operationId));
+                }
+            }
+        }
+
+        {
+            auto rsps = batchRsp->GetResponses("update_live_preview");
+            FOREACH (auto rsp, rsps) {
+                if (!rsp->IsOK()) {
+                    LOG_WARNING(
+                        rsp->GetError(), 
+                        "Error updating live preview (OperationId: %s)",
+                        ~ToString(operationId));
+                }
+            }
+        }
+
+        return TError();
+    }
 
     TError OnOperationNodeCreated(
         TOperationPtr operation,
@@ -1297,8 +1350,7 @@ private:
 
         auto error = batchRsp->GetCumulativeError();
 
-        if (error.IsOK()) {
-        } else {
+        if (!error.IsOK()) {
             auto wrappedError = TError("Error resetting reviving operation node (OperationId: %s)",
                 ~ToString(operationId))
                 << error;
@@ -1321,10 +1373,9 @@ private:
 
         auto operationId = operation->GetOperationId();
 
-        auto error = batchRsp->GetCumulativeError();
+        auto error = GetOperationNodeUpdateError(operation, batchRsp);
         if (!error.IsOK()) {
-            LOG_ERROR(error, "Error flushing operation node (OperationId: %s)",
-                ~ToString(operationId));
+            LOG_ERROR(error);
             Disconnect();
             return;
         }
@@ -1346,10 +1397,9 @@ private:
 
         auto operationId = operation->GetOperationId();
 
-        auto error = batchRsp->GetCumulativeError();
+        auto error = GetOperationNodeUpdateError(operation, batchRsp);
         if (!error.IsOK()) {
-            LOG_ERROR(error, "Error finalizing operation node (OperationId: %s)",
-                ~ToString(operationId));
+            LOG_ERROR(error);
             Disconnect();
             return;
         }
@@ -1362,27 +1412,6 @@ private:
         list->FinalizedPromise.Set();
 
         RemoveUpdateList(operation);
-    }
-
-    void OnRevivingOperationNodeFinalized(
-        TOperationPtr operation,
-        TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected);
-
-        auto id = operation->GetOperationId();
-        auto error = batchRsp->GetCumulativeError();
-
-        if (!error.IsOK()) {
-            LOG_WARNING(error, "Error finalizing reviving operation node (OperationId: %s)",
-                ~ToString(id));
-            Disconnect();
-            return;
-        }
-
-        LOG_INFO("Reviving operation node finalized (OperationId: %s)",
-            ~ToString(id));
     }
 
 
