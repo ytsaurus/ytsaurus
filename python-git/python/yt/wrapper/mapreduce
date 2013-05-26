@@ -578,14 +578,8 @@ if __name__ == "__main__":
         main()
     except KeyboardInterrupt:
         die("Shutdown requested... exiting")
-    except yt.YtOperationFailedError as error:
+    except yt.YtError as error:
         die(str(error))
-    except yt.YtResponseError as error:
-        die(str(error))
-    except yt.ConnectionError as error:
-        die("Connection problem: " + str(error))
-    except yt.HTTPError as error:
-        die("Connection was broken: " + str(error))
     except Exception:
         traceback.print_exc(file=sys.stderr)
         die()
