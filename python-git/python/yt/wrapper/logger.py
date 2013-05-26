@@ -3,9 +3,12 @@ import logging
 from datetime import datetime
 
 class OperationProgressFormatter(logging.Formatter):
-    def __init__(self, format="%(asctime)-15s: %(message)s", date_format=None):
+    def __init__(self, format="%(asctime)-15s: %(message)s", date_format=None, start_time=None):
         logging.Formatter.__init__(self, format, date_format)
-        self._start_time = datetime.now()
+        if start_time is None:
+            self._start_time = datetime.now()
+        else:
+            self._start_time = start_time
 
     def formatTime(self, record, date_format=None):
         created = datetime.fromtimestamp(record.created)
