@@ -7,8 +7,10 @@ from tree_commands import get_attribute, exists, search
 from file_commands import download_file
 
 import os
+import dateutil.parser
 from time import sleep
 from cStringIO import StringIO
+from dateutil import tz
 
 OPERATIONS_PATH = "//sys/operations"
 
@@ -61,7 +63,7 @@ def get_operation_state(operation):
     require(exists(operation_path),
             YtError("Operation %s doesn't exist" % operation))
     state = OperationState(get_attribute(operation_path, "state"))
-    
+
     config.HTTP_RETRIES_COUNT = old_retries_count
 
     return state
@@ -72,29 +74,37 @@ def get_operation_progress(operation):
 
 class PrintOperationInfo(object):
     """ Caches operation state and prints info by update"""
-    def __init__(self):
+    def __init__(self, operation):
+        self.operation = operation
         self.state = None
         self.progress = None
-        self.formatter = logger.OperationProgressFormatter()
 
-    def __call__(self, operation, state):
+        creation_time_str = get_attribute(os.path.join(OPERATIONS_PATH, self.operation), "creation_time")
+        creation_time = dateutil.parser.parse(creation_time_str).replace(tzinfo=None)
+
+        creation_time = creation_time.replace(tzinfo=tz.tzutc())
+        local_creation_time = creation_time.astimezone(tz.tzlocal()).replace(tzinfo=None)
+
+        self.formatter = logger.OperationProgressFormatter(start_time=local_creation_time)
+
+    def __call__(self, state):
         logger.set_formatter(self.formatter)
 
         if state.is_running():
-            progress = get_operation_progress(operation)
+            progress = get_operation_progress(self.operation)
             if progress != self.progress:
                 if config.USE_SHORT_OPERATION_INFO:
                     logger.info(
-                        "operation %s: " % operation +
+                        "operation %s: " % self.operation +
                         "c={completed!s}\tf={failed!s}\tr={running!s}\tp={pending!s}".format(**progress))
                 else:
                     logger.info(
                         "operation %s jobs: %s",
-                        operation,
+                        self.operation,
                         "\t".join("{0}={1}".format(k, v) for k, v in progress.iteritems()))
             self.progress = progress
         elif state != self.state:
-            logger.info("operation %s %s", operation, state)
+            logger.info("operation %s %s", self.operation, state)
         self.state = state
 
         logger.set_formatter(logger.BASIC_FORMATTER)
@@ -109,7 +119,7 @@ def abort_operation(operation):
 def wait_final_state(operation, timeout, print_info, action=lambda: None):
     while True:
         state = get_operation_state(operation)
-        print_info(operation, state)
+        print_info(state)
         if state.is_final():
             break
         action()
@@ -120,7 +130,7 @@ def wait_operation(operation, timeout=None, print_progress=True, finalize=lambda
     """ Wait operation and abort operation in case of keyboard interrupt """
     if timeout is None:
         timeout = Timeout(config.WAIT_TIMEOUT / 5.0, config.WAIT_TIMEOUT, 0.1)
-    print_info = PrintOperationInfo() if print_progress else lambda operation, state: None
+    print_info = PrintOperationInfo(operation) if print_progress else lambda state: None
 
     def wait():
         result = wait_final_state(operation, timeout, print_info)
