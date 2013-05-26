@@ -66,10 +66,10 @@ class Response(object):
         return not hasattr(self, "_error")
 
     def is_json(self):
-        return self.http_response.headers["content-type"] == "application/json"
+        return self.http_response.headers.get("content-type") == "application/json"
 
     def is_yson(self):
-        content_type = self.http_response.headers["content-type"]
+        content_type = self.http_response.headers.get("content-type")
         return isinstance(content_type, str) and content_type.startswith("application/x-yt-yson")
 
     def json(self):
