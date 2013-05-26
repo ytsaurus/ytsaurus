@@ -9,6 +9,7 @@ var YtAuthority = require("../lib/authority").that;
 
 var ask = require("./common_http").ask;
 var srv = require("./common_http").srv;
+var die = require("./common_http").die;
 
 var nock = require("nock");
 
@@ -83,7 +84,7 @@ describe("ApplicationAuth", function() {
     });
 
     afterEach(function(done) {
-        this.server.close(done);
+        die(this.server, done);
         this.server = null;
         YtRegistry.clear();
     });

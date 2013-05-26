@@ -88,7 +88,7 @@ describe("host discovery", function() {
     });
 
     after(function(done) {
-        this.server.close(done);
+        die(this.server, done);
         this.server = null;
     });
 
