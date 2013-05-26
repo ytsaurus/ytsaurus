@@ -1,7 +1,7 @@
 import config
 import logger
 from common import require
-from errors import YtError, YtResponseError, YtTokenError, format_error
+from errors import YtError, YtResponseError, YtNetworkError, YtTokenError, format_error
 from format import JsonFormat
 from version import VERSION
 
@@ -19,7 +19,7 @@ import simplejson as json
 
 # We cannot use requests.HTTPError in module namespace because of conflict with python3 http library
 from requests import HTTPError, ConnectionError, Timeout
-NETWORK_ERRORS = (HTTPError, ConnectionError, Timeout, httplib.IncompleteRead, YtResponseError)
+NETWORK_ERRORS = (HTTPError, ConnectionError, Timeout, httplib.IncompleteRead, YtResponseError, YtNetworkError)
 
 def iter_lines(response):
     """
@@ -118,14 +118,19 @@ def make_request_with_retries(request, make_retries=False, url="", return_raw_re
             response = request()
             is_json = response.is_json() or not str(response.http_response.status_code).startswith("2")
             if not return_raw_response and is_json and not response.content():
-                raise YtResponseError("Content is json but body is empty")
+                raise YtResponseError(
+                        "Response has json content type but empty body (response headers: %s)" %
+                        repr(response.http_response.headers))
             return response
         except NETWORK_ERRORS as error:
             if make_retries:
                 logger.warning("Http request (%s) has failed with error '%s'. Retrying...", url, str(error))
                 time.sleep(config.HTTP_RETRY_TIMEOUT)
             else:
-                raise
+                if not isinstance(error, YtResponseError):
+                    raise YtNetworkError("Connection to url %s has failed with error %s", url, str(error))
+                else:
+                    raise
 
 def get_hosts(proxy=None):
     if proxy is None:
@@ -237,7 +242,8 @@ def make_request(command_name, params,
 
     # prepare params, format and headers
     headers = {"User-Agent": "Python wrapper " + VERSION,
-               "Accept-Encoding": config.ACCEPT_ENCODING}
+               "Accept-Encoding": config.ACCEPT_ENCODING,
+               "X-YT-Correlation-Id": str(uuid.uuid4())}
     # TODO(ignat) stop using http method for detection command properties
     if command.http_method() == "POST":
         require(data is None and format is None,
