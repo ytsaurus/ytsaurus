@@ -100,7 +100,8 @@ public:
                              fileIds);
         } catch (const std::exception& ) {
             // Failed to exec job proxy
-            _exit(EJobProxyExitCode::ExecFailed);
+            THROW_ERROR_EXCEPTION("Failed to start job proxy: Spawn failed")
+                << TError::FromSystem();
         }
 
         if (ProcessId < 0) {
