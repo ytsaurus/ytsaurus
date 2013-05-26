@@ -107,7 +107,7 @@ void TJobProxy::RetrieveJobSpec()
     ToProto(req->mutable_job_id(), JobId);
 
     auto rsp = req->Invoke().Get();
-    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Failed to get job spec");
+    LOG_FATAL_IF(!rsp->IsOK(), *rsp, "Failed to get job spec");
 
     JobSpec = rsp->job_spec();
     ResourceUsage = rsp->resource_usage();
@@ -148,41 +148,39 @@ void TJobProxy::Run()
 
 TJobResult TJobProxy::DoRun()
 {
+    auto supervisorClient = CreateTcpBusClient(Config->SupervisorConnection);
+
+    auto supervisorChannel = CreateBusChannel(supervisorClient, Config->SupervisorRpcTimeout);
+    SupervisorProxy.reset(new TSupervisorServiceProxy(supervisorChannel));
+
+    MasterChannel = CreateBusChannel(supervisorClient, Config->MasterRpcTimeout);
+
+    RetrieveJobSpec();
+
+    const auto& jobSpec = GetJobSpec();
+    auto jobType = NScheduler::EJobType(jobSpec.type());
+
+    const auto& schedulerJobSpecExt = jobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+    SetLargeBlockLimit(schedulerJobSpecExt.lfalloc_buffer_size());
+
+    BlockCache = NChunkClient::CreateClientBlockCache(New<NChunkClient::TClientBlockCacheConfig>());
+
+    NodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
+    NodeDirectory->MergeFrom(schedulerJobSpecExt.node_directory());
+
+    HeartbeatInvoker = New<TPeriodicInvoker>(
+        GetSyncInvoker(),
+        BIND(&TJobProxy::SendHeartbeat, MakeWeak(this)),
+        Config->HeartbeatPeriod);
+
+    MemoryWatchdogInvoker = New<TPeriodicInvoker>(
+        GetSyncInvoker(),
+        BIND(&TJobProxy::CheckMemoryUsage, MakeWeak(this)),
+        Config->MemoryWatchdogPeriod);
+
+    MemoryWatchdogInvoker->Start();
+
     try {
-        auto supervisorClient = CreateTcpBusClient(Config->SupervisorConnection);
-
-        auto supervisorChannel = CreateBusChannel(supervisorClient, Config->SupervisorRpcTimeout);
-        SupervisorProxy.reset(new TSupervisorServiceProxy(supervisorChannel));
-
-        MasterChannel = CreateBusChannel(supervisorClient, Config->MasterRpcTimeout);
-
-        RetrieveJobSpec();
-
-        const auto& jobSpec = GetJobSpec();
-        auto jobType = NScheduler::EJobType(jobSpec.type());
-
-        const auto& schedulerJobSpecExt = jobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-        SetLargeBlockLimit(schedulerJobSpecExt.lfalloc_buffer_size());
-
-        BlockCache = NChunkClient::CreateClientBlockCache(New<NChunkClient::TClientBlockCacheConfig>());
-
-        NodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
-        NodeDirectory->MergeFrom(schedulerJobSpecExt.node_directory());
-
-        HeartbeatInvoker = New<TPeriodicInvoker>(
-            GetSyncInvoker(),
-            BIND(&TJobProxy::SendHeartbeat, MakeWeak(this)),
-            Config->HeartbeatPeriod);
-
-        MemoryWatchdogInvoker = New<TPeriodicInvoker>(
-            GetSyncInvoker(),
-            BIND(&TJobProxy::CheckMemoryUsage, MakeWeak(this)),
-            Config->MemoryWatchdogPeriod);
-
-        MemoryWatchdogInvoker->Start();
-
-        RetrieveJobSpec();
-
         switch (jobType) {
             case NScheduler::EJobType::Map: {
                 const auto& mapJobSpecExt = jobSpec.GetExtension(TMapJobSpecExt::map_job_spec_ext);
@@ -308,8 +306,6 @@ TFuture<void> TJobProxy::GetFailedChunks(std::vector<NChunkClient::TChunkId>* fa
 
 void TJobProxy::ReportResult(const TJobResult& result)
 {
-    HeartbeatInvoker->Stop();
-
     auto req = SupervisorProxy->OnJobFinished();
     ToProto(req->mutable_job_id(), JobId);
     *req->mutable_result() = result;
