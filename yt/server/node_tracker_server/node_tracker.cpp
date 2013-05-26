@@ -768,7 +768,9 @@ private:
         if (node->GetConfig()->Banned) {
             LOG_INFO_UNLESS(IsRecovery(), "Node banned (Address: %s)",
                 ~node->GetAddress());
-            PostUnregisterCommit(node);
+            if (IsLeader()) {
+                PostUnregisterCommit(node);
+            }
         }
     }
 
