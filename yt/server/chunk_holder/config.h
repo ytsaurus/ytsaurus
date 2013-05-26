@@ -114,7 +114,7 @@ public:
     TDuration FullHeartbeatTimeout;
 
     //! Block cache size (in bytes).
-    i64 MaxCachedBlocksSize;
+    i64 BlockCacheSize;
 
     //! Maximum number opened files in cache.
     int MaxCachedReaders;
@@ -196,7 +196,7 @@ public:
             .Default(TDuration::Seconds(5));
         RegisterParameter("full_heartbeat_timeout", FullHeartbeatTimeout)
             .Default(TDuration::Seconds(60));
-        RegisterParameter("max_cached_blocks_size", MaxCachedBlocksSize)
+        RegisterParameter("block_cache_size", BlockCacheSize)
             .GreaterThan(0)
             .Default(1024 * 1024);
         RegisterParameter("max_cached_readers", MaxCachedReaders)
