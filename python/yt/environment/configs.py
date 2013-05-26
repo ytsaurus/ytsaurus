@@ -223,7 +223,7 @@ def get_node_config():
         };
 
         slot_manager = {
-            slot_location = "";
+            path = "";
         };
 
         job_proxy_logging = {
