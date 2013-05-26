@@ -661,6 +661,7 @@ private:
                 // Remove snapshot.
                 {
                     auto req = TYPathProxy::Remove(GetSnapshotPath(operation->GetOperationId()));
+                    req->set_force(true);
                     batchReq->AddRequest(req, "remove_snapshot");
                 }
             }
