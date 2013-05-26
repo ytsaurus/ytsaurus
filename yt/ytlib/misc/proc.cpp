@@ -229,13 +229,13 @@ std::vector<int> GetAllDescriptors()
     std::vector<int> result;
 
 #ifdef _linux_
-    DIR *dp = ::opendir("/proc/self/fd");
+    auto* dp = ::opendir("/proc/self/fd");
     YCHECK(dp != NULL);
 
     int dirfd = ::dirfd(dp);
     YCHECK(dirfd >= 0);
 
-    struct dirent *ep;
+    struct dirent* ep;
     while ((ep = ::readdir(dp)) != nullptr) {
         char* begin = ep->d_name;
         char* end = nullptr;
@@ -281,9 +281,10 @@ int SetMemoryLimit(rlim_t memoryLimit)
     return setrlimit(RLIMIT_AS, &rlimit);
 }
 
-int Spawn(const char* path,
-          std::initializer_list<const char*> arguments,
-          const std::vector<int>& fileIdsToClose)
+int Spawn(
+    const char* path,
+    std::initializer_list<const char*> arguments,
+    const std::vector<int>& fileIdsToClose)
 {
     auto storeStrings = [](std::initializer_list<const char*> strings) -> std::vector<std::vector<char>> {
         std::vector<std::vector<char>> result;
