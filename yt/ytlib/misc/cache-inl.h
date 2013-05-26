@@ -202,7 +202,11 @@ void TCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value, TInsertCookie* 
 
     {
         TGuard<TSpinLock> guard(SpinLock);
-        LruList.PushFront(item);
+        auto it = ItemMap.find(key);
+        if (it != ItemMap.end()) {
+            auto* item = it->second;
+            LruList.PushFront(item);
+        }
     }
 
     OnAdded(~value);
