@@ -123,12 +123,13 @@ def make_request_with_retries(request, make_retries=False, url="", return_raw_re
                         repr(response.http_response.headers))
             return response
         except NETWORK_ERRORS as error:
+            message =  "Http request (%s) has failed with error '%s'" % (url, str(error))
             if make_retries:
-                logger.warning("Http request (%s) has failed with error '%s'. Retrying...", url, str(error))
+                logger.warning("%s. Retrying...", message)
                 time.sleep(config.HTTP_RETRY_TIMEOUT)
             else:
                 if not isinstance(error, YtResponseError):
-                    raise YtNetworkError("Connection to url %s has failed with error %s", url, str(error))
+                    raise YtNetworkError(message)
                 else:
                     raise
 
