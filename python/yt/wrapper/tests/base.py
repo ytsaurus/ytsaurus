@@ -27,7 +27,8 @@ class YtTestBase(object):
             "proxy_log": 18081}
         # (TODO): remake this strange stuff.
         cls.env = test_class()
-        cls.env.set_environment("tests/sandbox", "tests/sandbox/pids.txt", ports, supress_yt_output=True)
+        dir = os.environ.get("TESTS_SANDBOX", "tests/sandbox")
+        cls.env.set_environment(dir, os.path.join(dir, "pids.txt"), ports, supress_yt_output=True)
 
         config.PROXY = "localhost:%d" % ports["proxy"]
         config.USE_TOKEN = False
