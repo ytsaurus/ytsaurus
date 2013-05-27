@@ -83,20 +83,21 @@ public:
         LOG_INFO("Starting job proxy in unsafe environment (WorkDir: %s)",
             ~WorkingDirectory);
 
+        std::vector<Stroka> arguments;
+        arguments.push_back(ProxyPath);
+        arguments.push_back("--job-proxy");
+        arguments.push_back("--config");
+        arguments.push_back(ProxyConfigFileName);
+        arguments.push_back("--job-id");
+        arguments.push_back(ToString(JobId));
+        arguments.push_back("--working-dir");
+        arguments.push_back(WorkingDirectory);
+        arguments.push_back("--close-all-fids");
+
         try {
             ProcessId = Spawn(
                 ~ProxyPath,
-                {
-                    ~ProxyPath,
-                    "--job-proxy",
-                    "--config",
-                    ~ProxyConfigFileName,
-                    "--job-id",
-                    ~ToString(JobId),
-                    "--working-dir",
-                    ~WorkingDirectory,
-                    "--close-all-fids",
-                },
+                arguments,
                 std::vector<int>());
         } catch (const std::exception& ) {
             // Failed to exec job proxy

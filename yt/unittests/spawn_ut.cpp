@@ -7,21 +7,29 @@
 namespace NYT {
 namespace {
 
+using std::vector;
+
 TEST(TSpawnTest, Basic)
 {
-    int pid = Spawn("/bin/ls", {"ls"});
+    vector<Stroka> args;
+    args.push_back("ls");
+
+    int pid = Spawn("/bin/ls", args);
     EXPECT_NE(pid, 0);
 }
 
 
 TEST(TSpawnTest, InvalidPath)
 {
+    vector<Stroka> args;
+    args.push_back("binary");
+
 #ifdef __darwin__
-    EXPECT_THROW(Spawn("/some/bad/path/binary", {"binary"}, std::vector<int>()), std::exception);
+    EXPECT_THROW(Spawn("/some/bad/path/binary", args), std::exception);
 #endif
 
 #ifdef __linux__
-    int pid = Spawn("/some/bad/path/binary", {"binary"});
+    int pid = Spawn("/some/bad/path/binary", args);
     ASSERT_GT(pid, 0);
 
     int status;
@@ -34,13 +42,18 @@ TEST(TSpawnTest, InvalidPath)
 
 TEST(TSpawnTest, BasicUsePATH)
 {
-    int pid = Spawn("ls", {"ls"});
+    vector<Stroka> args;
+    args.push_back("ls");
+    int pid = Spawn("ls", args);
     EXPECT_NE(pid, 0);
 }
 
 TEST(TSpawnTest, ProcessReturnCode0)
 {
-    int pid = Spawn("true", {"true"});
+    vector<Stroka> args;
+    args.push_back("true");
+
+    int pid = Spawn("true", args);
     ASSERT_GT(pid, 0);
 
     int status;
@@ -52,7 +65,10 @@ TEST(TSpawnTest, ProcessReturnCode0)
 
 TEST(TSpawnTest, ProcessReturnCode1)
 {
-    int pid = Spawn("false", {"false"});
+    vector<Stroka> args;
+    args.push_back("false");
+
+    int pid = Spawn("false", args);
     ASSERT_GT(pid, 0);
 
     int status;
@@ -64,7 +80,12 @@ TEST(TSpawnTest, ProcessReturnCode1)
 
 TEST(TSpawnTest, Params1)
 {
-    int pid = Spawn("bash", {"bash", "-c", "if test 3 -gt 1; then exit 7; fi" });
+    vector<Stroka> args;
+    args.push_back("bash");
+    args.push_back("-c");
+    args.push_back("if test 3 -gt 1; then exit 7; fi");
+
+    int pid = Spawn("bash", args);
     ASSERT_GT(pid, 0);
 
     int status;
@@ -76,7 +97,12 @@ TEST(TSpawnTest, Params1)
 
 TEST(TSpawnTest, Params2)
 {
-    int pid = Spawn("bash", {"bash", "-c", "if test 1 -gt 3; then exit 7; fi" });
+    vector<Stroka> args;
+    args.push_back("bash");
+    args.push_back("-c");
+    args.push_back("if test 1 -gt 3; then exit 7; fi");
+
+    int pid = Spawn("bash", args);
     ASSERT_GT(pid, 0);
 
     int status;
@@ -88,7 +114,12 @@ TEST(TSpawnTest, Params2)
 
 TEST(TSpawnTest, CloseFd1)
 {
-    int pid = Spawn("bash", {"bash", "-c", "echo hello >&42" });
+    vector<Stroka> args;
+    args.push_back("bash");
+    args.push_back("-c");
+    args.push_back("echo hello >&42");
+
+    int pid = Spawn("bash", args);
     ASSERT_GT(pid, 0);
 
     int status;
@@ -100,10 +131,18 @@ TEST(TSpawnTest, CloseFd1)
 
 TEST(TSpawnTest, CloseFd2)
 {
+    vector<Stroka> args;
+    args.push_back("bash");
+    args.push_back("-c");
+    args.push_back("echo hello >&42");
+
     int newFileId = dup2(1, 42);
     ASSERT_EQ(newFileId, 42);
 
-    int pid = Spawn("bash", {"bash", "-c", "echo hello >&42" }, { 42 });
+    vector<int> fds;
+    fds.push_back(42);
+
+    int pid = Spawn("bash", args, fds);
     ASSERT_GT(pid, 0);
 
     int status;
