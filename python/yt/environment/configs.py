@@ -90,6 +90,7 @@ def get_scheduler_config():
         strategy = fair_share;
         max_failed_job_count = 10;
         snapshot_period = 100000000;
+        connect_grace_delay = 0;
         environment = {
              PYTHONUSERBASE = "/tmp"
         };

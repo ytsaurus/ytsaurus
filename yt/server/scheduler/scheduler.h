@@ -48,7 +48,7 @@ public:
 
     TExecNodePtr FindNode(const Stroka& address);
     TExecNodePtr GetNode(const Stroka& address);
-    TExecNodePtr GetOrCreateNode(const NNodeTrackerClient::TNodeDescriptor& descriptor);
+    TExecNodePtr GetOrRegisterNode(const NNodeTrackerClient::TNodeDescriptor& descriptor);
 
     typedef TValueOrError<TOperationPtr> TStartResult;
     TFuture<TStartResult> StartOperation(
