@@ -29,8 +29,6 @@ void SafeClose(int fd, bool ignoreInvalidFd = false);
 
 void CloseAllDescriptors();
 
-int SetMemoryLimit(rlim_t memoryLimit);
-
 int Spawn(
     const char* path,
     std::vector<Stroka>& arguments,
