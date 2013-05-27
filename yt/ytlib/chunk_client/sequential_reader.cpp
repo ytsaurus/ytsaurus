@@ -159,8 +159,14 @@ void TSequentialReader::FetchNextGroup()
     auto firstUnfetched = NextUnfetchedIndex;
     std::vector<int> blockIndexes;
     int groupSize = 0;
-    while (groupSize < Config->GroupSize && NextUnfetchedIndex < BlockSequence.size()) {
+    while (NextUnfetchedIndex < BlockSequence.size()) {
         auto& blockInfo = BlockSequence[NextUnfetchedIndex];
+
+        if (!blockIndexes.empty() && groupSize + blockInfo.Size > Config->GroupSize) {
+            // Do not exceed group size if possible.
+            break;
+        }
+
         blockIndexes.push_back(blockInfo.Index);
         groupSize += blockInfo.Size;
         ++NextUnfetchedIndex;

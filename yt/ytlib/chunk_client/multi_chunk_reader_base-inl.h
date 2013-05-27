@@ -64,7 +64,7 @@ TMultiChunkReaderBase<TChunkReader>::TMultiChunkReaderBase(
         while (PrefetchWindow < chunkDataSizes.size()) {
             bufferSize += std::min(
                 chunkDataSizes[PrefetchWindow],
-                config->WindowSize) + ChunkReaderMemorySize;
+                config->WindowSize + config->GroupSize) + ChunkReaderMemorySize;
             if (bufferSize > Config->MaxBufferSize) {
                 break;
             } else {

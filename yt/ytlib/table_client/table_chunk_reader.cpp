@@ -305,14 +305,13 @@ private:
         LOG_DEBUG("Selected channels [%s]", ~JoinToString(SelectedChannels));
 
         auto blockSequence = GetBlockReadSequence(chunkReader);
+        LOG_DEBUG("Reading %d blocks", static_cast<int>(blockSequence.size()));
 
         chunkReader->SequentialReader = New<TSequentialReader>(
             SequentialConfig,
             std::move(blockSequence),
             AsyncReader,
             NCompression::ECodec(miscExt.compression_codec()));
-
-        LOG_DEBUG("Reading %d blocks", static_cast<int>(blockSequence.size()));
 
         chunkReader->ChannelReaders.reserve(SelectedChannels.size());
 

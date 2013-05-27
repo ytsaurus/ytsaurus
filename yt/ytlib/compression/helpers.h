@@ -23,10 +23,6 @@ TSharedRef MergeRefs(const std::vector<TSharedRef>& refs);
 
 typedef TCallback<void (StreamSource*, TBlob*)> TConverter;
 
-//TODO(ignat): rename these methods
-TSharedRef Apply(TConverter converter, const TSharedRef& ref);
-TSharedRef Apply(TConverter converter, const std::vector<TSharedRef>& refs);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Implements snappy::Source interface over a vector of TSharedRef-s.
