@@ -328,9 +328,10 @@ void SafeClose(int fd, bool ignoreInvalidFd)
     YUNIMPLEMENTED();
 }
 
-int Spawn(const char* path,
-          std::initializer_list<const char*> arguments,
-          const std::vector<int>& fdsToClose)
+int Spawn(
+    const char* path,
+    std::vector<Stroka>& arguments,
+    const std::vector<int>& fdsToClose)
 {
     UNUSED(path);
     UNUSED(arguments);
