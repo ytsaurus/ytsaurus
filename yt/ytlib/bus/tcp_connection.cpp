@@ -20,7 +20,7 @@ namespace NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NProfiling::TProfiler& Profiler = BusProfiler;
+static auto& Profiler = BusProfiler;
 
 static const size_t MinBatchReadSize =  4 * 1024;
 static const size_t MaxBatchReadSize = 64 * 1024;

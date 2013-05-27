@@ -15,7 +15,7 @@ namespace NFileClient {
 
 using namespace NChunkClient;
 
-static NLog::TLogger& SILENT_UNUSED Logger = FileReaderLogger;
+static NLog::TLogger& Logger = FileReaderLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

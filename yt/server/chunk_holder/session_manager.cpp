@@ -32,7 +32,7 @@ using NChunkClient::NProto::TChunkInfo;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = DataNodeLogger;
+static auto& Logger = DataNodeLogger;
 static NProfiling::TRateCounter DiskWriteThroughputCounter("/disk_write_throughput_counter");
 
 ////////////////////////////////////////////////////////////////////////////////

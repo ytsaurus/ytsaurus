@@ -50,8 +50,8 @@ using namespace NChunkServer::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = ChunkServerLogger;
-static NProfiling::TProfiler& Profiler = ChunkServerProfiler;
+static auto& Logger = ChunkServerLogger;
+static auto& Profiler = ChunkServerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -28,7 +28,7 @@ using namespace NCellNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& SILENT_UNUSED Logger = DataNodeLogger;
+static NLog::TLogger& Logger = DataNodeLogger;
 
 static const int Permissions = 0751;
 

@@ -19,8 +19,8 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger SILENT_UNUSED Logger("Monitoring");
-static NProfiling::TProfiler SILENT_UNUSED Profiler("/monitoring");
+static NLog::TLogger Logger("Monitoring");
+static NProfiling::TProfiler Profiler("/monitoring");
 
 const TDuration TMonitoringManager::Period = TDuration::Seconds(3);
 

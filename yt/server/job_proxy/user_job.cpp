@@ -62,7 +62,7 @@ using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& SILENT_UNUSED Logger = JobProxyLogger;
+static NLog::TLogger& Logger = JobProxyLogger;
 
 static i64 MemoryLimitBoost = (i64) 2 * 1024 * 1024 * 1024;
 

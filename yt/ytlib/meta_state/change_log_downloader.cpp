@@ -17,8 +17,8 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& SILENT_UNUSED Logger = MetaStateLogger;
-static NProfiling::TProfiler& SILENT_UNUSED Profiler = MetaStateProfiler;
+static NLog::TLogger& Logger = MetaStateLogger;
+static auto& Profiler = MetaStateProfiler;
 
 //////////////////////////////////////////////////////////////////////////////////
 

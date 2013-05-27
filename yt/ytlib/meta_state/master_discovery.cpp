@@ -19,8 +19,8 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& SILENT_UNUSED Logger = MetaStateLogger;
-static NProfiling::TProfiler SILENT_UNUSED Profiler("/meta_state/master_discovery");
+static NLog::TLogger& Logger = MetaStateLogger;
+static NProfiling::TProfiler Profiler("/meta_state/master_discovery");
 
 static NRpc::TChannelCache ChannelCache;
 

@@ -20,8 +20,8 @@ using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& SILENT_UNUSED Logger = DataNodeLogger;
-static NProfiling::TProfiler& SILENT_UNUSED Profiler = DataNodeProfiler;
+static NLog::TLogger& Logger = DataNodeLogger;
+static auto& Profiler = DataNodeProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 

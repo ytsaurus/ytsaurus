@@ -15,8 +15,8 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& SILENT_UNUSED Logger = ElectionLogger;
-static NProfiling::TProfiler SILENT_UNUSED Profiler("/election");
+static NLog::TLogger& Logger = ElectionLogger;
+static NProfiling::TProfiler Profiler("/election");
 
 ////////////////////////////////////////////////////////////////////////////////
 

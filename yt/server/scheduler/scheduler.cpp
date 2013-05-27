@@ -71,8 +71,8 @@ using NNodeTrackerClient::TNodeDescriptor;
 
 ////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = SchedulerLogger;
-static NProfiling::TProfiler& Profiler = SchedulerProfiler;
+static auto& Logger = SchedulerLogger;
+static auto& Profiler = SchedulerProfiler;
 static TDuration ProfilingPeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////

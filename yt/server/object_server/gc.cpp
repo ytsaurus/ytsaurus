@@ -17,8 +17,8 @@ using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& SILENT_UNUSED Logger = ObjectServerLogger;
-static NProfiling::TProfiler& SILENT_UNUSED Profiler = ObjectServerProfiler;
+static NLog::TLogger& Logger = ObjectServerLogger;
+static auto& Profiler = ObjectServerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 

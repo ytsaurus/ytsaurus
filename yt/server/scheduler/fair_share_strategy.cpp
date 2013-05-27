@@ -28,8 +28,8 @@ using namespace NNodeTrackerClient::NProto;
 
 ////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = SchedulerLogger;
-static NProfiling::TProfiler& Profiler = SchedulerProfiler;
+static auto& Logger = SchedulerLogger;
+static auto& Profiler = SchedulerProfiler;
 
 static Stroka DefaultPoolId("default");
 static const double RatioComputationPrecision = 1e-12;

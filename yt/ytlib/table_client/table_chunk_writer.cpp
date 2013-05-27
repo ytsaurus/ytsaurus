@@ -24,7 +24,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& SILENT_UNUSED Logger = TableWriterLogger;
+static NLog::TLogger& Logger = TableWriterLogger;
 
 static const int RangeColumnIndex = -1;
 
