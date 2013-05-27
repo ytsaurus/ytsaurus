@@ -84,19 +84,20 @@ public:
             ~WorkingDirectory);
 
         try {
-            ProcessId = Spawn(~ProxyPath,
-                             {
-                                 ~ProxyPath,
-                                 "--job-proxy",
-                                 "--config",
-                                 ~ProxyConfigFileName,
-                                 "--job-id",
-                                 ~ToString(JobId),
-                                 "--working-dir",
-                                 ~WorkingDirectory,
-                                 "--close-all-fids",
-                             },
-                              std::vector<int>());
+            ProcessId = Spawn(
+                ~ProxyPath,
+                {
+                    ~ProxyPath,
+                    "--job-proxy",
+                    "--config",
+                    ~ProxyConfigFileName,
+                    "--job-id",
+                    ~ToString(JobId),
+                    "--working-dir",
+                    ~WorkingDirectory,
+                    "--close-all-fids",
+                },
+                std::vector<int>());
         } catch (const std::exception& ) {
             // Failed to exec job proxy
             THROW_ERROR_EXCEPTION("Failed to start job proxy: Spawn failed")

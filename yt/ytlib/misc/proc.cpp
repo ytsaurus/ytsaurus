@@ -258,7 +258,7 @@ int SetMemoryLimit(rlim_t memoryLimit)
 int Spawn(
     const char* path,
     std::initializer_list<const char*> arguments,
-    const std::vector<int>& fileIdsToClose)
+    const std::vector<int>& fidsToClose)
 {
     auto storeStrings = [](std::initializer_list<const char*> strings) -> std::vector<std::vector<char>> {
         std::vector<std::vector<char>> result;
@@ -271,7 +271,7 @@ int Spawn(
     posix_spawn_file_actions_t fileActions;
     YCHECK(posix_spawn_file_actions_init(&fileActions) == 0);
 
-    FOREACH (auto fileId, fileIdsToClose) {
+    FOREACH (auto fileId, fidsToClose) {
         YCHECK(posix_spawn_file_actions_addclose(&fileActions, fileId) == 0);
     }
 
@@ -290,18 +290,19 @@ int Spawn(
     args.push_back(NULL);
 
     int processId;
-    int errCode = posix_spawnp(&processId,
-                               path,
-                               &fileActions,
-                               &attributes,
-                               &args[0],
-                               NULL);
+    int errCode = posix_spawnp(
+        &processId,
+        path,
+        &fileActions,
+        &attributes,
+        &args[0],
+        NULL);
 
     posix_spawnattr_destroy(&attributes);
     posix_spawn_file_actions_destroy(&fileActions);
 
     if (errCode != 0) {
-        THROW_ERROR_EXCEPTION("posix_spawn failed")
+        THROW_ERROR_EXCEPTION("Error starting child process: posix_spawn failed")
             << TErrorAttribute("path", path)
             << TError::FromSystem(errCode);
     }
@@ -346,11 +347,11 @@ void SafeClose(int fd, bool ignoreInvalidFd)
 
 int Spawn(const char* path,
           std::initializer_list<const char*> arguments,
-          const std::vector<int>& fileIdsToClose)
+          const std::vector<int>& fidsToClose)
 {
     UNUSED(path);
     UNUSED(arguments);
-    UNUSED(fileIdsToClose);
+    UNUSED(fidsToClose);
     YUNIMPLEMENTED();
 }
 
