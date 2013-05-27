@@ -257,17 +257,9 @@ int SetMemoryLimit(rlim_t memoryLimit)
 
 int Spawn(
     const char* path,
-    std::initializer_list<const char*> arguments,
+    std::vector<Stroka>& arguments,
     const std::vector<int>& fidsToClose)
 {
-    auto storeStrings = [](std::initializer_list<const char*> strings) -> std::vector<std::vector<char>> {
-        std::vector<std::vector<char>> result;
-        FOREACH (auto item, strings) {
-            result.push_back(std::vector<char>(item, item + strlen(item) + 1));
-        }
-        return result;
-    };
-
     posix_spawn_file_actions_t fileActions;
     YCHECK(posix_spawn_file_actions_init(&fileActions) == 0);
 
@@ -281,11 +273,9 @@ int Spawn(
     posix_spawnattr_setflags(&attributes, POSIX_SPAWN_USEVFORK);
 #endif
 
-    std::vector<std::vector<char>> argContainer = storeStrings(arguments);
-
     std::vector<char *> args;
-    FOREACH (auto& x, argContainer) {
-        args.push_back(&x[0]);
+    FOREACH (auto& x, arguments) {
+        args.push_back(x.begin());
     }
     args.push_back(NULL);
 
