@@ -27,7 +27,7 @@ class TFuture;
 template <class T>
 class TPromise;
 
-//! Constructs an empty promise.
+//! Creates an empty (unset) promise.
 template <class T>
 TPromise<T> NewPromise();
 
@@ -41,7 +41,11 @@ TFuture<void> MakeFuture();
 template <class T>
 TPromise< typename NMpl::TDecay<T>::TType > MakePromise(T&& value);
 
+//! Constructs a pre-set void promise.
 TPromise<void> MakePromise();
+
+//! Constructs a future that gets set when a given #delay elapses.
+TFuture<void> MakeDelayed(TDuration delay);
 
 ////////////////////////////////////////////////////////////////////////////////
 
