@@ -226,7 +226,7 @@ TFuture<void> TChunk::ScheduleRemoval()
             return RemovedEvent;
         }
 
-        RemovedEvent = NewPromise<void>();
+        RemovedEvent = NewPromise();
         if (ReadLockCounter == 0 && !RemovalScheduled) {
             scheduleRemoval = RemovalScheduled = true;
         }

@@ -305,8 +305,8 @@ private:
         TUpdateList(IChannelPtr masterChannel, TOperationPtr operation)
             : Operation(operation)
             , State(EUpdateListState::Active)
-            , FlushedPromise(NewPromise<void>())
-            , FinalizedPromise(NewPromise<void>())
+            , FlushedPromise(NewPromise())
+            , FinalizedPromise(NewPromise())
             , Proxy(CreateSerializedChannel(masterChannel))
         { }
 

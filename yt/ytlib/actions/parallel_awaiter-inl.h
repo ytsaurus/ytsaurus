@@ -34,7 +34,7 @@ inline void TParallelAwaiter::Init(
     Canceled = false;
 
     Completed = false;
-    CompletedPromise = NewPromise<void>();
+    CompletedPromise = NewPromise();
 
     Terminated = false;
 

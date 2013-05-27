@@ -31,7 +31,7 @@ TFollowerTracker::TFollowerTracker(
     , DecoratedState(decoratedState)
     , EpochId(epoch)
     , EpochControlInvoker(epochControlInvoker)
-    , ActiveQuorumPromise(NewPromise<void>())
+    , ActiveQuorumPromise(NewPromise())
 {
     YCHECK(config);
     YCHECK(cellManager);

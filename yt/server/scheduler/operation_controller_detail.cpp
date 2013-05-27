@@ -2115,7 +2115,7 @@ TFuture<void> TOperationControllerBase::CompletePreparation()
     if (TotalInputChunkCount == 0) {
         LOG_INFO("Empty input");
         CancelableControlInvoker->Invoke(BIND(&TThis::OnOperationCompleted, MakeStrong(this)));
-        return NewPromise<void>();
+        return NewPromise();
     }
 
     ChunkListPool = New<TChunkListPool>(

@@ -62,7 +62,7 @@ public:
         , PingAncestors(false)
         , Proxy(owner->Channel)
         , State(EState::Active)
-        , Aborted(NewPromise<void>())
+        , Aborted(NewPromise())
     {
         YCHECK(owner);
     }

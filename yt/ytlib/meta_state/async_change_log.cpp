@@ -32,7 +32,7 @@ public:
         : UseCount(0)
         , ChangeLog(changeLog)
         , FlushedRecordCount(changeLog->GetRecordCount())
-        , Promise(NewPromise<void>())
+        , Promise(NewPromise())
     { }
 
     TFuture<void> Append(int recordIndex, const TSharedRef& data)
@@ -67,7 +67,7 @@ public:
 
             YCHECK(!Promise.IsNull());
             promise = Promise;
-            Promise = NewPromise<void>();
+            Promise = NewPromise();
         }
 
         // In addition to making this code run a tiny bit faster,

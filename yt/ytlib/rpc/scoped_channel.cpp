@@ -79,7 +79,7 @@ TScopedChannel::TScopedChannel(IChannelPtr underlyingChannel)
     : UnderlyingChannel(std::move(underlyingChannel))
     , Terminated(false)
     , OutstandingRequestCount(0)
-    , OutstandingRequestsCompleted(NewPromise<void>())
+    , OutstandingRequestsCompleted(NewPromise())
 { }
 
 TNullable<TDuration> TScopedChannel::GetDefaultTimeout() const

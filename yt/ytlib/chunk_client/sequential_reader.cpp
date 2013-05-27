@@ -24,7 +24,7 @@ TSequentialReader::TSequentialReader(
     , AsyncSemaphore(config->WindowSize)
     , NextSequenceIndex(0)
     , NextUnfetchedIndex(0)
-    , FetchingCompleteEvent(NewPromise<void>())
+    , FetchingCompleteEvent(NewPromise())
     , Codec(NCompression::GetCodec(codecId))
     , Logger(ChunkReaderLogger)
 {

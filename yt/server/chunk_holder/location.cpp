@@ -380,7 +380,7 @@ TFuture<void> TLocation::ScheduleChunkRemoval(TChunk* chunk)
 
     LOG_INFO("Chunk removal scheduled (ChunkId: %s)", ~ToString(id));
 
-    auto promise = NewPromise<void>();
+    auto promise = NewPromise();
     GetWriteInvoker()->Invoke(BIND([=] () mutable {
         LOG_DEBUG("Started removing chunk files (ChunkId: %s)", ~ToString(id));
 

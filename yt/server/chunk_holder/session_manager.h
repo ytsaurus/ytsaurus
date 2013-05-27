@@ -92,7 +92,7 @@ private:
     {
         TSlot()
             : State(ESlotState::Empty)
-            , IsWritten(NewPromise<void>())
+            , IsWritten(NewPromise())
         { }
 
         ESlotState State;
