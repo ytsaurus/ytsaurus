@@ -27,8 +27,6 @@ void RemoveDirAsRoot(const Stroka& path);
 
 void SafeClose(int fd, bool ignoreInvalidFd = false);
 
-std::vector<int> GetAllDescriptors();
-
 void CloseAllDescriptors();
 
 int SetMemoryLimit(rlim_t memoryLimit);
