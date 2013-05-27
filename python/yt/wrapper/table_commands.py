@@ -248,7 +248,7 @@ def write_table(table, input_stream, format=None, table_writer=None, replication
 
     There are two modes.
     In chunk mode we write by portion of fixed size. Each portion is written with retries.
-    In single mode we write all stream as is throw http.
+    In single mode we write all stream as is through HTTP.
 
     In both cases Transer-Encoding is used.
     """
