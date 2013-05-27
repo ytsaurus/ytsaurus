@@ -30,7 +30,6 @@ DECLARE_ENUM(EOperationState,
     (Preparing)
     (Reviving)
     (Running)
-    (Suspended)
     (Completing)
     (Completed)
     (Aborting)

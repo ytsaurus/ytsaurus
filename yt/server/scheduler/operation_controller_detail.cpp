@@ -891,12 +891,15 @@ TJobPtr TOperationControllerBase::ScheduleJob(
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    if (!Running || Operation->GetState() != EOperationState::Running) {
+    if (!Running ||
+        Operation->GetState() != EOperationState::Running ||
+        Operation->GetSuspended())
+    {
         LOG_TRACE("Operation is not running, scheduling request ignored");
         return nullptr;
     }
 
-    if (CachedPendingJobCount == 0) {
+    if (GetPendingJobCount() == 0) {
         LOG_TRACE("No pending jobs left, scheduling request ignored");
         return nullptr;
     }
@@ -1255,7 +1258,9 @@ int TOperationControllerBase::GetPendingJobCount()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    if (Operation->GetState() != EOperationState::Running) {
+    if (Operation->GetState() != EOperationState::Running ||
+        Operation->GetSuspended())
+    {
         return 0;
     }
 
@@ -1266,7 +1271,9 @@ TNodeResources TOperationControllerBase::GetNeededResources()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    if (Operation->GetState() != EOperationState::Running) {
+    if (Operation->GetState() != EOperationState::Running ||
+        Operation->GetSuspended())
+    {
         return ZeroNodeResources();
     }
 

@@ -30,6 +30,7 @@ class TOperation
     DEFINE_BYVAL_RO_PROPERTY(NMetaState::TMutationId, MutationId);
 
     DEFINE_BYVAL_RW_PROPERTY(EOperationState, State);
+    DEFINE_BYVAL_RW_PROPERTY(bool, Suspended);
 
     //! User-supplied transaction where the operation resides.
     DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::ITransactionPtr, UserTransaction);
@@ -110,10 +111,6 @@ class TOperation
     //! Delegates to #NYT::NScheduler::IsOperationFinishing.
     bool IsFinishingState() const;
 
-    //! Delegates to #NYT::NScheduler::IsOperationActive.
-    bool IsActiveState() const;
-
-public:
     TOperation(
         const TOperationId& operationId,
         EOperationType type,
@@ -122,8 +119,10 @@ public:
         NYTree::IMapNodePtr spec,
         const Stroka& authenticatedUser,
         TInstant startTime,
-        EOperationState state = EOperationState::Initializing);
+        EOperationState state = EOperationState::Initializing,
+        bool suspended = false);
 
+private:
     TPromise<void> FinishedPromise;
 
 };

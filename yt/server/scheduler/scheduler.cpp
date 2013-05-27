@@ -363,14 +363,14 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto error = DoChangeOperationState(
-            operation,
-            EOperationState::Running,
-            EOperationState::Suspended);
-
-        if (!error.IsOK()) {
-            return MakeFuture(error);
+        if (operation->IsFinishingState() || operation->IsFinishedState()) {
+            return MakeFuture(TError(
+                EErrorCode::InvalidOperationState,
+                "Cannot suspend operation in %s state",
+                ~FormatEnum(operation->GetState()).Quote()));
         }
+
+        operation->SetSuspended(true);
 
         LOG_INFO("Operation suspended (OperationId: %s)",
             ~ToString(operation->GetOperationId()));
@@ -380,14 +380,14 @@ public:
 
     TAsyncError ResumeOperation(TOperationPtr operation)
     {
-        auto error = DoChangeOperationState(
-            operation,
-            EOperationState::Suspended,
-            EOperationState::Running);
-
-        if (!error.IsOK()) {
-            return MakeFuture(error);
+        if (!operation->GetSuspended()) {
+            return MakeFuture(TError(
+                EErrorCode::InvalidOperationState,
+                "Operation is not suspended",
+                ~FormatEnum(operation->GetState()).Quote()));
         }
+
+        operation->SetSuspended(false);
 
         LOG_INFO("Operation resumed (OperationId: %s)",
             ~ToString(operation->GetOperationId()));
@@ -1140,7 +1140,7 @@ private:
 
         FOREACH (const auto& pair, IdToOperation) {
             auto operation = pair.second;
-            if (operation->IsActiveState()) {
+            if (operation->GetState() == EOperationState::Running) {
                 operation->GetController()->OnNodeOnline(node);
             }
         }
@@ -1172,7 +1172,7 @@ private:
 
         FOREACH (const auto& pair, IdToOperation) {
             auto operation = pair.second;
-            if (operation->IsActiveState()) {
+            if (operation->GetState() == EOperationState::Running) {
                 operation->GetController()->OnNodeOffline(node);
             }
         }
@@ -1222,7 +1222,7 @@ private:
 
     void LogOperationProgress(TOperationPtr operation)
     {
-        if (!operation->IsActiveState())
+        if (operation->GetState() != EOperationState::Running)
             return;
 
         LOG_DEBUG("Progress: %s, %s (OperationId: %s)",
@@ -1344,7 +1344,7 @@ private:
         ToProto(job->Result().mutable_error(), error);
 
         auto operation = job->GetOperation();
-        if (!operation->IsActiveState()) {
+        if (operation->GetState() == EOperationState::Running) {
             operation->GetController()->OnJobAborted(job);
         }
 
@@ -1368,7 +1368,7 @@ private:
     void OnJobRunning(TJobPtr job, const TJobStatus& status)
     {
         auto operation = job->GetOperation();
-        if (!operation->IsActiveState()) {
+        if (operation->GetState() == EOperationState::Running) {
             operation->GetController()->OnJobRunning(job, status);
         }
     }
@@ -1387,7 +1387,7 @@ private:
             job->Result().Swap(result);
 
             auto operation = job->GetOperation();
-            if (!operation->IsActiveState()) {
+            if (operation->GetState() == EOperationState::Running) {
                 operation->GetController()->OnJobCompleted(job);
             }
 
@@ -1406,7 +1406,7 @@ private:
             job->Result().Swap(result);
 
             auto operation = job->GetOperation();
-            if (!operation->IsActiveState()) {
+            if (operation->GetState() == EOperationState::Running) {
                 operation->GetController()->OnJobFailed(job);
             }
 
@@ -1429,7 +1429,7 @@ private:
             job->Result().Swap(result);
 
             auto operation = job->GetOperation();
-            if (!operation->IsActiveState()) {
+            if (operation->GetState() == EOperationState::Running) {
                 operation->GetController()->OnJobAborted(job);
             }
 
@@ -1595,23 +1595,6 @@ private:
             ->Run();
     }
 
-    TError DoChangeOperationState(
-        TOperationPtr operation,
-        EOperationState oldState,
-        EOperationState newState)
-    {
-        if (operation->GetState() != oldState) {
-            return TError(
-                EErrorCode::InvalidOperationState,
-                "Invalid operation state: expected %s, actual %s",
-                ~FormatEnum(EOperationState(EOperationState::Running)).Quote(),
-                ~FormatEnum(operation->GetState()).Quote());
-        }
-
-        operation->SetState(newState);
-        return TError();
-    }
-
 
     void BuildOrchidYson(IYsonConsumer* consumer)
     {
@@ -1636,7 +1619,7 @@ private:
     void BuildOperationYson(TOperationPtr operation, IYsonConsumer* consumer)
     {
         auto state = operation->GetState();
-        bool hasProgress = IsOperationActive(state) || IsOperationFinished(state);
+        bool hasProgress = (state == EOperationState::Running) || IsOperationFinished(state);
         BuildYsonMapFluently(consumer)
             .Item(ToString(operation->GetOperationId())).BeginMap()
                 .Do(BIND(&NScheduler::BuildOperationAttributes, operation))

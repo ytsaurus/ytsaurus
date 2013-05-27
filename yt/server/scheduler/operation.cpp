@@ -21,11 +21,13 @@ TOperation::TOperation(
     NYTree::IMapNodePtr spec,
     const Stroka& authenticatedUser,
     TInstant startTime,
-    EOperationState state)
+    EOperationState state,
+    bool suspended)
     : OperationId_(operationId)
     , Type_(type)
     , MutationId_(mutationId)
     , State_(state)
+    , Suspended_(suspended)
     , UserTransaction_(userTransaction)
     , Spec_(spec)
     , AuthenticatedUser_(authenticatedUser)
@@ -54,11 +56,6 @@ bool TOperation::IsFinishedState() const
 bool TOperation::IsFinishingState() const
 {
     return IsOperationFinishing(State_);
-}
-
-bool TOperation::IsActiveState() const
-{
-    return IsOperationActive(State_);
 }
 
 ////////////////////////////////////////////////////////////////////

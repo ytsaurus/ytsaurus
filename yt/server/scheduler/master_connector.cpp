@@ -552,6 +552,7 @@ private:
                     attributeFilter->add_keys("authenticated_user");
                     attributeFilter->add_keys("start_time");
                     attributeFilter->add_keys("state");
+                    attributeFilter->add_keys("suspended");
                     batchReq->AddRequest(req, "get_op_attr");
                 }
             }
@@ -865,7 +866,9 @@ private:
             attributes.Get<INodePtr>("spec")->AsMap(),
             attributes.Get<Stroka>("authenticated_user"),
             attributes.Get<TInstant>("start_time"),
-            attributes.Get<EOperationState>("state"));
+            attributes.Get<EOperationState>("state"),
+            // COMPAT(babenko)
+            attributes.Get<bool>("suspended", false));
 
         operation->SetSyncSchedulerTransaction(syncTransaction);
         operation->SetAsyncSchedulerTransaction(asyncTransaction);
@@ -970,13 +973,14 @@ private:
 
         auto operations = Bootstrap->GetScheduler()->GetOperations();
         FOREACH (auto operation, operations) {
-            if (operation->IsActiveState()) {
-                watchTransaction(operation->GetUserTransaction());
-                watchTransaction(operation->GetSyncSchedulerTransaction());
-                watchTransaction(operation->GetAsyncSchedulerTransaction());
-                watchTransaction(operation->GetInputTransaction());
-                watchTransaction(operation->GetOutputTransaction());
-            }
+            if (operation->GetState() != EOperationState::Running)
+                continue;
+
+            watchTransaction(operation->GetUserTransaction());
+            watchTransaction(operation->GetSyncSchedulerTransaction());
+            watchTransaction(operation->GetAsyncSchedulerTransaction());
+            watchTransaction(operation->GetInputTransaction());
+            watchTransaction(operation->GetOutputTransaction());
         }
 
         // Invoke GetId verbs for these transactions to see if they are alive.
@@ -1029,17 +1033,19 @@ private:
         // If so, raise an appropriate notification.
         auto operations = Bootstrap->GetScheduler()->GetOperations();
         FOREACH (auto operation, operations) {
-            if (operation->IsActiveState()) {
-                if (isDead(operation->GetUserTransaction())) {
-                    UserTransactionAborted_.Fire(operation);
-                }
-                if (isDead(operation->GetSyncSchedulerTransaction()) ||
-                    isDead(operation->GetAsyncSchedulerTransaction()) ||
-                    isDead(operation->GetInputTransaction()) ||
-                    isDead(operation->GetOutputTransaction()))
-                {
-                    SchedulerTransactionAborted_.Fire(operation);
-                }
+            if (operation->GetState() != EOperationState::Running)
+                continue;
+
+            if (isDead(operation->GetUserTransaction())) {
+                UserTransactionAborted_.Fire(operation);
+            }
+
+            if (isDead(operation->GetSyncSchedulerTransaction()) ||
+                isDead(operation->GetAsyncSchedulerTransaction()) ||
+                isDead(operation->GetInputTransaction()) ||
+                isDead(operation->GetOutputTransaction()))
+            {
+                SchedulerTransactionAborted_.Fire(operation);
             }
         }
     }
@@ -1170,7 +1176,7 @@ private:
         }
 
         // Set progress.
-        if (IsOperationActive(state) || IsOperationFinished(state)) {
+        if (state == EOperationState::Running || IsOperationFinished(state)) {
             auto req = TYPathProxy::Set(operationPath + "/@progress");
             req->set_value(BuildYsonStringFluently()
                 .BeginMap()
@@ -1465,7 +1471,7 @@ private:
         FOREACH (const auto& pair, WatcherLists) {
             const auto& list = pair.second;
             auto operation = list.Operation;
-            if (!operation->IsActiveState())
+            if (operation->GetState() != EOperationState::Running)
                 continue;
 
             auto batchReq = StartBatchRequest();
@@ -1508,7 +1514,7 @@ private:
             return;
         }
 
-        if (!operation->IsActiveState())
+        if (operation->GetState() != EOperationState::Running)
             return;
 
         auto* list = FindWatcherList(operation);

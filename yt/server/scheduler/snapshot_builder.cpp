@@ -68,7 +68,7 @@ TAsyncError TSnapshotBuilder::Run()
     // Capture everything needed in Build.
     auto scheduler = Bootstrap->GetScheduler();
     FOREACH (auto operation, scheduler->GetOperations()) {
-        if (operation->IsActiveState())
+        if (operation->GetState() != EOperationState::Running)
             continue;
 
         TJob job;
