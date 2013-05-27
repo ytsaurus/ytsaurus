@@ -25,6 +25,8 @@ void SafeClose(int fd, bool ignoreInvalidFd = false);
 
 void CloseAllDescriptors();
 
+int SetMemoryLimit(rlim_t memoryLimit);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
