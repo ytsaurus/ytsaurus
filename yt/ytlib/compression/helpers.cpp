@@ -6,8 +6,6 @@
 namespace NYT {
 namespace NCompression {
 
-struct TCodecBlockTag { };
-
 ////////////////////////////////////////////////////////////////////////////////
 
 size_t GetTotalSize(const std::vector<TSharedRef>& refs)
@@ -30,25 +28,6 @@ TSharedRef MergeRefs(const std::vector<TSharedRef>& blocks)
         pos += block.Size();
     }
     return result;
-}
-
-TSharedRef Apply(TConverter converter, const TSharedRef& ref)
-{
-    ByteArraySource source(ref.Begin(), ref.Size());
-    TBlob output;
-    converter.Run(&source, &output);
-    return TSharedRef::FromBlob<TCodecBlockTag>(std::move(output));
-}
-
-TSharedRef Apply(TConverter converter, const std::vector<TSharedRef>& refs)
-{
-    if (refs.size() == 1) {
-        return Apply(converter, refs.front());
-    }
-    TVectorRefsSource source(refs);
-    TBlob output;
-    converter.Run(&source, &output);
-    return TSharedRef::FromBlob<TCodecBlockTag>(std::move(output));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
