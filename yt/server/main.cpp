@@ -73,7 +73,7 @@ public:
         , CellMaster("", "master", "start cell master")
         , Scheduler("", "scheduler", "start scheduler")
         , JobProxy("", "job-proxy", "start job proxy")
-        , CloseAllFids("", "close-all-fids", "close all file descriptors")
+        , CloseAllFids("", "close-all-fds", "close all file descriptors")
         , JobId("", "job-id", "job id (for job proxy mode)", false, "", "ID")
         , WorkingDirectory("", "working-dir", "working directory", false, "", "DIR")
         , MemoryLimit("", "memory-limit", "soft memory limit", false, 0, "SIZE")

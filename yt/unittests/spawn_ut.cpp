@@ -7,13 +7,15 @@
 namespace NYT {
 namespace {
 
-TEST(TSpawnTest, Basic) {
+TEST(TSpawnTest, Basic)
+{
     int pid = Spawn("/bin/ls", {"ls"}, std::vector<int>());
     EXPECT_NE(pid, 0);
 }
 
 
-TEST(TSpawnTest, InvalidPath) {
+TEST(TSpawnTest, InvalidPath)
+{
 #ifdef __darwin__
     EXPECT_THROW(Spawn("/some/bad/path/binary", {"binary"}, std::vector<int>()), std::exception);
 #endif
@@ -30,12 +32,14 @@ TEST(TSpawnTest, InvalidPath) {
 #endif
 }
 
-TEST(TSpawnTest, BasicUsePATH) {
+TEST(TSpawnTest, BasicUsePATH)
+{
     int pid = Spawn("ls", {"ls"}, std::vector<int>());
     EXPECT_NE(pid, 0);
 }
 
-TEST(TSpawnTest, ProcessReturnCode0) {
+TEST(TSpawnTest, ProcessReturnCode0)
+{
     int pid = Spawn("true", {"true"}, std::vector<int>());
     ASSERT_GT(pid, 0);
 
@@ -46,7 +50,8 @@ TEST(TSpawnTest, ProcessReturnCode0) {
     EXPECT_EQ(WEXITSTATUS(status), 0);
 }
 
-TEST(TSpawnTest, ProcessReturnCode1) {
+TEST(TSpawnTest, ProcessReturnCode1)
+{
     int pid = Spawn("false", {"false"}, std::vector<int>());
     ASSERT_GT(pid, 0);
 
@@ -57,7 +62,8 @@ TEST(TSpawnTest, ProcessReturnCode1) {
     EXPECT_NE(WEXITSTATUS(status), 0);
 }
 
-TEST(TSpawnTest, Params1) {
+TEST(TSpawnTest, Params1)
+{
     int pid = Spawn("bash", {"bash", "-c", "if test 3 -gt 1; then exit 7; fi" }, std::vector<int>());
     ASSERT_GT(pid, 0);
 
@@ -68,7 +74,8 @@ TEST(TSpawnTest, Params1) {
     EXPECT_EQ(WEXITSTATUS(status), 7);
 }
 
-TEST(TSpawnTest, Params2) {
+TEST(TSpawnTest, Params2)
+{
     int pid = Spawn("bash", {"bash", "-c", "if test 1 -gt 3; then exit 7; fi" }, std::vector<int>());
     ASSERT_GT(pid, 0);
 
@@ -79,7 +86,8 @@ TEST(TSpawnTest, Params2) {
     EXPECT_EQ(WEXITSTATUS(status), 0);
 }
 
-TEST(TSpawnTest, CloseFd1) {
+TEST(TSpawnTest, CloseFd1)
+{
     int pid = Spawn("bash", {"bash", "-c", "echo hello >&42" }, std::vector<int>());
     ASSERT_GT(pid, 0);
 
@@ -90,7 +98,8 @@ TEST(TSpawnTest, CloseFd1) {
     EXPECT_NE(WEXITSTATUS(status), 0);
 }
 
-TEST(TSpawnTest, CloseFd2) {
+TEST(TSpawnTest, CloseFd2)
+{
     int newFileId = dup2(1, 42);
     ASSERT_EQ(newFileId, 42);
 
