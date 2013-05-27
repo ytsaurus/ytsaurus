@@ -96,7 +96,7 @@ public:
         , TotalCompletedJobTimeCounter("/total_completed_job_time")
         , TotalFailedJobTimeCounter("/total_failed_job_time")
         , TotalAbortedJobTimeCounter("/total_aborted_job_time")
-        , JobTypeCounters(EJobType::GetDomainSize())
+        , JobTypeCounters(static_cast<int>(EJobType::SchedulerLast))
         , TotalResourceLimits(ZeroNodeResources())
         , TotalResourceUsage(ZeroNodeResources())
     {
@@ -617,8 +617,11 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        FOREACH (auto jobType, EJobType::GetDomainValues()) {
-            Profiler.Enqueue("/job_count/" + FormatEnum(EJobType(jobType)), JobTypeCounters[jobType]);
+        FOREACH (auto jobTypeValue, EJobType::GetDomainValues()) {
+            auto jobType = EJobType(jobTypeValue);
+            if (jobType > EJobType::SchedulerFirst && jobType < EJobType::SchedulerLast) {
+                Profiler.Enqueue("/job_count/" + FormatEnum(jobType), JobTypeCounters[jobType]);
+            }
         }
 
         Profiler.Enqueue("/job_count/total", IdToJob.size());
