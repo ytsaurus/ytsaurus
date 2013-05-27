@@ -69,8 +69,15 @@ class TSchedulerConfig
     : public TFairShareStrategyConfig
 {
 public:
+    //! Interval between consecutive master connection attempts.
     TDuration ConnectRetryPeriod;
 
+    //! Time to wait after connecting with master but before declaring itself "connected".
+    //! Needed to ensure that all available nodes have sent their initial heartbeats
+    //! and are thus available for the revival procedure.
+    TDuration ConnectGraceDelay;
+
+    //! Timeout for node expiration.
     TDuration NodeHearbeatTimeout;
 
     TDuration TransactionsRefreshPeriod;
@@ -160,6 +167,8 @@ public:
     TSchedulerConfig()
     {
         RegisterParameter("connect_retry_period", ConnectRetryPeriod)
+            .Default(TDuration::Seconds(15));
+        RegisterParameter("connect_grace_delay", ConnectGraceDelay)
             .Default(TDuration::Seconds(15));
         RegisterParameter("node_heartbeat_timeout", NodeHearbeatTimeout)
             .Default(TDuration::Seconds(60));

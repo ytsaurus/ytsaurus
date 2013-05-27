@@ -175,9 +175,7 @@ public:
     void ValidateConnected()
     {
         if (!IsConnected()) {
-            THROW_ERROR_EXCEPTION(TError(
-                NRpc::EErrorCode::Unavailable,
-                "Master is not connected"));
+            THROW_ERROR_EXCEPTION(GetMasterDisconnectedError());
         }
     }
 
@@ -223,7 +221,7 @@ public:
         return node;
     }
 
-    TExecNodePtr GetOrCreateNode(const TNodeDescriptor& descriptor)
+    TExecNodePtr GetOrRegisterNode(const TNodeDescriptor& descriptor)
     {
         auto it = AddressToNode.find(descriptor.Address);
         if (it == AddressToNode.end()) {
@@ -368,31 +366,32 @@ public:
         node->ResourceLimits() = request->resource_limits();
         node->ResourceUsage() = request->resource_usage();
 
-        // Update total resource limits _before_ processing the heartbeat to give
-        // the scheduler the exact data on total resource limits.
+        // Update total resource limits _before_ processing the heartbeat to
+        // maintain exact values of total resource limits.
         TotalResourceLimits -= oldResourceLimits;
         TotalResourceLimits += node->ResourceLimits();
 
-        std::vector<TJobPtr> runningJobs;
-        bool hasWaitingJobs = false;
-        yhash_set<TOperationPtr> operationsToLog;
-        PROFILE_TIMING ("/analysis_time") {
-            auto missingJobs = node->Jobs();
+        if (MasterConnector->IsConnected()) {
+            std::vector<TJobPtr> runningJobs;
+            bool hasWaitingJobs = false;
+            yhash_set<TOperationPtr> operationsToLog;
+            PROFILE_TIMING ("/analysis_time") {
+                auto missingJobs = node->Jobs();
 
-            FOREACH (auto& jobStatus, *request->mutable_jobs()) {
-                auto jobType = EJobType(jobStatus.job_type());
-                // Skip jobs that are not issued by the scheduler.
-                if (jobType <= EJobType::SchedulerFirst || jobType >= EJobType::SchedulerLast)
-                    continue;
+                FOREACH (auto& jobStatus, *request->mutable_jobs()) {
+                    auto jobType = EJobType(jobStatus.job_type());
+                    // Skip jobs that are not issued by the scheduler.
+                    if (jobType <= EJobType::SchedulerFirst || jobType >= EJobType::SchedulerLast)
+                        continue;
 
-                auto job = ProcessJobHeartbeat(
-                    node,
-                    request,
-                    response,
-                    &jobStatus);
-                if (job) {
-                    YCHECK(missingJobs.erase(job) == 1);
-                    switch (job->GetState()) {
+                    auto job = ProcessJobHeartbeat(
+                        node,
+                        request,
+                        response,
+                        &jobStatus);
+                    if (job) {
+                        YCHECK(missingJobs.erase(job) == 1);
+                        switch (job->GetState()) {
                         case EJobState::Completed:
                         case EJobState::Failed:
                         case EJobState::Aborted:
@@ -406,59 +405,62 @@ public:
                             break;
                         default:
                             break;
+                        }
                     }
+                }
+
+                // Check for missing jobs.
+                FOREACH (auto job, missingJobs) {
+                    LOG_ERROR("Job is missing (Address: %s, JobId: %s, OperationId: %s)",
+                        ~node->GetAddress(),
+                        ~ToString(job->GetId()),
+                        ~ToString(job->GetOperation()->GetOperationId()));
+                    AbortJob(job, TError("Job vanished"));
+                    UnregisterJob(job);
                 }
             }
 
-            // Check for missing jobs.
-            FOREACH (auto job, missingJobs) {
-                LOG_ERROR("Job is missing (Address: %s, JobId: %s, OperationId: %s)",
-                    ~node->GetAddress(),
-                    ~ToString(job->GetId()),
-                    ~ToString(job->GetOperation()->GetOperationId()));
-                AbortJob(job, TError("Job vanished"));
-                UnregisterJob(job);
+            auto schedulingContext = CreateSchedulingContext(node, runningJobs);
+
+            if (hasWaitingJobs) {
+                LOG_DEBUG("Waiting jobs found, suppressing new jobs scheduling");
+            } else {
+                PROFILE_TIMING ("/schedule_time") {
+                    Strategy->ScheduleJobs(~schedulingContext);
+                }
             }
-        }
 
-        auto schedulingContext = CreateSchedulingContext(node, runningJobs);
-
-        if (hasWaitingJobs) {
-            LOG_DEBUG("Waiting jobs found, suppressing new jobs scheduling");
-        } else {
-            PROFILE_TIMING ("/schedule_time") {
-                Strategy->ScheduleJobs(~schedulingContext);
+            FOREACH (auto job, schedulingContext->PreemptedJobs()) {
+                ToProto(response->add_jobs_to_abort(), job->GetId());
             }
-        }
 
-        FOREACH (auto job, schedulingContext->PreemptedJobs()) {
-            ToProto(response->add_jobs_to_abort(), job->GetId());
-        }
+            auto awaiter = New<TParallelAwaiter>();
+            auto specBuilderInvoker = NRpc::TDispatcher::Get()->GetPoolInvoker();
+            FOREACH (auto job, schedulingContext->StartedJobs()) {
+                auto* startInfo = response->add_jobs_to_start();
+                ToProto(startInfo->mutable_job_id(), job->GetId());
+                *startInfo->mutable_resource_limits() = job->ResourceUsage();
 
-        auto awaiter = New<TParallelAwaiter>();
-        auto specBuilderInvoker = NRpc::TDispatcher::Get()->GetPoolInvoker();
-        FOREACH (auto job, schedulingContext->StartedJobs()) {
-            auto* startInfo = response->add_jobs_to_start();
-            ToProto(startInfo->mutable_job_id(), job->GetId());
-            *startInfo->mutable_resource_limits() = job->ResourceUsage();
-
-            // Build spec asynchronously.
-            awaiter->Await(
-                BIND(job->GetSpecBuilder(), startInfo->mutable_spec())
+                // Build spec asynchronously.
+                awaiter->Await(
+                    BIND(job->GetSpecBuilder(), startInfo->mutable_spec())
                     .AsyncVia(specBuilderInvoker)
                     .Run());
 
-            // Release to avoid circular references.
-            job->SetSpecBuilder(TJobSpecBuilder());
-            operationsToLog.insert(job->GetOperation());
-        }
+                // Release to avoid circular references.
+                job->SetSpecBuilder(TJobSpecBuilder());
+                operationsToLog.insert(job->GetOperation());
+            }
 
-        awaiter->Complete(BIND([=] () {
-            context->Reply();
-        }));
+            awaiter->Complete(BIND([=] () {
+                context->Reply();
+            }));
 
-        FOREACH (auto operation, operationsToLog) {
-            LogOperationProgress(operation);
+            FOREACH (auto operation, operationsToLog) {
+                LogOperationProgress(operation);
+            }
+        } else {
+            context->Reply(GetMasterDisconnectedError());
         }
 
         // Update total resource usage _after_ processing the heartbeat to avoid
@@ -672,6 +674,13 @@ private:
         IdToJob.clear();
 
         std::fill(JobTypeCounters.begin(), JobTypeCounters.end(), 0);
+    }
+
+    TError GetMasterDisconnectedError()
+    {
+        return TError(
+            NRpc::EErrorCode::Unavailable,
+            "Master is not connected");
     }
 
 
@@ -1895,9 +1904,9 @@ TExecNodePtr TScheduler::GetNode(const Stroka& address)
     return Impl->GetNode(address);
 }
 
-TExecNodePtr TScheduler::GetOrCreateNode(const TNodeDescriptor& descriptor)
+TExecNodePtr TScheduler::GetOrRegisterNode(const TNodeDescriptor& descriptor)
 {
-    return Impl->GetOrCreateNode(descriptor);
+    return Impl->GetOrRegisterNode(descriptor);
 }
 
 TFuture<TScheduler::TStartResult> TScheduler::StartOperation(

@@ -409,15 +409,17 @@ private:
 
         TAsyncPipeline<TMasterHandshakeResult>::TPtr Create()
         {
+            auto this_ = MakeStrong(this);
             return StartAsyncPipeline(Owner->Bootstrap->GetControlInvoker())
-                ->Add(BIND(&TRegistrationPipeline::Round1, MakeStrong(this)))
-                ->Add(BIND(&TRegistrationPipeline::Round2, MakeStrong(this)))
-                ->Add(BIND(&TRegistrationPipeline::Round3, MakeStrong(this)))
-                ->Add(BIND(&TRegistrationPipeline::Round4, MakeStrong(this)))
-                ->Add(BIND(&TRegistrationPipeline::Round5, MakeStrong(this)))
-                ->Add(BIND(&TRegistrationPipeline::Round6, MakeStrong(this)))
-                ->Add(BIND(&TRegistrationPipeline::Round7, MakeStrong(this)))
-                ->Add(BIND(&TRegistrationPipeline::Round8, MakeStrong(this)));
+                ->Add(BIND(&TRegistrationPipeline::Round1, this_))
+                ->Add(BIND(&TRegistrationPipeline::Round2, this_))
+                ->Add(BIND(&TRegistrationPipeline::Round3, this_))
+                ->Add(BIND(&TRegistrationPipeline::Round4, this_))
+                ->Add(BIND(&TRegistrationPipeline::Round5, this_))
+                ->Add(BIND(&TRegistrationPipeline::Round6, this_))
+                ->Add(BIND(&TRegistrationPipeline::Round7, this_))
+                ->Add(BIND(&TRegistrationPipeline::Round8, this_))
+                ->Add(BIND(&TRegistrationPipeline::Round9, this_));
         }
 
     private:
@@ -670,7 +672,7 @@ private:
 
 
         // Round 7:
-        // - Watcher requests.
+        // - Send watcher request.
         TObjectServiceProxy::TInvExecuteBatch Round7(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
         {
             THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp);
@@ -693,12 +695,23 @@ private:
         }
 
         // Round 8:
-        // - Relax :)
-        TMasterHandshakeResult Round8(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+        // - Check watcher response.
+        // - Wait for the duration of ConnectGraceDelay.
+        TFuture<void> Round8(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
         {
             THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp);
 
             Result.WatcherResponses = batchRsp;
+
+            LOG_INFO("Waiting for grace delay");
+
+            return MakeDelayed(Owner->Config->ConnectGraceDelay);
+        }
+
+        // Round 9:
+        // - Relax :)
+        TMasterHandshakeResult Round9()
+        {
             return Result;
         }
 
