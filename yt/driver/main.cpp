@@ -79,9 +79,10 @@ public:
         RegisterExecutor(New<TReduceExecutor>());
         RegisterExecutor(New<TMapReduceExecutor>());
         RegisterExecutor(New<TAbortOpExecutor>());
+        RegisterExecutor(New<TSuspendOpExecutor>());
+        RegisterExecutor(New<TResumeOpExecutor>());
         RegisterExecutor(New<TTrackOpExecutor>());
 
-        // Etc commands
         RegisterExecutor(New<TBuildSnapshotExecutor>());
         RegisterExecutor(New<TGCCollectExecutor>());
         RegisterExecutor(New<TAddMemberExecutor>());

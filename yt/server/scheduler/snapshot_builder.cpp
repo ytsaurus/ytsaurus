@@ -65,7 +65,7 @@ TAsyncError TSnapshotBuilder::Run()
     // Capture everything needed in Build.
     auto scheduler = Bootstrap->GetScheduler();
     FOREACH (auto operation, scheduler->GetOperations()) {
-        if (operation->GetState() != EOperationState::Running)
+        if (operation->IsActiveState())
             continue;
 
         TJob job;
@@ -162,7 +162,7 @@ void TSnapshotBuilder::UploadSnapshot(const TJob& job)
             TTransactionStartOptions options;
             options.Attributes->Set(
                 "title",
-                Sprintf("Operation snapshot upload for %s", ~ToString(operation->GetOperationId())));
+                Sprintf("Snapshot upload for operation %s", ~ToString(operation->GetOperationId())));
             transaction = transactionManager->Start(options);
         }
 

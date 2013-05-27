@@ -20,6 +20,7 @@ NYPath::TYPath GetSnapshotPath(const TOperationId& operationId);
 bool IsOperationFinished(EOperationState state);
 bool IsOperationFinishing(EOperationState state);
 bool IsOperationInProgress(EOperationState state);
+bool IsOperationActive(EOperationState state);
 
 ////////////////////////////////////////////////////////////////////////////////
 

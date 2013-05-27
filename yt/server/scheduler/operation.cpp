@@ -56,6 +56,11 @@ bool TOperation::IsFinishingState() const
     return IsOperationFinishing(State_);
 }
 
+bool TOperation::IsActiveState() const
+{
+    return IsOperationActive(State_);
+}
+
 ////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler

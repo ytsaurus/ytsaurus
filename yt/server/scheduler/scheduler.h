@@ -62,6 +62,9 @@ public:
         TOperationPtr operation,
         const TError& error);
 
+    TAsyncError SuspendOperation(TOperationPtr operation);
+    TAsyncError ResumeOperation(TOperationPtr operation);
+
     typedef
         NRpc::TTypedServiceContext<
             NJobTrackerClient::NProto::TReqHeartbeat,

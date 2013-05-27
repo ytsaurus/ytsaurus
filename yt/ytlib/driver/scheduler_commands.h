@@ -21,8 +21,6 @@ struct TStartOperationRequest
     }
 };
 
-typedef TIntrusivePtr<TStartOperationRequest> TSchedulerRequestPtr;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchedulerCommandBase
@@ -95,21 +93,41 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TAbortOperationRequest
+struct TSimpleOperationRequest
     : public TRequest
 {
     NScheduler::TOperationId OperationId;
 
-    TAbortOperationRequest()
+    TSimpleOperationRequest()
     {
         RegisterParameter("operation_id", OperationId);
     }
 };
 
-typedef TIntrusivePtr<TAbortOperationRequest> TAbortOperationRequestPtr;
+////////////////////////////////////////////////////////////////////////////////
 
 class TAbortOperationCommand
-    : public TTypedCommandBase<TAbortOperationRequest>
+    : public TTypedCommandBase<TSimpleOperationRequest>
+{
+private:
+    virtual void DoExecute();
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSuspendOperationCommand
+    : public TTypedCommandBase<TSimpleOperationRequest>
+{
+private:
+    virtual void DoExecute();
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TResumeOperationCommand
+    : public TTypedCommandBase<TSimpleOperationRequest>
 {
 private:
     virtual void DoExecute();

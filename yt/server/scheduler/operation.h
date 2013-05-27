@@ -110,6 +110,9 @@ class TOperation
     //! Delegates to #NYT::NScheduler::IsOperationFinishing.
     bool IsFinishingState() const;
 
+    //! Delegates to #NYT::NScheduler::IsOperationActive.
+    bool IsActiveState() const;
+
 public:
     TOperation(
         const TOperationId& operationId,

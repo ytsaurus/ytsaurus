@@ -83,8 +83,17 @@ bool IsOperationInProgress(EOperationState state)
         state == EOperationState::Preparing ||
         state == EOperationState::Reviving ||
         state == EOperationState::Running ||
+        state == EOperationState::Suspended ||
         state == EOperationState::Completing ||
-        state == EOperationState::Failing;
+        state == EOperationState::Failing ||
+        state == EOperationState::Suspended;
+}
+
+bool IsOperationActive(EOperationState state)
+{
+    return
+        state == EOperationState::Running ||
+        state == EOperationState::Suspended;
 }
 
 ////////////////////////////////////////////////////////////////////

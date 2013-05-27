@@ -30,12 +30,18 @@ DECLARE_ENUM(EOperationState,
     (Preparing)
     (Reviving)
     (Running)
+    (Suspended)
     (Completing)
     (Completed)
     (Aborting)
     (Aborted)
     (Failing)
     (Failed)
+);
+
+DECLARE_ENUM(EErrorCode,
+    ((NoSuchOperation)      (200))
+    ((InvalidOperationState)(201))
 );
 
 class TSchedulerServiceProxy;

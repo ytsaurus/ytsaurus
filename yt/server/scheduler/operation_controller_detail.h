@@ -66,7 +66,9 @@ public:
 
     virtual void Abort() override;
 
-    virtual TJobPtr ScheduleJob(ISchedulingContext* context, const NNodeTrackerClient::NProto::TNodeResources& jobLimits) override;
+    virtual TJobPtr ScheduleJob(
+        ISchedulingContext* context,
+        const NNodeTrackerClient::NProto::TNodeResources& jobLimits) override;
 
     virtual TCancelableContextPtr GetCancelableContext() override;
     virtual IInvokerPtr GetCancelableControlInvoker() override;

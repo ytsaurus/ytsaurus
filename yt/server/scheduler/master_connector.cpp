@@ -957,7 +957,7 @@ private:
 
         auto operations = Bootstrap->GetScheduler()->GetOperations();
         FOREACH (auto operation, operations) {
-            if (operation->GetState() == EOperationState::Running) {
+            if (operation->IsActiveState()) {
                 watchTransaction(operation->GetUserTransaction());
                 watchTransaction(operation->GetSyncSchedulerTransaction());
                 watchTransaction(operation->GetAsyncSchedulerTransaction());
@@ -1016,7 +1016,7 @@ private:
         // If so, raise an appropriate notification.
         auto operations = Bootstrap->GetScheduler()->GetOperations();
         FOREACH (auto operation, operations) {
-            if (operation->GetState() == EOperationState::Running) {
+            if (operation->IsActiveState()) {
                 if (isDead(operation->GetUserTransaction())) {
                     UserTransactionAborted_.Fire(operation);
                 }
@@ -1157,7 +1157,7 @@ private:
         }
 
         // Set progress.
-        if (state == EOperationState::Running || IsOperationFinished(state)) {
+        if (IsOperationActive(state) || IsOperationFinished(state)) {
             auto req = TYPathProxy::Set(operationPath + "/@progress");
             req->set_value(BuildYsonStringFluently()
                 .BeginMap()
@@ -1452,7 +1452,7 @@ private:
         FOREACH (const auto& pair, WatcherLists) {
             const auto& list = pair.second;
             auto operation = list.Operation;
-            if (operation->GetState() != EOperationState::Running)
+            if (!operation->IsActiveState())
                 continue;
 
             auto batchReq = StartBatchRequest();
@@ -1495,7 +1495,7 @@ private:
             return;
         }
 
-        if (operation->GetState() != EOperationState::Running)
+        if (!operation->IsActiveState())
             return;
 
         auto* list = FindWatcherList(operation);
