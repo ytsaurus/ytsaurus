@@ -248,13 +248,6 @@ void SafeClose(int fd, bool ignoreInvalidFd)
     }
 }
 
-int SetMemoryLimit(rlim_t memoryLimit)
-{
-    struct rlimit rlimit = {memoryLimit, RLIM_INFINITY};
-
-    return setrlimit(RLIMIT_AS, &rlimit);
-}
-
 int Spawn(
     const char* path,
     std::vector<Stroka>& arguments,
