@@ -9,7 +9,7 @@ namespace {
 
 TEST(TSpawnTest, Basic)
 {
-    int pid = Spawn("/bin/ls", {"ls"}, std::vector<int>());
+    int pid = Spawn("/bin/ls", {"ls"});
     EXPECT_NE(pid, 0);
 }
 
@@ -21,7 +21,7 @@ TEST(TSpawnTest, InvalidPath)
 #endif
 
 #ifdef __linux__
-    int pid = Spawn("/some/bad/path/binary", {"binary"}, std::vector<int>());
+    int pid = Spawn("/some/bad/path/binary", {"binary"});
     ASSERT_GT(pid, 0);
 
     int status;
@@ -34,13 +34,13 @@ TEST(TSpawnTest, InvalidPath)
 
 TEST(TSpawnTest, BasicUsePATH)
 {
-    int pid = Spawn("ls", {"ls"}, std::vector<int>());
+    int pid = Spawn("ls", {"ls"});
     EXPECT_NE(pid, 0);
 }
 
 TEST(TSpawnTest, ProcessReturnCode0)
 {
-    int pid = Spawn("true", {"true"}, std::vector<int>());
+    int pid = Spawn("true", {"true"});
     ASSERT_GT(pid, 0);
 
     int status;
@@ -52,7 +52,7 @@ TEST(TSpawnTest, ProcessReturnCode0)
 
 TEST(TSpawnTest, ProcessReturnCode1)
 {
-    int pid = Spawn("false", {"false"}, std::vector<int>());
+    int pid = Spawn("false", {"false"});
     ASSERT_GT(pid, 0);
 
     int status;
@@ -64,7 +64,7 @@ TEST(TSpawnTest, ProcessReturnCode1)
 
 TEST(TSpawnTest, Params1)
 {
-    int pid = Spawn("bash", {"bash", "-c", "if test 3 -gt 1; then exit 7; fi" }, std::vector<int>());
+    int pid = Spawn("bash", {"bash", "-c", "if test 3 -gt 1; then exit 7; fi" });
     ASSERT_GT(pid, 0);
 
     int status;
@@ -76,7 +76,7 @@ TEST(TSpawnTest, Params1)
 
 TEST(TSpawnTest, Params2)
 {
-    int pid = Spawn("bash", {"bash", "-c", "if test 1 -gt 3; then exit 7; fi" }, std::vector<int>());
+    int pid = Spawn("bash", {"bash", "-c", "if test 1 -gt 3; then exit 7; fi" });
     ASSERT_GT(pid, 0);
 
     int status;
@@ -88,7 +88,7 @@ TEST(TSpawnTest, Params2)
 
 TEST(TSpawnTest, CloseFd1)
 {
-    int pid = Spawn("bash", {"bash", "-c", "echo hello >&42" }, std::vector<int>());
+    int pid = Spawn("bash", {"bash", "-c", "echo hello >&42" });
     ASSERT_GT(pid, 0);
 
     int status;
