@@ -119,7 +119,7 @@ def make_request_with_retries(request, make_retries=False, url="", return_raw_re
             is_json = response.is_json() or not str(response.http_response.status_code).startswith("2")
             if not return_raw_response and is_json and not response.content():
                 raise YtResponseError(
-                        "Response has json content type but empty body (response headers: %s)" %
+                        "Response has JSON content type but empty body (response headers: %s)" %
                         repr(response.http_response.headers))
             return response
         except NETWORK_ERRORS as error:
