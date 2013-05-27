@@ -938,6 +938,8 @@ inline TPromise<T> NewPromise()
     return TPromise<T>(New< NYT::NDetail::TPromiseState<T> >());
 }
 
+//! Constructs a future that gets set when a given #delay elapses.
+TFuture<void> MakeDelayed(TDuration delay);
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
