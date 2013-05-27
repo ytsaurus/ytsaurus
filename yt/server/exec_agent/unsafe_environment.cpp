@@ -83,8 +83,6 @@ public:
         LOG_INFO("Starting job proxy in unsafe environment (WorkDir: %s)",
             ~WorkingDirectory);
 
-        std::vector<int> fileIds = GetAllDescriptors();
-
         try {
             ProcessId = Spawn(~ProxyPath,
                              {
@@ -96,8 +94,9 @@ public:
                                  ~ToString(JobId),
                                  "--working-dir",
                                  ~WorkingDirectory,
+                                 "--close-all-fids",
                              },
-                             fileIds);
+                              std::vector<int>());
         } catch (const std::exception& ) {
             // Failed to exec job proxy
             THROW_ERROR_EXCEPTION("Failed to start job proxy: Spawn failed")

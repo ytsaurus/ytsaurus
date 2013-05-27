@@ -224,32 +224,6 @@ void CloseAllDescriptors()
 #endif
 }
 
-std::vector<int> GetAllDescriptors()
-{
-    std::vector<int> result;
-
-#ifdef _linux_
-    auto* dp = ::opendir("/proc/self/fd");
-    YCHECK(dp != NULL);
-
-    int dirfd = ::dirfd(dp);
-    YCHECK(dirfd >= 0);
-
-    struct dirent* ep;
-    while ((ep = ::readdir(dp)) != nullptr) {
-        char* begin = ep->d_name;
-        char* end = nullptr;
-        int fd = static_cast<int>(strtol(begin, &end, 10));
-        if (fd != dirfd && begin != end) {
-            result.push_back(fd);
-        }
-    }
-
-    YCHECK(::closedir(dp) == 0);
-#endif
-    return result;
-}
-
 void SafeClose(int fd, bool ignoreInvalidFd)
 {
     while (true) {
@@ -377,11 +351,6 @@ int Spawn(const char* path,
     UNUSED(path);
     UNUSED(arguments);
     UNUSED(fileIdsToClose);
-    YUNIMPLEMENTED();
-}
-
-std::vector<int> GetAllDescriptors()
-{
     YUNIMPLEMENTED();
 }
 

@@ -3,6 +3,7 @@
 #include <ytlib/misc/crash_handler.h>
 #include <ytlib/misc/tclap_helpers.h>
 #include <ytlib/misc/address.h>
+#include <ytlib/misc/proc.h>
 
 #include <ytlib/bus/tcp_dispatcher.h>
 
@@ -72,6 +73,7 @@ public:
         , CellMaster("", "master", "start cell master")
         , Scheduler("", "scheduler", "start scheduler")
         , JobProxy("", "job-proxy", "start job proxy")
+        , CloseAllFids("", "close-all-fids", "close all file descriptors")
         , JobId("", "job-id", "job id (for job proxy mode)", false, "", "ID")
         , WorkingDirectory("", "working-dir", "working directory", false, "", "DIR")
         , Config("", "config", "configuration file", false, "", "FILE")
@@ -81,6 +83,7 @@ public:
         CmdLine.add(CellMaster);
         CmdLine.add(Scheduler);
         CmdLine.add(JobProxy);
+        CmdLine.add(CloseAllFids);
         CmdLine.add(JobId);
         CmdLine.add(WorkingDirectory);
         CmdLine.add(Config);
@@ -93,6 +96,7 @@ public:
     TCLAP::SwitchArg CellMaster;
     TCLAP::SwitchArg Scheduler;
     TCLAP::SwitchArg JobProxy;
+    TCLAP::SwitchArg CloseAllFids;
 
     TCLAP::ValueArg<Stroka> JobId;
     TCLAP::ValueArg<Stroka> WorkingDirectory;
@@ -115,6 +119,8 @@ EExitCode GuardedMain(int argc, const char* argv[])
     bool isCellNode = parser.CellNode.getValue();
     bool isScheduler = parser.Scheduler.getValue();
     bool isJobProxy = parser.JobProxy.getValue();
+
+    bool doCloseAllFids = parser.CloseAllFids.getValue();
 
     bool printConfigTemplate = parser.ConfigTemplate.getValue();
 
@@ -139,6 +145,10 @@ EExitCode GuardedMain(int argc, const char* argv[])
     if (modeCount != 1) {
         TCLAP::StdOutput().usage(parser.CmdLine);
         return EExitCode::OptionsError;
+    }
+
+    if (doCloseAllFids) {
+        CloseAllDescriptors();
     }
 
     if (!workingDirectory.empty()) {
