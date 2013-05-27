@@ -34,7 +34,7 @@ int SetMemoryLimit(rlim_t memoryLimit);
 int Spawn(
     const char* path,
     std::vector<Stroka>& arguments,
-    const std::vector<int>& fileIdsToClose = std::vector<int>());
+    const std::vector<int>& fdsToClose = std::vector<int>());
 
 ////////////////////////////////////////////////////////////////////////////////
 

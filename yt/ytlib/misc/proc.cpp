@@ -258,12 +258,12 @@ int SetMemoryLimit(rlim_t memoryLimit)
 int Spawn(
     const char* path,
     std::vector<Stroka>& arguments,
-    const std::vector<int>& fidsToClose)
+    const std::vector<int>& fdsToClose)
 {
     posix_spawn_file_actions_t fileActions;
     YCHECK(posix_spawn_file_actions_init(&fileActions) == 0);
 
-    FOREACH (auto fileId, fidsToClose) {
+    FOREACH (auto fileId, fdsToClose) {
         YCHECK(posix_spawn_file_actions_addclose(&fileActions, fileId) == 0);
     }
 
@@ -337,11 +337,11 @@ void SafeClose(int fd, bool ignoreInvalidFd)
 
 int Spawn(const char* path,
           std::initializer_list<const char*> arguments,
-          const std::vector<int>& fidsToClose)
+          const std::vector<int>& fdsToClose)
 {
     UNUSED(path);
     UNUSED(arguments);
-    UNUSED(fidsToClose);
+    UNUSED(fdsToClose);
     YUNIMPLEMENTED();
 }
 
