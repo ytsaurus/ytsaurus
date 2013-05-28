@@ -1170,8 +1170,14 @@ private:
         // Set state.
         {
             auto req = TYPathProxy::Set(operationPath + "/@state");
-            auto state = operation->GetState();
-            req->set_value(ConvertToYsonString(state).Data());
+            req->set_value(ConvertToYsonString(operation->GetState()).Data());
+            batchReq->AddRequest(req, "update_op_node");
+        }
+
+        // Set suspended flag.
+        {
+            auto req = TYPathProxy::Set(operationPath + "/@suspended");
+            req->set_value(ConvertToYsonString(operation->GetSuspended()).Data());
             batchReq->AddRequest(req, "update_op_node");
         }
 
