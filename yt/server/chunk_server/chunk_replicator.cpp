@@ -822,8 +822,10 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
                 int priority = std::max(std::min(replicaCount - 1, ReplicationPriorityCount - 1), 0);
 
                 FOREACH (auto replica, chunk->StoredReplicas()) {
-                    auto* node = replica.GetPtr();
-                    YCHECK(node->ChunkReplicationQueues()[priority].insert(chunkWithIndex).second);
+                    if (replica.GetIndex() == index) {
+                        auto* node = replica.GetPtr();
+                        YCHECK(node->ChunkReplicationQueues()[priority].insert(chunkWithIndex).second);
+                    }
                 }
             }
         }
