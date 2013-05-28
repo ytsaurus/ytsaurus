@@ -24,6 +24,7 @@ public:
     const TBlob& GetBlob() const;
 
     const char* Begin() const;
+    // Question(ignat): Why we use verb Get. Simple Size() is more consistent with other places.
     size_t GetSize() const;
 
     void Reserve(size_t capacity);

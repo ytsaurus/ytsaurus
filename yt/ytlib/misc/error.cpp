@@ -427,4 +427,13 @@ const char* TErrorException::what() const throw()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TFuture<TError> ConvertToTErrorFuture(TFuture<TValueOrError<void>> future)
+{
+    return future.Apply(BIND([](TValueOrError<void> error) -> TError {
+        return error;
+    }));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT

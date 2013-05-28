@@ -27,13 +27,6 @@ using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<TError> ConvertToTErrorFuture(TFuture<TValueOrError<void>> future)
-{
-    return future.Apply(BIND([](TValueOrError<void> error) -> TError {
-        return error;
-    }));
-}
-
 TAsyncTableReader::TAsyncTableReader(
     TTableReaderConfigPtr config,
     NRpc::IChannelPtr masterChannel,

@@ -19,19 +19,6 @@ using namespace NErasure;
 using namespace NChunkClient::NProto;
 
 ///////////////////////////////////////////////////////////////////////////////
-// Helpers
-
-#define RETURN_IF_ERROR(valueOrError) \
-    if (!valueOrError.IsOK()) { \
-        return TError(valueOrError); \
-    }
-
-#define RETURN_PROMISE_IF_ERROR(valueOrError, type) \
-    if (!valueOrError.IsOK()) { \
-        return MakePromise< type >(TError(valueOrError)); \
-    }
-
-///////////////////////////////////////////////////////////////////////////////
 
 namespace {
 
@@ -176,7 +163,7 @@ public:
         auto this_ = MakeStrong(this);
         return PreparePartInfos().Apply(
             BIND([this, this_, blockIndexes] (TError error) -> TAsyncReadResult {
-                RETURN_PROMISE_IF_ERROR(error, TReadResult);
+                RETURN_FUTURE_IF_ERROR(error, TReadResult);
                 return New<TNonReparingReaderSession>(Readers_, PartInfos_, blockIndexes)->Run();
             }));
     }
@@ -273,7 +260,7 @@ public:
 private:
     TReadFuture OnBlockRead(i64 windowSize, IAsyncReader::TReadResult readResult)
     {
-        RETURN_PROMISE_IF_ERROR(readResult, TReadResult);
+        RETURN_FUTURE_IF_ERROR(readResult, TReadResult);
 
         YCHECK(readResult.Value().size() == 1);
         auto block = readResult.Value().front();
@@ -507,7 +494,7 @@ TRepairReader::TReadFuture TRepairReader::RepairNextBlock()
     auto this_ = MakeStrong(this);
     return RepairIfNeeded()
         .Apply(BIND([this, this_] (TError error) -> TReadFuture {
-            RETURN_PROMISE_IF_ERROR(error, TReadResult);
+            RETURN_FUTURE_IF_ERROR(error, TReadResult);
 
             YCHECK(!RepairedBlocksQueue_.empty());
             auto result = TRepairReader::TReadResult(RepairedBlocksQueue_.front());
@@ -537,7 +524,7 @@ TAsyncError TRepairReader::Repair(const std::vector<TSharedRef>& aliveWindows)
 
 TAsyncError TRepairReader::OnBlocksCollected(TValueOrError<std::vector<TSharedRef>> result)
 {
-    RETURN_PROMISE_IF_ERROR(result, TError);
+    RETURN_FUTURE_IF_ERROR(result, TError);
 
     return BIND(&TRepairReader::Repair, MakeStrong(this), result.Value())
         .AsyncVia(TDispatcher::Get()->GetErasureInvoker()).Run();
@@ -677,7 +664,7 @@ private:
         auto this_ = MakeStrong(this);
         return Reader_->RepairNextBlock().Apply(
             BIND([this, this_, pos, blockIndex] (TValueOrError<TRepairReader::TBlock> blockOrError) mutable -> IAsyncReader::TAsyncReadResult {
-                RETURN_PROMISE_IF_ERROR(blockOrError, IAsyncReader::TReadResult);
+                RETURN_FUTURE_IF_ERROR(blockOrError, IAsyncReader::TReadResult);
 
                 if (BlockIndexes_[pos] == blockIndex) {
                     Result_.push_back(blockOrError.Value().Data);
@@ -783,7 +770,7 @@ public:
 private:
     TAsyncError OnReaderPrepared(TError error)
     {
-        RETURN_PROMISE_IF_ERROR(error, TError);
+        RETURN_FUTURE_IF_ERROR(error, TError);
 
         FOREACH (auto writer, Writers_) {
             writer->Open();
@@ -806,7 +793,7 @@ private:
 
     TAsyncError OnBlockRepaired(TValueOrError<TRepairReader::TBlock> blockOrError)
     {
-        RETURN_PROMISE_IF_ERROR(blockOrError, TError);
+        RETURN_FUTURE_IF_ERROR(blockOrError, TError);
 
         const auto& block = blockOrError.Value();
         RepairedDataSize_ += block.Data.Size();
@@ -826,7 +813,7 @@ private:
         auto this_ = MakeStrong(this);
         return writer->GetReadyEvent().Apply(
             BIND([this, this_] (TError error) -> TAsyncError {
-                RETURN_PROMISE_IF_ERROR(error, TError);
+                RETURN_FUTURE_IF_ERROR(error, TError);
                 return RepairNextBlock();
             }).AsyncVia(ControlInvoker_));
     }
@@ -841,7 +828,7 @@ private:
 
     TAsyncError OnGotChunkMeta(IAsyncReader::TGetMetaResult metaOrError)
     {
-        RETURN_PROMISE_IF_ERROR(metaOrError, TError);
+        RETURN_FUTURE_IF_ERROR(metaOrError, TError);
         const auto& meta = metaOrError.Value();
 
         auto collector = New<TParallelCollector<void>>();

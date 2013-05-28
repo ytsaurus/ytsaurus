@@ -18,14 +18,6 @@ namespace {
 ///////////////////////////////////////////////////////////////////////////////
 // Helpers
 
-// TODO(babenko): remove this when TValueOrError<void> becomes just TError
-TFuture<TError> ConvertToTErrorFuture(TFuture<TValueOrError<void>> future)
-{
-    return future.Apply(BIND([](TValueOrError<void> error) -> TError {
-        return error;
-    }));
-}
-
 // Split blocks into continuous groups of approximately equal sizes.
 std::vector<std::vector<TSharedRef>> SplitBlocks(
     const std::vector<TSharedRef>& blocks,

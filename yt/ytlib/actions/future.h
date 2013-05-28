@@ -9,6 +9,19 @@
 
 namespace NYT {
 
+//! Helpers
+////////////////////////////////////////////////////////////////////////////////
+
+#define RETURN_IF_ERROR(valueOrError) \
+    if (!(valueOrError).IsOK()) { \
+        return TError(valueOrError); \
+    }
+
+#define RETURN_FUTURE_IF_ERROR(valueOrError, type) \
+    if (!(valueOrError).IsOK()) { \
+        return MakeFuture< type >(TError(valueOrError)); \
+    }
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NDetail {
