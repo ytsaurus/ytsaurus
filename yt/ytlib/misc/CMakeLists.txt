@@ -3,6 +3,7 @@ set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/misc )
 set( SRCS
   ${BASE}/address.cpp
   ${BASE}/assert.cpp
+  ${BASE}/async_stream.cpp
   ${BASE}/async_stream_state.cpp
   ${BASE}/backtrace.cpp
   ${BASE}/blob.cpp
