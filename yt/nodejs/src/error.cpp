@@ -83,10 +83,9 @@ Handle<Value> ConvertErrorToV8(const TError& error)
             Stroka encodedValue;
             encodedValue.reserve(value.Data().length() * 2);
             TStringOutput valueStream(encodedValue);
-            TJsonWriter valueWriter(&valueStream);
+            auto valueWriter = CreateJsonConsumer(&valueStream);
 
-            Consume(value, &valueWriter);
-            valueWriter.Flush();
+            Consume(value, ~valueWriter);
 
             attributes->Set(
                 String::New(key.data(), key.length()),

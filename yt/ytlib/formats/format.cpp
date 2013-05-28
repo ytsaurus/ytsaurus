@@ -168,7 +168,7 @@ std::unique_ptr<IYsonConsumer> CreateConsumerForJson(
 {
     auto config = New<TJsonFormatConfig>();
     config->Load(ConvertToNode(&attributes)->AsMap());
-    return std::unique_ptr<IYsonConsumer>(new TJsonWriter(output, DataTypeToYsonType(dataType), config));
+    return CreateJsonConsumer(output, DataTypeToYsonType(dataType), config);
 }
 
 std::unique_ptr<IYsonConsumer> CreateConsumerForDsv(

@@ -3,10 +3,7 @@
 #include "public.h"
 #include "config.h"
 
-#include <ytlib/ytree/forwarding_yson_consumer.h>
 #include <ytlib/yson/writer.h>
-
-#include <library/json/json_writer.h>
 
 namespace NYT {
 namespace NFormats {
@@ -45,53 +42,10 @@ namespace NFormats {
  *
  *  Explicit #Flush calls should be made when finished writing via the adapter.
  */
-class TJsonWriter
-    : public NYson::TYsonConsumerBase
-{
-public:
-    explicit TJsonWriter(TOutputStream* output,
-        NYson::EYsonType type = NYson::EYsonType::Node,
-        TJsonFormatConfigPtr config = New<TJsonFormatConfig>());
-    ~TJsonWriter();
-
-    void Flush();
-
-    virtual void OnStringScalar(const TStringBuf& value) override;
-    virtual void OnIntegerScalar(i64 value) override;
-    virtual void OnDoubleScalar(double value) override;
-
-    virtual void OnEntity() override;
-
-    virtual void OnBeginList() override;
-    virtual void OnListItem() override;
-    virtual void OnEndList() override;
-
-    virtual void OnBeginMap() override;
-    virtual void OnKeyedItem(const TStringBuf& key) override;
-    virtual void OnEndMap() override;
-
-    virtual void OnBeginAttributes() override;
-    virtual void OnEndAttributes() override;
-
-private:
-    TJsonWriter(NJson::TJsonWriter* jsonWriter, TJsonFormatConfigPtr config);
-
-    std::unique_ptr<NJson::TJsonWriter> UnderlyingJsonWriter;
-    NJson::TJsonWriter* JsonWriter;
-    TJsonFormatConfigPtr Config;
-    NYson::EYsonType Type;
-    bool Flushed;
-
-    void WriteStringScalar(const TStringBuf& value);
-
-    void EnterNode();
-    void LeaveNode();
-    bool IsWriteAllowed();
-
-    std::vector<bool> HasUnfoldedStructureStack;
-    int InAttributesBalance;
-    bool HasAttributes;
-};
+std::unique_ptr<NYson::IYsonConsumer> CreateJsonConsumer(
+    TOutputStream* output,
+    NYson::EYsonType type = NYson::EYsonType::Node,
+    TJsonFormatConfigPtr config = New<TJsonFormatConfig>());
 
 ////////////////////////////////////////////////////////////////////////////////
 

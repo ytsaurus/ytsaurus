@@ -117,7 +117,7 @@ void ParseYamredDsv(
     TYamredDsvFormatConfigPtr config)
 {
     auto parser = CreateParserForYamredDsv(consumer, config);
-    Parse(input, consumer, ~parser);
+    Parse(input, ~parser);
 }
 
 void ParseYamredDsv(

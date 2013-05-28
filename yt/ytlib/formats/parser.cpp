@@ -10,7 +10,7 @@ namespace NFormats {
 
 const size_t ParseChunkSize = 1 << 16;
 
-void Parse(TInputStream* input, NYson::IYsonConsumer* consumer, IParser* parser)
+void Parse(TInputStream* input, IParser* parser)
 {
     char chunk[ParseChunkSize];
     while (true) {

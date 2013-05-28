@@ -207,7 +207,7 @@ void ParseDsv(
     TDsvFormatConfigPtr config)
 {
     auto parser = CreateParserForDsv(consumer, config);
-    Parse(input, consumer, ~parser);
+    Parse(input, parser.get());
 }
 
 void ParseDsv(

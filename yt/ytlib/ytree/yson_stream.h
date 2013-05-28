@@ -40,8 +40,8 @@ inline void ParseYson(
     NYson::IYsonConsumer* consumer,
     bool enableLinePositionInfo = false)
 {
-    auto parser =  NFormats::CreateParserForYson(consumer, input.GetType(), enableLinePositionInfo);
-    NFormats::Parse(input.GetStream(), consumer, ~parser);
+    auto parser = NFormats::CreateParserForYson(consumer, input.GetType(), enableLinePositionInfo);
+    NFormats::Parse(input.GetStream(), ~parser);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -2,7 +2,10 @@
 #include "json_writer.h"
 #include "config.h"
 
+#include <ytlib/ytree/forwarding_yson_consumer.h>
 #include <ytlib/ytree/null_yson_consumer.h>
+
+#include <library/json/json_writer.h>
 
 #include <util/string/base64.h>
 
@@ -12,12 +15,81 @@
 namespace NYT {
 namespace NFormats {
 
+////////////////////////////////////////////////////////////////////////////////
+
 using namespace NYTree;
 using namespace NYson;
 
+class TJsonWriterImpl
+    : public NYson::TYsonConsumerBase
+{
+public:
+    TJsonWriterImpl(
+        TOutputStream* output,
+        NYson::EYsonType type,
+        TJsonFormatConfigPtr config);
+
+    void Flush();
+
+    virtual void OnStringScalar(const TStringBuf& value) override;
+    virtual void OnIntegerScalar(i64 value) override;
+    virtual void OnDoubleScalar(double value) override;
+
+    virtual void OnEntity() override;
+
+    virtual void OnBeginList() override;
+    virtual void OnListItem() override;
+    virtual void OnEndList() override;
+
+    virtual void OnBeginMap() override;
+    virtual void OnKeyedItem(const TStringBuf& key) override;
+    virtual void OnEndMap() override;
+
+    virtual void OnBeginAttributes() override;
+    virtual void OnEndAttributes() override;
+
+private:
+    TJsonWriterImpl(NJson::TJsonWriter* jsonWriter, TJsonFormatConfigPtr config);
+
+    std::unique_ptr<NJson::TJsonWriter> UnderlyingJsonWriter;
+    NJson::TJsonWriter* JsonWriter;
+    TJsonFormatConfigPtr Config;
+    NYson::EYsonType Type;
+
+    void WriteStringScalar(const TStringBuf& value);
+
+    void EnterNode();
+    void LeaveNode();
+    bool IsWriteAllowed();
+
+    std::vector<bool> HasUnfoldedStructureStack;
+    int InAttributesBalance;
+    bool HasAttributes;
+};
+
+class TJsonWriter
+    : public NYTree::TForwardingYsonConsumer
+{
+public:
+    TJsonWriter(
+        TOutputStream* output,
+        NYson::EYsonType type,
+        TJsonFormatConfigPtr config)
+            : Impl_(
+                output,
+                type,
+                config)
+    {
+        Forward(&Impl_, BIND(&TJsonWriterImpl::Flush, &Impl_), type);
+    }
+
+private:
+    TJsonWriterImpl Impl_;
+};
+
+
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
 bool IsValidUtf8(const unsigned char* buffer, size_t length)
 {
     YASSERT(buffer);
@@ -49,19 +121,20 @@ bool IsValidUtf8(const unsigned char* buffer, size_t length)
 
     return true;
 }
-} // namespace anonymous
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJsonWriter::TJsonWriter(TOutputStream* output,
+TJsonWriterImpl::TJsonWriterImpl(TOutputStream* output,
     NYson::EYsonType type,
     TJsonFormatConfigPtr config)
     : Config(config)
     , Type(type)
-    , Flushed(false)
 {
     if (Type == EYsonType::MapFragment) {
         THROW_ERROR_EXCEPTION("Map fragments are not supported by Json");
+    }
+    if (Type == EYsonType::ListFragment) {
+        THROW_ERROR_EXCEPTION("List fragments are not supported by Json");
     }
 
     UnderlyingJsonWriter.reset(new NJson::TJsonWriter(
@@ -71,20 +144,14 @@ TJsonWriter::TJsonWriter(TOutputStream* output,
     HasAttributes = false;
     InAttributesBalance = 0;
 
-    if (Type == EYsonType::ListFragment) {
-        JsonWriter->OpenArray();
-    }
+    // NB(ignat): we consider this unproper for json consumer implementation.
+    // It should be redesigned.
+    //if (Type == EYsonType::ListFragment) {
+    //    JsonWriter->OpenArray();
+    //}
 }
 
-TJsonWriter::~TJsonWriter()
-{
-    try {
-        Flush();
-    } catch (...) {
-    }
-}
-
-void TJsonWriter::EnterNode()
+void TJsonWriterImpl::EnterNode()
 {
     if (Config->AttributesMode == EJsonAttributesMode::Never) {
         HasAttributes = false;
@@ -107,7 +174,7 @@ void TJsonWriter::EnterNode()
     }
 }
 
-void TJsonWriter::LeaveNode()
+void TJsonWriterImpl::LeaveNode()
 {
     YCHECK(!HasUnfoldedStructureStack.empty());
     if (HasUnfoldedStructureStack.back()) {
@@ -117,7 +184,7 @@ void TJsonWriter::LeaveNode()
     HasUnfoldedStructureStack.pop_back();
 }
 
-bool TJsonWriter::IsWriteAllowed()
+bool TJsonWriterImpl::IsWriteAllowed()
 {
     if (Config->AttributesMode == EJsonAttributesMode::Never) {
         return InAttributesBalance == 0;
@@ -125,7 +192,7 @@ bool TJsonWriter::IsWriteAllowed()
     return true;
 }
 
-void TJsonWriter::OnStringScalar(const TStringBuf& value)
+void TJsonWriterImpl::OnStringScalar(const TStringBuf& value)
 {
     if (IsWriteAllowed()) {
         EnterNode();
@@ -134,7 +201,7 @@ void TJsonWriter::OnStringScalar(const TStringBuf& value)
     }
 }
 
-void TJsonWriter::OnIntegerScalar(i64 value)
+void TJsonWriterImpl::OnIntegerScalar(i64 value)
 {
     if (IsWriteAllowed()) {
         EnterNode();
@@ -143,7 +210,7 @@ void TJsonWriter::OnIntegerScalar(i64 value)
     }
 }
 
-void TJsonWriter::OnDoubleScalar(double value)
+void TJsonWriterImpl::OnDoubleScalar(double value)
 {
     if (IsWriteAllowed()) {
         EnterNode();
@@ -152,7 +219,7 @@ void TJsonWriter::OnDoubleScalar(double value)
     }
 }
 
-void TJsonWriter::OnEntity()
+void TJsonWriterImpl::OnEntity()
 {
     if (IsWriteAllowed()) {
         EnterNode();
@@ -161,7 +228,7 @@ void TJsonWriter::OnEntity()
     }
 }
 
-void TJsonWriter::OnBeginList()
+void TJsonWriterImpl::OnBeginList()
 {
     if (IsWriteAllowed()) {
         EnterNode();
@@ -169,10 +236,10 @@ void TJsonWriter::OnBeginList()
     }
 }
 
-void TJsonWriter::OnListItem()
+void TJsonWriterImpl::OnListItem()
 { }
 
-void TJsonWriter::OnEndList()
+void TJsonWriterImpl::OnEndList()
 {
     if (IsWriteAllowed()) {
         JsonWriter->CloseArray();
@@ -180,7 +247,7 @@ void TJsonWriter::OnEndList()
     }
 }
 
-void TJsonWriter::OnBeginMap()
+void TJsonWriterImpl::OnBeginMap()
 {
     if (IsWriteAllowed()) {
         EnterNode();
@@ -188,14 +255,14 @@ void TJsonWriter::OnBeginMap()
     }
 }
 
-void TJsonWriter::OnKeyedItem(const TStringBuf& name)
+void TJsonWriterImpl::OnKeyedItem(const TStringBuf& name)
 {
     if (IsWriteAllowed()) {
         WriteStringScalar(name);
     }
 }
 
-void TJsonWriter::OnEndMap()
+void TJsonWriterImpl::OnEndMap()
 {
     if (IsWriteAllowed()) {
         JsonWriter->CloseMap();
@@ -203,7 +270,7 @@ void TJsonWriter::OnEndMap()
     }
 }
 
-void TJsonWriter::OnBeginAttributes()
+void TJsonWriterImpl::OnBeginAttributes()
 {
     InAttributesBalance += 1;
     if (Config->AttributesMode != EJsonAttributesMode::Never) {
@@ -213,7 +280,7 @@ void TJsonWriter::OnBeginAttributes()
     }
 }
 
-void TJsonWriter::OnEndAttributes()
+void TJsonWriterImpl::OnEndAttributes()
 {
     InAttributesBalance -= 1;
     if (Config->AttributesMode != EJsonAttributesMode::Never) {
@@ -222,12 +289,12 @@ void TJsonWriter::OnEndAttributes()
     }
 }
 
-TJsonWriter::TJsonWriter(NJson::TJsonWriter* jsonWriter, TJsonFormatConfigPtr config)
+TJsonWriterImpl::TJsonWriterImpl(NJson::TJsonWriter* jsonWriter, TJsonFormatConfigPtr config)
     : JsonWriter(jsonWriter)
     , Config(config)
 { }
 
-void TJsonWriter::WriteStringScalar(const TStringBuf &value)
+void TJsonWriterImpl::WriteStringScalar(const TStringBuf &value)
 {
     if (
         value.empty() ||
@@ -241,15 +308,17 @@ void TJsonWriter::WriteStringScalar(const TStringBuf &value)
     }
 }
 
-void TJsonWriter::Flush()
+void TJsonWriterImpl::Flush()
 {
-    if (!Flushed) {
-        if (Type == EYsonType::ListFragment) {
-            JsonWriter->CloseArray();
-        }
-        JsonWriter->Flush();
-        Flushed = true;
-    }
+    JsonWriter->Flush();
+}
+
+std::unique_ptr<IYsonConsumer> CreateJsonConsumer(
+    TOutputStream* output,
+    NYson::EYsonType type,
+    TJsonFormatConfigPtr config)
+{
+    return std::unique_ptr<IYsonConsumer>(new TJsonWriter(output, type, config));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
