@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "proc.h"
 
+#include <ytlib/ytree/convert.h>
+
 #include <util/stream/file.h>
 
 #include <util/string/vector.h>
@@ -287,6 +289,8 @@ int Spawn(
     if (errCode != 0) {
         THROW_ERROR_EXCEPTION("Error starting child process: posix_spawn failed")
             << TErrorAttribute("path", path)
+            << TErrorAttribute("arguments", arguments)
+            << TErrorAttribute("fdsToClose", fdsToClose)
             << TError::FromSystem(errCode);
     }
     return processId;
