@@ -167,7 +167,7 @@ public:
                     *token = TToken(value);
                 } else if (state == EReadStartCase::DigitOrMinus) {
                     ReadNumeric<true>(token);
-                } else if ( state == EReadStartCase::Plus) {
+                } else if (state == EReadStartCase::Plus) {
                     TBase::Advance(1);
 
                     char ch = TBase::template GetChar<true>();
