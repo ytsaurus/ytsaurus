@@ -3,7 +3,6 @@
 #include <ytlib/misc/crash_handler.h>
 #include <ytlib/misc/tclap_helpers.h>
 #include <ytlib/misc/address.h>
-#include <ytlib/misc/proc.h>
 
 #include <ytlib/bus/tcp_dispatcher.h>
 
@@ -40,7 +39,6 @@
 
 #include <util/system/sigset.h>
 #include <util/system/execpath.h>
-#include <util/folder/dirut.h>
 
 namespace NYT {
 
@@ -73,9 +71,7 @@ public:
         , CellMaster("", "master", "start cell master")
         , Scheduler("", "scheduler", "start scheduler")
         , JobProxy("", "job-proxy", "start job proxy")
-        , CloseAllFds("", "close-all-fds", "close all file descriptors")
         , JobId("", "job-id", "job id (for job proxy mode)", false, "", "ID")
-        , WorkingDirectory("", "working-dir", "working directory", false, "", "DIR")
         , Config("", "config", "configuration file", false, "", "FILE")
         , ConfigTemplate("", "config-template", "print configuration file template")
     {
@@ -83,9 +79,7 @@ public:
         CmdLine.add(CellMaster);
         CmdLine.add(Scheduler);
         CmdLine.add(JobProxy);
-        CmdLine.add(CloseAllFds);
         CmdLine.add(JobId);
-        CmdLine.add(WorkingDirectory);
         CmdLine.add(Config);
         CmdLine.add(ConfigTemplate);
     }
@@ -96,10 +90,8 @@ public:
     TCLAP::SwitchArg CellMaster;
     TCLAP::SwitchArg Scheduler;
     TCLAP::SwitchArg JobProxy;
-    TCLAP::SwitchArg CloseAllFds;
 
     TCLAP::ValueArg<Stroka> JobId;
-    TCLAP::ValueArg<Stroka> WorkingDirectory;
     TCLAP::ValueArg<Stroka> Config;
     TCLAP::SwitchArg ConfigTemplate;
 };
@@ -120,13 +112,9 @@ EExitCode GuardedMain(int argc, const char* argv[])
     bool isScheduler = parser.Scheduler.getValue();
     bool isJobProxy = parser.JobProxy.getValue();
 
-    bool doCloseAllFds = parser.CloseAllFds.getValue();
-
     bool printConfigTemplate = parser.ConfigTemplate.getValue();
 
     Stroka configFileName = parser.Config.getValue();
-
-    Stroka workingDirectory = parser.WorkingDirectory.getValue();
 
     int modeCount = 0;
     if (isCellNode) {
@@ -145,14 +133,6 @@ EExitCode GuardedMain(int argc, const char* argv[])
     if (modeCount != 1) {
         TCLAP::StdOutput().usage(parser.CmdLine);
         return EExitCode::OptionsError;
-    }
-
-    if (doCloseAllFds) {
-        CloseAllDescriptors();
-    }
-
-    if (!workingDirectory.empty()) {
-        ChDir(workingDirectory);
     }
 
     INodePtr configNode;
