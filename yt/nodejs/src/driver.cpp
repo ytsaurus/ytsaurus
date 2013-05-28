@@ -7,6 +7,7 @@
 #include "output_stream.h"
 #include "output_stack.h"
 
+#include <ytlib/misc/async_stream.h>
 #include <ytlib/misc/error.h>
 
 #include <ytlib/ytree/node.h>
@@ -122,8 +123,8 @@ struct TExecuteRequest
     {
         Request.data = this;
 
-        DriverRequest.InputStream = &InputStack;
-        DriverRequest.OutputStream = &OutputStack;
+        DriverRequest.InputStream = CreateAsyncInputStream(&InputStack);
+        DriverRequest.OutputStream = CreateAsyncOutputStream(&OutputStack);
     }
 
     void Flush()
@@ -509,11 +510,11 @@ void TDriverWrap::ExecuteWork(uv_work_t* workRequest)
     if (LIKELY(!request->Wrap->Echo)) {
         // Execute() method is guaranteed to be exception-safe,
         // so no try-catch here.
-        request->DriverResponse = request->Wrap->Driver->Execute(request->DriverRequest);
+        request->DriverResponse = request->Wrap->Driver->Execute(request->DriverRequest).Get();
     } else {
         TTempBuf buffer;
-        auto inputStream = request->DriverRequest.InputStream;
-        auto outputStream = request->DriverRequest.OutputStream;
+        auto inputStream = CreateSyncInputStream(request->DriverRequest.InputStream);
+        auto outputStream = CreateSyncOutputStream(request->DriverRequest.OutputStream);
 
         while (size_t length = inputStream->Load(buffer.Data(), buffer.Size())) {
             outputStream->Write(buffer.Data(), length);

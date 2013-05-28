@@ -34,7 +34,6 @@ TFileChunkWriter::~TFileChunkWriter()
 auto TFileChunkWriter::GetFacade() -> TFacade*
 {
     if (State.IsActive() && EncodingWriter->IsReady()) {
-        Facade.NextChunk();
         return &Facade;
     }
 
@@ -175,19 +174,11 @@ NChunkClient::NProto::TChunkMeta TFileChunkWriter::GetSchedulerMeta() const
 
 TFileChunkWriterFacade::TFileChunkWriterFacade(TFileChunkWriter* writer)
     : Writer(writer)
-    , IsReady(false)
 { }
 
 void TFileChunkWriterFacade::Write(const TRef& data)
 {
-    YASSERT(IsReady);
     Writer->Write(data);
-    IsReady = false;
-}
-
-void TFileChunkWriterFacade::NextChunk()
-{
-    IsReady = true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

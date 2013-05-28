@@ -37,11 +37,9 @@ private:
     friend class TPartitionChunkWriter;
     TPartitionChunkWriter* Writer;
 
-    bool IsReady;
     DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
 
     explicit TPartitionChunkWriterFacade(TPartitionChunkWriter* writer);
-    void NextRow();
 
 };
 

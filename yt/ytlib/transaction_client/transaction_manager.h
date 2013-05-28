@@ -28,6 +28,7 @@ struct TTransactionStartOptions
     bool PingAncestors;
     bool EnableUncommittedAccounting;
     bool EnableStagedAccounting;
+    bool RegisterInManager;
     std::unique_ptr<NYTree::IAttributeDictionary> Attributes;
 };
 
@@ -41,6 +42,7 @@ struct TTransactionAttachOptions
     bool AutoAbort;
     bool Ping;
     bool PingAncestors;
+    bool RegisterInManager;
 };
 
 //! Controls transactions at client-side.
@@ -74,6 +76,9 @@ public:
      *  This call does not block.
      *  Thread affinity: any.
      */
+    TFuture<TValueOrError<ITransactionPtr>> AsyncStart(const TTransactionStartOptions& options);
+    
+    //! Synchronous version of start transaction
     ITransactionPtr Start(const TTransactionStartOptions& options);
 
     //! Attaches to an existing transaction.
@@ -93,6 +98,9 @@ public:
      */
     ITransactionPtr Attach(const TTransactionAttachOptions& options);
 
+    //! Aborts all active transactions.
+    void AsyncAbortAll();
+
 private:
     class TTransaction;
     typedef TIntrusivePtr<TTransaction> TTransactionPtr;
@@ -103,6 +111,8 @@ private:
     NRpc::IChannelPtr Channel;
     NObjectClient::TObjectServiceProxy ObjectProxy;
 
+    TSpinLock SpinLock;
+    yhash_set<TTransaction*> AliveTransactions;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

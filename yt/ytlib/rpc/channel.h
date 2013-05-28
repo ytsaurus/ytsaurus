@@ -42,7 +42,7 @@ struct IChannel
      *  It is safe to call this method multiple times.
      *  After the first call the instance is no longer usable.
      */
-    virtual void Terminate(const TError& error) = 0;
+    virtual TFuture<void> Terminate(const TError& error) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

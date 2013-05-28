@@ -28,10 +28,6 @@ private:
     friend class TFileChunkWriter;
     TFileChunkWriter* Writer;
 
-    bool IsReady;
-
-    void NextChunk();
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

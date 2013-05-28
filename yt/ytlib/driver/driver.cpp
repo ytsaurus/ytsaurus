@@ -9,6 +9,8 @@
 #include "table_commands.h"
 #include "scheduler_commands.h"
 
+#include <ytlib/actions/parallel_awaiter.h>
+
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/ytree/forwarding_yson_consumer.h>
 #include <ytlib/yson/parser.h>
@@ -65,6 +67,10 @@ TCommandDescriptor IDriver::GetCommandDescriptor(const Stroka& commandName)
 class TDriver
     : public IDriver
 {
+private:
+    class TCommandContext;
+    typedef TIntrusivePtr<TCommandContext> TCommandContextPtr;
+
 public:
     explicit TDriver(TDriverConfigPtr config)
         : Config(config)
@@ -125,7 +131,7 @@ public:
 #undef REGISTER
     }
 
-    virtual TDriverResponse Execute(const TDriverRequest& request) override
+    virtual TFuture<TDriverResponse> Execute(const TDriverRequest& request) override
     {
         YCHECK(request.InputStream);
         YCHECK(request.OutputStream);
@@ -134,8 +140,7 @@ public:
 
         auto it = Commands.find(request.CommandName);
         if (it == Commands.end()) {
-            response.Error = TError("Unknown command: %s", ~request.CommandName);
-            return response;
+            return MakePromise(TDriverResponse(TError("Unknown command: %s", ~request.CommandName)));
         }
 
         LOG_INFO("Command started (Command: %s, User: %s)",
@@ -166,7 +171,7 @@ public:
                 masterChannel);
 
             // TODO(babenko): ReadFromFollowers is switched off
-            TCommandContext context(
+            auto context = New<TCommandContext>(
                 this,
                 entry.Descriptor,
                 &request,
@@ -175,22 +180,13 @@ public:
                 std::move(transactionManager));
 
             auto command = entry.Factory.Run();
-            command->Execute(&context);
-            
-            response = *context.GetResponse();
+            command->Execute(context);
+
+            auto response = context->GetAsyncResponse();
+            return response.Apply(BIND(&TDriver::OnExecutionCompleted, context, request));
         } catch (const std::exception& ex) {
-            response.Error = TError("Uncaught exception") << ex;
+            return MakePromise(TDriverResponse(TError("Uncaught exception") << ex));
         }
-
-        if (response.Error.IsOK()) {
-            LOG_INFO("Command completed (Command: %s)",
-                ~request.CommandName);
-        } else {
-            LOG_INFO(response.Error, "Command failed (Command: %s)",
-                ~request.CommandName);
-        }
-
-        return response;
     }
 
     virtual TNullable<TCommandDescriptor> FindCommandDescriptor(const Stroka& commandName) override
@@ -230,7 +226,7 @@ private:
     IChannelPtr SchedulerChannel;
     IBlockCachePtr BlockCache;
 
-    typedef TCallback<std::unique_ptr<ICommand>()> TCommandFactory;
+    typedef TCallback< ICommandPtr() > TCommandFactory;
 
     struct TCommandEntry
     {
@@ -239,6 +235,35 @@ private:
     };
 
     yhash_map<Stroka, TCommandEntry> Commands;
+
+    template <class TCommand>
+    void RegisterCommand(const TCommandDescriptor& descriptor)
+    {
+        TCommandEntry entry;
+        entry.Descriptor = descriptor;
+        entry.Factory = BIND([] () -> ICommandPtr {
+            return New<TCommand>();
+        });
+        YCHECK(Commands.insert(std::make_pair(descriptor.CommandName, entry)).second);
+    }
+
+    static TFuture<TDriverResponse> OnExecutionCompleted(
+        TCommandContextPtr context,
+        const TDriverRequest& req,
+        TDriverResponse rsp)
+    {
+        if (rsp.Error.IsOK()) {
+            LOG_INFO("Command completed (Command: %s)", ~req.CommandName);
+        } else {
+            LOG_INFO(rsp.Error, "Command failed (Command: %s)", ~req.CommandName);
+        }
+
+        context->GetTransactionManager()->AsyncAbortAll();
+
+        return context->TerminateChannels().Apply(BIND([=] () {
+            return rsp;
+        }));
+    }
 
     class TCommandContext
         : public ICommandContext
@@ -257,13 +282,20 @@ private:
             , MasterChannel(std::move(masterChannel))
             , SchedulerChannel(std::move(schedulerChannel))
             , TransactionManager(std::move(transactionManager))
+            , SyncInputStream(CreateSyncInputStream(Request->InputStream))
+            , SyncOutputStream(CreateSyncOutputStream(Request->OutputStream))
+            , Response(NewPromise<TDriverResponse>())
         { }
 
-        ~TCommandContext()
+        TFuture<void> TerminateChannels()
         {
+            LOG_DEBUG("Terminating channels");
+
             TError error("Command context terminated");
-            MasterChannel->Terminate(error);
-            SchedulerChannel->Terminate(error);
+            auto awaiter = New<TParallelAwaiter>();
+            awaiter->Await(MasterChannel->Terminate(error));
+            awaiter->Await(SchedulerChannel->Terminate(error));
+            return awaiter->Complete();
         }
 
         virtual TDriverConfigPtr GetConfig() override
@@ -296,9 +328,9 @@ private:
             return Request;
         }
 
-        virtual TDriverResponse* GetResponse() override
+        virtual void SetResponse(const TDriverResponse& response)
         {
-            return &Response;
+            Response.Set(response);
         }
 
         virtual TYsonProducer CreateInputProducer() override
@@ -308,7 +340,7 @@ private:
             return CreateProducerForFormat(
                 std::move(format),
                 Descriptor.InputType,
-                Request->InputStream);
+                ~SyncInputStream);
         }
 
         virtual std::unique_ptr<IYsonConsumer> CreateOutputConsumer() override
@@ -318,7 +350,12 @@ private:
             return CreateConsumerForFormat(
                 format,
                 Descriptor.OutputType,
-                Request->OutputStream);
+                ~SyncOutputStream);
+        }
+
+        TFuture<TDriverResponse> GetAsyncResponse()
+        {
+            return Response;
         }
 
     private:
@@ -330,20 +367,11 @@ private:
         IChannelPtr SchedulerChannel;
         TTransactionManagerPtr TransactionManager;
 
-        TDriverResponse Response;
+        std::unique_ptr<TInputStream> SyncInputStream;
+        std::unique_ptr<TOutputStream> SyncOutputStream;
+
+        TPromise<TDriverResponse> Response;
     };
-
-
-    template <class TCommand>
-    void RegisterCommand(const TCommandDescriptor& descriptor)
-    {
-        TCommandEntry entry;
-        entry.Descriptor = descriptor;
-        entry.Factory = BIND([] () -> std::unique_ptr<ICommand> {
-            return std::unique_ptr<ICommand>(new TCommand());
-        });
-        YCHECK(Commands.insert(std::make_pair(descriptor.CommandName, entry)).second);
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

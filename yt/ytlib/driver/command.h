@@ -88,6 +88,7 @@ typedef TIntrusivePtr<TMutatingRequest> TMutatingRequestPtr;
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ICommandContext
+    : public TRefCounted
 {
     virtual ~ICommandContext()
     { }
@@ -99,21 +100,23 @@ struct ICommandContext
     virtual NTransactionClient::TTransactionManagerPtr GetTransactionManager() = 0;
 
     virtual const TDriverRequest* GetRequest() = 0;
-    virtual TDriverResponse* GetResponse() = 0;
+    virtual void SetResponse(const TDriverResponse& response) = 0;
 
     virtual NYTree::TYsonProducer CreateInputProducer() = 0;
     virtual std::unique_ptr<NYson::IYsonConsumer> CreateOutputConsumer() = 0;
 };
 
+typedef TIntrusivePtr<ICommandContext> ICommandContextPtr;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ICommand
+    : public TRefCounted
 {
-    virtual ~ICommand()
-    { }
-
-    virtual void Execute(ICommandContext* context) = 0;
+    virtual void Execute(ICommandContextPtr context) = 0;
 };
+
+typedef TIntrusivePtr<ICommand> ICommandPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -121,7 +124,7 @@ class TCommandBase
     : public ICommand
 {
 protected:
-    ICommandContext* Context;
+    ICommandContextPtr Context;
     bool Replied;
 
     std::unique_ptr<NObjectClient::TObjectServiceProxy> ObjectProxy;
@@ -133,7 +136,42 @@ protected:
 
     void ReplyError(const TError& error);
     void ReplySuccess(const NYTree::TYsonString& yson);
+    void ReplySuccess();
 
+    template<class TResponse>
+    void CheckAndReply(
+        TFuture<TResponse> future,
+        TCallback<NYTree::TYsonString(TResponse)> toYsonString
+            = TCallback<NYTree::TYsonString(TResponse)>())
+    {
+        future.Apply(BIND(&TCommandBase::OnProxyResponse<TResponse>, MakeStrong(this), toYsonString));
+    }
+    
+    void CheckAndReply(TAsyncError future)
+    {
+        auto this_ = MakeStrong(this);
+        future.Apply(BIND([this, this_] (TError error) {
+            if (!error.IsOK()) {
+                ReplyError(error);
+            } else {
+                ReplySuccess();
+            }
+        }));
+    }
+
+    template<class TResponse>
+    void OnProxyResponse(
+        TCallback<NYTree::TYsonString(TResponse)> extractResult,
+        TResponse response)
+    {
+        if (!response->IsOK()) {
+            ReplyError(*response);
+        } else if (!extractResult.IsNull()) {
+            ReplySuccess(extractResult.Run(response));
+        } else {
+            ReplySuccess();
+        }
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -143,7 +181,7 @@ class TTypedCommandBase
     : public virtual TCommandBase
 {
 public:
-    virtual void Execute(ICommandContext* context)
+    virtual void Execute(ICommandContextPtr context)
     {
         Context = context;
         try {
@@ -171,7 +209,6 @@ private:
             THROW_ERROR_EXCEPTION("Error parsing command arguments") << ex;
         }
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -188,15 +225,27 @@ class TTransactionalCommandBase<
     : public virtual TTypedCommandBase<TRequest>
 {
 protected:
-    NTransactionClient::TTransactionId GetTransactionId(bool required)
+    DECLARE_ENUM(EAllowNullTransaction,
+        (Yes)
+        (No)
+    );
+
+    DECLARE_ENUM(EPingTransaction,
+        (Yes)
+        (No)
+    );
+
+    NTransactionClient::TTransactionId GetTransactionId(EAllowNullTransaction allowNullTransaction)
     {
-        auto transaction = this->GetTransaction(required, true);
+        auto transaction = this->GetTransaction(allowNullTransaction, EPingTransaction::Yes);
         return transaction ? transaction->GetId() : NTransactionClient::NullTransactionId;
     }
 
-    NTransactionClient::ITransactionPtr GetTransaction(bool required, bool ping)
+    NTransactionClient::ITransactionPtr GetTransaction(EAllowNullTransaction allowNullTransaction, EPingTransaction pingTransaction)
     {
-        if (required && this->Request->TransactionId == NTransactionClient::NullTransactionId) {
+        if (allowNullTransaction == EAllowNullTransaction::No &&
+            this->Request->TransactionId == NTransactionClient::NullTransactionId)
+        {
             THROW_ERROR_EXCEPTION("Transaction is required");
         }
 
@@ -207,16 +256,16 @@ protected:
 
         NTransactionClient::TTransactionAttachOptions options(transactionId);
         options.AutoAbort = false;
-        options.Ping = ping;
+        options.Ping = (pingTransaction == EPingTransaction::Yes);
         options.PingAncestors = this->Request->PingAncestors;
 
         auto transactionManager = this->Context->GetTransactionManager();
         return transactionManager->Attach(options);
     }
 
-    void SetTransactionId(NRpc::IClientRequestPtr request, bool required)
+    void SetTransactionId(NRpc::IClientRequestPtr request, EAllowNullTransaction allowNullTransaction)
     {
-        NCypressClient::SetTransactionId(request, this->GetTransactionId(required));
+        NCypressClient::SetTransactionId(request, this->GetTransactionId(allowNullTransaction));
     }
 
 };

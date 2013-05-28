@@ -22,7 +22,7 @@ class TTableConsumer
     : public NYson::IYsonConsumer
 {
 public:
-    TTableConsumer(const ISyncWriterPtr& writer);
+    TTableConsumer(const IWriterBasePtr& writer);
 
 private:
     void OnStringScalar(const TStringBuf& value);
@@ -43,7 +43,7 @@ private:
     void OnEndAttributes();
     void OnRaw(const TStringBuf& yson, NYson::EYsonType type);
 
-    ISyncWriterPtr Writer;
+    IWriterBasePtr Writer;
 
     int Depth;
 
@@ -54,7 +54,6 @@ private:
     std::vector<size_t> Offsets;
 
     NYson::TYsonWriter ValueWriter;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -77,10 +77,7 @@ private:
     NCypressClient::TNodeId NodeId;
 
     DECLARE_THREAD_AFFINITY_SLOT(Client);
-
 };
-
-typedef TIntrusivePtr<TAsyncTableReader> TAsyncTableReaderPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 

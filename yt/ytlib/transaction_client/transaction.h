@@ -25,6 +25,9 @@ struct ITransaction
      *
      *  \note Thread affinity: ClientThread
      */
+    virtual TAsyncError AsyncCommit(const NMetaState::TMutationId& mutationId = NMetaState::NullMutationId) = 0;
+
+    //! Commit transaction synchronously.
     virtual void Commit(const NMetaState::TMutationId& mutationId = NMetaState::NullMutationId) = 0;
 
     //! Aborts the transaction.
@@ -39,6 +42,9 @@ struct ITransaction
      *
      *  \note Thread affinity: any
      */
+    virtual TAsyncError AsyncAbort(bool generateMutationId, const NMetaState::TMutationId& mutationId = NMetaState::NullMutationId) = 0;
+
+    //! Abort transaction synchronously.
     virtual void Abort(bool wait = false, const NMetaState::TMutationId& mutationId = NMetaState::NullMutationId) = 0;
 
     //! Detaches the transaction, i.e. makes the manager forget about it.

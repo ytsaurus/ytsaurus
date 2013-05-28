@@ -36,37 +36,22 @@ static const int RangeColumnIndex = -1;
 
 TTableChunkWriterFacade::TTableChunkWriterFacade(TTableChunkWriter* writer)
     : Writer(writer)
-    , IsReady(false)
 { }
 
 void TTableChunkWriterFacade::WriteRow(const TRow& row)
 {
-    VERIFY_THREAD_AFFINITY(ClientThread);
-    YASSERT(IsReady);
-
     Writer->WriteRow(row);
-    IsReady = false;
 }
 
 // Used internally. All column names are guaranteed to be unique.
 void TTableChunkWriterFacade::WriteRowUnsafe(const TRow& row, const TNonOwningKey& key)
 {
-    VERIFY_THREAD_AFFINITY(ClientThread);
     Writer->WriteRowUnsafe(row, key);
-    IsReady = false;
 }
 
 void TTableChunkWriterFacade::WriteRowUnsafe(const TRow& row)
 {
-    VERIFY_THREAD_AFFINITY(ClientThread);
     Writer->WriteRowUnsafe(row);
-    IsReady = false;
-}
-
-void TTableChunkWriterFacade::NextRow()
-{
-    VERIFY_THREAD_AFFINITY(ClientThread);
-    IsReady = true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -145,7 +130,6 @@ void TTableChunkWriter::SelectChannels(const TStringBuf& name, TColumnInfo& colu
 TTableChunkWriterFacade* TTableChunkWriter::GetFacade()
 {
     if (State.IsActive() && EncodingWriter->IsReady()) {
-        Facade.NextRow();
         return &Facade;
     }
 

@@ -28,25 +28,20 @@ static NLog::TLogger& Logger = TableWriterLogger;
 
 TPartitionChunkWriterFacade::TPartitionChunkWriterFacade(TPartitionChunkWriter* writer)
     : Writer(writer)
-    , IsReady(false)
 { }
 
 void TPartitionChunkWriterFacade::WriteRow(const TRow& row)
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
-    YASSERT(IsReady);
 
     Writer->WriteRow(row);
-    IsReady = false;
 }
 
 void TPartitionChunkWriterFacade::WriteRowUnsafe(const TRow& row)
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
-    YASSERT(IsReady);
 
     Writer->WriteRowUnsafe(row);
-    IsReady = false;
 }
 
 void TPartitionChunkWriterFacade::WriteRowUnsafe(
@@ -55,13 +50,6 @@ void TPartitionChunkWriterFacade::WriteRowUnsafe(
 {
     UNUSED(key);
     WriteRowUnsafe(row);
-}
-
-
-void TPartitionChunkWriterFacade::NextRow()
-{
-    VERIFY_THREAD_AFFINITY(ClientThread);
-    IsReady = true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -119,7 +107,6 @@ TPartitionChunkWriter::~TPartitionChunkWriter()
 TPartitionChunkWriterFacade* TPartitionChunkWriter::GetFacade()
 {
     if (State.IsActive() && EncodingWriter->IsReady()) {
-        Facade.NextRow();
         return &Facade;
     }
 

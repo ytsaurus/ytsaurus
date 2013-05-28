@@ -30,32 +30,30 @@ namespace NFileClient {
  *  The client must call #Open and then feed the data in by calling #Write.
  *  Finally it must call #Close.
  */
-class TFileWriter
+class TAsyncWriter
     : public NTransactionClient::TTransactionListener
 {
 public:
-    //! Initializes an instance.
-    TFileWriter(
+    TAsyncWriter(
         TFileWriterConfigPtr config,
         NRpc::IChannelPtr masterChannel,
         NTransactionClient::ITransactionPtr transaction,
         NTransactionClient::TTransactionManagerPtr transactionManager,
         const NYPath::TRichYPath& richPath);
 
-    //! Destroys an instance.
-    ~TFileWriter();
+    TAsyncError AsyncOpen();
 
-    //! Opens the writer.
-    void Open();
+    TAsyncError AsyncWrite(const TRef& data);
 
-    //! Writes another chunk.
-    void Write(const TRef& data);
-
-    //! Closes the writer.
-    void Close();
+    TAsyncError AsyncClose();
 
 private:
     typedef NChunkClient::TMultiChunkSequentialWriter<TFileChunkWriter> TWriter;
+    typedef TAsyncWriter TThis;
+
+    TAsyncError OnUploadTransactionStarted(
+        TValueOrError<NTransactionClient::ITransactionPtr> transactionOrError);
+    TAsyncError OnFileInfoReceived(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
 
     TFileWriterConfigPtr Config;
     NRpc::IChannelPtr MasterChannel;
@@ -70,7 +68,29 @@ private:
     NLog::TTaggedLogger Logger;
 
     NCypressClient::TNodeId NodeId;
+};
 
+////////////////////////////////////////////////////////////////////////////////
+
+class TSyncWriter
+    : public TRefCounted
+{
+public:
+    TSyncWriter(
+        TFileWriterConfigPtr config,
+        NRpc::IChannelPtr masterChannel,
+        NTransactionClient::ITransactionPtr transaction,
+        NTransactionClient::TTransactionManagerPtr transactionManager,
+        const NYPath::TRichYPath& richPath);
+
+    void Open();
+
+    void Write(const TRef& data);
+
+    void Close();
+
+private:
+    TAsyncWriterPtr AsyncWriter_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

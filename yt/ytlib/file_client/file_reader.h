@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "file_ypath_proxy.h"
 
 #include <ytlib/object_client/object_service_proxy.h>
 
@@ -25,16 +26,52 @@ typedef NChunkClient::TMultiChunkSequentialReader<TFileChunkReader> TFileChunkSe
  *  The client must call #Open and then read the file block-by-block
  *  calling #Read.
  */
-class TFileReader
+class TAsyncReader
     : public NTransactionClient::TTransactionListener
 {
 public:
-    //! Initializes an instance.
-    TFileReader();
+    typedef TValueOrError<TSharedRef> TResult;
+    typedef TAsyncReader TThis;
 
-    ~TFileReader();
+    TAsyncReader();
 
-    //! Opens the reader.
+    TAsyncError AsyncOpen(
+        TFileReaderConfigPtr config,
+        NRpc::IChannelPtr masterChannel,
+        NTransactionClient::ITransactionPtr transaction,
+        NChunkClient::IBlockCachePtr blockCache,
+        const NYPath::TRichYPath& richPath,
+        const TNullable<i64>& offset = Null,
+        const TNullable<i64>& length = Null);
+    
+    TFuture<TResult> AsyncRead();
+
+    i64 GetSize() const;
+
+private:
+    TAsyncError OnInfoFetched(
+        TFileReaderConfigPtr config,
+        NRpc::IChannelPtr masterChannel,
+        NTransactionClient::ITransactionPtr transaction,
+        NChunkClient::IBlockCachePtr blockCache,
+        TFileYPathProxy::TRspFetchPtr fetchRsp);
+
+    bool IsFirstBlock;
+    TIntrusivePtr<TFileChunkSequenceReader> Reader;
+
+    i64 Size;
+
+    NLog::TTaggedLogger Logger;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSyncReader
+    : public TRefCounted
+{
+public:
+    TSyncReader();
+
     void Open(
         TFileReaderConfigPtr config,
         NRpc::IChannelPtr masterChannel,
@@ -45,16 +82,10 @@ public:
         const TNullable<i64>& length = Null);
 
     TSharedRef Read();
-
     i64 GetSize() const;
 
 private:
-    bool IsFirstBlock;
-    TIntrusivePtr<TFileChunkSequenceReader> Reader;
-
-    i64 Size;
-
-    NLog::TTaggedLogger Logger;
+    TAsyncReaderPtr AsyncReader_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

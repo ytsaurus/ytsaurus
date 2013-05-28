@@ -1,7 +1,9 @@
 ﻿#pragma once
 
 #include "public.h"
+
 #include <ytlib/yson/public.h>
+#include <ytlib/ytree/public.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -19,6 +21,10 @@ private:
     NYson::IYsonConsumer* Consumer;
 
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ProduceRow(NYson::IYsonConsumer* consumer, const TRow& row, const NYTree::TYsonString& attributes);
 
 ////////////////////////////////////////////////////////////////////////////////
 

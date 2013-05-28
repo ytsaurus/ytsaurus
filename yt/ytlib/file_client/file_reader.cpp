@@ -3,7 +3,6 @@
 #include "file_chunk_reader.h"
 #include "config.h"
 #include "private.h"
-#include "file_ypath_proxy.h"
 
 #include <ytlib/object_client/object_service_proxy.h>
 
@@ -30,16 +29,13 @@ using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFileReader::TFileReader()
+TAsyncReader::TAsyncReader()
     : IsFirstBlock(true)
     , Size(0)
     , Logger(FileReaderLogger)
 { }
 
-TFileReader::~TFileReader()
-{ }
-
-void TFileReader::Open(
+TAsyncError TAsyncReader::AsyncOpen(
     TFileReaderConfigPtr config,
     NRpc::IChannelPtr masterChannel,
     ITransactionPtr transaction,
@@ -84,8 +80,20 @@ void TFileReader::Open(
 
     NObjectClient::TObjectServiceProxy proxy(masterChannel);
 
-    auto fetchRsp = proxy.Execute(fetchReq).Get();
-    THROW_ERROR_EXCEPTION_IF_FAILED(*fetchRsp, "Error fetching file info");
+    return proxy.Execute(fetchReq).Apply(
+        BIND(&TThis::OnInfoFetched, MakeStrong(this), config, masterChannel, transaction, blockCache));
+}
+
+TAsyncError TAsyncReader::OnInfoFetched(
+    TFileReaderConfigPtr config,
+    NRpc::IChannelPtr masterChannel,
+    ITransactionPtr transaction,
+    IBlockCachePtr blockCache,
+    TFileYPathProxy::TRspFetchPtr fetchRsp)
+{
+    if (!fetchRsp->IsOK()) {
+        return MakeFuture(TError("Error fetching file info"));
+    }
 
     TNodeDirectoryPtr nodeDirectory = New<TNodeDirectory>();
     nodeDirectory->MergeFrom(fetchRsp->node_directory());
@@ -108,32 +116,90 @@ void TFileReader::Open(
         std::move(chunks),
         provider);
 
-    Sync(~Reader, &TFileChunkSequenceReader::AsyncOpen);
-
-    if (transaction) {
-        ListenTransaction(transaction);
-    }
-
-    LOG_INFO("File reader opened");
+    auto this_ = MakeStrong(this);
+    return Reader->AsyncOpen().Apply(
+        BIND([this, this_, transaction] (TError error) {
+            if (!error.IsOK()) {
+                return error;
+            }
+            if (transaction) {
+                ListenTransaction(transaction);
+            }
+            LOG_INFO("File reader opened");
+            return TError();
+        })
+    );
 }
 
-TSharedRef TFileReader::Read()
+TFuture<TAsyncReader::TResult> TAsyncReader::AsyncRead()
 {
-    CheckAborted();
+    if (IsAborted()) {
+        return MakeFuture<TAsyncReader::TResult>(TError("Transaction aborted"));
+    }
+
+    auto result = MakeFuture(TError());
+    if (!IsFirstBlock && !Reader->FetchNext()) {
+        result = Reader->GetReadyEvent();
+    }
 
     if (IsFirstBlock) {
         IsFirstBlock = false;
-    } else if (!Reader->FetchNext()) {
-        Sync(~Reader, &TFileChunkSequenceReader::GetReadyEvent);
     }
 
-    auto* facade = Reader->GetFacade();
-    return facade ? facade->GetBlock() : TSharedRef();
+    auto this_ = MakeStrong(this);
+    return result.Apply(BIND([this, this_] (TError error) -> TResult {
+        if (!error.IsOK()) {
+            return error;
+        }
+        auto* facade = Reader->GetFacade();
+        return facade ? facade->GetBlock() : TSharedRef();
+    }));
 }
 
-i64 TFileReader::GetSize() const
+i64 TAsyncReader::GetSize() const
 {
     return Size;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSyncReader::TSyncReader()
+    : AsyncReader_(New<TAsyncReader>())
+{ }
+
+
+void TSyncReader::Open(
+    TFileReaderConfigPtr config,
+    NRpc::IChannelPtr masterChannel,
+    ITransactionPtr transaction,
+    IBlockCachePtr blockCache,
+    const TRichYPath& richPath,
+    const TNullable<i64>& offset,
+    const TNullable<i64>& length)
+{
+    auto result = AsyncReader_->AsyncOpen(
+        config,
+        masterChannel,
+        transaction,
+        blockCache,
+        richPath,
+        offset,
+        length).Get();
+
+    THROW_ERROR_EXCEPTION_IF_FAILED(result);
+}
+
+TSharedRef TSyncReader::Read()
+{
+    auto result = AsyncReader_->AsyncRead().Get();
+    THROW_ERROR_EXCEPTION_IF_FAILED(result);
+    return result.Value();
+}
+
+
+i64 TSyncReader::GetSize() const
+{
+    return AsyncReader_->GetSize();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -41,14 +41,7 @@ private:
     friend class TTableChunkWriter;
     TTableChunkWriter* Writer;
 
-    // If true, facade is ready to process next row.
-    bool IsReady;
-    DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
-
-
     explicit TTableChunkWriterFacade(TTableChunkWriter* writer);
-    // Called by TableChunkWriter when writer is ready to process new row.
-    void NextRow();
 
 };
 

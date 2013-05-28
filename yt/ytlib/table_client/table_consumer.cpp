@@ -12,7 +12,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableConsumer::TTableConsumer(const ISyncWriterPtr& writer)
+TTableConsumer::TTableConsumer(const IWriterBasePtr& writer)
     : Writer(writer)
     , Depth(0)
     , ValueWriter(&RowBuffer)

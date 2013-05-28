@@ -27,6 +27,8 @@ class TSchedulerCommandBase
     : public TTypedCommand<TStartOperationRequest>
 {
 protected:
+    typedef TSchedulerCommandBase TThis;
+
     void StartOperation(NScheduler::EOperationType type);
 
 };

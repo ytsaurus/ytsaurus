@@ -2,6 +2,8 @@
 #include "scoped_channel.h"
 #include "client.h"
 
+#include <ytlib/actions/future.h>
+
 namespace NYT {
 namespace NRpc {
 
@@ -24,7 +26,7 @@ public:
         IClientResponseHandlerPtr responseHandler,
         TNullable<TDuration> timeout) override;
 
-    void Terminate(const TError& error) override;
+    TFuture<void> Terminate(const TError& error) override;
 
     void OnRequestCompleted();
 
@@ -110,22 +112,20 @@ void TScopedChannel::Send(
     UnderlyingChannel->Send(request, std::move(scopedHandler), timeout);
 }
 
-void TScopedChannel::Terminate(const TError& error)
+TFuture<void> TScopedChannel::Terminate(const TError& error)
 {
     TGuard<TSpinLock> guard(SpinLock);
-    if (Terminated) {
-        return;
-    }
     
-    Terminated = true;
-    TerminationError = error;
+    if (!Terminated) {
+        Terminated = true;
+        TerminationError = error;
+    }
 
     if (OutstandingRequestCount == 0) {
-        return;
+        return MakeFuture();
     }
 
-    guard.Release();
-    OutstandingRequestsCompleted.Get();
+    return OutstandingRequestsCompleted;
 }
 
 void TScopedChannel::OnRequestCompleted()
@@ -138,7 +138,7 @@ void TScopedChannel::OnRequestCompleted()
     }
 }
 
-} // namespace
+} // anonymous namespace
 
 IChannelPtr CreateScopedChannel(IChannelPtr underlyingChannel)
 {

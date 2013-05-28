@@ -189,14 +189,14 @@ void TSnapshotBuilder::UploadSnapshot(const TJob& job)
 
         // Upload new snapshot.
         {
-            auto writer = New<TFileWriter>(
+            auto fileWriter = New<TSyncWriter>(
                 Config->SnapshotWriter,
                 Bootstrap->GetMasterChannel(),
                 transaction,
                 transactionManager,
                 snapshotPath);
 
-            writer->Open();
+            fileWriter->Open();
 
             TBlob buffer(RemoteWriteBufferSize, false);
             TFileInput fileInput(job.FileName);
@@ -207,10 +207,10 @@ void TSnapshotBuilder::UploadSnapshot(const TJob& job)
                 if (bytesRead == 0) {
                     break;
                 }
-                writer->Write(TRef(buffer.Begin(), bytesRead));
+                fileWriter->Write(TRef(buffer.Begin(), bytesRead));
             }
 
-            writer->Close();
+            fileWriter->Close();
 
             LOG_INFO("Snapshot uploaded successfully");
         }

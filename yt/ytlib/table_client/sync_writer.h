@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include "public.h"
+#include "async_writer.h"
 
 #include <ytlib/node_tracker_client/public.h>
 
@@ -17,18 +18,10 @@ namespace NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ISyncWriter
-    : public virtual TRefCounted
+    : public IWriterBase
 {
     virtual void Open() = 0;
     virtual void Close() = 0;
-
-    virtual void WriteRow(const TRow& row) = 0;
-
-    //! Returns all key columns seen so far.
-    virtual const TNullable<TKeyColumns>& GetKeyColumns() const = 0;
-
-    //! Returns the current row count (starting from 0).
-    virtual i64 GetRowCount() const = 0;
 };
 
 //////////////////////////////////////////////////////////////////////////////

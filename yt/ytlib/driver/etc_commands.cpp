@@ -42,8 +42,7 @@ void TAddMemberCommand::DoExecute()
     req->set_name(Request->Member);
     GenerateMutationId(req);
 
-    auto rsp = ObjectProxy->Execute(req).Get();
-    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+    CheckAndReply(ObjectProxy->Execute(req));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -54,8 +53,7 @@ void TRemoveMemberCommand::DoExecute()
     req->set_name(Request->Member);
     GenerateMutationId(req);
 
-    auto rsp = ObjectProxy->Execute(req).Get();
-    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+    CheckAndReply(ObjectProxy->Execute(req));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -73,21 +71,22 @@ void TCheckPersmissionCommand::DoExecute()
     auto req = TObjectYPathProxy::CheckPermission(Request->Path.GetPath());
     req->set_user(Request->User);
     req->set_permission(Request->Permission);
-    SetTransactionId(req, false);
+    SetTransactionId(req, EAllowNullTransaction::Yes);
 
-    auto rsp = ObjectProxy->Execute(req).Get();
-    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
-
-    ReplySuccess(BuildYsonStringFluently()
-        .BeginMap()
-            .Item("action").Value(ESecurityAction(rsp->action()))
-            .DoIf(rsp->has_object_id(), [&] (TFluentMap fluent) {
-                fluent.Item("object_id").Value(FromProto<TObjectId>(rsp->object_id()));
-            })
-            .DoIf(rsp->has_subject(), [&] (TFluentMap fluent) {
-                fluent.Item("subject").Value(rsp->subject());
-            })
-        .EndMap());
+    CheckAndReply(
+        ObjectProxy->Execute(req),
+        BIND([] (TObjectYPathProxy::TRspCheckPermissionPtr rsp) {
+            return BuildYsonStringFluently()
+                .BeginMap()
+                    .Item("action").Value(ESecurityAction(rsp->action()))
+                    .DoIf(rsp->has_object_id(), [&] (TFluentMap fluent) {
+                        fluent.Item("object_id").Value(FromProto<TObjectId>(rsp->object_id()));
+                    })
+                    .DoIf(rsp->has_subject(), [&] (TFluentMap fluent) {
+                        fluent.Item("subject").Value(rsp->subject());
+                    })
+                .EndMap();
+        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

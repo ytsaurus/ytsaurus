@@ -26,7 +26,7 @@ public:
         IClientResponseHandlerPtr responseHandler,
         TNullable<TDuration> timeout) override;
 
-    virtual void Terminate(const TError& error) override;
+    virtual TFuture<void> Terminate(const TError& error) override;
 
     void OnRequestCompleted();
 
@@ -141,7 +141,7 @@ void TSerializedChannel::Send(
     TrySendQueuedRequests();
 }
 
-void TSerializedChannel::Terminate(const TError& error)
+TFuture<void> TSerializedChannel::Terminate(const TError& error)
 {
     UNUSED(error);
     YUNREACHABLE();

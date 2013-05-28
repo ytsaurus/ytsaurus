@@ -77,9 +77,9 @@ public:
         UnderlyingChannel->Send(request, responseHandler, timeout);
     }
 
-    virtual void Terminate(const TError& error) override
+    virtual TFuture<void> Terminate(const TError& error) override
     {
-        UnderlyingChannel->Terminate(error);
+        return UnderlyingChannel->Terminate(error);
     }
 
 private:

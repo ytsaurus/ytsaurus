@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <ytlib/misc/error.h>
+#include <ytlib/misc/async_stream.h>
 
 #include <ytlib/formats/format.h>
 
@@ -27,11 +28,11 @@ struct TDriverRequest
 
     //! Stream used for reading command input.
     //! The stream must stay alive for the duration of #IDriver::Execute.
-    TInputStream* InputStream;
+    IAsyncInputStreamPtr InputStream;
 
     //! Stream where the command output is written.
     //! The stream must stay alive for the duration of #IDriver::Execute.
-    TOutputStream* OutputStream;
+    IAsyncOutputStreamPtr OutputStream;
 
     //! A map containing command arguments.
     NYTree::IMapNodePtr Arguments;
@@ -46,6 +47,13 @@ struct TDriverRequest
 //! An instance of driver request.
 struct TDriverResponse
 {
+    TDriverResponse()
+    { }
+
+    explicit TDriverResponse(TError error)
+        : Error(error)
+    { }
+
     //! An error returned by the command, if any.
     TError Error;
 };
@@ -105,7 +113,7 @@ struct IDriver
     : public virtual TRefCounted
 {
     //! Synchronously executes a given request.
-    virtual TDriverResponse Execute(const TDriverRequest& request) = 0;
+    virtual TFuture<TDriverResponse> Execute(const TDriverRequest& request) = 0;
 
     //! Returns a descriptor for the command with a given name or
     //! |Null| if no command with this name is registered.

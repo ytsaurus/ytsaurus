@@ -37,6 +37,7 @@ TTransactionStartOptions::TTransactionStartOptions()
     , PingAncestors(false)
     , EnableUncommittedAccounting(true)
     , EnableStagedAccounting(true)
+    , RegisterInManager(true)
     , Attributes(CreateEphemeralAttributes())
 { }
 
@@ -47,6 +48,7 @@ TTransactionAttachOptions::TTransactionAttachOptions(const TTransactionId& id)
     , AutoAbort(true)
     , Ping(true)
     , PingAncestors(false)
+    , RegisterInManager(false)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -55,26 +57,39 @@ class TTransactionManager::TTransaction
     : public ITransaction
 {
 public:
-    explicit TTransaction(TTransactionManagerPtr owner)
+    TTransaction(TTransactionManagerPtr owner, bool registerInManager)
         : Owner(owner)
         , AutoAbort(false)
         , Ping(false)
         , PingAncestors(false)
+        , RegisterInManager(registerInManager)
         , Proxy(owner->Channel)
         , State(EState::Active)
         , Aborted(NewPromise())
     {
         YCHECK(owner);
+
+        if (RegisterInManager) {
+            TGuard<TSpinLock> guard(Owner->SpinLock);
+            YCHECK(Owner->AliveTransactions.insert(this).second);
+            
+            LOG_DEBUG("Transaction registered in manager");
+        }
     }
 
     ~TTransaction()
     {
+        if (RegisterInManager) {
+            TGuard<TSpinLock> guard(Owner->SpinLock);
+            YCHECK(Owner->AliveTransactions.erase(this) == 1);
+        }
+
         if (AutoAbort && State == EState::Active) {
             InvokeAbort(false);
         }
     }
 
-    void Start(const TTransactionStartOptions& options)
+    TAsyncError Start(const TTransactionStartOptions& options)
     {
         LOG_INFO("Starting transaction");
 
@@ -92,7 +107,7 @@ public:
         auto* reqExt = req->MutableExtension(NProto::TReqCreateTransactionExt::create_transaction_ext);
         reqExt->set_enable_uncommitted_accounting(options.EnableUncommittedAccounting);
         reqExt->set_enable_staged_accounting(options.EnableStagedAccounting);
-        
+
         if (options.Timeout) {
             reqExt->set_timeout(options.Timeout.Get().MilliSeconds());
         }
@@ -101,25 +116,31 @@ public:
             NMetaState::SetOrGenerateMutationId(req, options.MutationId);
         }
 
-        auto rsp = Proxy.Execute(req).Get();
-        if (!rsp->IsOK()) {
-            // No ping tasks are running, so no need to lock here.
-            State = EState::Aborted;
-            THROW_ERROR_EXCEPTION("Error starting transaction")
-                << rsp->GetError();
-        }
-        Id = FromProto<TTransactionId>(rsp->object_id());
+        auto this_ = MakeStrong(this);
+        return Proxy.Execute(req).Apply(
+            BIND([this, this_]
+                 (TMasterYPathProxy::TRspCreateObjectPtr rsp) -> TError
+            {
+                if (!rsp->IsOK()) {
+                    State = EState::Aborted;
+                    return *rsp;
+                }
 
-        State = EState::Active;
+                State = EState::Active;
 
-        LOG_INFO("Transaction started: %s (Ping: %s, PingAncestors: %s)",
-            ~ToString(Id),
-            ~FormatBool(Ping),
-            ~FormatBool(PingAncestors));
+                Id = FromProto<TTransactionId>(rsp->object_id());
+                LOG_INFO("Transaction started: %s (Ping: %s, PingAncestors: %s)",
+                    ~ToString(Id),
+                    ~FormatBool(Ping),
+                    ~FormatBool(PingAncestors));
 
-        if (Ping) {
-            SendPing();
-        }
+                if (Ping) {
+                    SendPing();
+                }
+
+                return TError();
+            })
+        );
     }
 
     void Attach(const TTransactionAttachOptions& options)
@@ -148,7 +169,7 @@ public:
         return Id;
     }
 
-    void Commit(const NMetaState::TMutationId& mutationId) override
+    TAsyncError AsyncCommit(const NMetaState::TMutationId& mutationId) override
     {
         VERIFY_THREAD_AFFINITY(ClientThread);
 
@@ -177,30 +198,47 @@ public:
         auto req = TTransactionYPathProxy::Commit(FromObjectId(Id));
         NMetaState::SetOrGenerateMutationId(req, mutationId);
 
-        auto rsp = Proxy.Execute(req).Get();
-        if (!rsp->IsOK()) {
-            // Let's pretend the transaction was aborted.
-            // No sync here, should be safe.
-            State = EState::Aborted;
+        auto rsp = Proxy.Execute(req);
 
-            THROW_ERROR_EXCEPTION("Error committing transaction %s", ~ToString(Id))
-                << rsp->GetError();
+        auto this_ = MakeStrong(this);
+        return rsp.Apply(BIND([this, this_] (TTransactionYPathProxy::TRspCommitPtr rsp) {
+            if (!rsp->IsOK()) {
+                // Let's pretend the transaction was aborted.
+                // No sync here, should be safe.
+                State = EState::Aborted;
+                FireAbort();
+                return TError("Error committing transaction %s", ~ToString(Id)) << rsp->GetError();
+            }
+            LOG_INFO("Transaction committed (TransactionId: %s)", ~ToString(Id));
+            return TError();
+        }));
+    }
 
-            FireAbort();
-            return;
-        }
-
-        LOG_INFO("Transaction committed (TransactionId: %s)", ~ToString(Id));
+    void Commit(const NMetaState::TMutationId& mutationId) override
+    {
+        AsyncCommit(mutationId).Get();
     }
 
     void Abort(bool wait, const NMetaState::TMutationId& mutationId) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        bool generateMutationId = wait;
+        auto rspFuture = AsyncAbort(generateMutationId, mutationId);
+        if (wait) {
+            auto rsp = rspFuture.Get();
+            THROW_ERROR_EXCEPTION_IF_FAILED(rsp);
+        }
+    }
 
-        LOG_INFO("Transaction aborted by client (TransactionId: %s)", ~ToString(Id));
-
-        InvokeAbort(wait, mutationId);
-        HandleAbort();
+    virtual TAsyncError AsyncAbort(bool generateMutationId, const NMetaState::TMutationId& mutationId) override
+    {
+        auto this_ = MakeStrong(this);
+        return InvokeAbort(generateMutationId, mutationId).Apply(BIND([this, this_] (TTransactionYPathProxy::TRspAbortPtr rsp) {
+            if (!rsp->IsOK()) {
+                return TError("Error aborting transaction") << rsp->GetError();
+            }
+            HandleAbort();
+            return TError();
+        }));
     }
 
     void Detach() override
@@ -258,6 +296,7 @@ private:
     bool AutoAbort;
     bool Ping;
     bool PingAncestors;
+    bool RegisterInManager;
 
     TObjectServiceProxy Proxy;
 
@@ -309,22 +348,13 @@ private:
     }
 
 
-    void InvokeAbort(bool wait, const NMetaState::TMutationId& mutationId = NMetaState::NullMutationId)
+    TFuture<TTransactionYPathProxy::TRspAbortPtr> InvokeAbort(bool generateMutationId, const NMetaState::TMutationId& mutationId = NMetaState::NullMutationId)
     {
-        // Fire and forget in case of no wait.
         auto req = TTransactionYPathProxy::Abort(FromObjectId(Id));
-        if (wait) {
+        if (generateMutationId) {
             NMetaState::SetOrGenerateMutationId(req, mutationId);
         }
-
-        auto asyncRsp = Proxy.Execute(req);
-        if (wait) {
-            auto rsp = asyncRsp.Get();
-            if (!rsp->IsOK()) {
-                THROW_ERROR_EXCEPTION("Error aborting transaction")
-                    << rsp->GetError();
-            }
-        }
+        return Proxy.Execute(req);
     }
 
     void FireAbort()
@@ -362,22 +392,58 @@ TTransactionManager::TTransactionManager(
     YCHECK(config);
 }
 
-ITransactionPtr TTransactionManager::Start(const TTransactionStartOptions& options)
+TFuture<TValueOrError<ITransactionPtr>> TTransactionManager::AsyncStart(
+    const TTransactionStartOptions& options)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto transaction = New<TTransaction>(this);
-    transaction->Start(options);
-    return transaction;
+    typedef TValueOrError<ITransactionPtr> TOutput;
+
+    auto transaction = New<TTransaction>(this, options.RegisterInManager);
+    return transaction->Start(options).Apply(
+        BIND([=] (TError error) -> TOutput {
+            if (error.IsOK()) {
+                return TOutput(transaction);
+            }
+            return TOutput(error);
+        })
+    );
+}
+
+ITransactionPtr TTransactionManager::Start(const TTransactionStartOptions& options)
+{
+    auto transactionOrError = AsyncStart(options).Get();
+    THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError, "Error starting transaction");
+    return transactionOrError.Value();
 }
 
 ITransactionPtr TTransactionManager::Attach(const TTransactionAttachOptions& options)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto transaction = New<TTransaction>(this);
+    auto transaction = New<TTransaction>(this, options.RegisterInManager);
     transaction->Attach(options);
     return transaction;
+}
+
+void TTransactionManager::AsyncAbortAll()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    std::vector<ITransactionPtr> transactions;
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+        FOREACH (auto* rawTransaction, AliveTransactions) {
+            auto transaction = TRefCounted::DangerousGetPtr(rawTransaction);
+            if (transaction) {
+                transactions.push_back(transaction);
+            }
+        }
+    }
+
+    FOREACH (const auto& transaction, transactions) {
+        transaction->AsyncAbort(false);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

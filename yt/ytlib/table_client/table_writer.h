@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "sync_writer.h"
+#include "async_writer.h"
 #include "table_ypath_proxy.h"
 
 #include <ytlib/misc/thread_affinity.h>
@@ -27,19 +28,12 @@ namespace NTableClient {
 /*!
  *  The client must first call #Open.
  *
- *  For each row to be written, the client must add its entries by calling #Write.
- *  To finish the current row, the client must call #EndRow.
+ *  For each row to be written, the client must add its entries by calling #WriteRow.
  *
  *  Finally the client must call #Close.
  *  After this call the writer is no longer usable.
  */
-class TTableWriter
-    : public NTransactionClient::TTransactionListener
-    , public ISyncWriter
-{
-public:
-    //! Initializes an instance.
-    TTableWriter(
+IAsyncWriterPtr CreateAsyncTableWriter(
         TTableWriterConfigPtr config,
         NRpc::IChannelPtr masterChannel,
         NTransactionClient::ITransactionPtr transaction,
@@ -47,39 +41,14 @@ public:
         const NYPath::TRichYPath& richPath,
         const TNullable<TKeyColumns>& keyColumns);
 
-    //! Opens the writer.
-    void Open();
+ISyncWriterPtr CreateSyncTableWriter(
+        TTableWriterConfigPtr config,
+        NRpc::IChannelPtr masterChannel,
+        NTransactionClient::ITransactionPtr transaction,
+        NTransactionClient::TTransactionManagerPtr transactionManager,
+        const NYPath::TRichYPath& richPath,
+        const TNullable<TKeyColumns>& keyColumns);
 
-    void WriteRow(const TRow& column);
-    void Close();
-
-    const TNullable<TKeyColumns>& GetKeyColumns() const;
-
-    //! Current row count.
-    i64 GetRowCount() const;
-
-private:
-    TTableWriterConfigPtr Config;
-    TTableWriterOptionsPtr Options;
-
-    NRpc::IChannelPtr MasterChannel;
-    NTransactionClient::ITransactionPtr Transaction;
-    NTransactionClient::TTransactionId TransactionId;
-    NTransactionClient::TTransactionManagerPtr TransactionManager;
-    NYPath::TRichYPath RichPath;
-
-    bool IsOpen;
-    bool IsClosed;
-    NObjectClient::TObjectServiceProxy ObjectProxy;
-    NLog::TTaggedLogger Logger;
-
-    NTransactionClient::ITransactionPtr UploadTransaction;
-    NChunkClient::TChunkListId ChunkListId;
-
-    ISyncWriterPtr Writer;
-
-    DECLARE_THREAD_AFFINITY_SLOT(Client);
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 

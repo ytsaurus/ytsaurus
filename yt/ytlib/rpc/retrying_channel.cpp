@@ -34,7 +34,7 @@ public:
         IClientResponseHandlerPtr responseHandler,
         TNullable<TDuration> timeout) override;
 
-    virtual void Terminate(const TError& error) override;
+    virtual TFuture<void> Terminate(const TError& error) override;
 
 private:
     IChannelPtr UnderlyingChannel;
@@ -213,9 +213,9 @@ void TRetryingChannel::Send(
     ->Send();
 }
 
-void TRetryingChannel::Terminate(const TError& error)
+TFuture<void> TRetryingChannel::Terminate(const TError& error)
 {
-    UnderlyingChannel->Terminate(error);
+    return UnderlyingChannel->Terminate(error);
 }
 
 TNullable<TDuration> TRetryingChannel::GetDefaultTimeout() const

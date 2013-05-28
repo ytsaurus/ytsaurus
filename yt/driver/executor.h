@@ -83,6 +83,8 @@ protected:
     virtual void BuildArgs(NYson::IYsonConsumer* consumer);
 
     virtual TInputStream* GetInputStream();
+
+    std::unique_ptr<TOutputStream> OutputStream_;
 };
 
 

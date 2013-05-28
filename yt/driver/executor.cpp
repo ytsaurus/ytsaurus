@@ -36,6 +36,7 @@ static const char* UserConfigFileName = ".ytdriver.conf";
 static const char* SystemConfigFileName = "ytdriver.conf";
 static const char* SystemConfigPath = "/etc/";
 static const char* ConfigEnvVar = "YT_CONFIG";
+static const i64 OutputBufferSize = (1 << 16);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -180,7 +181,7 @@ EExitCode TRequestExecutor::DoExecute()
     }
 
     // Set stream buffers.
-    TBufferedOutput outputStream(&StdOutStream(), 1 << 16);
+    OutputStream_ = std::unique_ptr<TOutputStream>(new TBufferedOutput(&StdOutStream(), OutputBufferSize));
 
     TDriverRequest request;
     // GetArgs() must be called before GetInputStream()
@@ -191,7 +192,7 @@ EExitCode TRequestExecutor::DoExecute()
         request.AuthenticatedUser = AuthenticatedUserArg.getValue();
     }
 
-    request.InputStream = GetInputStream();
+    request.InputStream = CreateAsyncInputStream(GetInputStream());
     try {
         request.Arguments->AddChild(
             ConvertToNode(GetFormat(descriptor.InputType, inputFormat)),
@@ -200,7 +201,7 @@ EExitCode TRequestExecutor::DoExecute()
         THROW_ERROR_EXCEPTION("Error parsing input format") << ex;
     }
 
-    request.OutputStream = &outputStream;
+    request.OutputStream = CreateAsyncOutputStream(OutputStream_.get());
     try {
         request.Arguments->AddChild(
             ConvertToNode(GetFormat(descriptor.OutputType, outputFormat)),
@@ -214,7 +215,7 @@ EExitCode TRequestExecutor::DoExecute()
 
 EExitCode TRequestExecutor::DoExecute(const TDriverRequest& request)
 {
-    auto response = Driver->Execute(request);
+    auto response = Driver->Execute(request).Get();
     THROW_ERROR_EXCEPTION_IF_FAILED(response.Error);
     return EExitCode::OK;
 }

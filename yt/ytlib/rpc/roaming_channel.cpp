@@ -2,6 +2,8 @@
 #include "roaming_channel.h"
 #include "client.h"
 
+#include <ytlib/actions/future.h>
+
 namespace NYT {
 namespace NRpc {
 
@@ -71,7 +73,7 @@ public:
             timeout));
     }
 
-    virtual void Terminate(const TError& error) override
+    virtual TFuture<void> Terminate(const TError& error) override
     {
         YCHECK(!error.IsOK());
 
@@ -80,7 +82,7 @@ public:
             TGuard<TSpinLock> guard(SpinLock);
 
             if (Terminated) {
-                return;
+                return MakeFuture();
             }
 
             channel = ChannelPromise ? ChannelPromise.TryGet() : Null;
@@ -90,8 +92,9 @@ public:
         }
 
         if (channel && channel->IsOK()) {
-            channel->Value()->Terminate(error);
+            return channel->Value()->Terminate(error);
         }
+        return MakeFuture();
     }
 
 private:

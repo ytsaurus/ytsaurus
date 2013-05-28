@@ -1,42 +1,38 @@
 ﻿#pragma once
 
 #include "public.h"
-#include "key.h"
 
+#include <ytlib/misc/error.h>
 #include <ytlib/misc/ref_counted.h>
 #include <ytlib/misc/nullable.h>
-#include <ytlib/misc/error.h>
-#include <ytlib/misc/blob_output.h>
 
 namespace NYT {
 namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// ToDo(psushin): unused file?
-
-struct IAsyncWriter
+struct IWriterBase
     : public virtual TRefCounted
 {
-    //! Opens the writer.
+    virtual void WriteRow(const TRow& row) = 0;
+
+    virtual i64 GetRowCount() const = 0;
+
+    virtual const TNullable<TKeyColumns>& GetKeyColumns() const = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct IAsyncWriter
+    : public IWriterBase
+{
     virtual TAsyncError AsyncOpen() = 0;
 
-    //! Appends a new row.
-    /*!
-     *  Both parameters could be modified.
-     *  Sort order of rows is not validated.
-     */
-    virtual TAsyncError AsyncWriteRow(TRow& row, const TNonOwningKey& key) = 0;
+    virtual bool IsReady() = 0;
 
-    //! Closes the writer.
+    virtual TAsyncError GetReadyEvent() = 0;
+
     virtual TAsyncError AsyncClose() = 0;
-
-    //! Returns key column names if rows are added in ``sorted'' mode
-    //! or |Null| otherwise.
-    virtual const TNullable<TKeyColumns>& GetKeyColumns() const = 0;
-
-    //! Returns the current row count.
-    virtual i64 GetRowCount() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

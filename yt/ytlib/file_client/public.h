@@ -21,11 +21,17 @@ typedef TIntrusivePtr<TFileChunkWriter> TFileChunkWriterPtr;
 class TFileChunkWriterProvider;
 typedef TIntrusivePtr<TFileChunkWriterProvider> TFileChunkWriterProviderPtr;
 
-class TFileWriter;
-typedef TIntrusivePtr<TFileWriter> TFileWriterPtr;
+class TSyncWriter;
+typedef TIntrusivePtr<TSyncWriter> TSyncWriterPtr;
 
-class TFileReader;
-typedef TIntrusivePtr<TFileReader> TFileReaderPtr;
+class TAsyncWriter;
+typedef TIntrusivePtr<TAsyncWriter> TAsyncWriterPtr;
+
+class TSyncReader;
+typedef TIntrusivePtr<TSyncReader> TSyncReaderPtr;
+
+class TAsyncReader;
+typedef TIntrusivePtr<TAsyncReader> TAsyncReaderPtr;
 
 struct TFileChunkWriterConfig;
 typedef TIntrusivePtr<TFileChunkWriterConfig> TFileChunkWriterConfigPtr;

@@ -28,23 +28,29 @@ bool TTableProducer::ProduceRow()
         return false;
     }
 
-    Consumer->OnListItem();
-
-    const auto& attributes = Reader->GetRowAttributes();
-    if (!attributes.Data().empty()) {
-        Consumer->OnBeginAttributes();
-        Consumer->OnRaw(attributes.Data(), EYsonType::MapFragment);
-        Consumer->OnEndAttributes();
-    }
-
-    Consumer->OnBeginMap();
-    FOREACH (auto& pair, *row) {
-        Consumer->OnKeyedItem(pair.first);
-        Consumer->OnRaw(pair.second, EYsonType::Node);
-    }
-    Consumer->OnEndMap();
+    NTableClient::ProduceRow(Consumer, *row, Reader->GetRowAttributes());
 
     return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ProduceRow(IYsonConsumer* consumer, const TRow& row, const TYsonString& attributes)
+{
+    consumer->OnListItem();
+
+    if (!attributes.Data().empty()) {
+        consumer->OnBeginAttributes();
+        consumer->OnRaw(attributes.Data(), EYsonType::MapFragment);
+        consumer->OnEndAttributes();
+    }
+
+    consumer->OnBeginMap();
+    FOREACH (const auto& pair, row) {
+        consumer->OnKeyedItem(pair.first);
+        consumer->OnRaw(pair.second, EYsonType::Node);
+    }
+    consumer->OnEndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

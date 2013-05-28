@@ -29,6 +29,7 @@ void TStartTransactionCommand::DoExecute()
     options.ParentId = Request->TransactionId;
     options.MutationId = Request->MutationId;
     options.Ping = true;
+    options.RegisterInManager = false;
     options.PingAncestors = Request->PingAncestors;
 
     if (Request->Attributes) {
@@ -36,39 +37,46 @@ void TStartTransactionCommand::DoExecute()
     }
 
     auto transactionManager = Context->GetTransactionManager();
-    auto transaction = transactionManager->Start(options);
 
-    BuildYsonFluently(~Context->CreateOutputConsumer())
-        .Value(transaction->GetId());
-
-    transaction->Detach();
+    auto this_ = MakeStrong(this);
+    transactionManager->AsyncStart(options).Apply(
+        BIND([this, this_] (TValueOrError<ITransactionPtr> transactionOrError) {
+            if (!transactionOrError.IsOK()) {
+                ReplyError(transactionOrError);
+                return;
+            }
+            auto transaction = transactionOrError.Value();
+            auto yson = BuildYsonStringFluently().Value(transaction->GetId());
+            ReplySuccess(yson);
+            transaction->Detach();
+        })
+    );
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void TPingTransactionCommand::DoExecute()
 {
-    auto req = TTransactionYPathProxy::Ping(FromObjectId(GetTransactionId(true)));
+    auto req = TTransactionYPathProxy::Ping(FromObjectId(GetTransactionId(EAllowNullTransaction::No)));
     req->set_ping_ancestors(Request->PingAncestors);
 
-    auto rsp = ObjectProxy->Execute(req).Get();
-    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+    CheckAndReply(ObjectProxy->Execute(req));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void TCommitTransactionCommand::DoExecute()
 {
-    auto transaction = GetTransaction(true, false);
-    transaction->Commit(GenerateMutationId());
+    auto transaction = GetTransaction(EAllowNullTransaction::No, EPingTransaction::No);
+    CheckAndReply(transaction->AsyncCommit(GenerateMutationId()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void TAbortTransactionCommand::DoExecute()
 {
-    auto transaction = GetTransaction(true, false);
-    transaction->Abort(true, GenerateMutationId());
+    auto transaction = GetTransaction(EAllowNullTransaction::No, EPingTransaction::No);
+    CheckAndReply(transaction->AsyncAbort(true, GenerateMutationId()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

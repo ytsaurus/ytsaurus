@@ -5,6 +5,8 @@
 #include "message.h"
 #include "dispatcher.h"
 
+#include <ytlib/actions/future.h>
+
 #include <ytlib/misc/delayed_invoker.h>
 #include <ytlib/misc/thread_affinity.h>
 
@@ -69,7 +71,7 @@ public:
         sessionOrError.Value()->Send(request, responseHandler, timeout);
     }
 
-    virtual void Terminate(const TError& error) override
+    virtual TFuture<void> Terminate(const TError& error) override
     {
         YCHECK(!error.IsOK());
         VERIFY_THREAD_AFFINITY_ANY();
@@ -79,7 +81,7 @@ public:
             TGuard<TSpinLock> guard(SpinLock);
 
             if (Terminated) {
-                return;
+                return MakeFuture();
             }
 
             session = Session;
@@ -92,6 +94,7 @@ public:
         if (session) {
             session->Terminate(error);
         }
+        return MakeFuture();
     }
 
 private:

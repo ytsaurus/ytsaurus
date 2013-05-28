@@ -30,6 +30,9 @@ extern const int DefaultPartitionTag;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct IWriterBase;
+typedef TIntrusivePtr<IWriterBase> IWriterBasePtr;
+
 struct IAsyncWriter;
 typedef TIntrusivePtr<IAsyncWriter> IAsyncWriterPtr;
 
@@ -99,6 +102,12 @@ typedef TIntrusivePtr<TChunkReaderOptions> TChunkReaderOptionsPtr;
 
 struct TTableReaderConfig;
 typedef TIntrusivePtr<TTableReaderConfig> TTableReaderConfigPtr;
+
+struct TAsyncTableReader;
+typedef TIntrusivePtr<TAsyncTableReader> TAsyncTableReaderPtr;
+
+struct TAsyncWriter;
+typedef TIntrusivePtr<TAsyncWriter> TAsyncWriterPtr;
 
 class TTableProducer;
 class TTableConsumer;

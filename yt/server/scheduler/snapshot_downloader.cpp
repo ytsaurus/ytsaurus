@@ -74,7 +74,7 @@ TVoid TSnapshotDownloader::Download()
 
     try {
 
-        auto reader = New<NFileClient::TFileReader>();
+        auto reader = New<NFileClient::TSyncReader>();
         reader->Open(
             Config->SnapshotReader,
             Bootstrap->GetMasterChannel(),
