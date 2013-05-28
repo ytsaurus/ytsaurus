@@ -3,6 +3,7 @@
 #include "serialize.h"
 
 #include <ytlib/misc/intrusive_ptr.h>
+#include <ytlib/misc/async_stream.h>
 #include <ytlib/formats/format.h>
 #include <ytlib/driver/config.h>
 #include <ytlib/driver/driver.h>
@@ -101,10 +102,11 @@ public:
             new TPythonInputStream(GetAttr(pyRequest, "input_stream")));
         std::unique_ptr<TPythonOutputStream> outputStream(
             new TPythonOutputStream(GetAttr(pyRequest, "output_stream")));
-        request.InputStream = ~inputStream;
-        request.OutputStream = ~outputStream;
 
-        auto response = DriverInstance_->Execute(request);
+        IAsyncOutputStreamPtr asyncOutputStream(CreateAsyncOutputStream(outputStream.get()));
+        IAsyncInputStreamPtr asyncInputStream(CreateAsyncInputStream(inputStream.get()));
+
+        auto response = DriverInstance_->Execute(request).Get();
         return ConvertToPythonString(ToString(response.Error));
     }
     PYCXX_KEYWORDS_METHOD_DECL(Driver, Execute)
