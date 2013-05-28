@@ -13,6 +13,7 @@
 #include <util/folder/filelist.h>
 
 #ifdef _unix_
+    #include <spawn.h>
     #include <stdio.h>
     #include <dirent.h>
     #include <sys/types.h>
@@ -247,6 +248,49 @@ void SafeClose(int fd, bool ignoreInvalidFd)
     }
 }
 
+int Spawn(
+    const char* path,
+    std::vector<Stroka>& arguments,
+    const std::vector<int>& fdsToClose)
+{
+    posix_spawn_file_actions_t fileActions;
+    YCHECK(posix_spawn_file_actions_init(&fileActions) == 0);
+
+    FOREACH (auto fileId, fdsToClose) {
+        YCHECK(posix_spawn_file_actions_addclose(&fileActions, fileId) == 0);
+    }
+
+    posix_spawnattr_t attributes;
+    YCHECK(posix_spawnattr_init(&attributes) == 0);
+#ifdef POSIX_SPAWN_USEVFORK
+    posix_spawnattr_setflags(&attributes, POSIX_SPAWN_USEVFORK);
+#endif
+
+    std::vector<char *> args;
+    FOREACH (auto& x, arguments) {
+        args.push_back(x.begin());
+    }
+    args.push_back(NULL);
+
+    int processId;
+    int errCode = posix_spawnp(
+        &processId,
+        path,
+        &fileActions,
+        &attributes,
+        &args[0],
+        NULL);
+
+    posix_spawnattr_destroy(&attributes);
+    posix_spawn_file_actions_destroy(&fileActions);
+
+    if (errCode != 0) {
+        THROW_ERROR_EXCEPTION("Error starting child process: posix_spawn failed")
+            << TErrorAttribute("path", path)
+            << TError::FromSystem(errCode);
+    }
+    return processId;
+}
 
 #else
 
@@ -281,6 +325,17 @@ void CloseAllDescriptors()
 
 void SafeClose(int fd, bool ignoreInvalidFd)
 {
+    YUNIMPLEMENTED();
+}
+
+int Spawn(
+    const char* path,
+    std::vector<Stroka>& arguments,
+    const std::vector<int>& fdsToClose)
+{
+    UNUSED(path);
+    UNUSED(arguments);
+    UNUSED(fdsToClose);
     YUNIMPLEMENTED();
 }
 
