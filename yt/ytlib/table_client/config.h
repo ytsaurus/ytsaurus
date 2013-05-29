@@ -18,6 +18,8 @@ class TChunkWriterConfig
 public:
     i64 BlockSize;
 
+    i64 MaxRowWeight;
+
     //! Fraction of rows data size that samples are allowed to occupy.
     double SampleRate;
 
