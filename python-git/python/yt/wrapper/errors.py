@@ -11,14 +11,14 @@ class YtOperationFailedError(YtError):
 
 class YtResponseError(YtError):
     """
-    Represents error that occurs when we have error in http response.
+    Represents error that occurs when we have error in HTTP response.
     """
     pass
 
 class YtNetworkError(YtError):
     """
-    Represents error that occurs while sending http request.
-    It usually envelopes some underlying error.
+    Represents an error occured while sending an HTTP request.
+    Typically it wraps some underlying error.
     """
     pass
 
