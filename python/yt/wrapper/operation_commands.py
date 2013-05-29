@@ -2,7 +2,7 @@ import config
 import logger
 from common import require, prefix, execute_handling_sigint, get_value
 from errors import YtError, YtOperationFailedError, format_error
-from http import make_request
+from driver import make_request
 from tree_commands import get_attribute, exists, search
 from file_commands import download_file
 
