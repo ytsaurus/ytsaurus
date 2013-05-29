@@ -253,10 +253,10 @@ void TTableChunkWriter::WriteRow(const TRow& row)
     }
 
     i64 rowWeight = DataWeight - dataWeight;
-    if (rowWeight > MaxRowWeight) {
+    if (rowWeight > Config->MaxRowWeight) {
         State.Fail(TError("Table row is too large: current weight %" PRId64 ", max weight %" PRId64,
             rowWeight,
-            MaxRowWeight));
+            Config->MaxRowWeight));
         return;
     }
 

@@ -8,7 +8,6 @@ namespace NTableClient {
 
 const size_t MaxColumnNameSize = 256;
 const int MaxColumnCount = 1024;
-const i64 MaxRowWeight = 16 * 1024 * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
