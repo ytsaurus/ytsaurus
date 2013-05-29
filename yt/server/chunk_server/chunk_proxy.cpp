@@ -319,10 +319,6 @@ private:
         auto chunkManager = Bootstrap->GetChunkManager();
         const auto* chunk = GetThisTypedImpl();
 
-        if (chunk->ChunkMeta().type() != EChunkType::Table) {
-            THROW_ERROR_EXCEPTION("Chunk is non-tabular");
-        }
-
         auto replicas = chunk->GetReplicas();
 
         TNodeDirectoryBuilder nodeDirectoryBuilder(response->mutable_node_directory());
