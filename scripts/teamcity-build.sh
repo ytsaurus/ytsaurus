@@ -48,6 +48,7 @@ export LC_CTYPE=C
 
 CHECKOUT_DIRECTORY=$1
 WORKING_DIRECTORY=$2
+SANDBOX_DIRECTORY=/home/teamcity/sandbox
 BUILD_BRANCH=$3
 BUILD_TYPE=$4
 WITH_PACKAGE=$5
@@ -214,9 +215,15 @@ a=$((a+b))
 
 tc "blockClosed name='Unit Tests'"
 
+# Global preparation
+mkdir -p $HOME/failed_tests
+ls -1td $HOME/failed_tests/* | awk 'BEGIN { a = 0; } { ++a; if (a > 5) print $0; }' | xargs rm -rf
+
+cd "$CHECKOUT_DIRECTORY/python/yt/wrapper" && make
+cd "$CHECKOUT_DIRECTORY/python" && make version
 
 # Pre-install npm packages.
-(cd $WORKING_DIRECTORY/yt/nodejs && npm install)
+(cd "$WORKING_DIRECTORY/yt/nodejs" && rm -rf node_modules && npm install)
 
 ulimit -c unlimited
 
@@ -231,7 +238,10 @@ run_python_test()
     tc "blockOpened name=${block_name}"
     tc "progressMessage 'Running $test_name tests...'"
 
-    cd $dir
+    mkdir -p "$SANDBOX_DIRECTORY/${test_name}"
+
+    cd $dir && \
+    TESTS_SANDBOX="$SANDBOX_DIRECTORY/${test_name}" \
     PYTHONPATH="$CHECKOUT_DIRECTORY/python:$PYTHONPATH" \
     PATH="$WORKING_DIRECTORY/bin:$WORKING_DIRECTORY/yt/nodejs:$PATH" \
         py.test \
@@ -261,26 +271,19 @@ EOP
     if [[ -f $WORKING_DIRECTORY/test_${test_name}.prexml ]]; then
         cat $WORKING_DIRECTORY/test_${test_name}.prexml | python /tmp/fix_xml_entities.py > $WORKING_DIRECTORY/test_${test_name}.xml
     fi
+
+    if [[ "$b" != "0" ]]; then
+        local src="$SANDBOX_DIRECTORY/${test_name}"
+        local dst="$HOME/failed_tests/${BUILD_NUMBER}_${test_name}"
+
+        mkdir -p $dst
+        cp -r $src/* $dst/
+    fi
+
     tc "blockClosed name=${block_name}"
 }
 
 run_python_test "$CHECKOUT_DIRECTORY/tests/integration" "integration"
-
-if [ "$b" != "0" ]; then
-    tmpdir="$HOME/failed_tests/$BUILD_VCS_NUMBER"
-    mkdir -p "$tmpdir"
-
-    # Clean up.
-    ls -1td $HOME/failed_tests/* |awk 'BEGIN{a=0}{++a; if(a>5) print $0}' |xargs rm -rf
-
-    shout "Integration tests failed, output was put to $tmpdir"
-    cp -r $CHECKOUT_DIRECTORY/tests/integration/tests.sandbox/* "$tmpdir"
-    rm -rf $CHECKOUT_DIRECTORY/tests/integration/tests.sandbox/*
-fi
-
-# Some preparation
-cd "$CHECKOUT_DIRECTORY/python/yt/wrapper" && make
-cd "$CHECKOUT_DIRECTORY/python" && make version
 run_python_test "$CHECKOUT_DIRECTORY/python" "python_libraries"
 
 tc "blockOpened name='JavaScript Tests'"
