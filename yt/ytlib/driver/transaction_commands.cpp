@@ -29,7 +29,7 @@ void TStartTransactionCommand::DoExecute()
     options.ParentId = Request->TransactionId;
     options.MutationId = Request->MutationId;
     options.Ping = true;
-    options.RegisterInManager = false;
+    options.AutoAbort = false;
     options.PingAncestors = Request->PingAncestors;
 
     if (Request->Attributes) {

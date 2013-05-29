@@ -33,7 +33,8 @@ static NLog::TLogger& Logger = TransactionClientLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TTransactionStartOptions::TTransactionStartOptions()
-    : Ping(true)
+    : AutoAbort(true)
+    , Ping(true)
     , PingAncestors(false)
     , EnableUncommittedAccounting(true)
     , EnableStagedAccounting(true)
@@ -57,35 +58,36 @@ class TTransactionManager::TTransaction
     : public ITransaction
 {
 public:
-    TTransaction(TTransactionManagerPtr owner, bool registerInManager)
+    TTransaction(TTransactionManagerPtr owner, bool autoAbort)
         : Owner(owner)
-        , AutoAbort(false)
+        , AutoAbort(autoAbort)
         , Ping(false)
         , PingAncestors(false)
-        , RegisterInManager(registerInManager)
         , Proxy(owner->Channel)
         , State(EState::Active)
         , Aborted(NewPromise())
     {
         YCHECK(owner);
 
-        if (RegisterInManager) {
+        if (AutoAbort) {
             TGuard<TSpinLock> guard(Owner->SpinLock);
             YCHECK(Owner->AliveTransactions.insert(this).second);
-            
+
             LOG_DEBUG("Transaction registered in manager");
         }
     }
 
     ~TTransaction()
     {
-        if (RegisterInManager) {
-            TGuard<TSpinLock> guard(Owner->SpinLock);
-            YCHECK(Owner->AliveTransactions.erase(this) == 1);
-        }
+        if (AutoAbort) {
+            if (State == EState::Active) {
+                InvokeAbort(false);
+            }
 
-        if (AutoAbort && State == EState::Active) {
-            InvokeAbort(false);
+            {
+                TGuard<TSpinLock> guard(Owner->SpinLock);
+                YCHECK(Owner->AliveTransactions.erase(this) == 1);
+            }
         }
     }
 
@@ -93,7 +95,6 @@ public:
     {
         LOG_INFO("Starting transaction");
 
-        AutoAbort = true;
         Ping = options.Ping;
         PingAncestors = options.PingAncestors;
 
@@ -399,7 +400,7 @@ TFuture<TValueOrError<ITransactionPtr>> TTransactionManager::AsyncStart(
 
     typedef TValueOrError<ITransactionPtr> TOutput;
 
-    auto transaction = New<TTransaction>(this, options.RegisterInManager);
+    auto transaction = New<TTransaction>(this, options.AutoAbort);
     return transaction->Start(options).Apply(
         BIND([=] (TError error) -> TOutput {
             if (error.IsOK()) {
@@ -421,7 +422,7 @@ ITransactionPtr TTransactionManager::Attach(const TTransactionAttachOptions& opt
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto transaction = New<TTransaction>(this, options.RegisterInManager);
+    auto transaction = New<TTransaction>(this, options.AutoAbort);
     transaction->Attach(options);
     return transaction;
 }

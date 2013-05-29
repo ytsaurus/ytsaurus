@@ -24,6 +24,7 @@ struct TTransactionStartOptions
     TNullable<TDuration> Timeout;
     NMetaState::TMutationId MutationId;
     TTransactionId ParentId;
+    bool AutoAbort;
     bool Ping;
     bool PingAncestors;
     bool EnableUncommittedAccounting;
