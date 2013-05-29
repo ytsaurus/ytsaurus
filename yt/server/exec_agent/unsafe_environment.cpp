@@ -94,6 +94,8 @@ public:
         arguments.push_back(WorkingDirectory);
         arguments.push_back("--close-all-fids");
 
+        LOG_INFO("Spawning a job proxy (Path: %s)", ~ProxyPath);
+
         try {
             ProcessId = Spawn(
                 ~ProxyPath,
