@@ -1258,9 +1258,9 @@ int TOperationControllerBase::GetPendingJobCount()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    if (Operation->GetState() != EOperationState::Running ||
-        Operation->GetSuspended())
-    {
+    // NB: For suspended operations we still report proper pending job count
+    // but zero demand.
+    if (Operation->GetState() != EOperationState::Running) {
         return 0;
     }
 
