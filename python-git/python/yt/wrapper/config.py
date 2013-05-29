@@ -1,12 +1,24 @@
+from common import update_from_env
+
 import os
 
 PROXY = ""
-USE_HOSTS = True
 USE_TOKEN = True
 TOKEN = None
 
-# Turn off gzip encoding if you want to speed up reading and writing tables
 ACCEPT_ENCODING = os.environ.get("ACCEPT_ENCODING", "identity, gzip")
+
+CONNECTION_TIMEOUT = 120.0
+
+HTTP_RETRIES_COUNT = 5
+HTTP_RETRY_TIMEOUT = 10
+
+# COMPAT(ignat): remove option when version 14 become stable
+RETRY_VOLATILE_COMMANDS = False
+
+USE_HOSTS = True
+
+# Turn off gzip encoding if you want to speed up reading and writing tables
 REMOVE_TEMP_FILES = True
 
 DEFAULT_FORMAT = None
@@ -58,12 +70,6 @@ MAX_CHUNK_SIZE_FOR_MERGE_WARNING = 32 * MB
 
 WRITE_RETRIES_COUNT = 3
 
-CONNECTION_TIMEOUT = 120.0
-
-HTTP_RETRIES_COUNT = 5
-HTTP_RETRY_TIMEOUT = 10
-# COMPAT(ignat): remove option when version 14 become stable
-RETRY_VOLATILE_COMMANDS = False
 WAIT_OPERATION_RETRIES_COUNT = 1000
 
 ERROR_FORMAT = "text"
@@ -95,20 +101,4 @@ def set_mapreduce_mode():
     from format import YamrFormat
     DEFAULT_FORMAT = YamrFormat(has_subkey=True, lenval=False)
 
-for key, value in os.environ.iteritems():
-    if key.startswith("YT_"):
-        key = key[3:]
-        var_type = str
-        if key not in globals():
-            #print >>sys.stderr, "There is no variable %s in config, so it affect nothing" % key
-            continue
-        else:
-            var_type = type(globals()[key])
-        if var_type == bool:
-            try:
-                value = int(value)
-            except:
-                pass
-        if isinstance(None, var_type):
-            var_type = str
-        globals()[key] = var_type(value)
+update_from_env(globals())
