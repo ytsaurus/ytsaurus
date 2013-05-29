@@ -1,5 +1,5 @@
 import config
-from http import make_request
+from driver import make_request
 from common import update, bool_to_string, get_value
 from table import prepare_path
 
