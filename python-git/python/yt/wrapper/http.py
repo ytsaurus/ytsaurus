@@ -1,13 +1,14 @@
 import http_config
 import logger
 from common import require
-from errors import YtResponseError, YtNetworkError, YtTokenError, format_error
+from errors import YtError, YtResponseError, YtNetworkError, YtTokenError, format_error
 import yt.yson as yson
 
 import os
 import string
 import time
 import httplib
+import requests
 import simplejson as json
 
 # We cannot use requests.HTTPError in module namespace because of conflict with python3 http library
@@ -95,3 +96,16 @@ def make_request_with_retries(request, make_retries=False, url="", return_raw_re
                 else:
                     raise
 
+def make_get_request_with_retries(url):
+    return make_request_with_retries(
+        lambda: Response(requests.get(url)),
+        True,
+        url).json()
+
+def get_proxy(proxy):
+    require(proxy, YtError("You should specify proxy"))
+    return proxy
+
+def get_api(proxy, version=None):
+    location = "api" if version is None else "api/" + version
+    return make_get_request_with_retries("http://{0}/{1}".format(get_proxy(proxy), location))
