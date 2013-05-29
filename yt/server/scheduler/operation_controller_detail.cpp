@@ -1271,9 +1271,7 @@ TNodeResources TOperationControllerBase::GetNeededResources()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    if (Operation->GetState() != EOperationState::Running ||
-        Operation->GetSuspended())
-    {
+    if (Operation->GetState() != EOperationState::Running) {
         return ZeroNodeResources();
     }
 

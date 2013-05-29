@@ -199,6 +199,9 @@ public:
 
     virtual TNodeResources GetDemand() const override
     {
+        if (Operation_->GetSuspended()) {
+            return ZeroNodeResources();
+        }
         auto controller = Operation_->GetController();
         return ResourceUsage_ + controller->GetNeededResources();
     }
