@@ -274,6 +274,24 @@ int Spawn(
     }
     args.push_back(NULL);
 
+    std::vector<char> envHolder;
+    std::vector<int> offsets;
+    for (char** envVarIt = environ; *envVarIt != nullptr; ++envVarIt) {
+        const size_t sizeBefore = envHolder.size();
+        const char* envVar = *envVarIt;
+        for (const char* it = envVar; *it != 0; ++it) {
+            envHolder.push_back(*it);
+        }
+        envHolder.push_back(0);
+        offsets.push_back(sizeBefore);
+    }
+
+    std::vector<char *> env;
+    FOREACH(auto i, offsets) {
+        env.push_back(&envHolder[i]);
+    }
+    env.push_back(nullptr);
+
     int processId;
     int errCode = posix_spawnp(
         &processId,
@@ -281,7 +299,7 @@ int Spawn(
         &fileActions,
         &attributes,
         &args[0],
-        NULL);
+        &env[0]);
 
     posix_spawnattr_destroy(&attributes);
     posix_spawn_file_actions_destroy(&fileActions);
