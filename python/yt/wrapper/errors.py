@@ -1,4 +1,4 @@
-import config
+import errors_config
 from yt.common import YtError
 
 import simplejson as json
@@ -27,14 +27,14 @@ class YtTokenError(YtError):
 
 
 def format_error(error, indent=0):
-    if config.ERROR_FORMAT == "json":
+    if errors_config.ERROR_FORMAT == "json":
         return json.dumps(error)
-    elif config.ERROR_FORMAT == "json_pretty":
+    elif errors_config.ERROR_FORMAT == "json_pretty":
         return json.dumps(error, indent=2)
-    elif config.ERROR_FORMAT == "text":
+    elif errors_config.ERROR_FORMAT == "text":
         return pretty_format(error)
     else:
-        raise YtError("Incorrect error format: " + config.ERROR_FORMAT)
+        raise YtError("Incorrect error format: " + errors_config.ERROR_FORMAT)
 
 def pretty_format(error, indent=0):
     def format_attribute(name, value):
