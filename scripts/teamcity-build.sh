@@ -100,7 +100,6 @@ set -x
 ################################################################################
 
 tc "progressMessage 'Cleaning other builds...'"
-rm -rf /home/teamcity/build/YT*
 mkdir -p $WORKING_DIRECTORY
 cd $WORKING_DIRECTORY
 
@@ -241,7 +240,7 @@ run_python_test()
     mkdir -p "$SANDBOX_DIRECTORY/${test_name}"
 
     cd $dir && \
-    TESTS_SANDBOX="$SANDBOX_DIRECTORY/${test_name}" \
+    TESTS_SANDBOX="$SANDBOX_DIRECTORY/${BUILD_NUMBER}_${test_name}" \
     PYTHONPATH="$CHECKOUT_DIRECTORY/python:$PYTHONPATH" \
     PATH="$WORKING_DIRECTORY/bin:$WORKING_DIRECTORY/yt/nodejs:$PATH" \
         py.test \
