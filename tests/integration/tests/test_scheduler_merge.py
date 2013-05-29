@@ -26,7 +26,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         self.t1 = t1
         self.t2 = t2
-        
+
         self.v1 = v1
         self.v2 = v2
 
@@ -37,9 +37,9 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         self._prepare_tables()
 
         merge(mode='unordered',
-              in_=[self.t1, self.t2], 
+              in_=[self.t1, self.t2],
               out='//tmp/t_out')
-        
+
         self.assertItemsEqual(read('//tmp/t_out'), self.v1 + self.v2)
         assert get('//tmp/t_out/@chunk_count') == 7
 
@@ -90,6 +90,20 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert read('//tmp/t_out') == [{'a': 1}, {'a': 2}, {'a': 3}, {'a': 10}, {'a': 15}, {'a': 100}]
         assert get('//tmp/t_out/@chunk_count') == 1 # resulting number of chunks is always equal to 1 (as long they are small)
 
+    def test_sorted_trivial(self):
+        create('table', '//tmp/t1')
+
+        write_str('//tmp/t1', '{a = 1}; {a = 10}; {a = 100}', sorted_by='a')
+
+        create('table', '//tmp/t_out')
+        merge('--combine',
+              mode='sorted',
+              in_=['//tmp/t1'],
+              out='//tmp/t_out')
+
+        assert read('//tmp/t_out') == [{'a': 1}, {'a': 10}, {'a': 100}]
+        assert get('//tmp/t_out/@chunk_count') == 1 # resulting number of chunks is always equal to 1 (as long they are small)
+
     def test_sorted_with_same_chunks(self):
         t1 = '//tmp/t1'
         t2 = '//tmp/t2'
@@ -104,7 +118,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         create("table", "//tmp/t_out")
         merge(mode='sorted',
-              in_=[t1, t2], 
+              in_=[t1, t2],
               out='//tmp/t_out')
         self.assertItemsEqual(read('//tmp/t_out'), sorted(v + v))
 
@@ -159,7 +173,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         create('table', '//tmp/t_out')
 
         # error when sorted_by of input tables are different and merge_by is not set
-        with pytest.raises(YTError): 
+        with pytest.raises(YTError):
             merge(mode='sorted',
                   in_=['//tmp/t1', '//tmp/t2'],
                   out='//tmp/t_out')
@@ -186,7 +200,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         merge(mode='ordered',
                in_=['//tmp/t1', '//tmp/t2'],
                out='//tmp/t_out')
-       
+
         assert read('//tmp/t_out') == [v]
 
     def test_non_empty_out(self):
@@ -205,7 +219,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         merge(mode='ordered',
                in_=['//tmp/t1', '//tmp/t2'],
                out='<append=true>//tmp/t_out')
-       
+
         assert read('//tmp/t_out') == [v3, v1, v2]
 
     def test_multiple_in(self):
@@ -219,7 +233,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         merge(mode='ordered',
                in_=['//tmp/t_in', '//tmp/t_in', '//tmp/t_in'],
                out='//tmp/t_out')
-       
+
         assert read('//tmp/t_out') == [v, v, v]
 
     def test_in_equal_to_out(self):
@@ -235,7 +249,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
                mode='ordered',
                in_='//tmp/t_in',
                out='<append=true>//tmp/t_in')
-       
+
         assert read('//tmp/t_in') == [v, v, v, v]
         assert get('//tmp/t_in/@chunk_count') == 3 # only result of merge is combined
 
