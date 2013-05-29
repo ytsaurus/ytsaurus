@@ -56,8 +56,6 @@ WRITE_RETRIES_COUNT = 3
 
 WAIT_OPERATION_RETRIES_COUNT = 1000
 
-ERROR_FORMAT = "text"
-
 PYTHON_FUNCTION_CHECK_SENDING_ALL_MODULES = False
 PYTHON_FUNCTION_SEARCH_EXTENSIONS = None
 PYTHON_FUNCTION_MODULE_FILTER = None
@@ -87,5 +85,32 @@ def set_mapreduce_mode():
 
 update_from_env(globals())
 
+from errors_config import *
 from http_config import *
 
+import http
+
+def _parse_api(self, description):
+    commands = {}
+    for elem in description:
+        name = elem["name"]
+        del elem["name"]
+
+        for key in elem:
+            if elem[key] == "null":
+                elem[key] = None
+
+        commands[name] = Command(**elem)
+    return commands
+
+_api = http.get_api(PROXY)
+if "v2" in _api:
+    COMMANDS = http.get_api(PROXY, version="v2")
+    API_PATH = "api/v2"
+    RETRY_VOLATILE_COMMANDS = True
+    CREATE_FILE_BEFORE_UPLOAD = True
+else:
+    COMMANDS = _parse_api(_api)
+    API_PATH = "api"
+    RETRY_VOLATILE_COMMANDS = False
+    CREATE_FILE_BEFORE_UPLOAD = False
