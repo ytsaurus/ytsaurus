@@ -38,7 +38,7 @@ TReadSession::TReadSession(
         , Output_(output)
         , Consumer_(CreateConsumerForFormat(format, EDataType::Tabular, &Buffer_))
         , BufferLimit_(bufferLimit)
-        , AlreadyFetch_(false)
+        , AlreadyFetched_(false)
 { }
 
 TAsyncError TReadSession::Execute()
@@ -52,22 +52,22 @@ TAsyncError TReadSession::Execute()
 
 TAsyncError TReadSession::Read()
 {
-    // Syncroniously reads rows and write it to stream while it is possible.
-    // AlreadyFetch_ means that we we fetch row from the reader but did't process it yet.
-    // Processed rows stored in the Buffer_ before writing it to the output stream.
-    // IsValid marks that reader has more rows.
+    // Synchronously reads rows and write it to the stream while it is possible.
+    // AlreadyFetched_ means that we fetched row from the reader but didn't processed it yet.
+    // Processed rows are stored in the Buffer_ before writing it to the output stream.
+    // IsValid marks that the reader has more rows.
     auto this_ = MakeStrong(this);
-    while (AlreadyFetch_ || Reader_->FetchNextItem()) {
+    while (AlreadyFetched_ || Reader_->FetchNextItem()) {
         if (!Reader_->IsValid()) {
             return Output_->Write(Buffer_.Begin(), Buffer_.GetSize())
                 ? MakeFuture(TError())
                 : Output_->GetWriteFuture();
         }
-        
-        AlreadyFetch_ = false;
-        
+
+        AlreadyFetched_ = false;
+
         try {
-            // It is guaranteed that reader contains correct row
+            // It is guaranteed that the reader contains a correct row
             YCHECK(Reader_->IsValid());
             ProduceRow(~Consumer_, Reader_->GetRow(), Reader_->GetRowAttributes());
         } catch (const std::exception& ex) {
@@ -90,7 +90,7 @@ TAsyncError TReadSession::Read()
     }
     return Reader_->GetReadyEvent().Apply(BIND([this, this_] (TError error) {
         RETURN_FUTURE_IF_ERROR(error, TError);
-        AlreadyFetch_ = true;
+        AlreadyFetched_ = true;
         return Read();
     }));
 }
@@ -105,11 +105,7 @@ TWriteSession::TWriteSession(
         : Writer_(writer)
         , Input_(input)
         , Consumer_(new TTableConsumer(Writer_))
-        , Parser_(
-            CreateParserForFormat(
-                format,
-                EDataType::Tabular,
-                ~Consumer_))
+        , Parser_(CreateParserForFormat(format, EDataType::Tabular, ~Consumer_))
         , Buffer_(TSharedRef::Allocate(bufferSize))
         , IsFinished_(false)
 { }
@@ -127,8 +123,8 @@ TAsyncError TWriteSession::ReadyToRead(TError error)
 
 TAsyncError TWriteSession::Read()
 {
-    // Syncroniously reads data from the input stream, produce rows and push it to
-    // the writer. When some operation couldn't be done syncroniously we apply this method 
+    // Synchronously reads data from the input stream, produces rows and pushes them to
+    // the writer. When some operation couldn't be done synchronously we apply this method
     // to the corresponding future.
     auto this_ = MakeStrong(this);
     while (!IsFinished_ && Input_->Read(Buffer_.Begin(), Buffer_.Size())) {
@@ -140,11 +136,10 @@ TAsyncError TWriteSession::Read()
             return MakeFuture(TError(ex));
         }
     }
-    if (IsFinished_) {
-        return Writer_->AsyncClose();
-    } else {
-        return Input_->GetReadFuture().Apply(BIND(&TThis::OnRead, MakeStrong(this)));
-    }
+
+    return IsFinished_
+        ? Writer_->AsyncClose()
+        : Input_->GetReadFuture().Apply(BIND(&TThis::OnRead, MakeStrong(this)));
 }
 
 bool TWriteSession::ProcessReadResult()
@@ -212,7 +207,7 @@ void TWriteCommand::DoExecute()
         Context->GetTransactionManager(),
         Request->Path,
         Request->Path.Attributes().Find<TKeyColumns>("sorted_by"));
-    
+
     auto driverRequest = Context->GetRequest();
     Session_ = New<TWriteSession>(
         writer,

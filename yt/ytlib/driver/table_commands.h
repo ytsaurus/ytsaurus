@@ -39,7 +39,7 @@ private:
     std::unique_ptr<NYson::IYsonConsumer> Consumer_;
 
     size_t BufferLimit_;
-    bool AlreadyFetch_;
+    bool AlreadyFetched_;
 };
 
 struct TReadRequest

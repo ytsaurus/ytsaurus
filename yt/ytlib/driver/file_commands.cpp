@@ -52,6 +52,7 @@ TAsyncError TDownloadSession::WriteBlock(TValueOrError<TSharedRef> blockOrError)
     if (!blockOrError.IsOK()) {
         return MakeFuture(TError(blockOrError));
     }
+
     auto block = blockOrError.Value();
 
     if (block.Size() == 0) {
@@ -86,10 +87,10 @@ TAsyncError TUploadSession::ReadBlock(TError error)
 {
     RETURN_FUTURE_IF_ERROR(error, TError);
 
-    auto future = MakeFuture(TError());
-    if (!Input_->Read(Buffer_.Begin(), Buffer_.Size())) {
-        future = Input_->GetReadFuture();
-    }
+    TAsyncError future = 
+          Input_->Read(Buffer_.Begin(), Buffer_.Size())
+          ? MakeFuture(TError())
+          : Input_->GetReadFuture();
 
     return future.Apply(BIND(&TThis::WriteBlock, MakeStrong(this)));
 }
