@@ -142,7 +142,7 @@ def make_request(command_name, params,
     require(proxy, YtError("You should specify proxy"))
 
     # prepare url
-    url = "http://{0}/api/{1}".format(proxy, command_name)
+    url = "http://{0}/{1}/{2}".format(proxy, config.API_PATH, command_name)
     print_info("Request url: %r", url)
 
     # prepare params, format and headers
