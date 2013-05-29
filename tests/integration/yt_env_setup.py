@@ -6,7 +6,7 @@ from functools import wraps
 from yt.environment import YTEnv
 
 import yt_commands
-SANDBOX_ROOTDIR = os.path.abspath('tests.sandbox')
+SANDBOX_ROOTDIR = os.environ.get("TESTS_SANDBOX", os.path.abspath('tests.sandbox'))
 TOOLS_ROOTDIR = os.path.abspath('tools')
 PIDS_FILENAME = os.path.join(SANDBOX_ROOTDIR, 'pids.txt')
 

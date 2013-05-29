@@ -245,7 +245,7 @@ TRefCountedInputChunkPtr CreateCompleteChunk(TRefCountedInputChunkPtr inputChunk
     result->clear_start_limit();
     result->clear_end_limit();
 
-    RemoveProtoExtension<TMiscExt>(result->mutable_extensions());
+    RemoveProtoExtension<TSizeOverrideExt>(result->mutable_extensions());
 
     return result;
 }

@@ -18,12 +18,10 @@ class TChunkWriterConfig
 public:
     i64 BlockSize;
 
-    i64 MaxRowWeight;
-
-    //! Fraction of rows data size samples are allowed to occupy.
+    //! Fraction of rows data size that samples are allowed to occupy.
     double SampleRate;
 
-    //! Fraction of rows data size chunk index allowed to occupy.
+    //! Fraction of rows data size that chunk index is allowed to occupy.
     double IndexRate;
 
     double EstimatedCompressionRatio;

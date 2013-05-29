@@ -6,14 +6,18 @@
 #include "chunk_meta_extensions.h"
 #include "size_limits.h"
 
+#include <ytlib/misc/serialize.h>
+
 #include <ytlib/yson/tokenizer.h>
+
 #include <ytlib/chunk_client/async_writer.h>
 #include <ytlib/chunk_client/encoding_writer.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
+#include <ytlib/chunk_client/dispatcher.h>
+
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 
-#include <ytlib/chunk_client/dispatcher.h>
-#include <ytlib/misc/serialize.h>
+#include <util/random/random.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -156,7 +160,10 @@ void TTableChunkWriter::FinalizeRow(const TRow& row)
         CurrentBufferCapacity += writer->GetCapacity() - capacity;
     }
 
-    if (SamplesSize < Config->SampleRate * DataWeight * EncodingWriter->GetCompressionRatio()) {
+    if (RowCount == 0 ||
+        RandomNumber<double>() < Config->SampleRate &&
+        SamplesSize < 3 * Config->SampleRate * DataWeight * EncodingWriter->GetCompressionRatio())
+    {
         EmitSample(row);
     }
 
@@ -277,7 +284,7 @@ void TTableChunkWriter::WriteRow(const TRow& row)
     }
 }
 
-// We beleive that
+// We believe that:
 //  1. row doesn't contain duplicate column names.
 //  2. data is sorted
 // All checks are disabled.
