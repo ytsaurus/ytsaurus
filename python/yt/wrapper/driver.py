@@ -4,7 +4,7 @@ from common import require
 from errors import YtError, YtResponseError
 from format import JsonFormat
 from version import VERSION
-from http import make_request_with_retries, Response, get_token
+from http import make_get_request_with_retries, make_request_with_retries, Response, get_token, get_proxy
 
 import requests
 
@@ -43,14 +43,8 @@ def read_content(response, type):
     else:
         raise YtError("Incorrent response type: " + type)
 
-def get_hosts(proxy=None):
-    if proxy is None:
-        proxy = config.PROXY
-    url = "http://{0}/hosts".format(proxy)
-    return make_request_with_retries(
-        lambda: Response(requests.get(url)),
-        True,
-        url).json()
+def get_hosts():
+    return make_get_request_with_retries("http://{0}/hosts".format(get_proxy(config.PROXY)))
 
 def get_host_for_heavy_operation():
     if config.USE_HOSTS:
@@ -58,7 +52,6 @@ def get_host_for_heavy_operation():
         if hosts:
             return hosts[0]
     return config.PROXY
-
 
 
 class Command(object):
