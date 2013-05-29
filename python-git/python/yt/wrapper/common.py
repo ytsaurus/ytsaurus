@@ -1,6 +1,7 @@
-from yt.common import require, flatten, update, which
+from yt.common import require, flatten, update, which, YtError
 import yt.yson as yson
 
+import os
 from functools import partial
 from itertools import ifilter
 import simplejson as json
@@ -97,8 +98,26 @@ def chunk_iter(stream, chunk_size=1024 * 1024):
             break
         yield chunk
 
-def add_mutation_id(params):
-    if config.MUTATION_ID is not None:
-        params["mutation_id"] = config.MUTATION_ID
-    return params
+def update_from_env(variables):
+    for key, value in os.environ.iteritems():
+        prefix = "YT_"
+        if not key.startswith(prefix):
+            continue
+
+        key = key[len(prefix):]
+        if key not in variables:
+            continue
+
+        var_type = type(variables[key])
+        # Using int we treat "0" as false, "1" as "true"
+        if var_type == bool:
+            try:
+                value = int(value)
+            except:
+                pass
+        # None type is treated as str
+        if isinstance(None, var_type):
+            var_type = str
+
+        variables[key] = var_type(value)
 
