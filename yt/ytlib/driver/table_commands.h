@@ -38,7 +38,7 @@ private:
     TBlobOutput Buffer_;
     std::unique_ptr<NYson::IYsonConsumer> Consumer_;
 
-    size_t BufferLimit_;
+    size_t BufferSize_;
     bool AlreadyFetched_;
 };
 

@@ -37,7 +37,7 @@ TReadSession::TReadSession(
         : Reader_(reader)
         , Output_(output)
         , Consumer_(CreateConsumerForFormat(format, EDataType::Tabular, &Buffer_))
-        , BufferLimit_(bufferLimit)
+        , BufferSize_(bufferLimit)
         , AlreadyFetched_(false)
 { }
 
@@ -75,7 +75,7 @@ TAsyncError TReadSession::Read()
         }
 
         // NB: Consumer_ created on Buffer_, so after processing size of Buffer had changed.
-        if (Buffer_.GetSize() > BufferLimit_) {
+        if (Buffer_.GetSize() > BufferSize_) {
             if (!Output_->Write(Buffer_.Begin(), Buffer_.GetSize())) {
                 return Output_->GetWriteFuture().Apply(BIND([this, this_] (TError error) {
                     RETURN_FUTURE_IF_ERROR(error, TError);
