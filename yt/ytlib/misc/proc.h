@@ -31,8 +31,7 @@ void CloseAllDescriptors();
 
 int Spawn(
     const char* path,
-    std::vector<Stroka>& arguments,
-    const std::vector<int>& fdsToClose = std::vector<int>());
+    std::vector<Stroka>& arguments);
 
 ////////////////////////////////////////////////////////////////////////////////
 

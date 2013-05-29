@@ -99,8 +99,7 @@ public:
         try {
             ProcessId = Spawn(
                 ~ProxyPath,
-                arguments,
-                std::vector<int>());
+                arguments);
         } catch (const std::exception& ) {
             // Failed to exec job proxy
             THROW_ERROR_EXCEPTION("Failed to start job proxy: Spawn failed")

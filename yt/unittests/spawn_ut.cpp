@@ -112,45 +112,5 @@ TEST(TSpawnTest, Params2)
     EXPECT_EQ(WEXITSTATUS(status), 0);
 }
 
-TEST(TSpawnTest, CloseFd1)
-{
-    vector<Stroka> args;
-    args.push_back("bash");
-    args.push_back("-c");
-    args.push_back("echo hello >&42");
-
-    int pid = Spawn("bash", args);
-    ASSERT_GT(pid, 0);
-
-    int status;
-    int result = waitpid(pid, &status, 0);
-    ASSERT_EQ(result, pid);
-    ASSERT_TRUE(WIFEXITED(status));
-    EXPECT_NE(WEXITSTATUS(status), 0);
-}
-
-TEST(TSpawnTest, CloseFd2)
-{
-    vector<Stroka> args;
-    args.push_back("bash");
-    args.push_back("-c");
-    args.push_back("echo hello >&42");
-
-    int newFileId = dup2(1, 42);
-    ASSERT_EQ(newFileId, 42);
-
-    vector<int> fds;
-    fds.push_back(42);
-
-    int pid = Spawn("bash", args, fds);
-    ASSERT_GT(pid, 0);
-
-    int status;
-    int result = waitpid(pid, &status, 0);
-    ASSERT_EQ(result, pid);
-    ASSERT_TRUE(WIFEXITED(status));
-    EXPECT_NE(WEXITSTATUS(status), 0);
-}
-
 } // namespace
 } // namespace NYT
