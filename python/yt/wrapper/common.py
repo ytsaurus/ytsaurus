@@ -99,6 +99,9 @@ def chunk_iter(stream, chunk_size=1024 * 1024):
         yield chunk
 
 def update_from_env(variables):
+    """
+    Updates variables dict from environment.
+    """
     for key, value in os.environ.iteritems():
         prefix = "YT_"
         if not key.startswith(prefix):
