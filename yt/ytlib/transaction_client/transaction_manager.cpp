@@ -73,7 +73,7 @@ public:
             TGuard<TSpinLock> guard(Owner->SpinLock);
             YCHECK(Owner->AliveTransactions.insert(this).second);
 
-            LOG_DEBUG("Transaction registered in manager");
+            LOG_DEBUG("Transaction registered in the manager");
         }
     }
 

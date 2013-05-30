@@ -143,12 +143,6 @@ TJsonWriterImpl::TJsonWriterImpl(TOutputStream* output,
     JsonWriter = ~UnderlyingJsonWriter;
     HasAttributes = false;
     InAttributesBalance = 0;
-
-    // NB(ignat): we consider this unproper for json consumer implementation.
-    // It should be redesigned.
-    //if (Type == EYsonType::ListFragment) {
-    //    JsonWriter->OpenArray();
-    //}
 }
 
 void TJsonWriterImpl::EnterNode()

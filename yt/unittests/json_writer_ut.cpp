@@ -349,38 +349,5 @@ TEST(TJsonWriterTest, AlwaysAttributes)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//TEST(TJsonWriterTest, StructuredData)
-//{
-//    TStringStream outputStream;
-//    auto config = New<TJsonFormatConfig>();
-//    auto writer = CreateJsonConsumer(&outputStream, EYsonType::ListFragment, config);
-//
-//    writer->OnListItem();
-//    writer->OnBeginMap();
-//        writer->OnKeyedItem("integer");
-//        writer->OnIntegerScalar(42);
-//        writer->OnKeyedItem("string");
-//        writer->OnStringScalar("some");
-//    writer->OnEndMap();
-//
-//    writer->OnListItem();
-//    writer->OnBeginMap();
-//        writer->OnKeyedItem("foo");
-//        writer->OnStringScalar("bar");
-//        writer->OnKeyedItem("one");
-//        writer->OnIntegerScalar(1);
-//    writer->OnEndMap();
-//
-//    Stroka output =
-//        "["
-//            "{\"integer\":42,\"string\":\"some\"},"
-//            "{\"foo\":\"bar\",\"one\":1}"
-//        "]";
-//
-//    EXPECT_EQ(output, outputStream.Str());
-//}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NFormats
 } // namespace NYT

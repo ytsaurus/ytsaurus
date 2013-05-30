@@ -97,8 +97,6 @@ private:
     TTableChunkWriter::TFacade* CurrentWriterFacade;
 
     TAsyncError WriteFuture_;
-
-    DECLARE_THREAD_AFFINITY_SLOT(Client);
 };
 
 
@@ -137,7 +135,6 @@ TAsyncTableWriter::TAsyncTableWriter(
 
 TAsyncError TAsyncTableWriter::AsyncOpen()
 {
-    //VERIFY_THREAD_AFFINITY(Client);
     YCHECK(!IsOpen);
     YCHECK(!IsClosed);
 
@@ -283,8 +280,8 @@ void TAsyncTableWriter::OnChunkWriterOpened()
     if (Transaction) {
         ListenTransaction(Transaction);
     }
-    CurrentWriterFacade = Writer->GetCurrentWriter();
 
+    CurrentWriterFacade = Writer->GetCurrentWriter();
     YASSERT(CurrentWriterFacade);
 
     IsOpen = true;
@@ -294,7 +291,6 @@ void TAsyncTableWriter::OnChunkWriterOpened()
 
 void TAsyncTableWriter::WriteRow(const TRow& row)
 {
-    //VERIFY_THREAD_AFFINITY(Client);
     YCHECK(IsOpen);
     YASSERT(CurrentWriterFacade != nullptr);
 
@@ -324,8 +320,6 @@ TAsyncError TAsyncTableWriter::GetReadyEvent()
 
 TAsyncError TAsyncTableWriter::AsyncClose()
 {
-    //VERIFY_THREAD_AFFINITY(Client);
-
     if (!IsOpen) {
         return MakeFuture(TError());
     }

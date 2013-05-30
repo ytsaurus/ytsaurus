@@ -170,17 +170,17 @@ TAsyncError TAsyncWriter::AsyncWrite(const TRef& data)
         return MakeFuture(TError("Transaction aborted"));
     }
 
-    auto future = MakeFuture(TError());
-    if (!Writer->GetCurrentWriter()) {
-        future = Writer->GetReadyEvent();
+    if (auto writer = Writer->GetCurrentWriter()) {
+        writer->Write(data);
+        return MakeFuture(TError());
+    } else {
+        auto this_ = MakeStrong(this);
+        return Writer->GetReadyEvent().Apply(BIND([this, this_, data] (TError error) {
+            RETURN_IF_ERROR(error);
+            Writer->GetCurrentWriter()->Write(data);
+            return TError();
+        }));
     }
-
-    auto this_ = MakeStrong(this);
-    return future.Apply(BIND([this, this_, data] (TError error) {
-        RETURN_IF_ERROR(error);
-        Writer->GetCurrentWriter()->Write(data);
-        return TError();
-    }));
 }
 
 TAsyncError TAsyncWriter::AsyncClose()
@@ -195,7 +195,6 @@ TAsyncError TAsyncWriter::AsyncClose()
         StartAsyncPipeline(GetSyncInvoker())
             ->Add(BIND(&TWriter::AsyncClose, Writer))
             ->Add(BIND(&NTransactionClient::ITransaction::AsyncCommit, UploadTransaction, NMetaState::NullMutationId))
-            //->Add(BIND([this_] () {}))
             ->Run()
     );
 }
