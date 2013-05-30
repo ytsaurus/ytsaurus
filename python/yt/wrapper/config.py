@@ -93,7 +93,10 @@ import http_config as http
 from http import get_api
 from command import parse_commands
 
-if http.PROXY is not None:
+def set_proxy(proxy):
+    global COMMANDS, API_PATH, CREATE_FILE_BEFORE_UPLOAD
+
+    http.PROXY = proxy
     _api = get_api(http.PROXY)
     if "v2" in _api:
         COMMANDS = parse_commands(get_api(http.PROXY, version="v2"))
@@ -105,5 +108,8 @@ if http.PROXY is not None:
         API_PATH = "api"
         http.RETRY_VOLATILE_COMMANDS = False
         CREATE_FILE_BEFORE_UPLOAD = False
+
+if http.PROXY is not None:
+    set_proxy(http.PROXY)
 
 

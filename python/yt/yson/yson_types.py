@@ -82,15 +82,20 @@ def convert_to_yson_tree(json_tree):
     return result
 
 def convert_to_json_tree(yson_tree, print_attributes=True):
-    if yson_tree.attributes and print_attributes:
-        return {"$attributes": yson_tree.attributes,
+    def process_dict(d):
+        return dict((k, convert_to_json_tree(v)) for k, v in d.iteritems())
+
+    if hasattr(yson_tree, "attributes") and yson_tree.attributes and print_attributes:
+        return {"$attributes": process_dict(yson_tree.attributes),
                 "$value": convert_to_json_tree(yson_tree, print_attributes=False)}
     if isinstance(yson_tree, YsonList):
         return map(convert_to_json_tree, yson_tree)
     elif isinstance(yson_tree, YsonMap):
-        return dict((k, convert_to_json_tree(v)) for k, v in yson_tree.iteritems())
+        return process_dict(yson_tree)
     elif isinstance(yson_tree, YsonEntity):
         return None
+    elif isinstance(yson_tree, bool):
+        return "true" if yson_tree else "false"
     else:
         bases = type(yson_tree).__bases__
         if YsonType in bases:

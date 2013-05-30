@@ -31,15 +31,8 @@ class Response(object):
     def is_json(self):
         return self.http_response.headers.get("content-type") == "application/json"
 
-    def is_yson(self):
-        content_type = self.http_response.headers.get("content-type")
-        return isinstance(content_type, str) and content_type.startswith("application/x-yt-yson")
-
     def json(self):
         return self.http_response.json()
-
-    def yson(self):
-        return yson.loads(self.content())
 
     def content(self):
         return self.http_response.content
