@@ -2,8 +2,8 @@ from common import update_from_env
 
 USE_HOSTS = True
 
-# Turn off gzip encoding if you want to speed up reading and writing tables
-REMOVE_TEMP_FILES = True
+REMOVE_TEMP_FILES = False
+FILE_PLACEMENT_STRATEGY = "hash"
 
 ALWAYS_SET_EXECUTABLE_FLAG_TO_FILE = False
 USE_MAPREDUCE_STYLE_DESTINATION_FDS = False

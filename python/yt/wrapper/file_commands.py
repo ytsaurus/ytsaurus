@@ -1,5 +1,5 @@
 import config
-from common import require, chunk_iter
+from common import require, chunk_iter, partial
 from errors import YtError
 from driver import read_content, get_host_for_heavy_operation
 from tree_commands import remove, exists, set_attribute, mkdir, find_free_subpath, create
@@ -7,6 +7,15 @@ from transaction_commands import _make_transactional_request
 from table import prepare_path
 
 import os
+import sys
+import hashlib
+
+def md5sum(filename):
+    with open(filename, mode='rb') as fin:
+        h = hashlib.md5()
+        for buf in iter(partial(fin.read, 1024), b''):
+            h.update(buf)
+    return h.hexdigest()
 
 def download_file(path, response_type=None):
     """
@@ -45,8 +54,8 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
             YtError("Upload: %s should be file" % filename))
 
     if placement_strategy is None:
-        placement_strategy = "random"
-    require(placement_strategy in ["replace", "ignore", "random"],
+        placement_strategy = config.FILE_PLACEMENT_STRATEGY
+    require(placement_strategy in ["replace", "ignore", "random", "hash"],
             YtError("Incorrect file placement strategy " + placement_strategy))
 
     if destination is None:
@@ -55,6 +64,8 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
                                    os.path.basename(filename))
         if placement_strategy == "random":
             destination = find_free_subpath(destination)
+        if placement_strategy == "hash":
+            destination = os.path.join(config.FILE_STORAGE, md5sum(filename))
         if placement_strategy == "replace" and exists(destination):
             remove(destination)
         if placement_strategy == "ignore" and exists(destination):
