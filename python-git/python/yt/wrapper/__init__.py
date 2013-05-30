@@ -8,7 +8,7 @@ from table_commands import create_table, create_temp_table, write_table, read_ta
                            records_count, is_sorted, is_empty, \
                            run_erase, run_sort, run_merge, \
                            run_map, run_reduce, run_map_reduce
-from operation_commands import get_operation_state, abort_operation, WaitStrategy, AsyncStrategy
+from operation_commands import get_operation_state, abort_operation, suspend_operation, resume_operation, WaitStrategy, AsyncStrategy
 from file_commands import download_file, upload_file, smart_upload_file
 from transaction_commands import \
     start_transaction, abort_transaction, \
