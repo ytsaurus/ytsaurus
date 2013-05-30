@@ -139,7 +139,7 @@ YtHttpRequest.prototype.fire = function()
             self.toString() + " has failed", err));
     });
     req.once("response", function(rsp) {
-        if (rsp.statusCode < 200 || rsp.statusCode >= 300) {
+        if (rsp.statusCode >= 500) {
             deferred.reject(new YtError(
                 self.toString() + " has responded with " + rsp.statusCode));
             return;
