@@ -116,6 +116,12 @@ def abort_operation(operation):
     if not get_operation_state(operation).is_final():
         make_request("abort_op", {"operation_id": operation})
 
+def suspend_operation(operation):
+    make_request("suspend_op", {"operation_id": operation})
+
+def resume_operation(operation):
+    make_request("resume_op", {"operation_id": operation})
+
 def wait_final_state(operation, timeout, print_info, action=lambda: None):
     while True:
         state = get_operation_state(operation)
