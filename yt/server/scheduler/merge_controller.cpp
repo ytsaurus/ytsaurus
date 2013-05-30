@@ -510,7 +510,11 @@ private:
 
     virtual bool IsPassthroughChunk(const TInputChunk& inputChunk) override
     {
+        // COMPAT(psushin)
         if (!Spec->AllowPassthroughChunks)
+            return false;
+
+        if (Spec->ForceTransform)
             return false;
 
         return IsPassthroughChunkImpl(inputChunk, Spec->CombineChunks);
@@ -617,7 +621,11 @@ private:
 
     virtual bool IsPassthroughChunk(const TInputChunk& inputChunk) override
     {
+        //COMPAT(psushin)
         if (!Spec->AllowPassthroughChunks)
+            return false;
+
+        if (Spec->ForceTransform)
             return false;
 
         return IsPassthroughChunkImpl(inputChunk, Spec->CombineChunks);
@@ -1112,7 +1120,11 @@ private:
 
     virtual bool IsPassthroughChunk(const TInputChunk& inputChunk) override
     {
+        // COMPAT(psushin)
         if (!Spec->AllowPassthroughChunks)
+            return false;
+
+        if (Spec->ForceTransform)
             return false;
 
         return IsPassthroughChunkImpl(inputChunk, Spec->CombineChunks);
@@ -1129,7 +1141,8 @@ private:
 
     virtual bool AllowPassthroughChunks() override
     {
-        return Spec->AllowPassthroughChunks;
+        // COMPAT(psushin)
+        return Spec->AllowPassthroughChunks && !Spec->ForceTransform;
     }
 
     virtual bool IsLargeEnoughToPassthrough(const TInputChunk& inputChunk) override
