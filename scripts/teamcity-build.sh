@@ -48,11 +48,14 @@ export LC_CTYPE=C
 
 CHECKOUT_DIRECTORY=$1
 WORKING_DIRECTORY=$2
-SANDBOX_DIRECTORY=/home/teamcity/sandbox
+SANDBOX_DIRECTORY=$7
 BUILD_BRANCH=$3
 BUILD_TYPE=$4
 WITH_PACKAGE=$5
 WITH_DEPLOY=$6
+
+# COMPAT(sandello): Set default.
+[[ -z "$SANDBOX_DIRECTORY" ]] && SANDBOX_DIRECTORY=/home/teamcity/sandbox
 
 if [[ ( $WITH_PACKAGE != "YES" ) && ( $WITH_PACKAGE != "NO" ) ]]; then
     shout "WITH_PACKAGE have to be either YES or NO."
@@ -240,7 +243,7 @@ run_python_test()
     mkdir -p "$SANDBOX_DIRECTORY/${test_name}"
 
     cd $dir && \
-    TESTS_SANDBOX="$SANDBOX_DIRECTORY/${BUILD_NUMBER}_${test_name}" \
+    TESTS_SANDBOX="$SANDBOX_DIRECTORY/${test_name}" \
     PYTHONPATH="$CHECKOUT_DIRECTORY/python:$PYTHONPATH" \
     PATH="$WORKING_DIRECTORY/bin:$WORKING_DIRECTORY/yt/nodejs:$PATH" \
         py.test \
