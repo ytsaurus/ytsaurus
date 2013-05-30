@@ -60,8 +60,7 @@ def _prepare_files(files):
     return file_paths
 
 def _prepare_formats(format, input_format, output_format):
-    if format is None: format = config.TABULAR_DATA_FORMAT
-    if format is None: format = config.DEFAULT_FORMAT
+    if format is None: format = config.format.TABULAR_DATA_FORMAT
     if isinstance(format, str):
         format = RawFormat.from_yson_string(format)
 
@@ -74,8 +73,7 @@ def _prepare_formats(format, input_format, output_format):
     return input_format, output_format
 
 def _prepare_format(format):
-    if format is None: format = config.TABULAR_DATA_FORMAT
-    if format is None: format = config.DEFAULT_FORMAT
+    if format is None: format = config.format.TABULAR_DATA_FORMAT
     if isinstance(format, str):
         format = RawFormat.from_yson_string(format)
 

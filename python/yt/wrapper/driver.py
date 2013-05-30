@@ -1,5 +1,6 @@
 import config
 import logger
+from command import Command
 from common import require
 from errors import YtError, YtResponseError
 from format import JsonFormat
@@ -44,30 +45,15 @@ def read_content(response, type):
         raise YtError("Incorrent response type: " + type)
 
 def get_hosts():
-    return make_get_request_with_retries("http://{0}/hosts".format(get_proxy(config.PROXY)))
+    return make_get_request_with_retries("http://{0}/hosts".format(get_proxy(config.http.PROXY)))
 
 def get_host_for_heavy_operation():
     if config.USE_HOSTS:
         hosts = get_hosts()
         if hosts:
             return hosts[0]
-    return config.PROXY
+    return config.http.PROXY
 
-
-class Command(object):
-    def __init__(self, input_data_format, output_data_format, is_volatile, is_heavy):
-        self.input_data_format = input_data_format
-        self.output_data_format = output_data_format
-        self.is_volatile = is_volatile
-        self.is_heavy = is_heavy
-
-    def http_method(self):
-        if self.input_data_format is not None:
-            return "PUT"
-        elif self.is_volatile:
-            return "POST"
-        else:
-            return "GET"
 
 def make_request(command_name, params,
                  data=None, format=None, verbose=False, proxy=None,
@@ -132,13 +118,13 @@ def make_request(command_name, params,
         params["mutation_id"] = config.MUTATION_ID
 
     make_retries = not command.is_volatile or \
-            (config.RETRY_VOLATILE_COMMANDS and not command.is_heavy)
+            (config.http.RETRY_VOLATILE_COMMANDS and not command.is_heavy)
     if make_retries and command.is_volatile and "mutation_id" not in params:
         params["mutation_id"] = str(uuid.uuid4())
 
     # Prepare request url.
     if proxy is None:
-        proxy = config.PROXY
+        proxy = config.http.PROXY
     require(proxy, YtError("You should specify proxy"))
 
     # prepare url
@@ -147,7 +133,7 @@ def make_request(command_name, params,
 
     # prepare params, format and headers
     headers = {"User-Agent": "Python wrapper " + VERSION,
-               "Accept-Encoding": config.ACCEPT_ENCODING,
+               "Accept-Encoding": config.http.ACCEPT_ENCODING,
                "X-YT-Correlation-Id": str(uuid.uuid4())}
     # TODO(ignat) stop using http method for detection command properties
     if command.http_method() == "POST":
@@ -164,7 +150,7 @@ def make_request(command_name, params,
     else:
         headers.update(JsonFormat().to_output_http_header())
 
-    if config.USE_TOKEN:
+    if config.http.USE_TOKEN:
         token = get_token()
         if token is None:
             # TODO(ignat): use YtError
@@ -191,13 +177,13 @@ def make_request(command_name, params,
                 headers=headers,
                 data=data,
                 files=files,
-                timeout=config.CONNECTION_TIMEOUT,
+                timeout=config.http.CONNECTION_TIMEOUT,
                 stream=stream)),
         make_retries,
         url,
         return_raw_response)
 
-    if config.USE_TOKEN and "Authorization" in headers:
+    if config.http.USE_TOKEN and "Authorization" in headers:
         headers["Authorization"] = "x" * 32
 
     print_info("Response header %r", response.http_response.headers)
