@@ -63,6 +63,8 @@ CREATE_FILE_BEFORE_UPLOAD = False
 
 MUTATION_ID = None
 
+update_from_env(globals())
+
 from format import YamrFormat
 import format_config as format
 
@@ -81,8 +83,6 @@ def set_mapreduce_mode():
     THROW_ON_EMPTY_DST_LIST = True
     RUN_MAP_REDUCE_IF_SOURCE_IS_NOT_SORTED = True
     format.TABULAR_DATA_FORMAT = YamrFormat(has_subkey=True, lenval=False)
-
-update_from_env(globals())
 
 import errors_config as errors
 import http_config as http
