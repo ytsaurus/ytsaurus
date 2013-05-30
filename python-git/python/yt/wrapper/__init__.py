@@ -1,6 +1,6 @@
 from errors import YtError, YtOperationFailedError, YtResponseError 
 from record import Record, record_to_line, line_to_record, extract_key
-from format import DsvFormat, YamrFormat, YsonFormat, RawFormat, JsonFormat
+from format import DsvFormat, YamrFormat, YsonFormat, JsonFormat, Format
 from table import TablePath, to_table, to_name
 from tree_commands import set, get, list, exists, remove, search, mkdir, copy, move, link, get_type, create, \
                           has_attribute, get_attribute, set_attribute, list_attributes, check_permission

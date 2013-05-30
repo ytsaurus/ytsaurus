@@ -4,7 +4,7 @@ from driver import make_request
 from format import YsonFormat
 import config
 
-from yt.yson import YsonString
+from yt.yson import YsonString, loads
 
 def check_prefix(prefix):
     require(prefix.startswith("//"),
@@ -13,7 +13,7 @@ def check_prefix(prefix):
             YtError("PREFIX should end with /"))
 
 def _parse_ypath(path):
-    return make_request("parse_ypath", {"path": path}, format=YsonFormat())
+    return loads(make_request("parse_ypath", {"path": path, "output_format": YsonFormat().json()}))
     
 class TablePath(object):
     """

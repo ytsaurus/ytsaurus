@@ -31,7 +31,7 @@ class YtTestBase(object):
         reload(yt)
         reload(config)
 
-        config.http.PROXY = "localhost:%d" % ports["proxy"]
+        config.set_proxy("localhost:%d" % ports["proxy"])
         config.http.USE_TOKEN = False
         config.http.RETRY_VOLATILE_COMMANDS = True
 

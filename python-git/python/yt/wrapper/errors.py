@@ -25,6 +25,9 @@ class YtNetworkError(YtError):
 class YtTokenError(YtError):
     pass
 
+class YtFormatError(YtError):
+    pass
+
 
 def format_error(error, indent=0):
     if errors_config.ERROR_FORMAT == "json":

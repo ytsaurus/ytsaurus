@@ -3,7 +3,7 @@
 cd $(dirname "${BASH_SOURCE[0]}")
 
 set_up() {
-    ./yt create map_node //home/wrapper_test
+    ./yt create map_node //home/wrapper_test --ignore-existing
 }
 
 tear_down() {
