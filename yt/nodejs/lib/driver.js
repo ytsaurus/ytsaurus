@@ -192,6 +192,7 @@ YtDriver.prototype.executeSimple = function(name, parameters, data)
 
     var input_stream = new utils.MemoryInputStream(data);
     var output_stream = new utils.MemoryOutputStream();
+    var pause = utils.Pause(input_stream);
 
     parameters.input_format = "json";
     parameters.output_format = "json";
@@ -199,7 +200,7 @@ YtDriver.prototype.executeSimple = function(name, parameters, data)
     return this.execute(name, _SIMPLE_EXECUTE_USER,
         input_stream, binding.ECompression_None,
         output_stream, binding.ECompression_None,
-        new binding.TNodeWrap(parameters))
+        new binding.TNodeWrap(parameters), pause)
     .then(function(result) {
         var body = buffertools.concat.apply(undefined, output_stream.chunks);
         if (body.length) {
