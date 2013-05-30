@@ -2,9 +2,6 @@
 
 #include "command.h"
 
-#include <ytlib/file_client/file_reader.h>
-#include <ytlib/file_client/file_writer.h>
-
 #include <ytlib/misc/intrusive_ptr.h>
 
 namespace NYT {

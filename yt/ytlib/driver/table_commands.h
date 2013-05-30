@@ -3,12 +3,7 @@
 #include "command.h"
 
 #include <ytlib/table_client/public.h>
-#include <ytlib/table_client/sync_writer.h>
-
-#include <ytlib/yson/consumer.h>
 #include <ytlib/ypath/rich.h>
-
-#include <ytlib/misc/blob_output.h>
 #include <ytlib/misc/intrusive_ptr.h>
 
 namespace NYT {
