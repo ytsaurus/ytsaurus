@@ -271,38 +271,18 @@ int Spawn(
     }
     args.push_back(NULL);
 
-    std::vector<char> envHolder;
-    std::vector<int> offsets;
-    for (char** envVarIt = environ; *envVarIt != nullptr; ++envVarIt) {
-        const size_t sizeBefore = envHolder.size();
-        const char* envVar = *envVarIt;
-        for (const char* it = envVar; *it != 0; ++it) {
-            envHolder.push_back(*it);
-        }
-        envHolder.push_back(0);
-        offsets.push_back(sizeBefore);
-    }
-
-    std::vector<char *> env;
-    FOREACH(auto i, offsets) {
-        env.push_back(&envHolder[i]);
-    }
-    env.push_back(nullptr);
-
     int processId = vfork();
     if (processId < 0) {
         THROW_ERROR_EXCEPTION("Error starting child process: vfork failed")
             << TErrorAttribute("path", path)
             << TErrorAttribute("arguments", arguments)
-            << TErrorAttribute("environment", env)
             << TError::FromSystem(processId);
     }
 
     if (processId == 0) {
-        execvpe(
+        execvp(
             path,
-            &args[0],
-            &env[0]);
+            &args[0]);
         const int errorCode = errno;
         int i = 0;
         while ((execErrNos[i] != errorCode) && (execErrNos[i] != 0)) {
