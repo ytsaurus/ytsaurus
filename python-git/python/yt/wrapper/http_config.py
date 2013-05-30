@@ -1,6 +1,6 @@
 from common import update_from_env
 
-PROXY = ""
+PROXY = None
 
 TOKEN = None
 USE_TOKEN = True

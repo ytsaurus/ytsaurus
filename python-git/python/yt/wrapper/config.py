@@ -5,9 +5,6 @@ USE_HOSTS = True
 # Turn off gzip encoding if you want to speed up reading and writing tables
 REMOVE_TEMP_FILES = True
 
-DEFAULT_FORMAT = None
-TABULAR_DATA_FORMAT = None
-
 ALWAYS_SET_EXECUTABLE_FLAG_TO_FILE = False
 USE_MAPREDUCE_STYLE_DESTINATION_FDS = False
 TREAT_UNEXISTING_AS_EMPTY = False
@@ -66,9 +63,12 @@ CREATE_FILE_BEFORE_UPLOAD = False
 
 MUTATION_ID = None
 
+from format import YamrFormat
+import format_config as format
+
 def set_mapreduce_mode():
     global MAPREDUCE_MODE, ALWAYS_SET_EXECUTABLE_FLAG_TO_FILE, USE_MAPREDUCE_STYLE_DESTINATION_FDS
-    global TREAT_UNEXISTING_AS_EMPTY, DEFAULT_FORMAT, DELETE_EMPTY_TABLES, USE_YAMR_SORT_REDUCE_COLUMNS
+    global TREAT_UNEXISTING_AS_EMPTY, DELETE_EMPTY_TABLES, USE_YAMR_SORT_REDUCE_COLUMNS
     global REPLACE_TABLES_WHILE_COPY_OR_MOVE, CREATE_RECURSIVE
     global THROW_ON_EMPTY_DST_LIST, RUN_MAP_REDUCE_IF_SOURCE_IS_NOT_SORTED
     ALWAYS_SET_EXECUTABLE_FLAG_TO_FILE = True
@@ -80,37 +80,27 @@ def set_mapreduce_mode():
     CREATE_RECURSIVE = True
     THROW_ON_EMPTY_DST_LIST = True
     RUN_MAP_REDUCE_IF_SOURCE_IS_NOT_SORTED = True
-    from format import YamrFormat
-    DEFAULT_FORMAT = YamrFormat(has_subkey=True, lenval=False)
+    format.TABULAR_DATA_FORMAT = YamrFormat(has_subkey=True, lenval=False)
 
 update_from_env(globals())
 
-from errors_config import *
-from http_config import *
+import errors_config as errors
+import http_config as http
 
-import http
+from http import get_api
+from command import parse_commands
 
-def _parse_api(self, description):
-    commands = {}
-    for elem in description:
-        name = elem["name"]
-        del elem["name"]
+if http.PROXY is not None:
+    _api = get_api(http.PROXY)
+    if "v2" in _api:
+        COMMANDS = parse_commands(get_api(http.PROXY, version="v2"))
+        API_PATH = "api/v2"
+        http.RETRY_VOLATILE_COMMANDS = True
+        CREATE_FILE_BEFORE_UPLOAD = True
+    else:
+        COMMANDS = parse_commands(_api)
+        API_PATH = "api"
+        http.RETRY_VOLATILE_COMMANDS = False
+        CREATE_FILE_BEFORE_UPLOAD = False
 
-        for key in elem:
-            if elem[key] == "null":
-                elem[key] = None
 
-        commands[name] = Command(**elem)
-    return commands
-
-_api = http.get_api(PROXY)
-if "v2" in _api:
-    COMMANDS = http.get_api(PROXY, version="v2")
-    API_PATH = "api/v2"
-    RETRY_VOLATILE_COMMANDS = True
-    CREATE_FILE_BEFORE_UPLOAD = True
-else:
-    COMMANDS = _parse_api(_api)
-    API_PATH = "api"
-    RETRY_VOLATILE_COMMANDS = False
-    CREATE_FILE_BEFORE_UPLOAD = False

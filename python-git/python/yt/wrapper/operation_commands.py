@@ -56,7 +56,7 @@ class Timeout(object):
 
 
 def get_operation_state(operation):
-    old_retries_count = config.HTTP_RETRIES_COUNT
+    old_retries_count = config.http.HTTP_RETRIES_COUNT
     config.HTTP_RETRIES_COUNT = config.WAIT_OPERATION_RETRIES_COUNT
 
     operation_path = os.path.join(OPERATIONS_PATH, operation)
@@ -64,7 +64,7 @@ def get_operation_state(operation):
             YtError("Operation %s doesn't exist" % operation))
     state = OperationState(get_attribute(operation_path, "state"))
 
-    config.HTTP_RETRIES_COUNT = old_retries_count
+    config.http.HTTP_RETRIES_COUNT = old_retries_count
 
     return state
 

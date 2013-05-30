@@ -1,0 +1,1 @@
+ERROR_FORMAT = "text"

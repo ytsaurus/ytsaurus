@@ -12,7 +12,7 @@ class TestDefaultBehaviour(YtTestBase, YTEnv):
     @classmethod
     def setup_class(cls):
         YtTestBase._setup_class(YTEnv)
-        yt.config.DEFAULT_FORMAT = yt.format.DsvFormat()
+        yt.config.format.TABULAR_DATA_FORMAT = yt.format.DsvFormat()
 
     @classmethod
     def teardown_class(cls):
@@ -260,7 +260,7 @@ class TestDefaultBehaviour(YtTestBase, YTEnv):
     def test_yt_binary(self):
         current_dir = os.path.dirname(os.path.abspath(__file__))
         proc = subprocess.Popen(
-            "YT_USE_TOKEN=0 YT_PROXY=%s %s" % (yt.config.PROXY, os.path.join(current_dir, "../test_yt.sh")),
+            "YT_USE_TOKEN=0 YT_PROXY=%s %s" % (yt.config.http.PROXY, os.path.join(current_dir, "../test_yt.sh")),
             shell=True)
         proc.communicate()
         self.assertEqual(proc.returncode, 0)
@@ -330,7 +330,7 @@ class TestDefaultBehaviour(YtTestBase, YTEnv):
 
             op_count = yt.get("//sys/operations/@count")
             self.check_command(
-                lambda: yt.http.make_request(command, params),
+                lambda: yt.driver.make_request(command, params),
                 None,
                 lambda: yt.get("//sys/operations/@count") == op_count + 1)
 

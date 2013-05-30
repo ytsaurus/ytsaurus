@@ -27,10 +27,10 @@ def main():
     from yt.wrapper.pickling import load
     __operation, __attributes, __operation_type, __input_format, __output_format, __keys = load(open(__operation_dump))
 
-    import yt.wrapper.config as config
+    import yt.wrapper.format_config as format_config
     config_dict = load(open(__config_dump_filename))
     for key, value in config_dict.iteritems():
-        config.__dict__[key] = value
+        format_config.__dict__[key] = value
 
     import yt.wrapper as yt
     if __attributes.get("is_raw", False):
