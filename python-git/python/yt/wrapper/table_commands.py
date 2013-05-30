@@ -1,16 +1,19 @@
 import config
 import py_wrapper
-from common import flatten, require, unlist, update, EMPTY_GENERATOR, parse_bool, is_prefix, get_value, compose, execute_handling_sigint, bool_to_string
+from common import flatten, require, unlist, update, EMPTY_GENERATOR, parse_bool, \
+                   is_prefix, get_value, compose, execute_handling_sigint, bool_to_string
 from errors import YtError
 from version import VERSION
 from driver import read_content, get_host_for_heavy_operation
 from http import NETWORK_ERRORS
 from table import TablePath, to_table, to_name, prepare_path
-from tree_commands import exists, remove, remove_with_empty_dirs, get_attribute, copy, move, mkdir, find_free_subpath, create, get_type
+from tree_commands import exists, remove, remove_with_empty_dirs, get_attribute, copy, \
+                          move, mkdir, find_free_subpath, create, get_type, \
+                          _make_formatted_transactional_request
 from file_commands import smart_upload_file
 from transaction_commands import _make_transactional_request
 from transaction import PingableTransaction
-from format import RawFormat
+from format import Format
 import logger
 
 import os
@@ -62,7 +65,7 @@ def _prepare_files(files):
 def _prepare_formats(format, input_format, output_format):
     if format is None: format = config.format.TABULAR_DATA_FORMAT
     if isinstance(format, str):
-        format = RawFormat.from_yson_string(format)
+        format = Format(format)
 
     if input_format is None: input_format = format
     require(input_format is not None,
@@ -75,7 +78,7 @@ def _prepare_formats(format, input_format, output_format):
 def _prepare_format(format):
     if format is None: format = config.format.TABULAR_DATA_FORMAT
     if isinstance(format, str):
-        format = RawFormat.from_yson_string(format)
+        format = Format(format)
 
     require(format is not None,
             YtError("You should specify format"))
@@ -122,8 +125,8 @@ def _add_user_command_spec(op_type, binary, input_format, output_format, files, 
     spec = update(
         {
             op_type: {
-                "input_format": input_format.to_json(),
-                "output_format": output_format.to_json(),
+                "input_format": input_format.json(),
+                "output_format": output_format.json(),
                 "command": binary,
                 "file_paths": flatten(files + additional_files + map(prepare_path, get_value(file_paths, []))),
                 "memory_limit": memory_limit,
@@ -162,7 +165,7 @@ def _add_table_writer_spec(job_types, table_writer, spec):
 
 def _make_operation_request(command_name, spec, strategy, finalizer=None, verbose=False):
     def run_operation(finalizer):
-        operation = _make_transactional_request(command_name, {"spec": spec}, verbose=verbose)
+        operation = _make_formatted_transactional_request(command_name, {"spec": spec}, format=None, verbose=verbose)
         get_value(strategy, config.DEFAULT_STRATEGY).process_operation(command_name, operation, finalizer)
 
     if not config.DETACHED:
@@ -254,6 +257,15 @@ def write_table(table, input_stream, format=None, table_writer=None, replication
     table = to_table(table)
     format = _prepare_format(format)
 
+    def prepare_params():
+        params = {
+            "path": table.get_json(),
+            "input_format": format.json()
+        }
+        if table_writer is not None:
+            params["table_writer"] = table_writer
+        return params
+
     def split_rows(stream):
         while True:
             row = format.read_row(stream)
@@ -267,7 +279,7 @@ def write_table(table, input_stream, format=None, table_writer=None, replication
         input_stream = iter(input_stream)
     elif isinstance(input_stream, file) or \
             (hasattr(input_stream, "read") and  hasattr(input_stream, "readline")):
-        if hasattr(format, "read_row"):
+        if format.is_read_row_supported():
             input_stream = split_rows(input_stream)
         else:
             can_split_input = False
@@ -290,9 +302,7 @@ def write_table(table, input_stream, format=None, table_writer=None, replication
             while not buffer.empty():
                 if started:
                     table.append = True
-                params = {"path": table.get_json()}
-                if table_writer is not None:
-                    params["table_writer"] = table_writer
+                params = prepare_params()
                 for i in xrange(config.WRITE_RETRIES_COUNT):
                     try:
                         with PingableTransaction(config.WRITE_TRANSACTION_TIMEOUT):
@@ -300,7 +310,6 @@ def write_table(table, input_stream, format=None, table_writer=None, replication
                                 "write",
                                 params,
                                 data=buffer.get(),
-                                format=format,
                                 proxy=get_host_for_heavy_operation())
                         break
                     except (NETWORK_ERRORS, YtError) as err:
@@ -311,14 +320,10 @@ def write_table(table, input_stream, format=None, table_writer=None, replication
         else:
             if config.USE_RETRIES_DURING_WRITE:
                 logger.warning("Cannot split input into rows. Write is processing by one request.")
-            params = {"path": table.get_json()}
-            if table_writer is not None:
-                params["table_writer"] = table_writer
             _make_transactional_request(
                 "write",
-                params,
+                prepare_params(),
                 data=input_stream,
-                format=format,
                 proxy=get_host_for_heavy_operation())
     if config.TREAT_UNEXISTING_AS_EMPTY and is_empty(table):
         remove(table)
@@ -334,14 +339,16 @@ def read_table(table, format=None, table_reader=None, response_type=None):
     if config.TREAT_UNEXISTING_AS_EMPTY and not exists(table.name):
         return EMPTY_GENERATOR
 
-    params = {"path": table.get_json()}
+    params = {
+        "path": table.get_json(),
+        "output_format": format.json()
+    }
     if table_reader is not None:
         params["table_reader"] = table_reader
 
     response = _make_transactional_request(
         "read",
         params,
-        format=format,
         return_raw_response=True)
     return read_content(response, get_value(response_type, "iter_lines"))
 
