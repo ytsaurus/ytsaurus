@@ -15,5 +15,7 @@ HTTP_RETRY_TIMEOUT = 10
 # COMPAT(ignat): remove option when version 14 become stable
 RETRY_VOLATILE_COMMANDS = False
 
+REQUESTS_RETRIES = 10
+
 update_from_env(globals())
 
