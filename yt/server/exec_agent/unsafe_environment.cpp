@@ -92,7 +92,7 @@ public:
         arguments.push_back(ToString(JobId));
         arguments.push_back("--working-dir");
         arguments.push_back(WorkingDirectory);
-        arguments.push_back("--close-all-fids");
+        arguments.push_back("--close-all-fds");
 
         LOG_INFO("Spawning a job proxy (Path: %s)", ~ProxyPath);
 
