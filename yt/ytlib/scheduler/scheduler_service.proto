@@ -46,6 +46,30 @@ message TRspAbortOperation
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Puts an operation into suspended state.
+
+message TReqSuspendOperation
+{ 
+    required NYT.NProto.TGuid operation_id = 1;
+}
+
+message TRspSuspendOperation
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Resumes an earlier suspended operation.
+
+message TReqResumeOperation
+{ 
+    required NYT.NProto.TGuid operation_id = 1;
+}
+
+message TRspResumeOperation
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 // Waits until a given operation is finished.
 
 message TOperationResult

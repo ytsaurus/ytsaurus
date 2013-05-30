@@ -48,8 +48,6 @@ public:
         TChunkPtrWithIndex chunkWithIndex,
         int replicaCount);
 
-    TNode* GetReplicationSource(TChunkPtrWithIndex chunkWithIndex);
-
     bool HasBalancingTargets(double maxFillFactor);
 
     std::vector<TChunkPtrWithIndex> GetBalancingChunks(

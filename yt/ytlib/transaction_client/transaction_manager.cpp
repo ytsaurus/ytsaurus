@@ -28,7 +28,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& SILENT_UNUSED Logger = TransactionClientLogger;
+static NLog::TLogger& Logger = TransactionClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,7 +62,7 @@ public:
         , PingAncestors(false)
         , Proxy(owner->Channel)
         , State(EState::Active)
-        , Aborted(NewPromise<void>())
+        , Aborted(NewPromise())
     {
         YCHECK(owner);
     }

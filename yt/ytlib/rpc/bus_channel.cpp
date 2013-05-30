@@ -24,8 +24,8 @@ using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& SILENT_UNUSED Logger = RpcClientLogger;
-static NProfiling::TProfiler& SILENT_UNUSED Profiler = RpcClientProfiler;
+static NLog::TLogger& Logger = RpcClientLogger;
+static auto& Profiler = RpcClientProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 

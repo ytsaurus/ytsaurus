@@ -10,7 +10,7 @@ namespace NElection {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& SILENT_UNUSED Logger = ElectionLogger;
+static NLog::TLogger& Logger = ElectionLogger;
 
 NRpc::TChannelCache TCellManager::ChannelCache;
 

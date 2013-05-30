@@ -362,6 +362,48 @@ Stroka TAbortOpExecutor::GetCommandName() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TSuspendOpExecutor::TSuspendOpExecutor()
+    : OpArg("", "id of an operation to suspend", true, "", "OP_ID")
+{
+    CmdLine.add(OpArg);
+}
+
+void TSuspendOpExecutor::BuildArgs(IYsonConsumer* consumer)
+{
+    BuildYsonMapFluently(consumer)
+        .Item("operation_id").Value(OpArg.getValue());
+
+    TRequestExecutor::BuildArgs(consumer);
+}
+
+Stroka TSuspendOpExecutor::GetCommandName() const
+{
+    return "suspend_op";
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TResumeOpExecutor::TResumeOpExecutor()
+    : OpArg("", "id of an operation to resume", true, "", "OP_ID")
+{
+    CmdLine.add(OpArg);
+}
+
+void TResumeOpExecutor::BuildArgs(IYsonConsumer* consumer)
+{
+    BuildYsonMapFluently(consumer)
+        .Item("operation_id").Value(OpArg.getValue());
+
+    TRequestExecutor::BuildArgs(consumer);
+}
+
+Stroka TResumeOpExecutor::GetCommandName() const
+{
+    return "resume_op";
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TTrackOpExecutor::TTrackOpExecutor()
     : OpArg("", "id of an operation to track", true, "", "OP_ID")
 {

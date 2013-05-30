@@ -297,7 +297,7 @@ TAsyncError TErasureWriter::EncodeAndWriteParityBlocks()
     auto pipeline = StartAsyncPipeline(TDispatcher::Get()->GetWriterInvoker());
     int windowIndex = 0;
     for (i64 begin = 0; begin < ParityDataSize_; begin += Config_->ErasureWindowSize) {
-        WindowEncodedPromise_[windowIndex] = NewPromise<void>();
+        WindowEncodedPromise_[windowIndex] = NewPromise();
 
         i64 end = std::min(begin + Config_->ErasureWindowSize, ParityDataSize_);
 

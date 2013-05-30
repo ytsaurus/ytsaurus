@@ -25,7 +25,7 @@ using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& SILENT_UNUSED Logger = DataNodeLogger;
+static NLog::TLogger& Logger = DataNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -155,7 +155,7 @@ TStoredChunkPtr TChunkStore::FindChunk(const TChunkId& chunkId) const
 
 TFuture<void> TChunkStore::RemoveChunk(TStoredChunkPtr chunk)
 {
-    auto promise = NewPromise<void>();
+    auto promise = NewPromise();
     chunk->ScheduleRemoval().Subscribe(
         BIND([=] () mutable {
             // NB: No result check here, the location might got disabled.

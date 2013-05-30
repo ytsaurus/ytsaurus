@@ -14,7 +14,7 @@ namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& SILENT_UNUSED Logger = MetaStateLogger;
+static NLog::TLogger& Logger = MetaStateLogger;
 
 static const char* LogExtension = "log";
 

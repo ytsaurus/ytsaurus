@@ -119,17 +119,17 @@ def make_request_with_retries(request, make_retries=False, url="", return_raw_re
             is_json = response.is_json() or not str(response.http_response.status_code).startswith("2")
             if not return_raw_response and is_json and not response.content():
                 raise YtResponseError(
-                        "Response has JSON content type but empty body (response headers: %s)" %
+                        "Response has empty body and JSON content type (Headers: %s)" %
                         repr(response.http_response.headers))
             return response
         except NETWORK_ERRORS as error:
-            message =  "Http request (%s) has failed with error '%s'" % (url, str(error))
+            message =  "HTTP request (%s) has failed with error '%s'" % (url, str(error))
             if make_retries:
                 logger.warning("%s. Retrying...", message)
                 time.sleep(config.HTTP_RETRY_TIMEOUT)
             else:
                 if not isinstance(error, YtResponseError):
-                    raise YtNetworkError(message)
+                    raise YtNetworkError("Connection to URL %s has failed with error %s", url, str(error))
                 else:
                     raise
 

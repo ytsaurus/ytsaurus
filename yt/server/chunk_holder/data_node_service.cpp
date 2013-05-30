@@ -48,8 +48,8 @@ using namespace NCellNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = DataNodeLogger;
-static NProfiling::TProfiler& Profiler = DataNodeProfiler;
+static auto& Logger = DataNodeLogger;
+static auto& Profiler = DataNodeProfiler;
 static TDuration ProfilingPeriod = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////

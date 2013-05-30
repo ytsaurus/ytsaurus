@@ -28,7 +28,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& SILENT_UNUSED Logger = TableWriterLogger;
+static NLog::TLogger& Logger = TableWriterLogger;
 
 static const int RangeColumnIndex = -1;
 
@@ -160,11 +160,14 @@ void TTableChunkWriter::FinalizeRow(const TRow& row)
         CurrentBufferCapacity += writer->GetCapacity() - capacity;
     }
 
-    if (RowCount == 0 ||
-        RandomNumber<double>() < Config->SampleRate &&
+    if (RowCount == 0) {
+        EmitSample(row, &FirstSample);
+    }
+
+    if (RandomNumber<double>() < Config->SampleRate &&
         SamplesSize < 3 * Config->SampleRate * DataWeight * EncodingWriter->GetCompressionRatio())
     {
-        EmitSample(row);
+        EmitSample(row, SamplesExt.add_items());
     }
 
     RowCount += 1;
@@ -260,10 +263,10 @@ void TTableChunkWriter::WriteRow(const TRow& row)
     }
 
     i64 rowWeight = DataWeight - dataWeight;
-    if (rowWeight > MaxRowWeight) {
+    if (rowWeight > Config->MaxRowWeight) {
         State.Fail(TError("Table row is too large: current weight %" PRId64 ", max weight %" PRId64,
             rowWeight,
-            MaxRowWeight));
+            Config->MaxRowWeight));
         return;
     }
 
@@ -369,6 +372,10 @@ TAsyncError TTableChunkWriter::AsyncClose()
 
     LOG_DEBUG("Closing writer (KeyColumnCount: %d)", static_cast<int>(ColumnNames.size()));
 
+    if (SamplesExt.items_size() == 0) {
+        SamplesExt.add_items()->CopyFrom(FirstSample);
+    }
+
     State.StartOperation();
 
     while (BuffersHeap.front()->GetCurrentSize() > 0) {
@@ -424,13 +431,11 @@ void TTableChunkWriter::EmitIndexEntry()
     IndexSize += LastKey.GetSize();
 }
 
-void TTableChunkWriter::EmitSample(const TRow& row)
+void TTableChunkWriter::EmitSample(const TRow& row, NProto::TSample* sample)
 {
-    auto item = SamplesExt.add_items();
-
     std::map<TStringBuf, TStringBuf> sortedRow(row.begin(), row.end());
     FOREACH (const auto& pair, sortedRow) {
-        auto* part = item->add_parts();
+        auto* part = sample->add_parts();
         part->set_column(pair.first.begin(), pair.first.size());
         // sizeof(i32) for type field.
         SamplesSize += sizeof(i32);

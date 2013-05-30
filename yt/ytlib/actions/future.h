@@ -31,10 +31,14 @@ class TPromise;
 template <class T>
 TPromise<T> NewPromise();
 
+//! Creates an empty (unset) void promise.
+TPromise<void> NewPromise();
+
 //! Constructs a pre-set future.
 template <class T>
 TFuture< typename NMpl::TDecay<T>::TType > MakeFuture(T&& value);
 
+//! Constructs a pre-set void future.
 TFuture<void> MakeFuture();
 
 //! Constructs a pre-set promise.
@@ -158,7 +162,7 @@ private:
     explicit TFuture(const TIntrusivePtr< NYT::NDetail::TPromiseState<T> >& state);
     explicit TFuture(TIntrusivePtr< NYT::NDetail::TPromiseState<T> >&& state);
 
-    TIntrusivePtr< NYT::NDetail::TPromiseState<T> > Impl    ;
+    TIntrusivePtr< NYT::NDetail::TPromiseState<T> > Impl;
 
 private:
     friend class TPromise<T>;
@@ -387,6 +391,7 @@ private:
 
     template <class U>
     friend TPromise<U> NewPromise();
+    friend TPromise<void> NewPromise();
     template <class U>
     friend TPromise< typename NMpl::TDecay<U>::TType > MakePromise(U&& value);
 
@@ -496,6 +501,7 @@ private:
 
     template <class U>
     friend TPromise<U> NewPromise();
+    friend TPromise<void> NewPromise();
     friend TPromise<void> MakePromise();
 
     template <class U>

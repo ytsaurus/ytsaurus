@@ -50,8 +50,8 @@ using namespace NChunkServer::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = ChunkServerLogger;
-static NProfiling::TProfiler& Profiler = ChunkServerProfiler;
+static auto& Logger = ChunkServerLogger;
+static auto& Profiler = ChunkServerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -385,6 +385,11 @@ void TChunkReplicator::ProcessExistingJobs(
                 break;
             }
 
+            case EJobState::Waiting:
+                LOG_INFO("Job is waiting (JobId: %s, Address: %s)",
+                    ~ToString(jobId),
+                    ~address);
+                break;
 
             default:
                 YUNREACHABLE();
@@ -816,8 +821,12 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
                 int replicaCount = statistics.ReplicaCount[index];
                 int priority = std::max(std::min(replicaCount - 1, ReplicationPriorityCount - 1), 0);
 
-                auto* node = ChunkPlacement->GetReplicationSource(chunkWithIndex);
-                YCHECK(node->ChunkReplicationQueues()[priority].insert(chunkWithIndex).second);
+                FOREACH (auto replica, chunk->StoredReplicas()) {
+                    if (replica.GetIndex() == index) {
+                        auto* node = replica.GetPtr();
+                        YCHECK(node->ChunkReplicationQueues()[priority].insert(chunkWithIndex).second);
+                    }
+                }
             }
         }
 

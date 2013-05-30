@@ -891,7 +891,10 @@ TJobPtr TOperationControllerBase::ScheduleJob(
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    if (!Running) {
+    if (!Running ||
+        Operation->GetState() != EOperationState::Running ||
+        Operation->GetSuspended())
+    {
         LOG_TRACE("Operation is not running, scheduling request ignored");
         return nullptr;
     }
@@ -1255,12 +1258,22 @@ int TOperationControllerBase::GetPendingJobCount()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
+    // NB: For suspended operations we still report proper pending job count
+    // but zero demand.
+    if (Operation->GetState() != EOperationState::Running) {
+        return 0;
+    }
+
     return CachedPendingJobCount;
 }
 
 TNodeResources TOperationControllerBase::GetNeededResources()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
+
+    if (Operation->GetState() != EOperationState::Running) {
+        return ZeroNodeResources();
+    }
 
     return CachedNeededResources;
 }
@@ -2107,7 +2120,7 @@ TFuture<void> TOperationControllerBase::CompletePreparation()
     if (TotalInputChunkCount == 0) {
         LOG_INFO("Empty input");
         CancelableControlInvoker->Invoke(BIND(&TThis::OnOperationCompleted, MakeStrong(this)));
-        return NewPromise<void>();
+        return NewPromise();
     }
 
     ChunkListPool = New<TChunkListPool>(

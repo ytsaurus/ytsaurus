@@ -158,7 +158,7 @@ struct TMapOperationSpec
             .DefaultNew();
 
         RegisterInitializer([&] () {
-            JobIO->TableReader->MaxBufferSize = 1024L * 1024 * 1024;
+            JobIO->TableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
         });
     }
 

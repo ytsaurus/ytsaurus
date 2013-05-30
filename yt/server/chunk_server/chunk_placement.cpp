@@ -22,7 +22,7 @@ using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = ChunkServerLogger;
+static auto& Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -227,22 +227,6 @@ TNodeList TChunkPlacement::GetWriteTargets(
     }
 
     return GetWriteTargets(targetCount, &forbiddenNodes, Null, sessionType);
-}
-
-TNode* TChunkPlacement::GetReplicationSource(TChunkPtrWithIndex chunkWithIndex)
-{
-    TNodePtrWithIndexList storedReplicas;
-    auto* chunk = chunkWithIndex.GetPtr();
-    FOREACH (auto storedReplica, chunk->StoredReplicas()) {
-        if (storedReplica.GetIndex() == chunkWithIndex.GetIndex()) {
-            storedReplicas.push_back(storedReplica);
-        }
-    }
-
-    // Pick a random location containing a matching replica.
-    YCHECK(!storedReplicas.empty());
-    int index = RandomNumber<size_t>(storedReplicas.size());
-    return storedReplicas[index].GetPtr();
 }
 
 TNodeList TChunkPlacement::GetRemovalTargets(

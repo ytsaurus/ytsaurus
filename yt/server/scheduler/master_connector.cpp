@@ -305,8 +305,8 @@ private:
         TUpdateList(IChannelPtr masterChannel, TOperationPtr operation)
             : Operation(operation)
             , State(EUpdateListState::Active)
-            , FlushedPromise(NewPromise<void>())
-            , FinalizedPromise(NewPromise<void>())
+            , FlushedPromise(NewPromise())
+            , FinalizedPromise(NewPromise())
             , Proxy(CreateSerializedChannel(masterChannel))
         { }
 
@@ -552,6 +552,7 @@ private:
                     attributeFilter->add_keys("authenticated_user");
                     attributeFilter->add_keys("start_time");
                     attributeFilter->add_keys("state");
+                    attributeFilter->add_keys("suspended");
                     batchReq->AddRequest(req, "get_op_attr");
                 }
             }
@@ -663,6 +664,7 @@ private:
                 // Remove snapshot.
                 {
                     auto req = TYPathProxy::Remove(GetSnapshotPath(operation->GetOperationId()));
+                    req->set_force(true);
                     batchReq->AddRequest(req, "remove_snapshot");
                 }
             }
@@ -864,7 +866,9 @@ private:
             attributes.Get<INodePtr>("spec")->AsMap(),
             attributes.Get<Stroka>("authenticated_user"),
             attributes.Get<TInstant>("start_time"),
-            attributes.Get<EOperationState>("state"));
+            attributes.Get<EOperationState>("state"),
+            // COMPAT(babenko)
+            attributes.Get<bool>("suspended", false));
 
         operation->SetSyncSchedulerTransaction(syncTransaction);
         operation->SetAsyncSchedulerTransaction(asyncTransaction);
@@ -969,13 +973,14 @@ private:
 
         auto operations = Bootstrap->GetScheduler()->GetOperations();
         FOREACH (auto operation, operations) {
-            if (operation->GetState() == EOperationState::Running) {
-                watchTransaction(operation->GetUserTransaction());
-                watchTransaction(operation->GetSyncSchedulerTransaction());
-                watchTransaction(operation->GetAsyncSchedulerTransaction());
-                watchTransaction(operation->GetInputTransaction());
-                watchTransaction(operation->GetOutputTransaction());
-            }
+            if (operation->GetState() != EOperationState::Running)
+                continue;
+
+            watchTransaction(operation->GetUserTransaction());
+            watchTransaction(operation->GetSyncSchedulerTransaction());
+            watchTransaction(operation->GetAsyncSchedulerTransaction());
+            watchTransaction(operation->GetInputTransaction());
+            watchTransaction(operation->GetOutputTransaction());
         }
 
         // Invoke GetId verbs for these transactions to see if they are alive.
@@ -1028,17 +1033,19 @@ private:
         // If so, raise an appropriate notification.
         auto operations = Bootstrap->GetScheduler()->GetOperations();
         FOREACH (auto operation, operations) {
-            if (operation->GetState() == EOperationState::Running) {
-                if (isDead(operation->GetUserTransaction())) {
-                    UserTransactionAborted_.Fire(operation);
-                }
-                if (isDead(operation->GetSyncSchedulerTransaction()) ||
-                    isDead(operation->GetAsyncSchedulerTransaction()) ||
-                    isDead(operation->GetInputTransaction()) ||
-                    isDead(operation->GetOutputTransaction()))
-                {
-                    SchedulerTransactionAborted_.Fire(operation);
-                }
+            if (operation->GetState() != EOperationState::Running)
+                continue;
+
+            if (isDead(operation->GetUserTransaction())) {
+                UserTransactionAborted_.Fire(operation);
+            }
+
+            if (isDead(operation->GetSyncSchedulerTransaction()) ||
+                isDead(operation->GetAsyncSchedulerTransaction()) ||
+                isDead(operation->GetInputTransaction()) ||
+                isDead(operation->GetOutputTransaction()))
+            {
+                SchedulerTransactionAborted_.Fire(operation);
             }
         }
     }
@@ -1163,8 +1170,14 @@ private:
         // Set state.
         {
             auto req = TYPathProxy::Set(operationPath + "/@state");
-            auto state = operation->GetState();
-            req->set_value(ConvertToYsonString(state).Data());
+            req->set_value(ConvertToYsonString(operation->GetState()).Data());
+            batchReq->AddRequest(req, "update_op_node");
+        }
+
+        // Set suspended flag.
+        {
+            auto req = TYPathProxy::Set(operationPath + "/@suspended");
+            req->set_value(ConvertToYsonString(operation->GetSuspended()).Data());
             batchReq->AddRequest(req, "update_op_node");
         }
 

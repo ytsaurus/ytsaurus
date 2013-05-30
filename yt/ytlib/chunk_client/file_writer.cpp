@@ -18,7 +18,7 @@ using namespace NChunkClient::NProto;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& SILENT_UNUSED Logger = ChunkWriterLogger;
+static NLog::TLogger& Logger = ChunkWriterLogger;
 
 static TNullOutput NullOutput;
 

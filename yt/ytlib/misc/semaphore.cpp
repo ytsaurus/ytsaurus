@@ -61,7 +61,7 @@ TFuture<void> TAsyncSemaphore::GetReadyEvent()
         YCHECK(ReadyEvent.IsNull());
         return PresetResult;
     } else if (ReadyEvent.IsNull()) {
-        ReadyEvent = NewPromise<void>();
+        ReadyEvent = NewPromise();
     }
 
     return ReadyEvent;
@@ -75,7 +75,7 @@ TFuture<void> TAsyncSemaphore::GetFreeEvent()
         YCHECK(FreeEvent.IsNull());
         return PresetResult;
     } else if (FreeEvent.IsNull()) {
-        FreeEvent = NewPromise<void>();
+        FreeEvent = NewPromise();
     }
 
     return FreeEvent;

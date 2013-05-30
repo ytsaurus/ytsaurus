@@ -20,8 +20,8 @@ using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& SILENT_UNUSED Logger = DataNodeLogger;
-static NProfiling::TProfiler& SILENT_UNUSED Profiler = DataNodeProfiler;
+static NLog::TLogger& Logger = DataNodeLogger;
+static auto& Profiler = DataNodeProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -226,7 +226,7 @@ TFuture<void> TChunk::ScheduleRemoval()
             return RemovedEvent;
         }
 
-        RemovedEvent = NewPromise<void>();
+        RemovedEvent = NewPromise();
         if (ReadLockCounter == 0 && !RemovalScheduled) {
             scheduleRemoval = RemovalScheduled = true;
         }

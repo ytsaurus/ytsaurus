@@ -31,8 +31,8 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& SILENT_UNUSED Logger = JobProxyLogger;
-static NProfiling::TProfiler& SILENT_UNUSED Profiler = JobProxyProfiler;
+static NLog::TLogger& Logger = JobProxyLogger;
+static auto& Profiler = JobProxyProfiler;
 
 static const int SortBucketSize = 10000;
 static const int SpinsBetweenYield = 1000;

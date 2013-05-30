@@ -21,11 +21,13 @@ TOperation::TOperation(
     NYTree::IMapNodePtr spec,
     const Stroka& authenticatedUser,
     TInstant startTime,
-    EOperationState state)
+    EOperationState state,
+    bool suspended)
     : OperationId_(operationId)
     , Type_(type)
     , MutationId_(mutationId)
     , State_(state)
+    , Suspended_(suspended)
     , UserTransaction_(userTransaction)
     , Spec_(spec)
     , AuthenticatedUser_(authenticatedUser)
@@ -33,7 +35,7 @@ TOperation::TOperation(
     , StdErrCount_(0)
     , MaxStdErrCount_(0)
     , CleanStart_(false)
-    , FinishedPromise(NewPromise<void>())
+    , FinishedPromise(NewPromise())
 { }
 
 TFuture<void> TOperation::GetFinished()

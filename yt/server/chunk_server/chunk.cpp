@@ -22,7 +22,7 @@ using namespace NSecurityServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = ChunkServerLogger;
+static auto& Logger = ChunkServerLogger;
 
 const i64 TChunk::UnknownDiskSpace = -1;
 

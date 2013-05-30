@@ -430,7 +430,7 @@ inline void TFuture<T>::Subscribe(
 template <class T>
 inline TFuture<void> TFuture<T>::Apply(const TCallback<void(T)>& mutator)
 {
-    auto mutated = NewPromise<void>();
+    auto mutated = NewPromise();
     // TODO(sandello): Make cref here.
     Subscribe(BIND([mutated, mutator] (T value) mutable {
         mutator.Run(value);
@@ -442,7 +442,7 @@ inline TFuture<void> TFuture<T>::Apply(const TCallback<void(T)>& mutator)
 template <class T>
 inline TFuture<void> TFuture<T>::Apply(const TCallback<TFuture<void>(T)>& mutator)
 {
-    auto mutated = NewPromise<void>();
+    auto mutated = NewPromise();
 
     // TODO(sandello): Make cref here.
     auto inner = BIND([mutated] () mutable {
@@ -575,7 +575,7 @@ inline void TFuture<void>::Subscribe(
 
 inline TFuture<void> TFuture<void>::Apply(const TCallback<void()>& mutator)
 {
-    auto mutated = NewPromise<void>();
+    auto mutated = NewPromise();
     Subscribe(BIND([mutated, mutator] () mutable {
         mutator.Run();
         mutated.Set();
@@ -585,7 +585,7 @@ inline TFuture<void> TFuture<void>::Apply(const TCallback<void()>& mutator)
 
 inline TFuture<void> TFuture<void>::Apply(const TCallback<TFuture<void>()>& mutator)
 {
-    auto mutated = NewPromise<void>();
+    auto mutated = NewPromise();
 
     // TODO(sandello): Make cref here.
     auto inner = BIND([mutated] () mutable {
@@ -925,11 +925,6 @@ inline TPromise< typename NMpl::TDecay<T>::TType > MakePromise(T&& value)
 {
     typedef typename NMpl::TDecay<T>::TType U;
     return TPromise<U>(New< NYT::NDetail::TPromiseState<U> >(std::forward<T>(value)));
-}
-
-inline TPromise<void> MakePromise()
-{
-    return TPromise<void>(New< NYT::NDetail::TPromiseState<void> >(true));
 }
 
 template <class T>

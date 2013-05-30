@@ -16,7 +16,7 @@ using namespace NElection;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& SILENT_UNUSED Logger = MetaStateLogger;
+static NLog::TLogger& Logger = MetaStateLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,7 +31,7 @@ TFollowerTracker::TFollowerTracker(
     , DecoratedState(decoratedState)
     , EpochId(epoch)
     , EpochControlInvoker(epochControlInvoker)
-    , ActiveQuorumPromise(NewPromise<void>())
+    , ActiveQuorumPromise(NewPromise())
 {
     YCHECK(config);
     YCHECK(cellManager);

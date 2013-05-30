@@ -71,8 +71,8 @@ using NNodeTrackerClient::TNodeDescriptor;
 
 ////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = SchedulerLogger;
-static NProfiling::TProfiler& Profiler = SchedulerProfiler;
+static auto& Logger = SchedulerLogger;
+static auto& Profiler = SchedulerProfiler;
 static TDuration ProfilingPeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////
@@ -96,7 +96,7 @@ public:
         , TotalCompletedJobTimeCounter("/total_completed_job_time")
         , TotalFailedJobTimeCounter("/total_failed_job_time")
         , TotalAbortedJobTimeCounter("/total_aborted_job_time")
-        , JobTypeCounters(EJobType::GetDomainSize())
+        , JobTypeCounters(static_cast<int>(EJobType::SchedulerLast))
         , TotalResourceLimits(ZeroNodeResources())
         , TotalResourceUsage(ZeroNodeResources())
     {
@@ -194,7 +194,10 @@ public:
 
         auto operation = FindOperation(id);
         if (!operation) {
-            THROW_ERROR_EXCEPTION("No such operation %s", ~ToString(id));
+            THROW_ERROR_EXCEPTION(
+                EErrorCode::NoSuchOperation,
+                "No such operation %s",
+                ~ToString(id));
         }
         return operation;
     }
@@ -347,9 +350,49 @@ public:
             ~ToString(operation->GetOperationId()),
             ~operation->GetState().ToString());
 
-        DoOperationFailed(operation, EOperationState::Aborting, EOperationState::Aborted, error);
+        DoOperationFailed(
+            operation,
+            EOperationState::Aborting,
+            EOperationState::Aborted,
+            error);
 
         return operation->GetFinished();
+    }
+
+    TAsyncError SuspendOperation(TOperationPtr operation)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (operation->IsFinishingState() || operation->IsFinishedState()) {
+            return MakeFuture(TError(
+                EErrorCode::InvalidOperationState,
+                "Cannot suspend operation in %s state",
+                ~FormatEnum(operation->GetState()).Quote()));
+        }
+
+        operation->SetSuspended(true);
+
+        LOG_INFO("Operation suspended (OperationId: %s)",
+            ~ToString(operation->GetOperationId()));
+        
+        return MakeFuture(TError());
+    }
+
+    TAsyncError ResumeOperation(TOperationPtr operation)
+    {
+        if (!operation->GetSuspended()) {
+            return MakeFuture(TError(
+                EErrorCode::InvalidOperationState,
+                "Operation is not suspended",
+                ~FormatEnum(operation->GetState()).Quote()));
+        }
+
+        operation->SetSuspended(false);
+
+        LOG_INFO("Operation resumed (OperationId: %s)",
+            ~ToString(operation->GetOperationId()));
+
+        return MakeFuture(TError());
     }
 
 
@@ -619,8 +662,11 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        FOREACH (auto jobType, EJobType::GetDomainValues()) {
-            Profiler.Enqueue("/job_count/" + FormatEnum(EJobType(jobType)), JobTypeCounters[jobType]);
+        FOREACH (auto jobTypeValue, EJobType::GetDomainValues()) {
+            auto jobType = EJobType(jobTypeValue);
+            if (jobType > EJobType::SchedulerFirst && jobType < EJobType::SchedulerLast) {
+                Profiler.Enqueue("/job_count/" + FormatEnum(jobType), JobTypeCounters[jobType]);
+            }
         }
 
         Profiler.Enqueue("/job_count/total", IdToJob.size());
@@ -1573,7 +1619,7 @@ private:
     void BuildOperationYson(TOperationPtr operation, IYsonConsumer* consumer)
     {
         auto state = operation->GetState();
-        bool hasProgress = state == EOperationState::Running || IsOperationFinished(state);
+        bool hasProgress = (state == EOperationState::Running) || IsOperationFinished(state);
         BuildYsonMapFluently(consumer)
             .Item(ToString(operation->GetOperationId())).BeginMap()
                 .Do(BIND(&NScheduler::BuildOperationAttributes, operation))
@@ -1929,6 +1975,16 @@ TFuture<void> TScheduler::AbortOperation(
     const TError& error)
 {
     return Impl->AbortOperation(operation, error);
+}
+
+TAsyncError TScheduler::SuspendOperation(TOperationPtr operation)
+{
+    return Impl->SuspendOperation(operation);
+}
+
+TAsyncError TScheduler::ResumeOperation(TOperationPtr operation)
+{
+    return Impl->ResumeOperation(operation);
 }
 
 void TScheduler::ProcessHeartbeat(TExecNodePtr node, TCtxHeartbeatPtr context)

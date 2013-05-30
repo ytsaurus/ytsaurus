@@ -36,6 +36,8 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartOperation));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortOperation));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(WaitForOperation));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(SuspendOperation));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ResumeOperation));
     }
 
 private:
@@ -96,12 +98,47 @@ private:
         scheduler->ValidateConnected();
 
         auto operation = scheduler->GetOperationOrThrow(operationId);
-        scheduler->AbortOperation(
-            operation,
-            TError("Operation aborted by user request"))
+        scheduler
+            ->AbortOperation(
+                operation,
+                TError("Operation aborted by user request"))
             .Subscribe(BIND([=] () {
                 context->Reply();
-        }));
+            }));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, SuspendOperation)
+    {
+        auto operationId = FromProto<TOperationId>(request->operation_id());
+
+        context->SetRequestInfo("OperationId: %s", ~ToString(operationId));
+
+        auto scheduler = Bootstrap->GetScheduler();
+        scheduler->ValidateConnected();
+
+        auto operation = scheduler->GetOperationOrThrow(operationId);
+        scheduler
+            ->SuspendOperation(operation)
+            .Subscribe(BIND([=] (TError error) {
+                context->Reply(error);
+            }));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, ResumeOperation)
+    {
+        auto operationId = FromProto<TOperationId>(request->operation_id());
+
+        context->SetRequestInfo("OperationId: %s", ~ToString(operationId));
+
+        auto scheduler = Bootstrap->GetScheduler();
+        scheduler->ValidateConnected();
+
+        auto operation = scheduler->GetOperationOrThrow(operationId);
+        scheduler
+            ->ResumeOperation(operation)
+            .Subscribe(BIND([=] (TError error) {
+                context->Reply(error);
+            }));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, WaitForOperation)

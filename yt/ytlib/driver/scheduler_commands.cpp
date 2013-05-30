@@ -94,5 +94,29 @@ void TAbortOperationCommand::DoExecute()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TSuspendOperationCommand::DoExecute()
+{
+    TSchedulerServiceProxy proxy(Context->GetSchedulerChannel());
+    auto req = proxy.SuspendOperation();
+    ToProto(req->mutable_operation_id(), Request->OperationId);
+
+    auto rsp = req->Invoke().Get();
+    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TResumeOperationCommand::DoExecute()
+{
+    TSchedulerServiceProxy proxy(Context->GetSchedulerChannel());
+    auto req = proxy.ResumeOperation();
+    ToProto(req->mutable_operation_id(), Request->OperationId);
+
+    auto rsp = req->Invoke().Get();
+    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NDriver
 } // namespace NYT

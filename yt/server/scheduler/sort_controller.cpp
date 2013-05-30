@@ -50,7 +50,7 @@ using NChunkClient::NProto::TKey;
 
 ////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = OperationLogger;
+static auto& Logger = OperationLogger;
 static NProfiling::TProfiler Profiler("/operations/sort");
 
 //! Maximum number of buckets for partition sizes aggregation.

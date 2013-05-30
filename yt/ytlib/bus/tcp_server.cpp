@@ -28,7 +28,7 @@ namespace NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NProfiling::TProfiler& SILENT_UNUSED Profiler = BusProfiler;
+static auto& Profiler = BusProfiler;
 
 static NProfiling::TAggregateCounter AcceptTime("/accept_time");
 

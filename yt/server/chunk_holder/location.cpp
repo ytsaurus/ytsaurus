@@ -28,7 +28,7 @@ using namespace NCellNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& SILENT_UNUSED Logger = DataNodeLogger;
+static NLog::TLogger& Logger = DataNodeLogger;
 
 static const int Permissions = 0751;
 
@@ -380,7 +380,7 @@ TFuture<void> TLocation::ScheduleChunkRemoval(TChunk* chunk)
 
     LOG_INFO("Chunk removal scheduled (ChunkId: %s)", ~ToString(id));
 
-    auto promise = NewPromise<void>();
+    auto promise = NewPromise();
     GetWriteInvoker()->Invoke(BIND([=] () mutable {
         LOG_DEBUG("Started removing chunk files (ChunkId: %s)", ~ToString(id));
 

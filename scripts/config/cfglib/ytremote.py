@@ -27,7 +27,7 @@ cmd_stop = 'start-stop-daemon --pidfile %(work_dir)s/pid -K'
 cmd_ssh = 'ssh %s %s'
 cmd_rsync = 'rsync --copy-links %s %s:%s'
 
-def wrap_cmd(cmd, silent=False, timeout=20):
+def wrap_cmd(cmd, silent=False, timeout=40):
     if timeout:
         res = ['cmd="timeout %ds %s"' % (timeout, cmd)]
     else:

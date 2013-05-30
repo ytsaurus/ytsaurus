@@ -8,6 +8,8 @@
 
 #include <ytlib/logging/tagged_logger.h>
 
+#include <ytlib/cypress_client/cypress_ypath_proxy.h>
+
 #include <ytlib/file_client/file_writer.h>
 
 #include <ytlib/scheduler/helpers.h>
@@ -31,15 +33,16 @@ namespace NYT {
 namespace NScheduler {
 
 using namespace NFS;
-using namespace NFileClient;
 using namespace NYTree;
+using namespace NFileClient;
+using namespace NCypressClient;
 using namespace NObjectClient;
 using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const int LocalWriteBufferSize = 1024 * 1024;
-static const int RemoteWriteBufferSize = 1024 * 1024;
+static const i64 LocalWriteBufferSize  = (i64) 1024 * 1024;
+static const i64 RemoteWriteBufferSize = (i64) 1024 * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -162,25 +165,26 @@ void TSnapshotBuilder::UploadSnapshot(const TJob& job)
             TTransactionStartOptions options;
             options.Attributes->Set(
                 "title",
-                Sprintf("Operation snapshot upload for %s", ~ToString(operation->GetOperationId())));
+                Sprintf("Snapshot upload for operation %s", ~ToString(operation->GetOperationId())));
             transaction = transactionManager->Start(options);
         }
 
-        // Check for previous snapshot.
-        bool alreadyExists;
-        {
-            auto req = TYPathProxy::Exists(snapshotPath);
-            auto rsp = proxy.Execute(req).Get();
-            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error checking snapshot for existence");
-            alreadyExists = rsp->value();
-        }
-
         // Remove previous snapshot, if exists.
-        if (alreadyExists) {
+        {
             auto req = TYPathProxy::Remove(snapshotPath);
+            req->set_force(true);
             SetTransactionId(req, transaction);
             auto rsp = proxy.Execute(req).Get();
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error removing previous snapshot");
+        }
+
+        // Create new snapshot node.
+        {
+            auto req = TCypressYPathProxy::Create(snapshotPath);
+            req->set_type(EObjectType::File);
+            SetTransactionId(req, transaction);
+            auto rsp = proxy.Execute(req).Get();
+            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error creating snapshot node");
         }
 
         // Upload new snapshot.

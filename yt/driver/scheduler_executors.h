@@ -159,6 +159,36 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSuspendOpExecutor
+    : public TRequestExecutor
+{
+public:
+    TSuspendOpExecutor();
+
+private:
+    TCLAP::UnlabeledValueArg<Stroka> OpArg;
+
+    virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
+    virtual Stroka GetCommandName() const override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TResumeOpExecutor
+    : public TRequestExecutor
+{
+public:
+    TResumeOpExecutor();
+
+private:
+    TCLAP::UnlabeledValueArg<Stroka> OpArg;
+
+    virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
+    virtual Stroka GetCommandName() const override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTrackOpExecutor
     : public TExecutor
 {

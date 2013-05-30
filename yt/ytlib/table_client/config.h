@@ -18,6 +18,8 @@ class TChunkWriterConfig
 public:
     i64 BlockSize;
 
+    i64 MaxRowWeight;
+
     //! Fraction of rows data size that samples are allowed to occupy.
     double SampleRate;
 
@@ -36,6 +38,10 @@ public:
         RegisterParameter("block_size", BlockSize)
             .GreaterThanOrEqual((i64) 1024 * 1024)
             .Default((i64) 32 * 1024 * 1024);
+        RegisterParameter("max_row_weight", MaxRowWeight)
+            .GreaterThan((i64) 0)
+            .LessThanOrEqual((i64) 32 * 1024 * 1024)
+            .Default((i64) 16 * 1024 * 1024);
         RegisterParameter("sample_rate", SampleRate)
             .GreaterThan(0)
             .LessThanOrEqual(0.001)

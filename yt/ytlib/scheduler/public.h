@@ -38,6 +38,11 @@ DECLARE_ENUM(EOperationState,
     (Failed)
 );
 
+DECLARE_ENUM(EErrorCode,
+    ((NoSuchOperation)      (200))
+    ((InvalidOperationState)(201))
+);
+
 class TSchedulerServiceProxy;
 
 class TJobIOConfig;
