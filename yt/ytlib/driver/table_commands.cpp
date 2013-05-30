@@ -29,6 +29,32 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TReadSession
+    : public TRefCounted
+{
+public:
+    TReadSession(
+        NTableClient::TAsyncTableReaderPtr reader,
+        IAsyncOutputStreamPtr output,
+        const NFormats::TFormat& format,
+        size_t bufferLimit);
+
+    TAsyncError Execute();
+
+private:
+    typedef TReadSession TThis;
+
+    TAsyncError Read();
+
+    NTableClient::TAsyncTableReaderPtr Reader_;
+    IAsyncOutputStreamPtr Output_;
+    TBlobOutput Buffer_;
+    std::unique_ptr<NYson::IYsonConsumer> Consumer_;
+
+    size_t BufferSize_;
+    bool AlreadyFetched_;
+};
+
 TReadSession::TReadSession(
     TAsyncTableReaderPtr reader,
     IAsyncOutputStreamPtr output,
@@ -96,6 +122,37 @@ TAsyncError TReadSession::Read()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+class TWriteSession
+    : public TRefCounted
+{
+public:
+    TWriteSession(
+        NTableClient::IAsyncWriterPtr writer,
+        IAsyncInputStreamPtr input,
+        const NFormats::TFormat& format,
+        i64 bufferSize);
+
+    TAsyncError Execute();
+
+private:
+    typedef TWriteSession TThis;
+
+    TAsyncError ReadyToRead(TError error);
+    TAsyncError Read();
+    bool ProcessReadResult();
+    TAsyncError OnRead(TError error);
+    TAsyncError ProcessCollectedRows(TError error);
+    TAsyncError Finish(TError error);
+
+    NTableClient::IAsyncWriterPtr Writer_;
+    IAsyncInputStreamPtr Input_;
+    std::unique_ptr<NTableClient::TTableConsumer> Consumer_;
+    std::unique_ptr<NFormats::IParser> Parser_;
+    TSharedRef Buffer_;
+
+    bool IsFinished_;
+};
 
 TWriteSession::TWriteSession(
     IAsyncWriterPtr writer,
@@ -170,6 +227,7 @@ TAsyncError TWriteSession::OnRead(TError error)
     return Read();
 }
 
+//////////////////////////////////////////////////////////////////////////////////
 
 void TReadCommand::DoExecute()
 {
@@ -192,6 +250,12 @@ void TReadCommand::DoExecute()
 
     CheckAndReply(Session_->Execute());
 }
+
+TReadCommand::TReadCommand()
+{ }
+
+TReadCommand::~TReadCommand()
+{ }
 
 //////////////////////////////////////////////////////////////////////////////////
 
@@ -217,6 +281,12 @@ void TWriteCommand::DoExecute()
 
     CheckAndReply(Session_->Execute());
 }
+
+TWriteCommand::TWriteCommand()
+{ }
+
+TWriteCommand::~TWriteCommand()
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

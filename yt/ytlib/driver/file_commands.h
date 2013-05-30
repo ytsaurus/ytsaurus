@@ -35,42 +35,20 @@ struct TDownloadRequest
 typedef TIntrusivePtr<TDownloadRequest> TDownloadRequestPtr;
 
 
-class TDownloadSession
-    : public TRefCounted
-{
-public:
-    TDownloadSession(NFileClient::TAsyncReaderPtr reader, IAsyncOutputStreamPtr output);
-
-    TAsyncError Execute(
-        NFileClient::TFileReaderConfigPtr config,
-        NRpc::IChannelPtr masterChannel,
-        NTransactionClient::ITransactionPtr transaction,
-        NChunkClient::IBlockCachePtr blockCache,
-        const NYPath::TRichYPath& richPath,
-        const TNullable<i64>& offset,
-        const TNullable<i64>& length);
-
-private:
-    typedef TDownloadSession TThis;
-
-    TAsyncError ReadBlock(TError error);
-    
-    TAsyncError WriteBlock(TValueOrError<TSharedRef> blockOrError);
-
-    NFileClient::TAsyncReaderPtr Reader_;
-    IAsyncOutputStreamPtr Output_;
-};
-
-typedef TIntrusivePtr<TDownloadSession> TDownloadSessionPtr;
-
+class TDownloadSession;
 
 class TDownloadCommand
     : public TTypedCommand<TDownloadRequest>
 {
+public:
+    TDownloadCommand();
+
+    ~TDownloadCommand();
+
 private:
     virtual void DoExecute();
 
-    TDownloadSessionPtr Session_;
+    TIntrusivePtr<TDownloadSession> Session_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -92,39 +70,20 @@ struct TUploadRequest
 typedef TIntrusivePtr<TUploadRequest> TUploadRequestPtr;
 
 
-class TUploadSession
-    : public TRefCounted
-{
-public:
-    TUploadSession(
-        NFileClient::TAsyncWriterPtr writer,
-        IAsyncInputStreamPtr input,
-        size_t blockSize);
-
-    TAsyncError Execute();
-
-private:
-    typedef TUploadSession TThis;
-
-    TAsyncError ReadBlock(TError error);
-    
-    TAsyncError WriteBlock(TError error);
-
-    NFileClient::TAsyncWriterPtr Writer_;
-    IAsyncInputStreamPtr Input_;
-    TSharedRef Buffer_;
-};
-
-typedef TIntrusivePtr<TUploadSession> TUploadSessionPtr;
-
+class TUploadSession;
 
 class TUploadCommand
     : public TTypedCommand<TUploadRequest>
 {
+public:
+    TUploadCommand();
+
+    ~TUploadCommand();
+
 private:
     virtual void DoExecute();
 
-    TUploadSessionPtr Session_;
+    TIntrusivePtr<TUploadSession> Session_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

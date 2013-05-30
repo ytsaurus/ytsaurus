@@ -16,6 +16,33 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDownloadSession
+    : public TRefCounted
+{
+public:
+    TDownloadSession(NFileClient::TAsyncReaderPtr reader, IAsyncOutputStreamPtr output);
+
+    TAsyncError Execute(
+        NFileClient::TFileReaderConfigPtr config,
+        NRpc::IChannelPtr masterChannel,
+        NTransactionClient::ITransactionPtr transaction,
+        NChunkClient::IBlockCachePtr blockCache,
+        const NYPath::TRichYPath& richPath,
+        const TNullable<i64>& offset,
+        const TNullable<i64>& length);
+
+private:
+    typedef TDownloadSession TThis;
+
+    TAsyncError ReadBlock(TError error);
+
+    TAsyncError WriteBlock(TValueOrError<TSharedRef> blockOrError);
+
+    NFileClient::TAsyncReaderPtr Reader_;
+    IAsyncOutputStreamPtr Output_;
+};
+
+
 TDownloadSession::TDownloadSession(TAsyncReaderPtr reader, IAsyncOutputStreamPtr output)
     : Reader_(reader)
     , Output_(output)
@@ -46,7 +73,7 @@ TAsyncError TDownloadSession::ReadBlock(TError error)
     RETURN_FUTURE_IF_ERROR(error, TError);
     return Reader_->AsyncRead().Apply(BIND(&TThis::WriteBlock, MakeStrong(this)));
 }
-    
+
 TAsyncError TDownloadSession::WriteBlock(TValueOrError<TSharedRef> blockOrError)
 {
     if (!blockOrError.IsOK()) {
@@ -69,6 +96,29 @@ TAsyncError TDownloadSession::WriteBlock(TValueOrError<TSharedRef> blockOrError)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TUploadSession
+    : public TRefCounted
+{
+public:
+    TUploadSession(
+        NFileClient::TAsyncWriterPtr writer,
+        IAsyncInputStreamPtr input,
+        size_t blockSize);
+
+    TAsyncError Execute();
+
+private:
+    typedef TUploadSession TThis;
+
+    TAsyncError ReadBlock(TError error);
+
+    TAsyncError WriteBlock(TError error);
+
+    NFileClient::TAsyncWriterPtr Writer_;
+    IAsyncInputStreamPtr Input_;
+    TSharedRef Buffer_;
+};
+
 TUploadSession::TUploadSession(
     TAsyncWriterPtr writer,
     IAsyncInputStreamPtr input,
@@ -87,7 +137,7 @@ TAsyncError TUploadSession::ReadBlock(TError error)
 {
     RETURN_FUTURE_IF_ERROR(error, TError);
 
-    TAsyncError future = 
+    TAsyncError future =
           Input_->Read(Buffer_.Begin(), Buffer_.Size())
           ? MakeFuture(TError())
           : Input_->GetReadFuture();
@@ -131,6 +181,12 @@ void TDownloadCommand::DoExecute()
     CheckAndReply(result);
 }
 
+TDownloadCommand::~TDownloadCommand()
+{ }
+
+TDownloadCommand::TDownloadCommand()
+{ }
+
 //////////////////////////////////////////////////////////////////////////////////
 
 void TUploadCommand::DoExecute()
@@ -145,7 +201,7 @@ void TUploadCommand::DoExecute()
         GetTransaction(EAllowNullTransaction::Yes, EPingTransaction::Yes),
         Context->GetTransactionManager(),
         Request->Path);
-    
+
     Session_ = New<TUploadSession>(
         writer,
         Context->GetRequest()->InputStream,
@@ -153,6 +209,12 @@ void TUploadCommand::DoExecute()
 
     CheckAndReply(Session_->Execute());
 }
+
+TUploadCommand::~TUploadCommand()
+{ }
+
+TUploadCommand::TUploadCommand()
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

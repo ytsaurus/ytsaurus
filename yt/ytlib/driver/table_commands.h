@@ -16,32 +16,6 @@ namespace NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReadSession
-    : public TRefCounted
-{
-public:
-    TReadSession(
-        NTableClient::TAsyncTableReaderPtr reader,
-        IAsyncOutputStreamPtr output,
-        const NFormats::TFormat& format,
-        size_t bufferLimit);
-
-    TAsyncError Execute();
-
-private:
-    typedef TReadSession TThis;
-
-    TAsyncError Read();
-
-    NTableClient::TAsyncTableReaderPtr Reader_;
-    IAsyncOutputStreamPtr Output_;
-    TBlobOutput Buffer_;
-    std::unique_ptr<NYson::IYsonConsumer> Consumer_;
-
-    size_t BufferSize_;
-    bool AlreadyFetched_;
-};
-
 struct TReadRequest
     : public TTransactionalRequest
 {
@@ -58,9 +32,17 @@ struct TReadRequest
 
 typedef TIntrusivePtr<TReadRequest> TReadRequestPtr;
 
+
+class TReadSession;
+
 class TReadCommand
     : public TTypedCommand<TReadRequest>
 {
+public:
+    TReadCommand();
+
+    ~TReadCommand();
+
 private:
     virtual void DoExecute();
 
@@ -68,37 +50,6 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-
-class TWriteSession
-    : public TRefCounted
-{
-public:
-    TWriteSession(
-        NTableClient::IAsyncWriterPtr writer,
-        IAsyncInputStreamPtr input,
-        const NFormats::TFormat& format,
-        i64 bufferSize);
-
-    TAsyncError Execute();
-
-private:
-    typedef TWriteSession TThis;
-
-    TAsyncError ReadyToRead(TError error);
-    TAsyncError Read();
-    bool ProcessReadResult();
-    TAsyncError OnRead(TError error);
-    TAsyncError ProcessCollectedRows(TError error);
-    TAsyncError Finish(TError error);
-
-    NTableClient::IAsyncWriterPtr Writer_;
-    IAsyncInputStreamPtr Input_;
-    std::unique_ptr<NTableClient::TTableConsumer> Consumer_;
-    std::unique_ptr<NFormats::IParser> Parser_;
-    TSharedRef Buffer_;
-
-    bool IsFinished_;
-};
 
 struct TWriteRequest
     : public TTransactionalRequest
@@ -117,9 +68,16 @@ struct TWriteRequest
 
 typedef TIntrusivePtr<TWriteRequest> TWriteRequestPtr;
 
+class TWriteSession;
+
 class TWriteCommand
     : public TTypedCommand<TWriteRequest>
 {
+public:
+    TWriteCommand();
+
+    ~TWriteCommand();
+
 private:
     virtual void DoExecute();
 
