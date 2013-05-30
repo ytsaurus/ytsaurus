@@ -51,7 +51,7 @@ exports.blackboxValidateToken = function(logger, party, token)
         .then(function(data) {
             if (typeof(data.exception) !== "undefined") {
                 var error = new YtError("Blackbox returned an exception");
-                error.attributes.raw_data = data;
+                error.attributes.raw_data = JSON.stringify(data);
                 tagged_logger.info(error.message, { data: data });
                 return Q.reject(error);
             } else {
@@ -114,7 +114,7 @@ exports.oAuthObtainToken = function(logger, client_id, client_secret, code)
             if (typeof(data.error) !== "undefined") {
                 var error = new YtError(
                     "OAuth returned an error: " + data.error);
-                error.attributes.raw_data = data;
+                error.attributes.raw_data = JSON.stringify(data);
                 tagged_logger.info(error.message, { data: data });
                 return Q.reject(error);
             } else {

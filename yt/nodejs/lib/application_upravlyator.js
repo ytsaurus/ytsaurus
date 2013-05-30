@@ -89,7 +89,7 @@ YtApplicationUpravlyator.prototype._getManagedGroup = function(name)
                 "Group " + JSON.stringify(name) +
                 " is not managed by Upravlyator")
                 .withAttribute("is_fatal", 1)
-                .withAttribute("unmanaged"));
+                .withAttribute("unmanaged", 1));
         }
         return group;
     });
