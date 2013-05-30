@@ -17,6 +17,8 @@
 
 #include <ytlib/meta_state/rpc_helpers.h>
 
+#include <ytlib/erasure/public.h>
+
 #include <ytlib/object_client/object_service_proxy.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
@@ -560,6 +562,20 @@ void TObjectManager::LoadValues(const NCellMaster::TLoadContext& context)
 
     Attributes.LoadValues(context);
     GarbageCollector->Load(context);
+
+       // COMPAT(psushin)
+    if (context.GetVersion() < 21) {
+        FOREACH (const auto& pair, Attributes) {
+            auto type = TypeFromId(pair.first.ObjectId);
+            if (type == EObjectType::Table || type == EObjectType::File) {
+                auto& attributes = pair.second->Attributes();
+                if (attributes.find("erasure_codec") == attributes.end()) {
+                    auto value = NYTree::ConvertToYsonString(NErasure::ECodec(NErasure::ECodec::None));
+                    YCHECK(attributes.insert(std::make_pair("erasure_codec", MakeNullable(value))).second);
+                }
+            }
+        }
+    }
 }
 
 void TObjectManager::LoadSchemas(const NCellMaster::TLoadContext& context)
