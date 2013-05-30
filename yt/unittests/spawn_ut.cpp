@@ -113,5 +113,28 @@ TEST(TSpawnTest, Params2)
     EXPECT_EQ(WEXITSTATUS(status), 0);
 }
 
+TEST(TSpawnTest, InheritEnvironment)
+{
+    const char* name = "SPAWN_TEST_ENV_VAR";
+    const char* value = "42";
+    setenv(name, value, 1);
+
+    vector<Stroka> args;
+    args.push_back("bash");
+    args.push_back("-c");
+    args.push_back("if test $SPAWN_TEST_ENV_VAR = 42; then exit 7; fi");
+
+    int pid = Spawn("bash", args);
+    ASSERT_GT(pid, 0);
+
+    int status;
+    int result = waitpid(pid, &status, 0);
+    ASSERT_EQ(result, pid);
+    ASSERT_TRUE(WIFEXITED(status));
+    EXPECT_EQ(WEXITSTATUS(status), 7);
+
+    unsetenv(name);
+}
+
 } // namespace
 } // namespace NYT
