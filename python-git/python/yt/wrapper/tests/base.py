@@ -9,9 +9,6 @@ TEST_DIR = "//home/wrapper_tests"
 class YtTestBase(object):
     @classmethod
     def _setup_class(cls, test_class):
-        reload(yt)
-        reload(config)
-
         logging.basicConfig(level=logging.WARNING)
 
         test_class.NUM_MASTERS = 1
@@ -27,12 +24,16 @@ class YtTestBase(object):
             "proxy_log": 18081}
         # (TODO): remake this strange stuff.
         cls.env = test_class()
+        
         dir = os.environ.get("TESTS_SANDBOX", "tests/sandbox")
         cls.env.set_environment(dir, os.path.join(dir, "pids.txt"), ports, supress_yt_output=True)
+        
+        reload(yt)
+        reload(config)
 
-        config.PROXY = "localhost:%d" % ports["proxy"]
-        config.USE_TOKEN = False
-        config.RETRY_VOLATILE_COMMANDS = True
+        config.http.PROXY = "localhost:%d" % ports["proxy"]
+        config.http.USE_TOKEN = False
+        config.http.RETRY_VOLATILE_COMMANDS = True
 
     @classmethod
     def _teardown_class(cls):
