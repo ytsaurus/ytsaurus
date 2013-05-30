@@ -38,7 +38,7 @@ function YtDriverFacadeV1(driver)
 YtDriverFacadeV1.prototype.execute = function(name, user,
     input_stream, input_compression,
     output_stream, output_compression,
-    parameters)
+    parameters, pause)
 {
     "use strict";
 
@@ -49,32 +49,30 @@ YtDriverFacadeV1.prototype.execute = function(name, user,
 
     var self = this;
 
-    var input_pause = utils.Pause(input_stream);
-    var output_pause = new utils.MemoryOutputStream();
-
     var slack_input = new utils.MemoryInputStream();
-    var slack_output = new utils.MemoryOutputStream();
+    var slack_pause = utils.Pause(slack_input);
+    var slack_output_create = new utils.MemoryOutputStream();
+    var slack_output_upload = new utils.MemoryOutputStream();
     var slack_bytes;
 
     return self.driver.execute(
         "create", user,
         slack_input, binding.ECompression_None,
-        output_pause, output_compression,
-        binding.CreateMergedNode(parameters, FAKE_UPLOAD_PREPARAMETERS))
+        slack_output_create, output_compression,
+        binding.CreateMergedNode(parameters, FAKE_UPLOAD_PREPARAMETERS),
+        slack_pause)
     .spread(function(result, bytes_in, bytes_out) {
         slack_bytes = bytes_out;
-
-        process.nextTick(function() { input_pause.unpause(); input_pause = null; });
 
         return self.driver.execute(
             "upload", user,
             input_stream, input_compression,
-            slack_output, binding.ECompression_None,
-            parameters);
+            slack_output_upload, output_compression,
+            parameters, pause);
     })
     .spread(function(result, bytes_in, bytes_out) {
-        for (var chunk in output_pause.chunks) {
-            output_stream.write(chunk);
+        for (var i = 0; i < slack_output_create.chunks.length; ++i) {
+            output_stream.write(slack_output_create.chunks[i]);
         }
 
         return [ result, bytes_in, slack_bytes ];

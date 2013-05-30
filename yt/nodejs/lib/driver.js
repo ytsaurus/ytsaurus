@@ -118,7 +118,7 @@ function YtDriver(config, echo)
 YtDriver.prototype.execute = function(name, user,
     input_stream, input_compression,
     output_stream, output_compression,
-    parameters
+    parameters, pause
 )
 {
     "use strict";
@@ -177,6 +177,8 @@ YtDriver.prototype.execute = function(name, user,
             deferred.reject(result);
         }
     });
+
+    process.nextTick(function() { pause.unpause(); });
 
     return Q
         .all([ deferred.promise, input_pipe_promise, output_pipe_promise ])

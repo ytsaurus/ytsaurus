@@ -697,12 +697,10 @@ YtCommand.prototype._execute = function(cb) {
 
     var self = this;
 
-    process.nextTick(function() { self.pause.unpause(); });
-
     return this.driver.execute(this.name, this.user,
         this.input_stream, this.input_compression,
         this.output_stream, this.output_compression,
-        this.parameters)
+        this.parameters, this.pause)
     .spread(
         function(result) {
             self.logger.debug(
