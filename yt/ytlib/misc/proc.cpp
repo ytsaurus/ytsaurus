@@ -250,16 +250,21 @@ void SafeClose(int fd, bool ignoreInvalidFd)
     }
 }
 
+static const int baseExitCode = 127;
+static const int execErrNos[] = { E2BIG, EACCES, EFAULT, EINVAL, EIO, EISDIR, ELIBBAD, ELOOP, EMFILE, ENAMETOOLONG, ENFILE, ENOENT, ENOEXEC, ENOMEM, ENOTDIR, EPERM, ETXTBSY, 0};
+
+int errNoFromExitCode(int exitCode) {
+    int index = baseExitCode - exitCode;
+    if (index >= 0) {
+        return execErrNos[index];
+    }
+    return 0;
+}
+
 int Spawn(
     const char* path,
     std::vector<Stroka>& arguments)
 {
-    posix_spawnattr_t attributes;
-    YCHECK(posix_spawnattr_init(&attributes) == 0);
-#ifdef POSIX_SPAWN_USEVFORK
-    posix_spawnattr_setflags(&attributes, POSIX_SPAWN_USEVFORK);
-#endif
-
     std::vector<char *> args;
     FOREACH (auto& x, arguments) {
         args.push_back(x.begin());
@@ -284,23 +289,29 @@ int Spawn(
     }
     env.push_back(nullptr);
 
-    int processId;
-    int errCode = posix_spawnp(
-        &processId,
-        path,
-        NULL,
-        &attributes,
-        &args[0],
-        &env[0]);
-
-    posix_spawnattr_destroy(&attributes);
-
-    if (errCode != 0) {
-        THROW_ERROR_EXCEPTION("Error starting child process: posix_spawn failed")
+    int processId = vfork();
+    if (processId < 0) {
+        THROW_ERROR_EXCEPTION("Error starting child process: vfork failed")
             << TErrorAttribute("path", path)
             << TErrorAttribute("arguments", arguments)
-            << TError::FromSystem(errCode);
+            << TErrorAttribute("environment", env)
+            << TError::FromSystem(processId);
     }
+
+    if (processId == 0) {
+        execvpe(
+            path,
+            &args[0],
+            &env[0]);
+        const int errorCode = errno;
+        int i = 0;
+        while ((execErrNos[i] != errorCode) && (execErrNos[i] != 0)) {
+            ++i;
+        }
+
+        _exit(baseExitCode - i);
+    }
+
     return processId;
 }
 

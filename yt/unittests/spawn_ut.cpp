@@ -36,7 +36,8 @@ TEST(TSpawnTest, InvalidPath)
     int result = waitpid(pid, &status, 0);
     ASSERT_EQ(result, pid);
     ASSERT_TRUE(WIFEXITED(status));
-    EXPECT_EQ(WEXITSTATUS(status), 127);
+    EXPECT_NE(WEXITSTATUS(status), 0);
+    EXPECT_EQ(errNoFromExitCode(WEXITSTATUS(status)), ENOENT);
 #endif
 }
 
