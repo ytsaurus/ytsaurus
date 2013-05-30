@@ -110,7 +110,8 @@ exports.oAuthObtainToken = function(logger, client_id, client_secret, code)
         .setTimeout(config.timeout)
         .asJson(true)
         .fire()
-        .then(function(data) {
+        .then(
+        function(data) {
             if (typeof(data.error) !== "undefined") {
                 var error = new YtError(
                     "OAuth returned an error: " + data.error);
@@ -123,8 +124,8 @@ exports.oAuthObtainToken = function(logger, client_id, client_secret, code)
                     { data: data });
                 return data;
             }
-        })
-        .fail(function(err) {
+        },
+        function(err) {
             var error = YtError.ensureWrapped(err);
             tagged_logger.info("Retrying to query OAuth", {
                 // XXX(sandello): Embed.
