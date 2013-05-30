@@ -1,6 +1,5 @@
 import config
 import logger
-from command import Command
 from common import require
 from errors import YtError, YtResponseError
 from format import JsonFormat
@@ -54,16 +53,12 @@ def get_host_for_heavy_operation():
             return hosts[0]
     return config.http.PROXY
 
-
 def make_request(command_name, params,
-                 data=None, format=None, verbose=False, proxy=None,
-                 return_raw_response=False, files=None):
-    """ Makes request to yt proxy.
-        http_method may be equal to GET, POST or PUT,
-        command_name is type of driver command, it may be equal
-        to get, read, write, create ...
-        Returns response content, raw_response option force
-        to return request.Response instance"""
+                 data=None, format=None, proxy=None, return_raw_response=False, verbose=False):
+    """
+    Makes request to yt proxy. Command name is the name of command in YT API.
+    Option return_raw_response forces returning response of requests library without extracting data field.
+    """
     def print_info(msg, *args, **kwargs):
         # Verbose option is used for debugging because it is more
         # selective than logging
@@ -73,54 +68,20 @@ def make_request(command_name, params,
         logger.debug(msg, *args, **kwargs)
 
     # Trying to set http retries in requests
-    requests.adapters.DEFAULT_RETRIES = 10
+    requests.adapters.DEFAULT_RETRIES = config.http.REQUESTS_RETRIES
 
-    commands = {
-        "start_tx":      Command(None,         "structured", True,  False),
-        "ping_tx":       Command(None,         None,         True,  False),
-        "commit_tx":     Command(None,         None,         True,  False),
-        "abort_tx":      Command(None,         None,         True,  False),
-
-        "create":        Command(None,         "structured", True,  False),
-        "remove":        Command(None,         None,         True,  False),
-        "set":           Command("structured", None,         True,  False),
-        "get":           Command(None,         "structured", False, False),
-        "list":          Command(None,         "structured", False, False),
-        "lock":          Command(None,         None,         True,  False),
-        "copy":          Command(None,         "structured", True,  False),
-        "move":          Command(None,         None,         True,  False),
-        "link":          Command(None,         "structured", True,  False),
-        "exists":        Command(None,         "structured", False, False),
-
-        "upload":        Command("binary",     None,         True,  True ),
-        "download":      Command(None,         "binary",     False, True ),
-
-        "write":         Command("tabular",    None,         True,  True ),
-        "read":          Command(None,         "tabular",    False, True ),
-
-        "merge":         Command(None,         "structured", True,  False),
-        "erase":         Command(None,         "structured", True,  False),
-        "map":           Command(None,         "structured", True,  False),
-        "sort":          Command(None,         "structured", True,  False),
-        "reduce":        Command(None,         "structured", True,  False),
-        "map_reduce":    Command(None,         "structured", True,  False),
-        "abort_op":      Command(None,         None,         True,  False),
-
-        "parse_ypath":   Command(None,         "structured", False, False),
-
-        "add_member":    Command(None,         None,         True,  False),
-        "remove_member": Command(None,         None,         True,  False)
-    }
-
-    command = commands[command_name]
-
-    if command.is_volatile and config.MUTATION_ID is not None:
-        params["mutation_id"] = config.MUTATION_ID
-
-    make_retries = not command.is_volatile or \
+    # Get command description
+    command = config.COMMANDS[command_name]
+    
+    # Determine make retries or not and set mutation if needed
+    allow_retries = \
+            not command.is_volatile or \
             (config.http.RETRY_VOLATILE_COMMANDS and not command.is_heavy)
-    if make_retries and command.is_volatile and "mutation_id" not in params:
-        params["mutation_id"] = str(uuid.uuid4())
+    if command.is_volatile and allow_retries:
+        if config.MUTATION_ID is not None:
+            params["mutation_id"] = config.MUTATION_ID
+        else:
+            params["mutation_id"] = str(uuid.uuid4())
 
     # Prepare request url.
     if proxy is None:
@@ -150,24 +111,17 @@ def make_request(command_name, params,
     else:
         headers.update(JsonFormat().to_output_http_header())
 
-    if config.http.USE_TOKEN:
-        token = get_token()
-        if token is None:
-            # TODO(ignat): use YtError
-            print >>sys.stderr, "Authentication token is missing. Please obtain it as soon as possible."
-            print >>sys.stderr, "Refer to http://proxy.yt.yandex.net/auth/ for instructions."
-            sys.exit(1)
-        else:
-            headers["Authorization"] = "OAuth " + token
+    token = get_token()
+    if token is not None:
+        headers["Authorization"] = "OAuth " + token
 
+    # Debug information
     print_info("Headers: %r", headers)
     print_info("Params: %r", params)
     if command.http_method() != "PUT":
         print_info("Body: %r", data)
 
-    stream = False
-    if command_name in ["read", "download"]:
-        stream = True
+    stream = (command.output_type in ["binary", "tabular"])
 
     response = make_request_with_retries(
         lambda: Response(
@@ -176,17 +130,18 @@ def make_request(command_name, params,
                 method=command.http_method(),
                 headers=headers,
                 data=data,
-                files=files,
                 timeout=config.http.CONNECTION_TIMEOUT,
                 stream=stream)),
-        make_retries,
+        allow_retries,
         url,
         return_raw_response)
 
-    if config.http.USE_TOKEN and "Authorization" in headers:
+    # Hide token for security reasons 
+    if "Authorization" in headers:
         headers["Authorization"] = "x" * 32
-
     print_info("Response header %r", response.http_response.headers)
+
+    # Determine type of response data and return it
     if response.is_ok():
         if return_raw_response:
             return response.http_response
