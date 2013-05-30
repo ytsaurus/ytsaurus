@@ -102,14 +102,21 @@ void TFileLogWriter::EnsureInitialized()
 void TFileLogWriter::Write(const TLogEvent& event)
 {
     if (LogWriter) {
-        LogWriter->Write(event);
+        try {
+            LogWriter->Write(event);
+        } catch (...) {
+            // I wish I could log it, but I'm a logger myself.
+        }
     }
 }
 
 void TFileLogWriter::Flush()
 {
     if (LogWriter) {
-        LogWriter->Flush();
+        try {
+            LogWriter->Flush();
+        } catch (...) {
+        }
     }
 }
 
@@ -118,7 +125,10 @@ void TFileLogWriter::Reload()
     Flush();
 
     if (~File) {
-        File->Close();
+        try {
+            File->Close();
+        } catch (...) {
+        }
     }
 
     Initialized = false;
