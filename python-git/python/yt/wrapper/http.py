@@ -60,21 +60,6 @@ class Response(object):
             self._error = format_error(json.loads(self.http_response.headers["x-yt-error"]))
         self._return_code_processed = True
 
-
-def get_token():
-    token = http_config.TOKEN
-    if token is None:
-        token_path = os.path.join(os.path.expanduser("~"), ".yt/token")
-        if os.path.isfile(token_path):
-            token = open(token_path).read().strip()
-    if token is not None:
-        require(all(c in string.hexdigits for c in token),
-                YtTokenError("You have an improper authentication token in ~/.yt_token.\n"
-                             "Please refer to http://proxy.yt.yandex.net/auth/ for obtaining a valid token."))
-    if not token:
-        token = None
-    return token
-
 def make_request_with_retries(request, make_retries=False, url="", return_raw_response=False):
     for attempt in xrange(http_config.HTTP_RETRIES_COUNT):
         try:
@@ -90,11 +75,10 @@ def make_request_with_retries(request, make_retries=False, url="", return_raw_re
             if make_retries:
                 logger.warning("%s. Retrying...", message)
                 time.sleep(http_config.HTTP_RETRY_TIMEOUT)
+            elif not isinstance(error, YtResponseError):
+                raise YtNetworkError("Connection to URL %s has failed with error %s", url, str(error))
             else:
-                if not isinstance(error, YtResponseError):
-                    raise YtNetworkError("Connection to URL %s has failed with error %s", url, str(error))
-                else:
-                    raise
+                raise
 
 def make_get_request_with_retries(url):
     return make_request_with_retries(
@@ -109,3 +93,18 @@ def get_proxy(proxy):
 def get_api(proxy, version=None):
     location = "api" if version is None else "api/" + version
     return make_get_request_with_retries("http://{0}/{1}".format(get_proxy(proxy), location))
+
+def get_token():
+    token = http_config.TOKEN
+    if token is None:
+        token_path = os.path.join(os.path.expanduser("~"), ".yt/token")
+        if os.path.isfile(token_path):
+            token = open(token_path).read().strip()
+    if token is not None:
+        require(all(c in string.hexdigits for c in token),
+                YtTokenError("You have an improper authentication token in ~/.yt_token.\n"
+                             "Please refer to http://proxy.yt.yandex.net/auth/ for obtaining a valid token."))
+    if not token:
+        token = None
+    return token
+
