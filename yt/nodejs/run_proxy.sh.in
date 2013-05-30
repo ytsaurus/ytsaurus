@@ -8,8 +8,9 @@ CMS=@CMAKE_CURRENT_SOURCE_DIR@
 
 export NODE_PATH=$CMB/node_modules:$NODE_PATH
 
-[[ "$(whoami)" == "teamcity" ]] && (rm -rf $CMB/node_modules)
+(cd $CMB && npm install)
 
-(cd $CMB && npm install); [[ ! -L $CMB/node_modules/yt ]] && ln -s $CMS $CMB/node_modules/yt
+[[ ! -L $CMB/node_modules/yt ]] && ln -s $CMS $CMB/node_modules/yt
+
 (cd $CMB && exec $CMB/node_modules/yt/bin/yt_http_proxy "$@")
 
