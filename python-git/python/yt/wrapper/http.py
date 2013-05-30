@@ -60,10 +60,12 @@ class Response(object):
             self._error = format_error(json.loads(self.http_response.headers["x-yt-error"]))
         self._return_code_processed = True
 
-def make_request_with_retries(request, make_retries=False, url="", return_raw_response=False):
+def make_request_with_retries(request, make_retries=False, description="", return_raw_response=False):
     for attempt in xrange(http_config.HTTP_RETRIES_COUNT):
         try:
             response = request()
+            # Sometimes (quite often) we obtain incomplete response with empty body where expected to be JSON.
+            # So we should retry this request.
             is_json = response.is_json() or not str(response.http_response.status_code).startswith("2")
             if not return_raw_response and is_json and not response.content():
                 raise YtResponseError(
@@ -71,20 +73,22 @@ def make_request_with_retries(request, make_retries=False, url="", return_raw_re
                         repr(response.http_response.headers))
             return response
         except NETWORK_ERRORS as error:
-            message =  "HTTP request (%s) has failed with error '%s'" % (url, str(error))
+            message =  "HTTP request (%s) has failed with error '%s'" % (description, str(error))
             if make_retries:
                 logger.warning("%s. Retrying...", message)
                 time.sleep(http_config.HTTP_RETRY_TIMEOUT)
             elif not isinstance(error, YtResponseError):
-                raise YtNetworkError("Connection to URL %s has failed with error %s", url, str(error))
+                # We wrapping network errors to simplify catchin such errors later.
+                raise YtNetworkError(message)
             else:
                 raise
 
 def make_get_request_with_retries(url):
-    return make_request_with_retries(
+    response = make_request_with_retries(
         lambda: Response(requests.get(url)),
-        True,
-        url).json()
+        make_retries=True,
+        description=url)
+    return response.json()
 
 def get_proxy(proxy):
     require(proxy, YtError("You should specify proxy"))
