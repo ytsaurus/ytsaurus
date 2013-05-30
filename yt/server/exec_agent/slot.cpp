@@ -94,7 +94,7 @@ void TSlot::Release()
 void TSlot::InitSandbox()
 {
     YCHECK(!IsFree_);
-    
+
     try {
         NFS::ForcePath(SandboxPath, 0777);
     } catch (const std::exception& ex) {
@@ -130,6 +130,12 @@ void TSlot::MakeFile(
         NFormats::EDataType::Tabular,
         &fileOutput);
     producer.Run(~consumer);
+}
+
+void TSlot::MakeEmptyFile(const Stroka& fileName)
+{
+    TFile file(NFS::CombinePaths(SandboxPath, fileName), CreateAlways);
+    file.Close();
 }
 
 const Stroka& TSlot::GetWorkingDirectory() const

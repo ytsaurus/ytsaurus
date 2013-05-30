@@ -498,6 +498,12 @@ private:
             return MakeFuture();
         }
 
+        if (descriptor.file().chunks_size() == 0) {
+            LOG_INFO("Empty user file (FileName: %s)", ~descriptor.file_name());
+            Slot->MakeEmptyFile(descriptor.file_name());
+            return MakeFuture();
+        }
+
         const auto& chunk = descriptor.file().chunks(0);
         auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunk.extensions());
 
