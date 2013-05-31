@@ -112,7 +112,7 @@ struct TCommandDescriptor
 struct IDriver
     : public virtual TRefCounted
 {
-    //! Synchronously executes a given request.
+    //! Asynchronously executes a given request.
     virtual TFuture<TDriverResponse> Execute(const TDriverRequest& request) = 0;
 
     //! Returns a descriptor for the command with a given name or
