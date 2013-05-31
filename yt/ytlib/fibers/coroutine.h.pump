@@ -43,6 +43,10 @@ public:
 
 protected:
     TFiberPtr Fiber;
+
+private:
+    TCoroutineBase(const TCoroutineBase&);
+    TCoroutineBase& operator=(const TCoroutineBase&);
 };
 
 $for ARITY [[
@@ -70,11 +74,6 @@ $if ARITY > 0 [[
 
     TCoroutine()
         : TCoroutineBase()
-    { }
-
-    TCoroutine(const TCallee& callee)
-        : TCoroutineBase()
-        , Callee(callee)
     { }
 
     TCoroutine(TCallee&& callee)
@@ -158,11 +157,6 @@ $if ARITY > 0 [[
 
     TCoroutine()
         : TCoroutineBase()
-    { }
-
-    TCoroutine(const TCallee& callee)
-        : TCoroutineBase()
-        , Callee(callee)
     { }
 
     TCoroutine(TCallee&& callee)
