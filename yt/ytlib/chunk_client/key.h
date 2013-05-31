@@ -11,7 +11,7 @@
 
 #include <ytlib/yson/lexer.h>
 
-#include <ytlib/chunk_client/input_chunk.pb.h>
+#include <ytlib/chunk_client/chunk_spec.pb.h>
 
 namespace NYT {
 namespace NChunkClient {

@@ -43,7 +43,7 @@ message TReadLimit
 }
 
 // Describes a portion of table chunk.
-message TInputChunk
+message TChunkSpec
 {
     required NYT.NProto.TGuid chunk_id = 1;
 

@@ -12,7 +12,7 @@
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 
 #include <ytlib/chunk_client/async_reader.h>
-#include <ytlib/chunk_client/input_chunk.h>
+#include <ytlib/chunk_client/chunk_spec.h>
 #include <ytlib/chunk_client/sequential_reader.h>
 #include <ytlib/chunk_client/config.h>
 #include <ytlib/chunk_client/dispatcher.h>
@@ -931,7 +931,7 @@ TFuture<void> TTableChunkReader::GetFetchingCompleteEvent()
 ////////////////////////////////////////////////////////////////////////////////
 
 TTableChunkReaderProvider::TTableChunkReaderProvider(
-    const std::vector<NChunkClient::NProto::TInputChunk>& inputChunks,
+    const std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
     const NChunkClient::TSequentialReaderConfigPtr& config,
     const TChunkReaderOptionsPtr& options)
     : RowIndex_(-1)
@@ -939,9 +939,9 @@ TTableChunkReaderProvider::TTableChunkReaderProvider(
     , Config(config)
     , Options(options)
 {
-    FOREACH (const auto& inputChunk, inputChunks) {
+    FOREACH (const auto& chunkSpec, chunkSpecs) {
         i64 rowCount;
-        GetStatistics(inputChunk, nullptr, &rowCount);
+        GetStatistics(chunkSpec, nullptr, &rowCount);
         RowCount_ += rowCount;
     }
 }
@@ -953,10 +953,10 @@ bool TTableChunkReaderProvider::KeepInMemory() const
 
 void TTableChunkReaderProvider::OnReaderOpened(
     TTableChunkReaderPtr reader,
-    NChunkClient::NProto::TInputChunk& inputChunk)
+    NChunkClient::NProto::TChunkSpec& chunkSpec)
 {
     i64 rowCount;
-    GetStatistics(inputChunk, nullptr, &rowCount);
+    GetStatistics(chunkSpec, nullptr, &rowCount);
     // GetRowCount gives better estimation than original, based on meta extensions.
     RowCount_ += reader->GetRowCount() - rowCount;
 }
@@ -968,25 +968,25 @@ void TTableChunkReaderProvider::OnReaderFinished(TTableChunkReaderPtr reader)
 }
 
 TTableChunkReaderPtr TTableChunkReaderProvider::CreateReader(
-    const NChunkClient::NProto::TInputChunk& inputChunk,
+    const NChunkClient::NProto::TChunkSpec& chunkSpec,
     const NChunkClient::IAsyncReaderPtr& chunkReader)
 {
     TYsonString rowAttributes;
-    if (inputChunk.has_table_index()) {
+    if (chunkSpec.has_table_index()) {
         rowAttributes = TYsonString(
-            Sprintf("table_index=%d", inputChunk.table_index()),
+            Sprintf("table_index=%d", chunkSpec.table_index()),
             NYson::EYsonType::MapFragment);
     }
 
     return New<TTableChunkReader>(
         this,
         Config,
-        inputChunk.has_channel() ? TChannel::FromProto(inputChunk.channel()) : TChannel::Universal(),
+        chunkSpec.has_channel() ? TChannel::FromProto(chunkSpec.channel()) : TChannel::Universal(),
         chunkReader,
-        inputChunk.start_limit(),
-        inputChunk.end_limit(),
+        chunkSpec.start_limit(),
+        chunkSpec.end_limit(),
         rowAttributes,
-        inputChunk.partition_tag(),
+        chunkSpec.partition_tag(),
         Options);
 }
 

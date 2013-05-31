@@ -64,7 +64,7 @@ private:
         TChunk::TGetMetaResult result);
 
     void MakeChunkSplits(
-        const NChunkClient::NProto::TInputChunk* inputChunk,
+        const NChunkClient::NProto::TChunkSpec* chunkSpec,
         NChunkClient::NProto::TRspGetChunkSplits::TChunkSplits* splittedChunk,
         i64 minSplitSize,
         const NTableClient::TKeyColumns& keyColumns,

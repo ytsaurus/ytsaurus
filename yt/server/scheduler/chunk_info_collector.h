@@ -6,7 +6,7 @@
 
 #include <ytlib/node_tracker_client/public.h>
 
-#include <ytlib/chunk_client/input_chunk.h>
+#include <ytlib/chunk_client/chunk_spec.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -25,7 +25,7 @@ public:
         TFetcherPtr fetcher,
         IInvokerPtr invoker);
 
-    void AddChunk(NChunkClient::TRefCountedInputChunkPtr chunk);
+    void AddChunk(NChunkClient::TRefCountedChunkSpecPtr chunk);
     TFuture< TValueOrError<void> > Run();
 
 private:
@@ -36,7 +36,7 @@ private:
     TPromise< TValueOrError<void> > Promise;
 
     //! All chunks for which info is to be fetched.
-    std::vector<NChunkClient::TRefCountedInputChunkPtr> Chunks;
+    std::vector<NChunkClient::TRefCountedChunkSpecPtr> Chunks;
 
     //! Indexes of chunks for which no info is fetched yet.
     yhash_set<int> UnfetchedChunkIndexes;

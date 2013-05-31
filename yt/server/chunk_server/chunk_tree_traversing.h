@@ -5,7 +5,7 @@
 #include <ytlib/misc/error.h>
 
 #include <ytlib/table_client/table_chunk_meta.pb.h>
-#include <ytlib/chunk_client/input_chunk.pb.h>
+#include <ytlib/chunk_client/chunk_spec.pb.h>
 
 #include <server/cell_master/public.h>
 

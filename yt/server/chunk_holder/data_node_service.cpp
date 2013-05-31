@@ -27,7 +27,7 @@
 #include <ytlib/chunk_client/key.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/data_node_service.pb.h>
-#include <ytlib/chunk_client/input_chunk.pb.h>
+#include <ytlib/chunk_client/chunk_spec.pb.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
@@ -672,14 +672,14 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetChunkSplits)
 {
     context->SetRequestInfo("KeyColumnCount: %d, ChunkCount: %d, MinSplitSize: %" PRId64,
         request->key_columns_size(),
-        request->input_chunks_size(),
+        request->chunk_specs_size(),
         request->min_split_size());
 
     auto awaiter = New<TParallelAwaiter>(WorkerThread->GetInvoker());
     auto keyColumns = FromProto<Stroka>(request->key_columns());
 
-    FOREACH (const auto& inputChunk, request->input_chunks()) {
-        auto chunkId = FromProto<TChunkId>(inputChunk.chunk_id());
+    FOREACH (const auto& chunkSpec, request->chunk_specs()) {
+        auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
         auto* splittedChunk = response->add_splitted_chunks();
         auto chunk = Bootstrap->GetChunkStore()->FindChunk(chunkId);
 
@@ -693,7 +693,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetChunkSplits)
                 BIND(
                     &TDataNodeService::MakeChunkSplits,
                     MakeStrong(this),
-                    &inputChunk,
+                    &chunkSpec,
                     splittedChunk,
                     request->min_split_size(),
                     keyColumns));
@@ -706,13 +706,13 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetChunkSplits)
 }
 
 void TDataNodeService::MakeChunkSplits(
-    const TInputChunk* inputChunk,
+    const TChunkSpec* chunkSpec,
     TRspGetChunkSplits::TChunkSplits* splittedChunk,
     i64 minSplitSize,
     const TKeyColumns& keyColumns,
     TChunk::TGetMetaResult result)
 {
-    auto chunkId = FromProto<TChunkId>(inputChunk->chunk_id());
+    auto chunkId = FromProto<TChunkId>(chunkSpec->chunk_id());
 
     if (!result.IsOK()) {
         auto error = TError("GetChunkSplits: Error getting meta of chunk %s", ~ToString(chunkId))
@@ -759,7 +759,7 @@ void TDataNodeService::MakeChunkSplits(
     auto indexExt = GetProtoExtension<NTableClient::NProto::TIndexExt>(result.Value().extensions());
     if (indexExt.items_size() == 1) {
         // Only one index entry available - no need to split.
-        splittedChunk->add_input_chunks()->CopyFrom(*inputChunk);
+        splittedChunk->add_chunk_specs()->CopyFrom(*chunkSpec);
         return;
     }
 
@@ -800,7 +800,7 @@ void TDataNodeService::MakeChunkSplits(
     auto beginIt = std::lower_bound(
         indexExt.items().begin(),
         indexExt.items().end(),
-        inputChunk->start_limit(),
+        chunkSpec->start_limit(),
         [&] (const NTableClient::NProto::TIndexRow& indexRow,
              const TReadLimit& limit)
         {
@@ -810,22 +810,22 @@ void TDataNodeService::MakeChunkSplits(
     auto endIt = std::upper_bound(
         beginIt,
         indexExt.items().end(),
-        inputChunk->end_limit(),
+        chunkSpec->end_limit(),
         [&] (const TReadLimit& limit,
              const NTableClient::NProto::TIndexRow& indexRow)
         {
             return comparer(limit, indexRow, false) < 0;
         });
 
-    TInputChunk* currentSplit;
+    TChunkSpec* currentSplit;
     NTableClient::NProto::TBoundaryKeysExt boundaryKeysExt;
     i64 endRowIndex = beginIt->row_index();
     i64 startRowIndex;
     i64 dataSize;
 
     auto createNewSplit = [&] () {
-        currentSplit = splittedChunk->add_input_chunks();
-        currentSplit->CopyFrom(*inputChunk);
+        currentSplit = splittedChunk->add_chunk_specs();
+        currentSplit->CopyFrom(*chunkSpec);
         boundaryKeysExt = GetProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(currentSplit->extensions());
         startRowIndex = endRowIndex;
         dataSize = 0;

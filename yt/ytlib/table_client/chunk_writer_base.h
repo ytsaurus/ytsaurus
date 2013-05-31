@@ -5,7 +5,7 @@
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 #include <ytlib/chunk_client/chunk.pb.h>
-#include <ytlib/chunk_client/input_chunk.pb.h>
+#include <ytlib/chunk_client/chunk_spec.pb.h>
 
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/ref.h>

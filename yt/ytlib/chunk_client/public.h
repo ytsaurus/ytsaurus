@@ -191,11 +191,11 @@ class TKeyPart;
 typedef TKey<TBlobOutput> TOwningKey;
 typedef TKey<TFakeStringBufStore> TNonOwningKey;
 
-struct TRefCountedInputChunk;
-typedef TIntrusivePtr<TRefCountedInputChunk> TRefCountedInputChunkPtr;
+struct TRefCountedChunkSpec;
+typedef TIntrusivePtr<TRefCountedChunkSpec> TRefCountedChunkSpecPtr;
 
-struct TInputChunkSlice;
-typedef TIntrusivePtr<TInputChunkSlice> TInputChunkSlicePtr;
+struct TChunkSlice;
+typedef TIntrusivePtr<TChunkSlice> TChunkSlicePtr;
 
 class TChannel;
 typedef std::vector<TChannel> TChannels;

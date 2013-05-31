@@ -416,7 +416,7 @@ protected:
         void RegisterIntermediate(TJobletPtr joblet, TChunkStripePtr stripe, IChunkPoolInput* destinationPool);
 
         static TChunkStripePtr BuildIntermediateChunkStripe(
-            google::protobuf::RepeatedPtrField<NChunkClient::NProto::TInputChunk>* inputChunks);
+            google::protobuf::RepeatedPtrField<NChunkClient::NProto::TChunkSpec>* chunkSpecs);
 
         void RegisterOutput(TJobletPtr joblet, int key);
 
@@ -575,7 +575,7 @@ protected:
     /*!
      *  The operation fails immediately.
      */
-    void OnInputChunkFailed(const NChunkClient::TChunkId& chunkId);
+    void OnChunkSpecFailed(const NChunkClient::TChunkId& chunkId);
 
 
     virtual bool IsOutputLivePreviewSupported() const;
@@ -621,9 +621,9 @@ protected:
     NChunkClient::TChunkListId ExtractChunkList();
 
     //! Returns the list of all input chunks collected from all input tables.
-    std::vector<NChunkClient::TRefCountedInputChunkPtr> CollectInputChunks() const;
+    std::vector<NChunkClient::TRefCountedChunkSpecPtr> CollectInputChunks() const;
 
-    std::vector<NChunkClient::TInputChunkSlicePtr> CollectInputChunkSlices() const;
+    std::vector<NChunkClient::TChunkSlicePtr> CollectInputChunkSlices() const;
 
     //! Converts a list of input chunks into a list of chunk stripes for further
     //! processing. Each stripe receives exactly one chunk (as suitable for most

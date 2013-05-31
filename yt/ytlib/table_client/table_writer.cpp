@@ -11,7 +11,7 @@
 #include <ytlib/transaction_client/transaction_manager.h>
 
 #include <ytlib/chunk_client/schema.h>
-#include <ytlib/chunk_client/input_chunk.h>
+#include <ytlib/chunk_client/chunk_spec.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 

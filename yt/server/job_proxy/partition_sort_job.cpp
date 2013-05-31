@@ -12,7 +12,7 @@
 
 #include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
 #include <ytlib/chunk_client/client_block_cache.h>
-#include <ytlib/chunk_client/input_chunk.pb.h>
+#include <ytlib/chunk_client/chunk_spec.pb.h>
 
 #include <ytlib/table_client/sync_writer.h>
 
@@ -61,7 +61,7 @@ public:
 
         KeyColumns = FromProto<Stroka>(SortJobSpecExt.key_columns());
 
-        std::vector<TInputChunk> chunks(inputSpec.chunks().begin(), inputSpec.chunks().end());
+        std::vector<TChunkSpec> chunks(inputSpec.chunks().begin(), inputSpec.chunks().end());
 
         srand(time(NULL));
         std::random_shuffle(chunks.begin(), chunks.end());

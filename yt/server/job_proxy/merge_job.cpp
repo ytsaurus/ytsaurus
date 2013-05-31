@@ -59,15 +59,15 @@ public:
 
         YCHECK(SchedulerJobSpecExt.output_specs_size() == 1);
 
-        std::vector<TInputChunk> inputChunks;
+        std::vector<TChunkSpec> chunkSpecs;
         FOREACH (const auto& inputSpec, SchedulerJobSpecExt.input_specs()) {
-            FOREACH (const auto& inputChunk, inputSpec.chunks()) {
-                inputChunks.push_back(inputChunk);
+            FOREACH (const auto& chunkSpec, inputSpec.chunks()) {
+                chunkSpecs.push_back(chunkSpec);
             }
         }
 
         auto readerProvider = New<TTableChunkReaderProvider>(
-            inputChunks,
+            chunkSpecs,
             config->JobIO->TableReader);
 
         Reader = CreateSyncReader(New<TReader>(
@@ -75,7 +75,7 @@ public:
             Host->GetMasterChannel(),
             Host->GetBlockCache(),
             Host->GetNodeDirectory(),
-            std::move(inputChunks),
+            std::move(chunkSpecs),
             readerProvider));
 
         if (JobSpec.HasExtension(TMergeJobSpecExt::merge_job_spec_ext)) {

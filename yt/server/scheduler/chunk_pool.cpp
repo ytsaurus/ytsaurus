@@ -6,7 +6,7 @@
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
-#include <ytlib/chunk_client/input_chunk.h>
+#include <ytlib/chunk_client/chunk_spec.h>
 #include <ytlib/table_client/chunk_meta_extensions.h>
 
 namespace NYT {
@@ -58,7 +58,7 @@ void AddStripeToList(
     if (address) {
         FOREACH (const auto& chunkSlice, stripe->ChunkSlices) {
             bool isLocal = false;
-            FOREACH (ui32 protoReplica, chunkSlice->GetInputChunk()->replicas()) {
+            FOREACH (ui32 protoReplica, chunkSlice->GetChunkSpec()->replicas()) {
                 auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
                 const auto& descriptor = nodeDirectory->GetDescriptor(replica);
                 if (descriptor.Address == *address && chunkSlice->GetLocality(replica.GetIndex()) > 0) {
@@ -82,15 +82,15 @@ void AddStripeToList(
 TChunkStripe::TChunkStripe()
 { }
 
-TChunkStripe::TChunkStripe(TInputChunkSlicePtr inputChunkSlice)
+TChunkStripe::TChunkStripe(TChunkSlicePtr chunkSlice)
 {
-    ChunkSlices.push_back(inputChunkSlice);
+    ChunkSlices.push_back(chunkSlice);
 }
 
 TChunkStripe::TChunkStripe(const TChunkStripe& other)
 {
     FOREACH (const auto& chunkSlice, other.ChunkSlices) {
-        ChunkSlices.push_back(New<TInputChunkSlice>(*chunkSlice));
+        ChunkSlices.push_back(New<TChunkSlice>(*chunkSlice));
     }
 }
 
@@ -477,7 +477,7 @@ private:
     void UpdateLocality(TChunkStripePtr stripe, int delta)
     {
         FOREACH (const auto& chunkSlice, stripe->ChunkSlices) {
-            FOREACH (ui32 protoReplica, chunkSlice->GetInputChunk()->replicas()) {
+            FOREACH (ui32 protoReplica, chunkSlice->GetChunkSpec()->replicas()) {
                 auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
                 const auto& descriptor = NodeDirectory->GetDescriptor(replica);
                 i64 localityDelta = chunkSlice->GetLocality(replica.GetIndex()) * delta;
@@ -737,7 +737,7 @@ private:
     void Register(TChunkStripePtr stripe)
     {
         FOREACH (const auto& chunkSlice, stripe->ChunkSlices) {
-            FOREACH (ui32 protoReplica, chunkSlice->GetInputChunk()->replicas()) {
+            FOREACH (ui32 protoReplica, chunkSlice->GetChunkSpec()->replicas()) {
                 auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
                 const auto& descriptor = NodeDirectory->GetDescriptor(replica);
                 auto& entry = PendingLocalChunks[descriptor.Address];
@@ -752,7 +752,7 @@ private:
     void Unregister(TChunkStripePtr stripe)
     {
         FOREACH (const auto& chunkSlice, stripe->ChunkSlices) {
-            FOREACH (ui32 protoReplica, chunkSlice->GetInputChunk()->replicas()) {
+            FOREACH (ui32 protoReplica, chunkSlice->GetChunkSpec()->replicas()) {
                 auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
                 const auto& descriptor = NodeDirectory->GetDescriptor(replica);
                 auto& entry = PendingLocalChunks[descriptor.Address];
@@ -862,7 +862,7 @@ public:
             ElementaryStripes.push_back(elementaryStripe);
 
             auto partitionsExt = GetProtoExtension<NTableClient::NProto::TPartitionsExt>(
-                chunkSlice->GetInputChunk()->extensions());
+                chunkSlice->GetChunkSpec()->extensions());
             YCHECK(partitionsExt.partitions_size() == Outputs.size());
 
             for (int index = 0; index < static_cast<int>(Outputs.size()); ++index) {
@@ -874,7 +874,7 @@ public:
             }
 
             RemoveProtoExtension<NTableClient::NProto::TPartitionsExt>(
-                chunkSlice->GetInputChunk()->mutable_extensions());
+                chunkSlice->GetChunkSpec()->mutable_extensions());
         }
 
         inputStripe.ElementaryIndexEnd = static_cast<int>(ElementaryStripes.size());
@@ -898,7 +898,7 @@ public:
         // Remove all partition extensions.
         FOREACH (auto chunkSlice, stripe->ChunkSlices) {
             RemoveProtoExtension<NTableClient::NProto::TPartitionsExt>(
-                chunkSlice->GetInputChunk()->mutable_extensions());
+                chunkSlice->GetChunkSpec()->mutable_extensions());
         }
 
         // Although the sizes and even the row count may have changed (mind unordered reader and

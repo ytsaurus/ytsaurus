@@ -13,7 +13,7 @@
 #include <ytlib/ytree/attribute_helpers.h>
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/chunk_client/input_chunk.h>
+#include <ytlib/chunk_client/chunk_spec.h>
 
 #include <ytlib/erasure/codec.h>
 
@@ -167,10 +167,10 @@ bool TFetchChunkVisitor::OnChunk(
         }
     }
 
-    auto* inputChunk = Context->Response().add_chunks();
+    auto* chunkSpec = Context->Response().add_chunks();
 
     if (!Channel.IsUniversal()) {
-        *inputChunk->mutable_channel() = Channel.ToProto();
+        *chunkSpec->mutable_channel() = Channel.ToProto();
     }
 
     auto erasureCodecId = chunk->GetErasureCodec();
@@ -183,28 +183,28 @@ bool TFetchChunkVisitor::OnChunk(
     FOREACH (auto replica, replicas) {
         if (replica.GetIndex() < firstParityPartIndex) {
             NodeDirectoryBuilder.Add(replica);
-            inputChunk->add_replicas(NYT::ToProto<ui32>(replica));
+            chunkSpec->add_replicas(NYT::ToProto<ui32>(replica));
         }
     }
 
-    ToProto(inputChunk->mutable_chunk_id(), chunk->GetId());
-    inputChunk->set_erasure_codec(erasureCodecId);
+    ToProto(chunkSpec->mutable_chunk_id(), chunk->GetId());
+    chunkSpec->set_erasure_codec(erasureCodecId);
 
     if (Context->Request().fetch_all_meta_extensions()) {
-        *inputChunk->mutable_extensions() = chunk->ChunkMeta().extensions();
+        *chunkSpec->mutable_extensions() = chunk->ChunkMeta().extensions();
     } else {
         FilterProtoExtensions(
-            inputChunk->mutable_extensions(),
+            chunkSpec->mutable_extensions(),
             chunk->ChunkMeta().extensions(),
             ExtensionTags);
     }
 
     // Try to keep responses small -- avoid producing redundant limits.
     if (IsNontrivial(startLimit)) {
-        *inputChunk->mutable_start_limit() = startLimit;
+        *chunkSpec->mutable_start_limit() = startLimit;
     }
     if (IsNontrivial(endLimit)) {
-        *inputChunk->mutable_end_limit() = endLimit;
+        *chunkSpec->mutable_end_limit() = endLimit;
     }
 
     return true;

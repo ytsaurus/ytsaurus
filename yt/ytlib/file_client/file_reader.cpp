@@ -14,7 +14,7 @@
 #include <ytlib/misc/sync.h>
 
 #include <ytlib/chunk_client/chunk_replica.h>
-#include <ytlib/chunk_client/input_chunk.h>
+#include <ytlib/chunk_client/chunk_spec.h>
 #include <ytlib/chunk_client/schema.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
@@ -90,8 +90,8 @@ void TFileReader::Open(
     TNodeDirectoryPtr nodeDirectory = New<TNodeDirectory>();
     nodeDirectory->MergeFrom(fetchRsp->node_directory());
 
-    std::vector<NChunkClient::NProto::TInputChunk> chunks =
-        FromProto<NChunkClient::NProto::TInputChunk>(fetchRsp->chunks());
+    std::vector<NChunkClient::NProto::TChunkSpec> chunks =
+        FromProto<NChunkClient::NProto::TChunkSpec>(fetchRsp->chunks());
 
     FOREACH(const auto& chunk, chunks) {
         i64 dataSize;

@@ -222,16 +222,16 @@ TPartitionChunkReaderProvider::TPartitionChunkReaderProvider(
 { }
 
 TPartitionChunkReaderPtr TPartitionChunkReaderProvider::CreateReader(
-    const NChunkClient::NProto::TInputChunk& inputChunk,
+    const NChunkClient::NProto::TChunkSpec& chunkSpec,
     const NChunkClient::IAsyncReaderPtr& chunkReader)
 {
-    auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(inputChunk.extensions());
+    auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunkSpec.extensions());
 
     return New<TPartitionChunkReader>(
         this,
         Config,
         chunkReader,
-        inputChunk.partition_tag(),
+        chunkSpec.partition_tag(),
         NCompression::ECodec(miscExt.compression_codec()));
 }
 
@@ -242,10 +242,10 @@ bool TPartitionChunkReaderProvider::KeepInMemory() const
 
 void TPartitionChunkReaderProvider::OnReaderOpened(
     TPartitionChunkReaderPtr reader,
-    NChunkClient::NProto::TInputChunk& inputChunk)
+    NChunkClient::NProto::TChunkSpec& chunkSpec)
 {
     UNUSED(reader);
-    UNUSED(inputChunk);
+    UNUSED(chunkSpec);
 }
 
 void TPartitionChunkReaderProvider::OnReaderFinished(TPartitionChunkReaderPtr reader)

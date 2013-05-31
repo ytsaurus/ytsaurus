@@ -4,7 +4,7 @@ import "yt/ytlib/misc/guid.proto";
 import "yt/ytlib/misc/error.proto";
 import "yt/ytlib/node_tracker_client/node.proto";
 import "yt/ytlib/chunk_client/chunk.proto";
-import "yt/ytlib/chunk_client/input_chunk.proto";
+import "yt/ytlib/chunk_client/chunk_spec.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -176,7 +176,7 @@ message TRspGetTableSamples
 // Scheduler calls this method to perform sorted merge.
 message TReqGetChunkSplits
 {
-    repeated NChunkClient.NProto.TInputChunk input_chunks = 1;
+    repeated NChunkClient.NProto.TChunkSpec chunk_specs = 1;
     repeated string key_columns = 2;
     required int64 min_split_size = 3;
 }
@@ -186,7 +186,7 @@ message TRspGetChunkSplits
     message TChunkSplits
     {
         optional NYT.NProto.TError error = 1;
-        repeated NChunkClient.NProto.TInputChunk input_chunks = 2;
+        repeated NChunkClient.NProto.TChunkSpec chunk_specs = 2;
     }
 
     repeated TChunkSplits splitted_chunks = 1;

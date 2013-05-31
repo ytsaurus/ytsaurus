@@ -60,7 +60,7 @@ public:
 
             FOREACH (const auto& inputSpec, SchedulerJobSpecExt.input_specs()) {
                 // ToDo(psushin): validate that input chunks are sorted.
-                std::vector<TInputChunk> chunks(inputSpec.chunks().begin(), inputSpec.chunks().end());
+                std::vector<TChunkSpec> chunks(inputSpec.chunks().begin(), inputSpec.chunks().end());
 
                 auto provider = New<TTableChunkReaderProvider>(
                     chunks,

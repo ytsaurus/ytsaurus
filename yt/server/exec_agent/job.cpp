@@ -626,7 +626,7 @@ private:
         // TODO(babenko): change this to handle erasure chunks
         auto nodeDirectory = New<TNodeDirectory>();
         nodeDirectory->AddDescriptor(InvalidNodeId, Bootstrap->GetLocalDescriptor());
-        std::vector<NChunkClient::NProto::TInputChunk> chunks;
+        std::vector<NChunkClient::NProto::TChunkSpec> chunks;
         chunks.insert(
             chunks.end(),
             descriptor.table().chunks().begin(),

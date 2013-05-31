@@ -8,7 +8,7 @@
 
 #include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
-#include <ytlib/chunk_client/input_chunk.pb.h>
+#include <ytlib/chunk_client/chunk_spec.pb.h>
 
 #include <ytlib/table_client/partition_chunk_writer.h>
 #include <ytlib/table_client/table_chunk_reader.h>
@@ -57,7 +57,7 @@ public:
         YCHECK(SchedulerJobSpecExt.output_specs_size() == 1);
         const auto& outputSpec = SchedulerJobSpecExt.output_specs(0);
 
-        std::vector<TInputChunk> chunks(inputSpec.chunks().begin(), inputSpec.chunks().end());
+        std::vector<TChunkSpec> chunks(inputSpec.chunks().begin(), inputSpec.chunks().end());
 
         auto readerProvider = New<TTableChunkReaderProvider>(
             chunks,
