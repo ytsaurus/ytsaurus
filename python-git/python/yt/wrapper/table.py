@@ -1,6 +1,6 @@
-from common import flatten, require, bool_to_string, get_value
+from common import flatten, require, bool_to_string
 from errors import YtError
-from http import make_request
+from driver import make_request
 from format import YsonFormat
 import config
 
@@ -65,6 +65,8 @@ class TablePath(object):
         if lower_key is not None:
             attributes["lower_limit"] = {"key": flatten(lower_key)}
         if upper_key is not None:
+            if config.USE_NON_STRICT_UPPER_KEY:
+                upper_key = upper_key + "\0"
             attributes["upper_limit"] = {"key": flatten(upper_key)}
         if start_index is not None:
             attributes["lower_limit"] = {"row_index": start_index}
