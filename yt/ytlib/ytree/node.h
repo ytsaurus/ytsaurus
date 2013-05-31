@@ -137,7 +137,7 @@ struct IScalarNode
     \
     namespace NDetail { \
     \
-    template<> \
+    template <> \
     struct TScalarTypeTraits<type> \
     { \
         typedef I##name##Node TNode; \

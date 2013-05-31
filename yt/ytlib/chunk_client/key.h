@@ -306,13 +306,13 @@ public:
         Assign(other);
     }
 
-    template<class TOtherBuffer>
+    template <class TOtherBuffer>
     TKey(const TKey<TOtherBuffer>& other)
     {
         Assign(other);
     }
 
-    template<class TOtherBuffer>
+    template <class TOtherBuffer>
     TKey<TBuffer>& operator=(const TKey<TOtherBuffer>& other)
     {
         Assign(other);

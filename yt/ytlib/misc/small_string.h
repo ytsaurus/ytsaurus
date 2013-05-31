@@ -33,7 +33,7 @@ public:
   TSmallString(TStringBuf S) : TSmallVector<char, InternalLen>(S.begin(), S.end()) {}
 
   /// Initialize with a range.
-  template<typename ItTy>
+  template <typename ItTy>
   TSmallString(ItTy S, ItTy E) : TSmallVector<char, InternalLen>(S, E) {}
 
   /// Copy ctor.
@@ -52,7 +52,7 @@ public:
   }
 
   /// Assign from an iterator pair
-  template<typename in_iter>
+  template <typename in_iter>
   void assign(in_iter S, in_iter E) {
     this->clear();
     SmallVectorImpl<char>::append(S, E);
@@ -75,7 +75,7 @@ public:
   /// @{
 
   /// Append from an iterator pair
-  template<typename in_iter>
+  template <typename in_iter>
   void append(in_iter S, in_iter E) {
     SmallVectorImpl<char>::append(S, E);
   }

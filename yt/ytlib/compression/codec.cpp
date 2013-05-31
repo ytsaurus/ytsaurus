@@ -15,7 +15,7 @@ struct TDecompressedBlockTag { };
 ////////////////////////////////////////////////////////////////////////////////
 
 //TODO(ignat): rename these methods
-template<class TBlockTag>
+template <class TBlockTag>
 TSharedRef Apply(TConverter converter, const TSharedRef& ref)
 {
     ByteArraySource source(ref.Begin(), ref.Size());
@@ -24,7 +24,7 @@ TSharedRef Apply(TConverter converter, const TSharedRef& ref)
     return TSharedRef::FromBlob<TBlockTag>(std::move(output));
 }
 
-template<class TBlockTag>
+template <class TBlockTag>
 TSharedRef Apply(TConverter converter, const std::vector<TSharedRef>& refs)
 {
     if (refs.size() == 1) {

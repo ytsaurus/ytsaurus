@@ -167,7 +167,7 @@ protected:
 
   /// uninitialized_copy - Copy the range [I, E) onto the uninitialized memory
   /// starting with "Dest", constructing elements into it as needed.
-  template<typename It1, typename It2>
+  template <typename It1, typename It2>
   static void uninitialized_copy(It1 I, It1 E, It2 Dest) {
     std::uninitialized_copy(I, E, Dest);
   }
@@ -232,7 +232,7 @@ protected:
 
   /// uninitialized_copy - Copy the range [I, E) onto the uninitialized memory
   /// starting with "Dest", constructing elements into it as needed.
-  template<typename It1, typename It2>
+  template <typename It1, typename It2>
   static void uninitialized_copy(It1 I, It1 E, It2 Dest) {
     // Arbitrary iterator types; just use the basic implementation.
     std::uninitialized_copy(I, E, Dest);
@@ -240,7 +240,7 @@ protected:
 
   /// uninitialized_copy - Copy the range [I, E) onto the uninitialized memory
   /// starting with "Dest", constructing elements into it as needed.
-  template<typename T1, typename T2>
+  template <typename T1, typename T2>
   static void uninitialized_copy(T1 *I, T1 *E, T2 *Dest) {
     // Use memcpy for PODs iterated by pointers (which includes TSmallVector
     // iterators): std::uninitialized_copy optimizes to memmove, but we can
@@ -344,7 +344,7 @@ public:
 
   /// append - Add the specified range to the end of the TSmallVector.
   ///
-  template<typename in_iter>
+  template <typename in_iter>
   void append(in_iter in_start, in_iter in_end) {
     size_type NumInputs = std::distance(in_start, in_end);
     // Grow allocated space if needed.
@@ -472,7 +472,7 @@ public:
     return I;
   }
 
-  template<typename ItTy>
+  template <typename ItTy>
   iterator insert(iterator I, ItTy From, ItTy To) {
     if (I == this->end()) {  // Important special case for empty vector.
       append(From, To);
@@ -682,7 +682,7 @@ public:
     this->assign(Size, Value);
   }
 
-  template<typename ItTy>
+  template <typename ItTy>
   TSmallVector(ItTy S, ItTy E) : SmallVectorImpl<T>(NumTsAvailable) {
     this->append(S, E);
   }
@@ -712,7 +712,7 @@ public:
     this->assign(Size, Value);
   }
 
-  template<typename ItTy>
+  template <typename ItTy>
   TSmallVector(ItTy S, ItTy E) : SmallVectorImpl<T>(0) {
     this->append(S, E);
   }
@@ -736,14 +736,14 @@ static inline size_t capacity_in_bytes(const TSmallVector<T, N> &X) {
 
 namespace std {
   /// Implement std::swap in terms of TSmallVector swap.
-  template<typename T>
+  template <typename T>
   inline void
   swap(NYT::SmallVectorImpl<T> &LHS, NYT::SmallVectorImpl<T> &RHS) {
     LHS.swap(RHS);
   }
 
   /// Implement std::swap in terms of TSmallVector swap.
-  template<typename T, unsigned N>
+  template <typename T, unsigned N>
   inline void
   swap(NYT::TSmallVector<T, N> &LHS, NYT::TSmallVector<T, N> &RHS) {
     LHS.swap(RHS);
