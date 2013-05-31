@@ -139,6 +139,7 @@ public:
             YCHECK(!Slot);
             SetResult(TError("Job aborted by scheduler"));
             JobState = EJobState::Aborted;
+            JobPhase = EJobPhase::Finished;
             SetResourceUsage(ZeroNodeResources());
             ResourcesReleased_.Fire();
         } else {
