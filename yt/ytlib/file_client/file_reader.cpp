@@ -118,7 +118,7 @@ TAsyncError TAsyncReader::OnInfoFetched(
 
     auto this_ = MakeStrong(this);
     return Reader->AsyncOpen().Apply(
-        BIND([this, this_, transaction] (TError error) {
+        BIND([this, this_, transaction] (TError error) -> TError {
             if (!error.IsOK()) {
                 return error;
             }

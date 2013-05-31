@@ -27,7 +27,7 @@ using namespace NTransactionClient;
 
 namespace {
 
-template<class TResponse>
+template <class TResponse>
 TAsyncError ExtractError(TFuture<TResponse> rspFuture)
 {
     return rspFuture.Apply(BIND([] (TResponse rsp) {
@@ -129,7 +129,7 @@ void TCreateCommand::DoExecute()
 
         CheckAndReply(
             ObjectProxy->Execute(req),
-            BIND([] (TCypressYPathProxy::TRspCreatePtr rsp) {
+            BIND([] (TCypressYPathProxy::TRspCreatePtr rsp) -> TYsonString {
                 auto nodeId = FromProto<TNodeId>(rsp->node_id());
                 return BuildYsonStringFluently().Value(nodeId);
             }));
@@ -152,7 +152,7 @@ void TCreateCommand::DoExecute()
 
         CheckAndReply(
             ObjectProxy->Execute(req),
-            BIND([] (TMasterYPathProxy::TRspCreateObjectPtr rsp) {
+            BIND([] (TMasterYPathProxy::TRspCreateObjectPtr rsp) -> TYsonString {
                 auto objectId = FromProto<TNodeId>(rsp->object_id());
                 return BuildYsonStringFluently().Value(objectId);
             }));
@@ -183,7 +183,7 @@ void TCopyCommand::DoExecute()
 
     CheckAndReply(
         ObjectProxy->Execute(req),
-        BIND([] (TCypressYPathProxy::TRspCopyPtr rsp) {
+        BIND([] (TCypressYPathProxy::TRspCopyPtr rsp) -> TYsonString {
             auto objectId = FromProto<TNodeId>(rsp->object_id());
             return BuildYsonStringFluently().Value(objectId);
         }));
@@ -195,25 +195,24 @@ void TMoveCommand::DoExecute()
 {
     auto this_ = MakeStrong(this);
     StartAsyncPipeline(GetSyncInvoker())
-        ->Add(BIND([this, this_] () {
+        ->Add(BIND([this, this_] () -> TAsyncError {
             auto copyReq = TCypressYPathProxy::Copy(Request->DestinationPath.GetPath());
-            SetTransactionId(copyReq, EAllowNullTransaction::Yes);
+            this->SetTransactionId(copyReq, EAllowNullTransaction::Yes);
             GenerateMutationId(copyReq);
             copyReq->set_source_path(Request->SourcePath.GetPath());
             return ExtractError(ObjectProxy->Execute(copyReq));
         }))
-        ->Add(BIND([this, this_] () {
+        ->Add(BIND([this, this_] () -> TAsyncError {
             auto removeReq = TYPathProxy::Remove(Request->SourcePath.GetPath());
             removeReq->set_recursive(true);
-            SetTransactionId(removeReq, EAllowNullTransaction::Yes);
+            this->SetTransactionId(removeReq, EAllowNullTransaction::Yes);
             GenerateMutationId(removeReq);
             return ExtractError(ObjectProxy->Execute(removeReq));
         }))
         ->Run().Apply(BIND([this, this_] (TValueOrError<void> error) {
             if (error.IsOK()) {
                 ReplySuccess();
-            }
-            else {
+            } else {
                 ReplyError(error);
             }
         }));
@@ -239,13 +238,13 @@ void TLinkCommand::DoExecute()
 {
     auto this_ = MakeStrong(this);
     StartAsyncPipeline(GetSyncInvoker())
-        ->Add(BIND([this, this_] () {
+        ->Add(BIND([this, this_] () -> TFuture<TCypressYPathProxy::TRspGetPtr> {
             auto req = TCypressYPathProxy::Get(Request->TargetPath.GetPath() + "/@id");
-            SetTransactionId(req, EAllowNullTransaction::Yes);
+            this->SetTransactionId(req, EAllowNullTransaction::Yes);
 
             return ObjectProxy->Execute(req);
         }))
-        ->Add(BIND([this, this_] (TCypressYPathProxy::TRspGetPtr rsp) {
+        ->Add(BIND([this, this_] (TCypressYPathProxy::TRspGetPtr rsp) -> TFuture<TCypressYPathProxy::TRspCreatePtr> {
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
             auto targetId = ConvertTo<TObjectId>(TYsonString(rsp->value()));
 
@@ -253,8 +252,8 @@ void TLinkCommand::DoExecute()
             req->set_type(EObjectType::LinkNode);
             req->set_recursive(Request->Recursive);
             req->set_ignore_existing(Request->IgnoreExisting);
-            SetTransactionId(req, EAllowNullTransaction::Yes);
-            GenerateMutationId(req);
+            this->SetTransactionId(req, EAllowNullTransaction::Yes);
+            this->GenerateMutationId(req);
 
             auto attributes = Request->Attributes ? ConvertToAttributes(Request->Attributes) : CreateEphemeralAttributes();
             attributes->Set("target_id", targetId);
@@ -262,21 +261,21 @@ void TLinkCommand::DoExecute()
 
             return ObjectProxy->Execute(req);
         }))
-        ->Run().Apply(BIND([this, this_] (TValueOrError<TCypressYPathProxy::TRspCreatePtr> rspOrError) {
+        ->Run().Subscribe(BIND([this, this_] (TValueOrError<TCypressYPathProxy::TRspCreatePtr> rspOrError) {
             if (!rspOrError.IsOK()) {
                 ReplyError(rspOrError);
-            }
-            else {
+            } else {
                 OnProxyResponse(
-                    BIND([] (TCypressYPathProxy::TRspCreatePtr rsp) {
-                        auto linkId = FromProto<TNodeId>(rsp->node_id());
-                        return BuildYsonStringFluently().Value(linkId);
-                    }),
-                    rspOrError.Value()
-                );
+                    BIND(&TLinkCommand::OnLinkCreated, this_),
+                    rspOrError.Value());
             }
         }));
+}
 
+TYsonString TLinkCommand::OnLinkCreated(TCypressYPathProxy::TRspCreatePtr rsp)
+{
+    auto linkId = FromProto<TNodeId>(rsp->node_id());
+    return BuildYsonStringFluently().Value(linkId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -335,22 +335,34 @@ private:
 
         virtual TYsonProducer CreateInputProducer() override
         {
-            auto&& format = ConvertTo<TFormat>(
-                Request->Arguments->FindChild("input_format"));
             return CreateProducerForFormat(
-                std::move(format),
+                GetInputFormat(),
                 Descriptor.InputType,
                 ~SyncInputStream);
         }
 
         virtual std::unique_ptr<IYsonConsumer> CreateOutputConsumer() override
         {
-            auto&& format = ConvertTo<TFormat>(
-                Request->Arguments->FindChild("output_format"));
             return CreateConsumerForFormat(
-                format,
+                GetOutputFormat(),
                 Descriptor.OutputType,
                 ~SyncOutputStream);
+        }
+
+        virtual const TFormat& GetInputFormat() override
+        {
+            if (!InputFormat) {
+                InputFormat = ConvertTo<TFormat>(Request->Arguments->GetChild("input_format"));
+            }
+            return *InputFormat;
+        }
+
+        virtual const TFormat& GetOutputFormat() override
+        {
+            if (!OutputFormat) {
+                OutputFormat = ConvertTo<TFormat>(Request->Arguments->GetChild("output_format"));
+            }
+            return *OutputFormat;
         }
 
         TFuture<TDriverResponse> GetAsyncResponse()
@@ -366,6 +378,9 @@ private:
         IChannelPtr MasterChannel;
         IChannelPtr SchedulerChannel;
         TTransactionManagerPtr TransactionManager;
+
+        TNullable<TFormat> InputFormat;
+        TNullable<TFormat> OutputFormat;
 
         std::unique_ptr<TInputStream> SyncInputStream;
         std::unique_ptr<TOutputStream> SyncOutputStream;

@@ -4,10 +4,9 @@
 
 #include <ytlib/misc/async_stream.h>
 
-#include <ytlib/formats/format.h>
-
 #include <ytlib/yson/parser.h>
 #include <ytlib/yson/consumer.h>
+
 #include <ytlib/ytree/tree_visitor.h>
 
 #include <ytlib/transaction_client/transaction_manager.h>
@@ -36,7 +35,7 @@ public:
     TReadSession(
         NTableClient::TAsyncTableReaderPtr reader,
         IAsyncOutputStreamPtr output,
-        const NFormats::TFormat& format,
+        const TFormat& format,
         size_t bufferLimit);
 
     TAsyncError Execute();
@@ -70,18 +69,18 @@ TReadSession::TReadSession(
 TAsyncError TReadSession::Execute()
 {
     auto this_ = MakeStrong(this);
-    return Reader_->AsyncOpen().Apply(BIND([this, this_] (TError error) {
+    return Reader_->AsyncOpen().Apply(BIND([this, this_] (TError error) -> TAsyncError {
         RETURN_FUTURE_IF_ERROR(error, TError);
-        return Read();
+        return this->Read();
     }));
 }
 
 TAsyncError TReadSession::Read()
 {
-    // Synchronously reads rows and write it to the stream while it is possible.
-    // AlreadyFetched_ means that we fetched row from the reader but didn't processed it yet.
-    // Processed rows are stored in the Buffer_ before writing it to the output stream.
-    // IsValid marks that the reader has more rows.
+    // Read rows synchronously and write them to the stream while possible.
+    // AlreadyFetched_  is true if we'd fetched a row from the reader but didn't processed it yet.
+    // Processed rows are stored in Buffer_ before being written to the output stream.
+    // IsValid is true if the reader has more rows.
     auto this_ = MakeStrong(this);
     while (AlreadyFetched_ || Reader_->FetchNextItem()) {
         if (!Reader_->IsValid()) {
@@ -93,7 +92,7 @@ TAsyncError TReadSession::Read()
         AlreadyFetched_ = false;
 
         try {
-            // It is guaranteed that the reader contains a correct row
+            // It is guaranteed that the reader contains a correct row.
             YCHECK(Reader_->IsValid());
             ProduceRow(~Consumer_, Reader_->GetRow(), Reader_->GetRowAttributes());
         } catch (const std::exception& ex) {
@@ -103,10 +102,10 @@ TAsyncError TReadSession::Read()
         // NB: Consumer_ created on Buffer_, so after processing size of Buffer had changed.
         if (Buffer_.GetSize() > BufferSize_) {
             if (!Output_->Write(Buffer_.Begin(), Buffer_.GetSize())) {
-                return Output_->GetWriteFuture().Apply(BIND([this, this_] (TError error) {
+                return Output_->GetWriteFuture().Apply(BIND([this, this_] (TError error) -> TAsyncError {
                     RETURN_FUTURE_IF_ERROR(error, TError);
                     Buffer_.Clear();
-                    return Read();
+                    return this->Read();
                 }));
             }
             else {
@@ -114,10 +113,10 @@ TAsyncError TReadSession::Read()
             }
         }
     }
-    return Reader_->GetReadyEvent().Apply(BIND([this, this_] (TError error) {
+    return Reader_->GetReadyEvent().Apply(BIND([this, this_] (TError error) -> TAsyncError {
         RETURN_FUTURE_IF_ERROR(error, TError);
         AlreadyFetched_ = true;
-        return Read();
+        return this->Read();
     }));
 }
 
@@ -130,7 +129,7 @@ public:
     TWriteSession(
         NTableClient::IAsyncWriterPtr writer,
         IAsyncInputStreamPtr input,
-        const NFormats::TFormat& format,
+        const TFormat& format,
         i64 bufferSize);
 
     TAsyncError Execute();
@@ -180,8 +179,8 @@ TAsyncError TWriteSession::ReadyToRead(TError error)
 
 TAsyncError TWriteSession::Read()
 {
-    // Synchronously reads data from the input stream, produces rows and pushes them to
-    // the writer. When some operation couldn't be done synchronously we apply this method
+    // Read data from the input stream synchronously, produce rows and push them into
+    // the writer. When a certain stage cannot be finished synchronously we apply this method
     // to the corresponding future.
     auto this_ = MakeStrong(this);
     while (!IsFinished_ && Input_->Read(Buffer_.Begin(), Buffer_.Size())) {
@@ -222,8 +221,10 @@ TAsyncError TWriteSession::OnRead(TError error)
     }
 
     if (!result) {
-        return Writer_->GetReadyEvent().Apply(BIND(&TThis::ReadyToRead, MakeStrong(this)));
+        return Writer_->GetReadyEvent().Apply(
+            BIND(&TThis::ReadyToRead, MakeStrong(this)));
     }
+
     return Read();
 }
 
@@ -234,6 +235,7 @@ void TReadCommand::DoExecute()
     auto config = UpdateYsonSerializable(
         Context->GetConfig()->TableReader,
         Request->TableReader);
+
     auto reader = New<TAsyncTableReader>(
         config,
         Context->GetMasterChannel(),
@@ -241,11 +243,10 @@ void TReadCommand::DoExecute()
         Context->GetBlockCache(),
         Request->Path);
 
-    auto driverRequest = Context->GetRequest();
     Session_ = New<TReadSession>(
         reader,
-        driverRequest->OutputStream,
-        ConvertTo<TFormat>(driverRequest->Arguments->FindChild("output_format")),
+        Context->GetRequest()->OutputStream,
+        Context->GetOutputFormat(),
         Context->GetConfig()->ReadBufferSize);
 
     CheckAndReply(Session_->Execute());
@@ -264,6 +265,7 @@ void TWriteCommand::DoExecute()
     auto config = UpdateYsonSerializable(
         Context->GetConfig()->TableWriter,
         Request->TableWriter);
+
     auto writer = CreateAsyncTableWriter(
         config,
         Context->GetMasterChannel(),
@@ -272,11 +274,10 @@ void TWriteCommand::DoExecute()
         Request->Path,
         Request->Path.Attributes().Find<TKeyColumns>("sorted_by"));
 
-    auto driverRequest = Context->GetRequest();
     Session_ = New<TWriteSession>(
         writer,
-        driverRequest->InputStream,
-        ConvertTo<TFormat>(driverRequest->Arguments->FindChild("input_format")),
+        Context->GetRequest()->InputStream,
+        Context->GetInputFormat(),
         config->BlockSize);
 
     CheckAndReply(Session_->Execute());

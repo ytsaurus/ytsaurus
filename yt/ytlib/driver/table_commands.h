@@ -3,8 +3,10 @@
 #include "command.h"
 
 #include <ytlib/table_client/public.h>
+
 #include <ytlib/ypath/rich.h>
-#include <ytlib/misc/intrusive_ptr.h>
+
+#include <ytlib/formats/format.h>
 
 namespace NYT {
 namespace NDriver {
@@ -27,7 +29,6 @@ struct TReadRequest
 
 typedef TIntrusivePtr<TReadRequest> TReadRequestPtr;
 
-
 class TReadSession;
 
 class TReadCommand
@@ -35,7 +36,6 @@ class TReadCommand
 {
 public:
     TReadCommand();
-
     ~TReadCommand();
 
 private:
@@ -70,7 +70,6 @@ class TWriteCommand
 {
 public:
     TWriteCommand();
-
     ~TWriteCommand();
 
 private:

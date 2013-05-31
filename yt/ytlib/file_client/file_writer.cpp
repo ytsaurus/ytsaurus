@@ -175,11 +175,12 @@ TAsyncError TAsyncWriter::AsyncWrite(const TRef& data)
         return MakeFuture(TError());
     } else {
         auto this_ = MakeStrong(this);
-        return Writer->GetReadyEvent().Apply(BIND([this, this_, data] (TError error) {
-            RETURN_IF_ERROR(error);
-            Writer->GetCurrentWriter()->Write(data);
-            return TError();
-        }));
+        return Writer->GetReadyEvent().Apply(
+            BIND([this, this_, data] (TError error) -> TError {
+                RETURN_IF_ERROR(error);
+                Writer->GetCurrentWriter()->Write(data);
+                return TError();
+            }));
     }
 }
 

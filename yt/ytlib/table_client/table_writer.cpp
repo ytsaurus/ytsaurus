@@ -266,8 +266,9 @@ TAsyncError TAsyncTableWriter::OpenChunkWriter(NChunkClient::TChunkListId chunkL
         MasterChannel,
         UploadTransaction->GetId(),
         chunkListId);
+
     return Writer->AsyncOpen().Apply(
-        BIND([] (TError error) {
+        BIND([] (TError error) -> TError{
             if (!error.IsOK()) {
                 return TError("Error opening table chunk writer") << error;
             }
@@ -346,7 +347,7 @@ TAsyncError TAsyncTableWriter::CloseChunkWriter()
 
     auto this_ = MakeStrong(this);
     return Writer->AsyncClose().Apply(
-        BIND([this, this_] (TError error) {
+        BIND([this, this_] (TError error) -> TError {
             if (!error.IsOK()) {
                 return TError("Error closing chunk writer") << error;
             }
@@ -370,8 +371,7 @@ TAsyncError TAsyncTableWriter::SetIsSorted()
 
         auto this_ = MakeStrong(this);
         return ObjectProxy.Execute(req)
-            .Apply(BIND([this, this_] (TTableYPathProxy::TRspSetSortedPtr rsp) -> TError
-            {
+            .Apply(BIND([this, this_] (TTableYPathProxy::TRspSetSortedPtr rsp) -> TError {
                 if (!rsp->IsOK()) {
                     return TError("Error marking table as sorted") << *rsp;
                 }
@@ -388,11 +388,11 @@ TAsyncError TAsyncTableWriter::CommitUploadTransaction()
 
     auto this_ = MakeStrong(this);
     return UploadTransaction->AsyncCommit()
-        .Apply(BIND([this, this_] (TError error) {
+        .Apply(BIND([this, this_] (TError error) -> TError {
             if (!error.IsOK()) {
                 return TError("Error committing upload transaction") << error;
             }
-            LOG_INFO("Upload transaction commited");
+            LOG_INFO("Upload transaction committed");
             LOG_INFO("Table writer closed");
             return TError();
         }));

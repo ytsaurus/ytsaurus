@@ -102,6 +102,9 @@ struct ICommandContext
     virtual const TDriverRequest* GetRequest() = 0;
     virtual void SetResponse(const TDriverResponse& response) = 0;
 
+    virtual const NFormats::TFormat& GetInputFormat() = 0;
+    virtual const NFormats::TFormat& GetOutputFormat() = 0;
+
     virtual NYTree::TYsonProducer CreateInputProducer() = 0;
     virtual std::unique_ptr<NYson::IYsonConsumer> CreateOutputConsumer() = 0;
 };
@@ -138,7 +141,7 @@ protected:
     void ReplySuccess(const NYTree::TYsonString& yson);
     void ReplySuccess();
 
-    template<class TResponse>
+    template <class TResponse>
     void CheckAndReply(
         TFuture<TResponse> future,
         TCallback<NYTree::TYsonString(TResponse)> toYsonString
@@ -159,7 +162,7 @@ protected:
         }));
     }
 
-    template<class TResponse>
+    template <class TResponse>
     void OnProxyResponse(
         TCallback<NYTree::TYsonString(TResponse)> extractResult,
         TResponse response)
@@ -217,6 +220,16 @@ template <class TRequest, class = void>
 class TTransactionalCommandBase
 { };
 
+DECLARE_ENUM(EAllowNullTransaction,
+    (Yes)
+    (No)
+);
+
+DECLARE_ENUM(EPingTransaction,
+    (Yes)
+    (No)
+);
+
 template <class TRequest>
 class TTransactionalCommandBase<
     TRequest,
@@ -225,16 +238,6 @@ class TTransactionalCommandBase<
     : public virtual TTypedCommandBase<TRequest>
 {
 protected:
-    DECLARE_ENUM(EAllowNullTransaction,
-        (Yes)
-        (No)
-    );
-
-    DECLARE_ENUM(EPingTransaction,
-        (Yes)
-        (No)
-    );
-
     NTransactionClient::TTransactionId GetTransactionId(EAllowNullTransaction allowNullTransaction)
     {
         auto transaction = this->GetTransaction(allowNullTransaction, EPingTransaction::Yes);

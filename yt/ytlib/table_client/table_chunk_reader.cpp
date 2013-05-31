@@ -61,7 +61,7 @@ public:
         , Pivot(TOwningKey::FromProto(pivot))
     { }
 
-    template<class TBuffer>
+    template <class TBuffer>
     bool IsValid(const TKey<TBuffer>& key)
     {
         int result = CompareKeys(key, Pivot);

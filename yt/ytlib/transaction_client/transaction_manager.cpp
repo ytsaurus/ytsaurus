@@ -119,9 +119,10 @@ public:
 
         auto this_ = MakeStrong(this);
         return Proxy.Execute(req).Apply(
-            BIND([this, this_]
-                 (TMasterYPathProxy::TRspCreateObjectPtr rsp) -> TError
-            {
+            BIND([this, this_] (TMasterYPathProxy::TRspCreateObjectPtr rsp) -> TError {
+                // XXX(babenko): required by VS2010
+                typedef TTransactionManager::TTransaction::EState EState;
+
                 if (!rsp->IsOK()) {
                     State = EState::Aborted;
                     return *rsp;
@@ -202,13 +203,17 @@ public:
         auto rsp = Proxy.Execute(req);
 
         auto this_ = MakeStrong(this);
-        return rsp.Apply(BIND([this, this_] (TTransactionYPathProxy::TRspCommitPtr rsp) {
+        return rsp.Apply(BIND([this, this_] (TTransactionYPathProxy::TRspCommitPtr rsp) -> TError {
+            // XXX(babenko): required by VS2010
+            typedef TTransactionManager::TTransaction::EState EState;
+            
             if (!rsp->IsOK()) {
                 // Let's pretend the transaction was aborted.
                 // No sync here, should be safe.
                 State = EState::Aborted;
                 FireAbort();
-                return TError("Error committing transaction %s", ~ToString(Id)) << rsp->GetError();
+                return TError("Error committing transaction %s", ~ToString(Id))
+                    << rsp->GetError();
             }
             LOG_INFO("Transaction committed (TransactionId: %s)", ~ToString(Id));
             return TError();
@@ -233,13 +238,14 @@ public:
     virtual TAsyncError AsyncAbort(bool generateMutationId, const NMetaState::TMutationId& mutationId) override
     {
         auto this_ = MakeStrong(this);
-        return InvokeAbort(generateMutationId, mutationId).Apply(BIND([this, this_] (TTransactionYPathProxy::TRspAbortPtr rsp) {
-            if (!rsp->IsOK()) {
-                return TError("Error aborting transaction") << rsp->GetError();
-            }
-            HandleAbort();
-            return TError();
-        }));
+        return InvokeAbort(generateMutationId, mutationId)
+            .Apply(BIND([this, this_] (TTransactionYPathProxy::TRspAbortPtr rsp) -> TError {
+                if (!rsp->IsOK()) {
+                    return TError("Error aborting transaction") << rsp->GetError();
+                }
+                HandleAbort();
+                return TError();
+            }));
     }
 
     void Detach() override

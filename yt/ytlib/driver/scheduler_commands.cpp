@@ -28,7 +28,7 @@ void TSchedulerCommandBase::StartOperation(EOperationType type)
 
     CheckAndReply(
         req->Invoke(),
-        BIND([] (TSchedulerServiceProxy::TRspStartOperationPtr rsp) {
+        BIND([] (TSchedulerServiceProxy::TRspStartOperationPtr rsp) -> TYsonString {
             auto operationId = FromProto<TOperationId>(rsp->operation_id());
             return BuildYsonStringFluently().Value(operationId);
         }));
