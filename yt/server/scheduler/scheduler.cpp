@@ -308,7 +308,7 @@ public:
             ->Add(BIND(&TMasterConnector::CreateOperationNode, ~MasterConnector, operation))
             ->Add(BIND(&TThis::OnOperationNodeCreated, this_, operation))
             ->Run()
-            .Apply(BIND([=] (TValueOrError<void> result) -> TValueOrError<TOperationPtr> {
+            .Apply(BIND([=] (TError result) -> TErrorOr<TOperationPtr> {
                 VERIFY_THREAD_AFFINITY(ControlThread);
 
                 if (!result.IsOK()) {
@@ -594,7 +594,9 @@ public:
             ->Add(BIND(&TMasterConnector::FinalizeOperationNode, ~MasterConnector, operation))
             ->Add(BIND(&TThis::FinishOperation, this_, operation))
             ->Run()
-            .Subscribe(BIND([=] (TValueOrError<void> result) {
+            .Subscribe(BIND([=] (TError result) {
+                VERIFY_THREAD_AFFINITY(ControlThread);
+
                 if (!result.IsOK()) {
                     this_->OnOperationFailed(operation, result);
                 }
@@ -976,7 +978,7 @@ private:
             ->Add(BIND(&IOperationController::Prepare, controller))
             ->Add(BIND(&TThis::OnOperationPrepared, this_, operation))
             ->Run()
-            .Subscribe(BIND([=] (TValueOrError<void> result) {
+            .Subscribe(BIND([=] (TError result) {
                 VERIFY_THREAD_AFFINITY(ControlThread);
 
                 if (!result.IsOK()) {
@@ -1055,7 +1057,7 @@ private:
             ->Add(BIND(&TThis::DoReviveOperation, this_, operation))
             ->Add(BIND(&TThis::OnOperationRevived, this_, operation))
             ->Run()
-            .Subscribe(BIND([=] (TValueOrError<void> result) {
+            .Subscribe(BIND([=] (TError result) {
                 // Discard the snapshot, if any.
                 operation->Snapshot() = Null;
 
@@ -1546,7 +1548,7 @@ private:
     }
 
 
-    void OnOperationCommitted(TOperationPtr operation, TValueOrError<void> result)
+    void OnOperationCommitted(TOperationPtr operation, TError result)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 

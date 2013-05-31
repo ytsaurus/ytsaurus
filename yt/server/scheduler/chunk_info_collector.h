@@ -26,14 +26,14 @@ public:
         IInvokerPtr invoker);
 
     void AddChunk(NChunkClient::TRefCountedChunkSpecPtr chunk);
-    TFuture< TValueOrError<void> > Run();
+    TAsyncError Run();
 
 private:
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
     TFetcherPtr Fetcher;
     IInvokerPtr Invoker;
 
-    TPromise< TValueOrError<void> > Promise;
+    TAsyncErrorPromise Promise;
 
     //! All chunks for which info is to be fetched.
     std::vector<NChunkClient::TRefCountedChunkSpecPtr> Chunks;

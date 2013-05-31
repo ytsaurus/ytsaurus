@@ -262,7 +262,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, FinishChunk)
     Bootstrap
         ->GetSessionManager()
         ->FinishSession(session, meta)
-        .Subscribe(BIND([=] (TValueOrError<TChunkPtr> chunkOrError) {
+        .Subscribe(BIND([=] (TErrorOr<TChunkPtr> chunkOrError) {
             if (chunkOrError.IsOK()) {
                 auto chunk = chunkOrError.Value();
                 auto chunkInfo = session->GetChunkInfo();

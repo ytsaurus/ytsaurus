@@ -405,7 +405,7 @@ private:
     TError TerminationError;
     TSessionPtr Session;
 
-    TValueOrError<TSessionPtr> GetOrCreateSession()
+    TErrorOr<TSessionPtr> GetOrCreateSession()
     {
         IBusPtr bus;
         TSessionPtr session;

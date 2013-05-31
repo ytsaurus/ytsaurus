@@ -77,7 +77,7 @@ public:
      *  This call does not block.
      *  Thread affinity: any.
      */
-    TFuture<TValueOrError<ITransactionPtr>> AsyncStart(const TTransactionStartOptions& options);
+    TFuture<TErrorOr<ITransactionPtr>> AsyncStart(const TTransactionStartOptions& options);
     
     //! Synchronous version of start transaction
     ITransactionPtr Start(const TTransactionStartOptions& options);

@@ -24,7 +24,7 @@ static NLog::TLogger& Logger = MetaStateLogger;
 
 namespace {
 
-TValueOrError<IChannelPtr> OnPeerFound(
+TErrorOr<IChannelPtr> OnPeerFound(
     const Stroka& role,
     TMasterDiscoveryConfigPtr config,
     TMasterDiscovery::TResult result)
@@ -53,7 +53,7 @@ IChannelPtr CreateLeaderChannel(TMasterDiscoveryConfigPtr config)
     auto roamingChannel = CreateRoamingChannel(
         config->RpcTimeout,
         config->MaxAttempts > 1,
-        BIND([=] () -> TFuture< TValueOrError<IChannelPtr> > {
+        BIND([=] () -> TFuture< TErrorOr<IChannelPtr> > {
             return masterDiscovery->GetLeader().Apply(BIND(
                 &OnPeerFound,
                 "leader",
@@ -68,7 +68,7 @@ IChannelPtr CreateMasterChannel(TMasterDiscoveryConfigPtr config)
     auto roamingChannel = CreateRoamingChannel(
         config->RpcTimeout,
         config->MaxAttempts > 1,
-        BIND([=] () -> TFuture< TValueOrError<IChannelPtr> > {
+        BIND([=] () -> TFuture< TErrorOr<IChannelPtr> > {
             return masterDiscovery->GetMaster().Apply(BIND(
                 &OnPeerFound,
                 "master",

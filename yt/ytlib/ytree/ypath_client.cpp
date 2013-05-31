@@ -274,7 +274,7 @@ void ExecuteVerb(IYPathServicePtr service, IServiceContextPtr context)
         }));
 }
 
-TFuture< TValueOrError<TYsonString> > AsyncYPathGet(
+TFuture< TErrorOr<TYsonString> > AsyncYPathGet(
     IYPathServicePtr service,
     const TYPath& path,
     const TAttributeFilter& attributeFilter)
@@ -286,8 +286,8 @@ TFuture< TValueOrError<TYsonString> > AsyncYPathGet(
             .Apply(BIND([] (TYPathProxy::TRspGetPtr response) {
                 return
                     response->IsOK()
-                    ? TValueOrError<TYsonString>(TYsonString(response->value()))
-                    : TValueOrError<TYsonString>(response->GetError());
+                    ? TErrorOr<TYsonString>(TYsonString(response->value()))
+                    : TErrorOr<TYsonString>(response->GetError());
             }));
 }
 

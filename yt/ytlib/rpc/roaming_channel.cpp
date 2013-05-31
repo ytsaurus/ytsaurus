@@ -43,7 +43,7 @@ public:
         YASSERT(request);
         YASSERT(responseHandler);
 
-        TPromise< TValueOrError<IChannelPtr> > channelPromise;
+        TPromise< TErrorOr<IChannelPtr> > channelPromise;
         {
             TGuard<TSpinLock> guard(SpinLock);
 
@@ -55,7 +55,7 @@ public:
 
             channelPromise = ChannelPromise;
             if (!channelPromise) {
-                channelPromise = ChannelPromise = NewPromise< TValueOrError<IChannelPtr> >();
+                channelPromise = ChannelPromise = NewPromise< TErrorOr<IChannelPtr> >();
                 guard.Release();
 
                 Producer.Run().Subscribe(BIND(
@@ -77,7 +77,7 @@ public:
     {
         YCHECK(!error.IsOK());
 
-        TNullable< TValueOrError<IChannelPtr> > channel;
+        TNullable< TErrorOr<IChannelPtr> > channel;
         {
             TGuard<TSpinLock> guard(SpinLock);
 
@@ -135,8 +135,8 @@ private:
 
 
     void OnEndpointDiscovered(
-        TPromise< TValueOrError<IChannelPtr> > channelPromise,
-        TValueOrError<IChannelPtr> result)
+        TPromise< TErrorOr<IChannelPtr> > channelPromise,
+        TErrorOr<IChannelPtr> result)
     {
         TGuard<TSpinLock> guard(SpinLock);
 
@@ -160,7 +160,7 @@ private:
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
         TNullable<TDuration> timeout,
-        TValueOrError<IChannelPtr> result)
+        TErrorOr<IChannelPtr> result)
     {
         if (!result.IsOK()) {
             responseHandler->OnError(result);
@@ -193,7 +193,7 @@ private:
     TSpinLock SpinLock;
     volatile bool Terminated;
     TError TerminationError;
-    TPromise< TValueOrError<IChannelPtr> > ChannelPromise;
+    TPromise< TErrorOr<IChannelPtr> > ChannelPromise;
 
 };
 

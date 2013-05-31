@@ -43,7 +43,7 @@ public:
     typedef TIntrusivePtr< TCacheBase<TKey, TValue, THash> > TPtr;
 
     typedef TIntrusivePtr<TValue> TValuePtr;
-    typedef TValueOrError<TValuePtr> TValuePtrOrError;
+    typedef TErrorOr<TValuePtr> TValuePtrOrError;
     typedef TFuture<TValuePtrOrError> TAsyncValuePtrOrErrorResult;
     typedef TPromise<TValuePtrOrError> TAsyncValuePtrOrErrorPromise;
 

@@ -146,16 +146,16 @@ protected:
     virtual void OnUserAttributesUpdated();
 
 private:
-    TFuture< TValueOrError<TYsonString> > DoFindAttribute(const Stroka& key);
+    TFuture< TErrorOr<TYsonString> > DoFindAttribute(const Stroka& key);
 
-    static TValueOrError<TYsonString> DoGetAttributeFragment(const TYPath& path, TValueOrError<TYsonString> wholeYsonOrError);
-    TFuture< TValueOrError<TYsonString> > DoGetAttribute(const TYPath& path);
+    static TErrorOr<TYsonString> DoGetAttributeFragment(const TYPath& path, TErrorOr<TYsonString> wholeYsonOrError);
+    TFuture< TErrorOr<TYsonString> > DoGetAttribute(const TYPath& path);
 
-    static bool DoExistsAttributeFragment(const TYPath& path, TValueOrError<TYsonString> wholeYsonOrError);
+    static bool DoExistsAttributeFragment(const TYPath& path, TErrorOr<TYsonString> wholeYsonOrError);
     TFuture<bool> DoExistsAttribute(const TYPath& path);
 
-    static TValueOrError<TYsonString> DoListAttributeFragment(const TYPath& path, TValueOrError<TYsonString> wholeYsonOrError);
-    TFuture< TValueOrError<TYsonString> > DoListAttribute(const TYPath& path);
+    static TErrorOr<TYsonString> DoListAttributeFragment(const TYPath& path, TErrorOr<TYsonString> wholeYsonOrError);
+    TFuture< TErrorOr<TYsonString> > DoListAttribute(const TYPath& path);
 
     void DoSetAttribute(const TYPath& path, const TYsonString& newYson);
 

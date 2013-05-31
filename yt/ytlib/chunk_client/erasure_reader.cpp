@@ -225,7 +225,7 @@ class TWindowReader
     : public TRefCounted
 {
 public:
-    typedef TValueOrError<TSharedRef> TReadResult;
+    typedef TErrorOr<TSharedRef> TReadResult;
     typedef TPromise<TReadResult> TReadPromise;
     typedef TFuture<TReadResult> TReadFuture;
 
@@ -411,9 +411,9 @@ public:
         int Index;
     };
 
-    typedef TValueOrError<TBlock> TReadResult;
-    typedef TPromise< TValueOrError<TBlock> > TReadPromise;
-    typedef TFuture< TValueOrError<TBlock> > TReadFuture;
+    typedef TErrorOr<TBlock> TReadResult;
+    typedef TPromise< TErrorOr<TBlock> > TReadPromise;
+    typedef TFuture< TErrorOr<TBlock> > TReadFuture;
 
     TRepairReader(
         NErasure::ICodec* codec,
@@ -476,7 +476,7 @@ private:
     IInvokerPtr ControlInvoker_;
 
     TAsyncError RepairIfNeeded();
-    TAsyncError OnBlocksCollected(TValueOrError<std::vector<TSharedRef>> result);
+    TAsyncError OnBlocksCollected(TErrorOr<std::vector<TSharedRef>> result);
     TAsyncError Repair(const std::vector<TSharedRef>& aliveWindows);
     TError OnGotMeta(IAsyncReader::TGetMetaResult metaOrError);
 
@@ -522,7 +522,7 @@ TAsyncError TRepairReader::Repair(const std::vector<TSharedRef>& aliveWindows)
     }
 }
 
-TAsyncError TRepairReader::OnBlocksCollected(TValueOrError<std::vector<TSharedRef>> result)
+TAsyncError TRepairReader::OnBlocksCollected(TErrorOr<std::vector<TSharedRef>> result)
 {
     RETURN_FUTURE_IF_ERROR(result, TError);
 
@@ -654,16 +654,16 @@ private:
     IAsyncReader::TAsyncReadResult ReadBlock(int pos, int blockIndex)
     {
         if (pos == BlockIndexes_.size()) {
-            return MakePromise(IAsyncReader::TReadResult(Result_));
+            return MakeFuture(IAsyncReader::TReadResult(Result_));
         }
 
         if (!Reader_->HasNextBlock()) {
-            return MakePromise<IAsyncReader::TReadResult>(TError("Block index out of range"));
+            return MakeFuture(IAsyncReader::TReadResult(TError("Block index out of range")));
         }
 
         auto this_ = MakeStrong(this);
         return Reader_->RepairNextBlock().Apply(
-            BIND([this, this_, pos, blockIndex] (TValueOrError<TRepairReader::TBlock> blockOrError) mutable -> IAsyncReader::TAsyncReadResult {
+            BIND([this, this_, pos, blockIndex] (TErrorOr<TRepairReader::TBlock> blockOrError) mutable -> IAsyncReader::TAsyncReadResult {
                 RETURN_FUTURE_IF_ERROR(blockOrError, IAsyncReader::TReadResult);
 
                 if (BlockIndexes_[pos] == blockIndex) {
@@ -791,7 +791,7 @@ private:
                 .AsyncVia(ControlInvoker_));
     }
 
-    TAsyncError OnBlockRepaired(TValueOrError<TRepairReader::TBlock> blockOrError)
+    TAsyncError OnBlockRepaired(TErrorOr<TRepairReader::TBlock> blockOrError)
     {
         RETURN_FUTURE_IF_ERROR(blockOrError, TError);
 

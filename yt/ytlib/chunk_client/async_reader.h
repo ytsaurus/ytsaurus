@@ -19,12 +19,12 @@ struct IAsyncReader
     : public virtual TRefCounted
 {
     //! Describes a result of #AsyncReadBlocks.
-    typedef TValueOrError< std::vector<TSharedRef> > TReadResult;
+    typedef TErrorOr< std::vector<TSharedRef> > TReadResult;
     typedef TFuture<TReadResult> TAsyncReadResult;
     typedef TPromise<TReadResult> TAsyncReadPromise;
 
     //! Describes a result of #AsyncGetChunkInfo.
-    typedef TValueOrError<NChunkClient::NProto::TChunkMeta> TGetMetaResult;
+    typedef TErrorOr<NChunkClient::NProto::TChunkMeta> TGetMetaResult;
     typedef TFuture<TGetMetaResult> TAsyncGetMetaResult;
     typedef TPromise<TGetMetaResult> TAsyncGetMetaPromise;
 

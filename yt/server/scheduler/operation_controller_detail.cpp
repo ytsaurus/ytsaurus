@@ -673,7 +673,7 @@ TFuture<TError> TOperationControllerBase::Prepare()
      pipeline = CustomizePreparationPipeline(pipeline);
      return pipeline
         ->Run()
-        .Apply(BIND([=] (TValueOrError<void> result) -> TError {
+        .Apply(BIND([=] (TError result) -> TError {
             if (result.IsOK()) {
                 this_->Running = true;
             }
@@ -709,10 +709,7 @@ TFuture<TError> TOperationControllerBase::Commit()
     return StartAsyncPipeline(CancelableBackgroundInvoker)
         ->Add(BIND(&TThis::CommitResults, this_))
         ->Add(BIND(&TThis::OnResultsCommitted, this_))
-        ->Run()
-        .Apply(BIND([] (TValueOrError<void> result) -> TError {
-            return result;
-        }));
+        ->Run();
 }
 
 void TOperationControllerBase::OnJobRunning(TJobPtr job, const TJobStatus& status)

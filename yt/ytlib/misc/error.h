@@ -19,20 +19,29 @@ namespace NYT {
 // WinAPI is great.
 #undef GetMessage
 
-class TError
+// Forward declarations
+template <class T>
+class TErrorOr;
+
+typedef TErrorOr<void> TError;
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <>
+class TErrorOr<void>
 {
 public:
-    TError();
-    TError(const TError& other);
-    TError(TError&& other);
+    TErrorOr();
+    TErrorOr(const TError& other);
+    TErrorOr(TError&& other);
 
-    TError(const std::exception& ex);
+    TErrorOr(const std::exception& ex);
 
-    explicit TError(const Stroka& message);
-    explicit TError(const char* format, ...);
+    explicit TErrorOr(const Stroka& message);
+    explicit TErrorOr(const char* format, ...);
 
-    TError(int code, const Stroka& message);
-    TError(int code, const char* format, ...);
+    TErrorOr(int code, const Stroka& message);
+    TErrorOr(int code, const char* format, ...);
 
     static TError FromSystem();
     static TError FromSystem(int error);
@@ -56,7 +65,8 @@ public:
 
     TNullable<TError> FindMatching(int code) const;
 
-    enum {
+    enum
+    {
         OK = 0,
         GenericFailure = 1
     };
@@ -176,38 +186,40 @@ typedef TPromise<TError> TAsyncErrorPromise;
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-class TValueOrError
+class TErrorOr
     : public TError
 {
     DEFINE_BYREF_RW_PROPERTY(T, Value);
 
 public:
-    TValueOrError()
+    TErrorOr()
+        : Value_()
     { }
 
-    TValueOrError(const T& value)
+    TErrorOr(const T& value)
         : Value_(value)
     { }
 
-    TValueOrError(T&& value)
+    TErrorOr(T&& value)
         : Value_(std::move(value))
     { }
 
-    TValueOrError(const TValueOrError<T>& other)
+    TErrorOr(const TErrorOr<T>& other)
         : TError(other)
         , Value_(other.Value_)
     { }
 
-    TValueOrError(const TError& other)
+    TErrorOr(const TError& other)
         : TError(other)
+        , Value_()
     { }
 
-    TValueOrError(const std::exception& ex)
+    TErrorOr(const std::exception& ex)
         : TError(ex)
     { }
 
     template <class TOther>
-    TValueOrError(const TValueOrError<TOther>& other)
+    TErrorOr(const TErrorOr<TOther>& other)
         : TError(other)
         , Value_(other.Value())
     { }
@@ -222,37 +234,10 @@ public:
 };
 
 template <class T>
-Stroka ToString(const TValueOrError<T>& valueOrError)
+Stroka ToString(const TErrorOr<T>& valueOrError)
 {
     return ToString(TError(valueOrError));
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <>
-class TValueOrError<void>
-    : public TError
-{
-public:
-    TValueOrError()
-    { }
-
-    TValueOrError(const TValueOrError<void>& other)
-        : TError(other)
-    { }
-
-    TValueOrError(const TError& other)
-        : TError(other)
-    { }
-
-    TValueOrError(int code, const Stroka& message)
-        : TError(code, message)
-    { }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-TFuture<TError> ConvertToTErrorFuture(TFuture<TValueOrError<void>> future);
 
 ////////////////////////////////////////////////////////////////////////////////
 

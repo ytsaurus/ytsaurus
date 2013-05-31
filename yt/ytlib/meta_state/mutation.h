@@ -47,7 +47,7 @@ private:
     TCallback<void(const TMutationResponse&)> OnSuccess_;
     TCallback<void(const TError&)> OnError_;
 
-    void OnCommitted(TValueOrError<TMutationResponse> response);
+    void OnCommitted(TErrorOr<TMutationResponse> response);
 
 };
 

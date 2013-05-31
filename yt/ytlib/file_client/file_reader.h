@@ -30,7 +30,7 @@ class TAsyncReader
     : public NTransactionClient::TTransactionListener
 {
 public:
-    typedef TValueOrError<TSharedRef> TResult;
+    typedef TErrorOr<TSharedRef> TResult;
     typedef TAsyncReader TThis;
 
     TAsyncReader();

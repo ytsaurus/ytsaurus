@@ -140,7 +140,7 @@ private:
 
     // Only used for client sockets.
     int Port;
-    TFuture< TValueOrError<TNetworkAddress> > AsyncAddress;
+    TFuture< TErrorOr<TNetworkAddress> > AsyncAddress;
 
     TAtomic State;
 

@@ -49,7 +49,7 @@ class TReplicationReader
     : public IAsyncReader
 {
 public:
-    typedef TValueOrError<TChunkReplicaList> TGetSeedsResult;
+    typedef TErrorOr<TChunkReplicaList> TGetSeedsResult;
     typedef TFuture<TGetSeedsResult> TAsyncGetSeedsResult;
     typedef TPromise<TGetSeedsResult> TAsyncGetSeedsPromise;
 

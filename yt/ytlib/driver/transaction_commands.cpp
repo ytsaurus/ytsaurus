@@ -40,7 +40,7 @@ void TStartTransactionCommand::DoExecute()
 
     auto this_ = MakeStrong(this);
     transactionManager->AsyncStart(options).Apply(
-        BIND([this, this_] (TValueOrError<ITransactionPtr> transactionOrError) {
+        BIND([this, this_] (TErrorOr<ITransactionPtr> transactionOrError) {
             if (!transactionOrError.IsOK()) {
                 ReplyError(transactionOrError);
                 return;

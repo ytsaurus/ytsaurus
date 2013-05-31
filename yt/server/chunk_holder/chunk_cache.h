@@ -51,7 +51,7 @@ public:
 
     bool IsEnabled() const;
 
-    typedef TValueOrError<TCachedChunkPtr> TDownloadResult;
+    typedef TErrorOr<TCachedChunkPtr> TDownloadResult;
     typedef TFuture<TDownloadResult> TAsyncDownloadResult;
 
     //! Downloads a chunk into the cache.

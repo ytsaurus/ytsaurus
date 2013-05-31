@@ -296,7 +296,7 @@ void TLeaderCommitter::Flush(bool rotateChangeLog)
     }
 }
 
-TFuture< TValueOrError<TMutationResponse> > TLeaderCommitter::Commit(const TMutationRequest& request)
+TFuture< TErrorOr<TMutationResponse> > TLeaderCommitter::Commit(const TMutationRequest& request)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -332,7 +332,7 @@ TFuture< TValueOrError<TMutationResponse> > TLeaderCommitter::Commit(const TMuta
         Profiler.Increment(CommitCounter);
 
         auto responseData = context.GetResponseData();
-        return batchResult.Apply(BIND([=] (TError error) -> TValueOrError<TMutationResponse> {
+        return batchResult.Apply(BIND([=] (TError error) -> TErrorOr<TMutationResponse> {
             if (error.IsOK()) {
                 TMutationResponse response;
                 response.Data = std::move(responseData);

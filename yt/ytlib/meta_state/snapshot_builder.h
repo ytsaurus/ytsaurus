@@ -25,7 +25,7 @@ public:
         TChecksum Checksum;
     };
 
-    typedef TValueOrError<TResult> TResultOrError;
+    typedef TErrorOr<TResult> TResultOrError;
 
     TSnapshotBuilder(
         TSnapshotBuilderConfigPtr config,

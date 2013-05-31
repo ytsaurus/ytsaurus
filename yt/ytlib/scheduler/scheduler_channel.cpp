@@ -20,7 +20,7 @@ using namespace NYTree;
 
 namespace {
 
-TValueOrError<IChannelPtr> OnSchedulerAddressFound(TYPathProxy::TRspGetPtr rsp)
+TErrorOr<IChannelPtr> OnSchedulerAddressFound(TYPathProxy::TRspGetPtr rsp)
 {
     if (!rsp->IsOK()) {
         return rsp->GetError();
@@ -44,7 +44,7 @@ IChannelPtr CreateSchedulerChannel(
     return CreateRoamingChannel(
         defaultTimeout,
         false,
-        BIND([=] () -> TFuture< TValueOrError<IChannelPtr> > {
+        BIND([=] () -> TFuture< TErrorOr<IChannelPtr> > {
             TObjectServiceProxy proxy(masterChannel);
             auto req = TYPathProxy::Get("//sys/scheduler/@address");
             return proxy.Execute(req).Apply(BIND(&OnSchedulerAddressFound));

@@ -573,9 +573,9 @@ TEST(TFutureTest, Regression_de94ea0)
     EXPECT_TRUE(completed.IsSet());
 }
 
-static TFuture< TValueOrError<int> > AsyncDivide(int a, int b, TDuration delay)
+static TFuture< TErrorOr<int> > AsyncDivide(int a, int b, TDuration delay)
 {
-    auto promise = NewPromise< TValueOrError<int> >();
+    auto promise = NewPromise< TErrorOr<int> >();
     TDelayedInvoker::Submit(
         BIND([=] () mutable {
             if (b == 0) {

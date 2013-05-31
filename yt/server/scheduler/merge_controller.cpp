@@ -797,12 +797,10 @@ protected:
     {
         auto this_ = MakeStrong(this);
         return pipeline
-            ->Add(BIND(&TSortedMergeControllerBase::ProcessInputs, MakeStrong(this)))
-            ->Add(BIND( [=] () -> TFuture< TValueOrError<void> > {
-                    return this_->ChunkSplitsCollector->Run();
-                }))
-            ->Add(BIND(&TSortedMergeControllerBase::OnChunkSplitsReceived, MakeStrong(this)))
-            ->Add(BIND(&TSortedMergeControllerBase::FinishPreparation, MakeStrong(this)));
+            ->Add(BIND(&TSortedMergeControllerBase::ProcessInputs, this_))
+            ->Add(BIND(&TChunkSplitsCollector::Run, ChunkSplitsCollector))
+            ->Add(BIND(&TSortedMergeControllerBase::OnChunkSplitsReceived, this_))
+            ->Add(BIND(&TSortedMergeControllerBase::FinishPreparation, this_));
     }
 
     virtual void ProcessChunkSpec(TRefCountedChunkSpecPtr chunkSpec) override

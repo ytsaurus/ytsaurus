@@ -229,7 +229,7 @@ void TTcpConnection::SyncResolve()
         AsyncAddress = TAddressResolver::Get()->Resolve(Stroka(hostName));
 
         auto this_ = MakeStrong(this);
-        AsyncAddress.Subscribe(BIND([=] (TValueOrError<TNetworkAddress>) {
+        AsyncAddress.Subscribe(BIND([=] (TErrorOr<TNetworkAddress>) {
             this_->Dispatcher->AsyncPostEvent(this_, EConnectionEvent::AddressResolved);
         }));
     }

@@ -276,7 +276,7 @@ TAsyncError TErasureWriter::WriteDataBlocks()
             }));
         }
         pipeline = pipeline->Add(BIND(&IAsyncWriter::AsyncClose, writer, ChunkMeta_));
-        parallelCollector->Collect(ConvertToTErrorFuture(pipeline->Run()));
+        parallelCollector->Collect(pipeline->Run());
     }
     return parallelCollector->Complete();
 }
@@ -309,7 +309,7 @@ TAsyncError TErasureWriter::EncodeAndWriteParityBlocks()
         ++windowIndex;
     }
     pipeline = pipeline->Add(BIND(&TErasureWriter::CloseParityWriters, this_));
-    return ConvertToTErrorFuture(pipeline->Run());
+    return pipeline->Run();
 }
 
 TAsyncError TErasureWriter::WriteParityBlocks(int windowIndex)

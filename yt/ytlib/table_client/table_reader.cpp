@@ -107,12 +107,11 @@ TAsyncError TAsyncTableReader::AsyncOpen()
     LOG_INFO("Opening table reader");
 
     auto this_ = MakeStrong(this);
-    return ConvertToTErrorFuture(
-        StartAsyncPipeline(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
-            ->Add(BIND(&TThis::FetchTableInfo, this_))
-            ->Add(BIND(&TThis::OpenChunkReader, this_))
-            ->Add(BIND(&TThis::OnChunkReaderOpened, this_))
-            ->Run());
+    return StartAsyncPipeline(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
+        ->Add(BIND(&TThis::FetchTableInfo, this_))
+        ->Add(BIND(&TThis::OpenChunkReader, this_))
+        ->Add(BIND(&TThis::OnChunkReaderOpened, this_))
+        ->Run();
 }
 
 bool TAsyncTableReader::FetchNextItem()

@@ -63,7 +63,7 @@ public:
 private:
     typedef TAsyncTableWriter TThis;
 
-    TFuture<TValueOrError<ITransactionPtr>> CreateUploadTransaction();
+    TFuture<TErrorOr<ITransactionPtr>> CreateUploadTransaction();
     void OnTransactionCreated(ITransactionPtr transactionOrError);
 
     TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> FetchTableInfo();
@@ -141,18 +141,17 @@ TAsyncError TAsyncTableWriter::AsyncOpen()
     LOG_INFO("Opening table writer");
 
     auto this_ = MakeStrong(this);
-    return ConvertToTErrorFuture(
-        StartAsyncPipeline(GetSyncInvoker())
-            ->Add(BIND(&TThis::CreateUploadTransaction, this_))
-            ->Add(BIND(&TThis::OnTransactionCreated, this_))
-            ->Add(BIND(&TThis::FetchTableInfo, this_))
-            ->Add(BIND(&TThis::OnInfoFetched, this_))
-            ->Add(BIND(&TThis::OpenChunkWriter, this_))
-            ->Add(BIND(&TThis::OnChunkWriterOpened, this_))
-            ->Run());
+    return StartAsyncPipeline(GetSyncInvoker())
+        ->Add(BIND(&TThis::CreateUploadTransaction, this_))
+        ->Add(BIND(&TThis::OnTransactionCreated, this_))
+        ->Add(BIND(&TThis::FetchTableInfo, this_))
+        ->Add(BIND(&TThis::OnInfoFetched, this_))
+        ->Add(BIND(&TThis::OpenChunkWriter, this_))
+        ->Add(BIND(&TThis::OnChunkWriterOpened, this_))
+        ->Run();
 }
 
-TFuture<TValueOrError<ITransactionPtr>> TAsyncTableWriter::CreateUploadTransaction()
+TFuture<TErrorOr<ITransactionPtr>> TAsyncTableWriter::CreateUploadTransaction()
 {
     LOG_INFO("Creating upload transaction");
 
@@ -161,7 +160,7 @@ TFuture<TValueOrError<ITransactionPtr>> TAsyncTableWriter::CreateUploadTransacti
     options.EnableUncommittedAccounting = false;
     options.Attributes->Set("title", Sprintf("Table upload to %s", ~RichPath.GetPath()));
     return TransactionManager->AsyncStart(options).Apply(
-        BIND([] (TValueOrError<ITransactionPtr> transactionOrError) -> TValueOrError<ITransactionPtr> {
+        BIND([] (TErrorOr<ITransactionPtr> transactionOrError) -> TErrorOr<ITransactionPtr> {
             if (!transactionOrError.IsOK()) {
                 return TError("Error creating upload transaction") << transactionOrError;
             }
@@ -331,12 +330,11 @@ TAsyncError TAsyncTableWriter::AsyncClose()
     IsClosed = true;
 
     auto this_ = MakeStrong(this);
-    return ConvertToTErrorFuture(
-        StartAsyncPipeline(GetSyncInvoker())
-            ->Add(BIND(&TThis::CloseChunkWriter, this_))
-            ->Add(BIND(&TThis::SetIsSorted, this_))
-            ->Add(BIND(&TThis::CommitUploadTransaction, this_))
-            ->Run());
+    return StartAsyncPipeline(GetSyncInvoker())
+        ->Add(BIND(&TThis::CloseChunkWriter, this_))
+        ->Add(BIND(&TThis::SetIsSorted, this_))
+        ->Add(BIND(&TThis::CommitUploadTransaction, this_))
+        ->Run();
 }
 
 TAsyncError TAsyncTableWriter::CloseChunkWriter()

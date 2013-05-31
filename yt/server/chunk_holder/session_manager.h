@@ -126,7 +126,7 @@ private:
 
     static TAsyncError DoSendBlocks(TProxy::TReqPutBlocksPtr req);
 
-    TFuture< TValueOrError<TChunkPtr> > Finish(const NChunkClient::NProto::TChunkMeta& chunkMeta);
+    TFuture< TErrorOr<TChunkPtr> > Finish(const NChunkClient::NProto::TChunkMeta& chunkMeta);
     void Cancel(const TError& error);
 
     void SetLease(TLeaseManager::TLease lease);
@@ -148,7 +148,7 @@ private:
 
     TAsyncError CloseFile(const NChunkClient::NProto::TChunkMeta& chunkMeta);
     TError DoCloseFile(const NChunkClient::NProto::TChunkMeta& chunkMeta);
-    TValueOrError<TChunkPtr> OnFileClosed(TError error);
+    TErrorOr<TChunkPtr> OnFileClosed(TError error);
 
     void EnqueueWrites();
     TError DoWriteBlock(const TSharedRef& block, int blockIndex);
@@ -191,7 +191,7 @@ public:
     /*!
      *  The call returns a result that gets set when the session is finished.
      */
-    TFuture< TValueOrError<TChunkPtr> > FinishSession(
+    TFuture< TErrorOr<TChunkPtr> > FinishSession(
         TSessionPtr session,
         const NChunkClient::NProto::TChunkMeta& chunkMeta);
 
@@ -229,9 +229,9 @@ private:
 
     void OnLeaseExpired(TSessionPtr session);
 
-    TValueOrError<TChunkPtr> OnSessionFinished(
+    TErrorOr<TChunkPtr> OnSessionFinished(
         TSessionPtr session,
-        TValueOrError<TChunkPtr> chunkOrError);
+        TErrorOr<TChunkPtr> chunkOrError);
 
     void RegisterSession(TSessionPtr session);
     void UnregisterSession(TSessionPtr session);

@@ -1402,7 +1402,7 @@ private:
             ->Add(BIND(&TSortController::OnSamplesReceived, MakeStrong(this)));
     }
 
-    TFuture< TValueOrError<void> > RequestSamples()
+    TAsyncError RequestSamples()
     {
         PROFILE_TIMING ("/input_processing_time") {
             SamplesFetcher = New<TSamplesFetcher>(

@@ -140,7 +140,7 @@ socklen_t TNetworkAddress::GetLength() const
     return Length;
 }
 
-TValueOrError<TNetworkAddress> TNetworkAddress::TryParse(const TStringBuf& address)
+TErrorOr<TNetworkAddress> TNetworkAddress::TryParse(const TStringBuf& address)
 {
     int closingBracketIndex = address.find(']');
     if (closingBracketIndex == Stroka::npos || address[0] != '[') {
@@ -271,7 +271,7 @@ TAddressResolver* TAddressResolver::Get()
     return Singleton<TAddressResolver>();
 }
 
-TFuture< TValueOrError<TNetworkAddress> > TAddressResolver::Resolve(const Stroka& address)
+TFuture< TErrorOr<TNetworkAddress> > TAddressResolver::Resolve(const Stroka& address)
 {
     // Check if |address| parses into a valid IPv4 or IPv6 address.
     {
@@ -291,7 +291,7 @@ TFuture< TValueOrError<TNetworkAddress> > TAddressResolver::Resolve(const Stroka
             LOG_DEBUG("Address cache hit: %s -> %s",
                 ~address,
                 ~ToString(result));
-            return MakeFuture(TValueOrError<TNetworkAddress>(result));
+            return MakeFuture(TErrorOr<TNetworkAddress>(result));
         }
     }
 
@@ -302,7 +302,7 @@ TFuture< TValueOrError<TNetworkAddress> > TAddressResolver::Resolve(const Stroka
         .Run();
 }
 
-TValueOrError<TNetworkAddress> TAddressResolver::DoResolve(const Stroka& hostName)
+TErrorOr<TNetworkAddress> TAddressResolver::DoResolve(const Stroka& hostName)
 {
     static const auto WarningDuration = TDuration::MilliSeconds(100);
 

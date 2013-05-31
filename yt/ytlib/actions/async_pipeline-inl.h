@@ -14,121 +14,113 @@ struct TAsyncPipelineSignatureCracker
 template <class T1, class T2>
 struct TAsyncPipelineSignatureCracker<T1(T2)>
 {
-    typedef T1 ReturnType;
-    typedef T2 ArgType;
+    typedef T1 TReturn;
+    typedef T2 TArg;
 };
 
 template <class T1>
 struct TAsyncPipelineSignatureCracker<T1()>
 {
-    typedef T1 ReturnType;
-    typedef void ArgType;
+    typedef T1 TReturn;
+    typedef void TArg;
 };
 
-template <class T>
-struct TValueOrErrorHelpers
-{
-    typedef TValueOrError<T> TWrappedType;
-    typedef T TValueType;
+////////////////////////////////////////////////////////////////////////////////
 
-    static TWrappedType Wrapper(T value)
+template <class T>
+struct TErrorOrHelpers
+{
+    typedef TErrorOr<T> TWrapped;
+    typedef T TValue;
+
+    static TWrapped Wrapper(T value)
     {
-        return TValueOrError<T>(value);
+        return TErrorOr<T>(value);
     }
 };
 
 template <>
-struct TValueOrErrorHelpers<void>
+struct TErrorOrHelpers<void>
 {
-    typedef TValueOrError<void> TWrappedType;
-    typedef void TValueType;
+    typedef TError TWrapped;
+    typedef void TValue;
 
-    static TWrappedType Wrapper()
+    static TWrapped Wrapper()
     {
-        return TValueOrError<void>();
+        return TError();
     }
 };
 
 template <class T>
-struct TValueOrErrorHelpers< TValueOrError<T> >
+struct TErrorOrHelpers< TErrorOr<T> >
 {
-    typedef TValueOrError<T> TWrappedType;
-    typedef T TValueType;
+    typedef TErrorOr<T> TWrapped;
+    typedef T TValue;
 
-    static TWrappedType Wrapper(TValueOrError<T> error)
+    static TWrapped Wrapper(TErrorOr<T> error)
     {
         return error;
     }
 };
 
-template <>
-struct TValueOrErrorHelpers<TError>
-{
-    typedef TValueOrError<void> TWrappedType;
-    typedef void TValueType;
+////////////////////////////////////////////////////////////////////////////////
 
-    static TWrappedType Wrapper(TError error)
-    {
-        return error;
-    }
-};
-
-template <class ArgType, class ReturnType>
+template <class TArg, class TReturn>
 struct TAsyncPipelineHelpers
 {
-    typedef typename TValueOrErrorHelpers<ReturnType>::TWrappedType WrappedReturnType;
+    typedef typename TErrorOrHelpers<TReturn>::TWrapped TWrapped;
 
-    static TFuture<WrappedReturnType> Wrapper(TCallback<ReturnType(ArgType)> func, TValueOrError<ArgType> x)
+    static TFuture<TWrapped> Wrapper(TCallback<TReturn(TArg)> func, TErrorOr<TArg> x)
     {
         if (!x.IsOK()) {
-            return MakeFuture(WrappedReturnType(TError(x)));
+            return MakeFuture(TWrapped(TError(x)));
         }
 
         try {
             auto&& y = func.Run(x.Value());
-            return MakeFuture(WrappedReturnType(std::forward<ReturnType>(y)));
+            return MakeFuture(TWrapped(std::forward<TReturn>(y)));
         } catch (const std::exception& ex) {
-            return MakeFuture(WrappedReturnType(ex));
+            return MakeFuture(TWrapped(ex));
         }
     }
 };
 
-template <class ArgType, class ReturnType>
-struct TAsyncPipelineHelpers< ArgType, TFuture<ReturnType> >
+template <class TArg, class TReturn>
+struct TAsyncPipelineHelpers< TArg, TFuture<TReturn> >
 {
-    typedef typename TValueOrErrorHelpers<ReturnType>::TWrappedType WrappedReturnType;
+    typedef typename TErrorOrHelpers<TReturn>::TWrapped TWrapped;
 
-    static TFuture<WrappedReturnType> Wrapper(TCallback<TFuture<ReturnType>(ArgType)> func, TValueOrError<ArgType> x)
+    static TFuture<TWrapped> Wrapper(TCallback<TFuture<TReturn>(TArg)> func, TErrorOr<TArg> x)
     {
         if (!x.IsOK()) {
-            return MakeFuture(WrappedReturnType(TError(x)));
+            return MakeFuture(TWrapped(TError(x)));
         }
 
         try {
             auto&& y = func.Run(x.Value());
-            return y.Apply(BIND(&TValueOrErrorHelpers<ReturnType>::Wrapper));
+            return y.Apply(BIND(&TErrorOrHelpers<TReturn>::Wrapper));
         } catch (const std::exception& ex) {
-            return MakeFuture(WrappedReturnType(ex));
+            return MakeFuture(TWrapped(ex));
         }
     }
 };
 
-template <class ArgType>
-struct TAsyncPipelineHelpers<ArgType, void>
+template <class TArg>
+struct TAsyncPipelineHelpers<TArg, void>
 {
-    typedef TValueOrError<void> WrappedReturnType;
+    typedef TError TWrapped;
 
-    static TFuture<WrappedReturnType> Wrapper(TCallback<void(ArgType)> func, TValueOrError<ArgType> x)
+    static TFuture<TWrapped> Wrapper(TCallback<void(TArg)> func, TErrorOr<TArg> x)
     {
         if (!x.IsOK()) {
-            return MakeFuture(WrappedReturnType(TError(x)));
+            return MakeFuture(TWrapped(TError(x)));
         }
 
         try {
             func.Run(x.Value());
-            return MakeFuture(WrappedReturnType());
+            return MakeFuture(TWrapped());
         } catch (const std::exception& ex) {
-            return MakeFuture(WrappedReturnType(ex));
+            return MakeFuture(TWrapped(ex));
         }
     }
 };
@@ -136,72 +128,74 @@ struct TAsyncPipelineHelpers<ArgType, void>
 template <>
 struct TAsyncPipelineHelpers<void, void>
 {
-    typedef TValueOrError<void> WrappedReturnType;
+    typedef TErrorOr<void> TWrapped;
 
-    static TFuture<WrappedReturnType> Wrapper(TCallback<void(void)> func, TValueOrError<void> x)
+    static TFuture<TWrapped> Wrapper(TCallback<void(void)> func, TErrorOr<void> x)
     {
         if (!x.IsOK()) {
-            return MakeFuture(WrappedReturnType(TError(x)));
+            return MakeFuture(TWrapped(TError(x)));
         }
 
         try {
             func.Run();
-            return MakeFuture(WrappedReturnType());
+            return MakeFuture(TWrapped());
         } catch (const std::exception& ex) {
-            return MakeFuture(WrappedReturnType(ex));
+            return MakeFuture(TWrapped(ex));
         }
     }
 };
 
-template <class ReturnType>
-struct TAsyncPipelineHelpers< void, TFuture<ReturnType> >
+template <class TReturn>
+struct TAsyncPipelineHelpers< void, TFuture<TReturn> >
 {
-    typedef typename TValueOrErrorHelpers<ReturnType>::TWrappedType WrappedReturnType;
+    typedef typename TErrorOrHelpers<TReturn>::TWrapped TWrapped;
 
-    static TFuture<WrappedReturnType> Wrapper(TCallback<TFuture<ReturnType>()> func, TValueOrError<void> x)
+    static TFuture<TWrapped> Wrapper(TCallback<TFuture<TReturn>()> func, TError x)
     {
         if (!x.IsOK()) {
-            return MakeFuture(WrappedReturnType(TError(x)));
+            return MakeFuture(TWrapped(TError(x)));
         }
 
         try {
             auto&& y = func.Run();
-            return y.Apply(BIND(&TValueOrErrorHelpers<ReturnType>::Wrapper));
+            return y.Apply(BIND(&TErrorOrHelpers<TReturn>::Wrapper));
         } catch (const std::exception& ex) {
-            return MakeFuture(WrappedReturnType(ex));
+            return MakeFuture(TWrapped(ex));
         }
     }
 };
 
-template <class ReturnType>
-struct TAsyncPipelineHelpers<void, ReturnType>
+template <class TReturn>
+struct TAsyncPipelineHelpers<void, TReturn>
 {
-    typedef typename TValueOrErrorHelpers<ReturnType>::TWrappedType WrappedReturnType;
+    typedef typename TErrorOrHelpers<TReturn>::TWrapped TWrapped;
 
-    static TFuture<WrappedReturnType> Wrapper(TCallback<ReturnType()> func, TValueOrError<void> x)
+    static TFuture<TWrapped> Wrapper(TCallback<TReturn()> func, TError x)
     {
         if (!x.IsOK()) {
-            return MakeFuture(WrappedReturnType(TError(x)));
+            return MakeFuture(TWrapped(TError(x)));
         }
 
         try {
-            return MakeFuture(WrappedReturnType(func.Run()));
+            return MakeFuture(TWrapped(func.Run()));
         } catch (const std::exception& ex) {
-            return MakeFuture(WrappedReturnType(ex));
+            return MakeFuture(TWrapped(ex));
         }
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
 TAsyncPipeline<T>::TAsyncPipeline(
     IInvokerPtr invoker,
-    TCallback< TFuture< TValueOrError<T> >() > lazy)
+    TCallback< TFuture< TErrorOr<T> >() > lazy)
     : Invoker(invoker)
     , Lazy(lazy)
 { }
 
 template <class T>
-TFuture< TValueOrError<T> > TAsyncPipeline<T>::Run()
+TFuture< TErrorOr<T> > TAsyncPipeline<T>::Run()
 {
     return Lazy.Run();
 }
@@ -210,20 +204,20 @@ template <class T>
 template <class Signature>
 TIntrusivePtr<
     TAsyncPipeline<
-        typename TValueOrErrorHelpers<
+        typename TErrorOrHelpers<
             typename NYT::NDetail::TFutureHelper<
-                typename TAsyncPipelineSignatureCracker<Signature>::ReturnType
+                typename TAsyncPipelineSignatureCracker<Signature>::TReturn
             >::TValueType
-        >::TValueType
+        >::TValue
     >
 >
 TAsyncPipeline<T>::Add(TCallback<Signature> func, IInvokerPtr invoker)
 {
-    typedef typename TAsyncPipelineSignatureCracker<Signature>::ReturnType ReturnType;
-    typedef typename TAsyncPipelineSignatureCracker<Signature>::ArgType ArgType;
-    typedef decltype(Add(func)) ResultType;
+    typedef typename TAsyncPipelineSignatureCracker<Signature>::TReturn TReturn;
+    typedef typename TAsyncPipelineSignatureCracker<Signature>::TArg TArg;
+    typedef decltype(Add(func)) TResult;
 
-    auto wrappedFunc = BIND(&TAsyncPipelineHelpers<ArgType, ReturnType>::Wrapper, func);
+    auto wrappedFunc = BIND(&TAsyncPipelineHelpers<TArg, TReturn>::Wrapper, func);
 
     if (invoker) {
         wrappedFunc = wrappedFunc.AsyncVia(invoker);
@@ -234,18 +228,18 @@ TAsyncPipeline<T>::Add(TCallback<Signature> func, IInvokerPtr invoker)
         return lazy.Run().Apply(wrappedFunc);
     });
 
-    return New<typename ResultType::TElementType>(Invoker, newLazy);
+    return New<typename TResult::TElementType>(Invoker, newLazy);
 }
 
 template <class T>
 template <class Signature>
 TIntrusivePtr<
     TAsyncPipeline<
-        typename TValueOrErrorHelpers<
+        typename TErrorOrHelpers<
             typename NYT::NDetail::TFutureHelper<
-                typename TAsyncPipelineSignatureCracker<Signature>::ReturnType
+                typename TAsyncPipelineSignatureCracker<Signature>::TReturn
             >::TValueType
-        >::TValueType
+        >::TValue
     >
 >
 TAsyncPipeline<T>::Add(TCallback<Signature> func)
@@ -258,7 +252,7 @@ inline TIntrusivePtr< TAsyncPipeline<void> > StartAsyncPipeline(IInvokerPtr invo
     return New< TAsyncPipeline<void> >(
         invoker,
         BIND([=] () {
-            return MakeFuture(TValueOrError<void>());
+            return MakeFuture(TError());
         }));
 }
 

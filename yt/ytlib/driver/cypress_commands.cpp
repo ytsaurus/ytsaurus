@@ -209,7 +209,7 @@ void TMoveCommand::DoExecute()
             GenerateMutationId(removeReq);
             return ExtractError(ObjectProxy->Execute(removeReq));
         }))
-        ->Run().Apply(BIND([this, this_] (TValueOrError<void> error) {
+        ->Run().Apply(BIND([this, this_] (TErrorOr<void> error) {
             if (error.IsOK()) {
                 ReplySuccess();
             } else {
@@ -261,7 +261,7 @@ void TLinkCommand::DoExecute()
 
             return ObjectProxy->Execute(req);
         }))
-        ->Run().Subscribe(BIND([this, this_] (TValueOrError<TCypressYPathProxy::TRspCreatePtr> rspOrError) {
+        ->Run().Subscribe(BIND([this, this_] (TErrorOr<TCypressYPathProxy::TRspCreatePtr> rspOrError) {
             if (!rspOrError.IsOK()) {
                 ReplyError(rspOrError);
             } else {

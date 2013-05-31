@@ -75,7 +75,7 @@ struct IMetaStateManager
      *
      *  \note Thread affinity: StateThread
      */
-    virtual TFuture< TValueOrError<TMutationResponse> > CommitMutation(const TMutationRequest& request) = 0;
+    virtual TFuture< TErrorOr<TMutationResponse> > CommitMutation(const TMutationRequest& request) = 0;
 
     //! Finds the response for an earlier-committed mutation with a given id.
     //! Returns |Null| if nothing is found.

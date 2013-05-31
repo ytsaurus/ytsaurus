@@ -48,7 +48,7 @@ public:
 
     ~TBlockStore();
 
-    typedef TValueOrError<TCachedBlockPtr> TGetBlockResult;
+    typedef TErrorOr<TCachedBlockPtr> TGetBlockResult;
     typedef TFuture<TGetBlockResult> TAsyncGetBlockResult;
 
     //! Gets (asynchronously) a block from the store.

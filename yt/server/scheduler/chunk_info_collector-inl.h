@@ -20,7 +20,7 @@ TChunkInfoCollector<TFetcher>::TChunkInfoCollector(
     : NodeDirectory(nodeDirectory)
     , Fetcher(fetcher)
     , Invoker(invoker)
-    , Promise(NewPromise< TValueOrError<void> >())
+    , Promise(NewPromise<TError>())
 { }
 
 template <class TFetcher>
@@ -32,7 +32,7 @@ void TChunkInfoCollector<TFetcher>::AddChunk(
 }
 
 template <class TFetcher>
-TFuture< TValueOrError<void> > TChunkInfoCollector<TFetcher>::Run()
+TAsyncError TChunkInfoCollector<TFetcher>::Run()
 {
     Fetcher->Prepare(Chunks);
     SendRequests();

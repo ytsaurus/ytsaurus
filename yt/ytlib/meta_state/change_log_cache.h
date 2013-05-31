@@ -30,7 +30,7 @@ public:
 
     void Start();
 
-    typedef TValueOrError<TCachedAsyncChangeLogPtr> TGetResult;
+    typedef TErrorOr<TCachedAsyncChangeLogPtr> TGetResult;
     TGetResult Get(i32 id);
 
     TCachedAsyncChangeLogPtr Create(i32 id, i32 prevRecordCount, const TEpochId& epoch);

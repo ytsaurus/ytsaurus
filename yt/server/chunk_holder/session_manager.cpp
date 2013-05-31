@@ -376,7 +376,7 @@ TError TSession::OnBlockFlushed(int blockIndex)
     return Error;
 }
 
-TFuture< TValueOrError<TChunkPtr> > TSession::Finish(const TChunkMeta& chunkMeta)
+TFuture< TErrorOr<TChunkPtr> > TSession::Finish(const TChunkMeta& chunkMeta)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -496,7 +496,7 @@ TError TSession::DoCloseFile(const TChunkMeta& chunkMeta)
     return Error;
 }
 
-TValueOrError<TChunkPtr> TSession::OnFileClosed(TError error)
+TErrorOr<TChunkPtr> TSession::OnFileClosed(TError error)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -698,7 +698,7 @@ void TSessionManager::CancelSession(TSessionPtr session, const TError& error)
         ~ToString(session->GetChunkId()));
 }
 
-TFuture< TValueOrError<TChunkPtr> > TSessionManager::FinishSession(
+TFuture< TErrorOr<TChunkPtr> > TSessionManager::FinishSession(
     TSessionPtr session,
     const TChunkMeta& chunkMeta)
 {
@@ -712,7 +712,7 @@ TFuture< TValueOrError<TChunkPtr> > TSessionManager::FinishSession(
         .AsyncVia(Bootstrap->GetControlInvoker()));
 }
 
-TValueOrError<TChunkPtr> TSessionManager::OnSessionFinished(TSessionPtr session, TValueOrError<TChunkPtr> chunkOrError)
+TErrorOr<TChunkPtr> TSessionManager::OnSessionFinished(TSessionPtr session, TErrorOr<TChunkPtr> chunkOrError)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 

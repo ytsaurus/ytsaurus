@@ -36,7 +36,7 @@ private:
 
     TAsyncError ReadBlock(TError error);
 
-    TAsyncError WriteBlock(TValueOrError<TSharedRef> blockOrError);
+    TAsyncError WriteBlock(TErrorOr<TSharedRef> blockOrError);
 
     NFileClient::TAsyncReaderPtr Reader_;
     IAsyncOutputStreamPtr Output_;
@@ -74,7 +74,7 @@ TAsyncError TDownloadSession::ReadBlock(TError error)
     return Reader_->AsyncRead().Apply(BIND(&TThis::WriteBlock, MakeStrong(this)));
 }
 
-TAsyncError TDownloadSession::WriteBlock(TValueOrError<TSharedRef> blockOrError)
+TAsyncError TDownloadSession::WriteBlock(TErrorOr<TSharedRef> blockOrError)
 {
     if (!blockOrError.IsOK()) {
         return MakeFuture(TError(blockOrError));

@@ -17,18 +17,18 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TError::TError()
+TError::TErrorOr()
     : Code_(OK)
 { }
 
-TError::TError(const Stroka& message)
+TError::TErrorOr(const Stroka& message)
     : Code_(GenericFailure)
     , Message_(message)
 {
     CaptureOriginAttributes();
 }
 
-TError::TError(const char* format, ...)
+TError::TErrorOr(const char* format, ...)
     : Code_(GenericFailure)
 {
     va_list params;
@@ -39,21 +39,21 @@ TError::TError(const char* format, ...)
     CaptureOriginAttributes();
 }
 
-TError::TError(const TError& other)
+TError::TErrorOr(const TError& other)
     : Code_(other.Code_)
     , Message_(other.Message_)
-    , Attributes_(~other.Attributes_ ? other.Attributes_->Clone() : NULL)
+    , Attributes_(~other.Attributes_ ? other.Attributes_->Clone() : nullptr)
     , InnerErrors_(other.InnerErrors_)
 { }
 
-TError::TError(TError&& other)
+TError::TErrorOr(TError&& other)
     : Code_(other.Code_)
     , Message_(std::move(other.Message_))
     , Attributes_(std::move(other.Attributes_))
     , InnerErrors_(std::move(other.InnerErrors_))
 { }
 
-TError::TError(const std::exception& ex)
+TError::TErrorOr(const std::exception& ex)
 {
     const auto* errorEx = dynamic_cast<const TErrorException*>(&ex);
     if (errorEx) {
@@ -64,7 +64,7 @@ TError::TError(const std::exception& ex)
     }
 }
 
-TError::TError(int code, const Stroka& message)
+TError::TErrorOr(int code, const Stroka& message)
     : Code_(code)
     , Message_(message)
 {
@@ -73,7 +73,7 @@ TError::TError(int code, const Stroka& message)
     }
 }
 
-TError::TError(int code, const char* format, ...)
+TError::TErrorOr(int code, const char* format, ...)
     : Code_(code)
 {
     va_list params;
@@ -102,7 +102,7 @@ TError& TError::operator= (const TError& other)
     if (this != &other) {
         Code_ = other.Code_;
         Message_ = other.Message_;
-        Attributes_ = ~other.Attributes_ ? other.Attributes_->Clone() : NULL;
+        Attributes_ = ~other.Attributes_ ? other.Attributes_->Clone() : nullptr;
         InnerErrors_ = other.InnerErrors_;
     }
     return *this;
@@ -423,15 +423,6 @@ const char* TErrorException::what() const throw()
         CachedWhat = ToString(Error_);
     }
     return ~CachedWhat;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TFuture<TError> ConvertToTErrorFuture(TFuture<TValueOrError<void>> future)
-{
-    return future.Apply(BIND([](TValueOrError<void> error) -> TError {
-        return error;
-    }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

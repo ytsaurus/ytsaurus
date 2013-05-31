@@ -52,7 +52,7 @@ public:
     //! Returns the full path to the chunk data file.
     Stroka GetFileName() const;
 
-    typedef TValueOrError<NChunkClient::NProto::TChunkMeta> TGetMetaResult;
+    typedef TErrorOr<NChunkClient::NProto::TChunkMeta> TGetMetaResult;
     typedef TFuture<TGetMetaResult> TAsyncGetMetaResult;
 
     //! Returns chunk meta.

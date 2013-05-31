@@ -52,7 +52,7 @@ private:
     typedef TAsyncWriter TThis;
 
     TAsyncError OnUploadTransactionStarted(
-        TValueOrError<NTransactionClient::ITransactionPtr> transactionOrError);
+        TErrorOr<NTransactionClient::ITransactionPtr> transactionOrError);
     TAsyncError OnFileInfoReceived(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
 
     TFileWriterConfigPtr Config;

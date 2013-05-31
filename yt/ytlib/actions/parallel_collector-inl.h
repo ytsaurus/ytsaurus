@@ -12,10 +12,10 @@ class TParallelCollectorStorage
 {
 public:
     typedef std::vector<T> TResults;
-    typedef TValueOrError<T> TResultOrError;
-    typedef TValueOrError<TResults> TResultsOrError;
+    typedef TErrorOr<T> TResultOrError;
+    typedef TErrorOr<TResults> TResultsOrError;
 
-    void Store(int index, const TValueOrError<T>& valueOrError)
+    void Store(int index, const TErrorOr<T>& valueOrError)
     {
         TGuard<TSpinLock> guard(SpinLock);
         if (static_cast<int>(Values.size()) <= index) {
@@ -45,7 +45,7 @@ public:
     typedef TError TResultOrError;
     typedef TError TResultsOrError;
 
-    void Store(int index, const TValueOrError<void>& valueOrError)
+    void Store(int index, const TErrorOr<void>& valueOrError)
     {
         UNUSED(index);
         UNUSED(valueOrError);

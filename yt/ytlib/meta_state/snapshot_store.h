@@ -18,7 +18,7 @@ class TSnapshotStore
     : public TRefCounted
 {
 public:
-    typedef TValueOrError<TSnapshotReaderPtr> TGetReaderResult;
+    typedef TErrorOr<TSnapshotReaderPtr> TGetReaderResult;
 
     //! Creates an instance.
     /*!

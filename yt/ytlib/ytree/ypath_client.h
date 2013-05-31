@@ -161,7 +161,7 @@ SyncExecuteVerb(IYPathServicePtr service, TIntrusivePtr<TTypedRequest> request);
 Stroka SyncYPathGetKey(IYPathServicePtr service, const TYPath& path);
 
 //! Asynchronously executes |Get| verb.
-TFuture< TValueOrError<TYsonString> > AsyncYPathGet(
+TFuture< TErrorOr<TYsonString> > AsyncYPathGet(
     IYPathServicePtr service,
     const TYPath& path,
     const TAttributeFilter& attributeFilter = TAttributeFilter::None);

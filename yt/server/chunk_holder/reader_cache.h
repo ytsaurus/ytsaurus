@@ -20,7 +20,7 @@ public:
 
     ~TReaderCache();
 
-    typedef TValueOrError<NChunkClient::TFileReaderPtr> TGetReaderResult;
+    typedef TErrorOr<NChunkClient::TFileReaderPtr> TGetReaderResult;
 
     //! Returns a (cached) chunk reader.
     /*!

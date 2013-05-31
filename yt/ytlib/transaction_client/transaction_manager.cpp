@@ -399,12 +399,12 @@ TTransactionManager::TTransactionManager(
     YCHECK(config);
 }
 
-TFuture<TValueOrError<ITransactionPtr>> TTransactionManager::AsyncStart(
+TFuture<TErrorOr<ITransactionPtr>> TTransactionManager::AsyncStart(
     const TTransactionStartOptions& options)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    typedef TValueOrError<ITransactionPtr> TOutput;
+    typedef TErrorOr<ITransactionPtr> TOutput;
 
     auto transaction = New<TTransaction>(this, options.AutoAbort);
     return transaction->Start(options).Apply(

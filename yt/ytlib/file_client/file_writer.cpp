@@ -72,7 +72,7 @@ TAsyncError TAsyncWriter::AsyncOpen()
             BIND(&TThis::OnUploadTransactionStarted, MakeStrong(this)));
 }
 
-TAsyncError TAsyncWriter::OnUploadTransactionStarted(TValueOrError<ITransactionPtr> transactionOrError)
+TAsyncError TAsyncWriter::OnUploadTransactionStarted(TErrorOr<ITransactionPtr> transactionOrError)
 {
     if (!transactionOrError.IsOK()) {
         return MakeFuture(TError("Error creating upload transaction") << transactionOrError);
@@ -191,13 +191,10 @@ TAsyncError TAsyncWriter::AsyncClose()
     }
 
     LOG_INFO("Closing file writer and committing upload transaction");
-    auto this_ = MakeStrong(this);
-    return ConvertToTErrorFuture(
-        StartAsyncPipeline(GetSyncInvoker())
-            ->Add(BIND(&TWriter::AsyncClose, Writer))
-            ->Add(BIND(&NTransactionClient::ITransaction::AsyncCommit, UploadTransaction, NMetaState::NullMutationId))
-            ->Run()
-    );
+    return StartAsyncPipeline(GetSyncInvoker())
+        ->Add(BIND(&TWriter::AsyncClose, Writer))
+        ->Add(BIND(&NTransactionClient::ITransaction::AsyncCommit, UploadTransaction, NMetaState::NullMutationId))
+        ->Run();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

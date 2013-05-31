@@ -75,7 +75,7 @@ private:
             mutationId,
             spec,
             user)
-            .Subscribe(BIND([=] (TValueOrError<TOperationPtr> result) {
+            .Subscribe(BIND([=] (TErrorOr<TOperationPtr> result) {
                 if (!result.IsOK()) {
                     context->Reply(result);
                     return;

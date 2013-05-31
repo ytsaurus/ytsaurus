@@ -350,7 +350,7 @@ private:
                 .Via(Bootstrap->GetControlInvoker()));
     }
 
-    void OnConnected(TValueOrError<TMasterHandshakeResult> resultOrError)
+    void OnConnected(TErrorOr<TMasterHandshakeResult> resultOrError)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 

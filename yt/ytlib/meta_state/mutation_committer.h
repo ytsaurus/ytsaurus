@@ -69,7 +69,7 @@ public:
      *
      *  \note Thread affinity: StateThread
      */
-    TFuture< TValueOrError<TMutationResponse> > Commit(const TMutationRequest& request);
+    TFuture< TErrorOr<TMutationResponse> > Commit(const TMutationRequest& request);
 
     //! Force to send all pending mutations.
     /*!

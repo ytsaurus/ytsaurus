@@ -74,7 +74,7 @@ TMutationPtr TMutation::OnError(TCallback<void(const TError&)> onError)
     return this;
 }
 
-void TMutation::OnCommitted(TValueOrError<TMutationResponse> result)
+void TMutation::OnCommitted(TErrorOr<TMutationResponse> result)
 {
     if (result.IsOK()) {
         if (!OnSuccess_.IsNull()) {

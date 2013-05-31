@@ -283,26 +283,26 @@ public:
     DEFINE_SIGNAL(void(), FollowerRecoveryComplete);
     DEFINE_SIGNAL(void(), StopFollowing);
 
-    virtual TFuture< TValueOrError<TMutationResponse> > CommitMutation(const TMutationRequest& request) override
+    virtual TFuture< TErrorOr<TMutationResponse> > CommitMutation(const TMutationRequest& request) override
     {
         VERIFY_THREAD_AFFINITY(StateThread);
         YCHECK(!DecoratedState->GetMutationContext());
 
         if (GetStateStatus() != EPeerStatus::Leading) {
-            return MakeFuture(TValueOrError<TMutationResponse>(TError(
+            return MakeFuture(TErrorOr<TMutationResponse>(TError(
                 NMetaState::EErrorCode::NoLeader,
                 "Not a leader")));
         }
 
         if (AtomicGet(ReadOnly)) {
-            return MakeFuture(TValueOrError<TMutationResponse>(TError(
+            return MakeFuture(TErrorOr<TMutationResponse>(TError(
                 NMetaState::EErrorCode::ReadOnly,
                 "Read-only mode is active")));
         }
 
         auto epochContext = EpochContext;
         if (!epochContext || !HasActiveQuorum_) {
-            return MakeFuture(TValueOrError<TMutationResponse>(TError(
+            return MakeFuture(TErrorOr<TMutationResponse>(TError(
                 NMetaState::EErrorCode::NoQuorum,
                 "No active quorum")));
         }
@@ -310,7 +310,7 @@ public:
         if (request.Id != NullMutationId) {
             auto response = FindKeptResponse(request.Id);
             if (response) {
-                return MakeFuture(TValueOrError<TMutationResponse>(*response));
+                return MakeFuture(TErrorOr<TMutationResponse>(*response));
             }
         }
 
@@ -882,7 +882,7 @@ public:
         ElectionManager->Restart();
     }
 
-    TValueOrError<TMutationResponse> OnMutationCommitted(TValueOrError<TMutationResponse> result)
+    TErrorOr<TMutationResponse> OnMutationCommitted(TErrorOr<TMutationResponse> result)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 

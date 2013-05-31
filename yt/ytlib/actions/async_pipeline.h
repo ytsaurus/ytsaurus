@@ -10,7 +10,7 @@ template <class Signature>
 struct TAsyncPipelineSignatureCracker;
 
 template <class T>
-struct TValueOrErrorHelpers;
+struct TErrorOrHelpers;
 
 template <class T>
 class TAsyncPipeline
@@ -21,18 +21,18 @@ public:
 
     TAsyncPipeline(
         IInvokerPtr invoker,
-        TCallback< TFuture< TValueOrError<T> >() > lazy);
+        TCallback< TFuture< TErrorOr<T> >() > lazy);
 
-    TFuture< TValueOrError<T> > Run();
+    TFuture< TErrorOr<T> > Run();
 
     template <class Signature>
     TIntrusivePtr<
         TAsyncPipeline<
-            typename TValueOrErrorHelpers<
+            typename TErrorOrHelpers<
                 typename NYT::NDetail::TFutureHelper<
-                    typename TAsyncPipelineSignatureCracker<Signature>::ReturnType
+                    typename TAsyncPipelineSignatureCracker<Signature>::TReturn
                 >::TValueType
-            >::TValueType
+            >::TValue
         >
     >
     Add(TCallback<Signature> func);
@@ -40,18 +40,18 @@ public:
     template <class Signature>
     TIntrusivePtr<
         TAsyncPipeline<
-            typename TValueOrErrorHelpers<
+            typename TErrorOrHelpers<
                 typename NYT::NDetail::TFutureHelper<
-                    typename TAsyncPipelineSignatureCracker<Signature>::ReturnType
+                    typename TAsyncPipelineSignatureCracker<Signature>::TReturn
                 >::TValueType
-            >::TValueType
+            >::TValue
         >
     >
     Add(TCallback<Signature> func, IInvokerPtr invoker);
 
 private:
     IInvokerPtr Invoker;
-    TCallback< TFuture< TValueOrError<T> >() > Lazy;
+    TCallback< TFuture< TErrorOr<T> >() > Lazy;
 
 };
 

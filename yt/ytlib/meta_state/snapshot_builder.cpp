@@ -163,7 +163,7 @@ private:
             successCount);
     }
 
-    void OnLocalSnapshotCreated(TValueOrError<TResult> result)
+    void OnLocalSnapshotCreated(TErrorOr<TResult> result)
     {
         Promise.Set(result);
 
@@ -270,7 +270,7 @@ TFuture<TSnapshotBuilder::TResultOrError> TSnapshotBuilder::BuildSnapshotLocal(c
             ~version.ToString())));
     }
 
-    LocalPromise = NewPromise< TValueOrError<TResult> >();
+    LocalPromise = NewPromise< TErrorOr<TResult> >();
 
     LOG_INFO("Creating local snapshot at version %s", ~version.ToString());
 
