@@ -8,7 +8,7 @@ exports.that = function Middleware__YtAcao() {
     return function(req, rsp, next) {
         "use strict";
 
-        if (req.method === "GET") {
+        if (req.method === "GET" || req.method === "POST" || req.method === "PUT") {
             rsp.setHeader("Access-Control-Allow-Origin", "*");
         }
 
