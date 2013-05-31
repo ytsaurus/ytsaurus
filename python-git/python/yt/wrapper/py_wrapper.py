@@ -1,5 +1,6 @@
 from pickling import dump
 import config
+import format_config
 
 from common import get_value
 from errors import YtError
@@ -61,8 +62,8 @@ def wrap(function, operation_type, input_format=None, output_format=None, reduce
 
     config_filename = tempfile.mkstemp(dir="/tmp", prefix="config_dump")[1]
     config_dict = {}
-    for key in dir(config):
-        value = config.__dict__[key]
+    for key in dir(format_config):
+        value = format_config.__dict__[key]
         is_bad = any(isinstance(value, type)
                      for type in [types.ModuleType, types.FileType, types.EllipsisType])
         if is_bad or key.startswith("__"):# or key == "DEFAULT_STRATEGY":

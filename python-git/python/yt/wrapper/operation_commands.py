@@ -2,7 +2,7 @@ import config
 import logger
 from common import require, prefix, execute_handling_sigint, get_value
 from errors import YtError, YtOperationFailedError, format_error
-from http import make_request
+from driver import make_request
 from tree_commands import get_attribute, exists, search
 from file_commands import download_file
 
@@ -56,7 +56,7 @@ class Timeout(object):
 
 
 def get_operation_state(operation):
-    old_retries_count = config.HTTP_RETRIES_COUNT
+    old_retries_count = config.http.HTTP_RETRIES_COUNT
     config.HTTP_RETRIES_COUNT = config.WAIT_OPERATION_RETRIES_COUNT
 
     operation_path = os.path.join(OPERATIONS_PATH, operation)
@@ -64,7 +64,7 @@ def get_operation_state(operation):
             YtError("Operation %s doesn't exist" % operation))
     state = OperationState(get_attribute(operation_path, "state"))
 
-    config.HTTP_RETRIES_COUNT = old_retries_count
+    config.http.HTTP_RETRIES_COUNT = old_retries_count
 
     return state
 
@@ -115,6 +115,12 @@ def abort_operation(operation):
     #TODO(ignat): remove check!?
     if not get_operation_state(operation).is_final():
         make_request("abort_op", {"operation_id": operation})
+
+def suspend_operation(operation):
+    make_request("suspend_op", {"operation_id": operation})
+
+def resume_operation(operation):
+    make_request("resume_op", {"operation_id": operation})
 
 def wait_final_state(operation, timeout, print_info, action=lambda: None):
     while True:

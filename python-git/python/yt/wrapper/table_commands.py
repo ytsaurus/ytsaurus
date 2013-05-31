@@ -3,7 +3,8 @@ import py_wrapper
 from common import flatten, require, unlist, update, EMPTY_GENERATOR, parse_bool, is_prefix, get_value, compose, execute_handling_sigint, bool_to_string
 from errors import YtError
 from version import VERSION
-from http import read_content, get_host_for_heavy_operation, NETWORK_ERRORS
+from driver import read_content, get_host_for_heavy_operation
+from http import NETWORK_ERRORS
 from table import TablePath, to_table, to_name, prepare_path
 from tree_commands import exists, remove, remove_with_empty_dirs, get_attribute, copy, move, mkdir, find_free_subpath, create, get_type
 from file_commands import smart_upload_file
@@ -59,8 +60,7 @@ def _prepare_files(files):
     return file_paths
 
 def _prepare_formats(format, input_format, output_format):
-    if format is None: format = config.TABULAR_DATA_FORMAT
-    if format is None: format = config.DEFAULT_FORMAT
+    if format is None: format = config.format.TABULAR_DATA_FORMAT
     if isinstance(format, str):
         format = RawFormat.from_yson_string(format)
 
@@ -73,8 +73,7 @@ def _prepare_formats(format, input_format, output_format):
     return input_format, output_format
 
 def _prepare_format(format):
-    if format is None: format = config.TABULAR_DATA_FORMAT
-    if format is None: format = config.DEFAULT_FORMAT
+    if format is None: format = config.format.TABULAR_DATA_FORMAT
     if isinstance(format, str):
         format = RawFormat.from_yson_string(format)
 
