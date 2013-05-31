@@ -1,16 +1,9 @@
-import os
+from common import update_from_env
 
-PROXY = ""
 USE_HOSTS = True
-USE_TOKEN = True
-TOKEN = None
 
-# Turn off gzip encoding if you want to speed up reading and writing tables
-ACCEPT_ENCODING = os.environ.get("ACCEPT_ENCODING", "identity, gzip")
-REMOVE_TEMP_FILES = True
-
-DEFAULT_FORMAT = None
-TABULAR_DATA_FORMAT = None
+REMOVE_TEMP_FILES = False
+FILE_PLACEMENT_STRATEGY = "hash"
 
 ALWAYS_SET_EXECUTABLE_FLAG_TO_FILE = False
 USE_MAPREDUCE_STYLE_DESTINATION_FDS = False
@@ -21,6 +14,7 @@ REPLACE_TABLES_WHILE_COPY_OR_MOVE = False
 CREATE_RECURSIVE = False
 THROW_ON_EMPTY_DST_LIST = False
 RUN_MAP_REDUCE_IF_SOURCE_IS_NOT_SORTED = False
+USE_NON_STRICT_UPPER_KEY = False
 
 MB = 2 ** 20
 
@@ -58,15 +52,7 @@ MAX_CHUNK_SIZE_FOR_MERGE_WARNING = 32 * MB
 
 WRITE_RETRIES_COUNT = 3
 
-CONNECTION_TIMEOUT = 120.0
-
-HTTP_RETRIES_COUNT = 5
-HTTP_RETRY_TIMEOUT = 10
-# COMPAT(ignat): remove option when version 14 become stable
-RETRY_VOLATILE_COMMANDS = False
 WAIT_OPERATION_RETRIES_COUNT = 1000
-
-ERROR_FORMAT = "text"
 
 PYTHON_FUNCTION_CHECK_SENDING_ALL_MODULES = False
 PYTHON_FUNCTION_SEARCH_EXTENSIONS = None
@@ -78,11 +64,17 @@ CREATE_FILE_BEFORE_UPLOAD = False
 
 MUTATION_ID = None
 
+update_from_env(globals())
+
+from format import YamrFormat
+import format_config as format
+
 def set_mapreduce_mode():
     global MAPREDUCE_MODE, ALWAYS_SET_EXECUTABLE_FLAG_TO_FILE, USE_MAPREDUCE_STYLE_DESTINATION_FDS
-    global TREAT_UNEXISTING_AS_EMPTY, DEFAULT_FORMAT, DELETE_EMPTY_TABLES, USE_YAMR_SORT_REDUCE_COLUMNS
+    global TREAT_UNEXISTING_AS_EMPTY, DELETE_EMPTY_TABLES, USE_YAMR_SORT_REDUCE_COLUMNS
     global REPLACE_TABLES_WHILE_COPY_OR_MOVE, CREATE_RECURSIVE
     global THROW_ON_EMPTY_DST_LIST, RUN_MAP_REDUCE_IF_SOURCE_IS_NOT_SORTED
+    global USE_NON_STRICT_UPPER_KEY
     ALWAYS_SET_EXECUTABLE_FLAG_TO_FILE = True
     USE_MAPREDUCE_STYLE_DESTINATION_FDS = True
     TREAT_UNEXISTING_AS_EMPTY = True
@@ -92,23 +84,26 @@ def set_mapreduce_mode():
     CREATE_RECURSIVE = True
     THROW_ON_EMPTY_DST_LIST = True
     RUN_MAP_REDUCE_IF_SOURCE_IS_NOT_SORTED = True
-    from format import YamrFormat
-    DEFAULT_FORMAT = YamrFormat(has_subkey=True, lenval=False)
+    USE_NON_STRICT_UPPER_KEY = True
+    format.TABULAR_DATA_FORMAT = YamrFormat(has_subkey=True, lenval=False)
 
-for key, value in os.environ.iteritems():
-    if key.startswith("YT_"):
-        key = key[3:]
-        var_type = str
-        if key not in globals():
-            #print >>sys.stderr, "There is no variable %s in config, so it affect nothing" % key
-            continue
-        else:
-            var_type = type(globals()[key])
-        if var_type == bool:
-            try:
-                value = int(value)
-            except:
-                pass
-        if isinstance(None, var_type):
-            var_type = str
-        globals()[key] = var_type(value)
+import errors_config as errors
+import http_config as http
+
+from http import get_api
+from command import parse_commands
+
+if http.PROXY is not None:
+    _api = get_api(http.PROXY)
+    if "v2" in _api:
+        COMMANDS = parse_commands(get_api(http.PROXY, version="v2"))
+        API_PATH = "api/v2"
+        http.RETRY_VOLATILE_COMMANDS = True
+        CREATE_FILE_BEFORE_UPLOAD = True
+    else:
+        COMMANDS = parse_commands(_api)
+        API_PATH = "api"
+        http.RETRY_VOLATILE_COMMANDS = False
+        CREATE_FILE_BEFORE_UPLOAD = False
+
+

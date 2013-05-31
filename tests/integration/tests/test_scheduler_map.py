@@ -199,6 +199,28 @@ class TestSchedulerMapCommands(YTEnvSetup):
         assert read('//tmp/output') == [{'value': 42}, {'a': 'b'}, {"text": "info"}]
 
     @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
+    def test_empty_user_file(self):
+        create('table', '//tmp/input')
+        write_str('//tmp/input', '{foo=bar}')
+
+        create('table', '//tmp/output')
+
+        file1 = '//tmp/empty_file.txt'
+        create('file', file1)
+
+        create('table', '//tmp/table_file')
+        write_str('//tmp/table_file', '{text=info}')
+
+        command= "cat > /dev/null; cat empty_file.txt;"
+
+        map(in_='//tmp/input',
+            out='//tmp/output',
+            command=command,
+            file=[file1])
+
+        assert read('//tmp/output') == []
+
+    @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
     def run_many_output_tables(self, yamr_mode=False):
         output_tables = ['//tmp/t%d' % i for i in range(3)]
 

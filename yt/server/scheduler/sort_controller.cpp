@@ -14,12 +14,12 @@
 #include <ytlib/ytree/fluent.h>
 
 #include <ytlib/chunk_client/schema.h>
-#include <ytlib/chunk_client/input_chunk.h>
+#include <ytlib/chunk_client/chunk_spec.h>
 #include <ytlib/table_client/channel_writer.h>
 #include <ytlib/table_client/chunk_meta_extensions.h>
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/chunk_client/input_chunk.pb.h>
+#include <ytlib/chunk_client/chunk_spec.pb.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 

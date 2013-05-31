@@ -14,26 +14,26 @@ TMultiChunkParallelReader<TChunkReader>::TMultiChunkParallelReader(
     NRpc::IChannelPtr masterChannel,
     NChunkClient::IBlockCachePtr blockCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
-    std::vector<NChunkClient::NProto::TInputChunk>&& inputChunks,
+    std::vector<NChunkClient::NProto::TChunkSpec>&& chunkSpecs,
     typename TBase::TProviderPtr readerProvider)
     : TMultiChunkReaderBase<TChunkReader>(
         config,
         masterChannel,
         blockCache,
         nodeDirectory,
-        std::move(inputChunks),
+        std::move(chunkSpecs),
         readerProvider)
     , CompleteReaderCount(0)
 {
     srand(time(nullptr));
-    std::random_shuffle(InputChunks.begin(), InputChunks.end());
+    std::random_shuffle(ChunkSpecs.begin(), ChunkSpecs.end());
 
     ReadySessions.reserve(std::min(
-        static_cast<int>(InputChunks.size()),
+        static_cast<int>(ChunkSpecs.size()),
         PrefetchWindow));
 
     if (ReaderProvider->KeepInMemory()) {
-        CompleteSessions.resize(InputChunks.size());
+        CompleteSessions.resize(ChunkSpecs.size());
     }
 }
 
@@ -42,7 +42,7 @@ TAsyncError TMultiChunkParallelReader<TChunkReader>::AsyncOpen()
 {
     YASSERT(!State.HasRunningOperation());
 
-    if (InputChunks.size() != 0) {
+    if (ChunkSpecs.size() != 0) {
         State.StartOperation();
 
         for (int i = 0; i < TBase::PrefetchWindow; ++i) {
@@ -89,7 +89,7 @@ void TMultiChunkParallelReader<TChunkReader>::ProcessReadyReader(
 
         if (!session.Reader) {
             ++CompleteReaderCount;
-            isReadingComplete = (CompleteReaderCount == InputChunks.size());
+            isReadingComplete = (CompleteReaderCount == ChunkSpecs.size());
         } else if (finishOperation) {
             CurrentSession = session;
         } else {
@@ -161,7 +161,7 @@ bool TMultiChunkParallelReader<TChunkReader>::FetchNext()
     TGuard<TSpinLock> guard(SpinLock);
     if (isReaderComplete) {
         ++CompleteReaderCount;
-        if (CompleteReaderCount == InputChunks.size()) {
+        if (CompleteReaderCount == ChunkSpecs.size()) {
             return true;
         }
     }

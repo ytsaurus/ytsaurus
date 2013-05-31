@@ -10,7 +10,7 @@
 
 #include <ytlib/file_client/file_ypath_proxy.h>
 
-#include <ytlib/chunk_client/input_chunk.h>
+#include <ytlib/chunk_client/chunk_spec.h>
 
 #include <ytlib/transaction_client/transaction_manager.h>
 #include <ytlib/transaction_client/transaction.h>

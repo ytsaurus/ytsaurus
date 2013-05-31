@@ -6,7 +6,7 @@
 
 #include <ytlib/ytree/attributes.h>
 
-#include <ytlib/chunk_client/input_chunk.pb.h>
+#include <ytlib/chunk_client/chunk_spec.pb.h>
 #include <ytlib/chunk_client/chunk.pb.h>
 
 #include <ytlib/erasure/public.h>
@@ -18,72 +18,72 @@ namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TRefCountedInputChunk
+struct TRefCountedChunkSpec
     : public TIntrinsicRefCounted
-    , public NProto::TInputChunk
+    , public NProto::TChunkSpec
 {
-    explicit TRefCountedInputChunk(const NProto::TInputChunk& other);
-    explicit TRefCountedInputChunk(NProto::TInputChunk&& other);
+    explicit TRefCountedChunkSpec(const NProto::TChunkSpec& other);
+    explicit TRefCountedChunkSpec(NProto::TChunkSpec&& other);
 
-    TRefCountedInputChunk(const TRefCountedInputChunk& other);
+    TRefCountedChunkSpec(const TRefCountedChunkSpec& other);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TInputChunkSlice
+class TChunkSlice
     : public TIntrinsicRefCounted
 {
 public:
     //! Use #CreateChunkSlice instead.
-    TInputChunkSlice();
+    TChunkSlice();
 
-    TInputChunkSlice(const TInputChunkSlice& other);
+    TChunkSlice(const TChunkSlice& other);
 
     //! Tries to split chunk slice into parts of almost equal size, about #sliceDataSize.
-    std::vector<TInputChunkSlicePtr> SliceEvenly(i64 sliceDataSize) const;
+    std::vector<TChunkSlicePtr> SliceEvenly(i64 sliceDataSize) const;
 
     i64 GetLocality(int replicaIndex) const;
 
-    TRefCountedInputChunkPtr GetInputChunk() const;
+    TRefCountedChunkSpecPtr GetChunkSpec() const;
     i64 GetDataSize() const;
     i64 GetRowCount() const;
 
 private:
-    TRefCountedInputChunkPtr InputChunk;
+    TRefCountedChunkSpecPtr ChunkSpec;
     int PartIndex;
 
     NProto::TReadLimit StartLimit;
     NProto::TReadLimit EndLimit;
     NProto::TSizeOverrideExt SizeOverrideExt;
 
-    friend void ToProto(NProto::TInputChunk* inputChunk, const TInputChunkSlice& chunkSlice);
+    friend void ToProto(NProto::TChunkSpec* chunkSpec, const TChunkSlice& chunkSlice);
 
-    friend TInputChunkSlicePtr CreateChunkSlice(
-        TRefCountedInputChunkPtr inputChunk,
+    friend TChunkSlicePtr CreateChunkSlice(
+        TRefCountedChunkSpecPtr chunkSpec,
         const TNullable<NProto::TKey>& startKey,
         const TNullable<NProto::TKey>& endKey);
 
     friend void AppendErasureChunkSlices(
-        TRefCountedInputChunkPtr inputChunk,
+        TRefCountedChunkSpecPtr chunkSpec,
         NErasure::ECodec codecId,
-        std::vector<TInputChunkSlicePtr>* slices);
+        std::vector<TChunkSlicePtr>* slices);
 
 };
 
 //! Constructs a new chunk slice from the original chunk one and restricting
 //! it to a given range. The original chunk may already contain non-trivial limits.
-TInputChunkSlicePtr CreateChunkSlice(
-    TRefCountedInputChunkPtr inputChunk,
+TChunkSlicePtr CreateChunkSlice(
+    TRefCountedChunkSpecPtr chunkSpec,
     const TNullable<NProto::TKey>& startKey = Null,
     const TNullable<NProto::TKey>& endKey = Null);
 
 //! Constructs separate chunk slice for each part of erasure chunk. Pushes
 void AppendErasureChunkSlices(
-    TRefCountedInputChunkPtr inputChunk,
+    TRefCountedChunkSpecPtr chunkSpec,
     NErasure::ECodec codecId,
-    std::vector<TInputChunkSlicePtr>* slices);
+    std::vector<TChunkSlicePtr>* slices);
 
-void ToProto(NProto::TInputChunk* inputChunk, const TInputChunkSlice& chunkSlice);
+void ToProto(NProto::TChunkSpec* chunkSpec, const TChunkSlice& chunkSlice);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -92,16 +92,16 @@ bool IsNontrivial(const NProto::TReadLimit& limit);
 //! Extracts various chunk statistics by first looking at
 //! TSizeOverrideExt (if present) and then at TMiscExt.
 void GetStatistics(
-    const NProto::TInputChunk& inputChunk,
+    const NProto::TChunkSpec& chunkSpec,
     i64* dataSize = nullptr,
     i64* rowCount = nullptr,
     i64* valueCount = nullptr);
 
 //! Construcs a new chunk slice removing any limits from origin.
-TRefCountedInputChunkPtr CreateCompleteChunk(TRefCountedInputChunkPtr inputChunk);
+TRefCountedChunkSpecPtr CreateCompleteChunk(TRefCountedChunkSpecPtr chunkSpec);
 
 TChunkId EncodeChunkId(
-    const NProto::TInputChunk& inputChunk,
+    const NProto::TChunkSpec& chunkSpec,
     NNodeTrackerClient::TNodeId nodeId);
 
 ////////////////////////////////////////////////////////////////////////////////

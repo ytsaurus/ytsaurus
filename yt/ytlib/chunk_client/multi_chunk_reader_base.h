@@ -1,7 +1,7 @@
 #pragma once
 
 #include "public.h"
-#include "input_chunk.h"
+#include "chunk_spec.h"
 
 #include <ytlib/node_tracker_client/public.h>
 #include <ytlib/misc/async_stream_state.h>
@@ -34,7 +34,7 @@ public:
         NRpc::IChannelPtr masterChannel,
         NChunkClient::IBlockCachePtr blockCache,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
-        std::vector<NChunkClient::NProto::TInputChunk>&& inputChunks,
+        std::vector<NChunkClient::NProto::TChunkSpec>&& chunkSpecs,
         const TProviderPtr& readerProvider);
 
     virtual TAsyncError AsyncOpen() = 0;
@@ -74,7 +74,7 @@ protected:
     NChunkClient::IBlockCachePtr BlockCache;
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
 
-    std::vector<NChunkClient::NProto::TInputChunk> InputChunks;
+    std::vector<NChunkClient::NProto::TChunkSpec> ChunkSpecs;
 
     TProviderPtr ReaderProvider;
 

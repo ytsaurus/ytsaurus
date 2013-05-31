@@ -22,7 +22,7 @@ std::unique_ptr<NTableClient::TTableProducer> TUserJobIO::DoCreateTableInput(
 {
     YCHECK(index >= 0 && index < GetInputCount());
 
-    std::vector<NChunkClient::NProto::TInputChunk> chunks;
+    std::vector<NChunkClient::NProto::TChunkSpec> chunks;
     FOREACH (const auto& inputSpec, SchedulerJobSpecExt.input_specs()) {
         chunks.insert(
             chunks.end(),

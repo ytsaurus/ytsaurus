@@ -64,7 +64,7 @@ def record_to_line(rec, format=None, eoln=True):
     def escape_value(string):
         return escape(string, {'\n': '\\n', '\r': '\\r', '\t': '\\t', '\0': '\\0'})
 
-    if format is None: format = config.DEFAULT_FORMAT
+    if format is None: format = config.format.TABULAR_DATA_FORMAT
     
     if isinstance(format, YamrFormat):
         require(not format.lenval, YtError("Lenval conversion is not supported now."))
@@ -116,7 +116,7 @@ def line_to_record(line, format=None):
         return ["\\".join(map(lambda t: unescape_token(t, key_dict), key_tokens)),
                 "\\".join(map(lambda t: unescape_token(t, value_dict), value_tokens))]
     
-    if format is None: format = config.DEFAULT_FORMAT
+    if format is None: format = config.format.TABULAR_DATA_FORMAT
     
     if isinstance(format, YamrFormat):
         return Record(*line.strip("\n").split("\t", 1 + (1 if format.has_subkey else 0)))
@@ -128,7 +128,7 @@ def line_to_record(line, format=None):
         raise YtError("Unrecognized format " + repr(format))
 
 def extract_key(rec, fields, format=None):
-    if format is None: format = config.DEFAULT_FORMAT
+    if format is None: format = config.format.TABULAR_DATA_FORMAT
 
     if isinstance(format, YamrFormat):
         return rec.key

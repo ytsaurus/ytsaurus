@@ -19,7 +19,7 @@ public:
         NRpc::IChannelPtr masterChannel,
         NChunkClient::IBlockCachePtr blockCache,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
-        std::vector<NChunkClient::NProto::TInputChunk>&& inputChunks,
+        std::vector<NChunkClient::NProto::TChunkSpec>&& chunkSpecs,
         typename TBase::TProviderPtr readerProvider);
 
     virtual TAsyncError AsyncOpen() override;
@@ -28,7 +28,7 @@ public:
 private:
     using TBase::State;
     using TBase::Logger;
-    using TBase::InputChunks;
+    using TBase::ChunkSpecs;
     using TBase::PrefetchWindow;
     using TBase::CurrentSession;
     using TBase::ReaderProvider;

@@ -13,7 +13,7 @@
 
 #include <ytlib/transaction_client/transaction.h>
 
-#include <ytlib/chunk_client/input_chunk.h>
+#include <ytlib/chunk_client/chunk_spec.h>
 #include <ytlib/table_client/chunk_meta_extensions.h>
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
@@ -285,11 +285,11 @@ protected:
     }
 
     //! Add chunk to the current task's pool.
-    void AddPendingChunk(TInputChunkSlicePtr chunkSlice)
+    void AddPendingChunk(TChunkSlicePtr chunkSlice)
     {
-        auto stripe = CurrentTaskStripes[chunkSlice->GetInputChunk()->table_index()];
+        auto stripe = CurrentTaskStripes[chunkSlice->GetChunkSpec()->table_index()];
         if (!stripe) {
-            stripe = CurrentTaskStripes[chunkSlice->GetInputChunk()->table_index()] = New<TChunkStripe>();
+            stripe = CurrentTaskStripes[chunkSlice->GetChunkSpec()->table_index()] = New<TChunkStripe>();
         }
 
         i64 chunkDataSize = chunkSlice->GetDataSize();
@@ -299,19 +299,19 @@ protected:
         CurrentTaskDataSize += chunkDataSize;
         stripe->ChunkSlices.push_back(chunkSlice);
 
-        auto chunkId = FromProto<TChunkId>(chunkSlice->GetInputChunk()->chunk_id());
+        auto chunkId = FromProto<TChunkId>(chunkSlice->GetChunkSpec()->chunk_id());
         LOG_DEBUG("Pending chunk added (ChunkId: %s, Partition: %d, Task: %d, TableIndex: %d, DataSize: %" PRId64 ")",
             ~ToString(chunkId),
             PartitionCount,
             static_cast<int>(MergeTasks.size()),
-            chunkSlice->GetInputChunk()->table_index(),
+            chunkSlice->GetChunkSpec()->table_index(),
             chunkDataSize);
     }
 
     //! Add chunk directly to the output.
-    void AddPassthroughChunk(TRefCountedInputChunkPtr inputChunk)
+    void AddPassthroughChunk(TRefCountedChunkSpecPtr chunkSpec)
     {
-        auto chunkId = FromProto<TChunkId>(inputChunk->chunk_id());
+        auto chunkId = FromProto<TChunkId>(chunkSpec->chunk_id());
         LOG_DEBUG("Passthrough chunk added (ChunkId: %s, Partition: %d)",
             ~ToString(chunkId),
             PartitionCount);
@@ -354,7 +354,7 @@ protected:
             MaxDataSizePerJob = 1 + TotalInputDataSize / jobCount;
 
             FOREACH (auto chunk, CollectInputChunks()) {
-                ProcessInputChunk(chunk);
+                ProcessChunkSpec(chunk);
             }
         }
     }
@@ -387,7 +387,7 @@ protected:
 
 
     //! Called for each input chunk.
-    virtual void ProcessInputChunk(TRefCountedInputChunkPtr inputChunk) = 0;
+    virtual void ProcessChunkSpec(TRefCountedChunkSpecPtr chunkSpec) = 0;
 
     //! Called at the end of input chunks scan.
     void EndInputChunks()
@@ -417,25 +417,25 @@ protected:
 
     //! Returns True iff the chunk has nontrivial limits.
     //! Such chunks are always pooled.
-    static bool IsCompleteChunk(const TInputChunk& inputChunk)
+    static bool IsCompleteChunk(const TChunkSpec& chunkSpec)
     {
-        return IsStartingSlice(inputChunk) && IsEndingSlice(inputChunk);
+        return IsStartingSlice(chunkSpec) && IsEndingSlice(chunkSpec);
     }
 
-    static bool IsStartingSlice(const TInputChunk& inputChunk)
+    static bool IsStartingSlice(const TChunkSpec& chunkSpec)
     {
-        return !inputChunk.start_limit().has_key() &&
-               !inputChunk.start_limit().has_row_index();
+        return !chunkSpec.start_limit().has_key() &&
+               !chunkSpec.start_limit().has_row_index();
     }
 
-    static bool IsEndingSlice(const TInputChunk& inputChunk)
+    static bool IsEndingSlice(const TChunkSpec& chunkSpec)
     {
-        return !inputChunk.end_limit().has_key() &&
-               !inputChunk.end_limit().has_row_index();
+        return !chunkSpec.end_limit().has_key() &&
+               !chunkSpec.end_limit().has_row_index();
     }
 
     //! Returns True if the chunk can be included into the output as-is.
-    virtual bool IsPassthroughChunk(const TInputChunk& inputChunk) = 0;
+    virtual bool IsPassthroughChunk(const TChunkSpec& chunkSpec) = 0;
 
     virtual i64 GetAdditionalMemorySize() const
     {
@@ -443,19 +443,19 @@ protected:
     }
 
     //! Returns True iff the chunk is complete and is large enough.
-    bool IsLargeCompleteChunk(const TInputChunk& inputChunk)
+    bool IsLargeCompleteChunk(const TChunkSpec& chunkSpec)
     {
-        if (!IsCompleteChunk(inputChunk)) {
+        if (!IsCompleteChunk(chunkSpec)) {
             return false;
         }
 
-        return IsLargeChunk(inputChunk);
+        return IsLargeChunk(chunkSpec);
     }
 
-    bool IsLargeChunk(const TInputChunk& inputChunk)
+    bool IsLargeChunk(const TChunkSpec& chunkSpec)
     {
         i64 chunkDataSize;
-        NChunkClient::GetStatistics(inputChunk, &chunkDataSize);
+        NChunkClient::GetStatistics(chunkSpec, &chunkDataSize);
 
         // ChunkSequenceWriter may actually produce a chunk a bit smaller than DesiredChunkSize,
         // so we have to be more flexible here.
@@ -467,9 +467,9 @@ protected:
     }
 
     //! A typical implementation of #IsPassthroughChunk that depends on whether chunks must be combined or not.
-    bool IsPassthroughChunkImpl(const TInputChunk& inputChunk, bool combineChunks)
+    bool IsPassthroughChunkImpl(const TChunkSpec& chunkSpec, bool combineChunks)
     {
-        return combineChunks ? IsLargeCompleteChunk(inputChunk) : IsCompleteChunk(inputChunk);
+        return combineChunks ? IsLargeCompleteChunk(chunkSpec) : IsCompleteChunk(chunkSpec);
     }
 
     //! Initializes #JobIOConfig.
@@ -508,12 +508,16 @@ public:
 private:
     TUnorderedMergeOperationSpecPtr Spec;
 
-    virtual bool IsPassthroughChunk(const TInputChunk& inputChunk) override
+    virtual bool IsPassthroughChunk(const TChunkSpec& chunkSpec) override
     {
+        // COMPAT(psushin)
         if (!Spec->AllowPassthroughChunks)
             return false;
 
-        return IsPassthroughChunkImpl(inputChunk, Spec->CombineChunks);
+        if (Spec->ForceTransform)
+            return false;
+
+        return IsPassthroughChunkImpl(chunkSpec, Spec->CombineChunks);
     }
 
     virtual std::vector<TRichYPath> GetInputTablePaths() const override
@@ -528,16 +532,16 @@ private:
         return result;
     }
 
-    virtual void ProcessInputChunk(TRefCountedInputChunkPtr inputChunk) override
+    virtual void ProcessChunkSpec(TRefCountedChunkSpecPtr chunkSpec) override
     {
-        if (IsPassthroughChunk(*inputChunk)) {
+        if (IsPassthroughChunk(*chunkSpec)) {
             // Chunks not requiring merge go directly to the output chunk list.
-            AddPassthroughChunk(inputChunk);
+            AddPassthroughChunk(chunkSpec);
             return;
         }
 
         // NB: During unordered merge all chunks go to a single chunk stripe.
-        AddPendingChunk(CreateChunkSlice(inputChunk));
+        AddPendingChunk(CreateChunkSlice(chunkSpec));
         EndTaskIfLarge();
     }
 
@@ -568,19 +572,19 @@ public:
     { }
 
 private:
-    virtual void ProcessInputChunk(TRefCountedInputChunkPtr inputChunk) override
+    virtual void ProcessChunkSpec(TRefCountedChunkSpecPtr chunkSpec) override
     {
-        if (IsPassthroughChunk(*inputChunk)) {
+        if (IsPassthroughChunk(*chunkSpec)) {
             // Merge is not needed. Copy the chunk directly to the output.
             if (HasActiveTask()) {
                 EndTask();
             }
-            AddPassthroughChunk(inputChunk);
+            AddPassthroughChunk(chunkSpec);
             return;
         }
 
         // NB: During ordered merge all chunks go to a single chunk stripe.
-        AddPendingChunk(CreateChunkSlice(inputChunk));
+        AddPendingChunk(CreateChunkSlice(chunkSpec));
         EndTaskIfLarge();
     }
 };
@@ -615,12 +619,16 @@ private:
         return result;
     }
 
-    virtual bool IsPassthroughChunk(const TInputChunk& inputChunk) override
+    virtual bool IsPassthroughChunk(const TChunkSpec& chunkSpec) override
     {
+        //COMPAT(psushin)
         if (!Spec->AllowPassthroughChunks)
             return false;
 
-        return IsPassthroughChunkImpl(inputChunk, Spec->CombineChunks);
+        if (Spec->ForceTransform)
+            return false;
+
+        return IsPassthroughChunkImpl(chunkSpec, Spec->CombineChunks);
     }
 
     virtual void InitJobSpecTemplate() override
@@ -667,9 +675,9 @@ private:
         return result;
     }
 
-    virtual bool IsPassthroughChunk(const TInputChunk& inputChunk) override
+    virtual bool IsPassthroughChunk(const TChunkSpec& chunkSpec) override
     {
-        return IsPassthroughChunkImpl(inputChunk, Spec->CombineChunks);
+        return IsPassthroughChunkImpl(chunkSpec, Spec->CombineChunks);
     }
 
     virtual void DoInitialize() override
@@ -770,7 +778,7 @@ protected:
     {
         EEndpointType Type;
         NChunkClient::NProto::TKey Key;
-        TRefCountedInputChunkPtr InputChunk;
+        TRefCountedChunkSpecPtr ChunkSpec;
     };
 
     std::vector<TKeyEndpoint> Endpoints;
@@ -797,12 +805,12 @@ protected:
             ->Add(BIND(&TSortedMergeControllerBase::FinishPreparation, MakeStrong(this)));
     }
 
-    virtual void ProcessInputChunk(TRefCountedInputChunkPtr inputChunk) override
+    virtual void ProcessChunkSpec(TRefCountedChunkSpecPtr chunkSpec) override
     {
-        ChunkSplitsCollector->AddChunk(inputChunk);
+        ChunkSplitsCollector->AddChunk(chunkSpec);
     }
 
-    virtual bool IsLargeEnoughToPassthrough(const TInputChunk& inputChunk) = 0;
+    virtual bool IsLargeEnoughToPassthrough(const TChunkSpec& chunkSpec) = 0;
 
     void OnChunkSplitsReceived()
     {
@@ -815,20 +823,20 @@ protected:
                 TKeyEndpoint endpoint;
                 endpoint.Type = EEndpointType::Maniac;
                 endpoint.Key = boundaryKeysExt.start();
-                endpoint.InputChunk = chunk;
+                endpoint.ChunkSpec = chunk;
                 Endpoints.push_back(endpoint);
             } else {
                 {
                     TKeyEndpoint endpoint;
                     endpoint.Type = EEndpointType::Left;
                     endpoint.Key = boundaryKeysExt.start();
-                    endpoint.InputChunk = chunk;
+                    endpoint.ChunkSpec = chunk;
                     Endpoints.push_back(endpoint);
                 } {
                     TKeyEndpoint endpoint;
                     endpoint.Type = EEndpointType::Right;
                     endpoint.Key = boundaryKeysExt.end();
-                    endpoint.InputChunk = chunk;
+                    endpoint.ChunkSpec = chunk;
                     Endpoints.push_back(endpoint);
                 }
             }
@@ -857,7 +865,7 @@ protected:
         // Compute components consisting of overlapping chunks.
         // Combine small tasks, if requested so.
         LOG_INFO("Building tasks");
-        yhash_set<TRefCountedInputChunkPtr> openedChunks;
+        yhash_set<TRefCountedChunkSpecPtr> openedChunks;
 
         int currentIndex = 0;
         TNullable<NChunkClient::NProto::TKey> lastBreakpoint;
@@ -872,9 +880,9 @@ protected:
                 openedChunks.size(),
                 ~ToString(nextBreakpoint));
 
-            FOREACH (const auto& inputChunk, openedChunks) {
+            FOREACH (const auto& chunkSpec, openedChunks) {
                 this->AddPendingChunk(CreateChunkSlice(
-                    inputChunk,
+                    chunkSpec,
                     lastBreakpoint,
                     nextBreakpoint));
             }
@@ -887,24 +895,24 @@ protected:
             switch (endpoint.Type) {
                 case EEndpointType::Left:
                     if (openedChunks.empty() &&
-                        IsStartingSlice(*endpoint.InputChunk) &&
+                        IsStartingSlice(*endpoint.ChunkSpec) &&
                         AllowPassthroughChunks())
                     {
                         // Trying to reconstruct passthrough chunk from chunk slices.
-                        auto chunkId = FromProto<TChunkId>(endpoint.InputChunk->chunk_id());
-                        auto tableIndex = endpoint.InputChunk->table_index();
+                        auto chunkId = FromProto<TChunkId>(endpoint.ChunkSpec->chunk_id());
+                        auto tableIndex = endpoint.ChunkSpec->table_index();
                         auto nextIndex = currentIndex + 1;
                         for (; nextIndex < endpointsCount; ++nextIndex) {
-                            auto nextChunkId = FromProto<TChunkId>(Endpoints[nextIndex].InputChunk->chunk_id());
-                            auto nextTableIndex = Endpoints[nextIndex].InputChunk->table_index();
+                            auto nextChunkId = FromProto<TChunkId>(Endpoints[nextIndex].ChunkSpec->chunk_id());
+                            auto nextTableIndex = Endpoints[nextIndex].ChunkSpec->table_index();
                             if (nextChunkId != chunkId || tableIndex != nextTableIndex) {
                                 break;
                             }
                         }
 
                         const auto& lastEndpoint = Endpoints[nextIndex - 1];
-                        if (lastEndpoint.Type == EEndpointType::Right && IsEndingSlice(*lastEndpoint.InputChunk)) {
-                            auto chunk = CreateCompleteChunk(endpoint.InputChunk);
+                        if (lastEndpoint.Type == EEndpointType::Right && IsEndingSlice(*lastEndpoint.ChunkSpec)) {
+                            auto chunk = CreateCompleteChunk(endpoint.ChunkSpec);
                             if (IsLargeEnoughToPassthrough(*chunk)) {
                                 if (HasActiveTask()) {
                                    EndTask();
@@ -916,13 +924,13 @@ protected:
                         }
                     }
 
-                    YCHECK(openedChunks.insert(endpoint.InputChunk).second);
+                    YCHECK(openedChunks.insert(endpoint.ChunkSpec).second);
                     ++currentIndex;
                     break;
 
                 case EEndpointType::Right:
-                    AddPendingChunk(CreateChunkSlice(endpoint.InputChunk, lastBreakpoint, Null));
-                    YCHECK(openedChunks.erase(endpoint.InputChunk) == 1);
+                    AddPendingChunk(CreateChunkSlice(endpoint.ChunkSpec, lastBreakpoint, Null));
+                    YCHECK(openedChunks.erase(endpoint.ChunkSpec) == 1);
 
                     if (!openedChunks.empty() &&
                         HasLargeActiveTask() &&
@@ -942,8 +950,8 @@ protected:
                     auto nextIndex = currentIndex;
                     i64 partialManiacSize = 0;
                     i64 completeLargeManiacSize = 0;
-                    std::vector<TRefCountedInputChunkPtr> completeLargeChunks;
-                    std::vector<TRefCountedInputChunkPtr> partialChunks;
+                    std::vector<TRefCountedChunkSpecPtr> completeLargeChunks;
+                    std::vector<TRefCountedChunkSpecPtr> partialChunks;
                     do {
                         const auto& nextEndpoint = Endpoints[nextIndex];
 
@@ -951,13 +959,13 @@ protected:
                             CompareKeys(nextEndpoint.Key, endpoint.Key, prefixLength) == 0)
                         {
                             i64 dataSize;
-                            GetStatistics(*nextEndpoint.InputChunk, &dataSize);
-                            if (IsLargeCompleteChunk(*nextEndpoint.InputChunk)) {
+                            GetStatistics(*nextEndpoint.ChunkSpec, &dataSize);
+                            if (IsLargeCompleteChunk(*nextEndpoint.ChunkSpec)) {
                                 completeLargeManiacSize += dataSize;
-                                completeLargeChunks.push_back(nextEndpoint.InputChunk);
+                                completeLargeChunks.push_back(nextEndpoint.ChunkSpec);
                             } else {
                                 partialManiacSize += dataSize;
-                                partialChunks.push_back(nextEndpoint.InputChunk);
+                                partialChunks.push_back(nextEndpoint.ChunkSpec);
                             }
                         } else {
                             break;
@@ -1110,12 +1118,16 @@ private:
         return result;
     }
 
-    virtual bool IsPassthroughChunk(const TInputChunk& inputChunk) override
+    virtual bool IsPassthroughChunk(const TChunkSpec& chunkSpec) override
     {
+        // COMPAT(psushin)
         if (!Spec->AllowPassthroughChunks)
             return false;
 
-        return IsPassthroughChunkImpl(inputChunk, Spec->CombineChunks);
+        if (Spec->ForceTransform)
+            return false;
+
+        return IsPassthroughChunkImpl(chunkSpec, Spec->CombineChunks);
     }
 
     virtual void DoInitialize() override
@@ -1129,15 +1141,16 @@ private:
 
     virtual bool AllowPassthroughChunks() override
     {
-        return Spec->AllowPassthroughChunks;
+        // COMPAT(psushin)
+        return Spec->AllowPassthroughChunks && !Spec->ForceTransform;
     }
 
-    virtual bool IsLargeEnoughToPassthrough(const TInputChunk& inputChunk) override
+    virtual bool IsLargeEnoughToPassthrough(const TChunkSpec& chunkSpec) override
     {
         if (!Spec->CombineChunks)
             return true;
 
-        return IsLargeChunk(inputChunk);
+        return IsLargeChunk(chunkSpec);
     }
 
     virtual TNullable< std::vector<Stroka> > GetSpecKeyColumns() override
@@ -1209,7 +1222,7 @@ private:
         return result;
     }
 
-    virtual bool IsPassthroughChunk(const TInputChunk& inputChunk) override
+    virtual bool IsPassthroughChunk(const TChunkSpec& chunkSpec) override
     {
         YUNREACHABLE();
     }
@@ -1229,9 +1242,9 @@ private:
         return Spec->Reducer->MemoryLimit;
     }
 
-    virtual bool IsLargeEnoughToPassthrough(const TInputChunk& inputChunk) override
+    virtual bool IsLargeEnoughToPassthrough(const TChunkSpec& chunkSpec) override
     {
-        UNUSED(inputChunk);
+        UNUSED(chunkSpec);
         YUNREACHABLE();
     }
 

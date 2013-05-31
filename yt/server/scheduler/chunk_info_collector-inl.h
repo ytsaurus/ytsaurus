@@ -25,7 +25,7 @@ TChunkInfoCollector<TFetcher>::TChunkInfoCollector(
 
 template <class TFetcher>
 void TChunkInfoCollector<TFetcher>::AddChunk(
-    NChunkClient::TRefCountedInputChunkPtr chunk)
+    NChunkClient::TRefCountedChunkSpecPtr chunk)
 {
     YCHECK(UnfetchedChunkIndexes.insert(static_cast<int>(Chunks.size())).second);
     Chunks.push_back(chunk);

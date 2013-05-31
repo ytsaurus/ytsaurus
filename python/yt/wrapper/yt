@@ -401,6 +401,22 @@ def add_abort_op_parser(add_parser):
     parser.add_argument("op")
     parser.set_defaults(func=abort_op)
 
+def suspend_op(args):
+    yt.suspend_operation(args.op)
+
+def add_suspend_op_parser(add_parser):
+    parser = add_parser("suspend-op", help="suspend operation")
+    parser.add_argument("op")
+    parser.set_defaults(func=suspend_op)
+
+def resume_op(args):
+    yt.resume_operation(args.op)
+
+def add_resume_op_parser(add_parser):
+    parser = add_parser("resume-op", help="resume operation")
+    parser.add_argument("op")
+    parser.set_defaults(func=resume_op)
+
 def track_op(args):
     yt.config.KEYBOARD_ABORT = False
     yt.WaitStrategy().process_operation("unknown", args.op)
@@ -486,6 +502,8 @@ def main():
     add_reduce_parser(add_parser)
     add_map_reduce_parser(add_parser)
     add_abort_op_parser(add_parser)
+    add_suspend_op_parser(add_parser)
+    add_resume_op_parser(add_parser)
     add_track_op_parser(add_parser)
     add_start_tx_parser(add_parser)
     add_abort_tx_parser(add_parser)

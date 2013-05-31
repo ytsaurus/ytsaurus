@@ -272,12 +272,12 @@ void TMultiChunkSequentialWriter<TChunkWriter>::FinishCurrentSession()
 
         Provider->OnChunkFinished();
 
-        NChunkClient::NProto::TInputChunk inputChunk;
-        ToProto(inputChunk.mutable_chunk_id(), CurrentSession.ChunkId);
+        NChunkClient::NProto::TChunkSpec chunkSpec;
+        ToProto(chunkSpec.mutable_chunk_id(), CurrentSession.ChunkId);
 
         TGuard<TSpinLock> guard(WrittenChunksGuard);
         int chunkIndex = WrittenChunks.size();
-        WrittenChunks.push_back(inputChunk);
+        WrittenChunks.push_back(chunkSpec);
 
         auto finishResult = NewPromise<TError>();
         CloseChunksAwaiter->Await(finishResult.ToFuture(), BIND(
@@ -343,10 +343,10 @@ void TMultiChunkSequentialWriter<TChunkWriter>::OnChunkClosed(
     {
         // Initialize the entry earlier prepared in FinishCurrentSession.
         TGuard<TSpinLock> guard(WrittenChunksGuard);
-        auto& inputChunk = WrittenChunks[chunkIndex];
-        NYT::ToProto(inputChunk.mutable_chunk_id(), currentSession.ChunkId);
-        NYT::ToProto(inputChunk.mutable_replicas(), replicas);
-        *inputChunk.mutable_extensions() = chunkWriter->GetSchedulerMeta().extensions();
+        auto& chunkSpec = WrittenChunks[chunkIndex];
+        NYT::ToProto(chunkSpec.mutable_chunk_id(), currentSession.ChunkId);
+        NYT::ToProto(chunkSpec.mutable_replicas(), replicas);
+        *chunkSpec.mutable_extensions() = chunkWriter->GetSchedulerMeta().extensions();
     }
 
     batchReq->Invoke().Subscribe(BIND(
@@ -422,10 +422,10 @@ void TMultiChunkSequentialWriter<TChunkWriter>::AttachChunks()
     NObjectClient::TObjectServiceProxy objectProxy(MasterChannel);
     auto batchReq = objectProxy.ExecuteBatch();
 
-    FOREACH (const auto& inputChunk, WrittenChunks) {
+    FOREACH (const auto& chunkSpec, WrittenChunks) {
         auto req = TChunkListYPathProxy::Attach(
             NCypressClient::FromObjectId(ParentChunkListId));
-        *req->add_children_ids() = inputChunk.chunk_id();
+        *req->add_children_ids() = chunkSpec.chunk_id();
         NMetaState::GenerateMutationId(req);
         batchReq->AddRequest(req);
     }
@@ -461,7 +461,7 @@ void TMultiChunkSequentialWriter<TChunkWriter>::OnClose(
 }
 
 template <class TChunkWriter>
-const std::vector<NChunkClient::NProto::TInputChunk>& TMultiChunkSequentialWriter<TChunkWriter>::GetWrittenChunks() const
+const std::vector<NChunkClient::NProto::TChunkSpec>& TMultiChunkSequentialWriter<TChunkWriter>::GetWrittenChunks() const
 {
     return WrittenChunks;
 }

@@ -77,10 +77,10 @@ TAsyncError TAsyncTableReader::OpenChunkReader(TTableYPathProxy::TRspFetchPtr fe
     THROW_ERROR_EXCEPTION_IF_FAILED(*fetchRsp, "Error fetching table info");
 
     NodeDirectory->MergeFrom(fetchRsp->node_directory());
-    auto inputChunks = FromProto<NChunkClient::NProto::TInputChunk>(fetchRsp->chunks());
+    auto chunkSpecs = FromProto<NChunkClient::NProto::TChunkSpec>(fetchRsp->chunks());
 
     auto provider = New<TTableChunkReaderProvider>(
-        inputChunks,
+        chunkSpecs,
         Config,
         New<TChunkReaderOptions>());
 
@@ -89,7 +89,7 @@ TAsyncError TAsyncTableReader::OpenChunkReader(TTableYPathProxy::TRspFetchPtr fe
         MasterChannel,
         BlockCache,
         NodeDirectory,
-        std::move(inputChunks),
+        std::move(chunkSpecs),
         provider);
     return Reader->AsyncOpen();
 }

@@ -324,10 +324,10 @@ private:
         TNodeDirectoryBuilder nodeDirectoryBuilder(response->mutable_node_directory());
         nodeDirectoryBuilder.Add(replicas);
 
-        auto* inputChunk = response->add_chunks();
-        ToProto(inputChunk->mutable_replicas(), replicas);
-        ToProto(inputChunk->mutable_chunk_id(), chunk->GetId());
-        inputChunk->mutable_extensions()->CopyFrom(chunk->ChunkMeta().extensions());
+        auto* chunkSpec = response->add_chunks();
+        ToProto(chunkSpec->mutable_replicas(), replicas);
+        ToProto(chunkSpec->mutable_chunk_id(), chunk->GetId());
+        chunkSpec->mutable_extensions()->CopyFrom(chunk->ChunkMeta().extensions());
 
         context->Reply();
     }

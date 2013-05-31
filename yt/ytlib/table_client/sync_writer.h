@@ -39,7 +39,7 @@ struct ISyncWriterUnsafe
     virtual void WriteRowUnsafe(const TRow& row) = 0;
     virtual void WriteRowUnsafe(const TRow& row, const NChunkClient::TNonOwningKey& key) = 0;
 
-    virtual const std::vector<NChunkClient::NProto::TInputChunk>& GetWrittenChunks() const = 0;
+    virtual const std::vector<NChunkClient::NProto::TChunkSpec>& GetWrittenChunks() const = 0;
 
     virtual NNodeTrackerClient::TNodeDirectoryPtr GetNodeDirectory() const= 0;
 
@@ -95,7 +95,7 @@ public:
         return Writer->GetProvider()->GetRowCount();
     }
 
-    virtual const std::vector<NChunkClient::NProto::TInputChunk>& GetWrittenChunks() const override
+    virtual const std::vector<NChunkClient::NProto::TChunkSpec>& GetWrittenChunks() const override
     {
         return Writer->GetWrittenChunks();
     }

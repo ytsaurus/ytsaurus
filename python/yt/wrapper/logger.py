@@ -1,4 +1,5 @@
-import os
+import logger_config
+
 import logging
 from datetime import datetime
 
@@ -26,9 +27,9 @@ class OperationProgressFormatter(logging.Formatter):
             return "{0} ({1:2} min)".format(time, elapsed)
 
 LOGGER = logging.getLogger("YtWrapper")
-LOGGER.setLevel(level=logging.__dict__[os.environ.get("LOG_LEVEL", "INFO")])
+LOGGER.setLevel(level=logging.__dict__[logger_config.LOG_LEVEL])
 
-BASIC_FORMATTER = logging.Formatter("%(asctime)-15s, %(levelname)s: %(message)s")
+BASIC_FORMATTER = logging.Formatter(logger_config.LOG_PATTERN)
 
 def set_formatter(formatter):
     if not LOGGER.handlers:

@@ -498,6 +498,12 @@ private:
             return MakeFuture();
         }
 
+        if (descriptor.file().chunks_size() == 0) {
+            LOG_INFO("Empty user file (FileName: %s)", ~descriptor.file_name());
+            Slot->MakeEmptyFile(descriptor.file_name());
+            return MakeFuture();
+        }
+
         const auto& chunk = descriptor.file().chunks(0);
         auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunk.extensions());
 
@@ -620,7 +626,7 @@ private:
         // TODO(babenko): change this to handle erasure chunks
         auto nodeDirectory = New<TNodeDirectory>();
         nodeDirectory->AddDescriptor(InvalidNodeId, Bootstrap->GetLocalDescriptor());
-        std::vector<NChunkClient::NProto::TInputChunk> chunks;
+        std::vector<NChunkClient::NProto::TChunkSpec> chunks;
         chunks.insert(
             chunks.end(),
             descriptor.table().chunks().begin(),

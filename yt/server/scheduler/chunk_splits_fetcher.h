@@ -7,7 +7,7 @@
 #include <ytlib/logging/tagged_logger.h>
 
 #include <ytlib/chunk_client/data_node_service_proxy.h>
-#include <ytlib/chunk_client/input_chunk.h>
+#include <ytlib/chunk_client/chunk_spec.h>
 
 #include <ytlib/node_tracker_client/public.h>
 
@@ -33,7 +33,7 @@ public:
         const TOperationId& operationId,
         const NTableClient::TKeyColumns& keyColumns);
 
-    void Prepare(const std::vector<NChunkClient::TRefCountedInputChunkPtr>& chunks);
+    void Prepare(const std::vector<NChunkClient::TRefCountedChunkSpecPtr>& chunks);
 
     void CreateNewRequest(const NNodeTrackerClient::TNodeDescriptor& descriptor);
 
@@ -41,16 +41,16 @@ public:
     //! the chunk is already too small for splitting.
     bool AddChunkToRequest(
         NNodeTrackerClient::TNodeId nodeId,
-        NChunkClient::TRefCountedInputChunkPtr inputChunk);
+        NChunkClient::TRefCountedChunkSpecPtr chunkSpec);
 
     TFuture<TResponsePtr> InvokeRequest();
 
     TError ProcessResponseItem(
         TResponsePtr rsp,
         int index,
-        NChunkClient::TRefCountedInputChunkPtr inputChunk);
+        NChunkClient::TRefCountedChunkSpecPtr chunkSpec);
 
-    const std::vector<NChunkClient::TRefCountedInputChunkPtr>& GetChunkSplits();
+    const std::vector<NChunkClient::TRefCountedChunkSpecPtr>& GetChunkSplits();
 
     NLog::TTaggedLogger& GetLogger();
 
@@ -63,7 +63,7 @@ private:
     NLog::TTaggedLogger Logger;
 
     //! All samples fetched so far.
-    std::vector<NChunkClient::TRefCountedInputChunkPtr> ChunkSplits;
+    std::vector<NChunkClient::TRefCountedChunkSpecPtr> ChunkSplits;
 
     NChunkClient::TDataNodeServiceProxy::TReqGetChunkSplitsPtr CurrentRequest;
 

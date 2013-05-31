@@ -3,7 +3,7 @@ package NYT.NScheduler.NProto;
 import "yt/ytlib/node_tracker_client/node.proto";
 import "yt/ytlib/job_tracker_client/job.proto";
 import "yt/ytlib/chunk_client/chunk.proto";
-import "yt/ytlib/chunk_client/input_chunk.proto";
+import "yt/ytlib/chunk_client/chunk_spec.proto";
 import "yt/ytlib/chunk_client/chunk_owner_ypath.proto";
 import "yt/ytlib/table_client/table_chunk_meta.proto";
 import "yt/ytlib/file_client/file_ypath.proto";
@@ -16,7 +16,7 @@ import "yt/ytlib/misc/guid.proto";
 message TTableInputSpec
 {
     // Chunks comprising the input.
-    repeated NYT.NChunkClient.NProto.TInputChunk chunks = 1;
+    repeated NYT.NChunkClient.NProto.TChunkSpec chunks = 1;
 }
 
 // Defines how to store output from a job into a table.
@@ -76,7 +76,7 @@ message TSchedulerJobResultExt
 
     // List of output chunks produced by the job.
     // NB: Only filled when neccessary.
-    repeated NYT.NChunkClient.NProto.TInputChunk chunks = 3;
+    repeated NYT.NChunkClient.NProto.TChunkSpec chunks = 3;
 
     optional NYT.NProto.TGuid stderr_chunk_id = 4;
 

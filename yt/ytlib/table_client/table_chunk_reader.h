@@ -5,7 +5,7 @@
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/schema.h>
 #include <ytlib/chunk_client/key.h>
-#include <ytlib/chunk_client/input_chunk.h>
+#include <ytlib/chunk_client/chunk_spec.h>
 
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 
@@ -175,17 +175,17 @@ class TTableChunkReaderProvider
 
 public:
     TTableChunkReaderProvider(
-        const std::vector<NChunkClient::NProto::TInputChunk>& inputChunks,
+        const std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
         const NChunkClient::TSequentialReaderConfigPtr& config,
         const TChunkReaderOptionsPtr& options = New<TChunkReaderOptions>());
 
     TTableChunkReaderPtr CreateReader(
-        const NChunkClient::NProto::TInputChunk& inputChunk,
+        const NChunkClient::NProto::TChunkSpec& chunkSpec,
         const NChunkClient::IAsyncReaderPtr& chunkReader);
 
     void OnReaderOpened(
         TTableChunkReaderPtr reader,
-        NChunkClient::NProto::TInputChunk& inputChunk);
+        NChunkClient::NProto::TChunkSpec& chunkSpec);
 
     void OnReaderFinished(TTableChunkReaderPtr reader);
 

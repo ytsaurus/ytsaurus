@@ -18,7 +18,7 @@ set( SRCS
   ${BASE}/sequential_reader.cpp
   ${BASE}/key.cpp
   ${BASE}/schema.cpp
-  ${BASE}/input_chunk.cpp
+  ${BASE}/chunk_spec.cpp
 )
 set( HDRS
   ${BASE}/async_reader.h
@@ -55,7 +55,7 @@ set( HDRS
   ${BASE}/sequential_reader.h
   ${BASE}/key.h
   ${BASE}/schema.h
-  ${BASE}/input_chunk.h
+  ${BASE}/chunk_spec.h
   ${BASE}/chunk_service_proxy.h
 )
 
@@ -64,7 +64,7 @@ list(APPEND YT_SOURCE_FILES
   ${HDRS}
 )
 
-protoc( ${BASE}/input_chunk.proto YT_SOURCE_FILES )
+protoc( ${BASE}/chunk_spec.proto YT_SOURCE_FILES )
 protoc( ${BASE}/job.proto YT_SOURCE_FILES )
 protoc( ${BASE}/chunk.proto YT_SOURCE_FILES )
 protoc( ${BASE}/chunk_owner_ypath.proto YT_SOURCE_FILES )

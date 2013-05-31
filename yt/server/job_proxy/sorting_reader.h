@@ -6,7 +6,7 @@
 
 #include <ytlib/chunk_client/public.h>
 
-#include <ytlib/chunk_client/input_chunk.h>
+#include <ytlib/chunk_client/chunk_spec.h>
 
 #include <ytlib/node_tracker_client/public.h>
 
@@ -24,7 +24,7 @@ NTableClient::ISyncReaderPtr CreateSortingReader(
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const NTableClient::TKeyColumns& keyColumns,
     TClosure onNetworkReleased,
-    std::vector<NChunkClient::NProto::TInputChunk>&& chunks,
+    std::vector<NChunkClient::NProto::TChunkSpec>&& chunks,
     int estimatedRowCount,
     bool isApproximate);
 

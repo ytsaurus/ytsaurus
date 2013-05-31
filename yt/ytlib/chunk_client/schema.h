@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/chunk_client/input_chunk.pb.h>
+#include <ytlib/chunk_client/chunk_spec.pb.h>
 
 #include <ytlib/ytree/public.h>
 #include <ytlib/yson/consumer.h>

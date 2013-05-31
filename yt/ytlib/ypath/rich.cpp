@@ -12,7 +12,7 @@
 
 #include <ytlib/chunk_client/key.h>
 #include <ytlib/chunk_client/schema.h>
-#include <ytlib/chunk_client/input_chunk.pb.h>
+#include <ytlib/chunk_client/chunk_spec.pb.h>
 
 namespace NYT {
 

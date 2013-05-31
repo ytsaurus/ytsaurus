@@ -53,7 +53,7 @@ public:
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         const TKeyColumns& keyColumns,
         TClosure onNetworkReleased,
-        std::vector<NChunkClient::NProto::TInputChunk>&& chunks,
+        std::vector<NChunkClient::NProto::TChunkSpec>&& chunks,
         int estimatedRowCount,
         bool isApproximate)
         : KeyColumns(keyColumns)
@@ -477,7 +477,7 @@ ISyncReaderPtr CreateSortingReader(
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const TKeyColumns& keyColumns,
     TClosure onNetworkReleased,
-    std::vector<NChunkClient::NProto::TInputChunk>&& chunks,
+    std::vector<NChunkClient::NProto::TChunkSpec>&& chunks,
     int estimatedRowCount,
     bool isApproximate)
 {

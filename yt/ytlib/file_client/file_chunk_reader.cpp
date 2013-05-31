@@ -222,19 +222,19 @@ TFileChunkReaderProvider::TFileChunkReaderProvider(
 { }
 
 TFileChunkReaderPtr TFileChunkReaderProvider::CreateReader(
-    const NChunkClient::NProto::TInputChunk& inputChunk,
+    const NChunkClient::NProto::TChunkSpec& chunkSpec,
     const NChunkClient::IAsyncReaderPtr& chunkReader)
 {
-    auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(inputChunk.extensions());
+    auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunkSpec.extensions());
 
     i64 startOffset = 0;
-    if (inputChunk.has_start_limit() && inputChunk.start_limit().has_offset()) {
-        startOffset = inputChunk.start_limit().offset();
+    if (chunkSpec.has_start_limit() && chunkSpec.start_limit().has_offset()) {
+        startOffset = chunkSpec.start_limit().offset();
     }
 
     i64 endOffset = std::numeric_limits<i64>::max();
-    if (inputChunk.has_end_limit() && inputChunk.end_limit().has_offset()) {
-        endOffset = inputChunk.end_limit().offset();
+    if (chunkSpec.has_end_limit() && chunkSpec.end_limit().has_offset()) {
+        endOffset = chunkSpec.end_limit().offset();
     }
 
     LOG_INFO(
@@ -252,10 +252,10 @@ TFileChunkReaderPtr TFileChunkReaderProvider::CreateReader(
 
 void TFileChunkReaderProvider::OnReaderOpened(
     TFileChunkReaderPtr reader,
-    NChunkClient::NProto::TInputChunk& inputChunk)
+    NChunkClient::NProto::TChunkSpec& chunkSpec)
 {
     UNUSED(reader);
-    UNUSED(inputChunk);
+    UNUSED(chunkSpec);
 }
 
 void TFileChunkReaderProvider::OnReaderFinished(TFileChunkReaderPtr reader)

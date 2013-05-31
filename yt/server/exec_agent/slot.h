@@ -46,6 +46,8 @@ public:
         NYTree::TYsonProducer producer,
         const NFormats::TFormat& format);
 
+    void MakeEmptyFile(const Stroka& fileName);
+
     const Stroka& GetWorkingDirectory() const;
 
 private:

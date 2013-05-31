@@ -14,22 +14,22 @@ TMultiChunkSequentialReader<TChunkReader>::TMultiChunkSequentialReader(
     NRpc::IChannelPtr masterChannel,
     NChunkClient::IBlockCachePtr blockCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
-    std::vector<NChunkClient::NProto::TInputChunk>&& inputChunks,
+    std::vector<NChunkClient::NProto::TChunkSpec>&& chunkSpecs,
     typename TBase::TProviderPtr readerProvider)
     : TMultiChunkReaderBase<TChunkReader>(
         config,
         masterChannel,
         blockCache,
         nodeDirectory,
-        std::move(inputChunks),
+        std::move(chunkSpecs),
         readerProvider)
     , CurrentReaderIndex(-1)
 {
     LOG_DEBUG("Multi chunk sequential reader created (ChunkCount: %d)",
-        static_cast<int>(InputChunks.size()));
+        static_cast<int>(ChunkSpecs.size()));
 
-    Sessions.reserve(InputChunks.size());
-    for (int i = 0; i < static_cast<int>(InputChunks.size()); ++i) {
+    Sessions.reserve(ChunkSpecs.size());
+    for (int i = 0; i < static_cast<int>(ChunkSpecs.size()); ++i) {
         Sessions.push_back(NewPromise<typename TBase::TSession>());
     }
 }
@@ -46,7 +46,7 @@ TAsyncError TMultiChunkSequentialReader<TChunkReader>::AsyncOpen()
 
     ++CurrentReaderIndex;
 
-    if (CurrentReaderIndex < InputChunks.size()) {
+    if (CurrentReaderIndex < ChunkSpecs.size()) {
         State.StartOperation();
         Sessions[CurrentReaderIndex].Subscribe(
             BIND(&TMultiChunkSequentialReader<TChunkReader>::SwitchCurrentChunk, MakeWeak(this))
@@ -102,7 +102,7 @@ bool TMultiChunkSequentialReader<TChunkReader>::ValidateReader()
         CurrentSession = typename TBase::TSession();
 
         ++CurrentReaderIndex;
-        if (CurrentReaderIndex < InputChunks.size()) {
+        if (CurrentReaderIndex < ChunkSpecs.size()) {
             if (!State.HasRunningOperation())
                 State.StartOperation();
 

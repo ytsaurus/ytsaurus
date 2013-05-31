@@ -2,7 +2,7 @@ package NYT.NChunkClient.NProto;
 
 // Basic ypath-rpc for all types of chunk list owners.
 
-import "yt/ytlib/chunk_client/input_chunk.proto";
+import "yt/ytlib/chunk_client/chunk_spec.proto";
 import "yt/ytlib/misc/guid.proto";
 import "yt/ytlib/node_tracker_client/node.proto";
 import "yt/ytlib/chunk_client/chunk.proto";
@@ -43,7 +43,7 @@ message TReqFetch
 message TRspFetch
 {
     required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 1;
-    repeated NChunkClient.NProto.TInputChunk chunks = 2;
+    repeated NChunkClient.NProto.TChunkSpec chunks = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

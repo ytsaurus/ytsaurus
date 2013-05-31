@@ -53,7 +53,7 @@ NLog::TTaggedLogger& TSamplesFetcher::GetLogger()
     return Logger;
 }
 
-void TSamplesFetcher::Prepare(const std::vector<TRefCountedInputChunkPtr>& chunks)
+void TSamplesFetcher::Prepare(const std::vector<TRefCountedChunkSpecPtr>& chunks)
 {
     YCHECK(DesiredSampleCount > 0);
 
@@ -95,7 +95,7 @@ void TSamplesFetcher::CreateNewRequest(const TNodeDescriptor& descriptor)
 
 bool TSamplesFetcher::AddChunkToRequest(
     TNodeId nodeId,
-    TRefCountedInputChunkPtr chunk)
+    TRefCountedChunkSpecPtr chunk)
 {
     i64 chunkDataSize;
     GetStatistics(*chunk, &chunkDataSize);
@@ -128,7 +128,7 @@ auto TSamplesFetcher::InvokeRequest() -> TFuture<TResponsePtr>
 TError TSamplesFetcher::ProcessResponseItem(
     TResponsePtr rsp,
     int index,
-    TRefCountedInputChunkPtr chunk)
+    TRefCountedChunkSpecPtr chunk)
 {
     YCHECK(rsp->IsOK());
 

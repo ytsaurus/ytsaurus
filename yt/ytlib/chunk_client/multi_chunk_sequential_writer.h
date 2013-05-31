@@ -8,7 +8,7 @@
 
 #include <ytlib/actions/parallel_awaiter.h>
 
-#include <ytlib/chunk_client/input_chunk.pb.h>
+#include <ytlib/chunk_client/chunk_spec.pb.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
 #include <ytlib/object_client/master_ypath_proxy.h>
@@ -55,7 +55,7 @@ public:
     /*!
      *  To get consistent data, should be called only when the writer is closed.
      */
-    const std::vector<NChunkClient::NProto::TInputChunk>& GetWrittenChunks() const;
+    const std::vector<NChunkClient::NProto::TChunkSpec>& GetWrittenChunks() const;
 
     //! Provides node id to descriptor mapping for chunks returned via #GetWrittenChunks.
     NNodeTrackerClient::TNodeDirectoryPtr GetNodeDirectory() const;
@@ -144,7 +144,7 @@ protected:
     TParallelAwaiterPtr CloseChunksAwaiter;
 
     TSpinLock WrittenChunksGuard;
-    std::vector<NChunkClient::NProto::TInputChunk> WrittenChunks;
+    std::vector<NChunkClient::NProto::TChunkSpec> WrittenChunks;
 
     NLog::TTaggedLogger Logger;
 

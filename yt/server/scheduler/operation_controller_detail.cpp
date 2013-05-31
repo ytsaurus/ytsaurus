@@ -14,7 +14,7 @@
 #include <ytlib/chunk_client/key.h>
 #include <ytlib/chunk_client/schema.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/chunk_client/input_chunk.h>
+#include <ytlib/chunk_client/chunk_spec.h>
 
 #include <ytlib/erasure/codec.h>
 
@@ -430,17 +430,17 @@ void TOperationControllerBase::TTask::AddChunksToInputSpec(
     bool enableTableIndex)
 {
     FOREACH (const auto& chunkSlice, stripe->ChunkSlices) {
-        auto* inputChunk = inputSpec->add_chunks();
-        ToProto(inputChunk, *chunkSlice);
-        FOREACH (ui32 protoReplica, chunkSlice->GetInputChunk()->replicas()) {
+        auto* chunkSpec = inputSpec->add_chunks();
+        ToProto(chunkSpec, *chunkSlice);
+        FOREACH (ui32 protoReplica, chunkSlice->GetChunkSpec()->replicas()) {
             auto replica = FromProto<TChunkReplica>(protoReplica);
             directoryBuilder->Add(replica);
         }
         if (!enableTableIndex) {
-            inputChunk->clear_table_index();
+            chunkSpec->clear_table_index();
         }
         if (partitionTag) {
-            inputChunk->set_partition_tag(partitionTag.Get());
+            chunkSpec->set_partition_tag(partitionTag.Get());
         }
     }
 }
@@ -546,11 +546,11 @@ void TOperationControllerBase::TTask::RegisterIntermediate(
 }
 
 TChunkStripePtr TOperationControllerBase::TTask::BuildIntermediateChunkStripe(
-    google::protobuf::RepeatedPtrField<NChunkClient::NProto::TInputChunk>* inputChunks)
+    google::protobuf::RepeatedPtrField<NChunkClient::NProto::TChunkSpec>* chunkSpecs)
 {
     auto stripe = New<TChunkStripe>();
-    FOREACH (auto& inputChunk, *inputChunks) {
-        auto chunkSlice = CreateChunkSlice(New<TRefCountedInputChunk>(std::move(inputChunk)));
+    FOREACH (auto& chunkSpec, *chunkSpecs) {
+        auto chunkSlice = CreateChunkSlice(New<TRefCountedChunkSpec>(std::move(chunkSpec)));
         stripe->ChunkSlices.push_back(chunkSlice);
     }
     return stripe;
@@ -819,11 +819,11 @@ void TOperationControllerBase::OnChunkFailed(const TChunkId& chunkId)
         OnIntermediateChunkFailed(chunkId);
     } else {
         LOG_WARNING("Input chunk %s has failed", ~ToString(chunkId));
-        OnInputChunkFailed(chunkId);
+        OnChunkSpecFailed(chunkId);
     }
 }
 
-void TOperationControllerBase::OnInputChunkFailed(const TChunkId& chunkId)
+void TOperationControllerBase::OnChunkSpecFailed(const TChunkId& chunkId)
 {
     OnOperationFailed(TError("Unable to read input chunk %s", ~ToString(chunkId)));
 }
@@ -991,7 +991,7 @@ void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, const Stroka& 
 void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, TChunkStripePtr stripe)
 {
     FOREACH (const auto& chunkSlice, stripe->ChunkSlices) {
-        FOREACH (ui32 protoReplica, chunkSlice->GetInputChunk()->replicas()) {
+        FOREACH (ui32 protoReplica, chunkSlice->GetChunkSpec()->replicas()) {
             auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
 
             if (chunkSlice->GetLocality(replica.GetIndex()) > 0) {
@@ -2138,13 +2138,13 @@ TAsyncPipeline<void>::TPtr TOperationControllerBase::CustomizePreparationPipelin
     return pipeline;
 }
 
-std::vector<TRefCountedInputChunkPtr> TOperationControllerBase::CollectInputChunks() const
+std::vector<TRefCountedChunkSpecPtr> TOperationControllerBase::CollectInputChunks() const
 {
-    std::vector<TRefCountedInputChunkPtr> result;
+    std::vector<TRefCountedChunkSpecPtr> result;
     for (int tableIndex = 0; tableIndex < InputTables.size(); ++tableIndex) {
         const auto& table = InputTables[tableIndex];
-        FOREACH (const auto& inputChunk, table.FetchResponse->chunks()) {
-            auto chunk = New<TRefCountedInputChunk>(inputChunk);
+        FOREACH (const auto& chunkSpec, table.FetchResponse->chunks()) {
+            auto chunk = New<TRefCountedChunkSpec>(chunkSpec);
             chunk->set_table_index(tableIndex);
             result.push_back(chunk);
         }
@@ -2152,19 +2152,19 @@ std::vector<TRefCountedInputChunkPtr> TOperationControllerBase::CollectInputChun
     return result;
 }
 
-std::vector<TInputChunkSlicePtr> TOperationControllerBase::CollectInputChunkSlices() const
+std::vector<TChunkSlicePtr> TOperationControllerBase::CollectInputChunkSlices() const
 {
-    std::vector<TInputChunkSlicePtr> result;
-    FOREACH (const auto& inputChunk, CollectInputChunks()) {
+    std::vector<TChunkSlicePtr> result;
+    FOREACH (const auto& chunkSpec, CollectInputChunks()) {
         bool hasNontrivialLimits =
-            (inputChunk->has_start_limit() && IsNontrivial(inputChunk->start_limit())) ||
-            (inputChunk->has_end_limit() && IsNontrivial(inputChunk->end_limit()));
+            (chunkSpec->has_start_limit() && IsNontrivial(chunkSpec->start_limit())) ||
+            (chunkSpec->has_end_limit() && IsNontrivial(chunkSpec->end_limit()));
 
-        auto codecId = NErasure::ECodec(inputChunk->erasure_codec());
+        auto codecId = NErasure::ECodec(chunkSpec->erasure_codec());
         if (hasNontrivialLimits || codecId == NErasure::ECodec::None) {
-            result.push_back(CreateChunkSlice(inputChunk));
+            result.push_back(CreateChunkSlice(chunkSpec));
         } else {
-            AppendErasureChunkSlices(inputChunk, codecId, &result);
+            AppendErasureChunkSlices(chunkSpec, codecId, &result);
         }
     }
     return result;
@@ -2185,7 +2185,7 @@ std::vector<TChunkStripePtr> TOperationControllerBase::SliceInputChunks(i64 maxS
             stripes.push_back(stripe);
         }
         LOG_TRACE("Slicing chunk (ChunkId: %s, SliceCount: %d)",
-            ~ToString(FromProto<TChunkId>(inputSlice->GetInputChunk()->chunk_id())),
+            ~ToString(FromProto<TChunkId>(inputSlice->GetChunkSpec()->chunk_id())),
             static_cast<int>(chunkSlices.size()));
     }
 
@@ -2322,7 +2322,7 @@ void TOperationControllerBase::RegisterIntermediate(
     TChunkStripePtr stripe)
 {
     FOREACH (const auto& chunkSlice, stripe->ChunkSlices) {
-        auto chunkId = FromProto<TChunkId>(chunkSlice->GetInputChunk()->chunk_id());
+        auto chunkId = FromProto<TChunkId>(chunkSlice->GetChunkSpec()->chunk_id());
         YCHECK(ChunkOriginMap.insert(std::make_pair(chunkId, completedJob)).second);
 
         if (IsIntermediateLivePreviewSupported()) {
