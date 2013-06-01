@@ -17,7 +17,7 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
 
-    yt.config.PROXY = args.proxy
+    yt.config.set_proxy(args.proxy)
 
     sizes = []
     tables_to_merge = []
