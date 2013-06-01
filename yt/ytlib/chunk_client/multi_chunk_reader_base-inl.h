@@ -36,6 +36,7 @@ TMultiChunkReaderBase<TChunkReader>::TMultiChunkReaderBase(
     const TProviderPtr& readerProvider)
     : IsFetchingComplete_(false)
     , Config(config)
+    , PrefetchWindow(0)
     , MasterChannel(masterChannel)
     , BlockCache(blockCache)
     , NodeDirectory(nodeDirectory)
@@ -52,6 +53,18 @@ TMultiChunkReaderBase<TChunkReader>::TMultiChunkReaderBase(
         i64 dataSize;
         NChunkClient::GetStatistics(chunkSpec, &dataSize);
         chunkDataSizes.push_back(dataSize);
+
+        if (IsUnavailable(chunkSpec)) {
+            auto chunkId = NYT::FromProto<TChunkId>(chunkSpec.chunk_id());
+            FailedChunks.push_back(chunkId);
+
+            auto error = TError(
+                "Chunk is unavailable (ChunkId: %s)",
+                ~ToString(chunkId));
+            LOG_ERROR(error);
+            State.Fail(error);
+            return;
+        }
     }
 
     if (ReaderProvider->KeepInMemory()) {
@@ -75,8 +88,7 @@ TMultiChunkReaderBase<TChunkReader>::TMultiChunkReaderBase(
         PrefetchWindow = std::min(PrefetchWindow, MaxPrefetchWindow);
         PrefetchWindow = std::max(PrefetchWindow, 1);
     }
-    LOG_DEBUG("Preparing reader (PrefetchWindow: %d)",
-        PrefetchWindow);
+    LOG_DEBUG("Preparing reader (PrefetchWindow: %d)", PrefetchWindow);
 }
 
 template <class TChunkReader>
@@ -124,7 +136,7 @@ void TMultiChunkReaderBase<TChunkReader>::PrepareNextChunk()
 
         {
             auto it = replicas.begin();
-            while (it != replicas.end()) {
+            while (it != replicas.end() && it->GetIndex() < dataPartCount) {
                 auto jt = it;
                 while (jt != replicas.end() && it->GetIndex() == jt->GetIndex()) {
                     ++jt;

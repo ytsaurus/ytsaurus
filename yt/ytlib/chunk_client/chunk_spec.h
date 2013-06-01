@@ -65,31 +65,31 @@ private:
         const TNullable<NProto::TKey>& startKey,
         const TNullable<NProto::TKey>& endKey);
 
-    friend void AppendErasureChunkSlices(
+    friend std::vector<TChunkSlicePtr> CreateErasureChunkSlices(
         TRefCountedChunkSpecPtr chunkSpec,
-        NErasure::ECodec codecId,
-        std::vector<TChunkSlicePtr>* slices);
+        NErasure::ECodec codecId);
 
 };
 
-//! Constructs a new chunk slice from the original chunk one and restricting
+//! Constructs a new chunk slice from the original one, restricting
 //! it to a given range. The original chunk may already contain non-trivial limits.
 TChunkSlicePtr CreateChunkSlice(
     TRefCountedChunkSpecPtr chunkSpec,
     const TNullable<NProto::TKey>& startKey = Null,
     const TNullable<NProto::TKey>& endKey = Null);
 
-//! Constructs separate chunk slice for each part of erasure chunk. Pushes
-void AppendErasureChunkSlices(
+//! Constructs separate chunk slice for each part of erasure chunk.
+std::vector<TChunkSlicePtr> CreateErasureChunkSlices(
     TRefCountedChunkSpecPtr chunkSpec,
-    NErasure::ECodec codecId,
-    std::vector<TChunkSlicePtr>* slices);
+    NErasure::ECodec codecId);
 
 void ToProto(NProto::TChunkSpec* chunkSpec, const TChunkSlice& chunkSlice);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 bool IsNontrivial(const NProto::TReadLimit& limit);
+
+bool IsUnavailable(const NProto::TChunkSpec& chunkSpec);
 
 //! Extracts various chunk statistics by first looking at
 //! TSizeOverrideExt (if present) and then at TMiscExt.

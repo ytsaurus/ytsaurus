@@ -156,17 +156,6 @@ bool TFetchChunkVisitor::OnChunk(
         return false;
     }
 
-    if (!chunk->IsAvailable())  {
-        if (Context->Request().skip_unavailable_chunks()) {
-            // Just ignore this chunk.
-            return true;
-        } else {
-            ReplyError(TError("Chunk %s is unavailable",
-                ~ToString(chunk->GetId())));
-            return false;
-        }
-    }
-
     auto* chunkSpec = Context->Response().add_chunks();
 
     if (!Channel.IsUniversal()) {

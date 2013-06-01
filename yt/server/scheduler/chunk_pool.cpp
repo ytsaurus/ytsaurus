@@ -3,6 +3,7 @@
 #include "private.h"
 
 #include <ytlib/misc/id_generator.h>
+#include <ytlib/misc/property.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
@@ -57,9 +58,11 @@ void AddStripeToList(
 ////////////////////////////////////////////////////////////////////
 
 TChunkStripe::TChunkStripe()
+    : WaitingChunkCount(0)
 { }
 
 TChunkStripe::TChunkStripe(TChunkSlicePtr chunkSlice)
+    : WaitingChunkCount(0)
 {
     ChunkSlices.push_back(chunkSlice);
 }
@@ -181,13 +184,17 @@ protected:
 
 class TSuspendableStripe
 {
+    DEFINE_BYVAL_RW_PROPERTY(IChunkPoolOutput::TCookie, ExtractedCookie);
+
 public:
     TSuspendableStripe()
-        : Suspended(false)
+        : ExtractedCookie_(IChunkPoolOutput::NullCookie)
+        , Suspended(false)
     { }
 
     explicit TSuspendableStripe(TChunkStripePtr stripe)
-        : Stripe(std::move(stripe))
+        : ExtractedCookie_(IChunkPoolOutput::NullCookie)
+        , Stripe(std::move(stripe))
         , Suspended(false)
         , Statistics(Stripe->GetStatistics())
     { }
@@ -210,12 +217,17 @@ public:
         Suspended = true;
     }
 
+    bool IsSuspended() const
+    {
+        return Suspended;
+    }
+
     void Resume(TChunkStripePtr stripe)
     {
         YCHECK(Stripe);
         YCHECK(Suspended);
 
-        Statistics = stripe->GetStatistics();
+        // NB: do not update statistics on resume to preserve counters.
         Suspended = false;
         Stripe = stripe;
     }
@@ -485,6 +497,8 @@ public:
         TNodeDirectoryPtr nodeDirectory,
         int jobCount)
         : TChunkPoolInputBase(nodeDirectory)
+        , SuspendedStripeCount(0)
+        , UnavailableLostCookieCount(0)
     {
         JobCounter.Set(jobCount);
     }
@@ -495,7 +509,7 @@ public:
     {
         YCHECK(!Finished);
 
-        auto cookie = IChunkPoolInput::TCookie(Stripes.size());
+        auto cookie = Stripes.size();
 
         TSuspendableStripe suspendableStripe(stripe);
         Stripes.push_back(suspendableStripe);
@@ -503,22 +517,55 @@ public:
         DataSizeCounter.Increment(suspendableStripe.GetStatistics().DataSize);
         RowCounter.Increment(suspendableStripe.GetStatistics().RowCount);
 
-        Register(stripe);
+        Register(cookie);
 
         return cookie;
     }
 
     virtual void Suspend(IChunkPoolInput::TCookie cookie) override
     {
-        UNUSED(cookie);
-        YUNREACHABLE();
+        auto& suspendableStripe = Stripes[cookie];
+        suspendableStripe.Suspend();
+
+        auto outputCookie = suspendableStripe.GetExtractedCookie();
+        if (outputCookie == IChunkPoolOutput::NullCookie) {
+            Unregister(cookie);
+            ++SuspendedStripeCount;
+        } else {
+            auto it = ExtractedLists.find(outputCookie);
+            YCHECK(it != ExtractedLists.end());
+            auto& extractedStripeList = it->second;
+
+            if (LostCookies.find(outputCookie) != LostCookies.end() &&
+                extractedStripeList.UnavailableStripeCount == 0)
+            {
+                ++UnavailableLostCookieCount;
+            }
+            ++extractedStripeList.UnavailableStripeCount;
+        }
     }
 
     virtual void Resume(IChunkPoolInput::TCookie cookie, TChunkStripePtr stripe) override
     {
-        UNUSED(cookie);
-        UNUSED(stripe);
-        YUNREACHABLE();
+        auto& suspendableStripe = Stripes[cookie];
+        suspendableStripe.Resume(stripe);
+
+        auto outputCookie = suspendableStripe.GetExtractedCookie();
+        if (outputCookie == IChunkPoolOutput::NullCookie) {
+            Register(cookie);
+            --SuspendedStripeCount;
+        } else {
+            auto it = ExtractedLists.find(outputCookie);
+            YCHECK(it != ExtractedLists.end());
+            auto& extractedStripeList = it->second;
+            --extractedStripeList.UnavailableStripeCount;
+
+            if (LostCookies.find(outputCookie) != LostCookies.end() &&
+                extractedStripeList.UnavailableStripeCount == 0)
+            {
+                --UnavailableLostCookieCount;
+            }
+        }
     }
 
     // IChunkPoolOutput implementation.
@@ -527,7 +574,8 @@ public:
     {
         return Finished &&
                LostCookies.empty() &&
-               PendingGlobalChunks.empty() &&
+               SuspendedStripeCount == 0 &&
+               PendingGlobalStripes.empty() &&
                JobCounter.GetRunning() == 0;
     }
 
@@ -542,22 +590,28 @@ public:
         // that some jobs are pending. This may happen due to unevenness
         // of workload partitioning and cause the task to start less jobs than
         // suggested.
-        return LostCookies.empty() && PendingGlobalChunks.empty() ? 0 : JobCounter.GetPending();
+
+        return (PendingGlobalStripes.empty() && UnavailableLostCookieCount == LostCookies.size())
+            ? 0
+            : JobCounter.GetPending();
     }
 
     virtual TChunkStripeStatisticsVector GetApproximateStripeStatistics() const override
     {
         if (!ExtractedLists.empty()) {
-            auto stripeList = ExtractedLists.begin()->second;
-            return stripeList->GetStatistics();
+            TChunkStripeStatisticsVector result;
+            FOREACH(const auto& index, ExtractedLists.begin()->second.StripeIndexes) {
+                result.push_back(Stripes[index].GetStripe()->GetStatistics());
+            }
+            return result;
         }
 
         TChunkStripeStatistics stat;
         // Typically unordered pool has one chunk per stripe.
-        // NB: Cannot estimate MaxBlockSize here.
+        // NB: Cannot estimate MaxBlockSize to fill stat field here.
         stat.ChunkCount = std::max(
             static_cast<i64>(1),
-            static_cast<i64>(PendingGlobalChunks.size()) / GetPendingJobCount());
+            static_cast<i64>(PendingGlobalStripes.size()) / GetPendingJobCount());
         stat.DataSize = std::max(
             static_cast<i64>(1),
             GetPendingDataSize() / GetPendingJobCount());
@@ -587,36 +641,48 @@ public:
         TChunkStripeListPtr list;
         IChunkPoolOutput::TCookie cookie;
 
-        if (LostCookies.empty()) {
+        if (LostCookies.size() == UnavailableLostCookieCount) {
             cookie = OutputCookieGenerator.Next();
+            auto pair = ExtractedLists.insert(std::make_pair(cookie, TExtractedStripeList()));
+            YCHECK(pair.second);
+            auto& extractedStripeList = pair.first->second;
+
             list = New<TChunkStripeList>();
-            YCHECK(ExtractedLists.insert(std::make_pair(cookie, list)).second);
+            extractedStripeList.StripeList = list;
 
             // Take local chunks first.
             auto it = PendingLocalChunks.find(address);
             if (it != PendingLocalChunks.end()) {
                 const auto& entry = it->second;
                 AddAndUnregisterStripes(
-                    list,
-                    entry.Stripes.begin(),
-                    entry.Stripes.end(),
+                    extractedStripeList,
+                    cookie,
+                    entry.StripeIndexes.begin(),
+                    entry.StripeIndexes.end(),
                     address);
             }
 
             // Take non-local chunks.
             AddAndUnregisterStripes(
-                list,
-                PendingGlobalChunks.begin(),
-                PendingGlobalChunks.end(),
+                extractedStripeList,
+                cookie,
+                PendingGlobalStripes.begin(),
+                PendingGlobalStripes.end(),
                 address);
         } else {
             auto lostIt = LostCookies.begin();
-            cookie = *lostIt;
-            LostCookies.erase(lostIt);
-
-            YCHECK(ReplayCookies.insert(cookie).second);
-
-            list = GetStripeList(cookie);
+            while (true) {
+                cookie = *lostIt;
+                auto it = ExtractedLists.find(cookie);
+                YCHECK(it != ExtractedLists.end());
+                if (it->second.UnavailableStripeCount == 0) {
+                    LostCookies.erase(lostIt);
+                    YCHECK(ReplayCookies.insert(cookie).second);
+                    list = GetStripeList(cookie);
+                    break;
+                }
+                YCHECK(++lostIt != LostCookies.end());
+            }
         }
 
         JobCounter.Start(1);
@@ -630,7 +696,7 @@ public:
     {
         auto it = ExtractedLists.find(cookie);
         YCHECK(it != ExtractedLists.end());
-        return it->second;
+        return it->second.StripeList;
     }
 
     virtual void Completed(IChunkPoolOutput::TCookie cookie) override
@@ -647,29 +713,38 @@ public:
 
     virtual void Failed(IChunkPoolOutput::TCookie cookie) override
     {
-        auto list = GetStripeList(cookie);
+        auto it = ExtractedLists.find(cookie);
+        YCHECK(it != ExtractedLists.end());
+        auto& extractedStripeList = it->second;
+        auto list = extractedStripeList.StripeList;
 
         JobCounter.Failed(1);
         DataSizeCounter.Failed(list->TotalDataSize);
         RowCounter.Failed(list->TotalRowCount);
 
-        ReinstallStripeList(list, cookie);
+        ReinstallStripeList(extractedStripeList, cookie);
     }
 
     virtual void Aborted(IChunkPoolOutput::TCookie cookie) override
     {
-        auto list = GetStripeList(cookie);
+        auto it = ExtractedLists.find(cookie);
+        YCHECK(it != ExtractedLists.end());
+        auto& extractedStripeList = it->second;
+        auto list = extractedStripeList.StripeList;
 
         JobCounter.Aborted(1);
         DataSizeCounter.Aborted(list->TotalDataSize);
         RowCounter.Aborted(list->TotalRowCount);
 
-        ReinstallStripeList(list, cookie);
+        ReinstallStripeList(extractedStripeList, cookie);
     }
 
     virtual void Lost(IChunkPoolOutput::TCookie cookie) override
     {
-        auto list = GetStripeList(cookie);
+        auto it = ExtractedLists.find(cookie);
+        YCHECK(it != ExtractedLists.end());
+        auto& extractedStripeList = it->second;
+        auto list = extractedStripeList.StripeList;
 
         // No need to respect locality for restarted jobs.
         list->NonLocalChunkCount += list->LocalChunkCount;
@@ -680,12 +755,19 @@ public:
         RowCounter.Lost(list->TotalRowCount);
 
         YCHECK(LostCookies.insert(cookie).second);
+        if (extractedStripeList.UnavailableStripeCount > 0) {
+            ++UnavailableLostCookieCount;
+        }
     }
 
 private:
     std::vector<TSuspendableStripe> Stripes;
 
-    yhash_set<TChunkStripePtr> PendingGlobalChunks;
+    //! Indexes in #Stripes.
+    yhash_set<int> PendingGlobalStripes;
+
+    i64 SuspendedStripeCount;
+    int UnavailableLostCookieCount;
 
     struct TLocalityEntry
     {
@@ -695,21 +777,38 @@ private:
 
         //! The total locality associated with this address.
         i64 Locality;
-        yhash_set<TChunkStripePtr> Stripes;
+
+        //! Indexes in #Stripes.
+        yhash_set<int> StripeIndexes;
+    };
+
+    struct TExtractedStripeList
+    {
+        TExtractedStripeList()
+            : UnavailableStripeCount(0)
+        { }
+
+        int UnavailableStripeCount;
+        std::vector<int> StripeIndexes;
+        TChunkStripeListPtr StripeList;
     };
 
     yhash_map<Stroka, TLocalityEntry> PendingLocalChunks;
 
     TIdGenerator OutputCookieGenerator;
 
-    yhash_map<IChunkPoolOutput::TCookie, TChunkStripeListPtr> ExtractedLists;
+    yhash_map<IChunkPoolOutput::TCookie, TExtractedStripeList> ExtractedLists;
 
     yhash_set<IChunkPoolOutput::TCookie> LostCookies;
     yhash_set<IChunkPoolOutput::TCookie> ReplayCookies;
 
 
-    void Register(TChunkStripePtr stripe)
+    void Register(int stripeIndex)
     {
+        auto& suspendableStripe = Stripes[stripeIndex];
+        YCHECK(suspendableStripe.GetExtractedCookie() == IChunkPoolOutput::NullCookie);
+
+        auto stripe = suspendableStripe.GetStripe();
         FOREACH (const auto& chunkSlice, stripe->ChunkSlices) {
             FOREACH (ui32 protoReplica, chunkSlice->GetChunkSpec()->replicas()) {
                 auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
@@ -720,17 +819,20 @@ private:
                     auto& entry = PendingLocalChunks[descriptor.Address];
                     // NB: do not check that stripe is unique, it may have already been inserted,
                     // since different replicas may reside on the same node during rebalancing.
-                    entry.Stripes.insert(stripe);
-                    entry.Locality += locality;    
+                    entry.StripeIndexes.insert(stripeIndex);
+                    entry.Locality += locality;
                 }
             }
         }
 
-        YCHECK(PendingGlobalChunks.insert(stripe).second);
+        YCHECK(PendingGlobalStripes.insert(stripeIndex).second);
     }
 
-    void Unregister(TChunkStripePtr stripe)
+    void Unregister(int stripeIndex)
     {
+        auto& suspendableStripe = Stripes[stripeIndex];
+
+        auto stripe = suspendableStripe.GetStripe();
         FOREACH (const auto& chunkSlice, stripe->ChunkSlices) {
             FOREACH (ui32 protoReplica, chunkSlice->GetChunkSpec()->replicas()) {
                 auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
@@ -738,51 +840,70 @@ private:
                 if (locality > 0) {
                     const auto& descriptor = NodeDirectory->GetDescriptor(replica);
                     auto& entry = PendingLocalChunks[descriptor.Address];
-                    auto it = entry.Stripes.find(stripe);
-                    if (it != entry.Stripes.end()) {
-                        entry.Stripes.erase(it);
+                    auto it = entry.StripeIndexes.find(stripeIndex);
+                    if (it != entry.StripeIndexes.end()) {
+                        entry.StripeIndexes.erase(it);
                     }
                     entry.Locality -= locality;
                 }
             }
         }
 
-        YCHECK(PendingGlobalChunks.erase(stripe) == 1);
+        YCHECK(PendingGlobalStripes.erase(stripeIndex) == 1);
     }
 
     template <class TIterator>
     void AddAndUnregisterStripes(
-        TChunkStripeListPtr list,
+        TExtractedStripeList& extractedStripeList,
+        IChunkPoolOutput::TCookie cookie,
         const TIterator& begin,
         const TIterator& end,
         const Stroka& address)
     {
         i64 idealDataSizePerJob = std::max(static_cast<i64>(1), DataSizeCounter.GetPending() / JobCounter.GetPending());
 
+        auto& list = extractedStripeList.StripeList;
         size_t oldSize = list->Stripes.size();
         for (auto it = begin; it != end && list->TotalDataSize < idealDataSizePerJob; ++it) {
-            const auto& stripe = *it;
-            auto stat = stripe->GetStatistics();
-            AddStripeToList(stripe, NodeDirectory, stat.DataSize, stat.RowCount, list, address);
+            auto stripeIndex = *it;
+            extractedStripeList.StripeIndexes.push_back(stripeIndex);
+
+            auto& suspendableStripe = Stripes[stripeIndex];
+            suspendableStripe.SetExtractedCookie(cookie);
+            auto stat = suspendableStripe.GetStatistics();
+            AddStripeToList(
+                suspendableStripe.GetStripe(),
+                NodeDirectory,
+                stat.DataSize,
+                stat.RowCount,
+                list,
+                address);
         }
         size_t newSize = list->Stripes.size();
 
         for (size_t index = oldSize; index < newSize; ++index) {
-            Unregister(list->Stripes[index]);
+            Unregister(extractedStripeList.StripeIndexes[index]);
         }
     }
 
-    void ReinstallStripeList(TChunkStripeListPtr list, IChunkPoolOutput::TCookie cookie)
+    void ReinstallStripeList(const TExtractedStripeList& extractedStripeList, IChunkPoolOutput::TCookie cookie)
     {
         auto replayIt = ReplayCookies.find(cookie);
         if (replayIt == ReplayCookies.end()) {
-            FOREACH (const auto& stripe, list->Stripes) {
-                Register(stripe);
+            FOREACH (const auto& stripeIndex, extractedStripeList.StripeIndexes) {
+                auto& suspendableStripe = Stripes[stripeIndex];
+                suspendableStripe.SetExtractedCookie(IChunkPoolOutput::NullCookie);
+                if (!suspendableStripe.IsSuspended()) {
+                    Register(stripeIndex);
+                }
             }
             YCHECK(ExtractedLists.erase(cookie) == 1);
         } else {
             ReplayCookies.erase(replayIt);
             YCHECK(LostCookies.insert(cookie).second);
+            if (extractedStripeList.UnavailableStripeCount > 0) {
+                ++UnavailableLostCookieCount;
+            }
         }
     }
 

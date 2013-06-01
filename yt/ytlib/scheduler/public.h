@@ -43,6 +43,12 @@ DECLARE_ENUM(EErrorCode,
     ((InvalidOperationState)(201))
 );
 
+DECLARE_ENUM(EUnavailableChunksAction,
+    (Fail)
+    (Skip)
+    (Wait)
+);
+
 class TSchedulerServiceProxy;
 
 class TJobIOConfig;

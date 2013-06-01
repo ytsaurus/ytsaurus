@@ -10,6 +10,7 @@
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/nullable.h>
 #include <ytlib/misc/id_generator.h>
+#include <ytlib/misc/periodic_invoker.h>
 
 #include <ytlib/logging/tagged_logger.h>
 
@@ -29,6 +30,7 @@
 #include <ytlib/ytree/yson_string.h>
 
 #include <ytlib/chunk_client/public.h>
+#include <ytlib/chunk_client/chunk_service_proxy.h>
 
 #include <ytlib/node_tracker_client/public.h>
 #include <ytlib/node_tracker_client/helpers.h>
@@ -319,9 +321,8 @@ protected:
 
         DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, DelayedTime);
 
-        IChunkPoolInput::TCookie AddInput(TChunkStripePtr stripe);
+        void AddInput(TChunkStripePtr stripe);
         void AddInput(const std::vector<TChunkStripePtr>& stripes);
-        void ResumeInput(IChunkPoolInput::TCookie cookie, TChunkStripePtr stripe);
         void FinishInput();
 
         void CheckCompleted();
@@ -453,6 +454,29 @@ protected:
         yhash_map<Stroka, yhash_set<TTaskPtr>> LocalTasks;
     };
 
+    DECLARE_ENUM(EInputChunkState,
+        (Active)
+        (Skipped)
+        (Waiting));
+
+    struct TStripeDescriptor
+    {
+        TChunkStripePtr Stripe;
+        IChunkPoolInput::TCookie Cookie;
+        TTaskPtr Task;
+    };
+
+    struct TInputChunkDescriptor
+    {
+        TSmallVector<TStripeDescriptor, 1> InputStripes;
+        TSmallVector<NChunkClient::TRefCountedChunkSpecPtr, 1> ChunkSpecs;
+        EInputChunkState State;
+
+        TInputChunkDescriptor()
+            : State(EInputChunkState::Active)
+        { }
+    };
+
     void RegisterTaskGroup(TTaskGroup* group);
 
 
@@ -526,14 +550,19 @@ protected:
     virtual void OnCustomInputsRecieved(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
 
     // Round 5.
+    // - Collect totals.
+    // - Check for zero totals.
+    TFuture<void> CollectTotals();
+
+    // Round 6.
     // - (Custom)
     virtual TAsyncPipeline<void>::TPtr CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline);
 
-    // Round 6.
-    // - Collect totals.
+    // Round 7.
     // - Check for empty inputs.
     // - Init chunk list pool.
-    TFuture<void> CompletePreparation();
+    // - Suspend stripes with unavalable chunks and fire chunk scratcher.
+    void CompletePreparation();
 
 
     // Here comes the completion pipeline.
@@ -569,14 +598,17 @@ protected:
      *  Those operations providing some fault tolerance for intermediate chunks
      *  must override this method.
      */
-    virtual void OnIntermediateChunkFailed(const NChunkClient::TChunkId& chunkId);
+    void OnIntermediateChunkUnavailable(const NChunkClient::TChunkId& chunkId);
 
-    //! Called when a job is unable to read an input chunk.
-    /*!
-     *  The operation fails immediately.
-     */
-    void OnChunkSpecFailed(const NChunkClient::TChunkId& chunkId);
+    //! Called when a job is unable to read an input chunk or
+    //! chunk tester has encountered unavailable chunk.
+    void OnInputChunkUnavailable(
+        const NChunkClient::TChunkId& chunkId,
+        TInputChunkDescriptor& descriptor);
 
+    void OnInputChunkAvailable(
+        const NChunkClient::TChunkId& chunkId,
+        TInputChunkDescriptor& descriptor);
 
     virtual bool IsOutputLivePreviewSupported() const;
     virtual bool IsIntermediateLivePreviewSupported() const;
@@ -600,6 +632,8 @@ protected:
         const std::vector<Stroka>& fullColumns,
         const std::vector<Stroka>& prefixColumns);
 
+    void RegisterInputStripe(TChunkStripePtr stripe, TTaskPtr task);
+
     void RegisterOutput(
         const NChunkServer::TChunkTreeId& chunkTreeId,
         int key,
@@ -622,8 +656,6 @@ protected:
 
     //! Returns the list of all input chunks collected from all input tables.
     std::vector<NChunkClient::TRefCountedChunkSpecPtr> CollectInputChunks() const;
-
-    std::vector<NChunkClient::TChunkSlicePtr> CollectInputChunkSlices() const;
 
     //! Converts a list of input chunks into a list of chunk stripes for further
     //! processing. Each stripe receives exactly one chunk (as suitable for most
@@ -662,6 +694,31 @@ protected:
     void InitFinalOutputConfig(TJobIOConfigPtr config);
 
 private:
+
+    typedef yhash_map<NChunkClient::TChunkId, TInputChunkDescriptor> TInputChunksMap;
+
+    class TInputChunksScratcher
+        : public virtual TRefCounted
+    {
+    public:
+        TInputChunksScratcher(TOperationControllerBase* controller);
+
+        // Should be called when operation preparation is completed.
+        void Start();
+        void Stop();
+    private:
+        void LocateChunks();
+        void OnLocateChunksResponse(NChunkClient::TChunkServiceProxy::TRspLocateChunksPtr rsp);
+
+        TOperationControllerBase* Controller;
+        TPeriodicInvokerPtr PeriodicInvoker;
+        NChunkClient::TChunkServiceProxy Proxy;
+        TInputChunksMap::iterator NextChunkIterator;
+        bool Started;
+
+        NLog::TTaggedLogger& Logger;
+    };
+
     TOperationSpecBasePtr Spec;
     TChunkListPoolPtr ChunkListPool;
 
@@ -677,8 +734,12 @@ private:
     //! Maps scheduler's jobs to controller's joblets.
     yhash_map<TJobPtr, TJobletPtr> JobletMap;
 
-    //! Used to distinguish between input and intermediate chunks on failure.
-    yhash_set<NChunkClient::TChunkId> InputChunkIds;
+    TInputChunksMap InputChunks;
+
+    //! Used to distinguish already seen ChunkSpecs while building #InputChunks.
+    yhash_set<NChunkClient::TRefCountedChunkSpecPtr> InputChunkSpecs;
+
+    TIntrusivePtr<TInputChunksScratcher> InputChunksScratcher;
 
     //! Increments each time a new job is scheduled.
     TIdGenerator JobIndexGenerator;

@@ -71,7 +71,8 @@ i64 GetInputIOMemorySize(
     TJobIOConfigPtr ioConfig,
     const TChunkStripeStatistics& stat)
 {
-    YCHECK(stat.ChunkCount > 0);
+    if (stat.ChunkCount == 0)
+        return 0;
 
     int concurrentReaders = std::min(stat.ChunkCount, MaxPrefetchWindow);
 
@@ -89,7 +90,9 @@ i64 GetSortInputIOMemorySize(
     TJobIOConfigPtr ioConfig,
     const TChunkStripeStatistics& stat)
 {
-    YCHECK(stat.ChunkCount > 0);
+    if (stat.ChunkCount == 0)
+        return 0;
+
     return stat.DataSize + stat.ChunkCount * ChunkReaderMemorySize;
 }
 

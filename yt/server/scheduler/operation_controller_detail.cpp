@@ -65,6 +65,97 @@ using namespace NNodeTrackerClient::NProto;
 
 ////////////////////////////////////////////////////////////////////
 
+TOperationControllerBase::TInputChunksScratcher::TInputChunksScratcher(TOperationControllerBase* controller)
+    : Controller(controller)
+    , PeriodicInvoker(New<TPeriodicInvoker>(
+        Controller->GetCancelableControlInvoker(),
+        BIND(&TInputChunksScratcher::LocateChunks, MakeWeak(this)),
+        Controller->Config->ChunkScratchPeriod))
+    , Proxy(Controller->Host->GetMasterChannel())
+    , Started(false)
+    , Logger(Controller->Logger)
+{ }
+
+void TOperationControllerBase::TInputChunksScratcher::Start()
+{
+    if (Started)
+        return;
+
+    Started = true;
+
+    LOG_DEBUG("Starting input chunks scratcher");
+
+    NextChunkIterator = Controller->InputChunks.begin();
+    PeriodicInvoker->Start();
+}
+
+void TOperationControllerBase::TInputChunksScratcher::Stop()
+{
+    if (Started) {
+        PeriodicInvoker->Stop();
+    }
+}
+
+void TOperationControllerBase::TInputChunksScratcher::LocateChunks()
+{
+    auto startIterator = NextChunkIterator;
+    auto req = Proxy.LocateChunks();
+
+    for (int chunkCount = 0; chunkCount < Controller->Config->MaxChunksPerScratch; ++chunkCount) {
+        ToProto(req->add_chunk_ids(), NextChunkIterator->first);
+
+        ++NextChunkIterator;
+        if (NextChunkIterator == Controller->InputChunks.end()) {
+            NextChunkIterator = Controller->InputChunks.begin();
+        }
+
+        if (NextChunkIterator == startIterator) {
+            //Overall number of chunks is less than MaxChunksPerScratch.
+            break;
+        }
+    }
+
+    LOG_DEBUG("Sending locate chunks request for %d chunks", static_cast<int>(req->chunk_ids_size()));
+
+    req->Invoke().Subscribe(BIND(
+        &TInputChunksScratcher::OnLocateChunksResponse,
+        MakeWeak(this)).Via(Controller->GetCancelableControlInvoker()));
+}
+
+void TOperationControllerBase::TInputChunksScratcher::OnLocateChunksResponse(TChunkServiceProxy::TRspLocateChunksPtr rsp)
+{
+    if (!rsp->IsOK()) {
+        LOG_WARNING(*rsp, "Failed to locate input chunks");
+        return;
+    }
+
+    LOG_DEBUG("Located %d input chunks", static_cast<int>(rsp->chunks_size()));
+
+    Controller->NodeDirectory->MergeFrom(rsp->node_directory());
+    FOREACH(const auto& chunkInfo, rsp->chunks()) {
+        auto chunkId = FromProto<TChunkId>(chunkInfo.chunk_id());
+        auto it = Controller->InputChunks.find(chunkId);
+        YCHECK(it != Controller->InputChunks.end());
+
+        auto& descriptor = it->second;
+        // Update replicas in place for all input chunks with current chunkId.
+        FOREACH(auto& chunkSpec, descriptor.ChunkSpecs) {
+            chunkSpec->mutable_replicas()->Clear();
+            chunkSpec->mutable_replicas()->MergeFrom(chunkInfo.replicas());
+        }
+
+        YCHECK(!descriptor.ChunkSpecs.empty());
+        auto& chunkSpec = descriptor.ChunkSpecs.front();
+        if (IsUnavailable(*chunkSpec)) {
+            Controller->OnInputChunkUnavailable(chunkId, descriptor);
+        } else {
+            Controller->OnInputChunkAvailable(chunkId, descriptor);
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////
+
 TOperationControllerBase::TTask::TTask(TOperationControllerBase* controller)
     : Controller(controller)
     , CachedPendingJobCount(0)
@@ -113,22 +204,20 @@ bool TOperationControllerBase::TTask::HasInputLocality()
     return true;
 }
 
-IChunkPoolInput::TCookie TOperationControllerBase::TTask::AddInput(TChunkStripePtr stripe)
+void TOperationControllerBase::TTask::AddInput(TChunkStripePtr stripe)
 {
-    auto cookie = GetChunkPoolInput()->Add(stripe);
+    Controller->RegisterInputStripe(stripe, this);
     if (HasInputLocality()) {
         Controller->AddTaskLocalityHint(this, stripe);
     }
     AddPendingHint();
-    return cookie;
 }
 
 void TOperationControllerBase::TTask::AddInput(const std::vector<TChunkStripePtr>& stripes)
 {
     FOREACH (auto stripe, stripes) {
-        if (stripe) {
+        if (stripe)
             AddInput(stripe);
-        }
     }
 }
 
@@ -587,6 +676,7 @@ TOperationControllerBase::TOperationControllerBase(
     , Spec(spec)
     , CachedPendingJobCount(0)
     , CachedNeededResources(ZeroNodeResources())
+    , InputChunksScratcher(New<TInputChunksScratcher>(this))
 {
     Logger.AddTag(Sprintf("OperationId: %s", ~ToString(operation->GetOperationId())));
 }
@@ -669,8 +759,9 @@ TFuture<TError> TOperationControllerBase::Prepare()
         ->Add(BIND(&TThis::OnLivePreviewTablesCreated, this_))
         ->Add(BIND(&TThis::PrepareLivePreviewTablesForUpdate, this_))
         ->Add(BIND(&TThis::OnLivePreviewTablesPreparedForUpdate, this_))
-        ->Add(BIND(&TThis::CompletePreparation, this_));
+        ->Add(BIND(&TThis::CollectTotals, this_));
      pipeline = CustomizePreparationPipeline(pipeline);
+     pipeline = pipeline->Add(BIND(&TThis::CompletePreparation, this_));
      return pipeline
         ->Run()
         .Apply(BIND([=] (TValueOrError<void> result) -> TError {
@@ -814,21 +905,98 @@ void TOperationControllerBase::TTask::OnJobLost(TCompleteJobPtr completedJob)
 
 void TOperationControllerBase::OnChunkFailed(const TChunkId& chunkId)
 {
-    if (InputChunkIds.find(chunkId) == InputChunkIds.end()) {
+    auto it = InputChunks.find(chunkId);
+    if (it == InputChunks.end()) {
         LOG_WARNING("Intermediate chunk %s has failed", ~ToString(chunkId));
-        OnIntermediateChunkFailed(chunkId);
+        OnIntermediateChunkUnavailable(chunkId);
     } else {
         LOG_WARNING("Input chunk %s has failed", ~ToString(chunkId));
-        OnChunkSpecFailed(chunkId);
+        OnInputChunkUnavailable(chunkId, it->second);
     }
 }
 
-void TOperationControllerBase::OnChunkSpecFailed(const TChunkId& chunkId)
+void TOperationControllerBase::OnInputChunkAvailable(const TChunkId& chunkId, TInputChunkDescriptor& descriptor)
 {
-    OnOperationFailed(TError("Unable to read input chunk %s", ~ToString(chunkId)));
+    if (descriptor.State != EInputChunkState::Waiting)
+        return;
+
+    LOG_INFO("Input chunk is available (ChunkId: %s)", ~ToString(chunkId));
+
+    descriptor.State = EInputChunkState::Active;
+
+    FOREACH(const auto& inputStripe, descriptor.InputStripes) {
+        --inputStripe.Stripe->WaitingChunkCount;
+        if (inputStripe.Stripe->WaitingChunkCount > 0)
+            continue;
+
+        auto task = inputStripe.Task;
+        task->GetChunkPoolInput()->Resume(inputStripe.Cookie, inputStripe.Stripe);
+        if (task->HasInputLocality()) {
+            AddTaskLocalityHint(task, inputStripe.Stripe);
+        }
+        AddTaskPendingHint(task);
+    }
+
 }
 
-void TOperationControllerBase::OnIntermediateChunkFailed(const TChunkId& chunkId)
+void TOperationControllerBase::OnInputChunkUnavailable(const TChunkId& chunkId, TInputChunkDescriptor& descriptor)
+{
+    if (descriptor.State != EInputChunkState::Active)
+        return;
+
+    LOG_INFO("Input chunk is unavailable (ChunkId: %s)", ~ToString(chunkId));
+
+    switch (Spec->UnavailableChunksTactics) {
+    case EUnavailableChunksAction::Fail:
+        OnOperationFailed(TError("Input chunk is unavailable (ChunkId: %s)", ~ToString(chunkId)));
+        break;
+
+    case EUnavailableChunksAction::Skip: {
+        descriptor.State = EInputChunkState::Skipped;
+        FOREACH(const auto& inputStripe, descriptor.InputStripes) {
+            // Remove given chunk from the stripe list.
+            TSmallVector<TChunkSlicePtr, 1> slices;
+            std::swap(inputStripe.Stripe->ChunkSlices, slices);
+
+            std::copy_if(
+                slices.begin(),
+                slices.end(),
+                inputStripe.Stripe->ChunkSlices.begin(),
+                [&] (TChunkSlicePtr slice) {
+                    return chunkId != FromProto<TChunkId>(slice->GetChunkSpec()->chunk_id());
+                });
+
+            if (inputStripe.Stripe->WaitingChunkCount == 0) {
+                // Reinstall patched stripe.
+                inputStripe.Task->GetChunkPoolInput()->Suspend(inputStripe.Cookie);
+                inputStripe.Task->GetChunkPoolInput()->Resume(inputStripe.Cookie, inputStripe.Stripe);
+                AddTaskPendingHint(inputStripe.Task);
+            }
+        }
+
+        InputChunksScratcher->Start();
+        break;
+    }
+
+    case EUnavailableChunksAction::Wait: {
+        descriptor.State = EInputChunkState::Waiting;
+        FOREACH(const auto& inputStripe, descriptor.InputStripes) {
+            if (inputStripe.Stripe->WaitingChunkCount == 0) {
+                inputStripe.Task->GetChunkPoolInput()->Suspend(inputStripe.Cookie);
+            }
+            ++inputStripe.Stripe->WaitingChunkCount;
+        }
+
+        InputChunksScratcher->Start();
+        break;
+    }
+
+    default:
+        break;
+    }
+}
+
+void TOperationControllerBase::OnIntermediateChunkUnavailable(const TChunkId& chunkId)
 {
     auto it = ChunkOriginMap.find(chunkId);
     YCHECK(it != ChunkOriginMap.end());
@@ -868,6 +1036,7 @@ void TOperationControllerBase::Abort()
     LOG_INFO("Aborting operation");
 
     Running = false;
+    InputChunksScratcher->Stop();
     CancelableContext->Cancel();
 
     LOG_INFO("Operation aborted");
@@ -1293,6 +1462,7 @@ void TOperationControllerBase::DoOperationCompleted()
 
     JobCounter.Finalize();
 
+    InputChunksScratcher->Stop();
     Running = false;
 
     Host->OnOperationCompleted(Operation);
@@ -1309,6 +1479,7 @@ void TOperationControllerBase::DoOperationFailed(const TError& error)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
+    InputChunksScratcher->Stop();
     Running = false;
 
     Host->OnOperationFailed(Operation, error);
@@ -1749,7 +1920,6 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
             }
             auto req = TTableYPathProxy::Fetch(path);
             req->set_fetch_all_meta_extensions(true);
-            req->set_skip_unavailable_chunks(Spec->SkipUnavailableChunks);
             ToProto(req->mutable_attributes(), *attributes);
             SetTransactionId(req, Operation->GetInputTransaction());
             batchReq->AddRequest(req, "fetch_in");
@@ -1889,11 +2059,6 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 NodeDirectory->MergeFrom(rsp->node_directory());
 
                 table.FetchResponse = rsp;
-                FOREACH (const auto& chunk, rsp->chunks()) {
-                    auto chunkId = FromProto<TChunkId>(chunk.chunk_id());
-                    YCHECK(chunk.replicas_size() > 0);
-                    InputChunkIds.insert(chunkId);
-                }
                 LOG_INFO("Input table %s has %d chunks",
                     ~path,
                     rsp->chunks_size());
@@ -2096,7 +2261,7 @@ void TOperationControllerBase::OnCustomInputsRecieved(TObjectServiceProxy::TRspE
     UNUSED(batchRsp);
 }
 
-TFuture<void> TOperationControllerBase::CompletePreparation()
+TFuture<void> TOperationControllerBase::CollectTotals()
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
@@ -2120,19 +2285,12 @@ TFuture<void> TOperationControllerBase::CompletePreparation()
         TotalInputRowCount,
         TotalInputValueCount);
 
-    // Check for empty inputs.
     if (TotalInputChunkCount == 0) {
         LOG_INFO("Empty input");
-        CancelableControlInvoker->Invoke(BIND(&TThis::OnOperationCompleted, MakeStrong(this)));
+        OnOperationCompleted();
+        // Break initialization pipeline
         return NewPromise();
     }
-
-    ChunkListPool = New<TChunkListPool>(
-        Config,
-        Host->GetMasterChannel(),
-        CancelableControlInvoker,
-        Operation->GetOperationId(),
-        Operation->GetOutputTransaction()->GetId());
 
     return MakeFuture();
 }
@@ -2148,6 +2306,30 @@ std::vector<TRefCountedChunkSpecPtr> TOperationControllerBase::CollectInputChunk
     for (int tableIndex = 0; tableIndex < InputTables.size(); ++tableIndex) {
         const auto& table = InputTables[tableIndex];
         FOREACH (const auto& chunkSpec, table.FetchResponse->chunks()) {
+
+            if (IsUnavailable(chunkSpec)) {
+                switch (Spec->UnavailableChunksStrategy) {
+                case EUnavailableChunksAction::Fail:
+                    THROW_ERROR_EXCEPTION(
+                        "Input chunk is unavailable (ChunkId: %s)",
+                        ~ToString(FromProto<TChunkId>(chunkSpec.chunk_id())));
+                    break;
+
+                case EUnavailableChunksAction::Skip:
+                    LOG_DEBUG(
+                        "Skipping unavailable chunk (ChunkId: %s)",
+                        ~ToString(FromProto<TChunkId>(chunkSpec.chunk_id())));
+                    continue;
+
+                case EUnavailableChunksAction::Wait:
+                    // Do nothing.
+                    break;
+
+                default:
+                    YUNREACHABLE();
+                };
+            }
+
             auto chunk = New<TRefCountedChunkSpec>(chunkSpec);
             chunk->set_table_index(tableIndex);
             result.push_back(chunk);
@@ -2156,50 +2338,38 @@ std::vector<TRefCountedChunkSpecPtr> TOperationControllerBase::CollectInputChunk
     return result;
 }
 
-std::vector<TChunkSlicePtr> TOperationControllerBase::CollectInputChunkSlices() const
+std::vector<TChunkStripePtr> TOperationControllerBase::SliceInputChunks(i64 maxSliceDataSize, int jobCount)
 {
-    std::vector<TChunkSlicePtr> result;
+    std::vector<TChunkStripePtr> result;
+    auto appendStripes = [&] (std::vector<TChunkSlicePtr> slices) {
+        FOREACH(const auto& slice, slices) {
+            result.push_back(New<TChunkStripe>(slice));
+        }
+    };
+
     FOREACH (const auto& chunkSpec, CollectInputChunks()) {
+        int oldSize = result.size();
+
         bool hasNontrivialLimits =
             (chunkSpec->has_start_limit() && IsNontrivial(chunkSpec->start_limit())) ||
             (chunkSpec->has_end_limit() && IsNontrivial(chunkSpec->end_limit()));
 
         auto codecId = NErasure::ECodec(chunkSpec->erasure_codec());
         if (hasNontrivialLimits || codecId == NErasure::ECodec::None) {
-            result.push_back(CreateChunkSlice(chunkSpec));
+            auto slices = CreateChunkSlice(chunkSpec)->SliceEvenly(maxSliceDataSize);
+            appendStripes(slices);
         } else {
-            AppendErasureChunkSlices(chunkSpec, codecId, &result);
+            FOREACH(const auto& slice, CreateErasureChunkSlices(chunkSpec, codecId)) {
+                auto slices = slice->SliceEvenly(maxSliceDataSize);
+                appendStripes(slices);
+            }
         }
+
+        LOG_TRACE("Slicing chunk (ChunkId: %s, SliceCount: %d)",
+            ~ToString(FromProto<TChunkId>(chunkSpec->chunk_id())),
+            static_cast<int>(result.size() - oldSize));
     }
     return result;
-}
-
-std::vector<TChunkStripePtr> TOperationControllerBase::SliceInputChunks(i64 maxSliceDataSize, int jobCount)
-{
-    auto inputSlices = CollectInputChunkSlices();
-
-    i64 sliceDataSize = std::min(maxSliceDataSize, TotalInputDataSize / jobCount + 1);
-    YCHECK(sliceDataSize > 0);
-
-    std::vector<TChunkStripePtr> stripes;
-    FOREACH (auto inputSlice, inputSlices) {
-        auto chunkSlices = inputSlice->SliceEvenly(sliceDataSize);
-        FOREACH (auto chunkSlice, chunkSlices) {
-            auto stripe = New<TChunkStripe>(chunkSlice);
-            stripes.push_back(stripe);
-        }
-        LOG_TRACE("Slicing chunk (ChunkId: %s, SliceCount: %d)",
-            ~ToString(FromProto<TChunkId>(inputSlice->GetChunkSpec()->chunk_id())),
-            static_cast<int>(chunkSlices.size()));
-    }
-
-    LOG_DEBUG("Sliced chunks prepared (InputSlicesCount: %d, SlicedChunkCount: %d, MaxSliceDataSize: %" PRId64 ", SliceDataSize: %" PRId64 ")",
-        static_cast<int>(inputSlices.size()),
-        static_cast<int>(stripes.size()),
-        maxSliceDataSize,
-        sliceDataSize);
-
-    return stripes;
 }
 
 std::vector<Stroka> TOperationControllerBase::CheckInputTablesSorted(const TNullable< std::vector<Stroka> >& keyColumns)
@@ -2317,6 +2487,80 @@ void TOperationControllerBase::RegisterOutput(TJobletPtr joblet, int key)
                 endpoint.ChunkTreeKey = key;
                 table.Endpoints.push_back(endpoint);
             }
+        }
+    }
+}
+
+void TOperationControllerBase::CompletePreparation()
+{
+    if (InputChunks.empty()) {
+        // Possible options:
+        // - All input chunks are unavailable && Strategy == Skip
+        // - Merge decided to passthrough all input chunks
+        // - Did I forget anything?
+        LOG_INFO("Empty input");
+        OnOperationCompleted();
+        return;
+    }
+
+    ChunkListPool = New<TChunkListPool>(
+        Config,
+        Host->GetMasterChannel(),
+        CancelableControlInvoker,
+        Operation->GetOperationId(),
+        Operation->GetOutputTransaction()->GetId());
+
+    if (Spec->UnavailableChunksStrategy != EUnavailableChunksAction::Wait)
+        return;
+
+    int suspendedChunksCount = 0;
+    FOREACH(auto& pair, InputChunks) {
+        auto& chunkDescriptor = pair.second;
+
+        if (chunkDescriptor.State == EInputChunkState::Waiting) {
+            LOG_DEBUG("Input chunk is unavailable (ChunkId: %s)", ~ToString(pair.first));
+            ++suspendedChunksCount;
+            FOREACH(const auto& inputStripe, chunkDescriptor.InputStripes) {
+                inputStripe.Task->GetChunkPoolInput()->Suspend(inputStripe.Cookie);
+                ++inputStripe.Stripe->WaitingChunkCount;
+            }
+        }
+    }
+
+    if (suspendedChunksCount > 0) {
+        LOG_DEBUG("Waiting for %d unavailable chunks", suspendedChunksCount);
+        InputChunksScratcher->Start();
+    }
+}
+
+void TOperationControllerBase::RegisterInputStripe(TChunkStripePtr stripe, TTaskPtr task)
+{
+    yhash_set<TChunkId> visitedChunks;
+
+    TStripeDescriptor stripeDescriptor;
+    stripeDescriptor.Stripe = stripe;
+    stripeDescriptor.Task = task;
+    stripeDescriptor.Cookie = task->GetChunkPoolInput()->Add(stripe);
+
+    FOREACH(const auto& slice, stripe->ChunkSlices) {
+        auto chunkSpec = slice->GetChunkSpec();
+        auto chunkId = FromProto<TChunkId>(chunkSpec->chunk_id());
+
+        if (!visitedChunks.insert(chunkId).second) {
+            // We have already seen this chunk in this stripe.
+            continue;
+        }
+
+        auto pair = InputChunks.insert(std::make_pair(chunkId, TInputChunkDescriptor()));
+        auto& chunkDescriptor = pair.first->second;
+        chunkDescriptor.InputStripes.push_back(stripeDescriptor);
+
+        if (InputChunkSpecs.insert(chunkSpec).second) {
+            chunkDescriptor.ChunkSpecs.push_back(chunkSpec);
+        }
+
+        if (IsUnavailable(*chunkSpec)) {
+            chunkDescriptor.State = EInputChunkState::Waiting;
         }
     }
 }
