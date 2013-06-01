@@ -354,7 +354,7 @@ protected:
             MaxDataSizePerJob = 1 + TotalInputDataSize / jobCount;
 
             FOREACH (auto chunk, CollectInputChunks()) {
-                ProcessChunkSpec(chunk);
+                ProcessInputChunk(chunk);
             }
         }
     }
@@ -385,9 +385,8 @@ protected:
         }
     }
 
-
     //! Called for each input chunk.
-    virtual void ProcessChunkSpec(TRefCountedChunkSpecPtr chunkSpec) = 0;
+    virtual void ProcessInputChunk(TRefCountedChunkSpecPtr chunkSpec) = 0;
 
     //! Called at the end of input chunks scan.
     void EndInputChunks()
@@ -532,7 +531,7 @@ private:
         return result;
     }
 
-    virtual void ProcessChunkSpec(TRefCountedChunkSpecPtr chunkSpec) override
+    virtual void ProcessInputChunk(TRefCountedChunkSpecPtr chunkSpec) override
     {
         if (IsPassthroughChunk(*chunkSpec)) {
             // Chunks not requiring merge go directly to the output chunk list.
@@ -572,7 +571,7 @@ public:
     { }
 
 private:
-    virtual void ProcessChunkSpec(TRefCountedChunkSpecPtr chunkSpec) override
+    virtual void ProcessInputChunk(TRefCountedChunkSpecPtr chunkSpec) override
     {
         if (IsPassthroughChunk(*chunkSpec)) {
             // Merge is not needed. Copy the chunk directly to the output.
@@ -806,7 +805,7 @@ protected:
             ->Add(BIND(&TSortedMergeControllerBase::FinishPreparation, this_));
     }
 
-    virtual void ProcessChunkSpec(TRefCountedChunkSpecPtr chunkSpec) override
+    virtual void ProcessInputChunk(TRefCountedChunkSpecPtr chunkSpec) override
     {
         ChunkSplitsCollector->AddChunk(chunkSpec);
     }

@@ -56,6 +56,7 @@ struct TChunkStripe
     TChunkStripeStatistics GetStatistics() const;
 
     TSmallVector<NChunkClient::TChunkSlicePtr, 1> ChunkSlices;
+    int WaitingChunkCount;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

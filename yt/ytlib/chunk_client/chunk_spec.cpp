@@ -161,10 +161,9 @@ TChunkSlicePtr CreateChunkSlice(
     return result;
 }
 
-void AppendErasureChunkSlices(
+std::vector<TChunkSlicePtr> CreateErasureChunkSlices(
     TRefCountedChunkSpecPtr chunkSpec,
-    NErasure::ECodec codecId,
-    std::vector<TChunkSlicePtr>* slices)
+    NErasure::ECodec codecId)
 {
     i64 dataSize;
     i64 rowCount;
@@ -173,6 +172,7 @@ void AppendErasureChunkSlices(
     auto* codec = NErasure::GetCodec(codecId);
     int dataPartCount = codec->GetDataPartCount();
 
+    std::vector<TChunkSlicePtr> slices;
     for (int partIndex = 0; partIndex < dataPartCount; ++partIndex) {
         i64 sliceStartRowIndex = rowCount * partIndex / dataPartCount;
         i64 sliceEndRowIndex = rowCount * (partIndex + 1) / dataPartCount;
@@ -185,9 +185,10 @@ void AppendErasureChunkSlices(
             slicedChunk->SizeOverrideExt.set_row_count(sliceEndRowIndex - sliceStartRowIndex);
             slicedChunk->SizeOverrideExt.set_uncompressed_data_size((dataSize + dataPartCount - 1) / dataPartCount);
 
-            slices->push_back(slicedChunk);
+            slices.push_back(slicedChunk);
         }
     }
+    return slices;
 }
 
 void ToProto(NProto::TChunkSpec* chunkSpec, const TChunkSlice& chunkSlice)
@@ -213,6 +214,23 @@ bool IsNontrivial(const NProto::TReadLimit& limit)
         limit.has_key() ||
         limit.has_chunk_index() ||
         limit.has_offset();
+}
+
+bool IsUnavailable(const NProto::TChunkSpec& chunkSpec)
+{
+    auto codecId = NErasure::ECodec(chunkSpec.erasure_codec());
+    if (codecId == NErasure::ECodec::None) {
+        return chunkSpec.replicas_size() == 0;
+    } else {
+        auto* codec = NErasure::GetCodec(codecId);
+        int dataPartCount = codec->GetDataPartCount();
+        NErasure::TPartIndexSet missingIndexSet((1 << dataPartCount) - 1);
+        FOREACH (auto protoReplica, chunkSpec.replicas()) {
+            auto replica = FromProto<TChunkReplica>(protoReplica);
+            missingIndexSet.reset(replica.GetIndex());
+        }
+        return missingIndexSet.any();
+    }
 }
 
 void GetStatistics(

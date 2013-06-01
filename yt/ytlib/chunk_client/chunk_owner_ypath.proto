@@ -32,10 +32,6 @@ message TReqFetch
     // Not yet supported.
     repeated int32 extension_tags = 3;
 
-    // When set, master omits the lost chunks in the reply.
-    // Otherwise request fails in presence of the unavailable chunks.
-    optional bool skip_unavailable_chunks = 4 [default = false];
-
     // Range and column selectors etc.
     optional NYT.NYTree.NProto.TAttributes attributes = 5;
 }

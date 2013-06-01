@@ -95,6 +95,11 @@ public:
     //! Timeout used for direct RPC requests to nodes.
     TDuration NodeRpcTimeout;
 
+    TDuration ChunkScratchPeriod;
+
+    //! Number of chunks scratched per one LocateChunks.
+    int MaxChunksPerScratch;
+
     ESchedulerStrategy Strategy;
 
     //! Once this limit is reached the operation fails.
@@ -186,6 +191,14 @@ public:
             .Default(TDuration::Minutes(60));
         RegisterParameter("node_rpc_timeout", NodeRpcTimeout)
             .Default(TDuration::Seconds(15));
+
+        RegisterParameter("chunk_scratch_period", ChunkScratchPeriod)
+            .Default(TDuration::Seconds(10));
+
+        RegisterParameter("max_chunks_per_scratch", MaxChunksPerScratch)
+            .Default(10000)
+            .GreaterThan(0)
+            .LessThan(100000);
 
         RegisterParameter("strategy", Strategy)
             .Default(ESchedulerStrategy::Null);

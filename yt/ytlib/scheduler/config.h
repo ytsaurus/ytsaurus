@@ -47,7 +47,11 @@ struct TOperationSpecBase
 {
     Stroka IntermediateDataAccount;
 
-    bool SkipUnavailableChunks;
+    // What to do during initialization if some chunks are unavailable.
+    EUnavailableChunksAction UnavailableChunksStrategy;
+
+    // What to do during operation progress if some chunks are unavailable.
+    EUnavailableChunksAction UnavailableChunksTactics;
 
     TNullable<int> MaxFailedJobCount;
     TNullable<int> MaxStdErrCount;
@@ -57,8 +61,11 @@ struct TOperationSpecBase
         RegisterParameter("intermediate_data_account", IntermediateDataAccount)
             .Default("tmp");
 
-        RegisterParameter("skip_unavailable_chunks", SkipUnavailableChunks)
-            .Default(false);
+        RegisterParameter("unavailable_chunks_strategy", UnavailableChunksStrategy)
+            .Default(EUnavailableChunksAction::Fail);
+
+        RegisterParameter("unavailable_chunks_tactics", UnavailableChunksTactics)
+            .Default(EUnavailableChunksAction::Wait);
 
         RegisterParameter("max_failed_job_count", MaxFailedJobCount)
             .Default(Null);
