@@ -199,7 +199,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         assert read('//tmp/output') == [{'value': 42}, {'a': 'b'}, {"text": "info"}]
 
     @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
-    def test_empty_user_file(self):
+    def test_empty_user_files(self):
         create('table', '//tmp/input')
         write_str('//tmp/input', '{foo=bar}')
 
@@ -208,17 +208,73 @@ class TestSchedulerMapCommands(YTEnvSetup):
         file1 = '//tmp/empty_file.txt'
         create('file', file1)
 
-        create('table', '//tmp/table_file')
-        write_str('//tmp/table_file', '{text=info}')
+        table_file = '//tmp/table_file'
+        create('table', table_file)
 
-        command= "cat > /dev/null; cat empty_file.txt;"
+        command= "cat > /dev/null; cat empty_file.txt; cat table_file"
 
         map(in_='//tmp/input',
             out='//tmp/output',
             command=command,
-            file=[file1])
+            file=[file1, '<format=yamr>' + table_file])
 
         assert read('//tmp/output') == []
+
+    @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
+    def test_multi_chunk_user_files(self):
+        create('table', '//tmp/input')
+        write_str('//tmp/input', '{foo=bar}')
+
+        create('table', '//tmp/output')
+
+        file1 = '//tmp/regular_file'
+        create('file', file1)
+        upload(file1, '{value=42};\n')
+        set(file1 + '/@compression_codec', 'lz4')
+        upload('<append=true>' + file1, '{a=b};\n')
+
+        table_file = '//tmp/table_file'
+        create('table', table_file)
+        write_str(table_file, '{text=info}')
+        set(table_file + '/@compression_codec', 'snappy')
+        write_str('<append=true>' + table_file, '{text=info}')
+
+        command= "cat > /dev/null; cat regular_file; cat table_file"
+
+        map(in_='//tmp/input',
+            out='//tmp/output',
+            command=command,
+            file=[file1, '<format=yson>' + table_file])
+
+        assert read('//tmp/output') == [{'value': 42}, {'a': 'b'}, {"text": "info"}, {"text": "info"}]
+
+    @pytest.mark.xfail(run = True, reason = 'No support for erasure chunks in user files')
+    def test_erasure_user_files(self):
+        create('table', '//tmp/input')
+        write_str('//tmp/input', '{foo=bar}')
+
+        create('table', '//tmp/output')
+
+        file1 = '//tmp/regular_file'
+        create('file', file1)
+        set(file1 + '/@erasure_codec', 'lrc_12_2_2')
+        upload(file1, '{value=42};\n')
+        upload(file1, '{a=b};\n')
+
+        table_file = '//tmp/table_file'
+        create('table', table_file)
+        set(table_file + '/@erasure_codec', 'reed_solomon_6_3')
+        write_str(table_file, '{text=info}')
+        write_str(table_file, '{text=info}')
+
+        command= "cat > /dev/null; cat regular_file; cat table_file"
+
+        map(in_='//tmp/input',
+            out='//tmp/output',
+            command=command,
+            file=[file1, '<format=yson>' + table_file])
+
+        assert read('//tmp/output') == [{'value': 42}, {'a': 'b'}, {"text": "info"}, {"text": "info"}]
 
     @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
     def run_many_output_tables(self, yamr_mode=False):

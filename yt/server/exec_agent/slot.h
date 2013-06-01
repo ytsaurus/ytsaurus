@@ -8,6 +8,9 @@
 
 #include <ytlib/logging/tagged_logger.h>
 
+#include <ytlib/misc/fs.h>
+#include <util/stream/file.h>
+
 namespace NYT {
 namespace NExecAgent {
 
@@ -40,11 +43,14 @@ public:
         const Stroka& targetPath,
         bool isExecutable);
 
-    //! Writes data from produce to #fileName
-    void MakeFile(
-        const Stroka& fileName,
-        NYTree::TYsonProducer producer,
-        const NFormats::TFormat& format);
+    //! Writes data from producer to #fileName.
+    //! NB: used template here to generalize all possible types of callbacks.
+    template <class T>
+    void MakeFile(const Stroka& fileName, T dataProducer)
+    {
+        TFileOutput fileOutput(NFS::CombinePaths(SandboxPath, fileName));
+        dataProducer(&fileOutput);
+    }
 
     void MakeEmptyFile(const Stroka& fileName);
 
