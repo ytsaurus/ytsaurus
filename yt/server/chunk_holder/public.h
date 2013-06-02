@@ -55,9 +55,6 @@ typedef TIntrusivePtr<TSessionManager> TSessionManagerPtr;
 class TSession;
 typedef TIntrusivePtr<TSession> TSessionPtr;
 
-class TJob;
-typedef TIntrusivePtr<TJob> TJobPtr;
-
 class TBlockStore;
 typedef TIntrusivePtr<TBlockStore> TBlockStorePtr;
 
