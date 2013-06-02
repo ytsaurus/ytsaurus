@@ -126,9 +126,22 @@ inline __m128i Fold(__m128i value, __m128i data, __m128i foldFactor)
     return _mm_xor_si128(data, Fold(value, foldFactor));
 }
 
-inline __m128i UnalignedLoad(const void* buf)
+inline __m128i AlignedPrefixLoad(const void* p, size_t* length)
 {
-    return ReverseBytes(_mm_loadu_si128((__m128i*) buf));
+    size_t offset = (size_t)p & 15; *length = 16 - offset;
+    return _mm_shift_right_si128(_mm_load_si128((__m128i*)((char*)p - offset)), offset);
+}
+
+inline __m128i UnalignedLoad(const void* buf, size_t expectedLength = 16)
+{
+    size_t length;
+    __m128i result = AlignedPrefixLoad(buf, &length);
+
+    if (length < expectedLength) {
+        result = _mm_loadu_si128((__m128i*) buf);
+    }
+
+    return ReverseBytes(result);
 }
 
 inline __m128i AlignedLoad(const void* buf)
@@ -214,7 +227,7 @@ ui64 Crc(const void* buf, size_t buflen, ui64 seed)
 
         if (buflen >= 16) {
             if (size_t offset = 16 - (reinterpret_cast<size_t>(ptr) % 16)) {
-                result = FoldTail(result, UnalignedLoad(ptr), FoldBy128_128, offset);
+                result = FoldTail(result, UnalignedLoad(ptr, offset), FoldBy128_128, offset);
                 buflen -= offset;
                 ptr += offset;
             }
@@ -226,7 +239,7 @@ ui64 Crc(const void* buf, size_t buflen, ui64 seed)
         } 
 
         if (buflen) {
-            result = FoldTail(result, UnalignedLoad(ptr), FoldBy128_128, buflen);
+            result = FoldTail(result, UnalignedLoad(ptr, buflen), FoldBy128_128, buflen);
             buflen -= buflen;
             ptr += buflen;
         }
@@ -234,7 +247,7 @@ ui64 Crc(const void* buf, size_t buflen, ui64 seed)
         result = Fold(result, FoldBy64_128);
     } else if (buflen) {
         __m128i tail = _mm_shift_right_si128(_mm_shift_left_si128(result, buflen), 8);
-        result = _mm_shift_right_si128(_mm_xor_si128(result, UnalignedLoad(ptr)), 16 - buflen);
+        result = _mm_shift_right_si128(_mm_xor_si128(result, UnalignedLoad(ptr, buflen)), 16 - buflen);
         result = Fold(result, tail, FoldBy64_128);
     } else {
         result = _mm_shift_right_si128(result, 8);
