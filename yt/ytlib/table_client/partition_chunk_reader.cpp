@@ -62,18 +62,20 @@ void TPartitionChunkReader::OnGotMeta(NChunkClient::IAsyncReader::TGetMetaResult
 
     LOG_INFO("Chunk meta received");
 
-    if (result.Value().type() != EChunkType::Table) {
-        LOG_FATAL("Invalid chunk type %d", result.Value().type());
+    const auto& chunkMeta = result.GetValue();
+
+    if (chunkMeta.type() != EChunkType::Table) {
+        LOG_FATAL("Invalid chunk type %d", chunkMeta.type());
     }
 
-    if (result.Value().version() != FormatVersion) {
+    if (chunkMeta.version() != FormatVersion) {
         OnFail(TError("Invalid chunk format version: expected %d, actual %d",
             FormatVersion,
-            result.Value().version()));
+            chunkMeta.version()));
         return;
     }
 
-    auto channelsExt = GetProtoExtension<NProto::TChannelsExt>(result.Value().extensions());
+    auto channelsExt = GetProtoExtension<NProto::TChannelsExt>(chunkMeta.extensions());
     YCHECK(channelsExt.items_size() == 1);
 
     std::vector<TSequentialReader::TBlockInfo> blockSequence;

@@ -421,7 +421,7 @@ ITransactionPtr TTransactionManager::Start(const TTransactionStartOptions& optio
 {
     auto transactionOrError = AsyncStart(options).Get();
     THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError, "Error starting transaction");
-    return transactionOrError.Value();
+    return transactionOrError.GetValue();
 }
 
 ITransactionPtr TTransactionManager::Attach(const TTransactionAttachOptions& options)

@@ -560,7 +560,7 @@ private:
             return;
         }
 
-        CachedChunks.push_back(result.Value());
+        CachedChunks.push_back(result.GetValue());
 
         try {
             Slot->MakeLink(

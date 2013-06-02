@@ -80,7 +80,7 @@ TAsyncError TDownloadSession::WriteBlock(TErrorOr<TSharedRef> blockOrError)
         return MakeFuture(TError(blockOrError));
     }
 
-    auto block = blockOrError.Value();
+    auto block = blockOrError.GetValue();
 
     if (block.Size() == 0) {
         return MakeFuture(TError());

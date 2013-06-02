@@ -189,8 +189,6 @@ template <class T>
 class TErrorOr
     : public TError
 {
-    DEFINE_BYREF_RW_PROPERTY(T, Value);
-
 public:
     TErrorOr()
         : Value_()
@@ -221,16 +219,26 @@ public:
     template <class TOther>
     TErrorOr(const TErrorOr<TOther>& other)
         : TError(other)
-        , Value_(other.Value())
+        , Value_(other.GetValue())
     { }
 
-    T GetOrThrow() const
+    const T& GetValue() const
+    {
+        YCHECK(IsOK());
+        return Value_;
+    }
+
+    const T& GetValueOrThrow() const
     {
         if (!IsOK()) {
             THROW_ERROR *this;
         }
         return Value_;
     }
+
+private:
+    T Value_;
+
 };
 
 template <class T>

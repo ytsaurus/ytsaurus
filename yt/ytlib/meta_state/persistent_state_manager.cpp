@@ -371,7 +371,7 @@ public:
             THROW_ERROR result;
         }
 
-        auto reader = result.Value();
+        auto reader = result.GetValue();
         reader->Open();
 
         i64 length = reader->GetLength();
@@ -461,7 +461,7 @@ public:
             THROW_ERROR result;
         }
 
-        auto changeLog = result.Value();
+        auto changeLog = result.GetValue();
         int recordCount = changeLog->GetRecordCount();
 
         response->set_record_count(recordCount);
@@ -496,7 +496,7 @@ public:
         IOQueue->GetInvoker()->Invoke(context->Wrap(BIND(
             &TThis::DoReadChangeLog,
             MakeStrong(this),
-            result.Value(),
+            result.GetValue(),
             startRecordIndex,
             recordCount)));
     }
@@ -785,7 +785,7 @@ public:
             return;
         }
 
-        const auto& value = result.Value();
+        const auto& value = result.GetValue();
         response.set_checksum(value.Checksum);
         context->Reply();
     }
@@ -866,7 +866,7 @@ public:
             return;
         }
 
-        const auto& value = result.Value();
+        const auto& value = result.GetValue();
         auto& response = context->Response();
         response.set_snapshot_id(value.SnapshotId);
         context->Reply();

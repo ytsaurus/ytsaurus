@@ -348,7 +348,7 @@ private:
 
         LOG_INFO("Chunk meta received");
 
-        ChunkMeta = result.Value();
+        ChunkMeta = result.GetValue();
         BlocksExt = GetProtoExtension<TBlocksExt>(ChunkMeta.extensions());
 
         auto targets = FromProto<TNodeDescriptor>(ReplicationJobSpecExt.target_descriptors());
@@ -401,7 +401,7 @@ private:
             return;
         }
 
-        auto block = result.Value()->GetData();
+        auto block = result.GetValue()->GetData();
 
         Writer->WriteBlock(block);
         ++CurrentBlockIndex;

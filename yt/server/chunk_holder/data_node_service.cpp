@@ -149,12 +149,12 @@ void TDataNodeService::OnGotChunkMeta(
         return;
     }
 
-    *context->Response().mutable_chunk_meta() = result.Value();
+    *context->Response().mutable_chunk_meta() = result.GetValue();
 
     if (partitionTag) {
         std::vector<NTableClient::NProto::TBlockInfo> filteredBlocks;
         auto channelsExt = GetProtoExtension<TChannelsExt>(
-            result.Value().extensions());
+            result.GetValue().extensions());
         // Partition chunks must have only one channel.
         YCHECK(channelsExt.items_size() == 1);
 
@@ -264,7 +264,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, FinishChunk)
         ->FinishSession(session, meta)
         .Subscribe(BIND([=] (TErrorOr<TChunkPtr> chunkOrError) {
             if (chunkOrError.IsOK()) {
-                auto chunk = chunkOrError.Value();
+                auto chunk = chunkOrError.GetValue();
                 auto chunkInfo = session->GetChunkInfo();
                 *response->mutable_chunk_info() = chunkInfo;
                 context->Reply();
@@ -392,7 +392,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetBlocks)
                     if (result.IsOK()) {
                         // Attach the real data.
                         blockInfo->set_data_attached(true);
-                        auto block = result.Value();
+                        auto block = result.GetValue();
                         response->Attachments()[index] = block->GetData();
                         LOG_DEBUG("GetBlocks: Fetched block %d", blockIndex);
                     } else if (result.GetCode() == NChunkClient::EErrorCode::NoSuchChunk) {
@@ -613,7 +613,7 @@ void TDataNodeService::ProcessSample(
         return;
     }
 
-    auto samplesExt = GetProtoExtension<NTableClient::NProto::TSamplesExt>(result.Value().extensions());
+    auto samplesExt = GetProtoExtension<NTableClient::NProto::TSamplesExt>(result.GetValue().extensions());
     std::vector<NTableClient::NProto::TSample> samples;
     RandomSampleN(
         samplesExt.items().begin(),
@@ -722,9 +722,9 @@ void TDataNodeService::MakeChunkSplits(
         return;
     }
 
-    YCHECK(result.Value().type() == EChunkType::Table);
+    YCHECK(result.GetValue().type() == EChunkType::Table);
 
-    auto miscExt = GetProtoExtension<TMiscExt>(result.Value().extensions());
+    auto miscExt = GetProtoExtension<TMiscExt>(result.GetValue().extensions());
     if (!miscExt.sorted()) {
         auto error =  TError("GetChunkSplits: Requested chunk splits for unsorted chunk %s",
             ~ToString(chunkId));
@@ -733,7 +733,7 @@ void TDataNodeService::MakeChunkSplits(
         return;
     }
 
-    auto keyColumnsExt = GetProtoExtension<NTableClient::NProto::TKeyColumnsExt>(result.Value().extensions());
+    auto keyColumnsExt = GetProtoExtension<NTableClient::NProto::TKeyColumnsExt>(result.GetValue().extensions());
     if (keyColumnsExt.values_size() < keyColumns.size()) {
         auto error = TError("Not enough key columns in chunk %s: expected %d, actual %d",
             ~ToString(chunkId),
@@ -756,7 +756,7 @@ void TDataNodeService::MakeChunkSplits(
         }
     }
 
-    auto indexExt = GetProtoExtension<NTableClient::NProto::TIndexExt>(result.Value().extensions());
+    auto indexExt = GetProtoExtension<NTableClient::NProto::TIndexExt>(result.GetValue().extensions());
     if (indexExt.items_size() == 1) {
         // Only one index entry available - no need to split.
         splittedChunk->add_chunk_specs()->CopyFrom(*chunkSpec);

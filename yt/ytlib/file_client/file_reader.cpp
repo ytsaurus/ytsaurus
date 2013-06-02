@@ -193,7 +193,7 @@ TSharedRef TSyncReader::Read()
 {
     auto result = AsyncReader_->AsyncRead().Get();
     THROW_ERROR_EXCEPTION_IF_FAILED(result);
-    return result.Value();
+    return result.GetValue();
 }
 
 

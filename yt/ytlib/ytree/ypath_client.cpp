@@ -302,7 +302,7 @@ TYsonString SyncYPathGet(
     const TYPath& path,
     const TAttributeFilter& attributeFilter)
 {
-    return AsyncYPathGet(service, path, attributeFilter).Get().GetOrThrow();
+    return AsyncYPathGet(service, path, attributeFilter).Get().GetValueOrThrow();
 }
 
 bool SyncYPathExists(IYPathServicePtr service, const TYPath& path)

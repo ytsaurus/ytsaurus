@@ -78,7 +78,7 @@ TAsyncError TAsyncWriter::OnUploadTransactionStarted(TErrorOr<ITransactionPtr> t
         return MakeFuture(TError("Error creating upload transaction") << transactionOrError);
     }
     
-    UploadTransaction = transactionOrError.Value();
+    UploadTransaction = transactionOrError.GetValue();
     ListenTransaction(UploadTransaction);
     LOG_INFO("Upload transaction created (TransactionId: %s)",
         ~ToString(UploadTransaction->GetId()));

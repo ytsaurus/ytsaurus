@@ -192,14 +192,16 @@ private:
 
         LOG_DEBUG("Chunk meta received");
 
-        if (result.Value().type() != EChunkType::Table) {
-            LOG_FATAL("Invalid chunk type %d", result.Value().type());
+        const auto& chunkMeta = result.GetValue();
+
+        if (chunkMeta.type() != EChunkType::Table) {
+            LOG_FATAL("Invalid chunk type %d", chunkMeta.type());
         }
 
-        if (result.Value().version() != FormatVersion) {
+        if (chunkMeta.version() != FormatVersion) {
             auto error = TError("Invalid chunk format version (Expected: %d, Actual: %d)",
                 FormatVersion,
-                result.Value().version());
+                chunkMeta.version());
             OnFail(error, chunkReader);
             return;
         }
@@ -210,7 +212,7 @@ private:
         }
 
         auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(
-            result.Value().extensions());
+            chunkMeta.extensions());
 
         chunkReader->EndRowIndex = miscExt.row_count();
 
@@ -231,7 +233,7 @@ private:
             }
 
             chunkReader->KeyColumnsExt = GetProtoExtension<NProto::TKeyColumnsExt>(
-                result.Value().extensions());
+                chunkMeta.extensions());
 
             YCHECK(chunkReader->KeyColumnsExt.values_size() > 0);
             for (int i = 0; i < chunkReader->KeyColumnsExt.values_size(); ++i) {
@@ -248,7 +250,7 @@ private:
 
         if (HasRangeRequest) {
             auto indexExt = GetProtoExtension<NProto::TIndexExt>(
-                result.Value().extensions());
+                chunkMeta.extensions());
 
             if (StartLimit.has_key() && StartLimit.key().parts_size() > 0) {
                 StartValidator.reset(new TKeyValidator(StartLimit.key(), true));
@@ -297,7 +299,7 @@ private:
             return;
         }
 
-        ChannelsExt = GetProtoExtension<NProto::TChannelsExt>(result.Value().extensions());
+        ChannelsExt = GetProtoExtension<NProto::TChannelsExt>(chunkMeta.extensions());
 
         SelectChannels(chunkReader);
         YCHECK(SelectedChannels.size() > 0);
@@ -625,10 +627,10 @@ public:
         LOG_INFO("Chunk meta received");
 
         auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(
-            result.Value().extensions());
+            result.GetValue().extensions());
         YCHECK(miscExt.row_count() > 0);
 
-        auto channelsExt = GetProtoExtension<NProto::TChannelsExt>(result.Value().extensions());
+        auto channelsExt = GetProtoExtension<NProto::TChannelsExt>(result.GetValue().extensions());
 
         YCHECK(channelsExt.items_size() == 1);
 

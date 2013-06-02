@@ -92,7 +92,7 @@ public:
         }
 
         if (channel && channel->IsOK()) {
-            return channel->Value()->Terminate(error);
+            return channel->GetValue()->Terminate(error);
         }
         return MakeFuture();
     }
@@ -143,7 +143,8 @@ private:
         if (Terminated) {
             guard.Release();
             if (result.IsOK()) {
-                result.Value()->Terminate(TerminationError);
+	            auto channel = result.GetValue();
+                channel->Terminate(TerminationError);
             }
             return;
         }
@@ -165,7 +166,7 @@ private:
         if (!result.IsOK()) {
             responseHandler->OnError(result);
         } else {
-            auto channel = result.Value();
+            auto channel = result.GetValue();
             auto responseHandlerWrapper = New<TResponseHandler>(
                 responseHandler,
                 BIND(&TRoamingChannel::OnChannelFailed, MakeStrong(this), channel));
@@ -179,7 +180,7 @@ private:
 
         if (ChannelPromise) {
             auto currentChannel = ChannelPromise.TryGet();
-            if (currentChannel && currentChannel->IsOK() && currentChannel->Value() == failedChannel) {
+            if (currentChannel && currentChannel->IsOK() && currentChannel->GetValue() == failedChannel) {
                 ChannelPromise.Reset();
             }
         }

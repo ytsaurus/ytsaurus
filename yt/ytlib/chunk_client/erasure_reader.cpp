@@ -103,7 +103,7 @@ public:
 
     void OnBlocksRead(const TPartIndexList& indicesInPart, IAsyncReader::TReadResult readResult) {
         if (readResult.IsOK()) {
-            auto dataRefs = readResult.Value();
+            auto dataRefs = readResult.GetValue();
             for (int i = 0; i < dataRefs.size(); ++i) {
                 Result_[indicesInPart[i]] = dataRefs[i];
             }
@@ -200,7 +200,7 @@ TAsyncError TNonReparingReader::PreparePartInfos()
         BIND([this, this_] (IAsyncReader::TGetMetaResult metaOrError) -> TError {
             RETURN_IF_ERROR(metaOrError);
 
-            auto extension = GetProtoExtension<TErasurePlacementExt>(metaOrError.Value().extensions());
+            auto extension = GetProtoExtension<TErasurePlacementExt>(metaOrError.GetValue().extensions());
             PartInfos_ = std::vector<TPartInfo>(extension.part_infos().begin(), extension.part_infos().end());
 
             // Check that part infos are correct.
@@ -262,8 +262,8 @@ private:
     {
         RETURN_FUTURE_IF_ERROR(readResult, TReadResult);
 
-        YCHECK(readResult.Value().size() == 1);
-        auto block = readResult.Value().front();
+        YCHECK(readResult.GetValue().size() == 1);
+        auto block = readResult.GetValue().front();
 
         BlockIndex_ += 1;
         Blocks_.push_back(block);
@@ -526,7 +526,7 @@ TAsyncError TRepairReader::OnBlocksCollected(TErrorOr<std::vector<TSharedRef>> r
 {
     RETURN_FUTURE_IF_ERROR(result, TError);
 
-    return BIND(&TRepairReader::Repair, MakeStrong(this), result.Value())
+    return BIND(&TRepairReader::Repair, MakeStrong(this), result.GetValue())
         .AsyncVia(TDispatcher::Get()->GetErasureInvoker()).Run();
 }
 
@@ -555,7 +555,7 @@ TError TRepairReader::OnGotMeta(IAsyncReader::TGetMetaResult metaOrError)
 {
     RETURN_IF_ERROR(metaOrError);
     auto placementExt = GetProtoExtension<TErasurePlacementExt>(
-        metaOrError.Value().extensions());
+        metaOrError.GetValue().extensions());
 
     WindowCount_ = placementExt.parity_block_count();
     WindowSize_ = placementExt.parity_block_size();
@@ -667,7 +667,7 @@ private:
                 RETURN_FUTURE_IF_ERROR(blockOrError, IAsyncReader::TReadResult);
 
                 if (BlockIndexes_[pos] == blockIndex) {
-                    Result_.push_back(blockOrError.Value().Data);
+                    Result_.push_back(blockOrError.GetValue().Data);
                     pos += 1;
                 }
 
@@ -795,7 +795,7 @@ private:
     {
         RETURN_FUTURE_IF_ERROR(blockOrError, TError);
 
-        const auto& block = blockOrError.Value();
+        const auto& block = blockOrError.GetValue();
         RepairedDataSize_ += block.Data.Size();
 
         if (!OnProgress_.IsNull()) {
@@ -829,7 +829,7 @@ private:
     TAsyncError OnGotChunkMeta(IAsyncReader::TGetMetaResult metaOrError)
     {
         RETURN_FUTURE_IF_ERROR(metaOrError, TError);
-        const auto& meta = metaOrError.Value();
+        const auto& meta = metaOrError.GetValue();
 
         auto collector = New<TParallelCollector<void>>();
         FOREACH (auto writer, Writers_) {

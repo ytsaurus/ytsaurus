@@ -106,10 +106,12 @@ void TSequentialReader::OnGotBlocks(
         return;
     }
 
+    const auto& blocks = readResult.GetValue();
+
     LOG_DEBUG(
         "Got block group (FirstIndex: %d, BlockCount: %d)",
         firstSequenceIndex,
-        static_cast<int>(readResult.Value().size()));
+        static_cast<int>(blocks.size()));
 
     TDispatcher::Get()->GetCompressionInvoker()->Invoke(BIND(
         &TSequentialReader::DecompressBlock,
@@ -126,7 +128,8 @@ void TSequentialReader::DecompressBlock(
 {
     int globalIndex = firstSequenceIndex + blockIndex;
 
-    auto& block = readResult.Value()[blockIndex];
+    const auto& blocks = readResult.GetValue();
+    const auto& block = blocks[blockIndex];
     auto data = Codec->Decompress(block);
     BlockWindow[globalIndex].Set(data);
 
@@ -141,7 +144,7 @@ void TSequentialReader::DecompressBlock(
     LOG_DEBUG("Decompressed block %d", globalIndex);
 
     ++blockIndex;
-    if (blockIndex < readResult.Value().size()) {
+    if (blockIndex < blocks.size()) {
         TDispatcher::Get()->GetCompressionInvoker()->Invoke(BIND(
             &TSequentialReader::DecompressBlock,
             MakeWeak(this),

@@ -172,7 +172,7 @@ private:
             return;
         }
 
-        const auto& value = result.Value();
+        const auto& value = result.GetValue();
         Checksums[Owner->CellManager->GetSelfId()] = value.Checksum;
     }
 
@@ -405,7 +405,7 @@ void TSnapshotBuilder::WatchdogFork(
         return;
     }
 
-    auto reader = readerResult.Value();
+    auto reader = readerResult.GetValue();
     try {
         reader->Open();
     } catch (const std::exception& ex) {

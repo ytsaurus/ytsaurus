@@ -249,7 +249,7 @@ private:
             }
 
             LOG_INFO("Chunk meta received");
-            ChunkMeta = result.Value();
+            ChunkMeta = result.GetValue();
 
             // Download all blocks.
 

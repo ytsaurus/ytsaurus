@@ -59,23 +59,23 @@ void TFileChunkReader::OnGotMeta(NChunkClient::IAsyncReader::TGetMetaResult resu
 
     LOG_INFO("Chunk meta received");
 
-    if (result.Value().type() != EChunkType::File) {
-        auto error = TError("Invalid chunk type %d", result.Value().type());
+    const auto& chunkMeta = result.GetValue();
+
+    if (chunkMeta.type() != EChunkType::File) {
+        auto error = TError("Invalid chunk type %d", chunkMeta.type());
         LOG_WARNING(error);
         State.Fail(error);
         return;
     }
 
-    if (result.Value().version() != FormatVersion) {
+    if (chunkMeta.version() != FormatVersion) {
         auto error = TError("Invalid file chunk format version: expected: %d, actual: %d",
             FormatVersion,
-            result.Value().version());
+            chunkMeta.version());
         LOG_WARNING(error);
         State.Fail(error);
         return;
     }
-
-    auto& chunkMeta = result.Value();
 
     std::vector<TSequentialReader::TBlockInfo> blockSequence;
 

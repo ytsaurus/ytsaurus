@@ -78,7 +78,7 @@ void TMutation::OnCommitted(TErrorOr<TMutationResponse> result)
 {
     if (result.IsOK()) {
         if (!OnSuccess_.IsNull()) {
-            OnSuccess_.Run(result.Value());
+            OnSuccess_.Run(result.GetValue());
         }
     } else {
         if (!OnError_.IsNull()) {

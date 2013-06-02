@@ -267,7 +267,7 @@ void TLinkCommand::DoExecute()
             } else {
                 OnProxyResponse(
                     BIND(&TLinkCommand::OnLinkCreated, this_),
-                    rspOrError.Value());
+                    rspOrError.GetValue());
             }
         }));
 }

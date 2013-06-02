@@ -432,7 +432,7 @@ private:
             return;
         }
 
-        SeedReplicas = result.Value();
+        SeedReplicas = result.GetValue();
         if (SeedReplicas.empty()) {
             RegisterError(TError("Chunk is lost"));
             OnRetryFailed();

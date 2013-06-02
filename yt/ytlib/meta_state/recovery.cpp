@@ -124,7 +124,7 @@ TAsyncError TRecovery::RecoverToStateWithChangeLog(
             }
         }
 
-        auto snapshotReader = readerResult.Value();
+        auto snapshotReader = readerResult.GetValue();
         snapshotReader->Open();
         DecoratedState->Load(snapshotId, snapshotReader->GetStream());
 
@@ -174,7 +174,7 @@ TAsyncError TRecovery::ReplayChangeLogs(
             YCHECK(expectedPrevRecordCount != UnknownPrevRecordCount);
             changeLog = ChangeLogCache->Create(segmentId, expectedPrevRecordCount, EpochId);
         } else {
-            changeLog = changeLogResult.Value();
+            changeLog = changeLogResult.GetValue();
         }
 
         LOG_FATAL_IF(

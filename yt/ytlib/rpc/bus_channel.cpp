@@ -68,7 +68,7 @@ public:
             return;
         }
 
-        sessionOrError.Value()->Send(request, responseHandler, timeout);
+        sessionOrError.GetValue()->Send(request, responseHandler, timeout);
     }
 
     virtual TFuture<void> Terminate(const TError& error) override

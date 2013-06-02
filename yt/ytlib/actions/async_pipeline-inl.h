@@ -77,7 +77,7 @@ struct TAsyncPipelineHelpers
         }
 
         try {
-            auto&& y = func.Run(x.Value());
+            auto&& y = func.Run(x.GetValue());
             return MakeFuture(TWrapped(std::forward<TReturn>(y)));
         } catch (const std::exception& ex) {
             return MakeFuture(TWrapped(ex));
@@ -97,7 +97,7 @@ struct TAsyncPipelineHelpers< TArg, TFuture<TReturn> >
         }
 
         try {
-            auto&& y = func.Run(x.Value());
+            auto&& y = func.Run(x.GetValue());
             return y.Apply(BIND(&TErrorOrHelpers<TReturn>::Wrapper));
         } catch (const std::exception& ex) {
             return MakeFuture(TWrapped(ex));
@@ -117,7 +117,7 @@ struct TAsyncPipelineHelpers<TArg, void>
         }
 
         try {
-            func.Run(x.Value());
+            func.Run(x.GetValue());
             return MakeFuture(TWrapped());
         } catch (const std::exception& ex) {
             return MakeFuture(TWrapped(ex));
