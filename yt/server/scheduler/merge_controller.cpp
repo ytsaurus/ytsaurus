@@ -788,7 +788,7 @@ protected:
 
     TChunkSplitsFetcherPtr ChunkSplitsFetcher;
     TChunkSplitsCollectorPtr ChunkSplitsCollector;
-
+    
     TJobSpec ManiacJobSpecTemplate;
 
     virtual TNullable< std::vector<Stroka> > GetSpecKeyColumns() = 0;
@@ -798,7 +798,10 @@ protected:
         auto this_ = MakeStrong(this);
         return pipeline
             ->Add(BIND(&TSortedMergeControllerBase::ProcessInputs, this_))
-            ->Add(BIND(&TChunkSplitsCollector::Run, ChunkSplitsCollector))
+            ->Add(BIND( [=] () {
+                // NB: ChunkSplitsCollector is initialized after the pipeline is constructed.
+                return this_->ChunkSplitsCollector->Run();
+            }))
             ->Add(BIND(&TSortedMergeControllerBase::OnChunkSplitsReceived, this_))
             ->Add(BIND(&TSortedMergeControllerBase::FinishPreparation, this_));
     }
