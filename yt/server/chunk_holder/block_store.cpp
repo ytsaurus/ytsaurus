@@ -149,8 +149,8 @@ public:
                 ~ToString(blockId))));
         }
 
-        TSharedPtr<TInsertCookie, TAtomicCounter> cookie(new TInsertCookie(blockId));
-        if (!BeginInsert(cookie.Get())) {
+        std::shared_ptr<TInsertCookie> cookie = std::make_shared<TInsertCookie>(blockId);
+        if (!BeginInsert(cookie.get())) {
             chunk->ReleaseReadLock();
             return cookie->GetValue().Apply(BIND(&TStoreImpl::OnCacheHit, MakeStrong(this)));
         }
@@ -171,7 +171,7 @@ public:
             blockId,
             cookie,
             blockSize,
-            enableCaching); 
+            enableCaching);
 
         chunk
             ->GetLocation()
@@ -225,7 +225,7 @@ private:
     void DoReadBlock(
         TChunkPtr chunk,
         const TBlockId& blockId,
-        TSharedPtr<TInsertCookie, TAtomicCounter> cookie,
+        const std::shared_ptr<TInsertCookie>& cookie,
         i64 blockSize,
         bool enableCaching)
     {

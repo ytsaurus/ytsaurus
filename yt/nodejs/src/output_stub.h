@@ -40,7 +40,7 @@ public:
     static void WriteAfter(uv_work_t* workRequest);
 
 private:
-    TSharedPtr<TNodeJSOutputStack> Stack;
+    std::shared_ptr<TNodeJSOutputStack> Stack;
 
 private:
     TOutputStreamStub(const TOutputStreamStub&);

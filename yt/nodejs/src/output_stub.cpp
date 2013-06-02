@@ -14,7 +14,7 @@ namespace {
 struct TWriteRequest
 {
     uv_work_t Request;
-    TSharedPtr<TNodeJSOutputStack> Stack;
+    std::shared_ptr<TNodeJSOutputStack> Stack;
 
     Persistent<Function> Callback;
     String::Utf8Value ValueToBeWritten;
@@ -23,7 +23,7 @@ struct TWriteRequest
     size_t Length;
 
     TWriteRequest(
-        const TSharedPtr<TNodeJSOutputStack>& stack,
+        const std::shared_ptr<TNodeJSOutputStack>& stack,
         Handle<String> string,
         Handle<Function> callback)
         : Stack(stack)
@@ -130,7 +130,7 @@ Handle<Value> TOutputStreamStub::Reset(const Arguments& args)
         case 1:
             EXPECT_THAT_HAS_INSTANCE(args[0], TOutputStreamWrap);
             auto* stream = ObjectWrap::Unwrap<TOutputStreamWrap>(args[0].As<Object>());
-            host->Stack = new TNodeJSOutputStack(stream);
+            host->Stack = std::make_shared<TNodeJSOutputStack>(stream);
             break;
     }
 

@@ -415,11 +415,10 @@ public:
             return;
         }
 
-        TSharedPtr<TFile, TAtomicCounter> snapshotFile;
+        std::shared_ptr<TFile> snapshotFile;
         try {
-            snapshotFile = new TFile(fileName, OpenExisting | RdOnly | CloseOnExec);
-        }
-        catch (const std::exception& ex) {
+            snapshotFile = std::make_shared<TFile>(fileName, OpenExisting | RdOnly | CloseOnExec);
+        } catch (const std::exception& ex) {
             LOG_FATAL(ex, "IO error while opening snapshot %d",
                 snapshotId);
         }

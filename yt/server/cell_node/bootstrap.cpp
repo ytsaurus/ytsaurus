@@ -311,7 +311,7 @@ void TBootstrap::Run()
         "/@service_name", ConvertToYsonString("node"));
     SetBuildAttributes(OrchidRoot);
 
-    THolder<NHttp::TServer> httpServer(new NHttp::TServer(Config->MonitoringPort));
+    std::unique_ptr<NHttp::TServer> httpServer(new NHttp::TServer(Config->MonitoringPort));
     httpServer->Register(
         "/orchid",
         NMonitoring::GetYPathHttpHandler(OrchidRoot->Via(GetControlInvoker())));

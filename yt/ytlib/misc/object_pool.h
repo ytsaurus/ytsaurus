@@ -22,14 +22,8 @@ namespace NYT {
 template <class T>
 class TObjectPool
 {
-private:
-    struct TDeleter
-    {
-        static void Destroy(T* obj);
-    };
-
 public:
-    typedef TSharedPtr<T, TAtomicCounter, TDeleter> TValuePtr;
+    typedef std::shared_ptr<T> TValuePtr;
 
     //! Either creates a fresh instance or returns a pooled one.
     TValuePtr Allocate();

@@ -136,7 +136,7 @@ public:
         Request_ = ObjectPool<TTypedRequest>().Allocate();
         Request_->Context = UnderlyingContext.Get();
 
-        if (!DeserializeFromProtoWithEnvelope(Request_.Get(), UnderlyingContext->GetRequestBody())) {
+        if (!DeserializeFromProtoWithEnvelope(Request_.get(), UnderlyingContext->GetRequestBody())) {
             UnderlyingContext->Reply(TError(
                 EErrorCode::ProtocolError,
                 "Error deserializing request body"));

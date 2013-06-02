@@ -8,19 +8,15 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-void TObjectPool<T>::TDeleter::Destroy(T* obj)
-{
-    ObjectPool<T>().Reclaim(obj);
-}
-
-template <class T>
 typename TObjectPool<T>::TValuePtr TObjectPool<T>::Allocate()
 {
-    T* object;
+    T* object = nullptr;
     if (!PooledObjects.Dequeue(&object)) {
         object = new T();
     }
-    return object;
+    return TValuePtr(object, [] (T* object) {
+        ObjectPool<T>().Reclaim(object);
+    });
 }
 
 template <class T>

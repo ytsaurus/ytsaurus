@@ -37,7 +37,7 @@ public:
     static void ReadAfter(uv_work_t* workRequest);
 
 private:
-    TSharedPtr<TNodeJSInputStack> Stack;
+    std::shared_ptr<TNodeJSInputStack> Stack;
 
 private:
     TInputStreamStub(const TInputStreamStub&);

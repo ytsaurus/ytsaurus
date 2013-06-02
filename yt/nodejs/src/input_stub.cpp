@@ -55,7 +55,7 @@ private:
 struct TReadRequest
 {
     uv_work_t Request;
-    TSharedPtr<TNodeJSInputStack> Stack;
+    std::shared_ptr<TNodeJSInputStack> Stack;
 
     Persistent<Function> Callback;
 
@@ -63,7 +63,7 @@ struct TReadRequest
     size_t Length;
 
     TReadRequest(
-        const TSharedPtr<TNodeJSInputStack>& stack,
+        const std::shared_ptr<TNodeJSInputStack>& stack,
         Handle<Integer> length,
         Handle<Function> callback)
         : Stack(stack)
@@ -169,13 +169,13 @@ Handle<Value> TInputStreamStub::Reset(const Arguments& args)
     // Do the work.
     switch (args.Length()) {
         case 0:
-            host->Stack = NULL;
+            host->Stack = nullptr;
             break;
 
         case 1:
             EXPECT_THAT_HAS_INSTANCE(args[0], TInputStreamWrap);
             auto* stream = ObjectWrap::Unwrap<TInputStreamWrap>(args[0].As<Object>());
-            host->Stack = new TNodeJSInputStack(stream);
+            host->Stack = std::make_shared<TNodeJSInputStack>(stream);
             break;
     }
 
