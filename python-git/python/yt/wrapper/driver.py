@@ -107,6 +107,14 @@ def make_request(command_name, params,
             data = json.dumps(params)
             params = {}
 
+    if config.API_PATH == "api":
+        if "input_format" in params:
+            headers["X-YT-Input-Format"] = json.dumps(params["input_format"])
+            del params["input_format"]
+        if "output_format" in params:
+            headers["X-YT-Output-Format"] = json.dumps(params["output_format"])
+            del params["output_format"]
+
     if params:
         headers.update({"X-YT-Parameters": json.dumps(params)})
 
