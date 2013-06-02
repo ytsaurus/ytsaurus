@@ -109,7 +109,7 @@ def set_proxy(proxy):
         http.RETRY_VOLATILE_COMMANDS = False
         CREATE_FILE_BEFORE_UPLOAD = False
 
-if http.PROXY is not None:
+if http.PROXY:
     set_proxy(http.PROXY)
 
 
