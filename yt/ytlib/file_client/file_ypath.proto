@@ -2,7 +2,6 @@ package NYT.NFileClient.NProto;
 
 import "yt/ytlib/misc/guid.proto";
 import "yt/ytlib/cypress_client/cypress_ypath.proto";
-import "yt/ytlib/node_tracker_client/node.proto";
 import "yt/ytlib/chunk_client/chunk.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
