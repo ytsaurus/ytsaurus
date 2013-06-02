@@ -1,5 +1,4 @@
 import yt.wrapper as yt
-import yt.wrapper.config as config
 
 import os
 import logging
@@ -29,11 +28,11 @@ class YtTestBase(object):
         cls.env.set_environment(dir, os.path.join(dir, "pids.txt"), ports, supress_yt_output=True)
         
         reload(yt)
-        reload(config)
+        reload(yt.config)
 
-        config.set_proxy("localhost:%d" % ports["proxy"])
-        config.http.USE_TOKEN = False
-        config.http.RETRY_VOLATILE_COMMANDS = True
+        yt.config.set_proxy("localhost:%d" % ports["proxy"])
+        yt.config.http.USE_TOKEN = False
+        yt.config.http.RETRY_VOLATILE_COMMANDS = True
 
     @classmethod
     def _teardown_class(cls):
@@ -43,8 +42,8 @@ class YtTestBase(object):
         os.environ["PATH"] = ".:" + os.environ["PATH"]
         yt.mkdir(TEST_DIR, recursive=True)
 
-        config.WAIT_TIMEOUT = 0.2
-        config.DEFAULT_STRATEGY = yt.WaitStrategy(print_progress=False)
+        yt.config.WAIT_TIMEOUT = 0.2
+        yt.config.DEFAULT_STRATEGY = yt.WaitStrategy(print_progress=False)
 
     def teardown(self):
         try:
