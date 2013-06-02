@@ -24,45 +24,23 @@ NYson::EYsonType GetYsonType(const TYsonProducer& producer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void Serialize(short value, NYson::IYsonConsumer* consumer)
-{
-    consumer->OnIntegerScalar(CheckedStaticCast<i64>(value));
-}
+// integers
+#define SERIALIZE(type) \
+    void Serialize(type value, NYson::IYsonConsumer* consumer) \
+    { \
+        consumer->OnIntegerScalar(CheckedStaticCast<i64>(value)); \
+    }
 
-void Serialize(unsigned short value, NYson::IYsonConsumer* consumer)
-{
-    consumer->OnIntegerScalar(CheckedStaticCast<i64>(value));
-}
+SERIALIZE(short)
+SERIALIZE(unsigned short)
+SERIALIZE(int)
+SERIALIZE(unsigned)
+SERIALIZE(long)
+SERIALIZE(unsigned long)
+SERIALIZE(long long)
+SERIALIZE(unsigned long long)
 
-void Serialize(int value, NYson::IYsonConsumer* consumer)
-{
-    consumer->OnIntegerScalar(CheckedStaticCast<i64>(value));
-}
-
-void Serialize(unsigned int value, NYson::IYsonConsumer* consumer)
-{
-    consumer->OnIntegerScalar(CheckedStaticCast<i64>(value));
-}
-
-void Serialize(long value, NYson::IYsonConsumer* consumer)
-{
-    consumer->OnIntegerScalar(CheckedStaticCast<i64>(value));
-}
-
-void Serialize(unsigned long value, NYson::IYsonConsumer* consumer)
-{
-    consumer->OnIntegerScalar(CheckedStaticCast<i64>(value));
-}
-
-void Serialize(long long value, NYson::IYsonConsumer* consumer)
-{
-    consumer->OnIntegerScalar(CheckedStaticCast<i64>(value));
-}
-
-void Serialize(unsigned long long value, NYson::IYsonConsumer* consumer)
-{
-    consumer->OnIntegerScalar(CheckedStaticCast<i64>(value));
-}
+#undef SERIALIZE
 
 // double
 void Serialize(double value, NYson::IYsonConsumer* consumer)
@@ -126,41 +104,23 @@ void Serialize(TInputStream& input, NYson::IYsonConsumer* consumer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// i64
-void Deserialize(i64& value, INodePtr node)
-{
-    value = CheckedStaticCast<i64>(node->AsInteger()->GetValue());
-}
+// integers
+#define DESERIALIZE(type) \
+    void Deserialize(type& value, INodePtr node) \
+    { \
+        value = CheckedStaticCast<type>(node->AsInteger()->GetValue()); \
+    }
 
-// ui64
-void Deserialize(ui64& value, INodePtr node)
-{
-    value = CheckedStaticCast<ui64>(node->AsInteger()->GetValue());
-}
+DESERIALIZE(short)
+DESERIALIZE(unsigned short)
+DESERIALIZE(int)
+DESERIALIZE(unsigned)
+DESERIALIZE(long)
+DESERIALIZE(unsigned long)
+DESERIALIZE(long long)
+DESERIALIZE(unsigned long long)
 
-// i32
-void Deserialize(i32& value, INodePtr node)
-{
-    value = CheckedStaticCast<i32>(node->AsInteger()->GetValue());
-}
-
-// ui32
-void Deserialize(ui32& value, INodePtr node)
-{
-    value = CheckedStaticCast<ui32>(node->AsInteger()->GetValue());
-}
-
-// i16
-void Deserialize(i16& value, INodePtr node)
-{
-    value = CheckedStaticCast<i16>(node->AsInteger()->GetValue());
-}
-
-// ui16
-void Deserialize(ui16& value, INodePtr node)
-{
-    value = CheckedStaticCast<ui16>(node->AsInteger()->GetValue());
-}
+#undef DESERIALIZE
 
 // double
 void Deserialize(double& value, INodePtr node)

@@ -56,10 +56,11 @@ void Serialize(T* value, NYson::IYsonConsumer* consumer);
 template <class T>
 void Serialize(const TIntrusivePtr<T>& value, NYson::IYsonConsumer* consumer);
 
+// integers
 void Serialize(short value, NYson::IYsonConsumer* consumer);
 void Serialize(unsigned short value, NYson::IYsonConsumer* consumer);
 void Serialize(int value, NYson::IYsonConsumer* consumer);
-void Serialize(unsigned int value, NYson::IYsonConsumer* consumer);
+void Serialize(unsigned value, NYson::IYsonConsumer* consumer);
 void Serialize(long value, NYson::IYsonConsumer* consumer);
 void Serialize(unsigned long value, NYson::IYsonConsumer* consumer);
 void Serialize(long long value, NYson::IYsonConsumer* consumer);
@@ -130,23 +131,15 @@ void Deserialize(TIntrusivePtr<T>& value, INodePtr node);
 template <class T>
 void Deserialize(std::unique_ptr<T>& value, INodePtr node);
 
-// i64
-void Deserialize(i64& value, INodePtr node);
-
-// ui64
-void Deserialize(ui64& value, INodePtr node);
-
-// i32
-void Deserialize(i32& value, INodePtr node);
-
-// ui32
-void Deserialize(ui32& value, INodePtr node);
-
-// i16
-void Deserialize(i16& value, INodePtr node);
-
-// ui16
-void Deserialize(ui16& value, INodePtr node);
+// integers
+void Deserialize(short& value, INodePtr node);
+void Deserialize(unsigned short& value, INodePtr node);
+void Deserialize(int& value, INodePtr node);
+void Deserialize(unsigned& value, INodePtr node);
+void Deserialize(long& value, INodePtr node);
+void Deserialize(unsigned long& value, INodePtr node);
+void Deserialize(long long& value, INodePtr node);
+void Deserialize(unsigned long long& value, INodePtr node);
 
 // double
 void Deserialize(double& value, INodePtr node);
