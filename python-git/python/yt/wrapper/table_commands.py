@@ -326,7 +326,7 @@ def write_table(table, input_stream, format=None, table_writer=None, replication
                 data=input_stream,
                 proxy=get_host_for_heavy_operation())
     if config.TREAT_UNEXISTING_AS_EMPTY and is_empty(table):
-        remove(table)
+        _remove_tables([table])
 
 
 def read_table(table, format=None, table_reader=None, response_type=None):
