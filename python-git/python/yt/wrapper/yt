@@ -470,6 +470,24 @@ def add_check_permission_parser(add_parser):
     parser.add_argument("--format", action=ParseFormat, default=yt.YsonFormat())
     parser.set_defaults(func=check_permission)
 
+def add_member(args):
+    yt.add_member(args.member, args.group)
+
+def add_add_member_parser(add_parser):
+    parser = add_parser("add-member", help="add member to group")
+    parser.add_argument("member")
+    parser.add_argument("group")
+    parser.set_defaults(func=add_member)
+
+def remove_member(args):
+    yt.remove_member(args.member, args.group)
+
+def add_remove_member_parser(add_parser):
+    parser = add_parser("remove-member", help="remove member from group")
+    parser.add_argument("member")
+    parser.add_argument("group")
+    parser.set_defaults(func=remove_member)
+
 def main():
     base_parser = ArgumentParser(add_help=False)
     base_parser.add_argument("--proxy")
@@ -509,6 +527,8 @@ def main():
     add_abort_tx_parser(add_parser)
     add_commit_tx_parser(add_parser)
     add_ping_tx_parser(add_parser)
+    add_add_member_parser(add_parser)
+    add_remove_member_parser(add_parser)
     add_check_permission_parser(add_parser)
     #add_cat_parser(add_parser)
 
