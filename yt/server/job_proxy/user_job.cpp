@@ -64,11 +64,11 @@ using namespace NTransactionClient;
 
 static NLog::TLogger& Logger = JobProxyLogger;
 
-static i64 MemoryLimitBoost = (i64) 2 * 1024 * 1024 * 1024;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 #ifdef _linux_
+
+static i64 MemoryLimitBoost = (i64) 2 * 1024 * 1024 * 1024;
 
 class TUserJob
     : public TJob
