@@ -549,7 +549,7 @@ def main():
         yt.config.TRANSACTION = args.tx
         yt.config.PING_ANCESTOR_TRANSACTIONS = args.ping_ancestor_txs
     if args.proxy is not None:
-        yt.config.PROXY = args.proxy
+        yt.config.set_proxy(args.proxy)
     args.func(args)
 
 if __name__ == "__main__":

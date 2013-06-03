@@ -353,7 +353,7 @@ Examples:
     if args.chunksize is not None:
         config.WRITE_BUFFER_SIZE = args.chunksize
     if args.server is not None:
-        config.PROXY = args.server
+        config.set_proxy(args.server)
     if args.prefix is not None:
         config.PREFIX = args.prefix
     if args.timeout is not None:
