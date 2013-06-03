@@ -20,11 +20,13 @@ struct TChunkStripeStatistics
     int ChunkCount;
     i64 DataSize;
     i64 RowCount;
+    i64 MaxBlockSize;
 
     TChunkStripeStatistics()
         : ChunkCount(0)
         , DataSize(0)
         , RowCount(0)
+        , MaxBlockSize(0)
     { }
 };
 

@@ -2496,7 +2496,10 @@ i64 TOperationControllerBase::GetFinalOutputIOMemorySize(TJobIOConfigPtr ioConfi
     i64 result = 0;
     FOREACH (const auto& outputTable, OutputTables) {
         if (outputTable.Options->ErasureCodec == NErasure::ECodec::None) {
-            result += GetOutputWindowMemorySize(ioConfig) + ioConfig->TableWriter->MaxBufferSize;
+            i64 maxBufferSize = std::max(
+                ioConfig->TableWriter->MaxRowWeight, 
+                ioConfig->TableWriter->MaxBufferSize);
+            result += GetOutputWindowMemorySize(ioConfig) + maxBufferSize;
         } else {
             auto* codec = NErasure::GetCodec(outputTable.Options->ErasureCodec);
             double replicationFactor = (double) codec->GetTotalPartCount() / codec->GetDataPartCount();

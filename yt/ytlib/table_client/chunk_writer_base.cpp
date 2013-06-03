@@ -40,6 +40,7 @@ TChunkWriterBase::TChunkWriterBase(
     , ValueCount(0)
     , CurrentSize(0)
     , CurrentBufferCapacity(0)
+    , LargestBlockSize(0)
 {
     VERIFY_INVOKER_AFFINITY(TDispatcher::Get()->GetWriterInvoker(), WriterThread);
 }
@@ -79,6 +80,7 @@ void TChunkWriterBase::FinalizeWriter()
         MiscExt.set_data_weight(DataWeight);
         MiscExt.set_row_count(RowCount);
         MiscExt.set_value_count(ValueCount);
+        MiscExt.set_max_block_size(LargestBlockSize);
         SetProtoExtension(Meta.mutable_extensions(), MiscExt);
     }
 

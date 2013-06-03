@@ -336,12 +336,13 @@ void TTableChunkWriter::PrepareBlock()
 
     ++CurrentBlockIndex;
 
-    int size = 0;
+    i64 size = 0;
     auto blockParts = channel->FlushBlock();
     FOREACH (const auto& part, blockParts) {
         size += part.Size();
     }
     blockInfo->set_block_size(size);
+    LargestBlockSize = std::max(LargestBlockSize, size);
 
     CurrentBufferCapacity += channel->GetCapacity();
 

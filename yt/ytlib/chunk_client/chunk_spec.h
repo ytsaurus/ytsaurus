@@ -48,6 +48,8 @@ public:
     i64 GetDataSize() const;
     i64 GetRowCount() const;
 
+    i64 GetMaxBlockSize() const;
+
 private:
     TRefCountedChunkSpecPtr ChunkSpec;
     int PartIndex;

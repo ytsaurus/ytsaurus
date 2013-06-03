@@ -19,29 +19,6 @@ using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////
 
-void GetStatistics(
-    const TChunkStripePtr& stripe,
-    i64* totalDataSize,
-    i64* totalRowCount)
-{
-    if (totalDataSize) {
-        *totalDataSize = 0;
-    }
-    if (totalRowCount) {
-        *totalRowCount = 0;
-    }
-
-    FOREACH (const auto& chunkSlice, stripe->ChunkSlices) {
-        if (totalDataSize) {
-            *totalDataSize += chunkSlice->GetDataSize();
-        }
-
-        if (totalRowCount) {
-            *totalRowCount += chunkSlice->GetRowCount();
-        }
-    }
-}
-
 void AddStripeToList(
     const TChunkStripePtr& stripe,
     const TNodeDirectoryPtr& nodeDirectory,
@@ -102,6 +79,7 @@ TChunkStripeStatistics TChunkStripe::GetStatistics() const
         result.DataSize += chunkSlice->GetDataSize();
         result.RowCount += chunkSlice->GetRowCount();
         ++result.ChunkCount;
+        result.MaxBlockSize = std::max(result.MaxBlockSize, chunkSlice->GetMaxBlockSize());
     }
 
     return result;
@@ -115,6 +93,7 @@ TChunkStripeStatistics operator + (
     result.ChunkCount = lhs.ChunkCount + rhs.ChunkCount;
     result.DataSize = lhs.DataSize + rhs.DataSize;
     result.RowCount = lhs.RowCount + rhs.RowCount;
+    result.MaxBlockSize = std::max(lhs.MaxBlockSize, rhs.MaxBlockSize);
     return result;
 }
 
@@ -125,6 +104,7 @@ TChunkStripeStatistics& operator += (
     lhs.ChunkCount += rhs.ChunkCount;
     lhs.DataSize += rhs.DataSize;
     lhs.RowCount += rhs.RowCount;
+    lhs.MaxBlockSize = std::max(lhs.MaxBlockSize, rhs.MaxBlockSize);
     return lhs;
 }
 
@@ -574,6 +554,7 @@ public:
 
         TChunkStripeStatistics stat;
         // Typically unordered pool has one chunk per stripe.
+        // NB: Cannot estimate MaxBlockSize here.
         stat.ChunkCount = std::max(
             static_cast<i64>(1),
             static_cast<i64>(PendingGlobalChunks.size()) / GetPendingJobCount());
@@ -1042,6 +1023,7 @@ private:
 
             auto& stat = result.front();
 
+            // NB: cannot estimate MaxBlockSize here.
             stat.ChunkCount = run.ElementaryIndexEnd - run.ElementaryIndexBegin;
             stat.DataSize = run.TotalDataSize;
             stat.RowCount = run.TotalRowCount;

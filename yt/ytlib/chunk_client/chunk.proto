@@ -52,6 +52,9 @@ message TMiscExt
 
     // Number of key-value pairs across all rows in the chunk.
     optional int64 value_count = 8 [default = 0];
+
+    // Uncompressed size of the largest block.
+    optional int64 max_block_size = 9 [default = 0];
 }
 
 message TChunkInfo
