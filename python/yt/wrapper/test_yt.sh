@@ -118,7 +118,25 @@ test_map_reduce()
     check "1" `./yt get //home/wrapper_test/input_table/@row_count`
 }
 
+test_users()
+{
+    ./yt create user --attribute '{name=test_user}'
+    ./yt create group --attribute '{name=test_group}'
+
+    check "[]" `./yt get //sys/groups/test_group/@members --format '<format=text>yson'`
+    
+    ./yt add-member test_user test_group
+    check '["test_user"]' `./yt get //sys/groups/test_group/@members --format '<format=text>yson'`
+
+    ./yt set "//home/wrapper_test/@acl/end" "{action=allow;subjects=[test_group];permissions=[write]}"
+    ./yt check-permission test_user write "//home/wrapper_test" | grep allow
+    
+    ./yt remove-member test_user test_group
+    check "[]" `./yt get //sys/groups/test_group/@members --format '<format=text>yson'`
+}
+
 run_test test_tree_commands
 run_test test_file_commands
 run_test test_copy_move_link
 run_test test_map_reduce
+run_test test_users

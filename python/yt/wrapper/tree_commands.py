@@ -1,7 +1,7 @@
 import config
 from common import parse_bool, flatten, get_value, bool_to_string
-from driver import make_formatted_request
-from transaction_commands import _make_transactional_request, _add_transaction_params
+from transaction_commands import _make_transactional_request, \
+                                 _make_formatted_transactional_request
 from table import prepare_path, to_name
 
 from yt.yson.yson_types import YsonString
@@ -11,9 +11,6 @@ import string
 import random
 from copy import deepcopy
 import simplejson as json
-
-def _make_formatted_transactional_request(command_name, params, format, **kwargs):
-    return make_formatted_request(command_name, _add_transaction_params(params), format, **kwargs)
 
 def get(path, attributes=None, format=None, spec=None):
     """
@@ -123,16 +120,6 @@ def create(type, path=None, recursive=False, ignore_existing=False, attributes=N
 def mkdir(path, recursive=None):
     recursive = get_value(recursive, config.CREATE_RECURSIVE)
     create("map_node", path, recursive=recursive, ignore_existing=recursive)
-
-def check_permission(user, permission, path, format=None):
-    return _make_formatted_transactional_request(
-        "check_permission",
-        {
-            "user": user,
-            "permission": permission,
-            "path": path
-        },
-        format=format)
 
 
 # TODO: maybe remove this methods
