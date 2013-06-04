@@ -695,14 +695,7 @@ private:
 
         //! The total locality associated with this address.
         i64 Locality;
-
-        //! Multiset of stripes having positive locality at this address.
-        /*!
-         *  Starting from 0.14, we allow multiple replicas of the same chunk to
-         *  reside at the same address. While this is not an expected case,
-         *  appearance of such replicas must not lead to scheduler crash.
-         */
-        yhash_multiset<TChunkStripePtr> Stripes;
+        yhash_set<TChunkStripePtr> Stripes;
     };
 
     yhash_map<Stroka, TLocalityEntry> PendingLocalChunks;
@@ -720,10 +713,16 @@ private:
         FOREACH (const auto& chunkSlice, stripe->ChunkSlices) {
             FOREACH (ui32 protoReplica, chunkSlice->GetChunkSpec()->replicas()) {
                 auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
-                const auto& descriptor = NodeDirectory->GetDescriptor(replica);
-                auto& entry = PendingLocalChunks[descriptor.Address];
-                entry.Stripes.insert(stripe);
-                entry.Locality += chunkSlice->GetLocality(replica.GetIndex());
+
+                auto locality = chunkSlice->GetLocality(replica.GetIndex());
+                if (locality > 0) {
+                    const auto& descriptor = NodeDirectory->GetDescriptor(replica);
+                    auto& entry = PendingLocalChunks[descriptor.Address];
+                    // NB: do not check that stripe is unique, it may have already been inserted,
+                    // since different replicas may reside on the same node during rebalancing.
+                    entry.Stripes.insert(stripe);
+                    entry.Locality += locality;    
+                }
             }
         }
 
@@ -735,12 +734,16 @@ private:
         FOREACH (const auto& chunkSlice, stripe->ChunkSlices) {
             FOREACH (ui32 protoReplica, chunkSlice->GetChunkSpec()->replicas()) {
                 auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
-                const auto& descriptor = NodeDirectory->GetDescriptor(replica);
-                auto& entry = PendingLocalChunks[descriptor.Address];
-                auto it = entry.Stripes.find(stripe);
-                YCHECK(it != entry.Stripes.end());
-                entry.Stripes.erase(it);
-                entry.Locality -= chunkSlice->GetLocality(replica.GetIndex());
+                auto locality = chunkSlice->GetLocality(replica.GetIndex());
+                if (locality > 0) {
+                    const auto& descriptor = NodeDirectory->GetDescriptor(replica);
+                    auto& entry = PendingLocalChunks[descriptor.Address];
+                    auto it = entry.Stripes.find(stripe);
+                    if (it != entry.Stripes.end()) {
+                        entry.Stripes.erase(it);
+                    }
+                    entry.Locality -= locality;
+                }
             }
         }
 
