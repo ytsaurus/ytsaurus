@@ -126,7 +126,7 @@ void TBootstrap::Run()
         CreateVirtualNode(Scheduler->CreateOrchidProducer()));
 
     SyncYPathSet(orchidRoot, "/@service_name", ConvertToYsonString("scheduler"));
-    SetBuildAttributes(orchidRoot);
+    SetBuildAttributes(orchidRoot, "scheduler");
 
     rpcServer->RegisterService(New<TOrchidService>(
         orchidRoot,

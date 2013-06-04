@@ -309,7 +309,7 @@ void TBootstrap::Run()
     SyncYPathSet(
         OrchidRoot,
         "/@service_name", ConvertToYsonString("node"));
-    SetBuildAttributes(OrchidRoot);
+    SetBuildAttributes(OrchidRoot, "node");
 
     std::unique_ptr<NHttp::TServer> httpServer(new NHttp::TServer(Config->MonitoringPort));
     httpServer->Register(

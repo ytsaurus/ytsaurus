@@ -12,8 +12,16 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void SetBuildAttributes(NYTree::IYPathServicePtr orchidRoot)
+void SetBuildAttributes(IYPathServicePtr orchidRoot, const char* serviceName)
 {
+    SyncYPathSet(orchidRoot, "/service/version", ConvertToYsonString(YT_VERSION));
+    SyncYPathSet(orchidRoot, "/service/host", ConvertToYsonString(YT_BUILD_HOST));
+    SyncYPathSet(orchidRoot, "/service/time", ConvertToYsonString(YT_BUILD_TIME));
+    SyncYPathSet(orchidRoot, "/service/machine", ConvertToYsonString(YT_BUILD_MACHINE));
+    SyncYPathSet(orchidRoot, "/service/start_time", ConvertToYsonString(TInstant::Now()));
+    SyncYPathSet(orchidRoot, "/service/name", ConvertToYsonString(serviceName));
+
+    // COMPAT(lukyan)
     SyncYPathSet(orchidRoot, "/@version", ConvertToYsonString(YT_VERSION));
     SyncYPathSet(orchidRoot, "/@build_host", ConvertToYsonString(YT_BUILD_HOST));
     SyncYPathSet(orchidRoot, "/@build_time", ConvertToYsonString(YT_BUILD_TIME));

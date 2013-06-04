@@ -201,7 +201,8 @@ void TBootstrap::Run()
         CreateVirtualNode(CreateYsonFileProducer(ConfigFileName)));
 
     SyncYPathSet(orchidRoot, "/@service_name", ConvertToYsonString("master"));
-    SetBuildAttributes(orchidRoot);
+
+    SetBuildAttributes(orchidRoot, "master");
 
     RpcServer->RegisterService(New<TObjectService>(Config->ObjectManager, this));
     RpcServer->RegisterService(New<TNodeTrackerService>(Config->NodeTracker, this));
