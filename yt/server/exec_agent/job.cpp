@@ -533,7 +533,7 @@ private:
                         this_->DoAbort(wrappedError, EJobState::Failed);
                         return;
                     }
-                    this_->CachedChunks.push_back(result.Value());
+                    this_->CachedChunks.push_back(result.GetValue());
                 }));
         }
 
