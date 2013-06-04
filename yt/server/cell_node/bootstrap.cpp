@@ -306,6 +306,8 @@ void TBootstrap::Run()
         OrchidRoot,
         "/cached_chunks",
         CreateVirtualNode(CreateCachedChunkMapService(~ChunkCache)));
+    
+    // COMPAT(lukyan)
     SyncYPathSet(
         OrchidRoot,
         "/@service_name", ConvertToYsonString("node"));

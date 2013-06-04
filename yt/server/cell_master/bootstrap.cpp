@@ -199,7 +199,8 @@ void TBootstrap::Run()
         orchidRoot,
         "/config",
         CreateVirtualNode(CreateYsonFileProducer(ConfigFileName)));
-
+    
+    // COMPAT(lukyan)
     SyncYPathSet(orchidRoot, "/@service_name", ConvertToYsonString("master"));
 
     SetBuildAttributes(orchidRoot, "master");
