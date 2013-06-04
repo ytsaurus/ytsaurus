@@ -30,6 +30,8 @@ private:
     // Just holds the consumer that parser is using.
     std::unique_ptr<NYson::IYsonConsumer> Consumer;
     NTableClient::ISyncWriterPtr SyncWriter;
+
+    bool IsParserValid;
 };
 
 ////////////////////////////////////////////////////////////////////

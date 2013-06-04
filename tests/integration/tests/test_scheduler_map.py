@@ -31,7 +31,6 @@ class TestSchedulerMapCommands(YTEnvSetup):
             in_='//tmp/t1', out='//tmp/t2', command=r'cat; echo "{v1=\"$V1\"};{v2=\"$V2\"}"', 
             opt=['/spec/mapper/environment={V1="Some data";V2="$(SandboxPath)/mytmp"}'])
 
-
         get('//sys/operations/%s/@spec' % op_id)
         track_op(op_id)
 
@@ -81,7 +80,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         create('table', '//tmp/t2')
         write_str('//tmp/t1', '{foo=bar}')
 
-        command = '''cat > /dev/null; echo stderr 1>&2; exit 125'''
+        command = '''cat > /dev/null; echo stderr 1>&2; echo "{x=y}{v=};{a=b}"'''
 
         op_id = map('--dont_track', in_='//tmp/t1', out='//tmp/t2', command=command)
         # if all jobs failed then operation is also failed

@@ -20,6 +20,7 @@ TTableOutput::TTableOutput(
     : Parser(std::move(parser))
     , Consumer(std::move(consumer))
     , SyncWriter(std::move(syncWriter))
+    , IsParserValid(true)
 { }
 
 TTableOutput::~TTableOutput() throw()
@@ -27,12 +28,20 @@ TTableOutput::~TTableOutput() throw()
 
 void TTableOutput::DoWrite(const void* buf, size_t len)
 {
-    Parser->Read(TStringBuf(static_cast<const char*>(buf), len));
+	YCHECK(IsParserValid);
+	try {
+    	Parser->Read(TStringBuf(static_cast<const char*>(buf), len));
+	} catch (const std::exception& ex) {
+		IsParserValid = false;
+		throw;
+	}
 }
 
 void TTableOutput::DoFinish()
 {
-    Parser->Finish();
+	if (IsParserValid) {
+    	Parser->Finish();
+    }
     SyncWriter->Close();
 }
 
