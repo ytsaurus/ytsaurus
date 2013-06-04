@@ -14,6 +14,7 @@ using namespace NYTree;
 
 void SetBuildAttributes(IYPathServicePtr orchidRoot, const char* serviceName)
 {
+    SyncYPathSet(orchidRoot, "/service", TYsonString("{}"));
     SyncYPathSet(orchidRoot, "/service/version", ConvertToYsonString(YT_VERSION));
     SyncYPathSet(orchidRoot, "/service/host", ConvertToYsonString(YT_BUILD_HOST));
     SyncYPathSet(orchidRoot, "/service/time", ConvertToYsonString(YT_BUILD_TIME));
