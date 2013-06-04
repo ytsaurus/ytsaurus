@@ -27,6 +27,7 @@
 #include <ytlib/misc/proc.h>
 #include <ytlib/misc/periodic_invoker.h>
 #include <ytlib/misc/protobuf_helpers.h>
+#include <ytlib/misc/pattern_formatter.h>
 
 #include <ytlib/transaction_client/public.h>
 
@@ -436,11 +437,16 @@ private:
             auto config = Host->GetConfig();
             ChDir(config->SandboxName);
 
-            Stroka cmd = UserJobSpec.shell_command();
+            TPatternFormatter formatter;
+            formatter.AddProperty("SandboxPath", GetCwd());
+
+            std::vector<Stroka> envHolders;
+            envHolders.reserve(UserJobSpec.environment_size());
 
             std::vector<const char*> envp(UserJobSpec.environment_size() + 1);
             for (int i = 0; i < UserJobSpec.environment_size(); ++i) {
-                envp[i] = ~UserJobSpec.environment(i);
+                envHolders.push_back(formatter.Format(UserJobSpec.environment(i)));
+                envp[i] = ~envHolders.back();
             }
             envp[UserJobSpec.environment_size()] = NULL;
 
@@ -464,6 +470,7 @@ private:
                 YCHECK(setuid(config->UserId) == 0);
             }
 
+            Stroka cmd = UserJobSpec.shell_command();
             // do not search the PATH, inherit environment
             execle("/bin/sh",
                 "/bin/sh",

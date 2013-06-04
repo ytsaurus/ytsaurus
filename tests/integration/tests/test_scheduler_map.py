@@ -7,6 +7,9 @@ from yt_commands import *
 
 ##################################################################
 
+#echo "{v1=$V1};{v2=$V2}"
+#; V2="{{SandboxPath}}/mytmp"}
+
 class TestSchedulerMapCommands(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
@@ -24,9 +27,21 @@ class TestSchedulerMapCommands(YTEnvSetup):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
         write_str('//tmp/t1', '{a=b}')
-        map(in_='//tmp/t1', out='//tmp/t2', command='cat')
+        op_id = map('--dont_track',
+            in_='//tmp/t1', out='//tmp/t2', command=r'cat; echo "{v1=\"$V1\"};{v2=\"$V2\"}"', 
+            opt=['/spec/mapper/environment={V1="Some data";V2="$(SandboxPath)/mytmp"}'])
 
-        assert read('//tmp/t2') == [{'a' : 'b'}]
+
+        get('//sys/operations/%s/@spec' % op_id)
+        track_op(op_id)
+
+        res =  read('//tmp/t2')
+        assert len(res) == 3
+        assert res[0] == {'a' : 'b'}
+        assert res[1] == {'v1' : 'Some data'}
+        assert res[2].has_key('v2')
+        assert res[2]['v2'].endswith("/mytmp")
+        assert res[2]['v2'].startswith("/")
 
     @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
     def test_in_equal_to_out(self):
