@@ -2,9 +2,10 @@ import config
 import logger
 from common import require
 from errors import YtError, YtResponseError
-from format import JsonFormat
 from version import VERSION
 from http import make_get_request_with_retries, make_request_with_retries, Response, get_token, get_proxy
+
+from yt.yson.yson_types import convert_to_yson_tree
 
 import requests
 
@@ -54,10 +55,11 @@ def get_host_for_heavy_operation():
     return config.http.PROXY
 
 def make_request(command_name, params,
-                 data=None, format=None, proxy=None, return_raw_response=False, verbose=False):
+                 data=None, proxy=None, return_raw_response=False, verbose=False):
     """
     Makes request to yt proxy. Command name is the name of command in YT API.
-    Option return_raw_response forces returning response of requests library without extracting data field.
+    Option return_raw_response forces returning response of requests library
+    without extracting data field.
     """
     def print_info(msg, *args, **kwargs):
         # Verbose option is used for debugging because it is more
@@ -72,7 +74,7 @@ def make_request(command_name, params,
 
     # Get command description
     command = config.COMMANDS[command_name]
-    
+
     # Determine make retries or not and set mutation if needed
     allow_retries = \
             not command.is_volatile or \
@@ -96,20 +98,25 @@ def make_request(command_name, params,
     headers = {"User-Agent": "Python wrapper " + VERSION,
                "Accept-Encoding": config.http.ACCEPT_ENCODING,
                "X-YT-Correlation-Id": str(uuid.uuid4())}
-    # TODO(ignat) stop using http method for detection command properties
-    if command.http_method() == "POST":
-        require(data is None and format is None,
-                YtError("Format and data should not be specified in POST methods"))
-        headers.update(JsonFormat().to_input_http_header())
-        data = json.dumps(params)
-        params = {}
+
+    if command.input_type is None:
+        # Should we also check that command is volatile?
+        require(data is None, YtError("Body should be empty in commands without input type"))
+        if command.is_volatile:
+            headers["Content-Type"] = "application/json"
+            data = json.dumps(params)
+            params = {}
+
+    if config.API_PATH == "api":
+        if "input_format" in params:
+            headers["X-YT-Input-Format"] = json.dumps(params["input_format"])
+            del params["input_format"]
+        if "output_format" in params:
+            headers["X-YT-Output-Format"] = json.dumps(params["output_format"])
+            del params["output_format"]
+
     if params:
         headers.update({"X-YT-Parameters": json.dumps(params)})
-    if format is not None:
-        headers.update(format.to_input_http_header())
-        headers.update(format.to_output_http_header())
-    else:
-        headers.update(JsonFormat().to_output_http_header())
 
     token = get_token()
     if token is not None:
@@ -117,8 +124,7 @@ def make_request(command_name, params,
 
     # Debug information
     print_info("Headers: %r", headers)
-    print_info("Params: %r", params)
-    if command.http_method() != "PUT":
+    if command.input_type is None:
         print_info("Body: %r", data)
 
     stream = (command.output_type in ["binary", "tabular"])
@@ -136,7 +142,7 @@ def make_request(command_name, params,
         url,
         return_raw_response)
 
-    # Hide token for security reasons 
+    # Hide token for security reasons
     if "Authorization" in headers:
         headers["Authorization"] = "x" * 32
     print_info("Response header %r", response.http_response.headers)
@@ -145,14 +151,24 @@ def make_request(command_name, params,
     if response.is_ok():
         if return_raw_response:
             return response.http_response
-        elif response.is_json():
-            return response.json()
-        elif response.is_yson():
-            return response.yson()
         else:
-            return response.content
+            return response.content()
     else:
         message = "Response to request {0} with headers {1} contains error:\n{2}".\
                   format(url, headers, response.error())
         raise YtResponseError(message)
 
+def make_formatted_request(command_name, params, format, **kwargs):
+    # None format means that we want parsed output (as yson structure) instead of string.
+    # Yson parser is too slow, so we request result in JsonFormat and then convert it to yson structure.
+    if format is None:
+        params["output_format"] = "json"
+    else:
+        params["output_format"] = format.json()
+
+    result = make_request(command_name, params)
+
+    if format is None:
+        return convert_to_yson_tree(json.loads(result))
+    else:
+        return result

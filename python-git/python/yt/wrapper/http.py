@@ -31,15 +31,8 @@ class Response(object):
     def is_json(self):
         return self.http_response.headers.get("content-type") == "application/json"
 
-    def is_yson(self):
-        content_type = self.http_response.headers.get("content-type")
-        return isinstance(content_type, str) and content_type.startswith("application/x-yt-yson")
-
     def json(self):
         return self.http_response.json()
-
-    def yson(self):
-        return yson.loads(self.content())
 
     def content(self):
         return self.http_response.content
@@ -66,7 +59,7 @@ def make_request_with_retries(request, make_retries=False, description="", retur
             response = request()
             # Sometimes (quite often) we obtain incomplete response with empty body where expected to be JSON.
             # So we should retry this request.
-            is_json = response.is_json() or not str(response.http_response.status_code).startswith("2")
+            is_json = response.is_json()
             if not return_raw_response and is_json and not response.content():
                 raise YtResponseError(
                         "Response has empty body and JSON content type (Headers: %s)" %
