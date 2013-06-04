@@ -57,6 +57,8 @@ protected:
 
     i64 CurrentBufferCapacity;
 
+    i64 LargestBlockSize;
+
     TAsyncStreamState State;
 
     NChunkClient::NProto::TChunkMeta Meta;

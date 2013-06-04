@@ -111,6 +111,12 @@ TRefCountedChunkSpecPtr TChunkSlice::GetChunkSpec() const
     return ChunkSpec;
 }
 
+i64 TChunkSlice::GetMaxBlockSize() const
+{
+    auto miscExt = GetProtoExtension<TMiscExt>(ChunkSpec->extensions());
+    return miscExt.max_block_size();
+}
+
 i64 TChunkSlice::GetDataSize() const
 {
     return SizeOverrideExt.uncompressed_data_size();

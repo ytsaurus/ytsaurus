@@ -2,13 +2,12 @@
 #include "slot.h"
 #include "private.h"
 
-#include <ytlib/misc/fs.h>
 #include <ytlib/misc/proc.h>
 
 #include <ytlib/ytree/yson_producer.h>
 
 #include <util/folder/dirut.h>
-#include <util/stream/file.h>
+
 
 namespace NYT {
 namespace NExecAgent {
@@ -116,20 +115,6 @@ void TSlot::MakeLink(
     auto linkPath = NFS::CombinePaths(SandboxPath, linkName);
     NFS::MakeSymbolicLink(targetPath, linkPath);
     NFS::SetExecutableMode(linkPath, isExecutable);
-}
-
-void TSlot::MakeFile(
-    const Stroka& fileName,
-    NYTree::TYsonProducer producer,
-    const NFormats::TFormat& format)
-{
-    TFileOutput fileOutput(NFS::CombinePaths(SandboxPath, fileName));
-
-    auto consumer = CreateConsumerForFormat(
-        format,
-        NFormats::EDataType::Tabular,
-        &fileOutput);
-    producer.Run(~consumer);
 }
 
 void TSlot::MakeEmptyFile(const Stroka& fileName)

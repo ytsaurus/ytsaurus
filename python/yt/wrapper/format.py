@@ -1,93 +1,45 @@
-from common import bool_to_string, get_value
-from errors import YtError
-from yt.yson import loads, yson_types
-import simplejson as json
+from common import get_value, require, update
+from errors import YtError, YtFormatError
+from yt.yson import loads, dumps, convert_to_json_tree
 
 import struct
 from cStringIO import StringIO
 
-# TODO(ignat): Add custom field separator
 class Format(object):
-    """ Represents format to read/write and process records"""
-    def to_input_http_header(self):
-        return {"Content-Type": self._mime_type()}
+    """Format represented by raw description: name + attributes"""
+    def __init__(self, format_string, attributes=None):
+        self.format = loads(format_string)
+        require(isinstance(self.format, str), YtError("Incorrect format"))
 
-    def to_output_http_header(self):
-        return {"Accept": self._mime_type()}
+        if attributes is not None:
+            update(self.format.attributes, attributes)
+
+
+    def json(self):
+        return convert_to_json_tree(self.format)
+
+    def name(self):
+        return str(self.format)
+
+    def attributes(self):
+        return self.format.attributes
+
+    def __repr__(self):
+        return dumps(self.format)
 
     def __eq__(self, other):
-        if hasattr(self, "to_json") and hasattr(other, "to_json"):
-            return self.to_json() == other.to_json()
-        return False
+        return self.format == other.format
 
     def __ne__(self, other):
         return not self.__eq__(other)
 
-
-
-class DsvFormat(Format):
-    def __init__(self):
-        pass
-
-    def _mime_type(self):
-        return "text/tab-separated-values"
-
-    def to_json(self):
-        return "dsv"
+    def is_read_row_supported(self):
+        return self.name() in ["dsv", "yamr", "yamred_dsv"]
 
     def read_row(self, stream):
-        return stream.readline()
-    
-
-
-class YsonFormat(Format):
-    def __init__(self, format=None):
-        self.format = get_value(format, "pretty")
-
-    def _mime_type(self):
-        return "application/x-yt-yson-" + self.format
-
-    def to_json(self):
-        return {"$value": "yson",
-                "$attributes":
-                    {"format": self.format}}
-
-class YamrFormat(Format):
-    def __init__(self, has_subkey, lenval, field_separator=None, record_separator=None):
-        self.field_separator = get_value(field_separator, '\t')
-        self.record_separator = get_value(record_separator, '\n')
-        self.has_subkey = has_subkey
-        self.lenval = lenval
-
-    #def _mime_type(self):
-    #    return "application/x-yamr%s-%s" % \
-    #        ("-subkey" if self.has_subkey else "",
-    #         "lenval" if self.lenval else "delimited")
-
-    def to_input_http_header(self):
-        return {"X-YT-Input-Format": self.to_str()}
-
-    def to_output_http_header(self):
-        return {"X-YT-Output-Format": self.to_str()}
-
-    def to_json(self):
-        return {"$value": "yamr",
-                "$attributes": {
-                    "has_subkey": bool_to_string(self.has_subkey),
-                    "lenval": bool_to_string(self.lenval),
-                    "fs": self.field_separator,
-                    "rs": self.record_separator}
-               }
-
-    def to_str(self):
-        return json.dumps(self.to_json())
-
-    def read_row(self, stream):
-        if not self.lenval:
-            return stream.readline()
-        else:
+        def read_lenval(stream, has_subkey):
             field_count = 2
-            if self.has_subkey:
+            if has_subkey:
                 field_count += 1
 
             result = StringIO()
@@ -101,40 +53,53 @@ class YamrFormat(Format):
             return result.getvalue()
 
 
+        if self.name() == "dsv":
+            return stream.readline()
+        elif self.name() in ["yamr", "yamred_dsv"]:
+            if self.attributes().get("lenval", False):
+                return read_lenval(stream, self.attributes().get("has_subkey", False))
+            else:
+                return stream.readline()
+        else:
+            raise YtFormatError("Reading rows in %s format isn't supported" % self.name())
+
+class DsvFormat(Format):
+    def __init__(self):
+        super(DsvFormat, self).__init__("dsv")
+
+class YsonFormat(Format):
+    def __init__(self, format=None):
+        if format is None:
+            format = "text"
+        super(YsonFormat, self).__init__("yson", attributes={"format": format})
+
+class YamrFormat(Format):
+    def __init__(self, has_subkey, lenval, field_separator=None, record_separator=None):
+        super(YamrFormat, self).__init__(
+            "yamr",
+            attributes={
+                "fs": get_value(field_separator, '\t'),
+                "rs": get_value(record_separator, '\n'),
+                "has_subkey": has_subkey,
+                "lenval": lenval
+            })
+
+    def _get_has_subkey(self):
+        return self.attributes().get("has_subkey", False)
+
+    def _set_has_subkey(self, value):
+        self.attributes()["has_subkey"] = value
+
+    has_subkey = property(_get_has_subkey, _set_has_subkey)
+
+    def _get_lenval(self):
+        return self.attributes().get("lenval", False)
+
+    def _set_lenval(self, value):
+        self.attributes()["lenval"] = value
+
+    lenval = property(_get_lenval, _set_lenval)
+
 class JsonFormat(Format):
-    def _mime_type(self):
-        return "application/json"
-
-class RawFormat(Format):
-    """Format represented by raw description: name + attributes"""
-    @staticmethod
-    def from_yson(yson):
-        format = RawFormat()
-        format._format = yson
-        return format
-
-    @staticmethod
-    def from_yson_string(str):
-        format = RawFormat()
-        format._format = loads(str)
-        return format
-
-    @staticmethod
-    def from_tree(json_tree):
-        format = RawFormat()
-        format._format = yson_types.convert_to_yson_tree(json_tree)
-        return format
-
-    def to_input_http_header(self):
-        return {"X-YT-Input-Format": self.to_str()}
-
-    def to_output_http_header(self):
-        return {"X-YT-Output-Format": self.to_str()}
-
-    def to_json(self):
-        return {"$value": str(self._format),
-                "$attributes": self._format.attributes}
-
-    def to_str(self):
-        return json.dumps(self.to_json())
-
+    def __init__(self):
+        super(JsonFormat, self).__init__("json")

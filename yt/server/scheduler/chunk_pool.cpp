@@ -19,29 +19,6 @@ using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////
 
-void GetStatistics(
-    const TChunkStripePtr& stripe,
-    i64* totalDataSize,
-    i64* totalRowCount)
-{
-    if (totalDataSize) {
-        *totalDataSize = 0;
-    }
-    if (totalRowCount) {
-        *totalRowCount = 0;
-    }
-
-    FOREACH (const auto& chunkSlice, stripe->ChunkSlices) {
-        if (totalDataSize) {
-            *totalDataSize += chunkSlice->GetDataSize();
-        }
-
-        if (totalRowCount) {
-            *totalRowCount += chunkSlice->GetRowCount();
-        }
-    }
-}
-
 void AddStripeToList(
     const TChunkStripePtr& stripe,
     const TNodeDirectoryPtr& nodeDirectory,
@@ -102,6 +79,7 @@ TChunkStripeStatistics TChunkStripe::GetStatistics() const
         result.DataSize += chunkSlice->GetDataSize();
         result.RowCount += chunkSlice->GetRowCount();
         ++result.ChunkCount;
+        result.MaxBlockSize = std::max(result.MaxBlockSize, chunkSlice->GetMaxBlockSize());
     }
 
     return result;
@@ -115,6 +93,7 @@ TChunkStripeStatistics operator + (
     result.ChunkCount = lhs.ChunkCount + rhs.ChunkCount;
     result.DataSize = lhs.DataSize + rhs.DataSize;
     result.RowCount = lhs.RowCount + rhs.RowCount;
+    result.MaxBlockSize = std::max(lhs.MaxBlockSize, rhs.MaxBlockSize);
     return result;
 }
 
@@ -125,6 +104,7 @@ TChunkStripeStatistics& operator += (
     lhs.ChunkCount += rhs.ChunkCount;
     lhs.DataSize += rhs.DataSize;
     lhs.RowCount += rhs.RowCount;
+    lhs.MaxBlockSize = std::max(lhs.MaxBlockSize, rhs.MaxBlockSize);
     return lhs;
 }
 
@@ -574,6 +554,7 @@ public:
 
         TChunkStripeStatistics stat;
         // Typically unordered pool has one chunk per stripe.
+        // NB: Cannot estimate MaxBlockSize here.
         stat.ChunkCount = std::max(
             static_cast<i64>(1),
             static_cast<i64>(PendingGlobalChunks.size()) / GetPendingJobCount());
@@ -714,14 +695,7 @@ private:
 
         //! The total locality associated with this address.
         i64 Locality;
-
-        //! Multiset of stripes having positive locality at this address.
-        /*!
-         *  Starting from 0.14, we allow multiple replicas of the same chunk to
-         *  reside at the same address. While this is not an expected case,
-         *  appearance of such replicas must not lead to scheduler crash.
-         */
-        yhash_multiset<TChunkStripePtr> Stripes;
+        yhash_set<TChunkStripePtr> Stripes;
     };
 
     yhash_map<Stroka, TLocalityEntry> PendingLocalChunks;
@@ -739,10 +713,16 @@ private:
         FOREACH (const auto& chunkSlice, stripe->ChunkSlices) {
             FOREACH (ui32 protoReplica, chunkSlice->GetChunkSpec()->replicas()) {
                 auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
-                const auto& descriptor = NodeDirectory->GetDescriptor(replica);
-                auto& entry = PendingLocalChunks[descriptor.Address];
-                entry.Stripes.insert(stripe);
-                entry.Locality += chunkSlice->GetLocality(replica.GetIndex());
+
+                auto locality = chunkSlice->GetLocality(replica.GetIndex());
+                if (locality > 0) {
+                    const auto& descriptor = NodeDirectory->GetDescriptor(replica);
+                    auto& entry = PendingLocalChunks[descriptor.Address];
+                    // NB: do not check that stripe is unique, it may have already been inserted,
+                    // since different replicas may reside on the same node during rebalancing.
+                    entry.Stripes.insert(stripe);
+                    entry.Locality += locality;    
+                }
             }
         }
 
@@ -754,12 +734,16 @@ private:
         FOREACH (const auto& chunkSlice, stripe->ChunkSlices) {
             FOREACH (ui32 protoReplica, chunkSlice->GetChunkSpec()->replicas()) {
                 auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
-                const auto& descriptor = NodeDirectory->GetDescriptor(replica);
-                auto& entry = PendingLocalChunks[descriptor.Address];
-                auto it = entry.Stripes.find(stripe);
-                YCHECK(it != entry.Stripes.end());
-                entry.Stripes.erase(it);
-                entry.Locality -= chunkSlice->GetLocality(replica.GetIndex());
+                auto locality = chunkSlice->GetLocality(replica.GetIndex());
+                if (locality > 0) {
+                    const auto& descriptor = NodeDirectory->GetDescriptor(replica);
+                    auto& entry = PendingLocalChunks[descriptor.Address];
+                    auto it = entry.Stripes.find(stripe);
+                    if (it != entry.Stripes.end()) {
+                        entry.Stripes.erase(it);
+                    }
+                    entry.Locality -= locality;
+                }
             }
         }
 
@@ -1042,6 +1026,7 @@ private:
 
             auto& stat = result.front();
 
+            // NB: cannot estimate MaxBlockSize here.
             stat.ChunkCount = run.ElementaryIndexEnd - run.ElementaryIndexBegin;
             stat.DataSize = run.TotalDataSize;
             stat.RowCount = run.TotalRowCount;

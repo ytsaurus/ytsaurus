@@ -75,12 +75,14 @@ i64 GetInputIOMemorySize(
 
     int concurrentReaders = std::min(stat.ChunkCount, MaxPrefetchWindow);
 
-    i64 bufferSize = std::min(
-        stat.DataSize,
-        concurrentReaders * (ioConfig->TableReader->WindowSize + ioConfig->TableReader->GroupSize));
+    i64 groupSize = std::max(stat.MaxBlockSize, ioConfig->TableReader->GroupSize);
+    i64 windowSize = std::max(stat.MaxBlockSize, ioConfig->TableReader->WindowSize);
+    i64 bufferSize = std::min(stat.DataSize, concurrentReaders * (windowSize + groupSize));
     bufferSize += concurrentReaders * ChunkReaderMemorySize;
 
-    return std::min(bufferSize, ioConfig->TableReader->MaxBufferSize);
+    i64 maxBufferSize = std::max(ioConfig->TableReader->MaxBufferSize, 2 * stat.MaxBlockSize);
+
+    return std::min(bufferSize, maxBufferSize);
 }
 
 i64 GetSortInputIOMemorySize(

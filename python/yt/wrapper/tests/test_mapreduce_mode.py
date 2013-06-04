@@ -10,7 +10,6 @@ from yt.common import flatten
 from yt.wrapper.tests.base import YtTestBase, TEST_DIR
 
 import os
-import sys
 import random
 import string
 import subprocess
@@ -49,7 +48,7 @@ class TestMapreduceMode(YtTestBase, YTEnv):
 
     def dsv_records(self):
         return map(
-            partial(record_to_line, format=yt.DsvFormat()),
+            partial(record_to_line, format=yt.Format("dsv")),
                 [{"a": 12,  "b": "ignat"},
                            {"b": "max",  "c": 17.5},
                  {"a": "x", "b": "name", "c": 0.5}])
@@ -320,14 +319,14 @@ class TestMapreduceMode(YtTestBase, YTEnv):
     def test_file_operations(self):
         dest = []
         for i in xrange(2):
-            self.assertTrue(yt.smart_upload_file(_test_file_path("my_op.py")).find("/my_op.py") != -1)
+            self.assertTrue(yt.smart_upload_file(_test_file_path("my_op.py"), placement_strategy="random").find("/my_op.py") != -1)
 
         for d in dest:
             self.assertEqual(list(yt.download_file(dest)),
                              open(_test_file_path("my_op.py")).readlines())
 
         dest = TEST_DIR+"/file_dir/some_file"
-        yt.smart_upload_file(_test_file_path("my_op.py"), destination=dest)
+        yt.smart_upload_file(_test_file_path("my_op.py"), destination=dest, placement_strategy="random")
         self.assertEqual(yt.get_attribute(dest, "file_name"), "some_file")
 
     def test_map_reduce_operation(self):

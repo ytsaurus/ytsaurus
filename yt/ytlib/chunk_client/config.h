@@ -102,10 +102,10 @@ public:
     TSequentialReaderConfig()
     {
         RegisterParameter("window_size", WindowSize)
-            .Default((i64) 64 * 1024 * 1024)
+            .Default((i64) 32 * 1024 * 1024)
             .GreaterThan(0);
         RegisterParameter("group_size", GroupSize)
-            .Default((i64) 64 * 1024 * 1024)
+            .Default((i64) 32 * 1024 * 1024)
             .GreaterThan(0);
 
         RegisterValidator([&] () {
@@ -196,7 +196,7 @@ public:
     TEncodingWriterConfig()
     {
         RegisterParameter("encode_window_size", EncodeWindowSize)
-            .Default((i64) 32 * 1024 * 1024)
+            .Default((i64) 16 * 1024 * 1024)
             .GreaterThan(0);
         RegisterParameter("default_compression_ratio", DefaultCompressionRatio)
             .Default(0.2);
@@ -314,7 +314,7 @@ struct TMultiChunkReaderConfig
         RegisterParameter("max_buffer_size", MaxBufferSize)
             .GreaterThan(0L)
             .LessThanOrEqual((i64) 10 * 1024 * 1024 * 1024)
-            .Default((i64) 256 * 1024 * 1024);
+            .Default((i64) 128 * 1024 * 1024);
 
         RegisterValidator([&] () {
             if (MaxBufferSize < 2 * WindowSize) {

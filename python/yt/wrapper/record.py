@@ -1,7 +1,6 @@
 import config
 from common import require
 from errors import YtError
-from format import DsvFormat, YamrFormat, YsonFormat
 
 import yt.yson as yson
 
@@ -66,16 +65,17 @@ def record_to_line(rec, format=None, eoln=True):
 
     if format is None: format = config.format.TABULAR_DATA_FORMAT
     
-    if isinstance(format, YamrFormat):
-        require(not format.lenval, YtError("Lenval conversion is not supported now."))
+    if format.name() == "yamr":
+        require(not format.attributes().get("lenval", False),
+                YtError("Lenval conversion is not supported now."))
         if format.has_subkey:
             fields = [rec.key, rec.subkey, rec.value]
         else:
             fields = [rec.key, rec.value]
         body = "\t".join(fields)
-    elif isinstance(format, DsvFormat):
+    elif format.name() == "dsv":
         body = "\t".join("%s=%s" % (escape_key(str(item[0])), escape_value(str(item[1]))) for item in rec.iteritems())
-    elif isinstance(format, YsonFormat):
+    elif format.name() == "yson":
         body = yson.dumps(rec) + ";"
     else:
         raise YtError("Unrecognized format " + repr(format))
@@ -118,11 +118,11 @@ def line_to_record(line, format=None):
     
     if format is None: format = config.format.TABULAR_DATA_FORMAT
     
-    if isinstance(format, YamrFormat):
-        return Record(*line.strip("\n").split("\t", 1 + (1 if format.has_subkey else 0)))
-    elif isinstance(format, DsvFormat):
+    if format.name() == "yamr":
+        return Record(*line.strip("\n").split("\t", 1 + (1 if format.attributes().get("has_subkey", False) else 0)))
+    elif format.name() == "dsv":
         return dict(map(unescape_record, filter(None, line.strip("\n").split("\t"))))
-    elif isinstance(format, YsonFormat):
+    elif format.name() == "yson":
         return yson.loads(line.rstrip(";\n"))
     else:
         raise YtError("Unrecognized format " + repr(format))
@@ -130,9 +130,9 @@ def line_to_record(line, format=None):
 def extract_key(rec, fields, format=None):
     if format is None: format = config.format.TABULAR_DATA_FORMAT
 
-    if isinstance(format, YamrFormat):
+    if format.name() == "yamr":
         return rec.key
-    elif isinstance(format, DsvFormat) or isinstance(format, YsonFormat):
+    elif format.name() in ["dsv", "yson"]:
         return dict((key, rec[key]) for key in fields if key in rec)
     else:
         raise YtError("Unrecognized format " + repr(format))

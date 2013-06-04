@@ -191,7 +191,7 @@ void TPartitionChunkWriter::PrepareBlock()
 
     ++CurrentBlockIndex;
 
-    int size = 0;
+    i64 size = 0;
     auto blockParts = channelWriter->FlushBlock();
     FOREACH (const auto& part, blockParts) {
         size += part.Size();
@@ -199,6 +199,7 @@ void TPartitionChunkWriter::PrepareBlock()
 
     blockInfo->set_block_size(size);
 
+    LargestBlockSize = std::max(LargestBlockSize, size);
     CurrentBufferCapacity += channelWriter->GetCapacity();
 
     auto* partitionAttributes = PartitionsExt.mutable_partitions(partitionTag);

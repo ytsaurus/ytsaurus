@@ -282,7 +282,6 @@ class TestDefaultBehaviour(YtTestBase, YTEnv):
             if check_action is not None:
                 assert check_action()
 
-
     def test_master_mutation_id(self):
         test_dir = os.path.join(TEST_DIR, "test")
         test_dir2 = os.path.join(TEST_DIR, "test2")

@@ -1,30 +1,16 @@
 import config
 from common import parse_bool, flatten, get_value, bool_to_string
-from format import JsonFormat
-from transaction_commands import _make_transactional_request
+from transaction_commands import _make_transactional_request, \
+                                 _make_formatted_transactional_request
 from table import prepare_path, to_name
 
-from yt.yson.yson_types import YsonString, convert_to_yson_tree
+from yt.yson.yson_types import YsonString
 
 import os
 import string
 import random
 from copy import deepcopy
 import simplejson as json
-
-def _make_formatted_request(command_name, params, format, **kwargs):
-    result = _make_transactional_request(
-        command_name,
-        params,
-        return_raw_response=format is not None,
-        format=get_value(format, JsonFormat()))
-    # Yson parser is too slow. By default we request result in JsonFormat
-    # and then convert it to yson.
-    if format is None:
-        result = convert_to_yson_tree(result)
-    else:
-        result = result.content
-    return result
 
 def get(path, attributes=None, format=None, spec=None):
     """
@@ -34,7 +20,7 @@ def get(path, attributes=None, format=None, spec=None):
 
     Be carefull: attributes have weird representation in json format.
     """
-    return _make_formatted_request(
+    return _make_formatted_transactional_request(
         "get",
         {
             "path": prepare_path(path),
@@ -49,9 +35,11 @@ def set(path, value):
     """
     _make_transactional_request(
         "set",
-        {"path": prepare_path(path)},
-        data=json.dumps(value),
-        format=JsonFormat())
+        {
+            "path": prepare_path(path),
+            "input_format": "json"
+        },
+        data=json.dumps(value))
 
 def copy(source_path, destination_path):
     _make_transactional_request(
@@ -90,7 +78,7 @@ def list(path, max_size=1000, format=None, absolute=False, attributes=None):
         full_path.attributes = elem.attributes
         return full_path
 
-    result = _make_formatted_request(
+    result = _make_formatted_transactional_request(
         "list",
         {
             "path": prepare_path(path),
@@ -104,9 +92,10 @@ def list(path, max_size=1000, format=None, absolute=False, attributes=None):
 
 def exists(path):
     return parse_bool(
-        _make_transactional_request(
+        _make_formatted_transactional_request(
             "exists",
-             {"path": prepare_path(path)}))
+             {"path": prepare_path(path)},
+             format=None))
 
 def remove(path, recursive=False, force=False):
     _make_transactional_request(
@@ -131,16 +120,6 @@ def create(type, path=None, recursive=False, ignore_existing=False, attributes=N
 def mkdir(path, recursive=None):
     recursive = get_value(recursive, config.CREATE_RECURSIVE)
     create("map_node", path, recursive=recursive, ignore_existing=recursive)
-
-def check_permission(user, permission, path, format=None):
-    return _make_formatted_request(
-        "check_permission",
-        {
-            "user": user,
-            "permission": permission,
-            "path": path
-        },
-        format=format)
 
 
 # TODO: maybe remove this methods
