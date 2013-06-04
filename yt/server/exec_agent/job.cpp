@@ -115,6 +115,14 @@ public:
             }
         }
 
+        if (UserJobSpec) {
+            // Adjust memory usage according to memory_reserve.
+            auto memoryUsage = ResourceUsage.memory();
+            memoryUsage -= UserJobSpec->memory_limit();
+            memoryUsage += UserJobSpec->memory_reserve();
+            ResourceUsage.set_memory(memoryUsage);
+        }
+
         NodeDirectory->AddDescriptor(InvalidNodeId, Bootstrap->GetLocalDescriptor());
 
         Logger.AddTag(Sprintf("JobId: %s", ~ToString(jobId)));
