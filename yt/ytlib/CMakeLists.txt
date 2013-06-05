@@ -40,9 +40,19 @@ add_msvc_precompiled_header(
   YT_SOURCE_FILES
 )
 
-add_library( ytlib STATIC
-  ${YT_SOURCE_FILES}
-)
+if (YT_BUILD_YTLIB_SHARED)
+  add_library( ytlib SHARED
+    ${YT_SOURCE_FILES}
+  )
+  install(
+    TARGETS ytlib
+    LIBRARY DESTINATION lib COMPONENT libraries
+  )
+else()
+  add_library( ytlib STATIC
+    ${YT_SOURCE_FILES}
+  )
+endif()
 
 target_link_libraries ( ytlib
   ytext-arcadia-util
@@ -54,7 +64,11 @@ target_link_libraries ( ytlib
 )
 
 if (HAVE_LIBUNWIND)
-  target_link_libraries( ytlib libunwind.a )
+  if (YT_BUILD_YTLIB_SHARED)
+    target_link_libraries( ytlib libunwind.so )
+  else()
+    target_link_libraries( ytlib libunwind.a )
+  endif()
 endif()
 
 include_directories(

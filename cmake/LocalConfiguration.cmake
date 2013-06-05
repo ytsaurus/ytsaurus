@@ -17,6 +17,7 @@ option(YT_BUILD_ENABLE_EXPERIMENTS "Build experiments" TRUE)
 option(YT_BUILD_ENABLE_TESTS       "Build tests" TRUE)
 option(YT_BUILD_ENABLE_NODEJS      "Build NodeJS extensions" FALSE)
 option(YT_BUILD_ENABLE_PYTHON      "Build Python extensions" TRUE)
+option(YT_BUILD_YTLIB_SHARED       "Build ytlib as a shared lib" FALSE)
 
 ################################################################################
 # Enforce developer to specify build type.
