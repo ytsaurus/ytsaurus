@@ -3,10 +3,11 @@
 #endif
 #undef FUTURE_INL_H_
 
+#include "bind.h"
+#include "callback.h"
+
 #include <ytlib/misc/delayed_invoker.h>
 #include <ytlib/misc/foreach.h>
-#include <ytlib/actions/bind.h>
-#include <ytlib/actions/callback.h>
 
 #include <util/system/event.h>
 
@@ -933,8 +934,6 @@ inline TPromise<T> NewPromise()
     return TPromise<T>(New< NYT::NDetail::TPromiseState<T> >());
 }
 
-//! Constructs a future that gets set when a given #delay elapses.
-TFuture<void> MakeDelayed(TDuration delay);
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

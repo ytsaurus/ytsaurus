@@ -16,17 +16,6 @@ static const TDuration SleepQuantum = TDuration::MilliSeconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TDelayedInvoker::TEntryComparer::operator()(const TEntryPtr& lhs, const TEntryPtr& rhs) const
-{
-    if (lhs->Deadline != rhs->Deadline) {
-        return lhs->Deadline < rhs->Deadline;
-    }
-    // Break ties.
-    return lhs < rhs;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TDelayedInvoker::TImpl
     : private TNonCopyable
 {
@@ -64,19 +53,21 @@ public:
 
     bool Cancel(TCookie cookie)
     {
+        auto entry = CookieToEntry(cookie);
+
         {
             TGuard<TSpinLock> guard(SpinLock);
 
-            if (!cookie) {
+            if (!entry) {
                 return false;
             }
 
-            if (!cookie->Valid) {
+            if (!entry->Valid) {
                 return false;
             }
 
-            Entries.erase(cookie->Iterator);
-            cookie->Valid = false;
+            Entries.erase(entry->Iterator);
+            entry->Valid = false;
         }
 
         return true;
@@ -98,7 +89,37 @@ public:
     }
 
 private:
-    std::set<TEntryPtr, TEntryComparer> Entries;
+    struct TEntry;
+    typedef TIntrusivePtr<TEntry> TEntryPtr;
+
+    struct TEntry
+        : public TEntryBase
+    {
+        struct TComparer
+        {
+            bool operator()(const TEntryPtr& lhs, const TEntryPtr& rhs) const
+            {
+                if (lhs->Deadline != rhs->Deadline) {
+                    return lhs->Deadline < rhs->Deadline;
+                }
+                // Break ties.
+                return lhs < rhs;
+            }
+        };
+
+        bool Valid;
+        TInstant Deadline;
+        TClosure Action;
+        std::set<TEntryPtr, TComparer>::iterator Iterator;
+
+        TEntry(TClosure action, TInstant deadline)
+            : Valid(true)
+            , Deadline(deadline)
+            , Action(std::move(action))
+        { }
+    };
+
+    std::set<TEntryPtr, TEntry::TComparer> Entries;
     TThread Thread;
     TSpinLock SpinLock;
     volatile bool Finished;
@@ -117,23 +138,28 @@ private:
         while (!Finished) {
             auto now = TInstant::Now();
             while (true) {
-                TCookie cookie;
+                TEntryPtr entry;
                 {
                     TGuard<TSpinLock> guard(SpinLock);
                     if (Entries.empty()) {
                         break;
                     }
-                    cookie = *Entries.begin();
-                    if (cookie->Deadline > now) {
+                    entry = *Entries.begin();
+                    if (entry->Deadline > now) {
                         break;
                     }
-                    Entries.erase(cookie->Iterator);
-                    cookie->Valid = false;
+                    Entries.erase(entry->Iterator);
+                    entry->Valid = false;
                 }
-                cookie->Action.Run();
+                entry->Action.Run();
             }
             Sleep(SleepQuantum);
         }
+    }
+
+    static TEntryPtr CookieToEntry(TCookie cookie)
+    {
+        return static_cast<TEntry*>(~cookie);
     }
 };
 

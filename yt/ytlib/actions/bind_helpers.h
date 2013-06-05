@@ -19,9 +19,6 @@
 
 namespace NYT {
 
-struct TVoid
-{ };
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 // This file defines a set of argument wrappers that can be used specify

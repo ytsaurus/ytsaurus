@@ -14,7 +14,7 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef TCallback<TVoid(NJobTrackerClient::NProto::TJobSpec* jobSpec)> TJobSpecBuilder;
+typedef TCallback<void(NJobTrackerClient::NProto::TJobSpec* jobSpec)> TJobSpecBuilder;
 
 class TJob
     : public TRefCounted

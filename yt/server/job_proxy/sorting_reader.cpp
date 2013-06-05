@@ -444,7 +444,7 @@ private:
 
     void SortQueueBarrier()
     {
-        BIND([] () -> TVoid { return TVoid(); }).AsyncVia(SortQueue->GetInvoker()).Run().Get();
+        BIND([] () { }).AsyncVia(SortQueue->GetInvoker()).Run().Get();
     }
 
     void InvokeSortBucket(int bucketId)

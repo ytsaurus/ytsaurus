@@ -29,7 +29,7 @@ private:
 
     NLog::TTaggedLogger Logger;
 
-    TVoid Download();
+    void Download();
 
 };
 

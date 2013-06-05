@@ -190,7 +190,7 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
 
     // Async part.
     auto this_ = MakeStrong(this);
-    auto jobSpecBuilder = BIND([=] (TJobSpec* jobSpec) -> TVoid {
+    auto jobSpecBuilder = BIND([=] (TJobSpec* jobSpec) {
         this_->BuildJobSpec(joblet, jobSpec);
         this_->Controller->CustomizeJobSpec(joblet, jobSpec);
 
@@ -204,8 +204,6 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
                 schedulerJobSpecExt->input_row_count() *
                 ApproximateSizesBoostFactor));
         }
-
-        return TVoid();
     });
 
     joblet->Job = context->StartJob(

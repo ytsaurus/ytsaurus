@@ -122,8 +122,14 @@ namespace NYT {
 template <class T>
 class TFuture;
 
+template <>
+class TFuture<void>;
+
 template <class T>
 class TPromise;
+
+template <>
+class TPromise<void>;
 
 struct IInvoker;
 class TCancelableContext;
@@ -150,53 +156,47 @@ template <class Signature>
 class TCallback;
 
 namespace NDetail {
-    template <class Runnable, class Signature, class BoundArgs>
-    class TBindState;
 
-    // TODO(sandello): Move these somewhere closer to TFuture & TPromise.
-    template <class R>
-    struct TFutureHelper
-    {
-        typedef TFuture<R> TFutureType;
-        typedef TPromise<R> TPromiseType;
-        typedef R TValueType;
-        enum {
-            WrappedInFuture = 0
-        };
-    };
+template <class Runnable, class Signature, class BoundArgs>
+class TBindState;
 
-    template <class R>
-    struct TFutureHelper< TFuture<R> >
+// TODO(sandello): Move these somewhere closer to TFuture & TPromise.
+template <class R>
+struct TFutureHelper
+{
+    typedef TFuture<R> TFutureType;
+    typedef TPromise<R> TPromiseType;
+    typedef R TValueType;
+    enum
     {
-        typedef TFuture<R> TFutureType;
-        typedef TPromise<R> TPromiseType;
-        typedef R TValueType;
-        enum {
-            WrappedInFuture = 1
-        };
+        WrappedInFuture = 0
     };
+};
 
-    template <class R>
-    struct TFutureHelper< TPromise<R> >
+template <class R>
+struct TFutureHelper< TFuture<R> >
+{
+    typedef TFuture<R> TFutureType;
+    typedef TPromise<R> TPromiseType;
+    typedef R TValueType;
+    enum
     {
-        typedef TFuture<R> TFutureType;
-        typedef TPromise<R> TPromiseType;
-        typedef R TValueType;
-        enum {
-            WrappedInFuture = 1
-        };
+        WrappedInFuture = 1
     };
+};
 
-    template <>
-    struct TFutureHelper<void>
+template <class R>
+struct TFutureHelper< TPromise<R> >
+{
+    typedef TFuture<R> TFutureType;
+    typedef TPromise<R> TPromiseType;
+    typedef R TValueType;
+    enum
     {
-        typedef void TFutureType;
-        typedef void TPromiseType;
-        typedef void TValueType;
-        enum {
-            WrappedInFuture = 0
-        };
+        WrappedInFuture = 1
     };
+};
+
 } // namespace NDetail
 
 

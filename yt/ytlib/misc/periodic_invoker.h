@@ -2,6 +2,9 @@
 
 #include "delayed_invoker.h"
 
+#include <ytlib/actions/invoker.h>
+#include <ytlib/actions/callback.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////

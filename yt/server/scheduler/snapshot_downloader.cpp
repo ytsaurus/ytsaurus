@@ -44,12 +44,10 @@ TFuture<void> TSnapshotDownloader::Run()
 {
     return BIND(&TSnapshotDownloader::Download, MakeStrong(this))
            .AsyncVia(Bootstrap->GetScheduler()->GetSnapshotIOInvoker())
-           .Run()
-           // TODO(babenko): remove this ugly hack
-           .Apply(BIND([] (TVoid) {}));
+           .Run();
 }
 
-TVoid TSnapshotDownloader::Download()
+void TSnapshotDownloader::Download()
 {
     LOG_INFO("Checking snapshot existence");
 
@@ -67,7 +65,7 @@ TVoid TSnapshotDownloader::Download()
 
     if (!exists) {
         LOG_INFO("Snapshot does not exist");
-        return TVoid();
+        return;
     }
 
     LOG_INFO("Snapshot found");
@@ -102,8 +100,6 @@ TVoid TSnapshotDownloader::Download()
         LOG_ERROR(ex, "Error loading snapshot");
         Operation->Snapshot() = Null;
     }
-    
-    return TVoid();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

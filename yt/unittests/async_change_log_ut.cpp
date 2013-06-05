@@ -53,14 +53,13 @@ static void CheckRecord(i32 data, const TSharedRef& record)
     EXPECT_EQ(       data , *(reinterpret_cast<const i32*>(record.Begin())));
 }
 
-TVoid ReadRecord(TAsyncChangeLog* asyncChangeLog, i32 recordIndex)
+void ReadRecord(TAsyncChangeLog* asyncChangeLog, i32 recordIndex)
 {
     std::vector<TSharedRef> result;
     result.clear();
     asyncChangeLog->Read(recordIndex, 1, std::numeric_limits<i64>::max(), &result);
     EXPECT_EQ(1, result.size());
     CheckRecord(recordIndex, result[0]);
-    return TVoid();
 }
 
 TSharedRef MakeData(i32 data)
@@ -74,18 +73,18 @@ TSharedRef MakeData(i32 data)
 
 TEST_F(TAsyncChangeLogTest, ReadTrailingRecords)
 {
-    int recordCount = 10000;
-    TFuture<TVoid> result;
+    const int recordCount = 10000;
+    TFuture<void> readResult;
     for (int recordIndex = 0; recordIndex < recordCount; ++recordIndex) {
         auto flushResult = AsyncChangeLog->Append(recordIndex, MakeData(recordIndex));
         if (recordIndex % 1000 == 0) {
             flushResult.Get();
         }
         if (recordIndex % 10 == 0) {
-            result = BIND(&ReadRecord, ~AsyncChangeLog, recordIndex).AsyncVia(Invoker).Run();
+            readResult = BIND(&ReadRecord, ~AsyncChangeLog, recordIndex).AsyncVia(Invoker).Run();
         }
     }
-    result.Get();
+    readResult.Get();
 }
 
 TEST_F(TAsyncChangeLogTest, ReadWithSizeLimit)

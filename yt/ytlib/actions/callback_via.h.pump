@@ -6,7 +6,6 @@ $$ See bind.h.pump.
 $var MAX_ARITY = 7
 $range ARITY 0..MAX_ARITY
 
-
 #ifndef CALLBACK_VIA_H_
 #error "Direct inclusion of this file is not allowed, include callback.h"
 #endif
@@ -14,21 +13,18 @@ $range ARITY 0..MAX_ARITY
 
 #include "invoker.h"
 #include "cancelable_context.h"
+#include "future.h"
 
 namespace NYT {
 /*! \internal */
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NDetail {
-    template <bool WrappedInFuture, class Signature>
-    struct TAsyncViaHelper;
-};
 
-#ifdef __GNUC__
-#define GCC_ONLY_TYPENAME typename
-#else
-#define GCC_ONLY_TYPENAME
-#endif
+template <bool WrappedInFuture, class TSignature>
+struct TAsyncViaHelper;
+
+} // namespace NDetail
 
 $for ARITY [[
 $range ARG 1..ARITY
@@ -37,12 +33,12 @@ $range ARG 1..ARITY
 $if ARITY == 0 [[
 template <class R>
 TCallback<R()>
-TCallback<R()>::Via(TIntrusivePtr<IInvoker> invoker)
+TCallback<R()>::Via(IInvokerPtr invoker)
 ]] $else [[
 template <class R, $for ARG , [[class A$(ARG)]]>
 TCallback<R($for ARG , [[A$(ARG)]])>
 TCallback<R($for ARG , [[A$(ARG)]])>::Via(
-    TIntrusivePtr<IInvoker> invoker)
+    IInvokerPtr invoker)
 ]]
 
 {
@@ -61,18 +57,17 @@ $for ARG ,
     });
 }
 
-
 $if ARITY == 0 [[
 template <class R>
 TCallback<R()>
 TCallback<R()>::Via(
-    TIntrusivePtr<IInvoker> invoker,
+    IInvokerPtr invoker,
     TIntrusivePtr<TCancelableContext> context)
 ]] $else [[
 template <class R, $for ARG , [[class A$(ARG)]]>
 TCallback<R($for ARG , [[A$(ARG)]])>
 TCallback<R($for ARG , [[A$(ARG)]])>::Via(
-    TIntrusivePtr<IInvoker> invoker,
+    IInvokerPtr invoker,
     TIntrusivePtr<TCancelableContext> context)
 ]]
 
@@ -108,6 +103,7 @@ $for ARG ,
 
 namespace NDetail
 {
+
 template <bool W, class U[[]]
 $if ARITY != 0 [[, ]]
 $for ARG , [[class A$(ARG)]]>
@@ -120,11 +116,8 @@ struct TAsyncViaHelper<W, U($for ARG , [[A$(ARG)]])>
 
     static inline TTargetCallback Do(
         const TSourceCallback& this_,
-        TIntrusivePtr<IInvoker> invoker)
+        IInvokerPtr invoker)
     {
-        static_assert(!NMpl::TIsVoid<U>::Value,
-            "AsyncVia() can be used with non-void callbacks only.");
-
         // XXX(babenko): Due to MSVC bug in lambda scope resolution
         // the following typedefs are essentially useless and we have to
         // write full type names inside lambdas.
@@ -160,6 +153,56 @@ $for ARG ,
     }
 };
 
+template <bool W[[]]
+$if ARITY != 0 [[, ]]
+$for ARG , [[class A$(ARG)]]>
+struct TAsyncViaHelper<W, void($for ARG , [[A$(ARG)]])>
+{
+    typedef TCallback<void($for ARG , [[A$(ARG)]])> TSourceCallback;
+    typedef TCallback<
+        typename NYT::NDetail::TFutureHelper<void>::TFutureType
+        ($for ARG , [[A$(ARG)]])> TTargetCallback;
+
+    static inline TTargetCallback Do(
+        const TSourceCallback& this_,
+        IInvokerPtr invoker)
+    {
+        // XXX(babenko): Due to MSVC bug in lambda scope resolution
+        // the following typedefs are essentially useless and we have to
+        // write full type names inside lambdas.
+        // XXX(sandello): Burn, MSVC!
+        typedef typename NYT::NDetail::TFutureHelper<void>::TValueType R;
+        typedef typename NYT::NDetail::TFutureHelper<void>::TFutureType FR;
+        typedef typename NYT::NDetail::TFutureHelper<void>::TPromiseType PR;
+
+        auto inner = BIND([=] (PR promise[[]]
+$if ARITY != 0 [[, ]]
+$for ARG , [[A$(ARG) a$(ARG)]]) {
+            this_.Run([[]]
+$if ARITY != 0 [[
+
+                [[]]
+]]
+$for ARG ,
+                [[std::forward<A$(ARG)>(a$(ARG))]]);
+            promise.Set();
+        });
+        auto outer = BIND([=] ($for ARG , [[A$(ARG) a$(ARG)]]) -> FR {
+            auto promise = NewPromise<
+                typename NYT::NDetail::TFutureHelper<void>::TValueType
+            >();
+            invoker->Invoke(BIND(inner, promise[[]]
+$if ARITY != 0 [[,
+                [[]]
+]]
+$for ARG , 
+                [[std::forward<A$(ARG)>(a$(ARG))]]));
+            return promise.ToFuture();
+        });
+        return outer;
+    }
+};
+
 template <class U[[]]
 $if ARITY != 0 [[, ]]
 $for ARG , [[class A$(ARG)]]>
@@ -172,11 +215,8 @@ struct TAsyncViaHelper<true, U($for ARG , [[A$(ARG)]])>
 
     static inline TTargetCallback Do(
         const TSourceCallback& this_,
-        TIntrusivePtr<IInvoker> invoker)
+        IInvokerPtr invoker)
     {
-        static_assert(!NMpl::TIsVoid<U>::Value,
-            "AsyncVia() can be used with non-void callbacks only.");
-
         // XXX(babenko): Due to MSVC bug in lambda scope resolution
         // the following typedefs are essentially useless and we have to
         // write full type names inside lambdas.
@@ -185,9 +225,7 @@ struct TAsyncViaHelper<true, U($for ARG , [[A$(ARG)]])>
         typedef typename NYT::NDetail::TFutureHelper<U>::TFutureType FR;
         typedef typename NYT::NDetail::TFutureHelper<U>::TPromiseType PR;
 
-        auto promiseSetter = BIND([] (PR promise, R value) mutable {
-            promise.Set(std::move(value));
-        });
+        static auto promiseSetter = BIND(&TPromiseSetter<R>::Do);
         auto inner = BIND([=] (PR promise[[]]
 $if ARITY != 0 [[, ]]
 $for ARG , [[A$(ARG) a$(ARG)]]) {
@@ -216,19 +254,19 @@ $for ARG ,
     }
 };
 
-}
+} // namespace NDetail
 
 $if ARITY == 0 [[
 template <class U>
 TCallback<typename NYT::NDetail::TFutureHelper<U>::TFutureType()>
-TCallback<U()>::AsyncVia(TIntrusivePtr<IInvoker> invoker)
+TCallback<U()>::AsyncVia(IInvokerPtr invoker)
 ]] $else [[
 template <class U, $for ARG , [[class A$(ARG)]]>
 TCallback<
     typename NYT::NDetail::TFutureHelper<U>::TFutureType
     ($for ARG , [[A$(ARG)]])>
 TCallback<U($for ARG , [[A$(ARG)]])>::AsyncVia(
-    TIntrusivePtr<IInvoker> invoker)
+    IInvokerPtr invoker)
 ]]
 
 {
@@ -237,7 +275,6 @@ TCallback<U($for ARG , [[A$(ARG)]])>::AsyncVia(
         U($for ARG , [[A$(ARG)]])
     >::Do(*this, std::move(invoker));
 }
-
 
 ]] $$ for ARITY
 

@@ -1,6 +1,8 @@
 #pragma once
 
-#include <ytlib/actions/callback.h>
+#include "common.h"
+
+#include <ytlib/actions/callback_forward.h>
 
 namespace NYT {
 
@@ -8,35 +10,14 @@ namespace NYT {
 
 //! Manages delayed action execution.
 class TDelayedInvoker
-    : private TNonCopyable
 {
-private:
-    struct TEntry;
-    typedef TIntrusivePtr<TEntry> TEntryPtr;
-
-    struct TEntryComparer
-    {
-        bool operator()(const TEntryPtr& lhs, const TEntryPtr& rhs) const;
-    };
-
-    struct TEntry
-        : public TIntrinsicRefCounted
-    {
-        bool Valid;
-        TInstant Deadline;
-        TClosure Action;
-        std::set<TEntryPtr, TEntryComparer>::iterator Iterator;
-
-        TEntry(TClosure action, TInstant deadline)
-            : Valid(true)
-            , Deadline(deadline)
-            , Action(std::move(action))
-        { }
-    };
-
 public:
-    //! Encapsulates a delayed execution token.
-    typedef TEntryPtr TCookie;
+    struct TEntryBase
+        : public TIntrinsicRefCounted
+    { };
+
+    //! An opaque token.
+    typedef TIntrusivePtr<TEntryBase> TCookie;
 
     //! Submits an action for execution after a given delay.
     static TCookie Submit(TClosure action, TDuration delay);
@@ -69,4 +50,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}
+} // namespace NYT
