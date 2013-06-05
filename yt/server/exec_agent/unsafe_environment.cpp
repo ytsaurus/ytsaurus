@@ -11,7 +11,6 @@
 #include <server/job_proxy/public.h>
 
 #include <util/system/execpath.h>
-#include <util/folder/dirut.h>
 
 #include <fcntl.h>
 
@@ -19,7 +18,6 @@
 
 #include <sys/types.h>
 #include <sys/wait.h>
-#include <sys/resource.h>
 
 #endif
 
@@ -85,34 +83,28 @@ public:
         LOG_INFO("Starting job proxy in unsafe environment (WorkDir: %s)",
             ~WorkingDirectory);
 
-        ProcessId = fork();
+        std::vector<Stroka> arguments;
+        arguments.push_back(ProxyPath);
+        arguments.push_back("--job-proxy");
+        arguments.push_back("--config");
+        arguments.push_back(ProxyConfigFileName);
+        arguments.push_back("--job-id");
+        arguments.push_back(ToString(JobId));
+        arguments.push_back("--working-dir");
+        arguments.push_back(WorkingDirectory);
+        arguments.push_back("--close-all-fds");
 
-        if (ProcessId == 0) {
-            // ToDo(psushin): pass errors to parent process
-            // cause logging doesn't work here.
-            // Use unnamed pipes with CLOEXEC.
+        LOG_INFO("Spawning a job proxy (Path: %s)", ~ProxyPath);
 
-            // Redirect stderr and stdout to a file.
-            // May be handy for debugging.
-            // int fd = open("stderr.txt", O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
-            // dup2(fd, STDOUT_FILENO);
-            // dup2(fd, STDERR_FILENO);
-
-            CloseAllDescriptors();
-
-            ChDir(WorkingDirectory);
-
-            // Search the PATH, inherit environment.
-            execlp(
+        try {
+            ProcessId = Spawn(
                 ~ProxyPath,
-                ~ProxyPath,
-                "--job-proxy",
-                "--config", ~ProxyConfigFileName,
-                "--job-id", ~ToString(JobId),
-                (void*) NULL);
-
+                arguments);
+        } catch (const std::exception& ex) {
             // Failed to exec job proxy
-            _exit(EJobProxyExitCode::ExecFailed);
+            THROW_ERROR_EXCEPTION("Failed to start job proxy: Spawn failed")
+                << ex
+                << TError::FromSystem();
         }
 
         if (ProcessId < 0) {

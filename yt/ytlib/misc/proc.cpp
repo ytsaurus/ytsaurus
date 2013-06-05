@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "proc.h"
 
+#include <ytlib/ytree/convert.h>
+
 #include <util/stream/file.h>
 
 #include <util/string/vector.h>
@@ -13,6 +15,7 @@
 #include <util/folder/filelist.h>
 
 #ifdef _unix_
+    #include <spawn.h>
     #include <stdio.h>
     #include <dirent.h>
     #include <sys/types.h>
@@ -247,6 +250,50 @@ void SafeClose(int fd, bool ignoreInvalidFd)
     }
 }
 
+static const int BASE_EXIT_CODE = 127;
+static const int EXEC_ERR_CODE[] = {
+    E2BIG, EACCES, EFAULT, EINVAL, EIO, EISDIR, ELIBBAD,
+    ELOOP, EMFILE, ENAMETOOLONG, ENFILE, ENOENT, ENOEXEC,
+    ENOMEM, ENOTDIR, EPERM, ETXTBSY, 0
+};
+
+int getErrNoFromExitCode(int exitCode) {
+    int index = BASE_EXIT_CODE - exitCode;
+    if (index >= 0) {
+        return EXEC_ERR_CODE[index];
+    }
+    return 0;
+}
+
+int Spawn(const char* path, std::vector<Stroka>& arguments)
+{
+    std::vector<char *> args;
+    FOREACH (auto& x, arguments) {
+        args.push_back(x.begin());
+    }
+    args.push_back(NULL);
+
+    int pid = vfork();
+    if (pid < 0) {
+        THROW_ERROR_EXCEPTION("Error starting child process: vfork failed")
+            << TErrorAttribute("path", path)
+            << TErrorAttribute("arguments", arguments)
+            << TError::FromSystem(pid);
+    }
+
+    if (pid == 0) {
+        execvp(path, &args[0]);
+        const int errorCode = errno;
+        int i = 0;
+        while ((EXEC_ERR_CODE[i] != errorCode) && (EXEC_ERR_CODE[i] != 0)) {
+            ++i;
+        }
+
+        _exit(BASE_EXIT_CODE - i);
+    }
+
+    return pid;
+}
 
 #else
 
@@ -281,6 +328,13 @@ void CloseAllDescriptors()
 
 void SafeClose(int fd, bool ignoreInvalidFd)
 {
+    YUNIMPLEMENTED();
+}
+
+int Spawn(const char* path, std::vector<Stroka>& arguments)
+{
+    UNUSED(path);
+    UNUSED(arguments);
     YUNIMPLEMENTED();
 }
 
