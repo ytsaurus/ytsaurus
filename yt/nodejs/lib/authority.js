@@ -71,26 +71,20 @@ YtAuthority.prototype.authenticate = function(logger, party, token)
     .then(
     function() {
         var dt = (new Date()) - context.ts;
-        context.logger.debug("Authentication succeeded", {
-            login: result.login,
-            realm: result.realm,
-            authentication_time: dt,
-        });
-        cache.set(context.token, result);
+        if (typeof(result.login) === "string" && typeof(result.realm) === "string") {
+            context.logger.debug("Authentication succeeded", {
+                login: result.login,
+                realm: result.realm,
+                authentication_time: dt,
+            });
+            cache.set(context.token, result);
+        } else {
+            context.logger.info("Authentication failed", {
+                authentication_time: dt,
+            });
+            cache.del(context.token);
+        }
         return result;
-    },
-    function(err) {
-        var dt = (new Date()) - context.ts;
-        var error = new YtError("Authentication failed", err);
-        context.logger.info(error.message, {
-            login: result.login,
-            realm: result.realm,
-            authentication_time: dt,
-            // XXX(sandello): Embed.
-            error: error.toJson()
-        });
-        cache.del(context.token);
-        return Q.reject(error);
     });
 };
 

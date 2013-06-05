@@ -47,6 +47,8 @@ exports.blackboxValidateToken = function(logger, party, token)
         .setNoDelay(config.nodelay)
         .setTimeout(config.timeout)
         .asJson(true)
+        .shouldFailOn4xx(true)
+        .shouldFailOn5xx(true)
         .fire()
         .then(function(data) {
             if (typeof(data.exception) !== "undefined") {
@@ -109,6 +111,8 @@ exports.oAuthObtainToken = function(logger, client_id, client_secret, code)
         .setNoDelay(config.nodelay)
         .setTimeout(config.timeout)
         .asJson(true)
+        .shouldFailOn4xx(false)
+        .shouldFailOn5xx(true)
         .fire()
         .then(
         function(data) {

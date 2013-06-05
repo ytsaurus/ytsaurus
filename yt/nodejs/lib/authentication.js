@@ -78,7 +78,9 @@ YtAuthentication.prototype._epilogue = function(req, rsp, next)
     function(err) {
         var error = YtError.ensureWrapped(err);
         // XXX(sandello): Embed.
-        self.logger.info(error.message, { error: error.toJson() });
+        self.logger.info("An error occured during authentication", {
+            error: error.toJson()
+        });
         return utils.dispatchLater(rsp, 60);
     })
     .done();
