@@ -17,6 +17,9 @@ namespace NYT {
 class TFiber;
 typedef TIntrusivePtr<TFiber> TFiberPtr;
 
+// Someone above has defined this by including one of Windows headers.
+#undef Yield
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Thrown when a fiber is being terminated by external request.

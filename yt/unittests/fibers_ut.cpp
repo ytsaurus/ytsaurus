@@ -522,7 +522,7 @@ TEST(TFiberTest, ActionQueue1)
     TFiber* fiber2;
     NThread::TThreadId thread2;
 
-    BIND([&] () -> TVoid {
+    BIND([&] () {
         fiber1 = TFiber::GetCurrent();
         thread1 = NThread::GetCurrentThreadId();
 
@@ -530,8 +530,6 @@ TEST(TFiberTest, ActionQueue1)
 
         fiber2 = TFiber::GetCurrent();
         thread2 = NThread::GetCurrentThreadId();
-
-        return TVoid();
     }).AsyncVia(invoker).Run().Get();
 
     EXPECT_EQ(fiber1, fiber2);
@@ -543,7 +541,7 @@ TEST(TFiberTest, ActionQueue1)
     TFiber* fiber4;
     NThread::TThreadId thread4;
 
-    BIND([&] () -> TVoid {
+    BIND([&] () {
         fiber3 = TFiber::GetCurrent();
         thread3 = NThread::GetCurrentThreadId();
 
@@ -551,8 +549,6 @@ TEST(TFiberTest, ActionQueue1)
 
         fiber4 = TFiber::GetCurrent();
         thread4 = NThread::GetCurrentThreadId();
-
-        return TVoid();
     }).AsyncVia(invoker).Run().Get();
 
     EXPECT_NE(fiber2, fiber3);
@@ -571,10 +567,9 @@ TEST(TFiberTest, ActionQueue2)
     int sum = 0;
 
     for (int i = 0; i < 10; ++i) {
-        auto callback = BIND([&sum, i] () -> TVoid {
+        auto callback = BIND([&sum, i] () {
             WaitFor(MakeDelayed(TDuration::MilliSeconds(100)));
             sum += i;
-            return TVoid();
         });
 
         awaiter->Await(callback.AsyncVia(invoker).Run());
@@ -596,7 +591,7 @@ TEST(TFiberTest, ActionQueue3)
     int sum = 0;
 
     for (int i = 0; i < 10; ++i) {
-        auto callback = BIND([&sum, i, invoker] () -> TVoid {
+        auto callback = BIND([&sum, i, invoker] () {
             auto thread1 = NThread::GetCurrentThreadId();
             
             WaitFor(MakeDelayed(TDuration::MilliSeconds(100)));
@@ -605,7 +600,6 @@ TEST(TFiberTest, ActionQueue3)
             EXPECT_EQ(thread1, thread2);
 
             sum += i;
-            return TVoid();
         });
 
         awaiter->Await(callback.AsyncVia(invoker).Run());
@@ -626,9 +620,8 @@ TEST(TFiberTest, CurrentInvokerSync)
 TEST(TFiberTest, CurrentInvokerInActionQueue)
 {
     auto invoker = Queue1->GetInvoker();
-    BIND([=] () -> TVoid {
+    BIND([=] () {
         EXPECT_EQ(GetCurrentInvoker(), invoker);
-        return TVoid();
     })
     .AsyncVia(invoker)
     .Run()
