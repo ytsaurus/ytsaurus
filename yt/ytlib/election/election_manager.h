@@ -10,6 +10,7 @@
 #include <ytlib/misc/thread_affinity.h>
 
 #include <ytlib/actions/invoker.h>
+#include <ytlib/actions/cancelable_context.h>
 
 #include <ytlib/rpc/service_detail.h>
 

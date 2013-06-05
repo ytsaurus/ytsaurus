@@ -12,7 +12,6 @@ $range ARITY 0..MAX_ARITY
 #undef CALLBACK_VIA_H_
 
 #include "invoker.h"
-#include "cancelable_context.h"
 #include "future.h"
 
 namespace NYT {
@@ -55,50 +54,6 @@ $if ARITY != 0 [[,
 $for ARG , 
             [[std::forward<A$(ARG)>(a$(ARG))]]));
     });
-}
-
-$if ARITY == 0 [[
-template <class R>
-TCallback<R()>
-TCallback<R()>::Via(
-    IInvokerPtr invoker,
-    TIntrusivePtr<TCancelableContext> context)
-]] $else [[
-template <class R, $for ARG , [[class A$(ARG)]]>
-TCallback<R($for ARG , [[A$(ARG)]])>
-TCallback<R($for ARG , [[A$(ARG)]])>::Via(
-    IInvokerPtr invoker,
-    TIntrusivePtr<TCancelableContext> context)
-]]
-
-{
-    static_assert(NMpl::TIsVoid<R>::Value,
-        "Via() can be used with void return type only.");
-    YASSERT(invoker);
-    YASSERT(context);
-
-    auto this_ = *this;
-    auto inner = BIND([=] ($for ARG , [[A$(ARG) a$(ARG)]]) {
-        if (context->IsCanceled()) {
-            return;
-        }
-        this_.Run([[]]
-$if ARITY != 0 [[[[]]]]
-$for ARG ,
-            [[std::forward<A$(ARG)>(a$(ARG))]]);
-    });
-    auto outer = BIND([=] ($for ARG , [[A$(ARG) a$(ARG)]]) {
-        if (context->IsCanceled()) {
-            return;
-        }
-        invoker->Invoke(BIND(inner[[]]
-$if ARITY != 0 [[,
-            [[]]
-]]
-$for ARG , 
-            [[std::forward<A$(ARG)>(a$(ARG))]]));
-    });
-    return outer;
 }
 
 namespace NDetail

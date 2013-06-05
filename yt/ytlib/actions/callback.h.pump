@@ -132,7 +132,6 @@ template <>
 class TPromise<void>;
 
 struct IInvoker;
-class TCancelableContext;
 
 template <class T>
 TPromise<T> NewPromise();
@@ -276,10 +275,6 @@ $for ARG ,
     // XXX(sandello): This is legacy. Due to forced migration to new callbacks.
     TCallback Via(
         TIntrusivePtr<IInvoker> invoker);
-    TCallback Via(
-        TIntrusivePtr<IInvoker> invoker,
-        TIntrusivePtr<TCancelableContext> context);
-
 
 $if ARITY == 0 [[
     TCallback<typename NYT::NDetail::TFutureHelper<R>::TFutureType()>
