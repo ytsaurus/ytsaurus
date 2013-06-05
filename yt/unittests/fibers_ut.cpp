@@ -643,7 +643,7 @@ TEST(TFiberTest, CurrentInvokerConcurrent)
     }).AsyncVia(invoker2).Run();
 
     result1.Get();
-    resutl2.Get();
+    result2.Get();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
