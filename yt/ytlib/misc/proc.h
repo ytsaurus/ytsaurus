@@ -29,11 +29,9 @@ void SafeClose(int fd, bool ignoreInvalidFd = false);
 
 void CloseAllDescriptors();
 
-int errNoFromExitCode(int exitCode);
+int getErrNoFromExitCode(int exitCode);
 
-int Spawn(
-    const char* path,
-    std::vector<Stroka>& arguments);
+int Spawn(const char* path, std::vector<Stroka>& arguments);
 
 ////////////////////////////////////////////////////////////////////////////////
 

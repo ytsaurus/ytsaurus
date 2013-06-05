@@ -250,20 +250,22 @@ void SafeClose(int fd, bool ignoreInvalidFd)
     }
 }
 
-static const int baseExitCode = 127;
-static const int execErrNos[] = { E2BIG, EACCES, EFAULT, EINVAL, EIO, EISDIR, ELIBBAD, ELOOP, EMFILE, ENAMETOOLONG, ENFILE, ENOENT, ENOEXEC, ENOMEM, ENOTDIR, EPERM, ETXTBSY, 0};
+static const int BASE_EXIT_CODE = 127;
+static const int EXEC_ERR_CODE[] = {
+    E2BIG, EACCES, EFAULT, EINVAL, EIO, EISDIR, ELIBBAD,
+    ELOOP, EMFILE, ENAMETOOLONG, ENFILE, ENOENT, ENOEXEC,
+    ENOMEM, ENOTDIR, EPERM, ETXTBSY, 0
+};
 
-int errNoFromExitCode(int exitCode) {
-    int index = baseExitCode - exitCode;
+int getErrNoFromExitCode(int exitCode) {
+    int index = BASE_EXIT_CODE - exitCode;
     if (index >= 0) {
-        return execErrNos[index];
+        return EXEC_ERR_CODE[index];
     }
     return 0;
 }
 
-int Spawn(
-    const char* path,
-    std::vector<Stroka>& arguments)
+int Spawn(const char* path, std::vector<Stroka>& arguments)
 {
     std::vector<char *> args;
     FOREACH (auto& x, arguments) {
@@ -271,28 +273,26 @@ int Spawn(
     }
     args.push_back(NULL);
 
-    int processId = vfork();
-    if (processId < 0) {
+    int pid = vfork();
+    if (pid < 0) {
         THROW_ERROR_EXCEPTION("Error starting child process: vfork failed")
             << TErrorAttribute("path", path)
             << TErrorAttribute("arguments", arguments)
-            << TError::FromSystem(processId);
+            << TError::FromSystem(pid);
     }
 
-    if (processId == 0) {
-        execvp(
-            path,
-            &args[0]);
+    if (pid == 0) {
+        execvp(path, &args[0]);
         const int errorCode = errno;
         int i = 0;
-        while ((execErrNos[i] != errorCode) && (execErrNos[i] != 0)) {
+        while ((EXEC_ERR_CODE[i] != errorCode) && (EXEC_ERR_CODE[i] != 0)) {
             ++i;
         }
 
-        _exit(baseExitCode - i);
+        _exit(BASE_EXIT_CODE - i);
     }
 
-    return processId;
+    return pid;
 }
 
 #else
@@ -331,13 +331,10 @@ void SafeClose(int fd, bool ignoreInvalidFd)
     YUNIMPLEMENTED();
 }
 
-int Spawn(
-    const char* path,
-    std::vector<Stroka>& arguments)
+int Spawn(const char* path, std::vector<Stroka>& arguments)
 {
     UNUSED(path);
     UNUSED(arguments);
-    UNUSED(fdsToClose);
     YUNIMPLEMENTED();
 }
 
