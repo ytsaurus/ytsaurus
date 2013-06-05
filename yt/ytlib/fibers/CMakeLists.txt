@@ -6,6 +6,7 @@ set( SRCS
 )
 set( HDRS
   ${BASE}/fiber.h
+  ${BASE}/fiber-inl.h
 )
 
 list(APPEND YT_SOURCE_FILES
@@ -14,4 +15,3 @@ list(APPEND YT_SOURCE_FILES
 )
 
 PUMP( ${BASE}/coroutine.h.pump YT_SOURCE_FILES )
-

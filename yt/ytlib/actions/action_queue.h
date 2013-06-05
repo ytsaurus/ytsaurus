@@ -23,6 +23,9 @@ typedef TIntrusivePtr<TPrioritizedActionQueue> TPrioritizedActionQueuePtr;
 class TThreadPool;
 typedef TIntrusivePtr<TThreadPool> TThreadPoolPtr;
 
+class TExecutorThreadWithQueue;
+typedef TIntrusivePtr<TExecutorThreadWithQueue> TExecutorThreadWithQueuePtr;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TActionQueue
@@ -40,15 +43,11 @@ public:
     void Shutdown();
 
     IInvokerPtr GetInvoker();
-    int GetSize() const;
 
     static TCallback<TActionQueuePtr()> CreateFactory(const Stroka& threadName);
 
 private:
-    friend class TThreadPool;
-
-    class TImpl;
-    TIntrusivePtr<TImpl> Impl;
+    TExecutorThreadWithQueuePtr Impl;
 
 };
 
@@ -92,26 +91,6 @@ public:
     static TCallback<TThreadPoolPtr()> CreateFactory(int queueCount, const Stroka& threadName);
 
 private:
-    class TImpl;
-    TIntrusivePtr<TImpl> Impl;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TPrioritizedActionQueue
-    : public TRefCounted
-{
-public:
-    explicit TPrioritizedActionQueue(const Stroka& threadName);
-    virtual ~TPrioritizedActionQueue();
-
-    void Shutdown();
-
-    IInvokerPtr CreateInvoker(i64 priority);
-
-private:
-    class TInvoker;
     class TImpl;
     TIntrusivePtr<TImpl> Impl;
 

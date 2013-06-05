@@ -20,20 +20,38 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TActionQueueBase;
+class TInvokerQueue;
+typedef TIntrusivePtr<TInvokerQueue> TInvokerQueuePtr;
 
-class TQueueInvoker
+class TExecutorThread;
+typedef TIntrusivePtr<TExecutorThread> TExecutorThreadPtr;
+
+class TExecutorThreadWithQueue;
+typedef TIntrusivePtr<TExecutorThreadWithQueue> TExecutorThreadWithQueuePtr;
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_ENUM(EBeginExecuteResult,
+    (Success)
+    (QueueEmpty)
+    (LoopTerminated)
+);
+
+class TInvokerQueue
     : public IInvoker
 {
 public:
-    TQueueInvoker(
+    TInvokerQueue(
+        TExecutorThread* owner,
+        IInvoker* currentInvoker,
         const NYPath::TYPath& profilingPath,
-        TActionQueueBase* owner,
         bool enableLogging);
 
     bool Invoke(const TClosure& action);
     void Shutdown();
-    bool DequeueAndExecute();
+
+    EBeginExecuteResult BeginExecute();
+    void EndExecute();
 
     int GetSize() const;
     bool IsEmpty() const;
@@ -41,11 +59,13 @@ public:
 private:
     struct TItem
     {
+        NProfiling::TCpuInstant EnqueueInstant;
         NProfiling::TCpuInstant StartInstant;
         TClosure Action;
     };
 
-    TActionQueueBase* Owner;
+    TExecutorThread* Owner;
+    IInvoker* CurrentInvoker;
     bool EnableLogging;
     NProfiling::TProfiler Profiler;
 
@@ -58,26 +78,30 @@ private:
     NProfiling::TAggregateCounter TotalTimeCounter;
 
     TLockFreeQueue<TItem> Queue;
+    TItem CurrentItem;
 };
 
-typedef TIntrusivePtr<TQueueInvoker> TQueueInvokerPtr;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-class TActionQueueBase
+class TExecutorThread
     : public TRefCounted
 {
 public:
-    virtual ~TActionQueueBase();
+    virtual ~TExecutorThread();
 
 protected:
-    TActionQueueBase(const Stroka& threadName, bool enableLogging);
+    TExecutorThread(
+        const Stroka& threadName,
+        bool enableLogging);
 
     void Start();
     void Shutdown();
     void Signal();
 
-    virtual bool DequeueAndExecute() = 0;
+    virtual EBeginExecuteResult BeginExecute() = 0;
+    virtual void EndExecute() = 0;
+    
     virtual void OnIdle();
 
     virtual void OnThreadStart();
@@ -86,20 +110,58 @@ protected:
     bool IsRunning() const;
 
 private:
-    friend class TQueueInvoker;
+    friend class TInvokerQueue;
 
-    static void* ThreadFunc(void* param);
+    static void* ThreadMain(void* opaque);
     void ThreadMain();
+    void FiberMain();
 
-    bool EnableLogging;
-    volatile bool Running;
-    NThread::TThreadId ThreadId;
-    Event WakeupEvent;
-    TThread Thread;
+    EBeginExecuteResult CheckedExecute();
+
     Stroka ThreadName;
+    bool EnableLogging;
 
+    NProfiling::TProfiler Profiler;
+
+    volatile bool Running;
+    int FibersCreated;
+    int FibersAlive;
+
+    NThread::TThreadId ThreadId;
+
+    Event WakeupEvent;
+
+    TThread Thread;
+    
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+class TExecutorThreadWithQueue
+    : public TExecutorThread
+{
+public:
+    TExecutorThreadWithQueue(
+        IInvoker* currentInvoker,
+        const Stroka& threadName,
+        const Stroka& profilingName,
+        bool enableLogging);
+
+    ~TExecutorThreadWithQueue();
+
+    void Shutdown();
+
+    IInvokerPtr GetInvoker();
+
+    int GetSize();
+
+private:
+    TInvokerQueuePtr Queue;
+
+    virtual EBeginExecuteResult BeginExecute() override;
+    virtual void EndExecute() override;
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

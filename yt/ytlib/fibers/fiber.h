@@ -1,45 +1,13 @@
 #pragma once
 
 #include <ytlib/misc/common.h>
-#include <ytlib/misc/property.h>
+#include <ytlib/misc/error.h>
 
 #include <ytlib/actions/callback.h>
-
-#if defined(_unix_) && !defined(CORO_ASM)
-#    error "Using slow libcoro backend (expecting CORO_ASM)"
-#endif
-
-#if defined(_win_)
-#    if !defined(CORO_FIBER)
-#        error "Using slow libcoro backend (expecting CORO_FIBER)"
-#    endif
-//   You like WinAPI, don't you? :)
-#    undef Yield
-#endif
-
-#include <contrib/libcoro/coro.h>
+#include <ytlib/actions/future.h>
+#include <ytlib/actions/invoker_util.h>
 
 #include <exception>
-#include <stdexcept>
-
-// MSVC compiler has /GT option for supporting fiber-safe thread-local storage.
-// For CXXABIv1-compliant systems we can hijack __cxa_eh_globals.
-// See http://mentorembedded.github.io/cxx-abi/abi-eh.html
-#if defined(__GNUC__) || defined(__clang__)
-#define CXXABIv1
-#ifdef HAVE_CXXABI_H
-#include <cxxabi.h>
-#endif
-namespace __cxxabiv1 {
-    // We do not care about actual type here, so erase it.
-    typedef void __untyped_cxa_exception;
-    struct __cxa_eh_globals {
-        __untyped_cxa_exception* caughtExceptions;
-        unsigned int uncaughtExceptions;
-    };
-    extern "C" __cxa_eh_globals* __cxa_get_globals() throw();
-} // namespace __cxxabiv1
-#endif
 
 namespace NYT {
 
@@ -49,34 +17,32 @@ namespace NYT {
 class TFiber;
 typedef TIntrusivePtr<TFiber> TFiberPtr;
 
+////////////////////////////////////////////////////////////////////////////////
+
+//! Thrown when a fiber is being terminated by external request.
+class TFiberTerminatedException
+{ };
+
+//! Returns a pointer to a new TFiberTerminatedException instance.
+std::exception_ptr CreateFiberTerminatedException();
+
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_ENUM(EFiberState,
     (Initialized) // Initialized, but not run.
-    (Terminated) // Terminated.
-    (Exception) // Terminated because of exception.
-    (Suspended) // Currently suspended.
-    (Running) // Currently executing.
+    (Terminated)  // Terminated.
+    (Exception)   // Terminated because of an exception.
+    (Suspended)   // Currently suspended.
+    (Running)     // Currently executing.
 );
 
 DECLARE_ENUM(EFiberStack,
-    (Small)
-    (Large)
+    (Small)       // 32 Kb (default)
+    (Large)       //  8 Mb
 );
 
-class TFiberExceptionHandler
-{
-public:
-    TFiberExceptionHandler();
-    ~TFiberExceptionHandler();
-    void Swap(TFiberExceptionHandler& other);
-private:
-#ifdef CXXABIv1
-    __cxxabiv1::__cxa_eh_globals EH;
-#endif
-};
-
-// TODO(sandello): Substitutive yield.
 class TFiber
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
 private:
     TFiber();
@@ -88,36 +54,62 @@ private:
     friend TIntrusivePtr<TFiber> New<TFiber>();
 
 public:
-    explicit TFiber(TClosure closure, EFiberStack stack = EFiberStack::Small);
-    virtual ~TFiber();
+    explicit TFiber(TClosure callee, EFiberStack stack = EFiberStack::Small);
+    ~TFiber();
 
-    static TFiberPtr GetCurrent();
-    static void SetCurrent(const TFiberPtr& fiber);
-    static void SetCurrent(TFiberPtr&& fiber);
-    static void Yield();
+    static TFiber* GetCurrent();
 
-    DEFINE_BYVAL_RO_PROPERTY(EFiberState, State);
+    EFiberState GetState() const;
+    bool Yielded() const;
 
     void Run();
+    void Yield();
+    
     void Reset();
     void Reset(TClosure closure);
+    
     void Inject(std::exception_ptr&& exception);
 
+    void SwitchTo(IInvokerPtr invoker);
+    void WaitFor(TFuture<void> future, IInvokerPtr invoker);
+
 private:
-    TClosure Callee;
-    TFiberPtr Caller;
+    class TImpl;
 
-    coro_context CoroContext;
-    coro_stack CoroStack;
+    std::unique_ptr<TImpl> Impl;
 
-    std::exception_ptr Exception;
-    TFiberExceptionHandler EH;
-
-    void SwitchTo(TFiber* target);
-
-    static void Trampoline(void* arg);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Yields control until it is manually transferred back to the current fiber.
+void Yield();
+
+//! Yields control until a given future is set and ensures that
+//! execution continues within a given invoker.
+void WaitFor(
+    TFuture<void> future,
+    IInvokerPtr invoker = GetCurrentInvoker());
+
+//! Yields control until a given future is set, ensures that
+//! execution continues within a given invoker, and returns
+//! the final value of the future.
+template <class T>
+T WaitFor(
+    TFuture<T> future,
+    IInvokerPtr invoker = GetCurrentInvoker());
+
+//! Transfers control to another invoker.
+/*!
+  *  The behavior is achieved by yielding control and enqueuing
+  *  a special continuation callback into |invoker|.
+  */
+void SwitchTo(IInvokerPtr invoker);
+
+////////////////////////////////////////////////////////////////////////////////
+
 }
+
+#define FIBER_INL_H_
+#   include "fiber-inl.h"
+#undef FIBER_INL_H_

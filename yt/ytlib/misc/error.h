@@ -16,9 +16,6 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// WinAPI is great.
-#undef GetMessage
-
 // Forward declarations
 template <class T>
 class TErrorOr;

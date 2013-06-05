@@ -1,271 +1,540 @@
 #include "stdafx.h"
 #include "fiber.h"
 
-// libcoro asserts that coro_create() is not thread-safe nor reenterant function.
+#include <contrib/libcoro/coro.h>
+
+#include <stdexcept>
+
+// libcoro asserts that coro_create() is neither thread-safe nor reenterant function.
 #ifdef _unix_
-    #include <pthread.h>
-    #define DEFINE_FIBER_CTOR_MUTEX() \
+#    include <pthread.h>
+#    define DEFINE_FIBER_CTOR_MUTEX() \
         static pthread_mutex_t FiberCtorMutex = PTHREAD_MUTEX_INITIALIZER;
-    #define BEFORE_FIBER_CTOR() pthread_mutex_lock(&FiberCtorMutex)
-    #define AFTER_FIBER_CTOR() pthread_mutex_unlock(&FiberCtorMutex)
-    #define TLS_STATIC static __thread
+#    define BEFORE_FIBER_CTOR() pthread_mutex_lock(&FiberCtorMutex)
+#    define AFTER_FIBER_CTOR() pthread_mutex_unlock(&FiberCtorMutex)
 #else
-    #define DEFINE_FIBER_CTOR_MUTEX()
-    #define BEFORE_FIBER_CTOR()
-    #define AFTER_FIBER_CTOR()
-    #define TLS_STATIC __declspec(thread)
+#    define DEFINE_FIBER_CTOR_MUTEX()
+#    define BEFORE_FIBER_CTOR()
+#    define AFTER_FIBER_CTOR()
+#endif
+
+#if defined(_unix_) && !defined(CORO_ASM)
+#   error "Using slow libcoro backend (expecting CORO_ASM)"
+#endif
+
+#if defined(_win_)
+#   if !defined(CORO_FIBER)
+#       error "Using slow libcoro backend (expecting CORO_FIBER)"
+#   endif
+#endif
+
+// MSVC compiler has /GT option for supporting fiber-safe thread-local storage.
+// For CXXABIv1-compliant systems we can hijack __cxa_eh_globals.
+// See http://mentorembedded.github.io/cxx-abi/abi-eh.html
+#if defined(__GNUC__) || defined(__clang__)
+#   define CXXABIv1
+
+#   ifdef HAVE_CXXABI_H
+#       include <cxxabi.h>
+#   endif
+
+namespace __cxxabiv1 {
+    // We do not care about actual type here, so erase it.
+    typedef void __untyped_cxa_exception;
+    struct __cxa_eh_globals {
+        __untyped_cxa_exception* caughtExceptions;
+        unsigned int uncaughtExceptions;
+    };
+    extern "C" __cxa_eh_globals* __cxa_get_globals() throw();
+} // namespace __cxxabiv1
+
 #endif
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-    // Stack sizes are given in machine words.
-    // Estimates in bytes are given for x86_64.
-    static const size_t SmallFiberStackSize = 1 << 12; // 32K
-    static const size_t LargeFiberStackSize = 1 << 20; // 8MB
+//! Pointer to the current fiber being run by the current thread.
+/*!
+ *  Current fiber is stored as a raw pointer, all Ref/Unref calls are done manually.
+ *  
+ *  If |CurrentFiber| is alive (i.e. has positive number of strong references)
+ *  then the pointer is owning.
+ *  
+ *  If |CurrentFiber|s is currently being terminated (i.e. its dtor is in progress)
+ *  then the pointer is non-owning.
+ * 
+ *  Examining |CurrentFiber| could be useful for debugging purposes so we don't
+ *  put it into an anonymous namespace to avoid name mangling.
+ */
+TLS_STATIC TFiber* CurrentFiber = nullptr;
 
-    TLS_STATIC TFiberPtr* FiberCurrent = 0;
-    DEFINE_FIBER_CTOR_MUTEX();
+namespace {
+
+DEFINE_FIBER_CTOR_MUTEX();
+
+// Stack sizes are given in machine words.
+// Estimates in bytes are given for x86_64.
+const size_t SmallFiberStackSize = 1 << 13; // 64 Kb
+const size_t LargeFiberStackSize = 1 << 20; //  8 Mb
+
+void InitTls()
+{
+    if (UNLIKELY(!CurrentFiber)) {
+        auto rootFiber = New<TFiber>();
+        CurrentFiber = rootFiber.Get();
+        CurrentFiber->Ref();
+    }
+}
+
 } // namespace
 
-TFiberExceptionHandler::TFiberExceptionHandler()
+class TFiberExceptionHandler
 {
-#ifdef CXXABIv1
-    ::memset(&EH, 0, sizeof(EH));
-#endif
-}
-
-TFiberExceptionHandler::~TFiberExceptionHandler()
-{ }
-
-void TFiberExceptionHandler::Swap(TFiberExceptionHandler& other)
-{
-#ifdef CXXABIv1
-    auto* currentEH = __cxxabiv1::__cxa_get_globals();
-    YASSERT(currentEH);
-    EH = *currentEH;
-    *currentEH = other.EH;
-#endif
-}
-
-TFiber::TFiber()
-    : State_(EFiberState::Running)
-{
-    ::memset(&CoroContext, 0, sizeof(CoroContext));
-    ::memset(&CoroStack, 0, sizeof(CoroStack));
-
-    BEFORE_FIBER_CTOR();
-    coro_create(&CoroContext, nullptr, nullptr, nullptr, 0);
-    AFTER_FIBER_CTOR();
-}
-
-TFiber::TFiber(TClosure closure, EFiberStack stack)
-    : State_(EFiberState::Initialized)
-    , Callee(std::move(closure))
-    , Caller(nullptr)
-{
-    ::memset(&CoroContext, 0, sizeof(CoroContext));
-    ::memset(&CoroStack, 0, sizeof(CoroStack));
-
-    size_t stackSize = 0;
-    switch (stack)
+public:
+    TFiberExceptionHandler()
     {
-        case EFiberStack::Small:
-            stackSize = SmallFiberStackSize;
-            break;
-        case EFiberStack::Large:
-            stackSize = LargeFiberStackSize;
-            break;
-        default:
-            YUNREACHABLE();
+#ifdef CXXABIv1
+        ::memset(&EH, 0, sizeof(EH));
+#endif
     }
 
-    coro_stack_alloc(&CoroStack, stackSize);
+    void Swap(TFiberExceptionHandler& other)
+    {
+#ifdef CXXABIv1
+        auto* currentEH = __cxxabiv1::__cxa_get_globals();
+        YASSERT(currentEH);
+        EH = *currentEH;
+        *currentEH = other.EH;
+#endif
+    }
 
-    BEFORE_FIBER_CTOR();
-    coro_create(
-        &CoroContext,
-        &TFiber::Trampoline,
-        this,
-        CoroStack.sptr,
-        CoroStack.ssze);
-    AFTER_FIBER_CTOR();
-}
+private:
+#ifdef CXXABIv1
+    __cxxabiv1::__cxa_eh_globals EH;
+#endif
 
-TFiber::~TFiber()
+};
+
+//} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TFiber::TImpl
 {
-    YCHECK(!Caller);
-    YCHECK(Exception == std::exception_ptr());
+    DEFINE_BYVAL_RO_PROPERTY(EFiberState, State);
 
-    if (LIKELY(CoroStack.sptr != nullptr && CoroStack.ssze != 0)) {
-        // This is a spawned fiber.
+public:
+    TImpl(TFiber* owner)
+        : State_(EFiberState::Running)
+        , Owner_(owner)
+        , Terminating_(false)
+        , Yielded_(false)
+    {
+        ::memset(&CoroContext_, 0, sizeof(CoroContext_));
+        ::memset(&CoroStack_, 0, sizeof(CoroStack_));
+
+        BEFORE_FIBER_CTOR();
+        coro_create(&CoroContext_, nullptr, nullptr, nullptr, 0);
+        AFTER_FIBER_CTOR();
+    }
+
+    TImpl(TFiber* owner, TClosure callee, EFiberStack stack)
+        : State_(EFiberState::Initialized)
+        , Owner_(owner)
+        , Terminating_(false)
+        , Yielded_(false)
+        , Callee_(std::move(callee))
+        , Caller_(nullptr)
+    {
+        ::memset(&CoroContext_, 0, sizeof(CoroContext_));
+        ::memset(&CoroStack_, 0, sizeof(CoroStack_));
+
+        size_t stackSize = GetStackSize(stack);
+        coro_stack_alloc(&CoroStack_, stackSize);
+
+        BEFORE_FIBER_CTOR();
+        coro_create(
+            &CoroContext_,
+            &TImpl::Trampoline,
+            this,
+            CoroStack_.sptr,
+            CoroStack_.ssze);
+        AFTER_FIBER_CTOR();
+    }
+
+    ~TImpl()
+    {
+        YCHECK(!Caller_);
+        YCHECK(Exception_ == std::exception_ptr());
+
+        YCHECK(!Terminating_);
+        Terminating_ = true;
+
+        // Root fiber can never be destroyed.
+        YCHECK(CoroStack_.sptr && CoroStack_.ssze != 0);
+
+        if (State_ == EFiberState::Suspended) {
+            // Most likely that the fiber has been abandoned after being submitted to an invoker.
+            // Give the callee the last chance to finish.
+            Inject(CreateFiberTerminatedException());
+            Run();
+        }
+
         YCHECK(
             State_ == EFiberState::Initialized ||
             State_ == EFiberState::Terminated ||
             State_ == EFiberState::Exception);
 
-        (void)coro_destroy(&CoroContext);
-        (void)coro_stack_free(&CoroStack);
-    } else {
-        // This is a main fiber.
+        (void) coro_destroy(&CoroContext_);
+        (void) coro_stack_free(&CoroStack_);
+    }
+
+    
+    static TFiber* GetCurrent()
+    {
+        InitTls();
+        return CurrentFiber;
+    }
+
+
+    bool Yielded() const
+    {
+        return Yielded_;
+    }
+
+
+    void Run()
+    {
+        YASSERT(!Caller_);
+        YCHECK(
+            State_ == EFiberState::Initialized ||
+            State_ == EFiberState::Suspended);
+
+        Caller_ = TFiber::GetCurrent();
+
+        YCHECK(Caller_->Impl->State_ == EFiberState::Running);
+        State_ = EFiberState::Running;
+
+        SetCurrent(Owner_);
+
+        Caller_->Impl->TransferTo(this);
+
+        YCHECK(Caller_->Impl->State_ == EFiberState::Running);
+
+        TFiberPtr caller;
+        Caller_.Swap(caller);
+
+        IInvokerPtr switchTo;
+        SwitchTo_.Swap(switchTo);
+
+        TFuture<void> waitFor;
+        WaitFor_.Swap(waitFor);
+
+        SetCurrent(caller.Get());
+
+        YCHECK(
+            State_ == EFiberState::Terminated ||
+            State_ == EFiberState::Exception ||
+            State_ == EFiberState::Suspended);
+
+        if (State_ == EFiberState::Exception) {
+            // Rethrow the propagated exception.
+
+            YCHECK(!Terminating_);
+            // XXX(babenko): VS2010 has no operator bool
+            YASSERT(!(Exception_ == std::exception_ptr()));
+
+            std::exception_ptr ex;
+            std::swap(Exception_, ex);
+
+            std::rethrow_exception(std::move(ex));
+        } else if (waitFor) {
+            // Schedule wakeup when then given future is set.
+            YCHECK(!Terminating_);
+            waitFor.Subscribe(BIND(&TFiber::Run, MakeStrong(Owner_)).Via(switchTo));
+        } else if (switchTo) {          
+            // Schedule switch to another thread.
+            YCHECK(!Terminating_);
+            switchTo->Invoke(BIND(&TFiber::Run, MakeStrong(Owner_)));
+        }
+    }
+
+    void Yield()
+    {
+        // Failure here indicates that the callee has declined our kind offer to exit
+        // gracefully and has called Yield once again.
+        YCHECK(!Terminating_);
+
+        // Failure here indicates that an attempt is made to Yield control from a root fiber.
+        YCHECK(Caller_);
+
         YCHECK(State_ == EFiberState::Running);
+        State_ = EFiberState::Suspended;
+        Yielded_ = true;
+
+        TransferTo(Caller_->Impl.get());
+        YCHECK(State_ == EFiberState::Running);
+
+        // Rethrow the injected exception, if any.
+        // XXX(babenko): VS2010 has no operator bool
+        if (!(Exception_ == std::exception_ptr())) {
+            std::exception_ptr ex;
+            std::swap(Exception_, ex);
+
+            std::rethrow_exception(std::move(ex));
+        }
     }
-}
 
-TFiberPtr TFiber::GetCurrent()
-{
-    if (UNLIKELY(!FiberCurrent)) {
-        FiberCurrent = new TFiberPtr();
-        *FiberCurrent = New<TFiber>();
+
+    void Reset()
+    {
+        YASSERT(!Caller_);
+        YASSERT(Exception_ == std::exception_ptr());
+        YCHECK(
+            State_ == EFiberState::Initialized ||
+            State_ == EFiberState::Terminated ||
+            State_ == EFiberState::Exception);
+
+        (void) coro_destroy(&CoroContext_);
+
+        BEFORE_FIBER_CTOR();
+        coro_create(
+            &CoroContext_,
+            &TImpl::Trampoline,
+            this,
+            CoroStack_.sptr,
+            CoroStack_.ssze);
+        AFTER_FIBER_CTOR();
+
+        State_ = EFiberState::Initialized;
     }
 
-    return *FiberCurrent;
-}
-
-void TFiber::SetCurrent(const TFiberPtr& fiber)
-{
-    *FiberCurrent = fiber;
-}
-
-void TFiber::SetCurrent(TFiberPtr&& fiber)
-{
-    *FiberCurrent = std::move(fiber);
-}
-
-void TFiber::Yield()
-{
-    auto current = TFiber::GetCurrent();
-    YASSERT(current);
-    YASSERT(current->Caller);
-
-    YCHECK(current->State_ == EFiberState::Running);
-    current->State_ = EFiberState::Suspended;
-    current->SwitchTo(current->Caller.Get());
-    YCHECK(current->State_ == EFiberState::Running);
-
-    // If we have an injected exception, rethrow it.
-#ifdef _win_
-    if (!(current->Exception == std::exception_ptr())) {
-#else
-    if (current->Exception) {
-#endif
-        // For some reason, std::move does not nullify the moved pointer.
-        auto ex = std::move(current->Exception);
-        current->Exception = nullptr;
-        std::rethrow_exception(std::move(ex));
+    void Reset(TClosure closure)
+    {
+        Reset();
+        Callee_ = std::move(closure);
     }
+
+
+    void Inject(std::exception_ptr&& exception)
+    {
+        // XXX(babenko): VS2010 has no operator bool
+        YCHECK(!(exception == std::exception_ptr()));
+        YCHECK(
+            State_ == EFiberState::Initialized ||
+            State_ == EFiberState::Suspended);
+
+        Exception_ = std::move(exception);
+    }
+
+    void SwitchTo(IInvokerPtr invoker)
+    {
+        YCHECK(invoker);
+        YCHECK(!WaitFor_);
+        YCHECK(!SwitchTo_);
+
+        invoker.Swap(SwitchTo_);
+
+        Yield();
+    }
+
+    void WaitFor(TFuture<void> future, IInvokerPtr invoker)
+    {
+        YCHECK(future);
+        YCHECK(invoker);
+        YCHECK(!WaitFor_);
+        YCHECK(!SwitchTo_);
+
+        future.Swap(WaitFor_);
+        invoker.Swap(SwitchTo_);
+
+        Yield();
+    }
+
+private:
+    TFiber* Owner_;
+    bool Terminating_;
+    bool Yielded_;
+
+    TClosure Callee_;
+    TFiberPtr Caller_;
+
+    coro_context CoroContext_;
+    coro_stack CoroStack_;
+
+    std::exception_ptr Exception_;
+    TFiberExceptionHandler EH_;
+
+    TFuture<void> WaitFor_;
+    IInvokerPtr SwitchTo_;
+
+    static size_t GetStackSize(EFiberStack stack)
+    {
+        switch (stack)
+        {
+            case EFiberStack::Small:
+                return SmallFiberStackSize;
+            case EFiberStack::Large:
+                return LargeFiberStackSize;
+            default:
+                YUNREACHABLE();
+        }
+    }
+
+    static void SetCurrent(TFiber* fiber)
+    {
+        InitTls();
+
+        if (CurrentFiber != fiber) {
+            if (CurrentFiber && !CurrentFiber->Impl->Terminating_) {
+                CurrentFiber->Unref();
+            }
+
+            CurrentFiber = fiber;
+
+            if (CurrentFiber && !CurrentFiber->Impl->Terminating_) {
+                CurrentFiber->Ref();
+            }
+        }
+    }
+
+    void TransferTo(TImpl* target)
+    {
+        EH_.Swap(target->EH_);
+        coro_transfer(&CoroContext_, &target->CoroContext_);
+    }
+
+
+    static void Trampoline(void* opaque)
+    {
+        reinterpret_cast<TImpl*>(opaque)->Trampoline();
+    }
+
+    void Trampoline()
+    {
+        YASSERT(Caller_);
+        YASSERT(!Callee_.IsNull());
+
+        // XXX(babenko): VS2010 has no operator bool
+        if (!(Exception_ == std::exception_ptr())) {
+            State_ = EFiberState::Exception;
+            TransferTo(Caller_->Impl.get());
+            YUNREACHABLE();
+        }
+
+        try {
+            YCHECK(State_ == EFiberState::Running);
+
+            Callee_.Run();
+
+            YCHECK(State_ == EFiberState::Running);
+            State_ = EFiberState::Terminated;
+        } catch (const TFiberTerminatedException&) {
+            // Thrown intentionally, ignore.
+            State_ = EFiberState::Terminated;
+        } catch (...) {
+            // Failure here indicates that an unhandled exception
+            // was thrown during fiber termination.
+            YCHECK(!Terminating_);
+            Exception_ = std::current_exception();
+            State_ = EFiberState::Exception;
+        }
+
+        TransferTo(Caller_->Impl.get());
+        YUNREACHABLE();
+    }
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFiber::TFiber()
+    : Impl(new TImpl(this))
+{ }
+
+TFiber::TFiber(TClosure closure, EFiberStack stack)
+    : Impl(new TImpl(this, std::move(closure), stack))
+{ }
+
+TFiber::~TFiber()
+{ }
+
+TFiber* TFiber::GetCurrent()
+{
+    return TImpl::GetCurrent();
+}
+
+EFiberState TFiber::GetState() const
+{
+    return Impl->GetState();
+}
+
+bool TFiber::Yielded() const
+{
+    return Impl->Yielded();
 }
 
 void TFiber::Run()
 {
-    YASSERT(!Caller);
-    YCHECK(
-        State_ == EFiberState::Initialized ||
-        State_ == EFiberState::Suspended);
+    Impl->Run();
+}
 
-    TFiberPtr caller = TFiber::GetCurrent();
-    TFiber* rawCaller = caller.Get();
-
-    YASSERT(rawCaller->State_ == EFiberState::Running);
-    State_ = EFiberState::Running;
-    Caller = std::move(caller);
-    TFiber::SetCurrent(this);
-    Caller->SwitchTo(this);
-    TFiber::SetCurrent(std::move(Caller));
-    YASSERT(rawCaller->State_ == EFiberState::Running);
-
-    YASSERT(!Caller);
-    YCHECK(
-        State_ == EFiberState::Terminated ||
-        State_ == EFiberState::Exception ||
-        State_ == EFiberState::Suspended);
-
-    // If we have a propagated exception, rethrow it.
-    if (State_ == EFiberState::Exception) {
-        // Ensure that there is an exception object.
-        YASSERT(!(Exception == std::exception_ptr()));
-        // For some reason, std::move does not nullify the moved pointer.
-        auto ex = std::move(Exception);
-        Exception = nullptr;
-        std::rethrow_exception(std::move(ex));
-    }
+void TFiber::Yield()
+{
+    Impl->Yield();
 }
 
 void TFiber::Reset()
 {
-    YASSERT(!Caller);
-    YASSERT(Exception == std::exception_ptr());
-    YCHECK(
-        State_ == EFiberState::Initialized ||
-        State_ == EFiberState::Terminated ||
-        State_ == EFiberState::Exception);
-
-    (void)coro_destroy(&CoroContext);
-
-    BEFORE_FIBER_CTOR();
-    coro_create(
-        &CoroContext,
-        &TFiber::Trampoline,
-        this,
-        CoroStack.sptr,
-        CoroStack.ssze);
-    AFTER_FIBER_CTOR();
-
-    State_ = EFiberState::Initialized;
+    Impl->Reset();
 }
 
 void TFiber::Reset(TClosure closure)
 {
-    Reset();
-    Callee = std::move(closure);
+    Impl->Reset(std::move(closure));
 }
 
 void TFiber::Inject(std::exception_ptr&& exception)
 {
-    YCHECK(
-        State_ == EFiberState::Initialized ||
-        State_ == EFiberState::Suspended);
-
-    Exception = std::move(exception);
+    Impl->Inject(std::move(exception));
 }
 
-void TFiber::SwitchTo(TFiber* target)
+void TFiber::SwitchTo(IInvokerPtr invoker)
 {
-    coro_transfer(&CoroContext, &target->CoroContext);
-    EH.Swap(target->EH);
+    Impl->SwitchTo(std::move(invoker));
 }
 
-void TFiber::Trampoline(void* opaque)
+void TFiber::WaitFor(TFuture<void> future, IInvokerPtr invoker)
 {
-    TFiber* fiber = reinterpret_cast<TFiber*>(opaque);
-    YASSERT(fiber);
-    YASSERT(fiber->Caller);
-    YASSERT(!fiber->Callee.IsNull());
+    Impl->WaitFor(std::move(future), std::move(invoker));
+}
 
-#ifdef _win_
-    if (!(fiber->Exception == std::exception_ptr())) {
-#else
-    if (fiber->Exception) {
-#endif
-        fiber->State_ = EFiberState::Exception;
-        fiber->SwitchTo(fiber->Caller.Get());
-        YUNREACHABLE();
-    }
+////////////////////////////////////////////////////////////////////////////////
 
+std::exception_ptr CreateFiberTerminatedException()
+{
     try {
-        YCHECK(fiber->State_ == EFiberState::Running);
-        fiber->Callee.Run();
-        YCHECK(fiber->State_ == EFiberState::Running);
-        fiber->State_ = EFiberState::Terminated;
+        throw TFiberTerminatedException();
     } catch (...) {
-        fiber->Exception = std::current_exception();
-        fiber->State_ = EFiberState::Exception;
+        return std::current_exception();
     }
-
-    fiber->SwitchTo(fiber->Caller.Get());
     YUNREACHABLE();
+}
+
+void Yield()
+{
+    TFiber::GetCurrent()->Yield();
+}
+
+void WaitFor(TFuture<void> future, IInvokerPtr invoker)
+{
+    TFiber::GetCurrent()->WaitFor(std::move(future), std::move(invoker));
+}
+
+void SwitchTo(IInvokerPtr invoker)
+{
+    TFiber::GetCurrent()->SwitchTo(std::move(invoker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

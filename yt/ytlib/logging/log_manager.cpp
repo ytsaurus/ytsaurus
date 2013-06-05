@@ -45,7 +45,7 @@ static const char* const DefaultStdErrPattern = "$(datetime) $(level) $(category
 static const char* const AllCategoriesName = "*";
 
 static TLogger Logger(SystemLoggingCategory);
-static NProfiling::TProfiler Profiler("/logging");
+static NProfiling::TProfiler LoggingProfiler("/logging");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -495,12 +495,12 @@ void ReloadSignalHandler(int signal)
 } // namespace
 
 class TLogManager::TImpl
-    : public TActionQueueBase
+    : public TExecutorThread
 {
 public:
     TImpl()
-        : TActionQueueBase("Logging", false)
-        , QueueInvoker(New<TQueueInvoker>("", this, false))
+        : TExecutorThread("Logging", false)
+        , Queue(New<TInvokerQueue>(this, nullptr, "", false))
         // Version forces this very module's Logger object to update to our own
         // default configuration (default level etc.).
         , Version(-1)
@@ -541,7 +541,7 @@ public:
 
     void Shutdown()
     {
-        TActionQueueBase::Shutdown();
+        TExecutorThread::Shutdown();
         Config->FlushWriters();
     }
 
@@ -594,7 +594,7 @@ public:
             return;
         }
 
-        Profiler.Increment(EnqueueCounter);
+        LoggingProfiler.Increment(EnqueueCounter);
         LogEventQueue.Enqueue(event);
         Signal();
 
@@ -621,9 +621,12 @@ public:
         }
     }
 
-    virtual bool DequeueAndExecute() override
+    virtual EBeginExecuteResult BeginExecute() override
     {
-        auto actionsExecuted = QueueInvoker->DequeueAndExecute();
+        auto result = Queue->BeginExecute();
+        if (result == EBeginExecuteResult::LoopTerminated) {
+            return result;
+        }
 
         bool configsUpdated = false;
         TLogConfigPtr config;
@@ -653,7 +656,14 @@ public:
             Config->FlushWriters();
         }
 
-        return actionsExecuted || configsUpdated || eventsWritten;
+        return result == EBeginExecuteResult::Success || configsUpdated || eventsWritten
+            ? EBeginExecuteResult::Success
+            : EBeginExecuteResult::QueueEmpty;
+    }
+
+    virtual void EndExecute() override
+    {
+        Queue->EndExecute();
     }
 
     void Reopen()
@@ -676,7 +686,7 @@ private:
     void Write(const TLogEvent& event)
     {
         FOREACH (auto& writer, GetWriters(event)) {
-            Profiler.Increment(WriteCounter);
+            LoggingProfiler.Increment(WriteCounter);
             writer->Write(event);
         }
     }
@@ -706,7 +716,7 @@ private:
             auto flushPeriod = Config->GetFlushPeriod();
             if (flushPeriod) {
                 FlushInvoker = New<TPeriodicInvoker>(
-                    QueueInvoker,
+                    Queue,
                     BIND(&TImpl::DoFlushWritersPeriodically, MakeStrong(this)),
                     *flushPeriod);
                 FlushInvoker->Start();
@@ -715,7 +725,7 @@ private:
             auto watchPeriod = Config->GetWatchPeriod();
             if (watchPeriod) {
                 WatchInvoker = New<TPeriodicInvoker>(
-                    QueueInvoker,
+                    Queue,
                     BIND(&TImpl::DoWatchWritersPeriodically, MakeStrong(this)),
                     *watchPeriod);
                 WatchInvoker->Start();
@@ -733,7 +743,7 @@ private:
         Config->WatchWriters();
     }
 
-    TQueueInvokerPtr QueueInvoker;
+    TInvokerQueuePtr Queue;
 
     // Configuration.
     TAtomic Version;
@@ -752,6 +762,7 @@ private:
 
     TPeriodicInvokerPtr FlushInvoker;
     TPeriodicInvokerPtr WatchInvoker;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

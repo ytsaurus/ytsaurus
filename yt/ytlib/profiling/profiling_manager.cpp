@@ -25,7 +25,7 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger Logger("Profiling");
-static TProfiler Profiler("/profiling", true);
+static TProfiler ProfilingProfiler("/profiling", true);
 
 // TODO(babenko): make configurable
 const TDuration MaxKeepInterval = TDuration::Seconds(300);
@@ -137,12 +137,12 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TProfilingManager::TImpl
-    : public TActionQueueBase
+    : public TExecutorThread
 {
 public:
     TImpl()
-        : TActionQueueBase("Profiling", true)
-        , Invoker(New<TQueueInvoker>("/Profiling", this, true))
+        : TExecutorThread("Profiling", true)
+        , Queue(New<TInvokerQueue>(this, nullptr, "/Profiling", true))
         , Root(GetEphemeralNodeFactory()->CreateMap())
         , EnqueueCounter("/enqueue_rate")
         , DequeueCounter("/dequeue_rate")
@@ -154,13 +154,13 @@ public:
 
     ~TImpl()
     {
-        Invoker->Shutdown();
+        Queue->Shutdown();
         Shutdown();
     }
 
     void Start()
     {
-        TActionQueueBase::Start();
+        TExecutorThread::Start();
 #if !defined(_win_) && !defined(_darwin_)
         ResourceTracker->Start();
 #endif
@@ -168,7 +168,7 @@ public:
 
     void Shutdown()
     {
-        TActionQueueBase::Shutdown();
+        TExecutorThread::Shutdown();
     }
 
     void Enqueue(const TQueuedSample& sample, bool selfProfiling)
@@ -177,7 +177,7 @@ public:
             return;
 
         if (!selfProfiling) {
-            Profiler.Increment(EnqueueCounter);
+            ProfilingProfiler.Increment(EnqueueCounter);
         }
 
         SampleQueue.Enqueue(sample);
@@ -186,7 +186,7 @@ public:
 
     IInvokerPtr GetInvoker() const
     {
-        return Invoker;
+        return Queue;
     }
 
     IMapNodePtr GetRoot() const
@@ -195,7 +195,7 @@ public:
     }
 
 private:
-    TQueueInvokerPtr Invoker;
+    TInvokerQueuePtr Queue;
     IMapNodePtr Root;
     TRateCounter EnqueueCounter;
     TRateCounter DequeueCounter;
@@ -208,11 +208,12 @@ private:
     TIntrusivePtr<TResourceTracker> ResourceTracker;
 #endif
 
-    bool DequeueAndExecute()
+    virtual EBeginExecuteResult BeginExecute() override
     {
         // Handle pending callbacks first.
-        if (Invoker->DequeueAndExecute()) {
-            return true;
+        auto result = Queue->BeginExecute();
+        if (result != EBeginExecuteResult::QueueEmpty) {
+            return result;
         }
 
         // Process all pending samples in a row.
@@ -223,10 +224,16 @@ private:
             samplesProcessed = true;
         }
 
-        Profiler.Increment(DequeueCounter, samplesProcessed);
+        ProfilingProfiler.Increment(DequeueCounter, samplesProcessed);
 
-        return samplesProcessed > 0;
+        return samplesProcessed > 0 ? EBeginExecuteResult::Success : EBeginExecuteResult::QueueEmpty;
     }
+
+    virtual void EndExecute() override
+    {
+        Queue->EndExecute();
+    }
+
 
     TBucketPtr LookupBucket(const TYPath& path)
     {

@@ -490,6 +490,16 @@ inline TFuture<R> TFuture<T>::Apply(const TCallback<TFuture<R>(T)>& mutator)
 }
 
 template <class T>
+TFuture<void> TFuture<T>::IgnoreResult()
+{
+    auto voidPromise = NewPromise();
+    Subscribe(BIND([=] (T) mutable {
+        voidPromise.Set();
+    }));
+    return voidPromise;
+}
+
+template <class T>
 inline TFuture<T>::TFuture(
     const TIntrusivePtr< NYT::NDetail::TPromiseState<T> >& state)
     : Impl(state)

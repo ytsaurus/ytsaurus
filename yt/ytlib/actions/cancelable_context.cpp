@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "cancelable_context.h"
-#include "bind.h"
 #include "callback.h"
+#include "invoker_util.h"
 
 namespace NYT {
 
@@ -28,9 +28,10 @@ public:
             return false;
         }
 
-        auto context = Context;
-        return UnderlyingInvoker->Invoke(BIND([=] {
-            if (!context->Canceled) {
+        auto this_ = MakeStrong(this);
+        return UnderlyingInvoker->Invoke(BIND([this, this_, action] {
+            if (!Context->Canceled) {
+                SetCurrentInvoker(this_);
                 action.Run();
             }
         }));

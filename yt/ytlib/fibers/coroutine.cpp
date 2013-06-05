@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "coroutine.h"
 
 namespace NYT {
@@ -10,11 +11,6 @@ TCoroutineBase::TCoroutineBase()
 
 TCoroutineBase::~TCoroutineBase()
 { }
-
-void TCoroutineBase::Trampoline()
-{
-    YUNREACHABLE();
-}
 
 EFiberState TCoroutineBase::GetState() const
 {

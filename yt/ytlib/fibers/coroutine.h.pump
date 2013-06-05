@@ -9,20 +9,6 @@ $range ARITY 0..MAX_ARITY
 
 #include <ytlib/misc/nullable.h>
 
-#include <tuple>
-
-#if defined(_MSC_VER) && (_MSC_VER < 1700)
-namespace std {
-    using ::std::tr1::tuple;
-    using ::std::tr1::tie;
-    using ::std::tr1::get;
-} // namespace std
-#endif
-
-#if defined(_win_)
-#    undef Yield
-#endif
-
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -34,9 +20,9 @@ class TCoroutineBase
 {
 protected:
     TCoroutineBase();
-
     virtual ~TCoroutineBase();
-    virtual void Trampoline();
+
+    virtual void Trampoline() = 0;
 
 public:
     EFiberState GetState() const;
@@ -47,6 +33,7 @@ protected:
 private:
     TCoroutineBase(const TCoroutineBase&);
     TCoroutineBase& operator=(const TCoroutineBase&);
+
 };
 
 $for ARITY [[
@@ -108,7 +95,7 @@ $for ARG , [[std::forward<P$(ARG)>(p$(ARG))]]);
     $if ARITY > 0 [[TArguments&&]] $else [[void]] Yield(Q&& result)
     {
         Result = std::forward<Q>(result);
-        TFiber::Yield();
+        Fiber->Yield();
         return[[]]$if ARITY > 0 [[ std::move(Arguments)]];
     }
 
@@ -190,7 +177,7 @@ $for ARG , [[std::forward<P$(ARG)>(p$(ARG))]]);
     $if ARITY > 0 [[TArguments&&]] $else [[void]] Yield()
     {
         Result = true;
-        TFiber::Yield();
+        Fiber->Yield();
         return[[]]$if ARITY > 0 [[ std::move(Arguments)]];
     }
 

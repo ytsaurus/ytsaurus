@@ -171,6 +171,9 @@ public:
     template <class R>
     TFuture<R> Apply(const TCallback<TFuture<R>(T)>& mutator);
 
+    //! Converts into a void future by effectively discarding the value.
+    TFuture<void> IgnoreResult();
+
 private:
     explicit TFuture(const TIntrusivePtr< NYT::NDetail::TPromiseState<T> >& state);
     explicit TFuture(TIntrusivePtr< NYT::NDetail::TPromiseState<T> >&& state);

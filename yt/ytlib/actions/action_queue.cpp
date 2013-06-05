@@ -14,56 +14,12 @@ using namespace NYPath;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-class TActionQueue::TImpl
-    : public TActionQueueBase
-{
-public:
-    TImpl(const Stroka& threadName, const Stroka& profilingName, bool enableLogging)
-        : TActionQueueBase(threadName, enableLogging)
-    {
-        QueueInvoker = New<TQueueInvoker>(
-            "/" + ToYPathLiteral(profilingName),
-            this,
-            enableLogging);
-        Start();
-    }
-
-    ~TImpl()
-    {
-        QueueInvoker->Shutdown();
-        Shutdown();
-    }
-
-    void Shutdown()
-    {
-        TActionQueueBase::Shutdown();
-    }
-
-    IInvokerPtr GetInvoker()
-    {
-        return QueueInvoker;
-    }
-
-    int GetSize() const
-    {
-        return QueueInvoker->GetSize();
-    }
-
-    static TCallback<TActionQueuePtr()> CreateFactory(const Stroka& threadName);
-
-protected:
-    virtual bool DequeueAndExecute() override
-    {
-        return QueueInvoker->DequeueAndExecute();
-    }
-
-private:
-    TQueueInvokerPtr QueueInvoker;
-
-};
-
 TActionQueue::TActionQueue(const Stroka& threadName, bool enableLogging)
-    : Impl(New<TImpl>(threadName, threadName, enableLogging))
+    : Impl(New<TExecutorThreadWithQueue>(
+        nullptr,
+        threadName,
+        "/" + ToYPathLiteral(threadName),
+        enableLogging))
 { }
 
 TActionQueue::~TActionQueue()
@@ -86,25 +42,22 @@ TCallback<TActionQueuePtr()> TActionQueue::CreateFactory(const Stroka& threadNam
     });
 }
 
-int TActionQueue::GetSize() const
-{
-    return Impl->GetSize();
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 
 class TFairShareActionQueue::TImpl
-    : public TActionQueueBase
+    : public TExecutorThread
 {
 public:
     TImpl(const std::vector<Stroka>& profilingNames, const Stroka& threadName)
-        : TActionQueueBase(threadName, true)
-        , Queues(profilingNames.size())
+        : TExecutorThread(threadName, true)
+        , Buckets(profilingNames.size())
+        , CurrentBucket(nullptr)
     {
         for (int index = 0; index < static_cast<int>(profilingNames.size()); ++index) {
-            Queues[index].Invoker = New<TQueueInvoker>(
-                "/" + ToYPathLiteral(threadName + ":" + profilingNames[index]),
+            Buckets[index].Queue = New<TInvokerQueue>(
                 this,
+                nullptr,
+                "/" + ToYPathLiteral(threadName + ":" + profilingNames[index]),
                 true);
         }
 
@@ -113,8 +66,8 @@ public:
 
     ~TImpl()
     {
-        FOREACH (auto& queue, Queues) {
-            queue.Invoker->Shutdown();
+        FOREACH (auto& bucket, Buckets) {
+            bucket.Queue->Shutdown();
         }
 
         Shutdown();
@@ -122,63 +75,73 @@ public:
 
     void Shutdown()
     {
-        TActionQueueBase::Shutdown();
+        TExecutorThread::Shutdown();
     }
 
     IInvokerPtr GetInvoker(int queueIndex)
     {
-        YASSERT(0 <= queueIndex && queueIndex < static_cast<int>(Queues.size()));
-        return Queues[queueIndex].Invoker;
+        YASSERT(0 <= queueIndex && queueIndex < static_cast<int>(Buckets.size()));
+        return Buckets[queueIndex].Queue;
     }
 
 private:
-    struct TQueue
+    struct TBucket
     {
-        TQueue()
+        TBucket()
             : ExcessTime(0)
         { }
 
-        TQueueInvokerPtr Invoker;
+        TInvokerQueuePtr Queue;
         TCpuDuration ExcessTime;
     };
 
-    std::vector<TQueue> Queues;
+    std::vector<TBucket> Buckets;
+    TBucket* CurrentBucket;
+    TCpuInstant StartInstant;
 
-
-    virtual bool DequeueAndExecute() override
+    TBucket* GetStarvingBucket()
     {
         // Compute min excess over non-empty queues.
         i64 minExcess = std::numeric_limits<i64>::max();
-        int minQueueIndex = -1;
-        for (int index = 0; index < static_cast<int>(Queues.size()); ++index) {
-            const auto& queue = Queues[index];
-            if (!queue.Invoker->IsEmpty()) {
-                if (queue.ExcessTime < minExcess) {
-                    minExcess = queue.ExcessTime;
-                    minQueueIndex = index;
+        TBucket* minBucket = nullptr;
+        FOREACH (auto& bucket, Buckets) {
+            if (!bucket.Queue->IsEmpty()) {
+                if (bucket.ExcessTime < minExcess) {
+                    minExcess = bucket.ExcessTime;
+                    minBucket = &bucket;
                 }
             }
         }
+        return minBucket;
+    }
+
+    virtual EBeginExecuteResult BeginExecute() override
+    {
+        YASSERT(!CurrentBucket);
 
         // Check if any action is ready at all.
-        if (minQueueIndex < 0) {
-            return false;
+        CurrentBucket = GetStarvingBucket();
+        if (!CurrentBucket) {
+            return EBeginExecuteResult::QueueEmpty;
         }
 
         // Reduce excesses (with truncation).
-        for (int index = 0; index < static_cast<int>(Queues.size()); ++index) {
-            auto& queue = Queues[index];
-            queue.ExcessTime = std::max<i64>(0, queue.ExcessTime - minExcess);
+        FOREACH (auto& bucket, Buckets) {
+            bucket.ExcessTime = std::max<i64>(0, bucket.ExcessTime - CurrentBucket->ExcessTime);
         }
 
-        // Pump the min queue and update its excess.
-        auto& minQueue = Queues[minQueueIndex];
-        auto startTime = GetCpuInstant();
-        YCHECK(minQueue.Invoker->DequeueAndExecute());
-        auto endTime = GetCpuInstant();
-        minQueue.ExcessTime += (endTime - startTime);
+        // Pump the starving queue.
+        StartInstant = GetCpuInstant();
+        return CurrentBucket->Queue->BeginExecute();
+    }
 
-        return true;
+    virtual void EndExecute() override
+    {
+        YASSERT(CurrentBucket);
+        CurrentBucket->Queue->EndExecute();
+        auto endInstant = GetCpuInstant();
+        CurrentBucket->ExcessTime += (endInstant - StartInstant);
+        CurrentBucket = nullptr;
     }
 };
 
@@ -210,7 +173,8 @@ public:
     TImpl(int threadCount, const Stroka& threadNamePrefix)
     {
         for (int i = 0; i < threadCount; ++i) {
-            Threads.push_back(New<TActionQueue::TImpl>(
+            Threads.push_back(New<TExecutorThreadWithQueue>(
+                this,
                 Sprintf("%s:%d", ~threadNamePrefix, i),
                 threadNamePrefix,
                 true));
@@ -236,7 +200,7 @@ public:
         // Do not lock, just scan and choose the minimum.
         // This should be fast enough since threadCount is small.
         int minSize = std::numeric_limits<int>::max();
-        TIntrusivePtr<TActionQueue::TImpl> minThread;
+        TExecutorThreadWithQueuePtr minThread;
         FOREACH (const auto& thread, Threads) {
             int size = thread->GetSize();
             if (size < minSize) {
@@ -249,7 +213,7 @@ public:
     }
 
 private:
-    std::vector< TIntrusivePtr<TActionQueue::TImpl> > Threads;
+    std::vector<TExecutorThreadWithQueuePtr> Threads;
 
 };
 
@@ -275,121 +239,6 @@ TCallback<TThreadPoolPtr()> TThreadPool::CreateFactory(int queueCount, const Str
     return BIND([=] () {
         return NYT::New<NYT::TThreadPool>(queueCount, threadName);
     });
-}
-
-///////////////////////////////////////////////////////////////////////////////
-
-class TPrioritizedActionQueue::TImpl
-    : public TActionQueueBase
-{
-public:
-    TImpl(const Stroka& threadName)
-        : TActionQueueBase(threadName, true)
-        , CurrentSequenceNumber(0)
-    {
-        Start();
-    }
-
-    ~TImpl()
-    {
-        Shutdown();
-    }
-
-    void Shutdown()
-    {
-        TActionQueueBase::Shutdown();
-    }
-
-    void Enqueue(const TClosure& action, i64 priority)
-    {
-        {
-            TGuard<TSpinLock> guard(SpinLock);
-            TItem item;
-            item.Action = action;
-            item.Priority = priority;
-            item.SequenceNumber = CurrentSequenceNumber++;
-            Items.push_back(item);
-            std::push_heap(Items.begin(), Items.end());
-        }
-
-        Signal();
-    }
-
-private:
-    struct TItem
-    {
-        TClosure Action;
-        i64 Priority;
-        i64 SequenceNumber;
-
-        bool operator < (const TItem& other) const
-        {
-            if (this->Priority < other.Priority)
-                return true;
-            if (this->Priority > other.Priority)
-                return false;
-            return this->SequenceNumber > other.SequenceNumber;
-        }
-    };
-
-    TSpinLock SpinLock;
-    std::vector<TItem> Items;
-    i64 CurrentSequenceNumber;
-
-    virtual bool DequeueAndExecute() override
-    {
-        TClosure action;
-        {
-            TGuard<TSpinLock> guard(SpinLock);
-            if (Items.empty()) {
-                return false;
-            }
-
-            action = std::move(Items.front().Action);
-            std::pop_heap(Items.begin(), Items.end());
-            Items.pop_back();
-        }
-        action.Run();
-        return true;
-    }
-};
-
-class TPrioritizedActionQueue::TInvoker
-    : public IInvoker
-{
-public:
-    TInvoker(TIntrusivePtr<TImpl> impl, i64 priority)
-        : Impl(impl)
-        , Priority(priority)
-    { }
-
-    virtual bool Invoke(const TClosure& action) override
-    {
-        Impl->Enqueue(action, Priority);
-        return true;
-    }
-
-private:
-    TIntrusivePtr<TImpl> Impl;
-    i64 Priority;
-
-};
-
-TPrioritizedActionQueue::TPrioritizedActionQueue(const Stroka& threadName)
-    : Impl(New<TImpl>(threadName))
-{ }
-
-TPrioritizedActionQueue::~TPrioritizedActionQueue()
-{ }
-
-IInvokerPtr TPrioritizedActionQueue::CreateInvoker(i64 priority)
-{
-    return New<TInvoker>(Impl, priority);
-}
-
-void TPrioritizedActionQueue::Shutdown()
-{
-    return Impl->Shutdown();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -461,7 +310,7 @@ public:
         {
             TGuard<TSpinLock> guard(SpinLock);
             TEntry entry;
-            entry.Action = std::move(action);
+            entry.Action = action;
             entry.Priority = priority;
             EntryHeap.emplace_back(std::move(entry));
             std::push_heap(EntryHeap.begin(), EntryHeap.end());

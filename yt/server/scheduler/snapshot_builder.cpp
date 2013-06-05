@@ -62,8 +62,12 @@ TAsyncError TSnapshotBuilder::Run()
 {
     LOG_INFO("Snapshot builder started");
 
-    ForcePath(Config->SnapshotTempPath);
-    CleanFiles(Config->SnapshotTempPath);
+    try {
+        ForcePath(Config->SnapshotTempPath);
+        CleanFiles(Config->SnapshotTempPath);
+    } catch (const std::exception& ex) {
+        return MakeFuture(TError(ex));
+    }
 
     // Capture everything needed in Build.
     auto scheduler = Bootstrap->GetScheduler();

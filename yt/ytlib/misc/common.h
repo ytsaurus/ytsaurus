@@ -7,6 +7,7 @@
 #include <vector>
 #include <list>
 #include <utility>
+#include <tuple>
 
 #include <util/system/atomic.h>
 #include <util/system/defaults.h>
@@ -66,6 +67,7 @@
 #ifdef _win_
     // Someone above has defined this by including one of Windows headers.
     #undef GetMessage
+    #undef Yield
 
     // For protobuf-generated files:
     // C4125: decimal digit terminates octal escape sequence
@@ -82,6 +84,15 @@
     #pragma warning (disable: 4250)
 #endif
 
+// A temporary workaround until we switch to a fresh VS version.
+#if defined(_MSC_VER) && (_MSC_VER < 1700)
+namespace std {
+    using ::std::tr1::tuple;
+    using ::std::tr1::tie;
+    using ::std::tr1::get;
+} // namespace std
+#endif
+
 // A temporary workaround until we switch to a fresh GCC version.
 #if defined(__GNUC__) && (__GNUC__ < 4 || __GNUC_MINOR__ < 7)
     #define nullptr NULL
@@ -93,6 +104,12 @@
     #define SILENT_UNUSED __attribute__((unused))
 #else
     #define SILENT_UNUSED
+#endif
+
+#ifdef _unix_
+    #define TLS_STATIC static __thread
+#else
+    #define TLS_STATIC __declspec(thread)
 #endif
 
 #include "enum.h"

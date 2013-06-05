@@ -1,7 +1,13 @@
 #include "stdafx.h"
 
 #include <ytlib/misc/common.h>
+#include <ytlib/misc/lazy_ptr.h>
+
 #include <ytlib/fibers/fiber.h>
+
+#include <ytlib/actions/action_queue.h>
+#include <ytlib/actions/cancelable_context.h>
+#include <ytlib/actions/parallel_awaiter.h>
 
 #include <contrib/testing/framework.h>
 
@@ -21,7 +27,7 @@ void Fiber1(TFiber* main, TFiber* self, int* p)
     EXPECT_EQ(EFiberState::Running, self->GetState());
     EXPECT_EQ(EFiberState::Running, main->GetState());
 
-    TFiber::Yield();
+    Yield();
 
     (void)(*p)++;
     EXPECT_EQ(3, *p);
@@ -38,7 +44,7 @@ TEST(TFiberTest, Simple)
     auto main = TFiber::GetCurrent();
     auto self = New<TFiber>(TClosure());
 
-    self->Reset(BIND(&Fiber1, Unretained(main.Get()), Unretained(self.Get()), &v));
+    self->Reset(BIND(&Fiber1, main, Unretained(self.Get()), &v));
     EXPECT_NE(main, self);
 
     EXPECT_EQ(0, v);
@@ -108,13 +114,13 @@ TEST(TFiberTest, Nested)
 
     fibA->Reset(BIND(
         &Fiber2A,
-        Unretained(main.Get()),
+        main,
         Unretained(fibA.Get()),
         Unretained(fibB.Get()),
         &v));
     fibB->Reset(BIND(
         &Fiber2B,
-        Unretained(main.Get()),
+        main,
         Unretained(fibA.Get()),
         Unretained(fibB.Get()),
         &v));
@@ -158,7 +164,7 @@ TEST(TFiberTest, Reset)
 
     self->Reset(BIND(
         &Fiber3,
-        Unretained(main.Get()),
+        main,
         Unretained(self.Get()),
         &v,
         false));
@@ -184,7 +190,7 @@ TEST(TFiberTest, Reset)
 
     self->Reset(BIND(
         &Fiber3,
-        Unretained(main.Get()),
+        main,
         Unretained(self.Get()),
         &v,
         true));
@@ -291,7 +297,7 @@ TEST(TFiberTest, InjectIntoSuspendedFiber)
     auto ex = GetMyException("InjectIntoSuspendedFiber");
     auto fiber = New<TFiber>(BIND([&v] () {
         v += 1;
-        TFiber::Yield();
+        Yield();
         v += 2;
         throw std::runtime_error("Bad");
         YUNREACHABLE();
@@ -316,7 +322,7 @@ TEST(TFiberTest, InjectAndCatch)
     auto fiber = New<TFiber>(BIND([&v] () {
         try {
             v += 1;
-            TFiber::Yield();
+            Yield();
             v += 2;
             YUNREACHABLE();
         } catch (const TMyException&) {
@@ -346,7 +352,7 @@ TEST(TFiberTest, InjectAndCatchAndThrow)
     auto fiber = New<TFiber>(BIND([&v] () {
         try {
             v += 1;
-            TFiber::Yield();
+            Yield();
             v += 2;
             YUNREACHABLE();
         } catch (const TMyException&) {
@@ -368,6 +374,265 @@ TEST(TFiberTest, InjectAndCatchAndThrow)
     EXPECT_EQ(EFiberState::Exception, fiber->GetState());
 
     EXPECT_EQ(1 + 4, v);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+TFuture<T> DelayedIdentity(T x)
+{
+    return
+        MakeDelayed(TDuration::MilliSeconds(100)).Apply(
+        BIND([=] () { return x; }));
+}
+
+NThread::TThreadId GetInvokerThreadId(IInvokerPtr invoker)
+{
+    return BIND([] () {
+        return NThread::GetCurrentThreadId();
+    }).AsyncVia(invoker).Run().Get();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+#define WRAPPED_FIBER_TEST(testCaseName, testName) \
+    void FiberTest_##testCaseName##_##testName(); \
+    \
+    TEST(testCaseName, testName) \
+    { \
+        TWeakPtr<TFiber> weakFiber; \
+        { \
+            auto fiber = New<TFiber>(BIND(&FiberTest_##testCaseName##_##testName)); \
+            weakFiber = fiber; \
+            fiber->Run(); \
+        } \
+        while (weakFiber.Lock()) { \
+            Sleep(TDuration::MilliSeconds(1)); \
+        } \
+    } \
+    \
+    void FiberTest_##testCaseName##_##testName()
+
+static TLazyPtr<TActionQueue> Queue1(TActionQueue::CreateFactory("Queue1"));
+static TLazyPtr<TActionQueue> Queue2(TActionQueue::CreateFactory("Queue2"));
+
+WRAPPED_FIBER_TEST(TFiberTest, SimpleAsync)
+{
+    auto asyncA = DelayedIdentity(3);
+    int a = WaitFor(asyncA);
+
+    auto asyncB = DelayedIdentity(4);
+    int b = WaitFor(asyncB);
+
+    EXPECT_EQ(a + b, 7);
+}
+
+WRAPPED_FIBER_TEST(TFiberTest, SwitchToInvoker1)
+{
+    auto invoker = Queue1->GetInvoker();
+
+    auto id0 = NThread::GetCurrentThreadId();
+    auto id1 = GetInvokerThreadId(invoker);
+    EXPECT_NE(id0, id1);
+
+    for (int i = 0; i < 10; ++i) {
+        SwitchTo(invoker);
+        EXPECT_EQ(NThread::GetCurrentThreadId(), id1);
+    }
+}
+
+WRAPPED_FIBER_TEST(TFiberTest, SwitchToInvoker2)
+{
+    auto invoker1 = Queue1->GetInvoker();
+    auto invoker2 = Queue2->GetInvoker();
+
+    auto id0 = NThread::GetCurrentThreadId();
+    auto id1 = GetInvokerThreadId(invoker1);
+    auto id2 = GetInvokerThreadId(invoker2);
+    EXPECT_NE(id0, id1);
+    EXPECT_NE(id0, id2);
+    EXPECT_NE(id1, id2);
+
+    for (int i = 0; i < 10; ++i) {
+        SwitchTo(invoker1);
+        EXPECT_EQ(NThread::GetCurrentThreadId(), id1);
+
+        SwitchTo(invoker2);
+        EXPECT_EQ(NThread::GetCurrentThreadId(), id2);
+    }
+}
+
+WRAPPED_FIBER_TEST(TFiberTest, TerminatedCaught)
+{
+    auto context = New<TCancelableContext>();
+    auto invoker1 = context->CreateInvoker(Queue1->GetInvoker());
+    auto invoker2 = Queue2->GetInvoker();
+
+    SwitchTo(invoker2);
+
+    context->Cancel();
+
+    EXPECT_THROW({ SwitchTo(invoker1); }, TFiberTerminatedException);
+}
+
+WRAPPED_FIBER_TEST(TFiberTest, TerminatedPropagated)
+{
+    auto context = New<TCancelableContext>();
+    auto invoker1 = context->CreateInvoker(Queue1->GetInvoker());
+    auto invoker2 = Queue2->GetInvoker();
+
+    SwitchTo(invoker2);
+
+    context->Cancel();
+
+    SwitchTo(invoker1);
+
+    EXPECT_EQ(2 * 2, 5);
+}
+
+WRAPPED_FIBER_TEST(TFiberTest, CurrentInvokerAfterSwitch1)
+{
+    auto invoker = Queue1->GetInvoker();
+
+    SwitchTo(invoker);
+
+    EXPECT_EQ(GetCurrentInvoker(), invoker);
+}
+
+WRAPPED_FIBER_TEST(TFiberTest, CurrentInvokerAfterSwitch2)
+{
+    auto context = New<TCancelableContext>();
+    auto invoker = context->CreateInvoker(Queue1->GetInvoker());
+
+    SwitchTo(invoker);
+
+    EXPECT_EQ(GetCurrentInvoker(), invoker);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TFiberTest, ActionQueue1)
+{
+    auto actionQueue = New<TActionQueue>();
+    auto invoker = actionQueue->GetInvoker();
+
+    TFiber* fiber1;
+    NThread::TThreadId thread1;
+
+    TFiber* fiber2;
+    NThread::TThreadId thread2;
+
+    BIND([&] () -> TVoid {
+        fiber1 = TFiber::GetCurrent();
+        thread1 = NThread::GetCurrentThreadId();
+
+        WaitFor(MakeDelayed(TDuration::MilliSeconds(100)));
+
+        fiber2 = TFiber::GetCurrent();
+        thread2 = NThread::GetCurrentThreadId();
+
+        return TVoid();
+    }).AsyncVia(invoker).Run().Get();
+
+    EXPECT_EQ(fiber1, fiber2);
+    EXPECT_EQ(thread1, thread2);
+
+    TFiber* fiber3;
+    NThread::TThreadId thread3;
+
+    TFiber* fiber4;
+    NThread::TThreadId thread4;
+
+    BIND([&] () -> TVoid {
+        fiber3 = TFiber::GetCurrent();
+        thread3 = NThread::GetCurrentThreadId();
+
+        WaitFor(MakeDelayed(TDuration::MilliSeconds(100)));
+
+        fiber4 = TFiber::GetCurrent();
+        thread4 = NThread::GetCurrentThreadId();
+
+        return TVoid();
+    }).AsyncVia(invoker).Run().Get();
+
+    EXPECT_NE(fiber2, fiber3);
+    EXPECT_EQ(fiber3, fiber4);
+    EXPECT_EQ(thread3, thread4);
+
+    actionQueue->Shutdown();
+}
+
+TEST(TFiberTest, ActionQueue2)
+{
+    auto actionQueue = New<TActionQueue>();
+    auto invoker = actionQueue->GetInvoker();
+    auto awaiter = New<TParallelAwaiter>(invoker);
+
+    int sum = 0;
+
+    for (int i = 0; i < 10; ++i) {
+        auto callback = BIND([&sum, i] () -> TVoid {
+            WaitFor(MakeDelayed(TDuration::MilliSeconds(100)));
+            sum += i;
+            return TVoid();
+        });
+
+        awaiter->Await(callback.AsyncVia(invoker).Run());
+    }
+
+    awaiter->Complete().Get();
+
+    EXPECT_EQ(sum, 45);
+
+    actionQueue->Shutdown();
+}
+
+TEST(TFiberTest, ActionQueue3)
+{
+    auto actionQueue = New<TActionQueue>();
+    auto invoker = actionQueue->GetInvoker();
+    auto awaiter = New<TParallelAwaiter>(invoker);
+
+    int sum = 0;
+
+    for (int i = 0; i < 10; ++i) {
+        auto callback = BIND([&sum, i, invoker] () -> TVoid {
+            auto thread1 = NThread::GetCurrentThreadId();
+            
+            WaitFor(MakeDelayed(TDuration::MilliSeconds(100)));
+            
+            auto thread2 = NThread::GetCurrentThreadId();
+            EXPECT_EQ(thread1, thread2);
+
+            sum += i;
+            return TVoid();
+        });
+
+        awaiter->Await(callback.AsyncVia(invoker).Run());
+    }
+
+    awaiter->Complete().Get();
+
+    EXPECT_EQ(sum, 45);
+
+    actionQueue->Shutdown();
+}
+
+TEST(TFiberTest, CurrentInvokerSync)
+{
+    EXPECT_EQ(GetCurrentInvoker(), GetSyncInvoker());
+}
+
+TEST(TFiberTest, CurrentInvokerInActionQueue)
+{
+    auto invoker = Queue1->GetInvoker();
+    BIND([=] () -> TVoid {
+        EXPECT_EQ(GetCurrentInvoker(), invoker);
+        return TVoid();
+    })
+    .AsyncVia(invoker)
+    .Run()
+    .Get();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
