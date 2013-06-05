@@ -12,6 +12,8 @@
 
 #include <ytlib/erasure/codec.h>
 
+#include <ytlib/fibers/fiber.h>
+
 #include <ytlib/actions/cancelable_context.h>
 
 #include <ytlib/logging/tagged_logger.h>
@@ -85,7 +87,7 @@ public:
         if (JobState != EJobState::Running)
             return;
 
-        DoRun();
+        CancelableInvoker->Invoke(BIND(&TChunkJobBase::GuardedRun, MakeStrong(this)));
     }
 
     virtual void Abort(const TError& error) override
@@ -179,6 +181,16 @@ protected:
 
     virtual void DoRun() = 0;
 
+
+    void GuardedRun()
+    {
+        try {
+            DoRun();
+            SetCompleted();
+        } catch (const std::exception& ex) {
+            SetFailed(ex);
+        }
+    }
 
     void SetCompleted()
     {
@@ -286,16 +298,8 @@ private:
     virtual void DoRun() override
     {
         auto chunkStore = Bootstrap->GetChunkStore();
-        chunkStore->RemoveChunk(Chunk).Subscribe(BIND(
-            &TChunkRemovalJob::OnChunkRemoved,
-            MakeStrong(this)));
+        WaitFor(chunkStore->RemoveChunk(Chunk));
     }
-
-    void OnChunkRemoved()
-    {
-        SetCompleted();
-    }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -317,106 +321,53 @@ public:
             config,
             bootstrap)
         , ReplicationJobSpecExt(JobSpec.GetExtension(TReplicationJobSpecExt::replication_job_spec_ext))
-        , CurrentBlockIndex(0)
     { }
 
 private:
     TReplicationJobSpecExt ReplicationJobSpecExt;
 
-    int CurrentBlockIndex;
-    TChunkMeta ChunkMeta;
-    TBlocksExt BlocksExt;
-    IAsyncWriterPtr Writer;
-
     virtual void DoRun() override
     {
         LOG_INFO("Retrieving chunk meta");
 
-        Chunk->GetMeta(0).Subscribe(
-            BIND(&TChunkReplicationJob::OnGotChunkMeta, MakeStrong(this))
-                .Via(CancelableInvoker));
-    }
-
-    void OnGotChunkMeta(IAsyncReader::TGetMetaResult result)
-    {
-        if (!result.IsOK()) {
-            SetFailed(TError("Error getting meta of chunk %s",
-                ~ToString(Chunk->GetId()))
-                << result);
-            return;
-        }
+        auto metaOrError = WaitFor(Chunk->GetMeta(0));
+        THROW_ERROR_EXCEPTION_IF_FAILED(metaOrError, "Error getting meta of chunk %s",
+            ~ToString(ChunkId));
 
         LOG_INFO("Chunk meta received");
-
-        ChunkMeta = result.GetValue();
-        BlocksExt = GetProtoExtension<TBlocksExt>(ChunkMeta.extensions());
+        const auto& chunkMeta = metaOrError.GetValue();
+        const auto& blocksExt = GetProtoExtension<TBlocksExt>(chunkMeta.extensions());
 
         auto targets = FromProto<TNodeDescriptor>(ReplicationJobSpecExt.target_descriptors());
 
-        Writer = CreateReplicationWriter(
+        auto writer = CreateReplicationWriter(
             Config->ReplicationWriter,
-            Chunk->GetId(),
+            ChunkId,
             targets,
             EWriteSessionType::Replication,
             Bootstrap->GetReplicationOutThrottler());
-        Writer->Open();
+        writer->Open();
 
-        ReplicateBlock(TError());
-    }
-
-    void ReplicateBlock(TError error)
-    {
-        if (!error.IsOK()) {
-            SetFailed(error);
-            return;
-        }
-
-        SetProgress((double) CurrentBlockIndex / BlocksExt.blocks_size());
-
-        auto this_ = MakeStrong(this);
-
-        auto blocksExt = GetProtoExtension<TBlocksExt>(ChunkMeta.extensions());
-        if (CurrentBlockIndex >= static_cast<int>(blocksExt.blocks_size())) {
-            LOG_DEBUG("All blocks are enqueued for replication");
-
-            Writer->AsyncClose(ChunkMeta).Subscribe(
-                BIND(&TChunkReplicationJob::OnWriterClosed, this_)
-                    .Via(CancelableInvoker));
-            return;
-        }
-
-        LOG_DEBUG("Retrieving block %d for replication", CurrentBlockIndex);
-
-        TBlockId blockId(Chunk->GetId(), CurrentBlockIndex);
         auto blockStore = Bootstrap->GetBlockStore();
-        blockStore->GetBlock(blockId, 0, false).Subscribe(
-            BIND(&TChunkReplicationJob::OnWriterReady, this_)
-                .Via(CancelableInvoker));
-    }
 
-    void OnWriterReady(TBlockStore::TGetBlockResult result)
-    {
-        if (!result.IsOK()) {
-            SetFailed(result);
-            return;
+        for (int index = 0; index < blocksExt.blocks_size(); ++index) {
+            LOG_DEBUG("Retrieving block %d for replication", index);
+
+            TBlockId blockId(ChunkId, index);
+
+            auto blockOrError = WaitFor(blockStore->GetBlock(blockId, 0, false));
+            THROW_ERROR_EXCEPTION_IF_FAILED(blockOrError, "Error getting block %s for replication",
+                ~ToString(blockId));
+
+            auto block = blockOrError.GetValue()->GetData();
+            writer->WriteBlock(block);
         }
+        
+        LOG_DEBUG("All blocks are enqueued for replication");
 
-        auto block = result.GetValue()->GetData();
-
-        Writer->WriteBlock(block);
-        ++CurrentBlockIndex;
-
-        auto this_ = MakeStrong(this);
-        Writer->GetReadyEvent().Subscribe(
-            BIND(&TChunkReplicationJob::ReplicateBlock, this_)
-                .Via(CancelableInvoker));
+        auto closeError = WaitFor(writer->AsyncClose(chunkMeta));
+        THROW_ERROR_EXCEPTION_IF_FAILED(closeError, "Error closing replication writer");
     }
-
-    void OnWriterClosed(TError error)
-    {
-        SetFinished(error);
-    }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -456,8 +407,7 @@ private:
         // Compute repair plan.
         auto repairIndexes = codec->GetRepairIndices(erasedIndexes);
         if (!repairIndexes) {
-            SetFailed(TError("Codec is unable to repair the chunk"));
-            return;
+            THROW_ERROR_EXCEPTION("Codec is unable to repair the chunk");
         }
 
         LOG_INFO("Preparing to repair (ErasedIndexes: [%s], RepairIndexes: [%s], Targets: [%s])",
@@ -508,20 +458,16 @@ private:
             writers.push_back(writer);
         }
 
-        RepairErasedBlocks(
+        auto asyncRepairError = RepairErasedBlocks(
             codec,
             erasedIndexes,
             readers,
             writers,
             CancelableContext,
-            BIND(&TChunkRepairJob::OnProgress, MakeWeak(this)).Via(CancelableInvoker))
-        .Subscribe(BIND(&TChunkRepairJob::OnRepaired, MakeStrong(this))
-            .Via(CancelableInvoker));
-    }
-
-    void OnRepaired(TError error)
-    {
-        SetFinished(error);
+            BIND(&TChunkRepairJob::OnProgress, MakeWeak(this)).Via(GetCurrentInvoker()));
+        auto repairError = WaitFor(asyncRepairError);
+        THROW_ERROR_EXCEPTION_IF_FAILED(repairError, "Error reparing chunk %s",
+            ~ToString(ChunkId));
     }
 
     void OnProgress(double progress)
