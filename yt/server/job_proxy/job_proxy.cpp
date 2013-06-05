@@ -186,7 +186,7 @@ TJobResult TJobProxy::DoRun()
                 const auto& mapJobSpecExt = jobSpec.GetExtension(TMapJobSpecExt::map_job_spec_ext);
                 auto userJobIO = CreateMapJobIO(Config->JobIO, this);
                 Job = CreateUserJob(this, mapJobSpecExt.mapper_spec(), std::move(userJobIO));
-                JobProxyMemoryLimit -= mapJobSpecExt.mapper_spec().memory_limit();
+                JobProxyMemoryLimit -= mapJobSpecExt.mapper_spec().memory_reserve();
                 break;
             }
 
@@ -194,7 +194,7 @@ TJobResult TJobProxy::DoRun()
                 const auto& reduceJobSpecExt = jobSpec.GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
                 auto userJobIO = CreateSortedReduceJobIO(Config->JobIO, this);
                 Job = CreateUserJob(this, reduceJobSpecExt.reducer_spec(), std::move(userJobIO));
-                JobProxyMemoryLimit -= reduceJobSpecExt.reducer_spec().memory_limit();
+                JobProxyMemoryLimit -= reduceJobSpecExt.reducer_spec().memory_reserve();
                 break;
             }
 
@@ -203,7 +203,7 @@ TJobResult TJobProxy::DoRun()
                 YCHECK(partitionJobSpecExt.has_mapper_spec());
                 auto userJobIO = CreatePartitionMapJobIO(Config->JobIO, this);
                 Job = CreateUserJob(this, partitionJobSpecExt.mapper_spec(), std::move(userJobIO));
-                JobProxyMemoryLimit -= partitionJobSpecExt.mapper_spec().memory_limit();
+                JobProxyMemoryLimit -= partitionJobSpecExt.mapper_spec().memory_reserve();
                 break;
             }
 
@@ -211,7 +211,7 @@ TJobResult TJobProxy::DoRun()
                 const auto& reduceJobSpecExt = jobSpec.GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
                 auto userJobIO = CreatePartitionReduceJobIO(Config->JobIO, this);
                 Job = CreateUserJob(this, reduceJobSpecExt.reducer_spec(), std::move(userJobIO));
-                JobProxyMemoryLimit -= reduceJobSpecExt.reducer_spec().memory_limit();
+                JobProxyMemoryLimit -= reduceJobSpecExt.reducer_spec().memory_reserve();
                 break;
             }
 

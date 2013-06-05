@@ -28,6 +28,9 @@ function YtHttpRequest(host, port, path, verb, body)
     this.nodelay = true;
     this.timeout = 15000;
 
+    this.failOn4xx = false;
+    this.failOn5xx = true;
+
     this.withBody(body).withHeader("User-Agent", "YT");
 }
 
@@ -77,6 +80,20 @@ YtHttpRequest.prototype.asJson = function(json)
 {
     "use strict";
     this.json = !!json;
+    return this;
+};
+
+YtHttpRequest.prototype.shouldFailOn4xx = function(fail)
+{
+    "use strict";
+    this.failOn4xx = !!fail;
+    return this;
+};
+
+YtHttpRequest.prototype.shouldFailOn5xx = function(fail)
+{
+    "use strict";
+    this.failOn5xx = !!fail;
     return this;
 };
 
@@ -139,7 +156,11 @@ YtHttpRequest.prototype.fire = function()
             self.toString() + " has failed", err));
     });
     req.once("response", function(rsp) {
-        if (rsp.statusCode >= 500) {
+        var code = rsp.statusCode;
+        if (
+            (self.failOn4xx && code >= 400 && code < 500) ||
+            (self.failOn5xx && code >= 500 && code < 600))
+        {
             deferred.reject(new YtError(
                 self.toString() + " has responded with " + rsp.statusCode));
             return;
