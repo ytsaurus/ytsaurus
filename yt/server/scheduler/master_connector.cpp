@@ -14,6 +14,8 @@
 #include <ytlib/actions/parallel_awaiter.h>
 #include <ytlib/actions/action_queue.h>
 
+#include <ytlib/fibers/fiber.h>
+
 #include <ytlib/rpc/serialized_channel.h>
 
 #include <ytlib/transaction_client/transaction_manager.h>
@@ -343,9 +345,10 @@ private:
 
         LOG_INFO("Connecting to master");
 
-        New<TRegistrationPipeline>(this)
-            ->Create()
-            ->Run()
+        auto pipeline = New<TRegistrationPipeline>(this);
+        BIND(&TRegistrationPipeline::Run, pipeline)
+            .AsyncVia(Bootstrap->GetControlInvoker())
+            .Run()
             .Subscribe(BIND(&TImpl::OnConnected, MakeStrong(this))
                 .Via(Bootstrap->GetControlInvoker()));
     }
@@ -399,6 +402,7 @@ private:
     }
 
 
+
     class TRegistrationPipeline
         : public TRefCounted
     {
@@ -407,19 +411,22 @@ private:
             : Owner(owner)
         { }
 
-        TAsyncPipeline<TMasterHandshakeResult>::TPtr Create()
+        TErrorOr<TMasterHandshakeResult> Run()
         {
-            auto this_ = MakeStrong(this);
-            return StartAsyncPipeline(Owner->Bootstrap->GetControlInvoker())
-                ->Add(BIND(&TRegistrationPipeline::Round1, this_))
-                ->Add(BIND(&TRegistrationPipeline::Round2, this_))
-                ->Add(BIND(&TRegistrationPipeline::Round3, this_))
-                ->Add(BIND(&TRegistrationPipeline::Round4, this_))
-                ->Add(BIND(&TRegistrationPipeline::Round5, this_))
-                ->Add(BIND(&TRegistrationPipeline::Round6, this_))
-                ->Add(BIND(&TRegistrationPipeline::Round7, this_))
-                ->Add(BIND(&TRegistrationPipeline::Round8, this_))
-                ->Add(BIND(&TRegistrationPipeline::Round9, this_));
+            try {
+                StartLockTransaction();
+                TakeLock();
+                PushlishSelf();
+                ListOperations();
+                RequestOperationAttributes();
+                PingOperationTransactions();
+                CleanupOperations();
+                InvokeWatchers();
+                GraceWait();
+                return Result;
+            } catch (const std::exception& ex) {
+                return TErrorOr<TMasterHandshakeResult>(ex);
+            }
         }
 
     private:
@@ -427,9 +434,8 @@ private:
         std::vector<TOperationId> OperationIds;
         TMasterHandshakeResult Result;
 
-        // Round 1:
         // - Start lock transaction.
-        TObjectServiceProxy::TInvExecuteBatch Round1()
+        void StartLockTransaction()
         {
             auto batchReq = Owner->StartBatchRequest(false);
             {
@@ -446,14 +452,10 @@ private:
                 GenerateMutationId(req);
                 batchReq->AddRequest(req, "start_lock_tx");
             }
-            return batchReq->Invoke();
-        }
 
-        // Round 2:
-        // - Take lock.
-        TObjectServiceProxy::TInvExecuteBatch Round2(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
-        {
+            auto batchRsp = WaitFor(batchReq->Invoke());
             THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp);
+
             {
                 auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObject>("start_lock_tx");
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error starting lock transaction");
@@ -466,7 +468,11 @@ private:
 
                 LOG_INFO("Lock transaction is %s", ~ToString(transactionId));
             }
+        }
 
+        // - Take lock.
+        void TakeLock()
+        {
             auto batchReq = Owner->StartBatchRequest();
             {
                 auto req = TCypressYPathProxy::Lock("//sys/scheduler/lock");
@@ -475,17 +481,15 @@ private:
                 GenerateMutationId(req);
                 batchReq->AddRequest(req, "take_lock");
             }
-            return batchReq->Invoke();
+
+            auto batchRsp = WaitFor(batchReq->Invoke());
+            THROW_ERROR_EXCEPTION_IF_FAILED(batchRsp->GetCumulativeError());
         }
 
-        // Round 3:
         // - Publish scheduler address.
         // - Update orchid address.
-        // - Request operations and their states.
-        TObjectServiceProxy::TInvExecuteBatch Round3(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+        void PushlishSelf()
         {
-            THROW_ERROR_EXCEPTION_IF_FAILED(batchRsp->GetCumulativeError());
-
             auto batchReq = Owner->StartBatchRequest();
             auto schedulerAddress = Owner->Bootstrap->GetLocalAddress();
             {
@@ -500,6 +504,16 @@ private:
                 GenerateMutationId(req);
                 batchReq->AddRequest(req, "set_orchid_address");
             }
+
+            auto batchRsp = WaitFor(batchReq->Invoke());
+            THROW_ERROR_EXCEPTION_IF_FAILED(batchRsp->GetCumulativeError());
+        }
+
+        // - Request operations and their states.
+        void ListOperations()
+        {
+
+            auto batchReq = Owner->StartBatchRequest();
             {
                 auto req = TYPathProxy::List("//sys/operations");
                 auto* attributeFilter = req->mutable_attribute_filter();
@@ -507,17 +521,12 @@ private:
                 attributeFilter->add_keys("state");
                 batchReq->AddRequest(req, "list_operations");
             }
-            return batchReq->Invoke();
-        }
 
-        // Round 4:
-        // - Request attributes for unfinished operations.
-        TObjectServiceProxy::TInvExecuteBatch Round4(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
-        {
-            THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp);
+            auto batchRsp = WaitFor(batchReq->Invoke());
+            THROW_ERROR_EXCEPTION_IF_FAILED(batchRsp->GetCumulativeError());
+
             {
                 auto rsp = batchRsp->GetResponse<TYPathProxy::TRspList>("list_operations");
-                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting operations list");
                 auto operationsListNode = ConvertToNode(TYsonString(rsp->keys()));
                 auto operationsList = operationsListNode->AsList();
                 LOG_INFO("Operations list received, %d operations total",
@@ -531,7 +540,12 @@ private:
                     }
                 }
             }
+        }
 
+        // - Request attributes for unfinished operations.
+        // - Recreate operation instance from fetched data.
+        void RequestOperationAttributes()
+        {
             auto batchReq = Owner->StartBatchRequest();
             {
                 LOG_INFO("Fetching attributes for %d unfinished operations",
@@ -556,17 +570,9 @@ private:
                     batchReq->AddRequest(req, "get_op_attr");
                 }
             }
-            return batchReq->Invoke();
-        }
 
-        // Round 5:
-        // - Recreate operation instance from fetched data.
-        // - Try to ping the previous incarnations of scheduler transactions.
-        static const int TransactionsPerOperation = 5;
-
-        TObjectServiceProxy::TInvExecuteBatch Round5(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
-        {
-            THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp);
+            auto batchRsp = WaitFor(batchReq->Invoke());
+            THROW_ERROR_EXCEPTION_IF_FAILED(batchRsp->GetCumulativeError());
 
             {
                 auto rsps = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_op_attr");
@@ -575,13 +581,17 @@ private:
                 for (int index = 0; index < static_cast<int>(rsps.size()); ++index) {
                     const auto& operationId = OperationIds[index];
                     auto rsp = rsps[index];
-                    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting operation attributes (OperationId: %s)",
-                        ~ToString(operationId));
                     auto operationNode = ConvertToNode(TYsonString(rsp->value()));
                     auto operation = Owner->CreateOperationFromAttributes(operationId, operationNode->Attributes());
                     Result.Operations.push_back(operation);
                 }
             }
+        }
+
+        // - Try to ping the previous incarnations of scheduler transactions.
+        void PingOperationTransactions()
+        {
+            const int TransactionsPerOperation = 5;
 
             auto batchReq = Owner->StartBatchRequest();
             FOREACH (auto operation, Result.Operations) {
@@ -604,15 +614,7 @@ private:
                 schedulePing(operation->GetOutputTransaction());
             }
 
-            return batchReq->Invoke();
-        }
-
-        // Round 6:
-        // - Check ping responses.
-        // - If some of them have failed then abort all operations transactions and also
-        //   remove the snapshot.
-        TObjectServiceProxy::TInvExecuteBatch Round6(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
-        {
+            auto batchRsp = WaitFor(batchReq->Invoke());
             THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp);
 
             {
@@ -633,7 +635,12 @@ private:
                     }
                 }
             }
+        }
 
+        // - Abort orphaned transactions.
+        // - Remove unneeded snapshots.
+        void CleanupOperations()
+        {
             auto batchReq = Owner->StartBatchRequest();
             FOREACH (auto operation, Result.Operations) {
                 if (!operation->GetCleanStart()) {
@@ -669,14 +676,7 @@ private:
                 }
             }
 
-            return batchReq->Invoke();
-        }
-
-
-        // Round 7:
-        // - Send watcher request.
-        TObjectServiceProxy::TInvExecuteBatch Round7(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
-        {
+            auto batchRsp = WaitFor(batchReq->Invoke());
             THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp);
 
             // NB: Don't check abort errors, some transactions may have already expired.
@@ -687,36 +687,28 @@ private:
                     THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error removing snapshot");
                 }
             }
+        }
 
-            // Make watcher requests.
+        // - Send watcher requests.
+        void InvokeWatchers()
+        {
             auto batchReq = Owner->StartBatchRequest();
             FOREACH (auto requester, Owner->GlobalWatcherRequesters) {
                 requester.Run(batchReq);
             }
-            return batchReq->Invoke();
+
+            auto batchRsp = WaitFor(batchReq->Invoke());
+            THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp);
+            Result.WatcherResponses = batchRsp;
         }
 
-        // Round 8:
-        // - Check watcher response.
         // - Wait for the duration of ConnectGraceDelay.
-        TFuture<void> Round8(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+        void GraceWait()
         {
-            THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp);
-
-            Result.WatcherResponses = batchRsp;
-
             LOG_INFO("Waiting for grace delay");
 
-            return MakeDelayed(Owner->Config->ConnectGraceDelay);
+            WaitFor(MakeDelayed(Owner->Config->ConnectGraceDelay));
         }
-
-        // Round 9:
-        // - Relax :)
-        TMasterHandshakeResult Round9()
-        {
-            return Result;
-        }
-
     };
 
 
