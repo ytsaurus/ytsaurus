@@ -631,8 +631,8 @@ TEST(TFiberTest, CurrentInvokerInActionQueue)
 
 TEST(TFiberTest, CurrentInvokerConcurrent)
 {
-    auto invoker1 = Queue1->GetCurrentInvoker();
-    auto invoker2 = Queue2->GetCurrentInvoker();
+    auto invoker1 = Queue1->GetInvoker();
+    auto invoker2 = Queue2->GetInvoker();
 
     auto result1 = BIND([=] () {
         EXPECT_EQ(GetCurrentInvoker(), invoker1);
