@@ -1,28 +1,34 @@
 var events = require("events");
+var util = require("util");
 
 ////////////////////////////////////////////////////////////////////////////////
 
 var getHrtime = function()
 {
+    "use strict";
     var now = process.hrtime();
     return Math.floor((now[0] * 1000) + (now[1] / 1000000));
 };
 
 var getLog10 = function(x)
 {
+    "use strict";
     return Math.log(x) / Math.LN10;
 };
 
 var getNormalCdf = function(x, mean, stddev)
 {
+    "use strict";
     var z = (x - mean) / stddev;
     return 1.0 / (1.0 + Math.exp(-z * (1.5976 + 0.070566 * z * z)));
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function Sample = function(window_size)
+function YtACFSample(window_size)
 {
+    "use strict";
+
     this._window_size = window_size;
     this._window = [];
 
@@ -52,8 +58,10 @@ function Sample = function(window_size)
     });
 }
 
-Sample.prototype.push = function(value)
+YtACFSample.prototype.push = function(value)
 {
+    "use strict";
+
     if (this._window.length >= this._window_size) {
         var dropped = this._window.shift();
         this._sum -= dropped;
@@ -66,42 +74,57 @@ Sample.prototype.push = function(value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function AccrualFailureDetector(
+function YtAccrualFailureDetector(
     window_size, phi_threshold, min_stddev,
-    heartbeat_tolerance_ms, heartbeat_estimate_ms)
+    heartbeat_tolerance, heartbeat_estimate)
 {
-    this._sample = new Sample(window_size);
-    this._last_at = null;
+    "use strict";
 
-    this._phi_threshold = phi_threshold;
-    this._min_stddev = min_stddev;
-    this._heartbeat_tolerance_ms = heartbeat_tolerance_ms;
-    this._heartbeat_estimate_ms = heartbeat_estimate_ms;
+    this.sample = new YtACFSample(window_size);
+    this.last_at = null;
+
+    this.phi_threshold = phi_threshold;
+    this.min_stddev = min_stddev;
+    this.heartbeat_tolerance_ms = heartbeat_tolerance;
+    this.heartbeat_estimate_ms = heartbeat_estimate;
 
     events.EventEmitter.call(this);
 }
 
-util.inherits(AccrualFailureDetector, events.EventEmitter);
+util.inherits(YtAccrualFailureDetector, events.EventEmitter);
 
-AccrualFailureDetector.prototype.heartbeat = function()
+// XXX(sandello): Make sure to call either |heartbeat| or |heartbeatTS|.
+// They capture time points on different time scales, so fusing them would
+// result in a complete mess.
+
+YtAccrualFailureDetector.prototype.heartbeat = function(now)
 {
-    var now = getHrtime();
+    "use strict";
+
+    if (typeof(now) === "undefined") {
+        now = getHrtime();
+    }
+
+    if (now < this.last_at) {
+        return;
+    }
+
     var before, after;
 
-    before = this.phi() < this._phi_threshold;
-    if (this._sample.length > 0) {
-        this._sample.push(now - this._last_at);
+    before = (this.phi() < this.phi_threshold);
+    if (this.sample.length > 0) {
+        this.sample.push(now - this.last_at);
     } else {
         // Bootstrap sample with initial estimate.
-        var m = this._heartbeat_estimate_ms;
+        var m = this.heartbeat_estimate_ms;
         var d = m / 4.0;
-        this._sample.push(m - d);
-        this._sample.push(m - d);
+        this.sample.push(m - d);
+        this.sample.push(m - d);
     }
-    this._last_at = now;
-    after = this.phi() < this._phi_threshold;
+    this.last_at = now;
+    after = (this.phi() < this.phi_threshold);
 
-    if (this._sample.length < 5) {
+    if (this.sample.length < 5) {
         return;
     }
 
@@ -112,16 +135,42 @@ AccrualFailureDetector.prototype.heartbeat = function()
     }
 };
 
-AccrualFailureDetector.prototype.phi = function()
+YtAccrualFailureDetector.prototype.heartbeatTS = function(date)
 {
-    if (!this._last_at) {
+    "use strict";
+    return this.heartbeat(+(date || new Date()));
+};
+
+YtAccrualFailureDetector.prototype.phi = function(now)
+{
+    "use strict";
+
+    if (typeof(now) === "undefined") {
+        now = getHrtime();
+    }
+
+    if (now < this.last_at) {
+        return;
+    }
+
+    if (!this.last_at) {
         return 0.0;
     }
 
-    var dt = getHrtime() - this._last_at;
+    var dt = now - this.last_at;
 
-    var est_mean = this._sample.mean + this._heartbeat_tolerance_ms;
-    var est_stddev = Math.max(this._min_stddev, this._sample.stddev);
+    var est_mean = this.sample.mean + this.heartbeat_tolerance_ms;
+    var est_stddev = Math.max(this.min_stddev, this.sample.stddev);
 
     return -getLog10(1.0 - getNormalCdf(dt, est_mean, est_stddev));
 };
+
+YtAccrualFailureDetector.prototype.phiTS = function(date)
+{
+    "use strict";
+    return this.phi(+(date || new Date()));
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+exports.that = YtAccrualFailureDetector;

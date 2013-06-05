@@ -178,7 +178,7 @@ YtDriver.prototype.execute = function(name, user,
         }
     });
 
-    process.nextTick(function() { pause.unpause(); });
+    pause.unpause();
 
     return Q
         .all([ deferred.promise, input_pipe_promise, output_pipe_promise ])
@@ -190,7 +190,7 @@ YtDriver.prototype.executeSimple = function(name, parameters, data)
     "use strict";
     this.__DBG("executeSimple");
 
-    var input_stream = new utils.MemoryInputStream(data);
+    var input_stream = new utils.MemoryInputStream(data && JSON.stringify(data));
     var output_stream = new utils.MemoryOutputStream();
     var pause = utils.Pause(input_stream);
 

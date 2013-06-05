@@ -2,12 +2,11 @@ var utils = require("../utils");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-exports.that = function Middleware__YtAcao() {
+exports.that = function Middleware__YtAcao()
+{
     "use strict";
 
     return function(req, rsp, next) {
-        "use strict";
-
         if (req.method === "GET" || req.method === "POST" || req.method === "PUT") {
             rsp.setHeader("Access-Control-Allow-Origin", "*");
         }

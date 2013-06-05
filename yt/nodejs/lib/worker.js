@@ -54,10 +54,12 @@ if (typeof(config.high_watermark) === "undefined") {
 // TODO(sandello): Extract singleton configuration to a separate branch.
 yt.configureSingletons(config.proxy);
 
+yt.YtRegistry.set("fdqn", config.fqdn);
 yt.YtRegistry.set("config", config);
 yt.YtRegistry.set("logger", logger);
 yt.YtRegistry.set("driver", new yt.YtDriver(config));
 yt.YtRegistry.set("authority", new yt.YtAuthority(config.authentication));
+yt.YtRegistry.set("coordinator", new yt.YtCoordinator(config.coordinator, logger, yt.YtRegistry.get("driver"), yt.YtRegistry.get("fdqn")));
 
 // Hoist variable declaration.
 var static_application;
@@ -113,11 +115,13 @@ if (!__DBG.On) {
 
 // Setup signal handlers.
 process.on("SIGUSR2", function() {
+    "use strict";
     console.error("Writing a heap snapshot.");
     heapdump.writeSnapshot();
 });
 
 process.on("SIGUSR1", function() {
+    "use strict";
     if (__PROFILE) {
         console.error("Pausing V8 profiler.");
         profiler.pause();
@@ -161,7 +165,7 @@ dynamic_application = connect()
     .use(yt.YtLogRequest())
     .use(yt.YtAcao())
     .use(connect.favicon())
-    .use("/hosts", yt.YtHostDiscovery(config.neighbours))
+    .use("/hosts", yt.YtApplicationHosts())
     .use("/auth", yt.YtApplicationAuth())
     .use("/upravlyator", yt.YtApplicationUpravlyator())
     // TODO(sandello): Can we remove this?
@@ -249,6 +253,7 @@ if (config.port && config.address) {
     insecure_server.on("listening", insecure_listening_deferred.resolve.bind(insecure_listening_deferred));
     insecure_server.on("connection", yt.YtLogSocket());
     insecure_server.on("connection", function(socket) {
+        "use strict";
         socket.setTimeout(5 * 60 * 1000);
         socket.setNoDelay(true);
         socket.setKeepAlive(true);

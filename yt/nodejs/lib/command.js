@@ -119,15 +119,14 @@ var _PREDEFINED_YSON_FORMAT = new binding.TNodeWrap({ $value: "yson" });
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function YtCommand(logger, driver, watcher, fqdn, read_only, pause) {
+function YtCommand(logger, driver, coordinator, watcher, pause) {
     "use strict";
     this.__DBG = __DBG.Tagged();
 
     this.logger = logger;
     this.driver = driver;
+    this.coordinator = coordinator;
     this.watcher = watcher;
-    this.fqdn = fqdn;
-    this.read_only = read_only;
     this.pause = pause;
 
     // This is a total list of class fields; keep this up to date to improve V8
@@ -178,7 +177,7 @@ YtCommand.prototype.dispatch = function(req, rsp) {
             self._redirectForMarkedRequests();
             self._getDescriptor();
             self._checkHttpMethod();
-            self._checkReadOnlyAndHeavy();
+            self._checkAvailability();
             self._getInputFormat();
             self._getInputCompression();
             self._getOutputFormat();
@@ -323,7 +322,7 @@ YtCommand.prototype._redirectForMarkedRequests = function() {
     }
 
     this.req.parsedUrl.pathname = "/" + this.name;
-    var target = "http://" + this.fqdn + "/api" + url.format(this.req.parsedUrl);
+    var target = "http://" + this.coordinator.getSelf().host + "/api" + url.format(this.req.parsedUrl);
 
     this.rsp.statusCode = 307;
     this.rsp.shouldKeepAlive = false;
@@ -378,15 +377,14 @@ YtCommand.prototype._checkHttpMethod = function() {
     }
 };
 
-YtCommand.prototype._checkReadOnlyAndHeavy = function() {
+YtCommand.prototype._checkAvailability = function() {
     "use strict";
-    this.__DBG("_checkHeavy");
+    this.__DBG("_checkAvailability");
 
-    if (this.descriptor.is_volatile && this.read_only) {
+    if (this.coordinator.getSelf().banned) {
         this.rsp.statusCode = 503;
         this.rsp.setHeader("Retry-After", "60");
-        throw new YtError(
-            "Command '" + this.name + "' is volatile and the proxy is in read-only mode.");
+        throw new YtError("This proxy is banned.");
     }
 
     if (this.descriptor.is_heavy && this.watcher.is_choking()) {
