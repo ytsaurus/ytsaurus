@@ -47,7 +47,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ParseStringBuf(
+void ParseYsonStringBuffer(
     const TStringBuf& buffer,
     IYsonConsumer* consumer,
     EYsonType type = EYsonType::Node,
