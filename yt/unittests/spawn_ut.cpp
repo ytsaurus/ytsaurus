@@ -7,21 +7,22 @@
 namespace NYT {
 namespace {
 
-using std::vector;
+////////////////////////////////////////////////////////////////////////////////
+
+#ifndef _win_
 
 TEST(TSpawnTest, Basic)
 {
-    vector<Stroka> args;
+    std::vector<Stroka> args;
     args.push_back("ls");
 
     int pid = Spawn("/bin/ls", args);
     EXPECT_NE(pid, 0);
 }
 
-
 TEST(TSpawnTest, InvalidPath)
 {
-    vector<Stroka> args;
+    std::vector<Stroka> args;
     args.push_back("binary");
 
 #ifdef __darwin__
@@ -43,7 +44,7 @@ TEST(TSpawnTest, InvalidPath)
 
 TEST(TSpawnTest, BasicUsePATH)
 {
-    vector<Stroka> args;
+    std::vector<Stroka> args;
     args.push_back("ls");
     int pid = Spawn("ls", args);
     EXPECT_NE(pid, 0);
@@ -51,7 +52,7 @@ TEST(TSpawnTest, BasicUsePATH)
 
 TEST(TSpawnTest, ProcessReturnCode0)
 {
-    vector<Stroka> args;
+    std::vector<Stroka> args;
     args.push_back("true");
 
     int pid = Spawn("true", args);
@@ -66,7 +67,7 @@ TEST(TSpawnTest, ProcessReturnCode0)
 
 TEST(TSpawnTest, ProcessReturnCode1)
 {
-    vector<Stroka> args;
+    std::vector<Stroka> args;
     args.push_back("false");
 
     int pid = Spawn("false", args);
@@ -81,7 +82,7 @@ TEST(TSpawnTest, ProcessReturnCode1)
 
 TEST(TSpawnTest, Params1)
 {
-    vector<Stroka> args;
+    std::vector<Stroka> args;
     args.push_back("bash");
     args.push_back("-c");
     args.push_back("if test 3 -gt 1; then exit 7; fi");
@@ -98,7 +99,7 @@ TEST(TSpawnTest, Params1)
 
 TEST(TSpawnTest, Params2)
 {
-    vector<Stroka> args;
+    std::vector<Stroka> args;
     args.push_back("bash");
     args.push_back("-c");
     args.push_back("if test 1 -gt 3; then exit 7; fi");
@@ -119,7 +120,7 @@ TEST(TSpawnTest, InheritEnvironment)
     const char* value = "42";
     setenv(name, value, 1);
 
-    vector<Stroka> args;
+    std::vector<Stroka> args;
     args.push_back("bash");
     args.push_back("-c");
     args.push_back("if test $SPAWN_TEST_ENV_VAR = 42; then exit 7; fi");
@@ -135,6 +136,10 @@ TEST(TSpawnTest, InheritEnvironment)
 
     unsetenv(name);
 }
+
+#endif
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
 } // namespace NYT
