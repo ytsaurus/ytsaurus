@@ -629,6 +629,23 @@ TEST(TFiberTest, CurrentInvokerInActionQueue)
     .Get();
 }
 
+TEST(TFiberTest, CurrentInvokerConcurrent)
+{
+    auto invoker1 = Queue1->GetCurrentInvoker();
+    auto invoker2 = Queue2->GetCurrentInvoker();
+
+    auto result1 = BIND([=] () {
+        EXPECT_EQ(GetCurrentInvoker(), invoker1);
+    }).AsyncVia(invoker1).Run();
+
+    auto result2 = BIND([=] () {
+        EXPECT_EQ(GetCurrentInvoker(), invoker2);
+    }).AsyncVia(invoker2).Run();
+
+    result1.Get();
+    resutl2.Get();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
