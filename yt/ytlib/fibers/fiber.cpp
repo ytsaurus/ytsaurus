@@ -75,8 +75,8 @@ DEFINE_FIBER_CTOR_MUTEX();
 
 // Stack sizes are given in machine words.
 // Estimates in bytes are given for x86_64.
-const size_t SmallFiberStackSize = 1 << 13; // 64 Kb
-const size_t LargeFiberStackSize = 1 << 20; //  8 Mb
+const size_t SmallFiberStackSize = 1 << 15; // 256 Kb
+const size_t LargeFiberStackSize = 1 << 20; //   8 Mb
 
 void InitTls()
 {
