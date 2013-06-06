@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "etc_commands.h"
 
+#include <ytlib/fibers/fiber.h>
+
 #include <ytlib/ypath/rich.h>
 #include <ytlib/ypath/token.h>
 
@@ -42,7 +44,8 @@ void TAddMemberCommand::DoExecute()
     req->set_name(Request->Member);
     GenerateMutationId(req);
 
-    CheckAndReply(ObjectProxy->Execute(req));
+    auto rsp = WaitFor(ObjectProxy->Execute(req));
+    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -53,15 +56,16 @@ void TRemoveMemberCommand::DoExecute()
     req->set_name(Request->Member);
     GenerateMutationId(req);
 
-    CheckAndReply(ObjectProxy->Execute(req));
+    auto rsp = WaitFor(ObjectProxy->Execute(req));
+    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void TParseYPathCommand::DoExecute()
 {
-    auto richPath = NYPath::TRichYPath::Parse(Request->Path);
-    ReplySuccess(NYTree::ConvertToYsonString(richPath));
+    auto richPath = TRichYPath::Parse(Request->Path);
+    ReplySuccess(ConvertToYsonString(richPath));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -73,20 +77,19 @@ void TCheckPersmissionCommand::DoExecute()
     req->set_permission(Request->Permission);
     SetTransactionId(req, EAllowNullTransaction::Yes);
 
-    CheckAndReply(
-        ObjectProxy->Execute(req),
-        BIND([] (TObjectYPathProxy::TRspCheckPermissionPtr rsp) {
-            return BuildYsonStringFluently()
-                .BeginMap()
-                    .Item("action").Value(ESecurityAction(rsp->action()))
-                    .DoIf(rsp->has_object_id(), [&] (TFluentMap fluent) {
-                        fluent.Item("object_id").Value(FromProto<TObjectId>(rsp->object_id()));
-                    })
-                    .DoIf(rsp->has_subject(), [&] (TFluentMap fluent) {
-                        fluent.Item("subject").Value(rsp->subject());
-                    })
-                .EndMap();
-        }));
+    auto rsp = WaitFor(ObjectProxy->Execute(req));
+    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+
+    ReplySuccess(BuildYsonStringFluently()
+        .BeginMap()
+            .Item("action").Value(ESecurityAction(rsp->action()))
+            .DoIf(rsp->has_object_id(), [&] (TFluentMap fluent) {
+                fluent.Item("object_id").Value(FromProto<TObjectId>(rsp->object_id()));
+            })
+            .DoIf(rsp->has_subject(), [&] (TFluentMap fluent) {
+                fluent.Item("subject").Value(rsp->subject());
+            })
+        .EndMap());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

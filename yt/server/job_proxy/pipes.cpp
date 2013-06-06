@@ -357,24 +357,24 @@ bool TInputPipe::ProcessData(ui32 epollEvents)
     }
 
     while (true) {
-        if (Position == Buffer->GetSize()) {
+        if (Position == Buffer->Size()) {
             Position = 0;
             Buffer->Clear();
-            while (HasData && Buffer->GetSize() < InputBufferSize) {
+            while (HasData && Buffer->Size() < InputBufferSize) {
                 HasData = TableProducer->ProduceRow();
             }
         }
 
-        if (Position == Buffer->GetSize()) {
+        if (Position == Buffer->Size()) {
             YCHECK(!HasData);
             LOG_TRACE("Input pipe finished writing (JobDescriptor: %d)",
                 JobDescriptor);
             return false;
         }
 
-        YASSERT(Position < Buffer->GetSize());
+        YASSERT(Position < Buffer->Size());
 
-        auto res = ::write(Pipe.WriteFd, Buffer->Begin() + Position, Buffer->GetSize() - Position);
+        auto res = ::write(Pipe.WriteFd, Buffer->Begin() + Position, Buffer->Size() - Position);
         LOG_TRACE("Written %" PRISZT " bytes to input pipe (JobDescriptor: %d)",
             res,
             JobDescriptor);
@@ -393,7 +393,7 @@ bool TInputPipe::ProcessData(ui32 epollEvents)
         }
 
         Position += res;
-        YASSERT(Position <= Buffer->GetSize());
+        YASSERT(Position <= Buffer->Size());
     }
 
 }

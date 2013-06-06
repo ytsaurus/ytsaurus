@@ -27,8 +27,8 @@ namespace NFileClient {
 
 //! A client-side facade for writing files.
 /*!
- *  The client must call #Open and then feed the data in by calling #Write.
- *  Finally it must call #Close.
+ *  The client must call #AsyncOpen and then feed the data in by calling #AsyncWrite.
+ *  Finally it must call #AsyncClose.
  */
 class TAsyncWriter
     : public NTransactionClient::TTransactionListener
@@ -42,22 +42,16 @@ public:
         const NYPath::TRichYPath& richPath);
 
     TAsyncError AsyncOpen();
-
     TAsyncError AsyncWrite(const TRef& data);
-
     TAsyncError AsyncClose();
 
 private:
-    typedef NChunkClient::TMultiChunkSequentialWriter<TFileChunkWriter> TWriter;
     typedef TAsyncWriter TThis;
-
-    TAsyncError OnUploadTransactionStarted(
-        TErrorOr<NTransactionClient::ITransactionPtr> transactionOrError);
-    TAsyncError OnFileInfoReceived(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
+    typedef NChunkClient::TMultiChunkSequentialWriter<TFileChunkWriter> TWriter;
 
     TFileWriterConfigPtr Config;
     NRpc::IChannelPtr MasterChannel;
-
+        
     NTransactionClient::ITransactionPtr Transaction;
     NTransactionClient::TTransactionManagerPtr TransactionManager;
     NTransactionClient::ITransactionPtr UploadTransaction;
@@ -68,29 +62,11 @@ private:
     NLog::TTaggedLogger Logger;
 
     NCypressClient::TNodeId NodeId;
-};
 
-////////////////////////////////////////////////////////////////////////////////
+    TAsyncError OnUploadTransactionStarted(
+        TErrorOr<NTransactionClient::ITransactionPtr> transactionOrError);
+    TAsyncError OnFileInfoReceived(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
 
-class TSyncWriter
-    : public TRefCounted
-{
-public:
-    TSyncWriter(
-        TFileWriterConfigPtr config,
-        NRpc::IChannelPtr masterChannel,
-        NTransactionClient::ITransactionPtr transaction,
-        NTransactionClient::TTransactionManagerPtr transactionManager,
-        const NYPath::TRichYPath& richPath);
-
-    void Open();
-
-    void Write(const TRef& data);
-
-    void Close();
-
-private:
-    TAsyncWriterPtr AsyncWriter_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -292,7 +292,7 @@ void TAsyncTableWriter::OnChunkWriterOpened()
 void TAsyncTableWriter::WriteRow(const TRow& row)
 {
     YCHECK(IsOpen);
-    YASSERT(CurrentWriterFacade != nullptr);
+    YASSERT(CurrentWriterFacade);
 
     CurrentWriterFacade->WriteRow(row);
 }

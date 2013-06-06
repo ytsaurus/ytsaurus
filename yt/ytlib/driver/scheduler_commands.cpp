@@ -3,6 +3,8 @@
 #include "config.h"
 #include "driver.h"
 
+#include <ytlib/fibers/fiber.h>
+
 #include <ytlib/scheduler/config.h>
 
 #include <ytlib/security_client/rpc_helpers.h>
@@ -26,12 +28,11 @@ void TSchedulerCommandBase::StartOperation(EOperationType type)
     ToProto(req->mutable_mutation_id(), Request->MutationId);
     req->set_spec(ConvertToYsonString(Request->Spec).Data());
 
-    CheckAndReply(
-        req->Invoke(),
-        BIND([] (TSchedulerServiceProxy::TRspStartOperationPtr rsp) -> TYsonString {
-            auto operationId = FromProto<TOperationId>(rsp->operation_id());
-            return BuildYsonStringFluently().Value(operationId);
-        }));
+    auto rsp = WaitFor(req->Invoke());
+    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+
+    auto operationId = FromProto<TOperationId>(rsp->operation_id());
+    ReplySuccess(BuildYsonStringFluently().Value(operationId));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -84,7 +85,8 @@ void TAbortOperationCommand::DoExecute()
     auto req = proxy.AbortOperation();
     ToProto(req->mutable_operation_id(), Request->OperationId);
 
-    CheckAndReply(req->Invoke());
+    auto rsp = WaitFor(req->Invoke());
+    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -95,7 +97,7 @@ void TSuspendOperationCommand::DoExecute()
     auto req = proxy.SuspendOperation();
     ToProto(req->mutable_operation_id(), Request->OperationId);
 
-    auto rsp = req->Invoke().Get();
+    auto rsp = WaitFor(req->Invoke());
     THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 }
 
@@ -107,7 +109,7 @@ void TResumeOperationCommand::DoExecute()
     auto req = proxy.ResumeOperation();
     ToProto(req->mutable_operation_id(), Request->OperationId);
 
-    auto rsp = req->Invoke().Get();
+    auto rsp = WaitFor(req->Invoke());
     THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 }
 

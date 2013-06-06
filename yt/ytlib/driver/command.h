@@ -99,8 +99,10 @@ struct ICommandContext
     virtual NChunkClient::IBlockCachePtr GetBlockCache() = 0;
     virtual NTransactionClient::TTransactionManagerPtr GetTransactionManager() = 0;
 
-    virtual const TDriverRequest* GetRequest() = 0;
-    virtual void SetResponse(const TDriverResponse& response) = 0;
+    virtual const TDriverRequest& Request() const = 0;
+
+    virtual const TDriverResponse& Response() const = 0;
+    virtual TDriverResponse& Response() = 0;
 
     virtual const NFormats::TFormat& GetInputFormat() = 0;
     virtual const NFormats::TFormat& GetOutputFormat() = 0;
@@ -109,17 +111,13 @@ struct ICommandContext
     virtual std::unique_ptr<NYson::IYsonConsumer> CreateOutputConsumer() = 0;
 };
 
-typedef TIntrusivePtr<ICommandContext> ICommandContextPtr;
-
-////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 
 struct ICommand
     : public TRefCounted
 {
     virtual void Execute(ICommandContextPtr context) = 0;
 };
-
-typedef TIntrusivePtr<ICommand> ICommandPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -141,40 +139,6 @@ protected:
     void ReplySuccess(const NYTree::TYsonString& yson);
     void ReplySuccess();
 
-    template <class TResponse>
-    void CheckAndReply(
-        TFuture<TResponse> future,
-        TCallback<NYTree::TYsonString(TResponse)> toYsonString
-            = TCallback<NYTree::TYsonString(TResponse)>())
-    {
-        future.Apply(BIND(&TCommandBase::OnProxyResponse<TResponse>, MakeStrong(this), toYsonString));
-    }
-    
-    void CheckAndReply(TAsyncError future)
-    {
-        auto this_ = MakeStrong(this);
-        future.Apply(BIND([this, this_] (TError error) {
-            if (!error.IsOK()) {
-                ReplyError(error);
-            } else {
-                ReplySuccess();
-            }
-        }));
-    }
-
-    template <class TResponse>
-    void OnProxyResponse(
-        TCallback<NYTree::TYsonString(TResponse)> extractResult,
-        TResponse response)
-    {
-        if (!response->IsOK()) {
-            ReplyError(*response);
-        } else if (!extractResult.IsNull()) {
-            ReplySuccess(extractResult.Run(response));
-        } else {
-            ReplySuccess();
-        }
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -189,8 +153,15 @@ public:
         Context = context;
         try {
             ParseRequest();
+            
             Prepare();
+
             DoExecute();
+
+            // Assume empty successful reply by default.
+            if (!Replied) {
+                ReplySuccess();
+            }
         } catch (const std::exception& ex) {
             ReplyError(ex);
         }
@@ -206,7 +177,7 @@ private:
     {
         Request = New<TRequest>();
         try {
-            auto arguments = Context->GetRequest()->Arguments;;
+            auto arguments = Context->Request().Arguments;;
             Request = NYTree::ConvertTo<TIntrusivePtr<TRequest>>(arguments);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing command arguments") << ex;

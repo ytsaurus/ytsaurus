@@ -17,7 +17,14 @@ namespace NTransactionClient {
 struct ITransaction
     : public virtual TRefCounted
 {
-    //! Commits the transaction.
+    //! Commits the transaction asynchronously.
+    /*!
+     *  \note Thread affinity: ClientThread
+     */
+    virtual TAsyncError AsyncCommit(
+        const NMetaState::TMutationId& mutationId = NMetaState::NullMutationId) = 0;
+
+    //! Commit transaction synchronously.
     /*!
      *  This call may block.
      *  Throws an exception if the commit fails.
@@ -25,27 +32,29 @@ struct ITransaction
      *
      *  \note Thread affinity: ClientThread
      */
-    virtual TAsyncError AsyncCommit(const NMetaState::TMutationId& mutationId = NMetaState::NullMutationId) = 0;
+    virtual void Commit(
+        const NMetaState::TMutationId& mutationId = NMetaState::NullMutationId) = 0;
 
-    //! Commit transaction synchronously.
-    virtual void Commit(const NMetaState::TMutationId& mutationId = NMetaState::NullMutationId) = 0;
+    //! Aborts the transaction asynchronously.
+    virtual TAsyncError AsyncAbort(
+        bool generateMutationId,
+        const NMetaState::TMutationId& mutationId = NMetaState::NullMutationId) = 0;
 
-    //! Aborts the transaction.
+    //! Abort transaction synchronously.
     /*!
      *
      *  If #wait is False then then call does not block and does not throw.
      *
-     *  If #wait is True then the call blocks until the master has confirmed
+     *  If #wait is true then the call blocks until the master has confirmed
      *  transaction abort. It may also throw an exception if something goes wrong.
      *
      *  Safe to call multiple times.
      *
      *  \note Thread affinity: any
      */
-    virtual TAsyncError AsyncAbort(bool generateMutationId, const NMetaState::TMutationId& mutationId = NMetaState::NullMutationId) = 0;
-
-    //! Abort transaction synchronously.
-    virtual void Abort(bool wait = false, const NMetaState::TMutationId& mutationId = NMetaState::NullMutationId) = 0;
+    virtual void Abort(
+        bool wait = false,
+        const NMetaState::TMutationId& mutationId = NMetaState::NullMutationId) = 0;
 
     //! Detaches the transaction, i.e. makes the manager forget about it.
     /*!
@@ -55,6 +64,12 @@ struct ITransaction
      *  \note Thread affinity: ClientThread
      */
     virtual void Detach() = 0;
+
+    //! Sends an asynchronous transaction ping.
+    /*!
+     *  \note Thread affinity: any
+     */
+    virtual TAsyncError AsyncPing() = 0;
 
     //! Returns the id of the transaction.
     /*!

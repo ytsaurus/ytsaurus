@@ -4,10 +4,10 @@
 
 #include <ytlib/misc/async_stream.h>
 
+#include <ytlib/fibers/fiber.h>
+
 #include <ytlib/yson/parser.h>
 #include <ytlib/yson/consumer.h>
-
-#include <ytlib/ytree/tree_visitor.h>
 
 #include <ytlib/transaction_client/transaction_manager.h>
 
@@ -28,208 +28,6 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReadSession
-    : public TRefCounted
-{
-public:
-    TReadSession(
-        NTableClient::TAsyncTableReaderPtr reader,
-        IAsyncOutputStreamPtr output,
-        const TFormat& format,
-        size_t bufferLimit);
-
-    TAsyncError Execute();
-
-private:
-    typedef TReadSession TThis;
-
-    TAsyncError Read();
-
-    NTableClient::TAsyncTableReaderPtr Reader_;
-    IAsyncOutputStreamPtr Output_;
-    TBlobOutput Buffer_;
-    std::unique_ptr<NYson::IYsonConsumer> Consumer_;
-
-    size_t BufferSize_;
-    bool AlreadyFetched_;
-};
-
-TReadSession::TReadSession(
-    TAsyncTableReaderPtr reader,
-    IAsyncOutputStreamPtr output,
-    const TFormat& format,
-    size_t bufferLimit)
-        : Reader_(reader)
-        , Output_(output)
-        , Consumer_(CreateConsumerForFormat(format, EDataType::Tabular, &Buffer_))
-        , BufferSize_(bufferLimit)
-        , AlreadyFetched_(false)
-{ }
-
-TAsyncError TReadSession::Execute()
-{
-    auto this_ = MakeStrong(this);
-    return Reader_->AsyncOpen().Apply(BIND([this, this_] (TError error) -> TAsyncError {
-        RETURN_FUTURE_IF_ERROR(error, TError);
-        return this->Read();
-    }));
-}
-
-TAsyncError TReadSession::Read()
-{
-    // Read rows synchronously and write them to the stream while possible.
-    // AlreadyFetched_  is true if we'd fetched a row from the reader but didn't processed it yet.
-    // Processed rows are stored in Buffer_ before being written to the output stream.
-    // IsValid is true if the reader has more rows.
-    auto this_ = MakeStrong(this);
-    while (AlreadyFetched_ || Reader_->FetchNextItem()) {
-        if (!Reader_->IsValid()) {
-            return Output_->Write(Buffer_.Begin(), Buffer_.GetSize())
-                ? MakeFuture(TError())
-                : Output_->GetWriteFuture();
-        }
-
-        AlreadyFetched_ = false;
-
-        try {
-            // It is guaranteed that the reader contains a correct row.
-            YCHECK(Reader_->IsValid());
-            ProduceRow(~Consumer_, Reader_->GetRow(), Reader_->GetRowAttributes());
-        } catch (const std::exception& ex) {
-            return MakeFuture(TError(ex));
-        }
-
-        // NB: Consumer_ created on Buffer_, so after processing size of Buffer had changed.
-        if (Buffer_.GetSize() > BufferSize_) {
-            if (!Output_->Write(Buffer_.Begin(), Buffer_.GetSize())) {
-                return Output_->GetWriteFuture().Apply(BIND([this, this_] (TError error) -> TAsyncError {
-                    RETURN_FUTURE_IF_ERROR(error, TError);
-                    Buffer_.Clear();
-                    return this->Read();
-                }));
-            }
-            else {
-                Buffer_.Clear();
-            }
-        }
-    }
-    return Reader_->GetReadyEvent().Apply(BIND([this, this_] (TError error) -> TAsyncError {
-        RETURN_FUTURE_IF_ERROR(error, TError);
-        AlreadyFetched_ = true;
-        return this->Read();
-    }));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TWriteSession
-    : public TRefCounted
-{
-public:
-    TWriteSession(
-        NTableClient::IAsyncWriterPtr writer,
-        IAsyncInputStreamPtr input,
-        const TFormat& format,
-        i64 bufferSize);
-
-    TAsyncError Execute();
-
-private:
-    typedef TWriteSession TThis;
-
-    TAsyncError ReadyToRead(TError error);
-    TAsyncError Read();
-    bool ProcessReadResult();
-    TAsyncError OnRead(TError error);
-    TAsyncError ProcessCollectedRows(TError error);
-    TAsyncError Finish(TError error);
-
-    NTableClient::IAsyncWriterPtr Writer_;
-    IAsyncInputStreamPtr Input_;
-    std::unique_ptr<NTableClient::TTableConsumer> Consumer_;
-    std::unique_ptr<NFormats::IParser> Parser_;
-    TSharedRef Buffer_;
-
-    bool IsFinished_;
-};
-
-TWriteSession::TWriteSession(
-    IAsyncWriterPtr writer,
-    IAsyncInputStreamPtr input,
-    const TFormat& format,
-    i64 bufferSize)
-        : Writer_(writer)
-        , Input_(input)
-        , Consumer_(new TTableConsumer(Writer_))
-        , Parser_(CreateParserForFormat(format, EDataType::Tabular, ~Consumer_))
-        , Buffer_(TSharedRef::Allocate(bufferSize))
-        , IsFinished_(false)
-{ }
-
-TAsyncError TWriteSession::Execute()
-{
-    return Writer_->AsyncOpen().Apply(BIND(&TThis::ReadyToRead, MakeStrong(this)));
-}
-
-TAsyncError TWriteSession::ReadyToRead(TError error)
-{
-    RETURN_FUTURE_IF_ERROR(error, TError);
-    return Read();
-}
-
-TAsyncError TWriteSession::Read()
-{
-    // Read data from the input stream synchronously, produce rows and push them into
-    // the writer. When a certain stage cannot be finished synchronously we apply this method
-    // to the corresponding future.
-    auto this_ = MakeStrong(this);
-    while (!IsFinished_ && Input_->Read(Buffer_.Begin(), Buffer_.Size())) {
-        try {
-            if (!ProcessReadResult()) {
-                return Writer_->GetReadyEvent().Apply(BIND(&TThis::ReadyToRead, this_));
-            }
-        } catch (const std::exception& ex) {
-            return MakeFuture(TError(ex));
-        }
-    }
-
-    return IsFinished_
-        ? Writer_->AsyncClose()
-        : Input_->GetReadFuture().Apply(BIND(&TThis::OnRead, MakeStrong(this)));
-}
-
-bool TWriteSession::ProcessReadResult()
-{
-    if (Input_->GetReadLength() == 0) {
-        IsFinished_ = true;
-        Parser_->Finish();
-    } else {
-        Parser_->Read(TStringBuf(Buffer_.Begin(), Input_->GetReadLength()));
-    }
-    return Writer_->IsReady();
-}
-
-TAsyncError TWriteSession::OnRead(TError error)
-{
-    RETURN_FUTURE_IF_ERROR(error, TError);
-
-    bool result;
-    try {
-        result = ProcessReadResult();
-    } catch (const std::exception& ex) {
-        return MakeFuture(TError(ex));
-    }
-
-    if (!result) {
-        return Writer_->GetReadyEvent().Apply(
-            BIND(&TThis::ReadyToRead, MakeStrong(this)));
-    }
-
-    return Read();
-}
-
-//////////////////////////////////////////////////////////////////////////////////
-
 void TReadCommand::DoExecute()
 {
     auto config = UpdateYsonSerializable(
@@ -243,20 +41,49 @@ void TReadCommand::DoExecute()
         Context->GetBlockCache(),
         Request->Path);
 
-    Session_ = New<TReadSession>(
-        reader,
-        Context->GetRequest()->OutputStream,
-        Context->GetOutputFormat(),
-        Context->GetConfig()->ReadBufferSize);
+    auto output = Context->Request().OutputStream;
+    
+    // TODO(babenko): provide custom allocation tag
+    TBlobOutput buffer;
+    i64 bufferLimit = Context->GetConfig()->ReadBufferSize;
 
-    CheckAndReply(Session_->Execute());
+    auto format = Context->GetOutputFormat();
+    auto consumer = CreateConsumerForFormat(format, EDataType::Tabular, &buffer);
+
+    {
+        auto result = WaitFor(reader->AsyncOpen());
+        THROW_ERROR_EXCEPTION_IF_FAILED(result);
+    }
+
+    auto flushBuffer = [&] () {
+        if (!output->Write(buffer.Begin(), buffer.Size())) {
+            auto result = WaitFor(output->GetReadyEvent());
+            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        }
+        buffer.Clear();
+    };
+
+    while (true) {
+        if (!reader->FetchNextItem()) {
+            auto result = WaitFor(reader->GetReadyEvent());
+            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        }
+
+        if (!reader->IsValid()) {
+            break;
+        }
+
+        ProduceRow(~consumer, reader->GetRow(), reader->GetRowAttributes());
+
+        if (buffer.Size() > bufferLimit) {
+            flushBuffer();
+        }
+    }
+
+    if (buffer.Size() > 0) {
+        flushBuffer();
+    }
 }
-
-TReadCommand::TReadCommand()
-{ }
-
-TReadCommand::~TReadCommand()
-{ }
 
 //////////////////////////////////////////////////////////////////////////////////
 
@@ -274,20 +101,46 @@ void TWriteCommand::DoExecute()
         Request->Path,
         Request->Path.Attributes().Find<TKeyColumns>("sorted_by"));
 
-    Session_ = New<TWriteSession>(
-        writer,
-        Context->GetRequest()->InputStream,
-        Context->GetInputFormat(),
-        config->BlockSize);
+    TTableConsumer consumer(writer);
 
-    CheckAndReply(Session_->Execute());
+    auto input = Context->Request().InputStream;
+
+    struct TWriteBufferTag { };
+    auto buffer = TSharedRef::Allocate<TWriteBufferTag>(config->BlockSize);
+
+    auto format = Context->GetInputFormat();
+    auto parser = CreateParserForFormat(format, EDataType::Tabular, &consumer);
+
+    {
+        auto result = WaitFor(writer->AsyncOpen());
+        THROW_ERROR_EXCEPTION_IF_FAILED(result);
+    }
+
+    while (true) {
+        if (!input->Read(buffer.Begin(), buffer.Size())) {
+            auto result = WaitFor(input->GetReadyEvent());
+            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        }
+
+        size_t length = input->GetReadLength();
+        if (length == 0)
+            break;
+
+        parser->Read(TStringBuf(buffer.Begin(), length));
+
+        if (!writer->IsReady()) {
+            auto result = WaitFor(writer->GetReadyEvent());
+            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        }
+    }
+
+    {
+        auto result = WaitFor(writer->AsyncClose());
+        THROW_ERROR_EXCEPTION_IF_FAILED(result);
+    }
+
+    parser->Finish();
 }
-
-TWriteCommand::TWriteCommand()
-{ }
-
-TWriteCommand::~TWriteCommand()
-{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

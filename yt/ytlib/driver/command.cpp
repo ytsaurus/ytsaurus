@@ -7,8 +7,6 @@ namespace NDriver {
 using namespace NYTree;
 using namespace NObjectClient;
 using namespace NScheduler;
-using namespace NTransactionClient;
-using namespace NMetaState;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,7 +26,7 @@ void TCommandBase::ReplyError(const TError& error)
     YCHECK(!Replied);
     YCHECK(!error.IsOK());
 
-    Context->SetResponse(TDriverResponse(error));
+    Context->Response() = TDriverResponse(error);
     Replied = true;
 }
 
@@ -36,7 +34,7 @@ void TCommandBase::ReplySuccess()
 {
     YCHECK(!Replied);
 
-    Context->SetResponse(TDriverResponse(TError()));
+    Context->Response() = TDriverResponse(TError());
     Replied = true;
 }
 
@@ -47,7 +45,7 @@ void TCommandBase::ReplySuccess(const TYsonString& yson)
     auto consumer = Context->CreateOutputConsumer();
     Consume(yson, ~consumer);
 
-    Context->SetResponse(TDriverResponse(TError()));
+    Context->Response() = TDriverResponse(TError());
     Replied = true;
 }
 

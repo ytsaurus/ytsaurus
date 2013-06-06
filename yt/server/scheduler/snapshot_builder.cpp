@@ -6,6 +6,8 @@
 
 #include <ytlib/misc/fs.h>
 
+#include <ytlib/fibers/fiber.h>
+
 #include <ytlib/logging/tagged_logger.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
@@ -41,8 +43,8 @@ using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const i64 LocalWriteBufferSize  = (i64) 1024 * 1024;
-static const i64 RemoteWriteBufferSize = (i64) 1024 * 1024;
+static const size_t LocalWriteBufferSize  = 1024 * 1024;
+static const size_t RemoteWriteBufferSize = 1024 * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -193,14 +195,17 @@ void TSnapshotBuilder::UploadSnapshot(const TJob& job)
 
         // Upload new snapshot.
         {
-            auto fileWriter = New<TSyncWriter>(
+            auto writer = New<TAsyncWriter>(
                 Config->SnapshotWriter,
                 Bootstrap->GetMasterChannel(),
                 transaction,
                 transactionManager,
                 snapshotPath);
 
-            fileWriter->Open();
+            {
+                auto result = WaitFor(writer->AsyncOpen());
+                THROW_ERROR_EXCEPTION_IF_FAILED(result);
+            }
 
             TBlob buffer(RemoteWriteBufferSize, false);
             TFileInput fileInput(job.FileName);
@@ -211,10 +216,17 @@ void TSnapshotBuilder::UploadSnapshot(const TJob& job)
                 if (bytesRead == 0) {
                     break;
                 }
-                fileWriter->Write(TRef(buffer.Begin(), bytesRead));
+
+                {
+                    auto result = WaitFor(writer->AsyncWrite(TRef(buffer.Begin(), bytesRead)));
+                    THROW_ERROR_EXCEPTION_IF_FAILED(result);
+                }
             }
 
-            fileWriter->Close();
+            {
+                auto result = WaitFor(writer->AsyncClose());
+                THROW_ERROR_EXCEPTION_IF_FAILED(result);
+            }
 
             LOG_INFO("Snapshot uploaded successfully");
         }

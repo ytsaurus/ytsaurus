@@ -27,21 +27,12 @@ struct TReadRequest
     }
 };
 
-typedef TIntrusivePtr<TReadRequest> TReadRequestPtr;
-
-class TReadSession;
-
 class TReadCommand
     : public TTypedCommand<TReadRequest>
 {
-public:
-    TReadCommand();
-    ~TReadCommand();
-
 private:
-    virtual void DoExecute();
+    virtual void DoExecute() override;
 
-    TIntrusivePtr<TReadSession> Session_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -61,21 +52,12 @@ struct TWriteRequest
     }
 };
 
-typedef TIntrusivePtr<TWriteRequest> TWriteRequestPtr;
-
-class TWriteSession;
-
 class TWriteCommand
     : public TTypedCommand<TWriteRequest>
 {
-public:
-    TWriteCommand();
-    ~TWriteCommand();
-
 private:
-    virtual void DoExecute();
+    virtual void DoExecute() override;
 
-    TIntrusivePtr<TWriteSession> Session_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

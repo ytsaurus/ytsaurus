@@ -1,10 +1,10 @@
 #include "stdafx.h"
 #include "transaction_commands.h"
 
+#include <ytlib/fibers/fiber.h>
+
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/ytree/attribute_helpers.h>
-
-#include <ytlib/object_client/object_service_proxy.h>
 
 #include <ytlib/transaction_client/transaction_ypath_proxy.h>
 
@@ -37,30 +37,23 @@ void TStartTransactionCommand::DoExecute()
     }
 
     auto transactionManager = Context->GetTransactionManager();
+    auto transactionOrError = WaitFor(transactionManager->AsyncStart(options));
+    auto transaction = transactionOrError.GetValueOrThrow();
+    transaction->Detach();
 
-    auto this_ = MakeStrong(this);
-    transactionManager->AsyncStart(options).Apply(
-        BIND([this, this_] (TErrorOr<ITransactionPtr> transactionOrError) {
-            if (!transactionOrError.IsOK()) {
-                ReplyError(transactionOrError);
-                return;
-            }
-            auto transaction = transactionOrError.GetValue();
-            auto yson = BuildYsonStringFluently().Value(transaction->GetId());
-            ReplySuccess(yson);
-            transaction->Detach();
-        })
-    );
+    ReplySuccess(BuildYsonStringFluently()
+        .Value(transaction->GetId()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void TPingTransactionCommand::DoExecute()
 {
+    // TODO(babenko): rewrite using ITransaction::AsyncPing
     auto req = TTransactionYPathProxy::Ping(FromObjectId(GetTransactionId(EAllowNullTransaction::No)));
     req->set_ping_ancestors(Request->PingAncestors);
-
-    CheckAndReply(ObjectProxy->Execute(req));
+        auto rsp = WaitFor(ObjectProxy->Execute(req));
+    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -68,7 +61,8 @@ void TPingTransactionCommand::DoExecute()
 void TCommitTransactionCommand::DoExecute()
 {
     auto transaction = GetTransaction(EAllowNullTransaction::No, EPingTransaction::No);
-    CheckAndReply(transaction->AsyncCommit(GenerateMutationId()));
+    auto result = WaitFor(transaction->AsyncCommit(GenerateMutationId()));
+    THROW_ERROR_EXCEPTION_IF_FAILED(result);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -76,7 +70,8 @@ void TCommitTransactionCommand::DoExecute()
 void TAbortTransactionCommand::DoExecute()
 {
     auto transaction = GetTransaction(EAllowNullTransaction::No, EPingTransaction::No);
-    CheckAndReply(transaction->AsyncAbort(true, GenerateMutationId()));
+    auto result =WaitFor(transaction->AsyncAbort(true, GenerateMutationId()));
+    THROW_ERROR_EXCEPTION_IF_FAILED(result);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

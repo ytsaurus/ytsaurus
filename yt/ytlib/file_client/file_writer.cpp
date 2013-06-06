@@ -4,6 +4,8 @@
 #include "config.h"
 #include "private.h"
 
+#include <ytlib/actions/async_pipeline.h>
+
 #include <ytlib/object_client/object_service_proxy.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
@@ -16,9 +18,6 @@
 #include <ytlib/transaction_client/transaction.h>
 
 #include <ytlib/meta_state/rpc_helpers.h>
-
-#include <ytlib/actions/async_pipeline.h>
-#include <ytlib/misc/sync.h>
 
 namespace NYT {
 namespace NFileClient {
@@ -195,37 +194,6 @@ TAsyncError TAsyncWriter::AsyncClose()
         ->Add(BIND(&TWriter::AsyncClose, Writer))
         ->Add(BIND(&NTransactionClient::ITransaction::AsyncCommit, UploadTransaction, NMetaState::NullMutationId))
         ->Run();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TSyncWriter::TSyncWriter(
-    TFileWriterConfigPtr config,
-    NRpc::IChannelPtr masterChannel,
-    ITransactionPtr transaction,
-    TTransactionManagerPtr transactionManager,
-    const TRichYPath& richPath)
-        : AsyncWriter_(New<TAsyncWriter>(
-            config,
-            masterChannel,
-            transaction,
-            transactionManager,
-            richPath))
-{ }
-
-void TSyncWriter::Open()
-{
-    Sync(~AsyncWriter_, &TAsyncWriter::AsyncOpen);
-}
-
-void TSyncWriter::Write(const TRef& data)
-{
-    Sync(~AsyncWriter_, &TAsyncWriter::AsyncWrite, data);
-}
-
-void TSyncWriter::Close()
-{
-    Sync(~AsyncWriter_, &TAsyncWriter::AsyncClose);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

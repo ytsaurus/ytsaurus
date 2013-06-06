@@ -20,44 +20,44 @@ TBlobOutput::~TBlobOutput() throw()
 
 void TBlobOutput::DoWrite(const void* buffer, size_t length)
 {
-    Blob.Append(buffer, length);
-}
-
-const char* TBlobOutput::Begin() const
-{
-    return Blob.Begin();
-}
-
-size_t TBlobOutput::GetSize() const
-{
-    return Blob.Size();
+    Blob_.Append(buffer, length);
 }
 
 void TBlobOutput::Reserve(size_t capacity)
 {
-    Blob.Reserve(RoundUpToPage(capacity));
+    Blob_.Reserve(RoundUpToPage(capacity));
 }
 
 void TBlobOutput::Clear()
 {
-    Blob.Clear();
+    Blob_.Clear();
 }
 
 TSharedRef TBlobOutput::Flush()
 {
-    return TSharedRef::FromBlob<TBlobOutputTag>(std::move(Blob));
+    return TSharedRef::FromBlob<TBlobOutputTag>(std::move(Blob_));
 }
 
-const TBlob& TBlobOutput::GetBlob() const
+const TBlob& TBlobOutput::Blob() const
 {
-    return Blob;
+    return Blob_;
+}
+
+const char* TBlobOutput::Begin() const
+{
+    return Blob_.Begin();
+}
+
+size_t TBlobOutput::Size() const
+{
+    return Blob_.Size();
 }
 
 TBlobOutput::TStoredType TBlobOutput::PutData(const TStringBuf& value)
 {
-    auto offset = GetSize();
+    size_t offset = Blob_.Size();
     Write(value);
-    return TStoredType(&Blob, offset, value.size());
+    return TStoredType(&Blob_, offset, value.size());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

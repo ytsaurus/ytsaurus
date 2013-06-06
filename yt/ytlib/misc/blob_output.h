@@ -21,11 +21,9 @@ public:
 
     TStoredType PutData(const TStringBuf& value);
 
-    const TBlob& GetBlob() const;
-
+    const TBlob& Blob() const;
     const char* Begin() const;
-    // Question(ignat): Why we use verb Get. Simple Size() is more consistent with other places.
-    size_t GetSize() const;
+    size_t Size() const;
 
     void Reserve(size_t capacity);
     void Clear();
@@ -34,7 +32,8 @@ public:
 private:
     virtual void DoWrite(const void* buf, size_t len) override;
 
-    TBlob Blob;
+    TBlob Blob_;
+
 };
 
 ///////////////////////////////////////////////////////////////////////////////

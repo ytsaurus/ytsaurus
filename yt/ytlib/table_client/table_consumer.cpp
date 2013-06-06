@@ -105,11 +105,10 @@ void TTableConsumer::OnKeyedItem(const TStringBuf& name)
 {
     YASSERT(Depth > 0);
     if (Depth == 1) {
-
-        Offsets.push_back(RowBuffer.GetSize());
+        Offsets.push_back(RowBuffer.Size());
         RowBuffer.Write(name);
 
-        Offsets.push_back(RowBuffer.GetSize());
+        Offsets.push_back(RowBuffer.Size());
     } else {
         ValueWriter.OnKeyedItem(name);
     }
@@ -132,7 +131,7 @@ void TTableConsumer::OnEndMap()
     row.reserve(Offsets.size() / 2);
 
     int index = Offsets.size();
-    int begin = RowBuffer.GetSize();
+    int begin = RowBuffer.Size();
     while (index > 0) {
         int end = begin;
         begin = Offsets[--index];

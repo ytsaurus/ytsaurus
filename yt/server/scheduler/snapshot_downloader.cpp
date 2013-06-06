@@ -3,6 +3,8 @@
 #include "scheduler.h"
 #include "config.h"
 
+#include <ytlib/fibers/fiber.h>
+
 #include <ytlib/scheduler/helpers.h>
 
 #include <ytlib/file_client/file_reader.h>
@@ -72,14 +74,18 @@ void TSnapshotDownloader::Download()
 
     try {
 
-        auto reader = New<NFileClient::TSyncReader>();
-        reader->Open(
+        auto reader = New<TAsyncReader>(
             Config->SnapshotReader,
             Bootstrap->GetMasterChannel(),
-            nullptr,
             CreateClientBlockCache(New<TClientBlockCacheConfig>()),
+            nullptr,
             snapshotPath);
 
+        {
+            auto result = WaitFor(reader->AsyncOpen());
+            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        }
+        
         i64 size = reader->GetSize();
 
         LOG_INFO("Downloading %" PRId64 " bytes", size);
@@ -89,7 +95,9 @@ void TSnapshotDownloader::Download()
         blob.Reserve(size);
 
         while (true) {
-            auto block = reader->Read();
+            auto blockOrError = WaitFor(reader->AsyncRead());
+            THROW_ERROR_EXCEPTION_IF_FAILED(blockOrError);
+            auto block = blockOrError.GetValue();
             if (!block)
                 break;
             blob.Append(block);

@@ -153,15 +153,17 @@ void TYamredDsvWriter::RememberValue(const TStringBuf& value)
 void TYamredDsvWriter::WriteRow()
 {
     WriteYamrField(Config->KeyColumnNames, KeyFields);
+    
     if (Config->HasSubkey) {
         WriteYamrField(Config->SubkeyColumnNames, SubkeyFields);
     }
+    
     if (Config->Lenval) {
-        WritePod(*Stream, static_cast<i32>(ValueBuffer.GetSize()));
-        Stream->Write(ValueBuffer.Begin(), ValueBuffer.GetSize());
+        WritePod(*Stream, static_cast<i32>(ValueBuffer.Size()));
+        Stream->Write(ValueBuffer.Begin(), ValueBuffer.Size());
     }
     else {
-        Stream->Write(ValueBuffer.Begin(), ValueBuffer.GetSize());
+        Stream->Write(ValueBuffer.Begin(), ValueBuffer.Size());
         Stream->Write(Config->RecordSeparator);
     }
 }

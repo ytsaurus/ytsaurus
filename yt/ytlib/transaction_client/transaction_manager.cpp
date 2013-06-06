@@ -25,6 +25,7 @@ namespace NTransactionClient {
 using namespace NCypressClient;
 using namespace NObjectClient;
 using namespace NYTree;
+using namespace NMetaState;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,19 +60,19 @@ class TTransactionManager::TTransaction
 {
 public:
     TTransaction(TTransactionManagerPtr owner, bool autoAbort)
-        : Owner(owner)
-        , AutoAbort(autoAbort)
-        , Ping(false)
-        , PingAncestors(false)
-        , Proxy(owner->Channel)
-        , State(EState::Active)
-        , Aborted(NewPromise())
+        : Owner_(owner)
+        , AutoAbort_(autoAbort)
+        , Ping_(false)
+        , PingAncestors_(false)
+        , Proxy_(owner->Channel)
+        , State_(EState::Active)
+        , Aborted_(NewPromise())
     {
         YCHECK(owner);
 
-        if (AutoAbort) {
-            TGuard<TSpinLock> guard(Owner->SpinLock);
-            YCHECK(Owner->AliveTransactions.insert(this).second);
+        if (AutoAbort_) {
+            TGuard<TSpinLock> guard(Owner_->SpinLock);
+            YCHECK(Owner_->AliveTransactions.insert(this).second);
 
             LOG_DEBUG("Transaction registered in the manager");
         }
@@ -79,14 +80,14 @@ public:
 
     ~TTransaction()
     {
-        if (AutoAbort) {
-            if (State == EState::Active) {
+        if (AutoAbort_) {
+            if (State_ == EState::Active) {
                 InvokeAbort(false);
             }
 
             {
-                TGuard<TSpinLock> guard(Owner->SpinLock);
-                YCHECK(Owner->AliveTransactions.erase(this) == 1);
+                TGuard<TSpinLock> guard(Owner_->SpinLock);
+                YCHECK(Owner_->AliveTransactions.erase(this) == 1);
             }
         }
     }
@@ -95,8 +96,8 @@ public:
     {
         LOG_INFO("Starting transaction");
 
-        Ping = options.Ping;
-        PingAncestors = options.PingAncestors;
+        Ping_ = options.Ping;
+        PingAncestors_ = options.PingAncestors;
 
         auto req = TMasterYPathProxy::CreateObject();
         req->set_type(EObjectType::Transaction);
@@ -114,29 +115,29 @@ public:
         }
 
         if (options.ParentId != NullTransactionId) {
-            NMetaState::SetOrGenerateMutationId(req, options.MutationId);
+            SetOrGenerateMutationId(req, options.MutationId);
         }
 
         auto this_ = MakeStrong(this);
-        return Proxy.Execute(req).Apply(
+        return Proxy_.Execute(req).Apply(
             BIND([this, this_] (TMasterYPathProxy::TRspCreateObjectPtr rsp) -> TError {
                 // XXX(babenko): required by VS2010
                 typedef TTransactionManager::TTransaction::EState EState;
 
                 if (!rsp->IsOK()) {
-                    State = EState::Aborted;
+                    State_ = EState::Aborted;
                     return *rsp;
                 }
 
-                State = EState::Active;
+                State_ = EState::Active;
 
-                Id = FromProto<TTransactionId>(rsp->object_id());
-                LOG_INFO("Transaction started: %s (Ping: %s, PingAncestors: %s)",
-                    ~ToString(Id),
-                    ~FormatBool(Ping),
-                    ~FormatBool(PingAncestors));
+                Id_ = FromProto<TTransactionId>(rsp->object_id());
+                LOG_INFO("Transaction started (TransactionId: %s, Ping: %s, PingAncestors: %s)",
+                    ~ToString(Id_),
+                    ~FormatBool(Ping_),
+                    ~FormatBool(PingAncestors_));
 
-                if (Ping) {
+                if (Ping_) {
                     SendPing();
                 }
 
@@ -147,20 +148,20 @@ public:
 
     void Attach(const TTransactionAttachOptions& options)
     {
-        Id = options.Id;
-        AutoAbort = options.AutoAbort;
-        Ping = options.Ping;
-        PingAncestors = options.PingAncestors;
+        Id_ = options.Id;
+        AutoAbort_ = options.AutoAbort;
+        Ping_ = options.Ping;
+        PingAncestors_ = options.PingAncestors;
 
-        State = EState::Active;
+        State_ = EState::Active;
 
-        LOG_INFO("Transaction attached: %s (AutoAbort: %s, Ping: %s, PingAncestors: %s)",
-            ~ToString(Id),
-            ~FormatBool(AutoAbort),
-            ~FormatBool(Ping),
-            ~FormatBool(PingAncestors));
+        LOG_INFO("Transaction attached (TransactionId: %s, AutoAbort: %s, Ping: %s, PingAncestors: %s)",
+            ~ToString(Id_),
+            ~FormatBool(AutoAbort_),
+            ~FormatBool(Ping_),
+            ~FormatBool(PingAncestors_));
 
-        if (Ping) {
+        if (Ping_) {
             SendPing();
         }
     }
@@ -168,16 +169,16 @@ public:
     TTransactionId GetId() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        return Id;
+        return Id_;
     }
 
-    TAsyncError AsyncCommit(const NMetaState::TMutationId& mutationId) override
+    TAsyncError AsyncCommit(const TMutationId& mutationId) override
     {
         VERIFY_THREAD_AFFINITY(ClientThread);
 
         {
-            TGuard<TSpinLock> guard(SpinLock);
-            switch (State) {
+            TGuard<TSpinLock> guard(SpinLock_);
+            switch (State_) {
                 case EState::Committed:
                     THROW_ERROR_EXCEPTION("Transaction is already committed");
                     break;
@@ -187,7 +188,7 @@ public:
                     break;
 
                 case EState::Active:
-                    State = EState::Committed;
+                    State_ = EState::Committed;
                     break;
 
                 default:
@@ -195,12 +196,12 @@ public:
             }
         }
 
-        LOG_INFO("Committing transaction (TransactionId: %s)", ~ToString(Id));
+        LOG_INFO("Committing transaction (TransactionId: %s)", ~ToString(Id_));
 
-        auto req = TTransactionYPathProxy::Commit(FromObjectId(Id));
-        NMetaState::SetOrGenerateMutationId(req, mutationId);
+        auto req = TTransactionYPathProxy::Commit(FromObjectId(Id_));
+        SetOrGenerateMutationId(req, mutationId);
 
-        auto rsp = Proxy.Execute(req);
+        auto rsp = Proxy_.Execute(req);
 
         auto this_ = MakeStrong(this);
         return rsp.Apply(BIND([this, this_] (TTransactionYPathProxy::TRspCommitPtr rsp) -> TError {
@@ -210,22 +211,22 @@ public:
             if (!rsp->IsOK()) {
                 // Let's pretend the transaction was aborted.
                 // No sync here, should be safe.
-                State = EState::Aborted;
+                State_ = EState::Aborted;
                 FireAbort();
-                return TError("Error committing transaction %s", ~ToString(Id))
+                return TError("Error committing transaction %s", ~ToString(Id_))
                     << rsp->GetError();
             }
-            LOG_INFO("Transaction committed (TransactionId: %s)", ~ToString(Id));
+            LOG_INFO("Transaction committed (TransactionId: %s)", ~ToString(Id_));
             return TError();
         }));
     }
 
-    void Commit(const NMetaState::TMutationId& mutationId) override
+    void Commit(const TMutationId& mutationId) override
     {
         AsyncCommit(mutationId).Get();
     }
 
-    void Abort(bool wait, const NMetaState::TMutationId& mutationId) override
+    void Abort(bool wait, const TMutationId& mutationId) override
     {
         bool generateMutationId = wait;
         auto rspFuture = AsyncAbort(generateMutationId, mutationId);
@@ -235,26 +236,33 @@ public:
         }
     }
 
-    virtual TAsyncError AsyncAbort(bool generateMutationId, const NMetaState::TMutationId& mutationId) override
+    virtual TAsyncError AsyncAbort(
+        bool generateMutationId,
+        const TMutationId& mutationId) override
     {
         auto this_ = MakeStrong(this);
         return InvokeAbort(generateMutationId, mutationId)
             .Apply(BIND([this, this_] (TTransactionYPathProxy::TRspAbortPtr rsp) -> TError {
                 if (!rsp->IsOK()) {
-                    return TError("Error aborting transaction") << rsp->GetError();
+                    return TError("Error aborting transaction") << *rsp;
                 }
                 HandleAbort();
                 return TError();
             }));
     }
 
-    void Detach() override
+    virtual TAsyncError AsyncPing() override
+    {
+        return SendPing();
+    }
+
+    virtual void Detach() override
     {
         VERIFY_THREAD_AFFINITY(ClientThread);
 
         {
-            TGuard<TSpinLock> guard(SpinLock);
-            switch (State) {
+            TGuard<TSpinLock> guard(SpinLock_);
+            switch (State_) {
                 case EState::Committed:
                     THROW_ERROR_EXCEPTION("Transaction is already committed");
                     break;
@@ -264,7 +272,7 @@ public:
                     break;
 
                 case EState::Active:
-                    State = EState::Detached;
+                    State_ = EState::Detached;
                     break;
 
                 case EState::Detached:
@@ -275,16 +283,16 @@ public:
             }
         }
 
-        LOG_INFO("Transaction detached: %s", ~ToString(Id));
+        LOG_INFO("Transaction detached (TransactionId: %s)", ~ToString(Id_));
     }
 
-    void SubscribeAborted(const TCallback<void()>& handler) override
+    virtual void SubscribeAborted(const TCallback<void()>& handler) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        Aborted.Subscribe(handler);
+        Aborted_.Subscribe(handler);
     }
 
-    void UnsubscribeAborted(const TCallback<void()>& handler) override
+    virtual void UnsubscribeAborted(const TCallback<void()>& handler) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
         YUNREACHABLE();
@@ -299,20 +307,19 @@ private:
         (Detached)
     );
 
-    TTransactionManagerPtr Owner;
-    bool AutoAbort;
-    bool Ping;
-    bool PingAncestors;
-    bool RegisterInManager;
+    TTransactionManagerPtr Owner_;
+    bool AutoAbort_;
+    bool Ping_;
+    bool PingAncestors_;
 
-    TObjectServiceProxy Proxy;
+    TObjectServiceProxy Proxy_;
 
     //! Protects state transitions.
-    TSpinLock SpinLock;
-    EState State;
-    TPromise<void> Aborted;
+    TSpinLock SpinLock_;
+    EState State_;
+    TPromise<void> Aborted_;
 
-    TTransactionId Id;
+    TTransactionId Id_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
 
@@ -320,53 +327,59 @@ private:
     void SchedulePing()
     {
         TDelayedInvoker::Submit(
-            BIND(&TTransaction::SendPing, MakeWeak(this)),
-            Owner->Config->PingPeriod);
+            BIND(IgnoreResult(&TTransaction::SendPing), MakeWeak(this)),
+            Owner_->Config->PingPeriod);
     }
 
-    void SendPing()
+    TAsyncError SendPing()
     {
-        LOG_DEBUG("Pinging transaction: %s", ~ToString(Id));
+        LOG_DEBUG("Pinging transaction (TransactionId: %s)", ~ToString(Id_));
 
-        auto req = TTransactionYPathProxy::Ping(FromObjectId(Id));
-        req->set_ping_ancestors(PingAncestors);
-        Owner->ObjectProxy.Execute(req).Subscribe(BIND(
+        auto req = TTransactionYPathProxy::Ping(FromObjectId(Id_));
+        req->set_ping_ancestors(PingAncestors_);
+        
+        return Owner_->ObjectProxy.Execute(req).Apply(BIND(
             &TTransaction::OnPingResponse,
-            MakeWeak(this)));
+            MakeStrong(this)));
     }
 
-    void OnPingResponse(TTransactionYPathProxy::TRspPingPtr rsp)
+    TError OnPingResponse(TTransactionYPathProxy::TRspPingPtr rsp)
     {
-        if (!rsp->IsOK()) {
+        if (rsp->IsOK()) {
+            LOG_DEBUG("Transaction pinged (TransactionId: %s)", ~ToString(Id_));
+
+            if (Ping_) {
+                SchedulePing();
+            }
+        } else {
             if (rsp->GetError().GetCode() == NYTree::EErrorCode::ResolveError) {
-                LOG_WARNING("Transaction has expired or was aborted: %s",
-                    ~ToString(Id));
+                LOG_WARNING("Transaction has expired or was aborted (TransactionId: %s)",
+                    ~ToString(Id_));
                 HandleAbort();
             } else {
-                LOG_WARNING(*rsp, "Error pinging transaction: %s",
-                    ~ToString(Id));
+                LOG_WARNING(*rsp, "Error pinging transaction (TransactionId: %s)",
+                    ~ToString(Id_));
             }
-            return;
         }
 
-        LOG_DEBUG("Transaction pinged: %s", ~ToString(Id));
-
-        SchedulePing();
+        return *rsp;
     }
 
 
-    TFuture<TTransactionYPathProxy::TRspAbortPtr> InvokeAbort(bool generateMutationId, const NMetaState::TMutationId& mutationId = NMetaState::NullMutationId)
+    TFuture<TTransactionYPathProxy::TRspAbortPtr> InvokeAbort(
+        bool generateMutationId,
+        const TMutationId& mutationId = NullMutationId)
     {
-        auto req = TTransactionYPathProxy::Abort(FromObjectId(Id));
+        auto req = TTransactionYPathProxy::Abort(FromObjectId(Id_));
         if (generateMutationId) {
-            NMetaState::SetOrGenerateMutationId(req, mutationId);
+            SetOrGenerateMutationId(req, mutationId);
         }
-        return Proxy.Execute(req);
+        return Proxy_.Execute(req);
     }
 
     void FireAbort()
     {
-        Aborted.Set();
+        Aborted_.Set();
     }
 
     void HandleAbort()
@@ -374,11 +387,11 @@ private:
         VERIFY_THREAD_AFFINITY_ANY();
 
         {
-            TGuard<TSpinLock> guard(SpinLock);
-            if (State != EState::Active) {
+            TGuard<TSpinLock> guard(SpinLock_);
+            if (State_ != EState::Active) {
                 return;
             }
-            State = EState::Aborted;
+            State_ = EState::Aborted;
         }
 
         FireAbort();

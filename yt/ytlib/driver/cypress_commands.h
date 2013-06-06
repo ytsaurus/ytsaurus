@@ -294,8 +294,6 @@ class TLinkCommand
 private:
     virtual void DoExecute() override;
 
-    NYTree::TYsonString OnLinkCreated(NCypressClient::TCypressYPathProxy::TRspCreatePtr rsp);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

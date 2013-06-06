@@ -142,7 +142,7 @@ void TYamrWriter::RememberItem(const TStringBuf& item, bool takeOwnership)
     if (takeOwnership) {
         buffer->Clear();
         buffer->PutData(item);
-        value->Assign(TStringBuf(buffer->Begin(), buffer->GetSize()));
+        value->Assign(buffer->Blob().ToStringBuf());
     } else {
         value->Assign(item);
     }

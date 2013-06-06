@@ -87,6 +87,12 @@ public:
         return Capacity_;
     }
 
+    //! Returns the TStringBuf instance for the occupied part of the blob.
+    FORCED_INLINE TStringBuf ToStringBuf() const
+    {
+        return TStringBuf(Begin_, Size_);
+    }
+
     //! Provides by-value access to the underlying storage.
     FORCED_INLINE char operator [] (size_t index) const
     {

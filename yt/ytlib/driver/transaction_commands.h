@@ -29,7 +29,7 @@ class TStartTransactionCommand
     : public TTypedCommand<TStartTransactionRequest>
 {
 private:
-    virtual void DoExecute();
+    virtual void DoExecute() override;
 
 };
 
@@ -45,7 +45,7 @@ class TPingTransactionCommand
     : public TTypedCommand<TPingTransactionRequest>
 {
 private:
-    virtual void DoExecute();
+    virtual void DoExecute() override;
 
 };
 
@@ -62,7 +62,7 @@ class TCommitTransactionCommand
     : public TTypedCommand<TCommitTransactionRequest>
 {
 private:
-    virtual void DoExecute();
+    virtual void DoExecute() override;
 
 };
 
@@ -79,7 +79,7 @@ class TAbortTransactionCommand
     : public TTypedCommand<TAbortTransactionRequest>
 {
 private:
-    virtual void DoExecute();
+    virtual void DoExecute() override;
 
 };
 

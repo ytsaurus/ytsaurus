@@ -39,7 +39,7 @@ class TMapCommand
     : public TSchedulerCommandBase
 {
 private:
-    virtual void DoExecute();
+    virtual void DoExecute() override;
 
 };
 
@@ -49,7 +49,7 @@ class TMergeCommand
     : public TSchedulerCommandBase
 {
 private:
-    virtual void DoExecute();
+    virtual void DoExecute() override;
 
 };
 
@@ -59,7 +59,7 @@ class TSortCommand
     : public TSchedulerCommandBase
 {
 private:
-    virtual void DoExecute();
+    virtual void DoExecute() override;
 
 };
 
@@ -69,7 +69,7 @@ class TEraseCommand
     : public TSchedulerCommandBase
 {
 private:
-    virtual void DoExecute();
+    virtual void DoExecute() override;
 
 };
 
@@ -79,7 +79,7 @@ class TReduceCommand
     : public TSchedulerCommandBase
 {
 private:
-    virtual void DoExecute();
+    virtual void DoExecute() override;
 
 };
 
@@ -89,7 +89,7 @@ class TMapReduceCommand
     : public TSchedulerCommandBase
 {
 private:
-    virtual void DoExecute();
+    virtual void DoExecute() override;
 
 };
 
@@ -112,7 +112,7 @@ class TAbortOperationCommand
     : public TTypedCommandBase<TSimpleOperationRequest>
 {
 private:
-    virtual void DoExecute();
+    virtual void DoExecute() override;
 
 };
 
@@ -122,7 +122,7 @@ class TSuspendOperationCommand
     : public TTypedCommandBase<TSimpleOperationRequest>
 {
 private:
-    virtual void DoExecute();
+    virtual void DoExecute() override;
 
 };
 
@@ -132,7 +132,7 @@ class TResumeOperationCommand
     : public TTypedCommandBase<TSimpleOperationRequest>
 {
 private:
-    virtual void DoExecute();
+    virtual void DoExecute() override;
 
 };
 

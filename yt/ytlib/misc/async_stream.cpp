@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "async_stream.h"
 
 namespace NYT {
@@ -10,14 +11,15 @@ class TSyncInputStream
     : public TInputStream
 {
 public:
-    TSyncInputStream(IAsyncInputStreamPtr asyncStream)
+    explicit TSyncInputStream(IAsyncInputStreamPtr asyncStream)
         : AsyncStream_(asyncStream)
     { }
 
     virtual size_t DoRead(void* buf, size_t len) override
     {
         if (!AsyncStream_->Read(buf, len)) {
-            Sync(~AsyncStream_, &IAsyncInputStream::GetReadFuture);
+            auto result = AsyncStream_->GetReadyEvent().Get();
+            THROW_ERROR_EXCEPTION_IF_FAILED(result);
         }
         return AsyncStream_->GetReadLength();
     }
@@ -26,12 +28,11 @@ public:
     { }
 
 private:
-    size_t result;
-
     IAsyncInputStreamPtr AsyncStream_;
+
 };
 
-} // anonymous namespace
+} // namespace
 
 std::unique_ptr<TInputStream> CreateSyncInputStream(IAsyncInputStreamPtr asyncStream)
 {
@@ -46,33 +47,34 @@ class TInputStreamAsyncWrapper
     : public IAsyncInputStream
 {
 public:
-    TInputStreamAsyncWrapper(TInputStream* inputStream):
-        InputStream_(inputStream)
+    explicit TInputStreamAsyncWrapper(TInputStream* inputStream)
+        : InputStream_(inputStream)
+        , Length_(0)
     { }
     
     virtual bool Read(void* buf, size_t len) override
     {
-        length = InputStream_->Read(buf, len);
+        Length_ = InputStream_->Read(buf, len);
         return true;
-    }
-    
-    virtual TAsyncError GetReadFuture() override
-    {
-        YUNREACHABLE();
     }
 
     virtual size_t GetReadLength() const override
     {
-        return length;
+        return Length_;
+    }
+    
+    virtual TAsyncError GetReadyEvent() override
+    {
+        YUNREACHABLE();
     }
 
 private:
-    size_t length;
-
     TInputStream* InputStream_;
+    size_t Length_;
+
 };
 
-} // anonymous namespace
+} // namespace
 
 IAsyncInputStreamPtr CreateAsyncInputStream(TInputStream* asyncStream)
 {
@@ -87,14 +89,15 @@ class TSyncOutputStream
     : public TOutputStream
 {
 public:
-    TSyncOutputStream(IAsyncOutputStreamPtr asyncStream)
+    explicit TSyncOutputStream(IAsyncOutputStreamPtr asyncStream)
         : AsyncStream_(asyncStream)
     { }
 
     virtual void DoWrite(const void* buf, size_t len) override
     {
         if (!AsyncStream_->Write(buf, len)) {
-            Sync(~AsyncStream_, &IAsyncOutputStream::GetWriteFuture);
+            auto result = AsyncStream_->GetReadyEvent().Get();
+            THROW_ERROR_EXCEPTION_IF_FAILED(result);
         }
     }
     
@@ -103,6 +106,7 @@ public:
 
 private:
     IAsyncOutputStreamPtr AsyncStream_;
+
 };
 
 } // anonymous namespace
@@ -120,8 +124,8 @@ class TOutputStreamAsyncWrapper
     : public IAsyncOutputStream
 {
 public:
-    TOutputStreamAsyncWrapper(TOutputStream* inputStream):
-        OutputStream_(inputStream)
+    explicit TOutputStreamAsyncWrapper(TOutputStream* inputStream)
+        : OutputStream_(inputStream)
     { }
     
     virtual bool Write(const void* buf, size_t len) override
@@ -130,13 +134,14 @@ public:
         return true;
     }
     
-    virtual TAsyncError GetWriteFuture() override
+    virtual TAsyncError GetReadyEvent() override
     {
         YUNREACHABLE();
     }
 
 private:
     TOutputStream* OutputStream_;
+
 };
 
 } // anonymous namespace

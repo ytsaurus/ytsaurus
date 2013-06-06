@@ -207,8 +207,10 @@ std::unique_ptr<IYsonConsumer> CreateConsumerForYamredDsv(
     return std::unique_ptr<IYsonConsumer>(new TYamredDsvWriter(output, config));
 }
 
-
-std::unique_ptr<IYsonConsumer> CreateConsumerForFormat(const TFormat& format, EDataType dataType, TOutputStream* output)
+std::unique_ptr<IYsonConsumer> CreateConsumerForFormat(
+    const TFormat& format,
+    EDataType dataType,
+    TOutputStream* output)
 {
     switch (format.GetType()) {
         case EFormatType::Yson:

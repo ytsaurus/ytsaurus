@@ -26,7 +26,7 @@ public:
     NTableClient::TTableWriterConfigPtr TableWriter;
     NChunkClient::TClientBlockCacheConfigPtr BlockCache;
     bool ReadFromFollowers;
-    size_t ReadBufferSize;
+    i64 ReadBufferSize;
 
     TDriverConfig()
     {
@@ -47,7 +47,7 @@ public:
             .Describe("Enable read-only requests to followers")
             .Default(false);
         RegisterParameter("read_buffer_size", ReadBufferSize)
-            .Default(1024 * 1024);
+            .Default((i64) 1024 * 1024);
     }
 };
 

@@ -17,6 +17,7 @@
 #include <ytlib/transaction_client/transaction.h>
 
 #include <ytlib/file_client/file_ypath_proxy.h>
+#include <ytlib/file_client/file_chunk_reader.h>
 
 #include <ytlib/table_client/table_producer.h>
 #include <ytlib/table_client/table_chunk_reader.h>
@@ -62,6 +63,7 @@ using namespace NYson;
 using namespace NChunkClient;
 using namespace NTableClient;
 using namespace NTableClient::NProto;
+using namespace NFileClient;
 using namespace NCellNode;
 using namespace NChunkHolder;
 using namespace NCellNode;
@@ -624,10 +626,13 @@ private:
         YCHECK(JobPhase == EJobPhase::PreparingFiles);
 
         auto chunks = PatchCachedChunkReplicas(descriptor.file());
-        auto config = New<NFileClient::TFileReaderConfig>();
+        auto config = New<TFileReaderConfig>();
 
-        auto provider = New<NFileClient::TFileChunkReaderProvider>(config);
-        auto reader = New<NFileClient::TFileChunkSequenceReader>(
+        auto provider = New<TFileChunkReaderProvider>(config);
+
+        typedef TMultiChunkSequentialReader<TFileChunkReader> TReader;
+        
+        auto reader = New<TReader>(
             config,
             Bootstrap->GetMasterChannel(),
             Bootstrap->GetBlockStore()->GetBlockCache(),
@@ -642,6 +647,9 @@ private:
             }
 
             auto producer = [&] (TOutputStream* output) {
+                // XXX(babenko): VS2010 compatibility
+                typedef TMultiChunkSequentialReader<TFileChunkReader> TReader;
+
                 auto* facade = reader->GetFacade();
                 while (facade) {
                     auto block = facade->GetBlock();
