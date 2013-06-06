@@ -164,16 +164,25 @@ void TTableChunkWriter::FinalizeRow(const TRow& row)
         EmitSample(row, &FirstSample);
     }
 
-    i64 maxSamplesSize = static_cast<i64>(3 * Config->SampleRate * 
-        std::max(DataWeight, Config->BlockSize) * 
-        EncodingWriter->GetCompressionRatio());
-
-    if (RandomNumber<double>() < Config->SampleRate && SamplesSize < maxSamplesSize)
-    {
-        EmitSample(row, SamplesExt.add_items());
-    }
-
     RowCount += 1;
+
+    double avgSampleSize = double(SamplesSize) / SamplesExt.items_size();
+    double avgRowWeight = double(DataWeight) / RowCount;
+    double sampleProbability = Config->SampleRate 
+        * avgRowWeight 
+        * EncodingWriter->GetCompressionRatio() 
+        / avgSampleSize;
+
+    if (RandomNumber<double>() < sampleProbability) {
+        i64 maxSamplesSize = static_cast<i64>(3 * 
+            Config->SampleRate * 
+            std::max(DataWeight, Config->BlockSize) * 
+            EncodingWriter->GetCompressionRatio());
+
+        if (SamplesSize < maxSamplesSize) {
+            SamplesSize += EmitSample(row, SamplesExt.add_items());
+        }
+    }
 
     CurrentSize = EncodingWriter->GetCompressedSize();
     FOREACH (const auto& channel, Buffers) {
@@ -435,8 +444,9 @@ void TTableChunkWriter::EmitIndexEntry()
     IndexSize += LastKey.GetSize();
 }
 
-void TTableChunkWriter::EmitSample(const TRow& row, NProto::TSample* sample)
+i64 TTableChunkWriter::EmitSample(const TRow& row, NProto::TSample* sample)
 {
+    i64 size = 0;
     std::map<TStringBuf, TStringBuf> sortedRow(row.begin(), row.end());
     FOREACH (const auto& pair, sortedRow) {
         auto* part = sample->add_parts();
@@ -452,7 +462,7 @@ void TTableChunkWriter::EmitSample(const TRow& row, NProto::TSample* sample)
             case ETokenType::Integer:
                 *part->mutable_key_part() = TKeyPart<TStringBuf>::CreateValue(
                     token.GetIntegerValue()).ToProto();
-                SamplesSize += sizeof(i64);
+                size += sizeof(i64);
                 break;
 
             case ETokenType::String: {
@@ -460,14 +470,14 @@ void TTableChunkWriter::EmitSample(const TRow& row, NProto::TSample* sample)
                 keyPart->set_type(EKeyPartType::String);
                 size_t partSize = std::min(token.GetStringValue().size(), MaxKeySize);
                 keyPart->set_str_value(token.GetStringValue().begin(), partSize);
-                SamplesSize += partSize;
+                size += partSize;
                 break;
             }
 
             case ETokenType::Double:
                 *part->mutable_key_part() = TKeyPart<TStringBuf>::CreateValue(
                     token.GetDoubleValue()).ToProto();
-                SamplesSize += sizeof(double);
+                size += sizeof(double);
                 break;
 
             default:
@@ -475,6 +485,8 @@ void TTableChunkWriter::EmitSample(const TRow& row, NProto::TSample* sample)
                 break;
         }
     }
+
+    return size;
 }
 
 NChunkClient::NProto::TChunkMeta TTableChunkWriter::GetMasterMeta() const
