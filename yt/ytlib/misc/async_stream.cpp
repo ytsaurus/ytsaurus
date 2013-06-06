@@ -54,8 +54,19 @@ public:
     
     virtual bool Read(void* buf, size_t len) override
     {
-        Length_ = InputStream_->Read(buf, len);
-        return true;
+        try {
+            Length_ = InputStream_->Read(buf, len);
+            return true;
+        }
+        catch (const std::exception& ex) {
+            Result_ = MakeFuture(TError("Failed writing to stream") << ex);
+            return false;
+        }
+    }
+    
+    virtual TAsyncError GetReadyEvent() override
+    {
+        return Result_;
     }
 
     virtual size_t GetReadLength() const override
@@ -63,15 +74,12 @@ public:
         return Length_;
     }
     
-    virtual TAsyncError GetReadyEvent() override
-    {
-        YUNREACHABLE();
-    }
-
 private:
     TInputStream* InputStream_;
+    
     size_t Length_;
 
+    TAsyncError Result_;
 };
 
 } // namespace
@@ -130,18 +138,25 @@ public:
     
     virtual bool Write(const void* buf, size_t len) override
     {
-        OutputStream_->Write(buf, len);
+        try {
+            OutputStream_->Write(buf, len);
+        }
+        catch (const std::exception& ex) {
+            Result_ = MakeFuture(TError("Failed writing to stream") << ex);
+            return false;
+        }
         return true;
     }
     
     virtual TAsyncError GetReadyEvent() override
     {
-        YUNREACHABLE();
+        return Result_;
     }
 
 private:
     TOutputStream* OutputStream_;
 
+    TAsyncError Result_;
 };
 
 } // anonymous namespace
