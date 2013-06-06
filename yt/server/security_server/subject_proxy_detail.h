@@ -4,6 +4,8 @@
 #include "user.h"
 #include "group.h"
 
+#include <ytlib/ytree/convert.h>
+
 #include <server/object_server/object_detail.h>
 
 #include <server/cell_master/public.h>
@@ -75,7 +77,7 @@ protected:
         auto* subject = this->GetThisTypedImpl();
 
         if (key == "name") {
-            auto newName = ConvertTo<Stroka>(value);
+            auto newName = NYTree::ConvertTo<Stroka>(value);
             if (newName != subject->GetName()) {
                 auto securityManager = this->Bootstrap->GetSecurityManager();
                 if (securityManager->FindSubjectByName(newName)) {
