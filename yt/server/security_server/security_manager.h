@@ -88,6 +88,8 @@ public:
     //! Removes account association (if any) from the node.
     void ResetAccount(NCypressServer::TCypressNodeBase* node);
 
+    //! Updates the name of the account.
+    void RenameAccount(TAccount* account, const Stroka& newName);
 
     //! Updates the account to accommodate recent changes in #node resource usage.
     void UpdateAccountNodeUsage(NCypressServer::TCypressNodeBase* node);
@@ -127,6 +129,10 @@ public:
 
     //! Removes an existing member from the group. Throws on failure.
     void RemoveMember(TGroup* group, TSubject* member);
+
+
+    //! Updates the name of the subject.
+    void RenameSubject(TSubject* subject, const Stroka& newName);
 
 
     //! Returns the set of supported permissions.

@@ -91,6 +91,7 @@ private:
     virtual bool SetSystemAttribute(const Stroka& key, const NYTree::TYsonString& value) override
     {
         auto* account = GetThisTypedImpl();
+        auto securityManager = Bootstrap->GetSecurityManager();
 
         if (key == "resource_limits") {
             account->ResourceLimits() = ConvertTo<TClusterResources>(value);
@@ -99,14 +100,7 @@ private:
 
         if (key == "name") {
             auto newName = ConvertTo<Stroka>(value);
-            if (newName != account->GetName()) {
-                auto securityManager = Bootstrap->GetSecurityManager();
-                if (securityManager->FindAccountByName(newName)) {
-                    THROW_ERROR_EXCEPTION("Account %s already exists",
-                        ~newName.Quote());
-                }
-                account->SetName(newName);
-            }
+            securityManager->RenameAccount(account, newName);
             return true;
         }
 

@@ -75,17 +75,11 @@ protected:
     virtual bool SetSystemAttribute(const Stroka& key, const NYTree::TYsonString& value) override
     {
         auto* subject = this->GetThisTypedImpl();
+        auto securityManager = this->Bootstrap->GetSecurityManager();
 
         if (key == "name") {
             auto newName = NYTree::ConvertTo<Stroka>(value);
-            if (newName != subject->GetName()) {
-                auto securityManager = this->Bootstrap->GetSecurityManager();
-                if (securityManager->FindSubjectByName(newName)) {
-                    THROW_ERROR_EXCEPTION("Subject %s already exists",
-                        ~newName.Quote());
-                }
-                subject->SetName(newName);
-            }
+            securityManager->RenameSubject(subject, newName);
             return true;
         }
 

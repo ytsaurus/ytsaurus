@@ -373,6 +373,20 @@ public:
         objectManager->UnrefObject(account);
     }
 
+    void RenameAccount(TAccount* account, const Stroka& newName)
+    {
+        if (newName === account->GetName())
+            return;
+
+        if (FindAccountByName(newName)) {
+            THROW_ERROR_EXCEPTION("Account %s already exists",
+                ~newName.Quote());
+        }
+
+        YCHECK(AccountNameMap.erase(account->GetName()) == 1);
+        YCHECK(AccountNameMap.insert(std::make_pair(newName, account)).second);
+        account->SetName(newName);
+    }
 
     void UpdateAccountNodeUsage(TCypressNodeBase* node)
     {
@@ -555,6 +569,34 @@ public:
         }
 
         DoRemoveMember(group, member);
+    }
+
+
+    void RenameSubject(TSubject* subject, const Stroka& newName)
+    {
+        if (newName == subject->GetName())
+            return;
+
+        if (FindSubjectByName(newName)) {
+            THROW_ERROR_EXCEPTION("Subject %s already exists",
+                ~newName.Quote());
+        }
+
+        switch (subject->GetType()) {
+            case EObjectType::User:
+                YCHECK(UserNameMap.erase(subject->GetName()) == 1);
+                YCHECK(UserNameMap.insert(std::make_pair(newName, subject->AsUser())).second);
+                break;
+
+            case EObjectType::Group:
+                YCHECK(GroupNameMap.erase(subject->GetName()) == 1);
+                YCHECK(GroupNameMap.insert(std::make_pair(newName, subject->AsGroup())).second);
+                break;
+
+            default:
+                YUNREACHABLE();
+        }
+        subject->SetName(newName);
     }
 
 
@@ -1287,6 +1329,11 @@ void TSecurityManager::ResetAccount(TCypressNodeBase* node)
     Impl->ResetAccount(node);
 }
 
+void TSecurityManager::RenameAccount(TAccount* account, const Stroka& newName)
+{
+    Impl->RenameAccount(account, name);
+}
+
 void TSecurityManager::UpdateAccountNodeUsage(TCypressNodeBase* node)
 {
     Impl->UpdateAccountNodeUsage(node);
@@ -1343,6 +1390,11 @@ void TSecurityManager::AddMember(TGroup* group, TSubject* member)
 void TSecurityManager::RemoveMember(TGroup* group, TSubject* member)
 {
     Impl->RemoveMember(group, member);
+}
+
+void TSecurityManager::RenameSubject(TSubject* subject, const Stroka& newName)
+{
+    Impl->RenameSubject(subject, newName);
 }
 
 EPermissionSet TSecurityManager::GetSupportedPermissions(TObjectBase* object)
