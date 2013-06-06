@@ -10,6 +10,8 @@
 #include <ytlib/misc/fs.h>
 #include <ytlib/misc/assert.h>
 
+#include <ytlib/fibers/fiber.h>
+
 #include <ytlib/ytree/serialize.h>
 
 #include <ytlib/transaction_client/transaction.h>
@@ -140,11 +142,11 @@ public:
         auto slotManager = Bootstrap->GetSlotManager();
         Slot = slotManager->AcquireSlot();
 
-        VERIFY_INVOKER_AFFINITY(Slot->GetInvoker(), JobThread);
+        auto invoker = Slot->GetInvoker();
+        
+        VERIFY_INVOKER_AFFINITY(invoker, JobThread);
 
-        Slot->GetInvoker()->Invoke(BIND(
-            &TJob::DoStart,
-            MakeWeak(this)));
+        invoker->Invoke(BIND(&TJob::DoRun, MakeWeak(this)));
     }
 
     virtual void Abort(const TError& error) override
@@ -289,53 +291,77 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
 
-    void DoStart()
+    void DoRun()
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        if (JobPhase > EJobPhase::Cleanup)
+        ThrowIfFinished();
+
+        try {
+            YCHECK(JobPhase == EJobPhase::Created);
+            JobPhase = EJobPhase::PreparingConfig;
+            PrepareConfig();
+
+            YCHECK(JobPhase == EJobPhase::PreparingConfig);
+            JobPhase = EJobPhase::PreparingProxy;
+            PrepareProxy();
+
+            YCHECK(JobPhase == EJobPhase::PreparingProxy);
+            JobPhase = EJobPhase::PreparingSandbox;
+            Slot->InitSandbox();
+
+            YCHECK(JobPhase == EJobPhase::PreparingSandbox);
+            JobPhase = EJobPhase::PreparingFiles;
+            PrepareUserFiles();
+
+            YCHECK(JobPhase == EJobPhase::PreparingFiles);
+            JobPhase = EJobPhase::Running;
+            RunJobProxy();
+        } catch (const std::exception& ex) {
+            DoAbort(ex, EJobState::Failed);
+        }
+    }
+
+
+    void PrepareConfig()
+    {
+        INodePtr ioConfigNode;
+        try {
+            auto* schedulerJobSpecExt = JobSpec.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+            ioConfigNode = ConvertToNode(TYsonString(schedulerJobSpecExt->io_config()));
+        } catch (const std::exception& ex) {
+            auto wrappedError = TError("Error deserializing job IO configuration")
+                << ex;
+            DoAbort(wrappedError, EJobState::Failed);
             return;
-        YCHECK(JobPhase == EJobPhase::Created);
-        JobPhase = EJobPhase::PreparingConfig;
-
-        {
-            INodePtr ioConfigNode;
-            try {
-                auto* schedulerJobSpecExt = JobSpec.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-                ioConfigNode = ConvertToNode(TYsonString(schedulerJobSpecExt->io_config()));
-            } catch (const std::exception& ex) {
-                auto wrappedError = TError("Error deserializing job IO configuration")
-                    << ex;
-                DoAbort(wrappedError, EJobState::Failed);
-                return;
-            }
-
-            auto ioConfig = New<TJobIOConfig>();
-            try {
-                ioConfig->Load(ioConfigNode);
-            } catch (const std::exception& ex) {
-                auto error = TError("Error validating job IO configuration")
-                    << ex;
-                DoAbort(error, EJobState::Failed);
-                return;
-            }
-
-            auto proxyConfig = CloneYsonSerializable(Bootstrap->GetJobProxyConfig());
-            proxyConfig->JobIO = ioConfig;
-            proxyConfig->UserId = Slot->GetUserId();
-
-            auto proxyConfigPath = NFS::CombinePaths(
-                Slot->GetWorkingDirectory(),
-                ProxyConfigFileName);
-
-            TFile file(proxyConfigPath, CreateAlways | WrOnly | Seq | CloseOnExec);
-            TFileOutput output(file);
-            TYsonWriter writer(&output, EYsonFormat::Pretty);
-            proxyConfig->Save(&writer);
         }
 
-        JobPhase = EJobPhase::PreparingProxy;
+        auto ioConfig = New<TJobIOConfig>();
+        try {
+            ioConfig->Load(ioConfigNode);
+        } catch (const std::exception& ex) {
+            auto error = TError("Error validating job IO configuration")
+                << ex;
+            DoAbort(error, EJobState::Failed);
+            return;
+        }
 
+        auto proxyConfig = CloneYsonSerializable(Bootstrap->GetJobProxyConfig());
+        proxyConfig->JobIO = ioConfig;
+        proxyConfig->UserId = Slot->GetUserId();
+
+        auto proxyConfigPath = NFS::CombinePaths(
+            Slot->GetWorkingDirectory(),
+            ProxyConfigFileName);
+
+        TFile file(proxyConfigPath, CreateAlways | WrOnly | Seq | CloseOnExec);
+        TFileOutput output(file);
+        TYsonWriter writer(&output, EYsonFormat::Pretty);
+        proxyConfig->Save(&writer);
+    }
+
+    void PrepareProxy()
+    {
         Stroka environmentType = "default";
         try {
             auto environmentManager = Bootstrap->GetEnvironmentManager();
@@ -347,34 +373,94 @@ private:
                 JobId,
                 Slot->GetWorkingDirectory());
         } catch (const std::exception& ex) {
-            auto wrappedError = TError(
+            THROW_ERROR_EXCEPTION(
                 "Failed to create proxy controller for environment %s",
                 ~environmentType.Quote())
                 << ex;
-            DoAbort(wrappedError, EJobState::Failed);
+        }
+    }
+
+    void PrepareUserFiles()
+    {
+        if (!UserJobSpec)
             return;
+
+        auto invoker = Slot->GetInvoker();
+
+        auto awaiter = New<TParallelAwaiter>(invoker);
+
+        FOREACH (const auto& descriptor, UserJobSpec->regular_files()) {
+            awaiter->Await(
+                BIND(&TJob::PrepareRegularFile, MakeStrong(this), descriptor)
+                    .AsyncVia(invoker)
+                    .Run());
         }
 
-        JobPhase = EJobPhase::PreparingSandbox;
-        Slot->InitSandbox();
+        FOREACH (const auto& descriptor, UserJobSpec->table_files()) {
+            awaiter->Await(
+                BIND(&TJob::PrepareTableFile, MakeStrong(this), descriptor)
+                    .AsyncVia(invoker)
+                    .Run());
+        }
 
-        PrepareUserJob().Subscribe(
-            BIND(&TJob::RunJobProxy, MakeStrong(this))
-            .Via(Slot->GetInvoker()));
+        CheckedWaitFor(awaiter->Complete());
     }
+
+
+    void RunJobProxy()
+    {
+        // TODO(babenko): refactor
+        auto exitPromise = NewPromise<TError>();
+        ProxyController->SubscribeExited(BIND([=] (TError error) mutable {
+            exitPromise.Set(error);
+        }));
+
+        ProxyController->Run();
+
+        auto exitResult = CheckedWaitFor(exitPromise.ToFuture());
+        THROW_ERROR_EXCEPTION_IF_FAILED(exitResult);
+
+        if (!IsResultSet()) {
+            THROW_ERROR_EXCEPTION("Job proxy exited successfully but job result has not been set");
+        }
+
+        // NB: we should explicitly call Kill() to clean up possible child processes.
+        ProxyController->Kill(Slot->GetUserId(), TError());
+
+        YCHECK(JobPhase == EJobPhase::Running);
+        JobPhase = EJobPhase::Cleanup;
+
+        Slot->Clean();
+
+        YCHECK(JobPhase == EJobPhase::Cleanup);
+        JobPhase = EJobPhase::Finished;
+
+        {
+            TGuard<TSpinLock> guard(ResultLock);
+            JobState = FinalJobState;
+        }
+
+        FinalizeJob();
+    }
+
+
+    void FinalizeJob()
+    {
+        Slot->Release();
+        SetResourceUsage(ZeroNodeResources());
+        ResourcesReleased_.Fire();
+    }
+
 
     void DoAbort(const TError& error, EJobState resultState)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        if (JobPhase > EJobPhase::Cleanup) {
+        if (JobPhase == EJobPhase::Finished) {
             JobState = resultState;
             return;
         }
-
         JobState = EJobState::Aborting;
-
-        YCHECK(JobPhase < EJobPhase::Cleanup);
 
         const auto jobPhase = JobPhase;
         JobPhase = EJobPhase::Cleanup;
@@ -404,95 +490,6 @@ private:
         FinalizeJob();
     }
 
-
-    TFuture<void> PrepareUserJob()
-    {
-        if (!UserJobSpec) {
-            return MakeFuture();
-        }
-
-        auto awaiter = New<TParallelAwaiter>(Slot->GetInvoker());
-
-        FOREACH (const auto& descriptor, UserJobSpec->regular_files()) {
-            awaiter->Await(DownloadRegularFile(descriptor));
-        }
-
-        FOREACH (const auto& descriptor, UserJobSpec->table_files()) {
-            awaiter->Await(DownloadTableFile(descriptor));
-        }
-
-        return awaiter->Complete();
-    }
-
-
-    void RunJobProxy()
-    {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
-        if (JobPhase > EJobPhase::Cleanup)
-            return;
-
-        YCHECK(JobPhase == EJobPhase::PreparingSandbox);
-
-        try {
-            JobPhase = EJobPhase::Running;
-            ProxyController->Run();
-        } catch (const std::exception& ex) {
-            DoAbort(ex, EJobState::Failed);
-            return;
-        }
-
-        ProxyController->SubscribeExited(BIND(
-            &TJob::OnProxyFinished,
-            MakeWeak(this)).Via(Slot->GetInvoker()));
-    }
-
-    void OnProxyFinished(TError exitError)
-    {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
-        if (JobPhase > EJobPhase::Cleanup)
-            return;
-
-        YCHECK(JobPhase < EJobPhase::Cleanup);
-
-        if (!exitError.IsOK()) {
-            DoAbort(exitError, EJobState::Failed);
-            return;
-        }
-
-        if (!IsResultSet()) {
-            DoAbort(
-                TError("Job proxy exited successfully but job result has not been set"),
-                EJobState::Failed);
-            return;
-        }
-
-        // NB: we should explicitly call Kill() to clean up possible child processes.
-        ProxyController->Kill(Slot->GetUserId(), TError());
-
-        JobPhase = EJobPhase::Cleanup;
-        Slot->Clean();
-
-        JobPhase = EJobPhase::Finished;
-
-        {
-            TGuard<TSpinLock> guard(ResultLock);
-            JobState = FinalJobState;
-        }
-
-        FinalizeJob();
-    }
-
-
-    void FinalizeJob()
-    {
-        Slot->Release();
-        SetResourceUsage(ZeroNodeResources());
-        ResourcesReleased_.Fire();
-    }
-
-
     void SetResult(const TError& error)
     {
         TJobResult jobResult;
@@ -506,6 +503,7 @@ private:
         return JobResult.HasValue();
     }
 
+
     TFuture<void> DownloadChunks(const NChunkClient::NProto::TRspFetch& fetchRsp)
     {
         auto awaiter = New<TParallelAwaiter>(Slot->GetInvoker());
@@ -517,7 +515,7 @@ private:
 
             if (IsErasureChunkId(chunkId)) {
                 DoAbort(
-                    TError("Cannot download erasure chunk (ChunkId: %s)", ~ToString(chunkId)),
+                    TError("Cannot download erasure chunk %s", ~ToString(chunkId)),
                     EJobState::Failed);
                 break;
             }
@@ -527,7 +525,7 @@ private:
                 BIND([=](NChunkHolder::TChunkCache::TDownloadResult result) {
                     if (!result.IsOK()) {
                         auto wrappedError = TError(
-                            "Failed to download chunk (ChunkId: %s)",
+                            "Failed to download chunk %s",
                             ~ToString(chunkId))
                             << result;
                         this_->DoAbort(wrappedError, EJobState::Failed);
@@ -552,86 +550,78 @@ private:
         return chunks;
     }
 
-    TFuture<void> DownloadRegularFile(const TRegularFileDescriptor& descriptor)
+
+    void PrepareRegularFile(const TRegularFileDescriptor& descriptor)
     {
-        if (descriptor.file().chunks_size() == 1) {
-            const auto& chunk = descriptor.file().chunks(0);
-            auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunk.extensions());
-            auto compressionCodecId = NCompression::ECodec(miscExt.compression_codec());
-            auto chunkId = FromProto<TChunkId>(chunk.chunk_id());
-            if (!IsErasureChunkId(chunkId) && (compressionCodecId == NCompression::ECodec::None)) {
-                LOG_INFO("Downloading symlinked user file (FileName: %s, ChunkId: %s)",
-                    ~descriptor.file_name(),
-                    ~ToString(chunkId));
-
-                auto awaiter = New<TParallelAwaiter>(Slot->GetInvoker());
-                auto chunkCache = Bootstrap->GetChunkCache();
-                awaiter->Await(
-                    chunkCache->DownloadChunk(chunkId),
-                    BIND(&TJob::OnSymlinkChunkDownloaded, MakeWeak(this), descriptor));
-
-                return awaiter->Complete();
+        try {
+            if (CanPrepareRegularFileViaSymlink(descriptor)) {
+                PrepareRegularFileViaSymlink(descriptor);
+            } else {
+                PrepareRegularFileViaDownload(descriptor);
             }
+        } catch (const std::exception& ex) {
+            DoAbort(ex, EJobState::Failed);
         }
-
-        LOG_INFO("Downloading regular user file (FileName: %s, ChunkCount: %d)",
-            ~descriptor.file_name(),
-            static_cast<int>(descriptor.file().chunks_size()));
-
-        return DownloadChunks(descriptor.file()).Apply(BIND(
-            &TJob::OnFileChunksDownloaded,
-            MakeWeak(this),
-            descriptor).Via(Slot->GetInvoker()));
     }
 
-    void OnSymlinkChunkDownloaded(
-        const TRegularFileDescriptor& descriptor,
-        TChunkCache::TDownloadResult result)
+    bool CanPrepareRegularFileViaSymlink(const TRegularFileDescriptor& descriptor)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
-        if (JobPhase > EJobPhase::Cleanup)
-            return;
-        YCHECK(JobPhase == EJobPhase::PreparingSandbox);
-
-        auto fileName = descriptor.file_name();
-
-        if (!result.IsOK()) {
-            auto wrappedError = TError(
-                "Failed to download user file %s",
-                ~fileName.Quote())
-                << result;
-            DoAbort(wrappedError, EJobState::Failed);
-            return;
+        if (descriptor.file().chunks_size() != 1) {
+            return false;
         }
 
-        CachedChunks.push_back(result.GetValue());
+        const auto& chunk = descriptor.file().chunks(0);
+        auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunk.extensions());
+        auto compressionCodecId = NCompression::ECodec(miscExt.compression_codec());
+        auto chunkId = FromProto<TChunkId>(chunk.chunk_id());
+        return !IsErasureChunkId(chunkId) && (compressionCodecId == NCompression::ECodec::None);
+    }
+
+    void PrepareRegularFileViaSymlink(const TRegularFileDescriptor& descriptor)
+    {
+        const auto& chunkSpec = descriptor.file().chunks(0);
+        auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
+        const auto& fileName = descriptor.file_name();
+
+        LOG_INFO("Preparing regular user file via symlink (FileName: %s, ChunkId: %s)",
+            ~fileName,
+            ~ToString(chunkId));
+
+        auto chunkCache = Bootstrap->GetChunkCache();
+        auto chunkOrError = CheckedWaitFor(chunkCache->DownloadChunk(chunkId));
+        YCHECK(JobPhase == EJobPhase::PreparingFiles);
+        THROW_ERROR_EXCEPTION_IF_FAILED(chunkOrError, "Failed to download user file %s",
+            ~fileName.Quote());
+
+        auto chunk = chunkOrError.GetValue();
+        CachedChunks.push_back(chunk);
 
         try {
             Slot->MakeLink(
                 fileName,
-                CachedChunks.back()->GetFileName(),
+                chunk->GetFileName(),
                 descriptor.executable());
         } catch (const std::exception& ex) {
-            auto wrappedError = TError(
+            THROW_ERROR_EXCEPTION(
                 "Failed to create a symlink for %s",
                 ~fileName.Quote())
                 << ex;
-            DoAbort(wrappedError, EJobState::Failed);
-            return;
         }
 
-        LOG_INFO("User file downloaded successfully (FileName: %s)",
+        LOG_INFO("Regular user file prepared successfully (FileName: %s)",
             ~fileName);
     }
 
-    void OnFileChunksDownloaded(const TRegularFileDescriptor& descriptor)
+    void PrepareRegularFileViaDownload(const TRegularFileDescriptor& descriptor)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        const auto& fileName = descriptor.file_name();
 
-        if (JobPhase > EJobPhase::Cleanup)
-            return;
-        YCHECK(JobPhase == EJobPhase::PreparingSandbox);
+        LOG_INFO("Preparing regular user file via download (FileName: %s, ChunkCount: %d)",
+            ~fileName,
+            static_cast<int>(descriptor.file().chunks_size()));
+
+        CheckedWaitFor(DownloadChunks(descriptor.file()));
+        YCHECK(JobPhase == EJobPhase::PreparingFiles);
 
         auto chunks = PatchCachedChunkReplicas(descriptor.file());
         auto config = New<NFileClient::TFileReaderConfig>();
@@ -645,10 +635,12 @@ private:
             std::move(chunks),
             provider);
 
-        auto fileName = descriptor.file_name();
-
         try {
-            Sync(~reader, &NFileClient::TFileChunkSequenceReader::AsyncOpen);
+            {
+                auto result = CheckedWaitFor(reader->AsyncOpen());
+                THROW_ERROR_EXCEPTION_IF_FAILED(result);
+            }
+
             auto producer = [&] (TOutputStream* output) {
                 auto* facade = reader->GetFacade();
                 while (facade) {
@@ -656,7 +648,8 @@ private:
                     output->Write(block.Begin(),block.Size());
 
                     if (!reader->FetchNext()) {
-                        Sync(~reader, &NFileClient::TFileChunkSequenceReader::GetReadyEvent);
+                        auto result = CheckedWaitFor(reader->GetReadyEvent());
+                        THROW_ERROR_EXCEPTION_IF_FAILED(result);
                     }
                     facade = reader->GetFacade();
                 }
@@ -664,45 +657,37 @@ private:
 
             Slot->MakeFile(fileName, producer);
         } catch (const std::exception& ex) {
-            auto wrappedError = TError(
-                "Failed to write regular user file (FileName: %s)",
-                ~fileName)
+            THROW_ERROR_EXCEPTION(
+                "Failed to write regular user file %s",
+                ~fileName.Quote())
                 << ex;
-            DoAbort(wrappedError, EJobState::Failed);
-            return;
         }
 
-        LOG_INFO("Regular user file downloaded successfully (FileName: %s)",
+        LOG_INFO("Regular user file prepared successfully (FileName: %s)",
             ~fileName);
     }
 
 
-    TFuture<void> DownloadTableFile(const TTableFileDescriptor& descriptor)
+    void PrepareTableFile(const TTableFileDescriptor& descriptor)
     {
-        LOG_INFO("Downloading table user file (FileName: %s, ChunkCount: %d)",
+        LOG_INFO("Preparing user table file (FileName: %s, ChunkCount: %d)",
             ~descriptor.file_name(),
             static_cast<int>(descriptor.table().chunks_size()));
 
-        return DownloadChunks(descriptor.table()).Apply(BIND(
-            &TJob::OnTableChunksDownloaded,
-            MakeWeak(this),
-            descriptor).Via(Slot->GetInvoker()));
-    }
-
-    void OnTableChunksDownloaded(const TTableFileDescriptor& descriptor)
-    {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        CheckedWaitFor(DownloadChunks(descriptor.table()));
 
         if (JobPhase > EJobPhase::Cleanup)
             return;
-        YCHECK(JobPhase == EJobPhase::PreparingSandbox);
+        YCHECK(JobPhase == EJobPhase::PreparingFiles);
 
         auto chunks = PatchCachedChunkReplicas(descriptor.table());
+
         auto config = New<TTableReaderConfig>();
 
         auto readerProvider = New<TTableChunkReaderProvider>(
             chunks,
             config);
+
         auto asyncReader = New<TTableChunkSequenceReader>(
             config,
             Bootstrap->GetMasterChannel(),
@@ -727,17 +712,16 @@ private:
 
             Slot->MakeFile(fileName, producer);
         } catch (const std::exception& ex) {
-            auto wrappedError = TError(
+            THROW_ERROR_EXCEPTION(
                 "Failed to write user table file %s",
                 ~fileName.Quote())
                 << ex;
-            DoAbort(wrappedError, EJobState::Failed);
-            return;
         }
 
-        LOG_INFO("User table file downloaded successfully (FileName: %s)",
+        LOG_INFO("User table file prepared successfully (FileName: %s)",
             ~fileName);
     }
+
 
     static bool IsFatalError(const TError& error)
     {
@@ -754,6 +738,28 @@ private:
             error.FindMatching(NChunkClient::EErrorCode::AllTargetNodesFailed) ||
             error.FindMatching(NChunkClient::EErrorCode::MasterCommunicationFailed) ||
             error.FindMatching(NTableClient::EErrorCode::MasterCommunicationFailed);
+    }
+
+
+    void ThrowIfFinished()
+    {
+        if (JobPhase == EJobPhase::Finished) {
+            throw TFiberTerminatedException();
+        }
+    }
+
+    template <class T>
+    T CheckedWaitFor(TFuture<T> future)
+    {
+        auto result = WaitFor(future);
+        ThrowIfFinished();
+        return result;
+    }
+
+    void CheckedWaitFor(TFuture<void> future)
+    {
+        WaitFor(future);
+        ThrowIfFinished();
     }
 
 };
