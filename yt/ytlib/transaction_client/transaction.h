@@ -24,7 +24,7 @@ struct ITransaction
     virtual TAsyncError AsyncCommit(
         const NMetaState::TMutationId& mutationId = NMetaState::NullMutationId) = 0;
 
-    //! Commit transaction synchronously.
+    //! Commits the transaction synchronously.
     /*!
      *  This call may block.
      *  Throws an exception if the commit fails.
@@ -40,7 +40,7 @@ struct ITransaction
         bool generateMutationId,
         const NMetaState::TMutationId& mutationId = NMetaState::NullMutationId) = 0;
 
-    //! Abort transaction synchronously.
+    //! Aborts the transaction synchronously.
     /*!
      *
      *  If #wait is False then then call does not block and does not throw.
@@ -65,7 +65,7 @@ struct ITransaction
      */
     virtual void Detach() = 0;
 
-    //! Sends an asynchronous transaction ping.
+    //! Sends an asynchronous ping.
     /*!
      *  \note Thread affinity: any
      */
