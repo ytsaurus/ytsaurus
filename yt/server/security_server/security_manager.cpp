@@ -375,7 +375,7 @@ public:
 
     void RenameAccount(TAccount* account, const Stroka& newName)
     {
-        if (newName === account->GetName())
+        if (newName == account->GetName())
             return;
 
         if (FindAccountByName(newName)) {
@@ -1331,7 +1331,7 @@ void TSecurityManager::ResetAccount(TCypressNodeBase* node)
 
 void TSecurityManager::RenameAccount(TAccount* account, const Stroka& newName)
 {
-    Impl->RenameAccount(account, name);
+    Impl->RenameAccount(account, newName);
 }
 
 void TSecurityManager::UpdateAccountNodeUsage(TCypressNodeBase* node)
