@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "fiber.h"
 
+#include <ytlib/actions/invoker_util.h>
+
 #include <contrib/libcoro/coro.h>
 
 #include <stdexcept>
@@ -128,11 +130,8 @@ public:
     TImpl(TFiber* owner)
         : State_(EFiberState::Running)
         , Owner_(owner)
-        , Terminating_(false)
-        , Yielded_(false)
     {
-        ::memset(&CoroContext_, 0, sizeof(CoroContext_));
-        ::memset(&CoroStack_, 0, sizeof(CoroStack_));
+        Init();
 
         BEFORE_FIBER_CTOR();
         coro_create(&CoroContext_, nullptr, nullptr, nullptr, 0);
@@ -142,13 +141,9 @@ public:
     TImpl(TFiber* owner, TClosure callee, EFiberStack stack)
         : State_(EFiberState::Initialized)
         , Owner_(owner)
-        , Terminating_(false)
-        , Yielded_(false)
         , Callee_(std::move(callee))
-        , Caller_(nullptr)
     {
-        ::memset(&CoroContext_, 0, sizeof(CoroContext_));
-        ::memset(&CoroStack_, 0, sizeof(CoroStack_));
+        Init();
 
         size_t stackSize = GetStackSize(stack);
         coro_stack_alloc(&CoroStack_, stackSize);
@@ -352,6 +347,17 @@ public:
         Yield();
     }
 
+
+    IInvokerPtr GetCurrentInvoker()
+    {
+        return CurrentInvoker_;
+    }
+
+    void SetCurrentInvoker(IInvokerPtr invoker)
+    {
+        CurrentInvoker_ = std::move(invoker);
+    }
+
 private:
     TFiber* Owner_;
     bool Terminating_;
@@ -368,6 +374,19 @@ private:
 
     TFuture<void> WaitFor_;
     IInvokerPtr SwitchTo_;
+
+    IInvokerPtr CurrentInvoker_;
+
+
+    void Init()
+    {
+        Terminating_ = false;
+        Yielded_ = false;
+        CurrentInvoker_ = GetSyncInvoker();
+
+        ::memset(&CoroContext_, 0, sizeof(CoroContext_));
+        ::memset(&CoroStack_, 0, sizeof(CoroStack_));
+    }
 
     static size_t GetStackSize(EFiberStack stack)
     {
@@ -508,6 +527,16 @@ void TFiber::SwitchTo(IInvokerPtr invoker)
 void TFiber::WaitFor(TFuture<void> future, IInvokerPtr invoker)
 {
     Impl->WaitFor(std::move(future), std::move(invoker));
+}
+
+IInvokerPtr TFiber::GetCurrentInvoker()
+{
+    return Impl->GetCurrentInvoker();
+}
+
+void TFiber::SetCurrentInvoker(IInvokerPtr invoker)
+{
+    Impl->SetCurrentInvoker(std::move(invoker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

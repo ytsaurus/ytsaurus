@@ -76,6 +76,9 @@ public:
     void SwitchTo(IInvokerPtr invoker);
     void WaitFor(TFuture<void> future, IInvokerPtr invoker);
 
+    IInvokerPtr GetCurrentInvoker();
+    void SetCurrentInvoker(IInvokerPtr invoker);
+
 private:
     class TImpl;
 

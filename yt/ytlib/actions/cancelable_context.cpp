@@ -31,7 +31,7 @@ public:
         auto this_ = MakeStrong(this);
         return UnderlyingInvoker->Invoke(BIND([this, this_, action] {
             if (!Context->Canceled) {
-                SetCurrentInvoker(this_);
+                TCurrentInvokerGuard guard(this_);
                 action.Run();
             }
         }));

@@ -86,7 +86,7 @@ EBeginExecuteResult TInvokerQueue::BeginExecute()
     CurrentItem.StartInstant = GetCpuInstant();
     Profiler.Aggregate(WaitTimeCounter, CpuDurationToValue(CurrentItem.StartInstant - CurrentItem.EnqueueInstant));
 
-    SetCurrentInvoker(CurrentInvoker);
+    TCurrentInvokerGuard guard(CurrentInvoker);
 
     CurrentItem.Action.Run();
 
