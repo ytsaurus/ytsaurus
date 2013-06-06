@@ -18,6 +18,7 @@ exports.that = function YtApplicationApi()
         return (new YtCommand(
             req.logger || logger,
             driver,
+            coordinator,
             watcher,
             req.pauser
         )).dispatch(req, rsp);
