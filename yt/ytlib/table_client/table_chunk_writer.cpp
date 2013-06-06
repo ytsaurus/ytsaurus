@@ -164,8 +164,11 @@ void TTableChunkWriter::FinalizeRow(const TRow& row)
         EmitSample(row, &FirstSample);
     }
 
-    if (RandomNumber<double>() < Config->SampleRate &&
-        SamplesSize < 3 * Config->SampleRate * DataWeight * EncodingWriter->GetCompressionRatio())
+    i64 maxSamplesSize = static_cast<i64>(3 * Config->SampleRate * 
+        std::max(DataWeight, Config->BlockSize) * 
+        EncodingWriter->GetCompressionRatio());
+
+    if (RandomNumber<double>() < Config->SampleRate && SamplesSize < maxSamplesSize)
     {
         EmitSample(row, SamplesExt.add_items());
     }
