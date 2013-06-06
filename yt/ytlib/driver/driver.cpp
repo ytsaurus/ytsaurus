@@ -132,9 +132,6 @@ public:
 
     virtual TFuture<TDriverResponse> Execute(const TDriverRequest& request) override
     {
-        YCHECK(request.InputStream);
-        YCHECK(request.OutputStream);
-
         TDriverResponse response;
 
         auto it = Commands.find(request.CommandName);

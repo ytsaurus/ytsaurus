@@ -73,7 +73,7 @@ public:
         NLog::TLogManager::Get()->Configure(configNode->AsMap()->FindChild("logging"));
         DriverInstance_ = CreateDriver(config);
     }
-    
+
     virtual ~Driver()
     { }
 
@@ -82,9 +82,9 @@ public:
         behaviors().doc("Some documentation");
         behaviors().supportGetattro();
         behaviors().supportSetattro();
-        
+
         PYCXX_ADD_KEYWORDS_METHOD(execute, Execute, "TODO(ignat): make documentation");
-        
+
         behaviors().readyType();
     }
 
@@ -93,18 +93,23 @@ public:
         if (args.length() > 0 || kwds.length() > 0) {
             throw Py::RuntimeError("Incorrect arguments for execute command");
         }
-        
+
         TDriverRequest request;
         request.CommandName = ConvertToStroka(Py::String(GetAttr(pyRequest, "command_name")));
         request.Arguments = ConvertToNode(GetAttr(pyRequest, "arguments"))->AsMap();
 
-        std::unique_ptr<TPythonInputStream> inputStream(
-            new TPythonInputStream(GetAttr(pyRequest, "input_stream")));
-        std::unique_ptr<TPythonOutputStream> outputStream(
-            new TPythonOutputStream(GetAttr(pyRequest, "output_stream")));
+        std::unique_ptr<TPythonInputStream> inputStream;
+        std::unique_ptr<TPythonOutputStream> outputStream;
 
-        IAsyncOutputStreamPtr asyncOutputStream(CreateAsyncOutputStream(outputStream.get()));
-        IAsyncInputStreamPtr asyncInputStream(CreateAsyncInputStream(inputStream.get()));
+        if (pyRequest.hasAttr("input_stream")) {
+            inputStream = std::unique_ptr<TPythonInputStream>(new TPythonInputStream(GetAttr(pyRequest, "input_stream")));
+            request.InputStream = CreateAsyncInputStream(inputStream.get());
+        }
+
+        if (pyRequest.hasAttr("output_stream")) {
+            outputStream = std::unique_ptr<TPythonOutputStream>(new TPythonOutputStream(GetAttr(pyRequest, "output_stream")));
+            request.OutputStream = CreateAsyncOutputStream(outputStream.get());
+        }
 
         auto response = DriverInstance_->Execute(request).Get();
         return ConvertToPythonString(ToString(response.Error));
@@ -115,7 +120,7 @@ private:
     IDriverPtr DriverInstance_;
 };
 
-class ytlib_python_module 
+class ytlib_python_module
     : public Py::ExtensionModule<ytlib_python_module>
 {
 public:
@@ -125,9 +130,9 @@ public:
         Py_AtExit(ytlib_python_module::at_exit);
 
         Driver::InitType();
-        
+
         initialize("Ytlib python bindings");
-        
+
         Py::Dict moduleDict(moduleDictionary());
         moduleDict["Driver"] = Driver::type();
     }
