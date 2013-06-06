@@ -77,7 +77,7 @@ protected:
         if (key == "name") {
             auto newName = ConvertTo<Stroka>(value);
             if (newName != subject->GetName()) {
-                auto securityManager = Bootstrap->GetSecurityManager();
+                auto securityManager = this->Bootstrap->GetSecurityManager();
                 if (securityManager->FindSubjectByName(newName)) {
                     THROW_ERROR_EXCEPTION("Subject %s already exists",
                         ~newName.Quote());
