@@ -11,6 +11,8 @@
 
 #include <server/object_server/public.h>
 
+#include <server/security_server/security_manager.h>
+
 namespace NYT {
 namespace NSecurityServer {
 
@@ -67,6 +69,27 @@ protected:
 
         return TBase::GetSystemAttribute(key, consumer);
     }
+
+    virtual bool SetSystemAttribute(const Stroka& key, const NYTree::TYsonString& value) override
+    {
+        auto* subject = this->GetThisTypedImpl();
+
+        if (key == "name") {
+            auto newName = ConvertTo<Stroka>(value);
+            if (newName != subject->GetName()) {
+                auto securityManager = Bootstrap->GetSecurityManager();
+                if (securityManager->FindSubjectByName(newName)) {
+                    THROW_ERROR_EXCEPTION("Subject %s already exists",
+                        ~newName.Quote());
+                }
+                subject->SetName(newName);
+            }
+            return true;
+        }
+
+        return TBase::SetSystemAttribute(key, value);
+    }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

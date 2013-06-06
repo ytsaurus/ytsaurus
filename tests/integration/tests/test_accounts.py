@@ -362,3 +362,13 @@ class TestAccounts(YTEnvSetup):
 
         assert space == self._get_account_disk_space('a2')
         assert space == self._get_account_committed_disk_space('a2')
+
+    def test_rename_success(self):
+        create_account('a1')
+        set('//sys/accounts/a1/@name', 'a2')
+        assert get('//sys/accounts/a2/@name') == 'a2'
+
+    def test_rename_fail(self):
+        create_account('a1')
+        create_account('a2')
+        with pytest.raises(YTError): set('//sys/accounts/a1/@name', 'a2')

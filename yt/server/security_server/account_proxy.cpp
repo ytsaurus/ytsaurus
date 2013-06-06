@@ -97,6 +97,19 @@ private:
             return true;
         }
 
+        if (key == "name") {
+            auto newName = ConvertTo<Stroka>(value);
+            if (newName != account->GetName()) {
+                auto securityManager = Bootstrap->GetSecurityManager();
+                if (securityManager->FindAccountByName(newName)) {
+                    THROW_ERROR_EXCEPTION("Account %s already exists",
+                        ~newName.Quote());
+                }
+                account->SetName(newName);
+            }
+            return true;
+        }
+
         return TBase::SetSystemAttribute(key, value);
     }
 

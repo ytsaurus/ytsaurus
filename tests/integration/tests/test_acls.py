@@ -337,3 +337,13 @@ class TestAcls(YTEnvSetup):
         create('table', '//tmp/t')
         set('//tmp/@acl/end', self._make_ace('allow', 'u', 'administer'))
         set('//tmp/t/@acl', [], user='u')
+
+    def test_user_rename_success(self):
+        create_user('u1')
+        set('//sys/users/u1/@name', 'u2')
+        assert get('//sys/users/u2/@name') == 'u2'
+
+    def test_user_rename_fail(self):
+        create_user('u1')
+        create_user('u2')
+        with pytest.raises(YTError): set('//sys/users/u1/@name', 'u2')
