@@ -5,7 +5,7 @@ exports.srv = function srv()
 {
     ++HTTP_PORT; // Increment port to avoid EADDRINUSE failures.
 
-    var server = connect()
+    var app = connect()
         .use(function(req, rsp, next) {
             req.uuid = require("node-uuid").v4();
             next();
@@ -13,13 +13,19 @@ exports.srv = function srv()
 
     var middleware = Array.prototype.slice.call(arguments);
     var done = middleware.pop();
-    var doneRight = function() { setTimeout(done, 1); };
 
-    middleware.forEach(function(step) { server.use(step); });
+    middleware.forEach(function(step) { app.use(step); });
+    app.use(function(req, rsp) { rsp.end("Rabbit Hole"); });
 
-    return server
-        .use(function(req, rsp) { rsp.end("Rabbit Hole"); })
-        .listen(HTTP_PORT, HTTP_HOST, doneRight);
+    var server = http.createServer(app);
+
+    setTimeout(function() {
+        server.listen(HTTP_PORT, HTTP_HOST, function() {
+            setTimeout(done, 1);
+        });
+    }, 1);
+
+    return server;
 };
 
 exports.die = function die(server, done)

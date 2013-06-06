@@ -14,19 +14,38 @@ var die = require("./common_http").die;
 // This will spawn a (mock of a) real API server.
 function spawnServer(driver, watcher, done) {
     var logger = stubLogger();
+    var coordinator = stubCoordinator();
     return srv(function(req, rsp) {
         var pause = utils.Pause(req);
         req.authenticated_user = "root";
         return (new YtCommand(
-            logger, driver, watcher,
-            HTTP_HOST + ":" + HTTP_PORT,
-            false, pause
+            logger, driver, coordinator, watcher, pause
         )).dispatch(req, rsp);
     }, done);
 }
 
+// This stub provides a coordinator mock.
+function stubCoordinator()
+{
+    return {
+        getControlProxy: function() { return "localhost"; },
+        getDataProxy: function() { return "localhost"; },
+        getSelf: function() {
+            return {
+                host: "localhost",
+                role: "data",
+                banned: false,
+                liveness: {},
+                randomness: 0.0,
+                fitness: 0.0
+            };
+        }
+    };
+}
+
 // This stub provides a real driver instance which simply pipes all data through.
-function stubDriver(echo) {
+function stubDriver(echo)
+{
     var config = {
         "low_watermark": 100,
         "high_watermark": 200,

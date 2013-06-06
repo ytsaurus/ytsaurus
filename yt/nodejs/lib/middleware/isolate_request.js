@@ -14,7 +14,6 @@ exports.that = function Middleware__YtIsolateRequest()
     var logger = YtRegistry.get("logger");
 
     return function(req, rsp, next) {
-        "use strict";
         var rd = domain.create();
         rd.on("error", function(err) {
             var error = new YtError("Unhandled error in the request domain", err);

@@ -294,6 +294,16 @@ private:
 
             CreateNode(
                 rootService,
+                "//sys/proxies",
+                transactionId,
+                EObjectType::MapNode,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("opaque").Value(true)
+                    .EndMap());
+
+            CreateNode(
+                rootService,
                 "//sys/nodes",
                 transactionId,
                 EObjectType::CellNodeMap,

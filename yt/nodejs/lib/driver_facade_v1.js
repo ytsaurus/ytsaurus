@@ -88,7 +88,7 @@ YtDriverFacadeV1.prototype.find_command_descriptor = function(name)
     } else {
         return FAKE_UPLOAD_DESCRIPTOR;
     }
-}
+};
 
 YtDriverFacadeV1.prototype.get_command_descriptors = function()
 {
@@ -103,7 +103,7 @@ YtDriverFacadeV1.prototype.get_command_descriptors = function()
                 return FAKE_UPLOAD_DESCRIPTOR;
             }
         });
-}
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
