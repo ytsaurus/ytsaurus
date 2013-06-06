@@ -329,7 +329,8 @@ public:
         YCHECK(!WaitFor_);
         YCHECK(!SwitchTo_);
 
-        invoker.Swap(SwitchTo_);
+        CurrentInvoker_ = invoker;
+        SwitchTo_ = std::move(invoker);
 
         Yield();
     }
