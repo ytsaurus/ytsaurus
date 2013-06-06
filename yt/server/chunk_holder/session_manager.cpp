@@ -303,9 +303,8 @@ TError TSession::DoWriteBlock(const TSharedRef& block, int blockIndex)
     TScopedTimer timer;
     try {
         if (!Writer->WriteBlock(block)) {
-            // This will throw...
-            Sync(~Writer, &TFileWriter::GetReadyEvent);
-            // ... so we never get here.
+            auto result = Writer->GetReadyEvent().Get();
+            THROW_ERROR_EXCEPTION_IF_FAILED(result);
             YUNREACHABLE();
         }
     } catch (const std::exception& ex) {
@@ -481,7 +480,8 @@ TError TSession::DoCloseFile(const TChunkMeta& chunkMeta)
 
     PROFILE_TIMING ("/chunk_writer_close_time") {
         try {
-            Sync(~Writer, &TFileWriter::AsyncClose, chunkMeta);
+            auto result = Writer->AsyncClose(chunkMeta).Get();
+            THROW_ERROR_EXCEPTION_IF_FAILED(result);
         } catch (const std::exception& ex) {
             OnIOError(TError(
                 NChunkClient::EErrorCode::IOError,
