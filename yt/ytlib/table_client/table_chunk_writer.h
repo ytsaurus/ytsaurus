@@ -125,6 +125,7 @@ private:
 
     //! Approximate size of collected samples.
     i64 SamplesSize;
+    double AverageSampleSize;
 
     //! Approximate size of collected index.
     i64 IndexSize;

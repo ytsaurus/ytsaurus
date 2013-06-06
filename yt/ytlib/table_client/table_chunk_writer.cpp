@@ -81,6 +81,7 @@ TTableChunkWriter::TTableChunkWriter(
     , Channels(options->Channels)
     , LastKey(lastKey)
     , SamplesSize(0)
+    , AverageSampleSize(0)
     , IndexSize(0)
     , BasicMetaSize(0)
 {
@@ -161,17 +162,16 @@ void TTableChunkWriter::FinalizeRow(const TRow& row)
     }
 
     if (RowCount == 0) {
-        EmitSample(row, &FirstSample);
+        AverageSampleSize = EmitSample(row, &FirstSample);
     }
 
     RowCount += 1;
 
-    double avgSampleSize = double(SamplesSize) / SamplesExt.items_size();
     double avgRowWeight = double(DataWeight) / RowCount;
     double sampleProbability = Config->SampleRate 
         * avgRowWeight 
         * EncodingWriter->GetCompressionRatio() 
-        / avgSampleSize;
+        / AverageSampleSize;
 
     if (RandomNumber<double>() < sampleProbability) {
         i64 maxSamplesSize = static_cast<i64>(3 * 
@@ -181,6 +181,7 @@ void TTableChunkWriter::FinalizeRow(const TRow& row)
 
         if (SamplesSize < maxSamplesSize) {
             SamplesSize += EmitSample(row, SamplesExt.add_items());
+            AverageSampleSize = double(SamplesSize) / SamplesExt.items_size();
         }
     }
 
