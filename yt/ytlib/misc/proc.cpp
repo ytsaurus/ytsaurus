@@ -252,9 +252,26 @@ void SafeClose(int fd, bool ignoreInvalidFd)
 
 static const int BASE_EXIT_CODE = 127;
 static const int EXEC_ERR_CODE[] = {
-    E2BIG, EACCES, EFAULT, EINVAL, EIO, EISDIR, ELIBBAD,
-    ELOOP, EMFILE, ENAMETOOLONG, ENFILE, ENOENT, ENOEXEC,
-    ENOMEM, ENOTDIR, EPERM, ETXTBSY, 0
+    E2BIG,
+    EACCES,
+    EFAULT,
+    EINVAL,
+    EIO,
+    EISDIR,
+#ifdef _linux_
+    ELIBBAD,
+#endif
+    ELOOP,
+    EMFILE,
+    ENAMETOOLONG,
+    ENFILE,
+    ENOENT,
+    ENOEXEC,
+    ENOMEM,
+    ENOTDIR, 
+    EPERM,
+    ETXTBSY,
+    0
 };
 
 int getErrNoFromExitCode(int exitCode) {
