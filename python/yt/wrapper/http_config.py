@@ -6,6 +6,7 @@ TOKEN = None
 USE_TOKEN = True
 
 ACCEPT_ENCODING = "identity, gzip"
+CONTENT_ENCODING = "gzip"
 
 CONNECTION_TIMEOUT = 120.0
 

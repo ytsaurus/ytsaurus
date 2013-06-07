@@ -1,5 +1,6 @@
 import config
 import logger
+from compression_wrapper import create_zlib_generator
 from common import require
 from errors import YtError, YtResponseError
 from version import VERSION
@@ -71,7 +72,7 @@ def make_request(command_name, params,
 
     # Trying to set http retries in requests
     requests.adapters.DEFAULT_RETRIES = config.http.REQUESTS_RETRIES
-    
+
     # Prepare request url.
     if proxy is None:
         proxy = config.http.PROXY
@@ -121,6 +122,17 @@ def make_request(command_name, params,
     token = get_token()
     if token is not None:
         headers["Authorization"] = "OAuth " + token
+
+    if command.input_type in ["binary", "tabular"]:
+        content_encoding = config.http.CONTENT_ENCODING
+        headers["Content-Encoding"] = content_encoding
+        if content_encoding == "identity":
+            pass
+        elif content_encoding == "gzip":
+            print >>sys.stderr, "XXX"
+            data = create_zlib_generator(data)
+        else:
+            raise YtError("Content encoding '%s' is not supported" % config.http.CONTENT_ENCODING)
 
     # Debug information
     print_info("Headers: %r", headers)
