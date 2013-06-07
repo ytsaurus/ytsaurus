@@ -186,7 +186,7 @@ config = {
         fitness_randomness: 1,
         afd_window_size: 24,
         afd_phi_threshold: 4,
-        death_age: 900000
+        death_age: 300000
     },
     upravlyator: {
     },

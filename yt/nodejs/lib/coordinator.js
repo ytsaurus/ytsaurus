@@ -258,9 +258,12 @@ YtCoordinator.prototype._refresh = function()
         });
     })
     .fail(function(err) {
+        // Re-run initialization next time, just in case.
+        self.initialized = false;
+
         var error = YtError.ensureWrapped(err);
         self.logger.error(
-            "An error occured while initializing coordination",
+            "An error occured while updating coordination",
             // TODO(sandello): Embed.
             { error: error.toJson() });
     });
