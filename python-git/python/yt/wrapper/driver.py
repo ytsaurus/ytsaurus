@@ -129,7 +129,6 @@ def make_request(command_name, params,
         if content_encoding == "identity":
             pass
         elif content_encoding == "gzip":
-            print >>sys.stderr, "XXX"
             data = create_zlib_generator(data)
         else:
             raise YtError("Content encoding '%s' is not supported" % config.http.CONTENT_ENCODING)
