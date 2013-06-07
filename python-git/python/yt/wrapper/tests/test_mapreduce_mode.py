@@ -215,7 +215,7 @@ class TestMapreduceMode(YtTestBase, YTEnv):
         yt.abort_operation(operation)
         self.assertEqual(yt.get_operation_state(operation), "aborted")
 
-        finalization()
+        finalization("none")
 
 
     def test_dsv(self):

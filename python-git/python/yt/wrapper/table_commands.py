@@ -507,9 +507,10 @@ class Finalizer(object):
         self.files = files if files is not None else []
         self.output_tables = output_tables
 
-    def __call__(self):
-        for table in map(to_name, self.output_tables):
-            self.check_for_merge(table)
+    def __call__(self, state):
+        if state == "completed":
+            for table in map(to_name, self.output_tables):
+                self.check_for_merge(table)
         if config.DELETE_EMPTY_TABLES:
             for table in map(to_name, self.output_tables):
                 if is_empty(table):
