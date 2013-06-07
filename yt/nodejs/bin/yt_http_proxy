@@ -177,9 +177,7 @@ config = {
             },
         ],
     },
-    upravlyator: {
-    },
-    coordinator : {
+    coordination : {
         enable: true,
         heartbeat_interval: 5000,
         heartbeat_drift: 500,
@@ -189,7 +187,9 @@ config = {
         afd_window_size: 24,
         afd_phi_threshold: 4,
         death_age: 900000
-    }
+    },
+    upravlyator: {
+    },
 };
 
 /*
