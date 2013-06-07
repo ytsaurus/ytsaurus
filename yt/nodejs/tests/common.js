@@ -32,6 +32,7 @@ global.stubLogger = function(callback) {
 
 global.HTTP_PORT = 40000;
 global.HTTP_HOST = "127.0.0.1";
+global.HTTP_LAG  = 5;
 
 var sinonChai = require("sinon-chai");
 chai.use(sinonChai);

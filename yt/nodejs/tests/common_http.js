@@ -13,7 +13,7 @@ exports.srv = function srv()
 
     var middleware = Array.prototype.slice.call(arguments);
     var done = middleware.pop();
-    var doneRight = function() { setTimeout(done, 1); };
+    var doneRight = function() { setTimeout(done, HTTP_LAG); };
 
     middleware.forEach(function(step) { server.use(step); });
 
@@ -24,7 +24,7 @@ exports.srv = function srv()
 
 exports.die = function die(server, done)
 {
-    server.close(function() { setTimeout(done, 1); });
+    server.close(function() { setTimeout(done, HTTP_LAG); });
 };
 
 exports.ask = function ask(method, path, headers, verify, callback)
