@@ -20,7 +20,7 @@ TPtrWithIndex<T>::TPtrWithIndex(T* ptr, int index)
     : Value(reinterpret_cast<ui64>(ptr) | (static_cast<ui64>(index) << 56))
 {
     YASSERT((reinterpret_cast<ui64>(ptr) & 0xff00000000000000LL) == 0);
-    YASSERT(index >= 0 && index < 0xff);
+    YASSERT(index >= 0 && index <= 0xff);
 }
 
 template <class T>
