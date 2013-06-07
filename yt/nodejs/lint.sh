@@ -10,7 +10,6 @@ function run_jshint()
     echo
     echo $hr8
     echo "## jshint: $1"
-    echo $hr8
 
     jshint --config lint.json "$1"
 }

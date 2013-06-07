@@ -353,26 +353,66 @@ exports.MemoryInputStream = function(data)
     "use strict";
     stream.Stream.call(this);
 
+    this.paused = false;
     this.readable = true;
     this.writable = false;
 
     var self = this;
-    process.nextTick(function() {
+
+    var emitted_data = false;
+    var emit_data = function() {
+        if (emitted_data || self.paused || !self.readable) {
+            return;
+        }
         if (data) {
             self.emit("data", data);
         }
+        emitted_data = true;
+    };
+
+    var emitted_end = false;
+    var emit_end = function() {
+        if (emitted_end || self.paused || !self.readable) {
+            return;
+        }
+        self.emit("end", data);
+        emitted_end = true;
+        // Block state.
+        self.paused = false;
+        self.readable = false;
+        self.writable = false;
+    };
+
+    this._flow = function() {
         process.nextTick(function() {
-            self.emit("end");
-            self.readable = false;
+            emit_data();
+            process.nextTick(function() {
+                emit_end();
+            });
         });
-    });
+    };
 };
 
 util.inherits(exports.MemoryInputStream, stream.Stream);
 
-exports.MemoryInputStream.prototype.pause = function(){};
-exports.MemoryInputStream.prototype.resume = function(){};
-exports.MemoryInputStream.prototype.destroy = function(){};
+exports.MemoryInputStream.prototype.pause = function()
+{
+    "use strict";
+    this.paused = true;
+};
+
+exports.MemoryInputStream.prototype.resume = function()
+{
+    "use strict";
+    this.paused = false;
+    this._flow();
+};
+
+exports.MemoryInputStream.prototype.destroy = function()
+{
+    "use strict";
+    this.readable = false;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

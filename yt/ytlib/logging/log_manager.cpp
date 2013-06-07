@@ -90,17 +90,17 @@ public:
             struct inotify_event* event = (struct inotify_event*)buffer;
 
             if (event->mask & IN_ATTRIB) {
-                LOG_DEBUG(
+                LOG_TRACE(
                     "Watch %d has triggered metadata change (IN_ATTRIB)",
                     event->wd);
             }
             if (event->mask & IN_DELETE_SELF) {
-                LOG_DEBUG(
+                LOG_TRACE(
                     "Watch %d has triggered a deletion (IN_DELETE_SELF)",
                     event->wd);
             }
             if (event->mask & IN_MOVE_SELF) {
-                LOG_DEBUG(
+                LOG_TRACE(
                     "Watch %d has triggered a movement (IN_MOVE_SELF)",
                     event->wd);
             }
@@ -169,7 +169,7 @@ private:
                 Path.Quote().c_str());
             Wd_ = -1;
         } else if (Wd_ > 0) {
-            LOG_DEBUG(
+            LOG_TRACE(
                 "Registered watch %d for path %s",
                 Wd_,
                 Path.Quote().c_str());
@@ -185,7 +185,7 @@ private:
     {
 #ifdef _linux_
         if (Wd_ > 0) {
-            LOG_DEBUG(
+            LOG_TRACE(
                 "Unregistering watch %d for path %s",
                 Wd_,
                 Path.Quote().c_str());

@@ -118,6 +118,7 @@ private:
 
     //! Approximate size of collected samples.
     i64 SamplesSize;
+    double AverageSampleSize;
 
     //! Approximate size of collected index.
     i64 IndexSize;
@@ -137,7 +138,7 @@ private:
     void OnFinalBlocksWritten(TError error);
 
     void EmitIndexEntry();
-    void EmitSample(const TRow& row, NProto::TSample* sample);
+    i64 EmitSample(const TRow& row, NProto::TSample* sample);
 
     void SelectChannels(const TStringBuf& name, TColumnInfo& columnInfo);
     void FinalizeRow(const TRow& row);
