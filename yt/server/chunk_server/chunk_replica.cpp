@@ -21,7 +21,11 @@ Stroka ToString(TNodePtrWithIndex value)
 
 Stroka ToString(TChunkPtrWithIndex value)
 {
-    return Sprintf("%s/%d", ~ToString(value.GetPtr()->GetId()), value.GetIndex());
+    auto* chunk = value.GetPtr();
+    int index = value.GetIndex();
+    return !chunk->IsErasure() || index == GenericChunkPartIndex
+        ? ToString(chunk->GetId())
+        : Sprintf("%s/%d", ~ToString(chunk->GetId()), index);
 }
 
 void ToProto(ui32* protoValue, TNodePtrWithIndex value)
@@ -35,9 +39,10 @@ void ToProto(ui32* protoValue, TNodePtrWithIndex value)
 TChunkId EncodeChunkId(TChunkPtrWithIndex chunkWithIndex)
 {
     auto* chunk = chunkWithIndex.GetPtr();
-    return chunk->IsErasure()
-           ? ErasurePartIdFromChunkId(chunk->GetId(), chunkWithIndex.GetIndex())
-           : chunk->GetId();
+    int index = chunkWithIndex.GetIndex();
+    return chunk->IsErasure() && index != GenericChunkPartIndex
+        ? ErasurePartIdFromChunkId(chunk->GetId(), index)
+        : chunk->GetId();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

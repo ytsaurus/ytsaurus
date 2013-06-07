@@ -17,22 +17,22 @@ TPtrWithIndex<T>::TPtrWithIndex()
 
 template <class T>
 TPtrWithIndex<T>::TPtrWithIndex(T* ptr, int index)
-    : Value(reinterpret_cast<ui64>(ptr) | (static_cast<ui64>(index) << 60))
+    : Value(reinterpret_cast<ui64>(ptr) | (static_cast<ui64>(index) << 56))
 {
-    YASSERT((reinterpret_cast<ui64>(ptr) & 0xf000000000000000LL) == 0);
-    YASSERT(index >= 0 && index < 16);
+    YASSERT((reinterpret_cast<ui64>(ptr) & 0xff00000000000000LL) == 0);
+    YASSERT(index >= 0 && index < 0xff);
 }
 
 template <class T>
 T* TPtrWithIndex<T>::GetPtr() const
 {
-    return reinterpret_cast<T*>(Value & 0x0fffffffffffffffLL);
+    return reinterpret_cast<T*>(Value & 0x00ffffffffffffffLL);
 }
 
 template <class T>
 int TPtrWithIndex<T>::GetIndex() const
 {
-    return Value >> 60;
+    return Value >> 56;
 }
 
 template <class T>

@@ -539,7 +539,7 @@ public:
         TNodePtrWithIndexList result;
         auto replicas = chunk->GetReplicas();
         FOREACH (auto replica, replicas) {
-            if (index == TChunkIdWithIndex::GenericPartIndex || replica.GetIndex() == index) {
+            if (index == GenericChunkPartIndex || replica.GetIndex() == index) {
                 result.push_back(replica);
             }
         }
