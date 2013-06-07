@@ -614,8 +614,8 @@ TEST(TFiberTest, ActionQueue3)
 
 TEST(TFiberTest, CurrentInvokerSync)
 {
-    fprintf(stderr, "TYPEID: %s\n", typeid(*GetCurrentInvoker()).name());
-    EXPECT_EQ(GetCurrentInvoker(), GetSyncInvoker());
+    EXPECT_EQ(GetCurrentInvoker(), GetSyncInvoker())
+        << "Current invoker: " << typeid(*GetCurrentInvoker()).name();
 }
 
 TEST(TFiberTest, CurrentInvokerInActionQueue)
