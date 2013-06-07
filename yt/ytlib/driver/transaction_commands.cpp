@@ -48,7 +48,12 @@ void TStartTransactionCommand::DoExecute()
 
 void TPingTransactionCommand::DoExecute()
 {
-    auto req = TTransactionYPathProxy::Ping(FromObjectId(GetTransactionId(true)));
+    auto transactionId = GetTransactionId(false);
+    // Specially for evvers@ :)
+    if (transactionId == NullTransactionId)
+        return;
+
+    auto req = TTransactionYPathProxy::Ping(transactionId);
     req->set_ping_ancestors(Request->PingAncestors);
 
     auto rsp = ObjectProxy->Execute(req).Get();
