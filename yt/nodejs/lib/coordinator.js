@@ -173,33 +173,31 @@ YtCoordinator.prototype._refresh = function()
 
     if (!self.initialized) {
         return Q
-        .when()
-        .then(function() {
-            return self.driver.executeSimple("exists", { path: path });
-        })
+        .when(self.driver.executeSimple("exists", { path: path }))
         .then(function(exists) {
             if (exists === "true") {
                 return;
             }
-            return self.driver.executeSimple("create", {
+            return Q
+            .when(self.driver.executeSimple("create", {
                 type: "map_node",
                 path: path
+            }))
+            .then(function() {
+                var req1 = self.driver.executeSimple(
+                    "set",
+                    { path: path + "/@role" },
+                    "data");
+                var req2 = self.driver.executeSimple(
+                    "set",
+                    { path: path + "/@banned" },
+                    "false");
+                return Q.all([ req1, req2 ]);
             });
-        })
-        .then(function(create) {
-            var req1 = self.driver.executeSimple(
-                "set",
-                { path: path + "/@role" },
-                "data");
-            var req2 = self.driver.executeSimple(
-                "set",
-                { path: path + "/@banned" },
-                "false");
-            return Q.all([ req1, req2 ]);
         })
         .then(function() {
             self.initialized = true;
-            return self._refresh();
+            self._refresh();
         })
         .fail(function(err) {
             var error = YtError.ensureWrapped(err);
@@ -207,19 +205,18 @@ YtCoordinator.prototype._refresh = function()
                 "An error occured while initializing coordination",
                 // TODO(sandello): Embed.
                 { error: error.toJson() });
-        });
+        })
+        .done();
     }
 
     self.__DBG("Updating coordination information");
 
     return Q
-    .when()
-    .then(function() {
-        return self.driver.executeSimple("set", { path: path + "/@liveness" }, {
+    .when(self.driver.executeSimple("set", { path: path + "/@liveness" }, {
             updated_at: (new Date()).toISOString(),
             load_average: os.loadavg()[2]
-        });
-    })
+        })
+    )
     .then(function() {
         return self.driver.executeSimple("list", {
             path: "//sys/proxies",
@@ -258,12 +255,16 @@ YtCoordinator.prototype._refresh = function()
         });
     })
     .fail(function(err) {
+        // Re-run initialization next time, just in case.
+        self.initialized = false;
+
         var error = YtError.ensureWrapped(err);
         self.logger.error(
-            "An error occured while initializing coordination",
+            "An error occured while updating coordination",
             // TODO(sandello): Embed.
             { error: error.toJson() });
-    });
+    })
+    .done();
 };
 
 YtCoordinator.prototype.getControlProxy = function()
