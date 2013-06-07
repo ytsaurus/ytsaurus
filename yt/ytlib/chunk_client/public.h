@@ -150,6 +150,10 @@ struct TChunkIdWithIndex
 
     TChunkId Id;
     int Index;
+
+    //! Indicates that an instance of TChunkIdWithIndex refers to the whole chunk,
+    //! not to any of its replicas.
+    static const int GenericPartIndex = -1;
 };
 
 bool operator == (const TChunkIdWithIndex& lhs, const TChunkIdWithIndex& rhs);

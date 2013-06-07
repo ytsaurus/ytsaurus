@@ -47,11 +47,15 @@ private:
 
 };
 
+
 ////////////////////////////////////////////////////////////////////////////////
 
 typedef TPtrWithIndex<NNodeTrackerServer::TNode> TNodePtrWithIndex;
-typedef TPtrWithIndex<TChunk> TChunkPtrWithIndex;
 typedef TSmallVector<TNodePtrWithIndex, TypicalReplicaCount> TNodePtrWithIndexList;
+
+typedef TPtrWithIndex<TChunk> TChunkPtrWithIndex;
+
+////////////////////////////////////////////////////////////////////////////////
 
 Stroka ToString(TNodePtrWithIndex value);
 Stroka ToString(TChunkPtrWithIndex value);
