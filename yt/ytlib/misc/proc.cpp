@@ -121,38 +121,20 @@ void RemoveDirAsRoot(const Stroka& path)
     // Allocation after fork can lead to a deadlock inside LFAlloc.
     // To avoid allocation we list contents of the directory before fork.
 
-    // Copy-paste from RemoveDirWithContents (util/folder/dirut.cpp)
-    auto path_ = path;
-    SlashFolderLocal(path_);
-
-    TDirIterator dir(path_);
-    std::vector<Stroka> contents;
-
-    for (TDirIterator::TIterator it = dir.Begin(); it != dir.End(); ++it) {
-        switch (it->fts_info) {
-            case FTS_F:
-            case FTS_DEFAULT:
-            case FTS_DP:
-            case FTS_SL:
-            case FTS_SLNONE:
-                contents.push_back(it->fts_path);
-                break;
-        }
-    }
-
     auto pid = fork();
     // We are forking here in order not to give the root privileges to the parent process ever,
     // because we cannot know what other threads are doing.
     if (pid == 0) {
         // Child process
         YCHECK(setuid(0) == 0);
-        for (int i = 0; i < contents.size(); ++i) {
-            if (NFs::Remove(~contents[i])) {
-                _exit(1);
-            }
-        }
+        execl("/bin/rm", "/bin/rm", "-rf", ~path, (void*)nullptr);
 
-        _exit(0);
+        fprintf(
+            stderr, 
+            "Failed to remove directory (/bin/rm -rf %s): %s", 
+            ~path,
+            ~ToString(TError::FromSystem()));
+        _exit(1);
     }
 
     auto throwError = [=] (const Stroka& msg, const TError& error) {
@@ -178,7 +160,7 @@ void RemoveDirAsRoot(const Stroka& path)
 
     auto statusError = StatusToError(status);
     if (!statusError.IsOK()) {
-        throwError("waitpid failed", statusError);
+        throwError("invalid exit status", statusError);
     }
 }
 
