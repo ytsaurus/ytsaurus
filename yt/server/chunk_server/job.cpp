@@ -12,6 +12,7 @@ using namespace NErasure;
 using namespace NNodeTrackerServer;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
+using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
