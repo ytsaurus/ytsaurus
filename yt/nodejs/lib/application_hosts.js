@@ -50,8 +50,7 @@ YtApplicationHosts.prototype._dispatchBasic = function(req, rsp)
     "use strict";
 
     var hosts = this.coordinator
-    .getProxies("data")
-    .filter(function(entry) { return !entry.banned; })
+    .getProxies("data", false, false)
     .sort(function(lhs, rhs) { return lhs.fitness - rhs.fitness; })
     .map(function(entry) { return entry.host; });
 

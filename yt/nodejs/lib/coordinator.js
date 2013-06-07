@@ -1,5 +1,6 @@
 var events = require("events");
 var os = require("os");
+var util = require("util");
 
 var Q = require("q");
 
@@ -18,6 +19,7 @@ function YtCoordinatedHost(config, host)
     "use strict";
 
     var role = "control";
+    var dead = true;
     var banned = false;
     var liveness = { updated_at: new Date(0), load_average: 0.0 };
     var randomness = Math.random();
@@ -29,8 +31,11 @@ function YtCoordinatedHost(config, host)
         config.heartbeat_interval + config.heartbeat_drift,
         config.heartbeat_interval);
 
+    var self = this;
+
     Object.defineProperty(this, "host", {
         value: host,
+        writable: false,
         enumerable: true
     });
 
@@ -40,7 +45,23 @@ function YtCoordinatedHost(config, host)
             if (value !== "control" && value !== "data") {
                 throw new TypeError("Role has to be either 'control' or 'data'");
             }
+
             role = value;
+        },
+        enumerable: true
+    });
+
+    Object.defineProperty(this, "dead", {
+        get: function() { return dead; },
+        set: function(value) {
+            var dead_before = dead;
+            dead = typeof(value) === "string" ? value === "true" : !!value;
+
+            if (!dead_before && dead) {
+                self.emit("dead");
+            } else if (dead_before && !dead) {
+                self.emit("alive");
+            }
         },
         enumerable: true
     });
@@ -48,7 +69,14 @@ function YtCoordinatedHost(config, host)
     Object.defineProperty(this, "banned", {
         get: function() { return banned; },
         set: function(value) {
+            var banned_before = banned;
             banned = typeof(value) === "string" ? value === "true" : !!value;
+
+            if (!banned_before && banned) {
+                self.emit("banned");
+            } else if (banned_before && !banned) {
+                self.emit("unbanned");
+            }
         },
         enumerable: true
     });
@@ -59,6 +87,7 @@ function YtCoordinatedHost(config, host)
             if (typeof(liveness) !== "object") {
                 throw new TypeError("Liveness has to be an object");
             }
+
             liveness.updated_at = new Date(value.updated_at);
             liveness.load_average = parseFloat(value.load_average);
             randomness = Math.random();
@@ -68,10 +97,8 @@ function YtCoordinatedHost(config, host)
     });
 
     Object.defineProperty(this, "randomness", {
-        get: function() { return randomness; },
-        set: function(value) {
-            randomness = Math.random();
-        },
+        value: randomness,
+        writable: false,
         enumerable: true
     });
 
@@ -102,7 +129,16 @@ function YtCoordinatedHost(config, host)
         },
         enumerable: true
     });
+
+    events.EventEmitter.call(this);
+
+    // Hide EventEmitter properties to clean up JSON.
+    Object.defineProperty(this, "_events", { enumerable: false });
+    Object.defineProperty(this, "_maxListeners", { enumerable: false });
+    Object.defineProperty(this, "domain", { enumerable: false });
 }
+
+util.inherits(YtCoordinatedHost, events.EventEmitter);
 
 function YtCoordinator(config, logger, driver, fqdn)
 {
@@ -198,6 +234,19 @@ YtCoordinator.prototype._refresh = function()
             if (typeof(ref) === "undefined") {
                 self.logger.info("Discovered a new proxy", { host: host });
                 ref = self.hosts[host] = new YtCoordinatedHost(self.config, host);
+
+                ref.on("dead", function() {
+                    self.logger.info("Marking proxy as dead", { host: host });
+                });
+                ref.on("alive", function() {
+                    self.logger.info("Marking proxy as alive", { host: host });
+                });
+                ref.on("banned", function() {
+                    self.logger.info("Proxy was banned", { host: banned });
+                });
+                ref.on("unbanned", function() {
+                    self.logger.info("Proxy was unbanned", { host: unbanned });
+                });
             }
 
             self.__DBG("Proxy '%s' has been updated to %j", host, entry);
@@ -205,11 +254,7 @@ YtCoordinator.prototype._refresh = function()
             ref.role = utils.getYsonAttribute(entry, "role");
             ref.banned = utils.getYsonAttribute(entry, "banned");
             ref.liveness = utils.getYsonAttribute(entry, "liveness");
-
-            if (new Date() - ref.liveness.updated_at > self.config.death_age) {
-                self.logger.info("Removing dead proxy", { host: host });
-                delete self.hosts[host];
-            }
+            ref.dead = (new Date() - ref.liveness.updated_at) > self.config.death_age;
         });
     })
     .fail(function(err) {
@@ -225,8 +270,7 @@ YtCoordinator.prototype.getControlProxy = function()
 {
     "use strict";
     return this
-    .getProxies("control")
-    .filter(function(entry) { return !entry.banned; })
+    .getProxies("control", false, false)
     .sort(function(lhs, rhs) { return lhs.fitness - rhs.fitness; })
     [0];
 };
@@ -235,21 +279,29 @@ YtCoordinator.prototype.getDataProxy = function()
 {
     "use strict";
     return this
-    .getProxies("data")
-    .filter(function(entry) { return !entry.banned; })
+    .getProxies("data", false, false)
     .sort(function(lhs, rhs) { return lhs.fitness - rhs.fitness; })
     [0];
 };
 
-YtCoordinator.prototype.getProxies = function(role)
+YtCoordinator.prototype.getProxies = function(role, dead, banned)
 {
     "use strict";
     var result = [];
     for (var p in this.hosts) {
         if (this.hosts.hasOwnProperty(p)) {
-            if (!role || role === this.hosts[p].role) {
-                result.push(this.hosts[p]);
+            var ref = this.hosts[p];
+
+            if (typeof(role) !== "undefined" && role !== ref.role) {
+                continue;
             }
+            if (typeof(dead) !== "undefined" && dead !== ref.dead) {
+                continue;
+            }
+            if (typeof(dead) !== "undefined" && banned !== ref.banned) {
+                continue;
+            }
+            result.push(this.hosts[p]);
         }
     }
     return result;

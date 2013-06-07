@@ -13,7 +13,7 @@ var getHrtime = function()
 var getLog10 = function(x)
 {
     "use strict";
-    return Math.log(x) / Math.LN10;
+    return x === 0.0 ? -1000 : Math.log(x) / Math.LN10;
 };
 
 var getNormalCdf = function(x, mean, stddev)
@@ -150,7 +150,7 @@ YtAccrualFailureDetector.prototype.phi = function(now)
     }
 
     if (now < this.last_at) {
-        return;
+        return 0.0;
     }
 
     if (!this.last_at) {
