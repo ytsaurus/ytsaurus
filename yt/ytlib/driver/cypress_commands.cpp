@@ -166,7 +166,8 @@ void TCopyCommand::DoExecute()
     auto rsp = WaitFor(ObjectProxy->Execute(req));
     THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
-    ReplySuccess(BuildYsonStringFluently().Value(FromProto<TNodeId>(rsp->object_id())));
+    auto nodeId = FromProto<TNodeId>(rsp->object_id());
+    ReplySuccess(BuildYsonStringFluently().Value(nodeId));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
