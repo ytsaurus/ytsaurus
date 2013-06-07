@@ -318,9 +318,13 @@ def get_proxy_config():
         "filename" : "/dev/null"
     },
 
-  "authentication" : {
-    "enable" : false
-  },
+    "authentication" : {
+        "enable" : false
+    },
+
+    "coordination" : {
+        "enable" : false
+    },
 
     "proxy" : {
         "logging" : {

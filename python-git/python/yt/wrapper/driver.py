@@ -71,6 +71,11 @@ def make_request(command_name, params,
 
     # Trying to set http retries in requests
     requests.adapters.DEFAULT_RETRIES = config.http.REQUESTS_RETRIES
+    
+    # Prepare request url.
+    if proxy is None:
+        proxy = config.http.PROXY
+    require(proxy, YtError("You should specify proxy"))
 
     # Get command description
     command = config.COMMANDS[command_name]
@@ -84,11 +89,6 @@ def make_request(command_name, params,
             params["mutation_id"] = config.MUTATION_ID
         else:
             params["mutation_id"] = str(uuid.uuid4())
-
-    # Prepare request url.
-    if proxy is None:
-        proxy = config.http.PROXY
-    require(proxy, YtError("You should specify proxy"))
 
     # prepare url
     url = "http://{0}/{1}/{2}".format(proxy, config.API_PATH, command_name)
