@@ -54,7 +54,7 @@ if (typeof(config.high_watermark) === "undefined") {
 // TODO(sandello): Extract singleton configuration to a separate branch.
 yt.configureSingletons(config.proxy);
 
-yt.YtRegistry.set("fdqn", config.fqdn);
+yt.YtRegistry.set("fdqn", config.fqdn || require("os").hostname());
 yt.YtRegistry.set("config", config);
 yt.YtRegistry.set("logger", logger);
 yt.YtRegistry.set("driver", new yt.YtDriver(config));
