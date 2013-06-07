@@ -9,6 +9,8 @@
 
 #include <ytlib/node_tracker_client/node.pb.h>
 
+#include <ytlib/chunk_client/chunk_replica.h>
+
 namespace NYT {
 namespace NChunkServer {
 
@@ -24,7 +26,7 @@ class TJob
      *  Don't try making it TChunkPtrWithIndex.
      *  Removal jobs may refer to nonexistent chunks.
      */
-    DEFINE_BYVAL_RO_PROPERTY(TChunkIdWithIndex, ChunkIdWithIndex);
+    DEFINE_BYVAL_RO_PROPERTY(NChunkClient::TChunkIdWithIndex, ChunkIdWithIndex);
     DEFINE_BYVAL_RO_PROPERTY(NNodeTrackerServer::TNode*, Node);
     DEFINE_BYREF_RO_PROPERTY(std::vector<Stroka>, TargetAddresses);
     DEFINE_BYREF_RO_PROPERTY(NErasure::TPartIndexList, ErasedIndexes);
@@ -42,13 +44,13 @@ public:
         const NNodeTrackerClient::NProto::TNodeResources& resourceUsage);
 
     static TJobPtr CreateReplicate(
-        const TChunkIdWithIndex& chunkIdWithIndex,
+        const NChunkClient::TChunkIdWithIndex& chunkIdWithIndex,
         NNodeTrackerServer::TNode* node,
         const TNodeList& targets,
         const NNodeTrackerClient::NProto::TNodeResources& resourceUsage);
 
     static TJobPtr CreateRemove(
-        const TChunkIdWithIndex& chunkIdWithIndex,
+        const NChunkClient::TChunkIdWithIndex& chunkIdWithIndex,
         NNodeTrackerServer::TNode* node,
         const NNodeTrackerClient::NProto::TNodeResources& resourceUsage);
 
@@ -62,7 +64,7 @@ public:
     TJob(
         EJobType type,
         const TJobId& jobId,
-        const TChunkIdWithIndex& chunkIdWithIndex,
+        const NChunkClient::TChunkIdWithIndex& chunkIdWithIndex,
         NNodeTrackerServer::TNode* node,
         const TNodeList& targets,
         const NErasure::TPartIndexList& erasedIndexes,

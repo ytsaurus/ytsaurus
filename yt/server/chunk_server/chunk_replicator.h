@@ -15,6 +15,8 @@
 
 #include <ytlib/node_tracker_client/node_tracker_service.pb.h>
 
+#include <ytlib/chunk_client/chunk_replica.h>
+
 #include <server/cell_master/public.h>
 
 #include <deque>
@@ -52,7 +54,7 @@ public:
 
     void ScheduleNodeRefresh(TNode* node);
 
-    void ScheduleUnknownChunkRemoval(TNode* node, const TChunkIdWithIndex& chunkdIdWithIndex);
+    void ScheduleUnknownChunkRemoval(TNode* node, const NChunkClient::TChunkIdWithIndex& chunkdIdWithIndex);
     void ScheduleChunkRemoval(TNode* node, TChunkPtrWithIndex chunkWithIndex);
 
     void SchedulePropertiesUpdate(TChunkTree* chunkTree);
@@ -164,7 +166,7 @@ private:
         TJobPtr* jobsToStart);
     EJobScheduleFlags ScheduleRemovalJob(
         TNode* node,
-        const TChunkIdWithIndex& chunkIdWithIndex,
+        const NChunkClient::TChunkIdWithIndex& chunkIdWithIndex,
         TJobPtr* job);
     EJobScheduleFlags ScheduleRepairJob(
         TNode* node,

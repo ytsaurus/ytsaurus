@@ -143,49 +143,6 @@ class TMultiChunkSequentialWriter;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-struct TChunkIdWithIndex
-{
-    TChunkIdWithIndex();
-    TChunkIdWithIndex(const TChunkId& id, int index);
-
-    TChunkId Id;
-    int Index;
-
-    //! Indicates that an instance of TChunkIdWithIndex refers to the whole chunk,
-    //! not to any of its replicas.
-    static const int GenericPartIndex = -1;
-};
-
-bool operator == (const TChunkIdWithIndex& lhs, const TChunkIdWithIndex& rhs);
-bool operator != (const TChunkIdWithIndex& lhs, const TChunkIdWithIndex& rhs);
-
-Stroka ToString(const TChunkIdWithIndex& id);
-
-///////////////////////////////////////////////////////////////////////////////
-
-//! Returns |true| iff this is a erasure chunk.
-bool IsErasureChunkId(const TChunkId& id);
-
-//! Returns |true| iff this is a erasure chunk part.
-bool IsErasureChunkPartId(const TChunkId& id);
-
-//! Returns id for a part of a given erasure chunk.
-TChunkId ErasurePartIdFromChunkId(const TChunkId& id, int index);
-
-//! Returns the whole chunk id for a given erasure chunk part id.
-TChunkId ErasureChunkIdFromPartId(const TChunkId& id);
-
-//! Returns part index for a given erasure chunk part id.
-int IndexFromErasurePartId(const TChunkId& id);
-
-//! For usual chunks, preserves the id.
-//! For erasure chunks, constructs the part id using the given replica index.
-TChunkId EncodeChunkId(const TChunkIdWithIndex& idWithIndex);
-
-//! For usual chunks, preserves the id and returns zero index.
-//! For erasure chunks, constructs the whole chunk id and extracts index.
-TChunkIdWithIndex DecodeChunkId(const TChunkId& id);
-
 template <class TBuffer>
 class TKey;
 
@@ -209,19 +166,3 @@ typedef std::vector<TChannel> TChannels;
 } // namespace NChunkClient
 } // namespace NYT
 
-///////////////////////////////////////////////////////////////////////////////
-
-DECLARE_PODTYPE(NYT::NChunkClient::TChunkIdWithIndex)
-
-//! A hasher for TChunkIdWithIndex.
-template <>
-struct hash<NYT::NChunkClient::TChunkIdWithIndex>
-{
-    inline size_t operator()(const NYT::NChunkClient::TChunkIdWithIndex& value) const
-    {
-        return THash<NYT::NChunkClient::TChunkId>()(value.Id) * 497 +
-            value.Index;
-    }
-};
-
-///////////////////////////////////////////////////////////////////////////////

@@ -19,7 +19,6 @@ namespace NChunkServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 using NChunkClient::TChunkId;
-using NChunkClient::TChunkIdWithIndex;
 using NChunkClient::TChunkListId;
 using NChunkClient::TChunkTreeId;
 using NChunkClient::NullChunkId;
