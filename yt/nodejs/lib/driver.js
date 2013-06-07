@@ -178,7 +178,7 @@ YtDriver.prototype.execute = function(name, user,
         }
     });
 
-    pause.unpause();
+    process.nextTick(function() { pause.unpause(); });
 
     return Q
         .all([ deferred.promise, input_pipe_promise, output_pipe_promise ])
