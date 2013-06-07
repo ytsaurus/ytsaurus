@@ -64,20 +64,13 @@ target_link_libraries ( ytlib
 )
 
 if (HAVE_LIBUNWIND)
-  if (YT_BUILD_YTLIB_SHARED)
-    target_link_libraries( ytlib libunwind.so )
-  else()
-    target_link_libraries( ytlib libunwind.a )
-  endif()
+  target_link_libraries( ytlib unwind )
 endif()
 
 include_directories(
   ${CMAKE_SOURCE_DIR}
-
   ${CMAKE_SOURCE_DIR}/yt
-
   ${CMAKE_SOURCE_DIR}/contrib/tclap
-
   ${CMAKE_BINARY_DIR}
   ${CMAKE_BINARY_DIR}/include
   .
