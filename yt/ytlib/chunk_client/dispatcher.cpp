@@ -35,14 +35,14 @@ void TDispatcher::Configure(TDispatcherConfigPtr config)
     // This is not redundant, since the check and the assignment above are
     // not atomic and (adversary) thread can initialize thread pool in parallel.
     YCHECK(!CompressionThreadPool.TryGet());
-    
+
     // We believe in proper memory ordering here.
-    YCHECK(!CompressionThreadPool.TryGet());
+    YCHECK(!ErasureThreadPool.TryGet());
     // We do not really want to store entire config within us.
     ErasurePoolSize = config->ErasurePoolSize;
     // This is not redundant, since the check and the assignment above are
     // not atomic and (adversary) thread can initialize thread pool in parallel.
-    YCHECK(!CompressionThreadPool.TryGet());
+    YCHECK(!ErasureThreadPool.TryGet());
 }
 
 IInvokerPtr TDispatcher::GetReaderInvoker()
