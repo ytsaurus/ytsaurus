@@ -57,9 +57,8 @@ public:
         try {
             Length_ = InputStream_->Read(buf, len);
             return true;
-        }
-        catch (const std::exception& ex) {
-            Result_ = MakeFuture(TError("Failed writing to stream") << ex);
+        } catch (const std::exception& ex) {
+            Result_ = MakeFuture(TError("Failed reading from the stream") << ex);
             return false;
         }
     }
@@ -140,9 +139,8 @@ public:
     {
         try {
             OutputStream_->Write(buf, len);
-        }
-        catch (const std::exception& ex) {
-            Result_ = MakeFuture(TError("Failed writing to stream") << ex);
+        } catch (const std::exception& ex) {
+            Result_ = MakeFuture(TError("Failed writing to the stream") << ex);
             return false;
         }
         return true;
