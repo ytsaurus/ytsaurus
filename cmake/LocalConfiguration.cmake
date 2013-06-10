@@ -58,8 +58,8 @@ if (CMAKE_COMPILER_IS_GNUCXX)
   endif ( CMAKE_CXX_COMPILER_ARG1 )
 
 
-  if ( GCC_VERSION VERSION_LESS 4.5 )
-    message(FATAL_ERROR "g++ >= 4.5.0 is mandatory due to C++11 usage")
+  if ( GCC_VERSION VERSION_LESS 4.7 )
+    message(FATAL_ERROR "g++ >= 4.7.0 is mandatory")
   endif()
 endif()
 
