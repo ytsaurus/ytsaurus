@@ -5,7 +5,7 @@ PROXY = None
 TOKEN = None
 USE_TOKEN = True
 
-ACCEPT_ENCODING = "identity, gzip"
+ACCEPT_ENCODING = "gzip, identity"
 CONTENT_ENCODING = "gzip"
 
 CONNECTION_TIMEOUT = 30.0
