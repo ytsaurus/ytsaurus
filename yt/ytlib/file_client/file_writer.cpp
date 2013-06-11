@@ -56,6 +56,9 @@ TAsyncWriter::TAsyncWriter(
     }
 }
 
+TAsyncWriter::~TAsyncWriter()
+{ }
+
 TAsyncError TAsyncWriter::AsyncOpen()
 {
     if (IsAborted()) {

@@ -41,6 +41,8 @@ public:
         NTransactionClient::TTransactionManagerPtr transactionManager,
         const NYPath::TRichYPath& richPath);
 
+    ~TAsyncWriter();
+
     TAsyncError AsyncOpen();
     TAsyncError AsyncWrite(const TRef& data);
     TAsyncError AsyncClose();

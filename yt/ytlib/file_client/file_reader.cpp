@@ -56,6 +56,9 @@ TAsyncReader::TAsyncReader(
         transaction ? ~ToString(transaction->GetId()) : ~ToString(NullTransactionId)));
 }
 
+TAsyncReader::~TAsyncReader()
+{ }
+
 TAsyncError TAsyncReader::AsyncOpen()
 {
     LOG_INFO("Opening file reader");

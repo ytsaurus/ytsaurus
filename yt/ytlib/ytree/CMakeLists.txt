@@ -5,6 +5,7 @@ set( SRCS
   ${BASE}/attribute_helpers.cpp
   ${BASE}/attribute_provider.cpp
   ${BASE}/attributes.cpp
+  ${BASE}/convert.cpp
   ${BASE}/ephemeral_attribute_owner.cpp
   ${BASE}/ephemeral_node_factory.cpp
   ${BASE}/exception_helpers.cpp

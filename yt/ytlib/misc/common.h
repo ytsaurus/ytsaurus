@@ -93,11 +93,6 @@ namespace std {
 } // namespace std
 #endif
 
-// A temporary workaround until we switch to a fresh GCC version.
-#if defined(__GNUC__) && (__GNUC__ < 4 || __GNUC_MINOR__ < 7)
-    #define nullptr NULL
-#endif
-
 // Used to mark Logger and Profiler static variables as probably unused
 // to silent static analyzer.
 #if defined(__GNUC__) || defined(__clang__)

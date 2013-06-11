@@ -31,6 +31,10 @@ INodePtr ConvertToNode(
 template <class T>
 std::unique_ptr<IAttributeDictionary> ConvertToAttributes(const T& value);
 
+// Provide shared instantinations for different TUs for commongly-used types.
+extern template TYsonString ConvertToYsonString<int>(const int&);
+extern template TYsonString ConvertToYsonString<TRawString>(const TRawString&);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TTo>

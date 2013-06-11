@@ -39,6 +39,8 @@ public:
         const TNullable<i64>& offset = Null,
         const TNullable<i64>& length = Null);
 
+    ~TAsyncReader();
+
     TAsyncError AsyncOpen();
     TFuture<TReadResult> AsyncRead();
 
