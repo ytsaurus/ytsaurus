@@ -1,10 +1,10 @@
 cmake_minimum_required(VERSION 2.6.4 FATAL_ERROR)
 project(YT)
 
-# set(YT_BUILD_ENABLE_NODEJS 1)
-
 ################################################################################
 # Include various CMake modules.
+
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 set(CMAKE_MODULE_PATH
   "${CMAKE_SOURCE_DIR}/cmake"
