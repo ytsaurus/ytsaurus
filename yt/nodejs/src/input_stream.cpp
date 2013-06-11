@@ -369,7 +369,7 @@ size_t TInputStreamWrap::DoRead(void* data, size_t length)
     THREAD_AFFINITY_IS_ANY();
 
     if (!AtomicGet(IsReadable)) {
-        return 0;
+        THROW_ERROR_EXCEPTION("TInputStreamWrap was terminated");
     }
 
     TScopedRef<false> guardAsyncRef(this);
@@ -422,6 +422,11 @@ size_t TInputStreamWrap::DoRead(void* data, size_t length)
             }
 
             Conditional.WaitI(Mutex);
+
+            if (!AtomicGet(IsReadable)) {
+                THROW_ERROR_EXCEPTION("TInputStreamWrap was terminated");
+            }
+
             continue;
         }
     };
