@@ -351,12 +351,10 @@ protected:
             childAttributes.DemandRatio = dominantTotalLimits == 0 ? 0.0 : (double) dominantDemand / dominantTotalLimits;
             demandRatioSum += std::min(childAttributes.DemandRatio, childAttributes.MaxShareRatio);
 
-            childAttributes.AdjustedMinShareRatio =
-                dominantDemand > 0
-                ? std::min(
-                    child->GetMinShareRatio() * Attributes_.AdjustedMinShareRatio,
-                    childAttributes.MaxShareRatio)
-                : 0.0;
+            childAttributes.AdjustedMinShareRatio = std::min(std::min(
+                child->GetMinShareRatio() * Attributes_.AdjustedMinShareRatio,
+                childAttributes.MaxShareRatio),
+                childAttributes.DemandRatio);
             minShareRatioSum += childAttributes.AdjustedMinShareRatio;
 
             childAttributes.Weight = child->GetWeight();
