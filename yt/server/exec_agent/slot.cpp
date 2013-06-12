@@ -29,7 +29,7 @@ TSlot::TSlot(const Stroka& path, int slotId, int userId)
 void TSlot::Initialize()
 {
     try {
-        NFS::ForcePath(Path);
+        NFS::ForcePath(Path, 0755);
         SandboxPath = NFS::CombinePaths(Path, "sandbox");
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Failed to create slot directory %s",
