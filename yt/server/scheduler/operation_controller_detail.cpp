@@ -1427,14 +1427,17 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::CreateLivePrevie
     TObjectServiceProxy proxy(Host->GetMasterChannel());
     auto batchReq = proxy.ExecuteBatch();
 
-    auto processTable = [&] (const Stroka& path, const Stroka& key) {
+    auto processTable = [&] (
+            const Stroka& path,
+            int replicationFactor,
+            const Stroka& key) {
         auto req = TCypressYPathProxy::Create(path);
 
         req->set_type(EObjectType::Table);
         req->set_ignore_existing(true);
 
         auto attributes = CreateEphemeralAttributes();
-        attributes->Set("replication_factor", 1);
+        attributes->Set("replication_factor", replicationFactor);
 
         ToProto(req->mutable_node_attributes(), *attributes);
 
@@ -1446,8 +1449,9 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::CreateLivePrevie
         LOG_INFO("Creating output tables for live preview");
 
         for (int index = 0; index < static_cast<int>(OutputTables.size()); ++index) {
+            const auto& table = OutputTables[index];
             auto path = GetLivePreviewOutputPath(Operation->GetOperationId(), index);
-            processTable(path, "create_output");
+            processTable(path, table.Options->ReplicationFactor, "create_output");
         }
     }
 
@@ -1455,7 +1459,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::CreateLivePrevie
         LOG_INFO("Creating intermediate table for live preview");
 
         auto path = GetLivePreviewIntermediatePath(Operation->GetOperationId());
-        processTable(path, "create_intermediate");
+        processTable(path, 1, "create_intermediate");
     }
 
     return batchReq->Invoke();
