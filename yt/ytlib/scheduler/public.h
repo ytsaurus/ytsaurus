@@ -43,7 +43,7 @@ DECLARE_ENUM(EErrorCode,
     ((InvalidOperationState)(201))
 );
 
-DECLARE_ENUM(EUnavailableChunksAction,
+DECLARE_ENUM(EUnavailableChunkAction,
     (Fail)
     (Skip)
     (Wait)

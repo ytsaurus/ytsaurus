@@ -45,13 +45,14 @@ public:
 struct TOperationSpecBase
     : public TYsonSerializable
 {
+    //! Account holding intermediate data produces by the operation.
     Stroka IntermediateDataAccount;
 
-    // What to do during initialization if some chunks are unavailable.
-    EUnavailableChunksAction UnavailableChunksStrategy;
+    //! What to do during initialization if some chunks are unavailable.
+    EUnavailableChunkAction UnavailableChunkStrategy;
 
-    // What to do during operation progress if some chunks are unavailable.
-    EUnavailableChunksAction UnavailableChunksTactics;
+    //! What to do during operation progress when some chunks get unavailable.
+    EUnavailableChunkAction UnavailableChunkTactics;
 
     TNullable<int> MaxFailedJobCount;
     TNullable<int> MaxStdErrCount;
@@ -61,11 +62,11 @@ struct TOperationSpecBase
         RegisterParameter("intermediate_data_account", IntermediateDataAccount)
             .Default("tmp");
 
-        RegisterParameter("unavailable_chunks_strategy", UnavailableChunksStrategy)
-            .Default(EUnavailableChunksAction::Fail);
+        RegisterParameter("unavailable_chunk_strategy", UnavailableChunkStrategy)
+            .Default(EUnavailableChunkAction::Fail);
 
-        RegisterParameter("unavailable_chunks_tactics", UnavailableChunksTactics)
-            .Default(EUnavailableChunksAction::Wait);
+        RegisterParameter("unavailable_chunk_tactics", UnavailableChunkTactics)
+            .Default(EUnavailableChunkAction::Wait);
 
         RegisterParameter("max_failed_job_count", MaxFailedJobCount)
             .Default(Null);
