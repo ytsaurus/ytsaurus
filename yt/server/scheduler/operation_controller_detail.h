@@ -695,17 +695,23 @@ protected:
 
 private:
 
-    typedef yhash_map<NChunkClient::TChunkId, TInputChunkDescriptor> TInputChunksMap;
+    typedef yhash_map<NChunkClient::TChunkId, TInputChunkDescriptor> TInputChunkMap;
 
-    class TInputChunksScratcher
+    class TInputChunkScratcher
         : public virtual TRefCounted
     {
     public:
-        TInputChunksScratcher(TOperationControllerBase* controller);
+        explicit TInputChunkScratcher(TOperationControllerBase* controller);
 
-        // Should be called when operation preparation is completed.
+        //! Starts periodic polling.
+        /*!
+         *  Should be called when operation preparation is completed.
+         *  Safe to call multiple times.
+         */
         void Start();
+
         void Stop();
+
     private:
         void LocateChunks();
         void OnLocateChunksResponse(NChunkClient::TChunkServiceProxy::TRspLocateChunksPtr rsp);
@@ -713,11 +719,13 @@ private:
         TOperationControllerBase* Controller;
         TPeriodicInvokerPtr PeriodicInvoker;
         NChunkClient::TChunkServiceProxy Proxy;
-        TInputChunksMap::iterator NextChunkIterator;
+        TInputChunkMap::iterator NextChunkIterator;
         bool Started;
 
         NLog::TTaggedLogger& Logger;
     };
+
+    typedef TIntrusivePtr<TInputChunkScratcher> TInputChunkScratcherPtr;
 
     TOperationSpecBasePtr Spec;
     TChunkListPoolPtr ChunkListPool;
@@ -734,12 +742,12 @@ private:
     //! Maps scheduler's jobs to controller's joblets.
     yhash_map<TJobPtr, TJobletPtr> JobletMap;
 
-    TInputChunksMap InputChunks;
+    TInputChunkMap InputChunks;
 
     //! Used to distinguish already seen ChunkSpecs while building #InputChunks.
     yhash_set<NChunkClient::TRefCountedChunkSpecPtr> InputChunkSpecs;
 
-    TIntrusivePtr<TInputChunksScratcher> InputChunksScratcher;
+    TInputChunkScratcherPtr InputChunkScratcher;
 
     //! Increments each time a new job is scheduled.
     TIdGenerator JobIndexGenerator;

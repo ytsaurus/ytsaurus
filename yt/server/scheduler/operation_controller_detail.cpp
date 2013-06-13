@@ -65,38 +65,38 @@ using namespace NNodeTrackerClient::NProto;
 
 ////////////////////////////////////////////////////////////////////
 
-TOperationControllerBase::TInputChunksScratcher::TInputChunksScratcher(TOperationControllerBase* controller)
+TOperationControllerBase::TInputChunkScratcher::TInputChunkScratcher(TOperationControllerBase* controller)
     : Controller(controller)
     , PeriodicInvoker(New<TPeriodicInvoker>(
         Controller->GetCancelableControlInvoker(),
-        BIND(&TInputChunksScratcher::LocateChunks, MakeWeak(this)),
+        BIND(&TInputChunkScratcher::LocateChunks, MakeWeak(this)),
         Controller->Config->ChunkScratchPeriod))
     , Proxy(Controller->Host->GetMasterChannel())
     , Started(false)
     , Logger(Controller->Logger)
 { }
 
-void TOperationControllerBase::TInputChunksScratcher::Start()
+void TOperationControllerBase::TInputChunkScratcher::Start()
 {
     if (Started)
         return;
 
     Started = true;
 
-    LOG_DEBUG("Starting input chunks scratcher");
+    LOG_DEBUG("Starting input chunk scratcher");
 
     NextChunkIterator = Controller->InputChunks.begin();
     PeriodicInvoker->Start();
 }
 
-void TOperationControllerBase::TInputChunksScratcher::Stop()
+void TOperationControllerBase::TInputChunkScratcher::Stop()
 {
     if (Started) {
         PeriodicInvoker->Stop();
     }
 }
 
-void TOperationControllerBase::TInputChunksScratcher::LocateChunks()
+void TOperationControllerBase::TInputChunkScratcher::LocateChunks()
 {
     auto startIterator = NextChunkIterator;
     auto req = Proxy.LocateChunks();
@@ -110,19 +110,19 @@ void TOperationControllerBase::TInputChunksScratcher::LocateChunks()
         }
 
         if (NextChunkIterator == startIterator) {
-            //Overall number of chunks is less than MaxChunksPerScratch.
+            // Total number of chunks is less than MaxChunksPerScratch.
             break;
         }
     }
 
     LOG_DEBUG("Sending locate chunks request for %d chunks", static_cast<int>(req->chunk_ids_size()));
 
-    req->Invoke().Subscribe(BIND(
-        &TInputChunksScratcher::OnLocateChunksResponse,
-        MakeWeak(this)).Via(Controller->GetCancelableControlInvoker()));
+    req->Invoke().Subscribe(
+        BIND(&TInputChunkScratcher::OnLocateChunksResponse, MakeWeak(this))
+            .Via(Controller->GetCancelableControlInvoker()));
 }
 
-void TOperationControllerBase::TInputChunksScratcher::OnLocateChunksResponse(TChunkServiceProxy::TRspLocateChunksPtr rsp)
+void TOperationControllerBase::TInputChunkScratcher::OnLocateChunksResponse(TChunkServiceProxy::TRspLocateChunksPtr rsp)
 {
     if (!rsp->IsOK()) {
         LOG_WARNING(*rsp, "Failed to locate input chunks");
@@ -676,7 +676,7 @@ TOperationControllerBase::TOperationControllerBase(
     , Spec(spec)
     , CachedPendingJobCount(0)
     , CachedNeededResources(ZeroNodeResources())
-    , InputChunksScratcher(New<TInputChunksScratcher>(this))
+    , InputChunkScratcher(New<TInputChunkScratcher>(this))
 {
     Logger.AddTag(Sprintf("OperationId: %s", ~ToString(operation->GetOperationId())));
 }
@@ -920,7 +920,7 @@ void TOperationControllerBase::OnInputChunkAvailable(const TChunkId& chunkId, TI
     if (descriptor.State != EInputChunkState::Waiting)
         return;
 
-    LOG_INFO("Input chunk is available (ChunkId: %s)", ~ToString(chunkId));
+    LOG_TRACE("Input chunk is available (ChunkId: %s)", ~ToString(chunkId));
 
     descriptor.State = EInputChunkState::Active;
 
@@ -944,55 +944,54 @@ void TOperationControllerBase::OnInputChunkUnavailable(const TChunkId& chunkId, 
     if (descriptor.State != EInputChunkState::Active)
         return;
 
-    LOG_INFO("Input chunk is unavailable (ChunkId: %s)", ~ToString(chunkId));
+    LOG_TRACE("Input chunk is unavailable (ChunkId: %s)", ~ToString(chunkId));
 
-    switch (Spec->UnavailableChunksTactics) {
-    case EUnavailableChunksAction::Fail:
-        OnOperationFailed(TError("Input chunk is unavailable (ChunkId: %s)", ~ToString(chunkId)));
-        break;
+    switch (Spec->UnavailableChunkTactics) {
+        case EUnavailableChunkAction::Fail:
+            OnOperationFailed(TError("Input chunk %s is unavailable",
+                ~ToString(chunkId)));
+            break;
 
-    case EUnavailableChunksAction::Skip: {
-        descriptor.State = EInputChunkState::Skipped;
-        FOREACH(const auto& inputStripe, descriptor.InputStripes) {
-            // Remove given chunk from the stripe list.
-            TSmallVector<TChunkSlicePtr, 1> slices;
-            std::swap(inputStripe.Stripe->ChunkSlices, slices);
+        case EUnavailableChunkAction::Skip: {
+            descriptor.State = EInputChunkState::Skipped;
+            FOREACH(const auto& inputStripe, descriptor.InputStripes) {
+                // Remove given chunk from the stripe list.
+                TSmallVector<TChunkSlicePtr, 1> slices;
+                std::swap(inputStripe.Stripe->ChunkSlices, slices);
 
-            std::copy_if(
-                slices.begin(),
-                slices.end(),
-                inputStripe.Stripe->ChunkSlices.begin(),
-                [&] (TChunkSlicePtr slice) {
-                    return chunkId != FromProto<TChunkId>(slice->GetChunkSpec()->chunk_id());
-                });
+                std::copy_if(
+                    slices.begin(),
+                    slices.end(),
+                    inputStripe.Stripe->ChunkSlices.begin(),
+                    [&] (TChunkSlicePtr slice) {
+                        return chunkId != FromProto<TChunkId>(slice->GetChunkSpec()->chunk_id());
+                    });
 
-            if (inputStripe.Stripe->WaitingChunkCount == 0) {
-                // Reinstall patched stripe.
-                inputStripe.Task->GetChunkPoolInput()->Suspend(inputStripe.Cookie);
-                inputStripe.Task->GetChunkPoolInput()->Resume(inputStripe.Cookie, inputStripe.Stripe);
-                AddTaskPendingHint(inputStripe.Task);
+                if (inputStripe.Stripe->WaitingChunkCount == 0) {
+                    // Reinstall patched stripe.
+                    inputStripe.Task->GetChunkPoolInput()->Suspend(inputStripe.Cookie);
+                    inputStripe.Task->GetChunkPoolInput()->Resume(inputStripe.Cookie, inputStripe.Stripe);
+                    AddTaskPendingHint(inputStripe.Task);
+                }
             }
+            InputChunkScratcher->Start();
+            break;
         }
 
-        InputChunksScratcher->Start();
-        break;
-    }
-
-    case EUnavailableChunksAction::Wait: {
-        descriptor.State = EInputChunkState::Waiting;
-        FOREACH(const auto& inputStripe, descriptor.InputStripes) {
-            if (inputStripe.Stripe->WaitingChunkCount == 0) {
-                inputStripe.Task->GetChunkPoolInput()->Suspend(inputStripe.Cookie);
+        case EUnavailableChunkAction::Wait: {
+            descriptor.State = EInputChunkState::Waiting;
+            FOREACH(const auto& inputStripe, descriptor.InputStripes) {
+                if (inputStripe.Stripe->WaitingChunkCount == 0) {
+                    inputStripe.Task->GetChunkPoolInput()->Suspend(inputStripe.Cookie);
+                }
+                ++inputStripe.Stripe->WaitingChunkCount;
             }
-            ++inputStripe.Stripe->WaitingChunkCount;
+            InputChunkScratcher->Start();
+            break;
         }
 
-        InputChunksScratcher->Start();
-        break;
-    }
-
-    default:
-        break;
+        default:
+            YUNREACHABLE();
     }
 }
 
@@ -1036,7 +1035,7 @@ void TOperationControllerBase::Abort()
     LOG_INFO("Aborting operation");
 
     Running = false;
-    InputChunksScratcher->Stop();
+    InputChunkScratcher->Stop();
     CancelableContext->Cancel();
 
     LOG_INFO("Operation aborted");
@@ -1462,7 +1461,7 @@ void TOperationControllerBase::DoOperationCompleted()
 
     JobCounter.Finalize();
 
-    InputChunksScratcher->Stop();
+    InputChunkScratcher->Stop();
     Running = false;
 
     Host->OnOperationCompleted(Operation);
@@ -1479,7 +1478,7 @@ void TOperationControllerBase::DoOperationFailed(const TError& error)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    InputChunksScratcher->Stop();
+    InputChunkScratcher->Stop();
     Running = false;
 
     Host->OnOperationFailed(Operation, error);
@@ -2306,30 +2305,26 @@ std::vector<TRefCountedChunkSpecPtr> TOperationControllerBase::CollectInputChunk
     for (int tableIndex = 0; tableIndex < InputTables.size(); ++tableIndex) {
         const auto& table = InputTables[tableIndex];
         FOREACH (const auto& chunkSpec, table.FetchResponse->chunks()) {
-
+            auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
             if (IsUnavailable(chunkSpec)) {
-                switch (Spec->UnavailableChunksStrategy) {
-                case EUnavailableChunksAction::Fail:
-                    THROW_ERROR_EXCEPTION(
-                        "Input chunk is unavailable (ChunkId: %s)",
-                        ~ToString(FromProto<TChunkId>(chunkSpec.chunk_id())));
-                    break;
+                switch (Spec->UnavailableChunkStrategy) {
+                    case EUnavailableChunkAction::Fail:
+                        THROW_ERROR_EXCEPTION("Input chunk %s is unavailable",
+                            ~ToString(chunkId));
 
-                case EUnavailableChunksAction::Skip:
-                    LOG_DEBUG(
-                        "Skipping unavailable chunk (ChunkId: %s)",
-                        ~ToString(FromProto<TChunkId>(chunkSpec.chunk_id())));
-                    continue;
+                    case EUnavailableChunkAction::Skip:
+                        LOG_TRACE("Skipping unavailable chunk (ChunkId: %s)",
+                            ~ToString(chunkId));
+                        continue;
 
-                case EUnavailableChunksAction::Wait:
-                    // Do nothing.
-                    break;
+                    case EUnavailableChunkAction::Wait:
+                        // Do nothing.
+                        break;
 
-                default:
-                    YUNREACHABLE();
-                };
+                    default:
+                        YUNREACHABLE();
+                }
             }
-
             auto chunk = New<TRefCountedChunkSpec>(chunkSpec);
             chunk->set_table_index(tableIndex);
             result.push_back(chunk);
@@ -2494,10 +2489,10 @@ void TOperationControllerBase::RegisterOutput(TJobletPtr joblet, int key)
 void TOperationControllerBase::CompletePreparation()
 {
     if (InputChunks.empty()) {
-        // Possible options:
+        // Possible reasons:
         // - All input chunks are unavailable && Strategy == Skip
         // - Merge decided to passthrough all input chunks
-        // - Did I forget anything?
+        // - Anything else?
         LOG_INFO("Empty input");
         OnOperationCompleted();
         return;
@@ -2510,7 +2505,7 @@ void TOperationControllerBase::CompletePreparation()
         Operation->GetOperationId(),
         Operation->GetOutputTransaction()->GetId());
 
-    if (Spec->UnavailableChunksStrategy != EUnavailableChunksAction::Wait)
+    if (Spec->UnavailableChunkStrategy != EUnavailableChunkAction::Wait)
         return;
 
     int suspendedChunksCount = 0;
@@ -2529,7 +2524,7 @@ void TOperationControllerBase::CompletePreparation()
 
     if (suspendedChunksCount > 0) {
         LOG_DEBUG("Waiting for %d unavailable chunks", suspendedChunksCount);
-        InputChunksScratcher->Start();
+        InputChunkScratcher->Start();
     }
 }
 
