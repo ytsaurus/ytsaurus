@@ -63,6 +63,7 @@ yt.YtRegistry.set("coordinator", new yt.YtCoordinator(config.coordination, logge
 
 // Hoist variable declaration.
 var static_application;
+var static_application2;
 var dynamic_application;
 
 var insecure_server;
@@ -160,6 +161,8 @@ logger.info("Starting HTTP proxy worker", { wid : cluster.worker.id, pid : proce
 
 // Setup application servers.
 static_application = new node_static.Server("/usr/share/yt_new", { cache : 4 * 3600 });
+static_application2 = new node_static.Server("/usr/share/yt-thor", { cache : 4 * 3600 });
+
 dynamic_application = connect()
     .use(yt.YtIsolateRequest())
     .use(yt.YtLogRequest())
@@ -218,6 +221,15 @@ dynamic_application = connect()
         }
         req.on("end", function() {
             static_application.serve(req, rsp);
+        });
+    })
+    .use("/ui-new", function(req, rsp, next) {
+        "use strict";
+        if (req.url === "/") {
+            req.url = "index.html";
+        }
+        req.on("end", function() {
+            static_application2.serve(req, rsp);
         });
     })
     .use("/", function(req, rsp, next) {
