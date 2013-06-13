@@ -54,12 +54,12 @@ if (typeof(config.high_watermark) === "undefined") {
 // TODO(sandello): Extract singleton configuration to a separate branch.
 yt.configureSingletons(config.proxy);
 
-yt.YtRegistry.set("fdqn", config.fqdn || require("os").hostname());
+yt.YtRegistry.set("fqdn", config.fqdn || require("os").hostname());
 yt.YtRegistry.set("config", config);
 yt.YtRegistry.set("logger", logger);
 yt.YtRegistry.set("driver", new yt.YtDriver(config));
 yt.YtRegistry.set("authority", new yt.YtAuthority(config.authentication));
-yt.YtRegistry.set("coordinator", new yt.YtCoordinator(config.coordination, logger, yt.YtRegistry.get("driver"), yt.YtRegistry.get("fdqn")));
+yt.YtRegistry.set("coordinator", new yt.YtCoordinator(config.coordination, logger, yt.YtRegistry.get("driver"), yt.YtRegistry.get("fqdn")));
 
 // Hoist variable declaration.
 var static_application;

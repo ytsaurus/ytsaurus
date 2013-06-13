@@ -1,6 +1,6 @@
 var Q = require("q");
 
-var YtApplicationAuth = require("../application_hosts").that;
+var YtApplicationHosts = require("../application_hosts").that;
 var YtRegistry = require("../registry").that;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -12,7 +12,7 @@ exports.that = function Middleware__YtApplicationHosts()
     var logger = YtRegistry.get("logger");
     var coordinator = YtRegistry.get("coordinator");
 
-    var app = new YtApplicationAuth(
+    var app = new YtApplicationHosts(
         logger,
         coordinator);
 
