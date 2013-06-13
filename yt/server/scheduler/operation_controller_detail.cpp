@@ -2023,6 +2023,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
 
             LOG_INFO("File %s attributes received", ~path);
             file.FileName = file.Path.Attributes().Get<Stroka>("file_name", fileName);
+            file.Executable = file.Path.Attributes().Get<bool>("executable", file.Executable);
         }
     }
 
@@ -2501,7 +2502,7 @@ i64 TOperationControllerBase::GetFinalOutputIOMemorySize(TJobIOConfigPtr ioConfi
     FOREACH (const auto& outputTable, OutputTables) {
         if (outputTable.Options->ErasureCodec == NErasure::ECodec::None) {
             i64 maxBufferSize = std::max(
-                ioConfig->TableWriter->MaxRowWeight, 
+                ioConfig->TableWriter->MaxRowWeight,
                 ioConfig->TableWriter->MaxBufferSize);
             result += GetOutputWindowMemorySize(ioConfig) + maxBufferSize;
         } else {
