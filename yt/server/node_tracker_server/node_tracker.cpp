@@ -407,23 +407,23 @@ private:
     }
 
 
-    void SaveKeys(const NCellMaster::TSaveContext& context) const
+    void SaveKeys(NCellMaster::TSaveContext& context) const
     {
         NodeMap.SaveKeys(context);
     }
 
-    void SaveValues(const NCellMaster::TSaveContext& context) const
+    void SaveValues(NCellMaster::TSaveContext& context) const
     {
         Save(context, NodeIdGenerator);
         NodeMap.SaveValues(context);
     }
 
-    void LoadKeys(const NCellMaster::TLoadContext& context)
+    void LoadKeys(NCellMaster::TLoadContext& context)
     {
         NodeMap.LoadKeys(context);
     }
 
-    void LoadValues(const NCellMaster::TLoadContext& context)
+    void LoadValues(NCellMaster::TLoadContext& context)
     {
         Load(context, NodeIdGenerator);
         NodeMap.LoadValues(context);

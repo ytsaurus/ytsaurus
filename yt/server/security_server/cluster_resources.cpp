@@ -58,18 +58,18 @@ void Deserialize(TClusterResources& value, INodePtr node)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void Save(const NCellMaster::TSaveContext& context, const TClusterResources& resources)
+void Save(NCellMaster::TSaveContext& context, const TClusterResources& resources)
 {
-    auto* output = context.GetOutput();
-    ::Save(output, resources.DiskSpace);
-    ::Save(output, resources.NodeCount);
+    using NYT::Save;
+    Save(context, resources.DiskSpace);
+    Save(context, resources.NodeCount);
 }
 
-void Load(const NCellMaster::TLoadContext& context, TClusterResources& resources)
+void Load(NCellMaster::TLoadContext& context, TClusterResources& resources)
 {
-    auto* input = context.GetInput();
-    ::Load(input, resources.DiskSpace);
-    ::Load(input, resources.NodeCount);
+    using NYT::Load;
+    Load(context, resources.DiskSpace);
+    Load(context, resources.NodeCount);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

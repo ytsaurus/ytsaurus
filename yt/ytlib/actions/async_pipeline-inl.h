@@ -228,7 +228,7 @@ TAsyncPipeline<T>::Add(TCallback<Signature> func, IInvokerPtr invoker)
         return lazy.Run().Apply(wrappedFunc);
     });
 
-    return New<typename TResult::TElementType>(Invoker, newLazy);
+    return New<typename TResult::TUnderlying>(Invoker, newLazy);
 }
 
 template <class T>

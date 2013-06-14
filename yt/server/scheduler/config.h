@@ -158,11 +158,21 @@ public:
     NYTree::INodePtr MapReduceOperationSpec;
     NYTree::INodePtr SortOperationSpec;
 
-    // Default environment variables set for every job.
+    //! Default environment variables set for every job.
     yhash_map<Stroka, Stroka> Environment;
 
+    //! Interval between consequent snapshots.
     TDuration SnapshotPeriod;
+
+    //! Timeout for snapshot construction.
     TDuration SnapshotTimeout;
+
+    //! If |true|, snapshots are periodically constructed and uploaded into the system.
+    bool EnableSnapshotBuilding;
+
+    //! If |true|, snapshots are loaded during revival.
+    bool EnableSnapshotLoading;
+
     Stroka SnapshotTempPath;
     NFileClient::TFileReaderConfigPtr SnapshotReader;
     NFileClient::TFileWriterConfigPtr SnapshotWriter;
@@ -294,6 +304,10 @@ public:
             .Default(TDuration::Seconds(60));
         RegisterParameter("snapshot_period", SnapshotPeriod)
             .Default(TDuration::Seconds(300));
+        RegisterParameter("enable_snapshot_building", EnableSnapshotBuilding)
+            .Default(true);
+        RegisterParameter("enable_snapshot_loading", EnableSnapshotLoading)
+            .Default(false);
         RegisterParameter("snapshot_temp_path", SnapshotTempPath)
             .NonEmpty();
         RegisterParameter("snapshot_reader", SnapshotReader)

@@ -15,13 +15,14 @@ namespace NChunkClient {
 
 using namespace NChunkClient::NProto;
 
-using NYT::FromProto;
+////////////////////////////////////////////////////////////////////////////////
+
+static int DefaultPartIndex = -1;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int DefaultPartIndex = -1;
-
-////////////////////////////////////////////////////////////////////////////////
+TRefCountedChunkSpec::TRefCountedChunkSpec()
+{ }
 
 TRefCountedChunkSpec::TRefCountedChunkSpec(const TChunkSpec& other)
 {
@@ -127,6 +128,16 @@ i64 TChunkSlice::GetRowCount() const
     return SizeOverrideExt.row_count();
 }
 
+void TChunkSlice::Persist(NPhoenix::TPersistenceContext& context)
+{
+    using NYT::Persist;
+    Persist(context, ChunkSpec);
+    Persist(context, PartIndex);
+    Persist(context, StartLimit);
+    Persist(context, EndLimit);
+    Persist(context, SizeOverrideExt);
+}
+
 TChunkSlicePtr CreateChunkSlice(
     TRefCountedChunkSpecPtr chunkSpec,
     const TNullable<NProto::TKey>& startKey /*= Null*/,
@@ -191,7 +202,7 @@ std::vector<TChunkSlicePtr> CreateErasureChunkSlices(
     return slices;
 }
 
-void ToProto(NProto::TChunkSpec* chunkSpec, const TChunkSlice& chunkSlice)
+void ToProto(TChunkSpec* chunkSpec, const TChunkSlice& chunkSlice)
 {
     chunkSpec->CopyFrom(*chunkSlice.ChunkSpec);
     if (IsNontrivial(chunkSlice.StartLimit)) {
@@ -205,18 +216,16 @@ void ToProto(NProto::TChunkSpec* chunkSpec, const TChunkSlice& chunkSlice)
     SetProtoExtension(chunkSpec->mutable_extensions(), chunkSlice.SizeOverrideExt);
 }
 
-
-////////////////////////////////////////////////////////////////////////////////
-
-bool IsNontrivial(const NProto::TReadLimit& limit)
+bool IsNontrivial(const TReadLimit& limit)
 {
-    return limit.has_row_index() ||
+    return
+        limit.has_row_index() ||
         limit.has_key() ||
         limit.has_chunk_index() ||
         limit.has_offset();
 }
 
-bool IsUnavailable(const NProto::TChunkSpec& chunkSpec)
+bool IsUnavailable(const TChunkSpec& chunkSpec)
 {
     auto codecId = NErasure::ECodec(chunkSpec.erasure_codec());
     if (codecId == NErasure::ECodec::None) {
@@ -226,7 +235,7 @@ bool IsUnavailable(const NProto::TChunkSpec& chunkSpec)
         int dataPartCount = codec->GetDataPartCount();
         NErasure::TPartIndexSet missingIndexSet((1 << dataPartCount) - 1);
         FOREACH (auto protoReplica, chunkSpec.replicas()) {
-            auto replica = FromProto<TChunkReplica>(protoReplica);
+            auto replica = NYT::FromProto<TChunkReplica>(protoReplica);
             missingIndexSet.reset(replica.GetIndex());
         }
         return missingIndexSet.any();
@@ -275,7 +284,7 @@ TRefCountedChunkSpecPtr CreateCompleteChunk(TRefCountedChunkSpecPtr chunkSpec)
 }
 
 TChunkId EncodeChunkId(
-    const NProto::TChunkSpec& chunkSpec,
+    const TChunkSpec& chunkSpec,
     NNodeTrackerClient::TNodeId nodeId)
 {
     auto replicas = NYT::FromProto<TChunkReplica, TChunkReplicaList>(chunkSpec.replicas());
@@ -288,7 +297,7 @@ TChunkId EncodeChunkId(
     YCHECK(replicaIt != replicas.end());
 
     TChunkIdWithIndex chunkIdWithIndex(
-        FromProto<TChunkId>(chunkSpec.chunk_id()),
+        NYT::FromProto<TChunkId>(chunkSpec.chunk_id()),
         replicaIt->GetIndex());
     return EncodeChunkId(chunkIdWithIndex);
 }
@@ -302,5 +311,5 @@ bool ExtractOverwriteFlag(const NYTree::IAttributeDictionary& attributes)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
+} // namespace NChunkClient
 } // namespace NYT

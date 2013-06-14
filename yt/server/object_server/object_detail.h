@@ -36,8 +36,8 @@ class TStagedObject
 public:
     TStagedObject();
 
-    void Save(const NCellMaster::TSaveContext& context) const;
-    void Load(const NCellMaster::TLoadContext& context);
+    void Save(NCellMaster::TSaveContext& context) const;
+    void Load(NCellMaster::TLoadContext& context);
 
     //! Returns True if the object is the staging area of some transaction.
     bool IsStaged() const;

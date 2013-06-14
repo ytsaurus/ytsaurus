@@ -17,23 +17,23 @@ TSubject::TSubject(const TAccountId& id)
     : TNonversionedObjectBase(id)
 { }
 
-void TSubject::Save(const NCellMaster::TSaveContext& context) const
+void TSubject::Save(NCellMaster::TSaveContext& context) const
 {
     TNonversionedObjectBase::Save(context);
 
-    auto* output = context.GetOutput();
-    ::Save(output, Name_);
+    using NYT::Save;
+    Save(context, Name_);
     SaveObjectRefs(context, MemberOf_);
     SaveObjectRefs(context, RecursiveMemberOf_);
     SaveObjectRefs(context, LinkedObjects_);
 }
 
-void TSubject::Load(const NCellMaster::TLoadContext& context)
+void TSubject::Load(NCellMaster::TLoadContext& context)
 {
     TNonversionedObjectBase::Load(context);
 
-    auto* input = context.GetInput();
-    ::Load(input, Name_);
+    using NYT::Load;
+    Load(context, Name_);
     LoadObjectRefs(context, MemberOf_);
     LoadObjectRefs(context, RecursiveMemberOf_);
     LoadObjectRefs(context, LinkedObjects_);

@@ -71,8 +71,8 @@ public:
     bool IsTrunk() const;
 
 protected:
-    void Save(const NCellMaster::TSaveContext& context) const;
-    void Load(const NCellMaster::TLoadContext& context);
+    void Save(NCellMaster::TSaveContext& context) const;
+    void Load(NCellMaster::TLoadContext& context);
 
     TObjectId Id;
     int RefCounter;

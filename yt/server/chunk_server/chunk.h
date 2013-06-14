@@ -71,8 +71,8 @@ public:
     TChunkTreeStatistics GetStatistics() const;
     NSecurityServer::TClusterResources GetResourceUsage() const;
 
-    void Save(const NCellMaster::TSaveContext& context) const;
-    void Load(const NCellMaster::TLoadContext& context);
+    void Save(NCellMaster::TSaveContext& context) const;
+    void Load(NCellMaster::TLoadContext& context);
 
     void AddReplica(TNodePtrWithIndex replica, bool cached);
     void RemoveReplica(TNodePtrWithIndex replica, bool cached);

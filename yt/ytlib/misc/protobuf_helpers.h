@@ -6,6 +6,7 @@
 #include "small_vector.h"
 #include "nullable.h"
 #include "mpl.h"
+#include "serialize.h"
 
 #include <ytlib/misc/protobuf_helpers.pb.h>
 #include <ytlib/misc/guid.pb.h>
@@ -188,13 +189,25 @@ bool DeserializeFromProtoWithEnvelope(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Serializes a given protobuf message into a given stream.
-//! Throws an exception in case of error.
-void SaveProto(TOutputStream* output, const ::google::protobuf::Message& message);
+struct TBinaryProtoSerializer
+{
+    //! Serializes a given protobuf message into a given stream.
+    //! Throws an exception in case of error.
+    static void Save(TStreamSaveContext& context, const ::google::protobuf::Message& message);
 
-//! Reads from a given stream protobuf message.
-//! Throws an exception in case of error.
-void LoadProto(TInputStream* input, ::google::protobuf::Message& message);
+    //! Reads from a given stream protobuf message.
+    //! Throws an exception in case of error.
+    static void Load(TStreamLoadContext& context, ::google::protobuf::Message& message);
+};
+
+template <class T, class C>
+struct TSerializerTraits<
+    T,
+    C,
+    typename NMpl::TEnableIf<NMpl::TIsConvertible<T&, ::google::protobuf::Message&>>::TType>
+{
+    typedef TBinaryProtoSerializer TSerializer;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -253,7 +266,9 @@ void FilterProtoExtensions(
 
 namespace google {
 namespace protobuf {
-    void CleanPooledObject(MessageLite* obj);
+
+void CleanPooledObject(MessageLite* obj);
+
 } // namespace protobuf
 } // namespace google
 

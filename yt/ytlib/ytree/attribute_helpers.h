@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <ytlib/misc/serialize.h>
+
 #include <ytlib/yson/public.h>
 
 #include <ytlib/ytree/attributes.pb.h>
@@ -24,9 +26,30 @@ void Serialize(const IAttributeDictionary& attributes, NYson::IYsonConsumer* con
 void ToProto(NProto::TAttributes* protoAttributes, const IAttributeDictionary& attributes);
 std::unique_ptr<IAttributeDictionary> FromProto(const NProto::TAttributes& protoAttributes);
 
+//! Binary serializer.
+struct TAttributeDictionarySerializer
+{
+    static void Save(TStreamSaveContext& context, const IAttributeDictionary& obj);
+    static void Load(TStreamLoadContext& context, IAttributeDictionary& obj);
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYTree
+} // namespace NYT
+
+namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class C>
+struct TSerializerTraits<NYTree::IAttributeDictionary, C, void>
+{
+    typedef NYTree::TAttributeDictionarySerializer TSerializer;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT
 
 #define ATTRIBUTE_HELPERS_INL_H_

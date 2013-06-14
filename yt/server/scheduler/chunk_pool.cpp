@@ -20,6 +20,24 @@ using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////
 
+TChunkStripeStatistics::TChunkStripeStatistics()
+    : ChunkCount(0)
+    , DataSize(0)
+    , RowCount(0)
+    , MaxBlockSize(0)
+{ }
+
+void TChunkStripeStatistics::Persist(TPersistenceContext& context)
+{
+    using NYT::Persist;
+    Persist(context, ChunkCount);
+    Persist(context, DataSize);
+    Persist(context, RowCount);
+    Persist(context, MaxBlockSize);
+}
+
+////////////////////////////////////////////////////////////////////
+
 void AddStripeToList(
     const TChunkStripePtr& stripe,
     const TNodeDirectoryPtr& nodeDirectory,
@@ -86,6 +104,12 @@ TChunkStripeStatistics TChunkStripe::GetStatistics() const
     }
 
     return result;
+}
+
+void TChunkStripe::Persist(TPersistenceContext& context)
+{
+    using NYT::Persist;
+    Persist(context, ChunkSlices);
 }
 
 TChunkStripeStatistics operator + (
@@ -156,12 +180,30 @@ TChunkStripeStatistics TChunkStripeList::GetAggregateStatistics() const
     return result;
 }
 
+void TChunkStripeList::Persist(TPersistenceContext& context)
+{
+    using NYT::Persist;
+    Persist(context, Stripes);
+    Persist(context, PartitionTag);
+    Persist(context, IsApproximate);
+    Persist(context, TotalDataSize);
+    Persist(context, TotalRowCount);
+    Persist(context, TotalChunkCount);
+    Persist(context, LocalChunkCount);
+    Persist(context, NonLocalChunkCount);
+}
+
 ////////////////////////////////////////////////////////////////////
 
 class TChunkPoolInputBase
     : public virtual IChunkPoolInput
 {
 public:
+    //! For persistence only.
+    TChunkPoolInputBase()
+        : Finished(false)
+    { }
+
     explicit TChunkPoolInputBase(TNodeDirectoryPtr nodeDirectory)
         : NodeDirectory(nodeDirectory)
         , Finished(false)
@@ -172,6 +214,15 @@ public:
     virtual void Finish() override
     {
         Finished = true;
+    }
+
+    // IPersistent implementation.
+
+    virtual void Persist(TPersistenceContext& context) override
+    {
+        using NYT::Persist;
+        Persist(context, NodeDirectory);
+        Persist(context, Finished);
     }
 
 protected:
@@ -232,6 +283,14 @@ public:
         Stripe = stripe;
     }
 
+    void Persist(TPersistenceContext& context)
+    {
+        using NYT::Persist;
+        Persist(context, Stripe);
+        Persist(context, Suspended);
+        Persist(context, Statistics);
+    }
+
 private:
     TChunkStripePtr Stripe;
     bool Suspended;
@@ -249,6 +308,8 @@ public:
         : DataSizeCounter(0)
         , RowCounter(0)
     { }
+
+    // IChunkPoolOutput implementation.
 
     virtual i64 GetTotalDataSize() const override
     {
@@ -275,6 +336,16 @@ public:
         return RowCounter.GetTotal();
     }
 
+    // IPersistent implementation.
+
+    virtual void Persist(TPersistenceContext& context) override
+    {
+        using NYT::Persist;
+        Persist(context, DataSizeCounter);
+        Persist(context, RowCounter);
+        Persist(context, JobCounter);
+    }
+
 protected:
     TProgressCounter DataSizeCounter;
     TProgressCounter RowCounter;
@@ -288,9 +359,13 @@ class TAtomicChunkPool
     : public TChunkPoolInputBase
     , public TChunkPoolOutputBase
     , public IChunkPool
+    , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
 {
 public:
-    // IChunkPoolInput implementation.
+    //! For persistence only.
+    TAtomicChunkPool()
+        : SuspendedStripeCount(-1)
+    { }
 
     explicit TAtomicChunkPool(TNodeDirectoryPtr nodeDirectory)
         : TChunkPoolInputBase(nodeDirectory)
@@ -298,6 +373,8 @@ public:
     {
         JobCounter.Set(1);
     }
+
+    // IChunkPoolInput implementation.
 
     virtual IChunkPoolInput::TCookie Add(TChunkStripePtr stripe) override
     {
@@ -458,7 +535,23 @@ public:
         RowCounter.Lost(RowCounter.GetTotal());
     }
 
+    // IPersistent implementation.
+
+    virtual void Persist(TPersistenceContext& context) override
+    {
+        TChunkPoolInputBase::Persist(context);
+        TChunkPoolOutputBase::Persist(context);
+
+        using NYT::Persist;
+        Persist(context, Stripes);
+        Persist(context, AddressToLocality);
+        Persist(context, ExtractedList);
+        Persist(context, SuspendedStripeCount);
+    }
+
 private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TAtomicChunkPool, 0x76bac510);
+
     std::vector<TSuspendableStripe> Stripes;
 
     yhash_map<Stroka, i64> AddressToLocality;
@@ -480,6 +573,8 @@ private:
 
 };
 
+DEFINE_DYNAMIC_PHOENIX_TYPE(TAtomicChunkPool);
+
 std::unique_ptr<IChunkPool> CreateAtomicChunkPool(TNodeDirectoryPtr nodeDirectory)
 {
     return std::unique_ptr<IChunkPool>(new TAtomicChunkPool(nodeDirectory));
@@ -491,8 +586,13 @@ class TUnorderedChunkPool
     : public TChunkPoolInputBase
     , public TChunkPoolOutputBase
     , public IChunkPool
+    , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
 {
 public:
+    //! For persistence only.
+    TUnorderedChunkPool()
+    { }
+
     explicit TUnorderedChunkPool(
         TNodeDirectoryPtr nodeDirectory,
         int jobCount)
@@ -760,7 +860,26 @@ public:
         }
     }
 
+    // IPersistent implementation.
+
+    virtual void Persist(TPersistenceContext& context) override
+    {
+        TChunkPoolInputBase::Persist(context);
+        TChunkPoolOutputBase::Persist(context);
+
+        using NYT::Persist;
+        Persist(context, Stripes);
+        Persist(context, PendingGlobalStripes);
+        Persist(context, PendingLocalChunks);
+        Persist(context, OutputCookieGenerator);
+        Persist(context, ExtractedLists);
+        Persist(context, LostCookies);
+        Persist(context, ReplayCookies);
+    }
+
 private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedChunkPool, 0xbacd26ad);
+
     std::vector<TSuspendableStripe> Stripes;
 
     //! Indexes in #Stripes.
@@ -780,6 +899,13 @@ private:
 
         //! Indexes in #Stripes.
         yhash_set<int> StripeIndexes;
+
+        void Persist(TPersistenceContext& context)
+        {
+            using NYT::Persist;
+            Persist(context, Locality);
+            Persist(context, StripeIndexes);
+        }
     };
 
     struct TExtractedStripeList
@@ -791,6 +917,14 @@ private:
         int UnavailableStripeCount;
         std::vector<int> StripeIndexes;
         TChunkStripeListPtr StripeList;
+
+        void Persist(TPersistenceContext& context)
+        {
+            using NYT::Persist;
+            Persist(context, UnavailableStripeCount);
+            Persist(context, StripeIndexes);
+            Persist(context, StripeList);
+        }
     };
 
     yhash_map<Stroka, TLocalityEntry> PendingLocalChunks;
@@ -909,6 +1043,8 @@ private:
 
 };
 
+DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedChunkPool);
+
 std::unique_ptr<IChunkPool> CreateUnorderedChunkPool(
     TNodeDirectoryPtr nodeDirectory,
     int jobCount)
@@ -923,8 +1059,14 @@ std::unique_ptr<IChunkPool> CreateUnorderedChunkPool(
 class TShuffleChunkPool
     : public TChunkPoolInputBase
     , public IShuffleChunkPool
+    , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
 {
 public:
+    //! For persistence only.
+    TShuffleChunkPool()
+        : DataSizeThreshold(-1)
+    { }
+
     TShuffleChunkPool(
         TNodeDirectoryPtr nodeDirectory,
         int partitionCount,
@@ -1058,11 +1200,35 @@ public:
         }
     }
 
+    // IPersistent implementation.
+
+    virtual void Persist(TPersistenceContext& context) override
+    {
+        TChunkPoolInputBase::Persist(context);
+        
+        using NYT::Persist;
+        Persist(context, DataSizeThreshold);
+        Persist(context, Outputs);
+        Persist(context, InputStripes);
+        Persist(context, ElementaryStripes);
+    }
+
 private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TShuffleChunkPool, 0xbacd518a);
+
+    i64 DataSizeThreshold;
+
     class TOutput
         : public TChunkPoolOutputBase
+        , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
     {
     public:
+        //! For persistence only.
+        TOutput()
+            : Owner(nullptr)
+            , PartitionIndex(-1)
+        { }
+
         explicit TOutput(
             TShuffleChunkPool* owner,
             int partitionIndex)
@@ -1071,17 +1237,6 @@ private:
         {
             AddNewRun();
         }
-
-        struct TStripeInfo
-        {
-            TStripeInfo()
-                : DataSize(0)
-                , RowCount(0)
-            { }
-
-            i64 DataSize;
-            i64 RowCount;
-        };
 
         void AddStripe(int elementaryIndex, i64 dataSize, i64 rowCount)
         {
@@ -1278,7 +1433,22 @@ private:
             RowCounter.Lost(run.TotalRowCount);
         }
 
+        // IPersistent implementation.
+
+        virtual void Persist(TPersistenceContext& context) override
+        {
+            TChunkPoolOutputBase::Persist(context);
+
+            using NYT::Persist;
+            Persist(context, Owner);
+            Persist(context, PartitionIndex);
+            Persist(context, Runs);
+            Persist(context, PendingRuns);
+        }
+
     private:
+        DECLARE_DYNAMIC_PHOENIX_TYPE(TShuffleChunkPool::TOutput, 0xba17acf7);
+
         friend class TShuffleChunkPool;
 
         TShuffleChunkPool* Owner;
@@ -1310,6 +1480,18 @@ private:
             int SuspendCount;
             ERunState State;
             bool IsApproximate;
+
+            void Persist(TPersistenceContext& context)
+            {
+                using NYT::Persist;
+                Persist(context, ElementaryIndexBegin);
+                Persist(context, ElementaryIndexEnd);
+                Persist(context, TotalDataSize);
+                Persist(context, TotalRowCount);
+                Persist(context, SuspendCount);
+                Persist(context, State);
+                Persist(context, IsApproximate);
+            }
         };
 
         std::vector<TRun> Runs;
@@ -1368,20 +1550,28 @@ private:
 
     };
 
-    i64 DataSizeThreshold;
-
-    // One should use std::unique_ptr with care :)
-    std::vector< std::unique_ptr<TOutput> > Outputs;
+    std::vector<std::unique_ptr<TOutput>> Outputs;
 
     struct TInputStripe
     {
         int ElementaryIndexBegin;
         int ElementaryIndexEnd;
+
+        void Persist(TPersistenceContext& context)
+        {
+            using NYT::Persist;
+            Persist(context, ElementaryIndexBegin);
+            Persist(context, ElementaryIndexEnd);
+        }
     };
 
     std::vector<TInputStripe> InputStripes;
     std::vector<TChunkStripePtr> ElementaryStripes;
+
 };
+
+DEFINE_DYNAMIC_PHOENIX_TYPE(TShuffleChunkPool);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TShuffleChunkPool::TOutput);
 
 std::unique_ptr<IShuffleChunkPool> CreateShuffleChunkPool(
     TNodeDirectoryPtr nodeDirectory,

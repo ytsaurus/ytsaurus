@@ -553,12 +553,12 @@ void TTransactionManager::DoPingTransaction(const TTransaction* transaction)
         timeout.MilliSeconds());
 }
 
-void TTransactionManager::SaveKeys(const NCellMaster::TSaveContext& context)
+void TTransactionManager::SaveKeys(NCellMaster::TSaveContext& context)
 {
     TransactionMap.SaveKeys(context);
 }
 
-void TTransactionManager::SaveValues(const NCellMaster::TSaveContext& context)
+void TTransactionManager::SaveValues(NCellMaster::TSaveContext& context)
 {
     TransactionMap.SaveValues(context);
 }
@@ -570,14 +570,14 @@ void TTransactionManager::OnBeforeLoaded()
     DoClear();
 }
 
-void TTransactionManager::LoadKeys(const NCellMaster::TLoadContext& context)
+void TTransactionManager::LoadKeys(NCellMaster::TLoadContext& context)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
     TransactionMap.LoadKeys(context);
 }
 
-void TTransactionManager::LoadValues(const NCellMaster::TLoadContext& context)
+void TTransactionManager::LoadValues(NCellMaster::TLoadContext& context)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 

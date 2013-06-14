@@ -35,6 +35,9 @@ class TJob
     //! The time when the job was finished.
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, FinishTime);
 
+    //! The difference between |FinishTime| and |StartTime|.
+    TDuration GetDuration() const;
+
     //! Job result returned by node.
     DEFINE_BYREF_RW_PROPERTY(NJobTrackerClient::NProto::TJobResult, Result);
 

@@ -6,25 +6,43 @@ namespace NLog {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTaggedLogger::TTaggedLogger()
+    : InnerLogger(nullptr)
+{ }
+
 TTaggedLogger::TTaggedLogger(TLogger& innerLogger)
-    : InnerLogger(innerLogger)
+    : InnerLogger(&innerLogger)
+{ }
+
+TTaggedLogger::TTaggedLogger(const TTaggedLogger& other)
+    : InnerLogger(other.InnerLogger)
+    , Tags(other.Tags)
 { }
 
 Stroka TTaggedLogger::GetCategory() const
 {
-    return InnerLogger.GetCategory();
+    if (!InnerLogger)
+        return "";
+
+    return InnerLogger->GetCategory();
 }
 
 bool TTaggedLogger::IsEnabled(ELogLevel level) const
 {
-    return InnerLogger.IsEnabled(level);
+    if (!InnerLogger)
+        return false;
+
+    return InnerLogger->IsEnabled(level);
 }
 
 void TTaggedLogger::Write(const TLogEvent& event)
 {
+    if (!InnerLogger)
+        return;
+
     auto eventCopy = event;
     eventCopy.Message = GetTaggedMessage(event.Message);
-    InnerLogger.Write(eventCopy);
+    InnerLogger->Write(eventCopy);
 }
 
 void TTaggedLogger::AddTag(const Stroka& tag)

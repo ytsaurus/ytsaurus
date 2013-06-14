@@ -59,17 +59,27 @@ public:
         , TotalChunkCount(0)
         , TotalDataSize(0)
         , CurrentTaskDataSize(0)
-        , PartitionCount(0)
-        , MaxDataSizePerJob(0)
+        , CurrentPartitionIndex(0)
+        , MaxDataSizePerJob(-1)
     { }
+
+    // Persistence.
+
+    virtual void Persist(TPersistenceContext& context) override
+    {
+        TOperationControllerBase::Persist(context);
+
+        using NYT::Persist;
+        Persist(context, TotalChunkCount);
+        Persist(context, TotalDataSize);
+        Persist(context, JobIOConfig);
+        Persist(context, JobSpecTemplate);
+        Persist(context, MaxDataSizePerJob);
+        Persist(context, MergeTaskGroup);
+    }
 
 protected:
     TMergeOperationSpecBasePtr Spec;
-
-    //! For each input table, the corresponding entry holds the stripe
-    //! containing the chunks collected so far. Empty stripes are never stored explicitly
-    //! and are denoted by |NULL|.
-    std::vector<TChunkStripePtr> CurrentTaskStripes;
 
     //! The total number of chunks for processing.
     int TotalChunkCount;
@@ -77,8 +87,26 @@ protected:
     //! The total data size for processing.
     i64 TotalDataSize;
 
+    //! For each input table, the corresponding entry holds the stripe
+    //! containing the chunks collected so far. 
+    //! Not serialized.
+    /*!
+     *  Empty stripes are never stored explicitly and are denoted by |nullptr|.
+     */
+    std::vector<TChunkStripePtr> CurrentTaskStripes;
+
     //! The total data size accumulated in #CurrentTaskStripes.
+    //! Not serialized.
     i64 CurrentTaskDataSize;
+
+    //! The number of output partitions generated so far.
+    //! Not serialized.
+    /*!
+     *  Each partition either corresponds to a merge task or to a pass-through chunk.
+     *  Partition index is used as a key when calling #TOperationControllerBase::RegisterOutputChunkTree.
+     *  
+     */
+    int CurrentPartitionIndex;
 
     //! Customized job IO config.
     TJobIOConfigPtr JobIOConfig;
@@ -86,20 +114,22 @@ protected:
     //! The template for starting new jobs.
     TJobSpec JobSpecTemplate;
 
-    //! The number of output partitions generated so far.
-    /*!
-     *  Each partition either corresponds to a merge task or to a pass-through chunk.
-     *  Partition index is used as a key when calling #TOperationControllerBase::RegisterOutputChunkTree.
-     */
-    int PartitionCount;
 
     //! Overrides the spec limit to satisfy global job count limit.
     i64 MaxDataSizePerJob;
+
 
     class TMergeTask
         : public TTask
     {
     public:
+        //! For persistence only.
+        TMergeTask()
+            : Controller(nullptr)
+            , TaskIndex(-1)
+            , PartitionIndex(-1)
+        { }
+
         explicit TMergeTask(
             TMergeControllerBase* controller,
             int taskIndex,
@@ -120,9 +150,9 @@ protected:
                 : Sprintf("Merge(%d,%d)", TaskIndex, PartitionIndex);
         }
 
-        virtual TTaskGroup* GetGroup() const override
+        virtual TTaskGroupPtr GetGroup() const override
         {
-            return &Controller->MergeTaskGroup;
+            return Controller->MergeTaskGroup;
         }
 
         virtual TDuration GetLocalityTimeout() const override
@@ -138,8 +168,8 @@ protected:
             result.set_cpu(1);
             result.set_memory(
                 Controller->GetFinalIOMemorySize(
-                    Controller->Spec->JobIO,
-                    UpdateChunkStripeStatistics(ChunkPool->GetApproximateStripeStatistics())) +
+                Controller->Spec->JobIO,
+                UpdateChunkStripeStatistics(ChunkPool->GetApproximateStripeStatistics())) +
                 GetFootprintMemorySize() +
                 Controller->GetAdditionalMemorySize());
             return result;
@@ -150,8 +180,8 @@ protected:
             auto result = GetMinNeededResources();
             result.set_memory(
                 Controller->GetFinalIOMemorySize(
-                    Controller->Spec->JobIO,
-                    UpdateChunkStripeStatistics(joblet->InputStripeList->GetStatistics())) +
+                Controller->Spec->JobIO,
+                UpdateChunkStripeStatistics(joblet->InputStripeList->GetStatistics())) +
                 GetFootprintMemorySize() +
                 Controller->GetAdditionalMemorySize());
             return result;
@@ -167,6 +197,17 @@ protected:
             return ~ChunkPool;
         }
 
+        virtual void Persist(TPersistenceContext& context) override
+        {
+            TTask::Persist(context);
+
+            using NYT::Persist;
+            Persist(context, Controller);
+            Persist(context, ChunkPool);
+            Persist(context, TaskIndex);
+            Persist(context, PartitionIndex);
+        }
+
     protected:
         void BuildInputOutputJobSpec(TJobletPtr joblet, TJobSpec* jobSpec)
         {
@@ -175,6 +216,8 @@ protected:
         }
 
     private:
+        DECLARE_DYNAMIC_PHOENIX_TYPE(TMergeTask, 0x72736bac);
+
         TMergeControllerBase* Controller;
 
         std::unique_ptr<IChunkPool> ChunkPool;
@@ -220,12 +263,12 @@ protected:
 
             RegisterOutput(joblet, PartitionIndex);
         }
+
     };
 
     typedef TIntrusivePtr<TMergeTask> TMergeTaskPtr;
 
-    TTaskGroup MergeTaskGroup;
-    std::vector<TMergeTaskPtr> MergeTasks;
+    TTaskGroupPtr MergeTaskGroup;
 
     //! Resizes #CurrentTaskStripes appropriately and sets all its entries to |NULL|.
     void ClearCurrentTaskStripes()
@@ -240,12 +283,12 @@ protected:
 
         task->AddInput(CurrentTaskStripes);
         task->FinishInput();
+        RegisterTask(task);
 
-        ++PartitionCount;
-        MergeTasks.push_back(task);
+        ++CurrentPartitionIndex;
 
-        LOG_DEBUG("Task finished (Task: %d, TaskDataSize: %" PRId64 ")",
-            static_cast<int>(MergeTasks.size()) - 1,
+        LOG_DEBUG("Task finished (Id: %s, TaskDataSize: %" PRId64 ")",
+            ~task->GetId(),
             CurrentTaskDataSize);
 
         CurrentTaskDataSize = 0;
@@ -257,8 +300,9 @@ protected:
     {
         auto task = New<TMergeTask>(
             this,
-            static_cast<int>(MergeTasks.size()),
-            PartitionCount);
+            static_cast<int>(Tasks.size()),
+            CurrentPartitionIndex);
+        task->Initialize();
 
         EndTask(task);
     }
@@ -298,14 +342,6 @@ protected:
 
         CurrentTaskDataSize += chunkDataSize;
         stripe->ChunkSlices.push_back(chunkSlice);
-
-        auto chunkId = FromProto<TChunkId>(chunkSlice->GetChunkSpec()->chunk_id());
-        LOG_DEBUG("Pending chunk added (ChunkId: %s, Partition: %d, Task: %d, TableIndex: %d, DataSize: %" PRId64 ")",
-            ~ToString(chunkId),
-            PartitionCount,
-            static_cast<int>(MergeTasks.size()),
-            chunkSlice->GetChunkSpec()->table_index(),
-            chunkDataSize);
     }
 
     //! Add chunk directly to the output.
@@ -314,11 +350,11 @@ protected:
         auto chunkId = FromProto<TChunkId>(chunkSpec->chunk_id());
         LOG_DEBUG("Passthrough chunk added (ChunkId: %s, Partition: %d)",
             ~ToString(chunkId),
-            PartitionCount);
+            CurrentPartitionIndex);
 
         // Place the chunk directly to the output table.
-        RegisterOutput(chunkId, PartitionCount, 0);
-        ++PartitionCount;
+        RegisterOutput(chunkId, CurrentPartitionIndex, 0);
+        ++CurrentPartitionIndex;
     }
 
 
@@ -328,7 +364,8 @@ protected:
     {
         TOperationControllerBase::DoInitialize();
 
-        RegisterTaskGroup(&MergeTaskGroup);
+        MergeTaskGroup = New<TTaskGroup>();
+        RegisterTaskGroup(MergeTaskGroup);
     }
 
     virtual TAsyncPipeline<void>::TPtr CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline) override
@@ -362,14 +399,14 @@ protected:
     void FinishPreparation()
     {
         // Check for trivial inputs.
-        if (MergeTasks.empty()) {
+        if (Tasks.empty()) {
             LOG_INFO("Trivial merge");
             OnOperationCompleted();
             return;
         }
 
         // Init counters.
-        JobCounter.Set(static_cast<int>(MergeTasks.size()));
+        JobCounter.Set(static_cast<int>(Tasks.size()));
 
         InitJobIOConfig();
         InitJobSpecTemplate();
@@ -378,11 +415,6 @@ protected:
             TotalDataSize,
             TotalChunkCount,
             JobCounter.GetTotal());
-
-        // Kick-start the tasks.
-        FOREACH (auto task, MergeTasks) {
-            AddTaskPendingHint(task);
-        }
     }
 
     //! Called for each input chunk.
@@ -488,6 +520,8 @@ protected:
 
 };
 
+DEFINE_DYNAMIC_PHOENIX_TYPE(TMergeControllerBase::TMergeTask);
+
 ////////////////////////////////////////////////////////////////////
 
 //! Handles unordered merge operation.
@@ -505,7 +539,10 @@ public:
     { }
 
 private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeController, 0x6acdae46);
+    
     TUnorderedMergeOperationSpecPtr Spec;
+
 
     virtual bool IsPassthroughChunk(const TChunkSpec& chunkSpec) override
     {
@@ -553,7 +590,10 @@ private:
         ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
     }
+
 };
+
+DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeController);
 
 ////////////////////////////////////////////////////////////////////
 
@@ -586,6 +626,7 @@ private:
         AddPendingChunk(CreateChunkSlice(chunkSpec));
         EndTaskIfLarge();
     }
+
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -604,7 +645,10 @@ public:
     { }
 
 private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TOrderedMergeController, 0x1f748c56);
+
     TOrderedMergeOperationSpecPtr Spec;
+
 
     virtual std::vector<TRichYPath> GetInputTablePaths() const override
     {
@@ -642,6 +686,8 @@ private:
 
 };
 
+DEFINE_DYNAMIC_PHOENIX_TYPE(TOrderedMergeController);
+
 ////////////////////////////////////////////////////////////////////
 
 class TEraseController
@@ -658,7 +704,10 @@ public:
     { }
 
 private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TEraseController, 0x1cc6ba39);
+
     TEraseOperationSpecPtr Spec;
+
 
     virtual std::vector<TRichYPath> GetInputTablePaths() const override
     {
@@ -729,6 +778,19 @@ private:
 
 };
 
+DEFINE_DYNAMIC_PHOENIX_TYPE(TEraseController);
+
+IOperationControllerPtr CreateEraseController(
+    TSchedulerConfigPtr config,
+    IOperationHost* host,
+    TOperation* operation)
+{
+    auto spec = ParseOperationSpec<TEraseOperationSpec>(
+        operation,
+        config->EraseOperationSpec);
+    return New<TEraseController>(config, spec, host, operation);
+}
+
 ////////////////////////////////////////////////////////////////////
 
 //! Handles sorted merge and reduce operations.
@@ -744,11 +806,27 @@ public:
         : TMergeControllerBase(config, spec, host, operation)
     { }
 
+    // Persistence.
+    virtual void Persist(TPersistenceContext& context) override
+    {
+        TMergeControllerBase::Persist(context);
+
+        using NYT::Persist;
+        Persist(context, Endpoints);
+        Persist(context, KeyColumns);
+        Persist(context, ManiacJobSpecTemplate);
+    }
+
 protected:
     class TManiacTask
         : public TMergeTask
     {
     public:
+        //! For persistence only.
+        TManiacTask()
+            : Controller(nullptr)
+        { }
+
         TManiacTask(
             TSortedMergeControllerBase* controller,
             int taskIndex,
@@ -757,7 +835,17 @@ protected:
             , Controller(controller)
         { }
 
+        virtual void Persist(TPersistenceContext& context) override
+        {
+            TMergeTask::Persist(context);
+
+            using NYT::Persist;
+            Persist(context, Controller);
+        }
+
     private:
+        DECLARE_DYNAMIC_PHOENIX_TYPE(TManiacTask, 0xb3ed19a2);
+
         TSortedMergeControllerBase* Controller;
 
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
@@ -765,6 +853,7 @@ protected:
             jobSpec->CopyFrom(Controller->ManiacJobSpecTemplate);
             BuildInputOutputJobSpec(joblet, jobSpec);
         }
+
     };
 
     DECLARE_ENUM(EEndpointType,
@@ -778,6 +867,14 @@ protected:
         EEndpointType Type;
         NChunkClient::NProto::TKey Key;
         TRefCountedChunkSpecPtr ChunkSpec;
+
+        void Persist(TPersistenceContext& context)
+        {
+            using NYT::Persist;
+            Persist(context, Type);
+            Persist(context, Key);
+            Persist(context, ChunkSpec);
+        }
     };
 
     std::vector<TKeyEndpoint> Endpoints;
@@ -789,6 +886,7 @@ protected:
     TChunkSplitsCollectorPtr ChunkSplitsCollector;
     
     TJobSpec ManiacJobSpecTemplate;
+
 
     virtual TNullable< std::vector<Stroka> > GetSpecKeyColumns() = 0;
 
@@ -1055,8 +1153,9 @@ protected:
     {
         auto task = New<TManiacTask>(
             this,
-            static_cast<int>(MergeTasks.size()),
-            PartitionCount);
+            static_cast<int>(Tasks.size()),
+            CurrentPartitionIndex);
+        task->Initialize();
 
         EndTask(task);
     }
@@ -1086,7 +1185,10 @@ protected:
             ChunkSplitsFetcher,
             Host->GetBackgroundInvoker());
     }
+
 };
+
+DEFINE_DYNAMIC_PHOENIX_TYPE(TSortedMergeControllerBase::TManiacTask);
 
 ////////////////////////////////////////////////////////////////////
 
@@ -1104,7 +1206,10 @@ public:
     { }
 
 private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TSortedMergeController, 0xbc6daa18);
+
     TSortedMergeOperationSpecPtr Spec;
+
 
     virtual std::vector<TRichYPath> GetInputTablePaths() const override
     {
@@ -1183,6 +1288,43 @@ private:
 
 };
 
+DEFINE_DYNAMIC_PHOENIX_TYPE(TSortedMergeController);
+
+////////////////////////////////////////////////////////////////////
+
+IOperationControllerPtr CreateMergeController(
+    TSchedulerConfigPtr config,
+    IOperationHost* host,
+    TOperation* operation)
+{
+    auto baseSpec = ParseOperationSpec<TMergeOperationSpec>(
+        operation,
+        NYTree::GetEphemeralNodeFactory()->CreateMap());
+
+    switch (baseSpec->Mode) {
+        case EMergeMode::Unordered: {
+            auto spec = ParseOperationSpec<TUnorderedMergeOperationSpec>(
+                operation,
+                config->UnorderedMergeOperationSpec);
+            return New<TUnorderedMergeController>(config, spec, host, operation);
+        }
+        case EMergeMode::Ordered: {
+            auto spec = ParseOperationSpec<TOrderedMergeOperationSpec>(
+                operation,
+                config->OrderedMergeOperationSpec);
+            return New<TOrderedMergeController>(config, spec, host, operation);
+        }
+        case EMergeMode::Sorted: {
+            auto spec = ParseOperationSpec<TSortedMergeOperationSpec>(
+                operation,
+                config->SortedMergeOperationSpec);
+            return New<TSortedMergeController>(config, spec, host, operation);
+        }
+        default:
+            YUNREACHABLE();
+    };
+}
+
 ////////////////////////////////////////////////////////////////////
 
 class TReduceController
@@ -1199,9 +1341,21 @@ public:
         , StartRowIndex(0)
     { }
 
+    // Persistence.
+    virtual void Persist(TPersistenceContext& context) override
+    {
+        TSortedMergeControllerBase::Persist(context);
+
+        using NYT::Persist;
+        Persist(context, StartRowIndex);
+    }
 private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TReduceController, 0xacd16dbc);
+
     TReduceOperationSpecPtr Spec;
+
     i64 StartRowIndex;
+
 
     virtual std::vector<TRichYPath> GetInputTablePaths() const override
     {
@@ -1295,56 +1449,10 @@ private:
     {
         return true;
     }
+
 };
 
-////////////////////////////////////////////////////////////////////
-
-IOperationControllerPtr CreateMergeController(
-    TSchedulerConfigPtr config,
-    IOperationHost* host,
-    TOperation* operation)
-{
-    auto baseSpec = ParseOperationSpec<TMergeOperationSpec>(
-        operation,
-        NYTree::GetEphemeralNodeFactory()->CreateMap());
-
-    switch (baseSpec->Mode) {
-        case EMergeMode::Unordered:
-        {
-            auto spec = ParseOperationSpec<TUnorderedMergeOperationSpec>(
-                operation,
-                config->UnorderedMergeOperationSpec);
-            return New<TUnorderedMergeController>(config, spec, host, operation);
-        }
-        case EMergeMode::Ordered:
-        {
-            auto spec = ParseOperationSpec<TOrderedMergeOperationSpec>(
-                operation,
-                config->OrderedMergeOperationSpec);
-            return New<TOrderedMergeController>(config, spec, host, operation);
-        }
-        case EMergeMode::Sorted:
-        {
-            auto spec = ParseOperationSpec<TSortedMergeOperationSpec>(
-                operation,
-                config->SortedMergeOperationSpec);
-            return New<TSortedMergeController>(config, spec, host, operation);
-        }
-        default:
-            YUNREACHABLE();
-    };
-}
-
-IOperationControllerPtr CreateEraseController(
-    TSchedulerConfigPtr config,
-    IOperationHost* host,
-    TOperation* operation)
-{
-    auto spec = ParseOperationSpec<TEraseOperationSpec>(
-        operation,
-        config->EraseOperationSpec);
-    return New<TEraseController>(config, spec, host, operation);
-}
+DEFINE_DYNAMIC_PHOENIX_TYPE(TReduceController);
 
 IOperationControllerPtr CreateReduceController(
     TSchedulerConfigPtr config,

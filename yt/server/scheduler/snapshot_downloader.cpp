@@ -39,58 +39,34 @@ TSnapshotDownloader::TSnapshotDownloader(
     YCHECK(bootstrap);
     YCHECK(operation);
 
-    Logger.AddTag(Sprintf("OperationId: %s", ~ToString(operation->GetOperationId())));
+    Logger.AddTag(Sprintf("OperationId: %s",
+        ~ToString(operation->GetOperationId())));
 }
 
-TFuture<void> TSnapshotDownloader::Run()
+void TSnapshotDownloader::Run()
 {
-    return BIND(&TSnapshotDownloader::Download, MakeStrong(this))
-           .AsyncVia(Bootstrap->GetScheduler()->GetSnapshotIOInvoker())
-           .Run();
-}
-
-void TSnapshotDownloader::Download()
-{
-    LOG_INFO("Checking snapshot existence");
+    LOG_INFO("Starting downloading snapshot");
 
     auto snapshotPath = GetSnapshotPath(Operation->GetOperationId());
-    TObjectServiceProxy proxy(Bootstrap->GetMasterChannel());
+    auto reader = New<TAsyncReader>(
+        Config->SnapshotReader,
+        Bootstrap->GetMasterChannel(),
+        CreateClientBlockCache(New<TClientBlockCacheConfig>()),
+        nullptr,
+        snapshotPath);
 
-    // Check existence.
-    bool exists;
     {
-        auto req = TYPathProxy::Exists(snapshotPath);
-        auto rsp = proxy.Execute(req).Get();
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error checking snapshot for existence");
-        exists = rsp->value();
+        auto result = WaitFor(reader->AsyncOpen());
+        THROW_ERROR_EXCEPTION_IF_FAILED(result);
     }
+        
+    i64 size = reader->GetSize();
 
-    if (!exists) {
-        LOG_INFO("Snapshot does not exist");
-        return;
-    }
-
-    LOG_INFO("Snapshot found");
+    LOG_INFO("Snapshot reader opened (Size: %" PRId64 ")", size);
+    
+    Operation->Snapshot() = TBlob();
 
     try {
-
-        auto reader = New<TAsyncReader>(
-            Config->SnapshotReader,
-            Bootstrap->GetMasterChannel(),
-            CreateClientBlockCache(New<TClientBlockCacheConfig>()),
-            nullptr,
-            snapshotPath);
-
-        {
-            auto result = WaitFor(reader->AsyncOpen());
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
-        }
-        
-        i64 size = reader->GetSize();
-
-        LOG_INFO("Downloading %" PRId64 " bytes", size);
-
-        Operation->Snapshot() = TBlob();
         auto& blob = *Operation->Snapshot();
         blob.Reserve(size);
 
@@ -103,10 +79,10 @@ void TSnapshotDownloader::Download()
             blob.Append(block);
         }
 
-        LOG_INFO("Snapshot loaded");
-    } catch (const std::exception& ex) {
-        LOG_ERROR(ex, "Error loading snapshot");
-        Operation->Snapshot() = Null;
+        LOG_INFO("Snapshot downloaded successfully");
+    } catch (...) {
+        Operation->Snapshot().Reset();
+        throw;
     }
 }
 

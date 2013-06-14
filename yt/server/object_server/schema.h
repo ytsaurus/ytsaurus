@@ -21,8 +21,8 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, Acd);
 
-    void Save(const NCellMaster::TSaveContext& context) const;
-    void Load(const NCellMaster::TLoadContext& context);
+    void Save(NCellMaster::TSaveContext& context) const;
+    void Load(NCellMaster::TLoadContext& context);
 
 };
 

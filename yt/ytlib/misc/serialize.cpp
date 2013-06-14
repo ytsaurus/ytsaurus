@@ -1,8 +1,6 @@
 #include "stdafx.h"
 #include "serialize.h"
 
-#include <util/ysaveload.h>
-
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -50,6 +48,16 @@ void UnpackRefs(const TSharedRef& packedRef, std::vector<TSharedRef>* refs)
         input.Skip(refSize);
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TStreamSaveContext::TStreamSaveContext()
+    : Output_(nullptr)
+{ }
+
+TStreamLoadContext::TStreamLoadContext()
+    : Input_(nullptr)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

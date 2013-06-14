@@ -20,7 +20,7 @@ public:
         NCellScheduler::TBootstrap* bootstrap,
         TOperationPtr operation);
 
-    TFuture<void> Run();
+    void Run();
 
 private:
     TSchedulerConfigPtr Config;
@@ -28,8 +28,6 @@ private:
     TOperationPtr Operation;
 
     NLog::TTaggedLogger Logger;
-
-    void Download();
 
 };
 

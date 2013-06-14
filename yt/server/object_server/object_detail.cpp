@@ -59,13 +59,13 @@ TStagedObject::TStagedObject()
     , StagingAccount_(nullptr)
 { }
 
-void TStagedObject::Save(const NCellMaster::TSaveContext& context) const
+void TStagedObject::Save(NCellMaster::TSaveContext& context) const
 {
     SaveObjectRef(context, StagingTransaction_);
     SaveObjectRef(context, StagingAccount_);
 }
 
-void TStagedObject::Load(const NCellMaster::TLoadContext& context)
+void TStagedObject::Load(NCellMaster::TLoadContext& context)
 {
     LoadObjectRef(context, StagingTransaction_);
     LoadObjectRef(context, StagingAccount_);

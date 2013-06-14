@@ -117,7 +117,7 @@ struct ISchedulingContext
  *  \note Thread affinity: ControlThread
  */
 struct IOperationController
-    : public TRefCounted
+    : public virtual TRefCounted
 {
     //! Performs a fast synchronous initialization.
     /*
@@ -141,12 +141,10 @@ struct IOperationController
     //! Reactivates an already running operation, possibly restoring its progress.
     /*!
      *  This method is called during scheduler state recovery for each existing operation.
-     *  
-     *  If #stream is not |nullptr| then it points to a stream containing
-     *  a snapshot earlier produced by #SaveSnapshot. The stream lives as long as the
-     *  revival process continues. Using this stream is optional.
+     *  The controller may try to recover its state from the snapshot, if any
+     *  (see TOperation::Snapshot).
      */
-    virtual TFuture<TError> Revive(TInputStream* stream) = 0;
+    virtual TFuture<TError> Revive() = 0;
 
     //! Notifies the controller that the operation has been aborted.
     /*!

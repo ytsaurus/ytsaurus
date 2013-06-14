@@ -53,10 +53,7 @@ TChunk::TChunk(const TChunkId& id)
     , ErasureCodec(NErasure::ECodec::None)
 {
     Zero(Flags);
-
-    // Initialize required proto fields, otherwise #Save would fail.
     ChunkInfo_.set_disk_space(UnknownDiskSpace);
-
     ChunkMeta_.set_type(EChunkType::Unknown);
     ChunkMeta_.mutable_extensions();
     ChunkMeta_.set_version(-1);
@@ -94,38 +91,38 @@ TClusterResources TChunk::GetResourceUsage() const
     return TClusterResources(diskSpace, 1);
 }
 
-void TChunk::Save(const NCellMaster::TSaveContext& context) const
+void TChunk::Save(NCellMaster::TSaveContext& context) const
 {
     TChunkTree::Save(context);
     TStagedObject::Save(context);
 
-    auto* output = context.GetOutput();
-    SaveProto(output, ChunkInfo_);
-    SaveProto(output, ChunkMeta_);
-    ::Save(output, ReplicationFactor);
-    ::Save(output, GetErasureCodec());
-    ::Save(output, GetMovable());
-    ::Save(output, GetVital());
+    using NYT::Save;
+    Save(context, ChunkInfo_);
+    Save(context, ChunkMeta_);
+    Save(context, ReplicationFactor);
+    Save(context, GetErasureCodec());
+    Save(context, GetMovable());
+    Save(context, GetVital());
     SaveObjectRefs(context, Parents_);
     SaveObjectRefs(context, StoredReplicas_);
     SaveNullableObjectRefs(context, CachedReplicas_);
 }
 
-void TChunk::Load(const NCellMaster::TLoadContext& context)
+void TChunk::Load(NCellMaster::TLoadContext& context)
 {
     TChunkTree::Load(context);
     TStagedObject::Load(context);
 
-    auto* input = context.GetInput();
-    LoadProto(input, ChunkInfo_);
-    LoadProto(input, ChunkMeta_);
-    SetReplicationFactor(NCellMaster::Load<i16>(context));
+    using NYT::Load;
+    Load(context, ChunkInfo_);
+    Load(context, ChunkMeta_);
+    SetReplicationFactor(Load<i16>(context));
     // COMPAT(psushin)
     if (context.GetVersion() >= 20) {
-        SetErasureCodec(NCellMaster::Load<NErasure::ECodec>(context));
+        SetErasureCodec(Load<NErasure::ECodec>(context));
     }
-    SetMovable(NCellMaster::Load<bool>(context));
-    SetVital(NCellMaster::Load<bool>(context));
+    SetMovable(Load<bool>(context));
+    SetVital(Load<bool>(context));
     LoadObjectRefs(context, Parents_);
     LoadObjectRefs(context, StoredReplicas_);
     LoadNullableObjectRefs(context, CachedReplicas_);

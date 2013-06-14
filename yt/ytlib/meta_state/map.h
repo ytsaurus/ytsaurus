@@ -155,15 +155,15 @@ public:
      */
     TConstIterator End() const;
 
-    void SaveKeys(const NMetaState::TSaveContext& context) const;
+    void SaveKeys(NMetaState::TSaveContext& context) const;
+        
+    template <class TContext>
+    void SaveValues(TContext& context) const;
+
+    void LoadKeys(NMetaState::TLoadContext& context);
 
     template <class TContext>
-    void SaveValues(const TContext& context) const;
-
-    void LoadKeys(const NMetaState::TLoadContext& context);
-
-    template <class TContext>
-    void LoadValues(const TContext& context);
+    void LoadValues(TContext& context);
 
 private:
     //! Slot for the thread in which all the public methods are called.

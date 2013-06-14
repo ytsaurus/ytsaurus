@@ -8,6 +8,7 @@
 #include <ytlib/misc/property.h>
 #include <ytlib/misc/nullable.h>
 #include <ytlib/misc/error.h>
+#include <ytlib/misc/serialize.h>
 
 #include <ytlib/actions/bind.h>
 #include <ytlib/actions/callback.h>
@@ -135,6 +136,23 @@ class TYsonSerializable
     : public TRefCounted
     , public TYsonSerializableLite
 { };
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TBinaryYsonSerializer
+{
+    static void Save(TStreamSaveContext& context, const TYsonSerializableLite& obj);
+    static void Load(TStreamLoadContext& context, TYsonSerializableLite& obj);
+};
+
+template <class T, class C>
+struct TSerializerTraits<
+    T,
+    C,
+    typename NMpl::TEnableIf<NMpl::TIsConvertible<T&, TYsonSerializableLite&>>::TType>
+{
+    typedef TBinaryYsonSerializer TSerializer;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

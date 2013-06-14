@@ -31,16 +31,14 @@ struct TMyInt
         : Value(value)
     { }
 
-    void Save(const TSaveContext& context) const
+    void Save(const NMetaState::TSaveContext& context) const
     {
-        auto* output = context.GetOutput();
-        WritePod(*output, Value);
+        NYT::Save(context, Value);
     }
 
-    void Load(const TLoadContext& context)
+    void Load(const NMetaState::TLoadContext& context)
     {
-        auto* input = context.GetInput();
-        ReadPod(*input, Value);
+        NYT::Load(context, Value);
     }
 };
 
@@ -101,7 +99,7 @@ TEST_F(TMetaStateMapTest, SaveAndLoad)
 
         TStringOutput output(snapshotData);
 
-        TSaveContext context;
+        NMetaState::TSaveContext context;
         context.SetOutput(&output);
 
         map.SaveKeys(context);
@@ -112,7 +110,7 @@ TEST_F(TMetaStateMapTest, SaveAndLoad)
 
         TStringInput input(snapshotData);
 
-        TLoadContext context;
+        NMetaState::TLoadContext context;
         context.SetInput(&input);
 
         map.LoadKeys(context);
@@ -154,7 +152,7 @@ TEST_F(TMetaStateMapTest, StressSave)
     Stroka snapshotData;
     TStringOutput output(snapshotData);
 
-    TSaveContext context;
+    NMetaState::TSaveContext context;
     context.SetOutput(&output);
 
     map.SaveKeys(context);

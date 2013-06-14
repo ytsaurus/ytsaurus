@@ -62,24 +62,24 @@ const TNodeConfigPtr& TNode::GetConfig() const
     return Config_;
 }
 
-void TNode::Save(const NCellMaster::TSaveContext& context) const
+void TNode::Save(NCellMaster::TSaveContext& context) const
 {
-    auto* output = context.GetOutput();
-    ::Save(output, Descriptor_.Address);
-    ::Save(output, State_);
-    SaveProto(output, Statistics_);
+    using NYT::Save;
+    Save(context, Descriptor_.Address);
+    Save(context, State_);
+    Save(context, Statistics_);
     SaveObjectRef(context, Transaction_);
     SaveObjectRefs(context, StoredReplicas_);
     SaveObjectRefs(context, CachedReplicas_);
     SaveObjectRefs(context, UnapprovedReplicas_);
 }
 
-void TNode::Load(const NCellMaster::TLoadContext& context)
+void TNode::Load(NCellMaster::TLoadContext& context)
 {
-    auto* input = context.GetInput();
-    ::Load(input, Descriptor_.Address);
-    ::Load(input, State_);
-    LoadProto(input, Statistics_);
+    using NYT::Load;
+    Load(context, Descriptor_.Address);
+    Load(context, State_);
+    Load(context, Statistics_);
     LoadObjectRef(context, Transaction_);
     LoadObjectRefs(context, StoredReplicas_);
     LoadObjectRefs(context, CachedReplicas_);

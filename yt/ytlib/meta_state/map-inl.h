@@ -215,19 +215,17 @@ TMetaStateMap<TKey, TValue, TTraits, THash>::End() const
 }
 
 template <class TKey, class TValue, class TTraits, class THash>
-void TMetaStateMap<TKey, TValue, TTraits, THash>::LoadKeys(const TLoadContext& context)
+void TMetaStateMap<TKey, TValue, TTraits, THash>::LoadKeys(TLoadContext& context)
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 
-    auto* input = context.GetInput();
-
     Map.clear();
-    size_t size = ::LoadSize(input);
+    size_t size = Load<size_t>(context);
 
     TKey previousKey;
     for (size_t index = 0; index < size; ++index) {
         TKey key;
-        ::Load(input, key);
+        NYT::Load(context, key);
 
         YCHECK(index == 0 || previousKey < key);
 
@@ -240,7 +238,7 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::LoadKeys(const TLoadContext& c
 
 template <class TKey, class TValue, class TTraits, class THash>
 template <class TContext>
-void TMetaStateMap<TKey, TValue, TTraits, THash>::LoadValues(const TContext& context)
+void TMetaStateMap<TKey, TValue, TTraits, THash>::LoadValues(TContext& context)
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 
@@ -259,11 +257,9 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::LoadValues(const TContext& con
 }
 
 template <class TKey, class TValue, class TTraits, class THash>
-void TMetaStateMap<TKey, TValue, TTraits, THash>::SaveKeys(const TSaveContext& context) const
+void TMetaStateMap<TKey, TValue, TTraits, THash>::SaveKeys(TSaveContext& context) const
 {
-    auto* output = context.GetOutput();
-
-    ::SaveSize(output, Map.size());
+    Save(context, Map.size());
 
     std::vector<TKey> keys;
     keys.reserve(Map.size());
@@ -273,13 +269,13 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::SaveKeys(const TSaveContext& c
     std::sort(keys.begin(), keys.end());
 
     FOREACH (const auto& key, keys) {
-        ::Save(output, key);
+        Save(context, key);
     }
 }
 
 template <class TKey, class TValue, class TTraits, class THash>
 template <class TContext>
-void TMetaStateMap<TKey, TValue, TTraits, THash>::SaveValues(const TContext& context) const
+void TMetaStateMap<TKey, TValue, TTraits, THash>::SaveValues(TContext& context) const
 {
     std::vector<TItem> items(Map.begin(), Map.end());
     std::sort(

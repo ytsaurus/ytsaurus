@@ -4,9 +4,6 @@
 #include <ytlib/misc/enum.h>
 #include <ytlib/misc/serialize.h>
 
-#include <util/stream/buffer.h>
-#include <util/ysaveload.h>
-
 #include <contrib/testing/framework.h>
 
 namespace NYT {
@@ -157,16 +154,22 @@ TEST(TEnumTest, SaveAndLoad)
 {
     TStringStream stream;
 
+    TStreamSaveContext saveContext;
+    saveContext.SetOutput(&stream);
+
+    TStreamLoadContext loadContext;
+    loadContext.SetInput(&stream);
+
     EColor first(EColor::Red);
     EColor second(EColor::Black);
     EColor third(0);
     EColor fourth(0);
 
-    Save(&stream, first);
-    Save(&stream, second);
+    Save(saveContext, first);
+    Save(saveContext, second);
 
-    Load(&stream, third);
-    Load(&stream, fourth);
+    Load(loadContext, third);
+    Load(loadContext, fourth);
 
     EXPECT_EQ(first, third);
     EXPECT_EQ(second, fourth);

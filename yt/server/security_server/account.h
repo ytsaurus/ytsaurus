@@ -27,8 +27,8 @@ class TAccount
 public:
     explicit TAccount(const TAccountId& id);
 
-    void Save(const NCellMaster::TSaveContext& context) const;
-    void Load(const NCellMaster::TLoadContext& context);
+    void Save(NCellMaster::TSaveContext& context) const;
+    void Load(NCellMaster::TLoadContext& context);
 
     //! Returns |true| if disk space limit is exceeded.
     bool IsOverDiskSpaceLimit() const;

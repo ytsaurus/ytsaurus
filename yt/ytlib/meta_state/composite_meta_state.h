@@ -3,7 +3,10 @@
 #include "public.h"
 #include "meta_state.h"
 
+#include <ytlib/misc/serialize.h>
+
 #include <ytlib/rpc/service.h>
+
 #include <ytlib/meta_state/meta_state_manager.pb.h>
 
 namespace NYT {
@@ -11,19 +14,25 @@ namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSaveContext
-{
-    DEFINE_BYVAL_RW_PROPERTY(TOutputStream*, Output);
-};
+class TSaveContext
+    : public NYT::TStreamSaveContext
+{ };
 
-struct TLoadContext
+class TLoadContext
+    : public NYT::TStreamLoadContext
 {
+public:
     DEFINE_BYVAL_RW_PROPERTY(i32, Version);
-    DEFINE_BYVAL_RW_PROPERTY(TInputStream*, Input);
+
+public:
+    TLoadContext();
+
 };
 
-typedef TCallback<void(const TSaveContext&)> TSaver;
-typedef TCallback<void(const TLoadContext&)> TLoader;
+////////////////////////////////////////////////////////////////////////////////
+
+typedef TCallback<void(TSaveContext&)> TSaver;
+typedef TCallback<void(TLoadContext&)> TLoader;
 typedef TCallback<void(int)> TVersionValidator;
 
 class TMetaStatePart
@@ -38,15 +47,19 @@ protected:
     IMetaStateManagerPtr MetaStateManager;
     TCompositeMetaStatePtr MetaState;
 
-    void RegisterSaver(int priority, const Stroka& name, i32 version, TSaver saver);
+    void RegisterSaver(
+        int priority,
+        const Stroka& name,
+        i32 version,
+        TSaver saver);
 
     template <class TContext>
     void RegisterSaver(
         int priority,
         const Stroka& name,
         i32 version,
-        TCallback<void(const TContext&)> saver,
-        const TContext& context);
+        TCallback<void(TContext&)> saver,
+        TContext& context);
 
     void RegisterLoader(
         const Stroka& name,
@@ -57,8 +70,8 @@ protected:
     void RegisterLoader(
         const Stroka& name,
         TVersionValidator versionValidator,
-        TCallback<void(const TContext&)> loader,
-        const TContext& context);
+        TCallback<void(TContext&)> loader,
+        TContext& context);
 
     template <class TRequest, class TResponse>
     void RegisterMethod(TCallback<TResponse(const TRequest&)> handler);

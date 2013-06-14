@@ -63,8 +63,8 @@ public:
 
     // Similar methods are also declared in TObjectBase but starting from TCypressNodeBase
     // they become virtual.
-    virtual void Save(const NCellMaster::TSaveContext& context) const;
-    virtual void Load(const NCellMaster::TLoadContext& context);
+    virtual void Save(NCellMaster::TSaveContext& context) const;
+    virtual void Load(NCellMaster::TLoadContext& context);
 
 private:
     TCypressNodeBase* Parent_;

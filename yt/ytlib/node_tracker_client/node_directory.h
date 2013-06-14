@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <ytlib/misc/serialize.h>
+
 #include <ytlib/chunk_client/chunk_replica.h>
 
 #include <ytlib/node_tracker_client/node_tracker_service.pb.h>
@@ -18,6 +20,8 @@ struct TNodeDescriptor
 
     Stroka Address;
 
+    void Persist(TStreamPersistenceContext& context);
+
 };
 
 Stroka ToString(const TNodeDescriptor& descriptor);
@@ -33,7 +37,7 @@ void FromProto(TNodeDescriptor* descriptor, const NProto::TNodeDescriptor& proto
  *  Thread affinity: thread-safe
  */
 class TNodeDirectory
-    : public TRefCounted
+    : public TIntrinsicRefCounted
 {
 public:
     void MergeFrom(const NProto::TNodeDirectory& source);
@@ -48,6 +52,8 @@ public:
 
     const TNodeDescriptor* FindDescriptor(const Stroka& address);
     const TNodeDescriptor& GetDescriptor(const Stroka& address);
+
+    void Persist(TStreamPersistenceContext& context);
 
 private:
     TSpinLock SpinLock;

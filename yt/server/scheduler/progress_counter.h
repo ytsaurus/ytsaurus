@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <ytlib/misc/serialize.h>
+
 #include <ytlib/yson/public.h>
 
 namespace NYT {
@@ -36,8 +38,10 @@ public:
     void Aborted(i64 count);
     void Lost(i64 count);
 
+    void Persist(TStreamPersistenceContext& context);
+
 private:
-    bool TotalEnabled;
+    bool TotalEnabled_;
     i64 Total_;
     i64 Running_;
     i64 Completed_;
@@ -49,6 +53,7 @@ private:
 };
 
 Stroka ToString(const TProgressCounter& counter);
+
 void Serialize(const TProgressCounter& counter, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////

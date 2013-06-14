@@ -350,6 +350,20 @@ TRichYPath TRichYPath::Simplify() const
     return parsed;
 }
 
+void TRichYPath::Save(TStreamSaveContext& context) const
+{
+    using NYT::Save;
+    Save(context, Path_);
+    Save(context, *Attributes_);
+}
+
+void TRichYPath::Load(TStreamLoadContext& context)
+{
+    using NYT::Load;
+    Load(context, Path_);
+    Load(context, *Attributes_);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 Stroka ToString(const TRichYPath& path)

@@ -42,6 +42,7 @@ set( SRCS
   ${BASE}/thread.cpp
   ${BASE}/throughput_throttler.cpp
   ${BASE}/url.cpp
+  ${BASE}/phoenix.cpp
 )
 set( HDRS
   ${BASE}/address.h
@@ -99,6 +100,8 @@ set( HDRS
   ${BASE}/ref_tracked.h
   ${BASE}/semaphore.h
   ${BASE}/serialize.h
+  ${BASE}/phoenix.h
+  ${BASE}/phoenix-inl.h
   ${BASE}/singleton.h
   ${BASE}/small_set.h
   ${BASE}/small_string.h

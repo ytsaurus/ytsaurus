@@ -1,6 +1,5 @@
 #include "stdafx.h"
 #include "yson_string.h"
-
 #include "yson_stream.h"
 #include "null_yson_consumer.h"
 
@@ -12,10 +11,31 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TYsonString::TYsonString()
+{ }
+
+TYsonString::TYsonString(
+    const Stroka& data,
+    NYson::EYsonType type /*= NYson::EYsonType::Node*/ )
+    : Data_(data)
+    , Type_(type)
+{ }
+
 void TYsonString::Validate() const
 {
     TStringInput input(Data());
     ParseYson(TYsonInput(&input, GetType()), GetNullYsonConsumer());
+}
+
+void TYsonString::Save(TStreamSaveContext& context) const
+{
+    YCHECK(GetType() == NYson::EYsonType::Node);
+    NYT::Save(context, Data_);
+}
+
+void TYsonString::Load(TStreamLoadContext& context)
+{
+    NYT::Load(context, Data_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -25,22 +45,21 @@ void Serialize(const TYsonString& yson, NYson::IYsonConsumer* consumer)
     consumer->OnRaw(yson.Data(), yson.GetType());
 }
 
-void Save(TOutputStream* output, const TYsonString& ysonString)
-{
-    Save(output, ysonString.Data());
-}
-
-void Load(TInputStream* input, TYsonString& ysonString)
-{
-    Stroka str;
-    Load(input, str);
-    ysonString = NYTree::TYsonString(str);
-}
-
 bool operator == (const TYsonString& lhs, const TYsonString& rhs)
 {
     return lhs.Data() == rhs.Data() && lhs.GetType() == rhs.GetType();
 }
+
+bool operator != (const TYsonString& lhs, const TYsonString& rhs)
+{
+    return !(lhs == rhs);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TRawString::TRawString(const Stroka& str)
+    : Stroka(str)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

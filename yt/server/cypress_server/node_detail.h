@@ -325,16 +325,20 @@ public:
         , Value_()
     { }
 
-    virtual void Save(const NCellMaster::TSaveContext& context) const override
+    virtual void Save(NCellMaster::TSaveContext& context) const override
     {
         TCypressNodeBase::Save(context);
-        NCellMaster::Save(context, Value_);
+        
+        using NYT::Save;
+        Save(context, Value_);
     }
 
-    virtual void Load(const NCellMaster::TLoadContext& context) override
+    virtual void Load(NCellMaster::TLoadContext& context) override
     {
         TCypressNodeBase::Load(context);
-        NCellMaster::Load(context, Value_);
+
+        using NYT::Load;
+        Load(context, Value_);
     }
 };
 
@@ -419,8 +423,8 @@ class TMapNode
 public:
     explicit TMapNode(const TVersionedNodeId& id);
 
-    virtual void Save(const NCellMaster::TSaveContext& context) const override;
-    virtual void Load(const NCellMaster::TLoadContext& context) override;
+    virtual void Save(NCellMaster::TSaveContext& context) const override;
+    virtual void Load(NCellMaster::TLoadContext& context) override;
 
 };
 
@@ -472,8 +476,8 @@ class TListNode
 public:
     explicit TListNode(const TVersionedNodeId& id);
 
-    virtual void Save(const NCellMaster::TSaveContext& context) const override;
-    virtual void Load(const NCellMaster::TLoadContext& context) override;
+    virtual void Save(NCellMaster::TSaveContext& context) const override;
+    virtual void Load(NCellMaster::TLoadContext& context) override;
 
 };
 
@@ -521,8 +525,8 @@ class TLinkNode
 public:
     explicit TLinkNode(const TVersionedNodeId& id);
 
-    virtual void Save(const NCellMaster::TSaveContext& context) const override;
-    virtual void Load(const NCellMaster::TLoadContext& context) override;
+    virtual void Save(NCellMaster::TSaveContext& context) const override;
+    virtual void Load(NCellMaster::TLoadContext& context) override;
 
 };
 

@@ -11,7 +11,7 @@ template <class T>
 class TWeakPtr
 {
 public:
-    typedef T TElementType;
+    typedef T TUnderlying;
 
     //! Empty constructor.
     TWeakPtr() // noexcept

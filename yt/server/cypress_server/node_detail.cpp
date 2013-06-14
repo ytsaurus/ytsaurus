@@ -169,37 +169,35 @@ TMapNode::TMapNode(const TVersionedNodeId& id)
     , ChildCountDelta_(0)
 { }
 
-void TMapNode::Save(const NCellMaster::TSaveContext& context) const
+void TMapNode::Save(NCellMaster::TSaveContext& context) const
 {
     TCypressNodeBase::Save(context);
 
-    auto* output = context.GetOutput();
-    ::Save(output, ChildCountDelta_);
+    using NYT::Save;
+    Save(context, ChildCountDelta_);
     // TODO(babenko): refactor when new serialization API is ready
     auto keyIts = GetSortedIterators(KeyToChild_);
-    SaveSize(output, keyIts.size());
+    Save(context, keyIts.size());
     FOREACH (auto it, keyIts) {
         const auto& key = it->first;
-        NYT::Save(output, key);
+        Save(context, key);
         const auto* node = it->second;
         auto id = node ? node->GetId() : NullObjectId;
-        NYT::Save(output, id);
+        Save(context, id);
     }
 }
 
-void TMapNode::Load(const NCellMaster::TLoadContext& context)
+void TMapNode::Load(NCellMaster::TLoadContext& context)
 {
     TCypressNodeBase::Load(context);
 
-    auto* input = context.GetInput();
-    ::Load(input, ChildCountDelta_);
+    using NYT::Load;
+    Load(context, ChildCountDelta_);
     // TODO(babenko): refactor when new serialization API is ready
-    size_t count = LoadSize(input);
+    size_t count = Load<size_t>(context);
     for (size_t index = 0; index != count; ++index) {
-        Stroka key;
-        ::Load(input, key);
-        TNodeId id;
-        NYT::Load(input, id);
+        auto key = Load<Stroka>(context);
+        auto id = Load<TNodeId>(context);
         auto* node = id == NullObjectId ? nullptr : context.Get<TCypressNodeBase>(id);
         YCHECK(KeyToChild_.insert(std::make_pair(key, node)).second);
         YCHECK(ChildToKey_.insert(std::make_pair(node, key)).second);
@@ -363,29 +361,28 @@ TListNode::TListNode(const TVersionedNodeId& id)
     : TCypressNodeBase(id)
 { }
 
-void TListNode::Save(const NCellMaster::TSaveContext& context) const
+void TListNode::Save(NCellMaster::TSaveContext& context) const
 {
     TCypressNodeBase::Save(context);
 
-    auto* output = context.GetOutput();
+    using NYT::Save;
     // TODO(babenko): refactor when new serialization API is ready
-    SaveSize(output, IndexToChild_.size());
+    Save(context, IndexToChild_.size());
     FOREACH (auto* node, IndexToChild_) {
-        NYT::Save(output, node->GetId());
+        Save(context, node->GetId());
     }
 }
 
-void TListNode::Load(const NCellMaster::TLoadContext& context)
+void TListNode::Load(NCellMaster::TLoadContext& context)
 {
     TCypressNodeBase::Load(context);
 
-    auto* input = context.GetInput();
+    using NYT::Load;
     // TODO(babenko): refactor when new serialization API is ready
-    size_t count = LoadSize(input);
+    size_t count = Load<size_t>(context);
     IndexToChild_.resize(count);
     for (size_t index = 0; index != count; ++index) {
-        TNodeId id;
-        NYT::Load(input, id);
+        auto id = Load<TNodeId>(context);
         auto* node = context.Get<TCypressNodeBase>(id);
         IndexToChild_[index] = node;
         YCHECK(ChildToIndex_.insert(std::make_pair(node, index)).second);
@@ -494,16 +491,20 @@ TLinkNode::TLinkNode(const TVersionedNodeId& id)
     : TCypressNodeBase(id)
 { }
 
-void TLinkNode::Save(const NCellMaster::TSaveContext& context) const
+void TLinkNode::Save(NCellMaster::TSaveContext& context) const
 {
     TCypressNodeBase::Save(context);
-    NCellMaster::Save(context, TargetId_);
+    
+    using NYT::Save;
+    Save(context, TargetId_);
 }
 
-void TLinkNode::Load(const NCellMaster::TLoadContext& context)
+void TLinkNode::Load(NCellMaster::TLoadContext& context)
 {
     TCypressNodeBase::Load(context);
-    NCellMaster::Load(context, TargetId_);
+    
+    using NYT::Load;
+    Load(context, TargetId_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

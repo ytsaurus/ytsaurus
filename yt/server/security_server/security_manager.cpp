@@ -999,14 +999,14 @@ private:
     }
 
 
-    void SaveKeys(const NCellMaster::TSaveContext& context) const
+    void SaveKeys(NCellMaster::TSaveContext& context) const
     {
         AccountMap.SaveKeys(context);
         UserMap.SaveKeys(context);
         GroupMap.SaveKeys(context);
     }
 
-    void SaveValues(const NCellMaster::TSaveContext& context) const
+    void SaveValues(NCellMaster::TSaveContext& context) const
     {
         AccountMap.SaveValues(context);
         UserMap.SaveValues(context);
@@ -1019,14 +1019,14 @@ private:
         DoClear();
     }
 
-    void LoadKeys(const NCellMaster::TLoadContext& context)
+    void LoadKeys(NCellMaster::TLoadContext& context)
     {
         AccountMap.LoadKeys(context);
         UserMap.LoadKeys(context);
         GroupMap.LoadKeys(context);
     }
 
-    void LoadValues(const NCellMaster::TLoadContext& context)
+    void LoadValues(NCellMaster::TLoadContext& context)
     {
         AccountMap.LoadValues(context);
         UserMap.LoadValues(context);

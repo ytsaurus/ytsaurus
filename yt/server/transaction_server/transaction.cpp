@@ -6,8 +6,6 @@
 
 #include <server/security_server/account.h>
 
-#include <util/ysaveload.h>
-
 namespace NYT {
 namespace NTransactionServer {
 
@@ -24,44 +22,44 @@ TTransaction::TTransaction(const TTransactionId& id)
     , Acd_(this)
 { }
 
-void TTransaction::Save(const NCellMaster::TSaveContext& context) const
+void TTransaction::Save(NCellMaster::TSaveContext& context) const
 {
     TNonversionedObjectBase::Save(context);
 
-    auto* output = context.GetOutput();
-    ::Save(output, State_);
-    ::Save(output, Timeout_);
-    ::Save(output, UncommittedAccountingEnabled_);
-    ::Save(output, StagedAccountingEnabled_);
+    using NYT::Save;
+    Save(context, State_);
+    Save(context, Timeout_);
+    Save(context, UncommittedAccountingEnabled_);
+    Save(context, StagedAccountingEnabled_);
     SaveObjectRefs(context, NestedTransactions_);
     SaveObjectRef(context, Parent_);
-    ::Save(output, StartTime_);
+    Save(context, StartTime_);
     SaveObjectRefs(context, StagedObjects_);
     SaveObjectRefs(context, LockedNodes_);
     SaveObjectRefs(context, BranchedNodes_);
     SaveObjectRefs(context, StagedNodes_);
     SaveObjectRefs(context, AccountResourceUsage_);
-    NSecurityServer::Save(context, Acd_);
+    Save(context, Acd_);
 }
 
-void TTransaction::Load(const NCellMaster::TLoadContext& context)
+void TTransaction::Load(NCellMaster::TLoadContext& context)
 {
     TNonversionedObjectBase::Load(context);
 
-    auto* input = context.GetInput();
-    ::Load(input, State_);
-    ::Load(input, Timeout_);
-    ::Load(input, UncommittedAccountingEnabled_);
-    ::Load(input, StagedAccountingEnabled_);
+    using NYT::Load;
+    Load(context, State_);
+    Load(context, Timeout_);
+    Load(context, UncommittedAccountingEnabled_);
+    Load(context, StagedAccountingEnabled_);
     LoadObjectRefs(context, NestedTransactions_);
     LoadObjectRef(context, Parent_);
-    ::Load(input, StartTime_);
+    Load(context, StartTime_);
     LoadObjectRefs(context, StagedObjects_);
     LoadObjectRefs(context, LockedNodes_);
     LoadObjectRefs(context, BranchedNodes_);
     LoadObjectRefs(context, StagedNodes_);
     LoadObjectRefs(context, AccountResourceUsage_);
-    NSecurityServer::Load(context, Acd_);
+    Load(context, Acd_);
 }
 
 bool TTransaction::IsActive() const

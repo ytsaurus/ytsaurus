@@ -12,6 +12,7 @@ namespace NChunkServer {
 
 //! A helper for building node directories in fetch handlers.
 class TNodeDirectoryBuilder
+    : private TNonCopyable
 {
 public:
     explicit TNodeDirectoryBuilder(NNodeTrackerClient::NProto::TNodeDirectory* protoDirectory);

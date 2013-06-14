@@ -12,7 +12,9 @@ namespace NLog {
 class TTaggedLogger
 {
 public:
+    TTaggedLogger();
     explicit TTaggedLogger(TLogger& innerLogger);
+    TTaggedLogger(const TTaggedLogger& other);
 
     Stroka GetCategory() const;
     bool IsEnabled(ELogLevel level) const;
@@ -23,8 +25,9 @@ public:
 private:
     Stroka GetTaggedMessage(const Stroka& originalMessage) const;
 
-    TLogger& InnerLogger;
+    TLogger* InnerLogger;
     Stroka Tags;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

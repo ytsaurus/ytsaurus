@@ -44,12 +44,12 @@ struct TChunkTreeStatistics
 
     void Accumulate(const TChunkTreeStatistics& other);
 
+    void Save(NCellMaster::TSaveContext& context) const;
+    void Load(NCellMaster::TLoadContext& context);
+
 };
 
 void Serialize(const TChunkTreeStatistics& statistics, NYson::IYsonConsumer* consumer);
-
-void Save(const NCellMaster::TSaveContext& context, const TChunkTreeStatistics& statistics);
-void Load(const NCellMaster::TLoadContext& context, TChunkTreeStatistics& statistics);
 
 ////////////////////////////////////////////////////////////////////////////////
 

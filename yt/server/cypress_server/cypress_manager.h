@@ -173,12 +173,12 @@ private:
     void DoClear();
     virtual void Clear() override;
 
-    void SaveKeys(const NCellMaster::TSaveContext& context) const;
-    void SaveValues(const NCellMaster::TSaveContext& context) const;
+    void SaveKeys(NCellMaster::TSaveContext& context) const;
+    void SaveValues(NCellMaster::TSaveContext& context) const;
     
     virtual void OnBeforeLoaded() override;
-    void LoadKeys(const NCellMaster::TLoadContext& context);
-    void LoadValues(const NCellMaster::TLoadContext& context);
+    void LoadKeys(NCellMaster::TLoadContext& context);
+    void LoadValues(NCellMaster::TLoadContext& context);
     virtual void OnAfterLoaded() override;
 
     void InitBuiltin();

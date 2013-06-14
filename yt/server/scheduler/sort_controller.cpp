@@ -71,14 +71,57 @@ public:
         , Spec(spec)
         , Config(config)
         , CompletedPartitionCount(0)
-        , SortDataSizeCounter(0)
-        , SortStartThresholdReached(false)
-        , MergeStartThresholdReached(false)
         , SortedMergeJobCounter(0)
         // Cannot do similar for UnorderedMergeJobCounter since the number of unsorted merge jobs
         // is hard to predict.
+        , SortDataSizeCounter(0)
+        , SortStartThresholdReached(false)
+        , MergeStartThresholdReached(false)
         , SimpleSort(false)
     { }
+
+    // Persistence.
+    virtual void Persist(TPersistenceContext& context)
+    {
+        TOperationControllerBase::Persist(context);
+
+        using NYT::Persist;
+
+        Persist(context, CompletedPartitionCount);
+        Persist(context, PartitionJobCounter);
+        Persist(context, IntermediateSortJobCounter);
+        Persist(context, FinalSortJobCounter);
+        Persist(context, SortDataSizeCounter);
+        Persist(context, SortedMergeJobCounter);
+        Persist(context, UnorderedMergeJobCounter);
+        
+        Persist(context, SortStartThresholdReached);
+        Persist(context, MergeStartThresholdReached);
+        
+        Persist(context, SimpleSort);
+        Persist(context, Partitions);
+
+        Persist(context, PartitionJobSpecTemplate);
+        Persist(context, IntermediateSortJobSpecTemplate);
+        Persist(context, FinalSortJobSpecTemplate);
+        Persist(context, SortedMergeJobSpecTemplate);
+        Persist(context, UnorderedMergeJobSpecTemplate);
+
+        Persist(context, PartitionJobIOConfig);
+        Persist(context, IntermediateSortJobIOConfig);
+        Persist(context, FinalSortJobIOConfig);
+        Persist(context, SortedMergeJobIOConfig);
+        Persist(context, UnorderedMergeJobIOConfig);
+
+        Persist(context, ShufflePool);
+        Persist(context, SimpleSortPool);
+
+        Persist(context, PartitionTaskGroup);
+        Persist(context, SortTaskGroup);
+        Persist(context, MergeTaskGroup);
+
+        Persist(context, PartitionTask);
+    }
 
 private:
     TSortOperationSpecBasePtr Spec;
@@ -89,6 +132,8 @@ protected:
     // Counters.
     int CompletedPartitionCount;
     TProgressCounter PartitionJobCounter;
+    mutable TProgressCounter SortedMergeJobCounter;
+    TProgressCounter UnorderedMergeJobCounter;
 
     // Sort job counters.
     TProgressCounter IntermediateSortJobCounter;
@@ -98,12 +143,6 @@ protected:
     // Start thresholds.
     bool SortStartThresholdReached;
     bool MergeStartThresholdReached;
-
-    // Sorted merge job counters.
-    mutable TProgressCounter SortedMergeJobCounter;
-
-    // Unordered merge job counters.
-    TProgressCounter UnorderedMergeJobCounter;
 
 
     // Forward declarations.
@@ -125,19 +164,36 @@ protected:
     struct TPartition
         : public TIntrinsicRefCounted
     {
+        //! For persistence only.
+        TPartition()
+            : Index(-1)
+            , Completed(false)
+            , CachedSortedMergeNeeded(false)
+            , Maniac(false)
+            , ChunkPoolOutput(nullptr)
+        { }
+
         TPartition(TSortControllerBase* controller, int index)
             : Index(index)
             , Completed(false)
             , CachedSortedMergeNeeded(false)
             , Maniac(false)
-            , SortTask(
-                controller->SimpleSort
-                ? TSortTaskPtr(New<TSimpleSortTask>(controller, this))
-                : TSortTaskPtr(New<TPartitionSortTask>(controller, this)))
-            , SortedMergeTask(New<TSortedMergeTask>(controller, this))
-            , UnorderedMergeTask(New<TUnorderedMergeTask>(controller, this))
             , ChunkPoolOutput(nullptr)
-        { }
+        {
+            SortTask = controller->SimpleSort
+                ? TSortTaskPtr(New<TSimpleSortTask>(controller, this))
+                : TSortTaskPtr(New<TPartitionSortTask>(controller, this));
+            SortTask->Initialize();
+            controller->RegisterTask(SortTask);
+
+            SortedMergeTask = New<TSortedMergeTask>(controller, this);
+            SortedMergeTask->Initialize();
+            controller->RegisterTask(SortedMergeTask);
+
+            UnorderedMergeTask = New<TUnorderedMergeTask>(controller, this);
+            UnorderedMergeTask->Initialize();
+            controller->RegisterTask(UnorderedMergeTask);
+        }
 
         //! Sequential index (zero based).
         int Index;
@@ -155,6 +211,9 @@ protected:
         //! Number of sorted bytes residing at a given node.
         yhash_map<Stroka, i64> AddressToLocality;
 
+        //! A statically assigned partition address, if any.
+        TNullable<Stroka> AssignedAddress;
+
         // Tasks.
         TSortTaskPtr SortTask;
         TSortedMergeTaskPtr SortedMergeTask;
@@ -163,24 +222,44 @@ protected:
         // Chunk pool output obtained from the shuffle pool.
         IChunkPoolOutput* ChunkPoolOutput;
 
-        //! A statically assigned partition address, if any.
-        TNullable<Stroka> AssignedAddress;
+
+        void Persist(TPersistenceContext& context)
+        {
+            using NYT::Persist;
+            
+            Persist(context, Index);
+            
+            Persist(context, Completed);
+            
+            Persist(context, CachedSortedMergeNeeded);
+            
+            Persist(context, Maniac);
+            
+            Persist(context, AddressToLocality);
+            Persist(context, AssignedAddress);
+
+            Persist(context, SortTask);
+            Persist(context, SortedMergeTask);
+            Persist(context, UnorderedMergeTask);
+        }
+
     };
 
     typedef TIntrusivePtr<TPartition> TPartitionPtr;
 
-    //! Is equivalent to |Partitions.size() == 1| but enables
-    //! checking for simple sort when #Partitions is still being constructed.
+    //! Equivalent to |Partitions.size() == 1| but enables checking
+    //! for simple sort when #Partitions is still being constructed.
     bool SimpleSort;
     std::vector<TPartitionPtr> Partitions;
 
-    //! Templates for starting new jobs.
+    //! Spec templates for starting new jobs.
     TJobSpec PartitionJobSpecTemplate;
     TJobSpec IntermediateSortJobSpecTemplate;
     TJobSpec FinalSortJobSpecTemplate;
     TJobSpec SortedMergeJobSpecTemplate;
     TJobSpec UnorderedMergeJobSpecTemplate;
 
+    //! IO configs for various job types.
     TJobIOConfigPtr PartitionJobIOConfig;
     TJobIOConfigPtr IntermediateSortJobIOConfig;
     TJobIOConfigPtr FinalSortJobIOConfig;
@@ -190,9 +269,9 @@ protected:
     std::unique_ptr<IShuffleChunkPool> ShufflePool;
     std::unique_ptr<IChunkPool> SimpleSortPool;
 
-    TTaskGroup PartitionTaskGroup;
-    TTaskGroup SortTaskGroup;
-    TTaskGroup MergeTaskGroup;
+    TTaskGroupPtr PartitionTaskGroup;
+    TTaskGroupPtr SortTaskGroup;
+    TTaskGroupPtr MergeTaskGroup;
 
     TPartitionTaskPtr PartitionTask;
 
@@ -201,23 +280,27 @@ protected:
         : public TTask
     {
     public:
+        //! For persistence only.
+        TPartitionTask()
+            : Controller(nullptr)
+        { }
+
         explicit TPartitionTask(TSortControllerBase* controller)
             : TTask(controller)
             , Controller(controller)
-        {
-            ChunkPool = CreateUnorderedChunkPool(
+            , ChunkPool(CreateUnorderedChunkPool(
                 Controller->NodeDirectory,
-                Controller->PartitionJobCounter.GetTotal());
-        }
+                Controller->PartitionJobCounter.GetTotal()))
+        { }
 
         virtual Stroka GetId() const override
         {
             return "Partition";
         }
 
-        virtual TTaskGroup* GetGroup() const override
+        virtual TTaskGroupPtr GetGroup() const override
         {
-            return &Controller->PartitionTaskGroup;
+            return Controller->PartitionTaskGroup;
         }
 
         virtual TDuration GetLocalityTimeout() const override
@@ -249,7 +332,18 @@ protected:
             return ~ChunkPool;
         }
 
+        virtual void Persist(TPersistenceContext& context) override
+        {
+            TTask::Persist(context);
+
+            using NYT::Persist;
+            Persist(context, Controller);
+            Persist(context, ChunkPool);
+        }
+
     private:
+        DECLARE_DYNAMIC_PHOENIX_TYPE(TPartitionTask, 0x63a4c761);
+
         TSortControllerBase* Controller;
 
         std::unique_ptr<IChunkPool> ChunkPool;
@@ -316,7 +410,6 @@ protected:
             // Kick-start sort and unordered merge tasks.
             Controller->AddSortTasksPendingHints();
             Controller->AddMergeTasksPendingHints();
-
         }
 
         virtual void OnJobLost(TCompleteJobPtr completedJob) override
@@ -374,6 +467,7 @@ protected:
 
             Controller->CheckMergeStartThreshold();
         }
+
     };
 
     //! Base class for tasks that are assigned to particular partitions.
@@ -381,11 +475,26 @@ protected:
         : public TTask
     {
     public:
+        //! For persistence only.
+        TPartitionBoundTask()
+            : Controller(nullptr)
+            , Partition(nullptr)
+        { }
+
         TPartitionBoundTask(TSortControllerBase* controller, TPartition* partition)
             : TTask(controller)
             , Controller(controller)
             , Partition(partition)
         { }
+
+        virtual void Persist(TPersistenceContext& context) override
+        {
+            TTask::Persist(context);
+
+            using NYT::Persist;
+            Persist(context, Controller);
+            Persist(context, Partition);
+        }
 
     protected:
         TSortControllerBase* Controller;
@@ -399,13 +508,17 @@ protected:
         : public TPartitionBoundTask
     {
     public:
+        //! For persistence only.
+        TSortTask()
+        { }
+
         TSortTask(TSortControllerBase* controller, TPartition* partition)
             : TPartitionBoundTask(controller, partition)
         { }
 
-        virtual TTaskGroup* GetGroup() const override
+        virtual TTaskGroupPtr GetGroup() const override
         {
-            return &Controller->SortTaskGroup;
+            return Controller->SortTaskGroup;
         }
 
         virtual TNodeResources GetMinNeededResourcesHeavy() const override
@@ -564,7 +677,7 @@ protected:
             auto stripeList = completedJob->SourceTask->GetChunkPoolOutput()->GetStripeList(completedJob->OutputCookie);
             Controller->SortDataSizeCounter.Lost(stripeList->TotalDataSize);
 
-            const auto& address = completedJob->ExecNode->GetAddress();
+            const auto& address = completedJob->Address;
             Partition->AddressToLocality[address] -= stripeList->TotalDataSize;
             YCHECK(Partition->AddressToLocality[address] >= 0);
 
@@ -591,6 +704,10 @@ protected:
         : public TSortTask
     {
     public:
+        //! For persistence only.
+        TPartitionSortTask()
+        { }
+
         TPartitionSortTask(TSortControllerBase* controller, TPartition* partition)
             : TSortTask(controller, partition)
         { }
@@ -634,6 +751,9 @@ protected:
         }
 
     private:
+        DECLARE_DYNAMIC_PHOENIX_TYPE(TPartitionSortTask, 0x4f9a6cd9);
+
+
         virtual bool HasInputLocality() override
         {
             return false;
@@ -662,6 +782,10 @@ protected:
         : public TSortTask
     {
     public:
+        //! For persistence only.
+        TSimpleSortTask()
+        { }
+
         TSimpleSortTask(TSortControllerBase* controller, TPartition* partition)
             : TSortTask(controller, partition)
         { }
@@ -675,6 +799,10 @@ protected:
         {
             return Controller->Spec->SimpleSortLocalityTimeout;
         }
+
+    private:
+        DECLARE_DYNAMIC_PHOENIX_TYPE(TSimpleSortTask, 0xb32d4f02);
+
     };
 
     //! Base class for both sorted and ordered merge.
@@ -682,13 +810,17 @@ protected:
         : public TPartitionBoundTask
     {
     public:
+        //! For persistence only.
+        TMergeTask()
+        { }
+
         TMergeTask(TSortControllerBase* controller, TPartition* partition)
             : TPartitionBoundTask(controller, partition)
         { }
 
-        virtual TTaskGroup* GetGroup() const override
+        virtual TTaskGroupPtr GetGroup() const override
         {
-            return &Controller->MergeTaskGroup;
+            return Controller->MergeTaskGroup;
         }
 
     private:
@@ -711,11 +843,14 @@ protected:
         : public TMergeTask
     {
     public:
+        //! For persistence only.
+        TSortedMergeTask()
+        { }
+
         TSortedMergeTask(TSortControllerBase* controller, TPartition* partition)
             : TMergeTask(controller, partition)
-        {
-            ChunkPool = CreateAtomicChunkPool(Controller->NodeDirectory);
-        }
+            , ChunkPool(CreateAtomicChunkPool(Controller->NodeDirectory))
+        { }
 
         virtual Stroka GetId() const override
         {
@@ -761,7 +896,10 @@ protected:
         }
 
     private:
+        DECLARE_DYNAMIC_PHOENIX_TYPE(TSortedMergeTask, 0x4ab19c75);
+
         std::unique_ptr<IChunkPool> ChunkPool;
+
 
         virtual IChunkPoolOutput* GetChunkPoolOutput() const override
         {
@@ -824,6 +962,10 @@ protected:
         : public TMergeTask
     {
     public:
+        //! For persistence only.
+        TUnorderedMergeTask()
+        { }
+
         TUnorderedMergeTask(TSortControllerBase* controller, TPartition* partition)
             : TMergeTask(controller, partition)
         { }
@@ -881,6 +1023,9 @@ protected:
         }
 
     private:
+        DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeTask, 0xbba17c0f);
+
+
         virtual bool HasInputLocality() override
         {
             return false;
@@ -951,12 +1096,15 @@ protected:
         TOperationControllerBase::DoInitialize();
 
         // NB: Register groups in the order of _descending_ priority.
-        RegisterTaskGroup(&MergeTaskGroup);
+        MergeTaskGroup = New<TTaskGroup>();
+        RegisterTaskGroup(MergeTaskGroup);
 
-        SortTaskGroup.MinNeededResources.set_network(Spec->ShuffleNetworkLimit);
-        RegisterTaskGroup(&SortTaskGroup);
+        SortTaskGroup = New<TTaskGroup>();
+        SortTaskGroup->MinNeededResources.set_network(Spec->ShuffleNetworkLimit);
+        RegisterTaskGroup(SortTaskGroup);
 
-        RegisterTaskGroup(&PartitionTaskGroup);
+        PartitionTaskGroup = New<TTaskGroup>();
+        RegisterTaskGroup(PartitionTaskGroup);
     }
 
 
@@ -1181,6 +1329,7 @@ protected:
         return false;
     }
 
+
     // Resource management.
 
     virtual bool IsPartitionJobNonexpanding() const = 0;
@@ -1278,6 +1427,8 @@ protected:
     }
 
 
+    // Progress reporting.
+
     static std::vector<i64> AggregateValues(const std::vector<i64>& values, int maxBuckets)
     {
         if (values.size() < maxBuckets) {
@@ -1338,7 +1489,14 @@ protected:
                 .Item("completed").Value(GetAggregatedCompletedPartitionSizes())
             .EndMap();
     }
+
 };
+
+DEFINE_DYNAMIC_PHOENIX_TYPE(TSortControllerBase::TPartitionTask);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TSortControllerBase::TPartitionSortTask);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TSortControllerBase::TSimpleSortTask);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TSortControllerBase::TSortedMergeTask);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TSortControllerBase::TUnorderedMergeTask);
 
 ////////////////////////////////////////////////////////////////////
 
@@ -1360,6 +1518,8 @@ public:
     { }
 
 private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TSortController, 0xbca37afe);
+
     TSortOperationSpecPtr Spec;
 
     // Samples.
@@ -1504,7 +1664,6 @@ private:
 
         // Kick-start the sort task.
         SortStartThresholdReached = true;
-        AddTaskPendingHint(partition->SortTask);
     }
 
     void AddPartition(const TKey& key)
@@ -1582,13 +1741,11 @@ private:
         PartitionTask = New<TPartitionTask>(this);
         PartitionTask->AddInput(stripes);
         PartitionTask->FinishInput();
+        RegisterTask(PartitionTask);
 
         LOG_INFO("Sorting with partitioning (PartitionCount: %d, PartitionJobCount: %" PRId64 ")",
             partitionCount,
             PartitionJobCounter.GetTotal());
-
-        // Kick-start the partition task.
-        AddTaskPendingHint(PartitionTask);
     }
 
     void OnSamplesReceived()
@@ -1850,6 +2007,8 @@ private:
 
 };
 
+DEFINE_DYNAMIC_PHOENIX_TYPE(TSortController);
+
 IOperationControllerPtr CreateSortController(
     TSchedulerConfigPtr config,
     IOperationHost* host,
@@ -1883,6 +2042,8 @@ public:
     { }
 
 private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TMapReduceController, 0xca7286bd);
+
     TMapReduceOperationSpecPtr Spec;
 
     std::vector<TRegularUserFile> MapperFiles;
@@ -2001,15 +2162,14 @@ private:
         PartitionJobCounter.Set(partitionJobCount);
 
         PartitionTask = New<TPartitionTask>(this);
+        PartitionTask->Initialize();
         PartitionTask->AddInput(stripes);
         PartitionTask->FinishInput();
+        RegisterTask(PartitionTask);
 
         LOG_INFO("Map-reducing with partitioning (PartitionCount: %d, PartitionJobCount: %" PRId64 ")",
             partitionCount,
             PartitionJobCounter.GetTotal());
-
-        // Kick-start the partition task.
-        AddTaskPendingHint(PartitionTask);
     }
 
     void InitJobIOConfigs()
@@ -2313,6 +2473,8 @@ private:
 
 
 };
+
+DEFINE_DYNAMIC_PHOENIX_TYPE(TMapReduceController);
 
 IOperationControllerPtr CreateMapReduceController(
     TSchedulerConfigPtr config,

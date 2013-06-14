@@ -3,6 +3,7 @@
 #include "scheduler.h"
 #include "helpers.h"
 #include "private.h"
+#include "serialization_context.h"
 
 #include <ytlib/misc/fs.h>
 
@@ -21,6 +22,7 @@
 #include <ytlib/transaction_client/transaction_manager.h>
 
 #include <ytlib/ytree/ypath_detail.h>
+#include <ytlib/ytree/attribute_helpers.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
 
@@ -43,8 +45,8 @@ using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const size_t LocalWriteBufferSize  = 1024 * 1024;
-static const size_t RemoteWriteBufferSize = 1024 * 1024;
+static const size_t LocalWriteBufferSize  = (size_t) 1024 * 1024;
+static const size_t RemoteWriteBufferSize = (size_t) 1024 * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -108,7 +110,7 @@ void TSnapshotBuilder::Build(const TJob& job)
 {
     // Save snapshot into a temp file.
     {
-        TFileOutput fileOutput(job.FileName);
+        TFileOutput fileOutput(job.TempFileName);
         TBufferedOutput bufferedOutput(&fileOutput, LocalWriteBufferSize);
         auto controller = job.Operation->GetController();
         controller->SaveSnapshot(&bufferedOutput);
@@ -188,6 +190,9 @@ void TSnapshotBuilder::UploadSnapshot(const TJob& job)
         {
             auto req = TCypressYPathProxy::Create(snapshotPath);
             req->set_type(EObjectType::File);
+            auto attributes = CreateEphemeralAttributes();
+            attributes->Set("version", CurrentSnapshotVersion);
+            ToProto(req->mutable_node_attributes(), *attributes);
             SetTransactionId(req, transaction);
             auto rsp = proxy.Execute(req).Get();
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error creating snapshot node");

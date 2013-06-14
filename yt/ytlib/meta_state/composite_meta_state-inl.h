@@ -58,14 +58,14 @@ void TMetaStatePart::RegisterSaver(
     int priority,
     const Stroka& name,
     i32 version,
-    TCallback<void(const TContext&)> saver,
-    const TContext& context)
+    TCallback<void(TContext&)> saver,
+    TContext& context)
 {
     RegisterSaver(
         priority,
         name,
         version,
-        BIND([=] (const TSaveContext& basicContext) {
+        BIND([=] (TSaveContext& basicContext) {
             TContext combinedContext(context);
             static_cast<TSaveContext&>(combinedContext) = basicContext;
             saver.Run(combinedContext);
@@ -76,13 +76,13 @@ template <class TContext>
 void TMetaStatePart::RegisterLoader(
     const Stroka& name,
     TVersionValidator versionValidator,
-    TCallback<void(const TContext&)> loader,
-    const TContext& context)
+    TCallback<void(TContext&)> loader,
+    TContext& context)
 {
     RegisterLoader(
         name,
         versionValidator,
-        BIND([=] (const TLoadContext& basicContext) {
+        BIND([=] (TLoadContext& basicContext) {
             TContext combinedContext(context);
             static_cast<TLoadContext&>(combinedContext) = basicContext;
             loader.Run(combinedContext);

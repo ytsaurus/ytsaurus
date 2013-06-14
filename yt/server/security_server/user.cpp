@@ -12,12 +12,12 @@ TUser::TUser(const TUserId& id)
     : TSubject(id)
 { }
 
-void TUser::Save(const NCellMaster::TSaveContext& context) const
+void TUser::Save(NCellMaster::TSaveContext& context) const
 {
     TSubject::Save(context);
 }
 
-void TUser::Load(const NCellMaster::TLoadContext& context)
+void TUser::Load(NCellMaster::TLoadContext& context)
 {
     TSubject::Load(context);
 }

@@ -1,10 +1,7 @@
 #pragma once
 
-#include <util/generic/utility.h>
-#include <util/string/cast.h>
-#include <util/ysaveload.h>
-
 #include "mpl.h"
+#include "serialize.h"
 
 namespace NYT {
 
@@ -346,28 +343,38 @@ bool operator!=(const T& rhs, const TNullable<T>& lhs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T>
-void Save(TOutputStream* output, const TNullable<T>& obj)
+struct TNullableSerializer
 {
-    using ::Save;
-    Save(output, obj.HasValue());
-    if (obj.HasValue()) {
-        Save(output, obj.Get());
+    template <class T, class C>
+    static void Save(C& context, const T& nullable)
+    {
+        using NYT::Save;
+        Save(context, nullable.HasValue());
+        if (nullable) {
+            Save(context, *nullable);
+        }
     }
-}
 
-template <class T>
-void Load(TInputStream* input, TNullable<T>& obj)
-{
-    using ::Load;
-    bool hasValue;
-    Load(input, hasValue);
-    if (hasValue) {
-        T temp;
-        Load(input, temp);
-        obj = std::move(temp);
+    template <class T, class C>
+    static void Load(C& context, T& nullable)
+    {
+        using NYT::Load;
+        bool hasValue = Load<bool>(context);
+        if (hasValue) {
+            typename T::TValueType temp;
+            Load(context, temp);
+            nullable.Assign(std::move(temp));
+        } else {
+            nullable.Reset();
+        }
     }
-}
+};
+
+template <class T, class C>
+struct TSerializerTraits<TNullable<T>, C, void>
+{
+    typedef TNullableSerializer TSerializer;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

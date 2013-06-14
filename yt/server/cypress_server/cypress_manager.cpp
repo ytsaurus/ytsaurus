@@ -876,12 +876,12 @@ TCypressNodeBase* TCypressManager::BranchNode(
     return branchedNode_;
 }
 
-void TCypressManager::SaveKeys(const NCellMaster::TSaveContext& context) const
+void TCypressManager::SaveKeys(NCellMaster::TSaveContext& context) const
 {
     NodeMap.SaveKeys(context);
 }
 
-void TCypressManager::SaveValues(const NCellMaster::TSaveContext& context) const
+void TCypressManager::SaveValues(NCellMaster::TSaveContext& context) const
 {
     NodeMap.SaveValues(context);
 }
@@ -893,14 +893,14 @@ void TCypressManager::OnBeforeLoaded()
     DoClear();
 }
 
-void TCypressManager::LoadKeys(const NCellMaster::TLoadContext& context)
+void TCypressManager::LoadKeys(NCellMaster::TLoadContext& context)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
     NodeMap.LoadKeys(context);
 }
 
-void TCypressManager::LoadValues(const NCellMaster::TLoadContext& context)
+void TCypressManager::LoadValues(NCellMaster::TLoadContext& context)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 

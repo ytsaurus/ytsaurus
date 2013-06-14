@@ -10,20 +10,18 @@ namespace NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void Save(const NCellMaster::TSaveContext& context, const TLock& lock)
+void Save(NCellMaster::TSaveContext& context, const TLock& lock)
 {
-    auto* output = context.GetOutput();
-    Save(output, lock.Mode);
-    SaveSet(output, lock.ChildKeys);
-    SaveSet(output, lock.AttributeKeys);
+    Save(context, lock.Mode);
+    Save(context, lock.ChildKeys);
+    Save(context, lock.AttributeKeys);
 }
 
-void Load(const NCellMaster::TLoadContext& context, TLock& lock)
+void Load(NCellMaster::TLoadContext& context, TLock& lock)
 {
-    auto* input = context.GetInput();
-    Load(input, lock.Mode);
-    LoadSet(input, lock.ChildKeys);
-    LoadSet(input, lock.AttributeKeys);
+    Load(context, lock.Mode);
+    Load(context, lock.ChildKeys);
+    Load(context, lock.AttributeKeys);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

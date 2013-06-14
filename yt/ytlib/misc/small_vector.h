@@ -23,8 +23,6 @@
 #include <iterator>
 #include <memory>
 
-#include <util/ysaveload.h>
-
 namespace NYT {
 
 /// SmallVectorBase - This is all the non-templated stuff common to all
@@ -735,22 +733,17 @@ static inline size_t capacity_in_bytes(const TSmallVector<T, N> &X) {
 } // namespace NYT
 
 namespace std {
-  /// Implement std::swap in terms of TSmallVector swap.
-  template <typename T>
-  inline void
-  swap(NYT::SmallVectorImpl<T> &LHS, NYT::SmallVectorImpl<T> &RHS) {
-    LHS.swap(RHS);
-  }
 
-  /// Implement std::swap in terms of TSmallVector swap.
-  template <typename T, unsigned N>
-  inline void
-  swap(NYT::TSmallVector<T, N> &LHS, NYT::TSmallVector<T, N> &RHS) {
+/// Implement std::swap in terms of TSmallVector swap.
+template <typename T>
+inline void swap(NYT::SmallVectorImpl<T> &LHS, NYT::SmallVectorImpl<T> &RHS) {
     LHS.swap(RHS);
-  }
 }
 
-// Hook-up with Arcadia serialization stuff.
-template <class T, unsigned N>
-class TSerializer< NYT::TSmallVector<T, N> >: public TVectorSerializer< NYT::TSmallVector<T, N> >
-{ };
+/// Implement std::swap in terms of TSmallVector swap.
+template <typename T, unsigned N>
+inline void swap(NYT::TSmallVector<T, N> &LHS, NYT::TSmallVector<T, N> &RHS) {
+    LHS.swap(RHS);
+}
+
+} // namespace std

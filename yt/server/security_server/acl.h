@@ -32,10 +32,11 @@ struct TAccessControlEntry
     ESecurityAction Action;
     TSubjectList Subjects;
     EPermissionSet Permissions;
-};
 
-void Load(const NCellMaster::TLoadContext& context, TAccessControlEntry& entry);
-void Save(const TAccessControlEntry& entry, const NCellMaster::TSaveContext& context);
+    void Save(NCellMaster::TSaveContext& context) const;
+    void Load(NCellMaster::TLoadContext& context);
+
+};
 
 void Serialize(const TAccessControlEntry& ace, NYson::IYsonConsumer* consumer);
 
@@ -49,8 +50,8 @@ struct TAccessControlList
     TAccessControlEntryList Entries;
 };
 
-void Load(const NCellMaster::TLoadContext& context, TAccessControlList& acl);
-void Save(const NCellMaster::TSaveContext& context, const TAccessControlList& acl);
+void Load(NCellMaster::TLoadContext& context, TAccessControlList& acl);
+void Save(NCellMaster::TSaveContext& context, const TAccessControlList& acl);
 
 void Serialize(const TAccessControlList& acl, NYson::IYsonConsumer* consumer);
 void Deserilize(
@@ -80,16 +81,13 @@ public:
 
     void OnSubjectDestroyed(TSubject* subject, TSubject* defaultOwner);
 
+    void Save(NCellMaster::TSaveContext& context) const;
+    void Load(NCellMaster::TLoadContext& context);
+
 private:
     TSubject* Owner_;
 
-    friend void Load(const NCellMaster::TLoadContext& context, TAccessControlDescriptor& acd);
-    friend void Save(const NCellMaster::TSaveContext& context, const TAccessControlDescriptor& acd);
-
 };
-
-void Load(const NCellMaster::TLoadContext& context, TAccessControlDescriptor& acd);
-void Save(const NCellMaster::TSaveContext& context, const TAccessControlDescriptor& acd);
 
 ////////////////////////////////////////////////////////////////////////////////
 

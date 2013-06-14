@@ -27,37 +27,36 @@ void TChunkList::IncrementVersion()
     ++Version_;
 }
 
-void TChunkList::Save(const NCellMaster::TSaveContext& context) const
+void TChunkList::Save(NCellMaster::TSaveContext& context) const
 {
     TChunkTree::Save(context);
 
-    auto* output = context.GetOutput();
+    using NYT::Save;
     SaveObjectRefs(context, Children_);
     SaveObjectRefs(context, Parents_);
     SaveObjectRefs(context, OwningNodes_);
-    NChunkServer::Save(context, Statistics_);
-    ::Save(output, SortedBy_);
-    ::Save(output, RowCountSums_);
-    ::Save(output, ChunkCountSums_);
-    ::Save(output, DataSizeSums_);
+    Save(context, Statistics_);
+    Save(context, SortedBy_);
+    Save(context, RowCountSums_);
+    Save(context, ChunkCountSums_);
+    Save(context, DataSizeSums_);
 }
 
-void TChunkList::Load(const NCellMaster::TLoadContext& context)
+void TChunkList::Load(NCellMaster::TLoadContext& context)
 {
     TChunkTree::Load(context);
 
-    auto* input = context.GetInput();
+    using NYT::Load;
     LoadObjectRefs(context, Children_);
     LoadObjectRefs(context, Parents_);
     LoadObjectRefs(context, OwningNodes_);
-    NChunkServer::Load(context, Statistics_);
-    ::Load(input, SortedBy_);
-    ::Load(input, RowCountSums_);
-    ::Load(input, ChunkCountSums_);
-
+    Load(context, Statistics_);
+    Load(context, SortedBy_);
+    Load(context, RowCountSums_);
+    Load(context, ChunkCountSums_);
     // COMPAT(psushin)
     if (context.GetVersion() > 10) {
-        ::Load(input, DataSizeSums_);
+        Load(context, DataSizeSums_);
     }
 }
 

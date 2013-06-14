@@ -17,6 +17,12 @@ static NLog::TLogger& Logger = MetaStateLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TLoadContext::TLoadContext()
+    : Version_(-1)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 TMetaStatePart::TMetaStatePart(
     IMetaStateManagerPtr metaStateManager,
     TCompositeMetaStatePtr metaState)

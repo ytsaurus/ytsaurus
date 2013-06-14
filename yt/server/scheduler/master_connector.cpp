@@ -4,6 +4,8 @@
 #include "private.h"
 #include "helpers.h"
 #include "snapshot_builder.h"
+#include "snapshot_downloader.h"
+#include "serialization_context.h"
 
 #include <ytlib/misc/periodic_invoker.h>
 #include <ytlib/misc/thread_affinity.h>
@@ -419,7 +421,8 @@ private:
                 PushlishSelf();
                 ListOperations();
                 RequestOperationAttributes();
-                PingOperationTransactions();
+                CheckOperationTransactions();
+                DownloadSnapshots();
                 CleanupOperations();
                 InvokeWatchers();
                 GraceWait();
@@ -589,7 +592,7 @@ private:
         }
 
         // - Try to ping the previous incarnations of scheduler transactions.
-        void PingOperationTransactions()
+        void CheckOperationTransactions()
         {
             const int TransactionsPerOperation = 5;
 
@@ -623,18 +626,85 @@ private:
 
                 for (int i = 0; i < static_cast<int>(Result.Operations.size()); ++i) {
                     auto operation = Result.Operations[i];
-                    // TODO(babenko): loading from snapshot is not currently supported
-                    operation->SetCleanStart(true);
                     for (int j = i * TransactionsPerOperation; j < (i + 1) * TransactionsPerOperation; ++j) {
                         auto rsp = rsps[j];
                         if (rsp && !rsp->IsOK() && !operation->GetCleanStart()) {
+                            operation->SetCleanStart(true);
                             LOG_INFO("Error renewing operation transaction, will use clean start (OperationId: %s)",
                                 ~ToString(operation->GetOperationId()));
-                            operation->SetCleanStart(true);
                         }
                     }
                 }
             }
+        }
+
+        // - Check snapshots for existence and validate versions.
+        void DownloadSnapshots()
+        {
+            FOREACH (auto operation, Result.Operations) {
+                if (!operation->GetCleanStart()) {
+                    if (!DownloadSnapshot(operation)) {
+                        operation->SetCleanStart(true);
+                    }
+                }
+            }
+        }
+
+        bool DownloadSnapshot(TOperationPtr operation)
+        {
+            const auto& operationId = operation->GetOperationId();
+            auto snapshotPath = GetSnapshotPath(operationId);
+
+            auto batchReq = Owner->StartBatchRequest();
+            auto req = TYPathProxy::Get(snapshotPath + "/@version");
+            batchReq->AddRequest(req, "get_version");
+
+            auto batchRsp = WaitFor(batchReq->Invoke());
+            THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp);
+
+            auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_version");
+
+            // Check for missing snapshots.
+            if (rsp->GetError().FindMatching(NYTree::EErrorCode::ResolveError)) {
+                LOG_INFO("Snapshot does not exist, will use clean start (OperationId: %s)",
+                    ~ToString(operationId));
+                return false;
+            }
+            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting snapshot version");
+
+            int version = ConvertTo<int>(TYsonString(rsp->value()));
+                
+            LOG_INFO("Snapshot found (OperationId: %s, Version: %d)",
+                ~ToString(operationId),
+                version);
+
+            if (!ValidateSnapshotVersion(version)) {
+                LOG_INFO("Snapshot version validation failed, will use clean start (OperationId: %s)",
+                    ~ToString(operationId));
+                return false;
+            }
+
+            if (!Owner->Config->EnableSnapshotLoading) {
+                LOG_INFO("Snapshot loading is disabled in configuration (OperationId: %s)",
+                    ~ToString(operationId));
+                return false;
+            }
+
+            try {
+                auto downloader = New<TSnapshotDownloader>(
+                    Owner->Config,
+                    Owner->Bootstrap,
+                    operation);
+                downloader->Run();
+            } catch (const std::exception& ex) {
+                LOG_ERROR(ex, "Error downloading snapshot");
+                return false;
+            }
+
+            // Everything seems OK.
+            LOG_INFO("Operation state will be recovered from snapshot (OperationId: %s)",
+                ~ToString(operationId));
+            return true;
         }
 
         // - Abort orphaned transactions.
@@ -709,6 +779,7 @@ private:
 
             WaitFor(MakeDelayed(Owner->Config->ConnectGraceDelay));
         }
+
     };
 
 
@@ -1530,6 +1601,9 @@ private:
 
     void BuildSnapshot()
     {
+        if (!Config->EnableSnapshotBuilding)
+            return;
+
         auto builder = New<TSnapshotBuilder>(Config, Bootstrap);
         builder->Run().Subscribe(BIND(&TImpl::OnSnapshotBuilt, MakeWeak(this))
             .Via(CancelableControlInvoker));

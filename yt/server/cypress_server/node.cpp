@@ -67,43 +67,39 @@ TVersionedNodeId TCypressNodeBase::GetVersionedId() const
     return TVersionedNodeId(Id, TransactionId);
 }
 
-void TCypressNodeBase::Save(const NCellMaster::TSaveContext& context) const
+void TCypressNodeBase::Save(NCellMaster::TSaveContext& context) const
 {
     TObjectBase::Save(context);
 
-    auto* output = context.GetOutput();
+    using NYT::Save;
     SaveObjectRefs(context, Locks_);
-
     // TODO(babenko): refactor when new serialization API is ready
     auto parentId = Parent_ ? Parent_->GetId() : NullObjectId;
-    NYT::Save(output, parentId);
-
-    ::Save(output, LockMode_);
-    ::Save(output, CreationTime_);
-    ::Save(output, ModificationTime_);
+    Save(context, parentId);
+    Save(context, LockMode_);
+    Save(context, CreationTime_);
+    Save(context, ModificationTime_);
     SaveObjectRef(context, Account_);
-    NSecurityServer::Save(context, CachedResourceUsage_);
-    NSecurityServer::Save(context, Acd_);
+    Save(context, CachedResourceUsage_);
+    Save(context, Acd_);
 }
 
-void TCypressNodeBase::Load(const TLoadContext& context)
+void TCypressNodeBase::Load(NCellMaster::TLoadContext& context)
 {
     TObjectBase::Load(context);
 
-    auto* input = context.GetInput();
+    using NYT::Load;
     LoadObjectRefs(context, Locks_);
-
     // TODO(babenko): refactor when new serialization API is ready
     TNodeId parentId;
-    NYT::Load(input, parentId);
+    Load(context, parentId);
     Parent_ = parentId == NullObjectId ? nullptr : context.Get<TCypressNodeBase>(parentId);
-
-    ::Load(input, LockMode_);
-    ::Load(input, CreationTime_);
-    ::Load(input, ModificationTime_);
+    Load(context, LockMode_);
+    Load(context, CreationTime_);
+    Load(context, ModificationTime_);
     LoadObjectRef(context, Account_);
-    NSecurityServer::Load(context, CachedResourceUsage_);
-    NSecurityServer::Load(context, Acd_);
+    Load(context, CachedResourceUsage_);
+    Load(context, Acd_);
 
     if (TransactionId == NullTransactionId) {
         TrunkNode_ = this;

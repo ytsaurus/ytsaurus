@@ -29,6 +29,11 @@ TJob::TJob(
     , SpecBuilder_(std::move(specBuilder))
 { }
 
+TDuration TJob::GetDuration() const
+{
+    return *FinishTime_ - StartTime_;
+}
+
 ////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler

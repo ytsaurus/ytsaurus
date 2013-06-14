@@ -89,16 +89,16 @@ bool TObjectBase::IsTrunk() const
     return node->GetTrunkNode() == node;
 }
 
-void TObjectBase::Save(const NCellMaster::TSaveContext& context) const
+void TObjectBase::Save(NCellMaster::TSaveContext& context) const
 {
-    auto* output = context.GetOutput();
-    ::Save(output, RefCounter);
+    using NYT::Save;
+    Save(context, RefCounter);
 }
 
-void TObjectBase::Load(const NCellMaster::TLoadContext& context)
+void TObjectBase::Load(NCellMaster::TLoadContext& context)
 {
-    auto* input = context.GetInput();
-    ::Load(input, RefCounter);
+    using NYT::Load;
+    Load(context, RefCounter);
 }
 
 TObjectId GetObjectId(const TObjectBase* object)

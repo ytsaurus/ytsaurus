@@ -20,6 +20,12 @@ bool TNodeDescriptor::IsLocal() const
     return GetServiceHostName(Address) == TAddressResolver::Get()->GetLocalHostName();
 }
 
+void TNodeDescriptor::Persist(TStreamPersistenceContext& context)
+{
+    using NYT::Persist;
+    Persist(context, Address);
+}
+
 Stroka ToString(const TNodeDescriptor& descriptor)
 {
     return descriptor.Address;
@@ -35,7 +41,7 @@ void FromProto(TNodeDescriptor* descriptor, const NProto::TNodeDescriptor& proto
     descriptor->Address = protoDescriptor.address();
 }
 
-////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 
 void TNodeDirectory::MergeFrom(const NProto::TNodeDirectory& source)
 {
@@ -107,6 +113,13 @@ const TNodeDescriptor& TNodeDirectory::GetDescriptor(const Stroka& address)
     const auto* result = FindDescriptor(address);
     YCHECK(result);
     return *result;
+}
+
+void TNodeDirectory::Persist(TStreamPersistenceContext& context)
+{
+    using NYT::Persist;
+    Persist(context, IdToDescriptor);
+    Persist(context, AddressToDescriptor);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

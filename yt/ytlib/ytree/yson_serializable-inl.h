@@ -333,7 +333,7 @@ TParameter<T>& TParameter<T>::Default(const T& defaultValue)
 template <class T>
 TParameter<T>& TParameter<T>::DefaultNew()
 {
-    return Default(New<typename T::TElementType>());
+    return Default(New<typename T::TUnderlying>());
 }
 
 template <class T>

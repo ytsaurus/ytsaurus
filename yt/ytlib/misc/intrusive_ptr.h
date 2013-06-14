@@ -119,7 +119,7 @@ template <class T>
 class TIntrusivePtr
 {
 public:
-    typedef T TElementType;
+    typedef T TUnderlying;
 
     //! Empty constructor.
     TIntrusivePtr() // noexcept

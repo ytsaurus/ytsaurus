@@ -16,16 +16,16 @@ TAttributeSet::TAttributeSet()
 TAttributeSet::TAttributeSet(const TVersionedObjectId&)
 { }
 
-void TAttributeSet::Save(const NCellMaster::TSaveContext& context) const
+void TAttributeSet::Save(NCellMaster::TSaveContext& context) const
 {
-    auto* output = context.GetOutput();
-    SaveMap(output, Attributes_);
+    using NYT::Save;
+    Save(context, Attributes_);
 }
 
-void TAttributeSet::Load(const NCellMaster::TLoadContext& context)
+void TAttributeSet::Load(NCellMaster::TLoadContext& context)
 {
-    auto* input = context.GetInput();
-    LoadMap(input, Attributes_);
+    using NYT::Load;
+    Load(context, Attributes_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

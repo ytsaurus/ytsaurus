@@ -32,11 +32,15 @@ DECLARE_ENUM(ESerializationPriority,
 const int CurrentSnapshotVersion = 21;
 NMetaState::TVersionValidator SnapshotVersionValidator();
 
-struct TLoadContext
+class TSaveContext
+    : public NMetaState::TSaveContext
+{ };
+
+class TLoadContext
     : public NMetaState::TLoadContext
 {
     DEFINE_BYVAL_RW_PROPERTY(TBootstrap*, Bootstrap);
-
+public:
     template <class T>
     T* Get(const NObjectClient::TObjectId& id) const;
 
@@ -46,10 +50,6 @@ struct TLoadContext
     template <class T>
     T* Get(NChunkServer::TNodeId id) const;
 };
-
-struct TSaveContext
-    : public NMetaState::TSaveContext
-{ };
 
 template <>
 NObjectServer::TObjectBase* TLoadContext::Get(const NObjectClient::TObjectId& id) const;
@@ -93,57 +93,34 @@ NSecurityServer::TGroup* TLoadContext::Get(const NObjectClient::TObjectId& id) c
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-void SaveObjectRef(const TSaveContext& context, T object);
+void SaveObjectRef(TSaveContext& context, T object);
 
 template <class T>
-void LoadObjectRef(const TLoadContext& context, T& object);
+void LoadObjectRef(TLoadContext& context, T& object);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-void SaveObjectRefs(const TSaveContext& context, const T& object);
+void SaveObjectRefs(TSaveContext& context, const T& object);
 
 template <class T>
-void LoadObjectRefs(const TLoadContext& context, T& object);
+void LoadObjectRefs(TLoadContext& context, T& object);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-void SaveNullableObjectRefs(const TSaveContext& context, const std::unique_ptr<T>& objects);
+void SaveNullableObjectRefs(TSaveContext& context, const std::unique_ptr<T>& objects);
 
 template <class T>
-void LoadNullableObjectRefs(const TLoadContext& context, std::unique_ptr<T>& objects);
+void LoadNullableObjectRefs(TLoadContext& context, std::unique_ptr<T>& objects);
 
 ////////////////////////////////////////////////////////////////////////////////
-
-template <class T>
-T Load(const TLoadContext& context);
-
-template <class T>
-void Load(const TLoadContext& context, T& value);
-
-template <class T>
-void Save(const TSaveContext& context, const T& value);
-
-template <class T>
-void Save(const TSaveContext& context, std::vector<T>& objects);
-
-template <class T>
-void Load(const TLoadContext& context, std::vector<T>& objects);
-
-// TODO(babenko): merge this with the above
-template <class T, unsigned N>
-void Save(const TSaveContext& context, const TSmallVector<T, N>& objects);
-
-// TODO(babenko): merge this with the above
-template <class T, unsigned N>
-void Load(const TLoadContext& context, TSmallVector<T, N>& objects);
 
 // TODO(babenko): eliminate this hack when new serialization API is ready
 template <class T>
-void SaveObjectRef(const TSaveContext& context, NChunkServer::TPtrWithIndex<T> value);
+void SaveObjectRef(TSaveContext& context, NChunkServer::TPtrWithIndex<T> value);
 template <class T>
-void LoadObjectRef(const TLoadContext& context, NChunkServer::TPtrWithIndex<T>& value);
+void LoadObjectRef(TLoadContext& context, NChunkServer::TPtrWithIndex<T>& value);
 
 ////////////////////////////////////////////////////////////////////////////////
 

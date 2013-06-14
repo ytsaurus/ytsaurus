@@ -82,6 +82,18 @@ const IAttributeDictionary& EmptyAttributes()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void Serialize(const IAttributeDictionary& attributes, IYsonConsumer* consumer)
+{
+    auto list = attributes.List();
+    consumer->OnBeginMap();
+    FOREACH (const auto& key, list) {
+        consumer->OnKeyedItem(key);
+        auto yson = attributes.GetYson(key);
+        consumer->OnRaw(yson.Data(), yson.GetType());
+    }
+    consumer->OnEndMap();
+}
+
 void ToProto(NProto::TAttributes* protoAttributes, const IAttributeDictionary& attributes)
 {
     protoAttributes->Clear();
@@ -106,16 +118,27 @@ std::unique_ptr<IAttributeDictionary> FromProto(const NProto::TAttributes& proto
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void Serialize(const IAttributeDictionary& attributes, IYsonConsumer* consumer)
+void TAttributeDictionarySerializer::Save(TStreamSaveContext& context, const IAttributeDictionary& obj)
 {
-    auto list = attributes.List();
-    consumer->OnBeginMap();
-    FOREACH (const auto& key, list) {
-        consumer->OnKeyedItem(key);
-        auto yson = attributes.GetYson(key);
-        consumer->OnRaw(yson.Data(), yson.GetType());
+    using NYT::Save;
+    auto keys = obj.List();
+    Save(context, keys.size());
+    FOREACH (const auto& key, keys) {
+        Save(context, key);
+        Save(context, obj.GetYson(key));
     }
-    consumer->OnEndMap();
+}
+
+void TAttributeDictionarySerializer::Load(TStreamLoadContext& context, IAttributeDictionary& obj)
+{
+    using NYT::Load;
+    obj.Clear();
+    size_t size = Load<size_t>(context);
+    for (size_t index = 0; index < size; ++index) {
+        auto key = Load<Stroka>(context);
+        auto value = Load<TYsonString>(context);
+        obj.SetYson(key, value);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

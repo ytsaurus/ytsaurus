@@ -14,14 +14,14 @@ TGroup::TGroup(const TGroupId& id)
     : TSubject(id)
 { }
 
-void TGroup::Save(const NCellMaster::TSaveContext& context) const
+void TGroup::Save(NCellMaster::TSaveContext& context) const
 {
     TSubject::Save(context);
     
     SaveObjectRefs(context, Members_);
 }
 
-void TGroup::Load(const NCellMaster::TLoadContext& context)
+void TGroup::Load(NCellMaster::TLoadContext& context)
 {
     TSubject::Load(context);
 

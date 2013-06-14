@@ -50,8 +50,8 @@ struct TLock
     yhash_set<Stroka> AttributeKeys;
 };
 
-void Save(const NCellMaster::TSaveContext& context, const TLock& lock);
-void Load(const NCellMaster::TLoadContext& context, TLock& lock);
+void Save(NCellMaster::TSaveContext& context, const TLock& lock);
+void Load(NCellMaster::TLoadContext& context, TLock& lock);
 
 ////////////////////////////////////////////////////////////////////////////////
 

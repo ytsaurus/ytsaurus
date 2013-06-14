@@ -1,6 +1,7 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/server/scheduler )
 set( SRCS
+  ${BASE}/serialization_context.cpp
   ${BASE}/chunk_list_pool.cpp
   ${BASE}/chunk_pool.cpp
   ${BASE}/chunk_splits_fetcher.cpp
@@ -27,6 +28,7 @@ set( SRCS
   ${BASE}/statistics.cpp
 )
 set( HDRS
+  ${BASE}/serialization_context.h
   ${BASE}/chunk_info_collector-inl.h
   ${BASE}/chunk_info_collector.h
   ${BASE}/chunk_list_pool.h

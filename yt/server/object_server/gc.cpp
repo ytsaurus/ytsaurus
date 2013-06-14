@@ -51,7 +51,7 @@ void TGarbageCollector::StopSweep()
     }
 }
 
-void TGarbageCollector::Save(const NCellMaster::TSaveContext& context) const
+void TGarbageCollector::Save(NCellMaster::TSaveContext& context) const
 {
     std::vector<TObjectBase*> allZombies;
     allZombies.reserve(Zombies.size() + LockedZombies.size());
@@ -66,7 +66,7 @@ void TGarbageCollector::Save(const NCellMaster::TSaveContext& context) const
     SaveObjectRefs(context, allZombies);
 }
 
-void TGarbageCollector::Load(const NCellMaster::TLoadContext& context)
+void TGarbageCollector::Load(NCellMaster::TLoadContext& context)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 

@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <ytlib/misc/nullable.h>
+#include <ytlib/misc/phoenix.h>
 
 #include <ytlib/ytree/attributes.h>
 
@@ -22,10 +23,11 @@ struct TRefCountedChunkSpec
     : public TIntrinsicRefCounted
     , public NProto::TChunkSpec
 {
+    TRefCountedChunkSpec();
     explicit TRefCountedChunkSpec(const NProto::TChunkSpec& other);
     explicit TRefCountedChunkSpec(NProto::TChunkSpec&& other);
-
     TRefCountedChunkSpec(const TRefCountedChunkSpec& other);
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -49,6 +51,8 @@ public:
     i64 GetRowCount() const;
 
     i64 GetMaxBlockSize() const;
+
+    void Persist(NPhoenix::TPersistenceContext& context);
 
 private:
     TRefCountedChunkSpecPtr ChunkSpec;
@@ -85,8 +89,6 @@ std::vector<TChunkSlicePtr> CreateErasureChunkSlices(
 
 void ToProto(NProto::TChunkSpec* chunkSpec, const TChunkSlice& chunkSlice);
 
-////////////////////////////////////////////////////////////////////////////////
-
 bool IsNontrivial(const NProto::TReadLimit& limit);
 
 bool IsUnavailable(const NProto::TChunkSpec& chunkSpec);
@@ -99,14 +101,12 @@ void GetStatistics(
     i64* rowCount = nullptr,
     i64* valueCount = nullptr);
 
-//! Construcs a new chunk slice removing any limits from origin.
+//! Constructs a new chunk slice removing any limits from origin.
 TRefCountedChunkSpecPtr CreateCompleteChunk(TRefCountedChunkSpecPtr chunkSpec);
 
 TChunkId EncodeChunkId(
     const NProto::TChunkSpec& chunkSpec,
     NNodeTrackerClient::TNodeId nodeId);
-
-////////////////////////////////////////////////////////////////////////////////
 
 bool ExtractOverwriteFlag(const NYTree::IAttributeDictionary& attributes);
 

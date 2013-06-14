@@ -17,12 +17,12 @@ bool SerializeToProto(const google::protobuf::Message& message, TSharedRef* data
     size_t size = message.ByteSize();
     struct TSerializedMessageTag { };
     *data = TSharedRef::Allocate<TSerializedMessageTag>(size, false);
-    return message.SerializeToArray(data->Begin(), size);
+    return message.SerializePartialToArray(data->Begin(), size);
 }
 
 bool DeserializeFromProto(google::protobuf::Message* message, const TRef& data)
 {
-    return message->ParseFromArray(data.Begin(), data.Size());
+    return message->ParsePartialFromArray(data.Begin(), data.Size());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -50,7 +50,7 @@ bool SerializeToProtoWithEnvelope(
     size_t messageSize = message.ByteSize();
     struct TSerializedMessageTag { };
     auto serializedMessage = TSharedRef::Allocate<TSerializedMessageTag>(messageSize, false);
-    if (!message.SerializeToArray(serializedMessage.Begin(), messageSize)) {
+    if (!message.SerializePartialToArray(serializedMessage.Begin(), messageSize)) {
         return false;
     }
 
@@ -109,7 +109,7 @@ bool DeserializeFromProtoWithEnvelope(
     auto codec = NCompression::GetCodec(codecId);
     auto serializedMessage = codec->Decompress(compressedMessage);
 
-    // Read comments to CodedInputStream::SetTotalBytesLimit (libs/protobuf/io/coded_stream.h)
+    // See comments to CodedInputStream::SetTotalBytesLimit (libs/protobuf/io/coded_stream.h)
     // to find out more about protobuf message size limits.
     ArrayInputStream arrayInputStream(serializedMessage.Begin(), serializedMessage.Size());
     CodedInputStream codedInputStream(&arrayInputStream);
@@ -117,7 +117,7 @@ bool DeserializeFromProtoWithEnvelope(
         serializedMessage.Size() + 1,
         serializedMessage.Size() + 1);
 
-    if (!message->ParseFromCodedStream(&codedInputStream)) {
+    if (!message->ParsePartialFromCodedStream(&codedInputStream)) {
         return false;
     }
 
@@ -126,21 +126,25 @@ bool DeserializeFromProtoWithEnvelope(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void SaveProto(TOutputStream* output, const ::google::protobuf::Message& message)
+void TBinaryProtoSerializer::Save(TStreamSaveContext& context, const ::google::protobuf::Message& message)
 {
     TSharedRef data;
     YCHECK(SerializeToProtoWithEnvelope(message, &data));
-    ::SaveSize(output, data.Size());
+    NYT::Save(context, data.Size());
+    auto* output = context.GetOutput();
     output->Write(data.Begin(), data.Size());
 }
 
-void LoadProto(TInputStream* input, ::google::protobuf::Message& message)
+void TBinaryProtoSerializer::Load(TStreamLoadContext& context, ::google::protobuf::Message& message)
 {
-    size_t size = ::LoadSize(input);
+    size_t size = NYT::Load<size_t>(context);
     auto data = TSharedRef::Allocate(size, false);
+    auto* input = context.GetInput();
     YCHECK(input->Load(data.Begin(), size) == size);
     YCHECK(DeserializeFromProtoWithEnvelope(&message, data));
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 void FilterProtoExtensions(
     NProto::TExtensionSet* target,

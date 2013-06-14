@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <ytlib/misc/serialize.h>
+
 #include <ytlib/yson/public.h>
 
 namespace NYT {
@@ -16,6 +18,9 @@ struct TTotalJobStatistics
 
     //! Total time spent by jobs.
     TDuration Time;
+
+    void Persist(TStreamPersistenceContext& context);
+
 };
 
 void Serialize(const TTotalJobStatistics& statistics, NYson::IYsonConsumer* consumer);

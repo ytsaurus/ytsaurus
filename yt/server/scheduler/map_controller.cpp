@@ -56,31 +56,52 @@ public:
         , StartRowIndex(0)
     { }
 
+    // Persistence.
+
+    virtual void Persist(TPersistenceContext& context) override
+    {
+        TOperationControllerBase::Persist(context);
+
+        using NYT::Persist;
+        Persist(context, StartRowIndex);
+        Persist(context, MapTask);
+        Persist(context, JobIOConfig);
+        Persist(context, JobSpecTemplate);
+    }
+
 private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TMapController, 0xbac5fd82);
+
     TMapOperationSpecPtr Spec;
+
     i64 StartRowIndex;
+
 
     class TMapTask
         : public TTask
     {
     public:
+        //! For persistence only.
+        TMapTask()
+            : Controller(nullptr)
+        { }
+
         explicit TMapTask(TMapController* controller)
             : TTask(controller)
             , Controller(controller)
-        {
-            ChunkPool = CreateUnorderedChunkPool(
+            , ChunkPool(CreateUnorderedChunkPool(
                 Controller->NodeDirectory,
-                Controller->JobCounter.GetTotal());
-        }
+                Controller->JobCounter.GetTotal()))
+        { }
 
         virtual Stroka GetId() const override
         {
             return "Map";
         }
 
-        virtual TTaskGroup* GetGroup() const override
+        virtual TTaskGroupPtr GetGroup() const override
         {
-            return &Controller->MapTaskGroup;
+            return Controller->MapTaskGroup;
         }
 
         virtual TDuration GetLocalityTimeout() const override
@@ -108,10 +129,22 @@ private:
             return ~ChunkPool;
         }
 
+        virtual void Persist(TPersistenceContext& context) override
+        {
+            TTask::Persist(context);
+
+            using NYT::Persist;
+            Persist(context, Controller);
+            Persist(context, ChunkPool);
+        }
+
     private:
+        DECLARE_DYNAMIC_PHOENIX_TYPE(TMapTask, 0x87bacfe3);
+
         TMapController* Controller;
 
         std::unique_ptr<IChunkPool> ChunkPool;
+
 
         TNodeResources GetMapResources(const TChunkStripeStatisticsVector& statistics) const
         {
@@ -120,8 +153,8 @@ private:
             result.set_cpu(Controller->Spec->Mapper->CpuLimit);
             result.set_memory(
                 Controller->GetFinalIOMemorySize(
-                    Controller->Spec->JobIO,
-                    AggregateStatistics(statistics)) +
+                Controller->Spec->JobIO,
+                AggregateStatistics(statistics)) +
                 GetFootprintMemorySize() +
                 Controller->Spec->Mapper->MemoryLimit);
             return result;
@@ -159,7 +192,9 @@ private:
     typedef TIntrusivePtr<TMapTask> TMapTaskPtr;
 
     TMapTaskPtr MapTask;
-    TTaskGroup MapTaskGroup;
+    TTaskGroupPtr MapTaskGroup;
+
+
     TJobIOConfigPtr JobIOConfig;
     TJobSpec JobSpecTemplate;
 
@@ -170,7 +205,8 @@ private:
     {
         TOperationControllerBase::DoInitialize();
 
-        RegisterTaskGroup(&MapTaskGroup);
+        MapTaskGroup = New<TTaskGroup>();
+        RegisterTaskGroup(MapTaskGroup);
     }
 
     virtual std::vector<TRichYPath> GetInputTablePaths() const override
@@ -213,17 +249,16 @@ private:
             JobCounter.Set(jobCount);
 
             MapTask = New<TMapTask>(this);
+            MapTask->Initialize();
             MapTask->AddInput(stripes);
             MapTask->FinishInput();
+            RegisterTask(MapTask);
 
             InitJobIOConfig();
             InitJobSpecTemplate();
 
             LOG_INFO("Inputs processed (JobCount: %" PRId64 ")",
                 JobCounter.GetTotal());
-
-            // Kick-start the map task.
-            AddTaskPendingHint(MapTask);
         }
 
         return MakeFuture();
@@ -234,7 +269,6 @@ private:
         joblet->StartRowIndex = StartRowIndex;
         StartRowIndex += joblet->InputStripeList->TotalRowCount;
     }
-
 
     virtual bool IsOutputLivePreviewSupported() const override
     {
@@ -290,6 +324,9 @@ private:
     }
 
 };
+
+DEFINE_DYNAMIC_PHOENIX_TYPE(TMapController);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TMapController::TMapTask);
 
 IOperationControllerPtr CreateMapController(
     TSchedulerConfigPtr config,

@@ -65,7 +65,164 @@ using namespace NNodeTrackerClient::NProto;
 
 ////////////////////////////////////////////////////////////////////
 
-TOperationControllerBase::TInputChunkScratcher::TInputChunkScratcher(TOperationControllerBase* controller)
+void TOperationControllerBase::TUserTableBase::Persist(TPersistenceContext& context)
+{
+    using NYT::Persist;
+    Persist(context, Path);
+    Persist(context, ObjectId);
+}
+
+////////////////////////////////////////////////////////////////////
+
+void TOperationControllerBase::TLivePreviewTableBase::Persist(TPersistenceContext& context)
+{
+    using NYT::Persist;
+    Persist(context, LivePreviewTableId);
+    Persist(context, LivePreviewChunkListId);
+}
+
+////////////////////////////////////////////////////////////////////
+
+void TOperationControllerBase::TInputTable::Persist(TPersistenceContext& context)
+{
+    TUserTableBase::Persist(context);
+
+    using NYT::Persist;
+    Persist(context, FetchResponse);
+    Persist(context, ComplementFetch);
+    Persist(context, KeyColumns);
+}
+
+////////////////////////////////////////////////////////////////////
+
+void TOperationControllerBase::TEndpoint::Persist(TPersistenceContext& context)
+{
+    using NYT::Persist;
+    Persist(context, Key);
+    Persist(context, Left);
+    Persist(context, ChunkTreeKey);
+}
+
+////////////////////////////////////////////////////////////////////
+
+void TOperationControllerBase::TOutputTable::Persist(TPersistenceContext& context)
+{
+    TUserTableBase::Persist(context);
+    TLivePreviewTableBase::Persist(context);
+
+    using NYT::Persist;
+    Persist(context, Clear);
+    Persist(context, Overwrite);
+    Persist(context, LockMode);
+    Persist(context, Options);
+    Persist(context, OutputChunkListId);
+    Persist(context, OutputChunkTreeIds);
+    Persist(context, Endpoints);
+}
+
+////////////////////////////////////////////////////////////////////
+
+void TOperationControllerBase::TIntermediateTable::Persist(TPersistenceContext& context)
+{
+    TLivePreviewTableBase::Persist(context);
+}
+
+////////////////////////////////////////////////////////////////////
+
+void TOperationControllerBase::TUserFileBase::Persist(TPersistenceContext& context)
+{
+    using NYT::Persist;
+    Persist(context, Path);
+    Persist(context, Stage);
+}
+
+////////////////////////////////////////////////////////////////////
+
+void TOperationControllerBase::TRegularUserFile::Persist(TPersistenceContext& context)
+{
+    TUserFileBase::Persist(context);
+
+    using NYT::Persist;
+    Persist(context, FetchResponse);
+    Persist(context, Executable);
+    Persist(context, FileName);
+}
+
+////////////////////////////////////////////////////////////////////
+
+void TOperationControllerBase::TUserTableFile::Persist(TPersistenceContext& context)
+{
+    TUserFileBase::Persist(context);
+
+    using NYT::Persist;
+    Persist(context, FetchResponse);
+    Persist(context, FileName);
+    Persist(context, Format);
+}
+
+////////////////////////////////////////////////////////////////////
+
+void TOperationControllerBase::TCompletedJob::Persist(TPersistenceContext& context)
+{
+    using NYT::Persist;
+    Persist(context, IsLost);
+    Persist(context, JobId);
+    Persist(context, SourceTask);
+    Persist(context, OutputCookie);
+    Persist(context, DestinationPool);
+    Persist(context, InputCookie);
+    Persist(context, Address);
+}
+
+////////////////////////////////////////////////////////////////////
+
+void TOperationControllerBase::TJoblet::Persist(TPersistenceContext& context)
+{
+    // NB: Every joblet is aborted after snapshot is loaded.
+    // Here we only serialize a subset of members required for ReinstallJob to work
+    // properly.
+    using NYT::Persist;
+    Persist(context, Task);
+    Persist(context, InputStripeList);
+    Persist(context, OutputCookie);
+}
+
+////////////////////////////////////////////////////////////////////
+
+void TOperationControllerBase::TTaskGroup::Persist(TPersistenceContext& context)
+{
+    using NYT::Persist;
+    Persist(context, MinNeededResources);
+    Persist(context, NonLocalTasks);
+    Persist(context, CandidateTasks);
+    Persist(context, DelayedTasks);
+    Persist(context, LocalTasks);
+}
+
+////////////////////////////////////////////////////////////////////
+
+void TOperationControllerBase::TStripeDescriptor::Persist(TPersistenceContext& context)
+{
+    using NYT::Persist;
+    Persist(context, Stripe);
+    Persist(context, Cookie);
+    Persist(context, Task);
+}
+
+////////////////////////////////////////////////////////////////////
+
+void TOperationControllerBase::TInputChunkDescriptor::Persist(TPersistenceContext& context)
+{
+    using NYT::Persist;
+    Persist(context, InputStripes);
+    Persist(context, ChunkSpecs);
+    Persist(context, State);
+}
+
+////////////////////////////////////////////////////////////////////
+
+TOperationControllerBase::TInputChunkScratcher::TInputChunkScratcher(
+	TOperationControllerBase* controller)
     : Controller(controller)
     , PeriodicInvoker(New<TPeriodicInvoker>(
         Controller->GetCancelableControlInvoker(),
@@ -85,7 +242,7 @@ void TOperationControllerBase::TInputChunkScratcher::Start()
 
     LOG_DEBUG("Starting input chunk scratcher");
 
-    NextChunkIterator = Controller->InputChunks.begin();
+    NextChunkIterator = Controller->InputChunkMap.begin();
     PeriodicInvoker->Start();
 }
 
@@ -105,8 +262,8 @@ void TOperationControllerBase::TInputChunkScratcher::LocateChunks()
         ToProto(req->add_chunk_ids(), NextChunkIterator->first);
 
         ++NextChunkIterator;
-        if (NextChunkIterator == Controller->InputChunks.end()) {
-            NextChunkIterator = Controller->InputChunks.begin();
+        if (NextChunkIterator == Controller->InputChunkMap.end()) {
+            NextChunkIterator = Controller->InputChunkMap.begin();
         }
 
         if (NextChunkIterator == startIterator) {
@@ -134,8 +291,8 @@ void TOperationControllerBase::TInputChunkScratcher::OnLocateChunksResponse(TChu
     Controller->NodeDirectory->MergeFrom(rsp->node_directory());
     FOREACH(const auto& chunkInfo, rsp->chunks()) {
         auto chunkId = FromProto<TChunkId>(chunkInfo.chunk_id());
-        auto it = Controller->InputChunks.find(chunkId);
-        YCHECK(it != Controller->InputChunks.end());
+        auto it = Controller->InputChunkMap.find(chunkId);
+        YCHECK(it != Controller->InputChunkMap.end());
 
         auto& descriptor = it->second;
         // Update replicas in place for all input chunks with current chunkId.
@@ -156,14 +313,26 @@ void TOperationControllerBase::TInputChunkScratcher::OnLocateChunksResponse(TChu
 
 ////////////////////////////////////////////////////////////////////
 
+TOperationControllerBase::TTask::TTask()
+    : CachedPendingJobCount(-1)
+    , LastDemandSanityCheckTime(TInstant::Zero())
+    , CompletedFired(false)
+    , Logger(OperationLogger)
+{ }
+
 TOperationControllerBase::TTask::TTask(TOperationControllerBase* controller)
     : Controller(controller)
     , CachedPendingJobCount(0)
-    , CachedTotalNeededResources(ZeroNodeResources())
     , LastDemandSanityCheckTime(TInstant::Zero())
     , CompletedFired(false)
-    , Logger(Controller->Logger)
+    , Logger(OperationLogger)
 { }
+
+void TOperationControllerBase::TTask::Initialize()
+{
+    Logger = Controller->Logger;
+    Logger.AddTag(Sprintf("Task: %s", ~GetId()));
+}
 
 int TOperationControllerBase::TTask::GetPendingJobCount() const
 {
@@ -223,7 +392,7 @@ void TOperationControllerBase::TTask::AddInput(const std::vector<TChunkStripePtr
 
 void TOperationControllerBase::TTask::FinishInput()
 {
-    LOG_DEBUG("Task input finished (Task: %s)", ~GetId());
+    LOG_DEBUG("Task input finished");
 
     GetChunkPoolInput()->Finish();
     AddPendingHint();
@@ -243,7 +412,7 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
 {
     int chunkListCount = GetChunkListCountPerJob();
     if (!Controller->HasEnoughChunkLists(chunkListCount)) {
-        LOG_DEBUG("Job chunk list demand is not met (Task: %s)", ~GetId());
+        LOG_DEBUG("Job chunk list demand is not met");
         return nullptr;
     }
 
@@ -255,7 +424,7 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
     auto* chunkPoolOutput = GetChunkPoolOutput();
     joblet->OutputCookie = chunkPoolOutput->Extract(address);
     if (joblet->OutputCookie == IChunkPoolOutput::NullCookie) {
-        LOG_DEBUG("Job input is empty (Task: %s)", ~GetId());
+        LOG_DEBUG("Job input is empty");
         return nullptr;
     }
 
@@ -264,8 +433,7 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
 
     // Check the usage against the limits. This is the last chance to give up.
     if (!Dominates(jobLimits, neededResources)) {
-        LOG_DEBUG("Job actual resource demand is not met (Task: %s, Limits: {%s}, Demand: {%s})",
-            ~GetId(),
+        LOG_DEBUG("Job actual resource demand is not met (Limits: {%s}, Demand: {%s})",
             ~FormatResources(jobLimits),
             ~FormatResources(neededResources));
         CheckResourceDemandSanity(node, neededResources);
@@ -302,13 +470,12 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
         jobSpecBuilder);
 
     LOG_INFO(
-        "Job scheduled (JobId: %s, OperationId: %s, JobType: %s, Address: %s, Task: %s, JobIndex: %d, ChunkCount: %d (%d local), "
+        "Job scheduled (JobId: %s, OperationId: %s, JobType: %s, Address: %s, JobIndex: %d, ChunkCount: %d (%d local), "
         "Approximate: %s, DataSize: %" PRId64 ", RowCount: %" PRId64 ", ResourceLimits: {%s})",
         ~ToString(joblet->Job->GetId()),
         ~ToString(Controller->Operation->GetOperationId()),
         ~jobType.ToString(),
         ~context->GetNode()->GetAddress(),
-        ~GetId(),
         jobIndex,
         joblet->InputStripeList->TotalChunkCount,
         joblet->InputStripeList->LocalChunkCount,
@@ -357,6 +524,29 @@ i64 TOperationControllerBase::TTask::GetCompletedDataSize() const
 i64 TOperationControllerBase::TTask::GetPendingDataSize() const
 {
     return GetChunkPoolOutput()->GetPendingDataSize();
+}
+
+void TOperationControllerBase::TTask::Persist(TPersistenceContext& context)
+{
+    using NYT::Persist;
+
+    Persist(context, DelayedTime_);
+
+    Persist(context, Controller);
+
+    Persist(context, CachedPendingJobCount);
+    Persist(context, CachedTotalNeededResources);
+    Persist(context, CachedMinNeededResources);
+
+    Persist(context, LastDemandSanityCheckTime);
+
+    Persist(context, CompletedFired);
+
+    Persist(context, LostJobCookieMap);
+
+    if (context.GetDirection() == EPersistenceDirection::Load) {
+        Initialize();
+    }
 }
 
 void TOperationControllerBase::TTask::PrepareJoblet(TJobletPtr joblet)
@@ -415,9 +605,16 @@ void TOperationControllerBase::TTask::OnJobAborted(TJobletPtr joblet)
     ReinstallJob(joblet, EJobReinstallReason::Aborted);
 }
 
+void TOperationControllerBase::TTask::OnJobLost(TCompleteJobPtr completedJob)
+{
+    YCHECK(LostJobCookieMap.insert(std::make_pair(
+        completedJob->OutputCookie,
+        completedJob->InputCookie)).second);
+}
+
 void TOperationControllerBase::TTask::OnTaskCompleted()
 {
-    LOG_DEBUG("Task completed (Task: %s)", ~GetId());
+    LOG_DEBUG("Task completed");
 }
 
 void TOperationControllerBase::TTask::DoCheckResourceDemandSanity(
@@ -625,7 +822,7 @@ void TOperationControllerBase::TTask::RegisterIntermediate(
         joblet->OutputCookie,
         destinationPool,
         inputCookie,
-        joblet->Job->GetNode());
+        joblet->Job->GetNode()->GetAddress());
 
     Controller->RegisterIntermediate(
         completedJob,
@@ -759,27 +956,63 @@ TFuture<TError> TOperationControllerBase::Prepare()
         ->Add(BIND(&TThis::OnLivePreviewTablesPreparedForUpdate, this_))
         ->Add(BIND(&TThis::CollectTotals, this_));
      pipeline = CustomizePreparationPipeline(pipeline);
-     pipeline = pipeline->Add(BIND(&TThis::CompletePreparation, this_));
+     pipeline = pipeline
+         ->Add(BIND(&TThis::CompletePreparation, this_));
+
      return pipeline
         ->Run()
-        .Apply(BIND([=] (TError result) -> TError {
+        .Apply(BIND([this, this_] (TError result) -> TError {
             if (result.IsOK()) {
-                this_->Running = true;
+                Running = true;
             }
             return result;
         }));
 }
 
-void TOperationControllerBase::SaveSnapshot(TOutputStream* stream)
+void TOperationControllerBase::SaveSnapshot(TOutputStream* output)
 {
-    *stream << "Hello! This is operation " << ToString(Operation->GetOperationId()) << ". Now is "
-        << ToString(TInstant::Now());
+    DoSaveSnapshot(output);
 }
 
-TFuture<TError> TOperationControllerBase::Revive(TInputStream* stream)
+void TOperationControllerBase::DoSaveSnapshot(TOutputStream* output)
+{
+    TSaveContext context;
+    context.SetOutput(output);
+
+    Save(context, this);
+}
+
+void TOperationControllerBase::DoLoadSnapshot()
+{
+    VERIFY_THREAD_AFFINITY(BackgroundThread);
+
+    LOG_INFO("Started loading snapshot");
+
+    const auto& snapshot = *Operation->Snapshot();
+    TMemoryInput input(snapshot.Begin(), snapshot.Size());
+
+    TLoadContext context;
+    context.SetInput(&input);
+
+    NPhoenix::TSerializer::InplaceLoad(context, this);
+
+    LOG_INFO("Finished loading snapshot");
+
+    // Make some final adjustments.
+    CompletePreparation();
+
+    // Abort all joblets.
+    FOREACH (const auto& pair, JobletMap) {
+        auto joblet = pair.second;
+        JobCounter.Aborted(1);
+        joblet->Task->OnJobAborted(joblet);
+    }
+    JobletMap.clear();
+}
+
+TFuture<TError> TOperationControllerBase::Revive()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
-    UNUSED(stream);
 
     try {
         Initialize();
@@ -787,7 +1020,19 @@ TFuture<TError> TOperationControllerBase::Revive(TInputStream* stream)
         return MakeFuture(TError(ex));
     }
 
-    return Prepare();
+    if (Operation->Snapshot()) {
+        auto this_ = MakeStrong(this);
+        return
+            BIND(&TOperationControllerBase::DoLoadSnapshot, this_)
+                .AsyncVia(CancelableBackgroundInvoker)
+                .Run()
+                .Apply(BIND([this, this_] () -> TError {
+                    Running = true;
+                    return TError();
+                }));
+    } else {
+        return Prepare();
+    }
 }
 
 TFuture<TError> TOperationControllerBase::Commit()
@@ -821,6 +1066,7 @@ void TOperationControllerBase::OnJobCompleted(TJobPtr job)
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     JobCounter.Completed(1);
+    CompletedJobStatistics.Time += job->GetDuration();
 
     auto joblet = GetJoblet(job);
 
@@ -858,6 +1104,7 @@ void TOperationControllerBase::OnJobFailed(TJobPtr job)
     }
 
     JobCounter.Failed(1);
+    FailedJobStatistics.Time += job->GetDuration();
 
     auto joblet = GetJoblet(job);
     joblet->Task->OnJobFailed(joblet);
@@ -884,6 +1131,7 @@ void TOperationControllerBase::OnJobAborted(TJobPtr job)
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     JobCounter.Aborted(1);
+    AbortedJobStatistics.Time += job->GetDuration();
 
     auto joblet = GetJoblet(job);
     joblet->Task->OnJobAborted(joblet);
@@ -891,17 +1139,10 @@ void TOperationControllerBase::OnJobAborted(TJobPtr job)
     RemoveJoblet(job);
 }
 
-void TOperationControllerBase::TTask::OnJobLost(TCompleteJobPtr completedJob)
-{
-    YCHECK(LostJobCookieMap.insert(std::make_pair(
-        completedJob->OutputCookie,
-        completedJob->InputCookie)).second);
-}
-
 void TOperationControllerBase::OnChunkFailed(const TChunkId& chunkId)
 {
-    auto it = InputChunks.find(chunkId);
-    if (it == InputChunks.end()) {
+    auto it = InputChunkMap.find(chunkId);
+    if (it == InputChunkMap.end()) {
         LOG_WARNING("Intermediate chunk %s has failed", ~ToString(chunkId));
         OnIntermediateChunkUnavailable(chunkId);
     } else {
@@ -999,7 +1240,7 @@ void TOperationControllerBase::OnIntermediateChunkUnavailable(const TChunkId& ch
         return;
 
     LOG_INFO("Job is lost (Address: %s, JobId: %s, SourceTask: %s, OutputCookie: %d, InputCookie: %d)",
-        ~completedJob->ExecNode->GetAddress(),
+        ~completedJob->Address,
         ~ToString(completedJob->JobId),
         ~completedJob->SourceTask->GetId(),
         completedJob->OutputCookie,
@@ -1088,9 +1329,14 @@ void TOperationControllerBase::CustomizeJobSpec(TJobletPtr joblet, TJobSpec* job
     UNUSED(jobSpec);
 }
 
-void TOperationControllerBase::RegisterTaskGroup(TTaskGroup* group)
+void TOperationControllerBase::RegisterTask(TTaskPtr task)
 {
-    TaskGroups.push_back(group);
+    Tasks.push_back(std::move(task));
+}
+
+void TOperationControllerBase::RegisterTaskGroup(TTaskGroupPtr group)
+{
+    TaskGroups.push_back(std::move(group));
 }
 
 void TOperationControllerBase::OnTaskUpdated(TTaskPtr task)
@@ -1126,7 +1372,7 @@ void TOperationControllerBase::MoveTaskToCandidates(
 void TOperationControllerBase::AddTaskPendingHint(TTaskPtr task)
 {
     if (task->GetPendingJobCount() > 0) {
-        auto* group = task->GetGroup();
+        auto group = task->GetGroup();
         if (group->NonLocalTasks.insert(task).second) {
             LOG_DEBUG("Task pending hint added (Task: %s)", ~task->GetId());
             MoveTaskToCandidates(task, group->CandidateTasks);
@@ -1137,7 +1383,7 @@ void TOperationControllerBase::AddTaskPendingHint(TTaskPtr task)
 
 void TOperationControllerBase::DoAddTaskLocalityHint(TTaskPtr task, const Stroka& address)
 {
-    auto* group = task->GetGroup();
+    auto group = task->GetGroup();
     if (group->LocalTasks[address].insert(task).second) {
         LOG_TRACE("Task locality hint added (Task: %s, Address: %s)",
             ~task->GetId(),
@@ -1169,7 +1415,7 @@ void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, TChunkStripePt
 void TOperationControllerBase::ResetTaskLocalityDelays()
 {
     LOG_DEBUG("Task locality delays are reset");
-    FOREACH (auto* group, TaskGroups) {
+    FOREACH (auto group, TaskGroups) {
         FOREACH (const auto& pair, group->DelayedTasks) {
             auto task = pair.second;
             if (task->GetPendingJobCount() > 0) {
@@ -1214,7 +1460,7 @@ TJobPtr TOperationControllerBase::DoScheduleLocalJob(
     auto node = context->GetNode();
     const auto& address = node->GetAddress();
 
-    FOREACH (auto* group, TaskGroups) {
+    FOREACH (auto group, TaskGroups) {
         if (!Dominates(jobLimits, group->MinNeededResources)) {
             continue;
         }
@@ -1294,7 +1540,7 @@ TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(
     const auto& node = context->GetNode();
     const auto& address = node->GetAddress();
 
-    FOREACH (auto* group, TaskGroups) {
+    FOREACH (auto group, TaskGroups) {
         if (!Dominates(jobLimits, group->MinNeededResources)) {
             continue;
         }
@@ -1522,15 +1768,15 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::CommitResults()
                 std::sort(
                     table.Endpoints.begin(),
                     table.Endpoints.end(),
-                    [=] (const TOutputTable::TEndpoint& lhs, const TOutputTable::TEndpoint& rhs) -> bool {
+                    [=] (const TEndpoint& lhs, const TEndpoint& rhs) -> bool {
                         // First sort by keys.
                         // Then sort by ChunkTreeKeys.
                         auto keysResult = NChunkClient::NProto::CompareKeys(lhs.Key, rhs.Key);
                         if (keysResult != 0) {
                             return keysResult < 0;
                         }
-                        return (lhs.ChunkTreeKey - rhs.ChunkTreeKey) < 0;
-                });
+                        return lhs.ChunkTreeKey < rhs.ChunkTreeKey;
+                    });
 
                 auto outputCount = static_cast<int>(table.Endpoints.size()) / 2;
                 for (int outputIndex = 0; outputIndex < outputCount; ++outputIndex) {
@@ -1860,7 +2106,7 @@ void TOperationControllerBase::OnInputTypesReceived(TObjectServiceProxy::TRspExe
                 ~path);
 
             auto type = ConvertTo<EObjectType>(TYsonString(rsp->value()));
-            TUserFile* file;
+            TUserFileBase* file;
             switch (type) {
                 case EObjectType::File:
                     RegularFiles.push_back(TRegularUserFile());
@@ -2038,7 +2284,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error locking input table %s",
                     ~path);
 
-                LOG_INFO("Input table %s locked",
+                LOG_INFO("Input table locked (Path: %s)",
                     ~path);
             }
             {
@@ -2048,8 +2294,8 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
 
                 NodeDirectory->MergeFrom(rsp->node_directory());
 
-                table.FetchResponse = rsp;
-                LOG_INFO("Input table %s has %d chunks",
+                table.FetchResponse.Swap(~rsp);
+                LOG_INFO("Input table fetched (Path: %s, ChunkCount: %d)",
                     ~path,
                     rsp->chunks_size());
             }
@@ -2063,11 +2309,11 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
 
                 if (attributes.Get<bool>("sorted")) {
                     table.KeyColumns = attributes.Get< std::vector<Stroka> >("sorted_by");
-                    LOG_INFO("Input table %s is sorted by %s",
+                    LOG_INFO("Input table is sorted (Path: %s, SortedBy: %s)",
                         ~path,
                         ~ConvertToYsonString(table.KeyColumns.Get(), EYsonFormat::Text).Data());
                 } else {
-                    LOG_INFO("Input table %s is not sorted",
+                    LOG_INFO("Input table is not sorted (Path: %s)",
                         ~path);
                 }
             }
@@ -2111,7 +2357,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 table.Options->ReplicationFactor = attributes.Get<int>("replication_factor");
                 table.Options->Account = attributes.Get<Stroka>("account");
 
-                LOG_INFO("Output table %s attributes received (Options: %s)",
+                LOG_INFO("Output table attributes received (Path: %s, Options: %s)",
                     ~path,
                     ~ConvertToYsonString(table.Options, EYsonFormat::Text).Data());
             }
@@ -2121,7 +2367,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                     ~path);
 
                 table.OutputChunkListId = FromProto<TChunkListId>(rsp->chunk_list_id());
-                LOG_INFO("Output table %s has output chunk list %s",
+                LOG_INFO("Output table prepared for update (Path: %s, ChunkListId: %s)",
                     ~path,
                     ~ToString(table.OutputChunkListId));
             }
@@ -2142,7 +2388,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error locking regular file %s",
                     ~path);
 
-                LOG_INFO("Regular file %s locked",
+                LOG_INFO("Regular file locked (Path: %s)",
                     ~path);
             }
             {
@@ -2164,6 +2410,10 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
 
                 fileName = attributes.Get<Stroka>("file_name", fileName);
                 file.Executable = attributes.Get<bool>("executable", false);
+                file.FileName = file.Path.Attributes().Get<Stroka>("file_name", fileName);
+
+                LOG_INFO("Regular file attributes received (Path: %s)",
+                    ~path);
             }
             {
                 auto rsp = fetchRegularFileRsps[index];
@@ -2172,12 +2422,11 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                     "Error fetching regular file %s",
                     ~path);
 
-                file.FetchResponse = rsp;
-                LOG_INFO("File %s attributes received", ~path);
-            }
+                file.FetchResponse.Swap(~rsp);
 
-            LOG_INFO("File %s attributes received", ~path);
-            file.FileName = file.Path.Attributes().Get<Stroka>("file_name", fileName);
+                LOG_INFO("Regular file fetched (Path: %s)",
+                    ~path);
+            }
         }
     }
 
@@ -2194,7 +2443,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error locking table file %s",
                     ~path);
 
-                LOG_INFO("Table file %s locked",
+                LOG_INFO("Table file locked (Path: %s)",
                     ~path);
             }
             {
@@ -2203,31 +2452,36 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 i64 tableSize = ConvertTo<i64>(TYsonString(rsp->value()));
                 if (tableSize > Config->MaxTableFileSize) {
                     THROW_ERROR_EXCEPTION(
-                        "Table file %s exceeds the size limit: " PRId64 " > " PRId64,
+                        "Table file %s exceeds size limit: " PRId64 " > " PRId64,
                         ~path,
                         tableSize,
                         Config->MaxTableFileSize);
                 }
             }
+            std::vector<TChunkId> chunkIds;
             {
                 auto rsp = fetchTableFileRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error fetching table file chunks");
+
                 NodeDirectory->MergeFrom(rsp->node_directory());
-                file.FetchResponse = rsp;
+
+                FOREACH (const auto& chunk, rsp->chunks()) {
+                    chunkIds.push_back(FromProto<TChunkId>(chunk.chunk_id()));
+                }
+
+                file.FetchResponse.Swap(~rsp);
+                LOG_INFO("Table file fetched (Path: %s)",
+                    ~path);
             }
             {
                 auto rsp = getTableFileNameRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting table file name");
+                
                 auto key = ConvertTo<Stroka>(TYsonString(rsp->value()));
                 file.FileName = file.Path.Attributes().Get<Stroka>("file_name", key);
                 file.Format = file.Path.Attributes().GetYson("format");
-            }
-            {
-                std::vector<TChunkId> chunkIds;
-                FOREACH (const auto& chunk, file.FetchResponse->chunks()) {
-                    chunkIds.push_back(FromProto<TChunkId>(chunk.chunk_id()));
-                }
-                LOG_INFO("Table file %s attributes received (FileName: %s, Format: %s, ChunkIds: [%s])",
+
+                LOG_INFO("Table file attributes received (Path: %s, FileName: %s, Format: %s, ChunkIds: [%s])",
                     ~path,
                     ~file.FileName,
                     ~file.Format.Data(),
@@ -2256,7 +2510,7 @@ TFuture<void> TOperationControllerBase::CollectTotals()
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
     FOREACH (const auto& table, InputTables) {
-        FOREACH (const auto& chunk, table.FetchResponse->chunks()) {
+        FOREACH (const auto& chunk, table.FetchResponse.chunks()) {
             i64 chunkDataSize;
             i64 chunkRowCount;
             i64 chunkValueCount;
@@ -2295,7 +2549,7 @@ std::vector<TRefCountedChunkSpecPtr> TOperationControllerBase::CollectInputChunk
     std::vector<TRefCountedChunkSpecPtr> result;
     for (int tableIndex = 0; tableIndex < InputTables.size(); ++tableIndex) {
         const auto& table = InputTables[tableIndex];
-        FOREACH (const auto& chunkSpec, table.FetchResponse->chunks()) {
+        FOREACH (const auto& chunkSpec, table.FetchResponse.chunks()) {
             auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
             if (IsUnavailable(chunkSpec)) {
                 switch (Spec->UnavailableChunkStrategy) {
@@ -2460,14 +2714,14 @@ void TOperationControllerBase::RegisterOutput(TJobletPtr joblet, int key)
             auto& boundaryKeys = userJobResult->output_boundary_keys(tableIndex);
             YCHECK(boundaryKeys.start() <= boundaryKeys.end());
             {
-                TOutputTable::TEndpoint endpoint;
+                TEndpoint endpoint;
                 endpoint.Key = boundaryKeys.start();
                 endpoint.Left = true;
                 endpoint.ChunkTreeKey = key;
                 table.Endpoints.push_back(endpoint);
             }
             {
-                TOutputTable::TEndpoint endpoint;
+                TEndpoint endpoint;
                 endpoint.Key = boundaryKeys.end();
                 endpoint.Left = false;
                 endpoint.ChunkTreeKey = key;
@@ -2479,7 +2733,7 @@ void TOperationControllerBase::RegisterOutput(TJobletPtr joblet, int key)
 
 void TOperationControllerBase::CompletePreparation()
 {
-    if (InputChunks.empty()) {
+    if (InputChunkMap.empty()) {
         // Possible reasons:
         // - All input chunks are unavailable && Strategy == Skip
         // - Merge decided to passthrough all input chunks
@@ -2499,13 +2753,12 @@ void TOperationControllerBase::CompletePreparation()
     if (Spec->UnavailableChunkStrategy != EUnavailableChunkAction::Wait)
         return;
 
-    int suspendedChunksCount = 0;
-    FOREACH(auto& pair, InputChunks) {
-        auto& chunkDescriptor = pair.second;
-
+    int suspendedChunkCount = 0;
+    FOREACH(auto& pair, InputChunkMap) {
+        const auto& chunkDescriptor = pair.second;
         if (chunkDescriptor.State == EInputChunkState::Waiting) {
             LOG_DEBUG("Input chunk is unavailable (ChunkId: %s)", ~ToString(pair.first));
-            ++suspendedChunksCount;
+            ++suspendedChunkCount;
             FOREACH(const auto& inputStripe, chunkDescriptor.InputStripes) {
                 inputStripe.Task->GetChunkPoolInput()->Suspend(inputStripe.Cookie);
                 ++inputStripe.Stripe->WaitingChunkCount;
@@ -2513,8 +2766,12 @@ void TOperationControllerBase::CompletePreparation()
         }
     }
 
-    if (suspendedChunksCount > 0) {
-        LOG_DEBUG("Waiting for %d unavailable chunks", suspendedChunksCount);
+    FOREACH (auto task, Tasks) {
+        AddTaskPendingHint(task);
+    }
+
+    if (suspendedChunkCount > 0) {
+        LOG_INFO("Waiting for %d unavailable chunks", suspendedChunkCount);
         InputChunkScratcher->Start();
     }
 }
@@ -2537,7 +2794,7 @@ void TOperationControllerBase::RegisterInputStripe(TChunkStripePtr stripe, TTask
             continue;
         }
 
-        auto pair = InputChunks.insert(std::make_pair(chunkId, TInputChunkDescriptor()));
+        auto pair = InputChunkMap.insert(std::make_pair(chunkId, TInputChunkDescriptor()));
         auto& chunkDescriptor = pair.first->second;
         chunkDescriptor.InputStripes.push_back(stripeDescriptor);
 
@@ -2581,19 +2838,19 @@ TChunkListId TOperationControllerBase::ExtractChunkList()
 
 void TOperationControllerBase::RegisterJoblet(TJobletPtr joblet)
 {
-    YCHECK(JobletMap.insert(std::make_pair(joblet->Job, joblet)).second);
+    YCHECK(JobletMap.insert(std::make_pair(joblet->Job->GetId(), joblet)).second);
 }
 
 TOperationControllerBase::TJobletPtr TOperationControllerBase::GetJoblet(TJobPtr job)
 {
-    auto it = JobletMap.find(job);
+    auto it = JobletMap.find(job->GetId());
     YCHECK(it != JobletMap.end());
     return it->second;
 }
 
 void TOperationControllerBase::RemoveJoblet(TJobPtr job)
 {
-    YCHECK(JobletMap.erase(job) == 1);
+    YCHECK(JobletMap.erase(job->GetId()) == 1);
 }
 
 void TOperationControllerBase::BuildProgressYson(IYsonConsumer* consumer)
@@ -2611,9 +2868,9 @@ void TOperationControllerBase::BuildProgressYson(IYsonConsumer* consumer)
             .Item("lost").Value(JobCounter.GetLost())
         .EndMap()
         .Item("job_statistics").BeginMap()
-            .Item("completed").Value(Operation->CompletedJobStatistics())
-            .Item("failed").Value(Operation->FailedJobStatistics())
-            .Item("aborted").Value(Operation->AbortedJobStatistics())
+            .Item("completed").Value(CompletedJobStatistics)
+            .Item("failed").Value(FailedJobStatistics)
+            .Item("aborted").Value(AbortedJobStatistics)
         .EndMap();
 }
 
@@ -2701,14 +2958,14 @@ void TOperationControllerBase::InitUserJobSpec(
 
     FOREACH (const auto& file, regularFiles) {
         auto *descriptor = jobSpec->add_regular_files();
-        *descriptor->mutable_file() = *file.FetchResponse;
+        *descriptor->mutable_file() = file.FetchResponse;
         descriptor->set_executable(file.Executable);
         descriptor->set_file_name(file.FileName);
     }
 
     FOREACH (const auto& file, tableFiles) {
         auto* descriptor = jobSpec->add_table_files();
-        *descriptor->mutable_table() = *file.FetchResponse;
+        *descriptor->mutable_table() = file.FetchResponse;
         descriptor->set_file_name(file.FileName);
         descriptor->set_format(file.Format.Data());
     }
@@ -2799,6 +3056,49 @@ const NProto::TUserJobResult* TOperationControllerBase::FindUserJobResult(TJoble
     }
 
     return nullptr;
+}
+
+void TOperationControllerBase::Persist(TPersistenceContext& context)
+{
+    using NYT::Persist;
+
+    Persist(context, TotalInputChunkCount);
+    Persist(context, TotalInputDataSize);
+    Persist(context, TotalInputRowCount);
+    Persist(context, TotalInputValueCount);
+
+    Persist(context, JobCounter);
+
+    Persist(context, CompletedJobStatistics);
+    Persist(context, FailedJobStatistics);
+    Persist(context, AbortedJobStatistics);
+
+    Persist(context, *NodeDirectory);
+
+    Persist(context, InputTables);
+
+    Persist(context, OutputTables);
+
+    Persist(context, IntermediateTable);
+
+    Persist(context, RegularFiles);
+
+    Persist(context, TableFiles);
+
+    Persist(context, Tasks);
+
+    Persist(context, TaskGroups);
+
+    Persist(context, InputChunkMap);
+
+    Persist(context, CachedPendingJobCount);
+    Persist(context, CachedNeededResources);
+
+    Persist(context, ChunkOriginMap);
+
+    Persist(context, JobletMap);
+
+    Persist(context, JobIndexGenerator);
 }
 
 ////////////////////////////////////////////////////////////////////

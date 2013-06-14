@@ -15,7 +15,6 @@ using namespace NSecurityServer;
 using namespace NObjectClient;
 using namespace NYTree;
 using namespace NYson;
-using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,18 +23,20 @@ TSchemaObject::TSchemaObject(const TObjectId& id)
     , Acd_(this)
 { }
 
-void TSchemaObject::Save(const TSaveContext& context) const
+void TSchemaObject::Save(NCellMaster::TSaveContext& context) const
 {
     TNonversionedObjectBase::Save(context);
 
-    NSecurityServer::Save(context, Acd_);
+    using NYT::Save;
+    Save(context, Acd_);
 }
 
-void TSchemaObject::Load(const TLoadContext& context)
+void TSchemaObject::Load(NCellMaster::TLoadContext& context)
 {
     TNonversionedObjectBase::Load(context);
 
-    NSecurityServer::Load(context, Acd_);
+    using NYT::Load;
+    Load(context, Acd_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -45,7 +46,7 @@ class TSchemaProxy
 {
 public:
     TSchemaProxy(
-        TBootstrap* bootstrap,
+        NCellMaster::TBootstrap* bootstrap,
         TSchemaObject* object)
         : TBase(bootstrap, object)
     {
@@ -69,8 +70,7 @@ private:
 
 };
 
-
-IObjectProxyPtr CreateSchemaProxy(TBootstrap* bootstrap, TSchemaObject* object)
+IObjectProxyPtr CreateSchemaProxy(NCellMaster::TBootstrap* bootstrap, TSchemaObject* object)
 {
     return New<TSchemaProxy>(bootstrap, object);
 }
@@ -82,7 +82,7 @@ class TSchemaTypeHandler
 {
 public:
     TSchemaTypeHandler(
-        TBootstrap* bootstrap,
+        NCellMaster::TBootstrap* bootstrap,
         EObjectType type)
         : TBase(bootstrap)
         , Type(type)
@@ -175,7 +175,7 @@ private:
 
 };
 
-IObjectTypeHandlerPtr CreateSchemaTypeHandler(TBootstrap* bootstrap, EObjectType type)
+IObjectTypeHandlerPtr CreateSchemaTypeHandler(NCellMaster::TBootstrap* bootstrap, EObjectType type)
 {
     return New<TSchemaTypeHandler>(bootstrap, type);
 }

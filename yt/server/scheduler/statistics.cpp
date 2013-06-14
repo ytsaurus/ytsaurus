@@ -15,6 +15,12 @@ TTotalJobStatistics::TTotalJobStatistics()
     : Time(TDuration::Zero())
 { }
 
+void TTotalJobStatistics::Persist(TStreamPersistenceContext& context)
+{
+    using NYT::Persist;
+    Persist(context, Time);
+}
+
 void Serialize(const TTotalJobStatistics& statistics, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)

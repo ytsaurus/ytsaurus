@@ -13,7 +13,7 @@ using namespace NYson;
 ////////////////////////////////////////////////////////////////////
 
 TProgressCounter::TProgressCounter()
-    : TotalEnabled(false)
+    : TotalEnabled_(false)
     , Total_(0)
     , Running_(0)
     , Completed_(0)
@@ -30,7 +30,7 @@ TProgressCounter::TProgressCounter(i64 total)
 
 void TProgressCounter::Set(i64 total)
 {
-    TotalEnabled = true;
+    TotalEnabled_ = true;
     Total_ = total;
     Running_ = 0;
     Completed_ = 0;
@@ -42,19 +42,19 @@ void TProgressCounter::Set(i64 total)
 
 bool TProgressCounter::IsTotalEnabled() const
 {
-    return TotalEnabled;
+    return TotalEnabled_;
 }
 
 void TProgressCounter::Increment(i64 value)
 {
-    YCHECK(TotalEnabled);
+    YCHECK(TotalEnabled_);
     Total_ += value;
     Pending_ += value;
 }
 
 i64 TProgressCounter::GetTotal() const
 {
-    YCHECK(TotalEnabled);
+    YCHECK(TotalEnabled_);
     return Total_;
 }
 
@@ -70,7 +70,7 @@ i64 TProgressCounter::GetCompleted() const
 
 i64 TProgressCounter::GetPending() const
 {
-    YCHECK(TotalEnabled);
+    YCHECK(TotalEnabled_);
     return Pending_;
 }
 
@@ -91,7 +91,7 @@ i64 TProgressCounter::GetLost() const
 
 void TProgressCounter::Start(i64 count)
 {
-    if (TotalEnabled) {
+    if (TotalEnabled_) {
         YCHECK(Pending_ >= count);
         Pending_ -= count;
     }
@@ -110,7 +110,7 @@ void TProgressCounter::Failed(i64 count)
     YCHECK(Running_ >= count);
     Running_ -= count;
     Failed_ += count;
-    if (TotalEnabled) {
+    if (TotalEnabled_) {
         Pending_ += count;
     }
 }
@@ -120,7 +120,7 @@ void TProgressCounter::Aborted(i64 count)
     YCHECK(Running_ >= count);
     Running_ -= count;
     Aborted_ += count;
-    if (TotalEnabled) {
+    if (TotalEnabled_) {
         Pending_ += count;
     }
 }
@@ -130,18 +130,52 @@ void TProgressCounter::Lost(i64 count)
     YCHECK(Completed_ >= count);
     Completed_ -= count;
     Lost_ += count;
-    if (TotalEnabled) {
+    if (TotalEnabled_) {
         Pending_ += count;
     }
 }
 
 void TProgressCounter::Finalize()
 {
-    if (TotalEnabled) {
+    if (TotalEnabled_) {
         Total_ = Completed_;
         Pending_ = 0;
         Running_ = 0;
     }
+}
+
+void TProgressCounter::Persist(TStreamPersistenceContext& context)
+{
+    using NYT::Persist;
+    Persist(context, TotalEnabled_);
+    Persist(context, Total_);
+    Persist(context, Running_);
+    Persist(context, Completed_);
+    Persist(context, Pending_);
+    Persist(context, Failed_);
+    Persist(context, Aborted_);
+}
+
+////////////////////////////////////////////////////////////////////
+
+Stroka ToString(const TProgressCounter& counter)
+{
+    return
+        counter.IsTotalEnabled()
+        ? Sprintf("T: %" PRId64 ", R: %" PRId64 ", C: %" PRId64 ", P: %" PRId64 ", F: %" PRId64 ", A: %" PRId64 ", L: %" PRId64,
+        counter.GetTotal(),
+        counter.GetRunning(),
+        counter.GetCompleted(),
+        counter.GetPending(),
+        counter.GetFailed(),
+        counter.GetAborted(),
+        counter.GetLost())
+        : Sprintf("R: %" PRId64 ", C: %" PRId64 ", F: %" PRId64 ", A: %" PRId64 ", L: %" PRId64,
+        counter.GetRunning(),
+        counter.GetCompleted(),
+        counter.GetFailed(),
+        counter.GetAborted(),
+        counter.GetLost());
 }
 
 void Serialize(const TProgressCounter& counter, IYsonConsumer* consumer)
@@ -159,26 +193,6 @@ void Serialize(const TProgressCounter& counter, IYsonConsumer* consumer)
             .Item("aborted").Value(counter.GetAborted())
             .Item("lost").Value(counter.GetLost())
         .EndMap();
-}
-
-Stroka ToString(const TProgressCounter& counter)
-{
-    return
-        counter.IsTotalEnabled()
-        ? Sprintf("T: %" PRId64 ", R: %" PRId64 ", C: %" PRId64 ", P: %" PRId64 ", F: %" PRId64 ", A: %" PRId64 ", L: %" PRId64,
-            counter.GetTotal(),
-            counter.GetRunning(),
-            counter.GetCompleted(),
-            counter.GetPending(),
-            counter.GetFailed(),
-            counter.GetAborted(),
-            counter.GetLost())
-        : Sprintf("R: %" PRId64 ", C: %" PRId64 ", F: %" PRId64 ", A: %" PRId64 ", L: %" PRId64,
-            counter.GetRunning(),
-            counter.GetCompleted(),
-            counter.GetFailed(),
-            counter.GetAborted(),
-            counter.GetLost());
 }
 
 ////////////////////////////////////////////////////////////////////

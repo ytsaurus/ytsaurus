@@ -2,7 +2,10 @@
 
 #include "public.h"
 
+#include <ytlib/misc/serialize.h>
+
 #include <ytlib/yson/public.h>
+
 #include <ytlib/ytree/attributes.h>
 
 namespace NYT {
@@ -31,6 +34,9 @@ public:
     const NYTree::IAttributeDictionary& Attributes() const;
     NYTree::IAttributeDictionary& Attributes();
 
+    void Save(TStreamSaveContext& context) const;
+    void Load(TStreamLoadContext& context);
+
 private:
     TYPath Path_;
     std::unique_ptr<NYTree::IAttributeDictionary> Attributes_;
@@ -40,7 +46,9 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 Stroka ToString(const TRichYPath& path);
+
 std::vector<TRichYPath> Simplify(const std::vector<TRichYPath>& paths);
+
 void Serialize(const TRichYPath& richPath, NYson::IYsonConsumer* consumer);
 void Deserialize(TRichYPath& richPath, NYTree::INodePtr node);
 

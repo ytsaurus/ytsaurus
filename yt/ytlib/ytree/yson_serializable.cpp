@@ -116,6 +116,21 @@ void TYsonSerializableLite::Save(IYsonConsumer* consumer) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TBinaryYsonSerializer::Save(TStreamSaveContext& context, const TYsonSerializableLite& obj)
+{
+    auto str = ConvertToYsonString(obj);
+    NYT::Save(context, str);
+}
+
+void TBinaryYsonSerializer::Load(TStreamLoadContext& context, TYsonSerializableLite& obj)
+{
+    auto str = NYT::Load<TYsonString>(context);
+    auto node = ConvertTo<INodePtr>(str);
+    obj.Load(node);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void Serialize(const TYsonSerializableLite& value, IYsonConsumer* consumer)
 {
     value.Save(consumer);

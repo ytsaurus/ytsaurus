@@ -55,6 +55,8 @@ typedef TIntrusivePtr<TSnapshotBuilder> TSnapshotBuilderPtr;
 class TSnapshotDownloader;
 typedef TIntrusivePtr<TSnapshotDownloader> TSnapshotDownloaderPtr;
 
+class TOperationControllerBase;
+
 extern const double ApproximateSizesBoostFactor;
 
 extern NLog::TLogger SchedulerLogger;

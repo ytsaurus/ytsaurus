@@ -38,6 +38,37 @@ void TChunkTreeStatistics::Accumulate(const TChunkTreeStatistics& other)
     Rank = std::max(Rank, other.Rank);
 }
 
+void TChunkTreeStatistics::Save(NCellMaster::TSaveContext& context) const
+{
+    using NYT::Save;
+    Save(context, RowCount);
+    Save(context, UncompressedDataSize);
+    Save(context, CompressedDataSize);
+    Save(context, DataWeight);
+    Save(context, RegularDiskSpace);
+    Save(context, ErasureDiskSpace);
+    Save(context, ChunkCount);
+    Save(context, ChunkListCount);
+    Save(context, Rank);
+}
+
+void TChunkTreeStatistics::Load(NCellMaster::TLoadContext& context)
+{
+    using NYT::Load;
+    Load(context, RowCount);
+    Load(context, UncompressedDataSize);
+    Load(context, CompressedDataSize);
+    Load(context, DataWeight);
+    Load(context, RegularDiskSpace);
+    // COMPAT(psushin)
+    if (context.GetVersion() >= 20) {
+        Load(context, ErasureDiskSpace);
+    }
+    Load(context, ChunkCount);
+    Load(context, ChunkListCount);
+    Load(context, Rank);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void Serialize(const TChunkTreeStatistics& statistics, NYson::IYsonConsumer* consumer)
@@ -54,38 +85,6 @@ void Serialize(const TChunkTreeStatistics& statistics, NYson::IYsonConsumer* con
             .Item("chunk_list_count").Value(statistics.ChunkListCount)
             .Item("rank").Value(statistics.Rank)
         .EndMap();
-}
-
-void Save(const NCellMaster::TSaveContext& context, const TChunkTreeStatistics& statistics)
-{
-    auto* output = context.GetOutput();
-    ::Save(output, statistics.RowCount);
-    ::Save(output, statistics.UncompressedDataSize);
-    ::Save(output, statistics.CompressedDataSize);
-    ::Save(output, statistics.DataWeight);
-    ::Save(output, statistics.RegularDiskSpace);
-    ::Save(output, statistics.ErasureDiskSpace);
-    ::Save(output, statistics.ChunkCount);
-    ::Save(output, statistics.ChunkListCount);
-    ::Save(output, statistics.Rank);
-}
-
-void Load(const NCellMaster::TLoadContext& context, TChunkTreeStatistics& statistics)
-{
-    auto* input = context.GetInput();
-    ::Load(input, statistics.RowCount);
-    ::Load(input, statistics.UncompressedDataSize);
-    ::Load(input, statistics.CompressedDataSize);
-    ::Load(input, statistics.DataWeight);
-    ::Load(input, statistics.RegularDiskSpace);
-
-    // COMPAT(psushin)
-    if (context.GetVersion() >= 20) {
-        ::Load(input, statistics.ErasureDiskSpace);
-    }
-    ::Load(input, statistics.ChunkCount);
-    ::Load(input, statistics.ChunkListCount);
-    ::Load(input, statistics.Rank);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

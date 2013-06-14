@@ -1,11 +1,12 @@
 #pragma once
 
-#include "public.h"
+#include "private.h"
 #include "operation_controller.h"
 #include "chunk_pool.h"
 #include "chunk_list_pool.h"
 #include "job_resources.h"
-#include "private.h"
+#include "statistics.h"
+#include "serialization_context.h"
 
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/nullable.h>
@@ -44,6 +45,8 @@ namespace NScheduler {
 
 class TOperationControllerBase
     : public IOperationController
+    , public NPhoenix::IPersistent
+    , public NPhoenix::TFactoryTag<NPhoenix::TNullFactory>
 {
 public:
     TOperationControllerBase(
@@ -54,8 +57,8 @@ public:
 
     virtual void Initialize() override;
     virtual TFuture<TError> Prepare() override;
-    virtual void SaveSnapshot(TOutputStream* stream) override;
-    virtual TFuture<TError> Revive(TInputStream* steam) override;
+    virtual void SaveSnapshot(TOutputStream* output) override;
+    virtual TFuture<TError> Revive() override;
     virtual TFuture<TError> Commit() override;
 
     virtual void OnJobRunning(TJobPtr job, const NJobTrackerClient::NProto::TJobStatus& status) override;
@@ -82,15 +85,15 @@ public:
     virtual void BuildProgressYson(NYson::IYsonConsumer* consumer) override;
     virtual void BuildResultYson(NYson::IYsonConsumer* consumer) override;
 
-private:
-    typedef TOperationControllerBase TThis;
+    virtual void Persist(TPersistenceContext& context) override;
 
 protected:
     // Forward declarations.
-    struct TTaskGroup;
-
     class TTask;
     typedef TIntrusivePtr<TTask> TTaskPtr;
+
+    struct TTaskGroup;
+    typedef TIntrusivePtr<TTaskGroup> TTaskGroupPtr;
 
     struct TJoblet;
     typedef TIntrusivePtr<TJoblet> TJobletPtr;
@@ -122,14 +125,23 @@ protected:
     // Job counters.
     TProgressCounter JobCounter;
 
+    // Job statistics.
+    TTotalJobStatistics CompletedJobStatistics;
+    TTotalJobStatistics FailedJobStatistics;
+    TTotalJobStatistics AbortedJobStatistics;
+
     // Maps node ids seen in fetch responses to node descriptors.
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
+
 
     struct TUserTableBase
     {
         NYPath::TRichYPath Path;
         NObjectClient::TObjectId ObjectId;
+
+        void Persist(TPersistenceContext& context);
     };
+
 
     struct TLivePreviewTableBase
     {
@@ -138,8 +150,9 @@ protected:
 
         // Chunk list for appending live preview results.
         NChunkClient::TChunkListId LivePreviewChunkListId;
-    };
 
+        void Persist(TPersistenceContext& context);
+    };
 
     struct TInputTable
         : public TUserTableBase
@@ -148,13 +161,25 @@ protected:
             : ComplementFetch(false)
         { }
 
-        NTableClient::TTableYPathProxy::TRspFetchPtr FetchResponse;
+        NChunkClient::NProto::TRspFetch FetchResponse;
         bool ComplementFetch;
         TNullable< std::vector<Stroka> > KeyColumns;
+
+        void Persist(TPersistenceContext& context);
     };
 
     std::vector<TInputTable> InputTables;
 
+
+    struct TEndpoint
+    {
+        NChunkClient::NProto::TKey Key;
+        bool Left;
+        int ChunkTreeKey;
+
+        void Persist(TPersistenceContext& context);
+
+    };
 
     struct TOutputTable
         : public TUserTableBase
@@ -180,15 +205,10 @@ protected:
         //! Trees are sorted w.r.t. key and appended to #OutputChunkListId.
         std::multimap<int, NChunkServer::TChunkTreeId> OutputChunkTreeIds;
 
-
-        struct TEndpoint
-        {
-            NChunkClient::NProto::TKey Key;
-            bool Left;
-            int ChunkTreeKey;
-        };
-
         std::vector<TEndpoint> Endpoints;
+
+        void Persist(TPersistenceContext& context);
+
     };
 
     std::vector<TOutputTable> OutputTables;
@@ -196,7 +216,9 @@ protected:
 
     struct TIntermediateTable
         : public TLivePreviewTableBase
-    { };
+    {
+        void Persist(TPersistenceContext& context);
+    };
 
     TIntermediateTable IntermediateTable;
 
@@ -207,30 +229,38 @@ protected:
         (Reduce)
     );
 
-    struct TUserFile
+    struct TUserFileBase
     {
         NYPath::TRichYPath Path;
         EOperationStage Stage;
+
+        void Persist(TPersistenceContext& context);
+
     };
 
-
     struct TRegularUserFile
-        : public TUserFile
+        : public TUserFileBase
     {
-        NFileClient::TFileYPathProxy::TRspFetchPtr FetchResponse;
+        NChunkClient::NProto::TRspFetch FetchResponse;
         bool Executable;
         Stroka FileName;
+
+        void Persist(TPersistenceContext& context);
+
     };
 
     std::vector<TRegularUserFile> RegularFiles;
 
 
     struct TUserTableFile
-        : public TUserFile
+        : public TUserFileBase
     {
-        NTableClient::TTableYPathProxy::TRspFetchPtr FetchResponse;
+        NChunkClient::NProto::TRspFetch FetchResponse;
         Stroka FileName;
         NYTree::TYsonString Format;
+
+        void Persist(TPersistenceContext& context);
+    
     };
 
     std::vector<TUserTableFile> TableFiles;
@@ -239,6 +269,13 @@ protected:
     struct TJoblet
         : public TIntrinsicRefCounted
     {
+        //! For serialization only.
+        TJoblet()
+            : JobIndex(-1)
+            , StartRowIndex(-1)
+            , OutputCookie(-1)
+        { }
+
         explicit TJoblet(TTaskPtr task, int jobIndex)
             : Task(task)
             , JobIndex(jobIndex)
@@ -260,25 +297,34 @@ protected:
          *  For jobs with final output this list typically contains one element per each output table.
          */
         std::vector<NChunkClient::TChunkListId> ChunkListIds;
+
+        void Persist(TPersistenceContext& context);
+
     };
 
     struct TCompletedJob
         : public TIntrinsicRefCounted
     {
+        //! For persistence only.
+        TCompletedJob()
+            : IsLost(false)
+            , DestinationPool(nullptr)
+        { }
+
         TCompletedJob(
             const TJobId& jobId,
             TTaskPtr sourceTask,
             IChunkPoolOutput::TCookie outputCookie,
             IChunkPoolInput* destinationPool,
             IChunkPoolInput::TCookie inputCookie,
-            TExecNodePtr execNode)
+            const Stroka& address)
             : IsLost(false)
             , JobId(jobId)
             , SourceTask(std::move(sourceTask))
             , OutputCookie(outputCookie)
             , DestinationPool(destinationPool)
             , InputCookie(inputCookie)
-            , ExecNode(std::move(execNode))
+            , Address(address)
         { }
 
         bool IsLost;
@@ -291,18 +337,25 @@ protected:
         IChunkPoolInput* DestinationPool;
         IChunkPoolInput::TCookie InputCookie;
 
-        TExecNodePtr ExecNode;
-    };
+        Stroka Address;
 
+        void Persist(TPersistenceContext& context);
+
+    };
 
     class TTask
         : public TRefCounted
+        , public NPhoenix::IPersistent
     {
     public:
+        //! For persistence only.
+        TTask();
         explicit TTask(TOperationControllerBase* controller);
 
+        void Initialize();
+
         virtual Stroka GetId() const = 0;
-        virtual TTaskGroup* GetGroup() const = 0;
+        virtual TTaskGroupPtr GetGroup() const = 0;
 
         virtual int GetPendingJobCount() const;
         int GetPendingJobCountDelta();
@@ -334,7 +387,7 @@ protected:
         virtual void OnJobAborted(TJobletPtr joblet);
         virtual void OnJobLost(TCompleteJobPtr completedJob);
 
-        // First checks against given node, then againts all nodes if needed.
+        // First checks against a given node, then against all nodes if needed.
         void CheckResourceDemandSanity(
             TExecNodePtr node,
             const NNodeTrackerClient::NProto::TNodeResources& neededResources);
@@ -355,6 +408,8 @@ protected:
         virtual IChunkPoolInput* GetChunkPoolInput() const = 0;
         virtual IChunkPoolOutput* GetChunkPoolOutput() const = 0;
 
+        virtual void Persist(TPersistenceContext& context) override;
+
     private:
         TOperationControllerBase* Controller;
 
@@ -369,7 +424,7 @@ protected:
         yhash_map<IChunkPoolOutput::TCookie, IChunkPoolInput::TCookie> LostJobCookieMap;
 
     protected:
-        NLog::TTaggedLogger& Logger;
+        NLog::TTaggedLogger Logger;
 
         virtual NNodeTrackerClient::NProto::TNodeResources GetMinNeededResourcesHeavy() const = 0;
 
@@ -423,21 +478,17 @@ protected:
 
     };
 
-    virtual void CustomizeJoblet(TJobletPtr joblet);
-    virtual void CustomizeJobSpec(TJobletPtr joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec);
+    //! All tasks declared by calling #RegisterTask, mostly for debugging purposes.
+    std::vector<TTaskPtr> Tasks;
 
 
-    //! Groups serve two purposes:
-    //! * Provide means to prioritize tasks
-    //! * Quickly skip a vast number of tasks whose resource requirements cannot be met
+    //! Groups provide means:
+    //! - to prioritize tasks
+    //! - to skip a vast number of tasks whose resource requirements cannot be met
     struct TTaskGroup
+        : public TIntrinsicRefCounted
     {
-        TTaskGroup()
-            : MinNeededResources(NNodeTrackerClient::ZeroNodeResources())
-        { }
-
-        //! No task from this group is considered for scheduling unless this
-        //! requirement is met.
+        //! No task from this group is considered for scheduling unless this requirement is met.
         NNodeTrackerClient::NProto::TNodeResources MinNeededResources;
 
         //! All non-local tasks.
@@ -452,35 +503,23 @@ protected:
 
         //! Local tasks keyed by address.
         yhash_map<Stroka, yhash_set<TTaskPtr>> LocalTasks;
+
+        
+        void Persist(TPersistenceContext& context);
+
     };
 
-    DECLARE_ENUM(EInputChunkState,
-        (Active)
-        (Skipped)
-        (Waiting));
+    //! All task groups declared by calling #RegisterTaskGroup, in the order of decreasing priority.
+    std::vector<TTaskGroupPtr> TaskGroups;
 
-    struct TStripeDescriptor
-    {
-        TChunkStripePtr Stripe;
-        IChunkPoolInput::TCookie Cookie;
-        TTaskPtr Task;
-    };
 
-    struct TInputChunkDescriptor
-    {
-        TSmallVector<TStripeDescriptor, 1> InputStripes;
-        TSmallVector<NChunkClient::TRefCountedChunkSpecPtr, 1> ChunkSpecs;
-        EInputChunkState State;
-
-        TInputChunkDescriptor()
-            : State(EInputChunkState::Active)
-        { }
-    };
-
-    void RegisterTaskGroup(TTaskGroup* group);
-
+    void RegisterTask(TTaskPtr task);
+    void RegisterTaskGroup(TTaskGroupPtr group);
 
     void OnTaskUpdated(TTaskPtr task);
+
+    virtual void CustomizeJoblet(TJobletPtr joblet);
+    virtual void CustomizeJobSpec(TJobletPtr joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec);
 
     void DoAddTaskLocalityHint(TTaskPtr task, const Stroka& address);
     void AddTaskLocalityHint(TTaskPtr task, const Stroka& address);
@@ -491,7 +530,6 @@ protected:
     void MoveTaskToCandidates(TTaskPtr task, std::multimap<i64, TTaskPtr>& candidateTasks);
 
     bool CheckJobLimits(TExecNodePtr node, TTaskPtr task, const NNodeTrackerClient::NProto::TNodeResources& jobLimits);
-
 
     TJobPtr DoScheduleJob(ISchedulingContext* context, const NNodeTrackerClient::NProto::TNodeResources& jobLimits);
     TJobPtr DoScheduleLocalJob(ISchedulingContext* context, const NNodeTrackerClient::NProto::TNodeResources& jobLimits);
@@ -562,6 +600,7 @@ protected:
     // - Check for empty inputs.
     // - Init chunk list pool.
     // - Suspend stripes with unavalable chunks and fire chunk scratcher.
+    // - Kick-start all tasks.
     void CompletePreparation();
 
 
@@ -576,6 +615,9 @@ protected:
 
 
     virtual void DoInitialize();
+
+    void DoSaveSnapshot(TOutputStream* output);
+    void DoLoadSnapshot();
 
     //! Called to extract input table paths from the spec.
     virtual std::vector<NYPath::TRichYPath> GetInputTablePaths() const = 0;
@@ -600,15 +642,53 @@ protected:
      */
     void OnIntermediateChunkUnavailable(const NChunkClient::TChunkId& chunkId);
 
+
+    DECLARE_ENUM(EInputChunkState,
+        (Active)
+        (Skipped)
+        (Waiting)
+    );
+
+    struct TStripeDescriptor
+    {
+        TStripeDescriptor()
+            : Cookie(IChunkPoolInput::NullCookie)
+        { }
+
+        TChunkStripePtr Stripe;
+        IChunkPoolInput::TCookie Cookie;
+        TTaskPtr Task;
+
+        void Persist(TPersistenceContext& context);
+
+    };
+
+    struct TInputChunkDescriptor
+    {
+        TSmallVector<TStripeDescriptor, 1> InputStripes;
+        TSmallVector<NChunkClient::TRefCountedChunkSpecPtr, 1> ChunkSpecs;
+        EInputChunkState State;
+
+        TInputChunkDescriptor()
+            : State(EInputChunkState::Active)
+        { }
+
+        void Persist(TPersistenceContext& context);
+
+    };
+
     //! Called when a job is unable to read an input chunk or
-    //! chunk tester has encountered unavailable chunk.
+    //! chunk scratcher has encountered unavailable chunk.
     void OnInputChunkUnavailable(
         const NChunkClient::TChunkId& chunkId,
         TInputChunkDescriptor& descriptor);
 
+    //! Called when chunk scratcher has found out that some input chunk
+    //! became available.
     void OnInputChunkAvailable(
         const NChunkClient::TChunkId& chunkId,
         TInputChunkDescriptor& descriptor);
+
 
     virtual bool IsOutputLivePreviewSupported() const;
     virtual bool IsIntermediateLivePreviewSupported() const;
@@ -694,8 +774,12 @@ protected:
     void InitFinalOutputConfig(TJobIOConfigPtr config);
 
 private:
+    typedef TOperationControllerBase TThis;
 
     typedef yhash_map<NChunkClient::TChunkId, TInputChunkDescriptor> TInputChunkMap;
+
+    //! Keeps information needed to maintain the liveness state of input chunks.
+    TInputChunkMap InputChunkMap;
 
     class TInputChunkScratcher
         : public virtual TRefCounted
@@ -733,18 +817,16 @@ private:
     int CachedPendingJobCount;
     NNodeTrackerClient::NProto::TNodeResources CachedNeededResources;
 
-    //! All tasks declared by calling #RegisterTaskGroup, in the order of decreasing priority.
-    std::vector<TTaskGroup*> TaskGroups;
-
     //! Maps intermediate chunk id to its originating completed job.
     yhash_map<NChunkServer::TChunkId, TCompleteJobPtr> ChunkOriginMap;
 
-    //! Maps scheduler's jobs to controller's joblets.
-    yhash_map<TJobPtr, TJobletPtr> JobletMap;
+    //! Maps scheduler's job ids to controller's joblets.
+    //! NB: |TJobPtr -> TJobletPtr| mapping would be faster but
+    //! it cannot be serialized that easily.
+    yhash_map<TJobId, TJobletPtr> JobletMap;
 
-    TInputChunkMap InputChunks;
-
-    //! Used to distinguish already seen ChunkSpecs while building #InputChunks.
+    //! Used to distinguish already seen ChunkSpecs while building #InputChunkMap.
+    // TODO(babenko): serialize?
     yhash_set<NChunkClient::TRefCountedChunkSpecPtr> InputChunkSpecs;
 
     TInputChunkScratcherPtr InputChunkScratcher;

@@ -513,18 +513,18 @@ void TObjectManager::UnlockObject(TObjectBase* object)
     }
 }
 
-void TObjectManager::SaveKeys(const NCellMaster::TSaveContext& context) const
+void TObjectManager::SaveKeys(NCellMaster::TSaveContext& context) const
 {
     Attributes.SaveKeys(context);
 }
 
-void TObjectManager::SaveValues(const NCellMaster::TSaveContext& context) const
+void TObjectManager::SaveValues(NCellMaster::TSaveContext& context) const
 {
     Attributes.SaveValues(context);
     GarbageCollector->Save(context);
 }
 
-void TObjectManager::SaveSchemas(const NCellMaster::TSaveContext& context) const
+void TObjectManager::SaveSchemas(NCellMaster::TSaveContext& context) const
 {
     // Make sure the ordering of RegisteredTypes does not matter.
     auto types = RegisteredTypes;
@@ -549,14 +549,14 @@ void TObjectManager::OnBeforeLoaded()
     DoClear();
 }
 
-void TObjectManager::LoadKeys(const NCellMaster::TLoadContext& context)
+void TObjectManager::LoadKeys(NCellMaster::TLoadContext& context)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
     Attributes.LoadKeys(context);
 }
 
-void TObjectManager::LoadValues(const NCellMaster::TLoadContext& context)
+void TObjectManager::LoadValues(NCellMaster::TLoadContext& context)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -578,7 +578,7 @@ void TObjectManager::LoadValues(const NCellMaster::TLoadContext& context)
     }
 }
 
-void TObjectManager::LoadSchemas(const NCellMaster::TLoadContext& context)
+void TObjectManager::LoadSchemas(NCellMaster::TLoadContext& context)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 

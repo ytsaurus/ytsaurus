@@ -1,12 +1,12 @@
 package NYT.NChunkClient.NProto;
 
-// Basic ypath-rpc for all types of chunk list owners.
+// Basic ypath-rpc for all types of chunk list owners (tables and files).
 
-import "yt/ytlib/chunk_client/chunk_spec.proto";
 import "yt/ytlib/misc/guid.proto";
+import "yt/ytlib/ytree/attributes.proto";
 import "yt/ytlib/node_tracker_client/node.proto";
 import "yt/ytlib/chunk_client/chunk.proto";
-import "yt/ytlib/ytree/attributes.proto";
+import "yt/ytlib/chunk_client/chunk_spec.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 

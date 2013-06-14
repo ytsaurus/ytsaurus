@@ -23,38 +23,39 @@ TChunkOwnerBase::TChunkOwnerBase(const TVersionedNodeId& id)
     , Vital_(true)
 { }
 
-void TChunkOwnerBase::Save(const NCellMaster::TSaveContext& context) const
+void TChunkOwnerBase::Save(NCellMaster::TSaveContext& context) const
 {
     TCypressNodeBase::Save(context);
 
-    auto* output = context.GetOutput();
+    using NYT::Save;
     SaveObjectRef(context, ChunkList_);
-    ::Save(output, UpdateMode_);
-    ::Save(output, ReplicationFactor_);
-    ::Save(output, Vital_);
+    Save(context, UpdateMode_);
+    Save(context, ReplicationFactor_);
+    Save(context, Vital_);
 }
 
-void TChunkOwnerBase::Load(const NCellMaster::TLoadContext& context)
+void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
 {
     TCypressNodeBase::Load(context);
 
-    auto* input = context.GetInput();
+    using NYT::Load;
     LoadObjectRef(context, ChunkList_);
-    ::Load(input, UpdateMode_);
-    ::Load(input, ReplicationFactor_);
-
+    Load(context, UpdateMode_);
+    Load(context, ReplicationFactor_);
     // COMPAT(psushin)
     if (context.GetVersion() >= 20) {
-        ::Load(input, Vital_);
+        Load(context, Vital_);
     }
 }
 
 NSecurityServer::TClusterResources TChunkOwnerBase::GetResourceUsage() const
 {
     const auto* chunkList = GetUsageChunkList();
+
     i64 diskSpace = 0;
     if (chunkList) {
-        diskSpace = chunkList->Statistics().RegularDiskSpace * GetReplicationFactor() +
+        diskSpace =
+            chunkList->Statistics().RegularDiskSpace * GetReplicationFactor() +
             chunkList->Statistics().ErasureDiskSpace;
     }
 

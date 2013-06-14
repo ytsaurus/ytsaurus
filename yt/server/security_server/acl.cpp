@@ -14,7 +14,6 @@
 namespace NYT {
 namespace NSecurityServer {
 
-using namespace NCellMaster;
 using namespace NYTree;
 using namespace NYson;
 using namespace NSecurityClient;
@@ -36,20 +35,20 @@ TAccessControlEntry::TAccessControlEntry(
     Permissions = permissions;
 }
 
-void Load(const TLoadContext& context, TAccessControlEntry& entry)
+void TAccessControlEntry::Save(NCellMaster::TSaveContext& context) const
 {
-    auto* input = context.GetInput();
-    LoadObjectRefs(context, entry.Subjects);
-    Load(input, entry.Permissions);
-    Load(input, entry.Action);
+    using NYT::Save;
+    SaveObjectRefs(context, Subjects);
+    Save(context, Permissions);
+    Save(context, Action);
 }
 
-void Save(const TSaveContext& context, const TAccessControlEntry& entry)
+void TAccessControlEntry::Load(NCellMaster::TLoadContext& context)
 {
-    auto* output = context.GetOutput();
-    SaveObjectRefs(context, entry.Subjects);
-    Save(output, entry.Permissions);
-    Save(output, entry.Action);
+    using NYT::Load;
+    LoadObjectRefs(context, Subjects);
+    Load(context, Permissions);
+    Load(context, Action);
 }
 
 void Serialize(const TAccessControlEntry& ace, IYsonConsumer* consumer)
@@ -66,12 +65,12 @@ void Serialize(const TAccessControlEntry& ace, IYsonConsumer* consumer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void Load(const TLoadContext& context, TAccessControlList& acl)
+void Load(NCellMaster::TLoadContext& context, TAccessControlList& acl)
 {
     Load(context, acl.Entries);
 }
 
-void Save(const TSaveContext& context, const TAccessControlList& acl)
+void Save(NCellMaster::TSaveContext& context, const TAccessControlList& acl)
 {
     Save(context, acl.Entries);
 }
@@ -212,18 +211,20 @@ void TAccessControlDescriptor::OnSubjectDestroyed(TSubject* subject, TSubject* d
     }
 }
 
-void Load(const TLoadContext& context, TAccessControlDescriptor& acd)
+void TAccessControlDescriptor::Save(NCellMaster::TSaveContext& context) const
 {
-    Load(context, acd.Acl_);
-    Load(context, acd.Inherit_);
-    LoadObjectRef(context, acd.Owner_);
+    using NYT::Save;
+    Save(context, Acl_);
+    Save(context, Inherit_);
+    SaveObjectRef(context, Owner_);
 }
 
-void Save(const TSaveContext& context, const TAccessControlDescriptor& acd)
+void TAccessControlDescriptor::Load(NCellMaster::TLoadContext& context)
 {
-    Save(context, acd.Acl_);
-    Save(context, acd.Inherit_);
-    SaveObjectRef(context, acd.Owner_);
+    using NYT::Load;
+    Load(context, Acl_);
+    Load(context, Inherit_);
+    LoadObjectRef(context, Owner_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

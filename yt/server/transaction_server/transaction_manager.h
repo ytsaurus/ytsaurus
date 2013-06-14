@@ -82,12 +82,12 @@ private:
     virtual void OnActiveQuorumEstablished() override;
     virtual void OnStopLeading() override;
 
-    void SaveKeys(const NCellMaster::TSaveContext& context);
-    void SaveValues(const NCellMaster::TSaveContext& context);
+    void SaveKeys(NCellMaster::TSaveContext& context);
+    void SaveValues(NCellMaster::TSaveContext& context);
 
     virtual void OnBeforeLoaded() override;
-    void LoadKeys(const NCellMaster::TLoadContext& context);
-    void LoadValues(const NCellMaster::TLoadContext& context);
+    void LoadKeys(NCellMaster::TLoadContext& context);
+    void LoadValues(NCellMaster::TLoadContext& context);
     virtual void OnAfterLoaded() override;
 
     void DoClear();

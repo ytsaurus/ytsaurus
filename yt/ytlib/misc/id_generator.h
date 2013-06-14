@@ -1,19 +1,11 @@
 #pragma once
 
 #include "common.h"
-
-class TInputStream;
-class TOutputStream;
+#include "serialize.h"
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-// Forward declarations.
-class TIdGenerator;
-
-void Save(TOutputStream* output, const TIdGenerator& generator);
-void Load(TInputStream* input, TIdGenerator& generator);
 
 //! A thread-safe generator producing increasing sequence of numbers.
 class TIdGenerator
@@ -24,16 +16,13 @@ public:
     ui64 Next();
     void Reset();
 
+    void Save(TStreamSaveContext& context) const;
+    void Load(TStreamLoadContext& context);
+
 private:
     TAtomic Current;
 
-    friend void Save(TOutputStream* output, const TIdGenerator& generator);
-    friend void Load(TInputStream* input, TIdGenerator& generator);
-
 };
-
-void Save(TOutputStream* output, const TIdGenerator& generator);
-void Load(TInputStream* input, TIdGenerator& generator);
 
 ////////////////////////////////////////////////////////////////////////////////
 

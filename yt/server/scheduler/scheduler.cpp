@@ -1048,10 +1048,8 @@ private:
                 ->Add(BIND(&TThis::OnSchedulerTransactionStarted, this_, operation))
                 ->Add(BIND(&TThis::StartIOTransactions, this_, operation))
                 ->Add(BIND(&TThis::OnIOTransactionsStarted, this_, operation));
-        } else {
-            pipeline = pipeline
-                ->Add(BIND(&TThis::DownloadOperationSnapshot, this_, operation));
         }
+
         pipeline
             ->Add(BIND(&TMasterConnector::ResetRevivingOperationNode, ~MasterConnector, operation))
             ->Add(BIND(&TThis::DoReviveOperation, this_, operation))
@@ -1068,21 +1066,10 @@ private:
                     auto wrappedError = TError("Operation has failed to revive") << result;
                     this_->SetOperationFinalState(operation, EOperationState::Failed, wrappedError);
                     this_->MasterConnector->FinalizeOperationNode(operation);
+                    this_->AbortSchedulerTransactions(operation);
                     this_->FinishOperation(operation);
                 }
             }).Via(invoker));
-    }
-
-    TFuture<void> DownloadOperationSnapshot(TOperationPtr operation)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto downloader = New<TSnapshotDownloader>(
-            Config,
-            Bootstrap,
-            operation);
-
-        return downloader->Run();
     }
 
     TAsyncError DoReviveOperation(TOperationPtr operation)
@@ -1090,14 +1077,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto controller = operation->GetController();
-
-        std::unique_ptr<TMemoryInput> input;
-        if (operation->Snapshot()) {
-            auto& blob = *operation->Snapshot();
-            input.reset(new TMemoryInput(blob.Begin(), blob.Size()));
-        }
-
-        return controller->Revive(~input);
+        return controller->Revive();
     }
 
     void OnOperationRevived(TOperationPtr operation)
@@ -1345,12 +1325,12 @@ private:
         job->SetState(EJobState::Aborted);
         ToProto(job->Result().mutable_error(), error);
 
+        OnJobFinished(job);
+
         auto operation = job->GetOperation();
         if (operation->GetState() == EOperationState::Running) {
             operation->GetController()->OnJobAborted(job);
         }
-
-        OnJobFinished(job);
     }
 
     void PreemptJob(TJobPtr job)
@@ -1388,12 +1368,12 @@ private:
             job->SetState(EJobState::Completed);
             job->Result().Swap(result);
 
+            OnJobFinished(job);
+
             auto operation = job->GetOperation();
             if (operation->GetState() == EOperationState::Running) {
                 operation->GetController()->OnJobCompleted(job);
             }
-
-            OnJobFinished(job);
         }
 
         UnregisterJob(job);
@@ -1407,12 +1387,12 @@ private:
             job->SetState(EJobState::Failed);
             job->Result().Swap(result);
 
+            OnJobFinished(job);
+
             auto operation = job->GetOperation();
             if (operation->GetState() == EOperationState::Running) {
                 operation->GetController()->OnJobFailed(job);
             }
-
-            OnJobFinished(job);
         }
 
         UnregisterJob(job);
@@ -1430,12 +1410,12 @@ private:
             job->SetState(EJobState::Aborted);
             job->Result().Swap(result);
 
+            OnJobFinished(job);
+
             auto operation = job->GetOperation();
             if (operation->GetState() == EOperationState::Running) {
                 operation->GetController()->OnJobAborted(job);
             }
-
-            OnJobFinished(job);
         }
 
         UnregisterJob(job);
@@ -1444,22 +1424,17 @@ private:
 
     void OnJobFinished(TJobPtr job)
     {
-        auto now = TInstant::Now();
-        job->SetFinishTime(now);
-        auto operation = job->GetOperation();
-        auto duration = now - job->GetStartTime();
+        job->SetFinishTime(TInstant::Now());
+        auto duration = job->GetDuration();
         switch (job->GetState()) {
             case EJobState::Completed:
                 Profiler.Increment(TotalCompletedJobTimeCounter, duration.MicroSeconds());
-                operation->CompletedJobStatistics().Time += duration;
                 break;
             case EJobState::Failed:
                 Profiler.Increment(TotalFailedJobTimeCounter, duration.MicroSeconds());
-                operation->FailedJobStatistics().Time += duration;
                 break;
             case EJobState::Aborted:
                 Profiler.Increment(TotalAbortedJobTimeCounter, duration.MicroSeconds());
-                operation->AbortedJobStatistics().Time += duration;
                 break;
             default:
                 YUNREACHABLE();
@@ -1483,7 +1458,6 @@ private:
             } else {
                 ReleaseStdErrChunk(job, stderrChunkId);
             }
-
         } else if (jobFailed) {
             MasterConnector->CreateJobNode(job, NullChunkId);
         }

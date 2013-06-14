@@ -1,0 +1,23 @@
+#pragma once
+
+#include "private.h"
+
+#include <ytlib/misc/phoenix.h>
+
+namespace NYT {
+namespace NScheduler {
+
+////////////////////////////////////////////////////////////////////////////////
+
+typedef NPhoenix::TSaveContext TSaveContext;
+typedef NPhoenix::TLoadContext TLoadContext;
+typedef NPhoenix::TPersistenceContext TPersistenceContext;
+typedef NPhoenix::IPersistent IPersistent;
+
+const int CurrentSnapshotVersion = 2;
+bool ValidateSnapshotVersion(int version);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NScheduler
+} // namespace NYT

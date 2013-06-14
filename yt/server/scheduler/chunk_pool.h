@@ -2,6 +2,7 @@
 
 #include "private.h"
 #include "progress_counter.h"
+#include "serialization_context.h"
 
 #include <ytlib/misc/small_vector.h>
 
@@ -22,12 +23,10 @@ struct TChunkStripeStatistics
     i64 RowCount;
     i64 MaxBlockSize;
 
-    TChunkStripeStatistics()
-        : ChunkCount(0)
-        , DataSize(0)
-        , RowCount(0)
-        , MaxBlockSize(0)
-    { }
+    TChunkStripeStatistics();
+
+    void Persist(TPersistenceContext& context);
+
 };
 
 TChunkStripeStatistics operator + (
@@ -55,8 +54,11 @@ struct TChunkStripe
 
     TChunkStripeStatistics GetStatistics() const;
 
+    void Persist(TPersistenceContext& context);
+
     TSmallVector<NChunkClient::TChunkSlicePtr, 1> ChunkSlices;
     int WaitingChunkCount;
+    
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -68,6 +70,8 @@ struct TChunkStripeList
 
     TChunkStripeStatisticsVector GetStatistics() const;
     TChunkStripeStatistics GetAggregateStatistics() const;
+
+    void Persist(TPersistenceContext& context);
 
     std::vector<TChunkStripePtr> Stripes;
 
@@ -88,10 +92,8 @@ struct TChunkStripeList
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IChunkPoolInput
+    : public virtual IPersistent
 {
-    virtual ~IChunkPoolInput()
-    { }
-
     typedef int TCookie;
     static const TCookie NullCookie = -1;
 
@@ -106,10 +108,8 @@ struct IChunkPoolInput
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IChunkPoolOutput
+    : public virtual IPersistent
 {
-    virtual ~IChunkPoolOutput()
-    { }
-
     typedef int TCookie;
     static const TCookie NullCookie = -1;
 
@@ -125,7 +125,7 @@ struct IChunkPoolOutput
     virtual int GetTotalJobCount() const = 0;
     virtual int GetPendingJobCount() const = 0;
 
-    // Approximate average stripe list statistics to estimate memory usage.
+    //! Approximate average stripe list statistics to estimate memory usage.
     virtual TChunkStripeStatisticsVector GetApproximateStripeStatistics() const = 0;
 
     virtual i64 GetLocality(const Stroka& address) const = 0;
@@ -158,10 +158,8 @@ std::unique_ptr<IChunkPool> CreateUnorderedChunkPool(
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IShuffleChunkPool
+    : public virtual IPersistent
 {
-    virtual ~IShuffleChunkPool()
-    { }
-
     virtual IChunkPoolInput* GetInput() = 0;
     virtual IChunkPoolOutput* GetOutput(int partitionIndex) = 0;
 };

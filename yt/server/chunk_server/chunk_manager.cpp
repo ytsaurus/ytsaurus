@@ -929,13 +929,13 @@ private:
     }
 
 
-    void SaveKeys(const NCellMaster::TSaveContext& context) const
+    void SaveKeys(NCellMaster::TSaveContext& context) const
     {
         ChunkMap.SaveKeys(context);
         ChunkListMap.SaveKeys(context);
     }
 
-    void SaveValues(const NCellMaster::TSaveContext& context) const
+    void SaveValues(NCellMaster::TSaveContext& context) const
     {
         ChunkMap.SaveValues(context);
         ChunkListMap.SaveValues(context);
@@ -947,19 +947,19 @@ private:
         DoClear();
     }
 
-    void LoadKeys(const NCellMaster::TLoadContext& context)
+    void LoadKeys(NCellMaster::TLoadContext& context)
     {
         ChunkMap.LoadKeys(context);
         ChunkListMap.LoadKeys(context);
         // COMPAT(babenko)
         if (context.GetVersion() < 20) {
-            size_t nodeCount = ::LoadSize(context.GetInput());
+            size_t nodeCount = Load<size_t>(context);
             YCHECK(nodeCount == 0);
 
-            size_t jobCount = ::LoadSize(context.GetInput());
+            size_t jobCount = Load<size_t>(context);
             YCHECK(jobCount == 0);
 
-            size_t jobListCount = ::LoadSize(context.GetInput());
+            size_t jobListCount = Load<size_t>(context);
             YCHECK(jobListCount == 0);
 
             // COMPAT(psushin): required to properly initialize TChunkList::DataSizeSums.
@@ -967,7 +967,7 @@ private:
         }
     }
 
-    void LoadValues(const NCellMaster::TLoadContext& context)
+    void LoadValues(NCellMaster::TLoadContext& context)
     {
         // COMPAT(psushin)
         if (context.GetVersion() < 20) {

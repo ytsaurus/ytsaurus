@@ -34,8 +34,8 @@ struct TClusterResources
 void Serialize(const TClusterResources& resources, NYson::IYsonConsumer* consumer);
 void Deserialize(TClusterResources& value, NYTree::INodePtr node);
 
-void Save(const NCellMaster::TSaveContext& context, const TClusterResources& resources);
-void Load(const NCellMaster::TLoadContext& context, TClusterResources& resources);
+void Save(NCellMaster::TSaveContext& context, const TClusterResources& resources);
+void Load(NCellMaster::TLoadContext& context, TClusterResources& resources);
 
 const TClusterResources& ZeroClusterResources();
 

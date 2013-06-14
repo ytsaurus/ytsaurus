@@ -18,26 +18,28 @@ TAccount::TAccount(const TAccountId& id)
     , Acd_(this)
 { }
 
-void TAccount::Save(const NCellMaster::TSaveContext& context) const
+void TAccount::Save(NCellMaster::TSaveContext& context) const
 {
     TNonversionedObjectBase::Save(context);
 
-    NCellMaster::Save(context, Name_);
-    NSecurityServer::Save(context, ResourceUsage_);
-    NSecurityServer::Save(context, CommittedResourceUsage_);
-    NSecurityServer::Save(context, ResourceLimits_);
-    NSecurityServer::Save(context, Acd_);
+    using NYT::Save;
+    Save(context, Name_);
+    Save(context, ResourceUsage_);
+    Save(context, CommittedResourceUsage_);
+    Save(context, ResourceLimits_);
+    Save(context, Acd_);
 }
 
-void TAccount::Load(const NCellMaster::TLoadContext& context)
+void TAccount::Load(NCellMaster::TLoadContext& context)
 {
     TNonversionedObjectBase::Load(context);
 
-    NCellMaster::Load(context, Name_);
-    NSecurityServer::Load(context, ResourceUsage_);
-    NSecurityServer::Load(context, CommittedResourceUsage_);
-    NSecurityServer::Load(context, ResourceLimits_);
-    NSecurityServer::Load(context, Acd_);
+    using NYT::Load;
+    Load(context, Name_);
+    Load(context, ResourceUsage_);
+    Load(context, CommittedResourceUsage_);
+    Load(context, ResourceLimits_);
+    Load(context, Acd_);
 }
 
 bool TAccount::IsOverDiskSpaceLimit() const

@@ -1,5 +1,6 @@
 ﻿#include "stdafx.h"
 #include "id_generator.h"
+#include "serialize.h"
 
 namespace NYT {
 
@@ -19,17 +20,16 @@ void TIdGenerator::Reset()
     AtomicSet(Current, 0);
 }
 
-void Save(TOutputStream* output, const TIdGenerator& generator)
+void TIdGenerator::Save(TStreamSaveContext& context) const
 {
-    ui64 current = static_cast<i64>(generator.Current);
-    ::Save(output, current);
+    ui64 current = static_cast<ui64>(Current);
+    NYT::Save(context, current);
 }
 
-void Load(TInputStream* input, TIdGenerator& generator)
+void TIdGenerator::Load(TStreamLoadContext& context)
 {
-    ui64 current;
-    ::Load(input, current);
-    generator.Current = static_cast<intptr_t>(current);
+    ui64 current = NYT::Load<ui64>(context);
+    Current = static_cast<intptr_t>(current);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

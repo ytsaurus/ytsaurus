@@ -56,8 +56,8 @@ class TTransaction
 public:
     explicit TTransaction(const TTransactionId& id);
 
-    void Save(const NCellMaster::TSaveContext& context) const;
-    void Load(const NCellMaster::TLoadContext& context);
+    void Save(NCellMaster::TSaveContext& context) const;
+    void Load(NCellMaster::TLoadContext& context);
 
     bool IsActive() const;
 };
