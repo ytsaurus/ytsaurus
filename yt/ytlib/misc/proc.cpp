@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "proc.h"
+#include "string.h"
 
 #include <ytlib/logging/log.h>
 
