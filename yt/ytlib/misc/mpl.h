@@ -51,6 +51,9 @@ template <class A, class B> struct TAnd : TAndC<A::Value, B::Value> {};
 template <bool A, bool B> struct TOrC : TIntegralConstant<bool, A || B> {};
 template <class A, class B> struct TOr : TOrC<A::Value, B::Value> {};
 
+template <bool A> struct TNotC : TIntegralConstant<bool, !A> {};
+template <class A> struct TNot : TNotC<A::Value> {};
+
 //! Base metaprogramming class which represents conditionals.
 template <bool B, class TIfTrue, class TIfFalse>
 struct TConditional
@@ -285,6 +288,35 @@ template <class T>
 struct TCallTraits
     : public NDetail::TCallTraitsHelper<T, TTypeTraits<T>::IsPrimitive>
 { };
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Generates a type trait that checks existence of a member called |X|.
+/*!
+ * See http://en.wikibooks.org/wiki/More_C%2B%2B_Idioms/Member_Detector
+ */
+#define DEFINE_MPL_MEMBER_DETECTOR(X)                                                    \
+    template <class T>                                                                   \
+    class THas##X##Member                                                                \
+    {                                                                                    \
+    private:                                                                             \
+        struct Fallback { int X; };                                                      \
+        struct Derived : T, Fallback { };                                                \
+                                                                                         \
+        template <typename U, U> struct Check;                                           \
+                                                                                         \
+        typedef char ArrayOfOne[1];                                                      \
+        typedef char ArrayOfTwo[2];                                                      \
+                                                                                         \
+        template<typename U> static ArrayOfOne & func(Check<int Fallback::*, &U::X> *);  \
+        template<typename U> static ArrayOfTwo & func(...);                              \
+                                                                                         \
+    public:                                                                              \
+        enum                                                                             \
+        {                                                                                \
+            Value = sizeof(func<Derived>(0)) == 2                                        \
+        };                                                                               \
+    }
 
 ////////////////////////////////////////////////////////////////////////////////
 
