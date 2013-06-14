@@ -54,7 +54,8 @@ std::vector<int> GetUserPids(int uid)
         } else {
             // Assume that the process has already completed.
             auto errno_ = errno;
-            LOG_DEBUG(TError::FromSystem(), "Failed to get UID for pid %d", pid);
+            LOG_DEBUG(TError::FromSystem(), "Failed to get UID for PID %d: stat failed",
+                pid);
             YCHECK(errno_ == ENOENT || errno_ == ENOTDIR);
         }
     }
@@ -89,16 +90,26 @@ i64 GetUserRss(int uid)
 {
     YCHECK(uid > 0);
 
+    LOG_DEBUG("Started computing RSS (UID: %d)", uid);
+
     auto pids = GetUserPids(uid);
     i64 result = 0;
-
-    FOREACH(const auto& pid, pids) {
+    FOREACH(int pid, pids) {
         try {
-            result += GetProcessRss(pid);
+            i64 rss = GetProcessRss(pid);
+            LOG_DEBUG("PID: %d, RSS: %" PRId64,
+                pid,
+                rss);
+            result += rss;
         } catch (const std::exception& ex) {
-            LOG_DEBUG(TError(ex), "Failed to get RSS for pid %d (uid: %d)", pid, uid);
+            LOG_DEBUG(ex, "Failed to get RSS for PID %d",
+                pid);
         }
     }
+
+    LOG_DEBUG("Finished computing RSS (UID: %d, RSS: %" PRId64 ")",
+        uid,
+        result);
 
     return result;
 }
@@ -108,63 +119,62 @@ void KillallByUser(int uid)
 {
     YCHECK(uid > 0);
 
-    auto pids = GetUserPids(uid);
-    if (pids.empty()) {
+    auto pidsToKill = GetUserPids(uid);
+    if (pidsToKill.empty()) {
         return;
     }
 
     while (true) {
-        auto pid = fork();
+        auto pids = GetUserPids(uid);
+        if (pids.empty())
+            break;
 
-        // We are forking here in order not to give the root priviledges to the parent process ever,
+        LOG_DEBUG("Killing processes (UID: %d, PIDs: [%s])",
+            uid,
+            ~JoinToString(pids));
+
+        // We are forking here in order not to give the root privileges to the parent process ever,
         // because we cannot know what other threads are doing.
-        if (pid == 0) {
-            // Child process
-            YCHECK(setuid(0) == 0);
-            YCHECK(setuid(uid) == 0);
+        int forkedPid = fork();
+        if (forkedPid < 0) {
+            THROW_ERROR_EXCEPTION("Failed to kill processes: fork failed")
+                << TError::FromSystem();
+        }
 
-            // Send sigkill to all available processes.
-            auto res = kill(-1, 9);
-            if (res == -1) {
-                YCHECK(errno == ESRCH);
+        if (forkedPid == 0) {
+            // In child process.
+            YCHECK(setuid(0) == 0);
+
+            FOREACH (int pid, pids) {
+                auto result = kill(pid, 9);
+                if (result == -1) {
+                    YCHECK(errno == ESRCH);
+                }
             }
+
             _exit(0);
         }
 
-        // Parent process
-        if (pid < 0) {
-            THROW_ERROR_EXCEPTION(
-                "Failed to kill processes for uid %d: fork failed",
-                uid) << TError::FromSystem();
-        }
+        // In parent process.
 
         int status = 0;
         {
-            int result = waitpid(pid, &status, WUNTRACED);
+            int result = waitpid(forkedPid, &status, WUNTRACED);
             if (result < 0) {
-                THROW_ERROR_EXCEPTION(
-                    "Failed to kill processes for uid %d: waitpid failed",
-                    uid) << TError::FromSystem();
+                THROW_ERROR_EXCEPTION("Failed to kill processes: waitpid failed")
+                    << TError::FromSystem();
             }
-            YCHECK(result == pid);
+            YCHECK(result == forkedPid);
         }
 
         auto statusError = StatusToError(status);
         if (!statusError.IsOK()) {
-            THROW_ERROR_EXCEPTION(
-                "Failed to kill processes for uid %d: killer failed",
-                uid) << statusError;
+            THROW_ERROR_EXCEPTION("Failed to kill processes: killer failed")
+                << statusError;
         }
 
         // I wish I could call waitpid on all these pids, but they are not my children.
         // So I fallback to polling.
-        auto pids = GetUserPids(uid);
-        if (pids.empty()) {
-            return;
-        }
-
-        LOG_DEBUG("Retry killing processes for uid %d", uid);
-
         ThreadYield();
     }
 }
