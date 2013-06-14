@@ -1981,7 +1981,6 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
         for (int index = 0; index < static_cast<int>(RegularFiles.size()); ++index) {
             auto& file = RegularFiles[index];
             auto path = file.Path.GetPath();
-            Stroka fileName;
             {
                 auto rsp = lockRegularFileRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error locking regular file %s",
@@ -1997,7 +1996,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                     "Error getting file name for regular file %s",
                     ~path);
 
-                fileName = rsp->value();
+                file.FileName = rsp->value();
             }
             {
                 auto rsp = getRegularFileAttributesRsps[index];
@@ -2007,7 +2006,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 auto node = ConvertToNode(TYsonString(rsp->value()));
                 const auto& attributes = node->Attributes();
 
-                fileName = attributes.Get<Stroka>("file_name", fileName);
+                file.FileName = attributes.Get<Stroka>("file_name", file.FileName);
                 file.Executable = attributes.Get<bool>("executable", false);
             }
             {
@@ -2022,7 +2021,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
             }
 
             LOG_INFO("File %s attributes received", ~path);
-            file.FileName = file.Path.Attributes().Get<Stroka>("file_name", fileName);
+            file.FileName = file.Path.Attributes().Get<Stroka>("file_name", file.FileName);
             file.Executable = file.Path.Attributes().Get<bool>("executable", file.Executable);
         }
     }
