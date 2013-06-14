@@ -114,10 +114,13 @@ protected:
     bool Running;
 
     // Totals.
+
     int TotalInputChunkCount;
     i64 TotalInputDataSize;
     i64 TotalInputRowCount;
     i64 TotalInputValueCount;
+
+    int UnavailableInputChunkCount;
 
     // Job counters.
     TProgressCounter JobCounter;

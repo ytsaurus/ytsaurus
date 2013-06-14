@@ -330,6 +330,7 @@ public:
         auto& suspendableStripe = Stripes[cookie];
         suspendableStripe.Resume(stripe);
         --SuspendedStripeCount;
+        YCHECK(SuspendedStripeCount >= 0);
         UpdateLocality(suspendableStripe.GetStripe(), +1);
     }
 
@@ -497,7 +498,8 @@ public:
         TNodeDirectoryPtr nodeDirectory,
         int jobCount)
         : TChunkPoolInputBase(nodeDirectory)
-        , SuspendedStripeCount(0)
+        , FreePendingDataSize(0)
+        , SuspendedDataSize(0)
         , UnavailableLostCookieCount(0)
     {
         JobCounter.Set(jobCount);
@@ -530,7 +532,7 @@ public:
         auto outputCookie = suspendableStripe.GetExtractedCookie();
         if (outputCookie == IChunkPoolOutput::NullCookie) {
             Unregister(cookie);
-            ++SuspendedStripeCount;
+            SuspendedDataSize += suspendableStripe.GetStatistics().DataSize;
         } else {
             auto it = ExtractedLists.find(outputCookie);
             YCHECK(it != ExtractedLists.end());
@@ -553,7 +555,8 @@ public:
         auto outputCookie = suspendableStripe.GetExtractedCookie();
         if (outputCookie == IChunkPoolOutput::NullCookie) {
             Register(cookie);
-            --SuspendedStripeCount;
+            SuspendedDataSize -= suspendableStripe.GetStatistics().DataSize;
+            YCHECK(SuspendedDataSize >= 0);
         } else {
             auto it = ExtractedLists.find(outputCookie);
             YCHECK(it != ExtractedLists.end());
@@ -574,7 +577,7 @@ public:
     {
         return Finished &&
                LostCookies.empty() &&
-               SuspendedStripeCount == 0 &&
+               SuspendedDataSize == 0 &&
                PendingGlobalStripes.empty() &&
                JobCounter.GetRunning() == 0;
     }
@@ -586,14 +589,30 @@ public:
 
     virtual int GetPendingJobCount() const override
     {
-        // NB: Pending data size can be zero while JobCounter indicates
-        // that some jobs are pending. This may happen due to unevenness
-        // of workload partitioning and cause the task to start less jobs than
-        // suggested.
+        bool hasAvailableLostJobs = LostCookies.size() > UnavailableLostCookieCount;
+        if (hasAvailableLostJobs) {
+            return JobCounter.GetPending();
+        }
 
-        return (PendingGlobalStripes.empty() && UnavailableLostCookieCount == LostCookies.size())
-            ? 0
-            : JobCounter.GetPending();
+        int freePendingJobCount = JobCounter.GetPending() - LostCookies.size();
+        YCHECK(freePendingJobCount >= 0);
+        YCHECK(!(FreePendingDataSize > 0 && freePendingJobCount == 0));
+
+        if (freePendingJobCount == 0) {
+            return 0;
+        }
+
+        if (SuspendedDataSize > 0) {
+            if (freePendingJobCount == 1) {
+                return 0;
+            }
+
+            if (FreePendingDataSize < GetIdealDataSizePerJob()) {
+                return 0;
+            }
+        }
+
+        return JobCounter.GetPending();
     }
 
     virtual TChunkStripeStatisticsVector GetApproximateStripeStatistics() const override
@@ -650,6 +669,8 @@ public:
             list = New<TChunkStripeList>();
             extractedStripeList.StripeList = list;
 
+            i64 idealDataSizePerJob = GetIdealDataSizePerJob();
+
             // Take local chunks first.
             auto it = PendingLocalChunks.find(address);
             if (it != PendingLocalChunks.end()) {
@@ -659,7 +680,8 @@ public:
                     cookie,
                     entry.StripeIndexes.begin(),
                     entry.StripeIndexes.end(),
-                    address);
+                    address,
+                    idealDataSizePerJob);
             }
 
             // Take non-local chunks.
@@ -668,7 +690,8 @@ public:
                 cookie,
                 PendingGlobalStripes.begin(),
                 PendingGlobalStripes.end(),
-                address);
+                address,
+                idealDataSizePerJob);
         } else {
             auto lostIt = LostCookies.begin();
             while (true) {
@@ -766,7 +789,9 @@ private:
     //! Indexes in #Stripes.
     yhash_set<int> PendingGlobalStripes;
 
-    i64 SuspendedStripeCount;
+    i64 FreePendingDataSize;
+
+    i64 SuspendedDataSize;
     int UnavailableLostCookieCount;
 
     struct TLocalityEntry
@@ -803,6 +828,15 @@ private:
     yhash_set<IChunkPoolOutput::TCookie> ReplayCookies;
 
 
+    i64 GetIdealDataSizePerJob() const
+    {
+        int freePendingJobCount = JobCounter.GetPending() - LostCookies.size();
+        YCHECK(freePendingJobCount > 0);
+        return std::max(
+            static_cast<i64>(1),
+            (FreePendingDataSize + SuspendedDataSize + freePendingJobCount - 1) / freePendingJobCount);
+    }
+
     void Register(int stripeIndex)
     {
         auto& suspendableStripe = Stripes[stripeIndex];
@@ -825,6 +859,7 @@ private:
             }
         }
 
+        FreePendingDataSize += suspendableStripe.GetStatistics().DataSize;
         YCHECK(PendingGlobalStripes.insert(stripeIndex).second);
     }
 
@@ -849,6 +884,7 @@ private:
             }
         }
 
+        FreePendingDataSize -= suspendableStripe.GetStatistics().DataSize;
         YCHECK(PendingGlobalStripes.erase(stripeIndex) == 1);
     }
 
@@ -858,10 +894,9 @@ private:
         IChunkPoolOutput::TCookie cookie,
         const TIterator& begin,
         const TIterator& end,
-        const Stroka& address)
+        const Stroka& address,
+        i64 idealDataSizePerJob)
     {
-        i64 idealDataSizePerJob = std::max(static_cast<i64>(1), DataSizeCounter.GetPending() / JobCounter.GetPending());
-
         auto& list = extractedStripeList.StripeList;
         size_t oldSize = list->Stripes.size();
         for (auto it = begin; it != end && list->TotalDataSize < idealDataSizePerJob; ++it) {
@@ -893,7 +928,9 @@ private:
             FOREACH (const auto& stripeIndex, extractedStripeList.StripeIndexes) {
                 auto& suspendableStripe = Stripes[stripeIndex];
                 suspendableStripe.SetExtractedCookie(IChunkPoolOutput::NullCookie);
-                if (!suspendableStripe.IsSuspended()) {
+                if (suspendableStripe.IsSuspended()) {
+                    SuspendedDataSize += suspendableStripe.GetStatistics().DataSize;
+                } else {
                     Register(stripeIndex);
                 }
             }

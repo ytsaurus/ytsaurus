@@ -1813,7 +1813,8 @@ private:
             "IntermediateSortJobs = {%s}, "
             "FinalSortJobs = {%s}, "
             "SortedMergeJobs = {%s}, "
-            "UnorderedMergeJobs = {%s}",
+            "UnorderedMergeJobs = {%s}, "
+            "UnavailableInputChunks: %d",
             // Jobs
             JobCounter.GetRunning(),
             JobCounter.GetCompleted(),
@@ -1833,7 +1834,8 @@ private:
             // SortedMergeJobs
             ~ToString(SortedMergeJobCounter),
             // UnorderedMergeJobs
-            ~ToString(UnorderedMergeJobCounter));
+            ~ToString(UnorderedMergeJobCounter),
+            UnavailableInputChunkCount);
     }
 
     virtual void BuildProgressYson(IYsonConsumer* consumer) override
@@ -2279,7 +2281,8 @@ private:
             "MapJobs = {%s}, "
             "SortJobs = {%s}, "
             "PartitionReduceJobs = {%s}, "
-            "SortedReduceJobs = {%s}",
+            "SortedReduceJobs = {%s}, "
+            "UnavailableInputChunks: %d",
             // Jobs
             JobCounter.GetRunning(),
             JobCounter.GetCompleted(),
@@ -2297,7 +2300,8 @@ private:
             // PartitionReduceJobs
             ~ToString(FinalSortJobCounter),
             // SortedReduceJobs
-            ~ToString(SortedMergeJobCounter));
+            ~ToString(SortedMergeJobCounter),
+            UnavailableInputChunkCount);
     }
 
     virtual void BuildProgressYson(IYsonConsumer* consumer) override
