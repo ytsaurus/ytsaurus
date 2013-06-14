@@ -12,6 +12,7 @@ import requests
 
 import sys
 import uuid
+import socket
 import simplejson as json
 
 def iter_lines(response):
@@ -72,6 +73,10 @@ def make_request(command_name, params,
 
     # Trying to set http retries in requests
     requests.adapters.DEFAULT_RETRIES = config.http.REQUESTS_RETRIES
+    
+    # Set timeout for requests. Unfortunately, requests param timeout works incorrectly
+    # when data is a generator.
+    socket.setdefaulttimeout(config.http.CONNECTION_TIMEOUT)
 
     # Prepare request url.
     if proxy is None:
@@ -147,7 +152,6 @@ def make_request(command_name, params,
                 method=command.http_method(),
                 headers=headers,
                 data=data,
-                timeout=config.http.CONNECTION_TIMEOUT,
                 stream=stream)),
         allow_retries,
         url,
