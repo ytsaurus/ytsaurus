@@ -3,6 +3,7 @@
 #include "string.h"
 
 #include <ytlib/logging/log.h>
+#include <ytlib/misc/string.h>
 
 #include <util/stream/file.h>
 
@@ -174,8 +175,6 @@ void KilallByUid(int uid)
                 << statusError;
         }
 
-        // I wish I could call waitpid on all these pids, but they are not my children.
-        // So I fallback to polling.
         ThreadYield();
     }
 }
