@@ -47,23 +47,24 @@ void TChunkStore::Initialize()
             locationConfig,
             Bootstrap);
 
-        location->SubscribeDisabled(BIND(&TChunkStore::OnLocationDisabled, Unretained(this), location));
-
-        Locations_.push_back(location);
-
+        std::vector<TChunkDescriptor> descriptors;
         try {
-            auto descriptors = location->Initialize();
-            FOREACH (const auto& descriptor, descriptors) {
-                auto chunk = New<TStoredChunk>(
-                    location,
-                    descriptor,
-                    Bootstrap->GetMemoryUsageTracker());
-                RegisterExistingChunk(chunk);
-            }
+            descriptors = location->Initialize();
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Failed to initialize location %s", ~location->GetPath().Quote());
-            location->Disable();
+            continue;
         }
+
+        FOREACH (const auto& descriptor, descriptors) {
+            auto chunk = New<TStoredChunk>(
+                location,
+                descriptor,
+                Bootstrap->GetMemoryUsageTracker());
+            RegisterExistingChunk(chunk);
+        }
+
+        location->SubscribeDisabled(BIND(&TChunkStore::OnLocationDisabled, Unretained(this), location));
+        Locations_.push_back(location);
     }
 
     FOREACH (const auto& location, Locations_) {
