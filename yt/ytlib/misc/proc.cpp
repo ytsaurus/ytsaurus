@@ -26,7 +26,7 @@ static NLog::TLogger SILENT_UNUSED Logger("Proc");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<int> GetUserPids(int uid)
+std::vector<int> GetPidsByUid(int uid)
 {
 #ifdef _linux_
     std::vector<int> result;
@@ -93,7 +93,7 @@ i64 GetUserRss(int uid)
 
     LOG_DEBUG("Started computing RSS (UID: %d)", uid);
 
-    auto pids = GetUserPids(uid);
+    auto pids = GetPidsByUid(uid);
     i64 result = 0;
     FOREACH(int pid, pids) {
         try {
@@ -116,17 +116,17 @@ i64 GetUserRss(int uid)
 }
 
 // The caller must be sure that it has root privileges.
-void KillallByUser(int uid)
+void KilallByUid(int uid)
 {
     YCHECK(uid > 0);
 
-    auto pidsToKill = GetUserPids(uid);
+    auto pidsToKill = GetPidsByUid(uid);
     if (pidsToKill.empty()) {
         return;
     }
 
     while (true) {
-        auto pids = GetUserPids(uid);
+        auto pids = GetPidsByUid(uid);
         if (pids.empty())
             break;
 
@@ -293,7 +293,7 @@ void SafeClose(int fd, bool ignoreInvalidFd)
 
 #else
 
-void KillallByUser(int uid)
+void KilallByUid(int uid)
 {
     UNUSED(uid);
     YUNIMPLEMENTED();

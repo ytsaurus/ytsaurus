@@ -157,7 +157,7 @@ public:
 
         if (uid > 0) {
             try {
-                KillallByUser(uid);
+                KilallByUid(uid);
             } catch (const std::exception& ex) {
                 LOG_FATAL(TError(ex));
             }

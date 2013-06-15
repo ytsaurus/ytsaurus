@@ -495,7 +495,7 @@ private:
     void Kill()
     {
         auto uid = Host->GetConfig()->UserId;
-        KillallByUser(uid);
+        KilallByUid(uid);
     }
 
     void CheckMemoryUsage()
@@ -508,7 +508,7 @@ private:
         try {
             LOG_DEBUG("Started checking memory usage (UID: %d)", uid);
 
-            auto pids = GetUserPids(uid);
+            auto pids = GetPidsByUid(uid);
 
             i64 memoryLimit = UserJobSpec.memory_limit();
             i64 rss = 0;

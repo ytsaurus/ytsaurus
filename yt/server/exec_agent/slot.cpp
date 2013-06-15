@@ -40,7 +40,7 @@ void TSlot::Initialize()
     try {
         if (UserId > 0) {
             // Kill all processes of this pseudo-user for sanity reasons.
-            KillallByUser(UserId);
+            KilallByUid(UserId);
         }
     } catch (const std::exception& ex) {
         // ToDo(psushin): think about more complex logic of handling fs errors.
