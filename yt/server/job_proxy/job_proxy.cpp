@@ -124,9 +124,15 @@ void TJobProxy::Run()
 {
     auto result = DoRun();
 
-    if (Job) {
+    if (HeartbeatInvoker) {
         HeartbeatInvoker->Stop();
+    }
 
+    if (MemoryWatchdogInvoker) {
+        MemoryWatchdogInvoker->Stop();
+    }
+
+    if (Job) {
         std::vector<NChunkClient::TChunkId> failedChunkIds;
         GetFailedChunks(&failedChunkIds).Get();
         LOG_INFO("Found %d failed chunks", static_cast<int>(failedChunkIds.size()));
@@ -142,8 +148,6 @@ void TJobProxy::Run()
     }
 
     ReportResult(result);
-
-    MemoryWatchdogInvoker->Stop();
 }
 
 TJobResult TJobProxy::DoRun()
@@ -177,8 +181,6 @@ TJobResult TJobProxy::DoRun()
         GetSyncInvoker(),
         BIND(&TJobProxy::CheckMemoryUsage, MakeWeak(this)),
         Config->MemoryWatchdogPeriod);
-
-    MemoryWatchdogInvoker->Start();
 
     try {
         switch (jobType) {
@@ -243,9 +245,17 @@ TJobResult TJobProxy::DoRun()
                 YUNREACHABLE();
         }
 
-        HeartbeatInvoker->Start();
-        return Job->Run();
+        // Skip one period to ensure that the child process has already started;
+        // in particular, we'll be measuring its memory usage rather than the usage
+        // of our forked (but not yet replaced with sh by exec!) copy.
+        // There's no guarantee here, we just do our best.
+        TDelayedInvoker::Submit(
+            BIND(&TPeriodicInvoker::Start, MemoryWatchdogInvoker),
+            Config->MemoryWatchdogPeriod);
 
+        HeartbeatInvoker->Start();
+
+        return Job->Run();
     } catch (const std::exception& ex) {
         LOG_ERROR(ex, "Job failed");
 
