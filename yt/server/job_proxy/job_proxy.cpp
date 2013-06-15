@@ -245,14 +245,7 @@ TJobResult TJobProxy::DoRun()
                 YUNREACHABLE();
         }
 
-        // Skip one period to ensure that the child process has already started;
-        // in particular, we'll be measuring its memory usage rather than the usage
-        // of our forked (but not yet replaced with sh by exec!) copy.
-        // There's no guarantee here, we just do our best.
-        TDelayedInvoker::Submit(
-            BIND(&TPeriodicInvoker::Start, MemoryWatchdogInvoker),
-            Config->MemoryWatchdogPeriod);
-
+        MemoryWatchdogInvoker->Start();
         HeartbeatInvoker->Start();
 
         return Job->Run();

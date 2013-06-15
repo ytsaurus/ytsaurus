@@ -305,12 +305,6 @@ TError StatusToError(int status)
     YUNIMPLEMENTED();
 }
 
-i64 GetUserRss(int uid)
-{
-    UNUSED(uid);
-    YUNIMPLEMENTED();
-}
-
 void RemoveDirAsRoot(const Stroka& path)
 {
     UNUSED(path);
@@ -328,7 +322,6 @@ void SafeClose(int fd, bool ignoreInvalidFd)
 }
 
 #endif
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
