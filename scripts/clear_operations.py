@@ -54,9 +54,9 @@ def clean_operations(count, failed_timeout):
         if not yt.exists("//sys/operations/%s" % op):
             continue
         if not is_final(yt.get("//sys/operations/%s/@state" % op)):
-            logger.error("Trying to remove operation (%s) that is not in final state", op)
+            logger.error("Trying to remove operation (%s in %s) that is not in final state", op, yt.config.http.PROXY)
             sys.exit(1)
-        logger.info("Removing operation %s" % op)
+        logger.info("Removing operation %s in %s", op, yt.config.http.PROXY)
         yt.remove("//sys/operations/%s" % op, recursive=True)
     
 
