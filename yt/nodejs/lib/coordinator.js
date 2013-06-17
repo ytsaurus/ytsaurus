@@ -310,7 +310,7 @@ YtCoordinator.prototype.getProxies = function(role, dead, banned)
             if (typeof(dead) !== "undefined" && dead !== ref.dead) {
                 continue;
             }
-            if (typeof(dead) !== "undefined" && banned !== ref.banned) {
+            if (typeof(banned) !== "undefined" && banned !== ref.banned) {
                 continue;
             }
             result.push(this.hosts[p]);
@@ -322,6 +322,16 @@ YtCoordinator.prototype.getProxies = function(role, dead, banned)
 YtCoordinator.prototype.getSelf = function()
 {
     return this.host;
+};
+
+YtCoordinator.prototype.dampen = function()
+{
+    "use strict";
+    this
+    .getProxies("data", false, false)
+    .sort(function(lhs, rhs) { return lhs.fitness - rhs.fitness; })
+    [0]
+    .dampen();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
