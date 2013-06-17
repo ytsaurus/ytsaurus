@@ -217,6 +217,9 @@ dynamic_application = connect()
     .use("/ui", function(req, rsp, next) {
         "use strict";
         if (req.url === "/") {
+            if (req.originalUrl == "/ui") {
+                return void yt.utils.redirectTo(rsp, "/ui/");
+            }
             req.url = "index.html";
         }
         req.on("end", function() {
@@ -226,6 +229,9 @@ dynamic_application = connect()
     .use("/ui-new", function(req, rsp, next) {
         "use strict";
         if (req.url === "/") {
+            if (req.originalUrl == "/ui-new") {
+                return void yt.utils.redirectTo(rsp, "/ui-new/");
+            }
             req.url = "index.html";
         }
         req.on("end", function() {
