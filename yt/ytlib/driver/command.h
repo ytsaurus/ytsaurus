@@ -237,8 +237,16 @@ class TMutatingCommandBase <
 protected:
     void GenerateMutationId(NRpc::IClientRequestPtr request)
     {
-        NMetaState::SetMutationId(request, this->CurrentMutationId);
-        IncrementMutationId();
+        NMetaState::SetMutationId(request, this->GenerateMutationId());
+    }
+
+    NMetaState::TMutationId GenerateMutationId()
+    {
+        auto result = this->CurrentMutationId;
+        if (this->CurrentMutationId != NMetaState::NullMutationId) {
+            ++(this->CurrentMutationId).Parts[0];
+        }
+        return result;
     }
 
 private:
@@ -253,14 +261,6 @@ private:
             ? NMetaState::GenerateMutationId()
             : this->Request->MutationId;
     }
-
-    void IncrementMutationId()
-    {
-        if (this->CurrentMutationId != NMetaState::NullMutationId) {
-            ++(this->CurrentMutationId).Parts[0];
-        }
-    }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
