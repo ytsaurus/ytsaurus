@@ -6,9 +6,8 @@
 #      where names of .pb.h and .pb.cc will be appended
 
 function( PROTOC proto output )
-  get_filename_component( _proto_realpath ${proto} REALPATH )
-  get_filename_component( _proto_dirname  ${_proto_realpath} PATH )
-  get_filename_component( _proto_basename ${_proto_realpath} NAME_WE )
+  get_filename_component( _proto_dirname  ${proto} PATH )
+  get_filename_component( _proto_basename ${proto} NAME_WE )
   string(REPLACE "${CMAKE_SOURCE_DIR}" "" _relative_path "${_proto_dirname}")
 
   # Append generated .pb.h and .pb.cc to the output variable.
@@ -29,9 +28,9 @@ function( PROTOC proto output )
       ${EXECUTABLE_OUTPUT_PATH}/${CMAKE_CFG_INTDIR}/protoc
         -I${CMAKE_SOURCE_DIR}
         --cpp_out=${CMAKE_BINARY_DIR}
-        ${_proto_realpath}
+        ${proto}
     MAIN_DEPENDENCY
-      ${_proto_realpath}
+      ${proto}
     DEPENDS
       protoc
     WORKING_DIRECTORY
