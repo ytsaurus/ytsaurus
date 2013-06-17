@@ -133,7 +133,7 @@ TTo ConvertTo(const TFrom& value)
 }
 
 // Cannot inline this into CHECK_TYPE because
-// C++ has some issues while expanding type argument
+// C++ has some issues expanding type argument.
 #define GET_VALUE(x) token.Get ## x ## Value()
 
 #define CHECK_TYPE(type) \
@@ -142,7 +142,7 @@ TTo ConvertTo(const TFrom& value)
     } \
     consideredTokens.push_back(ETokenType::type);
 
-#define CONVERT_TO_PLAIN_TYPE(type, token_types) \
+#define CONVERT_TO_PLAIN_TYPE(type, tokenTypes) \
     template <> \
     inline type ConvertTo(const TYsonString& str) \
     { \
@@ -151,13 +151,14 @@ TTo ConvertTo(const TFrom& value)
         if (tokenizer.ParseNext()) { \
             auto token = tokenizer.CurrentToken(); \
             TSmallVector<ETokenType, 2> consideredTokens; \
-            PP_FOR_EACH(CHECK_TYPE, token_types); \
+            PP_FOR_EACH(CHECK_TYPE, tokenTypes); \
             token.CheckType( \
                 std::vector<ETokenType>( \
                     consideredTokens.begin(), \
                     consideredTokens.end())); \
         } \
-        THROW_ERROR_EXCEPTION("Cannot parse " PP_STRINGIZE(token_type) " from string %s", ~str.Data().Quote()); \
+        THROW_ERROR_EXCEPTION("Cannot parse " PP_STRINGIZE(tokenType) " from string %s", \
+            ~str.Data().Quote()); \
     }
 
 CONVERT_TO_PLAIN_TYPE(i64, (Integer))
