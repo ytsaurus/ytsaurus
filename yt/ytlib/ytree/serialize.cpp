@@ -165,7 +165,12 @@ void Deserialize(ui16& value, INodePtr node)
 // double
 void Deserialize(double& value, INodePtr node)
 {
-    value = node->AsDouble()->GetValue();
+    // Allow integer nodes to be serialized into doubles.
+    if (node->GetType() == ENodeType::Integer) {
+        value = node->AsInteger()->GetValue();
+    } else {
+        value = node->AsDouble()->GetValue();
+    }
 }
 
 // Stroka
