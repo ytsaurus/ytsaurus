@@ -1,6 +1,6 @@
 #!/bin/bash -eux
 
-QUEUE="//sys/cron/tables_to_merge"
+QUEUE="//sys/cron/tables_to_merge_$YT_PROXY"
 
 /opt/cron/tools/chunk_size_distribution.py --create-merge-queue --queue-path $QUEUE --filter-out tmp
 
