@@ -10,6 +10,11 @@ def merge(table):
     try:
         if not yt.exists(table) or yt.get_attribute(table, "row_count") == 0:
             return
+
+        locks = yt.get_attribute(table, "locks")
+        if any(map(lambda l: l["mode"] in ["exclusive", "shared"], locks)):
+            return -1
+
         compression_ratio = yt.get_attribute(table, "compression_ratio")
         data_size_per_job = max(1, int(min(16 * 1024 ** 3, 512 * 1024 ** 2 / compression_ratio)))
         
