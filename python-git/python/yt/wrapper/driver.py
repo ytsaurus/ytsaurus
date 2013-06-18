@@ -1,5 +1,6 @@
 import config
 import logger
+from compression_wrapper import create_zlib_generator
 from common import require
 from errors import YtError, YtResponseError
 from version import VERSION
@@ -11,6 +12,7 @@ import requests
 
 import sys
 import uuid
+import socket
 import simplejson as json
 
 def iter_lines(response):
@@ -72,6 +74,10 @@ def make_request(command_name, params,
     # Trying to set http retries in requests
     requests.adapters.DEFAULT_RETRIES = config.http.REQUESTS_RETRIES
     
+    # Set timeout for requests. Unfortunately, requests param timeout works incorrectly
+    # when data is a generator.
+    socket.setdefaulttimeout(config.http.CONNECTION_TIMEOUT)
+
     # Prepare request url.
     if proxy is None:
         proxy = config.http.PROXY
@@ -122,6 +128,16 @@ def make_request(command_name, params,
     if token is not None:
         headers["Authorization"] = "OAuth " + token
 
+    if command.input_type in ["binary", "tabular"]:
+        content_encoding = config.http.CONTENT_ENCODING
+        headers["Content-Encoding"] = content_encoding
+        if content_encoding == "identity":
+            pass
+        elif content_encoding == "gzip":
+            data = create_zlib_generator(data)
+        else:
+            raise YtError("Content encoding '%s' is not supported" % config.http.CONTENT_ENCODING)
+
     # Debug information
     print_info("Headers: %r", headers)
     if command.input_type is None:
@@ -136,7 +152,6 @@ def make_request(command_name, params,
                 method=command.http_method(),
                 headers=headers,
                 data=data,
-                timeout=config.http.CONNECTION_TIMEOUT,
                 stream=stream)),
         allow_retries,
         url,
