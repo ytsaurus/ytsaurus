@@ -23,6 +23,7 @@ function YtCoordinatedHost(config, host)
     var banned = false;
     var liveness = { updated_at: new Date(0), load_average: 0.0 };
     var randomness = Math.random();
+    var dampening = 0.0;
 
     var afd = new YtAccrualFailureDetector(
         config.afd_window_size,
@@ -91,6 +92,7 @@ function YtCoordinatedHost(config, host)
             liveness.updated_at = new Date(value.updated_at);
             liveness.load_average = parseFloat(value.load_average);
             randomness = Math.random();
+            dampening = 0.0;
             afd.heartbeatTS(liveness.updated_at);
         },
         enumerable: true
@@ -98,6 +100,12 @@ function YtCoordinatedHost(config, host)
 
     Object.defineProperty(this, "randomness", {
         value: randomness,
+        writable: false,
+        enumerable: true
+    });
+
+    Object.defineProperty(this, "dampening", {
+        value: dampening,
         writable: false,
         enumerable: true
     });
@@ -123,14 +131,18 @@ function YtCoordinatedHost(config, host)
     Object.defineProperty(this, "fitness", {
         get: function() {
             return 0.0 +
-                config.fitness_la_coefficient * liveness.load_average +
+                config.fitness_la_coefficient  * liveness.load_average +
                 config.fitness_phi_coefficient * afd.phiTS() +
-                config.fitness_randomness * randomness;
+                config.fitness_rnd_coefficient * randomness +
+                config.fitness_dmp_coefficient * dampening;
         },
         enumerable: true
     });
 
     events.EventEmitter.call(this);
+
+    // Enable dampening.
+    this.dampen = function() { dampening -= config.dampening; };
 
     // Hide EventEmitter properties to clean up JSON.
     Object.defineProperty(this, "_events", { enumerable: false });
@@ -292,14 +304,13 @@ YtCoordinator.prototype.getProxies = function(role, dead, banned)
     for (var p in this.hosts) {
         if (this.hosts.hasOwnProperty(p)) {
             var ref = this.hosts[p];
-
             if (typeof(role) !== "undefined" && role !== ref.role) {
                 continue;
             }
             if (typeof(dead) !== "undefined" && dead !== ref.dead) {
                 continue;
             }
-            if (typeof(dead) !== "undefined" && banned !== ref.banned) {
+            if (typeof(banned) !== "undefined" && banned !== ref.banned) {
                 continue;
             }
             result.push(this.hosts[p]);
@@ -311,6 +322,16 @@ YtCoordinator.prototype.getProxies = function(role, dead, banned)
 YtCoordinator.prototype.getSelf = function()
 {
     return this.host;
+};
+
+YtCoordinator.prototype.dampen = function()
+{
+    "use strict";
+    this
+    .getProxies("data", false, false)
+    .sort(function(lhs, rhs) { return lhs.fitness - rhs.fitness; })
+    [0]
+    .dampen();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

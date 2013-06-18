@@ -29,7 +29,7 @@ TSlot::TSlot(const Stroka& path, int slotId, int userId)
 void TSlot::Initialize()
 {
     try {
-        NFS::ForcePath(Path);
+        NFS::ForcePath(Path, 0755);
         SandboxPath = NFS::CombinePaths(Path, "sandbox");
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Failed to create slot directory %s",
@@ -40,7 +40,7 @@ void TSlot::Initialize()
     try {
         if (UserId > 0) {
             // Kill all processes of this pseudo-user for sanity reasons.
-            KillallByUser(UserId);
+            KilallByUid(UserId);
         }
     } catch (const std::exception& ex) {
         // ToDo(psushin): think about more complex logic of handling fs errors.

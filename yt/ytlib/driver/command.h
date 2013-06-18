@@ -133,7 +133,7 @@ protected:
 
     TCommandBase();
 
-    void Prepare();
+    virtual void Prepare();
 
     void ReplyError(const TError& error);
     void ReplySuccess(const NYTree::TYsonString& yson);
@@ -258,25 +258,32 @@ class TMutatingCommandBase <
     : public virtual TTypedCommandBase<TRequest>
 {
 protected:
-    NMetaState::TMutationId GenerateMutationId()
-    {
-        if (!this->CurrentMutationId) {
-            this->CurrentMutationId = this->Request->MutationId;
-        }
-
-        auto result = *this->CurrentMutationId;
-        ++(*this->CurrentMutationId).Parts[0];
-        return result;
-    }
-
     void GenerateMutationId(NRpc::IClientRequestPtr request)
     {
         NMetaState::SetMutationId(request, this->GenerateMutationId());
     }
 
-private:
-    TNullable<NMetaState::TMutationId> CurrentMutationId;
+    NMetaState::TMutationId GenerateMutationId()
+    {
+        auto result = this->CurrentMutationId;
+        if (this->CurrentMutationId != NMetaState::NullMutationId) {
+            ++(this->CurrentMutationId).Parts[0];
+        }
+        return result;
+    }
 
+private:
+    NMetaState::TMutationId CurrentMutationId;
+
+    virtual void Prepare() override
+    {
+        TTypedCommandBase<TRequest>::Prepare();
+
+        this->CurrentMutationId =
+            this->Request->MutationId == NMetaState::NullMutationId
+            ? NMetaState::GenerateMutationId()
+            : this->Request->MutationId;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

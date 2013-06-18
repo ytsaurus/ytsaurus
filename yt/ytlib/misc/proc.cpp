@@ -1,5 +1,9 @@
 #include "stdafx.h"
 #include "proc.h"
+#include "string.h"
+
+#include <ytlib/logging/log.h>
+#include <ytlib/misc/string.h>
 
 #include <ytlib/ytree/convert.h>
 
@@ -7,27 +11,71 @@
 
 #include <util/string/vector.h>
 
-#include <util/system/fs.h>
+#include <util/system/yield.h>
 #include <util/system/info.h>
-
-#include <util/folder/iterator.h>
-#include <util/folder/dirut.h>
-#include <util/folder/filelist.h>
 
 #ifdef _unix_
     #include <spawn.h>
     #include <stdio.h>
     #include <dirent.h>
     #include <sys/types.h>
+    #include <sys/stat.h>
     #include <sys/wait.h>
+    #include <unistd.h>
 #endif
 
 namespace NYT {
 
+static NLog::TLogger SILENT_UNUSED Logger("Proc");
+
 ////////////////////////////////////////////////////////////////////////////////
+
+std::vector<int> GetPidsByUid(int uid)
+{
+#ifdef _linux_
+    std::vector<int> result;
+
+    DIR *dp = ::opendir("/proc");
+    YCHECK(dp != nullptr);
+
+    struct dirent *ep;
+    while ((ep = ::readdir(dp)) != nullptr) {
+        const char* begin = ep->d_name;
+        char* end = nullptr;
+        int pid = static_cast<int>(strtol(begin, &end, 10));
+        if (begin == end) {
+            // Not a pid.
+            continue;
+        }
+
+        auto path = Sprintf("/proc/%d", pid);
+        struct stat buf;
+        int res = ::stat(~path, &buf);
+
+        if (res == 0) {
+            if (buf.st_uid == uid) {
+                result.push_back(pid);
+            }
+        } else {
+            // Assume that the process has already completed.
+            auto errno_ = errno;
+            LOG_DEBUG(TError::FromSystem(), "Failed to get UID for PID %d: stat failed",
+                pid);
+            YCHECK(errno_ == ENOENT || errno_ == ENOTDIR);
+        }
+    }
+
+    YCHECK(::closedir(dp) == 0);
+    return result;
+
+#else
+    return std::vector<int>();
+#endif
+}
 
 i64 GetProcessRss(int pid)
 {
+#ifdef _linux_
     Stroka path = "/proc/self/statm";
     if (pid != -1) {
         path = Sprintf("/proc/%d/statm", pid);
@@ -36,6 +84,9 @@ i64 GetProcessRss(int pid)
     TIFStream memoryStatFile(path);
     auto memoryStatFields = splitStroku(memoryStatFile.ReadLine(), " ");
     return FromString<i64>(memoryStatFields[1]) * NSystemInfo::GetPageSize();
+#else
+    return 0;
+#endif
 }
 
 #ifdef _unix_
@@ -43,79 +94,91 @@ i64 GetProcessRss(int pid)
 i64 GetUserRss(int uid)
 {
     YCHECK(uid > 0);
-    // Column of rss of all processes for given user in kb.
-    auto command = Sprintf("ps -u %d -o rss --no-headers", uid);
 
-    // Read + close on exec.
-    FILE *fd = popen(~command, "re");
+    LOG_DEBUG("Started computing RSS (UID: %d)", uid);
 
-    if (!fd) {
-        THROW_ERROR_EXCEPTION(
-            "Failed to get memory usage for UID %d: popen failed",
-            uid) << TError::FromSystem();
-    }
-
+    auto pids = GetPidsByUid(uid);
     i64 result = 0;
-    int rss;
-    int n;
-    while ((n = fscanf(fd, "%d", &rss)) != EOF) {
-        if (n == 1) {
+    FOREACH(int pid, pids) {
+        try {
+            i64 rss = GetProcessRss(pid);
+            LOG_DEBUG("PID: %d, RSS: %" PRId64,
+                pid,
+                rss);
             result += rss;
-        } else {
-            THROW_ERROR_EXCEPTION(
-                "Failed to get memory usage for UID %d: fscanf failed",
-                uid) << TError::FromSystem();
+        } catch (const std::exception& ex) {
+            LOG_DEBUG(ex, "Failed to get RSS for PID %d",
+                pid);
         }
     }
 
-    // ToDo(psushin): consider checking pclose errors.
-    pclose(fd);
-    return result * 1024;
+    LOG_DEBUG("Finished computing RSS (UID: %d, RSS: %" PRId64 ")",
+        uid,
+        result);
+
+    return result;
 }
 
 // The caller must be sure that it has root privileges.
-void KillallByUser(int uid)
+void KilallByUid(int uid)
 {
     YCHECK(uid > 0);
-    auto pid = fork();
 
-    // We are forking here in order not to give the root priviledges to the parent process ever,
-    // because we cannot know what other threads are doing.
-    if (pid == 0) {
-        // Child process
-        YCHECK(setuid(0) == 0);
-        YCHECK(setuid(uid) == 0);
-        // Send sigkill to all available processes.
-        auto res = kill(-1, 9);
-        if (res == -1) {
-            YCHECK(errno == ESRCH);
+    auto pidsToKill = GetPidsByUid(uid);
+    if (pidsToKill.empty()) {
+        return;
+    }
+
+    while (true) {
+        auto pids = GetPidsByUid(uid);
+        if (pids.empty())
+            break;
+
+        LOG_DEBUG("Killing processes (UID: %d, PIDs: [%s])",
+            uid,
+            ~JoinToString(pids));
+
+        // We are forking here in order not to give the root privileges to the parent process ever,
+        // because we cannot know what other threads are doing.
+        int forkedPid = fork();
+        if (forkedPid < 0) {
+            THROW_ERROR_EXCEPTION("Failed to kill processes: fork failed")
+                << TError::FromSystem();
         }
-        _exit(0);
-    }
 
-    // Parent process
-    if (pid < 0) {
-        THROW_ERROR_EXCEPTION(
-            "Failed to kill processes for uid %d: fork failed",
-            uid) << TError::FromSystem();
-    }
+        if (forkedPid == 0) {
+            // In child process.
+            YCHECK(setuid(0) == 0);
 
-    int status = 0;
-    {
-        int result = waitpid(pid, &status, WUNTRACED);
-        if (result < 0) {
-            THROW_ERROR_EXCEPTION(
-                "Failed to kill processes for uid %d: waitpid failed",
-                uid) << TError::FromSystem();
+            FOREACH (int pid, pids) {
+                auto result = kill(pid, 9);
+                if (result == -1) {
+                    YCHECK(errno == ESRCH);
+                }
+            }
+
+            _exit(0);
         }
-        YCHECK(result == pid);
-    }
 
-    auto statusError = StatusToError(status);
-    if (!statusError.IsOK()) {
-        THROW_ERROR_EXCEPTION(
-            "Failed to kill processes for uid %d: waitpid failed",
-            uid) << statusError;
+        // In parent process.
+
+        int status = 0;
+        {
+            int result = waitpid(forkedPid, &status, WUNTRACED);
+            if (result < 0) {
+                THROW_ERROR_EXCEPTION("Failed to kill processes: waitpid failed")
+                    << TError::FromSystem();
+            }
+            YCHECK(result == forkedPid);
+        }
+
+        auto statusError = StatusToError(status);
+        if (!statusError.IsOK()) {
+            THROW_ERROR_EXCEPTION("Failed to kill processes: killer failed")
+                << statusError;
+        }
+
+        ThreadYield();
     }
 }
 
@@ -124,38 +187,20 @@ void RemoveDirAsRoot(const Stroka& path)
     // Allocation after fork can lead to a deadlock inside LFAlloc.
     // To avoid allocation we list contents of the directory before fork.
 
-    // Copy-paste from RemoveDirWithContents (util/folder/dirut.cpp)
-    auto path_ = path;
-    SlashFolderLocal(path_);
-
-    TDirIterator dir(path_);
-    std::vector<Stroka> contents;
-
-    for (TDirIterator::TIterator it = dir.Begin(); it != dir.End(); ++it) {
-        switch (it->fts_info) {
-            case FTS_F:
-            case FTS_DEFAULT:
-            case FTS_DP:
-            case FTS_SL:
-            case FTS_SLNONE:
-                contents.push_back(it->fts_path);
-                break;
-        }
-    }
-
     auto pid = fork();
     // We are forking here in order not to give the root privileges to the parent process ever,
     // because we cannot know what other threads are doing.
     if (pid == 0) {
         // Child process
         YCHECK(setuid(0) == 0);
-        for (int i = 0; i < contents.size(); ++i) {
-            if (NFs::Remove(~contents[i])) {
-                _exit(1);
-            }
-        }
+        execl("/bin/rm", "/bin/rm", "-rf", ~path, (void*)nullptr);
 
-        _exit(0);
+        fprintf(
+            stderr,
+            "Failed to remove directory (/bin/rm -rf %s): %s",
+            ~path,
+            ~ToString(TError::FromSystem()));
+        _exit(1);
     }
 
     auto throwError = [=] (const Stroka& msg, const TError& error) {
@@ -181,7 +226,7 @@ void RemoveDirAsRoot(const Stroka& path)
 
     auto statusError = StatusToError(status);
     if (!statusError.IsOK()) {
-        throwError("waitpid failed", statusError);
+        throwError("invalid exit status", statusError);
     }
 }
 
@@ -202,9 +247,6 @@ TError StatusToError(int status)
 
 void CloseAllDescriptors()
 {
-    // Called after fork.
-    // Avoid allocations, may lead to deadlock in LFAlloc.
-
 #ifdef _linux_
     DIR *dp = ::opendir("/proc/self/fd");
     YCHECK(dp != NULL);
@@ -314,7 +356,7 @@ int Spawn(const char* path, std::vector<Stroka>& arguments)
 
 #else
 
-void KillallByUser(int uid)
+void KilallByUid(int uid)
 {
     UNUSED(uid);
     YUNIMPLEMENTED();
@@ -323,12 +365,6 @@ void KillallByUser(int uid)
 TError StatusToError(int status)
 {
     UNUSED(status);
-    YUNIMPLEMENTED();
-}
-
-i64 GetUserRss(int uid)
-{
-    UNUSED(uid);
     YUNIMPLEMENTED();
 }
 
@@ -356,7 +392,6 @@ int Spawn(const char* path, std::vector<Stroka>& arguments)
 }
 
 #endif
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

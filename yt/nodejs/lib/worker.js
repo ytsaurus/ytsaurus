@@ -54,15 +54,16 @@ if (typeof(config.high_watermark) === "undefined") {
 // TODO(sandello): Extract singleton configuration to a separate branch.
 yt.configureSingletons(config.proxy);
 
-yt.YtRegistry.set("fdqn", config.fqdn || require("os").hostname());
+yt.YtRegistry.set("fqdn", config.fqdn || require("os").hostname());
 yt.YtRegistry.set("config", config);
 yt.YtRegistry.set("logger", logger);
 yt.YtRegistry.set("driver", new yt.YtDriver(config));
 yt.YtRegistry.set("authority", new yt.YtAuthority(config.authentication));
-yt.YtRegistry.set("coordinator", new yt.YtCoordinator(config.coordination, logger, yt.YtRegistry.get("driver"), yt.YtRegistry.get("fdqn")));
+yt.YtRegistry.set("coordinator", new yt.YtCoordinator(config.coordination, logger, yt.YtRegistry.get("driver"), yt.YtRegistry.get("fqdn")));
 
 // Hoist variable declaration.
 var static_application;
+var static_application2;
 var dynamic_application;
 
 var insecure_server;
@@ -160,6 +161,8 @@ logger.info("Starting HTTP proxy worker", { wid : cluster.worker.id, pid : proce
 
 // Setup application servers.
 static_application = new node_static.Server("/usr/share/yt_new", { cache : 4 * 3600 });
+static_application2 = new node_static.Server("/usr/share/yt-thor", { cache : 4 * 3600 });
+
 dynamic_application = connect()
     .use(yt.YtIsolateRequest())
     .use(yt.YtLogRequest())
@@ -214,10 +217,25 @@ dynamic_application = connect()
     .use("/ui", function(req, rsp, next) {
         "use strict";
         if (req.url === "/") {
+            if (req.originalUrl == "/ui") {
+                return void yt.utils.redirectTo(rsp, "/ui/");
+            }
             req.url = "index.html";
         }
         req.on("end", function() {
             static_application.serve(req, rsp);
+        });
+    })
+    .use("/ui-new", function(req, rsp, next) {
+        "use strict";
+        if (req.url === "/") {
+            if (req.originalUrl == "/ui-new") {
+                return void yt.utils.redirectTo(rsp, "/ui-new/");
+            }
+            req.url = "index.html";
+        }
+        req.on("end", function() {
+            static_application2.serve(req, rsp);
         });
     })
     .use("/", function(req, rsp, next) {

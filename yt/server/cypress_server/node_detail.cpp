@@ -200,7 +200,9 @@ void TMapNode::Load(NCellMaster::TLoadContext& context)
         auto id = Load<TNodeId>(context);
         auto* node = id == NullObjectId ? nullptr : context.Get<TCypressNodeBase>(id);
         YCHECK(KeyToChild_.insert(std::make_pair(key, node)).second);
-        YCHECK(ChildToKey_.insert(std::make_pair(node, key)).second);
+        if (node) {
+            YCHECK(ChildToKey_.insert(std::make_pair(node, key)).second);
+        }
     }
 }
 

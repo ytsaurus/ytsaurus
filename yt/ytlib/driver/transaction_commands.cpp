@@ -49,11 +49,13 @@ void TStartTransactionCommand::DoExecute()
 
 void TPingTransactionCommand::DoExecute()
 {
-    // TODO(babenko): rewrite using ITransaction::AsyncPing
-    auto req = TTransactionYPathProxy::Ping(FromObjectId(GetTransactionId(EAllowNullTransaction::No)));
-    req->set_ping_ancestors(Request->PingAncestors);
-        auto rsp = WaitFor(ObjectProxy->Execute(req));
-    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+    // Specially for evvers@ :)
+    if (Request->TransactionId == NullTransactionId)
+        return;
+
+    auto transaction = GetTransaction(EAllowNullTransaction::No, EPingTransaction::No);
+    auto result = WaitFor(transaction->AsyncPing());
+    THROW_ERROR_EXCEPTION_IF_FAILED(result);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

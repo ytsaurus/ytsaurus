@@ -102,6 +102,7 @@ public:
 
         InitPipes();
 
+        ProcessStartTime = TInstant::Now();
         ProcessId = fork();
         if (ProcessId < 0) {
             THROW_ERROR_EXCEPTION("Failed to start the job: fork failed")
@@ -494,39 +495,66 @@ private:
     void Kill()
     {
         auto uid = Host->GetConfig()->UserId;
-        KillallByUser(uid);
+        KilallByUid(uid);
     }
 
     void CheckMemoryUsage()
     {
-        auto uid = Host->GetConfig()->UserId;
+        int uid = Host->GetConfig()->UserId;
         if (uid <= 0) {
             return;
         }
 
         try {
-            auto rss = GetUserRss(uid);
-            LOG_DEBUG(
-                "Checking memory usage (MemoryLimit: %" PRId64 ", RSS: %" PRId64 ")",
-                UserJobSpec.memory_limit(),
-                rss);
+            LOG_DEBUG("Started checking memory usage (UID: %d)", uid);
 
-            if (rss > UserJobSpec.memory_limit()) {
-                SetError(TError(
-                    "Memory limit exceeded (MemoryLimit: %" PRId64 ", RSS: %" PRId64 ")",
-                    UserJobSpec.memory_limit(),
-                    rss));
+            auto pids = GetPidsByUid(uid);
+
+            i64 memoryLimit = UserJobSpec.memory_limit();
+            i64 rss = 0;
+            FOREACH(int pid, pids) {
+                try {
+                    i64 processRss = GetProcessRss(pid);
+                    // ProcessId itself is skipped since it's always 'sh'.
+                    // This also helps to prevent taking proxy's own RSS into account
+                    // when it has fork-ed but not exec-uted the child process yet.
+                    bool skip = (pid == ProcessId);
+                    LOG_DEBUG("PID: %d, RSS: %" PRId64 "%s",
+                        pid,
+                        processRss,
+                        skip ? " (skipped)" : "");
+                    if (!skip) {
+                        rss += processRss;
+                    }
+                } catch (const std::exception& ex) {
+                    LOG_DEBUG(ex, "Failed to get RSS for PID %d",
+                        pid);
+                }
+            }
+
+            LOG_DEBUG("Finished checking memory usage (UID: %d, RSS: %" PRId64 ", MemoryLimit: %" PRId64 ")",
+                uid,
+                rss,
+                memoryLimit);
+
+            if (rss > memoryLimit) {
+                SetError(TError("Memory limit exceeded")
+                    << TErrorAttribute("rss", rss)
+                    << TErrorAttribute("limit", memoryLimit)
+                    << TErrorAttribute("time_since_start", (TInstant::Now() - ProcessStartTime).MilliSeconds()));
                 Kill();
                 return;
             }
 
             if (rss > MemoryUsage) {
-                auto delta = rss - MemoryUsage;
+                i64 delta = rss - MemoryUsage;
                 LOG_INFO("Memory usage increased by %" PRId64, delta);
+
+                MemoryUsage += delta;
+
                 auto resourceUsage = Host->GetResourceUsage();
                 resourceUsage.set_memory(resourceUsage.memory() + delta);
                 Host->SetResourceUsage(resourceUsage);
-                MemoryUsage += delta;
             }
         } catch (const std::exception& ex) {
             SetError(ex);
@@ -558,7 +586,9 @@ private:
     TNullOutput NullErrorOutput;
     std::vector< std::unique_ptr<TOutputStream> > TableOutput;
 
+    TInstant ProcessStartTime;
     int ProcessId;
+
 };
 
 TJobPtr CreateUserJob(

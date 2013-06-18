@@ -507,15 +507,17 @@ class Finalizer(object):
         self.files = files if files is not None else []
         self.output_tables = output_tables
 
-    def __call__(self):
-        for table in map(to_name, self.output_tables):
-            self.check_for_merge(table)
+    def __call__(self, state):
+        if state == "completed":
+            for table in map(to_name, self.output_tables):
+                self.check_for_merge(table)
         if config.DELETE_EMPTY_TABLES:
             for table in map(to_name, self.output_tables):
                 if is_empty(table):
                     remove_with_empty_dirs(table)
-        for file in self.files:
-            remove(file, force=True)
+        if config.REMOVE_TEMP_FILES:
+            for file in self.files:
+                remove(file, force=True)
 
     def check_for_merge(self, table):
         chunk_count = int(get_attribute(table, "chunk_count"))

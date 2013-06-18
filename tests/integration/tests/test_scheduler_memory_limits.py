@@ -51,7 +51,7 @@ while True:
         op_id = map('--dont_track',
              in_='//tmp/t_in',
              out='//tmp/t_out',
-             command="python mapper.py",
+             command='python mapper.py',
              file='//tmp/mapper.py',
              opt=['/spec/max_failed_job_count=5'])
 
@@ -59,3 +59,13 @@ while True:
         with pytest.raises(YTError): track_op(op_id)
         # ToDo: check job error messages.
         check_memory_limit(op_id)
+
+    @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
+    def test_dirty_sandbox(self):
+        create('table', '//tmp/t_in')
+        write_str('//tmp/t_in', '{value=value;subkey=subkey;key=key;a=another}')
+
+        create('table', '//tmp/t_out')
+
+        command = 'cat > /dev/null; mkdir ./tmpxxx; echo 1 > ./tmpxxx/f1; chmod 700 ./tmpxxx;'
+        map(in_='//tmp/t_in', out='//tmp/t_out', command=command)

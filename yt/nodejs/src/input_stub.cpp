@@ -1,5 +1,7 @@
 #include "input_stub.h"
 
+#include "error.h"
+
 namespace NYT {
 namespace NNodeJS {
 
@@ -56,6 +58,7 @@ struct TReadRequest
 {
     uv_work_t Request;
     std::shared_ptr<TNodeJSInputStack> Stack;
+    TError Error;
 
     Persistent<Function> Callback;
 
@@ -258,7 +261,11 @@ void TInputStreamStub::ReadWork(uv_work_t* workRequest)
     TReadRequest* request =
         container_of(workRequest, TReadRequest, Request);
 
-    request->Length = request->Stack->Read(request->Buffer, request->Length);
+    try {
+        request->Length = request->Stack->Read(request->Buffer, request->Length);
+    } catch (const std::exception& ex) {
+        request->Error = ex;
+    }
 }
 
 void TInputStreamStub::ReadAfter(uv_work_t* workRequest)
@@ -273,11 +280,12 @@ void TInputStreamStub::ReadAfter(uv_work_t* workRequest)
         TryCatch block;
 
         Local<Value> args[] = {
+            Local<Value>::New(ConvertErrorToV8(request->Error)),
             Local<Value>::New(Integer::New(request->Length)),
             Local<Value>::New(String::New(request->Buffer, request->Length))
         };
 
-        request->Callback->Call(Context::GetCurrent()->Global(), 2, args);
+        request->Callback->Call(Context::GetCurrent()->Global(), 3, args);
 
         if (block.HasCaught()) {
             node::FatalException(block);

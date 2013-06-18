@@ -124,9 +124,15 @@ void TJobProxy::Run()
 {
     auto result = DoRun();
 
-    if (Job) {
+    if (HeartbeatInvoker) {
         HeartbeatInvoker->Stop();
+    }
 
+    if (MemoryWatchdogInvoker) {
+        MemoryWatchdogInvoker->Stop();
+    }
+
+    if (Job) {
         std::vector<NChunkClient::TChunkId> failedChunkIds;
         GetFailedChunks(&failedChunkIds).Get();
         LOG_INFO("Found %d failed chunks", static_cast<int>(failedChunkIds.size()));
@@ -142,8 +148,6 @@ void TJobProxy::Run()
     }
 
     ReportResult(result);
-
-    MemoryWatchdogInvoker->Stop();
 }
 
 TJobResult TJobProxy::DoRun()
@@ -177,8 +181,6 @@ TJobResult TJobProxy::DoRun()
         GetSyncInvoker(),
         BIND(&TJobProxy::CheckMemoryUsage, MakeWeak(this)),
         Config->MemoryWatchdogPeriod);
-
-    MemoryWatchdogInvoker->Start();
 
     try {
         switch (jobType) {
@@ -243,9 +245,10 @@ TJobResult TJobProxy::DoRun()
                 YUNREACHABLE();
         }
 
+        MemoryWatchdogInvoker->Start();
         HeartbeatInvoker->Start();
-        return Job->Run();
 
+        return Job->Run();
     } catch (const std::exception& ex) {
         LOG_ERROR(ex, "Job failed");
 

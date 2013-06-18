@@ -104,12 +104,14 @@ describe("input stream interface", function() {
         setTimeout(add_new_data, 20);
         setTimeout(close_stream, 40);
 
-        this.reader.Read(5, (function(length, buffer) {
-            expect(length).to.be.eql(5);
-            expect(buffer).to.be.equal("12345");
+        this.reader.Read(5, (function(error, length, buffer) {
+            expect(error.code).to.eql(0);
+            expect(length).to.eql(5);
+            expect(buffer).to.equal("12345");
 
-            this.reader.Read(5, (function(length, buffer) {
-                expect(length).to.be.eql(0);
+            this.reader.Read(5, (function(error, length, buffer) {
+                expect(error.code).to.eql(0);
+                expect(length).to.eql(0);
                 expect(buffer).to.be.empty;
 
                 done();
@@ -128,20 +130,20 @@ describe("input stream interface", function() {
         setTimeout(add_new_data, 20);
         setTimeout(close_stream, 40);
 
-        this.reader.Read(5, (function(length, buffer) {
-            expect(length).to.be.eql(5);
+        this.reader.Read(5, (function(error, length, buffer) {
+            expect(error.code).to.eql(0);
+            expect(length).to.eql(5);
             expect(buffer).to.be.equal("12345");
 
-            this.reader.Read(5, (function(length, buffer) {
-                expect(length).to.be.eql(0);
-                expect(buffer).to.be.empty;
+            this.reader.Read(5, (function(error, length, buffer) {
+                expect(error.code).not.to.eql(0);
 
                 done();
             }).bind(this));
         }).bind(this));
     });
 
-    it("should be able to read whole input if the stream was closed", function(done) {
+    it("should not be able to read whole input if the stream was closed", function(done) {
         this.stream.Push(new Buffer("foo"), 0, 3);
         this.stream.Push(new Buffer("bar"), 0, 3);
 
@@ -159,8 +161,9 @@ describe("input stream interface", function() {
         expect(this.reader.ReadSynchronously(2))
             .to.be.a("string").and.to.be.empty;
 
-        this.reader.Read(100, (function(length, buffer) {
-            expect(length).to.be.eql(0);
+        this.reader.Read(100, (function(error, length, buffer) {
+            expect(error.code).to.eql(0);
+            expect(length).to.eql(0);
             expect(buffer).to.be.empty;
             done();
         }).bind(this));
@@ -177,16 +180,9 @@ describe("input stream interface", function() {
 
         this.stream.Destroy();
 
-        expect(this.reader.ReadSynchronously(2))
-            .to.be.a("string").and.to.be.empty;
-        expect(this.reader.ReadSynchronously(2))
-            .to.be.a("string").and.to.be.empty;
-        expect(this.reader.ReadSynchronously(2))
-            .to.be.a("string").and.to.be.empty;
+        this.reader.Read(100, (function(error, length, buffer) {
+            expect(error.code).not.to.eql(0);
 
-        this.reader.Read(100, (function(length, buffer) {
-            expect(length).to.be.eql(0);
-            expect(buffer).to.be.empty;
             done();
         }).bind(this));
     });
@@ -211,7 +207,7 @@ describe("input stream interface", function() {
     it("should support 'identity' compression", function() {
         this.reader.AddCompression(binding.ECompression_None);
         this.stream.Push(new Buffer("hello"), 0, 5)
-        this.reader.ReadSynchronously(5).should.be.eql("hello");
+        this.reader.ReadSynchronously(5).should.eql("hello");
     });
 
     // These are multi-parametric cases.
@@ -249,7 +245,7 @@ describe("input stream interface", function() {
                         decompressed += chunk;
                     }
 
-                    decompressed.length.should.be.eql(case_data.length);
+                    decompressed.length.should.eql(case_data.length);
                     decompressed.should.be.equal(case_data);
                     done();
                 });
@@ -377,7 +373,8 @@ describe("high-level interoperation", function() {
         // Skip two ticks to allow streams pipe content between them.
         process.nextTick(function() {
             process.nextTick(function() {
-                reader.Read(1000, function(length, buffer) {
+                reader.Read(1000, function(error, length, buffer) {
+                    expect(error.code).to.eql(0);
                     expect(length).to.be.equal(11);
                     expect(buffer).to.be.equal("hello dolly");
                     done();

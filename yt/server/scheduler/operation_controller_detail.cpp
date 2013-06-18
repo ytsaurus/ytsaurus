@@ -1838,14 +1838,17 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::CreateLivePrevie
     TObjectServiceProxy proxy(Host->GetMasterChannel());
     auto batchReq = proxy.ExecuteBatch();
 
-    auto processTable = [&] (const Stroka& path, const Stroka& key) {
+    auto processTable = [&] (
+            const Stroka& path,
+            int replicationFactor,
+            const Stroka& key) {
         auto req = TCypressYPathProxy::Create(path);
 
         req->set_type(EObjectType::Table);
         req->set_ignore_existing(true);
 
         auto attributes = CreateEphemeralAttributes();
-        attributes->Set("replication_factor", 1);
+        attributes->Set("replication_factor", replicationFactor);
 
         ToProto(req->mutable_node_attributes(), *attributes);
 
@@ -1857,8 +1860,9 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::CreateLivePrevie
         LOG_INFO("Creating output tables for live preview");
 
         for (int index = 0; index < static_cast<int>(OutputTables.size()); ++index) {
+            const auto& table = OutputTables[index];
             auto path = GetLivePreviewOutputPath(Operation->GetOperationId(), index);
-            processTable(path, "create_output");
+            processTable(path, table.Options->ReplicationFactor, "create_output");
         }
     }
 
@@ -1866,7 +1870,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::CreateLivePrevie
         LOG_INFO("Creating intermediate table for live preview");
 
         auto path = GetLivePreviewIntermediatePath(Operation->GetOperationId());
-        processTable(path, "create_intermediate");
+        processTable(path, 1, "create_intermediate");
     }
 
     return batchReq->Invoke();
@@ -2382,7 +2386,6 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
         for (int index = 0; index < static_cast<int>(RegularFiles.size()); ++index) {
             auto& file = RegularFiles[index];
             auto path = file.Path.GetPath();
-            Stroka fileName;
             {
                 auto rsp = lockRegularFileRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error locking regular file %s",
@@ -2398,7 +2401,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                     "Error getting file name for regular file %s",
                     ~path);
 
-                fileName = rsp->value();
+                file.FileName = rsp->value();
             }
             {
                 auto rsp = getRegularFileAttributesRsps[index];
@@ -2408,9 +2411,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 auto node = ConvertToNode(TYsonString(rsp->value()));
                 const auto& attributes = node->Attributes();
 
-                fileName = attributes.Get<Stroka>("file_name", fileName);
-                file.Executable = attributes.Get<bool>("executable", false);
-                file.FileName = file.Path.Attributes().Get<Stroka>("file_name", fileName);
+                file.FileName = attributes.Get<Stroka>("file_name", file.FileName);
 
                 LOG_INFO("Regular file attributes received (Path: %s)",
                     ~path);
@@ -2427,6 +2428,9 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 LOG_INFO("Regular file fetched (Path: %s)",
                     ~path);
             }
+            
+            file.FileName = file.Path.Attributes().Get<Stroka>("file_name", file.FileName);
+            file.Executable = file.Path.Attributes().Get<bool>("executable", file.Executable);
         }
     }
 
