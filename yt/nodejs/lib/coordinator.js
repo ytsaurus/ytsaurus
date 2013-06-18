@@ -18,7 +18,7 @@ function YtCoordinatedHost(config, host)
 {
     "use strict";
 
-    var role = "control";
+    var role = "data";
     var dead = true;
     var banned = false;
     var liveness = { updated_at: new Date(0), load_average: 0.0 };
@@ -327,11 +327,14 @@ YtCoordinator.prototype.getSelf = function()
 YtCoordinator.prototype.dampen = function()
 {
     "use strict";
-    this
-    .getProxies("data", false, false)
-    .sort(function(lhs, rhs) { return lhs.fitness - rhs.fitness; })
-    [0]
-    .dampen();
+
+    var victim = this
+        .getProxies("data", false, false)
+        .sort(function(lhs, rhs) { return lhs.fitness - rhs.fitness; })[0];
+
+    if (typeof(victim) !== "undefined") {
+        victim.dampen();
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
