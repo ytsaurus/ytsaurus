@@ -58,7 +58,7 @@ struct TChunkStripe
 
     TSmallVector<NChunkClient::TChunkSlicePtr, 1> ChunkSlices;
     int WaitingChunkCount;
-    
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

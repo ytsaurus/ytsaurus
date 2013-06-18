@@ -156,7 +156,17 @@ public:
 
     virtual TYPath GetPath(INodePtr node) override
     {
-        return Stroka::Join("/", GetNodeYPath(node));
+        INodePtr root;
+        auto path = GetNodeYPath(node, &root);
+
+        auto* rootProxy = dynamic_cast<ICypressNodeProxy*>(~root);
+        YCHECK(rootProxy);
+
+        auto cypressManager = Bootstrap->GetCypressManager();
+        auto rootId = cypressManager->GetRootNode()->GetId();
+        return rootProxy->GetId() == rootId
+            ? "/" + path
+            : "(removed)" + path;
     }
 
 private:

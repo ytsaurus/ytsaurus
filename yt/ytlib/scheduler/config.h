@@ -74,6 +74,15 @@ struct TOperationSpecBase
             .Default(Null);
 
         SetKeepOptions(true);
+
+        RegisterValidator([&] () {
+            if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
+                UnavailableChunkTactics == EUnavailableChunkAction::Skip)
+            {
+                THROW_ERROR_EXCEPTION("Your tactics conflicts with your strategy, Luke!");
+            }
+        });
+
     }
 };
 

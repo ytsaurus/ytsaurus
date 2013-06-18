@@ -10,6 +10,7 @@
 #include <ytlib/chunk_client/chunk_service_proxy.h>
 
 #include <server/cell_master/meta_state_service.h>
+#include <server/cell_master/meta_state_facade.h>
 
 #include <server/cell_master/bootstrap.h>
 
@@ -31,7 +32,9 @@ public:
             TChunkServiceProxy::GetServiceName(),
             ChunkServerLogger.GetCategory())
     {
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(LocateChunks));
+        RegisterMethod(
+            RPC_SERVICE_METHOD_DESC(LocateChunks)
+                .SetInvoker(bootstrap->GetMetaStateFacade()->GetGuardedInvoker(EStateThreadQueue::ChunkMaintenance)));
     }
 
 private:

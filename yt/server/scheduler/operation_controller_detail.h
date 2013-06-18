@@ -117,10 +117,13 @@ protected:
     bool Running;
 
     // Totals.
+
     int TotalInputChunkCount;
     i64 TotalInputDataSize;
     i64 TotalInputRowCount;
     i64 TotalInputValueCount;
+
+    int UnavailableInputChunkCount;
 
     // Job counters.
     TProgressCounter JobCounter;
@@ -260,7 +263,7 @@ protected:
         NYTree::TYsonString Format;
 
         void Persist(TPersistenceContext& context);
-    
+
     };
 
     std::vector<TUserTableFile> TableFiles;
@@ -504,14 +507,13 @@ protected:
         //! Local tasks keyed by address.
         yhash_map<Stroka, yhash_set<TTaskPtr>> LocalTasks;
 
-        
+
         void Persist(TPersistenceContext& context);
 
     };
 
     //! All task groups declared by calling #RegisterTaskGroup, in the order of decreasing priority.
     std::vector<TTaskGroupPtr> TaskGroups;
-
 
     void RegisterTask(TTaskPtr task);
     void RegisterTaskGroup(TTaskGroupPtr group);
@@ -683,12 +685,9 @@ protected:
         const NChunkClient::TChunkId& chunkId,
         TInputChunkDescriptor& descriptor);
 
-    //! Called when chunk scratcher has found out that some input chunk
-    //! became available.
     void OnInputChunkAvailable(
         const NChunkClient::TChunkId& chunkId,
         TInputChunkDescriptor& descriptor);
-
 
     virtual bool IsOutputLivePreviewSupported() const;
     virtual bool IsIntermediateLivePreviewSupported() const;

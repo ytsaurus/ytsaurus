@@ -867,6 +867,7 @@ TOperationControllerBase::TOperationControllerBase(
     , TotalInputDataSize(0)
     , TotalInputRowCount(0)
     , TotalInputValueCount(0)
+    , UnavailableInputChunkCount(0)
     , NodeDirectory(New<NNodeTrackerClient::TNodeDirectory>())
     , Spec(spec)
     , CachedPendingJobCount(0)
@@ -956,8 +957,7 @@ TFuture<TError> TOperationControllerBase::Prepare()
         ->Add(BIND(&TThis::OnLivePreviewTablesPreparedForUpdate, this_))
         ->Add(BIND(&TThis::CollectTotals, this_));
      pipeline = CustomizePreparationPipeline(pipeline);
-     pipeline = pipeline
-         ->Add(BIND(&TThis::CompletePreparation, this_));
+     pipeline = pipeline->Add(BIND(&TThis::CompletePreparation, this_));
 
      return pipeline
         ->Run()
@@ -1158,6 +1158,9 @@ void TOperationControllerBase::OnInputChunkAvailable(const TChunkId& chunkId, TI
 
     LOG_TRACE("Input chunk is available (ChunkId: %s)", ~ToString(chunkId));
 
+    --UnavailableInputChunkCount;
+    YCHECK(UnavailableInputChunkCount >= 0);
+
     descriptor.State = EInputChunkState::Active;
 
     FOREACH(const auto& inputStripe, descriptor.InputStripes) {
@@ -1182,6 +1185,8 @@ void TOperationControllerBase::OnInputChunkUnavailable(const TChunkId& chunkId, 
 
     LOG_TRACE("Input chunk is unavailable (ChunkId: %s)", ~ToString(chunkId));
 
+    ++UnavailableInputChunkCount;
+
     switch (Spec->UnavailableChunkTactics) {
         case EUnavailableChunkAction::Fail:
             OnOperationFailed(TError("Input chunk %s is unavailable",
@@ -1191,6 +1196,8 @@ void TOperationControllerBase::OnInputChunkUnavailable(const TChunkId& chunkId, 
         case EUnavailableChunkAction::Skip: {
             descriptor.State = EInputChunkState::Skipped;
             FOREACH(const auto& inputStripe, descriptor.InputStripes) {
+                inputStripe.Task->GetChunkPoolInput()->Suspend(inputStripe.Cookie);
+
                 // Remove given chunk from the stripe list.
                 TSmallVector<TChunkSlicePtr, 1> slices;
                 std::swap(inputStripe.Stripe->ChunkSlices, slices);
@@ -1203,12 +1210,9 @@ void TOperationControllerBase::OnInputChunkUnavailable(const TChunkId& chunkId, 
                         return chunkId != FromProto<TChunkId>(slice->GetChunkSpec()->chunk_id());
                     });
 
-                if (inputStripe.Stripe->WaitingChunkCount == 0) {
-                    // Reinstall patched stripe.
-                    inputStripe.Task->GetChunkPoolInput()->Suspend(inputStripe.Cookie);
-                    inputStripe.Task->GetChunkPoolInput()->Resume(inputStripe.Cookie, inputStripe.Stripe);
-                    AddTaskPendingHint(inputStripe.Task);
-                }
+                // Reinstall patched stripe.
+                inputStripe.Task->GetChunkPoolInput()->Resume(inputStripe.Cookie, inputStripe.Stripe);
+                AddTaskPendingHint(inputStripe.Task);
             }
             InputChunkScratcher->Start();
             break;
@@ -2758,12 +2762,12 @@ void TOperationControllerBase::CompletePreparation()
     if (Spec->UnavailableChunkStrategy != EUnavailableChunkAction::Wait)
         return;
 
-    int suspendedChunkCount = 0;
+    YCHECK(UnavailableInputChunkCount == 0);
     FOREACH(auto& pair, InputChunkMap) {
         const auto& chunkDescriptor = pair.second;
         if (chunkDescriptor.State == EInputChunkState::Waiting) {
             LOG_DEBUG("Input chunk is unavailable (ChunkId: %s)", ~ToString(pair.first));
-            ++suspendedChunkCount;
+            ++UnavailableInputChunkCount;
             FOREACH(const auto& inputStripe, chunkDescriptor.InputStripes) {
                 inputStripe.Task->GetChunkPoolInput()->Suspend(inputStripe.Cookie);
                 ++inputStripe.Stripe->WaitingChunkCount;
@@ -2775,8 +2779,8 @@ void TOperationControllerBase::CompletePreparation()
         AddTaskPendingHint(task);
     }
 
-    if (suspendedChunkCount > 0) {
-        LOG_INFO("Waiting for %d unavailable chunks", suspendedChunkCount);
+    if (UnavailableInputChunkCount > 0) {
+        LOG_INFO("Waiting for %d unavailable chunks", UnavailableInputChunkCount);
         InputChunkScratcher->Start();
     }
 }

@@ -281,13 +281,15 @@ private:
     virtual Stroka GetLoggingProgress() override
     {
         return Sprintf(
-            "Jobs = {T: %" PRId64", R: %" PRId64", C: %" PRId64", P: %d, F: %" PRId64", A: %" PRId64"}",
+            "Jobs = {T: %" PRId64", R: %" PRId64", C: %" PRId64", P: %d, F: %" PRId64", A: %" PRId64"}, "
+            "UnavailableInputChunks: %d",
             JobCounter.GetTotal(),
             JobCounter.GetRunning(),
             JobCounter.GetCompleted(),
             GetPendingJobCount(),
             JobCounter.GetFailed(),
-            JobCounter.GetAborted());
+            JobCounter.GetAborted(),
+            UnavailableInputChunkCount);
     }
 
 
