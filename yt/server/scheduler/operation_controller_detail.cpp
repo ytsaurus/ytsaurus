@@ -2412,6 +2412,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 const auto& attributes = node->Attributes();
 
                 file.FileName = attributes.Get<Stroka>("file_name", file.FileName);
+                file.Executable = attributes.Get<bool>("executable");
 
                 LOG_INFO("Regular file attributes received (Path: %s)",
                     ~path);
