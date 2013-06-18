@@ -23,23 +23,22 @@ if __name__ == "__main__":
     sizes = []
     tables_to_merge = []
 
-    for dir in ["//home", "//statbox"]:
-        for table in yt.search(dir, node_type="table", attributes=["compressed_data_size", "chunk_count"]):
-            if args.filter_out is not None and any(word in table for word in args.filter_out):
-                continue
-            
-            chunk_count = int(table.attributes["chunk_count"])
-            if chunk_count == 0: continue
+    for table in yt.search("/", node_type="table", attributes=["compressed_data_size", "chunk_count"]):
+        if args.filter_out is not None and any(word in table for word in args.filter_out):
+            continue
+        
+        chunk_count = int(table.attributes["chunk_count"])
+        if chunk_count == 0: continue
 
-            weight = float(table.attributes["compressed_data_size"]) / float(chunk_count)
+        weight = float(table.attributes["compressed_data_size"]) / float(chunk_count)
 
-            if args.calculate_chunk_sizes:
-                sizes += [weight] * chunk_count
+        if args.calculate_chunk_sizes:
+            sizes += [weight] * chunk_count
 
-            if args.create_merge_queue:
-                if weight < args.maximum_chunk_size and chunk_count > args.minimum_number_of_chunks:
-                    #print table, chunk_count
-                    tables_to_merge.append(tuple([table.attributes["compressed_data_size"], table]))
+        if args.create_merge_queue:
+            if weight < args.maximum_chunk_size and chunk_count > args.minimum_number_of_chunks:
+                #print table, chunk_count
+                tables_to_merge.append(tuple([table.attributes["compressed_data_size"], table]))
 
 
     tables_to_merge = map(lambda x: x[1], sorted(tables_to_merge))
