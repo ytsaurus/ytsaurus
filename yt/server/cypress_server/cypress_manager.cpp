@@ -166,7 +166,7 @@ public:
         auto rootId = cypressManager->GetRootNode()->GetId();
         return rootProxy->GetId() == rootId
             ? "/" + path
-            : "(removed)" + path;
+            : "?" + path;
     }
 
 private:
