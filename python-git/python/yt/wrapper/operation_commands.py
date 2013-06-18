@@ -132,7 +132,7 @@ def wait_final_state(operation, timeout, print_info, action=lambda: None):
         timeout.wait()
     return state
 
-def wait_operation(operation, timeout=None, print_progress=True, finalize=lambda: None):
+def wait_operation(operation, timeout=None, print_progress=True, finalize=lambda state: None):
     """ Wait operation and abort operation in case of keyboard interrupt """
     if timeout is None:
         timeout = Timeout(config.WAIT_TIMEOUT / 5.0, config.WAIT_TIMEOUT, 0.1)
@@ -140,17 +140,17 @@ def wait_operation(operation, timeout=None, print_progress=True, finalize=lambda
 
     def wait():
         result = wait_final_state(operation, timeout, print_info)
-        finalize()
+        finalize(result)
         return result
 
     def abort():
         if not config.KEYBOARD_ABORT:
             return
-        wait_final_state(operation,
-                         Timeout(1.0, 1.0, 0.0),
-                         print_info,
-                         lambda: abort_operation(operation))
-        finalize()
+        result = wait_final_state(operation,
+                                  Timeout(1.0, 1.0, 0.0),
+                                  print_info,
+                                  lambda: abort_operation(operation))
+        finalize(result)
 
     return execute_handling_sigint(wait, abort)
 
@@ -215,7 +215,7 @@ class WaitStrategy(object):
         self.print_progress = print_progress
 
     def process_operation(self, type, operation, finalization=None):
-        finalization = finalization if finalization is not None else lambda: None
+        finalization = finalization if finalization is not None else lambda state: None
         state = wait_operation(operation, print_progress=self.print_progress, finalize=finalization)
         if self.check_result and state.is_failed():
             operation_result = get_operation_result(operation)
