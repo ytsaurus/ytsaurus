@@ -31,7 +31,6 @@ using namespace NNodeTrackerClient::NProto;
 static auto& Logger = SchedulerLogger;
 static auto& Profiler = SchedulerProfiler;
 
-static Stroka DefaultPoolId("default");
 static const double RatioComputationPrecision = 1e-12;
 static const double RatioComparisonPrecision = 1e-6;
 
@@ -897,7 +896,7 @@ private:
 
         auto spec = ParseSpec(operation, operation->GetSpec());
 
-        auto poolId = spec->Pool ? spec->Pool.Get() : DefaultPoolId;
+        auto poolId = spec->Pool ? *spec->Pool : operation->GetAuthenticatedUser();
         auto pool = FindPool(poolId);
         if (!pool) {
             pool = New<TPool>(Host, poolId);
@@ -1007,7 +1006,7 @@ private:
         YCHECK(Pools.insert(std::make_pair(pool->GetId(), pool)).second);
         RootElement->AddChild(pool);
 
-        LOG_INFO("Pool registered: %s", ~pool->GetId());
+        LOG_INFO("Pool registered (Pool: %s)", ~pool->GetId());
     }
 
     void UnregisterPool(TPoolPtr pool)
@@ -1017,7 +1016,7 @@ private:
         YCHECK(Pools.erase(pool->GetId()) == 1);
         RootElement->RemoveChild(pool);
 
-        LOG_INFO("Pool unregistered: %s", ~pool->GetId());
+        LOG_INFO("Pool unregistered (Pool: %s)", ~pool->GetId());
     }
 
     TPoolPtr FindPool(const Stroka& id)
