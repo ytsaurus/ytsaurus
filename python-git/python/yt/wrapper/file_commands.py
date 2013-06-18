@@ -7,7 +7,6 @@ from transaction_commands import _make_transactional_request
 from table import prepare_path
 
 import os
-import sys
 import hashlib
 
 def md5sum(filename):
