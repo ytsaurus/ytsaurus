@@ -137,19 +137,17 @@ void TOperationControllerBase::TInputChunkScratcher::OnLocateChunksResponse(TChu
         auto it = Controller->InputChunks.find(chunkId);
         YCHECK(it != Controller->InputChunks.end());
 
-        auto& descriptor = it->second;
-        // Update replicas in place for all input chunks with current chunkId.
-        FOREACH(auto& chunkSpec, descriptor.ChunkSpecs) {
-            chunkSpec->mutable_replicas()->Clear();
-            chunkSpec->mutable_replicas()->MergeFrom(chunkInfo.replicas());
-        }
+        auto replicas = FromProto<TChunkReplica, TChunkReplicaList>(chunkInfo.replicas());
 
+        auto& descriptor = it->second;
         YCHECK(!descriptor.ChunkSpecs.empty());
         auto& chunkSpec = descriptor.ChunkSpecs.front();
-        if (IsUnavailable(*chunkSpec)) {
+        auto codecId = NErasure::ECodec(chunkSpec->erasure_codec());
+
+        if (IsUnavailable(replicas, codecId)) {
             Controller->OnInputChunkUnavailable(chunkId, descriptor);
         } else {
-            Controller->OnInputChunkAvailable(chunkId, descriptor);
+            Controller->OnInputChunkAvailable(chunkId, descriptor, replicas);
         }
     }
 }
@@ -916,7 +914,7 @@ void TOperationControllerBase::OnChunkFailed(const TChunkId& chunkId)
     }
 }
 
-void TOperationControllerBase::OnInputChunkAvailable(const TChunkId& chunkId, TInputChunkDescriptor& descriptor)
+void TOperationControllerBase::OnInputChunkAvailable(const TChunkId& chunkId, TInputChunkDescriptor& descriptor, const TChunkReplicaList& replicas)
 {
     if (descriptor.State != EInputChunkState::Waiting)
         return;
@@ -925,6 +923,12 @@ void TOperationControllerBase::OnInputChunkAvailable(const TChunkId& chunkId, TI
 
     --UnavailableInputChunkCount;
     YCHECK(UnavailableInputChunkCount >= 0);
+
+    // Update replicas in place for all input chunks with current chunkId.
+    FOREACH(auto& chunkSpec, descriptor.ChunkSpecs) {
+        chunkSpec->mutable_replicas()->Clear();
+        ToProto(chunkSpec->mutable_replicas(), replicas);
+    }
 
     descriptor.State = EInputChunkState::Active;
 
