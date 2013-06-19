@@ -5,6 +5,7 @@ from yt.environment import YTEnv
 import yt.wrapper as yt
 
 import os
+import sys
 import uuid
 import subprocess
 
