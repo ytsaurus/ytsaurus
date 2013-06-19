@@ -16,6 +16,8 @@ from transaction import PingableTransaction
 from format import Format
 import logger
 
+from yt.yson import convert_to_json_tree
+
 import os
 import sys
 import types
@@ -128,7 +130,10 @@ def _add_user_command_spec(op_type, binary, input_format, output_format, files, 
                 "input_format": input_format.json(),
                 "output_format": output_format.json(),
                 "command": binary,
-                "file_paths": flatten(files + additional_files + map(prepare_path, get_value(file_paths, []))),
+                "file_paths": map(
+                    convert_to_json_tree,
+                    flatten(files + additional_files + map(prepare_path, get_value(file_paths, [])))
+                ),
                 "memory_limit": memory_limit,
                 "use_yamr_descriptors": bool_to_string(config.USE_MAPREDUCE_STYLE_DESTINATION_FDS)
             }
