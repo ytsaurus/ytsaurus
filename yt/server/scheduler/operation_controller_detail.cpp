@@ -2189,7 +2189,6 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 LOG_INFO("File %s attributes received", ~path);
             }
 
-            LOG_INFO("File %s attributes received", ~path);
             file.FileName = file.Path.Attributes().Get<Stroka>("file_name", file.FileName);
             file.Executable = file.Path.Attributes().Get<bool>("executable", file.Executable);
         }
@@ -2347,6 +2346,8 @@ std::vector<TChunkStripePtr> TOperationControllerBase::SliceInputChunks(i64 maxS
         }
     };
 
+    i64 sliceDataSize = std::min(maxSliceDataSize, std::min(TotalInputDataSize / jobCount, (i64)1));
+
     FOREACH (const auto& chunkSpec, CollectInputChunks()) {
         int oldSize = result.size();
 
@@ -2356,11 +2357,11 @@ std::vector<TChunkStripePtr> TOperationControllerBase::SliceInputChunks(i64 maxS
 
         auto codecId = NErasure::ECodec(chunkSpec->erasure_codec());
         if (hasNontrivialLimits || codecId == NErasure::ECodec::None) {
-            auto slices = CreateChunkSlice(chunkSpec)->SliceEvenly(maxSliceDataSize);
+            auto slices = CreateChunkSlice(chunkSpec)->SliceEvenly(sliceDataSize);
             appendStripes(slices);
         } else {
             FOREACH(const auto& slice, CreateErasureChunkSlices(chunkSpec, codecId)) {
-                auto slices = slice->SliceEvenly(maxSliceDataSize);
+                auto slices = slice->SliceEvenly(sliceDataSize);
                 appendStripes(slices);
             }
         }
