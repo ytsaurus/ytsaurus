@@ -138,7 +138,7 @@ def main():
             yt_server = "proxy.yt.yandex.net"
 
         subprocess.check_call(
-            "MR_USER=gemini {} -server {}:{} "
+            "{} -server {}:{} "
                 "-map '{} YT_USE_TOKEN=0 YT_USE_HOSTS=1 ./{} -server {} -append -lenval -subkey -write {}' "
                 "-src {} "
                 "-dst {} "
@@ -166,7 +166,8 @@ def main():
                 destination,
                 destination,
                 "unordered",
-                spec={"combine_chunks": "true"})
+                spec={"combine_chunks": "true",
+                      "force_transform": "true"})
 
 
     def import_table(table):
