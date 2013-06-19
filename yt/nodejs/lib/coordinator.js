@@ -99,14 +99,22 @@ function YtCoordinatedHost(config, host)
     });
 
     Object.defineProperty(this, "randomness", {
-        value: randomness,
-        writable: false,
+        get: function() {
+            return randomness;
+        },
         enumerable: true
     });
 
     Object.defineProperty(this, "dampening", {
-        value: dampening,
-        writable: false,
+        get: function() {
+            return dampening;
+        },
+        set: function(value) {
+            if (typeof(value) !== "number") {
+                throw new TypeError("Dampening has to be a number");
+            }
+            dampening = value;
+        },
         enumerable: true
     });
 
@@ -140,9 +148,6 @@ function YtCoordinatedHost(config, host)
     });
 
     events.EventEmitter.call(this);
-
-    // Enable dampening.
-    this.dampen = function() { dampening -= config.dampening; };
 
     // Hide EventEmitter properties to clean up JSON.
     Object.defineProperty(this, "_events", { enumerable: false });
@@ -183,7 +188,9 @@ YtCoordinator.prototype._refresh = function()
     var fqdn = self.fqdn;
     var path = "//sys/proxies/" + utils.escapeYPath(fqdn);
 
-    if (!self.initialized) {
+    var sync = Q();
+
+    if (self.config.announce && !self.initialized) {
         return Q
         .when(self.driver.executeSimple("exists", { path: path }))
         .then(function(exists) {
@@ -221,14 +228,15 @@ YtCoordinator.prototype._refresh = function()
         .done();
     }
 
-    self.__DBG("Updating coordination information");
-
-    return Q
-    .when(self.driver.executeSimple("set", { path: path + "/@liveness" }, {
+    if (self.config.announce) {
+        self.__DBG("Updating coordination information");
+        sync = self.driver.executeSimple("set", { path: path + "/@liveness" }, {
             updated_at: (new Date()).toISOString(),
             load_average: os.loadavg()[2]
-        })
-    )
+        });
+    }
+
+    return Q.when(sync)
     .then(function() {
         return self.driver.executeSimple("list", {
             path: "//sys/proxies",
@@ -333,7 +341,7 @@ YtCoordinator.prototype.dampen = function()
         .sort(function(lhs, rhs) { return lhs.fitness - rhs.fitness; })[0];
 
     if (typeof(victim) !== "undefined") {
-        victim.dampen();
+        victim.dampening += 1;
     }
 };
 
