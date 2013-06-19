@@ -34,7 +34,7 @@ class TablePath(object):
         if self.name != "/" and not self.name.startswith("//") and not self.name.startswith("#"):
             prefix = config.PREFIX
             require(prefix,
-                    YtError("Path (%s) should be absolute or you should specify prefix" % self.name))
+                    YtError("Path '%s' should be absolute or you should specify a prefix" % self.name))
             require(prefix.startswith("//"),
                     YtError("PREFIX '%s' should start with //" % prefix))
             require(prefix.endswith("/"),
