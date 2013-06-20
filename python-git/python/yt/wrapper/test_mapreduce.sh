@@ -446,7 +446,7 @@ test_force_drop()
 
     sleep 2
 
-    check_failed './mapreduce -drop "ignat/some_table"'
+    #check_failed './mapreduce -drop "ignat/some_table"'
 
     ./mapreduce -drop "ignat/some_table" -force
 
