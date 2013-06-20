@@ -16,6 +16,8 @@ from transaction import PingableTransaction
 from format import Format
 import logger
 
+from yt.yson import convert_to_json_tree
+
 import os
 import sys
 import types
@@ -128,7 +130,10 @@ def _add_user_command_spec(op_type, binary, input_format, output_format, files, 
                 "input_format": input_format.json(),
                 "output_format": output_format.json(),
                 "command": binary,
-                "file_paths": flatten(files + additional_files + map(prepare_path, get_value(file_paths, []))),
+                "file_paths": map(
+                    convert_to_json_tree,
+                    flatten(files + additional_files + map(prepare_path, get_value(file_paths, [])))
+                ),
                 "memory_limit": memory_limit,
                 "use_yamr_descriptors": bool_to_string(config.USE_MAPREDUCE_STYLE_DESTINATION_FDS)
             }
@@ -303,13 +308,14 @@ def write_table(table, input_stream, format=None, table_writer=None, replication
                 if started:
                     table.append = True
                 params = prepare_params()
+                data = list(buffer.get())
                 for i in xrange(config.WRITE_RETRIES_COUNT):
                     try:
                         with PingableTransaction(config.WRITE_TRANSACTION_TIMEOUT):
                             _make_transactional_request(
                                 "write",
                                 params,
-                                data=buffer.get(),
+                                data=data,
                                 proxy=get_host_for_heavy_operation())
                         break
                     except (NETWORK_ERRORS, YtError) as err:

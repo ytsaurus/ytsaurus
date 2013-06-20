@@ -1,10 +1,9 @@
 from common import flatten, require, bool_to_string
 from errors import YtError
-from driver import make_request
-from format import YsonFormat
+from etc_commands import parse_ypath
 import config
 
-from yt.yson import YsonString, loads
+from yt.yson import YsonString
 
 def check_prefix(prefix):
     require(prefix.startswith("//"),
@@ -12,9 +11,6 @@ def check_prefix(prefix):
     require(prefix.endswith("/"),
             YtError("PREFIX should end with /"))
 
-def _parse_ypath(path):
-    return loads(make_request("parse_ypath", {"path": path, "output_format": YsonFormat().json()}))
-    
 class TablePath(object):
     """
     Represents path to table with attributes:
@@ -31,14 +27,14 @@ class TablePath(object):
                  simplify=True):
         self._append = append
         if simplify:
-            self.name = _parse_ypath(name)
+            self.name = parse_ypath(name)
         else:
             self.name = YsonString(name)
 
         if self.name != "/" and not self.name.startswith("//") and not self.name.startswith("#"):
             prefix = config.PREFIX
             require(prefix,
-                    YtError("Path (%s) should be absolute or you should specify prefix" % self.name))
+                    YtError("Path '%s' should be absolute or you should specify a prefix" % self.name))
             require(prefix.startswith("//"),
                     YtError("PREFIX '%s' should start with //" % prefix))
             require(prefix.endswith("/"),
