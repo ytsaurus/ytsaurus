@@ -687,7 +687,8 @@ protected:
 
     void OnInputChunkAvailable(
         const NChunkClient::TChunkId& chunkId,
-        TInputChunkDescriptor& descriptor);
+        TInputChunkDescriptor& descriptor,
+         const NChunkClient::TChunkReplicaList& replicas);
 
     virtual bool IsOutputLivePreviewSupported() const;
     virtual bool IsIntermediateLivePreviewSupported() const;

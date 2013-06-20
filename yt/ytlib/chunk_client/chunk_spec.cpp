@@ -225,21 +225,26 @@ bool IsNontrivial(const TReadLimit& limit)
         limit.has_offset();
 }
 
-bool IsUnavailable(const TChunkSpec& chunkSpec)
+bool IsUnavailable(const TChunkReplicaList& replicas, NErasure::ECodec codecId)
 {
-    auto codecId = NErasure::ECodec(chunkSpec.erasure_codec());
     if (codecId == NErasure::ECodec::None) {
-        return chunkSpec.replicas_size() == 0;
+        return replicas.empty();
     } else {
         auto* codec = NErasure::GetCodec(codecId);
         int dataPartCount = codec->GetDataPartCount();
         NErasure::TPartIndexSet missingIndexSet((1 << dataPartCount) - 1);
-        FOREACH (auto protoReplica, chunkSpec.replicas()) {
-            auto replica = NYT::FromProto<TChunkReplica>(protoReplica);
+        FOREACH (auto replica, replicas) {
             missingIndexSet.reset(replica.GetIndex());
         }
         return missingIndexSet.any();
     }
+}
+
+bool IsUnavailable(const NProto::TChunkSpec& chunkSpec)
+{
+    auto codecId = NErasure::ECodec(chunkSpec.erasure_codec());
+    auto replicas = FromProto<TChunkReplica, TChunkReplicaList>(chunkSpec.replicas());
+    return IsUnavailable(replicas, codecId);
 }
 
 void GetStatistics(

@@ -9,6 +9,25 @@ var utils = require("./utils");
 
 var __DBG = require("./debug").that("H", "Hosts");
 
+function addHostNameSuffix(host, suffix)
+{
+    var index = host.indexOf(".");
+    if (index > 0) {
+        return host.substr(0, index) + suffix + host.substr(index);
+    } else {
+        return host + suffix;
+    }
+}
+
+function checkHostNameSuffix(host, suffix)
+{
+    var index = host.indexOf(".");
+    if (index > 0) {
+        host = host.substr(0, index);
+    }
+    return host.substr(host.length - suffix.length, host.length) === suffix;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 function YtApplicationHosts(logger, coordinator)
@@ -54,6 +73,18 @@ YtApplicationHosts.prototype._dispatchBasic = function(req, rsp)
     .sort(function(lhs, rhs) { return lhs.fitness - rhs.fitness; })
     .map(function(entry) { return entry.host; });
 
+    if (this._isViaFastbone(req)) {
+        for (var i = 0; i < hosts.length; ++i) {
+            hosts[i] = addHostNameSuffix(hosts[i], "-fb");
+        }
+    }
+
+    if (this._isViaBackbone(req)) {
+        for (var i = 0; i < hosts.length; ++i) {
+            hosts[i] = addHostNameSuffix(hosts[i], "-bb");
+        }
+    }
+
     var mime, body;
     mime = utils.bestAcceptedType(
         [ "application/json", "text/plain" ],
@@ -80,6 +111,20 @@ YtApplicationHosts.prototype._dispatchExtended = function(req, rsp)
 
     var data = this.coordinator.getProxies();
     return utils.dispatchJson(rsp, data);
+};
+
+YtApplicationHosts.prototype._isViaFastbone = function(req)
+{
+    "use strict";
+    var host = req.headers["host"];
+    return typeof(host) === "string" && checkHostNameSuffix(host, "-fb");
+};
+
+YtApplicationHosts.prototype._isViaBackbone = function(req)
+{
+    "use strict";
+    var host = req.headers["host"];
+    return typeof(host) === "string" && checkHostNameSuffix(host, "-bb");
 };
 
 ////////////////////////////////////////////////////////////////////////////////

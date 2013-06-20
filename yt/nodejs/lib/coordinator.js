@@ -18,7 +18,7 @@ function YtCoordinatedHost(config, host)
 {
     "use strict";
 
-    var role = "control";
+    var role = "data";
     var dead = true;
     var banned = false;
     var liveness = { updated_at: new Date(0), load_average: 0.0 };
@@ -99,14 +99,22 @@ function YtCoordinatedHost(config, host)
     });
 
     Object.defineProperty(this, "randomness", {
-        value: randomness,
-        writable: false,
+        get: function() {
+            return randomness;
+        },
         enumerable: true
     });
 
     Object.defineProperty(this, "dampening", {
-        value: dampening,
-        writable: false,
+        get: function() {
+            return dampening;
+        },
+        set: function(value) {
+            if (typeof(value) !== "number") {
+                throw new TypeError("Dampening has to be a number");
+            }
+            dampening = value;
+        },
         enumerable: true
     });
 
@@ -139,10 +147,9 @@ function YtCoordinatedHost(config, host)
         enumerable: true
     });
 
+    // Prevent 'undefined' property.
+    this._events = {};
     events.EventEmitter.call(this);
-
-    // Enable dampening.
-    this.dampen = function() { dampening -= config.dampening; };
 
     // Hide EventEmitter properties to clean up JSON.
     Object.defineProperty(this, "_events", { enumerable: false });
@@ -170,6 +177,8 @@ function YtCoordinator(config, logger, driver, fqdn)
         this.initialized = false;
         this.timer = setInterval(this._refresh.bind(this), this.config.heartbeat_interval);
         this.timer.unref && this.timer.unref();
+
+        this._refresh(); // Fire |_refresh| ASAP to avoid empty host list.
     }
 
     this.__DBG("New");
@@ -183,7 +192,9 @@ YtCoordinator.prototype._refresh = function()
     var fqdn = self.fqdn;
     var path = "//sys/proxies/" + utils.escapeYPath(fqdn);
 
-    if (!self.initialized) {
+    var sync = Q();
+
+    if (self.config.announce && !self.initialized) {
         return Q
         .when(self.driver.executeSimple("exists", { path: path }))
         .then(function(exists) {
@@ -221,14 +232,15 @@ YtCoordinator.prototype._refresh = function()
         .done();
     }
 
-    self.__DBG("Updating coordination information");
-
-    return Q
-    .when(self.driver.executeSimple("set", { path: path + "/@liveness" }, {
+    if (self.config.announce) {
+        self.__DBG("Updating coordination information");
+        sync = self.driver.executeSimple("set", { path: path + "/@liveness" }, {
             updated_at: (new Date()).toISOString(),
             load_average: os.loadavg()[2]
-        })
-    )
+        });
+    }
+
+    return Q.when(sync)
     .then(function() {
         return self.driver.executeSimple("list", {
             path: "//sys/proxies",
@@ -242,7 +254,8 @@ YtCoordinator.prototype._refresh = function()
             var ref = self.hosts[host];
             if (typeof(ref) === "undefined") {
                 self.logger.info("Discovered a new proxy", { host: host });
-                ref = self.hosts[host] = new YtCoordinatedHost(self.config, host);
+                ref = new YtCoordinatedHost(self.config, host);
+                self.hosts[host] = ref;
 
                 ref.on("dead", function() {
                     self.logger.info("Marking proxy as dead", { host: host });
@@ -327,11 +340,14 @@ YtCoordinator.prototype.getSelf = function()
 YtCoordinator.prototype.dampen = function()
 {
     "use strict";
-    this
-    .getProxies("data", false, false)
-    .sort(function(lhs, rhs) { return lhs.fitness - rhs.fitness; })
-    [0]
-    .dampen();
+
+    var victim = this
+        .getProxies("data", false, false)
+        .sort(function(lhs, rhs) { return lhs.fitness - rhs.fitness; })[0];
+
+    if (typeof(victim) !== "undefined") {
+        victim.dampening += 1;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

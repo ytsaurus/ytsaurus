@@ -712,6 +712,10 @@ public:
             }
         }
 
+        if (FreePendingDataSize == 0) {
+            return 0;
+        }
+
         return JobCounter.GetPending();
     }
 

@@ -92,6 +92,7 @@ void ToProto(NProto::TChunkSpec* chunkSpec, const TChunkSlice& chunkSlice);
 bool IsNontrivial(const NProto::TReadLimit& limit);
 
 bool IsUnavailable(const NProto::TChunkSpec& chunkSpec);
+bool IsUnavailable(const TChunkReplicaList& replicas, NErasure::ECodec codecId);
 
 //! Extracts various chunk statistics by first looking at
 //! TSizeOverrideExt (if present) and then at TMiscExt.
