@@ -147,6 +147,8 @@ function YtCoordinatedHost(config, host)
         enumerable: true
     });
 
+    // Prevent 'undefined' property.
+    this._events = {};
     events.EventEmitter.call(this);
 
     // Hide EventEmitter properties to clean up JSON.
@@ -175,6 +177,8 @@ function YtCoordinator(config, logger, driver, fqdn)
         this.initialized = false;
         this.timer = setInterval(this._refresh.bind(this), this.config.heartbeat_interval);
         this.timer.unref && this.timer.unref();
+
+        this._refresh(); // Fire |_refresh| ASAP to avoid empty host list.
     }
 
     this.__DBG("New");
@@ -250,7 +254,8 @@ YtCoordinator.prototype._refresh = function()
             var ref = self.hosts[host];
             if (typeof(ref) === "undefined") {
                 self.logger.info("Discovered a new proxy", { host: host });
-                ref = self.hosts[host] = new YtCoordinatedHost(self.config, host);
+                ref = new YtCoordinatedHost(self.config, host);
+                self.hosts[host] = ref;
 
                 ref.on("dead", function() {
                     self.logger.info("Marking proxy as dead", { host: host });
