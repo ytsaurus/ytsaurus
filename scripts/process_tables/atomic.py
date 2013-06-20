@@ -29,6 +29,13 @@ def atomic_pop(list, retries_count=10, delay=5.0):
 def atomic_push(list, value):
     yt.set(list + "/begin", value)
 
+def is_hashable(obj):
+    try:
+        hash(obj)
+        return True
+    except:
+        return False
+
 def process_tasks_from_list(list, action):
     processed_values = set()
     while True:
@@ -40,16 +47,19 @@ def process_tasks_from_list(list, action):
                 print >>sys.stderr, "List %s is empty, processing stopped" % list
                 break
 
+            hashable_value = None
             if isinstance(value, __builtin__.list):
-                value = tuple(value)
+                hashable_value = tuple(value)
+            elif isinstance(value, __builtin__.dict):
+                hashable_value = tuple(value.items())
 
-            if value in processed_values:
-                print >>sys.stderr, "We have already prosessed value %r, processing stopped." %value
-                print >>sys.stderr, "Put value %s back to the queue" % str(value)
-                atomic_push(list, value)
-                break
-
-            processed_values.add(value)
+            if hashable_value is not None and is_hashable(hashable_value):
+                if hashable_value in processed_values:
+                    print >>sys.stderr, "We have already prosessed value %r, processing stopped." %value
+                    print >>sys.stderr, "Put value %s back to the queue" % str(value)
+                    atomic_push(list, value)
+                    break
+                processed_values.add(value)
 
             print >>sys.stderr, "Processing value", value
             result = action(value)

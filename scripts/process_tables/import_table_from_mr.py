@@ -170,7 +170,19 @@ def main():
                       "force_transform": "true"})
 
 
-    def import_table(table):
+    def import_table(obj):
+        destination = None
+        if isinstance(obj, dict):
+            table = obj["src"]
+            destination = obj["dst"]
+            args.server = obj.get("mr_server", args.server)
+            args.proxy = obj.get("mr_proxies", args.proxy)
+            args.server_port = obj.get("server_port", args.server_port)
+            args.http = obj.get("http_port", args.http_port)
+        else:
+            table = obj
+            destination = os.path.join(args.destination, table)
+
         if is_empty(table):
             print >>sys.stderr, "Table is empty"
             return -1
@@ -178,7 +190,6 @@ def main():
         count = records_count(table)
         sorted = is_sorted(table)
 
-        destination = os.path.join(args.destination, table)
         if yt.exists(destination):
             if args.force or (yt.get_type(destination) == "table" and yt.is_empty(destination)):
                 yt.remove(destination)
