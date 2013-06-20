@@ -1,13 +1,14 @@
 import config
-from common import require, chunk_iter, partial
+from common import require, chunk_iter, partial, bool_to_string
 from errors import YtError
 from driver import read_content, get_host_for_heavy_operation
 from tree_commands import remove, exists, set_attribute, mkdir, find_free_subpath, create
 from transaction_commands import _make_transactional_request
 from table import prepare_path
 
+from yt.yson import convert_to_yson_type
+
 import os
-import sys
 import hashlib
 
 def md5sum(filename):
@@ -77,10 +78,11 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
         if yt_filename is None:
             yt_filename = os.path.basename(destination)
 
-    upload_file(open(filename), destination, yt_filename)
+    upload_file(open(filename), destination)
+    set_attribute(destination, "file_name", yt_filename)
 
-    # Set executable flag if need
-    if os.access(filename, os.X_OK) or config.ALWAYS_SET_EXECUTABLE_FLAG_TO_FILE:
-        set_attribute(destination, "executable", "true")
-    return destination
-
+    executable = os.access(filename, os.X_OK) or config.ALWAYS_SET_EXECUTABLE_FLAG_TO_FILE
+    return convert_to_yson_type(
+        destination,
+        {"file_name": yt_filename,
+         "executable": bool_to_string(executable)})
