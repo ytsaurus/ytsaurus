@@ -185,7 +185,7 @@ config = {
         fitness_la_coefficient: 1,
         fitness_phi_coefficient: 6,
         fitness_rnd_coefficient: 1,
-        fitness_dmp_coefficient: -0.3,
+        fitness_dmp_coefficient: 0.3,
         afd_window_size: 24,
         afd_phi_threshold: 4,
         death_age: 300000
