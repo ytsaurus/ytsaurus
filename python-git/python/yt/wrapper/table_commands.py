@@ -308,13 +308,14 @@ def write_table(table, input_stream, format=None, table_writer=None, replication
                 if started:
                     table.append = True
                 params = prepare_params()
+                data = list(buffer.get())
                 for i in xrange(config.WRITE_RETRIES_COUNT):
                     try:
                         with PingableTransaction(config.WRITE_TRANSACTION_TIMEOUT):
                             _make_transactional_request(
                                 "write",
                                 params,
-                                data=buffer.get(),
+                                data=data,
                                 proxy=get_host_for_heavy_operation())
                         break
                     except (NETWORK_ERRORS, YtError) as err:
