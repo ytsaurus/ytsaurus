@@ -4,13 +4,21 @@ import __builtin__
 
 import sys
 import random
+import logging
 import traceback
 from time import sleep
+
+logger = logging.getLogger("Cron")
+logger.setLevel(level="INFO")
+
+formatter = logging.Formatter('%(asctime)-15s: %(message)s')
+logger.addHandler(logging.StreamHandler())
+logger.handlers[0].setFormatter(formatter)
 
 def atomic_pop(list, retries_count=10, delay=5.0):
     with yt.Transaction():
         for i in xrange(retries_count):
-            print >>sys.stderr, "Trying to take lock, %d-th attempt..." % (i + 1)
+            logger.info("Trying to take lock, %d-th attempt...", i + 1)
             try:
                 count = int(yt.get(list + "/@count"))
                 if not count:
@@ -21,8 +29,8 @@ def atomic_pop(list, retries_count=10, delay=5.0):
                 return value
             # We hope that it is cannot take lock error
             except yt.YtResponseError as e:
-                print >>sys.stderr, "Error", e
-                print >>sys.stderr, "Cannot take lock, waiting for %f second..." % delay
+                logger.error("Error %s", str(e))
+                logger.info("Cannot take lock, waiting for %f second...", delay)
                 sleep(random.uniform(0.1, delay))
 
 
@@ -44,7 +52,7 @@ def process_tasks_from_list(list, action):
             value = atomic_pop(list)
 
             if value is None:
-                print >>sys.stderr, "List %s is empty, processing stopped" % list
+                logger.info("List %s is empty, processing stopped", list)
                 break
 
             hashable_value = None
@@ -55,25 +63,25 @@ def process_tasks_from_list(list, action):
 
             if hashable_value is not None and is_hashable(hashable_value):
                 if hashable_value in processed_values:
-                    print >>sys.stderr, "We have already prosessed value %r, processing stopped." %value
-                    print >>sys.stderr, "Put value %s back to the queue" % str(value)
+                    logger.info("We have already prosessed value {0}, "
+                                "it put back to queue and processed is stopped".format(str(value)))
                     atomic_push(list, value)
                     break
                 processed_values.add(value)
 
-            print >>sys.stderr, "Processing value", value
+            logger.info("Processing value %s", str(value))
             result = action(value)
             if result == -1:
-                print >>sys.stderr, "Action can not be done."
-                print >>sys.stderr, "Put value %s back to the queue" % str(value)
+                logger.warning("Action can not be done. "
+                               "Put value %s back to the queue", str(value))
                 atomic_push(list, value)
 
         except (Exception, KeyboardInterrupt) as e:
-            print >>sys.stderr, "Crashed with error", e
+            logger.error("Crashed with error %s", str(e))
             _, _, exc_traceback = sys.exc_info()
             traceback.print_tb(exc_traceback, file=sys.stdout)
             if value is not None:
-                print >>sys.stderr, "Put value %s back to the queue" % str(value)
+                logger.info("Put value %s back to the queue", str(value))
                 atomic_push(list, value)
             break
 
