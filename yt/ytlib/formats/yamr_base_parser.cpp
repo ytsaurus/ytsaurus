@@ -287,7 +287,7 @@ const char* TYamrLenvalBaseParser::ConsumeLength(const char* begin, const char* 
         return current;
     }
 
-    if (Uniton.Length == static_cast<ui32>(-1)) {
+    if (Union.Length == static_cast<ui32>(-1)) {
         THROW_ERROR_EXCEPTION("Output table selectors in YAMR stream are not supported");
     }
 
