@@ -122,9 +122,10 @@ private:
 
     EState State;
 
-    static const ui32 MaxFieldLength = 16 * 1024 * 1024;
-    static const int BufferSize = 16;
-    char ContextBuffer[BufferSize];
+    static const i64 MaxFieldLength = (i64) 16 * 1024 * 1024;
+    
+    static const int ContextSize = 16;
+    char ContextBuffer[ContextSize];
 
 };
 

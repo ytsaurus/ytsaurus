@@ -287,10 +287,14 @@ const char* TYamrLenvalBaseParser::ConsumeLength(const char* begin, const char* 
         return current;
     }
 
+    if (Uniton.Length == static_cast<ui32>(-1)) {
+        THROW_ERROR_EXCEPTION("Output table selectors in YAMR stream are not supported");
+    }
+
     if (Union.Length > MaxFieldLength) {
-        THROW_ERROR_EXCEPTION("Field is too long: length %d, limit %d",
-            static_cast<int>(Union.Length),
-            static_cast<int>(MaxFieldLength));
+        THROW_ERROR_EXCEPTION("Field is too long: length % " PRId64 ", limit %" PRId64,
+            static_cast<i64>(Union.Length),
+            MaxFieldLength);
     }
 
     ReadingLength = false;
