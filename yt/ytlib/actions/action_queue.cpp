@@ -18,7 +18,7 @@ TActionQueue::TActionQueue(const Stroka& threadName, bool enableLogging)
     : Impl(New<TExecutorThreadWithQueue>(
         nullptr,
         threadName,
-        "/" + ToYPathLiteral(threadName),
+        threadName,
         enableLogging))
 { }
 
