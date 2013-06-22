@@ -57,7 +57,7 @@ protected:
             NCompression::ECodec codec = NCompression::ECodec::None;
             attributes->SetYson(
                 "compression_codec",
-                NYTree::TYsonString(FormatEnum(codec)));
+                TYsonString(FormatEnum(codec)));
         }
     }
 
@@ -85,10 +85,7 @@ protected:
             auto chunkId = FromProto<TChunkId>(requestExt.chunk_id());
 
             auto chunkManager = Bootstrap->GetChunkManager();
-            auto* chunk = chunkManager->FindChunk(chunkId);
-            if (!IsObjectAlive(chunk)) {
-                THROW_ERROR_EXCEPTION("No such chunk %s", ~ToString(chunkId));
-            }
+            auto* chunk = chunkManager->GetChunkOrThrow(chunkId);
             if (!chunk->IsConfirmed()) {
                 THROW_ERROR_EXCEPTION("Chunk %s is not confirmed", ~ToString(chunkId));
             }

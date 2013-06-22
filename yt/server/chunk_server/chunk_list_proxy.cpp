@@ -143,10 +143,7 @@ private:
         std::vector<TChunkTree*> children;
         children.reserve(childrenIds.size());
         FOREACH (const auto& childId, childrenIds) {
-            auto* child = chunkManager->FindChunkTree(childId);
-            if (!IsObjectAlive(child)) {
-                THROW_ERROR_EXCEPTION("No such chunk tree %s", ~ToString(childId));
-            }
+            auto* child = chunkManager->GetChunkTreeOrThrow(childId);
             children.push_back(child);
         }
 

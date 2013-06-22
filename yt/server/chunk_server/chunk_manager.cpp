@@ -659,6 +659,16 @@ public:
     }
 
 
+    TChunk* GetChunkOrThrow(const TChunkId& id)
+    {
+        auto* chunk = FindChunk(id);
+        if (!IsObjectAlive(chunk)) {
+            THROW_ERROR_EXCEPTION("No such chunk %s", ~ToString(id));
+        }
+        return chunk;
+    }
+
+
     TChunkTree* FindChunkTree(const TChunkTreeId& id)
     {
         auto type = TypeFromId(id);
@@ -677,6 +687,15 @@ public:
     {
         auto* chunkTree = FindChunkTree(id);
         YCHECK(chunkTree);
+        return chunkTree;
+    }
+
+    TChunkTree* GetChunkTreeOrThrow(const TChunkTreeId& id)
+    {
+        auto* chunkTree = FindChunkTree(id);
+        if (!IsObjectAlive(chunkTree)) {
+            THROW_ERROR_EXCEPTION("No such chunk tree %s", ~ToString(id));
+        }
         return chunkTree;
     }
 
@@ -1537,6 +1556,11 @@ void TChunkManager::Initialize()
     Impl->Initialize();
 }
 
+TChunk* TChunkManager::GetChunkOrThrow(const TChunkId& id)
+{
+    return Impl->GetChunkOrThrow(id);
+}
+
 TChunkTree* TChunkManager::FindChunkTree(const TChunkTreeId& id)
 {
     return Impl->FindChunkTree(id);
@@ -1545,6 +1569,11 @@ TChunkTree* TChunkManager::FindChunkTree(const TChunkTreeId& id)
 TChunkTree* TChunkManager::GetChunkTree(const TChunkTreeId& id)
 {
     return Impl->GetChunkTree(id);
+}
+
+TChunkTree* TChunkManager::GetChunkTreeOrThrow(const TChunkTreeId& id)
+{
+    return Impl->GetChunkTreeOrThrow(id);
 }
 
 TNodeList TChunkManager::AllocateUploadTargets(

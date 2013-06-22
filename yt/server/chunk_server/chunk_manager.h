@@ -40,10 +40,13 @@ public:
         const NProto::TMetaReqUpdateChunkProperties& request);
 
     DECLARE_METAMAP_ACCESSORS(Chunk, TChunk, TChunkId);
+    TChunk* GetChunkOrThrow(const TChunkId& id);
+
     DECLARE_METAMAP_ACCESSORS(ChunkList, TChunkList, TChunkListId);
 
     TChunkTree* FindChunkTree(const TChunkTreeId& id);
     TChunkTree* GetChunkTree(const TChunkTreeId& id);
+    TChunkTree* GetChunkTreeOrThrow(const TChunkTreeId& id);
 
     TNodeList AllocateUploadTargets(
         int replicaCount,

@@ -94,8 +94,8 @@ private:
 
         if (TransactionId != NullTransactionId) {
             transaction = transactionManager->FindTransaction(TransactionId);
-            if (!transaction) {
-                Visitor->OnError(TError("No such transaction: %s",
+            if (!IsObjectAlive(transaction)) {
+                Visitor->OnError(TError("No such transaction %s",
                     ~ToString(TransactionId)));
                 return;
             }
@@ -117,8 +117,8 @@ private:
             } else {
                 const auto& nodeId = entry.Children[childIndex];
                 auto* trunkNode = cypressManager->FindNode(TVersionedNodeId(nodeId));
-                if (!trunkNode) {
-                    Visitor->OnError(TError("No such node: %s",
+                if (!IsObjectAlive(trunkNode)) {
+                    Visitor->OnError(TError("No such node %s",
                         ~ToString(nodeId)));
                     return;
                 }

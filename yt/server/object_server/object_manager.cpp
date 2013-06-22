@@ -138,7 +138,7 @@ public:
         auto transactionId = GetTransactionId(context);
         if (transactionId != NullTransactionId) {
             transaction = transactionManager->FindTransaction(transactionId);
-            if (!transaction) {
+            if (!IsObjectAlive(transaction)) {
                 THROW_ERROR_EXCEPTION("No such transaction %s", ~ToString(transactionId));
             }
             if (transaction->GetState() != ETransactionState::Active) {

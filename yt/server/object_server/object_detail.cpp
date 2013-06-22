@@ -193,7 +193,7 @@ DEFINE_RPC_SERVICE_METHOD(TObjectProxyBase, CheckPermission)
 
     auto* user = securityManager->FindUserByName(userName);
     if (!IsObjectAlive(user)) {
-        THROW_ERROR_EXCEPTION("No such user: %s", ~userName);
+        THROW_ERROR_EXCEPTION("No such user %s", ~userName.Quote());
     }
 
     auto result = securityManager->CheckPermission(Object, user, permission);

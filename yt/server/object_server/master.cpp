@@ -58,7 +58,7 @@ private:
         auto securityManager = Bootstrap->GetSecurityManager();
         auto* account = securityManager->FindAccountByName(name);
         if (!account) {
-            THROW_ERROR_EXCEPTION("No such account: %s", ~name);
+            THROW_ERROR_EXCEPTION("No such account %s", ~name.Quote());
         }
         return account;
     }
@@ -68,10 +68,10 @@ private:
         auto transactionManager = Bootstrap->GetTransactionManager();
         auto* transaction = transactionManager->FindTransaction(id);
         if (!IsObjectAlive(transaction)) {
-            THROW_ERROR_EXCEPTION("No such transaction: %s", ~ToString(id));
+            THROW_ERROR_EXCEPTION("No such transaction %s", ~ToString(id));
         }
         if (!transaction->IsActive()) {
-            THROW_ERROR_EXCEPTION("Transaction is not active: %s", ~ToString(id));
+            THROW_ERROR_EXCEPTION("Transaction %s is not active", ~ToString(id));
         }
         return transaction;
     }

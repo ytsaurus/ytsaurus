@@ -1109,7 +1109,7 @@ void TOperationControllerBase::ReinstallLivePreview()
     if (IsOutputLivePreviewSupported()) {
         FOREACH (const auto& table, OutputTables) {
             std::vector<TChunkTreeId> childrenIds;
-            childrenIds.resize(table.OutputChunkTreeIds.size());
+            childrenIds.reserve(table.OutputChunkTreeIds.size());
             FOREACH (const auto& pair, table.OutputChunkTreeIds) {
                 childrenIds.push_back(pair.second);
             }
@@ -1122,7 +1122,7 @@ void TOperationControllerBase::ReinstallLivePreview()
 
     if (IsIntermediateLivePreviewSupported()) {
         std::vector<TChunkTreeId> childrenIds;
-        childrenIds.resize(ChunkOriginMap.size());
+        childrenIds.reserve(ChunkOriginMap.size());
         FOREACH (const auto& pair, ChunkOriginMap) {
             if (!pair.second->IsLost) {
                 childrenIds.push_back(pair.first);

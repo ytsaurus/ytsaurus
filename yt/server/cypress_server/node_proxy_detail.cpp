@@ -291,8 +291,8 @@ bool TNontemplateCypressNodeProxyBase::SetSystemAttribute(const Stroka& key, con
 
         auto name = ConvertTo<Stroka>(value);
         auto* account = securityManager->FindAccountByName(name);
-        if (!account) {
-            THROW_ERROR_EXCEPTION("No such account: %s", ~name);
+        if (!IsObjectAlive(account)) {
+            THROW_ERROR_EXCEPTION("No such account %s", ~name.Quote());
         }
 
         ValidatePermission(account, EPermission::Use);
