@@ -143,7 +143,7 @@ YtHttpRequest.prototype.fire = function()
         headers: self.headers,
         host: self.host,
         port: self.port,
-        path: url.format({ pathname: self.path })
+        path: self.path,
     });
 
     req.setNoDelay(self.nodelay);

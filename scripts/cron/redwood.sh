@@ -1,5 +1,7 @@
 #!/bin/sh -eux
 
+export YT_PROXY="kant.yt.yandex.net"
+
 IMPORT_PATH="//userdata"
 IMPORT_QUEUE="//sys/cron/tables_to_import_from_redwood"
 REMOVE_QUEUE="//sys/cron/tables_to_remove"
@@ -8,5 +10,8 @@ REMOVE_QUEUE="//sys/cron/tables_to_remove"
 
 /opt/cron/tools/remove.py $REMOVE_QUEUE
 
-/opt/cron/tools/import_table_from_mr.py --tables "$IMPORT_QUEUE" --destination="$IMPORT_PATH" --server "redwood.yandex.ru" --codec "gzip_best_compression" --job-count 20 --force
+/opt/cron/tools/import_table_from_mr.py \
+    --tables "$IMPORT_QUEUE" --destination="$IMPORT_PATH" \
+    --server "redwood.yandex.ru" --mapreduce "/opt/cron/tools/mapreduce" \
+    --pool "redwood_restricted" --codec "gzip_best_compression" 
 
