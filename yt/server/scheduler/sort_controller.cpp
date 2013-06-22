@@ -11,6 +11,8 @@
 
 #include <ytlib/misc/string.h>
 
+#include <ytlib/fibers/fiber.h>
+
 #include <ytlib/ytree/fluent.h>
 
 #include <ytlib/chunk_client/schema.h>
@@ -1555,15 +1557,16 @@ private:
         return result;
     }
 
-    virtual TAsyncPipeline<void>::TPtr CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline) override
+    virtual void CustomPrepare() override
     {
-        return pipeline
-            ->Add(BIND(&TSortController::RequestSamples, MakeStrong(this)))
-            ->Add(BIND(&TSortController::OnSamplesReceived, MakeStrong(this)));
-    }
+        TSortControllerBase::CustomPrepare();
 
-    TAsyncError RequestSamples()
-    {
+        if (TotalInputDataSize == 0)
+            return;
+
+        OutputTables[0].Options->KeyColumns = Spec->SortBy;
+
+        TAsyncError asyncSamplesResult;
         PROFILE_TIMING ("/input_processing_time") {
             SamplesFetcher = New<TSamplesFetcher>(
                 Config,
@@ -1581,15 +1584,22 @@ private:
             }
 
             SamplesFetcher->SetDesiredSampleCount(SuggestPartitionCount() * Spec->SamplesPerPartition);
-            return SamplesCollector->Run();
+            asyncSamplesResult = SamplesCollector->Run();
         }
-    }
 
-    virtual void OnCustomInputsRecieved(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp) override
-    {
-        UNUSED(batchRsp);
+        auto samplesResult = WaitFor(asyncSamplesResult);
+        THROW_ERROR_EXCEPTION_IF_FAILED(samplesResult);
 
-        OutputTables[0].Options->KeyColumns = Spec->SortBy;
+        PROFILE_TIMING ("/samples_processing_time") {
+            SortSamples();
+            BuildPartitions();
+        }
+
+        SamplesFetcher.Reset();
+        SamplesCollector.Reset();
+        SortedSamples.clear();
+
+        InitJobSpecTemplates();
     }
 
     void SortSamples()
@@ -1746,20 +1756,6 @@ private:
         LOG_INFO("Sorting with partitioning (PartitionCount: %d, PartitionJobCount: %" PRId64 ")",
             partitionCount,
             PartitionJobCounter.GetTotal());
-    }
-
-    void OnSamplesReceived()
-    {
-        PROFILE_TIMING ("/samples_processing_time") {
-            SortSamples();
-            BuildPartitions();
-
-            SamplesFetcher.Reset();
-            SamplesCollector.Reset();
-            SortedSamples.clear();
-
-            InitJobSpecTemplates();
-        }
     }
 
     void InitJobIOConfigs()
@@ -2096,8 +2092,13 @@ private:
         return result;
     }
 
-    virtual void OnCustomInputsRecieved(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp) override
+    virtual void CustomPrepare() override
     {
+        TSortControllerBase::CustomPrepare();
+
+        if (TotalInputDataSize == 0)
+            return;
+
         FOREACH (const auto& file, RegularFiles) {
             if (file.Stage == EOperationStage::Map) {
                 MapperFiles.push_back(file);
@@ -2113,21 +2114,12 @@ private:
                 ReducerTableFiles.push_back(file);
             }
         }
-    }
 
-    virtual TAsyncPipeline<void>::TPtr CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline) override
-    {
-        return pipeline->Add(BIND(&TMapReduceController::ProcessInputs, MakeStrong(this)));
-    }
-
-    TFuture<void> ProcessInputs()
-    {
         PROFILE_TIMING ("/input_processing_time") {
             BuildPartitions();
-            InitJobSpecTemplates();
         }
-
-        return MakeFuture();
+        
+        InitJobSpecTemplates();
     }
 
     void BuildPartitions()

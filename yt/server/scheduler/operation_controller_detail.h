@@ -15,7 +15,6 @@
 
 #include <ytlib/logging/tagged_logger.h>
 
-#include <ytlib/actions/async_pipeline.h>
 #include <ytlib/actions/cancelable_context.h>
 
 #include <ytlib/chunk_client/chunk_owner_ypath_proxy.h>
@@ -549,17 +548,17 @@ protected:
 
     // Here comes the preparation pipeline.
 
+    TError DoPrepare();
+
     // Round 1:
     // - Get input table ids
     // - Get output table ids
-    NObjectClient::TObjectServiceProxy::TInvExecuteBatch GetObjectIds();
-    void OnObjectIdsReceived(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
+    void GetObjectIds();
 
     // Round 2:
     // - Request file types
     // - Check that input and output are tables
-    NObjectClient::TObjectServiceProxy::TInvExecuteBatch GetInputTypes();
-    void OnInputTypesReceived(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
+    void ValidateInputTypes();
 
     // Round 3:
     // - Fetch input tables.
@@ -569,51 +568,41 @@ protected:
     // - Get output tables channels.
     // - Get output chunk lists.
     // - (Custom)
-
-    NObjectClient::TObjectServiceProxy::TInvExecuteBatch RequestInputs();
-    void OnInputsReceived(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
+    void RequestInputs();
 
     // Round 4:
     // - Create live preview tables, if needed
-    NObjectClient::TObjectServiceProxy::TInvExecuteBatch CreateLivePreviewTables();
-    void OnLivePreviewTablesCreated(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
+    void CreateLivePreviewTables();
 
     // Round 5:
     // - Prepare live preview tables for update
-    NObjectClient::TObjectServiceProxy::TInvExecuteBatch PrepareLivePreviewTablesForUpdate();
-    void OnLivePreviewTablesPreparedForUpdate(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
-
-    //! Extensibility point for requesting additional info from master.
-    virtual void RequestCustomInputs(NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr batchReq);
-
-    //! Extensibility point for handling additional info from master.
-    virtual void OnCustomInputsRecieved(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
+    void PrepareLivePreviewTablesForUpdate();
 
     // Round 5.
     // - Collect totals.
     // - Check for zero totals.
-    TFuture<void> CollectTotals();
+    void CollectTotals();
 
     // Round 6.
     // - (Custom)
-    virtual TAsyncPipeline<void>::TPtr CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline);
+    virtual void CustomPrepare();
 
     // Round 7.
     // - Check for empty inputs.
     // - Init chunk list pool.
-    // - Suspend stripes with unavalable chunks and fire chunk scratcher.
+    // - Suspend stripes with unavailable chunks and fire chunk scratcher.
     // - Kick-start all tasks.
     void CompletePreparation();
 
 
     // Here comes the completion pipeline.
 
+    TError DoCommit();
+
     // Round 1.
     // - Sort parts of output, if needed.
     // - Attach chunk trees.
-
-    NObjectClient::TObjectServiceProxy::TInvExecuteBatch CommitResults();
-    void OnResultsCommitted(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
+    void CommitResults();
 
 
     virtual void DoInitialize();

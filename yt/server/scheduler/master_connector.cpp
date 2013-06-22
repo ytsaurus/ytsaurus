@@ -12,9 +12,7 @@
 #include <ytlib/misc/delayed_invoker.h>
 #include <ytlib/misc/address.h>
 
-#include <ytlib/actions/async_pipeline.h>
 #include <ytlib/actions/parallel_awaiter.h>
-#include <ytlib/actions/action_queue.h>
 
 #include <ytlib/fibers/fiber.h>
 
@@ -130,7 +128,6 @@ public:
             ~ToString(id));
 
         auto* list = GetUpdateList(operation);
-
         auto batchReq = StartBatchRequest(list);
         {
             auto req = TYPathProxy::Set(GetOperationPath(id) + "/@");
@@ -153,46 +150,21 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected);
 
+        auto* list = GetUpdateList(operation);
+
         auto id = operation->GetOperationId();
         LOG_INFO("Flushing operation node (OperationId: %s)",
             ~ToString(id));
 
-        auto* list = GetUpdateList(operation);
-        list->State = EUpdateListState::Flushing;
-
         // Create a batch update for this particular operation.
         auto batchReq = StartBatchRequest(list);
         PrepareOperationUpdate(list, batchReq);
 
-        batchReq->Invoke().Apply(
+        return batchReq->Invoke().Apply(
             BIND(&TImpl::OnOperationNodeFlushed, MakeStrong(this), operation)
                 .Via(CancelableControlInvoker));
-
-        return list->FlushedPromise;
     }
 
-    TFuture<void> FinalizeOperationNode(TOperationPtr operation)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected);
-
-        auto id = operation->GetOperationId();
-        LOG_INFO("Finalizing operation node (OperationId: %s)",
-            ~ToString(id));
-
-        auto* list = GetUpdateList(operation);
-        list->State = EUpdateListState::Finalizing;
-
-        // Create a batch update for this particular operation.
-        auto batchReq = StartBatchRequest(list);
-        PrepareOperationUpdate(list, batchReq);
-
-        batchReq->Invoke().Subscribe(
-            BIND(&TImpl::OnOperationNodeFinalized, MakeStrong(this), operation)
-                .Via(CancelableControlInvoker));
-
-        return list->FinalizedPromise;
-    }
 
     void CreateJobNode(TJobPtr job, const TChunkId& stdErrChunkId)
     {
@@ -205,7 +177,6 @@ public:
             ~ToString(stdErrChunkId));
 
         auto* list = GetUpdateList(job->GetOperation());
-
         TJobRequest request;
         request.Job = job;
         request.StdErrChunkId = stdErrChunkId;
@@ -226,7 +197,6 @@ public:
             ~ToString(chunkTreeId));
 
         auto* list = GetUpdateList(operation);
-
         TLivePreviewRequest request;
         request.ChunkListId = chunkListId;
         request.ChunkTreeId = chunkTreeId;
@@ -285,14 +255,6 @@ private:
     std::vector<TWatcherRequester> GlobalWatcherRequesters;
     std::vector<TWatcherHandler>   GlobalWatcherHandlers;
 
-    DECLARE_ENUM(EUpdateListState,
-        (Active)
-        (Flushing)
-        (Flushed)
-        (Finalizing)
-        (Finalized)
-    );
-
     struct TJobRequest
     {
         TJobPtr Job;
@@ -309,18 +271,12 @@ private:
     {
         TUpdateList(IChannelPtr masterChannel, TOperationPtr operation)
             : Operation(operation)
-            , State(EUpdateListState::Active)
-            , FlushedPromise(NewPromise())
-            , FinalizedPromise(NewPromise())
             , Proxy(CreateSerializedChannel(masterChannel))
         { }
 
         TOperationPtr Operation;
         std::vector<TJobRequest> JobRequests;
         std::vector<TLivePreviewRequest> LivePreviewRequests;
-        EUpdateListState State;
-        TPromise<void> FlushedPromise;
-        TPromise<void> FinalizedPromise;
         TObjectServiceProxy Proxy;
     };
 
@@ -597,7 +553,7 @@ private:
         // - Try to ping the previous incarnations of scheduler transactions.
         void CheckOperationTransactions()
         {
-            const int TransactionsPerOperation = 5;
+            const int TransactionsPerOperation = 4;
 
             auto batchReq = Owner->StartBatchRequest();
             FOREACH (auto operation, Result.Operations) {
@@ -612,10 +568,9 @@ private:
                     }
                 };
 
-                // See TransactionsPerOperation above.
+                // NB: Async transaction is not checked.
                 schedulePing(operation->GetUserTransaction());
                 schedulePing(operation->GetSyncSchedulerTransaction());
-                schedulePing(operation->GetAsyncSchedulerTransaction());
                 schedulePing(operation->GetInputTransaction());
                 schedulePing(operation->GetOutputTransaction());
             }
@@ -716,12 +671,6 @@ private:
         {
             auto batchReq = Owner->StartBatchRequest();
             FOREACH (auto operation, Result.Operations) {
-                if (!operation->GetCleanStart()) {
-                    LOG_INFO("Reusing operation transactions (OperationId: %s)",
-                        ~ToString(operation->GetOperationId()));
-                    continue;
-                }
-
                 auto scheduleAbort = [&] (ITransactionPtr transaction) {
                     if (transaction) {
                         auto req = TTransactionYPathProxy::Abort(FromObjectId(transaction->GetId()));
@@ -729,23 +678,35 @@ private:
                     }
                 };
 
-                // Abort transactions.
-                // NB: Don't touch user transaction.
-                scheduleAbort(operation->GetSyncSchedulerTransaction());
-                scheduleAbort(operation->GetAsyncSchedulerTransaction());
-                scheduleAbort(operation->GetInputTransaction());
-                scheduleAbort(operation->GetOutputTransaction());
-
-                operation->SetSyncSchedulerTransaction(nullptr);
-                operation->SetAsyncSchedulerTransaction(nullptr);
-                operation->SetInputTransaction(nullptr);
-                operation->SetOutputTransaction(nullptr);
-
-                // Remove snapshot.
+                // NB: Async transaction is always aborted.
                 {
-                    auto req = TYPathProxy::Remove(GetSnapshotPath(operation->GetOperationId()));
-                    req->set_force(true);
-                    batchReq->AddRequest(req, "remove_snapshot");
+                    scheduleAbort(operation->GetAsyncSchedulerTransaction());
+                    operation->SetAsyncSchedulerTransaction(nullptr);
+                }
+
+                if (operation->GetCleanStart()) {
+                    LOG_INFO("Aborting operation transactions (OperationId: %s)",
+                        ~ToString(operation->GetOperationId()));
+                        
+                    // NB: Don't touch user transaction.
+                    scheduleAbort(operation->GetSyncSchedulerTransaction());
+                    operation->SetSyncSchedulerTransaction(nullptr);
+
+                    scheduleAbort(operation->GetInputTransaction());
+                    operation->SetInputTransaction(nullptr);
+
+                    scheduleAbort(operation->GetOutputTransaction());
+                    operation->SetOutputTransaction(nullptr);
+
+                    // Remove snapshot.
+                    {
+                        auto req = TYPathProxy::Remove(GetSnapshotPath(operation->GetOperationId()));
+                        req->set_force(true);
+                        batchReq->AddRequest(req, "remove_snapshot");
+                    }
+                } else {
+                    LOG_INFO("Reusing operation transactions (OperationId: %s)",
+                        ~ToString(operation->GetOperationId()));
                 }
             }
 
@@ -1175,12 +1136,15 @@ private:
         LOG_INFO("Updating nodes for %d operations",
             static_cast<int>(UpdateLists.size()));
 
+        // Issue updates for active operations.
+        std::vector<TOperationPtr> finishedOperations;
         auto awaiter = New<TParallelAwaiter>(CancelableControlInvoker);
-
         FOREACH (auto& pair, UpdateLists) {
             auto& list = pair.second;
             auto operation = list.Operation;
-            if (list.State == EUpdateListState::Active) {
+            if (operation->IsFinishedState()) {
+                finishedOperations.push_back(operation);
+            } else {
                 LOG_DEBUG("Updating operation node (OperationId: %s)",
                     ~ToString(operation->GetOperationId()));
 
@@ -1194,6 +1158,13 @@ private:
         }
 
         awaiter->Complete(BIND(&TImpl::OnOperationNodesUpdated, MakeStrong(this)));
+
+        // Cleanup finished operations.
+        FOREACH (auto operation, finishedOperations) {
+            RemoveUpdateList(operation);
+            LOG_DEBUG("Operation update list unregistered (OperationId: %s)",
+                ~ToString(operation->GetOperationId()));
+        }
     }
 
     void OnOperationNodeUpdated(
@@ -1476,36 +1447,6 @@ private:
 
         LOG_INFO("Operation node flushed (OperationId: %s)",
             ~ToString(operationId));
-
-        auto* list = GetUpdateList(operation);
-        list->State = EUpdateListState::Flushed;
-        list->FlushedPromise.Set();
-    }
-
-    void OnOperationNodeFinalized(
-        TOperationPtr operation,
-        TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected);
-
-        auto operationId = operation->GetOperationId();
-
-        auto error = GetOperationNodeUpdateError(operation, batchRsp);
-        if (!error.IsOK()) {
-            LOG_ERROR(error);
-            Disconnect();
-            return;
-        }
-
-        LOG_INFO("Operation node finalized (OperationId: %s)",
-            ~ToString(operationId));
-
-        auto* list = GetUpdateList(operation);
-        list->State = EUpdateListState::Finalized;
-        list->FinalizedPromise.Set();
-
-        RemoveUpdateList(operation);
     }
 
 
@@ -1652,11 +1593,6 @@ TAsyncError TMasterConnector::ResetRevivingOperationNode(TOperationPtr operation
 TFuture<void> TMasterConnector::FlushOperationNode(TOperationPtr operation)
 {
     return Impl->FlushOperationNode(operation);
-}
-
-TFuture<void> TMasterConnector::FinalizeOperationNode(TOperationPtr operation)
-{
-    return Impl->FinalizeOperationNode(operation);
 }
 
 void TMasterConnector::CreateJobNode(TJobPtr job, const TChunkId& stdErrChunkId)

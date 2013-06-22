@@ -228,13 +228,10 @@ private:
         return result;
     }
 
-    virtual TAsyncPipeline<void>::TPtr CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline) override
+    virtual void CustomPrepare() override
     {
-        return pipeline->Add(BIND(&TMapController::ProcessInputs, MakeStrong(this)));
-    }
+        TOperationControllerBase::CustomPrepare();
 
-    TFuture<void> ProcessInputs()
-    {
         PROFILE_TIMING ("/input_processing_time") {
             LOG_INFO("Processing inputs");
 
@@ -254,14 +251,12 @@ private:
             MapTask->FinishInput();
             RegisterTask(MapTask);
 
-            InitJobIOConfig();
-            InitJobSpecTemplate();
-
             LOG_INFO("Inputs processed (JobCount: %" PRId64 ")",
                 JobCounter.GetTotal());
         }
 
-        return MakeFuture();
+        InitJobIOConfig();
+        InitJobSpecTemplate();
     }
 
     virtual void CustomizeJoblet(TJobletPtr joblet) override

@@ -9,6 +9,8 @@
 #include "chunk_splits_fetcher.h"
 #include "chunk_info_collector.h"
 
+#include <ytlib/fibers/fiber.h>
+
 #include <ytlib/ytree/fluent.h>
 
 #include <ytlib/transaction_client/transaction.h>
@@ -371,12 +373,11 @@ protected:
         RegisterTaskGroup(MergeTaskGroup);
     }
 
-    virtual TAsyncPipeline<void>::TPtr CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline) override
+    virtual void CustomPrepare() override
     {
-        return pipeline
-            ->Add(BIND(&TMergeControllerBase::ProcessInputs, MakeStrong(this)))
-            ->Add(BIND(&TMergeControllerBase::EndInputChunks, MakeStrong(this)))
-            ->Add(BIND(&TMergeControllerBase::FinishPreparation, MakeStrong(this)));
+        ProcessInputs();
+        EndInputChunks();
+        FinishPreparation();
     }
 
     void ProcessInputs()
@@ -402,13 +403,6 @@ protected:
 
     void FinishPreparation()
     {
-        // Check for trivial inputs.
-        if (Tasks.empty()) {
-            LOG_INFO("Trivial merge");
-            OnOperationCompleted();
-            return;
-        }
-
         // Init counters.
         JobCounter.Set(static_cast<int>(Tasks.size()));
 
@@ -756,9 +750,9 @@ private:
         }
     }
 
-    virtual void OnCustomInputsRecieved(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp) override
+    virtual void CustomPrepare() override
     {
-        UNUSED(batchRsp);
+        TOrderedMergeControllerBase::CustomPrepare();
 
         // If the input is sorted then the output chunk tree must also be marked as sorted.
         const auto& inputTable = InputTables[0];
@@ -900,17 +894,39 @@ protected:
 
     virtual TNullable< std::vector<Stroka> > GetSpecKeyColumns() = 0;
 
-    virtual TAsyncPipeline<void>::TPtr CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline) override
+    virtual void CustomPrepare() override
     {
-        auto this_ = MakeStrong(this);
-        return pipeline
-            ->Add(BIND(&TSortedMergeControllerBase::ProcessInputs, this_))
-            ->Add(BIND( [=] () {
-                // NB: ChunkSplitsCollector is initialized after the pipeline is constructed.
-                return this_->ChunkSplitsCollector->Run();
-            }))
-            ->Add(BIND(&TSortedMergeControllerBase::OnChunkSplitsReceived, this_))
-            ->Add(BIND(&TSortedMergeControllerBase::FinishPreparation, this_));
+        // NB: Base member is not called intentionally.
+        
+        auto specKeyColumns = GetSpecKeyColumns();
+        LOG_INFO("Spec key columns are %s",
+            specKeyColumns ? ~ConvertToYsonString(specKeyColumns.Get(), NYson::EYsonFormat::Text).Data() : "<Null>");
+
+        KeyColumns = CheckInputTablesSorted(GetSpecKeyColumns());
+        LOG_INFO("Adjusted key columns are %s",
+            ~ConvertToYsonString(KeyColumns, NYson::EYsonFormat::Text).Data());
+
+        ChunkSplitsFetcher = New<TChunkSplitsFetcher>(
+            Config,
+            Spec,
+            Operation->GetOperationId(),
+            KeyColumns);
+
+        ChunkSplitsCollector = New<TChunkSplitsCollector>(
+            NodeDirectory,
+            ChunkSplitsFetcher,
+            Host->GetBackgroundInvoker());
+
+        ProcessInputs();
+
+        {
+            auto asyncCollectorResult = ChunkSplitsCollector->Run();
+            auto collectorResult = WaitFor(asyncCollectorResult);
+            THROW_ERROR_EXCEPTION_IF_FAILED(collectorResult);
+        }
+
+        ProcessChunkSplits();
+        FinishPreparation();       
     }
 
     virtual void ProcessInputChunk(TRefCountedChunkSpecPtr chunkSpec) override
@@ -920,7 +936,7 @@ protected:
 
     virtual bool IsLargeEnoughToPassthrough(const TChunkSpec& chunkSpec) = 0;
 
-    void OnChunkSplitsReceived()
+    void ProcessChunkSplits()
     {
         int prefixLength = static_cast<int>(KeyColumns.size());
         const auto& chunks = ChunkSplitsFetcher->GetChunkSplits();
@@ -1172,30 +1188,6 @@ protected:
 
     virtual bool AllowPassthroughChunks() = 0;
 
-    virtual void OnCustomInputsRecieved(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp) override
-    {
-        UNUSED(batchRsp);
-
-        auto specKeyColumns = GetSpecKeyColumns();
-        LOG_INFO("Spec key columns are %s",
-            specKeyColumns ? ~ConvertToYsonString(specKeyColumns.Get(), NYson::EYsonFormat::Text).Data() : "<Null>");
-
-        KeyColumns = CheckInputTablesSorted(GetSpecKeyColumns());
-        LOG_INFO("Adjusted key columns are %s",
-            ~ConvertToYsonString(KeyColumns, NYson::EYsonFormat::Text).Data());
-
-        ChunkSplitsFetcher = New<TChunkSplitsFetcher>(
-            Config,
-            Spec,
-            Operation->GetOperationId(),
-            KeyColumns);
-
-        ChunkSplitsCollector = New<TChunkSplitsCollector>(
-            NodeDirectory,
-            ChunkSplitsFetcher,
-            Host->GetBackgroundInvoker());
-    }
-
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSortedMergeControllerBase::TManiacTask);
@@ -1289,9 +1281,9 @@ private:
         ManiacJobSpecTemplate.set_type(EJobType::UnorderedMerge);
     }
 
-    virtual void OnCustomInputsRecieved(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp) override
+    virtual void CustomPrepare() override
     {
-        TSortedMergeControllerBase::OnCustomInputsRecieved(batchRsp);
+        TSortedMergeControllerBase::CustomPrepare();
 
         OutputTables[0].Options->KeyColumns = KeyColumns;
     }
