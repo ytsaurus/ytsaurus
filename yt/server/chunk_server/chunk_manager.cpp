@@ -1576,7 +1576,7 @@ TChunkTree* TChunkManager::GetChunkTreeOrThrow(const TChunkTreeId& id)
     return Impl->GetChunkTreeOrThrow(id);
 }
 
-TNodeList TChunkManager::AllocateUploadTargets(
+TNodeList TChunkManager::AllocateWriteTargets(
     int replicaCount,
     const TNullable<Stroka>& preferredHostName)
 {

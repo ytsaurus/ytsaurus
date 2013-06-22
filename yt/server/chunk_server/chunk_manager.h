@@ -48,7 +48,7 @@ public:
     TChunkTree* GetChunkTree(const TChunkTreeId& id);
     TChunkTree* GetChunkTreeOrThrow(const TChunkTreeId& id);
 
-    TNodeList AllocateUploadTargets(
+    TNodeList AllocateWriteTargets(
         int replicaCount,
         const TNullable<Stroka>& preferredHostName);
 
