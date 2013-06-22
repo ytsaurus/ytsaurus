@@ -29,6 +29,7 @@ namespace NScheduler {
 
 using namespace NYTree;
 using namespace NYPath;
+using namespace NYson;
 using namespace NTableClient;
 using namespace NJobProxy;
 using namespace NChunkClient;
@@ -776,7 +777,7 @@ private:
         // For this, the job needs key columns.
         const auto& table = InputTables[0];
         if (table.KeyColumns) {
-            ToProto(jobSpecExt->mutable_key_columns(), table.KeyColumns.Get());
+            ToProto(jobSpecExt->mutable_key_columns(), *table.KeyColumns);
         }
     }
 
@@ -900,11 +901,11 @@ protected:
         
         auto specKeyColumns = GetSpecKeyColumns();
         LOG_INFO("Spec key columns are %s",
-            specKeyColumns ? ~ConvertToYsonString(specKeyColumns.Get(), NYson::EYsonFormat::Text).Data() : "<Null>");
+            specKeyColumns ? ~ConvertToYsonString(*specKeyColumns, EYsonFormat::Text).Data() : "<Null>");
 
         KeyColumns = CheckInputTablesSorted(GetSpecKeyColumns());
         LOG_INFO("Adjusted key columns are %s",
-            ~ConvertToYsonString(KeyColumns, NYson::EYsonFormat::Text).Data());
+            ~ConvertToYsonString(KeyColumns, EYsonFormat::Text).Data());
 
         ChunkSplitsFetcher = New<TChunkSplitsFetcher>(
             Config,
@@ -941,7 +942,7 @@ protected:
         int prefixLength = static_cast<int>(KeyColumns.size());
         const auto& chunks = ChunkSplitsFetcher->GetChunkSplits();
         FOREACH (const auto& chunk, chunks) {
-            auto boundaryKeysExt = GetProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(chunk->extensions());
+            auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(chunk->extensions());
             if (CompareKeys(boundaryKeysExt.start(), boundaryKeysExt.end(), prefixLength) == 0) {
                 // Maniac chunk
                 TKeyEndpoint endpoint;
@@ -1324,7 +1325,7 @@ IOperationControllerPtr CreateMergeController(
         }
         default:
             YUNREACHABLE();
-    };
+    }
 }
 
 ////////////////////////////////////////////////////////////////////

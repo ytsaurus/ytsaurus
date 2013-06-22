@@ -1524,12 +1524,6 @@ private:
 
     TSortOperationSpecPtr Spec;
 
-    // Samples.
-    TSamplesFetcherPtr SamplesFetcher;
-    TSamplesCollectorPtr SamplesCollector;
-
-    std::vector<const TKey*> SortedSamples;
-
     //! |PartitionCount - 1| separating keys.
     std::vector<TKey> PartitionKeys;
 
@@ -1566,70 +1560,68 @@ private:
 
         OutputTables[0].Options->KeyColumns = Spec->SortBy;
 
+        auto samplesFetcher = New<TSamplesFetcher>(
+            Config,
+            Spec,
+            Operation->GetOperationId());
+
+        auto samplesCollector = New<TSamplesCollector>(
+            NodeDirectory,
+            samplesFetcher,
+            Host->GetBackgroundInvoker());
+
         TAsyncError asyncSamplesResult;
         PROFILE_TIMING ("/input_processing_time") {
-            SamplesFetcher = New<TSamplesFetcher>(
-                Config,
-                Spec,
-                Operation->GetOperationId());
-
-            SamplesCollector = New<TSamplesCollector>(
-                NodeDirectory,
-                SamplesFetcher,
-                Host->GetBackgroundInvoker());
-
             auto chunks = CollectInputChunks();
             FOREACH (const auto& chunk, chunks) {
-                SamplesCollector->AddChunk(chunk);
+                samplesCollector->AddChunk(chunk);
             }
 
-            SamplesFetcher->SetDesiredSampleCount(SuggestPartitionCount() * Spec->SamplesPerPartition);
-            asyncSamplesResult = SamplesCollector->Run();
+            samplesFetcher->SetDesiredSampleCount(SuggestPartitionCount() * Spec->SamplesPerPartition);
+            asyncSamplesResult = samplesCollector->Run();
         }
 
         auto samplesResult = WaitFor(asyncSamplesResult);
         THROW_ERROR_EXCEPTION_IF_FAILED(samplesResult);
 
         PROFILE_TIMING ("/samples_processing_time") {
-            SortSamples();
-            BuildPartitions();
+            auto sortedSamples = SortSamples(samplesFetcher);
+            BuildPartitions(sortedSamples);
         }
-
-        SamplesFetcher.Reset();
-        SamplesCollector.Reset();
-        SortedSamples.clear();
 
         InitJobSpecTemplates();
     }
 
-    void SortSamples()
+    std::vector<const TKey*> SortSamples(TSamplesFetcherPtr samplesFetcher)
     {
-        const auto& samples = SamplesFetcher->GetSamples();
+        const auto& samples = samplesFetcher->GetSamples();
         int sampleCount = static_cast<int>(samples.size());
         LOG_INFO("Sorting %d samples", sampleCount);
 
-        SortedSamples.reserve(sampleCount);
+        std::vector<const TKey*> sortedSamples;
+        sortedSamples.reserve(sampleCount);
         FOREACH (const auto& sample, samples) {
-            SortedSamples.push_back(&sample);
+            sortedSamples.push_back(&sample);
         }
 
         std::sort(
-            SortedSamples.begin(),
-            SortedSamples.end(),
+            sortedSamples.begin(),
+            sortedSamples.end(),
             [] (const TKey* lhs, const TKey* rhs) {
                 return CompareKeys(*lhs, *rhs) < 0;
-            }
-        );
+            });
+
+        return sortedSamples;
     }
 
-    void BuildPartitions()
+    void BuildPartitions(const std::vector<const TKey*>& sortedSamples)
     {
         // Use partition count provided by user, if given.
         // Otherwise use size estimates.
         int partitionCount = SuggestPartitionCount();
 
         // Don't create more partitions than we have samples (plus one).
-        partitionCount = std::min(partitionCount, static_cast<int>(SortedSamples.size()) + 1);
+        partitionCount = std::min(partitionCount, static_cast<int>(sortedSamples.size()) + 1);
 
         YCHECK(partitionCount > 0);
 
@@ -1642,7 +1634,7 @@ private:
         if (SimpleSort) {
             BuildSinglePartition();
         } else {
-            BuildMulitplePartitions(partitionCount);
+            BuildMulitplePartitions(sortedSamples, partitionCount);
         }
     }
 
@@ -1691,12 +1683,12 @@ private:
         Partitions.push_back(New<TPartition>(this, index));
     }
 
-    void BuildMulitplePartitions(int partitionCount)
+    void BuildMulitplePartitions(const std::vector<const TKey*>& sortedSamples, int partitionCount)
     {
-        LOG_DEBUG("Building partition keys");
+        LOG_INFO("Building partition keys");
 
-        auto GetSampleKey = [&](int sampleIndex) {
-            return SortedSamples[(sampleIndex + 1) * (SortedSamples.size() - 1) / partitionCount];
+        auto getSampleKey = [&](int sampleIndex) {
+            return sortedSamples[(sampleIndex + 1) * (sortedSamples.size() - 1) / partitionCount];
         };
 
         // Construct the leftmost partition.
@@ -1712,7 +1704,7 @@ private:
         // Take partition keys evenly.
         int sampleIndex = 0;
         while (sampleIndex < partitionCount - 1) {
-            auto* sampleKey = GetSampleKey(sampleIndex);
+            auto* sampleKey = getSampleKey(sampleIndex);
             // Check for same keys.
             if (PartitionKeys.empty() || CompareKeys(*sampleKey, PartitionKeys.back()) != 0) {
                 AddPartition(*sampleKey);
@@ -1721,7 +1713,7 @@ private:
                 // Skip same keys.
                 int skippedCount = 0;
                 while (sampleIndex < partitionCount - 1 &&
-                    CompareKeys(*GetSampleKey(sampleIndex), PartitionKeys.back()) == 0)
+                    CompareKeys(*getSampleKey(sampleIndex), PartitionKeys.back()) == 0)
                 {
                     ++sampleIndex;
                     ++skippedCount;
