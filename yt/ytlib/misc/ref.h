@@ -279,9 +279,6 @@ private:
 
 Stroka ToString(const TRef& ref);
 
-void Save(TOutputStream* output, const NYT::TSharedRef& ref);
-void Load(TInputStream* input, NYT::TSharedRef& ref);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 size_t RoundUpToPage(size_t bytes);

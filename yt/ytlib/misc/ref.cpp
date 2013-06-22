@@ -70,30 +70,6 @@ Stroka ToString(const TRef& ref)
     return Stroka(ref.Begin(), ref.End());
 }
 
-void Save(TOutputStream* output, const NYT::TSharedRef& ref)
-{
-    if (ref == TSharedRef()) {
-        ::Save(output, static_cast<i64>(-1));
-    } else {
-        ::Save(output, static_cast<i64>(ref.Size()));
-        output->Write(ref.Begin(), ref.Size());
-    }
-}
-
-void Load(TInputStream* input, NYT::TSharedRef& ref)
-{
-    i64 size;
-    ::Load(input, size);
-    if (size == -1) {
-        ref = NYT::TSharedRef();
-    } else {
-        YASSERT(size >= 0);
-        struct TLoadedBlockTag { };
-        ref = TSharedRef::Allocate<TLoadedBlockTag>(size);
-        YCHECK(input->Load(ref.Begin(), size) == size);
-    }
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 size_t RoundUpToPage(size_t bytes)
