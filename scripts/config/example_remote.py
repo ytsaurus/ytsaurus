@@ -38,8 +38,7 @@ class Base(AggrBase):
     base_dir = '/yt/disk1/data'
     libs = [
         '/home/yt/build/lib/libyajl.so.2',
-        '/home/yt/build/lib/libytext-json.so',
-        '/home/yt/build/lib/libytext-uv.so.0.6'
+        '/home/yt/build/lib/libytext-json.so'
     ]
     
     def get_log(cls, fd):
