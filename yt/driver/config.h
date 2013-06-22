@@ -48,7 +48,7 @@ public:
     NYTree::INodePtr Logging;
     TAddressResolverConfigPtr AddressResolver;
     TFormatDefaultsConfigPtr FormatDefaults;
-    TDuration OperationWaitTimeout;
+    TDuration OperationPollPeriod;
 
     TExecutorConfig()
     {
@@ -57,8 +57,8 @@ public:
             .DefaultNew();
         RegisterParameter("format_defaults", FormatDefaults)
             .DefaultNew();
-        RegisterParameter("operation_wait_timeout", OperationWaitTimeout)
-            .Default(TDuration::Seconds(3));
+        RegisterParameter("operation_poll_period", OperationPollPeriod)
+            .Default(TDuration::MilliSeconds(100));
     }
 };
 

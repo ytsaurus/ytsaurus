@@ -3,7 +3,6 @@
 #include <ytlib/ytree/ypath_proxy.h>
 #include <ytlib/ytree/yson_string.h>
 
-#include <ytlib/scheduler/scheduler_service_proxy.h>
 #include <ytlib/scheduler/helpers.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
@@ -31,23 +30,10 @@ TOperationTracker::TOperationTracker(
 EExitCode TOperationTracker::Run()
 {
     OperationType = GetOperationType(OperationId);
-    TSchedulerServiceProxy proxy(Driver->GetSchedulerChannel());
     while (!CheckFinished())  {
-        auto waitOpReq = proxy.WaitForOperation();
-        ToProto(waitOpReq->mutable_operation_id(), OperationId);
-        waitOpReq->set_timeout(Config->OperationWaitTimeout.GetValue());
-
-        // Override default timeout.
-        waitOpReq->SetTimeout(
-            Config->OperationWaitTimeout +
-            proxy.GetDefaultTimeout().Get(TDuration::Zero()));
-
-        auto waitOpRsp = waitOpReq->Invoke().Get();
-        THROW_ERROR_EXCEPTION_IF_FAILED(*waitOpRsp);
-
         DumpProgress();
+        Sleep(Config->OperationPollPeriod);
     }
-
     return DumpResult();
 }
 

@@ -35,7 +35,6 @@ public:
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartOperation));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortOperation));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(WaitForOperation));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SuspendOperation));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ResumeOperation));
     }
@@ -139,35 +138,6 @@ private:
             .Subscribe(BIND([=] (TError error) {
                 context->Reply(error);
             }));
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NProto, WaitForOperation)
-    {
-        auto operationId = FromProto<TOperationId>(request->operation_id());
-        auto timeout = TDuration(request->timeout());
-        context->SetRequestInfo("OperationId: %s, Timeout: %s",
-            ~ToString(operationId),
-            ~ToString(timeout));
-
-        auto scheduler = Bootstrap->GetScheduler();
-        scheduler->ValidateConnected();
-
-        auto operation = scheduler->GetOperationOrThrow(operationId);
-        auto this_ = MakeStrong(this);
-        operation->GetFinished().Subscribe(
-            timeout,
-            BIND(&TThis::OnOperationWaitResult, this_, context, operation, true),
-            BIND(&TThis::OnOperationWaitResult, this_, context, operation, false));
-    }
-
-    void OnOperationWaitResult(
-        TCtxWaitForOperationPtr context,
-        TOperationPtr operation,
-        bool maybeFinished)
-    {
-        context->SetResponseInfo("MaybeFinished: %s", ~FormatBool(maybeFinished));
-        context->Response().set_maybe_finished(maybeFinished);
-        context->Reply();
     }
 
 };
