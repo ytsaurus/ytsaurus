@@ -431,6 +431,14 @@ struct TSizeSerializer
         TPodSerializer::Load(context, fixedValue);
         value = static_cast<size_t>(fixedValue);
     }
+
+    template <class C>
+    static size_t Load(C& context)
+    {
+        size_t value;
+        Load(context, value);
+        return value;
+    }
 };
 
 struct TEnumSerializer
@@ -460,7 +468,7 @@ struct TStrokaSerializer
     template <class C>
     static void Load(C& context, Stroka& value)
     {
-        size_t size = NYT::Load<size_t>(context);
+        size_t size = TSizeSerializer::Load(context);
         value.resize(size);
         TRangeSerializer::Load(context, TRef::FromString(value));
     }
@@ -472,7 +480,7 @@ struct TVectorSerializer
     static void Save(C& context, const TVector& objects)
     {
         using NYT::Save;
-        Save(context, objects.size());
+        TSizeSerializer::Save(context, objects.size());
         FOREACH (const auto& object, objects) {
             Save(context, object);
         }
@@ -482,7 +490,7 @@ struct TVectorSerializer
     static void Load(C& context, TVector& objects)
     {
         using NYT::Load;
-        size_t size = Load<size_t>(context);
+        size_t size = TSizeSerializer::Load(context);
         objects.resize(size);
         for (size_t index = 0; index != size; ++index) {
             Load(context, objects[index]);
@@ -496,10 +504,9 @@ struct TCustomSetSerializer
     template <class TSet, class C>
     static void Save(C& context, const TSet& set)
     {
-        using NYT::Save;
         typedef typename TSet::key_type TKey;
         auto iterators = GetSortedIterators(set);
-        Save(context, iterators.size());
+        TSizeSerializer::Save(context, iterators.size());
         FOREACH (const auto& ptr, iterators) {
             TItemSerializer::Save(context, *ptr);
         }
@@ -508,9 +515,8 @@ struct TCustomSetSerializer
     template <class TSet, class C>
     static void Load(C& context, TSet& set)
     {
-        using NYT::Load;
         typedef typename TSet::key_type TKey;
-        size_t size = Load<size_t>(context);
+        size_t size = TSizeSerializer::Load(context);
         set.clear();
         for (size_t i = 0; i < size; ++i) {
             TKey key;
@@ -540,7 +546,7 @@ struct TNullableSetSerializer
         using NYT::Load;
         typedef typename TSet::key_type TKey;
 
-        size_t size = Load<size_t>(context);
+        size_t size = TSizeSerializer::Load(context);
         if (size == 0) {
             set.Destroy();
             return;
@@ -563,7 +569,7 @@ struct TCustomMapSerializer
     {
         using NYT::Save;
         auto iterators = GetSortedIterators(map);
-        Save(context, iterators.size());
+        TSizeSerializer::Save(context, iterators.size());
         FOREACH (const auto& it, iterators) {
             TKeySerializer::Save(context, it->first);
             TValueSerializer::Save(context, it->second);
@@ -575,7 +581,7 @@ struct TCustomMapSerializer
     {
         using NYT::Load;
         map.clear();
-        size_t size = Load<size_t>(context);
+        size_t size = TSizeSerializer::Load(context);
         for (size_t index = 0; index < size; ++index) {
             typename TMap::key_type key;
             TKeySerializer::Load(context, key);
@@ -600,9 +606,8 @@ struct TCustomMultiMapSerializer
     template <class TMap, class C>
     static void Load(C& context, TMap& map)
     {
-        using NYT::Load;
         map.clear();
-        size_t size = Load<size_t>(context);
+        size_t size = TSizeSerializer::Load(context);
         for (size_t index = 0; index < size; ++index) {
             typename TMap::key_type key;
             TKeySerializer::Load(context, key);
@@ -691,12 +696,6 @@ template <class C>
 struct TSerializerTraits<Stroka, C, void>
 {
     typedef TStrokaSerializer TSerializer;
-};
-
-template <class C>
-struct TSerializerTraits<size_t, C, void>
-{
-    typedef TSizeSerializer TSerializer;
 };
 
 template <class T, class C>

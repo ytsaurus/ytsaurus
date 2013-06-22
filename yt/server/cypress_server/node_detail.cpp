@@ -177,7 +177,7 @@ void TMapNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, ChildCountDelta_);
     // TODO(babenko): refactor when new serialization API is ready
     auto keyIts = GetSortedIterators(KeyToChild_);
-    Save(context, keyIts.size());
+    TSizeSerializer::Save(context, keyIts.size());
     FOREACH (auto it, keyIts) {
         const auto& key = it->first;
         Save(context, key);
@@ -194,7 +194,7 @@ void TMapNode::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     Load(context, ChildCountDelta_);
     // TODO(babenko): refactor when new serialization API is ready
-    size_t count = Load<size_t>(context);
+    size_t count = TSizeSerializer::Load(context);
     for (size_t index = 0; index != count; ++index) {
         auto key = Load<Stroka>(context);
         auto id = Load<TNodeId>(context);
@@ -369,7 +369,7 @@ void TListNode::Save(NCellMaster::TSaveContext& context) const
 
     using NYT::Save;
     // TODO(babenko): refactor when new serialization API is ready
-    Save(context, IndexToChild_.size());
+    TSizeSerializer::Save(context, IndexToChild_.size());
     FOREACH (auto* node, IndexToChild_) {
         Save(context, node->GetId());
     }
@@ -381,7 +381,7 @@ void TListNode::Load(NCellMaster::TLoadContext& context)
 
     using NYT::Load;
     // TODO(babenko): refactor when new serialization API is ready
-    size_t count = Load<size_t>(context);
+    size_t count = TSizeSerializer::Load(context);
     IndexToChild_.resize(count);
     for (size_t index = 0; index != count; ++index) {
         auto id = Load<TNodeId>(context);

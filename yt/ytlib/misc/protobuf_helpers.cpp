@@ -130,13 +130,13 @@ void TBinaryProtoSerializer::Save(TStreamSaveContext& context, const ::google::p
 {
     TSharedRef data;
     YCHECK(SerializeToProtoWithEnvelope(message, &data));
-    NYT::Save(context, data.Size());
+    TSizeSerializer::Save(context, data.Size());
     TRangeSerializer::Save(context, data);
 }
 
 void TBinaryProtoSerializer::Load(TStreamLoadContext& context, ::google::protobuf::Message& message)
 {
-    size_t size = NYT::Load<size_t>(context);
+    size_t size = TSizeSerializer::Load(context);
     auto data = TSharedRef::Allocate(size, false);
     TRangeSerializer::Load(context, data);
     YCHECK(DeserializeFromProtoWithEnvelope(&message, data));

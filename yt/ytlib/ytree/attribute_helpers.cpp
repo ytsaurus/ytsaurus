@@ -122,7 +122,7 @@ void TAttributeDictionarySerializer::Save(TStreamSaveContext& context, const IAt
 {
     using NYT::Save;
     auto keys = obj.List();
-    Save(context, keys.size());
+    TSizeSerializer::Save(context, keys.size());
     FOREACH (const auto& key, keys) {
         Save(context, key);
         Save(context, obj.GetYson(key));
@@ -133,7 +133,7 @@ void TAttributeDictionarySerializer::Load(TStreamLoadContext& context, IAttribut
 {
     using NYT::Load;
     obj.Clear();
-    size_t size = Load<size_t>(context);
+    size_t size = TSizeSerializer::Load(context);
     for (size_t index = 0; index < size; ++index) {
         auto key = Load<Stroka>(context);
         auto value = Load<TYsonString>(context);

@@ -220,7 +220,7 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::LoadKeys(TLoadContext& context
     VERIFY_THREAD_AFFINITY(UserThread);
 
     Map.clear();
-    size_t size = Load<size_t>(context);
+    size_t size = TSizeSerializer::Load(context);
 
     TKey previousKey;
     for (size_t index = 0; index < size; ++index) {
@@ -259,7 +259,7 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::LoadValues(TContext& context)
 template <class TKey, class TValue, class TTraits, class THash>
 void TMetaStateMap<TKey, TValue, TTraits, THash>::SaveKeys(TSaveContext& context) const
 {
-    Save(context, Map.size());
+    TSizeSerializer::Save(context, Map.size());
 
     std::vector<TKey> keys;
     keys.reserve(Map.size());

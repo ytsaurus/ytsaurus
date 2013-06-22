@@ -64,7 +64,7 @@ struct TObjectRefVectorSerializer
     {
         typedef typename T::value_type V;
 
-        Save(context, objects.size());
+        TSizeSerializer::Save(context, objects.size());
         FOREACH (V object, objects) {
             SaveObjectRef(context, object);
         }
@@ -92,7 +92,7 @@ struct TObjectRefSetSerializer
     {
         typedef typename T::value_type V;
 
-        Save(context, objects.size());
+        TSizeSerializer::Save(context, objects.size());
 
         std::vector<V> sortedObjects(objects.begin(), objects.end());
         std::sort(
@@ -150,7 +150,7 @@ struct TObjectRefHashMapSerializer
     {
         typedef typename T::const_iterator I;
 
-        Save(context, items.size());
+        TSizeSerializer::Save(context, items.size());
 
         std::vector<I> sortedIterators;
         sortedIterators.reserve(items.size());
@@ -237,7 +237,7 @@ void SaveObjectRefs(TSaveContext& context, const T& objects)
 template <class T>
 void LoadObjectRefs(TLoadContext& context, T& objects)
 {
-    size_t size = Load<size_t>(context);
+    size_t size = TSizeSerializer::Load(context);
 
     typedef typename TObjectRefSerializerTraits<T>::TSerializer TSerializer;
 
@@ -259,7 +259,7 @@ void SaveNullableObjectRefs(TSaveContext& context, const std::unique_ptr<T>& obj
 template <class T>
 void LoadNullableObjectRefs(TLoadContext& context, std::unique_ptr<T>& objects)
 {
-    size_t size = Load<size_t>(context);
+    size_t size = TSizeSerializer::Load(context);
     if (size == 0) {
         objects.reset();
     } else {

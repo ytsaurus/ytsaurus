@@ -953,13 +953,13 @@ private:
         ChunkListMap.LoadKeys(context);
         // COMPAT(babenko)
         if (context.GetVersion() < 20) {
-            size_t nodeCount = Load<size_t>(context);
+            size_t nodeCount = TSizeSerializer::Load(context);
             YCHECK(nodeCount == 0);
 
-            size_t jobCount = Load<size_t>(context);
+            size_t jobCount = TSizeSerializer::Load(context);
             YCHECK(jobCount == 0);
 
-            size_t jobListCount = Load<size_t>(context);
+            size_t jobListCount = TSizeSerializer::Load(context);
             YCHECK(jobListCount == 0);
 
             // COMPAT(psushin): required to properly initialize TChunkList::DataSizeSums.
