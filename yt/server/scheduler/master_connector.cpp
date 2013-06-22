@@ -43,6 +43,7 @@
 #include <ytlib/object_client/master_ypath_proxy.h>
 
 #include <server/cell_scheduler/bootstrap.h>
+#include <server/cell_scheduler/config.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -449,7 +450,9 @@ private:
                 reqExt->set_timeout(Owner->Config->LockTransactionTimeout.MilliSeconds());
 
                 auto attributes = CreateEphemeralAttributes();
-                attributes->Set("title", Sprintf("Scheduler lock at %s", ~TAddressResolver::Get()->GetLocalHostName()));
+                auto localHostName = TAddressResolver::Get()->GetLocalHostName();
+                auto address = BuildServiceAddress(localHostName, Owner->Bootstrap->GetConfig()->RpcPort);
+                attributes->Set("title", Sprintf("Scheduler lock at %s", ~address));
                 ToProto(req->mutable_object_attributes(), *attributes);
 
                 GenerateMutationId(req);
