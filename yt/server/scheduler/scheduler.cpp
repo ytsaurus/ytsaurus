@@ -1141,13 +1141,6 @@ private:
 
         YCHECK(AddressToNode.insert(std::make_pair(node->GetAddress(), node)).second);
 
-        FOREACH (const auto& pair, IdToOperation) {
-            auto operation = pair.second;
-            if (operation->GetState() == EOperationState::Running) {
-                operation->GetController()->OnNodeOnline(node);
-            }
-        }
-
         return node;
     }
 
@@ -1172,13 +1165,6 @@ private:
             UnregisterJob(job);
         }
         YCHECK(AddressToNode.erase(address) == 1);
-
-        FOREACH (const auto& pair, IdToOperation) {
-            auto operation = pair.second;
-            if (operation->GetState() == EOperationState::Running) {
-                operation->GetController()->OnNodeOffline(node);
-            }
-        }
     }
 
 

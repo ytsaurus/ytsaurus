@@ -46,10 +46,15 @@ public:
 
     void CreateJobNode(TJobPtr job, const NChunkClient::TChunkId& stdErrChunkId);
     
-    void AttachLivePreviewChunkTree(
+    void AttachToLivePreview(
         TOperationPtr operation,
         const NChunkClient::TChunkListId& chunkListId,
-        const NChunkClient::TChunkTreeId& chunkTreeId);
+        const NChunkClient::TChunkTreeId& childId);
+
+    void AttachToLivePreview(
+        TOperationPtr operation,
+        const NChunkClient::TChunkListId& chunkListId,
+        const std::vector<NChunkClient::TChunkTreeId>& childrenIds);
 
     void AddGlobalWatcherRequester(TWatcherRequester requester);
     void AddGlobalWatcherHandler(TWatcherHandler handler);

@@ -248,15 +248,10 @@ void TOperationControllerBase::TInputChunkScratcher::Start()
     PeriodicInvoker->Start();
 }
 
-void TOperationControllerBase::TInputChunkScratcher::Stop()
-{
-    if (Started) {
-        PeriodicInvoker->Stop();
-    }
-}
-
 void TOperationControllerBase::TInputChunkScratcher::LocateChunks()
 {
+    VERIFY_THREAD_AFFINITY(Controller->ControlThread);
+
     auto startIterator = NextChunkIterator;
     auto req = Proxy.LocateChunks();
 
@@ -274,7 +269,8 @@ void TOperationControllerBase::TInputChunkScratcher::LocateChunks()
         }
     }
 
-    LOG_DEBUG("Sending locate chunks request for %d chunks", static_cast<int>(req->chunk_ids_size()));
+    LOG_DEBUG("Locating input chunks (Count: %d)",
+        req->chunk_ids_size());
 
     req->Invoke().Subscribe(
         BIND(&TInputChunkScratcher::OnLocateChunksResponse, MakeWeak(this))
@@ -283,20 +279,23 @@ void TOperationControllerBase::TInputChunkScratcher::LocateChunks()
 
 void TOperationControllerBase::TInputChunkScratcher::OnLocateChunksResponse(TChunkServiceProxy::TRspLocateChunksPtr rsp)
 {
+    VERIFY_THREAD_AFFINITY(Controller->ControlThread);
+
     if (!rsp->IsOK()) {
         LOG_WARNING(*rsp, "Failed to locate input chunks");
         return;
     }
 
-    LOG_DEBUG("Located %d input chunks", static_cast<int>(rsp->chunks_size()));
-
     Controller->NodeDirectory->MergeFrom(rsp->node_directory());
+
+    int availableCount = 0;
+    int unavailableCount = 0;
     FOREACH(const auto& chunkInfo, rsp->chunks()) {
         auto chunkId = FromProto<TChunkId>(chunkInfo.chunk_id());
         auto it = Controller->InputChunkMap.find(chunkId);
         YCHECK(it != Controller->InputChunkMap.end());
 
-        auto replicas = FromProto<TChunkReplica, TChunkReplicaList>(chunkInfo.replicas());
+        auto replicas = NYT::FromProto<TChunkReplica, TChunkReplicaList>(chunkInfo.replicas());
 
         auto& descriptor = it->second;
         YCHECK(!descriptor.ChunkSpecs.empty());
@@ -304,11 +303,17 @@ void TOperationControllerBase::TInputChunkScratcher::OnLocateChunksResponse(TChu
         auto codecId = NErasure::ECodec(chunkSpec->erasure_codec());
 
         if (IsUnavailable(replicas, codecId)) {
+            ++unavailableCount;
             Controller->OnInputChunkUnavailable(chunkId, descriptor);
         } else {
+            ++availableCount;
             Controller->OnInputChunkAvailable(chunkId, descriptor, replicas);
         }
     }
+
+    LOG_DEBUG("Input chunks located (AvailableCount: %d, UnavailableCount: %d)",
+        availableCount,
+        unavailableCount);
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -544,10 +549,6 @@ void TOperationControllerBase::TTask::Persist(TPersistenceContext& context)
     Persist(context, CompletedFired);
 
     Persist(context, LostJobCookieMap);
-
-    if (context.GetDirection() == EPersistenceDirection::Load) {
-        Initialize();
-    }
 }
 
 void TOperationControllerBase::TTask::PrepareJoblet(TJobletPtr joblet)
@@ -931,24 +932,31 @@ void TOperationControllerBase::Initialize()
         THROW_ERROR_EXCEPTION("No online exec nodes to start operation");
     }
 
+    Operation->SetMaxStdErrCount(Spec->MaxStdErrCount.Get(Config->MaxStdErrCount));
+
     DoInitialize();
 
     LOG_INFO("Operation initialized");
 }
 
 void TOperationControllerBase::DoInitialize()
-{
-    Operation->SetMaxStdErrCount(Spec->MaxStdErrCount.Get(Config->MaxStdErrCount));
-}
+{ }
 
 TFuture<TError> TOperationControllerBase::Prepare()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
+    auto this_ = MakeStrong(this);
     return
-        BIND(&TThis::DoPrepare, MakeStrong(this))
+        BIND(&TThis::DoPrepare, this_)
             .AsyncVia(CancelableBackgroundInvoker)
-            .Run();
+            .Run()
+            .Apply(BIND([this, this_] (TError error) -> TError {
+                if (error.IsOK()) {
+                    Running = true;
+                }
+                return error;
+            }).AsyncVia(CancelableControlInvoker));
 }
 
 TError TOperationControllerBase::DoPrepare()
@@ -956,14 +964,38 @@ TError TOperationControllerBase::DoPrepare()
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
     try {
+        InitChunkListPool();
+
         GetObjectIds();
+
         ValidateInputTypes();
+
         RequestInputs();
+
         CreateLivePreviewTables();
+
         PrepareLivePreviewTablesForUpdate();
+
         CollectTotals();
+
         CustomPrepare();
-        CompletePreparation();
+
+        if (InputChunkMap.empty()) {
+            // Possible reasons:
+            // - All input chunks are unavailable && Strategy == Skip
+            // - Merge decided to passthrough all input chunks
+            // - Anything else?
+            LOG_INFO("Empty input");
+            OnOperationCompleted();
+            return TError();
+        }
+
+        SuspendUnavailableInputStripes();
+
+        InitInputChunkScratcher();
+
+        AddAllTaskPendingHints();
+
         return TError();
     } catch (const std::exception& ex) {
         return TError(ex);
@@ -983,34 +1015,6 @@ void TOperationControllerBase::DoSaveSnapshot(TOutputStream* output)
     Save(context, this);
 }
 
-void TOperationControllerBase::DoLoadSnapshot()
-{
-    VERIFY_THREAD_AFFINITY(BackgroundThread);
-
-    LOG_INFO("Started loading snapshot");
-
-    const auto& snapshot = *Operation->Snapshot();
-    TMemoryInput input(snapshot.Begin(), snapshot.Size());
-
-    TLoadContext context;
-    context.SetInput(&input);
-
-    NPhoenix::TSerializer::InplaceLoad(context, this);
-
-    LOG_INFO("Finished loading snapshot");
-
-    // Make some final adjustments.
-    CompletePreparation();
-
-    // Abort all joblets.
-    FOREACH (const auto& pair, JobletMap) {
-        auto joblet = pair.second;
-        JobCounter.Aborted(1);
-        joblet->Task->OnJobAborted(joblet);
-    }
-    JobletMap.clear();
-}
-
 TFuture<TError> TOperationControllerBase::Revive()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1024,16 +1028,136 @@ TFuture<TError> TOperationControllerBase::Revive()
     if (Operation->Snapshot()) {
         auto this_ = MakeStrong(this);
         return
-            BIND(&TOperationControllerBase::DoLoadSnapshot, this_)
+            BIND(&TOperationControllerBase::DoReviveFromSnapshot, this_)
                 .AsyncVia(CancelableBackgroundInvoker)
                 .Run()
                 .Apply(BIND([this, this_] () -> TError {
+                    ReinstallLivePreview();
                     Running = true;
                     return TError();
-                }));
+                }).AsyncVia(CancelableControlInvoker));
     } else {
         return Prepare();
     }
+}
+
+void TOperationControllerBase::DoReviveFromSnapshot()
+{
+    VERIFY_THREAD_AFFINITY(BackgroundThread);
+
+    InitChunkListPool();
+
+    DoLoadSnapshot();
+
+    PrepareLivePreviewTablesForUpdate();
+
+    AbortAllJoblets();
+
+    InitInputChunkScratcher();
+}
+
+void TOperationControllerBase::InitChunkListPool()
+{
+    ChunkListPool = New<TChunkListPool>(
+        Config,
+        Host->GetMasterChannel(),
+        CancelableControlInvoker, 
+        Operation->GetOperationId(),
+        Operation->GetOutputTransaction()->GetId());
+}
+
+void TOperationControllerBase::InitInputChunkScratcher()
+{
+    if (Spec->UnavailableChunkStrategy != EUnavailableChunkAction::Wait)
+        return;
+
+    int suspendedChunkCount = 0;
+    FOREACH (auto& pair, InputChunkMap) {
+        const auto& chunkDescriptor = pair.second;
+        if (chunkDescriptor.State == EInputChunkState::Waiting) {
+            LOG_TRACE("Input chunk is unavailable (ChunkId: %s)", ~ToString(pair.first));
+            ++suspendedChunkCount;
+        }
+    }
+
+    if (suspendedChunkCount > 0) {
+        LOG_INFO("Waiting for %d unavailable chunks", suspendedChunkCount);
+        InputChunkScratcher->Start();
+    }
+}
+
+void TOperationControllerBase::SuspendUnavailableInputStripes()
+{
+    if (Spec->UnavailableChunkStrategy != EUnavailableChunkAction::Wait)
+        return;
+
+    FOREACH (auto& pair, InputChunkMap) {
+        const auto& chunkDescriptor = pair.second;
+        if (chunkDescriptor.State == EInputChunkState::Waiting) {
+            FOREACH(const auto& inputStripe, chunkDescriptor.InputStripes) {
+                inputStripe.Task->GetChunkPoolInput()->Suspend(inputStripe.Cookie);
+                ++inputStripe.Stripe->WaitingChunkCount;
+            }
+        }
+    }
+}
+
+void TOperationControllerBase::ReinstallLivePreview()
+{
+    auto masterConnector = Host->GetMasterConnector();
+
+    if (IsOutputLivePreviewSupported()) {
+        FOREACH (const auto& table, OutputTables) {
+            std::vector<TChunkTreeId> childrenIds;
+            childrenIds.resize(table.OutputChunkTreeIds.size());
+            FOREACH (const auto& pair, table.OutputChunkTreeIds) {
+                childrenIds.push_back(pair.second);
+            }
+            masterConnector->AttachToLivePreview(
+                Operation,
+                table.LivePreviewChunkListId,
+                childrenIds);
+        }
+    }
+
+    if (IsIntermediateLivePreviewSupported()) {
+        std::vector<TChunkTreeId> childrenIds;
+        childrenIds.resize(ChunkOriginMap.size());
+        FOREACH (const auto& pair, ChunkOriginMap) {
+            if (!pair.second->IsLost) {
+                childrenIds.push_back(pair.first);
+            }
+        }
+        masterConnector->AttachToLivePreview(
+            Operation,
+            IntermediateTable.LivePreviewChunkListId,
+            childrenIds);
+    }
+}
+
+void TOperationControllerBase::AbortAllJoblets()
+{
+    FOREACH (const auto& pair, JobletMap) {
+        auto joblet = pair.second;
+        JobCounter.Aborted(1);
+        joblet->Task->OnJobAborted(joblet);
+    }
+    JobletMap.clear();
+}
+
+void TOperationControllerBase::DoLoadSnapshot()
+{
+    LOG_INFO("Started loading snapshot");
+
+    const auto& snapshot = *Operation->Snapshot();
+    TMemoryInput input(snapshot.Begin(), snapshot.Size());
+
+    TLoadContext context;
+    context.SetInput(&input);
+
+    NPhoenix::TSerializer::InplaceLoad(context, this);
+
+    LOG_INFO("Finished loading snapshot");
 }
 
 TFuture<TError> TOperationControllerBase::Commit()
@@ -1390,22 +1514,10 @@ void TOperationControllerBase::Abort()
     LOG_INFO("Aborting operation");
 
     Running = false;
-    InputChunkScratcher->Stop();
+
     CancelableContext->Cancel();
 
     LOG_INFO("Operation aborted");
-}
-
-void TOperationControllerBase::OnNodeOnline(TExecNodePtr node)
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-    UNUSED(node);
-}
-
-void TOperationControllerBase::OnNodeOffline(TExecNodePtr node)
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-    UNUSED(node);
 }
 
 TJobPtr TOperationControllerBase::ScheduleJob(
@@ -1498,6 +1610,13 @@ void TOperationControllerBase::AddTaskPendingHint(TTaskPtr task)
         }
     }
     OnTaskUpdated(task);
+}
+
+void TOperationControllerBase::AddAllTaskPendingHints()
+{
+    FOREACH (auto task, Tasks) {
+        AddTaskPendingHint(task);
+    }
 }
 
 void TOperationControllerBase::DoAddTaskLocalityHint(TTaskPtr task, const Stroka& address)
@@ -1826,7 +1945,6 @@ void TOperationControllerBase::DoOperationCompleted()
 
     JobCounter.Finalize();
 
-    InputChunkScratcher->Stop();
     Running = false;
 
     Host->OnOperationCompleted(Operation);
@@ -1843,7 +1961,6 @@ void TOperationControllerBase::DoOperationFailed(const TError& error)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    InputChunkScratcher->Stop();
     Running = false;
 
     Host->OnOperationFailed(Operation, error);
@@ -2640,7 +2757,7 @@ void TOperationControllerBase::RegisterOutput(
 
     if (IsOutputLivePreviewSupported()) {
         auto masterConnector = Host->GetMasterConnector();
-        masterConnector->AttachLivePreviewChunkTree(
+        masterConnector->AttachToLivePreview(
             Operation,
             table.LivePreviewChunkListId,
             chunkTreeId);
@@ -2691,51 +2808,6 @@ void TOperationControllerBase::RegisterOutput(TJobletPtr joblet, int key)
     }
 }
 
-void TOperationControllerBase::CompletePreparation()
-{
-    if (InputChunkMap.empty()) {
-        // Possible reasons:
-        // - All input chunks are unavailable && Strategy == Skip
-        // - Merge decided to passthrough all input chunks
-        // - Anything else?
-        LOG_INFO("Empty input");
-        OnOperationCompleted();
-    }
-    
-    ChunkListPool = New<TChunkListPool>(
-        Config,
-        Host->GetMasterChannel(),
-        CancelableControlInvoker,
-        Operation->GetOperationId(),
-        Operation->GetOutputTransaction()->GetId());
-
-    if (Spec->UnavailableChunkStrategy == EUnavailableChunkAction::Wait) {
-        int suspendedChunkCount = 0;
-        FOREACH(auto& pair, InputChunkMap) {
-            const auto& chunkDescriptor = pair.second;
-            if (chunkDescriptor.State == EInputChunkState::Waiting) {
-                LOG_TRACE("Input chunk is unavailable (ChunkId: %s)", ~ToString(pair.first));
-                ++suspendedChunkCount;
-                FOREACH(const auto& inputStripe, chunkDescriptor.InputStripes) {
-                    inputStripe.Task->GetChunkPoolInput()->Suspend(inputStripe.Cookie);
-                    ++inputStripe.Stripe->WaitingChunkCount;
-                }
-            }
-        }
-
-        if (suspendedChunkCount > 0) {
-            LOG_INFO("Waiting for %d unavailable chunks", suspendedChunkCount);
-            InputChunkScratcher->Start();
-        }
-    }
-
-    FOREACH (auto task, Tasks) {
-        AddTaskPendingHint(task);
-    }
-
-    Running = true;
-}
-
 void TOperationControllerBase::RegisterInputStripe(TChunkStripePtr stripe, TTaskPtr task)
 {
     yhash_set<TChunkId> visitedChunks;
@@ -2778,7 +2850,7 @@ void TOperationControllerBase::RegisterIntermediate(
 
         if (IsIntermediateLivePreviewSupported()) {
             auto masterConnector = Host->GetMasterConnector();
-            masterConnector->AttachLivePreviewChunkTree(
+            masterConnector->AttachToLivePreview(
                 Operation,
                 IntermediateTable.LivePreviewChunkListId,
                 chunkId);
@@ -3060,6 +3132,14 @@ void TOperationControllerBase::Persist(TPersistenceContext& context)
     Persist(context, JobletMap);
 
     Persist(context, JobIndexGenerator);
+    
+    Persist(context, InputChunkSpecs);
+
+    if (context.GetDirection() == EPersistenceDirection::Load) {
+        FOREACH (auto task, Tasks) {
+            task->Initialize();
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////

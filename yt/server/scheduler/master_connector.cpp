@@ -183,24 +183,46 @@ public:
         list->JobRequests.push_back(request);
     }
 
-    void AttachLivePreviewChunkTree(
+    void AttachToLivePreview(
         TOperationPtr operation,
         const TChunkListId& chunkListId,
-        const TChunkTreeId& chunkTreeId)
+        const TChunkTreeId& childId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected);
 
-        LOG_DEBUG("Attaching live preview chunk tree (OperationId: %s, ChunkListId: %s, ChunkTreeId: %s)",
+        LOG_DEBUG("Attaching live preview chunk tree (OperationId: %s, ChunkListId: %s, ChildId: %s)",
             ~ToString(operation->GetOperationId()),
             ~ToString(chunkListId),
-            ~ToString(chunkTreeId));
+            ~ToString(childId));
 
         auto* list = GetUpdateList(operation);
         TLivePreviewRequest request;
         request.ChunkListId = chunkListId;
-        request.ChunkTreeId = chunkTreeId;
+        request.ChildId = childId;
         list->LivePreviewRequests.push_back(request);
+    }
+
+    void AttachToLivePreview(
+        TOperationPtr operation,
+        const TChunkListId& chunkListId,
+        const std::vector<TChunkTreeId>& childrenIds)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(Connected);
+
+        LOG_DEBUG("Attaching live preview chunk trees (OperationId: %s, ChunkListId: %s, ChildrenCount: %d)",
+            ~ToString(operation->GetOperationId()),
+            ~ToString(chunkListId),
+            static_cast<int>(childrenIds.size()));
+
+        auto* list = GetUpdateList(operation);
+        FOREACH (const auto& childId, childrenIds) {
+            TLivePreviewRequest request;
+            request.ChunkListId = chunkListId;
+            request.ChildId = childId;
+            list->LivePreviewRequests.push_back(request);
+        }
     }
 
 
@@ -264,7 +286,7 @@ private:
     struct TLivePreviewRequest
     {
         TChunkListId ChunkListId;
-        TChunkTreeId ChunkTreeId;
+        TChunkTreeId ChildId;
     };
 
     struct TUpdateList
@@ -580,7 +602,7 @@ private:
 
             {
                 auto rsps = batchRsp->GetResponses<TTransactionYPathProxy::TRspPing>("ping_tx");
-                YCHECK(rsps.size() == 5 * Result.Operations.size());
+                YCHECK(rsps.size() == TransactionsPerOperation * Result.Operations.size());
 
                 for (int i = 0; i < static_cast<int>(Result.Operations.size()); ++i) {
                     auto operation = Result.Operations[i];
@@ -1311,7 +1333,7 @@ private:
                 auto req = TChunkListYPathProxy::Attach(FromObjectId(requests[rangeBegin].ChunkListId));
                 GenerateMutationId(req);
                 for (int index = rangeBegin; index < rangeEnd; ++index) {
-                    ToProto(req->add_children_ids(), requests[index].ChunkTreeId);
+                    ToProto(req->add_children_ids(), requests[index].ChildId);
                 }
                 batchReq->AddRequest(req, "update_live_preview");
 
@@ -1557,6 +1579,7 @@ private:
     {
         SnapshotInvoker->ScheduleNext();
     }
+
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -1600,12 +1623,20 @@ void TMasterConnector::CreateJobNode(TJobPtr job, const TChunkId& stdErrChunkId)
     return Impl->CreateJobNode(job, stdErrChunkId);
 }
 
-void TMasterConnector::AttachLivePreviewChunkTree(
+void TMasterConnector::AttachToLivePreview(
     TOperationPtr operation,
     const TChunkListId& chunkListId,
-    const TChunkTreeId& chunkTreeId)
+    const TChunkTreeId& childId)
 {
-    Impl->AttachLivePreviewChunkTree(operation, chunkListId, chunkTreeId);
+    Impl->AttachToLivePreview(operation, chunkListId, childId);
+}
+
+void TMasterConnector::AttachToLivePreview(
+    TOperationPtr operation,
+    const TChunkListId& chunkListId,
+    const std::vector<TChunkTreeId>& childrenIds)
+{
+    Impl->AttachToLivePreview(operation, chunkListId, childrenIds);
 }
 
 void TMasterConnector::AddGlobalWatcherRequester(TWatcherRequester requester)

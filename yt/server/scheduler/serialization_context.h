@@ -14,7 +14,7 @@ typedef NPhoenix::TLoadContext TLoadContext;
 typedef NPhoenix::TPersistenceContext TPersistenceContext;
 typedef NPhoenix::IPersistent IPersistent;
 
-const int CurrentSnapshotVersion = 2;
+int GetCurrentSnapshotVersion();
 bool ValidateSnapshotVersion(int version);
 
 ////////////////////////////////////////////////////////////////////////////////

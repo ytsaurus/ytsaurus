@@ -108,6 +108,7 @@ void TChunkStripe::Persist(TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, ChunkSlices);
+    Persist(context, WaitingChunkCount);
 }
 
 TChunkStripeStatistics operator + (
@@ -552,10 +553,8 @@ private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TAtomicChunkPool, 0x76bac510);
 
     std::vector<TSuspendableStripe> Stripes;
-
     yhash_map<Stroka, i64> AddressToLocality;
     TChunkStripeListPtr ExtractedList;
-
     int SuspendedStripeCount;
 
     void UpdateLocality(TChunkStripePtr stripe, int delta)
@@ -590,6 +589,9 @@ class TUnorderedChunkPool
 public:
     //! For persistence only.
     TUnorderedChunkPool()
+        : FreePendingDataSize(-1)
+        , SuspendedDataSize(-1)
+        , UnavailableLostCookieCount(-1)
     { }
 
     explicit TUnorderedChunkPool(
@@ -895,6 +897,9 @@ public:
         using NYT::Persist;
         Persist(context, Stripes);
         Persist(context, PendingGlobalStripes);
+        Persist(context, FreePendingDataSize);
+        Persist(context, SuspendedDataSize);
+        Persist(context, UnavailableLostCookieCount);
         Persist(context, PendingLocalChunks);
         Persist(context, OutputCookieGenerator);
         Persist(context, ExtractedLists);
@@ -911,7 +916,6 @@ private:
     yhash_set<int> PendingGlobalStripes;
 
     i64 FreePendingDataSize;
-
     i64 SuspendedDataSize;
     int UnavailableLostCookieCount;
 

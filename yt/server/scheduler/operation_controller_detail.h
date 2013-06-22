@@ -65,9 +65,6 @@ public:
     virtual void OnJobFailed(TJobPtr job) override;
     virtual void OnJobAborted(TJobPtr job) override;
 
-    virtual void OnNodeOnline(TExecNodePtr node) override;
-    virtual void OnNodeOffline(TExecNodePtr node) override;
-
     virtual void Abort() override;
 
     virtual TJobPtr ScheduleJob(
@@ -541,74 +538,46 @@ protected:
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(BackgroundThread);
 
+
     // Jobs in progress management.
     void RegisterJoblet(TJobletPtr joblet);
     TJobletPtr GetJoblet(TJobPtr job);
     void RemoveJoblet(TJobPtr job);
 
-    // Here comes the preparation pipeline.
 
+    // Initialization.
+    virtual void DoInitialize();   
+
+
+    // Preparation.
     TError DoPrepare();
-
-    // Round 1:
-    // - Get input table ids
-    // - Get output table ids
     void GetObjectIds();
-
-    // Round 2:
-    // - Request file types
-    // - Check that input and output are tables
     void ValidateInputTypes();
-
-    // Round 3:
-    // - Fetch input tables.
-    // - Lock input tables.
-    // - Lock output tables.
-    // - Fetch files.
-    // - Get output tables channels.
-    // - Get output chunk lists.
-    // - (Custom)
     void RequestInputs();
-
-    // Round 4:
-    // - Create live preview tables, if needed
     void CreateLivePreviewTables();
-
-    // Round 5:
-    // - Prepare live preview tables for update
     void PrepareLivePreviewTablesForUpdate();
-
-    // Round 5.
-    // - Collect totals.
-    // - Check for zero totals.
     void CollectTotals();
-
-    // Round 6.
-    // - (Custom)
     virtual void CustomPrepare();
-
-    // Round 7.
-    // - Check for empty inputs.
-    // - Init chunk list pool.
-    // - Suspend stripes with unavailable chunks and fire chunk scratcher.
-    // - Kick-start all tasks.
-    void CompletePreparation();
+    void AddAllTaskPendingHints();
+    void InitChunkListPool();
+    void InitInputChunkScratcher();
+    void SuspendUnavailableInputStripes();
 
 
-    // Here comes the completion pipeline.
-
+    // Completion.
     TError DoCommit();
-
-    // Round 1.
-    // - Sort parts of output, if needed.
-    // - Attach chunk trees.
     void CommitResults();
 
 
-    virtual void DoInitialize();
+    // Revival.
+    void DoReviveFromSnapshot();
+    void ReinstallLivePreview();
+    void AbortAllJoblets();
+
 
     void DoSaveSnapshot(TOutputStream* output);
     void DoLoadSnapshot();
+
 
     //! Called to extract input table paths from the spec.
     virtual std::vector<NYPath::TRichYPath> GetInputTablePaths() const = 0;
@@ -681,7 +650,6 @@ protected:
 
     virtual bool IsOutputLivePreviewSupported() const;
     virtual bool IsIntermediateLivePreviewSupported() const;
-    void AbortTransactions();
 
     void OnOperationCompleted();
     virtual void DoOperationCompleted();
@@ -778,12 +746,10 @@ private:
 
         //! Starts periodic polling.
         /*!
-         *  Should be called when operation preparation is completed.
+         *  Should be called when operation preparation is complete.
          *  Safe to call multiple times.
          */
         void Start();
-
-        void Stop();
 
     private:
         void LocateChunks();
@@ -796,6 +762,7 @@ private:
         bool Started;
 
         NLog::TTaggedLogger& Logger;
+
     };
 
     typedef TIntrusivePtr<TInputChunkScratcher> TInputChunkScratcherPtr;
@@ -806,7 +773,7 @@ private:
     int CachedPendingJobCount;
     NNodeTrackerClient::NProto::TNodeResources CachedNeededResources;
 
-    //! Maps intermediate chunk id to its originating completed job.
+    //! Maps an intermediate chunk id to its originating completed job.
     yhash_map<NChunkServer::TChunkId, TCompleteJobPtr> ChunkOriginMap;
 
     //! Maps scheduler's job ids to controller's joblets.
@@ -815,7 +782,6 @@ private:
     yhash_map<TJobId, TJobletPtr> JobletMap;
 
     //! Used to distinguish already seen ChunkSpecs while building #InputChunkMap.
-    // TODO(babenko): serialize?
     yhash_set<NChunkClient::TRefCountedChunkSpecPtr> InputChunkSpecs;
 
     TInputChunkScratcherPtr InputChunkScratcher;

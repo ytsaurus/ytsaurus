@@ -243,6 +243,8 @@ protected:
             Persist(context, SortTask);
             Persist(context, SortedMergeTask);
             Persist(context, UnorderedMergeTask);
+
+            Persist(context, ChunkPoolOutput);
         }
 
     };
@@ -895,6 +897,14 @@ protected:
         virtual IChunkPoolInput* GetChunkPoolInput() const override
         {
             return ~ChunkPool;
+        }
+
+        virtual void Persist(TPersistenceContext& context) override
+        {
+            TMergeTask::Persist(context);
+
+            using NYT::Persist;
+            Persist(context, ChunkPool);
         }
 
     private:

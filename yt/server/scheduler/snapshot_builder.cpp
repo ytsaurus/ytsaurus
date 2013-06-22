@@ -191,7 +191,7 @@ void TSnapshotBuilder::UploadSnapshot(const TJob& job)
             auto req = TCypressYPathProxy::Create(snapshotPath);
             req->set_type(EObjectType::File);
             auto attributes = CreateEphemeralAttributes();
-            attributes->Set("version", CurrentSnapshotVersion);
+            attributes->Set("version", GetCurrentSnapshotVersion());
             ToProto(req->mutable_node_attributes(), *attributes);
             SetTransactionId(req, transaction);
             auto rsp = proxy.Execute(req).Get();
