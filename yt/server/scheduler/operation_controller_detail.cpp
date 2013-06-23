@@ -302,8 +302,8 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
         jobSpecBuilder);
 
     LOG_INFO(
-        "Job scheduled (JobId: %s, OperationId: %s, JobType: %s, Address: %s, Task: %s, JobIndex: %d, ChunkCount: %d (%d local), "
-        "Approximate: %s, DataSize: %" PRId64 ", RowCount: %" PRId64 ", ResourceLimits: {%s})",
+        "Job scheduled (JobId: %s, OperationId: %s, JobType: %s, Address: %s, JobIndex: %d, ChunkCount: %d (%d local), "
+        "Approximate: %s, DataSize: %" PRId64 "(%" PRId64 " local), RowCount: %" PRId64 ", ResourceLimits: {%s})",
         ~ToString(joblet->Job->GetId()),
         ~ToString(Controller->Operation->GetOperationId()),
         ~jobType.ToString(),
@@ -314,6 +314,7 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
         joblet->InputStripeList->LocalChunkCount,
         ~FormatBool(joblet->InputStripeList->IsApproximate),
         joblet->InputStripeList->TotalDataSize,
+        joblet->InputStripeList->LocalDataSize,
         joblet->InputStripeList->TotalRowCount,
         ~FormatResources(neededResources));
 
