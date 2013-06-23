@@ -22,6 +22,12 @@ class YtNetworkError(YtError):
     """
     pass
 
+class YtProxyUnderHeavyLoad(YtError):
+    """
+    Represents an error occured when proxy response that it is under heavy load.
+    """
+    pass
+
 class YtTokenError(YtError):
     pass
 
