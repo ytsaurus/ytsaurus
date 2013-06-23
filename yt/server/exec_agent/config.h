@@ -133,7 +133,7 @@ public:
         RegisterParameter("job_proxy_logging", JobProxyLogging)
             .Default(NULL);
         RegisterParameter("supervisor_rpc_timeout", SupervisorRpcTimeout)
-            .Default(TDuration::Seconds(60));
+            .Default(TDuration::Seconds(30));
         RegisterParameter("memory_watchdog_period", MemoryWatchdogPeriod)
             .Default(TDuration::Seconds(1));
         RegisterParameter("memory_limit_multiplier", MemoryLimitMultiplier)
