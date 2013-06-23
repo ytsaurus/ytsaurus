@@ -52,8 +52,9 @@ void TChunkPlacement::OnNodeRegistered(TNode* node)
         while (it != LoadRankToNode.end() && GetLoadFactor(*it) < loadFactor) {
             ++it;
         }
-        LoadRankToNode.insert(it, node);
+        YCHECK(node->GetLoadRank() == -1);
         node->SetLoadRank(std::distance(LoadRankToNode.begin(), it));
+        LoadRankToNode.insert(it, node);
     }
     {
         double fillFactor = GetFillFactor(node);
@@ -65,7 +66,10 @@ void TChunkPlacement::OnNodeRegistered(TNode* node)
 void TChunkPlacement::OnNodeUnregistered(TNode* node)
 {
     {
+        int loadRank = node->GetLoadRank();
+        YCHECK(loadRank != -1);
         LoadRankToNode.erase(LoadRankToNode.begin() + node->GetLoadRank());
+        node->SetLoadRank(-1);
     }
     {
         auto itIt = NodeToFillFactorIt.find(node);
