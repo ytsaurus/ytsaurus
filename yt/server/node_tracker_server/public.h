@@ -2,6 +2,7 @@
 
 #include <ytlib/misc/common.h>
 #include <ytlib/misc/small_vector.h>
+#include <ytlib/misc/small_set.h>
 
 #include <ytlib/node_tracker_client/public.h>
 
@@ -20,6 +21,7 @@ typedef TIntrusivePtr<TNodeTracker> TNodeTrackerPtr;
 
 class TNode;
 typedef TSmallVector<TNode*, NChunkClient::TypicalReplicaCount> TNodeList;
+typedef TSmallSet<TNode*, NChunkClient::TypicalReplicaCount> TNodeSet;
 
 class TNodeTrackerService;
 typedef TIntrusivePtr<TNodeTrackerService> TNodeTrackerServicePtr;

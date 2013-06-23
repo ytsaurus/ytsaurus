@@ -38,6 +38,7 @@ void TNode::Init()
 {
     UnregisterPending_ = false;
     VisitMark_ = 0;
+    LoadRank_ = -1;
     Transaction_ = nullptr;
     Decommissioned_ = Config_->Decommissioned;
     ChunkReplicationQueues_.resize(ReplicationPriorityCount);

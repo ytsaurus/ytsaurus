@@ -30,12 +30,11 @@ public:
     void OnNodeUnregistered(TNode* node);
     void OnNodeUpdated(TNode* node);
 
-    double GetLoadFactor(TNode* node) const;
     double GetFillFactor(TNode* node) const;
 
     TNodeList AllocateWriteTargets(
         int replicaCount,
-        const TSmallSet<TNode*, TypicalReplicaCount>* forbiddenNodes,
+        const TNodeSet* forbiddenNodes,
         const TNullable<Stroka>& preferredHostName,
         NChunkClient::EWriteSessionType sessionType);
 
@@ -65,15 +64,16 @@ private:
     TChunkManagerConfigPtr Config;
     NCellMaster::TBootstrap* Bootstrap;
 
-    TFactorToNode LoadFactorToNode;
-    TNodeToFactorIt NodeToLoadFactorIt;
+    std::vector<TNode*> LoadRankToNode;
 
     TFactorToNode FillFactorToNode;
-    TNodeToFactorIt NodeToFilFactorIt;
+    TNodeToFactorIt NodeToFillFactorIt;
+
+    static int GetLoadFactor(TNode* node);
 
     TNodeList GetWriteTargets(
         int targetCount,
-        const TSmallSet<TNode*, TypicalReplicaCount>* forbiddenNodes,
+        const TNodeSet* forbiddenNodes,
         const TNullable<Stroka>& preferredHostName,
         NChunkClient::EWriteSessionType sessionType);
 
@@ -97,6 +97,10 @@ private:
         TChunkPtrWithIndex chunkWithIndex) const;
     
     bool IsValidRemovalTarget(TNode* node);
+
+    void AddSessionHint(
+        TNode* node,
+        NChunkClient::EWriteSessionType sessionType);
 
 };
 

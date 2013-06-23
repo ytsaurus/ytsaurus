@@ -51,10 +51,6 @@ public:
     //! Maximum number of chunks to process during a refresh scan.
     int MaxChunksPerRefresh;
 
-    //! Each active upload session adds |ActiveSessionPenality| to effective load factor
-    //! when picking an upload target.
-    double ActiveSessionPenality;
-
     //! Interval between consequent chunk properties update scans.
     TDuration ChunkPropertiesUpdatePeriod;
 
@@ -100,9 +96,6 @@ public:
             .Default(TDuration::MilliSeconds(1000));
         RegisterParameter("max_chunks_per_properties_update", MaxChunksPerPropertiesUpdate)
             .Default(10000);
-
-        RegisterParameter("active_session_penality", ActiveSessionPenality)
-            .Default(0.0001);
     }
 };
 
