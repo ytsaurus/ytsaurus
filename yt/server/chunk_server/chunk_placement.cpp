@@ -48,13 +48,17 @@ void TChunkPlacement::OnNodeRegistered(TNode* node)
 {
     {
         int loadFactor = GetLoadFactor(node);
-        auto it = LoadRankToNode.begin();
-        while (it != LoadRankToNode.end() && GetLoadFactor(*it) < loadFactor) {
-            ++it;
+        int i = 0;
+        while (i < LoadRankToNode.size() && GetLoadFactor(LoadRankToNode[i]) < loadFactor) {
+            ++i;
         }
-        YCHECK(node->GetLoadRank() == -1);
-        node->SetLoadRank(std::distance(LoadRankToNode.begin(), it));
-        LoadRankToNode.insert(it, node);
+        LoadRankToNode.resize(LoadRankToNode.size() + 1);
+        for (int j = LoadRankToNode.size() - 1; j > i; --j) {
+            LoadRankToNode[j] = LoadRankToNode[j - 1];
+            LoadRankToNode[j]->SetLoadRank(j);
+        }
+        LoadRankToNode[i] = node;
+        node->SetLoadRank(i);
     }
     {
         double fillFactor = GetFillFactor(node);
@@ -66,9 +70,11 @@ void TChunkPlacement::OnNodeRegistered(TNode* node)
 void TChunkPlacement::OnNodeUnregistered(TNode* node)
 {
     {
-        int loadRank = node->GetLoadRank();
-        YCHECK(loadRank != -1);
-        LoadRankToNode.erase(LoadRankToNode.begin() + node->GetLoadRank());
+        for (int i = node->GetLoadRank(); i < LoadRankToNode.size() - 1; i++) {
+            LoadRankToNode[i] = LoadRankToNode[i + 1];
+            LoadRankToNode[i]->SetLoadRank(i);
+        }
+        LoadRankToNode.resize(LoadRankToNode.size() - 1);
         node->SetLoadRank(-1);
     }
     {
@@ -379,11 +385,14 @@ bool TChunkPlacement::IsFull(TNode* node)
 void TChunkPlacement::AddSessionHint(TNode* node, EWriteSessionType sessionType)
 {
     node->AddSessionHint(sessionType);
-    int loadRank = node->GetLoadRank();
-    if (loadRank + 1 < LoadRankToNode.size() &&
-        GetLoadFactor(LoadRankToNode[loadRank + 1]) < GetLoadFactor(node))
+    for (int i = node->GetLoadRank();
+         i + 1 < LoadRankToNode.size() &&
+         GetLoadFactor(LoadRankToNode[i + 1]) < GetLoadFactor(LoadRankToNode[i]);
+         ++i)
     {
-        std::swap(LoadRankToNode[loadRank], LoadRankToNode[loadRank + 1]);
+        std::swap(LoadRankToNode[i], LoadRankToNode[i + 1]);
+        LoadRankToNode[i]->SetLoadRank(i);
+        LoadRankToNode[i + 1]->SetLoadRank(i + 1);
     }
 }
 
