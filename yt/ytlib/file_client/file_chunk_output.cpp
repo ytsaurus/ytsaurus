@@ -77,7 +77,7 @@ void TFileChunkOutput::Open()
         reqExt->set_upload_replication_factor(Config->UploadReplicationFactor);
         reqExt->set_replication_factor(Options->ReplicationFactor);
         reqExt->set_movable(Config->ChunksMovable);
-        reqExt->set_vital(Config->ChunksVital);
+        reqExt->set_vital(Options->ChunksVital);
 
         auto rsp = proxy.Execute(req).Get();
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error creating file chunk");

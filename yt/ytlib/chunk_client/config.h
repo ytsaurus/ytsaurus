@@ -252,7 +252,6 @@ public:
     int UploadReplicationFactor;
 
     bool ChunksMovable;
-    bool ChunksVital;
 
     bool PreferLocalHost;
 
@@ -272,8 +271,6 @@ public:
             .Default(2);
         RegisterParameter("chunks_movable", ChunksMovable)
             .Default(true);
-        RegisterParameter("chunks_vital", ChunksVital)
-            .Default(true);
         RegisterParameter("prefer_local_host", PreferLocalHost)
             .Default(true);
     }
@@ -286,6 +283,7 @@ struct TMultiChunkWriterOptions
 {
     int ReplicationFactor;
     Stroka Account;
+    bool ChunksVital;
 
     NErasure::ECodec ErasureCodec;
 
@@ -296,8 +294,11 @@ struct TMultiChunkWriterOptions
             .Default(3);
         RegisterParameter("account", Account)
             .NonEmpty();
+        RegisterParameter("chunks_vital", ChunksVital)
+            .Default(true);
         RegisterParameter("erasure_codec", ErasureCodec)
             .Default(NErasure::ECodec::None);
+
     }
 };
 

@@ -104,6 +104,7 @@ void TTableWriter::Open()
                 attributeFilter.Keys.push_back("row_count");
             }
             attributeFilter.Keys.push_back("account");
+            attributeFilter.Keys.push_back("vital");
             ToProto(req->mutable_attribute_filter(), attributeFilter);
             batchReq->AddRequest(req, "get_attributes");
         }
@@ -139,6 +140,7 @@ void TTableWriter::Open()
             // COMPAT(babenko)
             Options->ErasureCodec = attributes.Get<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
             Options->Account = attributes.Get<Stroka>("account");
+            Options->ChunksVital = attributes.Get<bool>("vital");
         }
 
         {
