@@ -152,15 +152,15 @@ void TTableChunkWriter::FinalizeRow(const TRow& row)
     RowCount += 1;
 
     double avgRowWeight = double(DataWeight) / RowCount;
-    double sampleProbability = Config->SampleRate 
-        * avgRowWeight 
-        * EncodingWriter->GetCompressionRatio() 
+    double sampleProbability = Config->SampleRate
+        * avgRowWeight
+        * EncodingWriter->GetCompressionRatio()
         / AverageSampleSize;
 
     if (RandomNumber<double>() < sampleProbability) {
-        i64 maxSamplesSize = static_cast<i64>(3 * 
-            Config->SampleRate * 
-            std::max(DataWeight, Config->BlockSize) * 
+        i64 maxSamplesSize = static_cast<i64>(3 *
+            Config->SampleRate *
+            std::max(DataWeight, Config->BlockSize) *
             EncodingWriter->GetCompressionRatio());
 
         if (SamplesSize < maxSamplesSize) {
@@ -216,7 +216,6 @@ void TTableChunkWriter::WriteValue(const std::pair<TStringBuf, TStringBuf>& valu
 void TTableChunkWriter::WriteRow(const TRow& row)
 {
     YASSERT(State.IsActive());
-    YASSERT(EncodingWriter->IsReady());
 
     auto dataWeight = DataWeight;
 
@@ -298,7 +297,6 @@ void TTableChunkWriter::WriteRowUnsafe(const TRow& row, const TNonOwningKey& key
 void TTableChunkWriter::WriteRowUnsafe(const TRow& row)
 {
     YASSERT(State.IsActive());
-    YASSERT(EncodingWriter->IsReady());
 
     DataWeight += 1;
     FOREACH (const auto& pair, row) {

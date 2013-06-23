@@ -122,7 +122,6 @@ void TPartitionChunkWriter::WriteRow(const TRow& row)
 void TPartitionChunkWriter::WriteRowUnsafe(const TRow& row)
 {
     YASSERT(State.IsActive());
-    YASSERT(EncodingWriter->IsReady());
 
     int keyColumnCount = Options->KeyColumns.Get().size();
     TNonOwningKey key(keyColumnCount);
