@@ -19,7 +19,10 @@ class TReplicationReaderConfig
 {
 public:
     //! Timeout for a block request.
-    TDuration NodeRpcTimeout;
+    TDuration BlockRpcTimeout;
+
+    //! Timeout for a meta request.
+    TDuration MetaRpcTimeout;
 
     //! Time to wait before asking the master for seeds.
     TDuration RetryBackoffTime;
@@ -48,8 +51,10 @@ public:
 
     TReplicationReaderConfig()
     {
-        RegisterParameter("node_rpc_timeout", NodeRpcTimeout)
+        RegisterParameter("block_rpc_timeout", BlockRpcTimeout)
             .Default(TDuration::Seconds(120));
+        RegisterParameter("meta_rpc_timeout", MetaRpcTimeout)
+            .Default(TDuration::Seconds(30));
         RegisterParameter("retry_backoff_time", RetryBackoffTime)
             .Default(TDuration::Seconds(3));
         RegisterParameter("retry_count", RetryCount)

@@ -645,13 +645,13 @@ private:
                 }
 
                 TDataNodeServiceProxy proxy(channel);
-                proxy.SetDefaultTimeout(reader->Config->NodeRpcTimeout);
+                proxy.SetDefaultTimeout(reader->Config->BlockRpcTimeout);
 
                 auto request = proxy.GetBlocks();
                 request->SetStartTime(StartTime);
                 ToProto(request->mutable_chunk_id(), reader->ChunkId);
                 ToProto(request->mutable_block_indexes(), unfetchedBlockIndexes);
-                request->set_enable_caching(reader->Config->EnableNodeCaching);
+                reqFuest->set_enable_caching(reader->Config->EnableNodeCaching);
                 request->set_session_type(reader->SessionType);
                 if (reader->LocalDescriptor) {
                     auto expirationTime = TInstant::Now() + reader->Config->PeerExpirationTimeout;
@@ -877,7 +877,7 @@ private:
         }
 
         TDataNodeServiceProxy proxy(channel);
-        proxy.SetDefaultTimeout(reader->Config->NodeRpcTimeout);
+        proxy.SetDefaultTimeout(reader->Config->MetaRpcTimeout);
 
         auto request = proxy.GetChunkMeta();
         request->SetStartTime(StartTime);
