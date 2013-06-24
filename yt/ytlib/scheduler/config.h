@@ -35,7 +35,6 @@ public:
 
         RegisterInitializer([&] () {
             ErrorFileWriter->UploadReplicationFactor = 1;
-            ErrorFileWriter->ChunksVital = false;
         });
     }
 };

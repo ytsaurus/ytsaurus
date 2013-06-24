@@ -19,7 +19,10 @@ class TReplicationReaderConfig
 {
 public:
     //! Timeout for a block request.
-    TDuration NodeRpcTimeout;
+    TDuration BlockRpcTimeout;
+
+    //! Timeout for a meta request.
+    TDuration MetaRpcTimeout;
 
     //! Time to wait before asking the master for seeds.
     TDuration RetryBackoffTime;
@@ -48,8 +51,10 @@ public:
 
     TReplicationReaderConfig()
     {
-        RegisterParameter("node_rpc_timeout", NodeRpcTimeout)
+        RegisterParameter("block_rpc_timeout", BlockRpcTimeout)
             .Default(TDuration::Seconds(120));
+        RegisterParameter("meta_rpc_timeout", MetaRpcTimeout)
+            .Default(TDuration::Seconds(30));
         RegisterParameter("retry_backoff_time", RetryBackoffTime)
             .Default(TDuration::Seconds(3));
         RegisterParameter("retry_count", RetryCount)
@@ -252,7 +257,6 @@ public:
     int UploadReplicationFactor;
 
     bool ChunksMovable;
-    bool ChunksVital;
 
     bool PreferLocalHost;
 
@@ -272,8 +276,6 @@ public:
             .Default(2);
         RegisterParameter("chunks_movable", ChunksMovable)
             .Default(true);
-        RegisterParameter("chunks_vital", ChunksVital)
-            .Default(true);
         RegisterParameter("prefer_local_host", PreferLocalHost)
             .Default(true);
     }
@@ -286,6 +288,7 @@ struct TMultiChunkWriterOptions
 {
     int ReplicationFactor;
     Stroka Account;
+    bool ChunksVital;
 
     NErasure::ECodec ErasureCodec;
 
@@ -296,8 +299,11 @@ struct TMultiChunkWriterOptions
             .Default(3);
         RegisterParameter("account", Account)
             .NonEmpty();
+        RegisterParameter("chunks_vital", ChunksVital)
+            .Default(true);
         RegisterParameter("erasure_codec", ErasureCodec)
             .Default(NErasure::ECodec::None);
+
     }
 };
 

@@ -27,21 +27,22 @@ using namespace NYTree;
 using namespace NCypressClient;
 using namespace NTransactionClient;
 using namespace NObjectClient;
+using namespace NChunkClient;
 
-typedef NChunkClient::TMultiChunkSequentialWriter<TTableChunkWriter> TTableMultiChunkWriter;
+typedef TMultiChunkSequentialWriter<TTableChunkWriter> TTableMultiChunkWriter;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TAsyncTableWriter
     : public IAsyncWriter
-    , public NTransactionClient::TTransactionListener
+    , public TTransactionListener
 {
 public:
     TAsyncTableWriter(
         TTableWriterConfigPtr config,
         NRpc::IChannelPtr masterChannel,
-        NTransactionClient::ITransactionPtr transaction,
-        NTransactionClient::TTransactionManagerPtr transactionManager,
+        ITransactionPtr transaction,
+        TTransactionManagerPtr transactionManager,
         const NYPath::TRichYPath& richPath,
         const TNullable<TKeyColumns>& keyColumns);
 
@@ -67,9 +68,9 @@ private:
     void OnTransactionCreated(ITransactionPtr transactionOrError);
 
     TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> FetchTableInfo();
-    NChunkClient::TChunkListId OnInfoFetched(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
+    TChunkListId OnInfoFetched(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
 
-    TAsyncError OpenChunkWriter(NChunkClient::TChunkListId chunkListId);
+    TAsyncError OpenChunkWriter(TChunkListId chunkListId);
     void OnChunkWriterOpened();
 
     TAsyncError CloseChunkWriter();
@@ -80,9 +81,9 @@ private:
     TTableWriterOptionsPtr Options;
 
     NRpc::IChannelPtr MasterChannel;
-    NTransactionClient::ITransactionPtr Transaction;
-    NTransactionClient::TTransactionId TransactionId;
-    NTransactionClient::TTransactionManagerPtr TransactionManager;
+    ITransactionPtr Transaction;
+    TTransactionId TransactionId;
+    TTransactionManagerPtr TransactionManager;
     NYPath::TRichYPath RichPath;
 
     bool IsOpen;
@@ -90,8 +91,8 @@ private:
     NObjectClient::TObjectServiceProxy ObjectProxy;
     NLog::TTaggedLogger Logger;
 
-    NTransactionClient::ITransactionPtr UploadTransaction;
-    NChunkClient::TChunkListId ChunkListId;
+    ITransactionPtr UploadTransaction;
+    TChunkListId ChunkListId;
 
     TIntrusivePtr<TTableMultiChunkWriter> Writer;
     TTableChunkWriter::TFacade* CurrentWriterFacade;
@@ -183,7 +184,7 @@ TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> TAsyncTableWriter::FetchTableI
 
     auto path = RichPath.GetPath();
 
-    bool overwrite = NChunkClient::ExtractOverwriteFlag(RichPath.Attributes());
+    bool overwrite = ExtractOverwriteFlag(RichPath.Attributes());
     bool clear = Options->KeyColumns.HasValue() || overwrite;
     auto uploadTransactionId = UploadTransaction->GetId();
 
@@ -196,11 +197,12 @@ TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> TAsyncTableWriter::FetchTableI
         attributeFilter.Keys.push_back("channels");
         attributeFilter.Keys.push_back("compression_codec");
         attributeFilter.Keys.push_back("erasure_codec");
-        if (Options->KeyColumns.HasValue()) {
+        if (Options->KeyColumns) {
             attributeFilter.Keys.push_back("row_count");
         }
         attributeFilter.Keys.push_back("account");
-        ToProto(req->mutable_attribute_filter(), attributeFilter);
+		attributeFilter.Keys.push_back("vital");
+		ToProto(req->mutable_attribute_filter(), attributeFilter);
         batchReq->AddRequest(req, "get_attributes");
     }
 
@@ -208,18 +210,18 @@ TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> TAsyncTableWriter::FetchTableI
         auto req = TTableYPathProxy::PrepareForUpdate(path);
         SetTransactionId(req, uploadTransactionId);
         NMetaState::GenerateMutationId(req);
-        req->set_mode(clear ? NChunkClient::EUpdateMode::Overwrite : NChunkClient::EUpdateMode::Append);
+        req->set_mode(clear ? EUpdateMode::Overwrite : EUpdateMode::Append);
         batchReq->AddRequest(req, "prepare_for_update");
     }
 
     return batchReq->Invoke();
 }
 
-NChunkClient::TChunkListId TAsyncTableWriter::OnInfoFetched(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+TChunkListId TAsyncTableWriter::OnInfoFetched(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
 {
     THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error requesting table info");
 
-    bool overwrite = NChunkClient::ExtractOverwriteFlag(RichPath.Attributes());
+    bool overwrite = ExtractOverwriteFlag(RichPath.Attributes());
     {
         auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_attributes");
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting table attributes");
@@ -227,32 +229,33 @@ NChunkClient::TChunkListId TAsyncTableWriter::OnInfoFetched(TObjectServiceProxy:
         auto node = ConvertToNode(TYsonString(rsp->value()));
         const auto& attributes = node->Attributes();
 
-        // ToDo(psushin): keep in sync with operation_controller_detail OnInputsReceived. Consider
-        if (Options->KeyColumns.HasValue() && !overwrite) {
+        // TODO(psushin): Keep in sync with OnInputsReceived (operation_controller_detail.cpp).
+        if (Options->KeyColumns && !overwrite) {
             if (attributes.Get<i64>("row_count") > 0) {
                 THROW_ERROR_EXCEPTION("Cannot write sorted data into a non-empty table");
             }
         }
 
-        Options->Channels = attributes.Get<NChunkClient::TChannels>("channels");
+        Options->Channels = attributes.Get<TChannels>("channels");
         Options->ReplicationFactor = attributes.Get<int>("replication_factor");
         Options->CompressionCodec = attributes.Get<NCompression::ECodec>("compression_codec");
         Options->ErasureCodec = attributes.Get<NErasure::ECodec>("erasure_codec");
         Options->Account = attributes.Get<Stroka>("account");
+        Options->ChunksVital = attributes.Get<bool>("vital");
     }
 
-    NChunkClient::TChunkListId  chunkListId;
+    TChunkListId  chunkListId;
     {
         auto rsp = batchRsp->GetResponse<TTableYPathProxy::TRspPrepareForUpdate>("prepare_for_update");
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error preparing table for update");
-        chunkListId = FromProto<NChunkClient::TChunkListId>(rsp->chunk_list_id());
+        chunkListId = FromProto<TChunkListId>(rsp->chunk_list_id());
     }
     LOG_INFO("Table info received (ChunkListId: %s)", ~ToString(chunkListId));
 
     return chunkListId;
 }
 
-TAsyncError TAsyncTableWriter::OpenChunkWriter(NChunkClient::TChunkListId chunkListId)
+TAsyncError TAsyncTableWriter::OpenChunkWriter(TChunkListId chunkListId)
 {
     auto provider = New<TTableChunkWriterProvider>(
         Config,
@@ -415,8 +418,8 @@ public:
     TTableWriter(
         TTableWriterConfigPtr config,
         NRpc::IChannelPtr masterChannel,
-        NTransactionClient::ITransactionPtr transaction,
-        NTransactionClient::TTransactionManagerPtr transactionManager,
+        ITransactionPtr transaction,
+        TTransactionManagerPtr transactionManager,
         const NYPath::TRichYPath& richPath,
         const TNullable<TKeyColumns>& keyColumns)
             : Writer_(
@@ -466,8 +469,8 @@ private:
 IAsyncWriterPtr CreateAsyncTableWriter(
         TTableWriterConfigPtr config,
         NRpc::IChannelPtr masterChannel,
-        NTransactionClient::ITransactionPtr transaction,
-        NTransactionClient::TTransactionManagerPtr transactionManager,
+        ITransactionPtr transaction,
+        TTransactionManagerPtr transactionManager,
         const NYPath::TRichYPath& richPath,
         const TNullable<TKeyColumns>& keyColumns)
 {
@@ -485,8 +488,8 @@ IAsyncWriterPtr CreateAsyncTableWriter(
 ISyncWriterPtr CreateSyncTableWriter(
         TTableWriterConfigPtr config,
         NRpc::IChannelPtr masterChannel,
-        NTransactionClient::ITransactionPtr transaction,
-        NTransactionClient::TTransactionManagerPtr transactionManager,
+        ITransactionPtr transaction,
+        TTransactionManagerPtr transactionManager,
         const NYPath::TRichYPath& richPath,
         const TNullable<TKeyColumns>& keyColumns)
 {

@@ -48,6 +48,7 @@ void TErrorOutput::DoWrite(const void* buf, size_t len)
         auto options = New<TMultiChunkWriterOptions>();
         options->Account = NSecurityClient::SysAccountName;
         options->ReplicationFactor = 1;
+        options->ChunksVital = false;
 
         FileWriter.reset(new TFileChunkOutput(
             Config,

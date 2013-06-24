@@ -59,8 +59,9 @@ public:
         , TotalChunkCount(0)
         , TotalDataSize(0)
         , CurrentTaskDataSize(0)
-        , CurrentPartitionIndex(0)
-        , MaxDataSizePerJob(-1)
+        , PartitionCount(0)
+        , MaxDataSizePerJob(0)
+        , ChunkSliceSize(0)
     { }
 
     // Persistence.
@@ -117,6 +118,7 @@ protected:
 
     //! Overrides the spec limit to satisfy global job count limit.
     i64 MaxDataSizePerJob;
+    i64 ChunkSliceSize;
 
 
     class TMergeTask
@@ -389,6 +391,7 @@ protected:
                 Spec->JobCount);
 
             MaxDataSizePerJob = 1 + TotalInputDataSize / jobCount;
+            ChunkSliceSize = std::min(Config->MergeJobMaxSliceDataSize, MaxDataSizePerJob);
 
             FOREACH (auto chunk, CollectInputChunks()) {
                 ProcessInputChunk(chunk);
@@ -579,8 +582,10 @@ private:
         }
 
         // NB: During unordered merge all chunks go to a single chunk stripe.
-        AddPendingChunk(CreateChunkSlice(chunkSpec));
-        EndTaskIfLarge();
+        FOREACH(const auto& slice, CreateChunkSlice(chunkSpec)->SliceEvenly(ChunkSliceSize)) {
+            AddPendingChunk(slice);
+            EndTaskIfLarge();
+        }
     }
 
     virtual void InitJobSpecTemplate() override
@@ -625,8 +630,10 @@ private:
         }
 
         // NB: During ordered merge all chunks go to a single chunk stripe.
-        AddPendingChunk(CreateChunkSlice(chunkSpec));
-        EndTaskIfLarge();
+        FOREACH(const auto& slice, CreateChunkSlice(chunkSpec)->SliceEvenly(ChunkSliceSize)) {
+            AddPendingChunk(slice);
+            EndTaskIfLarge();
+        }
     }
 
 };

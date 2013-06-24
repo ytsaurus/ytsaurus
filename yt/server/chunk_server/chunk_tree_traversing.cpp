@@ -297,6 +297,10 @@ protected:
         int index = 0;
 
         if (lowerBound.has_row_index()) {
+            if (lowerBound.row_index() >= chunkList->Statistics().RowCount) {
+                return chunkList->Children().size();
+            }
+
             auto begin = chunkList->RowCountSums().begin();
             int childIndex = std::upper_bound(
                 begin,
@@ -307,6 +311,10 @@ protected:
         }
 
         if (lowerBound.has_chunk_index()) {
+            if (lowerBound.chunk_index() >= chunkList->Statistics().ChunkCount) {
+                return chunkList->Children().size();
+            }
+
             auto begin = chunkList->ChunkCountSums().begin();
             int childIndex = std::upper_bound(
                 begin,
@@ -317,6 +325,10 @@ protected:
         }
 
         if (lowerBound.has_offset()) {
+            if (lowerBound.offset() >= chunkList->Statistics().UncompressedDataSize) {
+                return chunkList->Children().size();
+            }
+
             auto begin = chunkList->DataSizeSums().begin();
             int childIndex = std::upper_bound(
                 begin,

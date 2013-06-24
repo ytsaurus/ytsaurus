@@ -645,7 +645,7 @@ private:
                 }
 
                 TDataNodeServiceProxy proxy(channel);
-                proxy.SetDefaultTimeout(reader->Config->NodeRpcTimeout);
+                proxy.SetDefaultTimeout(reader->Config->BlockRpcTimeout);
 
                 auto request = proxy.GetBlocks();
                 request->SetStartTime(StartTime);
@@ -877,7 +877,7 @@ private:
         }
 
         TDataNodeServiceProxy proxy(channel);
-        proxy.SetDefaultTimeout(reader->Config->NodeRpcTimeout);
+        proxy.SetDefaultTimeout(reader->Config->MetaRpcTimeout);
 
         auto request = proxy.GetChunkMeta();
         request->SetStartTime(StartTime);

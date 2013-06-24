@@ -81,11 +81,12 @@ struct TChunkStripeList
     bool IsApproximate;
 
     i64 TotalDataSize;
+    i64 LocalDataSize;
+
     i64 TotalRowCount;
 
     int TotalChunkCount;
     int LocalChunkCount;
-    int NonLocalChunkCount;
 
 };
 

@@ -150,7 +150,7 @@ void TMultiChunkSequentialWriter<TChunkWriter>::CreateNextSession()
     reqExt->set_replication_factor(Options->ReplicationFactor);
     reqExt->set_upload_replication_factor(UploadReplicationFactor);
     reqExt->set_movable(Config->ChunksMovable);
-    reqExt->set_vital(Config->ChunksVital);
+    reqExt->set_vital(Options->ChunksVital);
 
     reqExt->set_erasure_codec(Options->ErasureCodec);
 

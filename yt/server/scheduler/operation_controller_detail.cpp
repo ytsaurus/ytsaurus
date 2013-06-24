@@ -469,7 +469,7 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
 
     LOG_INFO(
         "Job scheduled (JobId: %s, OperationId: %s, JobType: %s, Address: %s, JobIndex: %d, ChunkCount: %d (%d local), "
-        "Approximate: %s, DataSize: %" PRId64 ", RowCount: %" PRId64 ", ResourceLimits: {%s})",
+        "Approximate: %s, DataSize: %" PRId64 " (%" PRId64 " local), RowCount: %" PRId64 ", ResourceLimits: {%s})",
         ~ToString(joblet->Job->GetId()),
         ~ToString(Controller->Operation->GetOperationId()),
         ~jobType.ToString(),
@@ -479,6 +479,7 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
         joblet->InputStripeList->LocalChunkCount,
         ~FormatBool(joblet->InputStripeList->IsApproximate),
         joblet->InputStripeList->TotalDataSize,
+        joblet->InputStripeList->LocalDataSize,
         joblet->InputStripeList->TotalRowCount,
         ~FormatResources(neededResources));
 
@@ -764,6 +765,7 @@ void TOperationControllerBase::TTask::AddIntermediateOutputSpec(
     auto* outputSpec = schedulerJobSpecExt->add_output_specs();
     auto options = New<TTableWriterOptions>();
     options->Account = Controller->Spec->IntermediateDataAccount;
+    options->ChunksVital = false;
     options->ReplicationFactor = 1;
     outputSpec->set_table_writer_options(ConvertToYsonString(options).Data());
     ToProto(outputSpec->mutable_chunk_list_id(), joblet->ChunkListIds[0]);
@@ -2201,6 +2203,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
             attributeFilter.Keys.push_back("row_count");
             attributeFilter.Keys.push_back("replication_factor");
             attributeFilter.Keys.push_back("account");
+            attributeFilter.Keys.push_back("vital");
             ToProto(req->mutable_attribute_filter(), attributeFilter);
             SetTransactionId(req, Operation->GetOutputTransaction());
             batchReq->AddRequest(req, "get_out_attributes");
@@ -2368,6 +2371,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 table.Options->ErasureCodec = attributes.Get<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
                 table.Options->ReplicationFactor = attributes.Get<int>("replication_factor");
                 table.Options->Account = attributes.Get<Stroka>("account");
+                table.Options->ChunksVital = attributes.Get<bool>("vital");
 
                 LOG_INFO("Output table attributes received (Path: %s, Options: %s)",
                     ~path,
@@ -3046,7 +3050,6 @@ void TOperationControllerBase::InitIntermediateOutputConfig(TJobIOConfigPtr conf
 
     // Don't move intermediate chunks.
     config->TableWriter->ChunksMovable = false;
-    config->TableWriter->ChunksVital = false;
 }
 
 void TOperationControllerBase::InitFinalOutputConfig(TJobIOConfigPtr config)

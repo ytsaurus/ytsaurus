@@ -47,32 +47,42 @@ void TChunkPlacement::Initialize()
 void TChunkPlacement::OnNodeRegistered(TNode* node)
 {
     {
-        double loadFactor = GetLoadFactor(node);
-        auto it = LoadFactorToNode.insert(std::make_pair(loadFactor, node));
-        YCHECK(NodeToLoadFactorIt.insert(std::make_pair(node, it)).second);
+        int loadFactor = GetLoadFactor(node);
+        int i = 0;
+        while (i < LoadRankToNode.size() && GetLoadFactor(LoadRankToNode[i]) < loadFactor) {
+            ++i;
+        }
+        LoadRankToNode.resize(LoadRankToNode.size() + 1);
+        for (int j = LoadRankToNode.size() - 1; j > i; --j) {
+            LoadRankToNode[j] = LoadRankToNode[j - 1];
+            LoadRankToNode[j]->SetLoadRank(j);
+        }
+        LoadRankToNode[i] = node;
+        node->SetLoadRank(i);
     }
     {
         double fillFactor = GetFillFactor(node);
         auto it = FillFactorToNode.insert(std::make_pair(fillFactor, node));
-        YCHECK(NodeToFilFactorIt.insert(std::make_pair(node, it)).second);
+        YCHECK(NodeToFillFactorIt.insert(std::make_pair(node, it)).second);
     }
 }
 
 void TChunkPlacement::OnNodeUnregistered(TNode* node)
 {
     {
-        auto itIt = NodeToLoadFactorIt.find(node);
-        YCHECK(itIt != NodeToLoadFactorIt.end());
-        auto it = itIt->second;
-        LoadFactorToNode.erase(it);
-        NodeToLoadFactorIt.erase(itIt);
+        for (int i = node->GetLoadRank(); i < LoadRankToNode.size() - 1; i++) {
+            LoadRankToNode[i] = LoadRankToNode[i + 1];
+            LoadRankToNode[i]->SetLoadRank(i);
+        }
+        LoadRankToNode.resize(LoadRankToNode.size() - 1);
+        node->SetLoadRank(-1);
     }
     {
-        auto itIt = NodeToFilFactorIt.find(node);
-        YCHECK(itIt != NodeToFilFactorIt.end());
+        auto itIt = NodeToFillFactorIt.find(node);
+        YCHECK(itIt != NodeToFillFactorIt.end());
         auto it = itIt->second;
         FillFactorToNode.erase(it);
-        NodeToFilFactorIt.erase(itIt);
+        NodeToFillFactorIt.erase(itIt);
     }
 }
 
@@ -85,7 +95,7 @@ void TChunkPlacement::OnNodeUpdated(TNode* node)
 
 TNodeList TChunkPlacement::AllocateWriteTargets(
     int targetCount,
-    const TSmallSet<TNode*, TypicalReplicaCount>* forbiddenNodes,
+    const TNodeSet* forbiddenNodes,
     const TNullable<Stroka>& preferredHostName,
     EWriteSessionType sessionType)
 {
@@ -96,81 +106,41 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
         EWriteSessionType::User);
 
     FOREACH (auto* target, targets) {
-        target->AddSessionHint(sessionType);
+        AddSessionHint(target, sessionType);
     }
 
     return targets;
 }
 
+int TChunkPlacement::GetLoadFactor(TNode* node)
+{
+    return node->GetTotalSessionCount();
+}
+
 TNodeList TChunkPlacement::GetWriteTargets(
     int targetCount,
-    const TSmallSet<TNode*, TypicalReplicaCount>* forbiddenNodes,
+    const TNodeSet* forbiddenNodes,
     const TNullable<Stroka>& preferredHostName,
     EWriteSessionType sessionType)
 {
     TNodeList targets;
 
-    typedef std::pair<TNode*, int> TFeasibleNode;
-    std::vector<TFeasibleNode> feasibleNodes;
-    feasibleNodes.reserve(LoadFactorToNode.size());
-
-    TNode* preferredNode = nullptr;
-    int remainingCount = targetCount;
-
-    auto nodeTracker = Bootstrap->GetNodeTracker();
-
-    // Look for preferred node first.
     if (preferredHostName) {
-        preferredNode = nodeTracker->FindNodeByHostName(*preferredHostName);
+        auto nodeTracker = Bootstrap->GetNodeTracker();
+        auto* preferredNode = nodeTracker->FindNodeByHostName(*preferredHostName);
         if (preferredNode && IsValidWriteTarget(preferredNode, sessionType)) {
             targets.push_back(preferredNode);
-            --remainingCount;
         }
     }
 
-    // Put other feasible nodes to feasibleNodes.
-    FOREACH (auto& pair, LoadFactorToNode) {
-        auto* node = pair.second;
-        if (node != preferredNode &&
-            IsValidWriteTarget(node, sessionType) &&
-            !(forbiddenNodes && forbiddenNodes->count(node)))
-        {
-            feasibleNodes.push_back(std::make_pair(node, node->GetTotalSessionCount()));
-        }
-    }
-
-    // Take a sample from feasibleNodes.
-    std::sort(
-        feasibleNodes.begin(),
-        feasibleNodes.end(),
-        [=] (const TFeasibleNode& lhs, const TFeasibleNode& rhs) {
-            return lhs.second < rhs.second;
-        });
-
-    auto beginGroupIt = feasibleNodes.begin();
-    while (beginGroupIt != feasibleNodes.end() && remainingCount > 0) {
-        auto endGroupIt = beginGroupIt;
-        int groupSize = 0;
-        while (endGroupIt != feasibleNodes.end() && beginGroupIt->second == endGroupIt->second) {
-            ++endGroupIt;
-            ++groupSize;
-        }
-
-        int sampleCount = std::min(remainingCount, groupSize);
-
-        std::vector<TFeasibleNode> currentResult;
-        RandomSampleN(
-            beginGroupIt,
-            endGroupIt,
-            std::back_inserter(currentResult),
-            sampleCount);
-
-        FOREACH (const auto& feasibleNode, currentResult) {
-            targets.push_back(feasibleNode.first);
-        }
-
-        beginGroupIt = endGroupIt;
-        remainingCount -= sampleCount;
+    FOREACH (auto* node, LoadRankToNode) {
+        if (targets.size() == targetCount)
+            break;
+        if (!targets.empty() && targets[0] == node)
+            continue; // skip preferred node
+        if (forbiddenNodes && forbiddenNodes->count(node))
+            continue; // skip forbidden node
+        targets.push_back(node);
     }
 
     if (targets.size() != targetCount) {
@@ -191,7 +161,7 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
         sessionType);
 
     FOREACH (auto* target, targets) {
-        target->AddSessionHint(sessionType);
+        AddSessionHint(target, sessionType);
     }
 
     return targets;
@@ -202,7 +172,7 @@ TNodeList TChunkPlacement::GetWriteTargets(
     int targetCount,
     EWriteSessionType sessionType)
 {
-    TSmallSet<TNode*, TypicalReplicaCount> forbiddenNodes;
+    TNodeSet forbiddenNodes;
 
     auto nodeTracker = Bootstrap->GetNodeTracker();
     auto chunkManager = Bootstrap->GetChunkManager();
@@ -293,7 +263,7 @@ TNode* TChunkPlacement::AllocateBalancingTarget(
         maxFillFactor);
 
     if (target) {
-        target->AddSessionHint(EWriteSessionType::Replication);
+        AddSessionHint(target, EWriteSessionType::Replication);
     }
 
     return target;
@@ -400,13 +370,6 @@ std::vector<TChunkPtrWithIndex> TChunkPlacement::GetBalancingChunks(
     return result;
 }
 
-double TChunkPlacement::GetLoadFactor(TNode* node) const
-{
-    return
-        GetFillFactor(node) +
-        Config->ActiveSessionPenality * node->GetTotalSessionCount();
-}
-
 double TChunkPlacement::GetFillFactor(TNode* node) const
 {
     const auto& statistics = node->Statistics();
@@ -417,6 +380,20 @@ double TChunkPlacement::GetFillFactor(TNode* node) const
 bool TChunkPlacement::IsFull(TNode* node)
 {
     return node->Statistics().full();
+}
+
+void TChunkPlacement::AddSessionHint(TNode* node, EWriteSessionType sessionType)
+{
+    node->AddSessionHint(sessionType);
+    for (int i = node->GetLoadRank();
+         i + 1 < LoadRankToNode.size() &&
+         GetLoadFactor(LoadRankToNode[i + 1]) < GetLoadFactor(LoadRankToNode[i]);
+         ++i)
+    {
+        std::swap(LoadRankToNode[i], LoadRankToNode[i + 1]);
+        LoadRankToNode[i]->SetLoadRank(i);
+        LoadRankToNode[i + 1]->SetLoadRank(i + 1);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
