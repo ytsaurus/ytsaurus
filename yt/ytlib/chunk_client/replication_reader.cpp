@@ -651,7 +651,7 @@ private:
                 request->SetStartTime(StartTime);
                 ToProto(request->mutable_chunk_id(), reader->ChunkId);
                 ToProto(request->mutable_block_indexes(), unfetchedBlockIndexes);
-                reqFuest->set_enable_caching(reader->Config->EnableNodeCaching);
+                request->set_enable_caching(reader->Config->EnableNodeCaching);
                 request->set_session_type(reader->SessionType);
                 if (reader->LocalDescriptor) {
                     auto expirationTime = TInstant::Now() + reader->Config->PeerExpirationTimeout;
