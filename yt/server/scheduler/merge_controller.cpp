@@ -545,7 +545,7 @@ private:
         }
 
         // NB: During unordered merge all chunks go to a single chunk stripe.
-        FOREACH(auto& slice, CreateChunkSlice(chunkSpec)->SliceEvenly(ChunkSliceSize)) {
+        FOREACH(const auto& slice, CreateChunkSlice(chunkSpec)->SliceEvenly(ChunkSliceSize)) {
             AddPendingChunk(slice);
             EndTaskIfLarge();
         }
@@ -590,7 +590,7 @@ private:
         }
 
         // NB: During ordered merge all chunks go to a single chunk stripe.
-        FOREACH(auto& slice, CreateChunkSlice(chunkSpec)->SliceEvenly(ChunkSliceSize)) {
+        FOREACH(const auto& slice, CreateChunkSlice(chunkSpec)->SliceEvenly(ChunkSliceSize)) {
             AddPendingChunk(slice);
             EndTaskIfLarge();
         }
