@@ -7,13 +7,13 @@ import argparse
 from datetime import date, timedelta
 
 def process_logs(import_set, remove_set, log_path, log_name, subnames, days):
+    if subnames is None:
+        subnames = [None]
+
     if days is None:
         count = 7
     else:
         count = days + 7
-
-    if subnames is None:
-        subnames = [None]
 
     for i in xrange(count):
         for subname in subnames:
@@ -22,7 +22,7 @@ def process_logs(import_set, remove_set, log_path, log_name, subnames, days):
             if subname is not None:
                 table_name = os.path.join(table_name, subname)
             table_path = os.path.join(log_path, table_name)
-            if i >= days: # Remove case
+            if days is not None and i >= days: # Remove case
                 if table_name in remove_set:
                     continue
                 elif yt.exists(table_path):
