@@ -1,7 +1,6 @@
 #include "operation_tracker.h"
 
 #include <ytlib/ytree/ypath_proxy.h>
-#include <ytlib/ytree/yson_string.h>
 
 #include <ytlib/scheduler/helpers.h>
 
@@ -134,9 +133,12 @@ void TOperationTracker::DumpProgress()
     }
 
     if (state == EOperationState::Running) {
-        printf("%s: %s\n",
-            ~state.ToString(),
-            ~FormatProgress(progress));
+        if (!PrevProgress || *PrevProgress != progress) {
+            printf("%s: %s\n",
+                ~state.ToString(),
+                ~FormatProgress(progress));
+            PrevProgress = progress;
+        }
     } else {
         printf("%s\n", ~state.ToString());
     }

@@ -2,8 +2,14 @@
 
 #include "executor.h"
 
-#include <server/job_proxy/config.h>
+#include <ytlib/misc/nullable.h>
+
 #include <ytlib/driver/driver.h>
+
+#include <ytlib/ytree/yson_string.h>
+
+#include <server/job_proxy/config.h>
+
 
 namespace NYT {
 namespace NDriver {
@@ -25,6 +31,7 @@ private:
     NDriver::IDriverPtr Driver;
     NScheduler::TOperationId OperationId;
     NScheduler::EOperationType OperationType;
+    TNullable<NYTree::TYsonString> PrevProgress;
 
     static void AppendPhaseProgress(Stroka* out, const Stroka& phase, const NYTree::TYsonString& progress);
 
@@ -35,6 +42,7 @@ private:
     NScheduler::EOperationType GetOperationType(const NScheduler::TOperationId& operationId);
 
     bool CheckFinished();
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
