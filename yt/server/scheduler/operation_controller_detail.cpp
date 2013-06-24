@@ -1071,17 +1071,18 @@ void TOperationControllerBase::InitInputChunkScratcher()
     if (Spec->UnavailableChunkStrategy != EUnavailableChunkAction::Wait)
         return;
 
-    int suspendedChunkCount = 0;
+    YCHECK(UnavailableInputChunkCount == 0);
+
     FOREACH (auto& pair, InputChunkMap) {
         const auto& chunkDescriptor = pair.second;
         if (chunkDescriptor.State == EInputChunkState::Waiting) {
             LOG_TRACE("Input chunk is unavailable (ChunkId: %s)", ~ToString(pair.first));
-            ++suspendedChunkCount;
+            ++UnavailableInputChunkCount;
         }
     }
 
-    if (suspendedChunkCount > 0) {
-        LOG_INFO("Waiting for %d unavailable chunks", suspendedChunkCount);
+    if (UnavailableInputChunkCount > 0) {
+        LOG_INFO("Waiting for %d unavailable input chunks", UnavailableInputChunkCount);
         InputChunkScratcher->Start();
     }
 }
@@ -1414,7 +1415,6 @@ void TOperationControllerBase::OnInputChunkAvailable(const TChunkId& chunkId, TI
         }
         AddTaskPendingHint(task);
     }
-
 }
 
 void TOperationControllerBase::OnInputChunkUnavailable(const TChunkId& chunkId, TInputChunkDescriptor& descriptor)
