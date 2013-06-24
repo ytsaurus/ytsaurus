@@ -54,6 +54,9 @@ test_tree_commands()
     check "{\"folder\"={}}" "`yt get //home/wrapper_test --format "<format=text>yson"`"
     check "" "`yt find //home/wrapper_test --name "xxx"`"
     check "//home/wrapper_test/folder" "`yt find //home/wrapper_test --name "folder"`"
+
+    ./yt set //home/wrapper_test/folder/@attr '<a=b>c'
+    check '<"a"="b">"c"' `./yt get //home/wrapper_test/folder/@attr --format '<format=text>yson'`
 }
 
 # download and upload file, use it in map operation
