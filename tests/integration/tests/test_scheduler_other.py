@@ -46,8 +46,9 @@ class TestSchedulerOther(YTEnvSetup):
         self._set_banned_flag(True)
 
         print 'Fail strategy'
-        op_id = map('--dont_track', in_='//tmp/t_in', out='//tmp/t_out', command='cat')
-        with pytest.raises(YTError): track_op(op_id)
+        with pytest.raises(YTError):
+            op_id = map('--dont_track', in_='//tmp/t_in', out='//tmp/t_out', command='cat')
+            track_op(op_id)
 
         print 'Skip strategy'
         map(in_='//tmp/t_in', out='//tmp/t_out', command='cat', opt=['/spec/unavailable_chunk_strategy=skip'])
