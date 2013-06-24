@@ -48,12 +48,8 @@ void AddStripeToList(
 
             if (isLocal) {
                 ++list->LocalChunkCount;
-            } else {
-                ++list->NonLocalChunkCount;
             }
         }
-    } else {
-        list->NonLocalChunkCount += stripe->ChunkSlices.size();
     }
 }
 
@@ -132,7 +128,6 @@ TChunkStripeList::TChunkStripeList()
     , TotalRowCount(0)
     , TotalChunkCount(0)
     , LocalChunkCount(0)
-    , NonLocalChunkCount(0)
 { }
 
 TChunkStripeStatisticsVector TChunkStripeList::GetStatistics() const
@@ -777,8 +772,8 @@ public:
         auto list = extractedStripeList.StripeList;
 
         // No need to respect locality for restarted jobs.
-        list->NonLocalChunkCount += list->LocalChunkCount;
         list->LocalChunkCount = 0;
+        list->LocalDataSize = 0;
 
         JobCounter.Lost(1);
         DataSizeCounter.Lost(list->TotalDataSize);
@@ -1263,9 +1258,6 @@ private:
             // Otherwise sort data size and row counters will be severely corrupted
             list->TotalDataSize = run.TotalDataSize;
             list->TotalRowCount = run.TotalRowCount;
-
-            list->LocalChunkCount = 0;
-            list->NonLocalChunkCount = list->TotalChunkCount;
 
             list->IsApproximate = run.IsApproximate;
 

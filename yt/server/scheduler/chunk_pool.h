@@ -83,7 +83,6 @@ struct TChunkStripeList
 
     int TotalChunkCount;
     int LocalChunkCount;
-    int NonLocalChunkCount;
 
 };
 
