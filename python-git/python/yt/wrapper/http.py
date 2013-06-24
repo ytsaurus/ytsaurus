@@ -1,8 +1,7 @@
 import http_config
 import logger
 from common import require
-from errors import YtError, YtResponseError, YtNetworkError, YtTokenError, format_error
-import yt.yson as yson
+from errors import YtError, YtResponseError, YtNetworkError, YtTokenError, YtProxyUnderHeavyLoad, format_error
 
 import os
 import string
@@ -64,6 +63,9 @@ def make_request_with_retries(request, make_retries=False, description="", retur
                 raise YtResponseError(
                         "Response has empty body and JSON content type (Headers: %s)" %
                         repr(response.http_response.headers))
+            if response.http_response.status_code == 503:
+                raise YtProxyUnderHeavyLoad("Retrying response with code 503 and body %s",
+                                      response.content())
             return response
         except NETWORK_ERRORS as error:
             message =  "HTTP request (%s) has failed with error '%s'" % (description, str(error))
