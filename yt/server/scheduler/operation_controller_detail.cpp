@@ -3085,6 +3085,8 @@ void TOperationControllerBase::Persist(TPersistenceContext& context)
     Persist(context, TotalInputRowCount);
     Persist(context, TotalInputValueCount);
 
+    Persist(context, UnavailableInputChunkCount);
+
     Persist(context, JobCounter);
 
     Persist(context, CompletedJobStatistics);

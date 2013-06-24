@@ -185,10 +185,10 @@ void TChunkStripeList::Persist(TPersistenceContext& context)
     Persist(context, PartitionTag);
     Persist(context, IsApproximate);
     Persist(context, TotalDataSize);
+    Persist(context, LocalDataSize);
     Persist(context, TotalRowCount);
     Persist(context, TotalChunkCount);
     Persist(context, LocalChunkCount);
-    Persist(context, NonLocalChunkCount);
 }
 
 ////////////////////////////////////////////////////////////////////

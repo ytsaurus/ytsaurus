@@ -59,7 +59,7 @@ public:
         , TotalChunkCount(0)
         , TotalDataSize(0)
         , CurrentTaskDataSize(0)
-        , PartitionCount(0)
+        , CurrentPartitionIndex(0)
         , MaxDataSizePerJob(0)
         , ChunkSliceSize(0)
     { }
@@ -76,6 +76,7 @@ public:
         Persist(context, JobIOConfig);
         Persist(context, JobSpecTemplate);
         Persist(context, MaxDataSizePerJob);
+        Persist(context, ChunkSliceSize);
         Persist(context, MergeTaskGroup);
     }
 
