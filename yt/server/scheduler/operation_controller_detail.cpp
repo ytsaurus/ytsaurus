@@ -302,7 +302,7 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
         jobSpecBuilder);
 
     LOG_INFO(
-        "Job scheduled (JobId: %s, OperationId: %s, JobType: %s, Address: %s, JobIndex: %d, ChunkCount: %d (%d local), "
+        "Job scheduled (JobId: %s, OperationId: %s, JobType: %s, Address: %s, Task: %s, JobIndex: %d, ChunkCount: %d (%d local), "
         "Approximate: %s, DataSize: %" PRId64 "(%" PRId64 " local), RowCount: %" PRId64 ", ResourceLimits: {%s})",
         ~ToString(joblet->Job->GetId()),
         ~ToString(Controller->Operation->GetOperationId()),
