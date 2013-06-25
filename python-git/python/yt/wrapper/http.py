@@ -1,7 +1,7 @@
 import http_config
 import logger
 from common import require
-from errors import YtError, YtResponseError, YtNetworkError, YtTokenError, YtProxyUnderHeavyLoad, format_error
+from errors import YtError, YtResponseError, YtNetworkError, YtTokenError, YtProxyUnavailable, format_error
 
 import os
 import string
@@ -12,7 +12,7 @@ import simplejson as json
 
 # We cannot use requests.HTTPError in module namespace because of conflict with python3 http library
 from requests import HTTPError, ConnectionError, Timeout
-NETWORK_ERRORS = (HTTPError, ConnectionError, Timeout, httplib.IncompleteRead, YtResponseError, YtNetworkError)
+NETWORK_ERRORS = (HTTPError, ConnectionError, Timeout, httplib.IncompleteRead, YtResponseError)
 
 class Response(object):
     def __init__(self, http_response):
@@ -54,7 +54,12 @@ class Response(object):
             self._error = format_error(json.loads(self.http_response.headers["x-yt-error"]))
         self._return_code_processed = True
 
-def make_request_with_retries(request, make_retries=False, description="", return_raw_response=False):
+def make_request_with_retries(request, make_retries=False, retry_unavailable_proxy=True,
+                              description="", return_raw_response=False):
+    network_errors = list(NETWORK_ERRORS)
+    if retry_unavailable_proxy:
+        network_errors.append(YtProxyUnavailable)
+
     for attempt in xrange(http_config.HTTP_RETRIES_COUNT):
         try:
             response = request()
@@ -66,16 +71,15 @@ def make_request_with_retries(request, make_retries=False, description="", retur
                         "Response has empty body and JSON content type (Headers: %s)" %
                         repr(response.http_response.headers))
             if response.http_response.status_code == 503:
-                raise YtProxyUnderHeavyLoad("Retrying response with code 503 and body %s",
-                                      response.content())
+                raise YtProxyUnavailable("Retrying response with code 503 and body %s" % response.content())
             return response
-        except NETWORK_ERRORS as error:
+        except YtProxyUnavailable as error:
             message =  "HTTP request (%s) has failed with error '%s'" % (description, str(error))
             if make_retries:
                 logger.warning("%s. Retrying...", message)
                 time.sleep(http_config.HTTP_RETRY_TIMEOUT)
-            elif not isinstance(error, YtResponseError):
-                # We wrapping network errors to simplify catchin such errors later.
+            elif not isinstance(error, YtError):
+                # We wrapping network errors to simplify catching such errors later.
                 raise YtNetworkError(message)
             else:
                 raise
