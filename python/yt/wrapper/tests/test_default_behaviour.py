@@ -5,8 +5,8 @@ from yt.environment import YTEnv
 import yt.wrapper as yt
 
 import os
-import sys
 import uuid
+import tempfile
 import subprocess
 
 class TestDefaultBehaviour(YtTestBase, YTEnv):
@@ -93,7 +93,18 @@ class TestDefaultBehaviour(YtTestBase, YTEnv):
         yt.upload_file("", file_path)
         self.assertEqual("", yt.download_file(file_path, "string"))
 
-        # TODO: add tests for smart upload files
+        _, filename = tempfile.mkstemp()
+        with open(filename, "w") as fout:
+            fout.write("some content")
+
+        destinationA = yt.smart_upload_file(filename, placement_strategy="hash")
+        self.assertTrue(destinationA.startswith(yt.config.FILE_STORAGE))
+
+        destinationB = yt.smart_upload_file(filename, placement_strategy="hash")
+        self.assertEqual(destinationA, destinationB)
+
+        destination = yt.smart_upload_file(filename, placement_strategy="random")
+        self.assertTrue(destination.startswith(os.path.join(os.path.basename(filename), yt.config.FILE_STORAGE)))
 
     def test_read_write(self):
         table = TEST_DIR + "/table"
