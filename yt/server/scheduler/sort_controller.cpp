@@ -53,8 +53,11 @@ using NChunkClient::NProto::TKey;
 static auto& Logger = OperationLogger;
 static NProfiling::TProfiler Profiler("/operations/sort");
 
-//! Maximum number of buckets for partition sizes aggregation.
-static const int MaxAggregatedPartitionBuckets = 100;
+//! Maximum number of buckets for partition progress aggregation.
+static const int MaxProgressBuckets = 100;
+
+//! Maximum number of buckets for partition size histogram aggregation.
+static const int MaxSizeHistogramBuckets = 100;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -1278,6 +1281,15 @@ protected:
     }
 
 
+    // Partition progress.
+
+    struct TPartitionProgress
+    {
+        std::vector<i64> Total;
+        std::vector<i64> Runnning;
+        std::vector<i64> Completed;
+    };
+
     static std::vector<i64> AggregateValues(const std::vector<i64>& values, int maxBuckets)
     {
         if (values.size() < maxBuckets) {
@@ -1298,31 +1310,79 @@ protected:
         return result;
     }
 
-    std::vector<i64> GetAggregatedTotalPartitionSizes() const
+    TPartitionProgress ComputePartitionProgress() const
     {
+        TPartitionProgress result;
         std::vector<i64> sizes(Partitions.size());
-        for (int i = 0; i < static_cast<int>(Partitions.size()); ++i) {
-            sizes[i] = Partitions[i]->ChunkPoolOutput->GetTotalDataSize();
+        {
+            for (int i = 0; i < static_cast<int>(Partitions.size()); ++i) {
+                sizes[i] = Partitions[i]->ChunkPoolOutput->GetTotalDataSize();
+            }
+            result.Total = AggregateValues(sizes, MaxProgressBuckets);
         }
-        return AggregateValues(sizes, MaxAggregatedPartitionBuckets);
+        {
+            for (int i = 0; i < static_cast<int>(Partitions.size()); ++i) {
+                sizes[i] = Partitions[i]->ChunkPoolOutput->GetRunningDataSize();
+            }
+            result.Runnning = AggregateValues(sizes, MaxProgressBuckets);
+        }
+        {
+            for (int i = 0; i < static_cast<int>(Partitions.size()); ++i) {
+                sizes[i] = Partitions[i]->ChunkPoolOutput->GetCompletedDataSize();
+            }
+            result.Completed = AggregateValues(sizes, MaxProgressBuckets);
+        }
+        return result;
     }
 
-    std::vector<i64> GetAggregatedCompletedPartitionSizes() const
-    {
-        std::vector<i64> sizes(Partitions.size());
-        for (int i = 0; i < static_cast<int>(Partitions.size()); ++i) {
-            sizes[i] = Partitions[i]->ChunkPoolOutput->GetCompletedDataSize();
-        }
-        return AggregateValues(sizes, MaxAggregatedPartitionBuckets);
-    }
+    // Partition sizes histogram.
 
-    std::vector<i64> GetAggregatedRunningPartitionSizes() const
+    struct TPartitionSizeHistogram
     {
-        std::vector<i64> sizes(Partitions.size());
-        for (int i = 0; i < static_cast<int>(Partitions.size()); ++i) {
-            sizes[i] = Partitions[i]->ChunkPoolOutput->GetRunningDataSize();
+        i64 Min;
+        i64 Max;
+        std::vector<i64> Count;
+    };
+
+    TPartitionSizeHistogram ComputePartitionSizeHistogram() const
+    {
+        TPartitionSizeHistogram result;
+        
+        result.Min = std::numeric_limits<i64>::max();
+        result.Max = std::numeric_limits<i64>::min();
+        FOREACH (auto partition, Partitions) {
+            i64 size = partition->ChunkPoolOutput->GetTotalDataSize();
+            if (size == 0)
+                continue;
+            result.Min = std::min(result.Min, size);
+            result.Max = std::max(result.Max, size);
         }
-        return AggregateValues(sizes, MaxAggregatedPartitionBuckets);
+
+        int bucketCount = result.Min == result.Max ? 1 : MaxSizeHistogramBuckets;
+        result.Count.resize(bucketCount);
+
+        auto computeBucket = [&] (i64 size) -> int {
+            if (result.Min == result.Max) {
+                return 0;
+            }
+
+            int bucket = (size - result.Min) * MaxSizeHistogramBuckets / (result.Max - result.Min);
+            if (bucket == bucketCount) {
+                bucket = bucketCount - 1;
+            }
+
+            return bucket;
+        };
+
+        FOREACH (auto partition, Partitions) {
+            i64 size = partition->ChunkPoolOutput->GetTotalDataSize();
+            if (size == 0)
+                continue;
+            int bucket = computeBucket(size);
+            ++result.Count[bucket];
+        }
+
+        return result;
     }
 
     void BuildPartitionsProgressYson(IYsonConsumer* consumer) const
@@ -1331,11 +1391,22 @@ protected:
             .Item("partitions").BeginMap()
                 .Item("total").Value(Partitions.size())
                 .Item("completed").Value(CompletedPartitionCount)
-            .EndMap()
+            .EndMap();
+
+        auto progress = ComputePartitionProgress();
+        BuildYsonMapFluently(consumer)
             .Item("partition_sizes").BeginMap()
-                .Item("total").Value(GetAggregatedTotalPartitionSizes())
-                .Item("running").Value(GetAggregatedRunningPartitionSizes())
-                .Item("completed").Value(GetAggregatedCompletedPartitionSizes())
+                .Item("total").Value(progress.Total)
+                .Item("running").Value(progress.Runnning)
+                .Item("completed").Value(progress.Completed)
+            .EndMap();
+
+        auto sizeHistogram = ComputePartitionSizeHistogram();
+        BuildYsonMapFluently(consumer)
+            .Item("partition_size_histogram").BeginMap()
+                .Item("min").Value(sizeHistogram.Min)
+                .Item("max").Value(sizeHistogram.Max)
+                .Item("count").Value(sizeHistogram.Count)
             .EndMap();
     }
 };
