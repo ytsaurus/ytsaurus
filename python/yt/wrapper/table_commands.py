@@ -316,7 +316,8 @@ def write_table(table, input_stream, format=None, table_writer=None, replication
                                 "write",
                                 params,
                                 data=data,
-                                proxy=get_host_for_heavy_operation())
+                                proxy=get_host_for_heavy_operation(),
+                                retry_unavailable_proxy=False)
                         break
                     except (NETWORK_ERRORS, YtError) as err:
                         print >>sys.stderr, "Retry", i + 1, "failed with message", str(err)
