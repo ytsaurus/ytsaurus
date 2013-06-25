@@ -829,7 +829,6 @@ public:
                 fluent
                     .Item(id).BeginMap()
                         .Item("mode").Value(config->Mode)
-                        .Item("max_share_ratio").Value(attributes.MaxShareRatio)
                         .Do(BIND(&TFairShareStrategy::BuildElementYson, RootElement, pool))
                     .EndMap();
             });
@@ -1195,6 +1194,7 @@ private:
             .Item("weight").Value(element->GetWeight())
             .Item("min_share_ratio").Value(element->GetMinShareRatio())
             .Item("adjusted_min_share_ratio").Value(attributes.AdjustedMinShareRatio)
+            .Item("max_share_ratio").Value(attributes.MaxShareRatio)
             .Item("demand_ratio").Value(attributes.DemandRatio)
             .Item("fair_share_ratio").Value(attributes.FairShareRatio);
     }
