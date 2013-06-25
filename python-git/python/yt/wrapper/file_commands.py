@@ -78,7 +78,11 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
         if yt_filename is None:
             yt_filename = os.path.basename(destination)
 
-    upload_file(open(filename), destination)
+    if exists(destination):
+        require(placement_strategy == "hash",
+                YtError("Cannot upload file to '%s', node already exists"))
+    else:
+        upload_file(open(filename), destination)
     set_attribute(destination, "file_name", yt_filename)
 
     executable = os.access(filename, os.X_OK) or config.ALWAYS_SET_EXECUTABLE_FLAG_TO_FILE
