@@ -144,6 +144,7 @@ double GetMinResourceRatio(
             result = std::min(result, (double) a / b);
         }
     };
+    update(nominator.user_slots(), denominator.user_slots());
     update(nominator.cpu(), denominator.cpu());
     update(nominator.memory(), denominator.memory());
     update(nominator.network(), denominator.network());
