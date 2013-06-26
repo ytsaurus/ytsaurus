@@ -1,7 +1,8 @@
 import config
 from common import require, chunk_iter, partial, bool_to_string
 from errors import YtError
-from driver import read_content, get_host_for_heavy_operation
+from driver import read_content
+from heavy_commands import make_heavy_command
 from tree_commands import remove, exists, set_attribute, mkdir, find_free_subpath, create
 from transaction_commands import _make_transactional_request
 from table import prepare_path
@@ -27,19 +28,26 @@ def download_file(path, response_type=None):
     response = _make_transactional_request("download", {"path": prepare_path(path)}, return_raw_response=True)
     return read_content(response, response_type)
 
-def upload_file(stream, destination, yt_filename=None):
+def upload_file(stream, destination):
     """
     Simply uploads data from stream to destination and
     set file_name attribute if yt_filename is specified
     """
     if hasattr(stream, 'fileno'):
         # read files by chunks, not by lines
-        stream = chunk_iter(stream)
-    if config.CREATE_FILE_BEFORE_UPLOAD:
-        create("file", destination, ignore_existing=True)
-    _make_transactional_request("upload", {"path": prepare_path(destination)}, data=stream, proxy=get_host_for_heavy_operation())
-    if yt_filename is not None:
-        set_attribute(destination, "file_name", yt_filename)
+        stream = chunk_iter(stream, config.CHUNK_SIZE)
+
+    def prepare_file(path):
+        if config.API_VERSION == 2 and not exists(path):
+            create("file", path)
+
+    make_heavy_command(
+        "upload",
+        stream,
+        destination,
+        {},
+        prepare_file,
+        config.USE_RETRIES_DURING_UPLOAD)
 
 def smart_upload_file(filename, destination=None, yt_filename=None, placement_strategy=None):
     """

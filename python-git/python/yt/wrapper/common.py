@@ -91,12 +91,24 @@ def execute_handling_sigint(action, except_action):
     except:
         raise
 
-def chunk_iter(stream, chunk_size=1024 * 1024):
+def chunk_iter(stream, chunk_size):
     while True:
         chunk = stream.read(chunk_size)
         if not chunk:
             break
         yield chunk
+
+def chunk_iter_lines(lines, chunk_size):
+    size = 0
+    chunk = []
+    for line in lines:
+        size += len(line)
+        chunk.append(line)
+        if size >= chunk_size:
+            yield chunk
+            size = 0
+            chunk = []
+    yield chunk
 
 def update_from_env(variables):
     """
