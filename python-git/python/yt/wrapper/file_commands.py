@@ -1,7 +1,7 @@
 import config
 from common import require, chunk_iter, partial, bool_to_string
 from errors import YtError
-from driver import read_content
+from driver import read_content, get_host_for_heavy_operation
 from heavy_commands import make_heavy_command
 from tree_commands import remove, exists, set_attribute, mkdir, find_free_subpath, create, link
 from transaction_commands import _make_transactional_request
@@ -25,7 +25,11 @@ def download_file(path, response_type=None):
     Response type means the output format. By default it is line generator.
     """
     if response_type is None: response_type = "iter_lines"
-    response = _make_transactional_request("download", {"path": prepare_path(path)}, return_raw_response=True)
+    response = _make_transactional_request(
+        "download",
+        {"path": prepare_path(path)},
+        proxy=get_host_for_heavy_operation(),
+        return_raw_response=True)
     return read_content(response, response_type)
 
 def upload_file(stream, destination):
