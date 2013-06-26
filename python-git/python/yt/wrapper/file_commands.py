@@ -39,7 +39,7 @@ def upload_file(stream, destination):
 
     def prepare_file(path):
         if config.API_VERSION == 2 and not exists(path):
-            create("file", path)
+            create("file", path, ignore_existing=True)
 
     make_heavy_command(
         "upload",
