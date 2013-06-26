@@ -1265,14 +1265,24 @@ void TLinkNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attribute
 {
     TBase::ListSystemAttributes(attributes);
     attributes->push_back("target_id");
+    attributes->push_back("broken");
 }
 
 bool TLinkNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer)
 {
+    const auto* impl = GetThisTypedImpl();
+    
     if (key == "target_id") {
-        const auto* impl = GetThisTypedImpl();
         BuildYsonFluently(consumer)
             .Value(impl->GetTargetId());
+        return true;
+    }
+
+    if (key == "broken") {
+        auto objectManager = Bootstrap->GetObjectManager();
+        bool exists = objectManager->FindObject(impl->GetTargetId());
+        BuildYsonFluently(consumer)
+            .Value(!exists);
         return true;
     }
 
