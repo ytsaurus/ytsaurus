@@ -6,24 +6,24 @@ VERSION=$(dpkg-parsechangelog | grep Version | awk '{print $2}')
 export YT_PROXY=kant.yt.yandex.net
 
 # Build and upload package
-#make deb_without_test
-#dupload "../yandex-yt-python_${VERSION}_amd64.changes"
+make deb_without_test
+dupload "../yandex-yt-python_${VERSION}_amd64.changes"
 
 # Upload egg
-alias python=python2.6
 make egg
 EGG_VERSION=$(echo $VERSION | tr '-' '_')
 eggname="Yt-${EGG_VERSION}_-py2.7.egg"
-cat dist/$eggname | $YT upload "$DEST/$eggname"
+cat dist/$eggname | $YT upload "$DEST/Yt-${VERSION}-py2.7.egg"
 
 # Upload self-contained binaries
-#mv yt/wrapper/pickling.py pickling.py
-#cp standard_pickling.py yt/wrapper/pickling.py
-#
-#for name in yt mapreduce; do
-#    pyinstaller/pyinstaller.py --noconfirm yt/wrapper/$name
-#    pyinstaller/pyinstaller.py --noconfirm "${name}.spec"
-#    cat build/yt/$name | $YT upload "$DEST/$name"
-#done
-#
-#mv pickling.py yt/wrapper/pickling.py
+mv yt/wrapper/pickling.py pickling.py
+cp standard_pickling.py yt/wrapper/pickling.py
+
+for name in yt mapreduce; do
+    rm -rf build dist
+    pyinstaller/pyinstaller.py --noconfirm yt/wrapper/$name
+    pyinstaller/pyinstaller.py --noconfirm "${name}.spec"
+    cat build/$name/$name | $YT upload "$DEST/$name_${VERSION}"
+done
+
+mv pickling.py yt/wrapper/pickling.py
