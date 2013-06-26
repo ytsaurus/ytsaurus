@@ -7,8 +7,6 @@ from transaction_commands import _make_transactional_request
 from driver import get_host_for_heavy_operation
 from http import NETWORK_ERRORS
 
-import sys
-
 def make_heavy_command(command_name, stream, path, params, create_object, use_retries):
     path = to_table(path)
 
@@ -22,6 +20,9 @@ def make_heavy_command(command_name, stream, path, params, create_object, use_re
                 if started:
                     path.append = True
                 started = True
+
+                logger.debug("Processing {0} chunk (length: {1}, transaction: {2})"
+                    .format(command_name, len(chunk), config.TRANSACTION_ID))
                 
                 for i in xrange(config.HEAVY_COMMAND_RETRIES_COUNT):
                     try: 
