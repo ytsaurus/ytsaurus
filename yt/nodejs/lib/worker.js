@@ -129,7 +129,7 @@ if (!__DBG.On) {
 // Setup signal handlers.
 process.on("SIGUSR2", function() {
     "use strict";
-    console.error("Writing a heap snapshot.");
+    console.error("Writing a heap snapshot (" + process.pid + ")");
     heapdump.writeSnapshot();
 });
 
