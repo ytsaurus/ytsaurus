@@ -1251,12 +1251,15 @@ IYPathService::TResolveResult TLinkNodeProxy::Resolve(
     switch (tokenizer.Advance()) {
         case NYPath::ETokenType::Ampersand:
             return TBase::Resolve(tokenizer.GetSuffix(), context);
-        case NYPath::ETokenType::EndOfStream:
+
+        case NYPath::ETokenType::EndOfStream: {
             // NB: Always handle Remove and Create locally.
             const auto& verb = context->GetVerb();
             return (verb == "Remove" || verb == "Create")
                    ? TResolveResult::Here(path)
                    : TResolveResult::There(GetTargetService(), path);
+        }
+
         default:
             return TResolveResult::There(GetTargetService(), path);
     }
