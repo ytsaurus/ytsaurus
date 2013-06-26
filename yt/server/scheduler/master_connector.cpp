@@ -32,6 +32,8 @@
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/ytree/node.h>
 
+#include <ytlib/ypath/token.h>
+
 #include <ytlib/scheduler/helpers.h>
 
 #include <ytlib/meta_state/rpc_helpers.h>
@@ -48,6 +50,7 @@ namespace NScheduler {
 
 using namespace NYTree;
 using namespace NYson;
+using namespace NYPath;
 using namespace NCypressClient;
 using namespace NObjectClient;
 using namespace NChunkClient;
@@ -390,7 +393,11 @@ private:
     public:
         explicit TRegistrationPipeline(TIntrusivePtr<TImpl> owner)
             : Owner(owner)
-        { }
+        {
+            auto localHostName = TAddressResolver::Get()->GetLocalHostName();
+            int port = Owner->Bootstrap->GetConfig()->RpcPort;
+            ServiceAddresss = BuildServiceAddress(localHostName, port);
+        }
 
         TErrorOr<TMasterHandshakeResult> Run()
         {
@@ -413,8 +420,36 @@ private:
 
     private:
         TIntrusivePtr<TImpl> Owner;
+        Stroka ServiceAddresss;
         std::vector<TOperationId> OperationIds;
         TMasterHandshakeResult Result;
+
+        // - Register scheduler instance.
+        void RegisterInstance()
+        {
+            auto batchReq = Owner->StartBatchRequest(false);
+            auto path = "//sys/schedulers/" + ToYPathLiteral(ServiceAddresss);
+            {
+                auto req = TCypressYPathProxy::Create(path);
+                req->set_ignore_existing(true);
+                req->set_type(EObjectType::MapNode);
+                GenerateMutationId(req);
+                batchReq->AddRequest(req);
+            }
+            {
+                auto req = TCypressYPathProxy::Create(path + "/orchid");
+                req->set_ignore_existing(true);
+                req->set_type(EObjectType::Orchid);
+                auto attributes = CreateEphemeralAttributes();
+                attributes->Set("remote_address", ServiceAddresss);
+                ToProto(req->mutable_node_attributes(), *attributes);
+                GenerateMutationId(req);
+                batchReq->AddRequest(req);
+            }
+
+            auto batchRsp = WaitFor(batchReq->Invoke());
+            THROW_ERROR_EXCEPTION_IF_FAILED(batchRsp->GetCumulativeError());
+        }
 
         // - Start lock transaction.
         void StartLockTransaction()
@@ -428,9 +463,7 @@ private:
                 reqExt->set_timeout(Owner->Config->LockTransactionTimeout.MilliSeconds());
 
                 auto attributes = CreateEphemeralAttributes();
-                auto localHostName = TAddressResolver::Get()->GetLocalHostName();
-                auto address = BuildServiceAddress(localHostName, Owner->Bootstrap->GetConfig()->RpcPort);
-                attributes->Set("title", Sprintf("Scheduler lock at %s", ~address));
+                attributes->Set("title", Sprintf("Scheduler lock at %s", ~ServiceAddresss));
                 ToProto(req->mutable_object_attributes(), *attributes);
 
                 GenerateMutationId(req);
