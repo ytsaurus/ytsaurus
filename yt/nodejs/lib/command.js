@@ -174,10 +174,10 @@ YtCommand.prototype.dispatch = function(req, rsp) {
         .fcall(function() {
             self._getName();
             self._getUser();
-            self._redirectForMarkedRequests();
             self._getDescriptor();
             self._checkHttpMethod();
             self._checkAvailability();
+            self._redirectHeavyRequests();
             self._getInputFormat();
             self._getInputCompression();
             self._getOutputFormat();
@@ -310,32 +310,6 @@ YtCommand.prototype._getUser = function() {
     }
 };
 
-// COMPAT(sandello): Rework me after all clients upgrade to a new protocol.
-YtCommand.prototype._redirectForMarkedRequests = function() {
-    "use strict";
-    this.__DBG("_redirectForMarkedRequests");
-
-    if (this.name === "read_direct" || this.name === "write_direct") {
-        this.name = this.name.substr(0, this.name.length - 7);
-    } else {
-        return;
-    }
-
-    this.req.parsedUrl.pathname = "/" + this.name;
-    var target = "http://" + this.coordinator.getSelf().host + "/api" + url.format(this.req.parsedUrl);
-
-    this.rsp.statusCode = 307;
-    this.rsp.shouldKeepAlive = false;
-    this.rsp.removeHeader("Transfer-Encoding");
-    this.rsp.removeHeader("Content-Encoding");
-    this.rsp.removeHeader("Vary");
-    this.rsp.setHeader("Connection", "close");
-    this.rsp.setHeader("Location", target);
-    this.rsp.end();
-
-    throw new YtError();
-};
-
 YtCommand.prototype._getDescriptor = function() {
     "use strict";
     this.__DBG("_getDescriptor");
@@ -394,6 +368,20 @@ YtCommand.prototype._checkAvailability = function() {
             "Command '" + this.name +
             "' is heavy and the proxy is currently under heavy load. " +
             "Please, try another proxy or try again later.");
+    }
+};
+
+YtCommand.prototype._redirectHeavyRequests = function() {
+    "use strict";
+    this.__DBG("_redirectHeavyRequests");
+
+    if (this.descriptor.is_heavy && this.coordinator.getSelf().role !== "data") {
+        var target =
+            "http://" +
+            this.coordinator.allocateDataProxy().host +
+            this.req.originalUrl;
+        utils.redirectTo(this.rsp, target, 307);
+        throw new YtError();
     }
 };
 

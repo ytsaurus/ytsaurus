@@ -81,7 +81,7 @@ YtApplicationHosts.prototype._dispatchBasic = function(req, rsp, suffix)
             break;
     }
 
-    this.coordinator.dampen();
+    this.coordinator.allocateDataProxy();
 
     return utils.dispatchAs(rsp, body, mime);
 };

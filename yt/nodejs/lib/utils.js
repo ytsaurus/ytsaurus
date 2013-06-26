@@ -23,15 +23,17 @@ exports.redirectUnlessDirectory = function(req, rsp)
 };
 
 // Redirects request to a predefined location.
-exports.redirectTo = function(rsp, location, code)
+exports.redirectTo = function(rsp, target, code)
 {
     "use strict";
     rsp.removeHeader("Vary");
     rsp.removeHeader("Transfer-Encoding");
     rsp.removeHeader("Content-Encoding");
     rsp.removeHeader("Content-Type");
-    rsp.setHeader("Location", location);
+    rsp.setHeader("Location", target);
     rsp.setHeader("Content-Length", 0);
+    rsp.setHeader("Connection", "close");
+    rsp.shouldKeepAlive = false;
     rsp.writeHead(code || 303);
     rsp.end();
 };
