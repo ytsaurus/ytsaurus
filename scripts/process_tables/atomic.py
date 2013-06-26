@@ -67,7 +67,7 @@ def process_tasks_from_list(list, action):
                                 "it put back to queue and processed is stopped".format(str(value)))
                     atomic_push(list, value)
                     break
-                processed_values.add(value)
+                processed_values.add(hashable_value)
 
             logger.info("Processing value %s", str(value))
             result = action(value)
