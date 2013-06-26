@@ -1,11 +1,11 @@
 import config
 import py_wrapper
 from common import flatten, require, unlist, update, EMPTY_GENERATOR, parse_bool, \
-                   is_prefix, get_value, compose, execute_handling_sigint, bool_to_string
+                   is_prefix, get_value, compose, execute_handling_sigint, bool_to_string, \
+                   chunk_iter_lines
 from errors import YtError
 from version import VERSION
-from driver import read_content, get_host_for_heavy_operation
-from http import NETWORK_ERRORS
+from driver import read_content
 from table import TablePath, to_table, to_name, prepare_path
 from tree_commands import exists, remove, remove_with_empty_dirs, get_attribute, copy, \
                           move, mkdir, find_free_subpath, create, get_type, \
@@ -14,6 +14,7 @@ from file_commands import smart_upload_file
 from transaction_commands import _make_transactional_request
 from transaction import PingableTransaction
 from format import Format
+from heavy_commands import make_heavy_command
 import logger
 
 from yt.yson import convert_to_json_tree
@@ -193,29 +194,6 @@ def _make_operation_request(command_name, spec, strategy, finalizer=None, verbos
     else:
         run_operation(finalizer)
 
-
-class Buffer(object):
-    """ Reads line iterator by chunks """
-    def __init__(self, input_stream):
-        self._input_stream = input_stream
-        self._empty = False
-
-    def get(self, bytes=None):
-        if bytes is None:
-            bytes = config.WRITE_BUFFER_SIZE
-        read_bytes = 0
-        while read_bytes < bytes:
-            try:
-                row = next(self._input_stream)
-            except StopIteration:
-                self._empty = True
-                break
-            read_bytes += len(row)
-            yield row
-
-    def empty(self):
-        return self._empty
-
 """ Common table methods """
 def create_table(path, recursive=None, ignore_existing=False, replication_factor=None, compression_codec=None, attributes=None):
     """ Creates empty table, use recursive for automatically creaation the path """
@@ -262,14 +240,10 @@ def write_table(table, input_stream, format=None, table_writer=None, replication
     table = to_table(table)
     format = _prepare_format(format)
 
-    def prepare_params():
-        params = {
-            "path": table.get_json(),
-            "input_format": format.json()
-        }
-        if table_writer is not None:
-            params["table_writer"] = table_writer
-        return params
+    params = {}
+    params["input_format"] = format.json()
+    if table_writer is not None:
+        params["table_writer"] = table_writer
 
     def split_rows(stream):
         while True:
@@ -278,6 +252,14 @@ def write_table(table, input_stream, format=None, table_writer=None, replication
                 yield row
             else:
                 return
+
+    def prepare_table(path):
+        if exists(path):
+            require(replication_factor is None and compression_codec is None,
+                    YtError("Cannot write to existing path %s with set replication factor or compression codec" % path))
+        else:
+            create_table(path, ignore_existing=True,
+                         replication_factor=replication_factor, compression_codec=compression_codec)
 
     can_split_input = True
     if isinstance(input_stream, types.ListType):
@@ -290,48 +272,21 @@ def write_table(table, input_stream, format=None, table_writer=None, replication
             can_split_input = False
     elif isinstance(input_stream, str):
         input_stream = split_rows(StringIO(input_stream))
+    
+    if can_split_input:
+        input_stream = chunk_iter_lines(input_stream, config.CHUNK_SIZE)
 
-    with PingableTransaction(
-            config.WRITE_TRANSACTION_TIMEOUT,
-            attributes={"title": "Python wrapper: write table %s" % table.name}):
-        if exists(table.name):
-            require(replication_factor is None and compression_codec is None,
-                    YtError("Cannot write to existing table %s with set replication factor or compression codec" % to_name(table)))
-        else:
-            create_table(table.name, ignore_existing=True,
-                         replication_factor=replication_factor, compression_codec=compression_codec)
+    if config.USE_RETRIES_DURING_WRITE and not can_split_input:
+        logger.warning("Cannot split input into rows. Write is processing by one request.")
 
-        if config.USE_RETRIES_DURING_WRITE and can_split_input:
-            started = False
-            buffer = Buffer(input_stream)
-            while not buffer.empty():
-                if started:
-                    table.append = True
-                params = prepare_params()
-                data = list(buffer.get())
-                for i in xrange(config.WRITE_RETRIES_COUNT):
-                    try:
-                        with PingableTransaction(config.WRITE_TRANSACTION_TIMEOUT):
-                            _make_transactional_request(
-                                "write",
-                                params,
-                                data=data,
-                                proxy=get_host_for_heavy_operation(),
-                                retry_unavailable_proxy=False)
-                        break
-                    except (NETWORK_ERRORS, YtError) as err:
-                        print >>sys.stderr, "Retry", i + 1, "failed with message", str(err)
-                        if i + 1 == config.WRITE_RETRIES_COUNT:
-                            raise
-                started = True
-        else:
-            if config.USE_RETRIES_DURING_WRITE:
-                logger.warning("Cannot split input into rows. Write is processing by one request.")
-            _make_transactional_request(
-                "write",
-                prepare_params(),
-                data=input_stream,
-                proxy=get_host_for_heavy_operation())
+    make_heavy_command(
+        "write",
+        input_stream,
+        table,
+        params,
+        prepare_table,
+        config.USE_RETRIES_DURING_WRITE and can_split_input)
+
     if config.TREAT_UNEXISTING_AS_EMPTY and is_empty(table):
         _remove_tables([table])
 

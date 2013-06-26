@@ -352,7 +352,7 @@ Examples:
         die("Version: YT wrapper " + VERSION, 0)
 
     if args.chunksize is not None:
-        config.WRITE_BUFFER_SIZE = args.chunksize
+        config.CHUNK_SIZE = args.chunksize
     if args.server is not None:
         config.set_proxy(args.server)
     if args.prefix is not None:
