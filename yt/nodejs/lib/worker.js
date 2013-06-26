@@ -101,8 +101,16 @@ var gracefullyDie = function gracefulDeath() {
     logger.info("Prepairing to die", { wid : cluster.worker.id, pid : process.pid });
     process.send({ type : "stopping" });
 
-    !!insecure_server ? insecure_server.close() : secure_close_deferred.resolve();
-    !!secure_server ? secure_server.close() : secure_close_deferred.resolve();
+    try {
+        !!insecure_server ? insecure_server.close() : secure_close_deferred.resolve();
+    } catch (ex) {
+        logger.error("Caught exception during HTTP shutdown: " + ex.toString());
+    }
+    try {
+        !!secure_server ? secure_server.close() : secure_close_deferred.resolve();
+    } catch (ex) {
+        logger.error("Caught exception during HTTP shutdown: " + ex.toString());
+    }
 };
 
 // Fire up the heart.
