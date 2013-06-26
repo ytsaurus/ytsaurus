@@ -1284,7 +1284,7 @@ bool TLinkNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consum
 
     if (key == "broken") {
         auto objectManager = Bootstrap->GetObjectManager();
-        bool exists = objectManager->FindObject(impl->GetTargetId());
+        bool exists = IsObjectAlive(objectManager->FindObject(impl->GetTargetId()));
         BuildYsonFluently(consumer)
             .Value(!exists);
         return true;
