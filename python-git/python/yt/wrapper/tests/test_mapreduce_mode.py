@@ -326,7 +326,7 @@ class TestMapreduceMode(YtTestBase, YTEnv):
                              open(_test_file_path("my_op.py")).readlines())
 
         dest = TEST_DIR+"/file_dir/some_file"
-        yt.smart_upload_file(_test_file_path("my_op.py"), destination=dest, placement_strategy="random")
+        yt.smart_upload_file(_test_file_path("my_op.py"), destination=dest, placement_strategy="ignore")
         self.assertEqual(yt.get_attribute(dest, "file_name"), "some_file")
 
     def test_map_reduce_operation(self):

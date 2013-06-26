@@ -3,7 +3,7 @@ from common import require, chunk_iter, partial, bool_to_string
 from errors import YtError
 from driver import read_content
 from heavy_commands import make_heavy_command
-from tree_commands import remove, exists, set_attribute, mkdir, find_free_subpath, create
+from tree_commands import remove, exists, set_attribute, mkdir, find_free_subpath, create, link
 from transaction_commands import _make_transactional_request
 from table import prepare_path
 
@@ -59,6 +59,12 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
     If yt_filename is specified than file_name attribrute is set up
     (name that would be visible in operations).
     """
+
+    def upload_with_check(path):
+        require(not exists(path),
+                YtError("Cannot upload file to '{0}', node already exists".format(path)))
+        upload_file(open(filename), path)
+
     require(os.path.isfile(filename),
             YtError("Upload: %s should be file" % filename))
 
@@ -68,29 +74,36 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
             YtError("Incorrect file placement strategy " + placement_strategy))
 
     if destination is None:
-        mkdir(config.FILE_STORAGE, recursive=True)
-        destination = os.path.join(config.FILE_STORAGE,
-                                   os.path.basename(filename))
+        # create file storage dir and hash subdir
+        mkdir(os.path.join(config.FILE_STORAGE, "hash"), recursive=True)
+        prefix = os.path.join(config.FILE_STORAGE, os.path.basename(filename))
+        destination = prefix
         if placement_strategy == "random":
-            destination = find_free_subpath(destination)
-        if placement_strategy == "hash":
-            destination = os.path.join(config.FILE_STORAGE, md5sum(filename))
-        if placement_strategy == "replace" and exists(destination):
+            destination = find_free_subpath(prefix)
+        if placement_strategy == "replace" and exists(prefix):
             remove(destination)
         if placement_strategy == "ignore" and exists(destination):
             return
         if yt_filename is None:
             yt_filename = os.path.basename(filename)
     else:
+        if placement_strategy in ["hash", "random"]:
+            raise YtError("Destination should not be specified if strategy is hash or random")
         mkdir(os.path.dirname(destination))
         if yt_filename is None:
             yt_filename = os.path.basename(destination)
 
-    if exists(destination):
-        require(placement_strategy == "hash",
-                YtError("Cannot upload file to '%s', node already exists"))
+    if placement_strategy == "hash":
+        md5 = md5sum(filename)
+        destination = os.path.join(config.FILE_STORAGE, "hash", md5)
+        if not exists(destination):
+            real_destination = find_free_subpath(prefix)
+            upload_with_check(real_destination)
+            link(real_destination, destination, ignore_existing=True)
+            set_attribute(real_destination, "hash", md5)
     else:
-        upload_file(open(filename), destination)
+        upload_with_check(destination)
+
     set_attribute(destination, "file_name", yt_filename)
 
     executable = os.access(filename, os.X_OK) or config.ALWAYS_SET_EXECUTABLE_FLAG_TO_FILE
