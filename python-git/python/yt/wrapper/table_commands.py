@@ -5,7 +5,7 @@ from common import flatten, require, unlist, update, EMPTY_GENERATOR, parse_bool
                    chunk_iter_lines
 from errors import YtError
 from version import VERSION
-from driver import read_content
+from driver import read_content, get_host_for_heavy_operation
 from table import TablePath, to_table, to_name, prepare_path
 from tree_commands import exists, remove, remove_with_empty_dirs, get_attribute, copy, \
                           move, mkdir, find_free_subpath, create, get_type, \
@@ -20,7 +20,6 @@ import logger
 from yt.yson import convert_to_json_tree
 
 import os
-import sys
 import types
 from cStringIO import StringIO
 
@@ -311,6 +310,7 @@ def read_table(table, format=None, table_reader=None, response_type=None):
     response = _make_transactional_request(
         "read",
         params,
+        proxy=get_host_for_heavy_operation(),
         return_raw_response=True)
     return read_content(response, get_value(response_type, "iter_lines"))
 

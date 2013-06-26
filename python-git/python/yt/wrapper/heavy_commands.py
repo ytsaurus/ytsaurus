@@ -22,7 +22,7 @@ def make_heavy_command(command_name, stream, path, params, create_object, use_re
                 started = True
 
                 logger.debug("Processing {0} chunk (length: {1}, transaction: {2})"
-                    .format(command_name, len(chunk), config.TRANSACTION_ID))
+                    .format(command_name, len(chunk), config.TRANSACTION))
                 
                 for i in xrange(config.HEAVY_COMMAND_RETRIES_COUNT):
                     try: 
