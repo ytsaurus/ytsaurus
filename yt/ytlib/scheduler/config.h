@@ -62,7 +62,7 @@ struct TOperationSpecBase
             .Default("tmp");
 
         RegisterParameter("unavailable_chunk_strategy", UnavailableChunkStrategy)
-            .Default(EUnavailableChunkAction::Fail);
+            .Default(EUnavailableChunkAction::Wait);
 
         RegisterParameter("unavailable_chunk_tactics", UnavailableChunkTactics)
             .Default(EUnavailableChunkAction::Wait);
