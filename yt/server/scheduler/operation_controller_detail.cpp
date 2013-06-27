@@ -1069,9 +1069,6 @@ void TOperationControllerBase::InitChunkListPool()
 
 void TOperationControllerBase::InitInputChunkScratcher()
 {
-    if (Spec->UnavailableChunkStrategy != EUnavailableChunkAction::Wait)
-        return;
-
     YCHECK(UnavailableInputChunkCount == 0);
 
     FOREACH (auto& pair, InputChunkMap) {
@@ -1090,9 +1087,6 @@ void TOperationControllerBase::InitInputChunkScratcher()
 
 void TOperationControllerBase::SuspendUnavailableInputStripes()
 {
-    if (Spec->UnavailableChunkStrategy != EUnavailableChunkAction::Wait)
-        return;
-
     FOREACH (auto& pair, InputChunkMap) {
         const auto& chunkDescriptor = pair.second;
         if (chunkDescriptor.State == EInputChunkState::Waiting) {
