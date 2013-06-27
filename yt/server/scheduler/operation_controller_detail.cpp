@@ -1445,6 +1445,7 @@ void TOperationControllerBase::OnInputChunkUnavailable(const TChunkId& chunkId, 
                 inputStripe.Task->GetChunkPoolInput()->Resume(inputStripe.Cookie, inputStripe.Stripe);
                 AddTaskPendingHint(inputStripe.Task);
             }
+            InputChunkScratcher->Start();
             break;
         }
 
