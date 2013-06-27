@@ -270,6 +270,10 @@ private:
         return true;
     }
 
+    virtual bool IsCompleted() const override
+    {
+        return MapTask->IsCompleted();
+    }
 
     // Progress reporting.
 

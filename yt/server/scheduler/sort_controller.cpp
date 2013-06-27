@@ -1230,6 +1230,11 @@ protected:
             sortJobCount);
     }
 
+    virtual bool IsCompleted() const override
+    {
+        return CompletedPartitionCount == Partitions.size();
+    }
+
     virtual void DoOperationCompleted() override
     {
         YCHECK(CompletedPartitionCount == Partitions.size());
@@ -1508,7 +1513,7 @@ protected:
     TPartitionSizeHistogram ComputePartitionSizeHistogram() const
     {
         TPartitionSizeHistogram result;
-        
+
         result.Min = std::numeric_limits<i64>::max();
         result.Max = std::numeric_limits<i64>::min();
         FOREACH (auto partition, Partitions) {
