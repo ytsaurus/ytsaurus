@@ -1065,7 +1065,7 @@ private:
     {
         auto replayIt = ReplayCookies.find(cookie);
         if (replayIt == ReplayCookies.end()) {
-            FOREACH (const auto& stripeIndex, extractedStripeList.StripeIndexes) {
+            FOREACH (int stripeIndex, extractedStripeList.StripeIndexes) {
                 auto& suspendableStripe = Stripes[stripeIndex];
                 suspendableStripe.SetExtractedCookie(IChunkPoolOutput::NullCookie);
                 if (suspendableStripe.IsSuspended()) {
