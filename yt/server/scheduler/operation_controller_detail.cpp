@@ -1069,16 +1069,6 @@ void TOperationControllerBase::InitChunkListPool()
 
 void TOperationControllerBase::InitInputChunkScratcher()
 {
-    YCHECK(UnavailableInputChunkCount == 0);
-
-    FOREACH (auto& pair, InputChunkMap) {
-        const auto& chunkDescriptor = pair.second;
-        if (chunkDescriptor.State == EInputChunkState::Waiting) {
-            LOG_TRACE("Input chunk is unavailable (ChunkId: %s)", ~ToString(pair.first));
-            ++UnavailableInputChunkCount;
-        }
-    }
-
     if (UnavailableInputChunkCount > 0) {
         LOG_INFO("Waiting for %d unavailable input chunks", UnavailableInputChunkCount);
         InputChunkScratcher->Start();
@@ -1087,13 +1077,17 @@ void TOperationControllerBase::InitInputChunkScratcher()
 
 void TOperationControllerBase::SuspendUnavailableInputStripes()
 {
+    YCHECK(UnavailableInputChunkCount == 0);
+
     FOREACH (auto& pair, InputChunkMap) {
         const auto& chunkDescriptor = pair.second;
         if (chunkDescriptor.State == EInputChunkState::Waiting) {
+            LOG_TRACE("Input chunk is unavailable (ChunkId: %s)", ~ToString(pair.first));
             FOREACH(const auto& inputStripe, chunkDescriptor.InputStripes) {
                 inputStripe.Task->GetChunkPoolInput()->Suspend(inputStripe.Cookie);
                 ++inputStripe.Stripe->WaitingChunkCount;
             }
+            ++UnavailableInputChunkCount;
         }
     }
 }
@@ -1451,7 +1445,6 @@ void TOperationControllerBase::OnInputChunkUnavailable(const TChunkId& chunkId, 
                 inputStripe.Task->GetChunkPoolInput()->Resume(inputStripe.Cookie, inputStripe.Stripe);
                 AddTaskPendingHint(inputStripe.Task);
             }
-            InputChunkScratcher->Start();
             break;
         }
 
