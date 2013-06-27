@@ -871,7 +871,6 @@ TOperationControllerBase::TOperationControllerBase(
     , TotalInputRowCount(0)
     , TotalInputValueCount(0)
     , UnavailableInputChunkCount(0)
-    , NodeDirectory(New<NNodeTrackerClient::TNodeDirectory>())
     , Spec(spec)
     , CachedPendingJobCount(0)
     , CachedNeededResources(ZeroNodeResources())
@@ -885,6 +884,8 @@ void TOperationControllerBase::Initialize()
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     LOG_INFO("Initializing operation");
+
+    NodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
 
     FOREACH (const auto& path, GetInputTablePaths()) {
         TInputTable table;
@@ -3106,7 +3107,7 @@ void TOperationControllerBase::Persist(TPersistenceContext& context)
     Persist(context, FailedJobStatistics);
     Persist(context, AbortedJobStatistics);
 
-    Persist(context, *NodeDirectory);
+    Persist(context, NodeDirectory);
 
     Persist(context, InputTables);
 

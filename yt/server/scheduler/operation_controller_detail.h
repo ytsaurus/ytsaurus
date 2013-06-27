@@ -611,13 +611,13 @@ protected:
 
     struct TStripeDescriptor
     {
-        TStripeDescriptor()
-            : Cookie(IChunkPoolInput::NullCookie)
-        { }
-
         TChunkStripePtr Stripe;
         IChunkPoolInput::TCookie Cookie;
         TTaskPtr Task;
+
+        TStripeDescriptor()
+            : Cookie(IChunkPoolInput::NullCookie)
+        { }
 
         void Persist(TPersistenceContext& context);
 
