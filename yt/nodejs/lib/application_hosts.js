@@ -19,15 +19,6 @@ function addHostNameSuffix(host, suffix)
     }
 }
 
-function checkHostNameSuffix(host, suffix)
-{
-    var index = host.indexOf(".");
-    if (index > 0) {
-        host = host.substr(0, index);
-    }
-    return host.substr(host.length - suffix.length, host.length) === suffix;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 function YtApplicationHosts(logger, coordinator)
@@ -48,7 +39,9 @@ YtApplicationHosts.prototype.dispatch = function(req, rsp, next)
     return Q.try(function() {
         switch (url.parse(req.url).pathname) {
             case "/":
-                return self._dispatchBasic(req, rsp);
+                return self._dispatchBasic(req, rsp, "");
+            case "/fb":
+                return self._dispatchBasic(req, rsp, "-fb");
             case "/all":
                 return self._dispatchExtended(req, rsp);
         }
@@ -64,26 +57,14 @@ YtApplicationHosts.prototype._dispatchError = function(req, rsp, err)
     return utils.dispatchAs(rsp, error.toJson(), "application/json");
 };
 
-YtApplicationHosts.prototype._dispatchBasic = function(req, rsp)
+YtApplicationHosts.prototype._dispatchBasic = function(req, rsp, suffix)
 {
     "use strict";
 
     var hosts = this.coordinator
     .getProxies("data", false, false)
     .sort(function(lhs, rhs) { return lhs.fitness - rhs.fitness; })
-    .map(function(entry) { return entry.host; });
-
-    if (this._isViaFastbone(req)) {
-        for (var i = 0; i < hosts.length; ++i) {
-            hosts[i] = addHostNameSuffix(hosts[i], "-fb");
-        }
-    }
-
-    if (this._isViaBackbone(req)) {
-        for (var i = 0; i < hosts.length; ++i) {
-            hosts[i] = addHostNameSuffix(hosts[i], "-bb");
-        }
-    }
+    .map(function(entry) { return addHostNameSuffix(entry.host, suffix); });
 
     var mime, body;
     mime = utils.bestAcceptedType(
@@ -100,7 +81,7 @@ YtApplicationHosts.prototype._dispatchBasic = function(req, rsp)
             break;
     }
 
-    this.coordinator.dampen();
+    this.coordinator.allocateDataProxy();
 
     return utils.dispatchAs(rsp, body, mime);
 };
@@ -111,20 +92,6 @@ YtApplicationHosts.prototype._dispatchExtended = function(req, rsp)
 
     var data = this.coordinator.getProxies();
     return utils.dispatchJson(rsp, data);
-};
-
-YtApplicationHosts.prototype._isViaFastbone = function(req)
-{
-    "use strict";
-    var host = req.headers["host"];
-    return typeof(host) === "string" && checkHostNameSuffix(host, "-fb");
-};
-
-YtApplicationHosts.prototype._isViaBackbone = function(req)
-{
-    "use strict";
-    var host = req.headers["host"];
-    return typeof(host) === "string" && checkHostNameSuffix(host, "-bb");
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -236,7 +236,7 @@ YtCoordinator.prototype._refresh = function()
         self.__DBG("Updating coordination information");
         sync = self.driver.executeSimple("set", { path: path + "/@liveness" }, {
             updated_at: (new Date()).toISOString(),
-            load_average: os.loadavg()[2]
+            load_average: os.loadavg()[0]
         });
     }
 
@@ -292,24 +292,6 @@ YtCoordinator.prototype._refresh = function()
     .done();
 };
 
-YtCoordinator.prototype.getControlProxy = function()
-{
-    "use strict";
-    return this
-    .getProxies("control", false, false)
-    .sort(function(lhs, rhs) { return lhs.fitness - rhs.fitness; })
-    [0];
-};
-
-YtCoordinator.prototype.getDataProxy = function()
-{
-    "use strict";
-    return this
-    .getProxies("data", false, false)
-    .sort(function(lhs, rhs) { return lhs.fitness - rhs.fitness; })
-    [0];
-};
-
 YtCoordinator.prototype.getProxies = function(role, dead, banned)
 {
     "use strict";
@@ -337,7 +319,7 @@ YtCoordinator.prototype.getSelf = function()
     return this.host;
 };
 
-YtCoordinator.prototype.dampen = function()
+YtCoordinator.prototype.allocateDataProxy = function()
 {
     "use strict";
 
@@ -348,6 +330,8 @@ YtCoordinator.prototype.dampen = function()
     if (typeof(victim) !== "undefined") {
         victim.dampening += 1;
     }
+
+    return victim;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

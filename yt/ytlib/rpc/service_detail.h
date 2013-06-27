@@ -365,20 +365,26 @@ protected:
 
         TMethodDescriptor Descriptor;
 
-        //! Path prefix for all profiling information regarding this method.
-        NYPath::TYPath ProfilingPath;
-        
-        //! Path prefix for /time.
-        NYPath::TYPath ProfilingTimePath;
-
-        //! The total remote wait time counter.
-        NProfiling::TAggregateCounter RemoteWaitCounter;
-
         //! Counts the number of method calls.
         NProfiling::TAggregateCounter RequestCounter;
 
         //! The number of currently queued requests.
         NProfiling::TAggregateCounter QueueSizeCounter;
+
+        //! Time spent while handling the request synchronously.
+        NProfiling::TAggregateCounter SyncTimeCounter;
+
+        //! Time spent while handling the request asynchronously.
+        NProfiling::TAggregateCounter AsyncTimeCounter;
+
+        //! Time spent at the caller's side before the request arrived into the server queue.
+        NProfiling::TAggregateCounter RemoteWaitTimeCounter;
+
+        //! Time spent while the request was waiting in the server queue.
+        NProfiling::TAggregateCounter LocalWaitTimeCounter;
+
+        //! Time between the request arrival and the moment when it is fully processed.
+        NProfiling::TAggregateCounter TotalTimeCounter;
     };
 
     typedef TIntrusivePtr<TRuntimeMethodInfo> TRuntimeMethodInfoPtr;
@@ -390,8 +396,7 @@ protected:
         TActiveRequest(
             const TRequestId& id,
             NBus::IBusPtr replyBus,
-            TRuntimeMethodInfoPtr runtimeInfo,
-            const NProfiling::TTimer& timer);
+            TRuntimeMethodInfoPtr runtimeInfo);
 
         //! Request id.
         TRequestId Id;
@@ -411,8 +416,16 @@ protected:
         //! True if #OnEndRequest is already called.
         bool Completed;
 
-        //! Measures various execution statistics.
-        NProfiling::TTimer Timer;
+        //! The moment when the request arrived to the server.
+        NProfiling::TCpuInstant ArrivalTime;
+
+        //! The moment when the request was dequeued and its synchronous
+        //! execution started.
+        NProfiling::TCpuInstant SyncStartTime;
+
+        //! The moment when the synchronous part of the execution finished.
+        NProfiling::TCpuInstant SyncStopTime;
+
     };
 
     typedef TIntrusivePtr<TActiveRequest> TActiveRequestPtr;

@@ -1649,6 +1649,7 @@ private:
 
         BuildYsonFluently(consumer)
             .BeginMap()
+                .Item("connected").Value(MasterConnector->IsConnected())
                 .Item("cell").BeginMap()
                     .Item("resource_limits").Value(TotalResourceLimits)
                     .Item("resource_usage").Value(TotalResourceUsage)

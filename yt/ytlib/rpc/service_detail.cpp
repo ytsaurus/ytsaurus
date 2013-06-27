@@ -44,24 +44,27 @@ TServiceBase::TRuntimeMethodInfo::TRuntimeMethodInfo(
     const TMethodDescriptor& descriptor,
     const TYPath& profilingPath)
     : Descriptor(descriptor)
-    , ProfilingPath(profilingPath)
-    , ProfilingTimePath(ProfilingPath + "/time")
-    , RemoteWaitCounter(ProfilingTimePath + "/remote_wait")
     , RequestCounter(profilingPath + "/request_count")
     , QueueSizeCounter(profilingPath + "/queue_size")
+    , SyncTimeCounter(profilingPath + "/time/sync")
+    , AsyncTimeCounter(profilingPath + "/time/async")
+    , RemoteWaitTimeCounter(profilingPath + "/time/remote_wait")
+    , LocalWaitTimeCounter(profilingPath + "/time/local_wait")
+    , TotalTimeCounter(profilingPath + "/time/total")
 { }
 
 TServiceBase::TActiveRequest::TActiveRequest(
     const TRequestId& id,
     IBusPtr replyBus,
-    TRuntimeMethodInfoPtr runtimeInfo,
-    const TTimer& timer)
+    TRuntimeMethodInfoPtr runtimeInfo)
     : Id(id)
     , ReplyBus(std::move(replyBus))
-    , RuntimeInfo(runtimeInfo)
+    , RuntimeInfo(std::move(runtimeInfo))
     , RunningSync(false)
     , Completed(false)
-    , Timer(timer)
+    , ArrivalTime(GetCpuInstant())
+    , SyncStartTime(-1)
+    , SyncStopTime(-1)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -263,16 +266,13 @@ void TServiceBase::OnRequest(
         requestStart = std::min(requestStart, retryStart);
 
         // TODO(babenko): make some use of retryStart
-        Profiler.Aggregate(runtimeInfo->RemoteWaitCounter, (now - requestStart).MicroSeconds());
+        Profiler.Aggregate(runtimeInfo->RemoteWaitTimeCounter, (now - requestStart).MicroSeconds());
     }
-
-    auto timer = Profiler.TimingStart(runtimeInfo->ProfilingTimePath);
 
     auto activeRequest = New<TActiveRequest>(
         requestId,
         replyBus,
-        runtimeInfo,
-        timer);
+        runtimeInfo);
 
     auto context = New<TServiceContext>(
         this,
@@ -319,15 +319,18 @@ void TServiceBase::OnInvocationPrepared(
 {
     if (handler.IsNull())
         return;
+
     auto preparedHandler = PrepareHandler(context, std::move(handler));
     auto wrappedHandler = BIND([=] () {
-        auto& timer = activeRequest->Timer;
-        auto& runtimeInfo = activeRequest->RuntimeInfo;
+        const auto& runtimeInfo = activeRequest->RuntimeInfo;
+
+        // No need for a lock here.
+        activeRequest->RunningSync = true;
+        activeRequest->SyncStartTime = GetCpuInstant();
 
         {
-            // No need for a lock here.
-            activeRequest->RunningSync = true;
-            Profiler.TimingCheckpoint(timer, "local_wait");
+            auto value = CpuDurationToValue(activeRequest->SyncStartTime - activeRequest->ArrivalTime);
+            Profiler.Aggregate(runtimeInfo->LocalWaitTimeCounter, value);
         }
 
         preparedHandler.Run();
@@ -339,11 +342,14 @@ void TServiceBase::OnInvocationPrepared(
             activeRequest->RunningSync = false;
 
             if (!activeRequest->Completed) {
-                Profiler.TimingCheckpoint(timer, "sync");
+                activeRequest->SyncStopTime = GetCpuInstant();
+                auto value = CpuDurationToValue(activeRequest->SyncStopTime - activeRequest->SyncStartTime);
+                Profiler.Aggregate(runtimeInfo->SyncTimeCounter, value);
             }
 
             if (runtimeInfo->Descriptor.OneWay) {
-                Profiler.TimingStop(timer);
+                auto value = CpuDurationToValue(activeRequest->SyncStopTime - activeRequest->ArrivalTime);
+                Profiler.Aggregate(runtimeInfo->TotalTimeCounter, value);
             }
         }
     });
@@ -372,6 +378,8 @@ TClosure TServiceBase::PrepareHandler(
 
 void TServiceBase::OnResponse(TActiveRequestPtr activeRequest, IMessagePtr message)
 {
+    const auto& runtimeInfo = activeRequest->RuntimeInfo;
+    
     bool active;
     {
         TGuard<TSpinLock> guard(SpinLock);
@@ -390,13 +398,23 @@ void TServiceBase::OnResponse(TActiveRequestPtr activeRequest, IMessagePtr messa
             activeRequest->ReplyBus->Send(std::move(message));
         }
 
-        auto& timer = activeRequest->Timer;
+        auto now = GetCpuInstant();
 
         if (activeRequest->RunningSync) {
-            Profiler.TimingCheckpoint(timer, "sync");
+            activeRequest->SyncStopTime = now;
+            auto value = CpuDurationToValue(activeRequest->SyncStopTime - activeRequest->SyncStartTime);
+            Profiler.Aggregate(runtimeInfo->SyncTimeCounter, value);
         }
-        Profiler.TimingCheckpoint(timer, "async");
-        Profiler.TimingStop(timer);
+
+        {
+            auto value = CpuDurationToValue(now - activeRequest->SyncStopTime);
+            Profiler.Aggregate(runtimeInfo->AsyncTimeCounter, value);
+        }
+
+        {
+            auto value = CpuDurationToValue(now - activeRequest->ArrivalTime);
+            Profiler.Aggregate(runtimeInfo->TotalTimeCounter, value);
+        }
     }
 }
 

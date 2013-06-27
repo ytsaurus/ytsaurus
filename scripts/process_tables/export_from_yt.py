@@ -57,11 +57,13 @@ def main():
         global server
         mr_table = None
         server = args.server
-        if isinstance(obj, tuple):
-            assert len(obj) == 2 or len(obj) == 3
-            yt_table, mr_table = obj[:2]
-            if len(obj) == 3:
-                server = obj[2]
+        if isinstance(obj, dict):
+            yt_table = obj["src"]
+            mr_table = obj["dst"]
+            args.server = obj.get("mr_server", args.server)
+            args.proxy = obj.get("mr_proxies", args.proxy)
+            args.server_port = obj.get("server_port", args.server_port)
+            args.http = obj.get("http_port", args.http_port)
         else:
             yt_table = obj
             mr_table = obj.strip("/")

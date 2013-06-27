@@ -12,6 +12,7 @@ from yt.wrapper.table import check_prefix
 from yt.wrapper.common import flatten, unlist, first_not_none, bool_to_string, get_value
 from yt.wrapper.version import VERSION
 import yt.wrapper.config as config
+import yt.yson as yson
 import yt.wrapper as yt
 
 import os
@@ -351,7 +352,7 @@ Examples:
         die("Version: YT wrapper " + VERSION, 0)
 
     if args.chunksize is not None:
-        config.WRITE_BUFFER_SIZE = args.chunksize
+        config.CHUNK_SIZE = args.chunksize
     if args.server is not None:
         config.set_proxy(args.server)
     if args.prefix is not None:
@@ -542,7 +543,7 @@ Examples:
     if args.set is not None:
         if args.value is None:
             die("Value option is necessary for set command")
-        yt.set(args.set, json.loads(args.value))
+        yt.set(args.set, yson.convert_to_yson_tree(json.loads(args.value)))
 
     if args.starttx:
         print yt.start_transaction()

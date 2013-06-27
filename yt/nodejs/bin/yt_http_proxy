@@ -12,6 +12,9 @@ var winstond = require("winstond");
 
 var Q = require("q");
 
+var profiler = require("profiler");
+var heapdump = require("heapdump");
+
 // Program arguments.
 var opts = optimist
     .usage("Provide HTTP API for YT.\nUsage: $0")
@@ -313,7 +316,11 @@ function runProxy(logger) {
         }
     });
 
-    process.on("SIGUSR1", master.debug.bind(master));
+    process.on("SIGUSR1", function() {
+        "use strict";
+        console.error("Writing a heap snapshot (" + process.pid + ")");
+        heapdump.writeSnapshot();
+    });
     process.on("SIGUSR2", master.restartWorkers.bind(master));
 
     // process.on("SIGTERM", master.shutdownWorkers.bind(master));

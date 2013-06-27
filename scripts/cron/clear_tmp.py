@@ -22,6 +22,9 @@ def main():
         if (now - datetime.strptime(time_str, pattern)).days > 7:
             logger.info("Removing %s", obj)
             yt.remove(obj)
+    for obj in yt.search("//tmp", node_type=["link_node"], attributes=["broken"]):
+        if obj.attributes["broken"] == "true":
+            yt.remove(obj)
 
 if __name__ == "__main__":
     main()

@@ -1251,11 +1251,15 @@ IYPathService::TResolveResult TLinkNodeProxy::Resolve(
     switch (tokenizer.Advance()) {
         case NYPath::ETokenType::Ampersand:
             return TBase::Resolve(tokenizer.GetSuffix(), context);
-        case NYPath::ETokenType::EndOfStream:
-            // NB: Always handle Remove locally.
-            return context->GetVerb() == "Remove"
+
+        case NYPath::ETokenType::EndOfStream: {
+            // NB: Always handle Remove and Create locally.
+            const auto& verb = context->GetVerb();
+            return (verb == "Remove" || verb == "Create")
                    ? TResolveResult::Here(path)
                    : TResolveResult::There(GetTargetService(), path);
+        }
+
         default:
             return TResolveResult::There(GetTargetService(), path);
     }
@@ -1265,14 +1269,24 @@ void TLinkNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attribute
 {
     TBase::ListSystemAttributes(attributes);
     attributes->push_back("target_id");
+    attributes->push_back("broken");
 }
 
 bool TLinkNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer)
 {
+    const auto* impl = GetThisTypedImpl();
+    
     if (key == "target_id") {
-        const auto* impl = GetThisTypedImpl();
         BuildYsonFluently(consumer)
             .Value(impl->GetTargetId());
+        return true;
+    }
+
+    if (key == "broken") {
+        auto objectManager = Bootstrap->GetObjectManager();
+        bool exists = IsObjectAlive(objectManager->FindObject(impl->GetTargetId()));
+        BuildYsonFluently(consumer)
+            .Value(!exists);
         return true;
     }
 
@@ -1299,7 +1313,7 @@ IYPathServicePtr TLinkNodeProxy::GetTargetService() const
     const auto& targetId = impl->GetTargetId();
     auto* target = objectManager->FindObject(targetId);
     if (!IsObjectAlive(target)) {
-        THROW_ERROR_EXCEPTION("Link target does not exist: %s", ~ToString(targetId));
+        THROW_ERROR_EXCEPTION("Link target %s does not exist", ~ToString(targetId));
     }
     return objectManager->GetProxy(target, Transaction);
 }

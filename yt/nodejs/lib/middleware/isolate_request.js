@@ -35,6 +35,7 @@ exports.that = function Middleware__YtIsolateRequest()
                 error: body
             });
 
+            rsp.statusCode = 500;
             utils.dispatchAs(rsp, body, "application/json");
             rd.dispose();
         });
