@@ -825,7 +825,6 @@ public:
                 const auto& id = pair.first;
                 auto pool = pair.second;
                 auto config = pool->GetConfig();
-                const auto& attributes = pool->Attributes();
                 fluent
                     .Item(id).BeginMap()
                         .Item("mode").Value(config->Mode)
