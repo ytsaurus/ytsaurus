@@ -326,6 +326,11 @@ protected:
 
     // Custom bits of preparation pipeline.
 
+    virtual bool IsCompleted() const override
+    {
+        return MergeTasks.size() == JobCounter.GetCompleted();
+    }
+
     virtual void DoInitialize() override
     {
         TOperationControllerBase::DoInitialize();

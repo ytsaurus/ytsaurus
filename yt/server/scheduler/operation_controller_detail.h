@@ -624,6 +624,8 @@ protected:
     void OnOperationFailed(const TError& error);
     virtual void DoOperationFailed(const TError& error);
 
+    virtual bool IsCompleted() const = 0;
+
 
     // Unsorted helpers.
 

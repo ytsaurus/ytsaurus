@@ -841,7 +841,7 @@ void TOperationControllerBase::OnJobCompleted(TJobPtr job)
 
     OnTaskUpdated(joblet->Task);
 
-    if (JobCounter.GetRunning() == 0 && GetPendingJobCount() == 0) {
+    if (IsCompleted()) {
         OnOperationCompleted();
     }
 }

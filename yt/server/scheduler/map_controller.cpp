@@ -235,12 +235,15 @@ private:
         StartRowIndex += joblet->InputStripeList->TotalRowCount;
     }
 
-
     virtual bool IsOutputLivePreviewSupported() const override
     {
         return true;
     }
 
+    virtual bool IsCompleted() const override
+    {
+        return MapTask->IsCompleted();
+    }
 
     // Progress reporting.
 
