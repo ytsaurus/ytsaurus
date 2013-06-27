@@ -1316,7 +1316,10 @@ void TOperationControllerBase::OnJobCompleted(TJobPtr job)
 
     OnTaskUpdated(joblet->Task);
 
-    if (JobCounter.GetRunning() == 0 && GetPendingJobCount() == 0) {
+    if (JobCounter.GetRunning() == 0 &&
+        GetPendingJobCount() == 0 &&
+        UnavailableInputChunkCount == 0)
+    {
         OnOperationCompleted();
     }
 }
