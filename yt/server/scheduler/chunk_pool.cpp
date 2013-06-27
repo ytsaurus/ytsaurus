@@ -285,6 +285,7 @@ public:
     void Persist(TPersistenceContext& context)
     {
         using NYT::Persist;
+        Persist(context, ExtractedCookie_);
         Persist(context, Stripe);
         Persist(context, Suspended);
         Persist(context, Statistics);
