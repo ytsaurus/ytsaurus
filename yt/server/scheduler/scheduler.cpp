@@ -1371,12 +1371,12 @@ private:
             job->SetState(EJobState::Completed);
             job->Result().Swap(result);
 
-            OnJobFinished(job);
-
             auto operation = job->GetOperation();
             if (operation->GetState() == EOperationState::Running) {
                 operation->GetController()->OnJobCompleted(job);
             }
+
+            OnJobFinished(job);
         }
 
         UnregisterJob(job);
@@ -1390,12 +1390,12 @@ private:
             job->SetState(EJobState::Failed);
             job->Result().Swap(result);
 
-            OnJobFinished(job);
-
             auto operation = job->GetOperation();
             if (operation->GetState() == EOperationState::Running) {
                 operation->GetController()->OnJobFailed(job);
             }
+
+            OnJobFinished(job);
         }
 
         UnregisterJob(job);
@@ -1413,12 +1413,12 @@ private:
             job->SetState(EJobState::Aborted);
             job->Result().Swap(result);
 
-            OnJobFinished(job);
-
             auto operation = job->GetOperation();
             if (operation->GetState() == EOperationState::Running) {
                 operation->GetController()->OnJobAborted(job);
             }
+
+            OnJobFinished(job);
         }
 
         UnregisterJob(job);
