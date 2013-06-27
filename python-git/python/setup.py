@@ -34,9 +34,10 @@ def main():
         data_files.append(("/usr/bin", ["yt/wrapper/mapreduce-yt"]))
         data_files.append(("/usr/bin", ["yt/wrapper/yt2"]))
 
+    version = subprocess.check_output("dpkg-parsechangelog | grep Version | awk '{print $2}'", shell=True)
     setup(
         name = "Yt",
-        version = "0.1",
+        version = version,
         packages = find_packages(exclude=["*.tests", "*.tests.*", "tests.*", "tests", "yt.environment"]),
         scripts = scripts,
 

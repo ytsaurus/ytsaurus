@@ -57,7 +57,9 @@ def get_host_for_heavy_operation():
     return config.http.PROXY
 
 def make_request(command_name, params,
-                 data=None, proxy=None, return_raw_response=False, verbose=False):
+                 data=None, proxy=None,
+                 return_raw_response=False, verbose=False,
+                 retry_unavailable_proxy=True):
     """
     Makes request to yt proxy. Command name is the name of command in YT API.
     Option return_raw_response forces returning response of requests library
@@ -154,8 +156,9 @@ def make_request(command_name, params,
                 data=data,
                 stream=stream)),
         allow_retries,
-        url,
-        return_raw_response)
+        retry_unavailable_proxy=retry_unavailable_proxy,
+        description=url,
+        return_raw_response=return_raw_response)
 
     # Hide token for security reasons
     if "Authorization" in headers:
