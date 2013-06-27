@@ -18,11 +18,13 @@ TYamredDsvWriter::TYamredDsvWriter(TOutputStream* stream, TYamredDsvFormatConfig
     , ExpectTableIndex(false)
     , Table(config)
 {
-    FOREACH (const auto& val, Config->KeyColumnNames) {
-        KeyColumnNames.insert(val);
+    FOREACH (const auto& name, Config->KeyColumnNames) {
+        KeyColumnNames.insert(name);
+        KeyFields[name] = TStringBuf();
     }
-    FOREACH (const auto& val, Config->SubkeyColumnNames) {
-        SubkeyColumnNames.insert(val);
+    FOREACH (const auto& name, Config->SubkeyColumnNames) {
+        SubkeyColumnNames.insert(name);
+        SubkeyFields[name] = TStringBuf();
     }
 }
 
@@ -77,7 +79,15 @@ void TYamredDsvWriter::OnBeginMap()
     IsValueEmpty = true;
 
     KeyCount = 0;
+    FOREACH (auto& elem, KeyFields) {
+        elem.second = TStringBuf();
+    }
+
     SubkeyCount = 0;
+    FOREACH (auto& elem, SubkeyFields) {
+        elem.second = TStringBuf();
+    }
+
     ValueBuffer.Clear();
 }
 
