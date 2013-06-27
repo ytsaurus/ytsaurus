@@ -368,7 +368,7 @@ protected:
 
     virtual bool IsCompleted() const override
     {
-        return MergeTasks.size() == JobCounter.GetCompleted();
+        return Tasks.size() == JobCounter.GetCompleted();
     }
 
     virtual void DoInitialize() override
