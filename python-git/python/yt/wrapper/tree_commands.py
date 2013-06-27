@@ -10,7 +10,7 @@ import os
 import string
 import random
 from copy import deepcopy
-import simplejson as json
+import yt.yson as yson
 
 def get(path, attributes=None, format=None, spec=None):
     """
@@ -37,9 +37,9 @@ def set(path, value):
         "set",
         {
             "path": prepare_path(path),
-            "input_format": "json"
+            "input_format": "yson"
         },
-        data=json.dumps(value))
+        data=yson.dumps(value))
 
 def copy(source_path, destination_path):
     _make_transactional_request(

@@ -28,7 +28,9 @@ class Format(object):
         return dumps(self.format)
 
     def __eq__(self, other):
-        return self.format == other.format
+        if hasattr(other, "format"):
+            return self.format == other.format
+        return False
 
     def __ne__(self, other):
         return not self.__eq__(other)

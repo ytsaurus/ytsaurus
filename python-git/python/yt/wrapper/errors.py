@@ -22,7 +22,7 @@ class YtNetworkError(YtError):
     """
     pass
 
-class YtProxyUnderHeavyLoad(YtError):
+class YtProxyUnavailable(YtError):
     """
     Represents an error occured when proxy response that it is under heavy load.
     """
