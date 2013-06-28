@@ -58,7 +58,7 @@ private:
         const TStringBuf& wholeField)
     {
         // Feel the power of arcadia util.
-        // How elegent it cuts string using the sharp axe!
+        // How elegant it cuts string using the sharp axe!
         Stroka delimiter(Config->YamrKeysSeparator);
         Stroka wholeFieldStroka(wholeField.begin(), wholeField.end());
         VectorStrok fields = splitStroku(
