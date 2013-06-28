@@ -103,7 +103,8 @@ public:
         return ResultPromise_;
     }
 
-    void OnBlocksRead(const TPartIndexList& indicesInPart, IAsyncReader::TReadResult readResult) {
+    void OnBlocksRead(const TPartIndexList& indicesInPart, IAsyncReader::TReadResult readResult)
+    {
         if (readResult.IsOK()) {
             auto dataRefs = readResult.GetValue();
             for (int i = 0; i < dataRefs.size(); ++i) {
@@ -115,11 +116,12 @@ public:
         }
     }
 
-    void OnComplete() {
+    void OnComplete()
+    {
         if (ReadErrors_.empty()) {
             ResultPromise_.Set(Result_);
         } else {
-            auto error = TError("Failed read erasure chunk");
+            auto error = TError("Error reading erasure chunk");
             error.InnerErrors() = ReadErrors_;
             ResultPromise_.Set(error);
         }
@@ -188,33 +190,31 @@ private:
     std::vector<IAsyncReaderPtr> Readers_;
     std::vector<TPartInfo> PartInfos_;
 
-    TAsyncError PreparePartInfos();
-};
+    TAsyncError PreparePartInfos()
+    {
+        if (!PartInfos_.empty()) {
+            return MakePromise(TError());
+        }
 
-TAsyncError TNonReparingReader::PreparePartInfos()
-{
-    if (!PartInfos_.empty()) {
-        return MakePromise(TError());
+        auto this_ = MakeStrong(this);
+        return AsyncGetPlacementMeta(this).Apply(
+            BIND([this, this_] (IAsyncReader::TGetMetaResult metaOrError) -> TError {
+                RETURN_IF_ERROR(metaOrError);
+
+                auto extension = GetProtoExtension<TErasurePlacementExt>(metaOrError.GetValue().extensions());
+                PartInfos_ = std::vector<TPartInfo>(extension.part_infos().begin(), extension.part_infos().end());
+
+                // Check that part infos are correct.
+                YCHECK(PartInfos_.front().start() == 0);
+                for (int i = 0; i + 1 < PartInfos_.size(); ++i) {
+                    YCHECK(PartInfos_[i].start() + PartInfos_[i].block_sizes().size() == PartInfos_[i + 1].start());
+                }
+
+                return TError();
+            })
+        );
     }
-
-    auto this_ = MakeStrong(this);
-    return AsyncGetPlacementMeta(this).Apply(
-        BIND([this, this_] (IAsyncReader::TGetMetaResult metaOrError) -> TError {
-            RETURN_IF_ERROR(metaOrError);
-
-            auto extension = GetProtoExtension<TErasurePlacementExt>(metaOrError.GetValue().extensions());
-            PartInfos_ = std::vector<TPartInfo>(extension.part_infos().begin(), extension.part_infos().end());
-
-            // Check that part infos are correct.
-            YCHECK(PartInfos_.front().start() == 0);
-            for (int i = 0; i + 1 < PartInfos_.size(); ++i) {
-                YCHECK(PartInfos_[i].start() + PartInfos_[i].block_sizes().size() == PartInfos_[i + 1].start());
-            }
-
-            return TError();
-        })
-    );
-}
+};
 
 ///////////////////////////////////////////////////////////////////////////////
 
