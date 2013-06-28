@@ -62,12 +62,12 @@ private:
     TSmallSet<TStringBuf, 4> SubkeyColumnNames;
 
     // For small data sizes, set and map are faster than hash set and hash map.
-    typedef std::map<TStringBuf, TStringBuf> Dictionary;
+    typedef std::map<TStringBuf, TStringBuf> TDictionary;
 
-    Dictionary KeyFields;
+    TDictionary KeyFields;
     i32 KeyCount;
 
-    Dictionary SubkeyFields;
+    TDictionary SubkeyFields;
     i32 SubkeyCount;
 
     void RememberValue(const TStringBuf& value);
@@ -75,7 +75,7 @@ private:
     void WriteRow();
     void WriteYamrField(
         const std::vector<Stroka>& columnNames,
-        const Dictionary& fieldValues,
+        const TDictionary& fieldValues,
         i32 fieldCount);
 
     void EscapeAndWrite(
