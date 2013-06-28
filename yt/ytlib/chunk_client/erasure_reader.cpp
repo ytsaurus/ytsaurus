@@ -31,12 +31,12 @@ IAsyncReader::TAsyncGetMetaResult AsyncGetPlacementMeta(IAsyncReaderPtr reader)
     return reader->AsyncGetChunkMeta(Null, &tags);
 }
 
-} // anonymous namespace
+} // namespace
 
 ///////////////////////////////////////////////////////////////////////////////
 
 ///////////////////////////////////////////////////////////////////////////////
-// Non-reparing reader
+// Non-repairing reader
 
 class TNonReparingReaderSession
     : public TRefCounted
@@ -156,8 +156,11 @@ class TNonReparingReader
     : public IAsyncReader
 {
 public:
-    explicit TNonReparingReader(const std::vector<IAsyncReaderPtr>& readers)
+    TNonReparingReader(
+        const std::vector<IAsyncReaderPtr>& readers,
+        IInvokerPtr controlInvoker)
         : Readers_(readers)
+        , ControlInvoker_(controlInvoker)
     {
         YCHECK(!Readers_.empty());
     }
@@ -169,7 +172,8 @@ public:
             BIND([this, this_, blockIndexes] (TError error) -> TAsyncReadResult {
                 RETURN_FUTURE_IF_ERROR(error, TReadResult);
                 return New<TNonReparingReaderSession>(Readers_, PartInfos_, blockIndexes)->Run();
-            }));
+            }).AsyncVia(ControlInvoker_)
+        );
     }
 
     virtual TAsyncGetMetaResult AsyncGetChunkMeta(
@@ -188,6 +192,8 @@ public:
 
 private:
     std::vector<IAsyncReaderPtr> Readers_;
+    IInvokerPtr ControlInvoker_;
+
     std::vector<TPartInfo> PartInfos_;
 
     TAsyncError PreparePartInfos()
@@ -211,7 +217,7 @@ private:
                 }
 
                 return TError();
-            })
+            }).AsyncVia(ControlInvoker_)
         );
     }
 };
@@ -238,6 +244,7 @@ public:
             : Reader_(reader)
             , BlockCount_(blockCount)
             , ControlInvoker_(controlInvoker)
+            , WindowSize_(-1)
             , BlockIndex_(0)
             , BlocksDataSize_(0)
             , BuildDataSize_(0)
@@ -246,23 +253,70 @@ public:
 
     TReadFuture Read(i64 windowSize)
     {
-        if (BlockIndex_ < BlockCount_ &&  BlocksDataSize_ < BuildDataSize_ + windowSize) {
-            // Read one more block if necessary.
-            auto blocksToRead = std::vector<int>(1, BlockIndex_);
-            auto this_ = MakeStrong(this);
-            return Reader_->AsyncReadBlocks(blocksToRead).Apply(
-                BIND(&TWindowReader::OnBlockRead, this_, windowSize)
-                    .AsyncVia(ControlInvoker_));
-        } else {
-            // We have enough blocks to build the window.
-            return MakePromise(TReadResult(BuildWindow(windowSize)));
-        }
+        YCHECK(WindowSize_ == -1);
+        YCHECK(Promise_.IsNull());
+
+        WindowSize_ = windowSize;
+        Promise_ = NewPromise<TReadResult>();
+
+        Continue();
+
+        return Promise_;
     }
 
 private:
-    TReadFuture OnBlockRead(i64 windowSize, IAsyncReader::TReadResult readResult)
+    IAsyncReaderPtr Reader_;
+    int BlockCount_;
+    IInvokerPtr ControlInvoker_;
+
+    //! Window size requested in the currently served #Read.
+    i64 WindowSize_;
+
+    //! Current promise to be fulfilled.
+    TReadPromise Promise_;
+
+    //! Blocks already fetched via the underlying reader.
+    std::deque<TSharedRef> Blocks_;
+
+    // Current number of read blocks.
+    int BlockIndex_;
+
+    //! Total blocks data size.
+    i64 BlocksDataSize_;
+
+    //! Total size of data returned from |Read|
+    i64 BuildDataSize_;
+
+    //! Offset of used data in the first block.
+    i64 FirstBlockOffset_;
+
+
+    void Continue()
     {
-        RETURN_FUTURE_IF_ERROR(readResult, TReadResult);
+        if (BlockIndex_ >= BlockCount_ ||  BlocksDataSize_ >= BuildDataSize_ + WindowSize_) {
+            Complete(BuildWindow(WindowSize_));
+            return;
+        }
+
+        auto blockIndexes = std::vector<int>(1, BlockIndex_);
+        Reader_->AsyncReadBlocks(blockIndexes).Subscribe(
+            BIND(&TWindowReader::OnBlockRead, MakeStrong(this))
+                .Via(ControlInvoker_));
+    }
+
+    void Complete(const TReadResult& result)
+    {
+        WindowSize_ = -1;
+        Promise_.Set(result);
+        Promise_.Reset();
+    }
+
+    void OnBlockRead(IAsyncReader::TReadResult readResult)
+    {
+        if (!readResult.IsOK()) {
+            Complete(TError(readResult));
+            return;
+        }
 
         YCHECK(readResult.GetValue().size() == 1);
         auto block = readResult.GetValue().front();
@@ -270,7 +324,8 @@ private:
         BlockIndex_ += 1;
         Blocks_.push_back(block);
         BlocksDataSize_ += block.Size();
-        return Read(windowSize);
+
+        Continue();
     }
 
     TSharedRef BuildWindow(i64 windowSize)
@@ -305,29 +360,13 @@ private:
         return result;
     }
 
-    IAsyncReaderPtr Reader_;
-    int BlockCount_;
-    IInvokerPtr ControlInvoker_;
-
-    std::deque<TSharedRef> Blocks_;
-
-    // Current number of read blocks.
-    int BlockIndex_;
-
-    //! Total blocks data size.
-    i64 BlocksDataSize_;
-
-    //! Total size of data returned from |Read|
-    i64 BuildDataSize_;
-
-    //! Offset of used data in the first block.
-    i64 FirstBlockOffset_;
-
 };
 
 typedef TIntrusivePtr<TWindowReader> TWindowReaderPtr;
 
-//! Does the job reverse to that of TWindowReader.
+///////////////////////////////////////////////////////////////////////////////
+
+//! Does the job opposite to that of TWindowReader.
 //! Consumes windows and returns blocks of the current part that
 //! can be reconstructed.
 class TRepairPartReader
@@ -504,7 +543,8 @@ TRepairReader::TReadFuture TRepairReader::RepairNextBlock()
             RepairedBlocksQueue_.pop_front();
             RepairedBlockCount_ += 1;
             return MakePromise(result);
-        }).AsyncVia(ControlInvoker_));
+        }).AsyncVia(ControlInvoker_)
+    );
 }
 
 TAsyncError TRepairReader::Repair(const std::vector<TSharedRef>& aliveWindows)
@@ -530,7 +570,7 @@ TAsyncError TRepairReader::OnBlocksCollected(TErrorOr<std::vector<TSharedRef>> r
     RETURN_FUTURE_IF_ERROR(result, TError);
 
     return BIND(&TRepairReader::Repair, MakeStrong(this), result.GetValue())
-        .AsyncVia(TDispatcher::Get()->GetErasureInvoker()).Run();
+        .AsyncVia(ControlInvoker_).Run();
 }
 
 TAsyncError TRepairReader::RepairIfNeeded()
@@ -739,7 +779,9 @@ private:
 IAsyncReaderPtr CreateNonReparingErasureReader(
     const std::vector<IAsyncReaderPtr>& dataBlockReaders)
 {
-    return New<TNonReparingReader>(dataBlockReaders);
+    return New<TNonReparingReader>(
+        dataBlockReaders,
+        TDispatcher::Get()->GetErasureInvoker());
 }
 
 TAsyncError RepairErasedBlocks(
