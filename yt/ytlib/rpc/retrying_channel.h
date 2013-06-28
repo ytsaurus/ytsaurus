@@ -35,7 +35,7 @@ public:
  *
  *  If the request is still failing, then EErrorCode::Unavailable is returned.
  *
- *  If number of retry attemps is one then the underlying channel is returned.
+ *  If number of retry attempts is one then the underlying channel is returned.
  */
 IChannelPtr CreateRetryingChannel(
     TRetryingChannelConfigPtr config,
