@@ -39,7 +39,8 @@ public:
     TDriverConfig()
     {
         RegisterParameter("masters", Masters);
-        RegisterParameter("scheduler", Scheduler);
+        RegisterParameter("scheduler", Scheduler)
+            .DefaultNew();
         RegisterParameter("transaction_manager", TransactionManager)
             .DefaultNew();
         RegisterParameter("file_reader", FileReader)
