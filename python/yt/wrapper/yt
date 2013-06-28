@@ -488,6 +488,18 @@ def add_remove_member_parser(add_parser):
     parser.add_argument("group")
     parser.set_defaults(func=remove_member)
 
+def execute(args):
+    data = None
+    if "input_format" in args.params:
+        data = sys.stdin
+    sys.stdout.write(yt.transaction_commands._make_transactional_request(args.command_name, args.params, data=data))
+
+def add_execute_parser(add_parser):
+    parser = add_parser("execute")
+    parser.add_argument("command_name")
+    parser.add_argument("params", action=ParseStructuredArgument)
+    parser.set_defaults(func=execute)
+
 def main():
     base_parser = ArgumentParser(add_help=False)
     base_parser.add_argument("--proxy")
@@ -532,6 +544,7 @@ def main():
     add_add_member_parser(add_parser)
     add_remove_member_parser(add_parser)
     add_check_permission_parser(add_parser)
+    add_execute_parser(add_parser)
     #add_cat_parser(add_parser)
 
     aliases_filename = os.path.join(os.path.expanduser("~"), ".yt/aliases")
