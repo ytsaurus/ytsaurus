@@ -7,6 +7,8 @@
 #include <ytlib/actions/parallel_awaiter.h>
 #include <ytlib/actions/parallel_collector.h>
 
+#include <ytlib/fibers/fiber.h>
+
 #include <ytlib/erasure/codec.h>
 #include <ytlib/erasure/helpers.h>
 
@@ -320,6 +322,7 @@ private:
 
     //! Offset of used data in the first block.
     i64 FirstBlockOffset_;
+
 };
 
 typedef TIntrusivePtr<TWindowReader> TWindowReaderPtr;
@@ -619,7 +622,7 @@ i64 TRepairReader::GetErasedDataSize() const
 ///////////////////////////////////////////////////////////////////////////////
 // Repair reader of one part
 
-// TODO(ignat): we should remove this code or find application for it.
+// TODO(ignat): we should remove this code or find some use for it.
 // Now, it is broken (it don't call RepairReader::Prepare) and has no tests.
 // Repairs blocks of one part.
 class TSinglePartRepairSession
@@ -760,91 +763,73 @@ public:
         }
     }
 
-    TAsyncError Run()
+    TError Run()
     {
-        return Reader_->Prepare().Apply(
-            BIND(&TRepairAllPartsSession::OnReaderPrepared, MakeStrong(this))
-                .AsyncVia(ControlInvoker_));
+        try {
+            // Prepare reader.
+            {
+                auto result = WaitFor(Reader_->Prepare());
+                THROW_ERROR_EXCEPTION_IF_FAILED(result);
+            }
+            
+            // Open writers.
+            FOREACH (auto writer, Writers_) {
+                writer->Open();
+            }
+
+            // Repair all blocks with the help of TRepairReader and push them to the
+            // corresponding writers.
+            while (Reader_->HasNextBlock()) {
+                auto blockOrError = WaitFor(Reader_->RepairNextBlock());
+                THROW_ERROR_EXCEPTION_IF_FAILED(blockOrError);
+
+                const auto& block = blockOrError.GetValue();
+                RepairedDataSize_ += block.Data.Size();
+
+                if (!OnProgress_.IsNull()) {
+                    double progress = static_cast<double>(RepairedDataSize_) / Reader_->GetErasedDataSize();
+                    OnProgress_.Run(progress);
+                }
+
+                auto writer = GetWriterForIndex(block.Index);
+                if (!writer->WriteBlock(block.Data)) {
+                    auto result = WaitFor(writer->GetReadyEvent());
+                    THROW_ERROR_EXCEPTION_IF_FAILED(result);
+                }
+
+            }
+
+            // Fetch chunk meta.
+            TChunkMeta meta;
+            {
+                auto reader = Readers_.front(); // an arbitrary one will do
+                auto metaOrError = WaitFor(reader->AsyncGetChunkMeta());
+                THROW_ERROR_EXCEPTION_IF_FAILED(metaOrError);
+                meta = metaOrError.GetValue();
+            }
+
+            // Close all writers.
+            {
+                auto collector = New<TParallelCollector<void>>();
+                FOREACH (auto writer, Writers_) {
+                    collector->Collect(writer->AsyncClose(meta));
+                }
+                auto result = WaitFor(collector->Complete());
+                THROW_ERROR_EXCEPTION_IF_FAILED(result);
+            }
+
+            return TError();
+        } catch (const std::exception& ex) {
+            return ex;
+        }
     }
 
 private:
-    TAsyncError OnReaderPrepared(TError error)
+    IAsyncWriterPtr GetWriterForIndex(int index)
     {
-        RETURN_FUTURE_IF_ERROR(error, TError);
-
-        FOREACH (auto writer, Writers_) {
-            writer->Open();
-        }
-
-        return RepairNextBlock();
-    }
-
-
-    TAsyncError RepairNextBlock()
-    {
-        if (!Reader_->HasNextBlock()) {
-            return Finalize();
-        }
-
-        return Reader_->RepairNextBlock().Apply(
-            BIND(&TRepairAllPartsSession::OnBlockRepaired, MakeStrong(this))
-                .AsyncVia(ControlInvoker_));
-    }
-
-    TAsyncError OnBlockRepaired(TErrorOr<TRepairReader::TBlock> blockOrError)
-    {
-        RETURN_FUTURE_IF_ERROR(blockOrError, TError);
-
-        const auto& block = blockOrError.GetValue();
-        RepairedDataSize_ += block.Data.Size();
-
-        if (!OnProgress_.IsNull()) {
-            double progress = static_cast<double>(RepairedDataSize_) / Reader_->GetErasedDataSize();
-            OnProgress_.Run(progress);
-        }
-
-        YCHECK(IndexToWriter_.find(block.Index) != IndexToWriter_.end());
-        auto writer = IndexToWriter_[block.Index];
-        bool result = writer->WriteBlock(block.Data);
-        if (result) {
-            return RepairNextBlock();
-        }
-
-        auto this_ = MakeStrong(this);
-        return writer->GetReadyEvent().Apply(
-            BIND([this, this_] (TError error) -> TAsyncError {
-                RETURN_FUTURE_IF_ERROR(error, TError);
-                return RepairNextBlock();
-            }).AsyncVia(ControlInvoker_));
-    }
-
-    TAsyncError Finalize()
-    {
-    	auto reader = Readers_.front();
-    	return reader->AsyncGetChunkMeta().Apply(
-            BIND(&TRepairAllPartsSession::OnGotChunkMeta, MakeStrong(this))
-                .AsyncVia(ControlInvoker_));
-    }
-
-    TAsyncError OnGotChunkMeta(IAsyncReader::TGetMetaResult metaOrError)
-    {
-        RETURN_FUTURE_IF_ERROR(metaOrError, TError);
-        const auto& meta = metaOrError.GetValue();
-
-        auto collector = New<TParallelCollector<void>>();
-        FOREACH (auto writer, Writers_) {
-            collector->Collect(writer->AsyncClose(meta));
-        }
-        return collector->Complete().Apply(
-        	BIND(&TRepairAllPartsSession::OnWritersClosed, MakeStrong(this))
-                .AsyncVia(ControlInvoker_));
-    }
-
-    TError OnWritersClosed(TError error)
-    {
-        RETURN_IF_ERROR(error);
-
-        return TError();
+        auto it = IndexToWriter_.find(index);
+        YCHECK(it != IndexToWriter_.end());
+        return it->second;
     }
 
 
@@ -857,6 +842,7 @@ private:
     i64 RepairedDataSize_;
 
     IInvokerPtr ControlInvoker_;
+
 };
 
 ///////////////////////////////////////////////////////////////////////////////
