@@ -28,7 +28,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         create('table', '//tmp/t2')
         write_str('//tmp/t1', '{a=b}')
         op_id = map('--dont_track',
-            in_='//tmp/t1', out='//tmp/t2', command=r'cat; echo "{v1=\"$V1\"};{v2=\"$V2\"}"', 
+            in_='//tmp/t1', out='//tmp/t2', command=r'cat; echo "{v1=\"$V1\"};{v2=\"$V2\"}"',
             opt=['/spec/mapper/environment={V1="Some data";V2="$(SandboxPath)/mytmp"}'])
 
         get('//sys/operations/%s/@spec' % op_id)
@@ -325,6 +325,29 @@ class TestSchedulerMapCommands(YTEnvSetup):
     @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
     def test_many_output_yamr(self):
         self.run_many_output_tables(True)
+
+    @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
+    def test_output_tables_switch(self):
+        output_tables = ['//tmp/t%d' % i for i in range(3)]
+
+        create('table', '//tmp/t_in')
+        for table_path in output_tables:
+            create('table', table_path)
+
+        write_str('//tmp/t_in', '{a=b}')
+        mapper = "cat  > /dev/null; echo '<table_index=2>#;{v = 0};{v = 1};<table_index=0>#;{v = 2}'"
+
+        create('file', '//tmp/mapper.sh')
+        upload('//tmp/mapper.sh', mapper)
+
+        map(in_='//tmp/t_in',
+            out=output_tables,
+            command='bash mapper.sh',
+            file='//tmp/mapper.sh')
+
+        assert read(output_tables[0]) == [{'v': 2}]
+        assert read(output_tables[1]) == []
+        assert read(output_tables[2]) == [{'v': 0}, {'v': 1}]
 
     @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
     def test_tskv_input_format(self):
