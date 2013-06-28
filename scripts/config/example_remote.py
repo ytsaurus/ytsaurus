@@ -114,7 +114,10 @@ class Scheduler(Server):
         },
         'scheduler' : {   
             'strategy' : 'fair_share',
-            'snapshot_temp_path' : '/yt/disk1/data/temp'
+            'snapshot_temp_path' : '/yt/disk1/data/temp',
+            'enable_snapshot_building' : 'true',
+            'enable_snapshot_loading' : 'true',
+            'snapshot_period' : 15000
         },
         'rpc_port' : 9001,
         'monitoring_port' : 10001, 
