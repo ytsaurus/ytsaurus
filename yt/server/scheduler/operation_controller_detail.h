@@ -119,6 +119,14 @@ protected:
     i64 TotalInputRowCount;
     i64 TotalInputValueCount;
 
+    int TotalIntermeidateChunkCount;
+    int TotalIntermediateDataSize;
+    int TotalIntermediateRowCount;
+
+    int TotalOutputChunkCount;
+    int TotalOutputDataSize;
+    int TotalOutputRowCount;
+
     int UnavailableInputChunkCount;
 
     // Job counters.

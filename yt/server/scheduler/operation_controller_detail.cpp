@@ -871,6 +871,12 @@ TOperationControllerBase::TOperationControllerBase(
     , TotalInputDataSize(0)
     , TotalInputRowCount(0)
     , TotalInputValueCount(0)
+    , TotalIntermeidateChunkCount(0)
+    , TotalIntermediateDataSize(0)
+    , TotalIntermediateRowCount(0)
+    , TotalOutputChunkCount(0)
+    , TotalOutputDataSize(0)
+    , TotalOutputRowCount(0)
     , UnavailableInputChunkCount(0)
     , Spec(spec)
     , CachedPendingJobCount(0)
@@ -2745,6 +2751,9 @@ void TOperationControllerBase::RegisterOutput(
 {
     table.OutputChunkTreeIds.insert(std::make_pair(key, chunkTreeId));
 
+    TotalOutputChunkCount += 1;
+    // TODO(babenko): data size and row count
+
     if (IsOutputLivePreviewSupported()) {
         auto masterConnector = Host->GetMasterConnector();
         masterConnector->AttachToLivePreview(
@@ -2838,6 +2847,9 @@ void TOperationControllerBase::RegisterIntermediate(
         auto chunkId = FromProto<TChunkId>(chunkSlice->GetChunkSpec()->chunk_id());
         YCHECK(ChunkOriginMap.insert(std::make_pair(chunkId, completedJob)).second);
 
+        TotalIntermeidateChunkCount += 1;
+        // TODO(babenko): data size and row count
+
         if (IsIntermediateLivePreviewSupported()) {
             auto masterConnector = Host->GetMasterConnector();
             masterConnector->AttachToLivePreview(
@@ -2899,6 +2911,11 @@ void TOperationControllerBase::BuildProgressYson(IYsonConsumer* consumer)
             .Item("data_size").Value(TotalInputDataSize)
             .Item("row_count").Value(TotalInputRowCount)
             .Item("unavailable_chunk_count").Value(UnavailableInputChunkCount)
+        .EndMap()
+        .Item("intermediate_statistics").BeginMap()
+            .Item("chunk_count").Value(TotalIntermeidateChunkCount)
+            .Item("data_size").Value(TotalIntermediateDataSize)
+            .Item("row_count").Value(TotalIntermediateRowCount)
         .EndMap();
 }
 
@@ -3093,6 +3110,14 @@ void TOperationControllerBase::Persist(TPersistenceContext& context)
     Persist(context, TotalInputDataSize);
     Persist(context, TotalInputRowCount);
     Persist(context, TotalInputValueCount);
+
+    Persist(context, TotalIntermeidateChunkCount);
+    Persist(context, TotalIntermediateDataSize);
+    Persist(context, TotalIntermediateRowCount);
+
+    Persist(context, TotalOutputChunkCount);
+    Persist(context, TotalOutputDataSize);
+    Persist(context, TotalOutputRowCount);
 
     Persist(context, UnavailableInputChunkCount);
 
