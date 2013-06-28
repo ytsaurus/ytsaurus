@@ -452,9 +452,10 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
 
     // Async part.
     auto this_ = MakeStrong(this);
-    auto jobSpecBuilder = BIND([=] (TJobSpec* jobSpec) {
-        this_->BuildJobSpec(joblet, jobSpec);
-        this_->Controller->CustomizeJobSpec(joblet, jobSpec);
+    auto controller = MakeStrong(Controller); // hold the controller
+    auto jobSpecBuilder = BIND([this, this_, joblet, controller] (TJobSpec* jobSpec) {
+        BuildJobSpec(joblet, jobSpec);
+        Controller->CustomizeJobSpec(joblet, jobSpec);
 
         // Adjust sizes if approximation flag is set.
         if (joblet->InputStripeList->IsApproximate) {
