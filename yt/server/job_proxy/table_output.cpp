@@ -15,11 +15,9 @@ using namespace NTableClient;
 
 TTableOutput::TTableOutput(
     std::unique_ptr<IParser> parser,
-    std::unique_ptr<NYson::IYsonConsumer> consumer,
-    ISyncWriterPtr syncWriter)
+    std::unique_ptr<NYson::IYsonConsumer> consumer)
     : Parser(std::move(parser))
     , Consumer(std::move(consumer))
-    , SyncWriter(std::move(syncWriter))
     , IsParserValid(true)
 { }
 
@@ -28,21 +26,20 @@ TTableOutput::~TTableOutput() throw()
 
 void TTableOutput::DoWrite(const void* buf, size_t len)
 {
-	YCHECK(IsParserValid);
-	try {
-    	Parser->Read(TStringBuf(static_cast<const char*>(buf), len));
-	} catch (const std::exception& ex) {
-		IsParserValid = false;
-		throw;
-	}
+    YCHECK(IsParserValid);
+    try {
+        Parser->Read(TStringBuf(static_cast<const char*>(buf), len));
+    } catch (const std::exception& ex) {
+        IsParserValid = false;
+        throw;
+    }
 }
 
 void TTableOutput::DoFinish()
 {
-	if (IsParserValid) {
-    	Parser->Finish();
+    if (IsParserValid) {
+        Parser->Finish();
     }
-    SyncWriter->Close();
 }
 
 ////////////////////////////////////////////////////////////////////

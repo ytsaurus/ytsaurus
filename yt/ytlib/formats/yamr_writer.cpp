@@ -9,60 +9,115 @@ namespace NYT {
 namespace NFormats {
 
 using namespace NYTree;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TYamrWriter::TYamrWriter(TOutputStream* stream, TYamrFormatConfigPtr config)
     : Stream(stream)
-    , Config(config ? config : New<TYamrFormatConfig>())
+    , Config(config)
     , Table(
         Config->FieldSeparator,
         Config->RecordSeparator,
         Config->EnableEscaping, // Enable key escaping
         Config->EnableEscaping, // Enable value escaping
-        Config->EscapingSymbol, 
+        Config->EscapingSymbol,
         Config->EscapeCarriageReturn,
         true)
-    , AllowBeginMap(true)
-    , ExpectTableIndex(false)
     , State(EState::None)
-{ }
+{
+    YCHECK(Config);
+    YCHECK(Stream);
+}
 
 TYamrWriter::~TYamrWriter()
 { }
 
 void TYamrWriter::OnIntegerScalar(i64 value)
 {
-    if (!ExpectTableIndex) {
-        RememberItem(ToString(value), true);
-    } else {
-        WritePod(*Stream, static_cast<i16>(value));
-        ExpectTableIndex = false;
+    if (State == EState::ExpectValue) {
+        THROW_ERROR_EXCEPTION("Integers are not supported by YAMR");
     }
+    YASSERT(State == EState::ExpectAttributeValue);
+
+    switch (ControlAttribute) {
+    case EControlAttributes::TableIndex:
+        if (!Config->EnableTableIndex) {
+            // Silently ignore table switches.
+            break;
+        }
+
+        if (Config->Lenval) {
+            WritePod(*Stream, static_cast<ui32>(-1));
+            WritePod(*Stream, static_cast<ui32>(value));
+        } else {
+            Stream->Write(ToString(value));
+            Stream->Write(Config->RecordSeparator);
+        }
+        break;
+
+    default:
+        YUNREACHABLE();
+    }
+
+    State = EState::ExpectEndAttributes;
 }
 
 void TYamrWriter::OnDoubleScalar(double value)
 {
-    RememberItem(ToString(value), true);
+    YASSERT(State == EState::ExpectValue || State == EState::ExpectAttributeValue);
+    THROW_ERROR_EXCEPTION("Doubles are not supported by YAMR");
 }
 
 void TYamrWriter::OnStringScalar(const TStringBuf& value)
 {
-    RememberItem(value, false);
+    YCHECK(State != EState::ExpectAttributeValue);
+    YASSERT(State == EState::ExpectValue);
+
+    switch (ValueType) {
+        case EValueType::ExpectKey:
+            Key = value;
+            break;
+
+        case EValueType::ExpectSubkey:
+            Subkey = value;
+            break;
+
+        case EValueType::ExpectValue:
+            Value = value;
+            break;
+
+        case EValueType::ExpectUnknown:
+            //Ignore unknows columns.
+            break;
+
+        default:
+            YUNREACHABLE();
+    }
+
+    State = EState::ExpectColumnName;
 }
 
 void TYamrWriter::OnEntity()
 {
-    THROW_ERROR_EXCEPTION("Entities are not supported by YAMR");
+    if (State == EState::ExpectValue) {
+        THROW_ERROR_EXCEPTION("Entities are not supported by YAMR");
+    }
+
+    YASSERT(State == EState::ExpectEntity);
+    State = EState::None;
 }
 
 void TYamrWriter::OnBeginList()
 {
+    YASSERT(State == EState::ExpectValue);
     THROW_ERROR_EXCEPTION("Lists are not supported by YAMR");
 }
 
 void TYamrWriter::OnListItem()
-{ }
+{
+    YASSERT(State == EState::None);
+}
 
 void TYamrWriter::OnEndList()
 {
@@ -71,10 +126,11 @@ void TYamrWriter::OnEndList()
 
 void TYamrWriter::OnBeginMap()
 {
-    if (!AllowBeginMap) {
+    if (State == EState::ExpectValue) {
         THROW_ERROR_EXCEPTION("Embedded maps are not supported by YAMR");
     }
-    AllowBeginMap = false;
+    YASSERT(State == EState::None);
+    State = EState::ExpectColumnName;
 
     Key = Null;
     Subkey = Null;
@@ -83,69 +139,58 @@ void TYamrWriter::OnBeginMap()
 
 void TYamrWriter::OnKeyedItem(const TStringBuf& key)
 {
-    if (key == Config->Key) {
-        State = EState::ExpectingKey;
-    } else if (Config->HasSubkey && key == Config->Subkey) {
-        State = EState::ExpectingSubkey;
-    } else if (key == Config->Value) {
-        State = EState::ExpectingValue;
-    } else if (key == "table_index") {
-        ExpectTableIndex = true;
+    switch (State) {
+    case EState::ExpectColumnName:
+        if (key == Config->Key) {
+            ValueType = EValueType::ExpectKey;
+        } else if (key == Config->Subkey) {
+            ValueType = EValueType::ExpectSubkey;
+        } else if (key == Config->Value) {
+            ValueType = EValueType::ExpectValue;
+        } else {
+            ValueType = EValueType::ExpectUnknown;
+        }
+
+        State = EState::ExpectValue;
+        break;
+
+    case EState::ExpectAttributeName:
+        ControlAttribute = ParseEnum<EControlAttributes>(ToString(key));
+        State = EState::ExpectAttributeValue;
+        break;
+
+    case EState::None:
+    case EState::ExpectValue:
+    case EState::ExpectAttributeValue:
+    case EState::ExpectEntity:
+    case EState::ExpectEndAttributes:
+    default:
+        YUNREACHABLE();
     }
 }
 
 void TYamrWriter::OnEndMap()
 {
-    AllowBeginMap = true;
+    YASSERT(State == EState::ExpectColumnName);
+    State = EState::None;
+
     WriteRow();
 }
 
 void TYamrWriter::OnBeginAttributes()
 {
-    if (!Config->EnableTableIndex) {
+    if (State == EState::ExpectValue) {
         THROW_ERROR_EXCEPTION("Attributes are not supported by YAMR");
     }
+
+    YASSERT(State == EState::None);
+    State = EState::ExpectAttributeName;
 }
 
 void TYamrWriter::OnEndAttributes()
 {
-    if (!Config->EnableTableIndex) {
-        YUNREACHABLE();
-    }
-}
-
-void TYamrWriter::RememberItem(const TStringBuf& item, bool takeOwnership)
-{
-    TNullable<TStringBuf>* value;
-    TBlobOutput* buffer;
-
-    switch (State) {
-        case EState::None:
-            return;
-        case EState::ExpectingKey:
-            value = &Key;
-            buffer = &KeyBuffer;
-            break;
-        case EState::ExpectingSubkey:
-            value = &Subkey;
-            buffer = &SubkeyBuffer;
-            break;
-        case EState::ExpectingValue:
-            value = &Value;
-            buffer = &ValueBuffer;
-            break;
-        default:
-            YUNREACHABLE();
-    }
-    State = EState::None;
-
-    if (takeOwnership) {
-        buffer->Clear();
-        buffer->PutData(item);
-        value->Assign(TStringBuf(buffer->Begin(), buffer->GetSize()));
-    } else {
-        value->Assign(item);
-    }
+    YASSERT(State == EState::ExpectEndAttributes);
+    State = EState::ExpectEntity;
 }
 
 void TYamrWriter::WriteRow()
@@ -182,7 +227,7 @@ void TYamrWriter::WriteRow()
 
 void TYamrWriter::WriteInLenvalMode(const TStringBuf& value)
 {
-    WritePod(*Stream, static_cast<i32>(value.size()));
+    WritePod(*Stream, static_cast<ui32>(value.size()));
     Stream->Write(value);
 }
 

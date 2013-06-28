@@ -26,6 +26,10 @@ DECLARE_ENUM(EErrorCode,
     ((SortOrderViolation)         (301))
 );
 
+DECLARE_ENUM(EControlAttributes,
+    (TableIndex)
+);
+
 extern const int DefaultPartitionTag;
 
 ////////////////////////////////////////////////////////////////////////////////

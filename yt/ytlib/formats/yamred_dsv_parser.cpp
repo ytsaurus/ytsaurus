@@ -14,19 +14,13 @@ using namespace NYson;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYamredDsvConsumer
-    : public IYamrConsumer
+    : public TYamrConsumerBase
 {
 public:
-    TYamredDsvConsumer(
-        IYsonConsumer* consumer,
-        TYamredDsvFormatConfigPtr config)
-            : Consumer(consumer)
-            , Config(config)
-            , DsvParser(
-                CreateParserForDsv(
-                    Consumer,
-                    Config,
-                    /*wrapWithMap*/ false))
+    TYamredDsvConsumer(IYsonConsumer* consumer, TYamredDsvFormatConfigPtr config)
+        : TYamrConsumerBase(consumer)
+        , Config(config)
+        , DsvParser(CreateParserForDsv(consumer, Config, /*wrapWithMap*/ false))
     { }
 
     void ConsumeKey(const TStringBuf& key) override
@@ -49,7 +43,6 @@ public:
     }
 
 private:
-    IYsonConsumer* Consumer;
     TYamredDsvFormatConfigPtr Config;
     std::unique_ptr<IParser> DsvParser;
 
@@ -83,7 +76,7 @@ private:
     }
 
 };
-        
+
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IParser> CreateParserForYamredDsv(

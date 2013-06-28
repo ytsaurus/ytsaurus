@@ -31,7 +31,7 @@ TEST(TYamredDsvWriterTest, Simple)
         writer.OnKeyedItem("key_b");
         writer.OnStringScalar("1");
         writer.OnKeyedItem("column");
-        writer.OnIntegerScalar(2);
+        writer.OnStringScalar("2"   );
         writer.OnKeyedItem("subkey");
         writer.OnStringScalar("3");
         writer.OnKeyedItem("key_a");
@@ -76,7 +76,7 @@ TEST(TYamredDsvWriterTest, TestLiveConditions)
             x[j] = j;
         }
     }
-    
+
     {
         Stroka keyA = "key_a";
         Stroka a = "_a_";
@@ -125,7 +125,7 @@ TEST(TYamredDsvWriterTest, WithoutSubkey)
         writer.OnKeyedItem("key_b");
         writer.OnStringScalar("1");
         writer.OnKeyedItem("column");
-        writer.OnIntegerScalar(2);
+        writer.OnStringScalar("2");
         writer.OnKeyedItem("subkey");
         writer.OnStringScalar("3");
         writer.OnKeyedItem("key_a");
@@ -190,7 +190,7 @@ TEST(TYamredDsvWriterTest, Lenval)
         writer.OnKeyedItem("key_b");
         writer.OnStringScalar("b");
     writer.OnEndMap();
-    
+
     Stroka output = Stroka(
         "\x03\x00\x00\x00" "a b"
         "\x03\x00\x00\x00" "xxx"
@@ -215,18 +215,20 @@ TEST(TYamredDsvWriterTest, TableIndex)
         writer.OnKeyedItem("table_index");
         writer.OnIntegerScalar(0);
     writer.OnEndAttributes();
+    writer.OnEntity();
+
     writer.OnBeginMap();
         writer.OnKeyedItem("key");
         writer.OnStringScalar("x");
         writer.OnKeyedItem("value");
         writer.OnStringScalar("y");
     writer.OnEndMap();
-    
+
     Stroka output = Stroka(
-        "\x00\x00"
+        "\xff\xff\xff\xff" "\x00\x00\x00\x00"
         "\x01\x00\x00\x00" "x"
         "\x07\x00\x00\x00" "value=y"
-        , 2 + 2 * 4 + 1 + 7
+        , 4 + 4 + 2 * 4 + 1 + 7
     );
 
     EXPECT_EQ(output, outputStream.Str());

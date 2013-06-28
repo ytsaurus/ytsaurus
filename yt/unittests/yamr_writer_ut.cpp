@@ -110,28 +110,7 @@ TEST(TYamrWriterTest, NonStringValues)
     writer.OnListItem();
     writer.OnBeginMap();
         writer.OnKeyedItem("subkey");
-        writer.OnDoubleScalar(0.1);
-        writer.OnKeyedItem("key");
-        writer.OnStringScalar("integer");
-        writer.OnKeyedItem("value");
-        writer.OnIntegerScalar(42);
-    writer.OnEndMap();
-
-    writer.OnListItem();
-    writer.OnBeginMap();
-        writer.OnKeyedItem("value");
-        writer.OnDoubleScalar(10);
-        writer.OnKeyedItem("subkey");
-        writer.OnStringScalar("double");
-        writer.OnKeyedItem("key");
-        writer.OnStringScalar("");
-    writer.OnEndMap();
-
-    Stroka output =
-        "integer\t0.1\t42\n"
-        "\tdouble\t10.\n";
-
-    EXPECT_EQ(output, outputStream.Str());
+        EXPECT_THROW(writer.OnDoubleScalar(0.1), std::exception);
 }
 
 TEST(TYamrWriterTest, SkippedKey)
@@ -219,6 +198,8 @@ TEST(TYamrWriterTest, SimpleWithTableIndex)
         writer.OnKeyedItem("table_index");
         writer.OnIntegerScalar(1);
     writer.OnEndAttributes();
+    writer.OnEntity();
+
     writer.OnBeginMap();
         writer.OnKeyedItem("key");
         writer.OnStringScalar("key1");
@@ -226,10 +207,7 @@ TEST(TYamrWriterTest, SimpleWithTableIndex)
         writer.OnStringScalar("value1");
     writer.OnEndMap();
 
-    Stroka output = Stroka(
-        "\x01\x00" "key1" "\t" "value1" "\n"
-        , 2 + 4 + 1 + 6 + 1
-    );
+    Stroka output = Stroka("1\nkey1\tvalue1\n");
 
     EXPECT_EQ(output, outputStream.Str());
 }
@@ -348,6 +326,7 @@ TEST(TYamrWriterTest, LenvalWithTableIndex)
         writer.OnKeyedItem("table_index");
         writer.OnIntegerScalar(0);
     writer.OnEndAttributes();
+    writer.OnEntity();
     writer.OnBeginMap();
         writer.OnKeyedItem("key");
         writer.OnStringScalar("key1");
@@ -356,10 +335,10 @@ TEST(TYamrWriterTest, LenvalWithTableIndex)
     writer.OnEndMap();
 
     Stroka output = Stroka(
-        "\x00\x00"
+        "\xff\xff\xff\xff" "\x00\x00\x00\x00"
         "\x04\x00\x00\x00" "key1"
         "\x06\x00\x00\x00" "value1"
-        , 2 + 2 * 4 + 4 + 6
+        , 4 + 4 + 4 + 4 + 4 + 6
     );
 
     EXPECT_EQ(output, outputStream.Str());

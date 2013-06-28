@@ -14,6 +14,20 @@ struct IYamrConsumer
     virtual void ConsumeKey(const TStringBuf& key) = 0;
     virtual void ConsumeSubkey(const TStringBuf& subkey) = 0;
     virtual void ConsumeValue(const TStringBuf& value) = 0;
+    virtual void SwitchTable(i64 tableIndex) = 0;
+};
+
+class TYamrConsumerBase
+    : public IYamrConsumer
+{
+public:
+    explicit TYamrConsumerBase(NYson::IYsonConsumer* consumer);
+    virtual void SwitchTable(i64 tableIndex) override;
+
+protected:
+
+    NYson::IYsonConsumer* Consumer;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -38,12 +52,19 @@ public:
 private:
     const char* Consume(const char* begin, const char* end);
 
-    // returns pointer to next fragment or NULL if record is not fully present in [begin, end)
-    const char* TryConsumeRecord(const char* begin, const char *end);
-
     void ProcessKey(const TStringBuf& key);
     void ProcessSubkey(const TStringBuf& subkey);
+    void ProcessSubkeyBadFormat(const TStringBuf& subkey);
     void ProcessValue(const TStringBuf& value);
+    void ProcessTableSwitch(const TStringBuf& tableIndex);
+
+    const char* ProcessToken(
+        void (TYamrDelimitedBaseParser::*processor)(const TStringBuf& value),
+        const char* begin,
+        const char* next);
+
+    const char* FindNext(const char* begin, const char* end, const TLookupTable& lookupTable);
+
 
     void ThrowIncorrectFormat() const;
 
@@ -53,7 +74,7 @@ private:
     Stroka GetDebugInfo() const;
 
     IYamrConsumerPtr Consumer;
-    
+
     DECLARE_ENUM(EState,
         (InsideKey)
         (InsideSubkey)
@@ -97,6 +118,7 @@ private:
     Stroka GetDebugInfo() const;
 
     const char* Consume(const char* begin, const char* end);
+    const char* ConsumeInt(const char* begin, const char* end);
     const char* ConsumeLength(const char* begin, const char* end);
     const char* ConsumeData(const char* begin, const char* end);
 
@@ -107,7 +129,7 @@ private:
     Stroka CurrentToken;
 
     union {
-        ui32 Length;
+        ui32 Value;
         char Bytes[4];
     } Union;
 
@@ -115,17 +137,13 @@ private:
     ui32 BytesToRead;
 
     DECLARE_ENUM(EState,
+        (InsideTableSwitch)
         (InsideKey)
         (InsideSubkey)
         (InsideValue)
     );
 
     EState State;
-
-    static const i64 MaxFieldLength = (i64) 16 * 1024 * 1024;
-    
-    static const int ContextSize = 16;
-    char ContextBuffer[ContextSize];
 
 };
 
