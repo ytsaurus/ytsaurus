@@ -174,11 +174,16 @@ void TYamredDsvWriter::WriteRow()
 
 void TYamredDsvWriter::WriteYamrField(
     const std::vector<Stroka>& columnNames,
-    const Dictionary& fieldValues,
+    const TDictionary& fieldValues,
     i32 fieldCount)
 {
     if (fieldCount != columnNames.size()) {
-        THROW_ERROR_EXCEPTION("Missing column in YAMRed DSV: actual %s, expected %d", fieldCount, columnNames.size());
+        FOREACH (const auto& elem, fieldValues) {
+            if (elem.second == TStringBuf()) {
+                THROW_ERROR_EXCEPTION("Missing column %s in YAMRed DSV",
+                    ~Stroka(elem.first).Quote());
+            }
+        }
     }
 
     if (Config->Lenval) {

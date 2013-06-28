@@ -146,7 +146,7 @@ public:
     bool Lenval;
     char YamrKeysSeparator;
 
-    // make sense only in writer
+    // Only make sense for writer.
     bool EnableTableIndex;
 
     std::vector<Stroka> KeyColumnNames;
@@ -167,7 +167,6 @@ public:
             .Default(false);
     }
 };
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
