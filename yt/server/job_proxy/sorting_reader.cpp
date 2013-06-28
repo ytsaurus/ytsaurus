@@ -240,7 +240,7 @@ private:
 
             KeyBuffer.reserve(EstimatedRowCount * KeyColumnCount);
             RowPtrBuffer.reserve(EstimatedRowCount);
-            Buckets.reserve(EstimatedRowCount + EstimatedBucketCount);
+            Buckets.reserve(EstimatedBucketCount);
             SortedIndexes.reserve(EstimatedRowCount);
         }
     }
