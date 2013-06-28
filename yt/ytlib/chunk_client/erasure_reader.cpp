@@ -620,117 +620,6 @@ i64 TRepairReader::GetErasedDataSize() const
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// Repair reader of one part
-
-// TODO(ignat): we should remove this code or find some use for it.
-// Now, it is broken (it don't call RepairReader::Prepare) and has no tests.
-// Repairs blocks of one part.
-class TSinglePartRepairSession
-    : public TRefCounted
-{
-public:
-    TSinglePartRepairSession(
-        NErasure::ICodec* codec,
-        const std::vector<IAsyncReaderPtr>& readers,
-        const TPartIndexList& erasedIndices,
-        int partIndex,
-        const std::vector<int>& blockIndexes)
-        : BlockIndexes_(blockIndexes)
-        , Reader_(New<TRepairReader>(
-            codec,
-            readers,
-            erasedIndices,
-            MakeSingleton(partIndex),
-            TDispatcher::Get()->GetReaderInvoker()))
-    { }
-
-    IAsyncReader::TAsyncReadResult Run()
-    {
-        return ReadBlock(0, 0);
-    }
-
-private:
-    std::vector<int> BlockIndexes_;
-    TRepairReaderPtr Reader_;
-    std::vector<TSharedRef> Result_;
-
-    IAsyncReader::TAsyncReadResult ReadBlock(int pos, int blockIndex)
-    {
-        if (pos == BlockIndexes_.size()) {
-            return MakeFuture(IAsyncReader::TReadResult(Result_));
-        }
-
-        if (!Reader_->HasNextBlock()) {
-            return MakeFuture(IAsyncReader::TReadResult(TError("Block index out of range")));
-        }
-
-        auto this_ = MakeStrong(this);
-        return Reader_->RepairNextBlock().Apply(
-            BIND([this, this_, pos, blockIndex] (TErrorOr<TRepairReader::TBlock> blockOrError) mutable -> IAsyncReader::TAsyncReadResult {
-                RETURN_FUTURE_IF_ERROR(blockOrError, IAsyncReader::TReadResult);
-
-                if (BlockIndexes_[pos] == blockIndex) {
-                    Result_.push_back(blockOrError.GetValue().Data);
-                    pos += 1;
-                }
-
-                return ReadBlock(pos, blockIndex + 1);
-            })
-        );
-    }
-
-};
-
-class TSinglePartRepairReader
-    : public IAsyncReader
-{
-public:
-    TSinglePartRepairReader(
-        NErasure::ICodec* codec,
-        const TPartIndexList& erasedIndices,
-        int partIndex,
-        const std::vector<IAsyncReaderPtr>& readers)
-            : Codec_(codec)
-            , ErasedIndices_(erasedIndices)
-            , PartIndex_(partIndex)
-            , Readers_(readers)
-    { }
-
-    virtual TAsyncReadResult AsyncReadBlocks(const std::vector<int>& blockIndexes) override
-    {
-        auto session = New<TSinglePartRepairSession>(Codec_, Readers_, ErasedIndices_, PartIndex_, blockIndexes);
-        return BIND(&TSinglePartRepairSession::Run, session)
-            .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
-            .Run();
-    }
-
-    virtual TAsyncGetMetaResult AsyncGetChunkMeta(
-        const TNullable<int>& partitionTag,
-        const std::vector<int>* tags) override
-    {
-        // TODO(ignat): check that no storage-layer extensions are being requested
-        YCHECK(!partitionTag);
-        return Readers_.front()->AsyncGetChunkMeta(partitionTag, tags);
-    }
-
-    virtual TChunkId GetChunkId() const override
-    {
-        return Readers_.front()->GetChunkId();
-    }
-
-private:
-    NErasure::ICodec* Codec_;
-
-    TPartIndexList ErasedIndices_;
-    int PartIndex_;
-
-    std::vector<IAsyncReaderPtr> Readers_;
-
-};
-
-///////////////////////////////////////////////////////////////////////////////
-
-///////////////////////////////////////////////////////////////////////////////
 // Repair reader of all parts
 
 class TRepairAllPartsSession
@@ -851,15 +740,6 @@ IAsyncReaderPtr CreateNonReparingErasureReader(
     const std::vector<IAsyncReaderPtr>& dataBlockReaders)
 {
     return New<TNonReparingReader>(dataBlockReaders);
-}
-
-IAsyncReaderPtr CreateReparingErasureReader(
-    NErasure::ICodec* codec,
-    const TPartIndexList& erasedIndices,
-    int partIndex,
-    const std::vector<IAsyncReaderPtr>& readers)
-{
-    return New<TSinglePartRepairReader>(codec, erasedIndices, partIndex, readers);
 }
 
 TAsyncError RepairErasedBlocks(

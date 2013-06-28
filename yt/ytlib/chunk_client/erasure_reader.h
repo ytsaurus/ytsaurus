@@ -16,14 +16,6 @@ namespace NChunkClient {
 IAsyncReaderPtr CreateNonReparingErasureReader(
     const std::vector<IAsyncReaderPtr>& dataBlocksReaders);
 
-IAsyncReaderPtr CreateReparingErasureReader(
-    const NErasure::ICodec* codec,
-    const std::vector<int>& erasedIndices,
-    int chunkIndex,
-    const std::vector<IAsyncReaderPtr>& readers);
-
-///////////////////////////////////////////////////////////////////////////////
-
 TAsyncError RepairErasedBlocks(
     NErasure::ICodec* codec,
     const NErasure::TPartIndexList& erasedIndices,
