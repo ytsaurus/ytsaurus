@@ -151,7 +151,7 @@ test_concurrent_upload_in_operation()
     ./yt map "cat" --src "//home/wrapper_test/table" --dst "//home/wrapper_test/out2" --format dsv --local-file script.sh &
 
     ok=0
-    for i in {1..5}; do
+    for i in {1..10}; do
         check=1
         for out_index in {1..2}; do
             if [ $(./yt exists "//home/wrapper_test/out${out_index}") = "false" ]; then
