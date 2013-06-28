@@ -13,7 +13,6 @@ from argparse import ArgumentParser
 from urllib import quote_plus
 
 yt.config.MEMORY_LIMIT = 2500 * yt.config.MB
-#yt.config.DETACHED = True
 
 def main():
     parser = ArgumentParser()
@@ -133,9 +132,7 @@ def main():
             args.yt_binary = "./mapreduce-yt"
 
         if args.fastbone:
-            yt_server = "proxy-fb.yt.yandex.net"
-        else:
-            yt_server = "proxy.yt.yandex.net"
+            yt.config.HOSTS = "hosts/fb"
 
         subprocess.check_call(
             "{} -server {}:{} "
@@ -152,7 +149,7 @@ def main():
                         args.server_port,
                         speed_limit,
                         os.path.basename(args.yt_binary),
-                        yt_server,
+                        yt.config.http.PROXY,
                         destination,
                         source,
                         os.path.join("tmp", os.path.basename(source)),
