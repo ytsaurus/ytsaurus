@@ -1,7 +1,8 @@
 #pragma once
 
+#include "public.h"
+
 #include <ytlib/rpc/public.h>
-#include <ytlib/misc/nullable.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -10,7 +11,7 @@ namespace NScheduler {
 
 //! Creates a channel pointing to the scheduler of a given cell.
 NRpc::IChannelPtr CreateSchedulerChannel(
-    TNullable<TDuration> defaultTimeout,
+    TSchedulerConnectionConfigPtr config,
     NRpc::IChannelPtr masterChannel);
 
 ////////////////////////////////////////////////////////////////////////////////

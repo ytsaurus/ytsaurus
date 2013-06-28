@@ -1,10 +1,14 @@
 #include "stdafx.h"
 #include "scheduler_channel.h"
+#include "config.h"
 
 #include <ytlib/object_client/object_service_proxy.h>
+
 #include <ytlib/ytree/ypath_proxy.h>
+
 #include <ytlib/bus/config.h>
 #include <ytlib/bus/tcp_client.h>
+
 #include <ytlib/rpc/roaming_channel.h>
 #include <ytlib/rpc/bus_channel.h>
 
@@ -27,9 +31,8 @@ TErrorOr<IChannelPtr> OnSchedulerAddressFound(TYPathProxy::TRspGetPtr rsp)
     }
 
     auto address = ConvertTo<Stroka>(TYsonString(rsp->value()));
-
-    // TODO(babenko): get rid of this hardcoded priority
     auto config = New<TTcpBusClientConfig>(address);
+    // TODO(babenko): get rid of this hardcoded priority
     config->Priority = 6;
     auto client = CreateTcpBusClient(config);
     return CreateBusChannel(client);
@@ -38,18 +41,18 @@ TErrorOr<IChannelPtr> OnSchedulerAddressFound(TYPathProxy::TRspGetPtr rsp)
 } // namespace
 
 IChannelPtr CreateSchedulerChannel(
-    TNullable<TDuration> defaultTimeout,
+    TSchedulerConnectionConfigPtr config,
     IChannelPtr masterChannel)
 {
-    return CreateRoamingChannel(
-        defaultTimeout,
+    auto roamingChannel = CreateRoamingChannel(
+        config->RpcTimeout,
         false,
         BIND([=] () -> TFuture< TErrorOr<IChannelPtr> > {
             TObjectServiceProxy proxy(masterChannel);
             auto req = TYPathProxy::Get("//sys/scheduler/@address");
             return proxy.Execute(req).Apply(BIND(&OnSchedulerAddressFound));
         }));
-
+    return CreateRetryingChannel(config, roamingChannel);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

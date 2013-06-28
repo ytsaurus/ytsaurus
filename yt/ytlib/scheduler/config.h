@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <ytlib/rpc/retrying_channel.h>
+
 #include <ytlib/ypath/rich.h>
 
 #include <ytlib/ytree/yson_serializable.h>
@@ -41,9 +43,10 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TOperationSpecBase
+class TOperationSpecBase
     : public TYsonSerializable
 {
+public:
     //! Account holding intermediate data produces by the operation.
     Stroka IntermediateDataAccount;
 
@@ -87,9 +90,10 @@ struct TOperationSpecBase
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TUserJobSpec
+class TUserJobSpec
     : public TYsonSerializable
 {
+public:
     Stroka Command;
 
     std::vector<NYPath::TRichYPath> FilePaths;
@@ -144,9 +148,10 @@ struct TUserJobSpec
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TMapOperationSpec
+class TMapOperationSpec
     : public TOperationSpecBase
 {
+public:
     TUserJobSpecPtr Mapper;
     std::vector<NYPath::TRichYPath> InputTablePaths;
     std::vector<NYPath::TRichYPath> OutputTablePaths;
@@ -189,9 +194,10 @@ struct TMapOperationSpec
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TMergeOperationSpecBase
+class TMergeOperationSpecBase
     : public TOperationSpecBase
 {
+public:
     //! During sorted merge the scheduler tries to ensure that large connected
     //! groups of chunks are partitioned into tasks of this or smaller size.
     //! This number, however, is merely an estimate, i.e. some tasks may still
@@ -227,9 +233,10 @@ DECLARE_ENUM(EMergeMode,
     (Unordered)
 );
 
-struct TMergeOperationSpec
+class TMergeOperationSpec
     : public TMergeOperationSpecBase
 {
+public:
     std::vector<NYPath::TRichYPath> InputTablePaths;
     NYPath::TRichYPath OutputTablePath;
     EMergeMode Mode;
@@ -266,9 +273,10 @@ struct TMergeOperationSpec
     }
 };
 
-struct TUnorderedMergeOperationSpec
+class TUnorderedMergeOperationSpec
     : public TMergeOperationSpec
 {
+public:
     TUnorderedMergeOperationSpec()
     {
         RegisterInitializer([&] () {
@@ -277,19 +285,20 @@ struct TUnorderedMergeOperationSpec
     }
 };
 
-struct TOrderedMergeOperationSpec
+class TOrderedMergeOperationSpec
     : public TMergeOperationSpec
 { };
 
-struct TSortedMergeOperationSpec
+class TSortedMergeOperationSpec
     : public TMergeOperationSpec
 { };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TEraseOperationSpec
+class TEraseOperationSpec
     : public TMergeOperationSpecBase
 {
+public:
     NYPath::TRichYPath TablePath;
     bool CombineChunks;
 
@@ -310,9 +319,10 @@ struct TEraseOperationSpec
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TReduceOperationSpec
+class TReduceOperationSpec
     : public TMergeOperationSpecBase
 {
+public:
     TUserJobSpecPtr Reducer;
     std::vector<NYPath::TRichYPath> InputTablePaths;
     std::vector<NYPath::TRichYPath> OutputTablePaths;
@@ -344,9 +354,10 @@ struct TReduceOperationSpec
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSortOperationSpecBase
+class TSortOperationSpecBase
     : public TOperationSpecBase
 {
+public:
     std::vector<NYPath::TRichYPath> InputTablePaths;
 
     //! Amount of (uncompressed) data to be distributed to one partition.
@@ -421,9 +432,10 @@ struct TSortOperationSpecBase
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSortOperationSpec
+class TSortOperationSpec
     : public TSortOperationSpecBase
 {
+public:
     NYPath::TRichYPath OutputTablePath;
 
     // Desired number of samples per partition.
@@ -482,9 +494,10 @@ struct TSortOperationSpec
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TMapReduceOperationSpec
+class TMapReduceOperationSpec
     : public TSortOperationSpecBase
 {
+public:
     std::vector<NYPath::TRichYPath> OutputTablePaths;
 
     std::vector<Stroka> ReduceBy;
@@ -613,9 +626,10 @@ public:
 
 ////////////////////////////////////////////////////////////////////
 
-struct TPooledOperationSpec
+class TPooledOperationSpec
     : public TYsonSerializable
 {
+public:
     TNullable<Stroka> Pool;
     double Weight;
 
@@ -650,6 +664,22 @@ struct TPooledOperationSpec
         RegisterParameter("fair_share_preemption_tolerance", FairSharePreemptionTolerance)
             .GreaterThanOrEqual(0.0)
             .Default(Null);
+    }
+};
+
+////////////////////////////////////////////////////////////////////
+
+class TSchedulerConnectionConfig
+    : public NRpc::TRetryingChannelConfig
+{
+public:
+    //! Timeout for RPC requests to schedulers.
+    TDuration RpcTimeout;
+
+    TSchedulerConnectionConfig()
+    {
+        RegisterParameter("rpc_timeout", RpcTimeout)
+            .Default(TDuration::Seconds(60));
     }
 };
 

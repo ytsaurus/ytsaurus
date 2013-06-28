@@ -82,12 +82,9 @@ public:
 };
 
 class TSchedulerConnectorConfig
-    : public TYsonSerializable
+    : public NScheduler::TSchedulerConnectionConfig
 {
 public:
-    //! Timeout for RPC requests to scheduler.
-    TDuration RpcTimeout;
-
     //! Period between consequent heartbeats.
     TDuration HeartbeatPeriod;
 
@@ -96,8 +93,6 @@ public:
 
     TSchedulerConnectorConfig()
     {
-        RegisterParameter("rpc_timeout", RpcTimeout)
-            .Default(TDuration::Seconds(60));
         RegisterParameter("heartbeat_period", HeartbeatPeriod)
             .Default(TDuration::Seconds(5));
         RegisterParameter("heartbeat_splay", HeartbeatSplay)

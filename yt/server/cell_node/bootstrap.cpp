@@ -131,9 +131,7 @@ void TBootstrap::Run()
 
     MasterChannel = CreateLeaderChannel(Config->Masters);
 
-    SchedulerChannel = CreateSchedulerChannel(
-        Config->ExecAgent->SchedulerConnector->RpcTimeout,
-        MasterChannel);
+    SchedulerChannel = CreateSchedulerChannel(Config->ExecAgent->SchedulerConnector, MasterChannel);
 
     ControlQueue = New<TActionQueue>("Control");
 

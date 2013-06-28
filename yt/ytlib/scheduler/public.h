@@ -54,43 +54,43 @@ class TSchedulerServiceProxy;
 class TJobIOConfig;
 typedef TIntrusivePtr<TJobIOConfig> TJobIOConfigPtr;
 
-struct TOperationSpecBase;
+class TOperationSpecBase;
 typedef TIntrusivePtr<TOperationSpecBase> TOperationSpecBasePtr;
 
-struct TUserJobSpec;
+class TUserJobSpec;
 typedef TIntrusivePtr<TUserJobSpec> TUserJobSpecPtr;
 
-struct  TMapOperationSpec;
+class  TMapOperationSpec;
 typedef TIntrusivePtr<TMapOperationSpec> TMapOperationSpecPtr;
 
-struct TMergeOperationSpecBase;
+class TMergeOperationSpecBase;
 typedef TIntrusivePtr<TMergeOperationSpecBase> TMergeOperationSpecBasePtr;
 
-struct TMergeOperationSpec;
+class TMergeOperationSpec;
 typedef TIntrusivePtr<TMergeOperationSpec> TMergeOperationSpecPtr;
 
-struct TUnorderedMergeOperationSpec;
+class TUnorderedMergeOperationSpec;
 typedef TIntrusivePtr<TUnorderedMergeOperationSpec> TUnorderedMergeOperationSpecPtr;
 
-struct TOrderedMergeOperationSpec;
+class TOrderedMergeOperationSpec;
 typedef TIntrusivePtr<TOrderedMergeOperationSpec> TOrderedMergeOperationSpecPtr;
 
-struct TSortedMergeOperationSpec;
+class TSortedMergeOperationSpec;
 typedef TIntrusivePtr<TSortedMergeOperationSpec> TSortedMergeOperationSpecPtr;
 
-struct TEraseOperationSpec;
+class TEraseOperationSpec;
 typedef TIntrusivePtr<TEraseOperationSpec> TEraseOperationSpecPtr;
 
-struct TReduceOperationSpec;
+class TReduceOperationSpec;
 typedef TIntrusivePtr<TReduceOperationSpec> TReduceOperationSpecPtr;
 
-struct TSortOperationSpecBase;
+class TSortOperationSpecBase;
 typedef TIntrusivePtr<TSortOperationSpecBase> TSortOperationSpecBasePtr;
 
-struct TSortOperationSpec;
+class TSortOperationSpec;
 typedef TIntrusivePtr<TSortOperationSpec> TSortOperationSpecPtr;
 
-struct TMapReduceOperationSpec;
+class TMapReduceOperationSpec;
 typedef TIntrusivePtr<TMapReduceOperationSpec> TMapReduceOperationSpecPtr;
 
 class TPoolResourceLimitsConfig;
@@ -99,8 +99,11 @@ typedef TIntrusivePtr<TPoolResourceLimitsConfig> TPoolResourceLimitsConfigPtr;
 class TPoolConfig;
 typedef TIntrusivePtr<TPoolConfig> TPoolConfigPtr;
 
-struct TPooledOperationSpec;
+class TPooledOperationSpec;
 typedef TIntrusivePtr<TPooledOperationSpec> TPooledOperationSpecPtr;
+
+class TSchedulerConnectionConfig;
+typedef TIntrusivePtr<TSchedulerConnectionConfig> TSchedulerConnectionConfigPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -3,11 +3,18 @@
 #include "public.h"
 
 #include <ytlib/ytree/yson_serializable.h>
+
 #include <ytlib/meta_state/config.h>
+
 #include <ytlib/transaction_client/config.h>
+
 #include <ytlib/file_client/config.h>
+
 #include <ytlib/table_client/config.h>
+
 #include <ytlib/rpc/retrying_channel.h>
+
+#include <ytlib/scheduler/config.h>
 
 namespace NYT {
 namespace NDriver {
@@ -19,6 +26,7 @@ class TDriverConfig
 {
 public:
     NMetaState::TMasterDiscoveryConfigPtr Masters;
+    NScheduler::TSchedulerConnectionConfigPtr Scheduler;
     NTransactionClient::TTransactionManagerConfigPtr TransactionManager;
     NFileClient::TFileReaderConfigPtr FileReader;
     NFileClient::TFileWriterConfigPtr FileWriter;
@@ -31,6 +39,7 @@ public:
     TDriverConfig()
     {
         RegisterParameter("masters", Masters);
+        RegisterParameter("scheduler", Scheduler);
         RegisterParameter("transaction_manager", TransactionManager)
             .DefaultNew();
         RegisterParameter("file_reader", FileReader)

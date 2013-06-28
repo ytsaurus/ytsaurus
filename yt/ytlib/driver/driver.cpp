@@ -79,10 +79,7 @@ public:
         LeaderChannel = CreateLeaderChannel(Config->Masters);
         MasterChannel = CreateMasterChannel(Config->Masters);
 
-        // TODO(babenko): for now we use the same timeout both for masters and scheduler
-        SchedulerChannel = CreateSchedulerChannel(
-            Config->Masters->RpcTimeout,
-            LeaderChannel);
+        SchedulerChannel = CreateSchedulerChannel(Config->Scheduler, LeaderChannel);
 
         BlockCache = CreateClientBlockCache(Config->BlockCache);
 
