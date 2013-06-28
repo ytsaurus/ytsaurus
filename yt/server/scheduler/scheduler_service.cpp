@@ -9,6 +9,8 @@
 
 #include <ytlib/scheduler/scheduler_service_proxy.h>
 
+#include <ytlib/meta_state/rpc_helpers.h>
+
 #include <server/cell_scheduler/bootstrap.h>
 
 namespace NYT {
@@ -19,6 +21,7 @@ using namespace NCellScheduler;
 using namespace NTransactionClient;
 using namespace NSecurityClient;
 using namespace NYTree;
+using namespace NMetaState;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -48,7 +51,7 @@ private:
     {
         auto type = EOperationType(request->type());
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        auto mutationId = FromProto<NMetaState::TMutationId>(request->mutation_id());
+        auto mutationId = GetMutationId(context->RequestHeader());
 
         auto maybeUser = FindAuthenticatedUser(context);
         auto user = maybeUser ? *maybeUser : RootUserName;

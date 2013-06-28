@@ -22,9 +22,6 @@ message TReqStartOperation
     
     // Operation spec in YSON. 
     required bytes spec = 3;
-
-    // Mutation id helps preventing double starts on retries.
-    required NYT.NProto.TGuid mutation_id = 4;
 }
 
 message TRspStartOperation

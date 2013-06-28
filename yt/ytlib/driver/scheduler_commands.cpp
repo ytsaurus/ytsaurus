@@ -12,11 +12,14 @@
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/ytree/ypath_proxy.h>
 
+#include <ytlib/meta_state/rpc_helpers.h>
+
 namespace NYT {
 namespace NDriver {
 
 using namespace NScheduler;
 using namespace NYTree;
+using namespace NMetaState;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,7 +28,7 @@ void TSchedulerCommandBase::StartOperation(EOperationType type)
     auto req = SchedulerProxy->StartOperation();
     req->set_type(type);
     ToProto(req->mutable_transaction_id(), GetTransactionId(EAllowNullTransaction::Yes));
-    ToProto(req->mutable_mutation_id(), Request->MutationId);
+    SetMutationId(req, Request->MutationId);
     req->set_spec(ConvertToYsonString(Request->Spec).Data());
 
     auto rsp = WaitFor(req->Invoke());
