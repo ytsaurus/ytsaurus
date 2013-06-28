@@ -257,11 +257,11 @@ public:
         YCHECK(!Promise_);
 
         WindowSize_ = windowSize;
-        Promise_ = NewPromise<TReadResult>();
+        auto promise = Promise_ = NewPromise<TReadResult>();
 
         Continue();
 
-        return Promise_;
+        return promise;
     }
 
 private:
