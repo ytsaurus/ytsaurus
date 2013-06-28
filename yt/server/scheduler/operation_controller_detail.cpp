@@ -2751,8 +2751,7 @@ void TOperationControllerBase::RegisterOutput(
 {
     table.OutputChunkTreeIds.insert(std::make_pair(key, chunkTreeId));
 
-    TotalOutputChunkCount += 1;
-    // TODO(babenko): data size and row count
+    // TODO(babenko): update chunk count, data size and row count
 
     if (IsOutputLivePreviewSupported()) {
         auto masterConnector = Host->GetMasterConnector();
