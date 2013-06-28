@@ -269,7 +269,7 @@ private:
     int BlockCount_;
     IInvokerPtr ControlInvoker_;
 
-    //! Window size requested in the currently served #Read.
+    //! Window size requested by the currently served #Read.
     i64 WindowSize_;
 
     //! Current promise to be fulfilled.
