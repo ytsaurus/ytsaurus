@@ -47,6 +47,59 @@ TEST(TYamredDsvWriterTest, Simple)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TYamredDsvWriterTest, TestLiveConditions)
+{
+    TStringStream outputStream;
+    auto config = New<TYamredDsvFormatConfig>();
+    config->KeyColumnNames.push_back("key_a");
+    config->KeyColumnNames.push_back("key_b");
+    TYamredDsvWriter writer(&outputStream, config);
+
+    {
+        Stroka keyA = "key_a";
+        Stroka a = "a";
+        Stroka keyB = "key_b";
+        Stroka b = "b";
+        writer.OnListItem();
+        writer.OnBeginMap();
+            writer.OnKeyedItem(keyA);
+            writer.OnStringScalar(a);
+            writer.OnKeyedItem(keyB);
+            writer.OnStringScalar(b);
+        writer.OnEndMap();
+    }
+
+    // Make some allocations!
+    for (int i = 0; i < 100; ++i) {
+        std::vector<int> x(i);
+        for (int j = 0; j < x.size(); ++j) {
+            x[j] = j;
+        }
+    }
+    
+    {
+        Stroka keyA = "key_a";
+        Stroka a = "_a_";
+        Stroka keyB = "key_b";
+        Stroka b = "xbx";
+        writer.OnListItem();
+        writer.OnBeginMap();
+            writer.OnKeyedItem(keyA);
+            writer.OnStringScalar(a);
+            writer.OnKeyedItem(keyB);
+            writer.OnStringScalar(b);
+        writer.OnEndMap();
+    }
+
+    Stroka output =
+        "a b\t\n"
+        "_a_ xbx\t\n";
+
+    EXPECT_EQ(output, outputStream.Str());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TEST(TYamredDsvWriterTest, WithoutSubkey)
 {
     TStringStream outputStream;

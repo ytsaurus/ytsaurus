@@ -55,7 +55,7 @@ def process_tasks_from_list(list, action):
                 logger.info("List %s is empty, processing stopped", list)
                 break
 
-            hashable_value = None
+            hashable_value = value
             if isinstance(value, __builtin__.list):
                 hashable_value = tuple(value)
             elif isinstance(value, __builtin__.dict):

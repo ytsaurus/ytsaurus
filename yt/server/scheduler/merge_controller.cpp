@@ -1103,6 +1103,8 @@ protected:
                         ++nextIndex;
                     } while (nextIndex != endpointsCount);
 
+
+                    flushOpenedChunks();
                     if (AllowPassthroughChunks()) {
                         bool hasManiacTask = partialManiacSize > MaxDataSizePerJob;
                         bool hasPassthroughManiacs = completeLargeManiacSize > 0;
@@ -1114,8 +1116,6 @@ protected:
                         }
 
                         if (hasManiacTask || hasPassthroughManiacs) {
-                            flushOpenedChunks();
-
                             if (HasActiveTask()) {
                                EndTask();
                             }
@@ -1145,10 +1145,8 @@ protected:
                         }
                     } else {
                         bool hasManiacTask = partialManiacSize + completeLargeManiacSize > MaxDataSizePerJob;
-
                         if (hasManiacTask) {
                             // Complete current task
-                            flushOpenedChunks();
                             if (HasActiveTask()) {
                                EndTask();
                             }

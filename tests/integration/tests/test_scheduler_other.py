@@ -47,7 +47,7 @@ class TestSchedulerOther(YTEnvSetup):
 
         print 'Fail strategy'
         with pytest.raises(YTError):
-            op_id = map('--dont_track', in_='//tmp/t_in', out='//tmp/t_out', command='cat')
+            op_id = map('--dont_track', in_='//tmp/t_in', out='//tmp/t_out', command='cat', opt=['/spec/unavailable_chunk_strategy=fail'])
             track_op(op_id)
 
         print 'Skip strategy'

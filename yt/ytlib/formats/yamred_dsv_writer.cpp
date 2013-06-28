@@ -18,11 +18,13 @@ TYamredDsvWriter::TYamredDsvWriter(TOutputStream* stream, TYamredDsvFormatConfig
     , ExpectTableIndex(false)
     , Table(config)
 {
-    FOREACH (const auto& val, Config->KeyColumnNames) {
-        KeyColumnNames.insert(val);
+    FOREACH (const auto& name, Config->KeyColumnNames) {
+        KeyColumnNames.insert(name);
+        KeyFields[name] = TStringBuf();
     }
-    FOREACH (const auto& val, Config->SubkeyColumnNames) {
-        SubkeyColumnNames.insert(val);
+    FOREACH (const auto& name, Config->SubkeyColumnNames) {
+        SubkeyColumnNames.insert(name);
+        SubkeyFields[name] = TStringBuf();
     }
 }
 
@@ -76,8 +78,16 @@ void TYamredDsvWriter::OnBeginMap()
     AllowBeginMap = false;
     IsValueEmpty = true;
 
-    KeyFields.clear();
-    SubkeyFields.clear();
+    KeyCount = 0;
+    FOREACH (auto& elem, KeyFields) {
+        elem.second = TStringBuf();
+    }
+
+    SubkeyCount = 0;
+    FOREACH (auto& elem, SubkeyFields) {
+        elem.second = TStringBuf();
+    }
+
     ValueBuffer.Clear();
 }
 
@@ -125,16 +135,12 @@ void TYamredDsvWriter::RememberValue(const TStringBuf& value)
     }
     // Compare size before search for optimization.
     // It is not safe in case of repeated keys. Be careful!
-    if (KeyFields.size() != KeyColumnNames.size() &&
-        KeyColumnNames.count(Key))
+    if (KeyCount != KeyColumnNames.size() && KeyColumnNames.count(Key))
     {
-        YASSERT(KeyFields.count(Key) == 0);
+        KeyCount += 1;
         KeyFields[Key] = value;
-    } else if (
-        SubkeyFields.size() != SubkeyColumnNames.size() &&
-        SubkeyColumnNames.count(Key))
-    {
-        YASSERT(SubkeyFields.count(Key) == 0);
+    } else if ( SubkeyCount != SubkeyColumnNames.size() && SubkeyColumnNames.count(Key)) {
+        SubkeyCount += 1;
         SubkeyFields[Key] = value;
     } else {
         if (IsValueEmpty) {
@@ -152,10 +158,9 @@ void TYamredDsvWriter::RememberValue(const TStringBuf& value)
 
 void TYamredDsvWriter::WriteRow()
 {
-    WriteYamrField(Config->KeyColumnNames, KeyFields);
-    
+    WriteYamrField(Config->KeyColumnNames, KeyFields, KeyCount);
     if (Config->HasSubkey) {
-        WriteYamrField(Config->SubkeyColumnNames, SubkeyFields);
+        WriteYamrField(Config->SubkeyColumnNames, SubkeyFields, SubkeyCount);
     }
     
     if (Config->Lenval) {
@@ -170,8 +175,13 @@ void TYamredDsvWriter::WriteRow()
 
 void TYamredDsvWriter::WriteYamrField(
     const std::vector<Stroka>& columnNames,
-    const std::map<Stroka, Stroka>& fieldValues)
+    const Dictionary& fieldValues,
+    i32 fieldCount)
 {
+    if (fieldCount != columnNames.size()) {
+        THROW_ERROR_EXCEPTION("Missing column in YAMRed DSV: actual %s, expected %d", fieldCount, columnNames.size());
+    }
+
     if (Config->Lenval) {
         if (columnNames.size() == 0) {
             WritePod(*Stream, 0);
@@ -179,17 +189,12 @@ void TYamredDsvWriter::WriteYamrField(
         else {
             i32 length = (columnNames.size() - 1);
             for (int i = 0; i < columnNames.size(); ++i) {
-                auto it = fieldValues.find(columnNames[i]);
-                if (it == fieldValues.end()) {
-                    THROW_ERROR_EXCEPTION("Missing required column in YAMRed DSV: %s", ~columnNames[i]);
-                }
-                length += it->second.size();
+                length += fieldValues.find(columnNames[i])->second.size();
             }
             WritePod(*Stream, length);
 
             for (int i = 0; i < columnNames.size(); ++i) {
-                auto it = fieldValues.find(columnNames[i]);
-                Stream->Write(it->second);
+                Stream->Write(fieldValues.find(columnNames[i])->second);
                 if (i + 1 != columnNames.size()) {
                     Stream->Write(Config->YamrKeysSeparator);
                 }
@@ -198,11 +203,7 @@ void TYamredDsvWriter::WriteYamrField(
     }
     else {
         for (int i = 0; i < columnNames.size(); ++i) {
-            auto it = fieldValues.find(columnNames[i]);
-            if (it == fieldValues.end()) {
-                THROW_ERROR_EXCEPTION("Missing required column in YAMRed DSV: %s", ~columnNames[i]);
-            }
-            EscapeAndWrite(Stream, it->second, false);
+            EscapeAndWrite(Stream, fieldValues.find(columnNames[i])->second, false);
             if (i + 1 != columnNames.size()) {
                 Stream->Write(Config->YamrKeysSeparator);
             }

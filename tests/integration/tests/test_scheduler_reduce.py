@@ -96,6 +96,46 @@ class TestSchedulerReduceCommands(YTEnvSetup):
 
         assert get('//tmp/out/@sorted') == 'true'
 
+    @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
+    def test_maniac_chunk(self):
+        create('table', '//tmp/in1')
+        write(
+            '//tmp/in1',
+            [
+                {'key': 0, 'value': 1},
+                {'key': 2, 'value': 9}
+            ],
+            sorted_by = 'key')
+
+        create('table', '//tmp/in2')
+        write(
+            '//tmp/in2',
+            [
+                {'key': 2, 'value': 6},
+                {'key': 2, 'value': 7},
+                {'key': 2, 'value': 8}
+            ],
+            sorted_by = 'key')
+
+        create('table', '//tmp/out')
+
+        reduce(
+            in_ = ['//tmp/in1', '//tmp/in2'],
+            out = ['<sorted_by=[key]>//tmp/out'],
+            command = 'cat')
+
+        assert read('//tmp/out') == \
+            [
+                {'key': 0, 'value': 1},
+                {'key': 2, 'value': 6},
+                {'key': 2, 'value': 9},
+                {'key': 2, 'value': 7},
+                {'key': 2, 'value': 8}
+            ]
+
+        assert get('//tmp/out/@sorted') == 'true'
+
+
     def test_empty_in(self):
         create('table', '//tmp/in')
 

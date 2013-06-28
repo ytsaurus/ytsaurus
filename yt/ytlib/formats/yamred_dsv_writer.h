@@ -42,19 +42,12 @@ private:
     TOutputStream* Stream;
     TYamredDsvFormatConfigPtr Config;
 
-    Stroka Key;
+    TStringBuf Key;
     DECLARE_ENUM(EState,
         (None)
         (ExpectingValue)
     );
     EState State;
-
-    // For small data sizes, set and map are faster than hash set and hash map.
-    TSmallSet<TStringBuf, 4> KeyColumnNames;
-    TSmallSet<TStringBuf, 4> SubkeyColumnNames;
-
-    std::map<Stroka, Stroka> KeyFields;
-    std::map<Stroka, Stroka> SubkeyFields;
 
     TBlobOutput ValueBuffer;
 
@@ -65,12 +58,25 @@ private:
 
     TDsvTable Table;
 
+    TSmallSet<TStringBuf, 4> KeyColumnNames;
+    TSmallSet<TStringBuf, 4> SubkeyColumnNames;
+
+    // For small data sizes, set and map are faster than hash set and hash map.
+    typedef std::map<TStringBuf, TStringBuf> Dictionary;
+
+    Dictionary KeyFields;
+    i32 KeyCount;
+
+    Dictionary SubkeyFields;
+    i32 SubkeyCount;
+
     void RememberValue(const TStringBuf& value);
 
     void WriteRow();
     void WriteYamrField(
         const std::vector<Stroka>& columnNames,
-        const std::map<Stroka, Stroka>& fieldValues);
+        const Dictionary& fieldValues,
+        i32 fieldCount);
 
     void EscapeAndWrite(
         TOutputStream* outputStream,
