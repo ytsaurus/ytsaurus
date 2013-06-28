@@ -2893,6 +2893,12 @@ void TOperationControllerBase::BuildProgressYson(IYsonConsumer* consumer)
             .Item("completed").Value(CompletedJobStatistics)
             .Item("failed").Value(FailedJobStatistics)
             .Item("aborted").Value(AbortedJobStatistics)
+        .EndMap()
+        .Item("input_statistics").BeginMap()
+            .Item("chunk_count").Value(TotalInputChunkCount)
+            .Item("data_size").Value(TotalInputDataSize)
+            .Item("row_count").Value(TotalInputRowCount)
+            .Item("unavailable_chunk_count").Value(UnavailableInputChunkCount)
         .EndMap();
 }
 
