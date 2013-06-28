@@ -254,7 +254,7 @@ public:
     TReadFuture Read(i64 windowSize)
     {
         YCHECK(WindowSize_ == -1);
-        YCHECK(Promise_.IsNull());
+        YCHECK(!Promise_);
 
         WindowSize_ = windowSize;
         Promise_ = NewPromise<TReadResult>();
