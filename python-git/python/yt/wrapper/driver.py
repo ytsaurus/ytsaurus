@@ -6,6 +6,7 @@ from errors import YtError, YtResponseError
 from version import VERSION
 from http import make_get_request_with_retries, make_request_with_retries, Response, get_token, get_proxy
 
+import yt.yson as yson
 from yt.yson.yson_types import convert_to_yson_tree
 
 import yt.packages.requests as requests
@@ -56,6 +57,7 @@ def get_host_for_heavy_operation():
         if hosts:
             return hosts[0]
     return config.http.PROXY
+
 
 def make_request(command_name, params,
                  data=None, proxy=None,
@@ -184,6 +186,15 @@ def make_request(command_name, params,
             return response.content()
     else:
         raise YtResponseError(url, headers, response.error())
+    
+#    from yt.driver import Request, Driver
+#    print >>sys.stderr, "REQ '%s'" % command_name
+#    print >>sys.stderr, "PARAMS '%s'" % params
+#    driver = Driver(config=yson.loads(open("ytdriver.conf").read()))
+#    request = Request(command_name, arguments=yson.convert_to_yson_tree(params), input_stream=data)
+#    rsp = driver.execute(request)
+#    print >>sys.stderr, "RSP '%s'" % rsp
+#    return rsp
 
 def make_formatted_request(command_name, params, format, **kwargs):
     # None format means that we want parsed output (as yson structure) instead of string.
