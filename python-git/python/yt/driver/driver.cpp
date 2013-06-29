@@ -1,6 +1,10 @@
+#include "public.h"
 #include "common.h"
 #include "stream.h"
 #include "serialize.h"
+#include "response.h"
+#include "buffered_stream.h"
+#include "descriptor.h"
 
 #include <ytlib/misc/intrusive_ptr.h>
 #include <ytlib/misc/async_stream.h>
@@ -36,22 +40,6 @@ using NYson::EYsonFormat;
 
 namespace NPython {
 
-Py::Object ExtractArgument(Py::Tuple& args, Py::Dict& kwds, const std::string& name) {
-    Py::Object result;
-    if (kwds.hasKey(name)) {
-        result = kwds[name];
-        kwds.delItem(name);
-    }
-    else {
-        if (args.length() == 0) {
-            throw Py::RuntimeError("There is no argument " + name);
-        }
-        result = args.front();
-        args = args.getSlice(1, args.length());
-    }
-    return result;
-}
-
 class Driver
     : public Py::PythonClass<Driver>
 {
@@ -61,7 +49,7 @@ public:
     {
         Py::Object configDict = ExtractArgument(args, kwds, "config");
         if (args.length() > 0 || kwds.length() > 0) {
-            throw Py::RuntimeError("Incorrect arguments for initialization of Driver");
+            throw Py::RuntimeError("Incorrect arguments");
         }
         auto config = New<TDriverConfig>();
         auto configNode = ConvertToNode(configDict);
@@ -84,37 +72,65 @@ public:
         behaviors().supportSetattro();
 
         PYCXX_ADD_KEYWORDS_METHOD(execute, Execute, "TODO(ignat): make documentation");
+        PYCXX_ADD_KEYWORDS_METHOD(get_description, GetDescription, "TODO(ignat): make documentation");
 
         behaviors().readyType();
     }
 
-    Py::Object Execute(Py::Tuple& args, Py::Dict &kwds) {
+    Py::Object Execute(Py::Tuple& args, Py::Dict &kwds)
+    {
         auto pyRequest = ExtractArgument(args, kwds, "request");
         if (args.length() > 0 || kwds.length() > 0) {
-            throw Py::RuntimeError("Incorrect arguments for execute command");
+            throw Py::RuntimeError("Incorrect arguments");
         }
+
+        Py::Callable class_type(TResponse::type());
+        Py::PythonClassObject<TResponse> pythonResponse(class_type.apply(Py::Tuple(), Py::Dict()));
+        auto* response = pythonResponse.getCxxObject();
 
         TDriverRequest request;
         request.CommandName = ConvertToStroka(Py::String(GetAttr(pyRequest, "command_name")));
         request.Arguments = ConvertToNode(GetAttr(pyRequest, "arguments"))->AsMap();
 
-        std::unique_ptr<TPythonInputStream> inputStream;
-        std::unique_ptr<TPythonOutputStream> outputStream;
-
-        if (pyRequest.hasAttr("input_stream")) {
-            inputStream = std::unique_ptr<TPythonInputStream>(new TPythonInputStream(GetAttr(pyRequest, "input_stream")));
+        auto inputStreamObj = GetAttr(pyRequest, "input_stream");
+        if (!inputStreamObj.isNone()) {
+            std::unique_ptr<TPythonInputStream> inputStream(new TPythonInputStream(inputStreamObj));
             request.InputStream = CreateAsyncInputStream(inputStream.get());
+            response->OwnInputStream(inputStream);
         }
 
-        if (pyRequest.hasAttr("output_stream")) {
-            outputStream = std::unique_ptr<TPythonOutputStream>(new TPythonOutputStream(GetAttr(pyRequest, "output_stream")));
-            request.OutputStream = CreateAsyncOutputStream(outputStream.get());
+        auto outputStreamObj = GetAttr(pyRequest, "output_stream");
+        if (!outputStreamObj.isNone()) {
+            bool isBufferedStream = PyObject_IsInstance(outputStreamObj.ptr(), TPythonBufferedStream::type().ptr());
+            if (isBufferedStream) {
+                auto* pythonStream = dynamic_cast<TPythonBufferedStream*>(Py::getPythonExtensionBase(outputStreamObj.ptr()));
+                request.OutputStream = pythonStream->GetStream();
+            }
+            else {
+                std::unique_ptr<TPythonOutputStream> outputStream(new TPythonOutputStream(outputStreamObj));
+                request.OutputStream = CreateAsyncOutputStream(outputStream.get());
+                response->OwnOutputStream(outputStream);
+            }
         }
 
-        auto response = DriverInstance_->Execute(request).Get();
-        return ConvertToPythonString(ToString(response.Error));
+        response->SetResponse(DriverInstance_->Execute(request));
+        return pythonResponse;
     }
     PYCXX_KEYWORDS_METHOD_DECL(Driver, Execute)
+
+    Py::Object GetDescription(Py::Tuple& args, Py::Dict &kwds)
+    {
+        auto commandName = ConvertToStroka(ConvertToString(ExtractArgument(args, kwds, "command_name")));
+        if (args.length() > 0 || kwds.length() > 0) {
+            throw Py::RuntimeError("Incorrect arguments");
+        }
+        
+        Py::Callable class_type(TPythonCommandDescriptor::type());
+        Py::PythonClassObject<TPythonCommandDescriptor> descriptor(class_type.apply(Py::Tuple(), Py::Dict()));
+        descriptor.getCxxObject()->SetDescriptor(DriverInstance_->GetCommandDescriptor(commandName));
+        return descriptor;
+    }
+    PYCXX_KEYWORDS_METHOD_DECL(Driver, GetDescription)
 
 private:
     IDriverPtr DriverInstance_;
@@ -130,11 +146,15 @@ public:
         Py_AtExit(ytlib_python_module::at_exit);
 
         Driver::InitType();
+        TPythonBufferedStream::InitType();
+        TResponse::InitType();
+        TPythonCommandDescriptor::InitType();
 
         initialize("Ytlib python bindings");
 
         Py::Dict moduleDict(moduleDictionary());
         moduleDict["Driver"] = Driver::type();
+        moduleDict["BufferedStream"] = TPythonBufferedStream::type();
     }
 
     static void at_exit()

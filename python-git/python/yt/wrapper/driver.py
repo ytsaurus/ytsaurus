@@ -6,6 +6,7 @@ from errors import YtError, YtResponseError
 from version import VERSION
 from http import make_get_request_with_retries, make_request_with_retries, Response, get_token, get_proxy
 
+import yt.yson as yson
 from yt.yson.yson_types import convert_to_yson_tree
 
 import requests
@@ -54,6 +55,7 @@ def get_host_for_heavy_operation():
         if hosts:
             return hosts[0]
     return config.http.PROXY
+
 
 def make_request(command_name, params,
                  data=None, proxy=None,
