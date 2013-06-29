@@ -160,6 +160,7 @@ public:
 extern "C" EXPORT_SYMBOL void initytlib_python()
 {
     static NYT::NPython::ytlib_python_module* ytlib_python = new NYT::NPython::ytlib_python_module;
+    UNUSED(ytlib_python);
 }
 
 // symbol required for the debug version
