@@ -25,14 +25,14 @@ class YtTestBase(object):
         cls.env = test_class()
         
         dir = os.environ.get("TESTS_SANDBOX", "tests/sandbox")
-        cls.env.set_environment(dir, os.path.join(dir, "pids.txt"), ports, supress_yt_output=True)
+        #cls.env.set_environment(dir, os.path.join(dir, "pids.txt"), ports, supress_yt_output=True)
         
         reload(yt)
         reload(yt.config)
 
-        yt.config.set_proxy("localhost:%d" % ports["proxy"])
-        yt.config.http.USE_TOKEN = False
-        yt.config.http.RETRY_VOLATILE_COMMANDS = True
+        #yt.config.set_proxy("localhost:%d" % ports["proxy"])
+        #yt.config.http.USE_TOKEN = False
+        #yt.config.http.RETRY_VOLATILE_COMMANDS = True
 
     @classmethod
     def _teardown_class(cls):
