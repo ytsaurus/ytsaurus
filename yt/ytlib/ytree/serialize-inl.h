@@ -13,6 +13,8 @@
 #include <ytlib/misc/string.h>
 #include <ytlib/misc/error.h>
 
+#include <util/system/defaults.h>
+
 namespace NYT {
 namespace NYTree {
 
