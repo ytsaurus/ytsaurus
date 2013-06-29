@@ -1,17 +1,23 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/python/yt/driver )
 set( SRCS
+  ${BASE}/common.cpp
+  ${BASE}/buffered_stream.cpp
+  ${BASE}/descriptor.cpp
   ${BASE}/driver.cpp
+  ${BASE}/response.cpp
   ${BASE}/serialize.cpp
   ${BASE}/stream.cpp
 )
 
 set( HDRS
   ${BASE}/common.h
+  ${BASE}/buffered_stream.h
+  ${BASE}/descriptor.h
+  ${BASE}/response.h
   ${BASE}/serialize.h
   ${BASE}/stream.h
 )
-
 
 include_directories(
     ${CMAKE_SOURCE_DIR}

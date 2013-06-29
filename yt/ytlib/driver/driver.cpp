@@ -175,7 +175,7 @@ public:
         auto context = New<TCommandContext>(
             this,
             entry.Descriptor,
-            &request,
+            request,
             masterChannel,
             schedulerChannel,
             transactionManager);
@@ -275,7 +275,7 @@ private:
         TCommandContext(
             TDriver* driver,
             const TCommandDescriptor& descriptor,
-            const TDriverRequest* request,
+            const TDriverRequest request,
             IChannelPtr masterChannel,
             IChannelPtr schedulerChannel,
             TTransactionManagerPtr transactionManager)
@@ -285,8 +285,8 @@ private:
             , MasterChannel(std::move(masterChannel))
             , SchedulerChannel(std::move(schedulerChannel))
             , TransactionManager(std::move(transactionManager))
-            , SyncInputStream(CreateSyncInputStream(request->InputStream))
-            , SyncOutputStream(CreateSyncOutputStream(request->OutputStream))
+            , SyncInputStream(CreateSyncInputStream(request.InputStream))
+            , SyncOutputStream(CreateSyncOutputStream(request.OutputStream))
         { }
 
         TFuture<void> TerminateChannels()
@@ -327,7 +327,7 @@ private:
 
         virtual const TDriverRequest& Request() const override
         {
-            return *Request_;
+            return Request_;
         }
 
         virtual const TDriverResponse& Response() const
@@ -359,7 +359,7 @@ private:
         virtual const TFormat& GetInputFormat() override
         {
             if (!InputFormat) {
-                InputFormat = ConvertTo<TFormat>(Request_->Arguments->GetChild("input_format"));
+                InputFormat = ConvertTo<TFormat>(Request_.Arguments->GetChild("input_format"));
             }
             return *InputFormat;
         }
@@ -367,7 +367,7 @@ private:
         virtual const TFormat& GetOutputFormat() override
         {
             if (!OutputFormat) {
-                OutputFormat = ConvertTo<TFormat>(Request_->Arguments->GetChild("output_format"));
+                OutputFormat = ConvertTo<TFormat>(Request_.Arguments->GetChild("output_format"));
             }
             return *OutputFormat;
         }
@@ -376,7 +376,7 @@ private:
         TDriver* Driver;
         TCommandDescriptor Descriptor;
 
-        const TDriverRequest* Request_;
+        const TDriverRequest Request_;
         TDriverResponse Response_;
 
         IChannelPtr MasterChannel;

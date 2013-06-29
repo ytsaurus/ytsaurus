@@ -3,6 +3,10 @@
 #include "assert.h"
 #include "mpl.h"
 
+#include <util/generic/utility.h>
+
+#include <utility>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
