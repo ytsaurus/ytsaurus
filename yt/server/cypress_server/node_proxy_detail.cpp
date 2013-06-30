@@ -383,7 +383,7 @@ bool TNontemplateCypressNodeProxyBase::GetSystemAttribute(
 
     if (key == "creation_time") {
         BuildYsonFluently(consumer)
-            .Value(node->GetCreationTime().ToString());
+            .Value(node->GetCreationTime());
         return true;
     }
 
