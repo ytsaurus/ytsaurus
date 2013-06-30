@@ -115,7 +115,7 @@ void TNontemplateCypressNodeTypeHandlerBase::MergeCore(
         ->GetMutationContext();
 
     originatingNode->SetModificationTime(mutationContext->GetTimestamp());
-    originatingNode->SetRevision(mutationContext->GetRevision());
+    originatingNode->SetRevision(mutationContext->GetVersion().ToRevision());
 }
 
 std::unique_ptr<TCypressNodeBase> TNontemplateCypressNodeTypeHandlerBase::CloneCorePrologue(
