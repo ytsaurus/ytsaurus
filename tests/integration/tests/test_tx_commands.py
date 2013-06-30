@@ -158,3 +158,35 @@ class TestTxCommands(YTEnvSetup):
         abort_transaction(tx1)
         self.assertItemsEqual(get_transactions(), [])
         self.assertItemsEqual(get_topmost_transactions(), [])
+
+    def test_revision1(self):
+        set('//tmp/a', 'b')
+        r1 = get('//tmp/a/@revision')
+        
+        set('//tmp/a2', 'b2')
+        r2 = get('//tmp/a/@revision')
+        assert r2 == r1
+
+    def test_revision2(self):
+        r1 = get('//tmp/@revision')
+        
+        set('//tmp/a', 'b')
+        r2 = get('//tmp/@revision')
+        assert r2 > r1
+
+    def test_revision3(self):
+        set('//tmp/a', 'b')
+        r1 = get('//tmp/a/@revision')
+        
+        tx = start_tx()
+        
+        set('//tmp/a', 'c', tx=tx)
+        r2 = get('//tmp/a/@revision')
+        r3 = get('//tmp/a/@revision', tx=tx)
+        assert r2 == r1
+        assert r3 > r1
+
+        commit_tx(tx)
+        r4 = get('//tmp/a/@revision')
+        assert r4 > r1
+        assert r4 > r3
