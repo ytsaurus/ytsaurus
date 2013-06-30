@@ -558,8 +558,8 @@ DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
         mode != ELockMode::Shared &&
         mode != ELockMode::Exclusive)
     {
-        THROW_ERROR_EXCEPTION("Invalid lock mode: %s",
-            ~mode.ToString());
+        THROW_ERROR_EXCEPTION("Invalid lock mode %s",
+            ~FormatEnum(mode).Quote());
     }
 
     ValidateTransaction();
@@ -599,8 +599,8 @@ DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
 
     auto nodeHandler = cypressManager->FindHandler(type);
     if (!nodeHandler) {
-        THROW_ERROR_EXCEPTION("Unknown object type: %s",
-            ~type.ToString());
+        THROW_ERROR_EXCEPTION("Unknown object type %s",
+            ~FormatEnum(type).Quote());
     }
 
     auto* schema = objectManager->GetSchema(type);
