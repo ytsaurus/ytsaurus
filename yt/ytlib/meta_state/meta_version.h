@@ -78,7 +78,7 @@ inline Stroka TMetaVersion::ToString() const
 
 inline i64 TMetaVersion::ToRevision() const
 {
-    return static_cast<i64>(SegmentId) << 32 + static_cast<i64>(RecordCount);
+    return (static_cast<i64>(SegmentId) << 32) + static_cast<i64>(RecordCount);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
