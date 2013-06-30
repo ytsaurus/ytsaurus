@@ -55,8 +55,6 @@ public:
     void Run();
 
 private:
-    class TCypressRootService;
-
     Stroka ConfigFileName;
     TCellMasterConfigPtr Config;
 

@@ -172,32 +172,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCypressManager::TRootService
-    : public TYPathServiceBase
-{
-public:
-    explicit TRootService(TBootstrap* bootstrap)
-        : Bootstrap(bootstrap)
-    { }
-
-    virtual TResolveResult Resolve(
-        const TYPath& path,
-        IServiceContextPtr context) override
-    {
-        UNUSED(context);
-
-        auto cypressManager = Bootstrap->GetCypressManager();
-        auto rootProxy = cypressManager->GetVersionedNodeProxy(cypressManager->GetRootNode());
-        return TResolveResult::There(rootProxy, path);
-    }
-
-private:
-    TBootstrap* Bootstrap;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 TCypressManager::TNodeMapTraits::TNodeMapTraits(TCypressManager* cypressManager)
     : CypressManager(cypressManager)
 { }
@@ -234,9 +208,6 @@ TCypressManager::TCypressManager(TBootstrap* bootstrap)
         auto cellId = Bootstrap->GetObjectManager()->GetCellId();
         RootNodeId = MakeWellKnownId(EObjectType::MapNode, cellId);
     }
-
-    RootService = New<TRootService>(Bootstrap)->Via(
-        Bootstrap->GetMetaStateFacade()->GetGuardedInvoker());
 
     RegisterHandler(New<TStringNodeTypeHandler>(Bootstrap));
     RegisterHandler(New<TIntegerNodeTypeHandler>(Bootstrap));
@@ -416,13 +387,6 @@ TCypressNodeBase* TCypressManager::GetRootNode() const
     VERIFY_THREAD_AFFINITY_ANY();
 
     return RootNode;
-}
-
-IYPathServicePtr TCypressManager::GetRootService() const
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return RootService;
 }
 
 INodeResolverPtr TCypressManager::CreateResolver(TTransaction* transaction)

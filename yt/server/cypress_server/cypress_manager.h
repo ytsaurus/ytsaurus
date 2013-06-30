@@ -89,11 +89,6 @@ public:
     //! Returns the root node.
     TCypressNodeBase* GetRootNode() const;
 
-    //! Returns a service representing the root.
-    //! This service is fully thread-safe.
-    // TODO(babenko): deprecate in favor of TObjectManager::GetRootService
-    NYTree::IYPathServicePtr GetRootService() const;
-
     //! Creates a resolver that provides a view in the context of a given transaction.
     NYTree::INodeResolverPtr CreateResolver(NTransactionServer::TTransaction* transaction = nullptr);
 
@@ -156,7 +151,6 @@ private:
 
     TNodeId RootNodeId;
     TCypressNodeBase* RootNode;
-    NYTree::IYPathServicePtr RootService;
 
     yhash_map<TCypressNodeBase*, INodeBehaviorPtr> NodeBehaviors;
 
