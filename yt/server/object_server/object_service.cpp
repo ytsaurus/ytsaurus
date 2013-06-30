@@ -25,6 +25,8 @@
 #include <server/security_server/security_manager.h>
 #include <server/security_server/user.h>
 
+#include <server/cypress_server/cypress_manager.h>
+
 namespace NYT {
 namespace NObjectServer {
 
@@ -48,9 +50,13 @@ class TObjectService::TExecuteSession
     : public TIntrinsicRefCounted
 {
 public:
-    TExecuteSession(TObjectService* owner, TCtxExecutePtr context)
-        : Owner(owner)
-        , Context(context)
+    TExecuteSession(
+        TBootstrap* boostrap,
+        TObjectManagerConfigPtr config,
+        TCtxExecutePtr context)
+        : Bootstrap(boostrap)
+        , Config(std::move(config))
+        , Context(std::move(context))
         , Awaiter(New<TParallelAwaiter>())
         , ReplyLock(0)
         , CurrentRequestIndex(0)
@@ -69,7 +75,8 @@ public:
     }
 
 private:
-    TObjectService* Owner;
+    TBootstrap* Bootstrap;
+    TObjectManagerConfigPtr Config;
     TCtxExecutePtr Context;
 
     TParallelAwaiterPtr Awaiter;
@@ -86,20 +93,20 @@ private:
             auto& request = Context->Request();
             const auto& attachments = request.Attachments();
             
-            auto objectManager = Owner->Bootstrap->GetObjectManager();
+            auto objectManager = Bootstrap->GetObjectManager();
             auto rootService = objectManager->GetRootService();
 
-            auto metaStateManager = Owner->Bootstrap->GetMetaStateFacade()->GetManager();
+            auto metaStateManager = Bootstrap->GetMetaStateFacade()->GetManager();
 
             auto awaiter = Awaiter;
             if (!awaiter)
                 return;
 
-            if (!CheckPrerequesiteTransactions())
+            if (!CheckPrerequisites())
                 return;
 
             auto* user = GetAuthenticatedUser();
-            TAuthenticatedUserGuard userGuard(Owner->Bootstrap->GetSecurityManager(), user);
+            TAuthenticatedUserGuard userGuard(Bootstrap->GetSecurityManager(), user);
 
             // Execute another portion of requests.
             while (CurrentRequestIndex < request.part_counts_size()) {
@@ -155,7 +162,7 @@ private:
                 ++CurrentRequestIndex;
                 CurrentRequestPartIndex += partCount;
 
-                if (TInstant::Now() > startTime + Owner->Config->YieldTimeout) {
+                if (TInstant::Now() > startTime + Config->YieldTimeout) {
                     YieldAndContinue();
                     return;
                 }
@@ -172,7 +179,7 @@ private:
         LOG_DEBUG("Yielding state thread (RequestId: %s)",
             ~ToString(Context->GetRequestId()));
 
-        auto invoker = Owner->Bootstrap->GetMetaStateFacade()->GetGuardedInvoker();
+        auto invoker = Bootstrap->GetMetaStateFacade()->GetGuardedInvoker();
         if (!invoker->Invoke(BIND(&TExecuteSession::Continue, MakeStrong(this)))) {
             Reply(TError(
                 NRpc::EErrorCode::Unavailable,
@@ -236,32 +243,88 @@ private:
         Context->Reply(error);
     }
 
-    bool CheckPrerequesiteTransactions()
-    {
-        auto transactionManager = Owner->Bootstrap->GetTransactionManager();
+    bool CheckPrerequisites()
+    {       
         auto& request = Context->Request();
-        FOREACH (const auto& protoId, request.prerequisite_transaction_ids()) {
-            auto id = FromProto<TTransactionId>(protoId);
-            const auto* transaction = transactionManager->FindTransaction(id);
-            if (!transaction) {
-                Reply(TError(
-                    "Prerequisite transaction %s is missing",
-                    ~ToString(id)));
+
+        FOREACH (const auto& prerequisite, request.prerequisite_transactions()) {
+            auto transactionId = FromProto<TTransactionId>(prerequisite.transaction_id());
+            if (!GetPrerequisiteTransaction(transactionId)) {
                 return false;
             }
-            if (transaction->GetState() != ETransactionState::Active) {
+        }
+
+        auto cypressManager = Bootstrap->GetCypressManager();
+        FOREACH (const auto& prerequisite, request.prerequisite_revisions()) {
+            auto transactionId = FromProto<TTransactionId>(prerequisite.transaction_id());
+            auto path = TYPath(prerequisite.path());
+            i64 revision = prerequisite.revision();
+
+            TTransaction* transaction = nullptr;
+            if (transactionId != NullTransactionId) {
+                if (!GetPrerequisiteTransaction(transactionId, &transaction)) {
+                    return false;
+                }
+            }
+
+            auto resolver = cypressManager->CreateResolver(transaction);
+            INodePtr nodeProxy;
+            try {
+                nodeProxy = resolver->ResolvePath(path);
+            } catch (const std::exception& ex) {
                 Reply(TError(
-                    "Prerequisite transaction %s is not active",
-                    ~ToString(id)));
+                    NObjectClient::EErrorCode::PrerequisiteCheckFailed,
+                    "Prerequisite check failed: failed to resolve path %s",
+                    ~path)
+                    << ex);
                 return false;
             }
+
+            auto* cypressNodeProxy = dynamic_cast<ICypressNodeProxy*>(~nodeProxy);
+            YCHECK(cypressNodeProxy);
+
+            auto* node = cypressNodeProxy->GetTrunkNode();
+            if (node->GetRevision() != revision) {
+                Reply(TError(
+                    NObjectClient::EErrorCode::PrerequisiteCheckFailed,
+                    "Prerequisite check failed: node %s revision mismatch: expected %" PRId64 ", found %" PRId64,
+                    ~path,
+                    revision,
+                    node->GetRevision()));
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    bool GetPrerequisiteTransaction(const TTransactionId& transactionId, TTransaction** transaction = nullptr)
+    {
+        auto transactionManager = Bootstrap->GetTransactionManager();
+        auto* myTransaction = transactionManager->FindTransaction(transactionId);
+        if (!IsObjectAlive(myTransaction)) {
+            Reply(TError(
+                NObjectClient::EErrorCode::PrerequisiteCheckFailed,
+                "Prerequisite check failed: transaction %s is missing",
+                ~ToString(transactionId)));
+            return false;
+        }
+        if (myTransaction->GetState() != ETransactionState::Active) {
+            Reply(TError(
+                NObjectClient::EErrorCode::PrerequisiteCheckFailed,
+                "Prerequisite check failed: transaction %s is not active",
+                ~ToString(transactionId)));
+            return false;
+        }
+        if (transaction) {
+            *transaction = myTransaction;
         }
         return true;
     }
 
     TUser* GetAuthenticatedUser()
     {
-        auto securityManager = Owner->Bootstrap->GetSecurityManager();
+        auto securityManager = Bootstrap->GetSecurityManager();
         if (!UserName) {
             return securityManager->GetRootUser();
         }
@@ -297,7 +360,7 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
     UNUSED(request);
     UNUSED(response);
 
-    New<TExecuteSession>(this, context)->Run();
+    New<TExecuteSession>(Bootstrap, Config, std::move(context))->Run();
 }
 
 DEFINE_RPC_SERVICE_METHOD(TObjectService, GCCollect)

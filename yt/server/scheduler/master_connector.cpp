@@ -817,7 +817,7 @@ private:
         auto req = proxy->ExecuteBatch();
         if (requireTransaction) {
             YCHECK(LockTransaction);
-            req->PrerequisiteTransactionIds().push_back(LockTransaction->GetId());
+            req->PrerequisiteTransactions().push_back(TObjectServiceProxy::TPrerequisiteTransaction(LockTransaction->GetId()));
         }
         return req;
     }
