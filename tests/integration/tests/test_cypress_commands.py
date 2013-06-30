@@ -304,6 +304,18 @@ class TestCypressCommands(YTEnvSetup):
         copy('//tmp/t1', '//tmp/t2')
         assert get('//tmp/t2/@compression_codec') == 'gzip_normal'
 
+    def test_copy_id1(self):
+        set('//tmp/a', 123)
+        a_id = get('//tmp/a/@id')
+        copy('#' + a_id, '//tmp/b')
+        assert get('//tmp/b', 123)
+
+    def test_copy_id2(self):
+        set('//tmp/a', 123)
+        tmp_id = get('//tmp/@id')
+        copy('#' + tmp_id + '/a', '//tmp/b')
+        assert get('//tmp/b', 123)
+
     def test_move_simple(self):
         set('//tmp/a', 1)
         move('//tmp/a', '//tmp/b')
