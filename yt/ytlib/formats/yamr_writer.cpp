@@ -196,11 +196,13 @@ void TYamrWriter::OnEndAttributes()
 void TYamrWriter::WriteRow()
 {
     if (!Key) {
-        THROW_ERROR_EXCEPTION("Column %s is missing in YAMR record", ~Config->Key);
+        THROW_ERROR_EXCEPTION("Missing column %s in YAMR record",
+            ~Config->Key.Quote());
     }
 
     if (!Value) {
-        THROW_ERROR_EXCEPTION("Column %s is missing in YAMR record", ~Config->Value);
+        THROW_ERROR_EXCEPTION("Missing column %s in YAMR record",
+            ~Config->Value.Quote());
     }
 
     TStringBuf key = *Key;
