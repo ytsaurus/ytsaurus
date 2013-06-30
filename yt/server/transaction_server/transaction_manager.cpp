@@ -382,13 +382,13 @@ TTransactionManager::TTransactionManager(
         RegisterSaver(
             ESerializationPriority::Keys,
             "TransactionManager.Keys",
-            CurrentSnapshotVersion,
+            GetCurrentSnapshotVersion(),
             BIND(&TTransactionManager::SaveKeys, MakeStrong(this)),
             context);
         RegisterSaver(
             ESerializationPriority::Values,
             "TransactionManager.Values",
-            CurrentSnapshotVersion,
+            GetCurrentSnapshotVersion(),
             BIND(&TTransactionManager::SaveValues, MakeStrong(this)),
             context);
     }

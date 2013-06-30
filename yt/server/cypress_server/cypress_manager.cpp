@@ -238,13 +238,13 @@ TCypressManager::TCypressManager(TBootstrap* bootstrap)
         RegisterSaver(
             ESerializationPriority::Keys,
             "Cypress.Keys",
-            CurrentSnapshotVersion,
+            GetCurrentSnapshotVersion(),
             BIND(&TCypressManager::SaveKeys, MakeStrong(this)),
             context);
         RegisterSaver(
             ESerializationPriority::Values,
             "Cypress.Values",
-            CurrentSnapshotVersion,
+            GetCurrentSnapshotVersion(),
             BIND(&TCypressManager::SaveValues, MakeStrong(this)),
             context);
     }

@@ -360,19 +360,19 @@ TObjectManager::TObjectManager(
         RegisterSaver(
             ESerializationPriority::Keys,
             "ObjectManager.Keys",
-            CurrentSnapshotVersion,
+            GetCurrentSnapshotVersion(),
             BIND(&TObjectManager::SaveKeys, MakeStrong(this)),
             context);
         RegisterSaver(
             ESerializationPriority::Values,
             "ObjectManager.Values",
-            CurrentSnapshotVersion,
+            GetCurrentSnapshotVersion(),
             BIND(&TObjectManager::SaveValues, MakeStrong(this)),
             context);
         RegisterSaver(
             ESerializationPriority::Values,
             "ObjectManager.Schemas",
-            CurrentSnapshotVersion,
+            GetCurrentSnapshotVersion(),
             BIND(&TObjectManager::SaveSchemas, MakeStrong(this)),
             context);
     }

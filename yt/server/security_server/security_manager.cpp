@@ -249,13 +249,13 @@ public:
             RegisterSaver(
                 ESerializationPriority::Keys,
                 "SecurityManager.Keys",
-                CurrentSnapshotVersion,
+                GetCurrentSnapshotVersion(),
                 BIND(&TImpl::SaveKeys, MakeStrong(this)),
                 context);
             RegisterSaver(
                 ESerializationPriority::Values,
                 "SecurityManager.Values",
-                CurrentSnapshotVersion,
+                GetCurrentSnapshotVersion(),
                 BIND(&TImpl::SaveValues, MakeStrong(this)),
                 context);
         }
