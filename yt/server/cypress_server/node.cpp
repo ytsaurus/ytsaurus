@@ -24,6 +24,7 @@ TCypressNodeBase::TCypressNodeBase(const TVersionedNodeId& id)
     , Transaction_(nullptr)
     , CreationTime_(0)
     , ModificationTime_(0)
+    , Revision_(0)
     , Account_(nullptr)
     , CachedResourceUsage_(ZeroClusterResources())
     , Acd_(this)
@@ -79,6 +80,7 @@ void TCypressNodeBase::Save(NCellMaster::TSaveContext& context) const
     Save(context, LockMode_);
     Save(context, CreationTime_);
     Save(context, ModificationTime_);
+    Save(context, Revision_);
     SaveObjectRef(context, Account_);
     Save(context, CachedResourceUsage_);
     Save(context, Acd_);
@@ -97,6 +99,10 @@ void TCypressNodeBase::Load(NCellMaster::TLoadContext& context)
     Load(context, LockMode_);
     Load(context, CreationTime_);
     Load(context, ModificationTime_);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 22) {
+        Load(context, Revision_);
+    }
     LoadObjectRef(context, Account_);
     Load(context, CachedResourceUsage_);
     Load(context, Acd_);
