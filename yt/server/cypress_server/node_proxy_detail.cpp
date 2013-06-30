@@ -322,6 +322,7 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
     attributes->push_back(TAttributeInfo("key", hasKey, false));
     attributes->push_back("creation_time");
     attributes->push_back("modification_time");
+    attributes->push_back("revision");
     attributes->push_back("resource_usage");
     attributes->push_back(TAttributeInfo("recursive_resource_usage", true, true));
     attributes->push_back("account");
@@ -388,7 +389,13 @@ bool TNontemplateCypressNodeProxyBase::GetSystemAttribute(
 
     if (key == "modification_time") {
         BuildYsonFluently(consumer)
-            .Value(node->GetModificationTime().ToString());
+            .Value(node->GetModificationTime());
+        return true;
+    }
+
+    if (key == "revision") {
+        BuildYsonFluently(consumer)
+            .Value(node->GetRevision());
         return true;
     }
 
