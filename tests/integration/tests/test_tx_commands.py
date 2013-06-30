@@ -178,7 +178,7 @@ class TestTxCommands(YTEnvSetup):
         set('//tmp/a', 'b')
         r1 = get('//tmp/a/@revision')
         
-        tx = start_tranasction()
+        tx = start_transaction()
         
         set('//tmp/a', 'c', tx=tx)
         r2 = get('//tmp/a/@revision')
