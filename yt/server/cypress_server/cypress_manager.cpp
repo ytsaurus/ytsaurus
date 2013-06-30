@@ -126,7 +126,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCypressManager::TYPathResolver
-    : public IYPathResolver
+    : public INodeResolver
 {
 public:
     TYPathResolver(
@@ -430,7 +430,7 @@ IYPathServicePtr TCypressManager::GetRootService() const
     return RootService;
 }
 
-IYPathResolverPtr TCypressManager::CreateResolver(TTransaction* transaction)
+INodeResolverPtr TCypressManager::CreateResolver(TTransaction* transaction)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 

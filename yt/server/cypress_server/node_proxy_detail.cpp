@@ -216,7 +216,7 @@ INodeFactoryPtr TNontemplateCypressNodeProxyBase::CreateFactory() const
     return New<TNodeFactory>(Bootstrap, Transaction, account);
 }
 
-IYPathResolverPtr TNontemplateCypressNodeProxyBase::GetResolver() const
+INodeResolverPtr TNontemplateCypressNodeProxyBase::GetResolver() const
 {
     if (!CachedResolver) {
         auto cypressManager = Bootstrap->GetCypressManager();

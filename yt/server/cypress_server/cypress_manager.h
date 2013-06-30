@@ -94,7 +94,7 @@ public:
     NYTree::IYPathServicePtr GetRootService() const;
 
     //! Creates a resolver that provides a view in the context of a given transaction.
-    NYTree::IYPathResolverPtr CreateResolver(NTransactionServer::TTransaction* transaction = nullptr);
+    NYTree::INodeResolverPtr CreateResolver(NTransactionServer::TTransaction* transaction = nullptr);
 
     //! Similar to |FindNode| provided by |DECLARE_METAMAP_ACCESSORS| but
     //! specially optimized for the case of null transaction.

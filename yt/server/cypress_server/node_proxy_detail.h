@@ -86,7 +86,7 @@ public:
         TCypressNodeBase* trunkNode);
 
     virtual NYTree::INodeFactoryPtr CreateFactory() const override;
-    virtual NYTree::IYPathResolverPtr GetResolver() const override;
+    virtual NYTree::INodeResolverPtr GetResolver() const override;
 
     virtual NTransactionServer::TTransaction* GetTransaction() const override;
 
@@ -112,7 +112,7 @@ protected:
     TCypressNodeBase* TrunkNode;
 
     mutable TCypressNodeBase* CachedNode;
-    mutable NYTree::IYPathResolverPtr CachedResolver;
+    mutable NYTree::INodeResolverPtr CachedResolver;
     
     virtual NObjectServer::TVersionedObjectId GetVersionedId() const override;
     virtual NSecurityServer::TAccessControlDescriptor* FindThisAcd() override;
