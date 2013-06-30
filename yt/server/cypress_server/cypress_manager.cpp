@@ -354,34 +354,6 @@ TCypressNodeBase* TCypressManager::CloneNode(
     return LockVersionedNode(clonedNode_, context.Transaction, ELockMode::Exclusive);
 }
 
-void TCypressManager::CreateNodeBehavior(TCypressNodeBase* trunkNode)
-{
-    YCHECK(trunkNode->IsTrunk());
-
-    auto handler = GetHandler(trunkNode);
-    auto behavior = handler->CreateBehavior(trunkNode);
-    if (!behavior)
-        return;
-
-    YCHECK(NodeBehaviors.insert(std::make_pair(trunkNode, behavior)).second);
-
-    LOG_DEBUG("Node behavior created (NodeId: %s)", ~ToString(trunkNode->GetId()));
-}
-
-void TCypressManager::DestroyNodeBehavior(TCypressNodeBase* trunkNode)
-{
-    YCHECK(trunkNode->IsTrunk());
-
-    auto it = NodeBehaviors.find(trunkNode);
-    if (it == NodeBehaviors.end())
-        return;
-
-    it->second->Destroy();
-    NodeBehaviors.erase(it);
-
-    LOG_DEBUG("Node behavior destroyed (NodeId: %s)", ~ToString(trunkNode->GetId()));
-}
-
 TCypressNodeBase* TCypressManager::GetRootNode() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -943,27 +915,6 @@ void TCypressManager::Clear()
     InitBuiltin();
 }
 
-void TCypressManager::OnLeaderRecoveryComplete()
-{
-    LOG_INFO("Started creating node behaviors");
-    YCHECK(NodeBehaviors.empty());
-    FOREACH (const auto& pair, NodeMap) {
-        if (!pair.first.IsBranched()) {
-            CreateNodeBehavior(pair.second);
-        }
-    }
-    LOG_INFO("Finished creating node behaviors");
-}
-
-void TCypressManager::OnStopLeading()
-{
-    FOREACH (const auto& pair, NodeBehaviors) {
-        auto behavior = pair.second;
-        behavior->Destroy();
-    }
-    NodeBehaviors.clear();
-}
-
 void TCypressManager::OnRecoveryComplete()
 {
     FOREACH (const auto& pair, NodeMap) {
@@ -1027,18 +978,12 @@ void TCypressManager::RegisterNode(
     LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %s, Type: %s)",
         ~ToString(nodeId),
         ~TypeFromId(nodeId).ToString());
-
-    if (IsLeader()) {
-        CreateNodeBehavior(node_);
-    }
 }
 
 void TCypressManager::DestroyNode(TCypressNodeBase* trunkNode)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
     YCHECK(trunkNode->IsTrunk());
-
-    DestroyNodeBehavior(trunkNode);
 
     auto nodeHolder = NodeMap.Release(trunkNode->GetVersionedId());
 

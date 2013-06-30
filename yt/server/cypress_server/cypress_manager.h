@@ -152,8 +152,6 @@ private:
     TNodeId RootNodeId;
     TCypressNodeBase* RootNode;
 
-    yhash_map<TCypressNodeBase*, INodeBehaviorPtr> NodeBehaviors;
-
     void RegisterNode(
         std::unique_ptr<TCypressNodeBase> node,
         NTransactionServer::TTransaction* transaction,
@@ -162,9 +160,8 @@ private:
     void DestroyNode(TCypressNodeBase* trunkNode);
 
     // TMetaStatePart overrides.
-    virtual void OnLeaderRecoveryComplete() override;
-    virtual void OnStopLeading() override;
     virtual void OnRecoveryComplete() override;
+
     void DoClear();
     virtual void Clear() override;
 
@@ -191,9 +188,6 @@ private:
     void ReleaseCreatedNodes(NTransactionServer::TTransaction* transaction);
     void PromoteLocks(NTransactionServer::TTransaction* transaction);
     void PromoteLock(TLock* lock, NTransactionServer::TTransaction* parentTransaction);
-
-    void CreateNodeBehavior(TCypressNodeBase* trunkNode);
-    void DestroyNodeBehavior(TCypressNodeBase* trunkNode);
 
     void ValidateLock(
         TCypressNodeBase* trunkNode,

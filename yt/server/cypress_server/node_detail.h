@@ -29,45 +29,6 @@ namespace NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TImpl, class TProxy>
-class TNodeBehaviorBase
-    : public INodeBehavior
-{
-public:
-    TNodeBehaviorBase(
-        NCellMaster::TBootstrap* bootstrap,
-        TImpl* trunkNode)
-        : Bootstrap(bootstrap)
-        , TrunkNode(trunkNode)
-    {
-        YASSERT(trunkNode->IsTrunk());
-    }
-
-    virtual void Destroy() override
-    { }
-
-protected:
-    NCellMaster::TBootstrap* Bootstrap;
-    TImpl* TrunkNode;
-
-    TImpl* GetImpl() const
-    {
-        return TrunkNode;
-    }
-
-    TIntrusivePtr<TProxy> GetProxy() const
-    {
-        auto cypressManager = Bootstrap->GetCypressManager();
-        auto proxy = cypressManager->GetVersionedNodeProxy(TrunkNode);
-        auto* typedProxy = dynamic_cast<TProxy*>(~proxy);
-        YCHECK(typedProxy);
-        return typedProxy;
-    }
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TNontemplateCypressNodeTypeHandlerBase
     : public INodeTypeHandler
 {
@@ -198,11 +159,6 @@ public:
             dynamic_cast<TImpl*>(branchedNode));
     }
 
-    virtual INodeBehaviorPtr CreateBehavior(TCypressNodeBase* trunkNode) override
-    {
-        return DoCreateBehavior(dynamic_cast<TImpl*>(trunkNode));
-    }
-
     virtual std::unique_ptr<TCypressNodeBase> Clone(
         TCypressNodeBase* sourceNode,
         const TCloneContext& context) override
@@ -260,12 +216,6 @@ protected:
     {
         UNUSED(originatingNode);
         UNUSED(branchedNode);
-    }
-
-    virtual INodeBehaviorPtr DoCreateBehavior(TImpl* trunkNode)
-    {
-        UNUSED(trunkNode);
-        return nullptr;
     }
 
     virtual void DoClone(

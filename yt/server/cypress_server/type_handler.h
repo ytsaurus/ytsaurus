@@ -17,23 +17,6 @@ namespace NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Describes a behavior object that lives as long as the node
-//! exists in Cypress.
-/*!
- *  \note
- *  Behaviors are only created at leaders.
- *  Behaviors are only created for trunk nodes.
- */
-struct INodeBehavior
-    : public virtual TRefCounted
-{
-    //! Called when the node owning the behavior object is about to
-    //! be destroyed.
-    virtual void Destroy() = 0;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! Provides node type-specific services.
 struct INodeTypeHandler
     : public virtual TRefCounted
@@ -107,9 +90,6 @@ struct INodeTypeHandler
         TCypressNodeBase* sourceNode,
         const TCloneContext& context) = 0;
 
-    //! Creates a behavior associated with the node.
-    //! The method may return NULL if no behavior is needed.
-    virtual INodeBehaviorPtr CreateBehavior(TCypressNodeBase* trunkNode) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

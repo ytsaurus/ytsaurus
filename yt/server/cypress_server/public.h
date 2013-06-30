@@ -14,9 +14,6 @@ namespace NCypressServer {
 class TCypressManager;
 typedef TIntrusivePtr<TCypressManager> TCypressManagerPtr;
 
-struct INodeBehavior;
-typedef TIntrusivePtr<INodeBehavior> INodeBehaviorPtr;
-
 struct INodeTypeHandler;
 typedef TIntrusivePtr<INodeTypeHandler> INodeTypeHandlerPtr;
 
