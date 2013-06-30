@@ -311,8 +311,8 @@ void TBootstrap::Run()
         "/@service_name", ConvertToYsonString("node"));
     SetBuildAttributes(OrchidRoot, "node");
 
-    std::unique_ptr<NHttp::TServer> httpServer(new NHttp::TServer(Config->MonitoringPort));
-    httpServer->Register(
+    NHttp::TServer httpServer(Config->MonitoringPort);
+    httpServer.Register(
         "/orchid",
         NMonitoring::GetYPathHttpHandler(OrchidRoot->Via(GetControlInvoker())));
 
@@ -321,7 +321,7 @@ void TBootstrap::Run()
         GetControlInvoker()));
 
     LOG_INFO("Listening for HTTP requests on port %d", Config->MonitoringPort);
-    httpServer->Start();
+    httpServer.Start();
 
     LOG_INFO("Listening for RPC requests on port %d", Config->RpcPort);
     RpcServer->Configure(Config->RpcServer);
