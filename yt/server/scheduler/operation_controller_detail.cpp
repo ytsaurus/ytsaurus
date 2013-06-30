@@ -2530,7 +2530,9 @@ void TOperationControllerBase::CompletePreparation()
             LOG_DEBUG("Input chunk is unavailable (ChunkId: %s)", ~ToString(pair.first));
             ++UnavailableInputChunkCount;
             FOREACH(const auto& inputStripe, chunkDescriptor.InputStripes) {
-                inputStripe.Task->GetChunkPoolInput()->Suspend(inputStripe.Cookie);
+                if (inputStripe.Stripe->WaitingChunkCount == 0) {
+                    inputStripe.Task->GetChunkPoolInput()->Suspend(inputStripe.Cookie);
+                }
                 ++inputStripe.Stripe->WaitingChunkCount;
             }
         }
