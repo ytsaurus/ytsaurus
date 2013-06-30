@@ -79,6 +79,7 @@ void TNontemplateCypressNodeTypeHandlerBase::BranchCore(
     branchedNode->SetParent(originatingNode->GetParent());
     branchedNode->SetCreationTime(originatingNode->GetCreationTime());
     branchedNode->SetModificationTime(originatingNode->GetModificationTime());
+    branchedNode->SetRevision(originatingNode->GetRevision());
     branchedNode->SetLockMode(mode);
     branchedNode->SetTrunkNode(originatingNode->GetTrunkNode());
     branchedNode->SetTransaction(transaction);
@@ -114,6 +115,7 @@ void TNontemplateCypressNodeTypeHandlerBase::MergeCore(
         ->GetMutationContext();
 
     originatingNode->SetModificationTime(mutationContext->GetTimestamp());
+    originatingNode->SetRevision(mutationContext->GetRevision());
 }
 
 std::unique_ptr<TCypressNodeBase> TNontemplateCypressNodeTypeHandlerBase::CloneCorePrologue(

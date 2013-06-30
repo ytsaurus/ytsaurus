@@ -833,6 +833,7 @@ void TCypressManager::SetModified(
         ->GetMutationContext();
 
     node->SetModificationTime(mutationContext->GetTimestamp());
+    node->SetRevision(mutationContext->GetVersion().ToRevision());
 }
 
 TCypressManager::TSubtreeNodes TCypressManager::ListSubtreeNodes(
@@ -1031,6 +1032,7 @@ void TCypressManager::RegisterNode(
 
     node->SetCreationTime(mutationContext->GetTimestamp());
     node->SetModificationTime(mutationContext->GetTimestamp());
+    node->SetRevision(mutationContext->GetVersion().ToRevision());
 
     auto node_ = ~node;
     NodeMap.Insert(TVersionedNodeId(nodeId), node.release());
