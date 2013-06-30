@@ -26,7 +26,7 @@ DECLARE_ENUM(EErrorCode,
     ((SortOrderViolation)         (301))
 );
 
-DECLARE_ENUM(EControlAttributes,
+DECLARE_ENUM(EControlAttribute,
     (TableIndex)
 );
 

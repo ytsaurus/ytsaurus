@@ -36,12 +36,12 @@ TYamrWriter::~TYamrWriter()
 void TYamrWriter::OnIntegerScalar(i64 value)
 {
     if (State == EState::ExpectValue) {
-        THROW_ERROR_EXCEPTION("Integers are not supported by YAMR");
+        THROW_ERROR_EXCEPTION("Integer values are not supported by YAMR");
     }
     YASSERT(State == EState::ExpectAttributeValue);
 
     switch (ControlAttribute) {
-    case EControlAttributes::TableIndex:
+    case EControlAttribute::TableIndex:
         if (!Config->EnableTableIndex) {
             // Silently ignore table switches.
             break;
@@ -66,7 +66,7 @@ void TYamrWriter::OnIntegerScalar(i64 value)
 void TYamrWriter::OnDoubleScalar(double value)
 {
     YASSERT(State == EState::ExpectValue || State == EState::ExpectAttributeValue);
-    THROW_ERROR_EXCEPTION("Doubles are not supported by YAMR");
+    THROW_ERROR_EXCEPTION("Double values are not supported by YAMR");
 }
 
 void TYamrWriter::OnStringScalar(const TStringBuf& value)
@@ -155,7 +155,7 @@ void TYamrWriter::OnKeyedItem(const TStringBuf& key)
         break;
 
     case EState::ExpectAttributeName:
-        ControlAttribute = ParseEnum<EControlAttributes>(ToString(key));
+        ControlAttribute = ParseEnum<EControlAttribute>(ToString(key));
         State = EState::ExpectAttributeValue;
         break;
 

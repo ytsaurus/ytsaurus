@@ -69,7 +69,7 @@ private:
 
     EState State;
     EValueType ValueType;
-    NTableClient::EControlAttributes ControlAttribute;
+    NTableClient::EControlAttribute ControlAttribute;
 
     void WriteRow();
     void WriteInLenvalMode(const TStringBuf& value);

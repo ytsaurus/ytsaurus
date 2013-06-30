@@ -19,8 +19,7 @@ class TTableConsumer
     : public NYson::IYsonConsumer
 {
 public:
-    TTableConsumer(ISyncWriterPtr writer);
-
+    explicit TTableConsumer(ISyncWriterPtr writer);
     TTableConsumer(const std::vector<ISyncWriterPtr>& writers, int tableIndex);
 
 private:
@@ -37,7 +36,7 @@ private:
     virtual void OnBeginAttributes() override;
 
     void ThrowMapExpected();
-    void ThrowIncorrectAttributeValueType(const Stroka& type);
+    void ThrowInvalidControlAttribute(const Stroka& whatsWrong);
 
     virtual void OnEndList() override;
     virtual void OnEndAttributes() override;
@@ -52,7 +51,7 @@ private:
     );
 
     EControlState ControlState;
-    EControlAttributes ControlAttribute;
+    EControlAttribute ControlAttribute;
 
     int CurrentTableIndex;
     std::vector<ISyncWriterPtr> Writers;

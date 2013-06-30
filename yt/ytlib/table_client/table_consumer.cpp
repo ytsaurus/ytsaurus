@@ -35,7 +35,7 @@ void TTableConsumer::OnStringScalar(const TStringBuf& value)
 {
     if (ControlState == EControlState::ExpectValue) {
         YASSERT(Depth == 1);
-        ThrowIncorrectAttributeValueType("string scalar");
+        ThrowInvalidControlAttribute("be a string value");
     }
 
     YASSERT(ControlState == EControlState::None);
@@ -53,14 +53,13 @@ void TTableConsumer::OnIntegerScalar(i64 value)
         YASSERT(Depth == 1);
 
         switch (ControlAttribute) {
-            case EControlAttributes::TableIndex: {
-                if (value >= Writers.size()) {
+            case EControlAttribute::TableIndex: {
+                if (value < 0 || value >= Writers.size()) {
                     THROW_ERROR_EXCEPTION(
-                        "Invalid table index (TableIndex: %d, TableCount: %d, CurrentTableIndex: %d, RowIndex: %" PRId64 ")",
-                        value,
-                        static_cast<int>(Writers.size()),
-                        CurrentTableIndex,
-                        Writer->GetRowCount());
+                        "Invalid table index: expected in range [0, %d], actual %" PRId64,
+                        static_cast<int>(Writers.size()) - 1,
+                        value)
+                        << TErrorAttribute("row_index", Writer->GetRowCount());
                 }
                 CurrentTableIndex = value;
                 Writer = Writers[CurrentTableIndex];
@@ -69,7 +68,7 @@ void TTableConsumer::OnIntegerScalar(i64 value)
             }
 
             default:
-                ThrowIncorrectAttributeValueType("integer scalar");
+                ThrowInvalidControlAttribute("be an integer value");
         }
 
         return;
@@ -88,7 +87,7 @@ void TTableConsumer::OnDoubleScalar(double value)
 {
     if (ControlState == EControlState::ExpectValue) {
         YASSERT(Depth == 1);
-        ThrowIncorrectAttributeValueType("double scalar");
+        ThrowInvalidControlAttribute("be a double value");
     }
 
     YASSERT(ControlState == EControlState::None);
@@ -113,7 +112,7 @@ void TTableConsumer::OnEntity()
         return;
 
     case EControlState::ExpectValue:
-        ThrowIncorrectAttributeValueType("entity");
+        ThrowInvalidControlAttribute("be an entity");
         break;
 
     default:
@@ -132,7 +131,7 @@ void TTableConsumer::OnBeginList()
 {
     if (ControlState == EControlState::ExpectValue) {
         YASSERT(Depth == 1);
-        ThrowIncorrectAttributeValueType("list");
+        ThrowInvalidControlAttribute("be a list");
     }
 
     YASSERT(ControlState == EControlState::None);
@@ -149,7 +148,7 @@ void TTableConsumer::OnBeginAttributes()
 {
     if (ControlState == EControlState::ExpectValue) {
         YASSERT(Depth == 1);
-        ThrowIncorrectAttributeValueType("value with attributes");
+        ThrowInvalidControlAttribute("have attributes");
     }
 
     YASSERT(ControlState == EControlState::None);
@@ -165,20 +164,18 @@ void TTableConsumer::OnBeginAttributes()
 
 void TTableConsumer::ThrowMapExpected()
 {
-    THROW_ERROR_EXCEPTION(
-        "Invalid row format, map expected (TableIndex: %d, RowIndex: %" PRId64 ")",
-        CurrentTableIndex,
-        Writer->GetRowCount());
+    THROW_ERROR_EXCEPTION("Invalid row format, map expected")
+        << TErrorAttribute("table_index", CurrentTableIndex)
+        << TErrorAttribute("row_index", Writer->GetRowCount());
 }
 
-void TTableConsumer::ThrowIncorrectAttributeValueType(const Stroka& type)
+void TTableConsumer::ThrowInvalidControlAttribute(const Stroka& whatsWrong)
 {
-    THROW_ERROR_EXCEPTION(
-        "Incorrect value type %s for control attribute %s (TableIndex: %d, RowIndex: %" PRId64 ")",
-        ~type.Quote(),
-        ~FormatEnum(ControlAttribute),
-        CurrentTableIndex,
-        Writer->GetRowCount());
+    THROW_ERROR_EXCEPTION("Control attribute %s cannot %s",
+        ~FormatEnum(ControlAttribute).Quote(),
+        ~whatsWrong)
+        << TErrorAttribute("table_index", CurrentTableIndex)
+        << TErrorAttribute("row_index", Writer->GetRowCount());
 }
 
 void TTableConsumer::OnListItem()
@@ -196,7 +193,7 @@ void TTableConsumer::OnBeginMap()
 {
     if (ControlState == EControlState::ExpectValue) {
         YASSERT(Depth == 1);
-        ThrowIncorrectAttributeValueType("map");
+        ThrowInvalidControlAttribute("be a map");
     }
 
     YASSERT(ControlState == EControlState::None);
@@ -217,16 +214,18 @@ void TTableConsumer::OnKeyedItem(const TStringBuf& name)
     case EControlState::ExpectName:
         YASSERT(Depth == 1);
         try {
-            ControlAttribute = ParseEnum<EControlAttributes>(ToString(name));
-            ControlState = EControlState::ExpectValue;
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Failed to parse control attribute name") << ex;
+            ControlAttribute = ParseEnum<EControlAttribute>(ToString(name));
+        } catch (const std::exception&) {
+            // Ignore ex, our custom message is more meaningful.
+            THROW_ERROR_EXCEPTION("Failed to parse control attribute name %s",
+                ~Stroka(name).Quote());
         }
+        ControlState = EControlState::ExpectValue;
         return;
 
     case EControlState::ExpectEndAttributes:
         YASSERT(Depth == 1);
-        THROW_ERROR_EXCEPTION("Too many control attributes: maximum 1 attribute is allowed");
+        THROW_ERROR_EXCEPTION("Too many control attributes per record: at most one attribute is allowed");
         break;
 
     default:
@@ -249,7 +248,7 @@ void TTableConsumer::OnKeyedItem(const TStringBuf& name)
 void TTableConsumer::OnEndMap()
 {
     YASSERT(Depth > 0);
-    // No control attribute allow map or composite values.
+    // No control attribute allows map or composite values.
     YASSERT(ControlState == EControlState::None);
 
     --Depth;
@@ -299,22 +298,22 @@ void TTableConsumer::OnEndAttributes()
     --Depth;
 
     switch (ControlState) {
-    case EControlState::ExpectName:
-        THROW_ERROR_EXCEPTION("Empty control attributes are not allowed");
-        break;
+        case EControlState::ExpectName:
+            THROW_ERROR_EXCEPTION("Too few control attributes per record: at least one attribute is required");
+            break;
 
-    case EControlState::ExpectEndAttributes:
-        YASSERT(Depth == 0);
-        ControlState = EControlState::ExpectEntity;
-        break;
+        case EControlState::ExpectEndAttributes:
+            YASSERT(Depth == 0);
+            ControlState = EControlState::ExpectEntity;
+            break;
 
-    case EControlState::None:
-        YASSERT(Depth > 0);
-        ValueWriter.OnEndAttributes();
-        break;
+        case EControlState::None:
+            YASSERT(Depth > 0);
+            ValueWriter.OnEndAttributes();
+            break;
 
-    default:
-        YUNREACHABLE();
+        default:
+            YUNREACHABLE();
     };
 }
 

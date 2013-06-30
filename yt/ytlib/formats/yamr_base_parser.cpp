@@ -18,8 +18,8 @@ TYamrConsumerBase::TYamrConsumerBase(NYson::IYsonConsumer* consumer)
 
 void TYamrConsumerBase::SwitchTable(i64 tableIndex)
 {
-    static Stroka key = FormatEnum(NTableClient::EControlAttributes(
-        NTableClient::EControlAttributes::TableIndex));
+    static Stroka key = FormatEnum(NTableClient::EControlAttribute(
+        NTableClient::EControlAttribute::TableIndex));
     Consumer->OnListItem();
     Consumer->OnBeginAttributes();
     Consumer->OnKeyedItem(key);

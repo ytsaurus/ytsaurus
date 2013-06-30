@@ -72,7 +72,7 @@ private:
     EState State;
 
     TStringBuf ColumnName;
-    NTableClient::EControlAttributes ControlAttribute;
+    NTableClient::EControlAttribute ControlAttribute;
 
     TSmallSet<TStringBuf, 4> KeyColumnNames;
     TSmallSet<TStringBuf, 4> SubkeyColumnNames;

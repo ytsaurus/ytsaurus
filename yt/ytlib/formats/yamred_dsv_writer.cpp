@@ -45,7 +45,7 @@ void TYamredDsvWriter::OnIntegerScalar(i64 value)
     YASSERT(State == EState::ExpectAttributeValue);
 
     switch (ControlAttribute) {
-    case EControlAttributes::TableIndex:
+    case EControlAttribute::TableIndex:
         if (!Config->EnableTableIndex) {
             // Silently ignore table switches.
             break;
@@ -69,7 +69,7 @@ void TYamredDsvWriter::OnIntegerScalar(i64 value)
 
 void TYamredDsvWriter::OnDoubleScalar(double value)
 {
-    THROW_ERROR_EXCEPTION("Doubles values are not supported by YAMRed DSV");
+    THROW_ERROR_EXCEPTION("Double values are not supported by YAMRed DSV");
 }
 
 void TYamredDsvWriter::OnStringScalar(const TStringBuf& value)
@@ -161,7 +161,7 @@ void TYamredDsvWriter::OnKeyedItem(const TStringBuf& key)
         break;
 
     case EState::ExpectAttributeName:
-        ControlAttribute = ParseEnum<EControlAttributes>(ToString(key));
+        ControlAttribute = ParseEnum<EControlAttribute>(ToString(key));
         State = EState::ExpectAttributeValue;
         break;
 
@@ -184,7 +184,7 @@ void TYamredDsvWriter::OnEndMap()
 void TYamredDsvWriter::OnBeginAttributes()
 {
     if (State == EState::ExpectValue) {
-        THROW_ERROR_EXCEPTION("Attributes are not supported by YAMR");
+        THROW_ERROR_EXCEPTION("Attributes are not supported by YAMRed DSV");
     }
 
     YASSERT(State == EState::None);
@@ -232,9 +232,11 @@ void TYamredDsvWriter::WriteYamrKey(
     if (fieldCount < columnNames.size()) {
         FOREACH (const auto& column, fieldValues) {
             if (column.second.RowIndex != RowCount) {
-                THROW_ERROR_EXCEPTION("Missing column %s in YAMRed DSV", ~Stroka(column.first).Quote());
+                THROW_ERROR_EXCEPTION("Missing column %s in YAMRed DSV",
+                    ~Stroka(column.first).Quote());
             }
         }
+        YUNREACHABLE();
     }
 
     auto nameIt = columnNames.begin();
