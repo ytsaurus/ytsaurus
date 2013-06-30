@@ -32,12 +32,12 @@ struct TMetaVersion
 inline TMetaVersion::TMetaVersion()
     : SegmentId(0)
     , RecordCount(0)
-{  }
+{ }
 
 inline TMetaVersion::TMetaVersion(i32 segmentId, i32 recordCount)
     : SegmentId(segmentId)
     , RecordCount(recordCount)
-{  }
+{ }
 
 inline bool TMetaVersion::operator < (const TMetaVersion& other) const
 {
