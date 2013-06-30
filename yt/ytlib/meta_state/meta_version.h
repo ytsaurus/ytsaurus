@@ -71,12 +71,12 @@ inline bool TMetaVersion::operator >= (const TMetaVersion& other) const
     return !(*this < other);
 }
 
-Stroka TMetaVersion::ToString() const
+inline Stroka TMetaVersion::ToString() const
 {
     return Sprintf("%d:%d", SegmentId, RecordCount);
 }
 
-i64 TMetaVersion::ToRevision() const
+inline i64 TMetaVersion::ToRevision() const
 {
     return static_cast<i64>(SegmentId) << 32 + static_cast<i64>(RecordCount);
 }
