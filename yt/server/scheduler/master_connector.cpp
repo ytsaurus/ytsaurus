@@ -428,7 +428,7 @@ private:
         void RegisterInstance()
         {
             auto batchReq = Owner->StartBatchRequest(false);
-            auto path = "//sys/schedulers/" + ToYPathLiteral(ServiceAddresss);
+            auto path = "//sys/scheduler/instances/" + ToYPathLiteral(ServiceAddresss);
             {
                 auto req = TCypressYPathProxy::Create(path);
                 req->set_ignore_existing(true);
