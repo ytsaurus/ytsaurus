@@ -178,7 +178,7 @@ class TestTxCommands(YTEnvSetup):
         set('//tmp/a', 'b')
         r1 = get('//tmp/a/@revision')
         
-        tx = start_tx()
+        tx = start_tranasction()
         
         set('//tmp/a', 'c', tx=tx)
         r2 = get('//tmp/a/@revision')
@@ -186,7 +186,7 @@ class TestTxCommands(YTEnvSetup):
         assert r2 == r1
         assert r3 > r1
 
-        commit_tx(tx)
+        commit_transaction(tx)
         r4 = get('//tmp/a/@revision')
         assert r4 > r1
         assert r4 > r3
