@@ -85,6 +85,32 @@ static NLog::TLogger Logger("MasterBootstrap");
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TBootstrap::TCypressRootService
+    : public TYPathServiceBase
+{
+public:
+    explicit TCypressRootService(TBootstrap* bootstrap)
+        : Bootstrap(bootstrap)
+    { }
+
+    virtual TResolveResult Resolve(
+        const TYPath& path,
+        IServiceContextPtr context) override
+    {
+        UNUSED(context);
+
+        auto cypressManager = Bootstrap->GetCypressManager();
+        auto rootProxy = cypressManager->GetVersionedNodeProxy(cypressManager->GetRootNode());
+        return TResolveResult::There(rootProxy, path);
+    }
+
+private:
+    TBootstrap* Bootstrap;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TBootstrap::TBootstrap(
     const Stroka& configFileName,
     TCellMasterConfigPtr config)
@@ -240,7 +266,9 @@ void TBootstrap::Run()
         NMonitoring::GetYPathHttpHandler(orchidRoot->Via(GetControlInvoker())));
     httpServer.Register(
         "/cypress",
-        NMonitoring::GetYPathHttpHandler(CypressManager->GetRootService()));
+        NMonitoring::GetYPathHttpHandler(
+            New<TCypressRootService>(this)
+                ->Via(MetaStateFacade->GetGuardedInvoker())));
 
     LOG_INFO("Listening for HTTP requests on port %d", Config->MonitoringPort);
     httpServer.Start();

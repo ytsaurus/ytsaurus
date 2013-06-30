@@ -91,6 +91,7 @@ public:
 
     //! Returns a service representing the root.
     //! This service is fully thread-safe.
+    // TODO(babenko): deprecate in favor of TObjectManager::GetRootService
     NYTree::IYPathServicePtr GetRootService() const;
 
     //! Creates a resolver that provides a view in the context of a given transaction.

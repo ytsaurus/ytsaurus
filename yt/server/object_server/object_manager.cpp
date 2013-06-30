@@ -217,6 +217,104 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TObjectManager::TObjectResolver
+    : public IObjectResolver
+{
+public:
+    explicit TObjectResolver(TBootstrap* bootstrap)
+        : Bootstrap(bootstrap)
+    { }
+
+    virtual IObjectProxyPtr ResolvePath(const TYPath& path, TTransaction* transaction) override
+    {
+        auto objectManager = Bootstrap->GetObjectManager();
+        auto cypressManager = Bootstrap->GetCypressManager();
+
+        NYPath::TTokenizer tokenizer(path);
+        switch (tokenizer.Advance()) {
+            case NYPath::ETokenType::EndOfStream:
+                return objectManager->GetMasterProxy();
+
+            case NYPath::ETokenType::Slash: {
+                auto root = cypressManager->GetVersionedNodeProxy(
+                    cypressManager->GetRootNode(),
+                    transaction);
+                return DoResolvePath(root, tokenizer.GetSuffix());
+            }
+
+            case NYPath::ETokenType::Literal: {
+                const auto& token = tokenizer.GetToken();
+                if (!token.has_prefix(ObjectIdPathPrefix)) {
+                    tokenizer.ThrowUnexpected();
+                }
+
+                TStringBuf objectIdString(token.begin() + ObjectIdPathPrefix.length(), token.end());
+                TObjectId objectId;
+                if (!TObjectId::FromString(objectIdString, &objectId)) {
+                    THROW_ERROR_EXCEPTION(
+                        NYTree::EErrorCode::ResolveError,
+                        "Error parsing object id %s",
+                        ~objectIdString);
+                }
+
+                auto* object = objectManager->FindObject(objectId);
+                if (!IsObjectAlive(object)) {
+                    THROW_ERROR_EXCEPTION(
+                        NYTree::EErrorCode::ResolveError,
+                        "No such object %s",
+                        ~ToString(objectId));
+                }
+
+                auto proxy = objectManager->GetProxy(object, transaction);
+                return DoResolvePath(proxy, tokenizer.GetSuffix());
+            }
+
+            default:
+                tokenizer.ThrowUnexpected();
+                YUNREACHABLE();
+        }
+    }
+
+    virtual TYPath GetPath(IObjectProxyPtr proxy) override
+    {
+        const auto& id = proxy->GetId();
+        if (TypeIsVersioned(TypeFromId(id))) {
+            auto* nodeProxy = dynamic_cast<ICypressNodeProxy*>(~proxy);
+            auto resolver = nodeProxy->GetResolver();
+            return resolver->GetPath(nodeProxy);
+        } else {
+            return TYPath(ObjectIdPathPrefix) + ToString(id);
+        }
+    }
+
+private:
+    TBootstrap* Bootstrap;
+
+    static IObjectProxyPtr DoResolvePath(IObjectProxyPtr proxy, const TYPath& path)
+    {
+        if (path.empty()) {
+            return std::move(proxy);
+        }
+
+        auto* nodeProxy = dynamic_cast<ICypressNodeProxy*>(~proxy);
+        if (!nodeProxy) {
+            THROW_ERROR_EXCEPTION(
+                "Cannot resolve nontrivial path %s for nonversioned object %s",
+                NYTree::EErrorCode::ResolveError,
+                ~path,
+                ~ToString(proxy->GetId()));
+        }
+
+        auto resolvedNode = GetNodeByYPath(nodeProxy, path);
+        auto* resolvedNodeProxy = dynamic_cast<ICypressNodeProxy*>(~resolvedNode);
+        YCHECK(resolvedNodeProxy);
+        return resolvedNodeProxy;
+    }
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TObjectManager::TObjectManager(
     TObjectManagerConfigPtr config,
     TBootstrap* bootstrap)
@@ -227,6 +325,7 @@ TObjectManager::TObjectManager(
     , Bootstrap(bootstrap)
     , Profiler(ObjectServerProfiler)
     , RootService(New<TRootService>(bootstrap))
+    , ObjectResolver(new TObjectResolver(bootstrap))
     , GarbageCollector(New<TGarbageCollector>(config, bootstrap))
     , CreatedObjectCount(0)
     , DestroyedObjectCount(0)
@@ -970,6 +1069,11 @@ void TObjectManager::UnstageObject(
     auto handler = GetHandler(object);
     handler->Unstage(object, transaction, recursive);
     UnrefObject(object);
+}
+
+IObjectResolver* TObjectManager::GetObjectResolver()
+{
+    return ~ObjectResolver;
 }
 
 void TObjectManager::ReplayVerb(const NProto::TMetaReqExecute& request)

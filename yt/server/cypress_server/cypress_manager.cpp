@@ -138,20 +138,15 @@ public:
 
     virtual INodePtr ResolvePath(const TYPath& path) override
     {
-        if (path.empty()) {
-            THROW_ERROR_EXCEPTION("YPath cannot be empty");
+        auto objectManager = Bootstrap->GetObjectManager();
+        auto* resolver = objectManager->GetObjectResolver();
+        auto objectProxy = resolver->ResolvePath(path, Transaction);
+        auto* nodeProxy = dynamic_cast<ICypressNodeProxy*>(~objectProxy);
+        if (!nodeProxy) {
+            THROW_ERROR_EXCEPTION("Path % points to a nonversioned %s object instead of a node",
+                ~FormatEnum(TypeFromId(objectProxy->GetId())).Quote());
         }
-
-        if (path[0] != '/') {
-            THROW_ERROR_EXCEPTION("YPath must start with \"/\"");
-        }
-
-        auto cypressManager = Bootstrap->GetCypressManager();
-        auto rootProxy = cypressManager->GetVersionedNodeProxy(
-            cypressManager->GetRootNode(),
-            Transaction);
-
-        return GetNodeByYPath(rootProxy, path.substr(1));
+        return nodeProxy;
     }
 
     virtual TYPath GetPath(INodePtr node) override

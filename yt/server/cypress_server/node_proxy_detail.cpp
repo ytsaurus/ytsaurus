@@ -533,9 +533,11 @@ void TNontemplateCypressNodeProxyBase::SetModified()
 }
 
 ICypressNodeProxyPtr TNontemplateCypressNodeProxyBase::ResolveSourcePath(const TYPath& path)
-{
-    auto sourceNode = this->GetResolver()->ResolvePath(path);
-    return dynamic_cast<ICypressNodeProxy*>(~sourceNode);
+{   
+    auto node = GetResolver()->ResolvePath(path);
+    auto* nodeProxy = dynamic_cast<ICypressNodeProxy*>(~node);
+    YCHECK(nodeProxy);
+    return nodeProxy;
 }
 
 bool TNontemplateCypressNodeProxyBase::CanHaveChildren() const
@@ -651,7 +653,7 @@ DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
         THROW_ERROR_EXCEPTION("Cannot copy a node to its child");
     }
 
-    if (targetPath.Empty()) {
+    if (targetPath.empty()) {
         ThrowAlreadyExists(this);
     }
 
@@ -686,9 +688,6 @@ DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
     auto* clonedTrunkImpl = clonedImpl->GetTrunkNode();
     auto clonedProxy = GetProxy(clonedTrunkImpl);
 
-    if (targetPath == "") {
-        THROW_ERROR_EXCEPTION("Cannot copy to existing node");
-    }
     SetChild(targetPath, clonedProxy, false);
 
     ToProto(response->mutable_object_id(), clonedTrunkImpl->GetId());
@@ -717,12 +716,12 @@ TNontemplateCompositeCypressNodeProxyBase::TNontemplateCompositeCypressNodeProxy
         trunkNode)
 { }
 
-TIntrusivePtr<const NYTree::ICompositeNode> TNontemplateCompositeCypressNodeProxyBase::AsComposite() const
+TIntrusivePtr<const ICompositeNode> TNontemplateCompositeCypressNodeProxyBase::AsComposite() const
 {
     return this;
 }
 
-TIntrusivePtr<NYTree::ICompositeNode> TNontemplateCompositeCypressNodeProxyBase::AsComposite()
+TIntrusivePtr<ICompositeNode> TNontemplateCompositeCypressNodeProxyBase::AsComposite()
 {
     return this;
 }
@@ -736,8 +735,8 @@ void TNontemplateCompositeCypressNodeProxyBase::ListSystemAttributes(std::vector
 bool TNontemplateCompositeCypressNodeProxyBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer)
 {
     if (key == "count") {
-        NYTree::BuildYsonFluently(consumer)
-            .Value(this->GetChildCount());
+        BuildYsonFluently(consumer)
+            .Value(GetChildCount());
         return true;
     }
 
