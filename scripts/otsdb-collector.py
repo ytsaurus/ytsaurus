@@ -336,7 +336,7 @@ if __name__ == "__main__":
     collectors = []
     for source in sources:
         try:
-            host, port = source.split(":", 1)
+            host, port = str(source).split(":", 1)  # Coerce from unicore to str
             collector = YtCollector(host, port, window, sync_period)
             collectors.append(collector)
         except KeyboardInterrupt:
