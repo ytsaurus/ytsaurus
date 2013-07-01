@@ -30,6 +30,7 @@ using namespace NObjectServer;
 using namespace NCellMaster;
 using namespace NTransactionServer;
 using namespace NSecurityServer;
+using namespace NCypressClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1292,12 +1293,17 @@ bool TLinkNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consum
     }
 
     if (key == "target_path") {
-        auto target = GetTargetProxy();
-        auto objectManager = Bootstrap->GetObjectManager();
-        auto* resolver = objectManager->GetObjectResolver();
-        auto path = resolver->GetPath(target);
-        BuildYsonFluently(consumer)
-            .Value(path);
+        auto target = FindTargetProxy();
+        if (target) {
+            auto objectManager = Bootstrap->GetObjectManager();
+            auto* resolver = objectManager->GetObjectResolver();
+            auto path = resolver->GetPath(target);
+            BuildYsonFluently(consumer)
+                .Value(path);
+        } else {
+            BuildYsonFluently(consumer)
+                .Value(FromObjectId(impl->GetTargetId()));
+        }
         return true;
     }
 
@@ -1334,16 +1340,26 @@ bool TLinkNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& va
     return TBase::SetSystemAttribute(key, value);
 }
 
-IObjectProxyPtr TLinkNodeProxy::GetTargetProxy() const
+IObjectProxyPtr TLinkNodeProxy::FindTargetProxy() const
 {
     auto objectManager = Bootstrap->GetObjectManager();
     const auto* impl = GetThisTypedImpl();
     const auto& targetId = impl->GetTargetId();
     auto* target = objectManager->FindObject(targetId);
     if (!IsObjectAlive(target)) {
-        THROW_ERROR_EXCEPTION("Link target %s does not exist", ~ToString(targetId));
+        return nullptr;
     }
     return objectManager->GetProxy(target, Transaction);
+}
+
+IObjectProxyPtr TLinkNodeProxy::GetTargetProxy() const
+{
+    auto result = FindTargetProxy();
+    if (!result) {
+        const auto* impl = GetThisTypedImpl();
+        THROW_ERROR_EXCEPTION("Link target %s does not exist", ~ToString(impl->GetTargetId()));
+    }
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
