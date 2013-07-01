@@ -1301,7 +1301,6 @@ bool TLinkNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consum
     return TBase::GetSystemAttribute(key, consumer);
 }
 
-
 bool TLinkNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& value)
 {
     if (key == "target_id") {
@@ -1393,50 +1392,80 @@ void DelegateInvocation(
 void TDocumentNodeProxy::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
 {
     const auto* impl = GetThisTypedImpl();
-    DelegateInvocation(impl->GetContent(), request, response, context);
+    DelegateInvocation(impl->GetValue(), request, response, context);
 }
 
 void TDocumentNodeProxy::GetRecursive(const TYPath& /*path*/, TReqGet* request, TRspGet* response, TCtxGetPtr context)
 {
     const auto* impl = GetThisTypedImpl();
-    DelegateInvocation(impl->GetContent(), request, response, context);
+    DelegateInvocation(impl->GetValue(), request, response, context);
 }
 
 void TDocumentNodeProxy::SetSelf(TReqSet* request, TRspSet* /*response*/, TCtxSetPtr context)
 {
     auto* impl = LockThisTypedImpl();
-    impl->SetContent(ConvertToNode(TYsonString(request->value())));
+    impl->SetValue(ConvertToNode(TYsonString(request->value())));
     context->Reply();
 }
 
 void TDocumentNodeProxy::SetRecursive(const TYPath& /*path*/, TReqSet* request, TRspSet* response, TCtxSetPtr context)
 {
     auto* impl = LockThisTypedImpl();
-    DelegateInvocation(impl->GetContent(), request, response, context);
+    DelegateInvocation(impl->GetValue(), request, response, context);
 }
 
 void TDocumentNodeProxy::ListSelf(TReqList* request, TRspList* response, TCtxListPtr context)
 {
     const auto* impl = GetThisTypedImpl();
-    DelegateInvocation(impl->GetContent(), request, response, context);
+    DelegateInvocation(impl->GetValue(), request, response, context);
 }
 
 void TDocumentNodeProxy::ListRecursive(const TYPath& /*path*/, TReqList* request, TRspList* response, TCtxListPtr context)
 {
     const auto* impl = GetThisTypedImpl();
-    DelegateInvocation(impl->GetContent(), request, response, context);
+    DelegateInvocation(impl->GetValue(), request, response, context);
 }
 
 void TDocumentNodeProxy::RemoveRecursive(const TYPath& /*path*/, TReqRemove* request, TRspRemove* response, TCtxRemovePtr context)
 {
     auto* impl = LockThisTypedImpl();
-    DelegateInvocation(impl->GetContent(), request, response, context);
+    DelegateInvocation(impl->GetValue(), request, response, context);
 }
 
 void TDocumentNodeProxy::ExistsRecursive(const TYPath& /*path*/, TReqExists* request, TRspExists* response, TCtxExistsPtr context)
 {
     const auto* impl = GetThisTypedImpl();
-    DelegateInvocation(impl->GetContent(), request, response, context);
+    DelegateInvocation(impl->GetValue(), request, response, context);
+}
+
+void TDocumentNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attributes)
+{
+    TBase::ListSystemAttributes(attributes);
+    attributes->push_back(TAttributeInfo("value", true, true));
+}
+
+bool TDocumentNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer)
+{
+    const auto* impl = GetThisTypedImpl();
+
+    if (key == "value") {
+        BuildYsonFluently(consumer)
+            .Value(impl->GetValue());
+        return true;
+    }
+
+    return TBase::GetSystemAttribute(key, consumer);
+}
+
+bool TDocumentNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& value)
+{
+    if (key == "value") {
+        auto* impl = LockThisTypedImpl();
+        impl->SetValue(ConvertToNode(value));
+        return true;
+    }
+
+    return TBase::SetSystemAttribute(key, value);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

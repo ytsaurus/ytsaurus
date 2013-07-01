@@ -517,7 +517,7 @@ private:
 class TDocumentNode
     : public TCypressNodeBase
 {
-    DEFINE_BYVAL_RW_PROPERTY(NYTree::INodePtr, Content);
+    DEFINE_BYVAL_RW_PROPERTY(NYTree::INodePtr, Value);
 
 public:
     explicit TDocumentNode(const TVersionedNodeId& id);

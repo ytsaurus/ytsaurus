@@ -570,7 +570,7 @@ void TLinkNodeTypeHandler::DoClone(
 
 TDocumentNode::TDocumentNode(const TVersionedNodeId& id)
     : TCypressNodeBase(id)
-    , Content_(GetEphemeralNodeFactory()->CreateEntity())
+    , Value_(GetEphemeralNodeFactory()->CreateEntity())
 { }
 
 void TDocumentNode::Save(NCellMaster::TSaveContext& context) const
@@ -578,7 +578,7 @@ void TDocumentNode::Save(NCellMaster::TSaveContext& context) const
     TCypressNodeBase::Save(context);
 
     using NYT::Save;
-    auto serializedContent = ConvertToYsonString(Content_);
+    auto serializedContent = ConvertToYsonString(Value_);
     Save(context, serializedContent.Data());
 }
 
@@ -588,7 +588,7 @@ void TDocumentNode::Load(NCellMaster::TLoadContext& context)
 
     using NYT::Load;
     auto serializedContent = Load<Stroka>(context);
-    Content_ = ConvertToNode(TYsonString(serializedContent));
+    Value_ = ConvertToNode(TYsonString(serializedContent));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -624,7 +624,7 @@ void TDocumentNodeTypeHandler::DoBranch(
 {
     TBase::DoBranch(originatingNode, branchedNode);
 
-    branchedNode->SetContent(CloneNode(originatingNode->GetContent()));
+    branchedNode->SetValue(CloneNode(originatingNode->GetValue()));
 }
 
 void TDocumentNodeTypeHandler::DoMerge(
@@ -633,7 +633,7 @@ void TDocumentNodeTypeHandler::DoMerge(
 {
     TBase::DoMerge(originatingNode, branchedNode);
 
-    originatingNode->SetContent(branchedNode->GetContent());
+    originatingNode->SetValue(branchedNode->GetValue());
 }
 
 void TDocumentNodeTypeHandler::DoClone(
@@ -643,7 +643,7 @@ void TDocumentNodeTypeHandler::DoClone(
 {
     TBase::DoClone(sourceNode, clonedNode, context);
 
-    clonedNode->SetContent(CloneNode(sourceNode->GetContent()));
+    clonedNode->SetValue(CloneNode(sourceNode->GetValue()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
