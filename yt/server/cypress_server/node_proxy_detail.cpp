@@ -1265,11 +1265,11 @@ IYPathService::TResolveResult TLinkNodeProxy::Resolve(
             const auto& verb = context->GetVerb();
             return (verb == "Remove" || verb == "Create")
                    ? TResolveResult::Here(path)
-                   : TResolveResult::There(GetTargetService(), path);
+                   : TResolveResult::There(GetTargetProxy(), path);
         }
 
         default:
-            return TResolveResult::There(GetTargetService(), path);
+            return TResolveResult::There(GetTargetProxy(), path);
     }
 }
 
@@ -1277,6 +1277,7 @@ void TLinkNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attribute
 {
     TBase::ListSystemAttributes(attributes);
     attributes->push_back("target_id");
+    attributes->push_back(TAttributeInfo("target_path", true, true));
     attributes->push_back("broken");
 }
 
@@ -1287,6 +1288,16 @@ bool TLinkNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consum
     if (key == "target_id") {
         BuildYsonFluently(consumer)
             .Value(impl->GetTargetId());
+        return true;
+    }
+
+    if (key == "target_path") {
+        auto target = GetTargetProxy();
+        auto objectManager = Bootstrap->GetObjectManager();
+        auto* resolver = objectManager->GetObjectResolver();
+        auto path = resolver->GetPath(target);
+        BuildYsonFluently(consumer)
+            .Value(path);
         return true;
     }
 
@@ -1310,10 +1321,20 @@ bool TLinkNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& va
         return true;
     }
 
+    if (key == "target_path") {
+        auto objectManager = Bootstrap->GetObjectManager();
+        auto* resolver = objectManager->GetObjectResolver();
+        auto path = ConvertTo<Stroka>(value);
+        auto targetProxy = resolver->ResolvePath(path, Transaction);
+        auto* impl = LockThisTypedImpl();
+        impl->SetTargetId(targetProxy->GetId());
+        return true;
+    }
+
     return TBase::SetSystemAttribute(key, value);
 }
 
-IYPathServicePtr TLinkNodeProxy::GetTargetService() const
+IObjectProxyPtr TLinkNodeProxy::GetTargetProxy() const
 {
     auto objectManager = Bootstrap->GetObjectManager();
     const auto* impl = GetThisTypedImpl();

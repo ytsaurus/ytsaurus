@@ -432,7 +432,7 @@ private:
     virtual bool GetSystemAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
     virtual bool SetSystemAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
 
-    NYTree::IYPathServicePtr GetTargetService() const;
+    NObjectServer::IObjectProxyPtr  GetTargetProxy() const;
 
 };
 
