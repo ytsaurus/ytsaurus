@@ -584,7 +584,7 @@ private:
     std::vector<IDataPipePtr> InputPipes;
     std::vector<IDataPipePtr> OutputPipes;
 
-    std::vector<ISyncWriterPtr> Writers;
+    std::vector<IWriterBasePtr> Writers;
 
     TThread InputThread;
     TThread OutputThread;
