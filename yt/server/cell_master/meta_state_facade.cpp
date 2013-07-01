@@ -278,6 +278,16 @@ private:
 
             CreateNode(
                 rootService,
+                "//sys/scheduler/instances",
+                transactionId,
+                EObjectType::MapNode,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("opaque").Value(true)
+                    .EndMap());
+
+            CreateNode(
+                rootService,
                 "//sys/scheduler/orchid",
                 transactionId,
                 EObjectType::Orchid);
