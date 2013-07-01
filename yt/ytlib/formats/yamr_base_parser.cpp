@@ -227,6 +227,8 @@ const char* TYamrDelimitedBaseParser::Consume(const char* begin, const char* end
     }
 
     ThrowIncorrectFormat();
+    // To supress warnings.
+    YUNREACHABLE();
 }
 
 void TYamrDelimitedBaseParser::ThrowIncorrectFormat() const
