@@ -182,11 +182,14 @@ const char* TYamrDelimitedBaseParser::Consume(const char* begin, const char* end
 
     YASSERT(!ExpectingEscapedChar);
 
-    const char* next;
+    const char* next = FindNext(begin, end, State == EState::InsideValue ? Table.ValueStops : Table.KeyStops);
+    if (next == end) {
+        CurrentToken.append(begin, next);
+        return end;
+    }
 
     switch (State) {
     case EState::InsideKey:
-        next = FindNext(begin, end, Table.KeyStops);
         if (*next == RecordSeparator) {
             return ProcessToken(&TYamrDelimitedBaseParser::ProcessTableSwitch, begin, next);
         }
@@ -197,7 +200,6 @@ const char* TYamrDelimitedBaseParser::Consume(const char* begin, const char* end
         break;
 
     case EState::InsideSubkey:
-        next = FindNext(begin, end, Table.KeyStops);
         if (*next == FieldSeparator) {
             return ProcessToken(&TYamrDelimitedBaseParser::ProcessSubkey, begin, next);
         }
@@ -209,7 +211,6 @@ const char* TYamrDelimitedBaseParser::Consume(const char* begin, const char* end
         break;
 
     case EState::InsideValue:
-        next = FindNext(begin, end, Table.ValueStops);
         if (*next == RecordSeparator) {
             return ProcessToken(&TYamrDelimitedBaseParser::ProcessValue, begin, next);
         }
@@ -218,9 +219,6 @@ const char* TYamrDelimitedBaseParser::Consume(const char* begin, const char* end
     };
 
     CurrentToken.append(begin, next);
-    if (next == end) {
-        return end;
-    }
 
     if (*next == EscapingSymbol) {
         OnRangeConsumed(next, next + 1);
