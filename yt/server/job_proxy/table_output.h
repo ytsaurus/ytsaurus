@@ -16,8 +16,7 @@ class TTableOutput
 public:
     TTableOutput(
         std::unique_ptr<NFormats::IParser> parser,
-        std::unique_ptr<NYson::IYsonConsumer> consumer,
-        NTableClient::ISyncWriterPtr writer);
+        std::unique_ptr<NYson::IYsonConsumer> consumer);
 
     ~TTableOutput() throw();
 
@@ -29,7 +28,6 @@ private:
 
     // Just holds the consumer that parser is using.
     std::unique_ptr<NYson::IYsonConsumer> Consumer;
-    NTableClient::ISyncWriterPtr SyncWriter;
 
     bool IsParserValid;
 };

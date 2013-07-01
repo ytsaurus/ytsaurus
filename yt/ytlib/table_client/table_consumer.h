@@ -2,13 +2,11 @@
 
 #include "public.h"
 
-#include <ytlib/chunk_client/chunk.pb.h>
-#include <ytlib/ytree/forwarding_yson_consumer.h>
-#include <ytlib/yson/writer.h>
-#include <ytlib/yson/lexer.h>
 #include <ytlib/misc/blob_output.h>
 #include <ytlib/misc/blob_range.h>
 #include <ytlib/misc/nullable.h>
+
+#include <ytlib/yson/consumer.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -16,33 +14,48 @@ namespace NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 /*!
- *  For performance reasons we don't use ForwardingConsumer.
+ *  For performance reasons we don't use TForwardingYsonConsumer.
  */
 class TTableConsumer
     : public NYson::IYsonConsumer
 {
 public:
-    TTableConsumer(const IWriterBasePtr& writer);
+    explicit TTableConsumer(IWriterBasePtr writer);
+    TTableConsumer(const std::vector<IWriterBasePtr>& writers, int tableIndex);
 
 private:
-    void OnStringScalar(const TStringBuf& value);
-    void OnIntegerScalar(i64 value);
-    void OnDoubleScalar(double value);
-    void OnEntity();
-    void OnBeginList();
-    void OnListItem();
-    void OnBeginMap();
-    void OnKeyedItem(const TStringBuf& name);
-    void OnEndMap();
+    virtual void OnStringScalar(const TStringBuf& value) override;
+    virtual void OnIntegerScalar(i64 value) override;
+    virtual void OnDoubleScalar(double value) override;
+    virtual void OnEntity() override;
+    virtual void OnBeginList() override;
+    virtual void OnListItem() override;
+    virtual void OnBeginMap() override;
+    virtual void OnKeyedItem(const TStringBuf& name) override;
+    virtual void OnEndMap() override;
 
-    void OnBeginAttributes();
+    virtual void OnBeginAttributes() override;
 
     void ThrowMapExpected();
+    void ThrowInvalidControlAttribute(const Stroka& whatsWrong);
 
-    void OnEndList();
-    void OnEndAttributes();
-    void OnRaw(const TStringBuf& yson, NYson::EYsonType type);
+    virtual void OnEndList() override;
+    virtual void OnEndAttributes() override;
+    virtual void OnRaw(const TStringBuf& yson, NYson::EYsonType type) override;
 
+    DECLARE_ENUM(EControlState,
+        (None)
+        (ExpectName)
+        (ExpectValue)
+        (ExpectEndAttributes)
+        (ExpectEntity)
+    );
+
+    EControlState ControlState;
+    EControlAttribute ControlAttribute;
+
+    int CurrentTableIndex;
+    std::vector<IWriterBasePtr> Writers;
     IWriterBasePtr Writer;
 
     int Depth;

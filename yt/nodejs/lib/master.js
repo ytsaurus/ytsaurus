@@ -109,6 +109,9 @@ YtClusterHandle.prototype.handleMessage = function(message)
     }
 
     switch (message.type) {
+        case "log":
+            this.handleLog(message.level, message.message, message.payload);
+            break;
         case "heartbeat":
             if (!__DBG.$) {
                 this.worker.send({ type : "heartbeat" });
@@ -132,6 +135,14 @@ YtClusterHandle.prototype.handleMessage = function(message)
                 "Received unknown message of type '" + message.type +
                 "' from worker " + this.toString());
             break;
+    }
+};
+
+YtClusterHandle.prototype.handleLog = function(level, message, payload)
+{
+    var logger = this.logger[level];
+    if (typeof(logger) !== "undefined") {
+        logger(message, payload);
     }
 };
 

@@ -11,7 +11,6 @@ import subprocess
 from argparse import ArgumentParser
 
 yt.config.MEMORY_LIMIT = 2500 * yt.config.MB
-yt.config.set_proxy("proxy.yt.yandex.net")
 
 POOL_RESTRICTION = 10
 

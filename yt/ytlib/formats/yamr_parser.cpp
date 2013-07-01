@@ -10,17 +10,15 @@ namespace NFormats {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYamrConsumer
-    : public IYamrConsumer
+    : public TYamrConsumerBase
 {
 public:
-    TYamrConsumer(
-        NYson::IYsonConsumer* consumer,
-        TYamrFormatConfigPtr config)
-            : Consumer(consumer)
-            , Config(config)
+    TYamrConsumer(NYson::IYsonConsumer* consumer, TYamrFormatConfigPtr config)
+        : TYamrConsumerBase(consumer)
+        , Config(config)
     { }
 
-    void ConsumeKey(const TStringBuf& key)
+    virtual void ConsumeKey(const TStringBuf& key) override
     {
         Consumer->OnListItem();
         Consumer->OnBeginMap();
@@ -28,13 +26,13 @@ public:
         Consumer->OnStringScalar(key);
     }
 
-    void ConsumeSubkey(const TStringBuf& subkey)
+    virtual void ConsumeSubkey(const TStringBuf& subkey) override
     {
         Consumer->OnKeyedItem(Config->Subkey);
         Consumer->OnStringScalar(subkey);
     }
 
-    void ConsumeValue(const TStringBuf& value)
+    virtual void ConsumeValue(const TStringBuf& value) override
     {
         Consumer->OnKeyedItem(Config->Value);
         Consumer->OnStringScalar(value);
@@ -42,7 +40,6 @@ public:
     }
 
 private:
-    NYson::IYsonConsumer* Consumer;
     TYamrFormatConfigPtr Config;
 };
 

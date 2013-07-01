@@ -22,21 +22,21 @@ struct TYamrTable
         char escapingSymbol,
         bool escapeCarriageReturn,
         bool escapingForWriter)
-            : Escapes(escapeCarriageReturn)
+        : Escapes(escapeCarriageReturn)
     {
         std::vector<char> valueStopSymbols;
         valueStopSymbols.push_back(recordSeparator);
-        
+
         std::vector<char> keyStopSymbols = valueStopSymbols;
         keyStopSymbols.push_back(fieldSeparator);
-        
+
         if (enableKeyEscaping) {
             if (escapingForWriter) {
                 keyStopSymbols.push_back('\0');
             }
             keyStopSymbols.push_back(escapingSymbol);
         }
-        
+
         if (enableValueEscaping) {
             if (escapingForWriter) {
                 valueStopSymbols.push_back('\0');

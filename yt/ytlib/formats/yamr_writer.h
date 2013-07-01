@@ -5,6 +5,8 @@
 #include "helpers.h"
 #include "yamr_table.h"
 
+#include <ytlib/table_client/public.h>
+
 #include <ytlib/misc/blob_output.h>
 #include <ytlib/misc/nullable.h>
 
@@ -20,9 +22,7 @@ class TYamrWriter
 public:
     explicit TYamrWriter(
         TOutputStream* stream,
-        // TODO(ignat): replace default value with YCHECK.
-        // Default value is used in tests.
-        TYamrFormatConfigPtr config = NULL);
+        TYamrFormatConfigPtr config = New<TYamrFormatConfig>());
 
     ~TYamrWriter();
 
@@ -41,6 +41,23 @@ public:
     virtual void OnEndAttributes() override;
 
 private:
+    DECLARE_ENUM(EState,
+        (None)
+        (ExpectColumnName)
+        (ExpectValue)
+        (ExpectAttributeName)
+        (ExpectAttributeValue)
+        (ExpectEndAttributes)
+        (ExpectEntity)
+    );
+
+    DECLARE_ENUM(EValueType,
+        (ExpectKey)
+        (ExpectSubkey)
+        (ExpectValue)
+        (ExpectUnknown)
+    );
+
     TOutputStream* Stream;
     TYamrFormatConfigPtr Config;
 
@@ -48,30 +65,16 @@ private:
     TNullable<TStringBuf> Subkey;
     TNullable<TStringBuf> Value;
 
-    TBlobOutput KeyBuffer;
-    TBlobOutput SubkeyBuffer;
-    TBlobOutput ValueBuffer;
-
     TYamrTable Table;
 
-    bool AllowBeginMap;
-
-    void RememberItem(const TStringBuf& item, bool takeOwnership);
-
-    bool ExpectTableIndex;
+    EState State;
+    EValueType ValueType;
+    NTableClient::EControlAttribute ControlAttribute;
 
     void WriteRow();
     void WriteInLenvalMode(const TStringBuf& value);
 
     void EscapeAndWrite(const TStringBuf& value, bool inKey);
-
-    DECLARE_ENUM(EState,
-        (None)
-        (ExpectingKey)
-        (ExpectingSubkey)
-        (ExpectingValue)
-    );
-    EState State;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
