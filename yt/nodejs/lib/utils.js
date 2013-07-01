@@ -476,3 +476,13 @@ exports.escapeYPath = function(s)
     "use strict";
     return s.replace(/([\/@&])/g, '\\$1');
 };
+
+exports.escapeHeader = function(x)
+{
+    "use strict";
+    return String(x)
+        .replace("\\", "\\\\")
+        .replace("\n", "\\n")
+        .replace("\r", "\\r")
+        .replace("\t", "\\t");
+};
