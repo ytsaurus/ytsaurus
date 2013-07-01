@@ -39,7 +39,7 @@ def clean_operations(count, failed_timeout):
         time_since = datetime.utcnow() - op.time 
         is_old = (time_since > failed_timeout)
 
-        is_regular = (op.spec.get("system_user", "unknown") in ["crawler", "cron", "odin"])
+        is_regular = (op.spec.get("authenticated_user", "unknown") in ["crawler", "cron", "odin"])
 
         if is_casual:
             if is_regular or saved >= count:
