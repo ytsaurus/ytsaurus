@@ -206,13 +206,13 @@ YtCommand.prototype._epilogue = function(result) {
     if (!sent_headers) {
         this.rsp.removeHeader("Trailer");
         this.rsp.setHeader("X-YT-Error", result.toJson());
-        this.rsp.setHeader("X-YT-Response-Code", escapeHeader(result.getCode()));
-        this.rsp.setHeader("X-YT-Response-Message", escapeHeader(result.getMessage()));
+        this.rsp.setHeader("X-YT-Response-Code", utils.escapeHeader(result.getCode()));
+        this.rsp.setHeader("X-YT-Response-Message", utils.escapeHeader(result.getMessage()));
     } else {
         this.rsp.addTrailers({
             "X-YT-Error": result.toJson(),
-            "X-YT-Response-Code": escapeHeader(result.getCode()),
-            "X-YT-Response-Message": escapeHeader(result.getMessage())
+            "X-YT-Response-Code": utils.escapeHeader(result.getCode()),
+            "X-YT-Response-Message": utils.escapeHeader(result.getMessage())
         });
     }
 
