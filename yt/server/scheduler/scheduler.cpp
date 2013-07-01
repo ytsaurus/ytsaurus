@@ -737,17 +737,13 @@ private:
     {
         LOG_INFO("Updating configuration");
 
-        auto req = TYPathProxy::Get("//sys/scheduler/@config");
+        auto req = TYPathProxy::Get("//sys/scheduler/config");
         batchReq->AddRequest(req, "get_config");
     }
 
     void HandleConfig(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
     {
         auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_config");
-        if (rsp->GetError().FindMatching(NYTree::EErrorCode::ResolveError)) {
-            // No config attribute, just ignore.
-            return;
-        }
         if (!rsp->IsOK()) {
             LOG_ERROR(*rsp, "Error getting scheduler configuration");
             return;
