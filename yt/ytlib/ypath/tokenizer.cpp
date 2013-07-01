@@ -1,7 +1,9 @@
 #include "tokenizer.h"
 
-#include <ytlib/yson/token.h>
 #include <ytlib/misc/error.h>
+#include <ytlib/misc/string.h>
+
+#include <ytlib/yson/token.h>
 
 namespace NYT {
 namespace NYPath {
@@ -147,19 +149,19 @@ void TTokenizer::Expect(ETokenType expectedType)
             THROW_ERROR_EXCEPTION("Premature end-of-string while expecting %s",
                 ~expectedType.ToString());
         } else {
-            THROW_ERROR_EXCEPTION("%s found while expecting %s: %s",
-                ~Type_.ToString(),
-                ~expectedType.ToString(),
-                ~Token_);
+            THROW_ERROR_EXCEPTION("Expected %s but found %s token %s",
+                ~FormatEnum(expectedType).Quote(),
+                ~FormatEnum(Type_).Quote(),
+                ~Stroka(Token_).Quote());
         }
     }
 }
 
 void TTokenizer::ThrowUnexpected()
 {
-    THROW_ERROR_EXCEPTION("Unexpected %s: %s",
-        ~Type_.ToString(),
-        ~Token_);
+    THROW_ERROR_EXCEPTION("Unexpected %s token %s",
+        ~FormatEnum(Type_).Quote(),
+        ~Stroka(Token_).Quote());
 }
 
 ETokenType TTokenizer::GetType() const
