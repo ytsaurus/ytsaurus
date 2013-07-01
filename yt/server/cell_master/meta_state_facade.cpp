@@ -268,7 +268,7 @@ private:
 
             CreateNode(
                 rootService,
-                "//sys/scheduler/pools",
+                "//sys/pools",
                 transactionId,
                 EObjectType::MapNode,
                 BuildYsonStringFluently()

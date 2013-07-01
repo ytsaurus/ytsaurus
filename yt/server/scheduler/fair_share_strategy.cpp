@@ -1049,7 +1049,7 @@ private:
     {
         LOG_INFO("Updating pools");
 
-        auto req = TYPathProxy::Get("//sys/scheduler/pools");
+        auto req = TYPathProxy::Get("//sys/pools");
         static auto poolConfigTemplate = New<TPoolConfig>();
         static auto poolConfigKeys = poolConfigTemplate->GetRegisteredKeys();
         TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly, poolConfigKeys);
