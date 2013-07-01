@@ -69,7 +69,7 @@ DECLARE_ENUM(EObjectType,
 
     // The following are versioned objects AKA Cypress nodes.
     // These must be created by calling TCypressYPathProxy::Create.
-    // NB: When adding a new type, don't forget to update IsVersionedType.
+    // NB: When adding a new type, don't forget to update IsVersioned.
 
     // Static nodes
     ((StringNode)                 (300))
@@ -97,7 +97,8 @@ DECLARE_ENUM(EObjectType,
     ((AccountMap)                 (414))
     ((UserMap)                    (415))
     ((GroupMap)                   (416))
-    ((LinkNode)                   (417))
+    ((Link)                       (417))
+    ((Document)                   (421))
 
     // Security
     ((Account)                    (500))
@@ -112,13 +113,13 @@ DECLARE_ENUM(EObjectType,
 const int MaxObjectType = 65535;
 
 //! Checks if the given type is versioned, i.e. represents a Cypress node.
-bool TypeIsVersioned(EObjectType type);
+bool IsVersioned(EObjectType type);
 
 //! Extracts the type component from an id.
 EObjectType TypeFromId(const TObjectId& id);
 
 //! Returns |true| iff a given regular type has an associated schema type.
-bool TypeHasSchema(EObjectType type);
+bool HasSchema(EObjectType type);
 
 //! Returns the schema type for a given regular type.
 EObjectType SchemaTypeFromType(EObjectType type);

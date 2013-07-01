@@ -94,7 +94,7 @@ void TListCommand::DoExecute()
 
 void TCreateCommand::DoExecute()
 {
-    if (TypeIsVersioned(Request->Type)) {
+    if (IsVersioned(Request->Type)) {
         if (!Request->Path) {
             THROW_ERROR_EXCEPTION("Object type is versioned, Cypress path required");
         }
@@ -226,7 +226,7 @@ void TLinkCommand::DoExecute()
     TNodeId linkId;
     {
         auto req = TCypressYPathProxy::Create(Request->LinkPath.GetPath());
-        req->set_type(EObjectType::LinkNode);
+        req->set_type(EObjectType::Link);
         req->set_recursive(Request->Recursive);
         req->set_ignore_existing(Request->IgnoreExisting);
         this->SetTransactionId(req, EAllowNullTransaction::Yes);

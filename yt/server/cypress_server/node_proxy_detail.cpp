@@ -11,6 +11,7 @@
 #include <ytlib/ytree/convert.h>
 #include <ytlib/ytree/ephemeral_node_factory.h>
 #include <ytlib/ytree/fluent.h>
+#include <ytlib/ytree/ypath_client.h>
 
 #include <ytlib/ypath/tokenizer.h>
 
@@ -23,6 +24,7 @@ namespace NCypressServer {
 
 using namespace NYTree;
 using namespace NYson;
+using namespace NYPath;
 using namespace NRpc;
 using namespace NObjectServer;
 using namespace NCellMaster;
@@ -1322,6 +1324,120 @@ IYPathServicePtr TLinkNodeProxy::GetTargetService() const
         THROW_ERROR_EXCEPTION("Link target %s does not exist", ~ToString(targetId));
     }
     return objectManager->GetProxy(target, Transaction);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TDocumentNodeProxy::TDocumentNodeProxy(
+    INodeTypeHandlerPtr typeHandler,
+    TBootstrap* bootstrap,
+    TTransaction* transaction,
+    TDocumentNode* trunkNode)
+    : TBase(
+        typeHandler,
+        bootstrap,
+        transaction,
+        trunkNode)
+{ }
+
+ENodeType TDocumentNodeProxy::GetType() const 
+{
+    return ENodeType::Entity;
+}
+
+TIntrusivePtr<const IEntityNode> TDocumentNodeProxy::AsEntity() const
+{
+    return this;
+}
+
+TIntrusivePtr<IEntityNode> TDocumentNodeProxy::AsEntity()
+{
+    return this;
+}
+
+IYPathService::TResolveResult TDocumentNodeProxy::ResolveRecursive(const TYPath& path, IServiceContextPtr context)
+{
+    return TResolveResult::Here("/" + path);
+}
+
+namespace {
+
+template <class TServerRequest, class TServerResponse, class TContext>
+void DelegateInvocation(
+    IYPathServicePtr service,
+    TServerRequest* serverRequest,
+    TServerResponse* serverResponse,
+    TIntrusivePtr<TContext> context)
+{
+    typedef typename TServerRequest::TMessage  TRequestMessage;
+    typedef typename TServerResponse::TMessage TResponseMessage;
+    
+    typedef TTypedYPathRequest<TRequestMessage, TResponseMessage>  TClientRequest;
+    typedef TTypedYPathResponse<TRequestMessage, TResponseMessage> TClientResponse;
+
+    auto clientRequest = New<TClientRequest>(context->GetVerb());
+    clientRequest->SetPath(context->GetPath());
+    clientRequest->MergeFrom(*serverRequest);
+
+    auto clientResponse = ExecuteVerb(service, clientRequest).Get();
+
+    if (clientResponse->IsOK()) {
+        serverResponse->MergeFrom(*clientResponse);
+        context->Reply();
+    } else {
+        context->Reply(clientResponse->GetError());
+    }
+}
+
+} // namespace
+
+void TDocumentNodeProxy::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
+{
+    const auto* impl = GetThisTypedImpl();
+    DelegateInvocation(impl->GetContent(), request, response, context);
+}
+
+void TDocumentNodeProxy::GetRecursive(const TYPath& /*path*/, TReqGet* request, TRspGet* response, TCtxGetPtr context)
+{
+    const auto* impl = GetThisTypedImpl();
+    DelegateInvocation(impl->GetContent(), request, response, context);
+}
+
+void TDocumentNodeProxy::SetSelf(TReqSet* request, TRspSet* /*response*/, TCtxSetPtr context)
+{
+    auto* impl = LockThisTypedImpl();
+    impl->SetContent(ConvertToNode(TYsonString(request->value())));
+    context->Reply();
+}
+
+void TDocumentNodeProxy::SetRecursive(const TYPath& /*path*/, TReqSet* request, TRspSet* response, TCtxSetPtr context)
+{
+    auto* impl = LockThisTypedImpl();
+    DelegateInvocation(impl->GetContent(), request, response, context);
+}
+
+void TDocumentNodeProxy::ListSelf(TReqList* request, TRspList* response, TCtxListPtr context)
+{
+    const auto* impl = GetThisTypedImpl();
+    DelegateInvocation(impl->GetContent(), request, response, context);
+}
+
+void TDocumentNodeProxy::ListRecursive(const TYPath& /*path*/, TReqList* request, TRspList* response, TCtxListPtr context)
+{
+    const auto* impl = GetThisTypedImpl();
+    DelegateInvocation(impl->GetContent(), request, response, context);
+}
+
+void TDocumentNodeProxy::RemoveRecursive(const TYPath& /*path*/, TReqRemove* request, TRspRemove* response, TCtxRemovePtr context)
+{
+    auto* impl = LockThisTypedImpl();
+    DelegateInvocation(impl->GetContent(), request, response, context);
+}
+
+void TDocumentNodeProxy::ExistsRecursive(const TYPath& /*path*/, TReqExists* request, TRspExists* response, TCtxExistsPtr context)
+{
+    const auto* impl = GetThisTypedImpl();
+    DelegateInvocation(impl->GetContent(), request, response, context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

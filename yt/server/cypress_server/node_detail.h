@@ -514,5 +514,52 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDocumentNode
+    : public TCypressNodeBase
+{
+    DEFINE_BYVAL_RW_PROPERTY(NYTree::INodePtr, Content);
+
+public:
+    explicit TDocumentNode(const TVersionedNodeId& id);
+
+    virtual void Save(NCellMaster::TSaveContext& context) const override;
+    virtual void Load(NCellMaster::TLoadContext& context) override;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDocumentNodeTypeHandler
+    : public TCypressNodeTypeHandlerBase<TDocumentNode>
+{
+public:
+    explicit TDocumentNodeTypeHandler(NCellMaster::TBootstrap* bootstrap);
+
+    virtual NObjectClient::EObjectType GetObjectType() override;
+    virtual NYTree::ENodeType GetNodeType() override;
+
+private:
+    typedef TCypressNodeTypeHandlerBase<TDocumentNode> TBase;
+
+    virtual ICypressNodeProxyPtr DoGetProxy(
+        TDocumentNode* trunkNode,
+        NTransactionServer::TTransaction* transaction) override;
+
+    virtual void DoBranch(
+        const TDocumentNode* originatingNode,
+        TDocumentNode* branchedNode) override;
+
+    virtual void DoMerge(
+        TDocumentNode* originatingNode,
+        TDocumentNode* branchedNode) override;
+
+    virtual void DoClone(
+        TDocumentNode* sourceNode,
+        TDocumentNode* clonedNode,
+        const TCloneContext& context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NCypressServer
 } // namespace NYT

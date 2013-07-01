@@ -278,7 +278,7 @@ public:
     virtual TYPath GetPath(IObjectProxyPtr proxy) override
     {
         const auto& id = proxy->GetId();
-        if (TypeIsVersioned(TypeFromId(id))) {
+        if (IsVersioned(TypeFromId(id))) {
             auto* nodeProxy = dynamic_cast<ICypressNodeProxy*>(~proxy);
             auto resolver = nodeProxy->GetResolver();
             return resolver->GetPath(nodeProxy);
@@ -465,7 +465,7 @@ void TObjectManager::RegisterHandler(IObjectTypeHandlerPtr handler)
     RegisteredTypes.push_back(type);
     auto& entry = TypeToEntry[typeValue];
     entry.Handler = handler;
-    if (TypeHasSchema(type)) {
+    if (HasSchema(type)) {
         auto schemaType = SchemaTypeFromType(type);
         auto& schemaEntry = TypeToEntry[static_cast<int>(schemaType)];
         schemaEntry.Handler = CreateSchemaTypeHandler(Bootstrap, type);
@@ -630,7 +630,7 @@ void TObjectManager::SaveSchemas(NCellMaster::TSaveContext& context) const
     std::sort(types.begin(), types.end());
 
     FOREACH (auto type, types) {
-        if (TypeHasSchema(type)) {
+        if (HasSchema(type)) {
             Save(context, type);
             const auto& entry = TypeToEntry[static_cast<int>(type)];
             entry.SchemaObject->Save(context);
@@ -706,7 +706,7 @@ void TObjectManager::DoClear()
 
     FOREACH (auto type, RegisteredTypes)  {
         auto& entry = TypeToEntry[static_cast<int>(type)];
-        if (TypeHasSchema(type)) {
+        if (HasSchema(type)) {
             entry.SchemaObject.reset(new TSchemaObject(MakeSchemaObjectId(type, GetCellId())));
             entry.SchemaObject->RefObject();
             entry.SchemaProxy = CreateSchemaProxy(Bootstrap, ~entry.SchemaObject);

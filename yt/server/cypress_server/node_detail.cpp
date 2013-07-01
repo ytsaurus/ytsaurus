@@ -519,7 +519,7 @@ TLinkNodeTypeHandler::TLinkNodeTypeHandler(NCellMaster::TBootstrap* bootstrap)
 
 EObjectType TLinkNodeTypeHandler::GetObjectType()
 {
-    return EObjectType::LinkNode;
+    return EObjectType::Link;
 }
 
 ENodeType TLinkNodeTypeHandler::GetNodeType()
@@ -564,6 +564,86 @@ void TLinkNodeTypeHandler::DoClone(
     TBase::DoClone(sourceNode, clonedNode, context);
 
     clonedNode->SetTargetId(sourceNode->GetTargetId());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TDocumentNode::TDocumentNode(const TVersionedNodeId& id)
+    : TCypressNodeBase(id)
+    , Content_(GetEphemeralNodeFactory()->CreateEntity())
+{ }
+
+void TDocumentNode::Save(NCellMaster::TSaveContext& context) const
+{
+    TCypressNodeBase::Save(context);
+
+    using NYT::Save;
+    auto serializedContent = ConvertToYsonString(Content_);
+    Save(context, serializedContent.Data());
+}
+
+void TDocumentNode::Load(NCellMaster::TLoadContext& context)
+{
+    TCypressNodeBase::Load(context);
+
+    using NYT::Load;
+    auto serializedContent = Load<Stroka>(context);
+    Content_ = ConvertToNode(TYsonString(serializedContent));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TDocumentNodeTypeHandler::TDocumentNodeTypeHandler(NCellMaster::TBootstrap* bootstrap)
+    : TBase(bootstrap)
+{ }
+
+EObjectType TDocumentNodeTypeHandler::GetObjectType()
+{
+    return EObjectType::Document;
+}
+
+ENodeType TDocumentNodeTypeHandler::GetNodeType()
+{
+    return ENodeType::Entity;
+}
+
+ICypressNodeProxyPtr TDocumentNodeTypeHandler::DoGetProxy(
+    TDocumentNode* trunkNode,
+    TTransaction* transaction)
+{
+    return New<TDocumentNodeProxy>(
+        this,
+        Bootstrap,
+        transaction,
+        trunkNode);
+}
+
+void TDocumentNodeTypeHandler::DoBranch(
+    const TDocumentNode* originatingNode,
+    TDocumentNode* branchedNode)
+{
+    TBase::DoBranch(originatingNode, branchedNode);
+
+    branchedNode->SetContent(CloneNode(originatingNode->GetContent()));
+}
+
+void TDocumentNodeTypeHandler::DoMerge(
+    TDocumentNode* originatingNode,
+    TDocumentNode* branchedNode)
+{
+    TBase::DoMerge(originatingNode, branchedNode);
+
+    originatingNode->SetContent(branchedNode->GetContent());
+}
+
+void TDocumentNodeTypeHandler::DoClone(
+    TDocumentNode* sourceNode,
+    TDocumentNode* clonedNode,
+    const TCloneContext& context)
+{
+    TBase::DoClone(sourceNode, clonedNode, context);
+
+    clonedNode->SetContent(CloneNode(sourceNode->GetContent()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -237,12 +237,12 @@ private:
                     .EndMap());
 
             FOREACH (auto type, objectManager->GetRegisteredTypes()) {
-                if (TypeHasSchema(type)) {
+                if (HasSchema(type)) {
                     CreateNode(
                         rootService,
                         "//sys/schemas/" + ToYPathLiteral(FormatEnum(type)),
                         transactionId,
-                        EObjectType::LinkNode,
+                        EObjectType::Link,
                         BuildYsonStringFluently()
                             .BeginMap()
                                 .Item("target_id").Value(objectManager->GetSchema(type)->GetId())

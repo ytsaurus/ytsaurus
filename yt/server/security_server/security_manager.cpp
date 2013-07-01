@@ -1091,10 +1091,10 @@ private:
     {
         auto objectManager = Bootstrap->GetObjectManager();
         FOREACH (auto type, objectManager->GetRegisteredTypes()) {
-            if (TypeHasSchema(type)) {
+            if (HasSchema(type)) {
                 auto* schema = objectManager->GetSchema(type);
                 auto* acd = GetAcd(schema);
-                if (!TypeIsVersioned(type)) {
+                if (!IsVersioned(type)) {
                     acd->AddEntry(TAccessControlEntry(
                         ESecurityAction::Allow,
                         GetUsersGroup(),
