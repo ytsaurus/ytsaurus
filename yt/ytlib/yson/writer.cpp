@@ -221,7 +221,7 @@ void TYsonWriter::OnDoubleScalar(double value)
         Stream->Write(DoubleMarker);
         Stream->Write(&value, sizeof(double));
     } else {
-        Stream->Write(ToString(value));
+        Stream->Write(::ToString(value));
     }
     EndNode();
 }

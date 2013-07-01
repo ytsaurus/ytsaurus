@@ -28,6 +28,14 @@ TEST(TYamrParserTest, Simple)
         EXPECT_CALL(Mock, OnKeyedItem("value"));
         EXPECT_CALL(Mock, OnStringScalar("value1"));
     EXPECT_CALL(Mock, OnEndMap());
+
+    EXPECT_CALL(Mock, OnListItem());
+    EXPECT_CALL(Mock, OnBeginAttributes());
+        EXPECT_CALL(Mock, OnKeyedItem("table_index"));
+        EXPECT_CALL(Mock, OnIntegerScalar(2));
+    EXPECT_CALL(Mock, OnEndAttributes());
+    EXPECT_CALL(Mock, OnEntity());
+
     EXPECT_CALL(Mock, OnListItem());
     EXPECT_CALL(Mock, OnBeginMap());
         EXPECT_CALL(Mock, OnKeyedItem("key"));
@@ -38,6 +46,7 @@ TEST(TYamrParserTest, Simple)
 
     Stroka input =
         "key1\tvalue1\n"
+        "2\n"
         "key2\tvalue2\n";
 
     ParseYamr(input, &Mock);
@@ -47,7 +56,7 @@ TEST(TYamrParserTest, ValueWithTabs)
 {
     StrictMock<NYTree::TMockYsonConsumer> Mock;
     InSequence dummy;
-    
+
     EXPECT_CALL(Mock, OnListItem());
     EXPECT_CALL(Mock, OnBeginMap());
         EXPECT_CALL(Mock, OnKeyedItem("key"));
@@ -65,7 +74,7 @@ TEST(TYamrParserTest, ValueWithTabs)
 
     Stroka input(
         "key1\0\tvalue with \t and some other\n"
-        "key2\tanother\0 value with \t\n", 
+        "key2\tanother\0 value with \t\n",
         34 +
         27);
 
@@ -175,7 +184,7 @@ TEST(TYamrParserTest, TabsInValue)
         EXPECT_CALL(Mock, OnKeyedItem("value"));
         EXPECT_CALL(Mock, OnStringScalar("a\tb\\tc\t"));
     EXPECT_CALL(Mock, OnEndMap());
-    
+
     auto config = New<TYamrFormatConfig>();
     Stroka input = "key\ta\tb\\tc\t";
     ParseYamr(input, &Mock, config);
@@ -196,7 +205,7 @@ TEST(TYamrParserTest, Escaping)
         EXPECT_CALL(Mock, OnKeyedItem("value"));
         EXPECT_CALL(Mock, OnStringScalar("a\tb\t\n"));
     EXPECT_CALL(Mock, OnEndMap());
-    
+
     auto config = New<TYamrFormatConfig>();
     config->HasSubkey = true;
     config->EnableEscaping = true;
@@ -222,6 +231,13 @@ TEST(TYamrLenvalParserTest, Simple)
     EXPECT_CALL(Mock, OnEndMap());
 
     EXPECT_CALL(Mock, OnListItem());
+    EXPECT_CALL(Mock, OnBeginAttributes());
+        EXPECT_CALL(Mock, OnKeyedItem("table_index"));
+        EXPECT_CALL(Mock, OnIntegerScalar(1));
+    EXPECT_CALL(Mock, OnEndAttributes());
+    EXPECT_CALL(Mock, OnEntity());
+
+    EXPECT_CALL(Mock, OnListItem());
     EXPECT_CALL(Mock, OnBeginMap());
         EXPECT_CALL(Mock, OnKeyedItem("key"));
         EXPECT_CALL(Mock, OnStringScalar("key2"));
@@ -233,9 +249,11 @@ TEST(TYamrLenvalParserTest, Simple)
         "\x04\x00\x00\x00" "key1"
         "\x06\x00\x00\x00" "value1"
 
+        "\xff\xff\xff\xff" "\x01\x00\x00\x00"
+
         "\x04\x00\x00\x00" "key2"
         "\x06\x00\x00\x00" "value2"
-        , 2 * (2 * 4 + 4 + 6) // all i32 + lengths of keys
+        , 2 * (2 * 4 + 4 + 6) + 8 // all i32 + lengths of keys
     );
 
     auto config = New<TYamrFormatConfig>();

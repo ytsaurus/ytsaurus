@@ -1,11 +1,34 @@
 #include "yamr_base_parser.h"
 
 #include <ytlib/misc/error.h>
+#include <ytlib/misc/string.h>
+
+#include <ytlib/yson/consumer.h>
+
+#include <ytlib/table_client/public.h>
 
 namespace NYT {
 namespace NFormats {
 
 using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TYamrConsumerBase::TYamrConsumerBase(NYson::IYsonConsumer* consumer)
+    : Consumer(consumer)
+{ }
+
+void TYamrConsumerBase::SwitchTable(i64 tableIndex)
+{
+    static const Stroka key = FormatEnum(NTableClient::EControlAttribute(
+        NTableClient::EControlAttribute::TableIndex));
+    Consumer->OnListItem();
+    Consumer->OnBeginAttributes();
+    Consumer->OnKeyedItem(key);
+    Consumer->OnIntegerScalar(tableIndex);
+    Consumer->OnEndAttributes();
+    Consumer->OnEntity();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -78,6 +101,19 @@ Stroka TYamrDelimitedBaseParser::GetDebugInfo() const
             ~context.Quote());
 }
 
+void TYamrDelimitedBaseParser::ProcessTableSwitch(const TStringBuf& tableIndex)
+{
+    YASSERT(!ExpectingEscapedChar);
+    YASSERT(State == EState::InsideKey);
+    i64 value;
+    try {
+         value = FromString<i64>(tableIndex);
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Invalid output table switch in YAMR: %s", ~ToString(tableIndex).Quote());
+    }
+    Consumer->SwitchTable(value);
+}
+
 void TYamrDelimitedBaseParser::ProcessKey(const TStringBuf& key)
 {
     YASSERT(!ExpectingEscapedChar);
@@ -94,6 +130,15 @@ void TYamrDelimitedBaseParser::ProcessSubkey(const TStringBuf& subkey)
     State = EState::InsideValue;
 }
 
+void TYamrDelimitedBaseParser::ProcessSubkeyBadFormat(const TStringBuf& subkey)
+{
+    YASSERT(!ExpectingEscapedChar);
+    YASSERT(State == EState::InsideSubkey);
+    Consumer->ConsumeSubkey(subkey);
+    Consumer->ConsumeValue("");
+    State = EState::InsideKey;
+}
+
 void TYamrDelimitedBaseParser::ProcessValue(const TStringBuf& value)
 {
     YASSERT(!ExpectingEscapedChar);
@@ -103,19 +148,34 @@ void TYamrDelimitedBaseParser::ProcessValue(const TStringBuf& value)
     Record += 1;
 }
 
+const char* TYamrDelimitedBaseParser::ProcessToken(
+    void (TYamrDelimitedBaseParser::*processor)(const TStringBuf& value),
+    const char* begin,
+    const char* next)
+{
+    if (CurrentToken.empty()) {
+        (this->*processor)(TStringBuf(begin, next));
+    } else {
+        CurrentToken.append(begin, next);
+        (this->*processor)(CurrentToken);
+        CurrentToken.clear();
+    }
+
+    OnRangeConsumed(next, next + 1);
+    return next + 1;
+}
+
+const char* TYamrDelimitedBaseParser::FindNext(const char* begin, const char* end, const TLookupTable& lookupTable)
+{
+    const char* next = lookupTable.FindNext(begin, end);
+    OnRangeConsumed(begin, next);
+    return next;
+}
 
 const char* TYamrDelimitedBaseParser::Consume(const char* begin, const char* end)
 {
-    // Try parse whole record (it usually works faster)
-    if (!ExpectingEscapedChar && State == EState::InsideKey && CurrentToken.empty()) {
-        const char* next = TryConsumeRecord(begin, end);
-        if (next != NULL) {
-            return next;
-        }
-    }
-
-    // Read symbol if we are expecting escaped symbol
     if (ExpectingEscapedChar) {
+        // Read and unescape.
         CurrentToken.append(Table.Escapes.Backward[static_cast<ui8>(*begin)]);
         ExpectingEscapedChar = false;
         OnRangeConsumed(begin, begin + 1);
@@ -124,80 +184,53 @@ const char* TYamrDelimitedBaseParser::Consume(const char* begin, const char* end
 
     YASSERT(!ExpectingEscapedChar);
 
-    // There is no whole record yet
-    const char* next =
-        (State == EState::InsideValue)
-        ? Table.ValueStops.FindNext(begin, end)
-        : Table.KeyStops.FindNext(begin, end);
-
-    OnRangeConsumed(begin, next);
-    CurrentToken.append(begin, next);
+    const char* next = FindNext(begin, end, State == EState::InsideValue ? Table.ValueStops : Table.KeyStops);
     if (next == end) {
+        CurrentToken.append(begin, next);
         return end;
     }
-    OnRangeConsumed(next, next + 1);
+
+    switch (State) {
+    case EState::InsideKey:
+        if (*next == RecordSeparator) {
+            return ProcessToken(&TYamrDelimitedBaseParser::ProcessTableSwitch, begin, next);
+        }
+
+        if (*next == FieldSeparator) {
+            return ProcessToken(&TYamrDelimitedBaseParser::ProcessKey, begin, next);
+        }
+        break;
+
+    case EState::InsideSubkey:
+        if (*next == FieldSeparator) {
+            return ProcessToken(&TYamrDelimitedBaseParser::ProcessSubkey, begin, next);
+        }
+
+        if (*next == RecordSeparator) {
+            // Look yamr_parser_yt.cpp: IncompleteRows() for details.
+            return ProcessToken(&TYamrDelimitedBaseParser::ProcessSubkeyBadFormat, begin, next);
+        }
+        break;
+
+    case EState::InsideValue:
+        if (*next == RecordSeparator) {
+            return ProcessToken(&TYamrDelimitedBaseParser::ProcessValue, begin, next);
+        }
+        break;
+
+    };
+
+    CurrentToken.append(begin, next);
 
     if (*next == EscapingSymbol) {
+        OnRangeConsumed(next, next + 1);
         ExpectingEscapedChar = true;
         return next + 1;
     }
 
-    if (State == EState::InsideKey) {
-        if (*next == RecordSeparator) {
-            ThrowIncorrectFormat();
-        }
-        ProcessKey(CurrentToken);
-    } else if (State == EState::InsideSubkey) {
-        YASSERT(HasSubkey);
-        ProcessSubkey(CurrentToken);
-        if (*next == RecordSeparator) {
-            ProcessValue("");
-        }
-    } else { // State == EState::InsideValue
-        ProcessValue(CurrentToken);
-    }
-    CurrentToken.clear();
-    return next + 1;
-}
-
-const char* TYamrDelimitedBaseParser::TryConsumeRecord(const char* begin, const char* end)
-{
-    const char* endOfKey = Table.KeyStops.FindNext(begin, end);
-    const char* endOfSubkey =
-        HasSubkey
-        ? Table.KeyStops.FindNext(std::min(endOfKey + 1, end), end)
-        : endOfKey;
-    const char* endOfValue = Table.ValueStops.FindNext(std::min(endOfSubkey + 1, end), end);
-
-    if (endOfValue == end) { // There is no whole record yet.
-        return NULL;
-    }
-
-    if (*endOfKey == EscapingSymbol ||
-        *endOfSubkey == EscapingSymbol ||
-        *endOfValue == EscapingSymbol) // We have escaped symbols, so we need state machine
-    {
-        return NULL;
-    }
-
-    OnRangeConsumed(begin, endOfKey + 1);
-
-    if (*endOfKey == RecordSeparator) { // There is no tabulation in record. It is incorrect case.
-        ThrowIncorrectFormat();
-    }
-    if (*endOfSubkey == RecordSeparator) { // The case of empty value without proper tabulation
-        endOfValue = endOfSubkey;
-    }
-
-    ProcessKey(TStringBuf(begin, endOfKey));
-    if (HasSubkey) {
-        ProcessSubkey(TStringBuf(endOfKey + 1, endOfSubkey));
-    }
-    const char* beginOfValue = std::min(endOfSubkey + 1, endOfValue);
-    ProcessValue(TStringBuf(beginOfValue, endOfValue));
-    OnRangeConsumed(endOfKey + 1, endOfValue + 1); // consume with separator
-
-    return endOfValue + 1;
+    ThrowIncorrectFormat();
+    // To supress warnings.
+    YUNREACHABLE();
 }
 
 void TYamrDelimitedBaseParser::ThrowIncorrectFormat() const
@@ -268,49 +301,63 @@ const char* TYamrLenvalBaseParser::Consume(const char* begin, const char* end)
     }
 }
 
-const char* TYamrLenvalBaseParser::ConsumeLength(const char* begin, const char* end)
+const char* TYamrLenvalBaseParser::ConsumeInt(const char* begin, const char* end)
 {
     const char* current = begin;
     while (BytesToRead != 0 && current != end) {
-        if (ReadingLength) {
-            Union.Bytes[4 - BytesToRead] = *current;
-        }
+        Union.Bytes[4 - BytesToRead] = *current;
         ++current;
         --BytesToRead;
     }
-
-    if (!ReadingLength) {
-        CurrentToken.append(begin, current);
-    }
-
-    if (BytesToRead != 0) {
-        return current;
-    }
-
-    if (Union.Length == static_cast<ui32>(-1)) {
-        THROW_ERROR_EXCEPTION("Output table selectors in YAMR stream are not supported");
-    }
-
-    if (Union.Length > MaxFieldLength) {
-        THROW_ERROR_EXCEPTION("Field is too long: length % " PRId64 ", limit %" PRId64,
-            static_cast<i64>(Union.Length),
-            MaxFieldLength);
-    }
-
-    ReadingLength = false;
-    BytesToRead = Union.Length;
     return current;
+}
+
+const char* TYamrLenvalBaseParser::ConsumeLength(const char* begin, const char* end)
+{
+    YASSERT(ReadingLength);
+    const char* next = ConsumeInt(begin, end);
+
+    if (BytesToRead == 0) {
+        ReadingLength = false;
+        BytesToRead = Union.Value;
+    }
+
+    if (BytesToRead == static_cast<ui32>(-1)) {
+        if (State == EState::InsideKey) {
+            BytesToRead = 4;
+            State = EState::InsideTableSwitch;
+        } else {
+            THROW_ERROR_EXCEPTION("Unexpected table switch instruction (State: %s)", ~FormatEnum(State));
+        }
+    }
+
+    return next;
 }
 
 const char* TYamrLenvalBaseParser::ConsumeData(const char* begin, const char* end)
 {
+    if (State == EState::InsideTableSwitch) {
+        YASSERT(CurrentToken.empty());
+        const char* next = ConsumeInt(begin, end);
+
+        if (BytesToRead == 0) {
+            Consumer->SwitchTable(static_cast<i64>(Union.Value));
+            State = EState::InsideKey;
+            ReadingLength = true;
+            BytesToRead = 4;
+        }
+
+        return next;
+    }
+
+    // Consume ordinary string tokens.
     TStringBuf data;
     const char* current = begin + BytesToRead;
 
     if (current > end) {
         CurrentToken.append(begin, end);
         BytesToRead -= (end - begin);
-        YCHECK(BytesToRead > 0);
+        YASSERT(BytesToRead > 0);
         return end;
     }
 

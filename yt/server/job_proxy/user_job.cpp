@@ -245,14 +245,18 @@ private:
             int outputCount = JobIO->GetOutputCount();
             TableOutput.resize(outputCount);
 
+            Writers.reserve(outputCount);
             for (int i = 0; i < outputCount; ++i) {
                 auto writer = JobIO->CreateTableOutput(i);
-                std::unique_ptr<IYsonConsumer> consumer(new TTableConsumer(writer));
+                Writers.push_back(writer);
+            }
+
+            for (int i = 0; i < outputCount; ++i) {
+                std::unique_ptr<IYsonConsumer> consumer(new TTableConsumer(Writers, i));
                 auto parser = CreateParserForFormat(format, EDataType::Tabular, ~consumer);
                 TableOutput[i].reset(new TTableOutput(
                     std::move(parser),
-                    std::move(consumer),
-                    std::move(writer)));
+                    std::move(consumer)));
                 createPipe(pipe);
 
                 int jobDescriptor = UserJobSpec.use_yamr_descriptors()
@@ -407,6 +411,14 @@ private:
 
         FOREACH (auto& pipe, InputPipes) {
             finishPipe(pipe);
+        }
+
+        FOREACH(auto& writer, Writers) {
+            try {
+                writer->Close();
+            } catch (const std::exception& ex) {
+                SetError(TError(ex));
+            }
         }
 
         // If user process fais, InputThread may be blocked on epoll
@@ -571,6 +583,8 @@ private:
 
     std::vector<IDataPipePtr> InputPipes;
     std::vector<IDataPipePtr> OutputPipes;
+
+    std::vector<ISyncWriterPtr> Writers;
 
     TThread InputThread;
     TThread OutputThread;

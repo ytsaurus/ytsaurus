@@ -20,9 +20,7 @@
     "optimist": "0.3.5",
     "qs": "0.5.1",
     "q": "0.9.3",
-    "winston": "0.6.2",
-    "winstond": "0.0.2",
-    "winston-nssocket": "0.1.0",
+    "winston": "0.7.2",
     "uid-number": "0.0.3",
     "heapdump": "0.1.0",
     "profiler": "1.2.1"

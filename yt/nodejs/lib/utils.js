@@ -328,22 +328,20 @@ exports.TaggedLogger = function(logger, delta)
 {
     "use strict";
 
-    var level;
-    for (var i = 0; i < TAGGED_LOGGER_LEVELS.length; ++i) {
-        level = TAGGED_LOGGER_LEVELS[i];
-        if (logger.hasOwnProperty(level)) {
-            var func = logger[level];
-            this[level] = function(message, payload) {
-                payload = payload || {};
-                for (var p in delta) {
-                    if (delta.hasOwnProperty(p)) {
-                        payload[p] = delta[p];
-                    }
+    var self = this;
+
+    TAGGED_LOGGER_LEVELS.forEach(function(level) {
+        var func = logger[level];
+        self[level] = function(message, payload) {
+            payload = payload || {};
+            for (var p in delta) {
+                if (delta.hasOwnProperty(p)) {
+                    payload[p] = delta[p];
                 }
-                return func.call(logger, message, payload);
-            };
-        }
-    }
+            }
+            return func.call(logger, message, payload);
+        };
+    });
 
     return this;
 };
@@ -475,4 +473,14 @@ exports.escapeYPath = function(s)
 {
     "use strict";
     return s.replace(/([\/@&])/g, '\\$1');
+};
+
+exports.escapeHeader = function(x)
+{
+    "use strict";
+    return String(x)
+        .replace("\\", "\\\\")
+        .replace("\n", "\\n")
+        .replace("\r", "\\r")
+        .replace("\t", "\\t");
 };

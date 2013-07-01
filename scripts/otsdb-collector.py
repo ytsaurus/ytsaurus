@@ -1,188 +1,354 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
-import collections
 import json
-import math
+import logging
+import os
+import pycurl
 import re
-import socket
 import sys
 import time
 import traceback
-import urllib2
-import os
+import weakref
 
-class YTCollector(object):
-    def __init__(self, config_json):
-        self.config = {
-            u'interval': 30, # collector invocation period
-            u'sources': [ ],
-            u'window': 30, # aggregation window size in seconds
-            u'metric_sync_period': 10 # reload metric names each N collect cycles
-        }
-        self.config.update(json.loads(config_json))
+from cStringIO import StringIO
+from collections import deque
 
-        endpoints = [self.get_endpoint(source) for source in self.config['sources']]
+import signal
+signal.signal(signal.SIGPIPE, signal.SIG_IGN)
 
-        self.sources = []
-        for endpoint in endpoints:
-            self.sources.append({
-                'endpoint': endpoint,
-                'status': False,
-                'last_metric_sync': 0,
-                'metrics': {}})
+LOG = logging.getLogger("YtCollector")
+LOG.setLevel("INFO")
+LOG.addHandler(logging.StreamHandler(sys.stderr))
+LOG.handlers[0].setFormatter(logging.Formatter("%(asctime)-15s: %(message)s"))
 
-        self.window = int(self.config['window'])
-        self.regex = re.compile("[^a-zA-Z0-9_/]")
 
-    def load_metric_names(self, source):
-        start_time = time.time()
+CONCURRENCY = 6
+TIMEOUT_REQUEST = 10
+TIMEOUT_MULTI_REQUEST = 20
+METRIC_PREFIX = "yt"
+METRIC_REGEXP = re.compile(r"[^a-zA-Z0-9_/]")
 
-        # get service name
-        service_name_url = 'http://' + source['endpoint'] + '/orchid/@service_name'
-        service = urllib2.urlopen(service_name_url, timeout=5).read().replace('"', '')
 
-        # get metric paths
-        new_metrics = {}
-        profiling_url = 'http://' + source['endpoint'] + '/orchid/profiling'
-        metric_paths = self.get_paths(self.get_json(profiling_url))
+assert sys.maxint.bit_length() == 63  # Otherwise, time calculations won't fit.
 
-        # convert to graphite metrics
-        host = source['endpoint'].split('.')[0]
-        port = source['endpoint'].split(':')[1]
 
-        for path in metric_paths:
-            cleaned_path = self.regex.sub('_', path).replace('/', '.')
-            g_metric = 'yt' + cleaned_path
-            new_metrics[g_metric] = {'service': service, 'port': port, 'path': path, 'last_time': 0, 'tail': []}
+def aggregate_max(values):
+    return max(values)
 
-        # update existing metrics
-        if len(new_metrics) > 0:
-            for (name, metric) in source['metrics'].items():
-                if name in new_metrics:
-                    new_metrics[name]['last_time'] = metric['last_time']
-                    new_metrics[name]['tail'] = metric['tail']
 
-        source['metrics'] = new_metrics
-        source['last_metric_sync'] = 0
+def aggregate_avg(values):
+    return sum(values) / len(values)
 
-        self.publish_with_timestamp('yt.collector.load_time', time.time() - start_time, int(time.time()), 3)
 
-    def collect_from_source(self, source):
-        start_time = time.time()
-        value_count = 0
+def publish(name, value, timestamp=None, **kwargs):
+    if timestamp is None:
+        timestamp = int(time.time())
+    result = "%s.%s" % (METRIC_PREFIX, name)
+    result += " " + str(timestamp) + " " + str(value)
+    result += " " + " ".join("%s=%s" % (k, v) for (k, v) in kwargs.iteritems())
+    sys.stdout.write(result)
+    sys.stdout.write("\n")
+    sys.stdout.flush()
 
-        for (name, metric) in source['metrics'].items():
-            vals = self.get_metric_values(source, metric)
-            for v in vals:
-                self.publish_with_timestamp(name + '.avg', int(v['avg']), v['time'], service=metric['service'], port=metric['port'])
-                self.publish_with_timestamp(name + '.max', int(v['max']), v['time'], service=metric['service'], port=metric['port'])
-                value_count += 2
 
-        self.publish_with_timestamp('yt.collector.collect_count', value_count, int(time.time()), what="values")
-        self.publish_with_timestamp('yt.collector.collect_count', len(source['metrics']), int(time.time()), what="metrics")
+def publish_timing(wrapped):
+    def wrapper(*args, **kwargs):
+        now = time.time()
+        try:
+            return wrapped(*args, **kwargs)
+        finally:
+            pargs = ("collector.%s" % wrapped.func_name, time.time() - now)
+            pfunc = args[0].publish if hasattr(args[0], "publish") else publish
+            pfunc(*pargs)
+    wrapper.func_name = wrapped.func_name
+    return wrapper
 
-    def get_metric_values(self, source, metric):
-        metric_url = 'http://' + source['endpoint'] + '/orchid/profiling' + metric['path']
-        from_time = metric['last_time']
-        if from_time > 0:
-            metric_url += '?from_time=' + str(long(from_time*1E6))
 
-        data = self.get_json(metric_url)
-        if isinstance(data, list):
-            values = []
-            cur_bucket = from_time / self.window
-            cur_vals = metric['tail']
-            time = from_time
-            for d in data:
-                time = long(d['time']/1E6)
-                val = d['value']
-                bucket = time / self.window
-                if bucket != cur_bucket:
-                    if len(cur_vals) > 0:
-                        values.append({ 'time': cur_bucket * self.window, 
-                                        'avg': self.aggregate_avg(cur_vals), 
-                                        'max': self.aggregate_max(cur_vals)})
-                        cur_vals = []
-                    cur_bucket = bucket
-                cur_vals.append(val)
-            metric['last_time'] = time
-            metric['tail'] = cur_vals
-            return values
-        else:
-            print >>sys.stderr, 'YTCollector: Unexpected reply from %s' % metric_url
-            return []
+class Request(object):
+    def __init__(self, url=None, aux=None):
+        self.stream = None
+        self.handle = pycurl.Curl()
+        self.handle.request = weakref.ref(self)  # Allow GC.
+        self.handle.setopt(pycurl.FOLLOWLOCATION, 0)
+        self.handle.setopt(pycurl.TIMEOUT, TIMEOUT_REQUEST)
+        self.handle.setopt(pycurl.CONNECTTIMEOUT, TIMEOUT_REQUEST)
+        self.handle.setopt(pycurl.NOSIGNAL, 1)
+        if url:
+            self.reset(url, aux)
 
-    def publish_with_timestamp(self, name, value, timestamp, precision=0, **kwargs):
-        fstring = "%%s %%d %%.%df" % precision
-        sstring = fstring % (name, timestamp, value)
-        tstring = " ".join("%s=%s" % (k,v) for (k, v) in kwargs.items())
-        print sstring + " " + tstring
+    def reset(self, url, aux):
+        self.url = url
+        self.aux = aux
+        self.stream = StringIO()
+        self.handle.setopt(pycurl.URL, url)
+        self.handle.setopt(pycurl.WRITEFUNCTION, self.stream.write)
 
-    def collect(self):
-        iter_start = time.time()
+    def perform(self):
+        try:
+            self.handle.perform()
+            return self._finish()
+        finally:
+            self._cleanup()
+            self._destroy()
 
-        for source in self.sources:
-            source['last_metric_sync'] += 1
-            try: 
-                if (source['status'] is False or 
-                    source['last_metric_sync'] >= self.config['metric_sync_period']):
-                    self.load_metric_names(source)
-                    source['status'] = True # available
-                if source['status'] is True:
-                    self.collect_from_source(source)
-            except Exception, e:
-                print >>sys.stderr, 'YTCollector: Failed to collect data from ' + source['endpoint'] + '\n' + traceback.format_exc()
-                source['status'] = False # failed
+    def _finish(self):
+        try:
+            error = self.handle.errstr()
+            if error:
+                raise RuntimeError(error)
+            data = self.stream.getvalue()
+            data = json.loads(data)
+            return data
+        finally:
+            self._cleanup()
 
-        self.publish_with_timestamp('yt.collector.collect_time', time.time() - iter_start, int(time.time()), 3)
+    def _cleanup(self):
+        if self.stream:
+            self.stream.close()
+            self.stream = None
+        if self.url:
+            self.url = None
+        if self.aux:
+            self.aux = None
 
-    @staticmethod
-    def aggregate_avg(vals):
-        sum = 0
-        for v in vals:
-            sum += v
-        return int(sum/len(vals))
+    def _destroy(self):
+        self.handle.close()
+        self.handle = None
 
-    @staticmethod
-    def aggregate_max(vals):
-        max = 0
-        for v in vals:
-            if v > max:
-                max = v
-        return max
 
-    @staticmethod
-    def get_endpoint(endpoint_str):
-        if ':' in endpoint_str:
-            return endpoint_str
-        else:
-            return '%s:%s' % (socket.getfqdn(), endpoint_str)
+class MultiRequest(object):
+    def __init__(self):
+        self.multi = pycurl.CurlMulti()
+        self.queue = deque()
+        self.pool = deque(Request() for _ in xrange(CONCURRENCY))
+        self.busy = set()
 
-    @staticmethod
-    def get_json(url):
-        resp = urllib2.urlopen(url, timeout=5).read()
-        return json.JSONDecoder(object_pairs_hook=collections.OrderedDict).decode(resp)
+    def add(self, url, aux):
+        self.queue.append((url, aux))
 
-    @staticmethod
-    def get_paths(data, root =''):
-        paths = []
-        subpaths = []
-        for (key, value) in data.items():
-            if value is None:
-                subpaths.append(key)
+    def perform(self):
+        try:
+            now = time.time()
+            done = 0
+            total = len(self.queue)
+
+            while done < total:
+                # If there is a spare connection and an item in the queue,
+                # match them and push into |self.multi|.
+                while self.queue and self.pool:
+                    url, aux = self.queue.popleft()
+                    request = self.pool.popleft()
+                    request.reset(url, aux)
+                    self.multi.add_handle(request.handle)
+                    self.busy.add(request)
+
+                # Do any work available.
+                while True:
+                    rv, _ = self.multi.perform()
+                    if rv == pycurl.E_CALL_MULTI_PERFORM:
+                        continue
+                    if rv == pycurl.E_OK:
+                        break
+                    raise RuntimeError("Unknown error while performing multi-request")
+
+                # Check for any requests completed.
+                while True:
+                    sz, good_list, bad_list = self.multi.info_read()
+                    done += len(good_list) + len(bad_list)
+                    for handle in good_list:
+                        request = handle.request()
+                        yield request.aux, request._finish()
+                        self.multi.remove_handle(handle)
+                        self.busy.remove(request)
+                        self.pool.append(request)
+                    for handle, errno, errstr in bad_list:
+                        request = handle.request()
+                        yield request.aux, request._cleanup()
+                        self.multi.remove_handle(handle)
+                        self.busy.remove(request)
+                        self.pool.append(request)
+                    if sz == 0:
+                        break
+
+                # Dead man's switch.
+                if time.time() - now > TIMEOUT_MULTI_REQUEST:
+                    LOG.error("Timed out while performing multi-request")
+                    self.pool.extend(self.busy)
+                    self.busy.clear()
+                    return
+
+                self.multi.select(1 + self.multi.timeout())
+
+        finally:
+            self._destroy()
+
+    def _destroy(self):
+        for request in self.pool:
+            request._cleanup()
+            request._destroy()
+
+        self.multi.close()
+        self.multi = None
+
+
+class YtMetric(object):
+    def __init__(self, path, window):
+        now = time.time()
+
+        self.path = path
+        self.name = METRIC_REGEXP.sub("_", self.path).replace("/", ".").lstrip(".")
+        self.tail = []
+        self.window = int(window)
+        self.bucket = int(now) / self.window
+        self.offset = self.get_offset(-1)
+
+    def __str__(self):
+        return self.name
+
+    def get_timestamp(self, i=0):
+        return int(self.window * (self.bucket + i))
+
+    def get_offset(self, i=0):
+        return int(self.window * (self.bucket + i) * 1E6)
+
+    def update(self, data):
+        for point in data:
+            if self.offset > point["time"]:
+                LOG.debug("Out-of-order data point encountered; ignoring...")
+                continue
             else:
-                subpaths = subpaths + YTCollector.get_paths(value, key)
-        for subpath in subpaths:
-            paths.append(root + '/' + subpath)
-        return paths
+                self.offset = point["time"]
+
+            while self.offset > self.get_offset(1):
+                if len(self.tail) > 0:
+                    timestamp = self.get_timestamp()
+                    point_avg = aggregate_avg(self.tail)
+                    point_max = aggregate_max(self.tail)
+                    yield timestamp, point_avg, point_max
+                    self.tail = []
+                self.bucket += 1
+            self.tail.append(point["value"])
+
+    def build_query(self):
+        return "?from_time=%s" % self.offset
+
+
+class YtCollector(object):
+    def __init__(self, host, port, window, sync_period):
+        self.host = host
+        self.port = port
+        self.window = window
+        self.sync_at = 0
+        self.sync_period = sync_period
+
+        self.service = Request(self.build_url("/orchid/@service_name")).perform()
+        self.metrics = {}
+
+        LOG.info("Registered new collector %s", self)
+
+    def __str__(self):
+        return str((self.host, self.port))
+
+    def invoke(self):
+        try:
+            self.invoke_unsafe()
+        except pycurl.error as ex:
+            LOG.error(
+                "Failed to invoke collector %s: %s\n%s",
+                self,
+                str(ex),
+                traceback.format_exc())
+
+    def invoke_unsafe(self):
+        now = time.time()
+        if now - self.sync_at > self.sync_period:
+            self.gather_metrics()
+
+        self.gather_values()
+
+    def publish(self, *args):
+        publish(*args, service_name=self.service, service_port=self.port)
+
+    @publish_timing
+    def gather_metrics(self):
+        def traverse(root, prefix):
+            for key, child in root.iteritems():
+                path = str(prefix + "/" + key)
+                if isinstance(child, dict):
+                    for subpath in traverse(child, path):
+                        yield subpath
+                elif isinstance(child, type(None)):
+                    yield path
+                else:
+                    raise RuntimeError("Unknown object within profiling data")
+
+        old_metrics = self.metrics
+        new_metrics = {}
+
+        data = Request(self.build_profiling_url()).perform()
+        for path in traverse(data, ""):
+            if path in old_metrics:
+                LOG.debug("Keeping old metric %s", self.build_profiling_url(path))
+                new_metrics[path] = old_metrics[path]
+            else:
+                LOG.debug("Discovered new metric %s", self.build_profiling_url(path))
+                new_metrics[path] = YtMetric(path=path, window=self.window)
+
+        self.publish("collector.metrics_count", len(new_metrics))
+        self.metrics = new_metrics
+
+    @publish_timing
+    def gather_values(self):
+        multi = MultiRequest()
+        for metric in self.metrics.itervalues():
+            url = self.build_profiling_url(metric.path, metric.build_query())
+            multi.add(url, metric)
+
+        points = 0
+        for metric, data in multi.perform():
+            for timestamp, point_avg, point_max in metric.update(data):
+                points += 1
+                self.publish(metric.name + ".avg", point_avg, timestamp)
+                self.publish(metric.name + ".max", point_max, timestamp)
+
+        self.publish("collector.values_count", points)
+
+    def build_url(self, *args):
+        return "http://%s:%s%s" % (self.host, self.port, "".join(args))
+
+    def build_profiling_url(self, *args):
+        return self.build_url("/orchid/profiling", *args)
+
 
 if __name__ == "__main__":
-    config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'etc', 'yt_collector.json')
-    config_path = os.path.normpath(config_path)
-    config_json = open(config_path, "r").read()
+    try:
+        config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "etc", "yt_collector.json")
+        config_path = os.path.normpath(config_path)
+        config = json.load(open(config_path, "r"))
+    except IOError:
+        config = {"window": 5, "sync_period": 600, "interval": 15, "sources": []}
 
-    collector = YTCollector(config_json)
+    window = int(config["window"])
+    sync_period = int(config["sync_period"])
+    interval = int(config["interval"])
+    sources = list(config["sources"])
+
+    collectors = []
+    for source in sources:
+        try:
+            host, port = str(source).split(":", 1)  # Coerce from unicore to str
+            collector = YtCollector(host, port, window, sync_period)
+            collectors.append(collector)
+        except KeyboardInterrupt:
+            raise
+        except Exception as ex:
+            LOG.error(
+                "Failed to register collector from source %r: %s\n%s",
+                source,
+                str(ex),
+                traceback.format_exc())
 
     while True:
-        collector.collect()
-        time.sleep(collector.config['interval'])
+        for collector in collectors:
+            collector.invoke()
+        time.sleep(interval)

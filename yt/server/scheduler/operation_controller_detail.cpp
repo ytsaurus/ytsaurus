@@ -1091,7 +1091,9 @@ void TOperationControllerBase::SuspendUnavailableInputStripes()
         if (chunkDescriptor.State == EInputChunkState::Waiting) {
             LOG_TRACE("Input chunk is unavailable (ChunkId: %s)", ~ToString(pair.first));
             FOREACH(const auto& inputStripe, chunkDescriptor.InputStripes) {
-                inputStripe.Task->GetChunkPoolInput()->Suspend(inputStripe.Cookie);
+                if (inputStripe.Stripe->WaitingChunkCount == 0) {
+                    inputStripe.Task->GetChunkPoolInput()->Suspend(inputStripe.Cookie);
+                }
                 ++inputStripe.Stripe->WaitingChunkCount;
             }
             ++UnavailableInputChunkCount;

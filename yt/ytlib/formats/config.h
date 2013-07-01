@@ -100,13 +100,13 @@ public:
     // Delimited specific options
     char FieldSeparator;
     char RecordSeparator;
-    
+
     // Escaping options
     bool EnableEscaping;
     bool EscapeCarriageReturn;
     char EscapingSymbol;
 
-    // make sense only in writer
+    // Makes sense only in writer
     bool EnableTableIndex;
 
     TYamrFormatConfig()
@@ -165,6 +165,26 @@ public:
             .Default(' ');
         RegisterParameter("enable_table_index", EnableTableIndex)
             .Default(false);
+
+        RegisterValidator([&] () {
+            yhash_set<Stroka> names;
+
+            FOREACH(const auto& name, KeyColumnNames) {
+                if (!names.insert(name).second) {
+                    THROW_ERROR_EXCEPTION(
+                        "Duplicate column name encountered in \"key_column_names\": %s",
+                        ~name.Quote());
+                }
+            }
+
+            FOREACH(const auto& name, SubkeyColumnNames) {
+                if (!names.insert(name).second) {
+                    THROW_ERROR_EXCEPTION(
+                        "Duplicate column name encountered in \"subkey_column_names\": %s",
+                        ~name.Quote());
+                }
+            }
+        });
     }
 };
 
