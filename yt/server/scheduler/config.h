@@ -309,7 +309,8 @@ public:
         RegisterParameter("enable_snapshot_loading", EnableSnapshotLoading)
             .Default(false);
         RegisterParameter("snapshot_temp_path", SnapshotTempPath)
-            .NonEmpty();
+            .NonEmpty()
+            .Default("/tmp/yt_scheduler_snapshots");
         RegisterParameter("snapshot_reader", SnapshotReader)
             .DefaultNew();
         RegisterParameter("snapshot_writer", SnapshotWriter)
