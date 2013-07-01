@@ -212,36 +212,21 @@ void TExistsCommand::DoExecute()
 
 void TLinkCommand::DoExecute()
 {
-    TObjectId targetId;
-    {
-        auto req = TCypressYPathProxy::Get(Request->TargetPath.GetPath() + "/@id");
-        this->SetTransactionId(req, EAllowNullTransaction::Yes);
+    auto req = TCypressYPathProxy::Create(Request->LinkPath.GetPath());
+    req->set_type(EObjectType::Link);
+    req->set_recursive(Request->Recursive);
+    req->set_ignore_existing(Request->IgnoreExisting);
+    this->SetTransactionId(req, EAllowNullTransaction::Yes);
+    this->GenerateMutationId(req);
 
-        auto rsp = WaitFor(ObjectProxy->Execute(req));
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+    auto attributes = Request->Attributes ? ConvertToAttributes(Request->Attributes) : CreateEphemeralAttributes();
+    attributes->Set("target_path", Request->TargetPath);
+    ToProto(req->mutable_node_attributes(), *attributes);
 
-        targetId = ConvertTo<TObjectId>(TYsonString(rsp->value()));
-    }
+    auto rsp = WaitFor(ObjectProxy->Execute(req));
+    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
-    TNodeId linkId;
-    {
-        auto req = TCypressYPathProxy::Create(Request->LinkPath.GetPath());
-        req->set_type(EObjectType::Link);
-        req->set_recursive(Request->Recursive);
-        req->set_ignore_existing(Request->IgnoreExisting);
-        this->SetTransactionId(req, EAllowNullTransaction::Yes);
-        this->GenerateMutationId(req);
-
-        auto attributes = Request->Attributes ? ConvertToAttributes(Request->Attributes) : CreateEphemeralAttributes();
-        attributes->Set("target_id", targetId);
-        ToProto(req->mutable_node_attributes(), *attributes);
-
-        auto rsp = WaitFor(ObjectProxy->Execute(req));
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
-
-        linkId = FromProto<TNodeId>(rsp->node_id());
-    }
-
+    auto linkId = FromProto<TNodeId>(rsp->node_id());
     ReplySuccess(BuildYsonStringFluently().Value(linkId));
 }
 
