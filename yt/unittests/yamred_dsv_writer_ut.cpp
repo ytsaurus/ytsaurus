@@ -31,7 +31,7 @@ TEST(TYamredDsvWriterTest, Simple)
         writer.OnKeyedItem("key_b");
         writer.OnStringScalar("1");
         writer.OnKeyedItem("column");
-        writer.OnStringScalar("2"   );
+        writer.OnStringScalar("2");
         writer.OnKeyedItem("subkey");
         writer.OnStringScalar("3");
         writer.OnKeyedItem("key_a");

@@ -51,7 +51,7 @@ void TYamrWriter::OnIntegerScalar(i64 value)
             WritePod(*Stream, static_cast<ui32>(-1));
             WritePod(*Stream, static_cast<ui32>(value));
         } else {
-            Stream->Write(ToString(value));
+            Stream->Write(value);
             Stream->Write(Config->RecordSeparator);
         }
         break;

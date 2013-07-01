@@ -229,7 +229,6 @@ const char* TYamrDelimitedBaseParser::Consume(const char* begin, const char* end
     }
 
     ThrowIncorrectFormat();
-    YUNREACHABLE();
 }
 
 void TYamrDelimitedBaseParser::ThrowIncorrectFormat() const

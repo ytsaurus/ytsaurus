@@ -55,7 +55,7 @@ void TYamredDsvWriter::OnIntegerScalar(i64 value)
             WritePod(*Stream, static_cast<ui32>(-1));
             WritePod(*Stream, static_cast<ui32>(value));
         } else {
-            Stream->Write(ToString(value));
+            Stream->Write(value);
             Stream->Write(Config->RecordSeparator);
         }
         break;
@@ -244,7 +244,7 @@ void TYamredDsvWriter::WriteYamrKey(
         auto it = fieldValues.find(*nameIt);
         YASSERT(it != fieldValues.end());
 
-        EscapeAndWrite(it->second.Value);
+        EscapeAndWrite(it->second.Value, false);
         ++nameIt;
         if (nameIt != columnNames.end()) {
             Stream->Write(Config->YamrKeysSeparator);
@@ -258,12 +258,14 @@ void TYamredDsvWriter::WriteYamrValue()
 
     auto it = ValueFields.begin();
     while (it !=  ValueFields.end()) {
-        EscapeAndWrite(*it);
+        // Write key.
+        EscapeAndWrite(*it, true);
         ++it;
 
         Stream->Write(Config->KeyValueSeparator);
 
-        EscapeAndWrite(*it);
+        // Write value.
+        EscapeAndWrite(*it, false);
         ++it;
 
         if (it != ValueFields.end()) {
@@ -272,13 +274,13 @@ void TYamredDsvWriter::WriteYamrValue()
     }
 }
 
-void TYamredDsvWriter::EscapeAndWrite(const TStringBuf& string)
+void TYamredDsvWriter::EscapeAndWrite(const TStringBuf& string, bool inKey)
 {
     if (Config->EnableEscaping && !Config->Lenval) {
         WriteEscaped(
             Stream,
             string,
-            Table.ValueStops,
+            inKey ? Table.KeyStops : Table.ValueStops,
             Table.Escapes,
             Config->EscapingSymbol);
     } else {

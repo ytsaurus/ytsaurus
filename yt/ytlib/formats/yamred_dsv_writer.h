@@ -98,7 +98,7 @@ private:
 
     void WriteYamrValue();
 
-    void EscapeAndWrite(const TStringBuf& string);
+    void EscapeAndWrite(const TStringBuf& string, bool inKey);
     void IncreaseLength(ui32* length, ui32 delta);
 
 };
