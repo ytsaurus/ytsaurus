@@ -210,7 +210,7 @@ void TYsonWriter::OnIntegerScalar(i64 value)
         Stream->Write(IntegerMarker);
         WriteVarInt64(Stream, value);
     } else {
-        Stream->Write(value);
+        Stream->Write(::ToString(value));
     }
     EndNode();
 }
@@ -221,7 +221,7 @@ void TYsonWriter::OnDoubleScalar(double value)
         Stream->Write(DoubleMarker);
         Stream->Write(&value, sizeof(double));
     } else {
-        Stream->Write(ToString(value));
+        Stream->Write(::ToString(value));
     }
     EndNode();
 }
