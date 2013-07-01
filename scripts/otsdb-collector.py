@@ -342,7 +342,11 @@ if __name__ == "__main__":
         except KeyboardInterrupt:
             raise
         except Exception as ex:
-            LOG.error("Failed to register collector from source %r", source)
+            LOG.error(
+                "Failed to register collector from source %r: %s\n%s",
+                source,
+                str(ex),
+                traceback.format_exc())
 
     while True:
         for collector in collectors:
