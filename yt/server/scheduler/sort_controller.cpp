@@ -1363,6 +1363,9 @@ protected:
             result.Max = std::max(result.Max, size);
         }
 
+        if (result.Min > result.Max)
+            return result;
+
         int bucketCount = result.Min == result.Max ? 1 : MaxSizeHistogramBuckets;
         result.Count.resize(bucketCount);
 
