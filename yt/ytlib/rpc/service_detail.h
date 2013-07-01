@@ -37,6 +37,8 @@ class TTypedServiceRequest
     : public TRequestMessage
 {
 public:
+    typedef TRequestMessage TMessage;
+
     TTypedServiceRequest()
         : Context(nullptr)
     { }
@@ -66,6 +68,8 @@ class TTypedServiceResponse
     : public TResponseMessage
 {
 public:
+    typedef TResponseMessage TMessage;
+
     TTypedServiceResponse()
         : Context(nullptr)
     { }
