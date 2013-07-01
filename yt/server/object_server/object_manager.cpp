@@ -283,7 +283,7 @@ public:
             auto resolver = nodeProxy->GetResolver();
             return resolver->GetPath(nodeProxy);
         } else {
-            return TYPath(ObjectIdPathPrefix) + ToString(id);
+            return FromObjectId(id);
         }
     }
 
