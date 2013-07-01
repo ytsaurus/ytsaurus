@@ -1375,8 +1375,7 @@ void DelegateInvocation(
     typedef TTypedYPathRequest<TRequestMessage, TResponseMessage>  TClientRequest;
     typedef TTypedYPathResponse<TRequestMessage, TResponseMessage> TClientResponse;
 
-    auto clientRequest = New<TClientRequest>(context->GetVerb());
-    clientRequest->SetPath(context->GetPath());
+    auto clientRequest = New<TClientRequest>(context->GetVerb(), context->GetPath());
     clientRequest->MergeFrom(*serverRequest);
 
     auto clientResponse = ExecuteVerb(service, clientRequest).Get();

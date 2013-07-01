@@ -26,9 +26,10 @@ using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYPathRequest::TYPathRequest(const Stroka& verb)
+TYPathRequest::TYPathRequest(const Stroka& verb, const TYPath& path)
 {
     Header_.set_verb(verb);
+    Header_.set_path(path);
 }
 
 bool TYPathRequest::IsOneWay() const

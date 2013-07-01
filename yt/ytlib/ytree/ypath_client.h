@@ -24,7 +24,7 @@ class TYPathRequest
     , public NRpc::IClientRequest
 {
 public:
-    explicit TYPathRequest(const Stroka& verb);
+    TYPathRequest(const Stroka& verb, const NYPath::TYPath& path);
 
     virtual bool IsOneWay() const override;
     virtual NRpc::TRequestId GetRequestId() const override;
@@ -64,8 +64,8 @@ class TTypedYPathRequest
 public:
     typedef TTypedYPathResponse<TRequestMessage, TResponseMessage> TTypedResponse;
 
-    explicit TTypedYPathRequest(const Stroka& verb)
-        : TYPathRequest(verb)
+    TTypedYPathRequest(const Stroka& verb, const NYPath::TYPath& path)
+        : TYPathRequest(verb, path)
     { }
 
 protected:
@@ -122,9 +122,7 @@ protected:
     \
     static TReq##method##Ptr method(const NYT::NYPath::TYPath& path = "") \
     { \
-        auto req = New<TReq##method>(#method); \
-        req->SetPath(path); \
-        return req; \
+        return New<TReq##method>(#method, path); \
     }
 
 ////////////////////////////////////////////////////////////////////////////////
