@@ -8,7 +8,7 @@ var net = require("net");
 // NPM modules.
 var optimist = require("optimist");
 var uid_number = require("uid-number");
-var winstond = require("winstond");
+var winston = require("winston");
 
 var Q = require("q");
 
@@ -120,8 +120,6 @@ function merge(lhs, rhs) {
 config = {
     port              : 80,
     address           : "::",
-    log_port          : 59999,
-    log_address       : "::1",
     ssl_port          : null,
     ssl_address       : null,
     ssl_key           : "/dev/null",
@@ -249,26 +247,18 @@ function provideWinstonTransport() {
             ensureFileExistsAndOwned(config.logging.filename, config.user, config.group),
             function() {
                 console.error("Setting up logging to file '%s'", config.logging.filename);
-                return new winstond.transports.File(config.logging);
+                return new winston.transports.File(config.logging);
             });
     } else {
         return Q.fcall(function() {
             console.error("Setting up logging to console");
-            return new winstond.transports.Console({ timestamp : true, raw : false, colorize : true });
+            return new winston.transports.Console({ timestamp : true, raw : false, colorize : true });
         });
     }
 }
 
 function provideWinstonLogger(transport) {
-    console.error("Winston is listening on address '%s' on port '%s'", config.log_address, config.log_port);
-    var server = winstond.nssocket.createServer({
-        host : config.log_address,
-        port : config.log_port,
-        services : [ "collect" ],
-        transports : [ transport ]
-    });
-    server.listen();
-    return server;
+    return new winston.Logger({ transports : [ transport ] });
 }
 
 function createLogger() {
@@ -286,7 +276,7 @@ function runProxy(logger) {
             args : []
     });
 
-    logger.error("Starting HTTP proxy master", { pid : process.pid });
+    logger.info("Starting HTTP proxy master", { pid : process.pid });
 
     var fake_server = net.createServer();
     fake_server.listen(config.port, config.address, function() {
