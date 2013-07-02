@@ -572,6 +572,7 @@ void TOperationControllerBase::TTask::AddIntermediateOutputSpec(
     options->Account = Controller->Spec->IntermediateDataAccount;
     options->ChunksVital = false;
     options->ReplicationFactor = 1;
+    options->CompressionCodec = Controller->Spec->IntermediateCompressionCodec;
     outputSpec->set_table_writer_options(ConvertToYsonString(options).Data());
     ToProto(outputSpec->mutable_chunk_list_id(), joblet->ChunkListIds[0]);
 }
