@@ -110,8 +110,10 @@ public:
 
     bool EnableTableIndex;
     bool UseYamrDescriptors;
+    bool EnableCoreDump;
 
     i64 MaxStderrSize;
+
 
     TUserJobSpec()
     {
@@ -138,6 +140,8 @@ public:
         RegisterParameter("enable_table_index", EnableTableIndex)
             .Default(false);
         RegisterParameter("use_yamr_descriptors", UseYamrDescriptors)
+            .Default(false);
+        RegisterParameter("enable_core_dump", EnableCoreDump)
             .Default(false);
         RegisterParameter("max_stderr_size", MaxStderrSize)
             .Default((i64)5 * 1024 * 1024) // 5MB
