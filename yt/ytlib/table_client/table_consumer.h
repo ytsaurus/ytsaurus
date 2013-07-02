@@ -20,8 +20,26 @@ class TTableConsumer
     : public NYson::IYsonConsumer
 {
 public:
-    explicit TTableConsumer(IWriterBasePtr writer);
-    TTableConsumer(const std::vector<IWriterBasePtr>& writers, int tableIndex);
+    template<class TWriter>
+    explicit TTableConsumer(TWriter writer)
+        : ControlState(EControlState::None)
+        , CurrentTableIndex(0)
+        , Writer(writer)
+        , Depth(0)
+        , ValueWriter(&RowBuffer)
+    {
+        Writers.push_back(writer);
+    }
+
+    template<class TWriter>
+    TTableConsumer(const std::vector<TWriter>& writers, int tableIndex)
+        : ControlState(EControlState::None)
+        , CurrentTableIndex(tableIndex)
+        , Writers(writers.begin(), writers.end())
+        , Writer(Writers[CurrentTableIndex])
+        , Depth(0)
+        , ValueWriter(&RowBuffer)
+    { }
 
 private:
     virtual void OnStringScalar(const TStringBuf& value) override;
