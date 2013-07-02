@@ -245,14 +245,19 @@ private:
             int outputCount = JobIO->GetOutputCount();
             TableOutput.resize(outputCount);
 
+            // To create table consumer.
+            std::vector<IWriterBasePtr> baseWriters;
+            baseWriters.reserve(outputCount);
+
             Writers.reserve(outputCount);
             for (int i = 0; i < outputCount; ++i) {
                 auto writer = JobIO->CreateTableOutput(i);
                 Writers.push_back(writer);
+                baseWriters.push_back(writer);
             }
 
             for (int i = 0; i < outputCount; ++i) {
-                std::unique_ptr<IYsonConsumer> consumer(new TTableConsumer(Writers, i));
+                std::unique_ptr<IYsonConsumer> consumer(new TTableConsumer(baseWriters, i));
                 auto parser = CreateParserForFormat(format, EDataType::Tabular, ~consumer);
                 TableOutput[i].reset(new TTableOutput(
                     std::move(parser),
@@ -584,7 +589,7 @@ private:
     std::vector<IDataPipePtr> InputPipes;
     std::vector<IDataPipePtr> OutputPipes;
 
-    std::vector<IWriterBasePtr> Writers;
+    std::vector<ISyncWriterPtr> Writers;
 
     TThread InputThread;
     TThread OutputThread;
