@@ -477,7 +477,7 @@ private:
                 }
             }
 
-            {
+            if (!UserJobSpec.enable_core_dump()) {
                 struct rlimit rlimit = {0, 0};
 
                 auto res = setrlimit(RLIMIT_CORE, &rlimit);

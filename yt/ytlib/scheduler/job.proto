@@ -136,6 +136,8 @@ message TUserJobSpec
     optional bool use_yamr_descriptors = 10 [default = false];
 
     required int64 max_stderr_size = 11;
+
+    optional bool enable_core_dump = 12 [default = false];
 }
 
 // User code result.
