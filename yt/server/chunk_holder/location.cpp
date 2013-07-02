@@ -67,8 +67,8 @@ TLocation::TLocation(
     , ChunkCount(0)
     , ReadQueue(New<TFairShareActionQueue>(ELocationQueue::GetDomainNames(), Sprintf("Read:%s", ~Id)))
     , DataReadInvoker(CreatePrioritizedInvoker(ReadQueue->GetInvoker(ELocationQueue::Data)))
-    , MetaReadInvoker(CreatePrioritizedInvoker(ReadQueue->GetInvoker(ELocationQueue::Meta)))
-    , WriteQueue(New<TActionQueue>(Sprintf("Write:%s", ~Id)))
+    , MetaReadInvoker(CreatePrioritizedInvoker(ReadQueue->GetInvoker(ELocationQueue::Meta)))    
+    , WriteQueue(New<TThreadPool>(bootstrap->GetConfig()->DataNode->WriteThreadCount, Sprintf("Write:%s", ~Id)))
     , WriteInvoker(WriteQueue->GetInvoker())
     , Logger(DataNodeLogger)
 {
