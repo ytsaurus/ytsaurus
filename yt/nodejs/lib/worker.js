@@ -9,7 +9,6 @@ var yt = require("yt");
 var connect = require("connect");
 var node_static = require("node-static");
 var winston = require("winston");
-var winston_nssocket = require("winston-nssocket");
 
 var Q = require("q");
 

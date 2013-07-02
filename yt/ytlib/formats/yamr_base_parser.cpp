@@ -190,6 +190,13 @@ const char* TYamrDelimitedBaseParser::Consume(const char* begin, const char* end
         return end;
     }
 
+    if (*next == EscapingSymbol) {
+        CurrentToken.append(begin, next);
+        OnRangeConsumed(next, next + 1);
+        ExpectingEscapedChar = true;
+        return next + 1;
+    }
+
     switch (State) {
     case EState::InsideKey:
         if (*next == RecordSeparator) {
@@ -219,14 +226,6 @@ const char* TYamrDelimitedBaseParser::Consume(const char* begin, const char* end
         break;
 
     };
-
-    CurrentToken.append(begin, next);
-
-    if (*next == EscapingSymbol) {
-        OnRangeConsumed(next, next + 1);
-        ExpectingEscapedChar = true;
-        return next + 1;
-    }
 
     ThrowIncorrectFormat();
     // To supress warnings.

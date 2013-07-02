@@ -245,14 +245,19 @@ private:
             int outputCount = JobIO->GetOutputCount();
             TableOutput.resize(outputCount);
 
+            // To create table consumer.
+            std::vector<IWriterBasePtr> baseWriters;
+            baseWriters.reserve(outputCount);
+
             Writers.reserve(outputCount);
             for (int i = 0; i < outputCount; ++i) {
                 auto writer = JobIO->CreateTableOutput(i);
                 Writers.push_back(writer);
+                baseWriters.push_back(writer);
             }
 
             for (int i = 0; i < outputCount; ++i) {
-                std::unique_ptr<IYsonConsumer> consumer(new TTableConsumer(Writers, i));
+                std::unique_ptr<IYsonConsumer> consumer(new TTableConsumer(baseWriters, i));
                 auto parser = CreateParserForFormat(format, EDataType::Tabular, ~consumer);
                 TableOutput[i].reset(new TTableOutput(
                     std::move(parser),
@@ -463,17 +468,28 @@ private:
             }
             envp[UserJobSpec.environment_size()] = NULL;
 
-            auto memoryLimit = static_cast<rlim_t>(UserJobSpec.memory_limit() * config->MemoryLimitMultiplier);
-            memoryLimit += MemoryLimitBoost;
-            struct rlimit rlimit = {memoryLimit, RLIM_INFINITY};
+            {
+                auto memoryLimit = static_cast<rlim_t>(UserJobSpec.memory_limit() * config->MemoryLimitMultiplier);
+                memoryLimit += MemoryLimitBoost;
+                struct rlimit rlimit = {memoryLimit, RLIM_INFINITY};
 
-            auto res = setrlimit(RLIMIT_AS, &rlimit);
+                auto res = setrlimit(RLIMIT_AS, &rlimit);
+                if (res) {
+                    fprintf(stderr, "Failed to set resource limits (MemoryLimit: %" PRId64 ")\n%s",
+                        rlimit.rlim_max,
+                        strerror(errno));
+                    _exit(EJobProxyExitCode::SetRLimitFailed);
+                }
+            }
 
-            if (res) {
-                fprintf(stderr, "Failed to set resource limits (MemoryLimit: %" PRId64 ")\n%s",
-                    rlimit.rlim_max,
-                    strerror(errno));
-                _exit(EJobProxyExitCode::SetRLimitFailed);
+            if (!UserJobSpec.enable_core_dump()) {
+                struct rlimit rlimit = {0, 0};
+
+                auto res = setrlimit(RLIMIT_CORE, &rlimit);
+                if (res) {
+                    fprintf(stderr, "Failed to disable core dumps\n%s", strerror(errno));
+                    _exit(EJobProxyExitCode::SetRLimitFailed);
+                }
             }
 
             if (config->UserId > 0) {
