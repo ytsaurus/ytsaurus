@@ -744,6 +744,10 @@ private:
     void HandleConfig(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
     {
         auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_config");
+        if (rsp->GetError().FindMatching(NYTree::EErrorCode::ResolveError)) {
+            // No config in Cypress, just ignore.
+            return;
+        }
         if (!rsp->IsOK()) {
             LOG_ERROR(*rsp, "Error getting scheduler configuration");
             return;
