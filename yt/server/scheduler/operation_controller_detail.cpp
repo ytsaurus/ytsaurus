@@ -2801,6 +2801,9 @@ void TOperationControllerBase::InitIntermediateOutputConfig(TJobIOConfigPtr conf
 
     // Don't move intermediate chunks.
     config->TableWriter->ChunksMovable = false;
+
+    // Don't sync intermediate chunks.
+    config->TableWriter->SyncOnClose = false;
 }
 
 void TOperationControllerBase::InitFinalOutputConfig(TJobIOConfigPtr config)

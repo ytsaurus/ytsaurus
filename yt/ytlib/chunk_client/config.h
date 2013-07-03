@@ -149,6 +149,8 @@ public:
     //! If True then written blocks are cached by the node.
     bool EnableNodeCaching;
 
+    bool SyncOnClose;
+
     TReplicationWriterConfig()
     {
         RegisterParameter("send_window_size", SendWindowSize)
@@ -163,6 +165,8 @@ public:
             .Default(TDuration::Seconds(10));
         RegisterParameter("enable_node_caching", EnableNodeCaching)
             .Default(false);
+        RegisterParameter("sync_on_close", SyncOnClose)
+            .Default(true);
 
         RegisterValidator([&] () {
             if (SendWindowSize < GroupSize) {
