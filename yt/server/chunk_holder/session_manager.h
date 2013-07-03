@@ -29,6 +29,7 @@ public:
         NCellNode::TBootstrap* bootstrap,
         const TChunkId& chunkId,
         EWriteSessionType type,
+        bool syncOnClose,
         TLocationPtr location);
 
     //! Starts the session.
@@ -106,6 +107,7 @@ private:
     NCellNode::TBootstrap* Bootstrap;
     TChunkId ChunkId;
     EWriteSessionType Type;
+    bool SyncOnClose;
     TLocationPtr Location;
 
     TError Error;
@@ -185,7 +187,8 @@ public:
      */
     TSessionPtr StartSession(
         const TChunkId& chunkId,
-        EWriteSessionType type);
+        EWriteSessionType type,
+        bool syncOnClose);
 
     //! Completes an earlier opened upload session.
     /*!
