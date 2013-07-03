@@ -310,7 +310,7 @@ public:
             .Default(false);
         RegisterParameter("snapshot_temp_path", SnapshotTempPath)
             .NonEmpty()
-            .Default("/tmp/yt_scheduler_snapshots");
+            .Default("/tmp/yt/scheduler/snapshots");
         RegisterParameter("snapshot_reader", SnapshotReader)
             .DefaultNew();
         RegisterParameter("snapshot_writer", SnapshotWriter)
