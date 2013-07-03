@@ -291,7 +291,8 @@ public:
     TAccount* CreateAccount(const Stroka& name)
     {
         if (FindAccountByName(name)) {
-            THROW_ERROR_EXCEPTION("Account already exists: %s", ~name);
+            THROW_ERROR_EXCEPTION("Account %s already exists",
+                ~name.Quote());
         }
 
         auto objectManager = Bootstrap->GetObjectManager();
@@ -435,11 +436,13 @@ public:
     TUser* CreateUser(const Stroka& name)
     {
         if (FindUserByName(name)) {
-            THROW_ERROR_EXCEPTION("User already exists: %s", ~name);
+            THROW_ERROR_EXCEPTION("User %s already exists",
+                ~name.Quote());
         }
 
         if (FindGroupByName(name)) {
-            THROW_ERROR_EXCEPTION("Group with such name already exists: %s", ~name);
+            THROW_ERROR_EXCEPTION("Group %s already exists",
+                ~name.Quote());
         }
 
         auto objectManager = Bootstrap->GetObjectManager();
@@ -476,11 +479,13 @@ public:
     TGroup* CreateGroup(const Stroka& name)
     {
         if (FindGroupByName(name)) {
-            THROW_ERROR_EXCEPTION("Group already exists: %s", ~name);
+            THROW_ERROR_EXCEPTION("Group %s already exists",
+                ~name.Quote());
         }
 
         if (FindUserByName(name)) {
-            THROW_ERROR_EXCEPTION("User with such name already exists: %s", ~name);
+            THROW_ERROR_EXCEPTION("User %s already exists",
+                ~name.Quote());
         }
 
         auto objectManager = Bootstrap->GetObjectManager();
