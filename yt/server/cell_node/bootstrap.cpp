@@ -145,7 +145,6 @@ void TBootstrap::Run()
     monitoringManager->Register(
         "/ref_counted",
         BIND(&TRefCountedTracker::GetMonitoringInfo, TRefCountedTracker::Get()));
-    monitoringManager->Start();
 
     RpcServer->RegisterService(CreateRedirectorService(
         NObjectClient::TObjectServiceProxy::GetServiceName(),
@@ -165,7 +164,6 @@ void TBootstrap::Run()
     PeerBlockTable = New<TPeerBlockTable>(Config->DataNode->PeerBlockTable);
 
     PeerBlockUpdater = New<TPeerBlockUpdater>(Config->DataNode, this);
-    PeerBlockUpdater->Start();
 
     ChunkStore = New<TChunkStore>(Config->DataNode, this);
     ChunkStore->Initialize();
@@ -210,8 +208,6 @@ void TBootstrap::Run()
         DataNodeProfiler.GetPathPrefix() + "/repair_out");
 
     RpcServer->RegisterService(New<TDataNodeService>(Config->DataNode, this));
-
-    MasterConnector->Start();
 
     JobProxyConfig = New<NJobProxy::TJobProxyConfig>();
 
@@ -281,7 +277,6 @@ void TBootstrap::Run()
     EnvironmentManager->Register("unsafe", CreateUnsafeEnvironmentBuilder());
 
     SchedulerConnector = New<TSchedulerConnector>(Config->ExecAgent->SchedulerConnector, this);
-    SchedulerConnector->Start();
 
     OrchidRoot = GetEphemeralNodeFactory()->CreateMap();
     SetNodeByYPath(
@@ -321,10 +316,17 @@ void TBootstrap::Run()
         GetControlInvoker()));
 
     LOG_INFO("Listening for HTTP requests on port %d", Config->MonitoringPort);
-    httpServer->Start();
 
     LOG_INFO("Listening for RPC requests on port %d", Config->RpcPort);
     RpcServer->Configure(Config->RpcServer);
+
+    // Do not start subsystems until everything is initialized.
+    monitoringManager->Start();
+    PeerBlockUpdater->Start();
+    MasterConnector->Start();
+    SchedulerConnector->Start();
+    httpServer->Start();
+
     RpcServer->Start();
 
     Sleep(TDuration::Max());
