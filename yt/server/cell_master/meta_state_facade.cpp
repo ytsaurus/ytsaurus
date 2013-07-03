@@ -294,17 +294,6 @@ private:
 
             CreateNode(
                 rootService,
-                "//sys/scheduler/config",
-                transactionId,
-                EObjectType::Document,
-                BuildYsonStringFluently()
-                    .BeginMap()
-                        .Item("value").BeginMap()
-                        .EndMap()
-                    .EndMap());
-
-            CreateNode(
-                rootService,
                 "//sys/operations",
                 transactionId,
                 EObjectType::MapNode,
