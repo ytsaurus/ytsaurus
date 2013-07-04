@@ -2,19 +2,26 @@
 #include "fiber.h"
 
 #include <ytlib/actions/invoker_util.h>
-
-#include <contrib/libcoro/coro.h>
+#include <ytlib/misc/object_pool.h>
 
 #include <stdexcept>
 
-#if defined(_unix_) && !defined(CORO_ASM)
-#   error "Using slow libcoro backend (expecting CORO_ASM)"
+#if defined(_unix_)
+#   include <sys/mman.h>
+#   include <limits.h>
+#   include <unistd.h>
+#   if !defined(__x86_64__)
+#       error Unsupported platform
+#   endif
 #endif
 
 #if defined(_win_)
-#   if !defined(CORO_FIBER)
-#       error "Using bad libcoro backend (expecting CORO_FIBER)"
+#   define WIN32_LEAN_AND_MEAN
+#   if _WIN32_WINNT < 0x0400
+#       undef _WIN32_WINNT
+#       define _WIN32_WINNT 0x0400
 #   endif
+#   include <windows.h>
 #endif
 
 // MSVC compiler has /GT option for supporting fiber-safe thread-local storage.
@@ -60,12 +67,10 @@ TLS_STATIC TFiber* CurrentFiber = nullptr;
 
 namespace {
 
-// Stack sizes are given in machine words.
-// Estimates in bytes are given for x86_64.
-const size_t SmallFiberStackSize = 1 << 15; // 256 Kb
-const size_t LargeFiberStackSize = 1 << 20; //   8 Mb
+const size_t SmallFiberStackSize = 1 << 18; // 256 Kb
+const size_t LargeFiberStackSize = 1 << 23; //   8 Mb
 
-void InitTls()
+static void InitTls()
 {
     if (UNLIKELY(!CurrentFiber)) {
         auto rootFiber = New<TFiber>();
@@ -75,6 +80,183 @@ void InitTls()
 }
 
 } // namespace
+
+class TFiberStackBase
+{
+public:
+    TFiberStackBase(void *base, size_t size)
+        : Base(base)
+        , Size(size)
+    { }
+
+    virtual ~TFiberStackBase()
+    { }
+
+    void* GetStack() const
+    {
+        return Stack;
+    }
+
+    size_t GetSize() const
+    {
+        return Size;
+    }
+
+protected:
+    void* Base;
+    void* Stack;
+    const size_t Size;
+};
+
+template <size_t StackSize, int StackGuardedPages = 4>
+class TFiberStack
+    : public TFiberStackBase
+{
+private:
+    static const size_t GetExtraSize()
+    {
+        return GetPageSize() * StackGuardedPages;
+    }
+
+public:
+    TFiberStack()
+        : TFiberStackBase(nullptr, RoundUpToPage(StackSize))
+    {
+#ifdef _linux_
+        Base = ::mmap(
+            0,
+            Size + GetExtraSize(),
+            PROT_READ | PROT_WRITE,
+            MAP_PRIVATE | MAP_ANONYMOUS,
+            -1,
+            0);
+
+        if (Base == MAP_FAILED) {
+            THROW_ERROR_EXCEPTION("Failed to allocate fiber stack")
+                << TErrorAttribute("requested_size", StackSize)
+                << TErrorAttribute("allocated_size", Size + GetExtraSize())
+                << TErrorAttribute("guarded_pages", StackGuardedPages)
+                << TError::FromSystem();
+        }
+
+        ::mprotect(Base, GetExtraSize(), PROT_NONE);
+
+        Stack = reinterpret_cast<char*>(Base) + GetExtraSize();
+
+        YCHECK((reinterpret_cast<ui64>(Stack) & 0xF) == 0);
+#else
+        Base = new char[Size];
+        Stack = Base;
+
+        YCHECK((reinterpret_cast<ui64>(Stack) & 0xF) == 0);
+#endif
+    }
+
+    ~TFiberStack()
+    {
+#ifdef _linux_
+        ::munmap(Base, Size + GetExtraSize());
+#else
+        delete[] Base;
+#endif
+    }
+
+};
+
+template <size_t Size, int GuardedPages>
+void CleanPooledObject(TFiberStack<Size, GuardedPages>* stack)
+{
+#ifndef NDEBUG
+    ::memset(stack->GetStack(), 0, stack->GetSize());
+#endif
+}
+
+class TFiberContext
+{
+public:
+    TFiberContext()
+    { }
+
+    void Reset(void* stack, size_t size, void (*callee)(void *), void* opaque)
+    {
+#ifdef _win_
+        DeleteFiber(Fiber_);
+
+        Fiber_ = CreateFiber(size, &TFiberContext::Trampoline, this);
+        Callee_ = callee;
+        Opaque_ = opaque;
+#else
+        SP_ = reinterpret_cast<void**>(reinterpret_cast<char*>(stack) + size);
+
+        *--SP_ = nullptr; // To align %rsp on |callq| to 16-byte boundary.
+        *--SP_ = (void*) &TFiberContext::Trampoline;
+        // See |fiber-supp.s| for precise register mapping.
+        *--SP_ = nullptr;        // %rbp
+        *--SP_ = (void*) callee; // %rbx
+        *--SP_ = (void*) opaque; // %r12
+        *--SP_ = nullptr;        // %r13
+        *--SP_ = nullptr;        // %r14
+        *--SP_ = nullptr;        // %r15
+#endif
+    }
+
+    ~TFiberContext()
+    {
+#ifdef _win_
+        DeleteFiber(Fiber_);
+#endif
+    }
+
+    void Swap(TFiberContext& other)
+    {
+        TransferTo(this, &other);
+    }
+
+private:
+#ifdef _win_
+    void* Fiber_;
+    void (*Callee_)(void *);
+    void* Opaque_;
+#else
+    void** SP_;
+#endif
+
+
+#ifdef _win_
+    static VOID CALLBACK
+    Trampoline(PVOID opaque);
+#else
+    static void __attribute__((__noinline__))
+    Trampoline();
+#endif
+
+#ifdef _win_
+    static void
+    TransferTo(TFiberContext* previous, TFiberContext* next);
+#else
+    static void __attribute__((__noinline__, __regparm__(2)))
+    TransferTo(TFiberContext* previous, TFiberContext* next);
+#endif
+};
+
+#ifdef _win_
+static VOID CALLBACK TFiberContext::Trampoline(PVOID opaque)
+{
+    TFiberContext* context = reinterpret_cast<TFiberContext*>(opaque);
+    context->Callee_(context->Opaque_);
+}
+
+static void TFiberContext::TransferTo(TFiberContext* previous, TFiberContext* next)
+{
+    if (!previous->Fiber_) {
+        previous_->Fiber_ = GetCurrentFiber();
+        if (previous_->Fiber_ == 0 || previous_->Fiber_ == (void*)0x1e00) {
+            previous_->Fiber_ = ConvertThreadToFiber(0);
+        }
+    }
+    SwitchToFiber(next->Fiber_);
+}
+#endif
 
 class TFiberExceptionHandler
 {
@@ -103,8 +285,6 @@ private:
 
 };
 
-//} // namespace
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFiber::TImpl
@@ -115,28 +295,22 @@ public:
     TImpl(TFiber* owner)
         : State_(EFiberState::Running)
         , Owner_(owner)
-    {
-        Init();
-
-        coro_create(&CoroContext_, nullptr, nullptr, nullptr, 0);
-    }
+        , Terminating_(false)
+        , Yielded_(false)
+        , CurrentInvoker_(GetSyncInvoker())
+    { }
 
     TImpl(TFiber* owner, TClosure callee, EFiberStack stack)
         : State_(EFiberState::Initialized)
+        , Stack_(GetStack(stack))
         , Owner_(owner)
+        , Terminating_(false)
+        , Yielded_(false)
         , Callee_(std::move(callee))
+        , Caller_(nullptr)
+        , CurrentInvoker_(GetSyncInvoker())
     {
-        Init();
-
-        size_t stackSize = GetStackSize(stack);
-        coro_stack_alloc(&CoroStack_, stackSize);
-
-        coro_create(
-            &CoroContext_,
-            &TImpl::Trampoline,
-            this,
-            CoroStack_.sptr,
-            CoroStack_.ssze);
+        Reset();
     }
 
     ~TImpl()
@@ -148,10 +322,14 @@ public:
         Terminating_ = true;
 
         // Root fiber can never be destroyed.
-        YCHECK(CoroStack_.sptr && CoroStack_.ssze != 0);
+        YCHECK(!(
+            State_ == NYT::EFiberState::Running &&
+            !Stack_ &&
+            !Callee_.IsNull()));
 
         if (State_ == EFiberState::Suspended) {
-            // Most likely that the fiber has been abandoned after being submitted to an invoker.
+            // Most likely that the fiber has been abandoned
+            // after being submitted to an invoker.
             // Give the callee the last chance to finish.
             Inject(CreateFiberTerminatedException());
             Run();
@@ -161,17 +339,14 @@ public:
             State_ == EFiberState::Initialized ||
             State_ == EFiberState::Terminated ||
             State_ == EFiberState::Exception);
-
-        (void) coro_destroy(&CoroContext_);
-        (void) coro_stack_free(&CoroStack_);
     }
 
     static TFiber* GetCurrent()
     {
         InitTls();
+
         return CurrentFiber;
     }
-
 
     bool Yielded() const
     {
@@ -216,7 +391,7 @@ public:
             // Rethrow the propagated exception.
 
             YCHECK(!Terminating_);
-            // XXX(babenko): VS2010 has no operator bool
+            // XXX(babenko): VS2010 has no operator bool.
             YASSERT(!(Exception_ == std::exception_ptr()));
 
             std::exception_ptr ex;
@@ -227,7 +402,7 @@ public:
             // Schedule wakeup when then given future is set.
             YCHECK(!Terminating_);
             waitFor.Subscribe(BIND(&TFiber::Run, MakeStrong(Owner_)).Via(switchTo));
-        } else if (switchTo) {          
+        } else if (switchTo) {
             // Schedule switch to another thread.
             YCHECK(!Terminating_);
             switchTo->Invoke(BIND(&TFiber::Run, MakeStrong(Owner_)));
@@ -236,11 +411,12 @@ public:
 
     void Yield()
     {
-        // Failure here indicates that the callee has declined our kind offer to exit
-        // gracefully and has called Yield once again.
+        // Failure here indicates that the callee has declined our kind offer
+        // to exit gracefully and has called |Yield| once again.
         YCHECK(!Terminating_);
 
-        // Failure here indicates that an attempt is made to Yield control from a root fiber.
+        // Failure here indicates that an attempt is made to |Yield| control
+        // from a root fiber.
         YCHECK(Caller_);
 
         YCHECK(State_ == EFiberState::Running);
@@ -251,7 +427,7 @@ public:
         YCHECK(State_ == EFiberState::Running);
 
         // Rethrow the injected exception, if any.
-        // XXX(babenko): VS2010 has no operator bool
+        // XXX(babenko): VS2010 has no operator bool.
         if (!(Exception_ == std::exception_ptr())) {
             std::exception_ptr ex;
             std::swap(Exception_, ex);
@@ -262,6 +438,8 @@ public:
 
     void Reset()
     {
+        YASSERT(Stack_);
+        YASSERT(Callee_);
         YASSERT(!Caller_);
         YASSERT(Exception_ == std::exception_ptr());
         YCHECK(
@@ -269,14 +447,11 @@ public:
             State_ == EFiberState::Terminated ||
             State_ == EFiberState::Exception);
 
-        (void) coro_destroy(&CoroContext_);
-
-        coro_create(
-            &CoroContext_,
+        Context_.Reset(
+            Stack_->GetStack(),
+            Stack_->GetSize(),
             &TImpl::Trampoline,
-            this,
-            CoroStack_.sptr,
-            CoroStack_.ssze);
+            this);
 
         State_ = EFiberState::Initialized;
     }
@@ -284,12 +459,13 @@ public:
     void Reset(TClosure closure)
     {
         Reset();
+
         Callee_ = std::move(closure);
     }
 
     void Inject(std::exception_ptr&& exception)
     {
-        // XXX(babenko): VS2010 has no operator bool
+        // XXX(babenko): VS2010 has no operator bool.
         YCHECK(!(exception == std::exception_ptr()));
         YCHECK(
             State_ == EFiberState::Initialized ||
@@ -334,6 +510,10 @@ public:
     }
 
 private:
+    std::shared_ptr<TFiberStackBase> Stack_;
+    TFiberContext Context_;
+    TFiberExceptionHandler EH_;
+
     TFiber* Owner_;
     bool Terminating_;
     bool Yielded_;
@@ -341,35 +521,20 @@ private:
     TClosure Callee_;
     TFiberPtr Caller_;
 
-    coro_context CoroContext_;
-    coro_stack CoroStack_;
-
     std::exception_ptr Exception_;
-    TFiberExceptionHandler EH_;
-
     TFuture<void> WaitFor_;
     IInvokerPtr SwitchTo_;
 
     IInvokerPtr CurrentInvoker_;
 
-    void Init()
-    {
-        Terminating_ = false;
-        Yielded_ = false;
-        CurrentInvoker_ = GetSyncInvoker();
-
-        ::memset(&CoroContext_, 0, sizeof(CoroContext_));
-        ::memset(&CoroStack_, 0, sizeof(CoroStack_));
-    }
-
-    static size_t GetStackSize(EFiberStack stack)
+    static std::shared_ptr<TFiberStackBase> GetStack(EFiberStack stack)
     {
         switch (stack)
         {
             case EFiberStack::Small:
-                return SmallFiberStackSize;
+                return ObjectPool<TFiberStack<SmallFiberStackSize>>().Allocate();
             case EFiberStack::Large:
-                return LargeFiberStackSize;
+                return ObjectPool<TFiberStack<LargeFiberStackSize>>().Allocate();
             default:
                 YUNREACHABLE();
         }
@@ -395,7 +560,7 @@ private:
     void TransferTo(TImpl* target)
     {
         EH_.Swap(target->EH_);
-        coro_transfer(&CoroContext_, &target->CoroContext_);
+        Context_.Swap(target->Context_);
     }
 
     static void Trampoline(void* opaque)
@@ -408,7 +573,7 @@ private:
         YASSERT(Caller_);
         YASSERT(!Callee_.IsNull());
 
-        // XXX(babenko): VS2010 has no operator bool
+        // XXX(babenko): VS2010 has no operator bool.
         if (!(Exception_ == std::exception_ptr())) {
             State_ = EFiberState::Exception;
             TransferTo(Caller_->Impl.get());

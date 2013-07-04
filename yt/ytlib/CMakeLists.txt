@@ -56,7 +56,6 @@ endif()
 
 target_link_libraries ( ytlib
   ytext-arcadia-util
-  ytext-coro
   ytext-ev
   ytext-jerasure
   ytext-json

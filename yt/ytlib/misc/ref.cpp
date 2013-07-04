@@ -72,6 +72,12 @@ Stroka ToString(const TRef& ref)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+size_t GetPageSize()
+{
+    static const size_t PageSize = NSystemInfo::GetPageSize();
+    return PageSize;
+}
+
 size_t RoundUpToPage(size_t bytes)
 {
     static const size_t PageSize = NSystemInfo::GetPageSize();

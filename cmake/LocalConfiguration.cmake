@@ -207,13 +207,11 @@ endif()
 if (UNIX)
   set( LIBRARY_OUTPUT_PATH ${CMAKE_BINARY_DIR}/lib )
   set( EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR}/bin )
-  add_definitions(-DCORO_ASM=1)
 endif()
 
 if (WIN32)
   set( LIBRARY_OUTPUT_PATH ${CMAKE_BINARY_DIR}/bin )
   set( EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR}/bin )
-  add_definitions(-DCORO_FIBER=1)
 endif()
 
 set(CMAKE_SKIP_BUILD_RPATH FALSE)

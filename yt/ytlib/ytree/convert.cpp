@@ -7,6 +7,7 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 template TYsonString ConvertToYsonString<int>(const int&);
+template TYsonString ConvertToYsonString<unsigned long>(const unsigned long&);
 template TYsonString ConvertToYsonString<TRawString>(const TRawString&);
 
 ////////////////////////////////////////////////////////////////////////////////

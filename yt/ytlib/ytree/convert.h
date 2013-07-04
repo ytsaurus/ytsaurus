@@ -33,6 +33,7 @@ std::unique_ptr<IAttributeDictionary> ConvertToAttributes(const T& value);
 
 // Provide shared instantinations for different TUs for commongly-used types.
 //extern template TYsonString ConvertToYsonString<int>(const int&);
+//extern template TYsonString ConvertToYsonString<unsigned long>(const unsigned long&);
 //extern template TYsonString ConvertToYsonString<TRawString>(const TRawString&);
 
 ////////////////////////////////////////////////////////////////////////////////

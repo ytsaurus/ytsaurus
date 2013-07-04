@@ -2,6 +2,7 @@
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/fibers )
 set( SRCS
   ${BASE}/fiber.cpp
+  ${BASE}/fiber-supp.s
   ${BASE}/coroutine.cpp
 )
 set( HDRS
