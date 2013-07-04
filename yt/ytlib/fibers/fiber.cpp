@@ -7,26 +7,13 @@
 
 #include <stdexcept>
 
-// libcoro asserts that coro_create() is neither thread-safe nor reenterant function.
-#ifdef _unix_
-#    include <pthread.h>
-#    define DEFINE_FIBER_CTOR_MUTEX() \
-        static pthread_mutex_t FiberCtorMutex = PTHREAD_MUTEX_INITIALIZER;
-#    define BEFORE_FIBER_CTOR() pthread_mutex_lock(&FiberCtorMutex)
-#    define AFTER_FIBER_CTOR() pthread_mutex_unlock(&FiberCtorMutex)
-#else
-#    define DEFINE_FIBER_CTOR_MUTEX()
-#    define BEFORE_FIBER_CTOR()
-#    define AFTER_FIBER_CTOR()
-#endif
-
 #if defined(_unix_) && !defined(CORO_ASM)
 #   error "Using slow libcoro backend (expecting CORO_ASM)"
 #endif
 
 #if defined(_win_)
 #   if !defined(CORO_FIBER)
-#       error "Using slow libcoro backend (expecting CORO_FIBER)"
+#       error "Using bad libcoro backend (expecting CORO_FIBER)"
 #   endif
 #endif
 
@@ -72,8 +59,6 @@ namespace NYT {
 TLS_STATIC TFiber* CurrentFiber = nullptr;
 
 namespace {
-
-DEFINE_FIBER_CTOR_MUTEX();
 
 // Stack sizes are given in machine words.
 // Estimates in bytes are given for x86_64.
@@ -133,9 +118,7 @@ public:
     {
         Init();
 
-        BEFORE_FIBER_CTOR();
         coro_create(&CoroContext_, nullptr, nullptr, nullptr, 0);
-        AFTER_FIBER_CTOR();
     }
 
     TImpl(TFiber* owner, TClosure callee, EFiberStack stack)
@@ -148,14 +131,12 @@ public:
         size_t stackSize = GetStackSize(stack);
         coro_stack_alloc(&CoroStack_, stackSize);
 
-        BEFORE_FIBER_CTOR();
         coro_create(
             &CoroContext_,
             &TImpl::Trampoline,
             this,
             CoroStack_.sptr,
             CoroStack_.ssze);
-        AFTER_FIBER_CTOR();
     }
 
     ~TImpl()
@@ -290,14 +271,12 @@ public:
 
         (void) coro_destroy(&CoroContext_);
 
-        BEFORE_FIBER_CTOR();
         coro_create(
             &CoroContext_,
             &TImpl::Trampoline,
             this,
             CoroStack_.sptr,
             CoroStack_.ssze);
-        AFTER_FIBER_CTOR();
 
         State_ = EFiberState::Initialized;
     }
