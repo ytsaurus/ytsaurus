@@ -56,6 +56,8 @@ public:
     //! What to do during operation progress when some chunks get unavailable.
     EUnavailableChunkAction UnavailableChunkTactics;
 
+    NCompression::ECodec IntermediateCompressionCodec;
+    
     TNullable<int> MaxFailedJobCount;
     TNullable<int> MaxStdErrCount;
 
@@ -69,6 +71,9 @@ public:
 
         RegisterParameter("unavailable_chunk_tactics", UnavailableChunkTactics)
             .Default(EUnavailableChunkAction::Wait);
+
+        RegisterParameter("intermediate_compression_codec", IntermediateCompressionCodec)
+            .Default(NCompression::ECodec::Lz4);
 
         RegisterParameter("max_failed_job_count", MaxFailedJobCount)
             .Default(Null);

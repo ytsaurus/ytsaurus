@@ -771,6 +771,7 @@ void TOperationControllerBase::TTask::AddIntermediateOutputSpec(
     options->Account = Controller->Spec->IntermediateDataAccount;
     options->ChunksVital = false;
     options->ReplicationFactor = 1;
+    options->CompressionCodec = Controller->Spec->IntermediateCompressionCodec;
     outputSpec->set_table_writer_options(ConvertToYsonString(options).Data());
     ToProto(outputSpec->mutable_chunk_list_id(), joblet->ChunkListIds[0]);
 }
@@ -3078,6 +3079,9 @@ void TOperationControllerBase::InitIntermediateOutputConfig(TJobIOConfigPtr conf
 
     // Don't move intermediate chunks.
     config->TableWriter->ChunksMovable = false;
+
+    // Don't sync intermediate chunks.
+    config->TableWriter->SyncOnClose = false;
 }
 
 void TOperationControllerBase::InitFinalOutputConfig(TJobIOConfigPtr config)

@@ -835,6 +835,7 @@ TProxy::TInvStartChunk TReplicationWriter::StartChunk(TNodePtr node)
     auto req = node->LightProxy.StartChunk();
     ToProto(req->mutable_chunk_id(), ChunkId);
     req->set_session_type(SessionType);
+    req->set_sync_on_close(Config->SyncOnClose);
     return req->Invoke();
 }
 

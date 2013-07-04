@@ -19,7 +19,9 @@ class TFileWriter
     : public IAsyncWriter
 {
 public:
-    explicit TFileWriter(const Stroka& fileName);
+    explicit TFileWriter(
+        const Stroka& fileName,
+        bool syncOnClose = true);
 
     virtual void Open();
 
@@ -43,6 +45,8 @@ public:
 
 private:
     Stroka FileName;
+    bool SyncOnClose;
+
     bool IsOpen;
     bool IsClosed;
     i64 DataSize;

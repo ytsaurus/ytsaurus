@@ -232,16 +232,18 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, StartChunk)
 
     auto chunkId = FromProto<TChunkId>(request->chunk_id());
     auto sessionType = EWriteSessionType(request->session_type());
+    bool syncOnClose = request->sync_on_close();
 
-    context->SetRequestInfo("ChunkId: %s, SessionType: %s",
+    context->SetRequestInfo("ChunkId: %s, SessionType: %s, SyncOnClose: %s",
         ~ToString(chunkId),
-        ~sessionType.ToString());
+        ~sessionType.ToString(),
+        ~FormatBool(syncOnClose));
 
     ValidateNoSession(chunkId);
     ValidateNoChunk(chunkId);
 
     auto sessionManager = Bootstrap->GetSessionManager();
-    sessionManager->StartSession(chunkId, sessionType);
+    sessionManager->StartSession(chunkId, sessionType, syncOnClose);
 
     context->Reply();
 }
