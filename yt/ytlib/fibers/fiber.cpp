@@ -439,7 +439,7 @@ public:
     void Reset()
     {
         YASSERT(Stack_);
-        YASSERT(Callee_);
+        YASSERT(!Callee_.IsNull());
         YASSERT(!Caller_);
         YASSERT(Exception_ == std::exception_ptr());
         YCHECK(
