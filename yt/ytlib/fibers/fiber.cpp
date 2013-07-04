@@ -185,7 +185,6 @@ public:
         (void) coro_stack_free(&CoroStack_);
     }
 
-    
     static TFiber* GetCurrent()
     {
         InitTls();
@@ -197,7 +196,6 @@ public:
     {
         return Yielded_;
     }
-
 
     void Run()
     {
@@ -281,7 +279,6 @@ public:
         }
     }
 
-
     void Reset()
     {
         YASSERT(!Caller_);
@@ -310,7 +307,6 @@ public:
         Reset();
         Callee_ = std::move(closure);
     }
-
 
     void Inject(std::exception_ptr&& exception)
     {
@@ -348,7 +344,6 @@ public:
         Yield();
     }
 
-
     IInvokerPtr GetCurrentInvoker()
     {
         return CurrentInvoker_;
@@ -377,7 +372,6 @@ private:
     IInvokerPtr SwitchTo_;
 
     IInvokerPtr CurrentInvoker_;
-
 
     void Init()
     {
@@ -424,7 +418,6 @@ private:
         EH_.Swap(target->EH_);
         coro_transfer(&CoroContext_, &target->CoroContext_);
     }
-
 
     static void Trampoline(void* opaque)
     {

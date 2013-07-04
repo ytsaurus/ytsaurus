@@ -121,6 +121,7 @@ private:
     void Tally()
     {
         using namespace NHRTimer;
+
         THRInstant End;
         GetHRInstant(&End);
         NsSpent += GetHRDuration(Begin, End);
@@ -178,6 +179,19 @@ AddBenchmark(const char* file, const char* name, TLambda&& lambda) {
 }
 
 /**
+ * Adds a benchmark with a custom timing. This is quite advanced usage
+ * for those who would like to measure time spent on their own.
+ */
+template <typename TLambda>
+void AddBenchmarkCustom(
+    const char* file,
+    const char* name,
+    TLambda&& lambda)
+{
+    NDetail::AddBenchmarkImpl(file, name, BIND(std::move(lambda)));
+}
+
+/**
  * Call DoNotOptimizeAway(variable) against variables that you use for
  * benchmarking but otherwise are useless. The compiler tends to do a
  * good job at eliminating unused variables, and this function fools
@@ -205,6 +219,22 @@ void DoNotOptimizeAway(T&& datum) {
             }),                                                 \
         true);                                                  \
     static void follyBenchmarkFn##function(argType argName)
+
+/**
+ * Introduces a benchmark function. Used internally, see BENCHMARK and
+ * friends below.
+ */
+#define BENCHMARK_CUSTOM_IMPL(function, name, argType, argName) \
+    static ui64 follyBenchmarkFn##function(argType);            \
+    static bool PP_ANONYMOUS_VARIABLE(follyBenchmarkUnused) = ( \
+        ::NYT::AddBenchmarkCustom(                              \
+            __FILE__,                                           \
+            name,                                               \
+            [] (argType argName) -> ui64 {                      \
+                return follyBenchmarkFn##function(argName);     \
+            }),                                                 \
+        true);                                                  \
+    static ui64 follyBenchmarkFn##function(argType argName)
 
 /**
  * Introduces a benchmark function. Use with either one one or two
@@ -266,9 +296,9 @@ void DoNotOptimizeAway(T&& datum) {
  *
  * For example:
  *
- * void addValue(uint n, int64_t bucketSize, int64_t min, int64_t max) {
- *   Histogram<int64_t> hist(bucketSize, min, max);
- *   int64_t num = min;
+ * void addValue(unsigned n, i64 bucketSize, i64 min, i64 max) {
+ *   Histogram<i64> hist(bucketSize, min, max);
+ *   i64 num = min;
  *   FOR_EACH_RANGE (i, 0, n) {
  *       hist.addValue(num);
  *       ++num;
@@ -282,7 +312,7 @@ void DoNotOptimizeAway(T&& datum) {
  */
 #define BENCHMARK_NAMED_PARAM(name, paramName, ...)         \
     BENCHMARK_IMPL(                                         \
-        PP_CONCAT(name, PP_CONCAT(_, paramName)),           \
+        name##_##paramName,                                 \
         PP_STRINGIZE(name) "(" PP_STRINGIZE(paramName) ")", \
         unsigned,                                           \
         iterations)                                         \
@@ -332,12 +362,42 @@ void DoNotOptimizeAway(T&& datum) {
  */
 #define BENCHMARK_RELATIVE_NAMED_PARAM(name, paramName, ...)    \
     BENCHMARK_IMPL(                                             \
-        PP_CONCAT(name, PP_CONCAT(_, paramName)),               \
+        name##_##paramName,                                     \
         "%" PP_STRINGIZE(name) "(" PP_STRINGIZE(paramName) ")", \
         unsigned,                                               \
         iterations)                                             \
     {                                                           \
         name(iterations, ## __VA_ARGS__);                       \
+    }
+
+/**
+ * Just like BENCHMARK, but requires _you_ to return a number of
+ * nanoseconds passed. You can use NHRTimer for your convenience.
+ */
+#define BENCHMARK_CUSTOM(name, ...)               \
+    BENCHMARK_CUSTOM_IMPL(                        \
+        name,                                     \
+        PP_STRINGIZE(name),                       \
+        PP_ONE_OR_NONE(unsigned, ## __VA_ARGS__), \
+        __VA_ARGS__)
+
+/**
+ * A combination of BENCHMARK_CUSTOM and BENCHMARK_PARAM.
+ */
+#define BENCHMARK_CUSTOM_PARAM(name, param) \
+    BENCHMARK_CUSTOM_NAMED_PARAM(name, param, param)
+
+/**
+ * A combination of BENCHMARK_CUSTOM and BENCHMARK_NAMED_PARAM.
+ */
+#define BENCHMARK_CUSTOM_NAMED_PARAM(name, paramName, ...)  \
+    BENCHMARK_CUSTOM_IMPL(                                  \
+        name##_##paramName,                                 \
+        PP_STRINGIZE(name) "(" PP_STRINGIZE(paramName) ")", \
+        unsigned,                                           \
+        iterations)                                         \
+    {                                                       \
+        return name(iterations, ## __VA_ARGS__);            \
     }
 
 /**

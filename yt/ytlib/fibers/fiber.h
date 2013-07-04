@@ -67,10 +67,10 @@ public:
 
     void Run();
     void Yield();
-    
+
     void Reset();
     void Reset(TClosure closure);
-    
+
     void Inject(std::exception_ptr&& exception);
 
     void SwitchTo(IInvokerPtr invoker);
