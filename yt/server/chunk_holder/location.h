@@ -150,7 +150,7 @@ private:
     IPrioritizedInvokerPtr DataReadInvoker;
     IPrioritizedInvokerPtr MetaReadInvoker;
 
-    TActionQueuePtr WriteQueue;
+    TThreadPoolPtr WriteQueue;
     IInvokerPtr WriteInvoker;
 
     TDiskHealthCheckerPtr HealthChecker;

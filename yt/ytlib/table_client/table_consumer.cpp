@@ -12,25 +12,6 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableConsumer::TTableConsumer(IWriterBasePtr writer)
-    : ControlState(EControlState::None)
-    , CurrentTableIndex(0)
-    , Writer(writer)
-    , Depth(0)
-    , ValueWriter(&RowBuffer)
-{
-    Writers.push_back(writer);
-}
-
-TTableConsumer::TTableConsumer(const std::vector<IWriterBasePtr>& writers, int tableIndex)
-    : ControlState(EControlState::None)
-    , CurrentTableIndex(tableIndex)
-    , Writers(std::move(writers))
-    , Writer(Writers[CurrentTableIndex])
-    , Depth(0)
-    , ValueWriter(&RowBuffer)
-{ }
-
 void TTableConsumer::OnStringScalar(const TStringBuf& value)
 {
     if (ControlState == EControlState::ExpectValue) {

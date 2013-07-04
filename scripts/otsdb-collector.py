@@ -241,7 +241,7 @@ class YtCollector(object):
         self.sync_at = 0
         self.sync_period = sync_period
 
-        self.service = Request(self.build_url("/orchid/@service_name")).perform()
+        self.service = None
         self.metrics = {}
 
         LOG.info("Registered new collector %s", self)
@@ -251,6 +251,7 @@ class YtCollector(object):
 
     def invoke(self):
         try:
+            self.service = Request(self.build_url("/orchid/@service_name")).perform()
             self.invoke_unsafe()
         except pycurl.error as ex:
             LOG.error(

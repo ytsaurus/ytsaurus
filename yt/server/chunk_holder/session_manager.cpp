@@ -42,11 +42,13 @@ TSession::TSession(
     TBootstrap* bootstrap,
     const TChunkId& chunkId,
     NChunkClient::EWriteSessionType type,
+    bool syncOnClose,
     TLocationPtr location)
     : Config(config)
     , Bootstrap(bootstrap)
     , ChunkId(chunkId)
     , Type(type)
+    , SyncOnClose(syncOnClose)
     , Location(location)
     , WindowStartIndex(0)
     , WriteIndex(0)
@@ -87,7 +89,7 @@ void TSession::DoOpenFile()
 
     PROFILE_TIMING ("/chunk_writer_open_time") {
         try {
-            Writer = New<TFileWriter>(FileName);
+            Writer = New<TFileWriter>(FileName, SyncOnClose);
             Writer->Open();
         }
         catch (const std::exception& ex) {
@@ -657,7 +659,8 @@ TSessionPtr TSessionManager::FindSession(const TChunkId& chunkId) const
 
 TSessionPtr TSessionManager::StartSession(
     const TChunkId& chunkId,
-    EWriteSessionType type)
+    EWriteSessionType type,
+    bool syncOnClose)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -669,6 +672,7 @@ TSessionPtr TSessionManager::StartSession(
         Bootstrap,
         chunkId,
         type,
+        syncOnClose,
         location);
     session->Start();
 

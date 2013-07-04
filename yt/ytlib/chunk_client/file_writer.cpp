@@ -24,8 +24,11 @@ static TNullOutput NullOutput;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TFileWriter::TFileWriter(const Stroka& fileName)
+TFileWriter::TFileWriter(
+    const Stroka& fileName,
+    bool syncOnClose)
     : FileName(fileName)
+    , SyncOnClose(syncOnClose)
     , IsOpen(false)
     , IsClosed(false)
     , DataSize(0)
@@ -85,11 +88,13 @@ TAsyncError TFileWriter::AsyncClose(const NChunkClient::NProto::TChunkMeta& chun
     IsClosed = true;
 
     try {
+        if (SyncOnClose) {
 #ifdef _linux_
-        if (fsync(DataFile->GetHandle()) != 0) {
-            THROW_ERROR_EXCEPTION("fsync failed: %s", strerror(errno));
-        }
+            if (fsync(DataFile->GetHandle()) != 0) {
+                THROW_ERROR_EXCEPTION("fsync failed: %s", strerror(errno));
+            }
 #endif
+        }
         DataFile->Close();
         DataFile.reset();
     } catch (const std::exception& ex) {
@@ -119,15 +124,16 @@ TAsyncError TFileWriter::AsyncClose(const NChunkClient::NProto::TChunkMeta& chun
         WritePod(chunkMetaFile, header);
         chunkMetaFile.Write(metaData.Begin(), metaData.Size());
 
+        if (SyncOnClose) {
 #ifdef _linux_
-        if (fsync(chunkMetaFile.GetHandle()) != 0) {
-            THROW_ERROR_EXCEPTION("Error closing chunk: fsync failed")
-                << TError::FromSystem();
-        }
+            if (fsync(chunkMetaFile.GetHandle()) != 0) {
+                THROW_ERROR_EXCEPTION("Error closing chunk: fsync failed")
+                    << TError::FromSystem();
+            }
 #endif
+        }
 
         chunkMetaFile.Close();
-        TFileHandle(chunkMetaFile.GetHandle()).Flush();
     } catch (const std::exception& ex) {
         return MakeFuture(
             TError("Failed to write chunk meta to %s", ~chunkMetaFileName.Quote())
