@@ -35,7 +35,7 @@ def make_heavy_command(command_name, stream, path, params, create_object, use_re
                                 proxy=get_host_for_heavy_operation(),
                                 retry_unavailable_proxy=False)
                         break
-                    except (NETWORK_ERRORS, YtError) as err:
+                    except tuple(NETWORK_ERRORS + [YtError]) as err:
                         logger.warning("Retry %d failed with message %s", i + 1, str(err))
                         if i + 1 == config.HEAVY_COMMAND_RETRIES_COUNT:
                             raise
