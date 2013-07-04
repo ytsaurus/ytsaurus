@@ -73,7 +73,7 @@ def make_request_with_retries(request, make_retries=False, retry_unavailable_pro
             if response.http_response.status_code == 503:
                 raise YtProxyUnavailable("Retrying response with code 503 and body %s" % response.content())
             return response
-        except YtProxyUnavailable as error:
+        except network_errors as error:
             message =  "HTTP request (%s) has failed with error '%s'" % (description, str(error))
             if make_retries:
                 logger.warning("%s. Retrying...", message)
