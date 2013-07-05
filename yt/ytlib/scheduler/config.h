@@ -50,14 +50,15 @@ public:
     //! Account holding intermediate data produces by the operation.
     Stroka IntermediateDataAccount;
 
+    //! Codec used for compressing intermediate output during shuffle.
+    NCompression::ECodec IntermediateCompressionCodec;
+    
     //! What to do during initialization if some chunks are unavailable.
     EUnavailableChunkAction UnavailableChunkStrategy;
 
     //! What to do during operation progress when some chunks get unavailable.
     EUnavailableChunkAction UnavailableChunkTactics;
 
-    NCompression::ECodec IntermediateCompressionCodec;
-    
     TNullable<int> MaxFailedJobCount;
     TNullable<int> MaxStdErrCount;
 
@@ -65,15 +66,13 @@ public:
     {
         RegisterParameter("intermediate_data_account", IntermediateDataAccount)
             .Default("tmp");
+        RegisterParameter("intermediate_compression_codec", IntermediateCompressionCodec)
+            .Default(NCompression::ECodec::Lz4);
 
         RegisterParameter("unavailable_chunk_strategy", UnavailableChunkStrategy)
             .Default(EUnavailableChunkAction::Wait);
-
         RegisterParameter("unavailable_chunk_tactics", UnavailableChunkTactics)
             .Default(EUnavailableChunkAction::Wait);
-
-        RegisterParameter("intermediate_compression_codec", IntermediateCompressionCodec)
-            .Default(NCompression::ECodec::Lz4);
 
         RegisterParameter("max_failed_job_count", MaxFailedJobCount)
             .Default(Null);
