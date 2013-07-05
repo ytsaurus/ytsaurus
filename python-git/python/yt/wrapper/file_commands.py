@@ -2,7 +2,7 @@ import config
 from common import require, chunk_iter, partial, bool_to_string
 from errors import YtError
 from driver import read_content, get_host_for_heavy_operation
-from heavy_commands import make_heavy_command
+from heavy_commands import make_heavy_request
 from tree_commands import remove, exists, set_attribute, mkdir, find_free_subpath, create, link
 from transaction_commands import _make_transactional_request
 from table import prepare_path
@@ -45,7 +45,7 @@ def upload_file(stream, destination):
         if config.API_VERSION == 2 and not exists(path):
             create("file", path, ignore_existing=True)
 
-    make_heavy_command(
+    make_heavy_request(
         "upload",
         stream,
         destination,
