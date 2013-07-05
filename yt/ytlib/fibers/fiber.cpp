@@ -188,7 +188,9 @@ public:
 #else
         SP_ = reinterpret_cast<void**>(reinterpret_cast<char*>(stack) + size);
 
-        *--SP_ = nullptr; // To align %rsp on |callq| to 16-byte boundary.
+        // We pad an extra nullptr to align %rsp before callq in second trampoline.
+        // Effectively, this nullptr mimics a return address.
+        *--SP_ = nullptr;
         *--SP_ = (void*) &TFiberContext::Trampoline;
         // See |fiber-supp.s| for precise register mapping.
         *--SP_ = nullptr;        // %rbp
@@ -563,7 +565,12 @@ private:
         Context_.Swap(target->Context_);
     }
 
-    static void Trampoline(void* opaque)
+#ifdef _linux_
+    static void __attribute__((__noinline__, __regparm__(1)))
+#else
+    static void
+#endif
+    Trampoline(void* opaque)
     {
         reinterpret_cast<TImpl*>(opaque)->Trampoline();
     }

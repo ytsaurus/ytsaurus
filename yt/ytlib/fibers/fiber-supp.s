@@ -31,9 +31,8 @@ _ZN3NYT13TFiberContext10TrampolineEv:
     .cfi_startproc
     .cfi_undefined rip
     movq %r12, %rdi
-    callq *%rbx
-    callq abort@PLT
     .cfi_endproc
+    jmpq *%rbx
 .size _ZN3NYT13TFiberContext10TrampolineEv, .-_ZN3NYT13TFiberContext10TrampolineEv
 
 /* void TFiberContext::TransferTo(TFiberContext* previous, TFiberContext* next); */
