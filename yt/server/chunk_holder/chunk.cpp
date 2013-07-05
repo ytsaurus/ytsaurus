@@ -149,6 +149,7 @@ void TChunk::DoReadMeta(TPromise<TError> promise)
             LOG_WARNING(result, "Error reading chunk meta (ChunkId: %s)",
                 ~ToString(Id_));
             promise.Set(result);
+            return;
         }
         reader = result.Value();
     }
