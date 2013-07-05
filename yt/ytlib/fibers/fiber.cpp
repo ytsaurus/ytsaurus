@@ -67,7 +67,7 @@ TLS_STATIC TFiber* CurrentFiber = nullptr;
 
 namespace {
 
-const size_t SmallFiberStackSize = 1 << 20; //   1 Mb
+const size_t SmallFiberStackSize = 1 << 18; // 256 Kb
 const size_t LargeFiberStackSize = 1 << 23; //   8 Mb
 
 static void InitTls()
