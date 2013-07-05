@@ -7,7 +7,7 @@ from transaction_commands import _make_transactional_request
 from driver import get_host_for_heavy_operation
 from http import NETWORK_ERRORS
 
-def make_heavy_command(command_name, stream, path, params, create_object, use_retries):
+def make_heavy_request(command_name, stream, path, params, create_object, use_retries):
     path = to_table(path)
 
     title = "Python wrapper: {0} {1}".format(command_name, path.name)
@@ -45,4 +45,5 @@ def make_heavy_command(command_name, stream, path, params, create_object, use_re
                 command_name,
                 params,
                 data=stream,
-                proxy=get_host_for_heavy_operation())
+                proxy=get_host_for_heavy_operation(),
+                verbose=True)
