@@ -254,12 +254,11 @@ public:
     TReadFuture Read(i64 windowSize)
     {
         YCHECK(WindowSize_ == -1);
-        YCHECK(!Promise_);
 
         WindowSize_ = windowSize;
-        auto promise = Promise_ = NewPromise<TReadResult>();
+        auto promise = NewPromise<TReadResult>();
 
-        Continue();
+        Continue(promise);
 
         return promise;
     }
@@ -271,9 +270,6 @@ private:
 
     //! Window size requested by the currently served #Read.
     i64 WindowSize_;
-
-    //! Current promise to be fulfilled.
-    TReadPromise Promise_;
 
     //! Blocks already fetched via the underlying reader.
     std::deque<TSharedRef> Blocks_;
@@ -291,30 +287,29 @@ private:
     i64 FirstBlockOffset_;
 
 
-    void Continue()
+    void Continue(TReadPromise promise)
     {
         if (BlockIndex_ >= BlockCount_ ||  BlocksDataSize_ >= BuildDataSize_ + WindowSize_) {
-            Complete(BuildWindow(WindowSize_));
+            Complete(promise, BuildWindow(WindowSize_));
             return;
         }
 
         auto blockIndexes = std::vector<int>(1, BlockIndex_);
         Reader_->AsyncReadBlocks(blockIndexes).Subscribe(
-            BIND(&TWindowReader::OnBlockRead, MakeStrong(this))
+            BIND(&TWindowReader::OnBlockRead, MakeStrong(this), promise)
                 .Via(ControlInvoker_));
     }
 
-    void Complete(const TReadResult& result)
+    void Complete(TReadPromise promise, const TReadResult& result)
     {
         WindowSize_ = -1;
-        Promise_.Set(result);
-        Promise_.Reset();
+        promise.Set(result);
     }
 
-    void OnBlockRead(IAsyncReader::TReadResult readResult)
+    void OnBlockRead(TReadPromise promise, IAsyncReader::TReadResult readResult)
     {
         if (!readResult.IsOK()) {
-            Complete(TError(readResult));
+            Complete(promise, TError(readResult));
             return;
         }
 
@@ -325,7 +320,7 @@ private:
         Blocks_.push_back(block);
         BlocksDataSize_ += block.Size();
 
-        Continue();
+        Continue(promise);
     }
 
     TSharedRef BuildWindow(i64 windowSize)
