@@ -481,7 +481,6 @@ IThroughputThrottlerPtr TBootstrap::GetInThrottler(EWriteSessionType sessionType
     }
 }
 
-
 IThroughputThrottlerPtr TBootstrap::GetOutThrottler(EWriteSessionType sessionType) const
 {
     switch (sessionType) {
