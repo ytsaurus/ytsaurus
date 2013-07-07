@@ -166,13 +166,13 @@ public:
         }
     }
 
-    TTransactionId GetId() const override
+    virtual TTransactionId GetId() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
         return Id_;
     }
 
-    TAsyncError AsyncCommit(const TMutationId& mutationId) override
+    virtual TAsyncError AsyncCommit(const TMutationId& mutationId) override
     {
         VERIFY_THREAD_AFFINITY(ClientThread);
 
@@ -221,12 +221,12 @@ public:
         }));
     }
 
-    void Commit(const TMutationId& mutationId) override
+    virtual void Commit(const TMutationId& mutationId) override
     {
         AsyncCommit(mutationId).Get();
     }
 
-    void Abort(bool wait, const TMutationId& mutationId) override
+    virtual void Abort(bool wait, const TMutationId& mutationId) override
     {
         bool generateMutationId = wait;
         auto rspFuture = AsyncAbort(generateMutationId, mutationId);
