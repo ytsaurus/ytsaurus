@@ -121,7 +121,7 @@ public:
         IInvokerPtr controlInvoker,
         IInvokerPtr stateInvoker,
         IMetaStatePtr metaState,
-        NRpc::IServerPtr server)
+        IServerPtr server)
         : TServiceBase(
             controlInvoker,
             TProxy::GetServiceName(),
@@ -1258,7 +1258,7 @@ IMetaStateManagerPtr CreatePersistentStateManager(
     IInvokerPtr controlInvoker,
     IInvokerPtr stateInvoker,
     IMetaStatePtr metaState,
-    NRpc::IServerPtr server)
+    IServerPtr server)
 {
     YCHECK(controlInvoker);
     YCHECK(metaState);
