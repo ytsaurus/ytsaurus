@@ -2317,6 +2317,9 @@ private:
                 GetSortInputIOMemorySize(FinalSortJobIOConfig, stat) +
                 GetFinalOutputIOMemorySize(FinalSortJobIOConfig) +
                 GetSortBuffersMemorySize(stat) +
+                // Sorting reader extra memory compared to partition_sort job, because it uses
+                // separate buffer of i32 to write out sorted indexes.
+                4 * stat.RowCount +
                 Spec->Reducer->MemoryLimit +
                 GetFootprintMemorySize());
         }
