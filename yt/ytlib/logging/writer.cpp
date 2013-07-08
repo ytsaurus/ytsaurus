@@ -206,7 +206,11 @@ void TRawFileLogWriter::Write(const TLogEvent& event)
 void TRawFileLogWriter::Flush()
 {
     if (~FileOutput) {
-        FileOutput->Flush();
+        try {
+            FileOutput->Flush();
+        } catch (...) {
+            // Silently ignore FS errors.
+        }
     }
 }
 
@@ -215,7 +219,10 @@ void TRawFileLogWriter::Reload()
     Flush();
 
     if (~File) {
-        File->Close();
+        try {
+            File->Close();
+        } catch (...) {
+        }
     }
 
     Initialized = false;
