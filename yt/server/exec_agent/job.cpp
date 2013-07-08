@@ -34,6 +34,8 @@
 #include <ytlib/node_tracker_client/node_directory.h>
 #include <ytlib/node_tracker_client/helpers.h>
 
+#include <ytlib/job_tracker_client/statistics.h>
+
 #include <ytlib/security_client/public.h>
 
 #include <server/chunk_holder/chunk.h>
@@ -99,6 +101,8 @@ public:
         , JobPhase(EJobPhase::Created)
         , FinalJobState(EJobState::Completed)
         , Progress_(0.0)
+        , JobStatistics(ZeroJobStatistics())
+        , StartTime(Null)
         , NodeDirectory(New<TNodeDirectory>())
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -139,6 +143,7 @@ public:
 
         if (JobState != EJobState::Waiting)
             return;
+        StartTime = TInstant::Now();
         JobState = EJobState::Running;
 
         auto slotManager = Bootstrap->GetSlotManager();
@@ -254,6 +259,35 @@ public:
         }
     }
 
+    virtual TJobStatistics GetJobStatistics() const override
+    {
+        TGuard<TSpinLock> guard(ResultLock);
+        if (JobResult.HasValue()) {
+            return JobResult.Get().statistics();
+        } else {
+            auto result = JobStatistics;
+            result.set_time(GetElapsedTime().MilliSeconds());
+            return result;
+        }
+    }
+
+    virtual void SetJobStatistics(const TJobStatistics& statistics) override
+    {
+        TGuard<TSpinLock> guard(ResultLock);
+        if (JobState == EJobState::Running) {
+            JobStatistics = statistics;
+        }
+    }
+
+    TDuration GetElapsedTime() const
+    {
+        if (StartTime.HasValue()) {
+            return TInstant::Now() - StartTime.Get();
+        } else {
+            return TDuration::Seconds(0);
+        }
+    }
+
 private:
     TJobId JobId;
     TJobSpec JobSpec;
@@ -274,6 +308,9 @@ private:
     EJobState FinalJobState;
 
     double Progress_;
+    TJobStatistics JobStatistics;
+
+    TNullable<TInstant> StartTime;
 
     std::vector<NChunkHolder::TCachedChunkPtr> CachedChunks;
 
@@ -496,6 +533,7 @@ private:
     {
         TJobResult jobResult;
         ToProto(jobResult.mutable_error(), error);
+        ToProto(jobResult.mutable_statistics(), GetJobStatistics());
         SetResult(jobResult);
     }
 

@@ -66,12 +66,10 @@ public:
     TAsyncError AsyncClose();
 
     i64 GetMetaSize() const;
-    i64 GetCurrentSize() const;
     NChunkClient::NProto::TChunkMeta GetMasterMeta() const;
     NChunkClient::NProto::TChunkMeta GetSchedulerMeta() const;
 
     // Used by provider.
-    i64 GetRowCount() const;
     const NChunkClient::TOwningKey& GetLastKey() const;
     const NProto::TBoundaryKeysExt& GetBoundaryKeys() const;
 
@@ -162,9 +160,11 @@ public:
 
     TTableChunkWriterPtr CreateChunkWriter(NChunkClient::IAsyncWriterPtr asyncWriter);
     void OnChunkFinished();
+    void OnChunkClosed(TTableChunkWriterPtr writer);
 
     const NProto::TBoundaryKeysExt& GetBoundaryKeys() const;
     i64 GetRowCount() const;
+    NChunkClient::NProto::TDataStatistics GetDataStatistics() const;
 
     const TNullable<TKeyColumns>& GetKeyColumns() const;
 
@@ -173,12 +173,15 @@ private:
     TChunkWriterOptionsPtr Options;
 
     int CreatedWriterCount;
-    int CompletedWriterCount;
-
-    i64 RowCount;
+    int FinishedWriterCount;
 
     NProto::TBoundaryKeysExt BoundaryKeysExt;
     TTableChunkWriterPtr CurrentWriter;
+
+    TSpinLock SpinLock;
+
+    yhash_set<TTableChunkWriterPtr> ActiveWriters;
+    NChunkClient::NProto::TDataStatistics DataStatistics;
 
 };
 

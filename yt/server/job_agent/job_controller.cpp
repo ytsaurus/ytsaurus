@@ -251,7 +251,7 @@ void TJobController::UpdateJobResourceUsage(IJobPtr job, const TNodeResources& u
     }
 }
 
-void TJobController::UpdateJobProgress(IJobPtr job, double progress)
+void TJobController::UpdateJobProgress(IJobPtr job, double progress, const TJobStatistics& jobStatistics)
 {
     if (job->GetState() != EJobState::Running) {
         // Outdated request.
@@ -259,6 +259,7 @@ void TJobController::UpdateJobProgress(IJobPtr job, double progress)
     }
 
     job->SetProgress(progress);
+    job->SetJobStatistics(jobStatistics);
 }
 
 void TJobController::SetJobResult(IJobPtr job, const TJobResult& result)

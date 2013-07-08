@@ -16,6 +16,8 @@
 namespace NYT {
 namespace NTableClient {
 
+using namespace NChunkClient;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
@@ -44,7 +46,7 @@ public:
     {
         // Open all readers in parallel and wait until of them are opened.
         auto awaiter = New<TParallelAwaiter>(
-            NChunkClient::TDispatcher::Get()->GetReaderInvoker());
+            TDispatcher::Get()->GetReaderInvoker());
         std::vector<TError> errors;
 
         FOREACH (auto reader, Readers) {
@@ -102,7 +104,7 @@ public:
         }
     }
 
-    virtual const NChunkClient::TNonOwningKey& GetKey() const override
+    virtual const TNonOwningKey& GetKey() const override
     {
         return ReaderHeap.front()->GetFacade()->GetKey();
     }
@@ -114,6 +116,16 @@ public:
             total += reader->GetProvider()->GetRowCount();
         }
         return total;
+    }
+
+    virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
+    {
+        NChunkClient::NProto::TDataStatistics dataStatistics = NChunkClient::NProto::ZeroDataStatistics();
+
+        FOREACH (const auto& reader, Readers) {
+            dataStatistics += reader->GetProvider()->GetDataStatistics();
+        }
+        return dataStatistics;   
     }
 
     virtual const TNullable<int>& GetTableIndex() const override
@@ -130,9 +142,9 @@ public:
         return total;
     }
 
-    virtual std::vector<NChunkClient::TChunkId> GetFailedChunks() const override
+    virtual std::vector<TChunkId> GetFailedChunks() const override
     {
-        std::vector<NChunkClient::TChunkId> result;
+        std::vector<TChunkId> result;
         FOREACH (auto reader, Readers) {
             auto part = reader->GetFailedChunks();
             result.insert(result.end(), part.begin(), part.end());

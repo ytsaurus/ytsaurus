@@ -98,6 +98,7 @@ public:
 
     TFileChunkWriterPtr CreateChunkWriter(NChunkClient::IAsyncWriterPtr asyncWriter);
     void OnChunkFinished();
+    void OnChunkClosed(TFileChunkWriterPtr writer);
 
 private:
     TFileChunkWriterConfigPtr Config;

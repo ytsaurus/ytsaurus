@@ -138,6 +138,8 @@ void TPartitionChunkWriter::WriteRowUnsafe(const TRow& row)
 
     i64 rowDataWeight = 1;
     auto capacity = channelWriter->GetCapacity();
+    auto channelSize = channelWriter->GetCurrentSize();
+
     FOREACH (const auto& pair, row) {
         channelWriter->WriteRange(pair.first, pair.second);
 
@@ -168,7 +170,8 @@ void TPartitionChunkWriter::WriteRowUnsafe(const TRow& row)
         PrepareBlock();
     }
 
-    CurrentSize = EncodingWriter->GetCompressedSize() + channelWriter->GetCurrentSize();
+    CurrentUncompressedSize += channelWriter->GetCurrentSize() - channelSize;
+    CurrentSize = static_cast<i64>(EncodingWriter->GetCompressionRatio() * CurrentUncompressedSize);
 }
 
 void TPartitionChunkWriter::PrepareBlock()
@@ -206,11 +209,6 @@ void TPartitionChunkWriter::PrepareBlock()
         partitionAttributes->uncompressed_data_size() + size);
 
     EncodingWriter->WriteBlock(std::move(blockParts));
-}
-
-i64 TPartitionChunkWriter::GetCurrentSize() const
-{
-    return CurrentSize;
 }
 
 i64 TPartitionChunkWriter::GetMetaSize() const
@@ -275,6 +273,9 @@ void TPartitionChunkWriter::OnFinalBlocksWritten(TError error)
 
     SetProtoExtension(Meta.mutable_extensions(), PartitionsExt);
     FinalizeWriter();
+
+    CurrentSize = EncodingWriter->GetCompressedSize();
+    CurrentUncompressedSize = EncodingWriter->GetUncompressedSize();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -286,32 +287,43 @@ TPartitionChunkWriterProvider::TPartitionChunkWriterProvider(
     : Config(config)
     , Options(options)
     , Partitioner(partitioner)
-    , ActiveWriters(0)
-    , RowCount(0)
+    , ActiveWriterCount(0)
+    , DataStatistics(NChunkClient::NProto::ZeroDataStatistics())
 { }
 
 TPartitionChunkWriterPtr TPartitionChunkWriterProvider::CreateChunkWriter(NChunkClient::IAsyncWriterPtr asyncWriter)
 {
-    YCHECK(ActiveWriters == 0);
+    YCHECK(ActiveWriterCount == 0);
     if (CurrentWriter) {
-        RowCount += CurrentWriter->GetRowCount();
+        DataStatistics += CurrentWriter->GetDataStatistics();
     }
 
-    ++ActiveWriters;
+    ++ActiveWriterCount;
     CurrentWriter = New<TPartitionChunkWriter>(
         Config,
         Options,
         asyncWriter,
         Partitioner);
+
+    TGuard<TSpinLock> guard(SpinLock);
+    YCHECK(ActiveWriters.insert(CurrentWriter).second);
     return CurrentWriter;
 }
 
 void TPartitionChunkWriterProvider::OnChunkFinished()
 {
-    YCHECK(ActiveWriters == 1);
-    --ActiveWriters;
+    YCHECK(ActiveWriterCount == 1);
+    --ActiveWriterCount;
     CurrentWriter.Reset();
 }
+
+void TPartitionChunkWriterProvider::OnChunkClosed(TPartitionChunkWriterPtr writer)
+{
+    TGuard<TSpinLock> guard(SpinLock);
+    DataStatistics += writer->GetDataStatistics();
+    YCHECK(ActiveWriters.erase(writer) == 1);
+}
+
 
 const TNullable<TKeyColumns>& TPartitionChunkWriterProvider::GetKeyColumns() const
 {
@@ -320,9 +332,21 @@ const TNullable<TKeyColumns>& TPartitionChunkWriterProvider::GetKeyColumns() con
 
 i64 TPartitionChunkWriterProvider::GetRowCount() const
 {
-    auto writer = CurrentWriter;
-    return RowCount + (writer ? writer->GetRowCount() : 0);
+    return GetDataStatistics().row_count();
 }
+
+NChunkClient::NProto::TDataStatistics TPartitionChunkWriterProvider::GetDataStatistics() const
+{
+    TGuard<TSpinLock> guard(SpinLock);
+
+    auto result = DataStatistics;
+
+    FOREACH(const auto& writer, ActiveWriters) {
+        result += writer->GetDataStatistics();
+    }
+    return result;
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

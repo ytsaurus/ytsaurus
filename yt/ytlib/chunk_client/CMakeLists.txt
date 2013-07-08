@@ -5,6 +5,7 @@ set( SRCS
   ${BASE}/chunk_meta_extensions.cpp
   ${BASE}/chunk_replica.cpp
   ${BASE}/client_block_cache.cpp
+  ${BASE}/data_statistics.cpp
   ${BASE}/dispatcher.cpp
   ${BASE}/encoding_writer.cpp
   ${BASE}/erasure_reader.cpp
@@ -30,6 +31,7 @@ set( HDRS
   ${BASE}/chunk_replica.h
   ${BASE}/chunk_ypath_proxy.h
   ${BASE}/chunk_owner_ypath_proxy.h
+  ${BASE}/data_statistics.h
   ${BASE}/multi_chunk_sequential_writer.h
   ${BASE}/multi_chunk_sequential_writer-inl.h
   ${BASE}/multi_chunk_reader_base.h
@@ -72,3 +74,4 @@ protoc( ${BASE}/data_node_service.proto YT_SOURCE_FILES )
 protoc( ${BASE}/chunk_service.proto YT_SOURCE_FILES )
 protoc( ${BASE}/chunk_ypath.proto YT_SOURCE_FILES )
 protoc( ${BASE}/chunk_list_ypath.proto YT_SOURCE_FILES )
+protoc( ${BASE}/data_statistics.proto YT_SOURCE_FILES )

@@ -879,6 +879,9 @@ TOperationControllerBase::TOperationControllerBase(
     , TotalOutputDataSize(0)
     , TotalOutputRowCount(0)
     , UnavailableInputChunkCount(0)
+    , CompletedJobStatistics(ZeroJobStatistics())
+    , FailedJobStatistics(ZeroJobStatistics())
+    , AbortedJobStatistics(ZeroJobStatistics())
     , Spec(spec)
     , CachedPendingJobCount(0)
     , CachedNeededResources(ZeroNodeResources())
@@ -1070,7 +1073,7 @@ void TOperationControllerBase::InitChunkListPool()
     ChunkListPool = New<TChunkListPool>(
         Config,
         Host->GetMasterChannel(),
-        CancelableControlInvoker, 
+        CancelableControlInvoker,
         Operation->GetOperationId(),
         Operation->GetOutputTransaction()->GetId());
 }
@@ -1298,16 +1301,17 @@ void TOperationControllerBase::OnJobCompleted(TJobPtr job)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
+    auto& result = job->Result();
+
     JobCounter.Completed(1);
-    CompletedJobStatistics.Time += job->GetDuration();
+    CompletedJobStatistics += result.statistics();
 
-    auto joblet = GetJoblet(job);
-
-    auto& result = joblet->Job->Result();
     const auto& schedulerResultEx = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
 
     // Populate node directory by adding additional nodes returned from the job.
     NodeDirectory->MergeFrom(schedulerResultEx.node_directory());
+
+    auto joblet = GetJoblet(job);
     joblet->Task->OnJobCompleted(joblet);
 
     RemoveJoblet(job);
@@ -1337,7 +1341,7 @@ void TOperationControllerBase::OnJobFailed(TJobPtr job)
     }
 
     JobCounter.Failed(1);
-    FailedJobStatistics.Time += job->GetDuration();
+    FailedJobStatistics += result.statistics();
 
     auto joblet = GetJoblet(job);
     joblet->Task->OnJobFailed(joblet);
@@ -1363,8 +1367,10 @@ void TOperationControllerBase::OnJobAborted(TJobPtr job)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
+    const auto& result = job->Result();
+
     JobCounter.Aborted(1);
-    AbortedJobStatistics.Time += job->GetDuration();
+    AbortedJobStatistics += result.statistics();
 
     auto joblet = GetJoblet(job);
     joblet->Task->OnJobAborted(joblet);
@@ -2575,7 +2581,7 @@ void TOperationControllerBase::RequestInputs()
             {
                 auto rsp = getTableFileNameRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting table file name");
-                
+
                 auto key = ConvertTo<Stroka>(TYsonString(rsp->value()));
                 file.FileName = file.Path.Attributes().Get<Stroka>("file_name", key);
                 file.Format = file.Path.Attributes().GetYson("format");
@@ -3159,7 +3165,7 @@ void TOperationControllerBase::Persist(TPersistenceContext& context)
     Persist(context, JobletMap);
 
     Persist(context, JobIndexGenerator);
-    
+
     Persist(context, InputChunkSpecs);
 
     if (context.GetDirection() == EPersistenceDirection::Load) {

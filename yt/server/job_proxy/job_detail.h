@@ -22,6 +22,10 @@ public:
 protected:
     IJobHost* Host;
 
+    TInstant StartTime;
+
+    TDuration GetElapsedTime() const;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

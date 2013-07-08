@@ -296,7 +296,7 @@ public:
         }
     }
 
-    double GetProgress() const override
+    virtual double GetProgress() const override
     {
         i64 total = SchedulerJobSpecExt.input_row_count();
         if (total == 0) {
@@ -312,9 +312,18 @@ public:
         }
     }
 
-    std::vector<TChunkId> GetFailedChunks() const override
+    virtual std::vector<TChunkId> GetFailedChunks() const override
     {
         return Reader->GetFailedChunks();
+    }
+
+    virtual TJobStatistics GetStatistics() const override
+    {
+        TJobStatistics result;
+        result.set_time(GetElapsedTime().MilliSeconds());
+        ToProto(result.mutable_input(), Reader->GetProvider()->GetDataStatistics());
+        ToProto(result.mutable_output(), Writer->GetProvider()->GetDataStatistics());
+        return result;
     }
 
 private:

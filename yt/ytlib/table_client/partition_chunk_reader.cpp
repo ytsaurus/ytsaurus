@@ -19,6 +19,22 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TPartitionChunkReaderFacade::TPartitionChunkReaderFacade(TPartitionChunkReader* reader)
+    : Reader(reader)
+{ }
+
+const char* TPartitionChunkReaderFacade::GetRowPointer() const
+{
+    return Reader->GetRowPointer();
+}
+
+TValue TPartitionChunkReaderFacade::ReadValue(const TStringBuf& name) const
+{
+    return Reader->ReadValue(name);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 // ToDo(psushin): eliminate copy-paste from table_chunk_reader.cpp
 TPartitionChunkReader::TPartitionChunkReader(
     TPartitionChunkReaderProviderPtr provider,
@@ -27,6 +43,7 @@ TPartitionChunkReader::TPartitionChunkReader(
     int partitionTag,
     NCompression::ECodec codecId)
     : RowPointer_(NULL)
+    , RowIndex_(-1)
     , Provider(provider)
     , Facade(this)
     , SequentialConfig(sequentialReader)
@@ -117,7 +134,7 @@ void TPartitionChunkReader::OnNextBlock(TError error)
         return;
     }
 
-    LOG_DEBUG("Switching to next block at row %" PRId64, Provider->RowIndex_);
+    LOG_DEBUG("Switching to next block at row %" PRId64, RowIndex_);
 
     Blocks.push_back(SequentialReader->GetBlock());
     YCHECK(Blocks.back().Size() > 0);
@@ -160,6 +177,7 @@ bool TPartitionChunkReader::NextRow()
             DataBuffer.Skip(columnNameLength);
         }
 
+        ++RowIndex_;
         ++Provider->RowIndex_;
         return true;
     } else {
@@ -209,6 +227,25 @@ TFuture<void> TPartitionChunkReader::GetFetchingCompleteEvent()
     return SequentialReader->GetFetchingCompleteEvent();
 }
 
+NChunkClient::NProto::TDataStatistics TPartitionChunkReader::GetDataStatistics() const
+{
+
+    NChunkClient::NProto::TDataStatistics result;
+    result.set_chunk_count(1);
+
+    if (SequentialReader) {
+        result.set_row_count(GetRowIndex());
+        result.set_uncompressed_data_size(SequentialReader->GetUncompressedDataSize());
+        result.set_compressed_data_size(SequentialReader->GetCompressedDataSize());
+    } else {
+        result.set_row_count(0);
+        result.set_uncompressed_data_size(0);
+        result.set_compressed_data_size(0);
+    }
+
+    return result;
+}
+
 void TPartitionChunkReader::OnFail(const TError& error)
 {
     LOG_WARNING(error);
@@ -221,6 +258,7 @@ TPartitionChunkReaderProvider::TPartitionChunkReaderProvider(
     const NChunkClient::TSequentialReaderConfigPtr& config)
     : RowIndex_(-1)
     , Config(config)
+    , DataStatistics(NChunkClient::NProto::ZeroDataStatistics())
 { }
 
 TPartitionChunkReaderPtr TPartitionChunkReaderProvider::CreateReader(
@@ -246,29 +284,26 @@ void TPartitionChunkReaderProvider::OnReaderOpened(
     TPartitionChunkReaderPtr reader,
     NChunkClient::NProto::TChunkSpec& chunkSpec)
 {
-    UNUSED(reader);
-    UNUSED(chunkSpec);
+    TGuard<TSpinLock> guard(SpinLock);
+    YCHECK(ActiveReaders.insert(reader).second);
 }
 
 void TPartitionChunkReaderProvider::OnReaderFinished(TPartitionChunkReaderPtr reader)
 {
-    UNUSED(reader);
+    TGuard<TSpinLock> guard(SpinLock);
+    DataStatistics += reader->GetDataStatistics();
+    YCHECK(ActiveReaders.erase(reader) == 1);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-TPartitionChunkReaderFacade::TPartitionChunkReaderFacade(TPartitionChunkReader* reader)
-    : Reader(reader)
-{ }
-
-const char* TPartitionChunkReaderFacade::GetRowPointer() const
+NChunkClient::NProto::TDataStatistics TPartitionChunkReaderProvider::GetDataStatistics() const
 {
-    return Reader->GetRowPointer();
-}
+    auto dataStatistics = DataStatistics;
 
-TValue TPartitionChunkReaderFacade::ReadValue(const TStringBuf& name) const
-{
-    return Reader->ReadValue(name);
+    TGuard<TSpinLock> guard(SpinLock);
+    FOREACH(const auto& reader, ActiveReaders) {
+        dataStatistics += reader->GetDataStatistics();
+    }
+    return dataStatistics;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

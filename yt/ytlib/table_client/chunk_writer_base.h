@@ -6,6 +6,7 @@
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 #include <ytlib/chunk_client/chunk.pb.h>
 #include <ytlib/chunk_client/chunk_spec.pb.h>
+#include <ytlib/chunk_client/data_statistics.h>
 
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/ref.h>
@@ -25,7 +26,10 @@ public:
     TAsyncError GetReadyEvent();
 
     const TNullable<TKeyColumns>& GetKeyColumns() const;
-    const i64 GetRowCount() const;
+    i64 GetRowCount() const;
+    i64 GetCurrentSize() const;
+
+    NChunkClient::NProto::TDataStatistics GetDataStatistics() const;
 
 protected:
     TChunkWriterBase(
@@ -54,6 +58,8 @@ protected:
     i64 ValueCount;
 
     i64 CurrentSize;
+
+    i64 CurrentUncompressedSize;
 
     i64 CurrentBufferCapacity;
 

@@ -25,6 +25,7 @@ using namespace NChunkClient;
 using namespace NTableClient;
 using namespace NTransactionClient;
 using namespace NScheduler::NProto;
+using namespace NChunkClient::NProto;
 
 typedef TMultiChunkSequentialWriter<TTableChunkWriter> TWriter;
 
@@ -82,7 +83,8 @@ ISyncWriterPtr TUserJobIO::CreateTableOutput(int index)
         chunkListId));
 
     YCHECK(Outputs.size() == index);
-    Outputs.push_back(writerProvider);
+    Outputs.push_back(writer);
+    OutputProviders.push_back(writerProvider);
 
     writer->Open();
     return writer;
@@ -108,6 +110,24 @@ double TUserJobIO::GetProgress() const
     }
 }
 
+TDataStatistics TUserJobIO::GetInputDataStatistics() const
+{
+    TDataStatistics statistics = ZeroDataStatistics();
+    FOREACH (const auto& input, Inputs) {
+        statistics += input->GetDataStatistics();
+    }
+    return statistics;
+}
+
+NChunkClient::NProto::TDataStatistics TUserJobIO::GetOutputDataStatistics() const
+{
+    TDataStatistics statistics = ZeroDataStatistics();
+    FOREACH (const auto& output, Outputs) {
+        statistics += output->GetDataStatistics();
+    }    
+    return statistics;
+}
+
 std::unique_ptr<TErrorOutput> TUserJobIO::CreateErrorOutput(
     const TTransactionId& transactionId,
     i64 maxSize) const
@@ -131,7 +151,7 @@ std::vector<NChunkClient::TChunkId> TUserJobIO::GetFailedChunks() const
 
 void TUserJobIO::PopulateUserJobResult(TUserJobResult* result)
 {
-    FOREACH (const auto& provider, Outputs) {
+    FOREACH (const auto& provider, OutputProviders) {
         *result->add_output_boundary_keys() = provider->GetBoundaryKeys();
     }
 }

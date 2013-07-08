@@ -259,6 +259,15 @@ public:
         return Reader->GetFailedChunks();
     }
 
+    virtual TJobStatistics GetStatistics() const override
+    {
+        TJobStatistics result;
+        result.set_time(GetElapsedTime().MilliSeconds());
+        ToProto(result.mutable_input(), Reader->GetProvider()->GetDataStatistics());
+        ToProto(result.mutable_output(), Writer->GetDataStatistics());
+        return result;
+    }
+
 private:
     const TJobSpec& JobSpec;
     const TSchedulerJobSpecExt& SchedulerJobSpecExt;

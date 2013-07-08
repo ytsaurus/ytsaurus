@@ -65,7 +65,6 @@ public:
     TFacade* GetFacade();
     TAsyncError AsyncClose();
 
-    i64 GetCurrentSize() const;
     i64 GetMetaSize() const;
 
     NChunkClient::NProto::TChunkMeta GetMasterMeta() const;
@@ -103,19 +102,24 @@ public:
 
     TPartitionChunkWriterPtr CreateChunkWriter(NChunkClient::IAsyncWriterPtr asyncWriter);
     void OnChunkFinished();
+    void OnChunkClosed(TPartitionChunkWriterPtr writer);
 
     const TNullable<TKeyColumns>& GetKeyColumns() const;
     i64 GetRowCount() const;
+    NChunkClient::NProto::TDataStatistics GetDataStatistics() const;
 
 private:
     TChunkWriterConfigPtr Config;
     TChunkWriterOptionsPtr Options;
     IPartitioner* Partitioner;
 
-    int ActiveWriters;
-    i64 RowCount;
-
+    int ActiveWriterCount;
     TPartitionChunkWriterPtr CurrentWriter;
+
+    TSpinLock SpinLock;
+
+    yhash_set<TPartitionChunkWriterPtr> ActiveWriters;
+    NChunkClient::NProto::TDataStatistics DataStatistics;
 
 };
 

@@ -34,6 +34,8 @@
 #include <ytlib/chunk_client/replication_reader.h>
 #include <ytlib/chunk_client/async_reader.h>
 
+#include <ytlib/job_tracker_client/statistics.h>
+
 #include <ytlib/node_tracker_client/node_directory.h>
 #include <ytlib/node_tracker_client/helpers.h>
 
@@ -78,6 +80,7 @@ void TJobProxy::SendHeartbeat()
     auto req = SupervisorProxy->OnJobProgress();
     ToProto(req->mutable_job_id(), JobId);
     req->set_progress(Job->GetProgress());
+    ToProto(req->mutable_job_statistics(), Job->GetStatistics());
 
     req->Invoke().Subscribe(BIND(&TJobProxy::OnHeartbeatResponse, MakeWeak(this)));
 
@@ -145,6 +148,10 @@ void TJobProxy::Run()
                 : chunkId;
             ToProto(schedulerResultExt->add_failed_chunk_ids(), actualChunkId);
         }
+
+        ToProto(result.mutable_statistics(), Job->GetStatistics());
+    } else {
+        ToProto(result.mutable_statistics(), ZeroJobStatistics());
     }
 
     ReportResult(result);

@@ -169,10 +169,13 @@ void TTableChunkWriter::FinalizeRow(const TRow& row)
         }
     }
 
-    CurrentSize = EncodingWriter->GetCompressedSize();
+    CurrentUncompressedSize = EncodingWriter->GetUncompressedSize();
+
     FOREACH (const auto& channel, Buffers) {
-        CurrentSize += channel->GetCurrentSize();
+        CurrentUncompressedSize += channel->GetCurrentSize();
     }
+
+    CurrentSize = static_cast<int>(EncodingWriter->GetCompressionRatio() * CurrentUncompressedSize);
 
     while (BuffersHeap.front()->GetCurrentSize() > static_cast<size_t>(Config->BlockSize)) {
         PrepareBlock();
@@ -347,19 +350,9 @@ void TTableChunkWriter::PrepareBlock()
 TTableChunkWriter::~TTableChunkWriter()
 { }
 
-i64 TTableChunkWriter::GetCurrentSize() const
-{
-    return CurrentSize;
-}
-
 const TOwningKey& TTableChunkWriter::GetLastKey() const
 {
     return LastKey;
-}
-
-i64 TTableChunkWriter::GetRowCount() const
-{
-    return RowCount;
 }
 
 TAsyncError TTableChunkWriter::AsyncClose()
@@ -393,6 +386,7 @@ void TTableChunkWriter::OnFinalBlocksWritten(TError error)
     }
 
     CurrentSize = EncodingWriter->GetCompressedSize();
+    CurrentUncompressedSize = EncodingWriter->GetUncompressedSize();
 
     SetProtoExtension(Meta.mutable_extensions(), SamplesExt);
 
@@ -513,8 +507,8 @@ TTableChunkWriterProvider::TTableChunkWriterProvider(
     : Config(config)
     , Options(options)
     , CreatedWriterCount(0)
-    , CompletedWriterCount(0)
-    , RowCount(0)
+    , FinishedWriterCount(0)
+    , DataStatistics(NChunkClient::NProto::ZeroDataStatistics())
 {
     BoundaryKeysExt.mutable_start();
     BoundaryKeysExt.mutable_end();
@@ -522,11 +516,10 @@ TTableChunkWriterProvider::TTableChunkWriterProvider(
 
 TTableChunkWriterPtr TTableChunkWriterProvider::CreateChunkWriter(NChunkClient::IAsyncWriterPtr asyncWriter)
 {
-    YCHECK(CompletedWriterCount == CreatedWriterCount);
+    YCHECK(FinishedWriterCount == CreatedWriterCount);
     TOwningKey key;
 
     if (CurrentWriter) {
-        RowCount += CurrentWriter->GetRowCount();
         key = CurrentWriter->GetLastKey();
     }
 
@@ -535,24 +528,36 @@ TTableChunkWriterPtr TTableChunkWriterProvider::CreateChunkWriter(NChunkClient::
         Options,
         asyncWriter,
         std::move(key));
+
     CurrentWriter = writer;
     ++CreatedWriterCount;
+
+    TGuard<TSpinLock> guard(SpinLock);
+    YCHECK(ActiveWriters.insert(writer).second);
+
     return CurrentWriter;
 }
 
 void TTableChunkWriterProvider::OnChunkFinished()
 {
-    ++CompletedWriterCount;
-    YCHECK(CompletedWriterCount == CreatedWriterCount);
+    ++FinishedWriterCount;
+    YCHECK(FinishedWriterCount == CreatedWriterCount);
 
     if (Options->KeyColumns) {
-        if (CompletedWriterCount == 1) {
+        if (FinishedWriterCount == 1) {
             const auto& boundaryKeys = CurrentWriter->GetBoundaryKeys();
             *BoundaryKeysExt.mutable_start() = boundaryKeys.start();
         }
         *BoundaryKeysExt.mutable_end() = CurrentWriter->GetLastKey().ToProto();
     }
     CurrentWriter.Reset();
+}
+
+void TTableChunkWriterProvider::OnChunkClosed(TTableChunkWriterPtr writer)
+{
+    TGuard<TSpinLock> guard(SpinLock);
+    DataStatistics += writer->GetDataStatistics();
+    YCHECK(ActiveWriters.erase(writer) == 1);
 }
 
 const NProto::TBoundaryKeysExt& TTableChunkWriterProvider::GetBoundaryKeys() const
@@ -562,13 +567,24 @@ const NProto::TBoundaryKeysExt& TTableChunkWriterProvider::GetBoundaryKeys() con
 
 i64 TTableChunkWriterProvider::GetRowCount() const
 {
-    auto writer = CurrentWriter;
-    return RowCount + (writer ? writer->GetRowCount() : 0);
+    return GetDataStatistics().row_count();
 }
 
 const TNullable<TKeyColumns>& TTableChunkWriterProvider::GetKeyColumns() const
 {
     return Options->KeyColumns;
+}
+
+NChunkClient::NProto::TDataStatistics TTableChunkWriterProvider::GetDataStatistics() const
+{
+    TGuard<TSpinLock> guard(SpinLock);
+
+    auto result = DataStatistics;
+
+    FOREACH(const auto& writer, ActiveWriters) {
+        result += writer->GetDataStatistics();
+    }
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

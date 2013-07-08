@@ -51,5 +51,3 @@ list(APPEND YT_SOURCE_FILES
   ${SRCS}
   ${HDRS}
 )
-
-#PROTOC( ${BASE}/job_stats.proto YT_SOURCE_FILES )

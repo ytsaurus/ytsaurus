@@ -39,6 +39,7 @@ TChunkWriterBase::TChunkWriterBase(
     , RowCount(0)
     , ValueCount(0)
     , CurrentSize(0)
+    , CurrentUncompressedSize(0)
     , CurrentBufferCapacity(0)
     , LargestBlockSize(0)
 {
@@ -50,9 +51,14 @@ const TNullable<TKeyColumns>& TChunkWriterBase::GetKeyColumns() const
     return Options->KeyColumns;
 }
 
-const i64 TChunkWriterBase::GetRowCount() const
+i64 TChunkWriterBase::GetRowCount() const
 {
     return RowCount;
+}
+
+i64 TChunkWriterBase::GetCurrentSize() const
+{
+    return CurrentSize;
 }
 
 void TChunkWriterBase::CheckBufferCapacity()
@@ -165,6 +171,19 @@ void TChunkWriterBase::PopBufferHeap()
 
     BuffersHeap[currentIndex] = currentBuffer;
     currentBuffer->SetHeapIndex(currentIndex);
+}
+
+NChunkClient::NProto::TDataStatistics TChunkWriterBase::GetDataStatistics() const
+{
+    NChunkClient::NProto::TDataStatistics result = NChunkClient::NProto::ZeroDataStatistics();
+    if (RowCount > 0) {
+        result.set_uncompressed_data_size(CurrentUncompressedSize);
+        result.set_compressed_data_size(CurrentSize);
+        result.set_row_count(RowCount);
+        result.set_chunk_count(1);
+    }
+
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

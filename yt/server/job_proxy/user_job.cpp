@@ -585,6 +585,15 @@ private:
         }
     }
 
+    virtual NJobTrackerClient::NProto::TJobStatistics GetStatistics() const override
+    {
+        NJobTrackerClient::NProto::TJobStatistics result;
+        result.set_time(GetElapsedTime().MilliSeconds());
+
+        ToProto(result.mutable_input(), JobIO->GetInputDataStatistics());
+        ToProto(result.mutable_output(), JobIO->GetOutputDataStatistics());
+        return result;
+    }
 
     std::unique_ptr<TUserJobIO> JobIO;
 

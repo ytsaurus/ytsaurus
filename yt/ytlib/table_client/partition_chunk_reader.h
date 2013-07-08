@@ -6,6 +6,7 @@
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/chunk_spec.h>
 #include <ytlib/chunk_client/async_reader.h>
+#include <ytlib/chunk_client/data_statistics.h>
 
 #include <ytlib/misc/async_stream_state.h>
 
@@ -41,6 +42,7 @@ class TPartitionChunkReader
 {
     // Points to a non-key part of the row inside a block.
     DEFINE_BYVAL_RO_PROPERTY(const char*, RowPointer);
+    DEFINE_BYVAL_RO_PROPERTY(i64, RowIndex);
 
 public:
     typedef TPartitionChunkReaderProvider TProvider;
@@ -62,6 +64,8 @@ public:
 
     //! Must be called after AsyncOpen has finished.
     TFuture<void> GetFetchingCompleteEvent();
+
+    NChunkClient::NProto::TDataStatistics GetDataStatistics() const;
 
     // Called by facade.
     TValue ReadValue(const TStringBuf& name) const;
@@ -120,11 +124,17 @@ public:
     void OnReaderFinished(TPartitionChunkReaderPtr reader);
 
     bool KeepInMemory() const;
+    NChunkClient::NProto::TDataStatistics GetDataStatistics() const;
 
 private:
     friend class TPartitionChunkReader;
 
     NChunkClient::TSequentialReaderConfigPtr Config;
+
+    NChunkClient::NProto::TDataStatistics DataStatistics;
+
+    TSpinLock SpinLock;
+    yhash_set<TPartitionChunkReaderPtr> ActiveReaders;
 
 };
 

@@ -64,20 +64,6 @@ message TSchedulerJobSpecExt
     optional bool is_approximate = 9 [default = false];
 }
 
-message TStatistics
-{
-    required int64 uncompressed_data_size = 1;
-    required int64 compressed_data_size = 2;
-    required int64 row_count = 3;
-    required int64 chunk_count = 4;
-}
-
-message TJobStatistics
-{
-    required TStatistics input = 1;
-    required TStatistics output = 2;
-}
-
 message TSchedulerJobResultExt
 {
     extend NJobTrackerClient.NProto.TJobResult
@@ -96,8 +82,6 @@ message TSchedulerJobResultExt
 
     // List of input chunks the job was unable to read.
     repeated NYT.NProto.TGuid failed_chunk_ids = 5;
-
-    optional TJobStatistics job_statistics = 6;
 
 }
 

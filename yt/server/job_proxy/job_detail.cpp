@@ -8,8 +8,14 @@ namespace NJobProxy {
 
 TJob::TJob(IJobHost* host)
     : Host(host)
+    , StartTime(TInstant::Now())
 {
     YCHECK(host);
+}
+
+TDuration TJob::GetElapsedTime() const
+{
+	return TInstant::Now() - StartTime;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -60,6 +60,7 @@ public:
 
     virtual i64 GetRowCount() const override;
 
+    virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override;
 
 private:
     typedef TAsyncTableWriter TThis;
@@ -409,6 +410,12 @@ i64 TAsyncTableWriter::GetRowCount() const
     return Writer->GetProvider()->GetRowCount();
 }
 
+NChunkClient::NProto::TDataStatistics TAsyncTableWriter::GetDataStatistics() const
+{
+    return Writer->GetProvider()->GetDataStatistics();
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTableWriter
@@ -432,12 +439,12 @@ public:
                     keyColumns))
     { }
 
-    void Open() override
+    virtual void Open() override
     {
         Sync(~Writer_, &IAsyncWriter::AsyncOpen);
     }
 
-    void WriteRow(const TRow& row) override
+    virtual void WriteRow(const TRow& row) override
     {
         if (!Writer_->IsReady()) {
             Sync(~Writer_, &IAsyncWriter::GetReadyEvent);
@@ -445,19 +452,24 @@ public:
         Writer_->WriteRow(row);
     }
 
-    void Close() override
+    virtual void Close() override
     {
         Sync(~Writer_, &IAsyncWriter::AsyncClose);
     }
 
-    const TNullable<TKeyColumns>& GetKeyColumns() const override
+    virtual const TNullable<TKeyColumns>& GetKeyColumns() const override
     {
         return Writer_->GetKeyColumns();
     }
 
-    i64 GetRowCount() const override
+    virtual i64 GetRowCount() const override
     {
         return Writer_->GetRowCount();
+    }
+
+    virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
+    {
+        return Writer_->GetDataStatistics();
     }
 
 private:

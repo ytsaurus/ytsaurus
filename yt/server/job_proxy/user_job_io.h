@@ -8,6 +8,8 @@
 
 #include <ytlib/chunk_client/public.h>
 
+#include <ytlib/chunk_client/data_statistics.h>
+
 #include <ytlib/transaction_client/public.h>
 
 #include <ytlib/scheduler/job.pb.h>
@@ -51,6 +53,9 @@ public:
 
     virtual void PopulateResult(NJobTrackerClient::NProto::TJobResult* result) = 0;
 
+    NChunkClient::NProto::TDataStatistics GetInputDataStatistics() const;
+    NChunkClient::NProto::TDataStatistics GetOutputDataStatistics() const;
+
 protected:
     NScheduler::TJobIOConfigPtr IOConfig;
     IJobHost* Host;
@@ -59,7 +64,9 @@ protected:
     const NScheduler::NProto::TSchedulerJobSpecExt& SchedulerJobSpecExt;
 
     std::vector<NTableClient::ISyncReaderPtr> Inputs;
-    std::vector<NTableClient::TTableChunkWriterProviderPtr> Outputs;
+    std::vector<NTableClient::ISyncWriterUnsafePtr> Outputs;
+
+    std::vector<NTableClient::TTableChunkWriterProviderPtr> OutputProviders;
 
     NLog::TLogger& Logger;
 

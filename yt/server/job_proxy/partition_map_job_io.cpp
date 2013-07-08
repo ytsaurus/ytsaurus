@@ -88,6 +88,9 @@ public:
             Host->GetMasterChannel(),
             transactionId,
             chunkListId));
+
+        Outputs.push_back(Writer);
+
         Writer->Open();
 
         return Writer;

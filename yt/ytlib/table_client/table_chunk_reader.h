@@ -5,6 +5,7 @@
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/schema.h>
 #include <ytlib/chunk_client/key.h>
+#include <ytlib/chunk_client/data_statistics.h>
 #include <ytlib/chunk_client/chunk_spec.h>
 
 #include <ytlib/table_client/table_chunk_meta.pb.h>
@@ -72,6 +73,7 @@ public:
 
     i64 GetRowIndex() const;
     i64 GetRowCount() const;
+    NChunkClient::NProto::TDataStatistics GetDataStatistics() const;
     TFuture<void> GetFetchingCompleteEvent();
 
     // Called by facade.
@@ -190,12 +192,18 @@ public:
     void OnReaderFinished(TTableChunkReaderPtr reader);
 
     bool KeepInMemory() const;
+    NChunkClient::NProto::TDataStatistics GetDataStatistics() const;
 
 private:
     friend class TTableChunkReader;
 
     NChunkClient::TSequentialReaderConfigPtr Config;
     TChunkReaderOptionsPtr Options;
+
+    TSpinLock SpinLock;
+
+    NChunkClient::NProto::TDataStatistics DataStatistics;
+    yhash_set<TTableChunkReaderPtr> ActiveReaders;
 
 };
 

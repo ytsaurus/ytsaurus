@@ -165,6 +165,11 @@ const TNullable<int>& TAsyncTableReader::GetTableIndex() const
     return Reader->GetFacade()->GetTableIndex();
 }
 
+NChunkClient::NProto::TDataStatistics TAsyncTableReader::GetDataStatistics() const
+{
+    return Reader->GetProvider()->GetDataStatistics();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TTableReader::TTableReader(
@@ -214,6 +219,11 @@ std::vector<NChunkClient::TChunkId> TTableReader::GetFailedChunks() const
 const TNullable<int>& TTableReader::GetTableIndex() const
 {
     return AsyncReader_->GetTableIndex();
+}
+
+NChunkClient::NProto::TDataStatistics TTableReader::GetDataStatistics() const
+{
+    return AsyncReader_->GetDataStatistics();
 }
 
 const TNonOwningKey& TTableReader::GetKey() const

@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <ytlib/chunk_client/key.h>
+#include <ytlib/chunk_client/data_statistics.h>
 
 #include <ytlib/misc/sync.h>
 #include <ytlib/misc/nullable.h>
@@ -30,6 +31,7 @@ struct ISyncReader
 
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunks() const = 0;
     virtual const TNullable<int>& GetTableIndex() const = 0;
+    virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const = 0;
 
     virtual i64 GetRowIndex() const = 0;
     virtual i64 GetRowCount() const = 0;
@@ -88,6 +90,11 @@ public:
     const TNullable<int>& GetTableIndex() const
     {
         return AsyncReader->GetFacade()->GetTableIndex();
+    }
+
+    virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
+    {
+        return AsyncReader->GetProvider()->GetDataStatistics();
     }
 
 private:

@@ -111,6 +111,11 @@ public:
         return ReadRowCount;
     }
 
+    virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
+    {
+        Reader->GetProvider()->GetDataStatistics();
+    }
+
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunks() const override
     {
         return Reader->GetFailedChunks();

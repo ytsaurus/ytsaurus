@@ -18,7 +18,9 @@ TSequentialReader::TSequentialReader(
     std::vector<TBlockInfo>&& blocks,
     IAsyncReaderPtr chunkReader,
     NCompression::ECodec codecId)
-    : BlockSequence(blocks)
+    : UncompressedDataSize_(0)
+    , CompressedDataSize_(0)
+    , BlockSequence(blocks)
     , Config(config)
     , ChunkReader(chunkReader)
     , AsyncSemaphore(config->WindowSize)
@@ -133,8 +135,10 @@ void TSequentialReader::DecompressBlock(
     auto data = Codec->Decompress(block);
     BlockWindow[globalIndex].Set(data);
 
-    int delta = data.Size();
-    delta -= BlockSequence[globalIndex].Size;
+    UncompressedDataSize_ += data.Size();
+    CompressedDataSize_ += block.Size();
+
+    i64 delta = data.Size() - BlockSequence[globalIndex].Size;
 
     if (delta > 0)
         AsyncSemaphore.Acquire(delta);

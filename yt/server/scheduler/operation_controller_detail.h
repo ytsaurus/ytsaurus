@@ -5,7 +5,6 @@
 #include "chunk_pool.h"
 #include "chunk_list_pool.h"
 #include "job_resources.h"
-#include "statistics.h"
 #include "serialization_context.h"
 
 #include <ytlib/misc/thread_affinity.h>
@@ -34,6 +33,8 @@
 
 #include <ytlib/node_tracker_client/public.h>
 #include <ytlib/node_tracker_client/helpers.h>
+
+#include <ytlib/job_tracker_client/statistics.h>
 
 #include <server/chunk_server/public.h>
 
@@ -133,9 +134,9 @@ protected:
     TProgressCounter JobCounter;
 
     // Job statistics.
-    TTotalJobStatistics CompletedJobStatistics;
-    TTotalJobStatistics FailedJobStatistics;
-    TTotalJobStatistics AbortedJobStatistics;
+    NJobTrackerClient::NProto::TJobStatistics CompletedJobStatistics;
+    NJobTrackerClient::NProto::TJobStatistics FailedJobStatistics;
+    NJobTrackerClient::NProto::TJobStatistics AbortedJobStatistics;
 
     // Maps node ids seen in fetch responses to node descriptors.
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;

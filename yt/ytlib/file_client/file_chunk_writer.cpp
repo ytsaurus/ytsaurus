@@ -204,6 +204,11 @@ void TFileChunkWriterProvider::OnChunkFinished()
     YCHECK(ActiveWriters == 0);
 }
 
+void TFileChunkWriterProvider::OnChunkClosed(TFileChunkWriterPtr writer)
+{
+    UNUSED(writer);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NFileClient

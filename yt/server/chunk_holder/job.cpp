@@ -21,6 +21,8 @@
 #include <ytlib/node_tracker_client/helpers.h>
 #include <ytlib/node_tracker_client/node_directory.h>
 
+#include <ytlib/job_tracker_client/statistics.h>
+
 #include <ytlib/chunk_client/erasure_reader.h>
 #include <ytlib/chunk_client/replication_writer.h>
 #include <ytlib/chunk_client/replication_reader.h>
@@ -149,6 +151,17 @@ public:
         Progress = value;
     }
 
+    virtual TJobStatistics GetJobStatistics() const override
+    {
+        // ToDo(psushin)
+        return ZeroJobStatistics();
+    }
+
+    virtual void SetJobStatistics(const TJobStatistics& statistics) override
+    {
+        YUNREACHABLE();
+    }
+
 protected:
     TJobId JobId;
     TJobSpec JobSpec;
@@ -229,6 +242,7 @@ private:
         JobPhase = EJobPhase::Finished;
         JobState = finalState;
         ToProto(Result.mutable_error(), error);
+        ToProto(Result.mutable_statistics(), GetJobStatistics());
         ResourceLimits = ZeroNodeResources();
 
         CancelableContext.Reset();

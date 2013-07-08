@@ -45,6 +45,9 @@ struct IJob
     virtual double GetProgress() const = 0;
     virtual void SetProgress(double value) = 0;
 
+    virtual NJobTrackerClient::NProto::TJobStatistics GetJobStatistics() const = 0;
+    virtual void SetJobStatistics(const NJobTrackerClient::NProto::TJobStatistics& statistics) = 0;
+
 };
 
 typedef

@@ -14,6 +14,7 @@
 
 #include <ytlib/chunk_client/chunk.pb.h>
 
+#include <ytlib/misc/property.h>
 #include <ytlib/logging/tagged_logger.h>
 
 namespace NYT {
@@ -26,6 +27,9 @@ namespace NChunkClient {
 class TSequentialReader
     : public TRefCounted
 {
+    DEFINE_BYVAL_RO_PROPERTY(volatile i64, UncompressedDataSize);
+    DEFINE_BYVAL_RO_PROPERTY(volatile i64, CompressedDataSize);
+
 public:
     typedef TIntrusivePtr<TSequentialReader> TPtr;
 
@@ -97,6 +101,7 @@ private:
 
     TAsyncStreamState State;
     NCompression::ICodec* Codec;
+
     NLog::TTaggedLogger Logger;
 
     DECLARE_THREAD_AFFINITY_SLOT(ReaderThread);

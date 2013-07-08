@@ -88,6 +88,11 @@ public:
         return Writer->GetProvider()->GetRowCount();
     }
 
+    virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
+    {
+        return Writer->GetProvider()->GetDataStatistics();
+    }
+
     virtual const std::vector<NChunkClient::NProto::TChunkSpec>& GetWrittenChunks() const override
     {
         return Writer->GetWrittenChunks();

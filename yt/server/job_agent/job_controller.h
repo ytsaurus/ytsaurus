@@ -79,7 +79,8 @@ public:
     //! Updates job progress.
     void UpdateJobProgress(
         IJobPtr job,
-        double progress);
+        double progress,
+        const NJobTrackerClient::NProto::TJobStatistics& jobStatistics);
 
     //! Updates job result.
     void SetJobResult(

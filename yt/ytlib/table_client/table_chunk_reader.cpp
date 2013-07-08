@@ -37,6 +37,27 @@ static NLog::TLogger& Logger = TableReaderLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTableChunkReaderFacade::TTableChunkReaderFacade(TTableChunkReader* reader)
+    : Reader(reader)
+{ }
+
+const TRow& TTableChunkReaderFacade::GetRow() const
+{
+    return Reader->GetRow();
+}
+
+const NChunkClient::TNonOwningKey& TTableChunkReaderFacade::GetKey() const
+{
+    return Reader->GetKey();
+}
+
+const TNullable<int>& TTableChunkReaderFacade::GetTableIndex() const
+{
+    return Reader->GetTableIndex();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTableChunkReader::TInitializer
     : public virtual TRefCounted
 {
@@ -910,6 +931,25 @@ i64 TTableChunkReader::GetRowCount() const
     return EndRowIndex - StartRowIndex;
 }
 
+NChunkClient::NProto::TDataStatistics TTableChunkReader::GetDataStatistics() const
+{
+
+    NChunkClient::NProto::TDataStatistics result;
+    result.set_chunk_count(1);
+
+    if (SequentialReader) {
+        result.set_row_count(GetRowIndex());
+        result.set_uncompressed_data_size(SequentialReader->GetUncompressedDataSize());
+        result.set_compressed_data_size(SequentialReader->GetCompressedDataSize());
+    } else {
+        result.set_row_count(0);
+        result.set_uncompressed_data_size(0);
+        result.set_compressed_data_size(0);
+    }
+
+    return result;
+}
+
 i64 TTableChunkReader::GetRowIndex() const
 {
     return CurrentRowIndex - StartRowIndex;
@@ -940,33 +980,13 @@ TTableChunkReaderProvider::TTableChunkReaderProvider(
     , RowCount_(0)
     , Config(config)
     , Options(options)
+    , DataStatistics(NChunkClient::NProto::ZeroDataStatistics())
 {
     FOREACH (const auto& chunkSpec, chunkSpecs) {
         i64 rowCount;
         GetStatistics(chunkSpec, nullptr, &rowCount);
         RowCount_ += rowCount;
     }
-}
-
-bool TTableChunkReaderProvider::KeepInMemory() const
-{
-    return Options->KeepBlocks;
-}
-
-void TTableChunkReaderProvider::OnReaderOpened(
-    TTableChunkReaderPtr reader,
-    NChunkClient::NProto::TChunkSpec& chunkSpec)
-{
-    i64 rowCount;
-    GetStatistics(chunkSpec, nullptr, &rowCount);
-    // GetRowCount gives better estimation than original, based on meta extensions.
-    RowCount_ += reader->GetRowCount() - rowCount;
-}
-
-void TTableChunkReaderProvider::OnReaderFinished(TTableChunkReaderPtr reader)
-{
-    // Number of read row may be less than expected because of key read limits.
-    RowCount_ += reader->GetRowIndex() - reader->GetRowCount();
 }
 
 TTableChunkReaderPtr TTableChunkReaderProvider::CreateReader(
@@ -990,25 +1010,43 @@ TTableChunkReaderPtr TTableChunkReaderProvider::CreateReader(
         Options);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-TTableChunkReaderFacade::TTableChunkReaderFacade(TTableChunkReader* reader)
-    : Reader(reader)
-{ }
-
-const TRow& TTableChunkReaderFacade::GetRow() const
+void TTableChunkReaderProvider::OnReaderOpened(
+    TTableChunkReaderPtr reader,
+    NChunkClient::NProto::TChunkSpec& chunkSpec)
 {
-    return Reader->GetRow();
+    i64 rowCount;
+    GetStatistics(chunkSpec, nullptr, &rowCount);
+    // GetRowCount gives better estimation than original, based on meta extensions.
+    RowCount_ += reader->GetRowCount() - rowCount;
+
+    TGuard<TSpinLock> guard(SpinLock);
+    YCHECK(ActiveReaders.insert(reader).second);
 }
 
-const NChunkClient::TNonOwningKey& TTableChunkReaderFacade::GetKey() const
+void TTableChunkReaderProvider::OnReaderFinished(TTableChunkReaderPtr reader)
 {
-    return Reader->GetKey();
+    // Number of read row may be less than expected because of key read limits.
+    RowCount_ += reader->GetRowIndex() - reader->GetRowCount();
+
+    TGuard<TSpinLock> guard(SpinLock);
+    DataStatistics += reader->GetDataStatistics();
+    YCHECK(ActiveReaders.erase(reader) == 1);
 }
 
-const TNullable<int>& TTableChunkReaderFacade::GetTableIndex() const
+bool TTableChunkReaderProvider::KeepInMemory() const
 {
-    return Reader->GetTableIndex();
+    return Options->KeepBlocks;
+}
+
+NChunkClient::NProto::TDataStatistics TTableChunkReaderProvider::GetDataStatistics() const
+{
+    auto dataStatistics = DataStatistics;
+
+    TGuard<TSpinLock> guard(SpinLock);
+    FOREACH(const auto& reader, ActiveReaders) {
+        dataStatistics += reader->GetDataStatistics();
+    }
+    return dataStatistics;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

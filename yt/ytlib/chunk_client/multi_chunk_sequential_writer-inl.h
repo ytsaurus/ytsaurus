@@ -320,6 +320,8 @@ void TMultiChunkSequentialWriter<TChunkWriter>::OnChunkClosed(
 
     CompleteChunkSize += chunkWriter->GetCurrentSize();
 
+    Provider->OnChunkClosed(chunkWriter);
+
     LOG_DEBUG("Chunk closed (ChunkId: %s)",
         ~ToString(currentSession.ChunkId));
 
