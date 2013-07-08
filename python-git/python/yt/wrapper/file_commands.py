@@ -111,6 +111,8 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
     set_attribute(destination, "file_name", yt_filename)
 
     executable = os.access(filename, os.X_OK) or config.ALWAYS_SET_EXECUTABLE_FLAG_TO_FILE
+    set_attribute(destination, "executable", bool_to_string(executable))
+
     return convert_to_yson_type(
         destination,
         {"file_name": yt_filename,
