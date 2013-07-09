@@ -1324,9 +1324,9 @@ IYPathServicePtr TLinkNodeProxy::GetTargetService() const
 
 bool TLinkNodeProxy::IsBroken(const NObjectServer::TObjectId& id) const
 {
-    if (TypeIsVersioned(TypeFromId(id))) {
+    if (TypeIsVersioned(TypeFromId(id)) {
         auto cypressManager = Bootstrap->GetCypressManager();
-        auto* node = cypressManager->FindNode(TVersionedNodeId(id);
+        auto* node = cypressManager->FindNode(TVersionedNodeId(id));
         return cypressManager->IsOrphaned(node);
     } else {
         auto objectManager = Bootstrap->GetObjectManager();
