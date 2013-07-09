@@ -4,6 +4,8 @@
 #include "helpers.h"
 #include "private.h"
 
+#include <ytlib/object_client/public.h>
+
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
 #include <ytlib/ytree/ypath_detail.h>
@@ -24,6 +26,7 @@ namespace NCypressServer {
 using namespace NYTree;
 using namespace NYson;
 using namespace NRpc;
+using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NCellMaster;
 using namespace NTransactionServer;
@@ -1323,7 +1326,7 @@ bool TLinkNodeProxy::IsBroken(const NObjectServer::TObjectId& id) const
 {
     if (TypeIsVersioned(TypeFromId(id))) {
         auto cypressManager = Bootstrap->GetCypressManager();
-        auto* node = cypressManager->FindNode(id);
+        auto* node = cypressManager->FindNode(TVersionedNodeId(id);
         return cypressManager->IsOrphaned(node);
     } else {
         auto objectManager = Bootstrap->GetObjectManager();
