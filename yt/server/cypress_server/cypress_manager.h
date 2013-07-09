@@ -126,6 +126,8 @@ public:
         NTransactionServer::TTransaction* transaction,
         bool includeRoot = true);
 
+    bool IsOrphaned(TCypressNodeBase* trunkNode);
+
     DECLARE_METAMAP_ACCESSORS(Node, TCypressNodeBase, TVersionedNodeId);
 
 private:

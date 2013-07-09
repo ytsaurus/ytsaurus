@@ -434,6 +434,8 @@ private:
 
     NYTree::IYPathServicePtr GetTargetService() const;
 
+    bool IsBroken(const NObjectServer::TObjectId& id) const;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
