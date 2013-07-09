@@ -118,7 +118,7 @@ std::unique_ptr<IAttributeDictionary> FromProto(const NProto::TAttributes& proto
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TAttributeDictionarySerializer::Save(TStreamSaveContext& context, const IAttributeDictionary& obj)
+void TAttributeDictionaryValueSerializer::Save(TStreamSaveContext& context, const IAttributeDictionary& obj)
 {
     using NYT::Save;
     auto keys = obj.List();
@@ -129,7 +129,7 @@ void TAttributeDictionarySerializer::Save(TStreamSaveContext& context, const IAt
     }
 }
 
-void TAttributeDictionarySerializer::Load(TStreamLoadContext& context, IAttributeDictionary& obj)
+void TAttributeDictionaryValueSerializer::Load(TStreamLoadContext& context, IAttributeDictionary& obj)
 {
     using NYT::Load;
     obj.Clear();
@@ -138,6 +138,30 @@ void TAttributeDictionarySerializer::Load(TStreamLoadContext& context, IAttribut
         auto key = Load<Stroka>(context);
         auto value = Load<TYsonString>(context);
         obj.SetYson(key, value);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TAttributeDictionaryRefSerializer::Save(TStreamSaveContext& context, const std::unique_ptr<IAttributeDictionary>& obj)
+{
+    using NYT::Save;
+    if (obj) {
+        Save(context, true);
+        Save(context, *obj);
+    } else {
+        Save(context, false);
+    }
+}
+
+void TAttributeDictionaryRefSerializer::Load(TStreamLoadContext& context, std::unique_ptr<IAttributeDictionary>& obj)
+{
+    using NYT::Load;
+    if (Load<bool>(context)) {
+        obj = CreateEphemeralAttributes();
+        Load(context, *obj);
+    } else {
+        obj.reset();
     }
 }
 
