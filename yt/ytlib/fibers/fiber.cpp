@@ -84,7 +84,7 @@ static void InitTls()
 class TFiberStackBase
 {
 public:
-    TFiberStackBase(void *base, size_t size)
+    TFiberStackBase(char *base, size_t size)
         : Base(base)
         , Size(size)
     { }
@@ -103,7 +103,7 @@ public:
     }
 
 protected:
-    void* Base;
+    char* Base;
     void* Stack;
     const size_t Size;
 };
@@ -141,7 +141,7 @@ public:
 
         ::mprotect(Base, GetExtraSize(), PROT_NONE);
 
-        Stack = reinterpret_cast<char*>(Base) + GetExtraSize();
+        Stack = Base + GetExtraSize();
 
         YCHECK((reinterpret_cast<ui64>(Stack) & 0xF) == 0);
 #else

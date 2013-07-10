@@ -3,7 +3,15 @@
 #endif
 
 .file "fiber-supp.s"
+#ifdef __APPLE__
+.section __TEXT,__text,regular,pure_instructions
+#define FIBER_CONTEXT_TRAMPOLINE __ZN3NYT13TFiberContext10TrampolineEv
+#define FIBER_CONTEXT_TRANSFER_TO __ZN3NYT13TFiberContext10TransferToEPS0_S1_
+#else
 .section .note.GNU-stack, "", %progbits
+#define FIBER_CONTEXT_TRAMPOLINE _ZN3NYT13TFiberContext10TrampolineEv
+#define FIBER_CONTEXT_TRANSFER_TO _ZN3NYT13TFiberContext10TransferToEPS0_S1_
+#endif
 
 /**
  * x86_64 Calling Convention:
@@ -23,25 +31,33 @@
 
 /* void TFiberContext::Trampoline(); */
 .text
-.global _ZN3NYT13TFiberContext10TrampolineEv
-.type _ZN3NYT13TFiberContext10TrampolineEv, @function
-.align 16
+.global FIBER_CONTEXT_TRAMPOLINE
+.align 16, 0x90 /* 0x90 = nop */
+#ifndef __APPLE__
+.type FIBER_CONTEXT_TRAMPOLINE, @function
 .p2align 4,,15
-_ZN3NYT13TFiberContext10TrampolineEv:
+#endif
+FIBER_CONTEXT_TRAMPOLINE:
     .cfi_startproc
+#ifndef __APPLE__
     .cfi_undefined rip
+#endif
     movq %r12, %rdi
     .cfi_endproc
     jmpq *%rbx
-.size _ZN3NYT13TFiberContext10TrampolineEv, .-_ZN3NYT13TFiberContext10TrampolineEv
+#ifndef __APPLE__
+.size FIBER_CONTEXT_TRAMPOLINE, .-FIBER_CONTEXT_TRAMPOLINE
+#endif
 
 /* void TFiberContext::TransferTo(TFiberContext* previous, TFiberContext* next); */
 .text
-.global _ZN3NYT13TFiberContext10TransferToEPS0_S1_
-.type _ZN3NYT13TFiberContext10TransferToEPS0_S1_, @function
-.align 16
+.global FIBER_CONTEXT_TRANSFER_TO
+.align 16, 0x90 /* 0x90 = nop */
+#ifndef __APPLE__
+.type FIBER_CONTEXT_TRANSFER_TO, @function
 .p2align 4,,15
-_ZN3NYT13TFiberContext10TransferToEPS0_S1_:
+#endif
+FIBER_CONTEXT_TRANSFER_TO:
     .cfi_startproc
     pushq %rbp
     pushq %rbx
@@ -60,5 +76,7 @@ _ZN3NYT13TFiberContext10TransferToEPS0_S1_:
     popq %rcx
     .cfi_endproc
     jmpq *%rcx
-.size _ZN3NYT13TFiberContext10TransferToEPS0_S1_, .-_ZN3NYT13TFiberContext10TransferToEPS0_S1_
+#ifndef __APPLE__
+.size FIBER_CONTEXT_TRANSFER_TO, .-FIBER_CONTEXT_TRANSFER_TO
+#endif
 

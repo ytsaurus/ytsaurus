@@ -10,6 +10,8 @@
 
 #include <ytlib/ytree/attribute_helpers.h>
 
+#include <cmath>
+
 namespace NYT {
 namespace NChunkClient {
 
