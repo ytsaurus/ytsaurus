@@ -160,9 +160,9 @@ std::vector<NChunkClient::TChunkId> TAsyncTableReader::GetFailedChunks() const
     return Reader->GetFailedChunks();
 }
 
-const NYTree::TYsonString& TAsyncTableReader::GetRowAttributes() const
+const TNullable<int>& TAsyncTableReader::GetTableIndex() const
 {
-    return Reader->GetFacade()->GetRowAttributes();
+    return Reader->GetFacade()->GetTableIndex();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -211,9 +211,9 @@ std::vector<NChunkClient::TChunkId> TTableReader::GetFailedChunks() const
     return AsyncReader_->GetFailedChunks();
 }
 
-const NYTree::TYsonString& TTableReader::GetRowAttributes() const
+const TNullable<int>& TTableReader::GetTableIndex() const
 {
-    return AsyncReader_->GetRowAttributes();
+    return AsyncReader_->GetTableIndex();
 }
 
 const TNonOwningKey& TTableReader::GetKey() const

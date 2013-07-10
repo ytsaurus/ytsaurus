@@ -63,6 +63,7 @@ void TReadCommand::DoExecute()
         buffer.Clear();
     };
 
+    TNullable<int> tableIndex = Null;
     while (true) {
         if (!reader->FetchNextItem()) {
             auto result = WaitFor(reader->GetReadyEvent());
@@ -73,7 +74,13 @@ void TReadCommand::DoExecute()
             break;
         }
 
-        ProduceRow(~consumer, reader->GetRow(), reader->GetRowAttributes());
+        const auto& newTableIndex = reader->GetTableIndex();
+        if (newTableIndex != tableIndex) {
+            tableIndex = newTableIndex;
+            ProduceTableSwitch(~consumer, *tableIndex);
+        }
+
+        ProduceRow(~consumer, reader->GetRow());
 
         if (buffer.Size() > bufferLimit) {
             flushBuffer();

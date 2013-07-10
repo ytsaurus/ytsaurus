@@ -16,14 +16,13 @@ public:
     char RecordSeparator;
     char KeyValueSeparator;
     char FieldSeparator;
+
+    // Only supported for tabular data
     TNullable<Stroka> LinePrefix;
 
     bool EnableEscaping;
     bool EscapeCarriageReturn;
     char EscapingSymbol;
-
-    bool WithAttributes;
-    Stroka AttributesPrefix;
 
     // Escaping rules (EscapingSymbol is '\\')
     //  * '\0' ---> "\0"
@@ -47,10 +46,6 @@ public:
             .Default(false);
         RegisterParameter("escaping_symbol", EscapingSymbol)
             .Default('\\');
-        RegisterParameter("with_attributes", WithAttributes)
-            .Default(true);
-        RegisterParameter("attributes_prefix", AttributesPrefix)
-            .Default("@");
     }
 };
 

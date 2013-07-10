@@ -116,11 +116,11 @@ public:
         return Reader->GetFailedChunks();
     }
 
-    virtual const NYTree::TYsonString& GetRowAttributes() const override
+    virtual const TNullable<int>& GetTableIndex() const override
     {
         // When reading from partition chunk no row attributes are preserved.
-        static NYTree::TYsonString s;
-        return s;
+        static TNullable<int> tableIndex = Null;
+        return tableIndex;
     }
 
 private:

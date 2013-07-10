@@ -12,21 +12,34 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Note: line_prefix is only supported for tabular data
-// YsonNode is written as follows:
-//  * Each element of list is ended with RecordSeparator
-//  * Items in map are separated with FieldSeparator
-//  * Key and Values in map are separated with KeyValueSeparator
-
-class TDsvWriter
+class TDsvWriterBase
     : public virtual TFormatsConsumerBase
 {
 public:
-    explicit TDsvWriter(
+    explicit TDsvWriterBase(
         TOutputStream* stream,
-        NYson::EYsonType type = NYson::EYsonType::ListFragment,
         TDsvFormatConfigPtr config = New<TDsvFormatConfig>());
-    ~TDsvWriter();
+
+protected:
+    TOutputStream* Stream;
+    TDsvFormatConfigPtr Config;
+
+    TDsvTable Table;
+
+    void EscapeAndWrite(const TStringBuf& string, bool inKey);
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDsvTabularWriter
+    : public TDsvWriterBase
+{
+public:
+    explicit TDsvTabularWriter(
+        TOutputStream* stream,
+        TDsvFormatConfigPtr config = New<TDsvFormatConfig>());
+    ~TDsvTabularWriter();
 
     // IYsonConsumer overrides.
     virtual void OnStringScalar(const TStringBuf& value) override;
@@ -43,21 +56,55 @@ public:
     virtual void OnEndAttributes() override;
 
 private:
-    TOutputStream* Stream;
-    NYson::EYsonType Type;
-    TDsvFormatConfigPtr Config;
+    DECLARE_ENUM(EState,
+        (None)
+        (InsideAttributes)
+        (ExpectEntity)
+        (ExpectColumnName)
+        (ExpectFirstColumnName)
+        (ExpectColumnValue)
+    );
 
-    TDsvTable Table;
+    EState State;
 
-    bool InsideFirstLine;
-    bool InsideFirstItem;
-    bool InsideAttributes;
+};
 
+////////////////////////////////////////////////////////////////////////////////
+
+// YsonNode is written as follows:
+//  * Each element of list is ended with RecordSeparator
+//  * Items in map are separated with FieldSeparator
+//  * Key and Values in map are separated with KeyValueSeparator
+class TDsvNodeWriter
+    : public TDsvWriterBase
+{
+public:
+    explicit TDsvNodeWriter(
+        TOutputStream* stream,
+        TDsvFormatConfigPtr config = New<TDsvFormatConfig>());
+    ~TDsvNodeWriter();
+
+    // IYsonConsumer overrides.
+    virtual void OnStringScalar(const TStringBuf& value) override;
+    virtual void OnIntegerScalar(i64 value) override;
+    virtual void OnDoubleScalar(double value) override;
+    virtual void OnEntity() override;
+    virtual void OnBeginList() override;
+    virtual void OnListItem() override;
+    virtual void OnEndList() override;
+    virtual void OnBeginMap() override;
+    virtual void OnKeyedItem(const TStringBuf& key) override;
+    virtual void OnEndMap() override;
+    virtual void OnBeginAttributes() override;
+    virtual void OnEndAttributes() override;
+
+private:
     bool AllowBeginList;
     bool AllowBeginMap;
-    bool AllowAttributes;
 
-    void EscapeAndWrite(const TStringBuf& string, bool inKey);
+    bool BeforeFirstMapItem;
+    bool BeforeFirstListItem;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

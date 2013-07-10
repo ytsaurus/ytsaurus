@@ -116,9 +116,9 @@ public:
         return total;
     }
 
-    virtual const NYTree::TYsonString& GetRowAttributes() const override
+    virtual const TNullable<int>& GetTableIndex() const override
     {
-        return ReaderHeap.front()->GetFacade()->GetRowAttributes();
+        return ReaderHeap.front()->GetFacade()->GetTableIndex();
     }
 
     virtual i64 GetRowIndex() const override
