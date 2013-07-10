@@ -11,9 +11,13 @@ namespace NBus {
 
 static NLog::TLogger& Logger = BusLogger;
 
+static const size_t SmallChunkSize = 16 * 1024;
+static const size_t SmallPartSize  =  4 * 1024;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TPacketDecoder::TPacketDecoder()
+    : SmallChunkUsed(0)
 {
     Restart();
 }
@@ -107,6 +111,7 @@ bool TPacketDecoder::EndPartSizesPhase()
         sizeof (TPacketHeader) + // header
         sizeof (i32) + // PartCount
         PartCount * sizeof (i32); // PartSizes
+
     for (int index = 0; index < PartCount; ++index) {
         i32 partSize = PartSizes[index];
         if (partSize < 0 || partSize > MaxPacketPartSize) {
@@ -138,12 +143,11 @@ void TPacketDecoder::NextMessagePartPhase()
             break;
         }
 
-        i32 partSize = PartSizes[PartIndex];
-        if (partSize > 0) {
-            struct TReceivedMessagePartTag { };
-            auto part = TSharedRef::Allocate<TReceivedMessagePartTag>(partSize, false);
-            BeginPhase(EPacketPhase::MessagePart, part.Begin(), part.Size());
-            Parts.push_back(part);
+        size_t partSize = PartSizes[PartIndex];
+        if (partSize != 0) {
+            auto part = AllocatePart(partSize);
+            BeginPhase(EPacketPhase::MessagePart, part.Begin(), part.Size());            
+            Parts.push_back(std::move(part));
             return;
         }
 
@@ -152,6 +156,23 @@ void TPacketDecoder::NextMessagePartPhase()
 
     Message = CreateMessageFromParts(std::move(Parts));
     SetFinished();
+}
+
+TSharedRef TPacketDecoder::AllocatePart(size_t partSize)
+{
+    if (partSize <= SmallPartSize) {
+        if (SmallChunkUsed + partSize > SmallChunk.Size()) {
+            struct TSmallReceivedMessagePartTag { };
+            SmallChunk = TSharedRef::Allocate<TSmallReceivedMessagePartTag>(SmallChunkSize, false);
+            SmallChunkUsed = 0;            
+        }
+        auto part = SmallChunk.Slice(TRef(SmallChunk.Begin() + SmallChunkUsed, partSize));
+        SmallChunkUsed += partSize;
+        return std::move(part);
+    } else {
+        struct TLargeReceivedMessagePartTag { };
+        return TSharedRef::Allocate<TLargeReceivedMessagePartTag>(partSize, false);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

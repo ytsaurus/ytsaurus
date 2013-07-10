@@ -87,7 +87,11 @@ public:
 private:
     friend class TPacketTranscoderBase<TPacketDecoder>;
 
+    TSharedRef SmallChunk;
+    size_t SmallChunkUsed;
+
     std::vector<TSharedRef> Parts;
+
     size_t PacketSize;
 
     bool EndHeaderPhase();
@@ -95,6 +99,7 @@ private:
     bool EndPartSizesPhase();
     bool EndMessagePartPhase();
     void NextMessagePartPhase();
+    TSharedRef AllocatePart(size_t partSize);
 
 };
 
