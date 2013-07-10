@@ -694,7 +694,7 @@ TTableChunkReader::TTableChunkReader(
     NChunkClient::IAsyncReaderPtr chunkReader,
     const NChunkClient::NProto::TReadLimit& startLimit,
     const NChunkClient::NProto::TReadLimit& endLimit,
-    const NYTree::TYsonString& rowAttributes,
+    TNullable<int> tableIndex,
     int partitionTag,
     TChunkReaderOptionsPtr options)
     : Provider(provider)
@@ -703,7 +703,7 @@ TTableChunkReader::TTableChunkReader(
     , SequentialReader(nullptr)
     , Channel(channel)
     , Options(options)
-    , RowAttributes(rowAttributes)
+    , TableIndex(tableIndex)
     , CurrentRowIndex(-1)
     , StartRowIndex(0)
     , EndRowIndex(0)
@@ -903,11 +903,6 @@ auto TTableChunkReader::GetFacade() const -> const TFacade*
     return IsFinished ? nullptr : &Facade;
 }
 
-const TYsonString& TTableChunkReader::GetRowAttributes() const
-{
-    return RowAttributes;
-}
-
 i64 TTableChunkReader::GetRowCount() const
 {
     return EndRowIndex - StartRowIndex;
@@ -916,6 +911,11 @@ i64 TTableChunkReader::GetRowCount() const
 i64 TTableChunkReader::GetRowIndex() const
 {
     return CurrentRowIndex - StartRowIndex;
+}
+
+const TNullable<int>& TTableChunkReader::GetTableIndex() const
+{
+    return TableIndex;
 }
 
 TFuture<void> TTableChunkReader::GetFetchingCompleteEvent()
@@ -971,11 +971,9 @@ TTableChunkReaderPtr TTableChunkReaderProvider::CreateReader(
     const NChunkClient::NProto::TChunkSpec& chunkSpec,
     const NChunkClient::IAsyncReaderPtr& chunkReader)
 {
-    TYsonString rowAttributes;
+    TNullable<int> tableIndex = Null;
     if (chunkSpec.has_table_index()) {
-        rowAttributes = TYsonString(
-            Sprintf("table_index=%d", chunkSpec.table_index()),
-            NYson::EYsonType::MapFragment);
+        tableIndex = chunkSpec.table_index();
     }
 
     return New<TTableChunkReader>(
@@ -985,7 +983,7 @@ TTableChunkReaderPtr TTableChunkReaderProvider::CreateReader(
         chunkReader,
         chunkSpec.start_limit(),
         chunkSpec.end_limit(),
-        rowAttributes,
+        tableIndex,
         chunkSpec.partition_tag(),
         Options);
 }
@@ -1006,9 +1004,9 @@ const NChunkClient::TNonOwningKey& TTableChunkReaderFacade::GetKey() const
     return Reader->GetKey();
 }
 
-const NYTree::TYsonString& TTableChunkReaderFacade::GetRowAttributes() const
+const TNullable<int>& TTableChunkReaderFacade::GetTableIndex() const
 {
-    return Reader->GetRowAttributes();
+    return Reader->GetTableIndex();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

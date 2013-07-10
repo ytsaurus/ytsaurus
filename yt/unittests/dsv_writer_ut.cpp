@@ -16,7 +16,7 @@ using namespace NYson;
 TEST(TDsvWriterTest, SimpleTabular)
 {
     TStringStream outputStream;
-    TDsvWriter writer(&outputStream);
+    TDsvTabularWriter writer(&outputStream);
 
     writer.OnListItem();
     writer.OnBeginMap();
@@ -44,10 +44,7 @@ TEST(TDsvWriterTest, SimpleTabular)
 TEST(TDsvWriterTest, TabularWithAttributes)
 {
     TStringStream outputStream;
-    auto config = New<TDsvFormatConfig>();
-    config->WithAttributes = true;
-
-    TDsvWriter writer(&outputStream, EYsonType::ListFragment, config);
+    TDsvTabularWriter writer(&outputStream);
 
     writer.OnListItem();
     writer.OnBeginAttributes();
@@ -56,6 +53,9 @@ TEST(TDsvWriterTest, TabularWithAttributes)
         writer.OnKeyedItem("name");
         writer.OnStringScalar("table");
     writer.OnEndAttributes();
+    writer.OnEntity();
+
+    writer.OnListItem();
 
     writer.OnBeginMap();
         writer.OnKeyedItem("foo");
@@ -63,8 +63,6 @@ TEST(TDsvWriterTest, TabularWithAttributes)
     writer.OnEndMap();
 
     writer.OnListItem();
-    writer.OnBeginAttributes();
-    writer.OnEndAttributes();
 
     writer.OnBeginMap();
         writer.OnKeyedItem("value");
@@ -72,7 +70,7 @@ TEST(TDsvWriterTest, TabularWithAttributes)
     writer.OnEndMap();
 
     Stroka output =
-        "@index=10\t@name=table\tfoo=bar\n"
+        "foo=bar\n"
         "value=ninja\n";
 
     EXPECT_EQ(output, outputStream.Str());
@@ -81,7 +79,7 @@ TEST(TDsvWriterTest, TabularWithAttributes)
 TEST(TDsvWriterTest, StringScalar)
 {
     TStringStream outputStream;
-    TDsvWriter writer(&outputStream, EYsonType::Node);
+    TDsvNodeWriter writer(&outputStream);
 
     writer.OnStringScalar("0-2-xb-1234");
     EXPECT_EQ("0-2-xb-1234", outputStream.Str());
@@ -90,7 +88,7 @@ TEST(TDsvWriterTest, StringScalar)
 TEST(TDsvWriterTest, ListContainingDifferentTypes)
 {
     TStringStream outputStream;
-    TDsvWriter writer(&outputStream, EYsonType::Node);
+    TDsvNodeWriter writer(&outputStream);
 
     writer.OnBeginList();
     writer.OnListItem();
@@ -119,7 +117,7 @@ TEST(TDsvWriterTest, ListContainingDifferentTypes)
 TEST(TDsvWriterTest, ListInsideList)
 {
     TStringStream outputStream;
-    TDsvWriter writer(&outputStream, EYsonType::Node);
+    TDsvNodeWriter writer(&outputStream);
 
     writer.OnBeginList();
     writer.OnListItem();
@@ -129,7 +127,7 @@ TEST(TDsvWriterTest, ListInsideList)
 TEST(TDsvWriterTest, ListInsideMap)
 {
     TStringStream outputStream;
-    TDsvWriter writer(&outputStream, EYsonType::Node);
+    TDsvNodeWriter writer(&outputStream);
 
     writer.OnBeginMap();
     writer.OnKeyedItem("foo");
@@ -139,7 +137,7 @@ TEST(TDsvWriterTest, ListInsideMap)
 TEST(TDsvWriterTest, MapInsideMap)
 {
     TStringStream outputStream;
-    TDsvWriter writer(&outputStream, EYsonType::Node);
+    TDsvNodeWriter writer(&outputStream);
 
     writer.OnBeginMap();
     writer.OnKeyedItem("foo");
@@ -152,7 +150,7 @@ TEST(TDsvWriterTest, WithoutEsacping)
     config->EnableEscaping = false;
 
     TStringStream outputStream;
-    TDsvWriter writer(&outputStream, EYsonType::Node, config);
+    TDsvNodeWriter writer(&outputStream, config);
 
     writer.OnStringScalar("string_with_\t_\\_=_and_\n");
 
@@ -167,7 +165,7 @@ TEST(TDsvWriterTest, WithoutEsacping)
 TEST(TDsvWriterTest, TabularUsingOnRaw)
 {
     TStringStream outputStream;
-    TDsvWriter writer(&outputStream);
+    TDsvTabularWriter writer(&outputStream);
 
     writer.OnListItem();
     writer.OnBeginMap();
@@ -196,7 +194,7 @@ TEST(TDsvWriterTest, TabularUsingOnRaw)
 TEST(TDsvWriterTest, ListUsingOnRaw)
 {
     TStringStream outputStream;
-    TDsvWriter writer(&outputStream, EYsonType::Node);
+    TDsvNodeWriter writer(&outputStream);
 
     writer.OnRaw("[10; 20; 30]", EYsonType::Node);
     Stroka output =
@@ -210,7 +208,7 @@ TEST(TDsvWriterTest, ListUsingOnRaw)
 TEST(TDsvWriterTest, MapUsingOnRaw)
 {
     TStringStream outputStream;
-    TDsvWriter writer(&outputStream, EYsonType::Node);
+    TDsvNodeWriter writer(&outputStream);
 
     writer.OnRaw("{a=b; c=d}", EYsonType::Node);
     Stroka output = "a=b\tc=d";
@@ -222,7 +220,7 @@ TEST(TDsvWriterTest, MapUsingOnRaw)
 TEST(TDsvWriterTest, ListInTable)
 {
     TStringStream outputStream;
-    TDsvWriter writer(&outputStream);
+    TDsvTabularWriter writer(&outputStream);
 
     writer.OnListItem();
     writer.OnBeginMap();
@@ -234,7 +232,7 @@ TEST(TDsvWriterTest, ListInTable)
 TEST(TDsvWriterTest, MapInTable)
 {
     TStringStream outputStream;
-    TDsvWriter writer(&outputStream);
+    TDsvTabularWriter writer(&outputStream);
 
     writer.OnListItem();
     writer.OnBeginMap();
@@ -246,7 +244,7 @@ TEST(TDsvWriterTest, MapInTable)
 TEST(TDsvWriterTest, AttributesInTable)
 {
     TStringStream outputStream;
-    TDsvWriter writer(&outputStream);
+    TDsvTabularWriter writer(&outputStream);
 
     writer.OnListItem();
     writer.OnBeginMap();
@@ -258,7 +256,7 @@ TEST(TDsvWriterTest, AttributesInTable)
 TEST(TDsvWriterTest, EntityInTable)
 {
     TStringStream outputStream;
-    TDsvWriter writer(&outputStream);
+    TDsvTabularWriter writer(&outputStream);
 
     writer.OnListItem();
     writer.OnBeginMap();
@@ -275,7 +273,7 @@ TEST(TTskvWriterTest, SimpleTabular)
     config->LinePrefix = "tskv";
 
     TStringStream outputStream;
-    TDsvWriter writer(&outputStream, EYsonType::ListFragment, config);
+    TDsvTabularWriter writer(&outputStream, config);
 
     writer.OnListItem();
     writer.OnBeginMap();
@@ -312,7 +310,7 @@ TEST(TTskvWriterTest, Escaping)
     config->EscapeCarriageReturn = true;
 
     TStringStream outputStream;
-    TDsvWriter writer(&outputStream, EYsonType::ListFragment, config);
+    TDsvTabularWriter writer(&outputStream, config);
 
     writer.OnListItem();
     writer.OnBeginMap();
@@ -343,10 +341,8 @@ TEST(TTskvWriterTest, Escaping)
 
 TEST(TTskvWriterTest, WithoutEscapeCarriageReturn)
 {
-    auto config = New<TDsvFormatConfig>();
-
     TStringStream outputStream;
-    TDsvWriter writer(&outputStream, EYsonType::ListFragment, config);
+    TDsvTabularWriter writer(&outputStream);
 
     writer.OnListItem();
     writer.OnBeginMap();
@@ -365,7 +361,7 @@ TEST(TTskvWriterTest, EscapingOfCustomSeparator)
     config->KeyValueSeparator = ':';
 
     TStringStream outputStreamA;
-    TDsvWriter writerA(&outputStreamA, EYsonType::ListFragment, config);
+    TDsvTabularWriter writerA(&outputStreamA, config);
 
     writerA.OnListItem();
     writerA.OnBeginMap();
@@ -374,7 +370,7 @@ TEST(TTskvWriterTest, EscapingOfCustomSeparator)
     writerA.OnEndMap();
 
     TStringStream outputStreamB;
-    TDsvWriter writerB(&outputStreamB, EYsonType::ListFragment, config);
+    TDsvTabularWriter writerB(&outputStreamB, config);
     ParseDsv(outputStreamA.Str(), &writerB, config);
 
     EXPECT_EQ(outputStreamA.Str(), outputStreamB.Str());

@@ -19,24 +19,33 @@ TTableProducer::TTableProducer(
     IYsonConsumer* consumer)
     : Reader(reader)
     , Consumer(consumer)
+    , TableIndex(Null)
 { }
 
 bool TTableProducer::ProduceRow()
 {
+    static Stroka tableIndexKey = FormatEnum(EControlAttribute(EControlAttribute::TableIndex));
+
     auto row = Reader->GetRow();
     if (!row) {
         return false;
     }
 
-    Consumer->OnListItem();
+    const auto& tableIndex = Reader->GetTableIndex();
 
-    const auto& attributes = Reader->GetRowAttributes();
-    if (!attributes.Data().empty()) {
+    if (tableIndex != TableIndex) {
+        TableIndex = tableIndex;
+        YCHECK(tableIndex);
+
+        Consumer->OnListItem();
         Consumer->OnBeginAttributes();
-        Consumer->OnRaw(attributes.Data(), EYsonType::MapFragment);
+        Consumer->OnKeyedItem(tableIndexKey);
+        Consumer->OnIntegerScalar(*TableIndex);
         Consumer->OnEndAttributes();
+        Consumer->OnEntity();
     }
 
+    Consumer->OnListItem();
     Consumer->OnBeginMap();
     FOREACH (auto& pair, *row) {
         Consumer->OnKeyedItem(pair.first);

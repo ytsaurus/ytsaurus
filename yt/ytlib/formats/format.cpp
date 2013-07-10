@@ -178,7 +178,21 @@ std::unique_ptr<IYsonConsumer> CreateConsumerForDsv(
 {
     auto config = New<TDsvFormatConfig>();
     config->Load(ConvertToNode(&attributes)->AsMap());
-    return std::unique_ptr<IYsonConsumer>(new TDsvWriter(output, DataTypeToYsonType(dataType), config));
+    switch (dataType) {
+        case EDataType::Tabular:
+            return std::unique_ptr<IYsonConsumer>(new TDsvTabularWriter(output, config));
+
+        case EDataType::Structured:
+            return std::unique_ptr<IYsonConsumer>(new TDsvNodeWriter(output, config));            
+
+        case EDataType::Binary:
+        case EDataType::Null:
+            THROW_ERROR_EXCEPTION("DSV is not supported only for data type %s", ~FormatEnum(dataType).Quote());
+
+        default:
+            YUNREACHABLE();
+
+    };
 }
 
 std::unique_ptr<IYsonConsumer> CreateConsumerForYamr(

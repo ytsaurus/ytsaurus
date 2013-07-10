@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include <ytlib/yson/public.h>
+#include <ytlib/misc/nullable.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -17,6 +18,8 @@ public:
 private:
     ISyncReaderPtr Reader;
     NYson::IYsonConsumer* Consumer;
+
+    TNullable<int> TableIndex;
 
 };
 

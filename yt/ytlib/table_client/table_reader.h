@@ -48,7 +48,7 @@ public:
 
     virtual bool IsValid() const override;
     virtual const TRow& GetRow() const override;
-    virtual const NYTree::TYsonString& GetRowAttributes() const override;
+    virtual const TNullable<int>& GetTableIndex() const override;
 
     virtual i64 GetRowIndex() const override;
     virtual i64 GetRowCount() const override;
@@ -108,7 +108,7 @@ public:
 
     virtual const TRow* GetRow() override;
     virtual const NChunkClient::TNonOwningKey& GetKey() const override;
-    virtual const NYTree::TYsonString& GetRowAttributes() const override;
+    virtual const TNullable<int>& GetTableIndex() const override;
 
     virtual i64 GetRowIndex() const override;
     virtual i64 GetRowCount() const override;

@@ -32,7 +32,7 @@ class TTableChunkReaderFacade
 public:
     const TRow& GetRow() const;
     const NChunkClient::TNonOwningKey& GetKey() const;
-    const NYTree::TYsonString& GetRowAttributes() const;
+    const TNullable<int>& GetTableIndex() const;
 
 private:
     friend class TTableChunkReader;
@@ -59,7 +59,7 @@ public:
         NChunkClient::IAsyncReaderPtr chunkReader,
         const NChunkClient::NProto::TReadLimit& startLimit,
         const NChunkClient::NProto::TReadLimit& endLimit,
-        const NYTree::TYsonString& rowAttributes,
+        TNullable<int> tableIndex,
         int partitionTag,
         TChunkReaderOptionsPtr options);
 
@@ -77,7 +77,7 @@ public:
     // Called by facade.
     const TRow& GetRow() const;
     const NChunkClient::TNonOwningKey& GetKey() const;
-    const NYTree::TYsonString& GetRowAttributes() const;
+    const TNullable<int>& GetTableIndex() const;
 
 private:
     struct TColumnInfo
@@ -129,7 +129,7 @@ private:
 
     TRow CurrentRow;
     NChunkClient::TNonOwningKey CurrentKey;
-    NYTree::TYsonString RowAttributes;
+    TNullable<int> TableIndex;
 
     NYson::TStatelessLexer Lexer;
 

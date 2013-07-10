@@ -498,18 +498,34 @@ cat > /dev/null; echo {hello=world}
         create('table', '//tmp/t2')
         create('table', '//tmp/out')
 
-        write_str('//tmp/t1', '{foo=bar}')
-        write_str('//tmp/t2', '{ninja=value}')
+        write_str('//tmp/t1', '{key=a; value=value}')
+        write_str('//tmp/t2', '{key=b; value=value}')
+
+        mapper = \
+"""
+import sys
+table_index = sys.stdin.readline().strip()
+row = sys.stdin.readline().strip()
+print row + table_index
+
+table_index = sys.stdin.readline().strip()
+row = sys.stdin.readline().strip()
+print row + table_index
+"""
+
+        create('file', '//tmp/mapper.py')
+        upload('//tmp/mapper.py', mapper)
 
         map(in_=['//tmp/t1', '//tmp/t2'],
             out='//tmp/out',
-            command="cat",
+            command="python mapper.py",
+            file='//tmp/mapper.py',
             opt=[ \
-                '/spec/mapper/format=dsv', \
+                '/spec/mapper/format=<enable_table_index=true>yamr', \
                 '/spec/mapper/enable_table_index=true'])
 
-        expected = [{'@table_index': '0', 'foo': 'bar'},
-                    {'@table_index': '1', 'ninja': 'value'}]
+        expected = [{'key': 'a', 'value': 'value0'},
+                    {'key': 'b', 'value': 'value1'}]
         self.assertItemsEqual(read('//tmp/out'), expected)
 
     def test_insane_demand(self):
