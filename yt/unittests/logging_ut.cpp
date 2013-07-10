@@ -14,14 +14,15 @@ TEST(TLoggingTest, ReloadsOnSigHup)
 {
     NLog::TLogger Logger("Test");
 
+    LOG_INFO("Prepaing logging thread");
+    sleep(1); // In sleep() we trust.
+
     int version = NLog::TLogManager::Get()->GetConfigVersion();
     int revision = NLog::TLogManager::Get()->GetConfigRevision();
 
     kill(getpid(), SIGHUP);
 
-    LOG_INFO("Awaking logging thread.");
-    sleep(1); // In sleep() we trust.
-    LOG_INFO("Awaking logging thread.");
+    LOG_INFO("Awaking logging thread");
     sleep(1); // In sleep() we trust.
 
     int newVersion = NLog::TLogManager::Get()->GetConfigVersion();
