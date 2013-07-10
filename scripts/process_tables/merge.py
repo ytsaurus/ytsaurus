@@ -23,7 +23,8 @@ def merge(table):
                      spec={"combine_chunks":"true",
                            "data_size_per_job": data_size_per_job,
                            "job_io": {"table_reader": {"prefetch_window": 100}},
-                           "strategy": "fail"})
+                           "unavailable_chunk_strategy": "fail",
+                           "unavailable_chunk_tactics": "fail"})
     except yt.YtError as e:
         print "Failed to merge table %s with error %s" % (table, repr(e))
 

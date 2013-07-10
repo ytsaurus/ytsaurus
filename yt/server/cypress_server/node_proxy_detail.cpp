@@ -4,6 +4,8 @@
 #include "helpers.h"
 #include "private.h"
 
+#include <ytlib/object_client/public.h>
+
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
 #include <ytlib/ytree/ypath_detail.h>
@@ -26,6 +28,7 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NYPath;
 using namespace NRpc;
+using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NCellMaster;
 using namespace NTransactionServer;
@@ -1285,10 +1288,11 @@ void TLinkNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attribute
 bool TLinkNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer)
 {
     const auto* impl = GetThisTypedImpl();
-    
+    const auto& targetId = impl->GetTargetId();
+
     if (key == "target_id") {
         BuildYsonFluently(consumer)
-            .Value(impl->GetTargetId());
+            .Value(targetId);
         return true;
     }
 
@@ -1308,10 +1312,8 @@ bool TLinkNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consum
     }
 
     if (key == "broken") {
-        auto objectManager = Bootstrap->GetObjectManager();
-        bool exists = IsObjectAlive(objectManager->FindObject(impl->GetTargetId()));
         BuildYsonFluently(consumer)
-            .Value(!exists);
+            .Value(IsBroken(targetId));
         return true;
     }
 
@@ -1342,13 +1344,15 @@ bool TLinkNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& va
 
 IObjectProxyPtr TLinkNodeProxy::FindTargetProxy() const
 {
-    auto objectManager = Bootstrap->GetObjectManager();
     const auto* impl = GetThisTypedImpl();
     const auto& targetId = impl->GetTargetId();
-    auto* target = objectManager->FindObject(targetId);
-    if (!IsObjectAlive(target)) {
+
+    if (IsBroken(targetId)) {
         return nullptr;
     }
+
+    auto objectManager = Bootstrap->GetObjectManager();
+    auto* target = objectManager->GetObject(targetId);
     return objectManager->GetProxy(target, Transaction);
 }
 
@@ -1357,9 +1361,23 @@ IObjectProxyPtr TLinkNodeProxy::GetTargetProxy() const
     auto result = FindTargetProxy();
     if (!result) {
         const auto* impl = GetThisTypedImpl();
-        THROW_ERROR_EXCEPTION("Link target %s does not exist", ~ToString(impl->GetTargetId()));
+        THROW_ERROR_EXCEPTION("Link target %s does not exist",
+            ~ToString(impl->GetTargetId()));
     }
     return result;
+}
+
+bool TLinkNodeProxy::IsBroken(const NObjectServer::TObjectId& id) const
+{
+    if (IsVersioned(TypeFromId(id))) {
+        auto cypressManager = Bootstrap->GetCypressManager();
+        auto* node = cypressManager->FindNode(TVersionedNodeId(id));
+        return cypressManager->IsOrphaned(node);
+    } else {
+        auto objectManager = Bootstrap->GetObjectManager();
+        auto* obj = objectManager->FindObject(id);
+        return !IsObjectAlive(obj);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -3,8 +3,8 @@
 #include "sync_reader.h"
 
 #include <ytlib/yson/consumer.h>
+
 #include <ytlib/ytree/yson_string.h>
-#include <ytlib/misc/foreach.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -24,6 +24,8 @@ TTableProducer::TTableProducer(
 
 bool TTableProducer::ProduceRow()
 {
+    static Stroka tableIndexKey = FormatEnum(EControlAttribute(EControlAttribute::TableIndex));
+
     auto row = Reader->GetRow();
     if (!row) {
         return false;
@@ -34,10 +36,22 @@ bool TTableProducer::ProduceRow()
     if (tableIndex != TableIndex) {
         TableIndex = tableIndex;
         YCHECK(tableIndex);
-        NTableClient::ProduceTableSwitch(Consumer, *TableIndex);
+
+        Consumer->OnListItem();
+        Consumer->OnBeginAttributes();
+        Consumer->OnKeyedItem(tableIndexKey);
+        Consumer->OnIntegerScalar(*TableIndex);
+        Consumer->OnEndAttributes();
+        Consumer->OnEntity();
     }
 
-    NTableClient::ProduceRow(Consumer, *row);
+    Consumer->OnListItem();
+    Consumer->OnBeginMap();
+    FOREACH (auto& pair, *row) {
+        Consumer->OnKeyedItem(pair.first);
+        Consumer->OnRaw(pair.second, EYsonType::Node);
+    }
+    Consumer->OnEndMap();
 
     return true;
 }
@@ -67,8 +81,6 @@ void ProduceTableSwitch(IYsonConsumer* consumer, int tableIndex)
     consumer->OnEndAttributes();
     consumer->OnEntity();
 }
-
-////////////////////////////////////////////////////////////////////////////////
 
 void ProduceYson(ISyncReaderPtr reader, NYson::IYsonConsumer* consumer)
 {

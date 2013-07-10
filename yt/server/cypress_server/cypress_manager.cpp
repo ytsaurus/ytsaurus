@@ -778,6 +778,25 @@ TCypressManager::TSubtreeNodes TCypressManager::ListSubtreeNodes(
     return result;
 }
 
+bool TCypressManager::IsOrphaned(TCypressNodeBase* trunkNode)
+{
+    if (!IsObjectAlive(trunkNode)) {
+        return true;
+    }
+
+    YCHECK(trunkNode->IsTrunk());
+
+    while (true) {
+        if (trunkNode == RootNode) {
+            return false;
+        }
+        if (!trunkNode) {
+            return true;
+        }
+        trunkNode = trunkNode->GetParent();
+    }
+}
+
 TCypressNodeBase* TCypressManager::BranchNode(
     TCypressNodeBase* originatingNode,
     TTransaction* transaction,
