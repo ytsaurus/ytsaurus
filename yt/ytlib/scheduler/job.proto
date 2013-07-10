@@ -138,6 +138,8 @@ message TUserJobSpec
     required int64 max_stderr_size = 11;
 
     optional bool enable_core_dump = 12 [default = false];
+
+    optional bool enable_vm_limit = 13 [default = true];
 }
 
 // User code result.
