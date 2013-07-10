@@ -123,13 +123,13 @@ public:
         : TFiberStackBase(nullptr, RoundUpToPage(StackSize))
     {
 #ifdef _linux_
-        Base = ::mmap(
+        Base = reinterpret_cast<char*>(::mmap(
             0,
             Size + GetExtraSize(),
             PROT_READ | PROT_WRITE,
             MAP_PRIVATE | MAP_ANONYMOUS,
             -1,
-            0);
+            0));
 
         if (Base == MAP_FAILED) {
             THROW_ERROR_EXCEPTION("Failed to allocate fiber stack")

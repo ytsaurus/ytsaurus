@@ -2,8 +2,7 @@
 #error Unsupported platform
 #endif
 
-.file "fiber-supp.s"
-#ifdef __APPLE__
+#if defined(__APPLE__)
 .section __TEXT,__text,regular,pure_instructions
 #define FIBER_CONTEXT_TRAMPOLINE __ZN3NYT13TFiberContext10TrampolineEv
 #define FIBER_CONTEXT_TRANSFER_TO __ZN3NYT13TFiberContext10TransferToEPS0_S1_
