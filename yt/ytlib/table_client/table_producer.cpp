@@ -19,6 +19,7 @@ TTableProducer::TTableProducer(
     IYsonConsumer* consumer)
     : Reader(reader)
     , Consumer(consumer)
+    , TableIndex(Null)
 { }
 
 bool TTableProducer::ProduceRow()
@@ -28,22 +29,24 @@ bool TTableProducer::ProduceRow()
         return false;
     }
 
-    NTableClient::ProduceRow(Consumer, *row, Reader->GetRowAttributes());
+    const auto& tableIndex = Reader->GetTableIndex();
+
+    if (tableIndex != TableIndex) {
+        TableIndex = tableIndex;
+        YCHECK(tableIndex);
+        NTableClient::ProduceTableSwitch(Consumer, *TableIndex);
+    }
+
+    NTableClient::ProduceRow(Consumer, *row);
 
     return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ProduceRow(IYsonConsumer* consumer, const TRow& row, const TYsonString& attributes)
+void ProduceRow(IYsonConsumer* consumer, const TRow& row)
 {
     consumer->OnListItem();
-
-    if (!attributes.Data().empty()) {
-        consumer->OnBeginAttributes();
-        consumer->OnRaw(attributes.Data(), EYsonType::MapFragment);
-        consumer->OnEndAttributes();
-    }
 
     consumer->OnBeginMap();
     FOREACH (const auto& pair, row) {
@@ -51,6 +54,18 @@ void ProduceRow(IYsonConsumer* consumer, const TRow& row, const TYsonString& att
         consumer->OnRaw(pair.second, EYsonType::Node);
     }
     consumer->OnEndMap();
+}
+
+void ProduceTableSwitch(IYsonConsumer* consumer, int tableIndex)
+{
+    static Stroka tableIndexKey = FormatEnum(EControlAttribute(EControlAttribute::TableIndex));
+
+    consumer->OnListItem();
+    consumer->OnBeginAttributes();
+    consumer->OnKeyedItem(tableIndexKey);
+    consumer->OnIntegerScalar(tableIndex);
+    consumer->OnEndAttributes();
+    consumer->OnEntity();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
