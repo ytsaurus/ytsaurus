@@ -272,7 +272,7 @@ def write_table(table, input_stream, format=None, table_writer=None, replication
     elif isinstance(input_stream, str):
         input_stream = split_rows(StringIO(input_stream))
     
-    if can_split_input:
+    if config.USE_RETRIES_DURING_WRITE and can_split_input:
         input_stream = chunk_iter_lines(input_stream, config.CHUNK_SIZE)
 
     if config.USE_RETRIES_DURING_WRITE and not can_split_input:
