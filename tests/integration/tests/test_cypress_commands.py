@@ -581,7 +581,7 @@ class TestCypressCommands(YTEnvSetup):
         assert get("//tmp/t2") == 1
         assert get("//tmp/t2/@type") == "integer_node"
         assert get("//tmp/t1/@id") == get("//tmp/t2/@id")
-        assert get("//tmp/t2&/@type") == "link_node"
+        assert get("//tmp/t2&/@type") == "link"
         assert get("//tmp/t2&/@broken") == "false"
 
         set("//tmp/t1", 2)
