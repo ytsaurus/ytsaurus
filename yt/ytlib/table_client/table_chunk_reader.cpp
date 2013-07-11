@@ -192,14 +192,20 @@ private:
 
         LOG_DEBUG("Chunk meta received");
 
-        if (result.Value().type() != EChunkType::Table) {
-            LOG_FATAL("Invalid chunk type %d", result.Value().type());
+        const auto& chunkMeta = result.Value();
+
+        if (chunkMeta.type() != EChunkType::Table) {
+            auto error = TError("Invalid chunk type (Expected: %s, Actual: %s)",
+                ~FormatEnum(EChunkType(EChunkType::Table)),
+                ~FormatEnum(EChunkType(chunkMeta.type())));
+            OnFail(error, chunkReader);
+            return;
         }
 
-        if (result.Value().version() != FormatVersion) {
-            auto error = TError("Invalid chunk format version (Expected: %d, Actual: %d)",
+        if (chunkMeta.version() != FormatVersion) {
+            auto error = TError("Invalid table chunk format version (Expected: %d, Actual: %d)",
                 FormatVersion,
-                result.Value().version());
+                chunkMeta.version());
             OnFail(error, chunkReader);
             return;
         }
@@ -210,7 +216,7 @@ private:
         }
 
         auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(
-            result.Value().extensions());
+            chunkMeta.extensions());
 
         chunkReader->EndRowIndex = miscExt.row_count();
 
@@ -231,7 +237,7 @@ private:
             }
 
             chunkReader->KeyColumnsExt = GetProtoExtension<NProto::TKeyColumnsExt>(
-                result.Value().extensions());
+                chunkMeta.extensions());
 
             YCHECK(chunkReader->KeyColumnsExt.values_size() > 0);
             for (int i = 0; i < chunkReader->KeyColumnsExt.values_size(); ++i) {
@@ -248,7 +254,7 @@ private:
 
         if (HasRangeRequest) {
             auto indexExt = GetProtoExtension<NProto::TIndexExt>(
-                result.Value().extensions());
+                chunkMeta.extensions());
 
             if (StartLimit.has_key() && StartLimit.key().parts_size() > 0) {
                 StartValidator.reset(new TKeyValidator(StartLimit.key(), true));
@@ -297,7 +303,7 @@ private:
             return;
         }
 
-        ChannelsExt = GetProtoExtension<NProto::TChannelsExt>(result.Value().extensions());
+        ChannelsExt = GetProtoExtension<NProto::TChannelsExt>(chunkMeta.extensions());
 
         SelectChannels(chunkReader);
         YCHECK(SelectedChannels.size() > 0);
