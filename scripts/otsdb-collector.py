@@ -191,43 +191,74 @@ class MultiRequest(object):
         self.multi = None
 
 
+class YtTaggedMetric(object):
+    def __init__(self):
+        self.points = []
+
+    def push(self, time, value):
+        self.points.append((time, value))
+
+    def slice(self, offset):
+        sliced = filter(lambda p: p[0] < offset, self.points)
+        sliced = map(lambda p: p[1])
+        self.points = filter(lambda p: p[0] >= offset, self.points)
+        return sliced
+
+
 class YtMetric(object):
     def __init__(self, path, window):
-        now = time.time()
-
         self.path = path
         self.name = METRIC_REGEXP.sub("_", self.path).replace("/", ".").lstrip(".")
-        self.tail = []
+
+        self.accumulators = dict()
+
+        # Accumulation window width.
         self.window = int(window)
-        self.bucket = int(now) / self.window
+        # Sequential number of the current accumulation window.
+        self.bucket = int(time.time()) / self.window
+        # Absolute time (in us) of the current accumulation window.
         self.offset = self.get_offset(-1)
 
     def __str__(self):
         return self.name
 
-    def get_timestamp(self, i=0):
-        return int(self.window * (self.bucket + i))
-
     def get_offset(self, i=0):
         return int(self.window * (self.bucket + i) * 1E6)
 
+    def get_timestamp(self, i=0):
+        return int(self.window * (self.bucket + i))
+
     def update(self, data):
         for point in data:
-            if self.offset > point["time"]:
+            time = int(point.get("time", 0))
+            value = int(point.get("value", 0))
+            tags = dict(point.get("tags", {}))
+
+            if self.offset > time:
                 LOG.debug("Out-of-order data point encountered; ignoring...")
                 continue
             else:
-                self.offset = point["time"]
+                self.offset = time
 
-            while self.offset > self.get_offset(1):
-                if len(self.tail) > 0:
+            tags = sorted(tags.iteritems())
+            tags = " ".join(map(lambda t: "=".join(map(str, t)), tags))
+
+            if tags not in self.accumulators:
+                self.accumulators[tags] = YtTaggedMetric()
+
+            self.accumulators[tags].push(time, value)
+
+        # self.offset already points to the last received point.
+        # We are advancing the current window contains self.offset.
+        while self.offset > self.get_offset():
+            for tags, accumulator in self.accumulators.iteritems():
+                values = accumulator.slice(self.get_offset())
+                if len(values) > 0:
                     timestamp = self.get_timestamp()
-                    point_avg = aggregate_avg(self.tail)
-                    point_max = aggregate_max(self.tail)
-                    yield timestamp, point_avg, point_max
-                    self.tail = []
-                self.bucket += 1
-            self.tail.append(point["value"])
+                    point_avg = aggregate_avg(values)
+                    point_max = aggregate_max(values)
+                    yield tags, timestamp, point_avg, point_max
+            self.bucket += 1
 
     def build_query(self):
         return "?from_time=%s" % self.offset
@@ -267,8 +298,10 @@ class YtCollector(object):
 
         self.gather_values()
 
-    def publish(self, *args):
-        publish(*args, service_name=self.service, service_port=self.port)
+    def publish(self, *args, **kwargs):
+        kwargs["service_name"] = self.service
+        kwargs["service_port"] = self.port
+        publish(*args, **kwargs)
 
     @publish_timing
     def gather_metrics(self):
@@ -307,10 +340,11 @@ class YtCollector(object):
 
         points = 0
         for metric, data in multi.perform():
-            for timestamp, point_avg, point_max in metric.update(data):
+            for tags, timestamp, point_avg, point_max in metric.update(data):
+                tags = dict(map(lambda t: t.split("=", 1), tags.split()))
                 points += 1
-                self.publish(metric.name + ".avg", point_avg, timestamp)
-                self.publish(metric.name + ".max", point_max, timestamp)
+                self.publish(metric.name + ".avg", point_avg, timestamp, **tags)
+                self.publish(metric.name + ".max", point_max, timestamp, **tags)
 
         self.publish("collector.values_count", points)
 
