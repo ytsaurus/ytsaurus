@@ -165,7 +165,7 @@ void TGarbageCollector::OnSweep()
 
     // Shrink zombies hashtable, if needed.
     if (Zombies.bucket_count() > 4 * Zombies.size()) {
-        LOG_INFO("Shrinking zombie se (BucketCount: %" PRId64 ", ZombieCount: %" PRId64 ")",
+        LOG_INFO("Shrinking zombie set (BucketCount: %" PRId64 ", ZombieCount: %" PRId64 ")",
             Zombies.bucket_count(),
             Zombies.size());
         yhash_set<TObjectBase*> newZombies(Zombies);
