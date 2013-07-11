@@ -229,7 +229,6 @@ TFuture<void> TPartitionChunkReader::GetFetchingCompleteEvent()
 
 NChunkClient::NProto::TDataStatistics TPartitionChunkReader::GetDataStatistics() const
 {
-
     NChunkClient::NProto::TDataStatistics result;
     result.set_chunk_count(1);
 
@@ -297,9 +296,9 @@ void TPartitionChunkReaderProvider::OnReaderFinished(TPartitionChunkReaderPtr re
 
 NChunkClient::NProto::TDataStatistics TPartitionChunkReaderProvider::GetDataStatistics() const
 {
-    auto dataStatistics = DataStatistics;
-
     TGuard<TSpinLock> guard(SpinLock);
+
+    auto dataStatistics = DataStatistics;
     FOREACH(const auto& reader, ActiveReaders) {
         dataStatistics += reader->GetDataStatistics();
     }

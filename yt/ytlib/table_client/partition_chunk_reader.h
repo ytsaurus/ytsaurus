@@ -131,9 +131,8 @@ private:
 
     NChunkClient::TSequentialReaderConfigPtr Config;
 
-    NChunkClient::NProto::TDataStatistics DataStatistics;
-
     TSpinLock SpinLock;
+    NChunkClient::NProto::TDataStatistics DataStatistics;
     yhash_set<TPartitionChunkReaderPtr> ActiveReaders;
 
 };
