@@ -32,6 +32,7 @@ Logging = {
 
 
 MasterAddresses = opts.limit_iter('--masters', ['meta01-00%de.yt.yandex.net:9000' % i for i in xrange(1, 4)])
+SchedulerAddresses = opts.limit_iter('--schedulers', ['meta01-00%de.yt.yandex.net' % i for i in xrange(1, 3)])
 
 class Base(AggrBase):
     path = opts.get_string('--name', 'control')
@@ -98,7 +99,7 @@ class Master(Server):
         
 class Scheduler(Server):
     base_dir = '/yt/disk2/data'
-    address = MasterAddresses[0]
+    host = Subclass(SchedulerAddresses)
     params = Template('--scheduler --config %(config_path)s')
 
     log_disk = 'disk1'
