@@ -163,6 +163,15 @@ void TGarbageCollector::OnSweep()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
+    // Shrink zombies hashtable, if needed.
+    if (Zombies.bucket_count() > 4 * Zombies.size()) {
+        LOG_INFO("Shrinking zombie se (BucketCount: %" PRId64 ", ZombieCount: %" PRId64 ")",
+            Zombies.bucket_count(),
+            Zombies.size());
+        yhash_set<TObjectBase*> newZombies(Zombies);
+        Zombies.swap(newZombies);
+    }
+
     auto metaStateFacade = Bootstrap->GetMetaStateFacade();
     auto metaStateManager = metaStateFacade->GetManager();
     if (Zombies.empty() || !metaStateManager->HasActiveQuorum()) {
