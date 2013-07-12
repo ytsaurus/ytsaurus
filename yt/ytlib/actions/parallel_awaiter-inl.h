@@ -45,6 +45,8 @@ inline void TParallelAwaiter::Init(
     CancelableContext = New<TCancelableContext>();
     CancelableInvoker = CancelableContext->CreateInvoker(invoker);
 
+    Profiler = profiler;
+
     if (Profiler && timingPath) {
         Timer = Profiler->TimingStart(
             *timingPath,
