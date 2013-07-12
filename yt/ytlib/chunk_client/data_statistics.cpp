@@ -61,7 +61,6 @@ const TDataStatistics& ZeroDataStatistics()
     return dataStatistics;
 }
 
-
 void Serialize(const TDataStatistics& statistics, NYson::IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)

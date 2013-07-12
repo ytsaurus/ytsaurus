@@ -59,7 +59,6 @@ const NProto::TJobStatistics& ZeroJobStatistics()
     return statistics;
 }
 
-
 void Serialize(const NProto::TJobStatistics& statistics, NYson::IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
