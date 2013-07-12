@@ -86,7 +86,7 @@ void TBootstrap::Run()
 
     MasterChannel = CreateLeaderChannel(Config->Masters);
 
-    ControlQueue = New<TFairShareActionQueue>(EControlQueue::GetDomainNames(), "Control");
+    ControlQueue = New<TFairShareActionQueue>("Control", EControlQueue::GetDomainNames());
 
     BusServer = CreateTcpBusServer(New<TTcpBusServerConfig>(Config->RpcPort));
 

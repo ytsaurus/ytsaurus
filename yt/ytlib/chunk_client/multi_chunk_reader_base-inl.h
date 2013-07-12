@@ -5,13 +5,14 @@
 
 #include "private.h"
 #include "config.h"
-
 #include "block_cache.h"
 #include "async_reader.h"
 #include "dispatcher.h"
 #include "chunk_meta_extensions.h"
 #include "replication_reader.h"
 #include "erasure_reader.h"
+
+#include <ytlib/actions/invoker_util.h>
 
 #include <ytlib/erasure/codec.h>
 
@@ -43,7 +44,7 @@ TMultiChunkReaderBase<TChunkReader>::TMultiChunkReaderBase(
     , ChunkSpecs(chunkSpecs)
     , ReaderProvider(readerProvider)
     , LastPreparedReader(-1)
-    , FetchingCompleteAwaiter(New<TParallelAwaiter>())
+    , FetchingCompleteAwaiter(New<TParallelAwaiter>(GetSyncInvoker()))
     , Logger(ChunkReaderLogger)
 {
     std::vector<i64> chunkDataSizes;

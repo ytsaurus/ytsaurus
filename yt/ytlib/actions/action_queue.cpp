@@ -3,24 +3,30 @@
 #include "bind.h"
 #include "action_queue_detail.h"
 
-#include <ytlib/misc/foreach.h>
-
 #include <ytlib/ypath/token.h>
+
+#include <ytlib/profiling/profiling_manager.h>
 
 namespace NYT {
 
 using namespace NProfiling;
 using namespace NYPath;
+using namespace NYTree;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TActionQueue::TActionQueue(const Stroka& threadName, bool enableLogging)
-    : Impl(New<TExecutorThreadWithQueue>(
+TActionQueue::TActionQueue(const Stroka& threadName)
+{
+    auto* profilingManager = TProfilingManager::Get();
+    TTagIdList tagIds;
+    tagIds.push_back(profilingManager->RegisterTag("thread", TRawString(threadName)));
+    Impl = New<TExecutorThreadWithQueue>(
         nullptr,
         threadName,
-        threadName,
-        enableLogging))
-{ }
+        tagIds,
+        true,
+        true);
+}
 
 TActionQueue::~TActionQueue()
 { }
@@ -48,16 +54,18 @@ class TFairShareActionQueue::TImpl
     : public TExecutorThread
 {
 public:
-    TImpl(const std::vector<Stroka>& profilingNames, const Stroka& threadName)
-        : TExecutorThread(threadName, true)
-        , Buckets(profilingNames.size())
+    TImpl(const Stroka& threadName, const std::vector<Stroka>& bucketNames)
+        : TExecutorThread(threadName, GetThreadTagIds(threadName), true, true)
+        , Buckets(bucketNames.size())
         , CurrentBucket(nullptr)
     {
-        for (int index = 0; index < static_cast<int>(profilingNames.size()); ++index) {
+
+        for (int index = 0; index < static_cast<int>(bucketNames.size()); ++index) {
             Buckets[index].Queue = New<TInvokerQueue>(
                 this,
                 nullptr,
-                "/" + ToYPathLiteral(threadName + ":" + profilingNames[index]),
+                GetBucketTagIds(threadName, bucketNames[index]),
+                true,
                 true);
         }
 
@@ -78,10 +86,10 @@ public:
         TExecutorThread::Shutdown();
     }
 
-    IInvokerPtr GetInvoker(int queueIndex)
+    IInvokerPtr GetInvoker(int index)
     {
-        YASSERT(0 <= queueIndex && queueIndex < static_cast<int>(Buckets.size()));
-        return Buckets[queueIndex].Queue;
+        YASSERT(0 <= index && index < static_cast<int>(Buckets.size()));
+        return Buckets[index].Queue;
     }
 
 private:
@@ -98,6 +106,25 @@ private:
     std::vector<TBucket> Buckets;
     TBucket* CurrentBucket;
     TCpuInstant StartInstant;
+
+
+    static TTagIdList GetThreadTagIds(const Stroka& threadName)
+    {
+        TTagIdList tagIds;
+        auto* profilingManager = TProfilingManager::Get();
+        tagIds.push_back(profilingManager->RegisterTag("thread", TRawString(threadName)));
+        return tagIds;
+    }
+
+    static TTagIdList GetBucketTagIds(const Stroka& threadName, const Stroka& bucketName)
+    {
+        TTagIdList tagIds;
+        auto* profilingManager = TProfilingManager::Get();
+        tagIds.push_back(profilingManager->RegisterTag("thread", TRawString(threadName)));
+        tagIds.push_back(profilingManager->RegisterTag("bucket", TRawString(bucketName)));
+        return tagIds;
+    }
+
 
     TBucket* GetStarvingBucket()
     {
@@ -143,20 +170,21 @@ private:
         CurrentBucket->ExcessTime += (endInstant - StartInstant);
         CurrentBucket = nullptr;
     }
+
 };
 
 TFairShareActionQueue::TFairShareActionQueue(
-    const std::vector<Stroka>& profilingNames,
-    const Stroka& threadName)
-    : Impl(New<TImpl>(profilingNames, threadName))
+    const Stroka& threadName,
+    const std::vector<Stroka>& bucketNames)
+    : Impl(New<TImpl>(threadName, bucketNames))
 { }
 
 TFairShareActionQueue::~TFairShareActionQueue()
 { }
 
-IInvokerPtr TFairShareActionQueue::GetInvoker(int queueIndex)
+IInvokerPtr TFairShareActionQueue::GetInvoker(int index)
 {
-    return Impl->GetInvoker(queueIndex);
+    return Impl->GetInvoker(index);
 }
 
 void TFairShareActionQueue::Shutdown()
@@ -172,11 +200,15 @@ class TThreadPool::TImpl
 public:
     TImpl(int threadCount, const Stroka& threadNamePrefix)
     {
+        TTagIdList tagIds;
+        auto* profilingManager = TProfilingManager::Get();
+        tagIds.push_back(profilingManager->RegisterTag("thread", TRawString(threadNamePrefix)));
         for (int i = 0; i < threadCount; ++i) {
             Threads.push_back(New<TExecutorThreadWithQueue>(
                 this,
-                Sprintf("%s:%d", ~threadNamePrefix, i),
                 threadNamePrefix,
+                tagIds,
+                true,
                 true));
         }
     }

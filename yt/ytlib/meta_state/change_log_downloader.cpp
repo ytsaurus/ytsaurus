@@ -6,7 +6,9 @@
 #include "private.h"
 
 #include <ytlib/ytree/ypath_client.h>
+
 #include <ytlib/election/cell_manager.h>
+
 #include <ytlib/profiling/profiler.h>
 
 namespace NYT {
@@ -75,9 +77,10 @@ TPeerId TChangeLogDownloader::GetChangeLogSource(const TMetaVersion& version)
 
         auto request = proxy.GetChangeLogInfo();
         request->set_change_log_id(version.SegmentId);
+
         awaiter->Await(
             request->Invoke(),
-            CellManager->GetPeerAddress(id),
+            CellManager->GetPeerTags(id),
             BIND(
                 &TChangeLogDownloader::OnResponse,
                 awaiter,
@@ -86,7 +89,9 @@ TPeerId TChangeLogDownloader::GetChangeLogSource(const TMetaVersion& version)
                 version));
     }
 
-    awaiter->Complete(BIND(&TChangeLogDownloader::OnComplete, promise));
+    awaiter->Complete(
+        BIND(&TChangeLogDownloader::OnComplete, promise),
+        CellManager->GetAllPeersTags());
 
     return promise.Get();
 }

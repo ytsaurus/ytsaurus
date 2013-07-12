@@ -5,10 +5,12 @@
 
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/thread_affinity.h>
-#include <ytlib/logging/log.h>
-#include <ytlib/profiling/profiler.h>
+
 #include <ytlib/ytree/ypath_client.h>
+
 #include <ytlib/rpc/channel_cache.h>
+
+#include <ytlib/logging/log.h>
 
 #include <util/random/random.h>
 
@@ -20,7 +22,6 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = MetaStateLogger;
-static NProfiling::TProfiler Profiler("/meta_state/master_discovery");
 
 static NRpc::TChannelCache ChannelCache;
 
@@ -34,7 +35,7 @@ public:
         : Config(config)
         , PromiseLatch(0)
         , Promise(NewPromise<TProxy::TRspGetQuorumPtr>())
-        , Awaiter(New<TParallelAwaiter>(&Profiler, "/time"))
+        , Awaiter(New<TParallelAwaiter>(GetSyncInvoker()))
     { }
 
     TFuture<TMasterDiscovery::TProxy::TRspGetQuorumPtr> Run()
@@ -51,9 +52,9 @@ public:
             proxy.SetDefaultTimeout(Config->RpcTimeout);
 
             auto request = proxy.GetQuorum();
+
             awaiter->Await(
                 request->Invoke(),
-                address,
                 BIND(&TQuorumRequester::OnResponse, MakeStrong(this), address));
         }
 

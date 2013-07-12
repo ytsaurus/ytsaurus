@@ -290,7 +290,7 @@ public:
 
         template <class TFunc, class TCollection>
         TUnwrappedParent DoMapFor(const TCollection& collection, const TFunc& func)
-        {
+            {
             this->Consumer->OnBeginMap();
             FOREACH (const auto& item, collection) {
                 func(TMap<TFluentYsonVoid>(this->Consumer), item);

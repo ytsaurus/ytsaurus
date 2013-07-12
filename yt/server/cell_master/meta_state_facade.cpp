@@ -64,7 +64,7 @@ public:
         YCHECK(config);
         YCHECK(bootstrap);
 
-        StateQueue = New<TFairShareActionQueue>(EStateThreadQueue::GetDomainNames(), "MetaState");
+        StateQueue = New<TFairShareActionQueue>("MetaState", EStateThreadQueue::GetDomainNames());
 
         MetaState = New<TCompositeMetaState>();
 
@@ -83,8 +83,8 @@ public:
 
         MetaStateManager->SubscribeActiveQuorumEstablished(BIND(&TImpl::OnActiveQuorumEstablished, MakeWeak(this)));
 
-        for (int queueIndex = 0; queueIndex < EStateThreadQueue::GetDomainSize(); ++queueIndex) {
-            GuardedInvokers.push_back(MetaStateManager->CreateGuardedStateInvoker(StateQueue->GetInvoker(queueIndex)));
+        for (int index = 0; index < EStateThreadQueue::GetDomainSize(); ++index) {
+            GuardedInvokers.push_back(MetaStateManager->CreateGuardedStateInvoker(StateQueue->GetInvoker(index)));
         }
     }
 
@@ -167,8 +167,8 @@ private:
         YCHECK(EpochInvokers.empty());
 
         auto cancelableContext = MetaStateManager->GetEpochContext()->CancelableContext;
-        for (int queueIndex = 0; queueIndex < EStateThreadQueue::GetDomainSize(); ++queueIndex) {
-            EpochInvokers.push_back(cancelableContext->CreateInvoker(StateQueue->GetInvoker(queueIndex)));
+        for (int index = 0; index < EStateThreadQueue::GetDomainSize(); ++index) {
+            EpochInvokers.push_back(cancelableContext->CreateInvoker(StateQueue->GetInvoker(index)));
         }
     }
 

@@ -3,9 +3,12 @@
 #include "private.h"
 #include "config.h"
 #include "meta_state_manager_proxy.h"
-#include <ytlib/election/cell_manager.h>
 
 #include <ytlib/misc/thread_affinity.h>
+
+#include <ytlib/actions/invoker_util.h>
+
+#include <ytlib/election/cell_manager.h>
 
 namespace NYT {
 namespace NMetaState {
@@ -28,11 +31,12 @@ TSnapshotLookup::TSnapshotLookup(
     YASSERT(cellManager);
 }
 
-i32 TSnapshotLookup::LookupLatestSnapshot(i32 maxSnapshotId)
+int TSnapshotLookup::LookupLatestSnapshot(int maxSnapshotId)
 {
     CurrentSnapshotId = NonexistingSnapshotId;
     Promise = NewPromise<i32>();
-    auto awaiter = New<TParallelAwaiter>();
+
+    auto awaiter = New<TParallelAwaiter>(GetSyncInvoker());
 
     LOG_INFO("Looking up for the latest snapshot <= %d", maxSnapshotId);
     for (TPeerId peerId = 0; peerId < CellManager->GetPeerCount(); ++peerId) {
@@ -46,9 +50,9 @@ i32 TSnapshotLookup::LookupLatestSnapshot(i32 maxSnapshotId)
         awaiter->Await(
             request->Invoke(),
             BIND(
-            &TSnapshotLookup::OnLookupSnapshotResponse,
-            this,
-            peerId));
+                &TSnapshotLookup::OnLookupSnapshotResponse,
+                this,
+                peerId));
     }
     LOG_INFO("Snapshot lookup requests sent");
 
@@ -71,14 +75,19 @@ void TSnapshotLookup::OnLookupSnapshotResponse(
         return;
     }
 
-    i32 snapshotId = response->snapshot_id();
+    int snapshotId = response->snapshot_id();
     if (snapshotId == NonexistingSnapshotId) {
         LOG_INFO("Peer %d has no suitable snapshot", peerId);
-    } else {
-        LOG_INFO("Peer %d reported snapshot %d",
-            peerId,
-            snapshotId);
-        CurrentSnapshotId = std::max(CurrentSnapshotId, snapshotId);
+        return;
+    }
+
+    LOG_INFO("Peer %d reported snapshot %d",
+        peerId,
+        snapshotId);
+
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+        CurrentSnapshotId = std::max(CurrentSnapshotId, snapshotId);            
     }
 }
 

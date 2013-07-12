@@ -26,20 +26,23 @@ static NLog::TLogger Logger("ActionQueue");
 TInvokerQueue::TInvokerQueue(
     TExecutorThread* owner,
     IInvoker* currentInvoker,
-    const NYPath::TYPath& profilingPath,
-    bool enableLogging)
+    const NProfiling::TTagIdList& tagIds,
+    bool enableLogging,
+    bool enableProfiling)
     : Owner(owner)
     , CurrentInvoker(currentInvoker ? currentInvoker : this)
     , EnableLogging(enableLogging)
-    , Profiler("/action_queues" + profilingPath)
-    , EnqueueCounter("/enqueue_rate")
-    , DequeueCounter("/dequeue_rate")
+    , Profiler("/action_queue")
+    , EnqueueCounter("/enqueue_rate", tagIds)
+    , DequeueCounter("/dequeue_rate", tagIds)
     , QueueSize(0)
-    , QueueSizeCounter("/size")
-    , WaitTimeCounter("/time/wait")
-    , ExecTimeCounter("/time/exec")
-    , TotalTimeCounter("/time/total")
-{ }
+    , QueueSizeCounter("/size", tagIds)
+    , WaitTimeCounter("/time/wait", tagIds)
+    , ExecTimeCounter("/time/exec", tagIds)
+    , TotalTimeCounter("/time/total", tagIds)
+{
+    Profiler.SetEnabled(enableProfiling);
+}
 
 bool TInvokerQueue::Invoke(const TClosure& action)
 {
@@ -129,17 +132,21 @@ TLS_STATIC TExecutorThread* CurrentInvokerThread = nullptr;
 
 TExecutorThread::TExecutorThread(
     const Stroka& threadName,
-    bool enableLogging)
+    const NProfiling::TTagIdList& tagIds,
+    bool enableLogging,
+    bool enableProfiling)
     : ThreadName(threadName)
     , EnableLogging(enableLogging)
-    , Profiler("/action_queues/" + ToYPathLiteral(threadName))
+    , Profiler("/action_queue", tagIds)
     , Running(false)
     , FibersCreated(0)
     , FibersAlive(0)
     , ThreadId(NThread::InvalidThreadId)
     , WakeupEvent(Event::rManual)
     , Thread(ThreadMain, (void*) this)
-{ }
+{
+    Profiler.SetEnabled(enableProfiling);
+}
 
 TExecutorThread::~TExecutorThread()
 {
@@ -314,15 +321,17 @@ void TExecutorThread::OnThreadShutdown()
 TExecutorThreadWithQueue::TExecutorThreadWithQueue(
     IInvoker* currentInvoker,
     const Stroka& threadName,
-    const Stroka& profilingName,
-    bool enableLogging)
-    : TExecutorThread(threadName, enableLogging)
+    const NProfiling::TTagIdList& tagIds,
+    bool enableLogging,
+    bool enableProfiling)
+    : TExecutorThread(threadName, tagIds, enableLogging, enableProfiling)
 {
     Queue = New<TInvokerQueue>(
         this,
         currentInvoker,
-        "/" + ToYPathLiteral(profilingName),
-        enableLogging);
+        tagIds,
+        enableLogging,
+        true);
     Start();
 }
 

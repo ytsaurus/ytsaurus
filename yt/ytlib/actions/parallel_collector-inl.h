@@ -3,6 +3,8 @@
 #endif
 #undef PARALLEL_COLLECTOR_INL_H_
 
+#include <ytlib/actions/invoker_util.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -60,24 +62,19 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-TParallelCollector<T>::TParallelCollector(
-    NProfiling::TProfiler* profiler /* = nullptr */,
-    const NYPath::TYPath& timerPath /* = "" */)
-    : Awaiter(New<TParallelAwaiter>(profiler, timerPath))
+TParallelCollector<T>::TParallelCollector()
+    : Awaiter(New<TParallelAwaiter>(GetSyncInvoker()))
     , Promise(NewPromise<TResultsOrError>())
     , Completed(false)
     , CurrentIndex(0)
 { }
 
 template <class T>
-void TParallelCollector<T>::Collect(
-    TFuture<TResultOrError> future,
-    const Stroka& timerKey /* = "" */)
+void TParallelCollector<T>::Collect(TFuture<TResultOrError> future)
 {
     int index = AtomicIncrement(CurrentIndex) - 1;
     Awaiter->Await(
         future,
-        timerKey,
         BIND(&TThis::OnResult, MakeStrong(this), index));
 }
 

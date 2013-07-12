@@ -4,12 +4,16 @@
 
 #include <ytlib/misc/periodic_invoker.h>
 
+#include <ytlib/profiling/public.h>
+
 namespace NYT {
 namespace NProfiling {
 
-#if !defined(_win_) && !defined(_darwin_)
-
 ////////////////////////////////////////////////////////////////////////////////
+
+#if !defined(_win_) && !defined(_darwin_)
+    #define RESOURCE_TRACKER_ENABLED
+#endif
 
 class TResourceTracker
     : public TRefCounted
@@ -23,11 +27,15 @@ private:
     i64 TicksPerSecond;
     TInstant LastUpdateTime;
 
-    yhash_map<Stroka, i64> PreviousUserJiffies;
-    yhash_map<Stroka, i64> PreviousSystemJiffies;
+    struct TJiffies
+    {
+        i64 PreviousUser;
+        i64 PreviousSystem;
+    };
+
+    yhash_map<Stroka, TJiffies> ThreadNameToJiffies;
 
     TPeriodicInvokerPtr PeriodicInvoker;
-    static const TDuration UpdateInterval;
 
     void EnqueueUsage();
 
@@ -37,8 +45,6 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-
-#endif
 
 } // namespace NProfiling
 } // namespace NYT

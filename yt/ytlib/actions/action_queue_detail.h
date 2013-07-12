@@ -44,8 +44,9 @@ public:
     TInvokerQueue(
         TExecutorThread* owner,
         IInvoker* currentInvoker,
-        const NYPath::TYPath& profilingPath,
-        bool enableLogging);
+        const NProfiling::TTagIdList& tagIds,
+        bool enableLogging,
+        bool enableProfiling);
 
     bool Invoke(const TClosure& action);
     void Shutdown();
@@ -93,7 +94,9 @@ public:
 protected:
     TExecutorThread(
         const Stroka& threadName,
-        bool enableLogging);
+        const NProfiling::TTagIdList& tagIds,
+        bool enableLogging,
+        bool enableProfiling);
 
     void Start();
     void Shutdown();
@@ -144,8 +147,9 @@ public:
     TExecutorThreadWithQueue(
         IInvoker* currentInvoker,
         const Stroka& threadName,
-        const Stroka& profilingName,
-        bool enableLogging);
+        const NProfiling::TTagIdList& tagIds,
+        bool enableLogging,
+        bool enableProfiling);
 
     ~TExecutorThreadWithQueue();
 

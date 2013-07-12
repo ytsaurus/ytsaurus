@@ -199,10 +199,13 @@ private:
         IObjectTypeHandlerPtr Handler;
         std::unique_ptr<TSchemaObject> SchemaObject;
         IObjectProxyPtr SchemaProxy;
+        NProfiling::TTagId TagId;
     };
 
     std::vector<EObjectType> RegisteredTypes;
     TTypeEntry TypeToEntry[NObjectClient::MaxObjectType];
+
+    yhash_map<Stroka, NProfiling::TTagId> VerbToTag;
 
     TRootServicePtr RootService;
 
@@ -247,7 +250,11 @@ private:
 
     void DestroyObjects(const NProto::TMetaReqDestroyObjects& request);
 
+    NProfiling::TTagId GetTypeTagId(EObjectType type);
+    NProfiling::TTagId GetVerbTagId(const Stroka& verb);
+
     void OnProfiling();
+
 
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
 };

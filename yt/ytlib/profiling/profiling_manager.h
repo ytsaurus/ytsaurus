@@ -3,7 +3,9 @@
 #include "public.h"
 
 #include <ytlib/actions/invoker.h>
-#include <ytlib/ytree/public.h>
+
+#include <ytlib/ytree/yson_string.h>
+#include <ytlib/ytree/convert.h>
 
 namespace NYT {
 namespace NProfiling {
@@ -22,6 +24,17 @@ struct TQueuedSample
     TCpuInstant Time;
     NYPath::TYPath Path;
     TValue Value;
+    TTagIdList TagIds;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! A pre-registered key-value pair used to mark samples.
+struct TTag
+{
+    Stroka Key;
+    NYTree::TYsonString Value;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -68,18 +81,26 @@ public:
      */
     NYTree::IMapNodePtr GetRoot() const;
 
+    //! Registers a tag and returns its unique id.
+    TTagId RegisterTag(const TTag& tag);
+
+    //! Registers a tag and returns its unique id.
+    template <class T>
+    TTagId RegisterTag(const Stroka& key, const T& value)
+    {
+        TTag tag;
+        tag.Key = key;
+        tag.Value = NYTree::ConvertToYsonString(value);
+        return RegisterTag(tag);
+    }
+
 private:
-    class TClockConverter;
     class TImpl;
-
-    class TBucket;
-    typedef TIntrusivePtr<TBucket> TBucketPtr;
-
-    struct TStoredSample;
 
     // Cannot use |std::unique_ptr| here since TImpl inherits from TActionQueueBase
     // and is thus ref-counted.
     TIntrusivePtr<TImpl> Impl;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

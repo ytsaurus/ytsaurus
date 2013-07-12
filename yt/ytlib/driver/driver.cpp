@@ -10,6 +10,7 @@
 #include "scheduler_commands.h"
 
 #include <ytlib/actions/parallel_awaiter.h>
+#include <ytlib/actions/invoker_util.h>
 
 #include <ytlib/fibers/fiber.h>
 
@@ -284,7 +285,7 @@ private:
             LOG_DEBUG("Terminating channels");
 
             TError error("Command context terminated");
-            auto awaiter = New<TParallelAwaiter>();
+            auto awaiter = New<TParallelAwaiter>(GetSyncInvoker());
             awaiter->Await(MasterChannel->Terminate(error));
             awaiter->Await(SchedulerChannel->Terminate(error));
             return awaiter->Complete();

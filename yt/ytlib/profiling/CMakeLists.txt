@@ -3,6 +3,7 @@ set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/profiling )
 set( SRCS
   ${BASE}/profiler.cpp
   ${BASE}/profiling_manager.cpp
+  ${BASE}/public.cpp
   ${BASE}/resource_tracker.cpp
   ${BASE}/timing.cpp
 )

@@ -122,7 +122,7 @@ private:
 
             Awaiter->Await(
                 request->Invoke(),
-                Owner->CellManager->GetPeerAddress(id),
+                Owner->CellManager->GetPeerTags(id),
                 responseHandler);
         }
 
@@ -133,7 +133,9 @@ private:
     {
         VERIFY_THREAD_AFFINITY(Owner->ControlThread);
 
-        Awaiter->Complete(BIND(&TSession::OnComplete, MakeStrong(this)));
+        Awaiter->Complete(
+            BIND(&TSession::OnComplete, MakeStrong(this)),
+            Owner->CellManager->GetAllPeersTags());
     }
 
     void OnComplete()

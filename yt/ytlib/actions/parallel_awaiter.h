@@ -5,6 +5,8 @@
 #include "invoker_util.h"
 #include "cancelable_context.h"
 
+#include <ytlib/misc/nullable.h>
+
 #include <ytlib/profiling/profiler.h>
 
 namespace NYT {
@@ -16,12 +18,12 @@ class TParallelAwaiter
 {
 public:
     explicit TParallelAwaiter(
+        IInvokerPtr invoker);
+
+    TParallelAwaiter(
         IInvokerPtr invoker,
-        NProfiling::TProfiler* profiler = nullptr,
-        const NYPath::TYPath& timerPath = "");
-    explicit TParallelAwaiter(
-        NProfiling::TProfiler* profiler = nullptr,
-        const NYPath::TYPath& timerPath = "");
+        NProfiling::TProfiler* profiler,
+        const NYPath::TYPath& timingPath);
 
     template <class T>
     void Await(
@@ -30,7 +32,7 @@ public:
     template <class T>
     void Await(
         TFuture<T> result,
-        const Stroka& timerKey,
+        const NProfiling::TTagIdList& tagIds,
         TCallback<void(T)> onResult = TCallback<void(T)>());
 
     //! Specialization of #Await for |T = void|.
@@ -40,10 +42,13 @@ public:
     //! Specialization of #Await for |T = void|.
     void Await(
         TFuture<void> result,
-        const Stroka& timerKey,
+        const NProfiling::TTagIdList& tagIds,
         TCallback<void()> onResult = TCallback<void()>());
 
-    TFuture<void> Complete(TClosure onComplete = TClosure());
+    TFuture<void> Complete(
+        TClosure onComplete = TClosure(),
+        const NProfiling::TTagIdList& tagIds = NProfiling::EmptyTagIds);
+    
     void Cancel();
 
     int GetRequestCount() const;
@@ -62,6 +67,7 @@ private:
     bool Completed;
     TPromise<void> CompletedPromise;
     TClosure OnComplete;
+    NProfiling::TTagIdList CompletedTagIds;
 
     bool Terminated;
 
@@ -74,27 +80,26 @@ private:
     NProfiling::TProfiler* Profiler;
     NProfiling::TTimer Timer;
 
-    bool TryAwait();
-
-    void MaybeFireCompleted(const Stroka& key);
-    void DoFireCompleted(TClosure onComplete);
-
     void Init(
         IInvokerPtr invoker,
         NProfiling::TProfiler* profiler,
-        const NYPath::TYPath& timerPath);
+        const TNullable<NYPath::TYPath>& timingPath);
+
+    bool TryAwait();
+
+    void OnResultImpl(const NProfiling::TTagIdList& tagIds);
+    void DoFireCompleted(TClosure onComplete);
 
     void Terminate();
 
-
     template <class T>
     void OnResult(
-        const Stroka& key,
+        const NProfiling::TTagIdList& tagIds,
         TCallback<void(T)> onResult,
         T result);
 
     void OnResult(
-        const Stroka& key,
+        const NProfiling::TTagIdList& tagIds,
         TCallback<void()> onResult);
 
 };

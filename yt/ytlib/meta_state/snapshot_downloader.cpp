@@ -6,9 +6,10 @@
 #include "meta_state_manager_proxy.h"
 
 #include <ytlib/election/cell_manager.h>
+
 #include <ytlib/misc/thread_affinity.h>
-#include <ytlib/actions/bind.h>
-#include <ytlib/actions/future.h>
+
+#include <ytlib/actions/invoker_util.h>
 
 #include <util/system/fs.h>
 
@@ -40,7 +41,7 @@ TError TSnapshotDownloader::DownloadSnapshot(
     auto snapshotInfo = GetSnapshotInfo(snapshotId);
     auto sourceId = snapshotInfo.SourceId;
     if (sourceId == NElection::InvalidPeerId) {
-        return TError("Snapshot is not found: %d", snapshotId);
+        return TError("Snapshot %d is not found", snapshotId);
     }
 
     return DownloadSnapshot(fileName, snapshotId, snapshotInfo);
@@ -49,7 +50,7 @@ TError TSnapshotDownloader::DownloadSnapshot(
 TSnapshotDownloader::TSnapshotInfo TSnapshotDownloader::GetSnapshotInfo(i32 snapshotId)
 {
     auto promise = NewPromise<TSnapshotInfo>();
-    auto awaiter = New<TParallelAwaiter>();
+    auto awaiter = New<TParallelAwaiter>(GetSyncInvoker());
 
     LOG_INFO("Getting snapshot %d info from peers", snapshotId);
     for (TPeerId peerId = 0; peerId < CellManager->GetPeerCount(); ++peerId) {

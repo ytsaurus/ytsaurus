@@ -16,7 +16,7 @@ TMemoryUsageTracker<EMemoryConsumer>::TMemoryUsageTracker(i64 totalMemory, Strok
     : TotalMemory(totalMemory)
     , FreeMemory(totalMemory)
     , Profiler(profilingPath + "/memory_usage")
-    , FreeMemoryCounter("/free", EAggregateMode::Min)
+    , FreeMemoryCounter("/free", EmptyTagIds, EAggregateMode::Min)
     , Logger("MemoryUsage")
 {
     FOREACH (auto value, EMemoryConsumer::GetDomainValues()) {

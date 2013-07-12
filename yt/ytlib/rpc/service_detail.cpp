@@ -13,6 +13,7 @@
 #include <ytlib/security_client/rpc_helpers.h>
 
 #include <ytlib/profiling/timing.h>
+#include <ytlib/profiling/profiling_manager.h>
 
 namespace NYT {
 namespace NRpc {
@@ -42,15 +43,15 @@ TServiceBase::TMethodDescriptor::TMethodDescriptor(
 
 TServiceBase::TRuntimeMethodInfo::TRuntimeMethodInfo(
     const TMethodDescriptor& descriptor,
-    const TYPath& profilingPath)
+    const NProfiling::TTagIdList& tagIds)
     : Descriptor(descriptor)
-    , RequestCounter(profilingPath + "/request_count")
-    , QueueSizeCounter(profilingPath + "/queue_size")
-    , SyncTimeCounter(profilingPath + "/time/sync")
-    , AsyncTimeCounter(profilingPath + "/time/async")
-    , RemoteWaitTimeCounter(profilingPath + "/time/remote_wait")
-    , LocalWaitTimeCounter(profilingPath + "/time/local_wait")
-    , TotalTimeCounter(profilingPath + "/time/total")
+    , RequestCounter("/request_count", tagIds)
+    , QueueSizeCounter("/request_queue_size", tagIds)
+    , SyncTimeCounter("/request_time/sync", tagIds)
+    , AsyncTimeCounter("/request_time/async", tagIds)
+    , RemoteWaitTimeCounter("/request_time/remote_wait", tagIds)
+    , LocalWaitTimeCounter("/request_time/local_wait", tagIds)
+    , TotalTimeCounter("/request_time/total", tagIds)
 { }
 
 TServiceBase::TActiveRequest::TActiveRequest(
@@ -175,7 +176,14 @@ void TServiceBase::Init(
     DefaultInvoker = defaultInvoker;
     ServiceName = serviceName;
     LoggingCategory = loggingCategory;
-    RequestCounter = TRateCounter("/services/" + ServiceName + "/request_rate");
+
+    ServiceTagId = NProfiling::TProfilingManager::Get()->RegisterTag("service", TRawString(ServiceName));
+    
+    {
+        NProfiling::TTagIdList tagIds;
+        tagIds.push_back(ServiceTagId);
+        RequestCounter = TRateCounter("/request_rate", tagIds);
+    }
 }
 
 Stroka TServiceBase::GetServiceName() const
@@ -421,8 +429,11 @@ void TServiceBase::OnResponse(TActiveRequestPtr activeRequest, IMessagePtr messa
 TServiceBase::TRuntimeMethodInfoPtr TServiceBase::RegisterMethod(const TMethodDescriptor& descriptor)
 {
     TGuard<TSpinLock> guard(SpinLock);
-    auto path = "/services/" + ServiceName + "/methods/" +  descriptor.Verb;
-    auto runtimeInfo = New<TRuntimeMethodInfo>(descriptor, path);
+
+    NProfiling::TTagIdList tagIds;
+    tagIds.push_back(0);
+    tagIds.push_back(NProfiling::TProfilingManager::Get()->RegisterTag("verb", TRawString(descriptor.Verb)));
+    auto runtimeInfo = New<TRuntimeMethodInfo>(descriptor, tagIds);
     // Failure here means that such verb is already registered.
     YCHECK(RuntimeMethodInfos.insert(std::make_pair(descriptor.Verb, runtimeInfo)).second);
     return runtimeInfo;

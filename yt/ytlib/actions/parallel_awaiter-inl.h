@@ -5,29 +5,30 @@
 
 #include <ytlib/misc/thread_affinity.h>
 
+#include <ytlib/profiling/timing.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 inline TParallelAwaiter::TParallelAwaiter(
-    IInvokerPtr invoker,
-    NProfiling::TProfiler* profiler,
-    const NYPath::TYPath& timerPath)
+    IInvokerPtr invoker)
 {
-    Init(invoker, profiler, timerPath);
+    Init(invoker, nullptr, Null);
 }
 
 inline TParallelAwaiter::TParallelAwaiter(
+    IInvokerPtr invoker,
     NProfiling::TProfiler* profiler,
-    const NYPath::TYPath& timerPath)
+    const NYPath::TYPath& timingPath)
 {
-    Init(GetSyncInvoker(), profiler, timerPath);
+    Init(invoker, profiler, timingPath);
 }
 
 inline void TParallelAwaiter::Init(
     IInvokerPtr invoker,
     NProfiling::TProfiler* profiler,
-    const NYPath::TYPath& timerPath)
+    const TNullable<NYPath::TYPath>& timingPath)
 {
     YCHECK(invoker);
 
@@ -44,9 +45,11 @@ inline void TParallelAwaiter::Init(
     CancelableContext = New<TCancelableContext>();
     CancelableInvoker = CancelableContext->CreateInvoker(invoker);
 
-    Profiler = profiler;
-    if (Profiler) {
-        Timer = Profiler->TimingStart(timerPath, NProfiling::ETimerMode::Parallel);
+    if (Profiler && timingPath) {
+        Timer = Profiler->TimingStart(
+            *timingPath,
+            NProfiling::EmptyTagIds,
+            NProfiling::ETimerMode::Parallel);
     }
 }
 
@@ -65,7 +68,7 @@ inline bool TParallelAwaiter::TryAwait()
 template <class T>
 void TParallelAwaiter::Await(
     TFuture<T> result,
-    const Stroka& timerKey,
+    const NProfiling::TTagIdList& tagIds,
     TCallback<void(T)> onResult)
 {
     YASSERT(result);
@@ -74,23 +77,23 @@ void TParallelAwaiter::Await(
         result.Subscribe(BIND(
             &TParallelAwaiter::OnResult<T>,
             MakeStrong(this),
-            timerKey,
+            tagIds,
             Passed(std::move(onResult))));
     }
 }
 
 inline void TParallelAwaiter::Await(
     TFuture<void> result,
-    const Stroka& timerKey,
+    const NProfiling::TTagIdList& tagIds,
     TCallback<void(void)> onResult)
 {
     YASSERT(result);
 
     if (TryAwait()) {
         result.Subscribe(BIND(
-            (void(TParallelAwaiter::*)(const NYPath::TYPath&, TCallback<void()>)) &TParallelAwaiter::OnResult,
+            (void(TParallelAwaiter::*)(const NProfiling::TTagIdList&, TCallback<void()>)) &TParallelAwaiter::OnResult,
             MakeStrong(this),
-            timerKey,
+            tagIds,
             Passed(std::move(onResult))));
     }
 }
@@ -100,17 +103,17 @@ void TParallelAwaiter::Await(
     TFuture<T> result,
     TCallback<void(T)> onResult)
 {
-    Await(std::move(result), "", std::move(onResult));
+    Await(std::move(result), NProfiling::EmptyTagIds, std::move(onResult));
 }
 
 inline void TParallelAwaiter::Await(
     TFuture<void> result,
     TCallback<void()> onResult)
 {
-    Await(std::move(result), "", std::move(onResult));
+    Await(std::move(result), NProfiling::EmptyTagIds, std::move(onResult));
 }
 
-inline void TParallelAwaiter::MaybeFireCompleted(const Stroka& timerKey)
+inline void TParallelAwaiter::OnResultImpl(const NProfiling::TTagIdList& tagIds)
 {
     bool fireCompleted = false;
     TClosure onComplete;
@@ -120,8 +123,8 @@ inline void TParallelAwaiter::MaybeFireCompleted(const Stroka& timerKey)
         if (Canceled || Terminated)
             return;
 
-        if (Profiler && !timerKey.empty()) {
-            Profiler->TimingCheckpoint(Timer, timerKey);
+        if (Profiler) {
+            Profiler->TimingCheckpoint(Timer, tagIds);
         }
 
         ++ResponseCount;
@@ -142,17 +145,21 @@ inline void TParallelAwaiter::MaybeFireCompleted(const Stroka& timerKey)
 inline void TParallelAwaiter::DoFireCompleted(TClosure onComplete)
 {
     auto this_ = MakeStrong(this);
-    CancelableInvoker->Invoke(BIND([=] () {
+    CancelableInvoker->Invoke(BIND([this, this_, onComplete] () {
         if (!onComplete.IsNull()) {
             onComplete.Run();
         }
-        this_->CompletedPromise.Set();
+        CompletedPromise.Set();
     }));
+
+    if (Profiler) {
+        Profiler->TimingStop(Timer, CompletedTagIds);
+    }
 }
 
 template <class T>
 void TParallelAwaiter::OnResult(
-    const Stroka& timerKey,
+    const NProfiling::TTagIdList& tagIds,
     TCallback<void(T)> onResult,
     T result)
 {
@@ -160,21 +167,23 @@ void TParallelAwaiter::OnResult(
         CancelableInvoker->Invoke(BIND(onResult, result));
     }
 
-    MaybeFireCompleted(timerKey);
+    OnResultImpl(tagIds);
 }
 
 inline void TParallelAwaiter::OnResult(
-    const Stroka& timerKey,
+    const NProfiling::TTagIdList& tagIds,
     TCallback<void()> onResult)
 {
     if (!onResult.IsNull()) {
         CancelableInvoker->Invoke(onResult);
     }
 
-    MaybeFireCompleted(timerKey);
+    OnResultImpl(tagIds);
 }
 
-inline TFuture<void> TParallelAwaiter::Complete(TClosure onComplete)
+inline TFuture<void> TParallelAwaiter::Complete(
+    TClosure onComplete,
+    const NProfiling::TTagIdList& tagIds)
 {
     bool fireCompleted;
     {
@@ -186,6 +195,7 @@ inline TFuture<void> TParallelAwaiter::Complete(TClosure onComplete)
         }
 
         OnComplete = onComplete;
+        CompletedTagIds = tagIds;
         Completed = true;
 
         fireCompleted = (RequestCount == ResponseCount);
@@ -245,12 +255,11 @@ inline void TParallelAwaiter::Terminate()
     if (Terminated)
         return;
 
-    OnComplete.Reset();
-
-    if (Profiler) {
-        Profiler->TimingStop(Timer);
+    if (Completed && Profiler) {
+        Profiler->TimingStop(Timer, CompletedTagIds);
     }
 
+    OnComplete.Reset();
     Terminated = true;
 }
 

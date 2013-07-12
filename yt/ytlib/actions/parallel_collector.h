@@ -20,13 +20,9 @@ public:
     typedef typename TParallelCollectorStorage<T>::TResultsOrError TResultsOrError;
     typedef typename TParallelCollectorStorage<T>::TResults TResults;
 
-    explicit TParallelCollector(
-        NProfiling::TProfiler* profiler = nullptr,
-        const NYPath::TYPath& timerPath = "");
+    TParallelCollector();
 
-    void Collect(
-        TFuture<TResultOrError> future,
-        const Stroka& timerKey = "");
+    void Collect(TFuture<TResultOrError> future);
 
     TFuture<TResultsOrError> Complete();
 

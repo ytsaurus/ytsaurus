@@ -23,6 +23,8 @@
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
+#include <ytlib/profiling/profiling_manager.h>
+
 #include <server/cell_master/serialization_context.h>
 
 #include <server/transaction_server/transaction_manager.h>
@@ -366,6 +368,7 @@ void TObjectManager::RegisterHandler(IObjectTypeHandlerPtr handler)
     RegisteredTypes.push_back(type);
     auto& entry = TypeToEntry[typeValue];
     entry.Handler = handler;
+    entry.TagId = NProfiling::TProfilingManager::Get()->RegisterTag("type", type);
     if (TypeHasSchema(type)) {
         auto schemaType = SchemaTypeFromType(type);
         auto& schemaEntry = TypeToEntry[static_cast<int>(schemaType)];
@@ -780,14 +783,12 @@ void TObjectManager::ExecuteVerb(
         ~FormatBool(isWrite),
         ~user->GetName());
 
-    auto profilingPath = "/types/" +
-        TypeFromId(id.ObjectId).ToString() +
-        "/verbs/" +
-        context->GetVerb() +
-        "/time";
+    NProfiling::TTagIdList tagIds;
+    tagIds.push_back(GetTypeTagId(TypeFromId(id.ObjectId)));
+    tagIds.push_back(GetVerbTagId(context->GetVerb()));
 
     if (IsRecovery() || !isWrite || MetaStateManager->GetMutationContext()) {
-        PROFILE_TIMING (profilingPath) {
+        PROFILE_TIMING ("/request_time", tagIds) {
             action.Run(context);
         }
     } else {
@@ -820,7 +821,7 @@ void TObjectManager::ExecuteVerb(
             ->SetRequestData(executeReq)
             ->SetId(mutationId)
             ->SetAction(BIND([=] () {
-                PROFILE_TIMING (profilingPath) {
+                PROFILE_TIMING ("/request_time", tagIds) {
                     action.Run(wrappedContext);
                 }
                 if (mutationId != NullMutationId) {
@@ -1031,6 +1032,22 @@ void TObjectManager::DestroyObjects(const NProto::TMetaReqDestroyObjects& reques
     }
 
     GarbageCollector->CheckEmpty();
+}
+
+NProfiling::TTagId TObjectManager::GetTypeTagId(EObjectType type)
+{
+    return TypeToEntry[type].TagId;
+}
+
+NProfiling::TTagId TObjectManager::GetVerbTagId(const Stroka& verb)
+{
+    auto it = VerbToTag.find(verb);
+    if (it != VerbToTag.end()) {
+        return it->second;
+    }
+    auto tag = NProfiling::TProfilingManager::Get()->RegisterTag("verb", TRawString(verb));
+    YCHECK(VerbToTag.insert(std::make_pair(verb, tag)).second);
+    return tag;
 }
 
 void TObjectManager::OnProfiling()

@@ -16,13 +16,18 @@
 
 #include <ytlib/ypath/token.h>
 
+#include <ytlib/ytree/yson_string.h>
+
 #include <ytlib/rpc/rpc.pb.h>
+
+#include <ytlib/profiling/profiling_manager.h>
 
 namespace NYT {
 namespace NRpc {
 
 using namespace NBus;
 using namespace NYPath;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,6 +37,33 @@ static auto& Profiler = RpcClientProfiler;
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
+
+struct TMethodDescriptor
+{
+    NProfiling::TTagIdList TagIds;
+};
+
+TSpinLock MethodDescriptorLock;
+yhash_map<std::pair<Stroka, Stroka>, TMethodDescriptor> MethodDescriptors;
+
+const TMethodDescriptor& GetMethodDescriptor(const Stroka& service, const Stroka& method)
+{
+    TGuard<TSpinLock> guard(MethodDescriptorLock);
+    auto pair = std::make_pair(service, method);
+    auto it = MethodDescriptors.find(pair);
+    if (it == MethodDescriptors.end()) {
+        TMethodDescriptor descriptor;
+        auto* profilingManager = NProfiling::TProfilingManager::Get();
+        descriptor.TagIds.push_back(profilingManager->RegisterTag("service", TYsonString(service)));
+        descriptor.TagIds.push_back(profilingManager->RegisterTag("method", TYsonString(method)));
+        it = MethodDescriptors.insert(std::make_pair(pair, descriptor)).first;
+    }
+    return it->second;
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TChannel
     : public IChannel
@@ -175,15 +207,14 @@ private:
 
             auto requestId = request->GetRequestId();
 
+            const auto& descriptor = GetMethodDescriptor(request->GetPath(), request->GetVerb());
+
             TActiveRequest activeRequest;
             activeRequest.ClientRequest = request;
             activeRequest.ResponseHandler = responseHandler;
             activeRequest.Timer = Profiler.TimingStart(
-                "/services/" +
-                ToYPathLiteral(request->GetPath()) +
-                "/methods/" +
-                ToYPathLiteral(request->GetVerb()) +
-                "/time",
+                "/request_time",
+                descriptor.TagIds,
                 NProfiling::ETimerMode::Sequential);
 
             IBusPtr bus;
@@ -384,7 +415,7 @@ private:
         void FinalizeRequest(TActiveRequest& request)
         {
             TDelayedInvoker::CancelAndClear(request.TimeoutCookie);
-            Profiler.TimingStop(request.Timer);
+            Profiler.TimingStop(request.Timer, "total");
         }
 
         void UnregisterRequest(TRequestMap::iterator it)
@@ -458,8 +489,6 @@ private:
         session_->Terminate(error);
     }
 };
-
-} // namespace
 
 IChannelPtr CreateBusChannel(
     IBusClientPtr client,

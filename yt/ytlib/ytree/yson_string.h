@@ -54,3 +54,15 @@ public:
 
 } // namespace NYTree
 } // namespace NYT
+
+//! A hasher for TYsonString
+template <>
+struct hash<NYT::NYTree::TYsonString>
+{
+    size_t operator () (const NYT::NYTree::TYsonString& str) const
+    {
+        return THash<Stroka>()(str.Data());
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////

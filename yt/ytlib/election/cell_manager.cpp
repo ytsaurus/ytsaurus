@@ -5,8 +5,12 @@
 
 #include <ytlib/rpc/channel.h>
 
+#include <ytlib/profiling/profiling_manager.h>
+
 namespace NYT {
 namespace NElection {
+
+using namespace NYTree;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -34,6 +38,16 @@ void TCellManager::Initialize()
         LOG_FATAL("Self is absent in the list of masters (SelfAddress: %s)",
             ~SelfAddress_);
     }
+
+    auto* profilingManager = NProfiling::TProfilingManager::Get();
+    for (TPeerId id = 0; id < GetPeerCount(); ++id) {
+        NProfiling::TTagIdList tags;
+        tags.push_back(profilingManager->RegisterTag("address", TRawString(OrderedAddresses[id])));
+        PeerTags.push_back(tags);
+    }
+
+    AllPeersTags.push_back(profilingManager->RegisterTag("address", TRawString("all")));
+    PeerQuorumTags.push_back(profilingManager->RegisterTag("address", "quorum"));
 }
 
 int TCellManager::GetQuorum() const
@@ -54,6 +68,21 @@ const Stroka& TCellManager::GetPeerAddress(TPeerId id) const
 NRpc::IChannelPtr TCellManager::GetMasterChannel(TPeerId id) const
 {
     return ChannelCache.GetChannel(GetPeerAddress(id));
+}
+
+const NProfiling::TTagIdList& TCellManager::GetPeerTags(TPeerId id) const
+{
+    return PeerTags[id];
+}
+
+const NProfiling::TTagIdList& TCellManager::GetAllPeersTags() const
+{
+    return AllPeersTags;
+}
+
+const NProfiling::TTagIdList& TCellManager::GetPeerQuorumTags() const
+{
+    return PeerQuorumTags;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

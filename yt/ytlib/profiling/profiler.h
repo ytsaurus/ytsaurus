@@ -3,11 +3,17 @@
 #include "public.h"
 
 #include <ytlib/misc/property.h>
+#include <ytlib/misc/nullable.h>
 
 #include <ytlib/ypath/public.h>
 
 namespace NYT {
 namespace NProfiling {
+
+////////////////////////////////////////////////////////////////////////////////
+
+TTagIdList  operator +  (const TTagIdList& a, const TTagIdList& b);
+TTagIdList& operator += (TTagIdList& a, const TTagIdList& b);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,7 +44,11 @@ DECLARE_ENUM(ETimerMode,
 struct TTimer
 {
     TTimer();
-    TTimer(const NYPath::TYPath& path, TCpuInstant start, ETimerMode mode);
+    TTimer(
+        const NYPath::TYPath& path,
+        TCpuInstant start,
+        ETimerMode mode,
+        const TTagIdList& tagIds);
 
     NYPath::TYPath Path;
     //! Start time.
@@ -46,6 +56,8 @@ struct TTimer
     //! Last checkpoint time (0 if no checkpoint has occurred yet).
     TCpuInstant LastCheckpoint;
     ETimerMode Mode;
+    TTagIdList TagIds;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -57,11 +69,13 @@ struct TTimer
 struct TCounterBase
 {
     TCounterBase(
-        const NYPath::TYPath& path = "",
-        TDuration interval = TDuration::MilliSeconds(1000));
+        const NYPath::TYPath& path,
+        const TTagIdList& tagIds,
+        TDuration interval);
 
     TSpinLock SpinLock;
     NYPath::TYPath Path;
+    TTagIdList TagIds;
     //! Interval between samples (in ticks).
     TCpuDuration Interval;
     //! The time when the next sample must be queued (in ticks).
@@ -85,6 +99,7 @@ struct TRateCounter
 {
     TRateCounter(
         const NYPath::TYPath& path = "",
+        const TTagIdList& tagIds = EmptyTagIds,
         TDuration interval = TDuration::MilliSeconds(1000));
 
     //! The current counter's value.
@@ -126,6 +141,7 @@ struct TAggregateCounter
 {
     TAggregateCounter(
         const NYPath::TYPath& path = "",
+        const TTagIdList& tagIds = EmptyTagIds,
         EAggregateMode mode = EAggregateMode::Max,
         TDuration interval = TDuration::MilliSeconds(100));
 
@@ -155,6 +171,7 @@ public:
      */
     TProfiler(
         const NYPath::TYPath& pathPrefix,
+        const TTagIdList& tagIds = EmptyTagIds,
         bool selfProfiling = false);
 
     DEFINE_BYVAL_RW_PROPERTY(NYPath::TYPath, PathPrefix);
@@ -162,13 +179,20 @@ public:
     //! Controls if the profiler is enabled.
     DEFINE_BYVAL_RW_PROPERTY(bool, Enabled);
 
-    //! Enqueues a new sample.
-    void Enqueue(const NYPath::TYPath& path, TValue value);
+
+    //! Enqueues a new sample with tags.
+    void Enqueue(
+        const NYPath::TYPath& path,
+        TValue value,
+        const TTagIdList& tagIds = EmptyTagIds);
+
 
     //! Starts time measurement.
     TTimer TimingStart(
         const NYPath::TYPath& path,
+        const TTagIdList& tagIds = EmptyTagIds,
         ETimerMode mode = ETimerMode::Simple);
+
 
     //! Marks a checkpoint and enqueues the corresponding sample.
     /*!
@@ -179,9 +203,20 @@ public:
      */
     TDuration TimingCheckpoint(TTimer& timer, const Stroka& key);
 
+    //! Same as above but uses tags instead of keys.
+    TDuration TimingCheckpoint(TTimer& timer, const TTagIdList& checkpointTagIds);
+
+
     //! Stops time measurement and enqueues the "total" sample.
     //! Returns the total duration.
+    TDuration TimingStop(TTimer& timer, const Stroka& key);
+
+    //! Same as above but uses tags instead of keys.
+    TDuration TimingStop(TTimer& timer, const TTagIdList& totalTagIds);
+
+    //! Same as above but neither tags the point nor changes the path.
     TDuration TimingStop(TTimer& timer);
+
 
     //! Increments the counter and possibly enqueues a rate sample.
     /*!
@@ -198,6 +233,7 @@ public:
     void Increment(TAggregateCounter& counter, TValue delta);
 
 private:
+    TTagIdList TagIds;
     bool SelfProfiling;
 
     void DoAggregate(
@@ -205,6 +241,16 @@ private:
         TGuard<TSpinLock>& guard,
         TValue value,
         TCpuInstant now);
+
+    TDuration DoTimingCheckpoint(
+        TTimer& timer,
+        const TNullable<Stroka>& key,
+        const TNullable<TTagIdList>& checkpointTagIds);
+
+    TDuration DoTimingStop(
+        TTimer& timer,
+        const TNullable<Stroka>& key,
+        const TNullable<TTagIdList>& totalTagIds);
 
 };
 
@@ -218,9 +264,12 @@ private:
 class TTimingGuard
 {
 public:
-    TTimingGuard(TProfiler* profiler, const NYPath::TYPath& path)
+    TTimingGuard(
+        TProfiler* profiler,
+        const NYPath::TYPath& path,
+        const TTagIdList& tagIds = EmptyTagIds)
         : Profiler(profiler)
-        , Timer(profiler->TimingStart(path))
+        , Timer(profiler->TimingStart(path, tagIds))
     {
         YASSERT(profiler);
     }
@@ -252,8 +301,8 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Measures execution time of the statement that immediately follows this macro.
-#define PROFILE_TIMING(path) \
-    if (auto PROFILE_TIMING__Guard = NYT::NProfiling::TTimingGuard(&Profiler, path)) \
+#define PROFILE_TIMING(...) \
+    if (auto PROFILE_TIMING__Guard = NYT::NProfiling::TTimingGuard(&Profiler, __VA_ARGS__)) \
     { YUNREACHABLE(); } \
     else
 

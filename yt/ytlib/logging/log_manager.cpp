@@ -499,8 +499,8 @@ class TLogManager::TImpl
 {
 public:
     TImpl()
-        : TExecutorThread("Logging", false)
-        , Queue(New<TInvokerQueue>(this, nullptr, "", false))
+        : TExecutorThread("Logging", NProfiling::EmptyTagIds, false, false)
+        , Queue(New<TInvokerQueue>(this, nullptr, NProfiling::EmptyTagIds, false, false))
         // Version forces this very module's Logger object to update to our own
         // default configuration (default level etc.).
         , Version(-1)

@@ -138,7 +138,7 @@ private:
 
             Awaiter->Await(
                 LogResult,
-                CellManager->GetSelfAddress(),
+                CellManager->GetPeerTags(CellManager->GetSelfId()),
                 BIND(&TBatch::OnLocalFlush, MakeStrong(this)));
 
             LOG_DEBUG("Sending batched mutations to followers");
@@ -159,13 +159,14 @@ private:
                 }
                 Awaiter->Await(
                     request->Invoke(),
-                    CellManager->GetPeerAddress(id),
+                    CellManager->GetPeerTags(id),
                     BIND(&TBatch::OnRemoteCommit, MakeStrong(this), id));
             }
             LOG_DEBUG("Batched mutations sent");
 
-            Awaiter->Complete(BIND(&TBatch::OnCompleted, MakeStrong(this)));
-
+            Awaiter->Complete(
+                BIND(&TBatch::OnCompleted, MakeStrong(this)),
+                CellManager->GetPeerQuorumTags());
         }
 
         // This is the version the next batch will have.

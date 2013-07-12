@@ -1,6 +1,7 @@
 #pragma once
 
 #include <ytlib/misc/common.h>
+#include <ytlib/misc/small_vector.h>
 
 namespace NYT {
 namespace NProfiling {
@@ -20,6 +21,13 @@ typedef i64 TValue;
 
 typedef ui64 TCpuInstant;
 typedef i64  TCpuDuration;
+
+typedef int TTagId;
+
+const int TypicalTagCount = 8;
+typedef TSmallVector<TTagId, TypicalTagCount> TTagIdList;
+
+extern const TTagIdList EmptyTagIds;
 
 ////////////////////////////////////////////////////////////////////////////////
 

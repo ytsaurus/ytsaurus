@@ -19,15 +19,16 @@ public:
         TPersistentStateManagerConfigPtr config,
         NElection::TCellManagerPtr cellManager);
 
-    i32 LookupLatestSnapshot(i32 maxSnapshotId);
+    int LookupLatestSnapshot(int maxSnapshotId);
 
 private:
     typedef TMetaStateManagerProxy TProxy;
 
     TPersistentStateManagerConfigPtr Config;
     NElection::TCellManagerPtr CellManager;
-    i32 CurrentSnapshotId;
-    TPromise<i32> Promise;
+    TSpinLock SpinLock;
+    int CurrentSnapshotId;
+    TPromise<int> Promise;
 
     void OnLookupSnapshotResponse(
         TPeerId peerId,

@@ -359,9 +359,9 @@ protected:
     struct TRuntimeMethodInfo
         : public TIntrinsicRefCounted
     {
-        TRuntimeMethodInfo(
+        explicit TRuntimeMethodInfo(
             const TMethodDescriptor& descriptor,
-            const NYPath::TYPath& profilingPath);
+            const NProfiling::TTagIdList& tagIds);
 
         TMethodDescriptor Descriptor;
 
@@ -385,6 +385,7 @@ protected:
 
         //! Time between the request arrival and the moment when it is fully processed.
         NProfiling::TAggregateCounter TotalTimeCounter;
+
     };
 
     typedef TIntrusivePtr<TRuntimeMethodInfo> TRuntimeMethodInfoPtr;
@@ -482,6 +483,8 @@ private:
     IPrioritizedInvokerPtr DefaultInvoker;
     Stroka ServiceName;
     Stroka LoggingCategory;
+
+    NProfiling::TTagId ServiceTagId;
     NProfiling::TRateCounter RequestCounter;
 
     //! Protects the following data members.
