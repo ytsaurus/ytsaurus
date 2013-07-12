@@ -164,7 +164,12 @@ void TExecutorThread::Start()
 
 void* TExecutorThread::ThreadMain(void* opaque)
 {
-    static_cast<TExecutorThread*>(opaque)->ThreadMain();
+    try {
+        static_cast<TExecutorThread*>(opaque)->ThreadMain();
+    } catch (const std::exception& ex) {
+        LOG_FATAL(ex, "Unhandled exception in executor thread (Name: %s)",
+            ~ThreadName);
+    }
     return nullptr;
 }
 
