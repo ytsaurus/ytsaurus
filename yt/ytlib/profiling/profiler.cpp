@@ -115,7 +115,6 @@ void TProfiler::Enqueue(
     TQueuedSample sample;
     sample.Time = GetCpuInstant();
     sample.Path = PathPrefix_ + path;
-    printf("!!!! %s\n", ~sample.Path);
     sample.Value = value;
     sample.TagIds = TagIds + tagIds;
     TProfilingManager::Get()->Enqueue(sample, SelfProfiling);
@@ -164,7 +163,7 @@ TDuration TProfiler::DoTimingStop(
 
     auto path = key ? timer.Path + "/" + ToYPathLiteral(*key) : timer.Path;
     auto tagIds = totalTagIds ? timer.TagIds + *totalTagIds : timer.TagIds;
-    Enqueue(timer.Path, value, tagIds);
+    Enqueue(path, value, tagIds);
 
     timer.Start = 0;
 
