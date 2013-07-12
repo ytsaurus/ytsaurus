@@ -161,7 +161,7 @@ TDuration TProfiler::DoTimingStop(
     auto value = CpuDurationToValue(cpuDuration);
     YASSERT(value >= 0);
 
-    auto path = key ? timer.Path : timer.Path + "/" + ToYPathLiteral(*key);
+    auto path = key ? timer.Path + "/" + ToYPathLiteral(*key) : timer.Path;
     auto tagIds = totalTagIds ? timer.TagIds + *totalTagIds : timer.TagIds;
     Enqueue(timer.Path, value, tagIds);
 
