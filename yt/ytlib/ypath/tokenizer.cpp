@@ -81,8 +81,8 @@ ETokenType TTokenizer::Advance()
 
 void TTokenizer::ThrowMalformedEscapeSequence(const TStringBuf& context)
 {
-    THROW_ERROR_EXCEPTION("Malformed escape sequence: %s",
-        ~context);
+    THROW_ERROR_EXCEPTION("Malformed escape sequence %s",
+        ~Stroka(context).Quote());
 }
 
 const char* TTokenizer::AdvanceEscaped(const char* current)
@@ -146,13 +146,13 @@ void TTokenizer::Expect(ETokenType expectedType)
 {
     if (expectedType != Type_) {
         if (Type_ == ETokenType::EndOfStream) {
-            THROW_ERROR_EXCEPTION("Premature end-of-string while expecting %s",
-                ~expectedType.ToString());
+            THROW_ERROR_EXCEPTION("Premature end-of-stream while expecting %s",
+                ~FormatEnum(expectedType).Quote());
         } else {
-            THROW_ERROR_EXCEPTION("%s found while expecting %s: %s",
-                ~Type_.ToString(),
-                ~expectedType.ToString(),
-                ~Token_);
+            THROW_ERROR_EXCEPTION("Found %s token %s while expecting %s",
+                ~FormatEnum(Type_).Quote(),
+                ~Stroka(Token_).Quotr(),
+                ~ForamtEnum(expectedType).Quote());
         }
     }
 }
@@ -160,9 +160,9 @@ void TTokenizer::Expect(ETokenType expectedType)
 void TTokenizer::ThrowUnexpected()
 {
     if (Type_ == ETokenType::EndOfStream) {
-        THROW_ERROR_EXCEPTION("Unexpected end-of-stream in YPath");
+        THROW_ERROR_EXCEPTION("Unexpected end-of-stream");
     } else {
-        THROW_ERROR_EXCEPTION("Unexpected %s token %s in YPath",
+        THROW_ERROR_EXCEPTION("Unexpected %s token %s",
             ~FormatEnum(Type_).Quote(),
             ~Stroka(Token_).Quote());
     }
