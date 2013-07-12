@@ -10,6 +10,7 @@
 #include <ytlib/rpc/service_detail.h>
 
 #include <ytlib/actions/parallel_awaiter.h>
+#include <ytlib/actions/invoker_util.h>
 
 #include <ytlib/security_client/public.h>
 #include <ytlib/security_client/rpc_helpers.h>
@@ -51,7 +52,7 @@ public:
     TExecuteSession(TObjectService* owner, TCtxExecutePtr context)
         : Owner(owner)
         , Context(context)
-        , Awaiter(New<TParallelAwaiter>())
+        , Awaiter(New<TParallelAwaiter>(GetSyncInvoker()))
         , ReplyLock(0)
         , CurrentRequestIndex(0)
         , CurrentRequestPartIndex(0)
