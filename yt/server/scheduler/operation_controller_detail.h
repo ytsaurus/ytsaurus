@@ -696,6 +696,7 @@ protected:
         int key);
 
     void RegisterIntermediate(
+        TJobletPtr joblet,
         TCompleteJobPtr completedJob,
         TChunkStripePtr stripe);
 

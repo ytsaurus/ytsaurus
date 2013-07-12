@@ -830,6 +830,7 @@ void TOperationControllerBase::TTask::RegisterIntermediate(
         joblet->Job->GetNode()->GetAddress());
 
     Controller->RegisterIntermediate(
+        joblet,
         completedJob,
         stripe);
 }
@@ -2760,8 +2761,6 @@ void TOperationControllerBase::RegisterOutput(
 {
     table.OutputChunkTreeIds.insert(std::make_pair(key, chunkTreeId));
 
-    // TODO(babenko): update chunk count, data size and row count
-
     if (IsOutputLivePreviewSupported()) {
         auto masterConnector = Host->GetMasterConnector();
         masterConnector->AttachToLivePreview(
@@ -2785,8 +2784,17 @@ void TOperationControllerBase::RegisterOutput(
     RegisterOutput(chunkTreeId, key, tableIndex, table);
 }
 
-void TOperationControllerBase::RegisterOutput(TJobletPtr joblet, int key)
+void TOperationControllerBase::RegisterOutput(
+    TJobletPtr joblet,
+    int key)
 {
+    // Update output statistics.
+    const auto& jobResult = joblet->Job->Result();
+    const auto& outputStatistics = jobResult.statistics().output();
+    TotalOutputChunkCount += outputStatistics.chunk_count();
+    TotalOutputRowCount += outputStatistics.row_count();
+    TotalOutputDataSize += outputStatistics.uncompressed_data_size();
+
     const auto* userJobResult = FindUserJobResult(joblet);
 
     for (int tableIndex = 0; tableIndex < static_cast<int>(OutputTables.size()); ++tableIndex) {
@@ -2848,15 +2856,20 @@ void TOperationControllerBase::RegisterInputStripe(TChunkStripePtr stripe, TTask
 }
 
 void TOperationControllerBase::RegisterIntermediate(
+    TJobletPtr joblet,
     TCompleteJobPtr completedJob,
     TChunkStripePtr stripe)
 {
+    // Update output statistics.
+    const auto& jobResult = joblet->Job->Result();
+    const auto& outputStatistics = jobResult.statistics().output();
+    TotalIntermeidateChunkCount += outputStatistics.chunk_count();
+    TotalIntermediateRowCount += outputStatistics.row_count();
+    TotalIntermediateDataSize += outputStatistics.uncompressed_data_size();
+
     FOREACH (const auto& chunkSlice, stripe->ChunkSlices) {
         auto chunkId = FromProto<TChunkId>(chunkSlice->GetChunkSpec()->chunk_id());
         YCHECK(ChunkOriginMap.insert(std::make_pair(chunkId, completedJob)).second);
-
-        TotalIntermeidateChunkCount += 1;
-        // TODO(babenko): data size and row count
 
         if (IsIntermediateLivePreviewSupported()) {
             auto masterConnector = Host->GetMasterConnector();
