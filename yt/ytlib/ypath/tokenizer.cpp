@@ -2,6 +2,7 @@
 
 #include <ytlib/yson/token.h>
 #include <ytlib/misc/error.h>
+#include <ytlib/misc/stirng.h>
 
 namespace NYT {
 namespace NYPath {
