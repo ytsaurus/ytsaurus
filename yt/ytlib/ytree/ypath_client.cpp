@@ -376,7 +376,7 @@ INodePtr GetNodeByYPath(INodePtr root, const TYPath& path)
             }
 
             default:
-                tokenizer.ThrowUnexpected();
+                ThrowCannotHaveChildren(currentNode);
                 YUNREACHABLE();
         }
     }
@@ -420,7 +420,7 @@ void SetNodeByYPath(INodePtr root, const TYPath& path, INodePtr value)
             }
 
             default:
-                tokenizer.ThrowUnexpected();
+                ThrowCannotHaveChildren(currentNode);
                 YUNREACHABLE();
         }
         nextSegment();
@@ -450,7 +450,7 @@ void SetNodeByYPath(INodePtr root, const TYPath& path, INodePtr value)
         }
 
         default:
-            tokenizer.ThrowUnexpected();
+            ThrowCannotHaveChildren(currentNode);
             YUNREACHABLE();
     }
 }
@@ -498,7 +498,7 @@ void ForceYPath(INodePtr root, const TYPath& path)
             }
 
             default:
-                tokenizer.ThrowUnexpected();
+                ThrowCannotHaveChildren(currentNode);
                 YUNREACHABLE();
         }
 
