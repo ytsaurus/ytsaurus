@@ -19,6 +19,7 @@
 
 #include <ytlib/actions/action_queue.h>
 #include <ytlib/actions/parallel_awaiter.h>
+#include <ytlib/actions/invoker_util.h>
 
 #include <ytlib/fibers/fiber.h>
 
@@ -460,7 +461,7 @@ public:
                 ToProto(response->add_jobs_to_abort(), job->GetId());
             }
 
-            auto awaiter = New<TParallelAwaiter>();
+            auto awaiter = New<TParallelAwaiter>(GetSyncInvoker());
             auto specBuilderInvoker = NRpc::TDispatcher::Get()->GetPoolInvoker();
             FOREACH (auto job, schedulingContext->StartedJobs()) {
                 auto* startInfo = response->add_jobs_to_start();
