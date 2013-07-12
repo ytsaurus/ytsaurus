@@ -151,7 +151,7 @@ void TTokenizer::Expect(ETokenType expectedType)
         } else {
             THROW_ERROR_EXCEPTION("Found %s token %s while expecting %s",
                 ~FormatEnum(Type_).Quote(),
-                ~Stroka(Token_).Quotr(),
+                ~Stroka(Token_).Quote(),
                 ~ForamtEnum(expectedType).Quote());
         }
     }
