@@ -27,12 +27,6 @@ namespace NYTree {
 template <class T>
 void Consume(const T& value, NYson::IYsonConsumer* consumer)
 {
-    // Check that T differs from Stroka to prevent
-    // accident usage of Stroka instead of TYsonString.
-    static_assert(!TSameType<T, Stroka>::Result,
-        "Are you sure that you want to convert from Stroka, not from TYsonString? "
-        "In this case use TRawString wrapper on Stroka.");
-
     Serialize(value, consumer);
 }
 

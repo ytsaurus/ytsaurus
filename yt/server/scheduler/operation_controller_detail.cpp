@@ -632,7 +632,7 @@ void TOperationControllerBase::TTask::DoCheckResourceDemandSanity(
     // It seems nobody can satisfy the demand.
     Controller->OnOperationFailed(
         TError("No online exec node can satisfy the resource demand")
-            << TErrorAttribute("task", TRawString(GetId()))
+            << TErrorAttribute("task", GetId())
             << TErrorAttribute("needed_resources", neededResources));
 }
 

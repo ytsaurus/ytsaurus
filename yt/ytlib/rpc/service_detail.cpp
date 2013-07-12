@@ -177,7 +177,7 @@ void TServiceBase::Init(
     ServiceName = serviceName;
     LoggingCategory = loggingCategory;
 
-    ServiceTagId = NProfiling::TProfilingManager::Get()->RegisterTag("service", TRawString(ServiceName));
+    ServiceTagId = NProfiling::TProfilingManager::Get()->RegisterTag("service", ServiceName);
     
     {
         NProfiling::TTagIdList tagIds;
@@ -432,7 +432,7 @@ TServiceBase::TRuntimeMethodInfoPtr TServiceBase::RegisterMethod(const TMethodDe
 
     NProfiling::TTagIdList tagIds;
     tagIds.push_back(0);
-    tagIds.push_back(NProfiling::TProfilingManager::Get()->RegisterTag("verb", TRawString(descriptor.Verb)));
+    tagIds.push_back(NProfiling::TProfilingManager::Get()->RegisterTag("verb", descriptor.Verb));
     auto runtimeInfo = New<TRuntimeMethodInfo>(descriptor, tagIds);
     // Failure here means that such verb is already registered.
     YCHECK(RuntimeMethodInfos.insert(std::make_pair(descriptor.Verb, runtimeInfo)).second);

@@ -191,7 +191,7 @@ void ResolveYPath(
                 "Error resolving path %s",
                 ~path)
                 << TErrorAttribute("verb", ~verb)
-                << TErrorAttribute("resolved_path", TRawString(ComputeResolvedYPath(path, currentPath)))
+                << TErrorAttribute("resolved_path", ComputeResolvedYPath(path, currentPath))
                 << ex;
         }
 

@@ -1045,7 +1045,7 @@ NProfiling::TTagId TObjectManager::GetVerbTagId(const Stroka& verb)
     if (it != VerbToTag.end()) {
         return it->second;
     }
-    auto tag = NProfiling::TProfilingManager::Get()->RegisterTag("verb", TRawString(verb));
+    auto tag = NProfiling::TProfilingManager::Get()->RegisterTag("verb", verb);
     YCHECK(VerbToTag.insert(std::make_pair(verb, tag)).second);
     return tag;
 }

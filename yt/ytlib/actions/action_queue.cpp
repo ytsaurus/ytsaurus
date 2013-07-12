@@ -19,7 +19,7 @@ TActionQueue::TActionQueue(const Stroka& threadName)
 {
     auto* profilingManager = TProfilingManager::Get();
     TTagIdList tagIds;
-    tagIds.push_back(profilingManager->RegisterTag("thread", TRawString(threadName)));
+    tagIds.push_back(profilingManager->RegisterTag("thread", threadName));
     Impl = New<TExecutorThreadWithQueue>(
         nullptr,
         threadName,
@@ -112,7 +112,7 @@ private:
     {
         TTagIdList tagIds;
         auto* profilingManager = TProfilingManager::Get();
-        tagIds.push_back(profilingManager->RegisterTag("thread", TRawString(threadName)));
+        tagIds.push_back(profilingManager->RegisterTag("thread", threadName));
         return tagIds;
     }
 
@@ -120,8 +120,8 @@ private:
     {
         TTagIdList tagIds;
         auto* profilingManager = TProfilingManager::Get();
-        tagIds.push_back(profilingManager->RegisterTag("thread", TRawString(threadName)));
-        tagIds.push_back(profilingManager->RegisterTag("bucket", TRawString(bucketName)));
+        tagIds.push_back(profilingManager->RegisterTag("thread", threadName));
+        tagIds.push_back(profilingManager->RegisterTag("bucket", bucketName));
         return tagIds;
     }
 
@@ -202,7 +202,7 @@ public:
     {
         TTagIdList tagIds;
         auto* profilingManager = TProfilingManager::Get();
-        tagIds.push_back(profilingManager->RegisterTag("thread", TRawString(threadNamePrefix)));
+        tagIds.push_back(profilingManager->RegisterTag("thread", threadNamePrefix));
         for (int i = 0; i < threadCount; ++i) {
             Threads.push_back(New<TExecutorThreadWithQueue>(
                 this,

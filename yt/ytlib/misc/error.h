@@ -92,8 +92,6 @@ namespace NYTree {
 
 // Avoid dependency on convert.h
 
-class TRawString;
-
 template <class T>
 TYsonString ConvertToYsonString(const T& value);
 
@@ -153,7 +151,7 @@ TException&& operator <<= (TException&& ex, const TError& error)
 ////////////////////////////////////////////////////////////////////////////////
 
 #define ERROR_SOURCE_LOCATION() \
-    ::NYT::TErrorAttribute("file", ::NYT::NYTree::ConvertToYsonString(::NYT::NYTree::TRawString(__FILE__))) >>= \
+    ::NYT::TErrorAttribute("file", ::NYT::NYTree::ConvertToYsonString(__FILE__)) >>= \
     ::NYT::TErrorAttribute("line", ::NYT::NYTree::ConvertToYsonString(__LINE__))
 
 #define THROW_ERROR \

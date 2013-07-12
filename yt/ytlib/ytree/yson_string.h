@@ -40,18 +40,6 @@ bool operator != (const TYsonString& lhs, const TYsonString& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Direct conversion from Stroka to Node or Producer is forbidden.
-//! For this case, use TRawString wrapper.
-class TRawString
-    : public Stroka
-{
-public:
-    TRawString(const Stroka& str);
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYTree
 } // namespace NYT
 

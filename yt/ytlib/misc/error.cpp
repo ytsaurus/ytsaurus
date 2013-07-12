@@ -172,8 +172,8 @@ bool TError::IsOK() const
 void TError::CaptureOriginAttributes()
 {
     // Use ad-hoc YSON conversions for performance reasons.
-    Attributes().SetYson("host", ConvertToYsonString(TRawString(TAddressResolver::Get()->GetLocalHostName())));
-    Attributes().SetYson("datetime", ConvertToYsonString(TRawString(ToString(TInstant::Now()))));
+    Attributes().SetYson("host", ConvertToYsonString(TAddressResolver::Get()->GetLocalHostName()));
+    Attributes().SetYson("datetime", ConvertToYsonString(ToString(TInstant::Now())));
     Attributes().SetYson("pid", ConvertToYsonString(getpid()));
     Attributes().SetYson("tid", ConvertToYsonString(NThread::GetCurrentThreadId()));
 }

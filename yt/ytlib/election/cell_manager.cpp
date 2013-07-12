@@ -42,11 +42,11 @@ void TCellManager::Initialize()
     auto* profilingManager = NProfiling::TProfilingManager::Get();
     for (TPeerId id = 0; id < GetPeerCount(); ++id) {
         NProfiling::TTagIdList tags;
-        tags.push_back(profilingManager->RegisterTag("address", TRawString(OrderedAddresses[id])));
+        tags.push_back(profilingManager->RegisterTag("address", OrderedAddresses[id]));
         PeerTags.push_back(tags);
     }
 
-    AllPeersTags.push_back(profilingManager->RegisterTag("address", TRawString("all")));
+    AllPeersTags.push_back(profilingManager->RegisterTag("address", "all"));
     PeerQuorumTags.push_back(profilingManager->RegisterTag("address", "quorum"));
 }
 

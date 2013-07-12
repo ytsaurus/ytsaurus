@@ -41,12 +41,6 @@ void IAttributeDictionary::Set(const Stroka& key, const T& value)
     SetYson(key, yson);
 }
 
-template <>
-inline void IAttributeDictionary::Set(const Stroka& key, const Stroka& value)
-{
-    Set(key, TRawString(value));
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYTree

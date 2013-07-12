@@ -57,11 +57,6 @@ private:
         Consume(value, consumer);
     }
 
-    static void WriteValue(NYson::IYsonConsumer* consumer, const Stroka& value)
-    {
-        Consume(TRawString(value), consumer);
-    }
-
 public:
     class TFluentAny;
     template <class TParent> class TAny;
