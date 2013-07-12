@@ -114,7 +114,7 @@ void TProfiler::Enqueue(
 
     TQueuedSample sample;
     sample.Time = GetCpuInstant();
-    sample.Path = PathPrefix_ + path
+    sample.Path = PathPrefix_ + path;
     printf("!!!! %s\n", ~sample.Path);
     sample.Value = value;
     sample.TagIds = TagIds + tagIds;
