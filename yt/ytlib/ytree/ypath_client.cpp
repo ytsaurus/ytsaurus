@@ -3,6 +3,7 @@
 #include "ypath_proxy.h"
 #include "ypath_detail.h"
 #include "attribute_helpers.h"
+#include "exception_helpers.h"
 
 #include <ytlib/yson/format.h>
 #include <ytlib/yson/tokenizer.h>
