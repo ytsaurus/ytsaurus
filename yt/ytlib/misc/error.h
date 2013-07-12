@@ -95,6 +95,8 @@ namespace NYTree {
 template <class T>
 TYsonString ConvertToYsonString(const T& value);
 
+TYsonString ConvertToYsonString(const char* value);
+
 } // namespace NYTree
 
 struct TErrorAttribute

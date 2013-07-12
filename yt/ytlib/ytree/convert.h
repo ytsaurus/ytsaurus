@@ -20,6 +20,8 @@ TYsonProducer ConvertToProducer(T&& value);
 template <class T>
 TYsonString ConvertToYsonString(const T& value);
 
+TYsonString ConvertToYsonString(const char* value);
+
 template <class T>
 TYsonString ConvertToYsonString(const T& value, NYson::EYsonFormat format);
 
