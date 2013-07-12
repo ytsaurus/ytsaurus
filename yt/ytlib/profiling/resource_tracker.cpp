@@ -36,7 +36,7 @@ namespace {
 
 i64 GetTicksPerSecond()
 {
-#if RESOURCE_TRACKER_ENABLED
+#ifdef RESOURCE_TRACKER_ENABLED
     return sysconf(_SC_CLK_TCK)
 #else
     return -1;
