@@ -200,7 +200,7 @@ TDuration TProfiler::DoTimingCheckpoint(
         timer.Mode = ETimerMode::Sequential;
     }
 
-    auto path = key ? timer.Path : timer.Path + "/" + ToYPathLiteral(*key);
+    auto path = key ? timer.Path + "/" + ToYPathLiteral(*key) : timer.Path;
     auto tagIds = checkpointTagIds ? timer.TagIds + *checkpointTagIds : timer.TagIds;
     switch (timer.Mode) {
         case ETimerMode::Sequential: {
