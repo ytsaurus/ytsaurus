@@ -157,9 +157,13 @@ void TTokenizer::Expect(ETokenType expectedType)
 
 void TTokenizer::ThrowUnexpected()
 {
-    THROW_ERROR_EXCEPTION("Unexpected %s: %s",
-        ~Type_.ToString(),
-        ~Token_);
+    if (Type_ == ETokenType::EndOfStream) {
+        THROW_ERROR_EXCEPTION("Unexpected end-of-stream in YPath");
+    } else {
+        THROW_ERROR_EXCEPTION("Unexpected %s token %s in YPath",
+            ~FormatEnum(Type_).Quote(),
+            ~Stroka(Token_).Quote());
+    }
 }
 
 ETokenType TTokenizer::GetType() const
