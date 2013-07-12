@@ -37,7 +37,7 @@ namespace {
 i64 GetTicksPerSecond()
 {
 #ifdef RESOURCE_TRACKER_ENABLED
-    return sysconf(_SC_CLK_TCK)
+    return sysconf(_SC_CLK_TCK);
 #else
     return -1;
 #endif
@@ -114,7 +114,7 @@ void TResourceTracker::EnqueueCpuUsage()
             i64 systemCpuTime = (systemJiffies - jiffies.PreviousSystem) * 1000 / TicksPerSecond;
 
             TTagIdList tagIds;
-            tagIds.push_back(TProfilingManager::Get()->RegisterTag("thread", TRawString(threadName)));
+            tagIds.push_back(TProfilingManager::Get()->RegisterTag("thread", threadName));
 
             Profiler.Enqueue("/user_cpu", 100 * userCpuTime / timeDelta, tagIds);
             Profiler.Enqueue("/system_cpu", 100 * systemCpuTime / timeDelta, tagIds);
