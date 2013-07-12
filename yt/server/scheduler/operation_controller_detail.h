@@ -211,7 +211,7 @@ protected:
         //! Chunk trees comprising the output (the order matters).
         //! Keys are used when the output is sorted (e.g. in sort operations).
         //! Trees are sorted w.r.t. key and appended to #OutputChunkListId.
-        std::multimap<int, NChunkServer::TChunkTreeId> OutputChunkTreeIds;
+        std::multimap<int, NChunkClient::TChunkTreeId> OutputChunkTreeIds;
 
         std::vector<TEndpoint> Endpoints;
 
@@ -683,11 +683,11 @@ protected:
     void RegisterInputStripe(TChunkStripePtr stripe, TTaskPtr task);
 
     void RegisterOutput(
-        const NChunkServer::TChunkTreeId& chunkTreeId,
+        const NChunkClient::TChunkTreeId& chunkTreeId,
         int key,
         int tableIndex);
     void RegisterOutput(
-        const NChunkServer::TChunkTreeId& chunkTreeId,
+        const NChunkClient::TChunkTreeId& chunkTreeId,
         int key,
         int tableIndex,
         TOutputTable& table);
@@ -785,7 +785,7 @@ private:
     NNodeTrackerClient::NProto::TNodeResources CachedNeededResources;
 
     //! Maps an intermediate chunk id to its originating completed job.
-    yhash_map<NChunkServer::TChunkId, TCompleteJobPtr> ChunkOriginMap;
+    yhash_map<NChunkClient::TChunkId, TCompleteJobPtr> ChunkOriginMap;
 
     //! Maps scheduler's job ids to controller's joblets.
     //! NB: |TJobPtr -> TJobletPtr| mapping would be faster but

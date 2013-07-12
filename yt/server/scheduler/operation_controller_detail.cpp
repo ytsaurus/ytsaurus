@@ -1206,7 +1206,7 @@ void TOperationControllerBase::CommitResults()
                 }
             };
 
-            auto addChunkTree = [&] (const NChunkServer::TChunkTreeId chunkTreeId) {
+            auto addChunkTree = [&] (const TChunkTreeId chunkTreeId) {
                 if (!req) {
                     req = TChunkListYPathProxy::Attach(FromObjectId(table.OutputChunkListId));
                     NMetaState::GenerateMutationId(req);
@@ -2753,7 +2753,7 @@ bool TOperationControllerBase::IsSortedOutputSupported() const
 }
 
 void TOperationControllerBase::RegisterOutput(
-    const NChunkServer::TChunkTreeId& chunkTreeId,
+    const TChunkTreeId& chunkTreeId,
     int key,
     int tableIndex,
     TOutputTable& table)
@@ -2777,7 +2777,7 @@ void TOperationControllerBase::RegisterOutput(
 }
 
 void TOperationControllerBase::RegisterOutput(
-    const NChunkServer::TChunkTreeId& chunkTreeId,
+    const TChunkTreeId& chunkTreeId,
     int key,
     int tableIndex)
 {
@@ -2916,14 +2916,19 @@ void TOperationControllerBase::BuildProgressYson(IYsonConsumer* consumer)
         .EndMap()
         .Item("input_statistics").BeginMap()
             .Item("chunk_count").Value(TotalInputChunkCount)
-            .Item("data_size").Value(TotalInputDataSize)
+            .Item("uncompressed_data_size").Value(TotalInputDataSize)
             .Item("row_count").Value(TotalInputRowCount)
             .Item("unavailable_chunk_count").Value(UnavailableInputChunkCount)
         .EndMap()
         .Item("intermediate_statistics").BeginMap()
             .Item("chunk_count").Value(TotalIntermeidateChunkCount)
-            .Item("data_size").Value(TotalIntermediateDataSize)
+            .Item("uncompressed_data_size").Value(TotalIntermediateDataSize)
             .Item("row_count").Value(TotalIntermediateRowCount)
+        .EndMap()
+        .Item("output_statistics").BeginMap()
+            .Item("chunk_count").Value(TotalOutputChunkCount)
+            .Item("uncompressed_data_size").Value(TotalOutputDataSize)
+            .Item("row_count").Value(TotalOutputRowCount)
         .EndMap();
 }
 
