@@ -96,7 +96,7 @@ protected:
     typedef TIntrusivePtr<TJoblet> TJobletPtr;
 
     struct TCompletedJob;
-    typedef TIntrusivePtr<TCompletedJob> TCompleteJobPtr;
+    typedef TIntrusivePtr<TCompletedJob> TCompletedJobPtr;
 
 
     TSchedulerConfigPtr Config;
@@ -393,7 +393,7 @@ protected:
         virtual void OnJobCompleted(TJobletPtr joblet);
         virtual void OnJobFailed(TJobletPtr joblet);
         virtual void OnJobAborted(TJobletPtr joblet);
-        virtual void OnJobLost(TCompleteJobPtr completedJob);
+        virtual void OnJobLost(TCompletedJobPtr completedJob);
 
         // First checks against a given node, then against all nodes if needed.
         void CheckResourceDemandSanity(
@@ -697,7 +697,7 @@ protected:
 
     void RegisterIntermediate(
         TJobletPtr joblet,
-        TCompleteJobPtr completedJob,
+        TCompletedJobPtr completedJob,
         TChunkStripePtr stripe);
 
     bool HasEnoughChunkLists(int requestedCount);
@@ -786,7 +786,7 @@ private:
     NNodeTrackerClient::NProto::TNodeResources CachedNeededResources;
 
     //! Maps an intermediate chunk id to its originating completed job.
-    yhash_map<NChunkClient::TChunkId, TCompleteJobPtr> ChunkOriginMap;
+    yhash_map<NChunkClient::TChunkId, TCompletedJobPtr> ChunkOriginMap;
 
     //! Maps scheduler's job ids to controller's joblets.
     //! NB: |TJobPtr -> TJobletPtr| mapping would be faster but

@@ -608,7 +608,7 @@ void TOperationControllerBase::TTask::OnJobAborted(TJobletPtr joblet)
     ReinstallJob(joblet, EJobReinstallReason::Aborted);
 }
 
-void TOperationControllerBase::TTask::OnJobLost(TCompleteJobPtr completedJob)
+void TOperationControllerBase::TTask::OnJobLost(TCompletedJobPtr completedJob)
 {
     YCHECK(LostJobCookieMap.insert(std::make_pair(
         completedJob->OutputCookie,
@@ -2857,7 +2857,7 @@ void TOperationControllerBase::RegisterInputStripe(TChunkStripePtr stripe, TTask
 
 void TOperationControllerBase::RegisterIntermediate(
     TJobletPtr joblet,
-    TCompleteJobPtr completedJob,
+    TCompletedJobPtr completedJob,
     TChunkStripePtr stripe)
 {
     // Update output statistics.

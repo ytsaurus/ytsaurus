@@ -419,7 +419,7 @@ protected:
             Controller->AddMergeTasksPendingHints();
         }
 
-        virtual void OnJobLost(TCompleteJobPtr completedJob) override
+        virtual void OnJobLost(TCompletedJobPtr completedJob) override
         {
             TTask::OnJobLost(completedJob);
 
@@ -678,7 +678,7 @@ protected:
             TTask::OnJobAborted(joblet);
         }
 
-        virtual void OnJobLost(TCompleteJobPtr completedJob) override
+        virtual void OnJobLost(TCompletedJobPtr completedJob) override
         {
             Controller->IntermediateSortJobCounter.Lost(1);
             auto stripeList = completedJob->SourceTask->GetChunkPoolOutput()->GetStripeList(completedJob->OutputCookie);
