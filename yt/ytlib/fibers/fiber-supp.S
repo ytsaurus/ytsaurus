@@ -2,15 +2,41 @@
 #error Unsupported platform
 #endif
 
+#define CONCAT_AUX(x, y) x ## y
+#define CONCAT(x, y) CONCAT_AUX(x, y)
+
+/* Define prologue and epilogue for various assemblers. */
 #if defined(__APPLE__)
 .section __TEXT,__text,regular,pure_instructions
-#define FIBER_CONTEXT_TRAMPOLINE __ZN3NYT13TFiberContext10TrampolineEv
-#define FIBER_CONTEXT_TRANSFER_TO __ZN3NYT13TFiberContext10TransferToEPS0_S1_
+#   define BEGIN(name) \
+    .text ; \
+    .globl CONCAT(_, name) ; \
+    .align 4, 0x90 /* 0x90 = nop */ ; \
+CONCAT(_, name):
+#   define END(name)
+#   define CFI_STARTPROC
+#   define CFI_ENDPROC
+#   define CFI_UNDEFINED_RIP
 #else
 .section .note.GNU-stack, "", %progbits
-#define FIBER_CONTEXT_TRAMPOLINE _ZN3NYT13TFiberContext10TrampolineEv
-#define FIBER_CONTEXT_TRANSFER_TO _ZN3NYT13TFiberContext10TransferToEPS0_S1_
+#   define BEGIN(name) \
+    .text ; \
+    .global name ; \
+    .align 4, 0x90 /* 0x90 = nop */ ; \
+    .p2align 4, 0x90, 15 ; \
+    .type name, @function ; \
+name:
+#   define END(name) \
+    .size name, .-name
+#   define CFI_STARTPROC .cfi_startproc
+#   define CFI_ENDPROC .cfi_endproc
+#   define CFI_UNDEFINED_RIP .cfi_undefined rip
 #endif
+
+/* void TFiberContext::Trampoline(); */
+#define FIBER_CONTEXT_TRAMPOLINE _ZN3NYT13TFiberContext10TrampolineEv
+/* void TFiberContext::TransferTo(TFiberContext* previous, TFiberContext* next); */
+#define FIBER_CONTEXT_TRANSFER_TO _ZN3NYT13TFiberContext10TransferToEPS0_S1_
 
 /**
  * x86_64 Calling Convention:
@@ -28,36 +54,16 @@
  *   - %xmm8, %xmm9, ..., %xmm15 - Scratch Registers
  */
 
-/* void TFiberContext::Trampoline(); */
-.text
-.global FIBER_CONTEXT_TRAMPOLINE
-.align 16, 0x90 /* 0x90 = nop */
-#ifndef __APPLE__
-.type FIBER_CONTEXT_TRAMPOLINE, @function
-.p2align 4,,15
-#endif
-FIBER_CONTEXT_TRAMPOLINE:
-    .cfi_startproc
-#ifndef __APPLE__
-    .cfi_undefined rip
-#endif
+BEGIN(FIBER_CONTEXT_TRAMPOLINE)
+    CFI_STARTPROC
+    CFI_UNDEFINED_RIP
     movq %r12, %rdi
-    .cfi_endproc
+    CFI_ENDPROC
     jmpq *%rbx
-#ifndef __APPLE__
-.size FIBER_CONTEXT_TRAMPOLINE, .-FIBER_CONTEXT_TRAMPOLINE
-#endif
+END(FIBER_CONTEXT_TRAMPOLINE)
 
-/* void TFiberContext::TransferTo(TFiberContext* previous, TFiberContext* next); */
-.text
-.global FIBER_CONTEXT_TRANSFER_TO
-.align 16, 0x90 /* 0x90 = nop */
-#ifndef __APPLE__
-.type FIBER_CONTEXT_TRANSFER_TO, @function
-.p2align 4,,15
-#endif
-FIBER_CONTEXT_TRANSFER_TO:
-    .cfi_startproc
+BEGIN(FIBER_CONTEXT_TRANSFER_TO)
+    CFI_STARTPROC
     pushq %rbp
     pushq %rbx
     pushq %r12
@@ -73,9 +79,7 @@ FIBER_CONTEXT_TRANSFER_TO:
     popq %rbx
     popq %rbp
     popq %rcx
-    .cfi_endproc
+    CFI_ENDPROC
     jmpq *%rcx
-#ifndef __APPLE__
-.size FIBER_CONTEXT_TRANSFER_TO, .-FIBER_CONTEXT_TRANSFER_TO
-#endif
+END(FIBER_CONTEXT_TRANSFER_TO)
 
