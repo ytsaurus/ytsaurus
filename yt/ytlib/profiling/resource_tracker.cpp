@@ -14,7 +14,7 @@
 
 #include <ytlib/profiling/profiling_manager.h>
 
-#if RESOURCE_TRACKER_ENABLED
+#ifdef RESOURCE_TRACKER_ENABLED
     #include <unistd.h>
 #endif
 
