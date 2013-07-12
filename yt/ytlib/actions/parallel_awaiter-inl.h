@@ -153,10 +153,6 @@ inline void TParallelAwaiter::DoFireCompleted(TClosure onComplete)
         }
         CompletedPromise.Set();
     }));
-
-    if (Profiler) {
-        Profiler->TimingStop(Timer, CompletedTagIds);
-    }
 }
 
 template <class T>
