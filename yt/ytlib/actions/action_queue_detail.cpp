@@ -164,47 +164,46 @@ void TExecutorThread::Start()
 
 void* TExecutorThread::ThreadMain(void* opaque)
 {
-    try {
-        static_cast<TExecutorThread*>(opaque)->ThreadMain();
-    } catch (const std::exception& ex) {
-        LOG_FATAL(ex, "Unhandled exception in executor thread (Name: %s)",
-            ~ThreadName);
-    }
+    static_cast<TExecutorThread*>(opaque)->ThreadMain();
     return nullptr;
 }
 
 void TExecutorThread::ThreadMain()
 {
-    LOG_DEBUG_IF(EnableLogging, "Thread started (Name: %s)", ~ThreadName);
-    OnThreadStart();
-    CurrentInvokerThread = this;
+    try {
+        LOG_DEBUG_IF(EnableLogging, "Thread started (Name: %s)", ~ThreadName);
+        OnThreadStart();
+        CurrentInvokerThread = this;
 
-    NThread::SetCurrentThreadName(~ThreadName);
-    ThreadId = NThread::GetCurrentThreadId();
+        NThread::SetCurrentThreadName(~ThreadName);
+        ThreadId = NThread::GetCurrentThreadId();
 
-    while (Running) {
-        // Spawn a new fiber to run the loop.
-        auto fiber = New<TFiber>(BIND(&TExecutorThread::FiberMain, MakeStrong(this)));
-        fiber->Run();
+        while (Running) {
+            // Spawn a new fiber to run the loop.
+            auto fiber = New<TFiber>(BIND(&TExecutorThread::FiberMain, MakeStrong(this)));
+            fiber->Run();
 
-        auto state = fiber->GetState();
-        YCHECK(state == EFiberState::Suspended || state == EFiberState::Terminated);
+            auto state = fiber->GetState();
+            YCHECK(state == EFiberState::Suspended || state == EFiberState::Terminated);
 
-        // Check for fiber termination.
-        if (state == EFiberState::Terminated)
-            break;
+            // Check for fiber termination.
+            if (state == EFiberState::Terminated)
+                break;
 
-        // The callback has taken the ownership of the current fiber.
-        // Finish sync part of the execution and respawn the fiber.
-        // The current fiber will be owned by the callback.
-        if (state == EFiberState::Suspended) {
-            EndExecute();
+            // The callback has taken the ownership of the current fiber.
+            // Finish sync part of the execution and respawn the fiber.
+            // The current fiber will be owned by the callback.
+            if (state == EFiberState::Suspended) {
+                EndExecute();
+            }
         }
-    }
 
-    CurrentInvokerThread = nullptr;
-    OnThreadShutdown();
-    LOG_DEBUG_IF(EnableLogging, "Thread stopped (Name: %s)", ~ThreadName);
+        CurrentInvokerThread = nullptr;
+        OnThreadShutdown();
+        LOG_DEBUG_IF(EnableLogging, "Thread stopped (Name: %s)", ~ThreadName);
+    } catch (const std::exception& ex) {
+        LOG_FATAL(ex, "Unhandled exception in executor thread (Name: %s)", ~ThreadName);
+    }
 }
 
 void TExecutorThread::FiberMain()
