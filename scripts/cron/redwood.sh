@@ -14,5 +14,4 @@ REMOVE_QUEUE="//sys/cron/tables_to_remove"
     --tables "$IMPORT_QUEUE" --destination="$IMPORT_PATH" \
     --server "redwood.yandex.ru" --mapreduce "/opt/cron/tools/mapreduce" \
     --pool "redwood_restricted" --codec "gzip_best_compression" \
-    --ignore
-
+    --fastbone --ignore

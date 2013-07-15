@@ -2960,6 +2960,7 @@ void TOperationControllerBase::InitUserJobSpec(
     jobSpec->set_use_yamr_descriptors(config->UseYamrDescriptors);
     jobSpec->set_max_stderr_size(config->MaxStderrSize);
     jobSpec->set_enable_core_dump(config->EnableCoreDump);
+    jobSpec->set_enable_vm_limit(Config->EnableVMLimit);
 
     {
         if (Operation->GetStdErrCount() < Operation->GetMaxStdErrCount()) {

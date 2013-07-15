@@ -383,9 +383,12 @@ TNodeDirectoryPtr TJobProxy::GetNodeDirectory() const
 void TJobProxy::CheckMemoryUsage()
 {
     auto memoryUsage = GetProcessRss();
+    LOG_DEBUG("Job proxy memory check (MemoryUsage: %" PRId64 ", MemoryLimit: %" PRId64 ")",
+        memoryUsage,
+        JobProxyMemoryLimit);
     if (memoryUsage > JobProxyMemoryLimit) {
         LOG_FATAL(
-            "Job proxy memory limit exceeded (Memory usage: %" PRId64 ", Memory limit: %" PRId64 ", RefCountedTracker: %s)",
+            "Job proxy memory limit exceeded (MemoryUsage: %" PRId64 ", MemoryLimit: %" PRId64 ", RefCountedTracker: %s)",
             memoryUsage,
             JobProxyMemoryLimit,
             ~TRefCountedTracker::Get()->GetDebugInfo(2));
