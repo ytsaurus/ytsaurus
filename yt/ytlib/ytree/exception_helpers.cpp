@@ -29,10 +29,12 @@ Stroka GetNodePathHelper(IConstNodePtr node)
 
 void ThrowInvalidNodeType(IConstNodePtr node, ENodeType expectedType, ENodeType actualType)
 {
-    THROW_ERROR_EXCEPTION("%s has invalid type: expected %s, actual %s",
+    THROW_ERROR_EXCEPTION(
+        NYTree::EErrorCode::ResolveError,
+        "%s has invalid type: expected %s, actual %s",
         ~GetNodePathHelper(node),
-        ~expectedType.ToString(),
-        ~actualType.ToString());
+        ~FormatEnum(expectedType).Quote(),
+        ~FormatEnum(actualType).Quote());
 }
 
 void ThrowNoSuchChildKey(IConstNodePtr node, const Stroka& key)
@@ -84,7 +86,7 @@ void ThrowVerbNotSuppored(const Stroka& verb, const TNullable<Stroka>& resolveTy
         "Verb %s is not supported",
         ~verb.Quote());
     if (resolveType) {
-        error.Attributes().Set("resolve_type", resolveType.Get());
+        error.Attributes().Set("resolve_type", *resolveType);
     }
     THROW_ERROR(error);
 }

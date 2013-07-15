@@ -13,6 +13,7 @@
 #include <ytlib/ytree/convert.h>
 #include <ytlib/ytree/ephemeral_node_factory.h>
 #include <ytlib/ytree/fluent.h>
+#include <ytlib/ytree/ypath_client.h>
 
 #include <ytlib/ypath/tokenizer.h>
 
@@ -25,12 +26,14 @@ namespace NCypressServer {
 
 using namespace NYTree;
 using namespace NYson;
+using namespace NYPath;
 using namespace NRpc;
 using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NCellMaster;
 using namespace NTransactionServer;
 using namespace NSecurityServer;
+using namespace NCypressClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -219,7 +222,7 @@ INodeFactoryPtr TNontemplateCypressNodeProxyBase::CreateFactory() const
     return New<TNodeFactory>(Bootstrap, Transaction, account);
 }
 
-IYPathResolverPtr TNontemplateCypressNodeProxyBase::GetResolver() const
+INodeResolverPtr TNontemplateCypressNodeProxyBase::GetResolver() const
 {
     if (!CachedResolver) {
         auto cypressManager = Bootstrap->GetCypressManager();
@@ -325,6 +328,7 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
     attributes->push_back(TAttributeInfo("key", hasKey, false));
     attributes->push_back("creation_time");
     attributes->push_back("modification_time");
+    attributes->push_back("revision");
     attributes->push_back("resource_usage");
     attributes->push_back(TAttributeInfo("recursive_resource_usage", true, true));
     attributes->push_back("account");
@@ -385,13 +389,19 @@ bool TNontemplateCypressNodeProxyBase::GetSystemAttribute(
 
     if (key == "creation_time") {
         BuildYsonFluently(consumer)
-            .Value(node->GetCreationTime().ToString());
+            .Value(node->GetCreationTime());
         return true;
     }
 
     if (key == "modification_time") {
         BuildYsonFluently(consumer)
-            .Value(node->GetModificationTime().ToString());
+            .Value(node->GetModificationTime());
+        return true;
+    }
+
+    if (key == "revision") {
+        BuildYsonFluently(consumer)
+            .Value(node->GetRevision());
         return true;
     }
 
@@ -529,9 +539,11 @@ void TNontemplateCypressNodeProxyBase::SetModified()
 }
 
 ICypressNodeProxyPtr TNontemplateCypressNodeProxyBase::ResolveSourcePath(const TYPath& path)
-{
-    auto sourceNode = this->GetResolver()->ResolvePath(path);
-    return dynamic_cast<ICypressNodeProxy*>(~sourceNode);
+{   
+    auto node = GetResolver()->ResolvePath(path);
+    auto* nodeProxy = dynamic_cast<ICypressNodeProxy*>(~node);
+    YCHECK(nodeProxy);
+    return nodeProxy;
 }
 
 bool TNontemplateCypressNodeProxyBase::CanHaveChildren() const
@@ -561,8 +573,8 @@ DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
         mode != ELockMode::Shared &&
         mode != ELockMode::Exclusive)
     {
-        THROW_ERROR_EXCEPTION("Invalid lock mode: %s",
-            ~mode.ToString());
+        THROW_ERROR_EXCEPTION("Invalid lock mode %s",
+            ~FormatEnum(mode).Quote());
     }
 
     ValidateTransaction();
@@ -602,8 +614,8 @@ DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
 
     auto nodeHandler = cypressManager->FindHandler(type);
     if (!nodeHandler) {
-        THROW_ERROR_EXCEPTION("Unknown object type: %s",
-            ~type.ToString());
+        THROW_ERROR_EXCEPTION("Unknown object type %s",
+            ~FormatEnum(type).Quote());
     }
 
     auto* schema = objectManager->GetSchema(type);
@@ -647,7 +659,7 @@ DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
         THROW_ERROR_EXCEPTION("Cannot copy a node to its child");
     }
 
-    if (targetPath.Empty()) {
+    if (targetPath.empty()) {
         ThrowAlreadyExists(this);
     }
 
@@ -682,9 +694,6 @@ DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
     auto* clonedTrunkImpl = clonedImpl->GetTrunkNode();
     auto clonedProxy = GetProxy(clonedTrunkImpl);
 
-    if (targetPath == "") {
-        THROW_ERROR_EXCEPTION("Cannot copy to existing node");
-    }
     SetChild(targetPath, clonedProxy, false);
 
     ToProto(response->mutable_object_id(), clonedTrunkImpl->GetId());
@@ -713,12 +722,12 @@ TNontemplateCompositeCypressNodeProxyBase::TNontemplateCompositeCypressNodeProxy
         trunkNode)
 { }
 
-TIntrusivePtr<const NYTree::ICompositeNode> TNontemplateCompositeCypressNodeProxyBase::AsComposite() const
+TIntrusivePtr<const ICompositeNode> TNontemplateCompositeCypressNodeProxyBase::AsComposite() const
 {
     return this;
 }
 
-TIntrusivePtr<NYTree::ICompositeNode> TNontemplateCompositeCypressNodeProxyBase::AsComposite()
+TIntrusivePtr<ICompositeNode> TNontemplateCompositeCypressNodeProxyBase::AsComposite()
 {
     return this;
 }
@@ -732,8 +741,8 @@ void TNontemplateCompositeCypressNodeProxyBase::ListSystemAttributes(std::vector
 bool TNontemplateCompositeCypressNodeProxyBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer)
 {
     if (key == "count") {
-        NYTree::BuildYsonFluently(consumer)
-            .Value(this->GetChildCount());
+        BuildYsonFluently(consumer)
+            .Value(GetChildCount());
         return true;
     }
 
@@ -1260,11 +1269,11 @@ IYPathService::TResolveResult TLinkNodeProxy::Resolve(
             const auto& verb = context->GetVerb();
             return (verb == "Remove" || verb == "Create")
                    ? TResolveResult::Here(path)
-                   : TResolveResult::There(GetTargetService(), path);
+                   : TResolveResult::There(GetTargetProxy(), path);
         }
 
         default:
-            return TResolveResult::There(GetTargetService(), path);
+            return TResolveResult::There(GetTargetProxy(), path);
     }
 }
 
@@ -1272,6 +1281,7 @@ void TLinkNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attribute
 {
     TBase::ListSystemAttributes(attributes);
     attributes->push_back("target_id");
+    attributes->push_back(TAttributeInfo("target_path", true, true));
     attributes->push_back("broken");
 }
 
@@ -1286,6 +1296,21 @@ bool TLinkNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consum
         return true;
     }
 
+    if (key == "target_path") {
+        auto target = FindTargetProxy();
+        if (target) {
+            auto objectManager = Bootstrap->GetObjectManager();
+            auto* resolver = objectManager->GetObjectResolver();
+            auto path = resolver->GetPath(target);
+            BuildYsonFluently(consumer)
+                .Value(path);
+        } else {
+            BuildYsonFluently(consumer)
+                .Value(FromObjectId(impl->GetTargetId()));
+        }
+        return true;
+    }
+
     if (key == "broken") {
         BuildYsonFluently(consumer)
             .Value(IsBroken(targetId));
@@ -1294,7 +1319,6 @@ bool TLinkNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consum
 
     return TBase::GetSystemAttribute(key, consumer);
 }
-
 
 bool TLinkNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& value)
 {
@@ -1305,16 +1329,26 @@ bool TLinkNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& va
         return true;
     }
 
+    if (key == "target_path") {
+        auto objectManager = Bootstrap->GetObjectManager();
+        auto* resolver = objectManager->GetObjectResolver();
+        auto path = ConvertTo<Stroka>(value);
+        auto targetProxy = resolver->ResolvePath(path, Transaction);
+        auto* impl = LockThisTypedImpl();
+        impl->SetTargetId(targetProxy->GetId());
+        return true;
+    }
+
     return TBase::SetSystemAttribute(key, value);
 }
 
-IYPathServicePtr TLinkNodeProxy::GetTargetService() const
+IObjectProxyPtr TLinkNodeProxy::FindTargetProxy() const
 {
     const auto* impl = GetThisTypedImpl();
     const auto& targetId = impl->GetTargetId();
 
     if (IsBroken(targetId)) {
-        THROW_ERROR_EXCEPTION("Link target %s does not exist", ~ToString(targetId));
+        return nullptr;
     }
 
     auto objectManager = Bootstrap->GetObjectManager();
@@ -1322,9 +1356,20 @@ IYPathServicePtr TLinkNodeProxy::GetTargetService() const
     return objectManager->GetProxy(target, Transaction);
 }
 
+IObjectProxyPtr TLinkNodeProxy::GetTargetProxy() const
+{
+    auto result = FindTargetProxy();
+    if (!result) {
+        const auto* impl = GetThisTypedImpl();
+        THROW_ERROR_EXCEPTION("Link target %s does not exist",
+            ~ToString(impl->GetTargetId()));
+    }
+    return result;
+}
+
 bool TLinkNodeProxy::IsBroken(const NObjectServer::TObjectId& id) const
 {
-    if (TypeIsVersioned(TypeFromId(id))) {
+    if (IsVersioned(TypeFromId(id))) {
         auto cypressManager = Bootstrap->GetCypressManager();
         auto* node = cypressManager->FindNode(TVersionedNodeId(id));
         return cypressManager->IsOrphaned(node);
@@ -1333,6 +1378,149 @@ bool TLinkNodeProxy::IsBroken(const NObjectServer::TObjectId& id) const
         auto* obj = objectManager->FindObject(id);
         return !IsObjectAlive(obj);
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TDocumentNodeProxy::TDocumentNodeProxy(
+    INodeTypeHandlerPtr typeHandler,
+    TBootstrap* bootstrap,
+    TTransaction* transaction,
+    TDocumentNode* trunkNode)
+    : TBase(
+        typeHandler,
+        bootstrap,
+        transaction,
+        trunkNode)
+{ }
+
+ENodeType TDocumentNodeProxy::GetType() const 
+{
+    return ENodeType::Entity;
+}
+
+TIntrusivePtr<const IEntityNode> TDocumentNodeProxy::AsEntity() const
+{
+    return this;
+}
+
+TIntrusivePtr<IEntityNode> TDocumentNodeProxy::AsEntity()
+{
+    return this;
+}
+
+IYPathService::TResolveResult TDocumentNodeProxy::ResolveRecursive(const TYPath& path, IServiceContextPtr context)
+{
+    return TResolveResult::Here("/" + path);
+}
+
+namespace {
+
+template <class TServerRequest, class TServerResponse, class TContext>
+void DelegateInvocation(
+    IYPathServicePtr service,
+    TServerRequest* serverRequest,
+    TServerResponse* serverResponse,
+    TIntrusivePtr<TContext> context)
+{
+    typedef typename TServerRequest::TMessage  TRequestMessage;
+    typedef typename TServerResponse::TMessage TResponseMessage;
+    
+    typedef TTypedYPathRequest<TRequestMessage, TResponseMessage>  TClientRequest;
+    typedef TTypedYPathResponse<TRequestMessage, TResponseMessage> TClientResponse;
+
+    auto clientRequest = New<TClientRequest>(context->GetVerb(), context->GetPath());
+    clientRequest->MergeFrom(*serverRequest);
+
+    auto clientResponse = ExecuteVerb(service, clientRequest).Get();
+
+    if (clientResponse->IsOK()) {
+        serverResponse->MergeFrom(*clientResponse);
+        context->Reply();
+    } else {
+        context->Reply(clientResponse->GetError());
+    }
+}
+
+} // namespace
+
+void TDocumentNodeProxy::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
+{
+    const auto* impl = GetThisTypedImpl();
+    DelegateInvocation(impl->GetValue(), request, response, context);
+}
+
+void TDocumentNodeProxy::GetRecursive(const TYPath& /*path*/, TReqGet* request, TRspGet* response, TCtxGetPtr context)
+{
+    const auto* impl = GetThisTypedImpl();
+    DelegateInvocation(impl->GetValue(), request, response, context);
+}
+
+void TDocumentNodeProxy::SetSelf(TReqSet* request, TRspSet* /*response*/, TCtxSetPtr context)
+{
+    auto* impl = LockThisTypedImpl();
+    impl->SetValue(ConvertToNode(TYsonString(request->value())));
+    context->Reply();
+}
+
+void TDocumentNodeProxy::SetRecursive(const TYPath& /*path*/, TReqSet* request, TRspSet* response, TCtxSetPtr context)
+{
+    auto* impl = LockThisTypedImpl();
+    DelegateInvocation(impl->GetValue(), request, response, context);
+}
+
+void TDocumentNodeProxy::ListSelf(TReqList* request, TRspList* response, TCtxListPtr context)
+{
+    const auto* impl = GetThisTypedImpl();
+    DelegateInvocation(impl->GetValue(), request, response, context);
+}
+
+void TDocumentNodeProxy::ListRecursive(const TYPath& /*path*/, TReqList* request, TRspList* response, TCtxListPtr context)
+{
+    const auto* impl = GetThisTypedImpl();
+    DelegateInvocation(impl->GetValue(), request, response, context);
+}
+
+void TDocumentNodeProxy::RemoveRecursive(const TYPath& /*path*/, TReqRemove* request, TRspRemove* response, TCtxRemovePtr context)
+{
+    auto* impl = LockThisTypedImpl();
+    DelegateInvocation(impl->GetValue(), request, response, context);
+}
+
+void TDocumentNodeProxy::ExistsRecursive(const TYPath& /*path*/, TReqExists* request, TRspExists* response, TCtxExistsPtr context)
+{
+    const auto* impl = GetThisTypedImpl();
+    DelegateInvocation(impl->GetValue(), request, response, context);
+}
+
+void TDocumentNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attributes)
+{
+    TBase::ListSystemAttributes(attributes);
+    attributes->push_back(TAttributeInfo("value", true, true));
+}
+
+bool TDocumentNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer)
+{
+    const auto* impl = GetThisTypedImpl();
+
+    if (key == "value") {
+        BuildYsonFluently(consumer)
+            .Value(impl->GetValue());
+        return true;
+    }
+
+    return TBase::GetSystemAttribute(key, consumer);
+}
+
+bool TDocumentNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& value)
+{
+    if (key == "value") {
+        auto* impl = LockThisTypedImpl();
+        impl->SetValue(ConvertToNode(value));
+        return true;
+    }
+
+    return TBase::SetSystemAttribute(key, value);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

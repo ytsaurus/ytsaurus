@@ -401,7 +401,7 @@ public:
 
             std::rethrow_exception(std::move(ex));
         } else if (waitFor) {
-            // Schedule wakeup when then given future is set.
+            // Schedule wakeup when the given future is set.
             YCHECK(!Terminating_);
             waitFor.Subscribe(BIND(&TFiber::Run, MakeStrong(Owner_)).Via(switchTo));
         } else if (switchTo) {

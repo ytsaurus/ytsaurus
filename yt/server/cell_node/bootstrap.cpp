@@ -306,8 +306,8 @@ void TBootstrap::Run()
         "/@service_name", ConvertToYsonString("node"));
     SetBuildAttributes(OrchidRoot, "node");
 
-    std::unique_ptr<NHttp::TServer> httpServer(new NHttp::TServer(Config->MonitoringPort));
-    httpServer->Register(
+    NHttp::TServer httpServer(Config->MonitoringPort);
+    httpServer.Register(
         "/orchid",
         NMonitoring::GetYPathHttpHandler(OrchidRoot->Via(GetControlInvoker())));
 
@@ -325,7 +325,7 @@ void TBootstrap::Run()
     PeerBlockUpdater->Start();
     MasterConnector->Start();
     SchedulerConnector->Start();
-    httpServer->Start();
+    httpServer.Start();
 
     RpcServer->Start();
 
@@ -480,7 +480,6 @@ IThroughputThrottlerPtr TBootstrap::GetInThrottler(EWriteSessionType sessionType
             YUNREACHABLE();
     }
 }
-
 
 IThroughputThrottlerPtr TBootstrap::GetOutThrottler(EWriteSessionType sessionType) const
 {

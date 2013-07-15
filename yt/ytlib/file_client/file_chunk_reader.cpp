@@ -62,14 +62,16 @@ void TFileChunkReader::OnGotMeta(NChunkClient::IAsyncReader::TGetMetaResult resu
     const auto& chunkMeta = result.GetValue();
 
     if (chunkMeta.type() != EChunkType::File) {
-        auto error = TError("Invalid chunk type %d", chunkMeta.type());
+        auto error = TError("Invalid chunk type: expected %s, actual %s",
+            ~FormatEnum(EChunkType(EChunkType::File)).Quote(),
+            ~FormatEnum(EChunkType(chunkMeta.type())).Quote());
         LOG_WARNING(error);
         State.Fail(error);
         return;
     }
 
     if (chunkMeta.version() != FormatVersion) {
-        auto error = TError("Invalid file chunk format version: expected: %d, actual: %d",
+        auto error = TError("Invalid file chunk format version: expected %d, actual %d",
             FormatVersion,
             chunkMeta.version());
         LOG_WARNING(error);

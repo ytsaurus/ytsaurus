@@ -3,8 +3,8 @@
 #include "sync_reader.h"
 
 #include <ytlib/yson/consumer.h>
+
 #include <ytlib/ytree/yson_string.h>
-#include <ytlib/misc/foreach.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -67,8 +67,6 @@ void ProduceTableSwitch(IYsonConsumer* consumer, int tableIndex)
     consumer->OnEndAttributes();
     consumer->OnEntity();
 }
-
-////////////////////////////////////////////////////////////////////////////////
 
 void ProduceYson(ISyncReaderPtr reader, NYson::IYsonConsumer* consumer)
 {

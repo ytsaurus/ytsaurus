@@ -30,6 +30,25 @@ namespace NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Similar to NYTree::INodeResolver but works for arbitrary objects rather than nodes.
+struct IObjectResolver
+{
+    virtual ~IObjectResolver()
+    { }
+
+    //! Resolves a given path in the context of a given transaction.
+    //! Throws if resolution fails.
+    virtual IObjectProxyPtr ResolvePath(
+        const NYPath::TYPath& path,
+        NTransactionServer::TTransaction* transaction) = 0;
+
+    //! Returns a path corresponding to a given object.
+    virtual NYPath::TYPath GetPath(IObjectProxyPtr proxy) = 0;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Provides high-level management and tracking of objects and their attributes.
 /*!
  *  \note
@@ -179,6 +198,8 @@ public:
         TObjectBase* object,
         bool recursive);
 
+    IObjectResolver* GetObjectResolver();
+
     DECLARE_METAMAP_ACCESSORS(Attributes, TAttributeSet, TVersionedObjectId);
 
 private:
@@ -188,6 +209,8 @@ private:
 
     class TRootService;
     typedef TIntrusivePtr<TRootService> TRootServicePtr;
+
+    class TObjectResolver;
 
     TObjectManagerConfigPtr Config;
     NCellMaster::TBootstrap* Bootstrap;
@@ -208,6 +231,8 @@ private:
     yhash_map<Stroka, NProfiling::TTagId> VerbToTag;
 
     TRootServicePtr RootService;
+
+    std::unique_ptr<TObjectResolver> ObjectResolver;
 
     TObjectId MasterObjectId;
     std::unique_ptr<TMasterObject> MasterObject;

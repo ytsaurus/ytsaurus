@@ -24,7 +24,6 @@ ExecuteVerb(IYPathServicePtr service, TIntrusivePtr<TTypedRequest> request)
         }));
 }
 
-
 template <class TTypedRequest>
 TIntrusivePtr<typename TTypedRequest::TTypedResponse>
 SyncExecuteVerb(IYPathServicePtr service, TIntrusivePtr<TTypedRequest> request)

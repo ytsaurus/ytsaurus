@@ -144,10 +144,14 @@ public:
     //! Maximum number of output tables an operation can have.
     int MaxOutputTableCount;
 
+    //! Maximum number of input tables an operation can have.
     int MaxInputTableCount;
 
     //! Maximum number of jobs to start within a single heartbeat.
     TNullable<int> MaxStartedJobsPerHeartbeat;
+
+    //! Whether to call a |setrlimit| to limit user job VM size.
+    bool EnableVMLimit;
 
     NYTree::INodePtr MapOperationSpec;
     NYTree::INodePtr ReduceOperationSpec;
@@ -273,6 +277,9 @@ public:
             .Default()
             .GreaterThan(0);
 
+        RegisterParameter("enable_vm_limit", EnableVMLimit)
+            .Default(true);
+
         RegisterParameter("map_operation_spec", MapOperationSpec)
             .Default(nullptr);
         RegisterParameter("reduce_operation_spec", ReduceOperationSpec)
@@ -309,7 +316,8 @@ public:
         RegisterParameter("enable_snapshot_loading", EnableSnapshotLoading)
             .Default(false);
         RegisterParameter("snapshot_temp_path", SnapshotTempPath)
-            .NonEmpty();
+            .NonEmpty()
+            .Default("/tmp/yt/scheduler/snapshots");
         RegisterParameter("snapshot_reader", SnapshotReader)
             .DefaultNew();
         RegisterParameter("snapshot_writer", SnapshotWriter)

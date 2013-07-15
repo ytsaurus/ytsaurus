@@ -188,7 +188,7 @@ public:
         return Parent->CreateFactory();
     }
 
-    virtual IYPathResolverPtr GetResolver() const override
+    virtual INodeResolverPtr GetResolver() const override
     {
         YASSERT(Parent);
         return Parent->GetResolver();

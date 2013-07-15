@@ -29,7 +29,7 @@ DECLARE_ENUM(ESerializationPriority,
     (Values)
 );
 
-const int CurrentSnapshotVersion = 21;
+int GetCurrentSnapshotVersion();
 NMetaState::TVersionValidator SnapshotVersionValidator();
 
 class TSaveContext

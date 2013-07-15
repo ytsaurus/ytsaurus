@@ -118,7 +118,7 @@ public:
         auto objectManager = Bootstrap->GetObjectManager();
         auto handler = objectManager->GetHandler(Type);
 
-        if (!TypeIsVersioned(Type)) {
+        if (!IsVersioned(Type)) {
             permissions |= handler->GetSupportedPermissions();
         }
 

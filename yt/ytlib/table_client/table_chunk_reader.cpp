@@ -9,6 +9,7 @@
 #include <ytlib/misc/foreach.h>
 #include <ytlib/misc/sync.h>
 #include <ytlib/misc/protobuf_helpers.h>
+
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 
 #include <ytlib/chunk_client/async_reader.h>
@@ -19,7 +20,9 @@
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <ytlib/yson/tokenizer.h>
+
 #include <ytlib/actions/invoker.h>
+
 #include <ytlib/logging/tagged_logger.h>
 
 #include <algorithm>
@@ -216,11 +219,15 @@ private:
         const auto& chunkMeta = result.GetValue();
 
         if (chunkMeta.type() != EChunkType::Table) {
-            LOG_FATAL("Invalid chunk type %d", chunkMeta.type());
+            auto error = TError("Invalid chunk type: expected %s, actual %s",
+                ~FormatEnum(EChunkType(EChunkType::Table)).Quote(),
+                ~FormatEnum(EChunkType(chunkMeta.type())).Quote());
+            OnFail(error, chunkReader);
+            return;
         }
 
         if (chunkMeta.version() != FormatVersion) {
-            auto error = TError("Invalid chunk format version (Expected: %d, Actual: %d)",
+            auto error = TError("Invalid table chunk format version: expected %d, actual %d",
                 FormatVersion,
                 chunkMeta.version());
             OnFail(error, chunkReader);

@@ -95,6 +95,11 @@ class TestTableCommands(YTEnvSetup):
             write('"<append=true>" + //tmp/table', {'foo': 'zzz_bar'}, sorted_by='foo')
 
 
+        content = "some_data"
+        create('file', '//tmp/file')
+        upload('//tmp/file', content)
+        with pytest.raises(YTError): read('//tmp/file')
+
     def test_row_index_selector(self):
         create('table', '//tmp/table')
 

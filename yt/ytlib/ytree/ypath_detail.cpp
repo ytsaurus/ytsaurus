@@ -909,8 +909,8 @@ TNodeSetterBase::~TNodeSetterBase()
 void TNodeSetterBase::ThrowInvalidType(ENodeType actualType)
 {
     THROW_ERROR_EXCEPTION("Invalid node type: expected %s, actual %s",
-        ~GetExpectedType().ToString(),
-        ~actualType.ToString());
+        ~FormatEnum(GetExpectedType()).Quote(),
+        ~FormatEnum(actualType).Quote());
 }
 
 void TNodeSetterBase::OnMyStringScalar(const TStringBuf& value)

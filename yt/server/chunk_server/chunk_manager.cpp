@@ -251,13 +251,13 @@ public:
             RegisterSaver(
                 ESerializationPriority::Keys,
                 "ChunkManager.Keys",
-                CurrentSnapshotVersion,
+                GetCurrentSnapshotVersion(),
                 BIND(&TImpl::SaveKeys, MakeStrong(this)),
                 context);
             RegisterSaver(
                 ESerializationPriority::Values,
                 "ChunkManager.Values",
-                CurrentSnapshotVersion,
+                GetCurrentSnapshotVersion(),
                 BIND(&TImpl::SaveValues, MakeStrong(this)),
                 context);
         }

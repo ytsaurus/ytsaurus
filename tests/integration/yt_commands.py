@@ -102,6 +102,9 @@ def copy(source_path, destination_path, **kwargs):
 def move(source_path, destination_path, **kwargs):
     return command('move', source_path, destination_path, **kwargs)
 
+def link(source_path, link_path, **kwargs):
+    return command('link', source_path, link_path, **kwargs)
+
 def exists(path, **kwargs):
     res = command('exists', path, **kwargs)
     return yson2py(res)

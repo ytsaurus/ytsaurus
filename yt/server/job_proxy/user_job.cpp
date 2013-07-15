@@ -463,7 +463,7 @@ private:
             }
             envp[UserJobSpec.environment_size()] = NULL;
 
-            {
+            if (UserJobSpec.enable_vm_limit()) {
                 auto memoryLimit = static_cast<rlim_t>(UserJobSpec.memory_limit() * config->MemoryLimitMultiplier);
                 memoryLimit += MemoryLimitBoost;
                 struct rlimit rlimit = {memoryLimit, RLIM_INFINITY};

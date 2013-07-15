@@ -237,12 +237,12 @@ private:
                     .EndMap());
 
             FOREACH (auto type, objectManager->GetRegisteredTypes()) {
-                if (TypeHasSchema(type)) {
+                if (HasSchema(type)) {
                     CreateNode(
                         rootService,
                         "//sys/schemas/" + ToYPathLiteral(FormatEnum(type)),
                         transactionId,
-                        EObjectType::LinkNode,
+                        EObjectType::Link,
                         BuildYsonStringFluently()
                             .BeginMap()
                                 .Item("target_id").Value(objectManager->GetSchema(type)->GetId())
@@ -268,7 +268,17 @@ private:
 
             CreateNode(
                 rootService,
-                "//sys/scheduler/pools",
+                "//sys/pools",
+                transactionId,
+                EObjectType::MapNode,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("opaque").Value(true)
+                    .EndMap());
+
+            CreateNode(
+                rootService,
+                "//sys/scheduler/instances",
                 transactionId,
                 EObjectType::MapNode,
                 BuildYsonStringFluently()
@@ -504,6 +514,7 @@ private:
         ToProto(req->mutable_node_attributes(), *ConvertToAttributes(attributes));
         SyncExecuteVerb(service, req);
     }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

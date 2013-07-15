@@ -26,11 +26,18 @@ void Serialize(const IAttributeDictionary& attributes, NYson::IYsonConsumer* con
 void ToProto(NProto::TAttributes* protoAttributes, const IAttributeDictionary& attributes);
 std::unique_ptr<IAttributeDictionary> FromProto(const NProto::TAttributes& protoAttributes);
 
-//! Binary serializer.
-struct TAttributeDictionarySerializer
+//! By-value binary serializer.
+struct TAttributeDictionaryValueSerializer
 {
     static void Save(TStreamSaveContext& context, const IAttributeDictionary& obj);
     static void Load(TStreamLoadContext& context, IAttributeDictionary& obj);
+};
+
+//! By-ref binary serializer.
+struct TAttributeDictionaryRefSerializer
+{
+    static void Save(TStreamSaveContext& context, const std::unique_ptr<IAttributeDictionary>& obj);
+    static void Load(TStreamLoadContext& context, std::unique_ptr<IAttributeDictionary>& obj);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -45,7 +52,13 @@ namespace NYT {
 template <class C>
 struct TSerializerTraits<NYTree::IAttributeDictionary, C, void>
 {
-    typedef NYTree::TAttributeDictionarySerializer TSerializer;
+    typedef NYTree::TAttributeDictionaryValueSerializer TSerializer;
+};
+
+template <class C>
+struct TSerializerTraits<std::unique_ptr<NYTree::IAttributeDictionary>, C, void>
+{
+    typedef NYTree::TAttributeDictionaryRefSerializer TSerializer;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

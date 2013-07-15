@@ -38,14 +38,50 @@ public:
     typedef TIntrusivePtr<TRspExecuteBatch> TRspExecuteBatchPtr;
     typedef TFuture<TRspExecuteBatchPtr> TInvExecuteBatch;
 
+    struct TPrerequisiteTransaction
+    {
+        TPrerequisiteTransaction()
+        { }
+
+        TPrerequisiteTransaction(const NTransactionClient::TTransactionId& transactionId)
+            : TransactionId(transactionId)
+        { }
+
+        NTransactionClient::TTransactionId TransactionId;
+    };
+
+    struct TPrerequisiteRevision
+    {
+        TPrerequisiteRevision()
+            : Revision(0)
+        { }
+
+        TPrerequisiteRevision(const NYPath::TYPath& path, i64 revision)
+            : Path(path)
+            , Revision(revision)
+        { }
+
+        TPrerequisiteRevision(const NYPath::TYPath& path, const NTransactionClient::TTransactionId& transactionId, i64 revision)
+            : Path(path)
+            , TransactionId(transactionId)
+            , Revision(revision)
+        { }
+
+        NYPath::TYPath Path;
+        NTransactionClient::TTransactionId TransactionId;
+        i64 Revision;
+    };
+
     //! A batched request to Cypress that holds a vector of individual requests that
     //! are transferred within a single RPC envelope.
     class TReqExecuteBatch
         : public NRpc::TClientRequest
     {
-        //! A vector of transaction ids that must be alive
-        //! in order for the request to be executed.
-        DEFINE_BYREF_RW_PROPERTY(std::vector<NTransactionClient::TTransactionId>, PrerequisiteTransactionIds);
+        //! Describes transactions that must be alive in order for the request to be executed.
+        DEFINE_BYREF_RW_PROPERTY(std::vector<TPrerequisiteTransaction>, PrerequisiteTransactions);
+
+        //! Describes node revisions that must match in order for the request to be executed.
+        DEFINE_BYREF_RW_PROPERTY(std::vector<TPrerequisiteRevision>, PrerequisiteRevisions);
 
     public:
         TReqExecuteBatch(

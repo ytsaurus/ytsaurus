@@ -149,10 +149,10 @@ void TTokenizer::Expect(ETokenType expectedType)
             THROW_ERROR_EXCEPTION("Premature end-of-stream while expecting %s",
                 ~FormatEnum(expectedType).Quote());
         } else {
-            THROW_ERROR_EXCEPTION("Found %s token %s while expecting %s",
+            THROW_ERROR_EXCEPTION("Expected %s but found %s token %s",
+                ~FormatEnum(expectedType).Quote(),
                 ~FormatEnum(Type_).Quote(),
-                ~Stroka(Token_).Quote(),
-                ~FormatEnum(expectedType).Quote());
+                ~Stroka(Token_).Quote());
         }
     }
 }

@@ -22,21 +22,22 @@ struct TMetaVersion
     bool operator <= (const TMetaVersion& other) const;
     bool operator >= (const TMetaVersion& other) const;
 
-    Stroka ToString() const
-    {
-        return Sprintf("%d:%d", SegmentId, RecordCount);
-    }
+    Stroka ToString() const;
+    i64 ToRevision() const;
+
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 inline TMetaVersion::TMetaVersion()
     : SegmentId(0)
     , RecordCount(0)
-{  }
+{ }
 
 inline TMetaVersion::TMetaVersion(i32 segmentId, i32 recordCount)
     : SegmentId(segmentId)
     , RecordCount(recordCount)
-{  }
+{ }
 
 inline bool TMetaVersion::operator < (const TMetaVersion& other) const
 {
@@ -68,6 +69,16 @@ inline bool TMetaVersion::operator <= (const TMetaVersion& other) const
 inline bool TMetaVersion::operator >= (const TMetaVersion& other) const
 {
     return !(*this < other);
+}
+
+inline Stroka TMetaVersion::ToString() const
+{
+    return Sprintf("%d:%d", SegmentId, RecordCount);
+}
+
+inline i64 TMetaVersion::ToRevision() const
+{
+    return (static_cast<i64>(SegmentId) << 32) + static_cast<i64>(RecordCount);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

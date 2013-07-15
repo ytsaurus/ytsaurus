@@ -7,9 +7,6 @@ from yt_commands import *
 
 ##################################################################
 
-#echo "{v1=$V1};{v2=$V2}"
-#; V2="{{SandboxPath}}/mytmp"}
-
 class TestSchedulerMapCommands(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
