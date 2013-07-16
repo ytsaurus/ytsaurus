@@ -80,6 +80,7 @@ def prepare(options):
         return cc, cxx
 
     cc, cxx = None, None
+    cc, cxx = try_to_find_compiler("4.8", cc, cxx)
     cc, cxx = try_to_find_compiler("4.7", cc, cxx)
     cc, cxx = try_to_find_compiler("4.6", cc, cxx)
 
