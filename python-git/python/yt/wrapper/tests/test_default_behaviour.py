@@ -69,13 +69,13 @@ class TestDefaultBehaviour(YtTestBase, YTEnv):
         yt.upload_file("", TEST_DIR + "/file")
 
         self.assertEqual(set(yt.search(TEST_DIR)),
-                        {TEST_DIR, TEST_DIR + "/dir", TEST_DIR + "/dir/other_dir", TEST_DIR + "/dir/table", TEST_DIR + "/file"})
+                         set([TEST_DIR, TEST_DIR + "/dir", TEST_DIR + "/dir/other_dir", TEST_DIR + "/dir/table", TEST_DIR + "/file"]))
 
         self.assertEqual(set(yt.search(TEST_DIR, node_type="file")),
-                         {TEST_DIR + "/file"})
+                         set([TEST_DIR + "/file"]))
 
         self.assertEqual(set(yt.search(TEST_DIR, node_type="table", path_filter=lambda x: x.find("dir") != -1)),
-                         {TEST_DIR + "/dir/table"})
+                         set([TEST_DIR + "/dir/table"]))
 
         # Search empty tables
         res = yt.search(
@@ -84,7 +84,7 @@ class TestDefaultBehaviour(YtTestBase, YTEnv):
             object_filter=\
                 lambda x: x.attributes.get("row_count", -1) == 0)
         self.assertEqual(set(res),
-                         {TEST_DIR + "/dir/table"})
+                         set([TEST_DIR + "/dir/table"]))
 
     def test_file_commands(self):
         self.assertRaises(yt.YtError, lambda: yt.upload_file("", TEST_DIR + "/dir/file"))
