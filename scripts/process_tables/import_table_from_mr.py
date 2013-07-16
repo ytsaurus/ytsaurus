@@ -7,6 +7,7 @@ import yt.wrapper as yt
 import os
 import sh
 import sys
+import uuid
 import traceback
 import subprocess
 import simplejson as json
@@ -38,8 +39,6 @@ def main():
     parser.add_argument("--yt-binary")
 
     args = parser.parse_args()
-
-    use_fastbone = "-opt net_table=fastbone" if args.fastbone else ""
 
     def field_from_page(table, field):
         """ Extract value of given field from http page of the table """
@@ -77,6 +76,12 @@ def main():
         else:
             return fetch_from_server(table, "sorted") == 1
 
+    def copy_table(src, dst):
+        subprocess.check_call("USER=yt MR_USER=tmp {} -server {}:{} -copy -src {} -dst {}".format(args.mapreduce_binary, args.server, args.server_port, src, dst), shell=True)
+    
+    def drop_table(table):
+        subprocess.check_call("USER=yt MR_USER=tmp {} -server {}:{} -drop {}".format(args.mapreduce_binary, args.server, args.server_port, table), shell=True)
+
     def is_empty(table):
         if not args.fetch_info_from_http:
             return fetch_from_server(table, "records") == 0
@@ -113,29 +118,37 @@ def main():
             spec["job_count"] = args.job_count
 
         yt.set_attribute(destination, "compression_codec", "gzip_best_compression")
+        
+        temp_yamr_table = "tmp/yt/" + str(uuid.uuid4())
+        copy_table(source, temp_yamr_table)
+        source = temp_yamr_table
 
         if has_proxy:
             command = 'curl "http://${{server}}/table/{}?subkey=1&lenval=1&startindex=${{start}}&endindex=${{end}}"'.format(quote_plus(source))
         else:
+            use_fastbone = "-opt net_table=fastbone" if args.fastbone else ""
             command = 'USER=yt MR_USER=tmp ./mapreduce -server $server {} -read {}:[$start,$end] -lenval -subkey'.format(use_fastbone, source)
 
         debug_str = 'echo "{}" 1>&2; '.format(command.replace('"', "'")) if args.debug else ''
 
-        yt.run_map(
-                'while true; do '
-                    'IFS="\t" read -r server start end; '
-                    'if [ "$?" != "0" ]; then break; fi; '
-                    'set -e; '
-                    '{0}'
-                    '{1}; '
-                    'set +e; '
-                'done;'.format(debug_str, command),
-                temp_table,
-                destination,
-                input_format=yt.YamrFormat(lenval=False, has_subkey=True),
-                output_format=yt.YamrFormat(lenval=True, has_subkey=True),
-                files=args.mapreduce_binary,
-                spec=spec)
+        try:
+            yt.run_map(
+                    'while true; do '
+                        'IFS="\t" read -r server start end; '
+                        'if [ "$?" != "0" ]; then break; fi; '
+                        'set -e; '
+                        '{0}'
+                        '{1}; '
+                        'set +e; '
+                    'done;'.format(debug_str, command),
+                    temp_table,
+                    destination,
+                    input_format=yt.YamrFormat(lenval=False, has_subkey=True),
+                    output_format=yt.YamrFormat(lenval=True, has_subkey=True),
+                    files=args.mapreduce_binary,
+                    spec=spec)
+        finally:
+            drop_table(temp_yamr_table)
 
     def push_table(source, destination, count):
         if args.job_count is None:
