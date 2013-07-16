@@ -5,24 +5,11 @@
 #   - ENV[CXXFLAGS]
 #   - CUSTOM_CMAKE_C_FLAGS
 #   - CUSTOM_CMAKE_CXX_FLAGS
-#   - YT_BUILD_ENABLE_EXPERIMENTS
-#   - YT_BUILD_ENABLE_TESTS
-
-#################################################################################
-# Specify available build options.
-
-option(YT_BUILD_ENABLE_BENCHMARKS  "Build benchmarks" TRUE)
-option(YT_BUILD_ENABLE_DRIVER      "Build driver" TRUE)
-option(YT_BUILD_ENABLE_EXPERIMENTS "Build experiments" TRUE)
-option(YT_BUILD_ENABLE_TESTS       "Build tests" TRUE)
-option(YT_BUILD_ENABLE_NODEJS      "Build NodeJS extensions" FALSE)
-option(YT_BUILD_ENABLE_PYTHON      "Build Python extensions" TRUE)
-option(YT_BUILD_YTLIB_SHARED       "Build ytlib as a shared lib" FALSE)
 
 ################################################################################
 # Enforce developer to specify build type.
 
-if ( "${CMAKE_BUILD_TYPE}" STREQUAL "" )
+if ("${CMAKE_BUILD_TYPE}" STREQUAL "")
   set( CMAKE_BUILD_TYPE "Debug"
     CACHE STRING
     "Choose the type of build, options are: None (CMAKE_CXX_FLAGS or CMAKE_C_FLAGS are used) Debug Release RelWithDebInfo MinSizeRel."
@@ -35,7 +22,7 @@ endif()
 if (MSVC)
   message(STATUS "Looks like we are using msvc..." )
 
-  if ( MSVC_VERSION LESS 1600 )
+  if (MSVC_VERSION LESS 1600)
     message(FATAL_ERROR "msvc >= 10.0 is mandatory due to C++11 usage")
   endif()
 endif()
@@ -43,27 +30,28 @@ endif()
 if (CMAKE_COMPILER_IS_GNUCXX)
   message(STATUS "Looks like we are using gcc...")
 
-  if ( CMAKE_CXX_COMPILER_ARG1 )
-    # workaround for ccache
+  if (CMAKE_CXX_COMPILER_ARG1)
+    # XXX(psushin): Workaround for ccache.
     string(REPLACE " " "" CMAKE_CXX_COMPILER_ARG1 ${CMAKE_CXX_COMPILER_ARG1})
     execute_process( 
       COMMAND ${CMAKE_CXX_COMPILER_ARG1} -dumpversion 
       OUTPUT_VARIABLE GCC_VERSION
     )
-  else ( CMAKE_CXX_COMPILER_ARG1 )
+  else()
     execute_process(
       COMMAND ${CMAKE_CXX_COMPILER} -dumpversion
       OUTPUT_VARIABLE GCC_VERSION
     )
-  endif ( CMAKE_CXX_COMPILER_ARG1 )
+  endif()
 
-
-  if ( GCC_VERSION VERSION_LESS 4.7 )
+  if (GCC_VERSION VERSION_LESS 4.7)
     message(FATAL_ERROR "g++ >= 4.7.0 is mandatory")
   endif()
 endif()
 
 if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
+  message(STATUS "Looks like we are using clang...")
+
   # XXX(sandello): It's a temporary solution; it works because Clang driver
   # is compatible to GCC.
   set( CMAKE_COMPILER_IS_GNUCXX TRUE )
@@ -78,19 +66,19 @@ endif()
 
 set( CUSTOM_CMAKE_C_FLAGS
   $ENV{CFLAGS} ${USER_CMAKE_C_FLAGS}
-  CACHE STRING "User-defined C compiler flags")
+  CACHE STRING "User-defined C compiler flags" )
 
 set( CUSTOM_CMAKE_CXX_FLAGS
   $ENV{CXXFLAGS} ${USER_CMAKE_CXX_FLAGS}
-  CACHE STRING "User-defined C++ compiler flags")
+  CACHE STRING "User-defined C++ compiler flags" )
 
 # Now configure compiler options for clang.
 if (CMAKE_COMPILER_IS_CLANG)
    # These are default (basic) compilation flags.
   set( CMAKE_C_FLAGS "${CUSTOM_CMAKE_C_FLAGS} -pthread -fPIC"
-    CACHE STRING "(Auto-generated) C compiler flags" FORCE)
+    CACHE STRING "(Auto-generated) C compiler flags" FORCE )
   set( CMAKE_CXX_FLAGS "${CUSTOM_CMAKE_CXX_FLAGS} -std=c++11 -pthread -fPIC"
-    CACHE STRING "(Auto-generated) C++ compiler flags" FORCE)
+    CACHE STRING "(Auto-generated) C++ compiler flags" FORCE )
 
   # Use libc++ instead of libstdc++ under Mac OS X, otherwise stick with libstdc++.
   if (APPLE)
@@ -100,22 +88,22 @@ if (CMAKE_COMPILER_IS_CLANG)
   # These are configuration-specific compilation flags.
   # http://gcc.gnu.org/onlinedocs/gcc/Option-Summary.html
   set( CMAKE_CXX_FLAGS_DEBUG "-g -O0"
-    CACHE STRING "" FORCE)
+    CACHE STRING "" FORCE )
   set( CMAKE_CXX_FLAGS_RELEASE "-O2"
-    CACHE STRING "" FORCE)
+    CACHE STRING "" FORCE )
   set( CMAKE_CXX_FLAGS_RELWITHDEBINFO "-g -O2"
-    CACHE STRING "" FORCE)
+    CACHE STRING "" FORCE )
   set( CMAKE_CXX_FLAGS_MINSIZEREL "-g -Os"
-    CACHE STRING "" FORCE)
+    CACHE STRING "" FORCE )
 
   set( CMAKE_C_FLAGS_DEBUG "-g -O0"
-    CACHE STRING "" FORCE)
+    CACHE STRING "" FORCE )
   set( CMAKE_C_FLAGS_RELEASE "-O2"
-    CACHE STRING "" FORCE)
+    CACHE STRING "" FORCE )
   set( CMAKE_C_FLAGS_RELWITHDEBINFO "-g -O2"
-    CACHE STRING "" FORCE)
+    CACHE STRING "" FORCE )
   set( CMAKE_C_FLAGS_MINSIZEREL "-g -Os"
-    CACHE STRING "" FORCE)
+    CACHE STRING "" FORCE )
 
   set( CMAKE_EXE_LINKER_FLAGS_RELEASE "" )
   set( CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO "" )
@@ -123,10 +111,13 @@ if (CMAKE_COMPILER_IS_CLANG)
 # Now configure compiler options for g++.
 elseif (CMAKE_COMPILER_IS_GNUCXX)
   # These are default (basic) compilation flags.
-  set( CMAKE_C_FLAGS "${CUSTOM_CMAKE_C_FLAGS} -pthread -fPIC -Wall -Wno-sign-compare -Wno-parentheses "
-    CACHE STRING "(Auto-generated) C compiler flags" FORCE)
-  set( CMAKE_CXX_FLAGS "${CUSTOM_CMAKE_CXX_FLAGS} -std=gnu++0x -pthread -fPIC -Wall -Wno-sign-compare -Wno-parentheses "
-    CACHE STRING "(Auto-generated) C++ compiler flags" FORCE)
+  set( WARNINGS_FLAGS "-Wall" )
+  set( WARNINGS_FLAGS "${WARNINGS_FLAGS} -Wno-sign-compare -Wno-parentheses -Wno-unused-local-typedefs" )
+
+  set( CMAKE_C_FLAGS "${CUSTOM_CMAKE_C_FLAGS} -pthread -fPIC -Wall ${WARNINGS_FLAGS}"
+    CACHE STRING "(Auto-generated) C compiler flags" FORCE )
+  set( CMAKE_CXX_FLAGS "${CUSTOM_CMAKE_CXX_FLAGS} -std=gnu++0x -pthread -fPIC ${WARNINGS_FLAGS}"
+    CACHE STRING "(Auto-generated) C++ compiler flags" FORCE )
 
   # These are configuration-specific compilation flags.
   # http://gcc.gnu.org/onlinedocs/gcc/Option-Summary.html
@@ -142,22 +133,22 @@ elseif (CMAKE_COMPILER_IS_GNUCXX)
   set( ARCH_FLAGS "${ARCH_FLAGS} -fno-builtin-strstr")
 
   set( CMAKE_CXX_FLAGS_DEBUG "-g -O0 ${ARCH_FLAGS}"
-    CACHE STRING "" FORCE)
+    CACHE STRING "" FORCE )
   set( CMAKE_CXX_FLAGS_RELEASE "-O2 ${ARCH_FLAGS}"
-    CACHE STRING "" FORCE)
+    CACHE STRING "" FORCE )
   set( CMAKE_CXX_FLAGS_RELWITHDEBINFO "-g -O2 ${ARCH_FLAGS}"
-    CACHE STRING "" FORCE)
+    CACHE STRING "" FORCE )
   set( CMAKE_CXX_FLAGS_MINSIZEREL "-g -Os ${ARCH_FLAGS}"
-    CACHE STRING "" FORCE)
+    CACHE STRING "" FORCE )
 
   set( CMAKE_C_FLAGS_DEBUG "-g -O0 ${ARCH_FLAGS}"
-    CACHE STRING "" FORCE)
+    CACHE STRING "" FORCE )
   set( CMAKE_C_FLAGS_RELEASE "-O2 ${ARCH_FLAGS}"
-    CACHE STRING "" FORCE)
+    CACHE STRING "" FORCE )
   set( CMAKE_C_FLAGS_RELWITHDEBINFO "-g -O2 ${ARCH_FLAGS}"
-    CACHE STRING "" FORCE)
+    CACHE STRING "" FORCE )
   set( CMAKE_C_FLAGS_MINSIZEREL "-g -Os ${ARCH_FLAGS}"
-    CACHE STRING "" FORCE)
+    CACHE STRING "" FORCE )
 
   # TODO(sandello): Enable this when gcc will be stable.
   # set( CMAKE_EXE_LINKER_FLAGS_RELEASE "-fwhole-program" )
@@ -188,7 +179,7 @@ if (MSVC)
 endif()
 
 # Now configure platform-independent options.
-if ( "${CMAKE_BUILD_TYPE}" STREQUAL "Debug" )
+if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
   add_definitions(-DDEBUG)
 else()
   add_definitions(-DNDEBUG)
@@ -197,8 +188,8 @@ endif()
 #if (YT_WITH_VISIBILITY)
 #  add_definitions(-fvisibility=hidden)
 #  add_definitions(-fvisibility-inlines-hidden)
-#  set(XCODE_ATTRIBUTE_GCC_SYMBOLS_PRIVATE_EXTERN "YES")
-#  set(XCODE_ATTRIBUTE_GCC_INLINES_ARE_PRIVATE_EXTERN "YES")
+#  set( XCODE_ATTRIBUTE_GCC_SYMBOLS_PRIVATE_EXTERN "YES" )
+#  set( XCODE_ATTRIBUTE_GCC_INLINES_ARE_PRIVATE_EXTERN "YES" )
 #endif()
 
 ################################################################################
@@ -216,7 +207,7 @@ if (WIN32)
   add_definitions(-DCORO_FIBER=1)
 endif()
 
-set(CMAKE_SKIP_BUILD_RPATH FALSE)
-set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
-set(CMAKE_INSTALL_RPATH "")
-set(CMAKE_INSTALL_RPATH_USE_LINK_PATH FALSE)
+set( CMAKE_SKIP_BUILD_RPATH FALSE )
+set( CMAKE_BUILD_WITH_INSTALL_RPATH FALSE )
+set( CMAKE_INSTALL_RPATH "" )
+set( CMAKE_INSTALL_RPATH_USE_LINK_PATH FALSE )

@@ -9,8 +9,8 @@ set( SRCS
   ${BASE}/node_detail.cpp
   ${BASE}/node_proxy.cpp
   ${BASE}/node_proxy_detail.cpp
-  ${BASE}/virtual.cpp
   ${BASE}/private.cpp
+  ${BASE}/virtual.cpp
 )
 set( HDRS
   ${BASE}/cypress_manager.h
@@ -21,10 +21,10 @@ set( HDRS
   ${BASE}/node_detail.h
   ${BASE}/node_proxy.h
   ${BASE}/node_proxy_detail.h
+  ${BASE}/private.h
   ${BASE}/public.h
   ${BASE}/type_handler.h
   ${BASE}/virtual.h
-  ${BASE}/private.h
 )
 
 list(APPEND YT_SOURCE_FILES

@@ -8,8 +8,8 @@ set( SRCS
   ${BASE}/partition_chunk_reader.cpp
   ${BASE}/partition_chunk_writer.cpp
   ${BASE}/partitioner.cpp
-  ${BASE}/public.cpp
   ${BASE}/private.cpp
+  ${BASE}/public.cpp
   ${BASE}/size_limits.cpp
   ${BASE}/sync_reader.cpp
   ${BASE}/table_chunk_reader.cpp
@@ -22,6 +22,7 @@ set( SRCS
 )
 
 set( HDRS
+  ${BASE}/async_reader.h
   ${BASE}/async_writer.h
   ${BASE}/channel_reader.h
   ${BASE}/channel_writer.h

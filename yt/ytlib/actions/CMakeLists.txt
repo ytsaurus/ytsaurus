@@ -5,8 +5,8 @@ set( SRCS
   ${BASE}/action_queue_detail.cpp
   ${BASE}/callback_internal.cpp
   ${BASE}/cancelable_context.cpp
-  ${BASE}/invoker_util.cpp
   ${BASE}/future.cpp
+  ${BASE}/invoker_util.cpp
 )
 set( HDRS
   ${BASE}/action_queue.h

@@ -7,6 +7,22 @@ import os
 import subprocess
 
 
+if not hasattr(subprocess, "check_output"):
+    def check_output(*args, **kwargs):
+        child = subprocess.Popen(stdout=subprocess.PIPE, *args, **kwargs)
+        out, _ = child.communicate()
+        result = child.poll()
+        if result:
+            cmd = kwargs.get("args")
+            if cmd is None:
+                cmd = args[0]
+            error = subprocess.CalledProcessError(result, cmd)
+            error.output = output
+            raise error
+        return out
+    subprocess.check_output = check_output
+
+
 class TestHackChangelog(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 0
