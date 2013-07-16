@@ -24,7 +24,7 @@ class TYPathRequest
     , public NRpc::IClientRequest
 {
 public:
-    explicit TYPathRequest(const Stroka& verb);
+    TYPathRequest(const Stroka& verb, const NYPath::TYPath& path);
 
     virtual bool IsOneWay() const override;
     virtual NRpc::TRequestId GetRequestId() const override;
@@ -64,8 +64,8 @@ class TTypedYPathRequest
 public:
     typedef TTypedYPathResponse<TRequestMessage, TResponseMessage> TTypedResponse;
 
-    explicit TTypedYPathRequest(const Stroka& verb)
-        : TYPathRequest(verb)
+    TTypedYPathRequest(const Stroka& verb, const NYPath::TYPath& path)
+        : TYPathRequest(verb, path)
     { }
 
 protected:
@@ -122,9 +122,7 @@ protected:
     \
     static TReq##method##Ptr method(const NYT::NYPath::TYPath& path = "") \
     { \
-        auto req = New<TReq##method>(#method); \
-        req->SetPath(path); \
-        return req; \
+        return New<TReq##method>(#method, path); \
     }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -146,12 +144,12 @@ ExecuteVerb(IYPathServicePtr service, NBus::IMessagePtr requestMessage);
 //! Asynchronously executes a request against the given service.
 void ExecuteVerb(IYPathServicePtr service, NRpc::IServiceContextPtr context);
 
-//! Asynchronously executes a typed YPath requested against a given service.
+//! Asynchronously executes a typed YPath request against a given service.
 template <class TTypedRequest>
 TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> >
 ExecuteVerb(IYPathServicePtr service, TIntrusivePtr<TTypedRequest> request);
 
-//! Synchronously executes a typed YPath requested against a given service.
+//! Synchronously executes a typed YPath request against a given service.
 //! Throws if an error has occurred.
 template <class TTypedRequest>
 TIntrusivePtr<typename TTypedRequest::TTypedResponse>
@@ -179,7 +177,11 @@ bool SyncYPathExists(IYPathServicePtr service, const TYPath& path);
 void SyncYPathSet(IYPathServicePtr service, const TYPath& path, const TYsonString& value);
 
 //! Synchronously executes |Remove| verb. Throws if an error has occurred.
-void SyncYPathRemove(IYPathServicePtr service, const TYPath& path);
+void SyncYPathRemove(
+    IYPathServicePtr service,
+    const TYPath& path,
+    bool recursive = true,
+    bool force = false);
 
 //! Synchronously executes |List| verb. Throws if an error has occurred.
 std::vector<Stroka> SyncYPathList(IYPathServicePtr service, const TYPath& path);

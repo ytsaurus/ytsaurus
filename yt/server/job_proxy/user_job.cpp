@@ -245,14 +245,18 @@ private:
             int outputCount = JobIO->GetOutputCount();
             TableOutput.resize(outputCount);
 
+            Writers.reserve(outputCount);
             for (int i = 0; i < outputCount; ++i) {
                 auto writer = JobIO->CreateTableOutput(i);
-                std::unique_ptr<IYsonConsumer> consumer(new TTableConsumer(writer));
+                Writers.push_back(writer);
+            }
+
+            for (int i = 0; i < outputCount; ++i) {
+                std::unique_ptr<IYsonConsumer> consumer(new TTableConsumer(Writers, i));
                 auto parser = CreateParserForFormat(format, EDataType::Tabular, ~consumer);
                 TableOutput[i].reset(new TTableOutput(
                     std::move(parser),
-                    std::move(consumer),
-                    std::move(writer)));
+                    std::move(consumer)));
                 createPipe(pipe);
 
                 int jobDescriptor = UserJobSpec.use_yamr_descriptors()
@@ -409,6 +413,14 @@ private:
             finishPipe(pipe);
         }
 
+        FOREACH(auto& writer, Writers) {
+            try {
+                writer->Close();
+            } catch (const std::exception& ex) {
+                SetError(TError(ex));
+            }
+        }
+
         // If user process fais, InputThread may be blocked on epoll
         // because reading end of input pipes is left open to
         // check that all data was consumed. That is why we should join the
@@ -451,17 +463,28 @@ private:
             }
             envp[UserJobSpec.environment_size()] = NULL;
 
-            auto memoryLimit = static_cast<rlim_t>(UserJobSpec.memory_limit() * config->MemoryLimitMultiplier);
-            memoryLimit += MemoryLimitBoost;
-            struct rlimit rlimit = {memoryLimit, RLIM_INFINITY};
+            if (UserJobSpec.enable_vm_limit()) {
+                auto memoryLimit = static_cast<rlim_t>(UserJobSpec.memory_limit() * config->MemoryLimitMultiplier);
+                memoryLimit += MemoryLimitBoost;
+                struct rlimit rlimit = {memoryLimit, RLIM_INFINITY};
 
-            auto res = setrlimit(RLIMIT_AS, &rlimit);
+                auto res = setrlimit(RLIMIT_AS, &rlimit);
+                if (res) {
+                    fprintf(stderr, "Failed to set resource limits (MemoryLimit: %" PRId64 ")\n%s",
+                        rlimit.rlim_max,
+                        strerror(errno));
+                    _exit(EJobProxyExitCode::SetRLimitFailed);
+                }
+            }
 
-            if (res) {
-                fprintf(stderr, "Failed to set resource limits (MemoryLimit: %" PRId64 ")\n%s",
-                    rlimit.rlim_max,
-                    strerror(errno));
-                _exit(EJobProxyExitCode::SetRLimitFailed);
+            if (!UserJobSpec.enable_core_dump()) {
+                struct rlimit rlimit = {0, 0};
+
+                auto res = setrlimit(RLIMIT_CORE, &rlimit);
+                if (res) {
+                    fprintf(stderr, "Failed to disable core dumps\n%s", strerror(errno));
+                    _exit(EJobProxyExitCode::SetRLimitFailed);
+                }
             }
 
             if (config->UserId > 0) {
@@ -571,6 +594,8 @@ private:
 
     std::vector<IDataPipePtr> InputPipes;
     std::vector<IDataPipePtr> OutputPipes;
+
+    std::vector<ISyncWriterPtr> Writers;
 
     TThread InputThread;
     TThread OutputThread;

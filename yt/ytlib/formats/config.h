@@ -16,14 +16,13 @@ public:
     char RecordSeparator;
     char KeyValueSeparator;
     char FieldSeparator;
+
+    // Only supported for tabular data
     TNullable<Stroka> LinePrefix;
 
     bool EnableEscaping;
     bool EscapeCarriageReturn;
     char EscapingSymbol;
-
-    bool WithAttributes;
-    Stroka AttributesPrefix;
 
     // Escaping rules (EscapingSymbol is '\\')
     //  * '\0' ---> "\0"
@@ -47,10 +46,6 @@ public:
             .Default(false);
         RegisterParameter("escaping_symbol", EscapingSymbol)
             .Default('\\');
-        RegisterParameter("with_attributes", WithAttributes)
-            .Default(true);
-        RegisterParameter("attributes_prefix", AttributesPrefix)
-            .Default("@");
     }
 };
 
@@ -100,13 +95,13 @@ public:
     // Delimited specific options
     char FieldSeparator;
     char RecordSeparator;
-    
+
     // Escaping options
     bool EnableEscaping;
     bool EscapeCarriageReturn;
     char EscapingSymbol;
 
-    // make sense only in writer
+    // Makes sense only in writer
     bool EnableTableIndex;
 
     TYamrFormatConfig()
@@ -165,6 +160,26 @@ public:
             .Default(' ');
         RegisterParameter("enable_table_index", EnableTableIndex)
             .Default(false);
+
+        RegisterValidator([&] () {
+            yhash_set<Stroka> names;
+
+            FOREACH(const auto& name, KeyColumnNames) {
+                if (!names.insert(name).second) {
+                    THROW_ERROR_EXCEPTION(
+                        "Duplicate column name encountered in \"key_column_names\": %s",
+                        ~name.Quote());
+                }
+            }
+
+            FOREACH(const auto& name, SubkeyColumnNames) {
+                if (!names.insert(name).second) {
+                    THROW_ERROR_EXCEPTION(
+                        "Duplicate column name encountered in \"subkey_column_names\": %s",
+                        ~name.Quote());
+                }
+            }
+        });
     }
 };
 

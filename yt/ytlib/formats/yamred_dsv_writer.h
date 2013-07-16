@@ -5,6 +5,8 @@
 #include "helpers.h"
 #include "dsv_table.h"
 
+#include <ytlib/table_client/public.h>
+
 #include <ytlib/misc/blob_output.h>
 #include <ytlib/misc/small_set.h>
 
@@ -39,49 +41,66 @@ public:
     virtual void OnEndAttributes() override;
 
 private:
+    DECLARE_ENUM(EState,
+        (None)
+        (ExpectColumnName)
+        (ExpectValue)
+        (ExpectAttributeName)
+        (ExpectAttributeValue)
+        (ExpectEndAttributes)
+        (ExpectEntity)
+    );
+
+    struct TColumnValue
+    {
+        i64 RowIndex;
+        TStringBuf Value;
+
+        TColumnValue()
+            : RowIndex(-1)
+        { }
+    };
+
+    // For small data sizes, set and map are faster than hash set and hash map.
+    typedef std::map<TStringBuf, TColumnValue> TDictionary;
+
     TOutputStream* Stream;
     TYamredDsvFormatConfigPtr Config;
 
-    TStringBuf Key;
-    DECLARE_ENUM(EState,
-        (None)
-        (ExpectingValue)
-    );
+    i64 RowCount;
+
     EState State;
 
-    TBlobOutput ValueBuffer;
-
-    bool IsValueEmpty;
-    bool AllowBeginMap;
-
-    bool ExpectTableIndex;
-
-    TDsvTable Table;
+    TStringBuf ColumnName;
+    NTableClient::EControlAttribute ControlAttribute;
 
     TSmallSet<TStringBuf, 4> KeyColumnNames;
     TSmallSet<TStringBuf, 4> SubkeyColumnNames;
 
-    // For small data sizes, set and map are faster than hash set and hash map.
-    typedef std::map<TStringBuf, TStringBuf> TDictionary;
-
     TDictionary KeyFields;
     i32 KeyCount;
+    ui32 KeyLength;
 
     TDictionary SubkeyFields;
     i32 SubkeyCount;
+    ui32 SubkeyLength;
 
-    void RememberValue(const TStringBuf& value);
+    std::vector<TStringBuf> ValueFields;
+    ui32 ValueLength;
+
+    TDsvTable Table;
 
     void WriteRow();
-    void WriteYamrField(
+    void WriteYamrKey(
         const std::vector<Stroka>& columnNames,
         const TDictionary& fieldValues,
         i32 fieldCount);
 
-    void EscapeAndWrite(
-        TOutputStream* outputStream,
-        const TStringBuf& string,
-        bool inKey);
+    void WriteYamrValue();
+
+    void EscapeAndWrite(const TStringBuf& string, bool inKey);
+    void IncreaseLength(ui32* length, ui32 delta);
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

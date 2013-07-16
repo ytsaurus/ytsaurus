@@ -187,6 +187,9 @@ public:
     //! Maximum number of concurrent repair write sessions the node is willing to handle.
     int MaxRepairSessions;
 
+    //! Number of writer threads per location.
+    int WriteThreadCount;
+
 
     TDataNodeConfig()
     {
@@ -249,6 +252,9 @@ public:
         RegisterParameter("max_repair_sessions", MaxRepairSessions)
             .Default(16)
             .GreaterThanOrEqual(0);
+        RegisterParameter("write_thread_count", WriteThreadCount)
+            .Default(1)
+            .GreaterThanOrEqual(1);
     }
 };
 

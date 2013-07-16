@@ -238,9 +238,6 @@ void TBootstrap::Run()
     httpServer.Register(
         "/orchid",
         NMonitoring::GetYPathHttpHandler(orchidRoot->Via(GetControlInvoker())));
-    httpServer.Register(
-        "/cypress",
-        NMonitoring::GetYPathHttpHandler(CypressManager->GetRootService()));
 
     LOG_INFO("Listening for HTTP requests on port %d", Config->MonitoringPort);
     httpServer.Start();

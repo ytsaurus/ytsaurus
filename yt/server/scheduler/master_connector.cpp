@@ -428,7 +428,7 @@ private:
         void RegisterInstance()
         {
             auto batchReq = Owner->StartBatchRequest(false);
-            auto path = "//sys/schedulers/" + ToYPathLiteral(ServiceAddresss);
+            auto path = "//sys/scheduler/instances/" + ToYPathLiteral(ServiceAddresss);
             {
                 auto req = TCypressYPathProxy::Create(path);
                 req->set_ignore_existing(true);
@@ -817,7 +817,7 @@ private:
         auto req = proxy->ExecuteBatch();
         if (requireTransaction) {
             YCHECK(LockTransaction);
-            req->PrerequisiteTransactionIds().push_back(LockTransaction->GetId());
+            req->PrerequisiteTransactions().push_back(TObjectServiceProxy::TPrerequisiteTransaction(LockTransaction->GetId()));
         }
         return req;
     }

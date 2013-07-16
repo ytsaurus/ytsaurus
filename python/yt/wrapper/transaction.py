@@ -54,7 +54,7 @@ class Transaction(object):
                     value,
                     traceback,
                     self.transaction_id)
-            if not exists(os.path.join("//sys/transactions", self.transaction_id)):
+            if not exists("#" + self.transaction_id):
                 logger.warning("Transaction %s is absent, cannot commit or abort" % self.transaction_id)
             elif type is None:
                 commit_transaction(self.transaction_id)
@@ -74,6 +74,7 @@ class Transaction(object):
             config.PING_ANSECTOR_TRANSACTIONS = Transaction.initial_ping_ansector_transactions
 
 class PingTransaction(Thread):
+    # delay and step in seconds
     def __init__(self, transaction, delay):
         super(PingTransaction, self).__init__()
         self.transaction = transaction
@@ -115,7 +116,7 @@ class PingableTransaction(object):
         self.transaction = Transaction(self.timeout, self.attributes)
         self.transaction.__enter__()
 
-        self.ping = PingTransaction(config.TRANSACTION, self.timeout / 10)
+        self.ping = PingTransaction(config.TRANSACTION, delay=self.timeout / (1000 * 10))
         self.ping.start()
 
     def __exit__(self, type, value, traceback):

@@ -19,6 +19,8 @@ using NObjectClient::NullTransactionId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct IObjectResolver;
+
 class TObjectManager;
 typedef TIntrusivePtr<TObjectManager> TObjectManagerPtr;
 

@@ -126,7 +126,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCypressManager::TYPathResolver
-    : public IYPathResolver
+    : public INodeResolver
 {
 public:
     TYPathResolver(
@@ -138,20 +138,15 @@ public:
 
     virtual INodePtr ResolvePath(const TYPath& path) override
     {
-        if (path.empty()) {
-            THROW_ERROR_EXCEPTION("YPath cannot be empty");
+        auto objectManager = Bootstrap->GetObjectManager();
+        auto* resolver = objectManager->GetObjectResolver();
+        auto objectProxy = resolver->ResolvePath(path, Transaction);
+        auto* nodeProxy = dynamic_cast<ICypressNodeProxy*>(~objectProxy);
+        if (!nodeProxy) {
+            THROW_ERROR_EXCEPTION("Path % points to a nonversioned %s object instead of a node",
+                ~FormatEnum(TypeFromId(objectProxy->GetId())).Quote());
         }
-
-        if (path[0] != '/') {
-            THROW_ERROR_EXCEPTION("YPath must start with \"/\"");
-        }
-
-        auto cypressManager = Bootstrap->GetCypressManager();
-        auto rootProxy = cypressManager->GetVersionedNodeProxy(
-            cypressManager->GetRootNode(),
-            Transaction);
-
-        return GetNodeByYPath(rootProxy, path.substr(1));
+        return nodeProxy;
     }
 
     virtual TYPath GetPath(INodePtr node) override
@@ -172,32 +167,6 @@ public:
 private:
     TBootstrap* Bootstrap;
     TTransaction* Transaction;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TCypressManager::TRootService
-    : public TYPathServiceBase
-{
-public:
-    explicit TRootService(TBootstrap* bootstrap)
-        : Bootstrap(bootstrap)
-    { }
-
-    virtual TResolveResult Resolve(
-        const TYPath& path,
-        IServiceContextPtr context) override
-    {
-        UNUSED(context);
-
-        auto cypressManager = Bootstrap->GetCypressManager();
-        auto rootProxy = cypressManager->GetVersionedNodeProxy(cypressManager->GetRootNode());
-        return TResolveResult::There(rootProxy, path);
-    }
-
-private:
-    TBootstrap* Bootstrap;
 
 };
 
@@ -240,15 +209,13 @@ TCypressManager::TCypressManager(TBootstrap* bootstrap)
         RootNodeId = MakeWellKnownId(EObjectType::MapNode, cellId);
     }
 
-    RootService = New<TRootService>(Bootstrap)->Via(
-        Bootstrap->GetMetaStateFacade()->GetGuardedInvoker());
-
     RegisterHandler(New<TStringNodeTypeHandler>(Bootstrap));
     RegisterHandler(New<TIntegerNodeTypeHandler>(Bootstrap));
     RegisterHandler(New<TDoubleNodeTypeHandler>(Bootstrap));
     RegisterHandler(New<TMapNodeTypeHandler>(Bootstrap));
     RegisterHandler(New<TListNodeTypeHandler>(Bootstrap));
     RegisterHandler(New<TLinkNodeTypeHandler>(Bootstrap));
+    RegisterHandler(New<TDocumentNodeTypeHandler>(Bootstrap));
 
     {
         NCellMaster::TLoadContext context;
@@ -272,13 +239,13 @@ TCypressManager::TCypressManager(TBootstrap* bootstrap)
         RegisterSaver(
             ESerializationPriority::Keys,
             "Cypress.Keys",
-            CurrentSnapshotVersion,
+            GetCurrentSnapshotVersion(),
             BIND(&TCypressManager::SaveKeys, MakeStrong(this)),
             context);
         RegisterSaver(
             ESerializationPriority::Values,
             "Cypress.Values",
-            CurrentSnapshotVersion,
+            GetCurrentSnapshotVersion(),
             BIND(&TCypressManager::SaveValues, MakeStrong(this)),
             context);
     }
@@ -388,34 +355,6 @@ TCypressNodeBase* TCypressManager::CloneNode(
     return LockVersionedNode(clonedNode_, context.Transaction, ELockMode::Exclusive);
 }
 
-void TCypressManager::CreateNodeBehavior(TCypressNodeBase* trunkNode)
-{
-    YCHECK(trunkNode->IsTrunk());
-
-    auto handler = GetHandler(trunkNode);
-    auto behavior = handler->CreateBehavior(trunkNode);
-    if (!behavior)
-        return;
-
-    YCHECK(NodeBehaviors.insert(std::make_pair(trunkNode, behavior)).second);
-
-    LOG_DEBUG("Node behavior created (NodeId: %s)", ~ToString(trunkNode->GetId()));
-}
-
-void TCypressManager::DestroyNodeBehavior(TCypressNodeBase* trunkNode)
-{
-    YCHECK(trunkNode->IsTrunk());
-
-    auto it = NodeBehaviors.find(trunkNode);
-    if (it == NodeBehaviors.end())
-        return;
-
-    it->second->Destroy();
-    NodeBehaviors.erase(it);
-
-    LOG_DEBUG("Node behavior destroyed (NodeId: %s)", ~ToString(trunkNode->GetId()));
-}
-
 TCypressNodeBase* TCypressManager::GetRootNode() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -423,14 +362,7 @@ TCypressNodeBase* TCypressManager::GetRootNode() const
     return RootNode;
 }
 
-IYPathServicePtr TCypressManager::GetRootService() const
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return RootService;
-}
-
-IYPathResolverPtr TCypressManager::CreateResolver(TTransaction* transaction)
+INodeResolverPtr TCypressManager::CreateResolver(TTransaction* transaction)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -833,6 +765,7 @@ void TCypressManager::SetModified(
         ->GetMutationContext();
 
     node->SetModificationTime(mutationContext->GetTimestamp());
+    node->SetRevision(mutationContext->GetVersion().ToRevision());
 }
 
 TCypressManager::TSubtreeNodes TCypressManager::ListSubtreeNodes(
@@ -843,6 +776,25 @@ TCypressManager::TSubtreeNodes TCypressManager::ListSubtreeNodes(
     TSubtreeNodes result;
     ListSubtreeNodes(trunkNode, transaction, includeRoot, &result);
     return result;
+}
+
+bool TCypressManager::IsOrphaned(TCypressNodeBase* trunkNode)
+{
+    if (!IsObjectAlive(trunkNode)) {
+        return true;
+    }
+
+    YCHECK(trunkNode->IsTrunk());
+
+    while (true) {
+        if (trunkNode == RootNode) {
+            return false;
+        }
+        if (!trunkNode) {
+            return true;
+        }
+        trunkNode = trunkNode->GetParent();
+    }
 }
 
 TCypressNodeBase* TCypressManager::BranchNode(
@@ -983,27 +935,6 @@ void TCypressManager::Clear()
     InitBuiltin();
 }
 
-void TCypressManager::OnLeaderRecoveryComplete()
-{
-    LOG_INFO("Started creating node behaviors");
-    YCHECK(NodeBehaviors.empty());
-    FOREACH (const auto& pair, NodeMap) {
-        if (!pair.first.IsBranched()) {
-            CreateNodeBehavior(pair.second);
-        }
-    }
-    LOG_INFO("Finished creating node behaviors");
-}
-
-void TCypressManager::OnStopLeading()
-{
-    FOREACH (const auto& pair, NodeBehaviors) {
-        auto behavior = pair.second;
-        behavior->Destroy();
-    }
-    NodeBehaviors.clear();
-}
-
 void TCypressManager::OnRecoveryComplete()
 {
     FOREACH (const auto& pair, NodeMap) {
@@ -1031,6 +962,7 @@ void TCypressManager::RegisterNode(
 
     node->SetCreationTime(mutationContext->GetTimestamp());
     node->SetModificationTime(mutationContext->GetTimestamp());
+    node->SetRevision(mutationContext->GetVersion().ToRevision());
 
     auto node_ = ~node;
     NodeMap.Insert(TVersionedNodeId(nodeId), node.release());
@@ -1066,18 +998,12 @@ void TCypressManager::RegisterNode(
     LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %s, Type: %s)",
         ~ToString(nodeId),
         ~TypeFromId(nodeId).ToString());
-
-    if (IsLeader()) {
-        CreateNodeBehavior(node_);
-    }
 }
 
 void TCypressManager::DestroyNode(TCypressNodeBase* trunkNode)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
     YCHECK(trunkNode->IsTrunk());
-
-    DestroyNodeBehavior(trunkNode);
 
     auto nodeHolder = NodeMap.Release(trunkNode->GetVersionedId());
 

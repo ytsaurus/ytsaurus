@@ -50,6 +50,9 @@ public:
     //! Account holding intermediate data produces by the operation.
     Stroka IntermediateDataAccount;
 
+    //! Codec used for compressing intermediate output during shuffle.
+    NCompression::ECodec IntermediateCompressionCodec;
+    
     //! What to do during initialization if some chunks are unavailable.
     EUnavailableChunkAction UnavailableChunkStrategy;
 
@@ -63,10 +66,11 @@ public:
     {
         RegisterParameter("intermediate_data_account", IntermediateDataAccount)
             .Default("tmp");
+        RegisterParameter("intermediate_compression_codec", IntermediateCompressionCodec)
+            .Default(NCompression::ECodec::Lz4);
 
         RegisterParameter("unavailable_chunk_strategy", UnavailableChunkStrategy)
             .Default(EUnavailableChunkAction::Wait);
-
         RegisterParameter("unavailable_chunk_tactics", UnavailableChunkTactics)
             .Default(EUnavailableChunkAction::Wait);
 
@@ -110,8 +114,10 @@ public:
 
     bool EnableTableIndex;
     bool UseYamrDescriptors;
+    bool EnableCoreDump;
 
     i64 MaxStderrSize;
+
 
     TUserJobSpec()
     {
@@ -138,6 +144,8 @@ public:
         RegisterParameter("enable_table_index", EnableTableIndex)
             .Default(false);
         RegisterParameter("use_yamr_descriptors", UseYamrDescriptors)
+            .Default(false);
+        RegisterParameter("enable_core_dump", EnableCoreDump)
             .Default(false);
         RegisterParameter("max_stderr_size", MaxStderrSize)
             .Default((i64)5 * 1024 * 1024) // 5MB

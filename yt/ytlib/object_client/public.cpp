@@ -13,7 +13,7 @@ TTransactionId NullTransactionId(0, 0, 0, 0);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TypeIsVersioned(EObjectType type)
+bool IsVersioned(EObjectType type)
 {
     return type == EObjectType::StringNode ||
            type == EObjectType::IntegerNode ||
@@ -38,7 +38,8 @@ bool TypeIsVersioned(EObjectType type)
            type == EObjectType::AccountMap ||
            type == EObjectType::UserMap ||
            type == EObjectType::GroupMap ||
-           type == EObjectType::LinkNode;
+           type == EObjectType::Link ||
+           type == EObjectType::Document;
 }
 
 EObjectType TypeFromId(const TObjectId& id)
@@ -46,7 +47,7 @@ EObjectType TypeFromId(const TObjectId& id)
     return EObjectType(id.Parts[1] & 0xffff);
 }
 
-bool TypeHasSchema(EObjectType type)
+bool HasSchema(EObjectType type)
 {
     return (type & 0x8000) == 0 &&
            type != EObjectType::Master;
@@ -54,7 +55,7 @@ bool TypeHasSchema(EObjectType type)
 
 EObjectType SchemaTypeFromType(EObjectType type)
 {
-    YASSERT(TypeHasSchema(type));
+    YASSERT(HasSchema(type));
     return EObjectType(type | 0x8000);
 }
 

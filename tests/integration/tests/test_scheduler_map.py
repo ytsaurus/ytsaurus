@@ -7,9 +7,6 @@ from yt_commands import *
 
 ##################################################################
 
-#echo "{v1=$V1};{v2=$V2}"
-#; V2="{{SandboxPath}}/mytmp"}
-
 class TestSchedulerMapCommands(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
@@ -28,7 +25,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         create('table', '//tmp/t2')
         write_str('//tmp/t1', '{a=b}')
         op_id = map('--dont_track',
-            in_='//tmp/t1', out='//tmp/t2', command=r'cat; echo "{v1=\"$V1\"};{v2=\"$V2\"}"', 
+            in_='//tmp/t1', out='//tmp/t2', command=r'cat; echo "{v1=\"$V1\"};{v2=\"$V2\"}"',
             opt=['/spec/mapper/environment={V1="Some data";V2="$(SandboxPath)/mytmp"}'])
 
         get('//sys/operations/%s/@spec' % op_id)
@@ -327,6 +324,29 @@ class TestSchedulerMapCommands(YTEnvSetup):
         self.run_many_output_tables(True)
 
     @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
+    def test_output_tables_switch(self):
+        output_tables = ['//tmp/t%d' % i for i in range(3)]
+
+        create('table', '//tmp/t_in')
+        for table_path in output_tables:
+            create('table', table_path)
+
+        write_str('//tmp/t_in', '{a=b}')
+        mapper = "cat  > /dev/null; echo '<table_index=2>#;{v = 0};{v = 1};<table_index=0>#;{v = 2}'"
+
+        create('file', '//tmp/mapper.sh')
+        upload('//tmp/mapper.sh', mapper)
+
+        map(in_='//tmp/t_in',
+            out=output_tables,
+            command='bash mapper.sh',
+            file='//tmp/mapper.sh')
+
+        assert read(output_tables[0]) == [{'v': 2}]
+        assert read(output_tables[1]) == []
+        assert read(output_tables[2]) == [{'v': 0}, {'v': 1}]
+
+    @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
     def test_tskv_input_format(self):
         create('table', '//tmp/t_in')
         write_str('//tmp/t_in', '{foo=bar}')
@@ -475,18 +495,34 @@ cat > /dev/null; echo {hello=world}
         create('table', '//tmp/t2')
         create('table', '//tmp/out')
 
-        write_str('//tmp/t1', '{foo=bar}')
-        write_str('//tmp/t2', '{ninja=value}')
+        write_str('//tmp/t1', '{key=a; value=value}')
+        write_str('//tmp/t2', '{key=b; value=value}')
+
+        mapper = \
+"""
+import sys
+table_index = sys.stdin.readline().strip()
+row = sys.stdin.readline().strip()
+print row + table_index
+
+table_index = sys.stdin.readline().strip()
+row = sys.stdin.readline().strip()
+print row + table_index
+"""
+
+        create('file', '//tmp/mapper.py')
+        upload('//tmp/mapper.py', mapper)
 
         map(in_=['//tmp/t1', '//tmp/t2'],
             out='//tmp/out',
-            command="cat",
+            command="python mapper.py",
+            file='//tmp/mapper.py',
             opt=[ \
-                '/spec/mapper/format=dsv', \
+                '/spec/mapper/format=<enable_table_index=true>yamr', \
                 '/spec/mapper/enable_table_index=true'])
 
-        expected = [{'@table_index': '0', 'foo': 'bar'},
-                    {'@table_index': '1', 'ninja': 'value'}]
+        expected = [{'key': 'a', 'value': 'value0'},
+                    {'key': 'b', 'value': 'value1'}]
         self.assertItemsEqual(read('//tmp/out'), expected)
 
     def test_insane_demand(self):

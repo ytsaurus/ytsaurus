@@ -9,7 +9,6 @@ var yt = require("yt");
 var connect = require("connect");
 var node_static = require("node-static");
 var winston = require("winston");
-var winston_nssocket = require("winston-nssocket");
 
 var Q = require("q");
 
@@ -20,16 +19,33 @@ var heapdump = require("heapdump");
 var __DBG = require("./debug").that("C", "Cluster Worker");
 var __PROFILE = false;
 
-// Load configuration and set up logging.
+// Load configuration.
 var config = JSON.parse(process.env.YT_PROXY_CONFIGURATION);
-var logger = new winston.Logger({
-    transports: [
-        new winston_nssocket.Nssocket({
-            host : config.log_address,
-            port : config.log_port
-        })
-    ]
-});
+
+// Set up logging (the hard way).
+var logger_mediate = function(level, message, payload) {
+    process.send({
+        type: "log",
+        level: level,
+        message: message,
+        payload: payload
+    });
+};
+
+var logger = {
+    debug: function(message, payload) {
+        return logger_mediate("debug", message, payload);
+    },
+    info: function(message, payload) {
+        return logger_mediate("info", message, payload);
+    },
+    warn: function(message, payload) {
+        return logger_mediate("warn", message, payload);
+    },
+    error: function(message, payload) {
+        return logger_mediate("error", message, payload);
+    },
+};
 
 var version;
 

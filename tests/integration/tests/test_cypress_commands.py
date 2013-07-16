@@ -304,6 +304,18 @@ class TestCypressCommands(YTEnvSetup):
         copy('//tmp/t1', '//tmp/t2')
         assert get('//tmp/t2/@compression_codec') == 'gzip_normal'
 
+    def test_copy_id1(self):
+        set('//tmp/a', 123)
+        a_id = get('//tmp/a/@id')
+        copy('#' + a_id, '//tmp/b')
+        assert get('//tmp/b') == 123
+
+    def test_copy_id2(self):
+        set('//tmp/a', 123)
+        tmp_id = get('//tmp/@id')
+        copy('#' + tmp_id + '/a', '//tmp/b')
+        assert get('//tmp/b') == 123
+
     def test_move_simple(self):
         set('//tmp/a', 1)
         move('//tmp/a', '//tmp/b')
@@ -559,3 +571,43 @@ class TestCypressCommands(YTEnvSetup):
         create("map_node", "//tmp/a/b", "--ignore_existing")
 
         with pytest.raises(YTError): create("table", "//tmp/a/b", "--ignore_existing")
+
+    def test_link1(self):
+        with pytest.raises(YTError): link("//tmp/a", "//tmp/b")
+
+    def test_link2(self):
+        set("//tmp/t1", 1)
+        link("//tmp/t1", "//tmp/t2")
+        assert get("//tmp/t2") == 1
+        assert get("//tmp/t2/@type") == "integer_node"
+        assert get("//tmp/t1/@id") == get("//tmp/t2/@id")
+        assert get("//tmp/t2&/@type") == "link"
+        assert get("//tmp/t2&/@broken") == "false"
+
+        set("//tmp/t1", 2)
+        assert get("//tmp/t2") == 2
+
+    def test_link3(self):
+        set("//tmp/t1", 1)
+        link("//tmp/t1", "//tmp/t2")
+        remove("//tmp/t1")
+        assert get("//tmp/t2&/@broken") == "true"
+
+    def test_link4(self):
+        set("//tmp/t1", 1)
+        link("//tmp/t1", "//tmp/t2")
+
+        tx = start_transaction()
+        id = get("//tmp/t1/@id")
+        lock("#%s" % id, mode = "snapshot", tx = tx)
+
+        remove("//tmp/t1")
+        
+        assert get("#%s" % id, tx = tx) == 1
+        assert get("//tmp/t2&/@broken") == "true"
+        with pytest.raises(YTError): read("//tmp/t2")
+
+    def test_link5(self):
+        set("//tmp/t1", 1)
+        set("//tmp/t2", 2)
+        with pytest.raises(YTError): link("//tmp/t1", "//tmp/t2")

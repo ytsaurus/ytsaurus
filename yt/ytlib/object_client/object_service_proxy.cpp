@@ -154,8 +154,20 @@ int TObjectServiceProxy::TReqExecuteBatch::GetSize() const
 TSharedRef TObjectServiceProxy::TReqExecuteBatch::SerializeBody() const
 {
     NProto::TReqExecute req;
+
     ToProto(req.mutable_part_counts(), PartCounts);
-    ToProto(req.mutable_prerequisite_transaction_ids(), PrerequisiteTransactionIds_);
+
+    FOREACH (const auto& prerequisite, PrerequisiteTransactions_) {
+        auto* protoPrerequisite = req.add_prerequisite_transactions();
+        ToProto(protoPrerequisite->mutable_transaction_id(), prerequisite.TransactionId);
+    }
+
+    FOREACH (const auto& prerequisite, PrerequisiteRevisions_) {
+        auto* protoPrerequisite = req.add_prerequisite_revisions();
+        protoPrerequisite->set_path(prerequisite.Path);
+        ToProto(protoPrerequisite->mutable_transaction_id(), prerequisite.TransactionId);
+        protoPrerequisite->set_revision(prerequisite.Revision);
+    }
 
     TSharedRef data;
     YCHECK(SerializeToProtoWithEnvelope(req, &data));

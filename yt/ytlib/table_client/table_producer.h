@@ -3,7 +3,7 @@
 #include "public.h"
 
 #include <ytlib/yson/public.h>
-#include <ytlib/ytree/public.h>
+#include <ytlib/misc/nullable.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -20,11 +20,14 @@ private:
     ISyncReaderPtr Reader;
     NYson::IYsonConsumer* Consumer;
 
+    TNullable<int> TableIndex;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ProduceRow(NYson::IYsonConsumer* consumer, const TRow& row, const NYTree::TYsonString& attributes);
+void ProduceRow(NYson::IYsonConsumer* consumer, const TRow& row);
+void ProduceTableSwitch(NYson::IYsonConsumer* consumer, int tableIndex);
 
 ////////////////////////////////////////////////////////////////////////////////
 

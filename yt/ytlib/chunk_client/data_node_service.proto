@@ -12,6 +12,7 @@ message TReqStartChunk
 {
     required NYT.NProto.TGuid chunk_id = 1;
     required int32 session_type = 2;
+    optional bool sync_on_close = 3 [default = true];
 }
 
 message TRspStartChunk

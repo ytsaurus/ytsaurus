@@ -9,6 +9,7 @@
 #include <ytlib/misc/foreach.h>
 #include <ytlib/misc/sync.h>
 #include <ytlib/misc/protobuf_helpers.h>
+
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 
 #include <ytlib/chunk_client/async_reader.h>
@@ -19,7 +20,9 @@
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <ytlib/yson/tokenizer.h>
+
 #include <ytlib/actions/invoker.h>
+
 #include <ytlib/logging/tagged_logger.h>
 
 #include <algorithm>
@@ -195,11 +198,15 @@ private:
         const auto& chunkMeta = result.GetValue();
 
         if (chunkMeta.type() != EChunkType::Table) {
-            LOG_FATAL("Invalid chunk type %d", chunkMeta.type());
+            auto error = TError("Invalid chunk type: expected %s, actual %s",
+                ~FormatEnum(EChunkType(EChunkType::Table)).Quote(),
+                ~FormatEnum(EChunkType(chunkMeta.type())).Quote());
+            OnFail(error, chunkReader);
+            return;
         }
 
         if (chunkMeta.version() != FormatVersion) {
-            auto error = TError("Invalid chunk format version (Expected: %d, Actual: %d)",
+            auto error = TError("Invalid table chunk format version: expected %d, actual %d",
                 FormatVersion,
                 chunkMeta.version());
             OnFail(error, chunkReader);
@@ -696,7 +703,7 @@ TTableChunkReader::TTableChunkReader(
     NChunkClient::IAsyncReaderPtr chunkReader,
     const NChunkClient::NProto::TReadLimit& startLimit,
     const NChunkClient::NProto::TReadLimit& endLimit,
-    const NYTree::TYsonString& rowAttributes,
+    TNullable<int> tableIndex,
     int partitionTag,
     TChunkReaderOptionsPtr options)
     : Provider(provider)
@@ -705,7 +712,7 @@ TTableChunkReader::TTableChunkReader(
     , SequentialReader(nullptr)
     , Channel(channel)
     , Options(options)
-    , RowAttributes(rowAttributes)
+    , TableIndex(tableIndex)
     , CurrentRowIndex(-1)
     , StartRowIndex(0)
     , EndRowIndex(0)
@@ -905,11 +912,6 @@ auto TTableChunkReader::GetFacade() const -> const TFacade*
     return IsFinished ? nullptr : &Facade;
 }
 
-const TYsonString& TTableChunkReader::GetRowAttributes() const
-{
-    return RowAttributes;
-}
-
 i64 TTableChunkReader::GetRowCount() const
 {
     return EndRowIndex - StartRowIndex;
@@ -918,6 +920,11 @@ i64 TTableChunkReader::GetRowCount() const
 i64 TTableChunkReader::GetRowIndex() const
 {
     return CurrentRowIndex - StartRowIndex;
+}
+
+const TNullable<int>& TTableChunkReader::GetTableIndex() const
+{
+    return TableIndex;
 }
 
 TFuture<void> TTableChunkReader::GetFetchingCompleteEvent()
@@ -973,11 +980,9 @@ TTableChunkReaderPtr TTableChunkReaderProvider::CreateReader(
     const NChunkClient::NProto::TChunkSpec& chunkSpec,
     const NChunkClient::IAsyncReaderPtr& chunkReader)
 {
-    TYsonString rowAttributes;
+    TNullable<int> tableIndex = Null;
     if (chunkSpec.has_table_index()) {
-        rowAttributes = TYsonString(
-            Sprintf("table_index=%d", chunkSpec.table_index()),
-            NYson::EYsonType::MapFragment);
+        tableIndex = chunkSpec.table_index();
     }
 
     return New<TTableChunkReader>(
@@ -987,7 +992,7 @@ TTableChunkReaderPtr TTableChunkReaderProvider::CreateReader(
         chunkReader,
         chunkSpec.start_limit(),
         chunkSpec.end_limit(),
-        rowAttributes,
+        tableIndex,
         chunkSpec.partition_tag(),
         Options);
 }
@@ -1008,9 +1013,9 @@ const NChunkClient::TNonOwningKey& TTableChunkReaderFacade::GetKey() const
     return Reader->GetKey();
 }
 
-const NYTree::TYsonString& TTableChunkReaderFacade::GetRowAttributes() const
+const TNullable<int>& TTableChunkReaderFacade::GetTableIndex() const
 {
-    return Reader->GetRowAttributes();
+    return Reader->GetTableIndex();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

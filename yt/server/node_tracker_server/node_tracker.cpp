@@ -95,13 +95,13 @@ public:
             RegisterSaver(
                 ESerializationPriority::Keys,
                 "NodeTracker.Keys",
-                CurrentSnapshotVersion,
+                GetCurrentSnapshotVersion(),
                 BIND(&TImpl::SaveKeys, MakeStrong(this)),
                 context);
             RegisterSaver(
                 ESerializationPriority::Values,
                 "NodeTracker.Values",
-                CurrentSnapshotVersion,
+                GetCurrentSnapshotVersion(),
                 BIND(&TImpl::SaveValues, MakeStrong(this)),
                 context);
         }

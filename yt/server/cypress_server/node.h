@@ -45,6 +45,8 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TInstant, CreationTime);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, ModificationTime);
 
+    DEFINE_BYVAL_RW_PROPERTY(i64, Revision);
+
     DEFINE_BYVAL_RW_PROPERTY(NSecurityServer::TAccount*, Account);
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TClusterResources, CachedResourceUsage);
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, Acd);

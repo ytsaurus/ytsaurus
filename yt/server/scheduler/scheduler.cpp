@@ -737,7 +737,7 @@ private:
     {
         LOG_INFO("Updating configuration");
 
-        auto req = TYPathProxy::Get("//sys/scheduler/@config");
+        auto req = TYPathProxy::Get("//sys/scheduler/config");
         batchReq->AddRequest(req, "get_config");
     }
 
@@ -745,7 +745,7 @@ private:
     {
         auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_config");
         if (rsp->GetError().FindMatching(NYTree::EErrorCode::ResolveError)) {
-            // No config attribute, just ignore.
+            // No config in Cypress, just ignore.
             return;
         }
         if (!rsp->IsOK()) {
@@ -805,31 +805,28 @@ private:
                 auto asyncResult = controller->Prepare();
                 auto result = WaitFor(asyncResult);
                 THROW_ERROR_EXCEPTION_IF_FAILED(result);
-                if (operation->GetState() != EOperationState::Preparing &&
-                    operation->GetState() != EOperationState::Completing)
-                    throw TFiberTerminatedException();
             }
-
-            if (operation->GetState() == EOperationState::Preparing) {
-                operation->SetState(EOperationState::Running);
-
-                LOG_INFO("Operation has been prepared and is now running (OperationId: %s)",
-                    ~ToString(operationId));
-
-                LogOperationProgress(operation);
-
-                // From this moment on the controller is fully responsible for the
-                // operation's fate. It will eventually call #OnOperationCompleted or
-                // #OnOperationFailed to inform the scheduler about the outcome.
-            }
-
-            return TError();
         } catch (const std::exception& ex) {
             auto wrappedError = TError("Operation has failed to prepare")
                 << ex;
             OnOperationFailed(operation, wrappedError);
             return wrappedError;
         }
+
+        if (operation->GetState() == EOperationState::Preparing) {
+            operation->SetState(EOperationState::Running);
+
+            LOG_INFO("Operation has been prepared and is now running (OperationId: %s)",
+                ~ToString(operationId));
+
+            LogOperationProgress(operation);
+
+            // From this moment on the controller is fully responsible for the
+            // operation's fate. It will eventually call #OnOperationCompleted or
+            // #OnOperationFailed to inform the scheduler about the outcome.
+        }
+
+        return TError();
     }
 
     void StartSyncSchedulerTransaction(TOperationPtr operation)

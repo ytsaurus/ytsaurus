@@ -79,6 +79,7 @@ void TNontemplateCypressNodeTypeHandlerBase::BranchCore(
     branchedNode->SetParent(originatingNode->GetParent());
     branchedNode->SetCreationTime(originatingNode->GetCreationTime());
     branchedNode->SetModificationTime(originatingNode->GetModificationTime());
+    branchedNode->SetRevision(originatingNode->GetRevision());
     branchedNode->SetLockMode(mode);
     branchedNode->SetTrunkNode(originatingNode->GetTrunkNode());
     branchedNode->SetTransaction(transaction);
@@ -114,6 +115,7 @@ void TNontemplateCypressNodeTypeHandlerBase::MergeCore(
         ->GetMutationContext();
 
     originatingNode->SetModificationTime(mutationContext->GetTimestamp());
+    originatingNode->SetRevision(mutationContext->GetVersion().ToRevision());
 }
 
 std::unique_ptr<TCypressNodeBase> TNontemplateCypressNodeTypeHandlerBase::CloneCorePrologue(
@@ -517,7 +519,7 @@ TLinkNodeTypeHandler::TLinkNodeTypeHandler(NCellMaster::TBootstrap* bootstrap)
 
 EObjectType TLinkNodeTypeHandler::GetObjectType()
 {
-    return EObjectType::LinkNode;
+    return EObjectType::Link;
 }
 
 ENodeType TLinkNodeTypeHandler::GetNodeType()
@@ -562,6 +564,86 @@ void TLinkNodeTypeHandler::DoClone(
     TBase::DoClone(sourceNode, clonedNode, context);
 
     clonedNode->SetTargetId(sourceNode->GetTargetId());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TDocumentNode::TDocumentNode(const TVersionedNodeId& id)
+    : TCypressNodeBase(id)
+    , Value_(GetEphemeralNodeFactory()->CreateEntity())
+{ }
+
+void TDocumentNode::Save(NCellMaster::TSaveContext& context) const
+{
+    TCypressNodeBase::Save(context);
+
+    using NYT::Save;
+    auto serializedContent = ConvertToYsonString(Value_);
+    Save(context, serializedContent.Data());
+}
+
+void TDocumentNode::Load(NCellMaster::TLoadContext& context)
+{
+    TCypressNodeBase::Load(context);
+
+    using NYT::Load;
+    auto serializedContent = Load<Stroka>(context);
+    Value_ = ConvertToNode(TYsonString(serializedContent));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TDocumentNodeTypeHandler::TDocumentNodeTypeHandler(NCellMaster::TBootstrap* bootstrap)
+    : TBase(bootstrap)
+{ }
+
+EObjectType TDocumentNodeTypeHandler::GetObjectType()
+{
+    return EObjectType::Document;
+}
+
+ENodeType TDocumentNodeTypeHandler::GetNodeType()
+{
+    return ENodeType::Entity;
+}
+
+ICypressNodeProxyPtr TDocumentNodeTypeHandler::DoGetProxy(
+    TDocumentNode* trunkNode,
+    TTransaction* transaction)
+{
+    return New<TDocumentNodeProxy>(
+        this,
+        Bootstrap,
+        transaction,
+        trunkNode);
+}
+
+void TDocumentNodeTypeHandler::DoBranch(
+    const TDocumentNode* originatingNode,
+    TDocumentNode* branchedNode)
+{
+    TBase::DoBranch(originatingNode, branchedNode);
+
+    branchedNode->SetValue(CloneNode(originatingNode->GetValue()));
+}
+
+void TDocumentNodeTypeHandler::DoMerge(
+    TDocumentNode* originatingNode,
+    TDocumentNode* branchedNode)
+{
+    TBase::DoMerge(originatingNode, branchedNode);
+
+    originatingNode->SetValue(branchedNode->GetValue());
+}
+
+void TDocumentNodeTypeHandler::DoClone(
+    TDocumentNode* sourceNode,
+    TDocumentNode* clonedNode,
+    const TCloneContext& context)
+{
+    TBase::DoClone(sourceNode, clonedNode, context);
+
+    clonedNode->SetValue(CloneNode(sourceNode->GetValue()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -26,9 +26,10 @@ using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYPathRequest::TYPathRequest(const Stroka& verb)
+TYPathRequest::TYPathRequest(const Stroka& verb, const TYPath& path)
 {
     Header_.set_verb(verb);
+    Header_.set_path(path);
 }
 
 bool TYPathRequest::IsOneWay() const
@@ -319,10 +320,15 @@ void SyncYPathSet(IYPathServicePtr service, const TYPath& path, const TYsonStrin
     THROW_ERROR_EXCEPTION_IF_FAILED(*response);
 }
 
-void SyncYPathRemove(IYPathServicePtr service, const TYPath& path)
+void SyncYPathRemove(
+    IYPathServicePtr service,
+    const TYPath& path,
+    bool recursive,
+    bool force)
 {
     auto request = TYPathProxy::Remove(path);
-    request->set_recursive(true);
+    request->set_recursive(recursive);
+    request->set_force(force);
     auto response = ExecuteVerb(service, request).Get();
     THROW_ERROR_EXCEPTION_IF_FAILED(*response);
 }

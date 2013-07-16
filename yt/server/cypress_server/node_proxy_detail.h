@@ -86,7 +86,7 @@ public:
         TCypressNodeBase* trunkNode);
 
     virtual NYTree::INodeFactoryPtr CreateFactory() const override;
-    virtual NYTree::IYPathResolverPtr GetResolver() const override;
+    virtual NYTree::INodeResolverPtr GetResolver() const override;
 
     virtual NTransactionServer::TTransaction* GetTransaction() const override;
 
@@ -112,7 +112,7 @@ protected:
     TCypressNodeBase* TrunkNode;
 
     mutable TCypressNodeBase* CachedNode;
-    mutable NYTree::IYPathResolverPtr CachedResolver;
+    mutable NYTree::INodeResolverPtr CachedResolver;
     
     virtual NObjectServer::TVersionedObjectId GetVersionedId() const override;
     virtual NSecurityServer::TAccessControlDescriptor* FindThisAcd() override;
@@ -432,7 +432,51 @@ private:
     virtual bool GetSystemAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
     virtual bool SetSystemAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
 
-    NYTree::IYPathServicePtr GetTargetService() const;
+    NObjectServer::IObjectProxyPtr FindTargetProxy() const;
+    NObjectServer::IObjectProxyPtr GetTargetProxy() const;
+
+    bool IsBroken(const NObjectServer::TObjectId& id) const;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDocumentNodeProxy
+    : public TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, NYTree::IEntityNode, TDocumentNode>
+{
+public:
+    TDocumentNodeProxy(
+        INodeTypeHandlerPtr typeHandler,
+        NCellMaster::TBootstrap* bootstrap,
+        NTransactionServer::TTransaction* transaction,
+        TDocumentNode* trunkNode);
+
+    virtual NYTree::ENodeType GetType() const override;
+
+    virtual TIntrusivePtr<const NYTree::IEntityNode> AsEntity() const override;
+    virtual TIntrusivePtr<NYTree::IEntityNode> AsEntity() override;
+
+private:
+    typedef TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, NYTree::IEntityNode, TDocumentNode> TBase;
+
+    IYPathService::TResolveResult ResolveRecursive(const NYPath::TYPath& path, NRpc::IServiceContextPtr context);
+
+    virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context) override;
+    virtual void GetRecursive(const NYPath::TYPath& path, TReqGet* request, TRspGet* response, TCtxGetPtr context) override;
+
+    virtual void SetSelf(TReqSet* request, TRspSet* response, TCtxSetPtr context) override;
+    virtual void SetRecursive(const NYPath::TYPath& path, TReqSet* request, TRspSet* response, TCtxSetPtr context) override;
+
+    virtual void ListSelf(TReqList* request, TRspList* response, TCtxListPtr context) override;
+    virtual void ListRecursive(const NYPath::TYPath& path, TReqList* request, TRspList* response, TCtxListPtr context) override;
+
+    virtual void RemoveRecursive(const NYPath::TYPath& path, TReqRemove* request, TRspRemove* response, TCtxRemovePtr context) override;
+
+    virtual void ExistsRecursive(const NYPath::TYPath& path, TReqExists* request, TRspExists* response, TCtxExistsPtr context) override;
+
+    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override;
+    virtual bool GetSystemAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
+    virtual bool SetSystemAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
 
 };
 

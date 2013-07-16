@@ -45,7 +45,7 @@ TRichYPath::TRichYPath()
 
 TRichYPath::TRichYPath(const TRichYPath& other)
     : Path_(other.Path_)
-    , Attributes_(~other.Attributes_ ? other.Attributes_->Clone() : NULL)
+    , Attributes_(~other.Attributes_ ? other.Attributes_->Clone() : nullptr)
 { }
 
 TRichYPath::TRichYPath(const char* path)
@@ -354,14 +354,14 @@ void TRichYPath::Save(TStreamSaveContext& context) const
 {
     using NYT::Save;
     Save(context, Path_);
-    Save(context, *Attributes_);
+    Save(context, Attributes_);
 }
 
 void TRichYPath::Load(TStreamLoadContext& context)
 {
     using NYT::Load;
     Load(context, Path_);
-    Load(context, *Attributes_);
+    Load(context, Attributes_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

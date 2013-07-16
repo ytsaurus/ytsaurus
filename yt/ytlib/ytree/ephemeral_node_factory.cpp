@@ -19,7 +19,7 @@ using namespace NYson;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TEphemeralYPathResolver
-    : public IYPathResolver
+    : public INodeResolver
 {
 public:
     explicit TEphemeralYPathResolver(INodePtr node)
@@ -68,7 +68,7 @@ public:
         return GetEphemeralNodeFactory();
     }
 
-    virtual IYPathResolverPtr GetResolver() const override
+    virtual INodeResolverPtr GetResolver() const override
     {
         return New<TEphemeralYPathResolver>(const_cast<TEphemeralNodeBase*>(this));
     }

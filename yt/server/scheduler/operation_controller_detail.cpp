@@ -771,6 +771,7 @@ void TOperationControllerBase::TTask::AddIntermediateOutputSpec(
     options->Account = Controller->Spec->IntermediateDataAccount;
     options->ChunksVital = false;
     options->ReplicationFactor = 1;
+    options->CompressionCodec = Controller->Spec->IntermediateCompressionCodec;
     outputSpec->set_table_writer_options(ConvertToYsonString(options).Data());
     ToProto(outputSpec->mutable_chunk_list_id(), joblet->ChunkListIds[0]);
 }
@@ -1091,7 +1092,9 @@ void TOperationControllerBase::SuspendUnavailableInputStripes()
         if (chunkDescriptor.State == EInputChunkState::Waiting) {
             LOG_TRACE("Input chunk is unavailable (ChunkId: %s)", ~ToString(pair.first));
             FOREACH(const auto& inputStripe, chunkDescriptor.InputStripes) {
-                inputStripe.Task->GetChunkPoolInput()->Suspend(inputStripe.Cookie);
+                if (inputStripe.Stripe->WaitingChunkCount == 0) {
+                    inputStripe.Task->GetChunkPoolInput()->Suspend(inputStripe.Cookie);
+                }
                 ++inputStripe.Stripe->WaitingChunkCount;
             }
             ++UnavailableInputChunkCount;
@@ -2956,6 +2959,8 @@ void TOperationControllerBase::InitUserJobSpec(
     jobSpec->set_memory_reserve(memoryReserve);
     jobSpec->set_use_yamr_descriptors(config->UseYamrDescriptors);
     jobSpec->set_max_stderr_size(config->MaxStderrSize);
+    jobSpec->set_enable_core_dump(config->EnableCoreDump);
+    jobSpec->set_enable_vm_limit(Config->EnableVMLimit);
 
     {
         if (Operation->GetStdErrCount() < Operation->GetMaxStdErrCount()) {
@@ -3075,6 +3080,9 @@ void TOperationControllerBase::InitIntermediateOutputConfig(TJobIOConfigPtr conf
 
     // Don't move intermediate chunks.
     config->TableWriter->ChunksMovable = false;
+
+    // Don't sync intermediate chunks.
+    config->TableWriter->SyncOnClose = false;
 }
 
 void TOperationControllerBase::InitFinalOutputConfig(TJobIOConfigPtr config)

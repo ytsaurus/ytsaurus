@@ -89,12 +89,8 @@ public:
     //! Returns the root node.
     TCypressNodeBase* GetRootNode() const;
 
-    //! Returns a service representing the root.
-    //! This service is fully thread-safe.
-    NYTree::IYPathServicePtr GetRootService() const;
-
     //! Creates a resolver that provides a view in the context of a given transaction.
-    NYTree::IYPathResolverPtr CreateResolver(NTransactionServer::TTransaction* transaction = nullptr);
+    NYTree::INodeResolverPtr CreateResolver(NTransactionServer::TTransaction* transaction = nullptr);
 
     //! Similar to |FindNode| provided by |DECLARE_METAMAP_ACCESSORS| but
     //! specially optimized for the case of null transaction.
@@ -126,6 +122,8 @@ public:
         NTransactionServer::TTransaction* transaction,
         bool includeRoot = true);
 
+    bool IsOrphaned(TCypressNodeBase* trunkNode);
+
     DECLARE_METAMAP_ACCESSORS(Node, TCypressNodeBase, TVersionedNodeId);
 
 private:
@@ -155,9 +153,6 @@ private:
 
     TNodeId RootNodeId;
     TCypressNodeBase* RootNode;
-    NYTree::IYPathServicePtr RootService;
-
-    yhash_map<TCypressNodeBase*, INodeBehaviorPtr> NodeBehaviors;
 
     void RegisterNode(
         std::unique_ptr<TCypressNodeBase> node,
@@ -167,9 +162,8 @@ private:
     void DestroyNode(TCypressNodeBase* trunkNode);
 
     // TMetaStatePart overrides.
-    virtual void OnLeaderRecoveryComplete() override;
-    virtual void OnStopLeading() override;
     virtual void OnRecoveryComplete() override;
+
     void DoClear();
     virtual void Clear() override;
 
@@ -196,9 +190,6 @@ private:
     void ReleaseCreatedNodes(NTransactionServer::TTransaction* transaction);
     void PromoteLocks(NTransactionServer::TTransaction* transaction);
     void PromoteLock(TLock* lock, NTransactionServer::TTransaction* parentTransaction);
-
-    void CreateNodeBehavior(TCypressNodeBase* trunkNode);
-    void DestroyNodeBehavior(TCypressNodeBase* trunkNode);
 
     void ValidateLock(
         TCypressNodeBase* trunkNode,
