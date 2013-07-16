@@ -4,6 +4,7 @@
 #include "tcp_connection.h"
 
 #include <ytlib/misc/thread.h>
+#include <ytlib/misc/address.h>
 
 #ifndef _win_
     #include <sys/socket.h>
@@ -39,10 +40,29 @@ TNetworkAddress GetLocalBusAddress(int port)
 #endif
 }
 
+bool IsLocalServiceAddress(const Stroka& address)
+{
+#ifndef _linux_
+    TStringBuf hostName;
+    int port;
+    try {
+        ParseServiceAddress(address, &hostName, &port);
+        return hostName == TAddressResolver::Get()->GetLocalHostName();
+    } catch (...) {
+        return false;
+    }
+#else
+    // Domain sockets are only supported for Linux.
+    UNUSED(hostName);
+    return false;
+#endif
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TTcpDispatcher::TImpl::TImpl()
-    : Thread(ThreadFunc, (void*) this)
+    : Statistics_(ETcpInterfaceType::GetDomainSize())
+    , Thread(ThreadFunc, (void*) this)
     , Stopped(false)
     , StopWatcher(EventLoop)
     , RegisterWatcher(EventLoop)
@@ -161,6 +181,11 @@ void TTcpDispatcher::TImpl::AsyncPostEvent(TTcpConnectionPtr connection, EConnec
     TEventEntry entry(std::move(connection), event);
     EventQueue.Enqueue(entry);
     EventWatcher.send();
+}
+
+TTcpDispatcherStatistics& TTcpDispatcher::TImpl::Statistics(ETcpInterfaceType interfaceType)
+{
+    return Statistics_[static_cast<int>(interfaceType)];
 }
 
 void TTcpDispatcher::TImpl::OnRegister(ev::async&, int)

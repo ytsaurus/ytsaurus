@@ -50,7 +50,7 @@ using namespace NCellNode;
 
 static auto& Logger = DataNodeLogger;
 static auto& Profiler = DataNodeProfiler;
-static TDuration ProfilingPeriod = TDuration::MilliSeconds(100);
+static auto ProfilingPeriod = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -177,7 +177,7 @@ void TDataNodeService::OnGotChunkMeta(
 i64 TDataNodeService::GetPendingOutSize() const
 {
     return
-        NBus::TTcpDispatcher::Get()->GetStatistics().PendingOutSize +
+        NBus::TTcpDispatcher::Get()->GetStatistics(NBus::ETcpInterfaceType::Remote).PendingOutSize +
         Bootstrap->GetBlockStore()->GetPendingReadSize();
 }
 

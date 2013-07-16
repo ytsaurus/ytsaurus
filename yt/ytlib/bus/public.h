@@ -38,6 +38,19 @@ typedef TIntrusivePtr<TTcpBusClientConfig> TTcpBusClientConfigPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Local means UNIX domain sockets.
+//! Remove means standard TCP sockets.
+/*!
+ *  \note
+ *  Values must be contiguous.
+ */
+DECLARE_ENUM(ETcpInterfaceType,
+	(Local)
+	(Remote)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NBus
 } // namespace NYT
 

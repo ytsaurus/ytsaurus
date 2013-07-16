@@ -34,11 +34,11 @@ static NProfiling::TAggregateCounter AcceptTime("/accept_time");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBusServerBase
+class TTcpBusServerBase
     : public IEventLoopObject
 {
 public:
-    TBusServerBase(
+    TTcpBusServerBase(
         TTcpBusServerConfigPtr config,
         IMessageHandlerPtr handler)
         : Config(config)
@@ -62,7 +62,7 @@ public:
 
         const auto& eventLoop = TTcpDispatcher::TImpl::Get()->GetEventLoop();
         AcceptWatcher.reset(new ev::io(eventLoop));
-        AcceptWatcher->set<TBusServerBase, &TBusServerBase::OnAccept>(this);
+        AcceptWatcher->set<TTcpBusServerBase, &TTcpBusServerBase::OnAccept>(this);
         AcceptWatcher->start(ServerFd, ev::READ);
     }
 
@@ -103,6 +103,8 @@ protected:
 
 
     virtual void CreateServerSocket() = 0;
+
+    virtual ETcpInterfaceType GetInterfaceType() = 0;
 
     virtual void InitClientSocket(SOCKET clientSocket)
     {
@@ -215,13 +217,14 @@ protected:
             auto connection = New<TTcpConnection>(
                 Config,
                 EConnectionType::Server,
+                GetInterfaceType(),
                 TConnectionId::Create(),
                 clientSocket,
                 ToString(clientAddress, true),
                 0,
                 Handler);
             connection->SubscribeTerminated(BIND(
-                &TBusServerBase::OnConnectionTerminated,
+                &TTcpBusServerBase::OnConnectionTerminated,
                 MakeWeak(this),
                 connection));
             YCHECK(Connections.insert(connection).second);
@@ -241,14 +244,14 @@ protected:
     }
 };
 
-class TTcpBusServer
-    : public TBusServerBase
+class TRemoteTcpBusServer
+    : public TTcpBusServerBase
 {
 public:
-    TTcpBusServer(
+    TRemoteTcpBusServer(
         TTcpBusServerConfigPtr config,
         IMessageHandlerPtr handler)
-        : TBusServerBase(config, handler)
+        : TTcpBusServerBase(config, handler)
     {
         Logger.AddTag(Sprintf("Port: %d", Config->Port));
     }
@@ -264,6 +267,11 @@ public:
     }
 
 private:
+    virtual ETcpInterfaceType GetInterfaceType() override
+    {
+        return ETcpInterfaceType::Remote;
+    }
+
     virtual void CreateServerSocket() override
     {
         int type = SOCK_STREAM;
@@ -311,7 +319,7 @@ private:
 
     virtual void InitClientSocket(SOCKET clientSocket) override
     {
-        TBusServerBase::InitClientSocket(clientSocket);
+        TTcpBusServerBase::InitClientSocket(clientSocket);
 
 #if !defined(_win_) && !defined(__APPLE__)
         {
@@ -322,14 +330,14 @@ private:
     }
 };
 
-class TLocalBusServer
-    : public TBusServerBase
+class TLocalTcpBusServer
+    : public TTcpBusServerBase
 {
 public:
-    TLocalBusServer(
+    TLocalTcpBusServer(
         TTcpBusServerConfigPtr config,
         IMessageHandlerPtr handler)
-        : TBusServerBase(config, handler)
+        : TTcpBusServerBase(config, handler)
     {
         Logger.AddTag(Sprintf("LocalPort: %d", Config->Port));
     }
@@ -347,6 +355,11 @@ public:
 private:
     Stroka Path;
 
+    virtual ETcpInterfaceType GetInterfaceType() override
+    {
+        return ETcpInterfaceType::Local;
+    }
+    
     virtual void CreateServerSocket() override
     {
         int type = SOCK_STREAM;
@@ -376,7 +389,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A lightweight proxy controlling the lifetime of #TTcpBusServer.
+//! A lightweight proxy controlling the lifetime of a TCP bus server.
 /*!
  *  When the last strong reference vanishes, it unregisters the underlying
  *  server instance.
@@ -471,9 +484,9 @@ private:
 IBusServerPtr CreateTcpBusServer(TTcpBusServerConfigPtr config)
 {
     std::vector<IBusServerPtr> servers;
-    servers.push_back(New< TTcpBusServerProxy<TTcpBusServer> >(config));
+    servers.push_back(New< TTcpBusServerProxy<TRemoteTcpBusServer> >(config));
 #ifdef _linux_
-    servers.push_back(New< TTcpBusServerProxy<TLocalBusServer> >(config));
+    servers.push_back(New< TTcpBusServerProxy<TLocalTcpBusServer> >(config));
 #endif
     return New<TCompositeBusServer>(servers);
 }

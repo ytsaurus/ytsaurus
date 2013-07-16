@@ -17,6 +17,7 @@ namespace NBus {
 ////////////////////////////////////////////////////////////////////////////////
 
 TNetworkAddress GetLocalBusAddress(int port);
+bool IsLocalServiceAddress(const Stroka& address);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,9 +48,11 @@ public:
 
     void AsyncPostEvent(TTcpConnectionPtr connection, EConnectionEvent event);
 
-    DEFINE_BYREF_RW_PROPERTY(TTcpDispatcherStatistics, Statistics);
+    TTcpDispatcherStatistics& Statistics(ETcpInterfaceType interfaceType);
 
 private:
+    std::vector<TTcpDispatcherStatistics> Statistics_;
+
     TThread Thread;
     ev::dynamic_loop EventLoop;
 

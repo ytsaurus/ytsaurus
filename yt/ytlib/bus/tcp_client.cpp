@@ -25,7 +25,7 @@ namespace NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = BusLogger;
+static auto& Logger = BusLogger;
 static auto& Profiler = BusProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -61,13 +61,17 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        LOG_DEBUG("Connecting to %s (ConnectionId: %s)",
+        auto interfaceType = GetInterfaceType(Config->Address);
+
+        LOG_DEBUG("Connecting to %s (ConnectionId: %s, InterfaceType: %s)",
             ~Config->Address,
-            ~ToString(Id));
+            ~ToString(Id),
+            ~interfaceType.ToString());
 
         Connection = New<TTcpConnection>(
             Config,
             EConnectionType::Client,
+            interfaceType, 
             Id,
             INVALID_SOCKET,
             Config->Address,
@@ -106,6 +110,14 @@ private:
     TTcpConnectionPtr Connection;
 
     TConnectionId Id;
+
+    static ETcpInterfaceType GetInterfaceType(const Stroka& address)
+    {
+        return
+            IsLocalServiceAddress(address)
+            ? ETcpInterfaceType::Local
+            : ETcpInterfaceType::Remote;
+    }
 
 };
 

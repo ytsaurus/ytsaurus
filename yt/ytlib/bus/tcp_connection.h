@@ -13,6 +13,8 @@
 
 #include <ytlib/logging/tagged_logger.h>
 
+#include <ytlib/profiling/profiler.h>
+
 #include <queue>
 
 #include <util/thread/lfqueue.h>
@@ -35,7 +37,8 @@ class TTcpConnection
 public:
     TTcpConnection(
         TTcpBusConfigPtr config,
-        EConnectionType type,
+        EConnectionType connectionType,
+        ETcpInterfaceType interfaceType,
         const TConnectionId& id,
         int socket,
         const Stroka& address,
@@ -126,7 +129,8 @@ private:
 
     TTcpDispatcher::TImpl* Dispatcher;
     TTcpBusConfigPtr Config;
-    EConnectionType Type;
+    EConnectionType ConnectionType;
+    ETcpInterfaceType InterfaceType;
     TConnectionId Id;
     int Socket;
     int Fd;
@@ -137,6 +141,7 @@ private:
     IMessageHandlerPtr Handler;
 
     NLog::TTaggedLogger Logger;
+    NProfiling::TProfiler Profiler;
 
     // Only used for client sockets.
     int Port;
@@ -173,7 +178,6 @@ private:
     void Cleanup();
 
     void SyncOpen();
-    static bool IsLocal(const TStringBuf& hostName);
     void SyncResolve();
     void SyncClose(const TError& error);
 

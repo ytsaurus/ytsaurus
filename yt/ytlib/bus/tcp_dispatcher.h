@@ -31,12 +31,12 @@ public:
 
     void Shutdown();
 
-    TTcpDispatcherStatistics GetStatistics();
+    TTcpDispatcherStatistics GetStatistics(ETcpInterfaceType interfaceType);
 
 private:
     friend class TTcpConnection;
     friend class TTcpClientBusProxy;
-    friend class TBusServerBase;
+    friend class TTcpBusServerBase;
     template <class TServer>
     friend class TTcpBusServerProxy;
 

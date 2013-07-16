@@ -33,9 +33,9 @@ void TTcpDispatcher::Shutdown()
     Impl->Shutdown();
 }
 
-TTcpDispatcherStatistics TTcpDispatcher::GetStatistics()
+TTcpDispatcherStatistics TTcpDispatcher::GetStatistics(ETcpInterfaceType interfaceType)
 {
-    return Impl->Statistics();
+    return Impl->Statistics(interfaceType);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

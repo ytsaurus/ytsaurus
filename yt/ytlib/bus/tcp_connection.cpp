@@ -4,7 +4,11 @@
 #include "server.h"
 #include "config.h"
 
+#include <ytlib/misc/string.h>
+
 #include <ytlib/rpc/public.h>
+
+#include <ytlib/profiling/profiling_manager.h>
 
 #include <util/system/error.h>
 #include <util/folder/dirut.h>
@@ -19,8 +23,6 @@ namespace NYT {
 namespace NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-static auto& Profiler = BusProfiler;
 
 static const size_t MinBatchReadSize =  4 * 1024;
 static const size_t MaxBatchReadSize = 64 * 1024;
@@ -46,7 +48,8 @@ static NProfiling::TAggregateCounter PendingOutSize("/pending_out_size");
 
 TTcpConnection::TTcpConnection(
     TTcpBusConfigPtr config,
-    EConnectionType type,
+    EConnectionType connectionType,
+    ETcpInterfaceType interfaceType,
     const TConnectionId& id,
     int socket,
     const Stroka& address,
@@ -54,7 +57,8 @@ TTcpConnection::TTcpConnection(
     IMessageHandlerPtr handler)
     : Dispatcher(TTcpDispatcher::TImpl::Get())
     , Config(config)
-    , Type(type)
+    , ConnectionType(connectionType)
+    , InterfaceType(interfaceType)
     , Id(id)
     , Socket(socket)
     , Fd(INVALID_SOCKET)
@@ -64,6 +68,7 @@ TTcpConnection::TTcpConnection(
 #endif
     , Handler(handler)
     , Logger(BusLogger)
+    , Profiler(BusProfiler)
     , Port(0)
     , MessageEnqueuedSent(false)
     , ReadBuffer(MinBatchReadSize)
@@ -74,7 +79,10 @@ TTcpConnection::TTcpConnection(
 
     Logger.AddTag(Sprintf("ConnectionId: %s", ~ToString(id)));
 
-    switch (Type) {
+    auto tagId = NProfiling::TProfilingManager::Get()->RegisterTag("interface", FormatEnum(InterfaceType));
+    Profiler.TagIds().push_back(tagId);
+
+    switch (ConnectionType) {
         case EConnectionType::Client:
             YCHECK(Socket == INVALID_SOCKET);
             AtomicSet(State, EState::Resolving);
@@ -122,7 +130,7 @@ void TTcpConnection::SyncInitialize()
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
 
-    switch (Type) {
+    switch (ConnectionType) {
         case EConnectionType::Client:
             SyncResolve();
             break;
@@ -151,12 +159,12 @@ Stroka TTcpConnection::GetLoggingId() const
 
 TTcpDispatcherStatistics& TTcpConnection::Statistics()
 {
-    return TTcpDispatcher::TImpl::Get()->Statistics();
+    return TTcpDispatcher::TImpl::Get()->Statistics(InterfaceType);
 }
 
 void TTcpConnection::UpdateConnectionCount(int delta)
 {
-    switch (Type) {
+    switch (ConnectionType) {
         case EConnectionType::Client: {
             int value = (Statistics().ClientConnectionCount += delta);
             Profiler.Enqueue("/client_connection_count", value);
@@ -211,16 +219,14 @@ void TTcpConnection::SyncResolve()
     VERIFY_THREAD_AFFINITY(EventLoop);
 
     TStringBuf hostName;
-    bool isLocal;
     try {
         ParseServiceAddress(Address, &hostName, &Port);
-        isLocal = IsLocal(hostName);
     } catch (const std::exception& ex) {
         SyncClose(TError(ex).SetCode(NRpc::EErrorCode::TransportError));
         return;
     }
 
-    if (isLocal) {
+    if (InterfaceType == ETcpInterfaceType::Local) {
         LOG_DEBUG("Address resolved as local, connecting");
 
         auto netAddress = GetLocalBusAddress(Port);
@@ -229,20 +235,10 @@ void TTcpConnection::SyncResolve()
         AsyncAddress = TAddressResolver::Get()->Resolve(Stroka(hostName));
 
         auto this_ = MakeStrong(this);
-        AsyncAddress.Subscribe(BIND([=] (TErrorOr<TNetworkAddress>) {
-            this_->Dispatcher->AsyncPostEvent(this_, EConnectionEvent::AddressResolved);
+        AsyncAddress.Subscribe(BIND([this, this_] (TErrorOr<TNetworkAddress>) {
+            Dispatcher->AsyncPostEvent(this, EConnectionEvent::AddressResolved);
         }));
     }
-}
-
-bool TTcpConnection::IsLocal(const TStringBuf& hostName)
-{
-#ifndef _linux_
-    UNUSED(hostName);
-    return false;
-#else
-    return hostName == TAddressResolver::Get()->GetLocalHostName();
-#endif
 }
 
 void TTcpConnection::OnAddressResolved()
@@ -717,7 +713,7 @@ void TTcpConnection::OnSocketWrite()
 
     // For client sockets the first write notification means that
     // connection was established (either successfully or not).
-    if (Type == EConnectionType::Client && State == EState::Opening) {
+    if (ConnectionType == EConnectionType::Client && State == EState::Opening) {
         // Check if connection was established successfully.
         int error = GetSocketError();
         if (error != 0) {
