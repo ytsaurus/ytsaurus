@@ -18,7 +18,7 @@ RETRY_VOLATILE_COMMANDS = False
 
 REQUESTS_RETRIES = 10
 
-update_from_env(globals())
-
 FORCE_IPV4 = False
 FORCE_IPV6 = False
+
+update_from_env(globals())
