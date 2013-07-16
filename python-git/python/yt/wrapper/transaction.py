@@ -92,7 +92,7 @@ class PingTransaction(Thread):
         self.is_running = False
         # 5.0 seconds correction for waiting response from ping
         self.join(5.0 + self.step)
-        require(not self.is_alive(), YtError("Pinging thread is not terminated correctly"))
+        require(not self.is_alive(), YtError("Ping request could not be completed within 5 seconds"))
 
     def run(self):
         try:
