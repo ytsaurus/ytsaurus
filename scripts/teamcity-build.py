@@ -518,6 +518,7 @@ def main():
         type=str, action="store", required=False, choices=("YES", "NO"), default="NO")
 
     options = parser.parse_args()
+    status = 0
 
     try:
         for step in _build_steps:
@@ -525,6 +526,7 @@ def main():
                 step(options)
     except:
         teamcity_announce("Terminating")
+        status = 1
     finally:
         for step in _cleanup_steps:
             try:
@@ -533,6 +535,7 @@ def main():
             except:
                 pass
         teamcity_announce("Done")
+        sys.exit(status)
 
 
 if __name__ == "__main__":
