@@ -42,7 +42,7 @@ TNetworkAddress GetLocalBusAddress(int port)
 
 bool IsLocalServiceAddress(const Stroka& address)
 {
-#ifndef _linux_
+#ifdef _linux_
     TStringBuf hostName;
     int port;
     try {
@@ -53,7 +53,7 @@ bool IsLocalServiceAddress(const Stroka& address)
     }
 #else
     // Domain sockets are only supported for Linux.
-    UNUSED(hostName);
+    UNUSED(address);
     return false;
 #endif
 }
