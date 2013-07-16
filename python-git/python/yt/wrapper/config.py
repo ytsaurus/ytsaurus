@@ -1,6 +1,7 @@
 from common import update_from_env
 
 USE_HOSTS = True
+HOSTS = "hosts"
 
 REMOVE_TEMP_FILES = False
 FILE_PLACEMENT_STRATEGY = "hash"

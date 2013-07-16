@@ -237,6 +237,7 @@ test_smart_format()
     # test read/write
     echo -e "1 2\t\tz=10" | ./mapreduce -subkey -write "ignat/smart_x"
     check "1 2\tz=10" "`./mapreduce -read "ignat/smart_x"`"
+    check "`printf "\x00\x00\x00\x031 2\x00\x00\x00\x04z=10"`" "`./mapreduce -lenval -read "ignat/smart_x"`"
     check "1 2\t\tz=10" "`./mapreduce -subkey -read "ignat/smart_x"`"
     # test columns
     ranged_table='ignat/smart_x{x,z}'
