@@ -47,7 +47,7 @@ def read_content(response, type):
         raise YtError("Incorrent response type: " + type)
 
 def get_hosts():
-    return make_get_request_with_retries("http://{0}/hosts".format(get_proxy(config.http.PROXY)))
+    return make_get_request_with_retries("http://{0}/{1}".format(get_proxy(config.http.PROXY), config.HOSTS))
 
 def get_host_for_heavy_operation():
     if config.USE_HOSTS:

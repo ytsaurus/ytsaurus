@@ -14,7 +14,7 @@ from file_commands import smart_upload_file
 from transaction_commands import _make_transactional_request
 from transaction import PingableTransaction
 from format import Format
-from heavy_commands import make_heavy_command
+from heavy_commands import make_heavy_request
 import logger
 
 from yt.yson import convert_to_json_tree
@@ -272,13 +272,13 @@ def write_table(table, input_stream, format=None, table_writer=None, replication
     elif isinstance(input_stream, str):
         input_stream = split_rows(StringIO(input_stream))
     
-    if can_split_input:
+    if config.USE_RETRIES_DURING_WRITE and can_split_input:
         input_stream = chunk_iter_lines(input_stream, config.CHUNK_SIZE)
 
     if config.USE_RETRIES_DURING_WRITE and not can_split_input:
         logger.warning("Cannot split input into rows. Write is processing by one request.")
 
-    make_heavy_command(
+    make_heavy_request(
         "write",
         input_stream,
         table,
