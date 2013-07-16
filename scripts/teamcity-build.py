@@ -191,7 +191,7 @@ def run_unit_tests(options):
         "--args",
         "./bin/unittester",
         "--gtest_color=no",
-        "--gtest_output=xml:%s/test_unittester.xml" % options.working_directory],
+        "--gtest_output=xml:%s/gtest_unittester.xml" % options.working_directory],
         cwd=options.working_directory)
 
 
