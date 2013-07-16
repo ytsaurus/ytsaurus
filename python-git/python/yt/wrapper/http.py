@@ -14,6 +14,18 @@ import simplejson as json
 from requests import HTTPError, ConnectionError, Timeout
 NETWORK_ERRORS = (HTTPError, ConnectionError, Timeout, httplib.IncompleteRead, YtResponseError)
 
+if http_config.FORCE_IPV4 or http_config.FORCE_IPV6:
+    import socket
+    origGetAddrInfo = socket.getaddrinfo
+
+    protocol = socket.AF_INET if http_config.FORCE_IPV4 else socket.AF_INET6
+
+    def getAddrInfoWrapper(host, port, family=0, socktype=0, proto=0, flags=0):
+        return origGetAddrInfo(host, port, protocol, socktype, proto, flags)
+
+    # replace the original socket.getaddrinfo by our version
+    socket.getaddrinfo = getAddrInfoWrapper
+
 class Response(object):
     def __init__(self, http_response):
         self.http_response = http_response
