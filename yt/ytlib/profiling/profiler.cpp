@@ -14,7 +14,7 @@ using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTagIdList  operator +  (const TTagIdList& a, const TTagIdList& b)
+TTagIdList operator + (const TTagIdList& a, const TTagIdList& b)
 {
     auto result = a;
     result += b;
@@ -100,7 +100,7 @@ TProfiler::TProfiler(
     bool selfProfiling)
     : PathPrefix_(pathPrefix)
     , Enabled_(true)
-    , TagIds(tagIds)
+    , TagIds_(tagIds)
     , SelfProfiling(selfProfiling)
 { }
 
@@ -116,7 +116,7 @@ void TProfiler::Enqueue(
     sample.Time = GetCpuInstant();
     sample.Path = PathPrefix_ + path;
     sample.Value = value;
-    sample.TagIds = TagIds + tagIds;
+    sample.TagIds = TagIds_ + tagIds;
     TProfilingManager::Get()->Enqueue(sample, SelfProfiling);
 }
 

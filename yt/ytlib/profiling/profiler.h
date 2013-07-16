@@ -174,10 +174,14 @@ public:
         const TTagIdList& tagIds = EmptyTagIds,
         bool selfProfiling = false);
 
+    //! Path prefix for each enqueued sample.
     DEFINE_BYVAL_RW_PROPERTY(NYPath::TYPath, PathPrefix);
 
-    //! Controls if the profiler is enabled.
+    //! If |false| then no samples are emitted.
     DEFINE_BYVAL_RW_PROPERTY(bool, Enabled);
+
+    //! Tags to append to each enqueued sample.
+    DEFINE_BYREF_RW_PROPERTY(TTagIdList, TagIds);
 
 
     //! Enqueues a new sample with tags.
@@ -233,7 +237,6 @@ public:
     void Increment(TAggregateCounter& counter, TValue delta);
 
 private:
-    TTagIdList TagIds;
     bool SelfProfiling;
 
     void DoAggregate(
