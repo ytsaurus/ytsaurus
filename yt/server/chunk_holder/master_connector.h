@@ -6,6 +6,8 @@
 
 #include <ytlib/misc/thread_affinity.h>
 
+#include <ytlib/actions/cancelable_context.h>
+
 #include <ytlib/node_tracker_client/node_tracker_service_proxy.h>
 
 #include <ytlib/job_tracker_client/job_tracker_service_proxy.h>
@@ -60,11 +62,19 @@ private:
     DECLARE_ENUM(EState,
         // Not registered.
         (Offline)
+        // Register request is in progress.
+        (Registering)
         // Registered but did not report the full heartbeat yet.
         (Registered)
         // Registered and reported the full heartbeat.
         (Online)
     );
+
+    //! Guards the current heartbeat session.
+    TCancelableContextPtr HeartbeatContext;
+
+    //! Corresponds to #HeartbeatContext and #ControlInvoker.
+    IInvokerPtr HeartbeatInvoker;
 
     //! The current connection state.
     EState State;
@@ -84,11 +94,20 @@ private:
     //! Store chunks that were reported removed at the last heartbeat (for which no reply is received yet).
     TChunkSet ReportedRemoved;
 
-    //! Schedules a heartbeat via TDelayedInvoker.
-    void ScheduleHeartbeat();
+    //! Schedules a new node heartbeat via TDelayedInvoker.
+    void ScheduleNodeHeartbeat();
 
-    //! Invoked when a heartbeat must be sent.
-    void OnHeartbeat();
+    //! Schedules a new node heartbeat via TDelayedInvoker.
+    void ScheduleJobHeartbeat();
+
+    //! Calls #Reset and schedules a new registration request via TDelayedInvoker.
+    void ResetAndScheduleRegister();
+
+    //! Invoked when a node heartbeat must be sent.
+    void OnNodeHeartbeat();
+
+    //! Invoked when a job heartbeat must be sent.
+    void OnJobHeartbeat();
 
     //! Sends out a registration request.
     void SendRegister();
@@ -109,7 +128,7 @@ private:
     void SendJobHeartbeat();
 
     //! Similar to #ForceRegister but handled in Control thread.
-    void DoForceRegister();
+    void StartHeartbeats();
 
     //! Constructs a protobuf info for an added chunk.
     static NNodeTrackerClient::NProto::TChunkAddInfo GetAddInfo(TChunkPtr chunk);
@@ -126,11 +145,8 @@ private:
     //! Handles heartbeat response from Job Tracker.
     void OnJobHeartbeatResponse(NJobTrackerClient::TJobTrackerServiceProxy::TRspHeartbeatPtr rsp);
 
-    //! Handles errors occurring during heartbeats.
-    void OnHeartbeatError(const TError& error);
-
-    //! Handles error during a registration or a heartbeat.
-    void Disconnect();
+    //! Resets connection state.
+    void Reset();
 
     //! Handles registration of new chunks.
     /*!

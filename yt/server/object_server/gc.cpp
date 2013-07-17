@@ -164,7 +164,7 @@ void TGarbageCollector::OnSweep()
     VERIFY_THREAD_AFFINITY(StateThread);
 
     // Shrink zombies hashtable, if needed.
-    if (Zombies.bucket_count() > 4 * Zombies.size()) {
+    if (Zombies.bucket_count() > 4 * Zombies.size() && Zombies.bucket_count() > 16) {
         LOG_INFO("Shrinking zombie set (BucketCount: %" PRISZT ", ZombieCount: %" PRISZT ")",
             Zombies.bucket_count(),
             Zombies.size());
