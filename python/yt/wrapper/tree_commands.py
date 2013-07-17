@@ -167,8 +167,8 @@ def search(root="/", node_type=None, path_filter=None, object_filter=None, attri
     attributes = deepcopy(flatten(get_value(attributes, [])))
     attributes.append("type")
     attributes.append("opaque")
-    exclude = deepcopy(flatten(get_value(exclude, [])))
 
+    exclude = deepcopy(flatten(get_value(exclude, [])))
     exclude.append("//sys/operations")
 
     result = []
