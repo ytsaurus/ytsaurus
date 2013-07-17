@@ -168,7 +168,7 @@ void TGarbageCollector::OnSweep()
         LOG_INFO("Shrinking zombie set (BucketCount: %" PRISZT ", ZombieCount: %" PRISZT ")",
             Zombies.bucket_count(),
             Zombies.size());
-        yhash_set<TObjectBase*> newZombies(Zombies);
+        yhash_set<TObjectBase*> newZombies(Zombies.begin(), Zombies.end());
         Zombies.swap(newZombies);
     }
 
