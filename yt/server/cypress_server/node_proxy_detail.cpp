@@ -1243,6 +1243,59 @@ IYPathService::TResolveResult TListNodeProxy::ResolveRecursive(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TLinkNodeProxy::TDoesNotExistService
+    : public TYPathServiceBase
+    , public TSupportsExists
+{
+private:
+    bool DoInvoke(NRpc::IServiceContextPtr context)
+    {
+        DISPATCH_YPATH_SERVICE_METHOD(Exists);
+        return TYPathServiceBase::DoInvoke(context);
+    }
+
+    virtual TResolveResult Resolve(
+        const TYPath& path,
+        IServiceContextPtr /*context*/) override
+    {
+        return TResolveResult::Here(path);
+    }
+
+    virtual void ExistsSelf(
+        TReqExists* /*request*/,
+        TRspExists* /*response*/,
+        TCtxExistsPtr context) override
+    {
+        ExistsAny(context);
+    }
+
+    virtual void ExistsRecursive(
+        const TYPath& /*path*/,
+        TReqExists* /*request*/,
+        TRspExists* /*response*/,
+        TCtxExistsPtr context) override
+    {
+        ExistsAny(context);
+    }
+
+    virtual void ExistsAttribute(
+        const TYPath& /*path*/,
+        TReqExists* /*request*/,
+        TRspExists* /*response*/,
+        TCtxExistsPtr context) override
+    {
+        ExistsAny(context);
+    }
+
+    void ExistsAny(TCtxExistsPtr context)
+    {
+        context->SetRequestInfo("");
+        Reply(context, false);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TLinkNodeProxy::TLinkNodeProxy(
     INodeTypeHandlerPtr typeHandler,
     TBootstrap* bootstrap,
@@ -1259,6 +1312,24 @@ IYPathService::TResolveResult TLinkNodeProxy::Resolve(
     const TYPath& path,
     IServiceContextPtr context)
 {
+    const auto& verb = context->GetVerb();
+
+    auto propagate = [&] () -> TResolveResult
+    {
+        // XXX(babenko): needed by VS2010
+        typedef IYPathService::TResolveResult TResolveResult;
+        if (verb == "Exists") {
+            auto proxy = FindTargetProxy();
+            static IYPathServicePtr doesNotExistService = New<TDoesNotExistService>();
+            return
+                proxy
+                ? TResolveResult::There(proxy, path)
+                : TResolveResult::There(doesNotExistService, path);
+        } else {
+            return TResolveResult::There(GetTargetProxy(), path);
+        }
+    };
+
     NYPath::TTokenizer tokenizer(path);
     switch (tokenizer.Advance()) {
         case NYPath::ETokenType::Ampersand:
@@ -1266,14 +1337,17 @@ IYPathService::TResolveResult TLinkNodeProxy::Resolve(
 
         case NYPath::ETokenType::EndOfStream: {
             // NB: Always handle Remove and Create locally.
-            const auto& verb = context->GetVerb();
-            return (verb == "Remove" || verb == "Create")
-                   ? TResolveResult::Here(path)
-                   : TResolveResult::There(GetTargetProxy(), path);
+            if (verb == "Remove" || verb == "Create") {
+                return TResolveResult::Here(path);
+            } else if (verb == "Exists") {
+                return propagate();
+            } else {
+                return TResolveResult::There(GetTargetProxy(), path);
+            }
         }
 
         default:
-            return TResolveResult::There(GetTargetProxy(), path);
+            return propagate();
     }
 }
 

@@ -107,7 +107,7 @@ def link(source_path, link_path, **kwargs):
 
 def exists(path, **kwargs):
     res = command('exists', path, **kwargs)
-    return yson2py(res)
+    return yson2py(res) == 'true'
 
 def read_str(path, **kwargs):
     return command('read', path, **kwargs)

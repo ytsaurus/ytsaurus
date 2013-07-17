@@ -524,32 +524,32 @@ class TestCypressCommands(YTEnvSetup):
         abort_transaction(tx)
 
     def test_exists(self):
-        self.assertEqual(exists("//tmp"), "true")
-        self.assertEqual(exists("//tmp/a"), "false")
-        self.assertEqual(exists("//tmp/a/f/e"), "false")
-        self.assertEqual(exists("//tmp/a/1/e"), "false")
-        self.assertEqual(exists("//tmp/a/2/1"), "false")
+        assert exists("//tmp")
+        assert not exists("//tmp/a")
+        assert not exists("//tmp/a/f/e")
+        assert not exists("//tmp/a/1/e")
+        assert not exists("//tmp/a/2/1")
 
         set("//tmp/1", {})
-        self.assertEqual(exists("//tmp/1"), "true")
-        self.assertEqual(exists("//tmp/1/2"), "false")
+        assert exists("//tmp/1")
+        assert not exists("//tmp/1/2")
 
         set("//tmp/a", {})
-        self.assertEqual(exists("//tmp/a"), "true")
+        assert exists("//tmp/a")
 
         set("//tmp/a/@list", [10])
-        self.assertEqual(exists("//tmp/a/@list"), "true")
-        self.assertEqual(exists("//tmp/a/@list/0"), "true")
-        self.assertEqual(exists("//tmp/a/@list/1"), "false")
+        assert exists("//tmp/a/@list")
+        assert exists("//tmp/a/@list/0")
+        assert not exists("//tmp/a/@list/1")
 
-        self.assertEqual(exists("//tmp/a/@attr"), "false")
+        assert not exists("//tmp/a/@attr")
         set("//tmp/a/@attr", {"key": "value"})
-        self.assertEqual(exists("//tmp/a/@attr"), "true")
+        assert exists("//tmp/a/@attr")
 
-        self.assertEqual(exists("//sys/operations"), "true")
-        self.assertEqual(exists("//sys/transactions"), "true")
-        self.assertEqual(exists("//sys/xxx"), "false")
-        self.assertEqual(exists("//sys/operations/xxx"), "false")
+        assert exists("//sys/operations")
+        assert exists("//sys/transactions")
+        assert not exists("//sys/xxx")
+        assert not exists("//sys/operations/xxx")
 
     def test_remove_tx1(self):
         set('//tmp/a', 1)
@@ -611,3 +611,31 @@ class TestCypressCommands(YTEnvSetup):
         set("//tmp/t1", 1)
         set("//tmp/t2", 2)
         with pytest.raises(YTError): link("//tmp/t1", "//tmp/t2")
+
+    def test_link6(self):
+        create("table", "//tmp/a")
+        link("//tmp/a", "//tmp/b")
+
+        assert exists("//tmp/a")
+        assert exists("//tmp/b")
+        assert exists("//tmp/b&")
+        assert exists("//tmp/b/@id")
+        assert exists("//tmp/b/@row_count")
+        assert exists("//tmp/b&/@target_id")
+        assert not exists("//tmp/b/@x")
+        assert not exists("//tmp/b/x")
+        assert not exists("//tmp/b&/@x")
+        assert not exists("//tmp/b&/x")
+
+        remove("//tmp/a")
+        
+        assert not exists("//tmp/a")
+        assert not exists("//tmp/b")
+        assert exists("//tmp/b&")
+        assert not exists("//tmp/b/@id")
+        assert not exists("//tmp/b/@row_count")
+        assert exists("//tmp/b&/@target_id")
+        assert not exists("//tmp/b/@x")
+        assert not exists("//tmp/b/x")
+        assert not exists("//tmp/b&/@x")
+        assert not exists("//tmp/b&/x")

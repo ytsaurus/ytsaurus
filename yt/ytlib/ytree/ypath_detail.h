@@ -50,24 +50,34 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define DECLARE_SUPPORTS_VERB(verb, ...) \
+#define DECLARE_SUPPORTS_VERB(verb, base) \
     class TSupports##verb \
+        : public base \
     { \
     protected: \
         DECLARE_RPC_SERVICE_METHOD(NProto, verb); \
         virtual void verb##Self(TReq##verb* request, TRsp##verb* response, TCtx##verb##Ptr context); \
         virtual void verb##Recursive(const TYPath& path, TReq##verb* request, TRsp##verb* response, TCtx##verb##Ptr context); \
         virtual void verb##Attribute(const TYPath& path, TReq##verb* request, TRsp##verb* response, TCtx##verb##Ptr context); \
-    private: \
-        __VA_ARGS__ \
     }
 
-DECLARE_SUPPORTS_VERB(GetKey);
-DECLARE_SUPPORTS_VERB(Get);
-DECLARE_SUPPORTS_VERB(Set);
-DECLARE_SUPPORTS_VERB(List);
-DECLARE_SUPPORTS_VERB(Remove);
-DECLARE_SUPPORTS_VERB(Exists, void Reply(TCtxExistsPtr context, bool value); );
+class TSupportsExistsBase
+    : public virtual TRefCounted
+{
+protected:
+    typedef NRpc::TTypedServiceContext<NProto::TReqExists, NProto::TRspExists> TCtxExists;
+    typedef TIntrusivePtr<TCtxExists> TCtxExistsPtr;
+
+    void Reply(TCtxExistsPtr context, bool value);
+
+};
+
+DECLARE_SUPPORTS_VERB(GetKey, virtual TRefCounted);
+DECLARE_SUPPORTS_VERB(Get, virtual TRefCounted);
+DECLARE_SUPPORTS_VERB(Set, virtual TRefCounted);
+DECLARE_SUPPORTS_VERB(List, virtual TRefCounted);
+DECLARE_SUPPORTS_VERB(Remove, virtual TRefCounted);
+DECLARE_SUPPORTS_VERB(Exists, TSupportsExistsBase);
 
 #undef DECLARE_SUPPORTS_VERB
 
