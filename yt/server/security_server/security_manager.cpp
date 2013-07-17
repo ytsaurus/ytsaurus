@@ -24,6 +24,10 @@
 
 #include <server/cypress_server/node.h>
 
+// COMPAT(babenko)
+#include <server/cypress_server/cypress_manager.h>
+#include <server/transaction_server/transaction_manager.h>
+
 namespace NYT {
 namespace NSecurityServer {
 
@@ -218,6 +222,7 @@ public:
             bootstrap->GetMetaStateFacade()->GetManager(),
             bootstrap->GetMetaStateFacade()->GetState())
         , Bootstrap(bootstrap)
+        , RecomputeResources(false)
         , SysAccount(nullptr)
         , TmpAccount(nullptr)
         , RootUser(nullptr)
@@ -792,6 +797,8 @@ private:
 
     NCellMaster::TBootstrap* Bootstrap;
 
+    bool RecomputeResources;
+
     NMetaState::TMetaStateMap<TAccountId, TAccount> AccountMap;
     yhash_map<Stroka, TAccount*> AccountNameMap;
 
@@ -1022,6 +1029,8 @@ private:
     virtual void OnBeforeLoaded() override
     {
         DoClear();
+
+        RecomputeResources = false;
     }
 
     void LoadKeys(NCellMaster::TLoadContext& context)
@@ -1036,6 +1045,11 @@ private:
         AccountMap.LoadValues(context);
         UserMap.LoadValues(context);
         GroupMap.LoadValues(context);
+
+        // COMPAT(babenko)
+        if (context.GetVersion() < 22) {
+            RecomputeResources = true;
+        }
     }
 
     virtual void OnAfterLoaded() override
@@ -1063,6 +1077,36 @@ private:
 
         InitBuiltin();
         InitAuthenticatedUser();
+
+        // COMPAT(babenko)
+        if (RecomputeResources) {
+            LOG_INFO("Recomputing resource usage");
+
+            YCHECK(Bootstrap->GetTransactionManager()->GetTransactionCount() == 0);
+
+            FOREACH (const auto& pair, AccountMap) {
+                auto* account = pair.second;
+                account->ResourceUsage() = ZeroClusterResources();
+                account->CommittedResourceUsage() = ZeroClusterResources();
+            }
+
+            auto cypressManager = Bootstrap->GetCypressManager();
+            FOREACH (auto* node, cypressManager->GetNodes()) {
+                auto resourceUsage = node->GetResourceUsage();
+                auto* account = node->GetAccount();
+                if (account) {
+                    if (IsUncommittedAccountingEnabled(node)) {
+                        account->ResourceUsage() += resourceUsage;
+                        if (node->IsTrunk()) {
+                            account->CommittedResourceUsage() += resourceUsage;
+                        }
+                    }
+                    node->CachedResourceUsage() = resourceUsage;
+                } else {
+                    node->CachedResourceUsage() = ZeroClusterResources();
+                }
+            }
+        }
     }
 
 
