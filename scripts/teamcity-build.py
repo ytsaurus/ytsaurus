@@ -483,12 +483,12 @@ def run(args, cwd=None, env=None, silent=False):
         if child.returncode < 0:
             teamcity_message(
                 "Child was terminated by signal {0}".format(_signals[-child.returncode]),
-                "WARNING")
+                "FAILURE")
 
         if child.returncode > 0:
             teamcity_message(
                 "Child has exited with return code {0}".format(child.returncode),
-                "WARNING")
+                "FAILURE")
 
         if child.returncode == 0:
             teamcity_interact("Child has exited successfully")
