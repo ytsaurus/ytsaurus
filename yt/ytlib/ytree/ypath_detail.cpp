@@ -52,27 +52,22 @@ IYPathService::TResolveResult TYPathServiceBase::Resolve(
 
 IYPathService::TResolveResult TYPathServiceBase::ResolveSelf(
     const TYPath& path,
-    IServiceContextPtr context)
+    IServiceContextPtr /*context*/)
 {
-    UNUSED(context);
     return TResolveResult::Here(path);
 }
 
 IYPathService::TResolveResult TYPathServiceBase::ResolveAttributes(
-    const TYPath& path,
-    IServiceContextPtr context)
+    const TYPath& /*path*/,
+    IServiceContextPtr /*context*/)
 {
-    UNUSED(path);
-    UNUSED(context);
     THROW_ERROR_EXCEPTION("Object cannot have attributes");
 }
 
 IYPathService::TResolveResult TYPathServiceBase::ResolveRecursive(
-    const TYPath& path,
-    IServiceContextPtr context)
+    const TYPath& /*path*/,
+    IServiceContextPtr /*context*/)
 {
-    UNUSED(path);
-    UNUSED(context);
     THROW_ERROR_EXCEPTION("Object cannot have children");
 }
 
@@ -92,9 +87,8 @@ void TYPathServiceBase::GuardedInvoke(IServiceContextPtr context)
     }
 }
 
-bool TYPathServiceBase::DoInvoke(IServiceContextPtr context)
+bool TYPathServiceBase::DoInvoke(IServiceContextPtr /*context*/)
 {
-    UNUSED(context);
     return false;
 }
 
@@ -103,23 +97,19 @@ Stroka TYPathServiceBase::GetLoggingCategory() const
     return Logger.GetCategory();
 }
 
-bool TYPathServiceBase::IsWriteRequest(IServiceContextPtr context) const
+bool TYPathServiceBase::IsWriteRequest(IServiceContextPtr /*context*/) const
 {
-    UNUSED(context);
     return false;
 }
 
 void TYPathServiceBase::SerializeAttributes(
-    NYson::IYsonConsumer* consumer,
-    const TAttributeFilter& filter)
-{
-    UNUSED(consumer);
-    UNUSED(filter);
-}
+    NYson::IYsonConsumer* /*consumer*/,
+    const TAttributeFilter& /*filter*/)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define IMPLEMENT_SUPPORTS_VERB_RESOLVE(verb, defaultBehaviour) \
+#define IMPLEMENT_SUPPORTS_VERB_RESOLVE(verb, onPathError) \
     DEFINE_RPC_SERVICE_METHOD(TSupports##verb, verb) \
     { \
         NYPath::TTokenizer tokenizer(context->GetPath()); \
@@ -137,7 +127,7 @@ void TYPathServiceBase::SerializeAttributes(
                 break; \
             \
             default: \
-                defaultBehaviour; \
+                onPathError \
         } \
     }
 
@@ -179,12 +169,16 @@ IMPLEMENT_SUPPORTS_VERB(Set)
 IMPLEMENT_SUPPORTS_VERB(List)
 IMPLEMENT_SUPPORTS_VERB(Remove)
 
-IMPLEMENT_SUPPORTS_VERB_RESOLVE(Exists, { Reply(context, false); })
+IMPLEMENT_SUPPORTS_VERB_RESOLVE(
+    Exists,
+    {
+        Reply(context, false);
+    })
 
 #undef IMPLEMENT_SUPPORTS_VERB
 #undef IMPLEMENT_SUPPORTS_VERB_RESOLVE
 
-void TSupportsExists::Reply(TCtxExistsPtr context, bool value)
+void TSupportsExistsBase::Reply(TCtxExistsPtr context, bool value)
 {
     context->Response().set_value(value);
     context->SetResponseInfo("Result: %s", ~FormatBool(value));
@@ -192,43 +186,32 @@ void TSupportsExists::Reply(TCtxExistsPtr context, bool value)
 }
 
 void TSupportsExists::ExistsAttribute(
-    const TYPath& path,
-    TReqExists* request,
-    TRspExists* response,
+    const TYPath& /*path*/,
+    TReqExists* /*request*/,
+    TRspExists* /*response*/,
     TCtxExistsPtr context)
 {
-    UNUSED(path);
-    UNUSED(request);
-    UNUSED(response);
-
     context->SetRequestInfo("");
 
     Reply(context, false);
 }
 
 void TSupportsExists::ExistsSelf(
-    TReqExists* request,
-    TRspExists* response,
+    TReqExists* /*request*/,
+    TRspExists* /*response*/,
     TCtxExistsPtr context)
 {
-    UNUSED(request);
-    UNUSED(response);
-
     context->SetRequestInfo("");
 
     Reply(context, true);
 }
 
 void TSupportsExists::ExistsRecursive(
-    const TYPath& path,
-    TReqExists* request,
-    TRspExists* response,
+    const TYPath& /*path*/,
+    TReqExists* /*request*/,
+    TRspExists* /*response*/,
     TCtxExistsPtr context)
 {
-    UNUSED(path);
-    UNUSED(request);
-    UNUSED(response);
-
     context->SetRequestInfo("");
 
     Reply(context, false);
@@ -240,12 +223,9 @@ TSupportsPermissions::~TSupportsPermissions()
 { }
 
 void TSupportsPermissions::ValidatePermission(
-    EPermissionCheckScope scope,
-    EPermission permission)
-{
-    UNUSED(scope);
-    UNUSED(permission);
-}
+    EPermissionCheckScope /*scope*/,
+    EPermission /*permission*/)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -493,12 +473,10 @@ TFuture< TErrorOr<TYsonString> > TSupportsAttributes::DoListAttribute(const TYPa
 
 void TSupportsAttributes::ListAttribute(
     const TYPath& path,
-    TReqList* request,
+    TReqList* /*request*/,
     TRspList* response,
     TCtxListPtr context)
 {
-    UNUSED(request);
-
     DoListAttribute(path).Subscribe(BIND([=] (TErrorOr<TYsonString> ysonOrError) {
         if (ysonOrError.IsOK()) {
             response->set_keys(ysonOrError.GetValue().Data());
@@ -571,12 +549,10 @@ TFuture<bool> TSupportsAttributes::DoExistsAttribute(const TYPath& path)
 
 void TSupportsAttributes::ExistsAttribute(
     const TYPath& path,
-    TReqExists* request,
+    TReqExists* /*request*/,
     TRspExists* response,
     TCtxExistsPtr context)
 {
-    UNUSED(request);
-
     context->SetRequestInfo("");
 
     DoExistsAttribute(path).Subscribe(BIND([=] (bool result) {
@@ -707,12 +683,9 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
 void TSupportsAttributes::SetAttribute(
     const TYPath& path,
     TReqSet* request,
-    TRspSet* response,
+    TRspSet* /*response*/,
     TCtxSetPtr context)
 {
-    UNUSED(response);
-    UNUSED(response);
-
     context->SetRequestInfo("");
 
     DoSetAttribute(path, TYsonString(request->value()));
@@ -792,13 +765,10 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
 
 void TSupportsAttributes::RemoveAttribute(
     const TYPath& path,
-    TReqRemove* request,
-    TRspRemove* response,
+    TReqRemove* /*request*/,
+    TRspRemove* /*response*/,
     TCtxRemovePtr context)
 {
-    UNUSED(request);
-    UNUSED(response);
-
     context->SetRequestInfo("");
 
     DoRemoveAttribute(path);
@@ -807,17 +777,13 @@ void TSupportsAttributes::RemoveAttribute(
 }
 
 void TSupportsAttributes::ValidateUserAttributeUpdate(
-    const Stroka& key,
-    const TNullable<TYsonString>& oldValue,
-    const TNullable<TYsonString>& newValue)
-{
-    UNUSED(key);
-    UNUSED(oldValue);
-    UNUSED(newValue);
-}
+    const Stroka& /*key*/,
+    const TNullable<TYsonString>& /*oldValue*/,
+    const TNullable<TYsonString>& /*newValue*/)
+{ }
 
 void TSupportsAttributes::OnUserAttributesUpdated()
-{}
+{ }
 
 IAttributeDictionary* TSupportsAttributes::GetUserAttributes()
 {
@@ -915,24 +881,18 @@ void TNodeSetterBase::ThrowInvalidType(ENodeType actualType)
         ~FormatEnum(actualType).Quote());
 }
 
-void TNodeSetterBase::OnMyStringScalar(const TStringBuf& value)
+void TNodeSetterBase::OnMyStringScalar(const TStringBuf& /*value*/)
 {
-    UNUSED(value);
-
     ThrowInvalidType(ENodeType::String);
 }
 
-void TNodeSetterBase::OnMyIntegerScalar(i64 value)
+void TNodeSetterBase::OnMyIntegerScalar(i64 /*value*/)
 {
-    UNUSED(value);
-
     ThrowInvalidType(ENodeType::Integer);
 }
 
-void TNodeSetterBase::OnMyDoubleScalar(double value)
+void TNodeSetterBase::OnMyDoubleScalar(double /*value*/)
 {
-    UNUSED(value);
-
     ThrowInvalidType(ENodeType::Double);
 }
 
@@ -1038,18 +998,15 @@ public:
         : UnderlyingService(underlyingService)
     { }
 
-    virtual void Invoke(IServiceContextPtr context) override
+    virtual void Invoke(IServiceContextPtr /*context*/) override
     {
-        UNUSED(context);
         YUNREACHABLE();
     }
 
     virtual TResolveResult Resolve(const
         TYPath& path,
-        IServiceContextPtr context) override
+        IServiceContextPtr /*context*/) override
     {
-        UNUSED(context);
-
         NYPath::TTokenizer tokenizer(path);
         if (tokenizer.Advance() != NYPath::ETokenType::Slash) {
             THROW_ERROR_EXCEPTION("YPath must start with \"/\"");
@@ -1063,9 +1020,8 @@ public:
         return UnderlyingService->GetLoggingCategory();
     }
 
-    virtual bool IsWriteRequest(IServiceContextPtr context) const override
+    virtual bool IsWriteRequest(IServiceContextPtr /*context*/) const override
     {
-        UNUSED(context);
         YUNREACHABLE();
     }
 

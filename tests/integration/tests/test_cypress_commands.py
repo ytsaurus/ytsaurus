@@ -611,3 +611,31 @@ class TestCypressCommands(YTEnvSetup):
         set("//tmp/t1", 1)
         set("//tmp/t2", 2)
         with pytest.raises(YTError): link("//tmp/t1", "//tmp/t2")
+
+    def test_link6(self):
+        create("table", "//tmp/a")
+        link("//tmp/a", "//tmp/b")
+
+        assert exists("//tmp/a")
+        assert exists("//tmp/b")
+        assert exists("//tmp/b&")
+        assert exists("//tmp/b/@id")
+        assert exists("//tmp/b/@row_count")
+        assert exists("//tmp/b&/@target_id")
+        assert not exists("//tmp/b/@x")
+        assert not exists("//tmp/b/x")
+        assert not exists("//tmp/b&/@x")
+        assert not exists("//tmp/b&/x")
+
+        remove("//tmp/a")
+        
+        assert not exists("//tmp/a")
+        assert not exists("//tmp/b")
+        assert exists("//tmp/b&")
+        assert not exists("//tmp/b/@id")
+        assert not exists("//tmp/b/@row_count")
+        assert exists("//tmp/b&/@target_id")
+        assert not exists("//tmp/b/@x")
+        assert not exists("//tmp/b/x")
+        assert not exists("//tmp/b&/@x")
+        assert not exists("//tmp/b&/x")
