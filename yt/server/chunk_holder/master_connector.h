@@ -94,11 +94,20 @@ private:
     //! Store chunks that were reported removed at the last heartbeat (for which no reply is received yet).
     TChunkSet ReportedRemoved;
 
-    //! Schedules a heartbeat via TDelayedInvoker.
-    void ScheduleHeartbeat();
+    //! Schedules a new node heartbeat via TDelayedInvoker.
+    void ScheduleNodeHeartbeat();
 
-    //! Invoked when a heartbeat must be sent.
-    void OnHeartbeat();
+    //! Schedules a new node heartbeat via TDelayedInvoker.
+    void ScheduleJobHeartbeat();
+
+    //! Calls #Reset and schedules a new registration request via TDelayedInvoker.
+    void ResetAndScheduleRegister();
+
+    //! Invoked when a node heartbeat must be sent.
+    void OnNodeHeartbeat();
+
+    //! Invoked when a job heartbeat must be sent.
+    void OnJobHeartbeat();
 
     //! Sends out a registration request.
     void SendRegister();
@@ -136,10 +145,7 @@ private:
     //! Handles heartbeat response from Job Tracker.
     void OnJobHeartbeatResponse(NJobTrackerClient::TJobTrackerServiceProxy::TRspHeartbeatPtr rsp);
 
-    //! Handles errors occurring during heartbeats.
-    void OnHeartbeatError(const TError& error);
-
-    //! Handles error during a registration or a heartbeat.
+    //! Resets connection state.
     void Reset();
 
     //! Handles registration of new chunks.
