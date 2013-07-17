@@ -491,7 +491,7 @@ def run(args, cwd=None, env=None, silent=False):
                 "FAILURE")
 
         if child.returncode == 0:
-            teamcity_interact("Child has exited successfully")
+            teamcity_message("Child has exited successfully")
         else:
             raise ChildHasNonZeroExitCode()
 
