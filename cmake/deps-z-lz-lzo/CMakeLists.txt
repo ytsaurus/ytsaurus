@@ -45,8 +45,13 @@ add_library( ytext-zlib STATIC
   ${BASE}/zlib/zutil.c
 )
 
+# zlib uses util/ which resides in the project root.
 include_directories(
   ${CMAKE_SOURCE_DIR}
+)
+
+set_target_properties( ytext-zlib PROPERTIES
+  COMPILE_DEFINITIONS BUILD_ZLIB
 )
 
 set_target_properties( ytext-fastlz PROPERTIES
@@ -83,14 +88,3 @@ set_target_properties( ytext-quicklz PROPERTIES
   VERSION   1.5.1
   SOVERSION 1.5.1
 )
-
-set_target_properties( ytext-zlib PROPERTIES
-  COMPILE_DEFINITIONS BUILD_ZLIB
-)
-
-install(
-  TARGETS
-  LIBRARY DESTINATION lib
-  ARCHIVE DESTINATION lib
-)
-

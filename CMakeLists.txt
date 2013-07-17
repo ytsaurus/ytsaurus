@@ -8,21 +8,19 @@ enable_language(ASM)
 # Include various CMake modules.
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-
-set(CMAKE_MODULE_PATH
-  "${CMAKE_SOURCE_DIR}/cmake"
-)
+set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
 include(CMakeDependentOption)
+include(CMakeCInformation)
+include(CMakeCXXInformation)
 
 include(CheckCSourceCompiles)
 include(CheckCXXSourceCompiles)
-include(CheckCXXCompilerFlag)
 include(CheckIncludeFiles)
 include(CheckFunctionExists)
 
-include(FindPythonLibs 2.7)
-include(FindPythonInterp 2.7)
+find_package(PythonInterp 2.7)
+find_package(PythonLibs 2.7)
 
 include(DumpCMakeVariables)
 
@@ -36,7 +34,21 @@ include(PCH)
 # TODO(sandello): We all have to migrate to a newer CMake aforehead.
 # include(cotire)
 
+################################################################################
+# Configure all the things!
+
 message(STATUS "Configuring YT ${YT_VERSION}")
+
+#################################################################################
+# Specify available build options.
+
+option(YT_BUILD_ENABLE_BENCHMARKS  "Build benchmarks" TRUE)
+option(YT_BUILD_ENABLE_DRIVER      "Build driver" TRUE)
+option(YT_BUILD_ENABLE_EXPERIMENTS "Build experiments" TRUE)
+option(YT_BUILD_ENABLE_TESTS       "Build tests" TRUE)
+option(YT_BUILD_ENABLE_NODEJS      "Build NodeJS extensions" FALSE)
+option(YT_BUILD_ENABLE_PYTHON      "Build Python extensions" TRUE)
+option(YT_BUILD_YTLIB_SHARED       "Build ytlib as a shared lib" FALSE)
 
 ################################################################################
 # Setup targets.
