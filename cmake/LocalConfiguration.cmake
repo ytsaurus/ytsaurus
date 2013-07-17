@@ -47,6 +47,9 @@ if (CMAKE_COMPILER_IS_GNUCXX)
   if (GCC_VERSION VERSION_LESS 4.7)
     message(FATAL_ERROR "g++ >= 4.7.0 is mandatory")
   endif()
+
+  # XXX(sandello): Compile .S files as first-class citizens.
+  list(APPEND CMAKE_C_SOURCE_FILE_EXTENSIONS S)
 endif()
 
 if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
@@ -111,9 +114,12 @@ if (CMAKE_COMPILER_IS_CLANG)
 # Now configure compiler options for g++.
 elseif (CMAKE_COMPILER_IS_GNUCXX)
   # These are default (basic) compilation flags.
-  set( CMAKE_C_FLAGS "${CUSTOM_CMAKE_C_FLAGS} -pthread -fPIC -Wall -Wno-sign-compare -Wno-parentheses "
+  set( WARNINGS_FLAGS "-Wall" )
+  set( WARNINGS_FLAGS "${WARNINGS_FLAGS} -Wno-sign-compare -Wno-parentheses -Wno-unused-local-typedefs" )
+
+  set( CMAKE_C_FLAGS "${CUSTOM_CMAKE_C_FLAGS} -pthread -fPIC -Wall ${WARNINGS_FLAGS}"
     CACHE STRING "(Auto-generated) C compiler flags" FORCE )
-  set( CMAKE_CXX_FLAGS "${CUSTOM_CMAKE_CXX_FLAGS} -std=gnu++0x -pthread -fPIC -Wall -Wno-sign-compare -Wno-parentheses "
+  set( CMAKE_CXX_FLAGS "${CUSTOM_CMAKE_CXX_FLAGS} -std=gnu++0x -pthread -fPIC ${WARNINGS_FLAGS}"
     CACHE STRING "(Auto-generated) C++ compiler flags" FORCE )
 
   # These are configuration-specific compilation flags.

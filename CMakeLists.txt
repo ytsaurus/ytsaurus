@@ -1,9 +1,6 @@
 cmake_minimum_required(VERSION 2.6.4 FATAL_ERROR)
 project(YT)
 
-enable_language(CXX)
-enable_language(ASM)
-
 ################################################################################
 # Include various CMake modules.
 
