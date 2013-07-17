@@ -3,6 +3,8 @@
 #include "ypath_client.h"
 #include "node_detail.h"
 
+#include <ytlib/misc/string.h>
+
 #include <ytlib/ytree/convert.h>
 #include <ytlib/ytree/attribute_helpers.h>
 #include <ytlib/ytree/system_attribute_provider.h>
