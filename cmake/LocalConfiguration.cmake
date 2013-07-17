@@ -47,9 +47,6 @@ if (CMAKE_COMPILER_IS_GNUCXX)
   if (GCC_VERSION VERSION_LESS 4.7)
     message(FATAL_ERROR "g++ >= 4.7.0 is mandatory")
   endif()
-
-  # XXX(sandello): Compile .S files as first-class citizens.
-  list(APPEND CMAKE_C_SOURCE_FILE_EXTENSIONS S)
 endif()
 
 if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")

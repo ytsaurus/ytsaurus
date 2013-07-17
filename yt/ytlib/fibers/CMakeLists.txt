@@ -15,4 +15,6 @@ list(APPEND YT_SOURCE_FILES
   ${HDRS}
 )
 
+set_source_files_properties( ${BASE}/fiber-supp.S PROPERTIES LANGUAGE C )
+
 PUMP( ${BASE}/coroutine.h.pump YT_SOURCE_FILES )
