@@ -57,7 +57,7 @@ class Response(object):
             if self.http_response.status_code == 401:
                 raise YtTokenError(
                     "Your authentication token was rejected by the server (X-YT-Request-ID: {0}).\n"
-                    "Please refer to http://{1}/auth/ for obtaining a valid token or contact us at yt@yandex-team.ru."\
+                    "Please refer to {1}/auth/ for obtaining a valid token or contact us at yt@yandex-team.ru."\
                         .format(
                             self.http_response.headers.get("X-YT-Request-ID", "absent"),
                             self.http_response.url))
