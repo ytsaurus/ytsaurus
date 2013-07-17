@@ -71,7 +71,7 @@ void TMasterConnector::Start()
             .Via(ControlInvoker));
 
     TDelayedInvoker::Submit(
-        BIND(&TMasterConnector::OnHeartbeat, MakeStrong(this))
+        BIND(&TMasterConnector::StartHeartbeats, MakeStrong(this))
             .Via(ControlInvoker),
         RandomDuration(Config->HeartbeatSplay));
 }
@@ -81,15 +81,15 @@ void TMasterConnector::ForceRegister()
     VERIFY_THREAD_AFFINITY_ANY();
 
     ControlInvoker->Invoke(BIND(
-        &TMasterConnector::DoForceRegister,
+        &TMasterConnector::StartHeartbeats,
         MakeStrong(this)));
 }
 
-void TMasterConnector::DoForceRegister()
+void TMasterConnector::StartHeartbeats()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    Disconnect();
+    Reset();
     OnHeartbeat();
 }
 
@@ -111,7 +111,7 @@ void TMasterConnector::ScheduleHeartbeat()
 {
     TDelayedInvoker::Submit(
         BIND(&TMasterConnector::OnHeartbeat, MakeStrong(this))
-            .Via(ControlInvoker),
+            .Via(HeartbeatInvoker),
         Config->HeartbeatPeriod);
 }
 
@@ -145,7 +145,9 @@ void TMasterConnector::SendRegister()
     ToProto(req->mutable_cell_guid(), Bootstrap->GetCellGuid());
     req->Invoke().Subscribe(
         BIND(&TMasterConnector::OnRegisterResponse, MakeStrong(this))
-            .Via(ControlInvoker));
+            .Via(HeartbeatInvoker));
+
+    State = EState::Registering;
 
     LOG_INFO("Node register request sent (%s)",
         ~ToString(*req->mutable_statistics()));
@@ -202,7 +204,7 @@ void TMasterConnector::OnRegisterResponse(TNodeTrackerServiceProxy::TRspRegister
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     if (!rsp->IsOK()) {
-        Disconnect();
+        Reset();
         ScheduleHeartbeat();
 
         LOG_WARNING(*rsp, "Error registering node");
@@ -217,6 +219,7 @@ void TMasterConnector::OnRegisterResponse(TNodeTrackerServiceProxy::TRspRegister
     }
 
     NodeId = rsp->node_id();
+    YCHECK(State == EState::Registering);
     State = EState::Registered;
 
     LOG_INFO("Successfully registered node (NodeId: %d)",
@@ -250,7 +253,7 @@ void TMasterConnector::SendFullNodeHeartbeat()
 
     request->Invoke().Subscribe(
         BIND(&TMasterConnector::OnFullNodeHeartbeatResponse, MakeStrong(this))
-        .Via(ControlInvoker));
+            .Via(HeartbeatInvoker));
 
     LOG_INFO("Full node heartbeat sent (%s)", ~ToString(request->statistics()));
 }
@@ -279,7 +282,7 @@ void TMasterConnector::SendIncrementalNodeHeartbeat()
 
     request->Invoke().Subscribe(
         BIND(&TMasterConnector::OnIncrementalNodeHeartbeatResponse, MakeStrong(this))
-        .Via(ControlInvoker));
+            .Via(HeartbeatInvoker));
 
     LOG_INFO("Incremental node heartbeat sent (%s, AddedChunks: %d, RemovedChunks: %d)",
         ~ToString(request->statistics()),
@@ -323,6 +326,7 @@ void TMasterConnector::OnFullNodeHeartbeatResponse(TNodeTrackerServiceProxy::TRs
 void TMasterConnector::OnIncrementalNodeHeartbeatResponse(TNodeTrackerServiceProxy::TRspIncrementalHeartbeatPtr rsp)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
+
     ScheduleHeartbeat();
 
     if (!rsp->IsOK()) {
@@ -360,7 +364,7 @@ void TMasterConnector::SendJobHeartbeat()
 
     req->Invoke().Subscribe(
         BIND(&TMasterConnector::OnJobHeartbeatResponse, MakeStrong(this))
-            .Via(ControlInvoker));
+            .Via(HeartbeatInvoker));
 
     LOG_INFO("Job heartbeat sent (ResourceUsage: {%s})",
         ~FormatResourceUsage(req->resource_usage(), req->resource_limits()));
@@ -386,14 +390,23 @@ void TMasterConnector::OnHeartbeatError(const TError& error)
     LOG_WARNING(error, "Error sending heartbeat");
 
     if (!IsRetriableError(error)) {
-        Disconnect();
+        Reset();
+        ScheduleHeartbeat();
     }
 }
 
-void TMasterConnector::Disconnect()
+void TMasterConnector::Reset()
 {
+    if (HeartbeatContext) {
+        HeartbeatContext->Cancel();
+    }
+
+    HeartbeatContext = New<TCancelableContext>();
+    HeartbeatInvoker = HeartbeatContext->CreateInvoker(ControlInvoker);
+
     State = EState::Offline;
     NodeId = InvalidNodeId;
+
     ReportedAdded.clear();
     ReportedRemoved.clear();
     AddedSinceLastSuccess.clear();
