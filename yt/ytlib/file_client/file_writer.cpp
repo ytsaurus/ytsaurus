@@ -77,7 +77,8 @@ TAsyncError TAsyncWriter::AsyncOpen()
 TAsyncError TAsyncWriter::OnUploadTransactionStarted(TErrorOr<ITransactionPtr> transactionOrError)
 {
     if (!transactionOrError.IsOK()) {
-        return MakeFuture(TError("Error creating upload transaction") << transactionOrError);
+        return MakeFuture(TError("Error creating upload transaction")
+            << transactionOrError);
     }
     
     UploadTransaction = transactionOrError.GetValue();
@@ -119,14 +120,16 @@ TAsyncError TAsyncWriter::OnUploadTransactionStarted(TErrorOr<ITransactionPtr> t
 TAsyncError TAsyncWriter::OnFileInfoReceived(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
 {
     if (!batchRsp->IsOK()) {
-        return MakeFuture(TError("Error preparing file for update"));
+        return MakeFuture(TError("Error preparing file for update")
+            << *batchRsp);
     }
 
     auto options = New<TMultiChunkWriterOptions>();
     {
         auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_attributes");
         if (!rsp->IsOK()) {
-            return MakeFuture(TError("Error getting file attributes"));
+            return MakeFuture(TError("Error getting file attributes")
+                << *rsp);
         }
 
         auto node = ConvertToNode(TYsonString(rsp->value()));
@@ -142,7 +145,8 @@ TAsyncError TAsyncWriter::OnFileInfoReceived(TObjectServiceProxy::TRspExecuteBat
     {
         auto rsp = batchRsp->GetResponse<TFileYPathProxy::TRspPrepareForUpdate>("prepare_for_update");
         if (!rsp->IsOK()) {
-            return MakeFuture(TError("Error preparing file for update"));
+            return MakeFuture(TError("Error preparing file for update")
+                << *rsp);
         }
         chunkListId = FromProto<TChunkListId>(rsp->chunk_list_id());
     }
