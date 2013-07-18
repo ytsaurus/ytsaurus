@@ -16,12 +16,15 @@ def main():
     "2012-10-19T11:22:58.190448Z"
     pattern = "%Y-%m-%dT%H:%M:%S"
     now = datetime.now()
-    for obj in yt.search("//tmp", node_type=["table", "file"], attributes=["creation_time"]):
-        time_str = obj.attributes["creation_time"]
+    for obj in yt.search("//tmp", node_type=["table", "file"], attributes=["modification_time", "locks"]):
+        time_str = obj.attributes["modification_time"]
         time_str = time_str.rsplit(".")[0]
-        if (now - datetime.strptime(time_str, pattern)).days > 7:
-            logger.info("Removing %s", obj)
-            yt.remove(obj)
+        if (now - datetime.strptime(time_str, pattern)).days <= 7:
+            continue
+        if any(map(lambda l: l["mode"] in ["exclusive", "shared"], obj.attributes["locks"])):
+            continue
+        logger.info("Removing %s", obj)
+        yt.remove(obj)
     for obj in yt.search("//tmp", node_type=["link"], attributes=["broken"]):
         if obj.attributes["broken"] == "true":
             logger.info("Removing %s", obj)
