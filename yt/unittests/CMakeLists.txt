@@ -63,7 +63,7 @@ set( SRCS
   ${BASE}/zigzag_ut.cpp
 )
 
-protoc( rpc_ut.proto SRCS )
+protoc( ${BASE}/rpc_ut.proto SRCS )
 
 add_msvc_precompiled_header(
   "stdafx.h"
