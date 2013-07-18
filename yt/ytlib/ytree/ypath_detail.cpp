@@ -4,6 +4,7 @@
 #include "node_detail.h"
 
 #include <ytlib/ytree/convert.h>
+#include <ytlib/ytree/node.h>
 #include <ytlib/ytree/attribute_helpers.h>
 #include <ytlib/ytree/system_attribute_provider.h>
 
@@ -648,7 +649,7 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
                 TYsonString oldWholeYson(stream.Str());
                 auto wholeNode = ConvertToNode(oldWholeYson);
                 SyncYPathSet(wholeNode, tokenizer.GetInput(), newYson);
-                auto newWholeYson = ConvertToYsonString(wholeNode);
+                auto newWholeYson = ConvertToYsonStringStable(wholeNode);
 
                 GuardedSetSystemAttribute(key, newWholeYson);
             }
@@ -668,7 +669,7 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
 
                 auto wholeNode = ConvertToNode(oldWholeYson.Get());
                 SyncYPathSet(wholeNode, tokenizer.GetInput(), newYson);
-                auto newWholeYson = ConvertToYsonString(wholeNode);
+                auto newWholeYson = ConvertToYsonStringStable(wholeNode);
 
                 GuardedValidateUserAttributeUpdate(key, oldWholeYson, newWholeYson);
                 userAttributes->SetYson(key, newWholeYson);
@@ -738,7 +739,7 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
             if (userYson) {
                 auto userNode = ConvertToNode(userYson);
                 SyncYPathRemove(userNode, tokenizer.GetInput());
-                auto updatedUserYson = ConvertToYsonString(userNode);
+                auto updatedUserYson = ConvertToYsonStringStable(userNode);
 
                 GuardedValidateUserAttributeUpdate(key, userYson, updatedUserYson);
                 userAttributes->SetYson(key, updatedUserYson);
@@ -752,7 +753,7 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
                 TYsonString systemYson(stream.Str());
                 auto systemNode = ConvertToNode(systemYson);
                 SyncYPathRemove(systemNode, tokenizer.GetInput());
-                auto updatedSystemYson = ConvertToYsonString(systemNode);
+                auto updatedSystemYson = ConvertToYsonStringStable(systemNode);
 
                 GuardedSetSystemAttribute(key, updatedSystemYson);
             }
