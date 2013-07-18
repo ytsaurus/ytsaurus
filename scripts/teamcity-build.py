@@ -178,7 +178,8 @@ def run_prepare(options):
         run(["make", "-C", "./python", "version"])
 
     with cwd("%s/yt/nodejs" % options.working_directory):
-        shutil.rmtree("node_modules")
+        if os.path.exists("node_modules"):
+            shutil.rmtree("node_modules")
         run(["npm", "install"])
 
 
