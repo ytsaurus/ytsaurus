@@ -83,7 +83,8 @@ public:
     virtual void Invoke(NRpc::IServiceContextPtr context) override;
     virtual void SerializeAttributes(
         NYson::IYsonConsumer* consumer,
-        const NYTree::TAttributeFilter& filter) override;
+        const NYTree::TAttributeFilter& filter,
+        bool sortKeys) override;
 
 protected:
     NCellMaster::TBootstrap* Bootstrap;

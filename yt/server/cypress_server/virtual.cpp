@@ -71,8 +71,9 @@ public:
 
     // TODO(panin): remove this when getting rid of IAttributeProvider
     virtual void SerializeAttributes(
-        IYsonConsumer* consumer,
-        const TAttributeFilter& filter) override
+        IYsonConsumer* /*consumer*/,
+        const TAttributeFilter& /*filter*/,
+        bool /*sortKeys*/) override
     {
         YUNREACHABLE();
     }
@@ -121,9 +122,10 @@ public:
     // TODO(panin): remove this when getting rid of IAttributeProvider
     virtual void SerializeAttributes(
         IYsonConsumer* consumer,
-        const TAttributeFilter& filter) override
+        const TAttributeFilter& filter,
+        bool sortKeys) override
     {
-        UnderlyingService->SerializeAttributes(consumer, filter);
+        UnderlyingService->SerializeAttributes(consumer, filter, sortKeys);
     }
 
 private:

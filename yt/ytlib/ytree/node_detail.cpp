@@ -251,7 +251,7 @@ void TMapNodeMixin::ListSelf(TReqList* request, TRspList* response, TCtxListPtr 
         const auto& key = pair.first;
         const auto& node = pair.second;
         writer.OnListItem();
-        node->SerializeAttributes(&writer, attributeFilter);
+        node->SerializeAttributes(&writer, attributeFilter, false);
         writer.OnStringScalar(key);
     }
     writer.OnEndList();

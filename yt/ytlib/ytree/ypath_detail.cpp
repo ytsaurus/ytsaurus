@@ -102,7 +102,8 @@ bool TYPathServiceBase::IsWriteRequest(IServiceContextPtr /*context*/) const
 
 void TYPathServiceBase::SerializeAttributes(
     NYson::IYsonConsumer* /*consumer*/,
-    const TAttributeFilter& /*filter*/)
+    const TAttributeFilter& /*filter*/,
+    bool /*sortKeys*/)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1026,9 +1027,10 @@ public:
     // TODO(panin): remove this when getting rid of IAttributeProvider
     virtual void SerializeAttributes(
         NYson::IYsonConsumer* consumer,
-        const TAttributeFilter& filter) override
+        const TAttributeFilter& filter,
+        bool sortKeys) override
     {
-        UnderlyingService->SerializeAttributes(consumer, filter);
+        UnderlyingService->SerializeAttributes(consumer, filter, sortKeys);
     }
 
 private:
