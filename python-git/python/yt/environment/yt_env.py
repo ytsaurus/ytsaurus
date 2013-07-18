@@ -15,11 +15,10 @@ import sys
 import simplejson as json
 import collections
 
-if sys.version_info > (2, 6):
+
+try:
     from unittest.util import unorderable_list_difference
-    from unittest.case import _AssertRaisesContext
-    from collections import Counter
-else:
+except ImportError:
     def unorderable_list_difference(expected, actual, ignore_duplicate=False):
         """Same behavior as sorted_list_difference but
         for lists of unorderable items (like dicts).
@@ -57,6 +56,9 @@ else:
         return missing, actual
 
 
+try:
+    from unittest.case import _AssertRaisesContext
+except ImportError:
     class _AssertRaisesContext(object):
         """A context manager used to implement TestCase.assertRaises* methods."""
 
@@ -92,6 +94,9 @@ else:
             return True
 
 
+try:
+    from collections import Counter
+except ImportError:
     def Counter(iterable):
         result = {}
         for item in iterable:
