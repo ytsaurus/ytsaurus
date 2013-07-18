@@ -63,7 +63,7 @@ void TReadCommand::DoExecute()
         buffer.Clear();
     };
 
-    TNullable<int> tableIndex = Null;
+    TNullable<int> tableIndex;
     while (true) {
         if (!reader->FetchNextItem()) {
             auto result = WaitFor(reader->GetReadyEvent());
