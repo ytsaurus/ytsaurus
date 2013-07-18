@@ -97,6 +97,12 @@ TFuture<void> TGarbageCollector::Collect()
     return CollectPromise;
 }
 
+bool TGarbageCollector::IsEnqueued(TObjectBase* object) const
+{
+    return Zombies.find(object) != Zombies.end() ||
+           LockedZombies.find(object) != LockedZombies.end();
+}
+
 void TGarbageCollector::Enqueue(TObjectBase* object)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
