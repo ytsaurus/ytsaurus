@@ -468,7 +468,7 @@ def run(args, cwd=None, env=None, silent=False):
         # Holds the message status.
         status_for = {
             child.stdout.fileno(): "NORMAL",
-            child.stderr.fileno(): "ERROR"
+            child.stderr.fileno(): "WARNING"
         }
 
         # Switch FDs to non-blocking mode.
