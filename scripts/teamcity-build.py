@@ -213,7 +213,7 @@ def run_python_tests(options, suite_name, suite_path):
                 "py.test",
                 "-r", "x",
                 "--verbose",
-                "--exitfirst"
+                "--exitfirst",
                 "--capture=no",
                 "--tb=native",
                 "--timeout=300",
