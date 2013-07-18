@@ -50,7 +50,7 @@ public:
         const TNullable<U>& other,
         typename NMpl::TEnableIf<NMpl::TIsConvertible<U, T>, int>::TType = 0)
         : HasValue_(other.HasValue_)
-        , Value(other.Value)
+        , Value_(other.Value_)
     { }
 
     template <class U>
