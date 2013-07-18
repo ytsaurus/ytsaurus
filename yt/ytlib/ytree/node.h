@@ -344,6 +344,8 @@ struct INodeFactory
 void Serialize(INode& value, NYson::IYsonConsumer* consumer);
 void Deserialize(INodePtr& value, INodePtr node);
 
+TYsonString ConvertToYsonStringStable(INodePtr node);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYTree
