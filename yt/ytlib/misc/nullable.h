@@ -28,16 +28,17 @@ public:
 
     TNullable()
         : HasValue_(false)
+        , Value_()
     { }
 
     TNullable(const T& value)
         : HasValue_(true)
-        , Value(value)
+        , Value_(value)
     { }
 
     TNullable(T&& value)
         : HasValue_(true)
-        , Value(std::move(value))
+        , Value_(std::move(value))
     { }
 
     TNullable(TNull)
@@ -57,7 +58,7 @@ public:
         TNullable<U>&& other,
         typename NMpl::TEnableIf<NMpl::TIsConvertible<U, T>, int>::TType = 0)
         : HasValue_(other.HasValue_)
-        , Value(std::move(other.Value))
+        , Value_(std::move(other.Value_))
     { }
 
     TNullable(bool condition, const T& value)
@@ -113,13 +114,13 @@ public:
     void Assign(const T& value)
     {
         HasValue_ = true;
-        Value = value;
+        Value_ = value;
     }
 
     void Assign(T&& value)
     {
         HasValue_ = true;
-        Value = std::move(value);
+        Value_ = std::move(value);
     }
 
     void Assign(TNull)
@@ -135,9 +136,9 @@ public:
         bool hadValue = HasValue_;
         HasValue_ = other.HasValue_;
         if (other.HasValue_) {
-            Value = other.Value;
+            Value_ = other.Value_;
         } else if (hadValue) {
-            Value = T();
+            Value_ = T();
         }
     }
 
@@ -152,7 +153,7 @@ public:
     void Reset()
     {
         HasValue_ = false;
-        Value = T();
+        Value_ = T();
     }
 
     void Swap(TNullable& other)
@@ -162,7 +163,7 @@ public:
         }
 
         DoSwap(HasValue_, other.HasValue_);
-        DoSwap(Value, other.Value);
+        DoSwap(Value_, other.Value_);
     }
 
 
@@ -174,28 +175,28 @@ public:
     const T& Get() const
     {
         YASSERT(HasValue_);
-        return Value;
+        return Value_;
     }
 
     T& Get()
     {
         YASSERT(HasValue_);
-        return Value;
+        return Value_;
     }
 
     const T& Get(const T& defaultValue) const
     {
-        return HasValue_ ? Value : defaultValue;
+        return HasValue_ ? Value_ : defaultValue;
     }
 
     const T* GetPtr() const
     {
-        return HasValue_ ? &Value : NULL;
+        return HasValue_ ? &Value_ : nullptr;
     }
 
     T* GetPtr()
     {
-        return HasValue_ ? &Value : NULL;
+        return HasValue_ ? &Value_ : nullptr;
     }
 
     const T& operator*() const
@@ -222,7 +223,7 @@ public:
     typedef T TNullable::*TUnspecifiedBoolType;
     operator TUnspecifiedBoolType() const
     {
-        return HasValue_ ? &TNullable::Value : NULL;
+        return HasValue_ ? &TNullable::Value_ : nullptr;
     }
 
 private:
@@ -230,7 +231,8 @@ private:
     friend class TNullable;
 
     bool HasValue_;
-    T Value;
+    T Value_;
+
 };
 
 template <class T>
