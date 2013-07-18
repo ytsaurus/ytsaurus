@@ -220,9 +220,9 @@ def run_python_tests(options, suite_name, suite_path):
                 "--junitxml=%s" % handle.name],
                 cwd=suite_path,
                 env={
-                    "PATH={0}/bin:{0}/yt/nodejs:{1}".format(options.working_directory, os.environ.get("PATH", "")),
-                    "PYTHONPATH={0}/python:{1}".format(options.checkout_directory, os.environ.get("PYTHONPATH", "")),
-                    "TESTS_SANDBOX={0}".format(sandbox_current)
+                    "PATH": "{0}/bin:{0}/yt/nodejs:{1}".format(options.working_directory, os.environ.get("PATH", "")),
+                    "PYTHONPATH": "{0}/python:{1}".format(options.checkout_directory, os.environ.get("PYTHONPATH", "")),
+                    "TESTS_SANDBOX": sandbox_current
                 })
         except ChildHasNonZeroExitCode:
             teamcity_message("Ignoring child failure to provide meaningful test results")
