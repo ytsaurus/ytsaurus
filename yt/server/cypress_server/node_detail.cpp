@@ -578,8 +578,8 @@ void TDocumentNode::Save(NCellMaster::TSaveContext& context) const
     TCypressNodeBase::Save(context);
 
     using NYT::Save;
-    auto serializedContent = ConvertToYsonStringStable(Value_);
-    Save(context, serializedContent.Data());
+    auto serializedValue = ConvertToYsonStringStable(Value_);
+    Save(context, serializedValue.Data());
 }
 
 void TDocumentNode::Load(NCellMaster::TLoadContext& context)
@@ -587,8 +587,8 @@ void TDocumentNode::Load(NCellMaster::TLoadContext& context)
     TCypressNodeBase::Load(context);
 
     using NYT::Load;
-    auto serializedContent = Load<Stroka>(context);
-    Value_ = ConvertToNode(TYsonString(serializedContent));
+    auto serializedValue = Load<Stroka>(context);
+    Value_ = ConvertToNode(TYsonString(serializedValue));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
