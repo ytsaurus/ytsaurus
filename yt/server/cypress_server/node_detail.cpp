@@ -578,7 +578,7 @@ void TDocumentNode::Save(NCellMaster::TSaveContext& context) const
     TCypressNodeBase::Save(context);
 
     using NYT::Save;
-    auto serializedContent = ConvertToYsonString(Value_);
+    auto serializedContent = ConvertToYsonStringStable(Value_);
     Save(context, serializedContent.Data());
 }
 
