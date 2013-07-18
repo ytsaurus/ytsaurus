@@ -101,10 +101,27 @@ void TYsonSerializableLite::SetDefaults()
 void TYsonSerializableLite::OnLoaded()
 { }
 
-void TYsonSerializableLite::Save(IYsonConsumer* consumer) const
+void TYsonSerializableLite::Save(
+    IYsonConsumer* consumer,
+    bool sortKeys) const
 {
-    consumer->OnBeginMap();
+    std::vector<std::pair<Stroka, NConfig::IParameterPtr>> parameters;
     FOREACH (const auto& pair, Parameters) {
+        parameters.push_back(pair);
+    }
+
+    if (sortKeys) {
+        typedef std::pair<Stroka, NConfig::IParameterPtr> TPair;
+        std::sort(
+            parameters.begin(),
+            parameters.end(),
+            [] (const TPair& lhs, const TPair& rhs) {
+                return lhs.first < rhs.first;
+            });
+    }
+
+    consumer->OnBeginMap();
+    FOREACH (const auto& pair, parameters) {
         const auto& key = pair.first;
         const auto& parameter = pair.second;
         if (parameter->IsPresent()) {
@@ -119,7 +136,7 @@ void TYsonSerializableLite::Save(IYsonConsumer* consumer) const
 
 void TBinaryYsonSerializer::Save(TStreamSaveContext& context, const TYsonSerializableLite& obj)
 {
-    auto str = ConvertToYsonString(obj);
+    auto str = ConvertToYsonStringStable(obj);
     NYT::Save(context, str);
 }
 
@@ -140,6 +157,17 @@ void Serialize(const TYsonSerializableLite& value, IYsonConsumer* consumer)
 void Deserialize(TYsonSerializableLite& value, INodePtr node)
 {
     value.Load(node);
+}
+
+TYsonString ConvertToYsonStringStable(const TYsonSerializableLite& value)
+{
+    Stroka result;
+    TStringOutput output(result);
+    TYsonWriter writer(&output, EYsonFormat::Binary, EYsonType::Node);
+    value.Save(
+        &writer,
+        true); // truth matters :)
+    return TYsonString(result, EYsonType::Node);   
 }
 
 ////////////////////////////////////////////////////////////////////////////////
