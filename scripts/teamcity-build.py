@@ -16,8 +16,10 @@ import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 import time
 import traceback
+import xml.etree.ElementTree as etree
 
 ################################################################################
 # These methods are used to mark actual steps to be executed.
@@ -47,8 +49,6 @@ def prepare(options):
 
     options.build_number = os.environ["BUILD_NUMBER"]
     options.build_vcs_number = os.environ["BUILD_VCS_NUMBER"]
-    options.teamcity_buildconf_name = os.environ["TEAMCITY_BUILDCONF_NAME"]
-    options.teamcity_project_name = os.environ["TEAMCITY_PROJECT_NAME"]
 
     # Those are derived options.
     branch = run_captured(
@@ -93,17 +93,8 @@ def prepare(options):
     options.cc = cc
     options.cxx = cxx
 
-    try:
-        os.makedirs(options.working_directory)
-    except OSError as ex:
-        if ex.errno != errno.EEXIST:
-            raise
-
-    try:
-        os.makedirs(options.sandbox_directory)
-    except OSError as ex:
-        if ex.errno != errno.EEXIST:
-            raise
+    mkdirp(options.working_directory)
+    mkdirp(options.sandbox_directory)
 
     teamcity_message(pprint.pformat(options.__dict__))
 
@@ -142,7 +133,7 @@ def slow_build(options):
 
 @yt_register_build_step
 def set_suid_bit(options):
-    path = os.path.join(options.working_directory, "bin", "ytserver")
+    path = "%s/bin/ytserver" % options.working_directory
     run(["sudo", "chown", "root", path])
     run(["sudo", "chmod", "4755", path])
 
@@ -199,12 +190,71 @@ def run_unit_tests(options):
 
 @yt_register_build_step
 def run_javascript_tests(options):
-    pass
+    run(
+        ["./run_tests.sh", "-R", "xunit"],
+        cwd="%s/yt/nodejs" % options.working_directory,
+        env={"MOCHA_OUTPUT_FILE": "%s/junit_nodejs_run_tests.xml" % options.working_directory})
+
+
+def run_python_tests(options, suite_name, suite_path):
+    sandbox_current = os.path.join(options.sandbox_directory, suite_name)
+    sandbox_archive = os.path.join(
+        os.path.expanduser("~/failed_tests/"),
+        "_".join([options.btid, options.build_number, suite_name]))
+
+    mkdirp(sandbox_current)
+
+    failed = False
+    result = None
+
+    with tempfile.NamedTemporaryFile() as handle:
+        try:
+            run([
+                "py.test",
+                "-r", "x",
+                "--verbose",
+                "--exitfirst"
+                "--capture=no",
+                "--tb=native",
+                "--timeout=300",
+                "--junitxml=%s" % handle.name],
+                cwd=suite_path,
+                env={
+                    "PATH={0}/bin:{0}/yt/nodejs:{1}".format(options.working_directory, os.environ.get("PATH", "")),
+                    "PYTHONPATH={0}/python:{1}".format(options.checkout_directory, os.environ.get("PYTHONPATH", "")),
+                    "TESTS_SANDBOX={0}".format(sandbox_current)
+                })
+        except ChildHasNonZeroExitCode:
+            teamcity_message("Ignoring child failure to provide meaningful test results")
+            failed = True
+
+        result = etree.parse(handle)
+
+    for node in result.iter():
+        if isinstance(node.text, str):
+            node.text = node.text \
+                .replace("&quot;", "\"") \
+                .replace("&apos;", "\'") \
+                .replace("&amp;", "&") \
+                .replace("&lt;", "<") \
+                .replace("&gt;", ">")
+
+    with open("%s/junit_python_%s.xml" % (options.working_directory, suite_name), "w+b") as handle:
+        result.write(handle, encoding="utf-8")
+
+    if failed:
+        shutil.copytree(sandbox_current, sandbox_archive)
+        raise RuntimeError("Propagating test failure")
 
 
 @yt_register_build_step
 def run_integration_tests(options):
-    pass
+    run_python_tests(options, "integration", "%s/tests/integration" % options.checkout_directory)
+
+
+@yt_register_build_step
+def run_python_libraries_tests(options):
+    run_python_tests(options, "python_libraries", "%s/python" % options.checkout_directory)
 
 
 @yt_register_cleanup_step
@@ -330,6 +380,14 @@ def ls(path, reverse=True, select=None, start=0, stop=None):
     iterable = itertools.islice(iterable, start, stop)
     for item in iterable:
         yield item
+
+
+def mkdirp(path):
+    try:
+        os.makedirs(path)
+    except OSError as ex:
+        if ex.errno != errno.EEXIST:
+            raise
 
 
 _signals = dict((k, v) for v, k in signal.__dict__.iteritems() if v.startswith("SIG"))
@@ -489,7 +547,7 @@ def run(args, cwd=None, env=None, silent=False):
         if child.returncode == 0:
             teamcity_message("Child has exited successfully")
         else:
-            raise ChildHasNonZeroExitCode()
+            raise ChildHasNonZeroExitCode(str(child.returncode))
 
 
 ################################################################################
@@ -497,6 +555,9 @@ def run(args, cwd=None, env=None, silent=False):
 
 def main():
     parser = argparse.ArgumentParser(description="YT Build Script")
+    parser.add_argument(
+        "--btid",
+        type=str, action="store", required=True)
     parser.add_argument(
         "--checkout_directory", metavar="DIR",
         type=str, action="store", required=True)
@@ -540,4 +601,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
