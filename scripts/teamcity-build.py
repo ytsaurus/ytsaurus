@@ -268,11 +268,6 @@ def teamcity_interact(*args, **kwargs):
     sys.stderr.flush()
 
 
-def teamcity_announce(text):
-    teamcity_interact("message", text=text)
-    teamcity_interact("buildStatus", text=text)
-
-
 def teamcity_message(text, status="NORMAL"):
     if status not in ["NORMAL", "WARNING", "FAILURE", "ERROR"]:
         raise ValueError("Invalid |status|: {0}".format(status))
@@ -297,20 +292,20 @@ def teamcity_step(name, funcname):
     now = time.time()
 
     try:
-        teamcity_announce("Executing: {0}".format(name))
+        teamcity_message("Executing: {0}".format(name))
         with teamcity_block(name):
             yield
-        teamcity_announce("Completed: {0}".format(name))
+        teamcity_message("Completed: {0}".format(name))
     except:
         teamcity_interact(
             "message",
-            text="Caught exception...",
+            text="Caught exception; failing...".format(name),
             errorDetails=traceback.format_exc(),
             status="ERROR")
-        teamcity_announce("Failed: {0}".format(name))
+        teamcity_message("Failed: {0}".format(name), status="FAILURE")
         raise
     finally:
-        teamcity_interact("buildStatisticValue", key=funcname, value=int(time.time() - now))
+        teamcity_interact("buildStatisticValue", key=funcname, value=int(1000.0 * (time.time() - now)))
 
 
 @contextlib.contextmanager
@@ -526,16 +521,20 @@ def main():
             with teamcity_step("Build Step '{0}'".format(step.func_name), step.func_name):
                 step(options)
     except:
-        teamcity_announce("Terminating")
-        status = 1
+        teamcity_message("Terminating...", status="FAILURE")
+        status = 42
     finally:
         for step in _cleanup_steps:
             try:
                 with teamcity_step("Clean-up Step '{0}'".format(step.func_name), step.func_name):
                     step(options)
             except:
-                pass
-        teamcity_announce("Done")
+                teamcity_interact(
+                    "message",
+                    text="Caught exception during cleanup phase; ignoring...",
+                    errorDetails=traceback.format_exc(),
+                    status="ERROR")
+        teamcity_message("Done!")
         sys.exit(status)
 
 
