@@ -434,7 +434,7 @@ void TYsonSerializableLite::RegisterValidator(const F& func)
 template <class T>
 inline TIntrusivePtr<T> CloneYsonSerializable(TIntrusivePtr<T> obj)
 {
-    return NYTree::ConvertTo< TIntrusivePtr<T> >(NYTree::ConvertToYsonString(*obj));
+    return NYTree::ConvertTo<TIntrusivePtr<T>>(NYTree::ConvertToYsonString(*obj));
 }
 
 template <class T>
@@ -450,7 +450,7 @@ TIntrusivePtr<T> UpdateYsonSerializable(
     using NYTree::ConvertTo;
 
     if (patch) {
-        return ConvertTo< TIntrusivePtr<T> >(UpdateNode(ConvertTo<INodePtr>(obj), patch));
+        return ConvertTo<TIntrusivePtr<T>>(UpdateNode(ConvertTo<INodePtr>(obj), patch));
     } else {
         return CloneYsonSerializable(obj);
     }
@@ -472,7 +472,7 @@ bool ReconfigureYsonSerializable(
 {
     auto configNode = NYTree::ConvertToNode(config);
 
-    auto newConfig = NYTree::ConvertTo< TIntrusivePtr<T>>(newConfigNode);
+    auto newConfig = NYTree::ConvertTo<TIntrusivePtr<T>>(newConfigNode);
     auto newCanonicalConfigNode = NYTree::ConvertToNode(newConfig);
 
     if (NYTree::AreNodesEqual(configNode, newCanonicalConfigNode)) {
