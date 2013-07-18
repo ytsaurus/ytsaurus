@@ -124,7 +124,7 @@ private:
                     return lhs.first < rhs.first;
                 });
         }
-        FOREACH (const auto& pair, node->GetChildren()) {
+        FOREACH (const auto& pair, children) {
             Consumer->OnKeyedItem(pair.first);
             VisitAny(pair.second);
         }
