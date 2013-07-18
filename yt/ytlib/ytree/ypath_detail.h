@@ -34,7 +34,8 @@ public:
     virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const override;
     virtual void SerializeAttributes(
         NYson::IYsonConsumer* consumer,
-        const TAttributeFilter& filter) override;
+        const TAttributeFilter& filter,
+        bool sortKeys) override;
 
 protected:
     NLog::TLogger Logger;

@@ -10,7 +10,8 @@ namespace NYTree {
 void VisitTree(
     INodePtr root,
     NYson::IYsonConsumer* consumer,
-    const TAttributeFilter& attributeFilter = TAttributeFilter::All);
+    const TAttributeFilter& attributeFilter = TAttributeFilter::All,
+    bool sortKeys = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 

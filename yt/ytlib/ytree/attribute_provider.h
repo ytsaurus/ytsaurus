@@ -51,7 +51,8 @@ struct IAttributeProvider
     //! Writes attributes that match #filter into #consumer.
     virtual void SerializeAttributes(
         NYson::IYsonConsumer* consumer,
-        const TAttributeFilter& filter) = 0;
+        const TAttributeFilter& filter,
+        bool sortKeys) = 0;
 
 };
 

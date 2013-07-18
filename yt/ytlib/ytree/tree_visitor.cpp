@@ -22,9 +22,13 @@ class TTreeVisitor
     : private TNonCopyable
 {
 public:
-    TTreeVisitor(IYsonConsumer* consumer, const TAttributeFilter& attributeFilter)
+    TTreeVisitor(
+        IYsonConsumer* consumer,
+        const TAttributeFilter& attributeFilter,
+        bool sortKeys)
         : Consumer(consumer)
         , AttributeFilter(attributeFilter)
+        , SortKeys(sortKeys)
     { }
 
     void Visit(const INodePtr& root)
@@ -35,10 +39,11 @@ public:
 private:
     IYsonConsumer* Consumer;
     TAttributeFilter AttributeFilter;
+    bool SortKeys;
 
     void VisitAny(const INodePtr& node, bool isRoot = false)
     {
-        node->SerializeAttributes(Consumer, AttributeFilter);
+        node->SerializeAttributes(Consumer, AttributeFilter, SortKeys);
 
         if (!isRoot && node->Attributes().Get<bool>("opaque", false)) {
             // This node is opaque, i.e. replaced by entity during tree traversal.
@@ -109,6 +114,16 @@ private:
     void VisitMap(const IMapNodePtr& node)
     {
         Consumer->OnBeginMap();
+        auto children = node->GetChildren();
+        if (SortKeys) {
+            typedef std::pair<Stroka, INodePtr> TPair;
+            std::sort(
+                children.begin(),
+                children.end(),
+                [] (const TPair& lhs, const TPair& rhs) {
+                    return lhs.first < rhs.first;
+                });
+        }
         FOREACH (const auto& pair, node->GetChildren()) {
             Consumer->OnKeyedItem(pair.first);
             VisitAny(pair.second);
@@ -122,9 +137,13 @@ private:
 void VisitTree(
     INodePtr root,
     IYsonConsumer* consumer,
-    const TAttributeFilter& attributeFilter)
+    const TAttributeFilter& attributeFilter,
+    bool sortKeys)
 {
-    TTreeVisitor treeVisitor(consumer, attributeFilter);
+    TTreeVisitor treeVisitor(
+        consumer,
+        attributeFilter,
+        sortKeys);
     treeVisitor.Visit(root);
 }
 

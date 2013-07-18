@@ -96,7 +96,9 @@ public:
 
     void SetDefaults();
 
-    void Save(NYson::IYsonConsumer* consumer) const;
+    void Save(
+        NYson::IYsonConsumer* consumer,
+        bool sortKeys = false) const;
 
     DEFINE_BYVAL_RW_PROPERTY(bool, KeepOptions);
     NYTree::IMapNodePtr GetOptions() const;
@@ -161,6 +163,8 @@ TIntrusivePtr<T> CloneYsonSerializable(TIntrusivePtr<T> obj);
 
 void Serialize(const TYsonSerializableLite& value, NYson::IYsonConsumer* consumer);
 void Deserialize(TYsonSerializableLite& value, NYTree::INodePtr node);
+
+NYTree::TYsonString ConvertToYsonStringStable(const TYsonSerializableLite& value);
 
 template <class T>
 TIntrusivePtr<T> UpdateYsonSerializable(
