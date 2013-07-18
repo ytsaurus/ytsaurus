@@ -5,8 +5,9 @@ set( SRCS
   ${BASE}/statistics.cpp
 )
 set( HDRS
-  ${BASE}/statistics.h
   ${BASE}/job_tracker_service_proxy.h
+  ${BASE}/public.h
+  ${BASE}/statistics.h
 )
 
 list(APPEND YT_SOURCE_FILES

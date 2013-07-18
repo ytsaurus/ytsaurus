@@ -1,7 +1,6 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/server/chunk_holder )
 set( SRCS
-  ${BASE}/job.cpp
   ${BASE}/block_store.cpp
   ${BASE}/chunk.cpp
   ${BASE}/chunk_cache.cpp
@@ -9,6 +8,7 @@ set( SRCS
   ${BASE}/chunk_store.cpp
   ${BASE}/data_node_service.cpp
   ${BASE}/disk_health_checker.cpp
+  ${BASE}/job.cpp
   ${BASE}/location.cpp
   ${BASE}/master_connector.cpp
   ${BASE}/peer_block_table.cpp
@@ -19,7 +19,6 @@ set( SRCS
   ${BASE}/ytree_integration.cpp
 )
 set( HDRS
-  ${BASE}/job.h
   ${BASE}/block_store.h
   ${BASE}/chunk.h
   ${BASE}/chunk_cache.h
@@ -28,6 +27,7 @@ set( HDRS
   ${BASE}/config.h
   ${BASE}/data_node_service.h
   ${BASE}/disk_health_checker.h
+  ${BASE}/job.h
   ${BASE}/location.h
   ${BASE}/master_connector.h
   ${BASE}/peer_block_table.h

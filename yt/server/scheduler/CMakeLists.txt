@@ -1,7 +1,6 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/server/scheduler )
 set( SRCS
-  ${BASE}/serialization_context.cpp
   ${BASE}/chunk_list_pool.cpp
   ${BASE}/chunk_pool.cpp
   ${BASE}/chunk_splits_fetcher.cpp
@@ -10,6 +9,7 @@ set( SRCS
   ${BASE}/helpers.cpp
   ${BASE}/job.cpp
   ${BASE}/job_resources.cpp
+  ${BASE}/job_tracker_service.cpp
   ${BASE}/map_controller.cpp
   ${BASE}/master_connector.cpp
   ${BASE}/merge_controller.cpp
@@ -21,13 +21,12 @@ set( SRCS
   ${BASE}/samples_fetcher.cpp
   ${BASE}/scheduler.cpp
   ${BASE}/scheduler_service.cpp
-  ${BASE}/job_tracker_service.cpp
+  ${BASE}/serialization_context.cpp
   ${BASE}/snapshot_builder.cpp
   ${BASE}/snapshot_downloader.cpp
   ${BASE}/sort_controller.cpp
 )
 set( HDRS
-  ${BASE}/serialization_context.h
   ${BASE}/chunk_info_collector-inl.h
   ${BASE}/chunk_info_collector.h
   ${BASE}/chunk_list_pool.h
@@ -39,6 +38,7 @@ set( HDRS
   ${BASE}/helpers.h
   ${BASE}/job.h
   ${BASE}/job_resources.h
+  ${BASE}/job_tracker_service.h
   ${BASE}/map_controller.h
   ${BASE}/master_connector.h
   ${BASE}/merge_controller.h
@@ -52,8 +52,8 @@ set( HDRS
   ${BASE}/samples_fetcher.h
   ${BASE}/scheduler.h
   ${BASE}/scheduler_service.h
-  ${BASE}/job_tracker_service.h
   ${BASE}/scheduler_strategy.h
+  ${BASE}/serialization_context.h
   ${BASE}/snapshot_builder.h
   ${BASE}/snapshot_downloader.h
   ${BASE}/sort_controller.h

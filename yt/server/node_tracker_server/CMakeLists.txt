@@ -1,21 +1,21 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/server/node_tracker_server )
 set( SRCS
-  ${BASE}/public.cpp
-  ${BASE}/private.cpp
+  ${BASE}/cypress_integration.cpp
   ${BASE}/node.cpp
   ${BASE}/node_tracker.cpp
   ${BASE}/node_tracker_service.cpp
-  ${BASE}/cypress_integration.cpp
+  ${BASE}/private.cpp
+  ${BASE}/public.cpp
 )
 set( HDRS
-  ${BASE}/public.h
-  ${BASE}/private.h
+  ${BASE}/config.h
+  ${BASE}/cypress_integration.h
   ${BASE}/node.h
   ${BASE}/node_tracker.h
   ${BASE}/node_tracker_service.h
-  ${BASE}/config.h
-  ${BASE}/cypress_integration.h
+  ${BASE}/private.h
+  ${BASE}/public.h
 )
 
 list(APPEND YT_SOURCE_FILES

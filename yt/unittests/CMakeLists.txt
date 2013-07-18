@@ -29,6 +29,7 @@ set( SRCS
   ${BASE}/network_address_ut.cpp
   ${BASE}/nullable_ut.cpp
   ${BASE}/pattern_formatter_ut.cpp
+  ${BASE}/phoenix_ut.cpp
   ${BASE}/preprocessor_ut.cpp
   ${BASE}/random_ut.cpp
   ${BASE}/ref_counted_tracker_ut.cpp
@@ -39,6 +40,7 @@ set( SRCS
   ${BASE}/small_vector_ut.cpp
   ${BASE}/snapshot_ut.cpp
   ${BASE}/spawn_ut.cpp
+  ${BASE}/stdafx.cpp
   ${BASE}/string_ut.cpp
   ${BASE}/thread_affinity_ut.cpp
   ${BASE}/tree_builder_ut.cpp
@@ -59,7 +61,6 @@ set( SRCS
   ${BASE}/ytree_fluent_ut.cpp
   ${BASE}/yverify_ut.cpp
   ${BASE}/zigzag_ut.cpp
-  ${BASE}/phoenix_ut.cpp
 )
 
 protoc( rpc_ut.proto SRCS )
@@ -75,7 +76,7 @@ if (MSVC)
 endif()
 
 include_directories(
-  ../ytlib
+  ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
 add_executable( unittester
@@ -86,3 +87,4 @@ add_executable( unittester
 target_link_libraries( unittester
   ytlib
 )
+

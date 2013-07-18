@@ -6,6 +6,7 @@ set( SRCS
   ${BASE}/async_stream.cpp
   ${BASE}/async_stream_state.cpp
   ${BASE}/backtrace.cpp
+  ${BASE}/benchmark.cpp
   ${BASE}/blob.cpp
   ${BASE}/blob_output.cpp
   ${BASE}/blob_range.cpp
@@ -26,6 +27,7 @@ set( SRCS
   ${BASE}/new.cpp
   ${BASE}/pattern_formatter.cpp
   ${BASE}/periodic_invoker.cpp
+  ${BASE}/phoenix.cpp
   ${BASE}/proc.cpp
   ${BASE}/protobuf_helpers.cpp
   ${BASE}/random.cpp
@@ -42,14 +44,15 @@ set( SRCS
   ${BASE}/thread.cpp
   ${BASE}/throughput_throttler.cpp
   ${BASE}/url.cpp
-  ${BASE}/phoenix.cpp
 )
 set( HDRS
   ${BASE}/address.h
   ${BASE}/arcadia_helper.h
   ${BASE}/assert.h
+  ${BASE}/async_stream.h
   ${BASE}/async_stream_state.h
   ${BASE}/backtrace.h
+  ${BASE}/benchmark.h
   ${BASE}/blob.h
   ${BASE}/blob_output.h
   ${BASE}/blob_range.h
@@ -86,6 +89,8 @@ set( HDRS
   ${BASE}/override.h
   ${BASE}/pattern_formatter.h
   ${BASE}/periodic_invoker.h
+  ${BASE}/phoenix-inl.h
+  ${BASE}/phoenix.h
   ${BASE}/preprocessor.h
   ${BASE}/proc.h
   ${BASE}/property.h
@@ -100,8 +105,6 @@ set( HDRS
   ${BASE}/ref_tracked.h
   ${BASE}/semaphore.h
   ${BASE}/serialize.h
-  ${BASE}/phoenix.h
-  ${BASE}/phoenix-inl.h
   ${BASE}/singleton.h
   ${BASE}/small_set.h
   ${BASE}/small_string.h

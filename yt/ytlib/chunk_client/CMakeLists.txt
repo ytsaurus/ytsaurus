@@ -4,6 +4,7 @@ set( SRCS
   ${BASE}/block_id.cpp
   ${BASE}/chunk_meta_extensions.cpp
   ${BASE}/chunk_replica.cpp
+  ${BASE}/chunk_spec.cpp
   ${BASE}/client_block_cache.cpp
   ${BASE}/data_statistics.cpp
   ${BASE}/dispatcher.cpp
@@ -12,14 +13,13 @@ set( SRCS
   ${BASE}/erasure_writer.cpp
   ${BASE}/file_reader.cpp
   ${BASE}/file_writer.cpp
+  ${BASE}/key.cpp
   ${BASE}/private.cpp
   ${BASE}/public.cpp
   ${BASE}/replication_reader.cpp
   ${BASE}/replication_writer.cpp
-  ${BASE}/sequential_reader.cpp
-  ${BASE}/key.cpp
   ${BASE}/schema.cpp
-  ${BASE}/chunk_spec.cpp
+  ${BASE}/sequential_reader.cpp
 )
 set( HDRS
   ${BASE}/async_reader.h
@@ -28,21 +28,15 @@ set( HDRS
   ${BASE}/block_id.h
   ${BASE}/chunk_list_ypath_proxy.h
   ${BASE}/chunk_meta_extensions.h
-  ${BASE}/chunk_replica.h
-  ${BASE}/chunk_ypath_proxy.h
   ${BASE}/chunk_owner_ypath_proxy.h
-  ${BASE}/data_statistics.h
-  ${BASE}/multi_chunk_sequential_writer.h
-  ${BASE}/multi_chunk_sequential_writer-inl.h
-  ${BASE}/multi_chunk_reader_base.h
-  ${BASE}/multi_chunk_reader_base-inl.h
-  ${BASE}/multi_chunk_parallel_reader.h
-  ${BASE}/multi_chunk_parallel_reader-inl.h
-  ${BASE}/multi_chunk_sequential_reader.h
-  ${BASE}/multi_chunk_sequential_reader-inl.h
+  ${BASE}/chunk_replica.h
+  ${BASE}/chunk_service_proxy.h
+  ${BASE}/chunk_spec.h
+  ${BASE}/chunk_ypath_proxy.h
   ${BASE}/client_block_cache.h
   ${BASE}/config.h
   ${BASE}/data_node_service_proxy.h
+  ${BASE}/data_statistics.h
   ${BASE}/dispatcher.h
   ${BASE}/encoding_writer.h
   ${BASE}/erasure_reader.h
@@ -50,15 +44,21 @@ set( HDRS
   ${BASE}/file_reader.h
   ${BASE}/file_writer.h
   ${BASE}/format.h
+  ${BASE}/key.h
+  ${BASE}/multi_chunk_parallel_reader-inl.h
+  ${BASE}/multi_chunk_parallel_reader.h
+  ${BASE}/multi_chunk_reader_base-inl.h
+  ${BASE}/multi_chunk_reader_base.h
+  ${BASE}/multi_chunk_sequential_reader-inl.h
+  ${BASE}/multi_chunk_sequential_reader.h
+  ${BASE}/multi_chunk_sequential_writer-inl.h
+  ${BASE}/multi_chunk_sequential_writer.h
   ${BASE}/private.h
   ${BASE}/public.h
   ${BASE}/replication_reader.h
   ${BASE}/replication_writer.h
-  ${BASE}/sequential_reader.h
-  ${BASE}/key.h
   ${BASE}/schema.h
-  ${BASE}/chunk_spec.h
-  ${BASE}/chunk_service_proxy.h
+  ${BASE}/sequential_reader.h
 )
 
 list(APPEND YT_SOURCE_FILES
