@@ -97,6 +97,12 @@ TFuture<void> TGarbageCollector::Collect()
     return CollectPromise;
 }
 
+bool TGarbageCollector::IsEnqueued(TObjectBase* object) const
+{
+    return Zombies.find(object) != Zombies.end() ||
+           LockedZombies.find(object) != LockedZombies.end();
+}
+
 void TGarbageCollector::Enqueue(TObjectBase* object)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
@@ -165,10 +171,11 @@ void TGarbageCollector::OnSweep()
 
     // Shrink zombies hashtable, if needed.
     if (Zombies.bucket_count() > 4 * Zombies.size() && Zombies.bucket_count() > 16) {
-        LOG_INFO("Shrinking zombie set (BucketCount: %" PRISZT ", ZombieCount: %" PRISZT ")",
-            Zombies.bucket_count(),
-            Zombies.size());
         yhash_set<TObjectBase*> newZombies(Zombies.begin(), Zombies.end());
+        LOG_DEBUG("Shrinking zombie set (BucketCount: %" PRISZT "->%" PRISZT ", ZombieCount: %" PRISZT ")",
+            Zombies.bucket_count(),
+            newZombies.bucket_count(),
+            Zombies.size());
         Zombies.swap(newZombies);
     }
 

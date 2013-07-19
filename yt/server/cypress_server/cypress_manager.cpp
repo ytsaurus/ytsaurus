@@ -878,10 +878,6 @@ void TCypressManager::OnAfterLoaded()
         if (parent) {
             YCHECK(parent->ImmediateDescendants().insert(node).second);
         }
-        // COMPAT(babenko): remove this once zombie issue is fixed
-        if (node->GetObjectRefCounter() == 0) {
-            LOG_DEBUG("Zombie %s", ~ToString(node->GetId()));
-        }
     }
 
     InitBuiltin();
