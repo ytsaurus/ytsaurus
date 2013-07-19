@@ -595,8 +595,8 @@ DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
 
     context->SetRequestInfo("Type: %s, IgnoreExisting: %s, Recursive: %s",
         ~type.ToString(),
-        ~FormatEnum(request->ignore_existing()),
-        ~FormatEnum(request->recursive()));
+        ~FormatBool(request->ignore_existing()),
+        ~FormatBool(request->recursive()));
 
     if (path.Empty()) {
         if (request->ignore_existing() && GetThisImpl()->GetType() == type) {
