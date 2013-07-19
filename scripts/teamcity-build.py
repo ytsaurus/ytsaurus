@@ -230,7 +230,7 @@ def run_python_tests(options, suite_name, suite_path):
 
         result = etree.parse(handle)
 
-    for node in result.iter():
+    for node in (result.iter() if hasattr(result, "iter") else result.getiterator()):
         if isinstance(node.text, str):
             node.text = node.text \
                 .replace("&quot;", "\"") \
