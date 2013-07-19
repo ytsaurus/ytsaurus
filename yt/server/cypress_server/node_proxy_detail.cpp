@@ -4,6 +4,8 @@
 #include "helpers.h"
 #include "private.h"
 
+#include <ytlib/misc/string.h>
+
 #include <ytlib/object_client/public.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
