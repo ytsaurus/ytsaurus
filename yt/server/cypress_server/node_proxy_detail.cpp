@@ -644,6 +644,8 @@ DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
 
     SetChild(path, newProxy, request->recursive());
 
+    context->SetRequestInfo("NodeId: %s", ~ToString(newNode->GetId()));
+
     context->Reply();
 }
 
