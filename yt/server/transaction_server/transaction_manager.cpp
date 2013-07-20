@@ -272,11 +272,7 @@ private:
         ValidateTransactionIsActive(transaction);
 
         auto objectManager = Bootstrap->GetObjectManager();
-        auto* object = objectManager->FindObject(objectId);
-        if (!IsObjectAlive(object)) {
-            THROW_ERROR_EXCEPTION("No such object %s",
-                ~ToString(objectId));
-        }
+        auto* object = objectManager->GetObjectOrThrow(objectId);
 
         auto transactionManager = Bootstrap->GetTransactionManager();
         transactionManager->UnstageObject(transaction, object, recursive);

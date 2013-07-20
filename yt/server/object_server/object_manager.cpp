@@ -170,11 +170,7 @@ public:
                     THROW_ERROR_EXCEPTION("Error parsing object id %s", ~objectIdString);
                 }
 
-                auto* object = objectManager->FindObject(objectId);
-                if (!IsObjectAlive(object)) {
-                    THROW_ERROR_EXCEPTION("No such object %s", ~ToString(objectId));
-                }
-
+                auto* object = objectManager->GetObjectOrThrow(objectId);
                 auto proxy = objectManager->GetProxy(object, transaction);
                 return TResolveResult::There(proxy, tokenizer.GetSuffix());
             }
@@ -258,14 +254,7 @@ public:
                         ~objectIdString);
                 }
 
-                auto* object = objectManager->FindObject(objectId);
-                if (!IsObjectAlive(object)) {
-                    THROW_ERROR_EXCEPTION(
-                        NYTree::EErrorCode::ResolveError,
-                        "No such object %s",
-                        ~ToString(objectId));
-                }
-
+                auto* object = objectManager->GetObjectOrThrow(objectId);
                 auto proxy = objectManager->GetProxy(object, transaction);
                 return DoResolvePath(proxy, tokenizer.GetSuffix());
             }
@@ -787,6 +776,21 @@ TObjectBase* TObjectManager::GetObject(const TObjectId& id)
 
     auto* object = FindObject(id);
     YCHECK(object);
+    return object;
+}
+
+TObjectBase* TObjectManager::GetObjectOrThrow(const TObjectId& id)
+{
+    VERIFY_THREAD_AFFINITY(StateThread);
+
+    auto* object = FindObject(id);
+    if (!IsObjectAlive(object)) {
+        THROW_ERROR_EXCEPTION(
+            NYTree::EErrorCode::ResolveError,
+            "No such object %s",
+            ~ToString(id));
+    }
+
     return object;
 }
 
