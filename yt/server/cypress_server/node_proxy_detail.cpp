@@ -687,9 +687,6 @@ DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
     context->SetRequestInfo("SourcePath: %s", ~sourcePath);
 
     auto sourceProxy = ResolveSourcePath(sourcePath);
-    if (sourceProxy->GetId() == GetId()) {
-        THROW_ERROR_EXCEPTION("Cannot copy a node to its child");
-    }
 
     if (targetPath.empty()) {
         ThrowAlreadyExists(this);
