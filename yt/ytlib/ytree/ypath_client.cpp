@@ -441,7 +441,7 @@ void SetNodeByYPath(INodePtr root, const TYPath& path, INodePtr value)
             if (child) {
                 currentMap->ReplaceChild(child, value);
             } else {
-                currentMap->AddChild(value, key);
+                YCHECK(currentMap->AddChild(value, key));
             }
             break;
         }
@@ -566,9 +566,9 @@ INodePtr UpdateNode(INodePtr base, INodePtr patch)
         FOREACH (const auto& key, patchMap->GetKeys()) {
             if (baseMap->FindChild(key)) {
                 resultMap->RemoveChild(key);
-                resultMap->AddChild(UpdateNode(baseMap->GetChild(key), patchMap->GetChild(key)), key);
+                YCHECK(resultMap->AddChild(UpdateNode(baseMap->GetChild(key), patchMap->GetChild(key)), key));
             } else {
-                resultMap->AddChild(CloneNode(patchMap->GetChild(key)), key);
+                YCHECK(resultMap->AddChild(CloneNode(patchMap->GetChild(key)), key));
             }
         }
         result->MutableAttributes()->MergeFrom(patch->Attributes());
