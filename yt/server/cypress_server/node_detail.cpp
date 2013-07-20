@@ -286,8 +286,7 @@ void TMapNodeTypeHandler::DoMerge(
             if (it == keyToChild.end()) {
                 // Originating: missing
                 if (isOriginatingNodeBranched) {
-                    // TODO(babenko): remove cast when GCC supports native nullptr
-                    YCHECK(keyToChild.insert(std::make_pair(key, (TCypressNodeBase*) nullptr)).second);
+                    YCHECK(keyToChild.insert(std::make_pair(key, nullptr)).second);
                 }
             } else if (it->second) {
                 // Originating: present
