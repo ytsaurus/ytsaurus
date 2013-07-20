@@ -19,7 +19,7 @@ if not hasattr(subprocess, "check_output"):
             error = subprocess.CalledProcessError(result, cmd)
             error.output = output
             raise error
-        return output
+        return out
     subprocess.check_output = check_output
 
 
