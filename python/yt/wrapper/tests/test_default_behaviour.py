@@ -84,7 +84,7 @@ class TestDefaultBehaviour(YtTestBase, YTEnv):
             object_filter=\
                 lambda x: x.attributes.get("row_count", -1) == 0)
         self.assertEqual(set(res),
-                         set([TEST_DIR + "/dir/table"])
+                         set([TEST_DIR + "/dir/table"]))
 
     def test_file_commands(self):
         self.assertRaises(yt.YtError, lambda: yt.upload_file("", TEST_DIR + "/dir/file"))
