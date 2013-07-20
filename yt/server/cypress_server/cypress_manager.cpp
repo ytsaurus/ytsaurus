@@ -332,15 +332,17 @@ TCypressNodeBase* TCypressManager::CreateNode(
     YCHECK(handler);
     YCHECK(account);
 
+    auto securityManager = Bootstrap->GetSecurityManager();
+    auto objectManager = Bootstrap->GetObjectManager();
+
     handler->SetDefaultAttributes(attributes);
 
     auto node = handler->Create(transaction, request, response);
     auto node_ = ~node;
 
-    RegisterNode(std::move(node), transaction, attributes);
+    RegisterNode(std::move(node), attributes);
 
     // Set account (if not given in attributes).
-    auto securityManager = Bootstrap->GetSecurityManager();
     if (!node_->GetAccount()) {
         securityManager->SetAccount(node_, account);
     }
@@ -348,6 +350,12 @@ TCypressNodeBase* TCypressManager::CreateNode(
     // Set owner.
     auto* user = securityManager->GetAuthenticatedUser();
     node_->Acd().SetOwner(user);
+
+    // Register with the transaction.
+    if (transaction) {
+        auto transactionManager = Bootstrap->GetTransactionManager();
+        transactionManager->StageNode(transaction, node_);
+    }
 
     if (response) {
         ToProto(response->mutable_node_id(), node_->GetId());
@@ -362,12 +370,20 @@ TCypressNodeBase* TCypressManager::CloneNode(
 {
     YCHECK(sourceNode);
 
+    auto objectManager = Bootstrap->GetObjectManager();
+
     auto handler = GetHandler(sourceNode);
     auto clonedNode = handler->Clone(sourceNode, context);
 
     // Make a rawptr copy and transfer the ownership.
     auto clonedNode_ = ~clonedNode;
-    RegisterNode(std::move(clonedNode), context.Transaction);
+    RegisterNode(std::move(clonedNode));
+
+    // Register with the transaction.
+    if (context.Transaction) {
+        auto transactionManager = Bootstrap->GetTransactionManager();
+        transactionManager->StageNode(context.Transaction, clonedNode_);
+    }
 
     return LockVersionedNode(clonedNode_, context.Transaction, ELockMode::Exclusive);
 }
@@ -942,7 +958,6 @@ void TCypressManager::OnRecoveryComplete()
 
 void TCypressManager::RegisterNode(
     std::unique_ptr<TCypressNodeBase> node,
-    TTransaction* transaction,
     IAttributeDictionary* attributes)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
@@ -987,11 +1002,6 @@ void TCypressManager::RegisterNode(
         }
     }
 
-    if (transaction) {
-        transaction->StagedNodes().push_back(node_);
-        objectManager->RefObject(node_);
-    }
-
     LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %s, Type: %s)",
         ~ToString(nodeId),
         ~TypeFromId(nodeId).ToString());
@@ -1014,7 +1024,6 @@ void TCypressManager::OnTransactionCommitted(TTransaction* transaction)
 
     ReleaseLocks(transaction);
     MergeNodes(transaction);
-    ReleaseCreatedNodes(transaction);
 }
 
 void TCypressManager::OnTransactionAborted(TTransaction* transaction)
@@ -1023,7 +1032,6 @@ void TCypressManager::OnTransactionAborted(TTransaction* transaction)
 
     ReleaseLocks(transaction);
     RemoveBranchedNodes(transaction);
-    ReleaseCreatedNodes(transaction);
 }
 
 void TCypressManager::ReleaseLocks(TTransaction* transaction)
@@ -1146,15 +1154,6 @@ void TCypressManager::MergeNodes(TTransaction* transaction)
         MergeNode(transaction, node);
     }
     transaction->BranchedNodes().clear();
-}
-
-void TCypressManager::ReleaseCreatedNodes(TTransaction* transaction)
-{
-    auto objectManager = Bootstrap->GetObjectManager();
-    FOREACH (auto* node, transaction->StagedNodes()) {
-        objectManager->UnrefObject(node);
-    }
-    transaction->StagedNodes().clear();
 }
 
 void TCypressManager::RemoveBranchedNode(TCypressNodeBase* branchedNode)

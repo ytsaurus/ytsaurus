@@ -825,9 +825,9 @@ private:
         if (!recursive)
             return;
 
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto transactionManager = Bootstrap->GetTransactionManager();
         FOREACH (auto* child, chunkList->Children()) {
-            objectManager->UnstageObject(transaction, child, true);
+            transactionManager->UnstageObject(transaction, child, true);
         }
     }
 

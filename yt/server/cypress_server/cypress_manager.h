@@ -169,7 +169,6 @@ private:
 
     void RegisterNode(
         std::unique_ptr<TCypressNodeBase> node,
-        NTransactionServer::TTransaction* transaction,
         NYTree::IAttributeDictionary* attributes = nullptr);
 
     void DestroyNode(TCypressNodeBase* trunkNode);
@@ -200,7 +199,6 @@ private:
         TCypressNodeBase* branchedNode);
     void RemoveBranchedNodes(NTransactionServer::TTransaction* transaction);
     void RemoveBranchedNode(TCypressNodeBase* branchedNode);
-    void ReleaseCreatedNodes(NTransactionServer::TTransaction* transaction);
     void PromoteLocks(NTransactionServer::TTransaction* transaction);
     void PromoteLock(TLock* lock, NTransactionServer::TTransaction* parentTransaction);
 

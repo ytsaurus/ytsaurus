@@ -1060,8 +1060,8 @@ TObjectBase* TObjectManager::CreateObject(
     }
 
     if (transaction && options->SupportsStaging) {
-        YCHECK(transaction->StagedObjects().insert(object).second);
-        RefObject(object);
+        auto transactionManager = Bootstrap->GetTransactionManager();
+        transactionManager->StageObject(transaction, object);
     }
 
     auto* acd = securityManager->FindAcd(object);
@@ -1070,22 +1070,6 @@ TObjectBase* TObjectManager::CreateObject(
     }
 
     return object;
-}
-
-void TObjectManager::UnstageObject(
-    TTransaction* transaction,
-    TObjectBase* object,
-    bool recursive)
-{
-    if (transaction->StagedObjects().erase(object) != 1) {
-        THROW_ERROR_EXCEPTION("Object %s does not belong to transaction %s",
-            ~ToString(object->GetId()),
-            ~ToString(transaction->GetId()));
-    }
-
-    auto handler = GetHandler(object);
-    handler->Unstage(object, transaction, recursive);
-    UnrefObject(object);
 }
 
 IObjectResolver* TObjectManager::GetObjectResolver()

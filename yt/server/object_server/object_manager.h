@@ -193,11 +193,6 @@ public:
         IObjectTypeHandler::TReqCreateObject* request,
         IObjectTypeHandler::TRspCreateObject* response);
 
-    void UnstageObject(
-        NTransactionServer::TTransaction* transaction,
-        TObjectBase* object,
-        bool recursive);
-
     IObjectResolver* GetObjectResolver();
 
     DECLARE_METAMAP_ACCESSORS(Attributes, TAttributeSet, TVersionedObjectId);
