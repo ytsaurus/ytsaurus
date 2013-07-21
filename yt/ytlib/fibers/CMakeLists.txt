@@ -12,12 +12,6 @@ set( HDRS
 list(APPEND YT_SOURCE_FILES
   ${SRCS}
   ${HDRS}
-  ${BASE}/fiber-supp.S
-)
-
-set_source_files_properties(
-  ${BASE}/fiber-supp.S
-  PROPERTIES LANGUAGE C
 )
 
 PUMP( ${BASE}/coroutine.h.pump YT_SOURCE_FILES )
