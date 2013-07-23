@@ -15,8 +15,8 @@ using namespace NCellMaster;
 
 TTransaction::TTransaction(const TTransactionId& id)
     : TNonversionedObjectBase(id)
-    , UncommittedAccountingEnabled_(false)
-    , StagedAccountingEnabled_(false)
+    , UncommittedAccountingEnabled_(true)
+    , StagedAccountingEnabled_(true)
     , Parent_(nullptr)
     , StartTime_(TInstant::Zero())
     , Acd_(this)
