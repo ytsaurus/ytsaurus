@@ -330,6 +330,8 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
     attributes->push_back(TAttributeInfo("key", hasKey, false));
     attributes->push_back("creation_time");
     attributes->push_back("modification_time");
+    attributes->push_back("access_time");
+    attributes->push_back("access_counter");
     attributes->push_back("revision");
     attributes->push_back("resource_usage");
     attributes->push_back(TAttributeInfo("recursive_resource_usage", true, true));
@@ -401,6 +403,18 @@ bool TNontemplateCypressNodeProxyBase::GetSystemAttribute(
         return true;
     }
 
+    if (key == "access_time") {
+        BuildYsonFluently(consumer)
+            .Value(trunkNode->GetAccessTime());
+        return true;
+    }
+ 
+    if (key == "access_counter") {
+        BuildYsonFluently(consumer)
+            .Value(trunkNode->GetAccessCounter());
+        return true;
+    }
+
     if (key == "revision") {
         BuildYsonFluently(consumer)
             .Value(node->GetRevision());
@@ -420,6 +434,11 @@ bool TNontemplateCypressNodeProxyBase::GetSystemAttribute(
     }
 
     return TObjectProxyBase::GetSystemAttribute(key, consumer);
+}
+
+void TNontemplateCypressNodeProxyBase::BeforeInvoke()
+{
+    SetAccessed();
 }
 
 bool TNontemplateCypressNodeProxyBase::DoInvoke(NRpc::IServiceContextPtr context)
@@ -538,6 +557,12 @@ void TNontemplateCypressNodeProxyBase::SetModified()
 {
     auto cypressManager = Bootstrap->GetCypressManager();
     cypressManager->SetModified(TrunkNode, Transaction);
+}
+
+void TNontemplateCypressNodeProxyBase::SetAccessed()
+{
+    auto cypressManager = Bootstrap->GetCypressManager();
+    cypressManager->SetAccessed(TrunkNode);
 }
 
 ICypressNodeProxyPtr TNontemplateCypressNodeProxyBase::ResolveSourcePath(const TYPath& path)

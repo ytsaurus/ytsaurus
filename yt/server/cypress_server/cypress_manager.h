@@ -27,6 +27,8 @@
 
 #include <server/security_server/public.h>
 
+#include <server/cypress_server/cypress_manager.pb.h>
+
 namespace NYT {
 namespace NCypressServer {
 
@@ -46,7 +48,9 @@ class TCypressManager
     : public NMetaState::TMetaStatePart
 {
 public:
-    explicit TCypressManager(NCellMaster::TBootstrap* bootstrap);
+    explicit TCypressManager(
+        TCypressManagerConfigPtr config,
+        NCellMaster::TBootstrap* bootstrap);
 
     void Initialize();
 
@@ -54,6 +58,9 @@ public:
     INodeTypeHandlerPtr FindHandler(NObjectClient::EObjectType type);
     INodeTypeHandlerPtr GetHandler(NObjectClient::EObjectType type);
     INodeTypeHandlerPtr GetHandler(const TCypressNodeBase* node);
+
+    NMetaState::TMutationPtr CreateUpdateAccessStatisticsMutation(
+        const NProto::TMetaReqUpdateAccessStatistics& request);
 
     typedef NRpc::TTypedServiceRequest<NCypressClient::NProto::TReqCreate> TReqCreate;
     typedef NRpc::TTypedServiceResponse<NCypressClient::NProto::TRspCreate> TRspCreate;
@@ -116,6 +123,8 @@ public:
         TCypressNodeBase* trunkNode,
         NTransactionServer::TTransaction* transaction);
 
+    void SetAccessed(TCypressNodeBase* trunkNode);
+
     typedef TSmallVector<TCypressNodeBase*, 1> TSubtreeNodes;
     TSubtreeNodes ListSubtreeNodes(
         TCypressNodeBase* trunkNode,
@@ -145,6 +154,7 @@ private:
 
     };
 
+    TCypressManagerConfigPtr Config;
     NCellMaster::TBootstrap* Bootstrap;
 
     NMetaState::TMetaStateMap<TVersionedNodeId, TCypressNodeBase, TNodeMapTraits> NodeMap;
@@ -153,6 +163,9 @@ private:
 
     TNodeId RootNodeId;
     TCypressNodeBase* RootNode;
+
+    TAccessTrackerPtr AccessTracker;
+
 
     void RegisterNode(
         std::unique_ptr<TCypressNodeBase> node,
@@ -229,7 +242,7 @@ private:
         bool includeRoot,
         TSubtreeNodes* subtreeNodes);
 
-   TCypressNodeBase* BranchNode(
+    TCypressNodeBase* BranchNode(
        TCypressNodeBase* originatingNode,
        NTransactionServer::TTransaction* transaction,
        ELockMode mode);
@@ -237,6 +250,12 @@ private:
     NYPath::TYPath GetNodePath(
        TCypressNodeBase* trunkNode,
        NTransactionServer::TTransaction* transaction);
+
+    virtual void OnActiveQuorumEstablished() override;
+    virtual void OnStopLeading() override;
+    
+    void UpdateAccessStatistics(const NProto::TMetaReqUpdateAccessStatistics& request);
+
 
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
 

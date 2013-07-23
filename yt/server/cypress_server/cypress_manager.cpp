@@ -2,6 +2,8 @@
 #include "cypress_manager.h"
 #include "node_detail.h"
 #include "node_proxy_detail.h"
+#include "config.h"
+#include "access_tracker.h"
 #include "private.h"
 
 #include <ytlib/misc/singleton.h>
@@ -42,7 +44,7 @@ using namespace NCypressClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = CypressServerLogger;
+static auto& Logger = CypressServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -192,15 +194,20 @@ TCloneContext::TCloneContext()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCypressManager::TCypressManager(TBootstrap* bootstrap)
+TCypressManager::TCypressManager(
+    TCypressManagerConfigPtr config,
+    TBootstrap* bootstrap)
     : TMetaStatePart(
         bootstrap->GetMetaStateFacade()->GetManager(),
         bootstrap->GetMetaStateFacade()->GetState())
+    , Config(config)
     , Bootstrap(bootstrap)
     , NodeMap(TNodeMapTraits(this))
     , TypeToHandler(MaxObjectType + 1)
     , RootNode(nullptr)
+    , AccessTracker(New<TAccessTracker>(config, bootstrap))
 {
+    YCHECK(config);
     YCHECK(bootstrap);
     VERIFY_INVOKER_AFFINITY(bootstrap->GetMetaStateFacade()->GetInvoker(), StateThread);
 
@@ -249,6 +256,8 @@ TCypressManager::TCypressManager(TBootstrap* bootstrap)
             BIND(&TCypressManager::SaveValues, MakeStrong(this)),
             context);
     }
+
+    RegisterMethod(BIND(&TThis::UpdateAccessStatistics, Unretained(this)));
 }
 
 void TCypressManager::Initialize()
@@ -302,6 +311,14 @@ INodeTypeHandlerPtr TCypressManager::GetHandler(EObjectType type)
 INodeTypeHandlerPtr TCypressManager::GetHandler(const TCypressNodeBase* node)
 {
     return GetHandler(node->GetType());
+}
+
+NMetaState::TMutationPtr TCypressManager::CreateUpdateAccessStatisticsMutation(
+    const NProto::TMetaReqUpdateAccessStatistics& request)
+{
+   return Bootstrap
+        ->GetMetaStateFacade()
+        ->CreateMutation(this, request, &TThis::UpdateAccessStatistics);
 }
 
 TCypressNodeBase* TCypressManager::CreateNode(
@@ -751,21 +768,17 @@ void TCypressManager::SetModified(
     TTransaction* transaction)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
-    YCHECK(trunkNode->IsTrunk());
 
-    // Failure here means that the node wasn't indeed locked,
-    // which is strange given that we're about to mark it as modified.
-    TVersionedNodeId versionedId(trunkNode->GetId(), GetObjectId(transaction));
-    auto* node = GetNode(versionedId);
+    AccessTracker->SetModified(trunkNode, transaction);
+}
 
-    auto objectManager = Bootstrap->GetObjectManager();
-    auto* mutationContext = Bootstrap
-        ->GetMetaStateFacade()
-        ->GetManager()
-        ->GetMutationContext();
+void TCypressManager::SetAccessed(TCypressNodeBase* trunkNode)
+{
+    VERIFY_THREAD_AFFINITY(StateThread);
 
-    node->SetModificationTime(mutationContext->GetTimestamp());
-    node->SetRevision(mutationContext->GetVersion().ToRevision());
+    if (IsLeader()) {
+        AccessTracker->SetAccessed(trunkNode);
+    }
 }
 
 TCypressManager::TSubtreeNodes TCypressManager::ListSubtreeNodes(
@@ -919,6 +932,8 @@ void TCypressManager::Clear()
 
 void TCypressManager::OnRecoveryComplete()
 {
+    VERIFY_THREAD_AFFINITY(StateThread);
+
     FOREACH (const auto& pair, NodeMap) {
         auto* node = pair.second;
         node->ResetObjectLocks();
@@ -1177,6 +1192,39 @@ TYPath TCypressManager::GetNodePath(
 
     auto proxy = GetVersionedNodeProxy(trunkNode, transaction);
     return proxy->GetResolver()->GetPath(proxy);
+}
+
+void TCypressManager::OnActiveQuorumEstablished()
+{
+    VERIFY_THREAD_AFFINITY(StateThread);
+
+    AccessTracker->StartFlush();
+}
+
+void TCypressManager::OnStopLeading()
+{
+    VERIFY_THREAD_AFFINITY(StateThread);
+
+    AccessTracker->StopFlush();
+}
+
+void TCypressManager::UpdateAccessStatistics(const NProto::TMetaReqUpdateAccessStatistics& request)
+{
+    FOREACH (const auto& update, request.updates()) {
+        auto nodeId = FromProto<TNodeId>(update.node_id());
+        auto* node = FindNode(TVersionedNodeId(nodeId));
+        if (node) {
+            // Update access time.
+            auto accessTime = TInstant(update.access_time());
+            if (accessTime > node->GetAccessTime()) {
+                node->SetAccessTime(accessTime);
+            }
+
+            // Update access counter.
+            i64 accessCounter = node->GetAccessCounter() + update.access_counter_delta();
+            node->SetAccessCounter(accessCounter);
+        }
+    }
 }
 
 DEFINE_METAMAP_ACCESSORS(TCypressManager, Node, TCypressNodeBase, TVersionedNodeId, NodeMap);
