@@ -73,7 +73,7 @@ def list(path, max_size=1000, format=None, absolute=False, attributes=None):
     In case of map_node it returns keys of the node.
     """
     def join(elem):
-        full_path = yson.convert_to_yson_type(os.path.join(path, elem))
+        full_path = yson.YsonString(os.path.join(path, elem))
         full_path.attributes = elem.attributes
         return full_path
 
