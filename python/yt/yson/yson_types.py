@@ -71,7 +71,7 @@ def convert_to_yson_tree(json_tree):
     elif isinstance(value, list):
         result = YsonList(map(convert_to_yson_tree, value))
     elif isinstance(value, dict):
-        result = YsonMap((k, convert_to_yson_tree(v)) for k, v in YsonMap(value).iteritems())
+        result = YsonMap((convert_to_yson_tree(k), convert_to_yson_tree(v)) for k, v in YsonMap(value).iteritems())
     elif value is None:
         result = YsonEntity()
     else:
