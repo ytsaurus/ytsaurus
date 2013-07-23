@@ -32,6 +32,8 @@ DECLARE_ENUM(EControlAttribute,
 
 extern const int DefaultPartitionTag;
 
+extern const i64 MaxRowWeightLimit;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IWriterBase;

@@ -8,6 +8,8 @@ namespace NTableClient {
 
 const int DefaultPartitionTag = -1;
 
+const i64 MaxRowWeightLimit = (i64) 128 * 1024 * 1024;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTableClient
