@@ -356,20 +356,18 @@ class TestTableCommands(YTEnvSetup):
         get("//tmp", tx=inner_tx)
 
     def test_exists(self):
-        self.assertEqual(exists("//tmp/t"), "false")
-        self.assertEqual(exists("<append=true>//tmp/t"), "false")
+        assert not exists("//tmp/t")
+        assert not exists("<append=true>//tmp/t")
 
         create("table", "//tmp/t")
-        self.assertEqual(exists("//tmp/t"), "true")
-        self.assertEqual(exists("//tmp/t/x"), "false")
-        self.assertEqual(exists("//tmp/t/1"), "false")
-        self.assertEqual(exists("//tmp/t/1/t"), "false")
-        self.assertEqual(exists("<append=false>//tmp/t"), "true")
-        # These cases are not supported yet because of future changes in the table grammar
-        self.assertEqual(exists("//tmp/t[:#100]"), "true")
-        #self.assertEqual(exists("//tmp/t/xxx"), "false")
-        self.assertEqual(exists("//tmp/t/@"), "true")
-        self.assertEqual(exists("//tmp/t/@chunk_ids"), "true")
+        assert exists("//tmp/t")
+        assert not exists("//tmp/t/x")
+        assert not exists("//tmp/t/1")
+        assert not exists("//tmp/t/1/t")
+        assert exists("<append=false>//tmp/t")
+        assert exists("//tmp/t[:#100]")
+        assert exists("//tmp/t/@")
+        assert exists("//tmp/t/@chunk_ids")
 
     def test_invalid_channels_in_create(self):
         with pytest.raises(YTError): create('table', '//tmp/t', opt='channels=123')

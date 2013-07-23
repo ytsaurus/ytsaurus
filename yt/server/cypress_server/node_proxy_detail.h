@@ -122,6 +122,8 @@ protected:
     virtual TAsyncError GetSystemAttributeAsync(const Stroka& key, NYson::IYsonConsumer* consumer) override;
     virtual bool SetSystemAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
 
+
+    virtual void BeforeInvoke() override;
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override;
 
 
@@ -182,6 +184,7 @@ protected:
     using TObjectProxyBase::ValidatePermission;
 
     void SetModified();
+    void SetAccessed();
 
     ICypressNodeProxyPtr ResolveSourcePath(const NYPath::TYPath& path);
 
@@ -426,6 +429,8 @@ public:
         NRpc::IServiceContextPtr context) override;
 
 private:
+    class TDoesNotExistService;
+
     typedef TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, NYTree::IEntityNode, TLinkNode> TBase;
 
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override;

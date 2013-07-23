@@ -11,8 +11,10 @@ set( SRCS
   ${BASE}/node_proxy_detail.cpp
   ${BASE}/private.cpp
   ${BASE}/virtual.cpp
+  ${BASE}/access_tracker.cpp
 )
 set( HDRS
+  ${BASE}/config.h
   ${BASE}/cypress_manager.h
   ${BASE}/cypress_traversing.h
   ${BASE}/helpers.h
@@ -25,9 +27,12 @@ set( HDRS
   ${BASE}/public.h
   ${BASE}/type_handler.h
   ${BASE}/virtual.h
+  ${BASE}/access_tracker.h
 )
 
 list(APPEND YT_SOURCE_FILES
   ${SRCS}
   ${HDRS}
 )
+
+protoc( ${BASE}/cypress_manager.proto YT_SOURCE_FILES )

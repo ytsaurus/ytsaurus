@@ -24,10 +24,13 @@ TCypressNodeBase::TCypressNodeBase(const TVersionedNodeId& id)
     , Transaction_(nullptr)
     , CreationTime_(0)
     , ModificationTime_(0)
+    , AccessTime_(0)
+    , AccessCounter_(0)
     , Revision_(0)
     , Account_(nullptr)
     , CachedResourceUsage_(ZeroClusterResources())
     , Acd_(this)
+    , AccessStatisticsUpdate_(nullptr)
     , Parent_(nullptr)
     , TransactionId(id.TransactionId)
 { }
@@ -84,6 +87,8 @@ void TCypressNodeBase::Save(NCellMaster::TSaveContext& context) const
     SaveObjectRef(context, Account_);
     Save(context, CachedResourceUsage_);
     Save(context, Acd_);
+    Save(context, AccessTime_);
+    Save(context, AccessCounter_);
 }
 
 void TCypressNodeBase::Load(NCellMaster::TLoadContext& context)
@@ -106,6 +111,13 @@ void TCypressNodeBase::Load(NCellMaster::TLoadContext& context)
     LoadObjectRef(context, Account_);
     Load(context, CachedResourceUsage_);
     Load(context, Acd_);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 23) {
+        Load(context, AccessTime_);
+        Load(context, AccessCounter_);
+    } else {
+        AccessTime_ = ModificationTime_;
+    }
 
     if (TransactionId == NullTransactionId) {
         TrunkNode_ = this;

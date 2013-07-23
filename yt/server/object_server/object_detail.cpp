@@ -224,7 +224,8 @@ void TObjectProxyBase::Invoke(IServiceContextPtr context)
 
 void TObjectProxyBase::SerializeAttributes(
     IYsonConsumer* consumer,
-    const TAttributeFilter& filter)
+    const TAttributeFilter& filter,
+    bool sortKeys)
 {
     if ( filter.Mode == EAttributeFilterMode::None ||
         (filter.Mode == EAttributeFilterMode::MatchingOnly && filter.Keys.empty()))
@@ -240,6 +241,20 @@ void TObjectProxyBase::SerializeAttributes(
     yhash_set<Stroka> matchingKeys(filter.Keys.begin(), filter.Keys.end());
 
     bool seenMatching = false;
+
+    // TODO(babenko): this is not exactly totally sorted keys, but should be fine.
+    if (sortKeys) {
+        std::sort(
+            userKeys.begin(),
+            userKeys.end());
+        
+        std::sort(
+            systemAttributes.begin(),
+            systemAttributes.end(),
+            [] (const ISystemAttributeProvider::TAttributeInfo& lhs, const ISystemAttributeProvider::TAttributeInfo& rhs) {
+                return lhs.Key < rhs.Key;
+            });
+    }
 
     FOREACH (const auto& key, userKeys) {
         if (filter.Mode == EAttributeFilterMode::All || matchingKeys.find(key) != matchingKeys.end()) {
@@ -277,6 +292,7 @@ void TObjectProxyBase::SerializeAttributes(
 void TObjectProxyBase::GuardedInvoke(IServiceContextPtr context)
 {
     try {
+        BeforeInvoke();
         if (!DoInvoke(context)) {
             ThrowVerbNotSuppored(context->GetVerb());
         }
@@ -286,6 +302,9 @@ void TObjectProxyBase::GuardedInvoke(IServiceContextPtr context)
         context->Reply(ex);
     }
 }
+
+void TObjectProxyBase::BeforeInvoke()
+{ }
 
 bool TObjectProxyBase::DoInvoke(IServiceContextPtr context)
 {

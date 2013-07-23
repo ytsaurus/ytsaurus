@@ -34,6 +34,8 @@ public:
 
     TFuture<void> Collect();
 
+    bool IsEnqueued(TObjectBase* object) const;
+
     void Enqueue(TObjectBase* object);
 
     void Unlock(TObjectBase* object);
@@ -60,9 +62,11 @@ private:
     //! This promise is set each time #GCQueue becomes empty.
     TPromise<void> CollectPromise;
 
+
     void OnSweep();
     void OnCommitSucceeded();
     void OnCommitFailed(const TError& error);
+
 
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
 

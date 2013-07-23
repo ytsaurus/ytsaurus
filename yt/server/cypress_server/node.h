@@ -17,6 +17,8 @@
 #include <server/security_server/cluster_resources.h>
 #include <server/security_server/acl.h>
 
+#include <server/cypress_server/cypress_manager.pb.h>
+
 namespace NYT {
 namespace NCypressServer {
 
@@ -44,12 +46,17 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(TInstant, CreationTime);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, ModificationTime);
+    DEFINE_BYVAL_RW_PROPERTY(TInstant, AccessTime);
+
+    DEFINE_BYVAL_RW_PROPERTY(i64, AccessCounter);
 
     DEFINE_BYVAL_RW_PROPERTY(i64, Revision);
 
     DEFINE_BYVAL_RW_PROPERTY(NSecurityServer::TAccount*, Account);
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TClusterResources, CachedResourceUsage);
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, Acd);
+
+    DEFINE_BYVAL_RW_PROPERTY(NProto::TAccessStatisticsUpdate*, AccessStatisticsUpdate);
 
     explicit TCypressNodeBase(const TVersionedNodeId& id);
     virtual ~TCypressNodeBase();

@@ -123,8 +123,9 @@ public:
 
     // TODO(panin): remove this when getting rid of IAttributeProvider
     virtual void SerializeAttributes(
-        NYson::IYsonConsumer* consumer,
-        const TAttributeFilter& filter) override
+        NYson::IYsonConsumer* /*consumer*/,
+        const TAttributeFilter& /*filter*/,
+        bool /*sortKeys*/) override
     {
         YUNREACHABLE();
     }

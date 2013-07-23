@@ -97,6 +97,12 @@ TFuture<void> TGarbageCollector::Collect()
     return CollectPromise;
 }
 
+bool TGarbageCollector::IsEnqueued(TObjectBase* object) const
+{
+    return Zombies.find(object) != Zombies.end() ||
+           LockedZombies.find(object) != LockedZombies.end();
+}
+
 void TGarbageCollector::Enqueue(TObjectBase* object)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
@@ -164,11 +170,12 @@ void TGarbageCollector::OnSweep()
     VERIFY_THREAD_AFFINITY(StateThread);
 
     // Shrink zombies hashtable, if needed.
-    if (Zombies.bucket_count() > 4 * Zombies.size()) {
-        LOG_INFO("Shrinking zombie set (BucketCount: %" PRISZT ", ZombieCount: %" PRISZT ")",
+    if (Zombies.bucket_count() > 4 * Zombies.size() && Zombies.bucket_count() > 16) {
+        yhash_set<TObjectBase*> newZombies(Zombies.begin(), Zombies.end());
+        LOG_DEBUG("Shrinking zombie set (BucketCount: %" PRISZT "->%" PRISZT ", ZombieCount: %" PRISZT ")",
             Zombies.bucket_count(),
+            newZombies.bucket_count(),
             Zombies.size());
-        yhash_set<TObjectBase*> newZombies(Zombies);
         Zombies.swap(newZombies);
     }
 
@@ -189,7 +196,8 @@ void TGarbageCollector::OnSweep()
         ToProto(request.add_object_ids(), object->GetId());
     }
 
-    LOG_DEBUG("Starting GC sweep for %d objects", request.object_ids_size());
+    LOG_DEBUG("Starting GC sweep for %d objects",
+        request.object_ids_size());
 
     auto invoker = metaStateFacade->GetEpochInvoker();
     Bootstrap

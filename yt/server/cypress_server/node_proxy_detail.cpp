@@ -4,6 +4,8 @@
 #include "helpers.h"
 #include "private.h"
 
+#include <ytlib/misc/string.h>
+
 #include <ytlib/object_client/public.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
@@ -328,6 +330,8 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
     attributes->push_back(TAttributeInfo("key", hasKey, false));
     attributes->push_back("creation_time");
     attributes->push_back("modification_time");
+    attributes->push_back("access_time");
+    attributes->push_back("access_counter");
     attributes->push_back("revision");
     attributes->push_back("resource_usage");
     attributes->push_back(TAttributeInfo("recursive_resource_usage", true, true));
@@ -399,6 +403,18 @@ bool TNontemplateCypressNodeProxyBase::GetSystemAttribute(
         return true;
     }
 
+    if (key == "access_time") {
+        BuildYsonFluently(consumer)
+            .Value(trunkNode->GetAccessTime());
+        return true;
+    }
+ 
+    if (key == "access_counter") {
+        BuildYsonFluently(consumer)
+            .Value(trunkNode->GetAccessCounter());
+        return true;
+    }
+
     if (key == "revision") {
         BuildYsonFluently(consumer)
             .Value(node->GetRevision());
@@ -418,6 +434,11 @@ bool TNontemplateCypressNodeProxyBase::GetSystemAttribute(
     }
 
     return TObjectProxyBase::GetSystemAttribute(key, consumer);
+}
+
+void TNontemplateCypressNodeProxyBase::BeforeInvoke()
+{
+    SetAccessed();
 }
 
 bool TNontemplateCypressNodeProxyBase::DoInvoke(NRpc::IServiceContextPtr context)
@@ -538,6 +559,12 @@ void TNontemplateCypressNodeProxyBase::SetModified()
     cypressManager->SetModified(TrunkNode, Transaction);
 }
 
+void TNontemplateCypressNodeProxyBase::SetAccessed()
+{
+    auto cypressManager = Bootstrap->GetCypressManager();
+    cypressManager->SetAccessed(TrunkNode);
+}
+
 ICypressNodeProxyPtr TNontemplateCypressNodeProxyBase::ResolveSourcePath(const TYPath& path)
 {   
     auto node = GetResolver()->ResolvePath(path);
@@ -591,7 +618,10 @@ DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
     auto type = EObjectType(request->type());
     auto path = context->GetPath();
 
-    context->SetRequestInfo("Type: %s", ~type.ToString());
+    context->SetRequestInfo("Type: %s, IgnoreExisting: %s, Recursive: %s",
+        ~type.ToString(),
+        ~FormatBool(request->ignore_existing()),
+        ~FormatBool(request->recursive()));
 
     if (path.Empty()) {
         if (request->ignore_existing() && GetThisImpl()->GetType() == type) {
@@ -643,6 +673,8 @@ DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
         Transaction);
 
     SetChild(path, newProxy, request->recursive());
+
+    context->SetRequestInfo("NodeId: %s", ~ToString(newNode->GetId()));
 
     context->Reply();
 }
@@ -1243,6 +1275,59 @@ IYPathService::TResolveResult TListNodeProxy::ResolveRecursive(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TLinkNodeProxy::TDoesNotExistService
+    : public TYPathServiceBase
+    , public TSupportsExists
+{
+private:
+    bool DoInvoke(NRpc::IServiceContextPtr context)
+    {
+        DISPATCH_YPATH_SERVICE_METHOD(Exists);
+        return TYPathServiceBase::DoInvoke(context);
+    }
+
+    virtual TResolveResult Resolve(
+        const TYPath& path,
+        IServiceContextPtr /*context*/) override
+    {
+        return TResolveResult::Here(path);
+    }
+
+    virtual void ExistsSelf(
+        TReqExists* /*request*/,
+        TRspExists* /*response*/,
+        TCtxExistsPtr context) override
+    {
+        ExistsAny(context);
+    }
+
+    virtual void ExistsRecursive(
+        const TYPath& /*path*/,
+        TReqExists* /*request*/,
+        TRspExists* /*response*/,
+        TCtxExistsPtr context) override
+    {
+        ExistsAny(context);
+    }
+
+    virtual void ExistsAttribute(
+        const TYPath& /*path*/,
+        TReqExists* /*request*/,
+        TRspExists* /*response*/,
+        TCtxExistsPtr context) override
+    {
+        ExistsAny(context);
+    }
+
+    void ExistsAny(TCtxExistsPtr context)
+    {
+        context->SetRequestInfo("");
+        Reply(context, false);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TLinkNodeProxy::TLinkNodeProxy(
     INodeTypeHandlerPtr typeHandler,
     TBootstrap* bootstrap,
@@ -1259,6 +1344,24 @@ IYPathService::TResolveResult TLinkNodeProxy::Resolve(
     const TYPath& path,
     IServiceContextPtr context)
 {
+    const auto& verb = context->GetVerb();
+
+    auto propagate = [&] () -> TResolveResult
+    {
+        // XXX(babenko): needed by VS2010
+        typedef IYPathService::TResolveResult TResolveResult;
+        if (verb == "Exists") {
+            auto proxy = FindTargetProxy();
+            static IYPathServicePtr doesNotExistService = New<TDoesNotExistService>();
+            return
+                proxy
+                ? TResolveResult::There(proxy, path)
+                : TResolveResult::There(doesNotExistService, path);
+        } else {
+            return TResolveResult::There(GetTargetProxy(), path);
+        }
+    };
+
     NYPath::TTokenizer tokenizer(path);
     switch (tokenizer.Advance()) {
         case NYPath::ETokenType::Ampersand:
@@ -1266,14 +1369,17 @@ IYPathService::TResolveResult TLinkNodeProxy::Resolve(
 
         case NYPath::ETokenType::EndOfStream: {
             // NB: Always handle Remove and Create locally.
-            const auto& verb = context->GetVerb();
-            return (verb == "Remove" || verb == "Create")
-                   ? TResolveResult::Here(path)
-                   : TResolveResult::There(GetTargetProxy(), path);
+            if (verb == "Remove" || verb == "Create") {
+                return TResolveResult::Here(path);
+            } else if (verb == "Exists") {
+                return propagate();
+            } else {
+                return TResolveResult::There(GetTargetProxy(), path);
+            }
         }
 
         default:
-            return TResolveResult::There(GetTargetProxy(), path);
+            return propagate();
     }
 }
 

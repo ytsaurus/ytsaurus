@@ -84,7 +84,7 @@ void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr co
         auto service = FindItemService(key);
         if (service) {
             writer.OnKeyedItem(key);
-            service->SerializeAttributes(&writer, attributeFilter);
+            service->SerializeAttributes(&writer, attributeFilter, false);
             writer.OnEntity();
         }
     }
@@ -122,7 +122,7 @@ void TVirtualMapBase::ListSelf(TReqList* request, TRspList* response, TCtxListPt
         auto service = FindItemService(key);
         if (service) {
             writer.OnListItem();
-            service->SerializeAttributes(&writer, attributeFilter);
+            service->SerializeAttributes(&writer, attributeFilter, false);
             writer.OnStringScalar(key);
         }
     }
@@ -214,11 +214,8 @@ public:
         return TResolveResult::There(UnderlyingService, path);
     }
 
-    virtual void SerializeAttributes(IYsonConsumer* consumer, const TAttributeFilter& filter)
-    {
-        UNUSED(consumer);
-        UNUSED(filter);
-    }
+    virtual void SerializeAttributes(IYsonConsumer* /*consumer*/, const TAttributeFilter& /*filter*/, bool /*sortKeys*/)
+    { }
 
 private:
     IYPathServicePtr UnderlyingService;

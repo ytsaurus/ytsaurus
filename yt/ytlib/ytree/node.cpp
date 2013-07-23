@@ -2,6 +2,8 @@
 #include "convert.h"
 #include "node_detail.h"
 
+#include <ytlib/yson/writer.h>
+
 namespace NYT {
 namespace NYTree {
 
@@ -61,6 +63,19 @@ void Serialize(INode& value, IYsonConsumer* consumer)
 void Deserialize(INodePtr& value, INodePtr node)
 {
     value = node;
+}
+
+TYsonString ConvertToYsonStringStable(INodePtr node)
+{
+    Stroka result;
+    TStringOutput output(result);
+    TYsonWriter writer(&output, EYsonFormat::Binary, EYsonType::Node);
+    VisitTree(
+        node,
+        &writer,
+        TAttributeFilter::All,
+        true); // truth matters :)
+    return TYsonString(result, EYsonType::Node);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

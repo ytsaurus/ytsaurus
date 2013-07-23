@@ -24,6 +24,10 @@
 
 #include <server/cypress_server/node.h>
 
+// COMPAT(babenko)
+#include <server/cypress_server/cypress_manager.h>
+#include <server/transaction_server/transaction_manager.h>
+
 namespace NYT {
 namespace NSecurityServer {
 
@@ -218,6 +222,7 @@ public:
             bootstrap->GetMetaStateFacade()->GetManager(),
             bootstrap->GetMetaStateFacade()->GetState())
         , Bootstrap(bootstrap)
+        , RecomputeResources(false)
         , SysAccount(nullptr)
         , TmpAccount(nullptr)
         , RootUser(nullptr)
@@ -291,7 +296,9 @@ public:
     TAccount* CreateAccount(const Stroka& name)
     {
         if (FindAccountByName(name)) {
-            THROW_ERROR_EXCEPTION("Account %s already exists",
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::AlreadyExists,
+                "Account %s already exists",
                 ~name.Quote());
         }
 
@@ -380,7 +387,9 @@ public:
             return;
 
         if (FindAccountByName(newName)) {
-            THROW_ERROR_EXCEPTION("Account %s already exists",
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::AlreadyExists,
+                "Account %s already exists",
                 ~newName.Quote());
         }
 
@@ -436,12 +445,16 @@ public:
     TUser* CreateUser(const Stroka& name)
     {
         if (FindUserByName(name)) {
-            THROW_ERROR_EXCEPTION("User %s already exists",
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::AlreadyExists,
+                "User %s already exists",
                 ~name.Quote());
         }
 
         if (FindGroupByName(name)) {
-            THROW_ERROR_EXCEPTION("Group %s already exists",
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::AlreadyExists,
+                "Group %s already exists",
                 ~name.Quote());
         }
 
@@ -479,12 +492,16 @@ public:
     TGroup* CreateGroup(const Stroka& name)
     {
         if (FindGroupByName(name)) {
-            THROW_ERROR_EXCEPTION("Group %s already exists",
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::AlreadyExists,
+                "Group %s already exists",
                 ~name.Quote());
         }
 
         if (FindUserByName(name)) {
-            THROW_ERROR_EXCEPTION("User %s already exists",
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::AlreadyExists,
+                "User %s already exists",
                 ~name.Quote());
         }
 
@@ -583,7 +600,9 @@ public:
             return;
 
         if (FindSubjectByName(newName)) {
-            THROW_ERROR_EXCEPTION("Subject %s already exists",
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::AlreadyExists,
+                "Subject %s already exists",
                 ~newName.Quote());
         }
 
@@ -791,6 +810,8 @@ private:
 
 
     NCellMaster::TBootstrap* Bootstrap;
+
+    bool RecomputeResources;
 
     NMetaState::TMetaStateMap<TAccountId, TAccount> AccountMap;
     yhash_map<Stroka, TAccount*> AccountNameMap;
@@ -1022,6 +1043,8 @@ private:
     virtual void OnBeforeLoaded() override
     {
         DoClear();
+
+        RecomputeResources = false;
     }
 
     void LoadKeys(NCellMaster::TLoadContext& context)
@@ -1036,6 +1059,11 @@ private:
         AccountMap.LoadValues(context);
         UserMap.LoadValues(context);
         GroupMap.LoadValues(context);
+
+        // COMPAT(babenko)
+        if (context.GetVersion() < 22) {
+            RecomputeResources = true;
+        }
     }
 
     virtual void OnAfterLoaded() override
@@ -1063,6 +1091,36 @@ private:
 
         InitBuiltin();
         InitAuthenticatedUser();
+
+        // COMPAT(babenko)
+        if (RecomputeResources) {
+            LOG_INFO("Recomputing resource usage");
+
+            YCHECK(Bootstrap->GetTransactionManager()->GetTransactionCount() == 0);
+
+            FOREACH (const auto& pair, AccountMap) {
+                auto* account = pair.second;
+                account->ResourceUsage() = ZeroClusterResources();
+                account->CommittedResourceUsage() = ZeroClusterResources();
+            }
+
+            auto cypressManager = Bootstrap->GetCypressManager();
+            FOREACH (auto* node, cypressManager->GetNodes()) {
+                auto resourceUsage = node->GetResourceUsage();
+                auto* account = node->GetAccount();
+                if (account) {
+                    if (IsUncommittedAccountingEnabled(node)) {
+                        account->ResourceUsage() += resourceUsage;
+                        if (node->IsTrunk()) {
+                            account->CommittedResourceUsage() += resourceUsage;
+                        }
+                    }
+                    node->CachedResourceUsage() = resourceUsage;
+                } else {
+                    node->CachedResourceUsage() = ZeroClusterResources();
+                }
+            }
+        }
     }
 
 

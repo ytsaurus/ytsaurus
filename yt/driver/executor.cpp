@@ -109,7 +109,7 @@ void TExecutor::InitConfig()
     }
 
     // Now convert back YSON tree to populate defaults.
-    configNode = ConvertToNode(BIND(&TYsonSerializable::Save, Config));
+    configNode = ConvertToNode(Config);
 
     // Patch config from command line.
     FOREACH (const auto& opt, ConfigOptArg.getValue()) {

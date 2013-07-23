@@ -206,8 +206,9 @@ public:
 
     // TODO(panin): remove this when getting rid of IAttributeProvider
     virtual void SerializeAttributes(
-        NYson::IYsonConsumer* consumer,
-        const TAttributeFilter& filter) override
+        NYson::IYsonConsumer* /*consumer*/,
+        const TAttributeFilter& /*filter*/,
+        bool /*sortKeys*/) override
     {
         YUNREACHABLE();
     }
@@ -698,6 +699,18 @@ void TObjectManager::LoadSchemas(NCellMaster::TLoadContext& context)
 void TObjectManager::OnAfterLoaded()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
+
+    // COMPAT(babenko): remove this once zombie issue is fixed
+    auto cypressManager = Bootstrap->GetCypressManager();
+    FOREACH (auto* node, cypressManager->GetNodes()) {
+        if (node->IsTrunk() &&
+            !node->IsAlive() &&
+            !GarbageCollector->IsEnqueued(node))
+        {
+            LOG_DEBUG("Zombie found: %s", ~ToString(node->GetId()));
+            GarbageCollector->Enqueue(node);
+        }
+    }
 }
 
 void TObjectManager::DoClear()
@@ -747,11 +760,15 @@ void TObjectManager::OnRecoveryComplete()
 
 void TObjectManager::OnActiveQuorumEstablished()
 {
+    VERIFY_THREAD_AFFINITY(StateThread);
+
     GarbageCollector->StartSweep();
 }
 
 void TObjectManager::OnStopLeading()
 {
+    VERIFY_THREAD_AFFINITY(StateThread);
+
     GarbageCollector->StopSweep();
 }
 

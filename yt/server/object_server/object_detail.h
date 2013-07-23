@@ -83,7 +83,8 @@ public:
     virtual void Invoke(NRpc::IServiceContextPtr context) override;
     virtual void SerializeAttributes(
         NYson::IYsonConsumer* consumer,
-        const NYTree::TAttributeFilter& filter) override;
+        const NYTree::TAttributeFilter& filter,
+        bool sortKeys) override;
 
 protected:
     NCellMaster::TBootstrap* Bootstrap;
@@ -102,6 +103,7 @@ protected:
     virtual NSecurityServer::TAccessControlDescriptor* FindThisAcd() = 0;
 
     void GuardedInvoke(NRpc::IServiceContextPtr context);
+    virtual void BeforeInvoke();
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override;
     virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const override;
 

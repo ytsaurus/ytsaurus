@@ -88,7 +88,8 @@ public:
 
     virtual void SerializeAttributes(
         IYsonConsumer* consumer,
-        const TAttributeFilter& filter) override
+        const TAttributeFilter& filter,
+        bool sortKeys) override
     {
         if ( filter.Mode == EAttributeFilterMode::None ||
             (filter.Mode == EAttributeFilterMode::MatchingOnly && filter.Keys.empty()))
@@ -99,6 +100,9 @@ public:
 
         const auto& attributes = Attributes();
         auto keys = attributes.List();
+        if (sortKeys) {
+            std::sort(keys.begin(), keys.end());
+        }
         yhash_set<Stroka> matchingKeys(filter.Keys.begin(), filter.Keys.end());
         bool seenMatching = false;
         FOREACH (const auto& key, keys) {
