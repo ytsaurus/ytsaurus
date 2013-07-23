@@ -6,7 +6,6 @@ set( SRCS
   ${BASE}/async_stream.cpp
   ${BASE}/async_stream_state.cpp
   ${BASE}/backtrace.cpp
-  ${BASE}/benchmark.cpp
   ${BASE}/blob.cpp
   ${BASE}/blob_output.cpp
   ${BASE}/blob_range.cpp
@@ -52,7 +51,6 @@ set( HDRS
   ${BASE}/async_stream.h
   ${BASE}/async_stream_state.h
   ${BASE}/backtrace.h
-  ${BASE}/benchmark.h
   ${BASE}/blob.h
   ${BASE}/blob_output.h
   ${BASE}/blob_range.h
