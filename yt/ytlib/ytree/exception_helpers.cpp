@@ -99,7 +99,9 @@ void ThrowCannotHaveChildren(IConstNodePtr node)
 
 void ThrowAlreadyExists(IConstNodePtr node)
 {
-    THROW_ERROR_EXCEPTION("%s already exists",
+    THROW_ERROR_EXCEPTION(
+        NYTree::EErrorCode::AlreadyExists,
+        "%s already exists",
         ~GetNodePathHelper(node));
 }
 

@@ -296,7 +296,9 @@ public:
     TAccount* CreateAccount(const Stroka& name)
     {
         if (FindAccountByName(name)) {
-            THROW_ERROR_EXCEPTION("Account %s already exists",
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::AlreadyExists,
+                "Account %s already exists",
                 ~name.Quote());
         }
 
@@ -385,7 +387,9 @@ public:
             return;
 
         if (FindAccountByName(newName)) {
-            THROW_ERROR_EXCEPTION("Account %s already exists",
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::AlreadyExists,
+                "Account %s already exists",
                 ~newName.Quote());
         }
 
@@ -441,12 +445,16 @@ public:
     TUser* CreateUser(const Stroka& name)
     {
         if (FindUserByName(name)) {
-            THROW_ERROR_EXCEPTION("User %s already exists",
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::AlreadyExists,
+                "User %s already exists",
                 ~name.Quote());
         }
 
         if (FindGroupByName(name)) {
-            THROW_ERROR_EXCEPTION("Group %s already exists",
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::AlreadyExists,
+                "Group %s already exists",
                 ~name.Quote());
         }
 
@@ -484,12 +492,16 @@ public:
     TGroup* CreateGroup(const Stroka& name)
     {
         if (FindGroupByName(name)) {
-            THROW_ERROR_EXCEPTION("Group %s already exists",
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::AlreadyExists,
+                "Group %s already exists",
                 ~name.Quote());
         }
 
         if (FindUserByName(name)) {
-            THROW_ERROR_EXCEPTION("User %s already exists",
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::AlreadyExists,
+                "User %s already exists",
                 ~name.Quote());
         }
 
@@ -588,7 +600,9 @@ public:
             return;
 
         if (FindSubjectByName(newName)) {
-            THROW_ERROR_EXCEPTION("Subject %s already exists",
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::AlreadyExists,
+                "Subject %s already exists",
                 ~newName.Quote());
         }
 

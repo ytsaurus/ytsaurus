@@ -96,6 +96,7 @@ DECLARE_ENUM(ENodeType,
 
 DECLARE_ENUM(EErrorCode,
     ((ResolveError)    (500))
+    ((AlreadyExists)   (501))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
