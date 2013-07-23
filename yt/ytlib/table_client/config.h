@@ -40,7 +40,7 @@ public:
             .Default((i64) 16 * 1024 * 1024);
         RegisterParameter("max_row_weight", MaxRowWeight)
             .GreaterThan((i64) 0)
-            .LessThanOrEqual((i64) 128 * 1024 * 1024)
+            .LessThanOrEqual(MaxRowWeightLimit)
             .Default((i64) 16 * 1024 * 1024);
         RegisterParameter("sample_rate", SampleRate)
             .GreaterThan(0)

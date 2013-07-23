@@ -330,6 +330,13 @@ const char* TYamrLenvalBaseParser::ConsumeLength(const char* begin, const char* 
         }
     }
 
+    if (BytesToRead > NTableClient::MaxRowWeightLimit) {
+        THROW_ERROR_EXCEPTION(
+            "Lenval length it too large (%d > %" PRId64 ")",
+            BytesToRead,
+            NTableClient::MaxRowWeightLimit);
+    }
+
     return next;
 }
 
