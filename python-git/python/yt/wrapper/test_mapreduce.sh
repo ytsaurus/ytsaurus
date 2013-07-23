@@ -4,6 +4,25 @@ cd $(dirname "${BASH_SOURCE[0]}")
 
 export YT_PREFIX="//home/wrapper_tests/"
 
+timeout() {
+    local time_to_sleep=$1 && shift
+    $@ &
+    pid=$!
+    set +x
+    for i in $(seq 1 $((10 * $time_to_sleep))); do
+        if ! ps -p $pid &>/dev/null; then
+            return 0
+        fi
+        sleep 0.1
+    done
+    if ps -p $pid &>/dev/null; then
+        kill $pid
+        return 1
+    fi
+    return 0
+    set -x
+}
+
 prepare_table_files() {
     set +x
 
@@ -462,7 +481,7 @@ test_parallel_dstappend()
 
     run_op()
     {
-        timeout 14s ./mapreduce -map "cat" -src ignat/table -dstappend ignat/output_table
+        timeout 14 ./mapreduce -map "cat" -src ignat/table -dstappend ignat/output_table
         if [ "$?" = 0 ]; then
             echo "xxx" >> sync_file
         fi
