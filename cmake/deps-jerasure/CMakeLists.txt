@@ -1,13 +1,5 @@
-set( LTYPE STATIC )
-
 set( BASE ${CMAKE_SOURCE_DIR}/contrib/libs/jerasure )
-
-IF(CMAKE_COMPILER_IS_GNUCXX)
-  set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-variable" )
-ENDIF(CMAKE_COMPILER_IS_GNUCXX)
-
-set(SRC
-  #${BASE}/cauchy.c
+set( SRCS
   ${BASE}/cauchy_best_r6.c
   ${BASE}/galois.c
   ${BASE}/jerasure.c
@@ -15,23 +7,19 @@ set(SRC
   ${BASE}/reed_sol.c
 )
 
-SET_SOURCE_FILES_PROPERTIES( ${SRC} PROPERTIES LANGUAGE CXX )
+set_source_files_properties(
+  ${SRCS}
+  PROPERTIES LANGUAGE CXX
+)
 
-add_library( ytext-jerasure ${LTYPE} ${SRC})
+add_library( ytext-jerasure STATIC ${SRCS} )
 
 include_directories(
-  ${BASE}
-  ${CMAKE_SOURCE_DIR}
+  ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
 set_target_properties( ytext-jerasure PROPERTIES
   VERSION   1.2
   SOVERSION 0.1
-)
-
-install(
-  TARGETS
-  LIBRARY DESTINATION lib
-  ARCHIVE DESTINATION lib
 )
 

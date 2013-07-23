@@ -196,7 +196,8 @@ void TGarbageCollector::OnSweep()
         ToProto(request.add_object_ids(), object->GetId());
     }
 
-    LOG_DEBUG("Starting GC sweep for %d objects", request.object_ids_size());
+    LOG_DEBUG("Starting GC sweep for %d objects",
+        request.object_ids_size());
 
     auto invoker = metaStateFacade->GetEpochInvoker();
     Bootstrap

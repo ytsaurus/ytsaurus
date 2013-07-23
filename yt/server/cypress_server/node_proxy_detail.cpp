@@ -4,6 +4,8 @@
 #include "helpers.h"
 #include "private.h"
 
+#include <ytlib/misc/string.h>
+
 #include <ytlib/object_client/public.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
@@ -328,6 +330,8 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
     attributes->push_back(TAttributeInfo("key", hasKey, false));
     attributes->push_back("creation_time");
     attributes->push_back("modification_time");
+    attributes->push_back("access_time");
+    attributes->push_back("access_counter");
     attributes->push_back("revision");
     attributes->push_back("resource_usage");
     attributes->push_back(TAttributeInfo("recursive_resource_usage", true, true));
@@ -399,6 +403,18 @@ bool TNontemplateCypressNodeProxyBase::GetSystemAttribute(
         return true;
     }
 
+    if (key == "access_time") {
+        BuildYsonFluently(consumer)
+            .Value(trunkNode->GetAccessTime());
+        return true;
+    }
+ 
+    if (key == "access_counter") {
+        BuildYsonFluently(consumer)
+            .Value(trunkNode->GetAccessCounter());
+        return true;
+    }
+
     if (key == "revision") {
         BuildYsonFluently(consumer)
             .Value(node->GetRevision());
@@ -418,6 +434,11 @@ bool TNontemplateCypressNodeProxyBase::GetSystemAttribute(
     }
 
     return TObjectProxyBase::GetSystemAttribute(key, consumer);
+}
+
+void TNontemplateCypressNodeProxyBase::BeforeInvoke()
+{
+    SetAccessed();
 }
 
 bool TNontemplateCypressNodeProxyBase::DoInvoke(NRpc::IServiceContextPtr context)
@@ -538,6 +559,12 @@ void TNontemplateCypressNodeProxyBase::SetModified()
     cypressManager->SetModified(TrunkNode, Transaction);
 }
 
+void TNontemplateCypressNodeProxyBase::SetAccessed()
+{
+    auto cypressManager = Bootstrap->GetCypressManager();
+    cypressManager->SetAccessed(TrunkNode);
+}
+
 ICypressNodeProxyPtr TNontemplateCypressNodeProxyBase::ResolveSourcePath(const TYPath& path)
 {   
     auto node = GetResolver()->ResolvePath(path);
@@ -591,7 +618,10 @@ DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
     auto type = EObjectType(request->type());
     auto path = context->GetPath();
 
-    context->SetRequestInfo("Type: %s", ~type.ToString());
+    context->SetRequestInfo("Type: %s, IgnoreExisting: %s, Recursive: %s",
+        ~type.ToString(),
+        ~FormatBool(request->ignore_existing()),
+        ~FormatBool(request->recursive()));
 
     if (path.Empty()) {
         if (request->ignore_existing() && GetThisImpl()->GetType() == type) {
@@ -643,6 +673,8 @@ DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
         Transaction);
 
     SetChild(path, newProxy, request->recursive());
+
+    context->SetRequestInfo("NodeId: %s", ~ToString(newNode->GetId()));
 
     context->Reply();
 }

@@ -11,6 +11,12 @@ namespace NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TCypressManagerConfig;
+typedef TIntrusivePtr<TCypressManagerConfig> TCypressManagerConfigPtr;
+
+class TAccessTracker;
+typedef TIntrusivePtr<TAccessTracker> TAccessTrackerPtr;
+
 class TCypressManager;
 typedef TIntrusivePtr<TCypressManager> TCypressManagerPtr;
 

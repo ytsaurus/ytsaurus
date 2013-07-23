@@ -165,7 +165,7 @@ void TBootstrap::Run()
     SecurityManager = New<TSecurityManager>(this);
     NodeTracker = New<TNodeTracker>(Config->NodeTracker, this);
     TransactionManager = New<TTransactionManager>(Config->TransactionManager, this);
-    CypressManager = New<TCypressManager>(this);
+    CypressManager = New<TCypressManager>(Config->CypressManager, this);
     ChunkManager = New<TChunkManager>(Config->ChunkManager, this);
 
     ObjectManager->Initialize();

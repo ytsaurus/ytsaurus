@@ -757,11 +757,15 @@ void TObjectManager::OnRecoveryComplete()
 
 void TObjectManager::OnActiveQuorumEstablished()
 {
+    VERIFY_THREAD_AFFINITY(StateThread);
+
     GarbageCollector->StartSweep();
 }
 
 void TObjectManager::OnStopLeading()
 {
+    VERIFY_THREAD_AFFINITY(StateThread);
+
     GarbageCollector->StopSweep();
 }
 

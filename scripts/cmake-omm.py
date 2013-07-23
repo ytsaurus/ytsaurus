@@ -13,10 +13,10 @@ if sys.hexversion <= 0x2060000:
 from collections import defaultdict
 from contextlib import contextmanager
 import subprocess
+import termcolor
 
 import cmake_parsing
 import cmake_writing
-from ansi import Fore, Style
 
 ################################################################################
 ### Auxiliary functions.
@@ -336,9 +336,9 @@ if __name__ == '__main__':
         for list in filter_updatable_lists(expand_args_to_lists(args)):
             print '* Processing {0}...'.format(list)
             if update_list(list):
-                print Style.BRIGHT + Fore.RED + 'REWRITTEN' + Style.RESET_ALL, list
+                print termcolor.colored('REWRITTEN', 'red'), list
             else:
-                print Style.BRIGHT + Fore.GREEN + 'UNTOUCHED' + Style.RESET_ALL, list
+                print termcolor.colored('UNTOUCHED', 'green'), list
 
     def do_discover_lists(args):
         for list in expand_args_to_lists(args):

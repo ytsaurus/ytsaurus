@@ -116,6 +116,7 @@ private:
         ToProto(response->mutable_object_id(), objectId);
 
         context->SetResponseInfo("ObjectId: %s", ~ToString(objectId));
+        
         context->Reply();
     }
 

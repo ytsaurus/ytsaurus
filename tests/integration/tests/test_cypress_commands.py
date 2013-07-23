@@ -1,4 +1,5 @@
 import pytest
+import time
 
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
@@ -639,3 +640,17 @@ class TestCypressCommands(YTEnvSetup):
         assert not exists("//tmp/b/x")
         assert not exists("//tmp/b&/@x")
         assert not exists("//tmp/b&/x")
+
+    def test_access_stat1(self):
+        c1 = get('//tmp/@access_counter')
+        time.sleep(2.0)
+        c2 = get('//tmp/@access_counter')
+        assert c2 == c1 + 1
+
+    def test_access_stat2(self):
+        c1 = get('//tmp/@access_counter')
+        tx = start_transaction()
+        lock('//tmp', mode = 'snapshot', tx = tx)
+        time.sleep(2.0)
+        c2 = get('//tmp/@access_counter', tx = tx)
+        assert c2 == c1 + 2

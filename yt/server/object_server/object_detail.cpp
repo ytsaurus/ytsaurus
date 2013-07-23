@@ -292,6 +292,7 @@ void TObjectProxyBase::SerializeAttributes(
 void TObjectProxyBase::GuardedInvoke(IServiceContextPtr context)
 {
     try {
+        BeforeInvoke();
         if (!DoInvoke(context)) {
             ThrowVerbNotSuppored(context->GetVerb());
         }
@@ -301,6 +302,9 @@ void TObjectProxyBase::GuardedInvoke(IServiceContextPtr context)
         context->Reply(ex);
     }
 }
+
+void TObjectProxyBase::BeforeInvoke()
+{ }
 
 bool TObjectProxyBase::DoInvoke(IServiceContextPtr context)
 {

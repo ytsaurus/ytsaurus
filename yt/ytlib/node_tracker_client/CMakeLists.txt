@@ -1,19 +1,19 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/node_tracker_client )
 set( SRCS
-  ${BASE}/public.cpp
+  ${BASE}/helpers.cpp
   ${BASE}/node_directory.cpp
   ${BASE}/node_directory_builder.cpp
   ${BASE}/node_statistics.cpp
-  ${BASE}/helpers.cpp
+  ${BASE}/public.cpp
 )
 set( HDRS
-  ${BASE}/public.h
+  ${BASE}/helpers.h
   ${BASE}/node_directory.h
   ${BASE}/node_directory_builder.h
-  ${BASE}/node_tracker_service_proxy.h
   ${BASE}/node_statistics.h
-  ${BASE}/helpers.h
+  ${BASE}/node_tracker_service_proxy.h
+  ${BASE}/public.h
 )
 
 list(APPEND YT_SOURCE_FILES
