@@ -4,13 +4,12 @@ from transaction_commands import _make_transactional_request, \
                                  _make_formatted_transactional_request
 from table import prepare_path, to_name
 
-from yt.yson.yson_types import YsonString
+import yt.yson as yson
 
 import os
 import string
 import random
 from copy import deepcopy
-import yt.yson as yson
 
 def get(path, attributes=None, format=None, spec=None):
     """
@@ -74,7 +73,7 @@ def list(path, max_size=1000, format=None, absolute=False, attributes=None):
     In case of map_node it returns keys of the node.
     """
     def join(elem):
-        full_path = YsonString(os.path.join(path, elem))
+        full_path = yson.convert_to_yson_type(os.path.join(path, elem))
         full_path.attributes = elem.attributes
         return full_path
 
@@ -184,13 +183,13 @@ def search(root="/", node_type=None, path_filter=None, object_filter=None, attri
         if (node_type is None or object_type in flatten(node_type)) and \
            (object_filter is None or object_filter(object)) and \
            (path_filter is None or path_filter(path)):
-            yson_path = YsonString(path)
+            yson_path = yson.YsonString(path)
             yson_path.attributes = object.attributes
             result.append(yson_path)
 
         if object_type == "map_node":
             for key, value in object.iteritems():
-                walk('%s/%s' % (path, key), value, depth + 1)
+                walk("{0}/{1}".format(path, key), value, depth + 1)
 
     walk(root, get(root, attributes=attributes), 0, True)
     return result
