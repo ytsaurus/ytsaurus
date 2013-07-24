@@ -669,7 +669,7 @@ TLock* TCypressManager::DoAcquireLock(
         lock->Mode = request.Mode;
         transaction->LockedNodes().push_back(trunkNode);
 
-        LOG_INFO_UNLESS(IsRecovery(), "Node locked (NodeId: %s, Mode: %s)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Node locked (NodeId: %s, Mode: %s)",
             ~ToString(versionedId),
             ~request.Mode.ToString());
     } else {
@@ -677,7 +677,7 @@ TLock* TCypressManager::DoAcquireLock(
         if (lock->Mode < request.Mode) {
             lock->Mode = request.Mode;
 
-            LOG_INFO_UNLESS(IsRecovery(), "Node lock upgraded (NodeId: %s, Mode: %s)",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Node lock upgraded (NodeId: %s, Mode: %s)",
                 ~ToString(versionedId),
                 ~lock->Mode.ToString());
         }
@@ -687,7 +687,7 @@ TLock* TCypressManager::DoAcquireLock(
         lock->ChildKeys.find(request.ChildKey.Get()) == lock->ChildKeys.end())
     {
         YCHECK(lock->ChildKeys.insert(request.ChildKey.Get()).second);
-        LOG_INFO_UNLESS(IsRecovery(), "Node child locked (NodeId: %s, Key: %s)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Node child locked (NodeId: %s, Key: %s)",
             ~ToString(versionedId),
             ~request.ChildKey.Get());
     }
@@ -696,7 +696,7 @@ TLock* TCypressManager::DoAcquireLock(
         lock->AttributeKeys.find(request.AttributeKey.Get()) == lock->AttributeKeys.end())
     {
         YCHECK(lock->AttributeKeys.insert(request.AttributeKey.Get()).second);
-        LOG_INFO_UNLESS(IsRecovery(), "Node attribute locked (NodeId: %s, Key: %s)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Node attribute locked (NodeId: %s, Key: %s)",
             ~ToString(versionedId),
             ~request.AttributeKey.Get());
     }
@@ -711,7 +711,7 @@ void TCypressManager::ReleaseLock(TCypressNodeBase* trunkNode, TTransaction* tra
     YCHECK(trunkNode->Locks().erase(transaction) == 1);
 
     TVersionedNodeId versionedId(trunkNode->GetId(), transaction->GetId());
-    LOG_INFO_UNLESS(IsRecovery(), "Node unlocked (NodeId: %s)",
+    LOG_DEBUG_UNLESS(IsRecovery(), "Node unlocked (NodeId: %s)",
         ~ToString(versionedId));
 }
 
@@ -844,7 +844,7 @@ TCypressNodeBase* TCypressManager::BranchNode(
     auto* account = originatingNode->GetAccount();
     securityManager->SetAccount(branchedNode_, account);
 
-    LOG_INFO_UNLESS(IsRecovery(), "Node branched (NodeId: %s, TransactionId: %s, Mode: %s)",
+    LOG_DEBUG_UNLESS(IsRecovery(), "Node branched (NodeId: %s, TransactionId: %s, Mode: %s)",
         ~ToString(id),
         ~ToString(transaction->GetId()),
         ~mode.ToString());
@@ -961,7 +961,7 @@ void TCypressManager::RegisterNode(std::unique_ptr<TCypressNodeBase> node)
 
     NodeMap.Insert(TVersionedNodeId(nodeId), node.release());
 
-    LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %s, Type: %s)",
+    LOG_DEBUG_UNLESS(IsRecovery(), "Node registered (NodeId: %s, Type: %s)",
         ~ToString(nodeId),
         ~TypeFromId(nodeId).ToString());
 }
@@ -1090,12 +1090,12 @@ void TCypressManager::MergeNode(
         // Update resource usage.
         securityManager->UpdateAccountNodeUsage(originatingNode);
 
-        LOG_INFO_UNLESS(IsRecovery(), "Node merged (NodeId: %s)", ~ToString(branchedId));
+        LOG_DEBUG_UNLESS(IsRecovery(), "Node merged (NodeId: %s)", ~ToString(branchedId));
     } else {
         // Destroy the branched copy.
         handler->Destroy(branchedNode);
 
-        LOG_INFO_UNLESS(IsRecovery(), "Node snapshot destroyed (NodeId: %s)", ~ToString(branchedId));
+        LOG_DEBUG_UNLESS(IsRecovery(), "Node snapshot destroyed (NodeId: %s)", ~ToString(branchedId));
     }
 
     // Drop the implicit reference to the originator.
@@ -1104,7 +1104,7 @@ void TCypressManager::MergeNode(
     // Remove the branched copy.
     NodeMap.Remove(branchedId);
 
-    LOG_INFO_UNLESS(IsRecovery(), "Branched node removed (NodeId: %s)", ~ToString(branchedId));
+    LOG_DEBUG_UNLESS(IsRecovery(), "Branched node removed (NodeId: %s)", ~ToString(branchedId));
 }
 
 void TCypressManager::MergeNodes(TTransaction* transaction)
@@ -1131,7 +1131,7 @@ void TCypressManager::RemoveBranchedNode(TCypressNodeBase* branchedNode)
     handler->Destroy(branchedNode);
     NodeMap.Remove(branchedNodeId);
 
-    LOG_INFO_UNLESS(IsRecovery(), "Branched node removed (NodeId: %s)", ~ToString(branchedNodeId));
+    LOG_DEBUG_UNLESS(IsRecovery(), "Branched node removed (NodeId: %s)", ~ToString(branchedNodeId));
 }
 
 void TCypressManager::RemoveBranchedNodes(TTransaction* transaction)
