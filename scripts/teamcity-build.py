@@ -51,6 +51,7 @@ def prepare(options):
     options.build_vcs_number = os.environ["BUILD_VCS_NUMBER"]
 
     options.branch = re.sub(r"^refs/heads/", "", options.branch)
+    options.branch = re.sub(r"/0.\d\d$", "", options.branch)
 
     codename = run_captured(["lsb_release", "-c"])
     codename = re.sub(r"^Codename:\s*", "", codename)
