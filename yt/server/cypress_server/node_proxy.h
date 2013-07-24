@@ -6,12 +6,40 @@
 #include <ytlib/ytree/node.h>
 #include <ytlib/ytree/system_attribute_provider.h>
 
+#include <ytlib/rpc/service_detail.h>
+
+#include <ytlib/cypress_client/cypress_ypath.pb.h>
+
 #include <server/object_server/object_proxy.h>
 
 #include <server/security_server/cluster_resources.h>
 
+#include <server/transaction_server/public.h>
+
 namespace NYT {
 namespace NCypressServer {
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Extends NYTree::INodeFactory by adding Cypress-specific functionality.
+struct ICypressNodeFactory
+    : public NYTree::INodeFactory
+{
+    typedef NRpc::TTypedServiceRequest<NCypressClient::NProto::TReqCreate> TReqCreate;
+    typedef NRpc::TTypedServiceResponse<NCypressClient::NProto::TRspCreate> TRspCreate;
+
+    virtual NTransactionServer::TTransaction* GetTransaction() = 0;
+    virtual NSecurityServer::TAccount* GetAccount() = 0;
+
+    virtual ICypressNodeProxyPtr CreateNode(
+        NObjectClient::EObjectType type,
+        NYTree::IAttributeDictionary* attributes,
+        TReqCreate* request,
+        TRspCreate* response) = 0;
+
+    virtual TCypressNodeBase* CloneNode(
+        TCypressNodeBase* sourceNode) = 0;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,6 +63,9 @@ struct ICypressNodeProxy
      *  \see #ICypressNode::GetResourceUsage
      */
     virtual NSecurityServer::TClusterResources GetResourceUsage() const = 0;
+
+    //! "Covariant" extension of NYTree::INode::CreateFactory.
+    virtual ICypressNodeFactoryPtr CreateCypressFactory() const = 0;
 
 };
 

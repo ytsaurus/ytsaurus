@@ -88,7 +88,7 @@ struct INodeTypeHandler
     //! Constructs a deep copy of the node.
     virtual std::unique_ptr<TCypressNodeBase> Clone(
         TCypressNodeBase* sourceNode,
-        const TCloneContext& context) = 0;
+        ICypressNodeFactoryPtr factory) = 0;
 
 };
 

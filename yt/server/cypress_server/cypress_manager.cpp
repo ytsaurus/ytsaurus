@@ -187,13 +187,6 @@ std::unique_ptr<TCypressNodeBase> TCypressManager::TNodeMapTraits::Create(const 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCloneContext::TCloneContext()
-    : Account(nullptr)
-    , Transaction(nullptr)
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
 TCypressManager::TCypressManager(
     TCypressManagerConfigPtr config,
     TBootstrap* bootstrap)
@@ -323,69 +316,61 @@ NMetaState::TMutationPtr TCypressManager::CreateUpdateAccessStatisticsMutation(
 
 TCypressNodeBase* TCypressManager::CreateNode(
     INodeTypeHandlerPtr handler,
-    TTransaction* transaction,
-    TAccount* account,
-    IAttributeDictionary* attributes,
+    ICypressNodeFactoryPtr factory,
     TReqCreate* request,
     TRspCreate* response)
 {
     YCHECK(handler);
-    YCHECK(account);
+    YCHECK(factory);
 
-    auto securityManager = Bootstrap->GetSecurityManager();
-    auto objectManager = Bootstrap->GetObjectManager();
-
-    handler->SetDefaultAttributes(attributes);
-
+    auto* transaction = factory->GetTransaction();
     auto node = handler->Create(transaction, request, response);
     auto node_ = ~node;
 
-    RegisterNode(std::move(node), attributes);
+    RegisterNode(std::move(node));
 
-    // Set account (if not given in attributes).
-    if (!node_->GetAccount()) {
-        securityManager->SetAccount(node_, account);
-    }
+    // Set account.
+    auto securityManager = Bootstrap->GetSecurityManager();
+    auto* account = factory->GetAccount();
+    securityManager->SetAccount(node_, account);
 
     // Set owner.
     auto* user = securityManager->GetAuthenticatedUser();
-    node_->Acd().SetOwner(user);
-
-    // Register with the transaction.
-    if (transaction) {
-        auto transactionManager = Bootstrap->GetTransactionManager();
-        transactionManager->StageNode(transaction, node_);
-    }
+    auto* acd = securityManager->GetAcd(node_);
+    acd->SetOwner(user);
 
     if (response) {
         ToProto(response->mutable_node_id(), node_->GetId());
     }
 
-    return LockVersionedNode(node_, transaction, ELockMode::Exclusive);
+    return node_;
 }
 
 TCypressNodeBase* TCypressManager::CloneNode(
     TCypressNodeBase* sourceNode,
-    const TCloneContext& context)
+    ICypressNodeFactoryPtr factory)
 {
     YCHECK(sourceNode);
-
-    auto objectManager = Bootstrap->GetObjectManager();
+    YCHECK(factory);
 
     auto handler = GetHandler(sourceNode);
-    auto clonedNode = handler->Clone(sourceNode, context);
+    auto clonedNode = handler->Clone(sourceNode, factory);
 
     // Make a rawptr copy and transfer the ownership.
     auto clonedNode_ = ~clonedNode;
     RegisterNode(std::move(clonedNode));
 
-    // Register with the transaction.
-    if (context.Transaction) {
-        auto transactionManager = Bootstrap->GetTransactionManager();
-        transactionManager->StageNode(context.Transaction, clonedNode_);
-    }
+    // Set account.
+    auto securityManager = Bootstrap->GetSecurityManager();
+    auto* account = factory->GetAccount();
+    securityManager->SetAccount(clonedNode_, account);
 
-    return LockVersionedNode(clonedNode_, context.Transaction, ELockMode::Exclusive);
+    // Set owner.
+    auto* user = securityManager->GetAuthenticatedUser();
+    auto* acd = securityManager->GetAcd(clonedNode_);
+    acd->SetOwner(user);
+
+    return clonedNode_;
 }
 
 TCypressNodeBase* TCypressManager::GetRootNode() const
@@ -956,9 +941,7 @@ void TCypressManager::OnRecoveryComplete()
     }
 }
 
-void TCypressManager::RegisterNode(
-    std::unique_ptr<TCypressNodeBase> node,
-    IAttributeDictionary* attributes)
+void TCypressManager::RegisterNode(std::unique_ptr<TCypressNodeBase> node)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
     YCHECK(node->IsTrunk());
@@ -976,31 +959,7 @@ void TCypressManager::RegisterNode(
     node->SetModificationTime(mutationContext->GetTimestamp());
     node->SetRevision(mutationContext->GetVersion().ToRevision());
 
-    auto node_ = ~node;
     NodeMap.Insert(TVersionedNodeId(nodeId), node.release());
-
-    // TODO(babenko): setting attributes here, in RegisterNode
-    // is somewhat weird. Moving this logic to some other place, however,
-    // complicates the code since we need to worry about possible
-    // exceptions thrown from custom attribute validators.
-    if (attributes) {
-        auto proxy = GetVersionedNodeProxy(node_, nullptr);
-        try {
-            auto keys = attributes->List();
-            FOREACH (const auto& key, keys) {
-                auto value = attributes->GetYson(key);
-                // Try to set as a system attribute. If fails then set as a user attribute.
-                if (!proxy->SetSystemAttribute(key, value)) {
-                    proxy->MutableAttributes()->SetYson(key, value);
-                }
-            }
-        } catch (...) {
-            auto handler = GetHandler(node_);
-            handler->Destroy(node_);
-            NodeMap.Remove(TVersionedNodeId(nodeId));
-            throw;
-        }
-    }
 
     LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %s, Type: %s)",
         ~ToString(nodeId),

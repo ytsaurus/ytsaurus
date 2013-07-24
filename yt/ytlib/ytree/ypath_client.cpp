@@ -480,6 +480,8 @@ void ForceYPath(INodePtr root, const TYPath& path)
     tokenizer.Advance();
     nextSegment();
 
+    auto factory = root->CreateFactory();
+    
     while (tokenizer.Advance() != NYPath::ETokenType::EndOfStream) {
         INodePtr child;
         switch (currentNode->GetType()) {
@@ -488,7 +490,6 @@ void ForceYPath(INodePtr root, const TYPath& path)
                 const auto& key = currentLiteralValue;
                 child = currentMap->AsMap()->FindChild(key);
                 if (!child) {
-                    auto factory = currentMap->CreateFactory();
                     child = factory->CreateMap();
                     YCHECK(currentMap->AddChild(child, key));
                 }
@@ -511,6 +512,8 @@ void ForceYPath(INodePtr root, const TYPath& path)
         nextSegment();
         currentNode = child;
     }
+
+    factory->Commit();
 }
 
 TYPath GetNodeYPath(INodePtr node, INodePtr* root)

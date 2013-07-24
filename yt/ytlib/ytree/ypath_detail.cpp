@@ -863,7 +863,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNodeSetterBase::TNodeSetterBase(INodePtr node, ITreeBuilder* builder)
+TNodeSetterBase::TNodeSetterBase(INode* node, ITreeBuilder* builder)
     : Node(node)
     , TreeBuilder(builder)
     , NodeFactory(node->CreateFactory())
@@ -920,6 +920,11 @@ void TNodeSetterBase::OnMyBeginAttributes()
 void TNodeSetterBase::OnMyEndAttributes()
 {
     AttributesSetter.reset();
+}
+
+void TNodeSetterBase::Commit()
+{
+    NodeFactory->Commit();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

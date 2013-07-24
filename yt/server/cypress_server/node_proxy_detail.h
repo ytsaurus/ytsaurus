@@ -21,7 +21,7 @@ namespace NCypressServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNodeFactory
-    : public NYTree::INodeFactory
+    : public ICypressNodeFactory
 {
 public:
     TNodeFactory(
@@ -37,14 +37,26 @@ public:
     virtual NYTree::IListNodePtr CreateList() override;
     virtual NYTree::IEntityNodePtr CreateEntity() override;
 
+    virtual NTransactionServer::TTransaction* GetTransaction() override;
+    virtual NSecurityServer::TAccount* GetAccount() override;
+
+    virtual ICypressNodeProxyPtr CreateNode(
+        NObjectClient::EObjectType type,
+        NYTree::IAttributeDictionary* attributes = nullptr,
+        TReqCreate* request = nullptr,
+        TRspCreate* response = nullptr) override;
+
+    virtual TCypressNodeBase* CloneNode(
+        TCypressNodeBase* sourceNode) override;
+    
+    virtual void Commit() override;
+
 private:
     NCellMaster::TBootstrap* Bootstrap;
     NTransactionServer::TTransaction* Transaction;
     NSecurityServer::TAccount* Account;
 
     std::vector<TCypressNodeBase*> CreatedNodes;
-
-    ICypressNodeProxyPtr DoCreate(NObjectClient::EObjectType type);
 
 };
 
@@ -86,6 +98,7 @@ public:
         TCypressNodeBase* trunkNode);
 
     virtual NYTree::INodeFactoryPtr CreateFactory() const override;
+    virtual ICypressNodeFactoryPtr CreateCypressFactory() const override;
     virtual NYTree::INodeResolverPtr GetResolver() const override;
 
     virtual NTransactionServer::TTransaction* GetTransaction() const override;
@@ -189,7 +202,12 @@ protected:
     ICypressNodeProxyPtr ResolveSourcePath(const NYPath::TYPath& path);
 
     virtual bool CanHaveChildren() const;
-    virtual void SetChild(const NYPath::TYPath& path, NYTree::INodePtr value, bool recursive);
+    
+    virtual void SetChild(
+        NYTree::INodeFactoryPtr factory,
+        const NYPath::TYPath& path,
+        NYTree::INodePtr value,
+        bool recursive);
 
     DECLARE_RPC_SERVICE_METHOD(NCypressClient::NProto, Lock);
     DECLARE_RPC_SERVICE_METHOD(NCypressClient::NProto, Create);
@@ -365,7 +383,13 @@ private:
     typedef TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IMapNode, TMapNode> TBase;
 
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override;
-    virtual void SetChild(const NYPath::TYPath& path, NYTree::INodePtr value, bool recursive) override;
+    
+    virtual void SetChild(
+        NYTree::INodeFactoryPtr factory,
+        const NYPath::TYPath& path,
+        NYTree::INodePtr value,
+        bool recursive) override;
+    
     virtual IYPathService::TResolveResult ResolveRecursive(const NYPath::TYPath& path, NRpc::IServiceContextPtr context) override;
 
     void DoRemoveChild(TMapNode* impl, const Stroka& key, TCypressNodeBase* childImpl);
@@ -401,9 +425,11 @@ private:
     typedef TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IListNode, TListNode> TBase;
 
     virtual void SetChild(
+        NYTree::INodeFactoryPtr factory,
         const NYPath::TYPath& path,
         NYTree::INodePtr value,
         bool recursive);
+
     virtual IYPathService::TResolveResult ResolveRecursive(
         const NYPath::TYPath& path,
         NRpc::IServiceContextPtr context) override;

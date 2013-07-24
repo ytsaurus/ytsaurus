@@ -219,6 +219,11 @@ TNontemplateCypressNodeProxyBase::TNontemplateCypressNodeProxyBase(
 
 INodeFactoryPtr TNontemplateCypressNodeProxyBase::CreateFactory() const
 {
+    return CreateCypressFactory();
+}
+
+ICypressNodeFactoryPtr TNontemplateCypressNodeProxyBase::CreateCypressFactory() const
+{
     const auto* impl = GetThisImpl();
     auto* account = impl->GetAccount();
     return New<TNodeFactory>(Bootstrap, Transaction, account);
@@ -578,11 +583,12 @@ bool TNontemplateCypressNodeProxyBase::CanHaveChildren() const
     return false;
 }
 
-void TNontemplateCypressNodeProxyBase::SetChild(const TYPath& path, INodePtr value, bool recursive)
+void TNontemplateCypressNodeProxyBase::SetChild(
+    INodeFactoryPtr /*factory*/,
+    const TYPath& /*path*/,
+    INodePtr /*value*/,
+    bool /*recursive*/)
 {
-    UNUSED(path);
-    UNUSED(value);
-    UNUSED(recursive);
     YUNREACHABLE();
 }
 
@@ -642,12 +648,6 @@ DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
     auto cypressManager = Bootstrap->GetCypressManager();
     auto securityManager = Bootstrap->GetSecurityManager();
 
-    auto nodeHandler = cypressManager->FindHandler(type);
-    if (!nodeHandler) {
-        THROW_ERROR_EXCEPTION("Unknown object type %s",
-            ~FormatEnum(type).Quote());
-    }
-
     auto* schema = objectManager->GetSchema(type);
     securityManager->ValidatePermission(schema, EPermission::Create);
 
@@ -655,26 +655,23 @@ DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
     auto* account = node->GetAccount();
     ValidatePermission(account, EPermission::Use);
 
-    auto attributes =
-        request->has_node_attributes()
+    auto factory = CreateCypressFactory();
+
+    auto attributes = request->has_node_attributes()
         ? FromProto(request->node_attributes())
         : CreateEphemeralAttributes();
 
-    auto* newNode = cypressManager->CreateNode(
-        nodeHandler,
-        Transaction,
-        account,
+    auto newProxy = factory->CreateNode(
+        type,
         ~attributes,
         request,
         response);
 
-    auto newProxy = cypressManager->GetVersionedNodeProxy(
-        newNode->GetTrunkNode(),
-        Transaction);
+    SetChild(factory, path, newProxy, request->recursive());
 
-    SetChild(path, newProxy, request->recursive());
+    factory->Commit();
 
-    context->SetRequestInfo("NodeId: %s", ~ToString(newNode->GetId()));
+    context->SetRequestInfo("NodeId: %s", ~ToString(newProxy->GetId()));
 
     context->Reply();
 }
@@ -699,11 +696,10 @@ DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
     auto objectManager = Bootstrap->GetObjectManager();
     auto cypressManager = Bootstrap->GetCypressManager();
     auto securityManager = Bootstrap->GetSecurityManager();
+    auto transactionManager = Bootstrap->GetTransactionManager();
 
     auto* trunkSourceImpl = sourceProxy->GetTrunkNode();
     auto* sourceImpl = const_cast<TCypressNodeBase*>(GetImpl(trunkSourceImpl));
-
-    auto* trunkDestImpl = GetTrunkNode();
 
     ValidatePermission(
         trunkSourceImpl,
@@ -715,17 +711,19 @@ DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
     // TODO(babenko): also check descendant node types
     securityManager->ValidatePermission(schema, EPermission::Create);
 
-    TCloneContext cloneContext;
-    cloneContext.Account = trunkDestImpl->GetAccount();
-    cloneContext.Transaction = Transaction;
+    auto factory = CreateCypressFactory();
 
-    auto* clonedImpl = cypressManager->CloneNode(sourceImpl, cloneContext);
+    auto* clonedImpl = factory->CloneNode(sourceImpl);
     auto* clonedTrunkImpl = clonedImpl->GetTrunkNode();
     auto clonedProxy = GetProxy(clonedTrunkImpl);
 
-    SetChild(targetPath, clonedProxy, false);
+    SetChild(factory, targetPath, clonedProxy, false);
+
+    factory->Commit();
 
     ToProto(response->mutable_object_id(), clonedTrunkImpl->GetId());
+
+    context->SetRequestInfo("NodeId: %s", ~ToString(clonedTrunkImpl->GetId()));
 
     context->Reply();
 }
@@ -805,55 +803,113 @@ TNodeFactory::~TNodeFactory()
     }
 }
 
-ICypressNodeProxyPtr TNodeFactory::DoCreate(EObjectType type)
-{
-    auto objectManager = Bootstrap->GetObjectManager();
-    auto cypressManager = Bootstrap->GetCypressManager();
-    auto handler = cypressManager->GetHandler(type);
-
-    auto* node = cypressManager->CreateNode(
-        handler,
-        Transaction,
-        Account,
-        nullptr,
-        nullptr,
-        nullptr);
-    auto* trunkNode = node->GetTrunkNode();
-
-    objectManager->RefObject(trunkNode);
-    CreatedNodes.push_back(trunkNode);
-
-    return cypressManager->GetVersionedNodeProxy(trunkNode, Transaction);
-}
-
 IStringNodePtr TNodeFactory::CreateString()
 {
-    return DoCreate(EObjectType::StringNode)->AsString();
+    return CreateNode(EObjectType::StringNode)->AsString();
 }
 
 IIntegerNodePtr TNodeFactory::CreateInteger()
 {
-    return DoCreate(EObjectType::IntegerNode)->AsInteger();
+    return CreateNode(EObjectType::IntegerNode)->AsInteger();
 }
 
 IDoubleNodePtr TNodeFactory::CreateDouble()
 {
-    return DoCreate(EObjectType::DoubleNode)->AsDouble();
+    return CreateNode(EObjectType::DoubleNode)->AsDouble();
 }
 
 IMapNodePtr TNodeFactory::CreateMap()
 {
-    return DoCreate(EObjectType::MapNode)->AsMap();
+    return CreateNode(EObjectType::MapNode)->AsMap();
 }
 
 IListNodePtr TNodeFactory::CreateList()
 {
-    return DoCreate(EObjectType::ListNode)->AsList();
+    return CreateNode(EObjectType::ListNode)->AsList();
 }
 
 IEntityNodePtr TNodeFactory::CreateEntity()
 {
     THROW_ERROR_EXCEPTION("Entity nodes cannot be created inside Cypress");
+}
+
+TTransaction* TNodeFactory::GetTransaction()
+{
+    return Transaction;
+}
+
+TAccount* TNodeFactory::GetAccount()
+{
+    return Account;
+}
+
+ICypressNodeProxyPtr TNodeFactory::CreateNode(
+    EObjectType type,
+    IAttributeDictionary* attributes,
+    TReqCreate* request,
+    TRspCreate* response)
+{
+    auto objectManager = Bootstrap->GetObjectManager();
+    auto cypressManager = Bootstrap->GetCypressManager();
+
+    auto handler = cypressManager->FindHandler(type);
+    if (!handler) {
+        THROW_ERROR_EXCEPTION("Unknown object type %s",
+            ~FormatEnum(type).Quote());
+    }
+
+    auto* node = cypressManager->CreateNode(
+        handler,
+        this,
+        request,
+        response);
+    auto* trunkNode = node->GetTrunkNode();
+
+    objectManager->RefObject(trunkNode);
+    CreatedNodes.push_back(trunkNode);
+
+    if (attributes) {
+        handler->SetDefaultAttributes(attributes);
+        auto trunkProxy = cypressManager->GetVersionedNodeProxy(trunkNode, nullptr);
+        auto keys = attributes->List();
+        FOREACH (const auto& key, keys) {
+            auto value = attributes->GetYson(key);
+            // Try to set as a system attribute. If fails then set as a user attribute.
+            if (!trunkProxy->SetSystemAttribute(key, value)) {
+                trunkProxy->MutableAttributes()->SetYson(key, value);
+            }
+        }        
+    }
+
+    cypressManager->LockVersionedNode(trunkNode, Transaction, ELockMode::Exclusive);
+    
+    return cypressManager->GetVersionedNodeProxy(trunkNode, Transaction);
+}
+
+TCypressNodeBase* TNodeFactory::CloneNode(
+    TCypressNodeBase* sourceNode)
+{
+    auto objectManager = Bootstrap->GetObjectManager();
+    auto cypressManager = Bootstrap->GetCypressManager();
+
+    auto* clonedNode = cypressManager->CloneNode(sourceNode, this);
+
+    objectManager->RefObject(clonedNode);
+    CreatedNodes.push_back(clonedNode);
+
+    cypressManager->LockVersionedNode(clonedNode, Transaction, ELockMode::Exclusive);
+
+    return clonedNode;
+}
+
+void TNodeFactory::Commit()
+{
+    if (Transaction) {
+        auto transactionManager = Bootstrap->GetTransactionManager();
+        FOREACH (auto* node, CreatedNodes) {
+            transactionManager->StageNode(Transaction, node);
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1060,9 +1116,13 @@ bool TMapNodeProxy::DoInvoke(NRpc::IServiceContextPtr context)
     return TBase::DoInvoke(context);
 }
 
-void TMapNodeProxy::SetChild(const TYPath& path, INodePtr value, bool recursive)
+void TMapNodeProxy::SetChild(
+    INodeFactoryPtr factory,
+    const TYPath& path,
+    INodePtr value,
+    bool recursive)
 {
-    TMapNodeMixin::SetChild(path, value, recursive);
+    TMapNodeMixin::SetChild(factory, path, value, recursive);
 }
 
 IYPathService::TResolveResult TMapNodeProxy::ResolveRecursive(
@@ -1258,9 +1318,13 @@ int TListNodeProxy::GetChildIndex(IConstNodePtr child)
     return it->second;
 }
 
-void TListNodeProxy::SetChild(const TYPath& path, INodePtr value, bool recursive)
+void TListNodeProxy::SetChild(
+    INodeFactoryPtr factory,
+    const TYPath& path,
+    INodePtr value,
+    bool recursive)
 {
-    TListNodeMixin::SetChild(path, value, recursive);
+    TListNodeMixin::SetChild(factory, path, value, recursive);
 }
 
 IYPathService::TResolveResult TListNodeProxy::ResolveRecursive(

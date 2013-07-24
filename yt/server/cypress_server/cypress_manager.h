@@ -34,16 +34,6 @@ namespace NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCloneContext
-{
-    TCloneContext();
-
-    NSecurityServer::TAccount* Account;
-    NTransactionServer::TTransaction* Transaction;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TCypressManager
     : public NMetaState::TMetaStatePart
 {
@@ -65,33 +55,17 @@ public:
     typedef NRpc::TTypedServiceRequest<NCypressClient::NProto::TReqCreate> TReqCreate;
     typedef NRpc::TTypedServiceResponse<NCypressClient::NProto::TRspCreate> TRspCreate;
 
-    //! Creates a new node.
-    /*!
-     *  The call does the following:
-     *  - Creates a new node.
-     *  - Sets its attributes.
-     *  - Registers the new node.
-     *  - Locks it with exclusive mode.
-     */
+    //! Creates a new node and registers it.
     TCypressNodeBase* CreateNode(
         INodeTypeHandlerPtr handler,
-        NTransactionServer::TTransaction* transaction,
-        NSecurityServer::TAccount* account,
-        NYTree::IAttributeDictionary* attributes,
+        ICypressNodeFactoryPtr factory,
         TReqCreate* request,
         TRspCreate* response);
 
-    //! Clones a node.
-    /*!
-     *  The call does the following:
-     *  - Creates a clone of #sourceNode.
-     *  - Registers the cloned node.
-     *  - Sets accounts for the whole subtree to |context.Account|.
-     *  - Locks the cloned node with exclusive mode for |context.Transaction|.
-     */
+    //! Clones a node and registers its clone.
     TCypressNodeBase* CloneNode(
         TCypressNodeBase* sourceNode,
-        const TCloneContext& context);
+        ICypressNodeFactoryPtr factory);
 
     //! Returns the root node.
     TCypressNodeBase* GetRootNode() const;
@@ -165,11 +139,9 @@ private:
     TCypressNodeBase* RootNode;
 
     TAccessTrackerPtr AccessTracker;
-
-
-    void RegisterNode(
-        std::unique_ptr<TCypressNodeBase> node,
-        NYTree::IAttributeDictionary* attributes = nullptr);
+    
+    
+    void RegisterNode(std::unique_ptr<TCypressNodeBase> node);
 
     void DestroyNode(TCypressNodeBase* trunkNode);
 
