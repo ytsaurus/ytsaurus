@@ -19,20 +19,29 @@ def md5sum(filename):
             h.update(buf)
     return h.hexdigest()
 
-def download_file(path, response_type=None):
+def download_file(path, response_type=None, file_reader=None, offset=None, length=None):
     """
     Downloads file from path.
     Response type means the output format. By default it is line generator.
     """
     if response_type is None: response_type = "iter_lines"
+    
+    params = {"path": prepare_path(path)}
+    if file_reader is not None:
+        params["file_reader"] = file_reader
+    if offset is not None:
+        params["offset"] = offset
+    if length is not None:
+        params["length"] = length
+
     response = _make_transactional_request(
         "download",
-        {"path": prepare_path(path)},
+        params,
         proxy=get_host_for_heavy_operation(),
         return_raw_response=True)
     return read_content(response, response_type)
 
-def upload_file(stream, destination, file_writer):
+def upload_file(stream, destination, file_writer=None):
     """
     Simply uploads data from stream to destination and
     set file_name attribute if yt_filename is specified
@@ -45,11 +54,15 @@ def upload_file(stream, destination, file_writer):
         if config.API_VERSION == 2 and not exists(path):
             create("file", path, ignore_existing=True)
 
+    params = {}
+    if file_writer is not None:
+        params["file_writer"] = file_writer
+
     make_heavy_request(
         "upload",
         stream,
         destination,
-        {"file_writer": file_writer},
+        params,
         prepare_file,
         config.USE_RETRIES_DURING_UPLOAD)
 

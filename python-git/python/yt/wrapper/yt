@@ -121,7 +121,7 @@ def find(args):
                     path_filter=path_filter,
                     attributes=attributes,
                     object_filter=object_filter,
-                    depth_bound=int(args.depth))
+                    depth_bound=args.depth)
 
     for table in res:
         print table
@@ -133,7 +133,7 @@ def add_find_parser(add_parser):
     parser.add_argument("--type")
     parser.add_argument("--account")
     parser.add_argument("--owner")
-    parser.add_argument("--depth")
+    parser.add_argument("--depth", type=int)
     parser.set_defaults(func=find)
 
 
@@ -165,11 +165,14 @@ def add_read_parser(add_parser):
     parser.set_defaults(func=read)
 
 def download(args):
-    writelines_silently(yt.download_file(args.path, response_type="iter_content"))
+    writelines_silently(yt.download_file(args.path, response_type="iter_content", file_reader=args.file_reader, offset=args.offset, length=args.length))
 
 def add_download_parser(add_parser):
     parser = add_parser("download", help="download file")
     parser.add_argument("path")
+    parser.add_argument("--file-reader", action=ParseStructuredArgument)
+    parser.add_argument("--offset", type=int)
+    parser.add_argument("--length", type=int)
     parser.set_defaults(func=download)
 
 def upload(args):
