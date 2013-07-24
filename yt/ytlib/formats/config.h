@@ -9,6 +9,50 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TYsonFormatConfig
+    : public TYsonSerializable
+{
+public:
+    NYson::EYsonFormat Format;
+
+    TYsonFormatConfig()
+    {
+        RegisterParameter("format", Format)
+            .Default(NYson::EYsonFormat::Binary);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_ENUM(EJsonFormat,
+    (Text)
+    (Pretty)
+);
+
+DECLARE_ENUM(EJsonAttributesMode,
+    (Always)
+    (Never)
+    (OnDemand)
+);
+
+class TJsonFormatConfig
+    : public TYsonSerializable
+{
+public:
+    EJsonFormat Format;
+    EJsonAttributesMode AttributesMode;
+
+    TJsonFormatConfig()
+    {
+        RegisterParameter("format", Format)
+            .Default(EJsonFormat::Text);
+        RegisterParameter("attributes_mode", AttributesMode)
+            .Default(EJsonAttributesMode::OnDemand);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDsvFormatConfig
     : public TYsonSerializable
 {
@@ -46,35 +90,6 @@ public:
             .Default(false);
         RegisterParameter("escaping_symbol", EscapingSymbol)
             .Default('\\');
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-DECLARE_ENUM(EJsonFormat,
-    (Text)
-    (Pretty)
-);
-
-DECLARE_ENUM(EJsonAttributesMode,
-    (Always)
-    (Never)
-    (OnDemand)
-);
-
-class TJsonFormatConfig
-    : public TYsonSerializable
-{
-public:
-    EJsonFormat Format;
-    EJsonAttributesMode AttributesMode;
-
-    TJsonFormatConfig()
-    {
-        RegisterParameter("format", Format)
-            .Default(EJsonFormat::Text);
-        RegisterParameter("attributes_mode", AttributesMode)
-            .Default(EJsonAttributesMode::OnDemand);
     }
 };
 

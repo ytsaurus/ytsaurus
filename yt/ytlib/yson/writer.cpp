@@ -182,6 +182,10 @@ void TYsonWriter::EndCollection(ETokenType endToken)
         WriteIndent();
     }
     Stream->Write(TokenTypeToChar(endToken));
+    if (Format == EYsonFormat::Pretty && Depth == 0) {
+        Stream->Write('\n');
+    }
+
     BeforeFirstItem = false;
 }
 

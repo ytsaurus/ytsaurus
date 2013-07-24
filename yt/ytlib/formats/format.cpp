@@ -104,61 +104,13 @@ std::unique_ptr<IYsonConsumer> CreateConsumerForYson(
     const IAttributeDictionary& attributes,
     TOutputStream* output)
 {
-    class TNewlineAppendingConsumer
-        : public TForwardingYsonConsumer
-    {
-    public:
-        explicit TNewlineAppendingConsumer(
-            TOutputStream* output,
-            std::unique_ptr<IYsonConsumer> underlyingConsumer,
-            EYsonType ysonType)
-            : Output(output)
-            , UnderlyingConsumer(std::move(underlyingConsumer))
-        {
-            Forward(
-                ~UnderlyingConsumer,
-                BIND(&TNewlineAppendingConsumer::OnFinished, this),
-                ysonType);
-        }
+    auto config = New<TYsonFormatConfig>();
+    config->Load(ConvertToNode(&attributes)->AsMap());
 
-    private:
-        TOutputStream* Output;
-        std::unique_ptr<IYsonConsumer> UnderlyingConsumer;
-
-        void OnFinished()
-        {
-            Output->Write('\n');
-        }
-    };
-
-    try {
-        auto ysonFormat = attributes.Find<EYsonFormat>("format");
-        auto ysonType = DataTypeToYsonType(dataType);
-        auto enableRaw = attributes.Find<bool>("enable_raw");
-        if (!ysonFormat) {
-            ysonFormat = EYsonFormat::Binary;
-            enableRaw = true;
-        } else {
-            if (!enableRaw) {
-                // In case of textual format we would like to force textual output.
-                enableRaw = (*ysonFormat == EYsonFormat::Binary);
-            }
-        }
-
-        std::unique_ptr<IYsonConsumer> writer(new TYsonWriter(output, *ysonFormat, ysonType, *enableRaw));
-
-        if (*ysonFormat != EYsonFormat::Binary) {
-            writer = std::unique_ptr<IYsonConsumer>(new TNewlineAppendingConsumer(
-                output,
-                std::move(writer),
-                ysonType));
-        }
-
-        return writer;
-    } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error parsing YSON output format")
-            << ex;;
-    }
+    auto ysonType = GetYsonType(config->Format);
+    auto enableRaw = (config->Format == EYsonFormat::Binary);
+    
+    return std::unique_ptr<IYsonConsumer>(new TYsonWriter(output, config->Format, ysonType, enableRaw));
 }
 
 std::unique_ptr<IYsonConsumer> CreateConsumerForJson(
