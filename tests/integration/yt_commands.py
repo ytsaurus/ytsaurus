@@ -67,8 +67,11 @@ def run_command(name, *args, **kwargs):
     all_args = [name] + convert_to_yt_args(*args, **kwargs)
     debug_string =  'yt ' + ' '.join(quote(s) for s in all_args)
     print debug_string
+    sys.stdout.flush()
+    sys.stderr.flush()
 
     process = subprocess.Popen(['yt'] + all_args,
+        bufsize=1,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         stdin=subprocess.PIPE)
