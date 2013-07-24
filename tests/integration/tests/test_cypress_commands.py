@@ -290,6 +290,22 @@ class TestCypressCommands(YTEnvSetup):
         assert get('//tmp/a/@count') == 1
         assert get('//tmp/b/@count') == 1
 
+    def test_copy_account(self):
+        create_account('a1')
+        create_account('a2')
+
+        set('//tmp/a1', {})
+        set('//tmp/a1/@account', 'a1')
+        set('//tmp/a2', {})
+        set('//tmp/a2/@account', 'a2')
+
+        set('//tmp/a1/x', {'y' : 'z'})
+        copy('//tmp/a1/x', '//tmp/a2/x')
+
+        assert get('//tmp/a2/@account') == 'a2'
+        assert get('//tmp/a2/x/@account') == 'a2'
+        assert get('//tmp/a2/x/y/@account') == 'a2'
+
     def test_copy_unexisting_path(self):
         with pytest.raises(YTError): copy('//tmp/x', '//tmp/y')
 
