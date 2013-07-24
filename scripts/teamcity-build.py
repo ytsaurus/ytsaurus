@@ -50,7 +50,7 @@ def prepare(options):
     options.build_number = os.environ["BUILD_NUMBER"]
     options.build_vcs_number = os.environ["BUILD_VCS_NUMBER"]
 
-    options.branch = re.sub(r"^ref/heads/", "", options.branch)
+    options.branch = re.sub(r"^refs/heads/", "", options.branch)
 
     codename = run_captured(["lsb_release", "-c"])
     codename = re.sub(r"^Codename:\s*", "", codename)
@@ -61,17 +61,14 @@ def prepare(options):
     options.repository = "yandex-" + codename
 
     # Now determine the compiler.
-    cc = run_captured(["which", options.cc])
-    cxx = run_captured(["which", options.cxx])
+    options.cc = run_captured(["which", options.cc])
+    options.cxx = run_captured(["which", options.cxx])
 
-    if not cc:
+    if not options.cc:
         raise RuntimeError("Failed to locate C compiler")
 
-    if not cxx:
+    if not options.cxx:
         raise RuntimeError("Failed to locate CXX compiler")
-
-    options.cc = cc
-    options.cxx = cxx
 
     if os.path.exists(options.working_directory) and options.clean_working_directory:
         teamcity_message("Cleaning working directory...", status="WARNING")
@@ -98,7 +95,7 @@ def configure(options):
         "-DYT_BUILD_ENABLE_NODEJS:BOOL=ON",
         "-DYT_BUILD_BRANCH={0}".format(options.branch),
         "-DYT_BUILD_NUMBER={0}".format(options.build_number),
-        "-DYT_BUILD_TAG={0}".format(options.build_vcs_number[0:7]),
+        "-DYT_BUILD_VCS_NUMBER={0}".format(options.build_vcs_number[0:7]),
         options.checkout_directory],
         cwd=options.working_directory,
         env={"CC": options.cc, "CXX": options.cxx})
