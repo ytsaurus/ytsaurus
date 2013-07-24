@@ -166,13 +166,14 @@ def add_download_parser(add_parser):
     parser.set_defaults(func=download)
 
 def upload(args):
-    yt.upload_file(sys.stdin, args.path)
+    yt.upload_file(sys.stdin, args.path, file_writer=args.file_writer)
     if args.executable:
         yt.set(args.path + "/@executable", "true")
 
 def add_upload_parser(add_parser):
     parser = add_parser("upload", help="upload file")
     parser.add_argument("path")
+    parser.add_argument("--file-writer", action=ParseStructuredArgument)
     parser.add_argument("--executable", action="store_true", default=False)
     parser.set_defaults(func=upload)
 
