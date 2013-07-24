@@ -50,15 +50,6 @@ def prepare(options):
     options.build_number = os.environ["BUILD_NUMBER"]
     options.build_vcs_number = os.environ["BUILD_VCS_NUMBER"]
 
-    # Those are derived options.
-    branch = run_captured(
-        ["git", "rev-parse", "--symbolic-full-name", "--abbrev-ref", "HEAD"],
-        cwd=options.checkout_directory)
-    branch = re.sub(r"/0\.[0-9]+$", "", branch)
-
-    options.build_branch = branch if branch else "unknown"
-    options.build_tag = options.build_vcs_number[:7]
-
     codename = run_captured(["lsb_release", "-c"])
     codename = re.sub(r"^Codename:\s*", "", codename)
 
@@ -68,24 +59,11 @@ def prepare(options):
     options.repository = "yandex-" + codename
 
     # Now determine the compiler.
-    def try_to_find_compiler(version, cc, cxx):
-        if not cc:
-            candidate = run_captured(["which", "gcc-%s" % version])
-            if candidate:
-                cc = candidate
-        if not cxx:
-            candidate = run_captured(["which", "g++-%s" % version])
-            if candidate:
-                cxx = candidate
-        return cc, cxx
-
-    cc, cxx = None, None
-    cc, cxx = try_to_find_compiler("4.8", cc, cxx)
-    cc, cxx = try_to_find_compiler("4.7", cc, cxx)
-    cc, cxx = try_to_find_compiler("4.6", cc, cxx)
+    cc = run_captured(["which", options.cc])
+    cxx = run_captured(["which", options.cxx])
 
     if not cc:
-        raise RuntimeError("Failed to locate CC compiler")
+        raise RuntimeError("Failed to locate C compiler")
 
     if not cxx:
         raise RuntimeError("Failed to locate CXX compiler")
@@ -93,7 +71,14 @@ def prepare(options):
     options.cc = cc
     options.cxx = cxx
 
+    if os.path.exists(options.working_directory) and options.clean_working_directory:
+        teamcity_message("Cleaning working directory...", status="WARNING")
+        shutil.rmtree(options.working_directory)
     mkdirp(options.working_directory)
+
+    if os.path.exists(options.sandbox_directory) and options.clean_sandbox_directory:
+        teamcity_message("Cleaning sandbox directory...", status="WARNING")
+        shutil.rmtree(options.sandbox_directory)
     mkdirp(options.sandbox_directory)
 
     teamcity_message(pprint.pformat(options.__dict__))
@@ -109,7 +94,7 @@ def configure(options):
         "-DYT_BUILD_ENABLE_EXPERIMENTS:BOOL=ON",
         "-DYT_BUILD_ENABLE_TESTS:BOOL=ON",
         "-DYT_BUILD_ENABLE_NODEJS:BOOL=ON",
-        "-DYT_BUILD_BRANCH=%s" % options.build_branch,
+        "-DYT_BUILD_BRANCH=%s" % options.branch,
         "-DYT_BUILD_NUMBER=%s" % options.build_number,
         "-DYT_BUILD_TAG=%s" % options.build_vcs_number[0:7],
         options.checkout_directory],
@@ -123,7 +108,7 @@ def fast_build(options):
     try:
         run(["make", "-j%d" % cpus], cwd=options.working_directory, silent=True)
     except ChildHasNonZeroExitCode:
-        teamcity_message("Ignoring child failure to provide meaningful output later")
+        teamcity_message("(ignoring child failure to provide meaningful diagnostics in `slow_build`)")
 
 
 @yt_register_build_step
@@ -140,7 +125,7 @@ def set_suid_bit(options):
 
 @yt_register_build_step
 def package(options):
-    if options.package == "NO":
+    if not options.package:
         return
 
     with cwd(options.working_directory):
@@ -225,7 +210,7 @@ def run_python_tests(options, suite_name, suite_path):
                     "TESTS_SANDBOX": sandbox_current
                 })
         except ChildHasNonZeroExitCode:
-            teamcity_message("Ignoring child failure to provide meaningful test results")
+            teamcity_message("(ignoring child failure since we are reading test results from XML)")
             failed = True
 
         result = etree.parse(handle)
@@ -263,8 +248,8 @@ def clean_artifacts(options, n=10):
         "%s/ARTIFACTS" % options.working_directory,
         reverse=True,
         select=os.path.isfile,
-        start=0,
-        stop=n):
+        start=n,
+        stop=sys.maxint):
             teamcity_message("Removing {0}...".format(path), status="WARNING")
             shutil.rmtree(path)
 
@@ -275,8 +260,8 @@ def clean_failed_tests(options, n=5):
         os.path.expanduser("~/failed_tests/"),
         reverse=True,
         select=os.path.isdir,
-        start=0,
-        stop=n):
+        start=n,
+        stop=sys.maxint):
             teamcity_message("Removing {0}...".format(path), status="WARNING")
             shutil.rmtree(path)
 
@@ -554,25 +539,49 @@ def run(args, cwd=None, env=None, silent=False):
 # This is an entry-point. Just boiler-plate.
 
 def main():
+    def parse_bool(s):
+        if s == "YES":
+            return True
+        if s == "NO":
+            return False
+        raise argparse.ArgumentTypeError("Expected YES or NO")
     parser = argparse.ArgumentParser(description="YT Build Script")
-    parser.add_argument(
-        "--btid",
-        type=str, action="store", required=True)
+
+    parser.add_argument("--btid", type=str, action="store", required=True)
+    parser.add_argument("--branch", type=str, action="store", required=True)
+
     parser.add_argument(
         "--checkout_directory", metavar="DIR",
         type=str, action="store", required=True)
+
     parser.add_argument(
         "--working_directory", metavar="DIR",
         type=str, action="store", required=True)
     parser.add_argument(
+        "--clean_working_directory",
+        type=parse_bool, action="store", default=False)
+
+    parser.add_argument(
         "--sandbox_directory", metavar="DIR",
         type=str, action="store", required=True)
     parser.add_argument(
+        "--clean_sandbox_directory",
+        type=parse_bool, action="store", default=False)
+
+    parser.add_argument(
         "--type",
         type=str, action="store", required=True, choices=("Debug", "Release", "RelWithDebInfo"))
+
     parser.add_argument(
         "--package",
-        type=str, action="store", required=False, choices=("YES", "NO"), default="NO")
+        type=parse_bool, action="store", default=False)
+
+    parser.add_argument(
+        "--cc",
+        type=str, action="store", required=False, default="gcc-4.7")
+    parser.add_argument(
+        "--cxx",
+        type=str, action="store", required=False, default="g++-4.7")
 
     options = parser.parse_args()
     status = 0
