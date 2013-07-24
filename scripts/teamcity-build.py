@@ -50,6 +50,8 @@ def prepare(options):
     options.build_number = os.environ["BUILD_NUMBER"]
     options.build_vcs_number = os.environ["BUILD_VCS_NUMBER"]
 
+    options.branch = re.sub(r"^ref/heads/", "", options.branch)
+
     codename = run_captured(["lsb_release", "-c"])
     codename = re.sub(r"^Codename:\s*", "", codename)
 
@@ -89,14 +91,14 @@ def configure(options):
     run([
         "cmake",
         "-DCMAKE_INSTALL_PREFIX=/usr",
-        "-DCMAKE_BUILD_TYPE=%s" % options.type,
+        "-DCMAKE_BUILD_TYPE={0}".format(options.type),
         "-DCMAKE_COLOR_MAKEFILE:BOOL=OFF",
         "-DYT_BUILD_ENABLE_EXPERIMENTS:BOOL=ON",
         "-DYT_BUILD_ENABLE_TESTS:BOOL=ON",
         "-DYT_BUILD_ENABLE_NODEJS:BOOL=ON",
-        "-DYT_BUILD_BRANCH=%s" % options.branch,
-        "-DYT_BUILD_NUMBER=%s" % options.build_number,
-        "-DYT_BUILD_TAG=%s" % options.build_vcs_number[0:7],
+        "-DYT_BUILD_BRANCH={0}".format(options.branch),
+        "-DYT_BUILD_NUMBER={0}".format(options.build_number),
+        "-DYT_BUILD_TAG={0}".format(options.build_vcs_number[0:7]),
         options.checkout_directory],
         cwd=options.working_directory,
         env={"CC": options.cc, "CXX": options.cxx})
@@ -106,7 +108,7 @@ def configure(options):
 def fast_build(options):
     cpus = int(os.sysconf("SC_NPROCESSORS_ONLN"))
     try:
-        run(["make", "-j%d" % cpus], cwd=options.working_directory, silent=True)
+        run(["make", "-j", str(cpus)], cwd=options.working_directory, silent_stdout=True)
     except ChildHasNonZeroExitCode:
         teamcity_message("(ignoring child failure to provide meaningful diagnostics in `slow_build`)")
 
@@ -118,7 +120,7 @@ def slow_build(options):
 
 @yt_register_build_step
 def set_suid_bit(options):
-    path = "%s/bin/ytserver" % options.working_directory
+    path = "{0}/bin/ytserver".format(options.working_directory)
     run(["sudo", "chown", "root", path])
     run(["sudo", "chmod", "4755", path])
 
@@ -153,7 +155,7 @@ def run_prepare(options):
         run(["make", "-C", "./python/yt/wrapper"])
         run(["make", "-C", "./python", "version"])
 
-    with cwd("%s/yt/nodejs" % options.working_directory):
+    with cwd(options.working_directory, "yt/nodejs"):
         if os.path.exists("node_modules"):
             shutil.rmtree("node_modules")
         run(["npm", "install"])
@@ -165,11 +167,11 @@ def run_unit_tests(options):
         "gdb",
         "--batch",
         "--return-child-result",
-        "--command=%s/scripts/teamcity-gdb-script" % options.checkout_directory,
+        "--command={0}/scripts/teamcity-gdb-script".format(options.checkout_directory),
         "--args",
         "./bin/unittester",
         "--gtest_color=no",
-        "--gtest_output=xml:%s/gtest_unittester.xml" % options.working_directory],
+        "--gtest_output=xml:gtest_unittester.xml"],
         cwd=options.working_directory)
 
 
@@ -177,15 +179,15 @@ def run_unit_tests(options):
 def run_javascript_tests(options):
     run(
         ["./run_tests.sh", "-R", "xunit"],
-        cwd="%s/yt/nodejs" % options.working_directory,
-        env={"MOCHA_OUTPUT_FILE": "%s/junit_nodejs_run_tests.xml" % options.working_directory})
+        cwd="{0}/yt/nodejs".format(options.working_directory),
+        env={"MOCHA_OUTPUT_FILE": "{0}/junit_nodejs_run_tests.xml".format(options.working_directory)})
 
 
 def run_python_tests(options, suite_name, suite_path):
-    sandbox_current = os.path.join(options.sandbox_directory, suite_name)
-    sandbox_archive = os.path.join(
+    sandbox_current = "{0}/{1}".format(options.sandbox_directory, suite_name)
+    sandbox_archive = "{0}/{1}".format(
         os.path.expanduser("~/failed_tests/"),
-        "_".join([options.btid, options.build_number, suite_name]))
+        "__".join([options.btid, options.build_number, suite_name]))
 
     mkdirp(sandbox_current)
 
@@ -202,7 +204,7 @@ def run_python_tests(options, suite_name, suite_path):
                 "--capture=no",
                 "--tb=native",
                 "--timeout=300",
-                "--junitxml=%s" % handle.name],
+                "--junitxml={0}".format(handle.name)],
                 cwd=suite_path,
                 env={
                     "PATH": "{0}/bin:{0}/yt/nodejs:{1}".format(options.working_directory, os.environ.get("PATH", "")),
@@ -224,28 +226,35 @@ def run_python_tests(options, suite_name, suite_path):
                 .replace("&lt;", "<") \
                 .replace("&gt;", ">")
 
-    with open("%s/junit_python_%s.xml" % (options.working_directory, suite_name), "w+b") as handle:
+    with open("{0}/junit_python_{1}.xml".format(options.working_directory, suite_name), "w+b") as handle:
         result.write(handle, encoding="utf-8")
 
-    if failed:
-        shutil.copytree(sandbox_current, sandbox_archive)
-        raise RuntimeError("Propagating test failure")
+    try:
+        if failed:
+            teamcity_message("Copying failed tests from '{0}' to {1}'...".format(
+                sandbox_current,
+                sandbox_archive),
+                status="WARNING")
+            shutil.copytree(sandbox_current, sandbox_archive)
+            raise RuntimeError("Tests '{0}' failed".format(suite_name))
+    finally:
+        shutil.rmtree(sandbox_current)
 
 
 @yt_register_build_step
 def run_integration_tests(options):
-    run_python_tests(options, "integration", "%s/tests/integration" % options.checkout_directory)
+    run_python_tests(options, "integration", "{0}/tests/integration".format(options.checkout_directory))
 
 
 @yt_register_build_step
 def run_python_libraries_tests(options):
-    run_python_tests(options, "python_libraries", "%s/python" % options.checkout_directory)
+    run_python_tests(options, "python_libraries", "{0}/python".format(options.checkout_directory))
 
 
 @yt_register_cleanup_step
 def clean_artifacts(options, n=10):
     for path in ls(
-        "%s/ARTIFACTS" % options.working_directory,
+        "{0}/ARTIFACTS".format(options.working_directory),
         reverse=True,
         select=os.path.isfile,
         start=n,
@@ -344,9 +353,10 @@ def teamcity_step(name, funcname):
 
 
 @contextlib.contextmanager
-def cwd(new_path):
+def cwd(*args):
     try:
         old_path = os.getcwd()
+        new_path = os.path.join(*args)
         teamcity_message("Changing current directory to {0}".format(new_path))
         os.chdir(new_path)
         yield
@@ -408,7 +418,7 @@ def run_preexec():
     resource.setrlimit(resource.RLIMIT_CORE, (resource.RLIM_INFINITY, resource.RLIM_INFINITY))
 
 
-def run(args, cwd=None, env=None, silent=False):
+def run(args, cwd=None, env=None, silent_stdout=False, silent_stderr=False):
     POLL_TIMEOUT = 1.0
     POLL_ITERATIONS = 5
     READ_SIZE = 4096
@@ -443,6 +453,12 @@ def run(args, cwd=None, env=None, silent=False):
         poller = select.poll()
         poller.register(child.stdout, evmask_read | evmask_error)
         poller.register(child.stderr, evmask_read | evmask_error)
+
+        # Determines whether to silent any stream.
+        silent_for = {
+            child.stdout.fileno(): silent_stdout,
+            child.stderr.fileno(): silent_stderr
+        }
 
         # Holds the data from incomplete read()s.
         data_for = {
