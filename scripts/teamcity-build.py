@@ -500,7 +500,7 @@ def run(args, cwd=None, env=None, silent_stdout=False, silent_stderr=False):
                 j = data.find("\n", i)
                 if j < 0:
                     break
-                if not silent:
+                if not silent_for[fd]:
                     teamcity_message(data[i:j], status_for[fd])
                 i = j + 1
             data_for[fd] = data[i:]
