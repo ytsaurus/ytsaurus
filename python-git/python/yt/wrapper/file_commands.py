@@ -32,7 +32,7 @@ def download_file(path, response_type=None):
         return_raw_response=True)
     return read_content(response, response_type)
 
-def upload_file(stream, destination):
+def upload_file(stream, destination, file_writer):
     """
     Simply uploads data from stream to destination and
     set file_name attribute if yt_filename is specified
@@ -49,7 +49,7 @@ def upload_file(stream, destination):
         "upload",
         stream,
         destination,
-        {},
+        {"file_writer": file_writer},
         prepare_file,
         config.USE_RETRIES_DURING_UPLOAD)
 
