@@ -233,7 +233,7 @@ TEST_F(TYsonWriterTest, NoNewLinesInEmptyMap)
     writer.OnBeginMap();
     writer.OnEndMap();
 
-    EXPECT_EQ(outputStream.Str(), "{}");
+    EXPECT_EQ(outputStream.Str(), "{}\n");
 }
 
 TEST_F(TYsonWriterTest, NoNewLinesInEmptyList)
@@ -243,7 +243,7 @@ TEST_F(TYsonWriterTest, NoNewLinesInEmptyList)
     writer.OnBeginList();
     writer.OnEndList();
 
-    EXPECT_EQ(outputStream.Str(), "[]");
+    EXPECT_EQ(outputStream.Str(), "[]\n");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -182,7 +182,7 @@ void TYsonWriter::EndCollection(ETokenType endToken)
         WriteIndent();
     }
     Stream->Write(TokenTypeToChar(endToken));
-    if (Format == EYsonFormat::Pretty && Depth == 0) {
+    if (Format == EYsonFormat::Pretty && Depth == 0 && !IsTopLevelFragmentContext()) {
         Stream->Write('\n');
     }
 
