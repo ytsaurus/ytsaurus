@@ -109,6 +109,9 @@ public:
     //! Finds object by id, fails if nothing is found.
     TObjectBase* GetObject(const TObjectId& id);
 
+    //! Finds object by id, throws if nothing is found.
+    TObjectBase* GetObjectOrThrow(const TObjectId& id);
+
     //! Returns a proxy for the object with the given versioned id.
     IObjectProxyPtr GetProxy(
         TObjectBase* object,
@@ -192,11 +195,6 @@ public:
         NYTree::IAttributeDictionary* attributes,
         IObjectTypeHandler::TReqCreateObject* request,
         IObjectTypeHandler::TRspCreateObject* response);
-
-    void UnstageObject(
-        NTransactionServer::TTransaction* transaction,
-        TObjectBase* object,
-        bool recursive);
 
     IObjectResolver* GetObjectResolver();
 

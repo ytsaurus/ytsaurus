@@ -441,7 +441,7 @@ void SetNodeByYPath(INodePtr root, const TYPath& path, INodePtr value)
             if (child) {
                 currentMap->ReplaceChild(child, value);
             } else {
-                currentMap->AddChild(value, key);
+                YCHECK(currentMap->AddChild(value, key));
             }
             break;
         }
@@ -480,6 +480,8 @@ void ForceYPath(INodePtr root, const TYPath& path)
     tokenizer.Advance();
     nextSegment();
 
+    auto factory = root->CreateFactory();
+    
     while (tokenizer.Advance() != NYPath::ETokenType::EndOfStream) {
         INodePtr child;
         switch (currentNode->GetType()) {
@@ -488,7 +490,6 @@ void ForceYPath(INodePtr root, const TYPath& path)
                 const auto& key = currentLiteralValue;
                 child = currentMap->AsMap()->FindChild(key);
                 if (!child) {
-                    auto factory = currentMap->CreateFactory();
                     child = factory->CreateMap();
                     YCHECK(currentMap->AddChild(child, key));
                 }
@@ -511,6 +512,8 @@ void ForceYPath(INodePtr root, const TYPath& path)
         nextSegment();
         currentNode = child;
     }
+
+    factory->Commit();
 }
 
 TYPath GetNodeYPath(INodePtr node, INodePtr* root)
@@ -566,9 +569,9 @@ INodePtr UpdateNode(INodePtr base, INodePtr patch)
         FOREACH (const auto& key, patchMap->GetKeys()) {
             if (baseMap->FindChild(key)) {
                 resultMap->RemoveChild(key);
-                resultMap->AddChild(UpdateNode(baseMap->GetChild(key), patchMap->GetChild(key)), key);
+                YCHECK(resultMap->AddChild(UpdateNode(baseMap->GetChild(key), patchMap->GetChild(key)), key));
             } else {
-                resultMap->AddChild(CloneNode(patchMap->GetChild(key)), key);
+                YCHECK(resultMap->AddChild(CloneNode(patchMap->GetChild(key)), key));
             }
         }
         result->MutableAttributes()->MergeFrom(patch->Attributes());

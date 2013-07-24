@@ -3,22 +3,22 @@ set(YT_VERSION_MAJOR 0)
 set(YT_VERSION_MINOR 15)
 set(YT_VERSION_PATCH 1)
 
-if (NOT YT_BUILD_NUMBER)
-  set(YT_BUILD_NUMBER 0)
-endif()
-
 if (NOT YT_BUILD_BRANCH)
   set(YT_BUILD_BRANCH "unknown")
 endif()
 
-if (NOT YT_BUILD_TAG)
-  set(YT_BUILD_TAG "local")
+if (NOT YT_BUILD_NUMBER)
+  set(YT_BUILD_NUMBER 0)
+endif()
+
+if (NOT YT_BUILD_VCS_NUMBER)
+  set(YT_BUILD_VCS_NUMBER "local")
 endif()
 
 set(YT_VERSION "${YT_VERSION_MAJOR}.${YT_VERSION_MINOR}.${YT_VERSION_PATCH}")
 set(YT_VERSION "${YT_VERSION}-${YT_BUILD_BRANCH}")
 set(YT_VERSION "${YT_VERSION}~${YT_BUILD_NUMBER}")
-set(YT_VERSION "${YT_VERSION}+${YT_BUILD_TAG}")
+set(YT_VERSION "${YT_VERSION}+${YT_BUILD_VCS_NUMBER}")
 
 # Get the build name and hostname
 find_program(_HOSTNAME NAMES hostname)

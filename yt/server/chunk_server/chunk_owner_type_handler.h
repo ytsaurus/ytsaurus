@@ -228,9 +228,9 @@ protected:
     virtual void DoClone(
         TChunkOwner* sourceNode,
         TChunkOwner* clonedNode,
-        const NCypressServer::TCloneContext& context) override
+        NCypressServer::ICypressNodeFactoryPtr factory) override
     {
-        TBase::DoClone(sourceNode, clonedNode, context);
+        TBase::DoClone(sourceNode, clonedNode, factory);
 
         auto objectManager = TBase::Bootstrap->GetObjectManager();
 

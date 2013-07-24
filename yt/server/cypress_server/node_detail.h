@@ -54,12 +54,12 @@ protected:
 
     std::unique_ptr<TCypressNodeBase> CloneCorePrologue(
         TCypressNodeBase* sourceNode,
-        const TCloneContext& context);
+        ICypressNodeFactoryPtr factory);
 
     void CloneCoreEpilogue(
         TCypressNodeBase* sourceNode,
         TCypressNodeBase* clonedNode,
-        const TCloneContext& context);
+        ICypressNodeFactoryPtr factory);
 
 };
 
@@ -161,19 +161,19 @@ public:
 
     virtual std::unique_ptr<TCypressNodeBase> Clone(
         TCypressNodeBase* sourceNode,
-        const TCloneContext& context) override
+        ICypressNodeFactoryPtr factory) override
     {
         // Run core prologue stuff.
-        auto clonedNode = CloneCorePrologue(sourceNode, context);
+        auto clonedNode = CloneCorePrologue(sourceNode, factory);
 
         // Run custom stuff.
         DoClone(
             dynamic_cast<TImpl*>(sourceNode),
             dynamic_cast<TImpl*>(~clonedNode),
-            context);
+            factory);
 
         // Run core epilogue stuff.
-        CloneCoreEpilogue(sourceNode, ~clonedNode, context);
+        CloneCoreEpilogue(sourceNode, ~clonedNode, factory);
 
         return clonedNode;
     }
@@ -219,14 +219,10 @@ protected:
     }
 
     virtual void DoClone(
-        TImpl* sourceNode,
-        TImpl* clonedNode,
-        const TCloneContext& context)
-    {
-        UNUSED(sourceNode);
-        UNUSED(clonedNode);
-        UNUSED(context);
-    }
+        TImpl* /*sourceNode*/,
+        TImpl* /*clonedNode*/,
+        ICypressNodeFactoryPtr /*factory*/)
+    { }
 
 };
 
@@ -345,9 +341,9 @@ protected:
     virtual void DoClone(
         TScalarNode<TValue>* sourceNode,
         TScalarNode<TValue>* clonedNode,
-        const TCloneContext& context) override
+        ICypressNodeFactoryPtr factory) override
     {
-        TBase::DoClone(sourceNode, clonedNode, context);
+        TBase::DoClone(sourceNode, clonedNode, factory);
 
         clonedNode->Value() = sourceNode->Value();
     }
@@ -409,7 +405,7 @@ private:
     virtual void DoClone(
         TMapNode* sourceNode,
         TMapNode* clonedNode,
-        const TCloneContext& context) override;
+        ICypressNodeFactoryPtr factory) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -462,7 +458,7 @@ private:
     virtual void DoClone(
         TListNode* sourceNode,
         TListNode* clonedNode,
-        const TCloneContext& context) override;
+        ICypressNodeFactoryPtr factory) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -509,7 +505,7 @@ private:
     virtual void DoClone(
         TLinkNode* sourceNode,
         TLinkNode* clonedNode,
-        const TCloneContext& context) override;
+        ICypressNodeFactoryPtr factory) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -556,7 +552,8 @@ private:
     virtual void DoClone(
         TDocumentNode* sourceNode,
         TDocumentNode* clonedNode,
-        const TCloneContext& context) override;
+        ICypressNodeFactoryPtr factory) override;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

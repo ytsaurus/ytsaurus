@@ -120,10 +120,8 @@ void TNontemplateCypressNodeTypeHandlerBase::MergeCore(
 
 std::unique_ptr<TCypressNodeBase> TNontemplateCypressNodeTypeHandlerBase::CloneCorePrologue(
     TCypressNodeBase* sourceNode,
-    const TCloneContext& context)
+    ICypressNodeFactoryPtr /*factory*/)
 {
-    UNUSED(context);
-
     auto objectManager = Bootstrap->GetObjectManager();
 
     auto type = GetObjectType();
@@ -138,30 +136,19 @@ std::unique_ptr<TCypressNodeBase> TNontemplateCypressNodeTypeHandlerBase::CloneC
 void TNontemplateCypressNodeTypeHandlerBase::CloneCoreEpilogue(
     TCypressNodeBase* sourceNode,
     TCypressNodeBase* clonedNode,
-    const TCloneContext& context)
+    ICypressNodeFactoryPtr factory)
 {
     UNUSED(sourceNode);
 
     // Copy attributes directly to suppress validation.
     auto objectManager = Bootstrap->GetObjectManager();
-    auto keyToAttribute = GetNodeAttributes(Bootstrap, sourceNode->GetTrunkNode(), context.Transaction);
+    auto keyToAttribute = GetNodeAttributes(Bootstrap, sourceNode->GetTrunkNode(), factory->GetTransaction());
     if (!keyToAttribute.empty()) {
         auto* clonedAttributes = objectManager->CreateAttributes(clonedNode->GetVersionedId());
         FOREACH (const auto& pair, keyToAttribute) {
             YCHECK(clonedAttributes->Attributes().insert(pair).second);
         }
     }
-
-    auto securityManager = Bootstrap->GetSecurityManager();
-
-    // Set account.
-    YCHECK(context.Account);
-    securityManager->SetAccount(clonedNode, context.Account);
-
-    // Set owner.
-    auto* user = securityManager->GetAuthenticatedUser();
-    auto* acd = securityManager->GetAcd(clonedNode);
-    acd->SetOwner(user);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -286,8 +273,7 @@ void TMapNodeTypeHandler::DoMerge(
             if (it == keyToChild.end()) {
                 // Originating: missing
                 if (isOriginatingNodeBranched) {
-                    // TODO(babenko): remove cast when GCC supports native nullptr
-                    YCHECK(keyToChild.insert(std::make_pair(key, (TCypressNodeBase*) nullptr)).second);
+                    YCHECK(keyToChild.insert(std::make_pair(key, nullptr)).second);
                 }
             } else if (it->second) {
                 // Originating: present
@@ -321,18 +307,25 @@ ICypressNodeProxyPtr TMapNodeTypeHandler::DoGetProxy(
 void TMapNodeTypeHandler::DoClone(
     TMapNode* sourceNode,
     TMapNode* clonedNode,
-    const TCloneContext& context)
+    ICypressNodeFactoryPtr factory)
 {
-    TBase::DoClone(sourceNode, clonedNode, context);
+    TBase::DoClone(sourceNode, clonedNode, factory);
 
-    auto keyToChildMap = GetMapNodeChildren(Bootstrap, sourceNode->GetTrunkNode(), context.Transaction);
-    std::vector< std::pair<Stroka, TCypressNodeBase*> > keyToChildList(keyToChildMap.begin(), keyToChildMap.end());
+    auto* transaction = factory->GetTransaction();
+
+    auto keyToChildMap = GetMapNodeChildren(
+        Bootstrap,
+        sourceNode->GetTrunkNode(),
+        transaction);
+    
+    typedef std::pair<Stroka, TCypressNodeBase*> TPair;
+    std::vector<TPair> keyToChildList(keyToChildMap.begin(), keyToChildMap.end());
 
     // Sort children by key to ensure deterministic ids generation.
     std::sort(
         keyToChildList.begin(),
         keyToChildList.end(),
-        [] (const std::pair<Stroka, TCypressNodeBase*>& lhs, const std::pair<Stroka, TCypressNodeBase*>& rhs) {
+        [] (const TPair& lhs, const TPair& rhs) {
             return lhs.first < rhs.first;
         });
 
@@ -345,9 +338,9 @@ void TMapNodeTypeHandler::DoClone(
         const auto& key = pair.first;
         auto* childTrunkNode = pair.second;
 
-        auto* childNode = cypressManager->GetVersionedNode(childTrunkNode, context.Transaction);
+        auto* childNode = cypressManager->GetVersionedNode(childTrunkNode, transaction);
 
-        auto* clonedChildNode = cypressManager->CloneNode(childNode, context);
+        auto* clonedChildNode = factory->CloneNode(childNode);
         auto* clonedTrunkChildNode = clonedChildNode->GetTrunkNode();
 
         YCHECK(clonedNode->KeyToChild().insert(std::make_pair(key, clonedTrunkChildNode)).second);
@@ -467,9 +460,9 @@ void TListNodeTypeHandler::DoMerge(
 void TListNodeTypeHandler::DoClone(
     TListNode* sourceNode,
     TListNode* clonedNode,
-    const TCloneContext& context)
+    ICypressNodeFactoryPtr factory)
 {
-    TBase::DoClone(sourceNode, clonedNode, context);
+    TBase::DoClone(sourceNode, clonedNode, factory);
 
     auto objectManager = Bootstrap->GetObjectManager();
     auto cypressManager = Bootstrap->GetCypressManager();
@@ -479,7 +472,7 @@ void TListNodeTypeHandler::DoClone(
     const auto& indexToChild = sourceNode->IndexToChild();
     for (int index = 0; index < indexToChild.size(); ++index) {
         auto* childNode = indexToChild[index];
-        auto* clonedChildNode = cypressManager->CloneNode(childNode, context);
+        auto* clonedChildNode = factory->CloneNode(childNode);
         auto* clonedChildTrunkNode = clonedChildNode->GetTrunkNode();
 
         clonedNode->IndexToChild().push_back(clonedChildTrunkNode);
@@ -559,9 +552,9 @@ void TLinkNodeTypeHandler::DoMerge(
 void TLinkNodeTypeHandler::DoClone(
     TLinkNode* sourceNode,
     TLinkNode* clonedNode,
-    const TCloneContext& context)
+    ICypressNodeFactoryPtr factory)
 {
-    TBase::DoClone(sourceNode, clonedNode, context);
+    TBase::DoClone(sourceNode, clonedNode, factory);
 
     clonedNode->SetTargetId(sourceNode->GetTargetId());
 }
@@ -639,9 +632,9 @@ void TDocumentNodeTypeHandler::DoMerge(
 void TDocumentNodeTypeHandler::DoClone(
     TDocumentNode* sourceNode,
     TDocumentNode* clonedNode,
-    const TCloneContext& context)
+    ICypressNodeFactoryPtr factory)
 {
-    TBase::DoClone(sourceNode, clonedNode, context);
+    TBase::DoClone(sourceNode, clonedNode, factory);
 
     clonedNode->SetValue(CloneNode(sourceNode->GetValue()));
 }

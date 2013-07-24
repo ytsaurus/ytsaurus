@@ -187,13 +187,6 @@ std::unique_ptr<TCypressNodeBase> TCypressManager::TNodeMapTraits::Create(const 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCloneContext::TCloneContext()
-    : Account(nullptr)
-    , Transaction(nullptr)
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
 TCypressManager::TCypressManager(
     TCypressManagerConfigPtr config,
     TBootstrap* bootstrap)
@@ -323,53 +316,61 @@ NMetaState::TMutationPtr TCypressManager::CreateUpdateAccessStatisticsMutation(
 
 TCypressNodeBase* TCypressManager::CreateNode(
     INodeTypeHandlerPtr handler,
-    TTransaction* transaction,
-    TAccount* account,
-    IAttributeDictionary* attributes,
+    ICypressNodeFactoryPtr factory,
     TReqCreate* request,
     TRspCreate* response)
 {
     YCHECK(handler);
-    YCHECK(account);
+    YCHECK(factory);
 
-    handler->SetDefaultAttributes(attributes);
-
+    auto* transaction = factory->GetTransaction();
     auto node = handler->Create(transaction, request, response);
     auto node_ = ~node;
 
-    RegisterNode(std::move(node), transaction, attributes);
+    RegisterNode(std::move(node));
 
-    // Set account (if not given in attributes).
+    // Set account.
     auto securityManager = Bootstrap->GetSecurityManager();
-    if (!node_->GetAccount()) {
-        securityManager->SetAccount(node_, account);
-    }
+    auto* account = factory->GetAccount();
+    securityManager->SetAccount(node_, account);
 
     // Set owner.
     auto* user = securityManager->GetAuthenticatedUser();
-    node_->Acd().SetOwner(user);
+    auto* acd = securityManager->GetAcd(node_);
+    acd->SetOwner(user);
 
     if (response) {
         ToProto(response->mutable_node_id(), node_->GetId());
     }
 
-    return LockVersionedNode(node_, transaction, ELockMode::Exclusive);
+    return node_;
 }
 
 TCypressNodeBase* TCypressManager::CloneNode(
     TCypressNodeBase* sourceNode,
-    const TCloneContext& context)
+    ICypressNodeFactoryPtr factory)
 {
     YCHECK(sourceNode);
+    YCHECK(factory);
 
     auto handler = GetHandler(sourceNode);
-    auto clonedNode = handler->Clone(sourceNode, context);
+    auto clonedNode = handler->Clone(sourceNode, factory);
 
     // Make a rawptr copy and transfer the ownership.
     auto clonedNode_ = ~clonedNode;
-    RegisterNode(std::move(clonedNode), context.Transaction);
+    RegisterNode(std::move(clonedNode));
 
-    return LockVersionedNode(clonedNode_, context.Transaction, ELockMode::Exclusive);
+    // Set account.
+    auto securityManager = Bootstrap->GetSecurityManager();
+    auto* account = factory->GetAccount();
+    securityManager->SetAccount(clonedNode_, account);
+
+    // Set owner.
+    auto* user = securityManager->GetAuthenticatedUser();
+    auto* acd = securityManager->GetAcd(clonedNode_);
+    acd->SetOwner(user);
+
+    return clonedNode_;
 }
 
 TCypressNodeBase* TCypressManager::GetRootNode() const
@@ -668,7 +669,7 @@ TLock* TCypressManager::DoAcquireLock(
         lock->Mode = request.Mode;
         transaction->LockedNodes().push_back(trunkNode);
 
-        LOG_INFO_UNLESS(IsRecovery(), "Node locked (NodeId: %s, Mode: %s)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Node locked (NodeId: %s, Mode: %s)",
             ~ToString(versionedId),
             ~request.Mode.ToString());
     } else {
@@ -676,7 +677,7 @@ TLock* TCypressManager::DoAcquireLock(
         if (lock->Mode < request.Mode) {
             lock->Mode = request.Mode;
 
-            LOG_INFO_UNLESS(IsRecovery(), "Node lock upgraded (NodeId: %s, Mode: %s)",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Node lock upgraded (NodeId: %s, Mode: %s)",
                 ~ToString(versionedId),
                 ~lock->Mode.ToString());
         }
@@ -686,7 +687,7 @@ TLock* TCypressManager::DoAcquireLock(
         lock->ChildKeys.find(request.ChildKey.Get()) == lock->ChildKeys.end())
     {
         YCHECK(lock->ChildKeys.insert(request.ChildKey.Get()).second);
-        LOG_INFO_UNLESS(IsRecovery(), "Node child locked (NodeId: %s, Key: %s)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Node child locked (NodeId: %s, Key: %s)",
             ~ToString(versionedId),
             ~request.ChildKey.Get());
     }
@@ -695,7 +696,7 @@ TLock* TCypressManager::DoAcquireLock(
         lock->AttributeKeys.find(request.AttributeKey.Get()) == lock->AttributeKeys.end())
     {
         YCHECK(lock->AttributeKeys.insert(request.AttributeKey.Get()).second);
-        LOG_INFO_UNLESS(IsRecovery(), "Node attribute locked (NodeId: %s, Key: %s)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Node attribute locked (NodeId: %s, Key: %s)",
             ~ToString(versionedId),
             ~request.AttributeKey.Get());
     }
@@ -710,7 +711,7 @@ void TCypressManager::ReleaseLock(TCypressNodeBase* trunkNode, TTransaction* tra
     YCHECK(trunkNode->Locks().erase(transaction) == 1);
 
     TVersionedNodeId versionedId(trunkNode->GetId(), transaction->GetId());
-    LOG_INFO_UNLESS(IsRecovery(), "Node unlocked (NodeId: %s)",
+    LOG_DEBUG_UNLESS(IsRecovery(), "Node unlocked (NodeId: %s)",
         ~ToString(versionedId));
 }
 
@@ -843,7 +844,7 @@ TCypressNodeBase* TCypressManager::BranchNode(
     auto* account = originatingNode->GetAccount();
     securityManager->SetAccount(branchedNode_, account);
 
-    LOG_INFO_UNLESS(IsRecovery(), "Node branched (NodeId: %s, TransactionId: %s, Mode: %s)",
+    LOG_DEBUG_UNLESS(IsRecovery(), "Node branched (NodeId: %s, TransactionId: %s, Mode: %s)",
         ~ToString(id),
         ~ToString(transaction->GetId()),
         ~mode.ToString());
@@ -940,10 +941,7 @@ void TCypressManager::OnRecoveryComplete()
     }
 }
 
-void TCypressManager::RegisterNode(
-    std::unique_ptr<TCypressNodeBase> node,
-    TTransaction* transaction,
-    IAttributeDictionary* attributes)
+void TCypressManager::RegisterNode(std::unique_ptr<TCypressNodeBase> node)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
     YCHECK(node->IsTrunk());
@@ -961,38 +959,9 @@ void TCypressManager::RegisterNode(
     node->SetModificationTime(mutationContext->GetTimestamp());
     node->SetRevision(mutationContext->GetVersion().ToRevision());
 
-    auto node_ = ~node;
     NodeMap.Insert(TVersionedNodeId(nodeId), node.release());
 
-    // TODO(babenko): setting attributes here, in RegisterNode
-    // is somewhat weird. Moving this logic to some other place, however,
-    // complicates the code since we need to worry about possible
-    // exceptions thrown from custom attribute validators.
-    if (attributes) {
-        auto proxy = GetVersionedNodeProxy(node_, nullptr);
-        try {
-            auto keys = attributes->List();
-            FOREACH (const auto& key, keys) {
-                auto value = attributes->GetYson(key);
-                // Try to set as a system attribute. If fails then set as a user attribute.
-                if (!proxy->SetSystemAttribute(key, value)) {
-                    proxy->MutableAttributes()->SetYson(key, value);
-                }
-            }
-        } catch (...) {
-            auto handler = GetHandler(node_);
-            handler->Destroy(node_);
-            NodeMap.Remove(TVersionedNodeId(nodeId));
-            throw;
-        }
-    }
-
-    if (transaction) {
-        transaction->StagedNodes().push_back(node_);
-        objectManager->RefObject(node_);
-    }
-
-    LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %s, Type: %s)",
+    LOG_DEBUG_UNLESS(IsRecovery(), "Node registered (NodeId: %s, Type: %s)",
         ~ToString(nodeId),
         ~TypeFromId(nodeId).ToString());
 }
@@ -1014,7 +983,6 @@ void TCypressManager::OnTransactionCommitted(TTransaction* transaction)
 
     ReleaseLocks(transaction);
     MergeNodes(transaction);
-    ReleaseCreatedNodes(transaction);
 }
 
 void TCypressManager::OnTransactionAborted(TTransaction* transaction)
@@ -1023,7 +991,6 @@ void TCypressManager::OnTransactionAborted(TTransaction* transaction)
 
     ReleaseLocks(transaction);
     RemoveBranchedNodes(transaction);
-    ReleaseCreatedNodes(transaction);
 }
 
 void TCypressManager::ReleaseLocks(TTransaction* transaction)
@@ -1123,12 +1090,12 @@ void TCypressManager::MergeNode(
         // Update resource usage.
         securityManager->UpdateAccountNodeUsage(originatingNode);
 
-        LOG_INFO_UNLESS(IsRecovery(), "Node merged (NodeId: %s)", ~ToString(branchedId));
+        LOG_DEBUG_UNLESS(IsRecovery(), "Node merged (NodeId: %s)", ~ToString(branchedId));
     } else {
         // Destroy the branched copy.
         handler->Destroy(branchedNode);
 
-        LOG_INFO_UNLESS(IsRecovery(), "Node snapshot destroyed (NodeId: %s)", ~ToString(branchedId));
+        LOG_DEBUG_UNLESS(IsRecovery(), "Node snapshot destroyed (NodeId: %s)", ~ToString(branchedId));
     }
 
     // Drop the implicit reference to the originator.
@@ -1137,7 +1104,7 @@ void TCypressManager::MergeNode(
     // Remove the branched copy.
     NodeMap.Remove(branchedId);
 
-    LOG_INFO_UNLESS(IsRecovery(), "Branched node removed (NodeId: %s)", ~ToString(branchedId));
+    LOG_DEBUG_UNLESS(IsRecovery(), "Branched node removed (NodeId: %s)", ~ToString(branchedId));
 }
 
 void TCypressManager::MergeNodes(TTransaction* transaction)
@@ -1146,15 +1113,6 @@ void TCypressManager::MergeNodes(TTransaction* transaction)
         MergeNode(transaction, node);
     }
     transaction->BranchedNodes().clear();
-}
-
-void TCypressManager::ReleaseCreatedNodes(TTransaction* transaction)
-{
-    auto objectManager = Bootstrap->GetObjectManager();
-    FOREACH (auto* node, transaction->StagedNodes()) {
-        objectManager->UnrefObject(node);
-    }
-    transaction->StagedNodes().clear();
 }
 
 void TCypressManager::RemoveBranchedNode(TCypressNodeBase* branchedNode)
@@ -1173,7 +1131,7 @@ void TCypressManager::RemoveBranchedNode(TCypressNodeBase* branchedNode)
     handler->Destroy(branchedNode);
     NodeMap.Remove(branchedNodeId);
 
-    LOG_INFO_UNLESS(IsRecovery(), "Branched node removed (NodeId: %s)", ~ToString(branchedNodeId));
+    LOG_DEBUG_UNLESS(IsRecovery(), "Branched node removed (NodeId: %s)", ~ToString(branchedNodeId));
 }
 
 void TCypressManager::RemoveBranchedNodes(TTransaction* transaction)

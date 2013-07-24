@@ -119,7 +119,7 @@ cmake \
     -DYT_BUILD_ENABLE_NODEJS:BOOL=ON \
     -DYT_BUILD_BRANCH=${BUILD_BRANCH/\/0.??/} \
     -DYT_BUILD_NUMBER=$BUILD_NUMBER \
-    -DYT_BUILD_TAG=$(echo $BUILD_VCS_NUMBER | cut -c 1-7) \
+    -DYT_BUILD_VCS_NUMBER=$(echo $BUILD_VCS_NUMBER | cut -c 1-7) \
     $CHECKOUT_DIRECTORY
 
 trap '(cd $WORKING_DIRECTORY ; find . -name "default.log" -delete)' 0

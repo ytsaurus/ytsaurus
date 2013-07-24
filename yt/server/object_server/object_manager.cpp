@@ -170,11 +170,7 @@ public:
                     THROW_ERROR_EXCEPTION("Error parsing object id %s", ~objectIdString);
                 }
 
-                auto* object = objectManager->FindObject(objectId);
-                if (!IsObjectAlive(object)) {
-                    THROW_ERROR_EXCEPTION("No such object %s", ~ToString(objectId));
-                }
-
+                auto* object = objectManager->GetObjectOrThrow(objectId);
                 auto proxy = objectManager->GetProxy(object, transaction);
                 return TResolveResult::There(proxy, tokenizer.GetSuffix());
             }
@@ -258,14 +254,7 @@ public:
                         ~objectIdString);
                 }
 
-                auto* object = objectManager->FindObject(objectId);
-                if (!IsObjectAlive(object)) {
-                    THROW_ERROR_EXCEPTION(
-                        NYTree::EErrorCode::ResolveError,
-                        "No such object %s",
-                        ~ToString(objectId));
-                }
-
+                auto* object = objectManager->GetObjectOrThrow(objectId);
                 auto proxy = objectManager->GetProxy(object, transaction);
                 return DoResolvePath(proxy, tokenizer.GetSuffix());
             }
@@ -790,6 +779,21 @@ TObjectBase* TObjectManager::GetObject(const TObjectId& id)
     return object;
 }
 
+TObjectBase* TObjectManager::GetObjectOrThrow(const TObjectId& id)
+{
+    VERIFY_THREAD_AFFINITY(StateThread);
+
+    auto* object = FindObject(id);
+    if (!IsObjectAlive(object)) {
+        THROW_ERROR_EXCEPTION(
+            NYTree::EErrorCode::ResolveError,
+            "No such object %s",
+            ~ToString(id));
+    }
+
+    return object;
+}
+
 IObjectProxyPtr TObjectManager::GetProxy(
     TObjectBase* object,
     TTransaction* transaction)
@@ -1060,8 +1064,8 @@ TObjectBase* TObjectManager::CreateObject(
     }
 
     if (transaction && options->SupportsStaging) {
-        YCHECK(transaction->StagedObjects().insert(object).second);
-        RefObject(object);
+        auto transactionManager = Bootstrap->GetTransactionManager();
+        transactionManager->StageObject(transaction, object);
     }
 
     auto* acd = securityManager->FindAcd(object);
@@ -1070,22 +1074,6 @@ TObjectBase* TObjectManager::CreateObject(
     }
 
     return object;
-}
-
-void TObjectManager::UnstageObject(
-    TTransaction* transaction,
-    TObjectBase* object,
-    bool recursive)
-{
-    if (transaction->StagedObjects().erase(object) != 1) {
-        THROW_ERROR_EXCEPTION("Object %s does not belong to transaction %s",
-            ~ToString(object->GetId()),
-            ~ToString(transaction->GetId()));
-    }
-
-    auto handler = GetHandler(object);
-    handler->Unstage(object, transaction, recursive);
-    UnrefObject(object);
 }
 
 IObjectResolver* TObjectManager::GetObjectResolver()
