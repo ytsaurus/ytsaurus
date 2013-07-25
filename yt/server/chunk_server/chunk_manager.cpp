@@ -1145,7 +1145,11 @@ private:
     virtual void OnStopLeading() override
     {
         ChunkPlacement.Reset();
-        ChunkReplicator.Reset();
+
+        if (ChunkReplicator) {
+            ChunkReplicator->Finalize();
+            ChunkReplicator.Reset();
+        }
     }
 
 

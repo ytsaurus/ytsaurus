@@ -117,6 +117,17 @@ void TChunkReplicator::Initialize()
     }
 }
 
+void TChunkReplicator::Finalize()
+{
+    // Clear JobMap, JobListMap, and unregister jobs from the nodes.
+    FOREACH (const auto& pair, JobMap) {
+        const auto& job = pair.second;
+        YCHECK(job->GetNode()->Jobs().erase(job) == 1);
+    }
+    JobMap.clear();
+    JobListMap.clear();
+}
+
 void TChunkReplicator::TouchChunk(TChunk* chunk)
 {
     auto repairIt = chunk->GetRepairQueueIterator();
