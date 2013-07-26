@@ -229,12 +229,15 @@ def add_get_parser(add_parser):
 
 
 def set(args):
-    yt.set(args.path, args.value)
+    if args.value is None:
+        args.value = sys.stdin.read()
+    value = get_structure_parser("YT_STRUCTURED_DATA_FORMAT")(args.value)
+    yt.set(args.path, value)
 
 def add_set_parser(add_parser):
     parser = add_parser("set", help="set value at the given path")
     parser.add_argument("path")
-    parser.add_argument("value", action=ParseStructuredData)
+    parser.add_argument("value", nargs="?")
     parser.set_defaults(func=set)
 
 
