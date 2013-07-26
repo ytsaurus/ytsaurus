@@ -32,7 +32,7 @@ def set(path, value):
     """
     Sets the value by path. Value should json-able object.
     """
-    _make_transactional_request(
+    return _make_transactional_request(
         "set",
         {
             "path": prepare_path(path),
@@ -41,7 +41,7 @@ def set(path, value):
         data=yson.dumps(value))
 
 def copy(source_path, destination_path):
-    _make_transactional_request(
+    return _make_transactional_request(
         "copy",
         {
             "source_path": prepare_path(source_path),
@@ -57,7 +57,7 @@ def move(source_path, destination_path):
         })
 
 def link(target_path, link_path, recursive=False, ignore_existing=False):
-    _make_transactional_request(
+    return _make_transactional_request(
         "link",
         {
             "target_path": target_path,
@@ -114,11 +114,11 @@ def create(type, path=None, recursive=False, ignore_existing=False, attributes=N
     }
     if path is not None:
         params["path"] = prepare_path(path)
-    _make_transactional_request("create", params)
+    return _make_transactional_request("create", params)
 
 def mkdir(path, recursive=None):
     recursive = get_value(recursive, config.CREATE_RECURSIVE)
-    create("map_node", path, recursive=recursive, ignore_existing=recursive)
+    return create("map_node", path, recursive=recursive, ignore_existing=recursive)
 
 
 # TODO: maybe remove this methods
