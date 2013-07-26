@@ -1,9 +1,9 @@
 import config
-from common import require, chunk_iter, partial, bool_to_string
+from common import require, chunk_iter, partial, bool_to_string, parse_bool
 from errors import YtError
 from driver import read_content, get_host_for_heavy_operation
 from heavy_commands import make_heavy_request
-from tree_commands import remove, exists, set_attribute, mkdir, find_free_subpath, create, link
+from tree_commands import remove, exists, set_attribute, mkdir, find_free_subpath, create, link, get_attribute
 from transaction_commands import _make_transactional_request
 from table import prepare_path
 
@@ -113,7 +113,11 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
     if placement_strategy == "hash":
         md5 = md5sum(filename)
         destination = os.path.join(config.FILE_STORAGE, "hash", md5)
-        if not exists(destination):
+        link_exists = exists(destination + "&")
+        if link_exists and not parse_bool(get_attribute(destination + "&", "broken")):
+            remove(destination)
+            link_exists = False
+        if not link_exists:
             real_destination = find_free_subpath(prefix)
             upload_with_check(real_destination)
             link(real_destination, destination, ignore_existing=True)
