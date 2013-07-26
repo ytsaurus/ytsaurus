@@ -43,7 +43,6 @@ def main():
     tables_to_import = set(yt.get(args.import_queue))
     tables_to_remove = set(yt.get(args.remove_queue))
     process_logs(tables_to_import, tables_to_remove, args.path, "user_sessions",      None,           90)
-    process_logs(tables_to_import, tables_to_remove, args.path, "reqans_log",         None,           7)
     process_logs(tables_to_import, tables_to_remove, args.path, "user_intents",       None,           None)
     process_logs(tables_to_import, tables_to_remove, args.path, "reqregscdata",       ["www", "xml"], None)
     process_logs(tables_to_import, tables_to_remove, args.path, "mapsreqans_log_new", None,           None)
