@@ -1595,7 +1595,7 @@ void TOperationControllerBase::MoveTaskToCandidates(
     candidateTasks.insert(std::make_pair(minMemory, task));
     LOG_DEBUG("Task moved to candidates (Task: %s, MinMemory: %" PRId64 ")",
         ~task->GetId(),
-        minMemory);
+        minMemory / (1024 * 1024));
 
 }
 
