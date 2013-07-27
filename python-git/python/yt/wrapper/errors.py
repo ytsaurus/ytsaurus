@@ -53,7 +53,7 @@ def pretty_format(error, indent=0):
     if "message" in error:
         lines.append(error["message"])
 
-    if "code" in error:
+    if "code" in error and int(error["code"]) != 1:
         lines.append(format_attribute("code", error["code"]))
 
     attributes = error["attributes"]
