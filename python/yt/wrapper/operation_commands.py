@@ -170,12 +170,13 @@ def get_jobs_errors(operation, limit=None):
         output.write(format_error(path.attributes["error"]))
         output.write("\n")
 
-        output.write("Stderr:\n")
         stderr_path = os.path.join(path, "stderr")
         if exists(stderr_path):
+            output.write("Stderr:\n")
             for line in download_file(stderr_path):
                 output.write(line)
-        output.write("\n\n")
+            output.write("\n")
+        output.write("\n")
     return output.getvalue()
 
 def get_stderrs(operation, limit=None):
