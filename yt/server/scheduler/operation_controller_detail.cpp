@@ -136,6 +136,7 @@ void TOperationControllerBase::TUserFileBase::Persist(TPersistenceContext& conte
     using NYT::Persist;
     Persist(context, Path);
     Persist(context, Stage);
+    Persist(context, FileName);
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -147,7 +148,6 @@ void TOperationControllerBase::TRegularUserFile::Persist(TPersistenceContext& co
     using NYT::Persist;
     Persist(context, FetchResponse);
     Persist(context, Executable);
-    Persist(context, FileName);
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -158,7 +158,6 @@ void TOperationControllerBase::TUserTableFile::Persist(TPersistenceContext& cont
 
     using NYT::Persist;
     Persist(context, FetchResponse);
-    Persist(context, FileName);
     Persist(context, Format);
 }
 
@@ -2509,14 +2508,18 @@ void TOperationControllerBase::RequestInputs()
         }
     }
 
-    yhash_set<Stroka> userFileNames;
-    auto validateUserFileName = [&] (const TYPath& path, const Stroka& fileName) {
+    std::vector<yhash_set<Stroka>> userFileNames;
+    userFileNames.resize(EOperationStage::GetDomainSize());
+
+    auto validateUserFileName = [&] (const TUserFileBase& userFile) {
         // TODO(babenko): more sanity checks?
+        auto path = userFile.Path.GetPath();
+        const auto& fileName = userFile.FileName;
         if (fileName.empty()) {
             THROW_ERROR_EXCEPTION("Empty user file name for %s",
                 ~path);
         }
-        if (!userFileNames.insert(fileName).second) {
+        if (!userFileNames[static_cast<int>(userFile.Stage)].insert(fileName).second) {
             THROW_ERROR_EXCEPTION("Duplicate user file name %s for %s",
                 ~fileName.Quote(),
                 ~path);
@@ -2578,7 +2581,7 @@ void TOperationControllerBase::RequestInputs()
             file.FileName = file.Path.Attributes().Get<Stroka>("file_name", file.FileName);
             file.Executable = file.Path.Attributes().Get<bool>("executable", file.Executable);
 
-            validateUserFileName(path, file.FileName);
+            validateUserFileName(file);
         }
     }
 
@@ -2640,7 +2643,7 @@ void TOperationControllerBase::RequestInputs()
                     ~JoinToString(chunkIds));
             }
 
-            validateUserFileName(path, file.FileName);
+            validateUserFileName(file);
         }
     }
 

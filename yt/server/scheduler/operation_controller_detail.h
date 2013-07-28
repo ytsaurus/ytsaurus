@@ -233,6 +233,7 @@ protected:
 
 
     //! Describes which part of the operation needs a particular file.
+    //! Values must be contiguous.
     DECLARE_ENUM(EOperationStage,
         (Map)
         (Reduce)
@@ -242,6 +243,7 @@ protected:
     {
         NYPath::TRichYPath Path;
         EOperationStage Stage;
+        Stroka FileName;
 
         void Persist(TPersistenceContext& context);
 
@@ -252,7 +254,6 @@ protected:
     {
         NChunkClient::NProto::TRspFetch FetchResponse;
         bool Executable;
-        Stroka FileName;
 
         void Persist(TPersistenceContext& context);
 
@@ -265,7 +266,6 @@ protected:
         : public TUserFileBase
     {
         NChunkClient::NProto::TRspFetch FetchResponse;
-        Stroka FileName;
         NYTree::TYsonString Format;
 
         void Persist(TPersistenceContext& context);
