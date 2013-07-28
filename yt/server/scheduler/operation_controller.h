@@ -168,8 +168,12 @@ struct IOperationController
     //! Returns the number of jobs the controller still needs to start right away.
     virtual int GetPendingJobCount() = 0;
 
+    //! Returns the total number of jobs to be run during the operation.
+    virtual int GetTotalJobCount() = 0;
+
     //! Returns the total resources that are additionally needed.
     virtual NNodeTrackerClient::NProto::TNodeResources GetNeededResources() = 0;
+
 
     //! Called during heartbeat processing to notify the controller that a job is running.
     virtual void OnJobRunning(TJobPtr job, const NJobTrackerClient::NProto::TJobStatus& status) = 0;

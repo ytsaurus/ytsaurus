@@ -76,6 +76,7 @@ public:
     virtual IInvokerPtr GetCancelableBackgroundInvoker() override;
 
     virtual int GetPendingJobCount() override;
+    virtual int GetTotalJobCount() override;
     virtual NNodeTrackerClient::NProto::TNodeResources GetNeededResources() override;
 
     virtual void BuildProgressYson(NYson::IYsonConsumer* consumer) override;
@@ -109,11 +110,12 @@ protected:
     IInvokerPtr CancelableControlInvoker;
     IInvokerPtr CancelableBackgroundInvoker;
 
-    // Remains True as long as the operation can schedule new jobs.
+
+    //! Remains |true| as long as the operation can schedule new jobs.
     bool Running;
 
-    // Totals.
 
+    // Totals.
     int TotalInputChunkCount;
     i64 TotalInputDataSize;
     i64 TotalInputRowCount;
@@ -367,6 +369,9 @@ protected:
         virtual int GetPendingJobCount() const;
         int GetPendingJobCountDelta();
 
+        int GetTotalJobCount() const;
+        int GetTotalJobCountDelta();
+
         virtual NNodeTrackerClient::NProto::TNodeResources GetTotalNeededResources() const;
         NNodeTrackerClient::NProto::TNodeResources GetTotalNeededResourcesDelta();
 
@@ -421,6 +426,8 @@ protected:
         TOperationControllerBase* Controller;
 
         int CachedPendingJobCount;
+        int CachedTotalJobCount;
+
         NNodeTrackerClient::NProto::TNodeResources CachedTotalNeededResources;
         mutable TNullable<NNodeTrackerClient::NProto::TNodeResources> CachedMinNeededResources;
 
@@ -781,6 +788,7 @@ private:
     TChunkListPoolPtr ChunkListPool;
 
     int CachedPendingJobCount;
+
     NNodeTrackerClient::NProto::TNodeResources CachedNeededResources;
 
     //! Maps an intermediate chunk id to its originating completed job.

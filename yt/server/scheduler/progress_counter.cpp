@@ -30,6 +30,7 @@ TProgressCounter::TProgressCounter(i64 total)
 
 void TProgressCounter::Set(i64 total)
 {
+    YCHECK(total >= 0);
     TotalEnabled_ = true;
     Total_ = total;
     Running_ = 0;
@@ -49,7 +50,9 @@ void TProgressCounter::Increment(i64 value)
 {
     YCHECK(TotalEnabled_);
     Total_ += value;
+    YCHECK(Total_ >= 0);
     Pending_ += value;
+    YCHECK(Pending_ >= 0);
 }
 
 i64 TProgressCounter::GetTotal() const

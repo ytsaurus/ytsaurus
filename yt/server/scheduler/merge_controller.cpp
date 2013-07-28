@@ -166,21 +166,6 @@ protected:
             return Controller->Spec->LocalityTimeout;
         }
 
-        virtual TNodeResources GetMinNeededResourcesHeavy() const override
-        {
-            TNodeResources result;
-
-            result.set_user_slots(1);
-            result.set_cpu(1);
-            result.set_memory(
-                Controller->GetFinalIOMemorySize(
-                Controller->Spec->JobIO,
-                UpdateChunkStripeStatistics(ChunkPool->GetApproximateStripeStatistics())) +
-                GetFootprintMemorySize() +
-                Controller->GetAdditionalMemorySize());
-            return result;
-        }
-
         virtual TNodeResources GetNeededResources(TJobletPtr joblet) const override
         {
             auto result = GetMinNeededResources();
@@ -234,6 +219,21 @@ protected:
         //! Key for #TOutputTable::OutputChunkTreeIds.
         int PartitionIndex;
 
+
+        virtual TNodeResources GetMinNeededResourcesHeavy() const override
+        {
+            TNodeResources result;
+
+            result.set_user_slots(1);
+            result.set_cpu(1);
+            result.set_memory(
+                Controller->GetFinalIOMemorySize(
+                Controller->Spec->JobIO,
+                UpdateChunkStripeStatistics(ChunkPool->GetApproximateStripeStatistics())) +
+                GetFootprintMemorySize() +
+                Controller->GetAdditionalMemorySize());
+            return result;
+        }
 
         virtual int GetChunkListCountPerJob() const override
         {
@@ -409,16 +409,13 @@ protected:
 
     void FinishPreparation()
     {
-        // Init counters.
-        JobCounter.Set(static_cast<int>(Tasks.size()));
-
         InitJobIOConfig();
         InitJobSpecTemplate();
 
-        LOG_INFO("Inputs processed (DataSize: %" PRId64 ", ChunkCount: %d, JobCount: %" PRId64 ")",
+        LOG_INFO("Inputs processed (DataSize: %" PRId64 ", ChunkCount: %d, JobCount: %" PRISZT ")",
             TotalDataSize,
             TotalChunkCount,
-            JobCounter.GetTotal());
+            Tasks.size());
     }
 
     //! Called for each input chunk.

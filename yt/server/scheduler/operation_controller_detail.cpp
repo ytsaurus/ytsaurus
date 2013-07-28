@@ -320,6 +320,7 @@ void TOperationControllerBase::TInputChunkScratcher::OnLocateChunksResponse(TChu
 
 TOperationControllerBase::TTask::TTask()
     : CachedPendingJobCount(-1)
+    , CachedTotalJobCount(-1)
     , LastDemandSanityCheckTime(TInstant::Zero())
     , CompletedFired(false)
     , Logger(OperationLogger)
@@ -328,6 +329,7 @@ TOperationControllerBase::TTask::TTask()
 TOperationControllerBase::TTask::TTask(TOperationControllerBase* controller)
     : Controller(controller)
     , CachedPendingJobCount(0)
+    , CachedTotalJobCount(0)
     , LastDemandSanityCheckTime(TInstant::Zero())
     , CompletedFired(false)
     , Logger(OperationLogger)
@@ -349,6 +351,19 @@ int TOperationControllerBase::TTask::GetPendingJobCountDelta()
     int oldValue = CachedPendingJobCount;
     int newValue = GetPendingJobCount();
     CachedPendingJobCount = newValue;
+    return newValue - oldValue;
+}
+
+int TOperationControllerBase::TTask::GetTotalJobCount() const
+{
+    return GetChunkPoolOutput()->GetTotalJobCount();
+}
+
+int TOperationControllerBase::TTask::GetTotalJobCountDelta()
+{
+    int oldValue = CachedTotalJobCount;
+    int newValue = GetTotalJobCount();
+    CachedTotalJobCount = newValue;
     return newValue - oldValue;
 }
 
@@ -390,8 +405,9 @@ void TOperationControllerBase::TTask::AddInput(TChunkStripePtr stripe)
 void TOperationControllerBase::TTask::AddInput(const std::vector<TChunkStripePtr>& stripes)
 {
     FOREACH (auto stripe, stripes) {
-        if (stripe)
+        if (stripe) {
             AddInput(stripe);
+        }
     }
 }
 
@@ -542,6 +558,8 @@ void TOperationControllerBase::TTask::Persist(TPersistenceContext& context)
     Persist(context, Controller);
 
     Persist(context, CachedPendingJobCount);
+    Persist(context, CachedTotalJobCount);
+
     Persist(context, CachedTotalNeededResources);
     Persist(context, CachedMinNeededResources);
 
@@ -879,6 +897,7 @@ TOperationControllerBase::TOperationControllerBase(
     , TotalOutputDataSize(0)
     , TotalOutputRowCount(0)
     , UnavailableInputChunkCount(0)
+    , JobCounter(0)
     , Spec(spec)
     , CachedPendingJobCount(0)
     , CachedNeededResources(ZeroNodeResources())
@@ -1571,15 +1590,21 @@ void TOperationControllerBase::RegisterTaskGroup(TTaskGroupPtr group)
 
 void TOperationControllerBase::OnTaskUpdated(TTaskPtr task)
 {
-    int oldJobCount = CachedPendingJobCount;
-    int newJobCount = CachedPendingJobCount + task->GetPendingJobCountDelta();
-    CachedPendingJobCount = newJobCount;
+    int oldPendingJobCount = CachedPendingJobCount;
+    int newPendingJobCount = CachedPendingJobCount + task->GetPendingJobCountDelta();
+    CachedPendingJobCount = newPendingJobCount;
+
+    int oldTotalJobCount = JobCounter.GetTotal();
+    JobCounter.Increment(task->GetTotalJobCountDelta());
+    int newTotalJobCount = JobCounter.GetTotal();
 
     CachedNeededResources += task->GetTotalNeededResourcesDelta();
 
-    LOG_DEBUG_IF(newJobCount != oldJobCount, "Pending job count updated (JobCount: %d -> %d, NeededResources: {%s})",
-        oldJobCount,
-        newJobCount,
+    LOG_DEBUG_IF(newPendingJobCount != oldPendingJobCount, "Task updated (PendingJobCount: %d -> %d, TotalJobCount: %d -> %d, NeededResources: {%s})",
+        oldPendingJobCount,
+        newPendingJobCount,
+        oldTotalJobCount,
+        newTotalJobCount,
         ~FormatResources(CachedNeededResources));
 
     task->CheckCompleted();
@@ -1916,6 +1941,18 @@ int TOperationControllerBase::GetPendingJobCount()
     }
 
     return CachedPendingJobCount;
+}
+
+int TOperationControllerBase::GetTotalJobCount()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    // Avoid accessing the state while not running.
+    if (!Running) {
+        return 0;
+    }
+
+    return JobCounter.GetTotal();
 }
 
 TNodeResources TOperationControllerBase::GetNeededResources()
@@ -2895,7 +2932,7 @@ void TOperationControllerBase::BuildProgressYson(IYsonConsumer* consumer)
 
     BuildYsonMapFluently(consumer)
         .Item("jobs").BeginMap()
-            .Item("total").Value(JobCounter.GetCompleted() + JobCounter.GetRunning() + GetPendingJobCount())
+            .Item("total").Value(GetTotalJobCount())
             .Item("pending").Value(GetPendingJobCount())
             .Item("running").Value(JobCounter.GetRunning())
             .Item("completed").Value(JobCounter.GetCompleted())
@@ -3153,6 +3190,7 @@ void TOperationControllerBase::Persist(TPersistenceContext& context)
     Persist(context, InputChunkMap);
 
     Persist(context, CachedPendingJobCount);
+
     Persist(context, CachedNeededResources);
 
     Persist(context, ChunkOriginMap);
