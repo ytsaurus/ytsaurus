@@ -268,7 +268,7 @@ public:
     virtual TYPath GetPath(IObjectProxyPtr proxy) override
     {
         const auto& id = proxy->GetId();
-        if (IsVersioned(TypeFromId(id))) {
+        if (IsVersionedType(TypeFromId(id))) {
             auto* nodeProxy = dynamic_cast<ICypressNodeProxy*>(~proxy);
             auto resolver = nodeProxy->GetResolver();
             return resolver->GetPath(nodeProxy);

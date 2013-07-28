@@ -13,33 +13,51 @@ TTransactionId NullTransactionId(0, 0, 0, 0);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsVersioned(EObjectType type)
+bool IsVersionedType(EObjectType type)
 {
-    return type == EObjectType::StringNode ||
-           type == EObjectType::IntegerNode ||
-           type == EObjectType::DoubleNode ||
-           type == EObjectType::MapNode ||
-           type == EObjectType::ListNode ||
-           type == EObjectType::File ||
-           type == EObjectType::Table ||
-           type == EObjectType::ChunkMap ||
-           type == EObjectType::LostChunkMap ||
-           type == EObjectType::OverreplicatedChunkMap ||
-           type == EObjectType::UnderreplicatedChunkMap ||
-           type == EObjectType::DataMissingChunkMap ||
-           type == EObjectType::ParityMissingChunkMap ||
-           type == EObjectType::ChunkListMap ||
-           type == EObjectType::TransactionMap ||
-           type == EObjectType::TopmostTransactionMap ||
-           type == EObjectType::CellNodeMap ||
-           type == EObjectType::CellNode ||
-           type == EObjectType::Orchid ||
-           type == EObjectType::LostVitalChunkMap ||
-           type == EObjectType::AccountMap ||
-           type == EObjectType::UserMap ||
-           type == EObjectType::GroupMap ||
-           type == EObjectType::Link ||
-           type == EObjectType::Document;
+    return
+        type == EObjectType::StringNode ||
+        type == EObjectType::IntegerNode ||
+        type == EObjectType::DoubleNode ||
+        type == EObjectType::MapNode ||
+        type == EObjectType::ListNode ||
+        type == EObjectType::File ||
+        type == EObjectType::Table ||
+        type == EObjectType::ChunkMap ||
+        type == EObjectType::LostChunkMap ||
+        type == EObjectType::OverreplicatedChunkMap ||
+        type == EObjectType::UnderreplicatedChunkMap ||
+        type == EObjectType::DataMissingChunkMap ||
+        type == EObjectType::ParityMissingChunkMap ||
+        type == EObjectType::ChunkListMap ||
+        type == EObjectType::TransactionMap ||
+        type == EObjectType::TopmostTransactionMap ||
+        type == EObjectType::CellNodeMap ||
+        type == EObjectType::CellNode ||
+        type == EObjectType::Orchid ||
+        type == EObjectType::LostVitalChunkMap ||
+        type == EObjectType::AccountMap ||
+        type == EObjectType::UserMap ||
+        type == EObjectType::GroupMap ||
+        type == EObjectType::Link ||
+        type == EObjectType::Document;
+}
+
+bool IsUserType(EObjectType type)
+{
+    return
+        type == EObjectType::Transaction ||
+        type == EObjectType::Chunk ||
+        type == EObjectType::ChunkList ||
+        type == EObjectType::StringNode ||
+        type == EObjectType::IntegerNode ||
+        type == EObjectType::DoubleNode ||
+        type == EObjectType::MapNode ||
+        type == EObjectType::ListNode ||
+        type == EObjectType::File ||
+        type == EObjectType::Table ||
+        type == EObjectType::Link ||
+        type == EObjectType::Document;
 }
 
 EObjectType TypeFromId(const TObjectId& id)

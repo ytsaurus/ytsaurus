@@ -81,7 +81,7 @@ bool TObjectBase::IsLocked() const
 
 bool TObjectBase::IsTrunk() const
 {
-    if (!IsVersioned(TypeFromId(Id))) {
+    if (!IsVersionedType(TypeFromId(Id))) {
         return true;
     }
 

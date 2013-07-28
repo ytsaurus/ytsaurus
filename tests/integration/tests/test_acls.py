@@ -347,3 +347,11 @@ class TestAcls(YTEnvSetup):
         create_user('u1')
         create_user('u2')
         with pytest.raises(YTError): set('//sys/users/u1/@name', 'u2')
+
+    def test_deny_create(self):
+        create_user('u')
+        with pytest.raises(YTError): create('account_map', '//tmp/accounts', user='u')
+
+    def test_deny_copy(self):
+        create_user('u')
+        with pytest.raises(YTError): copy('//sys', '//tmp/sys', user='u')

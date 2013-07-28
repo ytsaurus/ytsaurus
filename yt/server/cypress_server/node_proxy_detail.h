@@ -58,6 +58,10 @@ private:
 
     std::vector<TCypressNodeBase*> CreatedNodes;
 
+
+    void ValidateNodeCreation(NObjectClient::EObjectType type);
+    void RegisterCreatedNode(TCypressNodeBase* node);
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
