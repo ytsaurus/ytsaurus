@@ -2509,6 +2509,20 @@ void TOperationControllerBase::RequestInputs()
         }
     }
 
+    yhash_set<Stroka> userFileNames;
+    auto validateUserFileName = [&] (const TYPath& path, const Stroka& fileName) {
+        // TODO(babenko): more sanity checks?
+        if (fileName.empty()) {
+            THROW_ERROR_EXCEPTION("Empty user file name for %s",
+                ~path);
+        }
+        if (!userFileNames.insert(fileName).second) {
+            THROW_ERROR_EXCEPTION("Duplicate user file name %s for %s",
+                ~fileName.Quote(),
+                ~path);
+        }
+    };
+
     {
         auto lockRegularFileRsps = batchRsp->GetResponses<TCypressYPathProxy::TRspLock>("lock_regular_file");
         auto fetchRegularFileRsps = batchRsp->GetResponses<TFileYPathProxy::TRspFetch>("fetch_regular_file");
@@ -2563,6 +2577,8 @@ void TOperationControllerBase::RequestInputs()
 
             file.FileName = file.Path.Attributes().Get<Stroka>("file_name", file.FileName);
             file.Executable = file.Path.Attributes().Get<bool>("executable", file.Executable);
+
+            validateUserFileName(path, file.FileName);
         }
     }
 
@@ -2623,6 +2639,8 @@ void TOperationControllerBase::RequestInputs()
                     ~file.Format.Data(),
                     ~JoinToString(chunkIds));
             }
+
+            validateUserFileName(path, file.FileName);
         }
     }
 
