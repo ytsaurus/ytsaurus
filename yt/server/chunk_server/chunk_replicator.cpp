@@ -932,7 +932,7 @@ void TChunkReplicator::ScheduleChunkRefresh(TChunk* chunk)
     chunk->SetRefreshScheduled(true);
 
     auto objectManager = Bootstrap->GetObjectManager();
-    objectManager->LockObject(chunk);
+    objectManager->WeakRefObject(chunk);
 }
 
 void TChunkReplicator::ScheduleNodeRefresh(TNode* node)
@@ -970,7 +970,7 @@ void TChunkReplicator::OnRefresh()
                 RefreshChunk(chunk);
             }
 
-            objectManager->UnlockObject(chunk);
+            objectManager->WeakUnrefObject(chunk);
         }
     }
 
@@ -1110,7 +1110,7 @@ void TChunkReplicator::SchedulePropertiesUpdate(TChunk* chunk)
     chunk->SetPropertiesUpdateScheduled(true);
 
     auto objectManager = Bootstrap->GetObjectManager();
-    objectManager->LockObject(chunk);
+    objectManager->WeakRefObject(chunk);
 }
 
 void TChunkReplicator::OnPropertiesUpdate()
@@ -1154,7 +1154,7 @@ void TChunkReplicator::OnPropertiesUpdate()
                 }
             }
 
-            objectManager->UnlockObject(chunk);
+            objectManager->WeakUnrefObject(chunk);
         }
     }
 

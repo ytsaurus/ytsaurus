@@ -1107,13 +1107,13 @@ private:
             auto* chunk = pair.second;
             chunk->SetRefreshScheduled(false);
             chunk->SetPropertiesUpdateScheduled(false);
-            chunk->ResetObjectLocks();
+            chunk->ResetWeakRefCounter();
             chunk->SetRepairQueueIterator(TChunkRepairQueueIterator());
         }
 
         FOREACH (const auto& pair, ChunkListMap) {
             auto* chunkList = pair.second;
-            chunkList->ResetObjectLocks();
+            chunkList->ResetWeakRefCounter();
         }
     }
 

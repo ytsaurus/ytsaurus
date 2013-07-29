@@ -387,7 +387,7 @@ bool TObjectProxyBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* cons
 
     if (key == "weak_ref_counter") {
         BuildYsonFluently(consumer)
-            .Value(Object->GetObjectLockCounter());
+            .Value(Object->GetObjectWeakRefCounter());
         return true;
     }
 

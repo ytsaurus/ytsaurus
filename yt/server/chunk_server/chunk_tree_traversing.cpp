@@ -413,7 +413,7 @@ protected:
     void PushStack(const TStackEntry& newEntry)
     {
         auto objectManager = Bootstrap->GetObjectManager();
-        objectManager->LockObject(newEntry.ChunkList);
+        objectManager->WeakRefObject(newEntry.ChunkList);
         Stack.push_back(newEntry);
     }
 
@@ -426,7 +426,7 @@ protected:
     {
         auto& entry = Stack.back();
         auto objectManager = Bootstrap->GetObjectManager();
-        objectManager->UnlockObject(entry.ChunkList);
+        objectManager->WeakUnrefObject(entry.ChunkList);
         Stack.pop_back();
     }
 
@@ -434,7 +434,7 @@ protected:
     {
         auto objectManager = Bootstrap->GetObjectManager();
         FOREACH (const auto& entry, Stack) {
-            objectManager->UnlockObject(entry.ChunkList);
+            objectManager->WeakUnrefObject(entry.ChunkList);
         }
         Stack.clear();
     }
