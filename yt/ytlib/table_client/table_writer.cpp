@@ -95,6 +95,7 @@ private:
     TChunkListId ChunkListId;
 
     TIntrusivePtr<TTableMultiChunkWriter> Writer;
+    TTableChunkWriter::TFacade* CurrentWriterFacade;
 
     TAsyncError WriteFuture_;
 };
@@ -120,6 +121,7 @@ TAsyncTableWriter::TAsyncTableWriter(
     , IsClosed(false)
     , ObjectProxy(masterChannel)
     , Logger(TableWriterLogger)
+    , CurrentWriterFacade(nullptr)
 {
     YCHECK(config);
     YCHECK(masterChannel);
@@ -268,7 +270,7 @@ TAsyncError TAsyncTableWriter::OpenChunkWriter(TChunkListId chunkListId)
         chunkListId);
 
     return Writer->AsyncOpen().Apply(
-        BIND([] (TError error) -> TError {
+        BIND([] (TError error) -> TError{
             if (!error.IsOK()) {
                 return TError("Error opening table chunk writer") << error;
             }
@@ -282,6 +284,9 @@ void TAsyncTableWriter::OnChunkWriterOpened()
         ListenTransaction(Transaction);
     }
 
+    CurrentWriterFacade = Writer->GetCurrentWriter();
+    YASSERT(CurrentWriterFacade);
+
     IsOpen = true;
 
     LOG_INFO("Table writer opened");
@@ -290,7 +295,9 @@ void TAsyncTableWriter::OnChunkWriterOpened()
 void TAsyncTableWriter::WriteRow(const TRow& row)
 {
     YCHECK(IsOpen);
-    Writer->GetCurrentWriter()->WriteRow(row);
+    YASSERT(CurrentWriterFacade);
+
+    CurrentWriterFacade->WriteRow(row);
 }
 
 bool TAsyncTableWriter::IsReady()
@@ -300,8 +307,8 @@ bool TAsyncTableWriter::IsReady()
         return false;
     }
 
-    auto currentWriter = Writer->GetCurrentWriter();
-    if (currentWriter) {
+    CurrentWriterFacade = Writer->GetCurrentWriter();
+    if (CurrentWriterFacade) {
         return true;
     } else {
         WriteFuture_ = Writer->GetReadyEvent();
