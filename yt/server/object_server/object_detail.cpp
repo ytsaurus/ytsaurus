@@ -354,7 +354,7 @@ void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeInfo>* attribu
     attributes->push_back("id");
     attributes->push_back("type");
     attributes->push_back("ref_counter");
-    attributes->push_back("lock_counter");
+    attributes->push_back("weak_ref_counter");
     attributes->push_back(TAttributeInfo("supported_permissions", true, true));
     attributes->push_back(TAttributeInfo("inherit_acl", hasAcd, true));
     attributes->push_back(TAttributeInfo("acl", hasAcd, true));
@@ -385,7 +385,7 @@ bool TObjectProxyBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* cons
         return true;
     }
 
-    if (key == "lock_counter") {
+    if (key == "weak_ref_counter") {
         BuildYsonFluently(consumer)
             .Value(Object->GetObjectLockCounter());
         return true;
