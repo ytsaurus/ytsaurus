@@ -92,7 +92,6 @@ private:
     NLog::TTaggedLogger Logger;
 
     ITransactionPtr UploadTransaction;
-    TChunkListId ChunkListId;
 
     TIntrusivePtr<TTableMultiChunkWriter> Writer;
     TTableChunkWriter::TFacade* CurrentWriterFacade;
@@ -311,11 +310,13 @@ bool TAsyncTableWriter::IsReady()
     if (CurrentWriterFacade) {
         return true;
     } else {
+        auto this_ = MakeStrong(this);
         auto readyEvent = NewPromise<TError>();
         WriteFuture_ = readyEvent;
         Writer->GetReadyEvent().Subscribe(BIND([=] (TError error) mutable {
             if (error.IsOK()) {
-                CurrentWriterFacade = Writer->GetCurrentWriter();
+                this_->CurrentWriterFacade = this_->Writer->GetCurrentWriter();
+                YCHECK(this_->CurrentWriterFacade);
             }
             readyEvent.Set(error);
         }));
