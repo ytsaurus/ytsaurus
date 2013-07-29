@@ -1614,18 +1614,21 @@ void DelegateInvocation(
 
 void TDocumentNodeProxy::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
 {
+    ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
     const auto* impl = GetThisTypedImpl();
     DelegateInvocation(impl->GetValue(), request, response, context);
 }
 
 void TDocumentNodeProxy::GetRecursive(const TYPath& /*path*/, TReqGet* request, TRspGet* response, TCtxGetPtr context)
 {
+    ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
     const auto* impl = GetThisTypedImpl();
     DelegateInvocation(impl->GetValue(), request, response, context);
 }
 
 void TDocumentNodeProxy::SetSelf(TReqSet* request, TRspSet* /*response*/, TCtxSetPtr context)
 {
+    ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
     auto* impl = LockThisTypedImpl();
     impl->SetValue(ConvertToNode(TYsonString(request->value())));
     context->Reply();
@@ -1633,36 +1636,42 @@ void TDocumentNodeProxy::SetSelf(TReqSet* request, TRspSet* /*response*/, TCtxSe
 
 void TDocumentNodeProxy::SetRecursive(const TYPath& /*path*/, TReqSet* request, TRspSet* response, TCtxSetPtr context)
 {
+    ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
     auto* impl = LockThisTypedImpl();
     DelegateInvocation(impl->GetValue(), request, response, context);
 }
 
 void TDocumentNodeProxy::ListSelf(TReqList* request, TRspList* response, TCtxListPtr context)
 {
+    ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
     const auto* impl = GetThisTypedImpl();
     DelegateInvocation(impl->GetValue(), request, response, context);
 }
 
 void TDocumentNodeProxy::ListRecursive(const TYPath& /*path*/, TReqList* request, TRspList* response, TCtxListPtr context)
 {
+    ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
     const auto* impl = GetThisTypedImpl();
     DelegateInvocation(impl->GetValue(), request, response, context);
 }
 
 void TDocumentNodeProxy::RemoveRecursive(const TYPath& /*path*/, TReqRemove* request, TRspRemove* response, TCtxRemovePtr context)
 {
+    ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
     auto* impl = LockThisTypedImpl();
     DelegateInvocation(impl->GetValue(), request, response, context);
 }
 
 void TDocumentNodeProxy::ExistsRecursive(const TYPath& /*path*/, TReqExists* request, TRspExists* response, TCtxExistsPtr context)
 {
+    ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
     const auto* impl = GetThisTypedImpl();
     DelegateInvocation(impl->GetValue(), request, response, context);
 }
 
 void TDocumentNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attributes)
 {
+    ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
     TBase::ListSystemAttributes(attributes);
     attributes->push_back(TAttributeInfo("value", true, true));
 }
@@ -1672,6 +1681,8 @@ bool TDocumentNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* co
     const auto* impl = GetThisTypedImpl();
 
     if (key == "value") {
+        ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
+
         BuildYsonFluently(consumer)
             .Value(impl->GetValue());
         return true;
@@ -1683,6 +1694,8 @@ bool TDocumentNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* co
 bool TDocumentNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& value)
 {
     if (key == "value") {
+        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+
         auto* impl = LockThisTypedImpl();
         impl->SetValue(ConvertToNode(value));
         return true;
