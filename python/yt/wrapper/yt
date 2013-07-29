@@ -473,6 +473,15 @@ def add_ping_tx_parser(add_parser):
     parser.add_argument("tx")
     parser.set_defaults(func=ping_tx)
 
+def lock(args):
+    yt.lock(args.path, args.mode)
+
+def add_lock_parser(add_parser):
+    parser = add_parser("lock", help="lock cypress node")
+    parser.add_argument("path")
+    parser.add_argument("--mode")
+    parser.set_defaults(func=lock)
+
 def check_permission(args):
     sys.stdout.write(yt.check_permission(args.user, args.permission, args.path, format=args.format))
 
@@ -555,6 +564,7 @@ def main():
     add_abort_tx_parser(add_parser)
     add_commit_tx_parser(add_parser)
     add_ping_tx_parser(add_parser)
+    add_lock_parser(add_parser)
     add_add_member_parser(add_parser)
     add_remove_member_parser(add_parser)
     add_check_permission_parser(add_parser)
