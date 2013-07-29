@@ -131,7 +131,7 @@ YtAuthority.prototype.oAuthBuildUrlToRedirect = function(
     "use strict";
     this.__DBG("oAuthBuildUrlToRedirect");
 
-    var app = this._findOAuthApplicationBy("key", key);
+    var app = this._findOAuthApplicationBy("key", key || this.config.default_oauth_application_key);
     if (typeof(app) === "undefined") {
         var error = new YtError(
             "There is no OAuth application with key " +
