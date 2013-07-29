@@ -187,7 +187,7 @@ public:
     TErasureWriterConfig()
     {
         RegisterParameter("erasure_window_size", ErasureWindowSize)
-            .Default((i64) 1024 * 1024)
+            .Default((i64)8 * 1024 * 1024)
             .GreaterThan(0);
     }
 };
