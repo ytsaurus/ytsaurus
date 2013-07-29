@@ -403,7 +403,7 @@ class TestAcls(YTEnvSetup):
         with pytest.raises(YTError): remove('//tmp/d/foo', user='u')
         with pytest.raises(YTError): remove('//tmp/d', user='u')
 
-    def test_document2(self):
+    def test_document3(self):
         create_user('u')
         create('document', '//tmp/d')
         set('//tmp/d', {"foo":{}})

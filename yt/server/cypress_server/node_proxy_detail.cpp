@@ -1671,7 +1671,6 @@ void TDocumentNodeProxy::ExistsRecursive(const TYPath& /*path*/, TReqExists* req
 
 void TDocumentNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attributes)
 {
-    ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
     TBase::ListSystemAttributes(attributes);
     attributes->push_back(TAttributeInfo("value", true, true));
 }
@@ -1681,8 +1680,6 @@ bool TDocumentNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* co
     const auto* impl = GetThisTypedImpl();
 
     if (key == "value") {
-        ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
-
         BuildYsonFluently(consumer)
             .Value(impl->GetValue());
         return true;
@@ -1694,8 +1691,6 @@ bool TDocumentNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* co
 bool TDocumentNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& value)
 {
     if (key == "value") {
-        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
-
         auto* impl = LockThisTypedImpl();
         impl->SetValue(ConvertToNode(value));
         return true;
