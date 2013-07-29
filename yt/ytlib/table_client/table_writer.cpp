@@ -311,7 +311,14 @@ bool TAsyncTableWriter::IsReady()
     if (CurrentWriterFacade) {
         return true;
     } else {
-        WriteFuture_ = Writer->GetReadyEvent();
+        auto readyEvent = NewPromise<TError>();
+        WriteFuture_ = readyEvent;
+        Writer->GetReadyEvent().Subscribe(BIND([=] (TError error) mutable {
+            if (error.IsOK()) {
+                CurrentWriterFacade = Writer->GetCurrentWriter();
+            }
+            readyEvent.Set(error);
+        }));
         return false;
     }
 }
