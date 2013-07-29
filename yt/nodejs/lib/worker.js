@@ -82,9 +82,7 @@ yt.YtRegistry.set("coordinator", new yt.YtCoordinator(
     yt.YtRegistry.get("fqdn")));
 
 // Hoist variable declaration.
-var static_application;
-var static_application2;
-var dynamic_application;
+var application;
 
 var insecure_server;
 var secure_server;
@@ -187,11 +185,7 @@ process.on("message", function(message) {
 // Fire up the head.
 logger.info("Starting HTTP proxy worker", { wid : cluster.worker.id, pid : process.pid });
 
-// Setup application servers.
-static_application = new node_static.Server("/usr/share/yt_new", { cache : 4 * 3600 });
-static_application2 = new node_static.Server("/usr/share/yt-thor", { cache : 4 * 3600 });
-
-dynamic_application = connect()
+application = connect()
     .use(yt.YtIsolateRequest())
     .use(yt.YtLogRequest())
     .use(yt.YtAcao())
@@ -241,31 +235,32 @@ dynamic_application = connect()
             return void yt.utils.dispatchAs(rsp, version.versionFull, "text/plain");
         }
         next();
-    })
-    .use("/ui", function(req, rsp, next) {
-        "use strict";
-        if (req.url === "/") {
-            if (req.originalUrl == "/ui") {
-                return void yt.utils.redirectTo(rsp, "/ui/");
-            }
-            req.url = "index.html";
-        }
-        req.on("end", function() {
-            static_application.serve(req, rsp);
+    });
+
+for (var p in config.static) {
+    if (config.static.hasOwnProperty(p)) {
+        var web_path = p.replace(/\/+$/, "");
+        var real_path = config.static[p];
+        var server = new node_static.Server(real_path, {
+            cache: 3600,
+            gzip: true,
         });
-    })
-    .use("/ui-new", function(req, rsp, next) {
-        "use strict";
-        if (req.url === "/") {
-            if (req.originalUrl == "/ui-new") {
-                return void yt.utils.redirectTo(rsp, "/ui-new/");
+        application.use(web_path, function(req, rsp, next) {
+            "use strict";
+            if (req.url === "/") {
+                if (req.originalUrl === web_path) {
+                    return void yt.utils.redirectTo(rsp, web_path + "/");
+                }
+                req.url = "index.html";
             }
-            req.url = "index.html";
-        }
-        req.on("end", function() {
-            static_application2.serve(req, rsp);
+            req.on("end", function() {
+                server.serve(req, rsp);
+            });
         });
-    })
+    }
+}
+
+application
     .use("/", function(req, rsp, next) {
         "use strict";
         if (req.url === "/") {
@@ -292,7 +287,7 @@ if (config.port && config.address) {
         port: config.port
     });
 
-    insecure_server = http.createServer(dynamic_application);
+    insecure_server = http.createServer(application);
     insecure_server.listen(config.port, config.address);
 
     insecure_server.on("close", insecure_close_deferred.resolve.bind(insecure_close_deferred));
@@ -324,7 +319,7 @@ if (config.ssl_port && config.ssl_address) {
         ciphers: config.ssl_ciphers,
         requestCert: true,
         rejectUnauthorized: true,
-    }, dynamic_application);
+    }, application);
     secure_server.listen(config.ssl_port, config.ssl_address);
 
     secure_server.on("close", secure_close_deferred.resolve.bind(secure_close_deferred));

@@ -179,7 +179,7 @@ config = {
             },
         ],
     },
-    coordination : {
+    coordination: {
         enable: true,
         announce: true,
         heartbeat_interval: 5000,
@@ -191,6 +191,10 @@ config = {
         afd_window_size: 24,
         afd_phi_threshold: 4,
         death_age: 300000
+    },
+    static: {
+        "/ui": "/usr/share/yt_new",
+        "/ui-new": "/usr/share/yt-thor",
     },
 };
 
