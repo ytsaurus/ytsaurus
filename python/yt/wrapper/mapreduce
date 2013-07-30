@@ -134,20 +134,20 @@ def main():
 """
 Examples:
     Append data to table with replication factor one, gzip codec and chunks of size 1Gb:
-            ./mapreduce -write 'table' -replicationfactor 1 -codec 'gzip_normal' -chunksize 1073741824 -append < data
+            ./mapreduce-yt -write 'table' -replicationfactor 1 -codec 'gzip_normal' -chunksize 1073741824 -append < data
 
     Read 10 records from the table:
-            ./mapreduce -read 'table[:#10]'
+            ./mapreduce-yt -read 'table[:#10]'
 
     Run operation on the range of the table:
-            ./mapreduce
+            ./mapreduce-yt
                 -subkey
                 -map 'awk '"'"'{sum+=$1+$2} END {print "\\t\\t"sum}'"'"
                 -src "ignat/temp{key,subkey}[("aaa"):("zzz")]"
                 -dst "ignat/sum"
 
     Run map-reduce operation:
-            ./mapreduce
+            ./mapreduce-yt
                 -subkey
                 -map 'grep "A"'
                 -reduce 'awk '"'"'{a[$1]+=$3} END {for (i in a) {print i"\\t\\t"a[i]}}'"'"
@@ -155,12 +155,12 @@ Examples:
                 -dst "ignat/reduced"
 
     Use already uploaded files:
-            ./mapreduce -upload mapper.py < ignat/mapper.py
-            ./mapreduce -subkey -map "./mapper.py" -ytfile "ignat/mapper.py" -src "ignat/temp" -dst "ignat/mapped"
+            ./mapreduce-yt -upload mapper.py < ignat/mapper.py
+            ./mapreduce-yt -subkey -map "./mapper.py" -ytfile "ignat/mapper.py" -src "ignat/temp" -dst "ignat/mapped"
 
     Use attrbiutes:
-            ./mapreduce -set "log/@my_attr"  -value 10
-            ./mapreduce -get "log/@my_attr"
+            ./mapreduce-yt -set "log/@my_attr"  -value 10
+            ./mapreduce-yt -get "log/@my_attr"
     It returns 10.
 """
     )
