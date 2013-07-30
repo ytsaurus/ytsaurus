@@ -28,8 +28,12 @@ TEncodingWriter::TEncodingWriter(
     , CompressionInvoker(CreateSerializedInvoker(TDispatcher::Get()->GetCompressionInvoker()))
     , Semaphore(Config->EncodeWindowSize)
     , Codec(NCompression::GetCodec(options->CompressionCodec))
-    , WritePending(
-        BIND(&TEncodingWriter::WritePendingBlocks, MakeWeak(this))
+    , IsWaiting(false)
+    , OnReadyEventCallback(
+        BIND(&TEncodingWriter::OnReadyEvent, MakeWeak(this))
+            .Via(CompressionInvoker))
+    , TriggerWritingCallback(
+        BIND(&TEncodingWriter::TriggerWriting, MakeWeak(this))
             .Via(CompressionInvoker))
 { }
 
@@ -155,18 +159,34 @@ void TEncodingWriter::ProcessCompressedBlock(const TSharedRef& block, i64 sizeTo
     LOG_DEBUG("Pending block added");
 
     if (PendingBlocks.size() == 1) {
-        WritePending.Run(TError());
+        TriggerWritingCallback.Run();
     }
 }
 
-// Serialized compression invoker affinity (don't use thread affinity because of thread pool).
-void TEncodingWriter::WritePendingBlocks(TError error)
+void TEncodingWriter::OnReadyEvent(TError error)
 {
     if (!error.IsOK()) {
         State.Fail(error);
         return;
     }
 
+    YCHECK(IsWaiting);
+    IsWaiting = false;
+    WritePendingBlocks();
+}
+
+void TEncodingWriter::TriggerWriting()
+{
+    if (IsWaiting) {
+        return;
+    }
+
+    WritePendingBlocks();
+}
+
+// Serialized compression invoker affinity (don't use thread affinity because of thread pool).
+void TEncodingWriter::WritePendingBlocks()
+{
     while (!PendingBlocks.empty()) {
         LOG_DEBUG("Writing pending block");
         auto& front = PendingBlocks.front();
@@ -175,7 +195,8 @@ void TEncodingWriter::WritePendingBlocks(TError error)
         PendingBlocks.pop_front();
 
         if (!result && !PendingBlocks.empty()) {
-            AsyncWriter->GetReadyEvent().Subscribe(WritePending);
+            IsWaiting = true;
+            AsyncWriter->GetReadyEvent().Subscribe(OnReadyEventCallback);
             return;
         }
     }
