@@ -249,6 +249,8 @@ class TestAcls(YTEnvSetup):
         with pytest.raises(YTError): set('//tmp/t/@account', 'a', user='u')
 
         set('//sys/accounts/a/@acl/end', self._make_ace('allow', 'u', 'use'))
+        with pytest.raises(YTError): set('//tmp/t/@account', 'a', user='u')
+        set('//sys/tmp/@acl/end', self._make_ace('allow', 'u', 'administer'))
         set('//tmp/t/@account', 'a', user='u')
         assert get('//tmp/t/@account') == 'a'
 
