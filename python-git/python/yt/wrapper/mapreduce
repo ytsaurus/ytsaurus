@@ -544,10 +544,10 @@ Examples:
             writelines_silently(yt.download_file(args.download, response_type="iter_content"))
 
     if args.exists is not None:
-        print yt.exists(args.exists)
+        print bool_to_string(yt.exists(args.exists))
 
     if args.get is not None:
-        print yt.get(args.get, spec=spec, format=yt.Format("<format=pretty>json"))
+        sys.stdout.write(yt.get(args.get, spec=spec, format=yt.Format("<format=pretty>json")))
     if args.set is not None:
         if args.value is None:
             die("Value option is necessary for set command")
