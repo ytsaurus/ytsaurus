@@ -299,7 +299,8 @@ bool TNontemplateCypressNodeProxyBase::SetSystemAttribute(const Stroka& key, con
 {
     if (key == "account") {
         ValidateNoTransaction();
-
+        ValidatePermission(EPermissionCheckScope::This, EPermission::Administer);
+        
         auto securityManager = Bootstrap->GetSecurityManager();
 
         auto name = ConvertTo<Stroka>(value);
