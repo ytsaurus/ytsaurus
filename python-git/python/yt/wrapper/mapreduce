@@ -133,21 +133,22 @@ def main():
         epilog=
 """
 Examples:
-    Append data to table with replication factor one, gzip codec and chunks of size 1Gb:
-            ./mapreduce-yt -write 'table' -replicationfactor 1 -codec 'gzip_normal' -chunksize 1073741824 -append < data
+    Write data to the table with replication factor one and gzip codec:
+            mapreduce-yt -createtable 'table' -codec gzip_normal -replicationfactor 1
+            mapreduce-yt -write 'table' -append < data
 
     Read 10 records from the table:
-            ./mapreduce-yt -read 'table[:#10]'
+            mapreduce-yt -read 'table[:#10]'
 
     Run operation on the range of the table:
-            ./mapreduce-yt
+            mapreduce-yt
                 -subkey
                 -map 'awk '"'"'{sum+=$1+$2} END {print "\\t\\t"sum}'"'"
                 -src "ignat/temp{key,subkey}[("aaa"):("zzz")]"
                 -dst "ignat/sum"
 
     Run map-reduce operation:
-            ./mapreduce-yt
+            mapreduce-yt
                 -subkey
                 -map 'grep "A"'
                 -reduce 'awk '"'"'{a[$1]+=$3} END {for (i in a) {print i"\\t\\t"a[i]}}'"'"
@@ -155,12 +156,12 @@ Examples:
                 -dst "ignat/reduced"
 
     Use already uploaded files:
-            ./mapreduce-yt -upload mapper.py < ignat/mapper.py
-            ./mapreduce-yt -subkey -map "./mapper.py" -ytfile "ignat/mapper.py" -src "ignat/temp" -dst "ignat/mapped"
+            mapreduce-yt -upload mapper.py < ignat/mapper.py
+            mapreduce-yt -subkey -map "./mapper.py" -ytfile "ignat/mapper.py" -src "ignat/temp" -dst "ignat/mapped"
 
-    Use attrbiutes:
-            ./mapreduce-yt -set "log/@my_attr"  -value 10
-            ./mapreduce-yt -get "log/@my_attr"
+    Use you own attrbiutes:
+            mapreduce-yt -set "log/@my_attr"  -value 10
+            mapreduce-yt -get "log/@my_attr"
     It returns 10.
 """
     )
@@ -431,9 +432,15 @@ Examples:
     if args.detached is None or bool(args.detached):
         config.DETACHED = True
 
+    attributes = {}
+
     replication_factor = args.replicationfactor
     if replication_factor is not None:
         replication_factor = int(args.replicationfactor)
+        attributes["replication_factor"] = replication_factor
+
+    if args.codec is not None:
+        attributes["compression_codec"] = args.codec
 
     if args.tablewriter is not None:
         args.tablewriter = json.loads(args.tablewriter)
@@ -452,7 +459,7 @@ Examples:
                 format=inputformat,
                 response_type="iter_content"))
     if args.createtable is not None:
-        yt.create_table(args.createtable)
+        yt.create_table(args.createtable, attributes=attributes)
     if args.write is not None:
         args.write = yt.TablePath(args.write, append=args.append)
         yt.write_table(args.write, sys.stdin, format=outputformat,
