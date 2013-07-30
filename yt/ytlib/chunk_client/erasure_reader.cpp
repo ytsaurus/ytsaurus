@@ -776,7 +776,7 @@ IAsyncReaderPtr CreateNonReparingErasureReader(
 {
     return New<TNonReparingReader>(
         dataBlockReaders,
-        TDispatcher::Get()->GetErasureInvoker());
+        TDispatcher::Get()->GetReaderInvoker());
 }
 
 TAsyncError RepairErasedBlocks(
