@@ -208,7 +208,7 @@ private:
                 RETURN_IF_ERROR(metaOrError);
 
                 auto extension = GetProtoExtension<TErasurePlacementExt>(metaOrError.GetValue().extensions());
-                PartInfos_ = std::vector<TPartInfo>(extension.part_infos().begin(), extension.part_infos().end());
+                PartInfos_ = FromProto<TPartInfo>(extension.part_infos());
 
                 // Check that part infos are correct.
                 YCHECK(PartInfos_.front().start() == 0);
@@ -598,7 +598,7 @@ TError TRepairReader::OnGotMeta(IAsyncReader::TGetMetaResult metaOrError)
     WindowCount_ = placementExt.parity_block_count();
     WindowSize_ = placementExt.parity_block_size();
     LastWindowSize_ = placementExt.parity_last_block_size();
-    
+
     auto recoveryIndices = Codec_->GetRepairIndices(ErasedIndices_);
     YCHECK(recoveryIndices);
     YCHECK(recoveryIndices->size() == Readers_.size());
@@ -695,7 +695,7 @@ public:
                 auto result = WaitFor(Reader_->Prepare());
                 THROW_ERROR_EXCEPTION_IF_FAILED(result);
             }
-            
+
             // Open writers.
             FOREACH (auto writer, Writers_) {
                 writer->Open();
@@ -797,7 +797,7 @@ TAsyncError RepairErasedBlocks(
     if (cancelableContext) {
         invoker = cancelableContext->CreateInvoker(invoker);
     }
-    
+
     auto session = New<TRepairAllPartsSession>(
         codec,
         erasedIndices,
