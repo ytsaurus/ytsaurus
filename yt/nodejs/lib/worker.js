@@ -74,7 +74,9 @@ yt.YtRegistry.set("fqdn", config.fqdn || require("os").hostname());
 yt.YtRegistry.set("config", config);
 yt.YtRegistry.set("logger", logger);
 yt.YtRegistry.set("driver", new yt.YtDriver(config));
-yt.YtRegistry.set("authority", new yt.YtAuthority(config.authentication));
+yt.YtRegistry.set("authority", new yt.YtAuthority(
+    config.authentication,
+    yt.YtRegistry.get("driver")));
 yt.YtRegistry.set("coordinator", new yt.YtCoordinator(
     config.coordination,
     new yt.utils.TaggedLogger(logger, { wid: cluster.worker.id, pid: process.pid }),
