@@ -35,6 +35,10 @@ add_executable( ytserver
   ${YT_SOURCE_FILES}
 )
 
+add_library( ytserver_lib
+  ${YT_SOURCE_FILES}
+)
+
 include_directories(
   ${CMAKE_SOURCE_DIR}/contrib/tclap
   ${CMAKE_BINARY_DIR}
@@ -43,6 +47,10 @@ include_directories(
 )
 
 target_link_libraries( ytserver
+  ytlib
+)
+
+target_link_libraries( ytserver_lib
   ytlib
 )
 

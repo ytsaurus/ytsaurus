@@ -22,6 +22,7 @@ struct IChunkVisitor
      */
     virtual bool OnChunk(
         TChunk* chunk,
+        i64 rowIndex,
         const NChunkClient::NProto::TReadLimit& startLimit,
         const NChunkClient::NProto::TReadLimit& endLimit) = 0;
 
@@ -32,8 +33,28 @@ struct IChunkVisitor
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct ITraverserCallbacks
+    : public virtual TRefCounted
+{
+    virtual IInvokerPtr GetInvoker() const = 0;
+
+    virtual void OnPop(TChunkTree* node) = 0;
+    
+    virtual void OnPush(TChunkTree* node) = 0;
+
+    virtual void OnShutdown(const std::vector<TChunkTree*>& nodes) = 0;
+};
+
+typedef TIntrusivePtr<ITraverserCallbacks> ITraverserCallbacksPtr;
+
+////////////////////////////////////////////////////////////////////////////////
+
+ITraverserCallbacksPtr GetTraverserCallbacks(NCellMaster::TBootstrap* bootstrap);
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TraverseChunkTree(
-    NCellMaster::TBootstrap* bootstrap,
+    ITraverserCallbacksPtr bootstrap,
     IChunkVisitorPtr visitor,
     TChunkList* root,
     const NChunkClient::NProto::TReadLimit& lowerBound = NChunkClient::NProto::TReadLimit(),

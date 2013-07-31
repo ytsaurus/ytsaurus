@@ -107,7 +107,7 @@ public:
         return ReaderHeap.front()->GetFacade()->GetKey();
     }
 
-    virtual i64 GetRowCount() const override
+    virtual i64 GetSessionRowCount() const override
     {
         i64 total = 0;
         FOREACH (const auto& reader, Readers) {
@@ -121,13 +121,18 @@ public:
         return ReaderHeap.front()->GetFacade()->GetTableIndex();
     }
 
-    virtual i64 GetRowIndex() const override
+    virtual i64 GetSessionRowIndex() const override
     {
         i64 total = 0;
         FOREACH (const auto& reader, Readers) {
             total += reader->GetProvider()->GetRowIndex();
         }
         return total;
+    }
+    
+    virtual i64 GetTableRowIndex() const override
+    {
+        YUNREACHABLE();
     }
 
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunks() const override

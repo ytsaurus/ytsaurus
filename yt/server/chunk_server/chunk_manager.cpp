@@ -79,6 +79,155 @@ static TDuration ProfilingPeriod = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void SetChunkTreeParent(TChunkList* parent, TChunkTree* child)
+{
+    switch (child->GetType()) {
+        case EObjectType::Chunk:
+        case EObjectType::ErasureChunk:
+            child->AsChunk()->Parents().push_back(parent);
+            break;
+        case EObjectType::ChunkList:
+            child->AsChunkList()->Parents().insert(parent);
+            break;
+        default:
+            YUNREACHABLE();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class F>
+void VisitUniqueAncestors(TChunkList* chunkList, F functor)
+{
+    while (chunkList != nullptr) {
+        functor(chunkList);
+        const auto& parents = chunkList->Parents();
+        if (parents.empty())
+            break;
+        YCHECK(parents.size() == 1);
+        chunkList = *parents.begin();
+    }
+}
+
+TChunkTreeStatistics GetChunkTreeStatistics(TChunkTree* chunkTree)
+{
+    switch (chunkTree->GetType()) {
+        case EObjectType::Chunk:
+        case EObjectType::ErasureChunk:
+            return chunkTree->AsChunk()->GetStatistics();
+        case EObjectType::ChunkList:
+            return chunkTree->AsChunkList()->Statistics();
+        default:
+            YUNREACHABLE();
+    }
+}
+
+template <class F>
+void VisitAncestors(TChunkList* chunkList, F functor)
+{
+    // BFS queue. Try to avoid allocations.
+    TSmallVector<TChunkList*, 64> queue;
+    size_t frontIndex = 0;
+
+    // Put seed into the queue.
+    queue.push_back(chunkList);
+
+    // The main loop.
+    while (frontIndex < queue.size()) {
+        auto* chunkList = queue[frontIndex++];
+
+        // Fast lane: handle unique parents.
+        while (chunkList != nullptr) {
+            functor(chunkList);
+            const auto& parents = chunkList->Parents();
+            if (parents.size() != 1)
+                break;
+            chunkList = *parents.begin();
+        }
+
+        if (chunkList != nullptr) {
+            // Proceed to parents.
+            FOREACH (auto* parent, chunkList->Parents()) {
+                queue.push_back(parent);
+            }
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class F>
+void AttachToChunkList(
+    TChunkList* chunkList,
+    TChunkTree** childrenBegin,
+    TChunkTree** childrenEnd,
+    F chunkAction,
+    bool resetSorted)
+{
+    chunkList->IncrementVersion();
+
+    TChunkTreeStatistics delta;
+    for (auto it = childrenBegin; it != childrenEnd; ++it) {
+        auto child = *it;
+        if (!chunkList->Children().empty()) {
+            chunkList->RowCountSums().push_back(
+                chunkList->Statistics().RowCount +
+                delta.RowCount);
+            chunkList->ChunkCountSums().push_back(
+                chunkList->Statistics().ChunkCount +
+                delta.ChunkCount);
+            chunkList->DataSizeSums().push_back(
+                chunkList->Statistics().UncompressedDataSize +
+                delta.UncompressedDataSize);
+
+        }
+        chunkList->Children().push_back(child);
+        chunkAction(child);
+        SetChunkTreeParent(chunkList, child);
+        delta.Accumulate(GetChunkTreeStatistics(child));
+    }
+
+    // Go upwards and apply delta.
+    // Reset Sorted flags.
+    VisitUniqueAncestors(
+        chunkList,
+        [&] (TChunkList* current) {
+            ++delta.Rank;
+            current->Statistics().Accumulate(delta);
+            if (resetSorted) {
+                current->SortedBy().clear();
+            }
+        });
+}
+
+void AttachToChunkList(
+    TChunkList* chunkList,
+    const std::vector<TChunkTree*>& children,
+    bool resetSorted)
+{
+    AttachToChunkList(
+        chunkList,
+        const_cast<TChunkTree**>(children.data()),
+        const_cast<TChunkTree**>(children.data() + children.size()),
+        [] (TChunkTree* chunk) { },
+        resetSorted);
+}
+
+void AttachToChunkList(
+    TChunkList* chunkList,
+    TChunkTree* child,
+    bool resetSorted)
+{
+    AttachToChunkList(
+        chunkList,
+        &child,
+        &child + 1,
+        [] (TChunkTree* chunk) { },
+        resetSorted);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TChunkManager::TChunkTypeHandlerBase
     : public TObjectTypeHandlerWithMapBase<TChunk>
 {
@@ -325,65 +474,6 @@ public:
         return chunkList;
     }
 
-    static TChunkTreeStatistics GetChunkTreeStatistics(TChunkTree* chunkTree)
-    {
-        switch (chunkTree->GetType()) {
-            case EObjectType::Chunk:
-            case EObjectType::ErasureChunk:
-                return chunkTree->AsChunk()->GetStatistics();
-            case EObjectType::ChunkList:
-                return chunkTree->AsChunkList()->Statistics();
-            default:
-                YUNREACHABLE();
-        }
-    }
-
-    template <class F>
-    static void VisitUniqueAncestors(TChunkList* chunkList, F functor)
-    {
-        while (chunkList != nullptr) {
-            functor(chunkList);
-            const auto& parents = chunkList->Parents();
-            if (parents.empty())
-                break;
-            YCHECK(parents.size() == 1);
-            chunkList = *parents.begin();
-        }
-    }
-
-    template <class F>
-    static void VisitAncestors(TChunkList* chunkList, F functor)
-    {
-        // BFS queue. Try to avoid allocations.
-        TSmallVector<TChunkList*, 64> queue;
-        size_t frontIndex = 0;
-
-        // Put seed into the queue.
-        queue.push_back(chunkList);
-
-        // The main loop.
-        while (frontIndex < queue.size()) {
-            auto* chunkList = queue[frontIndex++];
-
-            // Fast lane: handle unique parents.
-            while (chunkList != nullptr) {
-                functor(chunkList);
-                const auto& parents = chunkList->Parents();
-                if (parents.size() != 1)
-                    break;
-                chunkList = *parents.begin();
-            }
-
-            if (chunkList != nullptr) {
-                // Proceed to parents.
-                FOREACH (auto* parent, chunkList->Parents()) {
-                    queue.push_back(parent);
-                }
-            }
-        }
-    }
-
-
     void AttachToChunkList(
         TChunkList* chunkList,
         TChunkTree** childrenBegin,
@@ -391,40 +481,14 @@ public:
         bool resetSorted)
     {
         auto objectManager = Bootstrap->GetObjectManager();
-        chunkList->IncrementVersion();
-
-        TChunkTreeStatistics delta;
-        for (auto it = childrenBegin; it != childrenEnd; ++it) {
-            auto child = *it;
-            if (!chunkList->Children().empty()) {
-                chunkList->RowCountSums().push_back(
-                    chunkList->Statistics().RowCount +
-                    delta.RowCount);
-                chunkList->ChunkCountSums().push_back(
-                    chunkList->Statistics().ChunkCount +
-                    delta.ChunkCount);
-                chunkList->DataSizeSums().push_back(
-                    chunkList->Statistics().UncompressedDataSize +
-                    delta.UncompressedDataSize);
-
-            }
-            chunkList->Children().push_back(child);
-            SetChunkTreeParent(chunkList, child);
-            objectManager->RefObject(child);
-            delta.Accumulate(GetChunkTreeStatistics(child));
-        }
-
-        // Go upwards and apply delta.
-        // Reset Sorted flags.
-        VisitUniqueAncestors(
+        NChunkServer::AttachToChunkList(
             chunkList,
-            [&] (TChunkList* current) {
-                ++delta.Rank;
-                current->Statistics().Accumulate(delta);
-                if (resetSorted) {
-                    current->SortedBy().clear();
-                }
-            });
+            childrenBegin,
+            childrenEnd,
+            [&] (TChunkTree* chunk) {
+                objectManager->RefObject(chunk);
+            },
+            resetSorted);
     }
 
     void AttachToChunkList(
@@ -566,21 +630,6 @@ public:
         chunkList->Statistics().ChunkListCount = 1;
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Chunk list cleared (ChunkListId: %s)", ~ToString(chunkList->GetId()));
-    }
-
-    void SetChunkTreeParent(TChunkList* parent, TChunkTree* child)
-    {
-        switch (child->GetType()) {
-            case EObjectType::Chunk:
-            case EObjectType::ErasureChunk:
-                child->AsChunk()->Parents().push_back(parent);
-                break;
-            case EObjectType::ChunkList:
-                child->AsChunkList()->Parents().insert(parent);
-                break;
-            default:
-                YUNREACHABLE();
-        }
     }
 
     void ResetChunkTreeParent(TChunkList* parent, TChunkTree* child)

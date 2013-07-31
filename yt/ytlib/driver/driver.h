@@ -40,6 +40,9 @@ struct TDriverRequest
     //! Name of the user issuing the request.
     //! If |Null| then "root" is assumed.
     TNullable<Stroka> AuthenticatedUser;
+
+    //! Allows to return additional info in heavy command.
+    NYson::IYsonConsumer* ResponseParametersConsumer;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

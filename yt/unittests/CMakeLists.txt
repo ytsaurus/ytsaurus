@@ -8,6 +8,7 @@ set( SRCS
   ${BASE}/bus_ut.cpp
   ${BASE}/callback_ut.cpp
   ${BASE}/change_log_ut.cpp
+  ${BASE}/chunk_tree_traversing_ut.cpp
   ${BASE}/compression_ut.cpp
   ${BASE}/coroutines_ut.cpp
   ${BASE}/dsv_parser_ut.cpp
@@ -85,5 +86,6 @@ add_executable( unittester
 
 target_link_libraries( unittester
   ytlib
+  ytserver_lib
 )
 

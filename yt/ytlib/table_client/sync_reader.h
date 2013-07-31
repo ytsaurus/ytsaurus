@@ -31,9 +31,9 @@ struct ISyncReader
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunks() const = 0;
     virtual const TNullable<int>& GetTableIndex() const = 0;
 
-    virtual i64 GetRowIndex() const = 0;
-    virtual i64 GetRowCount() const = 0;
-
+    virtual i64 GetSessionRowIndex() const = 0;
+    virtual i64 GetSessionRowCount() const = 0;
+    virtual i64 GetTableRowIndex() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -70,14 +70,19 @@ public:
         return AsyncReader->GetFacade()->GetKey();
     }
 
-    virtual i64 GetRowIndex() const
+    virtual i64 GetSessionRowIndex() const
     {
         return AsyncReader->GetProvider()->GetRowIndex();
     }
 
-    virtual i64 GetRowCount() const
+    virtual i64 GetSessionRowCount() const
     {
         return AsyncReader->GetProvider()->GetRowCount();
+    }
+    
+    virtual i64 GetTableRowIndex() const
+    {
+        return AsyncReader->GetFacade()->GetTableRowIndex();
     }
 
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunks() const

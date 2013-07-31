@@ -35,6 +35,12 @@ function YtDriverFacadeV1(driver)
     this.driver = driver;
 }
 
+YtDriverFacadeV1.prototype.on = function()
+{
+    "use strict";
+    return this.driver.on.apply(this.driver, arguments);
+};
+
 YtDriverFacadeV1.prototype.execute = function(name, user,
     input_stream, input_compression,
     output_stream, output_compression,
