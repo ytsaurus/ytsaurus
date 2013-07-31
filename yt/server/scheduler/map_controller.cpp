@@ -86,12 +86,12 @@ private:
             : Controller(nullptr)
         { }
 
-        explicit TMapTask(TMapController* controller)
+        explicit TMapTask(TMapController* controller, int jobCount)
             : TTask(controller)
             , Controller(controller)
             , ChunkPool(CreateUnorderedChunkPool(
                 Controller->NodeDirectory,
-                Controller->JobCounter.GetTotal()))
+                jobCount))
         { }
 
         virtual Stroka GetId() const override
@@ -107,11 +107,6 @@ private:
         virtual TDuration GetLocalityTimeout() const override
         {
             return Controller->Spec->LocalityTimeout;
-        }
-
-        virtual TNodeResources GetMinNeededResourcesHeavy() const override
-        {
-            return GetMapResources(ChunkPool->GetApproximateStripeStatistics());
         }
 
         virtual TNodeResources GetNeededResources(TJobletPtr joblet) const override
@@ -145,6 +140,11 @@ private:
 
         std::unique_ptr<IChunkPool> ChunkPool;
 
+
+        virtual TNodeResources GetMinNeededResourcesHeavy() const override
+        {
+            return GetMapResources(ChunkPool->GetApproximateStripeStatistics());
+        }
 
         TNodeResources GetMapResources(const TChunkStripeStatisticsVector& statistics) const
         {
@@ -243,16 +243,14 @@ private:
             auto stripes = SliceInputChunks(Config->MapJobMaxSliceDataSize, jobCount);
             jobCount = std::min(jobCount, static_cast<int>(stripes.size()));
 
-            JobCounter.Set(jobCount);
-
-            MapTask = New<TMapTask>(this);
+            MapTask = New<TMapTask>(this, jobCount);
             MapTask->Initialize();
             MapTask->AddInput(stripes);
             MapTask->FinishInput();
             RegisterTask(MapTask);
 
-            LOG_INFO("Inputs processed (JobCount: %" PRId64 ")",
-                JobCounter.GetTotal());
+            LOG_INFO("Inputs processed (JobCount: %d)",
+                jobCount);
         }
 
         InitJobIOConfig();

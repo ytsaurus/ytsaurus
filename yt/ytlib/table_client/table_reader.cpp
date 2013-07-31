@@ -6,6 +6,7 @@
 #include "private.h"
 
 #include <ytlib/actions/async_pipeline.h>
+
 #include <ytlib/misc/sync.h>
 
 #include <ytlib/chunk_client/block_cache.h>
@@ -100,9 +101,7 @@ void TAsyncTableReader::OnChunkReaderOpened()
 
 TAsyncError TAsyncTableReader::AsyncOpen()
 {
-    // TODO(ignat): find the reason why we have wrong thread while using driver.
-    //VERIFY_THREAD_AFFINITY(Client);
-    YASSERT(!IsOpen);
+    YCHECK(!IsOpen);
 
     LOG_INFO("Opening table reader");
 
@@ -116,10 +115,9 @@ TAsyncError TAsyncTableReader::AsyncOpen()
 
 bool TAsyncTableReader::FetchNextItem()
 {
-    //VERIFY_THREAD_AFFINITY(Client);
-    YASSERT(IsOpen);
+    YCHECK(IsOpen);
 
-    if (Reader->GetFacade() != nullptr) {
+    if (Reader->GetFacade()) {
         if (IsReadStarted_) {
             return Reader->FetchNext();
         }
@@ -136,10 +134,12 @@ TAsyncError TAsyncTableReader::GetReadyEvent()
     }
     return Reader->GetReadyEvent();
 }
+
 bool TAsyncTableReader::IsValid() const
 {
     return Reader->GetFacade() != nullptr;
 }
+
 const TRow& TAsyncTableReader::GetRow() const
 {
     return Reader->GetFacade()->GetRow();

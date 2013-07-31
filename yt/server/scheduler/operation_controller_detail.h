@@ -76,6 +76,7 @@ public:
     virtual IInvokerPtr GetCancelableBackgroundInvoker() override;
 
     virtual int GetPendingJobCount() override;
+    virtual int GetTotalJobCount() override;
     virtual NNodeTrackerClient::NProto::TNodeResources GetNeededResources() override;
 
     virtual void BuildProgressYson(NYson::IYsonConsumer* consumer) override;
@@ -109,11 +110,12 @@ protected:
     IInvokerPtr CancelableControlInvoker;
     IInvokerPtr CancelableBackgroundInvoker;
 
-    // Remains True as long as the operation can schedule new jobs.
+
+    //! Remains |true| as long as the operation can schedule new jobs.
     bool Running;
 
-    // Totals.
 
+    // Totals.
     int TotalInputChunkCount;
     i64 TotalInputDataSize;
     i64 TotalInputRowCount;
@@ -231,6 +233,7 @@ protected:
 
 
     //! Describes which part of the operation needs a particular file.
+    //! Values must be contiguous.
     DECLARE_ENUM(EOperationStage,
         (Map)
         (Reduce)
@@ -240,6 +243,7 @@ protected:
     {
         NYPath::TRichYPath Path;
         EOperationStage Stage;
+        Stroka FileName;
 
         void Persist(TPersistenceContext& context);
 
@@ -250,7 +254,6 @@ protected:
     {
         NChunkClient::NProto::TRspFetch FetchResponse;
         bool Executable;
-        Stroka FileName;
 
         void Persist(TPersistenceContext& context);
 
@@ -263,7 +266,6 @@ protected:
         : public TUserFileBase
     {
         NChunkClient::NProto::TRspFetch FetchResponse;
-        Stroka FileName;
         NYTree::TYsonString Format;
 
         void Persist(TPersistenceContext& context);
@@ -367,6 +369,9 @@ protected:
         virtual int GetPendingJobCount() const;
         int GetPendingJobCountDelta();
 
+        int GetTotalJobCount() const;
+        int GetTotalJobCountDelta();
+
         virtual NNodeTrackerClient::NProto::TNodeResources GetTotalNeededResources() const;
         NNodeTrackerClient::NProto::TNodeResources GetTotalNeededResourcesDelta();
 
@@ -421,6 +426,8 @@ protected:
         TOperationControllerBase* Controller;
 
         int CachedPendingJobCount;
+        int CachedTotalJobCount;
+
         NNodeTrackerClient::NProto::TNodeResources CachedTotalNeededResources;
         mutable TNullable<NNodeTrackerClient::NProto::TNodeResources> CachedMinNeededResources;
 
@@ -781,6 +788,7 @@ private:
     TChunkListPoolPtr ChunkListPool;
 
     int CachedPendingJobCount;
+
     NNodeTrackerClient::NProto::TNodeResources CachedNeededResources;
 
     //! Maps an intermediate chunk id to its originating completed job.

@@ -132,15 +132,15 @@ void TOperationTracker::DumpProgress()
         progress = TYsonString(rsp->value());
     }
 
-    if (state == EOperationState::Running) {
-        if (!PrevProgress || *PrevProgress != progress) {
+    if (!PrevProgress || *PrevProgress != progress) {
+        if (state == EOperationState::Running) {
             printf("%s: %s\n",
                 ~state.ToString(),
                 ~FormatProgress(progress));
-            PrevProgress = progress;
+        } else {
+            printf("%s\n", ~state.ToString());
         }
-    } else {
-        printf("%s\n", ~state.ToString());
+        PrevProgress = progress;
     }
 }
 

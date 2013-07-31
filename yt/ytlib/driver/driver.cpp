@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "dispatcher.h"
 #include "driver.h"
 #include "config.h"
 #include "command.h"
@@ -82,6 +83,8 @@ public:
         SchedulerChannel = CreateSchedulerChannel(Config->Scheduler, LeaderChannel);
 
         BlockCache = CreateClientBlockCache(Config->BlockCache);
+
+        TDispatcher::Get()->Configure(Config);
 
         // Register all commands.
 #define REGISTER(command, name, inDataType, outDataType, isVolatile, isHeavy) \
@@ -176,6 +179,10 @@ public:
 
         auto command = entry.Factory.Run();
 
+        auto invoker = entry.Descriptor.IsHeavy
+            ? TDispatcher::Get()->GetHeavyInvoker()
+            : TDispatcher::Get()->GetLightInvoker();
+
         return BIND([=] () -> TDriverResponse {
             command->Execute(context);
 
@@ -193,7 +200,7 @@ public:
             WaitFor(context->TerminateChannels());
 
             return response;
-        }).AsyncVia(DriverThread->GetInvoker()).Run();
+        }).AsyncVia(invoker).Run();
     }
 
     virtual TNullable<TCommandDescriptor> FindCommandDescriptor(const Stroka& commandName) override

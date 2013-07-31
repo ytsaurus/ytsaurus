@@ -59,9 +59,15 @@ private:
 
     std::deque<TSharedRef> PendingBlocks;
 
-    TCallback<void(TError)> WritePending;
+    // True if OnReadyEventCallback is subscribed on AsyncWriter::ReadyEvent.
+    bool IsWaiting;
+    TCallback<void(TError)> OnReadyEventCallback;
+    TCallback<void()> TriggerWritingCallback;
 
-    void WritePendingBlocks(TError error);
+    void OnReadyEvent(TError error);
+    void TriggerWriting();
+    void WritePendingBlocks();
+
     void ProcessCompressedBlock(const TSharedRef& block, i64 delta);
 
     void DoCompressBlock(const TSharedRef& block);

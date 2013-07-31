@@ -94,7 +94,7 @@ void TListCommand::DoExecute()
 
 void TCreateCommand::DoExecute()
 {
-    if (IsVersioned(Request->Type)) {
+    if (IsVersionedType(Request->Type)) {
         if (!Request->Path) {
             THROW_ERROR_EXCEPTION("Object type is versioned, Cypress path required");
         }

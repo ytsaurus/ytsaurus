@@ -13,11 +13,10 @@ var __DBG = require("./debug").that("U", "Upravlyator");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function YtApplicationUpravlyator(config, logger, driver)
+function YtApplicationUpravlyator(logger, driver)
 {
     "use strict";
 
-    this.config = config;
     this.logger = logger;
     this.driver = driver;
 }

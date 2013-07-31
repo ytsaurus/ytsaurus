@@ -42,7 +42,7 @@ void TReadCommand::DoExecute()
         Request->Path);
 
     auto output = Context->Request().OutputStream;
-    
+
     // TODO(babenko): provide custom allocation tag
     TBlobOutput buffer;
     i64 bufferLimit = Context->GetConfig()->ReadBufferSize;
@@ -141,12 +141,13 @@ void TWriteCommand::DoExecute()
         }
     }
 
+    parser->Finish();
+
     {
         auto result = WaitFor(writer->AsyncClose());
         THROW_ERROR_EXCEPTION_IF_FAILED(result);
     }
 
-    parser->Finish();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

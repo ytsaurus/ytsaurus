@@ -117,6 +117,17 @@ void TChunkReplicator::Initialize()
     }
 }
 
+void TChunkReplicator::Finalize()
+{
+    // Clear JobMap, JobListMap, and unregister jobs from the nodes.
+    FOREACH (const auto& pair, JobMap) {
+        const auto& job = pair.second;
+        YCHECK(job->GetNode()->Jobs().erase(job) == 1);
+    }
+    JobMap.clear();
+    JobListMap.clear();
+}
+
 void TChunkReplicator::TouchChunk(TChunk* chunk)
 {
     auto repairIt = chunk->GetRepairQueueIterator();
@@ -921,7 +932,7 @@ void TChunkReplicator::ScheduleChunkRefresh(TChunk* chunk)
     chunk->SetRefreshScheduled(true);
 
     auto objectManager = Bootstrap->GetObjectManager();
-    objectManager->LockObject(chunk);
+    objectManager->WeakRefObject(chunk);
 }
 
 void TChunkReplicator::ScheduleNodeRefresh(TNode* node)
@@ -959,7 +970,7 @@ void TChunkReplicator::OnRefresh()
                 RefreshChunk(chunk);
             }
 
-            objectManager->UnlockObject(chunk);
+            objectManager->WeakUnrefObject(chunk);
         }
     }
 
@@ -1099,7 +1110,7 @@ void TChunkReplicator::SchedulePropertiesUpdate(TChunk* chunk)
     chunk->SetPropertiesUpdateScheduled(true);
 
     auto objectManager = Bootstrap->GetObjectManager();
-    objectManager->LockObject(chunk);
+    objectManager->WeakRefObject(chunk);
 }
 
 void TChunkReplicator::OnPropertiesUpdate()
@@ -1143,7 +1154,7 @@ void TChunkReplicator::OnPropertiesUpdate()
                 }
             }
 
-            objectManager->UnlockObject(chunk);
+            objectManager->WeakUnrefObject(chunk);
         }
     }
 

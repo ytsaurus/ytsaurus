@@ -39,27 +39,33 @@ function stubRegistry()
         },
         authentication: {
             enable: true,
-            grant: "ytgrant",
+            cache_max_size: 3000,
+            cache_max_token_age: 60 * 1000,
+            cache_max_exist_age: 86400 * 1000,
+            create_users_on_demand: true,
             guest_login: "ytguest",
             guest_realm: "ytguest",
-            cache_max_size: 3000,
-            cache_max_age: 60 * 1000,
-            realms: [
+            cypress: {
+                enable: true,
+                where: "//sys/tokens",
+            },
+            blackbox: {
+                enable: true,
+                grant: "ytgrant",
+            },
+            oauth: [
                 {
                     key: "ytrealm-key",
-                    type: "oauth",
                     client_id: "ytrealm-id",
                     client_secret: "ytrealm-secret"
                 },
                 {
                     key: "first",
-                    type: "oauth",
                     client_id: "first_client_id",
                     client_secret: "first_client_secret"
                 },
                 {
                     key: "second",
-                    type: "oauth",
                     client_id: "second_client_id",
                     client_secret: "second_client_secret"
                 },
@@ -68,11 +74,12 @@ function stubRegistry()
     };
 
     var logger = stubLogger();
+    var driver = { executeSimple: function(){} };
 
     YtRegistry.set("config", config);
     YtRegistry.set("logger", logger);
-    YtRegistry.set("driver", { executeSimple: function(){} });
-    YtRegistry.set("authority", new YtAuthority(config.authentication));
+    YtRegistry.set("driver", driver);
+    YtRegistry.set("authority", new YtAuthority(config.authentication, driver));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -99,20 +106,20 @@ describe("ApplicationAuth", function() {
                 "?response_type=code" +
                 "&display=popup" +
                 "&client_id=" + realm + "_client_id" +
-                "&state=%7B" +
-                    "%22foo%22%3A%22bar%22%2C" +
-                    "%22spam%22%3A%22ham%22%2C" +
-                    "%22realm%22%3A%22" + realm + "%22" +
-                "%7D");
+                "&state=" + qs.escape('{' +
+                    '"foo":"bar",' +
+                    '"spam":"ham",' +
+                    '"realm":"' + realm + '"' +
+                '}'));
         }, done).end();
     });
     });
 
-    it("should request token and create non-existing user", function(done) {
+    it("should request token and display it to the user", function(done) {
         var params = qs.stringify({
             code: 123456789,
             state: JSON.stringify({
-                realm: "ytrealm-key"
+                realm: "ytrealm-key",
             })
         });
         var mock1 = nock("http://localhost:8000")
@@ -127,26 +134,40 @@ describe("ApplicationAuth", function() {
                 login: "scorpion",
                 oauth: { client_id: "ytrealm-id", scope: "ytgrant" }
             });
-        var mock3 = sinon.mock(YtRegistry.get("driver"));
-        mock3
-            .expects("executeSimple").once()
-            .withExactArgs("exists", sinon.match({
-                path: "//sys/users/scorpion"
-            }))
-            .returns("false");
-        mock3
-            .expects("executeSimple").once()
-            .withExactArgs("create", sinon.match({
-                type: "user",
-                attributes: { name: "scorpion" }
-            }))
-            .returns("0-0-0-0");
         ask("GET", "/new?" + params, {}, function(rsp) {
             rsp.should.be.http2xx;
             rsp.body.should.match(/\bdeadbabedeadbabe\b/);
             mock1.done();
             mock2.done();
-            mock3.verify();
         }, done).end();
     });
+
+    it("should request token and redirect the user", function(done) {
+        var params = qs.stringify({
+            code: 123456789,
+            state: JSON.stringify({
+                realm: "ytrealm-key",
+                return_path: "http://ya.ru/?my_foo=a&my_bar=b"
+            })
+        });
+        var mock1 = nock("http://localhost:8000")
+            .post("/token", "code=123456789&grant_type=authorization_code&client_id=ytrealm-id&client_secret=ytrealm-secret")
+            .reply(200, {
+                access_token: "deadbabedeadbabe"
+            });
+        var mock2 = nock("http://localhost:9000")
+            .get("/blackbox?method=oauth&format=json&userip=127.0.0.1&oauth_token=deadbabedeadbabe")
+            .reply(200, {
+                error: "OK",
+                login: "scorpion",
+                oauth: { client_id: "ytrealm-id", scope: "ytgrant" }
+            });
+        ask("GET", "/new?" + params, {}, function(rsp) {
+            rsp.should.be.http3xx;
+            rsp.headers["location"].should.eql("http://ya.ru/?my_foo=a&my_bar=b&token=deadbabedeadbabe&login=scorpion");
+            mock1.done();
+            mock2.done();
+        }, done).end();
+    });
+
 });

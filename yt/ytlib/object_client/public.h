@@ -113,7 +113,10 @@ DECLARE_ENUM(EObjectType,
 const int MaxObjectType = 65535;
 
 //! Checks if the given type is versioned, i.e. represents a Cypress node.
-bool IsVersioned(EObjectType type);
+bool IsVersionedType(EObjectType type);
+
+//! Checks if the given type is user, i.e. regular users are allowed to create its instances.
+bool IsUserType(EObjectType type);
 
 //! Extracts the type component from an id.
 EObjectType TypeFromId(const TObjectId& id);

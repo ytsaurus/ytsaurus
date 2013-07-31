@@ -937,7 +937,7 @@ void TCypressManager::OnRecoveryComplete()
 
     FOREACH (const auto& pair, NodeMap) {
         auto* node = pair.second;
-        node->ResetObjectLocks();
+        node->ResetWeakRefCounter();
     }
 }
 
