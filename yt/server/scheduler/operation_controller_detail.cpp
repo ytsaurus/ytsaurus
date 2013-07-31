@@ -136,6 +136,7 @@ void TOperationControllerBase::TUserFileBase::Persist(TPersistenceContext& conte
     using NYT::Persist;
     Persist(context, Path);
     Persist(context, Stage);
+    Persist(context, FileName);
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -147,7 +148,6 @@ void TOperationControllerBase::TRegularUserFile::Persist(TPersistenceContext& co
     using NYT::Persist;
     Persist(context, FetchResponse);
     Persist(context, Executable);
-    Persist(context, FileName);
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -158,7 +158,6 @@ void TOperationControllerBase::TUserTableFile::Persist(TPersistenceContext& cont
 
     using NYT::Persist;
     Persist(context, FetchResponse);
-    Persist(context, FileName);
     Persist(context, Format);
 }
 
@@ -320,6 +319,7 @@ void TOperationControllerBase::TInputChunkScratcher::OnLocateChunksResponse(TChu
 
 TOperationControllerBase::TTask::TTask()
     : CachedPendingJobCount(-1)
+    , CachedTotalJobCount(-1)
     , LastDemandSanityCheckTime(TInstant::Zero())
     , CompletedFired(false)
     , Logger(OperationLogger)
@@ -328,6 +328,7 @@ TOperationControllerBase::TTask::TTask()
 TOperationControllerBase::TTask::TTask(TOperationControllerBase* controller)
     : Controller(controller)
     , CachedPendingJobCount(0)
+    , CachedTotalJobCount(0)
     , LastDemandSanityCheckTime(TInstant::Zero())
     , CompletedFired(false)
     , Logger(OperationLogger)
@@ -349,6 +350,19 @@ int TOperationControllerBase::TTask::GetPendingJobCountDelta()
     int oldValue = CachedPendingJobCount;
     int newValue = GetPendingJobCount();
     CachedPendingJobCount = newValue;
+    return newValue - oldValue;
+}
+
+int TOperationControllerBase::TTask::GetTotalJobCount() const
+{
+    return GetChunkPoolOutput()->GetTotalJobCount();
+}
+
+int TOperationControllerBase::TTask::GetTotalJobCountDelta()
+{
+    int oldValue = CachedTotalJobCount;
+    int newValue = GetTotalJobCount();
+    CachedTotalJobCount = newValue;
     return newValue - oldValue;
 }
 
@@ -390,8 +404,9 @@ void TOperationControllerBase::TTask::AddInput(TChunkStripePtr stripe)
 void TOperationControllerBase::TTask::AddInput(const std::vector<TChunkStripePtr>& stripes)
 {
     FOREACH (auto stripe, stripes) {
-        if (stripe)
+        if (stripe) {
             AddInput(stripe);
+        }
     }
 }
 
@@ -542,6 +557,8 @@ void TOperationControllerBase::TTask::Persist(TPersistenceContext& context)
     Persist(context, Controller);
 
     Persist(context, CachedPendingJobCount);
+    Persist(context, CachedTotalJobCount);
+
     Persist(context, CachedTotalNeededResources);
     Persist(context, CachedMinNeededResources);
 
@@ -883,6 +900,7 @@ TOperationControllerBase::TOperationControllerBase(
     , CompletedJobStatistics(ZeroJobStatistics())
     , FailedJobStatistics(ZeroJobStatistics())
     , AbortedJobStatistics(ZeroJobStatistics())
+    , JobCounter(0)
     , Spec(spec)
     , CachedPendingJobCount(0)
     , CachedNeededResources(ZeroNodeResources())
@@ -1578,15 +1596,21 @@ void TOperationControllerBase::RegisterTaskGroup(TTaskGroupPtr group)
 
 void TOperationControllerBase::OnTaskUpdated(TTaskPtr task)
 {
-    int oldJobCount = CachedPendingJobCount;
-    int newJobCount = CachedPendingJobCount + task->GetPendingJobCountDelta();
-    CachedPendingJobCount = newJobCount;
+    int oldPendingJobCount = CachedPendingJobCount;
+    int newPendingJobCount = CachedPendingJobCount + task->GetPendingJobCountDelta();
+    CachedPendingJobCount = newPendingJobCount;
+
+    int oldTotalJobCount = JobCounter.GetTotal();
+    JobCounter.Increment(task->GetTotalJobCountDelta());
+    int newTotalJobCount = JobCounter.GetTotal();
 
     CachedNeededResources += task->GetTotalNeededResourcesDelta();
 
-    LOG_DEBUG_IF(newJobCount != oldJobCount, "Pending job count updated (JobCount: %d -> %d, NeededResources: {%s})",
-        oldJobCount,
-        newJobCount,
+    LOG_DEBUG_IF(newPendingJobCount != oldPendingJobCount, "Task updated (PendingJobCount: %d -> %d, TotalJobCount: %d -> %d, NeededResources: {%s})",
+        oldPendingJobCount,
+        newPendingJobCount,
+        oldTotalJobCount,
+        newTotalJobCount,
         ~FormatResources(CachedNeededResources));
 
     task->CheckCompleted();
@@ -1602,7 +1626,7 @@ void TOperationControllerBase::MoveTaskToCandidates(
     candidateTasks.insert(std::make_pair(minMemory, task));
     LOG_DEBUG("Task moved to candidates (Task: %s, MinMemory: %" PRId64 ")",
         ~task->GetId(),
-        minMemory);
+        minMemory / (1024 * 1024));
 
 }
 
@@ -1923,6 +1947,18 @@ int TOperationControllerBase::GetPendingJobCount()
     }
 
     return CachedPendingJobCount;
+}
+
+int TOperationControllerBase::GetTotalJobCount()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    // Avoid accessing the state while not running.
+    if (!Running) {
+        return 0;
+    }
+
+    return JobCounter.GetTotal();
 }
 
 TNodeResources TOperationControllerBase::GetNeededResources()
@@ -2479,6 +2515,24 @@ void TOperationControllerBase::RequestInputs()
         }
     }
 
+    std::vector<yhash_set<Stroka>> userFileNames;
+    userFileNames.resize(EOperationStage::GetDomainSize());
+
+    auto validateUserFileName = [&] (const TUserFileBase& userFile) {
+        // TODO(babenko): more sanity checks?
+        auto path = userFile.Path.GetPath();
+        const auto& fileName = userFile.FileName;
+        if (fileName.empty()) {
+            THROW_ERROR_EXCEPTION("Empty user file name for %s",
+                ~path);
+        }
+        if (!userFileNames[static_cast<int>(userFile.Stage)].insert(fileName).second) {
+            THROW_ERROR_EXCEPTION("Duplicate user file name %s for %s",
+                ~fileName.Quote(),
+                ~path);
+        }
+    };
+
     {
         auto lockRegularFileRsps = batchRsp->GetResponses<TCypressYPathProxy::TRspLock>("lock_regular_file");
         auto fetchRegularFileRsps = batchRsp->GetResponses<TFileYPathProxy::TRspFetch>("fetch_regular_file");
@@ -2533,6 +2587,8 @@ void TOperationControllerBase::RequestInputs()
 
             file.FileName = file.Path.Attributes().Get<Stroka>("file_name", file.FileName);
             file.Executable = file.Path.Attributes().Get<bool>("executable", file.Executable);
+
+            validateUserFileName(file);
         }
     }
 
@@ -2593,6 +2649,8 @@ void TOperationControllerBase::RequestInputs()
                     ~file.Format.Data(),
                     ~JoinToString(chunkIds));
             }
+
+            validateUserFileName(file);
         }
     }
 
@@ -2914,7 +2972,7 @@ void TOperationControllerBase::BuildProgressYson(IYsonConsumer* consumer)
 
     BuildYsonMapFluently(consumer)
         .Item("jobs").BeginMap()
-            .Item("total").Value(JobCounter.GetCompleted() + JobCounter.GetRunning() + GetPendingJobCount())
+            .Item("total").Value(GetTotalJobCount())
             .Item("pending").Value(GetPendingJobCount())
             .Item("running").Value(JobCounter.GetRunning())
             .Item("completed").Value(JobCounter.GetCompleted())
@@ -3177,6 +3235,7 @@ void TOperationControllerBase::Persist(TPersistenceContext& context)
     Persist(context, InputChunkMap);
 
     Persist(context, CachedPendingJobCount);
+
     Persist(context, CachedNeededResources);
 
     Persist(context, ChunkOriginMap);

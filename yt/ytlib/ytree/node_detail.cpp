@@ -153,7 +153,8 @@ void TCompositeNodeMixin::SetRecursive(
 
     auto factory = CreateFactory();
     auto value = ConvertToNode(TYsonString(request->value()), ~factory);
-    SetChild("/" + path, value, false);
+    SetChild(factory, "/" + path, value, false);
+    factory->Commit();
 
     context->Reply();
 }
@@ -261,7 +262,11 @@ void TMapNodeMixin::ListSelf(TReqList* request, TRspList* response, TCtxListPtr 
     context->Reply();
 }
 
-void TMapNodeMixin::SetChild(const TYPath& path, INodePtr value, bool recursive)
+void TMapNodeMixin::SetChild(
+    INodeFactoryPtr factory,
+    const TYPath& path,
+    INodePtr value,
+    bool recursive)
 {
     NYPath::TTokenizer tokenizer(path);
     tokenizer.Advance();
@@ -269,7 +274,6 @@ void TMapNodeMixin::SetChild(const TYPath& path, INodePtr value, bool recursive)
         tokenizer.ThrowUnexpected();
     }
 
-    auto factory = CreateFactory();
     auto node = AsMap();
     while (tokenizer.GetType() != NYPath::ETokenType::EndOfStream) {
         tokenizer.Expect(NYPath::ETokenType::Slash);
@@ -286,7 +290,7 @@ void TMapNodeMixin::SetChild(const TYPath& path, INodePtr value, bool recursive)
         }
 
         auto newValue = lastStep ? value : factory->CreateMap();
-        node->AddChild(newValue, key);
+        YCHECK(node->AddChild(newValue, key));
 
         if (!lastStep) {
             node = newValue->AsMap();
@@ -336,7 +340,11 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
     }
 }
 
-void TListNodeMixin::SetChild(const TYPath& path, INodePtr value, bool recursive)
+void TListNodeMixin::SetChild(
+    INodeFactoryPtr /*factory*/,
+    const TYPath& path,
+    INodePtr value,
+    bool recursive)
 {
     if (recursive) {
         THROW_ERROR_EXCEPTION("Cannot create intermediate nodes in a list");

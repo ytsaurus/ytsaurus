@@ -1157,7 +1157,7 @@ private:
             if (HasSchema(type)) {
                 auto* schema = objectManager->GetSchema(type);
                 auto* acd = GetAcd(schema);
-                if (!IsVersioned(type)) {
+                if (!IsVersionedType(type)) {
                     acd->AddEntry(TAccessControlEntry(
                         ESecurityAction::Allow,
                         GetUsersGroup(),
@@ -1167,10 +1167,12 @@ private:
                         GetEveryoneGroup(),
                         EPermissionSet(EPermission::Read)));
                 }
-                acd->AddEntry(TAccessControlEntry(
-                    ESecurityAction::Allow,
-                    GetUsersGroup(),
-                    EPermissionSet(EPermission::Create)));
+                if (IsUserType(type)) {
+                    acd->AddEntry(TAccessControlEntry(
+                        ESecurityAction::Allow,
+                        GetUsersGroup(),
+                        EPermissionSet(EPermission::Create)));
+                }
             }
         }
     }

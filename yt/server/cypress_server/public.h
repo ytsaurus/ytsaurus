@@ -25,13 +25,14 @@ typedef TIntrusivePtr<INodeTypeHandler> INodeTypeHandlerPtr;
 
 class TCypressNodeBase;
 
+struct ICypressNodeFactory;
+typedef TIntrusivePtr<ICypressNodeFactory> ICypressNodeFactoryPtr;
+
 struct ICypressNodeProxy;
 typedef TIntrusivePtr<ICypressNodeProxy> ICypressNodeProxyPtr;
 
 struct ICypressNodeVisitor;
 typedef TIntrusivePtr<ICypressNodeVisitor> ICypressNodeVisitorPtr;
-
-struct TCloneContext;
 
 using NCypressClient::TNodeId;
 using NCypressClient::ELockMode;

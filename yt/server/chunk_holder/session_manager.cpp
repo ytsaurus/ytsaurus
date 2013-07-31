@@ -177,7 +177,7 @@ TAsyncError TSession::PutBlocks(
 
     int blockIndex = startBlockIndex;
     i64 requestSize = 0;
-    
+
     FOREACH (const auto& block, blocks) {
         TBlockId blockId(ChunkId, blockIndex);
         VerifyInWindow(blockIndex);
@@ -598,7 +598,7 @@ void TSession::MarkAllSlotsWritten()
 
     // Mark all slots as written to notify all guys waiting on Flush.
     FOREACH (auto& slot, Window) {
-        if (!slot.IsWritten.IsSet()) {
+        if (slot.State != ESlotState::Written) {
             slot.IsWritten.Set();
         }
     }
@@ -724,7 +724,7 @@ TErrorOr<TChunkPtr> TSessionManager::OnSessionFinished(TSessionPtr session, TErr
 
     LOG_INFO("Session finished (ChunkId: %s)",
         ~ToString(session->GetChunkId()));
-    
+
     return chunkOrError;
 }
 

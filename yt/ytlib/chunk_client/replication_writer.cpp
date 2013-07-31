@@ -630,6 +630,7 @@ TReplicationWriter::~TReplicationWriter()
 
     LOG_INFO("Writer canceled");
     State.Cancel(TError("Writer canceled"));
+    CancelAllPings();
 }
 
 void TReplicationWriter::Open()

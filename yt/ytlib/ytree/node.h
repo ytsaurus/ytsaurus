@@ -57,8 +57,7 @@ struct INode
      *  Note that each call may produce a new factory instance.
      *  This is used in Cypress where the factory instance acts as a container holding
      *  temporary references to newly created nodes.
-     *  Each created node must be somehow attached to the tree before
-     *  the factory dies. Otherwise the node also gets disposed.
+     *  \see INodeFactory::Commit
      */
     virtual INodeFactoryPtr CreateFactory() const = 0;
 
@@ -316,6 +315,12 @@ struct IEntityNode
 //! A factory for creating nodes.
 /*!
  *  All freshly created nodes are roots, i.e. have no parent.
+ *  
+ *  The factory also acts as a context that holds all created nodes.
+ *  One must call #Commit at the end if the operation was a success.
+ *  If the operation failed, one must just release the reference to the factory.
+ *  Any needed rollback will be carried out automagically.
+ *
  */
 struct INodeFactory
     : public virtual TRefCounted
@@ -337,6 +342,11 @@ struct INodeFactory
 
     //! Creates an entity node.
     virtual IEntityNodePtr CreateEntity() = 0;
+
+    //! Called before releasing the factory to indicate that all created nodes
+    //! must persist.
+    virtual void Commit() = 0;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

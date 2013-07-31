@@ -12,9 +12,7 @@ exports.that = function Middleware__YtApplicationHosts()
     var logger = YtRegistry.get("logger");
     var coordinator = YtRegistry.get("coordinator");
 
-    var app = new YtApplicationHosts(
-        logger,
-        coordinator);
+    var app = new YtApplicationHosts(logger, coordinator);
 
     return function(req, rsp, next) {
         return Q(app.dispatch(req, rsp, next)).done();

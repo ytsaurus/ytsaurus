@@ -186,8 +186,11 @@ private:
 class TNodeSetterBase
     : public TForwardingYsonConsumer
 {
+public:
+    void Commit();
+
 protected:
-    TNodeSetterBase(INodePtr node, ITreeBuilder* builder);
+    TNodeSetterBase(INode* node, ITreeBuilder* builder);
     ~TNodeSetterBase();
 
     void ThrowInvalidType(ENodeType actualType);
@@ -208,7 +211,7 @@ protected:
 protected:
     class TAttributesSetter;
 
-    INodePtr Node;
+    INode* Node;
     ITreeBuilder* TreeBuilder;
     INodeFactoryPtr NodeFactory;
     std::unique_ptr<TAttributesSetter> AttributesSetter;
@@ -227,9 +230,9 @@ class TNodeSetter
         : public TNodeSetterBase \
     { \
     public: \
-        TNodeSetter(I##name##Node* wholeNode, ITreeBuilder* builder) \
-            : TNodeSetterBase(wholeNode, builder) \
-            , Node(wholeNode) \
+        TNodeSetter(I##name##Node* node, ITreeBuilder* builder) \
+            : TNodeSetterBase(node, builder) \
+            , Node(node) \
         { } \
     \
     private: \
@@ -379,6 +382,7 @@ void SetNodeFromProducer(
 
     TNodeSetter<TNode> setter(node, builder);
     producer.Run(&setter);
+    setter.Commit();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

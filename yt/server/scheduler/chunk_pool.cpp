@@ -432,7 +432,7 @@ public:
 
     virtual int GetTotalJobCount() const override
     {
-        return 1;
+        return IsCompleted() ? JobCounter.GetCompleted() : JobCounter.GetTotal();
     }
 
     virtual int GetPendingJobCount() const override

@@ -5,6 +5,7 @@ var YtError = require("./error").that;
 var YtRegistry = require("./registry").that;
 
 var external_services = require("./external_services");
+var utils = require("./utils");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -12,15 +13,24 @@ var __DBG = require("./debug").that("A", "Authentication");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function YtAuthority(config)
+function YtAuthority(config, driver)
 {
     "use strict";
     this.__DBG = __DBG.Tagged();
 
     this.config = config;
-    this.cache  = lru_cache({
+    this.driver = driver;
+
+    // Caches token authentication results.
+    this.token_cache = lru_cache({
         max: this.config.cache_max_size,
-        maxAge: this.config.cache_max_age,
+        maxAge: this.config.cache_max_token_age,
+    });
+
+    // Caches user existence.
+    this.exist_cache = lru_cache({
+        max: this.config.cache_max_size,
+        maxAge: this.config.cache_max_exist_age,
     });
 
     this.__DBG("New");
@@ -31,13 +41,8 @@ YtAuthority.prototype.authenticate = function(logger, party, token)
     "use strict";
     this.__DBG("authenticate");
 
-    // Fail fast. And in branch prediction we trust.
-    if (!this.config.enable) {
-        return { login: false, realm: false };
-    }
-
-    // This structure represents a request state and it is passed
-    // to all subsequent calls. This structure shall be immutable.
+    // This structure represents an immutable request state.
+    // It is passed to all subsequent calls.
     var context = {
         ts: new Date(),
         logger: logger,
@@ -45,7 +50,7 @@ YtAuthority.prototype.authenticate = function(logger, party, token)
         token: token,
     };
 
-    // This structure represents a response state.
+    // This structure represents a mutable response state.
     // If |result.login| is string, then it is a login.
     // If |result.login| === false, then it is a rejection.
     var result = {
@@ -53,61 +58,63 @@ YtAuthority.prototype.authenticate = function(logger, party, token)
         realm: false,
     };
 
-    // These are very fast functions so we are not using the promise chain here.
+    Object.defineProperty(result, "isAuthenticated", {
+        get: function() {
+            return typeof(this.login) === "string"
+                && typeof(this.realm) === "string";
+        },
+        enumerable: true
+    });
+
+    // This is a fast function so we are not using the promise chain here.
     // We want to behave as fast as possible for these cases. So no fancy shit.
     if (this._syncCheckCache(context, result)) {
         return result;
     }
-    if (this._syncCheckLocal(context, result)) {
-        return result;
-    }
 
-    // Cache |cache| variable. :)
-    var cache = this.cache;
+    // Cache |token_cache| variable. :)
+    var token_cache = this.token_cache;
 
     // Perform proper authentication here and cache the result.
     return Q
     .when(this._asyncQueryBlackbox(context, result))
-    .then(
-    function() {
+    .then(this._asyncQueryCypress.bind(this, context, result))
+    .then(this._ensureUserExists.bind(this, context, result))
+    .then(function() {
         var dt = (new Date()) - context.ts;
-        if (typeof(result.login) === "string" && typeof(result.realm) === "string") {
+        if (result.isAuthenticated) {
             context.logger.debug("Authentication succeeded", {
-                login: result.login,
-                realm: result.realm,
                 authentication_time: dt,
             });
-            cache.set(context.token, result);
+            token_cache.set(context.token, result);
         } else {
             context.logger.info("Authentication failed", {
                 authentication_time: dt,
             });
-            cache.del(context.token);
+            token_cache.del(context.token);
         }
         return result;
     });
 };
 
 YtAuthority.prototype.oAuthObtainToken = function(
-    logger, party, realm_key, code)
+    logger, party, key, code)
 {
     "use strict";
     this.__DBG("oAuthObtainToken");
 
-    var realm = this._findRealmBy("key", realm_key, "oauth");
-    if (typeof(realm) === "undefined") {
+    var app = this._findOAuthApplicationBy("key", key);
+    if (typeof(app) === "undefined") {
         var error = new YtError(
-            "There is no OAuth realm with key " +
-            JSON.stringify(realm_key) + ".");
+            "There is no OAuth application with key " +
+            JSON.stringify(key) + ".");
         return Q.reject(error);
     }
 
-    var self = this;
-
     return external_services.oAuthObtainToken(
         logger,
-        realm.client_id,
-        realm.client_secret,
+        app.client_id,
+        app.client_secret,
         code)
     .then(function(data) {
         if (typeof(data.access_token) === "undefined") {
@@ -119,33 +126,31 @@ YtAuthority.prototype.oAuthObtainToken = function(
 };
 
 YtAuthority.prototype.oAuthBuildUrlToRedirect = function(
-    logger, party, realm_key, state)
+    logger, party, key, state)
 {
     "use strict";
     this.__DBG("oAuthBuildUrlToRedirect");
 
-    var realm = this._findRealmBy("key", realm_key, "oauth");
-    if (typeof(realm) === "undefined") {
+    var app = this._findOAuthApplicationBy("key", key || this.config.default_oauth_application_key);
+    if (typeof(app) === "undefined") {
         var error = new YtError(
-            "There is no OAuth realm with key " +
-            JSON.stringify(realm_key) + ".");
-        logger.info(error.message);
+            "There is no OAuth application with key " +
+            JSON.stringify(key) + ".");
         throw error;
     }
 
-    return external_services.oAuthBuildUrlToRedirect(realm.client_id, state);
+    return external_services.oAuthBuildUrlToRedirect(app.client_id, state);
 };
 
-YtAuthority.prototype._findRealmBy = function(key, value, type)
+YtAuthority.prototype._findOAuthApplicationBy = function(key, value)
 {
     "use strict";
-    this.__DBG("_findRealmBy");
-    var realms = this.config.realms;
-    for (var i = 0, n = realms.length; i < n; ++i) {
-        if (realms[i][key] === value) {
-            if (typeof(type) === "undefined" || realms[i].type === type) {
-                return realms[i];
-            }
+    this.__DBG("_findOAuthApplicationBy");
+
+    var apps = this.config.oauth;
+    for (var i = 0, n = apps.length; i < n; ++i) {
+        if (apps[i][key] === value) {
+            return apps[i];
         }
     }
 };
@@ -155,7 +160,7 @@ YtAuthority.prototype._syncCheckCache = function(context, result)
     "use strict";
     this.__DBG("_syncCheckCache");
 
-    var cached_result = this.cache.get(context.token);
+    var cached_result = this.token_cache.get(context.token);
     if (typeof(cached_result) !== "undefined") {
         // Since |result| is a "pointer", we have to set fields explicitly.
         // We can't do something like |*result = cached_result;|.
@@ -171,32 +176,16 @@ YtAuthority.prototype._syncCheckCache = function(context, result)
     }
 };
 
-YtAuthority.prototype._syncCheckLocal = function(context, result)
-{
-    "use strict";
-    this.__DBG("_syncCheckLocal");
-
-    var realm = this._findRealmBy("key", "local");
-    if (typeof(realm) === "undefined" || realm.type !== "local") {
-        return;
-    }
-
-    var token = context.token;
-    var login = realm.tokens[token];
-    if (typeof(login) === "string") {
-        context.logger.debug("Token is local");
-        result.login = login;
-        result.realm = realm.key;
-        return true;
-    }
-};
-
 YtAuthority.prototype._asyncQueryBlackbox = function(context, result)
 {
     "use strict";
     this.__DBG("_asyncQueryBlackbox");
 
     var self = this;
+
+    if (!self.config.blackbox.enable || result.isAuthenticated) {
+        return;
+    }
 
     return external_services.blackboxValidateToken(
         context.logger,
@@ -218,14 +207,14 @@ YtAuthority.prototype._asyncQueryBlackbox = function(context, result)
         }
 
         var scope = data.oauth.scope.split(/\s+/);
-        var grant = self.config.grant;
+        var grant = self.config.blackbox.grant;
         if (scope.indexOf(grant) === -1) {
             context.logger.debug(
                 "Token does not provide '" + grant + "' grant");
             return;
         }
 
-        var realm = self._findRealmBy("client_id", data.oauth.client_id);
+        var realm = self._findOAuthApplicationBy("client_id", data.oauth.client_id);
         if (typeof(realm) === "undefined") {
             context.logger.debug("Token was issued by the unknown realm");
             return;
@@ -238,7 +227,76 @@ YtAuthority.prototype._asyncQueryBlackbox = function(context, result)
         context.logger.debug("Blackbox has approved the token");
 
         result.login = login;
-        result.realm = realm;
+        result.realm = "blackbox-" + realm;
+    });
+};
+
+YtAuthority.prototype._asyncQueryCypress = function(context, result)
+{
+    "use strict";
+    this.__DBG("_asyncQueryCypress");
+
+    var self = this;
+
+    if (!self.config.cypress.enable || result.isAuthenticated) {
+        return;
+    }
+
+    var path = self.config.cypress.where + "/" + utils.escapeYPath(context.token);
+
+    return Q
+    .when(self.driver.executeSimple("get", { path: path }))
+    .then(
+    function(login) {
+        if (typeof(login) !== "string") {
+            context.logger.debug("Encountered garbage at path '" + path + "'");
+            return;
+        }
+
+        context.logger.debug("Cypress has approved the token");
+
+        result.login = login;
+        result.realm = "cypress";
+    },
+    function(error) {
+        if (error.code === 500) {
+            return; // Resolve error, return 'undefined';
+        } else {
+            return Q.reject(error);
+        }
+    });
+};
+
+YtAuthority.prototype._ensureUserExists = function(context, result)
+{
+    "use strict";
+    this.__DBG("_ensureUserExists");
+
+    var self = this;
+    var name = result.login;
+
+    if (!result.isAuthenticated || self.exist_cache.get(name)) {
+        return;
+    }
+
+    return Q
+    .when(self.driver.executeSimple("create", {
+        type: "user",
+        attributes: { name: name }
+    }))
+    .then(
+    function(create) {
+        context.logger.debug("User created", { name: name });
+        self.exist_cache.set(name, true);
+    },
+    function(error) {
+        if (error.code === 501) {
+            context.logger.debug("User already exists", { name: name });
+            self.exist_cache.set(name, true);
+            return;
+        } else {
+            return Q.reject(error);
+        }
     });
 };
 

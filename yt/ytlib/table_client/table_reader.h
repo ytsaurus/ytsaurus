@@ -6,8 +6,6 @@
 
 #include <ytlib/logging/tagged_logger.h>
 
-#include <ytlib/misc/thread_affinity.h>
-
 #include <ytlib/ypath/rich.h>
 
 #include <ytlib/transaction_client/public.h>
@@ -77,7 +75,6 @@ private:
     TTableChunkSequenceReaderPtr Reader;
     NCypressClient::TNodeId NodeId;
 
-    DECLARE_THREAD_AFFINITY_SLOT(Client);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -115,6 +112,7 @@ public:
 
 private:
     TAsyncTableReaderPtr AsyncReader_;
+    
 };
 
 ////////////////////////////////////////////////////////////////////////////////

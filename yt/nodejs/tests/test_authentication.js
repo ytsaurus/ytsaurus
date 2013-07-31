@@ -1,6 +1,9 @@
-var YtRegistry = require("../lib/registry").that;
-var YtAuthority = require("../lib/authority").that;
+var Q = require("q");
+
 var YtAuthentication = require("../lib/middleware/authentication").that;
+var YtAuthority = require("../lib/authority").that;
+var YtError = require("../lib/error").that;
+var YtRegistry = require("../lib/registry").that;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,22 +37,23 @@ function stubRegistry()
         },
         authentication: {
             enable: true,
-            grant: "ytgrant",
+            cache_max_size: 3000,
+            cache_max_token_age: 60 * 1000,
+            cache_max_exist_age: 86400 * 1000,
+            create_users_on_demand: true,
             guest_login: "ytguest",
             guest_realm: "ytguest",
-            cache_max_size: 3000,
-            cache_max_age: 60 * 1000,
-            realms: [
-                {
-                    key: "local",
-                    type: "local",
-                    tokens: {
-                        "local-token": "darth-vader",
-                    },
-                },
+            cypress: {
+                enable: true,
+                where: "//sys/tokens",
+            },
+            blackbox: {
+                enable: true,
+                grant: "ytgrant",
+            },
+            oauth: [
                 {
                     key: "ytrealm-key",
-                    type: "oauth",
                     client_id: "ytrealm-id",
                     client_secret: "ytrealm-secret"
                 },
@@ -58,10 +62,12 @@ function stubRegistry()
     };
 
     var logger = stubLogger();
+    var driver = { executeSimple: function(){} };
 
     YtRegistry.set("config", config);
     YtRegistry.set("logger", logger);
-    YtRegistry.set("authority", new YtAuthority(config.authentication));
+    YtRegistry.set("driver", driver);
+    YtRegistry.set("authority", new YtAuthority(config.authentication, driver));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -115,15 +121,6 @@ describe("YtAuthentication", function() {
         }, done).end();
     });
 
-    it("should accept valid local tokens", function(done) {
-        ask("GET", "/",
-        { "Authorization": "OAuth local-token" },
-        function(rsp) {
-            rsp.should.be.http2xx;
-            rsp.body.should.eql("darth-vader");
-        }, done).end();
-    });
-
     it("should reject invalid tokens", function(done) {
         var mock = nock("http://localhost:9000")
             .get("/blackbox?method=oauth&format=json&userip=127.0.0.1&oauth_token=invalid-token")
@@ -137,19 +134,19 @@ describe("YtAuthentication", function() {
     });
 
     [ 400, 500 ].forEach(function(replyCode) {
-        it("should fail on " + replyCode + " Blackbox reply", function(done) {
-            var mock = nock("http://localhost:9000")
-                .get("/blackbox?method=oauth&format=json&userip=127.0.0.1&oauth_token=bad-http-reply")
-                .reply(replyCode, { error: ":7" })
-                .get("/blackbox?method=oauth&format=json&userip=127.0.0.1&oauth_token=bad-http-reply")
-                .reply(replyCode, { error: ":7" });
-            ask("GET", "/",
-            { "Authorization": "OAuth bad-http-reply" },
-            function(rsp) {
-                rsp.statusCode.should.eql(503);
-                mock.done();
-            }, done).end();
-        });
+    it("should fail on " + replyCode + " Blackbox reply", function(done) {
+        var mock = nock("http://localhost:9000")
+            .get("/blackbox?method=oauth&format=json&userip=127.0.0.1&oauth_token=bad-http-reply")
+            .reply(replyCode, { error: ":7" })
+            .get("/blackbox?method=oauth&format=json&userip=127.0.0.1&oauth_token=bad-http-reply")
+            .reply(replyCode, { error: ":7" });
+        ask("GET", "/",
+        { "Authorization": "OAuth bad-http-reply" },
+        function(rsp) {
+            rsp.statusCode.should.eql(503);
+            mock.done();
+        }, done).end();
+    });
     });
 
     it("should fail on Blackbox soft failure", function(done) {
@@ -216,4 +213,92 @@ describe("YtAuthentication", function() {
             mock.done();
         }, done).end();
     });
+
+    it("should create user if he does not exist", function(done) {
+        var mock1 = nock("http://localhost:9000")
+            .get("/blackbox?method=oauth&format=json&userip=127.0.0.1&oauth_token=some-token")
+            .reply(200, {
+                error: "OK",
+                login: "anakin",
+                oauth: { client_id: "ytrealm-id", scope: "ytgrant" }
+            });
+        var mock2 = sinon.mock(YtRegistry.get("driver"))
+        mock2
+            .expects("executeSimple")
+            .once()
+            .withExactArgs("create", sinon.match({
+                type: "user",
+                attributes: { name: "anakin" }
+            }))
+            .returns(Q.resolve("0-0-0-0"));
+        ask("GET", "/",
+        { "Authorization": "OAuth some-token" },
+        function(rsp) {
+            rsp.should.be.http2xx;
+            rsp.body.should.eql("anakin");
+            mock1.done();
+            mock2.verify();
+        }, done).end();
+    });
+
+    it("should not create user if he exists", function(done) {
+        var mock1 = nock("http://localhost:9000")
+            .get("/blackbox?method=oauth&format=json&userip=127.0.0.1&oauth_token=some-token")
+            .reply(200, {
+                error: "OK",
+                login: "anakin",
+                oauth: { client_id: "ytrealm-id", scope: "ytgrant" }
+            });
+        var mock2 = sinon.mock(YtRegistry.get("driver"))
+        mock2
+            .expects("executeSimple")
+            .once()
+            .withExactArgs("create", sinon.match({
+                type: "user",
+                attributes: { name: "anakin" }
+            }))
+            .returns(Q.reject(new YtError("Already exists").withCode(501)));
+        ask("GET", "/",
+        { "Authorization": "OAuth some-token" },
+        function(rsp) {
+            rsp.should.be.http2xx;
+            rsp.body.should.eql("anakin");
+            mock1.done();
+            mock2.verify();
+        }, done).end();
+    });
+
+    it("should query Cypress when Blackbox rejects the token", function(done) {
+        var mock1 = nock("http://localhost:9000")
+            .get("/blackbox?method=oauth&format=json&userip=127.0.0.1&oauth_token=unknown-token")
+            .reply(200, {
+                error: "bad_token",
+                status: { id: 5, value: "INVALID" }
+            });
+        var mock2 = sinon.mock(YtRegistry.get("driver"));
+        mock2
+            .expects("executeSimple")
+            .once()
+            .withExactArgs("get", sinon.match({
+                path: "//sys/tokens/unknown-token"
+            }))
+            .returns(Q.resolve("unknown-user"));
+        mock2
+            .expects("executeSimple")
+            .once()
+            .withExactArgs("create", sinon.match({
+                type: "user",
+                attributes: { name: "unknown-user" }
+            }))
+            .returns(Q.reject(new YtError("Already exists").withCode(501)));
+        ask("GET", "/",
+        { "Authorization": "OAuth unknown-token" },
+        function(rsp) {
+            rsp.should.be.http2xx;
+            rsp.body.should.eql("unknown-user");
+            mock1.done();
+            mock2.verify();
+        }, done).end();
+    });
+
 });

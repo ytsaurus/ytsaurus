@@ -825,9 +825,9 @@ private:
         if (!recursive)
             return;
 
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto transactionManager = Bootstrap->GetTransactionManager();
         FOREACH (auto* child, chunkList->Children()) {
-            objectManager->UnstageObject(transaction, child, true);
+            transactionManager->UnstageObject(transaction, child, true);
         }
     }
 
@@ -1107,13 +1107,13 @@ private:
             auto* chunk = pair.second;
             chunk->SetRefreshScheduled(false);
             chunk->SetPropertiesUpdateScheduled(false);
-            chunk->ResetObjectLocks();
+            chunk->ResetWeakRefCounter();
             chunk->SetRepairQueueIterator(TChunkRepairQueueIterator());
         }
 
         FOREACH (const auto& pair, ChunkListMap) {
             auto* chunkList = pair.second;
-            chunkList->ResetObjectLocks();
+            chunkList->ResetWeakRefCounter();
         }
     }
 
@@ -1145,7 +1145,11 @@ private:
     virtual void OnStopLeading() override
     {
         ChunkPlacement.Reset();
-        ChunkReplicator.Reset();
+
+        if (ChunkReplicator) {
+            ChunkReplicator->Finalize();
+            ChunkReplicator.Reset();
+        }
     }
 
 

@@ -1,6 +1,8 @@
 import pytest
 import sys
 
+import yt.yson
+
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
@@ -247,6 +249,8 @@ class TestAcls(YTEnvSetup):
         with pytest.raises(YTError): set('//tmp/t/@account', 'a', user='u')
 
         set('//sys/accounts/a/@acl/end', self._make_ace('allow', 'u', 'use'))
+        with pytest.raises(YTError): set('//tmp/t/@account', 'a', user='u')
+        set('//tmp/@acl/end', self._make_ace('allow', 'u', 'administer'))
         set('//tmp/t/@account', 'a', user='u')
         assert get('//tmp/t/@account') == 'a'
 
@@ -347,3 +351,80 @@ class TestAcls(YTEnvSetup):
         create_user('u1')
         create_user('u2')
         with pytest.raises(YTError): set('//sys/users/u1/@name', 'u2')
+
+    def test_deny_create(self):
+        create_user('u')
+        with pytest.raises(YTError): create('account_map', '//tmp/accounts', user='u')
+
+    def test_deny_copy(self):
+        create_user('u')
+        with pytest.raises(YTError): copy('//sys', '//tmp/sys', user='u')
+
+    def test_document1(self):
+        create_user('u')
+        create('document', '//tmp/d')
+        set('//tmp/d', {"foo":{}})
+        set('//tmp/d/@inherit_acl', 'false')
+
+        assert get_str('//tmp', user='u') == '{"d"=#}'
+        with pytest.raises(YTError): get('//tmp/d', user='u') == {'foo': {}}
+        with pytest.raises(YTError): get('//tmp/d/@value', user='u')
+        with pytest.raises(YTError): get('//tmp/d/foo', user='u')
+        with pytest.raises(YTError): set('//tmp/d/foo', {}, user='u')
+        with pytest.raises(YTError): set('//tmp/d/@value', {}, user='u')
+        with pytest.raises(YTError): set('//tmp/d', {'foo':{}}, user='u')
+        assert ls('//tmp', user='u') == ['d']
+        with pytest.raises(YTError): ls('//tmp/d', user='u')
+        with pytest.raises(YTError): ls('//tmp/d/foo', user='u')
+        assert exists('//tmp/d', user='u')
+        with pytest.raises(YTError): exists('//tmp/d/@value', user='u')
+        with pytest.raises(YTError): exists('//tmp/d/foo', user='u')
+        with pytest.raises(YTError): remove('//tmp/d/foo', user='u')
+        with pytest.raises(YTError): remove('//tmp/d', user='u')
+
+    def test_document2(self):
+        create_user('u')
+        create('document', '//tmp/d')
+        set('//tmp/d', {"foo":{}})
+        set('//tmp/d/@inherit_acl', 'false')
+        set('//tmp/d/@acl/end', self._make_ace('allow', 'u', 'read'))
+
+        assert get_str('//tmp', user='u') == '{"d"=#}'
+        assert get('//tmp/d', user='u') == {'foo': {}}
+        assert get('//tmp/d/@value', user='u') == {'foo': {}}
+        assert get('//tmp/d/foo', user='u') == {}
+        with pytest.raises(YTError): set('//tmp/d/foo', {}, user='u')
+        with pytest.raises(YTError): set('//tmp/d/@value', {}, user='u')
+        with pytest.raises(YTError): set('//tmp/d', {'foo':{}}, user='u')
+        assert ls('//tmp', user='u') == ['d']
+        assert ls('//tmp/d', user='u') == ['foo']
+        assert ls('//tmp/d/foo', user='u') == []
+        assert exists('//tmp/d', user='u')
+        assert exists('//tmp/d/@value', user='u')
+        assert exists('//tmp/d/foo', user='u')
+        with pytest.raises(YTError): remove('//tmp/d/foo', user='u')
+        with pytest.raises(YTError): remove('//tmp/d', user='u')
+
+    def test_document3(self):
+        create_user('u')
+        create('document', '//tmp/d')
+        set('//tmp/d', {"foo":{}})
+        set('//tmp/d/@inherit_acl', 'false')
+        set('//tmp/d/@acl/end', self._make_ace('allow', 'u', ['read', 'write']))
+
+        assert get_str('//tmp', user='u') == '{"d"=#}'
+        assert get('//tmp/d', user='u') == {'foo': {}}
+        assert get('//tmp/d/@value', user='u') == {'foo': {}}
+        assert get('//tmp/d/foo', user='u') == {}
+        set('//tmp/d/foo', {}, user='u')
+        set('//tmp/d/@value', {}, user='u')
+        set('//tmp/d', {'foo':{}}, user='u')
+        assert ls('//tmp', user='u') == ['d']
+        assert ls('//tmp/d', user='u') == ['foo']
+        assert ls('//tmp/d/foo', user='u') == []
+        assert exists('//tmp/d', user='u')
+        assert exists('//tmp/d/@value', user='u')
+        assert exists('//tmp/d/foo', user='u')
+        remove('//tmp/d/foo', user='u')
+        remove('//tmp/d', user='u')
+

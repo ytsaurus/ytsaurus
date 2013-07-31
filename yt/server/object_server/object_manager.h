@@ -97,17 +97,20 @@ public:
     //! Removes a reference.
     void UnrefObject(TObjectBase* object);
 
-    //! Locks the object temporarily preventing it from being destructed.
-    void LockObject(TObjectBase* object);
+    //! Increments the object weak reference counter thus temporarily preventing it from being destructed.
+    void WeakRefObject(TObjectBase* object);
 
-    //! Unlocks the object making it eligible for destruction.
-    void UnlockObject(TObjectBase* object);
+    //! Decrements the object weak reference counter thus making it eligible for destruction.
+    void WeakUnrefObject(TObjectBase* object);
 
     //! Finds object by id, returns |nullptr| if nothing is found.
     TObjectBase* FindObject(const TObjectId& id);
 
     //! Finds object by id, fails if nothing is found.
     TObjectBase* GetObject(const TObjectId& id);
+
+    //! Finds object by id, throws if nothing is found.
+    TObjectBase* GetObjectOrThrow(const TObjectId& id);
 
     //! Returns a proxy for the object with the given versioned id.
     IObjectProxyPtr GetProxy(
@@ -192,11 +195,6 @@ public:
         NYTree::IAttributeDictionary* attributes,
         IObjectTypeHandler::TReqCreateObject* request,
         IObjectTypeHandler::TRspCreateObject* response);
-
-    void UnstageObject(
-        NTransactionServer::TTransaction* transaction,
-        TObjectBase* object,
-        bool recursive);
 
     IObjectResolver* GetObjectResolver();
 

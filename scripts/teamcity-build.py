@@ -258,7 +258,10 @@ def clean_artifacts(options, n=10):
         start=n,
         stop=sys.maxint):
             teamcity_message("Removing {0}...".format(path), status="WARNING")
-            shutil.rmtree(path)
+            if os.path.isdir(path):
+                shutil.rmtree(path)
+            else:
+                os.unlink(path)
 
 
 @yt_register_cleanup_step
@@ -270,7 +273,10 @@ def clean_failed_tests(options, n=5):
         start=n,
         stop=sys.maxint):
             teamcity_message("Removing {0}...".format(path), status="WARNING")
-            shutil.rmtree(path)
+            if os.path.isdir(path):
+                shutil.rmtree(path)
+            else:
+                os.unlink(path)
 
 
 ################################################################################

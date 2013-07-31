@@ -315,13 +315,6 @@ protected:
             return Controller->Spec->PartitionLocalityTimeout;
         }
 
-        virtual TNodeResources GetMinNeededResourcesHeavy() const override
-        {
-            auto resources = Controller->GetPartitionResources(
-                ChunkPool->GetApproximateStripeStatistics());
-            return resources;
-        }
-
         virtual TNodeResources GetNeededResources(TJobletPtr joblet) const override
         {
             auto resources = Controller->GetPartitionResources(
@@ -352,8 +345,14 @@ protected:
         DECLARE_DYNAMIC_PHOENIX_TYPE(TPartitionTask, 0x63a4c761);
 
         TSortControllerBase* Controller;
-
         std::unique_ptr<IChunkPool> ChunkPool;
+
+
+        virtual TNodeResources GetMinNeededResourcesHeavy() const override
+        {
+            auto statistics = ChunkPool->GetApproximateStripeStatistics();
+            return Controller->GetPartitionResources(statistics);
+        }
 
         virtual int GetChunkListCountPerJob() const override
         {
@@ -528,13 +527,6 @@ protected:
             return Controller->SortTaskGroup;
         }
 
-        virtual TNodeResources GetMinNeededResourcesHeavy() const override
-        {
-            auto stat = GetChunkPoolOutput()->GetApproximateStripeStatistics();
-            YCHECK(stat.size() == 1);
-            return GetNeededResourcesForChunkStripe(stat.front());
-        }
-
         virtual TNodeResources GetNeededResources(TJobletPtr joblet) const override
         {
             return GetNeededResourcesForChunkStripe(
@@ -570,6 +562,13 @@ protected:
                     Partition,
                     stat);
             }
+        }
+
+        virtual TNodeResources GetMinNeededResourcesHeavy() const override
+        {
+            auto stat = GetChunkPoolOutput()->GetApproximateStripeStatistics();
+            YCHECK(stat.size() == 1);
+            return GetNeededResourcesForChunkStripe(stat.front());
         }
 
         virtual int GetChunkListCountPerJob() const override
@@ -885,12 +884,6 @@ protected:
                 : Controller->Spec->MergeLocalityTimeout;
         }
 
-        virtual TNodeResources GetMinNeededResourcesHeavy() const override
-        {
-            return Controller->GetSortedMergeResources(
-                ChunkPool->GetApproximateStripeStatistics());
-        }
-
         virtual TNodeResources GetNeededResources(TJobletPtr joblet) const override
         {
             return Controller->GetSortedMergeResources(
@@ -915,6 +908,12 @@ protected:
 
         std::unique_ptr<IChunkPool> ChunkPool;
 
+
+        virtual TNodeResources GetMinNeededResourcesHeavy() const override
+        {
+            return Controller->GetSortedMergeResources(
+                ChunkPool->GetApproximateStripeStatistics());
+        }
 
         virtual IChunkPoolOutput* GetChunkPoolOutput() const override
         {
@@ -1015,12 +1014,6 @@ protected:
             return TDuration::Zero();
         }
 
-        virtual TNodeResources GetMinNeededResourcesHeavy() const override
-        {
-            return Controller->GetUnorderedMergeResources(
-                Partition->ChunkPoolOutput->GetApproximateStripeStatistics());
-        }
-
         virtual TNodeResources GetNeededResources(TJobletPtr joblet) const override
         {
             return Controller->GetUnorderedMergeResources(
@@ -1040,6 +1033,12 @@ protected:
     private:
         DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeTask, 0xbba17c0f);
 
+
+        virtual TNodeResources GetMinNeededResourcesHeavy() const override
+        {
+            return Controller->GetUnorderedMergeResources(
+                Partition->ChunkPoolOutput->GetApproximateStripeStatistics());
+        }
 
         virtual bool HasInputLocality() override
         {
@@ -2039,7 +2038,7 @@ private:
     virtual Stroka GetLoggingProgress() override
     {
         return Sprintf(
-            "Jobs = {R: % " PRId64 ", C: %" PRId64 ", P: %d, F: %" PRId64 ", A: %" PRId64 ", L: %" PRId64 "}, "
+            "Jobs = {T: %" PRId64 ", R: % " PRId64 ", C: %" PRId64 ", P: %d, F: %" PRId64 ", A: %" PRId64 ", L: %" PRId64 "}, "
             "Partitions = {T: %d, C: %d}, "
             "PartitionJobs = {%s}, "
             "IntermediateSortJobs = {%s}, "
@@ -2048,6 +2047,7 @@ private:
             "UnorderedMergeJobs = {%s}, "
             "UnavailableInputChunks: %d",
             // Jobs
+            JobCounter.GetTotal(),
             JobCounter.GetRunning(),
             JobCounter.GetCompleted(),
             GetPendingJobCount(),
@@ -2510,7 +2510,7 @@ private:
     virtual Stroka GetLoggingProgress() override
     {
         return Sprintf(
-            "Jobs = {R: %" PRId64 ", C: %" PRId64 ", P: %d, F: %" PRId64", A: %" PRId64 ", L: %" PRId64 "}, "
+            "Jobs = {T: %" PRId64 ", R: %" PRId64 ", C: %" PRId64 ", P: %d, F: %" PRId64", A: %" PRId64 ", L: %" PRId64 "}, "
             "Partitions = {T: %d, C: %d}, "
             "MapJobs = {%s}, "
             "SortJobs = {%s}, "
@@ -2518,6 +2518,7 @@ private:
             "SortedReduceJobs = {%s}, "
             "UnavailableInputChunks: %d",
             // Jobs
+            JobCounter.GetTotal(),
             JobCounter.GetRunning(),
             JobCounter.GetCompleted(),
             GetPendingJobCount(),

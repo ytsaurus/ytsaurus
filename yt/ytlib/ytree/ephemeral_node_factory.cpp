@@ -493,6 +493,10 @@ public:
     {
         return New<TEntityNode>();
     }
+
+    virtual void Commit() override
+    { }
+
 };
 
 INodeFactoryPtr GetEphemeralNodeFactory()

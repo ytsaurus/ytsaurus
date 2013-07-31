@@ -135,10 +135,11 @@ private:
                 const auto& verb = requestHeader.verb();
                 auto mutationId = GetMutationId(requestHeader);
 
-                LOG_DEBUG("Execute[%d] <- %s %s (MutationId: %s)",
+                LOG_DEBUG("Execute[%d] <- %s %s (RequestId: %s, MutationId: %s)",
                     CurrentRequestIndex,
                     ~verb,
                     ~path,
+                    ~ToString(Context->GetRequestId()),
                     ~ToString(mutationId));
 
                 if (AtomicGet(ReplyLock) != 0)
@@ -197,9 +198,10 @@ private:
 
         auto error = FromProto(responseHeader.error());
 
-        LOG_DEBUG("Execute[%d] -> Error: %s",
+        LOG_DEBUG("Execute[%d] -> Error: %s (RequestId: %s)",
             requestIndex,
-            ~ToString(error));
+            ~ToString(error),
+            ~ToString(Context->GetRequestId()));
 
         if (error.GetCode() == NRpc::EErrorCode::Unavailable) {
             Reply(error);

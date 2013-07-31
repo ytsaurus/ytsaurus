@@ -15,8 +15,11 @@
 
 #include <server/cypress_server/cypress_manager.h>
 
+#include <server/object_server/object.h>
 #include <server/object_server/type_handler_detail.h>
 #include <server/object_server/attribute_set.h>
+
+#include <server/cypress_server/node.h>
 
 #include <server/cell_master/serialization_context.h>
 #include <server/cell_master/bootstrap.h>
@@ -31,6 +34,7 @@ namespace NTransactionServer {
 using namespace NCellMaster;
 using namespace NObjectClient;
 using namespace NObjectServer;
+using namespace NCypressServer;
 using namespace NMetaState;
 using namespace NYTree;
 using namespace NYson;
@@ -268,13 +272,10 @@ private:
         ValidateTransactionIsActive(transaction);
 
         auto objectManager = Bootstrap->GetObjectManager();
-        auto* object = objectManager->FindObject(objectId);
-        if (!IsObjectAlive(object)) {
-            THROW_ERROR_EXCEPTION("No such object %s",
-                ~ToString(objectId));
-        }
+        auto* object = objectManager->GetObjectOrThrow(objectId);
 
-        objectManager->UnstageObject(transaction, object, recursive);
+        auto transactionManager = Bootstrap->GetTransactionManager();
+        transactionManager->UnstageObject(transaction, object, recursive);
 
         context->Reply();
     }
@@ -510,6 +511,11 @@ void TTransactionManager::FinishTransaction(TTransaction* transaction)
     }
     transaction->StagedObjects().clear();
 
+    FOREACH (auto* node, transaction->StagedNodes()) {
+        objectManager->UnrefObject(node);
+    }
+    transaction->StagedNodes().clear();
+
     auto* parent = transaction->GetParent();
     if (parent) {
         YCHECK(parent->NestedTransactions().erase(transaction) == 1);
@@ -693,6 +699,39 @@ TTransactionPath TTransactionManager::GetTransactionPath(TTransaction* transacti
         transaction = transaction->GetParent();
     }
     return result;
+}
+
+void TTransactionManager::StageObject(TTransaction* transaction, TObjectBase* object)
+{
+    auto objectManager = Bootstrap->GetObjectManager();
+    YCHECK(transaction->StagedObjects().insert(object).second);
+    objectManager->RefObject(object);
+}
+
+void TTransactionManager::UnstageObject(
+    TTransaction* transaction,
+    TObjectBase* object,
+    bool recursive)
+{
+    if (transaction->StagedObjects().erase(object) == 0) {
+        THROW_ERROR_EXCEPTION("Object %s does not belong to transaction %s",
+            ~ToString(object->GetId()),
+            ~ToString(transaction->GetId()));
+    }
+
+    auto objectManager = Bootstrap->GetObjectManager();
+
+    auto handler = objectManager->GetHandler(object);
+    handler->Unstage(object, transaction, recursive);
+
+    objectManager->UnrefObject(object);
+}
+
+void TTransactionManager::StageNode(TTransaction* transaction, TCypressNodeBase* node)
+{
+    auto objectManager = Bootstrap->GetObjectManager();
+    transaction->StagedNodes().push_back(node);
+    objectManager->RefObject(node);
 }
 
 DEFINE_METAMAP_ACCESSORS(TTransactionManager, Transaction, TTransaction, TTransactionId, TransactionMap)

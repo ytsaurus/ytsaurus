@@ -102,8 +102,7 @@ struct IObjectTypeHandler
 
     //! Clears staging information of a given object.
     /*!
-     *  If #recursive is True then also releases all child objects.
-     *
+     *  If #recursive is |true| then all child objects are also released.
      */
     virtual void Unstage(
         TObjectBase* object,

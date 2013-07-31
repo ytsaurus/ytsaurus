@@ -19,6 +19,8 @@
 
 #include <server/object_server/type_handler.h>
 
+#include <server/cypress_server/public.h>
+
 namespace NYT {
 namespace NTransactionServer {
 
@@ -57,6 +59,22 @@ public:
     //! Returns the list of all transaction ids on the path up to the root.
     //! This list includes #transaction itself and |nullptr|.
     TTransactionPath GetTransactionPath(TTransaction* transaction) const;
+
+    //! Registers and references the object with the transaction.
+    void StageObject(TTransaction* transaction, NObjectServer::TObjectBase* object);
+
+    //! Unregisters the object from the transaction, calls IObjectTypeHandler::Unstage and
+    //! unreferences the object. Throws on failure.
+    /*!
+     *  If #recursive is |true| then all child objects are also released.
+     */
+    void UnstageObject(
+        TTransaction* transaction,
+        NObjectServer::TObjectBase* object,
+        bool recursive);
+
+    //! Registers (and references) the node with the transaction.
+    void StageNode(TTransaction* transaction, NCypressServer::TCypressNodeBase* node);
 
 private:
     typedef TTransactionManager TThis;

@@ -172,11 +172,7 @@ public:
                     THROW_ERROR_EXCEPTION("Error parsing object id %s", ~objectIdString);
                 }
 
-                auto* object = objectManager->FindObject(objectId);
-                if (!IsObjectAlive(object)) {
-                    THROW_ERROR_EXCEPTION("No such object %s", ~ToString(objectId));
-                }
-
+                auto* object = objectManager->GetObjectOrThrow(objectId);
                 auto proxy = objectManager->GetProxy(object, transaction);
                 return TResolveResult::There(proxy, tokenizer.GetSuffix());
             }
@@ -260,14 +256,7 @@ public:
                         ~objectIdString);
                 }
 
-                auto* object = objectManager->FindObject(objectId);
-                if (!IsObjectAlive(object)) {
-                    THROW_ERROR_EXCEPTION(
-                        NYTree::EErrorCode::ResolveError,
-                        "No such object %s",
-                        ~ToString(objectId));
-                }
-
+                auto* object = objectManager->GetObjectOrThrow(objectId);
                 auto proxy = objectManager->GetProxy(object, transaction);
                 return DoResolvePath(proxy, tokenizer.GetSuffix());
             }
@@ -281,7 +270,7 @@ public:
     virtual TYPath GetPath(IObjectProxyPtr proxy) override
     {
         const auto& id = proxy->GetId();
-        if (IsVersioned(TypeFromId(id))) {
+        if (IsVersionedType(TypeFromId(id))) {
             auto* nodeProxy = dynamic_cast<ICypressNodeProxy*>(~proxy);
             auto resolver = nodeProxy->GetResolver();
             return resolver->GetPath(nodeProxy);
@@ -571,10 +560,10 @@ void TObjectManager::RefObject(TObjectBase* object)
     YASSERT(object->IsTrunk());
 
     int refCounter = object->RefObject();
-    LOG_DEBUG_UNLESS(IsRecovery(), "Object referenced (Id: %s, RefCounter: %d, LockCounter: %d)",
+    LOG_DEBUG_UNLESS(IsRecovery(), "Object referenced (Id: %s, RefCounter: %d, WeakRefCounter: %d)",
         ~ToString(object->GetId()),
         refCounter,
-        object->GetObjectLockCounter());
+        object->GetObjectWeakRefCounter());
 }
 
 void TObjectManager::UnrefObject(TObjectBase* object)
@@ -583,32 +572,32 @@ void TObjectManager::UnrefObject(TObjectBase* object)
     YASSERT(object->IsTrunk());
 
     int refCounter = object->UnrefObject();
-    LOG_DEBUG_UNLESS(IsRecovery(), "Object unreferenced (Id: %s, RefCounter: %d, LockCounter: %d)",
+    LOG_DEBUG_UNLESS(IsRecovery(), "Object unreferenced (Id: %s, RefCounter: %d, WeakRefCounter: %d)",
         ~ToString(object->GetId()),
         refCounter,
-        object->GetObjectLockCounter());
+        object->GetObjectWeakRefCounter());
 
     if (refCounter == 0) {
         GarbageCollector->Enqueue(object);
     }
 }
 
-void TObjectManager::LockObject(TObjectBase* object)
+void TObjectManager::WeakRefObject(TObjectBase* object)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    int lockCounter = object->LockObject();
-    if (lockCounter == 1) {
+    int weakRefCounter = object->WeakRefObject();
+    if (weakRefCounter == 1) {
         ++LockedObjectCount;
     }
 }
 
-void TObjectManager::UnlockObject(TObjectBase* object)
+void TObjectManager::WeakUnrefObject(TObjectBase* object)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    int lockCounter = object->UnlockObject();
-    if (lockCounter == 0) {
+    int weakRefCounter = object->WeakUnrefObject();
+    if (weakRefCounter == 0) {
         --LockedObjectCount;
         if (!object->IsAlive()) {
             GarbageCollector->Unlock(object);
@@ -790,6 +779,21 @@ TObjectBase* TObjectManager::GetObject(const TObjectId& id)
 
     auto* object = FindObject(id);
     YCHECK(object);
+    return object;
+}
+
+TObjectBase* TObjectManager::GetObjectOrThrow(const TObjectId& id)
+{
+    VERIFY_THREAD_AFFINITY(StateThread);
+
+    auto* object = FindObject(id);
+    if (!IsObjectAlive(object)) {
+        THROW_ERROR_EXCEPTION(
+            NYTree::EErrorCode::ResolveError,
+            "No such object %s",
+            ~ToString(id));
+    }
+
     return object;
 }
 
@@ -1061,8 +1065,8 @@ TObjectBase* TObjectManager::CreateObject(
     }
 
     if (transaction && options->SupportsStaging) {
-        YCHECK(transaction->StagedObjects().insert(object).second);
-        RefObject(object);
+        auto transactionManager = Bootstrap->GetTransactionManager();
+        transactionManager->StageObject(transaction, object);
     }
 
     auto* acd = securityManager->FindAcd(object);
@@ -1071,22 +1075,6 @@ TObjectBase* TObjectManager::CreateObject(
     }
 
     return object;
-}
-
-void TObjectManager::UnstageObject(
-    TTransaction* transaction,
-    TObjectBase* object,
-    bool recursive)
-{
-    if (transaction->StagedObjects().erase(object) != 1) {
-        THROW_ERROR_EXCEPTION("Object %s does not belong to transaction %s",
-            ~ToString(object->GetId()),
-            ~ToString(transaction->GetId()));
-    }
-
-    auto handler = GetHandler(object);
-    handler->Unstage(object, transaction, recursive);
-    UnrefObject(object);
 }
 
 IObjectResolver* TObjectManager::GetObjectResolver()

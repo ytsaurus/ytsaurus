@@ -16,7 +16,7 @@ using namespace NCypressServer;
 TObjectBase::TObjectBase(const TObjectId& id)
     : Id(id)
     , RefCounter(0)
-    , LockCounter(0)
+    , WeakRefCounter(0)
 { }
 
 const TObjectId& TObjectBase::GetId() const
@@ -41,22 +41,22 @@ int TObjectBase::UnrefObject()
     return --RefCounter;
 }
 
-int TObjectBase::LockObject()
+int TObjectBase::WeakRefObject()
 {
     YCHECK(IsAlive());
-    YASSERT(LockCounter >= 0);
-    return ++LockCounter;
+    YASSERT(WeakRefCounter >= 0);
+    return ++WeakRefCounter;
 }
 
-int TObjectBase::UnlockObject()
+int TObjectBase::WeakUnrefObject()
 {
-    YASSERT(LockCounter > 0);
-    return --LockCounter;
+    YASSERT(WeakRefCounter > 0);
+    return --WeakRefCounter;
 }
 
-void TObjectBase::ResetObjectLocks()
+void TObjectBase::ResetWeakRefCounter()
 {
-    LockCounter = 0;
+    WeakRefCounter = 0;
 }
 
 int TObjectBase::GetObjectRefCounter() const
@@ -64,9 +64,9 @@ int TObjectBase::GetObjectRefCounter() const
     return RefCounter;
 }
 
-int TObjectBase::GetObjectLockCounter() const
+int TObjectBase::GetObjectWeakRefCounter() const
 {
-    return LockCounter;
+    return WeakRefCounter;
 }
 
 bool TObjectBase::IsAlive() const
@@ -76,12 +76,12 @@ bool TObjectBase::IsAlive() const
 
 bool TObjectBase::IsLocked() const
 {
-    return LockCounter > 0;
+    return WeakRefCounter > 0;
 }
 
 bool TObjectBase::IsTrunk() const
 {
-    if (!IsVersioned(TypeFromId(Id))) {
+    if (!IsVersionedType(TypeFromId(Id))) {
         return true;
     }
 

@@ -61,8 +61,9 @@ protected:
         ValidatePermission(EPermissionCheckScope::Descendants, EPermission::Write);
 
         auto factory = CreateFactory();
-        auto builder = CreateBuilderFromFactory(~factory);
+        auto builder = CreateBuilderFromFactory(factory);
         SetNodeFromProducer(node, ConvertToProducer(value), ~builder);
+        factory->Commit();
     }
 
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override;
@@ -96,6 +97,7 @@ protected:
         TCtxSetPtr context) override;
 
     virtual void SetChild(
+        INodeFactoryPtr factory,
         const TYPath& path,
         INodePtr value,
         bool recursive) = 0;
@@ -119,6 +121,7 @@ protected:
         TCtxListPtr context) override;
 
     virtual void SetChild(
+        INodeFactoryPtr factory,
         const TYPath& path,
         INodePtr value,
         bool recursive) override;
@@ -136,6 +139,7 @@ protected:
         NRpc::IServiceContextPtr context) override;
 
     void SetChild(
+        INodeFactoryPtr factory,
         const TYPath& path,
         INodePtr value,
         bool recursive);

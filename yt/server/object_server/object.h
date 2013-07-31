@@ -40,26 +40,26 @@ public:
      */
     int UnrefObject();
 
-    //! Increments the object's lock counter.
+    //! Increments the object's weak reference counter.
     /*!
      *  \returns the incremented counter.
      */
-    int LockObject();
+    int WeakRefObject();
 
-    //! Decrements the object's lock counter.
+    //! Decrements the object's weak reference counter.
     /*!
      *  \returns the decremented counter.
      */
-    int UnlockObject();
+    int WeakUnrefObject();
 
-    //! Sets lock counter to zero.
-    void ResetObjectLocks();
+    //! Sets weak reference counter to zero.
+    void ResetWeakRefCounter();
 
     //! Returns the current reference counter.
     int GetObjectRefCounter() const;
 
     //! Returns the current lock counter.
-    int GetObjectLockCounter() const;
+    int GetObjectWeakRefCounter() const;
 
     //! Returns True iff the reference counter is non-zero.
     bool IsAlive() const;
@@ -76,7 +76,7 @@ protected:
 
     TObjectId Id;
     int RefCounter;
-    int LockCounter;
+    int WeakRefCounter;
 
 };
 

@@ -23,14 +23,11 @@ var _STATIC_STYLE = fs.readFileSync(__dirname + "/../static/bootstrap.min.css");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function YtApplicationAuth(config, logger, driver, authority)
+function YtApplicationAuth(logger, authority)
 {
     "use strict";
 
-    this.config = config;
     this.logger = logger;
-    this.driver = driver;
-
     this.authority = authority;
 }
 
@@ -136,23 +133,19 @@ YtApplicationAuth.prototype._dispatchNewCallback = function(req, rsp, params)
         ]);
     })
     .spread(function(token, result) {
-        return Q
-        .when(self._ensureUser(result.login))
-        .then(function() { return [ token, result.login, result.realm ]; });
-    })
-    .spread(function(token, login, realm) {
         if (state.return_path) {
             var target = state.return_path;
-            // TODO(sandello): Fixme.
-            /*
+            var login = result.login;
+            var realm = result.realm;
+
             target = url.parse(target);
             target.query = qs.decode(target.query);
             target.query.token = token;
             target.query.login = login;
-            target.query = qs.encode(target.query);
+            target.search = null;
+            target.path = null;
             target = url.format(target);
-            */
-            target += "?token=" + token + "&login=" + login;
+
             return utils.redirectTo(rsp, target, 303);
         } else {
             var body = _TEMPLATE_LAYOUT({ content: _TEMPLATE_TOKEN({
@@ -185,32 +178,6 @@ YtApplicationAuth.prototype._dispatchNewRedirect = function(req, rsp, params)
         state);
 
     return utils.redirectTo(rsp, target, 303);
-};
-
-YtApplicationAuth.prototype._ensureUser = function(name)
-{
-    "use strict";
-
-    var self = this;
-
-    return Q
-    .when(name)
-    .then(function(name) {
-        var path = "//sys/users/" + utils.escapeYPath(name);
-        return self.driver.executeSimple("exists", { path: path });
-    })
-    .then(function(exists) {
-        if (exists === "true") {
-            return;
-        }
-        return self.driver.executeSimple("create", {
-            type: "user",
-            attributes: { name: name }
-        });
-    })
-    .then(function(create) {
-        return;
-    });
 };
 
 ////////////////////////////////////////////////////////////////////////////////
