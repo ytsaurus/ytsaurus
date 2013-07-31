@@ -242,18 +242,18 @@ private:
 };
 
 #ifdef _win_
-static VOID CALLBACK TFiberContext::Trampoline(PVOID opaque)
+VOID CALLBACK TFiberContext::Trampoline(PVOID opaque)
 {
     TFiberContext* context = reinterpret_cast<TFiberContext*>(opaque);
     context->Callee_(context->Opaque_);
 }
 
-static void TFiberContext::TransferTo(TFiberContext* previous, TFiberContext* next)
+void TFiberContext::TransferTo(TFiberContext* previous, TFiberContext* next)
 {
     if (!previous->Fiber_) {
-        previous_->Fiber_ = GetCurrentFiber();
-        if (previous_->Fiber_ == 0 || previous_->Fiber_ == (void*)0x1e00) {
-            previous_->Fiber_ = ConvertThreadToFiber(0);
+        previous->Fiber_ = GetCurrentFiber();
+        if (previous->Fiber_ == 0 || previous->Fiber_ == (void*)0x1e00) {
+            previous->Fiber_ = ConvertThreadToFiber(0);
         }
     }
     SwitchToFiber(next->Fiber_);
