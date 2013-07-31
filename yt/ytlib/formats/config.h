@@ -21,7 +21,6 @@ public:
     TNullable<Stroka> LinePrefix;
 
     bool EnableEscaping;
-    bool EscapeCarriageReturn;
     char EscapingSymbol;
 
     // Escaping rules (EscapingSymbol is '\\')
@@ -42,8 +41,6 @@ public:
             .Default();
         RegisterParameter("enable_escaping", EnableEscaping)
             .Default(true);
-        RegisterParameter("escape_carriage_return", EscapeCarriageReturn)
-            .Default(false);
         RegisterParameter("escaping_symbol", EscapingSymbol)
             .Default('\\');
     }
@@ -98,7 +95,6 @@ public:
 
     // Escaping options
     bool EnableEscaping;
-    bool EscapeCarriageReturn;
     char EscapingSymbol;
 
     // Makes sense only in writer
@@ -123,8 +119,6 @@ public:
         RegisterParameter("enable_table_index", EnableTableIndex)
             .Default(false);
         RegisterParameter("enable_escaping", EnableEscaping)
-            .Default(false);
-        RegisterParameter("escape_carriage_return", EscapeCarriageReturn)
             .Default(false);
         RegisterParameter("escaping_symbol", EscapingSymbol)
             .Default('\\');

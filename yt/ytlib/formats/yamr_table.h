@@ -20,9 +20,7 @@ struct TYamrTable
         bool enableKeyEscaping,
         bool enableValueEscaping,
         char escapingSymbol,
-        bool escapeCarriageReturn,
         bool escapingForWriter)
-        : Escapes(escapeCarriageReturn)
     {
         std::vector<char> valueStopSymbols;
         valueStopSymbols.push_back(recordSeparator);
@@ -33,6 +31,7 @@ struct TYamrTable
         if (enableKeyEscaping) {
             if (escapingForWriter) {
                 keyStopSymbols.push_back('\0');
+                keyStopSymbols.push_back('\r');
             }
             keyStopSymbols.push_back(escapingSymbol);
         }
@@ -40,13 +39,9 @@ struct TYamrTable
         if (enableValueEscaping) {
             if (escapingForWriter) {
                 valueStopSymbols.push_back('\0');
+                valueStopSymbols.push_back('\r');
             }
             valueStopSymbols.push_back(escapingSymbol);
-        }
-
-        if (escapeCarriageReturn && escapingForWriter) {
-            keyStopSymbols.push_back('\r');
-            valueStopSymbols.push_back('\r');
         }
 
         KeyStops.Fill(keyStopSymbols);
