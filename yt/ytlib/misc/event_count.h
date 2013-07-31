@@ -7,9 +7,9 @@
 #include <syscall.h>
 #include <linux/futex.h>
 #include <sys/time.h>
-#else
-static const int FUTEX_WAIT = 0;
-static const int FUTEX_WAKE = 0;
+#endif
+#ifdef _win_
+#include <winint.h>
 #endif
 
 #include <limits>
@@ -23,20 +23,17 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#ifdef _linux_
 namespace NDetail {
-
 inline int futex(
     int* uaddr, int op, int val, const timespec* timeout,
     int* uaddr2, int val3)
 {
-#ifdef _linux_
     return syscall(SYS_futex, uaddr, op, val, timeout, uaddr2, val3);
-#else
-    YUNIMPLEMENTED();
-#endif
 }
+#endif
 
-} // namespace detail
+} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,18 +45,18 @@ inline int futex(
  *
  * Event counts allow you to convert a non-blocking lock-free / wait-free
  * algorithm into a blocking one, by isolating the blocking logic. You call
- * prepareWait() before checking your condition and then either cancelWait()
- * or wait() depending on whether the condition was true. When another
- * thread makes the condition true, it must call notify() / notifyAll() just
+ * PrepareWait() before checking your condition and then either CancelWait()
+ * or Wait() depending on whether the condition was true. When another
+ * thread makes the condition true, it must call Notify() / NotifyAll() just
  * like a regular condition variable.
  *
  * Let "<" denote the happens-before relationship.
  * Consider 2 threads (T1 and T2) and 3 events:
- * - E1: T1 returns from prepareWait
- * - E2: T1 calls wait (obviously E1 < E2, intra-thread)
- * - E3: T2 calls notifyAll
+ * - E1: T1 returns from PrepareWait
+ * - E2: T1 calls Wait (obviously E1 < E2, intra-thread)
+ * - E3: T2 calls NotifyAll
  *
- * If E1 < E3, then E2's wait will complete (and T1 will either wake up,
+ * If E1 < E3, then E2's Wait() will complete (and T1 will either wake up,
  * or not block at all)
  *
  * This means that you can use an EventCount in the following manner:
@@ -67,25 +64,25 @@ inline int futex(
  * Waiter:
  *   if (!condition()) { // Handle fast path first.
  *     for (;;) {
- *       auto key = eventCount.prepareWait();
+ *       auto key = ec.PepareWait();
  *       if (condition()) {
- *         eventCount.cancelWait();
+ *         ec.CancelWait();
  *         break;
  *       } else {
- *         eventCount.wait(key);
+ *         ec.Wait(key);
  *       }
  *     }
  *  }
  *
- *  (This pattern is encapsulated in await())
+ *  (This pattern is encapsulated in Await())
  *
  * Poster:
- *   make_condition_true();
- *   eventCount.notifyAll();
+ *   ... make condition true...
+ *   ec.NotifyAll();
  *
  * Note that, just like with regular condition variables, the waiter needs to
  * be tolerant of spurious wakeups and needs to recheck the condition after
- * being woken up.  Also, as there is no mutual exclusion implied, "checking"
+ * being woken up. Also, as there is no mutual exclusion implied, "checking"
  * the condition likely means attempting an operation on an underlying
  * data structure (push into a lock-free queue, etc) and returning true on
  * success and false on failure.
@@ -97,6 +94,9 @@ public:
     TEventCount()
         : Epoch(0)
         , Waiters(0)
+#ifdef _win_
+        , Conditional(CreateEvent(nullptr, false, false, nullptr))
+#endif
     { }
 
     class TCookie
@@ -122,7 +122,7 @@ public:
     void Await(TCondition condition);
 
 private:
-    void DoNotify(TAtomicBase n);
+    void DoNotify(int n);
 
     TEventCount(const TEventCount&);
     TEventCount(TEventCount&&);
@@ -130,8 +130,12 @@ private:
     TEventCount& operator=(TEventCount&&);
 
     // NB: You have to atomically work with these two.
+    // XXX(sandello): Replace with std::atomic<int>.
     TAtomic Epoch;
     TAtomic Waiters;
+#ifdef _win_
+    HANDLE Conditional;
+#endif
 };
 
 inline void TEventCount::Notify()
@@ -141,17 +145,22 @@ inline void TEventCount::Notify()
 
 inline void TEventCount::NotifyAll()
 {
-    DoNotify(std::numeric_limits<TAtomicBase>::max());
+    DoNotify(std::numeric_limits<int>::max());
 }
 
-inline void TEventCount::DoNotify(TAtomicBase n)
+inline void TEventCount::DoNotify(int n)
 {
     // The order is important: Epoch is incremented before Waiters is checked.
     // prepareWait() increments Waiters before checking Epoch, so it is
     // impossible to miss a wakeup.
     AtomicIncrement(Epoch);
     if (AtomicGet(Waiters) != 0) {
-        NDetail::futex((int*)(&Epoch), FUTEX_WAKE, n, NULL, NULL, 0);
+#ifdef _linux_
+        NDetail::futex((int*)(&Epoch), FUTEX_WAKE_PRIVATE, n, nullptr, nullptr, 0);
+#endif
+#ifdef _win_
+        SetEvent(Conditional);
+#endif
     }
 }
 
@@ -169,7 +178,12 @@ inline void TEventCount::CancelWait()
 inline void TEventCount::Wait(TCookie key)
 {
     while (AtomicGet(Epoch) == key.Epoch) {
-        NDetail::futex((int*)(&Epoch), FUTEX_WAIT, key.Epoch, NULL, NULL, 0);
+#ifdef _linux_
+        NDetail::futex((int*)(&Epoch), FUTEX_WAIT_PRIVATE, key.Epoch, nullptr, nullptr, 0);
+#endif
+#ifdef _win_
+        WaitForSingleObject(Conditional, INFINITE);
+#endif
     }
     AtomicDecrement(Waiters);
 }
