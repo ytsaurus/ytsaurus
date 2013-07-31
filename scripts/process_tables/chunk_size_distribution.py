@@ -34,10 +34,7 @@ if __name__ == "__main__":
 
     number_of_chunks = 0
 
-    for table in yt.search("/", node_type="table", attributes=["compressed_data_size", "chunk_count"]):
-        if args.filter_out is not None and any(word in table for word in args.filter_out):
-            continue
-        
+    for table in yt.search("/", node_type="table", attributes=["compressed_data_size", "chunk_count"], exclude=args.filter_out):
         chunk_count = int(table.attributes["chunk_count"])
         if chunk_count == 0: continue
 
