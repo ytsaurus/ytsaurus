@@ -3,20 +3,21 @@
 #include "common.h"
 
 #ifdef _linux_
-#include <unistd.h>
-#include <syscall.h>
-#include <linux/futex.h>
-#include <sys/time.h>
+    #include <unistd.h>
+    #include <syscall.h>
+    #include <linux/futex.h>
+    #include <sys/time.h>
 #endif
+
 #ifdef _win_
-#include <winint.h>
+    #include <winnt.h>
 #endif
 
 #include <limits>
 
 #include <util/system/atomic.h>
 
-// This is adapted version from Facebook's folly.
+// This is an adapted version from Facebook's folly.
 // See https://raw.github.com/facebook/folly/master/folly/experimental/EventCount.h
 
 namespace NYT {
@@ -24,16 +25,19 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 #ifdef _linux_
+
 namespace NDetail {
+
 inline int futex(
     int* uaddr, int op, int val, const timespec* timeout,
     int* uaddr2, int val3)
 {
     return syscall(SYS_futex, uaddr, op, val, timeout, uaddr2, val3);
 }
-#endif
 
 } // namespace NDetail
+
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -189,7 +193,8 @@ inline void TEventCount::Wait(TCookie key)
 }
 
 template <class TCondition>
-void TEventCount::Await(TCondition condition) {
+void TEventCount::Await(TCondition condition)
+{
     if (condition()) {
         // Fast path.
         return;
