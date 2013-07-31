@@ -68,8 +68,7 @@ std::unique_ptr<IParser> CreateParserForYamr(
                 config->RecordSeparator,
                 config->EnableEscaping, //Enable key escaping
                 config->EnableEscaping, //Enable value escaping
-                config->EscapingSymbol,
-                config->EscapeCarriageReturn));
+                config->EscapingSymbol));
 }
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -43,8 +43,7 @@ public:
         char recordSeparator,
         bool enableKeyEscaping,
         bool enableValueEscaping,
-        char escapingSymbol,
-        bool escapeCarriageReturn);
+        char escapingSymbol);
 
     virtual void Read(const TStringBuf& data) override;
     virtual void Finish() override;

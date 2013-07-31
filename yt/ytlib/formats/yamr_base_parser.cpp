@@ -39,8 +39,7 @@ TYamrDelimitedBaseParser::TYamrDelimitedBaseParser(
     char recordSeparator,
     bool enableKeyEscaping,
     bool enableValueEscaping,
-    char escapingSymbol,
-    bool escapeCarriageReturn)
+    char escapingSymbol)
     : Consumer(consumer)
     , FieldSeparator(fieldSeparator)
     , RecordSeparator(recordSeparator)
@@ -56,7 +55,6 @@ TYamrDelimitedBaseParser::TYamrDelimitedBaseParser(
         enableKeyEscaping,
         enableValueEscaping,
         escapingSymbol,
-        escapeCarriageReturn,
         false)
 { }
 

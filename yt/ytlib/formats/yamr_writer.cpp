@@ -22,7 +22,6 @@ TYamrWriter::TYamrWriter(TOutputStream* stream, TYamrFormatConfigPtr config)
         Config->EnableEscaping, // Enable key escaping
         Config->EnableEscaping, // Enable value escaping
         Config->EscapingSymbol,
-        Config->EscapeCarriageReturn,
         true)
     , State(EState::None)
 {
