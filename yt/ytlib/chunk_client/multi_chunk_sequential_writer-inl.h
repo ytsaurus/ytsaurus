@@ -112,12 +112,11 @@ auto TMultiChunkSequentialWriter<TChunkWriter>::GetCurrentWriter() -> TFacade*
 template <class TChunkWriter>
 TAsyncError TMultiChunkSequentialWriter<TChunkWriter>::GetReadyEvent()
 {
-    if (State.HasRunningOperation()) {
+    if (CurrentSession.ChunkWriter) {
+        return CurrentSession.ChunkWriter->GetReadyEvent();
+    } else {
         return State.GetOperationError();
     }
-
-    YCHECK(CurrentSession.ChunkWriter);
-    return CurrentSession.ChunkWriter->GetReadyEvent();
 }
 
 template <class TChunkWriter>
