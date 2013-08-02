@@ -987,8 +987,7 @@ void TReplicationWriter::CancelPing(TNodePtr node)
 
 void TReplicationWriter::CancelAllPings()
 {
-    VERIFY_THREAD_AFFINITY(WriterThread);
-
+    // No thread affinity - called from dtor.
     FOREACH (auto node, Nodes) {
         CancelPing(node);
     }

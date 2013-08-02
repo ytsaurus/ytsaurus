@@ -12,7 +12,7 @@ TDispatcher::TDispatcher()
     , HeavyThreadPool(BIND(
         NYT::New<NYT::TThreadPool, const int&, const Stroka&>,
         ConstRef(HeavyPoolSize),
-        "Driver"))
+        "DriverHeavy"))
 { }
 
 TDispatcher* TDispatcher::Get()
