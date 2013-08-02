@@ -226,7 +226,7 @@ void TExecutorThread::FiberMain()
             if (result == EBeginExecuteResult::Success)
                 continue;
             OnIdle();
-            WakeupEvent.WaitT(TDuration::Milliseconds(100));
+            WakeupEvent.WaitT(TDuration::MilliSeconds(100));
         }
     }
 
