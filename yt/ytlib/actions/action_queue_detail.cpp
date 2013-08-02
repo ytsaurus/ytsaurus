@@ -226,7 +226,7 @@ void TExecutorThread::FiberMain()
             if (result == EBeginExecuteResult::Success)
                 continue;
             OnIdle();
-            WakeupEvent.WaitT(TDuration::MilliSeconds(100));
+            WakeupEvent.WaitT();
         }
     }
 
@@ -241,14 +241,16 @@ void TExecutorThread::FiberMain()
 
 EBeginExecuteResult TExecutorThread::CheckedExecute()
 {
-    if (!Running) {
-        return EBeginExecuteResult::LoopTerminated;
-    }
-
     auto result = BeginExecute();
     if (result == EBeginExecuteResult::LoopTerminated ||
         result == EBeginExecuteResult::QueueEmpty)
     {
+        // NB: Running must be examined after calling BeginExecute since the latter
+        // provides a so-much-needed barrier. Otherwise one may (and will) experience thread hangs
+        // during shutdown.
+        if (!Running) {
+            return EBeginExecuteResult::LoopTerminated;
+        }
         return result;
     }
 
