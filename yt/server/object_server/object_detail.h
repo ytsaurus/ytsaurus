@@ -104,6 +104,7 @@ protected:
 
     void GuardedInvoke(NRpc::IServiceContextPtr context);
     virtual void BeforeInvoke();
+    virtual void AfterInvoke();
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override;
     virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const override;
 

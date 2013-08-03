@@ -130,7 +130,10 @@ protected:
 
     mutable TCypressNodeBase* CachedNode;
     mutable NYTree::INodeResolverPtr CachedResolver;
+
+    bool AccessSuppressed;
     
+
     virtual NObjectServer::TVersionedObjectId GetVersionedId() const override;
     virtual NSecurityServer::TAccessControlDescriptor* FindThisAcd() override;
 
@@ -139,10 +142,35 @@ protected:
     virtual TAsyncError GetSystemAttributeAsync(const Stroka& key, NYson::IYsonConsumer* consumer) override;
     virtual bool SetSystemAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
 
-
     virtual void BeforeInvoke() override;
+    virtual void AfterInvoke() override;
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override;
 
+    // Suppress access handling in the cases below.
+    virtual void GetAttribute(
+        const NYTree::TYPath& path,
+        TReqGet* request,
+        TRspGet* response,
+        TCtxGetPtr context) override;
+    virtual void ListAttribute(
+        const NYTree::TYPath& path,
+        TReqList* request,
+        TRspList* response,
+        TCtxListPtr context) override;
+    virtual void ExistsSelf(
+        TReqExists* request,
+        TRspExists* response,
+        TCtxExistsPtr context) override;
+    virtual void ExistsRecursive(
+        const NYTree::TYPath& path,
+        TReqExists* request,
+        TRspExists* response,
+        TCtxExistsPtr context) override;
+    virtual void ExistsAttribute(
+        const NYTree::TYPath& path,
+        TReqExists* request,
+        TRspExists* response,
+        TCtxExistsPtr context) override;
 
     TCypressNodeBase* GetImpl(TCypressNodeBase* trunkNode) const;
 
@@ -201,7 +229,9 @@ protected:
     using TObjectProxyBase::ValidatePermission;
 
     void SetModified();
+
     void SetAccessed();
+    void SuppressAccess();
 
     ICypressNodeProxyPtr ResolveSourcePath(const NYPath::TYPath& path);
 
