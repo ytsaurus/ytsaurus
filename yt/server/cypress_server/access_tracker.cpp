@@ -81,6 +81,8 @@ void TAccessTracker::SetModified(
 
 void TAccessTracker::SetAccessed(TCypressNodeBase* trunkNode)
 {
+    return;
+    
     VERIFY_THREAD_AFFINITY(StateThread);
     YCHECK(trunkNode->IsTrunk());
 
