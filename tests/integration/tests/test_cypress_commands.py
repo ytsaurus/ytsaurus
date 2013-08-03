@@ -675,34 +675,34 @@ class TestCypressCommands(YTEnvSetup):
         c1 = get('//tmp/@access_counter')
         get('//tmp/@')
         time.sleep(2.0)
-        c1 = get('//tmp/@access_counter')
+        c2 = get('//tmp/@access_counter')
         assert c1 == c2
 
     def test_access_stat4(self):
         c1 = get('//tmp/@access_counter')
         assert exists('//tmp')
         time.sleep(2.0)
-        c1 = get('//tmp/@access_counter')
+        c2 = get('//tmp/@access_counter')
         assert c1 == c2
 
     def test_access_stat5(self):
         c1 = get('//tmp/@access_counter')
         assert exists('//tmp/@id')
         time.sleep(2.0)
-        c1 = get('//tmp/@access_counter')
+        c2 = get('//tmp/@access_counter')
         assert c1 == c2
 
     def test_access_stat6(self):
         c1 = get('//tmp/@access_counter')
         ls('//tmp/@')
         time.sleep(2.0)
-        c1 = get('//tmp/@access_counter')
+        c2 = get('//tmp/@access_counter')
         assert c1 == c2
 
     def test_access_stat7(self):
         c1 = get('//tmp/@access_counter')
         ls('//tmp')
         time.sleep(2.0)
-        c1 = get('//tmp/@access_counter')
-        assert c1 == c2 + 1
+        c2 = get('//tmp/@access_counter')
+        assert c2 == c1 + 1
 
