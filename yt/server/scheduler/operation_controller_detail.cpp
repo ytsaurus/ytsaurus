@@ -1981,8 +1981,6 @@ void TOperationControllerBase::DoOperationCompleted()
 
     LOG_INFO("Operation completed");
 
-    JobCounter.Finalize();
-
     Running = false;
 
     Host->OnOperationCompleted(Operation);
