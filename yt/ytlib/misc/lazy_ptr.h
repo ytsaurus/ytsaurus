@@ -11,20 +11,30 @@ namespace NYT
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Intrusive ptr with lazy creation and double-checked locking.
+template <class T>
+const TCallback<TIntrusivePtr<T>()>& DefaultRefCountedFactory()
+{
+    static auto result = BIND([] () -> TIntrusivePtr<T> {
+        return New<T>();
+    });
+    return result;
+}
+
+//! Intrusive ptr with lazy creation and double-checked locking.
 template <class T, class TLock = TSpinLock>
-class TLazyPtr
-    : public TPointerCommon<TLazyPtr<T, TLock>, T>
+class TLazyIntrusivePtr
+    : public TPointerCommon<TLazyIntrusivePtr<T, TLock>, T>
 {
 public:
     typedef TCallback<TIntrusivePtr<T>()> TFactory;
 
-    explicit TLazyPtr(TFactory factory)
+    explicit TLazyIntrusivePtr(TFactory factory = DefaultRefCountedFactory<T>())
         : Factory(std::move(factory))
     { }
 
     T* Get() const throw()
     {
+        static_assert(NMpl::TIsConvertible<T*, TRefCountedBase*>::Value, "T must be ref-counted.");
         if (!Value) {
             TGuard<TLock> guard(Lock);
             if (!Value) {
@@ -34,66 +44,77 @@ public:
         return ~Value;
     }
 
-    T* TryGet() const throw()
+    bool HasValue() const throw()
     {
-        return ~Value;
+        return Value;
     }
 
 private:
     TLock Lock;
     TFactory Factory;
     mutable TIntrusivePtr<T> Value;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-T* operator ~ (const TLazyPtr<T>& ptr)
+T* operator ~ (const TLazyIntrusivePtr<T>& ptr)
 {
     return ptr.Get();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Non-intrusive ptr with lazy creation and double-checked locking.
+template <class T>
+const TCallback<T*()>& DefaultNonRefCountedFactory()
+{
+    static auto result = BIND([] () -> T* {
+        return new T();
+    });
+    return result;
+}
+
+//! Non-intrusive ptr with lazy creation and double-checked locking.
 template <class T, class TLock = TSpinLock>
-class TLazyHolder
-    : public TPointerCommon<TLazyHolder<T, TLock>, T>
+class TLazyUniquePtr
+    : public TPointerCommon<TLazyUniquePtr<T, TLock>, T>
 {
 public:
     typedef TCallback<T*()> TFactory;
 
-    TLazyHolder(TFactory fabric)
-        : Factory(std::move(fabric))
+    explicit TLazyUniquePtr(TFactory factory = DefaultNonRefCountedFactory<T>())
+        : Factory(std::move(factory))
     { }
 
-    TLazyHolder()
-        : Factory()
-    { }
-
-    inline T* Get() const throw()
+    T* Get() const throw()
     {
-        static_assert(!NMpl::TIsConvertible<T*, TExtrinsicRefCounted*>::Value, "No RC here.");
-        static_assert(!NMpl::TIsConvertible<T*, TIntrinsicRefCounted*>::Value, "No RC here.");
+        static_assert(!NMpl::TIsConvertible<T*, TRefCountedBase*>::Value, "T must not be ref-counted.");
         if (!Value) {
             TGuard<TLock> guard(Lock);
             if (!Value) {
-                Value.reset(Factory.IsNull() ? new T() : Factory.Run());
+                Value.reset(Factory.Run());
             }
         }
         return ~Value;
+    }
+
+    bool HasValue() const throw()
+    {
+        return Value;
     }
 
 private:
     TLock Lock;
     TFactory Factory;
     mutable std::unique_ptr<T> Value;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-T* operator ~ (const TLazyHolder<T>& ptr)
+T* operator ~ (const TLazyUniquePtr<T>& ptr)
 {
     return ptr.Get();
 }

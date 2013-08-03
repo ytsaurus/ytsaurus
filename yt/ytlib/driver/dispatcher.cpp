@@ -23,12 +23,12 @@ TDispatcher* TDispatcher::Get()
 void TDispatcher::Configure(TDriverConfigPtr config)
 {
     // We believe in proper memory ordering here.
-    YCHECK(!HeavyThreadPool.TryGet());
+    YCHECK(!HeavyThreadPool.HasValue());
     // We do not really want to store entire config within us.
     HeavyPoolSize = config->HeavyPoolSize;
     // This is not redundant, since the check and the assignment above are
     // not atomic and (adversary) thread can initialize thread pool in parallel.
-    YCHECK(!HeavyThreadPool.TryGet());
+    YCHECK(!HeavyThreadPool.HasValue());
 }
 
 IInvokerPtr TDispatcher::GetLightInvoker()
@@ -43,8 +43,13 @@ IInvokerPtr TDispatcher::GetHeavyInvoker()
 
 void TDispatcher::Shutdown()
 {
-    DriverThread->Shutdown();
-    HeavyThreadPool->Shutdown();
+    if (DriverThread.HasValue()) {
+        DriverThread->Shutdown();
+    }
+
+    if (HeavyThreadPool.HasValue()) {
+        HeavyThreadPool->Shutdown();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
