@@ -29,14 +29,15 @@ private:
     int HeavyPoolSize;
 
     /*!
-     * This thread is used for light driver commands in #TDriver
+     * This thread is used by TDriver for light commands.
      */
-    TLazyPtr<TActionQueue> DriverThread;
+    TLazyIntrusivePtr<TActionQueue> DriverThread;
 
     /*!
-     * This thread pool is used for heavy commands.
+     * This thread pool is used by TDriver for heavy commands.
      */
-    TLazyPtr<TThreadPool> HeavyThreadPool;
+    TLazyIntrusivePtr<TThreadPool> HeavyThreadPool;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
