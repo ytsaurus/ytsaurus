@@ -24,14 +24,15 @@ static NLog::TLogger Logger("ActionQueue");
 ///////////////////////////////////////////////////////////////////////////////
 
 TInvokerQueue::TInvokerQueue(
-    TExecutorThread* owner,
+    TEventCount* eventCount,
     IInvoker* currentInvoker,
     const NProfiling::TTagIdList& tagIds,
     bool enableLogging,
     bool enableProfiling)
-    : Owner(owner)
+    : EventCount(eventCount)
     , CurrentInvoker(currentInvoker ? currentInvoker : this)
     , EnableLogging(enableLogging)
+    , Running(true)
     , Profiler("/action_queue")
     , EnqueueCounter("/enqueue_rate", tagIds)
     , DequeueCounter("/dequeue_rate", tagIds)
@@ -44,71 +45,70 @@ TInvokerQueue::TInvokerQueue(
     Profiler.SetEnabled(enableProfiling);
 }
 
-bool TInvokerQueue::Invoke(const TClosure& action)
+bool TInvokerQueue::Invoke(const TClosure& callback)
 {
-    // XXX(babenko): don't replace TActionQueueBase by auto here, see
-    // http://connect.microsoft.com/VisualStudio/feedback/details/680927/dereferencing-of-incomplete-type-not-diagnosed-fails-to-synthesise-constructor-and-destructor
-    TExecutorThread* owner = Owner;
-
-    if (!owner) {
-        LOG_TRACE_IF(EnableLogging, "Queue had been shut down, incoming action ignored: %p", action.GetHandle());
+    if (!Running) {
+        LOG_TRACE_IF(EnableLogging, "Queue had been shut down, incoming action ignored: %p", callback.GetHandle());
         return false;
     }
 
     AtomicIncrement(QueueSize);
     Profiler.Increment(EnqueueCounter);
 
-    TItem item;
-    item.EnqueueInstant = GetCpuInstant();
-    item.Action = action;
-    Queue.Enqueue(item);
+    TEnqueuedAction action;
+    action.EnqueueInstant = GetCpuInstant();
+    action.Callback = callback;
+    Queue.Enqueue(action);
 
-    LOG_TRACE_IF(EnableLogging, "Action enqueued: %p", action.GetHandle());
+    LOG_TRACE_IF(EnableLogging, "Callback enqueued: %p", callback.GetHandle());
 
-    owner->Signal();
+    EventCount->Notify();
+
     return true;
-
 }
 
 void TInvokerQueue::Shutdown()
 {
-    Owner = nullptr;
+    Running = false;
+    EventCount = nullptr;
     CurrentInvoker = nullptr;
 }
 
-EBeginExecuteResult TInvokerQueue::BeginExecute()
+EBeginExecuteResult TInvokerQueue::BeginExecute(TEnqueuedAction* action)
 {
-    YASSERT(CurrentItem.Action.IsNull());
+    YASSERT(action->Callback.IsNull());
 
-    if (!Queue.Dequeue(&CurrentItem)) {
+    if (!Queue.Dequeue(action)) {
         return EBeginExecuteResult::QueueEmpty;
     }
 
+    EventCount->CancelWait();
+
     Profiler.Increment(DequeueCounter);
 
-    CurrentItem.StartInstant = GetCpuInstant();
-    Profiler.Aggregate(WaitTimeCounter, CpuDurationToValue(CurrentItem.StartInstant - CurrentItem.EnqueueInstant));
+    action->StartInstant = GetCpuInstant();
+    Profiler.Aggregate(WaitTimeCounter, CpuDurationToValue(action->StartInstant - action->EnqueueInstant));
 
     TCurrentInvokerGuard guard(CurrentInvoker);
 
-    CurrentItem.Action.Run();
+    action->Callback.Run();
 
     return EBeginExecuteResult::Success;
 }
 
-void TInvokerQueue::EndExecute()
+void TInvokerQueue::EndExecute(TEnqueuedAction* action)
 {
-    if (CurrentItem.Action.IsNull())
+    if (action->Callback.IsNull())
         return;
 
     auto size = AtomicDecrement(QueueSize);
     Profiler.Aggregate(QueueSizeCounter, size);
 
     auto endExecInstant = GetCpuInstant();
-    Profiler.Aggregate(ExecTimeCounter, CpuDurationToValue(endExecInstant - CurrentItem.StartInstant));
-    Profiler.Aggregate(TotalTimeCounter, CpuDurationToValue(endExecInstant - CurrentItem.EnqueueInstant));
+    Profiler.Aggregate(ExecTimeCounter, CpuDurationToValue(endExecInstant - action->StartInstant));
+    Profiler.Aggregate(TotalTimeCounter, CpuDurationToValue(endExecInstant - action->EnqueueInstant));
 
-    CurrentItem.Action.Reset();
+    action->Callback.Reset();
 }
 
 int TInvokerQueue::GetSize() const
@@ -118,7 +118,7 @@ int TInvokerQueue::GetSize() const
 
 bool TInvokerQueue::IsEmpty() const
 {
-    return const_cast< TLockFreeQueue<TItem>& >(Queue).IsEmpty();
+    return const_cast< TLockFreeQueue<TEnqueuedAction>& >(Queue).IsEmpty();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -131,35 +131,34 @@ bool TInvokerQueue::IsEmpty() const
 TLS_STATIC TExecutorThread* CurrentInvokerThread = nullptr;
 
 TExecutorThread::TExecutorThread(
+    TEventCount* eventCount,
     const Stroka& threadName,
     const NProfiling::TTagIdList& tagIds,
     bool enableLogging,
     bool enableProfiling)
-    : ThreadName(threadName)
+    : EventCount(eventCount)
+    , ThreadName(threadName)
     , EnableLogging(enableLogging)
     , Profiler("/action_queue", tagIds)
     , Running(false)
     , FibersCreated(0)
     , FibersAlive(0)
     , ThreadId(NThread::InvalidThreadId)
-    , WakeupEvent(Event::rManual)
     , Thread(ThreadMain, (void*) this)
 {
     Profiler.SetEnabled(enableProfiling);
 }
 
-TExecutorThread::~TExecutorThread()
-{
-    // Derived classes must call Shutdown in dtor.
-    YCHECK(!Running);
-}
-
 void TExecutorThread::Start()
 {
+    Running = true;    
     LOG_DEBUG_IF(EnableLogging, "Starting thread (Name: %s)", ~ThreadName);
-
-    Running = true;
     Thread.Start();
+}
+
+TExecutorThread::~TExecutorThread()
+{
+    Shutdown();
 }
 
 void* TExecutorThread::ThreadMain(void* opaque)
@@ -219,25 +218,26 @@ void TExecutorThread::FiberMain()
         FibersCreated,
         FibersAlive);
 
-    while (true) {
-        {
-            auto result = CheckedExecute();
-            if (result == EBeginExecuteResult::LoopTerminated)
+    bool stop = false;
+    while (!stop) {
+        auto cookie = EventCount->PrepareWait();
+        auto result = Execute();
+        switch (result) {
+            case EBeginExecuteResult::Success:
+                // CancelWait was called inside Execute.
                 break;
-            if (result == EBeginExecuteResult::Success)
-                continue;
-        }
 
-        WakeupEvent.Reset();
-
-        {
-            auto result = CheckedExecute();
-            if (result == EBeginExecuteResult::LoopTerminated)
+            case EBeginExecuteResult::LoopTerminated:
+                // CancelWait was called inside Execute.
+                stop = true;
                 break;
-            if (result == EBeginExecuteResult::Success)
-                continue;
-            OnIdle();
-            WakeupEvent.Wait();
+
+            case EBeginExecuteResult::QueueEmpty:
+                EventCount->Wait(cookie);
+                break;
+
+            default:
+                YUNREACHABLE();
         }
     }
 
@@ -250,16 +250,15 @@ void TExecutorThread::FiberMain()
         FibersAlive);
 }
 
-EBeginExecuteResult TExecutorThread::CheckedExecute()
+EBeginExecuteResult TExecutorThread::Execute()
 {
     if (!Running) {
+        EventCount->CancelWait();
         return EBeginExecuteResult::LoopTerminated;
     }
 
     auto result = BeginExecute();
-    if (result == EBeginExecuteResult::LoopTerminated ||
-        result == EBeginExecuteResult::QueueEmpty)
-    {
+    if (result != EBeginExecuteResult::Success) {
         return result;
     }
 
@@ -277,27 +276,18 @@ EBeginExecuteResult TExecutorThread::CheckedExecute()
 
 void TExecutorThread::Shutdown()
 {
-    if (!IsRunning()) {
+    if (!Running)
         return;
-    }
 
     LOG_DEBUG_IF(EnableLogging, "Stopping thread (Name: %s)", ~ThreadName);
 
     Running = false;
-    WakeupEvent.Signal();
+    EventCount->NotifyAll();
 
     // Prevent deadlock.
     if (NThread::GetCurrentThreadId() != ThreadId) {
         Thread.Join();
     }
-}
-
-void TExecutorThread::OnIdle()
-{ }
-
-void TExecutorThread::Signal()
-{
-    WakeupEvent.Signal();
 }
 
 bool TExecutorThread::IsRunning() const
@@ -322,52 +312,33 @@ void TExecutorThread::OnThreadShutdown()
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TExecutorThreadWithQueue::TExecutorThreadWithQueue(
-    IInvoker* currentInvoker,
+TSingleQueueExecutorThread::TSingleQueueExecutorThread(
+    TInvokerQueuePtr queue,
+    TEventCount* eventCount,
     const Stroka& threadName,
     const NProfiling::TTagIdList& tagIds,
     bool enableLogging,
     bool enableProfiling)
-    : TExecutorThread(threadName, tagIds, enableLogging, enableProfiling)
-{
-    Queue = New<TInvokerQueue>(
-        this,
-        currentInvoker,
-        tagIds,
-        enableLogging,
-        true);
-    Start();
-}
+    : TExecutorThread(eventCount, threadName, tagIds, enableLogging, enableProfiling)
+    , Queue(queue)
+{ }
 
-TExecutorThreadWithQueue::~TExecutorThreadWithQueue()
-{
-    Queue->Shutdown();
-    Shutdown();
-}
+TSingleQueueExecutorThread::~TSingleQueueExecutorThread()
+{ }
 
-void TExecutorThreadWithQueue::Shutdown()
-{
-    TExecutorThread::Shutdown();
-}
-
-NYT::IInvokerPtr TExecutorThreadWithQueue::GetInvoker()
+IInvokerPtr TSingleQueueExecutorThread::GetInvoker()
 {
     return Queue;
 }
 
-int TExecutorThreadWithQueue::GetSize()
+EBeginExecuteResult TSingleQueueExecutorThread::BeginExecute()
 {
-    return Queue->GetSize();
+    return Queue->BeginExecute(&CurrentAction);
 }
 
-EBeginExecuteResult TExecutorThreadWithQueue::BeginExecute()
+void TSingleQueueExecutorThread::EndExecute()
 {
-    return Queue->BeginExecute();
-}
-
-void TExecutorThreadWithQueue::EndExecute()
-{
-    Queue->EndExecute();
+    Queue->EndExecute(&CurrentAction);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -97,9 +97,7 @@ public:
 private:
     class TImpl;
 
-    // Cannot use |std::unique_ptr| here since TImpl inherits from TActionQueueBase
-    // and is thus ref-counted.
-    TIntrusivePtr<TImpl> Impl;
+    std::unique_ptr<TImpl> Impl;
 
 };
 

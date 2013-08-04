@@ -495,12 +495,17 @@ void ReloadSignalHandler(int signal)
 } // namespace
 
 class TLogManager::TImpl
-    : public TExecutorThread
+    : public TRefCounted
 {
 public:
     TImpl()
-        : TExecutorThread("Logging", NProfiling::EmptyTagIds, false, false)
-        , Queue(New<TInvokerQueue>(this, nullptr, NProfiling::EmptyTagIds, false, false))
+        : Queue(New<TInvokerQueue>(
+            &EventCount,
+            nullptr,
+            NProfiling::EmptyTagIds,
+            false,
+            false))
+        , Thread(New<TThread>(this))
         // Version forces this very module's Logger object to update to our own
         // default configuration (default level etc.).
         , Version(-1)
@@ -510,20 +515,15 @@ public:
     {
         SystemWriters.push_back(New<TStdErrLogWriter>(SystemPattern));
         DoUpdateConfig(TLogConfig::CreateDefault());
-        Start();
-    }
-
-    ~TImpl()
-    {
-        Shutdown();
+        Thread->Start();
     }
 
     void Configure(INodePtr node, const TYPath& path = "")
     {
-        if (IsRunning()) {
+        if (Thread->IsRunning()) {
             auto config = TLogConfig::CreateFromNode(node, path);
             ConfigsToUpdate.Enqueue(config);
-            Signal();
+            EventCount.Notify();
         }
     }
 
@@ -541,27 +541,9 @@ public:
 
     void Shutdown()
     {
-        TExecutorThread::Shutdown();
+        Queue->Shutdown();
+        Thread->Shutdown();
         Config->FlushWriters();
-    }
-
-    virtual void OnThreadStart()
-    {
-#ifdef _unix_
-        // Set mask.
-        sigset_t ss;
-        sigemptyset(&ss);
-        sigaddset(&ss, SIGHUP);
-        sigprocmask(SIG_UNBLOCK, &ss, NULL);
-
-        // Set handler.
-        struct sigaction sa;
-        memset(&sa, 0, sizeof(sa));
-        sigemptyset(&sa.sa_mask);
-        sa.sa_handler = &ReloadSignalHandler;
-
-        YCHECK(sigaction(SIGHUP, &sa, NULL) == 0);
-#endif
     }
 
     /*!
@@ -590,13 +572,13 @@ public:
 
     void Enqueue(const TLogEvent& event)
     {
-        if (!IsRunning()) {
+        if (!Thread->IsRunning()) {
             return;
         }
 
         LoggingProfiler.Increment(EnqueueCounter);
         LogEventQueue.Enqueue(event);
-        Signal();
+        EventCount.Notify();
 
         if (event.Level == ELogLevel::Fatal) {
             // Flush everything and die.
@@ -621,10 +603,65 @@ public:
         }
     }
 
-    virtual EBeginExecuteResult BeginExecute() override
+    void Reopen()
     {
-        auto result = Queue->BeginExecute();
-        if (result == EBeginExecuteResult::LoopTerminated) {
+        ReopenEnqueued = true;
+    }
+
+private:
+    class TThread
+        : public TExecutorThread
+    {
+    public:
+        explicit TThread(TImpl* owner)
+            : TExecutorThread(
+                &owner->EventCount,
+                "Logging",
+                NProfiling::EmptyTagIds,
+                false,
+                false)
+            , Owner(owner)
+        { }
+
+    private:
+        TImpl* Owner;
+
+        virtual void OnThreadStart() override
+        {
+#ifdef _unix_
+            // Set mask.
+            sigset_t ss;
+            sigemptyset(&ss);
+            sigaddset(&ss, SIGHUP);
+            sigprocmask(SIG_UNBLOCK, &ss, NULL);
+
+            // Set handler.
+            struct sigaction sa;
+            memset(&sa, 0, sizeof(sa));
+            sigemptyset(&sa.sa_mask);
+            sa.sa_handler = &ReloadSignalHandler;
+
+            YCHECK(sigaction(SIGHUP, &sa, NULL) == 0);
+#endif
+        }
+
+        virtual EBeginExecuteResult BeginExecute() override
+        {
+            return Owner->BeginExecute();
+        }
+
+        virtual void EndExecute() override
+        {
+            Owner->EndExecute();
+        }
+
+    };
+
+
+    EBeginExecuteResult BeginExecute()
+    {
+        auto result = Queue->BeginExecute(&CurrentAction);
+        if (result != EBeginExecuteResult::QueueEmpty) {
             return result;
         }
 
@@ -656,22 +693,20 @@ public:
             Config->FlushWriters();
         }
 
-        return result == EBeginExecuteResult::Success || configsUpdated || eventsWritten
-            ? EBeginExecuteResult::Success
-            : EBeginExecuteResult::QueueEmpty;
+        if (configsUpdated || eventsWritten) {
+            EventCount.CancelWait();
+            return EBeginExecuteResult::Success;
+        } else {
+            return EBeginExecuteResult::QueueEmpty;
+        }
     }
 
-    virtual void EndExecute() override
+    void EndExecute()
     {
-        Queue->EndExecute();
+        Queue->EndExecute(&CurrentAction);
     }
 
-    void Reopen()
-    {
-        ReopenEnqueued = true;
-    }
 
-private:
     typedef std::vector<ILogWriterPtr> TWriters;
 
     TWriters GetWriters(const TLogEvent& event)
@@ -743,7 +778,10 @@ private:
         Config->WatchWriters();
     }
 
+    TEventCount EventCount;
     TInvokerQueuePtr Queue;
+    TIntrusivePtr<TThread> Thread;
+    TEnqueuedAction CurrentAction;
 
     // Configuration.
     TAtomic Version;

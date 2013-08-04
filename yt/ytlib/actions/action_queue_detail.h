@@ -4,8 +4,8 @@
 #include "invoker.h"
 #include "callback.h"
 
-#include <ytlib/misc/nullable.h>
 #include <ytlib/misc/thread.h>
+#include <ytlib/misc/event_count.h>
 
 #include <ytlib/profiling/profiler.h>
 
@@ -26,8 +26,8 @@ typedef TIntrusivePtr<TInvokerQueue> TInvokerQueuePtr;
 class TExecutorThread;
 typedef TIntrusivePtr<TExecutorThread> TExecutorThreadPtr;
 
-class TExecutorThreadWithQueue;
-typedef TIntrusivePtr<TExecutorThreadWithQueue> TExecutorThreadWithQueuePtr;
+class TSingleQueueExecutorThread;
+typedef TIntrusivePtr<TSingleQueueExecutorThread> TSingleQueueExecutorThreadPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,37 +37,40 @@ DECLARE_ENUM(EBeginExecuteResult,
     (LoopTerminated)
 );
 
+struct TEnqueuedAction
+{
+    NProfiling::TCpuInstant EnqueueInstant;
+    NProfiling::TCpuInstant StartInstant;
+    TClosure Callback;
+};
+
 class TInvokerQueue
     : public IInvoker
 {
 public:
     TInvokerQueue(
-        TExecutorThread* owner,
+        TEventCount* eventCount,
         IInvoker* currentInvoker,
         const NProfiling::TTagIdList& tagIds,
         bool enableLogging,
         bool enableProfiling);
 
-    bool Invoke(const TClosure& action);
+    bool Invoke(const TClosure& callback);
     void Shutdown();
 
-    EBeginExecuteResult BeginExecute();
-    void EndExecute();
+    EBeginExecuteResult BeginExecute(TEnqueuedAction* action);
+    void EndExecute(TEnqueuedAction* action);
 
     int GetSize() const;
     bool IsEmpty() const;
 
 private:
-    struct TItem
-    {
-        NProfiling::TCpuInstant EnqueueInstant;
-        NProfiling::TCpuInstant StartInstant;
-        TClosure Action;
-    };
-
-    TExecutorThread* Owner;
+    TEventCount* EventCount;
     IInvoker* CurrentInvoker;
     bool EnableLogging;
+
+    bool Running;
+
     NProfiling::TProfiler Profiler;
 
     NProfiling::TRateCounter EnqueueCounter;
@@ -78,10 +81,9 @@ private:
     NProfiling::TAggregateCounter ExecTimeCounter;
     NProfiling::TAggregateCounter TotalTimeCounter;
 
-    TLockFreeQueue<TItem> Queue;
-    TItem CurrentItem;
-};
+    TLockFreeQueue<TEnqueuedAction> Queue;
 
+};
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -90,27 +92,25 @@ class TExecutorThread
 {
 public:
     virtual ~TExecutorThread();
+    
+    void Start();
+    void Shutdown();
+
+    bool IsRunning() const;
 
 protected:
     TExecutorThread(
+        TEventCount* eventCount,
         const Stroka& threadName,
         const NProfiling::TTagIdList& tagIds,
         bool enableLogging,
         bool enableProfiling);
 
-    void Start();
-    void Shutdown();
-    void Signal();
-
     virtual EBeginExecuteResult BeginExecute() = 0;
     virtual void EndExecute() = 0;
     
-    virtual void OnIdle();
-
     virtual void OnThreadStart();
     virtual void OnThreadShutdown();
-
-    bool IsRunning() const;
 
 private:
     friend class TInvokerQueue;
@@ -119,8 +119,9 @@ private:
     void ThreadMain();
     void FiberMain();
 
-    EBeginExecuteResult CheckedExecute();
+    EBeginExecuteResult Execute();
 
+    TEventCount* EventCount;
     Stroka ThreadName;
     bool EnableLogging;
 
@@ -131,36 +132,32 @@ private:
     int FibersAlive;
 
     NThread::TThreadId ThreadId;
-
-    Event WakeupEvent;
-
     TThread Thread;
     
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TExecutorThreadWithQueue
+class TSingleQueueExecutorThread
     : public TExecutorThread
 {
 public:
-    TExecutorThreadWithQueue(
-        IInvoker* currentInvoker,
+    TSingleQueueExecutorThread(
+        TInvokerQueuePtr queue,
+        TEventCount* eventCount,
         const Stroka& threadName,
         const NProfiling::TTagIdList& tagIds,
         bool enableLogging,
         bool enableProfiling);
 
-    ~TExecutorThreadWithQueue();
-
-    void Shutdown();
+    ~TSingleQueueExecutorThread();
 
     IInvokerPtr GetInvoker();
 
-    int GetSize();
-
-private:
+protected:
     TInvokerQueuePtr Queue;
+
+    TEnqueuedAction CurrentAction;
 
     virtual EBeginExecuteResult BeginExecute() override;
     virtual void EndExecute() override;
