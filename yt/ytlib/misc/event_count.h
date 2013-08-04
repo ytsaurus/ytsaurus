@@ -169,7 +169,7 @@ inline void TEventCount::DoNotify(int n)
     AtomicIncrement(Epoch);
     if (AtomicGet(Waiters) != 0) {
 #if defined(_linux_)
-        NDetail::futex(reinterpret_cast<int*>(&Epoch), FUTEX_WAKE_PRIVATE, n, nullptr, nullptr, 0);
+        NDetail::futex((int*) &Epoch, FUTEX_WAKE_PRIVATE, n, nullptr, nullptr, 0);
 #elif defined(_win_)
         SetEvent(Event);
 #else
