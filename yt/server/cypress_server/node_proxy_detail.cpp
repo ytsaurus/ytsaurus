@@ -618,14 +618,18 @@ void TNontemplateCypressNodeProxyBase::ValidatePermission(
 
 void TNontemplateCypressNodeProxyBase::SetModified()
 {
-    auto cypressManager = Bootstrap->GetCypressManager();
-    cypressManager->SetModified(TrunkNode, Transaction);
+    if (TrunkNode->IsAlive()) {
+        auto cypressManager = Bootstrap->GetCypressManager();
+        cypressManager->SetModified(TrunkNode, Transaction);
+    }
 }
 
 void TNontemplateCypressNodeProxyBase::SetAccessed()
 {
-    auto cypressManager = Bootstrap->GetCypressManager();
-    cypressManager->SetAccessed(TrunkNode);
+    if (TrunkNode->IsAlive()) {
+        auto cypressManager = Bootstrap->GetCypressManager();
+        cypressManager->SetAccessed(TrunkNode);
+    }
 }
 
 void TNontemplateCypressNodeProxyBase::SuppressAccess()
