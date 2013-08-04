@@ -90,11 +90,14 @@ void TAccessTracker::SetAccessed(TCypressNodeBase* trunkNode)
     if (!update) {
         update = UpdateAccessStatisticsRequest.add_updates();
         ToProto(update->mutable_node_id(), trunkNode->GetId());
+
         trunkNode->SetAccessStatisticsUpdate(update);
         NodesWithAccessStatisticsUpdate.push_back(trunkNode);
+
+        auto objectManager = Bootstrap->GetObjectManager();
+        objectManager->WeakRefObject(trunkNode);
     }
 
-    auto objectManager = Bootstrap->GetObjectManager();
     auto now = NProfiling::CpuInstantToInstant(NProfiling::GetCpuInstant());
     update->set_access_time(now.MicroSeconds());
     update->set_access_counter_delta(update->access_counter_delta() + 1);
@@ -102,8 +105,10 @@ void TAccessTracker::SetAccessed(TCypressNodeBase* trunkNode)
 
 void TAccessTracker::Reset()
 {
+    auto objectManager = Bootstrap->GetObjectManager();
     FOREACH (auto* node, NodesWithAccessStatisticsUpdate) {
         node->SetAccessStatisticsUpdate(nullptr);
+        objectManager->WeakUnrefObject(node);
     }    
 
     UpdateAccessStatisticsRequest.Clear();
