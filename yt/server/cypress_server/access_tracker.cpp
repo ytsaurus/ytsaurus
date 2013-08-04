@@ -62,6 +62,7 @@ void TAccessTracker::SetModified(
 {
     VERIFY_THREAD_AFFINITY(StateThread);
     YCHECK(trunkNode->IsTrunk());
+    YCHECK(trunkNode->IsAlive());
 
     // Failure here means that the node wasn't indeed locked,
     // which is strange given that we're about to mark it as modified.
@@ -83,6 +84,7 @@ void TAccessTracker::SetAccessed(TCypressNodeBase* trunkNode)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
     YCHECK(trunkNode->IsTrunk());
+    YCHECK(trunkNode->IsAlive());
 
     auto* update = trunkNode->GetAccessStatisticsUpdate();
     if (!update) {
