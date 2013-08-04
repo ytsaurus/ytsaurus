@@ -201,7 +201,7 @@ inline void TEventCount::Wait(TCookie key)
 {
     while (AtomicGet(Epoch) == key.Epoch) {
 #if defined(_linux_)
-        NDetail::futex((int*)(&Epoch), FUTEX_WAIT_PRIVATE, key.Epoch, nullptr, nullptr, 0);
+        NDetail::futex((int*) &Epoch, FUTEX_WAIT_PRIVATE, key.Epoch, nullptr, nullptr, 0);
 #elif defined(_win_)
         WaitForSingleObject(Event, INFINITE);
 #else
