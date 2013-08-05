@@ -980,8 +980,6 @@ void TReplicationWriter::StartPing(TNodePtr node)
 
 void TReplicationWriter::CancelPing(TNodePtr node)
 {
-    VERIFY_THREAD_AFFINITY(WriterThread);
-
     node->PingInvoker->Stop();
 }
 
