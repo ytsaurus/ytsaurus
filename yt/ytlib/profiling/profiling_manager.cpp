@@ -5,6 +5,7 @@
 
 #include <ytlib/misc/id_generator.h>
 #include <ytlib/misc/periodic_invoker.h>
+#include <ytlib/misc/hash.h>
 
 #include <ytlib/actions/action_queue_detail.h>
 
@@ -32,44 +33,38 @@ static const TDuration MaxKeepInterval = TDuration::Minutes(5);
 ////////////////////////////////////////////////////////////////////////////////
 
 class TProfilingManager::TImpl
-    : public TExecutorThread
 {
 public:
     TImpl()
-        : TExecutorThread("Profiling", EmptyTagIds, true, false)
-        , Queue(New<TInvokerQueue>(this, nullptr, EmptyTagIds, true, false))
+        : Queue(New<TInvokerQueue>(&EventCount, nullptr, EmptyTagIds, true, false))
+        , Thread(New<TThread>(this))
         , Root(GetEphemeralNodeFactory()->CreateMap())
         , EnqueueCounter("/enqueue_rate")
         , DequeueCounter("/dequeue_rate")
     {
-#if !defined(_win_) && !defined(_darwin_)
+#ifdef _linux_
         ResourceTracker = New<TResourceTracker>(GetInvoker());
 #endif
     }
 
-    ~TImpl()
-    {
-        Queue->Shutdown();
-        Shutdown();
-    }
-
     void Start()
     {
-        TExecutorThread::Start();
-#if !defined(_win_) && !defined(_darwin_)
+        Thread->Start();
+#ifdef _linux_
         ResourceTracker->Start();
 #endif
     }
 
     void Shutdown()
     {
-        TExecutorThread::Shutdown();
+        Queue->Shutdown();
+        Thread->Shutdown();
     }
 
 
     void Enqueue(const TQueuedSample& sample, bool selfProfiling)
     {
-        if (!IsRunning())
+        if (!Thread->IsRunning())
             return;
 
         if (!selfProfiling) {
@@ -77,7 +72,7 @@ public:
         }
 
         SampleQueue.Enqueue(sample);
-        Signal();
+        EventCount.Notify();
     }
 
 
@@ -215,7 +210,7 @@ private:
 
         virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
         {
-            auto profilingManager = TProfilingManager::Get()->Impl;
+            auto* profilingManager = ~TProfilingManager::Get()->Impl;
             TGuard<TSpinLock> tagGuard(profilingManager->GetTagSpinLock());
 
             context->SetRequestInfo("");
@@ -244,7 +239,41 @@ private:
     typedef TIntrusivePtr<TBucket> TBucketPtr;
 
 
+    class TThread
+        : public TExecutorThread
+    {
+    public:
+        explicit TThread(TImpl* owner)
+            : TExecutorThread(
+                &owner->EventCount,
+                "Profiling",
+                EmptyTagIds,
+                true,
+                false)
+            , Owner(owner)
+        { }
+
+    private:
+        TImpl* Owner;
+
+        virtual EBeginExecuteResult BeginExecute() override
+        {
+            return Owner->BeginExecute();
+        }
+
+        virtual void EndExecute() override
+        {
+            Owner->EndExecute();
+        }
+
+    };
+
+
+    TEventCount EventCount;
     TInvokerQueuePtr Queue;
+    TIntrusivePtr<TThread> Thread;
+    TEnqueuedAction CurrentAction;
+
     IMapNodePtr Root;
     TRateCounter EnqueueCounter;
     TRateCounter DequeueCounter;
@@ -259,14 +288,14 @@ private:
     typedef yhash_map<Stroka, std::vector<TYsonString>> TTagKeyToValues;
     TTagKeyToValues TagKeyToValues;
 
-#if !defined(_win_) && !defined(_darwin_)
+#ifdef _linux_
     TIntrusivePtr<TResourceTracker> ResourceTracker;
 #endif
 
-    virtual EBeginExecuteResult BeginExecute() override
+    EBeginExecuteResult BeginExecute()
     {
         // Handle pending callbacks first.
-        auto result = Queue->BeginExecute();
+        auto result = Queue->BeginExecute(&CurrentAction);
         if (result != EBeginExecuteResult::QueueEmpty) {
             return result;
         }
@@ -281,12 +310,17 @@ private:
 
         ProfilingProfiler.Increment(DequeueCounter, samplesProcessed);
 
-        return samplesProcessed > 0 ? EBeginExecuteResult::Success : EBeginExecuteResult::QueueEmpty;
+        if (samplesProcessed > 0) {
+            EventCount.CancelWait();
+            return EBeginExecuteResult::Success;
+        } else {
+            return EBeginExecuteResult::QueueEmpty;
+        }
     }
 
-    virtual void EndExecute() override
+    void EndExecute()
     {
-        Queue->EndExecute();
+        Queue->EndExecute(&CurrentAction);
     }
 
 
@@ -321,12 +355,13 @@ private:
         bucket->AddSample(storedSample);
         bucket->TrimSamples(MaxKeepInterval);
     }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TProfilingManager::TProfilingManager()
-    : Impl(New<TImpl>())
+    : Impl(new TImpl())
 { }
 
 TProfilingManager* TProfilingManager::Get()

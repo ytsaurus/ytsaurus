@@ -23,9 +23,6 @@ typedef TIntrusivePtr<TPrioritizedActionQueue> TPrioritizedActionQueuePtr;
 class TThreadPool;
 typedef TIntrusivePtr<TThreadPool> TThreadPoolPtr;
 
-class TExecutorThreadWithQueue;
-typedef TIntrusivePtr<TExecutorThreadWithQueue> TExecutorThreadWithQueuePtr;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TActionQueue
@@ -33,7 +30,6 @@ class TActionQueue
 {
 public:
     explicit TActionQueue(const Stroka& threadName = "<ActionQueue>");
-
     virtual ~TActionQueue();
 
     void Shutdown();
@@ -43,7 +39,8 @@ public:
     static TCallback<TActionQueuePtr()> CreateFactory(const Stroka& threadName);
 
 private:
-    TExecutorThreadWithQueuePtr Impl;
+    class TImpl;
+    TIntrusivePtr<TImpl> Impl;
 
 };
 

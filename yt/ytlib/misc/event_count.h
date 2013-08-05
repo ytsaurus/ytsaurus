@@ -99,16 +99,25 @@ public:
         : Epoch(0)
         , Waiters(0)
 #ifdef _win_
-        , Conditional(CreateEvent(nullptr, false, false, nullptr))
+        , Event(CreateEvent(nullptr, true, false, nullptr))
 #endif
     { }
+
+    ~TEventCount()
+    {
+#ifdef _win_
+        CloseHandle(Event);
+#endif
+    }
 
     class TCookie
     {
         friend class TEventCount;
+        
         explicit TCookie(TAtomicBase epoch)
             : Epoch(epoch)
         { }
+
         TAtomicBase Epoch;
     };
 
@@ -138,7 +147,7 @@ private:
     TAtomic Epoch;
     TAtomic Waiters;
 #ifdef _win_
-    HANDLE Conditional;
+    HANDLE Event;
 #endif
 };
 
@@ -159,11 +168,12 @@ inline void TEventCount::DoNotify(int n)
     // impossible to miss a wakeup.
     AtomicIncrement(Epoch);
     if (AtomicGet(Waiters) != 0) {
-#ifdef _linux_
-        NDetail::futex((int*)(&Epoch), FUTEX_WAKE_PRIVATE, n, nullptr, nullptr, 0);
-#endif
-#ifdef _win_
-        SetEvent(Conditional);
+#if defined(_linux_)
+        NDetail::futex((int*) &Epoch, FUTEX_WAKE_PRIVATE, n, nullptr, nullptr, 0);
+#elif defined(_win_)
+        SetEvent(Event);
+#else
+#       error Unsupported platform
 #endif
     }
 }
@@ -176,20 +186,29 @@ inline TEventCount::TCookie TEventCount::PrepareWait()
 
 inline void TEventCount::CancelWait()
 {
+#if defined(_linux_)
     AtomicDecrement(Waiters);
+#elif defined(_win_)
+    if (AtomicDecrement(Waiters) == 0) {
+        ResetEvent(Event);
+    }
+#else
+#   error Unsupported platform
+#endif
 }
 
 inline void TEventCount::Wait(TCookie key)
 {
     while (AtomicGet(Epoch) == key.Epoch) {
-#ifdef _linux_
-        NDetail::futex((int*)(&Epoch), FUTEX_WAIT_PRIVATE, key.Epoch, nullptr, nullptr, 0);
-#endif
-#ifdef _win_
-        WaitForSingleObject(Conditional, INFINITE);
+#if defined(_linux_)
+        NDetail::futex((int*) &Epoch, FUTEX_WAIT_PRIVATE, key.Epoch, nullptr, nullptr, 0);
+#elif defined(_win_)
+        WaitForSingleObject(Event, INFINITE);
+#else
+#       error Unsupported platform
 #endif
     }
-    AtomicDecrement(Waiters);
+    CancelWait();
 }
 
 template <class TCondition>

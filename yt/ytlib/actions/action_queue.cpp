@@ -15,18 +15,77 @@ using namespace NYTree;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TActionQueue::TActionQueue(const Stroka& threadName)
+namespace {
+
+TTagIdList GetThreadTagIds(const Stroka& threadName)
 {
-    auto* profilingManager = TProfilingManager::Get();
     TTagIdList tagIds;
+    auto* profilingManager = TProfilingManager::Get();
     tagIds.push_back(profilingManager->RegisterTag("thread", threadName));
-    Impl = New<TExecutorThreadWithQueue>(
-        nullptr,
-        threadName,
-        tagIds,
-        true,
-        true);
+	return tagIds;
 }
+
+TTagIdList GetBucketTagIds(const Stroka& threadName, const Stroka& bucketName)
+{
+    TTagIdList tagIds;
+    auto* profilingManager = TProfilingManager::Get();
+    tagIds.push_back(profilingManager->RegisterTag("thread", threadName));
+	tagIds.push_back(profilingManager->RegisterTag("bucket", bucketName));
+	return tagIds;
+}
+
+} // namespace
+
+///////////////////////////////////////////////////////////////////////////////
+
+class TActionQueue::TImpl
+    : public TRefCounted
+{
+public:
+    explicit TImpl(const Stroka& threadName)
+        : Queue(New<TInvokerQueue>(
+            &EventCount,
+            nullptr,
+            GetThreadTagIds(threadName),
+            true,
+            true))
+        , Thread(New<TSingleQueueExecutorThread>(
+            Queue,
+            &EventCount,
+            threadName,
+            GetThreadTagIds(threadName),
+            true,
+            true))
+    {
+        Thread->Start();
+    }
+
+    ~TImpl()
+    {
+        Shutdown();
+    }
+
+    void Shutdown()
+    {
+        Queue->Shutdown();
+        Thread->Shutdown();
+    }
+
+    IInvokerPtr GetInvoker()
+    {
+        return Queue;
+    }
+
+private:
+    TEventCount EventCount;
+    TInvokerQueuePtr Queue;
+    TSingleQueueExecutorThreadPtr Thread;
+
+};
+
+TActionQueue::TActionQueue(const Stroka& threadName)
+    : Impl(New<TImpl>(threadName))
+{ }
 
 TActionQueue::~TActionQueue()
 { }
@@ -54,35 +113,40 @@ class TFairShareActionQueue::TImpl
     : public TExecutorThread
 {
 public:
-    TImpl(const Stroka& threadName, const std::vector<Stroka>& bucketNames)
-        : TExecutorThread(threadName, GetThreadTagIds(threadName), true, true)
+    TImpl(
+    	const Stroka& threadName,
+    	const std::vector<Stroka>& bucketNames)
+        : TExecutorThread(
+            &EventCount,
+            threadName,
+            GetThreadTagIds(threadName),
+            true,
+            true)
         , Buckets(bucketNames.size())
         , CurrentBucket(nullptr)
     {
 
         for (int index = 0; index < static_cast<int>(bucketNames.size()); ++index) {
             Buckets[index].Queue = New<TInvokerQueue>(
-                this,
+                &EventCount,
                 nullptr,
                 GetBucketTagIds(threadName, bucketNames[index]),
                 true,
                 true);
         }
-
         Start();
     }
 
     ~TImpl()
     {
-        FOREACH (auto& bucket, Buckets) {
-            bucket.Queue->Shutdown();
-        }
-
         Shutdown();
     }
 
     void Shutdown()
     {
+        FOREACH (auto& bucket, Buckets) {
+            bucket.Queue->Shutdown();
+        }
         TExecutorThread::Shutdown();
     }
 
@@ -93,6 +157,8 @@ public:
     }
 
 private:
+    TEventCount EventCount;
+
     struct TBucket
     {
         TBucket()
@@ -104,27 +170,11 @@ private:
     };
 
     std::vector<TBucket> Buckets;
-    TBucket* CurrentBucket;
     TCpuInstant StartInstant;
 
-
-    static TTagIdList GetThreadTagIds(const Stroka& threadName)
-    {
-        TTagIdList tagIds;
-        auto* profilingManager = TProfilingManager::Get();
-        tagIds.push_back(profilingManager->RegisterTag("thread", threadName));
-        return tagIds;
-    }
-
-    static TTagIdList GetBucketTagIds(const Stroka& threadName, const Stroka& bucketName)
-    {
-        TTagIdList tagIds;
-        auto* profilingManager = TProfilingManager::Get();
-        tagIds.push_back(profilingManager->RegisterTag("thread", threadName));
-        tagIds.push_back(profilingManager->RegisterTag("bucket", bucketName));
-        return tagIds;
-    }
-
+    TEnqueuedAction CurrentAction;
+    TBucket* CurrentBucket;
+    
 
     TBucket* GetStarvingBucket()
     {
@@ -159,16 +209,18 @@ private:
 
         // Pump the starving queue.
         StartInstant = GetCpuInstant();
-        return CurrentBucket->Queue->BeginExecute();
+        return CurrentBucket->Queue->BeginExecute(&CurrentAction);
     }
 
     virtual void EndExecute() override
     {
-        YASSERT(CurrentBucket);
-        CurrentBucket->Queue->EndExecute();
-        auto endInstant = GetCpuInstant();
-        CurrentBucket->ExcessTime += (endInstant - StartInstant);
-        CurrentBucket = nullptr;
+        CurrentBucket->Queue->EndExecute(&CurrentAction);
+
+        if (CurrentBucket) {
+            auto endInstant = GetCpuInstant();
+            CurrentBucket->ExcessTime += (endInstant - StartInstant);
+            CurrentBucket = nullptr;
+        }
     }
 
 };
@@ -195,57 +247,52 @@ void TFairShareActionQueue::Shutdown()
 ///////////////////////////////////////////////////////////////////////////////
 
 class TThreadPool::TImpl
-    : public IInvoker
+    : public TRefCounted
 {
 public:
     TImpl(int threadCount, const Stroka& threadNamePrefix)
+        : Queue(New<TInvokerQueue>(
+            &EventCount,
+            nullptr,
+            GetThreadTagIds(threadNamePrefix),
+            true,
+            true))
     {
-        TTagIdList tagIds;
-        auto* profilingManager = TProfilingManager::Get();
-        tagIds.push_back(profilingManager->RegisterTag("thread", threadNamePrefix));
         for (int i = 0; i < threadCount; ++i) {
-            Threads.push_back(New<TExecutorThreadWithQueue>(
-                this,
+            auto thread = New<TSingleQueueExecutorThread>(
+                Queue,
+                &EventCount,
                 threadNamePrefix,
-                tagIds,
+                GetThreadTagIds(threadNamePrefix),
                 true,
-                true));
+                true);
+            Threads.push_back(thread);
+            thread->Start();
         }
+    }
+
+    ~TImpl()
+    {
+        Shutdown();
     }
 
     void Shutdown()
     {
-        FOREACH (const auto& thread, Threads) {
+        Queue->Shutdown();
+        FOREACH (auto thread, Threads) {
             thread->Shutdown();
         }
     }
 
     IInvokerPtr GetInvoker()
     {
-        // I am the invoker! :)
-        return this;
-    }
-
-    virtual bool Invoke(const TClosure& action) override
-    {
-        // Pick a seemingly least-loaded thread in the pool.
-        // Do not lock, just scan and choose the minimum.
-        // This should be fast enough since threadCount is small.
-        int minSize = std::numeric_limits<int>::max();
-        TExecutorThreadWithQueuePtr minThread;
-        FOREACH (const auto& thread, Threads) {
-            int size = thread->GetSize();
-            if (size < minSize) {
-                minSize = size;
-                minThread = thread;
-            }
-        }
-
-        return minThread->GetInvoker()->Invoke(action);
+        return Queue;
     }
 
 private:
-    std::vector<TExecutorThreadWithQueuePtr> Threads;
+    TEventCount EventCount;
+    TInvokerQueuePtr Queue;
+    std::vector<TExecutorThreadPtr> Threads;
 
 };
 
@@ -337,12 +384,12 @@ public:
         : UnderlyingInvoker(underlyingInvoker)
     { }
 
-    virtual bool Invoke(const TClosure& action, i64 priority) override
+    virtual bool Invoke(const TClosure& callback, i64 priority) override
     {
         {
             TGuard<TSpinLock> guard(SpinLock);
             TEntry entry;
-            entry.Action = action;
+            entry.Callback = callback;
             entry.Priority = priority;
             EntryHeap.emplace_back(std::move(entry));
             std::push_heap(EntryHeap.begin(), EntryHeap.end());
@@ -353,9 +400,9 @@ public:
         return true;
     }
 
-    virtual bool Invoke(const TClosure& action) override
+    virtual bool Invoke(const TClosure& callback) override
     {
-        return UnderlyingInvoker->Invoke(action);
+        return UnderlyingInvoker->Invoke(callback);
     }
 
 private:
@@ -363,7 +410,7 @@ private:
 
     struct TEntry
     {
-        TClosure Action;
+        TClosure Callback;
         i64 Priority;
 
         bool operator < (const TEntry& other) const
@@ -377,14 +424,12 @@ private:
 
     void DoExecute()
     {
-        TClosure action;
-        {
-            TGuard<TSpinLock> guard(SpinLock);
-            std::pop_heap(EntryHeap.begin(), EntryHeap.end());
-            action = std::move(EntryHeap.back().Action);
-            EntryHeap.pop_back();
-        }
-        action.Run();
+        TGuard<TSpinLock> guard(SpinLock);
+        std::pop_heap(EntryHeap.begin(), EntryHeap.end());
+        auto callback = std::move(EntryHeap.back().Callback);
+        EntryHeap.pop_back();
+        guard.Release();
+        callback.Run();
     }
 
 };
@@ -404,14 +449,14 @@ public:
         : UnderlyingInvoker(underlyingInvoker)
     { }
 
-    virtual bool Invoke(const TClosure& action, i64 /*priority*/) override
+    virtual bool Invoke(const TClosure& callback, i64 /*priority*/) override
     {
-        return UnderlyingInvoker->Invoke(action);
+        return UnderlyingInvoker->Invoke(callback);
     }
 
-    virtual bool Invoke(const TClosure& action) override
+    virtual bool Invoke(const TClosure& callback) override
     {
-        return UnderlyingInvoker->Invoke(action);
+        return UnderlyingInvoker->Invoke(callback);
     }
 
 private:

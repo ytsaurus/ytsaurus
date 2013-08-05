@@ -142,14 +142,11 @@ public:
         ::mprotect(Base, GetExtraSize(), PROT_NONE);
 
         Stack = Base + GetExtraSize();
-
-        YCHECK((reinterpret_cast<ui64>(Stack) & 0xF) == 0);
 #else
-        Base = new char[Size];
-        Stack = Base;
-
-        YCHECK((reinterpret_cast<ui64>(Stack) & 0xF) == 0);
+        Base = new char[Size + 15];
+        Stack = reinterpret_cast<void*>((reinterpret_cast<uintptr_t>(Base) + 0xF) & ~0xF);
 #endif
+        YCHECK((reinterpret_cast<ui64>(Stack) & 0xF) == 0);
     }
 
     ~TFiberStack()
@@ -175,12 +172,17 @@ class TFiberContext
 {
 public:
     TFiberContext()
+#ifdef _win_
+        : Fiber_(nullptr)
+#endif
     { }
 
     void Reset(void* stack, size_t size, void (*callee)(void *), void* opaque)
     {
 #ifdef _win_
-        DeleteFiber(Fiber_);
+        if (Fiber_) {
+            DeleteFiber(Fiber_);
+        }
 
         Fiber_ = CreateFiber(size, &TFiberContext::Trampoline, this);
         Callee_ = callee;
@@ -205,7 +207,9 @@ public:
     ~TFiberContext()
     {
 #ifdef _win_
-        DeleteFiber(Fiber_);
+        if (Fiber_) {
+            DeleteFiber(Fiber_);
+        }
 #endif
     }
 
@@ -712,5 +716,5 @@ void SwitchTo(IInvokerPtr invoker)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}
+} // namespace NYT
 
