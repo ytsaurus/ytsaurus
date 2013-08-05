@@ -39,7 +39,7 @@ using namespace NOrchid::NProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static TChannelCache ChannelCache;
-static TLazyPtr<TActionQueue> OrchidQueue(TActionQueue::CreateFactory("Orchid"));
+static TLazyIntrusivePtr<TActionQueue> OrchidQueue(TActionQueue::CreateFactory("Orchid"));
 static NLog::TLogger& Logger = OrchidLogger;
 
 ////////////////////////////////////////////////////////////////////////////////

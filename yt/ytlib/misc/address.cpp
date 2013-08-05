@@ -31,7 +31,7 @@ static NLog::TLogger Logger("Network");
 static NProfiling::TProfiler Profiler("/network");
 
 // TOOD(babenko): get rid of this, write truly asynchronous address resolver.
-static TLazyPtr<TActionQueue> AddressResolverQueue(TActionQueue::CreateFactory("AddressResolver"));
+static TLazyIntrusivePtr<TActionQueue> AddressResolverQueue(TActionQueue::CreateFactory("AddressResolver"));
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -11,8 +11,8 @@ namespace NYT
 
 // Holder with lazy creation and double-checked locking.
 template <class T, class TLock = TSpinLock>
-class TLazyHolder
-    : public TPointerCommon<TLazyHolder<T, TLock>, T>
+class TLazyUniquePtr
+    : public TPointerCommon<TLazyUniquePtr<T, TLock>, T>
 {
     TLock Lock;
     mutable std::unique_ptr<T> Value;

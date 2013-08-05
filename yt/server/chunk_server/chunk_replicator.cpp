@@ -681,10 +681,10 @@ void TChunkReplicator::ScheduleNewJobs(
                 break;
 
             auto jt = it++;
-            const auto& chunkId = *jt;
+            auto chunkWithIndex = *jt;
 
             TJobPtr job;
-            auto flags = ScheduleReplicationJob(node, chunkId, &job);
+            auto flags = ScheduleReplicationJob(node, chunkWithIndex, &job);
 
             if (flags & EJobScheduleFlags::Scheduled) {
                 registerJob(job);

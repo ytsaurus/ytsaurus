@@ -296,6 +296,7 @@ void TObjectProxyBase::GuardedInvoke(IServiceContextPtr context)
         if (!DoInvoke(context)) {
             ThrowVerbNotSuppored(context->GetVerb());
         }
+        AfterInvoke();
     } catch (const TNotALeaderException&) {
         ForwardToLeader(context);
     } catch (const std::exception& ex) {
@@ -304,6 +305,9 @@ void TObjectProxyBase::GuardedInvoke(IServiceContextPtr context)
 }
 
 void TObjectProxyBase::BeforeInvoke()
+{ }
+
+void TObjectProxyBase::AfterInvoke()
 { }
 
 bool TObjectProxyBase::DoInvoke(IServiceContextPtr context)

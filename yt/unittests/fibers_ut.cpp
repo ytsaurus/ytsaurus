@@ -413,8 +413,8 @@ NThread::TThreadId GetInvokerThreadId(IInvokerPtr invoker)
     \
     void FiberTest_##testCaseName##_##testName()
 
-static TLazyPtr<TActionQueue> Queue1(TActionQueue::CreateFactory("Queue1"));
-static TLazyPtr<TActionQueue> Queue2(TActionQueue::CreateFactory("Queue2"));
+static TLazyIntrusivePtr<TActionQueue> Queue1(TActionQueue::CreateFactory("Queue1"));
+static TLazyIntrusivePtr<TActionQueue> Queue2(TActionQueue::CreateFactory("Queue2"));
 
 WRAPPED_FIBER_TEST(TFiberTest, SimpleAsync)
 {

@@ -885,6 +885,7 @@ TOperationControllerBase::TOperationControllerBase(
     , CancelableContext(New<TCancelableContext>())
     , CancelableControlInvoker(CancelableContext->CreateInvoker(Host->GetControlInvoker()))
     , CancelableBackgroundInvoker(CancelableContext->CreateInvoker(Host->GetBackgroundInvoker()))
+    , Prepared(false)
     , Running(false)
     , TotalInputChunkCount(0)
     , TotalInputDataSize(0)
@@ -984,6 +985,7 @@ TFuture<TError> TOperationControllerBase::Prepare()
             .Run()
             .Apply(BIND([this, this_] (TError error) -> TError {
                 if (error.IsOK()) {
+                    Prepared = true;
                     Running = true;
                 }
                 return error;
@@ -1064,6 +1066,7 @@ TFuture<TError> TOperationControllerBase::Revive()
                 .Run()
                 .Apply(BIND([this, this_] () -> TError {
                     ReinstallLivePreview();
+                    Prepared = true;
                     Running = true;
                     return TError();
                 }).AsyncVia(CancelableControlInvoker));
@@ -1935,8 +1938,8 @@ int TOperationControllerBase::GetPendingJobCount()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    // Avoid accessing the state while not running.
-    if (!Running) {
+    // Avoid accessing the state while not prepared.
+    if (!Prepared) {
         return 0;
     }
 
@@ -1953,8 +1956,8 @@ int TOperationControllerBase::GetTotalJobCount()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    // Avoid accessing the state while not running.
-    if (!Running) {
+    // Avoid accessing the state while not prepared.
+    if (!Prepared) {
         return 0;
     }
 
@@ -1984,8 +1987,6 @@ void TOperationControllerBase::DoOperationCompleted()
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     LOG_INFO("Operation completed");
-
-    JobCounter.Finalize();
 
     Running = false;
 

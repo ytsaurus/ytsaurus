@@ -112,6 +112,14 @@ protected:
     IInvokerPtr CancelableBackgroundInvoker;
 
 
+    //! Becomes |true| when the controller is prepared.
+    /*!
+     *  Preparation happens in a background thread.
+     *  The state must not be touched from the control thread
+     *  while this flag is |false|.
+     */
+    bool Prepared;
+
     //! Remains |true| as long as the operation can schedule new jobs.
     bool Running;
 

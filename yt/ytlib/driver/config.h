@@ -35,6 +35,7 @@ public:
     NChunkClient::TClientBlockCacheConfigPtr BlockCache;
     bool ReadFromFollowers;
     i64 ReadBufferSize;
+    int HeavyPoolSize;
 
     TDriverConfig()
     {
@@ -57,7 +58,10 @@ public:
             .Describe("Enable read-only requests to followers")
             .Default(false);
         RegisterParameter("read_buffer_size", ReadBufferSize)
-            .Default((i64) 1024 * 1024);
+            .Default((i64) 1 * 1024 * 1024);
+        RegisterParameter("heavy_pool_size", HeavyPoolSize)
+            .Describe("Number of threads handling heavy requests")
+            .Default(4);
     }
 };
 
@@ -65,3 +69,4 @@ public:
 
 } // namespace NDriver
 } // namespace NYT
+

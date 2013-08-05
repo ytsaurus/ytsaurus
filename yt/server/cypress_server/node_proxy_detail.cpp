@@ -208,6 +208,7 @@ TNontemplateCypressNodeProxyBase::TNontemplateCypressNodeProxyBase(
     , Transaction(transaction)
     , TrunkNode(trunkNode)
     , CachedNode(nullptr)
+    , AccessSuppressed(false)
 {
     YASSERT(typeHandler);
     YASSERT(bootstrap);
@@ -444,7 +445,14 @@ bool TNontemplateCypressNodeProxyBase::GetSystemAttribute(
 
 void TNontemplateCypressNodeProxyBase::BeforeInvoke()
 {
-    SetAccessed();
+    AccessSuppressed = false;
+}
+
+void TNontemplateCypressNodeProxyBase::AfterInvoke()
+{
+    if (!AccessSuppressed) {
+        SetAccessed();
+    }
 }
 
 bool TNontemplateCypressNodeProxyBase::DoInvoke(NRpc::IServiceContextPtr context)
@@ -462,6 +470,55 @@ bool TNontemplateCypressNodeProxyBase::DoInvoke(NRpc::IServiceContextPtr context
     }
 
     return false;
+}
+
+void TNontemplateCypressNodeProxyBase::GetAttribute(
+    const TYPath& path,
+    TReqGet* request,
+    TRspGet* response,
+    TCtxGetPtr context)
+{
+    SuppressAccess();
+    TObjectProxyBase::GetAttribute(path, request, response, context);
+}
+
+void TNontemplateCypressNodeProxyBase::ListAttribute(
+    const TYPath& path,
+    TReqList* request,
+    TRspList* response,
+    TCtxListPtr context)
+{
+    SuppressAccess();
+    TObjectProxyBase::ListAttribute(path, request, response, context);
+}
+
+void TNontemplateCypressNodeProxyBase::ExistsSelf(
+    TReqExists* request,
+    TRspExists* response,
+    TCtxExistsPtr context)
+{
+    SuppressAccess();
+    TObjectProxyBase::ExistsSelf(request, response, context);
+}
+
+void TNontemplateCypressNodeProxyBase::ExistsRecursive(
+    const TYPath& path,
+    TReqExists* request,
+    TRspExists* response,
+    TCtxExistsPtr context)
+{
+    SuppressAccess();
+    TObjectProxyBase::ExistsRecursive(path, request, response, context);
+}
+
+void TNontemplateCypressNodeProxyBase::ExistsAttribute(
+    const TYPath& path,
+    TReqExists* request,
+    TRspExists* response,
+    TCtxExistsPtr context)
+{
+    SuppressAccess();
+    TObjectProxyBase::ExistsAttribute(path, request, response, context);
 }
 
 TCypressNodeBase* TNontemplateCypressNodeProxyBase::GetImpl(TCypressNodeBase* trunkNode) const
@@ -569,6 +626,11 @@ void TNontemplateCypressNodeProxyBase::SetAccessed()
 {
     auto cypressManager = Bootstrap->GetCypressManager();
     cypressManager->SetAccessed(TrunkNode);
+}
+
+void TNontemplateCypressNodeProxyBase::SuppressAccess()
+{
+    AccessSuppressed = true;
 }
 
 ICypressNodeProxyPtr TNontemplateCypressNodeProxyBase::ResolveSourcePath(const TYPath& path)
