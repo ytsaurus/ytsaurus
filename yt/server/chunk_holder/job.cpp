@@ -466,7 +466,7 @@ private:
             CancelableContext,
             BIND(&TChunkRepairJob::OnProgress, MakeWeak(this)).Via(GetCurrentInvoker()));
         auto repairError = WaitFor(asyncRepairError);
-        THROW_ERROR_EXCEPTION_IF_FAILED(repairError, "Error reparing chunk %s",
+        THROW_ERROR_EXCEPTION_IF_FAILED(repairError, "Error repairing chunk %s",
             ~ToString(ChunkId));
     }
 
