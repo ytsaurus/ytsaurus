@@ -72,6 +72,17 @@ def add_exists_parser(add_parser):
     parser.add_argument("path")
     parser.set_defaults(func=exists)
 
+def formatted_print(obj, path, long_format):
+    if long_format:
+        attrs = yt.get(path + "/@")
+        type = attrs["type"]
+        user = attrs["account"]
+        size = yt.get(path + "/@recursive_resource_usage/disk_space")
+        date, time = yt.get(path + "/@modification_time").split("T")
+        time = time[:5]
+        sys.stdout.write("%10s %20s %18r %10s %5s " % (type, user, size, date, time))
+    print obj
+
 def list(args):
     if args.format is not None and args.long_format:
         raise yt.YtError("You can't specify --long-format and --structured simultaneously")
@@ -83,16 +94,7 @@ def list(args):
         if args.attribute is not None:
             print >>sys.stderr, "Attributes are ignored if format is not specified!"
         for elem in list:
-            if args.long_format:
-                path = args.path + "/" + elem
-                attrs = yt.get(path + "/@")
-                type = attrs["type"]
-                user = attrs["account"]
-                size = yt.get(path + "/@recursive_resource_usage/disk_space")
-                date, time = yt.get(path + "/@modification_time").split("T")
-                time = time[:5]
-                sys.stdout.write("%10s %20s %18r %10s %5s " % (type, user, size, date, time))
-            print elem
+            formatted_print(elem, args.path + "/" + elem, args.long_format)
     else:
         sys.stdout.write(list)
 
@@ -116,15 +118,15 @@ def find(args):
     object_filter = lambda obj: \
         all([obj.attributes.get(attr) == vars(args)[attr] for attr in attributes])
 
-    res = yt.search(args.path,
+    result = yt.search(args.path,
                     node_type=args.type,
                     path_filter=path_filter,
                     attributes=attributes,
                     object_filter=object_filter,
                     depth_bound=args.depth)
 
-    for table in res:
-        print table
+    for elem in result:
+        formatted_print(elem, elem, args.long_format)
 
 def add_find_parser(add_parser):
     parser = add_parser("find", help="search objects")
@@ -134,6 +136,7 @@ def add_find_parser(add_parser):
     parser.add_argument("--account")
     parser.add_argument("--owner")
     parser.add_argument("--depth", type=int)
+    parser.add_argument("-l", "--long-format", action="store_true", default=False)
     parser.set_defaults(func=find)
 
 
