@@ -105,7 +105,9 @@ def _prepare_destination_tables(tables, replication_factor, compression_codec):
     tables = map(to_table, flatten(tables))
     for table in tables:
         if exists(table.name):
-            require(replication_factor is None and compression_codec is None,
+            compression_codec_ok = (compression_codec is None) or (compression_codec == get_attribute(table.name, "compression_codec"))
+            replication_factor_ok = (replication_factor is None) or (replication_factor == get_attribute(table.name, "replication_factor"))
+            require(compression_codec_ok and replication_factor_ok,
                     YtError("Cannot append to table %s and set replication factor "
                             "or compression codec" % table))
         else:
