@@ -34,7 +34,7 @@ typedef TIntrusivePtr<TExecutorThreadWithQueue> TExecutorThreadWithQueuePtr;
 DECLARE_ENUM(EBeginExecuteResult,
     (Success)
     (QueueEmpty)
-    (LoopTerminated)
+    (Terminated)
 );
 
 class TInvokerQueue

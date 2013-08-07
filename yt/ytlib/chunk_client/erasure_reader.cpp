@@ -530,14 +530,14 @@ TRepairReader::TReadFuture TRepairReader::RepairNextBlock()
 
     auto this_ = MakeStrong(this);
     return RepairIfNeeded()
-        .Apply(BIND([this, this_] (TError error) -> TReadFuture {
-            RETURN_FUTURE_IF_ERROR(error, TReadResult);
+        .Apply(BIND([this, this_] (TError error) -> TReadResult {
+            RETURN_IF_ERROR(error);
 
             YCHECK(!RepairedBlocksQueue_.empty());
             auto result = TRepairReader::TReadResult(RepairedBlocksQueue_.front());
             RepairedBlocksQueue_.pop_front();
             RepairedBlockCount_ += 1;
-            return MakePromise(result);
+            return result;
         }).AsyncVia(ControlInvoker_)
     );
 }
@@ -745,6 +745,8 @@ public:
             return TError();
         } catch (const std::exception& ex) {
             return ex;
+        } catch (const TFiberTerminatedException&) {
+            return TError("Chunk repair canceled");
         }
     }
 

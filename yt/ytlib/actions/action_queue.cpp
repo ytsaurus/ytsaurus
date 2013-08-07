@@ -117,7 +117,7 @@ private:
 
     virtual EBeginExecuteResult BeginExecute() override
     {
-        YASSERT(!CurrentBucket);
+        YCHECK(!CurrentBucket);
 
         // Check if any action is ready at all.
         CurrentBucket = GetStarvingBucket();
@@ -137,7 +137,9 @@ private:
 
     virtual void EndExecute() override
     {
-        YASSERT(CurrentBucket);
+        if (!CurrentBucket)
+            return;
+
         CurrentBucket->Queue->EndExecute();
         auto endInstant = GetCpuInstant();
         CurrentBucket->ExcessTime += (endInstant - StartInstant);

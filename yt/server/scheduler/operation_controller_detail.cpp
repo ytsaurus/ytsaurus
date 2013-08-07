@@ -1602,7 +1602,10 @@ void TOperationControllerBase::OnTaskUpdated(TTaskPtr task)
 
     CachedNeededResources += task->GetTotalNeededResourcesDelta();
 
-    LOG_DEBUG_IF(newPendingJobCount != oldPendingJobCount, "Task updated (PendingJobCount: %d -> %d, TotalJobCount: %d -> %d, NeededResources: {%s})",
+    LOG_DEBUG_IF(
+        newPendingJobCount != oldPendingJobCount || newTotalJobCount != oldTotalJobCount,
+        "Task updated (Task: %s, PendingJobCount: %d -> %d, TotalJobCount: %d -> %d, NeededResources: {%s})",
+        ~task->GetId(),
         oldPendingJobCount,
         newPendingJobCount,
         oldTotalJobCount,
