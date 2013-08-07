@@ -432,7 +432,10 @@ public:
 
     virtual int GetTotalJobCount() const override
     {
-        return IsCompleted() ? JobCounter.GetCompleted() : JobCounter.GetTotal();
+        return
+            Finished &&
+            DataSizeCounter.GetTotal() > 0
+            ? 1 : 0;
     }
 
     virtual int GetPendingJobCount() const override
@@ -440,7 +443,7 @@ public:
         return
             Finished &&
             SuspendedStripeCount == 0 &&
-            JobCounter.GetPending() == 1
+            DataSizeCounter.GetPending() > 0
             ? 1 : 0;
     }
 
@@ -1367,7 +1370,12 @@ private:
 
         virtual int GetTotalJobCount() const override
         {
-            return static_cast<int>(Runs.size());
+            int result = static_cast<int>(Runs.size());
+            // Handle empty last run properly.
+            if (!Runs.empty() && Runs.back().TotalDataSize == 0) {
+                --result;
+            }
+            return result;
         }
 
         virtual int GetPendingJobCount() const override
