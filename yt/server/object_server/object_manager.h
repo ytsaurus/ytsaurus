@@ -255,7 +255,6 @@ private:
     void LoadKeys(NCellMaster::TLoadContext& context);
     void LoadValues(NCellMaster::TLoadContext& context);
     void LoadSchemas(NCellMaster::TLoadContext& context);
-    virtual void OnAfterLoaded() override;
 
     virtual void OnRecoveryStarted() override;
     virtual void OnRecoveryComplete() override;
