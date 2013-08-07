@@ -949,8 +949,7 @@ private:
             attributes.Get<Stroka>("authenticated_user"),
             attributes.Get<TInstant>("start_time"),
             attributes.Get<EOperationState>("state"),
-            // COMPAT(babenko)
-            attributes.Get<bool>("suspended", false));
+            attributes.Get<bool>("suspended"));
 
         operation->SetSyncSchedulerTransaction(syncTransaction);
         operation->SetAsyncSchedulerTransaction(asyncTransaction);
