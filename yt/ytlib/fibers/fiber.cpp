@@ -196,35 +196,43 @@ public:
         return Yielded_;
     }
 
+    bool IsTerminating() const
+    {
+        return Terminating_;
+    }
+
 
     void Run()
     {
-        YASSERT(!Caller_);
         YCHECK(
             State_ == EFiberState::Initialized ||
             State_ == EFiberState::Suspended);
 
+        YCHECK(!Caller_);
         Caller_ = TFiber::GetCurrent();
+        if (Caller_ && !Caller_->IsTerminating()) {
+            Caller_->Ref();
+        }
+        SetCurrent(Owner_);
 
         YCHECK(Caller_->Impl->State_ == EFiberState::Running);
         State_ = EFiberState::Running;
-
-        SetCurrent(Owner_);
 
         Caller_->Impl->TransferTo(this);
 
         YCHECK(Caller_->Impl->State_ == EFiberState::Running);
 
-        TFiberPtr caller;
-        Caller_.Swap(caller);
+        SetCurrent(Caller_);
+        if (Caller_ && !Caller_->IsTerminating()) {
+            Caller_->Unref();
+        }
+        Caller_ = nullptr;
 
         IInvokerPtr switchTo;
         SwitchTo_.Swap(switchTo);
 
         TFuture<void> waitFor;
         WaitFor_.Swap(waitFor);
-
-        SetCurrent(caller.Get());
 
         YCHECK(
             State_ == EFiberState::Terminated ||
@@ -363,7 +371,8 @@ private:
     bool Yielded_;
 
     TClosure Callee_;
-    TFiberPtr Caller_;
+    //! Same as for |CurrentFiber|, this reference is owning unless the fiber is terminating.
+    TFiber* Caller_;
 
     coro_context CoroContext_;
     coro_stack CoroStack_;
@@ -381,6 +390,7 @@ private:
     {
         Terminating_ = false;
         Yielded_ = false;
+        Caller_ = nullptr;
         CurrentInvoker_ = GetSyncInvoker();
 
         ::memset(&CoroContext_, 0, sizeof(CoroContext_));
@@ -405,13 +415,13 @@ private:
         InitTls();
 
         if (CurrentFiber != fiber) {
-            if (CurrentFiber && !CurrentFiber->Impl->Terminating_) {
+            if (CurrentFiber && !CurrentFiber->IsTerminating()) {
                 CurrentFiber->Unref();
             }
 
             CurrentFiber = fiber;
 
-            if (CurrentFiber && !CurrentFiber->Impl->Terminating_) {
+            if (CurrentFiber && !CurrentFiber->IsTerminating()) {
                 CurrentFiber->Ref();
             }
         }
@@ -491,6 +501,11 @@ EFiberState TFiber::GetState() const
 bool TFiber::Yielded() const
 {
     return Impl->Yielded();
+}
+
+bool TFiber::IsTerminating() const
+{
+    return Impl->IsTerminating();
 }
 
 void TFiber::Run()

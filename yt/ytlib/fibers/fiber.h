@@ -64,6 +64,7 @@ public:
 
     EFiberState GetState() const;
     bool Yielded() const;
+    bool IsTerminating() const;
 
     void Run();
     void Yield();
