@@ -239,7 +239,7 @@ application = connect()
         next();
     });
 
-(config.static || []).forEach(function(site) {
+config.static.forEach(function(site) {
     var web_path = site[0].replace(/\/+$/, "");
     var real_path = site[1];
     var server = new node_static.Server(real_path, {
