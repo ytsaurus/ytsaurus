@@ -193,10 +193,8 @@ config = {
         afd_phi_threshold: 4,
         death_age: 300000
     },
-    static: {
-        "/ui": "/usr/share/yt_new",
-        "/ui-new": "/usr/share/yt-thor",
-    },
+    static: [
+    ],
 };
 
 /*
