@@ -300,10 +300,6 @@ void TBootstrap::Run()
         "/cached_chunks",
         CreateVirtualNode(CreateCachedChunkMapService(~ChunkCache)));
     
-    // COMPAT(lukyan)
-    SyncYPathSet(
-        OrchidRoot,
-        "/@service_name", ConvertToYsonString("node"));
     SetBuildAttributes(OrchidRoot, "node");
 
     NHttp::TServer httpServer(Config->MonitoringPort);

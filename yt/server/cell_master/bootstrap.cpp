@@ -200,9 +200,6 @@ void TBootstrap::Run()
         "/config",
         CreateVirtualNode(CreateYsonFileProducer(ConfigFileName)));
     
-    // COMPAT(lukyan)
-    SyncYPathSet(orchidRoot, "/@service_name", ConvertToYsonString("master"));
-
     SetBuildAttributes(orchidRoot, "master");
 
     RpcServer->RegisterService(New<TObjectService>(Config->ObjectManager, this));
