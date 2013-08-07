@@ -67,7 +67,8 @@ public:
         YCHECK(start <= end);
 
         i64 pos = 0;
-        auto result = TSharedRef::Allocate(end - start);
+        struct TErasureWriterSliceTag { };
+        auto result = TSharedRef::Allocate<TErasureWriterSliceTag>(end - start);
 
         i64 currentStart = 0;
 

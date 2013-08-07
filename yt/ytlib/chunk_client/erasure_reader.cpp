@@ -327,7 +327,7 @@ private:
     {
         // Allocate the resulting window filling it with zeros (used as padding).
         struct TRepairWindowTag { };
-        auto result = TSharedRef::Allocate<TRepairWindowTag>(windowSize, true);
+        auto result = TSharedRef::Allocate<TRepairWindowTag>(windowSize);
 
         i64 resultPosition = 0;
         while (!Blocks_.empty()) {
