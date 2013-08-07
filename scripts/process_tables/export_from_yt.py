@@ -95,7 +95,7 @@ def main():
                 args.server_port,
                 mr_table),
             yt_table,
-            "//tmp/null",
+            yt.create_temp_table(),
             files=args.mapreduce_binary,
             format=yt.YamrFormat(has_subkey=True, lenval=True),
             spec={
