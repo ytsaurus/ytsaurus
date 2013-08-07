@@ -239,9 +239,9 @@ application = connect()
         next();
     });
 
-for (var i = 0; i < (config.static || []).length; ++i) {
-    var web_path = config.static[i][0].replace(/\/+$/, "");
-    var real_path = config.static[i][1];
+(config.static || []).forEach(function(site) {
+    var web_path = site[0].replace(/\/+$/, "");
+    var real_path = site[1];
     var server = new node_static.Server(real_path, {
         cache: 3600,
         gzip: true,
@@ -258,7 +258,7 @@ for (var i = 0; i < (config.static || []).length; ++i) {
             server.serve(req, rsp);
         });
     });
-}
+});
 
 application
     .use("/", function(req, rsp, next) {
