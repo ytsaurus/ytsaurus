@@ -624,7 +624,7 @@ public:
     virtual EBeginExecuteResult BeginExecute() override
     {
         auto result = Queue->BeginExecute();
-        if (result == EBeginExecuteResult::LoopTerminated) {
+        if (result == EBeginExecuteResult::Terminated) {
             return result;
         }
 
