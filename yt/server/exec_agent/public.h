@@ -14,6 +14,10 @@ using NJobTrackerClient::EJobType;
 using NJobTrackerClient::EJobState;
 using NJobTrackerClient::EJobPhase;
 
+DECLARE_ENUM(EErrorCode,
+    ((ConfigCreationFailed)  (1100))
+);
+
 class TJob;
 typedef TIntrusivePtr<TJob> TJobPtr;
 

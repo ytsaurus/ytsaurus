@@ -362,7 +362,7 @@ private:
             TYsonWriter writer(&output, EYsonFormat::Pretty);
             proxyConfig->Save(&writer);
         } catch (const std::exception& ex) {
-            auto error = TError("Error saving job proxy config")
+            auto error = TError(EErrorCode::ConfigCreationFailed, "Error saving job proxy config")
                 << ex;
             DoAbort(error, EJobState::Failed);
             return;
@@ -752,7 +752,7 @@ private:
         return
             error.FindMatching(NChunkClient::EErrorCode::AllTargetNodesFailed) ||
             error.FindMatching(NChunkClient::EErrorCode::MasterCommunicationFailed) ||
-            error.FindMatching(NTableClient::EErrorCode::MasterCommunicationFailed);
+            error.FindMatching(EErrorCode::ConfigCreationFailed);
     }
 
 
