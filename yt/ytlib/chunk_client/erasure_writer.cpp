@@ -225,8 +225,9 @@ void TErasureWriter::PrepareBlocks()
 {
     Groups_ = SplitBlocks(Blocks_, Codec_->GetDataPartCount());
 
+    YCHECK(Slicers_.empty());
+
     // Calculate size of parity blocks and form slicers
-    Slicers_.clear();
     ParityDataSize_ = 0;
     FOREACH (const auto& group, Groups_) {
         i64 size = 0;
@@ -395,6 +396,10 @@ TAsyncError TErasureWriter::OnClosed(TError error)
         diskSpace += writer->GetChunkInfo().disk_space();
     }
     ChunkInfo_.set_disk_space(diskSpace);
+
+    Slicers_.clear();
+    Groups_.clear();
+    Blocks_.clear();
 
     return MakeFuture(TError());
 }
