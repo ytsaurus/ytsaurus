@@ -1,7 +1,7 @@
 import config
 import logger
 from compression_wrapper import create_zlib_generator
-from common import require
+from common import require, generate_uuid
 from errors import YtError, YtResponseError
 from version import VERSION
 from http import make_get_request_with_retries, make_request_with_retries, Response, get_token, get_proxy
@@ -11,7 +11,6 @@ from yt.yson.yson_types import convert_to_yson_tree
 import requests
 
 import sys
-import uuid
 import socket
 import simplejson as json
 
@@ -96,7 +95,7 @@ def make_request(command_name, params,
         if config.MUTATION_ID is not None:
             params["mutation_id"] = config.MUTATION_ID
         else:
-            params["mutation_id"] = str(uuid.uuid4())
+            params["mutation_id"] = generate_uuid()
 
     # prepare url
     url = "http://{0}/{1}/{2}".format(proxy, config.API_PATH, command_name)
@@ -105,7 +104,7 @@ def make_request(command_name, params,
     # prepare params, format and headers
     headers = {"User-Agent": "Python wrapper " + VERSION,
                "Accept-Encoding": config.http.ACCEPT_ENCODING,
-               "X-YT-Correlation-Id": str(uuid.uuid4())}
+               "X-YT-Correlation-Id": generate_uuid()}
 
     if command.input_type is None:
         # Should we also check that command is volatile?
