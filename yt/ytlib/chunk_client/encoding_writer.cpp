@@ -194,7 +194,7 @@ void TEncodingWriter::WritePendingBlocks()
         Semaphore.Release(front.Size());
         PendingBlocks.pop_front();
 
-        if (!result && !PendingBlocks.empty()) {
+        if (!result) {
             IsWaiting = true;
             AsyncWriter->GetReadyEvent().Subscribe(OnReadyEventCallback);
             return;

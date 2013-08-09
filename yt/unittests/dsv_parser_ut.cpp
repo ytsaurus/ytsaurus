@@ -247,7 +247,6 @@ TEST_F(TTskvParserTest, Escaping)
         "an\\other_\\key=anoth\\er_v\\alue"
         "\n";
 
-    Config->EscapeCarriageReturn = true;
     ParseDsv(input, &Mock, Config);
 }
 

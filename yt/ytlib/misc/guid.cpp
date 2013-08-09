@@ -255,13 +255,15 @@ TGuid TGuid::FromString(const TStringBuf& str)
 
 bool TGuid::FromString(const TStringBuf &str, TGuid* guid)
 {
+    int length = 0;
     if (sscanf(
         str.data(),
-        "%x-%x-%x-%x",
+        "%x-%x-%x-%x%n",
         &guid->Parts[3],
         &guid->Parts[2],
         &guid->Parts[1],
-        &guid->Parts[0]) != 4)
+        &guid->Parts[0],
+        &length) != 4 || length != str.length())
     {
         return false;
     }

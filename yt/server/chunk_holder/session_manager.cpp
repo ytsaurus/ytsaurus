@@ -599,6 +599,7 @@ void TSession::MarkAllSlotsWritten()
     // Mark all slots as written to notify all guys waiting on Flush.
     FOREACH (auto& slot, Window) {
         if (slot.State != ESlotState::Written) {
+            slot.State = ESlotState::Written;
             slot.IsWritten.Set();
         }
     }

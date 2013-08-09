@@ -451,7 +451,7 @@ protected:
 
     void ReadBinaryString(TStringBuf* value)
     {
-        ui32 ulength;
+        ui32 ulength = 0;
         if (TBaseStream::ReadVarint32(&ulength)) { 
             i32 length = ZigZagDecode32(ulength);
             if (length < 0) {

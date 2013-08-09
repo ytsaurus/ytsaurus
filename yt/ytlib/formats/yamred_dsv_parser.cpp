@@ -98,8 +98,7 @@ std::unique_ptr<IParser> CreateParserForYamredDsv(
                 config->RecordSeparator,
                 config->EnableEscaping, // Enable key escaping
                 false, // Enable value escaping
-                config->EscapingSymbol,
-                config->EscapeCarriageReturn));
+                config->EscapingSymbol));
 }
 
 ///////////////////////////////////////////////////////////////////////////////

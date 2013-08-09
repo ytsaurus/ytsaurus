@@ -307,7 +307,6 @@ TEST(TTskvWriterTest, Escaping)
 {
     auto config = New<TDsvFormatConfig>();
     config->LinePrefix = "tskv";
-    config->EscapeCarriageReturn = true;
 
     TStringStream outputStream;
     TDsvTabularWriter writer(&outputStream, config);
@@ -335,22 +334,6 @@ TEST(TTskvWriterTest, Escaping)
         "Escaping in value: \\r \\t \\n \\\\ =" // Note: = is not escaped
 
         "\n";
-
-    EXPECT_EQ(outputStream.Str(), output);
-}
-
-TEST(TTskvWriterTest, WithoutEscapeCarriageReturn)
-{
-    TStringStream outputStream;
-    TDsvTabularWriter writer(&outputStream);
-
-    writer.OnListItem();
-    writer.OnBeginMap();
-        writer.OnKeyedItem(Stroka("x"));
-        writer.OnStringScalar(Stroka("\r"));
-    writer.OnEndMap();
-
-    Stroka output = "x=\r\n";
 
     EXPECT_EQ(outputStream.Str(), output);
 }

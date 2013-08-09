@@ -511,7 +511,7 @@ def run(args, cwd=None, env=None, silent_stdout=False, silent_stderr=False):
 
             # Emit incomplete lines from the buffer when there is no more data.
             if eof and len(data_for[fd]) > 0:
-                if not silent:
+                if not silent_for[fd]:
                     teamcity_message(data_for[fd], status_for[fd])
                 data_for[fd] = ""
 
