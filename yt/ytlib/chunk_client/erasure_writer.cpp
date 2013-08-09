@@ -66,7 +66,6 @@ public:
         YCHECK(start >= 0);
         YCHECK(start <= end);
 
-        struct TErasureWriterSliceTag { };
         TSharedRef result;
 
         i64 pos = 0;
@@ -76,6 +75,7 @@ public:
         bool initialized = false;
         auto initialize = [&] () {
             if (!initialized) {
+                struct TErasureWriterSliceTag { };
                 result = TSharedRef::Allocate<TErasureWriterSliceTag>(resultSize);
                 initialized = true;
             }
@@ -112,11 +112,11 @@ public:
 
 private:
 
-    // It is mutable, because we want retunr subref of blocks.
+    // Mutable since we want to return subref of blocks.
     mutable std::vector<TSharedRef> Blocks_;
 };
 
-} // anonymous namespace
+} // namespace
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -340,7 +340,7 @@ TAsyncError TErasureWriter::WriteParityBlocks(int windowIndex)
     WindowEncodedPromise_[windowIndex].Get();
 
     // Get parity blocks of current window
-    const std::vector<TSharedRef>& parityBlocks = ParityBlocks_[windowIndex];
+    const auto& parityBlocks = ParityBlocks_[windowIndex];
 
     // Write blocks of current window in parallel manner
     auto collector = New<TParallelCollector<void>>();

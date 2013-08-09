@@ -69,8 +69,6 @@ public:
         , JobState(EJobState::Waiting)
         , JobPhase(EJobPhase::Created)
         , Progress(0.0)
-        , CancelableContext(New<TCancelableContext>())
-        , CancelableInvoker(CancelableContext->CreateInvoker(Bootstrap->GetControlInvoker()))
     {
         JobSpec.Swap(&jobSpec);
 
@@ -87,7 +85,9 @@ public:
         if (JobState != EJobState::Running)
             return;
 
-        CancelableInvoker->Invoke(BIND(&TChunkJobBase::GuardedRun, MakeStrong(this)));
+        JobFuture = BIND(&TChunkJobBase::GuardedRun, MakeStrong(this))
+            .AsyncVia(Bootstrap->GetControlInvoker())
+            .Run();
     }
 
     virtual void Abort(const TError& error) override
@@ -95,7 +95,7 @@ public:
         if (JobState != EJobState::Running)
             return;
 
-        CancelableContext->Cancel();
+        JobFuture.Cancel();
         SetAborted(error);
     }
 
@@ -163,8 +163,7 @@ protected:
 
     double Progress;
 
-    TCancelableContextPtr CancelableContext;
-    IInvokerPtr CancelableInvoker;
+    TFuture<void> JobFuture;
 
     TJobResult Result;
 
@@ -230,9 +229,7 @@ private:
         JobState = finalState;
         ToProto(Result.mutable_error(), error);
         ResourceLimits = ZeroNodeResources();
-
-        CancelableContext.Reset();
-        CancelableInvoker.Reset();
+        JobFuture.Reset();
     }
 
 };
@@ -458,21 +455,24 @@ private:
             writers.push_back(writer);
         }
 
-        auto asyncRepairError = RepairErasedBlocks(
+        auto this_ = MakeStrong(this);
+        auto onProgress = BIND([this, this_] (double progress) {
+            SetProgress(progress);
+        }).Via(GetCurrentInvoker());
+
+        auto asyncRepairError = RepairErasedParts(
             codec,
             erasedIndexes,
             readers,
             writers,
-            CancelableContext,
-            BIND(&TChunkRepairJob::OnProgress, MakeWeak(this)).Via(GetCurrentInvoker()));
+            onProgress);
+        
+        // Make sure the repair is canceled when the current fiber terminates.
+        TFutureCancelationGuard<TError> repairErrorGuard(asyncRepairError);
+
         auto repairError = WaitFor(asyncRepairError);
         THROW_ERROR_EXCEPTION_IF_FAILED(repairError, "Error repairing chunk %s",
             ~ToString(ChunkId));
-    }
-
-    void OnProgress(double progress)
-    {
-        SetProgress(progress);
     }
 
 };
