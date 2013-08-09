@@ -30,10 +30,10 @@ TClosure GetCurrentFiberCancelator();
 template <class T>
 void RegisterFiberCancelation(TPromise<T> promise)
 {
-    auto cancelator = GetCurrentFiberCancelator();
+    auto canceler= GetCurrentFiberCanceler();
     auto invoker = GetCurrentInvoker();
     promise.OnCanceled(BIND([=] {
-        invoker->Invoke(cancelator);
+        invoker->Invoke(canceler);
     }));
 }
 
