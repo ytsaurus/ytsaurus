@@ -13,8 +13,7 @@ $range ARITY 0..MAX_ARITY
 
 #include "invoker.h"
 #include "future.h"
-
-#include <ytlib/fibers/fiber.h>
+#include "invoker_util.h"
 
 namespace NYT {
 /*! \internal */
@@ -25,18 +24,16 @@ namespace NDetail {
 template <bool WrappedInFuture, class TSignature>
 struct TAsyncViaHelper;
 
+// Implemented in fibers/fiber.cpp
+TClosure GetCurrentFiberCancelator();
+
 template <class T>
 void RegisterFiberCancelation(TPromise<T> promise)
 {
-    TFiberPtr fiber(TFiber::GetCurrent());
-    auto cancelFiber = BIND([=] {
-        fiber->Cancel();
-    });
-
+    auto cancelator = GetCurrentFiberCancelator();
     auto invoker = GetCurrentInvoker();
-
     promise.OnCanceled(BIND([=] {
-        invoker->Invoke(cancelFiber);
+        invoker->Invoke(cancelator);
     }));
 }
 

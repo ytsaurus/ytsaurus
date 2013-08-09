@@ -636,5 +636,19 @@ void SwitchTo(IInvokerPtr invoker)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NDetail {
+
+TClosure GetCurrentFiberCancelator()
+{
+    TFiberPtr fiber(TFiber::GetCurrent());
+    return BIND([=] {
+        fiber->Cancel();
+    });
+}
+
+} // namespace NDetail
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT
 
