@@ -5,7 +5,6 @@ from yt.environment import YTEnv
 import yt.wrapper as yt
 
 import os
-import uuid
 import tempfile
 import subprocess
 
@@ -279,7 +278,7 @@ class TestDefaultBehaviour(YtTestBase, YTEnv):
 
 
     def check_command(self, command, post_action=None, check_action=None):
-        mutation_id = str(uuid.uuid4())
+        mutation_id = yt.common.generate_uuid()
         def run_command():
             yt.config.MUTATION_ID = mutation_id
             result = command()
