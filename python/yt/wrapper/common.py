@@ -2,6 +2,7 @@ from yt.common import require, flatten, update, which, YtError
 import yt.yson as yson
 
 import os
+import random
 from functools import partial
 from itertools import ifilter
 import simplejson as json
@@ -136,3 +137,7 @@ def update_from_env(variables):
 
         variables[key] = var_type(value)
 
+def generate_uuid():
+    def get_int():
+        return hex(random.randint(0, 2**32 - 1))[2:]
+    return "-".join([get_int() for _ in xrange(4)])
