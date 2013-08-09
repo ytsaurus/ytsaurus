@@ -25,7 +25,7 @@ template <bool WrappedInFuture, class TSignature>
 struct TAsyncViaHelper;
 
 // Implemented in fibers/fiber.cpp
-TClosure GetCurrentFiberCancelator();
+TClosure GetCurrentFiberCanceler();
 
 template <class T>
 void RegisterFiberCancelation(TPromise<T> promise)
