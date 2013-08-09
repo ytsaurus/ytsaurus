@@ -8,6 +8,7 @@
 
 #include <ytlib/misc/delayed_invoker.h>
 #include <ytlib/misc/foreach.h>
+#include <ytlib/misc/small_vector.h>
 
 #include <util/system/event.h>
 
@@ -25,23 +26,28 @@ class TPromiseState
     : public TIntrinsicRefCounted
 {
 public:
-    typedef TCallback<void(T)> TListener;
-    typedef std::vector<TListener> TListeners;
+    typedef TCallback<void(T)> TResultHandler;
+    typedef TSmallVector<TResultHandler, 8> TResultHandlers;
+
+    typedef TClosure TCancelHandler;
+    typedef TSmallVector<TCancelHandler, 8> TCancelHandlers;
 
 private:
-    TNullable<T> Value;
-    mutable TSpinLock SpinLock;
-    mutable std::unique_ptr<Event> ReadyEvent;
-
-    TListeners Listeners;
+    TNullable<T> Value_;
+    mutable TSpinLock SpinLock_;
+    mutable std::unique_ptr<Event> ReadyEvent_;
+    TResultHandlers ResultHandlers_;
+    bool Canceled_;
+    TCancelHandlers CancelHandlers_;
 
 public:
     TPromiseState()
+        : Canceled_(false)
     { }
 
     template <class U>
     explicit TPromiseState(U&& value)
-        : Value(std::forward<U>(value))
+        : Value_(std::forward<U>(value))
     {
         static_assert(
             NMpl::TIsConvertible<U, T>::Value,
@@ -50,34 +56,40 @@ public:
 
     const T& Get() const
     {
-        TGuard<TSpinLock> guard(SpinLock);
+        TGuard<TSpinLock> guard(SpinLock_);
 
-        if (Value.HasValue()) {
-            return Value.Get();
+        if (Value_) {
+            return Value_.Get();
         }
 
-        if (!ReadyEvent) {
-            ReadyEvent.reset(new Event());
+        if (!ReadyEvent_) {
+            ReadyEvent_.reset(new Event());
         }
 
         guard.Release();
-        ReadyEvent->Wait();
+        ReadyEvent_->Wait();
 
-        YASSERT(Value.HasValue());
-        return Value.Get();
+        return Value_.Get();
     }
 
     TNullable<T> TryGet() const
     {
-        TGuard<TSpinLock> guard(SpinLock);
-        return Value;
+        TGuard<TSpinLock> guard(SpinLock_);
+        return Value_;
     }
 
     bool IsSet() const
     {
         // Guard is typically redundant.
-        TGuard<TSpinLock> guard(SpinLock);
-        return Value.HasValue();
+        TGuard<TSpinLock> guard(SpinLock_);
+        return Value_;
+    }
+
+    bool IsCanceled() const
+    {
+        // Guard is typically redundant.
+        TGuard<TSpinLock> guard(SpinLock_);
+        return Canceled_;
     }
 
     template <class U>
@@ -87,32 +99,85 @@ public:
             NMpl::TIsConvertible<U, T>::Value,
             "U have to be convertible to T");
 
-        TListeners listeners;
+        TResultHandlers handlers;
 
         {
-            TGuard<TSpinLock> guard(SpinLock);
-            YASSERT(!Value.HasValue());
-            Value.Assign(std::forward<U>(value));
+            TGuard<TSpinLock> guard(SpinLock_);
 
-            auto* event = ~ReadyEvent;
+            if (Canceled_)
+                return;
+
+            YASSERT(!Value_);
+            Value_.Assign(std::forward<U>(value));
+
+            auto* event = ~ReadyEvent_;
             if (event) {
                 event->Signal();
             }
 
-            Listeners.swap(listeners);
+            ResultHandlers_.swap(handlers);
+            CancelHandlers_.clear();
         }
 
-        const T& storedValue = Value.Get();
-        FOREACH (auto& listener, listeners) {
-            listener.Run(storedValue);
+        const T& storedValue = Value_.Get();
+        FOREACH (const auto& handler, handlers) {
+            handler.Run(storedValue);
         }
     }
 
-    void Subscribe(const TListener& listener);
+    void Subscribe(TResultHandler onResult)
+    {
+        TGuard<TSpinLock> guard(SpinLock_);
+
+        if (Value_) {
+            guard.Release();
+            onResult.Run(Value_.Get());
+        } else if (!Canceled_) {
+            ResultHandlers_.push_back(std::move(onResult));
+        }
+    }
+
     void Subscribe(
         TDuration timeout,
-        const TListener& onValue,
-        const TClosure& onTimeout);
+        TResultHandler onResult,
+        TClosure onTimeout);
+
+    void OnCanceled(TCancelHandler onCancel)
+    {
+        TGuard<TSpinLock> guard(SpinLock_);
+
+        if (Value_)
+            return;
+
+        if (Canceled_) {
+            guard.Release();
+            onCancel.Run();
+            return;
+        }
+
+        CancelHandlers_.push_back(std::move(onCancel));
+    }
+
+    void Cancel()
+    {
+        TCancelHandlers handlers;
+
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+            if (Value_ || Canceled_)
+                return;
+
+            ResultHandlers_.clear();
+
+            Canceled_ = true;
+            CancelHandlers_.swap(handlers);
+        }
+
+        FOREACH (auto& handler, handlers) {
+            handler.Run();
+        }
+    }
+
 };
 
 template <class T>
@@ -123,67 +188,57 @@ public:
     TPromiseAwaiter(
         TPromiseState<T>* state,
         TDuration timeout,
-        const TCallback<void(T)>& onValue,
-        const TClosure& onTimeout)
-        : OnValue(onValue)
-        , OnTimeout(onTimeout)
-        , CallbackAlreadyRan(0)
+        TCallback<void(T)> onResult,
+        TClosure onTimeout)
+        : OnResult_(std::move(onResult))
+        , OnTimeout_(std::move(onTimeout))
+        , CallbackAlreadyRan_(false)
     {
         YASSERT(state);
 
         state->Subscribe(
-            BIND(&TPromiseAwaiter::DoValue, MakeStrong(this)));
+            BIND(&TPromiseAwaiter::OnResult, MakeStrong(this)));
         TDelayedInvoker::Submit(
-            BIND(&TPromiseAwaiter::DoTimeout, MakeStrong(this)), timeout);
+            BIND(&TPromiseAwaiter::OnTimeout, MakeStrong(this)), timeout);
     }
 
 private:
-    TCallback<void(T)> OnValue;
-    TClosure OnTimeout;
+    TCallback<void(T)> OnResult_;
+    TClosure OnTimeout_;
 
-    TAtomic CallbackAlreadyRan;
+    TAtomic CallbackAlreadyRan_;
 
     bool AtomicAcquire()
     {
-        return AtomicCas(&CallbackAlreadyRan, 1, 0);
+        return AtomicCas(&CallbackAlreadyRan_, true, false);
     }
 
-    void DoValue(T value)
+    void OnResult(T value)
     {
         if (AtomicAcquire()) {
-            OnValue.Run(std::move(value));
+            OnResult_.Run(std::move(value));
         }
     }
 
-    void DoTimeout()
+    void OnTimeout()
     {
         if (AtomicAcquire()) {
-            OnTimeout.Run();
+            OnTimeout_.Run();
         }
     }
 };
 
 template <class T>
 inline void TPromiseState<T>::Subscribe(
-    const typename TPromiseState<T>::TListener& listener)
-{
-    TGuard<TSpinLock> guard(SpinLock);
-
-    if (Value.HasValue()) {
-        guard.Release();
-        listener.Run(Value.Get());
-    } else {
-        Listeners.push_back(listener);
-    }
-}
-
-template <class T>
-inline void TPromiseState<T>::Subscribe(
     TDuration timeout,
-    const TListener& onValue,
-    const TClosure& onTimeout)
+    TResultHandler onResult,
+    TClosure onTimeout)
 {
-    New< TPromiseAwaiter<T> >(this, timeout, onValue, onTimeout);
+    New<TPromiseAwaiter<T>>(
+        this,
+        timeout,
+        std::move(onResult),
+        std::move(onTimeout));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -194,74 +249,131 @@ class TPromiseState<void>
     : public TIntrinsicRefCounted
 {
 public:
-    typedef TCallback<void()> TListener;
-    typedef std::vector<TListener> TListeners;
+    typedef TCallback<void()> TResultHandler;
+    typedef std::vector<TResultHandler> TResultHandlers;
+
+    typedef TClosure TCancelHandler;
+    typedef TSmallVector<TCancelHandler, 8> TCancelHandlers;
 
 private:
-    bool ValueIsInitialized;
-    mutable TSpinLock SpinLock;
-    mutable std::unique_ptr<Event> ReadyEvent;
-
-    TListeners Listeners;
+    bool HasValue_;
+    mutable TSpinLock SpinLock_;
+    mutable std::unique_ptr<Event> ReadyEvent_;
+    TResultHandlers ResultHandlers_;
+    bool Canceled_;
+    TCancelHandlers CancelHandlers_;
 
 public:
-    TPromiseState(bool initialized = false)
-        : ValueIsInitialized(initialized)
+    TPromiseState(bool hasValue = false)
+        : HasValue_(hasValue)
+        , Canceled_(false)
     { }
 
     bool IsSet() const
     {
         // Guard is typically redundant.
-        TGuard<TSpinLock> guard(SpinLock);
-        return ValueIsInitialized;
+        TGuard<TSpinLock> guard(SpinLock_);
+        return HasValue_;
+    }
+
+    bool IsCanceled() const
+    {
+        // Guard is typically redundant.
+        TGuard<TSpinLock> guard(SpinLock_);
+        return Canceled_;
     }
 
     void Set()
     {
-        TListeners listeners;
+        TResultHandlers handlers;
 
         {
-            TGuard<TSpinLock> guard(SpinLock);
+            TGuard<TSpinLock> guard(SpinLock_);
 
-            YASSERT(!ValueIsInitialized);
-            ValueIsInitialized = true;
+            if (Canceled_)
+                return;
 
-            auto* event = ~ReadyEvent;
+            YASSERT(!HasValue_);
+            HasValue_= true;
+
+            auto* event = ~ReadyEvent_;
             if (event) {
                 event->Signal();
             }
 
-            Listeners.swap(listeners);
+            ResultHandlers_.swap(handlers);
+            CancelHandlers_.clear();
         }
 
-        FOREACH (auto& listener, listeners) {
-            listener.Run();
+        FOREACH (auto& handler, handlers) {
+            handler.Run();
         }
     }
 
     void Get() const
     {
-        TGuard<TSpinLock> guard(SpinLock);
+        TGuard<TSpinLock> guard(SpinLock_);
 
-        if (ValueIsInitialized) {
+        if (HasValue_)
             return;
-        }
 
-        if (!ReadyEvent) {
-            ReadyEvent.reset(new Event());
+        if (!ReadyEvent_) {
+            ReadyEvent_.reset(new Event());
         }
 
         guard.Release();
-        ReadyEvent->Wait();
+        ReadyEvent_->Wait();
 
-        YASSERT(ValueIsInitialized);
+        YASSERT(HasValue_);
     }
 
-    void Subscribe(const TListener& listener);
+    void Subscribe(TResultHandler onResult)
+    {
+        TGuard<TSpinLock> guard(SpinLock_);
+
+        if (HasValue_) {
+            guard.Release();
+            onResult.Run();
+        } else if (!Canceled_) {
+            ResultHandlers_.push_back(std::move(onResult));
+        }
+    }
+
     void Subscribe(
         TDuration timeout,
-        const TListener& onValue,
-        const TClosure& onTimeout);
+        TResultHandler onResult,
+        TClosure onTimeout);
+
+    void OnCanceled(TCancelHandler onCancel)
+    {
+        TGuard<TSpinLock> guard(SpinLock_);
+
+        if (HasValue_ || Canceled_)
+            return;
+
+        CancelHandlers_.push_back(std::move(onCancel));
+    }
+
+    void Cancel()
+    {
+        TCancelHandlers handlers;
+
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+            if (HasValue_)
+                return;
+
+            ResultHandlers_.clear();
+
+            Canceled_ = true;
+            CancelHandlers_.swap(handlers);
+        }
+
+        FOREACH (auto& handler, handlers) {
+            handler.Run();
+        }
+    }
+
 };
 
 template <>
@@ -272,65 +384,56 @@ public:
     TPromiseAwaiter(
         TPromiseState<void>* state,
         TDuration timeout,
-        const TClosure& onValue,
-        const TClosure& onTimeout)
-        : OnValue(onValue)
-        , OnTimeout(onTimeout)
-        , CallbackAlreadyRan(0)
+        TClosure onResult,
+        TClosure onTimeout)
+        : OnResult_(onResult)
+        , OnTimeout_(onTimeout)
+        , CallbackAlreadyRan_(0)
     {
         YASSERT(state);
 
         state->Subscribe(
-            BIND(&TPromiseAwaiter::DoValue, MakeStrong(this)));
+            BIND(&TPromiseAwaiter::OnResult, MakeStrong(this)));
         TDelayedInvoker::Submit(
-            BIND(&TPromiseAwaiter::DoTimeout, MakeStrong(this)), timeout);
+            BIND(&TPromiseAwaiter::OnTimeout, MakeStrong(this)), timeout);
     }
 
 private:
-    TClosure OnValue;
-    TClosure OnTimeout;
+    TClosure OnResult_;
+    TClosure OnTimeout_;
 
-    TAtomic CallbackAlreadyRan;
+    TAtomic CallbackAlreadyRan_;
 
     bool AtomicAcquire()
     {
-        return AtomicCas(&CallbackAlreadyRan, 1, 0);
+        return AtomicCas(&CallbackAlreadyRan_, true, false);
     }
 
-    void DoValue()
+    void OnResult()
     {
         if (AtomicAcquire()) {
-            OnValue.Run();
+            OnResult_.Run();
         }
     }
 
-    void DoTimeout()
+    void OnTimeout()
     {
         if (AtomicAcquire()) {
-            OnTimeout.Run();
+            OnTimeout_.Run();
         }
     }
 };
 
 inline void TPromiseState<void>::Subscribe(
-    const TPromiseState<void>::TListener& listener)
-{
-    TGuard<TSpinLock> guard(SpinLock);
-
-    if (ValueIsInitialized) {
-        guard.Release();
-        listener.Run();
-    } else {
-        Listeners.push_back(listener);
-    }
-}
-
-inline void TPromiseState<void>::Subscribe(
     TDuration timeout,
-    const TListener& onValue,
-    const TClosure& onTimeout)
+    TResultHandler onResult,
+    TClosure onTimeout)
 {
-    New< TPromiseAwaiter<void> >(this, timeout, onValue, onTimeout);
+    New<TPromiseAwaiter<void>>(
+        this,
+        timeout,
+        std::move(onResult),
+        std::move(onTimeout));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -398,6 +501,13 @@ inline bool TFuture<T>::IsSet() const
 }
 
 template <class T>
+inline bool TFuture<T>::IsCanceled() const
+{
+    YASSERT(Impl);
+    return Impl->IsCanceled();
+}
+
+template <class T>
 inline const T& TFuture<T>::Get() const
 {
     YASSERT(Impl);
@@ -412,28 +522,35 @@ inline TNullable<T> TFuture<T>::TryGet() const
 }
 
 template <class T>
-inline void TFuture<T>::Subscribe(const TCallback<void(T)>& listener)
+inline void TFuture<T>::Subscribe(TCallback<void(T)> onResult)
 {
     YASSERT(Impl);
-    return Impl->Subscribe(listener);
+    return Impl->Subscribe(std::move(onResult));
 }
 
 template <class T>
 inline void TFuture<T>::Subscribe(
     TDuration timeout,
-    const TCallback<void(T)>& onValue,
-    const TClosure& onTimeout)
+    TCallback<void(T)> onResult,
+    TClosure onTimeout)
 {
     YASSERT(Impl);
-    return Impl->Subscribe(timeout, onValue, onTimeout);
+    return Impl->Subscribe(timeout, std::move(onResult), std::move(onTimeout));
 }
 
 template <class T>
-inline TFuture<void> TFuture<T>::Apply(const TCallback<void(T)>& mutator)
+inline void TFuture<T>::Cancel()
+{
+    YASSERT(Impl);
+    return Impl->Cancel();
+}
+
+template <class T>
+inline TFuture<void> TFuture<T>::Apply(TCallback<void(T)> mutator)
 {
     auto mutated = NewPromise();
     // TODO(sandello): Make cref here.
-    Subscribe(BIND([mutated, mutator] (T value) mutable {
+    Subscribe(BIND([=] (T value) mutable {
         mutator.Run(value);
         mutated.Set();
     }));
@@ -441,16 +558,16 @@ inline TFuture<void> TFuture<T>::Apply(const TCallback<void(T)>& mutator)
 }
 
 template <class T>
-inline TFuture<void> TFuture<T>::Apply(const TCallback<TFuture<void>(T)>& mutator)
+inline TFuture<void> TFuture<T>::Apply(TCallback<TFuture<void>(T)> mutator)
 {
     auto mutated = NewPromise();
 
     // TODO(sandello): Make cref here.
-    auto inner = BIND([mutated] () mutable {
+    auto inner = BIND([=] () mutable {
         mutated.Set();
     });
     // TODO(sandello): Make cref here.
-    auto outer = BIND([mutator, inner] (T outerValue) mutable {
+    auto outer = BIND([=] (T outerValue) mutable {
         mutator.Run(outerValue).Subscribe(inner);
     });
 
@@ -460,11 +577,11 @@ inline TFuture<void> TFuture<T>::Apply(const TCallback<TFuture<void>(T)>& mutato
 
 template <class T>
 template <class R>
-inline TFuture<R> TFuture<T>::Apply(const TCallback<R(T)>& mutator)
+inline TFuture<R> TFuture<T>::Apply(TCallback<R(T)> mutator)
 {
     auto mutated = NewPromise<R>();
     // TODO(sandello): Make cref here.
-    Subscribe(BIND([mutated, mutator] (T value) mutable {
+    Subscribe(BIND([=] (T value) mutable {
         mutated.Set(mutator.Run(value));
     }));
     return mutated;
@@ -472,16 +589,16 @@ inline TFuture<R> TFuture<T>::Apply(const TCallback<R(T)>& mutator)
 
 template <class T>
 template <class R>
-inline TFuture<R> TFuture<T>::Apply(const TCallback<TFuture<R>(T)>& mutator)
+inline TFuture<R> TFuture<T>::Apply(TCallback<TFuture<R>(T)> mutator)
 {
     auto mutated = NewPromise<R>();
 
     // TODO(sandello): Make cref here.
-    auto inner = BIND([mutated] (R innerValue) mutable {
+    auto inner = BIND([=] (R innerValue) mutable {
         mutated.Set(std::move(innerValue));
     });
     // TODO(sandello): Make cref here.
-    auto outer = BIND([mutator, inner] (T outerValue) mutable {
+    auto outer = BIND([=] (T outerValue) mutable {
         mutator.Run(outerValue).Subscribe(inner);
     });
 
@@ -563,47 +680,59 @@ inline bool TFuture<void>::IsSet() const
     return Impl->IsSet();
 }
 
+inline bool TFuture<void>::IsCanceled() const
+{
+    YASSERT(Impl);
+    return Impl->IsCanceled();
+}
+
 inline void TFuture<void>::Get() const
 {
     YASSERT(Impl);
     Impl->Get();
 }
 
-inline void TFuture<void>::Subscribe(const TClosure& listener)
+inline void TFuture<void>::Subscribe(TClosure onResult)
 {
     YASSERT(Impl);
-    return Impl->Subscribe(listener);
+    return Impl->Subscribe(std::move(onResult));
 }
 
 inline void TFuture<void>::Subscribe(
     TDuration timeout,
-    const TClosure& onValue,
-    const TClosure& onTimeout)
+    TClosure onResult,
+    TClosure onTimeout)
 {
     YASSERT(Impl);
-    return Impl->Subscribe(timeout, onValue, onTimeout);
+    return Impl->Subscribe(timeout, std::move(onResult), std::move(onTimeout));
 }
 
-inline TFuture<void> TFuture<void>::Apply(const TCallback<void()>& mutator)
+inline void TFuture<void>::Cancel()
+{
+    YASSERT(Impl);
+    return Impl->Cancel();
+}
+
+inline TFuture<void> TFuture<void>::Apply(TCallback<void()> mutator)
 {
     auto mutated = NewPromise();
-    Subscribe(BIND([mutated, mutator] () mutable {
+    Subscribe(BIND([=] () mutable {
         mutator.Run();
         mutated.Set();
     }));
     return mutated;
 }
 
-inline TFuture<void> TFuture<void>::Apply(const TCallback<TFuture<void>()>& mutator)
+inline TFuture<void> TFuture<void>::Apply(TCallback<TFuture<void>()> mutator)
 {
     auto mutated = NewPromise();
 
     // TODO(sandello): Make cref here.
-    auto inner = BIND([mutated] () mutable {
+    auto inner = BIND([=] () mutable {
         mutated.Set();
     });
     // TODO(sandello): Make cref here.
-    auto outer = BIND([mutator, inner] () mutable {
+    auto outer = BIND([=] () mutable {
         mutator.Run().Subscribe(inner);
     });
 
@@ -612,27 +741,27 @@ inline TFuture<void> TFuture<void>::Apply(const TCallback<TFuture<void>()>& muta
 }
 
 template <class R>
-inline TFuture<R> TFuture<void>::Apply(const TCallback<R()>& mutator)
+inline TFuture<R> TFuture<void>::Apply(TCallback<R()> mutator)
 {
     auto mutated = NewPromise<R>();
     // TODO(sandello): Make cref here.
-    Subscribe(BIND([mutated, mutator] () mutable {
+    Subscribe(BIND([=] () mutable {
         mutated.Set(mutator.Run());
     }));
     return mutated;
 }
 
 template <class R>
-inline TFuture<R> TFuture<void>::Apply(const TCallback<TFuture<R>()>& mutator)
+inline TFuture<R> TFuture<void>::Apply(TCallback<TFuture<R>()> mutator)
 {
     auto mutated = NewPromise<R>();
 
     // TODO(sandello): Make cref here.
-    auto inner = BIND([mutated] (R innerValue) mutable {
+    auto inner = BIND([=] (R innerValue) mutable {
         mutated.Set(std::move(innerValue));
     });
     // TODO(sandello): Make cref here.
-    auto outer = BIND([mutator, inner] () mutable {
+    auto outer = BIND([=] () mutable {
         mutator.Run().Subscribe(inner);
     });
 
@@ -769,20 +898,27 @@ inline TNullable<T> TPromise<T>::TryGet() const
 }
 
 template <class T>
-inline void TPromise<T>::Subscribe(const TCallback<void(T)>& listener)
+inline void TPromise<T>::Subscribe(TCallback<void(T)> onResult)
 {
     YASSERT(Impl);
-    return Impl->Subscribe(listener);
+    Impl->Subscribe(std::move(onResult));
 }
 
 template <class T>
 inline void TPromise<T>::Subscribe(
     TDuration timeout,
-    const TCallback<void(T)>& onValue,
-    const TClosure& onTimeout)
+    TCallback<void(T)> onResult,
+    TClosure onTimeout)
 {
     YASSERT(Impl);
-    return Impl->Subscribe(timeout, onValue, onTimeout);
+    Impl->Subscribe(timeout, std::move(onResult), std::move(onTimeout));
+}
+
+template <class T>
+inline void TPromise<T>::OnCanceled(TClosure onCancel)
+{
+    YASSERT(Impl);
+    Impl->OnCanceled(onCancel);
 }
 
 template <class T>
@@ -879,19 +1015,25 @@ inline void TPromise<void>::Get() const
     Impl->Get();
 }
 
-inline void TPromise<void>::Subscribe(const TClosure& listener)
+inline void TPromise<void>::Subscribe(TClosure onResult)
 {
     YASSERT(Impl);
-    return Impl->Subscribe(listener);
+    return Impl->Subscribe(std::move(onResult));
 }
 
 inline void TPromise<void>::Subscribe(
     TDuration timeout,
-    const TClosure& onValue,
-    const TClosure& onTimeout)
+    TClosure onResult,
+    TClosure onTimeout)
 {
     YASSERT(Impl);
-    return Impl->Subscribe(timeout, onValue, onTimeout);
+    return Impl->Subscribe(timeout, std::move(onResult), std::move(onTimeout));
+}
+
+inline void TPromise<void>::OnCanceled(TClosure onCancel)
+{
+    YASSERT(Impl);
+    Impl->OnCanceled(onCancel);
 }
 
 inline TFuture<void> TPromise<void>::ToFuture() const

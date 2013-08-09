@@ -117,6 +117,9 @@ public:
     //! Checks if the value is set.
     bool IsSet() const;
 
+    //! Checks if the future is canceled.
+    bool IsCanceled() const;
+
     //! Gets the value.
     /*!
      *  This call will block until the value is set.
@@ -129,22 +132,22 @@ public:
      */
     TNullable<T> TryGet() const;
 
-    //! Attaches a listener.
+    //! Attaches a result listener.
     /*!
-     *  \param callback A callback to call when the value gets set
+     *  \param onResult A callback to call when the value gets set
      *  (passing the value as a parameter).
      *
      *  \note
      *  If the value is set before the call to #Subscribe, then
      *  #callback gets called synchronously.
      */
-    void Subscribe(const TCallback<void(T)>& listener);
+    void Subscribe(TCallback<void(T)> onResult);
 
-    //! Attaches a listener.
+    //! Attaches a result listener.
     /*!
      *  \param timeout Asynchronously wait for the specified time before
      *  dropping the subscription.
-     *  \param onValue A callback to call when the value gets set
+     *  \param onResult A callback to call when the value gets set
      *  (passing the value as a parameter).
      *  \param onTimeout A callback to call when the timeout exceeded.
      *
@@ -154,22 +157,26 @@ public:
      */
     void Subscribe(
         TDuration timeout,
-        const TCallback<void(T)>& onValue,
-        const TClosure& onTimeout);
+        TCallback<void(T)> onResult,
+        TClosure onTimeout);
+
+    //! Notifies the producer that the promised value is no
+    //! longer needed.
+    void Cancel();
 
     //! Chains the asynchronous computation with another synchronous function.
-    TFuture<void> Apply(const TCallback<void(T)>& mutator);
+    TFuture<void> Apply(TCallback<void(T)> mutator);
 
     //! Chains the asynchronous computation with another asynchronous function.
-    TFuture<void> Apply(const TCallback<TFuture<void>(T)>& mutator);
+    TFuture<void> Apply(TCallback<TFuture<void>(T)> mutator);
 
     //! Chains the asynchronous computation with another synchronous function.
     template <class R>
-    TFuture<R> Apply(const TCallback<R(T)>& mutator);
+    TFuture<R> Apply(TCallback<R(T)> mutator);
 
     //! Chains the asynchronous computation with another asynchronous function.
     template <class R>
-    TFuture<R> Apply(const TCallback<TFuture<R>(T)>& mutator);
+    TFuture<R> Apply(TCallback<TFuture<R>(T)> mutator);
 
     //! Converts into a void future by effectively discarding the value.
     TFuture<void> IgnoreResult();
@@ -233,25 +240,28 @@ public:
     //! Checks if the value is set.
     bool IsSet() const;
 
+    //! Checks if the future is canceled.
+    bool IsCanceled() const;
+
     //! Synchronously waits until #Set is called.
     void Get() const;
 
-    //! Attaches a listener.
+    //! Attaches a result listener.
     /*!
-     *  \param callback A callback to call when the value gets set
+     *  \param onResult A callback to call when the value gets set
      *  (passing the value as a parameter).
      *
      *  \note
      *  If the value is set before the call to #Subscribe, then
      *  #callback gets called synchronously.
      */
-    void Subscribe(const TClosure& listener);
+    void Subscribe(TClosure onResult);
 
-    //! Attaches a listener.
+    //! Attaches a result listener.
     /*!
      *  \param timeout Asynchronously wait for the specified time before
      *  dropping the subscription.
-     *  \param onValue A callback to call when the value gets set
+     *  \param onResult A callback to call when the value gets set
      *  (passing the value as a parameter).
      *  \param onTimeout A callback to call when the timeout exceeded.
      *
@@ -261,22 +271,26 @@ public:
      */
     void Subscribe(
         TDuration timeout,
-        const TClosure& onValue,
-        const TClosure& onTimeout);
+        TClosure onResult,
+        TClosure onTimeout);
+
+    //! Notifies the producer that the promised value is no
+    //! longer needed.
+    void Cancel();
 
     //! Chains the asynchronous computation with another synchronous function.
-    TFuture<void> Apply(const TCallback<void()>& mutator);
+    TFuture<void> Apply(TCallback<void()> mutator);
 
     //! Chains the asynchronous computation with another asynchronous function.
-    TFuture<void> Apply(const TCallback<TFuture<void>()>& mutator);
+    TFuture<void> Apply(TCallback<TFuture<void>()> mutator);
 
     //! Chains the asynchronous computation with another synchronous function.
     template <class R>
-    TFuture<R> Apply(const TCallback<R()>& mutator);
+    TFuture<R> Apply(TCallback<R()> mutator);
 
     //! Chains the asynchronous computation with another asynchronous function.
     template <class R>
-    TFuture<R> Apply(const TCallback<TFuture<R>()>& mutator);
+    TFuture<R> Apply(TCallback<TFuture<R>()> mutator);
 
 private:
     explicit TFuture(const TIntrusivePtr< NYT::NDetail::TPromiseState<void> >& state);
@@ -365,22 +379,22 @@ public:
      */
     TNullable<T> TryGet() const;
 
-    //! Attaches a listener.
+    //! Attaches a result listener.
     /*!
-     *  \param callback A callback to call when the value gets set
+     *  \param onResult A callback to call when the value gets set
      *  (passing the value as a parameter).
      *
      *  \note
      *  If the value is set before the call to #Subscribe, then
      *  #callback gets called synchronously.
      */
-    void Subscribe(const TCallback<void(T)>& action);
+    void Subscribe(TCallback<void(T)> onResult);
 
-    //! Attaches a listener.
+    //! Attaches a result listener.
     /*!
      *  \param timeout Asynchronously wait for the specified time before
      *  dropping the subscription.
-     *  \param onValue A callback to call when the value gets set
+     *  \param onResult A callback to call when the value gets set
      *  (passing the value as a parameter).
      *  \param onTimeout A callback to call when the timeout exceeded.
      *
@@ -390,8 +404,19 @@ public:
      */
     void Subscribe(
         TDuration timeout,
-        const TCallback<void(T)>& onValue,
-        const TClosure& onTimeout);
+        TCallback<void(T)> onResult,
+        TClosure onTimeout);
+
+    //! Attaches a cancellation listener.
+    /*!
+     *  \param onCancel A callback to call when #TFuture<T>::Cancel is triggered
+     *  by the client.
+     *
+     *  \note
+     *  If the value is set before the call to #OnCanceled, then
+     *  #onCancel is discarded.
+     */
+    void OnCanceled(TClosure onCancel);
 
     TFuture<T> ToFuture() const;
     operator TFuture<T>() const;
@@ -475,33 +500,44 @@ public:
      */
     void Get() const;
 
-    //! Attaches a listener.
+    //! Attaches a result listener.
     /*!
-     *  \param callback A callback to call when the value gets set
+     *  \param onResult A callback to call when the value gets set
      *  (passing the value as a parameter).
      *
      *  \note
      *  If the value is set before the call to #Subscribe, then
-     *  #callback gets called synchronously.
+     *  #onResult gets called synchronously.
      */
-    void Subscribe(const TClosure& listener);
+    void Subscribe(TClosure onResult);
 
-    //! Attaches a listener.
+    //! Attaches a result listener.
     /*!
      *  \param timeout Asynchronously wait for the specified time before
      *  dropping the subscription.
-     *  \param onValue A callback to call when the value gets set
+     *  \param onResult A callback to call when the value gets set
      *  (passing the value as a parameter).
      *  \param onTimeout A callback to call when the timeout exceeded.
      *
      *  \note
      *  If the value is set before the call to #Subscribe, then
-     *  #callback gets called synchronously.
+     *  #onResult gets called synchronously.
      */
     void Subscribe(
         TDuration timeout,
-        const TClosure& onValue,
-        const TClosure& onTimeout);
+        TClosure onResult,
+        TClosure onTimeout);
+
+    //! Attaches a cancellation listener.
+    /*!
+     *  \param onCancel A callback to call when #TFuture<void>::Cancel is triggered
+     *  by the client.
+     *
+     *  \note
+     *  If the value is set before the call to #OnCanceled, then
+     *  #onCancel is discarded.
+     */
+    void OnCanceled(TClosure onCancel);
 
     TFuture<void> ToFuture() const;
     operator TFuture<void>() const;
