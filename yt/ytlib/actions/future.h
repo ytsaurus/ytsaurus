@@ -596,6 +596,25 @@ struct TPromiseSetter<void>
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Cancels a given future at the end of the scope.
+/*!
+ *  \note
+ *  Cancelation has no effect is the future is already set.
+ */
+template <class T>
+class TFutureCancelationGuard
+{
+public:
+    explicit TFutureCancelationGuard(TFuture<T> future);
+    ~TFutureCancelationGuard();
+
+private:
+    TFuture<T> Future;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT
 
 #define FUTURE_INL_H_

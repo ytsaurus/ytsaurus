@@ -1088,4 +1088,19 @@ inline TPromise<T> NewPromise()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T>
+TFutureCancelationGuard<T>::TFutureCancelationGuard(TFuture<T> future)
+    : Future(std::move(future))
+{ }
+
+template <class T>
+TFutureCancelationGuard<T>::~TFutureCancelationGuard()
+{
+    if (Future) {
+        Future.Cancel();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT
