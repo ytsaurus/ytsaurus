@@ -2,6 +2,7 @@
 #include "action_queue.h"
 #include "bind.h"
 #include "action_queue_detail.h"
+#include "invoker_util.h"
 
 #include <ytlib/misc/foreach.h>
 
@@ -282,6 +283,7 @@ private:
         // Execute as many actions as possible to minimize context switches.
         TClosure action;
         while (Queue.Dequeue(&action)) {
+            TCurrentInvokerGuard guard(this);
             action.Run();
         }
 
