@@ -52,7 +52,7 @@ class Transaction(object):
                     "Error: (type=%s, value=%s, traceback=%s), aborting transaction %s ...",
                     type,
                     value,
-                    traceback,
+                    traceback.format_exc().replace("\n", "\\n"),
                     self.transaction_id)
             if not exists("#" + self.transaction_id):
                 logger.warning("Transaction %s is absent, cannot commit or abort" % self.transaction_id)
