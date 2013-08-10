@@ -171,7 +171,6 @@ public:
             // Most likely that the fiber has been abandoned after being submitted to an invoker.
             // Give the callee the last chance to finish.
             Cancel();
-            Run();
         }
 
         YCHECK(
