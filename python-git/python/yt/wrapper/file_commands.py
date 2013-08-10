@@ -111,14 +111,14 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
         if yt_filename is None:
             yt_filename = os.path.basename(destination)
 
-    logger.info("Uploading file '%s' with strategy '%s'", filename, hash)
+    logger.debug("Uploading file '%s' with strategy '%s'", filename, placement_strategy)
 
     if placement_strategy == "hash":
         md5 = md5sum(filename)
         destination = os.path.join(config.FILE_STORAGE, "hash", md5)
         link_exists = exists(destination + "&")
-        if link_exists and not parse_bool(get_attribute(destination + "&", "broken")):
-            logger.info("Link '%s' of file '%s' exists but is broken", destination, filename)
+        if link_exists and parse_bool(get_attribute(destination + "&", "broken")):
+            logger.debug("Link '%s' of file '%s' exists but is broken", destination, filename)
             remove(destination)
             link_exists = False
         if not link_exists:
@@ -127,7 +127,7 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
             link(real_destination, destination, ignore_existing=True)
             set_attribute(real_destination, "hash", md5)
         else:
-            logger.info("Link '%s' of file '%s' exists, skipping upload", destination, filename)
+            logger.debug("Link '%s' of file '%s' exists, skipping upload", destination, filename)
     else:
         upload_with_check(destination)
 
