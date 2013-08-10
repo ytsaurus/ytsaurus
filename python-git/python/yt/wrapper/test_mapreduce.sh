@@ -246,7 +246,7 @@ test_smart_format()
         "has_subkey":"true"
     }
 }'
-    export SMART_FORMAT=1
+    export YT_SMART_FORMAT=1
     ./mapreduce -createtable "ignat/smart_x"
     ./mapreduce -createtable "ignat/smart_z"
 
@@ -263,7 +263,7 @@ test_smart_format()
     check "tskv\tz=10\tx=1" "`./mapreduce -read ${ranged_table}`"
     check "z=10\tx=1" "`./mapreduce -read ${ranged_table} -dsv`"
 
-    unset SMART_FORMAT
+    unset YT_SMART_FORMAT
     # write in yamr
     echo -e "1 2\t\tz=10" | ./mapreduce -subkey -write "ignat/smart_y"
     # convert to yamred_dsv
@@ -275,7 +275,7 @@ test_smart_format()
     check "1 2\tz=10" "`./mapreduce -read "ignat/smart_x"`"
     check_failed './mapreduce -smartformat -read "ignat/smart_x"'
 
-    export SMART_FORMAT=1
+    export YT_SMART_FORMAT=1
     echo -e "1 2\t\tz=10" | ./mapreduce -subkey -write "ignat/smart_x"
     ./mapreduce -copy -src "ignat/smart_x" -dst "ignat/smart_z"
 

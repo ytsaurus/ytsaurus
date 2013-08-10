@@ -5,6 +5,7 @@ from errors import YtError
 from tree_commands import exists
 from transaction_commands import start_transaction, commit_transaction, abort_transaction, ping_transaction
 
+import traceback as tb
 from time import sleep
 from threading import Thread
 from datetime import datetime, timedelta
@@ -51,7 +52,7 @@ class Transaction(object):
                     "Error: (type=%s, value=%s, traceback=%s), aborting transaction %s ...",
                     type,
                     value,
-                    traceback.format_exc().replace("\n", "\\n"),
+                    tb.format_exc(traceback).replace("\n", "\\n"),
                     self.transaction_id)
             if not exists("#" + self.transaction_id):
                 logger.warning("Transaction %s is absent, cannot commit or abort" % self.transaction_id)
