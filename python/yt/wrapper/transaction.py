@@ -5,7 +5,6 @@ from errors import YtError
 from tree_commands import exists
 from transaction_commands import start_transaction, commit_transaction, abort_transaction, ping_transaction
 
-import os
 from time import sleep
 from threading import Thread
 from datetime import datetime, timedelta
