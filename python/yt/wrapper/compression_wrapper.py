@@ -9,6 +9,6 @@ def create_zlib_generator(obj):
             c = zlib_obj.compress(chunk)
             if c:
                 yield c
-        c = zlib_obj.flush()
-        if c:
-            yield c
+    c = zlib_obj.flush()
+    if c:
+        yield c
