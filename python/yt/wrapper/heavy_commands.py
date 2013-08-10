@@ -45,5 +45,4 @@ def make_heavy_request(command_name, stream, path, params, create_object, use_re
                 command_name,
                 params,
                 data=stream,
-                proxy=get_host_for_heavy_operation(),
-                verbose=True)
+                proxy=get_host_for_heavy_operation())
