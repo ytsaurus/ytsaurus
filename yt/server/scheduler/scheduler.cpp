@@ -728,7 +728,7 @@ private:
             operation,
             EOperationState::Failing,
             EOperationState::Failed,
-            TError("Scheduler transaction has been expired or was aborted"));
+            TError("Scheduler transaction has expired or was aborted"));
     }
 
 
