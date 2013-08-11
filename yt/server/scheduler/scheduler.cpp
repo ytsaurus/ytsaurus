@@ -1585,29 +1585,8 @@ private:
         }
 
         AbortOperationJobs(operation);
-        AbortSchedulerTransactions(operation);
 
         operation->SetState(intermediateState);
-
-        BIND(
-            &TThis::DoTerminateOperation,
-            MakeStrong(this),
-            operation,
-            intermediateState,
-            finalState,
-            error)
-                .AsyncVia(CancelableConnectionControlInvoker)
-                .Run();
-    }
-
-    void DoTerminateOperation(
-        TOperationPtr operation,
-        EOperationState intermediateState,
-        EOperationState finalState,
-        const TError& error)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(operation->GetState() == intermediateState);
 
         // First flush: ensure that all stderrs are attached and the
         // state is changed to its intermediate value.
@@ -1617,12 +1596,11 @@ private:
             YCHECK(operation->GetState() == intermediateState);
         }
 
-        {
-            auto controller = operation->GetController();
-            controller->Abort();
-        }
+        operation->GetController()->Abort();
 
         SetOperationFinalState(operation, finalState, error);
+
+        AbortSchedulerTransactions(operation);
         
         // Second flush: ensure that the state is changed to its final value.
         {
