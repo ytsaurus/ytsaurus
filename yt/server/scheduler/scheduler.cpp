@@ -1591,6 +1591,7 @@ private:
         }
 
         AbortOperationJobs(operation);
+        AbortSchedulerTransactions(operation);
 
         operation->SetState(intermediateState);
 
@@ -1629,8 +1630,6 @@ private:
 
         SetOperationFinalState(operation, finalState, error);
         
-        AbortSchedulerTransactions(operation);
-
         // Second flush: ensure that the state is changed to its final value.
         {
             auto asyncResult = MasterConnector->FlushOperationNode(operation);
