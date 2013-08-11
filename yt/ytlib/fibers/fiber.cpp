@@ -170,8 +170,7 @@ public:
         if (State_ == EFiberState::Suspended) {
             // Most likely that the fiber has been abandoned after being submitted to an invoker.
             // Give the callee the last chance to finish.
-            Inject(CreateFiberTerminatedException());
-            Run();
+            Cancel();
         }
 
         YCHECK(
@@ -183,7 +182,7 @@ public:
         (void) coro_stack_free(&CoroStack_);
     }
 
-    
+
     static TFiber* GetCurrent()
     {
         InitTls();
@@ -199,6 +198,11 @@ public:
     bool IsTerminating() const
     {
         return Terminating_;
+    }
+
+    bool IsCanceled() const
+    {
+        return Canceled_;
     }
 
 
@@ -242,7 +246,7 @@ public:
         if (State_ == EFiberState::Exception) {
             // Rethrow the propagated exception.
 
-            YCHECK(!Terminating_);
+            YCHECK(!Canceled_);
             // XXX(babenko): VS2010 has no operator bool
             YASSERT(!(Exception_ == std::exception_ptr()));
 
@@ -252,12 +256,12 @@ public:
             std::rethrow_exception(std::move(ex));
         } else if (waitFor) {
             // Schedule wakeup when the given future is set.
-            YCHECK(!Terminating_);
-            waitFor.Subscribe(BIND(&TFiber::Run, MakeStrong(Owner_)).Via(switchTo));
+            YCHECK(!Canceled_);
+            waitFor.Subscribe(BIND(&TImpl::Wakeup, MakeStrong(Owner_)).Via(switchTo));
         } else if (switchTo) {          
             // Schedule switch to another thread.
-            YCHECK(!Terminating_);
-            switchTo->Invoke(BIND(&TFiber::Run, MakeStrong(Owner_)));
+            YCHECK(!Canceled_);
+            switchTo->Invoke(BIND(&TImpl::Wakeup, MakeStrong(Owner_)));
         }
     }
 
@@ -265,7 +269,7 @@ public:
     {
         // Failure here indicates that the callee has declined our kind offer to exit
         // gracefully and has called Yield once again.
-        YCHECK(!Terminating_);
+        YCHECK(!Canceled_);
 
         // Failure here indicates that an attempt is made to Yield control from a root fiber.
         YCHECK(Caller_);
@@ -277,7 +281,12 @@ public:
         TransferTo(Caller_->Impl.get());
         YCHECK(State_ == EFiberState::Running);
 
-        // Rethrow the injected exception, if any.
+        // Throw TFiberTerminatedException if cancellation is requested.
+        if (Canceled_) {
+            throw TFiberTerminatedException();
+        }
+
+        // Rethrow any user injected exception, if any.
         // XXX(babenko): VS2010 has no operator bool
         if (!(Exception_ == std::exception_ptr())) {
             std::exception_ptr ex;
@@ -329,6 +338,29 @@ public:
         Exception_ = std::move(exception);
     }
 
+    void Cancel()
+    {
+        YCHECK(
+            State_ == EFiberState::Initialized ||
+            State_ == EFiberState::Terminated ||
+            State_ == EFiberState::Exception ||
+            State_ == EFiberState::Suspended);
+
+        if (State_ == EFiberState::Terminated ||
+            State_ == EFiberState::Exception)
+            return;
+
+        Canceled_ = true;
+
+        if (State_ == EFiberState::Suspended) {
+            WaitFor_.Reset();
+            SwitchTo_.Reset();
+            Exception_ = std::exception_ptr();
+            Run();
+        }
+    }
+
+
     void SwitchTo(IInvokerPtr invoker)
     {
         YCHECK(invoker);
@@ -367,7 +399,8 @@ public:
 
 private:
     TFiber* Owner_;
-    bool Terminating_;
+    volatile bool Terminating_;
+    bool Canceled_;
     bool Yielded_;
 
     TClosure Callee_;
@@ -389,12 +422,21 @@ private:
     void Init()
     {
         Terminating_ = false;
+        Canceled_ = false;
         Yielded_ = false;
         Caller_ = nullptr;
         CurrentInvoker_ = GetSyncInvoker();
 
         ::memset(&CoroContext_, 0, sizeof(CoroContext_));
         ::memset(&CoroStack_, 0, sizeof(CoroStack_));
+    }
+
+    static void Wakeup(TFiberPtr fiber)
+    {
+        if (fiber->IsCanceled())
+            return;
+
+        fiber->Run();
     }
 
     static size_t GetStackSize(EFiberStack stack)
@@ -447,28 +489,29 @@ private:
         // XXX(babenko): VS2010 has no operator bool
         if (!(Exception_ == std::exception_ptr())) {
             State_ = EFiberState::Exception;
-            TransferTo(Caller_->Impl.get());
-            YUNREACHABLE();
+        } else if (Canceled_) {
+            State_ = EFiberState::Terminated;
+        } else {
+            try {
+                YCHECK(State_ == EFiberState::Running);
+
+                Callee_.Run();
+
+                YCHECK(State_ == EFiberState::Running);
+                State_ = EFiberState::Terminated;
+            } catch (const TFiberTerminatedException&) {
+                // Thrown intentionally, ignore.
+                State_ = EFiberState::Terminated;
+            } catch (...) {
+                // Failure here indicates that an unhandled exception
+                // was thrown during fiber cancellation.
+                YCHECK(!Canceled_);
+                Exception_ = std::current_exception();
+                State_ = EFiberState::Exception;
+            }
         }
 
-        try {
-            YCHECK(State_ == EFiberState::Running);
-
-            Callee_.Run();
-
-            YCHECK(State_ == EFiberState::Running);
-            State_ = EFiberState::Terminated;
-        } catch (const TFiberTerminatedException&) {
-            // Thrown intentionally, ignore.
-            State_ = EFiberState::Terminated;
-        } catch (...) {
-            // Failure here indicates that an unhandled exception
-            // was thrown during fiber termination.
-            YCHECK(!Terminating_);
-            Exception_ = std::current_exception();
-            State_ = EFiberState::Exception;
-        }
-
+        // Fall back to the caller.
         TransferTo(Caller_->Impl.get());
         YUNREACHABLE();
     }
@@ -508,6 +551,11 @@ bool TFiber::IsTerminating() const
     return Impl->IsTerminating();
 }
 
+bool TFiber::IsCanceled() const
+{
+    return Impl->IsCanceled();
+}
+
 void TFiber::Run()
 {
     Impl->Run();
@@ -531,6 +579,11 @@ void TFiber::Reset(TClosure closure)
 void TFiber::Inject(std::exception_ptr&& exception)
 {
     Impl->Inject(std::move(exception));
+}
+
+void TFiber::Cancel()
+{
+    Impl->Cancel();
 }
 
 void TFiber::SwitchTo(IInvokerPtr invoker)
@@ -579,6 +632,20 @@ void SwitchTo(IInvokerPtr invoker)
 {
     TFiber::GetCurrent()->SwitchTo(std::move(invoker));
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NDetail {
+
+TClosure GetCurrentFiberCanceler()
+{
+    TFiberPtr fiber(TFiber::GetCurrent());
+    return BIND([=] {
+        fiber->Cancel();
+    });
+}
+
+} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 

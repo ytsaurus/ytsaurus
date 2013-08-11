@@ -65,6 +65,7 @@ public:
     EFiberState GetState() const;
     bool Yielded() const;
     bool IsTerminating() const;
+    bool IsCanceled() const;
 
     void Run();
     void Yield();
@@ -73,6 +74,7 @@ public:
     void Reset(TClosure closure);
     
     void Inject(std::exception_ptr&& exception);
+    void Cancel();
 
     void SwitchTo(IInvokerPtr invoker);
     void WaitFor(TFuture<void> future, IInvokerPtr invoker);

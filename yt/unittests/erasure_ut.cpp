@@ -288,7 +288,7 @@ TEST_F(TErasureMixture, RepairTest1)
         }
     }
 
-    auto repairResult = RepairErasedBlocks(codec, erasedIndices, readers, writers).Get();
+    auto repairResult = RepairErasedParts(codec, erasedIndices, readers, writers).Get();
     EXPECT_TRUE(repairResult.IsOK());
 
     auto erasureReader = CreateErasureReader(codec);
@@ -349,7 +349,7 @@ TEST_F(TErasureMixture, RepairTest2)
         }
     }
 
-    auto repairResult = RepairErasedBlocks(codec, erasedIndices, readers, writers).Get();
+    auto repairResult = RepairErasedParts(codec, erasedIndices, readers, writers).Get();
     EXPECT_TRUE(repairResult.IsOK());
 
     auto erasureReader = CreateErasureReader(codec);
@@ -424,7 +424,7 @@ TEST_F(TErasureMixture, RepairTestWithSeveralWindows)
         }
     }
 
-    RepairErasedBlocks(codec, erasedIndices, readers, writers).Get();
+    RepairErasedParts(codec, erasedIndices, readers, writers).Get();
 
     { // Check reader
         auto erasureReader = CreateErasureReader(codec);

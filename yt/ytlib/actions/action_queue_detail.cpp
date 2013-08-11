@@ -267,7 +267,7 @@ EBeginExecuteResult TExecutorThread::CheckedExecute()
         return EBeginExecuteResult::Terminated;
     }
 
-    if (fiber->IsTerminating()) {
+    if (fiber->IsCanceled()) {
         // All TFiberTerminatedException-s are being caught in BeginExecute.
         // A fiber that is currently being terminated cannot be reused and must be abandoned.
         return EBeginExecuteResult::Terminated;
