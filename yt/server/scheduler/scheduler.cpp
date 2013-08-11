@@ -870,11 +870,11 @@ private:
         {
             auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObject>("start_sync_tx");
             auto transactionid = FromProto<TObjectId>(rsp->object_id());
-            TTransactionAttachOptions attachOptions(transactionid);
-            attachOptions.AutoAbort = true;
-            attachOptions.Ping = true;
-            attachOptions.PingAncestors = false;
-            operation->SetSyncSchedulerTransaction(transactionManager->Attach(attachOptions));
+            TTransactionAttachOptions options(transactionid);
+            options.AutoAbort = true;
+            options.Ping = true;
+            options.PingAncestors = false;
+            operation->SetSyncSchedulerTransaction(transactionManager->Attach(options));
         }
 
         LOG_INFO("Scheduler sync transaction started (SyncTransactionId: %s, OperationId: %s)",
@@ -921,11 +921,11 @@ private:
         {
             auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObject>("start_async_tx");
             auto transactionid = FromProto<TObjectId>(rsp->object_id());
-            TTransactionAttachOptions attachOptions(transactionid);
-            attachOptions.AutoAbort = true;
-            attachOptions.Ping = true;
-            attachOptions.PingAncestors = false;
-            operation->SetAsyncSchedulerTransaction(transactionManager->Attach(attachOptions));
+            TTransactionAttachOptions options(transactionid);
+            options.AutoAbort = true;
+            options.Ping = true;
+            options.PingAncestors = false;
+            operation->SetAsyncSchedulerTransaction(transactionManager->Attach(options));
         }
 
         LOG_INFO("Scheduler async transaction started (AsyncTranasctionId: %s, OperationId: %s)",
