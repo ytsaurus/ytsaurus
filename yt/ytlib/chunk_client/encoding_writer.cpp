@@ -234,12 +234,12 @@ TAsyncError TEncodingWriter::AsyncFlush()
 
     auto this_ = MakeStrong(this);
     Semaphore.GetFreeEvent().Subscribe(
-        BIND([=] () {
+        BIND([this, this_] () {
             if (IsWaiting) {
                 // We dumped all data to ReplicationWriter, and subscribed on ReadyEvent.
                 CloseRequested = true;
             } else {
-                this_->State.FinishOperation();
+                State.FinishOperation();
             }
         }).Via(CompressionInvoker));
 
