@@ -707,22 +707,16 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LOG_INFO("Operation belongs to an expired user transaction, aborting (OperationId: %s)",
-            ~ToString(operation->GetOperationId()));
-
         TerminateOperation(
             operation,
             EOperationState::Aborting,
             EOperationState::Aborted,
-            TError("Operation transaction has been expired or was aborted"));
+            TError("Operation transaction has expired or was aborted"));
     }
 
     void OnSchedulerTransactionAborted(TOperationPtr operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-
-        LOG_INFO("Operation uses an expired scheduler transaction, aborting (OperationId: %s)",
-            ~ToString(operation->GetOperationId()));
 
         TerminateOperation(
             operation,
