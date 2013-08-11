@@ -29,6 +29,7 @@ TEncodingWriter::TEncodingWriter(
     , Semaphore(Config->EncodeWindowSize)
     , Codec(NCompression::GetCodec(options->CompressionCodec))
     , IsWaiting(false)
+    , CloseRequested(false)
     , OnReadyEventCallback(
         BIND(&TEncodingWriter::OnReadyEvent, MakeWeak(this))
             .Via(CompressionInvoker))
@@ -172,6 +173,12 @@ void TEncodingWriter::OnReadyEvent(TError error)
 
     YCHECK(IsWaiting);
     IsWaiting = false;
+
+    if (CloseRequested) {
+        State.FinishOperation();
+        return;
+    }
+
     WritePendingBlocks();
 }
 
@@ -226,9 +233,15 @@ TAsyncError TEncodingWriter::AsyncFlush()
     State.StartOperation();
 
     auto this_ = MakeStrong(this);
-    Semaphore.GetFreeEvent().Subscribe(BIND([=] () {
-        this_->State.FinishOperation();
-    }));
+    Semaphore.GetFreeEvent().Subscribe(
+        BIND([=] () {
+            if (IsWaiting) {
+                // We dumped all data to ReplicationWriter, and subscribed on ReadyEvent.
+                CloseRequested = true;
+            } else {
+                this_->State.FinishOperation();
+            }
+        }).Via(CompressionInvoker));
 
     return State.GetOperationError();
 }
