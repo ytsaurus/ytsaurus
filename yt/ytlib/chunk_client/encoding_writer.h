@@ -61,6 +61,7 @@ private:
 
     // True if OnReadyEventCallback is subscribed on AsyncWriter::ReadyEvent.
     bool IsWaiting;
+    bool CloseRequested;
     TCallback<void(TError)> OnReadyEventCallback;
     TCallback<void()> TriggerWritingCallback;
 
