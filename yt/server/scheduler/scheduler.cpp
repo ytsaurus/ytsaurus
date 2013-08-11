@@ -597,8 +597,6 @@ private:
     TActionQueuePtr SnapshotIOQueue;
 
     std::unique_ptr<TMasterConnector> MasterConnector;
-    TCancelableContextPtr CancelableConnectionContext;
-    IInvokerPtr CancelableConnectionControlInvoker;
 
     std::unique_ptr<ISchedulerStrategy> Strategy;
 
@@ -655,21 +653,12 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        CancelableConnectionContext = New<TCancelableContext>();
-        CancelableConnectionControlInvoker = CancelableConnectionContext->CreateInvoker(
-            Bootstrap->GetControlInvoker());
-
         ReviveOperations(result.Operations);
     }
 
     void OnMasterDisconnected()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-
-        YCHECK(CancelableConnectionContext);
-        CancelableConnectionContext->Cancel();
-        CancelableConnectionContext.Reset();
-        CancelableConnectionControlInvoker.Reset();
 
         auto operations = IdToOperation;
         FOREACH (const auto& pair, operations) {
