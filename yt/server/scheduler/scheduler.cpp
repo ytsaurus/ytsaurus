@@ -871,7 +871,7 @@ private:
             auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObject>("start_sync_tx");
             auto transactionid = FromProto<TObjectId>(rsp->object_id());
             TTransactionAttachOptions options(transactionid);
-            options.AutoAbort = true;
+            options.AutoAbort = false;
             options.Ping = true;
             options.PingAncestors = false;
             operation->SetSyncSchedulerTransaction(transactionManager->Attach(options));
@@ -922,7 +922,7 @@ private:
             auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObject>("start_async_tx");
             auto transactionid = FromProto<TObjectId>(rsp->object_id());
             TTransactionAttachOptions options(transactionid);
-            options.AutoAbort = true;
+            options.AutoAbort = false;
             options.Ping = true;
             options.PingAncestors = false;
             operation->SetAsyncSchedulerTransaction(transactionManager->Attach(options));
