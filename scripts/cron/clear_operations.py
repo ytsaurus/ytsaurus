@@ -18,7 +18,7 @@ formatter = logging.Formatter('%(asctime)-15s: %(message)s')
 logger.addHandler(logging.StreamHandler())
 logger.handlers[0].setFormatter(formatter)
 
-def clean_operations(count, failed_timeout):
+def clean_operations(count, total_count, failed_timeout, log):
     """Clean all operations started no more than #days days ago,
        leaving no more than #count most recent operations."""
 
@@ -33,7 +33,12 @@ def clean_operations(count, failed_timeout):
     def is_final(state):
         return state in ["completed", "aborted", "failed"]
 
+    operations.sort(key=lambda op: op.time, reverse=True)
+
     for op in operations:
+        if not is_final(op.state):
+            continue
+        
         is_casual = (op.state in ["completed", "aborted"]) and (len(yt.get("//sys/operations/%s/jobs" % op.id)) == 0)
 
         time_since = datetime.utcnow() - op.time 
@@ -41,14 +46,13 @@ def clean_operations(count, failed_timeout):
 
         is_regular = (op.spec.get("authenticated_user", "unknown") in ["crawler", "cron", "odin"])
 
-        if is_casual:
-            if is_regular or saved >= count:
-                to_remove.append(op.id)
-            else:
-                saved += 1
-        
-        if is_final(op.state) and is_old:
+        if is_regular or (is_casual and saved >= count) or is_old or (saved >= total_count):
             to_remove.append(op.id)
+        else:
+            saved += 1
+
+    if log is not None:
+        log_output = open(log, "a")
    
     for op in to_remove:
         if not yt.exists("//sys/operations/%s" % op):
@@ -56,20 +60,29 @@ def clean_operations(count, failed_timeout):
         if not is_final(yt.get("//sys/operations/%s/@state" % op)):
             logger.error("Trying to remove operation (%s in %s) that is not in final state", op, yt.config.http.PROXY)
             sys.exit(1)
+        if log is not None:
+            log_output.write(yt.get("//sys/operations/%s/@" % op, format=yt.Format("<format=text>json")))
+            log_output.write("\n")
         logger.info("Removing operation %s in %s", op, yt.config.http.PROXY)
         yt.remove("//sys/operations/%s" % op, recursive=True)
+
+    if log is not None:
+        log_output.close()
     
 
 def main():
 
     parser = argparse.ArgumentParser(description='Clean operations from cypress.')
     parser.add_argument('--count', metavar='N', type=int, default=50,
-                       help='leave history no more than N operations')
+                       help='leave no more than N completed (without stderr) or aborted operations')
+    parser.add_argument('--total-count', metavar='N', type=int, default=2000,
+                       help='leave no more that N operations totally')
     parser.add_argument('--failed_timeout', metavar='N', type=int, default=2,
                        help='remove all failed operation older than N days')
+    parser.add_argument('--log', help='file to save operation specs')
 
     args = parser.parse_args()
-    clean_operations(args.count, timedelta(days=args.failed_timeout))
+    clean_operations(args.count, args.total_count, timedelta(days=args.failed_timeout), args.log)
 
 if __name__ == "__main__":
     main()
