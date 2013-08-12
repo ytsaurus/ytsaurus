@@ -1,9 +1,9 @@
-from errors import YtError, YtOperationFailedError, YtResponseError 
-from record import Record, record_to_line, line_to_record, extract_key
+from errors import YtError, YtOperationFailedError, YtResponseError, YtNetworkError, YtProxyUnavailable, YtTokenError, YtFormatError
+from record import Record, record_to_line, line_to_record
 from format import DsvFormat, YamrFormat, YsonFormat, JsonFormat, Format
 from table import TablePath, to_table, to_name
 from tree_commands import set, get, list, exists, remove, search, mkdir, copy, move, link, get_type, create, \
-                          has_attribute, get_attribute, set_attribute, list_attributes
+                          has_attribute, get_attribute, set_attribute, list_attributes, find_free_subpath
 from acl_commands import check_permission, add_member, remove_member
 from table_commands import create_table, create_temp_table, write_table, read_table, \
                            records_count, is_sorted, is_empty, \

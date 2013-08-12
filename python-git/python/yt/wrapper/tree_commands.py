@@ -1,8 +1,10 @@
 import config
+import logger
 from common import parse_bool, flatten, get_value, bool_to_string
 from transaction_commands import _make_transactional_request, \
                                  _make_formatted_transactional_request
 from table import prepare_path, to_name
+from errors import YtResponseError
 
 import yt.yson as yson
 
@@ -171,12 +173,26 @@ def search(root="/", node_type=None, path_filter=None, object_filter=None, attri
     exclude = deepcopy(flatten(get_value(exclude, [])))
     exclude.append("//sys/operations")
 
+    def safe_get(path):
+        try:
+            return get(path, attributes=attributes)
+        except YtResponseError as rsp:
+            if rsp.is_access_denied():
+                logger.warning("Cannot traverse %s, access denied" % path)
+            elif rsp.is_resolve_error(): 
+                logger.warning("Path %s is absent" % path)
+            else:
+                raise
+        return None
+
     result = []
     def walk(path, object, depth, ignore_opaque=False):
+        if object is None:
+            return
         if path in exclude or (depth_bound is not None and depth > depth_bound):
             return
         if object.attributes.get("opaque", False) and not ignore_opaque:
-            walk(path, get(path, attributes=attributes), depth, True)
+            walk(path, safe_get(path), depth, True)
             return
         object_type = object.attributes["type"]
         if (node_type is None or object_type in flatten(node_type)) and \
@@ -190,7 +206,7 @@ def search(root="/", node_type=None, path_filter=None, object_filter=None, attri
             for key, value in object.iteritems():
                 walk("{0}/{1}".format(path, key), value, depth + 1)
 
-    walk(root, get(root, attributes=attributes), 0, True)
+    walk(root, safe_get(root), 0, True)
     return result
 
 def remove_with_empty_dirs(path):
