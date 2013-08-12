@@ -61,9 +61,9 @@ class Response(object):
                         .format(
                             self.http_response.headers.get("X-YT-Request-ID", "absent"),
                             self.http_response.url))
-            self._error = format_error(self.http_response.json())
+            self._error = self.http_response.json()
         elif int(self.http_response.headers.get("x-yt-response-code", 0)) != 0:
-            self._error = format_error(json.loads(self.http_response.headers["x-yt-error"]))
+            self._error = json.loads(self.http_response.headers["x-yt-error"])
         self._return_code_processed = True
 
 def make_request_with_retries(request, make_retries=False, retry_unavailable_proxy=True,

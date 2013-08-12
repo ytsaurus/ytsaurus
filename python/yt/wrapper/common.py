@@ -2,6 +2,7 @@ from yt.common import require, flatten, update, which, YtError
 import yt.yson as yson
 
 import os
+import sys
 import random
 from functools import partial
 from itertools import ifilter
@@ -110,6 +111,11 @@ def chunk_iter_lines(lines, chunk_size):
             size = 0
             chunk = []
     yield chunk
+
+def die(message=None, return_code=1):
+    if message is not None:
+        print >>sys.stderr, message
+    sys.exit(return_code)
 
 def update_from_env(variables):
     """

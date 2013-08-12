@@ -13,7 +13,17 @@ class YtResponseError(YtError):
     """
     Represents error that occurs when we have error in HTTP response.
     """
-    pass
+    def __init__(self, url, headers, error):
+        self.url = url
+        self.headers = headers
+        self.error = error
+
+    def __str__(self):
+        return "Response to request {0} with headers {1} contains error:\n{2}".\
+                  format(self.url, self.headers, format_error(self.error))
+
+    def is_resolve_error(self):
+        return int(self.error["code"]) == 500
 
 class YtNetworkError(YtError):
     """
