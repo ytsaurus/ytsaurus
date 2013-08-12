@@ -2,7 +2,7 @@ import config
 import logger
 from compression_wrapper import create_zlib_generator
 from common import require, generate_uuid
-from errors import YtError, YtResponseError
+from errors import YtError, YtResponseError, format_error
 from version import VERSION
 from http import make_get_request_with_retries, make_request_with_retries, Response, get_token, get_proxy
 
@@ -171,9 +171,7 @@ def make_request(command_name, params,
         else:
             return response.content()
     else:
-        message = "Response to request {0} with headers {1} contains error:\n{2}".\
-                  format(url, headers, response.error())
-        raise YtResponseError(message)
+        raise YtResponseError(url, headers, response.error())
 
 def make_formatted_request(command_name, params, format, **kwargs):
     # None format means that we want parsed output (as yson structure) instead of string.
