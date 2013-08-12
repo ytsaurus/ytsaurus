@@ -39,7 +39,7 @@ void TDownloadCommand::DoExecute()
 
     while (true) {
         auto blockOrError = WaitFor(reader->AsyncRead());
-        
+
         THROW_ERROR_EXCEPTION_IF_FAILED(blockOrError);
         auto block = blockOrError.GetValue();
 
@@ -94,10 +94,8 @@ void TUploadCommand::DoExecute()
         }
     }
 
-    {
-        auto result = WaitFor(writer->AsyncClose());
-        THROW_ERROR_EXCEPTION_IF_FAILED(result);
-    }
+    writer->Close();
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////

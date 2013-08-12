@@ -41,15 +41,6 @@ IAsyncWriterPtr CreateAsyncTableWriter(
         const NYPath::TRichYPath& richPath,
         const TNullable<TKeyColumns>& keyColumns);
 
-ISyncWriterPtr CreateSyncTableWriter(
-        TTableWriterConfigPtr config,
-        NRpc::IChannelPtr masterChannel,
-        NTransactionClient::ITransactionPtr transaction,
-        NTransactionClient::TTransactionManagerPtr transactionManager,
-        const NYPath::TRichYPath& richPath,
-        const TNullable<TKeyColumns>& keyColumns);
-
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTableClient

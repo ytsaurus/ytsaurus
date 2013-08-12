@@ -30,13 +30,13 @@ struct IWriterBase
 struct IAsyncWriter
     : public IWriterBase
 {
-    virtual TAsyncError AsyncOpen() = 0;
+    virtual void Open() = 0;
 
     virtual bool IsReady() = 0;
 
     virtual TAsyncError GetReadyEvent() = 0;
 
-    virtual TAsyncError AsyncClose() = 0;
+    virtual void Close() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

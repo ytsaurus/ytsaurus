@@ -10,7 +10,7 @@ namespace NTableClient {
 struct IAsyncReader
     : public virtual TRefCounted
 {
-    virtual TAsyncError AsyncOpen() = 0;
+    virtual void Open() = 0;
 
     virtual bool FetchNextItem() = 0;
     virtual TAsyncError GetReadyEvent() = 0;

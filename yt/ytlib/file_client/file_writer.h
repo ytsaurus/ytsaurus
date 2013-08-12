@@ -45,7 +45,7 @@ public:
 
     TAsyncError AsyncOpen();
     TAsyncError AsyncWrite(const TRef& data);
-    TAsyncError AsyncClose();
+    void Close();
 
 private:
     typedef TAsyncWriter TThis;
@@ -53,7 +53,7 @@ private:
 
     TFileWriterConfigPtr Config;
     NRpc::IChannelPtr MasterChannel;
-        
+
     NTransactionClient::ITransactionPtr Transaction;
     NTransactionClient::TTransactionManagerPtr TransactionManager;
     NTransactionClient::ITransactionPtr UploadTransaction;

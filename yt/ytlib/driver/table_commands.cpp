@@ -50,10 +50,7 @@ void TReadCommand::DoExecute()
     auto format = Context->GetOutputFormat();
     auto consumer = CreateConsumerForFormat(format, EDataType::Tabular, &buffer);
 
-    {
-        auto result = WaitFor(reader->AsyncOpen());
-        THROW_ERROR_EXCEPTION_IF_FAILED(result);
-    }
+    reader->Open();
 
     auto flushBuffer = [&] () {
         if (!output->Write(buffer.Begin(), buffer.Size())) {
@@ -118,10 +115,7 @@ void TWriteCommand::DoExecute()
     auto format = Context->GetInputFormat();
     auto parser = CreateParserForFormat(format, EDataType::Tabular, &consumer);
 
-    {
-        auto result = WaitFor(writer->AsyncOpen());
-        THROW_ERROR_EXCEPTION_IF_FAILED(result);
-    }
+    writer->Open();
 
     while (true) {
         if (!input->Read(buffer.Begin(), buffer.Size())) {
@@ -142,11 +136,7 @@ void TWriteCommand::DoExecute()
     }
 
     parser->Finish();
-
-    {
-        auto result = WaitFor(writer->AsyncClose());
-        THROW_ERROR_EXCEPTION_IF_FAILED(result);
-    }
+    writer->Close();
 
 }
 

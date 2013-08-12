@@ -82,7 +82,7 @@ TAsyncError TSnapshotBuilder::Run()
         TJob job;
         job.Operation = operation;
         job.FileName = CombinePaths(Config->SnapshotTempPath, ToString(operation->GetOperationId()));
-        job.TempFileName = job.FileName + TempFileSuffix; 
+        job.TempFileName = job.FileName + TempFileSuffix;
         Jobs.push_back(job);
 
         LOG_INFO("Snapshot job registered (OperationId: %s)",
@@ -94,7 +94,7 @@ TAsyncError TSnapshotBuilder::Run()
             .AsyncVia(Bootstrap->GetScheduler()->GetSnapshotIOInvoker()));
 }
 
-TDuration TSnapshotBuilder::GetTimeout() const 
+TDuration TSnapshotBuilder::GetTimeout() const
 {
     return Config->SnapshotTimeout;
 }
@@ -118,7 +118,7 @@ void TSnapshotBuilder::Build(const TJob& job)
 
     // Move temp file into regular file atomically.
     {
-        Rename(job.TempFileName, job.FileName);   
+        Rename(job.TempFileName, job.FileName);
     }
 }
 
@@ -228,10 +228,7 @@ void TSnapshotBuilder::UploadSnapshot(const TJob& job)
                 }
             }
 
-            {
-                auto result = WaitFor(writer->AsyncClose());
-                THROW_ERROR_EXCEPTION_IF_FAILED(result);
-            }
+            writer->Close();
 
             LOG_INFO("Snapshot uploaded successfully");
         }

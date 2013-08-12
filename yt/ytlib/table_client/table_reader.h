@@ -39,7 +39,7 @@ public:
         NChunkClient::IBlockCachePtr blockCache,
         const NYPath::TRichYPath& richPath);
 
-    virtual TAsyncError AsyncOpen();
+    virtual void Open();
 
     virtual bool FetchNextItem() override;
     virtual TAsyncError GetReadyEvent() override;
@@ -54,12 +54,6 @@ public:
     virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override;
 
 private:
-    typedef TAsyncTableReader TThis;
-
-    TFuture<TTableYPathProxy::TRspFetchPtr> FetchTableInfo();
-    TAsyncError OpenChunkReader(TTableYPathProxy::TRspFetchPtr fetchRsp);
-    void OnChunkReaderOpened();
-
     TTableReaderConfigPtr Config;
     NRpc::IChannelPtr MasterChannel;
     NTransactionClient::ITransactionPtr Transaction;
@@ -73,46 +67,7 @@ private:
     NLog::TTaggedLogger Logger;
 
     TTableChunkSequenceReaderPtr Reader;
-    NCypressClient::TNodeId NodeId;
 
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! A client-side facade for reading tables.
-/*!
- *  The client must first call #Open. This positions the reader before the first row.
- *
- *  Then the client it must iteratively fetch rows by calling #NextRow.
- *  When no more rows can be fetched, the latter returns False.
- *
- */
-class TTableReader
-    : public ISyncReader
-{
-public:
-    //! Initializes an instance.
-    TTableReader(
-        TTableReaderConfigPtr config,
-        NRpc::IChannelPtr masterChannel,
-        NTransactionClient::ITransactionPtr transaction,
-        NChunkClient::IBlockCachePtr blockCache,
-        const NYPath::TRichYPath& richPath);
-
-    virtual void Open() override;
-
-    virtual const TRow* GetRow() override;
-    virtual const NChunkClient::TNonOwningKey& GetKey() const override;
-    virtual const TNullable<int>& GetTableIndex() const override;
-
-    virtual i64 GetRowIndex() const override;
-    virtual i64 GetRowCount() const override;
-    virtual std::vector<NChunkClient::TChunkId> GetFailedChunks() const override;
-    virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override;
-
-private:
-    TAsyncTableReaderPtr AsyncReader_;
-    
 };
 
 ////////////////////////////////////////////////////////////////////////////////

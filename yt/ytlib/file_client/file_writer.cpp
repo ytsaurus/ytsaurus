@@ -4,7 +4,7 @@
 #include "config.h"
 #include "private.h"
 
-#include <ytlib/actions/async_pipeline.h>
+#include <ytlib/fibers/fiber.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
 
@@ -80,7 +80,7 @@ TAsyncError TAsyncWriter::OnUploadTransactionStarted(TErrorOr<ITransactionPtr> t
         return MakeFuture(TError("Error creating upload transaction")
             << transactionOrError);
     }
-    
+
     UploadTransaction = transactionOrError.GetValue();
     ListenTransaction(UploadTransaction);
     LOG_INFO("Upload transaction created (TransactionId: %s)",
@@ -89,7 +89,7 @@ TAsyncError TAsyncWriter::OnUploadTransactionStarted(TErrorOr<ITransactionPtr> t
     TObjectServiceProxy proxy(MasterChannel);
 
     LOG_INFO("Requesting file info");
-    
+
     auto batchReq = proxy.ExecuteBatch();
 
     auto path = RichPath.GetPath();
@@ -190,17 +190,23 @@ TAsyncError TAsyncWriter::AsyncWrite(const TRef& data)
     }
 }
 
-TAsyncError TAsyncWriter::AsyncClose()
+void TAsyncWriter::Close()
 {
     if (IsAborted()) {
-        return MakeFuture(TError("Transaction aborted"));
+        return;
     }
 
     LOG_INFO("Closing file writer and committing upload transaction");
-    return StartAsyncPipeline(GetSyncInvoker())
-        ->Add(BIND(&TWriter::AsyncClose, Writer))
-        ->Add(BIND(&NTransactionClient::ITransaction::AsyncCommit, UploadTransaction, NMetaState::NullMutationId))
-        ->Run();
+
+    {
+        auto error = WaitFor(Writer->AsyncClose());
+        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Failed to close file writer");
+    }
+
+    {
+        auto error = WaitFor(UploadTransaction->AsyncCommit(NMetaState::NullMutationId));
+        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Failed to commit upload transaction");
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

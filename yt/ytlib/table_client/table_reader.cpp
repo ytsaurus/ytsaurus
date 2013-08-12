@@ -5,9 +5,9 @@
 #include "table_chunk_reader.h"
 #include "private.h"
 
-#include <ytlib/actions/async_pipeline.h>
-
 #include <ytlib/misc/sync.h>
+
+#include <ytlib/fibers/fiber.h>
 
 #include <ytlib/chunk_client/block_cache.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
@@ -53,9 +53,11 @@ TAsyncTableReader::TAsyncTableReader(
         ~ToString(TransactionId)));
 }
 
-TFuture<TTableYPathProxy::TRspFetchPtr> TAsyncTableReader::FetchTableInfo()
+void TAsyncTableReader::Open()
 {
-    LOG_INFO("Fetching table info");
+    YCHECK(!IsOpen);
+
+    LOG_INFO("Opening table reader");
 
     auto fetchReq = TTableYPathProxy::Fetch(RichPath.GetPath());
     ToProto(fetchReq->mutable_attributes(), RichPath.Attributes());
@@ -63,11 +65,8 @@ TFuture<TTableYPathProxy::TRspFetchPtr> TAsyncTableReader::FetchTableInfo()
     SetTransactionId(fetchReq, TransactionId);
     // ToDo(psushin): enable ignoring lost chunks.
 
-    return Proxy.Execute(fetchReq);
-}
+    auto fetchRsp = WaitFor(Proxy.Execute(fetchReq));
 
-TAsyncError TAsyncTableReader::OpenChunkReader(TTableYPathProxy::TRspFetchPtr fetchRsp)
-{
     THROW_ERROR_EXCEPTION_IF_FAILED(*fetchRsp, "Error fetching table info");
 
     NodeDirectory->MergeFrom(fetchRsp->node_directory());
@@ -85,11 +84,11 @@ TAsyncError TAsyncTableReader::OpenChunkReader(TTableYPathProxy::TRspFetchPtr fe
         NodeDirectory,
         std::move(chunkSpecs),
         provider);
-    return Reader->AsyncOpen();
-}
 
-void TAsyncTableReader::OnChunkReaderOpened()
-{
+    auto error = WaitFor(Reader->AsyncOpen());
+
+    THROW_ERROR_EXCEPTION_IF_FAILED(error);
+
     if (Transaction) {
         ListenTransaction(Transaction);
     }
@@ -97,20 +96,6 @@ void TAsyncTableReader::OnChunkReaderOpened()
     IsOpen = true;
 
     LOG_INFO("Table reader opened");
-}
-
-TAsyncError TAsyncTableReader::AsyncOpen()
-{
-    YCHECK(!IsOpen);
-
-    LOG_INFO("Opening table reader");
-
-    auto this_ = MakeStrong(this);
-    return StartAsyncPipeline(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
-        ->Add(BIND(&TThis::FetchTableInfo, this_))
-        ->Add(BIND(&TThis::OpenChunkReader, this_))
-        ->Add(BIND(&TThis::OnChunkReaderOpened, this_))
-        ->Run();
 }
 
 bool TAsyncTableReader::FetchNextItem()
@@ -168,67 +153,6 @@ const TNullable<int>& TAsyncTableReader::GetTableIndex() const
 NChunkClient::NProto::TDataStatistics TAsyncTableReader::GetDataStatistics() const
 {
     return Reader->GetProvider()->GetDataStatistics();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TTableReader::TTableReader(
-    TTableReaderConfigPtr config,
-    NRpc::IChannelPtr masterChannel,
-    NTransactionClient::ITransactionPtr transaction,
-    NChunkClient::IBlockCachePtr blockCache,
-    const NYPath::TRichYPath& richPath)
-    : AsyncReader_(
-        New<TAsyncTableReader>(
-            config,
-            masterChannel,
-            transaction,
-            blockCache,
-            richPath))
-{ }
-
-void TTableReader::Open()
-{
-    Sync(~AsyncReader_, &TAsyncTableReader::AsyncOpen);
-}
-
-const TRow* TTableReader::GetRow()
-{
-    if (AsyncReader_->IsValid() && !AsyncReader_->FetchNextItem()) {
-        Sync(~AsyncReader_, &TAsyncTableReader::GetReadyEvent);
-    }
-
-    return AsyncReader_->IsValid() ? &(AsyncReader_->GetRow()) : nullptr;
-}
-
-i64 TTableReader::GetRowIndex() const
-{
-    return AsyncReader_->GetRowIndex();
-}
-
-i64 TTableReader::GetRowCount() const
-{
-    return AsyncReader_->GetRowCount();
-}
-
-std::vector<NChunkClient::TChunkId> TTableReader::GetFailedChunks() const
-{
-    return AsyncReader_->GetFailedChunks();
-}
-
-const TNullable<int>& TTableReader::GetTableIndex() const
-{
-    return AsyncReader_->GetTableIndex();
-}
-
-NChunkClient::NProto::TDataStatistics TTableReader::GetDataStatistics() const
-{
-    return AsyncReader_->GetDataStatistics();
-}
-
-const TNonOwningKey& TTableReader::GetKey() const
-{
-    YUNREACHABLE();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

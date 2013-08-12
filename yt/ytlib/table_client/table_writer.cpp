@@ -8,7 +8,7 @@
 #include <ytlib/misc/sync.h>
 #include <ytlib/misc/nullable.h>
 
-#include <ytlib/actions/async_pipeline.h>
+#include <ytlib/fibers/fiber.h>
 
 #include <ytlib/transaction_client/transaction.h>
 #include <ytlib/transaction_client/transaction_manager.h>
@@ -46,7 +46,7 @@ public:
         const NYPath::TRichYPath& richPath,
         const TNullable<TKeyColumns>& keyColumns);
 
-    virtual TAsyncError AsyncOpen() override;
+    virtual void Open() override;
 
     virtual void WriteRow(const TRow& row) override;
 
@@ -54,7 +54,7 @@ public:
 
     virtual TAsyncError GetReadyEvent() override;
 
-    virtual TAsyncError AsyncClose() override;
+    virtual void Close() override;
 
     virtual const TNullable<TKeyColumns>& GetKeyColumns() const override;
 
@@ -134,48 +134,58 @@ TAsyncTableWriter::TAsyncTableWriter(
         ~ToString(TransactionId)));
 }
 
-TAsyncError TAsyncTableWriter::AsyncOpen()
+void TAsyncTableWriter::Open()
 {
     YCHECK(!IsOpen);
     YCHECK(!IsClosed);
 
     LOG_INFO("Opening table writer");
 
-    auto this_ = MakeStrong(this);
-    return StartAsyncPipeline(GetSyncInvoker())
-        ->Add(BIND(&TThis::CreateUploadTransaction, this_))
-        ->Add(BIND(&TThis::OnTransactionCreated, this_))
-        ->Add(BIND(&TThis::FetchTableInfo, this_))
-        ->Add(BIND(&TThis::OnInfoFetched, this_))
-        ->Add(BIND(&TThis::OpenChunkWriter, this_))
-        ->Add(BIND(&TThis::OnChunkWriterOpened, this_))
-        ->Run();
-}
-
-TFuture<TErrorOr<ITransactionPtr>> TAsyncTableWriter::CreateUploadTransaction()
-{
-    LOG_INFO("Creating upload transaction");
-
     TTransactionStartOptions options;
     options.ParentId = TransactionId;
     options.EnableUncommittedAccounting = false;
     options.Attributes->Set("title", Sprintf("Table upload to %s", ~RichPath.GetPath()));
-    return TransactionManager->AsyncStart(options).Apply(
-        BIND([] (TErrorOr<ITransactionPtr> transactionOrError) -> TErrorOr<ITransactionPtr> {
-            if (!transactionOrError.IsOK()) {
-                return TError("Error creating upload transaction") << transactionOrError;
-            }
-            return transactionOrError;
-        })
-    );
-}
+    auto transactionOrError = WaitFor(TransactionManager->AsyncStart(options));
 
-void TAsyncTableWriter::OnTransactionCreated(ITransactionPtr transaction)
-{
-    UploadTransaction = transaction;
-    auto uploadTransactionId = transaction->GetId();
+    THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError, "Error creating upload transaction");
+
+    UploadTransaction = transactionOrError.GetValue();
     ListenTransaction(UploadTransaction);
-    LOG_INFO("Upload transaction created (TransactionId: %s)", ~ToString(uploadTransactionId));
+
+    LOG_INFO(
+        "Upload transaction created (TransactionId: %s)",
+        ~ToString(UploadTransaction->GetId()));
+
+
+    auto batchRsp = WaitFor(FetchTableInfo());
+    auto chunkListId = OnInfoFetched(batchRsp);
+
+    auto provider = New<TTableChunkWriterProvider>(
+        Config,
+        Options);
+
+    Writer = New<TTableMultiChunkWriter>(
+        Config,
+        Options,
+        provider,
+        MasterChannel,
+        UploadTransaction->GetId(),
+        chunkListId);
+
+    auto error = WaitFor(Writer->AsyncOpen());
+
+    THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error opening table chunk writer");
+
+    if (Transaction) {
+        ListenTransaction(Transaction);
+    }
+
+    CurrentWriterFacade = Writer->GetCurrentWriter();
+    YCHECK(CurrentWriterFacade);
+
+    IsOpen = true;
+
+    LOG_INFO("Table writer opened");
 }
 
 TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> TAsyncTableWriter::FetchTableInfo()
@@ -201,8 +211,8 @@ TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> TAsyncTableWriter::FetchTableI
             attributeFilter.Keys.push_back("row_count");
         }
         attributeFilter.Keys.push_back("account");
-		attributeFilter.Keys.push_back("vital");
-		ToProto(req->mutable_attribute_filter(), attributeFilter);
+        attributeFilter.Keys.push_back("vital");
+        ToProto(req->mutable_attribute_filter(), attributeFilter);
         batchReq->AddRequest(req, "get_attributes");
     }
 
@@ -255,43 +265,6 @@ TChunkListId TAsyncTableWriter::OnInfoFetched(TObjectServiceProxy::TRspExecuteBa
     return chunkListId;
 }
 
-TAsyncError TAsyncTableWriter::OpenChunkWriter(TChunkListId chunkListId)
-{
-    auto provider = New<TTableChunkWriterProvider>(
-        Config,
-        Options);
-
-    Writer = New<TTableMultiChunkWriter>(
-        Config,
-        Options,
-        provider,
-        MasterChannel,
-        UploadTransaction->GetId(),
-        chunkListId);
-
-    return Writer->AsyncOpen().Apply(
-        BIND([] (TError error) -> TError{
-            if (!error.IsOK()) {
-                return TError("Error opening table chunk writer") << error;
-            }
-            return error;
-        }));
-}
-
-void TAsyncTableWriter::OnChunkWriterOpened()
-{
-    if (Transaction) {
-        ListenTransaction(Transaction);
-    }
-
-    CurrentWriterFacade = Writer->GetCurrentWriter();
-    YASSERT(CurrentWriterFacade);
-
-    IsOpen = true;
-
-    LOG_INFO("Table writer opened");
-}
-
 void TAsyncTableWriter::WriteRow(const TRow& row)
 {
     YCHECK(IsOpen);
@@ -330,10 +303,10 @@ TAsyncError TAsyncTableWriter::GetReadyEvent()
     return WriteFuture_;
 }
 
-TAsyncError TAsyncTableWriter::AsyncClose()
+void TAsyncTableWriter::Close()
 {
     if (!IsOpen) {
-        return MakeFuture(TError());
+        return;
     }
 
     LOG_INFO("Closing table writer");
@@ -341,33 +314,15 @@ TAsyncError TAsyncTableWriter::AsyncClose()
     IsOpen = false;
     IsClosed = true;
 
-    auto this_ = MakeStrong(this);
-    return StartAsyncPipeline(GetSyncInvoker())
-        ->Add(BIND(&TThis::CloseChunkWriter, this_))
-        ->Add(BIND(&TThis::SetIsSorted, this_))
-        ->Add(BIND(&TThis::CommitUploadTransaction, this_))
-        ->Run();
-}
-
-TAsyncError TAsyncTableWriter::CloseChunkWriter()
-{
     CheckAborted();
 
     LOG_INFO("Closing chunk writer");
+    {
+        auto error = WaitFor(Writer->AsyncClose());
+        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error closing chunk writer");
+        LOG_INFO("Chunk writer closed");
+    }
 
-    auto this_ = MakeStrong(this);
-    return Writer->AsyncClose().Apply(
-        BIND([this, this_] (TError error) -> TError {
-            if (!error.IsOK()) {
-                return TError("Error closing chunk writer") << error;
-            }
-            LOG_INFO("Chunk writer closed");
-            return error;
-        }));
-}
-
-TAsyncError TAsyncTableWriter::SetIsSorted()
-{
     if (Options->KeyColumns) {
         auto path = RichPath.GetPath();
         auto keyColumns = Options->KeyColumns.Get();
@@ -379,33 +334,18 @@ TAsyncError TAsyncTableWriter::SetIsSorted()
         NMetaState::GenerateMutationId(req);
         ToProto(req->mutable_key_columns(), keyColumns);
 
-        auto this_ = MakeStrong(this);
-        return ObjectProxy.Execute(req)
-            .Apply(BIND([this, this_] (TTableYPathProxy::TRspSetSortedPtr rsp) -> TError {
-                if (!rsp->IsOK()) {
-                    return TError("Error marking table as sorted") << *rsp;
-                }
-                LOG_INFO("Table is marked as sorted");
-                return *rsp;
-            }));
+        auto rsp = WaitFor(ObjectProxy.Execute(req));
+
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error marking table as sorted");
     }
-    return MakeFuture(TError());
-}
 
-TAsyncError TAsyncTableWriter::CommitUploadTransaction()
-{
     LOG_INFO("Committing upload transaction");
-
-    auto this_ = MakeStrong(this);
-    return UploadTransaction->AsyncCommit()
-        .Apply(BIND([this, this_] (TError error) -> TError {
-            if (!error.IsOK()) {
-                return TError("Error committing upload transaction") << error;
-            }
-            LOG_INFO("Upload transaction committed");
-            LOG_INFO("Table writer closed");
-            return TError();
-        }));
+    {
+        auto error = WaitFor(UploadTransaction->AsyncCommit());
+        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error committing upload transaction");
+        LOG_INFO("Upload transaction committed");
+        LOG_INFO("Table writer closed");
+    }
 }
 
 const TNullable<TKeyColumns>& TAsyncTableWriter::GetKeyColumns() const
@@ -426,66 +366,6 @@ NChunkClient::NProto::TDataStatistics TAsyncTableWriter::GetDataStatistics() con
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTableWriter
-    : public ISyncWriter
-{
-public:
-    TTableWriter(
-        TTableWriterConfigPtr config,
-        NRpc::IChannelPtr masterChannel,
-        ITransactionPtr transaction,
-        TTransactionManagerPtr transactionManager,
-        const NYPath::TRichYPath& richPath,
-        const TNullable<TKeyColumns>& keyColumns)
-            : Writer_(
-                New<TAsyncTableWriter>(
-                    config,
-                    masterChannel,
-                    transaction,
-                    transactionManager,
-                    richPath,
-                    keyColumns))
-    { }
-
-    virtual void Open() override
-    {
-        Sync(~Writer_, &IAsyncWriter::AsyncOpen);
-    }
-
-    virtual void WriteRow(const TRow& row) override
-    {
-        if (!Writer_->IsReady()) {
-            Sync(~Writer_, &IAsyncWriter::GetReadyEvent);
-        }
-        Writer_->WriteRow(row);
-    }
-
-    virtual void Close() override
-    {
-        Sync(~Writer_, &IAsyncWriter::AsyncClose);
-    }
-
-    virtual const TNullable<TKeyColumns>& GetKeyColumns() const override
-    {
-        return Writer_->GetKeyColumns();
-    }
-
-    virtual i64 GetRowCount() const override
-    {
-        return Writer_->GetRowCount();
-    }
-
-    virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
-    {
-        return Writer_->GetDataStatistics();
-    }
-
-private:
-    IAsyncWriterPtr Writer_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 IAsyncWriterPtr CreateAsyncTableWriter(
         TTableWriterConfigPtr config,
         NRpc::IChannelPtr masterChannel,
@@ -495,25 +375,6 @@ IAsyncWriterPtr CreateAsyncTableWriter(
         const TNullable<TKeyColumns>& keyColumns)
 {
     return New<TAsyncTableWriter>(
-        config,
-        masterChannel,
-        transaction,
-        transactionManager,
-        richPath,
-        keyColumns);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-ISyncWriterPtr CreateSyncTableWriter(
-        TTableWriterConfigPtr config,
-        NRpc::IChannelPtr masterChannel,
-        ITransactionPtr transaction,
-        TTransactionManagerPtr transactionManager,
-        const NYPath::TRichYPath& richPath,
-        const TNullable<TKeyColumns>& keyColumns)
-{
-    return New<TTableWriter>(
         config,
         masterChannel,
         transaction,

@@ -5,7 +5,8 @@
 #include "async_writer.h"
 #include "chunk_meta_extensions.h"
 
-#include <ytlib/actions/async_pipeline.h>
+#include <ytlib/fibers/fiber.h>
+
 #include <ytlib/actions/parallel_awaiter.h>
 #include <ytlib/actions/parallel_collector.h>
 
@@ -162,7 +163,9 @@ private:
 
     TAsyncError WriteDataBlocks();
 
-    TAsyncError EncodeAndWriteParityBlocks();
+    TError EncodeAndWriteParityBlocks();
+
+    TError WriteDataPart(IAsyncWriterPtr writer, const std::vector<TSharedRef>& blocks);
 
     TAsyncError WriteParityBlocks(int windowIndex);
 
@@ -264,29 +267,37 @@ TAsyncError TErasureWriter::WriteDataBlocks()
     auto this_ = MakeStrong(this);
     auto parallelCollector = New<TParallelCollector<void>>();
     for (int index = 0; index < Groups_.size(); ++index) {
-        const auto& group = Groups_[index];
-        const auto& writer = Writers_[index];
-        auto pipeline = StartAsyncPipeline(TDispatcher::Get()->GetWriterInvoker());
-        FOREACH (const auto& block, group) {
-            pipeline = pipeline->Add(BIND([this, this_, block, writer] () -> TAsyncError {
-                if (!writer->WriteBlock(block)) {
-                    return writer->GetReadyEvent();
-                }
-                return MakeFuture(TError());
-            }));
-        }
-        pipeline = pipeline->Add(BIND(&IAsyncWriter::AsyncClose, writer, ChunkMeta_));
-        parallelCollector->Collect(pipeline->Run());
+        parallelCollector->Collect(BIND(
+                &TErasureWriter::WriteDataPart,
+                this_,
+                Writers_[index],
+                Groups_[index])
+            .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
+            .Run());
     }
     return parallelCollector->Complete();
 }
 
-TAsyncError TErasureWriter::EncodeAndWriteParityBlocks()
+TError TErasureWriter::WriteDataPart(IAsyncWriterPtr writer, const std::vector<TSharedRef>& blocks)
+{
+    VERIFY_THREAD_AFFINITY(WriterThread);
+
+    FOREACH (const auto& block, blocks) {
+        if (!writer->WriteBlock(block)) {
+            auto error = WaitFor(writer->GetReadyEvent());
+            if (!error.IsOK())
+                return error;
+        }
+    }
+
+    return WaitFor(writer->AsyncClose(ChunkMeta_));
+}
+
+TError TErasureWriter::EncodeAndWriteParityBlocks()
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
     auto this_ = MakeStrong(this);
-    auto pipeline = StartAsyncPipeline(TDispatcher::Get()->GetWriterInvoker());
     int windowIndex = 0;
     for (i64 begin = 0; begin < ParityDataSize_; begin += Config_->ErasureWindowSize) {
         WindowEncodedPromise_[windowIndex] = NewPromise();
@@ -304,20 +315,23 @@ TAsyncError TErasureWriter::EncodeAndWriteParityBlocks()
             WindowEncodedPromise_[windowIndex].Set();
         }));
 
-        pipeline = pipeline->Add(BIND(&TErasureWriter::WriteParityBlocks, this_, windowIndex));
-
         ++windowIndex;
     }
-    pipeline = pipeline->Add(BIND(&TErasureWriter::CloseParityWriters, this_));
-    return pipeline->Run();
+
+    for (windowIndex = 0; windowIndex < WindowEncodedPromise_.size(); ++windowIndex) {
+        WaitFor(WindowEncodedPromise_[windowIndex]);
+
+        auto error = WaitFor(WriteParityBlocks(windowIndex));
+        if (!error.IsOK())
+            return error;
+    }
+
+    return WaitFor(CloseParityWriters());
 }
 
 TAsyncError TErasureWriter::WriteParityBlocks(int windowIndex)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
-
-    // Wait encoding to complete
-    WindowEncodedPromise_[windowIndex].Get();
 
     // Get parity blocks of current window
     const std::vector<TSharedRef>& parityBlocks = ParityBlocks_[windowIndex];
