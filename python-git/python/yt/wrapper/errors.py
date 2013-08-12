@@ -24,6 +24,9 @@ class YtResponseError(YtError):
 
     def is_resolve_error(self):
         return int(self.error["code"]) == 500
+    
+    def is_access_denied(self):
+        return int(self.error["code"]) == 901
 
 class YtNetworkError(YtError):
     """

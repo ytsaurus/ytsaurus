@@ -33,6 +33,7 @@ def main():
         format_config.__dict__[key] = value
 
     import yt.wrapper as yt
+    from yt.wrapper.record import extract_key
     if __attributes.get("is_raw", False):
         __result = itertools.chain(*itertools.imap(__operation, sys.stdin.xreadlines()))
     else:
@@ -43,7 +44,7 @@ def main():
             else:
                 __result = itertools.chain.from_iterable(itertools.imap(__operation, __records))
         else:
-            __result = itertools.chain.from_iterable(itertools.starmap(__operation, itertools.groupby(__records, lambda rec: yt.extract_key(rec, __keys, __input_format))))
+            __result = itertools.chain.from_iterable(itertools.starmap(__operation, itertools.groupby(__records, lambda rec: extract_key(rec, __keys, __input_format))))
         __result = itertools.imap(lambda rec: yt.record_to_line(rec, __output_format), __result)
     sys.stdout.writelines(__result)
 
