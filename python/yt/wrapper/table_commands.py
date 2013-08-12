@@ -381,13 +381,6 @@ def records_count(table):
         return 0
     return get_attribute(table, "row_count")
 
-def get_size(table):
-    """Return uncompressed size of the table"""
-    table = to_name(table)
-    if config.TREAT_UNEXISTING_AS_EMPTY and not exists(table):
-        return 0
-    return get_attribute(table, "uncompressed_data_size")
-
 def is_empty(table):
     """Check table for the emptiness"""
     return records_count(to_name(table)) == 0
