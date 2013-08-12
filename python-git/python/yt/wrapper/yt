@@ -2,6 +2,7 @@
 
 from argparse import ArgumentParser, Action
 
+from yt.wrapper.common import die
 import yt.wrapper as yt
 import yt.yson as yson
 
@@ -11,13 +12,6 @@ import traceback
 import simplejson as json
 import fnmatch
 import shlex
-
-def die(message=None, return_code=1):
-    if message is not None:
-        print >>sys.stderr, message
-    if "ALWAYS_RAISE" in os.environ:
-        raise
-    sys.exit(return_code)
 
 def writelines_silently(lines):
     try:

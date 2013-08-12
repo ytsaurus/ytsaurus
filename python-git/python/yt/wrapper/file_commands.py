@@ -1,7 +1,7 @@
 import config
 import logger
 from common import require, chunk_iter, partial, bool_to_string, parse_bool
-from errors import YtError
+from errors import YtError, YtResponseError
 from driver import read_content, get_host_for_heavy_operation
 from heavy_commands import make_heavy_request
 from tree_commands import remove, exists, set_attribute, mkdir, find_free_subpath, create, link, get_attribute
@@ -51,10 +51,6 @@ def upload_file(stream, destination, file_writer=None):
         # read files by chunks, not by lines
         stream = chunk_iter(stream, config.CHUNK_SIZE)
 
-    def prepare_file(path):
-        if config.API_VERSION == 2 and not exists(path):
-            create("file", path, ignore_existing=True)
-
     params = {}
     if file_writer is not None:
         params["file_writer"] = file_writer
@@ -64,7 +60,7 @@ def upload_file(stream, destination, file_writer=None):
         stream,
         destination,
         params,
-        prepare_file,
+        lambda path: create("file", path, ignore_existing=True),
         config.USE_RETRIES_DURING_UPLOAD)
 
 def smart_upload_file(filename, destination=None, yt_filename=None, placement_strategy=None):
@@ -117,7 +113,16 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
         md5 = md5sum(filename)
         destination = os.path.join(config.FILE_STORAGE, "hash", md5)
         link_exists = exists(destination + "&")
-        if link_exists and parse_bool(get_attribute(destination + "&", "broken")):
+
+        # COMPAT(ignat): old versions of 0.14 have not support attribute broken
+        try:
+            broken = parse_bool(get_attribute(destination + "&", "broken"))
+        except YtResponseError as rsp:
+            if not rsp.is_resolve_error():
+                raise
+            broken = False
+
+        if link_exists and broken:
             logger.debug("Link '%s' of file '%s' exists but is broken", destination, filename)
             remove(destination)
             link_exists = False

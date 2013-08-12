@@ -1,4 +1,4 @@
-from common import update_from_env
+from common import update_from_env, die
 
 USE_HOSTS = True
 HOSTS = "hosts"
@@ -98,10 +98,8 @@ def set_proxy(proxy):
         API_VERSION = 2
         http.RETRY_VOLATILE_COMMANDS = True
     else:
-        COMMANDS = parse_commands(_api)
-        API_PATH = "api"
-        API_VERSION = 1
-        http.RETRY_VOLATILE_COMMANDS = False
+        die("Old versions of API is not supported")
+
 
 if http.PROXY:
     set_proxy(http.PROXY)
