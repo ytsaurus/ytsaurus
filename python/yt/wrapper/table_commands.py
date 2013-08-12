@@ -144,12 +144,7 @@ def _add_user_command_spec(op_type, binary, input_format, output_format, files, 
     return spec, files + additional_files
 
 def _add_user_spec(spec):
-    return update(
-        {
-            "wrapper_version": VERSION,
-            "pool": os.environ.get("USER", "default")
-        },
-        spec)
+    return update({"wrapper_version": VERSION}, spec)
 
 def _add_input_output_spec(source_table, destination_table, spec):
     def get_input_name(table):
