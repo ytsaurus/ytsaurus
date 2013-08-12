@@ -130,7 +130,13 @@ public:
 
     void UpdateCellGuid(const TGuid& cellGuid)
     {
-        Location->SetCellGuid(cellGuid);
+        try {
+            Location->SetCellGuid(cellGuid);
+        } catch (const std::exception& ex) {
+            Location->Disable();
+            LOG_WARNING(ex, "Failed to set cell guid for chunk cache");
+            return;
+        }
     }
 
     bool IsEnabled() const
