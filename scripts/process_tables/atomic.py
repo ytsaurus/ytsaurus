@@ -28,10 +28,13 @@ def atomic_pop(list, retries_count=10, delay=5.0):
                 yt.remove(list + "/-1", recursive=True)
                 return value
             # We hope that it is cannot take lock error
-            except yt.YtResponseError as e:
-                logger.error("Error %s", str(e))
-                logger.info("Cannot take lock, waiting for %f second...", delay)
-                sleep(random.uniform(0.1, delay))
+            except yt.YtResponseError as rsp:
+                if rsp.is_concurrent_transaction_lock_conflict():
+                    timeout = random.uniform(0.1, delay)
+                    logger.info("Lock conflict, waiting for %f second...", timeout)
+                    sleep(timeout)
+                else:
+                    raise
 
 
 def atomic_push(list, value):

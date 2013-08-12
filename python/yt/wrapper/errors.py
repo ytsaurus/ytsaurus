@@ -27,6 +27,9 @@ class YtResponseError(YtError):
     
     def is_access_denied(self):
         return int(self.error["code"]) == 901
+    
+    def is_concurrent_transaction_lock_conflict(self):
+        return int(self.error["code"]) == 402
 
 class YtNetworkError(YtError):
     """
