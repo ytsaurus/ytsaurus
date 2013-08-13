@@ -340,23 +340,29 @@ public:
 
     void Cancel()
     {
-        YCHECK(
-            State_ == EFiberState::Initialized ||
-            State_ == EFiberState::Terminated ||
-            State_ == EFiberState::Exception ||
-            State_ == EFiberState::Suspended);
+        switch (State_) {
+            case EFiberState::Initialized:
+            case EFiberState::Terminated:
+            case EFiberState::Exception:
+                break;
 
-        if (State_ == EFiberState::Terminated ||
-            State_ == EFiberState::Exception)
-            return;
+            case EFiberState::Suspended:
+                Canceled_ = true;
+                WaitFor_.Reset();
+                SwitchTo_.Reset();
+                Exception_ = std::exception_ptr();
+                Run();
+                break;
 
-        Canceled_ = true;
+            case EFiberState::Running:
+                // Failure here indicates that Cancel is called for a fiber
+                // that is currently being run in another thread.
+                YCHECK(Owner_ == GetCurrent());
+                Canceled_ = true;
+                throw TFiberTerminatedException();
 
-        if (State_ == EFiberState::Suspended) {
-            WaitFor_.Reset();
-            SwitchTo_.Reset();
-            Exception_ = std::exception_ptr();
-            Run();
+            default:
+                YUNREACHABLE();
         }
     }
 
