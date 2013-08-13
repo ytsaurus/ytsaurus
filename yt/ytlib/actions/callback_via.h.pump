@@ -35,7 +35,7 @@ void RegisterFiberCancelation(TPromise<T> promise)
     promise.OnCanceled(BIND(
         IgnoreResult(&IInvoker::Invoke),
         invoker,
-        canceler)));
+        canceler));
 }
 
 } // namespace NDetail
