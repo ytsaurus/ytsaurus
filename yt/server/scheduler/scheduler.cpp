@@ -300,9 +300,10 @@ public:
 
         RegisterOperation(operation);
 
+        // Spawn a new fiber where all startup logic will work asynchronously.
         return
             BIND(&TThis::DoStartOperation, MakeStrong(this), operation)
-                .AsyncVia(controller->GetCancelableControlInvoker())
+                .AsyncVia(Bootstrap->GetControlInvoker())
                 .Run()
                 .Apply(BIND([=] (TError error) {
                     return error.IsOK()
