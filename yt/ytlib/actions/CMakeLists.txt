@@ -11,8 +11,6 @@ set( SRCS
 set( HDRS
   ${BASE}/action_queue.h
   ${BASE}/action_queue_detail.h
-  ${BASE}/async_pipeline-inl.h
-  ${BASE}/async_pipeline.h
   ${BASE}/bind_helpers.h
   ${BASE}/bind_mpl.h
   ${BASE}/callback_forward.h
