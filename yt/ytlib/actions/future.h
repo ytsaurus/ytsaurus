@@ -470,9 +470,6 @@ public:
     //! Checks if the promise is associated with a state.
     operator TUnspecifiedBoolType() const;
 
-    //! Checks if the promise is associated with a state.
-    bool IsNull() const;
-
     //! Drops underlying associated state.
     void Reset();
 
@@ -599,7 +596,7 @@ struct TPromiseSetter<void>
 //! Cancels a given future at the end of the scope.
 /*!
  *  \note
- *  Cancelation has no effect is the future is already set.
+ *  Cancelation has no effect if the future is already set.
  */
 template <class T>
 class TFutureCancelationGuard

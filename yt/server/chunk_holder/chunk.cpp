@@ -179,7 +179,7 @@ bool TChunk::TryAcquireReadLock()
     int lockCount;
     {
         TGuard<TSpinLock> guard(SpinLock);
-        if (!RemovedEvent.IsNull()) {
+        if (RemovedEvent) {
             LOG_DEBUG("Chunk read lock cannot be acquired since removal is already pending (ChunkId: %s)",
                 ~ToString(Id_));
             return false;
@@ -203,7 +203,7 @@ void TChunk::ReleaseReadLock()
         TGuard<TSpinLock> guard(SpinLock);
         YCHECK(ReadLockCounter > 0);
         lockCount = --ReadLockCounter;
-        if (ReadLockCounter == 0 && !RemovalScheduled && !RemovedEvent.IsNull()) {
+        if (ReadLockCounter == 0 && !RemovalScheduled && RemovedEvent) {
             scheduleRemoval = RemovalScheduled = true;
         }
     }
@@ -223,7 +223,7 @@ TFuture<void> TChunk::ScheduleRemoval()
 
     {
         TGuard<TSpinLock> guard(SpinLock);
-        if (!RemovedEvent.IsNull()) {
+        if (RemovedEvent) {
             return RemovedEvent;
         }
 

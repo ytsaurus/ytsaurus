@@ -228,7 +228,12 @@ void TChunkStore::SetCellGuid(const TGuid& cellGuid)
 void TChunkStore::DoSetCellGuid()
 {
     FOREACH (const auto& location, Locations_) {
-        location->SetCellGuid(CellGuid);
+        try {
+            location->SetCellGuid(CellGuid);
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Failed to set cell guid for location %s", ~location->GetPath().Quote());
+            location->Disable();
+        }
     }
 }
 

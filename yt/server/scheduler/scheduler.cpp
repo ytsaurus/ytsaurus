@@ -300,9 +300,10 @@ public:
 
         RegisterOperation(operation);
 
+        // Spawn a new fiber where all startup logic will work asynchronously.
         return
             BIND(&TThis::DoStartOperation, MakeStrong(this), operation)
-                .AsyncVia(controller->GetCancelableControlInvoker())
+                .AsyncVia(Bootstrap->GetControlInvoker())
                 .Run()
                 .Apply(BIND([=] (TError error) {
                     return error.IsOK()
@@ -597,8 +598,6 @@ private:
     TActionQueuePtr SnapshotIOQueue;
 
     std::unique_ptr<TMasterConnector> MasterConnector;
-    TCancelableContextPtr CancelableConnectionContext;
-    IInvokerPtr CancelableConnectionControlInvoker;
 
     std::unique_ptr<ISchedulerStrategy> Strategy;
 
@@ -655,21 +654,12 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        CancelableConnectionContext = New<TCancelableContext>();
-        CancelableConnectionControlInvoker = CancelableConnectionContext->CreateInvoker(
-            Bootstrap->GetControlInvoker());
-
         ReviveOperations(result.Operations);
     }
 
     void OnMasterDisconnected()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-
-        YCHECK(CancelableConnectionContext);
-        CancelableConnectionContext->Cancel();
-        CancelableConnectionContext.Reset();
-        CancelableConnectionControlInvoker.Reset();
 
         auto operations = IdToOperation;
         FOREACH (const auto& pair, operations) {
@@ -707,28 +697,22 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LOG_INFO("Operation belongs to an expired user transaction, aborting (OperationId: %s)",
-            ~ToString(operation->GetOperationId()));
-
         TerminateOperation(
             operation,
             EOperationState::Aborting,
             EOperationState::Aborted,
-            TError("Operation transaction has been expired or was aborted"));
+            TError("Operation transaction has expired or was aborted"));
     }
 
     void OnSchedulerTransactionAborted(TOperationPtr operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LOG_INFO("Operation uses an expired scheduler transaction, aborting (OperationId: %s)",
-            ~ToString(operation->GetOperationId()));
-
         TerminateOperation(
             operation,
             EOperationState::Failing,
             EOperationState::Failed,
-            TError("Scheduler transaction has been expired or was aborted"));
+            TError("Scheduler transaction has expired or was aborted"));
     }
 
 
@@ -870,11 +854,11 @@ private:
         {
             auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObject>("start_sync_tx");
             auto transactionid = FromProto<TObjectId>(rsp->object_id());
-            TTransactionAttachOptions attachOptions(transactionid);
-            attachOptions.AutoAbort = true;
-            attachOptions.Ping = true;
-            attachOptions.PingAncestors = false;
-            operation->SetSyncSchedulerTransaction(transactionManager->Attach(attachOptions));
+            TTransactionAttachOptions options(transactionid);
+            options.AutoAbort = false;
+            options.Ping = true;
+            options.PingAncestors = false;
+            operation->SetSyncSchedulerTransaction(transactionManager->Attach(options));
         }
 
         LOG_INFO("Scheduler sync transaction started (SyncTransactionId: %s, OperationId: %s)",
@@ -921,11 +905,11 @@ private:
         {
             auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObject>("start_async_tx");
             auto transactionid = FromProto<TObjectId>(rsp->object_id());
-            TTransactionAttachOptions attachOptions(transactionid);
-            attachOptions.AutoAbort = true;
-            attachOptions.Ping = true;
-            attachOptions.PingAncestors = false;
-            operation->SetAsyncSchedulerTransaction(transactionManager->Attach(attachOptions));
+            TTransactionAttachOptions options(transactionid);
+            options.AutoAbort = false;
+            options.Ping = true;
+            options.PingAncestors = false;
+            operation->SetAsyncSchedulerTransaction(transactionManager->Attach(options));
         }
 
         LOG_INFO("Scheduler async transaction started (AsyncTranasctionId: %s, OperationId: %s)",
@@ -1594,26 +1578,6 @@ private:
 
         operation->SetState(intermediateState);
 
-        BIND(
-            &TThis::DoTerminateOperation,
-            MakeStrong(this),
-            operation,
-            intermediateState,
-            finalState,
-            error)
-                .AsyncVia(CancelableConnectionControlInvoker)
-                .Run();
-    }
-
-    void DoTerminateOperation(
-        TOperationPtr operation,
-        EOperationState intermediateState,
-        EOperationState finalState,
-        const TError& error)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(operation->GetState() == intermediateState);
-
         // First flush: ensure that all stderrs are attached and the
         // state is changed to its intermediate value.
         {
@@ -1622,15 +1586,12 @@ private:
             YCHECK(operation->GetState() == intermediateState);
         }
 
-        {
-            auto controller = operation->GetController();
-            controller->Abort();
-        }
+        operation->GetController()->Abort();
 
         SetOperationFinalState(operation, finalState, error);
-        
-        AbortSchedulerTransactions(operation);
 
+        AbortSchedulerTransactions(operation);
+        
         // Second flush: ensure that the state is changed to its final value.
         {
             auto asyncResult = MasterConnector->FlushOperationNode(operation);

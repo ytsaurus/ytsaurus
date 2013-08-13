@@ -1106,25 +1106,54 @@ private:
             }
         }
 
-        auto isDead = [&] (ITransactionPtr transaction) {
-            return transaction && deadTransactionIds.find(transaction->GetId()) != deadTransactionIds.end();
+        auto isTransactionAlive = [&] (TOperationPtr operation, ITransactionPtr transaction) -> bool {
+            if (!transaction) {
+                return true;
+            }
+
+            if (deadTransactionIds.find(transaction->GetId()) == deadTransactionIds.end()) {
+                return true;
+            }
+
+            return false;
         };
 
-        // Check every operation is it references a dead transaction.
-        // If so, raise an appropriate notification.
+        auto isUserTransactionAlive = [&] (TOperationPtr operation, ITransactionPtr transaction) -> bool {
+            if (isTransactionAlive(operation, transaction)) {
+                return true;
+            }
+
+            LOG_INFO("Expired user transaction found (OperationId: %s, TransactionId: %s)",
+                ~ToString(operation->GetOperationId()),
+                ~ToString(transaction->GetId()));
+            return false;
+        };
+
+        auto isSchedulerTransactionAlive = [&] (TOperationPtr operation, ITransactionPtr transaction) -> bool {
+            if (isTransactionAlive(operation, transaction)) {
+                return true;
+            }
+
+            LOG_INFO("Expired scheduler transaction found (OperationId: %s, TransactionId: %s)",
+                ~ToString(operation->GetOperationId()),
+                ~ToString(transaction->GetId()));
+            return false;
+        };
+
+        // Check every operation's transactions and raise appropriate notifications.
         auto operations = Bootstrap->GetScheduler()->GetOperations();
         FOREACH (auto operation, operations) {
             if (operation->GetState() != EOperationState::Running)
                 continue;
 
-            if (isDead(operation->GetUserTransaction())) {
+            if (!isUserTransactionAlive(operation, operation->GetUserTransaction())) {
                 UserTransactionAborted_.Fire(operation);
             }
 
-            if (isDead(operation->GetSyncSchedulerTransaction()) ||
-                isDead(operation->GetAsyncSchedulerTransaction()) ||
-                isDead(operation->GetInputTransaction()) ||
-                isDead(operation->GetOutputTransaction()))
+            if (!isSchedulerTransactionAlive(operation, operation->GetSyncSchedulerTransaction()) ||
+                !isSchedulerTransactionAlive(operation, operation->GetAsyncSchedulerTransaction()) ||
+                !isSchedulerTransactionAlive(operation, operation->GetInputTransaction()) ||
+                !isSchedulerTransactionAlive(operation, operation->GetOutputTransaction()))
             {
                 SchedulerTransactionAborted_.Fire(operation);
             }

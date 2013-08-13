@@ -24,20 +24,20 @@ void TAsyncSemaphore::Release(i64 slots /* = 1 */)
         FreeSlotCount += slots;
         YASSERT(FreeSlotCount <= MaxFreeSlots);
 
-        if (!ReadyEvent.IsNull() && FreeSlotCount > 0) {
+        if (ReadyEvent && FreeSlotCount > 0) {
             ready.Swap(ReadyEvent);
         }
 
-        if (!FreeEvent.IsNull() && FreeSlotCount == MaxFreeSlots) {
+        if (FreeEvent && FreeSlotCount == MaxFreeSlots) {
             free.Swap(FreeEvent);
         }
     }
 
-    if (!ready.IsNull()) {
+    if (ready) {
         ready.Set();
     }
 
-    if (!free.IsNull()) {
+    if (free) {
         free.Set();
     }
 }
@@ -58,9 +58,9 @@ TFuture<void> TAsyncSemaphore::GetReadyEvent()
     TGuard<TSpinLock> guard(SpinLock);
 
     if (IsReady()) {
-        YCHECK(ReadyEvent.IsNull());
+        YCHECK(!ReadyEvent);
         return PresetResult;
-    } else if (ReadyEvent.IsNull()) {
+    } else if (!ReadyEvent) {
         ReadyEvent = NewPromise();
     }
 
@@ -72,9 +72,9 @@ TFuture<void> TAsyncSemaphore::GetFreeEvent()
     TGuard<TSpinLock> guard(SpinLock);
 
     if (FreeSlotCount == MaxFreeSlots) {
-        YCHECK(FreeEvent.IsNull());
+        YCHECK(!FreeEvent);
         return PresetResult;
-    } else if (FreeEvent.IsNull()) {
+    } else if (!FreeEvent) {
         FreeEvent = NewPromise();
     }
 
