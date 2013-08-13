@@ -645,10 +645,7 @@ namespace NDetail {
 
 TClosure GetCurrentFiberCanceler()
 {
-    TFiberPtr fiber(TFiber::GetCurrent());
-    return BIND([=] {
-        fiber->Cancel();
-    });
+    return BIND(&TFiber::Cancel, MakeStrong(TFiber::GetCurrent()));
 }
 
 } // namespace NDetail

@@ -455,10 +455,7 @@ private:
             writers.push_back(writer);
         }
 
-        auto this_ = MakeStrong(this);
-        auto onProgress = BIND([this, this_] (double progress) {
-            SetProgress(progress);
-        }).Via(GetCurrentInvoker());
+        auto onProgress = BIND(&TChunkRepairJob::SetProgress, MakeWeak(this));
 
         auto asyncRepairError = RepairErasedParts(
             codec,

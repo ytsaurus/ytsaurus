@@ -32,9 +32,10 @@ void RegisterFiberCancelation(TPromise<T> promise)
 {
     auto canceler = GetCurrentFiberCanceler();
     auto invoker = GetCurrentInvoker();
-    promise.OnCanceled(BIND([=] {
-        invoker->Invoke(canceler);
-    }));
+    promise.OnCanceled(BIND(
+        IgnoreResult(&IInvoker::Invoke),
+        invoker,
+        canceler)));
 }
 
 } // namespace NDetail
