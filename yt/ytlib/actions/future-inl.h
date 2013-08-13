@@ -970,11 +970,6 @@ inline TPromise<void>::operator TUnspecifiedBoolType() const
     return Impl ? &TPromise::Impl : nullptr;
 }
 
-inline bool TPromise<void>::IsNull() const
-{
-    return Impl.Get() == nullptr;
-}
-
 inline void TPromise<void>::Reset()
 {
     Impl.Reset();
