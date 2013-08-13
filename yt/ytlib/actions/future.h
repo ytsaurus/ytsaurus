@@ -599,7 +599,7 @@ struct TPromiseSetter<void>
 //! Cancels a given future at the end of the scope.
 /*!
  *  \note
- *  Cancelation has no effect is the future is already set.
+ *  Cancelation has no effect if the future is already set.
  */
 template <class T>
 class TFutureCancelationGuard
