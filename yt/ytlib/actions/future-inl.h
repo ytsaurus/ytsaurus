@@ -632,11 +632,11 @@ inline TFuture<T>::TFuture(
 // #TFuture<void>
 
 inline TFuture<void>::TFuture()
-    : Impl(NULL)
+    : Impl(nullptr)
 { }
 
 inline TFuture<void>::TFuture(TNull)
-    : Impl(NULL)
+    : Impl(nullptr)
 { }
 
 inline TFuture<void>::TFuture(const TFuture<void>& other)
@@ -649,7 +649,7 @@ inline TFuture<void>::TFuture(TFuture<void>&& other)
 
 inline TFuture<void>::operator TUnspecifiedBoolType() const
 {
-    return Impl ? &TFuture::Impl : NULL;
+    return Impl ? &TFuture::Impl : nullptr;
 }
 
 inline void TFuture<void>::Reset()
@@ -812,12 +812,12 @@ inline TFuture<void> MakeFuture()
 
 template <class T>
 inline TPromise<T>::TPromise()
-    : Impl(NULL)
+    : Impl(nullptr)
 { }
 
 template <class T>
 inline TPromise<T>::TPromise(TNull)
-    : Impl(NULL)
+    : Impl(nullptr)
 { }
 
 template <class T>
@@ -833,7 +833,7 @@ inline TPromise<T>::TPromise(TPromise<T>&& other)
 template <class T>
 inline TPromise<T>::operator TUnspecifiedBoolType() const
 {
-    return Impl ? &TPromise::Impl : NULL;
+    return Impl ? &TPromise::Impl : nullptr;
 }
 
 template <class T>
@@ -950,11 +950,11 @@ inline TPromise<T>::TPromise(
 // #TPromise<void>
 
 inline TPromise<void>::TPromise()
-    : Impl(NULL)
+    : Impl(nullptr)
 { }
 
 inline TPromise<void>::TPromise(TNull)
-    : Impl(NULL)
+    : Impl(nullptr)
 { }
 
 inline TPromise<void>::TPromise(const TPromise<void>& other)
@@ -967,12 +967,12 @@ inline TPromise<void>::TPromise(TPromise<void>&& other)
 
 inline TPromise<void>::operator TUnspecifiedBoolType() const
 {
-    return Impl ? &TPromise::Impl : NULL;
+    return Impl ? &TPromise::Impl : nullptr;
 }
 
 inline bool TPromise<void>::IsNull() const
 {
-    return Impl.Get() == NULL;
+    return Impl.Get() == nullptr;
 }
 
 inline void TPromise<void>::Reset()
