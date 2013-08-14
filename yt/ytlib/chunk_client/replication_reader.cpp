@@ -291,7 +291,6 @@ protected:
         return SeedAddresses.find(address) != SeedAddresses.end();
     }
 
-
     virtual void NextRetry()
     {
         auto reader = Reader.Lock();
@@ -390,10 +389,15 @@ protected:
             return;
         }
 
+        auto backoffTime = reader->Config->MinPassBackoffTime *
+            pow(reader->Config->PassBackoffTimeMultiplier, PassIndex - 1);
+
+        backoffTime = std::min(backoffTime, reader->Config->MaxPassBackoffTime);
+
         TDelayedInvoker::Submit(
             BIND(&TSessionBase::NextPass, MakeStrong(this))
                 .Via(TDispatcher::Get()->GetReaderInvoker()),
-            reader->Config->PassBackoffTime);
+            backoffTime);
     }
 
 
