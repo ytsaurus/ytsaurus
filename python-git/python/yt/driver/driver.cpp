@@ -18,6 +18,8 @@
 #include <core/logging/log_manager.h>
 
 #include <core/ytree/convert.h>
+#include <ytlib/object_client/object_service_proxy.h>
+#include <ytlib/meta_state/meta_state_manager_proxy.h>
 
 // For at_exit
 #include <core/profiling/profiling_manager.h>
@@ -75,6 +77,8 @@ public:
 
         PYCXX_ADD_KEYWORDS_METHOD(execute, Execute, "TODO(ignat): make documentation");
         PYCXX_ADD_KEYWORDS_METHOD(get_description, GetDescription, "TODO(ignat): make documentation");
+        PYCXX_ADD_KEYWORDS_METHOD(build_snapshot, BuildSnapshot, "TODO(ignat): make documentation");
+        PYCXX_ADD_KEYWORDS_METHOD(gc_collect, GcCollect, "TODO(ignat): make documentation");
 
         behaviors().readyType();
     }
@@ -93,6 +97,11 @@ public:
         TDriverRequest request;
         request.CommandName = ConvertToStroka(Py::String(GetAttr(pyRequest, "command_name")));
         request.Arguments = ConvertToNode(GetAttr(pyRequest, "arguments"))->AsMap();
+        
+        auto user = GetAttr(pyRequest, "user");
+        if (!user.isNone()) {
+            request.AuthenticatedUser = ConvertToStroka(Py::String(user));
+        }
 
         auto inputStreamObj = GetAttr(pyRequest, "input_stream");
         if (!inputStreamObj.isNone()) {
@@ -133,6 +142,50 @@ public:
         return descriptor;
     }
     PYCXX_KEYWORDS_METHOD_DECL(Driver, GetDescription)
+
+    Py::Object GcCollect(Py::Tuple& args, Py::Dict &kwds)
+    {
+        NObjectClient::TObjectServiceProxy proxy(DriverInstance_->GetMasterChannel());
+        proxy.SetDefaultTimeout(Null); // infinity
+        auto req = proxy.GCCollect();
+        auto rsp = req->Invoke().Get();
+        if (!rsp->IsOK()) {
+            // TODO(ignat): Fix it. Make python class for errors.
+            // THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error building snapshot");
+            return ConvertToPythonString(ToString(TError(*rsp)));
+        }
+        return Py::None();
+    }
+    PYCXX_KEYWORDS_METHOD_DECL(Driver, GcCollect)
+
+    Py::Object BuildSnapshot(Py::Tuple& args, Py::Dict &kwds)
+    {
+        bool setReadOnly = false;
+        if (args.length() > 0 || kwds.length() > 0) {
+            setReadOnly = static_cast<bool>(Py::Boolean(ExtractArgument(args, kwds, "set_read_only")));
+        }
+        if (args.length() > 0 || kwds.length() > 0) {
+            throw Py::RuntimeError("Incorrect arguments");
+        }
+
+        NMetaState::TMetaStateManagerProxy proxy(DriverInstance_->GetMasterChannel());
+        proxy.SetDefaultTimeout(Null); // infinity
+        auto req = proxy.BuildSnapshot();
+        req->set_set_read_only(setReadOnly);
+
+        auto rsp = req->Invoke().Get();
+        if (!rsp->IsOK()) {
+            // TODO(ignat): Fix it. Make python class for errors.
+            // THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error building snapshot");
+            return ConvertToPythonString(ToString(TError(*rsp)));
+        }
+
+        int snapshotId = rsp->snapshot_id();
+        printf("Snapshot %d is built\n", snapshotId);
+
+        return Py::None();
+    }
+    PYCXX_KEYWORDS_METHOD_DECL(Driver, BuildSnapshot)
 
 private:
     IDriverPtr DriverInstance_;
