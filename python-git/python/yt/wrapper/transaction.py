@@ -1,8 +1,7 @@
 import config
 import logger
 from common import require, get_value
-from errors import YtError
-from tree_commands import exists
+from errors import YtError, YtResponseError
 from transaction_commands import start_transaction, commit_transaction, abort_transaction, ping_transaction
 
 import traceback as tb
@@ -54,12 +53,17 @@ class Transaction(object):
                     value,
                     tb.format_exc(traceback).replace("\n", "\\n"),
                     self.transaction_id)
-            if not exists("#" + self.transaction_id):
-                logger.warning("Transaction %s is absent, cannot commit or abort" % self.transaction_id)
-            elif type is None:
-                commit_transaction(self.transaction_id)
-            else:
-                abort_transaction(self.transaction_id)
+
+            try:
+                if type is None:
+                    commit_transaction(self.transaction_id)
+                else:
+                    abort_transaction(self.transaction_id)
+            except YtResponseError as rsp:
+                if rsp.is_resolve_error():
+                    logger.warning("Transaction %s is absent, cannot commit or abort" % self.transaction_id)
+                else:
+                    raise
         finally:
             Transaction.stack.pop()
             self.finished = True
