@@ -187,14 +187,6 @@ def make_request(command_name, params,
     else:
         raise YtResponseError(url, headers, response.error())
     
-#    from yt.driver import Request, Driver
-#    print >>sys.stderr, "REQ '%s'" % command_name
-#    print >>sys.stderr, "PARAMS '%s'" % params
-#    driver = Driver(config=yson.loads(open("ytdriver.conf").read()))
-#    request = Request(command_name, arguments=yson.convert_to_yson_tree(params), input_stream=data)
-#    rsp = driver.execute(request)
-#    print >>sys.stderr, "RSP '%s'" % rsp
-#    return rsp
 
 def make_formatted_request(command_name, params, format, **kwargs):
     # None format means that we want parsed output (as yson structure) instead of string.

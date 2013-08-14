@@ -21,7 +21,7 @@ class TestTableCommands(YTEnvSetup):
         assert len(chunk_ids) == 1
         chunk_id = chunk_ids[0]
 
-        with pytest.raises(YTError): get('//sys/chunk_lists/"' + chunk_id + '"')
+        with pytest.raises(YtError): get('//sys/chunk_lists/"' + chunk_id + '"')
 
     def test_simple(self):
         create('table', '//tmp/table')
@@ -52,7 +52,7 @@ class TestTableCommands(YTEnvSetup):
         # sorted flag is discarded when writing to sorted table
         write_str('<append=true>//tmp/table', '{key = 4}')
         assert get('//tmp/table/@sorted') ==  'false'
-        with pytest.raises(YTError): get('//tmp/table/@sorted_by')
+        with pytest.raises(YtError): get('//tmp/table/@sorted_by')
 
     def test_append_overwrite_write(self):
         # Default (append).
@@ -84,21 +84,21 @@ class TestTableCommands(YTEnvSetup):
         create('table', '//tmp/table')
 
         # we can write only list fragments
-        with pytest.raises(YTError): write_str('<append=true>//tmp/table', 'string')
-        with pytest.raises(YTError): write_str('<append=true>//tmp/table', '100')
-        with pytest.raises(YTError): write_str('<append=true>//tmp/table', '3.14')
-        with pytest.raises(YTError): write_str('<append=true>//tmp/table', '<>')
+        with pytest.raises(YtError): write_str('<append=true>//tmp/table', 'string')
+        with pytest.raises(YtError): write_str('<append=true>//tmp/table', '100')
+        with pytest.raises(YtError): write_str('<append=true>//tmp/table', '3.14')
+        with pytest.raises(YtError): write_str('<append=true>//tmp/table', '<>')
 
         # we can write sorted data only to empty table
         write('<append=true>//tmp/table', {'foo': 'bar'}, sorted_by='foo')
-        with pytest.raises(YTError):
+        with pytest.raises(YtError):
             write('"<append=true>" + //tmp/table', {'foo': 'zzz_bar'}, sorted_by='foo')
 
 
         content = "some_data"
         create('file', '//tmp/file')
         upload('//tmp/file', content)
-        with pytest.raises(YTError): read('//tmp/file')
+        with pytest.raises(YtError): read('//tmp/file')
 
     def test_row_index_selector(self):
         create('table', '//tmp/table')
@@ -120,7 +120,7 @@ class TestTableCommands(YTEnvSetup):
         assert read('//tmp/table[#2:]') == [{'c' : 2}, {'d' : 3}]
 
         # reading key selectors from unsorted table
-        with pytest.raises(YTError): read('//tmp/table[:a]')
+        with pytest.raises(YtError): read('//tmp/table[:a]')
 
     def test_row_key_selector(self):
         create('table', '//tmp/table')
@@ -132,7 +132,7 @@ class TestTableCommands(YTEnvSetup):
         v5 = {'s' : 'c', 'i': -100, 'd' : 10.}
 
         values = [v1, v2, v3, v4, v5]
-        write('//tmp/table', values, sorted_by='s;i;d')
+        write('//tmp/table', values, sorted_by=['s', 'i', 'd'])
 
         # possible empty ranges
         assert read('//tmp/table[a : a]') == []
@@ -177,8 +177,8 @@ class TestTableCommands(YTEnvSetup):
 
         # range columns
         # closed ranges
-        with pytest.raises(YTError): read('//tmp/table{a:a}')  # left = right
-        with pytest.raises(YTError): read('//tmp/table{b:a}')  # left > right
+        with pytest.raises(YtError): read('//tmp/table{a:a}')  # left = right
+        with pytest.raises(YtError): read('//tmp/table{b:a}')  # left > right
 
         assert read('//tmp/table{aa:b}') == [{'aa' : 2}]  # (+, +)
         assert read('//tmp/table{aa:bx}') == [{'aa' : 2, 'b' : 3, 'bb' : 4}]  # (+, -)
@@ -317,7 +317,7 @@ class TestTableCommands(YTEnvSetup):
         create('table', '//tmp/t')
         write_str('//tmp/t', '{a=b}')
 
-        with pytest.raises(YTError): copy('//tmp/t', '//tmp/t')
+        with pytest.raises(YtError): copy('//tmp/t', '//tmp/t')
 
     def test_copy_tx(self):
         create('table', '//tmp/t')
@@ -370,18 +370,21 @@ class TestTableCommands(YTEnvSetup):
         assert exists("//tmp/t/@chunk_ids")
 
     def test_invalid_channels_in_create(self):
-        with pytest.raises(YTError): create('table', '//tmp/t', opt='channels=123')
+        # ??? it doesn't work.
+        with pytest.raises(YtError):
+            create('table', '//tmp/t', attributes={'channels': '123'})
+            print >>sys.stderr, get('//tmp/t/@')
 
     def test_replication_factor_attr(self):
         create('table', '//tmp/t')
         assert get('//tmp/t/@replication_factor') == 3
 
-        with pytest.raises(YTError): remove('//tmp/t/@replication_factor')
-        with pytest.raises(YTError): set('//tmp/t/@replication_factor', 0)
-        with pytest.raises(YTError): set('//tmp/t/@replication_factor', {})
+        with pytest.raises(YtError): remove('//tmp/t/@replication_factor')
+        with pytest.raises(YtError): set('//tmp/t/@replication_factor', 0)
+        with pytest.raises(YtError): set('//tmp/t/@replication_factor', {})
 
         tx = start_transaction()
-        with pytest.raises(YTError): set('//tmp/t/@replication_factor', 2, tx=tx)
+        with pytest.raises(YtError): set('//tmp/t/@replication_factor', 2, tx=tx)
 
     def test_replication_factor_static(self):
         create('table', '//tmp/t')

@@ -49,7 +49,7 @@ class TestErasure(YTEnvSetup):
         return True
 
     def _test_repair(self, codec, replica_count, data_replica_count):
-        remove('//tmp/table', '--force')
+        remove('//tmp/table', force=True)
         create('table', '//tmp/table')
         set('//tmp/table/@erasure_codec', codec)
         write_str('//tmp/table', '{b="hello"}')

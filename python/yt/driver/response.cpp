@@ -39,12 +39,20 @@ Py::Object TResponse::IsSet(Py::Tuple& args, Py::Dict &kwds)
     return Py::Boolean(Response_.IsSet());
 }
 
+Py::Object TResponse::IsOk(Py::Tuple& args, Py::Dict &kwds)
+{
+    if (!Response_.IsSet()) {
+        THROW_ERROR_EXCEPTION("Response is not set");
+    }
+    return Py::Boolean(Response_.Get().Error.IsOK());
+}
+
 Py::Object TResponse::Error(Py::Tuple& args, Py::Dict &kwds)
 {
     if (!Response_.IsSet()) {
         THROW_ERROR_EXCEPTION("Response is not set");
     }
-    return ConvertToPythonString(NYTree::ConvertToYsonString(Response_.Get().Error).Data());
+    return ConvertToPythonString(ToString(Response_.Get().Error));
 }
 
 TResponse::~TResponse()
@@ -59,6 +67,7 @@ void TResponse::InitType()
 
     PYCXX_ADD_KEYWORDS_METHOD(wait, Wait, "TODO(ignat): make documentation");
     PYCXX_ADD_KEYWORDS_METHOD(is_set, IsSet, "TODO(ignat): make documentation");
+    PYCXX_ADD_KEYWORDS_METHOD(is_ok, IsOk, "TODO(ignat): make documentation");
     PYCXX_ADD_KEYWORDS_METHOD(error, Error, "TODO(ignat): make documentation");
 
     behaviors().readyType();

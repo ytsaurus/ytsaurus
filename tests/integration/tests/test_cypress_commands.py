@@ -17,47 +17,47 @@ class TestCypressCommands(YTEnvSetup):
 
     def test_invalid_cases(self):
         # path not starting with /
-        with pytest.raises(YTError): set('a', 20)
+        with pytest.raises(YtError): set('a', 20)
 
         # path starting with single /
-        with pytest.raises(YTError): set('/a', 20)
+        with pytest.raises(YtError): set('/a', 20)
 
         # empty path
-        with pytest.raises(YTError): set('', 20)
+        with pytest.raises(YtError): set('', 20)
 
         # empty token in path
-        with pytest.raises(YTError): set('//tmp/a//b', 20)
+        with pytest.raises(YtError): set('//tmp/a//b', 20)
 
         # change the type of root
-        with pytest.raises(YTError): set('/', [])
+        with pytest.raises(YtError): set('/', [])
 
         # set the root to the empty map
-        # with pytest.raises(YTError): set('/', {}))
+        # with pytest.raises(YtError): set('/', {}))
 
         # remove the root
-        with pytest.raises(YTError): remove('/')
+        with pytest.raises(YtError): remove('/')
         # get non existent child
-        with pytest.raises(YTError): get('//tmp/b')
+        with pytest.raises(YtError): get('//tmp/b')
 
         # remove non existent child
-        with pytest.raises(YTError): remove('//tmp/b')
+        with pytest.raises(YtError): remove('//tmp/b')
 
         # can't create entity node inside cypress
-        with pytest.raises(YTError): set_str('//tmp/entity', '#')
+        with pytest.raises(YtError): set_str('//tmp/entity', '#')
 
     def test_remove(self):
-        with pytest.raises(YTError): remove('//tmp/x', '--non_recursive')
-        with pytest.raises(YTError): remove('//tmp/x')
-        remove('//tmp/x', '--force')
+        with pytest.raises(YtError): remove('//tmp/x', recursive=False)
+        with pytest.raises(YtError): remove('//tmp/x')
+        remove('//tmp/x', force=True)
         
-        with pytest.raises(YTError): remove('//tmp/1', '--non_recursive')
-        with pytest.raises(YTError): remove('//tmp/1')
-        remove('//tmp/1', '--force')
+        with pytest.raises(YtError): remove('//tmp/1', recursive=False)
+        with pytest.raises(YtError): remove('//tmp/1')
+        remove('//tmp/1', force=True)
 
-        create("map_node", "//tmp/x/1/y", "--recursive")
-        with pytest.raises(YTError): remove('//tmp/x', '--non_recursive')
-        with pytest.raises(YTError): remove('//tmp/x', '--non_recursive', '--force')
-        remove('//tmp/x/1/y', '--non_recursive')
+        create("map_node", "//tmp/x/1/y", recursive=True)
+        with pytest.raises(YtError): remove('//tmp/x', recursive=False)
+        with pytest.raises(YtError): remove('//tmp/x', recursive=False, force=True)
+        remove('//tmp/x/1/y', recursive=False)
         remove('//tmp/x')
 
     def test_list(self):
@@ -133,8 +133,8 @@ class TestCypressCommands(YTEnvSetup):
         assert get('//tmp/t/@mode') == "rw"
 
         remove('//tmp/t/@*')
-        with pytest.raises(YTError): get('//tmp/t/@attr')
-        with pytest.raises(YTError): get('//tmp/t/@mode')
+        with pytest.raises(YtError): get('//tmp/t/@attr')
+        with pytest.raises(YtError): get('//tmp/t/@mode')
 
         # changing attributes
         set_str('//tmp/t/a', '< author=ignat > []')
@@ -157,12 +157,12 @@ class TestCypressCommands(YTEnvSetup):
 
         # error cases
         # typo (extra slash)
-        with pytest.raises(YTError): get('//tmp/t/@/key1')
+        with pytest.raises(YtError): get('//tmp/t/@/key1')
         # change type
-        with pytest.raises(YTError): set('//tmp/t/@', 1)
-        with pytest.raises(YTError): set('//tmp/t/@', 'a')
-        with pytest.raises(YTError): set_str('//tmp/t/@', '<>')
-        with pytest.raises(YTError): set('//tmp/t/@', [1, 2, 3])
+        with pytest.raises(YtError): set('//tmp/t/@', 1)
+        with pytest.raises(YtError): set('//tmp/t/@', 'a')
+        with pytest.raises(YtError): set_str('//tmp/t/@', '<>')
+        with pytest.raises(YtError): set('//tmp/t/@', [1, 2, 3])
 
     def test_attributes_tx_read(self):
         set_str('//tmp/t', '<attr=100> 123')
@@ -176,12 +176,12 @@ class TestCypressCommands(YTEnvSetup):
 
     def test_format_json(self):
         # check input format for json
-        set_str('//tmp/json_in', '{"list": [1,2,{"string": "this"}]}', format="json")
+        set_str('//tmp/json_in', '{"list": [1,2,{"string": "this"}]}', input_format="json")
         assert get('//tmp/json_in') == {"list": [1, 2, {"string": "this"}]}
 
         # check output format for json
         set('//tmp/json_out', {'list': [1, 2, {'string': 'this'}]})
-        assert get_str('//tmp/json_out', format="json") == '{"list":[1,2,{"string":"this"}]}'
+        assert get_str('//tmp/json_out', output_format="json") == '{"list":[1,2,{"string":"this"}]}'
 
     def test_map_remove_all1(self):
         # remove items from map
@@ -214,19 +214,19 @@ class TestCypressCommands(YTEnvSetup):
         # remove items from attributes
         set_str('//tmp/attr', '<_foo=bar;_key=value>42');
         remove('//tmp/attr/@*')
-        with pytest.raises(YTError): get('//tmp/attr/@_foo')
-        with pytest.raises(YTError): get('//tmp/attr/@_key')
+        with pytest.raises(YtError): get('//tmp/attr/@_foo')
+        with pytest.raises(YtError): get('//tmp/attr/@_key')
 
     def test_attr_remove_all2(self):
         set('//tmp/@a', 1)
         tx = start_transaction()
         set('//tmp/@b', 2, tx = tx)
         remove('//tmp/@*', tx = tx)
-        with pytest.raises(YTError): get('//tmp/@a', tx = tx)
-        with pytest.raises(YTError): get('//tmp/@b', tx = tx)
+        with pytest.raises(YtError): get('//tmp/@a', tx = tx)
+        with pytest.raises(YtError): get('//tmp/@b', tx = tx)
         commit_transaction(tx)
-        with pytest.raises(YTError): get('//tmp/@a')
-        with pytest.raises(YTError): get('//tmp/@b')
+        with pytest.raises(YtError): get('//tmp/@a')
+        with pytest.raises(YtError): get('//tmp/@b')
 
     def test_copy_simple1(self):
         set('//tmp/a', 1)
@@ -307,12 +307,12 @@ class TestCypressCommands(YTEnvSetup):
         assert get('//tmp/a2/x/y/@account') == 'a2'
 
     def test_copy_unexisting_path(self):
-        with pytest.raises(YTError): copy('//tmp/x', '//tmp/y')
+        with pytest.raises(YtError): copy('//tmp/x', '//tmp/y')
 
     def test_copy_cannot_have_children(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
-        with pytest.raises(YTError): copy('//tmp/t2', '//tmp/t1/xxx')
+        with pytest.raises(YtError): copy('//tmp/t2', '//tmp/t1/xxx')
 
     def test_copy_table_compression_codec(self):
         create('table', '//tmp/t1')
@@ -351,7 +351,186 @@ class TestCypressCommands(YTEnvSetup):
         set('//tmp/a', 1)
         move('//tmp/a', '//tmp/b')
         assert get('//tmp/b') == 1
-        with pytest.raises(YTError): get('//tmp/a')
+        with pytest.raises(YtError): get('//tmp/a')
+
+    def test_remove_locks(self):
+        set('//tmp/a', {'b' : 1})
+
+        tx1 = start_transaction()
+        tx2 = start_transaction()
+
+        set('//tmp/a/b', 2, tx = tx1)
+        with pytest.raises(YtError): remove('//tmp/a', tx = tx2)
+
+    def test_map_locks1(self):
+        tx = start_transaction()
+        set('//tmp/a', 1, tx = tx)
+        assert get('//tmp/@lock_mode') == 'none'
+        assert get('//tmp/@lock_mode', tx = tx) == 'shared'
+
+        locks = get('//tmp/@locks', tx = tx)
+        assert len(locks) == 1
+
+        lock = locks[0]
+        assert lock['mode'] == 'shared'
+        assert lock['child_keys'] == ['a']
+
+        commit_transaction(tx)
+        assert get('//tmp') == {'a' : 1}
+
+    def test_map_locks2(self):
+        tx1 = start_transaction()
+        set('//tmp/a', 1, tx = tx1)
+
+        tx2 = start_transaction()
+        set('//tmp/b', 2, tx = tx2)
+
+        assert get('//tmp', tx = tx1) == {'a' : 1}
+        assert get('//tmp', tx = tx2) == {'b' : 2}
+        assert get('//tmp') == {}
+
+        commit_transaction(tx1)
+        assert get('//tmp') == {'a' : 1}
+        assert get('//tmp', tx = tx2) == {'a' : 1, 'b' : 2}
+
+        commit_transaction(tx2)
+        assert get('//tmp') == {'a' : 1, 'b' : 2}
+
+    def test_map_locks3(self):
+        tx1 = start_transaction()
+        set('//tmp/a', 1, tx = tx1)
+
+        tx2 = start_transaction()
+        with pytest.raises(YtError): set('//tmp/a', 2, tx = tx2)
+
+    def test_map_locks4(self):
+        set('//tmp/a', 1)
+
+        tx = start_transaction()
+        remove('//tmp/a', tx = tx)
+
+        assert get('//tmp/@lock_mode', tx = tx) == 'shared'
+
+        locks = get('//tmp/@locks', tx = tx)
+        assert len(locks) == 1
+
+        lock = locks[0]
+        assert lock['mode'] == 'shared'
+        assert lock['child_keys'] == ['a']
+
+    def test_map_locks5(self):
+        set('//tmp/a', 1)
+
+        tx1 = start_transaction()
+        remove('//tmp/a', tx = tx1)
+
+        tx2 = start_transaction()
+        with pytest.raises(YtError): set('//tmp/a', 2, tx = tx2)
+
+    def test_map_locks6(self):
+        tx = start_transaction()
+        set('//tmp/a', 1, tx = tx)
+        assert get('//tmp/a', tx = tx) == 1
+        assert get('//tmp') == {}
+
+        with pytest.raises(YtError): remove('//tmp/a')
+        remove('//tmp/a', tx = tx)
+        assert get('//tmp', tx = tx) == {}
+
+        commit_transaction(tx)
+        assert get('//tmp') == {}
+
+    def test_map_locks7(self):
+        set('//tmp/a', 1)
+
+        tx = start_transaction()
+        remove('//tmp/a', tx = tx)
+        set('//tmp/a', 2, tx = tx)
+        remove('//tmp/a', tx = tx)
+        commit_transaction(tx)
+
+        assert get('//tmp') == {}
+
+    def test_attr_locks1(self):
+        tx = start_transaction()
+        set('//tmp/@a', 1, tx = tx)
+        assert get('//tmp/@lock_mode') == 'none'
+        assert get('//tmp/@lock_mode', tx = tx) == 'shared'
+
+        locks = get('//tmp/@locks', tx = tx)
+        assert len(locks) == 1
+
+        lock = locks[0]
+        assert lock['mode'] == 'shared'
+        assert lock['attribute_keys'] == ['a']
+
+        commit_transaction(tx)
+        assert get('//tmp/@a') == 1
+
+    def test_attr_locks2(self):
+        tx1 = start_transaction()
+        set('//tmp/@a', 1, tx = tx1)
+
+        tx2 = start_transaction()
+        set('//tmp/@b', 2, tx = tx2)
+
+        assert get('//tmp/@a', tx = tx1) == 1
+        assert get('//tmp/@b', tx = tx2) == 2
+        with pytest.raises(YtError): get('//tmp/@a')
+        with pytest.raises(YtError): get('//tmp/@b')
+
+        commit_transaction(tx1)
+        assert get('//tmp/@a') == 1
+        assert get('//tmp/@a', tx = tx2) == 1
+        assert get('//tmp/@b', tx = tx2) == 2
+
+        commit_transaction(tx2)
+        assert get('//tmp/@a') == 1
+        assert get('//tmp/@b') == 2
+
+    def test_attr_locks3(self):
+        tx1 = start_transaction()
+        set('//tmp/@a', 1, tx = tx1)
+
+        tx2 = start_transaction()
+        with pytest.raises(YtError): set('//tmp/@a', 2, tx = tx2)
+
+    def test_attr_locks4(self):
+        set('//tmp/@a', 1)
+
+        tx = start_transaction()
+        remove('//tmp/@a', tx = tx)
+
+        assert get('//tmp/@lock_mode', tx = tx) == 'shared'
+
+        locks = get('//tmp/@locks', tx = tx)
+        assert len(locks) == 1
+
+        lock = locks[0]
+        assert lock['mode'] == 'shared'
+        assert lock['attribute_keys'] == ['a']
+
+    def test_attr_locks5(self):
+        set('//tmp/@a', 1)
+
+        tx1 = start_transaction()
+        remove('//tmp/@a', tx = tx1)
+
+        tx2 = start_transaction()
+        with pytest.raises(YtError): set('//tmp/@a', 2, tx = tx2)
+
+    def test_attr_locks6(self):
+        tx = start_transaction()
+        set('//tmp/@a', 1, tx = tx)
+        assert get('//tmp/@a', tx = tx) == 1
+        with pytest.raises(YtError): get('//tmp/@a')
+
+        with pytest.raises(YtError): remove('//tmp/@a')
+        remove('//tmp/@a', tx = tx)
+        with pytest.raises(YtError): get('//tmp/@a', tx = tx)
+
+        commit_transaction(tx)
+        with pytest.raises(YtError): get('//tmp/@a')
 
     def test_embedded_attributes(self):
         set("//tmp/a", {})
@@ -416,16 +595,16 @@ class TestCypressCommands(YTEnvSetup):
         remove("//tmp/*")
         create("map_node", "//tmp/some_node")
 
-        with pytest.raises(YTError): create("map_node", "//tmp/a/b")
-        create("map_node", "//tmp/a/b", "--recursive")
+        with pytest.raises(YtError): create("map_node", "//tmp/a/b")
+        create("map_node", "//tmp/a/b", recursive=True)
 
-        with pytest.raises(YTError): create("map_node", "//tmp/a/b")
-        create("map_node", "//tmp/a/b", "--ignore_existing")
+        with pytest.raises(YtError): create("map_node", "//tmp/a/b")
+        create("map_node", "//tmp/a/b", ignore_existing=True)
 
-        with pytest.raises(YTError): create("table", "//tmp/a/b", "--ignore_existing")
+        with pytest.raises(YtError): create("table", "//tmp/a/b", ignore_existing=True)
 
     def test_link1(self):
-        with pytest.raises(YTError): link("//tmp/a", "//tmp/b")
+        with pytest.raises(YtError): link("//tmp/a", "//tmp/b")
 
     def test_link2(self):
         set("//tmp/t1", 1)
@@ -457,12 +636,12 @@ class TestCypressCommands(YTEnvSetup):
         
         assert get("#%s" % id, tx = tx) == 1
         assert get("//tmp/t2&/@broken") == "true"
-        with pytest.raises(YTError): read("//tmp/t2")
+        with pytest.raises(YtError): read("//tmp/t2")
 
     def test_link5(self):
         set("//tmp/t1", 1)
         set("//tmp/t2", 2)
-        with pytest.raises(YTError): link("//tmp/t1", "//tmp/t2")
+        with pytest.raises(YtError): link("//tmp/t1", "//tmp/t2")
 
     def test_link6(self):
         create("table", "//tmp/a")

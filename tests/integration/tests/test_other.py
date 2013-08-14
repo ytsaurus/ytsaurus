@@ -26,7 +26,7 @@ class TestOrchid(YTEnvSetup):
 
         self.assertItemsEqual(ls(path_to_value), ['a', 'b'])
         remove(path_to_value)
-        with pytest.raises(YTError): get(path_to_value)
+        with pytest.raises(YtError): get(path_to_value)
 
 
     def _check_orchid(self, path, num_services, service_name):
@@ -180,7 +180,7 @@ class TestChunkServer(YTEnvSetup):
         set('//tmp/t/@erasure_codec', erasure_codec)
         write('//tmp/t', {'a' : 'b'})
 
-        time.sleep(1) # wait for background replication
+        time.sleep(2) # wait for background replication
 
         chunk_ids = get('//tmp/t/@chunk_ids')
         assert len(chunk_ids) == 1

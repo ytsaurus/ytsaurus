@@ -26,17 +26,17 @@ class TestAcls(YTEnvSetup):
 
     def test_default_acl_sanity(self):
         create_user('u')
-        with pytest.raises(YTError): set('/', {}, user='u')
-        with pytest.raises(YTError): set('//sys', {}, user='u')
-        with pytest.raises(YTError): set('//sys/a', 'b', user='u')
-        with pytest.raises(YTError): set('/a', 'b', user='u')
-        with pytest.raises(YTError): remove('//sys', user='u')
-        with pytest.raises(YTError): remove('//sys/tmp', user='u')
-        with pytest.raises(YTError): remove('//sys/home', user='u')
-        with pytest.raises(YTError): set('//sys/home/a', 'b', user='u')
+        with pytest.raises(YtError): set('/', {}, user='u')
+        with pytest.raises(YtError): set('//sys', {}, user='u')
+        with pytest.raises(YtError): set('//sys/a', 'b', user='u')
+        with pytest.raises(YtError): set('/a', 'b', user='u')
+        with pytest.raises(YtError): remove('//sys', user='u')
+        with pytest.raises(YtError): remove('//sys/tmp', user='u')
+        with pytest.raises(YtError): remove('//sys/home', user='u')
+        with pytest.raises(YtError): set('//sys/home/a', 'b', user='u')
         set('//tmp/a', 'b', user='u')
         ls('//tmp', user='guest')
-        with pytest.raises(YTError): set('//tmp/c', 'd', user='guest')
+        with pytest.raises(YtError): set('//tmp/c', 'd', user='guest')
 
     def test_create_user1(self):
         create_user('max')
@@ -46,8 +46,8 @@ class TestAcls(YTEnvSetup):
 
     def test_create_user2(self):
         create_user('max')
-        with pytest.raises(YTError): create_user('max')
-        with pytest.raises(YTError): create_group('max')
+        with pytest.raises(YtError): create_user('max')
+        with pytest.raises(YtError): create_group('max')
 
     def test_create_group1(self):
         create_group('devs')
@@ -55,16 +55,16 @@ class TestAcls(YTEnvSetup):
 
     def test_create_group2(self):
         create_group('devs')
-        with pytest.raises(YTError): create_user('devs')
-        with pytest.raises(YTError): create_group('devs')
+        with pytest.raises(YtError): create_user('devs')
+        with pytest.raises(YtError): create_group('devs')
 
     def test_user_remove_builtin(self):
-        with pytest.raises(YTError): remove_user('root')
-        with pytest.raises(YTError): remove_user('guest')
+        with pytest.raises(YtError): remove_user('root')
+        with pytest.raises(YtError): remove_user('guest')
 
     def test_group_remove_builtin(self):
-        with pytest.raises(YTError): remove_group('everyone')
-        with pytest.raises(YTError): remove_group('users')
+        with pytest.raises(YtError): remove_group('everyone')
+        with pytest.raises(YtError): remove_group('users')
 
     def test_membership1(self):
         create_user('max')
@@ -110,7 +110,7 @@ class TestAcls(YTEnvSetup):
 
         add_member('g2', 'g1')
         add_member('g3', 'g2')
-        with pytest.raises(YTError): add_member('g1', 'g3')
+        with pytest.raises(YtError): add_member('g1', 'g3')
 
     def test_membership4(self):
         create_user('u')
@@ -131,17 +131,17 @@ class TestAcls(YTEnvSetup):
         create_user('u')
         create_group('g')
         
-        with pytest.raises(YTError): remove_member('u', 'g')
+        with pytest.raises(YtError): remove_member('u', 'g')
 
         add_member('u', 'g')
-        with pytest.raises(YTError): add_member('u', 'g')
+        with pytest.raises(YtError): add_member('u', 'g')
 
     def test_modify_builtin(self):
         create_user('u')
-        with pytest.raises(YTError): remove_member('u', 'everyone')
-        with pytest.raises(YTError): remove_member('u', 'users')
-        with pytest.raises(YTError): add_member('u', 'everyone')
-        with pytest.raises(YTError): add_member('u', 'users')
+        with pytest.raises(YtError): remove_member('u', 'everyone')
+        with pytest.raises(YtError): remove_member('u', 'users')
+        with pytest.raises(YtError): add_member('u', 'everyone')
+        with pytest.raises(YtError): add_member('u', 'users')
 
     def _to_list(self, x):
         if isinstance(x, str):
@@ -160,13 +160,13 @@ class TestAcls(YTEnvSetup):
         assert get(rw_path, user=rw_user) == 'c'
 
         set(acl_path + '/@acl/end', self._make_ace('deny', acl_subject, 'write'))
-        with pytest.raises(YTError): set(rw_path, 'd', user=rw_user)
+        with pytest.raises(YtError): set(rw_path, 'd', user=rw_user)
         assert get(rw_path, user=rw_user) == 'c'
 
         remove(acl_path + '/@acl/-1')
         set(acl_path + '/@acl/end', self._make_ace('deny', acl_subject, ['read', 'write']))
-        with pytest.raises(YTError): get(rw_path, user=rw_user)
-        with pytest.raises(YTError): set(rw_path, 'd', user=rw_user)
+        with pytest.raises(YtError): get(rw_path, user=rw_user)
+        with pytest.raises(YtError): set(rw_path, 'd', user=rw_user)
 
     def test_denying_acl1(self):
         create_user('u')
@@ -186,14 +186,14 @@ class TestAcls(YTEnvSetup):
     def _test_allowing_acl(self, rw_path, rw_user, acl_path, acl_subject):
         set(rw_path, 'a')
 
-        with pytest.raises(YTError): set(rw_path, 'b', user=rw_user)
+        with pytest.raises(YtError): set(rw_path, 'b', user=rw_user)
 
         set(acl_path + '/@acl/end', self._make_ace('allow', acl_subject, 'write'))
         set(rw_path, 'c', user=rw_user)
 
         remove(acl_path + '/@acl/-1')
         set(acl_path + '/@acl/end', self._make_ace('allow', acl_subject, 'read'))
-        with pytest.raises(YTError): set(rw_path, 'd', user=rw_user)
+        with pytest.raises(YtError): set(rw_path, 'd', user=rw_user)
 
     def test_allowing_acl1(self):
         self._test_allowing_acl('//tmp/a', 'guest', '//tmp/a', 'guest')
@@ -211,13 +211,13 @@ class TestAcls(YTEnvSetup):
         create_user('u')
         create('table', '//tmp/t1', user='u')
         set('//sys/schemas/table/@acl/end', self._make_ace('deny', 'u', 'create'))
-        with pytest.raises(YTError): create('table', '//tmp/t2', user='u')
+        with pytest.raises(YtError): create('table', '//tmp/t2', user='u')
 
     def test_schema_acl2(self):
         create_user('u')
         start_transaction(user='u')
         set('//sys/schemas/transaction/@acl/end', self._make_ace('deny', 'u', 'create'))
-        with pytest.raises(YTError): start_transaction(user='u')
+        with pytest.raises(YtError): start_transaction(user='u')
 
     def test_user_destruction(self):
         old_acl = get('//tmp/@acl')
@@ -241,15 +241,15 @@ class TestAcls(YTEnvSetup):
         create_account('a')
         create_user('u')
 
-        with pytest.raises(YTError): create('table', '//tmp/t', user='u', opt=['/attributes/account=a'])
+        with pytest.raises(YtError): create('table', '//tmp/t', user='u', opt=['/attributes/account=a'])
 
         create('table', '//tmp/t', user='u')
         assert get('//tmp/t/@account') == 'tmp'
 
-        with pytest.raises(YTError): set('//tmp/t/@account', 'a', user='u')
+        with pytest.raises(YtError): set('//tmp/t/@account', 'a', user='u')
 
         set('//sys/accounts/a/@acl/end', self._make_ace('allow', 'u', 'use'))
-        with pytest.raises(YTError): set('//tmp/t/@account', 'a', user='u')
+        with pytest.raises(YtError): set('//tmp/t/@account', 'a', user='u')
         set('//tmp/@acl/end', self._make_ace('allow', 'u', 'administer'))
         set('//tmp/t/@account', 'a', user='u')
         assert get('//tmp/t/@account') == 'a'
@@ -270,13 +270,13 @@ class TestAcls(YTEnvSetup):
     def test_scheduler_in_acl(self):
         self._prepare_scheduler_test()
         set('//tmp/t1/@acl/end', self._make_ace('deny', 'u', 'read'))
-        with pytest.raises(YTError): map(in_='//tmp/t1', out='//tmp/t2', command='cat', user='u')
+        with pytest.raises(YtError): map(in_='//tmp/t1', out='//tmp/t2', command='cat', user='u')
 
     @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
     def test_scheduler_out_acl(self):
         self._prepare_scheduler_test()
         set('//tmp/t2/@acl/end', self._make_ace('deny', 'u', 'write'))
-        with pytest.raises(YTError): map(in_='//tmp/t1', out='//tmp/t2', command='cat', user='u')
+        with pytest.raises(YtError): map(in_='//tmp/t1', out='//tmp/t2', command='cat', user='u')
 
     @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
     def test_scheduler_account_quota(self):
@@ -284,15 +284,15 @@ class TestAcls(YTEnvSetup):
         set('//tmp/t2/@account', 'a')
         set('//sys/accounts/a/@acl/end', self._make_ace('allow', 'u', 'use'))
         # account "a" still has zero disk space limit
-        with pytest.raises(YTError): map(in_='//tmp/t1', out='//tmp/t2', command='cat', user='u')
+        with pytest.raises(YtError): map(in_='//tmp/t1', out='//tmp/t2', command='cat', user='u')
 
     def test_inherit1(self):
         set('//tmp/p', {})
         set('//tmp/p/@inherit_acl', 'false')
         
         create_user('u')
-        with pytest.raises(YTError): set('//tmp/p/a', 'b', user='u')
-        with pytest.raises(YTError): ls('//tmp/p', user='u')
+        with pytest.raises(YtError): set('//tmp/p/a', 'b', user='u')
+        with pytest.raises(YtError): ls('//tmp/p', user='u')
 
         set('//tmp/p/@acl/end', self._make_ace('allow', 'u', ['read', 'write']))
         set('//tmp/p/a', 'b', user='u')
@@ -308,7 +308,7 @@ class TestAcls(YTEnvSetup):
     def test_create_in_tx2(self):
         create_user('u')
         tx = start_transaction()
-        create('table', '//tmp/a/b/c', '--recursive', tx=tx, user='u')
+        create('table', '//tmp/a/b/c', recursive=True, tx=tx, user='u')
         assert read('//tmp/a/b/c', tx=tx, user='u') == []
 
     @pytest.mark.xfail(run = False, reason = 'In progress')
@@ -334,7 +334,7 @@ class TestAcls(YTEnvSetup):
     def test_administer_permission1(self):
         create_user('u')
         create('table', '//tmp/t')
-        with pytest.raises(YTError): set('//tmp/t/@acl', [], user='u')
+        with pytest.raises(YtError): set('//tmp/t/@acl', [], user='u')
 
     def test_administer_permission2(self):
         create_user('u')
@@ -350,15 +350,15 @@ class TestAcls(YTEnvSetup):
     def test_user_rename_fail(self):
         create_user('u1')
         create_user('u2')
-        with pytest.raises(YTError): set('//sys/users/u1/@name', 'u2')
+        with pytest.raises(YtError): set('//sys/users/u1/@name', 'u2')
 
     def test_deny_create(self):
         create_user('u')
-        with pytest.raises(YTError): create('account_map', '//tmp/accounts', user='u')
+        with pytest.raises(YtError): create('account_map', '//tmp/accounts', user='u')
 
     def test_deny_copy(self):
         create_user('u')
-        with pytest.raises(YTError): copy('//sys', '//tmp/sys', user='u')
+        with pytest.raises(YtError): copy('//sys', '//tmp/sys', user='u')
 
     def test_document1(self):
         create_user('u')
@@ -367,20 +367,20 @@ class TestAcls(YTEnvSetup):
         set('//tmp/d/@inherit_acl', 'false')
 
         assert get_str('//tmp', user='u') == '{"d"=#}'
-        with pytest.raises(YTError): get('//tmp/d', user='u') == {'foo': {}}
-        with pytest.raises(YTError): get('//tmp/d/@value', user='u')
-        with pytest.raises(YTError): get('//tmp/d/foo', user='u')
-        with pytest.raises(YTError): set('//tmp/d/foo', {}, user='u')
-        with pytest.raises(YTError): set('//tmp/d/@value', {}, user='u')
-        with pytest.raises(YTError): set('//tmp/d', {'foo':{}}, user='u')
+        with pytest.raises(YtError): get('//tmp/d', user='u') == {'foo': {}}
+        with pytest.raises(YtError): get('//tmp/d/@value', user='u')
+        with pytest.raises(YtError): get('//tmp/d/foo', user='u')
+        with pytest.raises(YtError): set('//tmp/d/foo', {}, user='u')
+        with pytest.raises(YtError): set('//tmp/d/@value', {}, user='u')
+        with pytest.raises(YtError): set('//tmp/d', {'foo':{}}, user='u')
         assert ls('//tmp', user='u') == ['d']
-        with pytest.raises(YTError): ls('//tmp/d', user='u')
-        with pytest.raises(YTError): ls('//tmp/d/foo', user='u')
+        with pytest.raises(YtError): ls('//tmp/d', user='u')
+        with pytest.raises(YtError): ls('//tmp/d/foo', user='u')
         assert exists('//tmp/d', user='u')
-        with pytest.raises(YTError): exists('//tmp/d/@value', user='u')
-        with pytest.raises(YTError): exists('//tmp/d/foo', user='u')
-        with pytest.raises(YTError): remove('//tmp/d/foo', user='u')
-        with pytest.raises(YTError): remove('//tmp/d', user='u')
+        with pytest.raises(YtError): exists('//tmp/d/@value', user='u')
+        with pytest.raises(YtError): exists('//tmp/d/foo', user='u')
+        with pytest.raises(YtError): remove('//tmp/d/foo', user='u')
+        with pytest.raises(YtError): remove('//tmp/d', user='u')
 
     def test_document2(self):
         create_user('u')
@@ -393,17 +393,17 @@ class TestAcls(YTEnvSetup):
         assert get('//tmp/d', user='u') == {'foo': {}}
         assert get('//tmp/d/@value', user='u') == {'foo': {}}
         assert get('//tmp/d/foo', user='u') == {}
-        with pytest.raises(YTError): set('//tmp/d/foo', {}, user='u')
-        with pytest.raises(YTError): set('//tmp/d/@value', {}, user='u')
-        with pytest.raises(YTError): set('//tmp/d', {'foo':{}}, user='u')
+        with pytest.raises(YtError): set('//tmp/d/foo', {}, user='u')
+        with pytest.raises(YtError): set('//tmp/d/@value', {}, user='u')
+        with pytest.raises(YtError): set('//tmp/d', {'foo':{}}, user='u')
         assert ls('//tmp', user='u') == ['d']
         assert ls('//tmp/d', user='u') == ['foo']
         assert ls('//tmp/d/foo', user='u') == []
         assert exists('//tmp/d', user='u')
         assert exists('//tmp/d/@value', user='u')
         assert exists('//tmp/d/foo', user='u')
-        with pytest.raises(YTError): remove('//tmp/d/foo', user='u')
-        with pytest.raises(YTError): remove('//tmp/d', user='u')
+        with pytest.raises(YtError): remove('//tmp/d/foo', user='u')
+        with pytest.raises(YtError): remove('//tmp/d', user='u')
 
     def test_document3(self):
         create_user('u')
