@@ -27,7 +27,7 @@ void Serialize(const TYsonProducer& value, IYsonConsumer* consumer)
     value.Run(consumer);
 }
 
-void Serialize(const TYsonProducer& value, IYsonConsumer* consumer)
+void Serialize(const TYsonCallback& value, IYsonConsumer* consumer)
 {
     Serialize(TYsonProducer(value), consumer);
 }
