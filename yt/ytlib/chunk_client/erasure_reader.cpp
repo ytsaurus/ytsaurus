@@ -710,7 +710,7 @@ public:
                 const auto& block = blockOrError.GetValue();
                 RepairedDataSize_ += block.Data.Size();
 
-                if (!OnProgress_.IsNull()) {
+                if (OnProgress_) {
                     double progress = static_cast<double>(RepairedDataSize_) / Reader_->GetErasedDataSize();
                     OnProgress_.Run(progress);
                 }
