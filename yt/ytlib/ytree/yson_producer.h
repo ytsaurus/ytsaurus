@@ -37,6 +37,8 @@ private:
 
 void Serialize(const TYsonProducer& value, NYson::IYsonConsumer* consumer);
 
+void Serialize(const TYsonCallback& value, NYson::IYsonConsumer* consumer);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYTree

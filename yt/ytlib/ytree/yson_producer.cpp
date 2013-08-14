@@ -27,6 +27,11 @@ void Serialize(const TYsonProducer& value, IYsonConsumer* consumer)
     value.Run(consumer);
 }
 
+void Serialize(const TYsonProducer& value, IYsonConsumer* consumer)
+{
+    Serialize(TYsonProducer(value), consumer);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYTree
