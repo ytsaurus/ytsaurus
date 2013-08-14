@@ -331,7 +331,7 @@ public:
         YCHECK(!(
             State_ == NYT::EFiberState::Running &&
             !Stack_ &&
-            !Callee_.IsNull()));
+            Callee_));
 
         if (State_ == EFiberState::Suspended) {
             // Most likely that the fiber has been abandoned
@@ -581,7 +581,7 @@ private:
     void Trampoline()
     {
         YASSERT(Caller_);
-        YASSERT(!Callee_.IsNull());
+        YASSERT(Callee_);
 
         // XXX(babenko): VS2010 has no operator bool.
         if (!(Exception_ == std::exception_ptr())) {

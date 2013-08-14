@@ -22,7 +22,7 @@ public:
 
     virtual bool Invoke(const TClosure& action) override
     {
-        YASSERT(!action.IsNull());
+        YASSERT(action);
 
         if (Context->Canceled) {
             return false;

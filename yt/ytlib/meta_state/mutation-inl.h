@@ -14,7 +14,7 @@ namespace NMetaState {
 template <class TResponse>
 TMutationPtr TMutation::OnSuccess(TCallback<void(const TResponse&)> onSuccess)
 {
-    YASSERT(OnSuccess_.IsNull());
+    YASSERT(!OnSuccess_);
     OnSuccess_ = BIND([=] (const TMutationResponse& mutationResponse) {
         TResponse response;
         YCHECK(DeserializeFromProtoWithEnvelope(&response, mutationResponse.Data));

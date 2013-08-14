@@ -148,7 +148,7 @@ inline void TParallelAwaiter::DoFireCompleted(TClosure onComplete)
 {
     auto this_ = MakeStrong(this);
     CancelableInvoker->Invoke(BIND([this, this_, onComplete] () {
-        if (!onComplete.IsNull()) {
+        if (onComplete) {
             onComplete.Run();
         }
         CompletedPromise.Set();
@@ -161,7 +161,7 @@ void TParallelAwaiter::OnResult(
     TCallback<void(T)> onResult,
     T result)
 {
-    if (!onResult.IsNull()) {
+    if (onResult) {
         CancelableInvoker->Invoke(BIND(onResult, result));
     }
 
@@ -172,7 +172,7 @@ inline void TParallelAwaiter::OnResult(
     const NProfiling::TTagIdList& tagIds,
     TCallback<void()> onResult)
 {
-    if (!onResult.IsNull()) {
+    if (onResult) {
         CancelableInvoker->Invoke(onResult);
     }
 

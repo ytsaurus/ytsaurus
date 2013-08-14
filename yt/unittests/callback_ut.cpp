@@ -105,38 +105,38 @@ TEST_F(TCallbackTest, DefaultConstruction)
     TCallback<void(int,int,int,int,int)> c5;
     TCallback<void(int,int,int,int,int,int)> c6;
 
-    EXPECT_TRUE(c0.IsNull());
-    EXPECT_TRUE(c1.IsNull());
-    EXPECT_TRUE(c2.IsNull());
-    EXPECT_TRUE(c3.IsNull());
-    EXPECT_TRUE(c4.IsNull());
-    EXPECT_TRUE(c5.IsNull());
-    EXPECT_TRUE(c6.IsNull());
+    EXPECT_FALSE(c0);
+    EXPECT_FALSE(c1);
+    EXPECT_FALSE(c2);
+    EXPECT_FALSE(c3);
+    EXPECT_FALSE(c4);
+    EXPECT_FALSE(c5);
+    EXPECT_FALSE(c6);
 }
 
 TEST_F(TCallbackTest, IsNull)
 {
-    EXPECT_TRUE(NullCallback.IsNull());
-    EXPECT_FALSE(FirstCallback.IsNull());
-    EXPECT_FALSE(SecondCallback.IsNull());
+    EXPECT_FALSE(NullCallback);
+    EXPECT_TRUE(FirstCallback);
+    EXPECT_TRUE(SecondCallback);
 }
 
 TEST_F(TCallbackTest, Move)
 {
-    EXPECT_FALSE(FirstCallback.IsNull());
+    EXPECT_TRUE(FirstCallback);
 
     TCallback<void()> localCallback(std::move(FirstCallback));
     TCallback<void()> anotherCallback;
 
-    EXPECT_TRUE(FirstCallback.IsNull());
-    EXPECT_FALSE(localCallback.IsNull());
-    EXPECT_TRUE(anotherCallback.IsNull());
+    EXPECT_FALSE(FirstCallback);
+    EXPECT_TRUE(localCallback);
+    EXPECT_FALSE(anotherCallback);
 
     anotherCallback = std::move(localCallback);
 
-    EXPECT_TRUE(FirstCallback.IsNull());
-    EXPECT_TRUE(localCallback.IsNull());
-    EXPECT_FALSE(anotherCallback.IsNull());
+    EXPECT_FALSE(FirstCallback);
+    EXPECT_FALSE(localCallback);
+    EXPECT_TRUE(anotherCallback);
 }
 
 TEST_F(TCallbackTest, Equals)
@@ -160,12 +160,12 @@ TEST_F(TCallbackTest, Equals)
 TEST_F(TCallbackTest, Reset)
 {
     // Resetting should bring us back to empty.
-    ASSERT_FALSE(FirstCallback.IsNull());
+    ASSERT_TRUE(FirstCallback);
     ASSERT_FALSE(FirstCallback.Equals(NullCallback));
 
     FirstCallback.Reset();
 
-    EXPECT_TRUE(FirstCallback.IsNull());
+    EXPECT_FALSE(FirstCallback);
     EXPECT_TRUE(FirstCallback.Equals(NullCallback));
 }
 

@@ -76,7 +76,7 @@ void TInvokerQueue::Shutdown()
 
 EBeginExecuteResult TInvokerQueue::BeginExecute(TEnqueuedAction* action)
 {
-    YASSERT(action->Callback.IsNull());
+    YASSERT(!action->Callback);
 
     if (!Queue.Dequeue(action)) {
         return EBeginExecuteResult::QueueEmpty;
@@ -98,7 +98,7 @@ EBeginExecuteResult TInvokerQueue::BeginExecute(TEnqueuedAction* action)
 
 void TInvokerQueue::EndExecute(TEnqueuedAction* action)
 {
-    if (action->Callback.IsNull())
+    if (!action->Callback)
         return;
 
     auto size = AtomicDecrement(QueueSize);

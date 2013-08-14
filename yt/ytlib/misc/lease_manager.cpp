@@ -23,7 +23,7 @@ public:
     static TLease CreateLease(TDuration timeout, const TClosure& onExpired)
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        YASSERT(!onExpired.IsNull());
+        YASSERT(onExpired);
 
         auto lease = New<TEntry>(timeout, onExpired);
         lease->Cookie = TDelayedInvoker::Submit(

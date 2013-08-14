@@ -230,7 +230,7 @@ public:
     // TODO(sandello): get rid of double binding here by delaying bind moment to the very last possible moment.
     TClosure Wrap(const TCallback<void(TIntrusivePtr<TThis>)>& paramAction)
     {
-        YASSERT(!paramAction.IsNull());
+        YASSERT(paramAction);
         return this->UnderlyingContext->Wrap(BIND(paramAction, MakeStrong(this)));
     }
 

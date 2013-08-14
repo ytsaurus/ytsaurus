@@ -402,7 +402,7 @@ IYPathServicePtr CreateRootService(IYPathServicePtr underlyingService);
     if (context->GetVerb() == #method) { \
         ::NYT::NRpc::THandlerInvocationOptions options; \
         auto action = method##Thunk(context, options); \
-        if (!action.IsNull()) { \
+        if (action) { \
             action.Run(); \
         } \
         return true; \
@@ -415,7 +415,7 @@ IYPathServicePtr CreateRootService(IYPathServicePtr underlyingService);
         options.HeavyResponse = true; \
         options.ResponseCodec = NCompression::ECodec::Lz4; \
         auto action = method##Thunk(context, options); \
-        if (!action.IsNull()) { \
+        if (action) { \
             action.Run(); \
         } \
         return true; \

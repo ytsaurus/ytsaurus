@@ -49,9 +49,11 @@ protected:
 //! template bloat.
 class TCallbackBase
 {
+    typedef void (TCallbackBase::*TUnspecifiedBoolType)() const;
+    void MemberForUnspecifiedBoolType() const {}
 public:
-    //! Returns true iff #TCallback<> is null (does not refer to anything).
-    bool IsNull() const;
+    //! Returns true iff #TCallback<> is not null (does not refer to anything).
+    operator TUnspecifiedBoolType() const;
 
     //! Returns the #TCallback<> into an uninitialized state.
     void Reset();

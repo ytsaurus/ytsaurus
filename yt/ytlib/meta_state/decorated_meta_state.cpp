@@ -269,7 +269,7 @@ void TDecoratedMetaState::ApplyMutation(TMutationContext* context) throw()
 
     MutationContext = context;
     const auto& action = context->GetRequestAction();
-    if (action.IsNull()) {
+    if (!action) {
         State->ApplyMutation(context);
     } else {
         action.Run();

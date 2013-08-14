@@ -311,7 +311,7 @@ void TServiceBase::OnRequest(
                 context));
     } else {
         auto preparedHandler = handler.Run(context, options);
-        if (preparedHandler.IsNull())
+        if (!preparedHandler)
             return;
         OnInvocationPrepared(
             std::move(activeRequest),
@@ -325,7 +325,7 @@ void TServiceBase::OnInvocationPrepared(
     IServiceContextPtr context,
     TClosure handler)
 {
-    if (handler.IsNull())
+    if (!handler)
         return;
 
     auto preparedHandler = PrepareHandler(context, std::move(handler));

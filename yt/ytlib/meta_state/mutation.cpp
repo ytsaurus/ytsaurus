@@ -53,7 +53,7 @@ TMutationPtr TMutation::SetAction(TClosure action)
 
 TMutationPtr TMutation::OnSuccess(TClosure onSuccess)
 {
-    YASSERT(OnSuccess_.IsNull());
+    YASSERT(!OnSuccess_);
     OnSuccess_ = BIND([=] (const TMutationResponse&) {
         onSuccess.Run();
     });
@@ -62,14 +62,14 @@ TMutationPtr TMutation::OnSuccess(TClosure onSuccess)
 
 TMutationPtr TMutation::OnSuccess(TCallback<void(const TMutationResponse&)> onSuccess)
 {
-    YASSERT(OnSuccess_.IsNull());
+    YASSERT(!OnSuccess_);
     OnSuccess_ = std::move(onSuccess);
     return this;
 }
 
 TMutationPtr TMutation::OnError(TCallback<void(const TError&)> onError)
 {
-    YASSERT(OnError_.IsNull());
+    YASSERT(!OnError_);
     OnError_ = std::move(onError);
     return this;
 }
@@ -77,11 +77,11 @@ TMutationPtr TMutation::OnError(TCallback<void(const TError&)> onError)
 void TMutation::OnCommitted(TErrorOr<TMutationResponse> result)
 {
     if (result.IsOK()) {
-        if (!OnSuccess_.IsNull()) {
+        if (OnSuccess_) {
             OnSuccess_.Run(result.GetValue());
         }
     } else {
-        if (!OnError_.IsNull()) {
+        if (OnError_) {
             OnError_.Run(result);
         }
     }

@@ -12,7 +12,7 @@ TYsonProducer::TYsonProducer(TYsonCallback callback, EYsonType type)
     : Type_(type)
     , Callback(callback)
 {
-    YASSERT(!Callback.IsNull());
+    YASSERT(Callback);
 }
 
 void TYsonProducer::Run(IYsonConsumer* consumer) const

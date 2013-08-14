@@ -949,7 +949,7 @@ protected:
 
     virtual void DoReply(IMessagePtr responseMessage) override
     {
-        if (!ResponseHandler.IsNull()) {
+        if (ResponseHandler) {
             ResponseHandler.Run(responseMessage);
         }
     }

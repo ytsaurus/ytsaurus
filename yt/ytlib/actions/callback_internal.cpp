@@ -15,9 +15,9 @@ TBindStateBase::TBindStateBase(const ::NYT::TSourceLocation& location)
 TBindStateBase::~TBindStateBase()
 { }
 
-bool TCallbackBase::IsNull() const
+TCallbackBase::operator TUnspecifiedBoolType() const
 {
-    return BindState.Get() == NULL;
+    return BindState.Get() != NULL ? &TCallbackBase::MemberForUnspecifiedBoolType : 0;
 }
 
 void TCallbackBase::Reset()
