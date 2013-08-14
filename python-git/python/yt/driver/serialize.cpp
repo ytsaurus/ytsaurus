@@ -21,7 +21,10 @@ public:
             Consumer_->OnEndAttributes();
         }
         // TODO(ignat): maybe use IsInstance in all cases?
-        if (obj.isInteger()) {
+        if (obj.isBoolean()) {
+            Consumer_->OnStringScalar(Py::Boolean(obj) ? "true" : "false");
+        }
+        else if (obj.isInteger()) {
             Consumer_->OnIntegerScalar(Py::Int(obj).asLongLong());
         }
         else if (obj.isFloat()) {

@@ -28,6 +28,9 @@ public:
     
     Py::Object IsSet(Py::Tuple& args, Py::Dict &kwds);
     PYCXX_KEYWORDS_METHOD_DECL(TResponse, IsSet);
+    
+    Py::Object IsOk(Py::Tuple& args, Py::Dict &kwds);
+    PYCXX_KEYWORDS_METHOD_DECL(TResponse, IsOk);
 
     Py::Object Error(Py::Tuple& args, Py::Dict &kwds);
     PYCXX_KEYWORDS_METHOD_DECL(TResponse, Error);
