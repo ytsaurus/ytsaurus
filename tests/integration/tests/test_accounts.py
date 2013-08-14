@@ -51,16 +51,16 @@ class TestAccounts(YTEnvSetup):
         assert self._get_account_node_count('max') == 0
 
     def test_account_create2(self):
-        with pytest.raises(YTError): create_account('sys')
-        with pytest.raises(YTError): create_account('tmp')
+        with pytest.raises(YtError): create_account('sys')
+        with pytest.raises(YtError): create_account('tmp')
 
     def test_account_remove_builtin(self):
-        with pytest.raises(YTError): remove_account('sys')
-        with pytest.raises(YTError): remove_account('tmp')
+        with pytest.raises(YtError): remove_account('sys')
+        with pytest.raises(YtError): remove_account('tmp')
 
     def test_account_create3(self):
         create_account('max')
-        with pytest.raises(YTError): create_account('max')
+        with pytest.raises(YtError): create_account('max')
 
     def test_account_attr1(self):
         set('//tmp/a', {})
@@ -95,7 +95,7 @@ class TestAccounts(YTEnvSetup):
         create_account('max')
         set('//tmp/a', {})
         tx = start_transaction()
-        with pytest.raises(YTError): set('//tmp/a/@account', 'max', tx=tx)
+        with pytest.raises(YtError): set('//tmp/a/@account', 'max', tx=tx)
 
     def test_remove1(self):
         create_account('max')
@@ -112,7 +112,7 @@ class TestAccounts(YTEnvSetup):
         create_account('max')
         set('//tmp/a', {})
         set('//tmp/a/@account', 'max')
-        with pytest.raises(YTError): remove_account('max')
+        with pytest.raises(YtError): remove_account('max')
 
     def test_file1(self):
         assert self._get_account_disk_space('tmp') == 0
@@ -157,7 +157,7 @@ class TestAccounts(YTEnvSetup):
         assert self._get_account_disk_space('max') == 0
 
         content = "some_data"
-        create('file', '//tmp/f', opt=['/attributes/account=max'])
+        create('file', '//tmp/f', attributes={"account": "max"})
         upload('//tmp/f', content)
         assert self._get_account_disk_space('max') > 0
 
@@ -169,7 +169,7 @@ class TestAccounts(YTEnvSetup):
         create_account('max')
 
         content = "some_data"
-        create('file', '//tmp/f', opt=['/attributes/account=max'])
+        create('file', '//tmp/f', attributes={"account": "max"})
         upload('//tmp/f', content)
         space = self._get_account_disk_space('max')
         assert space > 0
@@ -279,7 +279,7 @@ class TestAccounts(YTEnvSetup):
         self._set_account_disk_space_limit('max', 2000)
         self._set_account_disk_space_limit('max', 0)
         assert self._is_account_over_disk_space_limit('max') == 'false'
-        with pytest.raises(YTError): self._set_account_disk_space_limit('max', -1)
+        with pytest.raises(YtError): self._set_account_disk_space_limit('max', -1)
 
     def test_disk_space_limits2(self):
         create_account('max')
@@ -293,7 +293,7 @@ class TestAccounts(YTEnvSetup):
 
         self._set_account_disk_space_limit('max', 0)
         assert self._is_account_over_disk_space_limit('max') == 'true'
-        with pytest.raises(YTError): write('//tmp/t', {'a' : 'b'})
+        with pytest.raises(YtError): write('//tmp/t', {'a' : 'b'})
 
         self._set_account_disk_space_limit('max', self._get_account_disk_space('max'))
         assert self._is_account_over_disk_space_limit('max') == 'false'
@@ -306,20 +306,20 @@ class TestAccounts(YTEnvSetup):
 
         content = "some_data"
 
-        create('file', '//tmp/f1', opt=['/attributes/account=max'])
+        create('file', '//tmp/f1', attributes={"account": "max"})
         upload('//tmp/f1', content)
         assert self._is_account_over_disk_space_limit('max') == 'false'
 
         self._set_account_disk_space_limit('max', 0)
         assert self._is_account_over_disk_space_limit('max') == 'true'
 
-        create('file', '//tmp/f2', opt=['/attributes/account=max'])
-        with pytest.raises(YTError): upload('//tmp/f2', content)
+        create('file', '//tmp/f2', attributes={"account": "max"})
+        with pytest.raises(YtError): upload('//tmp/f2', content)
 
         self._set_account_disk_space_limit('max', self._get_account_disk_space('max'))
         assert self._is_account_over_disk_space_limit('max') == 'false'
 
-        create('file', '//tmp/f3', opt=['/attributes/account=max'])
+        create('file', '//tmp/f3', attributes={"account": "max"})
         upload('//tmp/f3', content)
         assert self._is_account_over_disk_space_limit('max') == 'true'
 
@@ -343,10 +343,10 @@ class TestAccounts(YTEnvSetup):
         create_account('a1')
         create_account('a2')
 
-        create('map_node', '//tmp/x1', opt=['/attributes/account=a1'])
+        create('map_node', '//tmp/x1', attributes={"account": "a1"})
         assert get('//tmp/x1/@account') == 'a1'
 
-        create('map_node', '//tmp/x2', opt=['/attributes/account=a2'])
+        create('map_node', '//tmp/x2', attributes={"account": "a2"})
         assert get('//tmp/x2/@account') == 'a2'
 
         create('table', '//tmp/x1/t')
@@ -371,4 +371,4 @@ class TestAccounts(YTEnvSetup):
     def test_rename_fail(self):
         create_account('a1')
         create_account('a2')
-        with pytest.raises(YTError): set('//sys/accounts/a1/@name', 'a2')
+        with pytest.raises(YtError): set('//sys/accounts/a1/@name', 'a2')

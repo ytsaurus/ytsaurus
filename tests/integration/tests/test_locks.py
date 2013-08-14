@@ -13,21 +13,21 @@ class TestLocks(YTEnvSetup):
     #TODO(panin): check error messages
     def test_invalid_cases(self):
         # outside of transaction
-        with pytest.raises(YTError): lock('/')
+        with pytest.raises(YtError): lock('/')
 
         # at non-existsing node
         tx = start_transaction()
-        with pytest.raises(YTError): lock('//tmp/non_existent', tx = tx)
+        with pytest.raises(YtError): lock('//tmp/non_existent', tx = tx)
 
         # error while parsing mode
-        with pytest.raises(YTError): lock('/', mode = 'invalid', tx = tx)
+        with pytest.raises(YtError): lock('/', mode = 'invalid', tx = tx)
 
         #taking None lock is forbidden
-        with pytest.raises(YTError): lock('/', mode = 'None', tx = tx)
+        with pytest.raises(YtError): lock('/', mode = 'None', tx = tx)
 
         # attributes do not have @lock_mode
         set_str('//tmp/value', '<attr=some> 42', tx = tx)
-        with pytest.raises(YTError): lock('//tmp/value/@attr/@lock_mode', tx = tx)
+        with pytest.raises(YtError): lock('//tmp/value/@attr/@lock_mode', tx = tx)
        
         abort_transaction(tx)
 
@@ -61,7 +61,7 @@ class TestLocks(YTEnvSetup):
         assert get('//tmp/node', tx = tx) == 42
 
         # can't change value under snapshot lock
-        with pytest.raises(YTError): set('//tmp/node', 200, tx = tx)
+        with pytest.raises(YtError): set('//tmp/node', 200, tx = tx)
         
         abort_transaction(tx)
 
@@ -69,13 +69,13 @@ class TestLocks(YTEnvSetup):
         set('//tmp/a', {'b' : 1})
         tx = start_transaction()
         lock('//tmp/a/b', mode = 'exclusive', tx = tx);
-        with pytest.raises(YTError): remove('//tmp/a')
+        with pytest.raises(YtError): remove('//tmp/a')
 
     def test_remove_list_subtree_lock(self):
         set('//tmp/a', [1])
         tx = start_transaction()
         lock('//tmp/a/0', mode = 'exclusive', tx = tx);
-        with pytest.raises(YTError): remove('//tmp/a')
+        with pytest.raises(YtError): remove('//tmp/a')
 
     def test_exclusive_vs_snapshot_locks1(self):
         create('table', '//tmp/t')

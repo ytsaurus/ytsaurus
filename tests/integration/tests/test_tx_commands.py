@@ -24,9 +24,9 @@ class TestTxCommands(YTEnvSetup):
         self.assertItemsEqual(get_transactions(), [])
 
         #couldn't commit committed transaction
-        with pytest.raises(YTError): commit_transaction(tx)
+        with pytest.raises(YtError): commit_transaction(tx)
         #couldn't abort commited transaction
-        with pytest.raises(YTError): abort_transaction(tx)
+        with pytest.raises(YtError): abort_transaction(tx)
 
         ##############################################################
         #check the same for abort
@@ -39,9 +39,9 @@ class TestTxCommands(YTEnvSetup):
         self.assertItemsEqual(get_transactions(), [])
 
         #couldn't commit aborted transaction
-        with pytest.raises(YTError): commit_transaction(tx)
+        with pytest.raises(YtError): commit_transaction(tx)
         #couldn't abort aborted transaction
-        with pytest.raises(YTError): abort_transaction(tx)
+        with pytest.raises(YtError): abort_transaction(tx)
 
     def test_changes_inside_tx(self):
         set('//tmp/value', '42')
@@ -77,7 +77,7 @@ class TestTxCommands(YTEnvSetup):
         tx2 = start_transaction(tx = tx_outer)
 
         # can't be committed as long there are uncommitted transactions
-        with pytest.raises(YTError): commit_transaction(tx_outer)
+        with pytest.raises(YtError): commit_transaction(tx_outer)
 
         assert get('//tmp/t1', tx=tx_outer) == 0
         commit_transaction(tx1)
@@ -131,7 +131,7 @@ class TestTxCommands(YTEnvSetup):
 
         time.sleep(2)
         self.assertItemsEqual(get_transactions(), [tx_inner, tx_outer])
-        ping_transaction(tx_inner, '--ping_ancestor_txs')
+        ping_transaction(tx_inner, ping_ancestor_txs=True)
 
         time.sleep(3)
         # check that all tx are still alive
