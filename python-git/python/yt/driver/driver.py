@@ -1,26 +1,44 @@
 from ytlib_python import Driver, BufferedStream
 
+from yt.common import YtError
+import yt.yson as yson
+
 import cStringIO
 from cStringIO import StringIO
 
 class Request(object):
-    def __init__ (self, command_name, arguments=None, input_stream=None, output_stream=None):
+    def __init__ (self, command_name, arguments=None, input_stream=None, output_stream=None, user=None):
         self.command_name = command_name
         self.arguments = arguments
         self.input_stream = input_stream
         self.output_stream = output_stream
+        self.user = user
 
 def chunk_iter(stream, response, size):
     while True:
-        if stream.empty() and response.is_set():
-            break
+        if response.is_set():
+            if not response.is_ok():
+                raise YtError(response.error())
+            else:
+                break
+        yield stream.read(size)
+
+    while not stream.empty():
         yield stream.read(size)
 
 
 def make_request(driver, request):
     description = driver.get_description(request.command_name)
 
+    yson_format = yson.YsonString("yson")
+    yson_format.attributes["format"] = "text"
+
+    if description.input_type() != "null" and request.arguments.get("input_format") is None:
+        request.arguments["input_format"] = yson_format
+
     if description.output_type() != "null" and request.output_stream is None:
+        if request.arguments.get("output_format") is None:
+            request.arguments["output_format"] = yson_format
         if request.command_name in ["read", "download"]:
             request.output_stream = BufferedStream(size=64 * 1024 * 1024)
             response = driver.execute(request)
@@ -28,6 +46,9 @@ def make_request(driver, request):
         else:
             request.output_stream = StringIO()
 
-    driver.execute(request).wait()
+    response = driver.execute(request)
+    response.wait()
+    if not response.is_ok():
+        raise YtError(response.error())
     if isinstance(request.output_stream, cStringIO.OutputType):
         return request.output_stream.getvalue()
