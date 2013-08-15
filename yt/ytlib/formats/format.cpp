@@ -107,7 +107,7 @@ std::unique_ptr<IYsonConsumer> CreateConsumerForYson(
     auto config = New<TYsonFormatConfig>();
     config->Load(ConvertToNode(&attributes)->AsMap());
 
-    auto ysonType = GetYsonType(config->Format);
+    auto ysonType = DataTypeToYsonType(dataType);
     auto enableRaw = (config->Format == EYsonFormat::Binary);
     
     return std::unique_ptr<IYsonConsumer>(new TYsonWriter(output, config->Format, ysonType, enableRaw));
