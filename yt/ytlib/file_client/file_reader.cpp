@@ -25,6 +25,7 @@ using namespace NChunkClient;
 using namespace NTransactionClient;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
+using namespace NCypressClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -83,6 +84,7 @@ TAsyncError TAsyncReader::AsyncOpen()
     auto fetchReq = TFileYPathProxy::Fetch(RichPath.GetPath());
     ToProto(fetchReq->mutable_attributes(), *attributes);
     SetTransactionId(fetchReq, Transaction);
+    SetSuppressAccessTracking(fetchReq, Config->SuppressAccessTracking);
     fetchReq->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
 
     TObjectServiceProxy proxy(MasterChannel);

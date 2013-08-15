@@ -87,6 +87,22 @@ typedef TIntrusivePtr<TMutatingRequest> TMutatingRequestPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TSuppressableAccessTrackingRequest
+    : public virtual TRequest
+{
+    bool SuppressAccessTracking;
+
+    TSuppressableAccessTrackingRequest()
+    {
+        RegisterParameter("suppress_access_tracking", SuppressAccessTracking)
+            .Default(false);
+    }
+};
+
+typedef TIntrusivePtr<TSuppressableAccessTrackingRequest> TAccessTrackingSuppressableRequestPtr;
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct ICommandContext
     : public TRefCounted
 {
@@ -288,11 +304,35 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TRequest, class = void>
+class TSuppressableAccessTrackingCommmandBase
+{ };
+
+template <class TRequest>
+class TSuppressableAccessTrackingCommmandBase <
+    TRequest,
+    typename NMpl::TEnableIf<NMpl::TIsConvertible<TRequest&, TSuppressableAccessTrackingRequest&> >::TType
+>
+    : public virtual TTypedCommandBase<TRequest>
+{
+protected:
+    void SetSuppressAccessTracking(NRpc::IClientRequestPtr request)
+    {
+        NCypressClient::SetSuppressAccessTracking(
+            &request->Header(),
+            this->Request->SuppressAccessTracking);
+    }
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TRequest>
 class TTypedCommand
     : public virtual TTypedCommandBase<TRequest>
     , public TTransactionalCommandBase<TRequest>
     , public TMutatingCommandBase<TRequest>
+    , public TSuppressableAccessTrackingCommmandBase<TRequest>
 { };
 
 ////////////////////////////////////////////////////////////////////////////////

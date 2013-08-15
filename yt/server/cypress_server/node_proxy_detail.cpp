@@ -208,7 +208,7 @@ TNontemplateCypressNodeProxyBase::TNontemplateCypressNodeProxyBase(
     , Transaction(transaction)
     , TrunkNode(trunkNode)
     , CachedNode(nullptr)
-    , AccessSuppressed(false)
+    , AccessTrackingSuppressed(false)
 {
     YASSERT(typeHandler);
     YASSERT(bootstrap);
@@ -443,14 +443,14 @@ bool TNontemplateCypressNodeProxyBase::GetSystemAttribute(
     return TObjectProxyBase::GetSystemAttribute(key, consumer);
 }
 
-void TNontemplateCypressNodeProxyBase::BeforeInvoke()
+void TNontemplateCypressNodeProxyBase::BeforeInvoke(IServiceContextPtr context)
 {
-    AccessSuppressed = false;
+    AccessTrackingSuppressed = GetSuppressAccessTracking(context->RequestHeader());
 }
 
-void TNontemplateCypressNodeProxyBase::AfterInvoke()
+void TNontemplateCypressNodeProxyBase::AfterInvoke(IServiceContextPtr /*context*/)
 {
-    if (!AccessSuppressed) {
+    if (!AccessTrackingSuppressed) {
         SetAccessed();
     }
 }
@@ -478,7 +478,7 @@ void TNontemplateCypressNodeProxyBase::GetAttribute(
     TRspGet* response,
     TCtxGetPtr context)
 {
-    SuppressAccess();
+    SuppressAccessTracking();
     TObjectProxyBase::GetAttribute(path, request, response, context);
 }
 
@@ -488,7 +488,7 @@ void TNontemplateCypressNodeProxyBase::ListAttribute(
     TRspList* response,
     TCtxListPtr context)
 {
-    SuppressAccess();
+    SuppressAccessTracking();
     TObjectProxyBase::ListAttribute(path, request, response, context);
 }
 
@@ -497,7 +497,7 @@ void TNontemplateCypressNodeProxyBase::ExistsSelf(
     TRspExists* response,
     TCtxExistsPtr context)
 {
-    SuppressAccess();
+    SuppressAccessTracking();
     TObjectProxyBase::ExistsSelf(request, response, context);
 }
 
@@ -507,7 +507,7 @@ void TNontemplateCypressNodeProxyBase::ExistsRecursive(
     TRspExists* response,
     TCtxExistsPtr context)
 {
-    SuppressAccess();
+    SuppressAccessTracking();
     TObjectProxyBase::ExistsRecursive(path, request, response, context);
 }
 
@@ -517,7 +517,7 @@ void TNontemplateCypressNodeProxyBase::ExistsAttribute(
     TRspExists* response,
     TCtxExistsPtr context)
 {
-    SuppressAccess();
+    SuppressAccessTracking();
     TObjectProxyBase::ExistsAttribute(path, request, response, context);
 }
 
@@ -632,9 +632,9 @@ void TNontemplateCypressNodeProxyBase::SetAccessed()
     }
 }
 
-void TNontemplateCypressNodeProxyBase::SuppressAccess()
+void TNontemplateCypressNodeProxyBase::SuppressAccessTracking()
 {
-    AccessSuppressed = true;
+    AccessTrackingSuppressed = true;
 }
 
 ICypressNodeProxyPtr TNontemplateCypressNodeProxyBase::ResolveSourcePath(const TYPath& path)

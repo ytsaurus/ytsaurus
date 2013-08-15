@@ -61,6 +61,7 @@ TFuture<TTableYPathProxy::TRspFetchPtr> TAsyncTableReader::FetchTableInfo()
     ToProto(fetchReq->mutable_attributes(), RichPath.Attributes());
     fetchReq->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
     SetTransactionId(fetchReq, TransactionId);
+    SetSuppressAccessTracking(fetchReq, Config->SuppressAccessTracking);
     // ToDo(psushin): enable ignoring lost chunks.
 
     return Proxy.Execute(fetchReq);

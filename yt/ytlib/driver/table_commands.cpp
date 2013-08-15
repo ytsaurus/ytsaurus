@@ -30,9 +30,13 @@ using namespace NTableClient;
 
 void TReadCommand::DoExecute()
 {
+    // COMPAT(babenko): remove Request->TableReader
     auto config = UpdateYsonSerializable(
         Context->GetConfig()->TableReader,
         Request->TableReader);
+    config = UpdateYsonSerializable(
+        config,
+        Request->GetOptions());
 
     auto reader = New<TAsyncTableReader>(
         config,

@@ -28,6 +28,7 @@ void TGetCommand::DoExecute()
 {
     auto req = TYPathProxy::Get(Request->Path.GetPath());
     SetTransactionId(req, EAllowNullTransaction::Yes);
+    SetSuppressAccessTracking(req);
 
     TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly, Request->Attributes);
     ToProto(req->mutable_attribute_filter(), attributeFilter);
@@ -77,6 +78,7 @@ void TListCommand::DoExecute()
 {
     auto req = TYPathProxy::List(Request->Path.GetPath());
     SetTransactionId(req, EAllowNullTransaction::Yes);
+    SetSuppressAccessTracking(req);
 
     TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly, Request->Attributes);
     ToProto(req->mutable_attribute_filter(), attributeFilter);

@@ -124,7 +124,16 @@ public:
 
 class TTableReaderConfig
     : public NChunkClient::TMultiChunkReaderConfig
-{ };
+{
+public:
+    bool SuppressAccessTracking;
+
+    TTableReaderConfig()
+    {
+        RegisterParameter("suppress_access_tracking", SuppressAccessTracking)
+            .Default(false);
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
