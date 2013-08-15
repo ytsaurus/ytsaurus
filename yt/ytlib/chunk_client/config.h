@@ -31,7 +31,10 @@ public:
     int RetryCount;
 
     //! Time to wait before making another pass with same seeds.
-    TDuration PassBackoffTime;
+    //! Increases exponentially with every pass, from MinPassBackoffTime to MaxPassBackoffTime.
+    TDuration MinPassBackoffTime;
+    TDuration MaxPassBackoffTime;
+    double PassBackoffTimeMultiplier;
 
     //! Maximum number of passes with same seeds.
     int PassCount;
@@ -59,8 +62,13 @@ public:
             .Default(TDuration::Seconds(3));
         RegisterParameter("retry_count", RetryCount)
             .Default(20);
-        RegisterParameter("pass_backoff_time", PassBackoffTime)
+        RegisterParameter("min_pass_backoff_time", MinPassBackoffTime)
             .Default(TDuration::Seconds(3));
+        RegisterParameter("max_pass_backoff_time", MaxPassBackoffTime)
+            .Default(TDuration::Seconds(60));
+        RegisterParameter("pass_backoff_time_multiplier", PassBackoffTimeMultiplier)
+            .GreaterThan(1)
+            .Default(1.5);
         RegisterParameter("pass_count", PassCount)
             .Default(500);
         RegisterParameter("fetch_from_peers", FetchFromPeers)
