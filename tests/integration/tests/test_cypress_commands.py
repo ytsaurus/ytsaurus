@@ -708,14 +708,14 @@ class TestCypressCommands(YTEnvSetup):
 
     def test_access_stat_suppress1(self):
         c1 = get('//tmp/@access_counter')
-        get('//tmp', ['/suppress_access_tracking=true'])
+        get('//tmp', opt=['/suppress_access_tracking=true'])
         time.sleep(2.0)
         c2 = get('//tmp/@access_counter')
         assert c1 == c2
 
     def test_access_stat_suppress2(self):
         c1 = get('//tmp/@access_counter')
-        ls('//tmp', ['/suppress_access_tracking=true'])
+        ls('//tmp', opt=['/suppress_access_tracking=true'])
         time.sleep(2.0)
         c2 = get('//tmp/@access_counter')
         assert c1 == c2
@@ -723,7 +723,7 @@ class TestCypressCommands(YTEnvSetup):
     def test_access_stat_suppress3(self):
         create('table', '//tmp/t')
         c1 = get('//tmp/t/@access_counter')
-        read('//tmp/t', ['/suppress_access_tracking=true'])
+        read('//tmp/t', opt=['/suppress_access_tracking=true'])
         time.sleep(2.0)
         c2 = get('//tmp/t/@access_counter')
         assert c1 == c2
@@ -731,7 +731,7 @@ class TestCypressCommands(YTEnvSetup):
     def test_access_stat_suppress4(self):
         create('file', '//tmp/f')
         c1 = get('//tmp/f/@access_counter')
-        download('//tmp/f', ['/suppress_access_tracking=true'])
+        download('//tmp/f', opt=['/suppress_access_tracking=true'])
         time.sleep(2.0)
         c2 = get('//tmp/f/@access_counter')
         assert c1 == c2
