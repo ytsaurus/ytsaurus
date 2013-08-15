@@ -252,7 +252,7 @@ private:
             ~location->GetId());
 
         TSharedRef data;
-        NProfiling::TScopedTimer timer; 
+        NProfiling::TScopedTimer timer;
 
         try {
             data = reader->ReadBlock(blockId.BlockIndex);

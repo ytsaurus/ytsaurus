@@ -357,9 +357,14 @@ private:
                 ~ToString(blockId));
 
             auto block = blockOrError.GetValue()->GetData();
-            writer->WriteBlock(block);
+            auto result = writer->WriteBlock(block);
+            if (!result) {
+                auto error = WaitFor(writer->GetReadyEvent());
+                THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error writing block %s for replication",
+                    ~ToString(blockId));
+            }
         }
-        
+
         LOG_DEBUG("All blocks are enqueued for replication");
 
         auto closeError = WaitFor(writer->AsyncClose(chunkMeta));
@@ -465,7 +470,7 @@ private:
             readers,
             writers,
             onProgress);
-        
+
         // Make sure the repair is canceled when the current fiber terminates.
         TFutureCancelationGuard<TError> repairErrorGuard(asyncRepairError);
 
