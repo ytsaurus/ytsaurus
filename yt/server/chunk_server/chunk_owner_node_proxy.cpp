@@ -605,6 +605,11 @@ bool TChunkOwnerNodeProxy::SetSystemAttribute(
         return true;
     }
 
+    if (key == "chunk_ids" || key == "compression_statistics") {
+        ThrowCannotSetSystemAttribute(key);
+    }
+
+
     return TNontemplateCypressNodeProxyBase::SetSystemAttribute(key, value);
 }
 

@@ -5,6 +5,7 @@
 #include "group.h"
 
 #include <ytlib/ytree/convert.h>
+#include <ytlib/ytree/exception_helpers.h>
 
 #include <server/object_server/object_detail.h>
 
@@ -81,6 +82,12 @@ protected:
             auto newName = NYTree::ConvertTo<Stroka>(value);
             securityManager->RenameSubject(subject, newName);
             return true;
+        }
+
+        if (key == "member_of" ||
+            key == "member_of_closure")
+        {
+            NYTree::ThrowCannotSetSystemAttribute(key);
         }
 
         return TBase::SetSystemAttribute(key, value);

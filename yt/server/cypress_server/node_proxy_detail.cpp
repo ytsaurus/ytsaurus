@@ -298,6 +298,10 @@ TAsyncError TNontemplateCypressNodeProxyBase::GetSystemAttributeAsync(
 
 bool TNontemplateCypressNodeProxyBase::SetSystemAttribute(const Stroka& key, const TYsonString& value)
 {
+    if (key == "recursive_resource_usage") {
+        ThrowCannotSetSystemAttribute(key);
+    }
+
     if (key == "account") {
         ValidateNoTransaction();
         ValidatePermission(EPermissionCheckScope::This, EPermission::Administer);
@@ -925,6 +929,8 @@ ICypressNodeProxyPtr TNodeFactory::CreateNode(
             auto value = attributes->GetYson(key);
             // Try to set as a system attribute. If fails then set as a user attribute.
             if (!trunkProxy->SetSystemAttribute(key, value)) {
+                // TODO(ignat): We need call ValidateUserAttributeUpdate(key, Null, value)
+                // but have no proper Proxy or Provider.
                 trunkProxy->MutableAttributes()->SetYson(key, value);
             }
         }        
@@ -1568,6 +1574,9 @@ bool TLinkNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& va
         auto* impl = LockThisTypedImpl();
         impl->SetTargetId(targetProxy->GetId());
         return true;
+    }
+    if (key == "broken") {
+        ThrowCannotSetSystemAttribute(key);
     }
 
     return TBase::SetSystemAttribute(key, value);

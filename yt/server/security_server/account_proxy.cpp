@@ -4,6 +4,7 @@
 #include "security_manager.h"
 
 #include <ytlib/yson/consumer.h>
+#include <ytlib/ytree/exception_helpers.h>
 
 #include <ytlib/security_client/account_ypath.pb.h>
 
@@ -102,6 +103,13 @@ private:
             auto newName = ConvertTo<Stroka>(value);
             securityManager->RenameAccount(account, newName);
             return true;
+        }
+        
+        if (key == "committed_resource_usage" ||
+            key == "resource_usage" ||
+            key == "over_disk_space_limit")
+        {
+            NYTree::ThrowCannotSetSystemAttribute(key);
         }
 
         return TBase::SetSystemAttribute(key, value);
