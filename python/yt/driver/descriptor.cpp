@@ -37,14 +37,14 @@ Py::Object TPythonCommandDescriptor::IsHeavy(Py::Tuple& args, Py::Dict &kwds)
 void TPythonCommandDescriptor::InitType()
 {
     behaviors().name("CommandDescriptor");
-    behaviors().doc("Some documentation");
+    behaviors().doc("Describe command properties");
     behaviors().supportGetattro();
     behaviors().supportSetattro();
 
-    PYCXX_ADD_KEYWORDS_METHOD(input_type, InputType, "TODO(ignat): make documentation");
-    PYCXX_ADD_KEYWORDS_METHOD(output_type, OutputType, "TODO(ignat): make documentation");
-    PYCXX_ADD_KEYWORDS_METHOD(is_volatile, IsVolatile, "TODO(ignat): make documentation");
-    PYCXX_ADD_KEYWORDS_METHOD(is_heavy, IsHeavy, "TODO(ignat): make documentation");
+    PYCXX_ADD_KEYWORDS_METHOD(input_type, InputType, "Input type of the command");
+    PYCXX_ADD_KEYWORDS_METHOD(output_type, OutputType, "Output type of the command");
+    PYCXX_ADD_KEYWORDS_METHOD(is_volatile, IsVolatile, "Check that command is volatile");
+    PYCXX_ADD_KEYWORDS_METHOD(is_heavy, IsHeavy, "Check that command is heavy");
 
     behaviors().readyType();
 }
