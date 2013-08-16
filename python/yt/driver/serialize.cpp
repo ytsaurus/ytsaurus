@@ -1,11 +1,15 @@
 #include "common.h"
 #include "serialize.h"
 
+#include <ytlib/ytree/node.h>
+
 namespace NYT {
 
 namespace {
 
 using NYson::IYsonConsumer;
+using NYTree::INodePtr;
+using NYTree::ENodeType;
 
 class TPythonYTreeProducer {
 public:
@@ -78,12 +82,61 @@ private:
 
 } // anonymous namespace
 
-namespace NYson {
+namespace NYTree {
 
 void Serialize(const Py::Object& obj, IYsonConsumer* consumer)
 {
     TPythonYTreeProducer(consumer).Process(obj);
 }
 
-} // namespace NYson
+
+void Deserialize(Py::Object& obj, INodePtr node)
+{
+    // TODO(ignat): attributes!
+    auto type = node->GetType();
+    if (type == ENodeType::Entity) {
+        obj = Py::None();
+    }
+    else if (type == ENodeType::Integer) {
+        obj = Py::Int(node->AsInteger()->GetValue());
+    }
+    else if (type == ENodeType::Double) {
+        obj = Py::Float(node->AsDouble()->GetValue());
+    }
+    else if (type == ENodeType::String) {
+        auto str = node->AsString()->GetValue();
+        if (str == "true") {
+            obj = Py::True();
+        }
+        else if (str == "false") {
+            obj = Py::False();
+        }
+        else {
+            obj = Py::String(~str);
+        }
+    }
+    else if (type == ENodeType::List) {
+        auto list = Py::List();
+        FOREACH (auto child, node->AsList()->GetChildren()) {
+            Py::Object item;
+            Deserialize(item, child);
+            list.append(item);
+        }
+        obj = list;
+    }
+    else if (type == ENodeType::Map) {
+        auto map = Py::Dict();
+        FOREACH (auto child, node->AsMap()->GetChildren()) {
+            Py::Object item;
+            Deserialize(item, child.second);
+            map.setItem(~child.first, item);
+        }
+        obj = map;
+    }
+    else {
+        THROW_ERROR_EXCEPTION("Unsupported node type %s", ~type.ToString());
+    }
+}
+
+} // namespace NYTree
 } // namespace NYT

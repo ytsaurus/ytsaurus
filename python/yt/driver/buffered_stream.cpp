@@ -197,8 +197,8 @@ void TPythonBufferedStream::InitType()
     behaviors().supportGetattro();
     behaviors().supportSetattro();
 
-    PYCXX_ADD_KEYWORDS_METHOD(read, Read, "TODO(ignat): make documentation");
-    PYCXX_ADD_KEYWORDS_METHOD(empty, Empty, "TODO(ignat): make documentation");
+    PYCXX_ADD_KEYWORDS_METHOD(read, Read, "Synchronously read data from stream");
+    PYCXX_ADD_KEYWORDS_METHOD(empty, Empty, "Check wether the stream is empty");
 
     behaviors().readyType();
 }
