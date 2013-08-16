@@ -176,20 +176,21 @@ private:
 struct IClientResponseHandler
     : public virtual TRefCounted
 {
-    //! Request delivery has been acknowledged.
+    //! Called when request delivery is acknowledged.
     virtual void OnAcknowledgement() = 0;
 
-    //! The request has been replied with #EErrorCode::OK.
+    //! Called if the request is replied with #EErrorCode::OK.
     /*!
      *  \param message A message containing the response.
      */
     virtual void OnResponse(NBus::IMessagePtr message) = 0;
 
-    //! The request has failed.
+    //! Called if the request fails.
     /*!
      *  \param error An error that has occurred.
      */
     virtual void OnError(const TError& error) = 0;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -223,6 +224,7 @@ protected:
     // IClientResponseHandler implementation.
     virtual void OnError(const TError& error) override;
 
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -240,7 +242,7 @@ public:
     const NYTree::IAttributeDictionary& Attributes() const;
 
 protected:
-    TClientResponse(const TRequestId& requestId);
+    explicit TClientResponse(const TRequestId& requestId);
 
     virtual void DeserializeBody(const TRef& data) = 0;
 
@@ -309,8 +311,8 @@ private:
     TPromise<TPtr> Promise;
 
     // IClientResponseHandler implementation.
-    virtual void OnAcknowledgement();
-    virtual void OnResponse(NBus::IMessagePtr message);
+    virtual void OnAcknowledgement() override;
+    virtual void OnResponse(NBus::IMessagePtr message) override;
 
     virtual void FireCompleted();
 

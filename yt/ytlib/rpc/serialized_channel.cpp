@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "scoped_channel.h"
+#include "serialized_channel.h"
 #include "client.h"
 
 #include <queue>
@@ -9,8 +9,6 @@ namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
 class TSerializedChannel
     : public IChannel
 {
@@ -18,8 +16,6 @@ public:
     explicit TSerializedChannel(IChannelPtr underlyingChannel);
 
     virtual TNullable<TDuration> GetDefaultTimeout() const override;
-
-    virtual bool GetRetryEnabled() const override;
 
     virtual void Send(
         IClientRequestPtr request,
@@ -33,28 +29,18 @@ public:
 private:
     IChannelPtr UnderlyingChannel;
 
-    DECLARE_ENUM(EEntryState,
-        (Waiting)
-        (InProgress)
-        (TimedOut)
-    );
-
     struct TEntry
         : public TIntrinsicRefCounted
     {
-        TEntry(IClientRequestPtr request, IClientResponseHandlerPtr handler, TNullable<TInstant> deadline)
-            : EnqueueTime(TInstant::Now())
-            , State(EEntryState::Waiting)
-            , Request(std::move(request))
+        TEntry(IClientRequestPtr request, IClientResponseHandlerPtr handler, TNullable<TDuration> timeout)
+            : Request(std::move(request))
             , Handler(std::move(handler))
-            , Deadline(deadline)
+            , Timeout(timeout)
         { }
 
-        TInstant EnqueueTime;
-        EEntryState State;
         IClientRequestPtr Request;
         IClientResponseHandlerPtr Handler;
-        TNullable<TInstant> Deadline;
+        TNullable<TDuration> Timeout;
     };
 
     typedef TIntrusivePtr<TEntry> TEntryPtr;
@@ -64,11 +50,19 @@ private:
     bool RequestInProgress;
 
     void TrySendQueuedRequests();
-    void OnQueuedRequestTimeout(TEntryPtr entry);
 
 };
 
 typedef TIntrusivePtr<TSerializedChannel> TSerializedChannelPtr;
+
+IChannelPtr CreateSerializedChannel(IChannelPtr underlyingChannel)
+{
+    YCHECK(underlyingChannel);
+
+    return New<TSerializedChannel>(std::move(underlyingChannel));
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TSerializedResponseHandler
     : public IClientResponseHandler
@@ -114,24 +108,12 @@ TNullable<TDuration> TSerializedChannel::GetDefaultTimeout() const
     return UnderlyingChannel->GetDefaultTimeout();
 }
 
-bool TSerializedChannel::GetRetryEnabled() const
-{
-    return UnderlyingChannel->GetRetryEnabled();
-}
-
 void TSerializedChannel::Send(
     IClientRequestPtr request,
     IClientResponseHandlerPtr responseHandler,
     TNullable<TDuration> timeout)
 {
-    auto deadline = timeout ? MakeNullable(timeout.Get().ToDeadLine()) : Null;
-    auto entry = New<TEntry>(request, responseHandler, deadline);
-
-    if (timeout) {
-        TDelayedInvoker::Submit(
-            BIND(&TSerializedChannel::OnQueuedRequestTimeout, MakeStrong(this), entry),
-            timeout.Get());
-    }
+    auto entry = New<TEntry>(request, responseHandler, timeout);
 
     {
         TGuard<TSpinLock> guard(SpinLock);
@@ -155,39 +137,14 @@ void TSerializedChannel::TrySendQueuedRequests()
     while (!RequestInProgress && !Queue.empty()) {
         auto entry = Queue.front();
         Queue.pop();
+        RequestInProgress = true;
+        guard.Release();
 
-        if ((!entry->Deadline || entry->Deadline.Get() > now) && entry->State == EEntryState::Waiting) {
-            entry->State = EEntryState::InProgress;
-            RequestInProgress = true;
-            guard.Release();
-
-            auto timeout = entry->Deadline ? MakeNullable(entry->Deadline.Get() - now) : Null;
-            auto serializedHandler = New<TSerializedResponseHandler>(entry->Handler, this);
-            UnderlyingChannel->Send(entry->Request, serializedHandler, timeout);
-            entry->Request.Reset();
-            entry->Handler.Reset();
-
-            break;
-        }
+        auto serializedHandler = New<TSerializedResponseHandler>(entry->Handler, this);
+        UnderlyingChannel->Send(entry->Request, serializedHandler, entry->Timeout);
+        entry->Request.Reset();
+        entry->Handler.Reset();
     }
-}
-
-void TSerializedChannel::OnQueuedRequestTimeout(TEntryPtr entry)
-{
-    TGuard<TSpinLock> guard(SpinLock);
-    
-    if (entry->State != EEntryState::Waiting)
-        return;
-
-    entry->State = EEntryState::TimedOut;
-   
-    guard.Release();
-
-    entry->Handler->OnError(TError(
-        EErrorCode::Timeout,
-        "Request timed out while waiting in serialized channel queue"));
-    entry->Request.Reset();
-    entry->Handler.Reset();
 }
 
 void TSerializedChannel::OnRequestCompleted()
@@ -199,15 +156,6 @@ void TSerializedChannel::OnRequestCompleted()
     }
 
     TrySendQueuedRequests();
-}
-
-} // namespace
-
-IChannelPtr CreateSerializedChannel(IChannelPtr underlyingChannel)
-{
-    YCHECK(underlyingChannel);
-
-    return New<TSerializedChannel>(underlyingChannel);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

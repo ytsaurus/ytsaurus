@@ -132,9 +132,6 @@ public:
                 <<= ERROR_SOURCE_LOCATION()
                 >>= TError(NRpc::EErrorCode::Unavailable, "Not a leader");
         }
-        if (!MetaStateManager->HasActiveQuorum()) {
-            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "No active quorum");
-        }
     }
 
     bool IsInitialized() const

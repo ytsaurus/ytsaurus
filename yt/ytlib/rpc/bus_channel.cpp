@@ -50,11 +50,6 @@ public:
         return DefaultTimeout;
     }
 
-    virtual bool GetRetryEnabled() const override
-    {
-        return false;
-    }
-
     virtual void Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,

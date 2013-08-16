@@ -52,7 +52,6 @@ IChannelPtr CreateLeaderChannel(TMasterDiscoveryConfigPtr config)
     auto masterDiscovery = New<TMasterDiscovery>(config);
     auto roamingChannel = CreateRoamingChannel(
         config->RpcTimeout,
-        config->MaxAttempts > 1,
         BIND([=] () -> TFuture< TErrorOr<IChannelPtr> > {
             return masterDiscovery->GetLeader().Apply(BIND(
                 &OnPeerFound,
@@ -67,7 +66,6 @@ IChannelPtr CreateMasterChannel(TMasterDiscoveryConfigPtr config)
     auto masterDiscovery = New<TMasterDiscovery>(config);
     auto roamingChannel = CreateRoamingChannel(
         config->RpcTimeout,
-        config->MaxAttempts > 1,
         BIND([=] () -> TFuture< TErrorOr<IChannelPtr> > {
             return masterDiscovery->GetMaster().Apply(BIND(
                 &OnPeerFound,
