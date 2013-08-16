@@ -152,11 +152,16 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected);
 
-        auto* list = GetUpdateList(operation);
-
         auto id = operation->GetOperationId();
         LOG_INFO("Flushing operation node (OperationId: %s)",
             ~ToString(id));
+
+        auto* list = FindUpdateList(operation);
+        if (!list) {
+            LOG_INFO("Operation node is not registered, omitting flush (OperationId: %s)",
+                ~ToString(id));
+            return MakeFuture();
+        }
 
         // Create a batch update for this particular operation.
         auto batchReq = StartBatchRequest(list);
