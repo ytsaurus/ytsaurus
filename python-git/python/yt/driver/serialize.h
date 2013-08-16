@@ -3,14 +3,17 @@
 #include <contrib/libs/pycxx/Objects.hxx>
 
 #include <core/yson/consumer.h>
+#include <ytlib/ytree/public.h>
 
 namespace NYT {
-namespace NYson {
+namespace NYTree {
 
-// This method allows use methods convertTo* with Py::Object.
-void Serialize(const Py::Object& obj, IYsonConsumer* consumer);
+// This methods allow use methods convertTo* with Py::Object.
+void Serialize(const Py::Object& obj, NYson::IYsonConsumer* consumer);
 
-} // namespace NYson
+void Deserialize(Py::Object& obj, NYTree::INodePtr node);
+
+} // namespace NYTree
 } // namespace NYT
 
 
