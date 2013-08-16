@@ -222,7 +222,7 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::LoadKeys(TLoadContext& context
     Map.clear();
     size_t size = TSizeSerializer::Load(context);
 
-    TKey previousKey();
+    auto previousKey = TKey();
     for (size_t index = 0; index < size; ++index) {
         TKey key;
         NYT::Load(context, key);
