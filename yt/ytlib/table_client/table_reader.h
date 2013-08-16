@@ -31,7 +31,6 @@ class TAsyncTableReader
     , public IAsyncReader
 {
 public:
-    //! Initializes an instance.
     TAsyncTableReader(
         TTableReaderConfigPtr config,
         NRpc::IChannelPtr masterChannel,

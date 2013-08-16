@@ -13,6 +13,7 @@ namespace NDriver {
 
 struct TGetRequest
     : public TTransactionalRequest
+    , public TSuppressableAccessTrackingRequest
 {
     NYPath::TRichYPath Path;
     std::vector<Stroka> Attributes;
@@ -98,6 +99,7 @@ private:
 
 struct TListRequest
     : public TTransactionalRequest
+    , public TSuppressableAccessTrackingRequest
 {
     NYPath::TRichYPath Path;
     std::vector<Stroka> Attributes;

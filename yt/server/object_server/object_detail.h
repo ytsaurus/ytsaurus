@@ -103,8 +103,8 @@ protected:
     virtual NSecurityServer::TAccessControlDescriptor* FindThisAcd() = 0;
 
     void GuardedInvoke(NRpc::IServiceContextPtr context);
-    virtual void BeforeInvoke();
-    virtual void AfterInvoke();
+    virtual void BeforeInvoke(NRpc::IServiceContextPtr context);
+    virtual void AfterInvoke(NRpc::IServiceContextPtr context);
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override;
     virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const override;
 

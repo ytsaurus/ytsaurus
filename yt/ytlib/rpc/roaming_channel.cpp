@@ -17,10 +17,8 @@ class TRoamingChannel
 public:
     TRoamingChannel(
         TNullable<TDuration> defaultTimeout,
-        bool retryEnabled,
         TChannelProducer producer)
         : DefaultTimeout(defaultTimeout)
-        , RetryEnabled(retryEnabled)
         , Producer(producer)
         , Terminated(false)
     { }
@@ -28,11 +26,6 @@ public:
     virtual TNullable<TDuration> GetDefaultTimeout() const override
     {
         return DefaultTimeout;
-    }
-
-    virtual bool GetRetryEnabled() const
-    {
-        return RetryEnabled;
     }
 
     virtual void Send(
@@ -188,7 +181,6 @@ private:
 
 
     TNullable<TDuration> DefaultTimeout;
-    bool RetryEnabled;
     TChannelProducer Producer;
 
     TSpinLock SpinLock;
@@ -200,12 +192,10 @@ private:
 
 IChannelPtr CreateRoamingChannel(
     TNullable<TDuration> defaultTimeout,
-    bool retryEnabled,
     TChannelProducer producer)
 {
     return New<TRoamingChannel>(
         defaultTimeout,
-        retryEnabled,
         producer);
 }
 

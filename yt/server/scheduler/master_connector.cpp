@@ -115,8 +115,7 @@ public:
             BIND(
                 &TImpl::OnOperationNodeCreated,
                 MakeStrong(this),
-                operation,
-                CancelableContext)
+                operation)
             .AsyncVia(Bootstrap->GetControlInvoker()));
     }
 
@@ -153,11 +152,16 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected);
 
-        auto* list = GetUpdateList(operation);
-
         auto id = operation->GetOperationId();
         LOG_INFO("Flushing operation node (OperationId: %s)",
             ~ToString(id));
+
+        auto* list = FindUpdateList(operation);
+        if (!list) {
+            LOG_INFO("Operation node is not registered, omitting flush (OperationId: %s)",
+                ~ToString(id));
+            return MakeFuture();
+        }
 
         // Create a batch update for this particular operation.
         auto batchReq = StartBatchRequest(list);
@@ -1163,6 +1167,8 @@ private:
 
     TUpdateList* CreateUpdateList(TOperationPtr operation)
     {
+        LOG_DEBUG("Operation update list registered (OperationId: %s)",
+            ~ToString(operation->GetOperationId()));
         TUpdateList list(Bootstrap->GetMasterChannel(), operation);
         auto pair = UpdateLists.insert(std::make_pair(operation->GetOperationId(), list));
         YCHECK(pair.second);
@@ -1184,6 +1190,8 @@ private:
 
     void RemoveUpdateList(TOperationPtr operation)
     {
+        LOG_DEBUG("Operation update list unregistered (OperationId: %s)",
+            ~ToString(operation->GetOperationId()));
         YCHECK(UpdateLists.erase(operation->GetOperationId()));
     }
 
@@ -1245,8 +1253,6 @@ private:
         // Cleanup finished operations.
         FOREACH (auto operation, finishedOperations) {
             RemoveUpdateList(operation);
-            LOG_DEBUG("Operation update list unregistered (OperationId: %s)",
-                ~ToString(operation->GetOperationId()));
         }
     }
 
@@ -1460,7 +1466,6 @@ private:
 
     TError OnOperationNodeCreated(
         TOperationPtr operation,
-        TCancelableContextPtr context,
         TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1472,11 +1477,6 @@ private:
             auto wrappedError = TError("Error creating operation node (OperationId: %s)",
                 ~ToString(operationId))
                 << error;
-
-            if (!context->IsCanceled()) {
-                RemoveUpdateList(operation);
-            }
-
             LOG_WARNING(wrappedError);
             return wrappedError;
         }

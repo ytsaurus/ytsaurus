@@ -202,7 +202,11 @@ private:
             ~ToString(error),
             ~ToString(Context->GetRequestId()));
 
-        if (error.GetCode() == NRpc::EErrorCode::Unavailable) {
+        if (error.GetCode() == NMetaState::EErrorCode::MaybeCommitted ||
+            error.GetCode() == NMetaState::EErrorCode::NoQuorum ||
+            error.GetCode() == NMetaState::EErrorCode::NoLeader ||
+            error.GetCode() == NMetaState::EErrorCode::ReadOnly)
+        {
             Reply(error);
         } else {
             // No sync is needed, requestIndexes are distinct.

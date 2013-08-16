@@ -183,18 +183,6 @@ void TRawFileLogWriter::Write(const TLogEvent& event)
     buffer->AppendChar('\t');
     FormatMessage(buffer, event.Message);
     buffer->AppendChar('\t');
-    if (event.FileName) {
-        buffer->AppendString(event.FileName);
-    }
-    buffer->AppendChar('\t');
-    if (event.Line >= 0) {
-        buffer->AppendNumber(event.Line);
-    }
-    buffer->AppendChar('\t');
-    if (event.Function) {
-        buffer->AppendString(event.Function);
-    }
-    buffer->AppendChar('\t');
     if (event.ThreadId != 0) {
         buffer->AppendNumber(event.ThreadId, 16);
     }

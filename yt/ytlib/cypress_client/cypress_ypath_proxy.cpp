@@ -40,9 +40,26 @@ void SetTransactionId(IClientRequestPtr request, const TTransactionId& transacti
     SetTransactionId(&request->Header(), transactionId);
 }
 
-void SetTransactionId(NRpc::NProto::TRequestHeader* header, const TTransactionId& transactionId)
+void SetTransactionId(TRequestHeader* header, const TTransactionId& transactionId)
 {
     ToProto(header->MutableExtension(TTransactionalExt::transaction_id), transactionId);
+}
+
+void SetSuppressAccessTracking(IClientRequestPtr request, bool value)
+{
+    SetSuppressAccessTracking(&request->Header(), value);
+}
+
+void SetSuppressAccessTracking(TRequestHeader* header, bool value)
+{
+    header->SetExtension(TAccessTrackingExt::suppress_access_tracking, value);
+}
+
+bool GetSuppressAccessTracking(const TRequestHeader& header)
+{
+    return header.HasExtension(TAccessTrackingExt::suppress_access_tracking)
+        ? header.GetExtension(TAccessTrackingExt::suppress_access_tracking)
+        : false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

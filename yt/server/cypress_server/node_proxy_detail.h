@@ -131,7 +131,7 @@ protected:
     mutable TCypressNodeBase* CachedNode;
     mutable NYTree::INodeResolverPtr CachedResolver;
 
-    bool AccessSuppressed;
+    bool AccessTrackingSuppressed;
     
 
     virtual NObjectServer::TVersionedObjectId GetVersionedId() const override;
@@ -142,8 +142,8 @@ protected:
     virtual TAsyncError GetSystemAttributeAsync(const Stroka& key, NYson::IYsonConsumer* consumer) override;
     virtual bool SetSystemAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
 
-    virtual void BeforeInvoke() override;
-    virtual void AfterInvoke() override;
+    virtual void BeforeInvoke(NRpc::IServiceContextPtr context) override;
+    virtual void AfterInvoke(NRpc::IServiceContextPtr context) override;
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override;
 
     // Suppress access handling in the cases below.
@@ -231,7 +231,7 @@ protected:
     void SetModified();
 
     void SetAccessed();
-    void SuppressAccess();
+    void SuppressAccessTracking();
 
     ICypressNodeProxyPtr ResolveSourcePath(const NYPath::TYPath& path);
 

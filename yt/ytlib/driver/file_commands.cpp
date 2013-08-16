@@ -17,9 +17,13 @@ using namespace NFileClient;
 
 void TDownloadCommand::DoExecute()
 {
+    // COMPAT(babenko): remove Request->FileReader
     auto config = UpdateYsonSerializable(
         Context->GetConfig()->FileReader,
         Request->FileReader);
+    config = UpdateYsonSerializable(
+        config,
+        Request->GetOptions());
 
     auto reader = New<TAsyncReader>(
         config,

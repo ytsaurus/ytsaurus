@@ -292,11 +292,11 @@ void TObjectProxyBase::SerializeAttributes(
 void TObjectProxyBase::GuardedInvoke(IServiceContextPtr context)
 {
     try {
-        BeforeInvoke();
+        BeforeInvoke(context);
         if (!DoInvoke(context)) {
             ThrowVerbNotSuppored(context->GetVerb());
         }
-        AfterInvoke();
+        AfterInvoke(context);
     } catch (const TNotALeaderException&) {
         ForwardToLeader(context);
     } catch (const std::exception& ex) {
@@ -304,10 +304,10 @@ void TObjectProxyBase::GuardedInvoke(IServiceContextPtr context)
     }
 }
 
-void TObjectProxyBase::BeforeInvoke()
+void TObjectProxyBase::BeforeInvoke(IServiceContextPtr /*context*/)
 { }
 
-void TObjectProxyBase::AfterInvoke()
+void TObjectProxyBase::AfterInvoke(IServiceContextPtr /*context*/)
 { }
 
 bool TObjectProxyBase::DoInvoke(IServiceContextPtr context)

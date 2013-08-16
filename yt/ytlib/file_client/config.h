@@ -15,7 +15,7 @@ namespace NFileClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TFileChunkWriterConfig
+class TFileChunkWriterConfig
     : public virtual NChunkClient::TEncodingWriterConfig
 {
 public:
@@ -31,16 +31,25 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TFileWriterConfig
+class TFileWriterConfig
     : public NChunkClient::TMultiChunkWriterConfig
     , public TFileChunkWriterConfig
 { };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TFileReaderConfig
+class TFileReaderConfig
     : public NChunkClient::TMultiChunkReaderConfig
-{ };
+{
+public:
+    bool SuppressAccessTracking;
+
+    TFileReaderConfig()
+    {
+        RegisterParameter("suppress_access_tracking", SuppressAccessTracking)
+            .Default(false);
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

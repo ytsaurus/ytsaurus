@@ -19,8 +19,6 @@ public:
 
     TNullable<TDuration> GetDefaultTimeout() const override;
 
-    bool GetRetryEnabled() const override;
-
     void Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
@@ -87,11 +85,6 @@ TScopedChannel::TScopedChannel(IChannelPtr underlyingChannel)
 TNullable<TDuration> TScopedChannel::GetDefaultTimeout() const
 {
     return UnderlyingChannel->GetDefaultTimeout();
-}
-
-bool TScopedChannel::GetRetryEnabled() const
-{
-    return UnderlyingChannel->GetRetryEnabled();
 }
 
 void TScopedChannel::Send(

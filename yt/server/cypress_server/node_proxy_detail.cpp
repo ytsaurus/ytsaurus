@@ -16,6 +16,7 @@
 #include <ytlib/ytree/ephemeral_node_factory.h>
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/ytree/ypath_client.h>
+#include <ytlib/ytree/exception_helpers.h>
 
 #include <ytlib/ypath/tokenizer.h>
 
@@ -208,7 +209,7 @@ TNontemplateCypressNodeProxyBase::TNontemplateCypressNodeProxyBase(
     , Transaction(transaction)
     , TrunkNode(trunkNode)
     , CachedNode(nullptr)
-    , AccessSuppressed(false)
+    , AccessTrackingSuppressed(false)
 {
     YASSERT(typeHandler);
     YASSERT(bootstrap);
@@ -443,14 +444,14 @@ bool TNontemplateCypressNodeProxyBase::GetSystemAttribute(
     return TObjectProxyBase::GetSystemAttribute(key, consumer);
 }
 
-void TNontemplateCypressNodeProxyBase::BeforeInvoke()
+void TNontemplateCypressNodeProxyBase::BeforeInvoke(IServiceContextPtr context)
 {
-    AccessSuppressed = false;
+    AccessTrackingSuppressed = GetSuppressAccessTracking(context->RequestHeader());
 }
 
-void TNontemplateCypressNodeProxyBase::AfterInvoke()
+void TNontemplateCypressNodeProxyBase::AfterInvoke(IServiceContextPtr /*context*/)
 {
-    if (!AccessSuppressed) {
+    if (!AccessTrackingSuppressed) {
         SetAccessed();
     }
 }
@@ -478,7 +479,7 @@ void TNontemplateCypressNodeProxyBase::GetAttribute(
     TRspGet* response,
     TCtxGetPtr context)
 {
-    SuppressAccess();
+    SuppressAccessTracking();
     TObjectProxyBase::GetAttribute(path, request, response, context);
 }
 
@@ -488,7 +489,7 @@ void TNontemplateCypressNodeProxyBase::ListAttribute(
     TRspList* response,
     TCtxListPtr context)
 {
-    SuppressAccess();
+    SuppressAccessTracking();
     TObjectProxyBase::ListAttribute(path, request, response, context);
 }
 
@@ -497,7 +498,7 @@ void TNontemplateCypressNodeProxyBase::ExistsSelf(
     TRspExists* response,
     TCtxExistsPtr context)
 {
-    SuppressAccess();
+    SuppressAccessTracking();
     TObjectProxyBase::ExistsSelf(request, response, context);
 }
 
@@ -507,7 +508,7 @@ void TNontemplateCypressNodeProxyBase::ExistsRecursive(
     TRspExists* response,
     TCtxExistsPtr context)
 {
-    SuppressAccess();
+    SuppressAccessTracking();
     TObjectProxyBase::ExistsRecursive(path, request, response, context);
 }
 
@@ -517,7 +518,7 @@ void TNontemplateCypressNodeProxyBase::ExistsAttribute(
     TRspExists* response,
     TCtxExistsPtr context)
 {
-    SuppressAccess();
+    SuppressAccessTracking();
     TObjectProxyBase::ExistsAttribute(path, request, response, context);
 }
 
@@ -632,9 +633,9 @@ void TNontemplateCypressNodeProxyBase::SetAccessed()
     }
 }
 
-void TNontemplateCypressNodeProxyBase::SuppressAccess()
+void TNontemplateCypressNodeProxyBase::SuppressAccessTracking()
 {
-    AccessSuppressed = true;
+    AccessTrackingSuppressed = true;
 }
 
 ICypressNodeProxyPtr TNontemplateCypressNodeProxyBase::ResolveSourcePath(const TYPath& path)
@@ -923,19 +924,33 @@ ICypressNodeProxyPtr TNodeFactory::CreateNode(
 
     if (attributes) {
         handler->SetDefaultAttributes(attributes);
+
         auto trunkProxy = cypressManager->GetVersionedNodeProxy(trunkNode, nullptr);
+        
         auto keys = attributes->List();
+
+        std::vector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
+        trunkProxy->ListSystemAttributes(&systemAttributes);
+
+        yhash_set<Stroka> systemAttributeKeys;
+        FOREACH (const auto& attribute, systemAttributes) {
+            YCHECK(systemAttributeKeys.insert(attribute.Key).second);
+        }
+
         FOREACH (const auto& key, keys) {
             auto value = attributes->GetYson(key);
-            // Try to set as a system attribute. If fails then set as a user attribute.
-            if (!trunkProxy->SetSystemAttribute(key, value)) {
+            if (systemAttributeKeys.find(key) == systemAttributeKeys.end()) {
                 trunkProxy->MutableAttributes()->SetYson(key, value);
+            } else {
+                if (!trunkProxy->SetSystemAttribute(key, value)) {
+                    ThrowCannotSetSystemAttribute(key);
+                }
             }
         }        
     }
 
     cypressManager->LockVersionedNode(trunkNode, Transaction, ELockMode::Exclusive);
-    
+
     return cypressManager->GetVersionedNodeProxy(trunkNode, Transaction);
 }
 
