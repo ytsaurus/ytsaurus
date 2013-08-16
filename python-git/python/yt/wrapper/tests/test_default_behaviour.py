@@ -8,8 +8,6 @@ import os
 import tempfile
 import subprocess
 
-import pytest
-
 class TestDefaultBehaviour(YtTestBase, YTEnv):
     @classmethod
     def setup_class(cls):
@@ -86,10 +84,6 @@ class TestDefaultBehaviour(YtTestBase, YTEnv):
                 lambda x: x.attributes.get("row_count", -1) == 0)
         self.assertEqual(set(res),
                          set([TEST_DIR + "/dir/table"]))
-
-    def test_create(self):
-        with pytest.raises(yt.YtError): 
-            yt.create("map_node", TEST_DIR + "/map", attributes={"type": "table"})
 
     def test_file_commands(self):
         self.assertRaises(yt.YtError, lambda: yt.upload_file("", TEST_DIR + "/dir/file"))
