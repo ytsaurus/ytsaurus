@@ -53,7 +53,11 @@ public:
 private:
     TNode* FindNode() const
     {
-        auto address = GetParent()->AsMap()->GetChildKey(this);
+        auto parent = GetParent();
+        if (!parent) {
+            return nullptr;
+        }
+        auto address = parent->AsMap()->GetChildKey(this);
         auto nodeTracker = Bootstrap->GetNodeTracker();
         return nodeTracker->FindNodeByAddress(address);
     }
