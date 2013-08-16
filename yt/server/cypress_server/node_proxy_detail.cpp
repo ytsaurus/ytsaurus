@@ -16,6 +16,7 @@
 #include <ytlib/ytree/ephemeral_node_factory.h>
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/ytree/ypath_client.h>
+#include <ytlib/ytree/exception_helpers.h>
 
 #include <ytlib/ypath/tokenizer.h>
 
@@ -923,19 +924,33 @@ ICypressNodeProxyPtr TNodeFactory::CreateNode(
 
     if (attributes) {
         handler->SetDefaultAttributes(attributes);
+
         auto trunkProxy = cypressManager->GetVersionedNodeProxy(trunkNode, nullptr);
+        
         auto keys = attributes->List();
+
+        std::vector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
+        trunkProxy->ListSystemAttributes(&systemAttributes);
+
+        yhash_set<Stroka> systemAttributeKeys;
+        FOREACH (const auto& attribute, systemAttributes) {
+            YCHECK(systemAttributeKeys.insert(attribute.Key).second);
+        }
+
         FOREACH (const auto& key, keys) {
             auto value = attributes->GetYson(key);
-            // Try to set as a system attribute. If fails then set as a user attribute.
-            if (!trunkProxy->SetSystemAttribute(key, value)) {
+            if (systemAttributeKeys.find(key) == systemAttributeKeys.end()) {
                 trunkProxy->MutableAttributes()->SetYson(key, value);
+            } else {
+                if (!trunkProxy->SetSystemAttribute(key, value)) {
+                    ThrowCannotSetSystemAttribute(key);
+                }
             }
         }        
     }
 
     cypressManager->LockVersionedNode(trunkNode, Transaction, ELockMode::Exclusive);
-    
+
     return cypressManager->GetVersionedNodeProxy(trunkNode, Transaction);
 }
 
