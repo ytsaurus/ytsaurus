@@ -70,14 +70,14 @@ public:
 
     static void InitType() {
         behaviors().name("Driver");
-        behaviors().doc("Some documentation");
+        behaviors().doc("Represents YT driver");
         behaviors().supportGetattro();
         behaviors().supportSetattro();
 
-        PYCXX_ADD_KEYWORDS_METHOD(execute, Execute, "TODO(ignat): make documentation");
-        PYCXX_ADD_KEYWORDS_METHOD(get_description, GetDescription, "TODO(ignat): make documentation");
-        PYCXX_ADD_KEYWORDS_METHOD(build_snapshot, BuildSnapshot, "TODO(ignat): make documentation");
-        PYCXX_ADD_KEYWORDS_METHOD(gc_collect, GcCollect, "TODO(ignat): make documentation");
+        PYCXX_ADD_KEYWORDS_METHOD(execute, Execute, "Executes the request");
+        PYCXX_ADD_KEYWORDS_METHOD(get_description, GetDescription, "Describes the command");
+        PYCXX_ADD_KEYWORDS_METHOD(build_snapshot, BuildSnapshot, "Force metastate to build snapshot");
+        PYCXX_ADD_KEYWORDS_METHOD(gc_collect, GcCollect, "Run garbage collection");
 
         behaviors().readyType();
     }
@@ -149,9 +149,7 @@ public:
         auto req = proxy.GCCollect();
         auto rsp = req->Invoke().Get();
         if (!rsp->IsOK()) {
-            // TODO(ignat): Fix it. Make python class for errors.
-            // THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error building snapshot");
-            return ConvertToPythonString(ToString(TError(*rsp)));
+            return ConvertTo<Py::Object>(TError(*rsp));
         }
         return Py::None();
     }
@@ -174,9 +172,7 @@ public:
 
         auto rsp = req->Invoke().Get();
         if (!rsp->IsOK()) {
-            // TODO(ignat): Fix it. Make python class for errors.
-            // THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error building snapshot");
-            return ConvertToPythonString(ToString(TError(*rsp)));
+            return ConvertTo<Py::Object>(TError(*rsp));
         }
 
         int snapshotId = rsp->snapshot_id();

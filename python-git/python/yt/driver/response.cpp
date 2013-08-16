@@ -1,7 +1,9 @@
-#include <ytlib/ytree/convert.h>
-
 #include "response.h"
+
 #include "common.h"
+#include "serialize.h"
+
+#include <ytlib/ytree/convert.h>
 
 namespace NYT {
 namespace NPython {
@@ -52,7 +54,7 @@ Py::Object TResponse::Error(Py::Tuple& args, Py::Dict &kwds)
     if (!Response_.IsSet()) {
         THROW_ERROR_EXCEPTION("Response is not set");
     }
-    return ConvertToPythonString(ToString(Response_.Get().Error));
+    return NYTree::ConvertTo<Py::Object>(Response_.Get().Error);
 }
 
 TResponse::~TResponse()
@@ -61,14 +63,14 @@ TResponse::~TResponse()
 void TResponse::InitType()
 {
     behaviors().name("Response");
-    behaviors().doc("Some documentation");
+    behaviors().doc("Command response");
     behaviors().supportGetattro();
     behaviors().supportSetattro();
 
-    PYCXX_ADD_KEYWORDS_METHOD(wait, Wait, "TODO(ignat): make documentation");
-    PYCXX_ADD_KEYWORDS_METHOD(is_set, IsSet, "TODO(ignat): make documentation");
-    PYCXX_ADD_KEYWORDS_METHOD(is_ok, IsOk, "TODO(ignat): make documentation");
-    PYCXX_ADD_KEYWORDS_METHOD(error, Error, "TODO(ignat): make documentation");
+    PYCXX_ADD_KEYWORDS_METHOD(wait, Wait, "Synchronously wait command completion");
+    PYCXX_ADD_KEYWORDS_METHOD(is_set, IsSet, "Check that response is finished");
+    PYCXX_ADD_KEYWORDS_METHOD(is_ok, IsOk, "Check that response executed successfully (can be called only if response is set)");
+    PYCXX_ADD_KEYWORDS_METHOD(error, Error, "Return error of response (can be called only if response is set)");
 
     behaviors().readyType();
 }
