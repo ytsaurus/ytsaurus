@@ -489,17 +489,6 @@ bool TObjectProxyBase::SetSystemAttribute(const Stroka& key, const TYsonString& 
             return true;
         }
     }
-    
-    if (key == "supported_permissions" ||
-        key == "weak_ref_counter" ||
-        key == "ref_counter" ||
-        key == "type" ||
-        key == "id" ||
-        key == "effective_acl")
-    {
-        ThrowCannotSetSystemAttribute(key);
-    }
-    
     return false;
 }
 
