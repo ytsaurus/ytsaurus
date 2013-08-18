@@ -1,6 +1,6 @@
 from common import get_value, require, update
 from errors import YtError, YtFormatError
-from yt.yson import loads, dumps, convert_to_json_tree
+from yt.yson import loads, dumps, yson_to_json
 
 import struct
 from cStringIO import StringIO
@@ -16,7 +16,7 @@ class Format(object):
 
 
     def json(self):
-        return convert_to_json_tree(self.format)
+        return yson_to_json(self.format)
 
     def name(self):
         return str(self.format)

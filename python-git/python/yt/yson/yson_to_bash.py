@@ -1,13 +1,10 @@
 #!/usr/bin/python
 #!-*-coding:utf-8-*-
 
-import yson_parser
+import parser
 
-import copy
+import sys
 from optparse import OptionParser
-
-# TODO: move these streams to params
-from sys import stdin, stdout, stderr
 
 # TODO: It is better to use class instead global variable
 options = None
@@ -18,38 +15,38 @@ def require(condition, exception):
 
 def print_bash(obj, level):
     if not level:
-        stdout.write(options.sentinel)
+        sys.stdout.write(options.sentinel)
         return
 
     scalar_types = [int, float, str]
     if obj is None:
-        stdout.write(options.none_literal)
+        sys.stdout.write(options.none_literal)
     elif any(isinstance(obj, t) for t in scalar_types):
-        stdout.write(str(obj))
+        sys.stdout.write(str(obj))
     elif isinstance(obj, list):
-        stdout.write(options.list_begin)
+        sys.stdout.write(options.list_begin)
         first = True
         for item in obj:
             if not first:
-                stdout.write(options.list_separator)
+                sys.stdout.write(options.list_separator)
             print_bash(item, level - 1)
             first = False
-        stdout.write(options.list_end)
+        sys.stdout.write(options.list_end)
     # TODO: extract list and dict processing to certain method
     elif isinstance(obj, dict):
-        stdout.write(options.map_begin)
+        sys.stdout.write(options.map_begin)
         first = True
         for (key, value) in obj.iteritems():
             if not first:
-                stdout.write(options.map_separator)
+                sys.stdout.write(options.map_separator)
             if not options.no_keys:
                 print_bash(key, level - 1)
             if not options.no_keys and not options.no_values:
-                stdout.write(options.map_key_value_separator)
+                sys.stdout.write(options.map_key_value_separator)
             if not options.no_values:
                 print_bash(value, level - 1)
             first = False
-        stdout.write(options.map_end)
+        sys.stdout.write(options.map_end)
     else:
         # TODO: use here some YsonException instead of Exception
         raise Exception("Unknown type: %s" % type(obj))
@@ -91,5 +88,5 @@ if __name__ == "__main__":
     options_parser.add_option("--path", default="")
     options, args = options_parser.parse_args()
 
-    obj = go_by_path(parser.parse(stdin), options.path)
+    obj = go_by_path(parser.parse(sys.stdin), options.path)
     print_bash(obj, options.print_depth)

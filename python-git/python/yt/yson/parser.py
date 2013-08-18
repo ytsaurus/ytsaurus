@@ -1,9 +1,7 @@
-import yson_types
+import convert
 
 import struct
 from StringIO import StringIO
-
-__all__ = ["parse", "parse_string"]
 
 class YsonParseError(ValueError):
     def __init__(self, message, (line_index, position, offset)):
@@ -213,7 +211,7 @@ class YsonParserBase(object):
                 "Unexpected character %s in Yson" % ch,
                 self._get_position_info())
 
-        return yson_types.convert_to_yson_type(result, attributes)
+        return convert.to_yson_type(result, attributes)
 
     def _parse_list(self):
         self._expect_char('[')
@@ -341,29 +339,16 @@ class YsonParser(YsonParserBase):
                 self._get_position_info())
         return result
 
-class YsonFragmentedParser(YsonParserBase):
-    def __init__(self, stream):
-        super(YsonFragmentedParser, self).__init__(stream)
-
-    def has_next(self):
-        self._skip_whitespaces()
-        return len(self._peek_char()) > 0
-
-    def parse_next(self):
-        return self._parse_any()
-
-def loads(string):
-    return parse_string(string)
-
-# This method is deprecated
-def parse(stream):
+def load(stream):
     parser = YsonParser(stream)
     return parser.parse()
 
-# This method is deprecated
-def parse_string(string):
-    return parse(StringIO(string))
+def loads(string, yson_type=None):
+    if yson_type == "list_fragment":
+        string = "[%s]" % string
+    elif yson_type == "map_fragment":
+        string = "{%s}" % string
+    else:
+        pass
+    return load(StringIO(string))
 
-#TODO(panin): refactor
-def parse_list_fragment(string):
-    return parse_string('[' + string + ']')
