@@ -647,7 +647,6 @@ public:
     TNullable<TDuration> MinSharePreemptionTimeout;
     TNullable<TDuration> FairSharePreemptionTimeout;
     TNullable<double> FairShareStarvationTolerance;
-    TNullable<double> FairSharePreemptionTolerance;
 
     TPooledOperationSpec()
     {
@@ -668,9 +667,6 @@ public:
             .Default(Null);
         RegisterParameter("fair_share_starvation_tolerance", FairShareStarvationTolerance)
             .InRange(0.0, 1.0)
-            .Default(Null);
-        RegisterParameter("fair_share_preemption_tolerance", FairSharePreemptionTolerance)
-            .GreaterThanOrEqual(0.0)
             .Default(Null);
     }
 };
