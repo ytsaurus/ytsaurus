@@ -664,20 +664,20 @@ inline void TFuture<void>::Swap(TFuture& other)
 
 inline TFuture<void>& TFuture<void>::operator=(const TFuture<void>& other)
 {
-TFuture(other).Swap(*this);
-return *this;
+    TFuture(other).Swap(*this);
+    return *this;
 }
 
 inline TFuture<void>& TFuture<void>::operator=(TFuture<void>&& other)
 {
-TFuture(std::move(other)).Swap(*this);
-return *this;
+    TFuture(std::move(other)).Swap(*this);
+    return *this;
 }
 
 inline bool TFuture<void>::IsSet() const
 {
-YASSERT(Impl);
-return Impl->IsSet();
+    YASSERT(Impl);
+    return Impl->IsSet();
 }
 
 inline bool TFuture<void>::IsCanceled() const
@@ -688,8 +688,8 @@ inline bool TFuture<void>::IsCanceled() const
 
 inline void TFuture<void>::Get() const
 {
-YASSERT(Impl);
-Impl->Get();
+    YASSERT(Impl);
+    Impl->Get();
 }
 
 inline void TFuture<void>::Subscribe(TClosure onResult)

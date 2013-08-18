@@ -28,12 +28,43 @@ add_msvc_precompiled_header(
   YT_SOURCE_FILES
 )
 
-add_library( ytlib STATIC
-  ${YT_SOURCE_FILES}
-)
+if (YT_BUILD_YTLIB_SHARED)
+  add_library( ytlib SHARED
+    ${YT_SOURCE_FILES}
+  )
+  add_library( ytlib-without-lfalloc SHARED
+    ${YT_SOURCE_FILES}
+  )
+  install(
+    TARGETS ytlib
+    LIBRARY DESTINATION lib COMPONENT libraries
+  )
+  install(
+    TARGETS ytlib-without-lfalloc
+    LIBRARY DESTINATION lib COMPONENT libraries
+  )
+else()
+  add_library( ytlib STATIC
+    ${YT_SOURCE_FILES}
+  )
+  add_library( ytlib-without-lfalloc STATIC
+    ${YT_SOURCE_FILES}
+  )
+endif()
 
 target_link_libraries ( ytlib
   ytcore
+  ytext-lfalloc
+  ytext-arcadia-util
+  ytext-ev
+  ytext-jerasure
+  ytext-json
+  protobuf
+)
+
+target_link_libraries ( ytlib-without-lfalloc
+  ytcore
+  ytext-lfalloc-fake
   ytext-arcadia-util
   ytext-ev
   ytext-jerasure

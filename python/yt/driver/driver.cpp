@@ -5,6 +5,7 @@
 #include "response.h"
 #include "buffered_stream.h"
 #include "descriptor.h"
+#include "shutdown.h"
 
 #include <core/misc/intrusive_ptr.h>
 
@@ -35,21 +36,20 @@
 
 #include <iostream>
 
+///////////////////////////////////////////////////////////////////////////////
+
 namespace NYT {
+
 namespace NPython {
 
-using namespace NFormats;
-using namespace NDriver;
-using namespace NYson;
-using namespace NYTree;
-using namespace NConcurrency;
+///////////////////////////////////////////////////////////////////////////////
 
-class Driver
-    : public Py::PythonClass<Driver>
+class TDriver
+    : public Py::PythonClass<TDriver>
 {
 public:
-    Driver(Py::PythonClassInstance *self, Py::Tuple &args, Py::Dict &kwds)
-        : Py::PythonClass<Driver>::PythonClass(self, args, kwds)
+    TDriver(Py::PythonClassInstance *self, Py::Tuple &args, Py::Dict &kwds)
+        : Py::PythonClass<TDriver>::PythonClass(self, args, kwds)
     {
         Py::Object configDict = ExtractArgument(args, kwds, "config");
         if (args.length() > 0 || kwds.length() > 0) {
@@ -66,7 +66,7 @@ public:
         DriverInstance_ = CreateDriver(config);
     }
 
-    virtual ~Driver()
+    virtual ~TDriver()
     { }
 
     static void InitType() {
@@ -76,7 +76,7 @@ public:
         behaviors().supportSetattro();
 
         PYCXX_ADD_KEYWORDS_METHOD(execute, Execute, "Executes the request");
-        PYCXX_ADD_KEYWORDS_METHOD(get_description, GetDescription, "Describes the command");
+        PYCXX_ADD_KEYWORDS_METHOD(get_descriptor, GetDescriptor, "Describes the command");
         PYCXX_ADD_KEYWORDS_METHOD(build_snapshot, BuildSnapshot, "Force metastate to build snapshot");
         PYCXX_ADD_KEYWORDS_METHOD(gc_collect, GcCollect, "Run garbage collection");
 
@@ -127,9 +127,9 @@ public:
         response->SetResponse(DriverInstance_->Execute(request));
         return pythonResponse;
     }
-    PYCXX_KEYWORDS_METHOD_DECL(Driver, Execute)
+    PYCXX_KEYWORDS_METHOD_DECL(TDriver, Execute)
 
-    Py::Object GetDescription(Py::Tuple& args, Py::Dict &kwds)
+    Py::Object GetDescriptor(Py::Tuple& args, Py::Dict &kwds)
     {
         auto commandName = ConvertToStroka(ConvertToString(ExtractArgument(args, kwds, "command_name")));
         if (args.length() > 0 || kwds.length() > 0) {
@@ -141,7 +141,7 @@ public:
         descriptor.getCxxObject()->SetDescriptor(DriverInstance_->GetCommandDescriptor(commandName));
         return descriptor;
     }
-    PYCXX_KEYWORDS_METHOD_DECL(Driver, GetDescription)
+    PYCXX_KEYWORDS_METHOD_DECL(TDriver, GetDescriptor)
 
     Py::Object GcCollect(Py::Tuple& args, Py::Dict &kwds)
     {
@@ -154,7 +154,7 @@ public:
         }
         return Py::None();
     }
-    PYCXX_KEYWORDS_METHOD_DECL(Driver, GcCollect)
+    PYCXX_KEYWORDS_METHOD_DECL(TDriver, GcCollect)
 
     Py::Object BuildSnapshot(Py::Tuple& args, Py::Dict &kwds)
     {
@@ -181,53 +181,46 @@ public:
 
         return Py::None();
     }
-    PYCXX_KEYWORDS_METHOD_DECL(Driver, BuildSnapshot)
+    PYCXX_KEYWORDS_METHOD_DECL(TDriver, BuildSnapshot)
 
 private:
     IDriverPtr DriverInstance_;
 };
 
-class ytlib_python_module
-    : public Py::ExtensionModule<ytlib_python_module>
+///////////////////////////////////////////////////////////////////////////////
+
+class driver_python_module
+    : public Py::ExtensionModule<driver_python_module>
 {
 public:
-    ytlib_python_module()
-        : Py::ExtensionModule<ytlib_python_module>("ytlib_python")
+    driver_python_module()
+        : Py::ExtensionModule<driver_python_module>("driver_python")
     {
-        Py_AtExit(ytlib_python_module::at_exit);
+        RegisterShutdown();
 
-        Driver::InitType();
+        TDriver::InitType();
         TPythonBufferedStream::InitType();
         TResponse::InitType();
         TPythonCommandDescriptor::InitType();
 
-        initialize("Ytlib python bindings");
+        initialize("Python bindings for driver");
 
         Py::Dict moduleDict(moduleDictionary());
-        moduleDict["Driver"] = Driver::type();
+        moduleDict["Driver"] = TDriver::type();
         moduleDict["BufferedStream"] = TPythonBufferedStream::type();
     }
 
-    static void at_exit()
-    {
-        // TODO: refactor system shutdown
-        // XXX(sandello): Keep in sync with server/main.cpp, driver/main.cpp and utmain.cpp, python_bindings/driver.cpp
-        NLog::TLogManager::Get()->Shutdown();
-        NBus::TTcpDispatcher::Get()->Shutdown();
-        NRpc::TDispatcher::Get()->Shutdown();
-        NChunkClient::TDispatcher::Get()->Shutdown();
-        NProfiling::TProfilingManager::Get()->Shutdown();
-        TDelayedExecutor::Shutdown();
-    }
-
-    virtual ~ytlib_python_module()
+    virtual ~driver_python_module()
     { }
 };
+
+///////////////////////////////////////////////////////////////////////////////
 
 } // namespace NPython
 
 } // namespace NYT
 
+///////////////////////////////////////////////////////////////////////////////
 
 #if defined( _WIN32 )
 #define EXPORT_SYMBOL __declspec( dllexport )
@@ -235,13 +228,13 @@ public:
 #define EXPORT_SYMBOL
 #endif
 
-extern "C" EXPORT_SYMBOL void initytlib_python()
+extern "C" EXPORT_SYMBOL void initdriver_python()
 {
-    static NYT::NPython::ytlib_python_module* ytlib_python = new NYT::NPython::ytlib_python_module;
-    UNUSED(ytlib_python);
+    static NYT::NPython::driver_python_module* driver_python = new NYT::NPython::driver_python_module;
+    UNUSED(driver_python);
 }
 
 // symbol required for the debug version
-extern "C" EXPORT_SYMBOL void initytlib_python_d()
-{ initytlib_python(); }
+extern "C" EXPORT_SYMBOL void initdriver_python_d()
+{ initdriver_python(); }
 

@@ -7,9 +7,31 @@ namespace NYT {
 
 namespace {
 
+///////////////////////////////////////////////////////////////////////////////
+
 using NYson::IYsonConsumer;
 using NYTree::INodePtr;
 using NYTree::ENodeType;
+
+///////////////////////////////////////////////////////////////////////////////
+
+Py::Callable GetYsonType(const std::string& name)
+{
+    static PyObject* ysonTypesModule = nullptr;
+    if (!ysonTypesModule) {
+        ysonTypesModule = PyImport_ImportModule("yt.yson.yson_types");
+    }
+    return Py::Callable(PyObject_GetAttr(ysonTypesModule, PyString_FromString(name.c_str())));
+}
+
+Py::Object CreateYsonObject(const std::string& className, const Py::Object& object, const Py::Object& attributes)
+{
+    auto result = GetYsonType(className).apply(Py::TupleN(object), Py::Dict());
+    result.setAttr("attributes", attributes);
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 
 class TPythonYTreeProducer {
 public:
@@ -20,9 +42,12 @@ public:
     void Process(const Py::Object& obj)
     {
         if (obj.hasAttr("attributes")) {
-            Consumer_->OnBeginAttributes();
-            ProcessItems(Py::Mapping(GetAttr(obj, "attributes")).items());
-            Consumer_->OnEndAttributes();
+            auto map = Py::Mapping(GetAttr(obj, "attributes"));
+            if (map.length() > 0) {
+                Consumer_->OnBeginAttributes();
+                ProcessItems(map.items());
+                Consumer_->OnEndAttributes();
+            }
         }
         // TODO(ignat): maybe use IsInstance in all cases?
         if (obj.isBoolean()) {
@@ -36,6 +61,9 @@ public:
         }
         else if (IsStringLike(obj)) {
             Consumer_->OnStringScalar(ConvertToStroka(ConvertToString(obj)));
+        }
+        else if (IsInstance(obj, GetYsonType("YsonEntity"))) {
+            Consumer_->OnEntity();
         }
         else if (obj.isSequence()) {
             const auto& objList = Py::Sequence(obj);
@@ -66,10 +94,12 @@ public:
             const Py::Tuple& item(*it);
             const auto& key = item.getItem(0);
             const auto& value = item.getItem(1);
-            if (!key.isString()) {
+            if (!IsStringLike(key)) {
                 throw Py::RuntimeError(
-                    "Unsupported python object in the dict key in tree builder: " + 
-                    std::string(key.repr()));
+                    Sprintf(
+                        "Unsupported type (%s) of the key (%s)",
+                        std::string(key.type().repr()).c_str(),
+                        std::string(key.repr()).c_str()));
             }
             Consumer_->OnKeyedItem(ConvertToStroka(ConvertToString(key)));
             Process(value);
@@ -80,25 +110,13 @@ private:
     IYsonConsumer* Consumer_;
 };
 
-Py::Callable GetYsonType(const std::string& name)
-{
-    static PyObject* ysonTypesModule = nullptr;
-    if (!ysonTypesModule) {
-        ysonTypesModule = PyImport_ImportModule("yt.yson.yson_types");
-    }
-    return Py::Callable(PyObject_GetAttr(ysonTypesModule, PyString_FromString(name.c_str())));
-}
-
-Py::Object CreateYsonObject(const std::string& className, const Py::Object& object, const Py::Object& attributes)
-{
-    auto result = GetYsonType(className).apply(Py::TupleN(object), Py::Dict());
-    result.setAttr("attributes", attributes);
-    return result;
-}
+///////////////////////////////////////////////////////////////////////////////
 
 } // anonymous namespace
 
 namespace NYTree {
+
+///////////////////////////////////////////////////////////////////////////////
 
 void Serialize(const Py::Object& obj, IYsonConsumer* consumer)
 {
@@ -113,7 +131,16 @@ void Deserialize(Py::Object& obj, INodePtr node)
     }
 
     auto type = node->GetType();
-    if (type == ENodeType::Entity) {
+    if (type == ENodeType::Map) {
+        auto map = Py::Dict();
+        FOREACH (auto child, node->AsMap()->GetChildren()) {
+            Py::Object item;
+            Deserialize(item, child.second);
+            map.setItem(~child.first, item);
+        }
+        obj = CreateYsonObject("YsonMap", map, attributes);
+    }
+    else if (type == ENodeType::Entity) {
         obj = CreateYsonObject("YsonEntity", Py::None(), attributes);
     }
     else if (type == ENodeType::Integer) {
@@ -134,19 +161,12 @@ void Deserialize(Py::Object& obj, INodePtr node)
         }
         obj = CreateYsonObject("YsonList", list, attributes);
     }
-    else if (type == ENodeType::Map) {
-        auto map = Py::Dict();
-        FOREACH (auto child, node->AsMap()->GetChildren()) {
-            Py::Object item;
-            Deserialize(item, child.second);
-            map.setItem(~child.first, item);
-        }
-        obj = CreateYsonObject("YsonMap", map, attributes);
-    }
     else {
         THROW_ERROR_EXCEPTION("Unsupported node type %s", ~type.ToString());
     }
 }
+
+///////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYTree
 } // namespace NYT

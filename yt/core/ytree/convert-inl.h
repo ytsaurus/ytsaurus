@@ -60,6 +60,16 @@ TYsonString ConvertToYsonString(const T& value, NYson::EYsonFormat format)
     return TYsonString(result, type);
 }
 
+template <class T>
+TYsonString ConvertToYsonString(const T& value, NYson::EYsonFormat format, int indent)
+{
+    auto type = GetYsonType(value);
+    Stroka result;
+    TStringOutput stringOutput(result);
+    WriteYson(&stringOutput, value, type, format, indent);
+    return TYsonString(result, type);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>

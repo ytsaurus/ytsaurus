@@ -3,8 +3,10 @@
 #include "assert.h"
 #include "mpl.h"
 
+// For DoSwap
 #include <util/generic/utility.h>
 
+// For std::move
 #include <utility>
 
 namespace NYT {

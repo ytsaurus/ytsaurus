@@ -11,8 +11,10 @@ from datetime import datetime
 from cStringIO import StringIO
 
 def get_driver():
-    if not hasattr(get_driver, "driver"):
-        get_driver.driver = Driver(config=yson.loads(open(os.environ['YT_CONFIG']).read()))
+    config_path = os.environ['YT_CONFIG']
+    if not hasattr(get_driver, "driver") or (hasattr(get_driver, "config_path") and config_path != get_driver.config_path):
+        get_driver.driver = Driver(config=yson.loads(open(config_path).read()))
+        get_driver.config_path = config_path
     return get_driver.driver
 
 def set_branch(dict, path, value):
@@ -46,7 +48,7 @@ def prepare_paths(paths):
 def prepare_args(arguments):
     change(arguments, "tx", "transaction_id")
     change(arguments, "attr", "attributes")
-    change(arguments, "ping_ancestor_txs", "ping_ancestor_stransactions")
+    change(arguments, "ping_ancestor_txs", "ping_ancestor_transactions")
     if "opt" in arguments:
         for option in flatten(arguments["opt"]):
             key, value = option.split("=", 1)
@@ -68,7 +70,7 @@ def command(command_name, arguments, input_stream=None, output_stream=None, verb
     if "path" in arguments and command_name != "parse_ypath":
         arguments["path"] = prepare_path(arguments["path"])
 
-    arguments = prepare_args(command_name, arguments)
+    arguments = prepare_args(arguments)
 
     if verbose is None or verbose:
         print >>sys.stderr, str(datetime.now()), command_name, arguments
@@ -138,8 +140,10 @@ def read_str(path, **kwargs):
     return output.getvalue();
 
 def write_str(path, value, **kwargs):
-    kwargs["path"] = path
-    flat(kwargs, "sorted_by")
+    attributes = {}
+    if "sorted_by" in kwargs:
+        attributes={"sorted_by": flatten(kwargs["sorted_by"])}
+    kwargs["path"] = yson.to_yson_type(path, attributes=attributes)
     return command('write', kwargs, input_stream=StringIO(value))
 
 def start_transaction(**kwargs):

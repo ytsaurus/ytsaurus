@@ -13,8 +13,6 @@
 #include <core/misc/string.h>
 #include <core/misc/error.h>
 
-#include <util/system/defaults.h>
-
 namespace NYT {
 namespace NYTree {
 
@@ -33,9 +31,10 @@ void WriteYson(
     TOutputStream* output,
     const T& value,
     NYson::EYsonType type,
-    NYson::EYsonFormat format)
+    NYson::EYsonFormat format,
+    int indent)
 {
-    NYson::TYsonWriter writer(output, format, type);
+    NYson::TYsonWriter writer(output, format, type, indent);
     Consume(value, &writer);
 }
 

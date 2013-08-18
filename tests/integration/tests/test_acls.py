@@ -12,7 +12,7 @@ from yt_commands import *
 class TestAcls(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
-    START_SCHEDULER = True
+    NUM_SCHEDULERS = 1
 
     def test_init(self):
         self.assertItemsEqual(get('//sys/groups/everyone/@members'), ['users', 'guest'])

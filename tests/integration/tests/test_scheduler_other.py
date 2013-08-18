@@ -11,7 +11,7 @@ import time
 class TestSchedulerOther(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 1
-    START_SCHEDULER = True
+    NUM_SCHEDULERS = 1
 
     DELTA_SCHEDULER_CONFIG = {'chunk_scratch_period' : 500}
 

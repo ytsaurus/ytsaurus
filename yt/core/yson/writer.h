@@ -24,7 +24,8 @@ public:
         TOutputStream* stream,
         EYsonFormat format = EYsonFormat::Binary,
         EYsonType type = EYsonType::Node,
-        bool enableRaw = false);
+        bool enableRaw = false,
+        int indent = 4);
 
     // IYsonConsumer overrides.
     virtual void OnStringScalar(const TStringBuf& value);
@@ -54,7 +55,7 @@ protected:
     int Depth;
     bool BeforeFirstItem;
 
-    static const int IndentSize = 4;
+    const int IndentSize;
 
     void WriteIndent();
     void WriteStringScalar(const TStringBuf& value);
