@@ -431,7 +431,7 @@ ICypressNodeProxyPtr TCypressManager::GetVersionedNodeProxy(
     return handler->GetProxy(trunkNode, transaction);
 }
 
-void TCypressManager::ValidateLock(
+TError TCypressManager::ValidateLock(
     TCypressNodeBase* trunkNode,
     TTransaction* transaction,
     const TLockRequest& request,
@@ -441,7 +441,7 @@ void TCypressManager::ValidateLock(
 
     // Snapshot locks can only be taken inside a transaction.
     if (request.Mode == ELockMode::Snapshot && !transaction) {
-        THROW_ERROR_EXCEPTION("Cannot take %s lock outside of a transaction",
+        return TError("Cannot take %s lock outside of a transaction",
             ~FormatEnum(request.Mode).Quote());
     }
 
@@ -453,10 +453,10 @@ void TCypressManager::ValidateLock(
             const auto& existingLock = it->second;
             if (IsRedundantLock(existingLock, request)) {
                 *isMandatory = false;
-                return;
+                return TError();
             }
             if (existingLock.Mode == ELockMode::Snapshot) {
-                THROW_ERROR_EXCEPTION(
+                return TError(
                     NCypressClient::EErrorCode::SameTransactionLockConflict,
                     "Cannot take %s lock for node %s since %s lock is already taken by the same transaction",
                     ~FormatEnum(request.Mode).Quote(),
@@ -480,7 +480,7 @@ void TCypressManager::ValidateLock(
         if (request.Mode == ELockMode::Snapshot &&
             IsParentTransaction(existingTransaction, transaction))
         {
-            THROW_ERROR_EXCEPTION(
+            return TError(
                 NCypressClient::EErrorCode::DescendantTransactionLockConflict,
                 "Cannot take %s lock for node %s since %s lock is taken by descendant transaction %s",
                 ~FormatEnum(request.Mode).Quote(),
@@ -494,7 +494,7 @@ void TCypressManager::ValidateLock(
             if ((request.Mode == ELockMode::Exclusive && existingLock.Mode != ELockMode::Snapshot) ||
                 (existingLock.Mode == ELockMode::Exclusive && request.Mode != ELockMode::Snapshot))
             {
-                THROW_ERROR_EXCEPTION(
+                return TError(
                     NCypressClient::EErrorCode::ConcurrentTransactionLockConflict,
                     "Cannot take %s lock for node %s since %s lock is taken by concurrent transaction %s",
                     ~FormatEnum(request.Mode).Quote(),
@@ -508,7 +508,7 @@ void TCypressManager::ValidateLock(
                 if (request.ChildKey &&
                     existingLock.ChildKeys.find(request.ChildKey.Get()) != existingLock.ChildKeys.end())
                 {
-                    THROW_ERROR_EXCEPTION(
+                    return TError(
                         NCypressClient::EErrorCode::ConcurrentTransactionLockConflict,
                         "Cannot take %s lock for child %s of node %s since %s lock is taken by concurrent transaction %s",
                         ~FormatEnum(request.Mode).Quote(),
@@ -520,7 +520,7 @@ void TCypressManager::ValidateLock(
                 if (request.AttributeKey &&
                     existingLock.AttributeKeys.find(request.AttributeKey.Get()) != existingLock.AttributeKeys.end())
                 {
-                    THROW_ERROR_EXCEPTION(
+                    return TError(
                         NCypressClient::EErrorCode::ConcurrentTransactionLockConflict,
                         "Cannot take %s lock for attribute %s of node %s since %s lock is taken by concurrent transaction %s",
                         ~FormatEnum(request.Mode).Quote(),
@@ -535,15 +535,16 @@ void TCypressManager::ValidateLock(
 
     // If we're outside of a transaction then the lock is not needed.
     *isMandatory = (transaction != nullptr);
+    return TError();
 }
 
-void TCypressManager::ValidateLock(
+TError TCypressManager::ValidateLock(
     TCypressNodeBase* trunkNode,
     TTransaction* transaction,
     const TLockRequest& request)
 {
     bool dummy;
-    ValidateLock(trunkNode, transaction, request, &dummy);
+    return ValidateLock(trunkNode, transaction, request, &dummy);
 }
 
 bool TCypressManager::IsRedundantLock(
@@ -739,7 +740,10 @@ TCypressNodeBase* TCypressManager::LockVersionedNode(
     bool isMandatory = false;
     FOREACH (auto* child, nodesToLock) {
         bool isChildMandatory;
-        ValidateLock(child->GetTrunkNode(), transaction, request, &isChildMandatory);
+        auto error = ValidateLock(child->GetTrunkNode(), transaction, request, &isChildMandatory);
+        if (!error.IsOK()) {
+            THROW_ERROR error;
+        }
         isMandatory |= isChildMandatory;
     }
 
