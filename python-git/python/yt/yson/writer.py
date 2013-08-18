@@ -1,6 +1,8 @@
 #!/usr/bin/python
 #!-*-coding:utf-8-*-
 
+from common import YsonError
+
 '''``yson`` exposes an API familiar to users of the standard library
 :mod:`marshal` and :mod:`pickle` modules. 
 
@@ -44,16 +46,18 @@ from yson_types import YsonEntity
 
 __all__ = ["dump", "dumps"]
 
-def dump(obj, fp, check_circular=True, encoding='utf-8', indent=None):
-    '''Serialize ``obj`` as a Yson formatted stream to ``fp`` (a
+def dump(object, stream, yson_format=None, check_circular=True, encoding='utf-8', indent=None):
+    '''Serialize ``object`` as a Yson formatted stream to ``fp`` (a
     ``.write()``-supporting file-like object).'''
-    fp.write(dumps(obj, check_circular, encoding, indent))
+    stream.write(dumps(object, yson_format, check_circular, encoding, indent))
 
      
-def dumps(obj, check_circular=True, encoding='utf-8', indent=None):
-    '''Serialize ``obj`` as a Yson formatted string'''
+def dumps(object, yson_format=None, check_circular=True, encoding='utf-8', indent=None):
+    '''Serialize ``object`` as a Yson formatted string'''
+    if yson_format == "binary":
+        raise YsonError("binary format is not supported")
     d = Dumper(check_circular, encoding, indent)
-    return d.dumps(obj)
+    return d.dumps(object)
 
 
 class Dumper(object):

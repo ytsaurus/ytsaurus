@@ -7,7 +7,7 @@ from tree_commands import remove, exists, set_attribute, mkdir, find_free_subpat
 from transaction_commands import _make_transactional_request
 from table import prepare_path
 
-from yt.yson import convert_to_yson_type
+from yt.yson import to_yson_type
 
 import os
 import hashlib
@@ -113,7 +113,7 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
     executable = os.access(filename, os.X_OK) or config.ALWAYS_SET_EXECUTABLE_FLAG_TO_FILE
     set_attribute(destination, "executable", bool_to_string(executable))
 
-    return convert_to_yson_type(
+    return to_yson_type(
         destination,
         {"file_name": yt_filename,
          "executable": bool_to_string(executable)})
