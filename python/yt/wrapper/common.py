@@ -76,7 +76,7 @@ def get_value(value, default):
         return value
 
 def dump_to_json(obj):
-    return json.dumps(yson.convert_to_json_tree(obj), indent=2)
+    return json.dumps(yson.yson_to_json(obj), indent=2)
 
 def execute_handling_sigint(action, except_action):
     try:
