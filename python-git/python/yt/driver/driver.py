@@ -1,7 +1,7 @@
 from ytlib_python import Driver, BufferedStream
 
 from yt.common import YtError
-import yt.yson as yson
+from yt.yson.convert import to_yson_type
 
 import cStringIO
 from cStringIO import StringIO
@@ -30,8 +30,7 @@ def chunk_iter(stream, response, size):
 def make_request(driver, request):
     description = driver.get_description(request.command_name)
 
-    yson_format = yson.YsonString("yson")
-    yson_format.attributes["format"] = "text"
+    yson_format = to_yson_type("yson", attributes={"format": "text"})
 
     if description.input_type() != "null" and request.arguments.get("input_format") is None:
         request.arguments["input_format"] = yson_format

@@ -7,7 +7,7 @@ from version import VERSION
 from http import make_get_request_with_retries, make_request_with_retries, Response, get_token, get_proxy
 
 import yt.yson as yson
-from yt.yson.yson_types import convert_to_yson_tree
+from yt.yson.convert import json_to_yson
 
 import yt.packages.requests as requests
 
@@ -199,6 +199,6 @@ def make_formatted_request(command_name, params, format, **kwargs):
     result = make_request(command_name, params)
 
     if format is None:
-        return convert_to_yson_tree(json.loads(result))
+        return json_to_yson(json.loads(result))
     else:
         return result
