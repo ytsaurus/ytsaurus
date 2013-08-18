@@ -4,7 +4,7 @@
 from common import YsonError
 
 '''``yson`` exposes an API familiar to users of the standard library
-:mod:`marshal` and :mod:`pickle` modules. 
+:mod:`marshal` and :mod:`pickle` modules.
 
 Serializable types (rules applied top to bottom):
 int, long -> yson int
@@ -46,16 +46,19 @@ from yson_types import YsonEntity
 
 __all__ = ["dump", "dumps"]
 
-def dump(object, stream, yson_format=None, check_circular=True, encoding='utf-8', indent=None):
+def dump(object, stream, yson_format=None, check_circular=True, encoding='utf-8'):
     '''Serialize ``object`` as a Yson formatted stream to ``fp`` (a
     ``.write()``-supporting file-like object).'''
-    stream.write(dumps(object, yson_format, check_circular, encoding, indent))
+    stream.write(dumps(object, yson_format, check_circular, encoding))
 
-     
-def dumps(object, yson_format=None, check_circular=True, encoding='utf-8', indent=None):
+
+def dumps(object, yson_format=None, check_circular=True, encoding='utf-8'):
     '''Serialize ``object`` as a Yson formatted string'''
     if yson_format == "binary":
         raise YsonError("binary format is not supported")
+    indent = ''
+    if yson_format == "pretty":
+        indent = " " * 4
     d = Dumper(check_circular, encoding, indent)
     return d.dumps(object)
 
@@ -90,7 +93,7 @@ class Dumper(object):
             result = "#"
         else:
             raise TypeError(repr(obj) + " is not Yson serializable.")
-        self._level -= 1    
+        self._level -= 1
         return attributes + result
 
     def _dump_string(self, obj):
@@ -100,7 +103,7 @@ class Dumper(object):
             return _fix_repr(repr(obj.encode(self._encoding)))
         else:
             assert False
-        
+
     def _dump_map(self, obj):
         result = ['{', self._format.nextline()]
         for k, v in obj.items():
@@ -109,12 +112,12 @@ class Dumper(object):
 
             @self._circular_check(v)
             def process_item():
-                return [self._format.prefix(self._level + 1), 
-                    self._dump_string(k), self._format.space(), '=', 
+                return [self._format.prefix(self._level + 1),
+                    self._dump_string(k), self._format.space(), '=',
                     self._format.space(), self.dumps(v), ';', self._format.nextline()]
 
             result += process_item()
-            
+
         result += [self._format.prefix(self._level), '}']
         return ''.join(result)
 
@@ -123,13 +126,13 @@ class Dumper(object):
         for v in obj:
             @self._circular_check(v)
             def process_item():
-                return [self._format.prefix(self._level + 1), 
+                return [self._format.prefix(self._level + 1),
                     self.dumps(v), ';', self._format.nextline()]
 
             result += process_item()
-            
+
         result += [self._format.prefix(self._level), ']']
-        return ''.join(result)        
+        return ''.join(result)
 
     def _dump_attributes(self, obj):
         result = ['<', self._format.nextline()]
@@ -139,12 +142,12 @@ class Dumper(object):
 
             @self._circular_check(v)
             def process_item():
-                return [self._format.prefix(self._level + 1), 
-                    self._dump_string(k), self._format.space(), '=', 
+                return [self._format.prefix(self._level + 1),
+                    self._dump_string(k), self._format.space(), '=',
                     self._format.space(), self.dumps(v), ';', self._format.nextline()]
 
             result += process_item()
-            
+
         result += [self._format.prefix(self._level), '>']
         return ''.join(result)
 
@@ -170,8 +173,8 @@ class Dumper(object):
         return decorator
 
 def _fix_repr(s):
-    '''Dirty hack to make yson-readable C-style escaping from 
-    ``repr``-encoded string if python have chosen single-quoted 
+    '''Dirty hack to make yson-readable C-style escaping from
+    ``repr``-encoded string if python have chosen single-quoted
     representation (as he usually does).
     See PyString_Repr() function in python sources for details.'''
     if s.startswith("'"):
