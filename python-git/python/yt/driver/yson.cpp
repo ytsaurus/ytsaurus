@@ -2,15 +2,9 @@
 #include "common.h"
 #include "stream.h"
 #include "serialize.h"
+#include "shutdown.h"
 
 #include <ytlib/ytree/convert.h>
-
-// For at_exit
-#include <ytlib/logging/log_manager.h>
-#include <ytlib/profiling/profiling_manager.h>
-#include <ytlib/rpc/dispatcher.h>
-#include <ytlib/bus/tcp_dispatcher.h>
-#include <ytlib/chunk_client/dispatcher.h>
 
 #include <contrib/libs/pycxx/Objects.hxx>
 #include <contrib/libs/pycxx/Extensions.hxx>
@@ -33,7 +27,7 @@ public:
     yson_python_module()
         : Py::ExtensionModule<yson_python_module>("yson_python")
     {
-        Py_AtExit(yson_python_module::at_exit);
+        RegisterShutdown();
 
         add_keyword_method("load", &yson_python_module::Load, "load yson from stream");
         add_keyword_method("loads", &yson_python_module::Loads, "load yson from string");
@@ -52,9 +46,9 @@ public:
         auto inputStream = TPythonInputStream(ExtractArgument(args, kwargs, "stream"));
         
         auto ysonType = NYson::EYsonType::Node;
-        if (args.length() > 0 || kwargs.length() > 0) {
+        if (HasArgument(args, kwargs, "yson_type")) {
             auto arg = ExtractArgument(args, kwargs, "yson_type");
-            ysonType = NYson::EYsonType::FromString(ConvertToStroka(ConvertToString(arg)));
+            ysonType = ParseEnum<NYson::EYsonType>(ConvertToStroka(ConvertToString(arg)));
         }
         
         if (args.length() > 0 || kwargs.length() > 0) {
@@ -72,9 +66,9 @@ public:
         auto string = ConvertToStroka(ConvertToString(ExtractArgument(args, kwargs, "string")));
         
         auto ysonType = NYson::EYsonType::Node;
-        if (args.length() > 0 || kwargs.length() > 0) {
+        if (HasArgument(args, kwargs, "yson_type")) {
             auto arg = ExtractArgument(args, kwargs, "yson_type");
-            ysonType = NYson::EYsonType::FromString(ConvertToStroka(ConvertToString(arg)));
+            ysonType = ParseEnum<NYson::EYsonType>(ConvertToStroka(ConvertToString(arg)));
         }
         
         if (args.length() > 0 || kwargs.length() > 0) {
@@ -93,9 +87,9 @@ public:
         auto outputStream = TPythonOutputStream(ExtractArgument(args, kwargs, "stream"));
 
         auto ysonFormat = NYson::EYsonFormat::Text;
-        if (args.length() > 0 || kwargs.length() > 0) {
+        if (HasArgument(args, kwargs, "yson_format")) {
             auto arg = ExtractArgument(args, kwargs, "yson_format");
-            ysonFormat = NYson::EYsonFormat::FromString(ConvertToStroka(ConvertToString(arg)));
+            ysonFormat = ParseEnum<NYson::EYsonFormat>(ConvertToStroka(ConvertToString(arg)));
         }
         
         if (args.length() > 0 || kwargs.length() > 0) {
@@ -115,29 +109,23 @@ public:
         auto obj = ExtractArgument(args, kwargs, "object");
 
         auto ysonFormat = NYson::EYsonFormat::Text;
-        if (args.length() > 0 || kwargs.length() > 0) {
+        if (HasArgument(args, kwargs, "yson_format")) {
             auto arg = ExtractArgument(args, kwargs, "yson_format");
-            ysonFormat = NYson::EYsonFormat::FromString(ConvertToStroka(ConvertToString(arg)));
+            ysonFormat = ParseEnum<NYson::EYsonFormat>(ConvertToStroka(ConvertToString(arg)));
+        }
+
+        int indent = 4;
+        if (HasArgument(args, kwargs, "indent")) {
+            auto arg = ExtractArgument(args, kwargs, "indent");
+            indent = Py::Int(arg).asLongLong();
         }
         
         if (args.length() > 0 || kwargs.length() > 0) {
             throw Py::RuntimeError("Incorrect arguments");
         }
 
-        auto ysonString = ConvertToYsonString(obj, ysonFormat);
+        auto ysonString = ConvertToYsonString(obj, ysonFormat, indent);
         return Py::String(~ysonString.Data());
-    }
-
-    static void at_exit()
-    {
-        // TODO: refactor system shutdown
-        // XXX(sandello): Keep in sync with server/main.cpp, driver/main.cpp and utmain.cpp, python_bindings/driver.cpp
-        NLog::TLogManager::Get()->Shutdown();
-        NBus::TTcpDispatcher::Get()->Shutdown();
-        NRpc::TDispatcher::Get()->Shutdown();
-        NChunkClient::TDispatcher::Get()->Shutdown();
-        NProfiling::TProfilingManager::Get()->Shutdown();
-        TDelayedInvoker::Shutdown();
     }
 
     virtual ~yson_python_module()
