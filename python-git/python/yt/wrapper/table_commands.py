@@ -192,7 +192,7 @@ def _make_operation_request(command_name, spec, strategy, finalizer=None, verbos
 
 """ Common table methods """
 def create_table(path, recursive=None, ignore_existing=False, replication_factor=None, compression_codec=None, attributes=None):
-    """ Creates empty table, use recursive for automatically creaation the path """
+    """ Creates empty table, use recursive for automatically creation the path """
     table = TablePath(path)
     recursive = get_value(recursive, config.CREATE_RECURSIVE)
     attributes = get_value(attributes, {})
@@ -489,7 +489,7 @@ class Finalizer(object):
 
         logger.warning("Chunks of output table {0} are too small. "
                        "This may cause suboptimal system performance. "
-                       "If this table is not temporaty then consider running the following command:\n"
+                       "If this table is not temporary then consider running the following command:\n"
                        "yt merge --mode {1} --src {0} --dst {0} "
                        "--spec '{{"
                           "combine_chunks=true;"
