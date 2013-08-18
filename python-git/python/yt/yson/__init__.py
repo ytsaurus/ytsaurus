@@ -1,7 +1,14 @@
-import yson
-import yson_parser
+import writer
+import parser
 import yson_types
 
-from yson_parser import loads, parse, parse_string, parse_list_fragment
+try:
+    from yt.driver.yson_python import load, loads, dump, dumps
+except ImportError as error:
+    import sys
+    print >>sys.stderr, "OLD", error
+    from parser import load, loads
+    from writer import dump, dumps
+
 from yson_types import *
-from yson import dump, dumps
+from convert import to_yson_type, yson_to_json, json_to_yson
