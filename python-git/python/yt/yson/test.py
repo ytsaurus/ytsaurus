@@ -34,7 +34,7 @@ class PrintBashTest(unittest.TestCase):
         self.yson_to_bash_test("[{a=1; b=2}; {c=3; d=4}]", "a\t1\nb\t2\nc\t3\nd\t4")
         self.yson_to_bash_test("[{a=1; b=2}; {c=3; d=4}]", "c\t3\nd\t4", "1")
         self.yson_to_bash_test("[{a=1; b=2}; {c=3; d=4}]", "3", "1/c")
-    
+
 class TestYsonParser(unittest.TestCase):
     def assert_equal(self, parsed, expected, attributes):
         if expected is None:
@@ -131,7 +131,7 @@ class TestYsonParser(unittest.TestCase):
         self.assertEqual(x.attributes, "abc")
 
         self.assertEqual(convert.json_to_yson("abc"), "abc")
-                
+
 
 if __name__ == "__main__":
     unittest.main()

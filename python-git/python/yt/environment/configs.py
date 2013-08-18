@@ -4,7 +4,7 @@ import simplejson as json
 """This module provides default ytserver configs"""
 
 def get_master_config():
-    return yson.parse_string(
+    return yson.loads(
 """
 {
     meta_state = {
@@ -77,7 +77,7 @@ def get_master_config():
 """)
 
 def get_scheduler_config():
-    return yson.parse_string(
+    return yson.loads(
 """
 {
     masters = {
@@ -135,7 +135,7 @@ def get_scheduler_config():
 
 
 def get_driver_config():
-    return yson.parse_string(
+    return yson.loads(
 """
 {
     masters = {
@@ -196,7 +196,7 @@ def get_driver_config():
 """)
 
 def get_node_config():
-    return yson.parse_string(
+    return yson.loads(
 """
 {
     data_node = {

@@ -35,7 +35,7 @@ def json_to_yson(json_tree):
     elif isinstance(value, float):
         result = YsonDouble(value)
     elif isinstance(value, list):
-        result = YsonList(map(to_yson_tree, value))
+        result = YsonList(map(json_to_yson, value))
     elif isinstance(value, dict):
         result = YsonMap((json_to_yson(k), json_to_yson(v)) for k, v in YsonMap(value).iteritems())
     elif value is None:

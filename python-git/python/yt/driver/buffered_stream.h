@@ -61,17 +61,17 @@ class TPythonBufferedStream
 {
 public:
     TPythonBufferedStream(Py::PythonClassInstance* self, Py::Tuple& args, Py::Dict& kwds);
-    
+
     Py::Object Read(Py::Tuple& args, Py::Dict &kwds);
     PYCXX_KEYWORDS_METHOD_DECL(TPythonBufferedStream, Read);
-    
+
     Py::Object Empty(Py::Tuple& args, Py::Dict &kwds);
     PYCXX_KEYWORDS_METHOD_DECL(TPythonBufferedStream, Empty);
-    
+
     TBufferedStreamPtr GetStream();
 
     virtual ~TPythonBufferedStream();
-    
+
     static void InitType();
 
 private:
