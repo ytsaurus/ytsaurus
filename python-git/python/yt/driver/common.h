@@ -14,7 +14,7 @@ inline bool IsInstance(const Object& obj, const Object& cls)
 
 inline bool IsStringLike(const Object& obj)
 {
-    return IsInstance(obj, String().type());
+    return PyString_Check(obj.ptr());
 }
 
 inline String ConvertToString(const Object& obj)
@@ -49,6 +49,8 @@ inline Py::String ConvertToPythonString(const Stroka& string)
 namespace NPython {
 
 Py::Object ExtractArgument(Py::Tuple& args, Py::Dict& kwds, const std::string& name);
+
+bool HasArgument(Py::Tuple& args, Py::Dict& kwds, const std::string& name);
 
 } // namespace NPython
 

@@ -5,8 +5,6 @@ import yson_types
 try:
     from yt.driver.yson_python import load, loads, dump, dumps
 except ImportError as error:
-    import sys
-    print >>sys.stderr, "OLD", error
     from parser import load, loads
     from writer import dump, dumps
 

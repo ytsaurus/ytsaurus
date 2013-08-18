@@ -12,27 +12,26 @@ class YtTestBase(object):
 
         test_class.NUM_MASTERS = 1
         test_class.NUM_NODES = 5
-        test_class.START_SCHEDULER = True
+        test_class.NUM_SCHEDULERS = 1
         test_class.START_PROXY = True
 
         ports = {
             "master": 18001,
             "node": 17101,
             "scheduler": 18101,
-            "proxy": 18080,
-            "proxy_log": 18081}
+            "proxy": 18080}
         # (TODO): remake this strange stuff.
         cls.env = test_class()
         
         dir = os.environ.get("TESTS_SANDBOX", "tests/sandbox")
-        #cls.env.set_environment(dir, os.path.join(dir, "pids.txt"), ports, supress_yt_output=True)
+        cls.env.set_environment(dir, os.path.join(dir, "pids.txt"), ports, supress_yt_output=True)
         
         reload(yt)
         reload(yt.config)
 
-        #yt.config.set_proxy("localhost:%d" % ports["proxy"])
-        #yt.config.http.USE_TOKEN = False
-        #yt.config.http.RETRY_VOLATILE_COMMANDS = True
+        yt.config.set_proxy("localhost:%d" % ports["proxy"])
+        yt.config.http.USE_TOKEN = False
+        yt.config.http.RETRY_VOLATILE_COMMANDS = True
 
     @classmethod
     def _teardown_class(cls):
