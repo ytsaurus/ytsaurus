@@ -316,7 +316,7 @@ def set(path, value, **kwargs):
     return set_str(path, yson.dumps(value), **kwargs)
 
 def read(path, **kwargs):
-    return yson.parse_list_fragment(read_str(path, **kwargs))
+    return yson.loads(read_str(path, **kwargs), yson_type="list_fragment")
 
 def write(path, value, **kwargs):
     output = yson.dumps(value)

@@ -547,7 +547,7 @@ Examples:
     if args.set is not None:
         if args.value is None:
             die("Value option is necessary for set command")
-        yt.set(args.set, yson.convert_to_yson_tree(json.loads(args.value)))
+        yt.set(args.set, yson.json_to_yson(json.loads(args.value)))
 
     if args.starttx:
         print yt.start_transaction()
