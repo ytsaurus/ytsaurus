@@ -35,7 +35,7 @@ TSharedRef TBufferedStream::Read(i64 size)
             AllowedSize_ = std::max(AllowedSize_, size);
             AllowWrite_.Set(TError());
         }
-    
+
         if (State_ != EState::Finished)
         {
             wait = true;
@@ -162,7 +162,7 @@ TPythonBufferedStream::TPythonBufferedStream(Py::PythonClassInstance *self, Py::
         throw Py::RuntimeError("Incorrect arguments for read command");
     }
 }
-    
+
 Py::Object TPythonBufferedStream::Read(Py::Tuple& args, Py::Dict &kwds)
 {
     auto size = Py::Int(ExtractArgument(args, kwds, "size"));
@@ -189,11 +189,11 @@ TBufferedStreamPtr TPythonBufferedStream::GetStream()
 
 TPythonBufferedStream::~TPythonBufferedStream()
 { }
-    
+
 void TPythonBufferedStream::InitType()
 {
     behaviors().name("BufferedStream");
-    behaviors().doc("Some documentation");
+    behaviors().doc("Buffered stream to perform read and download asynchronously");
     behaviors().supportGetattro();
     behaviors().supportSetattro();
 

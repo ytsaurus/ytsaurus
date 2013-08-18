@@ -10,7 +10,7 @@ import sys
 class TestSchedulerReduceCommands(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
-    START_SCHEDULER = True
+    NUM_SCHEDULERS = 1
 
     @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
     def test_tricky_chunk_boundaries(self):

@@ -5,14 +5,13 @@ from yt_commands import *
 
 import time
 import os
-import sys
 
 ##################################################################
 
 class TestOrchid(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
-    START_SCHEDULER = True
+    NUM_SCHEDULERS = 1
 
     def _check_service(self, path_to_orchid, service_name):
         path_to_value = path_to_orchid + '/value'
@@ -62,21 +61,26 @@ class TestResourceLeak(YTEnvSetup):
 
     # should be called on empty nodes
     def test_canceled_upload(self):
+        class InputStream(object):
+            def read(self):
+                time.sleep(1)
+                raise Exception("xxx")
+
         tx = start_transaction(opt = '/timeout=2000')
 
         # uploading from empty stream will fail
         create('file', '//tmp/file')
-        process = run_command('upload', '//tmp/file', tx = tx)
-        time.sleep(1)
-        process.kill()
-        time.sleep(1)
 
-        # now check that there are no temp files
-        for i in xrange(self.NUM_NODES):
-            # TODO(panin): refactor
-            node_config = self.Env.node_configs[i]
-            chunk_store_path = node_config['data_node']['store_locations'][0]['path']
-            self._check_no_temp_file(chunk_store_path)
+        try:
+            command("upload", arguments={"path": "//tmp/file", "tx": tx}, input_stream=InputStream())
+        except YtError:
+            time.sleep(1)
+            # now check that there are no temp files
+            for i in xrange(self.NUM_NODES):
+                # TODO(panin): refactor
+                node_config = self.Env.node_configs[i]
+                chunk_store_path = node_config['data_node']['store_locations'][0]['path']
+                self._check_no_temp_file(chunk_store_path)
 
 # TODO(panin): check chunks
 class TestResourceLeak2(YTEnvSetup):
@@ -120,7 +124,7 @@ class TestVirtualMaps(YTEnvSetup):
 class TestAttributes(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
-    START_SCHEDULER = True
+    NUM_SCHEDULERS = 1
 
     def test1(self):
         table = '//tmp/t'

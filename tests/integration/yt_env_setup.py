@@ -1,14 +1,16 @@
-import os
-import logging
-
-from functools import wraps
+import yt_commands
 
 from yt.environment import YTEnv
 
-import yt_commands
+import os
+import logging
+import shutil
+from datetime import datetime
+
+from functools import wraps
+
 SANDBOX_ROOTDIR = os.environ.get("TESTS_SANDBOX", os.path.abspath('tests.sandbox'))
 TOOLS_ROOTDIR = os.path.abspath('tools')
-PIDS_FILENAME = os.path.join(SANDBOX_ROOTDIR, 'pids.txt')
 
 def _working_dir(test_name):
     path_to_test = os.path.join(SANDBOX_ROOTDIR, test_name)
@@ -22,10 +24,22 @@ class YTEnvSetup(YTEnv):
         test_name = cls.__name__
         path_to_test = os.path.join(SANDBOX_ROOTDIR, test_name)
 
-        os.system('rm -rf ' + path_to_test)
-        os.makedirs(path_to_test)
+        # For running parallel
+        counter = 0
+        while True:
+            counter += 1
+            path_to_run = os.path.join(path_to_test, "run" + str(counter))
+            try:
+                if os.path.exists(path_to_run):
+                    age = datetime.now() - datetime.fromtimestamp(os.path.getmtime(path_to_run)) 
+                    if age.days > 0 or age.seconds > 60:
+                        shutil.rmtree(path_to_run, ignore_errors=True)
+                os.makedirs(path_to_run)
+                break
+            except OSError:
+                pass
 
-        path_to_run = os.path.join(path_to_test, "run")
+        pids_filename = os.path.join(path_to_run, 'pids.txt')
 
         cls.path_to_test = path_to_test
         ports = {
@@ -34,7 +48,7 @@ class YTEnvSetup(YTEnv):
             "scheduler": 28101,
             "proxy": 28080}
         cls.Env = cls()
-        cls.Env.set_environment(path_to_run, PIDS_FILENAME, ports)
+        cls.Env.set_environment(path_to_run, pids_filename, ports)
 
     @classmethod
     def teardown_class(cls):
@@ -43,6 +57,8 @@ class YTEnvSetup(YTEnv):
     def setup_method(self, method):
         path_to_test_case = os.path.join(self.path_to_test, method.__name__)
 
+        if os.path.exists(path_to_test_case):
+            shutil.rmtree(path_to_test_case)
         os.makedirs(path_to_test_case)
         os.chdir(path_to_test_case)
         if self.Env.NUM_MASTERS > 0:

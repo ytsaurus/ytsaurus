@@ -20,7 +20,7 @@ def check_memory_limit(op_id):
 class TestSchedulerMemoryLimits(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
-    START_SCHEDULER = True
+    NUM_SCHEDULERS = 1
 
     DELTA_NODE_CONFIG = \
         {'exec_agent' :

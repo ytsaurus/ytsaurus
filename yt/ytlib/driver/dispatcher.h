@@ -38,6 +38,7 @@ private:
      */
     TLazyIntrusivePtr<TThreadPool> HeavyThreadPool;
 
+    bool Initialized;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

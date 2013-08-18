@@ -337,6 +337,15 @@ else()
   set( LFA_SRC ${CMAKE_SOURCE_DIR}/util/private/lfalloc/lf_allocX64_fake.cpp)
 endif()
 
+add_library( ytext-lfalloc STATIC
+  ${LFA_SRC}
+)
+
+add_library( ytext-lfalloc-fake STATIC
+  ${CMAKE_SOURCE_DIR}/util/private/lfalloc/lf_allocX64_fake.cpp
+)
+
+
 add_library( ytext-arcadia-util STATIC
   ${SRCS}
   ${G_SRCS}
@@ -356,7 +365,6 @@ add_library( ytext-arcadia-util STATIC
   ${RN_SRCS}
   ${SV_SRCS}
   ${UT_SRCS}
-  ${LFA_SRC}
 )
 
 target_link_libraries ( ytext-arcadia-util

@@ -11,7 +11,7 @@ import time
 class TestErasure(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 20
-    START_SCHEDULER = True
+    NUM_SCHEDULERS = 1
 
     def _do_test_simple(self, erasure_codec):
         create('table', '//tmp/table')
@@ -65,7 +65,8 @@ class TestErasure(YTEnvSetup):
 
         for r in replicas:
             replica_index = r.attributes["index"]
-            node_index = (int(r.rsplit(":", 1)[1]) - self.Env._ports["node"]) / 2
+            port = int(r.rsplit(":", 1)[1])
+            node_index = filter(lambda x: x == port, self.Env._ports["node"])[0]
             print "Banning node %d containing replica %d" % (node_index, replica_index)
             set("//sys/nodes/%s/@banned" % r, "true")
 

@@ -9,7 +9,7 @@ from yt_commands import *
 class TestSchedulerMergeCommands(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
-    START_SCHEDULER = True
+    NUM_SCHEDULERS = 1
 
     def _prepare_tables(self):
         t1 = '//tmp/t1'
