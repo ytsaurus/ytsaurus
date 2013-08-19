@@ -52,7 +52,7 @@ public:
 
     //! Codec used for compressing intermediate output during shuffle.
     NCompression::ECodec IntermediateCompressionCodec;
-    
+
     //! What to do during initialization if some chunks are unavailable.
     EUnavailableChunkAction UnavailableChunkStrategy;
 
@@ -249,9 +249,6 @@ public:
     NYPath::TRichYPath OutputTablePath;
     EMergeMode Mode;
     bool CombineChunks;
-
-    //COMPAT(psushin): deprecated option
-    bool AllowPassthroughChunks;
     bool ForceTransform;
     TNullable< std::vector<Stroka> > MergeBy;
 
@@ -264,8 +261,6 @@ public:
             .Default(EMergeMode::Unordered);
         RegisterParameter("combine_chunks", CombineChunks)
             .Default(false);
-        RegisterParameter("allow_passthrough_chunks", AllowPassthroughChunks)
-            .Default(true);
         RegisterParameter("force_transform", ForceTransform)
             .Default(false);
         RegisterParameter("merge_by", MergeBy)
