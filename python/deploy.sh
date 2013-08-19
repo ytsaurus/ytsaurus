@@ -20,7 +20,7 @@ cat dist/$eggname | $YT upload "$DEST/Yt-py2.7.egg"
 mv yt/wrapper/pickling.py pickling.py
 cp standard_pickling.py yt/wrapper/pickling.py
 
-for name in yt mapreduce; do
+for name in yt mapreduce-yt; do
     rm -rf build dist
     pyinstaller/pyinstaller.py --noconfirm yt/wrapper/$name
     pyinstaller/pyinstaller.py --noconfirm "${name}.spec"
