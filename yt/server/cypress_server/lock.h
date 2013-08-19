@@ -4,7 +4,7 @@
 
 #include <ytlib/misc/nullable.h>
 
-#include <cell_master/public.h>
+#include <server/cell_master/public.h>
 
 namespace NYT {
 namespace NCypressServer {
@@ -13,27 +13,14 @@ namespace NCypressServer {
 
 struct TLockRequest
 {
-    TLockRequest(ELockMode mode)
-        : Mode(mode)
-    { }
+    TLockRequest(ELockMode mode);
+    TLockRequest(ELockMode::EDomain mode);
 
-    TLockRequest(ELockMode::EDomain mode)
-        : Mode(mode)
-    { }
+    static TLockRequest SharedChild(const Stroka& key);
+    static TLockRequest SharedAttribute(const Stroka& key);
 
-    static TLockRequest SharedChild(const Stroka& key)
-    {
-        TLockRequest result(ELockMode::Shared);
-        result.ChildKey = key;
-        return result;
-    }
-
-    static TLockRequest SharedAttribute(const Stroka& key)
-    {
-        TLockRequest result(ELockMode::Shared);
-        result.AttributeKey = key;
-        return result;
-    }
+    void Save(NCellMaster::TSaveContext& context) const;
+    void Load(NCellMaster::TLoadContext& context);
 
     ELockMode Mode;
     TNullable<Stroka> ChildKey;
