@@ -136,7 +136,7 @@ TNodeList TChunkPlacement::GetWriteTargets(
     FOREACH (auto* node, LoadRankToNode) {
         if (targets.size() == targetCount)
             break;
-        if (!IsValidWriteTarget(node))
+        if (!IsValidWriteTarget(node, sessionType))
             continue;
         if (!targets.empty() && targets[0] == node)
             continue; // skip preferred node
