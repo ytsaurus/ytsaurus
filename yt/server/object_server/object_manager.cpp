@@ -970,8 +970,8 @@ TObjectBase* TObjectManager::CreateObject(
 
     auto options = handler->GetCreationOptions();
     if (!options) {
-        THROW_ERROR_EXCEPTION("Type does not support creating new instances: %s",
-            ~type.ToString());
+        THROW_ERROR_EXCEPTION("Instances of type %s cannot be created directly",
+            ~FormatEnum(type).Quote());
     }
 
     switch (options->TransactionMode) {
