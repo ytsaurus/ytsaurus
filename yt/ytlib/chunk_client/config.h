@@ -148,6 +148,8 @@ public:
      */
     TDuration NodeRpcTimeout;
 
+    int MinUploadReplicationFactor;
+
     //! Maximum allowed period of time without RPC requests to nodes.
     /*!
      *  If the writer remains inactive for the given period, it sends #TChunkHolderProxy::PingSession.
@@ -169,6 +171,9 @@ public:
             .GreaterThan(0);
         RegisterParameter("node_rpc_timeout", NodeRpcTimeout)
             .Default(TDuration::Seconds(120));
+        RegisterParameter("min_upload_replication_factor", MinUploadReplicationFactor)
+            .Default(1)
+            .GreaterThan(0);
         RegisterParameter("node_ping_interval", NodePingInterval)
             .Default(TDuration::Seconds(10));
         RegisterParameter("enable_node_caching", EnableNodeCaching)
@@ -290,6 +295,12 @@ public:
             .Default(true);
         RegisterParameter("prefer_local_host", PreferLocalHost)
             .Default(true);
+
+        RegisterValidator([&] () {
+            if (MinUploadReplicationFactor > UploadReplicationFactor) {
+                THROW_ERROR_EXCEPTION("\"min_upload_replication_factor\" cannot be more than \"upload_replication_factor\"");
+            }
+        });
     }
 };
 
@@ -315,7 +326,6 @@ struct TMultiChunkWriterOptions
             .Default(true);
         RegisterParameter("erasure_codec", ErasureCodec)
             .Default(NErasure::ECodec::None);
-
     }
 };
 
