@@ -25,7 +25,6 @@ public:
     TDuration MinSharePreemptionTimeout;
     TDuration FairSharePreemptionTimeout;
     double FairShareStarvationTolerance;
-    double FairSharePreemptionTolerance;
 
     TDuration FairShareUpdatePeriod;
 
@@ -44,9 +43,6 @@ public:
         RegisterParameter("fair_share_starvation_tolerance", FairShareStarvationTolerance)
             .InRange(0.0, 1.0)
             .Default(0.8);
-        RegisterParameter("fair_share_preemption_tolerance", FairSharePreemptionTolerance)
-            .GreaterThanOrEqual(0.0)
-            .Default(1.05);
 
         RegisterParameter("fair_share_update_period", FairShareUpdatePeriod)
             .Default(TDuration::MilliSeconds(1000));
