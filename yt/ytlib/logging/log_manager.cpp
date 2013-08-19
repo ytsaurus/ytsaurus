@@ -267,6 +267,12 @@ public:
             .Default(Null);
         RegisterParameter("watch_period", WatchPeriod)
             .Default(Null);
+        RegisterParameter("check_space_period", CheckSpacePeriod)
+            .Default(Null);
+        RegisterParameter("min_disk_space", MinDiskSpace)
+            .GreaterThan((i64) 1024 * 1024 * 1024)
+            .Default((i64) 5 * 1024 * 1024 * 1024);
+
         RegisterParameter("writers", WriterConfigs);
         RegisterParameter("rules", Rules);
 
@@ -316,6 +322,13 @@ public:
             }
         }
         return level;
+    }
+
+    void CheckSpace()
+    {
+        FOREACH (auto& pair, Writers) {
+            pair.second->CheckSpace(MinDiskSpace);
+        }
     }
 
     void FlushWriters()
@@ -402,6 +415,11 @@ public:
         return WatchPeriod;
     }
 
+    TNullable<TDuration> GetCheckSpacePeriod() const
+    {
+        return CheckSpacePeriod;
+    }
+
 private:
     std::unique_ptr<TNotificationWatch> CreateNoficiationWatch(ILogWriterPtr writer, const Stroka& fileName)
     {
@@ -471,6 +489,9 @@ private:
 
     TNullable<TDuration> FlushPeriod;
     TNullable<TDuration> WatchPeriod;
+    TNullable<TDuration> CheckSpacePeriod;
+
+    i64 MinDiskSpace;
 
     std::vector<TRule::TPtr> Rules;
     yhash_map<Stroka, ILogWriter::TConfig::TPtr> WriterConfigs;
@@ -730,6 +751,15 @@ private:
                     *watchPeriod);
                 WatchInvoker->Start();
             }
+
+            auto checkSpacePeriod = Config->GetCheckSpacePeriod();
+            if (checkSpacePeriod) {
+                CheckSpaceInvoker = New<TPeriodicInvoker>(
+                    Queue,
+                    BIND(&TImpl::DoCheckSpacePeriodically, MakeStrong(this)),
+                    *checkSpacePeriod);
+                CheckSpaceInvoker->Start();
+            }
         }
     }
 
@@ -741,6 +771,11 @@ private:
     void DoWatchWritersPeriodically()
     {
         Config->WatchWriters();
+    }
+
+    void DoCheckSpacePeriodically()
+    {
+        Config->CheckSpace();
     }
 
     TInvokerQueuePtr Queue;
@@ -762,6 +797,7 @@ private:
 
     TPeriodicInvokerPtr FlushInvoker;
     TPeriodicInvokerPtr WatchInvoker;
+    TPeriodicInvokerPtr CheckSpaceInvoker;
 
 };
 
