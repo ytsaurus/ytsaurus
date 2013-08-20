@@ -43,8 +43,9 @@ public:
     void DoDestroy();
 
     static v8::Handle<v8::Value> IsEmpty(const v8::Arguments& args);
-    static v8::Handle<v8::Value> IsPaused(const v8::Arguments& args);
     static v8::Handle<v8::Value> IsDestroyed(const v8::Arguments& args);
+    static v8::Handle<v8::Value> IsPaused(const v8::Arguments& args);
+    static v8::Handle<v8::Value> IsCompleted(const v8::Arguments& args);
 
     // Asynchronous JS API.
     static int AsyncOnData(eio_req* request);
@@ -62,6 +63,8 @@ public:
         return BytesDequeued;
     }
 
+    void SetCompleted();
+
 protected:
     // C++ API.
     void DoWrite(const void* buffer, size_t length) override;
@@ -76,8 +79,9 @@ private:
 private:
     // XXX(sandello): I believe these atomics are subject to false sharing due
     // to in-memory locality. But whatever -- it is not a bottleneck.
-    TAtomic IsPaused_;
     TAtomic IsDestroyed_;
+    TAtomic IsPaused_;
+    TAtomic IsCompleted_;
 
     TAtomic BytesInFlight;
     TAtomic BytesEnqueued;
@@ -110,6 +114,13 @@ inline void TOutputStreamWrap::IgniteOnData()
             EmitAndStifleOnData();
         }
     }
+}
+
+inline void TOutputStreamWrap::SetCompleted()
+{
+    AtomicSet(IsCompleted_, 1);
+
+    Conditional.NotifyAll();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

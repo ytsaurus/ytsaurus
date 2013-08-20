@@ -33,8 +33,9 @@ Persistent<FunctionTemplate> TOutputStreamWrap::ConstructorTemplate;
 
 TOutputStreamWrap::TOutputStreamWrap(ui64 lowWatermark, ui64 highWatermark)
     : TNodeJSStreamBase()
-    , IsPaused_(0)
     , IsDestroyed_(0)
+    , IsPaused_(0)
+    , IsCompleted_(0)
     , BytesInFlight(0)
     , BytesEnqueued(0)
     , BytesDequeued(0)
@@ -72,8 +73,9 @@ void TOutputStreamWrap::Initialize(Handle<Object> target)
     NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Destroy", TOutputStreamWrap::Destroy);
 
     NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "IsEmpty", TOutputStreamWrap::IsEmpty);
-    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "IsPaused", TOutputStreamWrap::IsPaused);
     NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "IsDestroyed", TOutputStreamWrap::IsDestroyed);
+    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "IsPaused", TOutputStreamWrap::IsPaused);
+    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "IsCompleted", TOutputStreamWrap::IsCompleted);
 
     target->Set(
         String::NewSymbol("TOutputStreamWrap"),
@@ -163,8 +165,11 @@ Handle<Value> TOutputStreamWrap::DoPull()
             break;
         }
 
-        node::Buffer* buffer =
-            node::Buffer::New(part.Buffer, part.Length, DeleteCallback, (void*)part.Length);
+        node::Buffer* buffer = node::Buffer::New(
+            part.Buffer,
+            part.Length,
+            DeleteCallback,
+            (void*)part.Length);
         parts->Set(i, buffer->handle_);
 
         v8::V8::AdjustAmountOfExternalAllocatedMemory(+(int)part.Length);
@@ -290,6 +295,22 @@ Handle<Value> TOutputStreamWrap::IsPaused(const Arguments& args)
     return scope.Close(Boolean::New(AtomicGet(stream->IsPaused_)));
 }
 
+Handle<Value> TOutputStreamWrap::IsCompleted(const Arguments& args)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    // Unwrap.
+    TOutputStreamWrap* stream =
+        ObjectWrap::Unwrap<TOutputStreamWrap>(args.This());
+
+    // Validate arguments.
+    YASSERT(args.Length() == 0);
+
+    // Do the work.
+    return scope.Close(Boolean::New(AtomicGet(stream->IsCompleted_)));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 int TOutputStreamWrap::AsyncOnData(eio_req* request)
@@ -356,7 +377,10 @@ void TOutputStreamWrap::DoWriteV(const TPart* parts, size_t count)
 void TOutputStreamWrap::WritePrologue()
 {
     Conditional.Await([&] () -> bool {
-        return AtomicGet(IsDestroyed_) || (AtomicGet(BytesInFlight) < HighWatermark);
+        return
+            AtomicGet(IsDestroyed_) ||
+            AtomicGet(IsCompleted_) ||
+            (AtomicGet(BytesInFlight) < HighWatermark);
     });
 
     if (AtomicGet(IsDestroyed_)) {
