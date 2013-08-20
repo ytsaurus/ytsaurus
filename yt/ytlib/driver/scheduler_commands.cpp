@@ -28,7 +28,7 @@ void TSchedulerCommandBase::StartOperation(EOperationType type)
     auto req = SchedulerProxy->StartOperation();
     req->set_type(type);
     ToProto(req->mutable_transaction_id(), GetTransactionId(EAllowNullTransaction::Yes));
-    SetMutationId(req, Request->MutationId);
+    GenerateMutationId(req);
     req->set_spec(ConvertToYsonString(Request->Spec).Data());
 
     auto rsp = WaitFor(req->Invoke());

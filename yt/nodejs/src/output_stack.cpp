@@ -81,7 +81,11 @@ void TNodeJSOutputStack::DoFlush()
 
 void TNodeJSOutputStack::DoFinish()
 {
-    return Top()->Finish();
+    GetBaseStream()->SetCompleted();
+
+    FOREACH (auto* current, *this) {
+        current->Finish();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

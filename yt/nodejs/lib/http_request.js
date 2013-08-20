@@ -1,5 +1,6 @@
 var url = require("url");
 var http = require("http");
+var https = require("https");
 var buffertools = require("buffertools");
 var Q = require("q");
 
@@ -22,6 +23,7 @@ function YtHttpRequest(host, port, path, verb, body)
     this.port = typeof(port) !== "undefined" ? port : 80;
     this.path = typeof(path) !== "undefined" ? path : "/";
     this.verb = typeof(verb) !== "undefined" ? verb : "GET";
+    this.secure = false;
     this.json = false;
     this.body = null;
     this.headers = {};
@@ -73,6 +75,13 @@ YtHttpRequest.prototype.setTimeout = function(timeout)
 {
     "use strict";
     this.timeout = timeout;
+    return this;
+};
+
+YtHttpRequest.prototype.asHttps = function(secure)
+{
+    "use strict";
+    this.secure = !!secure;
     return this;
 };
 
@@ -138,7 +147,8 @@ YtHttpRequest.prototype.fire = function()
     var self = this;
 
     var deferred = Q.defer();
-    var req = http.request({
+    var proto = self.secure ? https : http;
+    var req = proto.request({
         method: self.verb,
         headers: self.headers,
         host: self.host,
