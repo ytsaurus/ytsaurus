@@ -51,6 +51,9 @@ void TStreamLogWriter::Flush()
 void TStreamLogWriter::Reload()
 { }
 
+void TStreamLogWriter::CheckSpace(i64 minSpace)
+{ }
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TStdErrLogWriter::TStdErrLogWriter(const Stroka& pattern)
@@ -65,57 +68,91 @@ TStdOutLogWriter::TStdOutLogWriter(const Stroka& pattern)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TFileLogWriterBase::TFileLogWriterBase(const Stroka& fileName)
+    : FileName(fileName)
+    , Initialized(false)
+{
+    AtomicSet(NotEnoughSpace, false);
+}
+
+void TFileLogWriterBase::ReopenFile()
+{
+    NFS::ForcePath(NFS::GetDirectoryName(FileName));
+    File.reset(new TFile(FileName, OpenAlways|ForAppend|WrOnly|Seq|CloseOnExec));
+    FileOutput.reset(new TBufferedFileOutput(*File, BufferSize));
+    FileOutput->SetFinishPropagateMode(true);
+    *FileOutput << Endl;
+}
+
+void TFileLogWriterBase::CheckSpace(i64 minSpace)
+{
+    try {
+        auto statistics = NFS::GetDiskSpaceStatistics(FileName);
+        if (statistics.AvailableSpace < minSpace) {
+            AtomicSet(NotEnoughSpace, true);
+            LOG_ERROR(
+                "Disable log writer: not enough space (FileName: %s, AvailableSpace: %" PRId64 ", MinSpace: %" PRId64 ")",
+                ~FileName,
+                statistics.AvailableSpace,
+                minSpace);
+        }
+    } catch (const std::exception& ex) {
+        AtomicSet(NotEnoughSpace, true);
+            LOG_ERROR(
+                ex,
+                "Disable log writer: space check failed (FileName: %s)",
+                ~FileName);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TFileLogWriter::TFileLogWriter(
     Stroka fileName,
     Stroka pattern)
-    : FileName(fileName)
+    : TFileLogWriterBase(fileName)
     , Pattern(pattern)
-    , Initialized(false)
 {
     EnsureInitialized();
 }
 
 void TFileLogWriter::EnsureInitialized()
 {
-    if (Initialized)
+    if (Initialized || AtomicGet(NotEnoughSpace) == true)
         return;
 
+    // No matter what, let's pretend we're initialized to avoid subsequent attempts.
+    Initialized = true;
+
     try {
-        NFS::ForcePath(NFS::GetDirectoryName(FileName));
-        File.reset(new TFile(FileName, OpenAlways|ForAppend|WrOnly|Seq|CloseOnExec));
-        FileOutput.reset(new TBufferedFileOutput(*File, BufferSize));
-        FileOutput->SetFinishPropagateMode(true);
-        *FileOutput << Endl;
+        ReopenFile();
     } catch (const std::exception& ex) {
         LOG_ERROR(ex, "Error opening log file: %s", ~FileName);
-        // Still let's pretend we're initialized to avoid subsequent attempts.
-        Initialized = true;
         return;
     }
 
     LogWriter = New<TStreamLogWriter>(~FileOutput, Pattern);
-    LogWriter->Write(GetBannerEvent());
-
-    Initialized = true;
+    Write(GetBannerEvent());
 }
 
 void TFileLogWriter::Write(const TLogEvent& event)
 {
-    if (LogWriter) {
+    if (LogWriter && AtomicGet(NotEnoughSpace) == false) {
         try {
             LogWriter->Write(event);
         } catch (...) {
-            // I wish I could log it, but I'm a logger myself.
+            LOG_ERROR("Failed to write to log (FileName: %s)", ~FileName);
         }
     }
 }
 
 void TFileLogWriter::Flush()
 {
-    if (LogWriter) {
+    if (LogWriter && AtomicGet(NotEnoughSpace) == false) {
         try {
             LogWriter->Flush();
         } catch (...) {
+            LOG_ERROR("Failed to flush log (FileName: %s)", ~FileName);
         }
     }
 }
@@ -128,6 +165,7 @@ void TFileLogWriter::Reload()
         try {
             File->Close();
         } catch (...) {
+            LOG_ERROR("Failed to close log (FileName: %s)", ~FileName);
         }
     }
 
@@ -138,8 +176,7 @@ void TFileLogWriter::Reload()
 ////////////////////////////////////////////////////////////////////////////////
 
 TRawFileLogWriter::TRawFileLogWriter(const Stroka& fileName)
-    : FileName(fileName)
-    , Initialized(false)
+    : TFileLogWriterBase(fileName)
     , Buffer(new TMessageBuffer())
 {
     EnsureInitialized();
@@ -147,28 +184,25 @@ TRawFileLogWriter::TRawFileLogWriter(const Stroka& fileName)
 
 void TRawFileLogWriter::EnsureInitialized()
 {
-    if (Initialized)
+    if (Initialized || AtomicGet(NotEnoughSpace) == true)
         return;
 
+    // No matter what, let's pretend we're initialized to avoid subsequent attempts.
+    Initialized = true;
+
     try {
-        NFS::ForcePath(NFS::GetDirectoryName(FileName));
-        File.reset(new TFile(FileName, OpenAlways|ForAppend|WrOnly|Seq|CloseOnExec));
-        FileOutput.reset(new TBufferedFileOutput(*File, BufferSize));
-        FileOutput->SetFinishPropagateMode(true);
+        ReopenFile();
         *FileOutput << Endl;
     } catch (const std::exception& ex) {
         LOG_ERROR(ex, "Error opening log file: %s", ~FileName);
-        // Still let's pretend we're initialized to avoid subsequent attempts.
     }
-
-    Initialized = true;
 
     Write(GetBannerEvent());
 }
 
 void TRawFileLogWriter::Write(const TLogEvent& event)
 {
-    if (!FileOutput) {
+    if (!FileOutput || AtomicGet(NotEnoughSpace) == true) {
         return;
     }
 
@@ -193,11 +227,11 @@ void TRawFileLogWriter::Write(const TLogEvent& event)
 
 void TRawFileLogWriter::Flush()
 {
-    if (~FileOutput) {
+    if (~FileOutput && AtomicGet(NotEnoughSpace) == false) {
         try {
             FileOutput->Flush();
         } catch (...) {
-            // Silently ignore FS errors.
+            LOG_ERROR("Failed to write to log (FileName: %s)", ~FileName);
         }
     }
 }
@@ -210,6 +244,7 @@ void TRawFileLogWriter::Reload()
         try {
             File->Close();
         } catch (...) {
+            LOG_ERROR("Failed to close log (FileName: %s)", ~FileName);
         }
     }
 
