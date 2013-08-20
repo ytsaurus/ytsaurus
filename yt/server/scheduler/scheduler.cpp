@@ -755,8 +755,6 @@ private:
         if (operation->GetState() != EOperationState::Initializing)
             throw TFiberTerminatedException();
 
-        auto operationId = operation->GetOperationId();
-
         try {
             StartAsyncSchedulerTransaction(operation);
             StartSyncSchedulerTransaction(operation);
@@ -776,12 +774,32 @@ private:
             return wrappedError;
         }
 
+        // NB: Once we've registered the operation in Cypress we're free to complete
+        // StartOperation request. Preparation will happen in a separate fiber in a non-blocking
+        // fashion.
+        auto controller = operation->GetController();
+        controller->GetCancelableControlInvoker()->Invoke(BIND(
+            &TImpl::DoPrepareOperation,
+            MakeStrong(this),
+            operation));
+
+        return TError();
+    }
+    
+    void DoPrepareOperation(TOperationPtr operation)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (operation->GetState() != EOperationState::Initializing)
+            throw TFiberTerminatedException();
+
+        auto operationId = operation->GetOperationId();
+
         try {
             // Run async preparation.
             LOG_INFO("Preparing operation (OperationId: %s)",
                 ~ToString(operationId));
 
-            YCHECK(operation->GetState() == EOperationState::Initializing);
             operation->SetState(EOperationState::Preparing);
 
             {
@@ -794,24 +812,24 @@ private:
             auto wrappedError = TError("Operation has failed to prepare")
                 << ex;
             OnOperationFailed(operation, wrappedError);
-            return wrappedError;
+            return;
         }
 
-        if (operation->GetState() == EOperationState::Preparing) {
-            operation->SetState(EOperationState::Running);
+        if (operation->GetState() != EOperationState::Preparing)
+            throw TFiberTerminatedException();
 
-            LOG_INFO("Operation has been prepared and is now running (OperationId: %s)",
-                ~ToString(operationId));
+        operation->SetState(EOperationState::Running);
 
-            LogOperationProgress(operation);
+        LOG_INFO("Operation has been prepared and is now running (OperationId: %s)",
+            ~ToString(operationId));
 
-            // From this moment on the controller is fully responsible for the
-            // operation's fate. It will eventually call #OnOperationCompleted or
-            // #OnOperationFailed to inform the scheduler about the outcome.
-        }
+        LogOperationProgress(operation);
 
-        return TError();
+        // From this moment on the controller is fully responsible for the
+        // operation's fate. It will eventually call #OnOperationCompleted or
+        // #OnOperationFailed to inform the scheduler about the outcome.
     }
+
 
     void StartSyncSchedulerTransaction(TOperationPtr operation)
     {
