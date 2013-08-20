@@ -98,7 +98,7 @@ namespace NNodeJS {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const size_t DefaultStreamBufferSize = 1 << 16;
+static const size_t DefaultStreamBufferSize = 1 << 15;
 
 DECLARE_ENUM(ECompression,
     (None)
