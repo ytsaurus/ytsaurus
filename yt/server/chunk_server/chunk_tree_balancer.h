@@ -31,6 +31,10 @@ private:
 
     void AppendChunkTree(
         std::vector<TChunkTree*>* children,
+        TChunkTree* root);
+
+    void AppendChild(
+        std::vector<TChunkTree*>* children,
         TChunkTree* child);
 
 };
