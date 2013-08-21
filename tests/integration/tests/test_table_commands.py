@@ -415,6 +415,37 @@ class TestTableCommands(YTEnvSetup):
         assert statistics['row_count'] == 40
         assert statistics['rank'] == 2
 
+    @pytest.mark.skipif(True) # very long test
+    def test_chunk_tree_balancer_deep(self):
+        create('table', '//tmp/t')
+        tx_stack = list()
+        tx = start_transaction()
+        tx_stack.append(tx)
+
+        for i in xrange(0, 1000):
+            write('<append=true>//tmp/t', {'a' : i}, tx=tx)
+
+        chunk_list_id = get('//tmp/t/@chunk_list_id', tx=tx)
+        statistics = get('#' + chunk_list_id + '/@statistics', tx=tx)
+        assert statistics['chunk_count'] == 1000
+        assert statistics['chunk_list_count'] == 2001
+        assert statistics['row_count'] == 1000
+        assert statistics['rank'] == 1001
+
+        tbl_a = read('//tmp/t', tx=tx)
+
+        commit_transaction(tx)
+        sleep(1.0)
+
+        chunk_list_id = get('//tmp/t/@chunk_list_id')
+        statistics = get('#' + chunk_list_id + '/@statistics')
+        assert statistics['chunk_count'] == 1000
+        assert statistics['chunk_list_count'] == 2
+        assert statistics['row_count'] == 1000
+        assert statistics['rank'] == 2
+
+        assert tbl_a == read('//tmp/t')
+
     def _check_replication_factor(self, path, expected_rf):
         chunk_ids = get(path + '/@chunk_ids')
         for id in chunk_ids:
