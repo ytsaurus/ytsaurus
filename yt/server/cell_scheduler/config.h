@@ -36,7 +36,7 @@ public:
     TCellSchedulerConfig()
     {
         RegisterParameter("orchid_cache_expiration_period", OrchidCacheExpirationPeriod)
-            .Default(TDuration::Seconds(3));
+            .Default(TDuration::Seconds(1));
         RegisterParameter("rpc_port", RpcPort)
             .Default(9001);
         RegisterParameter("monitoring_port", MonitoringPort)
