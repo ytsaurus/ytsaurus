@@ -22,7 +22,7 @@ using namespace NYTree;
 static NLog::TLogger Logger("Monitoring");
 static NProfiling::TProfiler Profiler("/monitoring");
 
-const TDuration TMonitoringManager::Period = TDuration::Seconds(3);
+static const TDuration UpdatePeriod = TDuration::Seconds(3);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -58,7 +58,7 @@ void TMonitoringManager::Start()
     PeriodicInvoker = New<TPeriodicInvoker>(
         ActionQueue->GetInvoker(),
         BIND(&TMonitoringManager::Update, MakeStrong(this)),
-        Period);
+        UpdatePeriod);
     PeriodicInvoker->Start();
 
     IsStarted = true;

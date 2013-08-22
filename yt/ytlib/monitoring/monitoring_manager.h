@@ -57,8 +57,6 @@ public:
 private:
     typedef yhash<Stroka, NYTree::TYsonProducer> TProducerMap;
 
-    static const TDuration Period; // TODO: make yson serializable
-
     bool IsStarted;
     TActionQueuePtr ActionQueue;
     TPeriodicInvokerPtr PeriodicInvoker;
