@@ -1635,7 +1635,7 @@ private:
                 .Item("nodes").DoMapFor(AddressToNode, [=] (TFluentMap fluent, TExecNodeMap::value_type pair) {
                     BuildNodeYson(pair.second, fluent);
                 })
-                .DoIf(Strategy, BIND(&ISchedulerStrategy::BuildOrchidYson, ~Strategy))
+                .DoIf(Strategy != nullptr, BIND(&ISchedulerStrategy::BuildOrchidYson, ~Strategy))
             .EndMap();
     }
 
