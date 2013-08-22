@@ -6,6 +6,8 @@
 #include "ypath_detail.h"
 #include "convert.h"
 
+#include <ytlib/rpc/dispatcher.h>
+
 namespace NYT {
 namespace NYTree {
 
@@ -103,7 +105,8 @@ public:
     
     void Initialize()
     {
-        UpdateCache(SyncYPathGet(UnderlyingService, ""));
+        auto tree = ConvertToNode(SyncYPathGet(UnderlyingService, ""));
+        UpdateCache(tree);
     }
 
     virtual TResolveResult Resolve(
@@ -138,21 +141,25 @@ private:
         }
 
         if (needsUpdate) {
-            auto this_ = MakeStrong(this);
-            AsyncYPathGet(UnderlyingService, "").Subscribe(
-                BIND([this, this_] (TErrorOr<TYsonString> result) {
-                    YCHECK(result.IsOK());
-                    UpdateCache(result.GetValue());
-                }));
+            AsyncYPathGet(UnderlyingService, "")
+                .Apply(
+                    BIND([] (TErrorOr<TYsonString> result) -> INodePtr {
+                        YCHECK(result.IsOK());
+                        return ConvertToNode(result.GetValue());
+                    })
+                    // Nothing to be proud of, but we do need some large pool.
+                    .AsyncVia(NRpc::TDispatcher::Get()->GetPoolInvoker()))
+                .Subscribe(
+                    BIND(&TCachedYPathService::UpdateCache, MakeStrong(this)));
         }
 
         return cachedTree;
     }
 
-    void UpdateCache(const TYsonString& str)
+    void UpdateCache(INodePtr tree)
     {
         TGuard<TSpinLock> guard(SpinLock);
-        CachedTree = ConvertToNode(str);
+        CachedTree = tree;
         LastUpdateTime = TInstant::Now();
     }
 
