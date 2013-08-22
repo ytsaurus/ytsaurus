@@ -67,8 +67,7 @@ void ParseQuery(IAttributeDictionary* attributes, const Stroka& query)
     }
 }
 
-// TOOD(babenko): use const&
-TFuture<Stroka> HandleRequest(IYPathServicePtr service, Stroka url)
+TFuture<Stroka> HandleRequest(IYPathServicePtr service, const Stroka& url)
 {
     try {
         // TODO(babenko): rewrite using some standard URL parser
@@ -95,11 +94,6 @@ TFuture<Stroka> HandleRequest(IYPathServicePtr service, Stroka url)
 TServer::TAsyncHandler GetYPathHttpHandler(IYPathServicePtr service)
 {
     return BIND(&HandleRequest, service);
-}
-
-TServer::TAsyncHandler GetYPathHttpHandler(TYPathServiceProducer producer)
-{
-    return GetYPathHttpHandler(IYPathService::FromProducer(producer));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

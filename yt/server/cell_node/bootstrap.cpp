@@ -22,7 +22,6 @@
 #include <ytlib/orchid/orchid_service.h>
 
 #include <ytlib/monitoring/monitoring_manager.h>
-#include <ytlib/monitoring/ytree_integration.h>
 #include <ytlib/monitoring/http_server.h>
 #include <ytlib/monitoring/http_integration.h>
 
@@ -280,7 +279,7 @@ void TBootstrap::Run()
     SetNodeByYPath(
         OrchidRoot,
         "/monitoring",
-        CreateVirtualNode(CreateMonitoringProducer(monitoringManager)));
+        CreateVirtualNode(monitoringManager->GetService()));
     SetNodeByYPath(
         OrchidRoot,
         "/profiling",
@@ -290,15 +289,15 @@ void TBootstrap::Run()
     SetNodeByYPath(
         OrchidRoot,
         "/config",
-        CreateVirtualNode(CreateYsonFileProducer(ConfigFileName)));
+        CreateVirtualNode(CreateYsonFileService(ConfigFileName)));
     SetNodeByYPath(
         OrchidRoot,
         "/stored_chunks",
-        CreateVirtualNode(CreateStoredChunkMapService(~ChunkStore)));
+        CreateVirtualNode(CreateStoredChunkMapService(ChunkStore)));
     SetNodeByYPath(
         OrchidRoot,
         "/cached_chunks",
-        CreateVirtualNode(CreateCachedChunkMapService(~ChunkCache)));
+        CreateVirtualNode(CreateCachedChunkMapService(ChunkCache)));
     
     SetBuildAttributes(OrchidRoot, "node");
 
@@ -322,7 +321,6 @@ void TBootstrap::Run()
     MasterConnector->Start();
     SchedulerConnector->Start();
     httpServer.Start();
-
     RpcServer->Start();
 
     Sleep(TDuration::Max());

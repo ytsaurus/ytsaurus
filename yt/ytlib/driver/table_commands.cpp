@@ -9,6 +9,8 @@
 #include <ytlib/yson/parser.h>
 #include <ytlib/yson/consumer.h>
 
+#include <ytlib/formats/parser.h>
+
 #include <ytlib/transaction_client/transaction_manager.h>
 
 #include <ytlib/table_client/table_reader.h>

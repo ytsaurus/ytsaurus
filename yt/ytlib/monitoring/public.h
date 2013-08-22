@@ -1,17 +1,14 @@
 #pragma once
 
-#include "common.h"
-#include "monitoring_manager.h"
-
-#include <ytlib/ytree/ypath_service.h>
+#include <ytlib/misc/common.h>
 
 namespace NYT {
 namespace NMonitoring {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NYTree::TYPathServiceProducer CreateMonitoringProducer(
-    TMonitoringManager::TPtr monitoringManager);
+class TMonitoringManager;
+typedef TIntrusivePtr<TMonitoringManager> TMonitoringManagerPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
