@@ -5,7 +5,7 @@
 # -lock
 # -unlock
 
-from yt.wrapper.table_commands import copy_table
+from yt.wrapper.table_commands import copy_table, _remove_locks
 from yt.wrapper.tree_commands import remove_with_empty_dirs
 from yt.wrapper.table import check_prefix
 
@@ -501,10 +501,7 @@ Examples:
             if not args.force and yt.get_type(args.drop) not in ["table", "file"]:
                 die("You are trying to remove object of type " + yt.get_type(args.drop))
             if args.force:
-                for lock in yt.get_attribute(args.drop, "locks", []):
-                    if lock["mode"] != "snapshot":
-                        if yt.exists("//sys/transactions/" + lock["transaction_id"]):
-                            yt.abort_transaction(lock["transaction_id"])
+                _remove_locks(args.drop)
             remove_with_empty_dirs(args.drop)
     if args.copy:
         copy_table(args.src, unlist(dst))

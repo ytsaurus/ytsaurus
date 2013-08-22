@@ -11,7 +11,7 @@ from tree_commands import exists, remove, remove_with_empty_dirs, get_attribute,
                           move, mkdir, find_free_subpath, create, get_type, \
                           _make_formatted_transactional_request
 from file_commands import smart_upload_file
-from transaction_commands import _make_transactional_request
+from transaction_commands import _make_transactional_request, abort_transaction
 from transaction import PingableTransaction
 from format import Format
 from heavy_commands import make_heavy_request
@@ -115,9 +115,17 @@ def _prepare_destination_tables(tables, replication_factor, compression_codec):
                          replication_factor=replication_factor, compression_codec=compression_codec)
     return tables
 
+def _remove_locks(table):
+    for lock in get_attribute(table, "locks", []):
+        if lock["mode"] != "snapshot":
+            if exists("//sys/transactions/" + lock["transaction_id"]):
+                abort_transaction(lock["transaction_id"])
+
 def _remove_tables(tables):
     for table in tables:
         if exists(table) and get_type(table) == "table" and not table.append:
+            if config.FORCE_DROP_DST:
+                _remove_locks(table)
             remove(table)
 
 def _add_user_command_spec(op_type, binary, input_format, output_format, files, file_paths, memory_limit, reduce_by, spec):
