@@ -415,7 +415,7 @@ class TestTableCommands(YTEnvSetup):
         assert statistics['row_count'] == 40
         assert statistics['rank'] == 2
 
-    @pytest.mark.skipif(True) # very long test
+    @pytest.mark.skipif('True') # very long test
     def test_chunk_tree_balancer_deep(self):
         create('table', '//tmp/t')
         tx_stack = list()
