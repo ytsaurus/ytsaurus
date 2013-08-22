@@ -283,9 +283,7 @@ void TBootstrap::Run()
     SetNodeByYPath(
         OrchidRoot,
         "/profiling",
-        CreateVirtualNode(
-        TProfilingManager::Get()->GetRoot()
-        ->Via(TProfilingManager::Get()->GetInvoker())));
+        CreateVirtualNode(TProfilingManager::Get()->GetService()));
     SetNodeByYPath(
         OrchidRoot,
         "/config",
