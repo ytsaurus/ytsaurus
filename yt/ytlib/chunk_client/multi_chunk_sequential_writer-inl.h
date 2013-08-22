@@ -68,7 +68,7 @@ TAsyncError TMultiChunkSequentialWriter<TChunkWriter>::AsyncOpen()
 
     if (Config->MinUploadReplicationFactor > UploadReplicationFactor) {
         State.Fail(TError(
-            "\"min_upload_replication_factor\" is greater than \"replication_factor\" (MinUploadReplicationFactor: %d, ReplicationFactor: %d)",
+            "\"min_upload_replication_factor\" is greater than \"replication_factor\": %d > %d",
             Config->MinUploadReplicationFactor,
             UploadReplicationFactor));
         return State.GetOperationError();

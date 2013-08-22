@@ -298,7 +298,7 @@ public:
 
         RegisterValidator([&] () {
             if (MinUploadReplicationFactor > UploadReplicationFactor) {
-                THROW_ERROR_EXCEPTION("\"min_upload_replication_factor\" cannot be more than \"upload_replication_factor\"");
+                THROW_ERROR_EXCEPTION("\"min_upload_replication_factor\" cannot be greater than \"upload_replication_factor\"");
             }
         });
     }
