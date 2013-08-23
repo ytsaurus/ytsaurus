@@ -118,7 +118,7 @@ TFileLogWriter::TFileLogWriter(
 
 void TFileLogWriter::EnsureInitialized()
 {
-    if (Initialized || AtomicGet(NotEnoughSpace) == true)
+    if (Initialized || AtomicGet(NotEnoughSpace))
         return;
 
     // No matter what, let's pretend we're initialized to avoid subsequent attempts.
@@ -127,7 +127,7 @@ void TFileLogWriter::EnsureInitialized()
     try {
         ReopenFile();
     } catch (const std::exception& ex) {
-        LOG_ERROR(ex, "Error opening log file: %s", ~FileName);
+        LOG_ERROR(ex, "Error opening log file %s", ~FileName.Quote());
         return;
     }
 
@@ -140,8 +140,8 @@ void TFileLogWriter::Write(const TLogEvent& event)
     if (LogWriter && AtomicGet(NotEnoughSpace) == false) {
         try {
             LogWriter->Write(event);
-        } catch (...) {
-            LOG_ERROR("Failed to write to log (FileName: %s)", ~FileName);
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Failed to write to log file %s", ~FileName.Quote());
         }
     }
 }
@@ -151,8 +151,8 @@ void TFileLogWriter::Flush()
     if (LogWriter && AtomicGet(NotEnoughSpace) == false) {
         try {
             LogWriter->Flush();
-        } catch (...) {
-            LOG_ERROR("Failed to flush log (FileName: %s)", ~FileName);
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Failed to flush log file %s", ~FileName.Quote());
         }
     }
 }
@@ -164,8 +164,8 @@ void TFileLogWriter::Reload()
     if (~File) {
         try {
             File->Close();
-        } catch (...) {
-            LOG_ERROR("Failed to close log (FileName: %s)", ~FileName);
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Failed to close log file %s", ~FileName.Quote());
         }
     }
 
@@ -184,7 +184,7 @@ TRawFileLogWriter::TRawFileLogWriter(const Stroka& fileName)
 
 void TRawFileLogWriter::EnsureInitialized()
 {
-    if (Initialized || AtomicGet(NotEnoughSpace) == true)
+    if (Initialized || !NotEnoughSpace)
         return;
 
     // No matter what, let's pretend we're initialized to avoid subsequent attempts.
@@ -194,7 +194,7 @@ void TRawFileLogWriter::EnsureInitialized()
         ReopenFile();
         *FileOutput << Endl;
     } catch (const std::exception& ex) {
-        LOG_ERROR(ex, "Error opening log file: %s", ~FileName);
+        LOG_ERROR(ex, "Error opening log file %s", ~FileName.Quote());
     }
 
     Write(GetBannerEvent());
@@ -202,7 +202,7 @@ void TRawFileLogWriter::EnsureInitialized()
 
 void TRawFileLogWriter::Write(const TLogEvent& event)
 {
-    if (!FileOutput || AtomicGet(NotEnoughSpace) == true) {
+    if (!FileOutput || !NotEnoughSpace) {
         return;
     }
 
@@ -227,11 +227,11 @@ void TRawFileLogWriter::Write(const TLogEvent& event)
 
 void TRawFileLogWriter::Flush()
 {
-    if (~FileOutput && AtomicGet(NotEnoughSpace) == false) {
+    if (~FileOutput && !AtomicGet(NotEnoughSpace)) {
         try {
             FileOutput->Flush();
-        } catch (...) {
-            LOG_ERROR("Failed to write to log (FileName: %s)", ~FileName);
+        } catch (const std::exception& ex) {
+            LOG_ERROR("Failed to write to log file %s", ~FileName.Quote());
         }
     }
 }
@@ -243,8 +243,8 @@ void TRawFileLogWriter::Reload()
     if (~File) {
         try {
             File->Close();
-        } catch (...) {
-            LOG_ERROR("Failed to close log (FileName: %s)", ~FileName);
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Failed to close log file %s", ~FileName.Quote());
         }
     }
 

@@ -1,14 +1,16 @@
 #include "stdafx.h"
 #include "monitoring_manager.h"
 
-#include <ytlib/ytree/ephemeral_node_factory.h>
+#include <ytlib/actions/bind.h>
+
 #include <ytlib/yson/writer.h>
+
+#include <ytlib/ytree/ephemeral_node_factory.h>
+#include <ytlib/ytree/ypath_detail.h>
 #include <ytlib/ytree/tree_visitor.h>
 #include <ytlib/ytree/ypath_proxy.h>
 #include <ytlib/ytree/node.h>
 #include <ytlib/ytree/convert.h>
-
-#include <ytlib/actions/bind.h>
 
 #include <ytlib/profiling/profiler.h>
 
@@ -16,13 +18,35 @@ namespace NYT {
 namespace NMonitoring {
 
 using namespace NYTree;
+using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger Logger("Monitoring");
 static NProfiling::TProfiler Profiler("/monitoring");
 
-const TDuration TMonitoringManager::Period = TDuration::Seconds(3);
+static const TDuration UpdatePeriod = TDuration::Seconds(3);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMonitoringManager::TYPathService
+    : public TYPathServiceBase
+{
+public:
+    explicit TYPathService(TMonitoringManagerPtr owner)
+        : Owner(owner)
+    { }
+
+    virtual TResolveResult Resolve(const TYPath& path, IServiceContextPtr context) override
+    {
+        auto root = Owner->Root;
+        return root->Resolve(path, context);
+    }
+
+private:
+    TMonitoringManagerPtr Owner;
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,18 +58,18 @@ TMonitoringManager::TMonitoringManager()
 void TMonitoringManager::Register(const TYPath& path, TYsonProducer producer)
 {
     TGuard<TSpinLock> guard(SpinLock);
-    YCHECK(MonitoringMap.insert(std::make_pair(path, producer)).second);
+    YCHECK(ProducerMap.insert(std::make_pair(path, producer)).second);
 }
 
 void TMonitoringManager::Unregister(const TYPath& path)
 {
     TGuard<TSpinLock> guard(SpinLock);
-    YCHECK(MonitoringMap.erase(path) == 1);
+    YCHECK(ProducerMap.erase(path) == 1);
 }
 
-INodePtr TMonitoringManager::GetRoot() const
+IYPathServicePtr TMonitoringManager::GetService()
 {
-    return Root;
+    return New<TYPathService>(this);
 }
 
 void TMonitoringManager::Start()
@@ -58,7 +82,7 @@ void TMonitoringManager::Start()
     PeriodicInvoker = New<TPeriodicInvoker>(
         ActionQueue->GetInvoker(),
         BIND(&TMonitoringManager::Update, MakeStrong(this)),
-        Period);
+        UpdatePeriod);
     PeriodicInvoker->Start();
 
     IsStarted = true;
@@ -79,7 +103,7 @@ void TMonitoringManager::Update()
     PROFILE_TIMING ("/update_time") {
         INodePtr newRoot = GetEphemeralNodeFactory()->CreateMap();
 
-        FOREACH (const auto& pair, MonitoringMap) {
+        FOREACH (const auto& pair, ProducerMap) {
             TYsonString value = ConvertToYsonString(pair.second);
             SyncYPathSet(newRoot, pair.first, value);
         }
@@ -88,21 +112,6 @@ void TMonitoringManager::Update()
             Root = newRoot;
         }
     }
-}
-
-void TMonitoringManager::Visit(NYson::IYsonConsumer* consumer)
-{
-    PROFILE_TIMING ("/visit_time") {
-        VisitTree(GetRoot(), consumer);
-    }
-}
-
-TYsonProducer TMonitoringManager::GetProducer()
-{
-    YASSERT(IsStarted);
-    YASSERT(Root);
-
-    return BIND(&TMonitoringManager::Visit, MakeStrong(this));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

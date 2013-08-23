@@ -85,18 +85,23 @@ struct IYPathService
      */
     virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const = 0;
 
+
+    // Extension methods
+
     //! Creates a YPath service from a YSON producer.
     /*!
-     *  Constructs an ephemeral tree from #producer and returns its root.
+     *  Each time a request is issued, producer is called, its output is turned in
+     *  an ephemeral tree, and the request is forwarded to that tree.
      */
     static IYPathServicePtr FromProducer(TYsonProducer producer);
 
-    //! Creates a wrapper than handles all requests via the given invoker.
+    //! Creates a wrapper that handles all requests via the given invoker.
     IYPathServicePtr Via(TIntrusivePtr<IInvoker> invoker);
 
-    //! Creates a wrapper than invokes a given service producer in a lazy fashion
-    //! and then redirects all requests to the returned service.
-    static IYPathServicePtr FromProducer(TYPathServiceProducer producer);
+    //! Creates a wrapper that makes ephemeral snapshots to cache
+    //! the underlying service.
+    IYPathServicePtr Cached(TDuration expirationPeriod);
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

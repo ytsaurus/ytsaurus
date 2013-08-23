@@ -84,7 +84,7 @@ private:
         try {
             TOFStream stream(FileName);
             // TODO(babenko): make format configurable
-            WriteYson(&stream, ~Root, NYson::EYsonFormat::Pretty);
+            WriteYson(&stream, Root, NYson::EYsonFormat::Pretty);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error saving YSON file %s", ~FileName.Quote())
                 << ex;
@@ -95,7 +95,7 @@ private:
 } // namespace
 
 class TYsonFileService
-    : public IYPathService
+    : public TYPathServiceBase
 {
 public:
     explicit TYsonFileService(const Stroka& fileName)
@@ -104,39 +104,11 @@ public:
 
     virtual TResolveResult Resolve(
         const TYPath& path,
-        IServiceContextPtr context) override
+        IServiceContextPtr /*context*/) override
     {
-        UNUSED(context);
-
         auto root = LoadFile();
-        auto service = New<TWriteBackService>(FileName, ~root, ~root);
+        auto service = New<TWriteBackService>(FileName, root, root);
         return TResolveResult::There(service, path);
-    }
-
-    virtual void Invoke(NRpc::IServiceContextPtr context) override
-    {
-        UNUSED(context);
-        YUNREACHABLE();
-    }
-
-    virtual Stroka GetLoggingCategory() const override
-    {
-        return "YsonFileService";
-    }
-
-    virtual bool IsWriteRequest(IServiceContextPtr context) const override
-    {
-        UNUSED(context);
-        YUNREACHABLE();
-    }
-
-    // TODO(panin): remove this when getting rid of IAttributeProvider
-    virtual void SerializeAttributes(
-        NYson::IYsonConsumer* /*consumer*/,
-        const TAttributeFilter& /*filter*/,
-        bool /*sortKeys*/) override
-    {
-        YUNREACHABLE();
     }
 
 private:
@@ -154,11 +126,9 @@ private:
     }
 };
 
-TYPathServiceProducer CreateYsonFileProducer(const Stroka& fileName)
+IYPathServicePtr CreateYsonFileService(const Stroka& fileName)
 {
-    return BIND([=] () -> IYPathServicePtr {
-        return New<TYsonFileService>(fileName);
-    });
+    return New<TYsonFileService>(fileName);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

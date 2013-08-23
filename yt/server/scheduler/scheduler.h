@@ -33,7 +33,7 @@ public:
 
     void Initialize();
 
-    NYTree::TYPathServiceProducer CreateOrchidProducer();
+    NYTree::IYPathServicePtr GetOrchidService();
 
     std::vector<TOperationPtr> GetOperations();
     std::vector<TExecNodePtr> GetExecNodes();

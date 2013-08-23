@@ -194,6 +194,11 @@ public:
         return Root;
     }
 
+    IYPathServicePtr GetService() const
+    {
+        return GetRoot()->Via(GetInvoker());
+    }
+
 private:
     TInvokerQueuePtr Queue;
     IMapNodePtr Root;
@@ -318,9 +323,14 @@ IInvokerPtr TProfilingManager::GetInvoker() const
     return Impl->GetInvoker();
 }
 
-NYTree::IMapNodePtr TProfilingManager::GetRoot() const
+IMapNodePtr TProfilingManager::GetRoot() const
 {
     return Impl->GetRoot();
+}
+
+IYPathServicePtr TProfilingManager::GetService() const
+{
+    return Impl->GetService();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

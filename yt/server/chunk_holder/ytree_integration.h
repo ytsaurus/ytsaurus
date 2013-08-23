@@ -10,10 +10,10 @@ namespace NChunkHolder {
 ////////////////////////////////////////////////////////////////////////////////
 
 NYTree::IYPathServicePtr CreateStoredChunkMapService(
-    TChunkStore* chunkStore);
+    TChunkStorePtr chunkStore);
 
 NYTree::IYPathServicePtr CreateCachedChunkMapService(
-    TChunkCache* chunkCache);
+    TChunkCachePtr chunkCache);
 
 ///////////////////////////////////////////////////////////////////////////////
 

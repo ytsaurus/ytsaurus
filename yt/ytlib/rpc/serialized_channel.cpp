@@ -131,8 +131,6 @@ TFuture<void> TSerializedChannel::Terminate(const TError& error)
 
 void TSerializedChannel::TrySendQueuedRequests()
 {
-    auto now = TInstant::Now();
-
     TGuard<TSpinLock> guard(SpinLock);
     while (!RequestInProgress && !Queue.empty()) {
         auto entry = Queue.front();

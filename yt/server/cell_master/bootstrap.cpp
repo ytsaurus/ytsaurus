@@ -12,7 +12,6 @@
 #include <ytlib/ytree/virtual.h>
 
 #include <ytlib/monitoring/monitoring_manager.h>
-#include <ytlib/monitoring/ytree_integration.h>
 #include <ytlib/monitoring/http_server.h>
 #include <ytlib/monitoring/http_integration.h>
 
@@ -188,17 +187,15 @@ void TBootstrap::Run()
     SetNodeByYPath(
         orchidRoot,
         "/monitoring",
-        CreateVirtualNode(CreateMonitoringProducer(monitoringManager)));
+        CreateVirtualNode(monitoringManager->GetService()));
     SetNodeByYPath(
         orchidRoot,
         "/profiling",
-        CreateVirtualNode(
-            TProfilingManager::Get()->GetRoot()
-            ->Via(TProfilingManager::Get()->GetInvoker())));
+        CreateVirtualNode(TProfilingManager::Get()->GetService()));
     SetNodeByYPath(
         orchidRoot,
         "/config",
-        CreateVirtualNode(CreateYsonFileProducer(ConfigFileName)));
+        CreateVirtualNode(CreateYsonFileService(ConfigFileName)));
     
     SetBuildAttributes(orchidRoot, "master");
 

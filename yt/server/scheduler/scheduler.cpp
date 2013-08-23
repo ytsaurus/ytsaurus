@@ -142,13 +142,10 @@ public:
     }
 
 
-    TYPathServiceProducer CreateOrchidProducer()
+    IYPathServicePtr GetOrchidService()
     {
-        // TODO(babenko): virtualize
         auto producer = BIND(&TThis::BuildOrchidYson, MakeStrong(this));
-        return BIND([=] () {
-            return IYPathService::FromProducer(producer);
-        });
+        return IYPathService::FromProducer(producer);
     }
 
     std::vector<TOperationPtr> GetOperations()
@@ -1638,7 +1635,7 @@ private:
                 .Item("nodes").DoMapFor(AddressToNode, [=] (TFluentMap fluent, TExecNodeMap::value_type pair) {
                     BuildNodeYson(pair.second, fluent);
                 })
-                .Do(BIND(&ISchedulerStrategy::BuildOrchidYson, ~Strategy))
+                .DoIf(Strategy != nullptr, BIND(&ISchedulerStrategy::BuildOrchidYson, ~Strategy))
             .EndMap();
     }
 
@@ -1926,9 +1923,9 @@ void TScheduler::Initialize()
     Impl->Initialize();
 }
 
-TYPathServiceProducer TScheduler::CreateOrchidProducer()
+IYPathServicePtr TScheduler::GetOrchidService()
 {
-    return Impl->CreateOrchidProducer();
+    return Impl->GetOrchidService();
 }
 
 std::vector<TOperationPtr> TScheduler::GetOperations()
