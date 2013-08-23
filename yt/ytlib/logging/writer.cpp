@@ -118,11 +118,14 @@ TFileLogWriter::TFileLogWriter(
 
 void TFileLogWriter::EnsureInitialized()
 {
-    if (Initialized || AtomicGet(NotEnoughSpace))
+    if (Initialized)
         return;
 
     // No matter what, let's pretend we're initialized to avoid subsequent attempts.
     Initialized = true;
+
+    if (NotEnoughSpace)
+        return;
 
     try {
         ReopenFile();
@@ -137,7 +140,7 @@ void TFileLogWriter::EnsureInitialized()
 
 void TFileLogWriter::Write(const TLogEvent& event)
 {
-    if (LogWriter && AtomicGet(NotEnoughSpace) == false) {
+    if (LogWriter && !NotEnoughSpace) {
         try {
             LogWriter->Write(event);
         } catch (const std::exception& ex) {
@@ -148,7 +151,7 @@ void TFileLogWriter::Write(const TLogEvent& event)
 
 void TFileLogWriter::Flush()
 {
-    if (LogWriter && AtomicGet(NotEnoughSpace) == false) {
+    if (LogWriter && !NotEnoughSpace) {
         try {
             LogWriter->Flush();
         } catch (const std::exception& ex) {
@@ -184,11 +187,14 @@ TRawFileLogWriter::TRawFileLogWriter(const Stroka& fileName)
 
 void TRawFileLogWriter::EnsureInitialized()
 {
-    if (Initialized || !NotEnoughSpace)
+    if (Initialized)
         return;
 
     // No matter what, let's pretend we're initialized to avoid subsequent attempts.
     Initialized = true;
+
+    if (NotEnoughSpace)
+        return;
 
     try {
         ReopenFile();
@@ -202,7 +208,7 @@ void TRawFileLogWriter::EnsureInitialized()
 
 void TRawFileLogWriter::Write(const TLogEvent& event)
 {
-    if (!FileOutput || !NotEnoughSpace) {
+    if (!FileOutput || NotEnoughSpace) {
         return;
     }
 
@@ -227,7 +233,7 @@ void TRawFileLogWriter::Write(const TLogEvent& event)
 
 void TRawFileLogWriter::Flush()
 {
-    if (~FileOutput && !AtomicGet(NotEnoughSpace)) {
+    if (~FileOutput && !NotEnoughSpace) {
         try {
             FileOutput->Flush();
         } catch (const std::exception& ex) {

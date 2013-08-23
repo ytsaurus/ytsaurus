@@ -270,7 +270,7 @@ public:
         RegisterParameter("check_space_period", CheckSpacePeriod)
             .Default(Null);
         RegisterParameter("min_disk_space", MinDiskSpace)
-            .GreaterThan((i64) 1024 * 1024 * 1024)
+            .GreaterThanOrEqual((i64) 1024 * 1024 * 1024)
             .Default((i64) 5 * 1024 * 1024 * 1024);
 
         RegisterParameter("writers", WriterConfigs);
@@ -357,8 +357,12 @@ public:
 
             if (watch->GetWd() != currentWd) {
                 NotificationWatchesIndex.erase(it);
-                YCHECK(NotificationWatchesIndex.insert(
-                    std::make_pair(watch->GetWd(), watch)).second);
+                if (watch->GetWd() >= 0) {
+                    // Watch can fail to initialize if the writer is disabled
+                    // e.g. due to the lack of space.
+                    YCHECK(NotificationWatchesIndex.insert(
+                        std::make_pair(watch->GetWd(), watch)).second);
+                }
             }
 
             previousWd = currentWd;
@@ -464,7 +468,7 @@ private:
 
                 case ILogWriter::EType::Raw:
                     writer = New<TRawFileLogWriter>(config->FileName);
-                    watch = CreateNoficiationWatch(writer, config->FileName);
+                    watch = CreateNoficiationWatch (writer, config->FileName);
                     break;
                 default:
                     YUNREACHABLE();
@@ -476,8 +480,12 @@ private:
             }
 
             if (watch) {
-                YCHECK(NotificationWatchesIndex.insert(
-                    std::make_pair(watch->GetWd(), ~watch)).second);
+                if (watch->GetWd() >= 0) {
+                    // Watch can fail to initialize if the writer is disabled
+                    // e.g. due to the lack of space.
+                    YCHECK(NotificationWatchesIndex.insert(
+                        std::make_pair(watch->GetWd(), ~watch)).second);
+                }
                 NotificationWatches.emplace_back(std::move(watch));
             }
 
