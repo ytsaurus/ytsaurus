@@ -130,9 +130,9 @@ TEST_F(TSnapshotTest, SnapshotStore)
 
     EXPECT_FALSE(store->GetReader(3).IsOK());
 
-    EXPECT_EQ(NonexistingSnapshotId, store->LookupLatestSnapshot(1));
-    EXPECT_EQ(2, store->LookupLatestSnapshot(2));
-    EXPECT_EQ(2, store->LookupLatestSnapshot(10));
+    EXPECT_EQ(NonexistingSnapshotId, store->GetLatestSnapshotId(1));
+    EXPECT_EQ(2, store->GetLatestSnapshotId(2));
+    EXPECT_EQ(2, store->GetLatestSnapshotId(10));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

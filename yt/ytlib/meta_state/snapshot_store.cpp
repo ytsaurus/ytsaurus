@@ -61,14 +61,14 @@ void TSnapshotStore::Start()
     Started = true;
 }
 
-Stroka TSnapshotStore::GetSnapshotFileName(i32 snapshotId) const
+Stroka TSnapshotStore::GetSnapshotFileName(i32 snapshotId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     return NFS::CombinePaths(Config->Path, Sprintf("%09d.%s", snapshotId, SnapshotExtension));
 }
 
-TSnapshotStore::TGetReaderResult TSnapshotStore::GetReader(i32 snapshotId) const
+TSnapshotStore::TGetReaderResult TSnapshotStore::GetReader(i32 snapshotId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
     YCHECK(Started);
@@ -76,15 +76,22 @@ TSnapshotStore::TGetReaderResult TSnapshotStore::GetReader(i32 snapshotId) const
 
     auto fileName = GetSnapshotFileName(snapshotId);
     if (!isexist(~fileName)) {
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            if (SnapshotIds.erase(snapshotId) == 1) {
+                LOG_WARNING("Erased orphaned snapshot id snapshot %d from store",
+                    snapshotId);
+            }
+        }
         return TError(
             EErrorCode::NoSuchSnapshot,
-            Sprintf("No such snapshot: %d", snapshotId));
+            Sprintf("No such snapshot %d", snapshotId));
     }
 
     return New<TSnapshotReader>(fileName, snapshotId, Config->EnableCompression);
 }
 
-TSnapshotWriterPtr TSnapshotStore::GetWriter(i32 snapshotId) const
+TSnapshotWriterPtr TSnapshotStore::GetWriter(i32 snapshotId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
     YCHECK(Started);
@@ -94,38 +101,19 @@ TSnapshotWriterPtr TSnapshotStore::GetWriter(i32 snapshotId) const
     return New<TSnapshotWriter>(fileName, snapshotId, Config->EnableCompression);
 }
 
-i32 TSnapshotStore::LookupLatestSnapshot(i32 maxSnapshotId)
+i32 TSnapshotStore::GetLatestSnapshotId(i32 maxSnapshotId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
     YCHECK(Started);
 
-    while (true) {
-        i32 snapshotId;
-
-        // Fetch the most appropriate id from the set.
-        {
-            TGuard<TSpinLock> guard(SpinLock);
-            auto it = SnapshotIds.upper_bound(maxSnapshotId);
-            if (it == SnapshotIds.begin()) {
-                return NonexistingSnapshotId;
-            }
-            snapshotId = *(--it);
-            YCHECK(snapshotId <= maxSnapshotId);
-        }
-
-        // Check that the file really exists.
-        auto fileName = GetSnapshotFileName(snapshotId);
-        if (isexist(~fileName)) {
-            return snapshotId;
-        }
-
-        // Remove the orphaned id from the set and retry.
-        {
-            TGuard<TSpinLock> guard(SpinLock);
-            SnapshotIds.erase(snapshotId);
-            LOG_WARNING("Erasing orphaned snapshot id snapshot %d from store", snapshotId);
-        }
+    TGuard<TSpinLock> guard(SpinLock);
+    auto it = SnapshotIds.upper_bound(maxSnapshotId);
+    if (it == SnapshotIds.begin()) {
+        return NonexistingSnapshotId;
     }
+    int snapshotId = *(--it);
+    YCHECK(snapshotId <= maxSnapshotId);
+    return snapshotId;
 }
 
 void TSnapshotStore::OnSnapshotAdded(i32 snapshotId)

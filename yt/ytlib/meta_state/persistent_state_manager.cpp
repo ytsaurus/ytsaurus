@@ -794,7 +794,7 @@ public:
         int maxSnapshotId = request->max_snapshot_id();
         context->SetRequestInfo("MaxSnapshotId: %d", maxSnapshotId);
 
-        int snapshotId = SnapshotStore->LookupLatestSnapshot(maxSnapshotId);
+        int snapshotId = SnapshotStore->GetLatestSnapshotId(maxSnapshotId);
 
         response->set_snapshot_id(snapshotId);
         context->SetResponseInfo("SnapshotId: %d", snapshotId);
