@@ -305,7 +305,7 @@ private:
         TQueuedSample sample;
         while (SampleQueue.Dequeue(&sample)) {
             ProcessSample(sample);
-            samplesProcessed = true;
+            ++samplesProcessed;
         }
 
         ProfilingProfiler.Increment(DequeueCounter, samplesProcessed);
