@@ -70,8 +70,6 @@ bool TInvokerQueue::Invoke(const TClosure& callback)
 void TInvokerQueue::Shutdown()
 {
     Running = false;
-    EventCount = nullptr;
-    CurrentInvoker = nullptr;
 }
 
 EBeginExecuteResult TInvokerQueue::BeginExecute(TEnqueuedAction* action)
