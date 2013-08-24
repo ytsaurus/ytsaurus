@@ -146,9 +146,11 @@ private:
     // XXX(sandello): Replace with std::atomic<int>.
     TAtomic Epoch;
     TAtomic Waiters;
+
 #ifdef _win_
     HANDLE Event;
 #endif
+
 };
 
 inline void TEventCount::Notify()
@@ -186,29 +188,26 @@ inline TEventCount::TCookie TEventCount::PrepareWait()
 
 inline void TEventCount::CancelWait()
 {
-#if defined(_linux_)
     AtomicDecrement(Waiters);
-#elif defined(_win_)
-    if (AtomicDecrement(Waiters) == 0) {
-        ResetEvent(Event);
-    }
-#else
-#   error Unsupported platform
-#endif
 }
 
 inline void TEventCount::Wait(TCookie key)
 {
-    while (AtomicGet(Epoch) == key.Epoch) {
 #if defined(_linux_)
+    while (AtomicGet(Epoch) == key.Epoch) {
         NDetail::futex((int*) &Epoch, FUTEX_WAIT_PRIVATE, key.Epoch, nullptr, nullptr, 0);
+    }
 #elif defined(_win_)
-        WaitForSingleObject(Event, INFINITE);
+    if (AtomicGet(Epoch) == key.Epoch) {
+        ResetEvent(Event);
+        if (AtomicGet(Epoch) == key.Epoch) {
+            YCHECK(WaitForSingleObject(Event, INFINITE) == WAIT_OBJECT_0);
+        }
+    }
 #else
 #       error Unsupported platform
 #endif
-    }
-    CancelWait();
+    AtomicDecrement(Waiters);
 }
 
 template <class TCondition>
