@@ -59,8 +59,10 @@ typedef TIntrusivePtr<TServiceConfig> TServiceConfigPtr;
 class TMethodConfig;
 typedef TIntrusivePtr<TMethodConfig> TMethodConfigPtr;
 
+////////////////////////////////////////////////////////////////////////////////
+
 typedef TGuid TRequestId;
-extern TRequestId NullRequestId;
+extern const TRequestId NullRequestId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -74,8 +76,6 @@ DECLARE_ENUM(EErrorCode,
     ((PoisonPill)      (106))
 );
 
-// TODO(babenko): obsolete
-bool IsRpcError(const TError& error);
 bool IsRetriableError(const TError& error);
 
 ////////////////////////////////////////////////////////////////////////////////
