@@ -259,7 +259,7 @@ public:
                 .Item("status").Value(FormatEnum(ControlStatus))
                 .Item("version").Value(DecoratedState->GetVersionAsync().ToString())
                 .Item("reachable_version").Value(DecoratedState->GetReachableVersionAsync().ToString())
-                .Item("elections").Do(BIND(&TElectionManager::GetMonitoringInfo, ElectionManager))
+                .Item("elections").Do(ElectionManager->GetMonitoringProducer())
                 .DoIf(tracker, [=] (TFluentMap fluent) {
                     fluent
                         .Item("has_active_quorum").Value(HasActiveQuorum_)

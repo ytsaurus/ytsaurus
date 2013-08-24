@@ -52,7 +52,7 @@ public:
     void Stop();
     void Restart();
 
-    void GetMonitoringInfo(IYsonConsumer* consumer);
+    TYsonProducer GetMonitoringProducer();
 
     TEpochContextPtr GetEpochContext();
 
@@ -563,24 +563,27 @@ void TElectionManager::TImpl::Restart()
     ControlInvoker->Invoke(BIND(&TThis::DoRestart, MakeWeak(this)));
 }
 
-void TElectionManager::TImpl::GetMonitoringInfo(IYsonConsumer* consumer)
+TYsonProducer TElectionManager::TImpl::GetMonitoringProducer()
 {
-    auto epochContext = EpochContext;
-    BuildYsonFluently(consumer)
-        .BeginMap()
-        .Item("state").Value(FormatEnum(State))
-        .Item("peers").BeginList()
-        .DoFor(0, CellManager->GetPeerCount(), [=] (TFluentList fluent, TPeerId id) {
-            fluent.Item().Value(CellManager->GetPeerAddress(id));
-    })
-        .EndList()
-        .DoIf(epochContext, [&] (TFluentMap fluent) {
-            fluent
-                .Item("leader_id").Value(epochContext->LeaderId)
-                .Item("epoch_id").Value(epochContext->EpochId);
-    })
-        .Item("vote_id").Value(VoteId)
-        .EndMap();
+    auto this_ = MakeStrong(this);
+    return BIND([this, this_] (IYsonConsumer* consumer) {
+        auto epochContext = EpochContext;
+        BuildYsonFluently(consumer)
+            .BeginMap()
+                .Item("state").Value(FormatEnum(State))
+                .Item("peers").BeginList()
+                    .DoFor(0, CellManager->GetPeerCount(), [=] (TFluentList fluent, TPeerId id) {
+                            fluent.Item().Value(CellManager->GetPeerAddress(id));
+                    })
+                .EndList()
+                .DoIf(epochContext, [&] (TFluentMap fluent) {
+                    fluent
+                        .Item("leader_id").Value(epochContext->LeaderId)
+                        .Item("epoch_id").Value(epochContext->EpochId);
+                })
+                .Item("vote_id").Value(VoteId)
+            .EndMap();
+    });
 }
 
 TEpochContextPtr TElectionManager::TImpl::GetEpochContext()
@@ -958,9 +961,9 @@ void TElectionManager::Restart()
     Impl->Restart();
 }
 
-void TElectionManager::GetMonitoringInfo(IYsonConsumer* consumer)
+TYsonProducer TElectionManager::GetMonitoringProducer()
 {
-    Impl->GetMonitoringInfo(consumer);
+    return Impl->GetMonitoringProducer();
 }
 
 TEpochContextPtr TElectionManager::GetEpochContext()

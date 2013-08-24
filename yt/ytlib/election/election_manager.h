@@ -4,7 +4,7 @@
 
 #include <ytlib/actions/cancelable_context.h>
 
-#include <ytlib/yson/public.h>
+#include <ytlib/ytree/public.h>
 
 #include <ytlib/rpc/public.h>
 
@@ -58,7 +58,7 @@ public:
     void Stop();
     void Restart();
 
-    void GetMonitoringInfo(NYson::IYsonConsumer* consumer);
+    NYTree::TYsonProducer GetMonitoringProducer();
 
     TEpochContextPtr GetEpochContext();
 
