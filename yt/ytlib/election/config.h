@@ -47,7 +47,7 @@ public:
     TDuration FollowerPingInterval;
     TDuration FollowerPingTimeout;
     TDuration ReadyToFollowTimeout;
-    TDuration PotentialFollowerTimeout;
+    TDuration FollowerGracePeriod;
 
     TElectionManagerConfig()
     {
@@ -66,7 +66,7 @@ public:
         RegisterParameter("ready_to_follow_timeout", ReadyToFollowTimeout)
             .GreaterThan(TDuration())
             .Default(TDuration::MilliSeconds(5000));
-        RegisterParameter("potential_follower_timeout", PotentialFollowerTimeout)
+        RegisterParameter("follower_grace_period", FollowerGracePeriod)
             .GreaterThan(TDuration())
             .Default(TDuration::MilliSeconds(5000));
     }

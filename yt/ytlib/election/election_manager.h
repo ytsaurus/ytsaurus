@@ -56,7 +56,6 @@ public:
 
     void Start();
     void Stop();
-
     void Restart();
 
     void GetMonitoringInfo(NYson::IYsonConsumer* consumer);

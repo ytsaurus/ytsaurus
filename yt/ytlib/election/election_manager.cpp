@@ -15,6 +15,8 @@
 #include <ytlib/rpc/service_detail.h>
 #include <ytlib/rpc/server.h>
 
+#include <ytlib/logging/tagged_logger.h>
+
 namespace NYT {
 namespace NElection {
 
@@ -92,11 +94,15 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NElection::NProto, PingFollower);
     DECLARE_RPC_SERVICE_METHOD(NElection::NProto, GetStatus);
 
+    void AsyncCancel();
     void Reset();
-    void OnLeaderPingTimeout();
+    void OnFollowerPingTimeout();
 
     void DoStart();
     void DoStop();
+    void DoRestart();
+
+    bool CheckQuorum();
 
     void StartVotingRound();
     void StartVoteFor(TPeerId voteId, const TEpochId& voteEpoch);
@@ -183,68 +189,70 @@ private:
         VERIFY_THREAD_AFFINITY(Owner->ControlThread);
         YCHECK(Owner->State == EPeerState::Leading);
 
-        if (!response->IsOK()) {
-            auto error = response->GetError();
-            if (NRpc::IsRpcError(error)) {
-                // Hard error
-                if (Owner->AliveFollowers.erase(id) > 0) {
-                    LOG_WARNING(error, "Error pinging follower %d, considered down",
-                        id);
-                    Owner->PotentialFollowers.erase(id);
-                }
-            } else {
-                // Soft error
-                if (Owner->PotentialFollowers.find(id) ==
-                    Owner->PotentialFollowers.end())
-                {
-                    if (Owner->AliveFollowers.erase(id) > 0) {
-                        LOG_WARNING(error, "Error pinging follower %d, considered down",
-                            id);
-                    }
-                } else {
-                    if (TInstant::Now() > Owner->EpochContext->StartTime + Owner->Config->PotentialFollowerTimeout) {
-                        LOG_WARNING(error, "Error pinging follower %d, no success within timeout, considered down",
-                            id);
-                        Owner->PotentialFollowers.erase(id);
-                        Owner->AliveFollowers.erase(id);
-                    } else {
-                        LOG_INFO(error, "Error pinging follower %d, will retry later",
-                            id);
-                    }
-                }
-            }
-
-            if (static_cast<int>(Owner->AliveFollowers.size()) < Owner->CellManager->GetQuorum()) {
-                LOG_WARNING("Quorum is lost");
-                Owner->StopLeading();
-                Owner->StartVoting();
-                return;
-            }
-
-            if (response->GetError().GetCode() == NRpc::EErrorCode::Timeout) {
-                SendPing(id);
-            } else {
-                SchedulePing(id);
-            }
-
-            return;
+        if (response->IsOK()) {
+            OnPingResponseSuccess(id, response);
+        } else {
+            OnPingResponseFailure(id, response);
         }
+    }
 
-        LOG_DEBUG("Ping reply received from follower %d", id);
+    void OnPingResponseSuccess(TPeerId id, TElectionServiceProxy::TRspPingFollowerPtr response)
+    {
+        LOG_DEBUG("Ping reply from follower %d", id);
 
-        if (Owner->PotentialFollowers.find(id) !=
-            Owner->PotentialFollowers.end())
-        {
+        if (Owner->PotentialFollowers.find(id) != Owner->PotentialFollowers.end()) {
             LOG_INFO("Follower %d is up, first success", id);
             Owner->PotentialFollowers.erase(id);
-        } else if (Owner->AliveFollowers.find(id) ==
-                 Owner->AliveFollowers.end())
-        {
+        } else if (Owner->AliveFollowers.find(id) == Owner->AliveFollowers.end()) {
             LOG_INFO("Follower %d is up", id);
             Owner->AliveFollowers.insert(id);
         }
 
         SchedulePing(id);
+    }
+
+    void OnPingResponseFailure(TPeerId id, TElectionServiceProxy::TRspPingFollowerPtr response)
+    {
+        auto error = response->GetError();
+        auto code = error.GetCode();
+
+        if (code == NElection::EErrorCode::InvalidState ||
+            code == NElection::EErrorCode::InvalidLeader ||
+            code == NElection::EErrorCode::InvalidEpoch)
+        {
+            // These errors are possible during grace period.
+            if (Owner->PotentialFollowers.find(id) == Owner->PotentialFollowers.end()) {
+                if (Owner->AliveFollowers.erase(id) > 0) {
+                    LOG_WARNING(error, "Error pinging follower %d, considered down",
+                        id);
+                }
+            } else {
+                if (TInstant::Now() > Owner->EpochContext->StartTime + Owner->Config->FollowerGracePeriod) {
+                    LOG_WARNING(error, "Error pinging follower %d, no success within grace period, considered down",
+                        id);
+                    Owner->PotentialFollowers.erase(id);
+                    Owner->AliveFollowers.erase(id);
+                } else {
+                    LOG_INFO(error, "Error pinging follower %d, will retry later",
+                        id);
+                }
+            }
+        } else {
+            if (Owner->AliveFollowers.erase(id) > 0) {
+                LOG_WARNING(error, "Error pinging follower %d, considered down",
+                    id);
+                Owner->PotentialFollowers.erase(id);
+            }
+        }
+
+        if (!Owner->CheckQuorum())
+            return;
+
+        if (code == NRpc::EErrorCode::Timeout) {
+            SendPing(id);
+        } else {
+            SchedulePing(id);
+        }
     }
 
 };
@@ -259,7 +267,11 @@ public:
         : Owner(owner)
         , ControlEpochInvoker(owner->ControlEpochInvoker)
         , Awaiter(New<TParallelAwaiter>(ControlEpochInvoker))
-    { }
+    {
+        Logger.AddTag(Sprintf("RoundId: %s, VoteEpochId: %s",
+            ~ToString(TGuid::Create()),
+            ~ToString(Owner->VoteEpochId)));
+    }
 
     void Run()
     {
@@ -270,11 +282,9 @@ public:
         auto cellManager = Owner->CellManager;
         auto priority = callbacks->GetPriority();
 
-        LOG_DEBUG("New voting round started (Round: %p, VoteId: %d, Priority: %s, VoteEpochId: %s)",
-            this,
+        LOG_DEBUG("New voting round started (VoteId: %d, Priority: %s)",
             Owner->VoteId,
-            ~callbacks->FormatPriority(priority),
-            ~ToString(Owner->VoteEpochId));
+            ~callbacks->FormatPriority(priority));
 
         ProcessVote(
             cellManager->GetSelfId(),
@@ -325,6 +335,8 @@ private:
     TParallelAwaiterPtr Awaiter;
     TStatusTable StatusTable;
 
+    NLog::TTaggedLogger Logger;
+
     bool ProcessVote(TPeerId id, const TStatus& status)
     {
         StatusTable[id] = status;
@@ -336,9 +348,8 @@ private:
         VERIFY_THREAD_AFFINITY(Owner->ControlThread);
 
         if (!response->IsOK()) {
-            LOG_INFO(response->GetError(), "Error requesting status from peer %d (Round: %p)",
-                id,
-                this);
+            LOG_INFO(response->GetError(), "Error requesting status from peer %d",
+                id);
             return;
         }
 
@@ -347,20 +358,18 @@ private:
         auto priority = response->priority();
         auto epochId = FromProto<TEpochId>(response->vote_epoch_id());
 
-        LOG_DEBUG("Received status from peer %d (Round: %p, State: %s, VoteId: %d, Priority: %s, VoteEpochId: %s)",
+        LOG_DEBUG("Received status from peer %d (State: %s, VoteId: %d, Priority: %s)",
             id,
-            this,
             ~state.ToString(),
             vote,
-            ~Owner->ElectionCallbacks->FormatPriority(priority),
-            ~ToString(epochId));
+            ~Owner->ElectionCallbacks->FormatPriority(priority));
 
         ProcessVote(id, TStatus(state, vote, priority, epochId));
     }
 
     bool CheckForLeader()
     {
-        LOG_DEBUG("Checking candidates (Round: %p)", this);
+        LOG_DEBUG("Checking candidates");
 
         FOREACH (const auto& pair, StatusTable) {
             if (CheckForLeader(pair.first, pair.second)) {
@@ -368,7 +377,7 @@ private:
             }
         }
 
-        LOG_DEBUG("No leader candidate found (Round: %p)", this);
+        LOG_DEBUG("No leader candidate found");
 
         return false;
     }
@@ -378,9 +387,8 @@ private:
         const TStatus& candidateStatus)
     {
         if (!IsFeasibleCandidate(candidateId, candidateStatus)) {
-            LOG_DEBUG("Candidate %d is not feasible (Round: %p)",
-                candidateId,
-                this);
+            LOG_DEBUG("Candidate %d is not feasible",
+                candidateId);
             return false;
         }
 
@@ -398,21 +406,17 @@ private:
 
         // Check for quorum.
         if (voteCount < quorum) {
-            LOG_DEBUG("Candidate %d has too few votes: %d < %d (Round: %p, VoteEpochId: %s)",
+            LOG_DEBUG("Candidate %d has too few votes: %d < %d",
                 candidateId,
                 voteCount,
-                quorum,
-                this,
-                ~ToString(candidateEpochId));
+                quorum);
             return false;
         }
 
-        LOG_DEBUG("Candidate %d has quorum: %d >= %d (Round: %p, VoteEpochId: %s)",
+        LOG_DEBUG("Candidate %d has quorum: %d >= %d",
             candidateId,
             voteCount,
-            quorum,
-            this,
-            ~ToString(candidateEpochId));
+            quorum);
 
         Awaiter->Cancel();
 
@@ -496,7 +500,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(Owner->ControlThread);
 
-        LOG_DEBUG("Voting round completed (Round: %p)", this);
+        LOG_DEBUG("Voting round completed");
 
         ChooseVote();
     }
@@ -547,12 +551,7 @@ void TElectionManager::TImpl::Stop()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    // To prevent multiple restarts.
-    auto epochContext = EpochContext;
-    if (epochContext) {
-        epochContext->CancelableContext->Cancel();
-    }
-
+    AsyncCancel();
     ControlInvoker->Invoke(BIND(&TThis::DoStop, MakeWeak(this)));
 }
 
@@ -560,10 +559,8 @@ void TElectionManager::TImpl::Restart()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    LOG_INFO("Restart forced");
-
-    Stop();
-    Start();
+    AsyncCancel();
+    ControlInvoker->Invoke(BIND(&TThis::DoRestart, MakeWeak(this)));
 }
 
 void TElectionManager::TImpl::GetMonitoringInfo(IYsonConsumer* consumer)
@@ -593,6 +590,23 @@ TEpochContextPtr TElectionManager::TImpl::GetEpochContext()
     return EpochContext;
 }
 
+void TElectionManager::TImpl::AsyncCancel()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    // Cancel the current epoch ASAP. No sync.
+
+    auto state = State;
+    if (state != EPeerState::Leading && state != EPeerState::Following)
+        return;
+
+    auto epochContext = EpochContext;
+    if (!epochContext)
+        return;
+
+    epochContext->CancelableContext->Cancel();
+}
+
 void TElectionManager::TImpl::Reset()
 {
     // May be called from ControlThread and also from ctor.
@@ -611,7 +625,7 @@ void TElectionManager::TImpl::Reset()
     PingTimeoutCookie.Reset();
 }
 
-void TElectionManager::TImpl::OnLeaderPingTimeout()
+void TElectionManager::TImpl::OnFollowerPingTimeout()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
     YCHECK(State == EPeerState::Following);
@@ -635,20 +649,61 @@ void TElectionManager::TImpl::DoStop()
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     switch (State) {
-    case EPeerState::Stopped:
-        break;
-    case EPeerState::Voting:
-        Reset();
-        break;
-    case EPeerState::Leading:
-        StopLeading();
-        break;
-    case EPeerState::Following:
-        StopFollowing();
-        break;
-    default:
-        YUNREACHABLE();
+        case EPeerState::Stopped:
+            break;
+
+        case EPeerState::Voting:
+            Reset();
+            break;
+
+        case EPeerState::Leading:
+            StopLeading();
+            break;
+
+        case EPeerState::Following:
+            StopFollowing();
+            break;
+
+        default:
+            YUNREACHABLE();
     }
+}
+
+void TElectionManager::TImpl::DoRestart()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    switch (State) {
+        case EPeerState::Stopped:
+        case EPeerState::Voting:
+            break;
+
+        case EPeerState::Leading:
+            LOG_INFO("Leader restart forced");
+            StopLeading();
+            StartVoting();
+            break;
+
+        case EPeerState::Following:
+            LOG_INFO("Follower restart forced");
+            StopFollowing();
+            StartVoting();
+            break;
+
+        default:
+            YUNREACHABLE();
+    }
+}
+
+bool TElectionManager::TImpl::CheckQuorum()
+{
+    if (static_cast<int>(AliveFollowers.size()) >= CellManager->GetQuorum()) {
+        return true;
+    }
+
+    LOG_WARNING("Quorum is lost");
+    DoRestart();
+    return false;
 }
 
 void TElectionManager::TImpl::StartVoteFor(TPeerId voteId, const TEpochId& voteEpoch)
@@ -707,11 +762,11 @@ void TElectionManager::TImpl::StartFollowing(
     InitEpochContext(leaderId, epoch);
 
     PingTimeoutCookie = TDelayedInvoker::Submit(
-        BIND(&TThis::OnLeaderPingTimeout, MakeStrong(this))
+        BIND(&TThis::OnFollowerPingTimeout, MakeStrong(this))
             .Via(ControlEpochInvoker),
         Config->ReadyToFollowTimeout);
 
-    LOG_INFO("Starting following leader (LeaderId: %d, EpochId: %s)",
+    LOG_INFO("Started following (LeaderId: %d, EpochId: %s)",
         EpochContext->LeaderId,
         ~ToString(EpochContext->EpochId));
 
@@ -738,7 +793,7 @@ void TElectionManager::TImpl::StartLeading()
     FollowerPinger = New<TFollowerPinger>(this);
     FollowerPinger->Start();
 
-    LOG_INFO("Starting leading (EpochId: %s)",
+    LOG_INFO("Started leading (EpochId: %s)",
         ~ToString(EpochContext->EpochId));
 
     ElectionCallbacks->OnStartLeading();
@@ -749,7 +804,7 @@ void TElectionManager::TImpl::StopLeading()
     VERIFY_THREAD_AFFINITY(ControlThread);
     YCHECK(State == EPeerState::Leading);
 
-    LOG_INFO("Stopping leading (EpochId: %s)",
+    LOG_INFO("Stopped leading (EpochId: %s)",
         ~ToString(EpochContext->EpochId));
 
     ElectionCallbacks->OnStopLeading();
@@ -766,7 +821,7 @@ void TElectionManager::TImpl::StopFollowing()
     VERIFY_THREAD_AFFINITY(ControlThread);
     YCHECK(State == EPeerState::Following);
 
-    LOG_INFO("Stopping following leader (LeaderId: %d, EpochId: %s)",
+    LOG_INFO("Stopped following (LeaderId: %d, EpochId: %s)",
         EpochContext->LeaderId,
         ~ToString(EpochContext->EpochId));
 
@@ -810,16 +865,15 @@ DEFINE_RPC_SERVICE_METHOD(TElectionManager::TImpl, PingFollower)
 
     if (State != EPeerState::Following) {
         THROW_ERROR_EXCEPTION(
-            EErrorCode::InvalidState,
-            "Cannot process ping from a leader while in %s (LeaderId: %d, EpochId: %s)",
-            ~State.ToString(),
-            leaderId,
-            ~ToString(epochId));
+            NElection::EErrorCode::InvalidState,
+            "Received ping in invalid state: expected %s, actual %s",
+            ~FormatEnum(EPeerState(EPeerState::Following)),
+            ~FormatEnum(State));
     }
 
     if (leaderId != EpochContext->LeaderId) {
-        THROW_ERROR TError(
-            EErrorCode::InvalidLeader,
+        THROW_ERROR_EXCEPTION(
+            NElection::EErrorCode::InvalidLeader,
             "Ping from an invalid leader: expected %d, received %d",
             EpochContext->LeaderId,
             leaderId);
@@ -827,8 +881,8 @@ DEFINE_RPC_SERVICE_METHOD(TElectionManager::TImpl, PingFollower)
 
     if (epochId != EpochContext->EpochId) {
         THROW_ERROR_EXCEPTION(
-            EErrorCode::InvalidEpoch,
-            "Ping with invalid epoch from leader: expected %s, received %s",
+            NElection::EErrorCode::InvalidEpoch,
+            "Received ping with invalid epoch: expected %s, received %s",
             ~ToString(EpochContext->EpochId),
             ~ToString(epochId));
     }
@@ -836,7 +890,7 @@ DEFINE_RPC_SERVICE_METHOD(TElectionManager::TImpl, PingFollower)
     TDelayedInvoker::Cancel(PingTimeoutCookie);
 
     PingTimeoutCookie = TDelayedInvoker::Submit(
-        BIND(&TThis::OnLeaderPingTimeout, MakeStrong(this))
+        BIND(&TThis::OnFollowerPingTimeout, MakeStrong(this))
             .Via(ControlEpochInvoker),
         Config->FollowerPingTimeout);
 
