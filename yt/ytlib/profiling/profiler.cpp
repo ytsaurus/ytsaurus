@@ -23,7 +23,7 @@ TTagIdList operator + (const TTagIdList& a, const TTagIdList& b)
 
 TTagIdList& operator += (TTagIdList& a, const TTagIdList& b)
 {
-    std::copy(b.begin(), b.end(), a.end());
+    a.append(b.begin(), b.end());
     return a;
 }
 
