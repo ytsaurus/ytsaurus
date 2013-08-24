@@ -37,6 +37,7 @@
 #include <server/transaction_server/cypress_integration.h>
 
 #include <server/cypress_server/cypress_manager.h>
+#include <server/cypress_server/cypress_integration.h>
 
 #include <server/node_tracker_server/node_tracker_service.h>
 #include <server/node_tracker_server/cypress_integration.h>
@@ -215,6 +216,7 @@ void TBootstrap::Run()
     CypressManager->RegisterHandler(CreateChunkListMapTypeHandler(this));
     CypressManager->RegisterHandler(CreateTransactionMapTypeHandler(this, EObjectType::TransactionMap));
     CypressManager->RegisterHandler(CreateTransactionMapTypeHandler(this, EObjectType::TopmostTransactionMap));
+    CypressManager->RegisterHandler(CreateLockMapTypeHandler(this));
     CypressManager->RegisterHandler(CreateOrchidTypeHandler(this));
     CypressManager->RegisterHandler(CreateCellNodeTypeHandler(this));
     CypressManager->RegisterHandler(CreateCellNodeMapTypeHandler(this));

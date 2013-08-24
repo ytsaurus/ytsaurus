@@ -152,7 +152,7 @@ public:
                 return TResolveResult::There(objectManager->GetMasterProxy(), tokenizer.GetSuffix());
 
             case NYPath::ETokenType::Slash: {
-                auto root = cypressManager->GetVersionedNodeProxy(
+                auto root = cypressManager->GetNodeProxy(
                     cypressManager->GetRootNode(),
                     transaction);
                 return TResolveResult::There(root, tokenizer.GetSuffix());
@@ -233,7 +233,7 @@ public:
                 return objectManager->GetMasterProxy();
 
             case NYPath::ETokenType::Slash: {
-                auto root = cypressManager->GetVersionedNodeProxy(
+                auto root = cypressManager->GetNodeProxy(
                     cypressManager->GetRootNode(),
                     transaction);
                 return DoResolvePath(root, tokenizer.GetSuffix());

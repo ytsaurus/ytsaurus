@@ -87,6 +87,7 @@ private:
         attributes->push_back("staged_node_ids");
         attributes->push_back("branched_node_ids");
         attributes->push_back("locked_node_ids");
+        attributes->push_back("lock_ids");
         attributes->push_back("resource_usage");
         TBase::ListSystemAttributes(attributes);
     }
@@ -168,6 +169,14 @@ private:
                 .DoListFor(transaction->LockedNodes(), [=] (TFluentList fluent, const TCypressNodeBase* node) {
                     fluent.Item().Value(node->GetId());
                 });
+            return true;
+        }
+
+        if (key == "lock_ids") {
+            BuildYsonFluently(consumer)
+                .DoListFor(transaction->Locks(), [=] (TFluentList fluent, const TLock* lock) {
+                    fluent.Item().Value(lock->GetId());
+            });
             return true;
         }
 

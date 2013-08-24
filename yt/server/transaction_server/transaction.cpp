@@ -36,6 +36,7 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     Save(context, StartTime_);
     SaveObjectRefs(context, StagedObjects_);
     SaveObjectRefs(context, LockedNodes_);
+    SaveObjectRefs(context, Locks_);
     SaveObjectRefs(context, BranchedNodes_);
     SaveObjectRefs(context, StagedNodes_);
     SaveObjectRefs(context, AccountResourceUsage_);
@@ -56,6 +57,10 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     Load(context, StartTime_);
     LoadObjectRefs(context, StagedObjects_);
     LoadObjectRefs(context, LockedNodes_);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 24) {
+        LoadObjectRefs(context, Locks_);
+    }
     LoadObjectRefs(context, BranchedNodes_);
     LoadObjectRefs(context, StagedNodes_);
     LoadObjectRefs(context, AccountResourceUsage_);
