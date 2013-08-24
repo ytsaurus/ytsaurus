@@ -101,6 +101,7 @@ set( HDRS
   ${BASE}/ref_counted.h
   ${BASE}/ref_counted_tracker.h
   ${BASE}/ref_tracked.h
+  ${BASE}/ring_queue.h
   ${BASE}/semaphore.h
   ${BASE}/serialize.h
   ${BASE}/singleton.h
