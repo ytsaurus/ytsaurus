@@ -86,6 +86,10 @@ public:
         return Root;
     }
 
+    IYPathServicePtr GetService() const
+    {
+        return GetRoot()->Via(GetInvoker());
+    }
 
     TTagId RegisterTag(const TTag& tag)
     {
@@ -389,9 +393,14 @@ IInvokerPtr TProfilingManager::GetInvoker() const
     return Impl->GetInvoker();
 }
 
-NYTree::IMapNodePtr TProfilingManager::GetRoot() const
+IMapNodePtr TProfilingManager::GetRoot() const
 {
     return Impl->GetRoot();
+}
+
+IYPathServicePtr TProfilingManager::GetService() const
+{
+    return Impl->GetService();
 }
 
 TTagId TProfilingManager::RegisterTag(const TTag& tag)

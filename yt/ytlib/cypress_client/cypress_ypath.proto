@@ -16,6 +16,16 @@ message TTransactionalExt
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TAccessTrackingExt
+{
+    extend NRpc.NProto.TRequestHeader
+    {
+        optional bool suppress_access_tracking = 103;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqLock
 {
     required int32 mode = 1;

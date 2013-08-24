@@ -34,7 +34,7 @@ typedef TIntrusivePtr<TSingleQueueExecutorThread> TSingleQueueExecutorThreadPtr;
 DECLARE_ENUM(EBeginExecuteResult,
     (Success)
     (QueueEmpty)
-    (LoopTerminated)
+    (Terminated)
 );
 
 struct TEnqueuedAction

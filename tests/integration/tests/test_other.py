@@ -17,7 +17,7 @@ class TestOrchid(YTEnvSetup):
     def _check_service(self, path_to_orchid, service_name):
         path_to_value = path_to_orchid + '/value'
 
-        assert get(path_to_orchid + '//@service_name') == service_name
+        assert get(path_to_orchid + '/service/name') == service_name
 
         some_map = {"a": 1, "b": 2}
 

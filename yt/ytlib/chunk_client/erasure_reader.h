@@ -4,7 +4,7 @@
 
 #include <ytlib/misc/error.h>
 
-#include <ytlib/actions/cancelable_context.h>
+#include <ytlib/actions/signal.h>
 
 #include <ytlib/erasure/public.h>
 
@@ -16,13 +16,14 @@ namespace NChunkClient {
 IAsyncReaderPtr CreateNonReparingErasureReader(
     const std::vector<IAsyncReaderPtr>& dataBlocksReaders);
 
-TAsyncError RepairErasedBlocks(
+typedef TCallback<void(double)> TRepairProgressHandler;
+
+TAsyncError RepairErasedParts(
     NErasure::ICodec* codec,
     const NErasure::TPartIndexList& erasedIndices,
     const std::vector<IAsyncReaderPtr>& readers,
     const std::vector<IAsyncWriterPtr>& writers,
-    TCancelableContextPtr cancelableContext = nullptr,
-    TCallback<void(double)> onProgress = TCallback<void(double)>());
+    TRepairProgressHandler onProgress = TRepairProgressHandler());
 
 ///////////////////////////////////////////////////////////////////////////////
 

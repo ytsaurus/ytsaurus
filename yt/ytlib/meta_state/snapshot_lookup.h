@@ -19,7 +19,7 @@ public:
         TPersistentStateManagerConfigPtr config,
         NElection::TCellManagerPtr cellManager);
 
-    int LookupLatestSnapshot(int maxSnapshotId);
+    int GetLatestSnapshotId(int maxSnapshotId);
 
 private:
     typedef TMetaStateManagerProxy TProxy;
@@ -34,6 +34,7 @@ private:
         TPeerId peerId,
         TProxy::TRspLookupSnapshotPtr response);
     void OnLookupSnapshotComplete();
+    
 };
 
 ////////////////////////////////////////////////////////////////////////////////

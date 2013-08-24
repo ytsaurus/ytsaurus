@@ -685,23 +685,6 @@ void TObjectManager::LoadSchemas(NCellMaster::TLoadContext& context)
     }
 }
 
-void TObjectManager::OnAfterLoaded()
-{
-    VERIFY_THREAD_AFFINITY(StateThread);
-
-    // COMPAT(babenko): remove this once zombie issue is fixed
-    auto cypressManager = Bootstrap->GetCypressManager();
-    FOREACH (auto* node, cypressManager->GetNodes()) {
-        if (node->IsTrunk() &&
-            !node->IsAlive() &&
-            !GarbageCollector->IsEnqueued(node))
-        {
-            LOG_DEBUG("Zombie found: %s", ~ToString(node->GetId()));
-            GarbageCollector->Enqueue(node);
-        }
-    }
-}
-
 void TObjectManager::DoClear()
 {
     MasterObject.reset(new TMasterObject(MasterObjectId));

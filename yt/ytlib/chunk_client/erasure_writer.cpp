@@ -67,38 +67,57 @@ public:
         YCHECK(start >= 0);
         YCHECK(start <= end);
 
+        TSharedRef result;
+
         i64 pos = 0;
-        auto result = TSharedRef::Allocate(end - start);
+        i64 resultSize = end - start;
+
+        // We use lazy initialization.
+        bool initialized = false;
+        auto initialize = [&] () {
+            if (!initialized) {
+                struct TErasureWriterSliceTag { };
+                result = TSharedRef::Allocate<TErasureWriterSliceTag>(resultSize);
+                initialized = true;
+            }
+        };
 
         i64 currentStart = 0;
 
-        FOREACH (const auto& block, Blocks_) {
+        FOREACH (auto block, Blocks_) {
             i64 innerStart = std::max((i64)0, start - currentStart);
             i64 innerEnd = std::min((i64)block.Size(), end - currentStart);
 
             if (innerStart < innerEnd) {
-                std::copy(
-                    block.Begin() + innerStart,
-                    block.Begin() + innerEnd,
-                    result.Begin() + pos);
-                pos += innerEnd - innerStart;
+                auto slice = TRef(block.Begin() + innerStart, block.Begin() + innerEnd);
+
+                if (resultSize == slice.Size()) {
+                    return block.Slice(slice);
+                }
+
+                initialize();
+                std::copy(slice.Begin(), slice.End(), result.Begin() + pos);
+
+                pos += slice.Size();
             }
             currentStart += block.Size();
 
-            if (pos == result.Size() || currentStart >= end) {
+            if (pos == resultSize || currentStart >= end) {
                 break;
             }
         }
 
+        initialize();
         return result;
     }
 
 private:
-    std::vector<TSharedRef> Blocks_;
 
+    // Mutable since we want to return subref of blocks.
+    mutable std::vector<TSharedRef> Blocks_;
 };
 
-} // anonymous namespace
+} // namespace
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -209,8 +228,9 @@ void TErasureWriter::PrepareBlocks()
 {
     Groups_ = SplitBlocks(Blocks_, Codec_->GetDataPartCount());
 
+    YCHECK(Slicers_.empty());
+
     // Calculate size of parity blocks and form slicers
-    Slicers_.clear();
     ParityDataSize_ = 0;
     FOREACH (const auto& group, Groups_) {
         i64 size = 0;
@@ -334,7 +354,7 @@ TAsyncError TErasureWriter::WriteParityBlocks(int windowIndex)
     VERIFY_THREAD_AFFINITY(WriterThread);
 
     // Get parity blocks of current window
-    const std::vector<TSharedRef>& parityBlocks = ParityBlocks_[windowIndex];
+    const auto& parityBlocks = ParityBlocks_[windowIndex];
 
     // Write blocks of current window in parallel manner
     auto collector = New<TParallelCollector<void>>();
@@ -390,6 +410,10 @@ TAsyncError TErasureWriter::OnClosed(TError error)
         diskSpace += writer->GetChunkInfo().disk_space();
     }
     ChunkInfo_.set_disk_space(diskSpace);
+
+    Slicers_.clear();
+    Groups_.clear();
+    Blocks_.clear();
 
     return MakeFuture(TError());
 }

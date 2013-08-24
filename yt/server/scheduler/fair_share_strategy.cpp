@@ -866,8 +866,7 @@ private:
         }
 
         const auto& attributes = element->Attributes();
-        double tolerance = spec->FairSharePreemptionTolerance.Get(Config->FairSharePreemptionTolerance);
-        if (usageRatio < attributes.FairShareRatio * tolerance) {
+        if (usageRatio < attributes.FairShareRatio) {
             return false;
         }
 

@@ -63,11 +63,6 @@ public:
         return UnderlyingChannel->GetDefaultTimeout();
     }
 
-    virtual bool GetRetryEnabled() const override
-    {
-        return UnderlyingChannel->GetRetryEnabled();
-    }
-
     virtual void Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,

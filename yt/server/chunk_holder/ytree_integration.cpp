@@ -21,7 +21,7 @@ class TVirtualChunkMap
     : public TVirtualMapBase
 {
 public:
-    explicit TVirtualChunkMap(TCollection* collection)
+    explicit TVirtualChunkMap(TIntrusivePtr<TCollection> collection)
         : Collection(collection)
     { }
 
@@ -65,12 +65,12 @@ private:
 
 };
 
-IYPathServicePtr CreateStoredChunkMapService(TChunkStore* chunkStore)
+IYPathServicePtr CreateStoredChunkMapService(TChunkStorePtr chunkStore)
 {
     return New< TVirtualChunkMap<TChunkStore> >(chunkStore);
 }
 
-IYPathServicePtr CreateCachedChunkMapService(TChunkCache* chunkCache)
+IYPathServicePtr CreateCachedChunkMapService(TChunkCachePtr chunkCache)
 {
     return New< TVirtualChunkMap<TChunkCache> >(chunkCache);
 }

@@ -93,7 +93,7 @@ protected:
     i64 TotalDataSize;
 
     //! For each input table, the corresponding entry holds the stripe
-    //! containing the chunks collected so far. 
+    //! containing the chunks collected so far.
     //! Not serialized.
     /*!
      *  Empty stripes are never stored explicitly and are denoted by |nullptr|.
@@ -109,7 +109,7 @@ protected:
     /*!
      *  Each partition either corresponds to a merge task or to a pass-through chunk.
      *  Partition index is used as a key when calling #TOperationControllerBase::RegisterOutputChunkTree.
-     *  
+     *
      */
     int CurrentPartitionIndex;
 
@@ -543,16 +543,12 @@ public:
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeController, 0x6acdae46);
-    
+
     TUnorderedMergeOperationSpecPtr Spec;
 
 
     virtual bool IsPassthroughChunk(const TChunkSpec& chunkSpec) override
     {
-        // COMPAT(psushin)
-        if (!Spec->AllowPassthroughChunks)
-            return false;
-
         if (Spec->ForceTransform)
             return false;
 
@@ -671,10 +667,6 @@ private:
 
     virtual bool IsPassthroughChunk(const TChunkSpec& chunkSpec) override
     {
-        //COMPAT(psushin)
-        if (!Spec->AllowPassthroughChunks)
-            return false;
-
         if (Spec->ForceTransform)
             return false;
 
@@ -891,7 +883,7 @@ protected:
 
     TChunkSplitsFetcherPtr ChunkSplitsFetcher;
     TChunkSplitsCollectorPtr ChunkSplitsCollector;
-    
+
     TJobSpec ManiacJobSpecTemplate;
 
 
@@ -900,7 +892,7 @@ protected:
     virtual void CustomPrepare() override
     {
         // NB: Base member is not called intentionally.
-        
+
         auto specKeyColumns = GetSpecKeyColumns();
         LOG_INFO("Spec key columns are %s",
             specKeyColumns ? ~ConvertToYsonString(*specKeyColumns, EYsonFormat::Text).Data() : "<Null>");
@@ -929,7 +921,7 @@ protected:
         }
 
         ProcessChunkSplits();
-        FinishPreparation();       
+        FinishPreparation();
     }
 
     virtual void ProcessInputChunk(TRefCountedChunkSpecPtr chunkSpec) override
@@ -1228,10 +1220,6 @@ private:
 
     virtual bool IsPassthroughChunk(const TChunkSpec& chunkSpec) override
     {
-        // COMPAT(psushin)
-        if (!Spec->AllowPassthroughChunks)
-            return false;
-
         if (Spec->ForceTransform)
             return false;
 
@@ -1249,8 +1237,7 @@ private:
 
     virtual bool AllowPassthroughChunks() override
     {
-        // COMPAT(psushin)
-        return Spec->AllowPassthroughChunks && !Spec->ForceTransform;
+        return !Spec->ForceTransform;
     }
 
     virtual bool IsLargeEnoughToPassthrough(const TChunkSpec& chunkSpec) override

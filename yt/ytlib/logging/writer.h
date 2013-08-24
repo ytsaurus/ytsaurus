@@ -24,6 +24,7 @@ struct ILogWriter
     virtual void Write(const TLogEvent& event) = 0;
     virtual void Flush() = 0;
     virtual void Reload() = 0;
+    virtual void CheckSpace(i64 minSpace) = 0;
 
     DECLARE_ENUM(EType,
         (File)
@@ -85,9 +86,10 @@ public:
         TOutputStream* stream,
         Stroka pattern);
 
-    virtual void Write(const TLogEvent& event);
-    virtual void Flush();
-    virtual void Reload();
+    virtual void Write(const TLogEvent& event) override;
+    virtual void Flush() override;
+    virtual void Reload() override;
+    virtual void CheckSpace(i64 minSpace) override;
 
 private:
     TOutputStream* Stream;
@@ -101,7 +103,7 @@ class TStdErrLogWriter
     : public TStreamLogWriter
 {
 public:
-    explicit TStdErrLogWriter(const Stroka& pattern);
+    explicit TStdErrLogWriter(const Stroka& pattern) ;
 
 };
 
@@ -117,28 +119,47 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFileLogWriter
+class TFileLogWriterBase
     : public ILogWriter
+{
+public:
+    explicit TFileLogWriterBase(const Stroka& fileName);
+
+    virtual void CheckSpace(i64 minSpace) override;
+
+protected:
+    static const size_t BufferSize = 1 << 16;
+
+    void ReopenFile();
+
+    Stroka FileName;
+    bool Initialized;
+
+    TAtomic NotEnoughSpace;
+
+    std::unique_ptr<TFile> File;
+    std::unique_ptr<TBufferedFileOutput> FileOutput;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TFileLogWriter
+    : public TFileLogWriterBase
 {
 public:
     TFileLogWriter(
         Stroka fileName,
         Stroka pattern);
 
-    virtual void Write(const TLogEvent& event);
-    virtual void Flush();
-    virtual void Reload();
+    virtual void Write(const TLogEvent& event) override;
+    virtual void Flush() override;
+    virtual void Reload() override;
 
 private:
-    static const size_t BufferSize = 1 << 16;
 
     void EnsureInitialized();
 
-    Stroka FileName;
     Stroka Pattern;
-    bool Initialized;
-    std::unique_ptr<TFile> File;
-    std::unique_ptr<TBufferedFileOutput> FileOutput;
     ILogWriterPtr LogWriter;
 
 };
@@ -146,7 +167,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRawFileLogWriter
-    : public ILogWriter
+    : public TFileLogWriterBase
 {
 public:
     explicit TRawFileLogWriter(const Stroka& fileName);
@@ -156,15 +177,10 @@ public:
     virtual void Reload();
 
 private:
-    static const size_t BufferSize = 1 << 16;
 
     void EnsureInitialized();
 
-    Stroka FileName;
-    bool Initialized;
     std::unique_ptr<TMessageBuffer> Buffer;
-    std::unique_ptr<TFile> File;
-    std::unique_ptr<TBufferedFileOutput> FileOutput;
 
 };
 

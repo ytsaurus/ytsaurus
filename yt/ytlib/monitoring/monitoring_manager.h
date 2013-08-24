@@ -1,15 +1,19 @@
 #pragma once
 
+#include "public.h"
+
+#include <ytlib/actions/action_queue.h>
+
+#include <ytlib/misc/periodic_invoker.h>
+
 #include <ytlib/ytree/public.h>
 #include <ytlib/ytree/yson_producer.h>
-#include <ytlib/actions/action_queue.h>
-#include <ytlib/misc/periodic_invoker.h>
 
 namespace NYT {
 namespace NMonitoring {
 
 ////////////////////////////////////////////////////////////////////////////////
-
+    
 //! Provides monitoring info for registered systems in YSON format
 /*!
  * \note Periodically updates info for all registered systems
@@ -18,9 +22,6 @@ class TMonitoringManager
     : public TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TMonitoringManager> TPtr;
-
-    //! Empty constructor.
     TMonitoringManager();
 
     //! Registers system for specified path.
@@ -36,11 +37,11 @@ public:
      */
     void Unregister(const NYPath::TYPath& path);
 
-    //! Provides a root node containing info for all registered systems.
+    //! Returns the service providing info for all registered systems.
     /*!
-     * \note Every update, the previous root expires and a new root is generated.
+     * \note The service is thread-safe.
      */
-    NYTree::INodePtr GetRoot() const;
+    NYTree::IYPathServicePtr GetService();
 
     //! Starts periodic updates.
     void Start();
@@ -48,16 +49,10 @@ public:
     //! Stops periodic updates.
     void Stop();
 
-    //! Provides YSON producer for all monitoring infos.
-    /*!
-     * \note Producer is sustained between updates.
-     */
-    NYTree::TYsonProducer GetProducer();
-
 private:
-    typedef yhash<Stroka, NYTree::TYsonProducer> TProducerMap;
+    class TYPathService;
 
-    static const TDuration Period; // TODO: make yson serializable
+    typedef yhash<Stroka, NYTree::TYsonProducer> TProducerMap;
 
     bool IsStarted;
     TActionQueuePtr ActionQueue;
@@ -65,12 +60,13 @@ private:
 
     //! Protects #MonitoringMap.
     TSpinLock SpinLock;
-    TProducerMap MonitoringMap;
+    TProducerMap ProducerMap;
 
     NYTree::INodePtr Root;
 
     void Update();
     void Visit(NYson::IYsonConsumer* consumer);
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

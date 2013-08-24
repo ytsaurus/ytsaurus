@@ -160,7 +160,7 @@ void TDecoratedMetaState::OnStopFollowing()
 
 void TDecoratedMetaState::ComputeReachableVersion()
 {
-    i32 maxSnapshotId = SnapshotStore->LookupLatestSnapshot();
+    i32 maxSnapshotId = SnapshotStore->GetLatestSnapshotId();
     if (maxSnapshotId == NonexistingSnapshotId) {
         LOG_INFO("No snapshots found");
         // Let's pretend we have snapshot 0.

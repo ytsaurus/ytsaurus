@@ -58,8 +58,6 @@ struct ISystemAttributeProvider;
 struct IYPathService;
 typedef TIntrusivePtr<IYPathService> IYPathServicePtr;
 
-typedef TCallback<IYPathServicePtr()> TYPathServiceProducer;
-
 class TYPathRequest;
 typedef TIntrusivePtr<TYPathRequest> TYPathRequestPtr;
 

@@ -146,10 +146,9 @@ void TClientResponseBase::OnError(const TError& error)
         Error_  = error;
     }
 
-    auto this_ = MakeStrong(this);
-    TDispatcher::Get()->GetPoolInvoker()->Invoke(BIND([=] () {
-        this_->FireCompleted();
-    }));
+    TDispatcher::Get()
+        ->GetPoolInvoker()
+        ->Invoke(BIND(&TClientResponseBase::FireCompleted, MakeStrong(this)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -212,9 +211,9 @@ void TClientResponse::OnResponse(IMessagePtr message)
     }
 
     auto this_ = MakeStrong(this);
-    TDispatcher::Get()->GetPoolInvoker()->Invoke(BIND([=] () {
-        this_->Deserialize(message);
-        this_->FireCompleted();
+    TDispatcher::Get()->GetPoolInvoker()->Invoke(BIND([this, this_, message] () {
+        this->Deserialize(message);
+        FireCompleted();
     }));
 }
 
@@ -251,9 +250,8 @@ void TOneWayClientResponse::OnAcknowledgement()
     FireCompleted();
 }
 
-void TOneWayClientResponse::OnResponse(IMessagePtr message)
+void TOneWayClientResponse::OnResponse(IMessagePtr /*message*/)
 {
-    UNUSED(message);
     YUNREACHABLE();
 }
 

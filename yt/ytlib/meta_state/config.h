@@ -287,7 +287,7 @@ public:
         RegisterParameter("addresses", Addresses)
             .NonEmpty();
         RegisterParameter("rpc_timeout", RpcTimeout)
-            .Default(TDuration::Seconds(60));
+            .Default(TDuration::Seconds(15));
         RegisterParameter("connection_priority", ConnectionPriority)
             .InRange(0, 6)
             .Default(6);

@@ -1,9 +1,12 @@
 #include "stdafx.h"
 #include "cell_manager.h"
+#include "private.h"
+#include "config.h"
 
 #include <ytlib/misc/address.h>
 
 #include <ytlib/rpc/channel.h>
+#include <ytlib/rpc/channel_cache.h>
 
 #include <ytlib/profiling/profiling_manager.h>
 
@@ -14,29 +17,30 @@ using namespace NYTree;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = ElectionLogger;
-
-NRpc::TChannelCache TCellManager::ChannelCache;
+static auto& Logger = ElectionLogger;
+static NRpc::TChannelCache ChannelCache;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TCellManager::TCellManager(TCellConfigPtr config)
     : Config(config)
-{
-    OrderedAddresses = Config->Addresses;
-    std::sort(OrderedAddresses.begin(), OrderedAddresses.end());
-}
+{ }
 
 void TCellManager::Initialize()
 {
-    SelfAddress_ = BuildServiceAddress(TAddressResolver::Get()->GetLocalHostName(), Config->RpcPort);
+    OrderedAddresses = Config->Addresses;
+    std::sort(OrderedAddresses.begin(), OrderedAddresses.end());
+
+    SelfAddress_ = BuildServiceAddress(
+        TAddressResolver::Get()->GetLocalHostName(),
+        Config->RpcPort);
+
     SelfId_ = std::distance(
         OrderedAddresses.begin(),
         std::find(OrderedAddresses.begin(), OrderedAddresses.end(), SelfAddress_));
-
     if (SelfId_ == OrderedAddresses.size()) {
-        LOG_FATAL("Self is absent in the list of masters (SelfAddress: %s)",
-            ~SelfAddress_);
+        THROW_ERROR_EXCEPTION("Self address %s is missing in the cell members list",
+            ~SelfAddress_.Quote());
     }
 
     auto* profilingManager = NProfiling::TProfilingManager::Get();

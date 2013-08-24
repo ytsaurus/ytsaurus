@@ -62,6 +62,7 @@ void TAccessTracker::SetModified(
 {
     VERIFY_THREAD_AFFINITY(StateThread);
     YCHECK(trunkNode->IsTrunk());
+    YCHECK(trunkNode->IsAlive());
 
     // Failure here means that the node wasn't indeed locked,
     // which is strange given that we're about to mark it as modified.
@@ -81,20 +82,22 @@ void TAccessTracker::SetModified(
 
 void TAccessTracker::SetAccessed(TCypressNodeBase* trunkNode)
 {
-    return;
-    
     VERIFY_THREAD_AFFINITY(StateThread);
     YCHECK(trunkNode->IsTrunk());
+    YCHECK(trunkNode->IsAlive());
 
     auto* update = trunkNode->GetAccessStatisticsUpdate();
     if (!update) {
         update = UpdateAccessStatisticsRequest.add_updates();
         ToProto(update->mutable_node_id(), trunkNode->GetId());
+
         trunkNode->SetAccessStatisticsUpdate(update);
         NodesWithAccessStatisticsUpdate.push_back(trunkNode);
+
+        auto objectManager = Bootstrap->GetObjectManager();
+        objectManager->WeakRefObject(trunkNode);
     }
 
-    auto objectManager = Bootstrap->GetObjectManager();
     auto now = NProfiling::CpuInstantToInstant(NProfiling::GetCpuInstant());
     update->set_access_time(now.MicroSeconds());
     update->set_access_counter_delta(update->access_counter_delta() + 1);
@@ -102,8 +105,10 @@ void TAccessTracker::SetAccessed(TCypressNodeBase* trunkNode)
 
 void TAccessTracker::Reset()
 {
+    auto objectManager = Bootstrap->GetObjectManager();
     FOREACH (auto* node, NodesWithAccessStatisticsUpdate) {
         node->SetAccessStatisticsUpdate(nullptr);
+        objectManager->WeakUnrefObject(node);
     }    
 
     UpdateAccessStatisticsRequest.Clear();

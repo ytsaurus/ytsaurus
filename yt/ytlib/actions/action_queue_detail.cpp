@@ -91,7 +91,12 @@ EBeginExecuteResult TInvokerQueue::BeginExecute(TEnqueuedAction* action)
 
     TCurrentInvokerGuard guard(CurrentInvoker);
 
-    action->Callback.Run();
+    try {
+	    action->Callback.Run();
+    } catch (const TFiberTerminatedException&) {
+        // Still consider this a success.
+        // This caller is responsible for terminating the current fiber.
+    }
 
     return EBeginExecuteResult::Success;
 }
@@ -128,7 +133,7 @@ bool TInvokerQueue::IsEmpty() const
  *  Examining |CurrentActionQueue| could be useful for debugging purposes so we don't
  *  put it into an anonymous namespace to avoid name mangling.
  */
-TLS_STATIC TExecutorThread* CurrentInvokerThread = nullptr;
+TLS_STATIC TExecutorThread* CurrentExecutorThread = nullptr;
 
 TExecutorThread::TExecutorThread(
     TEventCount* eventCount,
@@ -172,7 +177,7 @@ void TExecutorThread::ThreadMain()
     try {
         LOG_DEBUG_IF(EnableLogging, "Thread started (Name: %s)", ~ThreadName);
         OnThreadStart();
-        CurrentInvokerThread = this;
+    	CurrentExecutorThread = this;
 
         NThread::SetCurrentThreadName(~ThreadName);
         ThreadId = NThread::GetCurrentThreadId();
@@ -197,7 +202,7 @@ void TExecutorThread::ThreadMain()
             }
         }
 
-        CurrentInvokerThread = nullptr;
+	    CurrentExecutorThread = nullptr;
         OnThreadShutdown();
         LOG_DEBUG_IF(EnableLogging, "Thread stopped (Name: %s)", ~ThreadName);
     } catch (const std::exception& ex) {
@@ -227,7 +232,7 @@ void TExecutorThread::FiberMain()
                 // CancelWait was called inside Execute.
                 break;
 
-            case EBeginExecuteResult::LoopTerminated:
+            case EBeginExecuteResult::Terminated:
                 // CancelWait was called inside Execute.
                 stop = true;
                 break;
@@ -254,24 +259,38 @@ EBeginExecuteResult TExecutorThread::Execute()
 {
     if (!Running) {
         EventCount->CancelWait();
-        return EBeginExecuteResult::LoopTerminated;
+        return EBeginExecuteResult::Terminated;
     }
 
     auto result = BeginExecute();
-    if (result != EBeginExecuteResult::Success) {
+
+    auto* fiber = TFiber::GetCurrent();
+    if (!fiber->Yielded()) {
+        // Make the matching call to EndExecute unless it is already done in ThreadMain.
+        // NB: It is safe to call EndExecute even if no actual action was dequeued and
+        // invoked in BeginExecute.
+        EndExecute();
+    }
+
+    if (result == EBeginExecuteResult::Terminated || result == EBeginExecuteResult::QueueEmpty) {
         return result;
     }
 
-    // If the current fiber has seen Yield calls then its ownership has been transfered to the
-    // callback. In the latter case we must abandon the current fiber immediately
-    // since the queue's thread had spawned (or will soon spawn)
-    // a brand new fiber to continue serving the queue.
-    if (TFiber::GetCurrent()->Yielded()) {
-        return EBeginExecuteResult::LoopTerminated;
-    } else {
-        EndExecute();
-        return EBeginExecuteResult::Success;
+    if (fiber->Yielded()) {
+        // If the current fiber has seen Yield calls then its ownership has been transfered to the
+        // callback. In the latter case we must abandon the current fiber immediately
+        // since the queue's thread had spawned (or will soon spawn)
+        // a brand new fiber to continue serving the queue.
+        return EBeginExecuteResult::Terminated;
     }
+
+    if (fiber->IsCanceled()) {
+        // All TFiberTerminatedException-s are being caught in BeginExecute.
+        // A fiber that is currently being terminated cannot be reused and must be abandoned.
+        return EBeginExecuteResult::Terminated;
+    }
+
+    return EBeginExecuteResult::Success;
 }
 
 void TExecutorThread::Shutdown()

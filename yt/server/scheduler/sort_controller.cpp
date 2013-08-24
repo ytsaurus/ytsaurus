@@ -195,9 +195,11 @@ protected:
             SortedMergeTask->Initialize();
             controller->RegisterTask(SortedMergeTask);
 
-            UnorderedMergeTask = New<TUnorderedMergeTask>(controller, this);
-            UnorderedMergeTask->Initialize();
-            controller->RegisterTask(UnorderedMergeTask);
+            if (!controller->SimpleSort) {
+                UnorderedMergeTask = New<TUnorderedMergeTask>(controller, this);
+                UnorderedMergeTask->Initialize();
+                controller->RegisterTask(UnorderedMergeTask);                
+            }
         }
 
         //! Sequential index (zero based).

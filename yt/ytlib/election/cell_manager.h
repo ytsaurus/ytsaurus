@@ -1,9 +1,10 @@
 #pragma once
 
-#include "common.h"
-#include "config.h"
+#include "public.h"
 
-#include <ytlib/rpc/channel_cache.h>
+#include <ytlib/misc/property.h>
+
+#include <ytlib/rpc/public.h>
 
 #include <ytlib/profiling/public.h>
 
@@ -25,6 +26,7 @@ public:
 
     int GetQuorum() const;
     int GetPeerCount() const;
+
     const Stroka& GetPeerAddress(TPeerId id) const;
     NRpc::IChannelPtr GetMasterChannel(TPeerId id) const;
 
@@ -39,8 +41,6 @@ private:
     std::vector<NProfiling::TTagIdList> PeerTags;
     NProfiling::TTagIdList AllPeersTags;
     NProfiling::TTagIdList PeerQuorumTags;
-
-    static NRpc::TChannelCache ChannelCache;
 
 };
 

@@ -239,28 +239,26 @@ application = connect()
         next();
     });
 
-for (var p in config.static) {
-    if (config.static.hasOwnProperty(p)) {
-        var web_path = p.replace(/\/+$/, "");
-        var real_path = config.static[p];
-        var server = new node_static.Server(real_path, {
-            cache: 3600,
-            gzip: true,
-        });
-        application.use(web_path, function(req, rsp, next) {
-            "use strict";
-            if (req.url === "/") {
-                if (req.originalUrl === web_path) {
-                    return void yt.utils.redirectTo(rsp, web_path + "/");
-                }
-                req.url = "index.html";
+config.static.forEach(function(site) {
+    var web_path = site[0].replace(/\/+$/, "");
+    var real_path = site[1];
+    var server = new node_static.Server(real_path, {
+        cache: 3600,
+        gzip: true,
+    });
+    application.use(web_path, function(req, rsp, next) {
+        "use strict";
+        if (req.url === "/") {
+            if (req.originalUrl === web_path) {
+                return void yt.utils.redirectTo(rsp, web_path + "/");
             }
-            req.on("end", function() {
-                server.serve(req, rsp);
-            });
+            req.url = "index.html";
+        }
+        req.on("end", function() {
+            server.serve(req, rsp);
         });
-    }
-}
+    });
+});
 
 application
     .use("/", function(req, rsp, next) {

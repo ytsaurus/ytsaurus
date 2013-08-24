@@ -4,6 +4,8 @@
 #include "meta_state_manager_proxy.h"
 #include "meta_version.h"
 
+#include <ytlib/misc/thread_affinity.h>
+
 #include <ytlib/election/election_manager.h>
 
 namespace NYT {
@@ -111,6 +113,7 @@ protected:
 
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

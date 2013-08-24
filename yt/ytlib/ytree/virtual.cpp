@@ -214,7 +214,10 @@ public:
         return TResolveResult::There(UnderlyingService, path);
     }
 
-    virtual void SerializeAttributes(IYsonConsumer* /*consumer*/, const TAttributeFilter& /*filter*/, bool /*sortKeys*/)
+    virtual void SerializeAttributes(
+        IYsonConsumer* /*consumer*/,
+        const TAttributeFilter& /*filter*/,
+        bool /*sortKeys*/)
     { }
 
 private:
@@ -232,11 +235,6 @@ private:
 INodePtr CreateVirtualNode(IYPathServicePtr service)
 {
     return New<TVirtualEntityNode>(service);
-}
-
-NYT::NYTree::INodePtr CreateVirtualNode(TYPathServiceProducer producer)
-{
-    return CreateVirtualNode(IYPathService::FromProducer(producer));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

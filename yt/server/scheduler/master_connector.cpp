@@ -115,8 +115,7 @@ public:
             BIND(
                 &TImpl::OnOperationNodeCreated,
                 MakeStrong(this),
-                operation,
-                CancelableContext)
+                operation)
             .AsyncVia(Bootstrap->GetControlInvoker()));
     }
 
@@ -153,11 +152,16 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected);
 
-        auto* list = GetUpdateList(operation);
-
         auto id = operation->GetOperationId();
         LOG_INFO("Flushing operation node (OperationId: %s)",
             ~ToString(id));
+
+        auto* list = FindUpdateList(operation);
+        if (!list) {
+            LOG_INFO("Operation node is not registered, omitting flush (OperationId: %s)",
+                ~ToString(id));
+            return MakeFuture();
+        }
 
         // Create a batch update for this particular operation.
         auto batchReq = StartBatchRequest(list);
@@ -949,8 +953,7 @@ private:
             attributes.Get<Stroka>("authenticated_user"),
             attributes.Get<TInstant>("start_time"),
             attributes.Get<EOperationState>("state"),
-            // COMPAT(babenko)
-            attributes.Get<bool>("suspended", false));
+            attributes.Get<bool>("suspended"));
 
         operation->SetSyncSchedulerTransaction(syncTransaction);
         operation->SetAsyncSchedulerTransaction(asyncTransaction);
@@ -1107,25 +1110,54 @@ private:
             }
         }
 
-        auto isDead = [&] (ITransactionPtr transaction) {
-            return transaction && deadTransactionIds.find(transaction->GetId()) != deadTransactionIds.end();
+        auto isTransactionAlive = [&] (TOperationPtr operation, ITransactionPtr transaction) -> bool {
+            if (!transaction) {
+                return true;
+            }
+
+            if (deadTransactionIds.find(transaction->GetId()) == deadTransactionIds.end()) {
+                return true;
+            }
+
+            return false;
         };
 
-        // Check every operation is it references a dead transaction.
-        // If so, raise an appropriate notification.
+        auto isUserTransactionAlive = [&] (TOperationPtr operation, ITransactionPtr transaction) -> bool {
+            if (isTransactionAlive(operation, transaction)) {
+                return true;
+            }
+
+            LOG_INFO("Expired user transaction found (OperationId: %s, TransactionId: %s)",
+                ~ToString(operation->GetOperationId()),
+                ~ToString(transaction->GetId()));
+            return false;
+        };
+
+        auto isSchedulerTransactionAlive = [&] (TOperationPtr operation, ITransactionPtr transaction) -> bool {
+            if (isTransactionAlive(operation, transaction)) {
+                return true;
+            }
+
+            LOG_INFO("Expired scheduler transaction found (OperationId: %s, TransactionId: %s)",
+                ~ToString(operation->GetOperationId()),
+                ~ToString(transaction->GetId()));
+            return false;
+        };
+
+        // Check every operation's transactions and raise appropriate notifications.
         auto operations = Bootstrap->GetScheduler()->GetOperations();
         FOREACH (auto operation, operations) {
             if (operation->GetState() != EOperationState::Running)
                 continue;
 
-            if (isDead(operation->GetUserTransaction())) {
+            if (!isUserTransactionAlive(operation, operation->GetUserTransaction())) {
                 UserTransactionAborted_.Fire(operation);
             }
 
-            if (isDead(operation->GetSyncSchedulerTransaction()) ||
-                isDead(operation->GetAsyncSchedulerTransaction()) ||
-                isDead(operation->GetInputTransaction()) ||
-                isDead(operation->GetOutputTransaction()))
+            if (!isSchedulerTransactionAlive(operation, operation->GetSyncSchedulerTransaction()) ||
+                !isSchedulerTransactionAlive(operation, operation->GetAsyncSchedulerTransaction()) ||
+                !isSchedulerTransactionAlive(operation, operation->GetInputTransaction()) ||
+                !isSchedulerTransactionAlive(operation, operation->GetOutputTransaction()))
             {
                 SchedulerTransactionAborted_.Fire(operation);
             }
@@ -1135,6 +1167,8 @@ private:
 
     TUpdateList* CreateUpdateList(TOperationPtr operation)
     {
+        LOG_DEBUG("Operation update list registered (OperationId: %s)",
+            ~ToString(operation->GetOperationId()));
         TUpdateList list(Bootstrap->GetMasterChannel(), operation);
         auto pair = UpdateLists.insert(std::make_pair(operation->GetOperationId(), list));
         YCHECK(pair.second);
@@ -1156,6 +1190,8 @@ private:
 
     void RemoveUpdateList(TOperationPtr operation)
     {
+        LOG_DEBUG("Operation update list unregistered (OperationId: %s)",
+            ~ToString(operation->GetOperationId()));
         YCHECK(UpdateLists.erase(operation->GetOperationId()));
     }
 
@@ -1217,8 +1253,6 @@ private:
         // Cleanup finished operations.
         FOREACH (auto operation, finishedOperations) {
             RemoveUpdateList(operation);
-            LOG_DEBUG("Operation update list unregistered (OperationId: %s)",
-                ~ToString(operation->GetOperationId()));
         }
     }
 
@@ -1432,7 +1466,6 @@ private:
 
     TError OnOperationNodeCreated(
         TOperationPtr operation,
-        TCancelableContextPtr context,
         TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1444,11 +1477,6 @@ private:
             auto wrappedError = TError("Error creating operation node (OperationId: %s)",
                 ~ToString(operationId))
                 << error;
-
-            if (!context->IsCanceled()) {
-                RemoveUpdateList(operation);
-            }
-
             LOG_WARNING(wrappedError);
             return wrappedError;
         }

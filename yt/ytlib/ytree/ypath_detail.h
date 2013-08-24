@@ -153,7 +153,7 @@ protected:
         const TNullable<NYTree::TYsonString>& oldValue,
         const TNullable<NYTree::TYsonString>& newValue);
 
-    //! Called after some user attributes are change.
+    //! Called after some user attributes are changed.
     virtual void OnUserAttributesUpdated();
 
 private:

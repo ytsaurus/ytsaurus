@@ -2,6 +2,7 @@
 #include "action_queue.h"
 #include "bind.h"
 #include "action_queue_detail.h"
+#include "invoker_util.h"
 
 #include <ytlib/ypath/token.h>
 
@@ -194,7 +195,7 @@ private:
 
     virtual EBeginExecuteResult BeginExecute() override
     {
-        YASSERT(!CurrentBucket);
+        YCHECK(!CurrentBucket);
 
         // Check if any action is ready at all.
         CurrentBucket = GetStarvingBucket();
@@ -214,13 +215,12 @@ private:
 
     virtual void EndExecute() override
     {
-        CurrentBucket->Queue->EndExecute(&CurrentAction);
+        if (!CurrentBucket)
+            return;
 
-        if (CurrentBucket) {
-            auto endInstant = GetCpuInstant();
-            CurrentBucket->ExcessTime += (endInstant - StartInstant);
-            CurrentBucket = nullptr;
-        }
+        CurrentBucket->Queue->EndExecute(&CurrentAction);
+        CurrentBucket->ExcessTime += (GetCpuInstant() - StartInstant);
+        CurrentBucket = nullptr;
     }
 
 };
@@ -359,6 +359,7 @@ private:
         // Execute as many actions as possible to minimize context switches.
         TClosure action;
         while (Queue.Dequeue(&action)) {
+            TCurrentInvokerGuard guard(this);
             action.Run();
         }
 

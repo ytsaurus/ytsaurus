@@ -120,7 +120,8 @@ std::vector<TSharedRef> ScheduleEncode(
     std::vector<TSharedRef> parities(parityCount);
     std::vector<char*> parityPointers(parityCount);
     for (int i = 0; i < parityCount; ++i) {
-        parities[i] = TSharedRef::Allocate(blockLength, false);
+        struct TJerasureTag {};
+        parities[i] = TSharedRef::Allocate<TJerasureTag>(blockLength, false);
         parityPointers[i] = parities[i].Begin();
     }
 
@@ -165,7 +166,8 @@ std::vector<TSharedRef> BitMatrixDecode(
     for (int i = 0; i < blockCount + parityCount; ++i) {
         char* ref;
         if (erasureNumber < erasedIndices.size() && i == erasedIndices[erasureNumber]) {
-            repaired[erasureNumber] = TSharedRef::Allocate(blockLength, false);
+            struct TJerasureTag {};
+            repaired[erasureNumber] = TSharedRef::Allocate<TJerasureTag>(blockLength, false);
             ref = repaired[erasureNumber].Begin();
             erasureNumber += 1;
         } else {

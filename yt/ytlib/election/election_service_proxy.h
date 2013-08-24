@@ -1,7 +1,8 @@
 #pragma once
 
-#include "common.h"
-#include <ytlib/election/election_manager.pb.h>
+#include "public.h"
+
+#include <ytlib/election/election_service.pb.h>
 
 #include <ytlib/rpc/client.h>
 
@@ -10,23 +11,17 @@ namespace NElection {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TElectionManagerProxy
+class TElectionServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    typedef TIntrusivePtr<TElectionManagerProxy> TPtr;
+    static Stroka GetServiceName();
 
-    static Stroka GetServiceName()
-    {
-        return "ElectionManager";
-    }
-
-    TElectionManagerProxy(NRpc::IChannelPtr channel)
-        : TProxyBase(channel, GetServiceName())
-    { }
+    explicit TElectionServiceProxy(NRpc::IChannelPtr channel);
 
     DEFINE_RPC_PROXY_METHOD(NElection::NProto, PingFollower);
     DEFINE_RPC_PROXY_METHOD(NElection::NProto, GetStatus);
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

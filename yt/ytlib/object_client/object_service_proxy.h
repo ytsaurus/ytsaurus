@@ -133,15 +133,6 @@ public:
             TPromise<TRspExecuteBatchPtr> promise,
             TRspExecuteBatchPtr response);
 
-        void SendRetryingRequest(
-            TNullable<TInstant> deadline,
-            TNullable<TDuration> timeout,
-            TPromise<TRspExecuteBatchPtr> promise);
-
-        void ReportError(
-            TPromise<TRspExecuteBatchPtr> promise,
-            TError error);
-
     };
 
     //! A response to a batched request.
@@ -222,8 +213,8 @@ public:
         NProto::TRspExecute Body;
         std::vector<int> BeginPartIndexes;
 
-        virtual void FireCompleted();
-        virtual void DeserializeBody(const TRef& data);
+        virtual void FireCompleted() override;
+        virtual void DeserializeBody(const TRef& data) override;
 
     };
 

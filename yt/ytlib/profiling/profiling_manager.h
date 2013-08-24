@@ -75,11 +75,14 @@ public:
     //! Returns the invoker associated with the profiler thread.
     IInvokerPtr GetInvoker() const;
 
-    //! Returns the root of the YTree with the buckets.
+    //! Returns the root of the tree with buckets.
     /*!
      *  The latter must only be accessed from the invoker returned by #GetInvoker.
      */
     NYTree::IMapNodePtr GetRoot() const;
+
+    //! Returns a thread-safe service representing the tree with buckets.
+    NYTree::IYPathServicePtr GetService() const;
 
     //! Registers a tag and returns its unique id.
     TTagId RegisterTag(const TTag& tag);

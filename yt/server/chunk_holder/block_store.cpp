@@ -209,7 +209,7 @@ private:
     {
         YCHECK(blockSize >= 0);
         AtomicSub(PendingReadSize_, blockSize);
-        LOG_DEBUG("Pending read size decreased (BlockSize: %" PRId64 ", PendingReadSize: %" PRISZT,
+        LOG_DEBUG("Pending read size decreased (BlockSize: %" PRId64 ", PendingReadSize: %" PRISZT ")",
             blockSize,
             PendingReadSize_);
     }
@@ -252,7 +252,7 @@ private:
             ~location->GetId());
 
         TSharedRef data;
-        NProfiling::TScopedTimer timer; 
+        NProfiling::TScopedTimer timer;
 
         try {
             data = reader->ReadBlock(blockId.BlockIndex);

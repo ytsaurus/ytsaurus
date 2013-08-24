@@ -9,6 +9,8 @@
 #include <ytlib/yson/parser.h>
 #include <ytlib/yson/consumer.h>
 
+#include <ytlib/formats/parser.h>
+
 #include <ytlib/transaction_client/transaction_manager.h>
 
 #include <ytlib/table_client/table_reader.h>
@@ -30,9 +32,13 @@ using namespace NTableClient;
 
 void TReadCommand::DoExecute()
 {
+    // COMPAT(babenko): remove Request->TableReader
     auto config = UpdateYsonSerializable(
         Context->GetConfig()->TableReader,
         Request->TableReader);
+    config = UpdateYsonSerializable(
+        config,
+        Request->GetOptions());
 
     auto reader = New<TAsyncTableReader>(
         config,
@@ -54,7 +60,9 @@ void TReadCommand::DoExecute()
 
     auto flushBuffer = [&] () {
         if (!output->Write(buffer.Begin(), buffer.Size())) {
-            auto result = WaitFor(output->GetReadyEvent());
+            // XXX(babenko): GetCurrentInvoker() is redundant but removing it causes ICE
+            // on VS2010.
+            auto result = WaitFor(output->GetReadyEvent(), GetCurrentInvoker());
             THROW_ERROR_EXCEPTION_IF_FAILED(result);
         }
         buffer.Clear();

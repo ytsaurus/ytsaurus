@@ -13,16 +13,26 @@ class TRetryingChannelConfig
     : public TYsonSerializable
 {
 public:
-    TDuration BackoffTime;
-    int MaxAttempts;
+    //! Time to wait between consequent attempts.
+    TDuration RetryBackoffTime;
+
+    //! Maximum number of retry attempts to make.
+    int RetryAttempts;
+
+    //! Maximum time to spend while retrying.
+    //! If |Null| then no limit is enforced.
+    TNullable<TDuration> RetryTimeout;
 
     TRetryingChannelConfig()
     {
-        RegisterParameter("backoff_time", BackoffTime)
+        RegisterParameter("retry_backoff_time", RetryBackoffTime)
             .Default(TDuration::Seconds(3));
-        RegisterParameter("max_attempts", MaxAttempts)
+        RegisterParameter("retry_attempts", RetryAttempts)
             .GreaterThanOrEqual(1)
             .Default(10);
+        RegisterParameter("retry_timeout", RetryTimeout)
+            .GreaterThanOrEqual(TDuration::Zero())
+            .Default(Null);
     }
 };
 
@@ -30,12 +40,15 @@ public:
 
 //! Constructs a channel that implements a simple retry policy.
 /*!
- *  If a request fails with a retriable error (see #NRpc::IsRetriableError),
- *  it is retried a given number of times with a given back off time.
- *
- *  If the request is still failing, then EErrorCode::Unavailable is returned.
- *
- *  If number of retry attempts is one then the underlying channel is returned.
+ *  The channel determines if the request must be retried by calling
+ *  #NRpc::IsRetriableError.
+ *  
+ *  The channel makes at most #TRetryingChannelConfig::RetryAttempts
+ *  attempts totally spending at most #TRetryingChannelConfig::RetryTimeout time
+ *  (if given).
+ *  
+ *  A delay of #TRetryingChannelConfig::RetryBackoffTime is inserted
+ *  between any pair of consequent attempts.
  */
 IChannelPtr CreateRetryingChannel(
     TRetryingChannelConfigPtr config,

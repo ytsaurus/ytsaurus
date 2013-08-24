@@ -23,9 +23,6 @@ struct IChannel
     //! Gets default timeout.
     virtual TNullable<TDuration> GetDefaultTimeout() const = 0;
 
-    //! Returns True if the requests may be retried, i.e. sent (and delivered) multiple times.
-    virtual bool GetRetryEnabled() const = 0;
-
     //! Sends a request via the channel.
     /*!
      *  \param request A request to send.

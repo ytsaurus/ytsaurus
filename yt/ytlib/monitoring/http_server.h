@@ -1,6 +1,6 @@
 #pragma once
 
-#include "common.h"
+#include "public.h"
 
 #include <ytlib/actions/callback_forward.h>
 #include <ytlib/actions/future.h>
@@ -47,8 +47,8 @@ class TServer
     : public TNonCopyable
 {
 public:
-    typedef TCallback<Stroka(Stroka)> TSyncHandler;
-    typedef TCallback<TFuture<Stroka>(Stroka)> TAsyncHandler;
+    typedef TCallback<Stroka(const Stroka&)> TSyncHandler;
+    typedef TCallback<TFuture<Stroka>(const Stroka&)> TAsyncHandler;
 
 public:
     explicit TServer(int port);

@@ -20,7 +20,6 @@ typedef TCallback< TFuture< TErrorOr<IChannelPtr> >()> TChannelProducer;
  */
 IChannelPtr CreateRoamingChannel(
     TNullable<TDuration> defaultTimeout,
-    bool retryEnabled,
     TChannelProducer producer);
 
 ////////////////////////////////////////////////////////////////////////////////

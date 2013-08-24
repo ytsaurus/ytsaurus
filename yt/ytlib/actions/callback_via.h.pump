@@ -13,6 +13,7 @@ $range ARITY 0..MAX_ARITY
 
 #include "invoker.h"
 #include "future.h"
+#include "invoker_util.h"
 
 namespace NYT {
 /*! \internal */
@@ -22,6 +23,20 @@ namespace NDetail {
 
 template <bool WrappedInFuture, class TSignature>
 struct TAsyncViaHelper;
+
+// Implemented in fibers/fiber.cpp
+TClosure GetCurrentFiberCanceler();
+
+template <class T>
+void RegisterFiberCancelation(TPromise<T> promise)
+{
+    auto canceler = GetCurrentFiberCanceler();
+    auto invoker = GetCurrentInvoker();
+    promise.OnCanceled(BIND(
+        IgnoreResult(&IInvoker::Invoke),
+        invoker,
+        canceler));
+}
 
 } // namespace NDetail
 
@@ -84,6 +99,7 @@ struct TAsyncViaHelper<W, U($for ARG , [[A$(ARG)]])>
         auto inner = BIND([=] (PR promise[[]]
 $if ARITY != 0 [[, ]]
 $for ARG , [[A$(ARG) a$(ARG)]]) -> void {
+            RegisterFiberCancelation(promise);
             promise.Set(this_.Run([[]]
 $if ARITY != 0 [[
 
@@ -133,6 +149,7 @@ struct TAsyncViaHelper<W, void($for ARG , [[A$(ARG)]])>
         auto inner = BIND([=] (PR promise[[]]
 $if ARITY != 0 [[, ]]
 $for ARG , [[A$(ARG) a$(ARG)]]) {
+            RegisterFiberCancelation(promise);
             this_.Run([[]]
 $if ARITY != 0 [[
 
@@ -184,6 +201,7 @@ struct TAsyncViaHelper<true, U($for ARG , [[A$(ARG)]])>
         auto inner = BIND([=] (PR promise[[]]
 $if ARITY != 0 [[, ]]
 $for ARG , [[A$(ARG) a$(ARG)]]) {
+            RegisterFiberCancelation(promise);
             this_.Run([[]]
 $if ARITY != 0 [[
 

@@ -797,10 +797,10 @@ void TReplicationWriter::OnNodeFailed(TNodePtr node, const TError& error)
     node->MarkFailed(wrappedError);
     --AliveNodeCount;
 
-    if (State.IsActive() && AliveNodeCount == 0) {
+    if (State.IsActive() && AliveNodeCount < Config->MinUploadReplicationFactor) {
         TError cumulativeError(
             NChunkClient::EErrorCode::AllTargetNodesFailed,
-            "All target nodes have failed");
+            "Not enough target nodes to finish upload");
         FOREACH (const auto node, Nodes) {
             YCHECK(!node->IsAlive());
             cumulativeError.InnerErrors().push_back(node->Error);

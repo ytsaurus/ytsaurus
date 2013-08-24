@@ -31,7 +31,10 @@ public:
     int RetryCount;
 
     //! Time to wait before making another pass with same seeds.
-    TDuration PassBackoffTime;
+    //! Increases exponentially with every pass, from MinPassBackoffTime to MaxPassBackoffTime.
+    TDuration MinPassBackoffTime;
+    TDuration MaxPassBackoffTime;
+    double PassBackoffTimeMultiplier;
 
     //! Maximum number of passes with same seeds.
     int PassCount;
@@ -59,8 +62,13 @@ public:
             .Default(TDuration::Seconds(3));
         RegisterParameter("retry_count", RetryCount)
             .Default(20);
-        RegisterParameter("pass_backoff_time", PassBackoffTime)
+        RegisterParameter("min_pass_backoff_time", MinPassBackoffTime)
             .Default(TDuration::Seconds(3));
+        RegisterParameter("max_pass_backoff_time", MaxPassBackoffTime)
+            .Default(TDuration::Seconds(60));
+        RegisterParameter("pass_backoff_time_multiplier", PassBackoffTimeMultiplier)
+            .GreaterThan(1)
+            .Default(1.5);
         RegisterParameter("pass_count", PassCount)
             .Default(500);
         RegisterParameter("fetch_from_peers", FetchFromPeers)
@@ -140,6 +148,8 @@ public:
      */
     TDuration NodeRpcTimeout;
 
+    int MinUploadReplicationFactor;
+
     //! Maximum allowed period of time without RPC requests to nodes.
     /*!
      *  If the writer remains inactive for the given period, it sends #TChunkHolderProxy::PingSession.
@@ -161,6 +171,9 @@ public:
             .GreaterThan(0);
         RegisterParameter("node_rpc_timeout", NodeRpcTimeout)
             .Default(TDuration::Seconds(120));
+        RegisterParameter("min_upload_replication_factor", MinUploadReplicationFactor)
+            .Default(1)
+            .GreaterThan(0);
         RegisterParameter("node_ping_interval", NodePingInterval)
             .Default(TDuration::Seconds(10));
         RegisterParameter("enable_node_caching", EnableNodeCaching)
@@ -282,6 +295,12 @@ public:
             .Default(true);
         RegisterParameter("prefer_local_host", PreferLocalHost)
             .Default(true);
+
+        RegisterValidator([&] () {
+            if (MinUploadReplicationFactor > UploadReplicationFactor) {
+                THROW_ERROR_EXCEPTION("\"min_upload_replication_factor\" cannot be greater than \"upload_replication_factor\"");
+            }
+        });
     }
 };
 
@@ -307,7 +326,6 @@ struct TMultiChunkWriterOptions
             .Default(true);
         RegisterParameter("erasure_codec", ErasureCodec)
             .Default(NErasure::ECodec::None);
-
     }
 };
 

@@ -32,6 +32,15 @@ void SetTransactionId(NRpc::IClientRequestPtr request, const TTransactionId& tra
 //! Attaches transaction id to the request.
 void SetTransactionId(NRpc::NProto::TRequestHeader* header, const TTransactionId& transactionId);
 
+//! Sets access tracking suppression flag.
+void SetSuppressAccessTracking(NRpc::IClientRequestPtr request, bool value);
+
+//! Sets access tracking suppression flag.
+void SetSuppressAccessTracking(NRpc::NProto::TRequestHeader* header, bool value);
+
+//! Gets access tracking suppression flag.
+bool GetSuppressAccessTracking(const NRpc::NProto::TRequestHeader& header);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TCypressYPathProxy

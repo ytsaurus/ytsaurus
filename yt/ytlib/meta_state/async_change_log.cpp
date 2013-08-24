@@ -50,7 +50,7 @@ public:
 
         AppendQueue.push_back(data);
 
-        YCHECK(!Promise.IsNull());
+        YCHECK(Promise);
         return Promise;
     }
 
@@ -65,7 +65,7 @@ public:
             YCHECK(FlushQueue.empty());
             FlushQueue.swap(AppendQueue);
 
-            YCHECK(!Promise.IsNull());
+            YCHECK(Promise);
             promise = Promise;
             Promise = NewPromise();
         }

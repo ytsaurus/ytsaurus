@@ -5,6 +5,8 @@
 
 #include <server/cell_master/bootstrap.h>
 
+#include <stack>
+
 namespace NYT {
 namespace NChunkServer {
 
@@ -101,20 +103,56 @@ void TChunkTreeBalancer::Rebalance(TChunkList* root)
 
 void TChunkTreeBalancer::AppendChunkTree(
     std::vector<TChunkTree*>* children,
+    TChunkTree* root)
+{
+    // Run a non-recursive tree traversal calling AppendChild
+    // at each chunk and chunk tree of rank <= 1.
+
+    struct TEntry
+    {
+        TEntry()
+            : ChunkTree(nullptr)
+            , Index(-1)
+        { }
+
+        TEntry(TChunkTree* chunkTree, int index)
+            : ChunkTree(chunkTree)
+            , Index(index)
+        { }
+
+        TChunkTree* ChunkTree;
+        int Index;
+    };
+
+    std::stack<TEntry> stack;
+    stack.push(TEntry(root, 0));
+
+    while (!stack.empty()) {
+        auto& currentEntry = stack.top();
+        auto* currentChunkTree = currentEntry.ChunkTree;
+
+        if (currentChunkTree->GetType() == EObjectType::ChunkList &&
+            currentChunkTree->AsChunkList()->Statistics().Rank > 1)
+        {
+            auto* currentChunkList = currentChunkTree->AsChunkList();
+            int currentIndex = currentEntry.Index;
+            if (currentIndex < static_cast<int>(currentChunkList->Children().size())) {
+                ++currentEntry.Index;
+                stack.push(TEntry(currentChunkList->Children()[currentIndex], 0));
+                continue;
+            }
+        } else {
+            AppendChild(children, currentChunkTree);
+        }
+        stack.pop();
+    }
+}
+
+void TChunkTreeBalancer::AppendChild(
+    std::vector<TChunkTree*>* children,
     TChunkTree* child)
 {
     auto chunkManager = Bootstrap->GetChunkManager();
-
-    // Expand child chunk lists of rank > 1.
-    if (child->GetType() == EObjectType::ChunkList) {
-        auto* chunkList = child->AsChunkList();
-        if (chunkList->Statistics().Rank > 1) {
-            FOREACH (auto* child, chunkList->Children()) {
-                AppendChunkTree(children, child);
-            }
-            return;
-        }
-    }
 
     // Can we reuse the last chunk list?
     bool merge = false;

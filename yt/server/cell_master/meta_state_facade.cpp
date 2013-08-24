@@ -8,6 +8,7 @@
 #include <ytlib/ypath/token.h>
 
 #include <ytlib/rpc/bus_channel.h>
+#include <ytlib/rpc/server.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
@@ -131,9 +132,6 @@ public:
             throw TNotALeaderException()
                 <<= ERROR_SOURCE_LOCATION()
                 >>= TError(NRpc::EErrorCode::Unavailable, "Not a leader");
-        }
-        if (!MetaStateManager->HasActiveQuorum()) {
-            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "No active quorum");
         }
     }
 

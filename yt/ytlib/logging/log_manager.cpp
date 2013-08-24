@@ -267,6 +267,12 @@ public:
             .Default(Null);
         RegisterParameter("watch_period", WatchPeriod)
             .Default(Null);
+        RegisterParameter("check_space_period", CheckSpacePeriod)
+            .Default(Null);
+        RegisterParameter("min_disk_space", MinDiskSpace)
+            .GreaterThanOrEqual((i64) 1024 * 1024 * 1024)
+            .Default((i64) 5 * 1024 * 1024 * 1024);
+
         RegisterParameter("writers", WriterConfigs);
         RegisterParameter("rules", Rules);
 
@@ -318,6 +324,13 @@ public:
         return level;
     }
 
+    void CheckSpace()
+    {
+        FOREACH (auto& pair, Writers) {
+            pair.second->CheckSpace(MinDiskSpace);
+        }
+    }
+
     void FlushWriters()
     {
         FOREACH (auto& pair, Writers) {
@@ -344,8 +357,12 @@ public:
 
             if (watch->GetWd() != currentWd) {
                 NotificationWatchesIndex.erase(it);
-                YCHECK(NotificationWatchesIndex.insert(
-                    std::make_pair(watch->GetWd(), watch)).second);
+                if (watch->GetWd() >= 0) {
+                    // Watch can fail to initialize if the writer is disabled
+                    // e.g. due to the lack of space.
+                    YCHECK(NotificationWatchesIndex.insert(
+                        std::make_pair(watch->GetWd(), watch)).second);
+                }
             }
 
             previousWd = currentWd;
@@ -402,6 +419,11 @@ public:
         return WatchPeriod;
     }
 
+    TNullable<TDuration> GetCheckSpacePeriod() const
+    {
+        return CheckSpacePeriod;
+    }
+
 private:
     std::unique_ptr<TNotificationWatch> CreateNoficiationWatch(ILogWriterPtr writer, const Stroka& fileName)
     {
@@ -446,7 +468,7 @@ private:
 
                 case ILogWriter::EType::Raw:
                     writer = New<TRawFileLogWriter>(config->FileName);
-                    watch = CreateNoficiationWatch(writer, config->FileName);
+                    watch = CreateNoficiationWatch (writer, config->FileName);
                     break;
                 default:
                     YUNREACHABLE();
@@ -458,8 +480,12 @@ private:
             }
 
             if (watch) {
-                YCHECK(NotificationWatchesIndex.insert(
-                    std::make_pair(watch->GetWd(), ~watch)).second);
+                if (watch->GetWd() >= 0) {
+                    // Watch can fail to initialize if the writer is disabled
+                    // e.g. due to the lack of space.
+                    YCHECK(NotificationWatchesIndex.insert(
+                        std::make_pair(watch->GetWd(), ~watch)).second);
+                }
                 NotificationWatches.emplace_back(std::move(watch));
             }
 
@@ -471,6 +497,9 @@ private:
 
     TNullable<TDuration> FlushPeriod;
     TNullable<TDuration> WatchPeriod;
+    TNullable<TDuration> CheckSpacePeriod;
+
+    i64 MinDiskSpace;
 
     std::vector<TRule::TPtr> Rules;
     yhash_map<Stroka, ILogWriter::TConfig::TPtr> WriterConfigs;
@@ -765,6 +794,15 @@ private:
                     *watchPeriod);
                 WatchInvoker->Start();
             }
+
+            auto checkSpacePeriod = Config->GetCheckSpacePeriod();
+            if (checkSpacePeriod) {
+                CheckSpaceInvoker = New<TPeriodicInvoker>(
+                    Queue,
+                    BIND(&TImpl::DoCheckSpacePeriodically, MakeStrong(this)),
+                    *checkSpacePeriod);
+                CheckSpaceInvoker->Start();
+            }
         }
     }
 
@@ -777,6 +815,12 @@ private:
     {
         Config->WatchWriters();
     }
+
+    void DoCheckSpacePeriodically()
+    {
+        Config->CheckSpace();
+    }
+
 
     TEventCount EventCount;
     TInvokerQueuePtr Queue;
@@ -800,6 +844,7 @@ private:
 
     TPeriodicInvokerPtr FlushInvoker;
     TPeriodicInvokerPtr WatchInvoker;
+    TPeriodicInvokerPtr CheckSpaceInvoker;
 
 };
 

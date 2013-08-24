@@ -127,20 +127,9 @@ struct TExecuteRequest
         DriverRequest.OutputStream = CreateAsyncOutputStream(&OutputStack);
     }
 
-    void Flush()
-    {
-        FOREACH (auto* current, OutputStack)
-        {
-            current->Flush();
-        }
-    }
-
     void Finish()
     {
-        FOREACH (auto* current, OutputStack)
-        {
-            current->Finish();
-        }
+        OutputStack.Finish();
     }
 };
 

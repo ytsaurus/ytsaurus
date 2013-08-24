@@ -150,7 +150,7 @@ public:
         Slot = slotManager->AcquireSlot();
 
         auto invoker = Slot->GetInvoker();
-        
+
         VERIFY_INVOKER_AFFINITY(invoker, JobThread);
 
         invoker->Invoke(BIND(&TJob::DoRun, MakeWeak(this)));
@@ -393,10 +393,17 @@ private:
             Slot->GetWorkingDirectory(),
             ProxyConfigFileName);
 
-        TFile file(proxyConfigPath, CreateAlways | WrOnly | Seq | CloseOnExec);
-        TFileOutput output(file);
-        TYsonWriter writer(&output, EYsonFormat::Pretty);
-        proxyConfig->Save(&writer);
+        try {
+            TFile file(proxyConfigPath, CreateAlways | WrOnly | Seq | CloseOnExec);
+            TFileOutput output(file);
+            TYsonWriter writer(&output, EYsonFormat::Pretty);
+            proxyConfig->Save(&writer);
+        } catch (const std::exception& ex) {
+            auto error = TError(EErrorCode::ConfigCreationFailed, "Error saving job proxy config")
+                << ex;
+            DoAbort(error, EJobState::Failed);
+            return;
+        }
     }
 
     void PrepareProxy()
@@ -669,7 +676,7 @@ private:
         auto provider = New<TFileChunkReaderProvider>(config);
 
         typedef TMultiChunkSequentialReader<TFileChunkReader> TReader;
-        
+
         auto reader = New<TReader>(
             config,
             Bootstrap->GetMasterChannel(),
@@ -783,7 +790,7 @@ private:
         return
             error.FindMatching(NChunkClient::EErrorCode::AllTargetNodesFailed) ||
             error.FindMatching(NChunkClient::EErrorCode::MasterCommunicationFailed) ||
-            error.FindMatching(NTableClient::EErrorCode::MasterCommunicationFailed);
+            error.FindMatching(EErrorCode::ConfigCreationFailed);
     }
 
 
