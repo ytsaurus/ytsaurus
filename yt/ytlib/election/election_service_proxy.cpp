@@ -8,7 +8,7 @@ namespace NElection {
 
 Stroka TElectionServiceProxy::GetServiceName()
 {
-    return "ElectionManager";
+    return "ElectionService";
 }
 
 TElectionServiceProxy::TElectionServiceProxy(NRpc::IChannelPtr channel)
