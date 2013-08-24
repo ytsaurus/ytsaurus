@@ -7,6 +7,7 @@
 #include <ytlib/object_client/master_ypath_proxy.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <ytlib/cypress_client/lock_ypath_proxy.h>
 
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/ytree/ypath_proxy.h>
@@ -147,13 +148,17 @@ void TCreateCommand::DoExecute()
 
 void TLockCommand::DoExecute()
 {
-    auto req = TCypressYPathProxy::Lock(Request->Path.GetPath());
-    SetTransactionId(req, EAllowNullTransaction::No);
-    GenerateMutationId(req);
-    req->set_mode(Request->Mode);
+    auto lockReq = TCypressYPathProxy::Lock(Request->Path.GetPath());
+    SetTransactionId(lockReq, EAllowNullTransaction::No);
+    GenerateMutationId(lockReq);
+    lockReq->set_mode(Request->Mode);
+    lockReq->set_waitable(Request->Waitable);
 
-    auto rsp = WaitFor(ObjectProxy->Execute(req));
-    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+    auto lockRsp = WaitFor(ObjectProxy->Execute(lockReq));
+    THROW_ERROR_EXCEPTION_IF_FAILED(*lockRsp);
+
+    auto lockId = FromProto<TLockId>(lockRsp->lock_id());
+    ReplySuccess(BuildYsonStringFluently().Value(lockId));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
