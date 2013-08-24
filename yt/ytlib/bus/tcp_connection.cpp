@@ -782,7 +782,7 @@ bool TTcpConnection::WriteFragments(size_t* bytesWritten)
         item.iov_len = size;
         SendVector.push_back(item);
 #endif
-        ++fragmentIt;
+        EncodedFragments.move_forward(fragmentIt);
         vacantBytes -= size;
     }
 
@@ -836,7 +836,7 @@ void TTcpConnection::FlushWrittenFragments(size_t bytesWritten)
         }
 
         bytesToFlush -= data.Size();
-        EncodedFragments.pop_front();
+        EncodedFragments.pop();
     }
 }
 
@@ -866,7 +866,7 @@ bool TTcpConnection::EncodeMoreFragments()
             fragment.Chunk = encoder.GetChunk();
             encoder.NextChunk();
             fragment.IsLastInPacket = encoder.IsFinished();
-            EncodedFragments.push_back(fragment);
+            EncodedFragments.push(fragment);
             LOG_TRACE("Fragment encoded (Size: %" PRISZT ", IsLast: %d)",
                 fragment.Chunk.Size(),
                 fragment.IsLastInPacket);

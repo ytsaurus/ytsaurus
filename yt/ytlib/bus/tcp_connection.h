@@ -8,14 +8,11 @@
 
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/address.h>
+#include <ytlib/misc/ring_queue.h>
 
 #include <ytlib/actions/future.h>
 
 #include <ytlib/logging/tagged_logger.h>
-
-#include <ytlib/profiling/profiler.h>
-
-#include <queue>
 
 #include <util/thread/lfqueue.h>
 
@@ -162,16 +159,15 @@ private:
     TPromise<TError> TerminatedPromise;
 
     TLockFreeQueue<TQueuedMessage> QueuedMessages;
-    std::queue<TQueuedPacket*> QueuedPackets;
-    std::queue<TEncodedPacket*> EncodedPackets;
-    std::deque<TEncodedFragment> EncodedFragments;
+    TRingQueue<TQueuedPacket*> QueuedPackets;
+    TRingQueue<TEncodedPacket*> EncodedPackets;
+    TRingQueue<TEncodedFragment> EncodedFragments;
 #ifdef _WIN32
     std::vector<WSABUF> SendVector;
 #else
     std::vector<struct iovec> SendVector;
 #endif
-
-    std::queue<TUnackedMessage> UnackedMessages;
+    TRingQueue<TUnackedMessage> UnackedMessages;
 
     DECLARE_THREAD_AFFINITY_SLOT(EventLoop);
 
