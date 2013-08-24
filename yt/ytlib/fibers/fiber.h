@@ -1,6 +1,7 @@
 #pragma once
 
-#include <ytlib/misc/common.h>
+#include "public.h"
+
 #include <ytlib/misc/error.h>
 
 #include <ytlib/actions/callback.h>
@@ -12,10 +13,6 @@
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-// TODO(babenko): move to public.h
-class TFiber;
-typedef TIntrusivePtr<TFiber> TFiberPtr;
 
 // Someone above has defined this by including one of Windows headers.
 #undef Yield

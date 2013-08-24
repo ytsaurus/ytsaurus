@@ -7,6 +7,7 @@ set( SRCS
 set( HDRS
   ${BASE}/fiber-inl.h
   ${BASE}/fiber.h
+  ${BASE}/public.h
 )
 
 list(APPEND YT_SOURCE_FILES

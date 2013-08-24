@@ -5,6 +5,7 @@ $$ Note that lines in this file could be longer than 80 symbols.
 $var MAX_ARITY = 7
 $range ARITY 0..MAX_ARITY
 
+#include "public.h"
 #include "fiber.h"
 
 #include <ytlib/misc/nullable.h>
