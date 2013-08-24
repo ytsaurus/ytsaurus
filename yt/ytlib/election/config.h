@@ -72,8 +72,6 @@ public:
     }
 };
 
-typedef TIntrusivePtr<TElectionManagerConfig> TElectionManagerConfigPtr;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NElection

@@ -16,6 +16,8 @@
 
 #include <ytlib/ytree/ypath_client.h>
 
+#include <ytlib/election/cell_manager.h>
+
 #include <ytlib/logging/tagged_logger.h>
 
 #include <util/random/random.h>

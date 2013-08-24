@@ -1,8 +1,7 @@
 #pragma once
 
 #include <ytlib/misc/common.h>
-#include <ytlib/actions/future.h>
-#include <ytlib/election/common.h>
+
 #include <ytlib/election/public.h>
 
 namespace NYT {
@@ -67,6 +66,8 @@ typedef TIntrusivePtr<TResponseKeeperConfig> TResponseKeeperConfigPtr;
 class TMasterDiscovery;
 typedef TIntrusivePtr<TMasterDiscovery> TMasterDiscoveryPtr;
 
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_ENUM(EPeerStatus,
     (Stopped)
     (Elections)
@@ -90,6 +91,8 @@ DECLARE_ENUM(EErrorCode,
     ((LateMutations)              (610))
     ((OutOfOrderMutations)        (611))
 );
+
+////////////////////////////////////////////////////////////////////////////////
 
 using NElection::TPeerId;
 using NElection::TPeerPriority;

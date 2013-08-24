@@ -1,12 +1,19 @@
 #include "stdafx.h"
-#include "common.h"
+#include "election_service_proxy.h"
 
 namespace NYT {
 namespace NElection {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NLog::TLogger ElectionLogger("Election");
+Stroka TElectionServiceProxy::GetServiceName()
+{
+    return "ElectionManager";
+}
+
+TElectionServiceProxy::TElectionServiceProxy(NRpc::IChannelPtr channel)
+    : TProxyBase(channel, GetServiceName())
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

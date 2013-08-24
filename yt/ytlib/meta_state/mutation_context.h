@@ -6,6 +6,8 @@
 #include <ytlib/misc/ref.h>
 #include <ytlib/misc/random.h>
 
+#include <ytlib/actions/callback.h>
+
 namespace NYT {
 namespace NMetaState {
 

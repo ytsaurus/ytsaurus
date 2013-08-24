@@ -23,6 +23,7 @@
 #include <ytlib/election/election_manager.h>
 
 #include <ytlib/rpc/service_detail.h>
+#include <ytlib/rpc/server.h>
 
 #include <ytlib/ytree/fluent.h>
 
@@ -121,7 +122,7 @@ public:
         IInvokerPtr controlInvoker,
         IInvokerPtr stateInvoker,
         IMetaStatePtr metaState,
-        NRpc::IServerPtr server)
+        NRpc::IServerPtr rpcServer)
         : TServiceBase(
             controlInvoker,
             TProxy::GetServiceName(),
@@ -156,7 +157,8 @@ public:
             Config->Election,
             CellManager,
             controlInvoker,
-            New<TElectionCallbacks>(this));
+            New<TElectionCallbacks>(this),
+            rpcServer);
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetSnapshotInfo));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadSnapshot));
@@ -170,8 +172,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(BuildSnapshot)
             .SetInvoker(DecoratedState->CreateGuardedUserInvoker(StateInvoker)));
 
-        server->RegisterService(this);
-        server->RegisterService(ElectionManager);
+        rpcServer->RegisterService(this);
     }
 
     virtual void Start() override
@@ -1258,18 +1259,18 @@ IMetaStateManagerPtr CreatePersistentStateManager(
     IInvokerPtr controlInvoker,
     IInvokerPtr stateInvoker,
     IMetaStatePtr metaState,
-    NRpc::IServerPtr server)
+    NRpc::IServerPtr rpcServer)
 {
     YCHECK(controlInvoker);
     YCHECK(metaState);
-    YCHECK(server);
+    YCHECK(rpcServer);
 
     return New<TPersistentStateManager>(
         config,
         controlInvoker,
         stateInvoker,
         metaState,
-        server);
+        rpcServer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

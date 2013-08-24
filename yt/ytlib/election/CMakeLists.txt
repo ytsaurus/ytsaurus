@@ -1,17 +1,19 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/election )
 set( SRCS
+  ${BASE}/public.cpp
+  ${BASE}/private.cpp
   ${BASE}/cell_manager.cpp
-  ${BASE}/common.cpp
   ${BASE}/election_manager.cpp
+  ${BASE}/election_service_proxy.cpp
 )
 set( HDRS
+  ${BASE}/public.h
+  ${BASE}/private.h
   ${BASE}/cell_manager.h
-  ${BASE}/common.h
   ${BASE}/config.h
   ${BASE}/election_manager.h
-  ${BASE}/election_manager_proxy.h
-  ${BASE}/public.h
+  ${BASE}/election_service_proxy.h
 )
 
 list(APPEND YT_SOURCE_FILES
@@ -19,4 +21,4 @@ list(APPEND YT_SOURCE_FILES
   ${HDRS}
 )
 
-protoc( ${BASE}/election_manager.proto YT_SOURCE_FILES )
+protoc( ${BASE}/election_service.proto YT_SOURCE_FILES )

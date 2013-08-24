@@ -12,10 +12,9 @@
 #include "persistent_state_manager.h"
 #include "change_log_cache.h"
 
-#include <ytlib/actions/bind.h>
-#include <ytlib/misc/serialize.h>
-#include <ytlib/misc/foreach.h>
 #include <ytlib/misc/fs.h>
+
+#include <ytlib/election/cell_manager.h>
 
 namespace NYT {
 namespace NMetaState {
