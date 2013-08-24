@@ -176,9 +176,11 @@ TLockExecutor::TLockExecutor()
     : TTransactedExecutor(true)
     , PathArg("path", "object path to lock", true, TRichYPath(""), "YPATH")
     , ModeArg("", "mode", "lock mode", false, NCypressClient::ELockMode::Exclusive, "snapshot, shared, exclusive")
+    , WaitableArg("", "waitable", "wait until the lock could be acquired", false)
 {
     CmdLine.add(PathArg);
     CmdLine.add(ModeArg);
+    CmdLine.add(WaitableArg);
 }
 
 void TLockExecutor::BuildArgs(IYsonConsumer* consumer)
@@ -187,7 +189,8 @@ void TLockExecutor::BuildArgs(IYsonConsumer* consumer)
 
     BuildYsonMapFluently(consumer)
         .Item("path").Value(path)
-        .Item("mode").Value(ModeArg.getValue().ToString());
+        .Item("mode").Value(ModeArg.getValue().ToString())
+        .Item("waitable").Value(WaitableArg.getValue());
 
     TTransactedExecutor::BuildArgs(consumer);
 }

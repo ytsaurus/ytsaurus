@@ -107,6 +107,7 @@ private:
 
     typedef TCLAP::ValueArg<NCypressClient::ELockMode> TModeArg;
     TModeArg ModeArg;
+    TCLAP::SwitchArg WaitableArg;
 
     virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;
