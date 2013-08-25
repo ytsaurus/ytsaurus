@@ -88,10 +88,6 @@ protected:
 
     static void AppendInfo(Stroka& lhs, const Stroka& rhs);
 
-private:
-    void OnException(const TError& error);
-    void CheckRepliable() const;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

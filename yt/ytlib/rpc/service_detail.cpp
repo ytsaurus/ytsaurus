@@ -341,7 +341,11 @@ void TServiceBase::OnInvocationPrepared(
             Profiler.Aggregate(runtimeInfo->LocalWaitTimeCounter, value);
         }
 
-        preparedHandler.Run();
+        try {
+            preparedHandler.Run();
+        } catch (const std::exception& ex) {
+            context->Reply(ex);
+        }
 
         {
             TGuard<TSpinLock> guard(activeRequest->SpinLock);

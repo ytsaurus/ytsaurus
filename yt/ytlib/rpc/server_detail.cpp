@@ -39,20 +39,26 @@ TServiceContextBase::TServiceContextBase(
 
 void TServiceContextBase::Reply(const TError& error)
 {
-    CheckRepliable();
+    YASSERT(!Replied);
 
     Error = error;
     Replied = true;
 
-    LogResponse(error);
+    if (IsOneWay()) {
+        // Cannot reply OK to a one-way request.
+        YCHECK(!error.IsOK());
+    } else {
+        auto responseMessage = CreateResponseMessage(this);
+        DoReply(responseMessage);
+    }
 
-    auto responseMessage = CreateResponseMessage(this);
-    DoReply(responseMessage);
+    LogResponse(error);
 }
 
 void TServiceContextBase::Reply(IMessagePtr responseMessage)
 {
-    CheckRepliable();
+    YASSERT(!Replied);
+    YASSERT(!IsOneWay());
 
     auto parts = responseMessage->GetParts();
     YASSERT(!parts.empty());
@@ -71,13 +77,16 @@ void TServiceContextBase::Reply(IMessagePtr responseMessage)
             ResponseAttachments_.end(),
             parts.begin() + 2,
             parts.end());
+    } else {
+        ResponseBody = TSharedRef();
+        ResponseAttachments_.clear();
     }
 
     Replied = true;
 
-    LogResponse(Error);
-
     DoReply(responseMessage);
+    
+    LogResponse(Error);
 }
 
 bool TServiceContextBase::IsOneWay() const
@@ -93,6 +102,7 @@ bool TServiceContextBase::IsReplied() const
 const TError& TServiceContextBase::GetError() const
 {
     YASSERT(Replied);
+
     return Error;
 }
 
@@ -118,13 +128,16 @@ TSharedRef TServiceContextBase::GetResponseBody()
 
 void TServiceContextBase::SetResponseBody(const TSharedRef& responseBody)
 {
-    CheckRepliable();
+    YASSERT(!Replied);
+    YASSERT(!IsOneWay());
+
     ResponseBody = responseBody;
 }
 
 std::vector<TSharedRef>& TServiceContextBase::ResponseAttachments()
 {
     YASSERT(!IsOneWay());
+
     return ResponseAttachments_;
 }
 
@@ -145,17 +158,26 @@ TRequestId TServiceContextBase::GetRequestId() const
 
 TNullable<TInstant> TServiceContextBase::GetRequestStartTime() const
 {
-    return RequestHeader_.has_request_start_time() ? TNullable<TInstant>(TInstant(RequestHeader_.request_start_time())) : Null;
+    return
+        RequestHeader_.has_request_start_time()
+        ? TNullable<TInstant>(TInstant(RequestHeader_.request_start_time()))
+        : Null;
 }
 
 TNullable<TInstant> TServiceContextBase::GetRetryStartTime() const
 {
-    return RequestHeader_.has_retry_start_time() ? TNullable<TInstant>(TInstant(RequestHeader_.retry_start_time())) : Null;
+    return
+        RequestHeader_.has_retry_start_time()
+        ? TNullable<TInstant>(TInstant(RequestHeader_.retry_start_time()))
+        : Null;
 }
 
 i64 TServiceContextBase::GetPriority() const
 {
-    return RequestHeader_.has_request_start_time() ? -RequestHeader_.request_start_time() : 0;
+    return
+        RequestHeader_.has_request_start_time()
+        ? -RequestHeader_.request_start_time()
+        : 0;
 }
 
 const Stroka& TServiceContextBase::GetPath() const
@@ -191,7 +213,9 @@ Stroka TServiceContextBase::GetRequestInfo() const
 
 void TServiceContextBase::SetResponseInfo(const Stroka& info)
 {
-    CheckRepliable();
+    YASSERT(!Replied);
+    YASSERT(!IsOneWay());
+
     ResponseInfo = info;
 }
 
@@ -200,29 +224,10 @@ Stroka TServiceContextBase::GetResponseInfo()
     return ResponseInfo;
 }
 
-void TServiceContextBase::OnException(const TError& error)
-{
-    if (IsOneWay()) {
-        // We are unable to send a reply but let's just log something.
-        LogResponse(error);
-    } else {
-        Reply(error);
-    }
-}
-
-void TServiceContextBase::CheckRepliable() const
-{
-    // Failure here means that the request is already replied.
-    YASSERT(!Replied);
-
-    // Failure here indicates an attempt to reply to a one-way request.
-    YASSERT(!IsOneWay());
-}
-
 void TServiceContextBase::AppendInfo(Stroka& lhs, const Stroka& rhs)
 {
-    if (!rhs.Empty()) {
-        if (!lhs.Empty()) {
+    if (!rhs.empty()) {
+        if (!lhs.empty()) {
             lhs.append(", ");
         }
         lhs.append(rhs);
