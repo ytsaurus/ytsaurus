@@ -870,8 +870,8 @@ DEFINE_RPC_SERVICE_METHOD(TElectionManager::TImpl, PingFollower)
         THROW_ERROR_EXCEPTION(
             NElection::EErrorCode::InvalidState,
             "Received ping in invalid state: expected %s, actual %s",
-            ~FormatEnum(EPeerState(EPeerState::Following)),
-            ~FormatEnum(State));
+            ~FormatEnum(EPeerState(EPeerState::Following)).Quote(),
+            ~FormatEnum(State).Qute());
     }
 
     if (leaderId != EpochContext->LeaderId) {
