@@ -75,16 +75,13 @@ public:
 
         CloseServerSocket();
 
-        yhash_set<TTcpConnectionPtr> connections;
         {
             TGuard<TSpinLock> guard(SpinLock);
-            Connections.swap(connections);
-        }
-
-        FOREACH (auto connection, connections) {
-            connection->Terminate(TError(
-                NRpc::EErrorCode::TransportError,
-                "Bus server terminated"));
+            FOREACH (auto connection, Connections) {
+                connection->Terminate(TError(
+                    NRpc::EErrorCode::TransportError,
+                    "Bus server terminated"));
+            }
         }
     }
 
@@ -266,6 +263,7 @@ protected:
         return result != EINPROGRESS && result != EWOULDBLOCK;
 #endif
     }
+
 };
 
 class TRemoteTcpBusServer
