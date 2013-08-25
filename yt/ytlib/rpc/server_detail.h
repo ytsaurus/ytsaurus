@@ -55,14 +55,13 @@ public:
     virtual void SetResponseInfo(const Stroka& info) override;
     virtual Stroka GetResponseInfo() override;
 
-    virtual TClosure Wrap(const TClosure& action) override;
-
 protected:
     TServiceContextBase(
         const NProto::TRequestHeader& header,
         NBus::IMessagePtr requestMessage);
 
-    TServiceContextBase(NBus::IMessagePtr requestMessage);
+    explicit TServiceContextBase(
+        NBus::IMessagePtr requestMessage);
 
     NProto::TRequestHeader RequestHeader_;
     NBus::IMessagePtr RequestMessage;
@@ -90,7 +89,6 @@ protected:
     static void AppendInfo(Stroka& lhs, const Stroka& rhs);
 
 private:
-    void WrapThunk(const TClosure& action);
     void OnException(const TError& error);
     void CheckRepliable() const;
 
@@ -147,8 +145,6 @@ public:
     virtual void SetResponseInfo(const Stroka& info) override;
 
     virtual Stroka GetResponseInfo() override;
-
-    virtual TClosure Wrap(const TClosure& action) override;
 
 protected:
     IServiceContextPtr UnderlyingContext;

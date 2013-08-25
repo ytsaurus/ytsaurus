@@ -200,23 +200,6 @@ Stroka TServiceContextBase::GetResponseInfo()
     return ResponseInfo;
 }
 
-TClosure TServiceContextBase::Wrap(const TClosure& action)
-{
-    return BIND(
-        &TServiceContextBase::WrapThunk,
-        MakeStrong(this),
-        action);
-}
-
-void TServiceContextBase::WrapThunk(const TClosure& action)
-{
-    try {
-        action.Run();
-    } catch (const std::exception& ex) {
-        OnException(ex);
-    }
-}
-
 void TServiceContextBase::OnException(const TError& error)
 {
     if (IsOneWay()) {
@@ -375,11 +358,6 @@ void TServiceContextWrapper::SetResponseInfo(const Stroka& info)
 Stroka TServiceContextWrapper::GetResponseInfo()
 {
     return UnderlyingContext->GetRequestInfo();
-}
-
-TClosure TServiceContextWrapper::Wrap(const TClosure& action)
-{
-    return UnderlyingContext->Wrap(action);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

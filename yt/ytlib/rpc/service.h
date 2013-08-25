@@ -101,9 +101,6 @@ struct IServiceContext
     //! Returns the currently set response logging info.
     virtual Stroka GetResponseInfo() = 0;
 
-    //! Wraps the given action into an exception guard that logs the exception and replies.
-    virtual TClosure Wrap(const TClosure& action) = 0;
-
 
     // Extension methods.
     void SetRequestInfo(const char* format, ...);

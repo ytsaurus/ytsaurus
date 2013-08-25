@@ -225,15 +225,6 @@ public:
         }
     }
 
-    using IServiceContext::Wrap;
-
-    // TODO(sandello): get rid of double binding here by delaying bind moment to the very last possible moment.
-    TClosure Wrap(const TCallback<void(TIntrusivePtr<TThis>)>& paramAction)
-    {
-        YASSERT(paramAction);
-        return this->UnderlyingContext->Wrap(BIND(paramAction, MakeStrong(this)));
-    }
-
 private:
     void SerializeResponseAndReply()
     {
@@ -264,13 +255,6 @@ public:
         : TBase(std::move(context), options)
     { }
 
-    using TBase::Wrap;
-
-    TClosure Wrap(const TCallback<void(TIntrusivePtr<TThis>)>& paramAction)
-    {
-        YASSERT(paramAction);
-        return this->Context->Wrap(BIND(paramAction, MakeStrong(this)));
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -465,7 +449,7 @@ protected:
     virtual void Configure(NYTree::INodePtr configNode) override;
 
     //! Prepares the handler to invocation.
-    virtual TClosure PrepareHandler(IServiceContextPtr context, TClosure handler);
+    virtual TClosure PrepareHandler(TClosure handler);
 
     //! Replies #error to every request in #ActiveRequests, clears the latter one.
     void CancelActiveRequests(const TError& error);

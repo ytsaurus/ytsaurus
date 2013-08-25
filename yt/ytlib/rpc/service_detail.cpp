@@ -328,7 +328,7 @@ void TServiceBase::OnInvocationPrepared(
     if (!handler)
         return;
 
-    auto preparedHandler = PrepareHandler(context, std::move(handler));
+    auto preparedHandler = PrepareHandler(std::move(handler));
     auto wrappedHandler = BIND([=] () {
         const auto& runtimeInfo = activeRequest->RuntimeInfo;
 
@@ -377,11 +377,9 @@ void TServiceBase::OnInvocationPrepared(
     }
 }
 
-TClosure TServiceBase::PrepareHandler(
-    IServiceContextPtr context,
-    TClosure handler)
+TClosure TServiceBase::PrepareHandler(TClosure handler)
 {
-    return context->Wrap(handler);
+    return std::move(handler);
 }
 
 void TServiceBase::OnResponse(TActiveRequestPtr activeRequest, IMessagePtr message)

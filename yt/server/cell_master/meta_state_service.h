@@ -23,9 +23,7 @@ protected:
     void ValidateActiveLeader();
 
 private:
-    virtual TClosure PrepareHandler(
-        NRpc::IServiceContextPtr context,
-        TClosure handler) override;
+    virtual TClosure PrepareHandler(TClosure handler) override;
 
     void OnStopEpoch();
 
