@@ -70,17 +70,22 @@ private:
 
     virtual bool DoInvoke(IServiceContextPtr context) override
     {
-        auto underlyingService = UnderlyingService;
-        auto handler = BIND([=] () {
-            ExecuteVerb(UnderlyingService, context);
+        auto this_ = MakeStrong(this);
+        auto handler = BIND([this, this_, context] () {
+            try {
+                ExecuteVerb(UnderlyingService, context);
+            } catch (const std::exception& ex) {
+                context->Reply(ex);
+            }
         });
-        auto wrappedHandler = context->Wrap(handler);
-        bool result = Invoker->Invoke(wrappedHandler);
+
+        bool result = Invoker->Invoke(handler);
         if (!result) {
             context->Reply(TError(
                 NRpc::EErrorCode::Unavailable,
                 "Service unavailable"));
         }
+
         return true;
     }
 };

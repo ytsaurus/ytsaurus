@@ -19,6 +19,8 @@
 
 #include <ytlib/misc/thread_affinity.h>
 
+#include <ytlib/fibers/fiber.h>
+
 #include <ytlib/election/cell_manager.h>
 #include <ytlib/election/election_manager.h>
 
@@ -367,12 +369,8 @@ public:
 
         context->SetRequestInfo("SnapshotId: %d", snapshotId);
 
-        auto result = SnapshotStore->GetReader(snapshotId);
-        if (!result.IsOK()) {
-            THROW_ERROR result;
-        }
-
-        auto reader = result.GetValue();
+        auto readerOrError = SnapshotStore->GetReader(snapshotId);
+        auto reader = readerOrError.GetValueOrThrow();
         reader->Open();
 
         i64 length = reader->GetLength();
@@ -392,7 +390,6 @@ public:
     DECLARE_RPC_SERVICE_METHOD(NProto, ReadSnapshot)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-
         UNUSED(response);
 
         int snapshotId = request->snapshot_id();
@@ -412,7 +409,8 @@ public:
         if (!isexist(~fileName)) {
             context->Reply(TError(
                 EErrorCode::NoSuchSnapshot,
-                Sprintf("No such snapshot %d", snapshotId)));
+                "No such snapshot %d",
+                snapshotId));
             return;
         }
 
@@ -424,27 +422,26 @@ public:
                 snapshotId);
         }
 
-        IOQueue->GetInvoker()->Invoke(context->Wrap(BIND([=] () {
-            VERIFY_THREAD_AFFINITY(IOThread);
+        SwitchTo(IOQueue->GetInvoker());
+        VERIFY_THREAD_AFFINITY(IOThread);
 
-            struct TSnapshotBlockTag { };
-            auto buffer = TSharedRef::Allocate<TSnapshotBlockTag>(length, false);
-            size_t bytesRead = 0;
-            try {
-                snapshotFile->Seek(offset, sSet);
-                bytesRead = snapshotFile->Read(buffer.Begin(), length);
-            } catch (const std::exception& ex) {
-                LOG_FATAL(ex, "IO error while reading snapshot %d",
-                    snapshotId);
-            }
+        struct TSnapshotBlockTag { };
+        auto buffer = TSharedRef::Allocate<TSnapshotBlockTag>(length, false);
+        size_t bytesRead = 0;
+        try {
+            snapshotFile->Seek(offset, sSet);
+            bytesRead = snapshotFile->Read(buffer.Begin(), length);
+        } catch (const std::exception& ex) {
+            LOG_FATAL(ex, "IO error while reading snapshot %d",
+                snapshotId);
+        }
 
-            auto data = buffer.Slice(TRef(buffer.Begin(), bytesRead));
-            context->Response().Attachments().push_back(data);
+        auto data = buffer.Slice(TRef(buffer.Begin(), bytesRead));
+        context->Response().Attachments().push_back(data);
 
-            context->SetResponseInfo("BytesRead: %" PRISZT, bytesRead);
+        context->SetResponseInfo("BytesRead: %" PRISZT, bytesRead);
 
-            context->Reply();
-        })));
+        context->Reply();
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, GetChangeLogInfo)
@@ -456,14 +453,10 @@ public:
         context->SetRequestInfo("ChangeLogId: %d",
             changeLogId);
 
-        auto result = ChangeLogCache->Get(changeLogId);
-        if (!result.IsOK()) {
-            THROW_ERROR result;
-        }
+        auto changelogOrError = ChangeLogCache->Get(changeLogId);
+        auto changeLog = changelogOrError.GetValueOrThrow();
 
-        auto changeLog = result.GetValue();
         int recordCount = changeLog->GetRecordCount();
-
         response->set_record_count(recordCount);
 
         context->SetResponseInfo("RecordCount: %d", recordCount);
@@ -473,7 +466,6 @@ public:
     DECLARE_RPC_SERVICE_METHOD(NProto, ReadChangeLog)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-
         UNUSED(response);
 
         int changeLogId = request->change_log_id();
@@ -488,37 +480,22 @@ public:
         YCHECK(startRecordIndex >= 0);
         YCHECK(recordCount >= 0);
 
-        auto result = ChangeLogCache->Get(changeLogId);
-        if (!result.IsOK()) {
-            THROW_ERROR result;
-        }
+        auto changelogOrError = ChangeLogCache->Get(changeLogId);
+        auto changelog = changelogOrError.GetValueOrThrow();
 
-        IOQueue->GetInvoker()->Invoke(context->Wrap(BIND(
-            &TThis::DoReadChangeLog,
-            MakeStrong(this),
-            result.GetValue(),
-            startRecordIndex,
-            recordCount)));
-    }
-
-    void DoReadChangeLog(
-        TCachedAsyncChangeLogPtr changeLog,
-        int startRecordIndex,
-        int recordCount,
-        TCtxReadChangeLogPtr context)
-    {
+        SwitchTo(IOQueue->GetInvoker());
         VERIFY_THREAD_AFFINITY(IOThread);
 
         std::vector<TSharedRef> recordData;
         try {
-            changeLog->Read(
+            changelog->Read(
                 startRecordIndex,
                 recordCount,
                 Config->MaxChangeLogReadSize,
                 &recordData);
         } catch (const std::exception& ex) {
             LOG_FATAL(ex, "IO error while reading changelog %d",
-                changeLog->GetId());
+                changeLogId);
         }
 
         // Pack refs to minimize allocations.
@@ -541,7 +518,8 @@ public:
             ~ToString(epochId),
             ~version.ToString());
 
-        if (GetControlStatus() != EPeerStatus::Following && GetControlStatus() != EPeerStatus::FollowerRecovery) {
+        auto status = GetControlStatus();
+        if (status != EPeerStatus::Following && status != EPeerStatus::FollowerRecovery) {
             THROW_ERROR_EXCEPTION(
                 EErrorCode::InvalidStatus,
                 "Cannot apply changes while %s",
@@ -582,8 +560,7 @@ public:
                         mutationCount);
                     context->Reply(TError(
                         EErrorCode::InvalidStatus,
-                        "Ping is not received yet")
-                        << TErrorAttribute("status", GetControlStatus()));
+                        "Ping is not received yet"));
                 }
                 break;
             }
@@ -633,8 +610,7 @@ public:
 
         switch (status) {
             case EPeerStatus::Following:
-                // code here for two-phase commit
-                // right now, ignoring ping
+                // TODO(babenko): two-phase commit
                 break;
 
             case EPeerStatus::FollowerRecovery:
@@ -712,11 +688,12 @@ public:
                 } else {
                     LOG_DEBUG("AdvanceSegment: advancing segment");
 
-                    EpochContext->EpochUserStateInvoker->Invoke(context->Wrap(BIND(
+                    EpochContext->EpochUserStateInvoker->Invoke(BIND(
                         &TThis::DoStateAdvanceSegment,
                         MakeStrong(this),
                         version,
-                        EpochContext->EpochId)));
+                        EpochContext->EpochId,
+                        context));
                 }
                 break;
 
@@ -740,8 +717,7 @@ public:
                 } else {
                     context->Reply(TError(
                         EErrorCode::InvalidStatus,
-                        "Ping is not received yet (Status: %s)",
-                        ~GetControlStatus().ToString()));
+                        "Ping is not received yet"));
                 }
                 break;
             }
@@ -760,11 +736,12 @@ public:
 
         if (DecoratedState->GetVersion() != version) {
             Restart();
-            THROW_ERROR_EXCEPTION(
+            context->Reply(TError(
                 EErrorCode::InvalidVersion,
-                "Invalid version, segment advancement canceled (Expected: %s, Received: %s)",
+                "Invalid version, cannot advance segment: expected %s, received %s",
                 ~version.ToString(),
-                ~DecoratedState->GetVersion().ToString());
+                ~DecoratedState->GetVersion().ToString()));
+            return;
         }
 
         DecoratedState->RotateChangeLog(epochId);
