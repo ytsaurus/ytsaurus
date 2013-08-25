@@ -25,6 +25,9 @@ typedef TIntrusivePtr<TTcpConnection> TTcpConnectionPtr;
 struct IEventLoopObject;
 typedef TIntrusivePtr<IEventLoopObject> IEventLoopObjectPtr;
 
+class TTcpDispatcherThread;
+typedef TIntrusivePtr<TTcpDispatcherThread> TTcpDispatcherThreadPtr;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_ENUM(EConnectionType,

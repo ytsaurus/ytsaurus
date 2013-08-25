@@ -40,15 +40,17 @@ class TTcpBusServerBase
 public:
     TTcpBusServerBase(
         TTcpBusServerConfigPtr config,
+        TTcpDispatcherThreadPtr dispatcherThread,
         IMessageHandlerPtr handler)
-        : Config(config)
-        , Handler(handler)
+        : Config(std::move(config))
+        , DispatcherThread(std::move(dispatcherThread))
+        , Handler(std::move(handler))
         , Logger(BusLogger)
         , ServerSocket(INVALID_SOCKET)
         , ServerFd(INVALID_SOCKET)
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        YCHECK(handler);
+        YCHECK(Handler);
     }
 
     // IEventLoopObject implementation.
@@ -60,8 +62,7 @@ public:
         // This may throw.
         OpenServerSocket();
 
-        const auto& eventLoop = TTcpDispatcher::TImpl::Get()->GetEventLoop();
-        AcceptWatcher.reset(new ev::io(eventLoop));
+        AcceptWatcher.reset(new ev::io(DispatcherThread->GetEventLoop()));
         AcceptWatcher->set<TTcpBusServerBase, &TTcpBusServerBase::OnAccept>(this);
         AcceptWatcher->start(ServerFd, ev::READ);
     }
@@ -74,8 +75,16 @@ public:
 
         CloseServerSocket();
 
-        FOREACH (auto connection, Connections) {
-            connection->Terminate(TError(NRpc::EErrorCode::TransportError, "Bus server terminated"));
+        yhash_set<TTcpConnectionPtr> connections;
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            Connections.swap(connections);
+        }
+
+        FOREACH (auto connection, connections) {
+            connection->Terminate(TError(
+                NRpc::EErrorCode::TransportError,
+                "Bus server terminated"));
         }
     }
 
@@ -88,6 +97,7 @@ public:
 
 protected:
     TTcpBusServerConfigPtr Config;
+    TTcpDispatcherThreadPtr DispatcherThread;
     IMessageHandlerPtr Handler;
 
     NLog::TTaggedLogger Logger;
@@ -97,6 +107,9 @@ protected:
     int ServerSocket;
     int ServerFd;
 
+    //! Protects the following members.
+    TSpinLock SpinLock;
+    //! The set of all currently active connections.
     yhash_set<TTcpConnectionPtr> Connections;
 
     DECLARE_THREAD_AFFINITY_SLOT(EventLoop);
@@ -119,12 +132,14 @@ protected:
     }
 
 
-    void OnConnectionTerminated(TTcpConnectionPtr connection, TError error)
+    void OnConnectionTerminated(TTcpConnectionPtr connection, TError /*error*/)
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        UNUSED(error);
 
-        YCHECK(Connections.erase(connection) == 1);
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            YCHECK(Connections.erase(connection) == 1);
+        }
     }
 
 
@@ -214,8 +229,11 @@ protected:
             InitClientSocket(clientSocket);
             InitSocket(clientSocket);
 
+            auto dispatcherThread = TTcpDispatcher::TImpl::Get()->AllocateThread();
+            
             auto connection = New<TTcpConnection>(
                 Config,
+                dispatcherThread,
                 EConnectionType::Server,
                 GetInterfaceType(),
                 TConnectionId::Create(),
@@ -223,12 +241,18 @@ protected:
                 ToString(clientAddress, true),
                 0,
                 Handler);
+
             connection->SubscribeTerminated(BIND(
                 &TTcpBusServerBase::OnConnectionTerminated,
                 MakeWeak(this),
                 connection));
-            YCHECK(Connections.insert(connection).second);
-            TTcpDispatcher::TImpl::Get()->AsyncRegister(connection);
+
+            {
+                TGuard<TSpinLock> guard(SpinLock);
+                YCHECK(Connections.insert(connection).second);
+            }
+
+            dispatcherThread->AsyncRegister(connection);
         }
     }
 
@@ -250,8 +274,12 @@ class TRemoteTcpBusServer
 public:
     TRemoteTcpBusServer(
         TTcpBusServerConfigPtr config,
+        TTcpDispatcherThreadPtr dispatcherThread,
         IMessageHandlerPtr handler)
-        : TTcpBusServerBase(config, handler)
+        : TTcpBusServerBase(
+            std::move(config),
+            std::move(dispatcherThread),
+            std::move(handler))
     {
         Logger.AddTag(Sprintf("Port: %d", Config->Port));
     }
@@ -336,8 +364,12 @@ class TLocalTcpBusServer
 public:
     TLocalTcpBusServer(
         TTcpBusServerConfigPtr config,
+        TTcpDispatcherThreadPtr dispatcherThread,
         IMessageHandlerPtr handler)
-        : TTcpBusServerBase(config, handler)
+        : TTcpBusServerBase(
+            std::move(config),
+            std::move(dispatcherThread),
+            std::move(handler))
     {
         Logger.AddTag(Sprintf("LocalPort: %d", Config->Port));
     }
@@ -400,10 +432,11 @@ class TTcpBusServerProxy
 {
 public:
     explicit TTcpBusServerProxy(TTcpBusServerConfigPtr config)
-        : Config(config)
+        : Config(std::move(config))
+        , DispatcherThread(TTcpDispatcher::TImpl::Get()->AllocateThread())
         , Running(false)
     {
-        YCHECK(config);
+        YCHECK(Config);
     }
 
     ~TTcpBusServerProxy()
@@ -417,8 +450,12 @@ public:
 
         YCHECK(!Running);
 
-        auto server = New<TServer>(Config, handler);
-        auto error = TTcpDispatcher::TImpl::Get()->AsyncRegister(server).Get();
+        auto server = New<TServer>(
+            Config,
+            DispatcherThread,
+            std::move(handler));
+
+        auto error = DispatcherThread->AsyncRegister(server).Get();
         if (!error.IsOK()) {
             THROW_ERROR error;
         }
@@ -435,7 +472,7 @@ public:
             return;
         }
 
-        auto error = TTcpDispatcher::TImpl::Get()->AsyncUnregister(Server).Get();
+        auto error = DispatcherThread->AsyncUnregister(Server).Get();
         // Shutdown will hopefully never fail.
         YCHECK(error.IsOK());
 
@@ -447,7 +484,8 @@ private:
     TTcpBusServerConfigPtr Config;
 
     TSpinLock SpinLock;
-    bool Running;
+    TTcpDispatcherThreadPtr DispatcherThread;
+    volatile bool Running;
     TIntrusivePtr<TServer> Server;
 
 };

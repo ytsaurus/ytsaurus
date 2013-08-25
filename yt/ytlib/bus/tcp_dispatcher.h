@@ -21,6 +21,16 @@ struct TTcpDispatcherStatistics
     int ServerConnectionCount;
 };
 
+TTcpDispatcherStatistics operator + (
+    const TTcpDispatcherStatistics& lhs,
+    const TTcpDispatcherStatistics& rhs);
+
+TTcpDispatcherStatistics& operator += (
+    TTcpDispatcherStatistics& lhs,
+    const TTcpDispatcherStatistics& rhs);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTcpDispatcher
 {
 public:
@@ -33,7 +43,7 @@ public:
 private:
     TTcpDispatcher();
 
-    friend TTcpDispatcher* SingletonInt<TTcpDispatcher>();
+    friend TTcpDispatcher* ::SingletonInt<TTcpDispatcher>();
     friend class TTcpConnection;
     friend class TTcpClientBusProxy;
     friend class TTcpBusServerBase;

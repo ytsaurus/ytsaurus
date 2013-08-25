@@ -39,14 +39,17 @@ class TTcpClientBusProxy
     : public IBus
 {
 public:
-    TTcpClientBusProxy(TTcpBusClientConfigPtr config, IMessageHandlerPtr handler)
-        : Config(config)
-        , Handler(handler)
+    TTcpClientBusProxy(
+        TTcpBusClientConfigPtr config,
+        IMessageHandlerPtr handler)
+        : Config(std::move(config))
+        , Handler(std::move(handler))
+        , DispatcherThread(TTcpDispatcher::TImpl::Get()->AllocateThread())
         , Id(TConnectionId::Create())
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        YCHECK(config);
-        YCHECK(handler);
+        YCHECK(Config);
+        YCHECK(Handler);
     }
 
     ~TTcpClientBusProxy()
@@ -70,6 +73,7 @@ public:
 
         Connection = New<TTcpConnection>(
             Config,
+            DispatcherThread,
             EConnectionType::Client,
             interfaceType, 
             Id,
@@ -77,28 +81,28 @@ public:
             Config->Address,
             Config->Priority,
             Handler);
-        TTcpDispatcher::TImpl::Get()->AsyncRegister(Connection);
+        DispatcherThread->AsyncRegister(Connection);
     }
 
-    virtual TAsyncError Send(IMessagePtr message)
+    virtual TAsyncError Send(IMessagePtr message) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        return Connection->Send(message);
+        return Connection->Send(std::move(message));
     }
 
-    virtual void Terminate(const TError& error)
+    virtual void Terminate(const TError& error) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
         Connection->Terminate(error);
     }
 
-    virtual void SubscribeTerminated(const TCallback<void(TError)>& callback)
+    virtual void SubscribeTerminated(const TCallback<void(TError)>& callback) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
         Connection->SubscribeTerminated(callback);
     }
 
-    virtual void UnsubscribeTerminated(const TCallback<void(TError)>& callback)
+    virtual void UnsubscribeTerminated(const TCallback<void(TError)>& callback) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
         Connection->UnsubscribeTerminated(callback);
@@ -107,9 +111,10 @@ public:
 private:
     TTcpBusClientConfigPtr Config;
     IMessageHandlerPtr Handler;
-    TTcpConnectionPtr Connection;
-
+    TTcpDispatcherThreadPtr DispatcherThread;
     TConnectionId Id;
+
+    TTcpConnectionPtr Connection;
 
     static ETcpInterfaceType GetInterfaceType(const Stroka& address)
     {
@@ -131,11 +136,13 @@ public:
         : Config(config)
     { }
 
-    virtual IBusPtr CreateBus(IMessageHandlerPtr handler)
+    virtual IBusPtr CreateBus(IMessageHandlerPtr handler) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto proxy = New<TTcpClientBusProxy>(Config, handler);
+        auto proxy = New<TTcpClientBusProxy>(
+            Config,
+            std::move(handler));
         proxy->Open();
         return proxy;
     }

@@ -34,6 +34,7 @@ class TTcpConnection
 public:
     TTcpConnection(
         TTcpBusConfigPtr config,
+        TTcpDispatcherThreadPtr dispatcherThread,
         EConnectionType connectionType,
         ETcpInterfaceType interfaceType,
         const TConnectionId& id,
@@ -124,8 +125,8 @@ private:
         (Closed)
     );
 
-    TTcpDispatcher::TImpl* Dispatcher;
     TTcpBusConfigPtr Config;
+    TTcpDispatcherThreadPtr DispatcherThread;
     EConnectionType ConnectionType;
     ETcpInterfaceType InterfaceType;
     TConnectionId Id;
@@ -197,7 +198,7 @@ private:
     bool OnAckPacketReceived();
     bool OnMessagePacketReceived();
 
-    void EnqueuePacket(EPacketType type, const TPacketId& packetId, IMessagePtr message = NULL);
+    void EnqueuePacket(EPacketType type, const TPacketId& packetId, IMessagePtr message = nullptr);
     void OnSocketWrite();
     bool HasUnsentData() const;
     bool WriteFragments(size_t* bytesWritten);

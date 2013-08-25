@@ -18,6 +18,7 @@ namespace NBus {
 
 static NLog::TLogger& Logger = BusLogger;
 static auto& Profiler = BusProfiler;
+static const int ThreadCount = 8;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -60,8 +61,9 @@ bool IsLocalServiceAddress(const Stroka& address)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTcpDispatcher::TImpl::TImpl()
+TTcpDispatcherThread::TTcpDispatcherThread(const Stroka& threadName)
     : Statistics_(ETcpInterfaceType::GetDomainSize())
+    , ThreadName(threadName)
     , Thread(ThreadFunc, (void*) this)
     , Stopped(false)
     , StopWatcher(EventLoop)
@@ -69,10 +71,10 @@ TTcpDispatcher::TImpl::TImpl()
     , UnregisterWatcher(EventLoop)
     , EventWatcher(EventLoop)
 {
-    StopWatcher.set<TImpl, &TImpl::OnStop>(this);
-    RegisterWatcher.set<TImpl, &TImpl::OnRegister>(this);
-    UnregisterWatcher.set<TImpl, &TImpl::OnUnregister>(this);
-    EventWatcher.set<TImpl, &TImpl::OnEvent>(this);
+    StopWatcher.set<TTcpDispatcherThread, &TTcpDispatcherThread::OnStop>(this);
+    RegisterWatcher.set<TTcpDispatcherThread, &TTcpDispatcherThread::OnRegister>(this);
+    UnregisterWatcher.set<TTcpDispatcherThread, &TTcpDispatcherThread::OnUnregister>(this);
+    EventWatcher.set<TTcpDispatcherThread, &TTcpDispatcherThread::OnEvent>(this);
 
     StopWatcher.start();
     RegisterWatcher.start();
@@ -82,12 +84,12 @@ TTcpDispatcher::TImpl::TImpl()
     Thread.Start();
 }
 
-TTcpDispatcher::TImpl::~TImpl()
+TTcpDispatcherThread::~TTcpDispatcherThread()
 {
     Shutdown();
 }
 
-void TTcpDispatcher::TImpl::Shutdown()
+void TTcpDispatcherThread::Shutdown()
 {
     if (Stopped) {
         return;
@@ -117,30 +119,30 @@ void TTcpDispatcher::TImpl::Shutdown()
     Stopped = true;
 }
 
-const ev::loop_ref& TTcpDispatcher::TImpl::GetEventLoop() const
+const ev::loop_ref& TTcpDispatcherThread::GetEventLoop() const
 {
     return EventLoop;
 }
 
-void* TTcpDispatcher::TImpl::ThreadFunc(void* param)
+void* TTcpDispatcherThread::ThreadFunc(void* param)
 {
-    auto* self = reinterpret_cast<TImpl*>(param);
+    auto* self = reinterpret_cast<TTcpDispatcherThread*>(param);
     self->ThreadMain();
-    return NULL;
+    return nullptr;
 }
 
-void TTcpDispatcher::TImpl::ThreadMain()
+void TTcpDispatcherThread::ThreadMain()
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
 
     // NB: never ever use logging or any other YT subsystems here.
     // Bus is always started first to get advantange of the root privileges.
 
-    NThread::SetCurrentThreadName("Bus");
+    NThread::SetCurrentThreadName(~ThreadName);
     EventLoop.run(0);
 }
 
-void TTcpDispatcher::TImpl::OnStop(ev::async&, int)
+void TTcpDispatcherThread::OnStop(ev::async&, int)
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
 
@@ -148,7 +150,7 @@ void TTcpDispatcher::TImpl::OnStop(ev::async&, int)
     EventLoop.break_loop();
 }
 
-TAsyncError TTcpDispatcher::TImpl::AsyncRegister(IEventLoopObjectPtr object)
+TAsyncError TTcpDispatcherThread::AsyncRegister(IEventLoopObjectPtr object)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -161,7 +163,7 @@ TAsyncError TTcpDispatcher::TImpl::AsyncRegister(IEventLoopObjectPtr object)
     return entry.Promise;
 }
 
-TAsyncError TTcpDispatcher::TImpl::AsyncUnregister(IEventLoopObjectPtr object)
+TAsyncError TTcpDispatcherThread::AsyncUnregister(IEventLoopObjectPtr object)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -174,7 +176,7 @@ TAsyncError TTcpDispatcher::TImpl::AsyncUnregister(IEventLoopObjectPtr object)
     return entry.Promise;
 }
 
-void TTcpDispatcher::TImpl::AsyncPostEvent(TTcpConnectionPtr connection, EConnectionEvent event)
+void TTcpDispatcherThread::AsyncPostEvent(TTcpConnectionPtr connection, EConnectionEvent event)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -183,12 +185,12 @@ void TTcpDispatcher::TImpl::AsyncPostEvent(TTcpConnectionPtr connection, EConnec
     EventWatcher.send();
 }
 
-TTcpDispatcherStatistics& TTcpDispatcher::TImpl::Statistics(ETcpInterfaceType interfaceType)
+TTcpDispatcherStatistics& TTcpDispatcherThread::Statistics(ETcpInterfaceType interfaceType)
 {
     return Statistics_[static_cast<int>(interfaceType)];
 }
 
-void TTcpDispatcher::TImpl::OnRegister(ev::async&, int)
+void TTcpDispatcherThread::OnRegister(ev::async&, int)
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
 
@@ -205,7 +207,7 @@ void TTcpDispatcher::TImpl::OnRegister(ev::async&, int)
     }
 }
 
-void TTcpDispatcher::TImpl::OnUnregister(ev::async&, int)
+void TTcpDispatcherThread::OnUnregister(ev::async&, int)
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
 
@@ -222,7 +224,7 @@ void TTcpDispatcher::TImpl::OnUnregister(ev::async&, int)
     }
 }
 
-void TTcpDispatcher::TImpl::OnEvent(ev::async&, int)
+void TTcpDispatcherThread::OnEvent(ev::async&, int)
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
 
@@ -232,9 +234,44 @@ void TTcpDispatcher::TImpl::OnEvent(ev::async&, int)
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+TTcpDispatcher::TImpl::TImpl()
+    : Generator(0)
+{
+    for (int index = 0; index < ThreadCount; ++index) {
+        Threads.push_back(New<TTcpDispatcherThread>(
+            Sprintf("Bus:%d", index)));
+    }
+}
+
 TTcpDispatcher::TImpl* TTcpDispatcher::TImpl::Get()
 {
     return ~TTcpDispatcher::Get()->Impl;
+}
+
+void TTcpDispatcher::TImpl::Shutdown()
+{
+    FOREACH (auto thread, Threads) {
+        thread->Shutdown();
+    }
+}
+
+TTcpDispatcherStatistics TTcpDispatcher::TImpl::GetStatistics(ETcpInterfaceType interfaceType) const
+{
+    // This is racy but should be OK as an approximation.
+    TTcpDispatcherStatistics result;
+    FOREACH (auto thread, Threads) {
+        result += thread->Statistics(interfaceType);
+    }
+    return result;
+}
+
+TTcpDispatcherThreadPtr TTcpDispatcher::TImpl::AllocateThread()
+{
+    TGuard<TSpinLock> guard(SpinLock);
+    size_t index = Generator.Generate<size_t>() % ThreadCount;
+    return Threads[index];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

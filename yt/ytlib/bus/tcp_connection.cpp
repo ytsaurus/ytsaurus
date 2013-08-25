@@ -48,6 +48,7 @@ static NProfiling::TAggregateCounter PendingOutSize("/pending_out_size");
 
 TTcpConnection::TTcpConnection(
     TTcpBusConfigPtr config,
+    TTcpDispatcherThreadPtr dispatcherThread,
     EConnectionType connectionType,
     ETcpInterfaceType interfaceType,
     const TConnectionId& id,
@@ -55,8 +56,8 @@ TTcpConnection::TTcpConnection(
     const Stroka& address,
     int priority,
     IMessageHandlerPtr handler)
-    : Dispatcher(TTcpDispatcher::TImpl::Get())
-    , Config(config)
+    : Config(std::move(config))
+    , DispatcherThread(std::move(dispatcherThread))
     , ConnectionType(connectionType)
     , InterfaceType(interfaceType)
     , Id(id)
@@ -159,7 +160,7 @@ Stroka TTcpConnection::GetLoggingId() const
 
 TTcpDispatcherStatistics& TTcpConnection::Statistics()
 {
-    return TTcpDispatcher::TImpl::Get()->Statistics(InterfaceType);
+    return DispatcherThread->Statistics(InterfaceType);
 }
 
 void TTcpConnection::UpdateConnectionCount(int delta)
@@ -236,7 +237,7 @@ void TTcpConnection::SyncResolve()
 
         auto this_ = MakeStrong(this);
         AsyncAddress.Subscribe(BIND([this, this_] (TErrorOr<TNetworkAddress>) {
-            Dispatcher->AsyncPostEvent(this, EConnectionEvent::AddressResolved);
+            DispatcherThread->AsyncPostEvent(this_, EConnectionEvent::AddressResolved);
         }));
     }
 }
@@ -307,7 +308,7 @@ void TTcpConnection::SyncClose(const TError& error)
 
     UpdateConnectionCount(-1);
 
-    TTcpDispatcher::TImpl::Get()->AsyncUnregister(this);
+    DispatcherThread->AsyncUnregister(this);
 }
 
 void TTcpConnection::InitFd()
@@ -318,9 +319,7 @@ void TTcpConnection::InitFd()
     Fd = Socket;
 #endif
 
-    const auto& eventLoop = TTcpDispatcher::TImpl::Get()->GetEventLoop();
-
-    SocketWatcher.reset(new ev::io(eventLoop));
+    SocketWatcher.reset(new ev::io(DispatcherThread->GetEventLoop()));
     SocketWatcher->set<TTcpConnection, &TTcpConnection::OnSocket>(this);
     SocketWatcher->start(Fd, ev::READ|ev::WRITE);
 }
@@ -429,7 +428,7 @@ TAsyncError TTcpConnection::Send(IMessagePtr message)
     bool sent = AtomicGet(MessageEnqueuedSent);
     if (!sent && state != EState::Resolving && state != EState::Opening)  {
         AtomicSet(MessageEnqueuedSent, true);
-        Dispatcher->AsyncPostEvent(this, EConnectionEvent::MessageEnqueued);
+        DispatcherThread->AsyncPostEvent(this, EConnectionEvent::MessageEnqueued);
     }
 
     return queuedMessage.Promise;
@@ -449,7 +448,7 @@ void TTcpConnection::Terminate(const TError& error)
         TerminationError = error;
     }
 
-    Dispatcher->AsyncPostEvent(this, EConnectionEvent::Terminated);
+    DispatcherThread->AsyncPostEvent(this, EConnectionEvent::Terminated);
     
     LOG_DEBUG("Bus termination requested");
 }

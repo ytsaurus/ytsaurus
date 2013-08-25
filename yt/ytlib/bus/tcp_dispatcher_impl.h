@@ -6,6 +6,7 @@
 #include <ytlib/misc/error.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/address.h>
+#include <ytlib/misc/random.h>
 
 #include <util/thread/lfqueue.h>
 
@@ -31,13 +32,12 @@ struct IEventLoopObject
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTcpDispatcher::TImpl
+class TTcpDispatcherThread
+    : public TRefCounted
 {
 public:
-    TImpl();
-    ~TImpl();
-
-    static TImpl* Get();
+    explicit TTcpDispatcherThread(const Stroka& threadName);
+    ~TTcpDispatcherThread();
 
     void Shutdown();
 
@@ -52,7 +52,7 @@ public:
 
 private:
     std::vector<TTcpDispatcherStatistics> Statistics_;
-
+    Stroka ThreadName;
     TThread Thread;
     ev::dynamic_loop EventLoop;
 
@@ -109,6 +109,31 @@ private:
     void OnEvent(ev::async&, int);
 
     DECLARE_THREAD_AFFINITY_SLOT(EventLoop);
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTcpDispatcher::TImpl
+{
+public:
+    static TImpl* Get();
+
+    void Shutdown();
+
+    TTcpDispatcherStatistics GetStatistics(ETcpInterfaceType interfaceType) const;
+
+    TTcpDispatcherThreadPtr AllocateThread();
+    
+private:
+    friend TTcpDispatcher;
+    
+    TImpl();
+
+    std::vector<TTcpDispatcherThreadPtr> Threads;
+
+    TRandomGenerator Generator;
+    TSpinLock SpinLock;
 
 };
 
