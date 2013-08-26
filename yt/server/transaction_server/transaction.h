@@ -44,9 +44,14 @@ class TTransaction
     DEFINE_BYREF_RW_PROPERTY(yhash_set<NObjectServer::TObjectBase*>, StagedObjects);
 
     // Cypress stuff
-    DEFINE_BYREF_RW_PROPERTY(std::vector<NCypressServer::TCypressNodeBase*>, LockedNodes);
-    DEFINE_BYREF_RW_PROPERTY(std::vector<NCypressServer::TCypressNodeBase*>, BranchedNodes);
-    DEFINE_BYREF_RW_PROPERTY(std::vector<NCypressServer::TCypressNodeBase*>, StagedNodes);
+    typedef yhash_set<NCypressServer::TCypressNodeBase*> TLockedNodeSet;
+    DEFINE_BYREF_RW_PROPERTY(TLockedNodeSet, LockedNodes);
+    typedef yhash_set<NCypressServer::TLock*> TLockSet;
+    DEFINE_BYREF_RW_PROPERTY(TLockSet, Locks);
+    typedef std::vector<NCypressServer::TCypressNodeBase*> TBranchedNodeList;
+    DEFINE_BYREF_RW_PROPERTY(TBranchedNodeList, BranchedNodes);
+    typedef std::vector<NCypressServer::TCypressNodeBase*> TStagedNodeList;
+    DEFINE_BYREF_RW_PROPERTY(TStagedNodeList, StagedNodes);
 
     // Security Manager stuff
     typedef yhash<NSecurityServer::TAccount*, NSecurityServer::TClusterResources> TAccountResourcesMap;

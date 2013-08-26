@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/rpc/server.h>
+#include <ytlib/rpc/public.h>
 
 namespace NYT {
 namespace NMetaState {
@@ -15,7 +15,7 @@ IMetaStateManagerPtr CreatePersistentStateManager(
     IInvokerPtr controlInvoker,
     IInvokerPtr stateInvoker,
     IMetaStatePtr metaState,
-    NRpc::IServerPtr server);
+    NRpc::IServerPtr rpcServer);
 
 ///////////////////////////////////////////////////////////////////////////////
 

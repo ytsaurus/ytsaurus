@@ -19,7 +19,7 @@ public:
         TPersistentStateManagerConfigPtr config,
         NElection::TCellManagerPtr cellManager);
 
-    i32 LookupLatestSnapshot(i32 maxSnapshotId);
+    i32 GetLatestSnapshotId(i32 maxSnapshotId);
 
 private:
     typedef TMetaStateManagerProxy TProxy;

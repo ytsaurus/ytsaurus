@@ -29,10 +29,13 @@ message TAccessTrackingExt
 message TReqLock
 {
     required int32 mode = 1;
+    optional bool waitable = 2 [default = false];
 }
 
 message TRspLock
-{ }
+{
+    required NYT.NProto.TGuid lock_id = 1;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,4 +67,3 @@ message TRspCopy
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-

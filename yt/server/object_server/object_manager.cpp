@@ -152,7 +152,7 @@ public:
                 return TResolveResult::There(objectManager->GetMasterProxy(), tokenizer.GetSuffix());
 
             case NYPath::ETokenType::Slash: {
-                auto root = cypressManager->GetVersionedNodeProxy(
+                auto root = cypressManager->GetNodeProxy(
                     cypressManager->GetRootNode(),
                     transaction);
                 return TResolveResult::There(root, tokenizer.GetSuffix());
@@ -233,7 +233,7 @@ public:
                 return objectManager->GetMasterProxy();
 
             case NYPath::ETokenType::Slash: {
-                auto root = cypressManager->GetVersionedNodeProxy(
+                auto root = cypressManager->GetNodeProxy(
                     cypressManager->GetRootNode(),
                     transaction);
                 return DoResolvePath(root, tokenizer.GetSuffix());
@@ -557,7 +557,7 @@ void TObjectManager::RefObject(TObjectBase* object)
     YASSERT(object->IsTrunk());
 
     int refCounter = object->RefObject();
-    LOG_DEBUG_UNLESS(IsRecovery(), "Object referenced (Id: %s, RefCounter: %d, WeakRefCounter: %d)",
+    LOG_TRACE_UNLESS(IsRecovery(), "Object referenced (Id: %s, RefCounter: %d, WeakRefCounter: %d)",
         ~ToString(object->GetId()),
         refCounter,
         object->GetObjectWeakRefCounter());
@@ -569,7 +569,7 @@ void TObjectManager::UnrefObject(TObjectBase* object)
     YASSERT(object->IsTrunk());
 
     int refCounter = object->UnrefObject();
-    LOG_DEBUG_UNLESS(IsRecovery(), "Object unreferenced (Id: %s, RefCounter: %d, WeakRefCounter: %d)",
+    LOG_TRACE_UNLESS(IsRecovery(), "Object unreferenced (Id: %s, RefCounter: %d, WeakRefCounter: %d)",
         ~ToString(object->GetId()),
         refCounter,
         object->GetObjectWeakRefCounter());
@@ -970,8 +970,8 @@ TObjectBase* TObjectManager::CreateObject(
 
     auto options = handler->GetCreationOptions();
     if (!options) {
-        THROW_ERROR_EXCEPTION("Type does not support creating new instances: %s",
-            ~type.ToString());
+        THROW_ERROR_EXCEPTION("Instances of type %s cannot be created directly",
+            ~FormatEnum(type).Quote());
     }
 
     switch (options->TransactionMode) {

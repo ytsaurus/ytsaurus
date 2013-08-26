@@ -35,7 +35,7 @@ using namespace NSecurityServer;
 
 int GetCurrentSnapshotVersion()
 {
-    return 23;
+    return 24;
 }
 
 NMetaState::TVersionValidator SnapshotVersionValidator()
@@ -45,7 +45,8 @@ NMetaState::TVersionValidator SnapshotVersionValidator()
                version == 20 ||
                version == 21 ||
                version == 22 ||
-               version == 23);
+               version == 23 ||
+               version == 24);
     });
     return result;
 }
@@ -60,6 +61,12 @@ template <>
 TTransaction* TLoadContext::Get(const TObjectId& id) const
 {
     return Bootstrap_->GetTransactionManager()->GetTransaction(id);
+}
+
+template <>
+NCypressServer::TLock* TLoadContext::Get(const TObjectId& id) const
+{
+    return Bootstrap_->GetCypressManager()->GetLock(id);
 }
 
 template <>

@@ -12,10 +12,9 @@
 #include "persistent_state_manager.h"
 #include "change_log_cache.h"
 
-#include <ytlib/actions/bind.h>
-#include <ytlib/misc/serialize.h>
-#include <ytlib/misc/foreach.h>
 #include <ytlib/misc/fs.h>
+
+#include <ytlib/election/cell_manager.h>
 
 namespace NYT {
 namespace NMetaState {
@@ -67,7 +66,7 @@ TAsyncError TRecovery::RecoverToState(const TMetaVersion& targetVersion)
     VERIFY_THREAD_AFFINITY(StateThread);
 
     TSnapshotLookup snapshotLookup(Config, CellManager);
-    int lastestSnapshotId = snapshotLookup.LookupLatestSnapshot(targetVersion.SegmentId);
+    int lastestSnapshotId = snapshotLookup.GetLatestSnapshotId(targetVersion.SegmentId);
     YCHECK(lastestSnapshotId <= targetVersion.SegmentId);
 
     return RecoverToStateWithChangeLog(targetVersion, lastestSnapshotId);
@@ -339,7 +338,7 @@ TAsyncError TLeaderRecovery::Run()
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     auto version = DecoratedState->GetReachableVersionAsync();
-    int maxSnapshotId = SnapshotStore->LookupLatestSnapshot();
+    int maxSnapshotId = SnapshotStore->GetLatestSnapshotId();
     return
         BIND(
             &TRecovery::RecoverToStateWithChangeLog,

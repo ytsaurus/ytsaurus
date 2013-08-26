@@ -1,0 +1,16 @@
+#include "stdafx.h"
+#include "private.h"
+
+namespace NYT {
+namespace NElection {
+
+////////////////////////////////////////////////////////////////////////////////
+
+NLog::TLogger ElectionLogger("Election");
+NProfiling::TProfiler ElectionProfiler("/election");
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NElection
+} // namespace NYT
+

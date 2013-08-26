@@ -12,6 +12,8 @@ set( SRCS
   ${BASE}/private.cpp
   ${BASE}/virtual.cpp
   ${BASE}/access_tracker.cpp
+  ${BASE}/lock_proxy.cpp
+  ${BASE}/cypress_integration.cpp
 )
 set( HDRS
   ${BASE}/config.h
@@ -28,6 +30,8 @@ set( HDRS
   ${BASE}/type_handler.h
   ${BASE}/virtual.h
   ${BASE}/access_tracker.h
+  ${BASE}/lock_proxy.h
+  ${BASE}/cypress_integration.h
 )
 
 list(APPEND YT_SOURCE_FILES

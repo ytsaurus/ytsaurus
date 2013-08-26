@@ -1,18 +1,12 @@
 #pragma once
 
-#include "common.h"
 #include "public.h"
-#include "config.h"
-#include "election_manager_proxy.h"
-#include "cell_manager.h"
 
-#include <ytlib/misc/delayed_invoker.h>
-#include <ytlib/misc/thread_affinity.h>
-
-#include <ytlib/actions/invoker.h>
 #include <ytlib/actions/cancelable_context.h>
 
-#include <ytlib/rpc/service_detail.h>
+#include <ytlib/ytree/public.h>
+
+#include <ytlib/rpc/public.h>
 
 namespace NYT {
 namespace NElection {
@@ -31,126 +25,50 @@ struct IElectionCallbacks
     virtual Stroka FormatPriority(TPeerPriority priority) = 0;
 };
 
-typedef TIntrusivePtr<IElectionCallbacks> IElectionCallbacksPtr;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TEpochContext
     : public TIntrinsicRefCounted
 {
-    TEpochContext()
-        : LeaderId(InvalidPeerId)
-        , CancelableContext(New<TCancelableContext>())
-    { }
+    TEpochContext();
 
     TPeerId LeaderId;
     TEpochId EpochId;
     TInstant StartTime;
     TCancelableContextPtr CancelableContext;
-};
 
-typedef TIntrusivePtr<TEpochContext> TEpochContextPtr;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TElectionManager
-    : public NRpc::TServiceBase
+    : public TRefCounted
 {
 public:
     TElectionManager(
         TElectionManagerConfigPtr config,
         TCellManagerPtr cellManager,
         IInvokerPtr controlInvoker,
-        IElectionCallbacksPtr electionCallbacks);
+        IElectionCallbacksPtr electionCallbacks,
+        NRpc::IServerPtr rpcServer);
 
     ~TElectionManager();
 
-    /*!
-     * \note Thread affinity: any.
-     */
     void Start();
-
-    /*!
-     * \note Thread affinity: any.
-     */
     void Stop();
-
-    /*!
-     * \note Thread affinity: any.
-     */
     void Restart();
 
-    //! Gets info for monitoring in YSON format.
-    /*!
-     * \note Thread affinity: any.
-     */
-    void GetMonitoringInfo(NYson::IYsonConsumer* consumer);
+    NYTree::TYsonProducer GetMonitoringProducer();
 
-    //! Returns the current current epoch context.
-    /*!
-     *  \note Thread affinity: any.
-     */
     TEpochContextPtr GetEpochContext();
 
 private:
-    typedef TElectionManager TThis;
-    typedef TElectionManagerProxy TProxy;
+    class TImpl;
+    typedef TIntrusivePtr<TImpl> TImplPtr;
 
-    class TVotingRound;
-    typedef TIntrusivePtr<TVotingRound> TVotingRoundPtr;
-
-    class TFollowerPinger;
-    typedef TIntrusivePtr<TFollowerPinger> TFollowerPingerPtr;
-
-    EPeerState State;
-
-    // Voting parameters.
-    TPeerId VoteId;
-    TEpochId VoteEpochId;
-
-    // Epoch parameters.
-    TEpochContextPtr EpochContext;
-    IInvokerPtr ControlEpochInvoker;
-
-    typedef yhash_set<TPeerId> TPeerSet;
-    TPeerSet AliveFollowers;
-    TPeerSet PotentialFollowers;
-
-    TDelayedInvoker::TCookie PingTimeoutCookie;
-    TFollowerPingerPtr FollowerPinger;
-
-    TElectionManagerConfigPtr Config;
-    TCellManagerPtr CellManager;
-    IInvokerPtr ControlInvoker;
-    IElectionCallbacksPtr ElectionCallbacks;
-
-    // Corresponds to #ControlInvoker.
-    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
-
-    DECLARE_RPC_SERVICE_METHOD(NElection::NProto, PingFollower);
-    DECLARE_RPC_SERVICE_METHOD(NElection::NProto, GetStatus);
-
-    void Reset();
-    void OnLeaderPingTimeout();
-
-    void DoStart();
-    void DoStop();
-
-    void StartVotingRound();
-    void StartVoteFor(TPeerId voteId, const TEpochId& voteEpoch);
-    void StartVoting();
-
-    void StartLeading();
-    void StartFollowing(TPeerId leaderId, const TEpochId& epoch);
-    void StopLeading();
-    void StopFollowing();
-
-    void InitEpochContext(TPeerId leaderId, const TEpochId& epoch);
-    void SetState(EPeerState newState);
+    TImplPtr Impl;
 
 };
-
-typedef TIntrusivePtr<TElectionManager> TElectionManagerPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 

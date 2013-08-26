@@ -1,7 +1,8 @@
 #pragma once
 
-#include <ytlib/misc/guid.h>
 #include <ytlib/logging/log.h>
+
+#include <ytlib/profiling/profiler.h>
 
 namespace NYT {
 namespace NElection {
@@ -9,14 +10,7 @@ namespace NElection {
 ////////////////////////////////////////////////////////////////////////////////
 
 extern NLog::TLogger ElectionLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
-typedef TGuid TEpochId;
-typedef i64 TPeerPriority;
-typedef i32 TPeerId;
-
-const TPeerId InvalidPeerId = -1;
+extern NProfiling::TProfiler ElectionProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -58,6 +58,9 @@ template <>
 NTransactionServer::TTransaction* TLoadContext::Get(const NObjectClient::TObjectId& id) const;
 
 template <>
+NCypressServer::TLock* TLoadContext::Get(const NCypressClient::TLockId& id) const;
+
+template <>
 NChunkServer::TChunkList* TLoadContext::Get(const NObjectClient::TObjectId& id) const;
 
 template <>

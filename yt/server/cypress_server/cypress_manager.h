@@ -83,15 +83,21 @@ public:
         TCypressNodeBase* trunkNode,
         NTransactionServer::TTransaction* transaction);
 
-    ICypressNodeProxyPtr GetVersionedNodeProxy(
+    ICypressNodeProxyPtr GetNodeProxy(
         TCypressNodeBase* trunkNode,
         NTransactionServer::TTransaction* transaction = nullptr);
 
-    TCypressNodeBase* LockVersionedNode(
+    TCypressNodeBase* LockNode(
         TCypressNodeBase* trunkNode,
         NTransactionServer::TTransaction* transaction,
         const TLockRequest& request,
         bool recursive = false);
+
+    TLock* CreateLock(
+        TCypressNodeBase* trunkNode,
+        NTransactionServer::TTransaction* transaction,
+        const TLockRequest& request,
+        bool waitable);
 
     void SetModified(
         TCypressNodeBase* trunkNode,
@@ -108,11 +114,13 @@ public:
     bool IsOrphaned(TCypressNodeBase* trunkNode);
 
     DECLARE_METAMAP_ACCESSORS(Node, TCypressNodeBase, TVersionedNodeId);
+    DECLARE_METAMAP_ACCESSORS(Lock, TLock, TLockId);
 
 private:
     typedef TCypressManager TThis;
 
     class TNodeTypeHandler;
+    class TLockTypeHandler;
     class TYPathResolver;
     class TRootService;
 
@@ -132,6 +140,7 @@ private:
     NCellMaster::TBootstrap* Bootstrap;
 
     NMetaState::TMetaStateMap<TVersionedNodeId, TCypressNodeBase, TNodeMapTraits> NodeMap;
+    NMetaState::TMetaStateMap<TLockId, TLock> LockMap;
 
     std::vector<INodeTypeHandlerPtr> TypeToHandler;
 
@@ -174,17 +183,14 @@ private:
     void PromoteLocks(NTransactionServer::TTransaction* transaction);
     void PromoteLock(TLock* lock, NTransactionServer::TTransaction* parentTransaction);
 
-    void ValidateLock(
+    TError ValidateLock(
         TCypressNodeBase* trunkNode,
         NTransactionServer::TTransaction* transaction,
         const TLockRequest& request,
+        bool checkPending,
         bool* isMandatory);
-    void ValidateLock(
-        TCypressNodeBase* trunkNode,
-        NTransactionServer::TTransaction* transaction,
-        const TLockRequest& request);
-    bool IsRedundantLock(
-        const TLock& existingLock,
+    bool IsRedundantLockRequest(
+        const TTransactionLockState& state,
         const TLockRequest& request);
 
     static bool IsParentTransaction(
@@ -194,17 +200,20 @@ private:
         NTransactionServer::TTransaction* transaction1,
         NTransactionServer::TTransaction* transaction2);
 
-    TCypressNodeBase* AcquireLock(
+    TCypressNodeBase* DoLockNode(
         TCypressNodeBase* trunkNode,
         NTransactionServer::TTransaction* transaction,
         const TLockRequest& request);
-    TLock* DoAcquireLock(
+    void UpdateNodeLockState(
         TCypressNodeBase* trunkNode,
         NTransactionServer::TTransaction* transaction,
         const TLockRequest& request);
-    void ReleaseLock(
+    TLock* DoCreateLock(
         TCypressNodeBase* trunkNode,
-        NTransactionServer::TTransaction* transaction);
+        NTransactionServer::TTransaction* transaction,
+        const TLockRequest& request);
+    void SetLockAcquired(TLock* lock);
+    void CheckPendingLocks(TCypressNodeBase* trunkNode);
 
     void ListSubtreeNodes(
         TCypressNodeBase* trunkNode,

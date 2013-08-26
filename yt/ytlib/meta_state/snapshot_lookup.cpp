@@ -28,7 +28,7 @@ TSnapshotLookup::TSnapshotLookup(
     YASSERT(cellManager);
 }
 
-i32 TSnapshotLookup::LookupLatestSnapshot(i32 maxSnapshotId)
+i32 TSnapshotLookup::GetLatestSnapshotId(i32 maxSnapshotId)
 {
     CurrentSnapshotId = NonexistingSnapshotId;
     Promise = NewPromise<i32>();

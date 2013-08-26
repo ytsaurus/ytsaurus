@@ -8,6 +8,7 @@
 #include <ytlib/ypath/token.h>
 
 #include <ytlib/rpc/bus_channel.h>
+#include <ytlib/rpc/server.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
@@ -348,6 +349,12 @@ private:
                             .Item("remote_address").Value(address)
                         .EndMap());
             }
+
+            CreateNode(
+                rootService,
+                "//sys/locks",
+                transactionId,
+                EObjectType::LockMap);
 
             CreateNode(
                 rootService,

@@ -498,6 +498,64 @@ struct TVectorSerializer
     }
 };
 
+struct TListSerializer
+{
+    template <class TList, class C>
+    static void Save(C& context, const TList& objects)
+    {
+        using NYT::Save;
+        TSizeSerializer::Save(context, objects.size());
+        FOREACH (const auto& object, objects) {
+            Save(context, object);
+        }
+    }
+
+    template <class TList, class C>
+    static void Load(C& context, TList& objects)
+    {
+        using NYT::Load;
+        size_t size = TSizeSerializer::Load(context);
+        for (size_t index = 0; index != size; ++index) {
+            typename TList::value_type obj;
+            Load(context, obj);
+            objects.push_back(obj);
+        }
+    }
+};
+
+struct TNullableListSerializer
+{
+    template <class TList, class C>
+    static void Save(C& context, const std::unique_ptr<TList>& objects)
+    {
+        using NYT::Save;
+        if (objects) {
+            TListSerializer::Save(context, *objects);
+        } else {
+            TSizeSerializer::Save(context, 0);
+        }
+    }
+
+    template <class TList, class C>
+    static void Load(C& context, std::unique_ptr<TList>& objects)
+    {
+        using NYT::Load;
+        
+        size_t size = TSizeSerializer::Load(context);
+        if (size == 0) {
+            objects.reset();
+            return;
+        }
+
+        objects.reset(new TList());
+        for (size_t index = 0; index != size; ++index) {
+            typename TList::value_type obj;
+            Load(context, obj);
+            objects->push_back(obj);
+        }
+    }
+};
+
 template <class TItemSerializer>
 struct TCustomSetSerializer
 {
@@ -548,11 +606,11 @@ struct TNullableSetSerializer
 
         size_t size = TSizeSerializer::Load(context);
         if (size == 0) {
-            set.Destroy();
+            set.reset();
             return;
         }
 
-        set.Reset(new TSet());
+        set.reset(new TSet());
         for (size_t index = 0; index < size; ++index) {
             TKey key;
             Load(context, key);
@@ -714,6 +772,12 @@ struct TSerializerTraits<TSmallVector<T, size>, C, void>
 };
 
 template <class T, class C>
+struct TSerializerTraits<std::list<T>, C, void>
+{
+    typedef TListSerializer TSerializer;
+};
+
+template <class T, class C>
 struct TSerializerTraits<std::set<T>, C, void>
 {
     typedef TSetSerializer TSerializer;
@@ -726,13 +790,19 @@ struct TSerializerTraits<yhash_set<T>, C, void>
 };
 
 template <class T, class C>
-struct TSerializerTraits<std::unique_ptr<std::set<T>*>, C, void>
+struct TSerializerTraits<std::unique_ptr<std::list<T>>, C, void>
+{
+    typedef TNullableListSerializer TSerializer;
+};
+
+template <class T, class C>
+struct TSerializerTraits<std::unique_ptr<std::set<T>>, C, void>
 {
     typedef TNullableSetSerializer TSerializer;
 };
 
 template <class T, class C>
-struct TSerializerTraits<std::unique_ptr<yhash_set<T>*>, C, void>
+struct TSerializerTraits<std::unique_ptr<yhash_set<T>>, C, void>
 {
     typedef TNullableSetSerializer TSerializer;
 };
