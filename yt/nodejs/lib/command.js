@@ -231,7 +231,8 @@ YtCommand.prototype._epilogue = function(result) {
             if (!this.rsp.statusCode ||
                 (this.rsp.statusCode >= 200 && this.rsp.statusCode < 300))
             {
-                this.rsp.statusCode = 400;
+                this.rsp.statusCode = result.isUnavailable() ? 503 : 400;
+                this.rsp.setHeader("Retry-After", "60");
             }
             utils.dispatchAs(
                 this.rsp,

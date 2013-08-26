@@ -128,6 +128,10 @@ void InitializeError(Handle<Object> target)
         String::NewSymbol("SpawnBasicYtError"),
         FunctionTemplate::New(SpawnBasicYtError)->GetFunction());
 
+    target->Set(
+        String::NewSymbol("UnavailableYtErrorCode"),
+        Integer::New(NRpc::EErrorCode::Unavailable));
+
     ErrorCode = NODE_PSYMBOL("code");
     ErrorMessage = NODE_PSYMBOL("message");
     ErrorAttributes = NODE_PSYMBOL("attributes");
