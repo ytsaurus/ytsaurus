@@ -62,8 +62,8 @@ def link(target_path, link_path, recursive=False, ignore_existing=False):
     return _make_transactional_request(
         "link",
         {
-            "target_path": target_path,
-            "link_path": link_path,
+            "target_path": prepare_path(target_path),
+            "link_path": prepare_path(link_path),
             "recursive": bool_to_string(recursive),
             "ignore_existing": bool_to_string(ignore_existing),
         })
