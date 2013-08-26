@@ -205,8 +205,9 @@ struct TRule
 {
     typedef TIntrusivePtr<TRule> TPtr;
 
-    bool AllCategories;
-    yhash_set<Stroka> Categories;
+    bool IncludeAllCategories;
+    yhash_set<Stroka> IncludeCategories;
+    yhash_set<Stroka> ExcludeCategories;
 
     ELogLevel MinLevel;
     ELogLevel MaxLevel;
@@ -214,24 +215,41 @@ struct TRule
     std::vector<Stroka> Writers;
 
     TRule()
-        : AllCategories(false)
+        : IncludeAllCategories(false)
     {
-        RegisterParameter("categories", Categories).NonEmpty();
-        RegisterParameter("min_level", MinLevel).Default(ELogLevel::Minimum);
-        RegisterParameter("max_level", MaxLevel).Default(ELogLevel::Maximum);
-        RegisterParameter("writers", Writers).NonEmpty();
+        // TODO(babenko): rename to include_categories
+        RegisterParameter("categories", IncludeCategories)
+            .NonEmpty();
+        RegisterParameter("exclude_categories", ExcludeCategories)
+            .Default(yhash_set<Stroka>());
+        RegisterParameter("min_level", MinLevel)
+            .Default(ELogLevel::Minimum);
+        RegisterParameter("max_level", MaxLevel)
+            .Default(ELogLevel::Maximum);
+        RegisterParameter("writers", Writers)
+            .NonEmpty();
     }
 
     virtual void OnLoaded() override
     {
-        if (Categories.size() == 1 && *Categories.begin() == AllCategoriesName) {
-            AllCategories = true;
+        if (IncludeCategories.size() == 1 && *IncludeCategories.begin() == AllCategoriesName) {
+            IncludeAllCategories = true;
         }
     }
 
     bool IsApplicable(const Stroka& category) const
     {
-        return AllCategories || Categories.find(category) != Categories.end();
+        if (!IncludeAllCategories && IncludeCategories.find(category) == IncludeCategories.end()) {
+            // No match in include_categories.
+            return false;
+        }
+
+        if (ExcludeCategories.find(category) != ExcludeCategories.end()) {
+            // Match in exclude_categories.
+            return false;
+        }
+
+        return true;
     }
 
     bool IsApplicable(const Stroka& category, ELogLevel level) const
@@ -240,6 +258,7 @@ struct TRule
             MinLevel <= level && level <= MaxLevel &&
             IsApplicable(category);
     }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -387,7 +406,7 @@ public:
 
         auto rule = New<TRule>();
 
-        rule->AllCategories = true;
+        rule->IncludeAllCategories = true;
         rule->MinLevel = DefaultStdErrMinLevel;
         rule->Writers.push_back(DefaultStdErrWriterName);
 
