@@ -80,6 +80,8 @@ TLock::TLock(const TLockId& id)
 
 void TLock::Save(NCellMaster::TSaveContext& context) const
 {
+    TNonversionedObjectBase::Save(context);
+
     using NYT::Save;
     Save(context, State_);
     Save(context, Request_);
@@ -90,6 +92,8 @@ void TLock::Save(NCellMaster::TSaveContext& context) const
 
 void TLock::Load(NCellMaster::TLoadContext& context)
 {
+    TNonversionedObjectBase::Load(context);
+
     using NYT::Load;
     Load(context, State_);
     Load(context, Request_);
