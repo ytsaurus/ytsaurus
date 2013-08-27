@@ -80,21 +80,26 @@ TLock::TLock(const TLockId& id)
 
 void TLock::Save(NCellMaster::TSaveContext& context) const
 {
+    TNonversionedObjectBase::Save(context);
+
     using NYT::Save;
     Save(context, State_);
     Save(context, Request_);
     // TODO(babenko): refactor when new serialization API is ready
-    Save(context, TrunkNode_->GetId());
+    Save(context, TrunkNode_ ? TrunkNode_->GetId() : NObjectServer::NullObjectId);
     SaveObjectRef(context, Transaction_);
 }
 
 void TLock::Load(NCellMaster::TLoadContext& context)
 {
+    TNonversionedObjectBase::Load(context);
+
     using NYT::Load;
     Load(context, State_);
     Load(context, Request_);
     // TODO(babenko): refactor when new serialization API is ready
-    TrunkNode_ = context.Get<TCypressNodeBase>(TVersionedNodeId(Load<TNodeId>(context)));
+    auto trunkNodeId = Load<TNodeId>(context);
+    TrunkNode_ = trunkNodeId == NObjectServer::NullObjectId ? nullptr : context.Get<TCypressNodeBase>(TVersionedNodeId(trunkNodeId));
     LoadObjectRef(context, Transaction_);
 }
 
