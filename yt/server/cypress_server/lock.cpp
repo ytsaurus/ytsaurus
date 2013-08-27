@@ -98,7 +98,8 @@ void TLock::Load(NCellMaster::TLoadContext& context)
     Load(context, State_);
     Load(context, Request_);
     // TODO(babenko): refactor when new serialization API is ready
-    TrunkNode_ = context.Get<TCypressNodeBase>(TVersionedNodeId(Load<TNodeId>(context)));
+    auto trunkNodeId = Load<TNodeId>(context);
+    TrunkNode_ = trunkNodeId == NObjectServer::NullObjectId ? nullptr : context.Get<TCypressNodeBase>(TVersionedNodeId(trunkNodeId));
     LoadObjectRef(context, Transaction_);
 }
 
