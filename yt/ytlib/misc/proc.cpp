@@ -235,11 +235,14 @@ TError StatusToError(int status)
     if (WIFEXITED(status) && (WEXITSTATUS(status) == 0)) {
         return TError();
     } else if (WIFSIGNALED(status)) {
-        return TError("Process terminated by signal %d",  WTERMSIG(status));
+        int signalNumber = WTERMSIG(status);
+        return TError(EExitStatus::SignalBase + signalNumber, "Process terminated by signal %d", signalNumber);
     } else if (WIFSTOPPED(status)) {
-        return TError("Process stopped by signal %d",  WSTOPSIG(status));
+        int signalNumber = WSTOPSIG(status);
+        return TError(EExitStatus::SignalBase + signalNumber, "Process stopped by signal %d", signalNumber);
     } else if (WIFEXITED(status)) {
-        return TError("Process exited with value %d",  WEXITSTATUS(status));
+        int exitCode = WEXITSTATUS(status);
+        return TError(EExitStatus::ExitCodeBase + exitCode, "Process exited with value %d", exitCode);
     } else {
         return TError("Unknown status %d", status);
     }
@@ -310,7 +313,7 @@ static const int EXEC_ERR_CODE[] = {
     ENOENT,
     ENOEXEC,
     ENOMEM,
-    ENOTDIR, 
+    ENOTDIR,
     EPERM,
     ETXTBSY,
     0

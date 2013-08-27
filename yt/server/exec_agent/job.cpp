@@ -8,6 +8,7 @@
 #include "config.h"
 
 #include <ytlib/misc/fs.h>
+#include <ytlib/misc/proc.h>
 #include <ytlib/misc/assert.h>
 
 #include <ytlib/fibers/fiber.h>
@@ -418,15 +419,9 @@ private:
 
     void RunJobProxy()
     {
-        // TODO(babenko): refactor
-        auto exitPromise = NewPromise<TError>();
-        ProxyController->SubscribeExited(BIND([=] (TError error) mutable {
-            exitPromise.Set(error);
-        }));
+        auto asyncError = ProxyController->Run();
 
-        ProxyController->Run();
-
-        auto exitResult = CheckedWaitFor(exitPromise.ToFuture());
+        auto exitResult = CheckedWaitFor(asyncError);
         THROW_ERROR_EXCEPTION_IF_FAILED(exitResult);
 
         if (!IsResultSet()) {
@@ -752,9 +747,9 @@ private:
         return
             error.FindMatching(NChunkClient::EErrorCode::AllTargetNodesFailed) ||
             error.FindMatching(NChunkClient::EErrorCode::MasterCommunicationFailed) ||
-            error.FindMatching(EErrorCode::ConfigCreationFailed);
+            error.FindMatching(EErrorCode::ConfigCreationFailed) ||
+            error.FindMatching(EExitStatus::SigTerm);
     }
-
 
     void ThrowIfFinished()
     {

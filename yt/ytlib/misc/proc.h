@@ -34,6 +34,15 @@ int getErrNoFromExitCode(int exitCode);
 
 int Spawn(const char* path, std::vector<Stroka>& arguments);
 
+
+DECLARE_ENUM(EExitStatus,
+    ((ExitCodeBase)         (10000))
+
+    ((SignalBase)           (11000))
+    ((SigTerm)              (11006))
+    ((SigKill)              (11009))
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

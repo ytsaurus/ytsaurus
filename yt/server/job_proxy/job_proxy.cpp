@@ -107,7 +107,11 @@ void TJobProxy::RetrieveJobSpec()
     ToProto(req->mutable_job_id(), JobId);
 
     auto rsp = req->Invoke().Get();
-    LOG_FATAL_IF(!rsp->IsOK(), *rsp, "Failed to get job spec");
+    if (!rsp->IsOK()) {
+        LOG_ERROR(*rsp, "Failed to get job spec");
+        NLog::TLogManager::Get()->Shutdown();
+        _exit(EJobProxyExitCode::HeartbeatFailed);
+    }
 
     JobSpec = rsp->job_spec();
     ResourceUsage = rsp->resource_usage();
