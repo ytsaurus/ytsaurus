@@ -103,7 +103,7 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
     else:
         if placement_strategy in ["hash", "random"]:
             raise YtError("Destination should not be specified if strategy is hash or random")
-        mkdir(os.path.dirname(destination), ignore_existing=True)
+        mkdir(os.path.dirname(destination), recursive=True)
         if yt_filename is None:
             yt_filename = os.path.basename(destination)
 
