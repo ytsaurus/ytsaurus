@@ -37,8 +37,8 @@ DECLARE_ENUM(EFiberState,
 );
 
 DECLARE_ENUM(EFiberStack,
-    (Small)       // 32 Kb (default)
-    (Large)       //  8 Mb
+    (Small)       // 256 Kb (default)
+    (Large)       //   8 Mb
 );
 
 class TFiber
