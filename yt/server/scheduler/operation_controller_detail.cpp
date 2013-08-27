@@ -2493,7 +2493,7 @@ void TOperationControllerBase::RequestInputs()
 
                 i64 initialRowCount = attributes.Get<i64>("row_count");
                 if (initialRowCount > 0 && table.Clear && !table.Overwrite) {
-                    THROW_ERROR_EXCEPTION("Output table %s must be empty (use \"overwrite\" attribute to force clearing it)",
+                    THROW_ERROR_EXCEPTION("Can't append sorted data to non-empty output table %s",
                         ~table.Path.GetPath());
                 }
                 table.Options->CompressionCodec = attributes.Get<NCompression::ECodec>("compression_codec");
