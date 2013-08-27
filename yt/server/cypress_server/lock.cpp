@@ -86,7 +86,7 @@ void TLock::Save(NCellMaster::TSaveContext& context) const
     Save(context, State_);
     Save(context, Request_);
     // TODO(babenko): refactor when new serialization API is ready
-    Save(context, GetObjectId(TrunkNode_));
+    Save(context, TrunkNode_ ? TrunkNode_->GetId() : NObjectServer::NullObjectId);
     SaveObjectRef(context, Transaction_);
 }
 
