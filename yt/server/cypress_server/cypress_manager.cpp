@@ -1169,14 +1169,15 @@ void TCypressManager::DestroyNode(TCypressNodeBase* trunkNode)
     auto objectManager = Bootstrap->GetObjectManager();
 
     FOREACH (auto* lock, lockList) {
+        lock->SetTrunkNode(nullptr);
         if (lock->GetState() == ELockState::Pending) {
             LOG_DEBUG_UNLESS(IsRecovery(), "Lock orphaned (LockId: %s)",
                 ~ToString(lock->GetId()));
             auto* transaction = lock->GetTransaction();
             YCHECK(transaction->Locks().erase(lock) == 1);
+            lock->SetTransaction(nullptr);
             objectManager->UnrefObject(lock);
         }
-        lock->SetTrunkNode(nullptr);
     }
 
     FOREACH (const auto& pair, lockStateMap) {
@@ -1220,6 +1221,7 @@ void TCypressManager::ReleaseLocks(TTransaction* transaction)
             trunkNode->LockList().erase(lock->GetLockListIterator());
             lock->SetTrunkNode(nullptr);
         }
+        lock->SetTransaction(nullptr);
         objectManager->UnrefObject(lock);
     }
 
