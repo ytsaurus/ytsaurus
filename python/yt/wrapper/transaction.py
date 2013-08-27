@@ -94,9 +94,10 @@ class PingTransaction(Thread):
 
     def stop(self):
         self.is_running = False
-        # 5.0 seconds correction for waiting response from ping
-        self.join(5.0 + self.step)
-        require(not self.is_alive(), YtError("Ping request could not be completed within 5 seconds"))
+        timeout = min(config.http.CONNECTION_TIMEOUT, config.http.HTTP_RETRIES_COUNT * config.http.HTTP_RETRY_TIMEOUT)
+        # timeout should be enough to execute ping
+        self.join(timeout + 2 * self.step)
+        require(not self.is_alive(), YtError("Ping request could not be completed within %.1lf seconds" % timeout))
 
     def run(self):
         try:
