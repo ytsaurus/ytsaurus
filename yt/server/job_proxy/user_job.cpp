@@ -71,9 +71,6 @@ static NLog::TLogger& Logger = JobProxyLogger;
 
 static i64 MemoryLimitBoost = (i64) 2 * 1024 * 1024 * 1024;
 
-// ToDo(psushin): Temporary dirty hack.
-static i64 RssLimitBoost = (i64) 1024 * 1024 * 1024;
-
 class TUserJob
     : public TJob
 {
@@ -563,7 +560,7 @@ private:
                 rss,
                 memoryLimit);
 
-            if (rss > memoryLimit + RssLimitBoost) {
+            if (rss > memoryLimit) {
                 SetError(TError("Memory limit exceeded")
                     << TErrorAttribute("rss", rss)
                     << TErrorAttribute("limit", memoryLimit)
