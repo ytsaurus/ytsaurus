@@ -14,7 +14,7 @@ Oper = namedtuple("Oper", ["time", "id", "state", "spec"]);
 logger = logging.getLogger("Cron")
 logger.setLevel(level="INFO")
 
-formatter = logging.Formatter('%(asctime)-15s: %(message)s')
+formatter = logging.Formatter('%(asctime)-15s\t{}\t%(message)s'.format(yt.config.http.PROXY))
 logger.addHandler(logging.StreamHandler())
 logger.handlers[0].setFormatter(formatter)
 
@@ -58,12 +58,12 @@ def clean_operations(count, total_count, failed_timeout, log):
         if not yt.exists("//sys/operations/%s" % op):
             continue
         if not is_final(yt.get("//sys/operations/%s/@state" % op)):
-            logger.error("Trying to remove operation (%s in %s) that is not in final state", op, yt.config.http.PROXY)
+            logger.error("Trying to remove operation (%s) that is not in final state", op)
             sys.exit(1)
         if log is not None:
             log_output.write(yt.get("//sys/operations/%s/@" % op, format=yt.Format("<format=text>json")))
             log_output.write("\n")
-        logger.info("Removing operation %s in %s", op, yt.config.http.PROXY)
+        logger.info("Removing operation %s", op)
         yt.remove("//sys/operations/%s" % op, recursive=True)
 
     if log is not None:
@@ -71,7 +71,6 @@ def clean_operations(count, total_count, failed_timeout, log):
     
 
 def main():
-
     parser = argparse.ArgumentParser(description='Clean operations from cypress.')
     parser.add_argument('--count', metavar='N', type=int, default=50,
                        help='leave no more than N completed (without stderr) or aborted operations')
