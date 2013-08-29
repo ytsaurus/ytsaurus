@@ -27,7 +27,7 @@ def main():
         yt.remove(obj)
     for obj in yt.search("//tmp", node_type=["link"], attributes=["broken"]):
         if obj.attributes["broken"] == "true":
-            logger.info("Removing %s", obj)
+            logger.info("Removing %s in %s", obj, yt.config.http.PROXY)
             yt.remove(obj)
 
 if __name__ == "__main__":
