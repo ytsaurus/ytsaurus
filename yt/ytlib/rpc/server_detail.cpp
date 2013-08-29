@@ -238,8 +238,8 @@ void TServiceContextBase::CheckRepliable() const
 
 void TServiceContextBase::AppendInfo(Stroka& lhs, const Stroka& rhs)
 {
-    if (!rhs.Empty()) {
-        if (!lhs.Empty()) {
+    if (!rhs.empty()) {
+        if (!lhs.empty()) {
             lhs.append(", ");
         }
         lhs.append(rhs);
