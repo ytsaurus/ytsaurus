@@ -16,11 +16,17 @@ logger.addHandler(logging.StreamHandler())
 logger.handlers[0].setFormatter(formatter)
 
 now = datetime.now()
+
+def get_time(obj):
+    if "access_time" in obj.attributes:
+        return obj.attributes["access_time"]
+    return obj.attributes["modification_time"]
+
 def get_age(obj):
     "2012-10-19T11:22:58.190448Z"
     pattern = "%Y-%m-%dT%H:%M:%S"
 
-    time_str = obj.attributes["access_time"]
+    time_str = get_time(obj)
     time_str = time_str.rsplit(".")[0]
     return now - datetime.strptime(time_str, pattern)
 
@@ -36,7 +42,7 @@ def main():
 
     # collect table and files
     objects = []
-    for obj in yt.search("//tmp", node_type=["table", "file"], attributes=["access_time", "locks", "hash", "resource_usage"]):
+    for obj in yt.search("//tmp", node_type=["table", "file"], attributes=["access_time", "modification_time", "locks", "hash", "resource_usage"]):
         if any(map(lambda l: l["mode"] in ["exclusive", "shared"], obj.attributes["locks"])):
             continue
         objects.append((get_age(obj), obj))
@@ -60,7 +66,7 @@ def main():
     for obj in to_remove:
         info = ""
         if hasattr(obj, "attributes"):
-            info = "(size=%s) (access_time=%s)" % (obj.attributes["resource_usage"]["disk_space"], obj.attributes["access_time"])
+            info = "(size=%s) (access_time=%s)" % (obj.attributes["resource_usage"]["disk_space"], get_time(obj))
         logger.info("Removing %s %s", obj, info)
         yt.remove(obj, force=True)
 
