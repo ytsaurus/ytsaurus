@@ -492,12 +492,15 @@ void TTcpConnection::OnSocket(ev::io&, int revents)
         return;
     }
 
-    if (revents & ev::WRITE) {
-        OnSocketWrite();
-    }
+    // NB: Try to read from the socket before writing into it to avoid
+    // getting SIGPIPE when other party closes the connection.
 
     if (revents & ev::READ) {
         OnSocketRead();
+    }
+
+    if (revents & ev::WRITE) {
+        OnSocketWrite();
     }
 
     UpdateSocketWatcher();
