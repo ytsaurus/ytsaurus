@@ -84,7 +84,7 @@ class PingTransaction(Thread):
         self.transaction = transaction
         self.delay = delay
         self.is_running = True
-        self.step = 0.1
+        self.step = 1.0
 
     def __enter__(self):
         self.start()
