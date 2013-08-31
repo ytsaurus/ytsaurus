@@ -75,9 +75,9 @@ def list(path, max_size=1000, format=None, absolute=False, attributes=None):
     In case of map_node it returns keys of the node.
     """
     def join(elem):
-        full_path = yson.YsonString(os.path.join(path, elem))
-        full_path.attributes = elem.attributes
-        return full_path
+        return yson.convert_to_yson_type(
+            yson.YsonString("{0}/{1}".format(path, elem)), 
+            elem.attributes)
 
     result = _make_formatted_transactional_request(
         "list",
