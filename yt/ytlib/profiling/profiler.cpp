@@ -154,10 +154,10 @@ TDuration TProfiler::TimingCheckpoint(TTimer& timer, const Stroka& key)
     }
 }
 
-void TProfiler::Increment(TRateCounter& counter, TValue delta /*= 1*/)
+TValue TProfiler::Increment(TRateCounter& counter, TValue delta /*= 1*/)
 {
     if (counter.Path.empty()) {
-        return;
+        return counter.Value;
     }
 
     YASSERT(delta >= 0);
@@ -178,6 +178,7 @@ void TProfiler::Increment(TRateCounter& counter, TValue delta /*= 1*/)
         counter.LastValue = counter.Value;
         counter.Deadline = now + counter.Interval;
     }
+    return counter.Value;
 }
 
 void TProfiler::Aggregate(TAggregateCounter& counter, TValue value)
@@ -192,16 +193,17 @@ void TProfiler::Aggregate(TAggregateCounter& counter, TValue value)
     DoAggregate(counter, guard, value, now);
 }
 
-void TProfiler::Increment(TAggregateCounter& counter, TValue delta)
+TValue TProfiler::Increment(TAggregateCounter& counter, TValue delta /* = 1*/)
 {
     if (counter.Path.empty()) {
-        return;
+        return counter.Current;
     }
 
     auto now = GetCpuInstant();
 
     TGuard<TSpinLock> guard(counter.SpinLock);
     DoAggregate(counter, guard, counter.Current + delta, now);
+    return counter.Current;
 }
 
 void TProfiler::DoAggregate(
