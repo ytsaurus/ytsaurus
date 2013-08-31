@@ -195,7 +195,7 @@ public:
     void Aggregate(TAggregateCounter& counter, TValue value);
 
     //! Aggregates |current + delta| and possibly enqueues samples.
-    void Increment(TAggregateCounter& counter, TValue delta);
+    void Increment(TAggregateCounter& counter, TValue delta = 1);
 
 private:
     bool SelfProfiling;
