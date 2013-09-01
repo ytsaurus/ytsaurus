@@ -90,35 +90,35 @@ void Serialize(const TNullable<T>& value, NYson::IYsonConsumer* consumer)
 
 // TSmallVector
 template <class T, unsigned N>
-void Serialize(const TSmallVector<T, N>& value, NYson::IYsonConsumer* consumer)
+void Serialize(const TSmallVector<T, N>& items, NYson::IYsonConsumer* consumer)
 {
     consumer->OnBeginList();
-    FOREACH (const auto& value, value) {
+    FOREACH (const auto& item, items) {
         consumer->OnListItem();
-        Serialize(value, consumer);
+        Serialize(item, consumer);
     }
     consumer->OnEndList();
 }
 
 // std::vector
 template <class T>
-void Serialize(const std::vector<T>& value, NYson::IYsonConsumer* consumer)
+void Serialize(const std::vector<T>& items, NYson::IYsonConsumer* consumer)
 {
     consumer->OnBeginList();
-    FOREACH (const auto& value, value) {
+    FOREACH (const auto& item, items) {
         consumer->OnListItem();
-        Serialize(value, consumer);
+        Serialize(item, consumer);
     }
     consumer->OnEndList();
 }
 
 // yhash_set
 template <class T>
-void Serialize(const yhash_set<T>& value, NYson::IYsonConsumer* consumer)
+void Serialize(const yhash_set<T>& items, NYson::IYsonConsumer* consumer)
 {
     consumer->OnBeginList();
-    auto sortedItems = GetSortedIterators(value);
-    FOREACH (const auto& value, sortedItems) {
+    auto sortedItems = GetSortedIterators(items);
+    FOREACH (const auto& item, sortedItems) {
         consumer->OnListItem();
         Serialize(*value, consumer);
     }
@@ -127,10 +127,10 @@ void Serialize(const yhash_set<T>& value, NYson::IYsonConsumer* consumer)
 
 // yhash_map
 template <class T>
-void Serialize(const yhash_map<Stroka, T>& value, NYson::IYsonConsumer* consumer)
+void Serialize(const yhash_map<Stroka, T>& items, NYson::IYsonConsumer* consumer)
 {
     consumer->OnBeginMap();
-    auto sortedItems = GetSortedIterators(value);
+    auto sortedItems = GetSortedIterators(items);
     FOREACH (const auto& pair, sortedItems) {
         consumer->OnKeyedItem(pair->first);
         Serialize(pair->second, consumer);
@@ -161,8 +161,9 @@ void Deserialize(std::unique_ptr<T>& value, INodePtr node)
 template <class T>
 T CheckedStaticCast(i64 value)
 {
-    if (value < Min<T>() || value > Max<T>()) {
-        THROW_ERROR_EXCEPTION("Argument is out of integral range: %" PRId64 ")", value);
+    if (value < std::numeric_limits<T>::min() || value > std::numeric_limits<T>::max()) {
+        THROW_ERROR_EXCEPTION("Argument value %" PRId64 " is out of expected range",
+            value);
     }
     return static_cast<T>(value);
 }
