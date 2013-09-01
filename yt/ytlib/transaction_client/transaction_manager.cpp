@@ -121,9 +121,6 @@ public:
         auto this_ = MakeStrong(this);
         return Proxy_.Execute(req).Apply(
             BIND([this, this_] (TMasterYPathProxy::TRspCreateObjectPtr rsp) -> TError {
-                // XXX(babenko): required by VS2010
-                typedef TTransactionManager::TTransaction::EState EState;
-
                 if (!rsp->IsOK()) {
                     State_ = EState::Aborted;
                     return *rsp;
@@ -205,9 +202,6 @@ public:
 
         auto this_ = MakeStrong(this);
         return rsp.Apply(BIND([this, this_] (TTransactionYPathProxy::TRspCommitPtr rsp) -> TError {
-            // XXX(babenko): required by VS2010
-            typedef TTransactionManager::TTransaction::EState EState;
-            
             if (!rsp->IsOK()) {
                 // Let's pretend the transaction was aborted.
                 // No sync here, should be safe.

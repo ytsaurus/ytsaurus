@@ -1507,10 +1507,7 @@ IYPathService::TResolveResult TLinkNodeProxy::Resolve(
 {
     const auto& verb = context->GetVerb();
 
-    auto propagate = [&] () -> TResolveResult
-    {
-        // XXX(babenko): needed by VS2010
-        typedef IYPathService::TResolveResult TResolveResult;
+    auto propagate = [&] () -> TResolveResult {
         if (verb == "Exists") {
             auto proxy = FindTargetProxy();
             static IYPathServicePtr doesNotExistService = New<TDoesNotExistService>();

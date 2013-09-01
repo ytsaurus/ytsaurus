@@ -88,10 +88,6 @@ struct TAsyncViaHelper<W, U($for ARG , [[A$(ARG)]])>
         const TSourceCallback& this_,
         IInvokerPtr invoker)
     {
-        // XXX(babenko): Due to MSVC bug in lambda scope resolution
-        // the following typedefs are essentially useless and we have to
-        // write full type names inside lambdas.
-        // XXX(sandello): Burn, MSVC!
         typedef typename NYT::NDetail::TFutureHelper<U>::TValueType R;
         typedef typename NYT::NDetail::TFutureHelper<U>::TFutureType FR;
         typedef typename NYT::NDetail::TFutureHelper<U>::TPromiseType PR;
@@ -109,9 +105,7 @@ $for ARG ,
                 [[std::forward<A$(ARG)>(a$(ARG))]]));
         });
         auto outer = BIND([=] ($for ARG , [[A$(ARG) a$(ARG)]]) -> FR {
-            auto promise = NewPromise<
-                typename NYT::NDetail::TFutureHelper<U>::TValueType
-            >();
+            auto promise = NewPromise<R>();
             invoker->Invoke(BIND(inner, promise[[]]
 $if ARITY != 0 [[,
                 [[]]
@@ -138,10 +132,6 @@ struct TAsyncViaHelper<W, void($for ARG , [[A$(ARG)]])>
         const TSourceCallback& this_,
         IInvokerPtr invoker)
     {
-        // XXX(babenko): Due to MSVC bug in lambda scope resolution
-        // the following typedefs are essentially useless and we have to
-        // write full type names inside lambdas.
-        // XXX(sandello): Burn, MSVC!
         typedef typename NYT::NDetail::TFutureHelper<void>::TValueType R;
         typedef typename NYT::NDetail::TFutureHelper<void>::TFutureType FR;
         typedef typename NYT::NDetail::TFutureHelper<void>::TPromiseType PR;
@@ -160,9 +150,7 @@ $for ARG ,
             promise.Set();
         });
         auto outer = BIND([=] ($for ARG , [[A$(ARG) a$(ARG)]]) -> FR {
-            auto promise = NewPromise<
-                typename NYT::NDetail::TFutureHelper<void>::TValueType
-            >();
+            auto promise = NewPromise<R>();
             invoker->Invoke(BIND(inner, promise[[]]
 $if ARITY != 0 [[,
                 [[]]
@@ -189,10 +177,6 @@ struct TAsyncViaHelper<true, U($for ARG , [[A$(ARG)]])>
         const TSourceCallback& this_,
         IInvokerPtr invoker)
     {
-        // XXX(babenko): Due to MSVC bug in lambda scope resolution
-        // the following typedefs are essentially useless and we have to
-        // write full type names inside lambdas.
-        // XXX(sandello): Burn, MSVC!
         typedef typename NYT::NDetail::TFutureHelper<U>::TValueType R;
         typedef typename NYT::NDetail::TFutureHelper<U>::TFutureType FR;
         typedef typename NYT::NDetail::TFutureHelper<U>::TPromiseType PR;
@@ -212,9 +196,7 @@ $for ARG ,
                 .Subscribe(BIND(promiseSetter, promise));
         });
         auto outer = BIND([=] ($for ARG , [[A$(ARG) a$(ARG)]]) -> FR {
-            auto promise = NewPromise<
-                typename NYT::NDetail::TFutureHelper<U>::TValueType
-            >();
+            auto promise = NewPromise<R>();
             invoker->Invoke(BIND(inner, promise[[]]
 $if ARITY != 0 [[,
                 [[]]

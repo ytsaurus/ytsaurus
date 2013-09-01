@@ -60,9 +60,7 @@ void TReadCommand::DoExecute()
 
     auto flushBuffer = [&] () {
         if (!output->Write(buffer.Begin(), buffer.Size())) {
-            // XXX(babenko): GetCurrentInvoker() is redundant but removing it causes ICE
-            // on VS2010.
-            auto result = WaitFor(output->GetReadyEvent(), GetCurrentInvoker());
+            auto result = WaitFor(output->GetReadyEvent());
             THROW_ERROR_EXCEPTION_IF_FAILED(result);
         }
         buffer.Clear();

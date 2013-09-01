@@ -687,9 +687,6 @@ private:
             }
 
             auto producer = [&] (TOutputStream* output) {
-                // XXX(babenko): VS2010 compatibility
-                typedef TMultiChunkSequentialReader<TFileChunkReader> TReader;
-
                 auto* facade = reader->GetFacade();
                 while (facade) {
                     auto block = facade->GetBlock();

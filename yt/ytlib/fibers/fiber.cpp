@@ -406,8 +406,7 @@ public:
             // Rethrow the propagated exception.
 
             YCHECK(!Canceled_);
-            // XXX(babenko): VS2010 has no operator bool
-            YASSERT(!(Exception_ == std::exception_ptr()));
+            YASSERT(Exception_);
 
             std::exception_ptr ex;
             std::swap(Exception_, ex);
@@ -447,8 +446,7 @@ public:
         }
 
         // Rethrow any user injected exception, if any.
-        // XXX(babenko): VS2010 has no operator bool
-        if (!(Exception_ == std::exception_ptr())) {
+        if (Exception_) {
             std::exception_ptr ex;
             std::swap(Exception_, ex);
 
@@ -484,8 +482,7 @@ public:
 
     void Inject(std::exception_ptr&& exception)
     {
-        // XXX(babenko): VS2010 has no operator bool.
-        YCHECK(!(exception == std::exception_ptr()));
+        YCHECK(exception);
         YCHECK(
             State_ == EFiberState::Initialized ||
             State_ == EFiberState::Suspended);
@@ -646,8 +643,7 @@ private:
         YASSERT(Caller_);
         YASSERT(Callee_);
 
-        // XXX(babenko): VS2010 has no operator bool.
-        if (!(Exception_ == std::exception_ptr())) {
+        if (Exception_) {
             State_ = EFiberState::Exception;
         } else if (Canceled_) {
             State_ = EFiberState::Terminated;
