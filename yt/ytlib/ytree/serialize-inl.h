@@ -120,7 +120,7 @@ void Serialize(const yhash_set<T>& items, NYson::IYsonConsumer* consumer)
     auto sortedItems = GetSortedIterators(items);
     FOREACH (const auto& item, sortedItems) {
         consumer->OnListItem();
-        Serialize(*value, consumer);
+        Serialize(*item, consumer);
     }
     consumer->OnEndList();
 }
