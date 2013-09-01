@@ -378,7 +378,6 @@ protected:
         // Compute max share ratios.
         // Compute demand ratios and their sum.
         double demandRatioSum = 0.0;
-        double minShareRatioSum = 0.0;
         auto totalLimits = Host->GetTotalResourceLimits();
         FOREACH (auto child, Children) {
             auto& childAttributes = child->Attributes();
