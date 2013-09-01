@@ -30,6 +30,7 @@ TEMP_TABLES_STORAGE = "//tmp/yt_wrapper/table_storage"
 
 KEYBOARD_ABORT = True
 DETACHED = True
+MERGE_INSTEAD_WARNING = False
 
 PREFIX = ""
 
