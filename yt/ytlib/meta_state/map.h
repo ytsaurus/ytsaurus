@@ -10,12 +10,14 @@ namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Default traits creating values.
+//! Default traits for creating values.
 template <class TKey, class TValue>
 struct TDefaultMetaMapTraits
 {
     std::unique_ptr<TValue> Create(const TKey& key) const;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 //! Map type used to store various meta-state tables.
 /*!
@@ -181,26 +183,19 @@ private:
 } // namespace NMetaState
 } // namespace NYT
 
+// Foreach interop.
 
-namespace NYT {
-namespace NForeach {
-
-//! Provides a begin-like iterator for #FOREACH macro.
 template <class TKey, class TValue, class THash>
-inline auto Begin(NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> decltype(collection.Begin())
+inline auto begin(NYT::NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> decltype(collection.Begin())
 {
     return collection.Begin();
 }
 
-//! Provides an end-like iterator for #FOREACH macro.
 template <class TKey, class TValue, class THash>
-inline auto End(NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> decltype(collection.End())
+inline auto end(NYT::NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> decltype(collection.End())
 {
     return collection.End();
 }
-
-} // namespace NForeach
-} // namespace NYT
 
 ////////////////////////////////////////////////////////////////////////////////
 
