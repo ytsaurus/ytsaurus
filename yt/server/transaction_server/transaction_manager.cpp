@@ -87,6 +87,7 @@ private:
         attributes->push_back("staged_node_ids");
         attributes->push_back("branched_node_ids");
         attributes->push_back("locked_node_ids");
+        attributes->push_back("lock_ids");
         attributes->push_back("resource_usage");
         TBase::ListSystemAttributes(attributes);
     }
@@ -97,7 +98,7 @@ private:
 
         if (key == "state") {
             BuildYsonFluently(consumer)
-                .Value(FormatEnum(transaction->GetState()));
+                .Value(transaction->GetState());
             return true;
         }
 
@@ -168,6 +169,14 @@ private:
                 .DoListFor(transaction->LockedNodes(), [=] (TFluentList fluent, const TCypressNodeBase* node) {
                     fluent.Item().Value(node->GetId());
                 });
+            return true;
+        }
+
+        if (key == "lock_ids") {
+            BuildYsonFluently(consumer)
+                .DoListFor(transaction->Locks(), [=] (TFluentList fluent, const TLock* lock) {
+                    fluent.Item().Value(lock->GetId());
+            });
             return true;
         }
 
@@ -582,6 +591,10 @@ void TTransactionManager::LoadKeys(NCellMaster::TLoadContext& context)
     VERIFY_THREAD_AFFINITY(StateThread);
 
     TransactionMap.LoadKeys(context);
+    // COMPAT(babenko)
+    if (context.GetVersion() < 24) {
+        YCHECK(TransactionMap.GetSize() == 0);
+    }
 }
 
 void TTransactionManager::LoadValues(NCellMaster::TLoadContext& context)

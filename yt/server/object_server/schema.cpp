@@ -106,11 +106,6 @@ public:
         YUNREACHABLE();
     }
 
-    virtual TNullable<TTypeCreationOptions> GetCreationOptions() const override
-    {
-        return Null;
-    }
-
     virtual EPermissionSet GetSupportedPermissions() const override
     {
         auto permissions = NonePermissions;

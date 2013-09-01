@@ -85,6 +85,33 @@ struct TObjectRefVectorSerializer
     }
 };
 
+struct TObjectRefListSerializer
+{
+    template <class T>
+    static void SaveRefs(TSaveContext& context, const T& objects)
+    {
+        typedef typename T::value_type V;
+
+        TSizeSerializer::Save(context, objects.size());
+        FOREACH (V object, objects) {
+            SaveObjectRef(context, object);
+        }
+    }
+
+    template <class T>
+    static void LoadRefs(TLoadContext& context, size_t size, T& objects)
+    {
+        typedef typename T::value_type V;
+
+        objects.clear();
+        for (size_t i = 0; i < size; ++i) {
+            V object;
+            LoadObjectRef(context, object);
+            objects.push_back(object);
+        }
+    }
+};
+
 struct TObjectRefSetSerializer
 {
     template <class T>
@@ -207,6 +234,12 @@ template <class V, unsigned N>
 struct TObjectRefSerializerTraits< TSmallVector<V, N> >
 {
     typedef TObjectRefVectorSerializer TSerializer;
+};
+
+template <class K, class A>
+struct TObjectRefSerializerTraits< std::list<K, A> >
+{
+    typedef TObjectRefListSerializer TSerializer;
 };
 
 template <class K, class H, class E, class A>

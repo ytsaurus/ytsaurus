@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "master.h"
+#include "type_handler_detail.h"
 #include "private.h"
 
 #include <ytlib/object_client/master_ypath.pb.h>
@@ -130,22 +131,16 @@ IObjectProxyPtr CreateMasterProxy(TBootstrap* bootstrap, TMasterObject* object)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMasterTypeHandler
-    : public IObjectTypeHandler
+    : public TObjectTypeHandlerBase<TMasterObject>
 {
 public:
     explicit TMasterTypeHandler(TBootstrap* bootstrap)
-        : Bootstrap(bootstrap)
+        : TObjectTypeHandlerBase(bootstrap)
     { }
 
     virtual EObjectType GetType() const override
     {
         return EObjectType::Master;
-    }
-
-    virtual Stroka GetName(TObjectBase* object) override
-    {
-        UNUSED(object);
-        return "master";
     }
 
     virtual TObjectBase* FindObject(const TObjectId& id) override
@@ -155,63 +150,9 @@ public:
         return id == object->GetId() ? object : nullptr;
     }
 
-    virtual IObjectProxyPtr GetProxy(
-        TObjectBase* object,
-        NTransactionServer::TTransaction* transaction) override
+    virtual void Destroy(TObjectBase* /*object*/) override
     {
-        UNUSED(object);
-        UNUSED(transaction);
-        auto objectManager = Bootstrap->GetObjectManager();
-        return objectManager->GetMasterProxy();
-    }
-
-    virtual TObjectBase* Create(
-        NTransactionServer::TTransaction* transaction,
-        NSecurityServer::TAccount* account,
-        NYTree::IAttributeDictionary* attributes,
-        TReqCreateObject* request,
-        TRspCreateObject* response) override
-    {
-        UNUSED(transaction);
-        UNUSED(account);
-        UNUSED(attributes);
-        UNUSED(request);
-        UNUSED(response);
         YUNREACHABLE();
-    }
-
-    virtual void Destroy(TObjectBase* object) override
-    {
-        UNUSED(object);
-        YUNREACHABLE();
-    }
-
-    virtual void Unstage(
-        TObjectBase* object,
-        NTransactionServer::TTransaction* transaction,
-        bool recursive) override
-    {
-        UNUSED(object);
-        UNUSED(transaction);
-        UNUSED(recursive);
-        YUNREACHABLE();
-    }
-
-    virtual TNullable<TTypeCreationOptions> GetCreationOptions() const override
-    {
-        return Null;
-    }
-
-    virtual NSecurityServer::TAccessControlDescriptor* FindAcd(TObjectBase* object) override
-    {
-        UNUSED(object);
-        return nullptr;
-    }
-
-    virtual TObjectBase* GetParent(TObjectBase* object) override
-    {
-        UNUSED(object);
-        return nullptr;
     }
 
     virtual EPermissionSet GetSupportedPermissions() const override
@@ -220,7 +161,18 @@ public:
     }
 
 private:
-    TBootstrap* Bootstrap;
+    virtual Stroka DoGetName(TMasterObject* /*object*/) override
+    {
+        return "master";
+    }
+
+    virtual IObjectProxyPtr DoGetProxy(
+        TMasterObject* /*object*/,
+        NTransactionServer::TTransaction* /*transaction*/) override
+    {
+        auto objectManager = Bootstrap->GetObjectManager();
+        return objectManager->GetMasterProxy();
+    }
 
 };
 

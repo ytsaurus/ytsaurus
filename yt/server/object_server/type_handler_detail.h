@@ -38,21 +38,19 @@ public:
         return DoGetProxy(static_cast<TObject*>(object), transaction);
     }
 
-    virtual TObjectBase* Create(
-        NTransactionServer::TTransaction* transaction,
-        NSecurityServer::TAccount* account,
-        NYTree::IAttributeDictionary* attributes,
-        TReqCreateObject* request,
-        TRspCreateObject* response) override
+    virtual TNullable<TTypeCreationOptions> GetCreationOptions() const override
     {
-        UNUSED(transaction);
-        UNUSED(account);
-        UNUSED(attributes);
-        UNUSED(request);
-        UNUSED(response);
+        return Null;
+    }
 
-        THROW_ERROR_EXCEPTION("Cannot create an instance of %s directly",
-            ~FormatEnum(GetType()));
+    virtual TObjectBase* Create(
+        NTransactionServer::TTransaction* /*transaction*/,
+        NSecurityServer::TAccount* /*account*/,
+        NYTree::IAttributeDictionary* /*attributes*/,
+        TReqCreateObject* /*request*/,
+        TRspCreateObject* /*response*/) override
+    {
+        YUNREACHABLE();
     }
 
     virtual void Unstage(
@@ -88,31 +86,26 @@ protected:
 
     virtual IObjectProxyPtr DoGetProxy(
         TObject* object,
-        NTransactionServer::TTransaction* transaction)
+        NTransactionServer::TTransaction* /*transaction*/)
     {
-        UNUSED(transaction);
         return New< TNonversionedObjectProxyBase<TObject> >(Bootstrap, object);
     }
 
     virtual void DoUnstage(
-        TObject* object,
-        NTransactionServer::TTransaction* transaction,
-        bool recursive)
+        TObject* /*object*/,
+        NTransactionServer::TTransaction* /*transaction*/,
+        bool /*recursive*/)
     {
-        UNUSED(object);
-        UNUSED(transaction);
-        UNUSED(recursive);
+        YUNREACHABLE();
     }
 
-    virtual NSecurityServer::TAccessControlDescriptor* DoFindAcd(TObject* object)
+    virtual NSecurityServer::TAccessControlDescriptor* DoFindAcd(TObject* /*object*/)
     {
-        UNUSED(object);
         return nullptr;
     }
 
-    virtual TObjectBase* DoGetParent(TObject* object)
+    virtual TObjectBase* DoGetParent(TObject* /*object*/)
     {
-        UNUSED(object);
         auto objectManager = Bootstrap->GetObjectManager();
         return objectManager->FindSchema(GetType());
     }

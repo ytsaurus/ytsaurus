@@ -124,6 +124,16 @@ describe("wrapped errors", function() {
         inner.attributes.should.be.empty;
         inner.inner_errors.should.be.empty;
     });
+
+    it("should find unavailable codes", function() {
+        var err1 = makeError(binding.UnavailableYtErrorCode, "Foo", {});
+        var err2 = new YtError("Bar", err1);
+        var err3 = new YtError("Baz");
+
+        err1.isUnavailable().should.be.true;
+        err2.isUnavailable().should.be.true;
+        err3.isUnavailable().should.be.false;
+    });
 });
 
 describe("error serialization", function() {

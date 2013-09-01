@@ -16,10 +16,9 @@ struct IProxyController
 {
     /*!
      *  Runs job proxy.
-     *  May throw exception. If no exception is thrown,
-     *  Exited signal is guaranteed to be raised.
+     *  May throw exception.
      */
-    virtual void Run() = 0;
+    virtual TAsyncError Run() = 0;
 
     /*!
      *  Is safe to be called anytime.
@@ -28,8 +27,6 @@ struct IProxyController
      *  Must be called from the same thread as #Run.
      */
     virtual void Kill(int uid, const TError& error) throw() = 0;
-
-    DECLARE_INTERFACE_SIGNAL(void(TError), Exited);
 
     // virtual void SubscribeOnMemoryLimit(IParamAction<i64>* callback) = 0;
     // virtual bool IsRunning() const = 0;

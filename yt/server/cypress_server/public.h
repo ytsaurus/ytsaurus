@@ -2,6 +2,8 @@
 
 #include <ytlib/misc/common.h>
 
+#include <ytlib/actions/callback.h>
+
 #include <ytlib/cypress_client/public.h>
 
 #include <ytlib/object_client/public.h>
@@ -24,6 +26,7 @@ struct INodeTypeHandler;
 typedef TIntrusivePtr<INodeTypeHandler> INodeTypeHandlerPtr;
 
 class TCypressNodeBase;
+class TLock;
 
 struct ICypressNodeFactory;
 typedef TIntrusivePtr<ICypressNodeFactory> ICypressNodeFactoryPtr;
@@ -35,7 +38,9 @@ struct ICypressNodeVisitor;
 typedef TIntrusivePtr<ICypressNodeVisitor> ICypressNodeVisitorPtr;
 
 using NCypressClient::TNodeId;
+using NCypressClient::TLockId;
 using NCypressClient::ELockMode;
+using NCypressClient::ELockState;
 using NCypressClient::TVersionedNodeId;
 
 using NObjectClient::TTransactionId;

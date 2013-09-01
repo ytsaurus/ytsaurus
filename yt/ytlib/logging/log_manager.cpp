@@ -205,8 +205,9 @@ struct TRule
 {
     typedef TIntrusivePtr<TRule> TPtr;
 
-    bool AllCategories;
-    yhash_set<Stroka> Categories;
+    bool IncludeAllCategories;
+    yhash_set<Stroka> IncludeCategories;
+    yhash_set<Stroka> ExcludeCategories;
 
     ELogLevel MinLevel;
     ELogLevel MaxLevel;
@@ -214,24 +215,41 @@ struct TRule
     std::vector<Stroka> Writers;
 
     TRule()
-        : AllCategories(false)
+        : IncludeAllCategories(false)
     {
-        RegisterParameter("categories", Categories).NonEmpty();
-        RegisterParameter("min_level", MinLevel).Default(ELogLevel::Minimum);
-        RegisterParameter("max_level", MaxLevel).Default(ELogLevel::Maximum);
-        RegisterParameter("writers", Writers).NonEmpty();
+        // TODO(babenko): rename to include_categories
+        RegisterParameter("categories", IncludeCategories)
+            .NonEmpty();
+        RegisterParameter("exclude_categories", ExcludeCategories)
+            .Default(yhash_set<Stroka>());
+        RegisterParameter("min_level", MinLevel)
+            .Default(ELogLevel::Minimum);
+        RegisterParameter("max_level", MaxLevel)
+            .Default(ELogLevel::Maximum);
+        RegisterParameter("writers", Writers)
+            .NonEmpty();
     }
 
     virtual void OnLoaded() override
     {
-        if (Categories.size() == 1 && *Categories.begin() == AllCategoriesName) {
-            AllCategories = true;
+        if (IncludeCategories.size() == 1 && *IncludeCategories.begin() == AllCategoriesName) {
+            IncludeAllCategories = true;
         }
     }
 
     bool IsApplicable(const Stroka& category) const
     {
-        return AllCategories || Categories.find(category) != Categories.end();
+        if (!IncludeAllCategories && IncludeCategories.find(category) == IncludeCategories.end()) {
+            // No match in include_categories.
+            return false;
+        }
+
+        if (ExcludeCategories.find(category) != ExcludeCategories.end()) {
+            // Match in exclude_categories.
+            return false;
+        }
+
+        return true;
     }
 
     bool IsApplicable(const Stroka& category, ELogLevel level) const
@@ -240,6 +258,7 @@ struct TRule
             MinLevel <= level && level <= MaxLevel &&
             IsApplicable(category);
     }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -272,6 +291,12 @@ public:
         RegisterParameter("min_disk_space", MinDiskSpace)
             .GreaterThanOrEqual((i64) 1024 * 1024 * 1024)
             .Default((i64) 5 * 1024 * 1024 * 1024);
+        RegisterParameter("high_backlog_watermark", HighBacklogWatermark)
+            .GreaterThan(0)
+            .Default(1000000);
+        RegisterParameter("low_backlog_watermark", LowBacklogWatermark)
+            .GreaterThan(0)
+            .Default(100000);
 
         RegisterParameter("writers", WriterConfigs);
         RegisterParameter("rules", Rules);
@@ -387,7 +412,7 @@ public:
 
         auto rule = New<TRule>();
 
-        rule->AllCategories = true;
+        rule->IncludeAllCategories = true;
         rule->MinLevel = DefaultStdErrMinLevel;
         rule->Writers.push_back(DefaultStdErrWriterName);
 
@@ -422,6 +447,16 @@ public:
     TNullable<TDuration> GetCheckSpacePeriod() const
     {
         return CheckSpacePeriod;
+    }
+
+    int GetHighBacklogWatermark() const
+    {
+        return HighBacklogWatermark;
+    }
+
+    int GetLowBacklogWatermark() const
+    {
+        return LowBacklogWatermark;
     }
 
 private:
@@ -501,6 +536,9 @@ private:
 
     i64 MinDiskSpace;
 
+    int HighBacklogWatermark;
+    int LowBacklogWatermark;
+
     std::vector<TRule::TPtr> Rules;
     yhash_map<Stroka, ILogWriter::TConfig::TPtr> WriterConfigs;
 
@@ -540,6 +578,8 @@ public:
         , Version(-1)
         , EnqueueCounter("/enqueue_rate")
         , WriteCounter("/write_rate")
+        , BacklogCounter("/backlog")
+        , Suspended(false)
         , ReopenEnqueued(false)
     {
         SystemWriters.push_back(New<TStdErrLogWriter>(SystemPattern));
@@ -601,10 +641,11 @@ public:
 
     void Enqueue(const TLogEvent& event)
     {
-        if (!Thread->IsRunning()) {
+        if (!Thread->IsRunning() || Suspended) {
             return;
         }
 
+        int backlogSize = LoggingProfiler.Increment(BacklogCounter);
         LoggingProfiler.Increment(EnqueueCounter);
         LogEventQueue.Enqueue(event);
         EventCount.Notify();
@@ -629,6 +670,12 @@ public:
             (void)unused;
 
             std::terminate();
+        }
+
+        if (!Suspended && backlogSize == Config->GetHighBacklogWatermark()) {
+            LOG_WARNING("Backlog size has exceeded high watermark %d, logging suspended",
+                Config->GetHighBacklogWatermark());
+            Suspended = true;
         }
     }
 
@@ -701,7 +748,7 @@ private:
             configsUpdated = true;
         }
 
-        bool eventsWritten = false;
+        int eventsWritten = 0;
         TLogEvent event;
         while (LogEventQueue.Dequeue(&event)) {
             // To avoid starvation of config update
@@ -715,14 +762,21 @@ private:
             }
 
             Write(event);
-            eventsWritten = true;
+            ++eventsWritten;
         }
 
-        if (eventsWritten && Config->GetFlushPeriod() == TDuration::Zero()) {
+        int backlogSize = LoggingProfiler.Increment(BacklogCounter, -eventsWritten);
+        if (Suspended && backlogSize < Config->GetLowBacklogWatermark()) {
+            Suspended = false;
+            LOG_INFO("Backlog size has dropped below low watermark %d, logging resumed",
+                Config->GetLowBacklogWatermark());
+        }
+
+        if (eventsWritten > 0 && Config->GetFlushPeriod() == TDuration::Zero()) {
             Config->FlushWriters();
         }
 
-        if (configsUpdated || eventsWritten) {
+        if (configsUpdated || eventsWritten > 0) {
             EventCount.CancelWait();
             return EBeginExecuteResult::Success;
         } else {
@@ -833,6 +887,8 @@ private:
     TLogConfigPtr Config;
     NProfiling::TRateCounter EnqueueCounter;
     NProfiling::TRateCounter WriteCounter;
+    NProfiling::TAggregateCounter BacklogCounter;
+    bool Suspended;
     TSpinLock SpinLock;
 
     TLockFreeQueue<TLogConfigPtr> ConfigsToUpdate;

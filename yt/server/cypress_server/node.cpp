@@ -76,7 +76,8 @@ void TCypressNodeBase::Save(NCellMaster::TSaveContext& context) const
     TObjectBase::Save(context);
 
     using NYT::Save;
-    SaveObjectRefs(context, Locks_);
+    SaveObjectRefs(context, LockStateMap_);
+    SaveObjectRefs(context, LockList_);
     // TODO(babenko): refactor when new serialization API is ready
     auto parentId = Parent_ ? Parent_->GetId() : NullObjectId;
     Save(context, parentId);
@@ -96,7 +97,11 @@ void TCypressNodeBase::Load(NCellMaster::TLoadContext& context)
     TObjectBase::Load(context);
 
     using NYT::Load;
-    LoadObjectRefs(context, Locks_);
+    LoadObjectRefs(context, LockStateMap_);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 24) {
+        LoadObjectRefs(context, LockList_);
+    }
     // TODO(babenko): refactor when new serialization API is ready
     TNodeId parentId;
     Load(context, parentId);
@@ -119,12 +124,18 @@ void TCypressNodeBase::Load(NCellMaster::TLoadContext& context)
         AccessTime_ = ModificationTime_;
     }
 
+    // Reconstruct TrunkNode and Transaction.
     if (TransactionId == NullTransactionId) {
         TrunkNode_ = this;
         Transaction_ = nullptr;
     } else {
         TrunkNode_ = context.Get<TCypressNodeBase>(TVersionedNodeId(Id));
         Transaction_ = context.Get<TTransaction>(TransactionId);
+    }
+
+    // Reconstruct iterators from locks to their positions in the lock list.
+    for (auto it = LockList_.begin(); it != LockList_.end(); ++it) {
+        (*it)->SetLockListIterator(it);
     }
 }
 

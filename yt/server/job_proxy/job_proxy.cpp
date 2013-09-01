@@ -62,6 +62,8 @@ using namespace NJobTrackerClient::NProto;
 
 static i64 InitialJobProxyMemoryLimit = (i64) 100 * 1024 * 1024;
 
+static i64 RssLimitBoost = (i64) 1024 * 1024 * 1024;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TJobProxy::TJobProxy(
@@ -110,7 +112,11 @@ void TJobProxy::RetrieveJobSpec()
     ToProto(req->mutable_job_id(), JobId);
 
     auto rsp = req->Invoke().Get();
-    LOG_FATAL_IF(!rsp->IsOK(), *rsp, "Failed to get job spec");
+    if (!rsp->IsOK()) {
+        LOG_ERROR(*rsp, "Failed to get job spec");
+        NLog::TLogManager::Get()->Shutdown();
+        _exit(EJobProxyExitCode::HeartbeatFailed);
+    }
 
     JobSpec = rsp->job_spec();
     ResourceUsage = rsp->resource_usage();
@@ -393,7 +399,7 @@ void TJobProxy::CheckMemoryUsage()
     LOG_DEBUG("Job proxy memory check (MemoryUsage: %" PRId64 ", MemoryLimit: %" PRId64 ")",
         memoryUsage,
         JobProxyMemoryLimit);
-    if (memoryUsage > JobProxyMemoryLimit) {
+    if (memoryUsage > JobProxyMemoryLimit + RssLimitBoost) {
         LOG_FATAL(
             "Job proxy memory limit exceeded (MemoryUsage: %" PRId64 ", MemoryLimit: %" PRId64 ", RefCountedTracker: %s)",
             memoryUsage,

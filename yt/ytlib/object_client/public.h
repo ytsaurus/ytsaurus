@@ -71,6 +71,9 @@ DECLARE_ENUM(EObjectType,
     // These must be created by calling TCypressYPathProxy::Create.
     // NB: When adding a new type, don't forget to update IsVersioned.
 
+    // Auxiliary.
+    ((Lock)                       (200))
+
     // Static nodes
     ((StringNode)                 (300))
     ((IntegerNode)                (301))
@@ -99,6 +102,7 @@ DECLARE_ENUM(EObjectType,
     ((GroupMap)                   (416))
     ((Link)                       (417))
     ((Document)                   (421))
+    ((LockMap)                    (422))
 
     // Security
     ((Account)                    (500))

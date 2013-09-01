@@ -61,7 +61,6 @@ struct TSchedulableAttributes
     TSchedulableAttributes()
         : Rank(0)
         , DominantResource(EResourceType::Cpu)
-        , Weight(0.0)
         , DemandRatio(0.0)
         , FairShareRatio(0.0)
         , AdjustedMinShareRatio(0.0)
@@ -70,7 +69,6 @@ struct TSchedulableAttributes
 
     int Rank;
     EResourceType DominantResource;
-    double Weight;
     double DemandRatio;
     double FairShareRatio;
     double AdjustedMinShareRatio;
@@ -268,7 +266,7 @@ public:
 
     virtual void Update() override
     {
-        ComputeFairShares();
+        ComputeAll();
     }
 
     virtual bool ScheduleJobs(
@@ -305,7 +303,7 @@ public:
     {
         YCHECK(Children.erase(child) == 1);
         // Avoid scheduling removed children.
-        ComputeFairShares();
+        ComputeAll();
     }
 
     std::vector<ISchedulableElementPtr> GetChildren() const
@@ -325,11 +323,58 @@ protected:
 
     yhash_set<ISchedulableElementPtr> Children;
 
-    void ComputeFairShares()
+
+    // Given a non-descending continuous |f|, |f(0) = 0|, and a scalar |a|,
+    // computes |x \in [0,1]| s.t. |f(x) = a|.
+    // If |f(1) < a| then still returns 1.
+    template <class F>
+    static double BinarySearch(const F& f, double a)
+    {
+        if (f(1) < a) {
+            return 1.0;
+        }
+
+        double lo = 0.0;
+        double hi = 1.0;
+        while (hi - lo > RatioComputationPrecision) {
+            double x = (lo + hi) / 2.0;
+            if (f(x) < a) {
+                lo = x;
+            } else {
+                hi = x;
+            }
+        }
+        return (lo + hi) / 2.0;
+    }
+
+    template <class TGetter, class TSetter>
+    void ComputeByFitting(
+        const TGetter& getter,
+        const TSetter& setter,
+        double sum)
+    {
+        auto getSum = [&] (double fitFactor) -> double {
+            double sum = 0.0;
+            FOREACH (auto child, Children) {
+                sum += getter(fitFactor, child);
+            }
+            return sum;
+        };
+
+        // Run binary search to compute fit factor.
+        double fitFactor = BinarySearch(getSum, sum);
+
+        // Compute actual min shares from fit factor.
+        FOREACH (auto child, Children) {
+            double value = getter(fitFactor, child);
+            setter(child, value);
+        }
+    }
+
+
+    void ComputeAll()
     {
         // Choose dominant resource types.
-        // Precache weights.
-        // Precache min share ratios and compute their sum.
         // Compute max share ratios.
         // Compute demand ratios and their sum.
         double demandRatioSum = 0.0;
@@ -349,35 +394,21 @@ protected:
             i64 dominantDemand = GetResource(demand, childAttributes.DominantResource);
             childAttributes.DemandRatio = dominantTotalLimits == 0 ? 0.0 : (double) dominantDemand / dominantTotalLimits;
             demandRatioSum += std::min(childAttributes.DemandRatio, childAttributes.MaxShareRatio);
-
-            childAttributes.AdjustedMinShareRatio = std::min(std::min(
-                child->GetMinShareRatio() * Attributes_.AdjustedMinShareRatio,
-                childAttributes.MaxShareRatio),
-                childAttributes.DemandRatio);
-            minShareRatioSum += childAttributes.AdjustedMinShareRatio;
-
-            childAttributes.Weight = child->GetWeight();
         }
 
-        // Scale down min shares, if needed.
-        if (minShareRatioSum > Attributes_.AdjustedMinShareRatio) {
-            FOREACH (auto child, Children) {
-                auto& attributes = child->Attributes();
-                attributes.AdjustedMinShareRatio *= (Attributes_.AdjustedMinShareRatio / minShareRatioSum);
-            }
-        }
+        switch (Mode) {
+            case ESchedulingMode::Fifo:
+                // Easy case -- the first child get everything, others get none.
+                ComputeFifo();
+                break;
 
-        // Check for FIFO mode.
-        // Check if we have more resources than totally demanded by children.
-        if (Mode == ESchedulingMode::Fifo) {
-            // Easy case -- the first child get everything, others get none.
-            SetFifoFairShares();
-        } else if (demandRatioSum <= Attributes_.FairShareRatio) {
-            // Easy case -- just give everyone what he needs.
-            SetDemandedFairShares();
-        } else {
-            // Hard case -- compute fair shares using fit factor.
-            ComputeFairSharesByFitting();
+            case ESchedulingMode::FairShare:
+                // Hard case -- compute fair shares using fit factor.
+                ComputeFairShare();
+                break;
+
+            default:
+                YUNREACHABLE();
         }
 
         // Propagate updates to children.
@@ -386,58 +417,59 @@ protected:
         }
     }
 
-    void SetFifoFairShares()
+    void ComputeFifo()
     {
         FOREACH (auto child, Children) {
-            auto& attributes = child->Attributes();
-            attributes.FairShareRatio = attributes.Rank == 0 ? Attributes_.FairShareRatio : 0.0;
-        }
-    }
-
-    void SetDemandedFairShares()
-    {
-        FOREACH (auto child, Children) {
-            auto& attributes = child->Attributes();
-            attributes.FairShareRatio = std::min(attributes.DemandRatio, attributes.MaxShareRatio);
-        }
-    }
-
-    void ComputeFairSharesByFitting()
-    {
-        auto computeFairShareRatio = [&] (double fitFactor, ISchedulableElementPtr element) -> double {
-            const auto& attributes = element->Attributes();
-            double result = attributes.Weight * fitFactor;
-            // Never give less than promised by min share.
-            result = std::max(result, attributes.AdjustedMinShareRatio);
-            // Never give more than demanded.
-            result = std::min(result, attributes.DemandRatio);
-            // Never give more than max share allows.
-            result = std::min(result, attributes.MaxShareRatio);
-            return result;
-        };
-
-        // Run binary search to compute fit factor.
-        double fitFactorLo = 0.0;
-        double fitFactorHi = 1.0;
-        while (fitFactorHi - fitFactorLo > RatioComputationPrecision) {
-            double fitFactor = (fitFactorLo + fitFactorHi) / 2.0;
-            double fairShareRatioSum = 0.0;
-            FOREACH (auto child, Children) {
-                fairShareRatioSum += computeFairShareRatio(fitFactor, child);
-            }
-            if (fairShareRatioSum < Attributes_.FairShareRatio) {
-                fitFactorLo = fitFactor;
+            auto& childAttributes = child->Attributes();
+            if (childAttributes.Rank == 0) {
+                childAttributes.AdjustedMinShareRatio = std::min(
+                    childAttributes.DemandRatio,
+                    Attributes_.AdjustedMinShareRatio);
+                childAttributes.FairShareRatio = std::min(
+                    childAttributes.DemandRatio,
+                    Attributes_.FairShareRatio);
             } else {
-                fitFactorHi = fitFactor;
+                childAttributes.AdjustedMinShareRatio = 0.0;
+                childAttributes.FairShareRatio = 0.0;
             }
         }
+    }
 
-        // Compute actual fair share ratios from fit factor.
-        double fitFactor = (fitFactorLo + fitFactorHi) / 2.0;
-        FOREACH (auto child, Children) {
-            auto& attributes = child->Attributes();
-            attributes.FairShareRatio = computeFairShareRatio(fitFactor, child);
-        }
+    void ComputeFairShare()
+    {
+        ComputeByFitting(
+            [&] (double fitFactor, ISchedulableElementPtr child) -> double {
+                const auto& childAttributes = child->Attributes();
+                double result = child->GetMinShareRatio() * fitFactor;
+                // Never give more than max share allows.
+                result = std::min(result, childAttributes.MaxShareRatio);
+                // Never give more than demanded.
+                result = std::min(result, childAttributes.DemandRatio);
+                return result;
+            },
+            [&] (ISchedulableElementPtr child, double value) {
+                auto& attributes = child->Attributes();
+                attributes.AdjustedMinShareRatio = value;
+            },
+            Attributes_.AdjustedMinShareRatio);
+
+        ComputeByFitting(
+            [&] (double fitFactor, ISchedulableElementPtr child) -> double {
+                const auto& childAttributes = child->Attributes();
+                double result = child->GetWeight() * fitFactor;
+                // Never give less than promised by min share.
+                result = std::max(result, childAttributes.AdjustedMinShareRatio);
+                // Never give more than demanded.
+                result = std::min(result, childAttributes.DemandRatio);
+                // Never give more than max share allows.
+                result = std::min(result, childAttributes.MaxShareRatio);
+                return result;
+            },
+            [&] (ISchedulableElementPtr child, double value) {
+                auto& attributes = child->Attributes();
+                attributes.FairShareRatio = value;
+            },
+            Attributes_.FairShareRatio);
     }
 
 
@@ -529,7 +561,7 @@ protected:
     static double GetUsageToWeightRatio(ISchedulableElementPtr element)
     {
         double usageRatio = element->GetUsageRatio();
-        double weight = element->Attributes().Weight;
+        double weight = element->GetWeight();
         return usageRatio / weight;
     }
 
@@ -538,7 +570,7 @@ protected:
     {
         if (Mode != mode) {
             Mode = mode;
-            ComputeFairShares();
+            ComputeAll();
         }
     }
 
@@ -815,7 +847,7 @@ public:
             attributes.AdjustedMinShareRatio,
             attributes.MaxShareRatio,
             ~FormatBool(element->GetStarving()),
-            attributes.Weight);
+            element->GetWeight());
     }
 
     virtual void BuildOrchidYson(IYsonConsumer* consumer) override

@@ -63,6 +63,19 @@ YtError.prototype.isOK = function() {
     return this.code === 0;
 };
 
+YtError.prototype.isUnavailable = function() {
+    "use strict";
+    if (this.code == binding.UnavailableYtErrorCode) {
+        return true;
+    }
+    for (var i = 0, n = this.inner_errors.length; i < n; ++i) {
+        if (this.inner_errors[i].isUnavailable()) {
+            return true;
+        }
+    }
+    return false;
+};
+
 // Setters.
 
 YtError.prototype.withCode = function(code) {

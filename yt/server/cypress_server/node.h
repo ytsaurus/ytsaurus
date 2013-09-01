@@ -19,6 +19,8 @@
 
 #include <server/cypress_server/cypress_manager.pb.h>
 
+#include <queue>
+
 namespace NYT {
 namespace NCypressServer {
 
@@ -30,8 +32,11 @@ class TCypressNodeBase
     , public TRefTracked<TCypressNodeBase>
 {
 public:
-    typedef yhash_map<NTransactionServer::TTransaction*, TLock> TLockMap;
-    DEFINE_BYREF_RW_PROPERTY(TLockMap, Locks);
+    typedef yhash_map<NTransactionServer::TTransaction*, TTransactionLockState> TLockStateMap;
+    DEFINE_BYREF_RW_PROPERTY(TLockStateMap, LockStateMap);
+
+    typedef std::list<TLock*> TLockList;
+    DEFINE_BYREF_RW_PROPERTY(TLockList, LockList);
 
     typedef yhash_set<TCypressNodeBase*> TNodeSet;
     //! Contains all nodes with parent pointing here.

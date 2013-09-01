@@ -27,7 +27,7 @@ using namespace NRpc::NProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static auto& Logger = RpcServerLogger;
-static TProfiler& Profiler = RpcServerProfiler;
+static auto& Profiler = RpcServerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -106,6 +106,7 @@ private:
     virtual void LogRequest() override
     {
         Stroka str;
+        str.reserve(1024); // should be enough for typical request message
 
         if (RequestId != NullRequestId) {
             AppendInfo(str, Sprintf("RequestId: %s", ~ToString(RequestId)));
@@ -126,6 +127,7 @@ private:
     virtual void LogResponse(const TError& error) override
     {
         Stroka str;
+        str.reserve(1024); // should be enough for typical response message
 
         if (RequestId != NullRequestId) {
             AppendInfo(str, Sprintf("RequestId: %s", ~ToString(RequestId)));

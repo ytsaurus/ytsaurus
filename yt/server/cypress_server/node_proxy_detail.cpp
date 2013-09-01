@@ -85,7 +85,7 @@ void TVersionedUserAttributeDictionary::SetYson(const Stroka& key, const TYsonSt
     auto objectManager = Bootstrap->GetObjectManager();
     auto cypressManager = Bootstrap->GetCypressManager();
 
-    auto* node = cypressManager->LockVersionedNode(
+    auto* node = cypressManager->LockNode(
         TrunkNode,
         Transaction,
         TLockRequest::SharedAttribute(key));
@@ -128,7 +128,7 @@ bool TVersionedUserAttributeDictionary::Remove(const Stroka& key)
         return false;
     }
 
-    auto* node = cypressManager->LockVersionedNode(
+    auto* node = cypressManager->LockNode(
         TrunkNode,
         Transaction,
         TLockRequest::SharedAttribute(key));
@@ -363,19 +363,21 @@ bool TNontemplateCypressNodeProxyBase::GetSystemAttribute(
 
     if (key == "locks") {
         BuildYsonFluently(consumer)
-            .DoListFor(trunkNode->Locks(), [=] (TFluentList fluent, const TCypressNodeBase::TLockMap::value_type& pair) {
+            .DoListFor(trunkNode->LockList(), [=] (TFluentList fluent, const TLock* lock) {
                 fluent.Item()
                     .BeginMap()
-                    .Item("mode").Value(pair.second.Mode)
-                    .Item("transaction_id").Value(pair.first->GetId())
-                    .DoIf(!pair.second.ChildKeys.empty(), [=] (TFluentMap fluent) {
-                        fluent
-                            .Item("child_keys").List(pair.second.ChildKeys);
-                    })
-                    .DoIf(!pair.second.AttributeKeys.empty(), [=] (TFluentMap fluent) {
-                        fluent
-                            .Item("attribute_keys").List(pair.second.AttributeKeys);
-                    })
+                        .Item("id").Value(lock->GetId())
+                        .Item("state").Value(lock->GetState())
+                        .Item("transaction_id").Value(lock->GetTransaction()->GetId())
+                        .Item("mode").Value(lock->Request().Mode)
+                        .DoIf(lock->Request().ChildKey, [=] (TFluentMap fluent) {
+                            fluent
+                                .Item("child_key").List(*lock->Request().ChildKey);
+                        })
+                        .DoIf(lock->Request().AttributeKey, [=] (TFluentMap fluent) {
+                            fluent
+                                .Item("attribute_key").List(*lock->Request().AttributeKey);
+                        })
                     .EndMap();
         });
         return true;
@@ -534,7 +536,7 @@ TCypressNodeBase* TNontemplateCypressNodeProxyBase::LockImpl(
     bool recursive /*= false*/) const
 {
     auto cypressManager = Bootstrap->GetCypressManager();
-    return cypressManager->LockVersionedNode(trunkNode, Transaction, request, recursive);
+    return cypressManager->LockNode(trunkNode, Transaction, request, recursive);
 }
 
 TCypressNodeBase* TNontemplateCypressNodeProxyBase::GetThisImpl()
@@ -565,7 +567,7 @@ TCypressNodeBase* TNontemplateCypressNodeProxyBase::LockThisImpl(
 ICypressNodeProxyPtr TNontemplateCypressNodeProxyBase::GetProxy(TCypressNodeBase* trunkNode) const
 {
     auto cypressManager = Bootstrap->GetCypressManager();
-    return cypressManager->GetVersionedNodeProxy(trunkNode, Transaction);
+    return cypressManager->GetNodeProxy(trunkNode, Transaction);
 }
 
 ICypressNodeProxy* TNontemplateCypressNodeProxyBase::ToProxy(INodePtr node)
@@ -668,8 +670,8 @@ TClusterResources TNontemplateCypressNodeProxyBase::GetResourceUsage() const
 DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
 {
     auto mode = ELockMode(request->mode());
+    bool waitable = request->waitable();
 
-    context->SetRequestInfo("Mode: %s", ~mode.ToString());
     if (mode != ELockMode::Snapshot &&
         mode != ELockMode::Shared &&
         mode != ELockMode::Exclusive)
@@ -678,11 +680,26 @@ DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
             ~FormatEnum(mode).Quote());
     }
 
+    context->SetRequestInfo("Mode: %s, Waitable: %s",
+        ~mode.ToString(),
+        ~FormatBool(waitable));
+
     ValidateTransaction();
-    ValidatePermission(EPermissionCheckScope::This, mode == ELockMode::Snapshot ? EPermission::Read : EPermission::Write);
+    ValidatePermission(
+        EPermissionCheckScope::This,
+        mode == ELockMode::Snapshot ? EPermission::Read : EPermission::Write);
 
     auto cypressManager = Bootstrap->GetCypressManager();
-    cypressManager->LockVersionedNode(TrunkNode, Transaction, mode);
+    auto* lock = cypressManager->CreateLock(
+        TrunkNode,
+        Transaction,
+        mode,
+        waitable);
+    auto lockId = GetObjectId(lock);
+    ToProto(response->mutable_lock_id(), lockId);
+
+    context->SetResponseInfo("LockId: %s",
+        ~ToString(lockId));
 
     context->Reply();
 }
@@ -925,7 +942,7 @@ ICypressNodeProxyPtr TNodeFactory::CreateNode(
     if (attributes) {
         handler->SetDefaultAttributes(attributes);
 
-        auto trunkProxy = cypressManager->GetVersionedNodeProxy(trunkNode, nullptr);
+        auto trunkProxy = cypressManager->GetNodeProxy(trunkNode, nullptr);
         
         auto keys = attributes->List();
 
@@ -949,9 +966,9 @@ ICypressNodeProxyPtr TNodeFactory::CreateNode(
         }        
     }
 
-    cypressManager->LockVersionedNode(trunkNode, Transaction, ELockMode::Exclusive);
+    cypressManager->LockNode(trunkNode, Transaction, ELockMode::Exclusive);
 
-    return cypressManager->GetVersionedNodeProxy(trunkNode, Transaction);
+    return cypressManager->GetNodeProxy(trunkNode, Transaction);
 }
 
 TCypressNodeBase* TNodeFactory::CloneNode(
@@ -964,7 +981,7 @@ TCypressNodeBase* TNodeFactory::CloneNode(
 
     RegisterCreatedNode(clonedTrunkNode);
 
-    cypressManager->LockVersionedNode(clonedTrunkNode, Transaction, ELockMode::Exclusive);
+    cypressManager->LockNode(clonedTrunkNode, Transaction, ELockMode::Exclusive);
 
     return clonedTrunkNode;
 }

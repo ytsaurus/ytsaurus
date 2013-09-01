@@ -1602,8 +1602,6 @@ private:
             YCHECK(operation->GetState() == intermediateState);
         }
 
-        operation->GetController()->Abort();
-
         SetOperationFinalState(operation, finalState, error);
 
         AbortSchedulerTransactions(operation);
@@ -1614,6 +1612,8 @@ private:
             WaitFor(asyncResult);
             YCHECK(operation->GetState() == finalState);
         }
+
+        operation->GetController()->Abort();
 
         FinishOperation(operation);
     }

@@ -53,12 +53,14 @@ def convert_to_yt_args(*args, **kwargs):
         # workaround to deal with 'in' as keyword
         if k == 'in_': k = 'in'
 
-        if isinstance(v, list):
+        if v is None:
+            all_args.append('--' + k)
+        elif isinstance(v, list):
             for elem in v:
                 all_args.extend(['--' + k, elem])
         else:
             all_args.extend(['--' + k, v])
-
+           
     return all_args
 
 def quote(s):
@@ -82,8 +84,11 @@ def run_command(name, *args, **kwargs):
 
 ###########################################################################
 
-def lock(path, **kwargs):
-    return command('lock', path, **kwargs)
+def lock(path, waitable = False, **kwargs):
+    if waitable:
+        kwargs['waitable'] = None
+    out = command('lock', path, **kwargs)
+    return out.replace('"', '').strip('\n')
 
 def get_str(path, **kwargs):
     return command('get', path, **kwargs)

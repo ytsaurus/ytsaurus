@@ -169,12 +169,15 @@ struct TLockRequest
 {
     NYPath::TRichYPath Path;
     NCypressClient::ELockMode Mode;
+    bool Waitable;
 
     TLockRequest()
     {
         RegisterParameter("path", Path);
         RegisterParameter("mode", Mode)
             .Default(NCypressClient::ELockMode::Exclusive);
+        RegisterParameter("waitable", Waitable)
+            .Default(false);
     }
 };
 

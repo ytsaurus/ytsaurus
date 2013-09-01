@@ -76,7 +76,7 @@ public:
         Logger.AddTag(Sprintf("JobId: %s", ~ToString(jobId)));
     }
 
-    void Run()
+    TAsyncError Run()
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -120,6 +120,8 @@ public:
         ControllerThread.Start();
 
         ControllerThread.Detach();
+
+        return OnExit;
     }
 
     // Safe to call multiple times
@@ -156,16 +158,6 @@ public:
         }
 
         LOG_INFO("Job killed");
-    }
-
-    void SubscribeExited(const TCallback<void(TError)>& callback)
-    {
-        OnExit.Subscribe(callback);
-    }
-
-    void UnsubscribeExited(const TCallback<void(TError)>& callback)
-    {
-        YUNIMPLEMENTED();
     }
 
 private:
@@ -251,28 +243,20 @@ public:
         Logger.AddTag(Sprintf("JobId: %s", ~ToString(jobId)));
     }
 
-    void Run()
+    TAsyncError Run()
     {
         ControllerThread.Start();
         ControllerThread.Detach();
 
         LOG_INFO("Running dummy job");
+
+        return OnExit;
     }
 
     void Kill(int uid, const TError& error)
     {
         LOG_INFO("Killing dummy job");
         OnExit.Get();
-    }
-
-    void SubscribeExited(const TCallback<void(TError)>& callback)
-    {
-        OnExit.Subscribe(callback);
-    }
-
-    void UnsubscribeExited(const TCallback<void(TError)>& callback)
-    {
-        YUNIMPLEMENTED();
     }
 
 private:

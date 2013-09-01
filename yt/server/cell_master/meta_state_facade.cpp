@@ -352,6 +352,12 @@ private:
 
             CreateNode(
                 rootService,
+                "//sys/locks",
+                transactionId,
+                EObjectType::LockMap);
+
+            CreateNode(
+                rootService,
                 "//sys/chunks",
                 transactionId,
                 EObjectType::ChunkMap);

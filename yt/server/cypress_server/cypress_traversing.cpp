@@ -123,7 +123,7 @@ private:
                     return;
                 }
 
-                auto nodeProxy = cypressManager->GetVersionedNodeProxy(trunkNode, transaction);
+                auto nodeProxy = cypressManager->GetNodeProxy(trunkNode, transaction);
                 VisitNode(nodeProxy);
 
                 ++currentNodeCount;

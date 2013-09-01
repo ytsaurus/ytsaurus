@@ -25,12 +25,13 @@ typedef TIntrusivePtr<IDataPipe> IDataPipePtr;
 class TErrorOutput;
 
 DECLARE_ENUM(EJobProxyExitCode,
-    ((HeartbeatFailed)       (10000))
-    ((ResultReportFailed)    (10001))
-    ((ResourcesUpdateFailed) (10002))
-    ((SetRLimitFailed)       (10003))
-    ((ExecFailed)            (10004))
-    ((UncaughtException)     (10005))
+    ((HeartbeatFailed)       (20))
+    ((ResultReportFailed)    (21))
+    ((ResourcesUpdateFailed) (22))
+    ((SetRLimitFailed)       (23))
+    ((ExecFailed)            (24))
+    ((UncaughtException)     (25))
+    ((RetreiveJobSpecFailed) (26))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -713,7 +713,7 @@ public:
                                 result.Subject = subject;
                                 // At least one denying ACE is found, deny the request.
                                 if (result.Action == ESecurityAction::Deny) {
-                                    LOG_WARNING_UNLESS(IsRecovery(), "Permission check failed: explicit denying ACE found (CheckObjectId: %s, Permission: %s, User: %s, AclObjectId: %s, AclSubject: %s)",
+                                    LOG_INFO_UNLESS(IsRecovery(), "Permission check failed: explicit denying ACE found (CheckObjectId: %s, Permission: %s, User: %s, AclObjectId: %s, AclSubject: %s)",
                                         ~ToString(object->GetId()),
                                         ~permission.ToString(),
                                         ~user->GetName(),
@@ -737,7 +737,7 @@ public:
 
         // No allowing ACE, deny the request.
         if (result.Action == ESecurityAction::Undefined) {
-            LOG_WARNING_UNLESS(IsRecovery(), "Permission check failed: no matching ACE found (CheckObjectId: %s, Permission: %s, User: %s)",
+            LOG_INFO_UNLESS(IsRecovery(), "Permission check failed: no matching ACE found (CheckObjectId: %s, Permission: %s, User: %s)",
                 ~ToString(object->GetId()),
                 ~permission.ToString(),
                 ~user->GetName());
@@ -745,7 +745,7 @@ public:
             return result;
         } else {
             YASSERT(result.Action == ESecurityAction::Allow);
-            LOG_DEBUG_UNLESS(IsRecovery(), "Permission check succeeded: explicit allowing ACE found (CheckObjectId: %s, Permission: %s, User: %s, AclObjectId: %s, AclSubject: %s)",
+            LOG_TRACE_UNLESS(IsRecovery(), "Permission check succeeded: explicit allowing ACE found (CheckObjectId: %s, Permission: %s, User: %s, AclObjectId: %s, AclSubject: %s)",
                 ~ToString(object->GetId()),
                 ~permission.ToString(),
                 ~user->GetName(),
