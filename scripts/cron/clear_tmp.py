@@ -30,6 +30,9 @@ def get_age(obj):
     time_str = time_str.rsplit(".")[0]
     return now - datetime.strptime(time_str, pattern)
 
+def is_locked(obj):
+    return any(map(lambda l: l["mode"] in ["exclusive", "shared"], obj.attributes["locks"]))
+
 def main():
     parser = argparse.ArgumentParser(description='Clean operations from cypress.')
     parser.add_argument('--max-count', type=int, default=50000)
@@ -40,10 +43,14 @@ def main():
     # collect links
     links = yt.search("//tmp", node_type="link")
 
+    # collect dirs
+    dirs = yt.search("//tmp", node_type="map_node", attributes=["modification_time", "count"])
+    dir_sizes = dict((obj, obj.attributes["count"]) for obj in dirs)
+
     # collect table and files
     objects = []
     for obj in yt.search("//tmp", node_type=["table", "file"], attributes=["access_time", "modification_time", "locks", "hash", "resource_usage"]):
-        if any(map(lambda l: l["mode"] in ["exclusive", "shared"], obj.attributes["locks"])):
+        if is_locked(obj):
             continue
         objects.append((get_age(obj), obj))
     objects.sort()
@@ -68,6 +75,7 @@ def main():
         if hasattr(obj, "attributes"):
             info = "(size=%s) (access_time=%s)" % (obj.attributes["resource_usage"]["disk_space"], get_time(obj))
         logger.info("Removing %s %s", obj, info)
+        dir_sizes[os.path.dirname(obj)] -= 1
         yt.remove(obj, force=True)
 
     # check broken links
@@ -75,6 +83,13 @@ def main():
         if obj.attributes["broken"] == "true":
             logger.warning("Removing broken link %s", obj)
             yt.remove(obj, force=True)
+
+    for iter in xrange(5):
+        for dir in dirs:
+            if dir_sizes[dir] == 0 and get_age(dir).days > args.days:
+                logger.info("Removing empty dir %s", obj)
+                dir_sizes[os.path.dirname(dir)] -= 1
+                yt.remove(obj, force=True)
 
 if __name__ == "__main__":
     main()
