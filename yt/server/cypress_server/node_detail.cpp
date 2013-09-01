@@ -365,8 +365,8 @@ void TListNode::Save(NCellMaster::TSaveContext& context) const
     using NYT::Save;
     // TODO(babenko): refactor when new serialization API is ready
     TSizeSerializer::Save(context, IndexToChild_.size());
-    FOREACH (auto* node, IndexToChild_) {
-        Save(context, node->GetId());
+    FOREACH (auto* child, IndexToChild_) {
+        Save(context, child->GetId());
     }
 }
 
@@ -419,8 +419,8 @@ void TListNodeTypeHandler::DoDestroy(TListNode* node)
 
     // Drop references to the children.
     auto objectManager = Bootstrap->GetObjectManager();
-    FOREACH (auto* node, node->IndexToChild()) {
-        objectManager->UnrefObject(node);
+    FOREACH (auto* child, node->IndexToChild()) {
+        objectManager->UnrefObject(child);
     }
 }
 
@@ -435,8 +435,8 @@ void TListNodeTypeHandler::DoBranch(
 
     // Reference all children.
     auto objectManager = Bootstrap->GetObjectManager();
-    FOREACH (auto* node, originatingNode->IndexToChild()) {
-        objectManager->RefObject(node);
+    FOREACH (auto* child, originatingNode->IndexToChild()) {
+        objectManager->RefObject(child);
     }
 }
 
@@ -448,8 +448,8 @@ void TListNodeTypeHandler::DoMerge(
 
     // Drop all references held by the originator.
     auto objectManager = Bootstrap->GetObjectManager();
-    FOREACH (auto* node, originatingNode->IndexToChild()) {
-        objectManager->UnrefObject(node);
+    FOREACH (auto* child, originatingNode->IndexToChild()) {
+        objectManager->UnrefObject(child);
     }
 
     // Replace the child list with the branched copy.
