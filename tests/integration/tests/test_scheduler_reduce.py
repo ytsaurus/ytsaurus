@@ -144,7 +144,6 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         print read('//tmp/out2')
 
         print get('//tmp/out1/@chunk_ids')
-        raw_input()
 
         assert read('//tmp/out1') == \
             [
