@@ -58,5 +58,6 @@ if __name__ == "__main__":
         for size in sizes:
             print size
 
-    logger.info("Number of small chunks: %d", number_of_chunks)
+    if args.create_merge_queue:
+        logger.info("Number of small chunks: %d", number_of_chunks)
 
