@@ -569,7 +569,7 @@ protected:
 
 
     // Initialization.
-    virtual void DoInitialize();   
+    virtual void DoInitialize();
 
 
     // Preparation.
@@ -696,15 +696,18 @@ protected:
 
     void RegisterInputStripe(TChunkStripePtr stripe, TTaskPtr task);
 
+
     void RegisterOutput(
-        const NChunkServer::TChunkTreeId& chunkTreeId,
+        NChunkClient::TRefCountedChunkSpecPtr chunkSpec,
         int key,
         int tableIndex);
+
     void RegisterOutput(
         const NChunkServer::TChunkTreeId& chunkTreeId,
         int key,
         int tableIndex,
         TOutputTable& table);
+
     void RegisterOutput(
         TJobletPtr joblet,
         int key);

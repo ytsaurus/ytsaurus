@@ -358,13 +358,12 @@ protected:
     void AddPassthroughChunk(TRefCountedChunkSpecPtr chunkSpec)
     {
         chunkSpec->clear_partition_tag();
-        auto chunkId = FromProto<TChunkId>(chunkSpec->chunk_id());
         LOG_DEBUG("Passthrough chunk added (ChunkId: %s, Partition: %d)",
-            ~ToString(chunkId),
+            ~ToString(FromProto<TChunkId>(chunkSpec->chunk_id())),
             CurrentPartitionIndex);
 
         // Place the chunk directly to the output table.
-        RegisterOutput(chunkId, CurrentPartitionIndex, 0);
+        RegisterOutput(chunkSpec, CurrentPartitionIndex, 0);
         ++CurrentPartitionIndex;
     }
 
@@ -1613,6 +1612,11 @@ private:
 
     virtual bool IsOutputLivePreviewSupported() const override
     {
+        FOREACH(const auto& inputTable, InputTables) {
+            if (inputTable.Path.Attributes().Get<bool>("primary", false)) {
+                return false;
+            }
+        }
         return true;
     }
 
