@@ -90,7 +90,6 @@ std::vector<TChunkSlicePtr> CreateErasureChunkSlices(
 void ToProto(NProto::TChunkSpec* chunkSpec, const TChunkSlice& chunkSlice);
 
 bool IsNontrivial(const NProto::TReadLimit& limit);
-bool IsTrivial(const NProto::TReadLimit& limit);
 
 bool IsUnavailable(const NProto::TChunkSpec& chunkSpec);
 bool IsUnavailable(const TChunkReplicaList& replicas, NErasure::ECodec codecId);

@@ -3,9 +3,6 @@
 #include "private.h"
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/chunk_client/key.h>
-
-#include <ytlib/table_client/chunk_meta_extensions.h>
 
 #include <ytlib/rpc/channel_cache.h>
 
@@ -36,7 +33,6 @@ TChunkSplitsFetcher::TChunkSplitsFetcher(
     : Config(config)
     , Spec(spec)
     , KeyColumns(keyColumns)
-    , PartitionTag(0)
     , Logger(OperationLogger)
 {
     YCHECK(Config->MergeJobMaxSliceDataSize > 0);
@@ -80,17 +76,10 @@ bool TChunkSplitsFetcher::AddChunkToRequest(
     i64 dataSize;
     GetStatistics(*chunk, &dataSize);
 
-    auto boundaryKeys = GetProtoExtension<TBoundaryKeysExt>(chunk->extensions());
-
-    if (dataSize < Config->MergeJobMaxSliceDataSize ||
-        CompareKeys(boundaryKeys.start(), boundaryKeys.end(), KeyColumns.size()) == 0)
-    {
+    if (dataSize < Config->MergeJobMaxSliceDataSize) {
         LOG_DEBUG("Chunk split added (ChunkId: %s, TableIndex: %d)",
             ~ToString(chunkId),
             chunk->table_index());
-        chunk->set_partition_tag(PartitionTag);
-        ++PartitionTag;
-
         ChunkSplits.push_back(chunk);
         return false;
     } else {
@@ -132,8 +121,6 @@ TError TChunkSplitsFetcher::ProcessResponseItem(
         auto chunkIdWithIndex = DecodeChunkId(chunkId);
         ToProto(split->mutable_chunk_id(), chunkIdWithIndex.Id);
         split->set_table_index(chunkSpec->table_index());
-        split->set_partition_tag(PartitionTag);
-        ++PartitionTag;
         ChunkSplits.push_back(split);
     }
 
