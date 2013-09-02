@@ -291,6 +291,12 @@ public:
         RegisterParameter("min_disk_space", MinDiskSpace)
             .GreaterThanOrEqual((i64) 1024 * 1024 * 1024)
             .Default((i64) 5 * 1024 * 1024 * 1024);
+        RegisterParameter("high_backlog_watermark", HighBacklogWatermark)
+            .GreaterThan(0)
+            .Default(1000000);
+        RegisterParameter("low_backlog_watermark", LowBacklogWatermark)
+            .GreaterThan(0)
+            .Default(100000);
 
         RegisterParameter("writers", WriterConfigs);
         RegisterParameter("rules", Rules);
@@ -443,6 +449,16 @@ public:
         return CheckSpacePeriod;
     }
 
+    int GetHighBacklogWatermark() const
+    {
+        return HighBacklogWatermark;
+    }
+
+    int GetLowBacklogWatermark() const
+    {
+        return LowBacklogWatermark;
+    }
+
 private:
     std::unique_ptr<TNotificationWatch> CreateNoficiationWatch(ILogWriterPtr writer, const Stroka& fileName)
     {
@@ -520,6 +536,9 @@ private:
 
     i64 MinDiskSpace;
 
+    int HighBacklogWatermark;
+    int LowBacklogWatermark;
+
     std::vector<TRule::TPtr> Rules;
     yhash_map<Stroka, ILogWriter::TConfig::TPtr> WriterConfigs;
 
@@ -554,6 +573,8 @@ public:
         , Version(-1)
         , EnqueueCounter("/enqueue_rate")
         , WriteCounter("/write_rate")
+        , BacklogCounter("/backlog")
+        , Suspended(false)
         , ReopenEnqueued(false)
     {
         SystemWriters.push_back(New<TStdErrLogWriter>(SystemPattern));
@@ -638,10 +659,11 @@ public:
 
     void Enqueue(const TLogEvent& event)
     {
-        if (!IsRunning()) {
+        if (!IsRunning() || Suspended) {
             return;
         }
 
+        int backlogSize = LoggingProfiler.Increment(BacklogCounter);
         LoggingProfiler.Increment(EnqueueCounter);
         LogEventQueue.Enqueue(event);
         Signal();
@@ -667,6 +689,12 @@ public:
 
             std::terminate();
         }
+
+        if (!Suspended && backlogSize == Config->GetHighBacklogWatermark()) {
+            LOG_WARNING("Backlog size has exceeded high watermark %d, logging suspended",
+                Config->GetHighBacklogWatermark());
+            Suspended = true;
+        }
     }
 
     virtual EBeginExecuteResult BeginExecute() override
@@ -683,7 +711,7 @@ public:
             configsUpdated = true;
         }
 
-        bool eventsWritten = false;
+        int eventsWritten = 0;
         TLogEvent event;
         while (LogEventQueue.Dequeue(&event)) {
             // To avoid starvation of config update
@@ -697,14 +725,21 @@ public:
             }
 
             Write(event);
-            eventsWritten = true;
+            ++eventsWritten;
         }
 
-        if (eventsWritten && Config->GetFlushPeriod() == TDuration::Zero()) {
+        int backlogSize = LoggingProfiler.Increment(BacklogCounter, -eventsWritten);
+        if (Suspended && backlogSize < Config->GetLowBacklogWatermark()) {
+            Suspended = false;
+            LOG_INFO("Backlog size has dropped below low watermark %d, logging resumed",
+                Config->GetLowBacklogWatermark());
+        }
+
+        if (eventsWritten > 0 && Config->GetFlushPeriod() == TDuration::Zero()) {
             Config->FlushWriters();
         }
 
-        return result == EBeginExecuteResult::Success || configsUpdated || eventsWritten
+        return result == EBeginExecuteResult::Success || configsUpdated || eventsWritten > 0
             ? EBeginExecuteResult::Success
             : EBeginExecuteResult::QueueEmpty;
     }
@@ -813,6 +848,8 @@ private:
     TLogConfigPtr Config;
     NProfiling::TRateCounter EnqueueCounter;
     NProfiling::TRateCounter WriteCounter;
+    NProfiling::TAggregateCounter BacklogCounter;
+    bool Suspended;
     TSpinLock SpinLock;
 
     TLockFreeQueue<TLogConfigPtr> ConfigsToUpdate;

@@ -138,21 +138,78 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert read('//tmp/t_out') == [{'a': 1}, {'a': 2}, {'a': 3}, {'a': 10}, {'a': 15}, {'a': 100}]
         assert get('//tmp/t_out/@chunk_count') == 1
 
+    def test_sorted_passthrough(self):
+        create('table', '//tmp/t1')
+        create('table', '//tmp/t2')
+        create('table', '//tmp/t3')
+
+        write_str('//tmp/t1', '{k = a; s = 0}; {k = b; s = 1}', sorted_by='k; s')
+        write_str('//tmp/t2', '{k = b; s = 2}; {k = c; s = 0}', sorted_by='k; s')
+        write_str('//tmp/t3', '{k = b; s = 0}; {k = b; s = 3}', sorted_by='k; s')
+
+        create('table', '//tmp/t_out')
+        merge(mode='sorted',
+              in_=['//tmp/t1', '//tmp/t2', '//tmp/t3', '//tmp/t2[(b, 3) : (b, 7)]'],
+              out='//tmp/t_out',
+              merge_by='k')
+
+        res = read('//tmp/t_out')
+        expected = [
+            {'k' : 'a', 's' : 0},
+            {'k' : 'b', 's' : 1},
+            {'k' : 'b', 's' : 0},
+            {'k' : 'b', 's' : 3},
+            {'k' : 'b', 's' : 2},
+            {'k' : 'c', 's' : 0}]
+
+        self.assertItemsEqual(res, expected)
+
+        merge(mode='sorted',
+              in_=['//tmp/t1', '//tmp/t2', '//tmp/t3'],
+              out='//tmp/t_out',
+              merge_by='k')
+
+        res = read('//tmp/t_out')
+        self.assertItemsEqual(res, expected)
+
+        assert get('//tmp/t_out/@chunk_count') == 3
+
+        merge(mode='sorted',
+              in_=['//tmp/t1', '//tmp/t2', '//tmp/t3'],
+              out='//tmp/t_out',
+              merge_by='k; s')
+
+        res = read('//tmp/t_out')
+        expected = [
+            {'k' : 'a', 's' : 0},
+            {'k' : 'b', 's' : 0},
+            {'k' : 'b', 's' : 1},
+            {'k' : 'b', 's' : 2},
+            {'k' : 'b', 's' : 3},
+            {'k' : 'c', 's' : 0} ]
+
+        for i, j in zip(res, expected):
+            self.assertItemsEqual(i, j)
+
+        assert get('//tmp/t_out/@chunk_count') == 1
+
     def test_sorted_with_maniacs(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
+        create('table', '//tmp/t3')
 
         write_str('//tmp/t1', '{a = 3}; {a = 3};{a = 3}', sorted_by='a')
         write_str('//tmp/t2', '{a = 2}; {a = 3}; {a = 15}', sorted_by='a')
+        write_str('//tmp/t3', '{a = 1}; {a = 3};', sorted_by='a')
 
         create('table', '//tmp/t_out')
         merge('--combine',
               mode='sorted',
-              in_=['//tmp/t1', '//tmp/t2'],
+              in_=['//tmp/t1', '//tmp/t2', '//tmp/t3'],
               out='//tmp/t_out',
               opt='/spec/data_size_per_job=1')
 
-        assert read('//tmp/t_out') == [{'a': 2}, {'a': 3}, {'a': 3}, {'a': 3}, {'a': 3}, {'a': 15}]
+        assert read('//tmp/t_out') == [{'a': 1}, {'a': 2}, {'a': 3}, {'a': 3}, {'a': 3}, {'a': 3}, {'a': 3}, {'a': 15}]
         assert get('//tmp/t_out/@chunk_count') == 3
 
     def test_sorted_by(self):

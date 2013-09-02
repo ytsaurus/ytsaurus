@@ -18,6 +18,8 @@
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/chunk_spec.h>
 
+#include <ytlib/table_client/chunk_meta_extensions.h>
+
 #include <ytlib/erasure/codec.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
@@ -62,6 +64,7 @@ using namespace NSecurityClient;
 using namespace NJobTrackerClient;
 using namespace NNodeTrackerClient;
 using namespace NScheduler::NProto;
+using namespace NTableClient::NProto;
 using namespace NJobTrackerClient::NProto;
 using namespace NNodeTrackerClient::NProto;
 
@@ -1091,7 +1094,7 @@ void TOperationControllerBase::InitChunkListPool()
     ChunkListPool = New<TChunkListPool>(
         Config,
         Host->GetMasterChannel(),
-        CancelableControlInvoker, 
+        CancelableControlInvoker,
         Operation->GetOperationId(),
         Operation->GetOutputTransaction()->GetId());
 }
@@ -1217,6 +1220,7 @@ void TOperationControllerBase::CommitResults()
             TChunkListYPathProxy::TReqAttachPtr req;
             int reqSize = 0;
             auto flushReq = [&] () {
+                LOG_DEBUG("FlushFlushFlush");
                 if (req) {
                     batchReq->AddRequest(req, "attach_out");
                     reqSize = 0;
@@ -1225,6 +1229,7 @@ void TOperationControllerBase::CommitResults()
             };
 
             auto addChunkTree = [&] (const NChunkServer::TChunkTreeId chunkTreeId) {
+                LOG_DEBUG("AddChunkTree: %s", ~ToString(chunkTreeId));
                 if (!req) {
                     req = TChunkListYPathProxy::Attach(FromObjectId(table.OutputChunkListId));
                     NMetaState::GenerateMutationId(req);
@@ -2635,7 +2640,7 @@ void TOperationControllerBase::RequestInputs()
             {
                 auto rsp = getTableFileNameRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting table file name");
-                
+
                 auto key = ConvertTo<Stroka>(TYsonString(rsp->value()));
                 file.FileName = file.Path.Attributes().Get<Stroka>("file_name", key);
                 file.Format = file.Path.Attributes().GetYson("format");
@@ -2833,12 +2838,32 @@ void TOperationControllerBase::RegisterOutput(
 }
 
 void TOperationControllerBase::RegisterOutput(
-    const NChunkServer::TChunkTreeId& chunkTreeId,
+    TRefCountedChunkSpecPtr chunkSpec,
     int key,
     int tableIndex)
 {
     auto& table = OutputTables[tableIndex];
-    RegisterOutput(chunkTreeId, key, tableIndex, table);
+
+    if (table.Options->KeyColumns && IsSortedOutputSupported()) {
+        auto boundaryKeys = GetProtoExtension<TBoundaryKeysExt>(chunkSpec->extensions());
+        YCHECK(boundaryKeys.start() <= boundaryKeys.end());
+        {
+            TEndpoint endpoint;
+            endpoint.Key = boundaryKeys.start();
+            endpoint.Left = true;
+            endpoint.ChunkTreeKey = key;
+            table.Endpoints.push_back(endpoint);
+        }
+        {
+            TEndpoint endpoint;
+            endpoint.Key = boundaryKeys.end();
+            endpoint.Left = false;
+            endpoint.ChunkTreeKey = key;
+            table.Endpoints.push_back(endpoint);
+        }
+    }
+
+    RegisterOutput(FromProto<TChunkId>(chunkSpec->chunk_id()), key, tableIndex, table);
 }
 
 void TOperationControllerBase::RegisterOutput(TJobletPtr joblet, int key)
@@ -3223,7 +3248,7 @@ void TOperationControllerBase::Persist(TPersistenceContext& context)
     Persist(context, JobletMap);
 
     Persist(context, JobIndexGenerator);
-    
+
     Persist(context, InputChunkSpecs);
 
     if (context.GetDirection() == EPersistenceDirection::Load) {

@@ -184,18 +184,19 @@ public:
     TDuration TimingStop(TTimer& timer);
 
     //! Increments the counter and possibly enqueues a rate sample.
+    //! Returns the incremented value.
     /*!
      *  The default increment is 1, i.e. the counter measures individual events.
      *  Other (positive) values also make sense. E.g. one can set increment to the
      *  number of bytes to be written and thus obtain a throughput counter.
      */
-    void Increment(TRateCounter& counter, TValue delta = 1);
+    TValue Increment(TRateCounter& counter, TValue delta = 1);
 
     //! Aggregates the value and possibly enqueues samples.
     void Aggregate(TAggregateCounter& counter, TValue value);
 
     //! Aggregates |current + delta| and possibly enqueues samples.
-    void Increment(TAggregateCounter& counter, TValue delta);
+    TValue Increment(TAggregateCounter& counter, TValue delta = 1);
 
 private:
     bool SelfProfiling;

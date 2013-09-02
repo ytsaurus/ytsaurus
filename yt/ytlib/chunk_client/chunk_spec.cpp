@@ -225,6 +225,11 @@ bool IsNontrivial(const TReadLimit& limit)
         limit.has_offset();
 }
 
+bool IsTrivial(const TReadLimit& limit)
+{
+    return !IsNontrivial(limit);
+}
+
 bool IsUnavailable(const TChunkReplicaList& replicas, NErasure::ECodec codecId)
 {
     if (codecId == NErasure::ECodec::None) {

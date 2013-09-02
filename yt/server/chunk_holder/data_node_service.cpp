@@ -724,7 +724,13 @@ void TDataNodeService::MakeChunkSplits(
         return;
     }
 
-    YCHECK(result.GetValue().type() == EChunkType::Table);
+    if (result.GetValue().type() != EChunkType::Table) {
+        auto error =  TError("GetChunkSplits: Requested chunk splits for non-table chunk %s",
+            ~ToString(chunkId));
+        LOG_ERROR(error);
+        ToProto(splittedChunk->mutable_error(), error);
+        return;
+    }
 
     auto miscExt = GetProtoExtension<TMiscExt>(result.GetValue().extensions());
     if (!miscExt.sorted()) {
@@ -855,9 +861,6 @@ void TDataNodeService::MakeChunkSplits(
 
         if (dataSize > minSplitSize) {
             auto key = beginIt->key();
-            while (key.parts_size() > keyColumns.size()) {
-                key.mutable_parts()->RemoveLast();
-            }
 
             *boundaryKeysExt.mutable_end() = key;
             SetProtoExtension(currentSplit->mutable_extensions(), boundaryKeysExt);
