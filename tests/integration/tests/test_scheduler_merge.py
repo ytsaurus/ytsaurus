@@ -165,7 +165,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         self.assertItemsEqual(res, expected)
 
         merge(mode='sorted',
-              in_=['//tmp/t1', '//tmp/t2', '//tmp/t3', '//tmp/t2[(b, 3) : (b, 7)]'],
+              in_=['//tmp/t1', '//tmp/t2', '//tmp/t3'],
               out='//tmp/t_out',
               merge_by='k')
 
