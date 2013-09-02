@@ -1643,10 +1643,10 @@ private:
     {
         TSortControllerBase::CustomPrepare();
 
+        OutputTables[0].Options->KeyColumns = Spec->SortBy;
+
         if (TotalInputDataSize == 0)
             return;
-
-        OutputTables[0].Options->KeyColumns = Spec->SortBy;
 
         auto samplesFetcher = New<TSamplesFetcher>(
             Config,
