@@ -13,8 +13,8 @@ from operation_commands import get_operation_state, abort_operation, suspend_ope
 from file_commands import download_file, upload_file, smart_upload_file
 from transaction_commands import \
     start_transaction, abort_transaction, \
-    commit_transaction, ping_transaction, \
-    lock
+    commit_transaction, ping_transaction
+from lock import lock
 from transaction import Transaction, PingableTransaction, PingTransaction
 from py_wrapper import aggregator, raw
 from requests import HTTPError, ConnectionError

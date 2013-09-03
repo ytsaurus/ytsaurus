@@ -1,8 +1,6 @@
 import config
 from driver import make_request, make_formatted_request
 from common import update, bool_to_string, get_value
-from table import prepare_path
-
 from copy import deepcopy
 
 def transaction_params(transaction=None, ping_ancestor_transactions=None):
@@ -34,10 +32,4 @@ def commit_transaction(transaction, ping_ansector_transactions=None):
 
 def ping_transaction(transaction, ping_ansector_transactions=None):
     make_request("ping_tx", transaction_params(transaction, ping_ansector_transactions))
-
-def lock(path, mode=None):
-    """
-    Tries to lock the path. Raise exception if node already under exclusive lock.
-    """
-    _make_transactional_request("lock", {"path": prepare_path(path), "mode": get_value(mode, "exclusive")})
 
