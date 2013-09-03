@@ -697,20 +697,25 @@ protected:
     void RegisterInputStripe(TChunkStripePtr stripe, TTaskPtr task);
 
 
+    void RegisterEndpoints(
+        const NTableClient::NProto::TBoundaryKeysExt& boundaryKeys,
+        int key,
+        TOutputTable* outputTable);
+
     void RegisterOutput(
         NChunkClient::TRefCountedChunkSpecPtr chunkSpec,
         int key,
         int tableIndex);
 
     void RegisterOutput(
+        TJobletPtr joblet,
+        int key);
+
+    void RegisterOutput(
         const NChunkServer::TChunkTreeId& chunkTreeId,
         int key,
         int tableIndex,
         TOutputTable& table);
-
-    void RegisterOutput(
-        TJobletPtr joblet,
-        int key);
 
     void RegisterIntermediate(
         TCompleteJobPtr completedJob,

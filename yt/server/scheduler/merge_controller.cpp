@@ -1487,9 +1487,9 @@ private:
                     auto chunkSpec = CreateCompleteChunk(endpoint.ChunkSpec);
                     AddPassthroughChunk(chunkSpec);
 
-                    while (Endpoints[currentIndex].IsPassthrough
-                        && Endpoints[currentIndex].ChunkSpec->partition_tag() == partitionTag
-                        && currentIndex < Endpoints.size())
+                    while (currentIndex < Endpoints.size() &&
+                        Endpoints[currentIndex].IsPassthrough &&
+                        Endpoints[currentIndex].ChunkSpec->partition_tag() == partitionTag)
                     {
                         ++currentIndex;
                     }
@@ -1503,6 +1503,8 @@ private:
                 }
 
                 // Right non-passthrough endpoint.
+                YCHECK(endpoint.Type == EEndpointType::Right);
+
                 auto it = openedSlices.find(endpoint.ChunkSpec);
                 YCHECK(it != openedSlices.end());
                 AddPendingChunk(CreateChunkSlice(*it, lastBreakpoint));

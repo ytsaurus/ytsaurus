@@ -133,9 +133,10 @@ TError TChunkSplitsFetcher::ProcessResponseItem(
         ToProto(split->mutable_chunk_id(), chunkIdWithIndex.Id);
         split->set_table_index(chunkSpec->table_index());
         split->set_partition_tag(PartitionTag);
-        ++PartitionTag;
         ChunkSplits.push_back(split);
     }
+
+    ++PartitionTag;
 
     return TError();
 }
