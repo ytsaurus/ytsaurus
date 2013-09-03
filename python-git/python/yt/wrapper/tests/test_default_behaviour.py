@@ -88,7 +88,7 @@ class TestDefaultBehaviour(YtTestBase, YTEnv):
                          set([TEST_DIR + "/dir/table"]))
 
     def test_create(self):
-        with pytest.raises(yt.YtError): 
+        with pytest.raises(yt.YtError):
             yt.create("map_node", TEST_DIR + "/map", attributes={"type": "table"})
 
     def test_file_commands(self):
@@ -349,6 +349,35 @@ class TestDefaultBehaviour(YtTestBase, YTEnv):
                 lambda: yt.driver.make_request(command, params),
                 None,
                 lambda: yt.get("//sys/operations/@count") == op_count + 1)
+
+    def test_lock(self):
+        dir = TEST_DIR + "/dir"
+
+        yt.mkdir(dir)
+        self.assertEqual(0, len(yt.get(dir + "/@locks")))
+
+        with yt.Transaction():
+            yt.lock(dir)
+            self.assertEqual(1, len(yt.get(dir + "/@locks")))
+
+        self.assertEqual(0, len(yt.get(dir + "/@locks")))
+        with yt.Transaction():
+            assert yt.lock(dir, waitable=True) != "0-0-0-0"
+            assert yt.lock(dir, waitable=True) == "0-0-0-0"
+            assert yt.lock(dir, waitable=True, wait_for=1000) == "0-0-0-0"
+
+        tx = yt.start_transaction()
+
+        yt.config.TRANSACTION = tx
+        yt.lock(dir, waitable=True)
+        self.assertRaises(lambda: yt.lock(dir, waitable=True))
+        yt.config.TRANSACTION = "0-0-0-0"
+
+        with yt.Transaction():
+            self.assertRaises(lambda: yt.lock(dir, waitable=True, wait_for=1000))
+
+        yt.abort_transaction(tx)
+
 
 # Map method for test operations with python entities
 class ChangeX__(object):

@@ -195,7 +195,7 @@ def add_write_parser(add_parser):
     parser.set_defaults(func=write)
 
 def create(args):
-    yt.create(args.type, args.path,
+    print yt.create(args.type, args.path,
               ignore_existing=args.ignore_existing,
               recursive=args.recursive,
               attributes=args.attributes)
@@ -236,7 +236,6 @@ def add_set_parser(add_parser):
     parser.add_argument("path")
     parser.add_argument("value", nargs="?")
     parser.set_defaults(func=set)
-
 
 def remove(args):
     yt.remove(args.path, recursive=args.recursive, force=args.force)
@@ -471,12 +470,16 @@ def add_ping_tx_parser(add_parser):
     parser.set_defaults(func=ping_tx)
 
 def lock(args):
-    yt.lock(args.path, args.mode)
+    if args.wait_for is not None:
+        args.wait_for = int(args.wait_for)
+    print yt.lock(args.path, mode=args.mode, waitable=args.waitable, wait_for=args.wait_for)
 
 def add_lock_parser(add_parser):
     parser = add_parser("lock", help="lock cypress node")
     parser.add_argument("path")
     parser.add_argument("--mode")
+    parser.add_argument("--waitable", action="store_true", default=False)
+    parser.add_argument("--wait-for")
     parser.set_defaults(func=lock)
 
 def check_permission(args):
