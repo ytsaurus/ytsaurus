@@ -1220,7 +1220,6 @@ void TOperationControllerBase::CommitResults()
             TChunkListYPathProxy::TReqAttachPtr req;
             int reqSize = 0;
             auto flushReq = [&] () {
-                LOG_DEBUG("FlushFlushFlush");
                 if (req) {
                     batchReq->AddRequest(req, "attach_out");
                     reqSize = 0;
@@ -1229,7 +1228,6 @@ void TOperationControllerBase::CommitResults()
             };
 
             auto addChunkTree = [&] (const NChunkServer::TChunkTreeId chunkTreeId) {
-                LOG_DEBUG("AddChunkTree: %s", ~ToString(chunkTreeId));
                 if (!req) {
                     req = TChunkListYPathProxy::Attach(FromObjectId(table.OutputChunkListId));
                     NMetaState::GenerateMutationId(req);
@@ -2837,6 +2835,28 @@ void TOperationControllerBase::RegisterOutput(
         key);
 }
 
+void TOperationControllerBase::RegisterEndpoints(
+    const TBoundaryKeysExt& boundaryKeys,
+    int key,
+    TOutputTable* outputTable)
+{
+    YCHECK(boundaryKeys.start() <= boundaryKeys.end());
+    {
+        TEndpoint endpoint;
+        endpoint.Key = boundaryKeys.start();
+        endpoint.Left = true;
+        endpoint.ChunkTreeKey = key;
+        outputTable->Endpoints.push_back(endpoint);
+    }
+    {
+        TEndpoint endpoint;
+        endpoint.Key = boundaryKeys.end();
+        endpoint.Left = false;
+        endpoint.ChunkTreeKey = key;
+        outputTable->Endpoints.push_back(endpoint);
+    }
+}
+
 void TOperationControllerBase::RegisterOutput(
     TRefCountedChunkSpecPtr chunkSpec,
     int key,
@@ -2846,21 +2866,7 @@ void TOperationControllerBase::RegisterOutput(
 
     if (table.Options->KeyColumns && IsSortedOutputSupported()) {
         auto boundaryKeys = GetProtoExtension<TBoundaryKeysExt>(chunkSpec->extensions());
-        YCHECK(boundaryKeys.start() <= boundaryKeys.end());
-        {
-            TEndpoint endpoint;
-            endpoint.Key = boundaryKeys.start();
-            endpoint.Left = true;
-            endpoint.ChunkTreeKey = key;
-            table.Endpoints.push_back(endpoint);
-        }
-        {
-            TEndpoint endpoint;
-            endpoint.Key = boundaryKeys.end();
-            endpoint.Left = false;
-            endpoint.ChunkTreeKey = key;
-            table.Endpoints.push_back(endpoint);
-        }
+        RegisterEndpoints(boundaryKeys, key, &table);
     }
 
     RegisterOutput(FromProto<TChunkId>(chunkSpec->chunk_id()), key, tableIndex, table);
@@ -2877,21 +2883,7 @@ void TOperationControllerBase::RegisterOutput(TJobletPtr joblet, int key)
         if (table.Options->KeyColumns && IsSortedOutputSupported()) {
             YCHECK(userJobResult);
             auto& boundaryKeys = userJobResult->output_boundary_keys(tableIndex);
-            YCHECK(boundaryKeys.start() <= boundaryKeys.end());
-            {
-                TEndpoint endpoint;
-                endpoint.Key = boundaryKeys.start();
-                endpoint.Left = true;
-                endpoint.ChunkTreeKey = key;
-                table.Endpoints.push_back(endpoint);
-            }
-            {
-                TEndpoint endpoint;
-                endpoint.Key = boundaryKeys.end();
-                endpoint.Left = false;
-                endpoint.ChunkTreeKey = key;
-                table.Endpoints.push_back(endpoint);
-            }
+            RegisterEndpoints(boundaryKeys, key, &table);
         }
     }
 }
