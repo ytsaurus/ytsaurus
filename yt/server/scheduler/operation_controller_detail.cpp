@@ -3005,6 +3005,10 @@ void TOperationControllerBase::BuildProgressYson(IYsonConsumer* consumer)
             .Item("chunk_count").Value(TotalIntermeidateChunkCount)
             .Item("data_size").Value(TotalIntermediateDataSize)
             .Item("row_count").Value(TotalIntermediateRowCount)
+        .EndMap()
+        .Item("live_preview").BeginMap()
+            .Item("output_supported").Value(IsOutputLivePreviewSupported())
+            .Item("intermediate_supported").Value(IsIntermediateLivePreviewSupported())
         .EndMap();
 }
 
