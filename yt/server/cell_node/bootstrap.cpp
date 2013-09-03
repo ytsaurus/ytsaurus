@@ -162,6 +162,10 @@ void TBootstrap::Run()
 
     PeerBlockUpdater = New<TPeerBlockUpdater>(Config->DataNode, this);
 
+    SessionManager = New<TSessionManager>(Config->DataNode, this);
+
+    MasterConnector = New<TMasterConnector>(Config->DataNode, this);
+
     ChunkStore = New<TChunkStore>(Config->DataNode, this);
     ChunkStore->Initialize();
 
@@ -186,10 +190,6 @@ void TBootstrap::Run()
         CellGuid = ChunkCache->GetCellGuid();
         ChunkStore->SetCellGuid(CellGuid);
     }
-
-    SessionManager = New<TSessionManager>(Config->DataNode, this);
-
-    MasterConnector = New<TMasterConnector>(Config->DataNode, this);
 
     ReplicationInThrottler = CreateProfilingThrottlerWrapper(
         CreateLimitedThrottler(Config->DataNode->ReplicationInThrottler),
