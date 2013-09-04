@@ -406,6 +406,7 @@ private:
         TErrorOr<TMasterHandshakeResult> Run()
         {
             try {
+                RegisterInstance();
                 StartLockTransaction();
                 TakeLock();
                 PushlishSelf();
