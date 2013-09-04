@@ -128,10 +128,10 @@ public:
 
     void ValidateActiveLeader()
     {
-        if (MetaStateManager->GetStateStatus() != EPeerStatus::Leading) {
+        if (!IsActiveLeader()) {
             throw TNotALeaderException()
                 <<= ERROR_SOURCE_LOCATION()
-                >>= TError(NRpc::EErrorCode::Unavailable, "Not a leader");
+                >>= TError(NRpc::EErrorCode::Unavailable, "Not an active leader");
         }
     }
 
