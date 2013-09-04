@@ -15,15 +15,25 @@ def merge(table):
         if any(map(lambda l: l["mode"] in ["exclusive", "shared"], locks)):
             return -1
 
+        revision = yt.get_attribute(table, "revision")
+
         compression_ratio = yt.get_attribute(table, "compression_ratio")
-        data_size_per_job = max(1,  512 * 1024 ** 2 / compression_ratio)
+        data_size_per_job = max(1,  int(512 * 1024 ** 2 / compression_ratio))
+
+        temp_table = yt.create_temp_table(prefix="merge")
         
         mode = "sorted" if yt.is_sorted(table) else "unordered"
-        yt.run_merge(table, table, mode,
+        yt.run_merge(table, temp_table, mode,
                      spec={"combine_chunks":"true",
                            "data_size_per_job": data_size_per_job,
                            "unavailable_chunk_strategy": "fail",
                            "unavailable_chunk_tactics": "fail"})
+
+        if yt.exists(table) and yt.get_attribute(table, "revision") == revision:
+            yt.merge(temp_table, table, mode=mode)
+        else:
+            yt.remove(temp_table)
+
     except yt.YtError as e:
         print "Failed to merge table %s with error %s" % (table, repr(e))
 
