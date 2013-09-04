@@ -11,6 +11,7 @@
 #include <ytlib/chunk_client/chunk_spec.pb.h>
 
 #include <ytlib/table_client/partition_chunk_writer.h>
+#include <ytlib/table_client/channel_writer.h>
 #include <ytlib/table_client/table_chunk_reader.h>
 #include <ytlib/chunk_client/multi_chunk_parallel_reader.h>
 #include <ytlib/table_client/partitioner.h>
@@ -89,7 +90,9 @@ public:
         }
 
         if (inputDataSize < config->JobIO->TableWriter->MaxBufferSize) {
-            config->JobIO->TableWriter->MaxBufferSize = inputDataSize;
+            config->JobIO->TableWriter->MaxBufferSize = std::max(
+                inputDataSize,
+                (i64) 2 * TChannelWriter::MinUpperReserveLimit * Partitioner->GetPartitionCount());
         }
 
         auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt.output_transaction_id());
