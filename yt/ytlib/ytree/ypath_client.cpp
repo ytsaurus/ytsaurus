@@ -278,10 +278,12 @@ void ExecuteVerb(IYPathServicePtr service, IServiceContextPtr context)
 TFuture< TErrorOr<TYsonString> > AsyncYPathGet(
     IYPathServicePtr service,
     const TYPath& path,
-    const TAttributeFilter& attributeFilter)
+    const TAttributeFilter& attributeFilter,
+    bool ignoreOpaque)
 {
     auto request = TYPathProxy::Get(path);
     ToProto(request->mutable_attribute_filter(), attributeFilter);
+    request->set_ignore_opaque(ignoreOpaque);
     return
         ExecuteVerb(service, request)
             .Apply(BIND([] (TYPathProxy::TRspGetPtr response) {
@@ -301,9 +303,17 @@ Stroka SyncYPathGetKey(IYPathServicePtr service, const TYPath& path)
 TYsonString SyncYPathGet(
     IYPathServicePtr service,
     const TYPath& path,
-    const TAttributeFilter& attributeFilter)
+    const TAttributeFilter& attributeFilter,
+    bool ignoreOpaque)
 {
-    return AsyncYPathGet(service, path, attributeFilter).Get().GetValueOrThrow();
+    return
+        AsyncYPathGet(
+            service,
+            path,
+            attributeFilter,
+            ignoreOpaque)
+        .Get()
+        .GetValueOrThrow();
 }
 
 bool SyncYPathExists(IYPathServicePtr service, const TYPath& path)

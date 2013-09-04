@@ -139,42 +139,59 @@ void ResolveYPath(
 
 //! Asynchronously executes an untyped YPath verb against the given service.
 TFuture<NBus::IMessagePtr>
-ExecuteVerb(IYPathServicePtr service, NBus::IMessagePtr requestMessage);
+ExecuteVerb(
+    IYPathServicePtr service,
+    NBus::IMessagePtr requestMessage);
 
 //! Asynchronously executes a request against the given service.
-void ExecuteVerb(IYPathServicePtr service, NRpc::IServiceContextPtr context);
+void ExecuteVerb(
+    IYPathServicePtr service,
+    NRpc::IServiceContextPtr context);
 
 //! Asynchronously executes a typed YPath request against a given service.
 template <class TTypedRequest>
 TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> >
-ExecuteVerb(IYPathServicePtr service, TIntrusivePtr<TTypedRequest> request);
+ExecuteVerb(
+    IYPathServicePtr service,
+    TIntrusivePtr<TTypedRequest> request);
 
 //! Synchronously executes a typed YPath request against a given service.
 //! Throws if an error has occurred.
 template <class TTypedRequest>
 TIntrusivePtr<typename TTypedRequest::TTypedResponse>
-SyncExecuteVerb(IYPathServicePtr service, TIntrusivePtr<TTypedRequest> request);
+SyncExecuteVerb(
+    IYPathServicePtr service,
+    TIntrusivePtr<TTypedRequest> request);
 
 //! Synchronously executes |GetKey| verb. Throws if an error has occurred.
-Stroka SyncYPathGetKey(IYPathServicePtr service, const TYPath& path);
+Stroka SyncYPathGetKey(
+    IYPathServicePtr service,
+    const TYPath& path);
 
 //! Asynchronously executes |Get| verb.
 TFuture< TErrorOr<TYsonString> > AsyncYPathGet(
     IYPathServicePtr service,
     const TYPath& path,
-    const TAttributeFilter& attributeFilter = TAttributeFilter::None);
+    const TAttributeFilter& attributeFilter = TAttributeFilter::None,
+    bool ignoreOpaque = false);
 
 //! Synchronously executes |Get| verb. Throws if an error has occurred.
 TYsonString SyncYPathGet(
     IYPathServicePtr service,
     const TYPath& path,
-    const TAttributeFilter& attributeFilter = TAttributeFilter::None);
+    const TAttributeFilter& attributeFilter = TAttributeFilter::None,
+    bool ignoreOpaque = false);
 
 //! Synchronously executes |Exists| verb. Throws if an error has occurred.
-bool SyncYPathExists(IYPathServicePtr service, const TYPath& path);
+bool SyncYPathExists(
+    IYPathServicePtr service,
+    const TYPath& path);
 
 //! Synchronously executes |Set| verb. Throws if an error has occurred.
-void SyncYPathSet(IYPathServicePtr service, const TYPath& path, const TYsonString& value);
+void SyncYPathSet(
+    IYPathServicePtr service,
+    const TYPath& path,
+    const TYsonString& value);
 
 //! Synchronously executes |Remove| verb. Throws if an error has occurred.
 void SyncYPathRemove(
@@ -184,14 +201,18 @@ void SyncYPathRemove(
     bool force = false);
 
 //! Synchronously executes |List| verb. Throws if an error has occurred.
-std::vector<Stroka> SyncYPathList(IYPathServicePtr service, const TYPath& path);
+std::vector<Stroka> SyncYPathList(
+    IYPathServicePtr service,
+    const TYPath& path);
 
 //! Overrides a part of #root tree.
 /*!
  *  #overrideString must have the |path = value| format.
  *  The method updates #root by setting |value| (forcing those parts of |path| that are missing).
  */
-void ApplyYPathOverride(INodePtr root, const TStringBuf& overrideString);
+void ApplyYPathOverride(
+    INodePtr root,
+    const TStringBuf& overrideString);
 
 /*!
  *  Throws exception if the specified node does not exist.
