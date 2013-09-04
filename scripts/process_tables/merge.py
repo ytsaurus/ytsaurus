@@ -30,10 +30,11 @@ def merge(table):
                            "unavailable_chunk_tactics": "fail"})
 
         try:
-            with yt.Transaction():
-                yt.lock(table)
-                if yt.exists(table) and yt.get_attribute(table, "revision") == revision:
-                    yt.run_merge(temp_table, table, mode=mode)
+            if yt.exists(table):
+                with yt.Transaction():
+                    yt.lock(table)
+                    if yt.get_attribute(table, "revision") == revision:
+                        yt.run_merge(temp_table, table, mode=mode)
         finally:
             yt.remove(temp_table)
 
