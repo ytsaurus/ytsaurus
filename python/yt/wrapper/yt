@@ -495,11 +495,11 @@ def add_check_permission_parser(add_parser):
 
 def add_permission(args):
     action = "deny" if args.deny else "allow"
-    yt.set("{0}/@acl/end".format(args.path), {"action": action, "permissions": args.permission, "subjects": args.user})
+    yt.set("{0}/@acl/end".format(args.path), {"action": action, "permissions": args.permission, "subjects": args.subject})
 
 def add_add_permission_parser(add_parser):
     parser = add_parser("add-permission", help="add given permissions to given users")
-    parser.add_argument("--user", action="append", required=True)
+    parser.add_argument("--subject", action="append", required=True)
     parser.add_argument("--permission", action="append", required=True)
     parser.add_argument("--path", required=True)
     parser.add_argument("--deny", action="store_true", default=False)
@@ -580,7 +580,7 @@ def main():
     add_add_member_parser(add_parser)
     add_remove_member_parser(add_parser)
     add_check_permission_parser(add_parser)
-    add_add_permission_parser(add_parser)
+    #add_add_permission_parser(add_parser)
     add_execute_parser(add_parser)
     #add_cat_parser(add_parser)
 
