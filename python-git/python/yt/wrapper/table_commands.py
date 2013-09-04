@@ -588,6 +588,10 @@ def run_operation(binary, source_table, destination_table,
                     table_writer=table_writer,
                     reduce_by=reduce_by,
                     sort_by=reduce_by,
+                    replication_factor=replication_factor,
+                    compression_codec=compression_codec,
+                    reducer_memory_limit=memory_limit,
+                    strategy=strategy,
                     spec=spec)
                 return
             else:
