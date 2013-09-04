@@ -29,9 +29,13 @@ def merge(table):
                            "unavailable_chunk_strategy": "fail",
                            "unavailable_chunk_tactics": "fail"})
 
-        if yt.exists(table) and yt.get_attribute(table, "revision") == revision:
-            yt.run_merge(temp_table, table, mode=mode)
-        yt.remove(temp_table)
+        try:
+            with yt.Transaction():
+                yt.lock(table)
+                if yt.exists(table) and yt.get_attribute(table, "revision") == revision:
+                    yt.run_merge(temp_table, table, mode=mode)
+        finally:
+            yt.remove(temp_table)
 
     except yt.YtError as e:
         print "Failed to merge table %s with error %s" % (table, repr(e))
