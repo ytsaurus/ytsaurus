@@ -171,8 +171,8 @@ protected:
             auto result = GetMinNeededResources();
             result.set_memory(
                 Controller->GetFinalIOMemorySize(
-                Controller->Spec->JobIO,
-                UpdateChunkStripeStatistics(joblet->InputStripeList->GetStatistics())) +
+                    Controller->Spec->JobIO,
+                    UpdateChunkStripeStatistics(joblet->InputStripeList->GetStatistics())) +
                 GetFootprintMemorySize() +
                 Controller->GetAdditionalMemorySize());
             return result;

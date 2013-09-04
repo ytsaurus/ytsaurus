@@ -81,6 +81,17 @@ public:
             Partitioner = CreateHashPartitioner(PartitionJobSpecExt.partition_count());
         }
 
+        i64 inputDataSize = 0;
+        FOREACH(const auto& chunkSpec, chunks) {
+            i64 dataSize = 0;
+            GetStatistics(chunkSpec, &dataSize);
+            inputDataSize += dataSize;
+        }
+
+        if (inputDataSize < config->JobIO->TableWriter->MaxBufferSize) {
+            config->JobIO->TableWriter->MaxBufferSize = inputDataSize;
+        }
+
         auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt.output_transaction_id());
         auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
 
