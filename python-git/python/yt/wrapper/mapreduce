@@ -553,7 +553,7 @@ Examples:
         yt.renew_transaction(args.renewtx)
 
     if args.ytlock is not None:
-        yt.lock(args.ytlock, mode=args.mode, waitable=args.waitable, wair_for=args.waitfor)
+        print yt.lock(args.ytlock, mode=args.mode, waitable=args.waitable, wait_for=args.waitfor)
 
     if args.track is not None:
         config.DETACHED = True

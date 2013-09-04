@@ -22,12 +22,15 @@ class YtResponseError(YtError):
         return "Response to request {0} with headers {1} contains error:\n{2}".\
                   format(self.url, self.headers, format_error(self.error))
 
+    def __repr__(self):
+        return self.__str__()
+
     def is_resolve_error(self):
         return int(self.error["code"]) == 500
-    
+
     def is_access_denied(self):
         return int(self.error["code"]) == 901
-    
+
     def is_concurrent_transaction_lock_conflict(self):
         return int(self.error["code"]) == 402
 
@@ -100,5 +103,5 @@ def pretty_format(error, indent=0):
             result += "\n" + format_error(inner_error, indent + 2)
 
     return result
-    
+
 
