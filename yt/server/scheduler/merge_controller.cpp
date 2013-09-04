@@ -492,12 +492,14 @@ protected:
 
     bool IsLargeChunk(const TChunkSpec& chunkSpec)
     {
-        i64 chunkDataSize;
-        NChunkClient::GetStatistics(chunkSpec, &chunkDataSize);
+        YCHECK(!IsNontrivial(chunkSpec.start_limit()));
+        YCHECK(!IsNontrivial(chunkSpec.end_limit()));
+        
+        auto miscExt = GetProtoExtension<TMiscExt>(chunkSpec.extensions());
 
         // ChunkSequenceWriter may actually produce a chunk a bit smaller than DesiredChunkSize,
         // so we have to be more flexible here.
-        if (0.9 * chunkDataSize >= Spec->JobIO->TableWriter->DesiredChunkSize) {
+        if (0.9 * miscExt.compressed_data_size() >= Spec->JobIO->TableWriter->DesiredChunkSize) {
             return true;
         }
 
