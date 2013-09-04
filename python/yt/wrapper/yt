@@ -470,8 +470,6 @@ def add_ping_tx_parser(add_parser):
     parser.set_defaults(func=ping_tx)
 
 def lock(args):
-    if args.wait_for is not None:
-        args.wait_for = int(args.wait_for)
     print yt.lock(args.path, mode=args.mode, waitable=args.waitable, wait_for=args.wait_for)
 
 def add_lock_parser(add_parser):
@@ -479,7 +477,7 @@ def add_lock_parser(add_parser):
     parser.add_argument("path")
     parser.add_argument("--mode")
     parser.add_argument("--waitable", action="store_true", default=False)
-    parser.add_argument("--wait-for")
+    parser.add_argument("--wait-for", type=int)
     parser.set_defaults(func=lock)
 
 def check_permission(args):

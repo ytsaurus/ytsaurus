@@ -165,14 +165,14 @@ Examples:
     action_flags = ["version", "copy", "sort", "merge", "list", "listfiles", "starttx"]
 
     add_bool_args(parser, action_flags + ["subkey", "lenval", "append", "dynallocmode", "dsv", "pingtx",
-                                          "smartformat", "force", "executable"])
+                                          "smartformat", "force", "executable", "waitable"])
 
     add_store_args(parser, action_stores + ["server", "lowerkey", "upperkey", "prefix", "codec",
                                             "format", "inputformat", "outputformat", "tx", "value",
                                             "replicationfactor", "memlimit", "timeout", "title", "fs", "rs",
                                             "mode", "tablereader", "tablewriter"])
     add_multiple_args(parser, ["src", "dst", "dstappend", "dstsorted", "file", "mapfile", "reducefile", "ytfile", "opt", "ytspec", "sortby", "reduceby"])
-    add_integer_args(parser, ["jobcount", "threadcount", "chunksize", "jcmultiplier", "detached"])
+    add_integer_args(parser, ["jobcount", "threadcount", "chunksize", "jcmultiplier", "detached", "waitfor"])
 
     add_help_messages(parser,
         [
@@ -553,7 +553,7 @@ Examples:
         yt.renew_transaction(args.renewtx)
 
     if args.ytlock is not None:
-        yt.lock(args.ytlock, mode=args.mode)
+        yt.lock(args.ytlock, mode=args.mode, waitable=args.waitable, wair_for=args.waitfor)
 
     if args.track is not None:
         config.DETACHED = True
