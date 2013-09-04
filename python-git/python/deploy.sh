@@ -24,8 +24,8 @@ for name in yt mapreduce-yt; do
     rm -rf build dist
     pyinstaller/pyinstaller.py --noconfirm --onefile yt/wrapper/$name
     pyinstaller/pyinstaller.py --noconfirm "${name}.spec"
-    cat build/$name/$name | $YT upload "$DEST/${name}_${VERSION}"
-    cat build/$name/$name | $YT upload "$DEST/$name"
+    cat dist/$name | $YT upload "$DEST/${name}_${VERSION}"
+    cat dist/$name | $YT upload "$DEST/$name"
 done
 
 mv pickling.py yt/wrapper/pickling.py
