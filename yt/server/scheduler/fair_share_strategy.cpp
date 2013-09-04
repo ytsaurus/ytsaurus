@@ -123,19 +123,33 @@ public:
     virtual double GetUsageRatio() const override
     {
         const auto& attributes = Attributes();
+
+        auto demand = GetDemand();
         auto usage = ResourceUsage() - ResourceUsageDiscount();
+        auto limits = GetAdjustedResourceLimits(
+            demand,
+            Host->GetTotalResourceLimits(),
+            Host->GetExecNodeCount());
+
         i64 dominantUsage = GetResource(usage, attributes.DominantResource);
-        i64 dominantLimits = GetResource(Host->GetTotalResourceLimits(), attributes.DominantResource);
-        return dominantLimits == 0 ? 1.0 : (double) dominantUsage / dominantLimits;
+        i64 dominantLimit = GetResource(limits, attributes.DominantResource);
+
+        return dominantLimit == 0 ? 1.0 : (double) dominantUsage / dominantLimit;
     }
 
     virtual double GetDemandRatio() const override
     {
         const auto& attributes = Attributes();
+
         auto demand = GetDemand();
+        auto limits = GetAdjustedResourceLimits(
+            demand,
+            Host->GetTotalResourceLimits(),
+            Host->GetExecNodeCount());
+
         i64 dominantDemand = GetResource(demand, attributes.DominantResource);
-        i64 dominantLimits = GetResource(Host->GetTotalResourceLimits(), attributes.DominantResource);
-        return dominantLimits == 0 ? 1.0 : (double) dominantDemand / dominantLimits;
+        i64 dominantLimit = GetResource(limits, attributes.DominantResource);
+        return dominantLimit == 0 ? 1.0 : (double) dominantDemand / dominantLimit;
     }
 
 private:
@@ -378,15 +392,20 @@ protected:
         // Compute max share ratios.
         // Compute demand ratios and their sum.
         double demandRatioSum = 0.0;
-        auto totalLimits = Host->GetTotalResourceLimits();
         FOREACH (auto child, Children) {
             auto& childAttributes = child->Attributes();
 
             auto demand = child->GetDemand();
-
-            auto limits = Min(totalLimits, child->ResourceLimits());
+            auto totalLimits = GetAdjustedResourceLimits(
+                demand,
+                Host->GetTotalResourceLimits(),
+                Host->GetExecNodeCount());
+            auto limits = GetAdjustedResourceLimits(
+                demand,
+                Min(Host->GetTotalResourceLimits(), child->ResourceLimits()),
+                Host->GetExecNodeCount());
+            
             childAttributes.MaxShareRatio = GetMinResourceRatio(limits, totalLimits);
-
             childAttributes.DominantResource = GetDominantResource(demand, totalLimits);
 
             i64 dominantTotalLimits = GetResource(totalLimits, childAttributes.DominantResource);

@@ -546,6 +546,13 @@ public:
         return result;
     }
 
+    virtual int GetExecNodeCount() override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        return static_cast<int>(AddressToNode.size());
+    }
+
     virtual void OnOperationCompleted(TOperationPtr operation) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
