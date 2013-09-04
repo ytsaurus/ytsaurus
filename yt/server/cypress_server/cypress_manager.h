@@ -173,7 +173,9 @@ private:
     void OnTransactionCommitted(NTransactionServer::TTransaction* transaction);
     void OnTransactionAborted(NTransactionServer::TTransaction* transaction);
 
-    void ReleaseLocks(NTransactionServer::TTransaction* transaction);
+    void ReleaseLocks(
+        NTransactionServer::TTransaction* transaction,
+        bool promote);
     void MergeNodes(NTransactionServer::TTransaction* transaction);
     void MergeNode(
         NTransactionServer::TTransaction* transaction,

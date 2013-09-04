@@ -362,24 +362,29 @@ bool TNontemplateCypressNodeProxyBase::GetSystemAttribute(
     }
 
     if (key == "locks") {
+        auto printLock = [=] (TFluentList fluent, const TLock* lock) {
+            fluent.Item()
+                .BeginMap()
+                    .Item("id").Value(lock->GetId())
+                    .Item("state").Value(lock->GetState())
+                    .Item("transaction_id").Value(lock->GetTransaction()->GetId())
+                    .Item("mode").Value(lock->Request().Mode)
+                    .DoIf(lock->Request().ChildKey, [=] (TFluentMap fluent) {
+                        fluent
+                            .Item("child_key").List(*lock->Request().ChildKey);
+                    })
+                    .DoIf(lock->Request().AttributeKey, [=] (TFluentMap fluent) {
+                        fluent
+                            .Item("attribute_key").List(*lock->Request().AttributeKey);
+                    })
+                .EndMap();
+        };
+
         BuildYsonFluently(consumer)
-            .DoListFor(trunkNode->LockList(), [=] (TFluentList fluent, const TLock* lock) {
-                fluent.Item()
-                    .BeginMap()
-                        .Item("id").Value(lock->GetId())
-                        .Item("state").Value(lock->GetState())
-                        .Item("transaction_id").Value(lock->GetTransaction()->GetId())
-                        .Item("mode").Value(lock->Request().Mode)
-                        .DoIf(lock->Request().ChildKey, [=] (TFluentMap fluent) {
-                            fluent
-                                .Item("child_key").List(*lock->Request().ChildKey);
-                        })
-                        .DoIf(lock->Request().AttributeKey, [=] (TFluentMap fluent) {
-                            fluent
-                                .Item("attribute_key").List(*lock->Request().AttributeKey);
-                        })
-                    .EndMap();
-        });
+            .BeginList()
+                .DoFor(trunkNode->AcquiredLocks(), printLock)
+                .DoFor(trunkNode->PendingLocks(), printLock)
+            .EndList();
         return true;
     }
 

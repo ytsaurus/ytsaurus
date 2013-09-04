@@ -576,15 +576,13 @@ TError TCypressManager::ValidateLock(
     }   
 
     // Check pending locks.
-    if (checkPending &&
-        !trunkNode->LockList().empty() &&
-        trunkNode->LockList().back()->GetState() == ELockState::Pending)
-    {
+    if (checkPending && !trunkNode->PendingLocks().empty()) {
         return TError(
             NCypressClient::EErrorCode::PendingLockConflict,
-            "Cannot take %s lock for node %s since there are pending locks for this node",
+            "Cannot take %s lock for node %s since there are %d pending lock(s) for this node",
             ~FormatEnum(request.Mode).Quote(),
-            ~GetNodePath(trunkNode, transaction));
+            ~GetNodePath(trunkNode, transaction),
+            static_cast<int>(trunkNode->PendingLocks().size()));
     }
 
     return TError();
@@ -764,8 +762,8 @@ TLock* TCypressManager::DoCreateLock(
     lock->SetTrunkNode(trunkNode);
     lock->SetTransaction(transaction);
     lock->Request() = request;
-    trunkNode->LockList().push_back(lock);
-    lock->SetLockListIterator(--trunkNode->LockList().end());
+    trunkNode->PendingLocks().push_back(lock);
+    lock->SetLockListIterator(--trunkNode->PendingLocks().end());
     LockMap.Insert(id, lock);
 
     YCHECK(transaction->Locks().insert(lock).second);
@@ -783,7 +781,14 @@ void TCypressManager::SetLockAcquired(TLock* lock)
 {
     LOG_DEBUG_UNLESS(IsRecovery(), "Lock acquired (LockId: %s)",
         ~ToString(lock->GetId()));
+
+    YCHECK(lock->GetState() == ELockState::Pending);
     lock->SetState(ELockState::Acquired);
+
+    auto* trunkNode = lock->GetTrunkNode();
+    trunkNode->PendingLocks().erase(lock->GetLockListIterator());
+    trunkNode->AcquiredLocks().push_back(lock);
+    lock->SetLockListIterator(--trunkNode->AcquiredLocks().end());
 }
 
 TCypressNodeBase* TCypressManager::LockNode(
@@ -884,8 +889,7 @@ TLock* TCypressManager::CreateLock(
         }
         
         auto* lock = DoCreateLock(trunkNode, transaction, request);
-        lock->SetState(ELockState::Acquired);
-
+        SetLockAcquired(lock);
         DoLockNode(trunkNode, transaction, request);
         return lock;
     }
@@ -908,21 +912,11 @@ void TCypressManager::CheckPendingLocks(TCypressNodeBase* trunkNode)
     if (IsOrphaned(trunkNode))
         return;
 
-    // Find the first pending lock.
-    // Expect few pending locks but possibly a huge number of active ones.
-    // Hence just scan backwards from the end.
-    auto it = trunkNode->LockList().end();
-    auto jt = it;
-    while (it != trunkNode->LockList().begin()) {
-        --it;
-        auto* lock = *it;
-        if (lock->GetState() == ELockState::Acquired)
-            break;
-        jt = it;
-    }
-
-    // Scan forward and make acquisitions while possible.
-    while (jt != trunkNode->LockList().end()) {
+    // Make acquisitions while possible.
+    auto it = trunkNode->PendingLocks().begin();
+    while (it != trunkNode->PendingLocks().end()) {
+        // Be prepared to possible iterator invalidation.
+        auto jt = it++;
         auto* lock = *jt;
 
         bool isMandatory;
@@ -942,8 +936,6 @@ void TCypressManager::CheckPendingLocks(TCypressNodeBase* trunkNode)
         }
 
         SetLockAcquired(lock);
-
-        ++jt;
     }
 }
 
@@ -1160,24 +1152,29 @@ void TCypressManager::DestroyNode(TCypressNodeBase* trunkNode)
 
     auto nodeHolder = NodeMap.Release(trunkNode->GetVersionedId());
 
-    TCypressNodeBase::TLockList lockList;
-    trunkNode->LockList().swap(lockList);
+    TCypressNodeBase::TLockList acquiredLocks;
+    trunkNode->AcquiredLocks().swap(acquiredLocks);
+
+    TCypressNodeBase::TLockList pendingLocks;
+    trunkNode->PendingLocks().swap(pendingLocks);
 
     TCypressNodeBase::TLockStateMap lockStateMap;
     trunkNode->LockStateMap().swap(lockStateMap);
 
     auto objectManager = Bootstrap->GetObjectManager();
 
-    FOREACH (auto* lock, lockList) {
+    FOREACH (auto* lock, acquiredLocks) {
         lock->SetTrunkNode(nullptr);
-        if (lock->GetState() == ELockState::Pending) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Lock orphaned (LockId: %s)",
-                ~ToString(lock->GetId()));
-            auto* transaction = lock->GetTransaction();
-            YCHECK(transaction->Locks().erase(lock) == 1);
-            lock->SetTransaction(nullptr);
-            objectManager->UnrefObject(lock);
-        }
+    }
+
+    FOREACH (auto* lock, pendingLocks) {
+        LOG_DEBUG_UNLESS(IsRecovery(), "Lock orphaned (LockId: %s)",
+            ~ToString(lock->GetId()));
+        lock->SetTrunkNode(nullptr);
+        auto* transaction = lock->GetTransaction();
+        YCHECK(transaction->Locks().erase(lock) == 1);
+        lock->SetTransaction(nullptr);
+        objectManager->UnrefObject(lock);
     }
 
     FOREACH (const auto& pair, lockStateMap) {
@@ -1194,7 +1191,7 @@ void TCypressManager::OnTransactionCommitted(TTransaction* transaction)
     VERIFY_THREAD_AFFINITY(StateThread);
 
     MergeNodes(transaction);
-    ReleaseLocks(transaction);
+    ReleaseLocks(transaction, true);
 }
 
 void TCypressManager::OnTransactionAborted(TTransaction* transaction)
@@ -1202,11 +1199,12 @@ void TCypressManager::OnTransactionAborted(TTransaction* transaction)
     VERIFY_THREAD_AFFINITY(StateThread);
 
     RemoveBranchedNodes(transaction);
-    ReleaseLocks(transaction);
+    ReleaseLocks(transaction, false);
 }
 
-void TCypressManager::ReleaseLocks(TTransaction* transaction)
+void TCypressManager::ReleaseLocks(TTransaction* transaction, bool promote)
 {
+    auto* parentTransaction = transaction->GetParent();
     auto objectManager = Bootstrap->GetObjectManager();
 
     TTransaction::TLockSet locks;
@@ -1217,12 +1215,30 @@ void TCypressManager::ReleaseLocks(TTransaction* transaction)
 
     FOREACH (auto* lock, locks) {
         auto* trunkNode = lock->GetTrunkNode();
-        if (trunkNode) {
-            trunkNode->LockList().erase(lock->GetLockListIterator());
-            lock->SetTrunkNode(nullptr);
+        // Decide if the lock must be promoted.
+        if (promote && parentTransaction && lock->Request().Mode != ELockMode::Snapshot) {
+            lock->SetTransaction(parentTransaction);
+            YCHECK(parentTransaction->Locks().insert(lock).second);
+            LOG_DEBUG_UNLESS(IsRecovery(), "Lock promoted (LockId: %s, NewTransactionId: %s)",
+                ~ToString(lock->GetId()),
+                ~ToString(parentTransaction->GetId()));
+        } else {
+            if (trunkNode) {
+                switch (lock->GetState()) {
+                    case ELockState::Acquired:
+                        trunkNode->AcquiredLocks().erase(lock->GetLockListIterator());
+                        break;
+                    case ELockState::Pending:
+                        trunkNode->PendingLocks().erase(lock->GetLockListIterator());
+                        break;
+                    default:
+                        YUNREACHABLE();
+                }
+                lock->SetTrunkNode(nullptr);
+            }
+            lock->SetTransaction(nullptr);
+            objectManager->UnrefObject(lock);
         }
-        lock->SetTransaction(nullptr);
-        objectManager->UnrefObject(lock);
     }
 
     FOREACH (auto* trunkNode, lockedNodes) {
