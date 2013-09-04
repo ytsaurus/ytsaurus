@@ -30,7 +30,7 @@ def merge(table):
                            "unavailable_chunk_tactics": "fail"})
 
         if yt.exists(table) and yt.get_attribute(table, "revision") == revision:
-            yt.merge(temp_table, table, mode=mode)
+            yt.run_merge(temp_table, table, mode=mode)
         else:
             yt.remove(temp_table)
 
