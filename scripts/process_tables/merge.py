@@ -31,8 +31,7 @@ def merge(table):
 
         if yt.exists(table) and yt.get_attribute(table, "revision") == revision:
             yt.run_merge(temp_table, table, mode=mode)
-        else:
-            yt.remove(temp_table)
+        yt.remove(temp_table)
 
     except yt.YtError as e:
         print "Failed to merge table %s with error %s" % (table, repr(e))
