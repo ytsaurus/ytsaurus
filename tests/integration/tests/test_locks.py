@@ -348,7 +348,7 @@ class TestLocks(YTEnvSetup):
 
         lock = locks[0]
         assert lock['mode'] == 'shared'
-        assert lock['child_key'] == ['a']
+        assert lock['child_key'] == 'a'
 
     def test_map_locks5(self):
         set('//tmp/a', 1)
