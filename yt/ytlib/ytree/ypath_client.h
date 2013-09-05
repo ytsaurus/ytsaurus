@@ -49,7 +49,9 @@ protected:
     NRpc::NProto::TRequestHeader Header_;
     std::vector<TSharedRef> Attachments_;
 
-    virtual bool IsHeavy() const override;
+    virtual bool IsRequestHeavy() const override;
+    virtual bool IsResponseHeavy() const override;
+
     virtual TSharedRef SerializeBody() const = 0;
 
 };

@@ -208,7 +208,7 @@ private:
                 bus = Bus;
             }
 
-            if (request->IsHeavy()) {
+            if (request->IsRequestHeavy()) {
                 BIND(&IClientRequest::Serialize, request)
                     .AsyncVia(TDispatcher::Get()->GetPoolInvoker())
                     .Run()
@@ -237,7 +237,7 @@ private:
 
             auto requestId = FromProto<TRequestId>(header.request_id());
 
-            IClientResponseHandlerPtr responseHandler;
+            TActiveRequest activeRequest;
             {
                 TGuard<TSpinLock> guard(SpinLock);
 
@@ -255,21 +255,20 @@ private:
                     return;
                 }
 
-                auto& activeRequest = it->second;
+                activeRequest = it->second;
                 Profiler.TimingCheckpoint(activeRequest.Timer, "reply");
-                responseHandler = activeRequest.ResponseHandler;
 
                 UnregisterRequest(it);
             }
 
             auto error = FromProto(header.error());
             if (error.IsOK()) {
-                responseHandler->OnResponse(message);
+                NotifyResponse(activeRequest, std::move(message));
             } else {
                 if (error.GetCode() == EErrorCode::PoisonPill) {
                     LOG_FATAL(error, "Poison pill received");
                 }
-                responseHandler->OnError(error);
+                NotifyError(activeRequest, error);
             }
         }
 
@@ -327,8 +326,7 @@ private:
             }
 
             // NB: Make copies, the instance will die soon.
-            auto& activeRequest = it->second;
-            auto responseHandler = activeRequest.ResponseHandler;
+            auto activeRequest = it->second;
 
             Profiler.TimingCheckpoint(activeRequest.Timer, "ack");
 
@@ -340,14 +338,14 @@ private:
                 // Don't need the guard anymore.
                 guard.Release();
 
-                responseHandler->OnAcknowledgement();
+                NotifyAcknowledgement(activeRequest);
             } else {
                 UnregisterRequest(it);
 
                 // Don't need the guard anymore.
                 guard.Release();
 
-                responseHandler->OnError(error);
+                NotifyError(activeRequest, error);
             }
         }
 
@@ -355,7 +353,7 @@ private:
         {
             VERIFY_THREAD_AFFINITY_ANY();
 
-            IClientResponseHandlerPtr responseHandler;
+            TActiveRequest activeRequest;
             {
                 TGuard<TSpinLock> guard(SpinLock);
 
@@ -366,14 +364,13 @@ private:
                     return;
                 }
 
-                auto& activeRequest = it->second;
+                activeRequest = it->second;
                 Profiler.TimingCheckpoint(activeRequest.Timer, "timeout");
-                responseHandler = activeRequest.ResponseHandler;
 
                 UnregisterRequest(it);
             }
 
-            responseHandler->OnError(TError(EErrorCode::Timeout, "Request timed out"));
+            NotifyError(activeRequest, TError(EErrorCode::Timeout, "Request timed out"));
         }
 
         void FinalizeRequest(TActiveRequest& request)
@@ -388,6 +385,40 @@ private:
 
             FinalizeRequest(it->second);
             ActiveRequests.erase(it);
+        }
+
+
+        void NotifyAcknowledgement(const TActiveRequest& activeRequest)
+        {
+            LOG_DEBUG("Request acknowledged (RequestId: %s)",
+                ~ToString(activeRequest.ClientRequest->GetRequestId()));
+
+            activeRequest.ResponseHandler->OnAcknowledgement();
+        }
+
+        void NotifyError(const TActiveRequest& activeRequest, const TError& error)
+        {
+            LOG_DEBUG(error, "Request failed (RequestId: %s)",
+                ~ToString(activeRequest.ClientRequest->GetRequestId()));
+
+            activeRequest.ResponseHandler->OnError(error);
+        }
+
+        void NotifyResponse(const TActiveRequest& activeRequest, IMessagePtr message)
+        {
+            LOG_DEBUG("Response received (RequestId: %s)",
+                ~ToString(activeRequest.ClientRequest->GetRequestId()));
+
+            if (activeRequest.ClientRequest->IsResponseHeavy()) {
+                TDispatcher::Get()
+                    ->GetPoolInvoker()
+                    ->Invoke(BIND(
+                        &IClientResponseHandler::OnResponse,
+                        activeRequest.ResponseHandler,
+                        std::move(message)));
+            } else {
+                activeRequest.ResponseHandler->OnResponse(std::move(message));
+            }
         }
 
     };
