@@ -371,11 +371,11 @@ bool TNontemplateCypressNodeProxyBase::GetSystemAttribute(
                     .Item("mode").Value(lock->Request().Mode)
                     .DoIf(lock->Request().ChildKey, [=] (TFluentMap fluent) {
                         fluent
-                            .Item("child_key").List(*lock->Request().ChildKey);
+                            .Item("child_key").Value(*lock->Request().ChildKey);
                     })
                     .DoIf(lock->Request().AttributeKey, [=] (TFluentMap fluent) {
                         fluent
-                            .Item("attribute_key").List(*lock->Request().AttributeKey);
+                            .Item("attribute_key").Value(*lock->Request().AttributeKey);
                     })
                 .EndMap();
         };
