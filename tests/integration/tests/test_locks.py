@@ -305,7 +305,7 @@ class TestLocks(YTEnvSetup):
 
         lock = locks[0]
         assert lock['mode'] == 'shared'
-        assert lock['child_key'] == ['a']
+        assert lock['child_key'] == 'a'
 
         commit_transaction(tx)
         assert get('//tmp') == {'a' : 1}
