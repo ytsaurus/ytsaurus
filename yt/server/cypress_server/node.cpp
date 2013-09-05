@@ -100,12 +100,26 @@ void TCypressNodeBase::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     LoadObjectRefs(context, LockStateMap_);
     // COMPAT(babenko)
-    if (context.GetVersion() >= 24) {
-        LoadObjectRefs(context, AcquiredLocks_);
-    }
-    // COMPAT(babenko)
     if (context.GetVersion() >= 25) {
+        LoadObjectRefs(context, AcquiredLocks_);
         LoadObjectRefs(context, PendingLocks_);
+    } 
+    // COMPAT(babenko)
+    if (context.GetVersion() == 24) {
+        TLockList locks;
+        LoadObjectRefs(context, locks);
+        FOREACH (auto* lock, locks) {
+            switch (lock->GetState()) {
+                case ELockState::Acquired:
+                    AcquiredLocks_.push_back(lock);
+                    break;
+                case ELockState::Pending:
+                    PendingLocks_.push_back(lock);
+                    break;
+                default:
+                    YUNREACHABLE();
+            }
+        }
     }
     // TODO(babenko): refactor when new serialization API is ready
     TNodeId parentId;
