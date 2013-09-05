@@ -11,7 +11,8 @@ void VisitTree(
     INodePtr root,
     NYson::IYsonConsumer* consumer,
     const TAttributeFilter& attributeFilter = TAttributeFilter::All,
-    bool sortKeys = false);
+    bool sortKeys = false,
+    bool ignoreOpaque = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 

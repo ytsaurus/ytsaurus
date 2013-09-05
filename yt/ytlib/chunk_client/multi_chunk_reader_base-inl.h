@@ -75,9 +75,13 @@ TMultiChunkReaderBase<TChunkReader>::TMultiChunkReaderBase(
         PrefetchWindow = 0;
         i64 bufferSize = 0;
         while (PrefetchWindow < chunkDataSizes.size()) {
-            bufferSize += std::min(
-                chunkDataSizes[PrefetchWindow],
-                config->WindowSize + config->GroupSize) + ChunkReaderMemorySize;
+            auto& currentSize = chunkDataSizes[PrefetchWindow];
+            if (currentSize < config->WindowSize + config->GroupSize) {
+                // Patch config to ensure that we don'w eat too much memory.
+                Config->WindowSize = currentSize / 2;
+                Config->GroupSize = currentSize / 2;
+            }
+            bufferSize += config->WindowSize + config->GroupSize + ChunkReaderMemorySize;
             if (bufferSize > Config->MaxBufferSize) {
                 break;
             } else {

@@ -105,7 +105,7 @@ public:
     
     void Initialize()
     {
-        auto tree = ConvertToNode(SyncYPathGet(UnderlyingService, ""));
+        auto tree = ConvertToNode(AsyncGetData().Get());
         UpdateCache(tree);
     }
 
@@ -141,11 +141,10 @@ private:
         }
 
         if (needsUpdate) {
-            AsyncYPathGet(UnderlyingService, "")
+            AsyncGetData()
                 .Apply(
-                    BIND([] (TErrorOr<TYsonString> result) -> INodePtr {
-                        YCHECK(result.IsOK());
-                        return ConvertToNode(result.GetValue());
+                    BIND([] (TYsonString result) {
+                        return ConvertToNode(result);
                     })
                     // Nothing to be proud of, but we do need some large pool.
                     .AsyncVia(NRpc::TDispatcher::Get()->GetPoolInvoker()))
@@ -154,6 +153,20 @@ private:
         }
 
         return cachedTree;
+    }
+
+    TFuture<TYsonString> AsyncGetData()
+    {
+        return
+            AsyncYPathGet(
+                UnderlyingService,
+                "",
+                TAttributeFilter::All,
+                true)
+                .Apply(BIND([] (TErrorOr<TYsonString> result) -> TYsonString {
+                    YCHECK(result.IsOK());
+                    return result.GetValue();
+                }));
     }
 
     void UpdateCache(INodePtr tree)

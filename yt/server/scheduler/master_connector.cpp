@@ -406,9 +406,10 @@ private:
         TErrorOr<TMasterHandshakeResult> Run()
         {
             try {
+                RegisterInstance();
                 StartLockTransaction();
                 TakeLock();
-                PushlishSelf();
+                AssumeControl();
                 ListOperations();
                 RequestOperationAttributes();
                 CheckOperationTransactions();
@@ -509,7 +510,7 @@ private:
 
         // - Publish scheduler address.
         // - Update orchid address.
-        void PushlishSelf()
+        void AssumeControl()
         {
             auto batchReq = Owner->StartBatchRequest();
             auto schedulerAddress = Owner->Bootstrap->GetLocalAddress();

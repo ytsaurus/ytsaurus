@@ -25,10 +25,12 @@ public:
     TTreeVisitor(
         IYsonConsumer* consumer,
         const TAttributeFilter& attributeFilter,
-        bool sortKeys)
+        bool sortKeys,
+        bool ignoreOpaque)
         : Consumer(consumer)
         , AttributeFilter(attributeFilter)
         , SortKeys(sortKeys)
+        , IgnoreOpaque(ignoreOpaque)
     { }
 
     void Visit(const INodePtr& root)
@@ -40,12 +42,16 @@ private:
     IYsonConsumer* Consumer;
     TAttributeFilter AttributeFilter;
     bool SortKeys;
+    bool IgnoreOpaque;
 
     void VisitAny(const INodePtr& node, bool isRoot = false)
     {
         node->SerializeAttributes(Consumer, AttributeFilter, SortKeys);
 
-        if (!isRoot && node->Attributes().Get<bool>("opaque", false)) {
+        if (!isRoot &&
+            !IgnoreOpaque &&
+            node->Attributes().Get<bool>("opaque", false))
+        {
             // This node is opaque, i.e. replaced by entity during tree traversal.
             Consumer->OnEntity();
             return;
@@ -130,6 +136,7 @@ private:
         }
         Consumer->OnEndMap();
     }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -138,12 +145,14 @@ void VisitTree(
     INodePtr root,
     IYsonConsumer* consumer,
     const TAttributeFilter& attributeFilter,
-    bool sortKeys)
+    bool sortKeys,
+    bool ignoreOpaque)
 {
     TTreeVisitor treeVisitor(
         consumer,
         attributeFilter,
-        sortKeys);
+        sortKeys,
+        ignoreOpaque);
     treeVisitor.Visit(root);
 }
 

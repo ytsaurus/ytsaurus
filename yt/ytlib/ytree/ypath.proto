@@ -12,6 +12,7 @@ message TReqGet
 {
     optional TAttributeFilter attribute_filter = 1;
     optional int64 max_size = 2;
+    optional bool ignore_opaque = 3;
 }
 
 message TRspGet

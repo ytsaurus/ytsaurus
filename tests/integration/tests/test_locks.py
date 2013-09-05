@@ -8,7 +8,7 @@ from yt_commands import *
 
 class TestLocks(YTEnvSetup):
     NUM_MASTERS = 3
-    NUM_NODES = 0
+    NUM_NODES = 3
 
     #TODO(panin): check error messages
     def test_invalid_cases(self):
@@ -261,6 +261,30 @@ class TestLocks(YTEnvSetup):
         assert not exists('//sys/locks/' + lock_id1)
         assert not exists('//sys/locks/' + lock_id2)
 
+    def test_waitable_lock8(self):
+        tx1 = start_transaction()
+        tx2 = start_transaction(tx = tx1)
+        tx3 = start_transaction()
+
+        create('table', '//tmp/t')
+        write('//tmp/t', {'foo': 'bar'}, tx = tx2)
+
+        lock_id = lock('//tmp/t', tx = tx3, mode = 'exclusive', waitable = True)
+
+        assert get('//sys/locks/' + lock_id + '/@state') == 'pending'
+        assert len(get('//tmp/t/@locks')) == 2
+
+        commit_transaction(tx2)
+
+        assert get('//sys/locks/' + lock_id + '/@state') == 'pending'
+        assert len(get('//tmp/t/@locks')) == 2
+        
+        commit_transaction(tx1)
+
+        assert get('//sys/locks/' + lock_id + '/@state') == 'acquired'
+        assert len(get('//tmp/t/@locks')) == 1
+
+
     def test_remove_locks(self):
         set('//tmp/a', {'b' : 1})
 
@@ -439,4 +463,29 @@ class TestLocks(YTEnvSetup):
 
         commit_transaction(tx)
         with pytest.raises(YTError): get('//tmp/@a')
+ 
+    def test_nested_tx1(self):
+        tx1 = start_transaction()
+        tx2 = start_transaction(tx = tx1)
+        lock_id = lock('//tmp', tx = tx2)
+        assert len(get('//tmp/@locks')) == 1
+        abort_transaction(tx2)
+        assert not exists('//sys/locks/' + lock_id)
+
+    def test_nested_tx2(self):
+        tx1 = start_transaction()
+        tx2 = start_transaction(tx = tx1)
+        lock_id = lock('//tmp', tx = tx2)
+        assert len(get('//tmp/@locks')) == 1
+        commit_transaction(tx2)
+        assert len(get('//tmp/@locks')) == 1
+        assert get('//sys/locks/' + lock_id + '/@transaction_id') == tx1
+
+    def test_nested_tx3(self):
+        tx1 = start_transaction()
+        tx2 = start_transaction(tx = tx1)
+        lock_id = lock('//tmp', tx = tx2, mode = 'snapshot')
+        assert len(get('//tmp/@locks')) == 1
+        commit_transaction(tx2)
+        assert not exists('//sys/locks/' + lock_id)
 
