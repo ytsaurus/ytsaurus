@@ -45,7 +45,12 @@ public:
         return Header_.one_way();
     }
 
-    virtual bool IsHeavy() const override
+    virtual bool IsRequestHeavy() const override
+    {
+        return false;
+    }
+
+    virtual bool IsResponseHeavy() const override
     {
         return false;
     }

@@ -37,7 +37,12 @@ bool TYPathRequest::IsOneWay() const
     return false;
 }
 
-bool TYPathRequest::IsHeavy() const
+bool TYPathRequest::IsRequestHeavy() const
+{
+    return false;
+}
+
+bool TYPathRequest::IsResponseHeavy() const
 {
     return false;
 }

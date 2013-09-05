@@ -35,7 +35,8 @@ TClientRequest::TClientRequest(
     const Stroka& path,
     const Stroka& verb,
     bool oneWay)
-    : Heavy_(false)
+    : RequestHeavy_(false)
+    , ResponseHeavy_(false)
     , Channel(channel)
     , Attributes_(CreateEphemeralAttributes())
 {
@@ -82,9 +83,14 @@ bool TClientRequest::IsOneWay() const
     return Header_.one_way();
 }
 
-bool TClientRequest::IsHeavy() const
+bool TClientRequest::IsRequestHeavy() const
 {
-    return Heavy_;
+    return RequestHeavy_;
+}
+
+bool TClientRequest::IsResponseHeavy() const
+{
+    return RequestHeavy_;
 }
 
 TRequestId TClientRequest::GetRequestId() const
@@ -132,9 +138,6 @@ TClientResponseBase::operator TError()
 
 void TClientResponseBase::OnError(const TError& error)
 {
-    LOG_DEBUG(error, "Request failed (RequestId: %s)",
-        ~ToString(RequestId_));
-
     {
         TGuard<TSpinLock> guard(SpinLock);
         if (State == EState::Done) {
@@ -146,9 +149,7 @@ void TClientResponseBase::OnError(const TError& error)
         Error_  = error;
     }
 
-    TDispatcher::Get()
-        ->GetPoolInvoker()
-        ->Invoke(BIND(&TClientResponseBase::FireCompleted, MakeStrong(this)));
+    FireCompleted();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -192,8 +193,6 @@ void TClientResponse::Deserialize(IMessagePtr responseMessage)
 
 void TClientResponse::OnAcknowledgement()
 {
-    LOG_DEBUG("Request acknowledged (RequestId: %s)", ~ToString(RequestId_));
-
     TGuard<TSpinLock> guard(SpinLock);
     if (State == EState::Sent) {
         State = EState::Ack;
@@ -202,19 +201,14 @@ void TClientResponse::OnAcknowledgement()
 
 void TClientResponse::OnResponse(IMessagePtr message)
 {
-    LOG_DEBUG("Response received (RequestId: %s)", ~ToString(RequestId_));
-
     {
         TGuard<TSpinLock> guard(SpinLock);
         YASSERT(State == EState::Sent || State == EState::Ack);
         State = EState::Done;
     }
 
-    auto this_ = MakeStrong(this);
-    TDispatcher::Get()->GetPoolInvoker()->Invoke(BIND([this, this_, message] () {
-        this->Deserialize(message);
-        FireCompleted();
-    }));
+    Deserialize(message);
+    FireCompleted();
 }
 
 IAttributeDictionary& TClientResponse::Attributes()
@@ -236,8 +230,6 @@ TOneWayClientResponse::TOneWayClientResponse(const TRequestId& requestId)
 
 void TOneWayClientResponse::OnAcknowledgement()
 {
-    LOG_DEBUG("Request acknowledged (RequestId: %s)", ~ToString(RequestId_));
-
     {
         TGuard<TSpinLock> guard(SpinLock);
         if (State == EState::Done) {
