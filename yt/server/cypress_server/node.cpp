@@ -141,12 +141,10 @@ void TCypressNodeBase::Load(NCellMaster::TLoadContext& context)
     // Reconstruct iterators from locks to their positions in the lock list.
     for (auto it = AcquiredLocks_.begin(); it != AcquiredLocks_.end(); ++it) {
         auto* lock = *it;
-        YCHECK(lock->GetState() == ELockState::Acquired);
         lock->SetLockListIterator(it);
     }
     for (auto it = PendingLocks_.begin(); it != PendingLocks_.end(); ++it) {
         auto* lock = *it;
-        YCHECK(lock->GetState() == ELockState::Pending);
         lock->SetLockListIterator(it);
     }
 }

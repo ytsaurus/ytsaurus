@@ -96,6 +96,10 @@ void TLock::Load(NCellMaster::TLoadContext& context)
 
     using NYT::Load;
     Load(context, State_);
+    // COMPAT(babenko)
+    if (context.GetVersion() == 24) {
+        YCHECK(State_ == ELockState::Acquired);
+    }
     Load(context, Request_);
     // TODO(babenko): refactor when new serialization API is ready
     auto trunkNodeId = Load<TNodeId>(context);
