@@ -21,6 +21,9 @@ def merge(table):
         data_size_per_job = max(1,  int(512 * 1024 ** 2 / compression_ratio))
 
         temp_table = yt.create_temp_table(prefix="merge")
+        # To copy all attributes of node 
+        yt.remove(temp_table)
+        yt.copy(table, temp_table)
         
         mode = "sorted" if yt.is_sorted(table) else "unordered"
         yt.run_merge(table, temp_table, mode,
