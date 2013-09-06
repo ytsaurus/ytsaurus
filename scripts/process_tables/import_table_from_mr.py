@@ -9,6 +9,7 @@ import sh
 import sys
 import traceback
 import subprocess
+import simplejson as json
 from argparse import ArgumentParser
 from urllib import quote_plus
 
@@ -32,6 +33,7 @@ def main():
     parser.add_argument("--fastbone", action="store_true", default=False)
     parser.add_argument("--debug", action="store_true", default=False)
     parser.add_argument("--pool")
+    parser.add_argument("--fetch-info-from-http", action="store_true", default=False)
     parser.add_argument("--mapreduce-binary", default="./mapreduce")
     parser.add_argument("--yt-binary")
 
@@ -46,16 +48,38 @@ def main():
         records_line = records_line.replace("</b>", "").replace("<br>", "").replace("<b>", "").replace(",", "")
         return records_line.split(field + ":")[1].split()[0]
 
+    def fetch_from_server(table, field):
+        if not hasattr(fetch_from_server, "cache"):
+            fetch_from_server.cache = {}
+        if table not in fetch_from_server.cache:
+            output = subprocess.check_output(
+                "{} -server {}:{} -list -prefix {} -jsonoutput"\
+                    .format(args.mapreduce_binary, args.server, args.server_port, table),
+                shell=True)
+            fetch_from_server.cache[table] = filter(lambda obj: obj["name"] == table, json.loads(output))[0]
+        return fetch_from_server.cache[table].get(field, None)
+
     def records_count(table):
-        return int(field_from_page(table, "Records"))
+        if args.fetch_info_from_http:
+            return int(field_from_page(table, "Records"))
+        else:
+            return fetch_from_server(table, "records")
     
     def data_size(table):
-        return int(field_from_page(table, "Size"))
+        if args.fetch_info_from_http:
+            return int(field_from_page(table, "Size"))
+        else:
+            return fetch_from_server(table, "size")
 
     def is_sorted(table):
-        return field_from_page(table, "Sorted").lower() == "yes"
+        if args.fetch_info_from_http:
+            return field_from_page(table, "Sorted").lower() == "yes"
+        else:
+            return fetch_from_server(table, "sorted") == 1
 
     def is_empty(table):
+        if not args.fetch_info_from_http:
+            return fetch_from_server(table, "records") == 0
         """ Parse whether table is empty from html """
         http_content = sh.curl("{}:{}/debug?info=table&table={}".format(args.server, args.http_port, table)).stdout
         empty_lines = filter(lambda line: line.find("is empty") != -1,  http_content.split("\n"))
