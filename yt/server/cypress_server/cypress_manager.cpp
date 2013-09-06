@@ -1048,6 +1048,10 @@ void TCypressManager::LoadKeys(NCellMaster::TLoadContext& context)
     if (context.GetVersion() >= 24) {
         LockMap.LoadKeys(context);
     }
+    // COMPAT(babenko)
+    if (context.GetVersion() < 25) {
+        YCHECK(LockMap.GetSize() == 0);
+    }
 }
 
 void TCypressManager::LoadValues(NCellMaster::TLoadContext& context)
