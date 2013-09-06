@@ -21,6 +21,7 @@ set( SRCS
   ${BASE}/job_tracker_service.cpp
   ${BASE}/node_directory_builder.cpp
   ${BASE}/private.cpp
+  ${BASE}/helpers.cpp
 )
 
 set( HDRS
@@ -48,6 +49,8 @@ set( HDRS
   ${BASE}/node_directory_builder.h
   ${BASE}/private.h
   ${BASE}/public.h
+  ${BASE}/helpers.h
+  ${BASE}/helpers-inl.h
 )
 
 list(APPEND YT_SOURCE_FILES

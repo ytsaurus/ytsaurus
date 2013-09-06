@@ -17,9 +17,8 @@ namespace NChunkServer {
 
 using namespace NCellMaster;
 using namespace NObjectClient;
-
-using NChunkClient::NProto::TKey;
-using NChunkClient::NProto::TReadLimit;
+using namespace NChunkClient::NProto;
+using namespace NTableClient::NProto;
 
 namespace {
 
@@ -37,7 +36,7 @@ TKey GetMinKey(const TChunkTree* chunkTree);
 
 TKey GetMaxKey(const TChunk* chunk)
 {
-    auto boundaryKeysExt = GetProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(
+    auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(
         chunk->ChunkMeta().extensions());
     return GetKeySuccessor(boundaryKeysExt.end());
 }
@@ -66,7 +65,7 @@ TKey GetMaxKey(const TChunkTree* chunkTree)
 
 TKey GetMinKey(const TChunk* chunk)
 {
-    auto boundaryKeysExt = GetProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(
+    auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(
         chunk->ChunkMeta().extensions());
     return boundaryKeysExt.start();
 }
@@ -438,14 +437,14 @@ protected:
         Stack.clear();
     }
 
-    ITraverserCallbacksPtr TraverserCallbacks;
+    IChunkTraverserCallbacksPtr TraverserCallbacks;
     IChunkVisitorPtr Visitor;
 
     std::vector<TStackEntry> Stack;
 
 public:
     TChunkTreeTraverser(
-        ITraverserCallbacksPtr traverserCallbacks,
+        IChunkTraverserCallbacksPtr traverserCallbacks,
         IChunkVisitorPtr visitor)
         : TraverserCallbacks(traverserCallbacks)
         , Visitor(visitor)
@@ -478,11 +477,11 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTraverserCallbacks
-    : public ITraverserCallbacks
+class TChunkTraverserCallbacks
+    : public IChunkTraverserCallbacks
 {
 public:
-    explicit TTraverserCallbacks(NCellMaster::TBootstrap* bootstrap)
+    explicit TChunkTraverserCallbacks(NCellMaster::TBootstrap* bootstrap)
         : Bootstrap(bootstrap)
     { }
 
@@ -513,6 +512,7 @@ public:
 
 private:
     NCellMaster::TBootstrap* Bootstrap;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -521,15 +521,14 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ITraverserCallbacksPtr GetTraverserCallbacks(NCellMaster::TBootstrap* bootstrap)
+IChunkTraverserCallbacksPtr CreateTraverserCallbacks(
+    NCellMaster::TBootstrap* bootstrap)
 {
-    return New<TTraverserCallbacks>(bootstrap);
+    return New<TChunkTraverserCallbacks>(bootstrap);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
 void TraverseChunkTree(
-    ITraverserCallbacksPtr traverserCallbacks,
+    IChunkTraverserCallbacksPtr traverserCallbacks,
     IChunkVisitorPtr visitor,
     TChunkList* root,
     const TReadLimit& lowerBound,

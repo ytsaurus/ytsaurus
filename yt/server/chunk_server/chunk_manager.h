@@ -24,18 +24,6 @@ namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void AttachToChunkList(
-    TChunkList* chunkList,
-    const std::vector<TChunkTree*>& children,
-    bool resetSorted = true);
-
-void AttachToChunkList(
-    TChunkList* chunkList,
-    TChunkTree* child,
-    bool resetSorted = true);
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TChunkManager
     : public TRefCounted
 {

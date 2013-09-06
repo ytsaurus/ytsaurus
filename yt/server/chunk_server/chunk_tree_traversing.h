@@ -5,6 +5,7 @@
 #include <ytlib/misc/error.h>
 
 #include <ytlib/table_client/table_chunk_meta.pb.h>
+
 #include <ytlib/chunk_client/chunk_spec.pb.h>
 
 #include <server/cell_master/public.h>
@@ -18,7 +19,7 @@ struct IChunkVisitor
     : public virtual TRefCounted
 {
     /*!
-     *  \note Return false to break off traversing.
+     *  \note Return |false| to terminate traversing.
      */
     virtual bool OnChunk(
         TChunk* chunk,
@@ -33,7 +34,7 @@ struct IChunkVisitor
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct ITraverserCallbacks
+struct IChunkTraverserCallbacks
     : public virtual TRefCounted
 {
     virtual IInvokerPtr GetInvoker() const = 0;
@@ -45,16 +46,13 @@ struct ITraverserCallbacks
     virtual void OnShutdown(const std::vector<TChunkTree*>& nodes) = 0;
 };
 
-typedef TIntrusivePtr<ITraverserCallbacks> ITraverserCallbacksPtr;
-
 ////////////////////////////////////////////////////////////////////////////////
 
-ITraverserCallbacksPtr GetTraverserCallbacks(NCellMaster::TBootstrap* bootstrap);
-
-////////////////////////////////////////////////////////////////////////////////
+IChunkTraverserCallbacksPtr CreateTraverserCallbacks(
+    NCellMaster::TBootstrap* bootstrap);
 
 void TraverseChunkTree(
-    ITraverserCallbacksPtr bootstrap,
+    IChunkTraverserCallbacksPtr bootstrap,
     IChunkVisitorPtr visitor,
     TChunkList* root,
     const NChunkClient::NProto::TReadLimit& lowerBound = NChunkClient::NProto::TReadLimit(),

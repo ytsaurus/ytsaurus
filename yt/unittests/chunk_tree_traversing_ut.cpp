@@ -1,14 +1,18 @@
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
+
 #include <ytlib/misc/protobuf_helpers.h>
+
 #include <ytlib/actions/invoker_util.h>
+
 #include <ytlib/chunk_client/dispatcher.h>
 #include <ytlib/chunk_client/chunk.pb.h>
+
 #include <ytlib/profiling/profiling_manager.h>
 
 #include <server/chunk_server/chunk_tree_traversing.h>
 #include <server/chunk_server/chunk_list.h>
-#include <server/chunk_server/chunk_manager.h>
 #include <server/chunk_server/chunk.h>
+#include <server/chunk_server/helpers.h>
 
 #include <contrib/testing/framework.h>
 
@@ -28,7 +32,7 @@ bool operator == (const TReadLimit& lhs, const TReadLimit& rhs)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNoneTraverserCallbacks
-    : public ITraverserCallbacks
+    : public IChunkTraverserCallbacks
 {
 public:
     virtual IInvokerPtr GetInvoker() const override
@@ -189,7 +193,7 @@ TEST(TraverseChunkTree, Simple)
 
     {
         auto visitor = New<TTestChunkVisitor>();
-        TraverseChunkTree(bootstrap.Get(), visitor, &listA);
+        TraverseChunkTree(bootstrap, visitor, &listA);
 
         std::set<TChunkInfo> correctResult;
         correctResult.insert(TChunkInfo(
@@ -220,7 +224,7 @@ TEST(TraverseChunkTree, Simple)
         TReadLimit endLimit;
         endLimit.set_row_index(5);
 
-        TraverseChunkTree(bootstrap.Get(), visitor, &listA, startLimit, endLimit);
+        TraverseChunkTree(bootstrap, visitor, &listA, startLimit, endLimit);
 
         TReadLimit correctStartLimit;
         correctStartLimit.set_row_index(1);
