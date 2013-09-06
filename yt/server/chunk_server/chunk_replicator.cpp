@@ -1067,7 +1067,7 @@ void TChunkReplicator::SchedulePropertiesUpdate(TChunkList* chunkList)
 
         void Run()
         {
-            TraverseChunkTree(Bootstrap, this, Root);
+            TraverseChunkTree(GetTraverserCallbacks(Bootstrap), this, Root);
         }
 
     private:
@@ -1077,9 +1077,11 @@ void TChunkReplicator::SchedulePropertiesUpdate(TChunkList* chunkList)
 
         virtual bool OnChunk(
             TChunk* chunk,
+            i64 rowIndex,
             const TReadLimit& startLimit,
             const TReadLimit& endLimit) override
         {
+            UNUSED(rowIndex);
             UNUSED(startLimit);
             UNUSED(endLimit);
 

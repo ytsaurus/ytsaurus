@@ -67,6 +67,8 @@ message TChunkSpec
     optional int32 partition_tag = 8 [default = -1];
 
     optional int32 erasure_codec = 9 [default = 0];
+    
+    optional int64 table_row_index = 10 [default = 0];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

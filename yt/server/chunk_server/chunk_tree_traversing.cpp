@@ -110,17 +110,20 @@ protected:
         TChunkList* ChunkList;
         int ChunkListVersion;
         int ChildIndex;
+        i64 RowIndex;
         TReadLimit LowerBound;
         TReadLimit UpperBound;
 
         TStackEntry(
             TChunkList* chunkList,
             int childIndex,
+            i64 rowIndex,
             const TReadLimit& lowerBound,
             const TReadLimit& upperBound)
             : ChunkList(chunkList)
             , ChunkListVersion(chunkList->GetVersion())
             , ChildIndex(childIndex)
+            , RowIndex(rowIndex)
             , LowerBound(lowerBound)
             , UpperBound(upperBound)
         { }
@@ -157,71 +160,65 @@ protected:
             TReadLimit childLowerBound;
             TReadLimit childUpperBound;
 
-            auto getChildLowerRowIndex = [&] () {
-                return entry.ChildIndex == 0
+            auto childLowerRowIndex = 
+                (entry.ChildIndex == 0)
                     ? 0
                     : chunkList->RowCountSums()[entry.ChildIndex - 1];
-            };
 
             if (entry.UpperBound.has_row_index()) {
-                childLowerBound.set_row_index(getChildLowerRowIndex());
-
-                if (entry.UpperBound.row_index() <= childLowerBound.row_index()) {
+                if (entry.UpperBound.row_index() <= childLowerRowIndex) {
                     PopStack();
                     continue;
                 }
-
-                if (entry.ChildIndex == chunkList->Children().size() - 1) {
-                    childUpperBound.set_row_index(chunkList->Statistics().RowCount);
-                } else {
-                    childUpperBound.set_row_index(chunkList->RowCountSums()[entry.ChildIndex]);
-                }
+                
+                childLowerBound.set_row_index(childLowerRowIndex);
+                childUpperBound.set_row_index(
+                    entry.ChildIndex == chunkList->Children().size() - 1
+                        ? chunkList->Statistics().RowCount
+                        : chunkList->RowCountSums()[entry.ChildIndex]
+                );
             } else if (entry.LowerBound.has_row_index()) {
-                childLowerBound.set_row_index(getChildLowerRowIndex());
+                childLowerBound.set_row_index(childLowerRowIndex);
             }
 
-            auto getChildLowerChunkIndex = [&] () {
-                return entry.ChildIndex == 0
+            auto childLowerChunkIndex = 
+                (entry.ChildIndex == 0)
                     ? 0
                     : chunkList->ChunkCountSums()[entry.ChildIndex - 1];
-            };
             if (entry.UpperBound.has_chunk_index()) {
-                childLowerBound.set_chunk_index(getChildLowerChunkIndex());
-
-                if (entry.UpperBound.chunk_index() <= childLowerBound.chunk_index()) {
+                if (entry.UpperBound.chunk_index() <= childLowerChunkIndex) {
                     PopStack();
                     continue;
                 }
-
-                if (entry.ChildIndex == chunkList->Children().size() - 1) {
-                    childUpperBound.set_chunk_index(chunkList->Statistics().ChunkCount);
-                } else {
-                    childUpperBound.set_chunk_index(chunkList->ChunkCountSums()[entry.ChildIndex]);
-                }
+                
+                childLowerBound.set_chunk_index(childLowerChunkIndex);
+                childUpperBound.set_chunk_index(
+                    entry.ChildIndex == chunkList->Children().size() - 1
+                        ? chunkList->Statistics().ChunkCount
+                        : chunkList->ChunkCountSums()[entry.ChildIndex]
+                );
             } else if (entry.LowerBound.has_chunk_index()) {
-                childLowerBound.set_chunk_index(getChildLowerChunkIndex());
+                childLowerBound.set_chunk_index(childLowerChunkIndex);
             }
 
-            auto getChildLowerOffset = [&] () {
-                return entry.ChildIndex == 0
+            auto childLowerOffset =
+                (entry.ChildIndex == 0)
                     ? 0
                     : chunkList->DataSizeSums()[entry.ChildIndex - 1];
-            };
             if (entry.UpperBound.has_offset()) {
-                childLowerBound.set_offset(getChildLowerOffset());
-
-                if (entry.UpperBound.offset() <= childLowerBound.offset()) {
+                if (entry.UpperBound.offset() <= childLowerOffset) {
                     PopStack();
                     continue;
                 }
 
-                if (entry.ChildIndex == chunkList->Children().size() - 1) {
-                    childUpperBound.set_offset(chunkList->Statistics().UncompressedDataSize);
-                } else {
-                    childUpperBound.set_offset(chunkList->DataSizeSums()[entry.ChildIndex]);
-                }
+                childLowerBound.set_offset(childLowerOffset);
+                childUpperBound.set_offset(
+                    entry.ChildIndex == chunkList->Children().size() - 1
+                        ? chunkList->Statistics().UncompressedDataSize
+                        : chunkList->DataSizeSums()[entry.ChildIndex]
+                );
             } else if (entry.LowerBound.has_offset()) {
-                childLowerBound.set_offset(getChildLowerOffset());
+                childLowerBound.set_offset(childLowerOffset);
             }
 
             if (entry.UpperBound.has_key()) {
@@ -237,6 +234,8 @@ protected:
             }
 
             ++entry.ChildIndex;
+
+            auto rowIndex = entry.RowIndex + childLowerRowIndex;
 
             TReadLimit subtreeStartLimit;
             TReadLimit subtreeEndLimit;
@@ -254,6 +253,7 @@ protected:
                     PushStack(TStackEntry(
                         childChunkList,
                         index,
+                        rowIndex,
                         subtreeStartLimit,
                         subtreeEndLimit));
                     break;
@@ -262,7 +262,7 @@ protected:
                 case EObjectType::Chunk:
                 case EObjectType::ErasureChunk: {
                     auto* childChunk = child->AsChunk();
-                    if (!Visitor->OnChunk(childChunk, subtreeStartLimit, subtreeEndLimit)) {
+                    if (!Visitor->OnChunk(childChunk, rowIndex, subtreeStartLimit, subtreeEndLimit)) {
                         Shutdown();
                         return;
                     }
@@ -277,7 +277,7 @@ protected:
 
         // Schedule continuation.
         {
-            auto invoker = Bootstrap->GetMetaStateFacade()->GetGuardedInvoker();
+            auto invoker = TraverserCallbacks->GetInvoker();
             auto result = invoker->Invoke(BIND(&TChunkTreeTraverser::DoTraverse, MakeStrong(this)));
             if (!result) {
                 Shutdown();
@@ -412,8 +412,7 @@ protected:
 
     void PushStack(const TStackEntry& newEntry)
     {
-        auto objectManager = Bootstrap->GetObjectManager();
-        objectManager->WeakRefObject(newEntry.ChunkList);
+        TraverserCallbacks->OnPush(newEntry.ChunkList);
         Stack.push_back(newEntry);
     }
 
@@ -425,30 +424,30 @@ protected:
     void PopStack()
     {
         auto& entry = Stack.back();
-        auto objectManager = Bootstrap->GetObjectManager();
-        objectManager->WeakUnrefObject(entry.ChunkList);
+        TraverserCallbacks->OnPop(entry.ChunkList);
         Stack.pop_back();
     }
 
     void Shutdown()
     {
-        auto objectManager = Bootstrap->GetObjectManager();
+        std::vector<TChunkTree*> nodes;
         FOREACH (const auto& entry, Stack) {
-            objectManager->WeakUnrefObject(entry.ChunkList);
+            nodes.push_back(entry.ChunkList);
         }
+        TraverserCallbacks->OnShutdown(nodes);
         Stack.clear();
     }
 
-    TBootstrap* Bootstrap;
+    ITraverserCallbacksPtr TraverserCallbacks;
     IChunkVisitorPtr Visitor;
 
     std::vector<TStackEntry> Stack;
 
 public:
     TChunkTreeTraverser(
-        TBootstrap* bootstrap,
+        ITraverserCallbacksPtr traverserCallbacks,
         IChunkVisitorPtr visitor)
-        : Bootstrap(bootstrap)
+        : TraverserCallbacks(traverserCallbacks)
         , Visitor(visitor)
     { }
 
@@ -467,6 +466,7 @@ public:
         PushStack(TStackEntry(
             chunkList,
             childIndex,
+            0,
             lowerBound,
             upperBound));
 
@@ -478,18 +478,64 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTraverserCallbacks
+    : public ITraverserCallbacks
+{
+public:
+    explicit TTraverserCallbacks(NCellMaster::TBootstrap* bootstrap)
+        : Bootstrap(bootstrap)
+    { }
+
+    virtual IInvokerPtr GetInvoker() const override
+    {
+        return Bootstrap->GetMetaStateFacade()->GetGuardedInvoker();
+    }
+
+    virtual void OnPop(TChunkTree* node) override
+    {
+        auto objectManager = Bootstrap->GetObjectManager();
+        objectManager->WeakUnrefObject(node);
+    }
+
+    virtual void OnPush(TChunkTree* node) override
+    {
+        auto objectManager = Bootstrap->GetObjectManager();
+        objectManager->WeakRefObject(node);
+    }
+
+    virtual void OnShutdown(const std::vector<TChunkTree*>& nodes) override
+    {
+        auto objectManager = Bootstrap->GetObjectManager();
+        FOREACH (const auto& node, nodes) {
+            objectManager->WeakUnrefObject(node);
+        }
+    }
+
+private:
+    NCellMaster::TBootstrap* Bootstrap;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
+ITraverserCallbacksPtr GetTraverserCallbacks(NCellMaster::TBootstrap* bootstrap)
+{
+    return New<TTraverserCallbacks>(bootstrap);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TraverseChunkTree(
-    NCellMaster::TBootstrap* bootstrap,
+    ITraverserCallbacksPtr traverserCallbacks,
     IChunkVisitorPtr visitor,
     TChunkList* root,
     const TReadLimit& lowerBound,
     const TReadLimit& upperBound)
 {
-    auto traverser = New<TChunkTreeTraverser>(bootstrap, visitor);
+    auto traverser = New<TChunkTreeTraverser>(traverserCallbacks, visitor);
     traverser->Run(root, lowerBound, upperBound);
 }
 

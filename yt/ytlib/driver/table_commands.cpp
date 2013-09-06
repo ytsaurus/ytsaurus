@@ -8,6 +8,7 @@
 
 #include <ytlib/yson/parser.h>
 #include <ytlib/yson/consumer.h>
+#include <ytlib/ytree/fluent.h>
 
 #include <ytlib/formats/parser.h>
 
@@ -61,6 +62,22 @@ void TReadCommand::DoExecute()
         THROW_ERROR_EXCEPTION_IF_FAILED(result);
     }
 
+    auto fetchNextItem = [&] () -> bool {
+        if (!reader->FetchNextItem()) {
+            auto result = WaitFor(reader->GetReadyEvent());
+            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        }
+        return reader->IsValid();
+    };
+
+
+    if (!fetchNextItem()) {
+        return;
+    }
+    
+    BuildYsonMapFluently(Context->Request().ResponseParametersConsumer)
+        .Item("table_row_index").Value(reader->GetTableRowIndex());
+
     auto flushBuffer = [&] () {
         if (!output->Write(buffer.Begin(), buffer.Size())) {
             auto result = WaitFor(output->GetReadyEvent());
@@ -71,15 +88,6 @@ void TReadCommand::DoExecute()
 
     TNullable<int> tableIndex;
     while (true) {
-        if (!reader->FetchNextItem()) {
-            auto result = WaitFor(reader->GetReadyEvent());
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
-        }
-
-        if (!reader->IsValid()) {
-            break;
-        }
-
         const auto& newTableIndex = reader->GetTableIndex();
         if (newTableIndex != tableIndex) {
             tableIndex = newTableIndex;
@@ -90,6 +98,10 @@ void TReadCommand::DoExecute()
 
         if (buffer.Size() > bufferLimit) {
             flushBuffer();
+        }
+        
+        if (!fetchNextItem()) {
+            break;
         }
     }
 

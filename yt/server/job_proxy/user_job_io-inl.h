@@ -36,7 +36,9 @@ std::unique_ptr<NTableClient::TTableProducer> TUserJobIO::DoCreateTableInput(
 
     typedef TMultiChunkReader<NTableClient::TTableChunkReader> TReader;
 
-    auto provider = New<NTableClient::TTableChunkReaderProvider>(chunks, IOConfig->TableReader);
+    auto provider = New<NTableClient::TTableChunkReaderProvider>(
+        chunks,
+        IOConfig->TableReader);
     auto reader = New<TReader>(
         IOConfig->TableReader,
         Host->GetMasterChannel(),

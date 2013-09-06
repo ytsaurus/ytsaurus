@@ -9,6 +9,7 @@
 
 #include <ytlib/misc/async_stream.h>
 #include <ytlib/misc/error.h>
+#include <ytlib/misc/lazy_ptr.h>
 
 #include <ytlib/ytree/node.h>
 #include <ytlib/ytree/convert.h>
@@ -49,16 +50,209 @@ static Persistent<String> DescriptorOutputTypeAsInteger;
 static Persistent<String> DescriptorIsVolatile;
 static Persistent<String> DescriptorIsHeavy;
 
+// Assuming presence of outer HandleScope.
+void Invoke(
+    const Handle<Function>& callback,
+    const Handle<Value>& a1)
+{
+    Handle<Value> args[] = { a1 };
+    node::MakeCallback(Object::New(), callback, ARRAY_SIZE(args), args);
+}
+
+// Assuming presence of outer HandleScope.
+void Invoke(
+    const Handle<Function>& callback,
+    const Handle<Value>& a1,
+    const Handle<Value>& a2)
+{
+    Handle<Value> args[] = { a1, a2 };
+    node::MakeCallback(Object::New(), callback, ARRAY_SIZE(args), args);
+}
+
+// Assuming presence of outer HandleScope.
+void Invoke(
+    const Handle<Function>& callback,
+    const Handle<Value>& a1,
+    const Handle<Value>& a2,
+    const Handle<Value>& a3)
+{
+    Handle<Value> args[] = { a1, a2, a3 };
+    node::MakeCallback(Object::New(), callback, ARRAY_SIZE(args), args);
+}
+
+class TUVInvoker
+    : public IInvoker
+{
+public:
+    explicit TUVInvoker(uv_loop_t* loop)
+        : QueueSize(0)
+    {
+        memset(&AsyncHandle, 0, sizeof(AsyncHandle));
+        YCHECK(uv_async_init(loop, &AsyncHandle, &TUVInvoker::Callback) == 0);
+        AsyncHandle.data = this;
+    }
+
+    ~TUVInvoker()
+    {
+        uv_close((uv_handle_t*)&AsyncHandle, nullptr);
+    }
+
+    virtual bool Invoke(const TClosure& action) override
+    {
+        Queue.Enqueue(action);
+        AtomicIncrement(QueueSize);
+
+        YCHECK(uv_async_send(&AsyncHandle) == 0);
+
+        return true;
+    }
+
+private:
+    uv_async_t AsyncHandle;
+
+    TClosure Action;
+    TLockFreeQueue<TClosure> Queue;
+    TAtomic QueueSize;
+
+    static const int ActionsPerTick = 100;
+
+    static void Callback(uv_async_t* handle, int status)
+    {
+        THREAD_AFFINITY_IS_V8();
+
+        YCHECK(status == 0);
+        YCHECK(handle->data);
+
+        reinterpret_cast<TUVInvoker*>(handle->data)->CallbackImpl();
+    }
+
+    void CallbackImpl()
+    {
+        YCHECK(Action.IsNull());
+
+        int actionsRan = 0;
+        while (Queue.Dequeue(&Action)) {
+            AtomicDecrement(QueueSize);
+
+            Action.Run();
+            Action.Reset();
+
+            if (++actionsRan >= ActionsPerTick) {
+                YCHECK(uv_async_send(&AsyncHandle) == 0);
+                break;
+            }
+        }
+
+        YCHECK(Action.IsNull());
+    }
+};
+
+// uv_default_loop() is a static singleton object, so it is safe to call
+// function at the binding time.
+TLazyIntrusivePtr<TUVInvoker> DefaultUvInvoker(BIND(
+    &New<TUVInvoker, uv_loop_t* const&>,
+    uv_default_loop()));
+
+class TResponseParametersConsumer
+    : public TForwardingYsonConsumer
+{
+public:
+    TResponseParametersConsumer(const Persistent<Function>& callback)
+        : FlushClosure_(BIND(&TResponseParametersConsumer::DoFlush, this))
+        , FlushPending_(0)
+        , Callback_(callback)
+    {
+        THREAD_AFFINITY_IS_V8();
+    }
+
+    ~TResponseParametersConsumer()
+    {
+        THREAD_AFFINITY_IS_V8();
+    }
+
+    virtual void OnMyKeyedItem(const TStringBuf& keyRef) override
+    {
+        auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
+
+        builder->BeginTree();
+        Forward(
+            builder.get(),
+            BIND(&TResponseParametersConsumer::DoSaveBit, this, Stroka(keyRef), Owned(builder.get())));
+
+        builder.release();
+    }
+
+    TFuture<void> Flush()
+    {
+        auto flushFuture = FlushFuture_;
+        if (!flushFuture) {
+            TGuard<TSpinLock> guard(Lock_);
+            if (!FlushFuture_) {
+                FlushFuture_ = FlushClosure_.AsyncVia(DefaultUvInvoker.Get()).Run();
+            }
+            return FlushFuture_;
+        }
+        return flushFuture;
+    }
+
+private:
+    typedef std::tuple<Stroka, INodePtr> Bit;
+
+    TSpinLock Lock_;
+    std::deque<Bit> Bits_;
+
+    TClosure FlushClosure_;
+    TAtomic FlushPending_;
+    TFuture<void> FlushFuture_;
+
+    const Persistent<Function>& Callback_;
+
+    void DoFlush()
+    {
+        THREAD_AFFINITY_IS_V8();
+        HandleScope scope;
+
+        std::deque<Bit> bitsToFlush;
+        {
+            TGuard<TSpinLock> guard(Lock_);
+            bitsToFlush.swap(Bits_);
+            FlushFuture_.Reset();
+        }
+
+        FOREACH(const auto& bit, bitsToFlush) {
+            auto keyHandle = String::New(std::get<0>(bit).c_str());
+            auto valueHandle = ConvertNodeToV8Value(std::get<1>(bit));
+
+            Invoke(Callback_, keyHandle, valueHandle);
+        }
+    }
+
+    void DoSaveBit(const Stroka& key, ITreeBuilder* builder)
+    {
+        {
+            TGuard<TSpinLock> guard(Lock_);
+            Bits_.emplace_back(std::forward_as_tuple(
+                std::move(key),
+                builder->EndTree()));
+        }
+
+        Flush();
+    }
+
+};
+
 // TODO(sandello): Refactor this huge mess.
 struct TExecuteRequest
 {
     uv_work_t Request;
     TDriverWrap* Wrap;
 
+    Persistent<Function> ExecuteCallback;
+    Persistent<Function> ParameterCallback;
+
     TNodeJSInputStack InputStack;
     TNodeJSOutputStack OutputStack;
-
-    Persistent<Function> Callback;
+    TResponseParametersConsumer ResponseParametersConsumer;
 
     TDriverRequest DriverRequest;
     TDriverResponse DriverResponse;
@@ -67,11 +261,14 @@ struct TExecuteRequest
         TDriverWrap* wrap,
         TInputStreamWrap* inputStream,
         TOutputStreamWrap* outputStream,
-        Handle<Function> callback)
+        Handle<Function> executeCallback,
+        Handle<Function> parameterCallback)
         : Wrap(wrap)
+        , ExecuteCallback(Persistent<Function>::New(executeCallback))
+        , ParameterCallback(Persistent<Function>::New(parameterCallback))
         , InputStack(inputStream)
         , OutputStack(outputStream)
-        , Callback(Persistent<Function>::New(callback))
+        , ResponseParametersConsumer(ParameterCallback)
     {
         THREAD_AFFINITY_IS_V8();
         YASSERT(Wrap);
@@ -83,8 +280,11 @@ struct TExecuteRequest
     {
         THREAD_AFFINITY_IS_V8();
 
-        Callback.Dispose();
-        Callback.Clear();
+        ExecuteCallback.Dispose();
+        ExecuteCallback.Clear();
+
+        ParameterCallback.Dispose();
+        ParameterCallback.Clear();
 
         Wrap->Unref();
     }
@@ -125,11 +325,17 @@ struct TExecuteRequest
 
         DriverRequest.InputStream = CreateAsyncInputStream(&InputStack);
         DriverRequest.OutputStream = CreateAsyncOutputStream(&OutputStack);
+        DriverRequest.ResponseParametersConsumer = &ResponseParametersConsumer;
     }
 
     void Finish()
     {
         OutputStack.Finish();
+    }
+
+    void Await()
+    {
+        ResponseParametersConsumer.Flush().Get();
     }
 };
 
@@ -188,52 +394,6 @@ void ExportEnumeration(
         mapping->Set(valueHandle, keyHandle);
     }
     target->Set(String::NewSymbol(name), mapping);
-}
-
-// Assuming presence of outer HandleScope.
-void Invoke(
-    const Handle<Function>& callback,
-    const Handle<Value>& a1)
-{
-    TryCatch catcher;
-
-    Handle<Value> args[] = { a1 };
-    callback->Call(Context::GetCurrent()->Global(), ARRAY_SIZE(args), args);
-    if (catcher.HasCaught()) {
-        node::FatalException(catcher);
-    }
-}
-
-// Assuming presence of outer HandleScope.
-void Invoke(
-    const Handle<Function>& callback,
-    const Handle<Value>& a1,
-    const Handle<Value>& a2)
-{
-    TryCatch catcher;
-
-    Handle<Value> args[] = { a1, a2 };
-    callback->Call(Context::GetCurrent()->Global(), ARRAY_SIZE(args), args);
-    if (catcher.HasCaught()) {
-        node::FatalException(catcher);
-    }
-}
-
-// Assuming presence of outer HandleScope.
-void Invoke(
-    const Handle<Function>& callback,
-    const Handle<Value>& a1,
-    const Handle<Value>& a2,
-    const Handle<Value>& a3)
-{
-    HandleScope scope;
-    TryCatch catcher;
-
-    Handle<Value> args[] = { a1, a2, a3 };
-    callback->Call(Context::GetCurrent()->Global(), ARRAY_SIZE(args), args);
-    if (catcher.HasCaught()) {
-        node::FatalException(catcher);
-    }
 }
 
 } // namespace
@@ -424,7 +584,7 @@ Handle<Value> TDriverWrap::Execute(const Arguments& args)
     HandleScope scope;
 
     // Validate arguments.
-    YASSERT(args.Length() == 8);
+    YASSERT(args.Length() == 9);
 
     EXPECT_THAT_IS(args[0], String); // CommandName
     EXPECT_THAT_IS(args[1], String); // AuthenticatedUser
@@ -436,7 +596,8 @@ Handle<Value> TDriverWrap::Execute(const Arguments& args)
     EXPECT_THAT_IS(args[5], Uint32); // OutputCompression
 
     EXPECT_THAT_HAS_INSTANCE(args[6], TNodeWrap); // Parameters
-    EXPECT_THAT_IS(args[7], Function); // Callback
+    EXPECT_THAT_IS(args[7], Function); // ExecuteCallback
+    EXPECT_THAT_IS(args[8], Function); // ParameterCallback
 
     // Unwrap arguments.
     TDriverWrap* host = ObjectWrap::Unwrap<TDriverWrap>(args.This());
@@ -455,7 +616,8 @@ Handle<Value> TDriverWrap::Execute(const Arguments& args)
         (ECompression)args[5]->Uint32Value();
 
     INodePtr parameters = TNodeWrap::UnwrapNode(args[6]);
-    Local<Function> callback = args[7].As<Function>();
+    Local<Function> executeCallback = args[7].As<Function>();
+    Local<Function> parameterCallback = args[8].As<Function>();
 
     // Build an atom of work.
     YCHECK(parameters);
@@ -465,7 +627,8 @@ Handle<Value> TDriverWrap::Execute(const Arguments& args)
         host,
         inputStream,
         outputStream,
-        callback));
+        executeCallback,
+        parameterCallback));
 
     try {
         request->SetCommand(
@@ -485,7 +648,7 @@ Handle<Value> TDriverWrap::Execute(const Arguments& args)
         TError error(ex);
         LOG_DEBUG(error, "Unexpected exception while creating TExecuteRequest");
 
-        Invoke(request->Callback, ConvertErrorToV8(error));
+        Invoke(request->ExecuteCallback, ConvertErrorToV8(error));
     }
 
     return Undefined();
@@ -500,6 +663,7 @@ void TDriverWrap::ExecuteWork(uv_work_t* workRequest)
         // Execute() method is guaranteed to be exception-safe,
         // so no try-catch here.
         request->DriverResponse = request->Wrap->Driver->Execute(request->DriverRequest).Get();
+        request->Await();
     } else {
         TTempBuf buffer;
         auto inputStream = CreateSyncInputStream(request->DriverRequest.InputStream);
@@ -541,7 +705,7 @@ void TDriverWrap::ExecuteAfter(uv_work_t* workRequest)
     double bytesOut = request->OutputStack.GetBaseStream()->GetBytesEnqueued();
 
     Invoke(
-        request->Callback,
+        request->ExecuteCallback,
         ConvertErrorToV8(request->DriverResponse.Error),
         Number::New(bytesIn),
         Number::New(bytesOut));
