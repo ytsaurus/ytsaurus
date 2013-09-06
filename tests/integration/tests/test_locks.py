@@ -394,7 +394,7 @@ class TestLocks(YTEnvSetup):
 
         lock = locks[0]
         assert lock['mode'] == 'shared'
-        assert lock['attribute_key'] == ['a']
+        assert lock['attribute_key'] == 'a'
 
         commit_transaction(tx)
         assert get('//tmp/@a') == 1
@@ -440,7 +440,7 @@ class TestLocks(YTEnvSetup):
 
         lock = locks[0]
         assert lock['mode'] == 'shared'
-        assert lock['attribute_key'] == ['a']
+        assert lock['attribute_key'] == 'a'
 
     def test_attr_locks5(self):
         set('//tmp/@a', 1)
