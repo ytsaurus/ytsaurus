@@ -12,6 +12,7 @@
 
 #include <ytlib/misc/delayed_invoker.h>
 
+#include <ytlib/driver/private.h>
 #include <ytlib/driver/driver.h>
 #include <ytlib/driver/config.h>
 
