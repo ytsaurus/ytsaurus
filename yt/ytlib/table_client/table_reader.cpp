@@ -1,5 +1,4 @@
 ﻿#include "stdafx.h"
-
 #include "table_reader.h"
 #include "config.h"
 #include "table_chunk_reader.h"
@@ -7,7 +6,7 @@
 
 #include <ytlib/misc/sync.h>
 
-#include <ytlib/fibers/fiber.h>
+#include <ytlib/concurrency/fiber.h>
 
 #include <ytlib/chunk_client/block_cache.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>

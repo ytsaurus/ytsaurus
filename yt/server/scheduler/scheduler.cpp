@@ -18,11 +18,11 @@
 
 #include <ytlib/misc/string.h>
 
-#include <ytlib/concurrency/action_queue.h>
-#include <ytlib/concurrency/parallel_awaiter.h>
 #include <ytlib/actions/invoker_util.h>
 
-#include <ytlib/fibers/fiber.h>
+#include <ytlib/concurrency/action_queue.h>
+#include <ytlib/concurrency/parallel_awaiter.h>
+#include <ytlib/concurrency/fiber.h>
 
 #include <ytlib/rpc/dispatcher.h>
 

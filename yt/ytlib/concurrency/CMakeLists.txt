@@ -9,6 +9,8 @@ set( SRCS
   ${BASE}/periodic_invoker.cpp
   ${BASE}/throughput_throttler.cpp
   ${BASE}/async_stream.cpp
+  ${BASE}/coroutine.cpp
+  ${BASE}/fiber.cpp
 )
 set( HDRS
   ${BASE}/public.h
@@ -26,9 +28,25 @@ set( HDRS
   ${BASE}/throughput_throttler.h
   ${BASE}/thread_affinity.h
   ${BASE}/event_count.h
+  ${BASE}/fiber-inl.h
+  ${BASE}/fiber.h
+  ${BASE}/public.h
 )
 
 list(APPEND YT_SOURCE_FILES
   ${SRCS}
   ${HDRS}
 )
+
+if (NOT WIN32)
+  list(APPEND YT_SOURCE_FILES
+    ${BASE}/fiber-supp.S
+  )
+  
+  set_source_files_properties(
+    ${BASE}/fiber-supp.S
+    PROPERTIES LANGUAGE C
+  )
+endif()
+
+PUMP( ${BASE}/coroutine.h.pump YT_SOURCE_FILES )

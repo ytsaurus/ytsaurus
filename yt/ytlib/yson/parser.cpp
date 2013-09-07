@@ -1,7 +1,9 @@
 #include "stdafx.h"
+
 #include <ytlib/misc/foreach.h>
 #include <ytlib/misc/error.h>
-#include <ytlib/fibers/coroutine.h>
+
+#include <ytlib/concurrency/coroutine.h>
 
 #include "parser.h"
 #include "consumer.h"

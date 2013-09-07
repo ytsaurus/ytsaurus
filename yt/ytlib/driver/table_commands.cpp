@@ -3,8 +3,7 @@
 #include "config.h"
 
 #include <ytlib/concurrency/async_stream.h>
-
-#include <ytlib/fibers/fiber.h>
+#include <ytlib/concurrency/fiber.h>
 
 #include <ytlib/yson/parser.h>
 #include <ytlib/yson/consumer.h>

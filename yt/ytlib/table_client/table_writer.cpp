@@ -8,7 +8,7 @@
 #include <ytlib/misc/sync.h>
 #include <ytlib/misc/nullable.h>
 
-#include <ytlib/fibers/fiber.h>
+#include <ytlib/concurrency/fiber.h>
 
 #include <ytlib/transaction_client/transaction.h>
 #include <ytlib/transaction_client/transaction_manager.h>

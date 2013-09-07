@@ -6,8 +6,7 @@
 
 #include <ytlib/concurrency/parallel_awaiter.h>
 #include <ytlib/concurrency/parallel_collector.h>
-
-#include <ytlib/fibers/fiber.h>
+#include <ytlib/concurrency/fiber.h>
 
 #include <ytlib/erasure/codec.h>
 #include <ytlib/erasure/helpers.h>

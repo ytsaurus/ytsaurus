@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "etc_commands.h"
 
-#include <ytlib/fibers/fiber.h>
+#include <ytlib/concurrency/fiber.h>
 
 #include <ytlib/ypath/rich.h>
 #include <ytlib/ypath/token.h>

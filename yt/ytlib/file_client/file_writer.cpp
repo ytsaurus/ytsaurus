@@ -4,7 +4,7 @@
 #include "config.h"
 #include "private.h"
 
-#include <ytlib/fibers/fiber.h>
+#include <ytlib/concurrency/fiber.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
 

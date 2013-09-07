@@ -3,7 +3,7 @@
 
 #include <ytlib/actions/invoker_util.h>
 
-#include <ytlib/fibers/fiber.h>
+#include <ytlib/concurrency/fiber.h>
 
 #include <ytlib/ypath/token.h>
 

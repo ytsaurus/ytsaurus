@@ -12,7 +12,7 @@
 
 #include <ytlib/erasure/codec.h>
 
-#include <ytlib/fibers/fiber.h>
+#include <ytlib/concurrency/fiber.h>
 
 #include <ytlib/actions/cancelable_context.h>
 

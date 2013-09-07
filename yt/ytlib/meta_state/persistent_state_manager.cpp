@@ -18,8 +18,7 @@
 #include "response_keeper.h"
 
 #include <ytlib/concurrency/thread_affinity.h>
-
-#include <ytlib/fibers/fiber.h>
+#include <ytlib/concurrency/fiber.h>
 
 #include <ytlib/election/cell_manager.h>
 #include <ytlib/election/election_manager.h>

@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "cypress_commands.h"
 
-#include <ytlib/fibers/fiber.h>
+#include <ytlib/concurrency/fiber.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
 #include <ytlib/object_client/master_ypath_proxy.h>

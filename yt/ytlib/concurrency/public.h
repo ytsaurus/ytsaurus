@@ -39,6 +39,12 @@ typedef TIntrusivePtr<IAsyncInputStream> IAsyncInputStreamPtr;
 struct IAsyncOutputStream;
 typedef TIntrusivePtr<IAsyncOutputStream> IAsyncOutputStreamPtr;
 
+class TFiber;
+typedef TIntrusivePtr<TFiber> TFiberPtr;
+
+template <class Signature>
+class TCoroutine;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //} // namespace NConcurrency

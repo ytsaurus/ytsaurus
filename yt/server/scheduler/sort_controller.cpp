@@ -11,7 +11,7 @@
 
 #include <ytlib/misc/string.h>
 
-#include <ytlib/fibers/fiber.h>
+#include <ytlib/concurrency/fiber.h>
 
 #include <ytlib/ytree/fluent.h>
 

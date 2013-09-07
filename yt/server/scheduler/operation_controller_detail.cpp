@@ -6,7 +6,7 @@
 #include "helpers.h"
 #include "master_connector.h"
 
-#include <ytlib/fibers/fiber.h>
+#include <ytlib/concurrency/fiber.h>
 
 #include <ytlib/transaction_client/transaction.h>
 

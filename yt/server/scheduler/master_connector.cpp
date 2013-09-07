@@ -14,8 +14,7 @@
 #include <ytlib/misc/address.h>
 
 #include <ytlib/concurrency/parallel_awaiter.h>
-
-#include <ytlib/fibers/fiber.h>
+#include <ytlib/concurrency/fiber.h>
 
 #include <ytlib/rpc/serialized_channel.h>
 

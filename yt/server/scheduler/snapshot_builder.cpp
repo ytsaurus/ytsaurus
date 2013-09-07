@@ -7,7 +7,7 @@
 
 #include <ytlib/misc/fs.h>
 
-#include <ytlib/fibers/fiber.h>
+#include <ytlib/concurrency/fiber.h>
 
 #include <ytlib/logging/tagged_logger.h>
 

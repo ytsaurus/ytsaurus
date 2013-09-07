@@ -6,7 +6,7 @@
 #include <ytlib/misc/error.h>
 #include <ytlib/misc/property.h>
 
-#include <ytlib/fibers/coroutine.h>
+#include <ytlib/concurrency/coroutine.h>
 
 #include <util/string/escape.h>
 

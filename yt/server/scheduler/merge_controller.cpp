@@ -9,7 +9,7 @@
 #include "chunk_splits_fetcher.h"
 #include "chunk_info_collector.h"
 
-#include <ytlib/fibers/fiber.h>
+#include <ytlib/concurrency/fiber.h>
 
 #include <ytlib/ytree/fluent.h>
 

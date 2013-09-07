@@ -11,7 +11,7 @@
 #include <ytlib/misc/proc.h>
 #include <ytlib/misc/assert.h>
 
-#include <ytlib/fibers/fiber.h>
+#include <ytlib/concurrency/fiber.h>
 
 #include <ytlib/ytree/serialize.h>
 

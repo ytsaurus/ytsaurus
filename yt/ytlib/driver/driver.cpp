@@ -10,10 +10,10 @@
 #include "table_commands.h"
 #include "scheduler_commands.h"
 
-#include <ytlib/concurrency/parallel_awaiter.h>
 #include <ytlib/actions/invoker_util.h>
 
-#include <ytlib/fibers/fiber.h>
+#include <ytlib/concurrency/parallel_awaiter.h>
+#include <ytlib/concurrency/fiber.h>
 
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/ytree/forwarding_yson_consumer.h>
