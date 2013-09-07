@@ -198,6 +198,225 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TNodeFactory
+    : public ICypressNodeFactory
+{
+public:
+    TNodeFactory(
+        NCellMaster::TBootstrap* bootstrap,
+        NTransactionServer::TTransaction* transaction,
+        NSecurityServer::TAccount* account,
+        bool preserveAccount);
+
+    ~TNodeFactory();
+
+    virtual NYTree::IStringNodePtr CreateString() override;
+    virtual NYTree::IIntegerNodePtr CreateInteger() override;
+    virtual NYTree::IDoubleNodePtr CreateDouble() override;
+    virtual NYTree::IMapNodePtr CreateMap() override;
+    virtual NYTree::IListNodePtr CreateList() override;
+    virtual NYTree::IEntityNodePtr CreateEntity() override;
+
+    virtual NTransactionServer::TTransaction* GetTransaction() override;
+
+    virtual NSecurityServer::TAccount* GetNewNodeAccount() override;
+    virtual NSecurityServer::TAccount* GetClonedNodeAccount(
+        TCypressNodeBase* sourceNode) override;
+
+    virtual ICypressNodeProxyPtr CreateNode(
+        NObjectClient::EObjectType type,
+        NYTree::IAttributeDictionary* attributes = nullptr,
+        TReqCreate* request = nullptr,
+        TRspCreate* response = nullptr) override;
+
+    virtual TCypressNodeBase* CloneNode(
+        TCypressNodeBase* sourceNode) override;
+
+    virtual void Commit() override;
+
+private:
+    NCellMaster::TBootstrap* Bootstrap;
+    NTransactionServer::TTransaction* Transaction;
+    NSecurityServer::TAccount* Account;
+    bool PreserveAccount;
+
+    std::vector<TCypressNodeBase*> CreatedNodes;
+
+
+    void ValidateNodeCreation(NObjectClient::EObjectType type);
+    void RegisterCreatedNode(TCypressNodeBase* node);
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TNodeFactory::TNodeFactory(
+    TBootstrap* bootstrap,
+    TTransaction* transaction,
+    TAccount* account,
+    bool preserveAccount)
+    : Bootstrap(bootstrap)
+    , Transaction(transaction)
+    , Account(account)
+    , PreserveAccount(preserveAccount)
+{
+    YCHECK(bootstrap);
+    YCHECK(account);
+}
+
+TNodeFactory::~TNodeFactory()
+{
+    auto objectManager = Bootstrap->GetObjectManager();
+    FOREACH (auto* node, CreatedNodes) {
+        objectManager->UnrefObject(node);
+    }
+}
+
+IStringNodePtr TNodeFactory::CreateString()
+{
+    return CreateNode(EObjectType::StringNode)->AsString();
+}
+
+IIntegerNodePtr TNodeFactory::CreateInteger()
+{
+    return CreateNode(EObjectType::IntegerNode)->AsInteger();
+}
+
+IDoubleNodePtr TNodeFactory::CreateDouble()
+{
+    return CreateNode(EObjectType::DoubleNode)->AsDouble();
+}
+
+IMapNodePtr TNodeFactory::CreateMap()
+{
+    return CreateNode(EObjectType::MapNode)->AsMap();
+}
+
+IListNodePtr TNodeFactory::CreateList()
+{
+    return CreateNode(EObjectType::ListNode)->AsList();
+}
+
+IEntityNodePtr TNodeFactory::CreateEntity()
+{
+    THROW_ERROR_EXCEPTION("Entity nodes cannot be created inside Cypress");
+}
+
+TTransaction* TNodeFactory::GetTransaction()
+{
+    return Transaction;
+}
+
+TAccount* TNodeFactory::GetNewNodeAccount()
+{
+    return Account;
+}
+
+TAccount* TNodeFactory::GetClonedNodeAccount(
+    TCypressNodeBase* sourceNode)
+{
+    return PreserveAccount ? sourceNode->GetAccount() : Account;
+}
+
+ICypressNodeProxyPtr TNodeFactory::CreateNode(
+    EObjectType type,
+    IAttributeDictionary* attributes,
+    TReqCreate* request,
+    TRspCreate* response)
+{
+    ValidateNodeCreation(type);
+
+    auto cypressManager = Bootstrap->GetCypressManager();
+    auto handler = cypressManager->FindHandler(type);
+    if (!handler) {
+        THROW_ERROR_EXCEPTION("Unknown object type %s",
+            ~FormatEnum(type).Quote());
+    }
+
+    auto* node = cypressManager->CreateNode(
+        handler,
+        this,
+        request,
+        response);
+    auto* trunkNode = node->GetTrunkNode();
+
+    RegisterCreatedNode(trunkNode);
+
+    if (attributes) {
+        handler->SetDefaultAttributes(attributes);
+
+        auto trunkProxy = cypressManager->GetNodeProxy(trunkNode, nullptr);
+
+        auto keys = attributes->List();
+
+        std::vector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
+        trunkProxy->ListSystemAttributes(&systemAttributes);
+
+        yhash_set<Stroka> systemAttributeKeys;
+        FOREACH (const auto& attribute, systemAttributes) {
+            YCHECK(systemAttributeKeys.insert(attribute.Key).second);
+        }
+
+        FOREACH (const auto& key, keys) {
+            auto value = attributes->GetYson(key);
+            if (systemAttributeKeys.find(key) == systemAttributeKeys.end()) {
+                trunkProxy->MutableAttributes()->SetYson(key, value);
+            } else {
+                if (!trunkProxy->SetSystemAttribute(key, value)) {
+                    ThrowCannotSetSystemAttribute(key);
+                }
+            }
+        }        
+    }
+
+    cypressManager->LockNode(trunkNode, Transaction, ELockMode::Exclusive);
+
+    return cypressManager->GetNodeProxy(trunkNode, Transaction);
+}
+
+TCypressNodeBase* TNodeFactory::CloneNode(
+    TCypressNodeBase* sourceNode)
+{
+    ValidateNodeCreation(sourceNode->GetType());
+
+    auto cypressManager = Bootstrap->GetCypressManager();
+    auto* clonedTrunkNode = cypressManager->CloneNode(sourceNode, this);
+
+    RegisterCreatedNode(clonedTrunkNode);
+
+    cypressManager->LockNode(clonedTrunkNode, Transaction, ELockMode::Exclusive);
+
+    return clonedTrunkNode;
+}
+
+void TNodeFactory::Commit()
+{
+    if (Transaction) {
+        auto transactionManager = Bootstrap->GetTransactionManager();
+        FOREACH (auto* node, CreatedNodes) {
+            transactionManager->StageNode(Transaction, node);
+        }
+    }
+}
+
+void TNodeFactory::ValidateNodeCreation(EObjectType type)
+{
+    auto objectManager = Bootstrap->GetObjectManager();
+    auto* schema = objectManager->GetSchema(type);
+
+    auto securityManager = Bootstrap->GetSecurityManager();
+    securityManager->ValidatePermission(schema, EPermission::Create);
+}
+
+void TNodeFactory::RegisterCreatedNode(TCypressNodeBase* node)
+{
+    auto objectManager = Bootstrap->GetObjectManager();
+    objectManager->RefObject(node);
+    CreatedNodes.push_back(node);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TNontemplateCypressNodeProxyBase::TNontemplateCypressNodeProxyBase(
     INodeTypeHandlerPtr typeHandler,
     NCellMaster::TBootstrap* bootstrap,
@@ -221,14 +440,19 @@ TNontemplateCypressNodeProxyBase::TNontemplateCypressNodeProxyBase(
 
 INodeFactoryPtr TNontemplateCypressNodeProxyBase::CreateFactory() const
 {
-    return CreateCypressFactory();
+    return CreateCypressFactory(false);
 }
 
-ICypressNodeFactoryPtr TNontemplateCypressNodeProxyBase::CreateCypressFactory() const
+ICypressNodeFactoryPtr TNontemplateCypressNodeProxyBase::CreateCypressFactory(
+    bool preserveAccount) const
 {
     const auto* impl = GetThisImpl();
     auto* account = impl->GetAccount();
-    return New<TNodeFactory>(Bootstrap, Transaction, account);
+    return New<TNodeFactory>(
+        Bootstrap,
+        Transaction,
+        account,
+        preserveAccount);
 }
 
 INodeResolverPtr TNontemplateCypressNodeProxyBase::GetResolver() const
@@ -738,7 +962,7 @@ DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
     auto* account = node->GetAccount();
     ValidatePermission(account, EPermission::Use);
 
-    auto factory = CreateCypressFactory();
+    auto factory = CreateCypressFactory(false);
 
     auto attributes = request->has_node_attributes()
         ? FromProto(request->node_attributes())
@@ -762,9 +986,12 @@ DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
 DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
 {
     auto sourcePath = request->source_path();
+    bool preserveAccount = request->preserve_account();
     auto targetPath = context->GetPath();
 
-    context->SetRequestInfo("SourcePath: %s", ~sourcePath);
+    context->SetRequestInfo("SourcePath: %s, PreserveAccount: %s",
+        ~sourcePath,
+        ~FormatBool(preserveAccount));
 
     auto sourceProxy = ResolveSourcePath(sourcePath);
 
@@ -788,7 +1015,7 @@ DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
     auto* account = node->GetAccount();
     ValidatePermission(account, EPermission::Use);
 
-    auto factory = CreateCypressFactory();
+    auto factory = CreateCypressFactory(preserveAccount);
 
     auto* clonedImpl = factory->CloneNode(sourceImpl);
     auto* clonedTrunkImpl = clonedImpl->GetTrunkNode();
@@ -856,165 +1083,6 @@ bool TNontemplateCompositeCypressNodeProxyBase::GetSystemAttribute(const Stroka&
 bool TNontemplateCompositeCypressNodeProxyBase::CanHaveChildren() const
 {
     return true;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TNodeFactory::TNodeFactory(
-    TBootstrap* bootstrap,
-    TTransaction* transaction,
-    TAccount* account)
-    : Bootstrap(bootstrap)
-    , Transaction(transaction)
-    , Account(account)
-{
-    YCHECK(bootstrap);
-    YCHECK(account);
-}
-
-TNodeFactory::~TNodeFactory()
-{
-    auto objectManager = Bootstrap->GetObjectManager();
-    FOREACH (auto* node, CreatedNodes) {
-        objectManager->UnrefObject(node);
-    }
-}
-
-IStringNodePtr TNodeFactory::CreateString()
-{
-    return CreateNode(EObjectType::StringNode)->AsString();
-}
-
-IIntegerNodePtr TNodeFactory::CreateInteger()
-{
-    return CreateNode(EObjectType::IntegerNode)->AsInteger();
-}
-
-IDoubleNodePtr TNodeFactory::CreateDouble()
-{
-    return CreateNode(EObjectType::DoubleNode)->AsDouble();
-}
-
-IMapNodePtr TNodeFactory::CreateMap()
-{
-    return CreateNode(EObjectType::MapNode)->AsMap();
-}
-
-IListNodePtr TNodeFactory::CreateList()
-{
-    return CreateNode(EObjectType::ListNode)->AsList();
-}
-
-IEntityNodePtr TNodeFactory::CreateEntity()
-{
-    THROW_ERROR_EXCEPTION("Entity nodes cannot be created inside Cypress");
-}
-
-TTransaction* TNodeFactory::GetTransaction()
-{
-    return Transaction;
-}
-
-TAccount* TNodeFactory::GetAccount()
-{
-    return Account;
-}
-
-ICypressNodeProxyPtr TNodeFactory::CreateNode(
-    EObjectType type,
-    IAttributeDictionary* attributes,
-    TReqCreate* request,
-    TRspCreate* response)
-{
-    ValidateNodeCreation(type);
-
-    auto cypressManager = Bootstrap->GetCypressManager();
-    auto handler = cypressManager->FindHandler(type);
-    if (!handler) {
-        THROW_ERROR_EXCEPTION("Unknown object type %s",
-            ~FormatEnum(type).Quote());
-    }
-
-    auto* node = cypressManager->CreateNode(
-        handler,
-        this,
-        request,
-        response);
-    auto* trunkNode = node->GetTrunkNode();
-
-    RegisterCreatedNode(trunkNode);
-
-    if (attributes) {
-        handler->SetDefaultAttributes(attributes);
-
-        auto trunkProxy = cypressManager->GetNodeProxy(trunkNode, nullptr);
-        
-        auto keys = attributes->List();
-
-        std::vector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
-        trunkProxy->ListSystemAttributes(&systemAttributes);
-
-        yhash_set<Stroka> systemAttributeKeys;
-        FOREACH (const auto& attribute, systemAttributes) {
-            YCHECK(systemAttributeKeys.insert(attribute.Key).second);
-        }
-
-        FOREACH (const auto& key, keys) {
-            auto value = attributes->GetYson(key);
-            if (systemAttributeKeys.find(key) == systemAttributeKeys.end()) {
-                trunkProxy->MutableAttributes()->SetYson(key, value);
-            } else {
-                if (!trunkProxy->SetSystemAttribute(key, value)) {
-                    ThrowCannotSetSystemAttribute(key);
-                }
-            }
-        }        
-    }
-
-    cypressManager->LockNode(trunkNode, Transaction, ELockMode::Exclusive);
-
-    return cypressManager->GetNodeProxy(trunkNode, Transaction);
-}
-
-TCypressNodeBase* TNodeFactory::CloneNode(
-    TCypressNodeBase* sourceNode)
-{
-    ValidateNodeCreation(sourceNode->GetType());
-
-    auto cypressManager = Bootstrap->GetCypressManager();
-    auto* clonedTrunkNode = cypressManager->CloneNode(sourceNode, this);
-
-    RegisterCreatedNode(clonedTrunkNode);
-
-    cypressManager->LockNode(clonedTrunkNode, Transaction, ELockMode::Exclusive);
-
-    return clonedTrunkNode;
-}
-
-void TNodeFactory::Commit()
-{
-    if (Transaction) {
-        auto transactionManager = Bootstrap->GetTransactionManager();
-        FOREACH (auto* node, CreatedNodes) {
-            transactionManager->StageNode(Transaction, node);
-        }
-    }
-}
-
-void TNodeFactory::ValidateNodeCreation(EObjectType type)
-{
-    auto objectManager = Bootstrap->GetObjectManager();
-    auto* schema = objectManager->GetSchema(type);
-
-    auto securityManager = Bootstrap->GetSecurityManager();
-    securityManager->ValidatePermission(schema, EPermission::Create);
-}
-
-void TNodeFactory::RegisterCreatedNode(TCypressNodeBase* node)
-{
-    auto objectManager = Bootstrap->GetObjectManager();
-    objectManager->RefObject(node);
-    CreatedNodes.push_back(node);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

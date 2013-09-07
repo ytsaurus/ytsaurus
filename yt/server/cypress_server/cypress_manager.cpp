@@ -365,7 +365,7 @@ TCypressNodeBase* TCypressManager::CreateNode(
 
     // Set account.
     auto securityManager = Bootstrap->GetSecurityManager();
-    auto* account = factory->GetAccount();
+    auto* account = factory->GetNewNodeAccount();
     securityManager->SetAccount(node_, account);
 
     // Set owner.
@@ -396,7 +396,7 @@ TCypressNodeBase* TCypressManager::CloneNode(
 
     // Set account.
     auto securityManager = Bootstrap->GetSecurityManager();
-    auto* account = factory->GetAccount();
+    auto* account = factory->GetClonedNodeAccount(sourceNode);
     securityManager->SetAccount(clonedNode_, account);
 
     // Set owner.
