@@ -39,10 +39,10 @@
 
 #include <ytlib/security_client/public.h>
 
-#include <server/chunk_holder/chunk.h>
-#include <server/chunk_holder/location.h>
-#include <server/chunk_holder/chunk_cache.h>
-#include <server/chunk_holder/block_store.h>
+#include <server/data_node/chunk.h>
+#include <server/data_node/location.h>
+#include <server/data_node/chunk_cache.h>
+#include <server/data_node/block_store.h>
 
 #include <server/job_proxy/config.h>
 
@@ -54,7 +54,7 @@
 #include <server/cell_node/bootstrap.h>
 #include <server/cell_node/config.h>
 
-#include <server/chunk_holder/config.h>
+#include <server/data_node/config.h>
 
 namespace NYT {
 namespace NExecAgent {
@@ -68,7 +68,7 @@ using namespace NTableClient;
 using namespace NTableClient::NProto;
 using namespace NFileClient;
 using namespace NCellNode;
-using namespace NChunkHolder;
+using namespace NDataNode;
 using namespace NCellNode;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
@@ -313,7 +313,7 @@ private:
 
     TNullable<TInstant> StartTime;
 
-    std::vector<NChunkHolder::TCachedChunkPtr> CachedChunks;
+    std::vector<NDataNode::TCachedChunkPtr> CachedChunks;
 
     // Special node directory used to read cached chunks.
     TNodeDirectoryPtr NodeDirectory;
@@ -564,7 +564,7 @@ private:
 
             awaiter->Await(
                 chunkCache->DownloadChunk(chunkId),
-                BIND([=](NChunkHolder::TChunkCache::TDownloadResult result) {
+                BIND([=](NDataNode::TChunkCache::TDownloadResult result) {
                     if (!result.IsOK()) {
                         auto wrappedError = TError(
                             "Failed to download chunk %s",

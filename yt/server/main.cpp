@@ -22,7 +22,7 @@
 
 #include <tclap/CmdLine.h>
 
-#include <server/chunk_holder/config.h>
+#include <server/data_node/config.h>
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/config.h>

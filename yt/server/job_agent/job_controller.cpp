@@ -8,7 +8,7 @@
 
 #include <server/scheduler/job_resources.h>
 
-#include <server/chunk_holder/master_connector.h>
+#include <server/data_node/master_connector.h>
 
 #include <server/exec_agent/slot_manager.h>
 

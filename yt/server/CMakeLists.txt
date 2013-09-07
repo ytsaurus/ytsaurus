@@ -3,7 +3,7 @@ set( DIRS
   cell_master
   cell_node
   cell_scheduler
-  chunk_holder
+  data_node
   scheduler
   exec_agent
   job_agent

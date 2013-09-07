@@ -40,22 +40,22 @@
 
 #include <server/misc/build_attributes.h>
 
-#include <server/chunk_holder/config.h>
-#include <server/chunk_holder/ytree_integration.h>
-#include <server/chunk_holder/chunk_cache.h>
-#include <server/chunk_holder/peer_block_table.h>
-#include <server/chunk_holder/peer_block_updater.h>
-#include <server/chunk_holder/chunk_store.h>
-#include <server/chunk_holder/chunk_cache.h>
-#include <server/chunk_holder/chunk_registry.h>
-#include <server/chunk_holder/block_store.h>
-#include <server/chunk_holder/reader_cache.h>
-#include <server/chunk_holder/location.h>
-#include <server/chunk_holder/data_node_service.h>
-#include <server/chunk_holder/master_connector.h>
-#include <server/chunk_holder/session_manager.h>
-#include <server/chunk_holder/job.h>
-#include <server/chunk_holder/private.h>
+#include <server/data_node/config.h>
+#include <server/data_node/ytree_integration.h>
+#include <server/data_node/chunk_cache.h>
+#include <server/data_node/peer_block_table.h>
+#include <server/data_node/peer_block_updater.h>
+#include <server/data_node/chunk_store.h>
+#include <server/data_node/chunk_cache.h>
+#include <server/data_node/chunk_registry.h>
+#include <server/data_node/block_store.h>
+#include <server/data_node/reader_cache.h>
+#include <server/data_node/location.h>
+#include <server/data_node/data_node_service.h>
+#include <server/data_node/master_connector.h>
+#include <server/data_node/session_manager.h>
+#include <server/data_node/job.h>
+#include <server/data_node/private.h>
 
 #include <server/job_agent/job_controller.h>
 
@@ -84,7 +84,7 @@ using namespace NScheduler;
 using namespace NJobAgent;
 using namespace NExecAgent;
 using namespace NJobProxy;
-using namespace NChunkHolder;
+using namespace NDataNode;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -257,7 +257,7 @@ void TBootstrap::Run()
             NJobTrackerClient::NProto::TJobSpec&& jobSpec) ->
             NJobAgent::IJobPtr
         {
-            return NChunkHolder::CreateChunkJob(
+            return NDataNode::CreateChunkJob(
                     jobId,
                     std::move(jobSpec),
                     resourceLimits,

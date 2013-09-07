@@ -16,7 +16,7 @@
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
-#include <server/chunk_holder/public.h>
+#include <server/data_node/public.h>
 
 #include <server/chunk_server/public.h>
 
@@ -50,14 +50,14 @@ public:
     NExecAgent::TEnvironmentManagerPtr GetEnvironmentManager() const;
     NJobProxy::TJobProxyConfigPtr GetJobProxyConfig() const;
     TNodeMemoryTracker& GetMemoryUsageTracker();
-    NChunkHolder::TChunkStorePtr GetChunkStore() const;
-    NChunkHolder::TChunkCachePtr GetChunkCache() const;
-    NChunkHolder::TChunkRegistryPtr GetChunkRegistry() const;
-    NChunkHolder::TSessionManagerPtr GetSessionManager() const;
-    NChunkHolder::TBlockStorePtr GetBlockStore() const;
-    NChunkHolder::TPeerBlockTablePtr GetPeerBlockTable() const;
-    NChunkHolder::TReaderCachePtr GetReaderCache() const;
-    NChunkHolder::TMasterConnectorPtr GetMasterConnector() const;
+    NDataNode::TChunkStorePtr GetChunkStore() const;
+    NDataNode::TChunkCachePtr GetChunkCache() const;
+    NDataNode::TChunkRegistryPtr GetChunkRegistry() const;
+    NDataNode::TSessionManagerPtr GetSessionManager() const;
+    NDataNode::TBlockStorePtr GetBlockStore() const;
+    NDataNode::TPeerBlockTablePtr GetPeerBlockTable() const;
+    NDataNode::TReaderCachePtr GetReaderCache() const;
+    NDataNode::TMasterConnectorPtr GetMasterConnector() const;
 
     IThroughputThrottlerPtr GetReplicationInThrottler() const;
     IThroughputThrottlerPtr GetReplicationOutThrottler() const;
@@ -91,15 +91,15 @@ private:
     NJobProxy::TJobProxyConfigPtr JobProxyConfig;
     TMemoryUsageTracker<EMemoryConsumer> MemoryUsageTracker;
     NExecAgent::TSchedulerConnectorPtr SchedulerConnector;
-    NChunkHolder::TChunkStorePtr ChunkStore;
-    NChunkHolder::TChunkCachePtr ChunkCache;
-    NChunkHolder::TChunkRegistryPtr ChunkRegistry;
-    NChunkHolder::TSessionManagerPtr SessionManager;
-    NChunkHolder::TBlockStorePtr BlockStore;
-    NChunkHolder::TPeerBlockTablePtr PeerBlockTable;
-    NChunkHolder::TPeerBlockUpdaterPtr PeerBlockUpdater;
-    NChunkHolder::TReaderCachePtr ReaderCache;
-    NChunkHolder::TMasterConnectorPtr MasterConnector;
+    NDataNode::TChunkStorePtr ChunkStore;
+    NDataNode::TChunkCachePtr ChunkCache;
+    NDataNode::TChunkRegistryPtr ChunkRegistry;
+    NDataNode::TSessionManagerPtr SessionManager;
+    NDataNode::TBlockStorePtr BlockStore;
+    NDataNode::TPeerBlockTablePtr PeerBlockTable;
+    NDataNode::TPeerBlockUpdaterPtr PeerBlockUpdater;
+    NDataNode::TReaderCachePtr ReaderCache;
+    NDataNode::TMasterConnectorPtr MasterConnector;
     IThroughputThrottlerPtr ReplicationInThrottler;
     IThroughputThrottlerPtr ReplicationOutThrottler;
     IThroughputThrottlerPtr RepairInThrottler;

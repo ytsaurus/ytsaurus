@@ -25,7 +25,7 @@ public:
     NMetaState::TMasterDiscoveryConfigPtr Masters;
 
     //! Data node configuration part.
-    NChunkHolder::TDataNodeConfigPtr DataNode;
+    NDataNode::TDataNodeConfigPtr DataNode;
 
     //! Exec node configuration part.
     NExecAgent::TExecAgentConfigPtr ExecAgent;

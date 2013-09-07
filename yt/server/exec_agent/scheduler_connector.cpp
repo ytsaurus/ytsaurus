@@ -8,7 +8,7 @@
 
 #include <server/job_agent/job_controller.h>
 
-#include <server/chunk_holder/master_connector.h>
+#include <server/data_node/master_connector.h>
 
 #include <server/cell_node/bootstrap.h>
 

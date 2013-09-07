@@ -6,7 +6,7 @@
 #include <ytlib/misc/fs.h>
 
 #include <server/cell_node/bootstrap.h>
-#include <server/chunk_holder/chunk_cache.h>
+#include <server/data_node/chunk_cache.h>
 
 #ifdef _unix_
     #include <sys/types.h>
