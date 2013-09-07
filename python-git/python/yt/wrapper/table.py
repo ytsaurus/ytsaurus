@@ -28,6 +28,10 @@ class TablePath(object):
         self._append = append
         if simplify:
             self.name = parse_ypath(name)
+            for key, value in self.name.attributes.items():
+                if "-" in key:
+                    self.name.attributes[key.replace("-", "_")] = value
+                    del self.name.attributes[key]
         else:
             self.name = YsonString(name)
 
