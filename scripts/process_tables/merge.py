@@ -21,25 +21,27 @@ def merge(table):
         data_size_per_job = max(1,  int(512 * 1024 ** 2 / compression_ratio))
 
         temp_table = yt.create_temp_table(prefix="merge")
-        # To copy all attributes of node 
-        yt.remove(temp_table)
-        yt.copy(table, temp_table)
-        
-        mode = "sorted" if yt.is_sorted(table) else "unordered"
-        yt.run_merge(table, temp_table, mode,
-                     spec={"combine_chunks":"true",
-                           "data_size_per_job": data_size_per_job,
-                           "unavailable_chunk_strategy": "fail",
-                           "unavailable_chunk_tactics": "fail"})
-
         try:
+            # To copy all attributes of node
+            # yt.remove(temp_table)
+            # yt.copy(table, temp_table)
+            for attr in ["account", "compression_codec", "erasure_codec", "replication_factor"]:
+                yt.set("{}/@{}".format(temp_table, attr), yt.get("{}/@{}".format(table, attr)))
+
+            mode = "sorted" if yt.is_sorted(table) else "unordered"
+            yt.run_merge(table, temp_table, mode,
+                         spec={"combine_chunks":"true",
+                               "data_size_per_job": data_size_per_job,
+                               "unavailable_chunk_strategy": "fail",
+                               "unavailable_chunk_tactics": "fail"})
+
             if yt.exists(table):
                 with yt.Transaction():
                     yt.lock(table)
                     if yt.get_attribute(table, "revision") == revision:
                         yt.run_merge(temp_table, table, mode=mode)
         finally:
-            yt.remove(temp_table)
+            yt.remove(temp_table, force=True)
 
     except yt.YtError as e:
         print "Failed to merge table %s with error %s" % (table, repr(e))

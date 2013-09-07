@@ -1,7 +1,8 @@
+#!/usr/bin/env python
+
 import yt.yson as yson
 import yt.wrapper as yt
 
-import sys
 import argparse
 import logging
 from cStringIO import StringIO
