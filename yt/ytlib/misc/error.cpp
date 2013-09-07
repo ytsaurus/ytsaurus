@@ -2,7 +2,6 @@
 #include "error.h"
 
 #include <ytlib/misc/address.h>
-#include <ytlib/misc/thread.h>
 
 #include <ytlib/ytree/convert.h>
 #include <ytlib/ytree/fluent.h>
