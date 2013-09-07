@@ -266,49 +266,6 @@ TFuture<void> TJobProxy::GetFailedChunks(std::vector<NChunkClient::TChunkId>* fa
 {
     *failedChunks = Job->GetFailedChunks();
      return MakeFuture();
-/*
-    if (failedChunks->empty()) {
-        return MakeFuture();
-    }
-
-    yhash_set<NChunkClient::TChunkId> failedSet(failedChunks->begin(), failedChunks->end());
-
-    auto awaiter = New<TParallelAwaiter>(GetSyncInvoker());
-
-    LOG_INFO("Started collection additional failed chunks");
-
-    FOREACH (const auto& inputSpec, JobSpec.input_specs()) {
-        FOREACH (const auto& chunk, inputSpec.chunks()) {
-            auto chunkId = NChunkClient::FromProto<TChunkId>(chunk.slice().chunk_id());
-            auto pair = failedSet.insert(chunkId);
-            if (pair.second) {
-                LOG_INFO("Checking input chunk %s", ~ToString(chunkId));
-
-                auto remoteReader = NChunkClient::CreateReplicationReader(
-                    Config->JobIO->TableReader,
-                    BlockCache,
-                    MasterChannel,
-                    chunkId,
-                    FromProto<Stroka>(chunk.node_addresses()));
-
-                awaiter->Await(
-                    remoteReader->AsyncGetChunkMeta(),
-                    BIND([=] (NChunkClient::IAsyncReader::TGetMetaResult result) mutable {
-                        if (result.IsOK()) {
-                            LOG_INFO("Input chunk %s is OK", ~ToString(chunkId));
-                        } else {
-                            LOG_ERROR(result, "Input chunk %s has failed", ~ToString(chunkId));
-                            failedChunks->push_back(chunkId);
-                        }
-                        // This is important to capture #remoteReader.
-                        remoteReader.Reset();
-                    }));
-            }
-        }
-    }
-
-    return awaiter->Complete();
-*/
 }
 
 void TJobProxy::ReportResult(const TJobResult& result)
