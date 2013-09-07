@@ -4,7 +4,8 @@
 #include "private.h"
 
 #include <ytlib/misc/serialize.h>
-#include <ytlib/misc/thread_affinity.h>
+
+#include <ytlib/concurrency/thread_affinity.h>
 
 #include <ytlib/ytree/ypath_client.h>
 

@@ -7,10 +7,11 @@
 #include "job_resources.h"
 #include "serialization_context.h"
 
-#include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/nullable.h>
 #include <ytlib/misc/id_generator.h>
-#include <ytlib/misc/periodic_invoker.h>
+
+#include <ytlib/concurrency/thread_affinity.h>
+#include <ytlib/concurrency/periodic_invoker.h>
 
 #include <ytlib/logging/tagged_logger.h>
 

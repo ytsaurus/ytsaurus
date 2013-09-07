@@ -11,9 +11,10 @@
 
 #include <ytlib/misc/foreach.h>
 #include <ytlib/misc/string.h>
-#include <ytlib/misc/thread_affinity.h>
-#include <ytlib/misc/delayed_invoker.h>
 #include <ytlib/misc/protobuf_helpers.h>
+
+#include <ytlib/concurrency/thread_affinity.h>
+#include <ytlib/concurrency/delayed_invoker.h>
 
 #include <ytlib/logging/tagged_logger.h>
 

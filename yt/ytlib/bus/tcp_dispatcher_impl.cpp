@@ -3,7 +3,6 @@
 #include "config.h"
 #include "tcp_connection.h"
 
-#include <ytlib/misc/thread.h>
 #include <ytlib/misc/address.h>
 
 #ifndef _win_

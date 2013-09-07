@@ -1,5 +1,6 @@
 #include "stdafx.h"
-#include "semaphore.h"
+#include "async_semaphore.h"
+
 #include <ytlib/misc/nullable.h>
 
 namespace NYT {

@@ -12,7 +12,7 @@
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/foreach.h>
 
-#include <ytlib/actions/parallel_awaiter.h>
+#include <ytlib/concurrency/parallel_awaiter.h>
 
 #include <ytlib/ytree/ypath_client.h>
 

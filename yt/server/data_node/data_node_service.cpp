@@ -20,7 +20,7 @@
 
 #include <ytlib/bus/tcp_dispatcher.h>
 
-#include <ytlib/actions/parallel_awaiter.h>
+#include <ytlib/concurrency/parallel_awaiter.h>
 
 #include <ytlib/table_client/chunk_meta_extensions.h>
 

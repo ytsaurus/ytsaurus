@@ -4,8 +4,8 @@
 #include "chunk_meta_extensions.h"
 #include "dispatcher.h"
 
-#include <ytlib/actions/parallel_awaiter.h>
-#include <ytlib/actions/parallel_collector.h>
+#include <ytlib/concurrency/parallel_awaiter.h>
+#include <ytlib/concurrency/parallel_collector.h>
 
 #include <ytlib/fibers/fiber.h>
 

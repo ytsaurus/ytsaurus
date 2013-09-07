@@ -8,7 +8,7 @@
 #include <ytlib/misc/ref.h>
 #include <ytlib/misc/protobuf_helpers.h>
 
-#include <ytlib/actions/action_queue.h>
+#include <ytlib/concurrency/action_queue.h>
 
 #include <ytlib/misc/object_pool.h>
 

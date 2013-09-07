@@ -10,7 +10,7 @@
 
 #include <ytlib/profiling/profiling_manager.h>
 
-#include <ytlib/misc/delayed_invoker.h>
+#include <ytlib/concurrency/delayed_invoker.h>
 
 #include <ytlib/driver/private.h>
 #include <ytlib/driver/driver.h>
@@ -24,7 +24,6 @@
 #include <ytlib/yson/parser.h>
 
 #include <ytlib/misc/crash_handler.h>
-#include <ytlib/misc/thread.h>
 
 #include <server/exec_agent/config.h>
 

@@ -9,7 +9,7 @@
 #include <ytlib/rpc/message.h>
 #include <ytlib/rpc/service_detail.h>
 
-#include <ytlib/actions/parallel_awaiter.h>
+#include <ytlib/concurrency/parallel_awaiter.h>
 #include <ytlib/actions/invoker_util.h>
 
 #include <ytlib/security_client/public.h>

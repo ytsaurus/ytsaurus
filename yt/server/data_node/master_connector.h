@@ -4,7 +4,7 @@
 
 #include <ytlib/rpc/channel.h>
 
-#include <ytlib/misc/thread_affinity.h>
+#include <ytlib/concurrency/thread_affinity.h>
 
 #include <ytlib/actions/cancelable_context.h>
 

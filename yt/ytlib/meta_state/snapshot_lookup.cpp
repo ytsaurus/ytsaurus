@@ -4,7 +4,7 @@
 #include "config.h"
 #include "meta_state_manager_proxy.h"
 
-#include <ytlib/misc/thread_affinity.h>
+#include <ytlib/concurrency/thread_affinity.h>
 
 #include <ytlib/actions/invoker_util.h>
 

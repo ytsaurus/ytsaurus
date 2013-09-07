@@ -6,10 +6,10 @@
 #include "config.h"
 #include "tcp_connection.h"
 
-#include <ytlib/misc/thread.h>
 #include <ytlib/misc/error.h>
-#include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/address.h>
+
+#include <ytlib/concurrency/thread_affinity.h>
 
 #include <ytlib/rpc/public.h>
 

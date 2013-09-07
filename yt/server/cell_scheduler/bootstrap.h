@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/actions/action_queue.h>
+#include <ytlib/concurrency/action_queue.h>
 #include <ytlib/bus/public.h>
 #include <ytlib/rpc/public.h>
 #include <ytlib/transaction_client/public.h>

@@ -4,7 +4,8 @@
 #include "meta_version.h"
 
 #include <ytlib/misc/ref.h>
-#include <ytlib/misc/thread_affinity.h>
+
+#include <ytlib/concurrency/thread_affinity.h>
 
 #include <ytlib/actions/invoker.h>
 

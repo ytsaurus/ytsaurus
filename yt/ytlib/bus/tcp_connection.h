@@ -6,7 +6,8 @@
 #include "packet.h"
 #include "message.h"
 
-#include <ytlib/misc/thread_affinity.h>
+#include <ytlib/concurrency/thread_affinity.h>
+
 #include <ytlib/misc/address.h>
 #include <ytlib/misc/ring_queue.h>
 

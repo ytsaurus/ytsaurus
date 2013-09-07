@@ -1,10 +1,12 @@
 #pragma once
 
+#include "public.h"
+
 // Parts of our code currently reside in util/system/thread.h.
 #include <util/system/thread.h>
 
 namespace NYT {
-namespace NThread {
+namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -14,5 +16,5 @@ bool RaiseCurrentThreadPriority();
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NThread
+} // namespace NConcurrency
 } // namespace NYT

@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/actions/action_queue.h>
+#include <ytlib/concurrency/action_queue.h>
 #include <ytlib/actions/signal.h>
 
 #include <ytlib/logging/tagged_logger.h>

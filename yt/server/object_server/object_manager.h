@@ -3,8 +3,8 @@
 #include "public.h"
 #include "type_handler.h"
 
-#include <ytlib/misc/thread_affinity.h>
-#include <ytlib/misc/periodic_invoker.h>
+#include <ytlib/concurrency/thread_affinity.h>
+#include <ytlib/concurrency/periodic_invoker.h>
 
 #include <ytlib/meta_state/composite_meta_state.h>
 #include <ytlib/meta_state/map.h>

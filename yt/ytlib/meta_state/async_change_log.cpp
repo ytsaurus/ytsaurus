@@ -6,7 +6,9 @@
 
 #include <ytlib/misc/foreach.h>
 #include <ytlib/misc/singleton.h>
-#include <ytlib/misc/thread_affinity.h>
+
+#include <ytlib/concurrency/thread_affinity.h>
+
 #include <ytlib/profiling/profiler.h>
 
 #include <util/system/thread.h>

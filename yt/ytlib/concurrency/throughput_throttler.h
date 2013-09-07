@@ -1,6 +1,6 @@
 #pragma once
 
-#include "common.h"
+#include "public.h"
 
 #include <ytlib/actions/future.h>
 
@@ -12,13 +12,6 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
    
-// TODO(babenko): move to public.h
-class TThroughputThrottlerConfig;
-typedef TIntrusivePtr<TThroughputThrottlerConfig> TThroughputThrottlerConfigPtr;
-
-class IThroughputThrottler;
-typedef TIntrusivePtr<IThroughputThrottler> IThroughputThrottlerPtr;
-
 class TThroughputThrottlerConfig
     : public TYsonSerializable
 {

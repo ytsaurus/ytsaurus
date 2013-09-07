@@ -9,7 +9,7 @@
 #include "snapshot.h"
 #include "change_log_cache.h"
 
-#include <ytlib/actions/parallel_awaiter.h>
+#include <ytlib/concurrency/parallel_awaiter.h>
 
 #include <ytlib/ytree/ypath_client.h>
 

@@ -3,11 +3,12 @@
 #include "public.h"
 
 #include <ytlib/actions/callback.h>
-#include <ytlib/actions/action_queue.h>
+#include <ytlib/concurrency/action_queue.h>
 
 #include <ytlib/misc/ref.h>
-#include <ytlib/misc/semaphore.h>
 #include <ytlib/misc/async_stream_state.h>
+
+#include <ytlib/concurrency/async_semaphore.h>
 
 #include <ytlib/compression/public.h>
 

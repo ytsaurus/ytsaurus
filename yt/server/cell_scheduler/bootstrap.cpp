@@ -5,7 +5,7 @@
 #include <ytlib/misc/address.h>
 #include <ytlib/misc/ref_counted_tracker.h>
 
-#include <ytlib/actions/action_queue.h>
+#include <ytlib/concurrency/action_queue.h>
 
 #include <ytlib/bus/server.h>
 #include <ytlib/bus/tcp_server.h>

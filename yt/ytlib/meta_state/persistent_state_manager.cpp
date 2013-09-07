@@ -17,7 +17,7 @@
 #include "mutation_context.h"
 #include "response_keeper.h"
 
-#include <ytlib/misc/thread_affinity.h>
+#include <ytlib/concurrency/thread_affinity.h>
 
 #include <ytlib/fibers/fiber.h>
 

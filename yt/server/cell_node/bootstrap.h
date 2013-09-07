@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <ytlib/misc/throughput_throttler.h>
+#include <ytlib/concurrency/throughput_throttler.h>
 
-#include <ytlib/actions/action_queue.h>
+#include <ytlib/concurrency/action_queue.h>
 
 #include <ytlib/bus/public.h>
 

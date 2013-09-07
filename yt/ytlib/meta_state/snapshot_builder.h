@@ -4,9 +4,9 @@
 #include "meta_state_manager_proxy.h"
 
 #include <ytlib/misc/checksum.h>
-#include <ytlib/misc/thread_affinity.h>
 
-#include <ytlib/actions/action_queue.h>
+#include <ytlib/concurrency/thread_affinity.h>
+#include <ytlib/concurrency/action_queue.h>
 
 #include <ytlib/election/election_manager.h>
 

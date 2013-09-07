@@ -1,8 +1,8 @@
 #include "stdafx.h"
 
-#include <ytlib/misc/thread_affinity.h>
+#include <ytlib/concurrency/thread_affinity.h>
+#include <ytlib/concurrency/action_queue.h>
 
-#include <ytlib/actions/action_queue.h>
 #include <ytlib/actions/bind.h>
 #include <ytlib/actions/future.h>
 

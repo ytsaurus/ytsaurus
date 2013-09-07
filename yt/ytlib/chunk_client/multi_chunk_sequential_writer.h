@@ -6,7 +6,7 @@
 
 #include <ytlib/misc/async_stream_state.h>
 
-#include <ytlib/actions/parallel_awaiter.h>
+#include <ytlib/concurrency/parallel_awaiter.h>
 
 #include <ytlib/chunk_client/chunk_spec.pb.h>
 

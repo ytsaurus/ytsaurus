@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/misc/periodic_invoker.h>
+#include <ytlib/concurrency/periodic_invoker.h>
 
 #include <ytlib/profiling/public.h>
 

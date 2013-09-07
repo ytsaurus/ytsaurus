@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "action_queue_detail.h"
-#include "invoker_util.h"
+
+#include <ytlib/actions/invoker_util.h>
 
 #include <ytlib/fibers/fiber.h>
 

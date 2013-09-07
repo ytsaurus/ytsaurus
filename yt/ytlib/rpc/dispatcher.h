@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/actions/action_queue.h>
+#include <ytlib/concurrency/action_queue.h>
 
 namespace NYT {
 namespace NRpc {

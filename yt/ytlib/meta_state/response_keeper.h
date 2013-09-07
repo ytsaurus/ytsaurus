@@ -3,8 +3,8 @@
 #include "private.h"
 #include "mutation_context.h"
 
-#include <ytlib/misc/thread_affinity.h>
-#include <ytlib/misc/periodic_invoker.h>
+#include <ytlib/concurrency/thread_affinity.h>
+#include <ytlib/concurrency/periodic_invoker.h>
 
 #include <queue>
 

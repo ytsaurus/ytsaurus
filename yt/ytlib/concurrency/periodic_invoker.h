@@ -1,5 +1,6 @@
 #pragma once
 
+#include "public.h"
 #include "delayed_invoker.h"
 
 #include <ytlib/actions/invoker.h>
@@ -8,10 +9,6 @@
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-// TODO(babenko): move to public.h
-class TPeriodicInvoker;
-typedef TIntrusivePtr<TPeriodicInvoker> TPeriodicInvokerPtr;
 
 //! Describes if manual calls to #TPeriodicInvoker::ScheduleNext are needed.
 DECLARE_ENUM(EPeriodicInvokerMode,

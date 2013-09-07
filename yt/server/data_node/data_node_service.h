@@ -3,11 +3,11 @@
 #include "public.h"
 #include "chunk.h"
 
-#include <ytlib/misc/periodic_invoker.h>
+#include <ytlib/concurrency/periodic_invoker.h>
 
 #include <ytlib/rpc/service_detail.h>
 
-#include <ytlib/actions/action_queue.h>
+#include <ytlib/concurrency/action_queue.h>
 
 #include <ytlib/chunk_client/data_node_service_proxy.h>
 

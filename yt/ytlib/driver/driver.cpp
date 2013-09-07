@@ -10,7 +10,7 @@
 #include "table_commands.h"
 #include "scheduler_commands.h"
 
-#include <ytlib/actions/parallel_awaiter.h>
+#include <ytlib/concurrency/parallel_awaiter.h>
 #include <ytlib/actions/invoker_util.h>
 
 #include <ytlib/fibers/fiber.h>

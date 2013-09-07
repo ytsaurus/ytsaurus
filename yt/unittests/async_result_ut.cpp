@@ -4,8 +4,8 @@
 #include <ytlib/actions/bind.h>
 #include <ytlib/actions/callback.h>
 
-#include <ytlib/actions/parallel_awaiter.h>
-#include <ytlib/actions/parallel_collector.h>
+#include <ytlib/concurrency/parallel_awaiter.h>
+#include <ytlib/concurrency/parallel_collector.h>
 #include <ytlib/actions/invoker_util.h>
 
 #include <util/system/thread.h>

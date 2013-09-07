@@ -3,7 +3,7 @@
 
 #include <ytlib/misc/lazy_ptr.h>
 
-#include <ytlib/actions/action_queue.h>
+#include <ytlib/concurrency/action_queue.h>
 
 #include <ytlib/ytree/ephemeral_node_factory.h>
 #include <ytlib/ytree/ypath_detail.h>

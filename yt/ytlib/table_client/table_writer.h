@@ -5,7 +5,7 @@
 #include "async_writer.h"
 #include "table_ypath_proxy.h"
 
-#include <ytlib/misc/thread_affinity.h>
+#include <ytlib/concurrency/thread_affinity.h>
 
 #include <ytlib/logging/tagged_logger.h>
 

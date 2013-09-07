@@ -3,7 +3,6 @@ set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/misc )
 set( SRCS
   ${BASE}/address.cpp
   ${BASE}/assert.cpp
-  ${BASE}/async_stream.cpp
   ${BASE}/async_stream_state.cpp
   ${BASE}/backtrace.cpp
   ${BASE}/blob.cpp
@@ -12,7 +11,6 @@ set( SRCS
   ${BASE}/checksum.cpp
   ${BASE}/chunked_output_stream.cpp
   ${BASE}/crash_handler.cpp
-  ${BASE}/delayed_invoker.cpp
   ${BASE}/demangle.cpp
   ${BASE}/error.cpp
   ${BASE}/fs.cpp
@@ -25,7 +23,6 @@ set( SRCS
   ${BASE}/metric.cpp
   ${BASE}/new.cpp
   ${BASE}/pattern_formatter.cpp
-  ${BASE}/periodic_invoker.cpp
   ${BASE}/phoenix.cpp
   ${BASE}/proc.cpp
   ${BASE}/protobuf_helpers.cpp
@@ -33,22 +30,18 @@ set( SRCS
   ${BASE}/ref.cpp
   ${BASE}/ref_counted.cpp
   ${BASE}/ref_counted_tracker.cpp
-  ${BASE}/semaphore.cpp
   ${BASE}/serialize.cpp
   ${BASE}/small_vector.cpp
   ${BASE}/source_location.cpp
   ${BASE}/stack_trace.cpp
   ${BASE}/string.cpp
   ${BASE}/tclap_helpers.cpp
-  ${BASE}/thread.cpp
-  ${BASE}/throughput_throttler.cpp
   ${BASE}/url.cpp
 )
 set( HDRS
   ${BASE}/address.h
   ${BASE}/arcadia_helper.h
   ${BASE}/assert.h
-  ${BASE}/async_stream.h
   ${BASE}/async_stream_state.h
   ${BASE}/backtrace.h
   ${BASE}/blob.h
@@ -60,11 +53,9 @@ set( HDRS
   ${BASE}/chunked_output_stream.h
   ${BASE}/common.h
   ${BASE}/crash_handler.h
-  ${BASE}/delayed_invoker.h
   ${BASE}/demangle.h
   ${BASE}/enum.h
   ${BASE}/error.h
-  ${BASE}/event_count.h
   ${BASE}/foreach.h
   ${BASE}/fs.h
   ${BASE}/guid.h
@@ -86,7 +77,6 @@ set( HDRS
   ${BASE}/object_pool.h
   ${BASE}/override.h
   ${BASE}/pattern_formatter.h
-  ${BASE}/periodic_invoker.h
   ${BASE}/phoenix-inl.h
   ${BASE}/phoenix.h
   ${BASE}/preprocessor.h
@@ -102,7 +92,6 @@ set( HDRS
   ${BASE}/ref_counted_tracker.h
   ${BASE}/ref_tracked.h
   ${BASE}/ring_queue.h
-  ${BASE}/semaphore.h
   ${BASE}/serialize.h
   ${BASE}/singleton.h
   ${BASE}/small_set.h
@@ -113,9 +102,6 @@ set( HDRS
   ${BASE}/string.h
   ${BASE}/sync.h
   ${BASE}/tclap_helpers.h
-  ${BASE}/thread.h
-  ${BASE}/thread_affinity.h
-  ${BASE}/throughput_throttler.h
   ${BASE}/url.h
   ${BASE}/weak_ptr.h
 )

@@ -5,7 +5,7 @@
 #include <ytlib/misc/cache.h>
 #include <ytlib/misc/property.h>
 
-#include <ytlib/actions/action_queue.h>
+#include <ytlib/concurrency/action_queue.h>
 #include <ytlib/actions/signal.h>
 
 #include <ytlib/chunk_client/file_reader.h>

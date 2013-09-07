@@ -6,8 +6,9 @@
 #include "bus.h"
 #include "tcp_connection.h"
 
-#include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/address.h>
+
+#include <ytlib/concurrency/thread_affinity.h>
 
 #include <ytlib/logging/tagged_logger.h>
 

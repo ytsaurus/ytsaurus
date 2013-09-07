@@ -3,7 +3,7 @@
 #endif
 #undef PARALLEL_AWAITER_INL_H_
 
-#include <ytlib/misc/thread_affinity.h>
+#include <ytlib/concurrency/thread_affinity.h>
 
 #include <ytlib/profiling/timing.h>
 

@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "future.h"
 
-#include <ytlib/misc/delayed_invoker.h>
+#include <ytlib/concurrency/delayed_invoker.h>
 
 namespace NYT {
 

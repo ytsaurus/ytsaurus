@@ -4,7 +4,7 @@
 
 #include <ytlib/misc/error.h>
 
-#include <ytlib/misc/periodic_invoker.h>
+#include <ytlib/concurrency/periodic_invoker.h>
 
 #include <ytlib/logging/log.h>
 

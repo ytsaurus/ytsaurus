@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/misc/throughput_throttler.h>
+#include <ytlib/concurrency/throughput_throttler.h>
 
 #include <ytlib/chunk_client/config.h>
 

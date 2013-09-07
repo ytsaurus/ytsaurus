@@ -1,11 +1,10 @@
 #pragma once
 
-#include "common.h"
-#include "invoker.h"
-#include "callback.h"
+#include "public.h"
+#include "event_count.h"
 
-#include <ytlib/misc/thread.h>
-#include <ytlib/misc/event_count.h>
+#include <ytlib/actions/invoker.h>
+#include <ytlib/actions/callback.h>
 
 #include <ytlib/profiling/profiler.h>
 

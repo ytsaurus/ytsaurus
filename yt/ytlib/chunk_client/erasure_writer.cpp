@@ -7,8 +7,8 @@
 
 #include <ytlib/fibers/fiber.h>
 
-#include <ytlib/actions/parallel_awaiter.h>
-#include <ytlib/actions/parallel_collector.h>
+#include <ytlib/concurrency/parallel_awaiter.h>
+#include <ytlib/concurrency/parallel_collector.h>
 
 #include <ytlib/erasure/codec.h>
 

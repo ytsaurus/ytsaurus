@@ -6,7 +6,7 @@
 
 #include <ytlib/misc/heap.h>
 
-#include <ytlib/actions/action_queue.h>
+#include <ytlib/concurrency/action_queue.h>
 
 #include <ytlib/chunk_client/multi_chunk_parallel_reader.h>
 #include <ytlib/table_client/sync_reader.h>

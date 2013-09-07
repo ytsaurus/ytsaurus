@@ -6,8 +6,9 @@
 
 #include <ytlib/misc/assert.h>
 #include <ytlib/misc/property.h>
-#include <ytlib/misc/thread_affinity.h>
-#include <ytlib/misc/delayed_invoker.h>
+
+#include <ytlib/concurrency/thread_affinity.h>
+#include <ytlib/concurrency/delayed_invoker.h>
 
 #include <ytlib/meta_state/rpc_helpers.h>
 

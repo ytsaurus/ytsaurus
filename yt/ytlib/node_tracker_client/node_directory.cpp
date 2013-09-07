@@ -2,9 +2,10 @@
 #include "node_directory.h"
 
 #include <ytlib/misc/foreach.h>
-#include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/address.h>
 #include <ytlib/misc/protobuf_helpers.h>
+
+#include <ytlib/concurrency/thread_affinity.h>
 
 namespace NYT {
 namespace NNodeTrackerClient {

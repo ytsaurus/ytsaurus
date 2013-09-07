@@ -1,13 +1,13 @@
 #pragma once
 
-#include "common.h"
-#include "thread.h"
-#include "preprocessor.h"
+#include "public.h"
+
+#include <ytlib/misc/preprocessor.h>
 
 #include <util/system/thread.h>
 
 namespace NYT {
-namespace NThreadAffinity {
+namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -66,7 +66,7 @@ private:
 #ifdef ENABLE_THREAD_AFFINITY_CHECK
 
 #define DECLARE_THREAD_AFFINITY_SLOT(slot) \
-    mutable ::NYT::NThreadAffinity::TSlot slot ## __Slot
+    mutable ::NYT::NConcurrency::TSlot slot ## __Slot
 
 #define VERIFY_THREAD_AFFINITY(slot) \
     slot ## __Slot.Check()
@@ -98,5 +98,5 @@ static_assert(sizeof(TSpinLock) == sizeof(TAtomic),
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NThreadAffinity
+} // namespace NConcurrency
 } // namespace NYT

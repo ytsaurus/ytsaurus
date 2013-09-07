@@ -1,9 +1,10 @@
 #pragma once
 
-#include "common.h"
-#include "future.h"
-#include "invoker_util.h"
-#include "cancelable_context.h"
+#include "public.h"
+
+#include <ytlib/actions/future.h>
+#include <ytlib/actions/invoker_util.h>
+#include <ytlib/actions/cancelable_context.h>
 
 #include <ytlib/misc/nullable.h>
 
@@ -103,8 +104,6 @@ private:
         TCallback<void()> onResult);
 
 };
-
-typedef TIntrusivePtr<TParallelAwaiter> TParallelAwaiterPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -4,7 +4,7 @@
 #include "meta_state_manager_proxy.h"
 
 #include <ytlib/rpc/client.h>
-#include <ytlib/actions/parallel_awaiter.h>
+#include <ytlib/concurrency/parallel_awaiter.h>
 
 namespace NYT {
 namespace NMetaState {

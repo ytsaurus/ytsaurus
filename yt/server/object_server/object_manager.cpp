@@ -8,7 +8,7 @@
 #include "schema.h"
 #include "master.h"
 
-#include <ytlib/misc/delayed_invoker.h>
+#include <ytlib/concurrency/delayed_invoker.h>
 
 #include <ytlib/ypath/tokenizer.h>
 

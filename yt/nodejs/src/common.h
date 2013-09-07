@@ -2,6 +2,7 @@
 
 #include <ytlib/misc/common.h>
 #include <ytlib/misc/error.h>
+
 #include <ytlib/ytree/public.h>
 
 #define BUILDING_NODE_EXTENSION

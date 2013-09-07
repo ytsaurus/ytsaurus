@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "snapshot_builder_detail.h"
 
-#include <ytlib/misc/periodic_invoker.h>
+#include <ytlib/concurrency/periodic_invoker.h>
 
 #include <ytlib/actions/invoker_util.h>
 

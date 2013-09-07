@@ -5,8 +5,11 @@
 #include "meta_state_manager_proxy.h"
 
 #include <ytlib/election/election_manager.h>
-#include <ytlib/misc/thread_affinity.h>
+
+#include <ytlib/concurrency/thread_affinity.h>
+
 #include <ytlib/actions/signal.h>
+
 #include <ytlib/profiling/profiler.h>
 
 namespace NYT {

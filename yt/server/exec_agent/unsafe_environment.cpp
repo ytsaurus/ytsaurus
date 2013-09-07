@@ -3,7 +3,8 @@
 #include "environment.h"
 #include "private.h"
 
-#include <ytlib/misc/thread_affinity.h>
+#include <ytlib/concurrency/thread_affinity.h>
+
 #include <ytlib/misc/proc.h>
 
 #include <ytlib/logging/tagged_logger.h>

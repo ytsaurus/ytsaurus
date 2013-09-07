@@ -1,27 +1,11 @@
 #pragma once
 
-#include "common.h"
-#include "invoker.h"
-#include "callback.h"
+#include "public.h"
 
-#include <ytlib/misc/property.h>
+#include <ytlib/actions/invoker.h>
+#include <ytlib/actions/callback.h>
 
 namespace NYT {
-
-////////////////////////////////////////////////////////////////////////////////
-
-// TODO(babenko): move to public.h
-class TActionQueue;
-typedef TIntrusivePtr<TActionQueue> TActionQueuePtr;
-
-class TFairShareActionQueue;
-typedef TIntrusivePtr<TFairShareActionQueue> TFairShareActionQueuePtr;
-
-class TPrioritizedActionQueue;
-typedef TIntrusivePtr<TPrioritizedActionQueue> TPrioritizedActionQueuePtr;
-
-class TThreadPool;
-typedef TIntrusivePtr<TThreadPool> TThreadPoolPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 

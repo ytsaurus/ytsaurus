@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <ytlib/actions/action_queue.h>
+#include <ytlib/concurrency/action_queue.h>
 
-#include <ytlib/misc/periodic_invoker.h>
+#include <ytlib/concurrency/periodic_invoker.h>
 
 #include <ytlib/ytree/public.h>
 #include <ytlib/ytree/yson_producer.h>

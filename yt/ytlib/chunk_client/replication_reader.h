@@ -4,7 +4,8 @@
 #include "chunk_replica.h"
 
 #include <ytlib/misc/nullable.h>
-#include <ytlib/misc/throughput_throttler.h>
+
+#include <ytlib/concurrency/throughput_throttler.h>
 
 #include <ytlib/rpc/public.h>
 

@@ -5,7 +5,7 @@
 #include <ytlib/logging/log_manager.h>
 #include <ytlib/profiling/profiling_manager.h>
 #include <ytlib/meta_state/async_change_log.h>
-#include <ytlib/misc/delayed_invoker.h>
+#include <ytlib/concurrency/delayed_invoker.h>
 #include <ytlib/chunk_client/dispatcher.h>
 
 #include <util/datetime/base.h>

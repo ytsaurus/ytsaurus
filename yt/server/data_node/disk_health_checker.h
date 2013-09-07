@@ -4,7 +4,7 @@
 
 #include <ytlib/actions/signal.h>
 
-#include <ytlib/misc/periodic_invoker.h>
+#include <ytlib/concurrency/periodic_invoker.h>
 #include <ytlib/misc/error.h>
 
 namespace NYT {

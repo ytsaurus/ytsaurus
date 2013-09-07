@@ -5,9 +5,9 @@
 #include <ytlib/misc/property.h>
 #include <ytlib/misc/pattern_formatter.h>
 #include <ytlib/misc/raw_formatter.h>
-#include <ytlib/misc/periodic_invoker.h>
+#include <ytlib/concurrency/periodic_invoker.h>
 
-#include <ytlib/actions/action_queue_detail.h>
+#include <ytlib/concurrency/action_queue_detail.h>
 
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/ytree/ypath_service.h>

@@ -4,10 +4,10 @@
 #include "timing.h"
 
 #include <ytlib/misc/id_generator.h>
-#include <ytlib/misc/periodic_invoker.h>
+#include <ytlib/concurrency/periodic_invoker.h>
 #include <ytlib/misc/hash.h>
 
-#include <ytlib/actions/action_queue_detail.h>
+#include <ytlib/concurrency/action_queue_detail.h>
 
 #include <ytlib/ytree/node.h>
 #include <ytlib/ytree/ephemeral_node_factory.h>

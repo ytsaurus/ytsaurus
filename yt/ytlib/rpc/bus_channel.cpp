@@ -7,8 +7,8 @@
 
 #include <ytlib/actions/future.h>
 
-#include <ytlib/misc/delayed_invoker.h>
-#include <ytlib/misc/thread_affinity.h>
+#include <ytlib/concurrency/delayed_invoker.h>
+#include <ytlib/concurrency/thread_affinity.h>
 
 #include <ytlib/bus/bus.h>
 #include <ytlib/bus/tcp_client.h>

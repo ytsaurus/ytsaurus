@@ -8,7 +8,8 @@
 #include "config.h"
 #include "master_connector.h"
 
-#include <ytlib/misc/thread_affinity.h>
+#include <ytlib/concurrency/thread_affinity.h>
+
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/string.h>
 #include <ytlib/misc/fs.h>

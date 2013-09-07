@@ -1,8 +1,8 @@
 #include "stdafx.h"
 #include "action_queue.h"
-#include "bind.h"
 #include "action_queue_detail.h"
-#include "invoker_util.h"
+
+#include <ytlib/actions/invoker_util.h>
 
 #include <ytlib/ypath/token.h>
 

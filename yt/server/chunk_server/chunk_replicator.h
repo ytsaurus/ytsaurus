@@ -6,7 +6,7 @@
 
 #include <ytlib/misc/property.h>
 #include <ytlib/misc/nullable.h>
-#include <ytlib/misc/periodic_invoker.h>
+#include <ytlib/concurrency/periodic_invoker.h>
 #include <ytlib/misc/error.h>
 
 #include <ytlib/erasure/public.h>

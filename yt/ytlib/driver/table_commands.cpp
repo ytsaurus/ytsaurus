@@ -2,7 +2,7 @@
 #include "table_commands.h"
 #include "config.h"
 
-#include <ytlib/misc/async_stream.h>
+#include <ytlib/concurrency/async_stream.h>
 
 #include <ytlib/fibers/fiber.h>
 

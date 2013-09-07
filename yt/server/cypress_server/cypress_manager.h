@@ -7,8 +7,9 @@
 #include "lock.h"
 
 #include <ytlib/misc/small_vector.h>
-#include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/id_generator.h>
+
+#include <ytlib/concurrency/thread_affinity.h>
 
 #include <ytlib/ytree/ypath_service.h>
 #include <ytlib/ytree/tree_builder.h>

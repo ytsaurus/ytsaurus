@@ -7,12 +7,13 @@
 #include "snapshot_downloader.h"
 #include "serialization_context.h"
 
-#include <ytlib/misc/periodic_invoker.h>
-#include <ytlib/misc/thread_affinity.h>
-#include <ytlib/misc/delayed_invoker.h>
+#include <ytlib/concurrency/periodic_invoker.h>
+#include <ytlib/concurrency/thread_affinity.h>
+#include <ytlib/concurrency/delayed_invoker.h>
+
 #include <ytlib/misc/address.h>
 
-#include <ytlib/actions/parallel_awaiter.h>
+#include <ytlib/concurrency/parallel_awaiter.h>
 
 #include <ytlib/fibers/fiber.h>
 

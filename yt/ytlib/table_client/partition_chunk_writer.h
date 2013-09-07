@@ -3,7 +3,7 @@
 #include "public.h"
 #include "chunk_writer_base.h"
 
-#include <ytlib/misc/thread_affinity.h>
+#include <ytlib/concurrency/thread_affinity.h>
 
 #include <ytlib/compression/public.h>
 

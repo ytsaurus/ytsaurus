@@ -7,8 +7,9 @@
 #include "output_stream.h"
 #include "output_stack.h"
 
-#include <ytlib/misc/async_stream.h>
 #include <ytlib/misc/error.h>
+
+#include <ytlib/concurrency/async_stream.h>
 
 #include <ytlib/ytree/node.h>
 #include <ytlib/ytree/convert.h>

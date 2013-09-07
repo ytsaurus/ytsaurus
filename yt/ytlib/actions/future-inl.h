@@ -6,7 +6,7 @@
 #include "bind.h"
 #include "callback.h"
 
-#include <ytlib/misc/delayed_invoker.h>
+#include <ytlib/concurrency/delayed_invoker.h>
 #include <ytlib/misc/foreach.h>
 #include <ytlib/misc/small_vector.h>
 

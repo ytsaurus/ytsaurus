@@ -2,7 +2,7 @@
 #include "address.h"
 #include "lazy_ptr.h"
 
-#include <ytlib/actions/action_queue.h>
+#include <ytlib/concurrency/action_queue.h>
 
 #include <ytlib/logging/log.h>
 

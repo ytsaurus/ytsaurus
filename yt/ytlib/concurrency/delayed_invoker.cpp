@@ -1,12 +1,7 @@
 #include "stdafx.h"
-#include "common.h"
 #include "delayed_invoker.h"
-#include "thread.h"
 
-#include <ytlib/actions/action_queue.h>
-
-#include <util/system/thread.h>
-#include <util/datetime/base.h>
+#include <ytlib/concurrency/action_queue.h>
 
 namespace NYT {
 

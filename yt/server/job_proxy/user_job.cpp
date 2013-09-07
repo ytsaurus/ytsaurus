@@ -25,7 +25,7 @@
 #include <ytlib/actions/invoker_util.h>
 
 #include <ytlib/misc/proc.h>
-#include <ytlib/misc/periodic_invoker.h>
+#include <ytlib/concurrency/periodic_invoker.h>
 #include <ytlib/misc/protobuf_helpers.h>
 #include <ytlib/misc/pattern_formatter.h>
 

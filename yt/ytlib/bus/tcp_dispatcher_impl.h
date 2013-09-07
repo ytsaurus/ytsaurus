@@ -4,9 +4,10 @@
 #include "tcp_dispatcher.h"
 
 #include <ytlib/misc/error.h>
-#include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/address.h>
 #include <ytlib/misc/random.h>
+
+#include <ytlib/concurrency/thread_affinity.h>
 
 #include <util/thread/lfqueue.h>
 

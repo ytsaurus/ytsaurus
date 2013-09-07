@@ -14,7 +14,7 @@
 #include "user_job_io.h"
 
 #include <ytlib/actions/invoker_util.h>
-#include <ytlib/actions/parallel_awaiter.h>
+#include <ytlib/concurrency/parallel_awaiter.h>
 
 #include <ytlib/misc/proc.h>
 #include <ytlib/misc/ref_counted_tracker.h>

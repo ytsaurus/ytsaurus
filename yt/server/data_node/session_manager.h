@@ -3,8 +3,10 @@
 #include "public.h"
 
 #include <ytlib/misc/lease_manager.h>
-#include <ytlib/misc/thread_affinity.h>
-#include <ytlib/misc/throughput_throttler.h>
+
+#include <ytlib/concurrency/thread_affinity.h>
+
+#include <ytlib/concurrency/throughput_throttler.h>
 
 #include <ytlib/chunk_client/data_node_service_proxy.h>
 

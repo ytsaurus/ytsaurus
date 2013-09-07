@@ -1,7 +1,7 @@
 ﻿#pragma once
 
-#include "common.h"
-#include "thread_affinity.h"
+#include "public.h"
+
 #include <ytlib/actions/future.h>
 
 namespace NYT {

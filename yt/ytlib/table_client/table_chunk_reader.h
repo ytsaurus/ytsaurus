@@ -13,9 +13,9 @@
 #include <ytlib/compression/public.h>
 
 #include <ytlib/misc/blob_output.h>
-#include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/async_stream_state.h>
 
+#include <ytlib/concurrency/thread_affinity.h>
 
 #include <ytlib/ytree/public.h>
 #include <ytlib/ytree/yson_string.h>

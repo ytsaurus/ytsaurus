@@ -1,5 +1,6 @@
 set( DIRS
   actions
+  concurrency
   election
   compression
   erasure

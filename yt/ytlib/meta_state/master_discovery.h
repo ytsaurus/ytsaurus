@@ -3,7 +3,7 @@
 #include "meta_state_manager_proxy.h"
 
 #include <ytlib/actions/future.h>
-#include <ytlib/actions/parallel_awaiter.h>
+#include <ytlib/concurrency/parallel_awaiter.h>
 #include <ytlib/ytree/yson_serializable.h>
 
 namespace NYT {

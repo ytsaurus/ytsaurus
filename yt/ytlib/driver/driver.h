@@ -3,7 +3,8 @@
 #include "public.h"
 
 #include <ytlib/misc/error.h>
-#include <ytlib/misc/async_stream.h>
+
+#include <ytlib/concurrency/async_stream.h>
 
 #include <ytlib/formats/format.h>
 

@@ -9,15 +9,15 @@
 
 #include <ytlib/misc/metric.h>
 #include <ytlib/misc/string.h>
-#include <ytlib/misc/semaphore.h>
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/protobuf_helpers.h>
-#include <ytlib/misc/periodic_invoker.h>
-#include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/async_stream_state.h>
 
-#include <ytlib/actions/parallel_awaiter.h>
-#include <ytlib/actions/action_queue.h>
+#include <ytlib/concurrency/thread_affinity.h>
+#include <ytlib/concurrency/periodic_invoker.h>
+#include <ytlib/concurrency/parallel_awaiter.h>
+#include <ytlib/concurrency/action_queue.h>
+#include <ytlib/concurrency/async_semaphore.h>
 
 #include <ytlib/logging/tagged_logger.h>
 

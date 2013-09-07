@@ -1,22 +1,14 @@
 #pragma once
 
-#include "error.h"
-#include "sync.h"
-#include "intrusive_ptr.h"
+#include "public.h"
+
+#include <ytlib/misc/error.h>
+#include <ytlib/misc/sync.h>
 
 #include <util/stream/input.h>
 #include <util/stream/output.h>
 
 namespace NYT {
-
-////////////////////////////////////////////////////////////////////////////////
-
-// TODO(babenko): move to public.h
-struct IAsyncInputStream;
-typedef TIntrusivePtr<IAsyncInputStream> IAsyncInputStreamPtr;
-
-struct IAsyncOutputStream;
-typedef TIntrusivePtr<IAsyncOutputStream> IAsyncOutputStreamPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -5,9 +5,9 @@
 
 #include <ytlib/fibers/fiber.h>
 
-#include <ytlib/actions/action_queue.h>
+#include <ytlib/concurrency/action_queue.h>
 #include <ytlib/actions/cancelable_context.h>
-#include <ytlib/actions/parallel_awaiter.h>
+#include <ytlib/concurrency/parallel_awaiter.h>
 
 #include <contrib/testing/framework.h>
 

@@ -13,12 +13,13 @@
 #include "private.h"
 #include "snapshot_downloader.h"
 
-#include <ytlib/misc/thread_affinity.h>
-#include <ytlib/misc/periodic_invoker.h>
+#include <ytlib/concurrency/thread_affinity.h>
+#include <ytlib/concurrency/periodic_invoker.h>
+
 #include <ytlib/misc/string.h>
 
-#include <ytlib/actions/action_queue.h>
-#include <ytlib/actions/parallel_awaiter.h>
+#include <ytlib/concurrency/action_queue.h>
+#include <ytlib/concurrency/parallel_awaiter.h>
 #include <ytlib/actions/invoker_util.h>
 
 #include <ytlib/fibers/fiber.h>

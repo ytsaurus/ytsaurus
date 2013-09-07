@@ -1,8 +1,10 @@
 #include "stdafx.h"
 #include "throughput_throttler.h"
 #include "periodic_invoker.h"
-#include "singleton.h"
-#include "thread_affinity.h"
+
+#include <ytlib/misc/singleton.h>
+
+#include <ytlib/concurrency/thread_affinity.h>
 
 #include <ytlib/actions/invoker_util.h>
 
@@ -14,7 +16,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static TFuture<void> PresetResult = MakePromise();
+static const TFuture<void> PresetResult = MakePromise();
 
 class TLimitedThroughputThrottler
     : public IThroughputThrottler

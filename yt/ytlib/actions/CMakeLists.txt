@@ -1,16 +1,12 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/actions )
 set( SRCS
-  ${BASE}/action_queue.cpp
-  ${BASE}/action_queue_detail.cpp
   ${BASE}/callback_internal.cpp
   ${BASE}/cancelable_context.cpp
   ${BASE}/future.cpp
   ${BASE}/invoker_util.cpp
 )
 set( HDRS
-  ${BASE}/action_queue.h
-  ${BASE}/action_queue_detail.h
   ${BASE}/bind_helpers.h
   ${BASE}/bind_mpl.h
   ${BASE}/callback_forward.h
@@ -21,10 +17,6 @@ set( HDRS
   ${BASE}/future.h
   ${BASE}/invoker.h
   ${BASE}/invoker_util.h
-  ${BASE}/parallel_awaiter-inl.h
-  ${BASE}/parallel_awaiter.h
-  ${BASE}/parallel_collector-inl.h
-  ${BASE}/parallel_collector.h
   ${BASE}/signal.h
 )
 

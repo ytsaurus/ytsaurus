@@ -6,7 +6,7 @@
 #include <ytlib/actions/bind.h>
 #include <ytlib/actions/invoker.h>
 
-#include <ytlib/misc/periodic_invoker.h>
+#include <ytlib/concurrency/periodic_invoker.h>
 
 #include <ytlib/chunk_client/data_node_service_proxy.h>
 

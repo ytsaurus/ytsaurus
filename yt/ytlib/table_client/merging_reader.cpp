@@ -9,7 +9,7 @@
 #include <ytlib/misc/sync.h>
 #include <ytlib/misc/heap.h>
 
-#include <ytlib/actions/parallel_awaiter.h>
+#include <ytlib/concurrency/parallel_awaiter.h>
 
 #include <ytlib/ytree/yson_string.h>
 
