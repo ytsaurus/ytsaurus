@@ -199,11 +199,14 @@ struct TCopyRequest
 {
     NYPath::TRichYPath SourcePath;
     NYPath::TRichYPath DestinationPath;
+    bool PreserveAccount;
 
     TCopyRequest()
     {
         RegisterParameter("source_path", SourcePath);
         RegisterParameter("destination_path", DestinationPath);
+        RegisterParameter("preserve_account", PreserveAccount)
+            .Default(false);
     }
 };
 
