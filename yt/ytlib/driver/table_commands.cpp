@@ -77,7 +77,7 @@ void TReadCommand::DoExecute()
     }
     
     BuildYsonMapFluently(Context->Request().ResponseParametersConsumer)
-        .Item("table_row_index").Value(reader->GetTableRowIndex());
+        .Item("start_row_index").Value(reader->GetTableRowIndex());
 
     auto flushBuffer = [&] () {
         if (!output->Write(buffer.Begin(), buffer.Size())) {
