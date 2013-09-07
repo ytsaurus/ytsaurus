@@ -126,7 +126,7 @@ public:
         LOG_INFO(JobExitError, "Job process completed");
         ToProto(result.mutable_error(), JobExitError);
 
-        if (~ErrorOutput) {
+        if (ErrorOutput) {
             auto stderrChunkId = ErrorOutput->GetChunkId();
             if (stderrChunkId != NChunkServer::NullChunkId) {
                 auto* schedulerResultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
