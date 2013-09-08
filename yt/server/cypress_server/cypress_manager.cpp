@@ -144,7 +144,7 @@ public:
 private:
     virtual Stroka DoGetName(TLock* lock) override
     {
-        return Sprintf("node %s", ~ToString(lock->GetId()));
+        return Sprintf("lock %s", ~ToString(lock->GetId()));
     }
 
     virtual IObjectProxyPtr DoGetProxy(
