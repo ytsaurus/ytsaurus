@@ -71,6 +71,7 @@ using namespace NSecurityServer;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NNodeTrackerClient::NProto;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -743,7 +744,7 @@ private:
 
     bool NeedToRecomputeStatistics;
 
-    TPeriodicInvokerPtr ProfilingInvoker;
+    NConcurrency::TPeriodicInvokerPtr ProfilingInvoker;
 
     NProfiling::TProfiler Profiler;
     NProfiling::TRateCounter AddChunkCounter;

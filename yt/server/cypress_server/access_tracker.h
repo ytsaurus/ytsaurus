@@ -46,7 +46,7 @@ private:
     NProto::TMetaReqUpdateAccessStatistics UpdateAccessStatisticsRequest;
     std::vector<TCypressNodeBase*> NodesWithAccessStatisticsUpdate;
 
-    TPeriodicInvokerPtr FlushInvoker;
+    NConcurrency::TPeriodicInvokerPtr FlushInvoker;
 
 
     void Reset();

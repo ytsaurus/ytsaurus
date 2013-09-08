@@ -78,6 +78,7 @@ using namespace NFileServer;
 using namespace NTableServer;
 using namespace NSecurityServer;
 using namespace NProfiling;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 

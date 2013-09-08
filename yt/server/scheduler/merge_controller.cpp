@@ -40,6 +40,7 @@ using namespace NTableClient::NProto;
 using namespace NChunkClient::NProto;
 using namespace NJobTrackerClient::NProto;
 using namespace NNodeTrackerClient::NProto;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////
 

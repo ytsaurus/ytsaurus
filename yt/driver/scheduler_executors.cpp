@@ -19,6 +19,7 @@ using namespace NFormats;
 using namespace NYTree;
 using namespace NYson;
 using namespace NScheduler;
+using namespace NConcurrency;
 
 //////////////////////////////////////////////////////////////////////////////////
 

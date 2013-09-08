@@ -57,6 +57,7 @@ using namespace NChunkClient;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NJobTrackerClient::NProto;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -239,7 +239,7 @@ private:
 
     mutable TGuid CachedCellGuild;
 
-    TPeriodicInvokerPtr ProfilingInvoker;
+    NConcurrency::TPeriodicInvokerPtr ProfilingInvoker;
 
     TGarbageCollectorPtr GarbageCollector;
 

@@ -74,7 +74,7 @@ private:
 
     NSecurityServer::TSecurityManagerPtr SecurityManager;
 
-    TActionQueuePtr ControlQueue;
+    NConcurrency::TActionQueuePtr ControlQueue;
 
 };
 

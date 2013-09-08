@@ -42,7 +42,7 @@ private:
 
     TSnapshotInfo GetSnapshotInfo(i32 snapshotId); // also finds snapshot source
     static void OnSnapshotInfoResponse(
-        TParallelAwaiterPtr awaiter,
+        NConcurrency::TParallelAwaiterPtr awaiter,
         TPromise<TSnapshotInfo> promise,
         TPeerId peerId,
         TProxy::TRspGetSnapshotInfoPtr response);

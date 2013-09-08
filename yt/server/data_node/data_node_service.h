@@ -33,10 +33,10 @@ private:
     typedef NChunkClient::TDataNodeServiceProxy TProxy;
 
     TDataNodeConfigPtr Config;
-    TActionQueuePtr WorkerThread;
+    NConcurrency::TActionQueuePtr WorkerThread;
     NCellNode::TBootstrap* Bootstrap;
 
-    TPeriodicInvokerPtr ProfilingInvoker;
+    NConcurrency::TPeriodicInvokerPtr ProfilingInvoker;
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, StartChunk);
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, FinishChunk);

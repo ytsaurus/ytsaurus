@@ -26,6 +26,7 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NFormats;
 using namespace NTableClient;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -35,12 +35,14 @@ using namespace NObjectServer;
 using namespace NCellMaster;
 using namespace NTransactionServer;
 using namespace NOrchid::NProto;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static NLog::TLogger& Logger = OrchidLogger;
+
 static TChannelCache ChannelCache;
 static TLazyIntrusivePtr<TActionQueue> OrchidQueue(TActionQueue::CreateFactory("Orchid"));
-static NLog::TLogger& Logger = OrchidLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

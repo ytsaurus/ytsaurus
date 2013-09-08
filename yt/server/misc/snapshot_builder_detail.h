@@ -36,7 +36,7 @@ private:
     pid_t ChildPid;
     TPromise<TError> Result;
     TInstant Deadline;
-    TPeriodicInvokerPtr WatchdogInvoker;
+    NConcurrency::TPeriodicInvokerPtr WatchdogInvoker;
 
     void RunParent();
     void RunChild();

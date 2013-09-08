@@ -16,6 +16,8 @@
 namespace NYT {
 namespace {
 
+using namespace NConcurrency;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void Fiber1(TFiber* main, TFiber* self, int* p)

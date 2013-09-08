@@ -39,7 +39,7 @@ private:
         TAsyncChangeLog* changeLog);
 
     static void OnResponse(
-        TParallelAwaiterPtr awaiter,
+        NConcurrency::TParallelAwaiterPtr awaiter,
         TPromise<TPeerId> promise,
         TPeerId peerId,
         const TMetaVersion& version,

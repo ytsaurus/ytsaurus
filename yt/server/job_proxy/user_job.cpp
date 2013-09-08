@@ -60,6 +60,7 @@ using namespace NFormats;
 using namespace NScheduler;
 using namespace NScheduler::NProto;
 using namespace NTransactionClient;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 

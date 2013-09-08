@@ -4,13 +4,16 @@
 namespace NYT {
 namespace NDriver {
 
+using namespace NConcurrency;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TDispatcher::TDispatcher()
     : HeavyPoolSize(4)
-    , DriverThread(TActionQueue::CreateFactory("Driver"))
+    , DriverThread(
+        TActionQueue::CreateFactory("Driver"))
     , HeavyThreadPool(BIND(
-        NYT::New<NYT::TThreadPool, const int&, const Stroka&>,
+        NYT::New<TThreadPool, const int&, const Stroka&>,
         ConstRef(HeavyPoolSize),
         "DriverHeavy"))
 { }

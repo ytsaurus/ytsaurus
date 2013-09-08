@@ -30,7 +30,7 @@ private:
     NCellNode::TBootstrap* Bootstrap;
     IInvokerPtr ControlInvoker;
 
-    TPeriodicInvokerPtr HeartbeatInvoker;
+    NConcurrency::TPeriodicInvokerPtr HeartbeatInvoker;
 
     void SendHeartbeat();
     void OnHeartbeatResponse(NJobTrackerClient::TJobTrackerServiceProxy::TRspHeartbeatPtr rsp);

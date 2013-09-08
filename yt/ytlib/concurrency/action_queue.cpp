@@ -9,6 +9,7 @@
 #include <ytlib/profiling/profiling_manager.h>
 
 namespace NYT {
+namespace NConcurrency {
 
 using namespace NProfiling;
 using namespace NYPath;
@@ -23,7 +24,7 @@ TTagIdList GetThreadTagIds(const Stroka& threadName)
     TTagIdList tagIds;
     auto* profilingManager = TProfilingManager::Get();
     tagIds.push_back(profilingManager->RegisterTag("thread", threadName));
-	return tagIds;
+    return tagIds;
 }
 
 TTagIdList GetBucketTagIds(const Stroka& threadName, const Stroka& bucketName)
@@ -31,8 +32,8 @@ TTagIdList GetBucketTagIds(const Stroka& threadName, const Stroka& bucketName)
     TTagIdList tagIds;
     auto* profilingManager = TProfilingManager::Get();
     tagIds.push_back(profilingManager->RegisterTag("thread", threadName));
-	tagIds.push_back(profilingManager->RegisterTag("bucket", bucketName));
-	return tagIds;
+    tagIds.push_back(profilingManager->RegisterTag("bucket", bucketName));
+    return tagIds;
 }
 
 } // namespace
@@ -115,8 +116,8 @@ class TFairShareActionQueue::TImpl
 {
 public:
     TImpl(
-    	const Stroka& threadName,
-    	const std::vector<Stroka>& bucketNames)
+        const Stroka& threadName,
+        const std::vector<Stroka>& bucketNames)
         : TExecutorThread(
             &EventCount,
             threadName,
@@ -316,7 +317,7 @@ IInvokerPtr TThreadPool::GetInvoker()
 TCallback<TThreadPoolPtr()> TThreadPool::CreateFactory(int queueCount, const Stroka& threadName)
 {
     return BIND([=] () {
-        return NYT::New<NYT::TThreadPool>(queueCount, threadName);
+        return NYT::New<NConcurrency::TThreadPool>(queueCount, threadName);
     });
 }
 
@@ -472,4 +473,5 @@ IPrioritizedInvokerPtr CreateFakePrioritizedInvoker(IInvokerPtr underlyingInvoke
 
 ///////////////////////////////////////////////////////////////////////////////
 
+} // namespace NConcurrency
 } // namespace NYT

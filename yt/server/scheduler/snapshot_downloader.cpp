@@ -24,6 +24,7 @@ using namespace NObjectClient;
 using namespace NFileClient;
 using namespace NChunkClient;
 using namespace NYTree;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 

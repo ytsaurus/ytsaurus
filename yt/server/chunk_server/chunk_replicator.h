@@ -133,10 +133,10 @@ private:
     NProfiling::TCpuDuration ChunkRefreshDelay;
     TNullable<bool> LastEnabled;
 
-    TPeriodicInvokerPtr RefreshInvoker;
+    NConcurrency::TPeriodicInvokerPtr RefreshInvoker;
     std::deque<TRefreshEntry> RefreshList;
 
-    TPeriodicInvokerPtr PropertiesUpdateInvoker;
+    NConcurrency::TPeriodicInvokerPtr PropertiesUpdateInvoker;
     std::deque<TChunk*> PropertiesUpdateList;
 
     yhash_map<TJobId, TJobPtr> JobMap;

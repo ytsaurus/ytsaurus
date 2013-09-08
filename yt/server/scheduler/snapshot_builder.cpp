@@ -42,6 +42,7 @@ using namespace NFileClient;
 using namespace NCypressClient;
 using namespace NObjectClient;
 using namespace NTransactionClient;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 

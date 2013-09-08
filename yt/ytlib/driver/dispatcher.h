@@ -31,12 +31,12 @@ private:
     /*!
      * This thread is used by TDriver for light commands.
      */
-    TLazyIntrusivePtr<TActionQueue> DriverThread;
+    TLazyIntrusivePtr<NConcurrency::TActionQueue> DriverThread;
 
     /*!
      * This thread pool is used by TDriver for heavy commands.
      */
-    TLazyIntrusivePtr<TThreadPool> HeavyThreadPool;
+    TLazyIntrusivePtr<NConcurrency::TThreadPool> HeavyThreadPool;
 
 };
 

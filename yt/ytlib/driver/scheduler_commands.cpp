@@ -20,6 +20,7 @@ namespace NDriver {
 using namespace NScheduler;
 using namespace NYTree;
 using namespace NMetaState;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -83,7 +83,7 @@ void TChunkInfoCollector<TFetcher>::SendRequests()
         });
 
     // Pick nodes greedily.
-    auto awaiter = New<TParallelAwaiter>(Invoker);
+    auto awaiter = New<NConcurrency::TParallelAwaiter>(Invoker);
     yhash_set<int> requestedChunkIndexes;
     FOREACH (const auto& it, nodeIts) {
         auto nodeId = it->first;

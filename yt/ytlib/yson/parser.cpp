@@ -13,12 +13,14 @@
 namespace NYT {
 namespace NYson {
 
+using namespace NConcurrency;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYsonParser::TImpl
 {   
 private:
-    typedef TCoroutine<int(const char* begin, const char* end, bool finish) > TParserCoroutine;
+    typedef TCoroutine<int(const char* begin, const char* end, bool finish)> TParserCoroutine;
 
     TParserCoroutine ParserCoroutine;
 

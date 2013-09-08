@@ -17,6 +17,7 @@ namespace NCypressServer {
 
 using namespace NTransactionServer;
 using namespace NObjectServer;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 

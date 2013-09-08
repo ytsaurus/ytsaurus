@@ -52,7 +52,7 @@ private:
     TObjectManagerConfigPtr Config;
     NCellMaster::TBootstrap* Bootstrap;
 
-    TPeriodicInvokerPtr SweepInvoker;
+    NConcurrency::TPeriodicInvokerPtr SweepInvoker;
 
     //! Contains objects with zero ref counter and zero lock counter.
     yhash_set<TObjectBase*> Zombies;

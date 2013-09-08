@@ -24,6 +24,7 @@ namespace NTableClient {
 using namespace NCypressClient;
 using namespace NChunkClient;
 using namespace NNodeTrackerClient;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 

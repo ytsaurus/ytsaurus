@@ -10,6 +10,8 @@
 namespace NYT {
 namespace NDataNode {
 
+using namespace NConcurrency;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = DataNodeLogger;

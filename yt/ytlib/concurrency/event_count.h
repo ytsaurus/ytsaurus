@@ -21,6 +21,7 @@
 // See https://raw.github.com/facebook/folly/master/folly/experimental/EventCount.h
 
 namespace NYT {
+namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -238,4 +239,5 @@ void TEventCount::Await(TCondition condition)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NConcurrency
 } // namespace NYT

@@ -34,6 +34,7 @@ namespace NChunkClient {
 
 using namespace NRpc;
 using namespace NNodeTrackerClient;
+using namespace NConcurrency;
 
 typedef TDataNodeServiceProxy TProxy;
 

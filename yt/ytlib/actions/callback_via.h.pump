@@ -19,18 +19,24 @@ namespace NYT {
 /*! \internal */
 ////////////////////////////////////////////////////////////////////////////////
 
+// Implemented in fibers/fiber.cpp
+namespace NConcurrency {
+namespace NDetail {
+
+TClosure GetCurrentFiberCanceler();
+
+} // namespace NDetail
+} // namespace NConcurrency
+
 namespace NDetail {
 
 template <bool WrappedInFuture, class TSignature>
 struct TAsyncViaHelper;
 
-// Implemented in fibers/fiber.cpp
-TClosure GetCurrentFiberCanceler();
-
 template <class T>
 void RegisterFiberCancelation(TPromise<T> promise)
 {
-    auto canceler = GetCurrentFiberCanceler();
+    auto canceler = NConcurrency::NDetail::GetCurrentFiberCanceler();
     auto invoker = GetCurrentInvoker();
     promise.OnCanceled(BIND(
         IgnoreResult(&IInvoker::Invoke),

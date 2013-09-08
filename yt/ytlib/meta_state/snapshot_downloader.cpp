@@ -17,6 +17,7 @@ namespace NYT {
 namespace NMetaState {
 
 using namespace NElection;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -46,6 +46,7 @@ using namespace NCellNode;
 using namespace NNodeTrackerClient::NProto;
 using namespace NJobTrackerClient::NProto;
 using namespace NChunkClient::NProto;
+using namespace NConcurrency;
 
 using NNodeTrackerClient::TNodeDescriptor;
 

@@ -32,6 +32,7 @@ namespace NMetaState {
 
 using namespace NElection;
 using namespace NYTree;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -215,7 +216,8 @@ private:
     TPromise<TResultOrError> Promise;
 
     TParallelAwaiterPtr Awaiter;
-    std::vector< TNullable<TChecksum> > Checksums;
+    std::vector<TNullable<TChecksum>> Checksums;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

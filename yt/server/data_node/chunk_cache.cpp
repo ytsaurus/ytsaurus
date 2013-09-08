@@ -36,6 +36,7 @@ using namespace NNodeTrackerClient;
 using namespace NCellNode;
 using namespace NRpc;
 using namespace NChunkClient::NProto;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 

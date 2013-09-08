@@ -23,6 +23,7 @@ using namespace NYPath;
 using namespace NYTree;
 using namespace NProfiling;
 using namespace NRpc::NProto;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 

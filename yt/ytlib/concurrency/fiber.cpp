@@ -47,6 +47,7 @@ namespace __cxxabiv1 {
 #endif
 
 namespace NYT {
+namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -73,7 +74,7 @@ const size_t LargeFiberStackSize = 1 << 23; //   8 Mb
 static void InitTls()
 {
     if (UNLIKELY(!CurrentFiber)) {
-        auto rootFiber = New<TFiber>();
+        auto rootFiber = NYT::New<TFiber>();
         CurrentFiber = rootFiber.Get();
         CurrentFiber->Ref();
     }
@@ -302,7 +303,7 @@ public:
         : State_(EFiberState::Running)
         , Owner_(owner)
     {
-    	Init();
+        Init();
     }
 
     TImpl(TFiber* owner, TClosure callee, EFiberStack stack)
@@ -311,7 +312,7 @@ public:
         , Owner_(owner)
         , Callee_(std::move(callee))
     {
-    	Init();
+        Init();
         Reset();
     }
 
@@ -325,7 +326,7 @@ public:
 
         // Root fiber can never be destroyed.
         YCHECK(!(
-            State_ == NYT::EFiberState::Running &&
+            State_ == EFiberState::Running &&
             !Stack_ &&
             Callee_));
 
@@ -802,5 +803,6 @@ TClosure GetCurrentFiberCanceler()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NConcurrency
 } // namespace NYT
 

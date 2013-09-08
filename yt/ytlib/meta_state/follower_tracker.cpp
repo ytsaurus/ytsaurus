@@ -13,6 +13,7 @@ namespace NYT {
 namespace NMetaState {
 
 using namespace NElection;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -63,7 +64,8 @@ bool TFollowerTracker::IsPeerActive(TPeerId peerId) const
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto status = Statuses[peerId];
-    return status == EPeerStatus::Leading ||
+    return
+        status == EPeerStatus::Leading ||
         status == EPeerStatus::Following;
 }
 

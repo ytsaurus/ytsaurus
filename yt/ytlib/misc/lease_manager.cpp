@@ -6,8 +6,9 @@
 #include <ytlib/concurrency/delayed_invoker.h>
 #include <ytlib/concurrency/thread_affinity.h>
 
-namespace NYT
-{
+namespace NYT {
+
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 

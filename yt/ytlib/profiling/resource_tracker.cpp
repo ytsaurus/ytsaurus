@@ -24,6 +24,7 @@ namespace NProfiling {
 using namespace NYPath;
 using namespace NYTree;
 using namespace NProfiling;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 

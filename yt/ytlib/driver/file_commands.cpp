@@ -12,6 +12,7 @@ namespace NYT {
 namespace NDriver {
 
 using namespace NFileClient;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -27,6 +27,7 @@ using namespace NCypressClient;
 using namespace NObjectClient;
 using namespace NYTree;
 using namespace NMetaState;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 

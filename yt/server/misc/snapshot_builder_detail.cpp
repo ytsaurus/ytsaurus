@@ -16,6 +16,8 @@
 
 namespace NYT {
 
+using namespace NConcurrency;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static TDuration WatchdogCheckPeriod = TDuration::MilliSeconds(100);

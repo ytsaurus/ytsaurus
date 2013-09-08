@@ -59,6 +59,7 @@ using namespace NMetaState;
 using namespace NRpc;
 using namespace NSecurityClient;
 using namespace NTransactionClient::NProto;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////
 

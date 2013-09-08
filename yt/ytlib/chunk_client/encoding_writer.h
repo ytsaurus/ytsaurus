@@ -53,7 +53,7 @@ private:
     IAsyncWriterPtr AsyncWriter;
 
     IInvokerPtr CompressionInvoker;
-    TAsyncSemaphore Semaphore;
+    NConcurrency::TAsyncSemaphore Semaphore;
     NCompression::ICodec* Codec;
 
     TAsyncStreamState State;

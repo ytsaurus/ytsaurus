@@ -96,7 +96,7 @@ int main(int argc, char **argv)
     NYT::NBus::TTcpDispatcher::Get()->Shutdown();
     NYT::NRpc::TDispatcher::Get()->Shutdown();
     NYT::NChunkClient::TDispatcher::Get()->Shutdown();
-    NYT::TDelayedInvoker::Shutdown();
+    NYT::NConcurrency::TDelayedInvoker::Shutdown();
 
     return rv;
 }

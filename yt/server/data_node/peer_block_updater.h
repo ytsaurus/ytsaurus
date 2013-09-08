@@ -35,7 +35,7 @@ private:
 
     TDataNodeConfigPtr Config;
     NCellNode::TBootstrap* Bootstrap;
-    TPeriodicInvokerPtr PeriodicInvoker;
+    NConcurrency::TPeriodicInvokerPtr PeriodicInvoker;
 
 };
 

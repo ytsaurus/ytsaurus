@@ -35,7 +35,7 @@ private:
 
     yhash_map<Stroka, TJiffies> ThreadNameToJiffies;
 
-    TPeriodicInvokerPtr PeriodicInvoker;
+    NConcurrency::TPeriodicInvokerPtr PeriodicInvoker;
 
     void EnqueueUsage();
 

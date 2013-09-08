@@ -59,14 +59,14 @@ public:
     NDataNode::TReaderCachePtr GetReaderCache() const;
     NDataNode::TMasterConnectorPtr GetMasterConnector() const;
 
-    IThroughputThrottlerPtr GetReplicationInThrottler() const;
-    IThroughputThrottlerPtr GetReplicationOutThrottler() const;
-    IThroughputThrottlerPtr GetRepairInThrottler() const;
-    IThroughputThrottlerPtr GetRepairOutThrottler() const;
+    NConcurrency::IThroughputThrottlerPtr GetReplicationInThrottler() const;
+    NConcurrency::IThroughputThrottlerPtr GetReplicationOutThrottler() const;
+    NConcurrency::IThroughputThrottlerPtr GetRepairInThrottler() const;
+    NConcurrency::IThroughputThrottlerPtr GetRepairOutThrottler() const;
     
-    IThroughputThrottlerPtr GetInThrottler(NChunkClient::EWriteSessionType sessionType) const;
-    IThroughputThrottlerPtr GetOutThrottler(NChunkClient::EWriteSessionType sessionType) const;
-    IThroughputThrottlerPtr GetOutThrottler(NChunkClient::EReadSessionType sessionType) const;
+    NConcurrency::IThroughputThrottlerPtr GetInThrottler(NChunkClient::EWriteSessionType sessionType) const;
+    NConcurrency::IThroughputThrottlerPtr GetOutThrottler(NChunkClient::EWriteSessionType sessionType) const;
+    NConcurrency::IThroughputThrottlerPtr GetOutThrottler(NChunkClient::EReadSessionType sessionType) const;
 
     const NNodeTrackerClient::TNodeDescriptor& GetLocalDescriptor() const;
 
@@ -79,7 +79,7 @@ private:
     Stroka ConfigFileName;
     TCellNodeConfigPtr Config;
 
-    TActionQueuePtr ControlQueue;
+    NConcurrency::TActionQueuePtr ControlQueue;
     NBus::IBusServerPtr BusServer;
     NRpc::IChannelPtr MasterChannel;
     NRpc::IChannelPtr SchedulerChannel;
@@ -100,10 +100,10 @@ private:
     NDataNode::TPeerBlockUpdaterPtr PeerBlockUpdater;
     NDataNode::TReaderCachePtr ReaderCache;
     NDataNode::TMasterConnectorPtr MasterConnector;
-    IThroughputThrottlerPtr ReplicationInThrottler;
-    IThroughputThrottlerPtr ReplicationOutThrottler;
-    IThroughputThrottlerPtr RepairInThrottler;
-    IThroughputThrottlerPtr RepairOutThrottler;
+    NConcurrency::IThroughputThrottlerPtr ReplicationInThrottler;
+    NConcurrency::IThroughputThrottlerPtr ReplicationOutThrottler;
+    NConcurrency::IThroughputThrottlerPtr RepairInThrottler;
+    NConcurrency::IThroughputThrottlerPtr RepairOutThrottler;
 
     NNodeTrackerClient::TNodeDescriptor LocalDescriptor;
     TGuid CellGuid;

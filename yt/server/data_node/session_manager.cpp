@@ -24,11 +24,10 @@ namespace NDataNode {
 
 using namespace NRpc;
 using namespace NChunkClient;
+using namespace NChunkClient::NProto;
 using namespace NNodeTrackerClient;
 using namespace NCellNode;
-
-using NChunkClient::NProto::TChunkMeta;
-using NChunkClient::NProto::TChunkInfo;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 

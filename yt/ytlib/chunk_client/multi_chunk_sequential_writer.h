@@ -141,7 +141,7 @@ protected:
     TSession CurrentSession;
     TPromise<TSession> NextSession;
 
-    TParallelAwaiterPtr CloseChunksAwaiter;
+    NConcurrency::TParallelAwaiterPtr CloseChunksAwaiter;
 
     TSpinLock WrittenChunksGuard;
     std::vector<NChunkClient::NProto::TChunkSpec> WrittenChunks;

@@ -86,6 +86,7 @@ using namespace NExecAgent;
 using namespace NJobProxy;
 using namespace NDataNode;
 using namespace NYTree;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 

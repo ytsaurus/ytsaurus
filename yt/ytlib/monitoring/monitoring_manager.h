@@ -55,8 +55,8 @@ private:
     typedef yhash<Stroka, NYTree::TYsonProducer> TProducerMap;
 
     bool IsStarted;
-    TActionQueuePtr ActionQueue;
-    TPeriodicInvokerPtr PeriodicInvoker;
+    NConcurrency::TActionQueuePtr ActionQueue;
+    NConcurrency::TPeriodicInvokerPtr PeriodicInvoker;
 
     //! Protects #MonitoringMap.
     TSpinLock SpinLock;

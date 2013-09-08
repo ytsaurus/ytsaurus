@@ -19,6 +19,7 @@ namespace NMonitoring {
 
 using namespace NYTree;
 using namespace NRpc;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 

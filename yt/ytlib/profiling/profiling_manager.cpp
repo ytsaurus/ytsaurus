@@ -22,6 +22,7 @@ namespace NYT {
 namespace NProfiling  {
 
 using namespace NYTree;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 

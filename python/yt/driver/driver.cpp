@@ -30,19 +30,13 @@
 #include <iostream>
 
 namespace NYT {
-
-using NFormats::TFormat;
-using NFormats::EFormatType;
-using NDriver::TDriverRequest;
-using NDriver::TDriverConfig;
-using NDriver::IDriverPtr;
-using NDriver::CreateDriver;
-using NYson::IYsonConsumer;
-using NYTree::ConvertToNode;
-using NYTree::ConvertToYsonString;
-using NYson::EYsonFormat;
-
 namespace NPython {
+
+using namespace NFormats;
+using namespace NDriver;
+using namespace NYson;
+using namespace NYTree;
+using namespace NConcurrency;
 
 Py::Object ExtractArgument(Py::Tuple& args, Py::Dict& kwds, const std::string& name) {
     Py::Object result;

@@ -22,6 +22,7 @@ namespace NElection {
 
 using namespace NYTree;
 using namespace NYson;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -80,7 +81,7 @@ private:
     TPeerSet AliveFollowers;
     TPeerSet PotentialFollowers;
 
-    TDelayedInvoker::TCookie PingTimeoutCookie;
+    NConcurrency::TDelayedInvoker::TCookie PingTimeoutCookie;
     TFollowerPingerPtr FollowerPinger;
 
     TElectionManagerConfigPtr Config;

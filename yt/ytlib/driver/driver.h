@@ -29,11 +29,11 @@ struct TDriverRequest
 
     //! Stream used for reading command input.
     //! The stream must stay alive for the duration of #IDriver::Execute.
-    IAsyncInputStreamPtr InputStream;
+    NConcurrency::IAsyncInputStreamPtr InputStream;
 
     //! Stream where the command output is written.
     //! The stream must stay alive for the duration of #IDriver::Execute.
-    IAsyncOutputStreamPtr OutputStream;
+    NConcurrency::IAsyncOutputStreamPtr OutputStream;
 
     //! A map containing command arguments.
     NYTree::IMapNodePtr Arguments;

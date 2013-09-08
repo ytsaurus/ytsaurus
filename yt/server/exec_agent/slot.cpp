@@ -8,9 +8,10 @@
 
 #include <util/folder/dirut.h>
 
-
 namespace NYT {
 namespace NExecAgent {
+
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 

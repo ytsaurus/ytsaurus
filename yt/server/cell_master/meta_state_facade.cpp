@@ -45,6 +45,7 @@ using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NSecurityServer;
 using namespace NTransactionClient::NProto;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 

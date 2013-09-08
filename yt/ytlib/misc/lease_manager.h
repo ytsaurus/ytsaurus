@@ -7,10 +7,10 @@
 #include <ytlib/actions/invoker.h>
 
 #include <ytlib/concurrency/delayed_invoker.h>
+
 #include <ytlib/misc/nullable.h>
 
-namespace NYT
-{
+namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,7 +32,7 @@ private:
         bool IsValid;
         TDuration Timeout;
         TClosure OnExpired;
-        TDelayedInvoker::TCookie Cookie;
+        NConcurrency::TDelayedInvoker::TCookie Cookie;
         TSpinLock SpinLock;
 
         TEntry(TDuration timeout, const TClosure& onExpired)

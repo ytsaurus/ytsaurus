@@ -18,6 +18,7 @@ namespace NExecAgent {
 using namespace NNodeTrackerClient;
 using namespace NJobTrackerClient;
 using namespace NCellNode;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 

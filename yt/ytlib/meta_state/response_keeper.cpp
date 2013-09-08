@@ -5,6 +5,8 @@
 namespace NYT {
 namespace NMetaState {
 
+using namespace NConcurrency;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = MetaStateLogger;

@@ -325,7 +325,7 @@ int Main(int argc, const char* argv[])
     NRpc::TDispatcher::Get()->Shutdown();
     NChunkClient::TDispatcher::Get()->Shutdown();
     NProfiling::TProfilingManager::Get()->Shutdown();
-    TDelayedInvoker::Shutdown();
+    NConcurrency::TDelayedInvoker::Shutdown();
     NLog::TLogManager::Get()->Shutdown();
 
     return exitCode;

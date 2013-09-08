@@ -16,6 +16,7 @@ namespace NDataNode {
 
 using namespace NCellNode;
 using namespace NChunkClient;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 

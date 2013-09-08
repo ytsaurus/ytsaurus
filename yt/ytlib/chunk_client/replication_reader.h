@@ -25,7 +25,7 @@ IAsyncReaderPtr CreateReplicationReader(
     const TChunkId& chunkId,
     const TChunkReplicaList& seedReplicas = TChunkReplicaList(),
     EReadSessionType sessionType = EReadSessionType::User,
-    IThroughputThrottlerPtr throttler = GetUnlimitedThrottler());
+    NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
 
 ///////////////////////////////////////////////////////////////////////////////
 

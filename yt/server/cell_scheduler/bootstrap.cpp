@@ -56,6 +56,7 @@ using namespace NRpc;
 using namespace NScheduler;
 using namespace NTransactionClient;
 using namespace NYTree;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 

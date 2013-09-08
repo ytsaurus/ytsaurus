@@ -302,7 +302,7 @@ protected:
 
         TMethodDescriptor& SetInvoker(IInvokerPtr value)
         {
-            Invoker = CreateFakePrioritizedInvoker(value);
+            Invoker = NConcurrency::CreateFakePrioritizedInvoker(value);
             return *this;
         }
 

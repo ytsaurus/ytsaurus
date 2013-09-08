@@ -11,6 +11,7 @@
 #include <exception>
 
 namespace NYT {
+namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,7 +52,7 @@ private:
     TFiber& operator=(const TFiber&);
     TFiber& operator=(TFiber&&);
 
-    friend TIntrusivePtr<TFiber> New<TFiber>();
+    friend TIntrusivePtr<TFiber> NYT::New<TFiber>();
 
 public:
     explicit TFiber(TClosure callee, EFiberStack stack = EFiberStack::Small);
@@ -114,7 +115,8 @@ void SwitchTo(IInvokerPtr invoker);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}
+} // namespace NConcurrency
+} // namespace NYT
 
 #define FIBER_INL_H_
 #   include "fiber-inl.h"

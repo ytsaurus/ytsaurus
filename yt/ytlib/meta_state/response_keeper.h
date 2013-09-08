@@ -28,7 +28,7 @@ public:
 private:
     TResponseKeeperConfigPtr Config;
     IInvokerPtr StateInvoker;
-    TPeriodicInvokerPtr SweepInvoker;
+    NConcurrency::TPeriodicInvokerPtr SweepInvoker;
 
     typedef yhash_map<TMutationId, TSharedRef> TResponseMap;
     TResponseMap ResponseMap;

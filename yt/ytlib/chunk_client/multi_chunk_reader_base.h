@@ -89,7 +89,7 @@ protected:
     TSpinLock NextChunkLock;
     volatile int LastPreparedReader;
 
-    TParallelAwaiterPtr FetchingCompleteAwaiter;
+    NConcurrency::TParallelAwaiterPtr FetchingCompleteAwaiter;
 
     TSpinLock FailedChunksLock;
     std::vector<NChunkClient::TChunkId> FailedChunks;

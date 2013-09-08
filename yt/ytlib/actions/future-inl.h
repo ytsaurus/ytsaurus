@@ -198,7 +198,7 @@ public:
 
         state->Subscribe(
             BIND(&TPromiseAwaiter::OnResult, MakeStrong(this)));
-        TDelayedInvoker::Submit(
+        NConcurrency::TDelayedInvoker::Submit(
             BIND(&TPromiseAwaiter::OnTimeout, MakeStrong(this)), timeout);
     }
 
@@ -394,7 +394,7 @@ public:
 
         state->Subscribe(
             BIND(&TPromiseAwaiter::OnResult, MakeStrong(this)));
-        TDelayedInvoker::Submit(
+        NConcurrency::TDelayedInvoker::Submit(
             BIND(&TPromiseAwaiter::OnTimeout, MakeStrong(this)), timeout);
     }
 

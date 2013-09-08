@@ -33,7 +33,7 @@ private:
     TDiskHealthCheckerConfigPtr Config;
     Stroka Path;
 
-    TPeriodicInvokerPtr PeriodicInvoker;
+    NConcurrency::TPeriodicInvokerPtr PeriodicInvoker;
     TAtomic FailedLock;
 
     void OnCheck();

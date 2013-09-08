@@ -4,19 +4,23 @@
 namespace NYT {
 namespace NChunkClient {
 
+using namespace NConcurrency;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TDispatcher::TDispatcher()
     : CompressionPoolSize(4)
     , ErasurePoolSize(4)
-    , ReaderThread(TActionQueue::CreateFactory("ChunkReader"))
-    , WriterThread(TActionQueue::CreateFactory("ChunkWriter"))
+    , ReaderThread(
+        TActionQueue::CreateFactory("ChunkReader"))
+    , WriterThread(
+        TActionQueue::CreateFactory("ChunkWriter"))
     , CompressionThreadPool(BIND(
-        NYT::New<NYT::TThreadPool, const int&, const Stroka&>,
+        NYT::New<TThreadPool, const int&, const Stroka&>,
         ConstRef(CompressionPoolSize),
         "Compression"))
     , ErasureThreadPool(BIND(
-        NYT::New<NYT::TThreadPool, const int&, const Stroka&>,
+        NYT::New<TThreadPool, const int&, const Stroka&>,
         ConstRef(ErasurePoolSize),
         "Erasure"))
 { }

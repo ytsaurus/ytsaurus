@@ -20,7 +20,7 @@ TPromise<void> MakePromise()
 TFuture<void> MakeDelayed(TDuration delay)
 {
     auto promise = NewPromise();
-    TDelayedInvoker::Submit(
+    NConcurrency::TDelayedInvoker::Submit(
         BIND([=] () mutable { promise.Set(); }),
         delay);
     return promise;

@@ -46,6 +46,7 @@ using namespace NChunkClient;
 using namespace NScheduler;
 using namespace NFormats;
 using namespace NSecurityClient;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 

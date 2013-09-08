@@ -26,6 +26,7 @@ using namespace NYTree;
 using namespace NSecurityClient;
 using namespace NObjectClient;
 using namespace NCypressClient;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 

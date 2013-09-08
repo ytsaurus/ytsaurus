@@ -1,7 +1,7 @@
 // WARNING: This file was auto-generated.
 // Please, consider incorporating any changes into the generator.
 
-// Generated on Sat Sep 07 17:44:53 2013.
+// Generated on Sun Sep  8 19:15:47 2013.
 
 
 #pragma once
@@ -12,6 +12,7 @@
 #include <ytlib/misc/nullable.h>
 
 namespace NYT {
+namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1101,4 +1102,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NConcurrency
 } // namespace NYT

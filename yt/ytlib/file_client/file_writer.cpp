@@ -29,6 +29,7 @@ using namespace NObjectClient;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NTransactionClient;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 

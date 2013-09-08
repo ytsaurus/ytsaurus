@@ -54,8 +54,8 @@ private:
 
     volatile i64 JobProxyMemoryLimit;
 
-    TPeriodicInvokerPtr HeartbeatInvoker;
-    TPeriodicInvokerPtr MemoryWatchdogInvoker;
+    NConcurrency::TPeriodicInvokerPtr HeartbeatInvoker;
+    NConcurrency::TPeriodicInvokerPtr MemoryWatchdogInvoker;
 
     NJobTrackerClient::NProto::TJobSpec JobSpec;
     NNodeTrackerClient::NProto::TNodeResources ResourceUsage;

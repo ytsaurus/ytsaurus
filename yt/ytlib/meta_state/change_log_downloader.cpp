@@ -16,6 +16,7 @@ namespace NMetaState {
 
 using namespace NElection;
 using namespace NYTree;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 

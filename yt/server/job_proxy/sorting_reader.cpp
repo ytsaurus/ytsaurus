@@ -28,6 +28,7 @@ using namespace NTableClient;
 using namespace NChunkClient;
 using namespace NYTree;
 using namespace NYson;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -66,7 +66,7 @@ private:
 
     Stroka SandboxPath;
 
-    TActionQueuePtr SlotThread;
+    NConcurrency::TActionQueuePtr SlotThread;
 
     NLog::TTaggedLogger Logger;
 

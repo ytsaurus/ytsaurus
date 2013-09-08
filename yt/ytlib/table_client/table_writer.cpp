@@ -28,6 +28,7 @@ using namespace NCypressClient;
 using namespace NTransactionClient;
 using namespace NObjectClient;
 using namespace NChunkClient;
+using namespace NConcurrency;
 
 typedef TMultiChunkSequentialWriter<TTableChunkWriter> TTableMultiChunkWriter;
 

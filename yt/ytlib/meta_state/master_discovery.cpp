@@ -19,6 +19,7 @@ namespace NYT {
 namespace NMetaState {
 
 using namespace NYTree;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 

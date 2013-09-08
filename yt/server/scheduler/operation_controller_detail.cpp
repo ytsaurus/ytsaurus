@@ -64,6 +64,7 @@ using namespace NNodeTrackerClient;
 using namespace NScheduler::NProto;
 using namespace NJobTrackerClient::NProto;
 using namespace NNodeTrackerClient::NProto;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////
 

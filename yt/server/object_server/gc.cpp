@@ -14,6 +14,7 @@ namespace NYT {
 namespace NObjectServer {
 
 using namespace NCellMaster;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 

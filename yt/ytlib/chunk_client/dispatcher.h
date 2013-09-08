@@ -35,17 +35,18 @@ private:
      * This thread is used for background operations in #TRemoteChunkReader
      * #TSequentialChunkReader, #TTableChunkReader and #TableReader
      */
-    TLazyIntrusivePtr<TActionQueue> ReaderThread;
+    TLazyIntrusivePtr<NConcurrency::TActionQueue> ReaderThread;
+
     /*!
      *  This thread is used for background operations in
      *  #TRemoteChunkWriter, #NTableClient::TChunkWriter and
      *  #NTableClient::TChunkSetReader
      */
-    TLazyIntrusivePtr<TActionQueue> WriterThread;
+    TLazyIntrusivePtr<NConcurrency::TActionQueue> WriterThread;
 
-    TLazyIntrusivePtr<TThreadPool> CompressionThreadPool;
+    TLazyIntrusivePtr<NConcurrency::TThreadPool> CompressionThreadPool;
 
-    TLazyIntrusivePtr<TThreadPool> ErasureThreadPool;
+    TLazyIntrusivePtr<NConcurrency::TThreadPool> ErasureThreadPool;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

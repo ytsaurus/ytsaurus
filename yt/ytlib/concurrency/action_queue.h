@@ -6,6 +6,7 @@
 #include <ytlib/actions/callback.h>
 
 namespace NYT {
+namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -96,5 +97,5 @@ IPrioritizedInvokerPtr CreateFakePrioritizedInvoker(IInvokerPtr underlyingInvoke
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NConcurrency
 } // namespace NYT
-

@@ -146,11 +146,11 @@ private:
     int SessionCount;
     int ChunkCount;
 
-    TFairShareActionQueuePtr ReadQueue;
+    NConcurrency::TFairShareActionQueuePtr ReadQueue;
     IPrioritizedInvokerPtr DataReadInvoker;
     IPrioritizedInvokerPtr MetaReadInvoker;
 
-    TThreadPoolPtr WriteQueue;
+    NConcurrency::TThreadPoolPtr WriteQueue;
     IInvokerPtr WriteInvoker;
 
     TDiskHealthCheckerPtr HealthChecker;

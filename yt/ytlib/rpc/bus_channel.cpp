@@ -28,6 +28,7 @@ namespace NRpc {
 using namespace NBus;
 using namespace NYPath;
 using namespace NYTree;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 

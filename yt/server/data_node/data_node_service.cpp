@@ -45,6 +45,7 @@ using namespace NNodeTrackerClient;
 using namespace NTableClient;
 using namespace NTableClient::NProto;
 using namespace NCellNode;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 

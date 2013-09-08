@@ -92,7 +92,7 @@ private:
 
     std::vector< TPromise<TSharedRef> > BlockWindow;
 
-    TAsyncSemaphore AsyncSemaphore;
+    NConcurrency::TAsyncSemaphore AsyncSemaphore;
 
     //! Index in #BlockIndexSequence of next block outputted from #TSequentialChunkReader.
     volatile int NextSequenceIndex;

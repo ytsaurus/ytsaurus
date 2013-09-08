@@ -9,6 +9,8 @@
 namespace NYT {
 namespace {
 
+using namespace NConcurrency;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void Coroutine0(TCoroutine<int()>& self)

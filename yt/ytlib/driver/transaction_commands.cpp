@@ -19,6 +19,7 @@ using namespace NYTree;
 using namespace NTransactionClient;
 using namespace NCypressClient;
 using namespace NObjectClient;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 

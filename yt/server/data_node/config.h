@@ -164,16 +164,16 @@ public:
     NChunkClient::TReplicationWriterConfigPtr RepairWriter;
 
     //! Controls incoming bandwidth used by replication jobs.
-    TThroughputThrottlerConfigPtr ReplicationInThrottler;
+    NConcurrency::TThroughputThrottlerConfigPtr ReplicationInThrottler;
 
     //! Controls outcoming bandwidth used by replication jobs.
-    TThroughputThrottlerConfigPtr ReplicationOutThrottler;
+    NConcurrency::TThroughputThrottlerConfigPtr ReplicationOutThrottler;
 
     //! Controls incoming bandwidth used by repair jobs.
-    TThroughputThrottlerConfigPtr RepairInThrottler;
+    NConcurrency::TThroughputThrottlerConfigPtr RepairInThrottler;
 
     //! Controls outcoming bandwidth used by repair jobs.
-    TThroughputThrottlerConfigPtr RepairOutThrottler;
+    NConcurrency::TThroughputThrottlerConfigPtr RepairOutThrottler;
 
     //! Keeps chunk peering information.
     TPeerBlockTableConfigPtr PeerBlockTable;

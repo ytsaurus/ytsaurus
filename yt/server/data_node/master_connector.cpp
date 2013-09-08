@@ -37,6 +37,7 @@ using namespace NNodeTrackerClient::NProto;
 using namespace NJobTrackerClient;
 using namespace NJobTrackerClient::NProto;
 using namespace NCellNode;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 

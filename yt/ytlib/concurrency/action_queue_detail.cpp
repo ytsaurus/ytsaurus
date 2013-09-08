@@ -14,6 +14,7 @@
 #include <util/system/sigset.h>
 
 namespace NYT {
+namespace NConcurrency {
 
 using namespace NYPath;
 using namespace NProfiling;
@@ -91,7 +92,7 @@ EBeginExecuteResult TInvokerQueue::BeginExecute(TEnqueuedAction* action)
     TCurrentInvokerGuard guard(CurrentInvoker);
 
     try {
-	    action->Callback.Run();
+        action->Callback.Run();
     } catch (const TFiberTerminatedException&) {
         // Still consider this a success.
         // This caller is responsible for terminating the current fiber.
@@ -176,14 +177,14 @@ void TExecutorThread::ThreadMain()
     try {
         LOG_DEBUG_IF(EnableLogging, "Thread started (Name: %s)", ~ThreadName);
         OnThreadStart();
-    	CurrentExecutorThread = this;
+        CurrentExecutorThread = this;
 
         NThread::SetCurrentThreadName(~ThreadName);
         ThreadId = NThread::GetCurrentThreadId();
 
         while (Running) {
             // Spawn a new fiber to run the loop.
-            auto fiber = New<TFiber>(BIND(&TExecutorThread::FiberMain, MakeStrong(this)));
+            auto fiber = NYT::New<TFiber>(BIND(&TExecutorThread::FiberMain, MakeStrong(this)));
             fiber->Run();
 
             auto state = fiber->GetState();
@@ -201,7 +202,7 @@ void TExecutorThread::ThreadMain()
             }
         }
 
-	    CurrentExecutorThread = nullptr;
+        CurrentExecutorThread = nullptr;
         OnThreadShutdown();
         LOG_DEBUG_IF(EnableLogging, "Thread stopped (Name: %s)", ~ThreadName);
     } catch (const std::exception& ex) {
@@ -361,4 +362,5 @@ void TSingleQueueExecutorThread::EndExecute()
 
 ///////////////////////////////////////////////////////////////////////////////
 
+} // namespace NConcurrency
 } // namespace NYT

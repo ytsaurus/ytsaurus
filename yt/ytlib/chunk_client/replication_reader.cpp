@@ -35,6 +35,7 @@ using namespace NRpc;
 using namespace NObjectClient;
 using namespace NCypressClient;
 using namespace NNodeTrackerClient;
+using namespace NConcurrency;
 
 using NYT::ToProto;
 using NYT::FromProto;

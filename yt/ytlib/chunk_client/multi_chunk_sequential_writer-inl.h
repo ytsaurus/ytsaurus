@@ -48,7 +48,7 @@ TMultiChunkSequentialWriter<TChunkWriter>::TMultiChunkSequentialWriter(
     , Provider(provider)
     , Progress(0)
     , CompleteChunkSize(0)
-    , CloseChunksAwaiter(New<TParallelAwaiter>(TDispatcher::Get()->GetWriterInvoker()))
+    , CloseChunksAwaiter(New<NConcurrency::TParallelAwaiter>(TDispatcher::Get()->GetWriterInvoker()))
     , Logger(ChunkWriterLogger)
 {
     YCHECK(config);

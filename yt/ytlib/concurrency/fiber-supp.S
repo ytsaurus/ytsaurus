@@ -34,9 +34,9 @@ name:
 #endif
 
 /* void TFiberContext::Trampoline(); */
-#define FIBER_CONTEXT_TRAMPOLINE _ZN3NYT13TFiberContext10TrampolineEv
+#define FIBER_CONTEXT_TRAMPOLINE _ZN3NYT12NConcurrency13TFiberContext10TrampolineEv
 /* void TFiberContext::TransferTo(TFiberContext* previous, TFiberContext* next); */
-#define FIBER_CONTEXT_TRANSFER_TO _ZN3NYT13TFiberContext10TransferToEPS0_S1_
+#define FIBER_CONTEXT_TRANSFER_TO _ZN3NYT12NConcurrency13TFiberContext10TransferToEPS1_S2_
 
 /**
  * x86_64 Calling Convention:

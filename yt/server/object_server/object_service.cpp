@@ -40,6 +40,7 @@ using namespace NTransactionServer;
 using namespace NSecurityClient;
 using namespace NSecurityServer;
 using namespace NCellMaster;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 

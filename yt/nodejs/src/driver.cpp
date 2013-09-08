@@ -35,6 +35,7 @@ COMMON_V8_USES
 using namespace NYTree;
 using namespace NDriver;
 using namespace NFormats;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -29,6 +29,7 @@ using namespace NScheduler;
 using namespace NRpc;
 using namespace NFormats;
 using namespace NTransactionClient;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 

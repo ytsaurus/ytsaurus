@@ -59,6 +59,7 @@ using namespace NChunkServer;
 using namespace NObjectClient;
 using namespace NMetaState;
 using namespace NCellMaster;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -40,7 +40,7 @@ private:
     Stroka ConfigFileName;
     TCellSchedulerConfigPtr Config;
 
-    TFairShareActionQueuePtr ControlQueue;
+    NConcurrency::TFairShareActionQueuePtr ControlQueue;
     NBus::IBusServerPtr BusServer;
     NRpc::IChannelPtr MasterChannel;
     Stroka LocalAddress;

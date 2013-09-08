@@ -17,6 +17,7 @@ namespace NYT {
 namespace NChunkClient {
 
 using namespace NErasure;
+using namespace NConcurrency;
 using namespace NChunkClient::NProto;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -68,7 +69,7 @@ public:
             YCHECK(blockIndex >= 0);
 
             // Searching for the part of given block
-            auto it = upper_bound(PartInfos_.begin(), PartInfos_.end(), blockIndex, TPartComparator());
+            auto it = upper_bound(PartInfos_.begin(), PartInfos_.end(), blockIndex, TPartComparer());
             YCHECK(it != PartInfos_.begin());
             do {
                 --it;
@@ -129,7 +130,7 @@ public:
 private:
     typedef TNonReparingReaderSession TThis;
 
-    struct TPartComparator
+    struct TPartComparer
     {
         bool operator()(int position, const TPartInfo& info) const
         {

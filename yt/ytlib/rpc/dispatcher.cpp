@@ -13,7 +13,7 @@ static const int ThreadPoolSize = 8;
 ////////////////////////////////////////////////////////////////////////////////
 
 TDispatcher::TDispatcher()
-    : ThreadPool(New<TThreadPool>(ThreadPoolSize, "Rpc"))
+    : ThreadPool(New<NConcurrency::TThreadPool>(ThreadPoolSize, "Rpc"))
 { }
 
 TDispatcher* TDispatcher::Get()

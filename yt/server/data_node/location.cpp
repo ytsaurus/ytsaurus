@@ -25,6 +25,7 @@ namespace NDataNode {
 using namespace NChunkClient;
 using namespace NYPath;
 using namespace NCellNode;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 

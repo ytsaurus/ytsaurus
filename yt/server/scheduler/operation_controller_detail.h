@@ -784,7 +784,7 @@ private:
         void OnLocateChunksResponse(NChunkClient::TChunkServiceProxy::TRspLocateChunksPtr rsp);
 
         TOperationControllerBase* Controller;
-        TPeriodicInvokerPtr PeriodicInvoker;
+        NConcurrency::TPeriodicInvokerPtr PeriodicInvoker;
         NChunkClient::TChunkServiceProxy Proxy;
         TInputChunkMap::iterator NextChunkIterator;
         bool Started;

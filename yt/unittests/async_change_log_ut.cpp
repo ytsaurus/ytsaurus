@@ -11,6 +11,8 @@
 namespace NYT {
 namespace NMetaState {
 
+using namespace NConcurrency;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TAsyncChangeLogTest

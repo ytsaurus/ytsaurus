@@ -44,7 +44,7 @@ TMultiChunkReaderBase<TChunkReader>::TMultiChunkReaderBase(
     , ChunkSpecs(chunkSpecs)
     , ReaderProvider(readerProvider)
     , LastPreparedReader(-1)
-    , FetchingCompleteAwaiter(New<TParallelAwaiter>(GetSyncInvoker()))
+    , FetchingCompleteAwaiter(New<NConcurrency::TParallelAwaiter>(GetSyncInvoker()))
     , Logger(ChunkReaderLogger)
 {
     std::vector<i64> chunkDataSizes;

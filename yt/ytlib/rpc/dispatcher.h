@@ -21,7 +21,7 @@ public:
     void Shutdown();
 
 private:
-    TThreadPoolPtr ThreadPool;
+    NConcurrency::TThreadPoolPtr ThreadPool;
 
 };
 
