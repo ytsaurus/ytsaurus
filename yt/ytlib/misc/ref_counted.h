@@ -140,7 +140,7 @@ namespace NDetail {
             AtomicallyIncrement(&StrongCount);
         }
 
-        //! Removes a strong reference to the counter.
+        //! Removes a strong reference from the counter.
         inline void Unref() // noexcept
         {
             YASSERT(StrongCount > 0 && WeakCount > 0);
@@ -167,7 +167,7 @@ namespace NDetail {
             AtomicallyIncrement(&WeakCount);
         }
 
-        //! Removes a weak reference to the counter.
+        //! Removes a weak reference from the counter.
         inline void WeakUnref() // noexcept
         {
             YASSERT(WeakCount > 0);
@@ -176,13 +176,13 @@ namespace NDetail {
             }
         }
 
-        //! Returns current number of strong references.
+        //! Returns the current number of strong references.
         int GetRefCount() const // noexcept
         {
             return AtomicallyFetch(&StrongCount);
         }
 
-        //! Returns current number of weak references.
+        //! Returns the current number of weak references.
         int GetWeakRefCount() const // noexcept
         {
             return AtomicallyFetch(&WeakCount);
