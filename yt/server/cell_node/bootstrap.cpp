@@ -145,7 +145,7 @@ void TBootstrap::Run()
         BIND(&TRefCountedTracker::GetMonitoringInfo, TRefCountedTracker::Get()));
 
     auto jobToMasterChannel = CreateThrottlingChannel(
-        Config->JobToMasterChannel,
+        Config->JobsToMasterChannel,
         MasterChannel);
     RpcServer->RegisterService(CreateRedirectorService(
         NObjectClient::TObjectServiceProxy::GetServiceName(),
