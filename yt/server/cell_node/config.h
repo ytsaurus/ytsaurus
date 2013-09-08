@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <ytlib/rpc/config.h>
+
 #include <server/misc/config.h>
 
 #include <server/exec_agent/config.h>
@@ -30,6 +32,9 @@ public:
     //! Exec node configuration part.
     NExecAgent::TExecAgentConfigPtr ExecAgent;
 
+    //! Throttling configuration for jobs-to-master communication.
+    NRpc::TThrottlingChannelConfigPtr JobsToMasterChannel;
+
     TCellNodeConfig()
     {
         RegisterParameter("rpc_port", RpcPort)
@@ -41,6 +46,8 @@ public:
         RegisterParameter("data_node", DataNode)
             .DefaultNew();
         RegisterParameter("exec_agent", ExecAgent)
+            .DefaultNew();
+        RegisterParameter("jobs_to_master_channel", JobsToMasterChannel)
             .DefaultNew();
 
         SetKeepOptions(true);
