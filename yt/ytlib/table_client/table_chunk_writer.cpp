@@ -28,7 +28,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = TableWriterLogger;
+static auto& Logger = TableWriterLogger;
 
 static const int RangeColumnIndex = -1;
 

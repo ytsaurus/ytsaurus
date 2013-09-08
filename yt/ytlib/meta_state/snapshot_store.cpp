@@ -16,7 +16,7 @@ namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = MetaStateLogger;
+static auto& Logger = MetaStateLogger;
 
 static const char* const SnapshotExtension = "snapshot";
 

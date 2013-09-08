@@ -15,7 +15,7 @@ namespace NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = BusLogger;
+static auto& Logger = BusLogger;
 static auto& Profiler = BusProfiler;
 static const int ThreadCount = 8;
 

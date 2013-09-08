@@ -29,7 +29,7 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = DataNodeLogger;
+static auto& Logger = DataNodeLogger;
 
 static const int Permissions = 0751;
 

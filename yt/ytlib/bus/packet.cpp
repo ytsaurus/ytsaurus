@@ -9,7 +9,7 @@ namespace NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = BusLogger;
+static auto& Logger = BusLogger;
 
 static const size_t SmallChunkSize = 16 * 1024;
 static const size_t SmallPartSize  =  4 * 1024;

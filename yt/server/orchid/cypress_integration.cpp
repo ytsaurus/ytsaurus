@@ -39,7 +39,7 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = OrchidLogger;
+static auto& Logger = OrchidLogger;
 
 static TChannelCache ChannelCache;
 static TLazyIntrusivePtr<TActionQueue> OrchidQueue(TActionQueue::CreateFactory("Orchid"));

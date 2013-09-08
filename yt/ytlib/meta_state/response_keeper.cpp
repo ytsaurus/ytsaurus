@@ -9,7 +9,7 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = MetaStateLogger;
+static auto& Logger = MetaStateLogger;
 static auto& Profiler = MetaStateProfiler;
 
 static NProfiling::TAggregateCounter CountCounter("/kept_response_count");

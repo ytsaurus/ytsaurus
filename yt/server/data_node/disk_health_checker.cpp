@@ -14,7 +14,7 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = DataNodeLogger;
+static auto& Logger = DataNodeLogger;
 static auto& Profiler = DataNodeProfiler;
 
 static const char* TestFileName = "health_check~";

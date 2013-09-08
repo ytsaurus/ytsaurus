@@ -23,7 +23,7 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = MetaStateLogger;
+static auto& Logger = MetaStateLogger;
 
 static NRpc::TChannelCache ChannelCache;
 

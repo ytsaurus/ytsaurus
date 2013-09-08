@@ -32,7 +32,7 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = JobProxyLogger;
+static auto& Logger = JobProxyLogger;
 static auto& Profiler = JobProxyProfiler;
 
 static const int SortBucketSize = 10000;
