@@ -116,9 +116,9 @@ public:
         return ReadRowCount;
     }
 
-    virtual std::vector<NChunkClient::TChunkId> GetFailedChunks() const override
+    virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override
     {
-        return Reader->GetFailedChunks();
+        return Reader->GetFailedChunkIds();
     }
 
     virtual const TNullable<int>& GetTableIndex() const override

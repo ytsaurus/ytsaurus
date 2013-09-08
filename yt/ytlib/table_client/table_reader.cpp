@@ -161,9 +161,9 @@ i64 TAsyncTableReader::GetTableRowIndex() const
     return Reader->GetFacade()->GetTableRowIndex();
 }
 
-std::vector<NChunkClient::TChunkId> TAsyncTableReader::GetFailedChunks() const
+std::vector<NChunkClient::TChunkId> TAsyncTableReader::GetFailedChunkIds() const
 {
-    return Reader->GetFailedChunks();
+    return Reader->GetFailedChunkIds();
 }
 
 const TNullable<int>& TAsyncTableReader::GetTableIndex() const
@@ -217,9 +217,9 @@ i64 TTableReader::GetTableRowIndex() const
     return AsyncReader_->GetTableRowIndex();
 }
 
-std::vector<NChunkClient::TChunkId> TTableReader::GetFailedChunks() const
+std::vector<NChunkClient::TChunkId> TTableReader::GetFailedChunkIds() const
 {
-    return AsyncReader_->GetFailedChunks();
+    return AsyncReader_->GetFailedChunkIds();
 }
 
 const TNullable<int>& TTableReader::GetTableIndex() const

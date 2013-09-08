@@ -216,7 +216,7 @@ void TMultiChunkReaderBase<TChunkReader>::AddFailedChunk(const TSession& session
 }
 
 template <class TChunkReader>
-std::vector<NChunkClient::TChunkId> TMultiChunkReaderBase<TChunkReader>::GetFailedChunks() const
+std::vector<NChunkClient::TChunkId> TMultiChunkReaderBase<TChunkReader>::GetFailedChunkIds() const
 {
     TGuard<TSpinLock> guard(FailedChunksLock);
     return FailedChunks;

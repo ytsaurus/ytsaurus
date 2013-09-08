@@ -167,9 +167,9 @@ public:
         }
     }
 
-    std::vector<NChunkClient::TChunkId> GetFailedChunks() const override
+    std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override
     {
-        return Reader->GetFailedChunks();
+        return Reader->GetFailedChunkIds();
     }
 
 private:

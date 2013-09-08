@@ -147,9 +147,9 @@ public:
         return IsInitCompleted ? JobIO->GetProgress() : 0;
     }
 
-    virtual std::vector<NChunkClient::TChunkId> GetFailedChunks() const override
+    virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override
     {
-        return JobIO->GetFailedChunks();
+        return JobIO->GetFailedChunkIds();
     }
 
 private:
