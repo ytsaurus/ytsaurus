@@ -100,7 +100,7 @@ public:
             "U have to be convertible to T");
 
         TResultHandlers handlers;
-
+        Event* event;
         {
             TGuard<TSpinLock> guard(SpinLock_);
 
@@ -110,18 +110,18 @@ public:
             YASSERT(!Value_);
             Value_.Assign(std::forward<U>(value));
 
-            auto* event = ~ReadyEvent_;
-            if (event) {
-                event->Signal();
-            }
+            event = ~ReadyEvent_;
 
             ResultHandlers_.swap(handlers);
             CancelHandlers_.clear();
         }
 
-        const T& storedValue = Value_.Get();
+        if (event) {
+            event->Signal();
+        }
+
         FOREACH (const auto& handler, handlers) {
-            handler.Run(storedValue);
+            handler.Run(*Value_);
         }
     }
 
