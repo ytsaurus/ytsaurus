@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/rpc/retrying_channel.h>
+#include <ytlib/rpc/config.h>
 
 #include <ytlib/ypath/rich.h>
 
