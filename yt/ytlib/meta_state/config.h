@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <ytlib/election/config.h>
-
 #include <ytlib/ytree/yson_serializable.h>
 
-#include <ytlib/rpc/retrying_channel.h>
+#include <ytlib/election/config.h>
+
+#include <ytlib/rpc/config.h>
 
 namespace NYT {
 namespace NMetaState {
