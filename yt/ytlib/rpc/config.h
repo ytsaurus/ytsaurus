@@ -59,6 +59,21 @@ public:
     }
 };
 
+class TThrottlingChannelConfig
+    : public TYsonSerializable
+{
+public:
+    //! Maximum allowed number of requests per second.
+    int RateLimit;
+
+    TThrottlingChannelConfig()
+    {
+        RegisterParameter("rate_limit", RateLimit)
+            .GreaterThan(0)
+            .Default(10);
+    }
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NRpc
