@@ -3,7 +3,7 @@
 #endif
 #undef MEMORY_USAGE_TRACKER_INL_H_
 
-#include <ytlib/misc/string.h>
+#include <core/misc/string.h>
 
 namespace NYT {
 

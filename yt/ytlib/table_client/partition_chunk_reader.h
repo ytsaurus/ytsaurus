@@ -8,11 +8,11 @@
 #include <ytlib/chunk_client/async_reader.h>
 #include <ytlib/chunk_client/data_statistics.h>
 
-#include <ytlib/misc/async_stream_state.h>
+#include <core/misc/async_stream_state.h>
 
-#include <ytlib/compression/public.h>
+#include <core/compression/public.h>
 
-#include <ytlib/logging/tagged_logger.h>
+#include <core/logging/tagged_logger.h>
 
 namespace NYT {
 namespace NTableClient {

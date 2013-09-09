@@ -3,7 +3,7 @@
 #include "public.h"
 #include "job.h"
 
-#include <ytlib/actions/signal.h>
+#include <core/actions/signal.h>
 
 #include <ytlib/job_tracker_client/job_tracker_service.pb.h>
 

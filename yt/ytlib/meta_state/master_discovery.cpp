@@ -3,15 +3,15 @@
 #include "config.h"
 #include "private.h"
 
-#include <ytlib/misc/serialize.h>
+#include <core/misc/serialize.h>
 
-#include <ytlib/concurrency/thread_affinity.h>
+#include <core/concurrency/thread_affinity.h>
 
-#include <ytlib/ytree/ypath_client.h>
+#include <core/ytree/ypath_client.h>
 
-#include <ytlib/rpc/channel_cache.h>
+#include <core/rpc/channel_cache.h>
 
-#include <ytlib/logging/log.h>
+#include <core/logging/log.h>
 
 #include <util/random/random.h>
 

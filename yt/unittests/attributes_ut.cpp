@@ -1,8 +1,8 @@
 #include "stdafx.h"
 
-#include <ytlib/ytree/attributes.h>
-#include <ytlib/ytree/convert.h>
-#include <ytlib/ytree/yson_string.h>
+#include <core/ytree/attributes.h>
+#include <core/ytree/convert.h>
+#include <core/ytree/yson_string.h>
 
 #include <contrib/testing/framework.h>
 

@@ -3,7 +3,7 @@
 #include "public.h"
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/key.h>
-#include <ytlib/ytree/public.h>
+#include <core/ytree/public.h>
 
 namespace NYT {
 namespace NJobProxy {

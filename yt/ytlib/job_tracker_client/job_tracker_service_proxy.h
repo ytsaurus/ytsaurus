@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/rpc/client.h>
+#include <core/rpc/client.h>
 
 #include <ytlib/job_tracker_client/job_tracker_service.pb.h>
 

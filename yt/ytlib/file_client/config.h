@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <ytlib/misc/error.h>
+#include <core/misc/error.h>
 
-#include <ytlib/ytree/yson_serializable.h>
+#include <core/ytree/yson_serializable.h>
 
-#include <ytlib/compression/public.h>
+#include <core/compression/public.h>
 
 #include <ytlib/chunk_client/config.h>
 

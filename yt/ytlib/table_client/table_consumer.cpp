@@ -3,7 +3,7 @@
 #include "table_consumer.h"
 #include "config.h"
 
-#include <ytlib/misc/string.h>
+#include <core/misc/string.h>
 
 namespace NYT {
 namespace NTableClient {

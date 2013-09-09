@@ -4,7 +4,7 @@
 
 #include <ytlib/meta_state/meta_state_manager.pb.h>
 
-#include <ytlib/rpc/client.h>
+#include <core/rpc/client.h>
 
 namespace NYT {
 namespace NMetaState {

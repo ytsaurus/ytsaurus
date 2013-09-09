@@ -3,11 +3,11 @@
 #include "private.h"
 #include "meta_version.h"
 
-#include <ytlib/misc/ref.h>
+#include <core/misc/ref.h>
 
-#include <ytlib/concurrency/thread_affinity.h>
+#include <core/concurrency/thread_affinity.h>
 
-#include <ytlib/actions/invoker.h>
+#include <core/actions/invoker.h>
 
 namespace NYT {
 namespace NMetaState {

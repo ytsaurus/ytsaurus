@@ -12,7 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "stdafx.h"
-#include <ytlib/misc/small_vector.h>
+#include <core/misc/small_vector.h>
 
 #include <stdarg.h>
 #include <list>

@@ -2,7 +2,7 @@
 
 #include "sync_reader.h"
 
-#include <ytlib/misc/sync.h>
+#include <core/misc/sync.h>
 
 namespace NYT {
 namespace NTableClient {

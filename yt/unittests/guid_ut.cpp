@@ -1,7 +1,7 @@
 #include "stdafx.h"
 
-#include <ytlib/misc/guid.h>
-#include <ytlib/misc/protobuf_helpers.h>
+#include <core/misc/guid.h>
+#include <core/misc/protobuf_helpers.h>
 
 #include <contrib/testing/framework.h>
 

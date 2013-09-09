@@ -2,7 +2,7 @@
 
 #include "executor.h"
 
-#include <ytlib/ytree/permission.h>
+#include <core/ytree/permission.h>
 
 namespace NYT {
 namespace NDriver {

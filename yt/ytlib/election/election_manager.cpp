@@ -5,17 +5,17 @@
 #include "cell_manager.h"
 #include "private.h"
 
-#include <ytlib/concurrency/delayed_invoker.h>
-#include <ytlib/concurrency/thread_affinity.h>
+#include <core/concurrency/delayed_invoker.h>
+#include <core/concurrency/thread_affinity.h>
 
-#include <ytlib/concurrency/parallel_awaiter.h>
+#include <core/concurrency/parallel_awaiter.h>
 
-#include <ytlib/ytree/fluent.h>
+#include <core/ytree/fluent.h>
 
-#include <ytlib/rpc/service_detail.h>
-#include <ytlib/rpc/server.h>
+#include <core/rpc/service_detail.h>
+#include <core/rpc/server.h>
 
-#include <ytlib/logging/tagged_logger.h>
+#include <core/logging/tagged_logger.h>
 
 namespace NYT {
 namespace NElection {

@@ -3,10 +3,10 @@
 #include "public.h"
 
 // TODO(babenko): replace with public.h
-#include <ytlib/actions/bind.h>
-#include <ytlib/actions/invoker.h>
+#include <core/actions/bind.h>
+#include <core/actions/invoker.h>
 
-#include <ytlib/concurrency/periodic_invoker.h>
+#include <core/concurrency/periodic_invoker.h>
 
 #include <ytlib/chunk_client/data_node_service_proxy.h>
 

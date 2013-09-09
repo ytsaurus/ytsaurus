@@ -3,13 +3,14 @@
 #include "scheduler.h"
 #include "private.h"
 
-#include <ytlib/rpc/service_detail.h>
-
-#include <ytlib/security_client/rpc_helpers.h>
+#include <core/rpc/service_detail.h>
+#include <core/rpc/helpers.h>
 
 #include <ytlib/scheduler/scheduler_service_proxy.h>
 
 #include <ytlib/meta_state/rpc_helpers.h>
+
+#include <ytlib/security_client/public.h>
 
 #include <server/cell_scheduler/bootstrap.h>
 
@@ -19,9 +20,9 @@ namespace NScheduler {
 using namespace NRpc;
 using namespace NCellScheduler;
 using namespace NTransactionClient;
-using namespace NSecurityClient;
 using namespace NYTree;
 using namespace NMetaState;
+using namespace NSecurityClient;
 
 ////////////////////////////////////////////////////////////////////
 

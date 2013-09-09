@@ -1,8 +1,8 @@
 #include "preprocess.h"
 
-#include <ytlib/misc/foreach.h>
+#include <core/misc/foreach.h>
 
-#include <ytlib/ypath/tokenizer.h>
+#include <core/ypath/tokenizer.h>
 
 namespace NYT {
 namespace NDriver {

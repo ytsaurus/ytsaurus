@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <ytlib/ytree/node.h>
-#include <ytlib/misc/error.h>
-#include <ytlib/actions/signal.h>
+#include <core/ytree/node.h>
+#include <core/misc/error.h>
+#include <core/actions/signal.h>
 
 namespace NYT {
 namespace NExecAgent {

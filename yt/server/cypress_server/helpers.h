@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/ytree/yson_string.h>
+#include <core/ytree/yson_string.h>
 
 #include <server/transaction_server/public.h>
 

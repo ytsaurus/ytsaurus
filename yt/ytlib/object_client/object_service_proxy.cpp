@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "object_service_proxy.h"
 
-#include <ytlib/rpc/message.h>
+#include <core/rpc/message.h>
 
 namespace NYT {
 namespace NObjectClient {

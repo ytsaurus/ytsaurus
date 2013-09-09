@@ -13,20 +13,20 @@
 #include "private.h"
 #include "snapshot_downloader.h"
 
-#include <ytlib/concurrency/thread_affinity.h>
-#include <ytlib/concurrency/periodic_invoker.h>
+#include <core/concurrency/thread_affinity.h>
+#include <core/concurrency/periodic_invoker.h>
 
-#include <ytlib/misc/string.h>
+#include <core/misc/string.h>
 
-#include <ytlib/actions/invoker_util.h>
+#include <core/actions/invoker_util.h>
 
-#include <ytlib/concurrency/action_queue.h>
-#include <ytlib/concurrency/parallel_awaiter.h>
-#include <ytlib/concurrency/fiber.h>
+#include <core/concurrency/action_queue.h>
+#include <core/concurrency/parallel_awaiter.h>
+#include <core/concurrency/fiber.h>
 
-#include <ytlib/rpc/dispatcher.h>
+#include <core/rpc/dispatcher.h>
 
-#include <ytlib/logging/tagged_logger.h>
+#include <core/logging/tagged_logger.h>
 
 #include <ytlib/transaction_client/transaction_manager.h>
 #include <ytlib/transaction_client/transaction.h>
@@ -44,8 +44,8 @@
 
 #include <ytlib/scheduler/helpers.h>
 
-#include <ytlib/ytree/ypath_proxy.h>
-#include <ytlib/ytree/fluent.h>
+#include <core/ytree/ypath_proxy.h>
+#include <core/ytree/fluent.h>
 
 #include <ytlib/meta_state/public.h>
 #include <ytlib/meta_state/rpc_helpers.h>

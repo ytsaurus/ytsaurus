@@ -2,8 +2,8 @@
 
 #include "public.h"
 
-#include <ytlib/misc/property.h>
-#include <ytlib/misc/error.h>
+#include <core/misc/property.h>
+#include <core/misc/error.h>
 
 #include <ytlib/job_tracker_client/job.pb.h>
 

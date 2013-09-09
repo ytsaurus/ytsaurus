@@ -13,11 +13,11 @@
 #include "node_directory_builder.h"
 #include "private.h"
 
-#include <ytlib/misc/string.h>
+#include <core/misc/string.h>
 
-#include <ytlib/compression/codec.h>
+#include <core/compression/codec.h>
 
-#include <ytlib/erasure/codec.h>
+#include <core/erasure/codec.h>
 
 #include <ytlib/chunk_client/chunk_ypath.pb.h>
 #include <ytlib/chunk_client/chunk_list_ypath.pb.h>
@@ -31,9 +31,9 @@
 #include <ytlib/meta_state/composite_meta_state.h>
 #include <ytlib/meta_state/map.h>
 
-#include <ytlib/logging/log.h>
+#include <core/logging/log.h>
 
-#include <ytlib/profiling/profiler.h>
+#include <core/profiling/profiler.h>
 
 #include <server/chunk_server/chunk_manager.pb.h>
 

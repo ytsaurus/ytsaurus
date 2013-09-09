@@ -4,7 +4,7 @@
 #include "private.h"
 #include "snapshot.h"
 
-#include <ytlib/misc/error.h>
+#include <core/misc/error.h>
 
 namespace NYT {
 namespace NMetaState {

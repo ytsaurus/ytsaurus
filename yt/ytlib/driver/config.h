@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/ytree/yson_serializable.h>
+#include <core/ytree/yson_serializable.h>
 
 #include <ytlib/meta_state/config.h>
 
@@ -12,7 +12,7 @@
 
 #include <ytlib/table_client/config.h>
 
-#include <ytlib/rpc/retrying_channel.h>
+#include <core/rpc/retrying_channel.h>
 
 #include <ytlib/scheduler/config.h>
 

@@ -5,11 +5,11 @@
 #include "async_writer.h"
 #include "chunk_meta_extensions.h"
 
-#include <ytlib/concurrency/fiber.h>
-#include <ytlib/concurrency/parallel_awaiter.h>
-#include <ytlib/concurrency/parallel_collector.h>
+#include <core/concurrency/fiber.h>
+#include <core/concurrency/parallel_awaiter.h>
+#include <core/concurrency/parallel_collector.h>
 
-#include <ytlib/erasure/codec.h>
+#include <core/erasure/codec.h>
 
 namespace NYT {
 namespace NChunkClient {

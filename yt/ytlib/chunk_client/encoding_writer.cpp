@@ -5,7 +5,7 @@
 #include "dispatcher.h"
 #include "async_writer.h"
 
-#include <ytlib/compression/codec.h>
+#include <core/compression/codec.h>
 
 namespace NYT {
 namespace NChunkClient {

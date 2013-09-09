@@ -2,14 +2,14 @@
 
 #include "public.h"
 
-#include <ytlib/misc/small_vector.h>
-#include <ytlib/misc/property.h>
-#include <ytlib/misc/foreach.h>
-#include <ytlib/misc/string.h>
-#include <ytlib/misc/nullable.h>
-#include <ytlib/misc/blob_output.h>
+#include <core/misc/small_vector.h>
+#include <core/misc/property.h>
+#include <core/misc/foreach.h>
+#include <core/misc/string.h>
+#include <core/misc/nullable.h>
+#include <core/misc/blob_output.h>
 
-#include <ytlib/yson/lexer.h>
+#include <core/yson/lexer.h>
 
 #include <ytlib/chunk_client/chunk_spec.pb.h>
 

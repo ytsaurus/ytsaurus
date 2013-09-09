@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ytlib/misc/mpl.h>
+#include <core/misc/mpl.h>
 
 namespace NYT {
 namespace NNodeJS {

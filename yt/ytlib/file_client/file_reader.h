@@ -12,7 +12,7 @@
 #include <ytlib/transaction_client/public.h>
 #include <ytlib/transaction_client/transaction_listener.h>
 
-#include <ytlib/logging/tagged_logger.h>
+#include <core/logging/tagged_logger.h>
 
 namespace NYT {
 namespace NFileClient {

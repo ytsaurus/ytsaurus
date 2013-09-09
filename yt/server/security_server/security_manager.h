@@ -5,7 +5,7 @@
 
 #include <ytlib/meta_state/map.h>
 
-#include <ytlib/rpc/service.h>
+#include <core/rpc/service.h>
 
 #include <server/cell_master/public.h>
 

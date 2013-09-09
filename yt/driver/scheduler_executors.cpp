@@ -4,10 +4,10 @@
 
 #include <server/job_proxy/config.h>
 #include <ytlib/driver/driver.h>
-#include <ytlib/ytree/ypath_proxy.h>
+#include <core/ytree/ypath_proxy.h>
 #include <ytlib/scheduler/scheduler_service_proxy.h>
 #include <ytlib/scheduler/helpers.h>
-#include <ytlib/logging/log_manager.h>
+#include <core/logging/log_manager.h>
 #include <ytlib/object_client/object_service_proxy.h>
 
 #include <util/stream/format.h>

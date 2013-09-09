@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "node_directory_builder.h"
 
-#include <ytlib/misc/foreach.h>
+#include <core/misc/foreach.h>
 
 #include <server/node_tracker_server/node.h>
 

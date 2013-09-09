@@ -2,12 +2,12 @@
 #include "schema.h"
 #include "key.h"
 
-#include <ytlib/misc/error.h>
-#include <ytlib/misc/foreach.h>
+#include <core/misc/error.h>
+#include <core/misc/foreach.h>
 
-#include <ytlib/ytree/node.h>
-#include <ytlib/ytree/convert.h>
-#include <ytlib/ytree/fluent.h>
+#include <core/ytree/node.h>
+#include <core/ytree/convert.h>
+#include <core/ytree/fluent.h>
 
 namespace NYT {
 namespace NChunkClient {

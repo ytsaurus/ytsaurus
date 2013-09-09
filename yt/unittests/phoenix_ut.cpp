@@ -1,7 +1,7 @@
 #include "stdafx.h"
 
-#include <ytlib/misc/phoenix.h>
-#include <ytlib/misc/blob_output.h>
+#include <core/misc/phoenix.h>
+#include <core/misc/blob_output.h>
 
 #include <contrib/testing/framework.h>
 

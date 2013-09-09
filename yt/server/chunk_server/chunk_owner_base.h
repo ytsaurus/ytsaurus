@@ -8,7 +8,7 @@
 #include <server/cypress_server/public.h>
 #include <server/cypress_server/node.h>
 
-#include <ytlib/misc/property.h>
+#include <core/misc/property.h>
 
 namespace NYT {
 namespace NChunkServer {

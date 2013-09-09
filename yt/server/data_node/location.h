@@ -2,12 +2,12 @@
 
 #include "public.h"
 
-#include <ytlib/concurrency/action_queue.h>
-#include <ytlib/actions/signal.h>
+#include <core/concurrency/action_queue.h>
+#include <core/actions/signal.h>
 
-#include <ytlib/logging/tagged_logger.h>
+#include <core/logging/tagged_logger.h>
 
-#include <ytlib/profiling/profiler.h>
+#include <core/profiling/profiler.h>
 
 #include <server/cell_node/public.h>
 

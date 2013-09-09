@@ -7,7 +7,7 @@
 #include "master_connector.h"
 
 #include <ytlib/chunk_client/data_node_service_proxy.h>
-#include <ytlib/misc/fs.h>
+#include <core/misc/fs.h>
 
 #include <server/cell_node/bootstrap.h>
 

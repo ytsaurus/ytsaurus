@@ -1,8 +1,8 @@
 #include "stdafx.h"
 
-#include <ytlib/misc/common.h>
+#include <core/misc/common.h>
 
-#include <ytlib/concurrency/coroutine.h>
+#include <core/concurrency/coroutine.h>
 
 #include <contrib/testing/framework.h>
 

@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <ytlib/misc/error.h>
+#include <core/misc/error.h>
 
-#include <ytlib/concurrency/periodic_invoker.h>
+#include <core/concurrency/periodic_invoker.h>
 
-#include <ytlib/logging/log.h>
+#include <core/logging/log.h>
 
 namespace NYT {
 

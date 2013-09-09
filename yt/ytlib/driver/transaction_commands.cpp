@@ -1,10 +1,10 @@
 #include "stdafx.h"
 #include "transaction_commands.h"
 
-#include <ytlib/concurrency/fiber.h>
+#include <core/concurrency/fiber.h>
 
-#include <ytlib/ytree/fluent.h>
-#include <ytlib/ytree/attribute_helpers.h>
+#include <core/ytree/fluent.h>
+#include <core/ytree/attribute_helpers.h>
 
 #include <ytlib/transaction_client/transaction_ypath_proxy.h>
 

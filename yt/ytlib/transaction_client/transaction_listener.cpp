@@ -2,7 +2,7 @@
 #include "transaction_listener.h"
 #include "transaction.h"
 
-#include <ytlib/misc/error.h>
+#include <core/misc/error.h>
 
 namespace NYT {
 namespace NTransactionClient {

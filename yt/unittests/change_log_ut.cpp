@@ -1,7 +1,7 @@
 #include "stdafx.h"
 
 #include <ytlib/meta_state/change_log.h>
-#include <ytlib/profiling/scoped_timer.h>
+#include <core/profiling/scoped_timer.h>
 
 #include <util/random/random.h>
 #include <util/system/tempfile.h>

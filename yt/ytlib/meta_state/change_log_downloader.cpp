@@ -5,11 +5,11 @@
 #include "meta_version.h"
 #include "private.h"
 
-#include <ytlib/ytree/ypath_client.h>
+#include <core/ytree/ypath_client.h>
 
 #include <ytlib/election/cell_manager.h>
 
-#include <ytlib/profiling/profiler.h>
+#include <core/profiling/profiler.h>
 
 namespace NYT {
 namespace NMetaState {

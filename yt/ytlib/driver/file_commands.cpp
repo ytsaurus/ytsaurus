@@ -3,7 +3,7 @@
 #include "config.h"
 #include "driver.h"
 
-#include <ytlib/concurrency/fiber.h>
+#include <core/concurrency/fiber.h>
 
 #include <ytlib/file_client/file_reader.h>
 #include <ytlib/file_client/file_writer.h>

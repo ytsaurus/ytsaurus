@@ -3,13 +3,13 @@
 #include "transaction.h"
 #include "private.h"
 
-#include <ytlib/misc/string.h>
+#include <core/misc/string.h>
 
 #include <ytlib/transaction_client/transaction_ypath_proxy.h>
 
-#include <ytlib/ytree/ephemeral_node_factory.h>
-#include <ytlib/ytree/fluent.h>
-#include <ytlib/ytree/attributes.h>
+#include <core/ytree/ephemeral_node_factory.h>
+#include <core/ytree/fluent.h>
+#include <core/ytree/attributes.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
 

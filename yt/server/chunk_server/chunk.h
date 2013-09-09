@@ -4,15 +4,15 @@
 #include "chunk_tree.h"
 #include "chunk_replica.h"
 
-#include <ytlib/misc/property.h>
-#include <ytlib/misc/small_vector.h>
-#include <ytlib/misc/ref_tracked.h>
+#include <core/misc/property.h>
+#include <core/misc/small_vector.h>
+#include <core/misc/ref_tracked.h>
 
 #include <ytlib/chunk_client/chunk.pb.h>
 
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 
-#include <ytlib/erasure/public.h>
+#include <core/erasure/public.h>
 
 #include <server/cell_master/public.h>
 

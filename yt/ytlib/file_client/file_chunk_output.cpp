@@ -4,11 +4,11 @@
 #include "private.h"
 #include "config.h"
 
-#include <ytlib/misc/sync.h>
-#include <ytlib/misc/address.h>
-#include <ytlib/misc/protobuf_helpers.h>
+#include <core/misc/sync.h>
+#include <core/misc/address.h>
+#include <core/misc/protobuf_helpers.h>
 
-#include <ytlib/compression/codec.h>
+#include <core/compression/codec.h>
 
 #include <ytlib/chunk_client/chunk_ypath_proxy.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>

@@ -1,12 +1,13 @@
 #include "stdafx.h"
 #include "etc_commands.h"
 
-#include <ytlib/concurrency/fiber.h>
+#include <core/concurrency/fiber.h>
+
+#include <core/ypath/token.h>
+
+#include <core/ytree/convert.h>
 
 #include <ytlib/ypath/rich.h>
-#include <ytlib/ypath/token.h>
-
-#include <ytlib/ytree/convert.h>
 
 #include <ytlib/security_client/group_ypath_proxy.h>
 
@@ -16,7 +17,7 @@
 
 #include <ytlib/meta_state/rpc_helpers.h>
 
-#include <ytlib/ytree/fluent.h>
+#include <core/ytree/fluent.h>
 
 namespace NYT {
 namespace NDriver {

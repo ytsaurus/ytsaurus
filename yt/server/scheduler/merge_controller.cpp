@@ -9,9 +9,9 @@
 #include "chunk_splits_fetcher.h"
 #include "chunk_info_collector.h"
 
-#include <ytlib/concurrency/fiber.h>
+#include <core/concurrency/fiber.h>
 
-#include <ytlib/ytree/fluent.h>
+#include <core/ytree/fluent.h>
 
 #include <ytlib/transaction_client/transaction.h>
 

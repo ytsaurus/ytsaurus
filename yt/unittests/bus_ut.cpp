@@ -1,13 +1,13 @@
 #include "stdafx.h"
 
-#include <ytlib/bus/bus.h>
-#include <ytlib/bus/config.h>
-#include <ytlib/bus/message.h>
-#include <ytlib/bus/server.h>
-#include <ytlib/bus/client.h>
-#include <ytlib/bus/tcp_server.h>
-#include <ytlib/bus/tcp_client.h>
-#include <ytlib/misc/singleton.h>
+#include <core/bus/bus.h>
+#include <core/bus/config.h>
+#include <core/bus/message.h>
+#include <core/bus/server.h>
+#include <core/bus/client.h>
+#include <core/bus/tcp_server.h>
+#include <core/bus/tcp_client.h>
+#include <core/misc/singleton.h>
 
 #include <contrib/testing/framework.h>
 

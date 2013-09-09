@@ -2,7 +2,7 @@
 #include "config.h"
 #include "private.h"
 
-#include <ytlib/misc/fs.h>
+#include <core/misc/fs.h>
 
 #include <ytlib/node_tracker_client/helpers.h>
 

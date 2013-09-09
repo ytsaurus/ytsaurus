@@ -5,7 +5,7 @@
 #include "change_log.h"
 #include "config.h"
 
-#include <ytlib/misc/fs.h>
+#include <core/misc/fs.h>
 
 #include <util/folder/dirut.h>
 

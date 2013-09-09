@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <ytlib/misc/nullable.h>
-#include <ytlib/misc/property.h>
-#include <ytlib/misc/ref_tracked.h>
+#include <core/misc/nullable.h>
+#include <core/misc/property.h>
+#include <core/misc/ref_tracked.h>
 
-#include <ytlib/actions/signal.h>
+#include <core/actions/signal.h>
 
 #include <server/object_server/object_detail.h>
 

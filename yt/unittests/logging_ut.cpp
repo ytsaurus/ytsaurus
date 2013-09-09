@@ -1,7 +1,7 @@
 #include "stdafx.h"
 
-#include <yt/ytlib/logging/log.h>
-#include <yt/ytlib/logging/log_manager.h>
+#include <yt/core/logging/log.h>
+#include <yt/core/logging/log_manager.h>
 
 #include <contrib/testing/framework.h>
 

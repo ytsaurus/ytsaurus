@@ -4,8 +4,8 @@
 #include "chunk.h"
 #include "chunk_list.h"
 
-#include <ytlib/ytree/virtual.h>
-#include <ytlib/ytree/fluent.h>
+#include <core/ytree/virtual.h>
+#include <core/ytree/fluent.h>
 
 #include <server/cypress_server/virtual.h>
 #include <server/cypress_server/node_proxy_detail.h>

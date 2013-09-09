@@ -10,17 +10,17 @@
 
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 
-#include <ytlib/compression/public.h>
+#include <core/compression/public.h>
 
-#include <ytlib/misc/blob_output.h>
-#include <ytlib/misc/async_stream_state.h>
+#include <core/misc/blob_output.h>
+#include <core/misc/async_stream_state.h>
 
-#include <ytlib/concurrency/thread_affinity.h>
+#include <core/concurrency/thread_affinity.h>
 
-#include <ytlib/ytree/public.h>
-#include <ytlib/ytree/yson_string.h>
+#include <core/ytree/public.h>
+#include <core/ytree/yson_string.h>
 
-#include <ytlib/yson/lexer.h>
+#include <core/yson/lexer.h>
 
 namespace NYT {
 namespace NTableClient {

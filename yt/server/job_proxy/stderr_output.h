@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <ytlib/misc/nullable.h>
+#include <core/misc/nullable.h>
 
-#include <ytlib/rpc/public.h>
+#include <core/rpc/public.h>
 
 #include <ytlib/file_client/public.h>
 

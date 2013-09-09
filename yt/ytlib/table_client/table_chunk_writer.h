@@ -11,11 +11,11 @@
 #include <ytlib/chunk_client/key.h>
 #include <ytlib/chunk_client/chunk.pb.h>
 
-#include <ytlib/concurrency/thread_affinity.h>
+#include <core/concurrency/thread_affinity.h>
 
-#include <ytlib/misc/blob_output.h>
+#include <core/misc/blob_output.h>
 
-#include <ytlib/compression/public.h>
+#include <core/compression/public.h>
 
 #include <ytlib/chunk_client/chunk_ypath_proxy.h>
 

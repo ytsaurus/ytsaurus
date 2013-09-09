@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-#include <ytlib/formats/yamr_writer.h>
+#include <core/formats/yamr_writer.h>
 
 #include <contrib/testing/framework.h>
 

@@ -1,10 +1,10 @@
 #include "stdafx.h"
 #include "cypress_ypath_proxy.h"
 
-#include <ytlib/ytree/attribute_helpers.h>
+#include <core/ytree/attribute_helpers.h>
 
-#include <ytlib/rpc/client.h>
-#include <ytlib/rpc/service.h>
+#include <core/rpc/client.h>
+#include <core/rpc/service.h>
 
 namespace NYT {
 namespace NCypressClient {

@@ -1,14 +1,15 @@
 #include "stdafx.h"
 #include "rich.h"
-#include "tokenizer.h"
 
-#include <ytlib/misc/error.h>
+#include <core/ypath/tokenizer.h>
 
-#include <ytlib/yson/consumer.h>
-#include <ytlib/yson/tokenizer.h>
-#include <ytlib/yson/token.h>
+#include <core/misc/error.h>
 
-#include <ytlib/ytree/fluent.h>
+#include <core/yson/consumer.h>
+#include <core/yson/tokenizer.h>
+#include <core/yson/token.h>
+
+#include <core/ytree/fluent.h>
 
 #include <ytlib/chunk_client/key.h>
 #include <ytlib/chunk_client/schema.h>

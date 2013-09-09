@@ -1,7 +1,7 @@
 ﻿#pragma once
 
 #include <ytlib/table_client/table_chunk_meta.pb.h>
-#include <ytlib/misc/protobuf_helpers.h>
+#include <core/misc/protobuf_helpers.h>
 
 namespace NYT {
 

@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <ytlib/misc/property.h>
-#include <ytlib/misc/error.h>
-#include <ytlib/misc/ref.h>
+#include <core/misc/property.h>
+#include <core/misc/error.h>
+#include <core/misc/ref.h>
 
-#include <ytlib/ytree/node.h>
+#include <core/ytree/node.h>
 
 #include <ytlib/transaction_client/transaction.h>
 

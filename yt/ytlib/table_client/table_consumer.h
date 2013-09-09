@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <ytlib/misc/blob_output.h>
-#include <ytlib/misc/blob_range.h>
-#include <ytlib/misc/nullable.h>
+#include <core/misc/blob_output.h>
+#include <core/misc/blob_range.h>
+#include <core/misc/nullable.h>
 
-#include <ytlib/yson/consumer.h>
+#include <core/yson/consumer.h>
 
 namespace NYT {
 namespace NTableClient {

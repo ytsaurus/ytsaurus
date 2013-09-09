@@ -1,8 +1,8 @@
 #pragma once
 
-#include <ytlib/misc/common.h>
-#include <ytlib/misc/small_vector.h>
-#include <ytlib/misc/small_set.h>
+#include <core/misc/common.h>
+#include <core/misc/small_vector.h>
+#include <core/misc/small_set.h>
 
 #include <ytlib/node_tracker_client/public.h>
 

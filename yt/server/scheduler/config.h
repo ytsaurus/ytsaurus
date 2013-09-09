@@ -2,13 +2,13 @@
 
 #include "public.h"
 
-#include <ytlib/ytree/yson_serializable.h>
+#include <core/ytree/yson_serializable.h>
 
 #include <ytlib/table_client/config.h>
 
 #include <ytlib/file_client/config.h>
 
-#include <ytlib/rpc/retrying_channel.h>
+#include <core/rpc/retrying_channel.h>
 
 #include <server/job_proxy/config.h>
 

@@ -4,7 +4,7 @@
 
 #include <ytlib/object_client/object_service_proxy.h>
 
-#include <ytlib/rpc/service.h>
+#include <core/rpc/service.h>
 
 #include <server/cell_master/meta_state_service.h>
 

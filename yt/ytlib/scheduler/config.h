@@ -2,16 +2,16 @@
 
 #include "public.h"
 
-#include <ytlib/rpc/retrying_channel.h>
+#include <core/rpc/retrying_channel.h>
+
+#include <core/ytree/yson_serializable.h>
 
 #include <ytlib/ypath/rich.h>
-
-#include <ytlib/ytree/yson_serializable.h>
 
 #include <ytlib/table_client/config.h>
 #include <ytlib/file_client/config.h>
 
-#include <ytlib/formats/format.h>
+#include <core/formats/format.h>
 
 namespace NYT {
 namespace NScheduler {

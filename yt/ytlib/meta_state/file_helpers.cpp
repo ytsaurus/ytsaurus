@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "file_helpers.h"
 
-#include <ytlib/misc/fs.h>
+#include <core/misc/fs.h>
 #include <util/folder/dirut.h>
 
 namespace NYT {

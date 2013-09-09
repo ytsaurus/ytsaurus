@@ -5,7 +5,7 @@
 #include "exec_node.h"
 #include "operation_controller.h"
 
-#include <ytlib/ytree/fluent.h>
+#include <core/ytree/fluent.h>
 
 #include <ytlib/node_tracker_client/helpers.h>
 

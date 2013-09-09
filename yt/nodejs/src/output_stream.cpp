@@ -1,6 +1,6 @@
 #include "output_stream.h"
 
-#include <ytlib/misc/error.h>
+#include <core/misc/error.h>
 
 namespace NYT {
 namespace NNodeJS {

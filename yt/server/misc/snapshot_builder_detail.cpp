@@ -1,9 +1,9 @@
 #include "stdafx.h"
 #include "snapshot_builder_detail.h"
 
-#include <ytlib/concurrency/periodic_invoker.h>
+#include <core/concurrency/periodic_invoker.h>
 
-#include <ytlib/actions/invoker_util.h>
+#include <core/actions/invoker_util.h>
 
 #if defined(_unix_)
     // fork()

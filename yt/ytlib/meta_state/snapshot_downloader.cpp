@@ -7,9 +7,9 @@
 
 #include <ytlib/election/cell_manager.h>
 
-#include <ytlib/concurrency/thread_affinity.h>
+#include <core/concurrency/thread_affinity.h>
 
-#include <ytlib/actions/invoker_util.h>
+#include <core/actions/invoker_util.h>
 
 #include <util/system/fs.h>
 

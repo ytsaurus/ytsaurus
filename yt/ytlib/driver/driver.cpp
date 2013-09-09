@@ -10,19 +10,20 @@
 #include "table_commands.h"
 #include "scheduler_commands.h"
 
-#include <ytlib/actions/invoker_util.h>
+#include <core/actions/invoker_util.h>
 
-#include <ytlib/concurrency/parallel_awaiter.h>
-#include <ytlib/concurrency/fiber.h>
+#include <core/concurrency/parallel_awaiter.h>
+#include <core/concurrency/fiber.h>
 
-#include <ytlib/ytree/fluent.h>
-#include <ytlib/ytree/forwarding_yson_consumer.h>
-#include <ytlib/ytree/ephemeral_node_factory.h>
+#include <core/ytree/fluent.h>
+#include <core/ytree/forwarding_yson_consumer.h>
+#include <core/ytree/ephemeral_node_factory.h>
 
-#include <ytlib/yson/parser.h>
+#include <core/yson/parser.h>
 
-#include <ytlib/rpc/scoped_channel.h>
-#include <ytlib/rpc/retrying_channel.h>
+#include <core/rpc/scoped_channel.h>
+#include <core/rpc/retrying_channel.h>
+#include <core/rpc/helpers.h>
 
 #include <ytlib/meta_state/config.h>
 #include <ytlib/meta_state/master_channel.h>
@@ -31,8 +32,6 @@
 
 #include <ytlib/scheduler/config.h>
 #include <ytlib/scheduler/scheduler_channel.h>
-
-#include <ytlib/security_client/rpc_helpers.h>
 
 namespace NYT {
 namespace NDriver {

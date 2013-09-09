@@ -3,7 +3,7 @@
 #endif
 #undef CHUNK_INFO_COLLECTOR_INL_H_
 
-#include <ytlib/concurrency/parallel_awaiter.h>
+#include <core/concurrency/parallel_awaiter.h>
 
 #include <ytlib/chunk_client/key.h>
 

@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/misc/property.h>
+#include <core/misc/property.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 #include <ytlib/node_tracker_client/node_tracker_service.pb.h>

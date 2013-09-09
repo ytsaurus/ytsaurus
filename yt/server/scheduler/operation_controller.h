@@ -3,18 +3,18 @@
 #include "public.h"
 #include "job.h"
 
-#include <ytlib/misc/error.h>
+#include <core/misc/error.h>
 
-#include <ytlib/actions/invoker.h>
-#include <ytlib/actions/cancelable_context.h>
+#include <core/actions/invoker.h>
+#include <core/actions/cancelable_context.h>
 
 #include <ytlib/scheduler/job.pb.h>
 
 #include <ytlib/transaction_client/public.h>
 
-#include <ytlib/ytree/public.h>
+#include <core/ytree/public.h>
 
-#include <ytlib/rpc/public.h>
+#include <core/rpc/public.h>
 
 #include <ytlib/node_tracker_client/node.pb.h>
 

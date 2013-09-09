@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <ytlib/misc/serialize.h>
+#include <core/misc/serialize.h>
 
-#include <ytlib/yson/public.h>
+#include <core/yson/public.h>
 
-#include <ytlib/ytree/attributes.h>
+#include <core/ytree/attributes.h>
 
 namespace NYT {
 namespace NYPath {

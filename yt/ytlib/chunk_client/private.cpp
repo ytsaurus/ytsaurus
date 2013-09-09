@@ -1,8 +1,8 @@
 #include "stdafx.h"
 #include "private.h"
 
-#include <ytlib/actions/bind.h>
-#include <ytlib/actions/bind_helpers.h>
+#include <core/actions/bind.h>
+#include <core/actions/bind_helpers.h>
 
 namespace NYT {
 namespace NChunkClient {

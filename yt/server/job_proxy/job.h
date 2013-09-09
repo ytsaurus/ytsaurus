@@ -6,7 +6,7 @@
 
 #include <ytlib/chunk_client/public.h>
 
-#include <ytlib/rpc/public.h>
+#include <core/rpc/public.h>
 
 #include <ytlib/scheduler/job.pb.h>
 

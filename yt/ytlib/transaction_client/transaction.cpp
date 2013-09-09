@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "transaction.h"
 
-#include <ytlib/rpc/client.h>
+#include <core/rpc/client.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 

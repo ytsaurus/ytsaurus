@@ -2,15 +2,15 @@
 
 #include "public.h"
 
-#include <ytlib/concurrency/throughput_throttler.h>
+#include <core/concurrency/throughput_throttler.h>
 
-#include <ytlib/concurrency/action_queue.h>
+#include <core/concurrency/action_queue.h>
 
-#include <ytlib/bus/public.h>
+#include <core/bus/public.h>
 
-#include <ytlib/rpc/public.h>
+#include <core/rpc/public.h>
 
-#include <ytlib/ytree/public.h>
+#include <core/ytree/public.h>
 
 #include <ytlib/chunk_client/public.h>
 

@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "statistics.h"
 
-#include <ytlib/ytree/fluent.h>
+#include <core/ytree/fluent.h>
 #include <ytlib/chunk_client/data_statistics.h>
 
 namespace NYT {

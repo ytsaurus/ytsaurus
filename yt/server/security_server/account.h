@@ -4,7 +4,7 @@
 #include "cluster_resources.h"
 #include "acl.h"
 
-#include <ytlib/misc/property.h>
+#include <core/misc/property.h>
 
 #include <server/object_server/object.h>
 

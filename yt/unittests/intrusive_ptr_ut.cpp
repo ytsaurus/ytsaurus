@@ -1,8 +1,8 @@
 #include "stdafx.h"
 
-#include <ytlib/misc/common.h>
-#include <ytlib/misc/ref_counted.h>
-#include <ytlib/misc/new.h>
+#include <core/misc/common.h>
+#include <core/misc/ref_counted.h>
+#include <core/misc/new.h>
 
 #include <contrib/testing/framework.h>
 

@@ -1,8 +1,8 @@
 #include "stdafx.h"
 
-#include <ytlib/misc/common.h>
-#include <ytlib/actions/callback.h>
-#include <ytlib/actions/callback_internal.h>
+#include <core/misc/common.h>
+#include <core/actions/callback.h>
+#include <core/actions/callback_internal.h>
 
 #include <contrib/testing/framework.h>
 

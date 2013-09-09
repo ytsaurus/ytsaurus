@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "partitioner.h"
 
-#include <ytlib/misc/blob_output.h>
+#include <core/misc/blob_output.h>
 
 namespace NYT {
 

@@ -2,8 +2,8 @@
 #include "chunk_pool.h"
 #include "private.h"
 
-#include <ytlib/misc/id_generator.h>
-#include <ytlib/misc/property.h>
+#include <core/misc/id_generator.h>
+#include <core/misc/property.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 

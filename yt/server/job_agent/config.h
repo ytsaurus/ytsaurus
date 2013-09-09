@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/ytree/yson_serializable.h>
+#include <core/ytree/yson_serializable.h>
 
 namespace NYT {
 namespace NJobAgent {

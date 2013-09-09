@@ -2,13 +2,13 @@
 #include "table_commands.h"
 #include "config.h"
 
-#include <ytlib/concurrency/async_stream.h>
-#include <ytlib/concurrency/fiber.h>
+#include <core/concurrency/async_stream.h>
+#include <core/concurrency/fiber.h>
 
-#include <ytlib/yson/parser.h>
-#include <ytlib/yson/consumer.h>
+#include <core/yson/parser.h>
+#include <core/yson/consumer.h>
 
-#include <ytlib/formats/parser.h>
+#include <core/formats/parser.h>
 
 #include <ytlib/transaction_client/transaction_manager.h>
 

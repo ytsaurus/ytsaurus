@@ -1,11 +1,11 @@
 #include "stdafx.h"
 
-#include <ytlib/ytree/tree_builder.h>
-#include <ytlib/ytree/tree_visitor.h>
-#include <ytlib/yson/writer.h>
-#include <ytlib/ytree/node.h>
-#include <ytlib/ytree/ephemeral_node_factory.h>
-#include <ytlib/ytree/yson_consumer-mock.h>
+#include <core/ytree/tree_builder.h>
+#include <core/ytree/tree_visitor.h>
+#include <core/yson/writer.h>
+#include <core/ytree/node.h>
+#include <core/ytree/ephemeral_node_factory.h>
+#include <core/ytree/yson_consumer-mock.h>
 
 #include <contrib/testing/framework.h>
 

@@ -1,10 +1,10 @@
 #pragma once
 
-#include <ytlib/misc/common.h>
-#include <ytlib/misc/ref.h>
-#include <ytlib/misc/error.h>
+#include <core/misc/common.h>
+#include <core/misc/ref.h>
+#include <core/misc/error.h>
 
-#include <ytlib/actions/future.h>
+#include <core/actions/future.h>
 
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/chunk.pb.h>

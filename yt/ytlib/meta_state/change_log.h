@@ -2,7 +2,7 @@
 
 #include "private.h"
 
-#include <ytlib/misc/ref.h>
+#include <core/misc/ref.h>
 
 namespace NYT {
 namespace NMetaState {

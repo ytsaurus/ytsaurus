@@ -3,9 +3,9 @@
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
-#include <ytlib/erasure/public.h>
+#include <core/erasure/public.h>
         
-#include <ytlib/misc/foreach.h>
+#include <core/misc/foreach.h>
 
 namespace NYT {
 namespace NChunkClient {

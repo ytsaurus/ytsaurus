@@ -5,13 +5,13 @@
 
 #include <ytlib/node_tracker_client/public.h>
 
-#include <ytlib/misc/async_stream_state.h>
+#include <core/misc/async_stream_state.h>
 
-#include <ytlib/rpc/public.h>
+#include <core/rpc/public.h>
 
-#include <ytlib/concurrency/parallel_awaiter.h>
+#include <core/concurrency/parallel_awaiter.h>
 
-#include <ytlib/logging/log.h>
+#include <core/logging/log.h>
 
 namespace NYT {
 namespace NChunkClient {

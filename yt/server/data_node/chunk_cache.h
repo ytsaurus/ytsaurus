@@ -2,10 +2,10 @@
 
 #include "public.h"
 
-#include <ytlib/misc/property.h>
-#include <ytlib/misc/error.h>
+#include <core/misc/property.h>
+#include <core/misc/error.h>
 
-#include <ytlib/actions/signal.h>
+#include <core/actions/signal.h>
 
 #include <server/cell_node/public.h>
 

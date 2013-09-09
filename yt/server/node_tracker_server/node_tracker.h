@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/actions/signal.h>
+#include <core/actions/signal.h>
 
 #include <ytlib/meta_state/public.h>
 
@@ -10,7 +10,7 @@
 
 #include <ytlib/node_tracker_client/node_statistics.h>
 
-#include <ytlib/rpc/service_detail.h>
+#include <core/rpc/service_detail.h>
 
 #include <server/node_tracker_server/node_tracker.pb.h>
 

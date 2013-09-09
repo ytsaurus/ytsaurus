@@ -1,8 +1,8 @@
 #pragma once
 
-#include <ytlib/misc/common.h>
+#include <core/misc/common.h>
 
-#include <ytlib/ytree/permission.h>
+#include <core/ytree/permission.h>
 
 #include <ytlib/security_client/public.h>
 

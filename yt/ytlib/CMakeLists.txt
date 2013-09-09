@@ -1,22 +1,9 @@
 set( DIRS
-  actions
-  concurrency
-  election
-  compression
-  erasure
-  logging
-  meta_state
-  misc
-  rpc
-  bus
-  ytree
-  yson
   ypath
+  election
+  meta_state
   orchid
-  monitoring
-  profiling
   driver
-  formats
   scheduler
   chunk_client
   cypress_client
@@ -40,21 +27,12 @@ add_msvc_precompiled_header(
   YT_SOURCE_FILES
 )
 
-if (YT_BUILD_YTLIB_SHARED)
-  add_library( ytlib SHARED
-    ${YT_SOURCE_FILES}
-  )
-  install(
-    TARGETS ytlib
-    LIBRARY DESTINATION lib COMPONENT libraries
-  )
-else()
-  add_library( ytlib STATIC
-    ${YT_SOURCE_FILES}
-  )
-endif()
+add_library( ytlib STATIC
+  ${YT_SOURCE_FILES}
+)
 
 target_link_libraries ( ytlib
+  ytcore
   ytext-arcadia-util
   ytext-ev
   ytext-jerasure

@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-#include <ytlib/misc/random.h>
+#include <core/misc/random.h>
 
 #include <contrib/testing/framework.h>
 

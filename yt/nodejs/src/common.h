@@ -1,9 +1,9 @@
 #pragma once
 
-#include <ytlib/misc/common.h>
-#include <ytlib/misc/error.h>
+#include <core/misc/common.h>
+#include <core/misc/error.h>
 
-#include <ytlib/ytree/public.h>
+#include <core/ytree/public.h>
 
 #define BUILDING_NODE_EXTENSION
 

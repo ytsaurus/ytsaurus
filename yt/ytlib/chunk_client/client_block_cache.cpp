@@ -3,8 +3,8 @@
 #include "config.h"
 #include "client_block_cache.h"
 
-#include <ytlib/misc/cache.h>
-#include <ytlib/misc/property.h>
+#include <core/misc/cache.h>
+#include <core/misc/property.h>
 
 #include <ytlib/chunk_client/block_id.h>
 

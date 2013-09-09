@@ -3,7 +3,7 @@
 #include "slot.h"
 #include "private.h"
 
-#include <ytlib/misc/fs.h>
+#include <core/misc/fs.h>
 
 #include <server/cell_node/bootstrap.h>
 #include <server/data_node/chunk_cache.h>

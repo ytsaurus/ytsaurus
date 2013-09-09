@@ -3,11 +3,11 @@
 #include "public.h"
 #include "object_proxy.h"
 
-#include <ytlib/misc/nullable.h>
+#include <core/misc/nullable.h>
 
-#include <ytlib/ytree/public.h>
+#include <core/ytree/public.h>
 
-#include <ytlib/rpc/service_detail.h>
+#include <core/rpc/service_detail.h>
 
 #include <ytlib/object_client/master_ypath.pb.h>
 

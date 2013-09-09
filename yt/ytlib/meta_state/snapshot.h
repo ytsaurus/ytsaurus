@@ -3,7 +3,7 @@
 #include "public.h"
 #include "file_helpers.h"
 
-#include <ytlib/misc/checksum.h>
+#include <core/misc/checksum.h>
 
 namespace NYT {
 namespace NMetaState {

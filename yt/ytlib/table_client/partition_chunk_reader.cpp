@@ -9,7 +9,7 @@
 
 #include <ytlib/table_client/chunk_meta_extensions.h>
 
-#include <ytlib/yson/varint.h>
+#include <core/yson/varint.h>
 
 namespace NYT {
 namespace NTableClient {

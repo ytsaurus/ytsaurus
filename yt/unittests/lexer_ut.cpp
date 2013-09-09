@@ -1,10 +1,10 @@
 #include "stdafx.h"
 
-#include <ytlib/yson/lexer.h>
+#include <core/yson/lexer.h>
 
-#include <ytlib/misc/foreach.h>
-#include <ytlib/misc/nullable.h>
-#include <ytlib/misc/foreach.h>
+#include <core/misc/foreach.h>
+#include <core/misc/nullable.h>
+#include <core/misc/foreach.h>
 
 #include <contrib/testing/framework.h>
 

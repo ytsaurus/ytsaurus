@@ -6,7 +6,7 @@
 
 #include <ytlib/transaction_client/config.h>
 
-#include <ytlib/rpc/retrying_channel.h>
+#include <core/rpc/retrying_channel.h>
 
 #include <server/misc/config.h>
 

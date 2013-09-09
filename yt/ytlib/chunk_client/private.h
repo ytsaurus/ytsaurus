@@ -1,10 +1,10 @@
 #pragma once
 
-#include <ytlib/misc/lazy_ptr.h>
+#include <core/misc/lazy_ptr.h>
 
-#include <ytlib/rpc/channel_cache.h>
+#include <core/rpc/channel_cache.h>
 
-#include <ytlib/logging/log.h>
+#include <core/logging/log.h>
 
 namespace NYT {
 namespace NChunkClient {

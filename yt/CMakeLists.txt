@@ -7,6 +7,7 @@ include_directories(
   ${CMAKE_BINARY_DIR}/include
 )
 
+add_subdirectory(core)
 add_subdirectory(ytlib)
 add_subdirectory(server)
 

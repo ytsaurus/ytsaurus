@@ -2,10 +2,10 @@
 #include "file_reader.h"
 #include "chunk_meta_extensions.h"
 
-#include <ytlib/misc/serialize.h>
-#include <ytlib/misc/protobuf_helpers.h>
-#include <ytlib/misc/fs.h>
-#include <ytlib/misc/assert.h>
+#include <core/misc/serialize.h>
+#include <core/misc/protobuf_helpers.h>
+#include <core/misc/fs.h>
+#include <core/misc/assert.h>
 
 namespace NYT {
 namespace NChunkClient {

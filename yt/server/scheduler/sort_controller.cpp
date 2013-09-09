@@ -9,11 +9,11 @@
 #include "job_resources.h"
 #include "helpers.h"
 
-#include <ytlib/misc/string.h>
+#include <core/misc/string.h>
 
-#include <ytlib/concurrency/fiber.h>
+#include <core/concurrency/fiber.h>
 
-#include <ytlib/ytree/fluent.h>
+#include <core/ytree/fluent.h>
 
 #include <ytlib/chunk_client/schema.h>
 #include <ytlib/chunk_client/chunk_spec.h>

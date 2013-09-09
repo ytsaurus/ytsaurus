@@ -1,14 +1,14 @@
 #pragma once
 
-#include <ytlib/misc/address.h>
+#include <core/misc/address.h>
 
-#include <ytlib/ytree/yson_serializable.h>
-#include <ytlib/ytree/fluent.h>
-#include <ytlib/ytree/attribute_helpers.h>
+#include <core/ytree/yson_serializable.h>
+#include <core/ytree/fluent.h>
+#include <core/ytree/attribute_helpers.h>
 
 #include <ytlib/driver/config.h>
 
-#include <ytlib/formats/format.h>
+#include <core/formats/format.h>
 
 namespace NYT {
 namespace NDriver {

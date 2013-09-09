@@ -4,7 +4,7 @@
 
 #include <ytlib/node_tracker_client/public.h>
 
-#include <ytlib/misc/ref.h>
+#include <core/misc/ref.h>
 
 namespace NYT {
 namespace NChunkClient {

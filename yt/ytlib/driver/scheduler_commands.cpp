@@ -3,14 +3,14 @@
 #include "config.h"
 #include "driver.h"
 
-#include <ytlib/concurrency/fiber.h>
+#include <core/concurrency/fiber.h>
+
+#include <core/rpc/helpers.h>
+
+#include <core/ytree/fluent.h>
+#include <core/ytree/ypath_proxy.h>
 
 #include <ytlib/scheduler/config.h>
-
-#include <ytlib/security_client/rpc_helpers.h>
-
-#include <ytlib/ytree/fluent.h>
-#include <ytlib/ytree/ypath_proxy.h>
 
 #include <ytlib/meta_state/rpc_helpers.h>
 

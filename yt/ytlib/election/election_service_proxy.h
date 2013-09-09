@@ -4,7 +4,7 @@
 
 #include <ytlib/election/election_service.pb.h>
 
-#include <ytlib/rpc/client.h>
+#include <core/rpc/client.h>
 
 namespace NYT {
 namespace NElection {

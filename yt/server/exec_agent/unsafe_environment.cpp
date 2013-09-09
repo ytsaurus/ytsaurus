@@ -3,11 +3,11 @@
 #include "environment.h"
 #include "private.h"
 
-#include <ytlib/concurrency/thread_affinity.h>
+#include <core/concurrency/thread_affinity.h>
 
-#include <ytlib/misc/proc.h>
+#include <core/misc/proc.h>
 
-#include <ytlib/logging/tagged_logger.h>
+#include <core/logging/tagged_logger.h>
 
 #include <server/job_proxy/public.h>
 

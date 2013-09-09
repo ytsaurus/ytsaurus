@@ -5,7 +5,7 @@
 #include "simple_sort_job.h"
 #include "small_key.h"
 
-#include <ytlib/misc/sync.h>
+#include <core/misc/sync.h>
 
 #include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
@@ -16,7 +16,7 @@
 #include <ytlib/chunk_client/multi_chunk_parallel_reader.h>
 #include <ytlib/table_client/sync_writer.h>
 
-#include <ytlib/yson/lexer.h>
+#include <core/yson/lexer.h>
 
 namespace NYT {
 namespace NJobProxy {

@@ -2,17 +2,17 @@
 #include "error.h"
 #include "stream_stack.h"
 
-#include <ytlib/ytree/node.h>
-#include <ytlib/ytree/tree_builder.h>
-#include <ytlib/ytree/yson_string.h>
-#include <ytlib/ytree/ephemeral_node_factory.h>
-#include <ytlib/ytree/convert.h>
-#include <ytlib/ytree/ypath_client.h>
+#include <core/ytree/node.h>
+#include <core/ytree/tree_builder.h>
+#include <core/ytree/yson_string.h>
+#include <core/ytree/ephemeral_node_factory.h>
+#include <core/ytree/convert.h>
+#include <core/ytree/ypath_client.h>
 
-#include <ytlib/yson/consumer.h>
-#include <ytlib/yson/writer.h>
+#include <core/yson/consumer.h>
+#include <core/yson/writer.h>
 
-#include <ytlib/formats/format.h>
+#include <core/formats/format.h>
 
 #include <util/stream/zlib.h>
 #include <util/stream/lz.h>

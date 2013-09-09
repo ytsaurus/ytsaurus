@@ -3,9 +3,9 @@
 #include "public.h"
 #include "chunk_replica.h"
 
-#include <ytlib/misc/small_vector.h>
+#include <core/misc/small_vector.h>
 
-#include <ytlib/actions/signal.h>
+#include <core/actions/signal.h>
 
 #include <ytlib/meta_state/composite_meta_state.h>
 #include <ytlib/meta_state/mutation.h>

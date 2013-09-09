@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "lock.h"
 
-#include <ytlib/misc/serialize.h>
+#include <core/misc/serialize.h>
 
 #include <server/transaction_server/transaction.h>
 

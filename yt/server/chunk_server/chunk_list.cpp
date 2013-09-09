@@ -2,7 +2,7 @@
 #include "chunk_list.h"
 #include "chunk_owner_base.h"
 
-#include <ytlib/actions/invoker.h>
+#include <core/actions/invoker.h>
 
 #include <server/cell_master/serialization_context.h>
 

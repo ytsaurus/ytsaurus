@@ -5,7 +5,7 @@
 #include "cypress_manager.h"
 #include "private.h"
 
-#include <ytlib/profiling/timing.h>
+#include <core/profiling/timing.h>
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/meta_state_facade.h>

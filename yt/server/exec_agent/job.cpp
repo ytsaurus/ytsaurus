@@ -7,13 +7,13 @@
 #include "slot_manager.h"
 #include "config.h"
 
-#include <ytlib/misc/fs.h>
-#include <ytlib/misc/proc.h>
-#include <ytlib/misc/assert.h>
+#include <core/misc/fs.h>
+#include <core/misc/proc.h>
+#include <core/misc/assert.h>
 
-#include <ytlib/concurrency/fiber.h>
+#include <core/concurrency/fiber.h>
 
-#include <ytlib/ytree/serialize.h>
+#include <core/ytree/serialize.h>
 
 #include <ytlib/transaction_client/transaction.h>
 

@@ -7,16 +7,16 @@
 #include "snapshot_downloader.h"
 #include "serialization_context.h"
 
-#include <ytlib/concurrency/periodic_invoker.h>
-#include <ytlib/concurrency/thread_affinity.h>
-#include <ytlib/concurrency/delayed_invoker.h>
+#include <core/concurrency/periodic_invoker.h>
+#include <core/concurrency/thread_affinity.h>
+#include <core/concurrency/delayed_invoker.h>
 
-#include <ytlib/misc/address.h>
+#include <core/misc/address.h>
 
-#include <ytlib/concurrency/parallel_awaiter.h>
-#include <ytlib/concurrency/fiber.h>
+#include <core/concurrency/parallel_awaiter.h>
+#include <core/concurrency/fiber.h>
 
-#include <ytlib/rpc/serialized_channel.h>
+#include <core/rpc/serialized_channel.h>
 
 #include <ytlib/transaction_client/transaction_manager.h>
 #include <ytlib/transaction_client/transaction.h>
@@ -26,13 +26,13 @@
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
-#include <ytlib/yson/consumer.h>
+#include <core/yson/consumer.h>
 
-#include <ytlib/ytree/ypath_proxy.h>
-#include <ytlib/ytree/fluent.h>
-#include <ytlib/ytree/node.h>
+#include <core/ytree/ypath_proxy.h>
+#include <core/ytree/fluent.h>
+#include <core/ytree/node.h>
 
-#include <ytlib/ypath/token.h>
+#include <core/ypath/token.h>
 
 #include <ytlib/scheduler/helpers.h>
 

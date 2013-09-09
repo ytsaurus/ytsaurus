@@ -4,7 +4,7 @@
 #include "user_job_io.h"
 #include "job.h"
 
-#include <ytlib/misc/protobuf_helpers.h>
+#include <core/misc/protobuf_helpers.h>
 
 #include <ytlib/table_client/partitioner.h>
 #include <ytlib/table_client/partition_chunk_writer.h>
@@ -12,7 +12,7 @@
 
 #include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
 
-#include <ytlib/ytree/yson_string.h>
+#include <core/ytree/yson_string.h>
 
 #include <ytlib/scheduler/config.h>
 #include <ytlib/scheduler/job.pb.h>

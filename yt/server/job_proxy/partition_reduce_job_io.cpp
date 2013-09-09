@@ -5,7 +5,7 @@
 #include "user_job_io.h"
 #include "job.h"
 
-#include <ytlib/misc/protobuf_helpers.h>
+#include <core/misc/protobuf_helpers.h>
 
 #include <ytlib/chunk_client/client_block_cache.h>
 

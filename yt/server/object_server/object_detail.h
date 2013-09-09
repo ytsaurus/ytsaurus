@@ -5,14 +5,14 @@
 #include "object_proxy.h"
 #include "object_manager.h"
 
-#include <ytlib/misc/property.h>
+#include <core/misc/property.h>
 
 #include <ytlib/meta_state/map.h>
 
-#include <ytlib/ytree/ypath_detail.h>
-#include <ytlib/ytree/fluent.h>
-#include <ytlib/ytree/system_attribute_provider.h>
-#include <ytlib/ytree/ypath.pb.h>
+#include <core/ytree/ypath_detail.h>
+#include <core/ytree/fluent.h>
+#include <core/ytree/system_attribute_provider.h>
+#include <core/ytree/ypath.pb.h>
 
 #include <ytlib/object_client/object_ypath.pb.h>
 #include <ytlib/object_client/object_service_proxy.h>

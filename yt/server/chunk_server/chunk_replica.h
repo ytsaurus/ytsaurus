@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/misc/small_vector.h>
+#include <core/misc/small_vector.h>
 
 #include <server/node_tracker_server/public.h>
 

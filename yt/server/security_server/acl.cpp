@@ -3,11 +3,11 @@
 #include "subject.h"
 #include "security_manager.h"
 
-#include <ytlib/ytree/fluent.h>
-#include <ytlib/ytree/node.h>
-#include <ytlib/ytree/yson_serializable.h>
+#include <core/ytree/fluent.h>
+#include <core/ytree/node.h>
+#include <core/ytree/yson_serializable.h>
 
-#include <ytlib/ytree/permission.h>
+#include <core/ytree/permission.h>
 
 #include <server/cell_master/serialization_context.h>
 

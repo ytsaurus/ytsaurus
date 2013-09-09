@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "serialize.h"
 
-#include <ytlib/misc/protobuf_helpers.h>
+#include <core/misc/protobuf_helpers.h>
 
 namespace NYT {
 namespace NMetaState {

@@ -1,6 +1,6 @@
 ﻿#pragma once
 
-#include <ytlib/misc/common.h>
+#include <core/misc/common.h>
 
 namespace NYT {
 namespace NFileClient {

@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-#include <ytlib/misc/heap.h>
+#include <core/misc/heap.h>
 
 #include <contrib/testing/framework.h>
 

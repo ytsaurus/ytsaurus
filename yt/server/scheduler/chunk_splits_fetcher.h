@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <ytlib/misc/error.h>
+#include <core/misc/error.h>
 
-#include <ytlib/logging/tagged_logger.h>
+#include <core/logging/tagged_logger.h>
 
 #include <ytlib/chunk_client/data_node_service_proxy.h>
 #include <ytlib/chunk_client/chunk_spec.h>

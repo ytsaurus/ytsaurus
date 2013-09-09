@@ -4,7 +4,7 @@
 #include "sync_reader.h"
 #include "async_reader.h"
 
-#include <ytlib/logging/tagged_logger.h>
+#include <core/logging/tagged_logger.h>
 
 #include <ytlib/ypath/rich.h>
 

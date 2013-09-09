@@ -2,7 +2,7 @@
 
 #include "private.h"
 #include <ytlib/table_client/public.h>
-#include <ytlib/misc/blob_output.h>
+#include <core/misc/blob_output.h>
 
 namespace NYT {
 namespace NJobProxy {

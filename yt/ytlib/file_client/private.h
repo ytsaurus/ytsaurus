@@ -1,7 +1,7 @@
 #pragma once
 
-#include <ytlib/misc/common.h>
-#include <ytlib/logging/log.h>
+#include <core/misc/common.h>
+#include <core/logging/log.h>
 
 namespace NYT {
 namespace NFileClient {

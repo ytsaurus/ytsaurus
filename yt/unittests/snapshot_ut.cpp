@@ -5,7 +5,7 @@
 #include <ytlib/meta_state/snapshot.h>
 #include <ytlib/meta_state/snapshot_store.h>
 
-#include <ytlib/ytree/convert.h>
+#include <core/ytree/convert.h>
 
 #include <util/random/random.h>
 #include <util/system/tempfile.h>

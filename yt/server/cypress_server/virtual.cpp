@@ -1,9 +1,9 @@
 #include "stdafx.h"
 #include "virtual.h"
 
-#include <ytlib/misc/singleton.h>
+#include <core/misc/singleton.h>
 
-#include <ytlib/ypath/tokenizer.h>
+#include <core/ypath/tokenizer.h>
 
 #include <server/cypress_server/node_detail.h>
 #include <server/cypress_server/node_proxy_detail.h>

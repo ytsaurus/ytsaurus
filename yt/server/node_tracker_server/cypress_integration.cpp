@@ -4,9 +4,9 @@
 #include "node_tracker.h"
 #include "config.h"
 
-#include <ytlib/ytree/virtual.h>
-#include <ytlib/ytree/fluent.h>
-#include <ytlib/ytree/exception_helpers.h>
+#include <core/ytree/virtual.h>
+#include <core/ytree/fluent.h>
+#include <core/ytree/exception_helpers.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 

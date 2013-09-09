@@ -1,13 +1,13 @@
 ﻿#include "stdafx.h"
 #include "pipes.h"
 
-#include <ytlib/yson/parser.h>
-#include <ytlib/yson/consumer.h>
+#include <core/yson/parser.h>
+#include <core/yson/consumer.h>
 
 #include <ytlib/table_client/table_producer.h>
 #include <ytlib/table_client/sync_reader.h>
 
-#include <ytlib/misc/proc.h>
+#include <core/misc/proc.h>
 
 #include <util/system/file.h>
 

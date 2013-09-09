@@ -2,12 +2,12 @@
 
 #include "public.h"
 
-#include <ytlib/misc/nullable.h>
-#include <ytlib/misc/property.h>
-#include <ytlib/misc/ref_tracked.h>
+#include <core/misc/nullable.h>
+#include <core/misc/property.h>
+#include <core/misc/ref_tracked.h>
 
-#include <ytlib/ytree/public.h>
-#include <ytlib/ytree/yson_string.h>
+#include <core/ytree/public.h>
+#include <core/ytree/yson_string.h>
 
 #include <server/cell_master/public.h>
 

@@ -4,12 +4,12 @@
 #include "node.h"
 #include "private.h"
 
-#include <ytlib/misc/id_generator.h>
-#include <ytlib/misc/address.h>
+#include <core/misc/id_generator.h>
+#include <core/misc/address.h>
 
-#include <ytlib/ytree/convert.h>
+#include <core/ytree/convert.h>
 
-#include <ytlib/ypath/token.h>
+#include <core/ypath/token.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 

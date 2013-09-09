@@ -4,7 +4,7 @@
 
 #include "meta_state_manager.h"
 
-#include <ytlib/misc/protobuf_helpers.h>
+#include <core/misc/protobuf_helpers.h>
 
 namespace NYT {
 namespace NMetaState {

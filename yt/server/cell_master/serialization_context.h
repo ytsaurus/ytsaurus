@@ -2,8 +2,8 @@
 
 #include "public.h"
 
-#include <ytlib/misc/property.h>
-#include <ytlib/misc/small_vector.h>
+#include <core/misc/property.h>
+#include <core/misc/small_vector.h>
 
 #include <ytlib/meta_state/composite_meta_state.h>
 

@@ -1,6 +1,6 @@
 #include "io_helpers.h"
 
-#include <ytlib/misc/tclap_helpers.h>
+#include <core/misc/tclap_helpers.h>
 
 namespace NYT {
 namespace NYPath {

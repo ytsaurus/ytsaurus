@@ -3,8 +3,8 @@
 #include "private.h"
 #include "chunk_list.h"
 
-#include <ytlib/misc/property.h>
-#include <ytlib/erasure/public.h>
+#include <core/misc/property.h>
+#include <core/erasure/public.h>
 
 #include <ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 

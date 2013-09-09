@@ -3,10 +3,10 @@
 #include "public.h"
 #include "meta_version.h"
 
-#include <ytlib/misc/ref.h>
-#include <ytlib/misc/random.h>
+#include <core/misc/ref.h>
+#include <core/misc/random.h>
 
-#include <ytlib/actions/callback.h>
+#include <core/actions/callback.h>
 
 namespace NYT {
 namespace NMetaState {

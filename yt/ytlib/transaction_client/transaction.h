@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <ytlib/actions/signal.h>
+#include <core/actions/signal.h>
 
-#include <ytlib/rpc/public.h>
+#include <core/rpc/public.h>
 
 #include <ytlib/meta_state/public.h>
 

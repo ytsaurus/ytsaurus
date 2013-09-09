@@ -1,8 +1,8 @@
 #pragma once
 
-#include <ytlib/logging/log.h>
-#include <ytlib/profiling/profiler.h>
-#include <ytlib/rpc/channel_cache.h>
+#include <core/logging/log.h>
+#include <core/profiling/profiler.h>
+#include <core/rpc/channel_cache.h>
 
 namespace NYT {
 namespace NDataNode {

@@ -1,8 +1,8 @@
 #include "stdafx.h"
 
-#include <ytlib/ytree/yson_consumer-mock.h>
+#include <core/ytree/yson_consumer-mock.h>
 
-#include <ytlib/yson/parser.h>
+#include <core/yson/parser.h>
 
 #include <util/stream/mem.h>
 

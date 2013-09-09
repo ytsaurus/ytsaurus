@@ -2,8 +2,8 @@
 
 #include "public.h"
 
-#include <ytlib/misc/chunked_output_stream.h>
-#include <ytlib/misc/property.h>
+#include <core/misc/chunked_output_stream.h>
+#include <core/misc/property.h>
 
 namespace NYT {
 namespace NTableClient {

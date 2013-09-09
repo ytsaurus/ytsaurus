@@ -1,9 +1,9 @@
 #include "error.h"
 #include "node.h"
 
-#include <ytlib/ytree/node.h>
+#include <core/ytree/node.h>
 
-#include <ytlib/formats/json_writer.h>
+#include <core/formats/json_writer.h>
 
 namespace NYT {
 namespace NNodeJS {

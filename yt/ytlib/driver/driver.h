@@ -2,17 +2,17 @@
 
 #include "public.h"
 
-#include <ytlib/misc/error.h>
+#include <core/misc/error.h>
 
-#include <ytlib/concurrency/async_stream.h>
+#include <core/concurrency/async_stream.h>
 
-#include <ytlib/formats/format.h>
+#include <core/formats/format.h>
 
-#include <ytlib/ytree/public.h>
-#include <ytlib/yson/consumer.h>
-#include <ytlib/yson/writer.h>
+#include <core/ytree/public.h>
+#include <core/yson/consumer.h>
+#include <core/yson/writer.h>
 
-#include <ytlib/rpc/public.h>
+#include <core/rpc/public.h>
 
 namespace NYT {
 namespace NDriver {

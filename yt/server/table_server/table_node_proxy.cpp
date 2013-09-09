@@ -3,15 +3,15 @@
 #include "table_node.h"
 #include "private.h"
 
-#include <ytlib/misc/string.h>
-#include <ytlib/misc/serialize.h>
+#include <core/misc/string.h>
+#include <core/misc/serialize.h>
 
-#include <ytlib/erasure/codec.h>
+#include <core/erasure/codec.h>
 
-#include <ytlib/ytree/tree_builder.h>
-#include <ytlib/ytree/ephemeral_node_factory.h>
+#include <core/ytree/tree_builder.h>
+#include <core/ytree/ephemeral_node_factory.h>
 
-#include <ytlib/ypath/token.h>
+#include <core/ypath/token.h>
 
 #include <ytlib/table_client/table_ypath_proxy.h>
 

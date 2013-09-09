@@ -1,9 +1,9 @@
 #include "change_log_impl.h"
 
-#include <ytlib/misc/fs.h>
-#include <ytlib/misc/nullable.h>
-#include <ytlib/misc/serialize.h>
-#include <ytlib/misc/string.h>
+#include <core/misc/fs.h>
+#include <core/misc/nullable.h>
+#include <core/misc/serialize.h>
+#include <core/misc/string.h>
 
 namespace NYT {
 namespace NMetaState {

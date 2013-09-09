@@ -1,10 +1,10 @@
 #include "stdafx.h"
 
-#include <ytlib/concurrency/thread_affinity.h>
-#include <ytlib/concurrency/action_queue.h>
+#include <core/concurrency/thread_affinity.h>
+#include <core/concurrency/action_queue.h>
 
-#include <ytlib/actions/bind.h>
-#include <ytlib/actions/future.h>
+#include <core/actions/bind.h>
+#include <core/actions/future.h>
 
 #include <contrib/testing/framework.h>
 

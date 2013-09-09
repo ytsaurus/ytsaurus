@@ -3,9 +3,9 @@
 #include "public.h"
 #include "meta_state.h"
 
-#include <ytlib/misc/serialize.h>
+#include <core/misc/serialize.h>
 
-#include <ytlib/rpc/service.h>
+#include <core/rpc/service.h>
 
 #include <ytlib/meta_state/meta_state_manager.pb.h>
 

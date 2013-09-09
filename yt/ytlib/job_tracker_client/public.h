@@ -1,8 +1,8 @@
 #pragma once
 
-#include <ytlib/misc/common.h>
-#include <ytlib/misc/enum.h>
-#include <ytlib/misc/guid.h>
+#include <core/misc/common.h>
+#include <core/misc/enum.h>
+#include <core/misc/guid.h>
 
 namespace NYT {
 namespace NJobTrackerClient {

@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <ytlib/misc/serialize.h>
+#include <core/misc/serialize.h>
 
-#include <ytlib/yson/public.h>
+#include <core/yson/public.h>
 
 namespace NYT {
 namespace NScheduler {

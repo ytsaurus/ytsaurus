@@ -3,7 +3,7 @@
 #include "public.h"
 
 #include <server/cell_master/public.h>
-#include <ytlib/misc/error.h>
+#include <core/misc/error.h>
 
 namespace NYT {
 namespace NCypressServer {

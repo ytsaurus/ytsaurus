@@ -3,9 +3,9 @@
 #include "public.h"
 #include "chunk_replica.h"
 
-#include <ytlib/misc/small_vector.h>
-#include <ytlib/misc/small_set.h>
-#include <ytlib/misc/nullable.h>
+#include <core/misc/small_vector.h>
+#include <core/misc/small_set.h>
+#include <core/misc/nullable.h>
 
 #include <server/node_tracker_server/node_tracker.h>
 

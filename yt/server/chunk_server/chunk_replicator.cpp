@@ -7,21 +7,21 @@
 #include "chunk_tree_traversing.h"
 #include "private.h"
 
-#include <ytlib/misc/foreach.h>
-#include <ytlib/misc/serialize.h>
-#include <ytlib/misc/string.h>
-#include <ytlib/misc/small_vector.h>
-#include <ytlib/misc/protobuf_helpers.h>
+#include <core/misc/foreach.h>
+#include <core/misc/serialize.h>
+#include <core/misc/string.h>
+#include <core/misc/small_vector.h>
+#include <core/misc/protobuf_helpers.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 #include <ytlib/node_tracker_client/helpers.h>
 
-#include <ytlib/erasure/codec.h>
+#include <core/erasure/codec.h>
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
-#include <ytlib/profiling/profiler.h>
-#include <ytlib/profiling/timing.h>
+#include <core/profiling/profiler.h>
+#include <core/profiling/timing.h>
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/config.h>

@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "attribute_set.h"
 
-#include <ytlib/misc/serialize.h>
+#include <core/misc/serialize.h>
 
 #include <server/cell_master/serialization_context.h>
 

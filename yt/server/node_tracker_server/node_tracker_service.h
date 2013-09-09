@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/rpc/service.h>
+#include <core/rpc/service.h>
 
 #include <ytlib/node_tracker_client/node_tracker_service.pb.h>
 

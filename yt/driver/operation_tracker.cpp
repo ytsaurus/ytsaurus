@@ -1,6 +1,6 @@
 #include "operation_tracker.h"
 
-#include <ytlib/ytree/ypath_proxy.h>
+#include <core/ytree/ypath_proxy.h>
 
 #include <ytlib/scheduler/helpers.h>
 

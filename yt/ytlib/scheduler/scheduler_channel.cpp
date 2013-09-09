@@ -4,13 +4,13 @@
 
 #include <ytlib/object_client/object_service_proxy.h>
 
-#include <ytlib/ytree/ypath_proxy.h>
+#include <core/ytree/ypath_proxy.h>
 
-#include <ytlib/bus/config.h>
-#include <ytlib/bus/tcp_client.h>
+#include <core/bus/config.h>
+#include <core/bus/tcp_client.h>
 
-#include <ytlib/rpc/roaming_channel.h>
-#include <ytlib/rpc/bus_channel.h>
+#include <core/rpc/roaming_channel.h>
+#include <core/rpc/bus_channel.h>
 
 namespace NYT {
 namespace NScheduler {

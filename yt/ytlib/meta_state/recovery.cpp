@@ -12,7 +12,7 @@
 #include "persistent_state_manager.h"
 #include "change_log_cache.h"
 
-#include <ytlib/misc/fs.h>
+#include <core/misc/fs.h>
 
 #include <ytlib/election/cell_manager.h>
 

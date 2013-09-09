@@ -12,15 +12,15 @@
 #include "replication_reader.h"
 #include "erasure_reader.h"
 
-#include <ytlib/actions/invoker_util.h>
+#include <core/actions/invoker_util.h>
 
-#include <ytlib/erasure/codec.h>
+#include <core/erasure/codec.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
-#include <ytlib/rpc/channel.h>
+#include <core/rpc/channel.h>
 
-#include <ytlib/misc/protobuf_helpers.h>
+#include <core/misc/protobuf_helpers.h>
 
 namespace NYT {
 namespace NChunkClient {

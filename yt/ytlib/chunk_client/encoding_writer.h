@@ -2,15 +2,15 @@
 
 #include "public.h"
 
-#include <ytlib/actions/callback.h>
-#include <ytlib/concurrency/action_queue.h>
+#include <core/actions/callback.h>
+#include <core/concurrency/action_queue.h>
 
-#include <ytlib/misc/ref.h>
-#include <ytlib/misc/async_stream_state.h>
+#include <core/misc/ref.h>
+#include <core/misc/async_stream_state.h>
 
-#include <ytlib/concurrency/async_semaphore.h>
+#include <core/concurrency/async_semaphore.h>
 
-#include <ytlib/compression/public.h>
+#include <core/compression/public.h>
 
 namespace NYT {
 namespace NChunkClient {

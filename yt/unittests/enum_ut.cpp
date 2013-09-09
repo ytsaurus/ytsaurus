@@ -1,8 +1,8 @@
 #include "stdafx.h"
 
-#include <ytlib/misc/common.h>
-#include <ytlib/misc/enum.h>
-#include <ytlib/misc/serialize.h>
+#include <core/misc/common.h>
+#include <core/misc/enum.h>
+#include <core/misc/serialize.h>
 
 #include <contrib/testing/framework.h>
 

@@ -4,7 +4,7 @@
 #include "progress_counter.h"
 #include "serialization_context.h"
 
-#include <ytlib/misc/small_vector.h>
+#include <core/misc/small_vector.h>
 
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/chunk_spec.h>

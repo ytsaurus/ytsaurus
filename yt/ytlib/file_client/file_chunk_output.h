@@ -4,13 +4,13 @@
 #include "chunk_meta_extensions.h"
 
 
-#include <ytlib/compression/codec.h>
-#include <ytlib/logging/tagged_logger.h>
+#include <core/compression/codec.h>
+#include <core/logging/tagged_logger.h>
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/chunk_replica.h>
 
 
-#include <ytlib/rpc/public.h>
+#include <core/rpc/public.h>
 
 #include <server/chunk_server/public.h>
 #include <server/object_server/public.h>

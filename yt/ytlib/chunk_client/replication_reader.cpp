@@ -9,14 +9,14 @@
 #include "data_node_service_proxy.h"
 #include "dispatcher.h"
 
-#include <ytlib/misc/foreach.h>
-#include <ytlib/misc/string.h>
-#include <ytlib/misc/protobuf_helpers.h>
+#include <core/misc/foreach.h>
+#include <core/misc/string.h>
+#include <core/misc/protobuf_helpers.h>
 
-#include <ytlib/concurrency/thread_affinity.h>
-#include <ytlib/concurrency/delayed_invoker.h>
+#include <core/concurrency/thread_affinity.h>
+#include <core/concurrency/delayed_invoker.h>
 
-#include <ytlib/logging/tagged_logger.h>
+#include <core/logging/tagged_logger.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
 

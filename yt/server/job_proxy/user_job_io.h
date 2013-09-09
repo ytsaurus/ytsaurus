@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/rpc/public.h>
+#include <core/rpc/public.h>
 
 #include <ytlib/table_client/public.h>
 
@@ -14,7 +14,7 @@
 
 #include <ytlib/scheduler/job.pb.h>
 
-#include <ytlib/logging/log.h>
+#include <core/logging/log.h>
 
 #include <server/chunk_server/public.h>
 

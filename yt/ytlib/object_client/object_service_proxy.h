@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <ytlib/misc/nullable.h>
+#include <core/misc/nullable.h>
 
-#include <ytlib/ytree/ypath_client.h>
+#include <core/ytree/ypath_client.h>
 
 #include <ytlib/transaction_client/public.h>
 

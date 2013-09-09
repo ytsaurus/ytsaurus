@@ -3,9 +3,9 @@
 #endif
 #undef SERIALIZATION_CONTEXT_INL_H_
 
-#include <ytlib/misc/foreach.h>
-#include <ytlib/misc/serialize.h>
-#include <ytlib/misc/small_vector.h>
+#include <core/misc/foreach.h>
+#include <core/misc/serialize.h>
+#include <core/misc/small_vector.h>
 
 #include <server/object_server/object.h>
 

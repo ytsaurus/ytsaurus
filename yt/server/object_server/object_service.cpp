@@ -4,16 +4,17 @@
 #include "object_manager.h"
 #include "config.h"
 
-#include <ytlib/ytree/ypath_detail.h>
+#include <core/ytree/ypath_detail.h>
 
-#include <ytlib/rpc/message.h>
-#include <ytlib/rpc/service_detail.h>
+#include <core/rpc/message.h>
+#include <core/rpc/service_detail.h>
+#include <core/rpc/helpers.h>
 
-#include <ytlib/concurrency/parallel_awaiter.h>
-#include <ytlib/actions/invoker_util.h>
+#include <core/concurrency/parallel_awaiter.h>
+
+#include <core/actions/invoker_util.h>
 
 #include <ytlib/security_client/public.h>
-#include <ytlib/security_client/rpc_helpers.h>
 
 #include <ytlib/meta_state/rpc_helpers.h>
 

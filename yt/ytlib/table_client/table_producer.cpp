@@ -2,9 +2,9 @@
 #include "table_producer.h"
 #include "sync_reader.h"
 
-#include <ytlib/yson/consumer.h>
+#include <core/yson/consumer.h>
 
-#include <ytlib/ytree/yson_string.h>
+#include <core/ytree/yson_string.h>
 
 namespace NYT {
 namespace NTableClient {

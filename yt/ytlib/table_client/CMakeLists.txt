@@ -10,7 +10,6 @@ set( SRCS
   ${BASE}/partitioner.cpp
   ${BASE}/private.cpp
   ${BASE}/public.cpp
-  ${BASE}/size_limits.cpp
   ${BASE}/sync_reader.cpp
   ${BASE}/table_chunk_reader.cpp
   ${BASE}/table_chunk_writer.cpp
@@ -35,7 +34,6 @@ set( HDRS
   ${BASE}/partitioner.h
   ${BASE}/private.h
   ${BASE}/public.h
-  ${BASE}/size_limits.h
   ${BASE}/sync_reader.h
   ${BASE}/sync_writer.h
   ${BASE}/table_chunk_reader.h

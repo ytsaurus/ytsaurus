@@ -7,15 +7,15 @@
 #include "chunk_tree_traversing.h"
 #include "node_directory_builder.h"
 
-#include <ytlib/ytree/node.h>
-#include <ytlib/ytree/fluent.h>
-#include <ytlib/ytree/system_attribute_provider.h>
-#include <ytlib/ytree/attribute_helpers.h>
+#include <core/ytree/node.h>
+#include <core/ytree/fluent.h>
+#include <core/ytree/system_attribute_provider.h>
+#include <core/ytree/attribute_helpers.h>
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/chunk_spec.h>
 
-#include <ytlib/erasure/codec.h>
+#include <core/erasure/codec.h>
 
 namespace NYT {
 namespace NChunkServer {

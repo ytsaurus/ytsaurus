@@ -4,17 +4,17 @@
 #include "object_service.h"
 #include "attribute_set.h"
 
-#include <ytlib/misc/string.h>
-#include <ytlib/misc/enum.h>
+#include <core/misc/string.h>
+#include <core/misc/enum.h>
 
-#include <ytlib/ytree/fluent.h>
-#include <ytlib/ytree/yson_string.h>
-#include <ytlib/ytree/exception_helpers.h>
+#include <core/ytree/fluent.h>
+#include <core/ytree/yson_string.h>
+#include <core/ytree/exception_helpers.h>
 
-#include <ytlib/ypath/tokenizer.h>
+#include <core/ypath/tokenizer.h>
 
-#include <ytlib/rpc/message.h>
-#include <ytlib/rpc/rpc.pb.h>
+#include <core/rpc/message.h>
+#include <core/rpc/rpc.pb.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 

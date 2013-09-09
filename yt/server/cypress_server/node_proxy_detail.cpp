@@ -4,21 +4,21 @@
 #include "helpers.h"
 #include "private.h"
 
-#include <ytlib/misc/string.h>
+#include <core/misc/string.h>
 
 #include <ytlib/object_client/public.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
-#include <ytlib/ytree/ypath_detail.h>
-#include <ytlib/ytree/node_detail.h>
-#include <ytlib/ytree/convert.h>
-#include <ytlib/ytree/ephemeral_node_factory.h>
-#include <ytlib/ytree/fluent.h>
-#include <ytlib/ytree/ypath_client.h>
-#include <ytlib/ytree/exception_helpers.h>
+#include <core/ytree/ypath_detail.h>
+#include <core/ytree/node_detail.h>
+#include <core/ytree/convert.h>
+#include <core/ytree/ephemeral_node_factory.h>
+#include <core/ytree/fluent.h>
+#include <core/ytree/ypath_client.h>
+#include <core/ytree/exception_helpers.h>
 
-#include <ytlib/ypath/tokenizer.h>
+#include <core/ypath/tokenizer.h>
 
 #include <server/security_server/account.h>
 #include <server/security_server/security_manager.h>

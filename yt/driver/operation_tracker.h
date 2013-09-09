@@ -2,11 +2,11 @@
 
 #include "executor.h"
 
-#include <ytlib/misc/nullable.h>
+#include <core/misc/nullable.h>
 
 #include <ytlib/driver/driver.h>
 
-#include <ytlib/ytree/yson_string.h>
+#include <core/ytree/yson_string.h>
 
 #include <server/job_proxy/config.h>
 

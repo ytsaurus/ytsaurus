@@ -4,9 +4,9 @@
 
 #include <ytlib/election/config.h>
 
-#include <ytlib/ytree/yson_serializable.h>
+#include <core/ytree/yson_serializable.h>
 
-#include <ytlib/rpc/retrying_channel.h>
+#include <core/rpc/retrying_channel.h>
 
 namespace NYT {
 namespace NMetaState {

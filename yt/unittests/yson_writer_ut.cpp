@@ -1,9 +1,9 @@
 #include "stdafx.h"
 
-#include <ytlib/yson/writer.h>
-#include <ytlib/yson/parser.h>
-#include <ytlib/ytree/yson_consumer-mock.h>
-#include <ytlib/ytree/yson_stream.h>
+#include <core/yson/writer.h>
+#include <core/yson/parser.h>
+#include <core/ytree/yson_consumer-mock.h>
+#include <core/ytree/yson_stream.h>
 
 #include <util/string/escape.h>
 

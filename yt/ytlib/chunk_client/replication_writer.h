@@ -4,7 +4,7 @@
 #include "config.h"
 #include "async_writer.h"
 
-#include <ytlib/concurrency/throughput_throttler.h>
+#include <core/concurrency/throughput_throttler.h>
 
 #include <ytlib/node_tracker_client/public.h>
 

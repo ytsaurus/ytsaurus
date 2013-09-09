@@ -5,11 +5,11 @@
 #include <ytlib/table_client/config.h>
 #include <ytlib/file_client/config.h>
 #include <ytlib/meta_state/config.h>
-#include <ytlib/ytree/node.h>
-#include <ytlib/ytree/yson_serializable.h>
-#include <ytlib/bus/config.h>
+#include <core/ytree/node.h>
+#include <core/ytree/yson_serializable.h>
+#include <core/bus/config.h>
 #include <ytlib/scheduler/config.h>
-#include <ytlib/misc/address.h>
+#include <core/misc/address.h>
 
 namespace NYT {
 namespace NJobProxy {

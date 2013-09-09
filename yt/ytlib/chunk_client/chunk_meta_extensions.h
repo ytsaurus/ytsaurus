@@ -1,6 +1,6 @@
 ﻿#pragma once
 
-#include <ytlib/misc/protobuf_helpers.h>
+#include <core/misc/protobuf_helpers.h>
 
 #include <ytlib/chunk_client/chunk.pb.h>
 

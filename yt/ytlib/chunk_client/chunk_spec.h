@@ -2,15 +2,15 @@
 
 #include "public.h"
 
-#include <ytlib/misc/nullable.h>
-#include <ytlib/misc/phoenix.h>
+#include <core/misc/nullable.h>
+#include <core/misc/phoenix.h>
 
-#include <ytlib/ytree/attributes.h>
+#include <core/ytree/attributes.h>
 
 #include <ytlib/chunk_client/chunk_spec.pb.h>
 #include <ytlib/chunk_client/chunk.pb.h>
 
-#include <ytlib/erasure/public.h>
+#include <core/erasure/public.h>
 
 #include <ytlib/node_tracker_client/public.h>
 

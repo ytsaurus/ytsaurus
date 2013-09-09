@@ -4,9 +4,9 @@
 #include "table_chunk_reader.h"
 #include "private.h"
 
-#include <ytlib/misc/sync.h>
+#include <core/misc/sync.h>
 
-#include <ytlib/concurrency/fiber.h>
+#include <core/concurrency/fiber.h>
 
 #include <ytlib/chunk_client/block_cache.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>

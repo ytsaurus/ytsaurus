@@ -2,7 +2,7 @@
 
 #include "small_key.h"
 
-#include <ytlib/yson/lexer.h>
+#include <core/yson/lexer.h>
 
 namespace NYT {
 namespace NJobProxy {

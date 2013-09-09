@@ -4,14 +4,14 @@
 #include "chunk.h"
 #include "chunk_replica.h"
 
-#include <ytlib/misc/property.h>
-#include <ytlib/misc/nullable.h>
-#include <ytlib/concurrency/periodic_invoker.h>
-#include <ytlib/misc/error.h>
+#include <core/misc/property.h>
+#include <core/misc/nullable.h>
+#include <core/concurrency/periodic_invoker.h>
+#include <core/misc/error.h>
 
-#include <ytlib/erasure/public.h>
+#include <core/erasure/public.h>
 
-#include <ytlib/profiling/timing.h>
+#include <core/profiling/timing.h>
 
 #include <ytlib/node_tracker_client/node_tracker_service.pb.h>
 

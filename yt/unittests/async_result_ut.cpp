@@ -1,12 +1,12 @@
 #include "stdafx.h"
 
-#include <ytlib/actions/future.h>
-#include <ytlib/actions/bind.h>
-#include <ytlib/actions/callback.h>
+#include <core/actions/future.h>
+#include <core/actions/bind.h>
+#include <core/actions/callback.h>
 
-#include <ytlib/concurrency/parallel_awaiter.h>
-#include <ytlib/concurrency/parallel_collector.h>
-#include <ytlib/actions/invoker_util.h>
+#include <core/concurrency/parallel_awaiter.h>
+#include <core/concurrency/parallel_collector.h>
+#include <core/actions/invoker_util.h>
 
 #include <util/system/thread.h>
 

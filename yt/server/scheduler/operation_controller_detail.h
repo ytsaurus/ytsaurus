@@ -7,15 +7,15 @@
 #include "job_resources.h"
 #include "serialization_context.h"
 
-#include <ytlib/misc/nullable.h>
-#include <ytlib/misc/id_generator.h>
+#include <core/misc/nullable.h>
+#include <core/misc/id_generator.h>
 
-#include <ytlib/concurrency/thread_affinity.h>
-#include <ytlib/concurrency/periodic_invoker.h>
+#include <core/concurrency/thread_affinity.h>
+#include <core/concurrency/periodic_invoker.h>
 
-#include <ytlib/logging/tagged_logger.h>
+#include <core/logging/tagged_logger.h>
 
-#include <ytlib/actions/cancelable_context.h>
+#include <core/actions/cancelable_context.h>
 
 #include <ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 
@@ -26,8 +26,8 @@
 
 #include <ytlib/cypress_client/public.h>
 
-#include <ytlib/ytree/ypath_client.h>
-#include <ytlib/ytree/yson_string.h>
+#include <core/ytree/ypath_client.h>
+#include <core/ytree/yson_string.h>
 
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/chunk_service_proxy.h>

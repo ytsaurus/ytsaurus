@@ -6,7 +6,7 @@
 #include "chunk_list_pool.h"
 #include "job_resources.h"
 
-#include <ytlib/ytree/fluent.h>
+#include <core/ytree/fluent.h>
 
 #include <ytlib/chunk_client/schema.h>
 

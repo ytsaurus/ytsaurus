@@ -2,8 +2,8 @@
 
 #include "public.h"
 
-#include <ytlib/yson/public.h>
-#include <ytlib/misc/nullable.h>
+#include <core/yson/public.h>
+#include <core/misc/nullable.h>
 
 namespace NYT {
 namespace NTableClient {

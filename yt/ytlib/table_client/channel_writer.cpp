@@ -2,9 +2,9 @@
 #include "channel_writer.h"
 #include "value.h"
 
-#include <ytlib/misc/foreach.h>
-#include <ytlib/misc/blob_output.h>
-#include <ytlib/yson/varint.h>
+#include <core/misc/foreach.h>
+#include <core/misc/blob_output.h>
+#include <core/yson/varint.h>
 
 namespace NYT {
 namespace NTableClient {

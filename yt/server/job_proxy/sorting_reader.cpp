@@ -4,20 +4,20 @@
 #include "private.h"
 #include "small_key.h"
 
-#include <ytlib/misc/heap.h>
+#include <core/misc/heap.h>
 
-#include <ytlib/concurrency/action_queue.h>
+#include <core/concurrency/action_queue.h>
 
 #include <ytlib/chunk_client/multi_chunk_parallel_reader.h>
 #include <ytlib/table_client/sync_reader.h>
 #include <ytlib/table_client/partition_chunk_reader.h>
 
-#include <ytlib/rpc/channel.h>
+#include <core/rpc/channel.h>
 
 #include <ytlib/chunk_client/block_cache.h>
 
-#include <ytlib/yson/lexer.h>
-#include <ytlib/yson/varint.h>
+#include <core/yson/lexer.h>
+#include <core/yson/varint.h>
 
 #include <util/system/yield.h>
 

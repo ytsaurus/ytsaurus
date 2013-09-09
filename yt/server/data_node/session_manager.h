@@ -2,17 +2,17 @@
 
 #include "public.h"
 
-#include <ytlib/misc/lease_manager.h>
+#include <core/misc/lease_manager.h>
 
-#include <ytlib/concurrency/thread_affinity.h>
+#include <core/concurrency/thread_affinity.h>
 
-#include <ytlib/concurrency/throughput_throttler.h>
+#include <core/concurrency/throughput_throttler.h>
 
 #include <ytlib/chunk_client/data_node_service_proxy.h>
 
-#include <ytlib/logging/tagged_logger.h>
+#include <core/logging/tagged_logger.h>
 
-#include <ytlib/profiling/profiler.h>
+#include <core/profiling/profiler.h>
 
 #include <server/cell_node/public.h>
 

@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/erasure/public.h>
+#include <core/erasure/public.h>
 
 namespace NYT {
 namespace NChunkClient {

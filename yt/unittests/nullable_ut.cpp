@@ -1,7 +1,7 @@
 #include "stdafx.h"
 
-#include <ytlib/misc/nullable.h>
-#include <ytlib/misc/property.h>
+#include <core/misc/nullable.h>
+#include <core/misc/property.h>
 
 #include <contrib/testing/framework.h>
 

@@ -1,12 +1,12 @@
 #include "stdafx.h"
 #include "rpc_helpers.h"
 
-#include <ytlib/misc/protobuf_helpers.h>
+#include <core/misc/protobuf_helpers.h>
 
 #include <ytlib/meta_state/rpc_helpers.pb.h>
 
-#include <ytlib/rpc/client.h>
-#include <ytlib/rpc/service.h>
+#include <core/rpc/client.h>
+#include <core/rpc/service.h>
 
 namespace NYT {
 namespace NMetaState {

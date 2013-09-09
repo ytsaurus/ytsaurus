@@ -2,11 +2,11 @@
 
 #include "private.h"
 
-#include <ytlib/misc/hash.h>
-#include <ytlib/misc/ref.h>
+#include <core/misc/hash.h>
+#include <core/misc/ref.h>
 
-#include <ytlib/concurrency/action_queue.h>
-#include <ytlib/actions/future.h>
+#include <core/concurrency/action_queue.h>
+#include <core/actions/future.h>
 
 #include <util/system/file.h>
 

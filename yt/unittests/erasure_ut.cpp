@@ -1,6 +1,6 @@
-#include <ytlib/misc/foreach.h>
+#include <core/misc/foreach.h>
 
-#include <ytlib/erasure/codec.h>
+#include <core/erasure/codec.h>
 
 #include <ytlib/chunk_client/file_reader.h>
 #include <ytlib/chunk_client/file_writer.h>

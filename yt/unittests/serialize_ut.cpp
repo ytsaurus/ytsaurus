@@ -1,7 +1,7 @@
 #include "stdafx.h"
 
-#include <ytlib/misc/serialize.h>
-#include <ytlib/ytree/convert.h>
+#include <core/misc/serialize.h>
+#include <core/ytree/convert.h>
 
 #include <contrib/testing/framework.h>
 

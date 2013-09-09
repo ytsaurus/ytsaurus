@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ytlib/misc/property.h>
+#include <core/misc/property.h>
 
 #include <ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 

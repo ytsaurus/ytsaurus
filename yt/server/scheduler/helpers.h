@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/yson/public.h>
+#include <core/yson/public.h>
 
 namespace NYT {
 namespace NScheduler {

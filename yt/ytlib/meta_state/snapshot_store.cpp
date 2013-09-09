@@ -4,9 +4,9 @@
 #include "snapshot.h"
 #include "config.h"
 
-#include <ytlib/misc/fs.h>
+#include <core/misc/fs.h>
 
-#include <ytlib/concurrency/thread_affinity.h>
+#include <core/concurrency/thread_affinity.h>
 
 #include <util/folder/filelist.h>
 #include <util/folder/dirut.h>

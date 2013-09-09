@@ -5,11 +5,11 @@
 #include "private.h"
 #include "serialization_context.h"
 
-#include <ytlib/misc/fs.h>
+#include <core/misc/fs.h>
 
-#include <ytlib/concurrency/fiber.h>
+#include <core/concurrency/fiber.h>
 
-#include <ytlib/logging/tagged_logger.h>
+#include <core/logging/tagged_logger.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
@@ -17,12 +17,12 @@
 
 #include <ytlib/scheduler/helpers.h>
 
-#include <ytlib/rpc/channel.h>
+#include <core/rpc/channel.h>
 
 #include <ytlib/transaction_client/transaction_manager.h>
 
-#include <ytlib/ytree/ypath_detail.h>
-#include <ytlib/ytree/attribute_helpers.h>
+#include <core/ytree/ypath_detail.h>
+#include <core/ytree/attribute_helpers.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
 

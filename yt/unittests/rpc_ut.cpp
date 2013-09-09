@@ -2,20 +2,20 @@
 
 #include <yt/unittests/rpc_ut.pb.h>
 
-#include <ytlib/misc/error.h>
+#include <core/misc/error.h>
 
-#include <ytlib/concurrency/action_queue.h>
+#include <core/concurrency/action_queue.h>
 
-#include <ytlib/bus/bus.h>
-#include <ytlib/bus/config.h>
-#include <ytlib/bus/server.h>
-#include <ytlib/bus/tcp_client.h>
-#include <ytlib/bus/tcp_server.h>
+#include <core/bus/bus.h>
+#include <core/bus/config.h>
+#include <core/bus/server.h>
+#include <core/bus/tcp_client.h>
+#include <core/bus/tcp_server.h>
 
-#include <ytlib/rpc/client.h>
-#include <ytlib/rpc/server.h>
-#include <ytlib/rpc/service_detail.h>
-#include <ytlib/rpc/bus_channel.h>
+#include <core/rpc/client.h>
+#include <core/rpc/server.h>
+#include <core/rpc/service_detail.h>
+#include <core/rpc/bus_channel.h>
 
 #include <contrib/testing/framework.h>
 

@@ -4,13 +4,13 @@
 #include "cypress_manager.h"
 #include "helpers.h"
 
-#include <ytlib/misc/serialize.h>
+#include <core/misc/serialize.h>
 
-#include <ytlib/ytree/node_detail.h>
-#include <ytlib/ytree/fluent.h>
-#include <ytlib/ytree/ephemeral_node_factory.h>
-#include <ytlib/ytree/tree_builder.h>
-#include <ytlib/ytree/ypath.pb.h>
+#include <core/ytree/node_detail.h>
+#include <core/ytree/fluent.h>
+#include <core/ytree/ephemeral_node_factory.h>
+#include <core/ytree/tree_builder.h>
+#include <core/ytree/ypath.pb.h>
 
 #include <ytlib/meta_state/meta_state_manager.h>
 

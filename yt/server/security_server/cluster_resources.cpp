@@ -1,8 +1,8 @@
 #include "stdafx.h"
 #include "cluster_resources.h"
 
-#include <ytlib/ytree/fluent.h>
-#include <ytlib/ytree/yson_serializable.h>
+#include <core/ytree/fluent.h>
+#include <core/ytree/yson_serializable.h>
 
 #include <server/cell_master/serialization_context.h>
 

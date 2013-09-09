@@ -3,8 +3,8 @@
 #include "private.h"
 #include "meta_state_manager_proxy.h"
 
-#include <ytlib/concurrency/periodic_invoker.h>
-#include <ytlib/concurrency/thread_affinity.h>
+#include <core/concurrency/periodic_invoker.h>
+#include <core/concurrency/thread_affinity.h>
 
 namespace NYT {
 namespace NMetaState {

@@ -1,6 +1,6 @@
 package NYT.NCypressClient.NProto;
 
-import "yt/ytlib/misc/guid.proto";
+import "yt/core/misc/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 

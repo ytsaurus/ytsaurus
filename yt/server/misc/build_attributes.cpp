@@ -1,8 +1,8 @@
 #include "stdafx.h"
 #include "build_attributes.h"
 
-#include <ytlib/ytree/ypath_client.h>
-#include <ytlib/ytree/fluent.h>
+#include <core/ytree/ypath_client.h>
+#include <core/ytree/fluent.h>
 
 #include <yt/build.h>
 

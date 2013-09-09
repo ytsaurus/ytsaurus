@@ -3,8 +3,8 @@
 #include "common.h"
 #include "orchid_service_proxy.h"
 
-#include <ytlib/ytree/public.h>
-#include <ytlib/rpc/service_detail.h>
+#include <core/ytree/public.h>
+#include <core/rpc/service_detail.h>
 
 namespace NYT {
 namespace NOrchid {

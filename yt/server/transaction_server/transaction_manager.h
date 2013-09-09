@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <ytlib/actions/signal.h>
+#include <core/actions/signal.h>
 
-#include <ytlib/misc/property.h>
-#include <ytlib/misc/id_generator.h>
-#include <ytlib/misc/lease_manager.h>
+#include <core/misc/property.h>
+#include <core/misc/id_generator.h>
+#include <core/misc/lease_manager.h>
 
 #include <ytlib/meta_state/meta_state_manager.h>
 #include <ytlib/meta_state/composite_meta_state.h>

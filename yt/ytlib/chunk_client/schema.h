@@ -4,8 +4,8 @@
 
 #include <ytlib/chunk_client/chunk_spec.pb.h>
 
-#include <ytlib/ytree/public.h>
-#include <ytlib/yson/consumer.h>
+#include <core/ytree/public.h>
+#include <core/yson/consumer.h>
 
 namespace NYT {
 namespace NChunkClient {

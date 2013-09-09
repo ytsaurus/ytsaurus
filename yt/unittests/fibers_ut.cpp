@@ -1,13 +1,13 @@
 #include "stdafx.h"
 
-#include <ytlib/misc/common.h>
-#include <ytlib/misc/lazy_ptr.h>
+#include <core/misc/common.h>
+#include <core/misc/lazy_ptr.h>
 
-#include <ytlib/concurrency/fiber.h>
-#include <ytlib/concurrency/action_queue.h>
-#include <ytlib/concurrency/parallel_awaiter.h>
+#include <core/concurrency/fiber.h>
+#include <core/concurrency/action_queue.h>
+#include <core/concurrency/parallel_awaiter.h>
 
-#include <ytlib/actions/cancelable_context.h>
+#include <core/actions/cancelable_context.h>
 
 #include <contrib/testing/framework.h>
 

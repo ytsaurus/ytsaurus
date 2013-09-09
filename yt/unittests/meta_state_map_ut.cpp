@@ -1,7 +1,7 @@
 #include "stdafx.h"
 
-#include <ytlib/misc/serialize.h>
-#include <ytlib/concurrency/action_queue.h>
+#include <core/misc/serialize.h>
+#include <core/concurrency/action_queue.h>
 #include <ytlib/meta_state/map.h>
 
 #include <util/random/random.h>

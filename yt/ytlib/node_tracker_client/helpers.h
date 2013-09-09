@@ -4,9 +4,9 @@
 
 #include <ytlib/node_tracker_client/node.pb.h>
 
-#include <ytlib/profiling/profiler.h>
+#include <core/profiling/profiler.h>
 
-#include <ytlib/yson/public.h>
+#include <core/yson/public.h>
 
 namespace NYT {
 namespace NNodeTrackerClient {

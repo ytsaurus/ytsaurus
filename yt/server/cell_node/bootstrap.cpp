@@ -2,18 +2,18 @@
 #include "bootstrap.h"
 #include "config.h"
 
-#include <ytlib/misc/address.h>
-#include <ytlib/misc/ref_counted_tracker.h>
+#include <core/misc/address.h>
+#include <core/misc/ref_counted_tracker.h>
 
-#include <ytlib/concurrency/action_queue.h>
+#include <core/concurrency/action_queue.h>
 
-#include <ytlib/bus/server.h>
-#include <ytlib/bus/tcp_server.h>
-#include <ytlib/bus/config.h>
+#include <core/bus/server.h>
+#include <core/bus/tcp_server.h>
+#include <core/bus/config.h>
 
-#include <ytlib/rpc/channel.h>
-#include <ytlib/rpc/server.h>
-#include <ytlib/rpc/redirector_service.h>
+#include <core/rpc/channel.h>
+#include <core/rpc/server.h>
+#include <core/rpc/redirector_service.h>
 
 #include <ytlib/meta_state/master_channel.h>
 
@@ -21,16 +21,16 @@
 
 #include <ytlib/orchid/orchid_service.h>
 
-#include <ytlib/monitoring/monitoring_manager.h>
-#include <ytlib/monitoring/http_server.h>
-#include <ytlib/monitoring/http_integration.h>
+#include <core/monitoring/monitoring_manager.h>
+#include <core/monitoring/http_server.h>
+#include <core/monitoring/http_integration.h>
 
-#include <ytlib/ytree/ephemeral_node_factory.h>
-#include <ytlib/ytree/virtual.h>
-#include <ytlib/ytree/yson_file_service.h>
-#include <ytlib/ytree/ypath_client.h>
+#include <core/ytree/ephemeral_node_factory.h>
+#include <core/ytree/virtual.h>
+#include <core/ytree/yson_file_service.h>
+#include <core/ytree/ypath_client.h>
 
-#include <ytlib/profiling/profiling_manager.h>
+#include <core/profiling/profiling_manager.h>
 
 #include <ytlib/scheduler/scheduler_channel.h>
 

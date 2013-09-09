@@ -2,7 +2,7 @@
 
 #include "private.h"
 
-#include <ytlib/misc/phoenix.h>
+#include <core/misc/phoenix.h>
 
 namespace NYT {
 namespace NScheduler {

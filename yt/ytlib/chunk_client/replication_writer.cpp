@@ -7,19 +7,19 @@
 #include "chunk_ypath_proxy.h"
 #include "data_node_service_proxy.h"
 
-#include <ytlib/misc/metric.h>
-#include <ytlib/misc/string.h>
-#include <ytlib/misc/serialize.h>
-#include <ytlib/misc/protobuf_helpers.h>
-#include <ytlib/misc/async_stream_state.h>
+#include <core/misc/metric.h>
+#include <core/misc/string.h>
+#include <core/misc/serialize.h>
+#include <core/misc/protobuf_helpers.h>
+#include <core/misc/async_stream_state.h>
 
-#include <ytlib/concurrency/thread_affinity.h>
-#include <ytlib/concurrency/periodic_invoker.h>
-#include <ytlib/concurrency/parallel_awaiter.h>
-#include <ytlib/concurrency/action_queue.h>
-#include <ytlib/concurrency/async_semaphore.h>
+#include <core/concurrency/thread_affinity.h>
+#include <core/concurrency/periodic_invoker.h>
+#include <core/concurrency/parallel_awaiter.h>
+#include <core/concurrency/action_queue.h>
+#include <core/concurrency/async_semaphore.h>
 
-#include <ytlib/logging/tagged_logger.h>
+#include <core/logging/tagged_logger.h>
 
 #include <ytlib/chunk_client/data_node_service.pb.h>
 

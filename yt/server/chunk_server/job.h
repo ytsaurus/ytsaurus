@@ -2,10 +2,10 @@
 
 #include "public.h"
 
-#include <ytlib/misc/property.h>
-#include <ytlib/misc/error.h>
+#include <core/misc/property.h>
+#include <core/misc/error.h>
 
-#include <ytlib/erasure/public.h>
+#include <core/erasure/public.h>
 
 #include <ytlib/node_tracker_client/node.pb.h>
 

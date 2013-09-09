@@ -1,7 +1,7 @@
 #pragma once
 
 #include <ytlib/chunk_client/data_statistics.pb.h>
-#include <ytlib/yson/public.h>
+#include <core/yson/public.h>
 
 namespace NYT {
 namespace NChunkClient {

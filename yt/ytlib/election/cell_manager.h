@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <ytlib/misc/property.h>
+#include <core/misc/property.h>
 
-#include <ytlib/rpc/public.h>
+#include <core/rpc/public.h>
 
-#include <ytlib/profiling/public.h>
+#include <core/profiling/public.h>
 
 namespace NYT {
 namespace NElection {

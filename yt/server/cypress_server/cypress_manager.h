@@ -6,13 +6,13 @@
 #include "node_proxy.h"
 #include "lock.h"
 
-#include <ytlib/misc/small_vector.h>
-#include <ytlib/misc/id_generator.h>
+#include <core/misc/small_vector.h>
+#include <core/misc/id_generator.h>
 
-#include <ytlib/concurrency/thread_affinity.h>
+#include <core/concurrency/thread_affinity.h>
 
-#include <ytlib/ytree/ypath_service.h>
-#include <ytlib/ytree/tree_builder.h>
+#include <core/ytree/ypath_service.h>
+#include <core/ytree/tree_builder.h>
 
 #include <ytlib/meta_state/meta_state_manager.h>
 #include <ytlib/meta_state/composite_meta_state.h>

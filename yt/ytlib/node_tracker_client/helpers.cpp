@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "helpers.h"
 
-#include <ytlib/ytree/fluent.h>
+#include <core/ytree/fluent.h>
 
 namespace NYT {
 namespace NNodeTrackerClient {

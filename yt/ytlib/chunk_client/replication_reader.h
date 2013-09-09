@@ -3,11 +3,11 @@
 #include "public.h"
 #include "chunk_replica.h"
 
-#include <ytlib/misc/nullable.h>
+#include <core/misc/nullable.h>
 
-#include <ytlib/concurrency/throughput_throttler.h>
+#include <core/concurrency/throughput_throttler.h>
 
-#include <ytlib/rpc/public.h>
+#include <core/rpc/public.h>
 
 #include <ytlib/node_tracker_client/public.h>
 

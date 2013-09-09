@@ -1,7 +1,7 @@
 #include "stdafx.h"
 
-#include <ytlib/yson/varint.h>
-#include <ytlib/misc/common.h>
+#include <core/yson/varint.h>
+#include <core/misc/common.h>
 
 #include <util/string/escape.h>
 #include <util/random/random.h>

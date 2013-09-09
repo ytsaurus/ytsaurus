@@ -7,11 +7,11 @@
 #include "disk_health_checker.h"
 #include "master_connector.h"
 
-#include <ytlib/misc/fs.h>
+#include <core/misc/fs.h>
 
 #include <ytlib/chunk_client/format.h>
 
-#include <ytlib/ypath/token.h>
+#include <core/ypath/token.h>
 
 #include <server/cell_node/bootstrap.h>
 #include <server/cell_node/config.h>

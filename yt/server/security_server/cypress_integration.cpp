@@ -4,7 +4,7 @@
 #include "user.h"
 #include "group.h"
 
-#include <ytlib/ytree/virtual.h>
+#include <core/ytree/virtual.h>
 
 #include <server/cypress_server/virtual.h>
 

@@ -2,13 +2,13 @@
 
 #include "public.h"
 
-#include <ytlib/concurrency/action_queue.h>
+#include <core/concurrency/action_queue.h>
 
-#include <ytlib/formats/format.h>
+#include <core/formats/format.h>
 
-#include <ytlib/logging/tagged_logger.h>
+#include <core/logging/tagged_logger.h>
 
-#include <ytlib/misc/fs.h>
+#include <core/misc/fs.h>
 #include <util/stream/file.h>
 
 namespace NYT {

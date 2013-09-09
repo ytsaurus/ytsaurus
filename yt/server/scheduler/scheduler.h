@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <ytlib/rpc/service_detail.h>
+#include <core/rpc/service_detail.h>
 
-#include <ytlib/ytree/public.h>
+#include <core/ytree/public.h>
 
 #include <ytlib/transaction_client/public.h>
 

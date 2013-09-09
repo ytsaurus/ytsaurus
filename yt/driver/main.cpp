@@ -6,24 +6,24 @@
 #include "scheduler_executors.h"
 #include "etc_executors.h"
 
-#include <ytlib/logging/log_manager.h>
+#include <core/logging/log_manager.h>
 
-#include <ytlib/profiling/profiling_manager.h>
+#include <core/profiling/profiling_manager.h>
 
-#include <ytlib/concurrency/delayed_invoker.h>
+#include <core/concurrency/delayed_invoker.h>
 
 #include <ytlib/driver/private.h>
 #include <ytlib/driver/driver.h>
 #include <ytlib/driver/config.h>
 
-#include <ytlib/bus/tcp_dispatcher.h>
+#include <core/bus/tcp_dispatcher.h>
 
-#include <ytlib/rpc/dispatcher.h>
+#include <core/rpc/dispatcher.h>
 #include <ytlib/chunk_client/dispatcher.h>
 
-#include <ytlib/yson/parser.h>
+#include <core/yson/parser.h>
 
-#include <ytlib/misc/crash_handler.h>
+#include <core/misc/crash_handler.h>
 
 #include <server/exec_agent/config.h>
 

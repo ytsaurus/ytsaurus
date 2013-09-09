@@ -6,7 +6,7 @@
 #include "helpers.h"
 #include "master_connector.h"
 
-#include <ytlib/concurrency/fiber.h>
+#include <core/concurrency/fiber.h>
 
 #include <ytlib/transaction_client/transaction.h>
 
@@ -18,18 +18,18 @@
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/chunk_spec.h>
 
-#include <ytlib/erasure/codec.h>
+#include <core/erasure/codec.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
 #include <ytlib/object_client/object_ypath_proxy.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
-#include <ytlib/ytree/fluent.h>
-#include <ytlib/ytree/convert.h>
-#include <ytlib/ytree/attribute_helpers.h>
+#include <core/ytree/fluent.h>
+#include <core/ytree/convert.h>
+#include <core/ytree/attribute_helpers.h>
 
-#include <ytlib/formats/format.h>
+#include <core/formats/format.h>
 
 #include <ytlib/transaction_client/transaction_ypath_proxy.h>
 #include <ytlib/transaction_client/transaction_manager.h>
@@ -39,7 +39,7 @@
 
 #include <ytlib/meta_state/rpc_helpers.h>
 
-#include <ytlib/security_client/rpc_helpers.h>
+#include <core/rpc/helpers.h>
 
 #include <cmath>
 
@@ -58,7 +58,6 @@ using namespace NYson;
 using namespace NYPath;
 using namespace NFormats;
 using namespace NJobProxy;
-using namespace NSecurityClient;
 using namespace NJobTrackerClient;
 using namespace NNodeTrackerClient;
 using namespace NScheduler::NProto;
@@ -224,7 +223,7 @@ void TOperationControllerBase::TInputChunkDescriptor::Persist(TPersistenceContex
 ////////////////////////////////////////////////////////////////////
 
 TOperationControllerBase::TInputChunkScratcher::TInputChunkScratcher(
-	TOperationControllerBase* controller)
+    TOperationControllerBase* controller)
     : Controller(controller)
     , PeriodicInvoker(New<TPeriodicInvoker>(
         Controller->GetCancelableControlInvoker(),

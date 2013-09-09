@@ -8,26 +8,26 @@
 #include "table_output.h"
 #include "pipes.h"
 
-#include <ytlib/formats/format.h>
-#include <ytlib/formats/parser.h>
+#include <core/formats/format.h>
+#include <core/formats/parser.h>
 
-#include <ytlib/yson/writer.h>
+#include <core/yson/writer.h>
 
-#include <ytlib/ytree/convert.h>
+#include <core/ytree/convert.h>
 
 #include <ytlib/table_client/table_producer.h>
 #include <ytlib/table_client/table_consumer.h>
 #include <ytlib/table_client/sync_reader.h>
 #include <ytlib/table_client/sync_writer.h>
 
-#include <ytlib/rpc/channel.h>
+#include <core/rpc/channel.h>
 
-#include <ytlib/actions/invoker_util.h>
+#include <core/actions/invoker_util.h>
 
-#include <ytlib/misc/proc.h>
-#include <ytlib/concurrency/periodic_invoker.h>
-#include <ytlib/misc/protobuf_helpers.h>
-#include <ytlib/misc/pattern_formatter.h>
+#include <core/misc/proc.h>
+#include <core/concurrency/periodic_invoker.h>
+#include <core/misc/protobuf_helpers.h>
+#include <core/misc/pattern_formatter.h>
 
 #include <ytlib/transaction_client/public.h>
 

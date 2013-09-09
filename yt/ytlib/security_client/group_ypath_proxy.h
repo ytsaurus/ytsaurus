@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ytlib/ytree/ypath_proxy.h>
+#include <core/ytree/ypath_proxy.h>
 
 #include <ytlib/security_client/group_ypath.pb.h>
 

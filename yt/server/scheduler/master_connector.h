@@ -2,8 +2,8 @@
 
 #include "private.h"
 
-#include <ytlib/actions/signal.h>
-#include <ytlib/ytree/public.h>
+#include <core/actions/signal.h>
+#include <core/ytree/public.h>
 
 #include <ytlib/object_client/public.h>
 #include <ytlib/object_client/object_service_proxy.h>

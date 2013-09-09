@@ -4,9 +4,9 @@
 
 #include <ytlib/chunk_client/data_statistics.h>
 
-#include <ytlib/misc/error.h>
-#include <ytlib/misc/ref_counted.h>
-#include <ytlib/misc/nullable.h>
+#include <core/misc/error.h>
+#include <core/misc/ref_counted.h>
+#include <core/misc/nullable.h>
 
 namespace NYT {
 namespace NTableClient {

@@ -1,6 +1,6 @@
 #include "input_stream.h"
 
-#include <ytlib/misc/foreach.h>
+#include <core/misc/foreach.h>
 
 #include <util/system/spinlock.h>
 

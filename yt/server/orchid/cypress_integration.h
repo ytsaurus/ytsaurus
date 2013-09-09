@@ -1,7 +1,7 @@
 #pragma once
 
 #include <server/cypress_server/public.h>
-#include <ytlib/ytree/yson_serializable.h>
+#include <core/ytree/yson_serializable.h>
 #include <server/cell_master/public.h>
 
 namespace NYT {

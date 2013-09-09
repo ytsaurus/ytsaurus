@@ -7,7 +7,7 @@
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
-#include <ytlib/erasure/codec.h>
+#include <core/erasure/codec.h>
 
 #include <server/cell_master/serialization_context.h>
 

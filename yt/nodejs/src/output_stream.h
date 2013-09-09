@@ -2,7 +2,7 @@
 
 #include "stream_base.h"
 
-#include <ytlib/concurrency/event_count.h>
+#include <core/concurrency/event_count.h>
 
 #include <util/thread/lfqueue.h>
 

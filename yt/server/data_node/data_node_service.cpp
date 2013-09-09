@@ -11,16 +11,16 @@
 #include "peer_block_table.h"
 #include "session_manager.h"
 
-#include <ytlib/misc/serialize.h>
-#include <ytlib/misc/protobuf_helpers.h>
-#include <ytlib/misc/string.h>
-#include <ytlib/misc/lazy_ptr.h>
-#include <ytlib/misc/random.h>
-#include <ytlib/misc/nullable.h>
+#include <core/misc/serialize.h>
+#include <core/misc/protobuf_helpers.h>
+#include <core/misc/string.h>
+#include <core/misc/lazy_ptr.h>
+#include <core/misc/random.h>
+#include <core/misc/nullable.h>
 
-#include <ytlib/bus/tcp_dispatcher.h>
+#include <core/bus/tcp_dispatcher.h>
 
-#include <ytlib/concurrency/parallel_awaiter.h>
+#include <core/concurrency/parallel_awaiter.h>
 
 #include <ytlib/table_client/chunk_meta_extensions.h>
 

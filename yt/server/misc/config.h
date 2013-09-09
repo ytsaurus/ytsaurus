@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <ytlib/ytree/yson_serializable.h>
+#include <core/ytree/yson_serializable.h>
 
-#include <ytlib/misc/address.h>
+#include <core/misc/address.h>
 
-#include <ytlib/rpc/config.h>
+#include <core/rpc/config.h>
 
 namespace NYT {
 

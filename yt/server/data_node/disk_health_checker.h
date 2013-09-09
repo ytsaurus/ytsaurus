@@ -2,10 +2,10 @@
 
 #include "public.h"
 
-#include <ytlib/actions/signal.h>
+#include <core/actions/signal.h>
 
-#include <ytlib/concurrency/periodic_invoker.h>
-#include <ytlib/misc/error.h>
+#include <core/concurrency/periodic_invoker.h>
+#include <core/misc/error.h>
 
 namespace NYT {
 namespace NDataNode {

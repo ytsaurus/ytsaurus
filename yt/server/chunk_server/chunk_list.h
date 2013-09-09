@@ -4,8 +4,8 @@
 #include "chunk_tree.h"
 #include "chunk_tree_statistics.h"
 
-#include <ytlib/misc/property.h>
-#include <ytlib/misc/ref_tracked.h>
+#include <core/misc/property.h>
+#include <core/misc/ref_tracked.h>
 
 #include <server/cell_master/public.h>
 

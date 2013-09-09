@@ -4,9 +4,9 @@
 #include "master_connector.h"
 #include "job_resources.h"
 
-#include <ytlib/ytree/yson_serializable.h>
-#include <ytlib/ytree/ypath_proxy.h>
-#include <ytlib/ytree/fluent.h>
+#include <core/ytree/yson_serializable.h>
+#include <core/ytree/ypath_proxy.h>
+#include <core/ytree/fluent.h>
 
 #include <ytlib/scheduler/helpers.h>
 
@@ -14,8 +14,8 @@
 
 #include <ytlib/node_tracker_client/helpers.h>
 
-#include <ytlib/logging/log.h>
-#include <ytlib/logging/tagged_logger.h>
+#include <core/logging/log.h>
+#include <core/logging/tagged_logger.h>
 
 namespace NYT {
 namespace NScheduler {

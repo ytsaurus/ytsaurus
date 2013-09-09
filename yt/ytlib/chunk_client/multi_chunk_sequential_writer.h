@@ -4,9 +4,9 @@
 #include "config.h"
 #include "chunk_replica.h"
 
-#include <ytlib/misc/async_stream_state.h>
+#include <core/misc/async_stream_state.h>
 
-#include <ytlib/concurrency/parallel_awaiter.h>
+#include <core/concurrency/parallel_awaiter.h>
 
 #include <ytlib/chunk_client/chunk_spec.pb.h>
 
@@ -15,7 +15,7 @@
 
 #include <ytlib/transaction_client/public.h>
 
-#include <ytlib/logging/tagged_logger.h>
+#include <core/logging/tagged_logger.h>
 
 namespace NYT {
 namespace NChunkClient {

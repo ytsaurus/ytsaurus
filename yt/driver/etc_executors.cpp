@@ -3,7 +3,7 @@
 
 #include <ytlib/driver/driver.h>
 
-#include <ytlib/logging/log_manager.h>
+#include <core/logging/log_manager.h>
 
 #include <ytlib/meta_state/meta_state_manager_proxy.h>
 

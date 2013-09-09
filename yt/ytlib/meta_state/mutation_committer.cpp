@@ -9,16 +9,16 @@
 #include "mutation_context.h"
 #include "follower_tracker.h"
 
-#include <ytlib/misc/serialize.h>
-#include <ytlib/misc/foreach.h>
+#include <core/misc/serialize.h>
+#include <core/misc/foreach.h>
 
-#include <ytlib/concurrency/parallel_awaiter.h>
+#include <core/concurrency/parallel_awaiter.h>
 
-#include <ytlib/ytree/ypath_client.h>
+#include <core/ytree/ypath_client.h>
 
 #include <ytlib/election/cell_manager.h>
 
-#include <ytlib/logging/tagged_logger.h>
+#include <core/logging/tagged_logger.h>
 
 #include <util/random/random.h>
 

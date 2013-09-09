@@ -11,8 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <ytlib/misc/small_string.h>
-#include <ytlib/misc/small_vector.h>
+#include <core/misc/small_string.h>
+#include <core/misc/small_vector.h>
 
 #include <util/generic/strbuf.h>
 #include <util/generic/stroka.h>

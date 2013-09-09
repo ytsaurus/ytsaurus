@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/rpc/service_detail.h>
+#include <core/rpc/service_detail.h>
 
 #include <server/job_agent/public.h>
 

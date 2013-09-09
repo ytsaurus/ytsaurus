@@ -4,12 +4,12 @@
 #include "change_log.h"
 #include "private.h"
 
-#include <ytlib/misc/foreach.h>
-#include <ytlib/misc/singleton.h>
+#include <core/misc/foreach.h>
+#include <core/misc/singleton.h>
 
-#include <ytlib/concurrency/thread_affinity.h>
+#include <core/concurrency/thread_affinity.h>
 
-#include <ytlib/profiling/profiler.h>
+#include <core/profiling/profiler.h>
 
 #include <util/system/thread.h>
 

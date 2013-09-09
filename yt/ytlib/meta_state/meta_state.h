@@ -3,8 +3,8 @@
 #include "public.h"
 #include "mutation_context.h"
 
-#include <ytlib/actions/future.h>
-#include <ytlib/misc/ref.h>
+#include <core/actions/future.h>
+#include <core/misc/ref.h>
 
 #include <util/stream/input.h>
 #include <util/stream/output.h>

@@ -2,10 +2,10 @@
 
 #include "public.h"
 
-#include <ytlib/misc/error.h>
+#include <core/misc/error.h>
 
-#include <ytlib/rpc/public.h>
-#include <ytlib/rpc/rpc.pb.h>
+#include <core/rpc/public.h>
+#include <core/rpc/rpc.pb.h>
 
 namespace NYT {
 namespace NMetaState {

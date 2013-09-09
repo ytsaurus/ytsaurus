@@ -3,12 +3,12 @@
 #include "private.h"
 #include "config.h"
 
-#include <ytlib/misc/address.h>
+#include <core/misc/address.h>
 
-#include <ytlib/rpc/channel.h>
-#include <ytlib/rpc/channel_cache.h>
+#include <core/rpc/channel.h>
+#include <core/rpc/channel_cache.h>
 
-#include <ytlib/profiling/profiling_manager.h>
+#include <core/profiling/profiling_manager.h>
 
 namespace NYT {
 namespace NElection {

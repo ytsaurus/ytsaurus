@@ -9,15 +9,15 @@
 #include "chunk_cache.h"
 #include "session_manager.h"
 
-#include <ytlib/rpc/client.h>
+#include <core/rpc/client.h>
 
-#include <ytlib/concurrency/delayed_invoker.h>
-#include <ytlib/misc/serialize.h>
-#include <ytlib/misc/string.h>
+#include <core/concurrency/delayed_invoker.h>
+#include <core/misc/serialize.h>
+#include <core/misc/string.h>
 
 #include <ytlib/meta_state/master_channel.h>
 
-#include <ytlib/logging/tagged_logger.h>
+#include <core/logging/tagged_logger.h>
 
 #include <ytlib/node_tracker_client/node_statistics.h>
 #include <ytlib/node_tracker_client/helpers.h>

@@ -1,20 +1,20 @@
 #include "stdafx.h"
 #include "cypress_integration.h"
 
-#include <ytlib/misc/lazy_ptr.h>
+#include <core/misc/lazy_ptr.h>
 
-#include <ytlib/concurrency/action_queue.h>
+#include <core/concurrency/action_queue.h>
 
-#include <ytlib/ytree/ephemeral_node_factory.h>
-#include <ytlib/ytree/ypath_detail.h>
+#include <core/ytree/ephemeral_node_factory.h>
+#include <core/ytree/ypath_detail.h>
 
 #include <ytlib/orchid/orchid_service_proxy.h>
 
-#include <ytlib/rpc/channel.h>
-#include <ytlib/rpc/message.h>
-#include <ytlib/rpc/channel_cache.h>
+#include <core/rpc/channel.h>
+#include <core/rpc/message.h>
+#include <core/rpc/channel_cache.h>
 
-#include <ytlib/bus/message.h>
+#include <core/bus/message.h>
 
 #include <server/cell_master/bootstrap.h>
 

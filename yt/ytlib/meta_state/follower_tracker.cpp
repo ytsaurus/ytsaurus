@@ -6,8 +6,8 @@
 #include "decorated_meta_state.h"
 
 #include <ytlib/election/cell_manager.h>
-#include <ytlib/misc/serialize.h>
-#include <ytlib/bus/message.h>
+#include <core/misc/serialize.h>
+#include <core/bus/message.h>
 
 namespace NYT {
 namespace NMetaState {

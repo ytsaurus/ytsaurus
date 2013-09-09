@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <ytlib/logging/log.h>
+#include <core/logging/log.h>
 
-#include <ytlib/profiling/profiler.h>
+#include <core/profiling/profiler.h>
 
 namespace NYT {
 namespace NObjectServer {

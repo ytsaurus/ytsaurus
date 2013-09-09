@@ -1,7 +1,7 @@
 #pragma once
 
-#include <ytlib/misc/common.h>
-#include <ytlib/misc/enum.h>
+#include <core/misc/common.h>
+#include <core/misc/enum.h>
 
 namespace NYT {
 namespace NCellNode {

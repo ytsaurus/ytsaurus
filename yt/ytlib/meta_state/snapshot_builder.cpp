@@ -9,11 +9,11 @@
 #include "snapshot.h"
 #include "change_log_cache.h"
 
-#include <ytlib/concurrency/parallel_awaiter.h>
+#include <core/concurrency/parallel_awaiter.h>
 
-#include <ytlib/ytree/ypath_client.h>
+#include <core/ytree/ypath_client.h>
 
-#include <ytlib/misc/serialize.h>
+#include <core/misc/serialize.h>
 
 #include <ytlib/election/cell_manager.h>
 

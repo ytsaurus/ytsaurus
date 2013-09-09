@@ -2,7 +2,7 @@
 #include "file_node_proxy.h"
 #include "file_node.h"
 
-#include <ytlib/misc/string.h>
+#include <core/misc/string.h>
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/chunk.pb.h>

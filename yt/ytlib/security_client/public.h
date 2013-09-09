@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ytlib/misc/guid.h>
+#include <core/misc/guid.h>
 
 #include <ytlib/object_client/public.h>
 

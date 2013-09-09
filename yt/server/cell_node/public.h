@@ -2,7 +2,7 @@
 
 #include "memory_consumer.h"
 
-#include <ytlib/misc/common.h>
+#include <core/misc/common.h>
 
 #include <server/misc/memory_usage_tracker.h>
 

@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-#include <ytlib/misc/string.h>
+#include <core/misc/string.h>
 
 #include <contrib/testing/framework.h>
 

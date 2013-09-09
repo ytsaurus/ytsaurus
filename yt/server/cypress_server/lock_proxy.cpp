@@ -3,7 +3,7 @@
 #include "lock.h"
 #include "private.h"
 
-#include <ytlib/ytree/fluent.h>
+#include <core/ytree/fluent.h>
 
 #include <ytlib/cypress_client/lock_ypath.pb.h>
 

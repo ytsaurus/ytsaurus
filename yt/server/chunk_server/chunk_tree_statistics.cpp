@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "chunk_tree_statistics.h"
 
-#include <ytlib/ytree/fluent.h>
+#include <core/ytree/fluent.h>
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/serialization_context.h>

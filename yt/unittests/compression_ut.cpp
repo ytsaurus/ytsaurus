@@ -1,5 +1,5 @@
-#include <ytlib/misc/foreach.h>
-#include <ytlib/compression/codec.h>
+#include <core/misc/foreach.h>
+#include <core/compression/codec.h>
 
 #include <contrib/testing/framework.h>
 

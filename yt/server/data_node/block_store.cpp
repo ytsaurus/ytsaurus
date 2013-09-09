@@ -15,7 +15,7 @@
 
 #include <server/cell_node/bootstrap.h>
 
-#include <ytlib/profiling/scoped_timer.h>
+#include <core/profiling/scoped_timer.h>
 
 namespace NYT {
 namespace NDataNode {

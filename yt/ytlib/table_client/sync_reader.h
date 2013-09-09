@@ -5,10 +5,10 @@
 #include <ytlib/chunk_client/key.h>
 #include <ytlib/chunk_client/data_statistics.h>
 
-#include <ytlib/misc/sync.h>
-#include <ytlib/misc/nullable.h>
+#include <core/misc/sync.h>
+#include <core/misc/nullable.h>
 
-#include <ytlib/ytree/public.h>
+#include <core/ytree/public.h>
 #include <ytlib/chunk_client/public.h>
 
 namespace NYT {

@@ -3,14 +3,14 @@
 #include "public.h"
 #include "type_handler.h"
 
-#include <ytlib/concurrency/thread_affinity.h>
-#include <ytlib/concurrency/periodic_invoker.h>
+#include <core/concurrency/thread_affinity.h>
+#include <core/concurrency/periodic_invoker.h>
 
 #include <ytlib/meta_state/composite_meta_state.h>
 #include <ytlib/meta_state/map.h>
 #include <ytlib/meta_state/mutation.h>
 
-#include <ytlib/profiling/profiler.h>
+#include <core/profiling/profiler.h>
 
 #include <server/cell_master/public.h>
 

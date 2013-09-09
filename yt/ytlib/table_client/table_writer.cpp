@@ -5,10 +5,10 @@
 #include "private.h"
 #include "table_chunk_writer.h"
 
-#include <ytlib/misc/sync.h>
-#include <ytlib/misc/nullable.h>
+#include <core/misc/sync.h>
+#include <core/misc/nullable.h>
 
-#include <ytlib/concurrency/fiber.h>
+#include <core/concurrency/fiber.h>
 
 #include <ytlib/transaction_client/transaction.h>
 #include <ytlib/transaction_client/transaction_manager.h>

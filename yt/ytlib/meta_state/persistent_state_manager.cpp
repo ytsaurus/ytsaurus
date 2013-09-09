@@ -17,16 +17,16 @@
 #include "mutation_context.h"
 #include "response_keeper.h"
 
-#include <ytlib/concurrency/thread_affinity.h>
-#include <ytlib/concurrency/fiber.h>
+#include <core/concurrency/thread_affinity.h>
+#include <core/concurrency/fiber.h>
 
 #include <ytlib/election/cell_manager.h>
 #include <ytlib/election/election_manager.h>
 
-#include <ytlib/rpc/service_detail.h>
-#include <ytlib/rpc/server.h>
+#include <core/rpc/service_detail.h>
+#include <core/rpc/server.h>
 
-#include <ytlib/ytree/fluent.h>
+#include <core/ytree/fluent.h>
 
 #include <ytlib/meta_state/meta_state_manager.pb.h>
 

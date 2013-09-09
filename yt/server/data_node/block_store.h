@@ -2,8 +2,8 @@
 
 #include "public.h"
 
-#include <ytlib/misc/cache.h>
-#include <ytlib/misc/ref.h>
+#include <core/misc/cache.h>
+#include <core/misc/ref.h>
 
 #include <ytlib/chunk_client/public.h>
 

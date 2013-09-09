@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/rpc/public.h>
+#include <core/rpc/public.h>
 
 #include <ytlib/meta_state/mutation.h>
 

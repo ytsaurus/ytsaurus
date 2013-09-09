@@ -4,11 +4,11 @@
 #include "chunk_meta_extensions.h"
 #include "chunk_replica.h"
 
-#include <ytlib/misc/protobuf_helpers.h>
+#include <core/misc/protobuf_helpers.h>
 
-#include <ytlib/erasure/codec.h>
+#include <core/erasure/codec.h>
 
-#include <ytlib/ytree/attribute_helpers.h>
+#include <core/ytree/attribute_helpers.h>
 
 #include <cmath>
 

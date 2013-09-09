@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <ytlib/concurrency/action_queue.h>
-#include <ytlib/bus/public.h>
-#include <ytlib/rpc/public.h>
+#include <core/concurrency/action_queue.h>
+#include <core/bus/public.h>
+#include <core/rpc/public.h>
 #include <ytlib/transaction_client/public.h>
 
 #include <server/scheduler/public.h>

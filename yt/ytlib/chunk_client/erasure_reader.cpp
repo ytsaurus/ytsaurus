@@ -4,12 +4,12 @@
 #include "chunk_meta_extensions.h"
 #include "dispatcher.h"
 
-#include <ytlib/concurrency/parallel_awaiter.h>
-#include <ytlib/concurrency/parallel_collector.h>
-#include <ytlib/concurrency/fiber.h>
+#include <core/concurrency/parallel_awaiter.h>
+#include <core/concurrency/parallel_collector.h>
+#include <core/concurrency/fiber.h>
 
-#include <ytlib/erasure/codec.h>
-#include <ytlib/erasure/helpers.h>
+#include <core/erasure/codec.h>
+#include <core/erasure/helpers.h>
 
 #include <numeric>
 

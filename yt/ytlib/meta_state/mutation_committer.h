@@ -6,11 +6,11 @@
 
 #include <ytlib/election/election_manager.h>
 
-#include <ytlib/concurrency/thread_affinity.h>
+#include <core/concurrency/thread_affinity.h>
 
-#include <ytlib/actions/signal.h>
+#include <core/actions/signal.h>
 
-#include <ytlib/profiling/profiler.h>
+#include <core/profiling/profiler.h>
 
 namespace NYT {
 namespace NMetaState {

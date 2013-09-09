@@ -3,10 +3,10 @@
 #include "public.h"
 #include "node.h"
 
-#include <ytlib/ytree/node.h>
-#include <ytlib/ytree/system_attribute_provider.h>
+#include <core/ytree/node.h>
+#include <core/ytree/system_attribute_provider.h>
 
-#include <ytlib/rpc/service_detail.h>
+#include <core/rpc/service_detail.h>
 
 #include <ytlib/cypress_client/cypress_ypath.pb.h>
 

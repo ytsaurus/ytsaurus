@@ -3,7 +3,7 @@
 #include "scheduler.h"
 #include "config.h"
 
-#include <ytlib/concurrency/fiber.h>
+#include <core/concurrency/fiber.h>
 
 #include <ytlib/scheduler/helpers.h>
 
@@ -11,7 +11,7 @@
 
 #include <ytlib/chunk_client/client_block_cache.h>
 
-#include <ytlib/ytree/ypath_proxy.h>
+#include <core/ytree/ypath_proxy.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
 

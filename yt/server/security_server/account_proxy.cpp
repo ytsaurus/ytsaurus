@@ -3,7 +3,7 @@
 #include "account.h"
 #include "security_manager.h"
 
-#include <ytlib/yson/consumer.h>
+#include <core/yson/consumer.h>
 
 #include <ytlib/security_client/account_ypath.pb.h>
 

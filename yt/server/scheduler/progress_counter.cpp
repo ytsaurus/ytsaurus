@@ -2,7 +2,7 @@
 #include "progress_counter.h"
 #include "private.h"
 
-#include <ytlib/ytree/fluent.h>
+#include <core/ytree/fluent.h>
 
 namespace NYT {
 namespace NScheduler {

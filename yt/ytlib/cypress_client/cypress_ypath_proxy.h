@@ -2,8 +2,8 @@
 
 #include "public.h"
 
-#include <ytlib/rpc/public.h>
-#include <ytlib/rpc/rpc.pb.h>
+#include <core/rpc/public.h>
+#include <core/rpc/rpc.pb.h>
 
 #include <ytlib/object_client/object_ypath_proxy.h>
 

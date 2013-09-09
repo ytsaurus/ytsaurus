@@ -46,7 +46,7 @@ include_directories(
   ${CMAKE_BINARY_DIR}/yt/ytlib/transaction_server
   ${CMAKE_BINARY_DIR}/yt/ytlib/object_server
   ${CMAKE_BINARY_DIR}/yt/ytlib/cypress
-  ${CMAKE_BINARY_DIR}/yt/ytlib/ytree
+  ${CMAKE_BINARY_DIR}/yt/core/ytree
   ${CMAKE_BINARY_DIR}/yt/ytlib/election
   ${CMAKE_BINARY_DIR}/yt/ytlib/meta_state
 )

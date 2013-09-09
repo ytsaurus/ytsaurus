@@ -1,24 +1,24 @@
 #include "stdafx.h"
 
-#include <ytlib/misc/crash_handler.h>
-#include <ytlib/misc/tclap_helpers.h>
-#include <ytlib/misc/address.h>
-#include <ytlib/misc/proc.h>
+#include <core/misc/crash_handler.h>
+#include <core/misc/tclap_helpers.h>
+#include <core/misc/address.h>
+#include <core/misc/proc.h>
 
-#include <ytlib/bus/tcp_dispatcher.h>
+#include <core/bus/tcp_dispatcher.h>
 
-#include <ytlib/rpc/dispatcher.h>
+#include <core/rpc/dispatcher.h>
 
-#include <ytlib/logging/log_manager.h>
+#include <core/logging/log_manager.h>
 
-#include <ytlib/profiling/profiling_manager.h>
+#include <core/profiling/profiling_manager.h>
 
 #include <ytlib/scheduler/config.h>
 
 #include <ytlib/meta_state/async_change_log.h>
 #include <ytlib/chunk_client/dispatcher.h>
 
-#include <ytlib/ytree/yson_serializable.h>
+#include <core/ytree/yson_serializable.h>
 
 #include <tclap/CmdLine.h>
 

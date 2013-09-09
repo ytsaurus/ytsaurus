@@ -1,7 +1,7 @@
 #include "stdafx.h"
 
-#include <ytlib/misc/common.h>
-#include <ytlib/misc/weak_ptr.h>
+#include <core/misc/common.h>
+#include <core/misc/weak_ptr.h>
 
 #include <util/system/thread.h>
 

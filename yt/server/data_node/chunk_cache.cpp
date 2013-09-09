@@ -8,13 +8,13 @@
 #include "config.h"
 #include "master_connector.h"
 
-#include <ytlib/concurrency/thread_affinity.h>
+#include <core/concurrency/thread_affinity.h>
 
-#include <ytlib/misc/serialize.h>
-#include <ytlib/misc/string.h>
-#include <ytlib/misc/fs.h>
+#include <core/misc/serialize.h>
+#include <core/misc/string.h>
+#include <core/misc/fs.h>
 
-#include <ytlib/logging/tagged_logger.h>
+#include <core/logging/tagged_logger.h>
 
 #include <ytlib/meta_state/master_channel.h>
 

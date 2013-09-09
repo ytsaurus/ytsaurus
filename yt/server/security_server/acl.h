@@ -2,12 +2,12 @@
 
 #include "public.h"
 
-#include <ytlib/misc/small_vector.h>
-#include <ytlib/misc/property.h>
+#include <core/misc/small_vector.h>
+#include <core/misc/property.h>
 
-#include <ytlib/ytree/permission.h>
+#include <core/ytree/permission.h>
 
-#include <ytlib/yson/public.h>
+#include <core/yson/public.h>
 
 #include <server/cell_master/public.h>
 

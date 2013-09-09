@@ -8,9 +8,9 @@
 #include <ytlib/chunk_client/key.h>
 #include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
 
-#include <ytlib/misc/ref_counted.h>
-#include <ytlib/misc/nullable.h>
-#include <ytlib/misc/sync.h>
+#include <core/misc/ref_counted.h>
+#include <core/misc/nullable.h>
+#include <core/misc/sync.h>
 
 namespace NYT {
 namespace NTableClient {

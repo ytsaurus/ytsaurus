@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "helpers.h"
 
-#include <ytlib/ypath/token.h>
+#include <core/ypath/token.h>
 
 namespace NYT {
 namespace NScheduler {

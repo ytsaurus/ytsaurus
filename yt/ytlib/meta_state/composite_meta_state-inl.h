@@ -2,7 +2,7 @@
 #error "Direct inclusion of this file is not allowed, include composite_meta_state.h"
 #endif
 
-#include <ytlib/misc/serialize.h>
+#include <core/misc/serialize.h>
 
 namespace NYT {
 namespace NMetaState {

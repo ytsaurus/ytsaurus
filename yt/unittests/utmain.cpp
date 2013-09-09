@@ -1,11 +1,11 @@
 #include "stdafx.h"
 
-#include <ytlib/bus/tcp_dispatcher.h>
-#include <ytlib/rpc/dispatcher.h>
-#include <ytlib/logging/log_manager.h>
-#include <ytlib/profiling/profiling_manager.h>
+#include <core/bus/tcp_dispatcher.h>
+#include <core/rpc/dispatcher.h>
+#include <core/logging/log_manager.h>
+#include <core/profiling/profiling_manager.h>
 #include <ytlib/meta_state/async_change_log.h>
-#include <ytlib/concurrency/delayed_invoker.h>
+#include <core/concurrency/delayed_invoker.h>
 #include <ytlib/chunk_client/dispatcher.h>
 
 #include <util/datetime/base.h>

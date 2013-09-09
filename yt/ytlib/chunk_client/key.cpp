@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "key.h"
 
-#include <ytlib/misc/string.h>
+#include <core/misc/string.h>
 
 namespace NYT {
 namespace NChunkClient {

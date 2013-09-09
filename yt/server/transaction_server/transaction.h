@@ -2,8 +2,8 @@
 
 #include "public.h"
 
-#include <ytlib/misc/property.h>
-#include <ytlib/misc/ref_tracked.h>
+#include <core/misc/property.h>
+#include <core/misc/ref_tracked.h>
 
 #include <ytlib/cypress_client/public.h>
 

@@ -4,19 +4,19 @@
 #include "public.h"
 #include "driver.h"
 
-#include <ytlib/misc/error.h>
-#include <ytlib/misc/mpl.h>
+#include <core/misc/error.h>
+#include <core/misc/mpl.h>
 
-#include <ytlib/ytree/public.h>
-#include <ytlib/ytree/yson_serializable.h>
-#include <ytlib/ytree/convert.h>
+#include <core/ytree/public.h>
+#include <core/ytree/yson_serializable.h>
+#include <core/ytree/convert.h>
 
-#include <ytlib/yson/consumer.h>
-#include <ytlib/yson/parser.h>
-#include <ytlib/yson/writer.h>
+#include <core/yson/consumer.h>
+#include <core/yson/parser.h>
+#include <core/yson/writer.h>
 
-#include <ytlib/rpc/public.h>
-#include <ytlib/rpc/channel.h>
+#include <core/rpc/public.h>
+#include <core/rpc/channel.h>
 
 #include <ytlib/chunk_client/public.h>
 

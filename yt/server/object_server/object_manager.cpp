@@ -8,22 +8,22 @@
 #include "schema.h"
 #include "master.h"
 
-#include <ytlib/concurrency/delayed_invoker.h>
+#include <core/concurrency/delayed_invoker.h>
 
-#include <ytlib/ypath/tokenizer.h>
+#include <core/ypath/tokenizer.h>
 
-#include <ytlib/rpc/message.h>
-#include <ytlib/rpc/server_detail.h>
+#include <core/rpc/message.h>
+#include <core/rpc/server_detail.h>
 
 #include <ytlib/meta_state/rpc_helpers.h>
 
-#include <ytlib/erasure/public.h>
+#include <core/erasure/public.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
-#include <ytlib/profiling/profiling_manager.h>
+#include <core/profiling/profiling_manager.h>
 
 #include <server/cell_master/serialization_context.h>
 

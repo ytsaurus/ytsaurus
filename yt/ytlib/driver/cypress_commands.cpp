@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "cypress_commands.h"
 
-#include <ytlib/concurrency/fiber.h>
+#include <core/concurrency/fiber.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
 #include <ytlib/object_client/master_ypath_proxy.h>
@@ -9,9 +9,9 @@
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <ytlib/cypress_client/lock_ypath_proxy.h>
 
-#include <ytlib/ytree/fluent.h>
-#include <ytlib/ytree/ypath_proxy.h>
-#include <ytlib/ytree/attribute_helpers.h>
+#include <core/ytree/fluent.h>
+#include <core/ytree/ypath_proxy.h>
+#include <core/ytree/attribute_helpers.h>
 
 #include <ytlib/meta_state/rpc_helpers.h>
 

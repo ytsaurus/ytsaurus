@@ -5,9 +5,9 @@
 #include "pipes.h"
 #include "job.h"
 
-#include <ytlib/concurrency/periodic_invoker.h>
+#include <core/concurrency/periodic_invoker.h>
 
-#include <ytlib/logging/tagged_logger.h>
+#include <core/logging/tagged_logger.h>
 
 #include <server/job_agent/public.h>
 

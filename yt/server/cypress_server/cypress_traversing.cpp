@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "cypress_traversing.h"
 
-#include <ytlib/ytree/public.h>
+#include <core/ytree/public.h>
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/meta_state_facade.h>

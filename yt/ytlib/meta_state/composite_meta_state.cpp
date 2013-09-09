@@ -3,8 +3,8 @@
 #include "private.h"
 #include "meta_state_manager.h"
 
-#include <ytlib/misc/foreach.h>
-#include <ytlib/actions/bind.h>
+#include <core/misc/foreach.h>
+#include <core/actions/bind.h>
 
 namespace NYT {
 namespace NMetaState {

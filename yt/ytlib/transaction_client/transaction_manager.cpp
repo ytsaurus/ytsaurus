@@ -4,19 +4,19 @@
 #include "config.h"
 #include "private.h"
 
-#include <ytlib/misc/assert.h>
-#include <ytlib/misc/property.h>
+#include <core/misc/assert.h>
+#include <core/misc/property.h>
 
-#include <ytlib/concurrency/thread_affinity.h>
-#include <ytlib/concurrency/delayed_invoker.h>
+#include <core/concurrency/thread_affinity.h>
+#include <core/concurrency/delayed_invoker.h>
 
 #include <ytlib/meta_state/rpc_helpers.h>
 
-#include <ytlib/security_client/rpc_helpers.h>
+#include <core/rpc/helpers.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
-#include <ytlib/ytree/attributes.h>
+#include <core/ytree/attributes.h>
 
 #include <ytlib/object_client/master_ypath_proxy.h>
 

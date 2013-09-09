@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <ytlib/misc/error.h>
+#include <core/misc/error.h>
 
-#include <ytlib/actions/signal.h>
+#include <core/actions/signal.h>
 
 #include <ytlib/node_tracker_client/node.pb.h>
 

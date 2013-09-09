@@ -11,11 +11,11 @@
 #include "erasure_writer.h"
 #include "replication_writer.h"
 
-#include <ytlib/erasure/codec.h>
+#include <core/erasure/codec.h>
 
-#include <ytlib/misc/string.h>
-#include <ytlib/misc/address.h>
-#include <ytlib/misc/protobuf_helpers.h>
+#include <core/misc/string.h>
+#include <core/misc/address.h>
+#include <core/misc/protobuf_helpers.h>
 
 #include <ytlib/transaction_client/transaction_ypath_proxy.h>
 

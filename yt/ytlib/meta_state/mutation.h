@@ -3,8 +3,8 @@
 #include "public.h"
 #include "mutation_context.h"
 
-#include <ytlib/misc/error.h>
-#include <ytlib/actions/cancelable_context.h>
+#include <core/misc/error.h>
+#include <core/actions/cancelable_context.h>
 
 namespace NYT {
 namespace NMetaState {

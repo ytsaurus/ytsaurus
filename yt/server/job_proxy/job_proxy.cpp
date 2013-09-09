@@ -13,19 +13,19 @@
 #include "partition_reduce_job_io.h"
 #include "user_job_io.h"
 
-#include <ytlib/actions/invoker_util.h>
-#include <ytlib/concurrency/parallel_awaiter.h>
+#include <core/actions/invoker_util.h>
+#include <core/concurrency/parallel_awaiter.h>
 
-#include <ytlib/misc/proc.h>
-#include <ytlib/misc/ref_counted_tracker.h>
+#include <core/misc/proc.h>
+#include <core/misc/ref_counted_tracker.h>
 
-#include <ytlib/logging/log_manager.h>
+#include <core/logging/log_manager.h>
 
 #include <ytlib/scheduler/public.h>
 
-#include <ytlib/bus/tcp_client.h>
+#include <core/bus/tcp_client.h>
 
-#include <ytlib/rpc/bus_channel.h>
+#include <core/rpc/bus_channel.h>
 
 #include <server/scheduler/job_resources.h>
 

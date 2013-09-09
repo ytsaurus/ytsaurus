@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <ytlib/misc/lazy_ptr.h>
+#include <core/misc/lazy_ptr.h>
 
-#include <ytlib/concurrency/action_queue.h>
+#include <core/concurrency/action_queue.h>
 
 namespace NYT {
 namespace NChunkClient {

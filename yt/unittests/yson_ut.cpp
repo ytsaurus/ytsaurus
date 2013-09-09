@@ -1,10 +1,10 @@
 #include "stdafx.h"
 
-#include <ytlib/ytree/yson_string.h>
-#include <ytlib/ytree/yson_stream.h>
-#include <ytlib/ytree/convert.h>
-#include <ytlib/ytree/fluent.h>
-#include <ytlib/ytree/ypath_client.h>
+#include <core/ytree/yson_string.h>
+#include <core/ytree/yson_stream.h>
+#include <core/ytree/convert.h>
+#include <core/ytree/fluent.h>
+#include <core/ytree/ypath_client.h>
 
 #include <contrib/testing/framework.h>
 

@@ -6,12 +6,12 @@
 #include <ytlib/chunk_client/key.h>
 #include <ytlib/chunk_client/multi_chunk_sequential_reader.h>
 
-#include <ytlib/misc/sync.h>
-#include <ytlib/misc/heap.h>
+#include <core/misc/sync.h>
+#include <core/misc/heap.h>
 
-#include <ytlib/concurrency/parallel_awaiter.h>
+#include <core/concurrency/parallel_awaiter.h>
 
-#include <ytlib/ytree/yson_string.h>
+#include <core/ytree/yson_string.h>
 
 namespace NYT {
 namespace NTableClient {

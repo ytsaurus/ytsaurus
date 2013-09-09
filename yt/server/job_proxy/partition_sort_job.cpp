@@ -16,8 +16,8 @@
 
 #include <ytlib/table_client/sync_writer.h>
 
-#include <ytlib/yson/lexer.h>
-#include <ytlib/yson/varint.h>
+#include <core/yson/lexer.h>
+#include <core/yson/varint.h>
 
 namespace NYT {
 namespace NJobProxy {

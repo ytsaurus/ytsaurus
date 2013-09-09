@@ -2,7 +2,7 @@
 
 #include <ytlib/scheduler/public.h>
 
-#include <ytlib/misc/enum.h>
+#include <core/misc/enum.h>
 
 namespace NYT {
 namespace NJobProxy {

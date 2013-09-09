@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/misc/serialize.h>
+#include <core/misc/serialize.h>
 
 #include <ytlib/chunk_client/chunk_replica.h>
 

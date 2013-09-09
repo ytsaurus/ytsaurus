@@ -5,8 +5,8 @@
 #include "chunk.h"
 #include "location.h"
 
-#include <ytlib/ytree/virtual.h>
-#include <ytlib/ytree/fluent.h>
+#include <core/ytree/virtual.h>
+#include <core/ytree/fluent.h>
 
 namespace NYT {
 namespace NDataNode {

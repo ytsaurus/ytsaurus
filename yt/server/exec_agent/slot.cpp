@@ -2,9 +2,9 @@
 #include "slot.h"
 #include "private.h"
 
-#include <ytlib/misc/proc.h>
+#include <core/misc/proc.h>
 
-#include <ytlib/ytree/yson_producer.h>
+#include <core/ytree/yson_producer.h>
 
 #include <util/folder/dirut.h>
 

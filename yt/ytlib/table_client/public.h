@@ -1,7 +1,7 @@
 ﻿#pragma once
 
-#include <ytlib/misc/common.h>
-#include <ytlib/misc/small_vector.h>
+#include <core/misc/common.h>
+#include <core/misc/small_vector.h>
 
 namespace NYT {
 
@@ -30,9 +30,12 @@ DECLARE_ENUM(EControlAttribute,
     (TableIndex)
 );
 
-extern const int DefaultPartitionTag;
+////////////////////////////////////////////////////////////////////////////////
 
-extern const i64 MaxRowWeightLimit;
+const int DefaultPartitionTag = -1;
+const i64 MaxRowWeightLimit = (i64) 128 * 1024 * 1024;
+const size_t MaxColumnNameSize = 256;
+const int MaxColumnCount = 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 

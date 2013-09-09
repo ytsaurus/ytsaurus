@@ -3,9 +3,9 @@
 #include "public.h"
 #include <ytlib/chunk_client/chunk.pb.h>
 
-#include <ytlib/misc/property.h>
-#include <ytlib/misc/error.h>
-#include <ytlib/misc/cache.h>
+#include <core/misc/property.h>
+#include <core/misc/error.h>
+#include <core/misc/cache.h>
 
 #include <server/cell_node/public.h>
 

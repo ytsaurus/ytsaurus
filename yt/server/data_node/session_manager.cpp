@@ -7,15 +7,15 @@
 #include "chunk.h"
 #include "chunk_store.h"
 
-#include <ytlib/misc/fs.h>
-#include <ytlib/misc/sync.h>
+#include <core/misc/fs.h>
+#include <core/misc/sync.h>
 
 #include <ytlib/chunk_client/file_writer.h>
 #include <ytlib/chunk_client/chunk.pb.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
-#include <ytlib/profiling/scoped_timer.h>
+#include <core/profiling/scoped_timer.h>
 
 #include <server/cell_node/bootstrap.h>
 

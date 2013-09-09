@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <ytlib/concurrency/action_queue.h>
+#include <core/concurrency/action_queue.h>
 
-#include <ytlib/rpc/public.h>
+#include <core/rpc/public.h>
 
 #include <server/node_tracker_server/public.h>
 

@@ -2,10 +2,10 @@
 
 #include "public.h"
 
-#include <ytlib/concurrency/periodic_invoker.h>
-#include <ytlib/concurrency/thread_affinity.h>
+#include <core/concurrency/periodic_invoker.h>
+#include <core/concurrency/thread_affinity.h>
 
-#include <ytlib/misc/error.h>
+#include <core/misc/error.h>
 
 #include <server/cell_master/public.h>
 

@@ -1,10 +1,10 @@
 #pragma once
 
-#include <ytlib/misc/common.h>
+#include <core/misc/common.h>
 
 #include <ytlib/chunk_client/chunk_owner_ypath.pb.h>
 
-#include <ytlib/ytree/ypath_proxy.h>
+#include <core/ytree/ypath_proxy.h>
 
 namespace NYT {
 namespace NChunkClient {

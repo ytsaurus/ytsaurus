@@ -4,9 +4,9 @@
 #include "file_helpers.h"
 #include "change_log.h"
 
-#include <ytlib/misc/serialize.h>
-#include <ytlib/misc/checksum.h>
-#include <ytlib/logging/tagged_logger.h>
+#include <core/misc/serialize.h>
+#include <core/misc/checksum.h>
+#include <core/logging/tagged_logger.h>
 
 #include <util/generic/noncopyable.h>
 

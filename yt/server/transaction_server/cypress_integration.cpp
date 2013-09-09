@@ -2,9 +2,9 @@
 #include "cypress_integration.h"
 #include "transaction.h"
 
-#include <ytlib/misc/string.h>
+#include <core/misc/string.h>
 
-#include <ytlib/ytree/virtual.h>
+#include <core/ytree/virtual.h>
 
 #include <server/cypress_server/virtual.h>
 

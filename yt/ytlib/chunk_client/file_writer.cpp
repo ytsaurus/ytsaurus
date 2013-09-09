@@ -1,11 +1,11 @@
 #include "stdafx.h"
 #include "file_writer.h"
 
-#include <ytlib/misc/fs.h>
-#include <ytlib/misc/serialize.h>
-#include <ytlib/misc/protobuf_helpers.h>
+#include <core/misc/fs.h>
+#include <core/misc/serialize.h>
+#include <core/misc/protobuf_helpers.h>
 
-#include <ytlib/logging/log.h>
+#include <core/logging/log.h>
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 

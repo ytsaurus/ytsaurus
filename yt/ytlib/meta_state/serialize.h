@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/misc/ref.h>
+#include <core/misc/ref.h>
 #include <ytlib/meta_state/meta_state_manager.pb.h>
 
 namespace NYT {

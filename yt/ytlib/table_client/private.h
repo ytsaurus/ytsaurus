@@ -1,6 +1,6 @@
 ﻿#pragma once
 
-#include <ytlib/logging/log.h>
+#include <core/logging/log.h>
 
 namespace NYT {
 namespace NTableClient {

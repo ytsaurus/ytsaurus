@@ -9,11 +9,11 @@
 
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 
-#include <ytlib/concurrency/thread_affinity.h>
+#include <core/concurrency/thread_affinity.h>
 
-#include <ytlib/misc/ref.h>
-#include <ytlib/misc/error.h>
-#include <ytlib/misc/async_stream_state.h>
+#include <core/misc/ref.h>
+#include <core/misc/error.h>
+#include <core/misc/async_stream_state.h>
 
 
 namespace NYT {

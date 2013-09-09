@@ -4,7 +4,7 @@
 
 #include <ytlib/object_client/object_service_proxy.h>
 
-#include <ytlib/logging/tagged_logger.h>
+#include <core/logging/tagged_logger.h>
 
 #include <ytlib/transaction_client/public.h>
 

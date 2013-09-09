@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <ytlib/rpc/channel.h>
+#include <core/rpc/channel.h>
 
-#include <ytlib/concurrency/thread_affinity.h>
+#include <core/concurrency/thread_affinity.h>
 
-#include <ytlib/actions/cancelable_context.h>
+#include <core/actions/cancelable_context.h>
 
 #include <ytlib/node_tracker_client/node_tracker_service_proxy.h>
 

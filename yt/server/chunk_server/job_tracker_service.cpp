@@ -6,8 +6,8 @@
 #include "chunk.h"
 #include "private.h"
 
-#include <ytlib/misc/string.h>
-#include <ytlib/misc/protobuf_helpers.h>
+#include <core/misc/string.h>
+#include <core/misc/protobuf_helpers.h>
 
 #include <ytlib/meta_state/rpc_helpers.h>
 

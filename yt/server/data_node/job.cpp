@@ -7,16 +7,16 @@
 #include "config.h"
 #include "private.h"
 
-#include <ytlib/misc/protobuf_helpers.h>
-#include <ytlib/misc/string.h>
+#include <core/misc/protobuf_helpers.h>
+#include <core/misc/string.h>
 
-#include <ytlib/erasure/codec.h>
+#include <core/erasure/codec.h>
 
-#include <ytlib/concurrency/fiber.h>
+#include <core/concurrency/fiber.h>
 
-#include <ytlib/actions/cancelable_context.h>
+#include <core/actions/cancelable_context.h>
 
-#include <ytlib/logging/tagged_logger.h>
+#include <core/logging/tagged_logger.h>
 
 #include <ytlib/node_tracker_client/helpers.h>
 #include <ytlib/node_tracker_client/node_directory.h>

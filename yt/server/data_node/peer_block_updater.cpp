@@ -5,7 +5,7 @@
 #include "config.h"
 #include "master_connector.h"
 
-#include <ytlib/rpc/channel_cache.h>
+#include <core/rpc/channel_cache.h>
 
 #include <ytlib/chunk_client/data_node_service_proxy.h>
 

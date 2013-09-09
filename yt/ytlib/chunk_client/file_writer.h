@@ -5,7 +5,7 @@
 #include "format.h"
 
 #include <ytlib/chunk_client/chunk.pb.h>
-#include <ytlib/misc/checksum.h>
+#include <core/misc/checksum.h>
 
 #include <util/system/file.h>
 

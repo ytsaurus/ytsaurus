@@ -3,9 +3,9 @@
 #include "cypress_manager.h"
 #include "virtual.h"
 
-#include <ytlib/misc/string.h>
+#include <core/misc/string.h>
 
-#include <ytlib/ytree/virtual.h>
+#include <core/ytree/virtual.h>
 
 #include <server/object_server/object_manager.h>
 

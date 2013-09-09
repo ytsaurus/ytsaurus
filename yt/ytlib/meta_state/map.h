@@ -3,7 +3,7 @@
 #include "public.h"
 #include "composite_meta_state.h"
 
-#include <ytlib/concurrency/thread_affinity.h>
+#include <core/concurrency/thread_affinity.h>
 
 namespace NYT {
 namespace NMetaState {

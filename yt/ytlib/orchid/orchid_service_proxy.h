@@ -3,7 +3,7 @@
 #include "common.h"
 #include <ytlib/orchid/orchid_service.pb.h>
 
-#include <ytlib/rpc/client.h>
+#include <core/rpc/client.h>
 
 namespace NYT {
 namespace NOrchid {

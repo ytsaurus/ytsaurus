@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <ytlib/misc/cache.h>
-#include <ytlib/misc/property.h>
+#include <core/misc/cache.h>
+#include <core/misc/property.h>
 
-#include <ytlib/concurrency/action_queue.h>
-#include <ytlib/actions/signal.h>
+#include <core/concurrency/action_queue.h>
+#include <core/actions/signal.h>
 
 #include <ytlib/chunk_client/file_reader.h>
 

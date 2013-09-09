@@ -3,7 +3,7 @@
 #include "public.h"
 #include <ytlib/chunk_client/schema.h>
 
-#include <ytlib/misc/ref.h>
+#include <core/misc/ref.h>
 #include <util/stream/mem.h>
 
 namespace NYT {

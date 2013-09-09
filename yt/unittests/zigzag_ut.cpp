@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-#include <ytlib/yson/zigzag.h>
+#include <core/yson/zigzag.h>
 
 #include <contrib/testing/framework.h>
 

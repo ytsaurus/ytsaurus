@@ -1,8 +1,8 @@
 #pragma once
 
-#include <ytlib/misc/common.h>
+#include <core/misc/common.h>
 
-#include <ytlib/actions/callback.h>
+#include <core/actions/callback.h>
 
 #include <ytlib/cypress_client/public.h>
 

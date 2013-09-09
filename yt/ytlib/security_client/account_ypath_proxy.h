@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ytlib/ytree/ypath_proxy.h>
+#include <core/ytree/ypath_proxy.h>
 
 #include <ytlib/account_client/account_ypath.pb.h>
 

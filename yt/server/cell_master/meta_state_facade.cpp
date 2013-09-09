@@ -2,13 +2,13 @@
 #include "meta_state_facade.h"
 #include "config.h"
 
-#include <ytlib/ytree/ypath_proxy.h>
-#include <ytlib/ytree/ypath_client.h>
+#include <core/ytree/ypath_proxy.h>
+#include <core/ytree/ypath_client.h>
 
-#include <ytlib/ypath/token.h>
+#include <core/ypath/token.h>
 
-#include <ytlib/rpc/bus_channel.h>
-#include <ytlib/rpc/server.h>
+#include <core/rpc/bus_channel.h>
+#include <core/rpc/server.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
@@ -20,7 +20,7 @@
 #include <ytlib/meta_state/composite_meta_state.h>
 #include <ytlib/meta_state/persistent_state_manager.h>
 
-#include <ytlib/logging/log.h>
+#include <core/logging/log.h>
 
 #include <server/cell_master/bootstrap.h>
 

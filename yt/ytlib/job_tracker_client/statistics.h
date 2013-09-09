@@ -3,7 +3,7 @@
 #include "public.h"
 
 #include <ytlib/scheduler/job.pb.h>
-#include <ytlib/yson/public.h>
+#include <core/yson/public.h>
 
 namespace NYT {
 namespace NJobTrackerClient {

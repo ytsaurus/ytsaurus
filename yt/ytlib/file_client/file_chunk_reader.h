@@ -2,15 +2,15 @@
 
 #include "public.h"
 
-#include <ytlib/misc/async_stream_state.h>
+#include <core/misc/async_stream_state.h>
 
-#include <ytlib/compression/codec.h>
+#include <core/compression/codec.h>
 
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/async_reader.h>
 #include <ytlib/chunk_client/chunk_spec.h>
 
-#include <ytlib/logging/tagged_logger.h>
+#include <core/logging/tagged_logger.h>
 
 namespace NYT {
 namespace NFileClient {

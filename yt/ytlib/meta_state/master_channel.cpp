@@ -4,11 +4,11 @@
 #include "master_discovery.h"
 #include "private.h"
 
-#include <ytlib/rpc/roaming_channel.h>
-#include <ytlib/rpc/bus_channel.h>
+#include <core/rpc/roaming_channel.h>
+#include <core/rpc/bus_channel.h>
 
-#include <ytlib/bus/config.h>
-#include <ytlib/bus/tcp_client.h>
+#include <core/bus/config.h>
+#include <core/bus/tcp_client.h>
 
 namespace NYT {
 namespace NMetaState {

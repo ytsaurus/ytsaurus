@@ -3,8 +3,8 @@
 #include "private.h"
 #include "meta_state_manager_proxy.h"
 
-#include <ytlib/rpc/client.h>
-#include <ytlib/concurrency/parallel_awaiter.h>
+#include <core/rpc/client.h>
+#include <core/concurrency/parallel_awaiter.h>
 
 namespace NYT {
 namespace NMetaState {

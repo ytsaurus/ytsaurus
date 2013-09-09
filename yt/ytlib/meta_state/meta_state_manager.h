@@ -3,13 +3,13 @@
 #include "public.h"
 #include "mutation_context.h"
 
-#include <ytlib/actions/signal.h>
-#include <ytlib/actions/cancelable_context.h>
+#include <core/actions/signal.h>
+#include <core/actions/cancelable_context.h>
 
-#include <ytlib/misc/ref.h>
-#include <ytlib/misc/error.h>
+#include <core/misc/ref.h>
+#include <core/misc/error.h>
 
-#include <ytlib/ytree/public.h>
+#include <core/ytree/public.h>
 
 // TODO(babenko): replace with public.h
 #include <ytlib/election/election_manager.h>

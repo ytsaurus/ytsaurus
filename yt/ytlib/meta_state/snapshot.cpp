@@ -2,9 +2,9 @@
 #include "snapshot.h"
 #include "private.h"
 
-#include <ytlib/misc/fs.h>
-#include <ytlib/misc/common.h>
-#include <ytlib/misc/serialize.h>
+#include <core/misc/fs.h>
+#include <core/misc/common.h>
+#include <core/misc/serialize.h>
 
 #include <util/stream/lz.h>
 

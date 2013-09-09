@@ -4,7 +4,7 @@
 #include "security_manager.h"
 #include "subject_proxy_detail.h"
 
-#include <ytlib/ytree/fluent.h>
+#include <core/ytree/fluent.h>
 
 #include <ytlib/security_client/group_ypath.pb.h>
 

@@ -3,20 +3,20 @@
 
 #include <yt/build.h>
 
-#include <ytlib/misc/home.h>
-#include <ytlib/misc/fs.h>
-#include <ytlib/misc/assert.h>
+#include <core/misc/home.h>
+#include <core/misc/fs.h>
+#include <core/misc/assert.h>
 
-#include <ytlib/yson/tokenizer.h>
-#include <ytlib/yson/format.h>
-#include <ytlib/ytree/fluent.h>
+#include <core/yson/tokenizer.h>
+#include <core/yson/format.h>
+#include <core/ytree/fluent.h>
 
 #include <server/job_proxy/config.h>
 
 #include <ytlib/driver/driver.h>
 #include <ytlib/driver/command.h>
 
-#include <ytlib/logging/log_manager.h>
+#include <core/logging/log_manager.h>
 
 #include <util/folder/dirut.h>
 

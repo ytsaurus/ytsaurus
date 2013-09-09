@@ -7,19 +7,19 @@
 #include "output_stream.h"
 #include "output_stack.h"
 
-#include <ytlib/misc/error.h>
+#include <core/misc/error.h>
 
-#include <ytlib/concurrency/async_stream.h>
+#include <core/concurrency/async_stream.h>
 
-#include <ytlib/ytree/node.h>
-#include <ytlib/ytree/convert.h>
+#include <core/ytree/node.h>
+#include <core/ytree/convert.h>
 
-#include <ytlib/logging/log.h>
+#include <core/logging/log.h>
 
 #include <ytlib/driver/config.h>
 #include <ytlib/driver/driver.h>
 
-#include <ytlib/formats/format.h>
+#include <core/formats/format.h>
 
 #include <util/memory/tempbuf.h>
 
