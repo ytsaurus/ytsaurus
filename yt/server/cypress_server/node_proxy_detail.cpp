@@ -978,7 +978,7 @@ DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
 
     factory->Commit();
 
-    context->SetRequestInfo("NodeId: %s", ~ToString(newProxy->GetId()));
+    context->SetResponseInfo("NodeId: %s", ~ToString(newProxy->GetId()));
 
     context->Reply();
 }
