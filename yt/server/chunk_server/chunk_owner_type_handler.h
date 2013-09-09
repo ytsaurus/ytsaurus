@@ -130,13 +130,13 @@ protected:
             "Chunk owner node merged (OriginatingNodeId: %s, OriginatingChunkListId: %s, OriginatingUpdateMode: %s, OriginatingReplicationFactor: %d, "
             "BranchedNodeId: %s, BranchedChunkListId: %s, BranchedUpdateMode: %s, BranchedReplicationFactor: %d, "
             "NewOriginatingChunkListId: %s, NewOriginatingUpdateMode: %s)",
-            ~ToString(originatingNode->GetId()),
+            ~ToString(originatingNode->GetVersionedId()),
             ~ToString(originatingChunkListId),
-            ~FormatEnum(originatingUpdateMode),
+            ~originatingUpdateMode.ToString(),
             originatingNode->GetReplicationFactor(),
-            ~ToString(branchedNode->GetId()),
+            ~ToString(branchedNode->GetVersionedId()),
             ~ToString(branchedChunkListId),
-            ~FormatEnum(branchedUpdateMode),
+            ~branchedUpdateMode.ToString(),
             branchedNode->GetReplicationFactor(),
             ~ToString(originatingNode->GetChunkList()->GetId()),
             ~FormatEnum(originatingNode->GetUpdateMode()));
