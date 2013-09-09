@@ -135,11 +135,11 @@ public:
         YUNREACHABLE();
     }
 
-    virtual std::vector<NChunkClient::TChunkId> GetFailedChunks() const override
+    virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override
     {
         std::vector<NChunkClient::TChunkId> result;
         FOREACH (auto reader, Readers) {
-            auto part = reader->GetFailedChunks();
+            auto part = reader->GetFailedChunkIds();
             result.insert(result.end(), part.begin(), part.end());
         }
         return result;

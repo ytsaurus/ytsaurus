@@ -59,6 +59,48 @@ public:
     }
 };
 
+class TRetryingChannelConfig
+    : public TYsonSerializable
+{
+public:
+    //! Time to wait between consequent attempts.
+    TDuration RetryBackoffTime;
+
+    //! Maximum number of retry attempts to make.
+    int RetryAttempts;
+
+    //! Maximum time to spend while retrying.
+    //! If |Null| then no limit is enforced.
+    TNullable<TDuration> RetryTimeout;
+
+    TRetryingChannelConfig()
+    {
+        RegisterParameter("retry_backoff_time", RetryBackoffTime)
+            .Default(TDuration::Seconds(3));
+        RegisterParameter("retry_attempts", RetryAttempts)
+            .GreaterThanOrEqual(1)
+            .Default(10);
+        RegisterParameter("retry_timeout", RetryTimeout)
+            .GreaterThanOrEqual(TDuration::Zero())
+            .Default(Null);
+    }
+};
+
+class TThrottlingChannelConfig
+    : public TYsonSerializable
+{
+public:
+    //! Maximum allowed number of requests per second.
+    int RateLimit;
+
+    TThrottlingChannelConfig()
+    {
+        RegisterParameter("rate_limit", RateLimit)
+            .GreaterThan(0)
+            .Default(10);
+    }
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NRpc

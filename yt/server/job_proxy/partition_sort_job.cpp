@@ -312,9 +312,9 @@ public:
         }
     }
 
-    std::vector<TChunkId> GetFailedChunks() const override
+    std::vector<TChunkId> GetFailedChunkIds() const override
     {
-        return Reader->GetFailedChunks();
+        return Reader->GetFailedChunkIds();
     }
 
 private:

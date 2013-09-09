@@ -45,7 +45,7 @@ public:
     const TFacade* GetFacade() const;
     TAsyncError GetReadyEvent();
 
-    std::vector<NChunkClient::TChunkId> GetFailedChunks() const;
+    std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const;
 
     TProviderPtr GetProvider();
 

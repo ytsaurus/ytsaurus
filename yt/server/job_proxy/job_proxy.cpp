@@ -137,8 +137,7 @@ void TJobProxy::Run()
     }
 
     if (Job) {
-        std::vector<NChunkClient::TChunkId> failedChunkIds;
-        GetFailedChunks(&failedChunkIds).Get();
+        auto failedChunkIds = Job->GetFailedChunkIds();
         LOG_INFO("Found %d failed chunks", static_cast<int>(failedChunkIds.size()));
 
         // For erasure chunks, replace part id with whole chunk id.
@@ -260,12 +259,6 @@ TJobResult TJobProxy::DoRun()
         ToProto(result.mutable_error(), TError(ex));
         return result;
     }
-}
-
-TFuture<void> TJobProxy::GetFailedChunks(std::vector<NChunkClient::TChunkId>* failedChunks)
-{
-    *failedChunks = Job->GetFailedChunks();
-     return MakeFuture();
 }
 
 void TJobProxy::ReportResult(const TJobResult& result)

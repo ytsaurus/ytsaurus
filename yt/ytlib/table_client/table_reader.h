@@ -51,7 +51,7 @@ public:
     virtual i64 GetSessionRowCount() const override;
     virtual i64 GetTableRowIndex() const override;
 
-    virtual std::vector<NChunkClient::TChunkId> GetFailedChunks() const override;
+    virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override;
 
 private:
     typedef TAsyncTableReader TThis;
@@ -109,7 +109,7 @@ public:
     virtual i64 GetSessionRowCount() const override;
     virtual i64 GetTableRowIndex() const override;
 
-    virtual std::vector<NChunkClient::TChunkId> GetFailedChunks() const override;
+    virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override;
 
 private:
     TAsyncTableReaderPtr AsyncReader_;

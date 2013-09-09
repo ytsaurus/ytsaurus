@@ -10,6 +10,7 @@ set( SRCS
   ${BASE}/public.cpp
   ${BASE}/redirector_service.cpp
   ${BASE}/retrying_channel.cpp
+  ${BASE}/throttling_channel.cpp
   ${BASE}/roaming_channel.cpp
   ${BASE}/scoped_channel.cpp
   ${BASE}/serialized_channel.cpp
@@ -30,6 +31,7 @@ set( HDRS
   ${BASE}/public.h
   ${BASE}/redirector_service.h
   ${BASE}/retrying_channel.h
+  ${BASE}/throttling_channel.h
   ${BASE}/roaming_channel.h
   ${BASE}/scoped_channel.h
   ${BASE}/serialized_channel.h

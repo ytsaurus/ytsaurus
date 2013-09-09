@@ -14,6 +14,7 @@
 #include <ytlib/rpc/channel.h>
 #include <ytlib/rpc/server.h>
 #include <ytlib/rpc/redirector_service.h>
+#include <ytlib/rpc/throttling_channel.h>
 
 #include <ytlib/meta_state/master_channel.h>
 
@@ -143,13 +144,15 @@ void TBootstrap::Run()
         "/ref_counted",
         BIND(&TRefCountedTracker::GetMonitoringInfo, TRefCountedTracker::Get()));
 
+    auto jobToMasterChannel = CreateThrottlingChannel(
+        Config->JobsToMasterChannel,
+        MasterChannel);
     RpcServer->RegisterService(CreateRedirectorService(
         NObjectClient::TObjectServiceProxy::GetServiceName(),
-        MasterChannel));
-
+        jobToMasterChannel));
     RpcServer->RegisterService(CreateRedirectorService(
         NChunkClient::TChunkServiceProxy::GetServiceName(),
-        MasterChannel));
+        jobToMasterChannel));
 
     ReaderCache = New<TReaderCache>(Config->DataNode);
 

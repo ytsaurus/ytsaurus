@@ -4,6 +4,7 @@
 #include "master_discovery.h"
 #include "private.h"
 
+#include <ytlib/rpc/retrying_channel.h>
 #include <ytlib/rpc/roaming_channel.h>
 #include <ytlib/rpc/bus_channel.h>
 

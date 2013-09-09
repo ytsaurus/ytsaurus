@@ -9,6 +9,7 @@
 #include <ytlib/bus/config.h>
 #include <ytlib/bus/tcp_client.h>
 
+#include <ytlib/rpc/retrying_channel.h>
 #include <ytlib/rpc/roaming_channel.h>
 #include <ytlib/rpc/bus_channel.h>
 
