@@ -2,25 +2,25 @@
 #include "stream.h"
 #include "serialize.h"
 
-#include <ytlib/misc/intrusive_ptr.h>
+#include <core/misc/intrusive_ptr.h>
 
-#include <ytlib/concurrency/async_stream.h>
+#include <core/concurrency/async_stream.h>
 
-#include <ytlib/formats/format.h>
+#include <core/formats/format.h>
 
 #include <ytlib/driver/config.h>
 #include <ytlib/driver/driver.h>
 
-#include <ytlib/logging/log_manager.h>
+#include <core/logging/log_manager.h>
 
-#include <ytlib/ytree/convert.h>
+#include <core/ytree/convert.h>
 
 // For at_exit
-#include <ytlib/profiling/profiling_manager.h>
+#include <core/profiling/profiling_manager.h>
 
-#include <ytlib/rpc/dispatcher.h>
+#include <core/rpc/dispatcher.h>
 
-#include <ytlib/bus/tcp_dispatcher.h>
+#include <core/bus/tcp_dispatcher.h>
 
 #include <ytlib/chunk_client/dispatcher.h>
 
