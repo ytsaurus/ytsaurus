@@ -90,7 +90,7 @@ private:
     const ui64 LowWatermark;
     const ui64 HighWatermark;
 
-    TEventCount Conditional;
+    NConcurrency::TEventCount Conditional;
     TLockFreeQueue<TOutputPart> Queue;
 
 private:
