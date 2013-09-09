@@ -138,7 +138,10 @@ function YtCommand(logger, driver, coordinator, watcher, pause) {
 
     this.name = undefined;
     this.user = undefined;
+
     this.parameters = undefined;
+    this.response_parameters = {};
+
     this.descriptor = undefined;
 
     this.input_compression = undefined;
@@ -208,18 +211,20 @@ YtCommand.prototype._epilogue = function(result) {
         this.rsp.setHeader("X-YT-Error", result.toJson());
         this.rsp.setHeader("X-YT-Response-Code", utils.escapeHeader(result.getCode()));
         this.rsp.setHeader("X-YT-Response-Message", utils.escapeHeader(result.getMessage()));
+        this.rsp.setHeader("X-YT-Response-Parameters", JSON.stringify(this.response_parameters));
     } else {
         this.rsp.addTrailers({
             "X-YT-Error": result.toJson(),
             "X-YT-Response-Code": utils.escapeHeader(result.getCode()),
-            "X-YT-Response-Message": utils.escapeHeader(result.getMessage())
+            "X-YT-Response-Message": utils.escapeHeader(result.getMessage()),
+            "X-YT-Response-Parameters": JSON.stringify(this.response_parameters),
         });
     }
 
     this.logger.debug("Done (" + (result.isOK() ? "success" : "failure") + ")", {
-        bytes_in  : this.bytes_in,
-        bytes_out : this.bytes_out,
-        result    : result
+        bytes_in: this.bytes_in,
+        bytes_out: this.bytes_out,
+        result: result,
     });
 
     if (result.isOK()) {
@@ -683,6 +688,17 @@ YtCommand.prototype._execute = function(cb) {
     this.__DBG("_execute");
 
     var self = this;
+
+    this.driver.on("parameter", function(key, value) {
+        self.response_parameters[key] = value;
+
+        // If headers are not sent yet, then update the header value.
+        if (!self.rsp._header) {
+            self.rsp.setHeader(
+                "X-YT-Response-Parameters",
+                JSON.stringify(self.response_parameters));
+        }
+    });
 
     return this.driver.execute(this.name, this.user,
         this.input_stream, this.input_compression,

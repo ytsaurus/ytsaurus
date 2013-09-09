@@ -365,7 +365,7 @@ TCypressNodeBase* TCypressManager::CreateNode(
 
     // Set account.
     auto securityManager = Bootstrap->GetSecurityManager();
-    auto* account = factory->GetAccount();
+    auto* account = factory->GetNewNodeAccount();
     securityManager->SetAccount(node_, account);
 
     // Set owner.
@@ -396,7 +396,7 @@ TCypressNodeBase* TCypressManager::CloneNode(
 
     // Set account.
     auto securityManager = Bootstrap->GetSecurityManager();
-    auto* account = factory->GetAccount();
+    auto* account = factory->GetClonedNodeAccount(sourceNode);
     securityManager->SetAccount(clonedNode_, account);
 
     // Set owner.
@@ -1047,6 +1047,10 @@ void TCypressManager::LoadKeys(NCellMaster::TLoadContext& context)
     // COMPAT(babenko)
     if (context.GetVersion() >= 24) {
         LockMap.LoadKeys(context);
+    }
+    // COMPAT(babenko)
+    if (context.GetVersion() < 25) {
+        YCHECK(LockMap.GetSize() == 0);
     }
 }
 

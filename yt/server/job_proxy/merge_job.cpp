@@ -164,12 +164,12 @@ public:
 
     virtual double GetProgress() const override
     {
-        i64 total = Reader->GetRowCount();
+        i64 total = Reader->GetSessionRowCount();
         if (total == 0) {
             LOG_WARNING("GetProgress: empty total");
             return 0;
         } else {
-            double progress = (double) Reader->GetRowIndex() / total;
+            double progress = (double) Reader->GetSessionRowIndex() / total;
             LOG_DEBUG("GetProgress: %lf", progress);
             return progress;
         }

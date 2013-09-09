@@ -47,8 +47,10 @@ public:
     virtual const TRow& GetRow() const override;
     virtual const TNullable<int>& GetTableIndex() const override;
 
-    virtual i64 GetRowIndex() const override;
-    virtual i64 GetRowCount() const override;
+    virtual i64 GetSessionRowIndex() const override;
+    virtual i64 GetSessionRowCount() const override;
+    virtual i64 GetTableRowIndex() const override;
+
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunks() const override;
 
 private:
@@ -103,13 +105,15 @@ public:
     virtual const NChunkClient::TNonOwningKey& GetKey() const override;
     virtual const TNullable<int>& GetTableIndex() const override;
 
-    virtual i64 GetRowIndex() const override;
-    virtual i64 GetRowCount() const override;
+    virtual i64 GetSessionRowIndex() const override;
+    virtual i64 GetSessionRowCount() const override;
+    virtual i64 GetTableRowIndex() const override;
+
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunks() const override;
 
 private:
     TAsyncTableReaderPtr AsyncReader_;
-    
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

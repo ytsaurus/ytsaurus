@@ -101,12 +101,17 @@ public:
         return CurrentKey;
     }
 
-    virtual i64 GetRowCount() const override
+    virtual i64 GetSessionRowCount() const override
     {
         return TotalRowCount;
     }
+    
+    virtual i64 GetTableRowIndex() const override
+    {
+        YUNREACHABLE();
+    }
 
-    virtual i64 GetRowIndex() const override
+    virtual i64 GetSessionRowIndex() const override
     {
         return ReadRowCount;
     }

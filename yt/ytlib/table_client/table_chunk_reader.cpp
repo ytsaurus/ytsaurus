@@ -704,6 +704,7 @@ TTableChunkReader::TTableChunkReader(
     const NChunkClient::NProto::TReadLimit& startLimit,
     const NChunkClient::NProto::TReadLimit& endLimit,
     TNullable<int> tableIndex,
+    i64 startTableRowIndex,
     int partitionTag,
     TChunkReaderOptionsPtr options)
     : Provider(provider)
@@ -713,6 +714,7 @@ TTableChunkReader::TTableChunkReader(
     , Channel(channel)
     , Options(options)
     , TableIndex(tableIndex)
+    , StartTableRowIndex(startTableRowIndex)
     , CurrentRowIndex(-1)
     , StartRowIndex(0)
     , EndRowIndex(0)
@@ -912,12 +914,17 @@ auto TTableChunkReader::GetFacade() const -> const TFacade*
     return IsFinished ? nullptr : &Facade;
 }
 
-i64 TTableChunkReader::GetRowCount() const
+i64 TTableChunkReader::GetTableRowIndex() const
+{
+    return StartTableRowIndex + CurrentRowIndex;
+}
+
+i64 TTableChunkReader::GetSessionRowCount() const
 {
     return EndRowIndex - StartRowIndex;
 }
 
-i64 TTableChunkReader::GetRowIndex() const
+i64 TTableChunkReader::GetSessionRowIndex() const
 {
     return CurrentRowIndex - StartRowIndex;
 }
@@ -942,7 +949,8 @@ TFuture<void> TTableChunkReader::GetFetchingCompleteEvent()
 TTableChunkReaderProvider::TTableChunkReaderProvider(
     const std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
     const NChunkClient::TSequentialReaderConfigPtr& config,
-    const TChunkReaderOptionsPtr& options)
+    const TChunkReaderOptionsPtr& options,
+    TNullable<i64> startTableRowIndex)
     : RowIndex_(-1)
     , RowCount_(0)
     , Config(config)
@@ -967,13 +975,13 @@ void TTableChunkReaderProvider::OnReaderOpened(
     i64 rowCount;
     GetStatistics(chunkSpec, nullptr, &rowCount);
     // GetRowCount gives better estimation than original, based on meta extensions.
-    RowCount_ += reader->GetRowCount() - rowCount;
+    RowCount_ += reader->GetSessionRowCount() - rowCount;
 }
 
 void TTableChunkReaderProvider::OnReaderFinished(TTableChunkReaderPtr reader)
 {
     // Number of read row may be less than expected because of key read limits.
-    RowCount_ += reader->GetRowIndex() - reader->GetRowCount();
+    RowCount_ += reader->GetSessionRowIndex() - reader->GetSessionRowCount();
 }
 
 TTableChunkReaderPtr TTableChunkReaderProvider::CreateReader(
@@ -993,6 +1001,7 @@ TTableChunkReaderPtr TTableChunkReaderProvider::CreateReader(
         chunkSpec.start_limit(),
         chunkSpec.end_limit(),
         tableIndex,
+        chunkSpec.table_row_index(),
         chunkSpec.partition_tag(),
         Options);
 }
@@ -1016,6 +1025,11 @@ const NChunkClient::TNonOwningKey& TTableChunkReaderFacade::GetKey() const
 const TNullable<int>& TTableChunkReaderFacade::GetTableIndex() const
 {
     return Reader->GetTableIndex();
+}
+
+i64 TTableChunkReaderFacade::GetTableRowIndex() const
+{
+    return Reader->GetTableRowIndex();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

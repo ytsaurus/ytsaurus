@@ -1,3 +1,6 @@
+var events = require("events");
+var util = require("util");
+
 var buffertools = require("buffertools");
 var Q = require("q");
 
@@ -113,7 +116,13 @@ function YtDriver(config, echo)
     this._binding = new binding.TDriverWrap(!!echo, config.proxy);
 
     this.__DBG("New");
+
+    // Prevent 'undefined' property.
+    this._events = {};
+    events.EventEmitter.call(this);
 }
+
+util.inherits(YtDriver, events.EventEmitter);
 
 YtDriver.prototype.execute = function(name, user,
     input_stream, input_compression,
@@ -161,22 +170,26 @@ YtDriver.prototype.execute = function(name, user,
     this._binding.Execute(name, user,
         wrapped_input_stream._binding, input_compression,
         wrapped_output_stream._binding, output_compression,
-        parameters, function(result)
-    {
-        self.__DBG("execute -> (on-execute callback)");
-        // XXX(sandello): Can we move |_endSoon| to C++?
-        wrapped_output_stream._endSoon();
+        parameters,
+        function(result) {
+            self.__DBG("execute -> (on-execute callback)");
+            // XXX(sandello): Can we move |_endSoon| to C++?
+            wrapped_output_stream._endSoon();
 
-        if (result.code === 0) {
-            self.__DBG("execute -> execute_promise has been resolved");
-            deferred.resolve(Array.prototype.slice.call(arguments));
-        } else {
-            wrapped_input_stream.destroy();
-            wrapped_output_stream.destroy();
-            self.__DBG("execute -> execute_promise has been rejected");
-            deferred.reject(result);
-        }
-    });
+            if (result.code === 0) {
+                self.__DBG("execute -> execute_promise has been resolved");
+                deferred.resolve(Array.prototype.slice.call(arguments));
+            } else {
+                wrapped_input_stream.destroy();
+                wrapped_output_stream.destroy();
+                self.__DBG("execute -> execute_promise has been rejected");
+                deferred.reject(result);
+            }
+        },
+        function(key, value) {
+            self.__DBG("execute -> (on-parameter callback)");
+            self.emit("parameter", key, value);
+        });
 
     process.nextTick(function() { pause.unpause(); });
 

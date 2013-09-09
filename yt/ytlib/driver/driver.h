@@ -34,12 +34,15 @@ struct TDriverRequest
     //! The stream must stay alive for the duration of #IDriver::Execute.
     IAsyncOutputStreamPtr OutputStream;
 
-    //! A map containing command arguments.
+    //! A map containing command parameters.
     NYTree::IMapNodePtr Arguments;
 
     //! Name of the user issuing the request.
     //! If |Null| then "root" is assumed.
     TNullable<Stroka> AuthenticatedUser;
+
+    //! Provides means to return arbitrary structured data from any command.
+    NYson::IYsonConsumer* ResponseParametersConsumer;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
