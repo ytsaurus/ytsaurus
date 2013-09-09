@@ -327,6 +327,7 @@ private:
         auto* chunkSpec = response->add_chunks();
         ToProto(chunkSpec->mutable_replicas(), replicas);
         ToProto(chunkSpec->mutable_chunk_id(), chunk->GetId());
+        chunkSpec->set_erasure_codec(chunk->GetErasureCodec());
         chunkSpec->mutable_extensions()->CopyFrom(chunk->ChunkMeta().extensions());
 
         context->Reply();
