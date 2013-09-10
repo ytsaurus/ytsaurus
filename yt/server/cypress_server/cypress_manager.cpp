@@ -638,13 +638,21 @@ bool TCypressManager::IsConcurrentTransaction(
         !IsParentTransaction(transaction2, transaction1);
 }
 
-TCypressNodeBase* TCypressManager::DoLockNode(
-    TCypressNodeBase* trunkNode,
-    TTransaction* transaction,
-    const TLockRequest& request)
+TCypressNodeBase* TCypressManager::DoAcquireLock(TLock* lock)
 {
-    YCHECK(trunkNode->IsTrunk());
-    YCHECK(transaction);
+    auto* trunkNode = lock->GetTrunkNode();
+    auto* transaction = lock->GetTransaction();
+    const auto& request = lock->Request();
+
+    LOG_DEBUG_UNLESS(IsRecovery(), "Lock acquired (LockId: %s)",
+        ~ToString(lock->GetId()));
+
+    YCHECK(lock->GetState() == ELockState::Pending);
+    lock->SetState(ELockState::Acquired);
+
+    trunkNode->PendingLocks().erase(lock->GetLockListIterator());
+    trunkNode->AcquiredLocks().push_back(lock);
+    lock->SetLockListIterator(--trunkNode->AcquiredLocks().end());
 
     UpdateNodeLockState(trunkNode, transaction, request);
 
@@ -777,20 +785,6 @@ TLock* TCypressManager::DoCreateLock(
     return lock;
 }
 
-void TCypressManager::SetLockAcquired(TLock* lock)
-{
-    LOG_DEBUG_UNLESS(IsRecovery(), "Lock acquired (LockId: %s)",
-        ~ToString(lock->GetId()));
-
-    YCHECK(lock->GetState() == ELockState::Pending);
-    lock->SetState(ELockState::Acquired);
-
-    auto* trunkNode = lock->GetTrunkNode();
-    trunkNode->PendingLocks().erase(lock->GetLockListIterator());
-    trunkNode->AcquiredLocks().push_back(lock);
-    lock->SetLockListIterator(--trunkNode->AcquiredLocks().end());
-}
-
 TCypressNodeBase* TCypressManager::LockNode(
     TCypressNodeBase* trunkNode,
     TTransaction* transaction,
@@ -846,9 +840,7 @@ TCypressNodeBase* TCypressManager::LockNode(
     TCypressNodeBase* lockedNode = nullptr;
     FOREACH (auto* child, childrenToLock) {
         auto* lock = DoCreateLock(child, transaction, request);
-        SetLockAcquired(lock);
-
-        auto* lockedChild = DoLockNode(child->GetTrunkNode(), transaction, request);
+        auto* lockedChild = DoAcquireLock(lock);
         if (child == trunkNode) {
             lockedNode = lockedChild;
         }
@@ -889,8 +881,7 @@ TLock* TCypressManager::CreateLock(
         }
         
         auto* lock = DoCreateLock(trunkNode, transaction, request);
-        SetLockAcquired(lock);
-        DoLockNode(trunkNode, transaction, request);
+        DoAcquireLock(lock);
         return lock;
     }
 
@@ -931,8 +922,7 @@ void TCypressManager::CheckPendingLocks(TCypressNodeBase* trunkNode)
         if (!error.IsOK())
             return;
 
-        DoLockNode(trunkNode, lock->GetTransaction(), lock->Request());
-        SetLockAcquired(lock);
+        DoAcquireLock(lock);
     }
 }
 
