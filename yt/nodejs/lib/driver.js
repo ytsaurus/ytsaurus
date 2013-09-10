@@ -1,4 +1,3 @@
-var events = require("events");
 var util = require("util");
 
 var buffertools = require("buffertools");
@@ -116,18 +115,12 @@ function YtDriver(config, echo)
     this._binding = new binding.TDriverWrap(!!echo, config.proxy);
 
     this.__DBG("New");
-
-    // Prevent 'undefined' property.
-    this._events = {};
-    events.EventEmitter.call(this);
 }
-
-util.inherits(YtDriver, events.EventEmitter);
 
 YtDriver.prototype.execute = function(name, user,
     input_stream, input_compression,
     output_stream, output_compression,
-    parameters, pause
+    parameters, pause, response_parameters_consumer
 )
 {
     "use strict";
@@ -186,10 +179,7 @@ YtDriver.prototype.execute = function(name, user,
                 deferred.reject(result);
             }
         },
-        function(key, value) {
-            self.__DBG("execute -> (on-parameter callback)");
-            self.emit("parameter", key, value);
-        });
+        response_parameters_consumer);
 
     process.nextTick(function() { pause.unpause(); });
 
@@ -213,7 +203,7 @@ YtDriver.prototype.executeSimple = function(name, parameters, data)
     return this.execute(name, _SIMPLE_EXECUTE_USER,
         input_stream, binding.ECompression_None,
         output_stream, binding.ECompression_None,
-        new binding.TNodeWrap(parameters), pause)
+        new binding.TNodeWrap(parameters), pause, function(){})
     .then(function(result) {
         var body = buffertools.concat.apply(undefined, output_stream.chunks);
         if (body.length) {

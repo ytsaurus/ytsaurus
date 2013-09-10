@@ -35,16 +35,10 @@ function YtDriverFacadeV1(driver)
     this.driver = driver;
 }
 
-YtDriverFacadeV1.prototype.on = function()
-{
-    "use strict";
-    return this.driver.on.apply(this.driver, arguments);
-};
-
 YtDriverFacadeV1.prototype.execute = function(name, user,
     input_stream, input_compression,
     output_stream, output_compression,
-    parameters, pause)
+    parameters, pause, response_parameters_consumer)
 {
     "use strict";
 
@@ -66,7 +60,8 @@ YtDriverFacadeV1.prototype.execute = function(name, user,
         slack_input, binding.ECompression_None,
         slack_output_create, output_compression,
         binding.CreateMergedNode(parameters, FAKE_UPLOAD_PREPARAMETERS),
-        slack_pause)
+        slack_pause,
+        response_parameters_consumer)
     .spread(function(result, bytes_in, bytes_out) {
         slack_bytes = bytes_out;
 
@@ -74,7 +69,7 @@ YtDriverFacadeV1.prototype.execute = function(name, user,
             "upload", user,
             input_stream, input_compression,
             slack_output_upload, output_compression,
-            parameters, pause);
+            parameters, pause, response_parameters_consumer);
     })
     .spread(function(result, bytes_in, bytes_out) {
         for (var i = 0; i < slack_output_create.chunks.length; ++i) {
