@@ -873,10 +873,6 @@ TLock* TCypressManager::CreateLock(
         THROW_ERROR_EXCEPTION("Waitable lock requires a transaction");
     }
 
-    if (waitable) {
-        THROW_ERROR_EXCEPTION("Waitable locks are temporary disabled");
-    }
-
     // Try to lock without waiting in the queue.
     bool isMandatory;
     auto error = ValidateLock(
@@ -935,10 +931,7 @@ void TCypressManager::CheckPendingLocks(TCypressNodeBase* trunkNode)
         if (!error.IsOK())
             return;
 
-        if (isMandatory) {
-            UpdateNodeLockState(trunkNode, lock->GetTransaction(), lock->Request());
-        }
-
+        DoLockNode(trunkNode, lock->GetTransaction(), lock->Request());
         SetLockAcquired(lock);
     }
 }

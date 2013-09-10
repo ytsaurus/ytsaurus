@@ -283,7 +283,22 @@ class TestLocks(YTEnvSetup):
 
         assert get('//sys/locks/' + lock_id + '/@state') == 'acquired'
         assert len(get('//tmp/t/@locks')) == 1
+    
+    def test_yt144(self):
+        create('table', '//tmp/t')
+        
+        tx1 = start_transaction()
+        lock('//tmp/t', tx=tx1, mode='exclusive')
+        
+        tx2 = start_transaction()
+        lock_id = lock('//tmp/t', mode='exclusive', waitable=True, tx=tx2)
 
+        abort_transaction(tx1)
+        assert get('//sys/locks/' + lock_id + '/@state') == 'acquired'
+        remove('//tmp/t', tx=tx2)
+        abort_transaction(tx2)
+
+        assert get('//tmp/t/@parent_id') == get('//tmp/@id')
 
     def test_remove_locks(self):
         set('//tmp/a', {'b' : 1})
