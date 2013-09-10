@@ -136,12 +136,14 @@ class TestLocks(YTEnvSetup):
         lock_id2 = lock('//tmp/a', tx=tx2, waitable=True)
 
         assert get('#' + lock_id1 + '/@state') == 'acquired'
+        assert get('//tmp/a/@lock_mode', tx=tx1) == 'exclusive'
         assert get('#' + lock_id2 + '/@state') == 'pending'
 
         abort_transaction(tx1)
 
         assert not exists('//sys/locks/' + lock_id1)
         assert get('#' + lock_id2 + '/@state') == 'acquired'
+        assert get('//tmp/a/@lock_mode', tx=tx2) == 'exclusive'
 
     def test_waitable_lock2(self):
         set('//tmp/a', 1)
