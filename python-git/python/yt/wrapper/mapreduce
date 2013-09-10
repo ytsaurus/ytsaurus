@@ -19,7 +19,7 @@ import os
 import sys
 import traceback
 import simplejson as json
-from argparse import ArgumentParser, RawTextHelpFormatter, REMAINDER
+from argparse import ArgumentParser, RawTextHelpFormatter, REMAINDER, Action
 from operator import attrgetter
 from functools import partial
 from itertools import imap
@@ -46,9 +46,15 @@ def list_all_entities(type):
 def add_eoln(str):
     return str + "\n"
 
+class ForbidRepeatedArgumentsAction(Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        if namespace.__dict__[self.dest] is not None:
+            parser.error("Repeated argument -" + self.dest)
+        setattr(namespace, self.dest, values)
+
 def add_store_args(parser, args):
     for arg in flatten(args):
-        parser.add_argument("-" + arg)
+        parser.add_argument("-" + arg, action=ForbidRepeatedArgumentsAction)
 def add_bool_args(parser, args):
     for arg in flatten(args):
         parser.add_argument("-" + arg, action="store_true", default=False)
