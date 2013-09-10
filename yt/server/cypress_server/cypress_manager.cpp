@@ -876,7 +876,7 @@ TLock* TCypressManager::CreateLock(
     if (waitable) {
         THROW_ERROR_EXCEPTION("Waitable locks are temporary disabled");
     }
-    
+
     // Try to lock without waiting in the queue.
     bool isMandatory;
     auto error = ValidateLock(
@@ -1077,6 +1077,24 @@ void TCypressManager::OnAfterLoaded()
         auto* parent = node->GetParent();
         if (parent) {
             YCHECK(parent->ImmediateDescendants().insert(node).second);
+        }
+    }
+
+    // COMPAT(babenko)
+    // Fix parent links
+    FOREACH (const auto& pair1, NodeMap) {
+        auto* node = pair1.second;
+        if (TypeFromId(node->GetId()) == EObjectType::MapNode) {
+            auto* mapNode = static_cast<TMapNode*>(node);
+            FOREACH (const auto& pair2, mapNode->KeyToChild()) {
+                auto* child = pair2.second;
+                if (child && !child->GetParent()) {
+                    LOG_WARNING("Parent link fixed (ChildId: %s, ParentId: %s)",
+                        ~ToString(child->GetId()),
+                        ~ToString(node->GetId()));
+                    child->SetParent(node);
+                }
+            }
         }
     }
 
