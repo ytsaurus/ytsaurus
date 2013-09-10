@@ -689,21 +689,24 @@ YtCommand.prototype._execute = function(cb) {
 
     var self = this;
 
-    this.driver.on("parameter", function(key, value) {
-        self.response_parameters[key] = value;
-
-        // If headers are not sent yet, then update the header value.
-        if (!self.rsp._header) {
-            self.rsp.setHeader(
-                "X-YT-Response-Parameters",
-                JSON.stringify(self.response_parameters));
-        }
-    });
-
     return this.driver.execute(this.name, this.user,
         this.input_stream, this.input_compression,
         this.output_stream, this.output_compression,
-        this.parameters, this.pause)
+        this.parameters, this.pause,
+        function(key, value) {
+            self.logger.debug(
+                "Got a response parameter",
+                { key: key, value: value });
+
+            self.response_parameters[key] = value;
+
+            // If headers are not sent yet, then update the header value.
+            if (!self.rsp._header) {
+                self.rsp.setHeader(
+                    "X-YT-Response-Parameters",
+                    JSON.stringify(self.response_parameters));
+            }
+        })
     .spread(
         function(result) {
             self.logger.debug(
