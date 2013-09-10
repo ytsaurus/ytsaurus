@@ -202,10 +202,7 @@ private:
         NTransactionServer::TTransaction* transaction1,
         NTransactionServer::TTransaction* transaction2);
 
-    TCypressNodeBase* DoLockNode(
-        TCypressNodeBase* trunkNode,
-        NTransactionServer::TTransaction* transaction,
-        const TLockRequest& request);
+    TCypressNodeBase* DoAcquireLock(TLock* lock);
     void UpdateNodeLockState(
         TCypressNodeBase* trunkNode,
         NTransactionServer::TTransaction* transaction,
@@ -214,7 +211,6 @@ private:
         TCypressNodeBase* trunkNode,
         NTransactionServer::TTransaction* transaction,
         const TLockRequest& request);
-    void SetLockAcquired(TLock* lock);
     void CheckPendingLocks(TCypressNodeBase* trunkNode);
 
     void ListSubtreeNodes(
