@@ -19,6 +19,10 @@ var TIMEOUT_INITIAL   = 5000;
 var TIMEOUT_HEARTBEAT = 30000;
 var TIMEOUT_COOLDOWN  = 60000;
 
+var MEMORY_PRESSURE_LIMIT = 128 * 1024 * 1024;
+var MEMORY_PRESSURE_HIT_COOLDOWN = 60000;
+var MEMORY_PRESSURE_HIT_TIMESTAMP = 0;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 function YtClusterHandle(logger, worker)
@@ -142,7 +146,18 @@ YtClusterHandle.prototype.handleLog = function(level, message, payload)
 {
     var logger = this.logger[level];
     if (typeof(logger) !== "undefined") {
-        logger(message, payload);
+        if (process.memoryUsage().rss < MEMORY_PRESSURE_LIMIT) {
+            logger(message, payload);
+        } else {
+            var time_now = +(new Date());
+            var time_next = MEMORY_PRESSURE_HIT_TIMESTAMP + MEMORY_PRESSURE_HIT_COOLDOWN;
+
+            if (time_now > time_next) {
+                logger("Logging is disabled due to high memory pressure");
+
+                MEMORY_PRESSURE_HIT_TIMESTAMP = time_now;
+            }
+        }
     }
 };
 
