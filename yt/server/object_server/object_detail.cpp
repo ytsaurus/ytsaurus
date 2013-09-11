@@ -324,6 +324,109 @@ void TObjectProxyBase::SerializeAttributes(
 
     };
 
+    class TAttributeValueConsumer
+        : public IYsonConsumer
+    {
+    public:
+        TAttributeValueConsumer(IYsonConsumer* underlyingConsumer, const Stroka& key)
+            : UnderlyingConsumer(underlyingConsumer)
+            , Key(key)
+            , Empty(true)
+        { }
+
+        virtual void OnStringScalar(const TStringBuf& value) override
+        {
+            ProduceKeyIfNeeded();
+            UnderlyingConsumer->OnStringScalar(value);
+        }
+
+        virtual void OnIntegerScalar(i64 value) override
+        {
+            ProduceKeyIfNeeded();
+            UnderlyingConsumer->OnIntegerScalar(value);
+        }
+
+        virtual void OnDoubleScalar(double value) override
+        {
+            ProduceKeyIfNeeded();
+            UnderlyingConsumer->OnDoubleScalar(value);
+        }
+
+        virtual void OnEntity() override
+        {
+            ProduceKeyIfNeeded();
+            UnderlyingConsumer->OnEntity();
+        }
+
+        virtual void OnBeginList() override
+        {
+            ProduceKeyIfNeeded();
+            UnderlyingConsumer->OnBeginList();
+        }
+
+        virtual void OnListItem() override
+        {
+            ProduceKeyIfNeeded();
+            UnderlyingConsumer->OnListItem();
+        }
+
+        virtual void OnEndList() override
+        {
+            ProduceKeyIfNeeded();
+            UnderlyingConsumer->OnEndList();
+        }
+
+        virtual void OnBeginMap() override
+        {
+            ProduceKeyIfNeeded();
+            UnderlyingConsumer->OnBeginList();
+        }
+
+        virtual void OnKeyedItem(const TStringBuf& key) override
+        {
+            ProduceKeyIfNeeded();
+            UnderlyingConsumer->OnKeyedItem(key);
+        }
+
+        virtual void OnEndMap() override
+        {
+            ProduceKeyIfNeeded();
+            UnderlyingConsumer->OnEndMap();
+        }
+
+        virtual void OnBeginAttributes() override
+        {
+            ProduceKeyIfNeeded();
+            UnderlyingConsumer->OnBeginAttributes();
+        }
+
+        virtual void OnEndAttributes() override
+        {
+            ProduceKeyIfNeeded();
+            UnderlyingConsumer->OnEndAttributes();
+        }
+
+        virtual void OnRaw(const TStringBuf& yson, EYsonType type) override
+        {
+            ProduceKeyIfNeeded();
+            UnderlyingConsumer->OnRaw(yson, type);
+        }
+
+    private:
+        IYsonConsumer* UnderlyingConsumer;
+        Stroka Key;
+        bool Empty;
+
+        void ProduceKeyIfNeeded()
+        {
+            if (Empty) {
+                UnderlyingConsumer->OnKeyedItem(Key);
+                Empty = false;
+            }
+        }
+
+    };
+
     TAttributesConsumer attributesConsumer(consumer);
 
     const auto& userAttributes = Attributes();
@@ -346,7 +449,7 @@ void TObjectProxyBase::SerializeAttributes(
                     systemAttributes.end(),
                     [] (const ISystemAttributeProvider::TAttributeInfo& lhs, const ISystemAttributeProvider::TAttributeInfo& rhs) {
                         return lhs.Key < rhs.Key;
-                });
+                    });
             }
 
             FOREACH (const auto& key, userKeys) {
@@ -375,11 +478,11 @@ void TObjectProxyBase::SerializeAttributes(
             }
 
             FOREACH (const auto& key, keys) {
-                if (!GetSystemAttribute(key, &attributesConsumer)) {
+                TAttributeValueConsumer attributeValueConsumer(&attributesConsumer, key);
+                if (!GetSystemAttribute(key, &attributeValueConsumer)) {
                     auto value = userAttributes.FindYson(key);
                     if (value) {
-                        attributesConsumer.OnKeyedItem(key);
-                        attributesConsumer.OnRaw(value->Data(), EYsonType::Node);
+                        attributeValueConsumer.OnRaw(value->Data(), EYsonType::Node);
                     }
                 }
             }
