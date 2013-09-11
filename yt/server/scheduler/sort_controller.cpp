@@ -2292,7 +2292,7 @@ private:
             ToProto(partitionJobSpecExt->mutable_key_columns(), Spec->ReduceBy);
 
             if (Spec->Mapper) {
-                InitUserJobSpec(
+                InitUserJobSpecTemplate(
                     partitionJobSpecExt->mutable_mapper_spec(),
                     Spec->Mapper,
                     MapperFiles,
@@ -2323,7 +2323,7 @@ private:
 
             ToProto(reduceJobSpecExt->mutable_key_columns(), Spec->SortBy);
 
-            InitUserJobSpec(
+            InitUserJobSpecTemplate(
                 reduceJobSpecExt->mutable_reducer_spec(),
                 Spec->Reducer,
                 ReducerFiles,
@@ -2341,7 +2341,7 @@ private:
 
             ToProto(reduceJobSpecExt->mutable_key_columns(), Spec->SortBy);
 
-            InitUserJobSpec(
+            InitUserJobSpecTemplate(
                 reduceJobSpecExt->mutable_reducer_spec(),
                 Spec->Reducer,
                 ReducerFiles,
@@ -2373,14 +2373,14 @@ private:
         switch (jobSpec->type()) {
             case EJobType::PartitionMap: {
                 auto* jobSpecExt = jobSpec->MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
-                AddUserJobEnvironment(jobSpecExt->mutable_mapper_spec(), joblet);
+                InitUserJobSpec(jobSpecExt->mutable_mapper_spec(), joblet);
                 break;
             }
 
             case EJobType::PartitionReduce:
             case EJobType::SortedReduce: {
                 auto* jobSpecExt = jobSpec->MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
-                AddUserJobEnvironment(jobSpecExt->mutable_reducer_spec(), joblet);
+                InitUserJobSpec(jobSpecExt->mutable_reducer_spec(), joblet);
                 break;
             }
 

@@ -177,7 +177,7 @@ private:
             AddFinalOutputSpecs(jobSpec, joblet);
 
             auto* jobSpecExt = jobSpec->MutableExtension(TMapJobSpecExt::map_job_spec_ext);
-            Controller->AddUserJobEnvironment(jobSpecExt->mutable_mapper_spec(), joblet);
+            Controller->InitUserJobSpec(jobSpecExt->mutable_mapper_spec(), joblet);
         }
 
         virtual void OnJobCompleted(TJobletPtr joblet) override
@@ -311,7 +311,7 @@ private:
 
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
 
-        InitUserJobSpec(
+        InitUserJobSpecTemplate(
             mapJobSpecExt->mutable_mapper_spec(),
             Spec->Mapper,
             RegularFiles,
