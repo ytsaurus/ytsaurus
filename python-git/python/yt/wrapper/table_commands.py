@@ -133,7 +133,6 @@ def _add_user_command_spec(op_type, binary, input_format, output_format, files, 
         return spec, []
     files = _prepare_files(files)
     binary, additional_files = _prepare_binary(binary, op_type, input_format, output_format, reduce_by)
-    memory_limit = get_value(memory_limit, config.MEMORY_LIMIT)
     spec = update(
         {
             op_type: {
@@ -144,11 +143,15 @@ def _add_user_command_spec(op_type, binary, input_format, output_format, files, 
                     convert_to_json_tree,
                     flatten(files + additional_files + map(prepare_path, get_value(file_paths, [])))
                 ),
-                "memory_limit": memory_limit,
                 "use_yamr_descriptors": bool_to_string(config.USE_MAPREDUCE_STYLE_DESTINATION_FDS)
             }
         },
-    spec)
+        spec)
+   
+    memory_limit = get_value(memory_limit, config.MEMORY_LIMIT)
+    if memory_limit is not None:
+        spec = update({"memory_limit": int(memory_limit)}, spec)
+
     return spec, files + additional_files
 
 def _add_user_spec(spec):
