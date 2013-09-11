@@ -51,12 +51,8 @@ TVersionedUserAttributeDictionary::TVersionedUserAttributeDictionary(
 
 std::vector<Stroka> TVersionedUserAttributeDictionary::List() const
 {
-    auto keyToAttribute = GetNodeAttributes(Bootstrap, TrunkNode, Transaction);
-    std::vector<Stroka> keys;
-    FOREACH (const auto& pair, keyToAttribute) {
-        keys.push_back(pair.first);
-    }
-    return keys;
+    auto keys = ListNodeAttributes(Bootstrap, TrunkNode, Transaction);
+    return std::vector<Stroka>(keys.begin(), keys.end());
 }
 
 TNullable<TYsonString> TVersionedUserAttributeDictionary::FindYson(const Stroka& name) const

@@ -227,65 +227,168 @@ void TObjectProxyBase::SerializeAttributes(
     const TAttributeFilter& filter,
     bool sortKeys)
 {
-    if ( filter.Mode == EAttributeFilterMode::None ||
-        (filter.Mode == EAttributeFilterMode::MatchingOnly && filter.Keys.empty()))
+    if (filter.Mode == EAttributeFilterMode::None)
         return;
+
+    if (filter.Mode == EAttributeFilterMode::MatchingOnly && filter.Keys.empty())
+        return;
+
+    class TAttributesConsumer
+        : public IYsonConsumer
+    {
+    public:
+        explicit TAttributesConsumer(IYsonConsumer* underlyingConsumer)
+            : UnderlyingConsumer(underlyingConsumer)
+            , HasAttributes(false)
+        { }
+
+        ~TAttributesConsumer()
+        {
+            if (HasAttributes) {
+                UnderlyingConsumer->OnEndAttributes();
+            }
+        }
+
+        virtual void OnStringScalar(const TStringBuf& value) override
+        {
+            UnderlyingConsumer->OnStringScalar(value);
+        }
+
+        virtual void OnIntegerScalar(i64 value) override
+        {
+            UnderlyingConsumer->OnIntegerScalar(value);
+        }
+
+        virtual void OnDoubleScalar(double value) override
+        {
+            UnderlyingConsumer->OnDoubleScalar(value);
+        }
+
+        virtual void OnEntity() override
+        {
+            UnderlyingConsumer->OnEntity();
+        }
+
+        virtual void OnBeginList() override
+        {
+            UnderlyingConsumer->OnBeginList();
+        }
+
+        virtual void OnListItem() override
+        {
+            UnderlyingConsumer->OnListItem();
+        }
+
+        virtual void OnEndList() override
+        {
+            UnderlyingConsumer->OnEndList();
+        }
+
+        virtual void OnBeginMap() override
+        {
+            UnderlyingConsumer->OnBeginList();
+        }
+
+        virtual void OnKeyedItem(const TStringBuf& key) override
+        {
+            if (!HasAttributes) {
+                UnderlyingConsumer->OnBeginAttributes();
+                HasAttributes = true;
+            }
+            UnderlyingConsumer->OnKeyedItem(key);
+        }
+
+        virtual void OnEndMap() override
+        {
+            UnderlyingConsumer->OnEndMap();
+        }
+
+        virtual void OnBeginAttributes() override
+        {
+            UnderlyingConsumer->OnBeginAttributes();
+        }
+
+        virtual void OnEndAttributes() override
+        {
+            UnderlyingConsumer->OnEndAttributes();
+        }
+
+        virtual void OnRaw(const TStringBuf& yson, EYsonType type) override
+        {
+            UnderlyingConsumer->OnRaw(yson, type);
+        }
+
+    private:
+        IYsonConsumer* UnderlyingConsumer;
+        bool HasAttributes;
+
+    };
+
+    TAttributesConsumer attributesConsumer(consumer);
 
     const auto& userAttributes = Attributes();
 
-    auto userKeys = userAttributes.List();
+    switch (filter.Mode) {
+        case EAttributeFilterMode::All: {
+            std::vector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
+            ListSystemAttributes(&systemAttributes);
 
-    std::vector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
-    ListSystemAttributes(&systemAttributes);
+            auto userKeys = userAttributes.List();
 
-    yhash_set<Stroka> matchingKeys(filter.Keys.begin(), filter.Keys.end());
+            // TODO(babenko): this is not exactly totally sorted keys, but should be fine.
+            if (sortKeys) {
+                std::sort(
+                    userKeys.begin(),
+                    userKeys.end());
 
-    bool seenMatching = false;
-
-    // TODO(babenko): this is not exactly totally sorted keys, but should be fine.
-    if (sortKeys) {
-        std::sort(
-            userKeys.begin(),
-            userKeys.end());
-        
-        std::sort(
-            systemAttributes.begin(),
-            systemAttributes.end(),
-            [] (const ISystemAttributeProvider::TAttributeInfo& lhs, const ISystemAttributeProvider::TAttributeInfo& rhs) {
-                return lhs.Key < rhs.Key;
-            });
-    }
-
-    FOREACH (const auto& key, userKeys) {
-        if (filter.Mode == EAttributeFilterMode::All || matchingKeys.find(key) != matchingKeys.end()) {
-            if (!seenMatching) {
-                consumer->OnBeginAttributes();
-                seenMatching = true;
+                std::sort(
+                    systemAttributes.begin(),
+                    systemAttributes.end(),
+                    [] (const ISystemAttributeProvider::TAttributeInfo& lhs, const ISystemAttributeProvider::TAttributeInfo& rhs) {
+                        return lhs.Key < rhs.Key;
+                });
             }
-            consumer->OnKeyedItem(key);
-            consumer->OnRaw(userAttributes.GetYson(key).Data(), EYsonType::Node);
+
+            FOREACH (const auto& key, userKeys) {
+                attributesConsumer.OnKeyedItem(key);
+                attributesConsumer.OnRaw(userAttributes.GetYson(key).Data(), EYsonType::Node);
+            }
+
+            FOREACH (const auto& attribute, systemAttributes) {
+                if (attribute.IsPresent){
+                    attributesConsumer.OnKeyedItem(attribute.Key);
+                    if (attribute.IsOpaque) {
+                        attributesConsumer.OnEntity();
+                    } else {
+                        YCHECK(GetSystemAttribute(attribute.Key, &attributesConsumer));
+                    }
+                }
+            }
+            break;
         }
-    }
 
-    FOREACH (const auto& attribute, systemAttributes) {
-        if (attribute.IsPresent &&
-            (filter.Mode == EAttributeFilterMode::All || matchingKeys.find(attribute.Key) != matchingKeys.end()))
-        {
-            if (!seenMatching) {
-                consumer->OnBeginAttributes();
-                seenMatching = true;
+        case EAttributeFilterMode::MatchingOnly: {
+            auto keys = filter.Keys;
+            
+            if (sortKeys) {
+                std::sort(keys.begin(), keys.end());
             }
-            consumer->OnKeyedItem(attribute.Key);
-            if (attribute.IsOpaque) {
-                consumer->OnEntity();
-            } else {
-                YCHECK(GetSystemAttribute(attribute.Key, consumer));
+
+            FOREACH (const auto& key, keys) {
+                if (!GetSystemAttribute(key, &attributesConsumer)) {
+                    auto value = userAttributes.FindYson(key);
+                    if (value) {
+                        attributesConsumer.OnKeyedItem(key);
+                        attributesConsumer.OnRaw(value->Data(), EYsonType::Node);
+                    }
+                }
             }
+
+            break;
         }
-    }
 
-    if (seenMatching) {
-        consumer->OnEndAttributes();
+        default:
+            YUNREACHABLE();
     }
 }
 
