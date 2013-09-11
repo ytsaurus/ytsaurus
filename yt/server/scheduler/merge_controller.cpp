@@ -494,7 +494,7 @@ protected:
     {
         YCHECK(!IsNontrivial(chunkSpec.start_limit()));
         YCHECK(!IsNontrivial(chunkSpec.end_limit()));
-        
+
         auto miscExt = GetProtoExtension<TMiscExt>(chunkSpec.extensions());
 
         // ChunkSequenceWriter may actually produce a chunk a bit smaller than DesiredChunkSize,
@@ -1588,7 +1588,7 @@ private:
 
         ToProto(reduceJobSpecExt->mutable_key_columns(), KeyColumns);
 
-        InitUserJobSpec(
+        InitUserJobSpecTemplate(
             reduceJobSpecExt->mutable_reducer_spec(),
             Spec->Reducer,
             RegularFiles,
@@ -1606,7 +1606,7 @@ private:
     virtual void CustomizeJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
     {
         auto* jobSpecExt = jobSpec->MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
-        AddUserJobEnvironment(jobSpecExt->mutable_reducer_spec(), joblet);
+        InitUserJobSpec(jobSpecExt->mutable_reducer_spec(), joblet);
     }
 
     virtual bool IsTableIndexEnabled() const override

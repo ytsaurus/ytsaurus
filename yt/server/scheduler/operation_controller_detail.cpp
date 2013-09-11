@@ -3030,7 +3030,7 @@ int TOperationControllerBase::SuggestJobCount(
     return static_cast<int>(Clamp(jobCount, 1, Config->MaxJobCount));
 }
 
-void TOperationControllerBase::InitUserJobSpec(
+void TOperationControllerBase::InitUserJobSpecTemplate(
     NScheduler::NProto::TUserJobSpec* jobSpec,
     TUserJobSpecPtr config,
     const std::vector<TRegularUserFile>& regularFiles,
@@ -3044,13 +3044,6 @@ void TOperationControllerBase::InitUserJobSpec(
     jobSpec->set_max_stderr_size(config->MaxStderrSize);
     jobSpec->set_enable_core_dump(config->EnableCoreDump);
     jobSpec->set_enable_vm_limit(Config->EnableVMLimit);
-
-    {
-        if (Operation->GetStdErrCount() < Operation->GetMaxStdErrCount()) {
-            auto stdErrTransactionId = Operation->GetAsyncSchedulerTransaction()->GetId();
-            ToProto(jobSpec->mutable_stderr_transaction_id(), stdErrTransactionId);
-        }
-    }
 
     {
         // Set input and output format.
@@ -3103,14 +3096,19 @@ void TOperationControllerBase::InitUserJobSpec(
     }
 }
 
-void TOperationControllerBase::AddUserJobEnvironment(
-    NScheduler::NProto::TUserJobSpec* proto,
+void TOperationControllerBase::InitUserJobSpec(
+    NScheduler::NProto::TUserJobSpec* jobSpec,
     TJobletPtr joblet)
 {
-    proto->add_environment(Sprintf("YT_JOB_INDEX=%d", joblet->JobIndex));
-    proto->add_environment(Sprintf("YT_JOB_ID=%s", ~ToString(joblet->Job->GetId())));
+    if (Operation->GetStdErrCount() < Operation->GetMaxStdErrCount()) {
+        auto stdErrTransactionId = Operation->GetAsyncSchedulerTransaction()->GetId();
+        ToProto(jobSpec->mutable_stderr_transaction_id(), stdErrTransactionId);
+    }
+
+    jobSpec->add_environment(Sprintf("YT_JOB_INDEX=%d", joblet->JobIndex));
+    jobSpec->add_environment(Sprintf("YT_JOB_ID=%s", ~ToString(joblet->Job->GetId())));
     if (joblet->StartRowIndex >= 0) {
-        proto->add_environment(Sprintf("YT_START_ROW_INDEX=%" PRId64, joblet->StartRowIndex));
+        jobSpec->add_environment(Sprintf("YT_START_ROW_INDEX=%" PRId64, joblet->StartRowIndex));
     }
 }
 

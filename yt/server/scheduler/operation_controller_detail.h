@@ -741,13 +741,13 @@ protected:
         i64 dataSizePerJob,
         TNullable<int> configJobCount) const;
 
-    void InitUserJobSpec(
+    void InitUserJobSpecTemplate(
         NScheduler::NProto::TUserJobSpec* proto,
         TUserJobSpecPtr config,
         const std::vector<TRegularUserFile>& regularFiles,
         const std::vector<TUserTableFile>& tableFiles);
 
-    static void AddUserJobEnvironment(
+    void InitUserJobSpec(
         NScheduler::NProto::TUserJobSpec* proto,
         TJobletPtr joblet);
 

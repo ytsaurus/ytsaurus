@@ -80,7 +80,12 @@ void TFileChunkOutput::Open()
         reqExt->set_vital(Options->ChunksVital);
 
         auto rsp = proxy.Execute(req).Get();
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error creating file chunk");
+        if (!rsp->IsOK()) {
+            auto wrappedError = TError(
+                NChunkClient::EErrorCode::MasterCommunicationFailed,
+                "Error creating chunk") << *rsp;
+            THROW_ERROR_EXCEPTION(wrappedError);
+        }
 
         ChunkId = FromProto<TGuid>(rsp->object_id());
 
