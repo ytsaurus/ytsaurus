@@ -286,7 +286,7 @@ void TObjectProxyBase::SerializeAttributes(
 
         virtual void OnBeginMap() override
         {
-            UnderlyingConsumer->OnBeginList();
+            UnderlyingConsumer->OnBeginMap();
         }
 
         virtual void OnKeyedItem(const TStringBuf& key) override
