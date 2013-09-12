@@ -7,6 +7,7 @@ import yt.wrapper as yt
 import os
 import tempfile
 import subprocess
+import simplejson as json
 
 import pytest
 
@@ -378,6 +379,30 @@ class TestDefaultBehaviour(YtTestBase, YTEnv):
 
         yt.abort_transaction(tx)
 
+    def test_start_row_index(self):
+        table = TEST_DIR + "/table"
+
+        yt.write_table(yt.TablePath(table, sorted_by=["a"]), ["a=b\n", "a=c\n", "a=d\n"])
+
+        rsp = yt.read_table(table, response_type="raw")
+        self.assertEqual(
+            json.loads(rsp.headers["X-YT-Response-Parameters"]),
+            {"start_row_index": 0})
+
+        rsp = yt.read_table(yt.TablePath(table, start_index=1), response_type="raw")
+        self.assertEqual(
+            json.loads(rsp.headers["X-YT-Response-Parameters"]),
+            {"start_row_index": 1})
+
+        rsp = yt.read_table(yt.TablePath(table, lower_key=["d"]), response_type="raw")
+        self.assertEqual(
+            json.loads(rsp.headers["X-YT-Response-Parameters"]),
+            {"start_row_index": 2})
+
+        rsp = yt.read_table(yt.TablePath(table, lower_key=["x"]), response_type="raw")
+        self.assertEqual(
+            json.loads(rsp.headers["X-YT-Response-Parameters"]),
+            {})
 
 # Map method for test operations with python entities
 class ChangeX__(object):
