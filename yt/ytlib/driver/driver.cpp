@@ -18,6 +18,7 @@
 #include <core/ytree/fluent.h>
 #include <core/ytree/forwarding_yson_consumer.h>
 #include <core/ytree/ephemeral_node_factory.h>
+#include <core/ytree/null_yson_consumer.h>
 
 #include <core/yson/parser.h>
 
@@ -56,6 +57,7 @@ static auto& Logger = DriverLogger;
 TDriverRequest::TDriverRequest()
     : InputStream(nullptr)
     , OutputStream(nullptr)
+    , ResponseParametersConsumer(GetNullYsonConsumer())
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

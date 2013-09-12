@@ -77,7 +77,8 @@ void TCypressNodeBase::Save(NCellMaster::TSaveContext& context) const
 
     using NYT::Save;
     SaveObjectRefs(context, LockStateMap_);
-    SaveObjectRefs(context, LockList_);
+    SaveObjectRefs(context, AcquiredLocks_);
+    SaveObjectRefs(context, PendingLocks_);
     // TODO(babenko): refactor when new serialization API is ready
     auto parentId = Parent_ ? Parent_->GetId() : NullObjectId;
     Save(context, parentId);
@@ -100,7 +101,11 @@ void TCypressNodeBase::Load(NCellMaster::TLoadContext& context)
     LoadObjectRefs(context, LockStateMap_);
     // COMPAT(babenko)
     if (context.GetVersion() >= 24) {
-        LoadObjectRefs(context, LockList_);
+        LoadObjectRefs(context, AcquiredLocks_);
+    }
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 25) {
+        LoadObjectRefs(context, PendingLocks_);
     }
     // TODO(babenko): refactor when new serialization API is ready
     TNodeId parentId;
@@ -134,8 +139,13 @@ void TCypressNodeBase::Load(NCellMaster::TLoadContext& context)
     }
 
     // Reconstruct iterators from locks to their positions in the lock list.
-    for (auto it = LockList_.begin(); it != LockList_.end(); ++it) {
-        (*it)->SetLockListIterator(it);
+    for (auto it = AcquiredLocks_.begin(); it != AcquiredLocks_.end(); ++it) {
+        auto* lock = *it;
+        lock->SetLockListIterator(it);
+    }
+    for (auto it = PendingLocks_.begin(); it != PendingLocks_.end(); ++it) {
+        auto* lock = *it;
+        lock->SetLockListIterator(it);
     }
 }
 

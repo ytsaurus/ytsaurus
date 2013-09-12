@@ -245,26 +245,22 @@ const TGuid& TChunkStore::GetCellGuid() const
 void TChunkStore::OnLocationDisabled(TLocationPtr location)
 {
     // Scan through all chunks and remove those residing on this dead location.
-    {
-        LOG_INFO("Started cleaning up chunk map");
-        int count = 0;
-        auto it = ChunkMap.begin();
-        while (it != ChunkMap.end()) {
-            auto jt = it++;
-            auto chunk = jt->second;
-            if (chunk->GetLocation() == location) {
-                ChunkMap.erase(jt);
-                ++count;
-            }
+    LOG_INFO("Started cleaning up chunk map");
+    int count = 0;
+    auto it = ChunkMap.begin();
+    while (it != ChunkMap.end()) {
+        auto jt = it++;
+        auto chunk = jt->second;
+        if (chunk->GetLocation() == location) {
+            ChunkMap.erase(jt);
+            ++count;
         }
-        LOG_INFO("Chunk map cleaned, %d chunks removed", count);
     }
+    LOG_INFO("Chunk map cleaned, %d chunks removed", count);
 
     // Schedule an out-of-order heartbeat to notify the master about the disaster.
-    {
-        auto masterConnector = Bootstrap->GetMasterConnector();
-        masterConnector->ForceRegister();
-    }
+    auto masterConnector = Bootstrap->GetMasterConnector();
+    masterConnector->ForceRegister();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

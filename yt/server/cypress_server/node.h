@@ -36,7 +36,8 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TLockStateMap, LockStateMap);
 
     typedef std::list<TLock*> TLockList;
-    DEFINE_BYREF_RW_PROPERTY(TLockList, LockList);
+    DEFINE_BYREF_RW_PROPERTY(TLockList, AcquiredLocks);
+    DEFINE_BYREF_RW_PROPERTY(TLockList, PendingLocks);
 
     typedef yhash_set<TCypressNodeBase*> TNodeSet;
     //! Contains all nodes with parent pointing here.

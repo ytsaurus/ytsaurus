@@ -1,3 +1,5 @@
+var util = require("util");
+
 var buffertools = require("buffertools");
 var Q = require("q");
 
@@ -118,7 +120,7 @@ function YtDriver(config, echo)
 YtDriver.prototype.execute = function(name, user,
     input_stream, input_compression,
     output_stream, output_compression,
-    parameters, pause
+    parameters, pause, response_parameters_consumer
 )
 {
     "use strict";
@@ -161,22 +163,23 @@ YtDriver.prototype.execute = function(name, user,
     this._binding.Execute(name, user,
         wrapped_input_stream._binding, input_compression,
         wrapped_output_stream._binding, output_compression,
-        parameters, function(result)
-    {
-        self.__DBG("execute -> (on-execute callback)");
-        // XXX(sandello): Can we move |_endSoon| to C++?
-        wrapped_output_stream._endSoon();
+        parameters,
+        function(result) {
+            self.__DBG("execute -> (on-execute callback)");
+            // XXX(sandello): Can we move |_endSoon| to C++?
+            wrapped_output_stream._endSoon();
 
-        if (result.code === 0) {
-            self.__DBG("execute -> execute_promise has been resolved");
-            deferred.resolve(Array.prototype.slice.call(arguments));
-        } else {
-            wrapped_input_stream.destroy();
-            wrapped_output_stream.destroy();
-            self.__DBG("execute -> execute_promise has been rejected");
-            deferred.reject(result);
-        }
-    });
+            if (result.code === 0) {
+                self.__DBG("execute -> execute_promise has been resolved");
+                deferred.resolve(Array.prototype.slice.call(arguments));
+            } else {
+                wrapped_input_stream.destroy();
+                wrapped_output_stream.destroy();
+                self.__DBG("execute -> execute_promise has been rejected");
+                deferred.reject(result);
+            }
+        },
+        response_parameters_consumer);
 
     process.nextTick(function() { pause.unpause(); });
 
@@ -200,7 +203,7 @@ YtDriver.prototype.executeSimple = function(name, parameters, data)
     return this.execute(name, _SIMPLE_EXECUTE_USER,
         input_stream, binding.ECompression_None,
         output_stream, binding.ECompression_None,
-        new binding.TNodeWrap(parameters), pause)
+        new binding.TNodeWrap(parameters), pause, function(){})
     .then(function(result) {
         var body = buffertools.concat.apply(undefined, output_stream.chunks);
         if (body.length) {

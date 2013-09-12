@@ -154,7 +154,6 @@ protected:
     void ReplyError(const TError& error);
     void ReplySuccess(const NYTree::TYsonString& yson);
     void ReplySuccess();
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

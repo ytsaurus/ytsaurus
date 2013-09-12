@@ -11,6 +11,7 @@
 
 #include <core/rpc/roaming_channel.h>
 #include <core/rpc/bus_channel.h>
+#include <core/rpc/retrying_channel.h>
 
 namespace NYT {
 namespace NScheduler {

@@ -571,7 +571,7 @@ protected:
 
 
     // Initialization.
-    virtual void DoInitialize();   
+    virtual void DoInitialize();
 
 
     // Preparation.
@@ -698,18 +698,26 @@ protected:
 
     void RegisterInputStripe(TChunkStripePtr stripe, TTaskPtr task);
 
+
+    void RegisterEndpoints(
+        const NTableClient::NProto::TBoundaryKeysExt& boundaryKeys,
+        int key,
+        TOutputTable* outputTable);
+
     void RegisterOutput(
-        const NChunkClient::TChunkTreeId& chunkTreeId,
+        NChunkClient::TRefCountedChunkSpecPtr chunkSpec,
         int key,
         int tableIndex);
+
+    void RegisterOutput(
+        TJobletPtr joblet,
+        int key);
+
     void RegisterOutput(
         const NChunkClient::TChunkTreeId& chunkTreeId,
         int key,
         int tableIndex,
         TOutputTable& table);
-    void RegisterOutput(
-        TJobletPtr joblet,
-        int key);
 
     void RegisterIntermediate(
         TJobletPtr joblet,
@@ -736,13 +744,13 @@ protected:
         i64 dataSizePerJob,
         TNullable<int> configJobCount) const;
 
-    void InitUserJobSpec(
+    void InitUserJobSpecTemplate(
         NScheduler::NProto::TUserJobSpec* proto,
         TUserJobSpecPtr config,
         const std::vector<TRegularUserFile>& regularFiles,
         const std::vector<TUserTableFile>& tableFiles);
 
-    static void AddUserJobEnvironment(
+    void InitUserJobSpec(
         NScheduler::NProto::TUserJobSpec* proto,
         TJobletPtr joblet);
 

@@ -6,6 +6,7 @@
 
 #include <core/rpc/roaming_channel.h>
 #include <core/rpc/bus_channel.h>
+#include <core/rpc/retrying_channel.h>
 
 #include <core/bus/config.h>
 #include <core/bus/tcp_client.h>

@@ -76,9 +76,13 @@ TMultiChunkReaderBase<TChunkReader>::TMultiChunkReaderBase(
         PrefetchWindow = 0;
         i64 bufferSize = 0;
         while (PrefetchWindow < chunkDataSizes.size()) {
-            bufferSize += std::min(
-                chunkDataSizes[PrefetchWindow],
-                config->WindowSize + config->GroupSize) + ChunkReaderMemorySize;
+            auto& currentSize = chunkDataSizes[PrefetchWindow];
+            if (currentSize < config->WindowSize + config->GroupSize) {
+                // Patch config to ensure that we don'w eat too much memory.
+                Config->WindowSize = std::max(currentSize / 2, (i64) 1);
+                Config->GroupSize = std::max(currentSize / 2, (i64) 1);
+            }
+            bufferSize += config->WindowSize + config->GroupSize + ChunkReaderMemorySize;
             if (bufferSize > Config->MaxBufferSize) {
                 break;
             } else {
@@ -213,7 +217,7 @@ void TMultiChunkReaderBase<TChunkReader>::AddFailedChunk(const TSession& session
 }
 
 template <class TChunkReader>
-std::vector<NChunkClient::TChunkId> TMultiChunkReaderBase<TChunkReader>::GetFailedChunks() const
+std::vector<NChunkClient::TChunkId> TMultiChunkReaderBase<TChunkReader>::GetFailedChunkIds() const
 {
     TGuard<TSpinLock> guard(FailedChunksLock);
     return FailedChunks;

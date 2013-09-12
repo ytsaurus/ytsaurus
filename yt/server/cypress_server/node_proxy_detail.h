@@ -20,52 +20,6 @@ namespace NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNodeFactory
-    : public ICypressNodeFactory
-{
-public:
-    TNodeFactory(
-        NCellMaster::TBootstrap* bootstrap,
-        NTransactionServer::TTransaction* transaction,
-        NSecurityServer::TAccount* account);
-    ~TNodeFactory();
-
-    virtual NYTree::IStringNodePtr CreateString() override;
-    virtual NYTree::IIntegerNodePtr CreateInteger() override;
-    virtual NYTree::IDoubleNodePtr CreateDouble() override;
-    virtual NYTree::IMapNodePtr CreateMap() override;
-    virtual NYTree::IListNodePtr CreateList() override;
-    virtual NYTree::IEntityNodePtr CreateEntity() override;
-
-    virtual NTransactionServer::TTransaction* GetTransaction() override;
-    virtual NSecurityServer::TAccount* GetAccount() override;
-
-    virtual ICypressNodeProxyPtr CreateNode(
-        NObjectClient::EObjectType type,
-        NYTree::IAttributeDictionary* attributes = nullptr,
-        TReqCreate* request = nullptr,
-        TRspCreate* response = nullptr) override;
-
-    virtual TCypressNodeBase* CloneNode(
-        TCypressNodeBase* sourceNode) override;
-    
-    virtual void Commit() override;
-
-private:
-    NCellMaster::TBootstrap* Bootstrap;
-    NTransactionServer::TTransaction* Transaction;
-    NSecurityServer::TAccount* Account;
-
-    std::vector<TCypressNodeBase*> CreatedNodes;
-
-
-    void ValidateNodeCreation(NObjectClient::EObjectType type);
-    void RegisterCreatedNode(TCypressNodeBase* node);
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TVersionedUserAttributeDictionary
     : public NYTree::IAttributeDictionary
 {
@@ -102,7 +56,9 @@ public:
         TCypressNodeBase* trunkNode);
 
     virtual NYTree::INodeFactoryPtr CreateFactory() const override;
-    virtual ICypressNodeFactoryPtr CreateCypressFactory() const override;
+    virtual ICypressNodeFactoryPtr CreateCypressFactory(
+        bool preserveAccount) const override;
+
     virtual NYTree::INodeResolverPtr GetResolver() const override;
 
     virtual NTransactionServer::TTransaction* GetTransaction() const override;

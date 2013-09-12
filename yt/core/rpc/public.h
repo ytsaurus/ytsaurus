@@ -30,8 +30,8 @@ typedef TIntrusivePtr<TOneWayClientResponse> TOneWayClientResponsePtr;
 class TRetryingChannelConfig;
 typedef TIntrusivePtr<TRetryingChannelConfig> TRetryingChannelConfigPtr;
 
-class TRetryingChannel;
-typedef TIntrusivePtr<TRetryingChannel> TRetryingChannelPtr;
+class TThrottlingChannelConfig;
+typedef TIntrusivePtr<TThrottlingChannelConfig> TThrottlingChannelConfigPtr;
 
 struct IServer;
 typedef TIntrusivePtr<IServer> IServerPtr;

@@ -6,8 +6,6 @@
 #include "helpers.h"
 #include "master_connector.h"
 
-#include <core/concurrency/fiber.h>
-
 #include <ytlib/transaction_client/transaction.h>
 
 #include <ytlib/node_tracker_client/node_directory_builder.h>
@@ -18,18 +16,12 @@
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/chunk_spec.h>
 
-#include <core/erasure/codec.h>
+#include <ytlib/table_client/chunk_meta_extensions.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
 #include <ytlib/object_client/object_ypath_proxy.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
-
-#include <core/ytree/fluent.h>
-#include <core/ytree/convert.h>
-#include <core/ytree/attribute_helpers.h>
-
-#include <core/formats/format.h>
 
 #include <ytlib/transaction_client/transaction_ypath_proxy.h>
 #include <ytlib/transaction_client/transaction_manager.h>
@@ -39,7 +31,15 @@
 
 #include <ytlib/meta_state/rpc_helpers.h>
 
+#include <core/concurrency/fiber.h>
 #include <core/rpc/helpers.h>
+
+#include <core/erasure/codec.h>
+#include <core/formats/format.h>
+
+#include <core/ytree/fluent.h>
+#include <core/ytree/convert.h>
+#include <core/ytree/attribute_helpers.h>
 
 #include <cmath>
 
@@ -61,6 +61,7 @@ using namespace NJobProxy;
 using namespace NJobTrackerClient;
 using namespace NNodeTrackerClient;
 using namespace NScheduler::NProto;
+using namespace NTableClient::NProto;
 using namespace NJobTrackerClient::NProto;
 using namespace NNodeTrackerClient::NProto;
 using namespace NConcurrency;
@@ -2837,13 +2838,41 @@ void TOperationControllerBase::RegisterOutput(
         key);
 }
 
+void TOperationControllerBase::RegisterEndpoints(
+    const TBoundaryKeysExt& boundaryKeys,
+    int key,
+    TOutputTable* outputTable)
+{
+    YCHECK(boundaryKeys.start() <= boundaryKeys.end());
+    {
+        TEndpoint endpoint;
+        endpoint.Key = boundaryKeys.start();
+        endpoint.Left = true;
+        endpoint.ChunkTreeKey = key;
+        outputTable->Endpoints.push_back(endpoint);
+    }
+    {
+        TEndpoint endpoint;
+        endpoint.Key = boundaryKeys.end();
+        endpoint.Left = false;
+        endpoint.ChunkTreeKey = key;
+        outputTable->Endpoints.push_back(endpoint);
+    }
+}
+
 void TOperationControllerBase::RegisterOutput(
-    const TChunkTreeId& chunkTreeId,
+    TRefCountedChunkSpecPtr chunkSpec,
     int key,
     int tableIndex)
 {
     auto& table = OutputTables[tableIndex];
-    RegisterOutput(chunkTreeId, key, tableIndex, table);
+
+    if (table.Options->KeyColumns && IsSortedOutputSupported()) {
+        auto boundaryKeys = GetProtoExtension<TBoundaryKeysExt>(chunkSpec->extensions());
+        RegisterEndpoints(boundaryKeys, key, &table);
+    }
+
+    RegisterOutput(FromProto<TChunkId>(chunkSpec->chunk_id()), key, tableIndex, table);
 }
 
 void TOperationControllerBase::RegisterOutput(
@@ -2866,21 +2895,7 @@ void TOperationControllerBase::RegisterOutput(
         if (table.Options->KeyColumns && IsSortedOutputSupported()) {
             YCHECK(userJobResult);
             auto& boundaryKeys = userJobResult->output_boundary_keys(tableIndex);
-            YCHECK(boundaryKeys.start() <= boundaryKeys.end());
-            {
-                TEndpoint endpoint;
-                endpoint.Key = boundaryKeys.start();
-                endpoint.Left = true;
-                endpoint.ChunkTreeKey = key;
-                table.Endpoints.push_back(endpoint);
-            }
-            {
-                TEndpoint endpoint;
-                endpoint.Key = boundaryKeys.end();
-                endpoint.Left = false;
-                endpoint.ChunkTreeKey = key;
-                table.Endpoints.push_back(endpoint);
-            }
+            RegisterEndpoints(boundaryKeys, key, &table);
         }
     }
 }
@@ -3004,6 +3019,10 @@ void TOperationControllerBase::BuildProgressYson(IYsonConsumer* consumer)
             .Item("chunk_count").Value(TotalOutputChunkCount)
             .Item("uncompressed_data_size").Value(TotalOutputDataSize)
             .Item("row_count").Value(TotalOutputRowCount)
+        .EndMap()
+        .Item("live_preview").BeginMap()
+            .Item("output_supported").Value(IsOutputLivePreviewSupported())
+            .Item("intermediate_supported").Value(IsIntermediateLivePreviewSupported())
         .EndMap();
 }
 
@@ -3033,7 +3052,7 @@ int TOperationControllerBase::SuggestJobCount(
     return static_cast<int>(Clamp(jobCount, 1, Config->MaxJobCount));
 }
 
-void TOperationControllerBase::InitUserJobSpec(
+void TOperationControllerBase::InitUserJobSpecTemplate(
     NScheduler::NProto::TUserJobSpec* jobSpec,
     TUserJobSpecPtr config,
     const std::vector<TRegularUserFile>& regularFiles,
@@ -3047,13 +3066,6 @@ void TOperationControllerBase::InitUserJobSpec(
     jobSpec->set_max_stderr_size(config->MaxStderrSize);
     jobSpec->set_enable_core_dump(config->EnableCoreDump);
     jobSpec->set_enable_vm_limit(Config->EnableVMLimit);
-
-    {
-        if (Operation->GetStdErrCount() < Operation->GetMaxStdErrCount()) {
-            auto stdErrTransactionId = Operation->GetAsyncSchedulerTransaction()->GetId();
-            ToProto(jobSpec->mutable_stderr_transaction_id(), stdErrTransactionId);
-        }
-    }
 
     {
         // Set input and output format.
@@ -3106,14 +3118,19 @@ void TOperationControllerBase::InitUserJobSpec(
     }
 }
 
-void TOperationControllerBase::AddUserJobEnvironment(
-    NScheduler::NProto::TUserJobSpec* proto,
+void TOperationControllerBase::InitUserJobSpec(
+    NScheduler::NProto::TUserJobSpec* jobSpec,
     TJobletPtr joblet)
 {
-    proto->add_environment(Sprintf("YT_JOB_INDEX=%d", joblet->JobIndex));
-    proto->add_environment(Sprintf("YT_JOB_ID=%s", ~ToString(joblet->Job->GetId())));
+    if (Operation->GetStdErrCount() < Operation->GetMaxStdErrCount()) {
+        auto stdErrTransactionId = Operation->GetAsyncSchedulerTransaction()->GetId();
+        ToProto(jobSpec->mutable_stderr_transaction_id(), stdErrTransactionId);
+    }
+
+    jobSpec->add_environment(Sprintf("YT_JOB_INDEX=%d", joblet->JobIndex));
+    jobSpec->add_environment(Sprintf("YT_JOB_ID=%s", ~ToString(joblet->Job->GetId())));
     if (joblet->StartRowIndex >= 0) {
-        proto->add_environment(Sprintf("YT_START_ROW_INDEX=%" PRId64, joblet->StartRowIndex));
+        jobSpec->add_environment(Sprintf("YT_START_ROW_INDEX=%" PRId64, joblet->StartRowIndex));
     }
 }
 

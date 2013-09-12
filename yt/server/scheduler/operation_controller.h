@@ -69,6 +69,9 @@ struct IOperationHost
      */
     virtual std::vector<TExecNodePtr> GetExecNodes() = 0;
 
+    //! Returns the number of currently active exec nodes.
+    virtual int GetExecNodeCount() = 0;
+
     //! Called by a controller to notify the host that the operation has
     //! finished successfully.
     /*!

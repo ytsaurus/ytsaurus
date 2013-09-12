@@ -5,6 +5,7 @@ set( SRCS
   ${BASE}/channel_cache.cpp
   ${BASE}/client.cpp
   ${BASE}/dispatcher.cpp
+  ${BASE}/helpers.cpp
   ${BASE}/message.cpp
   ${BASE}/private.cpp
   ${BASE}/public.cpp
@@ -17,7 +18,7 @@ set( SRCS
   ${BASE}/server_detail.cpp
   ${BASE}/service.cpp
   ${BASE}/service_detail.cpp
-  ${BASE}/helpers.cpp
+  ${BASE}/throttling_channel.cpp
 )
 set( HDRS
   ${BASE}/bus_channel.h
@@ -26,6 +27,7 @@ set( HDRS
   ${BASE}/client.h
   ${BASE}/config.h
   ${BASE}/dispatcher.h
+  ${BASE}/helpers.h
   ${BASE}/message.h
   ${BASE}/private.h
   ${BASE}/public.h
@@ -38,7 +40,7 @@ set( HDRS
   ${BASE}/server_detail.h
   ${BASE}/service.h
   ${BASE}/service_detail.h
-  ${BASE}/helpers.h
+  ${BASE}/throttling_channel.h
 )
 
 list(APPEND YT_SOURCE_FILES

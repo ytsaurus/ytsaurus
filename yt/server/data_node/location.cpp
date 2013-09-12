@@ -68,7 +68,7 @@ TLocation::TLocation(
     , ChunkCount(0)
     , ReadQueue(New<TFairShareActionQueue>(Sprintf("Read:%s", ~Id), ELocationQueue::GetDomainNames()))
     , DataReadInvoker(CreatePrioritizedInvoker(ReadQueue->GetInvoker(ELocationQueue::Data)))
-    , MetaReadInvoker(CreatePrioritizedInvoker(ReadQueue->GetInvoker(ELocationQueue::Meta)))    
+    , MetaReadInvoker(CreatePrioritizedInvoker(ReadQueue->GetInvoker(ELocationQueue::Meta)))
     , WriteQueue(New<TThreadPool>(bootstrap->GetConfig()->DataNode->WriteThreadCount, Sprintf("Write:%s", ~Id)))
     , WriteInvoker(WriteQueue->GetInvoker())
     , Logger(DataNodeLogger)
@@ -324,7 +324,11 @@ std::vector<TChunkDescriptor> TLocation::Initialize()
             i64 chunkDataSize = NFS::GetFileSize(chunkDataFileName);
             i64 chunkMetaSize = NFS::GetFileSize(chunkMetaFileName);
             if (chunkMetaSize == 0) {
-                LOG_FATAL("Chunk meta file is empty: %s", ~chunkMetaFileName);
+                // Happens on e.g. power outage.
+                LOG_WARNING("Chunk meta file is empty: %s", ~chunkMetaFileName);
+                RemoveFileOrThrow(chunkDataFileName);
+                RemoveFileOrThrow(chunkMetaFileName);
+                continue;
             }
             TChunkDescriptor descriptor;
             descriptor.Id = chunkId;

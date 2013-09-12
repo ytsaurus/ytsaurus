@@ -13,6 +13,7 @@ namespace NCypressServer {
 
 using namespace NObjectClient;
 using namespace NObjectServer;
+using namespace NTransactionServer;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -20,7 +21,7 @@ using namespace NYTree;
 yhash_map<Stroka, TCypressNodeBase*> GetMapNodeChildren(
     NCellMaster::TBootstrap* bootstrap,
     TCypressNodeBase* trunkNode,
-    NTransactionServer::TTransaction* transaction)
+    TTransaction* transaction)
 {
     yhash_map<Stroka, TCypressNodeBase*> result;
 
@@ -52,7 +53,7 @@ yhash_map<Stroka, TCypressNodeBase*> GetMapNodeChildren(
 TCypressNodeBase* FindMapNodeChild(
     NCellMaster::TBootstrap* bootstrap,
     TCypressNodeBase* trunkNode,
-    NTransactionServer::TTransaction* transaction,
+    TTransaction* transaction,
     const Stroka& key)
 {
     auto transactionManager = bootstrap->GetTransactionManager();
@@ -78,7 +79,7 @@ TCypressNodeBase* FindMapNodeChild(
 yhash_map<Stroka, NYTree::TYsonString> GetNodeAttributes(
     NCellMaster::TBootstrap* bootstrap,
     TCypressNodeBase* trunkNode,
-    NTransactionServer::TTransaction* transaction)
+    TTransaction* transaction)
 {
     yhash_map<Stroka, TYsonString> result;
 
@@ -95,6 +96,36 @@ yhash_map<Stroka, NYTree::TYsonString> GetNodeAttributes(
             FOREACH (const auto& pair, userAttributes->Attributes()) {
                 if (pair.second) {
                     result[pair.first] = pair.second.Get();
+                } else {
+                    YCHECK(result.erase(pair.first) == 1);
+                }
+            }
+        }
+    }
+
+    return result;
+}
+
+yhash_set<Stroka> ListNodeAttributes(
+    NCellMaster::TBootstrap* bootstrap,
+    TCypressNodeBase* trunkNode,
+    TTransaction* transaction)
+{
+    yhash_set<Stroka> result;
+
+    auto objectManager = bootstrap->GetObjectManager();
+    auto transactionManager = bootstrap->GetTransactionManager();
+
+    auto transactions = transactionManager->GetTransactionPath(transaction);
+    std::reverse(transactions.begin(), transactions.end());
+
+    FOREACH (const auto* currentTransaction, transactions) {
+        TVersionedObjectId versionedId(trunkNode->GetId(), GetObjectId(currentTransaction));
+        const auto* userAttributes = objectManager->FindAttributes(versionedId);
+        if (userAttributes) {
+            FOREACH (const auto& pair, userAttributes->Attributes()) {
+                if (pair.second) {
+                    result.insert(pair.first);
                 } else {
                     YCHECK(result.erase(pair.first) == 1);
                 }

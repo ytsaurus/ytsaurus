@@ -74,6 +74,7 @@ private:
 
     virtual bool OnChunk(
         TChunk* chunk,
+        i64 rowIndex,
         const TReadLimit& startLimit,
         const TReadLimit& endLimit) override;
 
@@ -116,7 +117,7 @@ void TFetchChunkVisitor::StartSession(
     ++SessionCount;
 
     TraverseChunkTree(
-        Bootstrap,
+        CreateTraverserCallbacks(Bootstrap),
         this,
         ChunkList,
         lowerBound,
@@ -143,6 +144,7 @@ void TFetchChunkVisitor::Reply()
 
 bool TFetchChunkVisitor::OnChunk(
     TChunk* chunk,
+    i64 rowIndex,
     const TReadLimit& startLimit,
     const TReadLimit& endLimit)
 {
@@ -157,6 +159,8 @@ bool TFetchChunkVisitor::OnChunk(
     }
 
     auto* chunkSpec = Context->Response().add_chunks();
+
+    chunkSpec->set_table_row_index(rowIndex);
 
     if (!Channel.IsUniversal()) {
         *chunkSpec->mutable_channel() = Channel.ToProto();
@@ -241,7 +245,7 @@ public:
         VERIFY_THREAD_AFFINITY(StateThread);
 
         TraverseChunkTree(
-            Bootstrap,
+            CreateTraverserCallbacks(Bootstrap),
             this,
             ChunkList);
 
@@ -293,10 +297,12 @@ public:
 
     virtual bool OnChunk(
         TChunk* chunk,
+        i64 rowIndex,
         const TReadLimit& startLimit,
         const TReadLimit& endLimit) override
     {
         VERIFY_THREAD_AFFINITY(StateThread);
+        UNUSED(rowIndex);
         UNUSED(startLimit);
         UNUSED(endLimit);
 
@@ -342,10 +348,12 @@ public:
 
     virtual bool OnChunk(
         TChunk* chunk,
+        i64 rowIndex,
         const TReadLimit& startLimit,
         const TReadLimit& endLimit) override
     {
         VERIFY_THREAD_AFFINITY(StateThread);
+        UNUSED(rowIndex);
         UNUSED(startLimit);
         UNUSED(endLimit);
 

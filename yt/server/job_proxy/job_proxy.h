@@ -77,7 +77,6 @@ private:
 
     void CheckMemoryUsage();
 
-    TFuture<void> GetFailedChunks(std::vector<NChunkClient::TChunkId>* failedChunks);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

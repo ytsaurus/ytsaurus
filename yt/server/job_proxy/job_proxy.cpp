@@ -63,8 +63,6 @@ using namespace NConcurrency;
 
 static i64 InitialJobProxyMemoryLimit = (i64) 100 * 1024 * 1024;
 
-static i64 RssLimitBoost = (i64) 1024 * 1024 * 1024;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TJobProxy::TJobProxy(
@@ -143,8 +141,7 @@ void TJobProxy::Run()
     }
 
     if (Job) {
-        std::vector<NChunkClient::TChunkId> failedChunkIds;
-        GetFailedChunks(&failedChunkIds).Get();
+        auto failedChunkIds = Job->GetFailedChunkIds();
         LOG_INFO("Found %d failed chunks", static_cast<int>(failedChunkIds.size()));
 
         // For erasure chunks, replace part id with whole chunk id.
@@ -272,55 +269,6 @@ TJobResult TJobProxy::DoRun()
     }
 }
 
-TFuture<void> TJobProxy::GetFailedChunks(std::vector<NChunkClient::TChunkId>* failedChunks)
-{
-    *failedChunks = Job->GetFailedChunks();
-     return MakeFuture();
-/*
-    if (failedChunks->empty()) {
-        return MakeFuture();
-    }
-
-    yhash_set<NChunkClient::TChunkId> failedSet(failedChunks->begin(), failedChunks->end());
-
-    auto awaiter = New<TParallelAwaiter>(GetSyncInvoker());
-
-    LOG_INFO("Started collection additional failed chunks");
-
-    FOREACH (const auto& inputSpec, JobSpec.input_specs()) {
-        FOREACH (const auto& chunk, inputSpec.chunks()) {
-            auto chunkId = NChunkClient::FromProto<TChunkId>(chunk.slice().chunk_id());
-            auto pair = failedSet.insert(chunkId);
-            if (pair.second) {
-                LOG_INFO("Checking input chunk %s", ~ToString(chunkId));
-
-                auto remoteReader = NChunkClient::CreateReplicationReader(
-                    Config->JobIO->TableReader,
-                    BlockCache,
-                    MasterChannel,
-                    chunkId,
-                    FromProto<Stroka>(chunk.node_addresses()));
-
-                awaiter->Await(
-                    remoteReader->AsyncGetChunkMeta(),
-                    BIND([=] (NChunkClient::IAsyncReader::TGetMetaResult result) mutable {
-                        if (result.IsOK()) {
-                            LOG_INFO("Input chunk %s is OK", ~ToString(chunkId));
-                        } else {
-                            LOG_ERROR(result, "Input chunk %s has failed", ~ToString(chunkId));
-                            failedChunks->push_back(chunkId);
-                        }
-                        // This is important to capture #remoteReader.
-                        remoteReader.Reset();
-                    }));
-            }
-        }
-    }
-
-    return awaiter->Complete();
-*/
-}
-
 void TJobProxy::ReportResult(const TJobResult& result)
 {
     auto req = SupervisorProxy->OnJobFinished();
@@ -400,7 +348,7 @@ void TJobProxy::CheckMemoryUsage()
     LOG_DEBUG("Job proxy memory check (MemoryUsage: %" PRId64 ", MemoryLimit: %" PRId64 ")",
         memoryUsage,
         JobProxyMemoryLimit);
-    if (memoryUsage > JobProxyMemoryLimit + RssLimitBoost) {
+    if (memoryUsage > JobProxyMemoryLimit) {
         LOG_FATAL(
             "Job proxy memory limit exceeded (MemoryUsage: %" PRId64 ", MemoryLimit: %" PRId64 ", RefCountedTracker: %s)",
             memoryUsage,

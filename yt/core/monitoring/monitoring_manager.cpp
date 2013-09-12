@@ -40,8 +40,7 @@ public:
 
     virtual TResolveResult Resolve(const TYPath& path, IServiceContextPtr context) override
     {
-        auto root = Owner->Root;
-        return root->Resolve(path, context);
+        return TResolveResult::There(Owner->Root, path);
     }
 
 private:

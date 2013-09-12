@@ -47,10 +47,12 @@ public:
     virtual const TRow& GetRow() const override;
     virtual const TNullable<int>& GetTableIndex() const override;
 
-    virtual i64 GetRowIndex() const override;
-    virtual i64 GetRowCount() const override;
-    virtual std::vector<NChunkClient::TChunkId> GetFailedChunks() const override;
+    virtual i64 GetSessionRowIndex() const override;
+    virtual i64 GetSessionRowCount() const override;
+    virtual i64 GetTableRowIndex() const override;
+    
     virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override;
+    virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override;
 
 private:
     TTableReaderConfigPtr Config;
@@ -66,7 +68,6 @@ private:
     NLog::TTaggedLogger Logger;
 
     TTableChunkSequenceReaderPtr Reader;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

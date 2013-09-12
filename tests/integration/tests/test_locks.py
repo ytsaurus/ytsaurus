@@ -8,7 +8,7 @@ from yt_commands import *
 
 class TestLocks(YTEnvSetup):
     NUM_MASTERS = 3
-    NUM_NODES = 0
+    NUM_NODES = 3
 
     #TODO(panin): check error messages
     def test_invalid_cases(self):
@@ -136,12 +136,14 @@ class TestLocks(YTEnvSetup):
         lock_id2 = lock('//tmp/a', tx=tx2, waitable=True)
 
         assert get('#' + lock_id1 + '/@state') == 'acquired'
+        assert get('//tmp/a/@lock_mode', tx=tx1) == 'exclusive'
         assert get('#' + lock_id2 + '/@state') == 'pending'
 
         abort_transaction(tx1)
 
         assert not exists('//sys/locks/' + lock_id1)
         assert get('#' + lock_id2 + '/@state') == 'acquired'
+        assert get('//tmp/a/@lock_mode', tx=tx2) == 'exclusive'
 
     def test_waitable_lock2(self):
         set('//tmp/a', 1)
@@ -261,6 +263,45 @@ class TestLocks(YTEnvSetup):
         assert not exists('//sys/locks/' + lock_id1)
         assert not exists('//sys/locks/' + lock_id2)
 
+    def test_waitable_lock8(self):
+        tx1 = start_transaction()
+        tx2 = start_transaction(tx = tx1)
+        tx3 = start_transaction()
+
+        create('table', '//tmp/t')
+        write('//tmp/t', {'foo': 'bar'}, tx = tx2)
+
+        lock_id = lock('//tmp/t', tx = tx3, mode = 'exclusive', waitable = True)
+
+        assert get('//sys/locks/' + lock_id + '/@state') == 'pending'
+        assert len(get('//tmp/t/@locks')) == 2
+
+        commit_transaction(tx2)
+
+        assert get('//sys/locks/' + lock_id + '/@state') == 'pending'
+        assert len(get('//tmp/t/@locks')) == 2
+        
+        commit_transaction(tx1)
+
+        assert get('//sys/locks/' + lock_id + '/@state') == 'acquired'
+        assert len(get('//tmp/t/@locks')) == 1
+    
+    def test_yt144(self):
+        create('table', '//tmp/t')
+        
+        tx1 = start_transaction()
+        lock('//tmp/t', tx=tx1, mode='exclusive')
+        
+        tx2 = start_transaction()
+        lock_id = lock('//tmp/t', mode='exclusive', waitable=True, tx=tx2)
+
+        abort_transaction(tx1)
+        assert get('//sys/locks/' + lock_id + '/@state') == 'acquired'
+        remove('//tmp/t', tx=tx2)
+        abort_transaction(tx2)
+
+        assert get('//tmp/t/@parent_id') == get('//tmp/@id')
+
     def test_remove_locks(self):
         set('//tmp/a', {'b' : 1})
 
@@ -281,7 +322,7 @@ class TestLocks(YTEnvSetup):
 
         lock = locks[0]
         assert lock['mode'] == 'shared'
-        assert lock['child_key'] == ['a']
+        assert lock['child_key'] == 'a'
 
         commit_transaction(tx)
         assert get('//tmp') == {'a' : 1}
@@ -324,7 +365,7 @@ class TestLocks(YTEnvSetup):
 
         lock = locks[0]
         assert lock['mode'] == 'shared'
-        assert lock['child_key'] == ['a']
+        assert lock['child_key'] == 'a'
 
     def test_map_locks5(self):
         set('//tmp/a', 1)
@@ -370,7 +411,7 @@ class TestLocks(YTEnvSetup):
 
         lock = locks[0]
         assert lock['mode'] == 'shared'
-        assert lock['attribute_key'] == ['a']
+        assert lock['attribute_key'] == 'a'
 
         commit_transaction(tx)
         assert get('//tmp/@a') == 1
@@ -416,7 +457,7 @@ class TestLocks(YTEnvSetup):
 
         lock = locks[0]
         assert lock['mode'] == 'shared'
-        assert lock['attribute_key'] == ['a']
+        assert lock['attribute_key'] == 'a'
 
     def test_attr_locks5(self):
         set('//tmp/@a', 1)
@@ -439,4 +480,29 @@ class TestLocks(YTEnvSetup):
 
         commit_transaction(tx)
         with pytest.raises(YTError): get('//tmp/@a')
+ 
+    def test_nested_tx1(self):
+        tx1 = start_transaction()
+        tx2 = start_transaction(tx = tx1)
+        lock_id = lock('//tmp', tx = tx2)
+        assert len(get('//tmp/@locks')) == 1
+        abort_transaction(tx2)
+        assert not exists('//sys/locks/' + lock_id)
+
+    def test_nested_tx2(self):
+        tx1 = start_transaction()
+        tx2 = start_transaction(tx = tx1)
+        lock_id = lock('//tmp', tx = tx2)
+        assert len(get('//tmp/@locks')) == 1
+        commit_transaction(tx2)
+        assert len(get('//tmp/@locks')) == 1
+        assert get('//sys/locks/' + lock_id + '/@transaction_id') == tx1
+
+    def test_nested_tx3(self):
+        tx1 = start_transaction()
+        tx2 = start_transaction(tx = tx1)
+        lock_id = lock('//tmp', tx = tx2, mode = 'snapshot')
+        assert len(get('//tmp/@locks')) == 1
+        commit_transaction(tx2)
+        assert not exists('//sys/locks/' + lock_id)
 

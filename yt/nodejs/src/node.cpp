@@ -17,6 +17,8 @@
 #include <util/stream/zlib.h>
 #include <util/stream/lz.h>
 
+#include <util/string/base64.h>
+
 namespace NYT {
 namespace NNodeJS {
 
@@ -38,29 +40,29 @@ static Persistent<String> SpecialAttributesKey;
 static const char SpecialBase64Marker = '&';
 
 // Declare.
-void ConsumeV8Array(Handle<Array> array, IYsonConsumer* consumer);
-void ConsumeV8Object(Handle<Object> object, IYsonConsumer* consumer);
-void ConsumeV8ObjectProperties(Handle<Object> object, IYsonConsumer* consumer);
-void ConsumeV8Value(Handle<Value> value, IYsonConsumer* consumer);
+void ConsumeV8Array(Handle<Array> array, ITreeBuilder* builder);
+void ConsumeV8Object(Handle<Object> object, ITreeBuilder* builder);
+void ConsumeV8ObjectProperties(Handle<Object> object, ITreeBuilder* builder);
+void ConsumeV8Value(Handle<Value> value, ITreeBuilder* builder);
 
-Handle<Value> ProduceV8(INodePtr node);
+Handle<Value> ProduceV8(const INodePtr& node);
 
 // Define.
-void ConsumeV8Array(Handle<Array> array, IYsonConsumer* consumer)
+void ConsumeV8Array(Handle<Array> array, ITreeBuilder* builder)
 {
     THREAD_AFFINITY_IS_V8();
 
-    consumer->OnBeginList();
+    builder->OnBeginList();
 
     for (ui32 i = 0; i < array->Length(); ++i) {
-        consumer->OnListItem();
-        ConsumeV8Value(array->Get(i), consumer);
+        builder->OnListItem();
+        ConsumeV8Value(array->Get(i), builder);
     }
 
-    consumer->OnEndList();
+    builder->OnEndList();
 }
 
-void ConsumeV8Object(Handle<Object> object, IYsonConsumer* consumer)
+void ConsumeV8Object(Handle<Object> object, ITreeBuilder* builder)
 {
     THREAD_AFFINITY_IS_V8();
 
@@ -69,24 +71,24 @@ void ConsumeV8Object(Handle<Object> object, IYsonConsumer* consumer)
         if (object->Has(SpecialAttributesKey)) {
             auto attributes = object->Get(SpecialAttributesKey);
             if (!attributes->IsObject()) {
-                THROW_ERROR_EXCEPTION("Attributes are have to be a V8 object");
+                THROW_ERROR_EXCEPTION("Attributes have to be a V8 object");
                 return;
             }
 
-            consumer->OnBeginAttributes();
-            ConsumeV8ObjectProperties(attributes->ToObject(), consumer);
-            consumer->OnEndAttributes();
+            builder->OnBeginAttributes();
+            ConsumeV8ObjectProperties(attributes->ToObject(), builder);
+            builder->OnEndAttributes();
         }
 
-        ConsumeV8Value(value, consumer);
+        ConsumeV8Value(value, builder);
     } else {
-        consumer->OnBeginMap();
-        ConsumeV8ObjectProperties(object, consumer);
-        consumer->OnEndMap();
+        builder->OnBeginMap();
+        ConsumeV8ObjectProperties(object, builder);
+        builder->OnEndMap();
     }
 }
 
-void ConsumeV8ObjectProperties(Handle<Object> object, IYsonConsumer* consumer)
+void ConsumeV8ObjectProperties(Handle<Object> object, ITreeBuilder* builder)
 {
     THREAD_AFFINITY_IS_V8();
 
@@ -95,59 +97,60 @@ void ConsumeV8ObjectProperties(Handle<Object> object, IYsonConsumer* consumer)
         Local<String> key = properties->Get(i)->ToString();
         String::AsciiValue keyValue(key);
 
-        consumer->OnKeyedItem(TStringBuf(*keyValue, keyValue.length()));
-        ConsumeV8Value(object->Get(key), consumer);
+        builder->OnKeyedItem(TStringBuf(*keyValue, keyValue.length()));
+        ConsumeV8Value(object->Get(key), builder);
     }
 }
 
-void ConsumeV8Value(Handle<Value> value, IYsonConsumer* consumer)
+void ConsumeV8Value(Handle<Value> value, ITreeBuilder* builder)
 {
     THREAD_AFFINITY_IS_V8();
 
     /****/ if (value->IsString()) {
-        String::AsciiValue string(value->ToString());
-        if (string.length() >= 1 && **string == SpecialBase64Marker) {
-            THROW_ERROR_EXCEPTION(
-                "Decoding of Base64-encoded V8 strings is currently unsupported");
+        String::AsciiValue asciiValue(value->ToString());
+        TStringBuf string(*asciiValue, asciiValue.length());
+
+        if (string.length() >= 1 && string[0] == SpecialBase64Marker) {
+            builder->OnStringScalar(Base64Decode(string.Tail(1)));
         } else {
-            consumer->OnStringScalar(TStringBuf(*string, string.length()));
+            builder->OnStringScalar(string);
         }
     } else if (value->IsNumber()) {
         if (value->IsInt32() || value->IsUint32()) {
-            consumer->OnIntegerScalar(value->IntegerValue());
+            builder->OnIntegerScalar(value->IntegerValue());
         } else {
-            consumer->OnDoubleScalar(value->NumberValue());
+            builder->OnDoubleScalar(value->NumberValue());
         }
     } else if (value->IsObject()) {
         if (TNodeWrap::HasInstance(value)) {
-            Consume(TNodeWrap::UnwrapNode(value), consumer);
+            builder->OnNode(CloneNode(TNodeWrap::UnwrapNode(value)));
             return;
         }
         if (value->IsArray()) {
             ConsumeV8Array(
                 Local<Array>::Cast(Local<Value>::New(value)),
-                consumer);
+                builder);
         } else {
             ConsumeV8Object(
                 Local<Object>::Cast(Local<Value>::New(value)),
-                consumer);
+                builder);
         }
     } else if (value->IsBoolean()) {
-        consumer->OnStringScalar(value->BooleanValue() ? "true" : "false");
+        builder->OnStringScalar(value->BooleanValue() ? "true" : "false");
     } else {
-        String::AsciiValue detailString(value);
+        String::AsciiValue asciiValue(value);
         THROW_ERROR_EXCEPTION(
             "Unsupported JS value type within V8-to-YSON conversion: %s",
-            *detailString);
+            *asciiValue);
     }
 }
 
-Handle<Value> ProduceV8(INodePtr node)
+Handle<Value> ProduceV8(const INodePtr& node)
 {
     THREAD_AFFINITY_IS_V8();
 
     if (!node) {
-        return v8::Null();
+        return v8::Undefined();
     }
 
     switch (node->GetType()) {
@@ -183,8 +186,9 @@ Handle<Value> ProduceV8(INodePtr node)
             }
             return result;
         }
-        default:
-            return v8::Undefined();
+        default: {
+            return v8::Null();
+        }
     }
 }
 
@@ -232,6 +236,14 @@ INodePtr ConvertV8BytesToNode(const char* buffer, size_t length, ECompression co
         ConvertTo<TFormat>(std::move(format)),
         EDataType::Structured,
         streamStack.Top()));
+}
+
+Handle<Value> ConvertNodeToV8Value(const INodePtr& node)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    return scope.Close(ProduceV8(node));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -472,7 +484,7 @@ Handle<Value> TNodeWrap::Get(const Arguments& args)
     YASSERT(args.Length() == 0);
 
     INodePtr node = TNodeWrap::UnwrapNode(args.This());
-    return scope.Close(ProduceV8(std::move(node)));
+    return scope.Close(ProduceV8(node));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

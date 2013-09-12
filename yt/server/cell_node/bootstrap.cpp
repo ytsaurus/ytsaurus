@@ -14,6 +14,7 @@
 #include <core/rpc/channel.h>
 #include <core/rpc/server.h>
 #include <core/rpc/redirector_service.h>
+#include <core/rpc/throttling_channel.h>
 
 #include <ytlib/meta_state/master_channel.h>
 
@@ -144,13 +145,15 @@ void TBootstrap::Run()
         "/ref_counted",
         BIND(&TRefCountedTracker::GetMonitoringInfo, TRefCountedTracker::Get()));
 
+    auto jobToMasterChannel = CreateThrottlingChannel(
+        Config->JobsToMasterChannel,
+        MasterChannel);
     RpcServer->RegisterService(CreateRedirectorService(
         NObjectClient::TObjectServiceProxy::GetServiceName(),
-        MasterChannel));
-
+        jobToMasterChannel));
     RpcServer->RegisterService(CreateRedirectorService(
         NChunkClient::TChunkServiceProxy::GetServiceName(),
-        MasterChannel));
+        jobToMasterChannel));
 
     ReaderCache = New<TReaderCache>(Config->DataNode);
 
@@ -162,6 +165,10 @@ void TBootstrap::Run()
     PeerBlockTable = New<TPeerBlockTable>(Config->DataNode->PeerBlockTable);
 
     PeerBlockUpdater = New<TPeerBlockUpdater>(Config->DataNode, this);
+
+    SessionManager = New<TSessionManager>(Config->DataNode, this);
+
+    MasterConnector = New<TMasterConnector>(Config->DataNode, this);
 
     ChunkStore = New<TChunkStore>(Config->DataNode, this);
     ChunkStore->Initialize();
@@ -187,10 +194,6 @@ void TBootstrap::Run()
         CellGuid = ChunkCache->GetCellGuid();
         ChunkStore->SetCellGuid(CellGuid);
     }
-
-    SessionManager = New<TSessionManager>(Config->DataNode, this);
-
-    MasterConnector = New<TMasterConnector>(Config->DataNode, this);
 
     ReplicationInThrottler = CreateProfilingThrottlerWrapper(
         CreateLimitedThrottler(Config->DataNode->ReplicationInThrottler),

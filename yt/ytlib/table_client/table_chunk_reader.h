@@ -34,6 +34,7 @@ public:
     const TRow& GetRow() const;
     const NChunkClient::TNonOwningKey& GetKey() const;
     const TNullable<int>& GetTableIndex() const;
+    i64 GetTableRowIndex() const;
 
 private:
     friend class TTableChunkReader;
@@ -61,6 +62,7 @@ public:
         const NChunkClient::NProto::TReadLimit& startLimit,
         const NChunkClient::NProto::TReadLimit& endLimit,
         TNullable<int> tableIndex,
+        i64 tableRowIndex,
         int partitionTag,
         TChunkReaderOptionsPtr options);
 
@@ -71,9 +73,10 @@ public:
 
     const TFacade* GetFacade() const;
 
-    i64 GetRowIndex() const;
-    i64 GetRowCount() const;
     NChunkClient::NProto::TDataStatistics GetDataStatistics() const;
+    i64 GetSessionRowIndex() const;
+    i64 GetSessionRowCount() const;
+    i64 GetTableRowIndex() const;
     TFuture<void> GetFetchingCompleteEvent();
 
     // Called by facade.
@@ -137,6 +140,8 @@ private:
 
     yhash_map<TStringBuf, TColumnInfo> ColumnsMap;
     std::vector<Stroka> ColumnNames;
+    
+    i64 StartTableRowIndex;
 
     i64 CurrentRowIndex;
     i64 StartRowIndex;
@@ -179,7 +184,8 @@ public:
     TTableChunkReaderProvider(
         const std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
         const NChunkClient::TSequentialReaderConfigPtr& config,
-        const TChunkReaderOptionsPtr& options = New<TChunkReaderOptions>());
+        const TChunkReaderOptionsPtr& options = New<TChunkReaderOptions>(),
+        TNullable<i64> startTableRowIndex = Null);
 
     TTableChunkReaderPtr CreateReader(
         const NChunkClient::NProto::TChunkSpec& chunkSpec,

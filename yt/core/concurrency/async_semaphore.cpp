@@ -13,7 +13,9 @@ static TFuture<void> PresetResult = MakePromise();
 TAsyncSemaphore::TAsyncSemaphore(i64 maxFreeSlots)
     : MaxFreeSlots(maxFreeSlots)
     , FreeSlotCount(maxFreeSlots)
-{ }
+{
+    YCHECK(maxFreeSlots > 0);
+}
 
 void TAsyncSemaphore::Release(i64 slots /* = 1 */)
 {

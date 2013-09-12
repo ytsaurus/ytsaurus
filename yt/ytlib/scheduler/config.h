@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+#include <core/rpc/config.h>
 #include <core/rpc/retrying_channel.h>
 
 #include <core/ytree/yson_serializable.h>

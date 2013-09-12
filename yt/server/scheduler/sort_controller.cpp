@@ -100,10 +100,10 @@ public:
         Persist(context, SortDataSizeCounter);
         Persist(context, SortedMergeJobCounter);
         Persist(context, UnorderedMergeJobCounter);
-        
+
         Persist(context, SortStartThresholdReached);
         Persist(context, MergeStartThresholdReached);
-        
+
         Persist(context, SimpleSort);
         Persist(context, Partitions);
 
@@ -199,7 +199,7 @@ protected:
             if (!controller->SimpleSort) {
                 UnorderedMergeTask = New<TUnorderedMergeTask>(controller, this);
                 UnorderedMergeTask->Initialize();
-                controller->RegisterTask(UnorderedMergeTask);                
+                controller->RegisterTask(UnorderedMergeTask);
             }
         }
 
@@ -234,15 +234,15 @@ protected:
         void Persist(TPersistenceContext& context)
         {
             using NYT::Persist;
-            
+
             Persist(context, Index);
-            
+
             Persist(context, Completed);
-            
+
             Persist(context, CachedSortedMergeNeeded);
-            
+
             Persist(context, Maniac);
-            
+
             Persist(context, AddressToLocality);
             Persist(context, AssignedAddress);
 
@@ -1644,10 +1644,10 @@ private:
     {
         TSortControllerBase::CustomPrepare();
 
+        OutputTables[0].Options->KeyColumns = Spec->SortBy;
+
         if (TotalInputDataSize == 0)
             return;
-
-        OutputTables[0].Options->KeyColumns = Spec->SortBy;
 
         auto samplesFetcher = New<TSamplesFetcher>(
             Config,
@@ -2200,7 +2200,7 @@ private:
         PROFILE_TIMING ("/input_processing_time") {
             BuildPartitions();
         }
-        
+
         InitJobSpecTemplates();
     }
 
@@ -2293,7 +2293,7 @@ private:
             ToProto(partitionJobSpecExt->mutable_key_columns(), Spec->ReduceBy);
 
             if (Spec->Mapper) {
-                InitUserJobSpec(
+                InitUserJobSpecTemplate(
                     partitionJobSpecExt->mutable_mapper_spec(),
                     Spec->Mapper,
                     MapperFiles,
@@ -2324,7 +2324,7 @@ private:
 
             ToProto(reduceJobSpecExt->mutable_key_columns(), Spec->SortBy);
 
-            InitUserJobSpec(
+            InitUserJobSpecTemplate(
                 reduceJobSpecExt->mutable_reducer_spec(),
                 Spec->Reducer,
                 ReducerFiles,
@@ -2342,7 +2342,7 @@ private:
 
             ToProto(reduceJobSpecExt->mutable_key_columns(), Spec->SortBy);
 
-            InitUserJobSpec(
+            InitUserJobSpecTemplate(
                 reduceJobSpecExt->mutable_reducer_spec(),
                 Spec->Reducer,
                 ReducerFiles,
@@ -2374,14 +2374,14 @@ private:
         switch (jobSpec->type()) {
             case EJobType::PartitionMap: {
                 auto* jobSpecExt = jobSpec->MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
-                AddUserJobEnvironment(jobSpecExt->mutable_mapper_spec(), joblet);
+                InitUserJobSpec(jobSpecExt->mutable_mapper_spec(), joblet);
                 break;
             }
 
             case EJobType::PartitionReduce:
             case EJobType::SortedReduce: {
                 auto* jobSpecExt = jobSpec->MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
-                AddUserJobEnvironment(jobSpecExt->mutable_reducer_spec(), joblet);
+                InitUserJobSpec(jobSpecExt->mutable_reducer_spec(), joblet);
                 break;
             }
 

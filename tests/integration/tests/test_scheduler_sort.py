@@ -78,6 +78,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
              sort_by='key')
 
         assert read('//tmp/t_out') == []
+        assert get('//tmp/t_out/@sorted') == 'true'
 
     def test_non_empty_out(self):
         create('table', '//tmp/t_in')

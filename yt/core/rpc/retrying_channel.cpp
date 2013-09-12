@@ -2,6 +2,7 @@
 #include "retrying_channel.h"
 #include "private.h"
 #include "client.h"
+#include "config.h"
 
 #include <core/bus/client.h>
 

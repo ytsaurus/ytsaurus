@@ -46,6 +46,11 @@ double GetMinResourceRatio(
     const NProto::TNodeResources& nominator,
     const NProto::TNodeResources& denominator);
 
+NProto::TNodeResources GetAdjustedResourceLimits(
+    const NProto::TNodeResources& demand,
+    const NProto::TNodeResources& limits,
+    int nodeCount);
+
 const NProto::TNodeResources& ZeroNodeResources();
 const NProto::TNodeResources& InfiniteNodeResources();
 

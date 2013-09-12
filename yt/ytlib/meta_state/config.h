@@ -6,7 +6,9 @@
 
 #include <core/ytree/yson_serializable.h>
 
+#include <core/rpc/config.h>
 #include <core/rpc/retrying_channel.h>
+
 
 namespace NYT {
 namespace NMetaState {

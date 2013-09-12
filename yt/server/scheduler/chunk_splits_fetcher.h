@@ -59,6 +59,7 @@ private:
     TMergeOperationSpecBasePtr Spec;
 
     NTableClient::TKeyColumns KeyColumns;
+    int PartitionTag;
 
     NLog::TTaggedLogger Logger;
 

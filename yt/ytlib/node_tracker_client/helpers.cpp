@@ -151,6 +151,25 @@ double GetMinResourceRatio(
     return result;
 }
 
+TNodeResources GetAdjustedResourceLimits(
+    const TNodeResources& demand,
+    const TNodeResources& limits,
+    int nodeCount)
+{
+    auto adjustedLimits = limits;
+
+    // Take memory granularity into account.
+    if (demand.user_slots() > 0 && nodeCount > 0) {
+        i64 memoryDemandPerJob = demand.memory() / demand.user_slots();
+        i64 memoryLimitPerNode = limits.memory() / nodeCount;
+        int slotsPerNode = memoryLimitPerNode / memoryDemandPerJob;
+        i64 adjustedMemoryLimit = slotsPerNode * memoryDemandPerJob * nodeCount;
+        adjustedLimits.set_memory(adjustedMemoryLimit);
+    }
+
+    return adjustedLimits;
+}
+
 TNodeResources GetZeroNodeResources()
 {
     TNodeResources result;

@@ -7,12 +7,14 @@
 #include <core/misc/sync.h>
 
 #include <ytlib/chunk_client/client_block_cache.h>
+#include <ytlib/chunk_client/multi_chunk_parallel_reader.h>
 #include <ytlib/chunk_client/multi_chunk_sequential_writer.h>
+#include <ytlib/chunk_client/chunk_spec.h>
 #include <ytlib/chunk_client/chunk_spec.pb.h>
 
 #include <ytlib/table_client/partition_chunk_writer.h>
+#include <ytlib/table_client/channel_writer.h>
 #include <ytlib/table_client/table_chunk_reader.h>
-#include <ytlib/chunk_client/multi_chunk_parallel_reader.h>
 #include <ytlib/table_client/partitioner.h>
 #include <ytlib/table_client/sync_writer.h>
 
@@ -79,6 +81,19 @@ public:
             Partitioner = CreateOrderedPartitioner(&PartitionKeys);
         } else {
             Partitioner = CreateHashPartitioner(PartitionJobSpecExt.partition_count());
+        }
+
+        i64 inputDataSize = 0;
+        FOREACH(const auto& chunkSpec, chunks) {
+            i64 dataSize = 0;
+            NChunkClient::GetStatistics(chunkSpec, &dataSize);
+            inputDataSize += dataSize;
+        }
+
+        if (inputDataSize < config->JobIO->TableWriter->MaxBufferSize) {
+            config->JobIO->TableWriter->MaxBufferSize = std::max(
+                inputDataSize,
+                (i64) 2 * TChannelWriter::MinUpperReserveLimit * Partitioner->GetPartitionCount());
         }
 
         auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt.output_transaction_id());
@@ -153,9 +168,9 @@ public:
         }
     }
 
-    virtual std::vector<NChunkClient::TChunkId> GetFailedChunks() const override
+    virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override
     {
-        return Reader->GetFailedChunks();
+        return Reader->GetFailedChunkIds();
     }
 
     virtual TJobStatistics GetStatistics() const override

@@ -96,6 +96,74 @@ class TestSchedulerReduceCommands(YTEnvSetup):
 
         assert get('//tmp/out/@sorted') == 'true'
 
+
+    @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
+    def test_cat_primary(self):
+        create('table', '//tmp/in1')
+        write(
+            '//tmp/in1',
+            [
+                {'key': 0, 'value': 1},
+                {'key': 2, 'value': 2},
+                {'key': 4, 'value': 3},
+                {'key': 7, 'value': 4}
+            ],
+            sorted_by = 'key; value')
+
+        create('table', '//tmp/in2')
+        write(
+            '//tmp/in2',
+            [
+                {'key': 8,'value': 5},
+                {'key': 9, 'value': 6},
+            ],
+            sorted_by = 'key;value')
+
+        create('table', '//tmp/in3')
+        write(
+            '//tmp/in3',
+            [ {'key': 8,'value': 1}, ],
+            sorted_by = 'key;value')
+
+        create('table', '//tmp/in4')
+        write(
+            '//tmp/in4',
+            [ {'key': 10,'value': 1}, ],
+            sorted_by = 'key;value')
+
+        create('table', '//tmp/out1')
+        create('table', '//tmp/out2')
+
+        reduce(
+            in_ = ['<primary=true>//tmp/in1', '<primary=true>//tmp/in2', '//tmp/in3', '//tmp/in4'],
+            out = ['<sorted_by=[key]>//tmp/out1', '<sorted_by=[key]>//tmp/out2'],
+            command = 'cat>/dev/fd/4',
+            reduce_by = 'key')
+
+        print read('//tmp/out1')
+        print read('//tmp/out2')
+
+        print get('//tmp/out1/@chunk_ids')
+
+        assert read('//tmp/out1') == \
+            [
+                {'key': 0, 'value': 1},
+                {'key': 2, 'value': 2},
+                {'key': 4, 'value': 3},
+                {'key': 7, 'value': 4}
+            ]
+
+        assert read('//tmp/out2') == \
+            [
+                {'key': 8,'value': 1},
+                {'key': 8,'value': 5},
+                {'key': 9, 'value': 6},
+                {'key': 10,'value': 1},
+            ]
+
+        assert get('//tmp/out1/@sorted') == 'true'
+        assert get('//tmp/out2/@sorted') == 'true'
+
     @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
     def test_maniac_chunk(self):
         create('table', '//tmp/in1')

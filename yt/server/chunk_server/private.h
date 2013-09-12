@@ -16,6 +16,9 @@ extern NProfiling::TProfiler ChunkServerProfiler;
 struct IChunkVisitor;
 typedef TIntrusivePtr<IChunkVisitor> IChunkVisitorPtr;
 
+struct IChunkTraverserCallbacks;
+typedef TIntrusivePtr<IChunkTraverserCallbacks> IChunkTraverserCallbacksPtr;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkServer

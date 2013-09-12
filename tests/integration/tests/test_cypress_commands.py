@@ -333,6 +333,20 @@ class TestCypressCommands(YTEnvSetup):
         copy('#' + tmp_id + '/a', '//tmp/b')
         assert get('//tmp/b') == 123
 
+    def test_copy_preserve_account1(self):
+        create_account('max')
+        create('table', '//tmp/t1')
+        set('//tmp/t1/@account', 'max')
+        copy('//tmp/t1', '//tmp/t2') # preserve is OFF
+        assert get('//tmp/t2/@account') == 'tmp'
+
+    def test_copy_preserve_account2(self):
+        create_account('max')
+        create('table', '//tmp/t1')
+        set('//tmp/t1/@account', 'max')
+        copy('//tmp/t1', '//tmp/t2', opt=['/preserve_account=true']) # preserve is ON
+        assert get('//tmp/t2/@account') == 'max'
+
     def test_move_simple(self):
         set('//tmp/a', 1)
         move('//tmp/a', '//tmp/b')

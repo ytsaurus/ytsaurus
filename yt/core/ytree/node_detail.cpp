@@ -47,23 +47,31 @@ bool TNodeBase::DoInvoke(IServiceContextPtr context)
 
 void TNodeBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
 {
-    context->SetRequestInfo("");
-
-    ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
-
-    TNullable< std::vector<Stroka> > attributesToVisit;
-
     auto attributeFilter =
         request->has_attribute_filter()
         ? NYT::FromProto<TAttributeFilter>(request->attribute_filter())
         : TAttributeFilter::None;
 
+    bool ignoreOpaque = request->ignore_opaque();
+
+    context->SetRequestInfo("AttributeFilterMode: %s, IgnoreOpaque: %s",
+        ~attributeFilter.Mode.ToString(),
+        ~FormatBool(ignoreOpaque));
+
+    ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
+
     TStringStream stream;
     TYsonWriter writer(&stream);
 
-    VisitTree(this, &writer, attributeFilter);
-
+    VisitTree(
+        this,
+        &writer,
+        attributeFilter,
+        false,
+        ignoreOpaque);
+    
     response->set_value(stream.Str());
+
     context->Reply();
 }
 

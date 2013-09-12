@@ -29,7 +29,10 @@ struct ICypressNodeFactory
     typedef NRpc::TTypedServiceResponse<NCypressClient::NProto::TRspCreate> TRspCreate;
 
     virtual NTransactionServer::TTransaction* GetTransaction() = 0;
-    virtual NSecurityServer::TAccount* GetAccount() = 0;
+
+    virtual NSecurityServer::TAccount* GetNewNodeAccount() = 0;
+    virtual NSecurityServer::TAccount* GetClonedNodeAccount(
+        TCypressNodeBase* sourceNode) = 0;
 
     virtual ICypressNodeProxyPtr CreateNode(
         NObjectClient::EObjectType type,
@@ -39,6 +42,7 @@ struct ICypressNodeFactory
 
     virtual TCypressNodeBase* CloneNode(
         TCypressNodeBase* sourceNode) = 0;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -65,7 +69,8 @@ struct ICypressNodeProxy
     virtual NSecurityServer::TClusterResources GetResourceUsage() const = 0;
 
     //! "Covariant" extension of NYTree::INode::CreateFactory.
-    virtual ICypressNodeFactoryPtr CreateCypressFactory() const = 0;
+    virtual ICypressNodeFactoryPtr CreateCypressFactory(
+        bool preserveAccount) const = 0;
 
 };
 

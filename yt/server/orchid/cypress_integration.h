@@ -24,7 +24,7 @@ struct TOrchidManifest
         RegisterParameter("remote_root", RemoteRoot)
             .Default("/");
         RegisterParameter("timeout", Timeout)
-            .Default(TDuration::MilliSeconds(3000));
+            .Default(TDuration::Seconds(15));
     }
 };
 

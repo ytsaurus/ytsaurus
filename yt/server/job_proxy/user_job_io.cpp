@@ -96,8 +96,8 @@ double TUserJobIO::GetProgress() const
     i64 current = 0;
 
     FOREACH (const auto& input, Inputs) {
-        total += input->GetRowCount();
-        current += input->GetRowIndex();
+        total += input->GetSessionRowCount();
+        current += input->GetSessionRowIndex();
     }
 
     if (total == 0) {
@@ -139,11 +139,11 @@ std::unique_ptr<TErrorOutput> TUserJobIO::CreateErrorOutput(
         maxSize));
 }
 
-std::vector<NChunkClient::TChunkId> TUserJobIO::GetFailedChunks() const
+std::vector<NChunkClient::TChunkId> TUserJobIO::GetFailedChunkIds() const
 {
     std::vector<TChunkId> result;
     FOREACH (const auto& input, Inputs) {
-        auto part = input->GetFailedChunks();
+        auto part = input->GetFailedChunkIds();
         result.insert(result.end(), part.begin(), part.end());
     }
     return result;

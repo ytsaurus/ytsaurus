@@ -170,6 +170,7 @@ void TCopyCommand::DoExecute()
     SetTransactionId(req, EAllowNullTransaction::Yes);
     GenerateMutationId(req);
     req->set_source_path(Request->SourcePath.GetPath());
+    req->set_preserve_account(Request->PreserveAccount);
 
     auto rsp = WaitFor(ObjectProxy->Execute(req));
     THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);

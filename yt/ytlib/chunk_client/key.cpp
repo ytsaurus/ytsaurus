@@ -29,6 +29,7 @@ int CompareKeyParts(const NProto::TKeyPart& lhs, const NProto::TKeyPart& rhs)
     }
 
     if (lhs.has_int_value()) {
+
         if (lhs.int_value() > rhs.int_value())
             return 1;
         if (lhs.int_value() < rhs.int_value())
