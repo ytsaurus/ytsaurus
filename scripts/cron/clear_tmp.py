@@ -87,9 +87,11 @@ def main():
     for iter in xrange(5):
         for dir in dirs:
             if dir_sizes[dir] == 0 and get_age(dir).days > args.days:
-                logger.info("Removing empty dir %s", obj)
+                logger.info("Removing empty dir %s", dir)
                 dir_sizes[os.path.dirname(dir)] -= 1
-                yt.remove(obj, force=True)
+                # To avoid removing twice
+                dir_sizes[dir] = -1 
+                yt.remove(dir, force=True)
 
 if __name__ == "__main__":
     main()
