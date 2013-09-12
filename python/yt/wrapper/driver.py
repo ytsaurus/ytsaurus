@@ -42,6 +42,8 @@ def read_content(response, type):
         return response.iter_content(chunk_size=config.HTTP_CHUNK_SIZE)
     elif type == "string":
         return response.text
+    elif type == "raw":
+        return response
     else:
         raise YtError("Incorrent response type: " + type)
 
