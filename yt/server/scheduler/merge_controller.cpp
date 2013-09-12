@@ -228,8 +228,8 @@ protected:
             result.set_cpu(1);
             result.set_memory(
                 Controller->GetFinalIOMemorySize(
-                Controller->Spec->JobIO,
-                UpdateChunkStripeStatistics(ChunkPool->GetApproximateStripeStatistics())) +
+                    Controller->Spec->JobIO,
+                    UpdateChunkStripeStatistics(ChunkPool->GetApproximateStripeStatistics())) +
                 GetFootprintMemorySize() +
                 Controller->GetAdditionalMemorySize());
             return result;

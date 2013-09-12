@@ -76,10 +76,12 @@ i64 GetInputIOMemorySize(
 
     int concurrentReaders = std::min(stat.ChunkCount, MaxPrefetchWindow);
 
-    i64 groupSize = std::max(stat.MaxBlockSize, ioConfig->TableReader->GroupSize);
+    // Group can be overcommited by one block.
+    i64 groupSize = stat.MaxBlockSize + ioConfig->TableReader->GroupSize;
     i64 windowSize = std::max(stat.MaxBlockSize, ioConfig->TableReader->WindowSize);
     i64 bufferSize = std::min(stat.DataSize, concurrentReaders * (windowSize + groupSize));
-    bufferSize += concurrentReaders * ChunkReaderMemorySize;
+    // One block for table chunk reader.
+    bufferSize += concurrentReaders * (ChunkReaderMemorySize + stat.MaxBlockSize);
 
     i64 maxBufferSize = std::max(ioConfig->TableReader->MaxBufferSize, 2 * stat.MaxBlockSize);
 

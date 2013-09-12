@@ -45,6 +45,7 @@ TAsyncError TMultiChunkParallelReader<TChunkReader>::AsyncOpen()
     if (ChunkSpecs.size() != 0) {
         State.StartOperation();
 
+        TBase::PrepareNextChunk();
         for (int i = 0; i < TBase::PrefetchWindow; ++i) {
             TBase::PrepareNextChunk();
         }

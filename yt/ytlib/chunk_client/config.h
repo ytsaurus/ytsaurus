@@ -115,10 +115,10 @@ public:
     TSequentialReaderConfig()
     {
         RegisterParameter("window_size", WindowSize)
-            .Default((i64) 32 * 1024 * 1024)
+            .Default((i64) 20 * 1024 * 1024)
             .GreaterThan(0);
         RegisterParameter("group_size", GroupSize)
-            .Default((i64) 32 * 1024 * 1024)
+            .Default((i64) 15 * 1024 * 1024)
             .GreaterThan(0);
 
         RegisterValidator([&] () {
@@ -342,7 +342,7 @@ struct TMultiChunkReaderConfig
         RegisterParameter("max_buffer_size", MaxBufferSize)
             .GreaterThan(0L)
             .LessThanOrEqual((i64) 10 * 1024 * 1024 * 1024)
-            .Default((i64) 128 * 1024 * 1024);
+            .Default((i64) 100 * 1024 * 1024);
 
         RegisterValidator([&] () {
             if (MaxBufferSize < 2 * WindowSize) {
