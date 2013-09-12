@@ -29,6 +29,11 @@ yhash_map<Stroka, NYTree::TYsonString> GetNodeAttributes(
     TCypressNodeBase* trunkNode,
     NTransactionServer::TTransaction* transaction);
 
+yhash_set<Stroka> ListNodeAttributes(
+    NCellMaster::TBootstrap* bootstrap,
+    TCypressNodeBase* trunkNode,
+    NTransactionServer::TTransaction* transaction);
+
 void AttachChild(
     NCellMaster::TBootstrap* bootstrap,
     TCypressNodeBase* trunkParent,
