@@ -150,7 +150,7 @@ def _add_user_command_spec(op_type, binary, input_format, output_format, files, 
    
     memory_limit = get_value(memory_limit, config.MEMORY_LIMIT)
     if memory_limit is not None:
-        spec = update({"memory_limit": int(memory_limit)}, spec)
+        spec = update({op_type: {"memory_limit": int(memory_limit)}}, spec)
 
     return spec, files + additional_files
 
