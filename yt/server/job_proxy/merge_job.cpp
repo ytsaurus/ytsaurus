@@ -120,7 +120,6 @@ public:
                 }
 
                 Reader->Open();
-                Writer->Open();
             }
             PROFILE_TIMING_CHECKPOINT("init");
 

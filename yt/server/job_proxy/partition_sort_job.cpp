@@ -188,7 +188,6 @@ public:
             LOG_INFO("Writing");
             {
                 auto syncWriter = CreateSyncWriter<TTableChunkWriter>(Writer);
-                syncWriter->Open();
 
                 TMemoryInput input;
                 TRow row;

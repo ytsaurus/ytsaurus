@@ -111,7 +111,6 @@ public:
             LOG_INFO("Initializing");
             {
                 Reader->Open();
-                Writer->Open();
             }
             PROFILE_TIMING_CHECKPOINT("init");
 
