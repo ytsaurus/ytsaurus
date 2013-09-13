@@ -84,14 +84,15 @@ TMultiChunkReaderBase<TChunkReader>::TMultiChunkReaderBase(
             return lhsDataSize > rhsDataSize;
         });
 
+        if (!sortedChunkSpecs.empty()) {
+            i64 smallestDataSize;
+            NChunkClient::GetStatistics(sortedChunkSpecs.back(), &smallestDataSize);
 
-        i64 smallestDataSize;
-        NChunkClient::GetStatistics(sortedChunkSpecs.back(), &smallestDataSize);
-
-        if (smallestDataSize < config->WindowSize + config->GroupSize) {
-            // Patch config to ensure that we don'w eat too much memory.
-            Config->WindowSize = std::max(smallestDataSize / 2, (i64) 1);
-            Config->GroupSize = std::max(smallestDataSize / 2, (i64) 1);
+            if (smallestDataSize < config->WindowSize + config->GroupSize) {
+                // Patch config to ensure that we don'w eat too much memory.
+                Config->WindowSize = std::max(smallestDataSize / 2, (i64) 1);
+                Config->GroupSize = std::max(smallestDataSize / 2, (i64) 1);
+            }
         }
 
         PrefetchWindow = 0;
@@ -117,6 +118,7 @@ TMultiChunkReaderBase<TChunkReader>::TMultiChunkReaderBase(
         PrefetchWindow = std::max(PrefetchWindow - 1, 0);
         PrefetchWindow = std::min(PrefetchWindow, MaxPrefetchWindow);
     }
+
     LOG_DEBUG("Preparing reader (PrefetchWindow: %d)", PrefetchWindow);
 }
 
