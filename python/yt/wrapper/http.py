@@ -1,17 +1,17 @@
 import http_config
 import logger
 from common import require
-from errors import YtError, YtResponseError, YtNetworkError, YtTokenError, YtProxyUnavailable, format_error
+from errors import YtError, YtResponseError, YtNetworkError, YtTokenError, YtProxyUnavailable
 
 import os
 import string
 import time
 import httplib
-import requests
+import yt.packages.requests
 import simplejson as json
 
 # We cannot use requests.HTTPError in module namespace because of conflict with python3 http library
-from requests import HTTPError, ConnectionError, Timeout
+from yt.packages.requests import HTTPError, ConnectionError, Timeout
 NETWORK_ERRORS = (HTTPError, ConnectionError, Timeout, httplib.IncompleteRead, YtResponseError)
 
 if http_config.FORCE_IPV4 or http_config.FORCE_IPV6:
@@ -98,7 +98,7 @@ def make_request_with_retries(request, make_retries=False, retry_unavailable_pro
 
 def make_get_request_with_retries(url):
     response = make_request_with_retries(
-        lambda: Response(requests.get(url)),
+        lambda: Response(yt.packages.requests.get(url)),
         make_retries=True,
         description=url)
     return response.json()

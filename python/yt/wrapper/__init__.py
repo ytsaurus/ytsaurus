@@ -17,7 +17,7 @@ from transaction_commands import \
 from lock import lock
 from transaction import Transaction, PingableTransaction, PingTransaction
 from py_wrapper import aggregator, raw
-from requests import HTTPError, ConnectionError
+from yt.packages.requests import HTTPError, ConnectionError
 from string_iter_io import StringIterIO
 
 from version import VERSION

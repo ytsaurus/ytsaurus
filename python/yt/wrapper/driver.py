@@ -8,7 +8,7 @@ from http import make_get_request_with_retries, make_request_with_retries, Respo
 
 from yt.yson.yson_types import convert_to_yson_tree
 
-import requests
+import yt.packages.requests as requests
 
 import sys
 import socket
@@ -148,14 +148,24 @@ def make_request(command_name, params,
 
     stream = (command.output_type in ["binary", "tabular"])
 
-    response = make_request_with_retries(
-        lambda: Response(
-            requests.request(
+    def request():
+        try:
+            rsp = requests.request(
                 url=url,
                 method=command.http_method(),
                 headers=headers,
                 data=data,
-                stream=stream)),
+                stream=stream)
+        except requests.ConnectionError as error:
+            print >>sys.stderr, type(error)
+            if hasattr(error, "response"):
+                rsp = error.response
+            else:
+                raise
+        return Response(rsp)
+
+    response = make_request_with_retries(
+        request,
         allow_retries,
         retry_unavailable_proxy=retry_unavailable_proxy,
         description=url,
