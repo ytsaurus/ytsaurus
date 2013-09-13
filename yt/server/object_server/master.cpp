@@ -85,9 +85,10 @@ private:
             : NullTransactionId;
         auto type = EObjectType(request->type());
 
-        context->SetRequestInfo("TransactionId: %s, Type: %s",
+        context->SetRequestInfo("TransactionId: %s, Type: %s, Account: %s",
             ~ToString(transactionId),
-            ~type.ToString());
+            ~type.ToString(),
+            request->has_account() ? ~request->account() : "<Null>");
 
         auto* transaction =
             transactionId != NullTransactionId
@@ -102,7 +103,7 @@ private:
         auto attributes =
             request->has_object_attributes()
             ? FromProto(request->object_attributes())
-            : CreateEphemeralAttributes();
+            : std::unique_ptr<IAttributeDictionary>();
 
         auto objectManager = Bootstrap->GetObjectManager();
         auto* object = objectManager->CreateObject(
