@@ -88,7 +88,6 @@ public:
             Host->GetMasterChannel(),
             transactionId,
             chunkListId));
-        Writer->Open();
 
         return Writer;
     }

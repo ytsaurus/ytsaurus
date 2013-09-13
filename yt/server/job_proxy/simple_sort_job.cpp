@@ -191,8 +191,6 @@ public:
 
             LOG_INFO("Writing");
             {
-                Writer->Open();
-
                 TRow row;
                 TNonOwningKey key(keyColumnCount);
                 for (size_t progressIndex = 0; progressIndex < rowIndexBuffer.size(); ++progressIndex) {

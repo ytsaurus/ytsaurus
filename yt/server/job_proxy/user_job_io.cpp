@@ -84,7 +84,6 @@ ISyncWriterPtr TUserJobIO::CreateTableOutput(int index)
     YCHECK(Outputs.size() == index);
     Outputs.push_back(writerProvider);
 
-    writer->Open();
     return writer;
 }
 
