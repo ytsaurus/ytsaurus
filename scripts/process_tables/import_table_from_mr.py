@@ -38,6 +38,7 @@ def main():
     parser.add_argument("--fetch-info-from-http", action="store_true", default=False)
     parser.add_argument("--mapreduce-binary", default="./mapreduce")
     parser.add_argument("--yt-binary")
+    parser.add_argument("--lock")
 
     args = parser.parse_args()
 
@@ -56,7 +57,13 @@ def main():
                 "{} -server {}:{} -list -prefix {} -jsonoutput"\
                     .format(args.mapreduce_binary, args.server, args.server_port, table),
                 shell=True)
-            fetch_from_server.cache[table] = filter(lambda obj: obj["name"] == table, json.loads(output))[0]
+            table_info = filter(lambda obj: obj["name"] == table, json.loads(output))
+            if table_info:
+                fetch_from_server.cache[table] = table_info[0]
+            else:
+                fetch_from_server.cache[table] = None
+        if fetch_from_server.cache[table] is None:
+            return None
         return fetch_from_server.cache[table].get(field, None)
 
     def records_count(table):
@@ -85,7 +92,8 @@ def main():
 
     def is_empty(table):
         if not args.fetch_info_from_http:
-            return fetch_from_server(table, "records") == 0
+            count = fetch_from_server(table, "records")
+            return count is None or count == 0
         """ Parse whether table is empty from html """
         http_content = sh.curl("{}:{}/debug?info=table&table={}".format(args.server, args.http_port, table)).stdout
         empty_lines = filter(lambda line: line.find("is empty") != -1,  http_content.split("\n"))
@@ -255,15 +263,30 @@ def main():
             if args.erasure_codec is not None:
                 yt.set_attribute(destination, "erasure_codec", args.erasure_codec)
                 spec["job_io"] = {"table_writer": {"desired_chunk_size": 2 * 1024 ** 3}}
-                spec["data_size_per_job"] = 4 * (1024 ** 3) / yt.get(destination + "/@compression_ratio")
+                spec["data_size_per_job"] = max(1, int(4 * (1024 ** 3) / yt.get(destination + "/@compression_ratio")))
 
             yt.run_merge(destination, destination, mode=mode, spec=spec)
 
 
-    process_tasks_from_list(
+    if args.lock is not None:
+        with yt.Transaction():
+            ok = True
+            try:
+                yt.lock(args.lock)
+            except yt.YtResponseError as error:
+                if error.is_concurrent_transaction_lock_conflict():
+                    ok = False
+                    print >>sys.stderr, "Cannot take lock " + args.lock
+                else:
+                    raise
+            if ok:
+                process_tasks_from_list(
+                    args.tables,
+                    import_table)
+    else:
+        process_tasks_from_list(
         args.tables,
-        import_table
-    )
+        import_table)
 
 if __name__ == "__main__":
     main()
