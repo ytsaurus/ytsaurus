@@ -28,7 +28,8 @@ def main():
     parser.add_argument("--job-size", type=int, default=2 * 1024 ** 3)
     parser.add_argument("--job-count", type=int)
     parser.add_argument("--speed", type=int)
-    parser.add_argument("--codec")
+    parser.add_argument("--compression-codec")
+    parser.add_argument("--erasure-codec")
     parser.add_argument("--force", action="store_true", default=False)
     parser.add_argument("--ignore", action="store_true", default=False)
     parser.add_argument("--fastbone", action="store_true", default=False)
@@ -194,15 +195,6 @@ def main():
                         args.yt_binary),
             shell=True)
         
-        if args.codec is not None:
-            yt.set_attribute(destination, "compression_codec", args.codec)
-            yt.run_merge(
-                destination,
-                destination,
-                "unordered",
-                spec={"combine_chunks": "true",
-                      "force_transform": "true"})
-
 
     def import_table(obj):
         destination = None
@@ -249,6 +241,24 @@ def main():
             _, _, exc_traceback = sys.exc_info()
             traceback.print_tb(exc_traceback, file=sys.stdout)
             yt.remove(destination, force=True)
+        
+        if args.erasure_codec is not None and args.erasure_codec == "none":
+            args.erasure_codec = None
+
+        if args.compression_codec is not None or args.erasure_codec is not None:
+            mode = "sorted" if sorted else "unordered"
+            spec = {"combine_chunks": "true",
+                    "force_transform": "true"}
+
+            if args.compression_codec is not None:
+                yt.set_attribute(destination, "compression_codec", args.compression_codec)
+            if args.erasure_codec is not None:
+                yt.set_attribute(destination, "erasure_codec", args.erasure_codec)
+                spec["job_io"] = {"table_writer": {"desired_chunk_size": 2 * 1024 ** 3}}
+                spec["data_size_per_job"] = 4 * (1024 ** 3) / yt.get(destination + "/@compression_ratio")
+
+            yt.run_merge(destination, destination, mode=mode, spec=spec)
+
 
     process_tasks_from_list(
         args.tables,
