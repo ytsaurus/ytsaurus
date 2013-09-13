@@ -26,7 +26,7 @@ def get_master_config():
             rpc_timeout = 10000;
         };
     };
-  
+
     transaction_manager = {
         default_transaction_timeout = 300000;
     };
@@ -36,7 +36,7 @@ def get_master_config():
     };
 
     node_tracker = {
-        online_node_timeout = 600;
+        online_node_timeout = 1000;
     };
 
     logging = {
