@@ -61,7 +61,7 @@ TMultiChunkReaderBase<TChunkReader>::TMultiChunkReaderBase(
             FailedChunks.push_back(chunkId);
 
             auto error = TError(
-                "Chunk is unavailable (ChunkId: %s)",
+                "Chunk %s is unavailable",
                 ~ToString(chunkId));
             LOG_ERROR(error);
             State.Fail(error);
