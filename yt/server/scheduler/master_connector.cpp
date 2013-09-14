@@ -461,7 +461,7 @@ private:
         {
             auto batchReq = Owner->StartBatchRequest(false);
             {
-                auto req = TMasterYPathProxy::CreateObject();
+                auto req = TMasterYPathProxy::CreateObjects();
                 req->set_type(EObjectType::Transaction);
 
                 auto* reqExt = req->MutableExtension(TReqCreateTransactionExt::create_transaction_ext);
@@ -479,9 +479,9 @@ private:
             THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp);
 
             {
-                auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObject>("start_lock_tx");
+                auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObjects>("start_lock_tx");
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error starting lock transaction");
-                auto transactionId = FromProto<TTransactionId>(rsp->object_id());
+                auto transactionId = FromProto<TTransactionId>(rsp->object_ids(0));
 
                 TTransactionAttachOptions options(transactionId);
                 options.AutoAbort = true;

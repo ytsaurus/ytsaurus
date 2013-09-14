@@ -98,8 +98,8 @@ public:
         TTransaction* transaction,
         TAccount* account,
         IAttributeDictionary* attributes,
-        TReqCreateObject* request,
-        TRspCreateObject* response) override;
+        TReqCreateObjects* request,
+        TRspCreateObjects* response) override;
 
 protected:
     TImpl* Owner;
@@ -183,8 +183,8 @@ public:
         TTransaction* transaction,
         TAccount* account,
         IAttributeDictionary* attributes,
-        TReqCreateObject* request,
-        TRspCreateObject* response) override;
+        TReqCreateObjects* request,
+        TRspCreateObjects* response) override;
 
 private:
     TImpl* Owner;
@@ -1318,8 +1318,8 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::Create(
     TTransaction* transaction,
     TAccount* account,
     IAttributeDictionary* attributes,
-    TReqCreateObject* request,
-    TRspCreateObject* response)
+    TReqCreateObjects* request,
+    TRspCreateObjects* response)
 {
     YCHECK(transaction);
     YCHECK(account);
@@ -1420,8 +1420,8 @@ TObjectBase* TChunkManager::TChunkListTypeHandler::Create(
     TTransaction* transaction,
     TAccount* account,
     IAttributeDictionary* attributes,
-    TReqCreateObject* request,
-    TRspCreateObject* response)
+    TReqCreateObjects* request,
+    TRspCreateObjects* response)
 {
     UNUSED(transaction);
     UNUSED(account);

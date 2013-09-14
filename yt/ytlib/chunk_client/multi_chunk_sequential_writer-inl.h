@@ -140,7 +140,7 @@ void TMultiChunkSequentialWriter<TChunkWriter>::CreateNextSession()
 
     NObjectClient::TObjectServiceProxy objectProxy(MasterChannel);
 
-    auto req = NObjectClient::TMasterYPathProxy::CreateObject();
+    auto req = NObjectClient::TMasterYPathProxy::CreateObjects();
     ToProto(req->mutable_transaction_id(), TransactionId);
 
     req->set_type(Options->ErasureCodec == NErasure::ECodec::None
@@ -168,7 +168,7 @@ void TMultiChunkSequentialWriter<TChunkWriter>::CreateNextSession()
 
 template <class TChunkWriter>
 void TMultiChunkSequentialWriter<TChunkWriter>::OnChunkCreated(
-    NObjectClient::TMasterYPathProxy::TRspCreateObjectPtr rsp)
+    NObjectClient::TMasterYPathProxy::TRspCreateObjectsPtr rsp)
 {
     VERIFY_THREAD_AFFINITY_ANY();
     YCHECK(NextSession);
@@ -185,7 +185,7 @@ void TMultiChunkSequentialWriter<TChunkWriter>::OnChunkCreated(
         return;
     }
 
-    auto chunkId = NYT::FromProto<TChunkId>(rsp->object_id());
+    auto chunkId = NYT::FromProto<TChunkId>(rsp->object_ids(0));
     const auto& rspExt = rsp->GetExtension(NProto::TRspCreateChunkExt::create_chunk_ext);
 
     NodeDirectory->MergeFrom(rspExt.node_directory());

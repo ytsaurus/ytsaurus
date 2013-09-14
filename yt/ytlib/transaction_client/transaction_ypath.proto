@@ -42,11 +42,11 @@ message TRspUnstageObject
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// CreateObject extension.
+// CreateObjects extension.
 
 message TReqCreateTransactionExt
 {
-    extend NYT.NObjectClient.NProto.TReqCreateObject
+    extend NYT.NObjectClient.NProto.TReqCreateObjects
     {
         optional TReqCreateTransactionExt create_transaction_ext = 101;
     }

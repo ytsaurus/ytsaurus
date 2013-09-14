@@ -959,8 +959,8 @@ TObjectBase* TObjectManager::CreateObject(
     TAccount* account,
     EObjectType type,
     IAttributeDictionary* attributes,
-    IObjectTypeHandler::TReqCreateObject* request,
-    IObjectTypeHandler::TRspCreateObject* response)
+    IObjectTypeHandler::TReqCreateObjects* request,
+    IObjectTypeHandler::TRspCreateObjects* response)
 {
     auto handler = FindHandler(type);
     if (!handler) {

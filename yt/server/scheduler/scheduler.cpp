@@ -847,7 +847,7 @@ private:
 
         {
             auto userTransaction = operation->GetUserTransaction();
-            auto req = TMasterYPathProxy::CreateObject();
+            auto req = TMasterYPathProxy::CreateObjects();
             if (userTransaction) {
                 ToProto(req->mutable_transaction_id(), userTransaction->GetId());
             }
@@ -874,8 +874,8 @@ private:
         auto transactionManager = GetTransactionManager();
 
         {
-            auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObject>("start_sync_tx");
-            auto transactionid = FromProto<TObjectId>(rsp->object_id());
+            auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObjects>("start_sync_tx");
+            auto transactionid = FromProto<TObjectId>(rsp->object_ids(0));
             TTransactionAttachOptions options(transactionid);
             options.AutoAbort = false;
             options.Ping = true;
@@ -899,7 +899,7 @@ private:
         auto batchReq = proxy.ExecuteBatch();
 
         {
-            auto req = TMasterYPathProxy::CreateObject();
+            auto req = TMasterYPathProxy::CreateObjects();
             req->set_type(EObjectType::Transaction);
 
             auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction_ext);
@@ -925,8 +925,8 @@ private:
         auto transactionManager = GetTransactionManager();
 
         {
-            auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObject>("start_async_tx");
-            auto transactionid = FromProto<TObjectId>(rsp->object_id());
+            auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObjects>("start_async_tx");
+            auto transactionid = FromProto<TObjectId>(rsp->object_ids(0));
             TTransactionAttachOptions options(transactionid);
             options.AutoAbort = false;
             options.Ping = true;
@@ -951,7 +951,7 @@ private:
         auto parentTransactionId = operation->GetSyncSchedulerTransaction()->GetId();
 
         {
-            auto req = TMasterYPathProxy::CreateObject();
+            auto req = TMasterYPathProxy::CreateObjects();
             ToProto(req->mutable_transaction_id(), parentTransactionId);
             req->set_type(EObjectType::Transaction);
 
@@ -968,7 +968,7 @@ private:
         }
 
         {
-            auto req = TMasterYPathProxy::CreateObject();
+            auto req = TMasterYPathProxy::CreateObjects();
             ToProto(req->mutable_transaction_id(), parentTransactionId);
             req->set_type(EObjectType::Transaction);
 
@@ -994,9 +994,9 @@ private:
         auto transactionManager = GetTransactionManager();
 
         {
-            auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObject>("start_in_tx");
+            auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObjects>("start_in_tx");
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error starting input transaction");
-            auto id = FromProto<TTransactionId>(rsp->object_id());
+            auto id = FromProto<TTransactionId>(rsp->object_ids(0));
             TTransactionAttachOptions options(id);
             options.AutoAbort = false;
             options.Ping = true;
@@ -1004,9 +1004,9 @@ private:
         }
 
         {
-            auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObject>("start_out_tx");
+            auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObjects>("start_out_tx");
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error starting output transaction");
-            auto id = FromProto<TTransactionId>(rsp->object_id());
+            auto id = FromProto<TTransactionId>(rsp->object_ids(0));
             TTransactionAttachOptions options(id);
             options.AutoAbort = false;
             options.Ping = true;

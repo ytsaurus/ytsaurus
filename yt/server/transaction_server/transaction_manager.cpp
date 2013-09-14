@@ -63,7 +63,6 @@ public:
     {
         DECLARE_YPATH_SERVICE_WRITE_METHOD(Commit);
         DECLARE_YPATH_SERVICE_WRITE_METHOD(Abort);
-        DECLARE_YPATH_SERVICE_WRITE_METHOD(CreateObject);
         DECLARE_YPATH_SERVICE_WRITE_METHOD(UnstageObject);
         // NB: Ping is not logged and thus is not considered to be a write
         // request. It can only be served at leaders though, so its handler explicitly
@@ -318,8 +317,8 @@ public:
         TTransaction* parent,
         TAccount* account,
         IAttributeDictionary* attributes,
-        TReqCreateObject* request,
-        TRspCreateObject* response) override
+        TReqCreateObjects* request,
+        TRspCreateObjects* response) override
     {
         UNUSED(account);
         UNUSED(response);

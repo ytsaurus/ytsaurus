@@ -92,7 +92,7 @@ public:
 
         LOG_INFO("Starting transaction");
 
-        auto req = TMasterYPathProxy::CreateObject();
+        auto req = TMasterYPathProxy::CreateObjects();
         req->set_type(EObjectType::Transaction);
         ToProto(req->mutable_object_attributes(), *options.Attributes);
         if (options.ParentId != NullTransactionId) {
@@ -113,7 +113,7 @@ public:
 
         auto this_ = MakeStrong(this);
         return Proxy_.Execute(req).Apply(
-            BIND([this, this_] (TMasterYPathProxy::TRspCreateObjectPtr rsp) -> TError {
+            BIND([this, this_] (TMasterYPathProxy::TRspCreateObjectsPtr rsp) -> TError {
                 // XXX(babenko): required by VS2010
                 typedef TTransactionManager::TTransaction::EState EState;
 
@@ -124,7 +124,7 @@ public:
 
                 State_ = EState::Active;
 
-                Id_ = FromProto<TTransactionId>(rsp->object_id());
+                Id_ = FromProto<TTransactionId>(rsp->object_idы(0));
                 LOG_INFO("Transaction started (TransactionId: %s, AutoAbort: %s, Ping: %s, PingAncestors: %s)",
                     ~ToString(Id_),
                     ~FormatBool(AutoAbort_),
