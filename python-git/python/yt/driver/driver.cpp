@@ -148,7 +148,7 @@ public:
         NRpc::TDispatcher::Get()->Shutdown();
         NChunkClient::TDispatcher::Get()->Shutdown();
         NProfiling::TProfilingManager::Get()->Shutdown();
-        TDelayedInvoker::Shutdown();
+        TDelayedExecutor::Shutdown();
     }
 
     virtual ~ytlib_python_module()
