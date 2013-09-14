@@ -1,13 +1,14 @@
 #include "stdafx.h"
 #include "yson_stream.h"
 
-#include <core/formats/parser.h>
-#include <core/formats/yson_parser.h>
+#include <core/yson/parser.h>
 
 namespace NYT {
 namespace NYTree {
 
 using namespace NYson;
+
+static const size_t ParseBufferSize = 1 << 16;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,11 +36,16 @@ void ParseYson(
     IYsonConsumer* consumer,
     bool enableLinePositionInfo)
 {
-    auto parser = NFormats::CreateParserForYson(
-        consumer,
-        input.GetType(),
-        enableLinePositionInfo);
-    NFormats::Parse(input.GetStream(), ~parser);
+    TYsonParser parser(consumer, input.GetType(), enableLinePositionInfo);
+    char buffer[ParseBufferSize];
+    while (true) {
+        size_t bytesRead = input.GetStream()->Read(buffer, ParseBufferSize);
+        if (bytesRead == 0) {
+            break;
+        }
+        parser.Read(TStringBuf(buffer, bytesRead));
+    }
+    parser.Finish();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

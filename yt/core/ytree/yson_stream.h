@@ -36,6 +36,8 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// To hook-up with Serialize/Deserialize framework.
+// For direct calss, use ParseYson instead.
 void Serialize(
     const TYsonInput& input,
     NYson::IYsonConsumer* consumer);
