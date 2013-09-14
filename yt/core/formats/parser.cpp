@@ -8,19 +8,17 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const size_t ParseChunkSize = 1 << 16;
+static const size_t ParseBufferSize = 1 << 16;
 
 void Parse(TInputStream* input, IParser* parser)
 {
-    char chunk[ParseChunkSize];
+    char buffer[ParseBufferSize];
     while (true) {
-        // Read a chunk.
-        size_t bytesRead = input->Read(chunk, ParseChunkSize);
+        size_t bytesRead = input->Read(buffer, ParseBufferSize);
         if (bytesRead == 0) {
             break;
         }
-        // Parse the chunk.
-        parser->Read(TStringBuf(chunk, bytesRead));
+        parser->Read(TStringBuf(buffer, bytesRead));
     }
     parser->Finish();
 }

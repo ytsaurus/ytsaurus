@@ -7,16 +7,18 @@
 namespace NYT {
 namespace NFormats {
 
+using namespace NYson;
+
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Wrapper around yson parser that implements IParser interface.
-class TYsonParser
+//! Wrapper around YSON parser that implements IParser interface.
+class TYsonParserAdapter
     : public IParser
 {
 public:
-    TYsonParser(
-        NYson::IYsonConsumer* consumer,
-        NYson::EYsonType type,
+    TYsonParserAdapter(
+        IYsonConsumer* consumer,
+        EYsonType type,
         bool enableLinePositionInfo)
         : Parser(consumer, type, enableLinePositionInfo)
     { }
@@ -32,18 +34,18 @@ public:
     }
 
 private:
-    NYson::TYsonParser Parser;
+    TYsonParser Parser;
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IParser> CreateParserForYson(
-    NYson::IYsonConsumer* consumer,
-    NYson::EYsonType type,
+    IYsonConsumer* consumer,
+    EYsonType type,
     bool enableLinePositionInfo)
 {
-    return std::unique_ptr<IParser>(new TYsonParser(consumer, type, enableLinePositionInfo));
+    return std::unique_ptr<IParser>(new TYsonParserAdapter(consumer, type, enableLinePositionInfo));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
