@@ -1292,6 +1292,7 @@ private:
     {
         auto state = operation->GetState();
         auto operationPath = GetOperationPath(operation->GetOperationId());
+        auto controller = operation->GetController();
 
         // Set state.
         {
@@ -1308,21 +1309,21 @@ private:
         }
 
         // Set progress.
-        if (state == EOperationState::Running || IsOperationFinished(state)) {
+        if ((state == EOperationState::Running || IsOperationFinished(state)) && controller) {
             auto req = TYPathProxy::Set(operationPath + "/@progress");
             req->set_value(BuildYsonStringFluently()
                 .BeginMap()
-                    .Do(BIND(&IOperationController::BuildProgressYson, operation->GetController()))
+                    .Do(BIND(&IOperationController::BuildProgressYson, controller))
                 .EndMap().Data());
             batchReq->AddRequest(req, "update_op_node");
         }
 
         // Set result.
-        if (operation->IsFinishedState()) {
+        if (operation->IsFinishedState() && controller) {
             auto req = TYPathProxy::Set(operationPath + "/@result");
             req->set_value(ConvertToYsonString(BIND(
                 &IOperationController::BuildResultYson,
-                operation->GetController())).Data());
+                controller)).Data());
             batchReq->AddRequest(req, "update_op_node");
         }
 
