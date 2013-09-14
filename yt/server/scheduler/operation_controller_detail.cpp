@@ -3128,8 +3128,10 @@ i64 TOperationControllerBase::GetFinalOutputIOMemorySize(TJobIOConfigPtr ioConfi
         }
     }
 
-    // Each writer may have up to 2 active chunks: closing one and current one.
-    result *= 2;
+    if (!ioConfig->TableWriter->SyncChunkSwitch) {
+        // Each writer may have up to 2 active chunks: closing one and current one.
+        result *= 2;
+    }
     return result;
 }
 

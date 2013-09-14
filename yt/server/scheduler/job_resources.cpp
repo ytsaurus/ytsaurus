@@ -62,9 +62,13 @@ i64 GetOutputWindowMemorySize(TJobIOConfigPtr ioConfig)
 
 i64 GetIntermediateOutputIOMemorySize(TJobIOConfigPtr ioConfig)
 {
-    return
-        (GetOutputWindowMemorySize(ioConfig) +
-        ioConfig->TableWriter->MaxBufferSize) * 2; // possibly writing two (or even more) chunks at the time of chunk change
+    auto result = GetOutputWindowMemorySize(ioConfig) +
+        ioConfig->TableWriter->MaxBufferSize;
+    if (!ioConfig->TableWriter->SyncChunkSwitch) {
+        // possibly writing two (or even more) chunks at the time of chunk switch.
+        result *= 2;
+    }
+    return result;
 }
 
 i64 GetInputIOMemorySize(

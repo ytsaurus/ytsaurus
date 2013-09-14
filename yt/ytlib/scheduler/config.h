@@ -187,7 +187,8 @@ public:
             .DefaultNew();
 
         RegisterInitializer([&] () {
-            JobIO->TableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
+            JobIO->TableReader->MaxBufferSize = (i64) 256 * 1024 * 1024;
+            JobIO->TableWriter->SyncChunkSwitch = true;
         });
     }
 
@@ -283,7 +284,7 @@ public:
     TUnorderedMergeOperationSpec()
     {
         RegisterInitializer([&] () {
-            JobIO->TableReader->MaxBufferSize = 1024L * 1024 * 1024;
+            JobIO->TableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
         });
     }
 };
@@ -343,6 +344,7 @@ public:
 
         RegisterInitializer([&] () {
             DataSizePerJob = (i64) 32 * 1024 * 1024;
+            JobIO->TableWriter->SyncChunkSwitch = true;
         });
     }
 
@@ -551,10 +553,11 @@ public:
         //   MapSelectivityFactor
 
         RegisterInitializer([&] () {
-            MapJobIO->TableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
-            MapJobIO->TableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GB
+            MapJobIO->TableReader->MaxBufferSize = (i64) 256 * 1024 * 1024;
+            MapJobIO->TableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GBs
 
             SortJobIO->TableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
+            ReduceJobIO->TableWriter->SyncChunkSwitch = true;
         });
     }
 
