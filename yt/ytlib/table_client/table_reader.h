@@ -45,7 +45,7 @@ public:
 
     virtual bool IsValid() const override;
     virtual const TRow& GetRow() const override;
-    virtual const TNullable<int>& GetTableIndex() const override;
+    virtual int GetTableIndex() const override;
 
     virtual i64 GetSessionRowIndex() const override;
     virtual i64 GetSessionRowCount() const override;
@@ -103,7 +103,7 @@ public:
 
     virtual const TRow* GetRow() override;
     virtual const NChunkClient::TNonOwningKey& GetKey() const override;
-    virtual const TNullable<int>& GetTableIndex() const override;
+    virtual int GetTableIndex() const override;
 
     virtual i64 GetSessionRowIndex() const override;
     virtual i64 GetSessionRowCount() const override;

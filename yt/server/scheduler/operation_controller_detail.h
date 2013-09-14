@@ -470,18 +470,15 @@ protected:
 
         void AddSequentialInputSpec(
             NJobTrackerClient::NProto::TJobSpec* jobSpec,
-            TJobletPtr joblet,
-            bool enableTableIndex = false);
+            TJobletPtr joblet);
         void AddParallelInputSpec(
             NJobTrackerClient::NProto::TJobSpec* jobSpec,
-            TJobletPtr joblet,
-            bool enableTableIndex = false);
+            TJobletPtr joblet);
         static void AddChunksToInputSpec(
             NNodeTrackerClient::TNodeDirectoryBuilder* directoryBuilder,
             NScheduler::NProto::TTableInputSpec* inputSpec,
             TChunkStripePtr stripe,
-            TNullable<int> partitionTag,
-            bool enableTableIndex);
+            TNullable<int> partitionTag);
 
         void AddFinalOutputSpecs(NJobTrackerClient::NProto::TJobSpec* jobSpec, TJobletPtr joblet);
         void AddIntermediateOutputSpec(NJobTrackerClient::NProto::TJobSpec* jobSpec, TJobletPtr joblet);

@@ -32,7 +32,7 @@ class TTableChunkReaderFacade
 public:
     const TRow& GetRow() const;
     const NChunkClient::TNonOwningKey& GetKey() const;
-    const TNullable<int>& GetTableIndex() const;
+    int GetTableIndex() const;
     i64 GetTableRowIndex() const;
 
 private:
@@ -60,7 +60,7 @@ public:
         NChunkClient::IAsyncReaderPtr chunkReader,
         const NChunkClient::NProto::TReadLimit& startLimit,
         const NChunkClient::NProto::TReadLimit& endLimit,
-        TNullable<int> tableIndex,
+        int tableIndex,
         i64 tableRowIndex,
         int partitionTag,
         TChunkReaderOptionsPtr options);
@@ -80,7 +80,7 @@ public:
     // Called by facade.
     const TRow& GetRow() const;
     const NChunkClient::TNonOwningKey& GetKey() const;
-    const TNullable<int>& GetTableIndex() const;
+    int GetTableIndex() const;
 
 private:
     struct TColumnInfo
@@ -132,13 +132,13 @@ private:
 
     TRow CurrentRow;
     NChunkClient::TNonOwningKey CurrentKey;
-    TNullable<int> TableIndex;
+    int TableIndex;
 
     NYson::TStatelessLexer Lexer;
 
     yhash_map<TStringBuf, TColumnInfo> ColumnsMap;
     std::vector<Stroka> ColumnNames;
-    
+
     i64 StartTableRowIndex;
 
     i64 CurrentRowIndex;

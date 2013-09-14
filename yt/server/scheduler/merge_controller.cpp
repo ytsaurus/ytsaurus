@@ -202,7 +202,7 @@ protected:
     protected:
         void BuildInputOutputJobSpec(TJobletPtr joblet, TJobSpec* jobSpec)
         {
-            AddParallelInputSpec(jobSpec, joblet, Controller->IsTableIndexEnabled());
+            AddParallelInputSpec(jobSpec, joblet);
             AddFinalOutputSpecs(jobSpec, joblet);
         }
 
@@ -522,11 +522,6 @@ protected:
     //! Initializes #JobSpecTemplate.
     virtual void InitJobSpecTemplate() = 0;
 
-    virtual bool IsTableIndexEnabled() const
-    {
-        return false;
-    }
-
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TMergeControllerBase::TMergeTask);
@@ -551,7 +546,6 @@ private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeController, 0x6acdae46);
 
     TUnorderedMergeOperationSpecPtr Spec;
-
 
     virtual bool IsPassthroughChunk(const TChunkSpec& chunkSpec) override
     {
@@ -1607,11 +1601,6 @@ private:
     {
         auto* jobSpecExt = jobSpec->MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
         InitUserJobSpec(jobSpecExt->mutable_reducer_spec(), joblet);
-    }
-
-    virtual bool IsTableIndexEnabled() const override
-    {
-        return Spec->Reducer->EnableTableIndex;
     }
 
     virtual bool IsOutputLivePreviewSupported() const override

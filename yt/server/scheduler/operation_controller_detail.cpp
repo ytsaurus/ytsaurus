@@ -701,30 +701,28 @@ void TOperationControllerBase::TTask::AddLocalityHint(const Stroka& address)
 
 void TOperationControllerBase::TTask::AddSequentialInputSpec(
     TJobSpec* jobSpec,
-    TJobletPtr joblet,
-    bool enableTableIndex)
+    TJobletPtr joblet)
 {
     auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
     TNodeDirectoryBuilder directoryBuilder(Controller->NodeDirectory, schedulerJobSpecExt->mutable_node_directory());
     auto* inputSpec = schedulerJobSpecExt->add_input_specs();
     auto list = joblet->InputStripeList;
     FOREACH (const auto& stripe, list->Stripes) {
-        AddChunksToInputSpec(&directoryBuilder, inputSpec, stripe, list->PartitionTag, enableTableIndex);
+        AddChunksToInputSpec(&directoryBuilder, inputSpec, stripe, list->PartitionTag);
     }
     UpdateInputSpecTotals(jobSpec, joblet);
 }
 
 void TOperationControllerBase::TTask::AddParallelInputSpec(
     TJobSpec* jobSpec,
-    TJobletPtr joblet,
-    bool enableTableIndex)
+    TJobletPtr joblet)
 {
     auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
     TNodeDirectoryBuilder directoryBuilder(Controller->NodeDirectory, schedulerJobSpecExt->mutable_node_directory());
     auto list = joblet->InputStripeList;
     FOREACH (const auto& stripe, list->Stripes) {
         auto* inputSpec = schedulerJobSpecExt->add_input_specs();
-        AddChunksToInputSpec(&directoryBuilder, inputSpec, stripe, list->PartitionTag, enableTableIndex);
+        AddChunksToInputSpec(&directoryBuilder, inputSpec, stripe, list->PartitionTag);
     }
     UpdateInputSpecTotals(jobSpec, joblet);
 }
@@ -733,8 +731,7 @@ void TOperationControllerBase::TTask::AddChunksToInputSpec(
     TNodeDirectoryBuilder* directoryBuilder,
     TTableInputSpec* inputSpec,
     TChunkStripePtr stripe,
-    TNullable<int> partitionTag,
-    bool enableTableIndex)
+    TNullable<int> partitionTag)
 {
     FOREACH (const auto& chunkSlice, stripe->ChunkSlices) {
         auto* chunkSpec = inputSpec->add_chunks();
@@ -742,9 +739,6 @@ void TOperationControllerBase::TTask::AddChunksToInputSpec(
         FOREACH (ui32 protoReplica, chunkSlice->GetChunkSpec()->replicas()) {
             auto replica = FromProto<TChunkReplica>(protoReplica);
             directoryBuilder->Add(replica);
-        }
-        if (!enableTableIndex) {
-            chunkSpec->clear_table_index();
         }
         if (partitionTag) {
             chunkSpec->set_partition_tag(partitionTag.Get());

@@ -105,7 +105,7 @@ public:
     {
         return TotalRowCount;
     }
-    
+
     virtual i64 GetTableRowIndex() const override
     {
         YUNREACHABLE();
@@ -121,11 +121,10 @@ public:
         return Reader->GetFailedChunkIds();
     }
 
-    virtual const TNullable<int>& GetTableIndex() const override
+    virtual int GetTableIndex() const override
     {
         // When reading from partition chunk no row attributes are preserved.
-        static TNullable<int> tableIndex = Null;
-        return tableIndex;
+        return 0;
     }
 
 private:

@@ -116,7 +116,7 @@ public:
         return total;
     }
 
-    virtual const TNullable<int>& GetTableIndex() const override
+    virtual int GetTableIndex() const override
     {
         return ReaderHeap.front()->GetFacade()->GetTableIndex();
     }

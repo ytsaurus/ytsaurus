@@ -112,7 +112,6 @@ public:
     i64 MemoryLimit;
     double MemoryReserveFactor;
 
-    bool EnableTableIndex;
     bool UseYamrDescriptors;
     bool EnableCoreDump;
 
@@ -141,8 +140,6 @@ public:
             .Default(0.5)
             .GreaterThan(0.)
             .LessThanOrEqual(1.);
-        RegisterParameter("enable_table_index", EnableTableIndex)
-            .Default(false);
         RegisterParameter("use_yamr_descriptors", UseYamrDescriptors)
             .Default(false);
         RegisterParameter("enable_core_dump", EnableCoreDump)
