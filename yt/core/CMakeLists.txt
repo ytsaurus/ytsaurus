@@ -10,7 +10,6 @@ set( DIRS
   ytree
   yson
   ypath
-  monitoring
   profiling
   formats
 )

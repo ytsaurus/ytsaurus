@@ -20,9 +20,9 @@
 
 #include <ytlib/orchid/orchid_service.h>
 
-#include <core/monitoring/monitoring_manager.h>
-#include <core/monitoring/http_server.h>
-#include <core/monitoring/http_integration.h>
+#include <ytlib/monitoring/monitoring_manager.h>
+#include <ytlib/monitoring/http_server.h>
+#include <ytlib/monitoring/http_integration.h>
 
 #include <core/ytree/virtual.h>
 #include <core/ytree/ypath_client.h>

@@ -1,5 +1,5 @@
 #:yt-updatable
-set( BASE ${CMAKE_SOURCE_DIR}/yt/core/monitoring )
+set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/monitoring )
 set( SRCS
   ${BASE}/http_integration.cpp
   ${BASE}/http_server.cpp

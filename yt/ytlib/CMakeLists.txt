@@ -14,6 +14,7 @@ set( DIRS
   node_tracker_client
   job_tracker_client
   transaction_client
+  monitoring
 )
 
 foreach( _d_ ${DIRS} )
