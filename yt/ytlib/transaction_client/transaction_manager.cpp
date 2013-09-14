@@ -124,7 +124,7 @@ public:
 
                 State_ = EState::Active;
 
-                Id_ = FromProto<TTransactionId>(rsp->object_idы(0));
+                Id_ = FromProto<TTransactionId>(rsp->object_ids(0));
                 LOG_INFO("Transaction started (TransactionId: %s, AutoAbort: %s, Ping: %s, PingAncestors: %s)",
                     ~ToString(Id_),
                     ~FormatBool(AutoAbort_),
