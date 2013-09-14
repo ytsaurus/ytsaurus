@@ -1266,8 +1266,7 @@ private:
 
         auto error = GetOperationNodeUpdateError(operation, batchRsp);
         if (!error.IsOK()) {
-            LOG_ERROR(error, "Error updating operation node (OperationId: %s)",
-                ~ToString(operation->GetOperationId()));
+            LOG_ERROR(error);
             Disconnect();
             return;
         }
