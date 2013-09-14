@@ -59,24 +59,15 @@ class TTransactionManager::TTransaction
     : public ITransaction
 {
 public:
-    TTransaction(TTransactionManagerPtr owner, bool autoAbort)
+    explicit TTransaction(TTransactionManagerPtr owner)
         : Owner_(owner)
-        , AutoAbort_(autoAbort)
+        , AutoAbort_(false)
         , Ping_(false)
         , PingAncestors_(false)
         , Proxy_(owner->Channel)
         , State_(EState::Active)
         , Aborted_(NewPromise())
-    {
-        YCHECK(owner);
-
-        if (AutoAbort_) {
-            TGuard<TSpinLock> guard(Owner_->SpinLock);
-            YCHECK(Owner_->AliveTransactions.insert(this).second);
-
-            LOG_DEBUG("Transaction registered");
-        }
-    }
+    { }
 
     ~TTransaction()
     {
@@ -94,10 +85,12 @@ public:
 
     TAsyncError Start(const TTransactionStartOptions& options)
     {
-        LOG_INFO("Starting transaction");
-
+        AutoAbort_ = options.AutoAbort;
         Ping_ = options.Ping;
         PingAncestors_ = options.PingAncestors;
+        Initialize();
+
+        LOG_INFO("Starting transaction");
 
         auto req = TMasterYPathProxy::CreateObject();
         req->set_type(EObjectType::Transaction);
@@ -132,8 +125,9 @@ public:
                 State_ = EState::Active;
 
                 Id_ = FromProto<TTransactionId>(rsp->object_id());
-                LOG_INFO("Transaction started (TransactionId: %s, Ping: %s, PingAncestors: %s)",
+                LOG_INFO("Transaction started (TransactionId: %s, AutoAbort: %s, Ping: %s, PingAncestors: %s)",
                     ~ToString(Id_),
+                    ~FormatBool(AutoAbort_),
                     ~FormatBool(Ping_),
                     ~FormatBool(PingAncestors_));
 
@@ -152,8 +146,7 @@ public:
         AutoAbort_ = options.AutoAbort;
         Ping_ = options.Ping;
         PingAncestors_ = options.PingAncestors;
-
-        State_ = EState::Active;
+        Initialize();
 
         LOG_INFO("Transaction attached (TransactionId: %s, AutoAbort: %s, Ping: %s, PingAncestors: %s)",
             ~ToString(Id_),
@@ -324,6 +317,16 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
 
 
+    void Initialize()
+    {
+        if (AutoAbort_) {
+            TGuard<TSpinLock> guard(Owner_->SpinLock);
+            YCHECK(Owner_->AliveTransactions.insert(this).second);
+
+            LOG_DEBUG("Transaction registered");
+        }        
+    }
+
     void SchedulePing()
     {
         TDelayedInvoker::Submit(
@@ -419,7 +422,7 @@ TFuture<TErrorOr<ITransactionPtr>> TTransactionManager::AsyncStart(
 
     typedef TErrorOr<ITransactionPtr> TOutput;
 
-    auto transaction = New<TTransaction>(this, options.AutoAbort);
+    auto transaction = New<TTransaction>(this);
     return transaction->Start(options).Apply(
         BIND([=] (TError error) -> TOutput {
             if (error.IsOK()) {
@@ -441,7 +444,7 @@ ITransactionPtr TTransactionManager::Attach(const TTransactionAttachOptions& opt
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto transaction = New<TTransaction>(this, options.AutoAbort);
+    auto transaction = New<TTransaction>(this);
     transaction->Attach(options);
     return transaction;
 }

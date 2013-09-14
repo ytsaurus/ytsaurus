@@ -998,6 +998,7 @@ private:
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error starting input transaction");
             auto id = FromProto<TTransactionId>(rsp->object_id());
             TTransactionAttachOptions options(id);
+            options.AutoAbort = false;
             options.Ping = true;
             operation->SetInputTransaction(transactionManager->Attach(options));
         }
@@ -1007,6 +1008,7 @@ private:
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error starting output transaction");
             auto id = FromProto<TTransactionId>(rsp->object_id());
             TTransactionAttachOptions options(id);
+            options.AutoAbort = false;
             options.Ping = true;
             operation->SetOutputTransaction(transactionManager->Attach(options));
         }
