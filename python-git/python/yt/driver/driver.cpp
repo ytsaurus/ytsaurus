@@ -32,21 +32,24 @@
 namespace NYT {
 namespace NPython {
 
+////////////////////////////////////////////////////////////////////////////////
+
 using namespace NFormats;
 using namespace NDriver;
 using namespace NYson;
 using namespace NYTree;
 using namespace NConcurrency;
 
-Py::Object ExtractArgument(Py::Tuple& args, Py::Dict& kwds, const std::string& name) {
+// TODO(babenko): ExtractArgument? move to the place where other helpers reside?
+Py::Object ExtractArgument(Py::Tuple& args, Py::Dict& kwds, const std::string& name)
+{
     Py::Object result;
     if (kwds.hasKey(name)) {
         result = kwds[name];
         kwds.delItem(name);
-    }
-    else {
+    } else {
         if (args.length() == 0) {
-            throw Py::RuntimeError("There is no argument " + name);
+            throw Py::RuntimeError("Missing no argument '" + name + "'");
         }
         result = args.front();
         args = args.getSlice(1, args.length());
@@ -54,32 +57,40 @@ Py::Object ExtractArgument(Py::Tuple& args, Py::Dict& kwds, const std::string& n
     return result;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO(babenko): TDriver?
 class Driver
     : public Py::PythonClass<Driver>
 {
 public:
-    Driver(Py::PythonClassInstance *self, Py::Tuple &args, Py::Dict &kwds)
-        : Py::PythonClass<Driver>::PythonClass(self, args, kwds)
+    Driver(
+        Py::PythonClassInstance* self,
+        Py::Tuple& args,
+        Py::Dict& kwds)
+            : Py::PythonClass<Driver>::PythonClass(self, args, kwds)
     {
         Py::Object configDict = ExtractArgument(args, kwds, "config");
         if (args.length() > 0 || kwds.length() > 0) {
-            throw Py::RuntimeError("Incorrect arguments for initialization of Driver");
+            throw Py::RuntimeError("Incorrect arguments passed to Driver ctor");
         }
         auto config = New<TDriverConfig>();
         auto configNode = ConvertToNode(configDict);
         try {
             config->Load(configNode);
         } catch(const TErrorException& error) {
-            throw Py::RuntimeError("Fail while loading config: " + error.Error().GetMessage());
+            throw Py::RuntimeError("Fail while loading configuration: " + error.Error().GetMessage());
         }
         NLog::TLogManager::Get()->Configure(configNode->AsMap()->FindChild("logging"));
         DriverInstance_ = CreateDriver(config);
     }
 
+    // TODO(babenko): is this needed?
     virtual ~Driver()
     { }
 
-    static void InitType() {
+    static void InitType()
+    {
         behaviors().name("Driver");
         behaviors().doc("Some documentation");
         behaviors().supportGetattro();
@@ -90,10 +101,12 @@ public:
         behaviors().readyType();
     }
 
-    Py::Object Execute(Py::Tuple& args, Py::Dict &kwds) {
+    // TODO(babenko): move to private?
+    Py::Object Execute(Py::Tuple& args, Py::Dict& kwds)
+    {
         auto pyRequest = ExtractArgument(args, kwds, "request");
         if (args.length() > 0 || kwds.length() > 0) {
-            throw Py::RuntimeError("Incorrect arguments for execute command");
+            throw Py::RuntimeError("Invalid arguments passed to 'execute'");
         }
 
         TDriverRequest request;
@@ -104,24 +117,32 @@ public:
         std::unique_ptr<TPythonOutputStream> outputStream;
 
         if (pyRequest.hasAttr("input_stream")) {
-            inputStream = std::unique_ptr<TPythonInputStream>(new TPythonInputStream(GetAttr(pyRequest, "input_stream")));
+            inputStream = std::unique_ptr<TPythonInputStream>(
+                new TPythonInputStream(GetAttr(pyRequest, "input_stream")));
             request.InputStream = CreateAsyncInputStream(inputStream.get());
         }
 
         if (pyRequest.hasAttr("output_stream")) {
-            outputStream = std::unique_ptr<TPythonOutputStream>(new TPythonOutputStream(GetAttr(pyRequest, "output_stream")));
+            outputStream = std::unique_ptr<TPythonOutputStream>(
+                new TPythonOutputStream(GetAttr(pyRequest, "output_stream")));
             request.OutputStream = CreateAsyncOutputStream(outputStream.get());
         }
 
         auto response = DriverInstance_->Execute(request).Get();
         return ConvertToPythonString(ToString(response.Error));
     }
+
     PYCXX_KEYWORDS_METHOD_DECL(Driver, Execute)
 
 private:
+    // TODO(babenko): rename to e.g. Driver
     IDriverPtr DriverInstance_;
+
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO(babenko): rename to something more meaningful
 class ytlib_python_module
     : public Py::ExtensionModule<ytlib_python_module>
 {
@@ -151,28 +172,32 @@ public:
         TDelayedExecutor::Shutdown();
     }
 
+    // TODO(babenko): is this needed?
     virtual ~ytlib_python_module()
     { }
+
 };
 
-} // namespace NPython
+////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NPython
 } // namespace NYT
 
 
 #if defined( _WIN32 )
-#define EXPORT_SYMBOL __declspec( dllexport )
+    #define EXPORT_SYMBOL __declspec(dllexport)
 #else
-#define EXPORT_SYMBOL
+    #define EXPORT_SYMBOL
 #endif
 
 extern "C" EXPORT_SYMBOL void initytlib_python()
 {
-    static NYT::NPython::ytlib_python_module* ytlib_python = new NYT::NPython::ytlib_python_module;
+    static auto* ytlib_python = new NYT::NPython::ytlib_python_module;
     UNUSED(ytlib_python);
 }
 
-// symbol required for the debug version
+// Required for the debug version.
 extern "C" EXPORT_SYMBOL void initytlib_python_d()
-{ initytlib_python(); }
-
+{
+    initytlib_python();
+}
