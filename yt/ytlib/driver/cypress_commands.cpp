@@ -125,7 +125,7 @@ void TCreateCommand::DoExecute()
         }
 
         auto transactionId = GetTransactionId(EAllowNullTransaction::Yes);
-        auto req = TMasterYPathProxy::CreateObject();
+        auto req = TMasterYPathProxy::CreateObjects();
         GenerateMutationId(req);
         if (transactionId != NullTransactionId) {
             ToProto(req->mutable_transaction_id(), transactionId);
@@ -139,7 +139,7 @@ void TCreateCommand::DoExecute()
         auto rsp = WaitFor(ObjectProxy->Execute(req));
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
-        auto objectId = FromProto<TObjectId>(rsp->object_id());
+        auto objectId = FromProto<TObjectId>(rsp->object_ids(0));
         ReplySuccess(BuildYsonStringFluently().Value(objectId));
     }
 }

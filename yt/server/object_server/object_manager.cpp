@@ -959,8 +959,8 @@ TObjectBase* TObjectManager::CreateObject(
     TAccount* account,
     EObjectType type,
     IAttributeDictionary* attributes,
-    IObjectTypeHandler::TReqCreateObject* request,
-    IObjectTypeHandler::TRspCreateObject* response)
+    IObjectTypeHandler::TReqCreateObjects* request,
+    IObjectTypeHandler::TRspCreateObjects* response)
 {
     auto handler = FindHandler(type);
     if (!handler) {
@@ -1034,9 +1034,9 @@ TObjectBase* TObjectManager::CreateObject(
         response);
     const auto& objectId = object->GetId();
 
-    auto attributeKeys = attributes->List();
-    if (!attributeKeys.empty()) {
+    if (attributes) {
         // Copy attributes. Quick and dirty.
+        auto attributeKeys = attributes->List();
         auto* attributeSet = GetOrCreateAttributes(TVersionedObjectId(objectId));
 
         FOREACH (const auto& key, attributeKeys) {

@@ -96,8 +96,8 @@ public:
         TTransaction* transaction,
         TAccount* account,
         IAttributeDictionary* attributes,
-        TReqCreateObject* request,
-        TRspCreateObject* response) override;
+        TReqCreateObjects* request,
+        TRspCreateObjects* response) override;
 
     virtual EPermissionSet GetSupportedPermissions() const override
     {
@@ -152,8 +152,8 @@ public:
         TTransaction* transaction,
         TAccount* account,
         IAttributeDictionary* attributes,
-        TReqCreateObject* request,
-        TRspCreateObject* response) override;
+        TReqCreateObjects* request,
+        TRspCreateObjects* response) override;
 
 private:
     TImpl* Owner;
@@ -194,8 +194,8 @@ public:
         TTransaction* transaction,
         TAccount* account,
         IAttributeDictionary* attributes,
-        TReqCreateObject* request,
-        TRspCreateObject* response) override;
+        TReqCreateObjects* request,
+        TRspCreateObjects* response) override;
 
 private:
     TImpl* Owner;
@@ -1249,8 +1249,8 @@ TObjectBase* TSecurityManager::TAccountTypeHandler::Create(
     TTransaction* transaction,
     TAccount* account,
     IAttributeDictionary* attributes,
-    TReqCreateObject* request,
-    TRspCreateObject* response)
+    TReqCreateObjects* request,
+    TRspCreateObjects* response)
 {
     UNUSED(transaction);
     UNUSED(account);
@@ -1288,8 +1288,8 @@ TObjectBase* TSecurityManager::TUserTypeHandler::Create(
     TTransaction* transaction,
     TAccount* account,
     IAttributeDictionary* attributes,
-    TReqCreateObject* request,
-    TRspCreateObject* response)
+    TReqCreateObjects* request,
+    TRspCreateObjects* response)
 {
     UNUSED(transaction);
     UNUSED(account);
@@ -1327,8 +1327,8 @@ TObjectBase* TSecurityManager::TGroupTypeHandler::Create(
     TTransaction* transaction,
     TAccount* account,
     IAttributeDictionary* attributes,
-    TReqCreateObject* request,
-    TRspCreateObject* response)
+    TReqCreateObjects* request,
+    TRspCreateObjects* response)
 {
     UNUSED(transaction);
     UNUSED(account);

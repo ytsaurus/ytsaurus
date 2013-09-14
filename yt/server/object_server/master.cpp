@@ -41,7 +41,7 @@ public:
 
     virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const override
     {
-        DECLARE_YPATH_SERVICE_WRITE_METHOD(CreateObject);
+        DECLARE_YPATH_SERVICE_WRITE_METHOD(CreateObjects);
         return TObjectProxyBase::IsWriteRequest(context);
     }
 
@@ -50,7 +50,7 @@ private:
 
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override
     {
-        DISPATCH_YPATH_SERVICE_METHOD(CreateObject);
+        DISPATCH_YPATH_SERVICE_METHOD(CreateObjects);
         return TObjectProxyBase::DoInvoke(context);
     }
 
@@ -77,7 +77,7 @@ private:
         return transaction;
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, CreateObject)
+    DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, CreateObjects)
     {
         auto transactionId =
             request->has_transaction_id()
@@ -85,9 +85,11 @@ private:
             : NullTransactionId;
         auto type = EObjectType(request->type());
 
-        context->SetRequestInfo("TransactionId: %s, Type: %s",
+        context->SetRequestInfo("TransactionId: %s, Type: %s, Account: %s, ObjectCount: %d",
             ~ToString(transactionId),
-            ~type.ToString());
+            ~type.ToString(),
+            request->has_account() ? ~request->account() : "<Null>",
+            request->object_count());
 
         auto* transaction =
             transactionId != NullTransactionId
@@ -102,21 +104,26 @@ private:
         auto attributes =
             request->has_object_attributes()
             ? FromProto(request->object_attributes())
-            : CreateEphemeralAttributes();
+            : std::unique_ptr<IAttributeDictionary>();
 
         auto objectManager = Bootstrap->GetObjectManager();
-        auto* object = objectManager->CreateObject(
-            transaction,
-            account,
-            type,
-            ~attributes,
-            request,
-            response);
-        const auto& objectId = object->GetId();
 
-        ToProto(response->mutable_object_id(), objectId);
+        for (int index = 0; index < request->object_count(); ++index) {
+            auto* object = objectManager->CreateObject(
+                transaction,
+                account,
+                type,
+                ~attributes,
+                request,
+                response);
+            const auto& objectId = object->GetId();
 
-        context->SetResponseInfo("ObjectId: %s", ~ToString(objectId));
+            ToProto(response->add_object_ids(), objectId);
+
+            if (index == 0) {
+                context->SetResponseInfo("ObjectId: %s", ~ToString(objectId));
+            }
+        }
         
         context->Reply();
     }

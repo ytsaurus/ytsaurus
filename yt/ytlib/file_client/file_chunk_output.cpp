@@ -66,7 +66,7 @@ void TFileChunkOutput::Open()
     {
         TObjectServiceProxy proxy(MasterChannel);
 
-        auto req = TMasterYPathProxy::CreateObject();
+        auto req = TMasterYPathProxy::CreateObjects();
         ToProto(req->mutable_transaction_id(), TransactionId);
         req->set_type(EObjectType::Chunk);
         req->set_account(Options->Account);
@@ -87,7 +87,7 @@ void TFileChunkOutput::Open()
             THROW_ERROR_EXCEPTION(wrappedError);
         }
 
-        ChunkId = FromProto<TGuid>(rsp->object_id());
+        ChunkId = FromProto<TGuid>(rsp->object_ids(0));
 
         const auto& rspExt = rsp->GetExtension(TRspCreateChunkExt::create_chunk_ext);
         nodeDirectory->MergeFrom(rspExt.node_directory());

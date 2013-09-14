@@ -104,46 +104,35 @@ void TChunkListPool::AllocateMore()
     LOG_INFO("Allocating %d chunk lists for pool", count);
 
     TObjectServiceProxy objectProxy(MasterChannel);
-    auto batchReq = objectProxy.ExecuteBatch();
+    auto req = TMasterYPathProxy::CreateObjects();
+    ToProto(req->mutable_transaction_id(), TransactionId);
+    req->set_type(EObjectType::ChunkList);
+    req->set_object_count(count);
 
-    for (int index = 0; index < count; ++index) {
-        auto req = TMasterYPathProxy::CreateObject();
-        ToProto(req->mutable_transaction_id(), TransactionId);
-        req->set_type(EObjectType::ChunkList);
-        batchReq->AddRequest(req);
-    }
-
-    batchReq->Invoke().Subscribe(
-        BIND(&TChunkListPool::OnChunkListsCreated, MakeWeak(this), count)
+    objectProxy.Execute(req).Subscribe(
+        BIND(&TChunkListPool::OnChunkListsCreated, MakeWeak(this))
             .Via(ControlInvoker));
 
     RequestInProgress = true;
 }
 
-void TChunkListPool::OnChunkListsCreated(
-    int count,
-    TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+void TChunkListPool::OnChunkListsCreated(TMasterYPathProxy::TRspCreateObjectsPtr rsp)
 {
     YCHECK(RequestInProgress);
     RequestInProgress = false;
 
-    if (!batchRsp->IsOK()) {
-        LOG_ERROR(*batchRsp, "Error allocating chunk lists");
+    if (!rsp->IsOK()) {
+        LOG_ERROR(*rsp, "Error allocating chunk lists");
         return;
     }
 
     LOG_INFO("Chunk lists allocated");
 
-    auto rsps = batchRsp->GetResponses<TMasterYPathProxy::TRspCreateObject>();
-    FOREACH (auto rsp, rsps) {
-        if (rsp->IsOK()) {
-            Ids.push_back(FromProto<TChunkListId>(rsp->object_id()));
-        } else {
-            LOG_ERROR(*rsp, "Error allocating chunk list");
-        }
+    FOREACH (const auto& id, rsp->object_ids()) {
+        Ids.push_back(FromProto<TChunkListId>(id));
     }
 
-    LastSuccessCount = count;
+    LastSuccessCount = rsp->object_ids_size();
 }
 
 void TChunkListPool::OnChunkListsReleased(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
