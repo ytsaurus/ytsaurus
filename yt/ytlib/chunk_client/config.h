@@ -183,7 +183,7 @@ public:
 
         RegisterValidator([&] () {
             if (SendWindowSize < GroupSize) {
-                THROW_ERROR_EXCEPTION("\"window_size\" cannot be less than \"group_size\"");
+                THROW_ERROR_EXCEPTION("\"send_window_size\" cannot be less than \"group_size\"");
             }
         });
     }
