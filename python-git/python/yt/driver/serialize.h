@@ -2,13 +2,17 @@
 
 #include <contrib/libs/pycxx/Objects.hxx>
 
-#include <core/yson/consumer.h>
+#include <core/yson/public.h>
 
 namespace NYT {
 namespace NYson {
 
-// This method allows use methods convertTo* with Py::Object.
+////////////////////////////////////////////////////////////////////////////////
+
+//! Binds Python objects to Convert framework.
 void Serialize(const Py::Object& obj, IYsonConsumer* consumer);
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYson
 } // namespace NYT

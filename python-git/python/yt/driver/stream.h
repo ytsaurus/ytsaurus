@@ -8,6 +8,8 @@
 namespace NYT {
 namespace NPython {
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TPythonInputStream
     : public TInputStream
 {
@@ -21,7 +23,11 @@ private:
     Py::Object InputStream_;
 };
 
-class TPythonOutputStream: public TOutputStream {
+////////////////////////////////////////////////////////////////////////////////
+
+class TPythonOutputStream
+    : public TOutputStream
+{
 public:
     explicit TPythonOutputStream(const Py::Object& outputStream);
     virtual ~TPythonOutputStream() throw();
@@ -31,6 +37,8 @@ public:
 private:
     Py::Object OutputStream_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NPython
 } // namespace NYT
