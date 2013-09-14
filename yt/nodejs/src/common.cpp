@@ -129,7 +129,7 @@ Handle<Value> ShutdownSingletons(const Arguments& args)
     NRpc::TDispatcher::Get()->Shutdown();
     NChunkClient::TDispatcher::Get()->Shutdown();
     NProfiling::TProfilingManager::Get()->Shutdown();
-    TDelayedInvoker::Shutdown();
+    TDelayedExecutor::Shutdown();
     NLog::TLogManager::Get()->Shutdown();
 
     return Undefined();
