@@ -25,7 +25,7 @@
 #include <core/actions/invoker_util.h>
 
 #include <core/misc/proc.h>
-#include <core/concurrency/periodic_invoker.h>
+#include <core/concurrency/periodic_executor.h>
 #include <core/misc/protobuf_helpers.h>
 #include <core/misc/pattern_formatter.h>
 
@@ -90,7 +90,7 @@ public:
         , ProcessId(-1)
     {
         auto config = Host->GetConfig();
-        MemoryWatchdogInvoker = New<TPeriodicInvoker>(
+        MemoryWatchdogExecutor = New<TPeriodicExecutor>(
             GetSyncInvoker(),
             BIND(&TUserJob::CheckMemoryUsage, MakeWeak(this)),
             config->MemoryWatchdogPeriod);
@@ -120,9 +120,9 @@ public:
 
         LOG_INFO("Job process started");
 
-        MemoryWatchdogInvoker->Start();
+        MemoryWatchdogExecutor->Start();
         DoJobIO();
-        MemoryWatchdogInvoker->Stop();
+        MemoryWatchdogExecutor->Stop();
 
         LOG_INFO(JobExitError, "Job process completed");
         ToProto(result.mutable_error(), JobExitError);
@@ -615,7 +615,7 @@ private:
 
     i64 MemoryUsage;
 
-    TPeriodicInvokerPtr MemoryWatchdogInvoker;
+    TPeriodicExecutorPtr MemoryWatchdogExecutor;
 
     std::unique_ptr<TErrorOutput> ErrorOutput;
     TNullOutput NullErrorOutput;

@@ -4,7 +4,7 @@
 
 #include <core/misc/error.h>
 
-#include <core/concurrency/periodic_invoker.h>
+#include <core/concurrency/periodic_executor.h>
 
 #include <core/logging/log.h>
 
@@ -36,7 +36,7 @@ private:
     pid_t ChildPid;
     TPromise<TError> Result;
     TInstant Deadline;
-    NConcurrency::TPeriodicInvokerPtr WatchdogInvoker;
+    NConcurrency::TPeriodicExecutorPtr WatchdogExecutor;
 
     void RunParent();
     void RunChild();

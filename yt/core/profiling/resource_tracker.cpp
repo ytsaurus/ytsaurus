@@ -55,7 +55,7 @@ TResourceTracker::TResourceTracker(IInvokerPtr invoker)
     : TicksPerSecond(GetTicksPerSecond())
     , LastUpdateTime(TInstant::Now())
 {
-    PeriodicInvoker = New<TPeriodicInvoker>(
+    PeriodicExecutor = New<TPeriodicExecutor>(
         invoker,
         BIND(&TResourceTracker::EnqueueUsage, Unretained(this)),
         UpdatePeriod);
@@ -63,7 +63,7 @@ TResourceTracker::TResourceTracker(IInvokerPtr invoker)
 
 void TResourceTracker::Start()
 {
-    PeriodicInvoker->Start();
+    PeriodicExecutor->Start();
 }
 
 void TResourceTracker::EnqueueUsage()

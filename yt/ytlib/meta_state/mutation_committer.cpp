@@ -369,7 +369,7 @@ void TLeaderCommitter::FlushCurrentBatch(bool rotateChangeLog)
     YCHECK(CurrentBatch);
 
     CurrentBatch->FlushMutations(rotateChangeLog);
-    TDelayedInvoker::CancelAndClear(BatchTimeoutCookie);
+    TDelayedExecutor::CancelAndClear(BatchTimeoutCookie);
     CurrentBatch.Reset();
     Profiler.Increment(BatchCommitCounter);
 }
@@ -390,7 +390,7 @@ TLeaderCommitter::TBatchPtr TLeaderCommitter::GetOrCreateBatch(
             EpochId);
 
         YCHECK(!BatchTimeoutCookie);
-        BatchTimeoutCookie = TDelayedInvoker::Submit(
+        BatchTimeoutCookie = TDelayedExecutor::Submit(
             BIND(&TLeaderCommitter::OnBatchTimeout, MakeWeak(this), CurrentBatch)
                 .Via(ControlInvoker),
             Config->MaxBatchDelay);

@@ -11,7 +11,7 @@
 #include <core/misc/id_generator.h>
 
 #include <core/concurrency/thread_affinity.h>
-#include <core/concurrency/periodic_invoker.h>
+#include <core/concurrency/periodic_executor.h>
 
 #include <core/logging/tagged_logger.h>
 
@@ -792,7 +792,7 @@ private:
         void OnLocateChunksResponse(NChunkClient::TChunkServiceProxy::TRspLocateChunksPtr rsp);
 
         TOperationControllerBase* Controller;
-        NConcurrency::TPeriodicInvokerPtr PeriodicInvoker;
+        NConcurrency::TPeriodicExecutorPtr PeriodicExecutor;
         NChunkClient::TChunkServiceProxy Proxy;
         TInputChunkMap::iterator NextChunkIterator;
         bool Started;

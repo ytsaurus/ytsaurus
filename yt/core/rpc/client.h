@@ -4,7 +4,7 @@
 #include "channel.h"
 
 #include <core/misc/property.h>
-#include <core/concurrency/delayed_invoker.h>
+#include <core/concurrency/delayed_executor.h>
 #include <core/misc/metric.h>
 #include <core/misc/protobuf_helpers.h>
 

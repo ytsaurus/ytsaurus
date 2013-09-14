@@ -5,8 +5,8 @@ set( SRCS
   ${BASE}/action_queue_detail.cpp
   ${BASE}/async_semaphore.cpp
   ${BASE}/thread.cpp
-  ${BASE}/delayed_invoker.cpp
-  ${BASE}/periodic_invoker.cpp
+  ${BASE}/delayed_executor.cpp
+  ${BASE}/periodic_executor.cpp
   ${BASE}/throughput_throttler.cpp
   ${BASE}/async_stream.cpp
   ${BASE}/coroutine.cpp
@@ -23,8 +23,8 @@ set( HDRS
   ${BASE}/parallel_collector.h
   ${BASE}/async_semaphore.h
   ${BASE}/thread.h
-  ${BASE}/delayed_invoker.h
-  ${BASE}/periodic_invoker.h
+  ${BASE}/delayed_executor.h
+  ${BASE}/periodic_executor.h
   ${BASE}/throughput_throttler.h
   ${BASE}/thread_affinity.h
   ${BASE}/event_count.h

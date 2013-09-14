@@ -35,20 +35,20 @@ TGarbageCollector::TGarbageCollector(
 
 void TGarbageCollector::StartSweep()
 {
-    YCHECK(!SweepInvoker);
-    SweepInvoker = New<TPeriodicInvoker>(
+    YCHECK(!SweepExecutor);
+    SweepExecutor = New<TPeriodicExecutor>(
         Bootstrap->GetMetaStateFacade()->GetEpochInvoker(),
         BIND(&TGarbageCollector::OnSweep, MakeWeak(this)),
         Config->GCSweepPeriod,
         EPeriodicInvokerMode::Manual);
-    SweepInvoker->Start();
+    SweepExecutor->Start();
 }
 
 void TGarbageCollector::StopSweep()
 {
-    if (SweepInvoker) {
-        SweepInvoker->Stop();
-        SweepInvoker.Reset();
+    if (SweepExecutor) {
+        SweepExecutor->Stop();
+        SweepExecutor.Reset();
     }
 }
 
@@ -183,7 +183,7 @@ void TGarbageCollector::OnSweep()
     auto metaStateFacade = Bootstrap->GetMetaStateFacade();
     auto metaStateManager = metaStateFacade->GetManager();
     if (Zombies.empty() || !metaStateManager->HasActiveQuorum()) {
-        SweepInvoker->ScheduleNext();
+        SweepExecutor->ScheduleNext();
         return;
     }
 
@@ -213,15 +213,15 @@ void TGarbageCollector::OnCommitSucceeded()
 {
     LOG_DEBUG("GC sweep commit succeeded");
 
-    SweepInvoker->ScheduleOutOfBand();
-    SweepInvoker->ScheduleNext();
+    SweepExecutor->ScheduleOutOfBand();
+    SweepExecutor->ScheduleNext();
 }
 
 void TGarbageCollector::OnCommitFailed(const TError& error)
 {
     LOG_ERROR(error, "GC sweep commit failed");
 
-    SweepInvoker->ScheduleNext();
+    SweepExecutor->ScheduleNext();
 }
 
 int TGarbageCollector::GetGCQueueSize() const

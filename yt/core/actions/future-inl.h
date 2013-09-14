@@ -6,7 +6,7 @@
 #include "bind.h"
 #include "callback.h"
 
-#include <core/concurrency/delayed_invoker.h>
+#include <core/concurrency/delayed_executor.h>
 #include <core/misc/foreach.h>
 #include <core/misc/small_vector.h>
 
@@ -198,7 +198,7 @@ public:
 
         state->Subscribe(
             BIND(&TPromiseAwaiter::OnResult, MakeStrong(this)));
-        NConcurrency::TDelayedInvoker::Submit(
+        NConcurrency::TDelayedExecutor::Submit(
             BIND(&TPromiseAwaiter::OnTimeout, MakeStrong(this)), timeout);
     }
 
@@ -394,7 +394,7 @@ public:
 
         state->Subscribe(
             BIND(&TPromiseAwaiter::OnResult, MakeStrong(this)));
-        NConcurrency::TDelayedInvoker::Submit(
+        NConcurrency::TDelayedExecutor::Submit(
             BIND(&TPromiseAwaiter::OnTimeout, MakeStrong(this)), timeout);
     }
 

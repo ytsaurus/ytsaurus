@@ -94,13 +94,13 @@ private:
     //! Store chunks that were reported removed at the last heartbeat (for which no reply is received yet).
     TChunkSet ReportedRemoved;
 
-    //! Schedules a new node heartbeat via TDelayedInvoker.
+    //! Schedules a new node heartbeat via TDelayedExecutor.
     void ScheduleNodeHeartbeat();
 
-    //! Schedules a new node heartbeat via TDelayedInvoker.
+    //! Schedules a new node heartbeat via TDelayedExecutor.
     void ScheduleJobHeartbeat();
 
-    //! Calls #Reset and schedules a new registration request via TDelayedInvoker.
+    //! Calls #Reset and schedules a new registration request via TDelayedExecutor.
     void ResetAndScheduleRegister();
 
     //! Invoked when a node heartbeat must be sent.

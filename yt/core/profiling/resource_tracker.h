@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <core/concurrency/periodic_invoker.h>
+#include <core/concurrency/periodic_executor.h>
 
 #include <core/profiling/public.h>
 
@@ -35,7 +35,7 @@ private:
 
     yhash_map<Stroka, TJiffies> ThreadNameToJiffies;
 
-    NConcurrency::TPeriodicInvokerPtr PeriodicInvoker;
+    NConcurrency::TPeriodicExecutorPtr PeriodicExecutor;
 
     void EnqueueUsage();
 

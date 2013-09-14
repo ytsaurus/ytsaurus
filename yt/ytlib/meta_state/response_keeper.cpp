@@ -26,11 +26,11 @@ TResponseKeeper::TResponseKeeper(
     YCHECK(Config);
     YCHECK(StateInvoker);
 
-    SweepInvoker = New<TPeriodicInvoker>(
+    SweepExecutor = New<TPeriodicExecutor>(
         StateInvoker,
         BIND(&TResponseKeeper::TrySweep, MakeWeak(this)),
         Config->SweepPeriod);
-    SweepInvoker->Start();
+    SweepExecutor->Start();
 }
 
 void TResponseKeeper::RegisterResponse(

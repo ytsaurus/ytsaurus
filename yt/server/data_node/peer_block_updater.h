@@ -6,7 +6,7 @@
 #include <core/actions/bind.h>
 #include <core/actions/invoker.h>
 
-#include <core/concurrency/periodic_invoker.h>
+#include <core/concurrency/periodic_executor.h>
 
 #include <ytlib/chunk_client/data_node_service_proxy.h>
 
@@ -35,7 +35,7 @@ private:
 
     TDataNodeConfigPtr Config;
     NCellNode::TBootstrap* Bootstrap;
-    NConcurrency::TPeriodicInvokerPtr PeriodicInvoker;
+    NConcurrency::TPeriodicExecutorPtr PeriodicExecutor;
 
 };
 

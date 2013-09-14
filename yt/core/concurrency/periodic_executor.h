@@ -1,7 +1,7 @@
 #pragma once
 
 #include "public.h"
-#include "delayed_invoker.h"
+#include "delayed_executor.h"
 
 #include <core/actions/invoker.h>
 #include <core/actions/callback.h>
@@ -11,14 +11,14 @@ namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Describes if manual calls to #TPeriodicInvoker::ScheduleNext are needed.
+//! Describes if manual calls to #TPeriodicExecutor::ScheduleNext are needed.
 DECLARE_ENUM(EPeriodicInvokerMode,
     (Automatic)
     (Manual)
 );
 
 //! Helps to perform certain actions periodically.
-class TPeriodicInvoker
+class TPeriodicExecutor
     : public TRefCounted
 {
 public:
@@ -32,7 +32,7 @@ public:
      *  \param period Interval between usual consequent invocations.
      *  \param splay First invocation splay time.
      */
-    TPeriodicInvoker(
+    TPeriodicExecutor(
         IInvokerPtr invoker,
         TClosure callback,
         TDuration period,
@@ -62,7 +62,7 @@ private:
     TAtomic Started;
     TAtomic Busy;
     TAtomic OutOfBandRequested;
-    TDelayedInvoker::TCookie Cookie;
+    TDelayedExecutor::TCookie Cookie;
 
     void PostDelayedCallback(TDuration delay);
     void PostCallback();

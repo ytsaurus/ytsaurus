@@ -2,7 +2,7 @@
 #include "mutation.h"
 #include "meta_state_manager.h"
 
-#include <core/concurrency/delayed_invoker.h>
+#include <core/concurrency/delayed_executor.h>
 
 namespace NYT {
 namespace NMetaState {

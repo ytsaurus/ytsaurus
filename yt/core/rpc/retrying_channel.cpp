@@ -173,7 +173,7 @@ private:
             return;
         }
 
-        TDelayedInvoker::Submit(
+        TDelayedExecutor::Submit(
             BIND(&TRetryingRequest::Send, MakeStrong(this)),
             Config->RetryBackoffTime);
     }

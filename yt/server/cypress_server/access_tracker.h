@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <core/concurrency/periodic_invoker.h>
+#include <core/concurrency/periodic_executor.h>
 #include <core/concurrency/thread_affinity.h>
 
 #include <core/misc/error.h>
@@ -46,7 +46,7 @@ private:
     NProto::TMetaReqUpdateAccessStatistics UpdateAccessStatisticsRequest;
     std::vector<TCypressNodeBase*> NodesWithAccessStatisticsUpdate;
 
-    NConcurrency::TPeriodicInvokerPtr FlushInvoker;
+    NConcurrency::TPeriodicExecutorPtr FlushExecutor;
 
 
     void Reset();

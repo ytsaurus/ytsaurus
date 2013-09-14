@@ -6,7 +6,7 @@
 
 #include <core/misc/property.h>
 #include <core/misc/nullable.h>
-#include <core/concurrency/periodic_invoker.h>
+#include <core/concurrency/periodic_executor.h>
 #include <core/misc/error.h>
 
 #include <core/erasure/public.h>
@@ -133,10 +133,10 @@ private:
     NProfiling::TCpuDuration ChunkRefreshDelay;
     TNullable<bool> LastEnabled;
 
-    NConcurrency::TPeriodicInvokerPtr RefreshInvoker;
+    NConcurrency::TPeriodicExecutorPtr RefreshExecutor;
     std::deque<TRefreshEntry> RefreshList;
 
-    NConcurrency::TPeriodicInvokerPtr PropertiesUpdateInvoker;
+    NConcurrency::TPeriodicExecutorPtr PropertiesUpdateExecutor;
     std::deque<TChunk*> PropertiesUpdateList;
 
     yhash_map<TJobId, TJobPtr> JobMap;

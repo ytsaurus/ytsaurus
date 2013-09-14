@@ -5,7 +5,7 @@
 #include <core/logging/log_manager.h>
 #include <core/profiling/profiling_manager.h>
 #include <ytlib/meta_state/async_change_log.h>
-#include <core/concurrency/delayed_invoker.h>
+#include <core/concurrency/delayed_executor.h>
 #include <ytlib/chunk_client/dispatcher.h>
 
 #include <util/datetime/base.h>
@@ -96,7 +96,7 @@ int main(int argc, char **argv)
     NYT::NBus::TTcpDispatcher::Get()->Shutdown();
     NYT::NRpc::TDispatcher::Get()->Shutdown();
     NYT::NChunkClient::TDispatcher::Get()->Shutdown();
-    NYT::NConcurrency::TDelayedInvoker::Shutdown();
+    NYT::NConcurrency::TDelayedExecutor::Shutdown();
 
     return rv;
 }

@@ -4,7 +4,7 @@
 #include "timing.h"
 
 #include <core/misc/id_generator.h>
-#include <core/concurrency/periodic_invoker.h>
+#include <core/concurrency/periodic_executor.h>
 #include <core/misc/hash.h>
 
 #include <core/concurrency/action_queue_detail.h>

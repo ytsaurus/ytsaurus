@@ -3,7 +3,7 @@
 #include "private.h"
 #include "meta_state_manager_proxy.h"
 
-#include <core/concurrency/periodic_invoker.h>
+#include <core/concurrency/periodic_executor.h>
 #include <core/concurrency/thread_affinity.h>
 
 namespace NYT {

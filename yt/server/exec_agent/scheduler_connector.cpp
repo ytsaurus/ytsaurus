@@ -39,7 +39,7 @@ TSchedulerConnector::TSchedulerConnector(
 
 void TSchedulerConnector::Start()
 {
-    HeartbeatInvoker = New<TPeriodicInvoker>(
+    HeartbeatExecutor = New<TPeriodicExecutor>(
         ControlInvoker,
         BIND(&TThis::SendHeartbeat, MakeWeak(this)),
         Config->HeartbeatPeriod,
@@ -50,17 +50,17 @@ void TSchedulerConnector::Start()
     // or its resource usage is updated.
     auto jobController = Bootstrap->GetJobController();
     jobController->SubscribeResourcesUpdated(BIND(
-        &TPeriodicInvoker::ScheduleOutOfBand,
-        HeartbeatInvoker));
+        &TPeriodicExecutor::ScheduleOutOfBand,
+        HeartbeatExecutor));
 
-    HeartbeatInvoker->Start();
+    HeartbeatExecutor->Start();
 }
 
 void TSchedulerConnector::SendHeartbeat()
 {
     auto masterConnector = Bootstrap->GetMasterConnector();
     if (!masterConnector->IsConnected()) {
-        HeartbeatInvoker->ScheduleNext();
+        HeartbeatExecutor->ScheduleNext();
         return;
     }
 
@@ -80,7 +80,7 @@ void TSchedulerConnector::SendHeartbeat()
 
 void TSchedulerConnector::OnHeartbeatResponse(TJobTrackerServiceProxy::TRspHeartbeatPtr rsp)
 {
-    HeartbeatInvoker->ScheduleNext();
+    HeartbeatExecutor->ScheduleNext();
 
     if (!rsp->IsOK()) {
         LOG_ERROR(*rsp, "Error reporting heartbeat to scheduler");

@@ -36,22 +36,22 @@ void TAccessTracker::StartFlush()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    YCHECK(!FlushInvoker);
-    FlushInvoker = New<TPeriodicInvoker>(
+    YCHECK(!FlushExecutor);
+    FlushExecutor = New<TPeriodicExecutor>(
         Bootstrap->GetMetaStateFacade()->GetEpochInvoker(),
         BIND(&TAccessTracker::OnFlush, MakeWeak(this)),
         Config->AccessStatisticsFlushPeriod,
         EPeriodicInvokerMode::Manual);
-    FlushInvoker->Start();
+    FlushExecutor->Start();
 }
 
 void TAccessTracker::StopFlush()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    if (FlushInvoker) {
-        FlushInvoker->Stop();
-        FlushInvoker.Reset();
+    if (FlushExecutor) {
+        FlushExecutor->Stop();
+        FlushExecutor.Reset();
     }
 
     Reset();
@@ -121,7 +121,7 @@ void TAccessTracker::OnFlush()
     VERIFY_THREAD_AFFINITY(StateThread);
 
     if (NodesWithAccessStatisticsUpdate.empty()) {
-        FlushInvoker->ScheduleNext();
+        FlushExecutor->ScheduleNext();
         return;
     }
 
@@ -144,15 +144,15 @@ void TAccessTracker::OnCommitSucceeded()
 {
     LOG_DEBUG("Access statistics commit succeeded");
 
-    FlushInvoker->ScheduleOutOfBand();
-    FlushInvoker->ScheduleNext();
+    FlushExecutor->ScheduleOutOfBand();
+    FlushExecutor->ScheduleNext();
 }
 
 void TAccessTracker::OnCommitFailed(const TError& error)
 {
     LOG_ERROR(error, "Access statistics commit failed");
 
-    FlushInvoker->ScheduleNext();
+    FlushExecutor->ScheduleNext();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "throughput_throttler.h"
-#include "periodic_invoker.h"
+#include "periodic_executor.h"
 
 #include <core/misc/singleton.h>
 
@@ -27,11 +27,11 @@ public:
         : ThroughputPerPeriod(static_cast<i64>(config->Period.SecondsFloat() * (*config->Limit)))
         , Available(ThroughputPerPeriod)
     {
-        Invoker = New<TPeriodicInvoker>(
+        PeriodicExecutor = New<TPeriodicExecutor>(
             GetSyncInvoker(),
             BIND(&TLimitedThroughputThrottler::OnTick, MakeWeak(this)),
             config->Period);
-        Invoker->Start();
+        PeriodicExecutor->Start();
     }
 
     virtual TFuture<void> Throttle(i64 count) override
@@ -67,7 +67,7 @@ private:
     };
 
     i64 ThroughputPerPeriod;
-    TPeriodicInvokerPtr Invoker;
+    TPeriodicExecutorPtr PeriodicExecutor;
 
     //! Protects the section immediately following it.
     TSpinLock SpinLock;

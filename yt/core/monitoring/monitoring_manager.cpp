@@ -79,11 +79,11 @@ void TMonitoringManager::Start()
     // Create an empty root immediately to prevent GetRoot from returning NULL.
     Root = GetEphemeralNodeFactory()->CreateMap();
 
-    PeriodicInvoker = New<TPeriodicInvoker>(
+    PeriodicExecutor = New<TPeriodicExecutor>(
         ActionQueue->GetInvoker(),
         BIND(&TMonitoringManager::Update, MakeStrong(this)),
         UpdatePeriod);
-    PeriodicInvoker->Start();
+    PeriodicExecutor->Start();
 
     IsStarted = true;
 }
@@ -94,7 +94,7 @@ void TMonitoringManager::Stop()
         return;
 
     IsStarted = false;
-    PeriodicInvoker->Stop();
+    PeriodicExecutor->Stop();
     Root.Reset();
 }
 

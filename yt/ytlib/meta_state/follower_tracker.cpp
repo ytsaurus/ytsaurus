@@ -109,7 +109,7 @@ void TFollowerTracker::SchedulePing(TPeerId followerId)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    TDelayedInvoker::Submit(
+    TDelayedExecutor::Submit(
         BIND(&TFollowerTracker::SendPing, MakeStrong(this), followerId)
             .Via(EpochControlInvoker),
         Config->PingInterval);

@@ -14,7 +14,7 @@
 #include <core/misc/protobuf_helpers.h>
 
 #include <core/concurrency/thread_affinity.h>
-#include <core/concurrency/delayed_invoker.h>
+#include <core/concurrency/delayed_executor.h>
 
 #include <core/logging/tagged_logger.h>
 
@@ -142,7 +142,7 @@ private:
             LOG_INFO("Need fresh chunk seeds");
             GetSeedsPromise = NewPromise<TGetSeedsResult>();
             // Don't ask master for fresh seeds too often.
-            TDelayedInvoker::Submit(
+            TDelayedExecutor::Submit(
                 BIND(&TReplicationReader::LocateChunk, MakeStrong(this))
                     .Via(TDispatcher::Get()->GetReaderInvoker()),
                 SeedsTimestamp + Config->RetryBackoffTime);
@@ -338,7 +338,7 @@ protected:
             return;
         }
 
-        TDelayedInvoker::Submit(
+        TDelayedExecutor::Submit(
             BIND(&TSessionBase::NextRetry, MakeStrong(this))
             .Via(TDispatcher::Get()->GetReaderInvoker()),
             reader->Config->RetryBackoffTime);
@@ -396,7 +396,7 @@ protected:
 
         backoffTime = std::min(backoffTime, reader->Config->MaxPassBackoffTime);
 
-        TDelayedInvoker::Submit(
+        TDelayedExecutor::Submit(
             BIND(&TSessionBase::NextPass, MakeStrong(this))
                 .Via(TDispatcher::Get()->GetReaderInvoker()),
             backoffTime);

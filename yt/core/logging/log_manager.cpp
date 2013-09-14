@@ -5,7 +5,7 @@
 #include <core/misc/property.h>
 #include <core/misc/pattern_formatter.h>
 #include <core/misc/raw_formatter.h>
-#include <core/concurrency/periodic_invoker.h>
+#include <core/concurrency/periodic_executor.h>
 
 #include <core/concurrency/action_queue_detail.h>
 
@@ -822,41 +822,41 @@ private:
             Config = config;
             AtomicIncrement(Version);
 
-            if (FlushInvoker) {
-                FlushInvoker->Stop();
-                FlushInvoker.Reset();
+            if (FlushExecutor) {
+                FlushExecutor->Stop();
+                FlushExecutor.Reset();
             }
 
-            if (WatchInvoker) {
-                WatchInvoker->Stop();
-                WatchInvoker.Reset();
+            if (WatchExecutor) {
+                WatchExecutor->Stop();
+                WatchExecutor.Reset();
             }
 
             auto flushPeriod = Config->GetFlushPeriod();
             if (flushPeriod) {
-                FlushInvoker = New<TPeriodicInvoker>(
+                FlushExecutor = New<TPeriodicExecutor>(
                     Queue,
                     BIND(&TImpl::DoFlushWritersPeriodically, MakeStrong(this)),
                     *flushPeriod);
-                FlushInvoker->Start();
+                FlushExecutor->Start();
             }
 
             auto watchPeriod = Config->GetWatchPeriod();
             if (watchPeriod) {
-                WatchInvoker = New<TPeriodicInvoker>(
+                WatchExecutor = New<TPeriodicExecutor>(
                     Queue,
                     BIND(&TImpl::DoWatchWritersPeriodically, MakeStrong(this)),
                     *watchPeriod);
-                WatchInvoker->Start();
+                WatchExecutor->Start();
             }
 
             auto checkSpacePeriod = Config->GetCheckSpacePeriod();
             if (checkSpacePeriod) {
-                CheckSpaceInvoker = New<TPeriodicInvoker>(
+                CheckSpaceExecutor = New<TPeriodicExecutor>(
                     Queue,
                     BIND(&TImpl::DoCheckSpacePeriodically, MakeStrong(this)),
                     *checkSpacePeriod);
-                CheckSpaceInvoker->Start();
+                CheckSpaceExecutor->Start();
             }
         }
     }
@@ -899,9 +899,9 @@ private:
 
     volatile bool ReopenEnqueued;
 
-    TPeriodicInvokerPtr FlushInvoker;
-    TPeriodicInvokerPtr WatchInvoker;
-    TPeriodicInvokerPtr CheckSpaceInvoker;
+    TPeriodicExecutorPtr FlushExecutor;
+    TPeriodicExecutorPtr WatchExecutor;
+    TPeriodicExecutorPtr CheckSpaceExecutor;
 
 };
 

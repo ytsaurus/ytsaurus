@@ -14,7 +14,7 @@
 #include "snapshot_downloader.h"
 
 #include <core/concurrency/thread_affinity.h>
-#include <core/concurrency/periodic_invoker.h>
+#include <core/concurrency/periodic_executor.h>
 
 #include <core/misc/string.h>
 
@@ -137,11 +137,11 @@ public:
 
         MasterConnector->Start();
 
-        ProfilingInvoker = New<TPeriodicInvoker>(
+        ProfilingExecutor = New<TPeriodicExecutor>(
             Bootstrap->GetControlInvoker(),
             BIND(&TThis::OnProfiling, MakeWeak(this)),
             ProfilingPeriod);
-        ProfilingInvoker->Start();
+        ProfilingExecutor->Start();
     }
 
 
@@ -628,7 +628,7 @@ private:
     NProfiling::TAggregateCounter TotalAbortedJobTimeCounter;
 
     std::vector<int> JobTypeCounters;
-    TPeriodicInvokerPtr ProfilingInvoker;
+    TPeriodicExecutorPtr ProfilingExecutor;
 
     TNodeResources TotalResourceLimits;
     TNodeResources TotalResourceUsage;

@@ -8,7 +8,7 @@
 #include "schema.h"
 #include "master.h"
 
-#include <core/concurrency/delayed_invoker.h>
+#include <core/concurrency/delayed_executor.h>
 
 #include <core/ypath/tokenizer.h>
 
@@ -383,11 +383,11 @@ void TObjectManager::Initialize()
     LOG_INFO("CellId: %d", static_cast<int>(Config->CellId));
     LOG_INFO("MasterObjectId: %s", ~ToString(MasterObjectId));
 
-    ProfilingInvoker = New<TPeriodicInvoker>(
+    ProfilingExecutor = New<TPeriodicExecutor>(
         Bootstrap->GetMetaStateFacade()->GetInvoker(),
         BIND(&TObjectManager::OnProfiling, MakeWeak(this)),
         ProfilingPeriod);
-    ProfilingInvoker->Start();
+    ProfilingExecutor->Start();
 }
 
 IYPathServicePtr TObjectManager::GetRootService()

@@ -22,8 +22,8 @@ typedef TIntrusivePtr<TThreadPool> TThreadPoolPtr;
 class TParallelAwaiter;
 typedef TIntrusivePtr<TParallelAwaiter> TParallelAwaiterPtr;
 
-class TPeriodicInvoker;
-typedef TIntrusivePtr<TPeriodicInvoker> TPeriodicInvokerPtr;
+class TPeriodicExecutor;
+typedef TIntrusivePtr<TPeriodicExecutor> TPeriodicExecutorPtr;
 
 class TThroughputThrottlerConfig;
 typedef TIntrusivePtr<TThroughputThrottlerConfig> TThroughputThrottlerConfigPtr;

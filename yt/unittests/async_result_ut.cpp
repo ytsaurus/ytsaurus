@@ -578,7 +578,7 @@ TEST(TFutureTest, Regression_de94ea0)
 static TFuture< TErrorOr<int> > AsyncDivide(int a, int b, TDuration delay)
 {
     auto promise = NewPromise< TErrorOr<int> >();
-    TDelayedInvoker::Submit(
+    TDelayedExecutor::Submit(
         BIND([=] () mutable {
             if (b == 0) {
                 promise.Set(TError("Division by zero"));

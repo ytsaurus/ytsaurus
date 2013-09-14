@@ -27,7 +27,7 @@ TDiskHealthChecker::TDiskHealthChecker(
     IInvokerPtr invoker)
     : Config(config)
     , Path(path)
-    , PeriodicInvoker(New<TPeriodicInvoker>(
+    , PeriodicExecutor(New<TPeriodicExecutor>(
         invoker,
         BIND(&TDiskHealthChecker::OnCheck, Unretained(this)),
         Config->CheckPeriod,
@@ -37,7 +37,7 @@ TDiskHealthChecker::TDiskHealthChecker(
 
 void TDiskHealthChecker::Start()
 {
-    PeriodicInvoker->Start();
+    PeriodicExecutor->Start();
 }
 
 void TDiskHealthChecker::OnCheck()
@@ -52,7 +52,7 @@ void TDiskHealthChecker::OnCheck()
 void TDiskHealthChecker::OnCheckCompleted(TError error)
 {
     if (error.IsOK()) {
-        PeriodicInvoker->ScheduleNext();
+        PeriodicExecutor->ScheduleNext();
     }
 }
 

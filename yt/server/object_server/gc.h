@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <core/concurrency/periodic_invoker.h>
+#include <core/concurrency/periodic_executor.h>
 #include <core/concurrency/thread_affinity.h>
 
 #include <core/misc/error.h>
@@ -52,7 +52,7 @@ private:
     TObjectManagerConfigPtr Config;
     NCellMaster::TBootstrap* Bootstrap;
 
-    NConcurrency::TPeriodicInvokerPtr SweepInvoker;
+    NConcurrency::TPeriodicExecutorPtr SweepExecutor;
 
     //! Contains objects with zero ref counter and zero lock counter.
     yhash_set<TObjectBase*> Zombies;

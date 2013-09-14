@@ -4,7 +4,7 @@
 #include "type_handler.h"
 
 #include <core/concurrency/thread_affinity.h>
-#include <core/concurrency/periodic_invoker.h>
+#include <core/concurrency/periodic_executor.h>
 
 #include <ytlib/meta_state/composite_meta_state.h>
 #include <ytlib/meta_state/map.h>
@@ -239,7 +239,7 @@ private:
 
     mutable TGuid CachedCellGuild;
 
-    NConcurrency::TPeriodicInvokerPtr ProfilingInvoker;
+    NConcurrency::TPeriodicExecutorPtr ProfilingExecutor;
 
     TGarbageCollectorPtr GarbageCollector;
 

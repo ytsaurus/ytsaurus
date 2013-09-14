@@ -4,7 +4,7 @@
 
 #include <core/actions/signal.h>
 
-#include <core/concurrency/periodic_invoker.h>
+#include <core/concurrency/periodic_executor.h>
 #include <core/misc/error.h>
 
 namespace NYT {
@@ -33,7 +33,7 @@ private:
     TDiskHealthCheckerConfigPtr Config;
     Stroka Path;
 
-    NConcurrency::TPeriodicInvokerPtr PeriodicInvoker;
+    NConcurrency::TPeriodicExecutorPtr PeriodicExecutor;
     TAtomic FailedLock;
 
     void OnCheck();

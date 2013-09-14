@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "future.h"
 
-#include <core/concurrency/delayed_invoker.h>
+#include <core/concurrency/delayed_executor.h>
 
 namespace NYT {
 
@@ -20,7 +20,7 @@ TPromise<void> MakePromise()
 TFuture<void> MakeDelayed(TDuration delay)
 {
     auto promise = NewPromise();
-    NConcurrency::TDelayedInvoker::Submit(
+    NConcurrency::TDelayedExecutor::Submit(
         BIND([=] () mutable { promise.Set(); }),
         delay);
     return promise;

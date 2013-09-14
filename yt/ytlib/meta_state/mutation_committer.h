@@ -107,7 +107,7 @@ private:
     //! Protects the rest.
     TSpinLock BatchSpinLock;
     TBatchPtr CurrentBatch;
-    NConcurrency::TDelayedInvoker::TCookie BatchTimeoutCookie;
+    NConcurrency::TDelayedExecutor::TCookie BatchTimeoutCookie;
 
 };
 

@@ -93,18 +93,18 @@ TChunkReplicator::TChunkReplicator(
 
 void TChunkReplicator::Initialize()
 {
-    RefreshInvoker = New<TPeriodicInvoker>(
+    RefreshExecutor = New<TPeriodicExecutor>(
         Bootstrap->GetMetaStateFacade()->GetEpochInvoker(EStateThreadQueue::ChunkMaintenance),
         BIND(&TChunkReplicator::OnRefresh, MakeWeak(this)),
         Config->ChunkRefreshPeriod);
-    RefreshInvoker->Start();
+    RefreshExecutor->Start();
 
-    PropertiesUpdateInvoker = New<TPeriodicInvoker>(
+    PropertiesUpdateExecutor = New<TPeriodicExecutor>(
         Bootstrap->GetMetaStateFacade()->GetEpochInvoker(EStateThreadQueue::ChunkMaintenance),
         BIND(&TChunkReplicator::OnPropertiesUpdate, MakeWeak(this)),
         Config->ChunkPropertiesUpdatePeriod,
         EPeriodicInvokerMode::Manual);
-    PropertiesUpdateInvoker->Start();
+    PropertiesUpdateExecutor->Start();
 
     auto nodeTracker = Bootstrap->GetNodeTracker();
     FOREACH (auto* node, nodeTracker->GetNodes()) {
@@ -1121,7 +1121,7 @@ void TChunkReplicator::OnPropertiesUpdate()
     if (PropertiesUpdateList.empty() ||
         !Bootstrap->GetMetaStateFacade()->GetManager()->HasActiveQuorum())
     {
-        PropertiesUpdateInvoker->ScheduleNext();
+        PropertiesUpdateExecutor->ScheduleNext();
         return;
     }
 
@@ -1162,7 +1162,7 @@ void TChunkReplicator::OnPropertiesUpdate()
     }
 
     if (request.updates_size() == 0) {
-        PropertiesUpdateInvoker->ScheduleNext();
+        PropertiesUpdateExecutor->ScheduleNext();
         return;
     }
 
@@ -1180,15 +1180,15 @@ void TChunkReplicator::OnPropertiesUpdateCommitSucceeded()
 {
     LOG_DEBUG("Properties update commit succeeded");
 
-    PropertiesUpdateInvoker->ScheduleOutOfBand();
-    PropertiesUpdateInvoker->ScheduleNext();
+    PropertiesUpdateExecutor->ScheduleOutOfBand();
+    PropertiesUpdateExecutor->ScheduleNext();
 }
 
 void TChunkReplicator::OnPropertiesUpdateCommitFailed(const TError& error)
 {
     LOG_WARNING(error, "Properties update commit failed");
 
-    PropertiesUpdateInvoker->ScheduleNext();
+    PropertiesUpdateExecutor->ScheduleNext();
 }
 
 TChunkProperties TChunkReplicator::ComputeChunkProperties(TChunk* chunk)

@@ -7,9 +7,9 @@
 #include "snapshot_downloader.h"
 #include "serialization_context.h"
 
-#include <core/concurrency/periodic_invoker.h>
+#include <core/concurrency/periodic_executor.h>
 #include <core/concurrency/thread_affinity.h>
-#include <core/concurrency/delayed_invoker.h>
+#include <core/concurrency/delayed_executor.h>
 
 #include <core/misc/address.h>
 
@@ -277,10 +277,10 @@ private:
 
     NTransactionClient::ITransactionPtr LockTransaction;
 
-    TPeriodicInvokerPtr TransactionRefreshInvoker;
-    TPeriodicInvokerPtr OperationNodesUpdateInvoker;
-    TPeriodicInvokerPtr WatchersInvoker;
-    TPeriodicInvokerPtr SnapshotInvoker;
+    TPeriodicExecutorPtr TransactionRefreshExecutor;
+    TPeriodicExecutorPtr OperationNodesUpdateExecutor;
+    TPeriodicExecutorPtr WatchersExecutor;
+    TPeriodicExecutorPtr SnapshotExecutor;
 
     std::vector<TWatcherRequester> GlobalWatcherRequesters;
     std::vector<TWatcherHandler>   GlobalWatcherHandlers;
@@ -348,7 +348,7 @@ private:
 
         if (!resultOrError.IsOK()) {
             LOG_ERROR(resultOrError, "Error connecting to master");
-            TDelayedInvoker::Submit(
+            TDelayedExecutor::Submit(
                 BIND(&TImpl::StartConnecting, MakeStrong(this))
                     .Via(Bootstrap->GetControlInvoker()),
                 Config->ConnectRetryPeriod);
@@ -985,62 +985,62 @@ private:
 
     void StartRefresh()
     {
-        TransactionRefreshInvoker = New<TPeriodicInvoker>(
+        TransactionRefreshExecutor = New<TPeriodicExecutor>(
             CancelableControlInvoker,
             BIND(&TImpl::RefreshTransactions, MakeWeak(this)),
             Config->TransactionsRefreshPeriod,
             EPeriodicInvokerMode::Manual);
-        TransactionRefreshInvoker->Start();
+        TransactionRefreshExecutor->Start();
 
-        OperationNodesUpdateInvoker = New<TPeriodicInvoker>(
+        OperationNodesUpdateExecutor = New<TPeriodicExecutor>(
             CancelableControlInvoker,
             BIND(&TImpl::UpdateOperationNodes, MakeWeak(this)),
             Config->OperationsUpdatePeriod,
             EPeriodicInvokerMode::Manual);
-        OperationNodesUpdateInvoker->Start();
+        OperationNodesUpdateExecutor->Start();
 
-        WatchersInvoker = New<TPeriodicInvoker>(
+        WatchersExecutor = New<TPeriodicExecutor>(
             CancelableControlInvoker,
             BIND(&TImpl::UpdateWatchers, MakeWeak(this)),
             Config->WatchersUpdatePeriod,
             EPeriodicInvokerMode::Manual);
-        WatchersInvoker->Start();
+        WatchersExecutor->Start();
     }
 
     void StopRefresh()
     {
-        if (TransactionRefreshInvoker) {
-            TransactionRefreshInvoker->Stop();
-            TransactionRefreshInvoker.Reset();
+        if (TransactionRefreshExecutor) {
+            TransactionRefreshExecutor->Stop();
+            TransactionRefreshExecutor.Reset();
         }
 
-        if (OperationNodesUpdateInvoker) {
-            OperationNodesUpdateInvoker->Stop();
-            OperationNodesUpdateInvoker.Reset();
+        if (OperationNodesUpdateExecutor) {
+            OperationNodesUpdateExecutor->Stop();
+            OperationNodesUpdateExecutor.Reset();
         }
 
-        if (WatchersInvoker) {
-            WatchersInvoker->Stop();
-            WatchersInvoker.Reset();
+        if (WatchersExecutor) {
+            WatchersExecutor->Stop();
+            WatchersExecutor.Reset();
         }
     }
 
 
     void StartSnapshots()
     {
-        SnapshotInvoker = New<TPeriodicInvoker>(
+        SnapshotExecutor = New<TPeriodicExecutor>(
             CancelableControlInvoker,
             BIND(&TImpl::BuildSnapshot, MakeWeak(this)),
             Config->SnapshotPeriod,
             EPeriodicInvokerMode::Manual);
-        SnapshotInvoker->Start();
+        SnapshotExecutor->Start();
     }
 
     void StopSnapshots()
     {
-        if (SnapshotInvoker) {
-            SnapshotInvoker->Stop();
-            SnapshotInvoker.Reset();
+        if (SnapshotExecutor) {
+            SnapshotExecutor->Stop();
+            SnapshotExecutor.Reset();
         }
     }
 
@@ -1093,7 +1093,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected);
 
-        TransactionRefreshInvoker->ScheduleNext();
+        TransactionRefreshExecutor->ScheduleNext();
 
         if (!batchRsp->IsOK()) {
             LOG_ERROR(*batchRsp, "Error refreshing transactions");
@@ -1284,7 +1284,7 @@ private:
 
         LOG_INFO("Operation nodes updated");
 
-        OperationNodesUpdateInvoker->ScheduleNext();
+        OperationNodesUpdateExecutor->ScheduleNext();
     }
 
 
@@ -1581,7 +1581,7 @@ private:
                     .Via(CancelableControlInvoker));
         }
 
-        WatchersInvoker->ScheduleNext();
+        WatchersExecutor->ScheduleNext();
     }
 
     void OnGlobalWatchersUpdated(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
@@ -1640,7 +1640,7 @@ private:
 
     void OnSnapshotBuilt(TError error)
     {
-        SnapshotInvoker->ScheduleNext();
+        SnapshotExecutor->ScheduleNext();
     }
 
 };

@@ -30,7 +30,7 @@ TPeerBlockUpdater::TPeerBlockUpdater(
     : Config(config)
     , Bootstrap(bootstrap)
 {
-    PeriodicInvoker = New<TPeriodicInvoker>(
+    PeriodicExecutor = New<TPeriodicExecutor>(
         bootstrap->GetControlInvoker(),
         BIND(&TPeerBlockUpdater::Update, MakeWeak(this)),
         Config->PeerUpdatePeriod);
@@ -38,12 +38,12 @@ TPeerBlockUpdater::TPeerBlockUpdater(
 
 void TPeerBlockUpdater::Start()
 {
-    PeriodicInvoker->Start();
+    PeriodicExecutor->Start();
 }
 
 void TPeerBlockUpdater::Stop()
 {
-    PeriodicInvoker->Stop();
+    PeriodicExecutor->Stop();
 }
 
 void TPeerBlockUpdater::Update()

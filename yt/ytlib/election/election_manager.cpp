@@ -5,7 +5,7 @@
 #include "cell_manager.h"
 #include "private.h"
 
-#include <core/concurrency/delayed_invoker.h>
+#include <core/concurrency/delayed_executor.h>
 #include <core/concurrency/thread_affinity.h>
 
 #include <core/concurrency/parallel_awaiter.h>
@@ -81,7 +81,7 @@ private:
     TPeerSet AliveFollowers;
     TPeerSet PotentialFollowers;
 
-    NConcurrency::TDelayedInvoker::TCookie PingTimeoutCookie;
+    NConcurrency::TDelayedExecutor::TCookie PingTimeoutCookie;
     TFollowerPingerPtr FollowerPinger;
 
     TElectionManagerConfigPtr Config;
@@ -179,7 +179,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(Owner->ControlThread);
 
-        TDelayedInvoker::Submit(
+        TDelayedExecutor::Submit(
             BIND(&TFollowerPinger::SendPing, MakeStrong(this), id)
                 .Via(Owner->ControlEpochInvoker),
             Owner->Config->FollowerPingInterval);
@@ -718,7 +718,7 @@ void TElectionManager::TImpl::StartVoteFor(TPeerId voteId, const TEpochId& voteE
     VoteId = voteId;
     VoteEpochId = voteEpoch;
 
-    TDelayedInvoker::Submit(
+    TDelayedExecutor::Submit(
         BIND(&TThis::StartVotingRound, MakeStrong(this))
             .Via(ControlEpochInvoker),
         Config->VotingRoundInterval);
@@ -765,7 +765,7 @@ void TElectionManager::TImpl::StartFollowing(
 
     InitEpochContext(leaderId, epoch);
 
-    PingTimeoutCookie = TDelayedInvoker::Submit(
+    PingTimeoutCookie = TDelayedExecutor::Submit(
         BIND(&TThis::OnFollowerPingTimeout, MakeStrong(this))
             .Via(ControlEpochInvoker),
         Config->ReadyToFollowTimeout);
@@ -891,9 +891,9 @@ DEFINE_RPC_SERVICE_METHOD(TElectionManager::TImpl, PingFollower)
             ~ToString(epochId));
     }
 
-    TDelayedInvoker::Cancel(PingTimeoutCookie);
+    TDelayedExecutor::Cancel(PingTimeoutCookie);
 
-    PingTimeoutCookie = TDelayedInvoker::Submit(
+    PingTimeoutCookie = TDelayedExecutor::Submit(
         BIND(&TThis::OnFollowerPingTimeout, MakeStrong(this))
             .Via(ControlEpochInvoker),
         Config->FollowerPingTimeout);

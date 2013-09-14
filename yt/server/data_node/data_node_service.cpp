@@ -89,11 +89,11 @@ TDataNodeService::TDataNodeService(
         .SetResponseCodec(NCompression::ECodec::Snappy)
         .SetResponseHeavy(true));
 
-    ProfilingInvoker = New<TPeriodicInvoker>(
+    ProfilingExecutor = New<TPeriodicExecutor>(
         Bootstrap->GetControlInvoker(),
         BIND(&TDataNodeService::OnProfiling, MakeWeak(this)),
         ProfilingPeriod);
-    ProfilingInvoker->Start();
+    ProfilingExecutor->Start();
 }
 
 void TDataNodeService::ValidateNoSession(const TChunkId& chunkId)

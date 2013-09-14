@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "snapshot_builder_detail.h"
 
-#include <core/concurrency/periodic_invoker.h>
+#include <core/concurrency/periodic_executor.h>
 
 #include <core/actions/invoker_util.h>
 
@@ -76,11 +76,11 @@ void TSnapshotBuilderBase::RunParent()
 
     Deadline = TInstant::Now() + GetTimeout();
 
-    WatchdogInvoker = New<TPeriodicInvoker>(
+    WatchdogExecutor = New<TPeriodicExecutor>(
         GetSyncInvoker(),
         BIND(&TSnapshotBuilderBase::OnWatchdogCheck, MakeStrong(this)),
         WatchdogCheckPeriod);
-    WatchdogInvoker->Start();
+    WatchdogExecutor->Start();
 }
 
 void TSnapshotBuilderBase::OnWatchdogCheck()
@@ -115,9 +115,9 @@ void TSnapshotBuilderBase::OnWatchdogCheck()
 void TSnapshotBuilderBase::Cleanup()
 {
     ChildPid = -1;
-    if (WatchdogInvoker) {
-        WatchdogInvoker->Stop();
-        WatchdogInvoker.Reset();
+    if (WatchdogExecutor) {
+        WatchdogExecutor->Stop();
+        WatchdogExecutor.Reset();
     }
 }
 

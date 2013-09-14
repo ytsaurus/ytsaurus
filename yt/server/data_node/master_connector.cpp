@@ -11,7 +11,7 @@
 
 #include <core/rpc/client.h>
 
-#include <core/concurrency/delayed_invoker.h>
+#include <core/concurrency/delayed_executor.h>
 #include <core/misc/serialize.h>
 #include <core/misc/string.h>
 
@@ -72,7 +72,7 @@ void TMasterConnector::Start()
         BIND(&TMasterConnector::OnChunkRemoved, MakeWeak(this))
             .Via(ControlInvoker));
 
-    TDelayedInvoker::Submit(
+    TDelayedExecutor::Submit(
         BIND(&TMasterConnector::StartHeartbeats, MakeStrong(this))
             .Via(ControlInvoker),
         RandomDuration(Config->HeartbeatSplay));
@@ -111,7 +111,7 @@ TNodeId TMasterConnector::GetNodeId() const
 
 void TMasterConnector::ScheduleNodeHeartbeat()
 {
-    TDelayedInvoker::Submit(
+    TDelayedExecutor::Submit(
         BIND(&TMasterConnector::OnNodeHeartbeat, MakeStrong(this))
             .Via(HeartbeatInvoker),
         Config->HeartbeatPeriod);
@@ -119,7 +119,7 @@ void TMasterConnector::ScheduleNodeHeartbeat()
 
 void TMasterConnector::ScheduleJobHeartbeat()
 {
-    TDelayedInvoker::Submit(
+    TDelayedExecutor::Submit(
         BIND(&TMasterConnector::OnJobHeartbeat, MakeStrong(this))
             .Via(HeartbeatInvoker),
         Config->HeartbeatPeriod);
@@ -129,7 +129,7 @@ void TMasterConnector::ResetAndScheduleRegister()
 {
     Reset();
 
-    TDelayedInvoker::Submit(
+    TDelayedExecutor::Submit(
         BIND(&TMasterConnector::SendRegister, MakeStrong(this))
             .Via(HeartbeatInvoker),
         Config->HeartbeatPeriod);

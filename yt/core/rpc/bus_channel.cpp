@@ -7,7 +7,7 @@
 
 #include <core/actions/future.h>
 
-#include <core/concurrency/delayed_invoker.h>
+#include <core/concurrency/delayed_executor.h>
 #include <core/concurrency/thread_affinity.h>
 
 #include <core/bus/bus.h>
@@ -231,7 +231,7 @@ private:
                 }
 
                 if (timeout) {
-                    activeRequest.TimeoutCookie = TDelayedInvoker::Submit(
+                    activeRequest.TimeoutCookie = TDelayedExecutor::Submit(
                         BIND(&TSession::OnTimeout, MakeStrong(this), requestId),
                         timeout.Get());
                 }
@@ -312,7 +312,7 @@ private:
         {
             IClientRequestPtr ClientRequest;
             IClientResponseHandlerPtr ResponseHandler;
-            TDelayedInvoker::TCookie TimeoutCookie;
+            TDelayedExecutor::TCookie TimeoutCookie;
             NProfiling::TTimer Timer;
         };
 
@@ -407,7 +407,7 @@ private:
 
         void FinalizeRequest(TActiveRequest& request)
         {
-            TDelayedInvoker::CancelAndClear(request.TimeoutCookie);
+            TDelayedExecutor::CancelAndClear(request.TimeoutCookie);
             Profiler.TimingStop(request.Timer, "total");
         }
 

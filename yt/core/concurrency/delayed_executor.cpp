@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "delayed_invoker.h"
+#include "delayed_executor.h"
 
 #include <core/concurrency/action_queue.h>
 
@@ -12,7 +12,7 @@ static const TDuration SleepQuantum = TDuration::MilliSeconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDelayedInvoker::TImpl
+class TDelayedExecutor::TImpl
     : private TNonCopyable
 {
 public:
@@ -161,27 +161,27 @@ private:
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TDelayedInvoker::TCookie TDelayedInvoker::Submit(TClosure action, TDuration delay)
+TDelayedExecutor::TCookie TDelayedExecutor::Submit(TClosure action, TDuration delay)
 {
     return Singleton<TImpl>()->Submit(action, delay);
 }
 
-TDelayedInvoker::TCookie TDelayedInvoker::Submit(TClosure action, TInstant deadline)
+TDelayedExecutor::TCookie TDelayedExecutor::Submit(TClosure action, TInstant deadline)
 {
     return Singleton<TImpl>()->Submit(action, deadline);
 }
 
-bool TDelayedInvoker::Cancel(TCookie cookie)
+bool TDelayedExecutor::Cancel(TCookie cookie)
 {
     return Singleton<TImpl>()->Cancel(cookie);
 }
 
-bool TDelayedInvoker::CancelAndClear(TCookie& cookie)
+bool TDelayedExecutor::CancelAndClear(TCookie& cookie)
 {
     return Singleton<TImpl>()->CancelAndClear(cookie);
 }
 
-void TDelayedInvoker::Shutdown()
+void TDelayedExecutor::Shutdown()
 {
     Singleton<TImpl>()->Shutdown();
 }

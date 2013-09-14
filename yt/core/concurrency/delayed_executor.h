@@ -10,7 +10,7 @@ namespace NConcurrency {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Manages delayed action execution.
-class TDelayedInvoker
+class TDelayedExecutor
 {
 public:
     struct TEntryBase

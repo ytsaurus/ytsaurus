@@ -8,7 +8,7 @@
 #include <core/misc/property.h>
 
 #include <core/concurrency/thread_affinity.h>
-#include <core/concurrency/delayed_invoker.h>
+#include <core/concurrency/delayed_executor.h>
 
 #include <ytlib/meta_state/rpc_helpers.h>
 
@@ -322,7 +322,7 @@ private:
 
     void SchedulePing()
     {
-        TDelayedInvoker::Submit(
+        TDelayedExecutor::Submit(
             BIND(IgnoreResult(&TTransaction::SendPing), MakeWeak(this)),
             Owner_->Config->PingPeriod);
     }

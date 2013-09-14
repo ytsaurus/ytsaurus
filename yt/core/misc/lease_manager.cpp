@@ -3,7 +3,7 @@
 
 #include <core/actions/bind.h>
 
-#include <core/concurrency/delayed_invoker.h>
+#include <core/concurrency/delayed_executor.h>
 #include <core/concurrency/thread_affinity.h>
 
 namespace NYT {
@@ -28,7 +28,7 @@ public:
         YASSERT(onExpired);
 
         auto lease = New<TEntry>(timeout, onExpired);
-        lease->Cookie = TDelayedInvoker::Submit(
+        lease->Cookie = TDelayedExecutor::Submit(
             BIND(&TImpl::OnLeaseExpired, lease),
             timeout);
         return lease;
@@ -43,11 +43,11 @@ public:
         if (!lease->IsValid)
             return false;
 
-        TDelayedInvoker::Cancel(lease->Cookie);
+        TDelayedExecutor::Cancel(lease->Cookie);
         if (timeout) {
             lease->Timeout = timeout.Get();
         }
-        lease->Cookie = TDelayedInvoker::Submit(
+        lease->Cookie = TDelayedExecutor::Submit(
             BIND(&TImpl::OnLeaseExpired, lease),
             lease->Timeout);
         return true;
@@ -84,7 +84,7 @@ private:
     {
         VERIFY_SPINLOCK_AFFINITY(lease->SpinLock);
 
-        TDelayedInvoker::CancelAndClear(lease->Cookie);
+        TDelayedExecutor::CancelAndClear(lease->Cookie);
         lease->IsValid = false;
         lease->OnExpired.Reset();
     }

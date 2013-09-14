@@ -4,7 +4,7 @@
 
 #include <core/concurrency/action_queue.h>
 
-#include <core/concurrency/periodic_invoker.h>
+#include <core/concurrency/periodic_executor.h>
 
 #include <core/ytree/public.h>
 #include <core/ytree/yson_producer.h>
@@ -56,7 +56,7 @@ private:
 
     bool IsStarted;
     NConcurrency::TActionQueuePtr ActionQueue;
-    NConcurrency::TPeriodicInvokerPtr PeriodicInvoker;
+    NConcurrency::TPeriodicExecutorPtr PeriodicExecutor;
 
     //! Protects #MonitoringMap.
     TSpinLock SpinLock;

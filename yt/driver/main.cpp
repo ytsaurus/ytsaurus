@@ -10,7 +10,7 @@
 
 #include <core/profiling/profiling_manager.h>
 
-#include <core/concurrency/delayed_invoker.h>
+#include <core/concurrency/delayed_executor.h>
 
 #include <ytlib/driver/private.h>
 #include <ytlib/driver/driver.h>
@@ -142,7 +142,7 @@ public:
         NRpc::TDispatcher::Get()->Shutdown();
         NChunkClient::TDispatcher::Get()->Shutdown();
         NProfiling::TProfilingManager::Get()->Shutdown();
-        NConcurrency::TDelayedInvoker::Shutdown();
+        NConcurrency::TDelayedExecutor::Shutdown();
         NLog::TLogManager::Get()->Shutdown();
 
         return ExitCode;
@@ -181,7 +181,7 @@ private:
             NRpc::TDispatcher::Get()->Shutdown();
             NChunkClient::TDispatcher::Get()->Shutdown();
             NProfiling::TProfilingManager::Get()->Shutdown();
-            NConcurrency::TDelayedInvoker::Shutdown();
+            NConcurrency::TDelayedExecutor::Shutdown();
             NLog::TLogManager::Get()->Shutdown();
             exit(0);
         }

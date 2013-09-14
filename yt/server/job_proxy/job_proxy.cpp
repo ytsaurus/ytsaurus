@@ -132,12 +132,12 @@ void TJobProxy::Run()
 {
     auto result = DoRun();
 
-    if (HeartbeatInvoker) {
-        HeartbeatInvoker->Stop();
+    if (HeartbeatExecutor) {
+        HeartbeatExecutor->Stop();
     }
 
-    if (MemoryWatchdogInvoker) {
-        MemoryWatchdogInvoker->Stop();
+    if (MemoryWatchdogExecutor) {
+        MemoryWatchdogExecutor->Stop();
     }
 
     if (Job) {
@@ -183,12 +183,12 @@ TJobResult TJobProxy::DoRun()
     NodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
     NodeDirectory->MergeFrom(schedulerJobSpecExt.node_directory());
 
-    HeartbeatInvoker = New<TPeriodicInvoker>(
+    HeartbeatExecutor = New<TPeriodicExecutor>(
         GetSyncInvoker(),
         BIND(&TJobProxy::SendHeartbeat, MakeWeak(this)),
         Config->HeartbeatPeriod);
 
-    MemoryWatchdogInvoker = New<TPeriodicInvoker>(
+    MemoryWatchdogExecutor = New<TPeriodicExecutor>(
         GetSyncInvoker(),
         BIND(&TJobProxy::CheckMemoryUsage, MakeWeak(this)),
         Config->MemoryWatchdogPeriod);
@@ -256,8 +256,8 @@ TJobResult TJobProxy::DoRun()
                 YUNREACHABLE();
         }
 
-        MemoryWatchdogInvoker->Start();
-        HeartbeatInvoker->Start();
+        MemoryWatchdogExecutor->Start();
+        HeartbeatExecutor->Start();
 
         return Job->Run();
     } catch (const std::exception& ex) {

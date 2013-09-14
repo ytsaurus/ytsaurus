@@ -5,7 +5,7 @@
 #include "pipes.h"
 #include "job.h"
 
-#include <core/concurrency/periodic_invoker.h>
+#include <core/concurrency/periodic_executor.h>
 
 #include <core/logging/tagged_logger.h>
 
@@ -54,8 +54,8 @@ private:
 
     volatile i64 JobProxyMemoryLimit;
 
-    NConcurrency::TPeriodicInvokerPtr HeartbeatInvoker;
-    NConcurrency::TPeriodicInvokerPtr MemoryWatchdogInvoker;
+    NConcurrency::TPeriodicExecutorPtr HeartbeatExecutor;
+    NConcurrency::TPeriodicExecutorPtr MemoryWatchdogExecutor;
 
     NJobTrackerClient::NProto::TJobSpec JobSpec;
     NNodeTrackerClient::NProto::TNodeResources ResourceUsage;

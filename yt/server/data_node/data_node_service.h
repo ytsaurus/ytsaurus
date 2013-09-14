@@ -3,7 +3,7 @@
 #include "public.h"
 #include "chunk.h"
 
-#include <core/concurrency/periodic_invoker.h>
+#include <core/concurrency/periodic_executor.h>
 
 #include <core/rpc/service_detail.h>
 
@@ -36,7 +36,7 @@ private:
     NConcurrency::TActionQueuePtr WorkerThread;
     NCellNode::TBootstrap* Bootstrap;
 
-    NConcurrency::TPeriodicInvokerPtr ProfilingInvoker;
+    NConcurrency::TPeriodicExecutorPtr ProfilingExecutor;
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, StartChunk);
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, FinishChunk);

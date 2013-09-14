@@ -226,7 +226,7 @@ void TOperationControllerBase::TInputChunkDescriptor::Persist(TPersistenceContex
 TOperationControllerBase::TInputChunkScratcher::TInputChunkScratcher(
     TOperationControllerBase* controller)
     : Controller(controller)
-    , PeriodicInvoker(New<TPeriodicInvoker>(
+    , PeriodicExecutor(New<TPeriodicExecutor>(
         Controller->GetCancelableControlInvoker(),
         BIND(&TInputChunkScratcher::LocateChunks, MakeWeak(this)),
         Controller->Config->ChunkScratchPeriod))
@@ -245,7 +245,7 @@ void TOperationControllerBase::TInputChunkScratcher::Start()
     LOG_DEBUG("Starting input chunk scratcher");
 
     NextChunkIterator = Controller->InputChunkMap.begin();
-    PeriodicInvoker->Start();
+    PeriodicExecutor->Start();
 }
 
 void TOperationControllerBase::TInputChunkScratcher::LocateChunks()

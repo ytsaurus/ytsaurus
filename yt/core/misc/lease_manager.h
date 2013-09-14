@@ -6,7 +6,7 @@
 #include <core/actions/callback.h>
 #include <core/actions/invoker.h>
 
-#include <core/concurrency/delayed_invoker.h>
+#include <core/concurrency/delayed_executor.h>
 
 #include <core/misc/nullable.h>
 
@@ -32,7 +32,7 @@ private:
         bool IsValid;
         TDuration Timeout;
         TClosure OnExpired;
-        NConcurrency::TDelayedInvoker::TCookie Cookie;
+        NConcurrency::TDelayedExecutor::TCookie Cookie;
         TSpinLock SpinLock;
 
         TEntry(TDuration timeout, const TClosure& onExpired)

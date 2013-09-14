@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "periodic_invoker.h"
+#include "periodic_executor.h"
 
 #include <core/actions/invoker_util.h>
 #include <core/actions/bind.h>
@@ -11,7 +11,7 @@ namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPeriodicInvoker::TPeriodicInvoker(
+TPeriodicExecutor::TPeriodicExecutor(
     IInvokerPtr invoker,
     TClosure callback,
     TDuration period,
@@ -27,7 +27,7 @@ TPeriodicInvoker::TPeriodicInvoker(
     , OutOfBandRequested(false)
 { }
 
-void TPeriodicInvoker::Start()
+void TPeriodicExecutor::Start()
 {
     if (!AtomicCas(&Started, true, false))
         return;
@@ -35,15 +35,15 @@ void TPeriodicInvoker::Start()
     PostDelayedCallback(RandomDuration(Splay));
 }
 
-void TPeriodicInvoker::Stop()
+void TPeriodicExecutor::Stop()
 {
     if (!AtomicCas(&Started, false, true))
         return;
 
-    TDelayedInvoker::CancelAndClear(Cookie);
+    TDelayedExecutor::CancelAndClear(Cookie);
 }
 
-void TPeriodicInvoker::ScheduleOutOfBand()
+void TPeriodicExecutor::ScheduleOutOfBand()
 {
     if (!AtomicGet(Started))
         return;
@@ -55,7 +55,7 @@ void TPeriodicInvoker::ScheduleOutOfBand()
     }
 }
 
-void TPeriodicInvoker::ScheduleNext()
+void TPeriodicExecutor::ScheduleNext()
 {
     if (!AtomicGet(Started))
         return;
@@ -73,21 +73,21 @@ void TPeriodicInvoker::ScheduleNext()
     }
 }
 
-void TPeriodicInvoker::PostDelayedCallback(TDuration delay)
+void TPeriodicExecutor::PostDelayedCallback(TDuration delay)
 {
-    TDelayedInvoker::CancelAndClear(Cookie);
-    Cookie = TDelayedInvoker::Submit(
-        BIND(&TPeriodicInvoker::PostCallback, MakeStrong(this)),
+    TDelayedExecutor::CancelAndClear(Cookie);
+    Cookie = TDelayedExecutor::Submit(
+        BIND(&TPeriodicExecutor::PostCallback, MakeStrong(this)),
         delay);
 }
 
-void TPeriodicInvoker::PostCallback()
+void TPeriodicExecutor::PostCallback()
 {
     auto this_ = MakeStrong(this);
     bool result = Invoker->Invoke(BIND([this, this_] () {
         if (AtomicGet(Started) && !AtomicGet(Busy)) {
             AtomicSet(Busy, true);
-            TDelayedInvoker::CancelAndClear(Cookie);
+            TDelayedExecutor::CancelAndClear(Cookie);
             Callback.Run();
             if (Mode == EPeriodicInvokerMode::Automatic) {
                 ScheduleNext();

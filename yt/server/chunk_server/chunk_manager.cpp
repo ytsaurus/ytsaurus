@@ -279,11 +279,11 @@ public:
         nodeTracker->SubscribeFullHeartbeat(BIND(&TThis::OnFullHeartbeat, MakeWeak(this)));
         nodeTracker->SubscribeIncrementalHeartbeat(BIND(&TThis::OnIncrementalHeartbeat, MakeWeak(this)));
 
-        ProfilingInvoker = New<TPeriodicInvoker>(
+        ProfilingExecutor = New<TPeriodicExecutor>(
             Bootstrap->GetMetaStateFacade()->GetInvoker(),
             BIND(&TThis::OnProfiling, MakeWeak(this)),
             ProfilingPeriod);
-        ProfilingInvoker->Start();
+        ProfilingExecutor->Start();
     }
 
 
@@ -645,7 +645,7 @@ private:
 
     bool NeedToRecomputeStatistics;
 
-    NConcurrency::TPeriodicInvokerPtr ProfilingInvoker;
+    NConcurrency::TPeriodicExecutorPtr ProfilingExecutor;
 
     NProfiling::TProfiler Profiler;
     NProfiling::TRateCounter AddChunkCounter;

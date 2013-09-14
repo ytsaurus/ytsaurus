@@ -14,7 +14,7 @@
 #include <core/misc/async_stream_state.h>
 
 #include <core/concurrency/thread_affinity.h>
-#include <core/concurrency/periodic_invoker.h>
+#include <core/concurrency/periodic_executor.h>
 #include <core/concurrency/parallel_awaiter.h>
 #include <core/concurrency/action_queue.h>
 #include <core/concurrency/async_semaphore.h>
@@ -54,7 +54,7 @@ struct TNode
     TNodeDescriptor Descriptor;
     TProxy LightProxy;
     TProxy HeavyProxy;
-    TPeriodicInvokerPtr PingInvoker;
+    TPeriodicExecutorPtr PingExecutor;
 
     TNode(int index, const TNodeDescriptor& descriptor)
         : Index(index)
@@ -613,7 +613,7 @@ TReplicationWriter::TReplicationWriter(
         auto node = New<TNode>(index, Targets[index]);
         node->LightProxy.SetDefaultTimeout(Config->NodeRpcTimeout);
         node->HeavyProxy.SetDefaultTimeout(Config->NodeRpcTimeout);
-        node->PingInvoker = New<TPeriodicInvoker>(
+        node->PingExecutor = New<TPeriodicExecutor>(
             TDispatcher::Get()->GetWriterInvoker(),
             BIND(&TReplicationWriter::SendPing, MakeWeak(this), MakeWeak(node)),
             Config->NodePingInterval);
@@ -976,12 +976,12 @@ void TReplicationWriter::StartPing(TNodePtr node)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
-    node->PingInvoker->Start();
+    node->PingExecutor->Start();
 }
 
 void TReplicationWriter::CancelPing(TNodePtr node)
 {
-    node->PingInvoker->Stop();
+    node->PingExecutor->Stop();
 }
 
 void TReplicationWriter::CancelAllPings()

@@ -4,7 +4,7 @@
 #include "mutation_context.h"
 
 #include <core/concurrency/thread_affinity.h>
-#include <core/concurrency/periodic_invoker.h>
+#include <core/concurrency/periodic_executor.h>
 
 #include <queue>
 
@@ -28,7 +28,7 @@ public:
 private:
     TResponseKeeperConfigPtr Config;
     IInvokerPtr StateInvoker;
-    NConcurrency::TPeriodicInvokerPtr SweepInvoker;
+    NConcurrency::TPeriodicExecutorPtr SweepExecutor;
 
     typedef yhash_map<TMutationId, TSharedRef> TResponseMap;
     TResponseMap ResponseMap;
