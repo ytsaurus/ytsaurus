@@ -18,7 +18,7 @@ formatter = logging.Formatter('%(asctime)-15s\t{}\t%(message)s'.format(yt.config
 logger.addHandler(logging.StreamHandler())
 logger.handlers[0].setFormatter(formatter)
 
-def clean_operations(count, total_count, failed_timeout, log):
+def clean_operations(count, total_count, failed_timeout, robots, log):
     """Clean all operations started no more than #days days ago,
        leaving no more than #count most recent operations."""
 
@@ -44,7 +44,7 @@ def clean_operations(count, total_count, failed_timeout, log):
         time_since = datetime.utcnow() - op.time 
         is_old = (time_since > failed_timeout)
 
-        is_regular = (op.spec.get("authenticated_user", "unknown") in ["crawler", "cron", "odin"])
+        is_regular = (op.spec.get("authenticated_user", "unknown") in robots)
 
         if is_regular or (is_casual and saved >= count) or is_old or (saved >= total_count):
             to_remove.append(op.id)
@@ -78,10 +78,11 @@ def main():
                        help='leave no more that N operations totally')
     parser.add_argument('--failed_timeout', metavar='N', type=int, default=2,
                        help='remove all failed operation older than N days')
+    parser.add_argument('--robot', action="append",  help='robot users that run operations very often and can be ignored')
     parser.add_argument('--log', help='file to save operation specs')
 
     args = parser.parse_args()
-    clean_operations(args.count, args.total_count, timedelta(days=args.failed_timeout), args.log)
+    clean_operations(args.count, args.total_count, timedelta(days=args.failed_timeout), args.robot, args.log)
 
 if __name__ == "__main__":
     main()
