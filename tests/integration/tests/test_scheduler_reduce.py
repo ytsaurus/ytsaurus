@@ -98,7 +98,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
 
 
     @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
-    def test_cat_primary(self):
+    def test_cat_teleport(self):
         create('table', '//tmp/in1')
         write(
             '//tmp/in1',
@@ -135,8 +135,8 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         create('table', '//tmp/out2')
 
         reduce(
-            in_ = ['<primary=true>//tmp/in1', '<primary=true>//tmp/in2', '//tmp/in3', '//tmp/in4'],
-            out = ['<sorted_by=[key]>//tmp/out1', '<sorted_by=[key]>//tmp/out2'],
+            in_ = ['<teleport=true>//tmp/in1', '<teleport=true>//tmp/in2', '//tmp/in3', '//tmp/in4'],
+            out = ['<sorted_by=[key], teleport=True>//tmp/out1', '<sorted_by=[key]>//tmp/out2'],
             command = 'cat>/dev/fd/4',
             reduce_by = 'key')
 
