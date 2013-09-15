@@ -56,21 +56,21 @@ private:
 
 ///////////////////////////////////////////////////////////////////////////////
 
-class TPythonBufferedStream
-    : public Py::PythonClass<TPythonBufferedStream>
+class TBufferedStreamWrap
+    : public Py::PythonClass<TBufferedStreamWrap>
 {
 public:
-    TPythonBufferedStream(Py::PythonClassInstance* self, Py::Tuple& args, Py::Dict& kwds);
+    TBufferedStreamWrap(Py::PythonClassInstance* self, Py::Tuple& args, Py::Dict& kwds);
 
     Py::Object Read(Py::Tuple& args, Py::Dict &kwds);
-    PYCXX_KEYWORDS_METHOD_DECL(TPythonBufferedStream, Read);
+    PYCXX_KEYWORDS_METHOD_DECL(TBufferedStreamWrap, Read);
 
     Py::Object Empty(Py::Tuple& args, Py::Dict &kwds);
-    PYCXX_KEYWORDS_METHOD_DECL(TPythonBufferedStream, Empty);
+    PYCXX_KEYWORDS_METHOD_DECL(TBufferedStreamWrap, Empty);
 
     TBufferedStreamPtr GetStream();
 
-    virtual ~TPythonBufferedStream();
+    virtual ~TBufferedStreamWrap();
 
     static void InitType();
 
