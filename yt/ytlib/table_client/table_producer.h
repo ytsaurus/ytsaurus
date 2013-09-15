@@ -13,7 +13,7 @@ namespace NTableClient {
 class TTableProducer
 {
 public:
-    TTableProducer(ISyncReaderPtr reader, NYson::IYsonConsumer* consumer, int tableIndex = 0);
+    TTableProducer(ISyncReaderPtr reader, NYson::IYsonConsumer* consumer, int tableIndex = -1);
     bool ProduceRow();
 
 private:

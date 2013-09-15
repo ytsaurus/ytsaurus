@@ -517,9 +517,7 @@ print row + table_index
             out='//tmp/out',
             command="python mapper.py",
             file='//tmp/mapper.py',
-            opt=[ \
-                '/spec/mapper/format=<enable_table_index=true>yamr', \
-                '/spec/mapper/enable_table_index=true'])
+            opt=['/spec/mapper/format=<enable_table_index=true>yamr'])
 
         expected = [{'key': 'a', 'value': 'value0'},
                     {'key': 'b', 'value': 'value1'}]
