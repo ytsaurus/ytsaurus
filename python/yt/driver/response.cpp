@@ -10,38 +10,38 @@ namespace NPython {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TResponse::TResponse(Py::PythonClassInstance *self, Py::Tuple &args, Py::Dict &kwds)
-    : Py::PythonClass<TResponse>::PythonClass(self, args, kwds)
+TDriverResponse::TDriverResponse(Py::PythonClassInstance *self, Py::Tuple &args, Py::Dict &kwds)
+    : Py::PythonClass<TDriverResponse>::PythonClass(self, args, kwds)
 { }
 
-void TResponse::SetResponse(TFuture<NDriver::TDriverResponse> response)
+void TDriverResponse::SetResponse(TFuture<NDriver::TDriverResponse> response)
 {
     Response_ = response;
 }
 
-void TResponse::OwnInputStream(std::unique_ptr<TPythonInputStream>& inputStream)
+void TDriverResponse::OwnInputStream(std::unique_ptr<TInputStreamWrap>& inputStream)
 {
     InputStream_.swap(inputStream);
 }
     
-void TResponse::OwnOutputStream(std::unique_ptr<TPythonOutputStream>& outputStream)
+void TDriverResponse::OwnOutputStream(std::unique_ptr<TOutputStreamWrap>& outputStream)
 {
     OutputStream_.swap(outputStream);
 }
 
 
-Py::Object TResponse::Wait(Py::Tuple& args, Py::Dict &kwds)
+Py::Object TDriverResponse::Wait(Py::Tuple& args, Py::Dict &kwds)
 {
     Response_.Get();
     return Py::None();
 }
     
-Py::Object TResponse::IsSet(Py::Tuple& args, Py::Dict &kwds)
+Py::Object TDriverResponse::IsSet(Py::Tuple& args, Py::Dict &kwds)
 {
     return Py::Boolean(Response_.IsSet());
 }
 
-Py::Object TResponse::IsOk(Py::Tuple& args, Py::Dict &kwds)
+Py::Object TDriverResponse::IsOk(Py::Tuple& args, Py::Dict &kwds)
 {
     if (!Response_.IsSet()) {
         THROW_ERROR_EXCEPTION("Response is not set");
@@ -49,7 +49,7 @@ Py::Object TResponse::IsOk(Py::Tuple& args, Py::Dict &kwds)
     return Py::Boolean(Response_.Get().Error.IsOK());
 }
 
-Py::Object TResponse::Error(Py::Tuple& args, Py::Dict &kwds)
+Py::Object TDriverResponse::Error(Py::Tuple& args, Py::Dict &kwds)
 {
     if (!Response_.IsSet()) {
         THROW_ERROR_EXCEPTION("Response is not set");
@@ -57,10 +57,10 @@ Py::Object TResponse::Error(Py::Tuple& args, Py::Dict &kwds)
     return NYTree::ConvertTo<Py::Object>(Response_.Get().Error);
 }
 
-TResponse::~TResponse()
+TDriverResponse::~TDriverResponse()
 { }
     
-void TResponse::InitType()
+void TDriverResponse::InitType()
 {
     behaviors().name("Response");
     behaviors().doc("Command response");

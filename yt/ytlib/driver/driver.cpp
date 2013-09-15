@@ -274,7 +274,7 @@ private:
         TCommandContext(
             TDriver* driver,
             const TCommandDescriptor& descriptor,
-            const TDriverRequest request,
+            const TDriverRequest& request,
             IChannelPtr masterChannel,
             IChannelPtr schedulerChannel,
             TTransactionManagerPtr transactionManager)
