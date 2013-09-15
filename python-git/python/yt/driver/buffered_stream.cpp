@@ -154,8 +154,8 @@ TSharedRef TBufferedStream::ExtractChunk(i64 size)
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TPythonBufferedStream::TPythonBufferedStream(Py::PythonClassInstance *self, Py::Tuple &args, Py::Dict &kwds)
-    : Py::PythonClass<TPythonBufferedStream>::PythonClass(self, args, kwds)
+TBufferedStreamWrap::TBufferedStreamWrap(Py::PythonClassInstance *self, Py::Tuple &args, Py::Dict &kwds)
+    : Py::PythonClass<TBufferedStreamWrap>::PythonClass(self, args, kwds)
     , Stream_(New<TBufferedStream>(Py::Int(ExtractArgument(args, kwds, "size")).asLongLong()))
 {
     if (args.length() > 0 || kwds.length() > 0) {
@@ -163,7 +163,7 @@ TPythonBufferedStream::TPythonBufferedStream(Py::PythonClassInstance *self, Py::
     }
 }
 
-Py::Object TPythonBufferedStream::Read(Py::Tuple& args, Py::Dict &kwds)
+Py::Object TBufferedStreamWrap::Read(Py::Tuple& args, Py::Dict &kwds)
 {
     auto size = Py::Int(ExtractArgument(args, kwds, "size"));
     if (args.length() > 0 || kwds.length() > 0) {
@@ -174,7 +174,7 @@ Py::Object TPythonBufferedStream::Read(Py::Tuple& args, Py::Dict &kwds)
     return Py::String(result.Begin(), result.Size());
 }
 
-Py::Object TPythonBufferedStream::Empty(Py::Tuple& args, Py::Dict &kwds)
+Py::Object TBufferedStreamWrap::Empty(Py::Tuple& args, Py::Dict &kwds)
 {
     if (args.length() > 0 || kwds.length() > 0) {
         throw Py::RuntimeError("Incorrect arguments for empty function");
@@ -182,15 +182,15 @@ Py::Object TPythonBufferedStream::Empty(Py::Tuple& args, Py::Dict &kwds)
     return Py::Boolean(Stream_->Empty());
 }
 
-TBufferedStreamPtr TPythonBufferedStream::GetStream()
+TBufferedStreamPtr TBufferedStreamWrap::GetStream()
 {
     return Stream_;
 }
 
-TPythonBufferedStream::~TPythonBufferedStream()
+TBufferedStreamWrap::~TBufferedStreamWrap()
 { }
 
-void TPythonBufferedStream::InitType()
+void TBufferedStreamWrap::InitType()
 {
     behaviors().name("BufferedStream");
     behaviors().doc("Buffered stream to perform read and download asynchronously");

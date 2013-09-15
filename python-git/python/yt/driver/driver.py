@@ -28,7 +28,7 @@ def chunk_iter(stream, response, size):
 
 
 def make_request(driver, request):
-    description = driver.get_descriptor(request.command_name)
+    description = driver.get_command_descriptor(request.command_name)
 
     yson_format = to_yson_type("yson", attributes={"format": "text"})
 
