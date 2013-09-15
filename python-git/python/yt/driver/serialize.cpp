@@ -33,9 +33,9 @@ Py::Object CreateYsonObject(const std::string& className, const Py::Object& obje
 
 ///////////////////////////////////////////////////////////////////////////////
 
-class TPythonYTreeProducer {
+class TYTreeProducer {
 public:
-    explicit TPythonYTreeProducer(IYsonConsumer* consumer)
+    explicit TYTreeProducer(IYsonConsumer* consumer)
         : Consumer_(consumer)
     { }
 
@@ -120,7 +120,7 @@ namespace NYTree {
 
 void Serialize(const Py::Object& obj, IYsonConsumer* consumer)
 {
-    TPythonYTreeProducer(consumer).Process(obj);
+    TYTreeProducer(consumer).Process(obj);
 }
 
 void Deserialize(Py::Object& obj, INodePtr node)

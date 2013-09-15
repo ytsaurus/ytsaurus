@@ -43,7 +43,7 @@ public:
         auto args = args_;
         auto kwargs = kwargs_;
         
-        auto inputStream = TPythonInputStream(ExtractArgument(args, kwargs, "stream"));
+        auto inputStream = TInputStreamWrap(ExtractArgument(args, kwargs, "stream"));
         
         auto ysonType = NYson::EYsonType::Node;
         if (HasArgument(args, kwargs, "yson_type")) {
@@ -84,7 +84,7 @@ public:
         auto kwargs = kwargs_;
         
         auto obj = ExtractArgument(args, kwargs, "object");
-        auto outputStream = TPythonOutputStream(ExtractArgument(args, kwargs, "stream"));
+        auto outputStream = TOutputStreamWrap(ExtractArgument(args, kwargs, "stream"));
 
         auto ysonFormat = NYson::EYsonFormat::Text;
         if (HasArgument(args, kwargs, "yson_format")) {

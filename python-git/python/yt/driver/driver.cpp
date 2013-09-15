@@ -76,7 +76,8 @@ public:
         behaviors().supportSetattro();
 
         PYCXX_ADD_KEYWORDS_METHOD(execute, Execute, "Executes the request");
-        PYCXX_ADD_KEYWORDS_METHOD(get_descriptor, GetDescriptor, "Describes the command");
+        PYCXX_ADD_KEYWORDS_METHOD(get_command_descriptor, GetCommandDescriptor, "Describes the command");
+        PYCXX_ADD_KEYWORDS_METHOD(get_command_descriptors, GetCommandDescriptors, "Describes all commands");
         PYCXX_ADD_KEYWORDS_METHOD(build_snapshot, BuildSnapshot, "Force metastate to build snapshot");
         PYCXX_ADD_KEYWORDS_METHOD(gc_collect, GcCollect, "Run garbage collection");
 
@@ -90,8 +91,8 @@ public:
             throw Py::RuntimeError("Incorrect arguments");
         }
 
-        Py::Callable class_type(TResponse::type());
-        Py::PythonClassObject<TResponse> pythonResponse(class_type.apply(Py::Tuple(), Py::Dict()));
+        Py::Callable class_type(TDriverResponse::type());
+        Py::PythonClassObject<TDriverResponse> pythonResponse(class_type.apply(Py::Tuple(), Py::Dict()));
         auto* response = pythonResponse.getCxxObject();
 
         TDriverRequest request;
@@ -105,20 +106,20 @@ public:
 
         auto inputStreamObj = GetAttr(pyRequest, "input_stream");
         if (!inputStreamObj.isNone()) {
-            std::unique_ptr<TPythonInputStream> inputStream(new TPythonInputStream(inputStreamObj));
+            std::unique_ptr<TInputStreamWrap> inputStream(new TInputStreamWrap(inputStreamObj));
             request.InputStream = CreateAsyncInputStream(inputStream.get());
             response->OwnInputStream(inputStream);
         }
 
         auto outputStreamObj = GetAttr(pyRequest, "output_stream");
         if (!outputStreamObj.isNone()) {
-            bool isBufferedStream = PyObject_IsInstance(outputStreamObj.ptr(), TPythonBufferedStream::type().ptr());
+            bool isBufferedStream = PyObject_IsInstance(outputStreamObj.ptr(), TBufferedStreamWrap::type().ptr());
             if (isBufferedStream) {
-                auto* pythonStream = dynamic_cast<TPythonBufferedStream*>(Py::getPythonExtensionBase(outputStreamObj.ptr()));
+                auto* pythonStream = dynamic_cast<TBufferedStreamWrap*>(Py::getPythonExtensionBase(outputStreamObj.ptr()));
                 request.OutputStream = pythonStream->GetStream();
             }
             else {
-                std::unique_ptr<TPythonOutputStream> outputStream(new TPythonOutputStream(outputStreamObj));
+                std::unique_ptr<TOutputStreamWrap> outputStream(new TOutputStreamWrap(outputStreamObj));
                 request.OutputStream = CreateAsyncOutputStream(outputStream.get());
                 response->OwnOutputStream(outputStream);
             }
@@ -129,19 +130,36 @@ public:
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, Execute)
 
-    Py::Object GetDescriptor(Py::Tuple& args, Py::Dict &kwds)
+    Py::Object GetCommandDescriptor(Py::Tuple& args, Py::Dict &kwds)
     {
         auto commandName = ConvertToStroka(ConvertToString(ExtractArgument(args, kwds, "command_name")));
         if (args.length() > 0 || kwds.length() > 0) {
             throw Py::RuntimeError("Incorrect arguments");
         }
         
-        Py::Callable class_type(TPythonCommandDescriptor::type());
-        Py::PythonClassObject<TPythonCommandDescriptor> descriptor(class_type.apply(Py::Tuple(), Py::Dict()));
+        Py::Callable class_type(TCommandDescriptor::type());
+        Py::PythonClassObject<TCommandDescriptor> descriptor(class_type.apply(Py::Tuple(), Py::Dict()));
         descriptor.getCxxObject()->SetDescriptor(DriverInstance_->GetCommandDescriptor(commandName));
         return descriptor;
     }
-    PYCXX_KEYWORDS_METHOD_DECL(TDriver, GetDescriptor)
+    PYCXX_KEYWORDS_METHOD_DECL(TDriver, GetCommandDescriptor)
+    
+    Py::Object GetCommandDescriptors(Py::Tuple& args, Py::Dict &kwds)
+    {
+        if (args.length() > 0 || kwds.length() > 0) {
+            throw Py::RuntimeError("Incorrect arguments");
+        }
+
+        auto descriptors = Py::List();
+        FOREACH(const auto& nativeDescriptor, DriverInstance_->GetCommandDescriptors()) {
+            Py::Callable class_type(TCommandDescriptor::type());
+            Py::PythonClassObject<TCommandDescriptor> descriptor(class_type.apply(Py::Tuple(), Py::Dict()));
+            descriptor.getCxxObject()->SetDescriptor(nativeDescriptor);
+            descriptors.append(descriptor);
+        }
+        return descriptors;
+    }
+    PYCXX_KEYWORDS_METHOD_DECL(TDriver, GetCommandDescriptors)
 
     Py::Object GcCollect(Py::Tuple& args, Py::Dict &kwds)
     {
@@ -199,15 +217,15 @@ public:
         RegisterShutdown();
 
         TDriver::InitType();
-        TPythonBufferedStream::InitType();
-        TResponse::InitType();
-        TPythonCommandDescriptor::InitType();
+        TBufferedStreamWrap::InitType();
+        TDriverResponse::InitType();
+        TCommandDescriptor::InitType();
 
         initialize("Python bindings for driver");
 
         Py::Dict moduleDict(moduleDictionary());
         moduleDict["Driver"] = TDriver::type();
-        moduleDict["BufferedStream"] = TPythonBufferedStream::type();
+        moduleDict["BufferedStream"] = TBufferedStreamWrap::type();
     }
 
     virtual ~driver_python_module()
