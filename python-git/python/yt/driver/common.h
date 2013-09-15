@@ -5,10 +5,7 @@
 #include <contrib/libs/pycxx/Objects.hxx>
 
 // Unfortunately PyCxx does not implement some useful methods.
-// TODO(babenko): rename and possibly split
 namespace Py {
-
-////////////////////////////////////////////////////////////////////////////////
 
 inline bool IsInstance(const Object& obj, const Object& cls)
 {
@@ -25,22 +22,18 @@ inline String ConvertToString(const Object& obj)
     return String(PyObject_Str(*obj));
 }
 
-inline Object GetAttr(const Object& obj, const std::string& fieldName)
-{
+inline Object GetAttr(const Object& obj, const std::string& fieldName) {
     if (!obj.hasAttr(fieldName)) {
         throw RuntimeError("There is no field " + fieldName);
     }
     return obj.getAttr(fieldName);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace Py
 
 
-namespace NYT {
 
-////////////////////////////////////////////////////////////////////////////////
+namespace NYT {
 
 inline Stroka ConvertToStroka(const Py::String& pyString)
 {
@@ -54,6 +47,5 @@ inline Py::String ConvertToPythonString(const Stroka& string)
     return Py::String(string.c_str(), string.length());
 }
 
-////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
