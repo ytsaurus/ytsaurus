@@ -11,39 +11,39 @@ namespace NPython {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-class TResponse
-    : public Py::PythonClass<TResponse>
+class TDriverResponse
+    : public Py::PythonClass<TDriverResponse>
 {
 public:
-    TResponse(Py::PythonClassInstance *self, Py::Tuple &args, Py::Dict &kwds);
+    TDriverResponse(Py::PythonClassInstance *self, Py::Tuple &args, Py::Dict &kwds);
 
     void SetResponse(TFuture<NDriver::TDriverResponse> response);
 
-    void OwnInputStream(std::unique_ptr<TPythonInputStream>& inputStream);
+    void OwnInputStream(std::unique_ptr<TInputStreamWrap>& inputStream);
     
-    void OwnOutputStream(std::unique_ptr<TPythonOutputStream>& outputStream);
+    void OwnOutputStream(std::unique_ptr<TOutputStreamWrap>& outputStream);
     
     Py::Object Wait(Py::Tuple& args, Py::Dict &kwds);
-    PYCXX_KEYWORDS_METHOD_DECL(TResponse, Wait);
+    PYCXX_KEYWORDS_METHOD_DECL(TDriverResponse, Wait);
     
     Py::Object IsSet(Py::Tuple& args, Py::Dict &kwds);
-    PYCXX_KEYWORDS_METHOD_DECL(TResponse, IsSet);
+    PYCXX_KEYWORDS_METHOD_DECL(TDriverResponse, IsSet);
     
     Py::Object IsOk(Py::Tuple& args, Py::Dict &kwds);
-    PYCXX_KEYWORDS_METHOD_DECL(TResponse, IsOk);
+    PYCXX_KEYWORDS_METHOD_DECL(TDriverResponse, IsOk);
 
     Py::Object Error(Py::Tuple& args, Py::Dict &kwds);
-    PYCXX_KEYWORDS_METHOD_DECL(TResponse, Error);
+    PYCXX_KEYWORDS_METHOD_DECL(TDriverResponse, Error);
 
-    virtual ~TResponse();
+    virtual ~TDriverResponse();
     
     static void InitType();
 
 private:
     TFuture<NDriver::TDriverResponse> Response_;
 
-    std::unique_ptr<TPythonInputStream> InputStream_;
-    std::unique_ptr<TPythonOutputStream> OutputStream_;
+    std::unique_ptr<TInputStreamWrap> InputStream_;
+    std::unique_ptr<TOutputStreamWrap> OutputStream_;
 };
 
 ///////////////////////////////////////////////////////////////////////////////

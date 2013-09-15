@@ -10,12 +10,12 @@ namespace NPython {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-class TPythonInputStream
+class TInputStreamWrap
     : public TInputStream
 {
 public:
-    explicit TPythonInputStream(const Py::Object& inputStream);
-    virtual ~TPythonInputStream() throw();
+    explicit TInputStreamWrap(const Py::Object& inputStream);
+    virtual ~TInputStreamWrap() throw();
 
     virtual size_t DoRead(void* buf, size_t len);
 
@@ -23,10 +23,10 @@ private:
     Py::Object InputStream_;
 };
 
-class TPythonOutputStream: public TOutputStream {
+class TOutputStreamWrap: public TOutputStream {
 public:
-    explicit TPythonOutputStream(const Py::Object& outputStream);
-    virtual ~TPythonOutputStream() throw();
+    explicit TOutputStreamWrap(const Py::Object& outputStream);
+    virtual ~TOutputStreamWrap() throw();
 
     virtual void DoWrite(const void* buf, size_t len);
 
