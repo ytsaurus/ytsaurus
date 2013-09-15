@@ -11,14 +11,14 @@
 namespace NYT {
 namespace NPython {
 
-TPythonInputStream::TPythonInputStream(const Py::Object& inputStream)
+TInputStreamWrap::TInputStreamWrap(const Py::Object& inputStream)
     : InputStream_(inputStream)
 { }
     
-TPythonInputStream::~TPythonInputStream() throw()
+TInputStreamWrap::~TInputStreamWrap() throw()
 { }
 
-size_t TPythonInputStream::DoRead(void* buf, size_t len)
+size_t TInputStreamWrap::DoRead(void* buf, size_t len)
 {
     auto args = Py::TupleN(Py::Int(static_cast<long>(len)));
     Py::Object result = InputStream_.callMemberFunction("read", args);
@@ -32,14 +32,14 @@ size_t TPythonInputStream::DoRead(void* buf, size_t len)
 }
 
 
-TPythonOutputStream::TPythonOutputStream(const Py::Object& outputStream)
+TOutputStreamWrap::TOutputStreamWrap(const Py::Object& outputStream)
     : OutputStream_(outputStream)
 { }
 
-TPythonOutputStream::~TPythonOutputStream() throw()
+TOutputStreamWrap::~TOutputStreamWrap() throw()
 { }
 
-void TPythonOutputStream::DoWrite(const void* buf, size_t len) {
+void TOutputStreamWrap::DoWrite(const void* buf, size_t len) {
     //std::string str((const char*)buf, len);
     OutputStream_.callMemberFunction("write", Py::TupleN(Py::String((const char*)buf, len)));
 }
