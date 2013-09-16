@@ -1,5 +1,5 @@
 import yt.yson as yson
-from yt.driver import Driver, Request, make_request
+from yt.bindings.driver import Driver, Request, make_request
 from yt.common import YtError, flatten, update
 
 import os
