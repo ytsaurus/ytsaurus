@@ -80,18 +80,19 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         reduce(
             in_ = ['//tmp/in1', '//tmp/in2'],
             out = ['<sorted_by=[key]>//tmp/out'],
-            command = 'cat')
+            command = 'cat',
+            opt = ['/spec/reducer/format=dsv'])
 
         assert read('//tmp/out') == \
             [
-                {'key': -1,'value': 5},
-                {'key': 0, 'value': 1},
-                {'key': 1, 'value': 6},
-                {'key': 2, 'value': 2},
-                {'key': 3, 'value': 7},
-                {'key': 4, 'value': 3},
-                {'key': 5, 'value': 8},
-                {'key': 7, 'value': 4}
+                {'key': "-1",'value': "5"},
+                {'key': "0", 'value': "1"},
+                {'key': "1", 'value': "6"},
+                {'key': "2", 'value': "2"},
+                {'key': "3", 'value': "7"},
+                {'key': "4", 'value': "3"},
+                {'key': "5", 'value': "8"},
+                {'key': "7", 'value': "4"}
             ]
 
         assert get('//tmp/out/@sorted') == 'true'
@@ -128,7 +129,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         create('table', '//tmp/in4')
         write(
             '//tmp/in4',
-            [ {'key': 10,'value': 1}, ],
+            [ {'key': 9,'value': 7}, ],
             sorted_by = 'key;value')
 
         create('table', '//tmp/out1')
@@ -136,14 +137,10 @@ class TestSchedulerReduceCommands(YTEnvSetup):
 
         reduce(
             in_ = ['<teleport=true>//tmp/in1', '<teleport=true>//tmp/in2', '//tmp/in3', '//tmp/in4'],
-            out = ['<sorted_by=[key], teleport=True>//tmp/out1', '<sorted_by=[key]>//tmp/out2'],
+            out = ['<sorted_by=[key]; teleport=true>//tmp/out1', '<sorted_by=[key]>//tmp/out2'],
             command = 'cat>/dev/fd/4',
-            reduce_by = 'key')
-
-        print read('//tmp/out1')
-        print read('//tmp/out2')
-
-        print get('//tmp/out1/@chunk_ids')
+            reduce_by = 'key',
+            opt = ['/spec/reducer/format=dsv'])
 
         assert read('//tmp/out1') == \
             [
@@ -155,10 +152,10 @@ class TestSchedulerReduceCommands(YTEnvSetup):
 
         assert read('//tmp/out2') == \
             [
-                {'key': 8,'value': 1},
-                {'key': 8,'value': 5},
-                {'key': 9, 'value': 6},
-                {'key': 10,'value': 1},
+                {'key': "8",'value': "1"},
+                {'key': "8",'value': "5"},
+                {'key': "9", 'value': "6"},
+                {'key': "9",'value': "7"},
             ]
 
         assert get('//tmp/out1/@sorted') == 'true'
@@ -190,15 +187,16 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         reduce(
             in_ = ['//tmp/in1', '//tmp/in2'],
             out = ['<sorted_by=[key]>//tmp/out'],
-            command = 'cat')
+            command = 'cat',
+            opt = ['/spec/reducer/format=dsv'])
 
         assert read('//tmp/out') == \
             [
-                {'key': 0, 'value': 1},
-                {'key': 2, 'value': 6},
-                {'key': 2, 'value': 9},
-                {'key': 2, 'value': 7},
-                {'key': 2, 'value': 8}
+                {'key': "0", 'value': "1"},
+                {'key': "2", 'value': "9"},
+                {'key': "2", 'value': "6"},
+                {'key': "2", 'value': "7"},
+                {'key': "2", 'value': "8"}
             ]
 
         assert get('//tmp/out/@sorted') == 'true'

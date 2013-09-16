@@ -1629,7 +1629,7 @@ private:
     virtual bool IsOutputLivePreviewSupported() const override
     {
         FOREACH(const auto& inputTable, InputTables) {
-            if (inputTable.Path.Attributes().Get<bool>("primary", false)) {
+            if (inputTable.Path.Attributes().Get<bool>("teleport", false)) {
                 return false;
             }
         }
