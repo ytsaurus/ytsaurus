@@ -19,6 +19,7 @@
 #include <core/logging/log_manager.h>
 
 #include <core/ytree/convert.h>
+#include <ytlib/driver/dispatcher.h>
 #include <ytlib/object_client/object_service_proxy.h>
 #include <ytlib/meta_state/meta_state_manager_proxy.h>
 
@@ -160,6 +161,19 @@ public:
         return descriptors;
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, GetCommandDescriptors)
+    
+    Py::Object ConfigureDispatcher(Py::Tuple& args, Py::Dict &kwds)
+    {
+        auto heavyPoolSize = Py::Int(ExtractArgument(args, kwds, "command_name")).asLongLong();
+        if (args.length() > 0 || kwds.length() > 0) {
+            throw Py::RuntimeError("Incorrect arguments");
+        }
+
+        NDriver::TDispatcher::Get()->Configure(heavyPoolSize);
+
+        return Py::None();
+    }
+    PYCXX_KEYWORDS_METHOD_DECL(TDriver, ConfigureDispatcher)
 
     Py::Object GcCollect(Py::Tuple& args, Py::Dict &kwds)
     {
