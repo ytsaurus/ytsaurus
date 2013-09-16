@@ -2,7 +2,7 @@
 
 #include "common.h"
 
-#include <ytlib/actions/future.h>
+#include <core/actions/future.h>
 
 namespace NYT {
 namespace NPython {
