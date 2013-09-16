@@ -34,7 +34,7 @@ void WriteYson(
     NYson::EYsonFormat format,
     int indent)
 {
-    NYson::TYsonWriter writer(output, format, type, indent);
+    NYson::TYsonWriter writer(output, format, type, false, indent);
     Consume(value, &writer);
 }
 

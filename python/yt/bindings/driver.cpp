@@ -16,6 +16,7 @@
 #include <ytlib/ytree/convert.h>
 
 #include <ytlib/driver/dispatcher.h>
+
 #include <ytlib/object_client/object_service_proxy.h>
 #include <ytlib/meta_state/meta_state_manager_proxy.h>
 
@@ -46,6 +47,14 @@ using NYTree::ConvertToYsonString;
 using NYson::EYsonFormat;
 
 namespace NPython {
+
+using namespace NFormats;
+using namespace NDriver;
+using namespace NYson;
+using namespace NYTree;
+using namespace NConcurrency;
+
+///////////////////////////////////////////////////////////////////////////////
 
 class TDriver
     : public Py::PythonClass<TDriver>
