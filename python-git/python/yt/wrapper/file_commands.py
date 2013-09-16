@@ -63,7 +63,7 @@ def upload_file(stream, destination, file_writer=None):
         lambda path: create("file", path, ignore_existing=True),
         config.USE_RETRIES_DURING_UPLOAD)
 
-def smart_upload_file(filename, destination=None, yt_filename=None, placement_strategy=None):
+def smart_upload_file(filename, destination=None, yt_filename=None, placement_strategy=None, ignore_set_attributes_error=True):
     """
     Upload file specified by filename to destination path.
     If destination is not specified, than name is determined by placement strategy.
@@ -136,10 +136,16 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
     else:
         upload_with_check(destination)
 
-    set_attribute(destination, "file_name", yt_filename)
-
     executable = os.access(filename, os.X_OK) or config.ALWAYS_SET_EXECUTABLE_FLAG_TO_FILE
-    set_attribute(destination, "executable", bool_to_string(executable))
+    
+    try:
+        set_attribute(destination, "file_name", yt_filename)
+        set_attribute(destination, "executable", bool_to_string(executable))
+    except YtResponseError as error:
+        if error.is_concurrent_transaction_lock_conflict() and ignore_set_attributes_error:
+            pass
+        else:
+            raise
 
     return convert_to_yson_type(
         destination,
