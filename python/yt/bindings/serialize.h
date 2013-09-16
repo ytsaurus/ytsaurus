@@ -3,7 +3,7 @@
 #include <contrib/libs/pycxx/Objects.hxx>
 
 #include <core/yson/consumer.h>
-#include <ytlib/ytree/public.h>
+#include <core/ytree/public.h>
 
 namespace NYT {
 namespace NYTree {
