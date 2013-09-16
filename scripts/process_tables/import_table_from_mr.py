@@ -126,8 +126,6 @@ def main():
         if args.job_count is not None:
             spec["job_count"] = args.job_count
 
-        yt.set_attribute(destination, "compression_codec", "gzip_best_compression")
-        
         temp_yamr_table = "tmp/yt/" + str(uuid.uuid4())
         copy_table(source, temp_yamr_table)
         source = temp_yamr_table
@@ -245,28 +243,29 @@ def main():
 
             if sorted:
                 yt.run_sort(destination, sort_by=["key", "subkey"], spec={"parition_count": yt.get_attribute(destination, "chunk_count")})
+
+            if args.erasure_codec is not None and args.erasure_codec == "none":
+                args.erasure_codec = None
+
+            if args.compression_codec is not None or args.erasure_codec is not None:
+                mode = "sorted" if sorted else "unordered"
+                spec = {"combine_chunks": "true",
+                        "force_transform": "true"}
+
+                if args.compression_codec is not None:
+                    yt.set_attribute(destination, "compression_codec", args.compression_codec)
+                if args.erasure_codec is not None:
+                    yt.set_attribute(destination, "erasure_codec", args.erasure_codec)
+                    spec["job_io"] = {"table_writer": {"desired_chunk_size": 2 * 1024 ** 3}}
+                    spec["data_size_per_job"] = max(1, int(4 * (1024 ** 3) / yt.get(destination + "/@compression_ratio")))
+
+                yt.run_merge(destination, destination, mode=mode, spec=spec)
+
         except yt.YtError:
             _, _, exc_traceback = sys.exc_info()
             traceback.print_tb(exc_traceback, file=sys.stdout)
             yt.remove(destination, force=True)
         
-        if args.erasure_codec is not None and args.erasure_codec == "none":
-            args.erasure_codec = None
-
-        if args.compression_codec is not None or args.erasure_codec is not None:
-            mode = "sorted" if sorted else "unordered"
-            spec = {"combine_chunks": "true",
-                    "force_transform": "true"}
-
-            if args.compression_codec is not None:
-                yt.set_attribute(destination, "compression_codec", args.compression_codec)
-            if args.erasure_codec is not None:
-                yt.set_attribute(destination, "erasure_codec", args.erasure_codec)
-                spec["job_io"] = {"table_writer": {"desired_chunk_size": 2 * 1024 ** 3}}
-                spec["data_size_per_job"] = max(1, int(4 * (1024 ** 3) / yt.get(destination + "/@compression_ratio")))
-
-            yt.run_merge(destination, destination, mode=mode, spec=spec)
-
 
     if args.lock is not None:
         with yt.Transaction():
