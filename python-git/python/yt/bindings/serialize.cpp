@@ -52,20 +52,15 @@ public:
         // TODO(ignat): maybe use IsInstance in all cases?
         if (obj.isBoolean()) {
             Consumer_->OnStringScalar(Py::Boolean(obj) ? "true" : "false");
-        }
-        else if (obj.isInteger()) {
+        } else if (obj.isInteger()) {
             Consumer_->OnIntegerScalar(Py::Int(obj).asLongLong());
-        }
-        else if (obj.isFloat()) {
+        } else if (obj.isFloat()) {
             Consumer_->OnDoubleScalar(Py::Float(obj));
-        }
-        else if (IsStringLike(obj)) {
+        } else if (IsStringLike(obj)) {
             Consumer_->OnStringScalar(ConvertToStroka(ConvertToString(obj)));
-        }
-        else if (IsInstance(obj, GetYsonType("YsonEntity"))) {
+        } else if (IsInstance(obj, GetYsonType("YsonEntity"))) {
             Consumer_->OnEntity();
-        }
-        else if (obj.isSequence()) {
+        } else if (obj.isSequence()) {
             const auto& objList = Py::Sequence(obj);
             Consumer_->OnBeginList();
             for (auto it = objList.begin(); it != objList.end(); ++it) {
@@ -73,13 +68,11 @@ public:
                 Process(*it);
             }
             Consumer_->OnEndList();
-        }
-        else if (obj.isMapping()) {
+        } else if (obj.isMapping()) {
             Consumer_->OnBeginMap();
             ProcessItems(Py::Mapping(obj).items());
             Consumer_->OnEndMap();
-        }
-        else {
+        } else {
             throw Py::RuntimeError(
                 "Unsupported python object in tree builder: " +
                 std::string(obj.repr()));
@@ -139,20 +132,15 @@ void Deserialize(Py::Object& obj, INodePtr node)
             map.setItem(~child.first, item);
         }
         obj = CreateYsonObject("YsonMap", map, attributes);
-    }
-    else if (type == ENodeType::Entity) {
+    } else if (type == ENodeType::Entity) {
         obj = CreateYsonObject("YsonEntity", Py::None(), attributes);
-    }
-    else if (type == ENodeType::Integer) {
+    } else if (type == ENodeType::Integer) {
         obj = CreateYsonObject("YsonInteger", Py::Int(node->AsInteger()->GetValue()), attributes);
-    }
-    else if (type == ENodeType::Double) {
+    } else if (type == ENodeType::Double) {
         obj = CreateYsonObject("YsonDouble", Py::Float(node->AsDouble()->GetValue()), attributes);
-    }
-    else if (type == ENodeType::String) {
+    } else if (type == ENodeType::String) {
         obj = CreateYsonObject("YsonString", Py::String(~node->AsString()->GetValue()), attributes);
-    }
-    else if (type == ENodeType::List) {
+    } else if (type == ENodeType::List) {
         auto list = Py::List();
         FOREACH (auto child, node->AsList()->GetChildren()) {
             Py::Object item;
@@ -160,8 +148,7 @@ void Deserialize(Py::Object& obj, INodePtr node)
             list.append(item);
         }
         obj = CreateYsonObject("YsonList", list, attributes);
-    }
-    else {
+    } else {
         THROW_ERROR_EXCEPTION("Unsupported node type %s", ~type.ToString());
     }
 }

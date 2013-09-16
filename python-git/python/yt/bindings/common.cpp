@@ -9,8 +9,7 @@ Py::Object ExtractArgument(Py::Tuple& args, Py::Dict& kwds, const std::string& n
     if (kwds.hasKey(name)) {
         result = kwds[name];
         kwds.delItem(name);
-    }
-    else {
+    } else {
         if (args.length() == 0) {
             throw Py::RuntimeError("Missing argument '" + name + "'");
         }
@@ -24,8 +23,7 @@ bool HasArgument(Py::Tuple& args, Py::Dict& kwds, const std::string& name)
 {
     if (kwds.hasKey(name)) {
         return true;
-    }
-    else {
+    } else {
         return args.length() > 0;
     }
 }
