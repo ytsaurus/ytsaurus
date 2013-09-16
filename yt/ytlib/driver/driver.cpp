@@ -87,8 +87,6 @@ public:
 
         BlockCache = CreateClientBlockCache(Config->BlockCache);
 
-        TDispatcher::Get()->Configure(Config);
-
         // Register all commands.
 #define REGISTER(command, name, inDataType, outDataType, isVolatile, isHeavy) \
         RegisterCommand<command>(TCommandDescriptor(name, EDataType::inDataType, EDataType::outDataType, isVolatile, isHeavy));
