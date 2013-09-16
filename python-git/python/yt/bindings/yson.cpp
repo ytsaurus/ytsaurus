@@ -20,20 +20,20 @@ using NYTree::ConvertToYsonString;
 
 namespace NPython {
 
-class yson_python_module
-    : public Py::ExtensionModule<yson_python_module>
+class yson_module
+    : public Py::ExtensionModule<yson_module>
 {
 public:
-    yson_python_module()
-        : Py::ExtensionModule<yson_python_module>("yson_python")
+    yson_module()
+        : Py::ExtensionModule<yson_module>("yson")
     {
         RegisterShutdown();
 
-        add_keyword_method("load", &yson_python_module::Load, "load yson from stream");
-        add_keyword_method("loads", &yson_python_module::Loads, "load yson from string");
+        add_keyword_method("load", &yson_module::Load, "load yson from stream");
+        add_keyword_method("loads", &yson_module::Loads, "load yson from string");
         
-        add_keyword_method("dump", &yson_python_module::Dump, "dump yson to stream");
-        add_keyword_method("dumps", &yson_python_module::Dumps, "dump yson to string");
+        add_keyword_method("dump", &yson_module::Dump, "dump yson to stream");
+        add_keyword_method("dumps", &yson_module::Dumps, "dump yson to string");
         
         initialize("Yson python bindings");
     }
@@ -128,7 +128,7 @@ public:
         return Py::String(~ysonString.Data());
     }
 
-    virtual ~yson_python_module()
+    virtual ~yson_module()
     { }
 };
 
@@ -143,14 +143,14 @@ public:
 #define EXPORT_SYMBOL
 #endif
 
-extern "C" EXPORT_SYMBOL void inityson_python()
+extern "C" EXPORT_SYMBOL void inityson()
 {
-    static NYT::NPython::yson_python_module* yson_python = new NYT::NPython::yson_python_module;
-    UNUSED(yson_python);
+    static NYT::NPython::yson_module* yson = new NYT::NPython::yson_module;
+    UNUSED(yson);
 }
 
 // symbol required for the debug version
-extern "C" EXPORT_SYMBOL void inityson_python_d()
-{ inityson_python(); }
+extern "C" EXPORT_SYMBOL void inityson_d()
+{ inityson(); }
 
 
