@@ -83,11 +83,9 @@ bool TBufferedStream::Write(const void* buf, size_t len)
         if (Data_.End() - End_ < len) {
             if (Size_ + len > Data_.Size()) {
                 Reallocate(std::max(Size_ + len, Data_.Size() * 2));
-            }
-            else if (End_ - Begin_ <= Begin_ - Data_.Begin()) {
+            } else if (End_ - Begin_ <= Begin_ - Data_.Begin()) {
                 Move(Data_.Begin());
-            }
-            else {
+            } else {
                 Reallocate(Data_.Size());
             }
         }
@@ -109,8 +107,7 @@ bool TBufferedStream::Write(const void* buf, size_t len)
         State_ = EState::Full;
 
         return false;
-    }
-    else {
+    } else {
         return true;
     }
 }

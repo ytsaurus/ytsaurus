@@ -118,8 +118,7 @@ public:
             if (isBufferedStream) {
                 auto* pythonStream = dynamic_cast<TBufferedStreamWrap*>(Py::getPythonExtensionBase(outputStreamObj.ptr()));
                 request.OutputStream = pythonStream->GetStream();
-            }
-            else {
+            } else {
                 std::unique_ptr<TOutputStreamWrap> outputStream(new TOutputStreamWrap(outputStreamObj));
                 request.OutputStream = CreateAsyncOutputStream(outputStream.get());
                 response->OwnOutputStream(outputStream);
@@ -152,7 +151,7 @@ public:
         }
 
         auto descriptors = Py::List();
-        FOREACH(const auto& nativeDescriptor, DriverInstance_->GetCommandDescriptors()) {
+        FOREACH (const auto& nativeDescriptor, DriverInstance_->GetCommandDescriptors()) {
             Py::Callable class_type(TCommandDescriptor::type());
             Py::PythonClassObject<TCommandDescriptor> descriptor(class_type.apply(Py::Tuple(), Py::Dict()));
             descriptor.getCxxObject()->SetDescriptor(nativeDescriptor);
@@ -221,12 +220,12 @@ private:
 
 ///////////////////////////////////////////////////////////////////////////////
 
-class driver_python_module
-    : public Py::ExtensionModule<driver_python_module>
+class driver_module
+    : public Py::ExtensionModule<driver_module>
 {
 public:
-    driver_python_module()
-        : Py::ExtensionModule<driver_python_module>("driver_python")
+    driver_module()
+        : Py::ExtensionModule<driver_module>("driver")
     {
         RegisterShutdown();
 
@@ -242,7 +241,7 @@ public:
         moduleDict["BufferedStream"] = TBufferedStreamWrap::type();
     }
 
-    virtual ~driver_python_module()
+    virtual ~driver_module()
     { }
 };
 
@@ -260,13 +259,13 @@ public:
 #define EXPORT_SYMBOL
 #endif
 
-extern "C" EXPORT_SYMBOL void initdriver_python()
+extern "C" EXPORT_SYMBOL void initdriver_lib()
 {
-    static NYT::NPython::driver_python_module* driver_python = new NYT::NPython::driver_python_module;
-    UNUSED(driver_python);
+    static NYT::NPython::driver_module* driver = new NYT::NPython::driver_module;
+    UNUSED(driver);
 }
 
 // symbol required for the debug version
-extern "C" EXPORT_SYMBOL void initdriver_python_d()
-{ initdriver_python(); }
+extern "C" EXPORT_SYMBOL void initdriver_lib_d()
+{ initdriver_lib(); }
 
