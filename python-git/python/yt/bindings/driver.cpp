@@ -13,13 +13,13 @@
 
 #include <core/formats/format.h>
 
+#include <core/logging/log_manager.h>
+#include <core/ytree/convert.h>
+
 #include <ytlib/driver/config.h>
 #include <ytlib/driver/driver.h>
-
-#include <core/logging/log_manager.h>
-
-#include <core/ytree/convert.h>
 #include <ytlib/driver/dispatcher.h>
+
 #include <ytlib/object_client/object_service_proxy.h>
 #include <ytlib/meta_state/meta_state_manager_proxy.h>
 
@@ -42,6 +42,14 @@
 namespace NYT {
 
 namespace NPython {
+
+///////////////////////////////////////////////////////////////////////////////
+
+using namespace NFormats;
+using namespace NDriver;
+using namespace NYson;
+using namespace NYTree;
+using namespace NConcurrency;
 
 ///////////////////////////////////////////////////////////////////////////////
 
