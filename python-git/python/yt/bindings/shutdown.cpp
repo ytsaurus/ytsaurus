@@ -1,10 +1,11 @@
 #include "shutdown.h"
 
-#include <ytlib/profiling/profiling_manager.h>
-#include <ytlib/rpc/dispatcher.h>
-#include <ytlib/bus/tcp_dispatcher.h>
+#include <core/profiling/profiling_manager.h>
+#include <core/rpc/dispatcher.h>
+#include <core/bus/tcp_dispatcher.h>
+#include <core/logging/log_manager.h>
+
 #include <ytlib/chunk_client/dispatcher.h>
-#include <ytlib/logging/log_manager.h>
 
 #include <contrib/libs/pycxx/Objects.hxx>
 
@@ -31,7 +32,7 @@ void Shutdown()
     NRpc::TDispatcher::Get()->Shutdown();
     NChunkClient::TDispatcher::Get()->Shutdown();
     NProfiling::TProfilingManager::Get()->Shutdown();
-    TDelayedInvoker::Shutdown();
+    NConcurrency::TDelayedExecutor::Shutdown();
     NLog::TLogManager::Get()->Shutdown();
 }
 
