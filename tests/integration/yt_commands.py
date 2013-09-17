@@ -88,7 +88,7 @@ def command(command_name, arguments, input_stream=None, output_stream=None, verb
 def lock(path, waitable=False, **kwargs):
     kwargs["path"] = path
     kwargs["waitable"] = waitable
-    return command('lock', kwargs)
+    return command('lock', kwargs).replace('"', '').strip('\n')
 
 def get_str(path, **kwargs):
     kwargs["path"] = path

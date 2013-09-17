@@ -44,7 +44,7 @@ class YTEnvSetup(YTEnv):
         cls.path_to_test = path_to_test
         ports = {
             "master": 28001,
-            "node": 47401,
+            "node": 47601,
             "scheduler": 28101,
             "proxy": 28080}
         cls.Env = cls()
