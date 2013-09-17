@@ -109,7 +109,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
                 {'key': 4, 'value': 3},
                 {'key': 7, 'value': 4}
             ],
-            sorted_by = 'key; value')
+            sorted_by = ['key', 'value'])
 
         create('table', '//tmp/in2')
         write(
@@ -118,19 +118,19 @@ class TestSchedulerReduceCommands(YTEnvSetup):
                 {'key': 8,'value': 5},
                 {'key': 9, 'value': 6},
             ],
-            sorted_by = 'key;value')
+            sorted_by = ['key', 'value'])
 
         create('table', '//tmp/in3')
         write(
             '//tmp/in3',
             [ {'key': 8,'value': 1}, ],
-            sorted_by = 'key;value')
+            sorted_by = ['key', 'value'])
 
         create('table', '//tmp/in4')
         write(
             '//tmp/in4',
             [ {'key': 9,'value': 7}, ],
-            sorted_by = 'key;value')
+            sorted_by = ['key', 'value'])
 
         create('table', '//tmp/out1')
         create('table', '//tmp/out2')

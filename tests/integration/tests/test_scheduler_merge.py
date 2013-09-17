@@ -143,9 +143,9 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         create('table', '//tmp/t2')
         create('table', '//tmp/t3')
 
-        write_str('//tmp/t1', '{k = a; s = 0}; {k = b; s = 1}', sorted_by='k; s')
-        write_str('//tmp/t2', '{k = b; s = 2}; {k = c; s = 0}', sorted_by='k; s')
-        write_str('//tmp/t3', '{k = b; s = 0}; {k = b; s = 3}', sorted_by='k; s')
+        write_str('//tmp/t1', '{k = a; s = 0}; {k = b; s = 1}', sorted_by=['k', 's'])
+        write_str('//tmp/t2', '{k = b; s = 2}; {k = c; s = 0}', sorted_by=['k', 's'])
+        write_str('//tmp/t3', '{k = b; s = 0}; {k = b; s = 3}', sorted_by=['k', 's'])
 
         create('table', '//tmp/t_out')
         merge(mode='sorted',
@@ -177,7 +177,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         merge(mode='sorted',
               in_=['//tmp/t1', '//tmp/t2', '//tmp/t3'],
               out='//tmp/t_out',
-              merge_by='k; s')
+              merge_by=['k', 's'])
 
         res = read('//tmp/t_out')
         expected = [

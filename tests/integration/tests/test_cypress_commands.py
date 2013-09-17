@@ -353,185 +353,6 @@ class TestCypressCommands(YTEnvSetup):
         assert get('//tmp/b') == 1
         with pytest.raises(YtError): get('//tmp/a')
 
-    def test_remove_locks(self):
-        set('//tmp/a', {'b' : 1})
-
-        tx1 = start_transaction()
-        tx2 = start_transaction()
-
-        set('//tmp/a/b', 2, tx = tx1)
-        with pytest.raises(YtError): remove('//tmp/a', tx = tx2)
-
-    def test_map_locks1(self):
-        tx = start_transaction()
-        set('//tmp/a', 1, tx = tx)
-        assert get('//tmp/@lock_mode') == 'none'
-        assert get('//tmp/@lock_mode', tx = tx) == 'shared'
-
-        locks = get('//tmp/@locks', tx = tx)
-        assert len(locks) == 1
-
-        lock = locks[0]
-        assert lock['mode'] == 'shared'
-        assert lock['child_keys'] == ['a']
-
-        commit_transaction(tx)
-        assert get('//tmp') == {'a' : 1}
-
-    def test_map_locks2(self):
-        tx1 = start_transaction()
-        set('//tmp/a', 1, tx = tx1)
-
-        tx2 = start_transaction()
-        set('//tmp/b', 2, tx = tx2)
-
-        assert get('//tmp', tx = tx1) == {'a' : 1}
-        assert get('//tmp', tx = tx2) == {'b' : 2}
-        assert get('//tmp') == {}
-
-        commit_transaction(tx1)
-        assert get('//tmp') == {'a' : 1}
-        assert get('//tmp', tx = tx2) == {'a' : 1, 'b' : 2}
-
-        commit_transaction(tx2)
-        assert get('//tmp') == {'a' : 1, 'b' : 2}
-
-    def test_map_locks3(self):
-        tx1 = start_transaction()
-        set('//tmp/a', 1, tx = tx1)
-
-        tx2 = start_transaction()
-        with pytest.raises(YtError): set('//tmp/a', 2, tx = tx2)
-
-    def test_map_locks4(self):
-        set('//tmp/a', 1)
-
-        tx = start_transaction()
-        remove('//tmp/a', tx = tx)
-
-        assert get('//tmp/@lock_mode', tx = tx) == 'shared'
-
-        locks = get('//tmp/@locks', tx = tx)
-        assert len(locks) == 1
-
-        lock = locks[0]
-        assert lock['mode'] == 'shared'
-        assert lock['child_keys'] == ['a']
-
-    def test_map_locks5(self):
-        set('//tmp/a', 1)
-
-        tx1 = start_transaction()
-        remove('//tmp/a', tx = tx1)
-
-        tx2 = start_transaction()
-        with pytest.raises(YtError): set('//tmp/a', 2, tx = tx2)
-
-    def test_map_locks6(self):
-        tx = start_transaction()
-        set('//tmp/a', 1, tx = tx)
-        assert get('//tmp/a', tx = tx) == 1
-        assert get('//tmp') == {}
-
-        with pytest.raises(YtError): remove('//tmp/a')
-        remove('//tmp/a', tx = tx)
-        assert get('//tmp', tx = tx) == {}
-
-        commit_transaction(tx)
-        assert get('//tmp') == {}
-
-    def test_map_locks7(self):
-        set('//tmp/a', 1)
-
-        tx = start_transaction()
-        remove('//tmp/a', tx = tx)
-        set('//tmp/a', 2, tx = tx)
-        remove('//tmp/a', tx = tx)
-        commit_transaction(tx)
-
-        assert get('//tmp') == {}
-
-    def test_attr_locks1(self):
-        tx = start_transaction()
-        set('//tmp/@a', 1, tx = tx)
-        assert get('//tmp/@lock_mode') == 'none'
-        assert get('//tmp/@lock_mode', tx = tx) == 'shared'
-
-        locks = get('//tmp/@locks', tx = tx)
-        assert len(locks) == 1
-
-        lock = locks[0]
-        assert lock['mode'] == 'shared'
-        assert lock['attribute_keys'] == ['a']
-
-        commit_transaction(tx)
-        assert get('//tmp/@a') == 1
-
-    def test_attr_locks2(self):
-        tx1 = start_transaction()
-        set('//tmp/@a', 1, tx = tx1)
-
-        tx2 = start_transaction()
-        set('//tmp/@b', 2, tx = tx2)
-
-        assert get('//tmp/@a', tx = tx1) == 1
-        assert get('//tmp/@b', tx = tx2) == 2
-        with pytest.raises(YtError): get('//tmp/@a')
-        with pytest.raises(YtError): get('//tmp/@b')
-
-        commit_transaction(tx1)
-        assert get('//tmp/@a') == 1
-        assert get('//tmp/@a', tx = tx2) == 1
-        assert get('//tmp/@b', tx = tx2) == 2
-
-        commit_transaction(tx2)
-        assert get('//tmp/@a') == 1
-        assert get('//tmp/@b') == 2
-
-    def test_attr_locks3(self):
-        tx1 = start_transaction()
-        set('//tmp/@a', 1, tx = tx1)
-
-        tx2 = start_transaction()
-        with pytest.raises(YtError): set('//tmp/@a', 2, tx = tx2)
-
-    def test_attr_locks4(self):
-        set('//tmp/@a', 1)
-
-        tx = start_transaction()
-        remove('//tmp/@a', tx = tx)
-
-        assert get('//tmp/@lock_mode', tx = tx) == 'shared'
-
-        locks = get('//tmp/@locks', tx = tx)
-        assert len(locks) == 1
-
-        lock = locks[0]
-        assert lock['mode'] == 'shared'
-        assert lock['attribute_keys'] == ['a']
-
-    def test_attr_locks5(self):
-        set('//tmp/@a', 1)
-
-        tx1 = start_transaction()
-        remove('//tmp/@a', tx = tx1)
-
-        tx2 = start_transaction()
-        with pytest.raises(YtError): set('//tmp/@a', 2, tx = tx2)
-
-    def test_attr_locks6(self):
-        tx = start_transaction()
-        set('//tmp/@a', 1, tx = tx)
-        assert get('//tmp/@a', tx = tx) == 1
-        with pytest.raises(YtError): get('//tmp/@a')
-
-        with pytest.raises(YtError): remove('//tmp/@a')
-        remove('//tmp/@a', tx = tx)
-        with pytest.raises(YtError): get('//tmp/@a', tx = tx)
-
-        commit_transaction(tx)
-        with pytest.raises(YtError): get('//tmp/@a')
-
     def test_embedded_attributes(self):
         set("//tmp/a", {})
         set("//tmp/a/@attr", {"key": "value"})
@@ -678,12 +499,14 @@ class TestCypressCommands(YTEnvSetup):
         assert get("//tmp/l1", tx=tx) == 1
 
     def test_access_stat1(self):
+        time.sleep(1.0)
         c1 = get('//tmp/@access_counter')
         time.sleep(2.0)
         c2 = get('//tmp/@access_counter')
         assert c2 == c1
 
     def test_access_stat2(self):
+        time.sleep(1.0)
         c1 = get('//tmp/@access_counter')
         tx = start_transaction()
         lock('//tmp', mode = 'snapshot', tx = tx)
@@ -692,6 +515,7 @@ class TestCypressCommands(YTEnvSetup):
         assert c2 == c1 + 1
 
     def test_access_stat3(self):
+        time.sleep(1.0)
         c1 = get('//tmp/@access_counter')
         get('//tmp/@')
         time.sleep(2.0)
@@ -699,6 +523,7 @@ class TestCypressCommands(YTEnvSetup):
         assert c1 == c2
 
     def test_access_stat4(self):
+        time.sleep(1.0)
         c1 = get('//tmp/@access_counter')
         assert exists('//tmp')
         time.sleep(2.0)
@@ -706,6 +531,7 @@ class TestCypressCommands(YTEnvSetup):
         assert c1 == c2
 
     def test_access_stat5(self):
+        time.sleep(1.0)
         c1 = get('//tmp/@access_counter')
         assert exists('//tmp/@id')
         time.sleep(2.0)
@@ -713,6 +539,7 @@ class TestCypressCommands(YTEnvSetup):
         assert c1 == c2
 
     def test_access_stat6(self):
+        time.sleep(1.0)
         c1 = get('//tmp/@access_counter')
         ls('//tmp/@')
         time.sleep(2.0)
@@ -720,6 +547,7 @@ class TestCypressCommands(YTEnvSetup):
         assert c1 == c2
 
     def test_access_stat7(self):
+        time.sleep(1.0)
         c1 = get('//tmp/@access_counter')
         ls('//tmp')
         time.sleep(2.0)
@@ -736,6 +564,7 @@ class TestCypressCommands(YTEnvSetup):
         assert get('//tmp/t2/@access_time') == get('//tmp/t2/@creation_time')
 
     def test_access_stat_suppress1(self):
+        time.sleep(1.0)
         c1 = get('//tmp/@access_counter')
         get('//tmp', opt=['/suppress_access_tracking=true'])
         time.sleep(2.0)
@@ -743,6 +572,7 @@ class TestCypressCommands(YTEnvSetup):
         assert c1 == c2
 
     def test_access_stat_suppress2(self):
+        time.sleep(1.0)
         c1 = get('//tmp/@access_counter')
         ls('//tmp', opt=['/suppress_access_tracking=true'])
         time.sleep(2.0)
@@ -750,6 +580,7 @@ class TestCypressCommands(YTEnvSetup):
         assert c1 == c2
 
     def test_access_stat_suppress3(self):
+        time.sleep(1.0)
         create('table', '//tmp/t')
         c1 = get('//tmp/t/@access_counter')
         read('//tmp/t', opt=['/suppress_access_tracking=true'])
@@ -758,6 +589,7 @@ class TestCypressCommands(YTEnvSetup):
         assert c1 == c2
 
     def test_access_stat_suppress4(self):
+        time.sleep(1.0)
         create('file', '//tmp/f')
         c1 = get('//tmp/f/@access_counter')
         download('//tmp/f', opt=['/suppress_access_tracking=true'])
