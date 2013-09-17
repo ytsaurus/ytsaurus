@@ -162,7 +162,7 @@ void TBootstrap::Run()
     // NB: This is exactly the order in which parts get registered and there are some
     // dependencies in Clear methods.
     ObjectManager = New<TObjectManager>(Config->ObjectManager, this);
-    SecurityManager = New<TSecurityManager>(this);
+    SecurityManager = New<TSecurityManager>(Config->SecurityManager, this);
     NodeTracker = New<TNodeTracker>(Config->NodeTracker, this);
     TransactionManager = New<TTransactionManager>(Config->TransactionManager, this);
     CypressManager = New<TCypressManager>(Config->CypressManager, this);

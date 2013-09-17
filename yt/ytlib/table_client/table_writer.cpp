@@ -440,11 +440,6 @@ public:
                     keyColumns))
     { }
 
-    void Open() override
-    {
-        Sync(~Writer_, &IAsyncWriter::AsyncOpen);
-    }
-
     void WriteRow(const TRow& row) override
     {
         if (!Writer_->IsReady()) {

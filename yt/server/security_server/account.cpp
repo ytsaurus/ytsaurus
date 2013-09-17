@@ -51,7 +51,7 @@ void TAccount::ValidateDiskSpaceLimit() const
 {
     if (IsOverDiskSpaceLimit()) {
         THROW_ERROR_EXCEPTION(
-            NSecurityClient::EErrorCode::AccountIsOverLimit,
+            NSecurityClient::EErrorCode::AccountLimitExceeded,
             "Account %s is over disk space limit",
             ~Name_.Quote())
             << TErrorAttribute("usage", ResourceUsage_.DiskSpace)

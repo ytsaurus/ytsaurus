@@ -932,7 +932,7 @@ void TCypressManager::SetModified(
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    AccessTracker->SetModified(trunkNode, transaction);
+    AccessTracker->OnModify(trunkNode, transaction);
 }
 
 void TCypressManager::SetAccessed(TCypressNodeBase* trunkNode)
@@ -940,7 +940,7 @@ void TCypressManager::SetAccessed(TCypressNodeBase* trunkNode)
     VERIFY_THREAD_AFFINITY(StateThread);
 
     if (IsLeader()) {
-        AccessTracker->SetAccessed(trunkNode);
+        AccessTracker->OnAccess(trunkNode);
     }
 }
 

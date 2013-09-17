@@ -35,6 +35,77 @@ private:
         }
     }
 
+    virtual void ListSystemAttributes(std::vector<NYTree::ISystemAttributeProvider::TAttributeInfo>* attributes) override
+    {
+        attributes->push_back("banned");
+        attributes->push_back("request_rate_limit");
+        attributes->push_back("access_time");
+        attributes->push_back("request_counter");
+        attributes->push_back("request_rate");
+        TBase::ListSystemAttributes(attributes);
+    }
+
+    virtual bool GetSystemAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override
+    {
+        auto* user = this->GetThisTypedImpl();
+        auto securityManager = Bootstrap->GetSecurityManager();
+
+        if (key == "banned") {
+            BuildYsonFluently(consumer)
+                .Value(user->GetBanned());
+            return true;
+        }
+
+        if (key == "request_rate_limit") {
+            BuildYsonFluently(consumer)
+                .Value(user->GetRequestRateLimit());
+            return true;
+        }
+
+        if (key == "access_time") {
+            BuildYsonFluently(consumer)
+                .Value(user->GetAccessTime());
+            return true;
+        }
+
+        if (key == "request_counter") {
+            BuildYsonFluently(consumer)
+                .Value(user->GetRequestCounter());
+            return true;
+        }
+
+        if (key == "request_rate") {
+            BuildYsonFluently(consumer)
+                .Value(securityManager->GetRequestRate(user));
+            return true;
+        }
+
+        return TBase::GetSystemAttribute(key, consumer);
+    }
+
+    virtual bool SetSystemAttribute(const Stroka& key, const NYTree::TYsonString& value) override
+    {
+        auto* user = this->GetThisTypedImpl();
+        auto securityManager = this->Bootstrap->GetSecurityManager();
+
+        if (key == "banned") {
+            auto banned = ConvertTo<bool>(value);
+            securityManager->SetUserBanned(user, banned);
+            return true;
+        }
+
+        if (key == "request_rate_limit") {
+            auto limit = ConvertTo<double>(value);
+            if (limit < 0) {
+                THROW_ERROR_EXCEPTION("\"request_rate_limit\" cannot be negative");
+            }
+            user->SetRequestRateLimit(limit);
+            return true;
+        }
+
+        return TBase::SetSystemAttribute(key, value);
+    }
+
 };
 
 IObjectProxyPtr CreateUserProxy(
