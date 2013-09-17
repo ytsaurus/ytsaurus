@@ -1607,7 +1607,8 @@ private:
         {
             auto asyncResult = MasterConnector->FlushOperationNode(operation);
             WaitFor(asyncResult);
-            YCHECK(operation->GetState() == intermediateState);
+            if (operation->GetState() != intermediateState)
+                return;
         }
 
         SetOperationFinalState(operation, finalState, error);
@@ -1618,7 +1619,8 @@ private:
         {
             auto asyncResult = MasterConnector->FlushOperationNode(operation);
             WaitFor(asyncResult);
-            YCHECK(operation->GetState() == finalState);
+            if (operation->GetState() != finalState)
+                return;
         }
 
         operation->GetController()->Abort();
