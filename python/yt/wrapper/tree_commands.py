@@ -42,13 +42,12 @@ def set(path, value):
         },
         data=yson.dumps(value))
 
-def copy(source_path, destination_path):
-    return _make_transactional_request(
-        "copy",
-        {
-            "source_path": prepare_path(source_path),
-            "destination_path": prepare_path(destination_path)
-        })
+def copy(source_path, destination_path, preserve_account=None):
+    params = {"source_path": prepare_path(source_path),
+              "destination_path": prepare_path(destination_path)}
+    if preserve_account is not None:
+        params["preserve_account"] = bool_to_string(preserve_account)
+    return _make_transactional_request("copy", params)
 
 def move(source_path, destination_path):
     _make_transactional_request(

@@ -23,10 +23,11 @@ def merge(table):
         temp_table = yt.create_temp_table(prefix="merge")
         try:
             # To copy all attributes of node
-            # yt.remove(temp_table)
-            # yt.copy(table, temp_table)
-            for attr in ["account", "compression_codec", "erasure_codec", "replication_factor"]:
-                yt.set("{}/@{}".format(temp_table, attr), yt.get("{}/@{}".format(table, attr)))
+            yt.remove(temp_table)
+            yt.copy(table, temp_table, preserve_account=True)
+            yt.erase(temp_table)
+            #for attr in ["account", "compression_codec", "erasure_codec", "replication_factor"]:
+            #    yt.set("{}/@{}".format(temp_table, attr), yt.get("{}/@{}".format(table, attr)))
 
             mode = "sorted" if yt.is_sorted(table) else "unordered"
             yt.run_merge(table, temp_table, mode,
