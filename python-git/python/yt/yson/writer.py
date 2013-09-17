@@ -46,19 +46,21 @@ from yson_types import YsonEntity
 
 __all__ = ["dump", "dumps"]
 
-def dump(object, stream, yson_format=None, check_circular=True, encoding='utf-8'):
+def dump(object, stream, yson_format=None, indent=None, check_circular=True, encoding='utf-8'):
     '''Serialize ``object`` as a Yson formatted stream to ``fp`` (a
     ``.write()``-supporting file-like object).'''
-    stream.write(dumps(object, yson_format, check_circular, encoding))
+    stream.write(dumps(object, yson_format, check_circular, encoding, indent))
 
 
-def dumps(object, yson_format=None, check_circular=True, encoding='utf-8'):
+def dumps(object, yson_format=None, indent=None, check_circular=True, encoding='utf-8'):
     '''Serialize ``object`` as a Yson formatted string'''
     if yson_format == "binary":
         raise YsonError("binary format is not supported")
-    indent = ''
     if yson_format == "pretty":
-        indent = " " * 4
+        if indent is None:
+            indent = 4
+        if isinstance(indent, int):
+            indent = " " * indent
     d = Dumper(check_circular, encoding, indent)
     return d.dumps(object)
 
