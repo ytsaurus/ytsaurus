@@ -75,7 +75,7 @@ void TReadCommand::DoExecute()
     if (!fetchNextItem()) {
         return;
     }
-    
+
     BuildYsonMapFluently(Context->Request().ResponseParametersConsumer)
         .Item("start_row_index").Value(reader->GetTableRowIndex());
 
@@ -87,20 +87,13 @@ void TReadCommand::DoExecute()
         buffer.Clear();
     };
 
-    TNullable<int> tableIndex;
     while (true) {
-        const auto& newTableIndex = reader->GetTableIndex();
-        if (newTableIndex != tableIndex) {
-            tableIndex = newTableIndex;
-            ProduceTableSwitch(~consumer, *tableIndex);
-        }
-
         ProduceRow(~consumer, reader->GetRow());
 
         if (buffer.Size() > bufferLimit) {
             flushBuffer();
         }
-        
+
         if (!fetchNextItem()) {
             break;
         }

@@ -14,6 +14,7 @@ set( SRCS
   ${BASE}/subject_proxy_detail.cpp
   ${BASE}/user.cpp
   ${BASE}/user_proxy.cpp
+  ${BASE}/request_tracker.cpp
 )
 set( HDRS
   ${BASE}/account.h
@@ -30,9 +31,13 @@ set( HDRS
   ${BASE}/subject_proxy_detail.h
   ${BASE}/user.h
   ${BASE}/user_proxy.h
+  ${BASE}/request_tracker.h
+  ${BASE}/config.h
 )
 
 list(APPEND YT_SOURCE_FILES
   ${SRCS}
   ${HDRS}
 )
+
+protoc( ${BASE}/security_manager.proto YT_SOURCE_FILES )

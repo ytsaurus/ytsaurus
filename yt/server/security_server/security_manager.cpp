@@ -8,9 +8,13 @@
 #include "group.h"
 #include "group_proxy.h"
 #include "acl.h"
+#include "request_tracker.h"
+#include "config.h"
 
 #include <ytlib/meta_state/map.h>
 #include <ytlib/meta_state/composite_meta_state.h>
+
+#include <ytlib/ypath/token.h>
 
 #include <server/object_server/type_handler_detail.h>
 
@@ -37,6 +41,7 @@ using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NTransactionServer;
 using namespace NYTree;
+using namespace NYPath;
 using namespace NCypressServer;
 using namespace NSecurityClient;
 using namespace NObjectServer;
@@ -44,6 +49,7 @@ using namespace NObjectServer;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = SecurityServerLogger;
+static auto& Profiler = SecurityServerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -217,10 +223,13 @@ class TSecurityManager::TImpl
     : public TMetaStatePart
 {
 public:
-    explicit TImpl(NCellMaster::TBootstrap* bootstrap)
+    TImpl(
+        TSecurityManagerConfigPtr config,
+        NCellMaster::TBootstrap* bootstrap)
         : TMetaStatePart(
             bootstrap->GetMetaStateFacade()->GetManager(),
             bootstrap->GetMetaStateFacade()->GetState())
+        , Config(config)
         , Bootstrap(bootstrap)
         , RecomputeResources(false)
         , SysAccount(nullptr)
@@ -229,6 +238,7 @@ public:
         , GuestUser(nullptr)
         , EveryoneGroup(nullptr)
         , UsersGroup(nullptr)
+        , RequestTracker(New<TRequestTracker>(config, bootstrap))
     {
         YCHECK(bootstrap);
 
@@ -277,6 +287,8 @@ public:
             EveryoneGroupId = MakeWellKnownId(EObjectType::Group, cellId, 0xffffffffffffffff);
             UsersGroupId = MakeWellKnownId(EObjectType::Group, cellId, 0xfffffffffffffffe);
         }
+
+        RegisterMethod(BIND(&TImpl::UpdateRequestStatistics, Unretained(this)));
     }
 
     void Initialize()
@@ -291,6 +303,15 @@ public:
     DECLARE_METAMAP_ACCESSORS(Account, TAccount, TAccountId);
     DECLARE_METAMAP_ACCESSORS(User, TUser, TUserId);
     DECLARE_METAMAP_ACCESSORS(Group, TGroup, TGroupId);
+
+
+    TMutationPtr CreateUpdateRequestStatisticsMutation(
+        const NProto::TMetaReqUpdateRequestStatistics& request)
+    {
+        return Bootstrap
+            ->GetMetaStateFacade()
+            ->CreateMutation(this, request, &TImpl::UpdateRequestStatistics);
+    }
 
 
     TAccount* CreateAccount(const Stroka& name)
@@ -803,12 +824,56 @@ public:
     }
 
 
+    void SetUserBanned(TUser* user, bool banned)
+    {
+        if (banned && user == RootUser) {
+            THROW_ERROR_EXCEPTION("User %s cannot be banned",
+                ~user->GetName().Quote());
+        }
+
+        user->SetBanned(banned);
+        if (banned) {
+            LOG_INFO_UNLESS(IsRecovery(), "User is now banned (User: %s)", ~user->GetName());
+        } else {
+            LOG_INFO_UNLESS(IsRecovery(), "User is now unbanned (User: %s)", ~user->GetName());
+        }
+    }
+
+    void ValidateUserAccess(TUser* user, int requestCount)
+    {
+        if (user->GetBanned()) {
+            THROW_ERROR_EXCEPTION(
+                NSecurityClient::EErrorCode::UserBanned,
+                "User %s is banned",
+                ~user->GetName().Quote());
+        }
+
+        if (GetRequestRate(user) > user->GetRequestRateLimit()) {
+            THROW_ERROR_EXCEPTION(
+                NSecurityClient::EErrorCode::UserBanned,
+                "User %s has exceeded its request rate limit",
+                ~user->GetName().Quote())
+                << TErrorAttribute("limit", user->GetRequestRateLimit());
+        }
+
+        RequestTracker->ChargeUser(user, requestCount);
+    }
+
+    double GetRequestRate(TUser* user)
+    {
+        return
+            TInstant::Now() > user->GetCheckpointTime() + Config->RequestRateSmoothingPeriod
+            ? 0.0
+            : user->GetRequestRate();
+    }
+
 private:
     friend class TAccountTypeHandler;
     friend class TUserTypeHandler;
     friend class TGroupTypeHandler;
 
 
+    TSecurityManagerConfigPtr Config;
     NCellMaster::TBootstrap* Bootstrap;
 
     bool RecomputeResources;
@@ -840,8 +905,9 @@ private:
     TGroupId UsersGroupId;
     TGroup* UsersGroup;
 
-
     std::vector<TUser*> AuthenticatedUserStack;
+
+    TRequestTrackerPtr RequestTracker;
 
 
     static bool IsUncommittedAccountingEnabled(TCypressNodeBase* node)
@@ -1202,6 +1268,7 @@ private:
         if (!RootUser) {
             // root
             RootUser = DoCreateUser(RootUserId, RootUserName);
+            RootUser->SetRequestRateLimit(1000000.0);
         }
 
         GuestUser = FindUser(GuestUserId);
@@ -1232,6 +1299,60 @@ private:
                 EPermission::Use));
         }
     }
+
+
+    virtual void OnActiveQuorumEstablished() override
+    {
+        RequestTracker->StartFlush();
+
+        FOREACH (const auto& pair, UserMap) {
+            auto* user = pair.second;
+            user->ResetRequestRate();
+        }
+    }
+
+    virtual void OnStopLeading() override
+    {
+        RequestTracker->StopFlush();
+    }
+
+
+    void UpdateRequestStatistics(const NProto::TMetaReqUpdateRequestStatistics& request)
+    {
+        auto now = TInstant::Now();
+        FOREACH (const auto& update, request.updates()) {
+            auto userId = FromProto<TUserId>(update.user_id());
+            auto* user = FindUser(userId);
+            if (user) {
+                // Update access time.
+                auto accessTime = TInstant(update.access_time());
+                if (accessTime > user->GetAccessTime()) {
+                    user->SetAccessTime(accessTime);
+                }
+
+                // Update request counter.
+                i64 requestCounter = user->GetRequestCounter() + update.request_counter_delta();
+                user->SetRequestCounter(requestCounter);
+                // TODO(babenko): use tags in master
+                Profiler.Enqueue("/user_request_counter/" + ToYPathLiteral(user->GetName()), requestCounter);
+
+                // Recompute request rate.
+                if (now > user->GetCheckpointTime() + Config->RequestRateSmoothingPeriod) {
+                    if (user->GetCheckpointTime() != TInstant::Zero()) {
+                        double requestRate =
+                            static_cast<double>(requestCounter - user->GetCheckpointRequestCounter()) /
+                            (now - user->GetCheckpointTime()).SecondsFloat();
+                        user->SetRequestRate(requestRate);
+                        // TODO(babenko): use tags in master
+                        Profiler.Enqueue("/user_request_rate/" + ToYPathLiteral(user->GetName()), static_cast<int>(requestRate));
+                    }
+                    user->SetCheckpointTime(now);
+                    user->SetCheckpointRequestCounter(requestCounter);
+                }
+            }
+        }
+    }
+
 };
 
 DEFINE_METAMAP_ACCESSORS(TSecurityManager::TImpl, Account, TAccount, TAccountId, AccountMap)
@@ -1357,8 +1478,10 @@ void TSecurityManager::TGroupTypeHandler::DoDestroy(TGroup* group)
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TSecurityManager::TSecurityManager(NCellMaster::TBootstrap* bootstrap)
-    : Impl(New<TImpl>(bootstrap))
+TSecurityManager::TSecurityManager(
+    TSecurityManagerConfigPtr config,
+    NCellMaster::TBootstrap* bootstrap)
+    : Impl(New<TImpl>(config, bootstrap))
 { }
 
 TSecurityManager::~TSecurityManager()
@@ -1367,6 +1490,12 @@ TSecurityManager::~TSecurityManager()
 void TSecurityManager::Initialize()
 {
     return Impl->Initialize();
+}
+
+TMutationPtr TSecurityManager::CreateUpdateRequestStatisticsMutation(
+    const NProto::TMetaReqUpdateRequestStatistics& request)
+{
+    return Impl->CreateUpdateRequestStatisticsMutation(request);
 }
 
 TAccount* TSecurityManager::FindAccountByName(const Stroka& name)
@@ -1526,6 +1655,21 @@ void TSecurityManager::ValidatePermission(
     Impl->ValidatePermission(
         object,
         permission);
+}
+
+void TSecurityManager::SetUserBanned(TUser* user, bool banned)
+{
+    Impl->SetUserBanned(user, banned);
+}
+
+void TSecurityManager::ValidateUserAccess(TUser* user, int requestCount)
+{
+    Impl->ValidateUserAccess(user, requestCount);
+}
+
+double TSecurityManager::GetRequestRate(TUser* user)
+{
+    return Impl->GetRequestRate(user);
 }
 
 DELEGATE_METAMAP_ACCESSORS(TSecurityManager, Account, TAccount, TAccountId, *Impl)

@@ -739,7 +739,7 @@ private:
             error.FindMatching(NTableClient::EErrorCode::SortOrderViolation) ||
             error.FindMatching(NSecurityClient::EErrorCode::AuthenticationError) ||
             error.FindMatching(NSecurityClient::EErrorCode::AuthorizationError) ||
-            error.FindMatching(NSecurityClient::EErrorCode::AccountIsOverLimit);
+            error.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded);
     }
 
     static bool IsRetriableSystemError(const TError& error)

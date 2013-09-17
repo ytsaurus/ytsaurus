@@ -70,6 +70,11 @@ public:
 
         Context->SetRequestInfo("RequestCount: %d", requestCount);
 
+        auto* user = GetAuthenticatedUser();
+
+        auto securityManager = Bootstrap->GetSecurityManager();
+        securityManager->ValidateUserAccess(user, requestCount);
+
         ResponseMessages.resize(requestCount);
         Continue();
     }

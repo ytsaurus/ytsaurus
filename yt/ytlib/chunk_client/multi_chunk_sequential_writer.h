@@ -95,7 +95,7 @@ protected:
 
     void OnChunkCreated(NObjectClient::TMasterYPathProxy::TRspCreateObjectsPtr rsp);
 
-    void FinishCurrentSession();
+    TAsyncError FinishCurrentSession();
 
     void OnChunkClosed(
         int chunkIndex,

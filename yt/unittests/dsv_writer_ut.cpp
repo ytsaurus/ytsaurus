@@ -1,4 +1,4 @@
-#include "stdafx.h"
+    #include "stdafx.h"
 
 #include <ytlib/formats/dsv_writer.h>
 #include <ytlib/formats/dsv_parser.h>
@@ -48,32 +48,7 @@ TEST(TDsvWriterTest, TabularWithAttributes)
 
     writer.OnListItem();
     writer.OnBeginAttributes();
-        writer.OnKeyedItem("index");
-        writer.OnIntegerScalar(10);
-        writer.OnKeyedItem("name");
-        writer.OnStringScalar("table");
-    writer.OnEndAttributes();
-    writer.OnEntity();
-
-    writer.OnListItem();
-
-    writer.OnBeginMap();
-        writer.OnKeyedItem("foo");
-        writer.OnStringScalar("bar");
-    writer.OnEndMap();
-
-    writer.OnListItem();
-
-    writer.OnBeginMap();
-        writer.OnKeyedItem("value");
-        writer.OnStringScalar("ninja");
-    writer.OnEndMap();
-
-    Stroka output =
-        "foo=bar\n"
-        "value=ninja\n";
-
-    EXPECT_EQ(output, outputStream.Str());
+    EXPECT_ANY_THROW(writer.OnKeyedItem("index"));
 }
 
 TEST(TDsvWriterTest, StringScalar)
@@ -165,7 +140,9 @@ TEST(TDsvWriterTest, WithoutEsacping)
 TEST(TDsvWriterTest, TabularUsingOnRaw)
 {
     TStringStream outputStream;
-    TDsvTabularWriter writer(&outputStream);
+    auto config = New<TDsvFormatConfig>();
+    config->EnableTableIndex = true;
+    TDsvTabularWriter writer(&outputStream, config);
 
     writer.OnListItem();
     writer.OnBeginMap();
@@ -177,6 +154,12 @@ TEST(TDsvWriterTest, TabularUsingOnRaw)
         writer.OnRaw("10.", EYsonType::Node);
     writer.OnEndMap();
     writer.OnListItem();
+    writer.OnBeginAttributes();
+    writer.OnKeyedItem("table_index");
+    writer.OnIntegerScalar(2);
+    writer.OnEndAttributes();
+    writer.OnEntity();
+    writer.OnListItem();
     writer.OnBeginMap();
         writer.OnKeyedItem("foo");
         writer.OnRaw("bar", EYsonType::Node);
@@ -185,8 +168,8 @@ TEST(TDsvWriterTest, TabularUsingOnRaw)
     writer.OnEndMap();
 
     Stroka output =
-        "integer=42\tstring=some\tdouble=10.\n"
-        "foo=bar\tone=1\n";
+        "integer=42\tstring=some\tdouble=10.\t_table_index=0\n"
+        "foo=bar\tone=1\t_table_index=2\n";
 
     EXPECT_EQ(output, outputStream.Str());
 }

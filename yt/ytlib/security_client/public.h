@@ -30,9 +30,11 @@ DECLARE_ENUM(ESecurityAction,
 );
 
 DECLARE_ENUM(EErrorCode,
-    ((AuthenticationError) (900))
-    ((AuthorizationError)  (901))
-    ((AccountIsOverLimit)  (902))
+    ((AuthenticationError)     (900))
+    ((AuthorizationError)      (901))
+    ((AccountLimitExceeded)    (902))
+    ((UserBanned)              (903))
+    ((RequestRateLimitExceeded)(904))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

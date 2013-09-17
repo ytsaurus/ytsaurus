@@ -11,7 +11,6 @@ set( SRCS
   ${BASE}/private.cpp
   ${BASE}/public.cpp
   ${BASE}/size_limits.cpp
-  ${BASE}/sync_reader.cpp
   ${BASE}/table_chunk_reader.cpp
   ${BASE}/table_chunk_writer.cpp
   ${BASE}/table_consumer.cpp

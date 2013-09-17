@@ -107,9 +107,8 @@ protected:
     //! The number of output partitions generated so far.
     //! Not serialized.
     /*!
-     *  Each partition either corresponds to a merge task or to a pass-through chunk.
+     *  Each partition either corresponds to a merge task or to a teleport chunk.
      *  Partition index is used as a key when calling #TOperationControllerBase::RegisterOutputChunkTree.
-     *
      */
     int CurrentPartitionIndex;
 
@@ -202,7 +201,7 @@ protected:
     protected:
         void BuildInputOutputJobSpec(TJobletPtr joblet, TJobSpec* jobSpec)
         {
-            AddParallelInputSpec(jobSpec, joblet, Controller->IsTableIndexEnabled());
+            AddParallelInputSpec(jobSpec, joblet);
             AddFinalOutputSpecs(jobSpec, joblet);
         }
 
@@ -355,16 +354,19 @@ protected:
     }
 
     //! Add chunk directly to the output.
-    void AddPassthroughChunk(TRefCountedChunkSpecPtr chunkSpec)
+    void AddTeleportChunk(TRefCountedChunkSpecPtr chunkSpec)
     {
-        chunkSpec->clear_partition_tag();
-        LOG_DEBUG("Passthrough chunk added (ChunkId: %s, Partition: %d)",
-            ~ToString(FromProto<TChunkId>(chunkSpec->chunk_id())),
-            CurrentPartitionIndex);
+        auto tableIndex = GetTeleportTableIndex();
+        if (tableIndex) {
+            chunkSpec->clear_partition_tag();
+            LOG_TRACE("Teleport chunk added (ChunkId: %s, Partition: %d)",
+                ~ToString(FromProto<TChunkId>(chunkSpec->chunk_id())),
+                CurrentPartitionIndex);
 
-        // Place the chunk directly to the output table.
-        RegisterOutput(chunkSpec, CurrentPartitionIndex, 0);
-        ++CurrentPartitionIndex;
+            // Place the chunk directly to the output table.
+            RegisterOutput(chunkSpec, CurrentPartitionIndex, 0);
+            ++CurrentPartitionIndex;
+        }
     }
 
 
@@ -472,8 +474,13 @@ protected:
                !chunkSpec.end_limit().has_row_index();
     }
 
+    virtual TNullable<int> GetTeleportTableIndex() const
+    {
+        return MakeNullable(0);
+    }
+
     //! Returns True if the chunk can be included into the output as-is.
-    virtual bool IsPassthroughChunk(const TChunkSpec& chunkSpec) = 0;
+    virtual bool IsTelelportChunk(const TChunkSpec& chunkSpec) = 0;
 
     virtual i64 GetAdditionalMemorySize() const
     {
@@ -506,8 +513,8 @@ protected:
         return false;
     }
 
-    //! A typical implementation of #IsPassthroughChunk that depends on whether chunks must be combined or not.
-    bool IsPassthroughChunkImpl(const TChunkSpec& chunkSpec, bool combineChunks)
+    //! A typical implementation of #IsTelelportChunk that depends on whether chunks must be combined or not.
+    bool IsTeleportChunkImpl(const TChunkSpec& chunkSpec, bool combineChunks)
     {
         return combineChunks ? IsLargeCompleteChunk(chunkSpec) : IsCompleteChunk(chunkSpec);
     }
@@ -521,11 +528,6 @@ protected:
 
     //! Initializes #JobSpecTemplate.
     virtual void InitJobSpecTemplate() = 0;
-
-    virtual bool IsTableIndexEnabled() const
-    {
-        return false;
-    }
 
 };
 
@@ -552,13 +554,12 @@ private:
 
     TUnorderedMergeOperationSpecPtr Spec;
 
-
-    virtual bool IsPassthroughChunk(const TChunkSpec& chunkSpec) override
+    virtual bool IsTelelportChunk(const TChunkSpec& chunkSpec) override
     {
         if (Spec->ForceTransform)
             return false;
 
-        return IsPassthroughChunkImpl(chunkSpec, Spec->CombineChunks);
+        return IsTeleportChunkImpl(chunkSpec, Spec->CombineChunks);
     }
 
     virtual std::vector<TRichYPath> GetInputTablePaths() const override
@@ -575,9 +576,9 @@ private:
 
     virtual void ProcessInputChunk(TRefCountedChunkSpecPtr chunkSpec) override
     {
-        if (IsPassthroughChunk(*chunkSpec)) {
+        if (IsTelelportChunk(*chunkSpec)) {
             // Chunks not requiring merge go directly to the output chunk list.
-            AddPassthroughChunk(chunkSpec);
+            AddTeleportChunk(chunkSpec);
             return;
         }
 
@@ -620,12 +621,12 @@ public:
 private:
     virtual void ProcessInputChunk(TRefCountedChunkSpecPtr chunkSpec) override
     {
-        if (IsPassthroughChunk(*chunkSpec)) {
+        if (IsTelelportChunk(*chunkSpec)) {
             // Merge is not needed. Copy the chunk directly to the output.
             if (HasActiveTask()) {
                 EndTask();
             }
-            AddPassthroughChunk(chunkSpec);
+            AddTeleportChunk(chunkSpec);
             return;
         }
 
@@ -671,12 +672,12 @@ private:
         return result;
     }
 
-    virtual bool IsPassthroughChunk(const TChunkSpec& chunkSpec) override
+    virtual bool IsTelelportChunk(const TChunkSpec& chunkSpec) override
     {
         if (Spec->ForceTransform)
             return false;
 
-        return IsPassthroughChunkImpl(chunkSpec, Spec->CombineChunks);
+        return IsTeleportChunkImpl(chunkSpec, Spec->CombineChunks);
     }
 
     virtual void InitJobSpecTemplate() override
@@ -728,9 +729,9 @@ private:
         return result;
     }
 
-    virtual bool IsPassthroughChunk(const TChunkSpec& chunkSpec) override
+    virtual bool IsTelelportChunk(const TChunkSpec& chunkSpec) override
     {
-        return IsPassthroughChunkImpl(chunkSpec, Spec->CombineChunks);
+        return IsTeleportChunkImpl(chunkSpec, Spec->CombineChunks);
     }
 
     virtual void DoInitialize() override
@@ -875,7 +876,7 @@ protected:
         EEndpointType Type;
         TRefCountedChunkSpecPtr ChunkSpec;
         TBoundaryKeysExt BoundaryKeys;
-        bool IsPassthrough;
+        bool IsTeleport;
 
         void Persist(TPersistenceContext& context)
         {
@@ -883,7 +884,7 @@ protected:
             Persist(context, Type);
             Persist(context, ChunkSpec);
             Persist(context, BoundaryKeys);
-            Persist(context, IsPassthrough);
+            Persist(context, IsTeleport);
         }
 
         const NChunkClient::NProto::TKey& GetKey() const
@@ -906,6 +907,11 @@ protected:
 
 
     virtual TNullable< std::vector<Stroka> > GetSpecKeyColumns() = 0;
+
+    virtual bool IsTelelportChunk(const TChunkSpec& chunkSpec) override
+    {
+        YUNREACHABLE();
+    }
 
     virtual void CustomPrepare() override
     {
@@ -943,8 +949,9 @@ protected:
         LOG_INFO("Sorting %d endpoints", static_cast<int>(Endpoints.size()));
         SortEndpoints();
 
-        FindPassthroughChunks();
+        FindTeleportChunks();
         BuildTasks();
+
         FinishPreparation();
     }
 
@@ -953,14 +960,8 @@ protected:
         ChunkSplitsCollector->AddChunk(chunkSpec);
     }
 
-    virtual bool IsPassthroughChunk(const TChunkSpec& chunkSpec) override
-    {
-        // ToDo(psushin): refactor.
-        YUNREACHABLE();
-    }
-
     virtual void SortEndpoints() = 0;
-    virtual void FindPassthroughChunks() = 0;
+    virtual void FindTeleportChunks() = 0;
     virtual void BuildTasks() = 0;
 
     void CollectEndpoints()
@@ -973,14 +974,14 @@ protected:
                 endpoint.Type = EEndpointType::Left;
                 endpoint.ChunkSpec = chunk;
                 endpoint.BoundaryKeys = boundaryKeysExt;
-                endpoint.IsPassthrough = false;
+                endpoint.IsTeleport = false;
                 Endpoints.push_back(endpoint);
             } {
                 TKeyEndpoint endpoint;
                 endpoint.Type = EEndpointType::Right;
                 endpoint.ChunkSpec = chunk;
                 endpoint.BoundaryKeys = boundaryKeysExt;
-                endpoint.IsPassthrough = false;
+                endpoint.IsTeleport = false;
                 Endpoints.push_back(endpoint);
             }
         }
@@ -1010,12 +1011,7 @@ private:
 
     TSortedMergeOperationSpecPtr Spec;
 
-    bool CanPassthrough()
-    {
-        return !Spec->ForceTransform;
-    }
-
-    bool IsLargeEnoughToPassthrough(const TChunkSpec& chunkSpec)
+    bool IsLargeEnoughToTeleport(const TChunkSpec& chunkSpec)
     {
         if (!Spec->CombineChunks)
             return true;
@@ -1056,15 +1052,15 @@ private:
             });
     }
 
-    virtual void FindPassthroughChunks() override
+    virtual void FindTeleportChunks() override
     {
-        if (!CanPassthrough()) {
+        if (Spec->ForceTransform) {
             return;
         }
 
         int openedSlicesCount = 0;
         int currentPartitionTag = DefaultPartitionTag;
-        int startPassthroughIndex = -1;
+        int startTeleportIndex = -1;
         for (int i = 0; i < Endpoints.size(); ++i) {
             auto& endpoint = Endpoints[i];
             auto& chunkSpec = endpoint.ChunkSpec;
@@ -1077,15 +1073,15 @@ private:
                         currentPartitionTag = DefaultPartitionTag;
                         auto completeChunk = CreateCompleteChunk(chunkSpec);
 
-                        bool isManiacPassthrough = CompareKeys(
-                            Endpoints[startPassthroughIndex].GetKey(),
+                        bool isManiacTeleport = CompareKeys(
+                            Endpoints[startTeleportIndex].GetKey(),
                             endpoint.GetKey(),
                             KeyColumns.size()) == 0;
 
-                        if (IsLargeEnoughToPassthrough(*completeChunk) &&
-                            (openedSlicesCount == 0 || isManiacPassthrough)) {
-                            for (int j = startPassthroughIndex; j <= i; ++j) {
-                                Endpoints[j].IsPassthrough = true;
+                        if (IsLargeEnoughToTeleport(*completeChunk) &&
+                            (openedSlicesCount == 0 || isManiacTeleport)) {
+                            for (int j = startTeleportIndex; j <= i; ++j) {
+                                Endpoints[j].IsTeleport = true;
                             }
                         }
                     }
@@ -1096,12 +1092,12 @@ private:
                 }
             }
 
-            // No current passthrough candidate.
+            // No current Teleport candidate.
             if (endpoint.Type == EEndpointType::Left &&
                 IsTrivial(chunkSpec->start_limit()))
             {
                 currentPartitionTag = chunkSpec->partition_tag();
-                startPassthroughIndex = i;
+                startTeleportIndex = i;
             }
         }
     }
@@ -1117,7 +1113,7 @@ private:
         while (startIndex < Endpoints.size()) {
             auto& key = Endpoints[startIndex].GetKey();
 
-            yhash_set<TRefCountedChunkSpecPtr> passthroughChunks;
+            yhash_set<TRefCountedChunkSpecPtr> TeleportChunks;
             yhash_set<TRefCountedChunkSpecPtr> localOpenedSlices;
 
             // Slices with equal left and right boundaries.
@@ -1134,12 +1130,12 @@ private:
                     break;
                 }
 
-                if (endpoint.IsPassthrough) {
+                if (endpoint.IsTeleport) {
                     auto partitionTag = endpoint.ChunkSpec->partition_tag();
                     auto chunkSpec = CreateCompleteChunk(endpoint.ChunkSpec);
-                    YCHECK(passthroughChunks.insert(chunkSpec).second);
+                    YCHECK(TeleportChunks.insert(chunkSpec).second);
                     while (currentIndex < Endpoints.size() &&
-                        Endpoints[currentIndex].IsPassthrough &&
+                        Endpoints[currentIndex].IsTeleport &&
                         Endpoints[currentIndex].ChunkSpec->partition_tag() == partitionTag)
                     {
                         ++currentIndex;
@@ -1153,7 +1149,7 @@ private:
                     continue;
                 }
 
-                // Right non-passthrough endpoint.
+                // Right non-Teleport endpoint.
                 {
                     auto it = globalOpenedSlices.find(endpoint.ChunkSpec);
                     if (it != globalOpenedSlices.end()) {
@@ -1216,11 +1212,11 @@ private:
                 EndManiacTask();
             }
 
-            if (!passthroughChunks.empty()) {
+            if (!TeleportChunks.empty()) {
                 endTask();
 
-                FOREACH(auto& chunkSpec, passthroughChunks) {
-                    AddPassthroughChunk(chunkSpec);
+                FOREACH(auto& chunkSpec, TeleportChunks) {
+                    AddTeleportChunk(chunkSpec);
                 }
             }
 
@@ -1353,6 +1349,7 @@ public:
         : TSortedMergeControllerBase(config, spec, host, operation)
         , Spec(spec)
         , StartRowIndex(0)
+        , TeleportOutputTable(Null)
     { }
 
     // Persistence.
@@ -1369,10 +1366,11 @@ private:
     TReduceOperationSpecPtr Spec;
 
     i64 StartRowIndex;
+    TNullable<int> TeleportOutputTable;
 
-    bool IsPrimaryTable(int tableIndex) const
+    bool IsTeleportInputTable(int tableIndex) const
     {
-        return InputTables[tableIndex].Path.Attributes().Get<bool>("primary", false);
+        return InputTables[tableIndex].Path.Attributes().Get<bool>("teleport", false);
     }
 
     virtual void SortEndpoints() override
@@ -1390,17 +1388,31 @@ private:
             });
     }
 
-    virtual void FindPassthroughChunks() override
+    virtual void FindTeleportChunks() override
     {
         const int prefixLength = static_cast<int>(KeyColumns.size());
 
+        {
+            int teleportOutputCount = 0;
+            for (int i = 0; i < OutputTables.size(); ++i) {
+                if (OutputTables[i].Path.Attributes().Get<bool>("teleport", false)) {
+                    ++teleportOutputCount;
+                    TeleportOutputTable = i;
+                }
+            }
+
+            if (teleportOutputCount > 1) {
+                THROW_ERROR_EXCEPTION("Too many teleport output tables: maximum allowed 1, actual %d", teleportOutputCount);
+            }
+        }
+
         // For update task.
         int currentPartitionTag = DefaultPartitionTag;
-        int startPassthroughIndex = -1;
+        int startTeleportIndex = -1;
 
         int openedSlicesCount = 0;
-        NChunkClient::NProto::TKey previosKey;
-        previosKey = GetKeySuccessor(previosKey);
+        NChunkClient::NProto::TKey previousKey;
+        previousKey = GetKeySuccessor(previousKey);
 
         for (int i = 0; i < Endpoints.size(); ++i) {
             auto& endpoint = Endpoints[i];
@@ -1411,11 +1423,11 @@ private:
             if (currentPartitionTag != DefaultPartitionTag &&
                 endpoint.ChunkSpec->partition_tag() == currentPartitionTag)
             {
-                previosKey = key;
+                previousKey = key;
                 continue;
             }
 
-            if (CompareKeys(key, previosKey, prefixLength) == 0) {
+            if (CompareKeys(key, previousKey, prefixLength) == 0) {
                 currentPartitionTag = DefaultPartitionTag;
                 // Don't update previous key - it's equal to current.
                 continue;
@@ -1425,35 +1437,35 @@ private:
                 auto& previousEndpoint = Endpoints[i - 1];
                 auto& chunkSpec = previousEndpoint.ChunkSpec;
                 if (previousEndpoint.Type == EEndpointType::Right && IsTrivial(chunkSpec->end_limit())) {
-                    for (int j = startPassthroughIndex; j < i; ++j) {
-                        Endpoints[j].IsPassthrough = true;
+                    for (int j = startTeleportIndex; j < i; ++j) {
+                        Endpoints[j].IsTeleport = true;
                     }
                 }
             }
 
             currentPartitionTag = DefaultPartitionTag;
-            previosKey = key;
+            previousKey = key;
 
-            // No current passthrough candidate.
+            // No current Teleport candidate.
             auto& chunkSpec = endpoint.ChunkSpec;
             if (endpoint.Type == EEndpointType::Left &&
                 IsTrivial(chunkSpec->start_limit()) &&
-                IsPrimaryTable(chunkSpec->table_index()) &&
+                IsTeleportInputTable(chunkSpec->table_index()) &&
                 openedSlicesCount == 1)
             {
                 currentPartitionTag = chunkSpec->partition_tag();
-                startPassthroughIndex = i;
+                startTeleportIndex = i;
             }
         }
 
         if (currentPartitionTag != DefaultPartitionTag) {
-            // Last passthrough candidate.
+            // Last Teleport candidate.
             auto& previousEndpoint = Endpoints.back();
             auto& chunkSpec = previousEndpoint.ChunkSpec;
             YCHECK(previousEndpoint.Type == EEndpointType::Right);
             if (IsTrivial(chunkSpec->end_limit())) {
-                for (int j = startPassthroughIndex; j < Endpoints.size(); ++j) {
-                    Endpoints[j].IsPassthrough = true;
+                for (int j = startTeleportIndex; j < Endpoints.size(); ++j) {
+                    Endpoints[j].IsTeleport = true;
                 }
             }
         }
@@ -1481,16 +1493,16 @@ private:
                     break;
                 }
 
-                if (endpoint.IsPassthrough) {
+                if (endpoint.IsTeleport) {
                     YCHECK(openedSlices.empty());
                     EndTask();
 
                     auto partitionTag = endpoint.ChunkSpec->partition_tag();
                     auto chunkSpec = CreateCompleteChunk(endpoint.ChunkSpec);
-                    AddPassthroughChunk(chunkSpec);
+                    AddTeleportChunk(chunkSpec);
 
                     while (currentIndex < Endpoints.size() &&
-                        Endpoints[currentIndex].IsPassthrough &&
+                        Endpoints[currentIndex].IsTeleport &&
                         Endpoints[currentIndex].ChunkSpec->partition_tag() == partitionTag)
                     {
                         ++currentIndex;
@@ -1504,7 +1516,7 @@ private:
                     continue;
                 }
 
-                // Right non-passthrough endpoint.
+                // Right non-Teleport endpoint.
                 YCHECK(endpoint.Type == EEndpointType::Right);
 
                 auto it = openedSlices.find(endpoint.ChunkSpec);
@@ -1550,6 +1562,11 @@ private:
     virtual std::vector<TRichYPath> GetOutputTablePaths() const override
     {
         return Spec->OutputTablePaths;
+    }
+
+    virtual TNullable<int> GetTeleportTableIndex() const override
+    {
+        return TeleportOutputTable;
     }
 
     virtual std::vector<TPathWithStage> GetFilePaths() const override
@@ -1609,15 +1626,10 @@ private:
         InitUserJobSpec(jobSpecExt->mutable_reducer_spec(), joblet);
     }
 
-    virtual bool IsTableIndexEnabled() const override
-    {
-        return Spec->Reducer->EnableTableIndex;
-    }
-
     virtual bool IsOutputLivePreviewSupported() const override
     {
         FOREACH(const auto& inputTable, InputTables) {
-            if (inputTable.Path.Attributes().Get<bool>("primary", false)) {
+            if (inputTable.Path.Attributes().Get<bool>("teleport", false)) {
                 return false;
             }
         }

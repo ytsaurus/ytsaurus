@@ -183,7 +183,7 @@ public:
 
         RegisterValidator([&] () {
             if (SendWindowSize < GroupSize) {
-                THROW_ERROR_EXCEPTION("\"window_size\" cannot be less than \"group_size\"");
+                THROW_ERROR_EXCEPTION("\"send_window_size\" cannot be less than \"group_size\"");
             }
         });
     }
@@ -277,6 +277,8 @@ public:
 
     bool PreferLocalHost;
 
+    bool SyncChunkSwitch;
+
     NErasure::ECodec ErasureCodec;
 
     TMultiChunkWriterConfig()
@@ -295,6 +297,8 @@ public:
             .Default(true);
         RegisterParameter("prefer_local_host", PreferLocalHost)
             .Default(true);
+        RegisterParameter("sync_chunk_switch", SyncChunkSwitch)
+            .Default(false);
 
         RegisterValidator([&] () {
             if (MinUploadReplicationFactor > UploadReplicationFactor) {

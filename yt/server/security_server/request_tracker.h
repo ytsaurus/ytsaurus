@@ -8,42 +8,32 @@
 
 #include <server/cell_master/public.h>
 
-#include <server/cypress_server/cypress_manager.pb.h>
-
-#include <server/transaction_server/public.h>
+#include <server/security_server/security_manager.pb.h>
 
 namespace NYT {
-namespace NCypressServer {
+namespace NSecurityServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TAccessTracker
+class TRequestTracker
     : public TRefCounted
 {
 public:
-    explicit TAccessTracker(
-        TCypressManagerConfigPtr config,
+    explicit TRequestTracker(
+        TSecurityManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap);
-
 
     void StartFlush();
     void StopFlush();
 
-
-    void OnModify(
-        TCypressNodeBase* trunkNode,
-        NTransactionServer::TTransaction* transaction);
-
-    void OnAccess(
-        TCypressNodeBase* trunkNode);
-
+    void ChargeUser(TUser* user, int requestCount);
 
 private:
-    TCypressManagerConfigPtr Config;
+    TSecurityManagerConfigPtr Config;
     NCellMaster::TBootstrap* Bootstrap;
 
-    NProto::TMetaReqUpdateAccessStatistics UpdateAccessStatisticsRequest;
-    std::vector<TCypressNodeBase*> NodesWithAccessStatisticsUpdate;
+    NProto::TMetaReqUpdateRequestStatistics UpdateRequestStatisticsRequest;
+    std::vector<TUser*> UsersWithRequestStatisticsUpdate;
 
     TPeriodicInvokerPtr FlushInvoker;
 
@@ -61,5 +51,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypressServer
+} // namespace NSecurityServer
 } // namespace NYT

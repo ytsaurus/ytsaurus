@@ -15,7 +15,7 @@ struct IAsyncReader
 
     virtual bool IsValid() const = 0;
     virtual const TRow& GetRow() const = 0;
-    virtual const TNullable<int>& GetTableIndex() const = 0;
+    virtual int GetTableIndex() const = 0;
 
     virtual i64 GetSessionRowIndex() const = 0;
     virtual i64 GetSessionRowCount() const = 0;

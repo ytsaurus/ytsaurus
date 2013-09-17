@@ -260,19 +260,37 @@ void TMultiChunkSequentialWriter<TChunkWriter>::SwitchSession()
 {
     State.StartOperation();
     YCHECK(NextSession);
-    // We're not waiting for the chunk to close.
-    FinishCurrentSession();
-    NextSession.Subscribe(BIND(
-        &TMultiChunkSequentialWriter::InitCurrentSession,
-        MakeWeak(this)));
+
+    auto this_ = MakeStrong(this);
+    auto startNextSession = [this, this_] (TError error) {
+        if (!error.IsOK())
+            return;
+
+        NextSession.Subscribe(BIND(
+            &TMultiChunkSequentialWriter::InitCurrentSession,
+            MakeWeak(this)));
+    };
+
+    auto result = FinishCurrentSession();
+    if (Config->SyncChunkSwitch) {
+        // Wait and block writing, until previous chunks has been completely closed.
+        // This prevents double memory accounting in scheduler memory usage estimates.
+        result.Subscribe(BIND(startNextSession));
+    } else {
+        // Start writing next chunk asap.
+        startNextSession(TError());
+    }
+
 }
 
 template <class TChunkWriter>
-void TMultiChunkSequentialWriter<TChunkWriter>::FinishCurrentSession()
+TAsyncError TMultiChunkSequentialWriter<TChunkWriter>::FinishCurrentSession()
 {
-    if (CurrentSession.IsNull())
-        return;
+    if (CurrentSession.IsNull()) {
+        return MakePromise(TError());
+    }
 
+    auto finishResult = NewPromise<TError>();
     if (CurrentSession.ChunkWriter->GetCurrentSize() > 0) {
         LOG_DEBUG("Finishing chunk (ChunkId: %s)",
             ~ToString(CurrentSession.ChunkId));
@@ -286,7 +304,6 @@ void TMultiChunkSequentialWriter<TChunkWriter>::FinishCurrentSession()
         int chunkIndex = WrittenChunks.size();
         WrittenChunks.push_back(chunkSpec);
 
-        auto finishResult = NewPromise<TError>();
         CloseChunksAwaiter->Await(finishResult.ToFuture(), BIND(
             &TMultiChunkSequentialWriter::OnChunkFinished,
             MakeWeak(this),
@@ -302,9 +319,11 @@ void TMultiChunkSequentialWriter<TChunkWriter>::FinishCurrentSession()
     } else {
         LOG_DEBUG("Canceling empty chunk (ChunkId: %s)",
             ~ToString(CurrentSession.ChunkId));
+        finishResult.Set(TError());
     }
 
     CurrentSession.Reset();
+    return finishResult;
 }
 
 template <class TChunkWriter>

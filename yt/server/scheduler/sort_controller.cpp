@@ -369,7 +369,7 @@ protected:
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
             jobSpec->CopyFrom(Controller->PartitionJobSpecTemplate);
-            AddSequentialInputSpec(jobSpec, joblet, Controller->IsTableIndexEnabled());
+            AddSequentialInputSpec(jobSpec, joblet);
             AddIntermediateOutputSpec(jobSpec, joblet);
         }
 
@@ -601,7 +601,7 @@ protected:
             auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             schedulerJobSpecExt->set_is_approximate(joblet->InputStripeList->IsApproximate);
 
-            AddSequentialInputSpec(jobSpec, joblet, Controller->IsTableIndexEnabled());
+            AddSequentialInputSpec(jobSpec, joblet);
         }
 
         virtual void OnJobStarted(TJobletPtr joblet) override
@@ -935,7 +935,7 @@ protected:
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
             jobSpec->CopyFrom(Controller->SortedMergeJobSpecTemplate);
-            AddParallelInputSpec(jobSpec, joblet, Controller->IsTableIndexEnabled());
+            AddParallelInputSpec(jobSpec, joblet);
             AddFinalOutputSpecs(jobSpec, joblet);
         }
 
@@ -1060,7 +1060,7 @@ protected:
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
             jobSpec->CopyFrom(Controller->UnorderedMergeJobSpecTemplate);
-            AddSequentialInputSpec(jobSpec, joblet, Controller->IsTableIndexEnabled());
+            AddSequentialInputSpec(jobSpec, joblet);
             AddFinalOutputSpecs(jobSpec, joblet);
 
             if (!Controller->SimpleSort) {
@@ -1344,12 +1344,6 @@ protected:
             AddTaskPendingHint(taskToKick);
         }
     }
-
-    virtual bool IsTableIndexEnabled() const
-    {
-        return false;
-    }
-
 
     // Resource management.
 
@@ -2387,14 +2381,6 @@ private:
             default:
                 break;
         }
-    }
-
-    virtual bool IsTableIndexEnabled() const override
-    {
-        if (Spec->Mapper)
-            return Spec->Mapper->EnableTableIndex;
-
-        return false;
     }
 
     virtual bool IsOutputLivePreviewSupported() const override

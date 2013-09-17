@@ -14,6 +14,8 @@
 
 #include <server/object_server/config.h>
 
+#include <server/security_server/config.h>
+
 #include <server/misc/config.h>
 
 namespace NYT {
@@ -38,6 +40,8 @@ public:
 
     NCypressServer::TCypressManagerConfigPtr CypressManager;
 
+    NSecurityServer::TSecurityManagerConfigPtr SecurityManager;
+
     //! HTTP monitoring interface port number.
     int MonitoringPort;
 
@@ -54,6 +58,8 @@ public:
         RegisterParameter("object_manager", ObjectManager)
             .DefaultNew();
         RegisterParameter("cypress_manager", CypressManager)
+            .DefaultNew();
+        RegisterParameter("security_manager", SecurityManager)
             .DefaultNew();
         RegisterParameter("monitoring_port", MonitoringPort)
             .Default(10000);
