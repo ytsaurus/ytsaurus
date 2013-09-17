@@ -359,7 +359,7 @@ protected:
         auto tableIndex = GetTeleportTableIndex();
         if (tableIndex) {
             chunkSpec->clear_partition_tag();
-            LOG_DEBUG("Teleport chunk added (ChunkId: %s, Partition: %d)",
+            LOG_TRACE("Teleport chunk added (ChunkId: %s, Partition: %d)",
                 ~ToString(FromProto<TChunkId>(chunkSpec->chunk_id())),
                 CurrentPartitionIndex);
 
