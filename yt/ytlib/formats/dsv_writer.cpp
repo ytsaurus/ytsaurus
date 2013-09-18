@@ -217,7 +217,7 @@ void TDsvTabularWriter::OnEndMap()
                 // NB: no break here!
 
             case EState::ExpectFirstColumnName:
-                EscapeAndWrite(Config->TableIndexFieldName, true);
+                EscapeAndWrite(Config->TableIndexColumn, true);
                 Stream->Write(Config->KeyValueSeparator);
                 Stream->Write(::ToString(TableIndex));
                 break;

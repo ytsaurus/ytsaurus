@@ -30,7 +30,7 @@ public:
     //  * 'X'  ---> "\X" if X not in ['\0', '\n', '\t']
 
     bool EnableTableIndex;
-    Stroka TableIndexFieldName;
+    Stroka TableIndexColumn;
 
     TDsvFormatConfig()
     {
@@ -48,8 +48,8 @@ public:
             .Default('\\');
         RegisterParameter("enable_table_index", EnableTableIndex)
             .Default(false);
-        RegisterParameter("table_index_field_name", TableIndexFieldName)
-            .Default("_table_index")
+        RegisterParameter("table_index_column", TableIndexColumn)
+            .Default("@table_index")
             .NonEmpty();
     }
 };
