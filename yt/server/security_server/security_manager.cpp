@@ -848,7 +848,7 @@ public:
                 ~user->GetName().Quote());
         }
 
-        if (GetRequestRate(user) > user->GetRequestRateLimit()) {
+        if (user != RootUser && GetRequestRate(user) > user->GetRequestRateLimit()) {
             THROW_ERROR_EXCEPTION(
                 NSecurityClient::EErrorCode::UserBanned,
                 "User %s has exceeded its request rate limit",
