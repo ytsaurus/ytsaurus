@@ -491,6 +491,13 @@ class TestCypressCommands(YTEnvSetup):
         assert not exists("//tmp/b/x")
         assert not exists("//tmp/b&/@x")
         assert not exists("//tmp/b&/x")
+    
+    def test_link7(self):
+        tx = start_transaction()
+        set("//tmp/t1", 1, tx=tx)
+        link("//tmp/t1", "//tmp/l1", tx=tx)
+        assert get("//tmp/l1", tx=tx) == 1
+        abort_tx(tx)
 
     def test_access_stat1(self):
         c1 = get('//tmp/@access_counter')
