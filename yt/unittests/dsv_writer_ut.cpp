@@ -168,8 +168,8 @@ TEST(TDsvWriterTest, TabularUsingOnRaw)
     writer.OnEndMap();
 
     Stroka output =
-        "integer=42\tstring=some\tdouble=10.\t_table_index=0\n"
-        "foo=bar\tone=1\t_table_index=2\n";
+        "integer=42\tstring=some\tdouble=10.\t@table_index=0\n"
+        "foo=bar\tone=1\t@table_index=2\n";
 
     EXPECT_EQ(output, outputStream.Str());
 }
