@@ -265,6 +265,7 @@ def main():
             _, _, exc_traceback = sys.exc_info()
             traceback.print_tb(exc_traceback, file=sys.stdout)
             yt.remove(destination, force=True)
+            return -1
         
 
     if args.lock is not None:
