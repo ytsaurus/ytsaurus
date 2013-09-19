@@ -1,5 +1,6 @@
 #!/usr/bin/python
 
+import yt.yson as yson
 from yt.wrapper.tests.base import YtTestBase, TEST_DIR
 from yt.environment import YTEnv
 import yt.wrapper as yt
@@ -86,7 +87,7 @@ class TestDefaultBehaviour(YtTestBase, YTEnv):
             object_filter=\
                 lambda x: x.attributes.get("row_count", -1) == 0)
         self.assertEqual(set(res),
-                         set([TEST_DIR + "/dir/table"]))
+                set([yson.to_yson_type(TEST_DIR + "/dir/table", {"row_count": 0})]))
 
     def test_create(self):
         with pytest.raises(yt.YtError):
