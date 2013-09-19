@@ -74,9 +74,9 @@ def list(path, max_size=1000, format=None, absolute=False, attributes=None):
     In case of map_node it returns keys of the node.
     """
     def join(elem):
-        full_path = YsonString(os.path.join(path, elem))
-        full_path.attributes = elem.attributes
-        return full_path
+        return yson.convert_to_yson_type(
+            "{0}/{1}".format(path, elem),
+            elem.attributes)
 
     result = _make_formatted_transactional_request(
         "list",
@@ -162,16 +162,32 @@ def search(root="/", node_type=None, path_filter=None, object_filter=None, attri
     Searches all objects in root that have specified node_type,
     satisfy path and object filters. Returns list of the objects.
     Adds given attributes to objects.
-
-    It doesn't processed opaque nodes.
     """
-    attributes = deepcopy(flatten(get_value(attributes, [])))
-    attributes.append("type")
-    attributes.append("opaque")
+    attributes = get_value(attributes, [])
+
+    request_attributes = deepcopy(flatten(get_value(attributes, [])))
+    request_attributes.append("type")
+    request_attributes.append("opaque")
 
     exclude = deepcopy(flatten(get_value(exclude, [])))
+<<<<<<< HEAD
     exclude.append("//sys")
 
+=======
+    exclude.append("//sys/operations")
+
+    def safe_get(path):
+        try:
+            return get(path, attributes=request_attributes)
+        except YtResponseError as rsp:
+            if rsp.is_access_denied():
+                logger.warning("Cannot traverse %s, access denied" % path)
+            elif rsp.is_resolve_error():
+                logger.warning("Path %s is absent" % path)
+            else:
+                raise
+        return None
+>>>>>>> d15f6c3... Clean _str() methods from tests. Add equality with attributes for yson types. Fix search command.
 
     result = []
     def walk(path, object, depth, ignore_opaque=False):
@@ -184,8 +200,13 @@ def search(root="/", node_type=None, path_filter=None, object_filter=None, attri
         if (node_type is None or object_type in flatten(node_type)) and \
            (object_filter is None or object_filter(object)) and \
            (path_filter is None or path_filter(path)):
+<<<<<<< HEAD
             yson_path = YsonString(path)
             yson_path.attributes = object.attributes
+=======
+            yson_path = yson.YsonString(path)
+            yson_path.attributes = dict(filter(lambda item: item[0] in attributes, object.attributes.iteritems()))
+>>>>>>> d15f6c3... Clean _str() methods from tests. Add equality with attributes for yson types. Fix search command.
             result.append(yson_path)
 
         if object_type == "map_node":
