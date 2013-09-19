@@ -75,7 +75,7 @@ def list(path, max_size=1000, format=None, absolute=False, attributes=None):
     """
     def join(elem):
         return yson.convert_to_yson_type(
-            yson.YsonString("{0}/{1}".format(path, elem)), 
+            yson.YsonString("{0}/{1}".format(path, elem)),
             elem.attributes)
 
     result = _make_formatted_transactional_request(
@@ -162,23 +162,23 @@ def search(root="/", node_type=None, path_filter=None, object_filter=None, attri
     Searches all objects in root that have specified node_type,
     satisfy path and object filters. Returns list of the objects.
     Adds given attributes to objects.
-
-    It doesn't processed opaque nodes.
     """
-    attributes = deepcopy(flatten(get_value(attributes, [])))
-    attributes.append("type")
-    attributes.append("opaque")
+    attributes = get_value(attributes, [])
+
+    request_attributes = deepcopy(flatten(get_value(attributes, [])))
+    request_attributes.append("type")
+    request_attributes.append("opaque")
 
     exclude = deepcopy(flatten(get_value(exclude, [])))
     exclude.append("//sys/operations")
 
     def safe_get(path):
         try:
-            return get(path, attributes=attributes)
+            return get(path, attributes=request_attributes)
         except YtResponseError as rsp:
             if rsp.is_access_denied():
                 logger.warning("Cannot traverse %s, access denied" % path)
-            elif rsp.is_resolve_error(): 
+            elif rsp.is_resolve_error():
                 logger.warning("Path %s is absent" % path)
             else:
                 raise
@@ -198,7 +198,7 @@ def search(root="/", node_type=None, path_filter=None, object_filter=None, attri
            (object_filter is None or object_filter(object)) and \
            (path_filter is None or path_filter(path)):
             yson_path = yson.YsonString(path)
-            yson_path.attributes = object.attributes
+            yson_path.attributes = dict(filter(lambda item: item[0] in attributes, object.attributes.iteritems()))
             result.append(yson_path)
 
         if object_type == "map_node":

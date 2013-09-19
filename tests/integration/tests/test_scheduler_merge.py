@@ -79,8 +79,8 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
 
-        write_str('//tmp/t1', '{a = 1}; {a = 10}; {a = 100}', sorted_by='a')
-        write_str('//tmp/t2', '{a = 2}; {a = 3}; {a = 15}', sorted_by='a')
+        write('//tmp/t1', [{"a": 1}, {"a": 10}, {"a": 100}], sorted_by='a')
+        write('//tmp/t2', [{"a": 2}, {"a": 3}, {"a": 15}], sorted_by='a')
 
         create('table', '//tmp/t_out')
         merge(mode='sorted',
@@ -93,7 +93,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     def test_sorted_trivial(self):
         create('table', '//tmp/t1')
 
-        write_str('//tmp/t1', '{a = 1}; {a = 10}; {a = 100}', sorted_by='a')
+        write('//tmp/t1', [{"a": 1}, {"a": 10}, {"a": 100}], sorted_by='a')
 
         create('table', '//tmp/t_out')
         merge(combine_chunks=True,
@@ -126,8 +126,8 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
 
-        write_str('//tmp/t1', '{a = 1}; {a = 10}; {a = 100}', sorted_by='a')
-        write_str('//tmp/t2', '{a = 2}; {a = 3}; {a = 15}', sorted_by='a')
+        write('//tmp/t1', [{"a": 1}, {"a": 10}, {"a": 100}], sorted_by='a')
+        write('//tmp/t2', [{"a": 2}, {"a": 3}, {"a": 15}], sorted_by='a')
 
         create('table', '//tmp/t_out')
         merge(combine_chunks=True,
@@ -143,9 +143,9 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         create('table', '//tmp/t2')
         create('table', '//tmp/t3')
 
-        write_str('//tmp/t1', '{k = a; s = 0}; {k = b; s = 1}', sorted_by=['k', 's'])
-        write_str('//tmp/t2', '{k = b; s = 2}; {k = c; s = 0}', sorted_by=['k', 's'])
-        write_str('//tmp/t3', '{k = b; s = 0}; {k = b; s = 3}', sorted_by=['k', 's'])
+        write('//tmp/t1', [{"k": "a", "s": 0}, {"k": "b", "s": 1}], sorted_by=['k', 's'])
+        write('//tmp/t2', [{"k": "b", "s": 2}, {"k": "c", "s": 0}], sorted_by=['k', 's'])
+        write('//tmp/t3', [{"k": "b", "s": 0}, {"k": "b", "s": 3}], sorted_by=['k', 's'])
 
         create('table', '//tmp/t_out')
         merge(mode='sorted',
@@ -198,9 +198,9 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         create('table', '//tmp/t2')
         create('table', '//tmp/t3')
 
-        write_str('//tmp/t1', '{a = 3}; {a = 3};{a = 3}', sorted_by='a')
-        write_str('//tmp/t2', '{a = 2}; {a = 3}; {a = 15}', sorted_by='a')
-        write_str('//tmp/t3', '{a = 1}; {a = 3};', sorted_by='a')
+        write('//tmp/t1', [{"a": 3}, {"a": 3}, {"a": 3}], sorted_by='a')
+        write('//tmp/t2', [{"a": 2}, {"a": 3}, {"a": 15}], sorted_by='a')
+        write('//tmp/t3', [{"a": 1}, {"a": 3}], sorted_by='a')
 
         create('table', '//tmp/t_out')
         merge(combine_chunks=True,

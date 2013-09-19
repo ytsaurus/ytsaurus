@@ -27,6 +27,7 @@ class OperationProgressFormatter(logging.Formatter):
             return "{0} ({1:2} min)".format(time, elapsed)
 
 LOGGER = logging.getLogger("YtWrapper")
+LOGGER.propagate = False
 LOGGER.setLevel(level=logging.__dict__[logger_config.LOG_LEVEL])
 
 BASIC_FORMATTER = logging.Formatter(logger_config.LOG_PATTERN)

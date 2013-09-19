@@ -34,7 +34,7 @@ class TestSchedulerMemoryLimits(YTEnvSetup):
     @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
     def test_map(self):
         create('table', '//tmp/t_in')
-        write_str('//tmp/t_in', '{value=value;subkey=subkey;key=key;a=another}')
+        write('//tmp/t_in', {"value": "value", "subkey": "subkey", "key": "key", "a": "another"})
 
         mapper = \
 """
@@ -63,7 +63,7 @@ while True:
     @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
     def test_dirty_sandbox(self):
         create('table', '//tmp/t_in')
-        write_str('//tmp/t_in', '{value=value;subkey=subkey;key=key;a=another}')
+        write('//tmp/t_in', {"value": "value", "subkey": "subkey", "key": "key", "a": "another"})
 
         create('table', '//tmp/t_out')
 

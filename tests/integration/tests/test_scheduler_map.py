@@ -23,7 +23,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
     def test_one_chunk(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
-        write_str('//tmp/t1', '{a=b}')
+        write('//tmp/t1', {"a": "b"})
         op_id = map(dont_track=True,
             in_='//tmp/t1', out='//tmp/t2', command=r'cat; echo "{v1=\"$V1\"};{v2=\"$V2\"}"',
             opt=['/spec/mapper/environment={V1="Some data";V2="$(SandboxPath)/mytmp"}'])
@@ -42,7 +42,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
     @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
     def test_in_equal_to_out(self):
         create('table', '//tmp/t1')
-        write_str('//tmp/t1', '{foo=bar}')
+        write('//tmp/t1', {"foo": "bar"})
 
         map(in_='//tmp/t1', out='<append=true>//tmp/t1', command='cat')
 
@@ -60,7 +60,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
     def test_stderr_ok(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
-        write_str('//tmp/t1', '{foo=bar}')
+        write('//tmp/t1', {"foo": "bar"})
 
         command = '''cat > /dev/null; echo stderr 1>&2; echo {operation='"'$YT_OPERATION_ID'"'}';'; echo {job_index=$YT_JOB_INDEX};'''
 
@@ -75,7 +75,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
     def test_stderr_failed(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
-        write_str('//tmp/t1', '{foo=bar}')
+        write('//tmp/t1', {"foo": "bar"})
 
         command = '''cat > /dev/null; echo stderr 1>&2; echo "{x=y}{v=};{a=b}"'''
 
@@ -90,7 +90,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
     def test_stderr_limit(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
-        write_str('//tmp/t1', '{foo=bar}')
+        write('//tmp/t1', {"foo": "bar"})
 
         command = '''cat > /dev/null; echo stderr 1>&2; exit 125'''
 
@@ -103,7 +103,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
     def test_invalid_output_record(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
-        write_str('//tmp/t1', '{key=foo;value=ninja}')
+        write('//tmp/t1', {"key": "foo", "value": "ninja"})
 
         command = "awk '($1==\"foo\"){print \"bar\"}'"
 
@@ -118,8 +118,8 @@ class TestSchedulerMapCommands(YTEnvSetup):
     def test_sorted_output(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
-        write_str('<append=true>//tmp/t1', '{key=foo;value=ninja}')
-        write_str('<append=true>//tmp/t1', '{key=foo;value=ninja}')
+        for i in xrange(2):
+            write('<append=true>//tmp/t1', {"key": "foo", "value": "ninja"})
 
         command = '''cat >/dev/null; k1="$YT_JOB_INDEX"0; k2="$YT_JOB_INDEX"1; echo "{key=$k1; value=one}; {key=$k2; value=two}"'''
 
@@ -135,8 +135,8 @@ class TestSchedulerMapCommands(YTEnvSetup):
     def test_sorted_output_overlap(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
-        write_str('<append=true>//tmp/t1', '{key=foo;value=ninja}')
-        write_str('<append=true>//tmp/t1', '{key=foo;value=ninja}')
+        for i in xrange(2):
+            write('<append=true>//tmp/t1', {"key": "foo", "value": "ninja"})
 
         command = 'cat >/dev/null; echo "{key=1; value=one}; {key=2; value=two}"'
 
@@ -150,8 +150,8 @@ class TestSchedulerMapCommands(YTEnvSetup):
     def test_sorted_output_job_failure(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
-        write_str('//tmp/t1', '{key=foo;value=ninja}')
-        write_str('//tmp/t1', '{key=foo;value=ninja}')
+        for i in xrange(2):
+            write('<append=true>//tmp/t1', {"key": "foo", "value": "ninja"})
 
         command = 'cat >/dev/null; echo {key=2; value=one}; {key=1; value=two}'
 
@@ -166,7 +166,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
     def test_job_count(self):
         create('table', '//tmp/t1')
         for i in xrange(5):
-            write_str('<append=true>//tmp/t1', '{foo=bar}')
+            write('<append=true>//tmp/t1', {"foo": "bar"})
 
         command = "cat > /dev/null; echo {hello=world}"
 
@@ -184,7 +184,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
     @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
     def test_with_user_files(self):
         create('table', '//tmp/input')
-        write_str('//tmp/input', '{foo=bar}')
+        write('//tmp/input', {"foo": "bar"})
 
         create('table', '//tmp/output')
 
@@ -198,7 +198,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         upload(file2, '{a=b};\n')
 
         create('table', '//tmp/table_file')
-        write_str('//tmp/table_file', '{text=info}')
+        write('//tmp/table_file', {"text": "info"})
 
         command= "cat > /dev/null; cat some_file.txt; cat my_file.txt; cat table_file;"
 
@@ -212,7 +212,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
     @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
     def test_empty_user_files(self):
         create('table', '//tmp/input')
-        write_str('//tmp/input', '{foo=bar}')
+        write('//tmp/input', {"foo": "bar"})
 
         create('table', '//tmp/output')
 
@@ -234,7 +234,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
     @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
     def test_multi_chunk_user_files(self):
         create('table', '//tmp/input')
-        write_str('//tmp/input', '{foo=bar}')
+        write('//tmp/input', {"foo": "bar"})
 
         create('table', '//tmp/output')
 
@@ -246,9 +246,9 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         table_file = '//tmp/table_file'
         create('table', table_file)
-        write_str(table_file, '{text=info}')
+        write(table_file, {"text": "info"})
         set(table_file + '/@compression_codec', 'snappy')
-        write_str('<append=true>' + table_file, '{text=info}')
+        write('<append=true>' + table_file, {"text": "info"})
 
         command= "cat > /dev/null; cat regular_file; cat table_file"
 
@@ -262,7 +262,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
     @pytest.mark.xfail(run = True, reason = 'No support for erasure chunks in user files')
     def test_erasure_user_files(self):
         create('table', '//tmp/input')
-        write_str('//tmp/input', '{foo=bar}')
+        write('//tmp/input', {"foo": "bar"})
 
         create('table', '//tmp/output')
 
@@ -275,8 +275,8 @@ class TestSchedulerMapCommands(YTEnvSetup):
         table_file = '//tmp/table_file'
         create('table', table_file)
         set(table_file + '/@erasure_codec', 'reed_solomon_6_3')
-        write_str(table_file, '{text=info}')
-        write_str(table_file, '{text=info}')
+        for i in xrange(2):
+            write(table_file, {"text": "info"})
 
         command= "cat > /dev/null; cat regular_file; cat table_file"
 
@@ -295,7 +295,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         for table_path in output_tables:
             create('table', table_path)
 
-        write_str('//tmp/t_in', '{a=b}')
+        write('//tmp/t_in', {"a": "b"})
 
         if yamr_mode:
             mapper = "cat  > /dev/null; echo {v = 0} >&3; echo {v = 1} >&4; echo {v = 2} >&5"
@@ -331,7 +331,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         for table_path in output_tables:
             create('table', table_path)
 
-        write_str('//tmp/t_in', '{a=b}')
+        write('//tmp/t_in', {"a": "b"})
         mapper = "cat  > /dev/null; echo '<table_index=2>#;{v = 0};{v = 1};<table_index=0>#;{v = 2}'"
 
         create('file', '//tmp/mapper.sh')
@@ -349,7 +349,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
     @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
     def test_tskv_input_format(self):
         create('table', '//tmp/t_in')
-        write_str('//tmp/t_in', '{foo=bar}')
+        write('//tmp/t_in', {"foo": "bar"})
 
         mapper = \
 """
@@ -374,7 +374,7 @@ print '{hello=world}'
     @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
     def test_tskv_output_format(self):
         create('table', '//tmp/t_in')
-        write_str('//tmp/t_in', '{foo=bar}')
+        write('//tmp/t_in', {"foo": "bar"})
 
         mapper = \
 """
@@ -401,7 +401,7 @@ print "tskv" + "\\t" + "hello=world"
     @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
     def test_yamr_output_format(self):
         create('table', '//tmp/t_in')
-        write_str('//tmp/t_in', '{foo=bar}')
+        write('//tmp/t_in', {"foo": "bar"})
 
         mapper = \
 """
@@ -428,7 +428,7 @@ print "key\\tsubkey\\tvalue"
     @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
     def test_yamr_input_format(self):
         create('table', '//tmp/t_in')
-        write_str('//tmp/t_in', '{value=value;subkey=subkey;key=key;a=another}')
+        write('//tmp/t_in', {"value": "value", "subkey": "subkey", "key": "key", "a": "another"})
 
         mapper = \
 """
@@ -453,7 +453,7 @@ print '{hello=world}'
     @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
     def test_executable_mapper(self):
         create('table', '//tmp/t_in')
-        write_str('//tmp/t_in', '{foo=bar}')
+        write('//tmp/t_in', {"foo": "bar"})
 
         mapper =  \
 """
@@ -476,7 +476,7 @@ cat > /dev/null; echo {hello=world}
 
     def test_abort_op(self):
         create('table', '//tmp/t')
-        write_str('//tmp/t', '{foo=bar}')
+        write('//tmp/t', {"foo": "bar"})
 
         op_id = map(dont_track=True,
             in_='//tmp/t',
@@ -495,8 +495,8 @@ cat > /dev/null; echo {hello=world}
         create('table', '//tmp/t2')
         create('table', '//tmp/out')
 
-        write_str('//tmp/t1', '{key=a; value=value}')
-        write_str('//tmp/t2', '{key=b; value=value}')
+        write('//tmp/t1', {"key": "a", "value": "value"})
+        write('//tmp/t2', {"key": "b", "value": "value"})
 
         mapper = \
 """
@@ -529,7 +529,7 @@ print row + table_index
         create('table', '//tmp/t_in')
         create('table', '//tmp/t_out')
 
-        write_str('//tmp/t_in', '{cool=stuff}')
+        write('//tmp/t_in', {"cool": "stuff"})
 
         with pytest.raises(YtError):
             map(in_='//tmp/t_in', out='//tmp/t_out', command='cat',

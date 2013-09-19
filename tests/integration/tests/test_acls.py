@@ -366,7 +366,7 @@ class TestAcls(YTEnvSetup):
         set('//tmp/d', {"foo":{}})
         set('//tmp/d/@inherit_acl', 'false')
 
-        assert get_str('//tmp', user='u') == '{"d"=#}'
+        assert get('//tmp', user='u') == {"d": None}
         with pytest.raises(YtError): get('//tmp/d', user='u') == {'foo': {}}
         with pytest.raises(YtError): get('//tmp/d/@value', user='u')
         with pytest.raises(YtError): get('//tmp/d/foo', user='u')
@@ -389,7 +389,7 @@ class TestAcls(YTEnvSetup):
         set('//tmp/d/@inherit_acl', 'false')
         set('//tmp/d/@acl/end', self._make_ace('allow', 'u', 'read'))
 
-        assert get_str('//tmp', user='u') == '{"d"=#}'
+        assert get('//tmp', user='u') == {"d": None}
         assert get('//tmp/d', user='u') == {'foo': {}}
         assert get('//tmp/d/@value', user='u') == {'foo': {}}
         assert get('//tmp/d/foo', user='u') == {}
@@ -412,7 +412,7 @@ class TestAcls(YTEnvSetup):
         set('//tmp/d/@inherit_acl', 'false')
         set('//tmp/d/@acl/end', self._make_ace('allow', 'u', ['read', 'write']))
 
-        assert get_str('//tmp', user='u') == '{"d"=#}'
+        assert get('//tmp', user='u') == {"d": None}
         assert get('//tmp/d', user='u') == {'foo': {}}
         assert get('//tmp/d/@value', user='u') == {'foo': {}}
         assert get('//tmp/d/foo', user='u') == {}

@@ -129,8 +129,8 @@ class TestAsyncAttributes(YTEnvSetup):
     def test1(self):
         table = '//tmp/t'
         create('table', table)
-        set_str('//tmp/t/@compression_codec', 'snappy')
-        write_str(table, '{foo=bar}')
+        set('//tmp/t/@compression_codec', 'snappy')
+        write(table, {"foo": "bar"})
 
         for i in xrange(8):
             merge(in_=[table, table], out="<append=true>" + table)
@@ -144,11 +144,11 @@ class TestAsyncAttributes(YTEnvSetup):
     def test2(self):
         tableA = '//tmp/a'
         create('table', tableA)
-        write_str(tableA, '{foo=bar}')
+        write(tableA, {"foo": "bar"})
 
         tableB = '//tmp/b'
         create('table', tableB)
-        set_str(tableB + '/@compression_codec', 'snappy')
+        set(tableB + '/@compression_codec', 'snappy')
 
         map(in_=[tableA], out=[tableB], command="cat")
 

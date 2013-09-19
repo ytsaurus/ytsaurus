@@ -36,7 +36,7 @@ class TestSchedulerOther(YTEnvSetup):
     def _prepare_tables(self):
         create('table', '//tmp/t_in')
         set('//tmp/t_in/@replication_factor', 1)
-        write_str('//tmp/t_in', '{foo=bar}')
+        write('//tmp/t_in', {"foo": "bar"})
 
         create('table', '//tmp/t_out')
         set('//tmp/t_out/@replication_factor', 1)
