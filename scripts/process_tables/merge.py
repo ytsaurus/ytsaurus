@@ -25,7 +25,7 @@ def merge(table):
             # To copy all attributes of node
             yt.remove(temp_table)
             yt.copy(table, temp_table, preserve_account=True)
-            yt.erase(temp_table)
+            yt.run_erase(temp_table)
             #for attr in ["account", "compression_codec", "erasure_codec", "replication_factor"]:
             #    yt.set("{}/@{}".format(temp_table, attr), yt.get("{}/@{}".format(table, attr)))
 
