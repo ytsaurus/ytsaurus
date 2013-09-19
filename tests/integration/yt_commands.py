@@ -90,21 +90,23 @@ def lock(path, waitable=False, **kwargs):
     kwargs["waitable"] = waitable
     return command('lock', kwargs).replace('"', '').strip('\n')
 
-def get_str(path, **kwargs):
-    kwargs["path"] = path
-    return command('get', kwargs)
-
 def remove(path, **kwargs):
     kwargs["path"] = path
     return command('remove', kwargs)
 
-def set_str(path, value, **kwargs):
+def get(path, is_raw=False, **kwargs):
+    def has_arg(name):
+        return name in kwargs and kwargs[name] is not None
+
+    kwargs["path"] = path
+    result = command('get', kwargs)
+    return result if is_raw else yson.loads(result)
+
+def set(path, value, is_raw=False, **kwargs):
+    if not is_raw:
+        value = yson.dumps(value)
     kwargs["path"] = path
     return command('set', kwargs, input_stream=StringIO(value))
-
-def ls_str(path, **kwargs):
-    kwargs["path"] = path
-    return command('list', kwargs)
 
 def create(object_type, path, **kwargs):
     kwargs["type"] = object_type
@@ -131,20 +133,13 @@ def exists(path, **kwargs):
     res = command('exists', kwargs)
     return yson.loads(res) == 'true'
 
-def read_str(path, **kwargs):
+def read(path, **kwargs):
     kwargs["path"] = path
     if "output_format" not in kwargs:
         kwargs["output_format"] = yson.loads("<format=text>yson")
     output = StringIO()
     command('read', kwargs, output_stream=output)
-    return output.getvalue();
-
-def write_str(path, value, **kwargs):
-    attributes = {}
-    if "sorted_by" in kwargs:
-        attributes={"sorted_by": flatten(kwargs["sorted_by"])}
-    kwargs["path"] = yson.to_yson_type(path, attributes=attributes)
-    return command('write', kwargs, input_stream=StringIO(value))
+    return yson.loads(output.getvalue(), yson_type="list_fragment")
 
 def start_transaction(**kwargs):
     out = command('start_tx', kwargs)
@@ -184,11 +179,11 @@ def track_op(op_id):
         if counter % 30 == 0 or state in ["failed", "aborted", "completed"]:
             print >>sys.stderr, message
         if state == "failed":
-            error = get_str("//sys/operations/%s/@result/error" % op_id, verbose=False)
+            error = get("//sys/operations/%s/@result/error" % op_id, verbose=False, is_raw=True)
             jobs = get("//sys/operations/%s/jobs" % op_id, verbose=False)
             for job in jobs:
                 if exists("//sys/operations/%s/jobs/%s/@error" % (op_id, job), verbose=False):
-                    error = error + "\n\n" + get_str("//sys/operations/%s/jobs/%s/@error" % (op_id, job), verbose=False)
+                    error = error + "\n\n" + get("//sys/operations/%s/jobs/%s/@error" % (op_id, job), verbose=False, is_raw=True)
                     if "stderr" in jobs[job]:
                         error = error + "\n" + download("//sys/operations/%s/jobs/%s/stderr" % (op_id, job), verbose=False)
             raise YtError(error)
@@ -310,24 +305,23 @@ def remove_member(member, group):
 
 #########################################
 
-def get(path, **kwargs):
-    return yson.loads(get_str(path, **kwargs))
-
 def ls(path, **kwargs):
-    return yson.loads(ls_str(path, **kwargs))
+    kwargs["path"] = path
+    return yson.loads(command('list', kwargs))
 
-def set(path, value, **kwargs):
-    return set_str(path, yson.dumps(value), **kwargs)
-
-def read(path, **kwargs):
-    return yson.loads(read_str(path, **kwargs), yson_type="list_fragment")
-
-def write(path, value, **kwargs):
-    output = yson.dumps(value)
-    if isinstance(value, list):
+def write(path, value, is_raw=False, **kwargs):
+    if not is_raw:
+        if not isinstance(value, list):
+            value = [value]
+        value = yson.dumps(value)
         # remove surrounding [ ]
-        output = output[1:-1]
-    return write_str(path, output, **kwargs)
+        value = value[1:-1]
+
+    attributes = {}
+    if "sorted_by" in kwargs:
+        attributes={"sorted_by": flatten(kwargs["sorted_by"])}
+    kwargs["path"] = yson.to_yson_type(path, attributes=attributes)
+    return command('write', kwargs, input_stream=StringIO(value))
 
 #########################################
 # Helpers:

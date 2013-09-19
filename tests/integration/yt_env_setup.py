@@ -70,7 +70,7 @@ class YTEnvSetup(YTEnv):
             txs_to_abort = current_txs.difference(self.transactions_at_start)
             self._abort_transactions(list(txs_to_abort))
 
-            yt_commands.set_str('//tmp', '{}')
+            yt_commands.set('//tmp', {})
 
             accounts = yt_commands.get_accounts()
             self._remove_accounts(accounts)

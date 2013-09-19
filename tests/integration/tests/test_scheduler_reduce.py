@@ -249,7 +249,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         for table_path in output_tables:
             create('table', table_path)
 
-        write_str('//tmp/t_in', '{k=10}', sorted_by='k')
+        write('//tmp/t_in', [{"k": 10}], sorted_by='k')
 
         reducer = \
 """

@@ -3,6 +3,7 @@ import pytest
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
+from yt.yson import to_yson_type
 
 ##################################################################
 
@@ -17,24 +18,24 @@ class TestLocks(YTEnvSetup):
 
         # at non-existsing node
         tx = start_transaction()
-        with pytest.raises(YtError): lock('//tmp/non_existent', tx = tx)
+        with pytest.raises(YtError): lock('//tmp/non_existent', tx=tx)
 
         # error while parsing mode
-        with pytest.raises(YtError): lock('/', mode = 'invalid', tx = tx)
+        with pytest.raises(YtError): lock('/', mode='invalid', tx=tx)
 
         #taking None lock is forbidden
-        with pytest.raises(YtError): lock('/', mode = 'None', tx = tx)
+        with pytest.raises(YtError): lock('/', mode='None', tx=tx)
 
         # attributes do not have @lock_mode
-        set_str('//tmp/value', '<attr=some> 42', tx = tx)
-        with pytest.raises(YtError): lock('//tmp/value/@attr/@lock_mode', tx = tx)
+        set('//tmp/value', "<attr=some>42", is_raw=True, tx=tx)
+        with pytest.raises(YtError): lock('//tmp/value/@attr/@lock_mode', tx=tx)
        
         abort_transaction(tx)
 
     def test_display_locks(self):
         tx = start_transaction()
         
-        set_str('//tmp/map', '{list = <attr=some> [1; 2; 3]}', tx = tx)
+        set('//tmp/map', "{list=<attr=some>[1;2;3]}", is_raw=True, tx=tx)
 
         # check that lock is set on nested nodes
         assert get('//tmp/map/@lock_mode', tx = tx) == 'exclusive'
