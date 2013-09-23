@@ -205,6 +205,10 @@ def search(root="/", node_type=None, path_filter=None, object_filter=None, attri
             for key, value in object.iteritems():
                 walk("{0}/{1}".format(path, key), value, depth + 1)
 
+        if object_type == "list_node":
+            for index, value in enumerate(object):
+                walk("{0}/{1}".format(path, index), value, depth + 1)
+
     walk(root, safe_get(root), 0, True)
     return result
 
