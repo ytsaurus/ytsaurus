@@ -220,6 +220,7 @@ def remove_with_empty_dirs(path, force=True):
             remove(path, recursive=True)
         except YtResponseError as error:
             if error.is_access_denied():
+                logger.warning("Cannot remove %s, access denied", path)
                 break
             else:
                 raise
