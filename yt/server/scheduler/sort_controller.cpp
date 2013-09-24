@@ -1970,7 +1970,7 @@ private:
         result.set_user_slots(1);
         result.set_cpu(1);
         result.set_memory(
-            GetSortInputIOMemorySize(FinalSortJobIOConfig, stat) +
+            GetSortInputIOMemorySize(stat) +
             GetFinalOutputIOMemorySize(FinalSortJobIOConfig) +
             GetSortBuffersMemorySize(stat) +
             // TODO(babenko): *2 are due to lack of reserve, remove this once simple sort
@@ -1987,10 +1987,10 @@ private:
         i64 memory = GetSortBuffersMemorySize(stat) + GetFootprintMemorySize();
 
         if (IsSortedMergeNeeded(partition)) {
-            memory += GetSortInputIOMemorySize(IntermediateSortJobIOConfig, stat);
+            memory += GetSortInputIOMemorySize(stat);
             memory += GetIntermediateOutputIOMemorySize(IntermediateSortJobIOConfig);
         } else {
-            memory += GetSortInputIOMemorySize(FinalSortJobIOConfig, stat);
+            memory += GetSortInputIOMemorySize(stat);
             memory += GetFinalOutputIOMemorySize(FinalSortJobIOConfig);
         }
 
@@ -2447,14 +2447,14 @@ private:
         if (IsSortedMergeNeeded(partition)) {
             result.set_cpu(1);
             result.set_memory(
-                GetSortInputIOMemorySize(IntermediateSortJobIOConfig, stat) +
+                GetSortInputIOMemorySize(stat) +
                 GetIntermediateOutputIOMemorySize(IntermediateSortJobIOConfig) +
                 GetSortBuffersMemorySize(stat) +
                 GetFootprintMemorySize());
         } else {
             result.set_cpu(Spec->Reducer->CpuLimit);
             result.set_memory(
-                GetSortInputIOMemorySize(FinalSortJobIOConfig, stat) +
+                GetSortInputIOMemorySize(stat) +
                 GetFinalOutputIOMemorySize(FinalSortJobIOConfig) +
                 GetSortBuffersMemorySize(stat) +
                 // Sorting reader extra memory compared to partition_sort job, because it uses
