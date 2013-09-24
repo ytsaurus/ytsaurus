@@ -212,11 +212,17 @@ def search(root="/", node_type=None, path_filter=None, object_filter=None, attri
     walk(root, safe_get(root), 0, True)
     return result
 
-def remove_with_empty_dirs(path):
+def remove_with_empty_dirs(path, force=True):
     """ Removes path and all empty dirs that appear after deletion.  """
     path = to_name(path)
     while True:
-        remove(path, recursive=True)
+        try:
+            remove(path, recursive=True)
+        except YtResponseError as error:
+            if error.is_access_denied():
+                break
+            else:
+                raise
         path = os.path.dirname(path)
         if path == "//" or list(path):
             break
