@@ -470,7 +470,9 @@ def add_ping_tx_parser(add_parser):
     parser.set_defaults(func=ping_tx)
 
 def lock(args):
-    print yt.lock(args.path, mode=args.mode, waitable=args.waitable, wait_for=args.wait_for)
+    lock_id = yt.lock(args.path, mode=args.mode, waitable=args.waitable, wait_for=args.wait_for)
+    if lock_id is not None:
+        print lock_id
 
 def add_lock_parser(add_parser):
     parser = add_parser("lock", help="lock cypress node")
