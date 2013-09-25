@@ -49,9 +49,11 @@ public:
 
 protected:
 
-    virtual void SetDefaultAttributes(NYTree::IAttributeDictionary* attributes) override
+    virtual void SetDefaultAttributes(
+        IAttributeDictionary* attributes,
+        TTransaction* transaction) override
     {
-        TBase::SetDefaultAttributes(attributes);
+        TBase::SetDefaultAttributes(attributes, transaction);
 
         if (!attributes->Contains("compression_codec")) {
             NCompression::ECodec codec = NCompression::ECodec::None;

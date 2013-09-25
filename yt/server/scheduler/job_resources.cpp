@@ -92,9 +92,7 @@ i64 GetInputIOMemorySize(
     return std::min(bufferSize, maxBufferSize);
 }
 
-i64 GetSortInputIOMemorySize(
-    TJobIOConfigPtr ioConfig,
-    const TChunkStripeStatistics& stat)
+i64 GetSortInputIOMemorySize(const TChunkStripeStatistics& stat)
 {
     if (stat.ChunkCount == 0)
         return 0;

@@ -242,12 +242,10 @@ protected:
         TChunkStripeStatisticsVector UpdateChunkStripeStatistics(
             const TChunkStripeStatisticsVector& statistics) const
         {
-            if (Controller->JobSpecTemplate.type() == EJobType::SortedMerge ||
-                Controller->JobSpecTemplate.type() == EJobType::SortedReduce)
-            {
-                return statistics;
-            } else {
+            if (Controller->IsSingleStripeInput()) {
                 return AggregateStatistics(statistics);
+            } else {
+                return statistics;
             }
         }
 
@@ -472,6 +470,11 @@ protected:
     {
         return !chunkSpec.end_limit().has_key() &&
                !chunkSpec.end_limit().has_row_index();
+    }
+
+    virtual bool IsSingleStripeInput() const
+    {
+        return true;
     }
 
     virtual TNullable<int> GetTeleportTableIndex() const
@@ -775,7 +778,7 @@ private:
 
         auto* jobSpecExt = JobSpecTemplate.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
         // If the input is sorted then the output must also be sorted.
-        // For this, the job needs key columns.
+        // To produce sorted output a job needs key columns.
         const auto& table = InputTables[0];
         if (table.KeyColumns) {
             ToProto(jobSpecExt->mutable_key_columns(), *table.KeyColumns);
@@ -911,6 +914,11 @@ protected:
     virtual bool IsTelelportChunk(const TChunkSpec& chunkSpec) override
     {
         YUNREACHABLE();
+    }
+
+    virtual bool IsSingleStripeInput() const override
+    {
+        return false;
     }
 
     virtual void CustomPrepare() override

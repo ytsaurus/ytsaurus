@@ -105,10 +105,10 @@ public:
         return std::move(node);
     }
 
-    virtual void SetDefaultAttributes(NYTree::IAttributeDictionary* attributes) override
-    {
-        UNUSED(attributes);
-    }
+    virtual void SetDefaultAttributes(
+        NYTree::IAttributeDictionary* /*attributes*/,
+        NTransactionServer::TTransaction* /*transaction*/) override
+    { }
 
     virtual void Destroy(TCypressNodeBase* node) override
     {
@@ -486,6 +486,10 @@ public:
 
     virtual NObjectClient::EObjectType GetObjectType() override;
     virtual NYTree::ENodeType GetNodeType() override;
+
+    virtual void SetDefaultAttributes(
+        NYTree::IAttributeDictionary* attributes,
+        NTransactionServer::TTransaction* tranasction) override;
 
 private:
     typedef TCypressNodeTypeHandlerBase<TLinkNode> TBase;
