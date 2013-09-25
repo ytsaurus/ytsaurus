@@ -1,9 +1,12 @@
 from common import bool_to_string, get_value, YtError
 from table import prepare_path
 from tree_commands import get
-from transaction_commands import _make_formatted_transactional_request
+from transaction_commands import _make_transactional_request
+
+from yt.yson.convert import json_to_yson
 
 import time
+import simplejson as json
 from datetime import timedelta, datetime
 
 def lock(path, mode=None, waitable=False, wait_for=None):
@@ -13,14 +16,17 @@ def lock(path, mode=None, waitable=False, wait_for=None):
     if wait_for is not None:
         wait_for = timedelta(milliseconds=wait_for)
 
-    lock_id = _make_formatted_transactional_request(
+    lock_id = _make_transactional_request(
         "lock",
         {
             "path": prepare_path(path),
             "mode": get_value(mode, "exclusive"),
             "waitable": bool_to_string(waitable)
-        },
-        format=None)
+        })
+    if not lock_id:
+        return None
+    else:
+        return json_to_yson(json.loads(lock_id))
 
     if waitable and wait_for is not None and lock_id != "0-0-0-0":
         now = datetime.now()
