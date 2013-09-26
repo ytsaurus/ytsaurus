@@ -191,7 +191,9 @@ config = {
         fitness_dmp_coefficient: 0.3,
         afd_window_size: 24,
         afd_phi_threshold: 4,
-        death_age: 300000
+        death_age: 300000,
+        failure_threshold: 5,
+        failure_timeout: 60000,
     },
     static: [
     ],
