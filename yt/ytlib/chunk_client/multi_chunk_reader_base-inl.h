@@ -93,15 +93,15 @@ TMultiChunkReaderBase<TChunkReader>::TMultiChunkReaderBase(
         i64 bufferSize = 0;
         while (PrefetchWindow < sortedChunkSpecs.size()) {
             auto& chunkSpec = sortedChunkSpecs[PrefetchWindow];
-            i64 currentSize;
             NChunkClient::GetStatistics(chunkSpec, &currentSize);
             auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunkSpec.extensions());
 
-            i64 chunkBufferSize = ChunkReaderMemorySize + std::min(
-                currentSize,
-                config->WindowSize + config->GroupSize + 
-                miscExt.max_block_size() + // block that possibly exceeds group size.
-                miscExt.max_block_size()); // block used by upper level chunk reader.
+            // block that possibly exceeds group size + block used by upper level chunk reader.
+            i64 chunkBufferSize = ChunkReaderMemorySize + 2 * miscExt.max_block_size();
+
+            if (currentSize > miscExt.max_block_size()) {
+                chunkBufferSize += config->WindowSize + config->GroupSize;
+            } 
 
             if (bufferSize + chunkBufferSize > Config->MaxBufferSize) {
                 break;

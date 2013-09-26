@@ -153,8 +153,8 @@ private:
             result.set_cpu(Controller->Spec->Mapper->CpuLimit);
             result.set_memory(
                 Controller->GetFinalIOMemorySize(
-                Controller->Spec->JobIO,
-                AggregateStatistics(statistics)) +
+                    Controller->Spec->JobIO,
+                    AggregateStatistics(statistics)) +
                 GetFootprintMemorySize() +
                 Controller->Spec->Mapper->MemoryLimit);
             return result;
