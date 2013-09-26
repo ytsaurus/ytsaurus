@@ -65,6 +65,7 @@ public:
         using NYT::Persist;
         Persist(context, StartRowIndex);
         Persist(context, MapTask);
+        Persist(context, MapTaskGroup);
         Persist(context, JobIOConfig);
         Persist(context, JobSpecTemplate);
     }
