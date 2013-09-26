@@ -99,7 +99,9 @@ TMultiChunkReaderBase<TChunkReader>::TMultiChunkReaderBase(
 
             i64 chunkBufferSize = ChunkReaderMemorySize + std::min(
                 currentSize,
-                config->WindowSize + config->GroupSize + miscExt.max_block_size());
+                config->WindowSize + config->GroupSize + 
+                miscExt.max_block_size() + // block that possibly exceeds group size.
+                miscExt.max_block_size()); // block used by upper level chunk reader.
 
             if (bufferSize + chunkBufferSize > Config->MaxBufferSize) {
                 break;
