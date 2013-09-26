@@ -3,6 +3,7 @@
 import yt.yson as yson
 from yt.wrapper.tests.base import YtTestBase, TEST_DIR
 from yt.environment import YTEnv
+import yt.logger as logger
 import yt.wrapper as yt
 
 import os
@@ -220,16 +221,16 @@ class TestDefaultBehaviour(YtTestBase, YTEnv):
 
         # Prepare
         yt.config.PRINT_STDERRS = True
-        old = yt.logger.info
+        old = logger.info
         output = []
         def print_info(msg, *args, **kwargs):
             output.append(msg)
-        yt.logger.info = print_info
+        logger.info = print_info
 
         yt.run_map("cat 1>&2", table, table)
 
         # Return settings back
-        yt.logger.info = old
+        logger.info = old
         yt.config.PRINT_STDERRS = False
 
         self.assertTrue(any(map(lambda line: line.find("x=1") != -1, output)))

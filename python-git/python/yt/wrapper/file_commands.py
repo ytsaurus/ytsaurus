@@ -1,5 +1,5 @@
 import config
-import logger
+import yt.logger as logger
 from common import require, chunk_iter, partial, bool_to_string, parse_bool
 from errors import YtError, YtResponseError
 from driver import read_content, get_host_for_heavy_operation

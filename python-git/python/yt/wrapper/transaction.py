@@ -1,7 +1,7 @@
 import config
-import logger
-from common import require, get_value
-from errors import YtError, YtResponseError
+import yt.logger as logger
+from common import get_value
+from errors import YtResponseError
 from transaction_commands import start_transaction, commit_transaction, abort_transaction, ping_transaction
 
 import traceback as tb
