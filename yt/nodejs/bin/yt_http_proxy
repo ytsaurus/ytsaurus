@@ -150,6 +150,10 @@ config = {
             retries: 5
         },
     },
+    api : {
+        rate_check_cache_size: 5000,
+        rate_check_cache_age: 60 * 1000,
+    },
     authentication : {
         enable: true,
         cache_max_size: 5000,

@@ -1,3 +1,4 @@
+var lru_cache = require("lru-cache");
 var qs = require("querystring");
 
 var YtDriver = require("../lib/driver").that;
@@ -15,11 +16,12 @@ var die = require("./common_http").die;
 function spawnServer(driver, watcher, done) {
     var logger = stubLogger();
     var coordinator = stubCoordinator();
+    var rate_check_cache = lru_cache({ max: 5, maxAge: 5000 });
     return srv(function(req, rsp) {
         var pause = utils.Pause(req);
         req.authenticated_user = "root";
         return (new YtCommand(
-            logger, driver, coordinator, watcher, pause
+            logger, driver, coordinator, watcher, rate_check_cache, pause
         )).dispatch(req, rsp);
     }, done);
 }

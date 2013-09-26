@@ -58,6 +58,19 @@ YtError.ensureWrapped = function(err, message)
 
 // Is OK?
 
+function checkForErrorCode(error, code)
+{
+    if (error.code === code) {
+        return true;
+    }
+    for (var i = 0, n = error.inner_errors.length; i < n; ++i) {
+        if (checkForErrorCode(error.inner_errors[i], code)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 YtError.prototype.isOK = function() {
     "use strict";
     return this.code === 0;
@@ -65,15 +78,17 @@ YtError.prototype.isOK = function() {
 
 YtError.prototype.isUnavailable = function() {
     "use strict";
-    if (this.code == binding.UnavailableYtErrorCode) {
-        return true;
-    }
-    for (var i = 0, n = this.inner_errors.length; i < n; ++i) {
-        if (this.inner_errors[i].isUnavailable()) {
-            return true;
-        }
-    }
-    return false;
+    return checkForErrorCode(this, binding.UnavailableYtErrorCode);
+};
+
+YtError.prototype.isUserBanned = function() {
+    "use strict";
+    return checkForErrorCode(this, binding.UserBannedYtErrorCode);
+};
+
+YtError.prototype.isRequestRateLimitExceeded = function() {
+    "use strict";
+    return checkForErrorCode(this, binding.RequestRateLimitExceededYtErrorCode);
 };
 
 // Setters.
