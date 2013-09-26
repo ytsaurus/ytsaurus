@@ -93,6 +93,7 @@ TMultiChunkReaderBase<TChunkReader>::TMultiChunkReaderBase(
         i64 bufferSize = 0;
         while (PrefetchWindow < sortedChunkSpecs.size()) {
             auto& chunkSpec = sortedChunkSpecs[PrefetchWindow];
+            i64 currentSize;   
             NChunkClient::GetStatistics(chunkSpec, &currentSize);
             auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunkSpec.extensions());
 
