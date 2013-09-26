@@ -1145,6 +1145,7 @@ void TCypressManager::RegisterNode(std::unique_ptr<TCypressNodeBase> node)
 
     node->SetCreationTime(mutationContext->GetTimestamp());
     node->SetModificationTime(mutationContext->GetTimestamp());
+    node->SetAccessTime(mutationContext->GetTimestamp());
     node->SetRevision(mutationContext->GetVersion().ToRevision());
 
     NodeMap.Insert(TVersionedNodeId(nodeId), node.release());
