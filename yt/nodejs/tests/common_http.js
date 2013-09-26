@@ -18,7 +18,9 @@ exports.srv = function srv()
     var server = http.createServer(app);
 
     server.listen(0, HTTP_HOST, function() {
-        HTTP_PORT = server.address().port;
+        var x = server.address();
+        HTTP_HOST = x.address;
+        HTTP_PORT = x.port;
         done();
     });
 
