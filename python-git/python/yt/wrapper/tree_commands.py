@@ -225,6 +225,6 @@ def remove_with_empty_dirs(path, force=True):
             else:
                 raise
         path = os.path.dirname(path)
-        if path == "//" or list(path):
+        if path == "//" or list(path) or get(path + "/@acl"):
             break
 
