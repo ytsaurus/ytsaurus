@@ -302,7 +302,7 @@ class TestDefaultBehaviour(YtTestBase, YTEnv):
             if check_action is not None:
                 assert check_action()
 
-    def test_master_mutation_id(self):
+    def DISABLED_test_master_mutation_id(self):
         test_dir = os.path.join(TEST_DIR, "test")
         test_dir2 = os.path.join(TEST_DIR, "test2")
         test_dir3 = os.path.join(TEST_DIR, "test3")
@@ -405,6 +405,27 @@ class TestDefaultBehaviour(YtTestBase, YTEnv):
         self.assertEqual(
             json.loads(rsp.headers["X-YT-Response-Parameters"]),
             {})
+
+    def test_read_with_retries(self):
+        old_value = yt.config.RETRY_READ
+        yt.config.RETRY_READ = True
+        try:
+            table = TEST_DIR + "/table"
+
+            self.assertRaises(lambda: yt.read_table(table))
+
+            yt.create_table(table)
+            self.check([], list(yt.read_table(table)))
+
+            yt.write_table(table, ["x=1\n", "y=2\n"])
+            self.check(["x=1\n", "y=2\n"], list(yt.read_table(table)))
+
+            self.check("x=1\n", yt.read_table(table).next())
+            self.assertRaises(lambda: yt.write_table(table, ["x=1\n", "y=2\n"]))
+
+        finally:
+            yt.config.RETRY_READ = old_value
+
 
 # Map method for test operations with python entities
 class ChangeX__(object):
