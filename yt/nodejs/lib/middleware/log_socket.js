@@ -39,7 +39,7 @@ exports.that = function Middleware__YtLogSocket()
         logger.debug("New connection was established", getSocketMeta(socket, true));
 
         socket.once("close", function() {
-            logger.info("Connection was closed", getSocketMeta(socket));
+            logger.debug("Connection was closed", getSocketMeta(socket));
         });
 
         socket.once("timeout", function() {
