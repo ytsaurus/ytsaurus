@@ -547,6 +547,15 @@ class TestCypressCommands(YTEnvSetup):
         c2 = get('//tmp/@access_counter')
         assert c2 == c1 + 1
 
+    def test_access_stat8(self):
+        create('table', '//tmp/t')
+        assert get('//tmp/t/@access_time') == get('//tmp/t/@creation_time')
+
+    def test_access_stat9(self):
+        create('table', '//tmp/t1')
+        copy('//tmp/t1', '//tmp/t2')
+        assert get('//tmp/t2/@access_time') == get('//tmp/t2/@creation_time')
+
     def test_access_stat_suppress1(self):
         c1 = get('//tmp/@access_counter')
         get('//tmp', opt=['/suppress_access_tracking=true'])

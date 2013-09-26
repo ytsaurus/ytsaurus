@@ -1081,6 +1081,8 @@ void TOperationControllerBase::DoReviveFromSnapshot()
     AbortAllJoblets();
 
     InitInputChunkScratcher();
+
+    AddAllTaskPendingHints();
 }
 
 void TOperationControllerBase::InitChunkListPool()
