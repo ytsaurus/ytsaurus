@@ -46,4 +46,6 @@ if [ "$PACKAGE" = "yandex-yt-python" ]; then
     mv pickling.py yt/wrapper/pickling.py
 fi
 
+python setup.py clean
+sudo make -f debian/rules clean
 rm -rf debian setup.py
