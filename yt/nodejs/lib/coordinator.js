@@ -14,7 +14,7 @@ var __DBG = require("./debug").that("X", "Coordinator");
 
 function parseBoolean(x)
 {
-    return typeof(x) === "string" ? x === "true" : !!value;
+    return typeof(x) === "string" ? x === "true" : !!x;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -228,7 +228,7 @@ YtCoordinator.prototype._initialize = function()
     },
     function(error) {
         if (error.code === 501) {
-            self.logger.debug("Presence resumed from " + path");
+            self.logger.debug("Presence resumed from " + path);
             return;
         } else {
             return Q.reject(error);
