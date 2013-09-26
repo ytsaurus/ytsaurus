@@ -41,7 +41,7 @@ def main():
 
     # collect dirs
     dirs = yt.search("//tmp", node_type="map_node", attributes=["modification_time", "count"])
-    dir_sizes = dict((obj, obj.attributes["count"]) for obj in dirs)
+    dir_sizes = dict((str(obj), obj.attributes["count"]) for obj in dirs)
 
     # collect table and files
     objects = []
@@ -82,11 +82,11 @@ def main():
 
     for iter in xrange(5):
         for dir in dirs:
-            if dir_sizes[dir] == 0 and get_age(dir).days > args.days:
+            if dir_sizes[str(dir)] == 0 and get_age(dir).days > args.days:
                 logger.info("Removing empty dir %s", dir)
                 dir_sizes[os.path.dirname(dir)] -= 1
                 # To avoid removing twice
-                dir_sizes[dir] = -1 
+                dir_sizes[str(dir)] = -1 
                 yt.remove(dir, force=True)
 
 if __name__ == "__main__":

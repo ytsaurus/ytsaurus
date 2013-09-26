@@ -79,7 +79,7 @@ def main():
                        help='leave no more than N completed (without stderr) or aborted operations')
     parser.add_argument('--total-count', metavar='N', type=int, default=2000,
                        help='leave no more that N operations totally')
-    parser.add_argument('--failed_timeout', metavar='N', type=int, default=2,
+    parser.add_argument('--failed-timeout', metavar='N', type=int, default=2,
                        help='remove all failed operation older than N days')
     parser.add_argument('--robot', action="append",  help='robot users that run operations very often and can be ignored')
     parser.add_argument('--log', help='file to save operation specs')
