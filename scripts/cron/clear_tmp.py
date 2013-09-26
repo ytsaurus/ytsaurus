@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import yt.logger as logger
 import yt.wrapper as yt
 
 from datetime import datetime
@@ -8,12 +9,7 @@ import os
 import argparse
 import logging
 
-logger = logging.getLogger("Cron")
-logger.setLevel(level="INFO")
-
-formatter = logging.Formatter('%(asctime)-15s\t{}\t%(message)s'.format(yt.config.http.PROXY))
-logger.addHandler(logging.StreamHandler())
-logger.handlers[0].setFormatter(formatter)
+logger.set_formatter(logging.Formatter('%(asctime)-15s\t{}\t%(message)s'.format(yt.config.http.PROXY)))
 
 now = datetime.now()
 

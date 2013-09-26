@@ -1,19 +1,11 @@
 #!/usr/bin/env python
 
+import yt.logger as logger
 import yt.yson as yson
 import yt.wrapper as yt
 
 import argparse
-import logging
 from cStringIO import StringIO
-
-logger = logging.getLogger("Cron")
-
-logger.setLevel(level="INFO")
-
-formatter = logging.Formatter('%(asctime)-15s: %(message)s')
-logger.addHandler(logging.StreamHandler())
-logger.handlers[0].setFormatter(formatter)
 
 def is_map_node(object):
     return object.attributes["type"] == "map_node"

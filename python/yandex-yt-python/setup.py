@@ -33,12 +33,13 @@ def main():
     else:
         data_files.append(("/usr/bin", ["yt/wrapper/mapreduce-yt"]))
         data_files.append(("/usr/bin", ["yt/wrapper/yt2"]))
-
+    
     version = subprocess.check_output("dpkg-parsechangelog | grep Version | awk '{print $2}'", shell=True)
+
     setup(
         name = "Yt",
         version = version,
-        packages = find_packages(exclude=["*.tests", "*.tests.*", "tests.*", "tests", "yt.environment"]),
+        packages = find_packages(exclude=["*.tests", "*.tests.*", "tests.*", "tests", "yt.environment", "yt.tools", "yt.bindings"]),
         scripts = scripts,
 
         install_requires = requires,
@@ -60,6 +61,6 @@ def main():
 
         data_files = data_files
     )
-
+    
 if __name__ == "__main__":
     main()

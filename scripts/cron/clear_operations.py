@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 import sys
+import yt.logger as logger
 import yt.wrapper as yt
 from dateutil.parser import parse
 from collections import namedtuple
@@ -11,12 +12,7 @@ import logging
 
 Oper = namedtuple("Oper", ["time", "id", "state", "spec"]);
 
-logger = logging.getLogger("Cron")
-logger.setLevel(level="INFO")
-
-formatter = logging.Formatter('%(asctime)-15s\t{}\t%(message)s'.format(yt.config.http.PROXY))
-logger.addHandler(logging.StreamHandler())
-logger.handlers[0].setFormatter(formatter)
+logger.set_formatter(logging.Formatter('%(asctime)-15s\t{}\t%(message)s'.format(yt.config.http.PROXY)))
 
 def clean_operations(count, total_count, failed_timeout, robots, log):
     """Clean all operations started no more than #days days ago,

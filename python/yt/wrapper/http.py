@@ -1,5 +1,5 @@
 import http_config
-import logger
+import yt.logger as logger
 from common import require
 from errors import YtError, YtResponseError, YtNetworkError, YtTokenError, YtProxyUnavailable
 

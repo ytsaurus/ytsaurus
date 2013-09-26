@@ -11,11 +11,12 @@ LOCK_PATH="//sys/cron/redwood_lock"
 
 /opt/cron/tools/remove.py $REMOVE_QUEUE
 
-/opt/cron/tools/import_table_from_mr.py \
+../process_tables/import_from_mr.py \
+    --tables-queue "$IMPORT_QUEUE" \
+    --destination-dir "$IMPORT_PATH" \
     --mapreduce-binary "/opt/cron/tools/mapreduce" \
-    --tables "$IMPORT_QUEUE" --destination="$IMPORT_PATH" \
-    --server "redwood.yandex.ru" --pool "redwood_restricted" \
+    --mr-server "redwood.yandex.ru" \
     --compression-codec "gzip_best_compression" --erasure-codec "lrc_12_2_2" \
+    --yt-pool "redwood_restricted" \
     --lock "$LOCK_PATH" \
-    --mapreduce-binary "/opt/cron/tools/mapreduce" \
-    --fastbone --ignore
+    --fastbone

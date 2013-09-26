@@ -1,3 +1,3 @@
 #!/bin/sh
 
-./export_from_yt.py --tables //home/ignat/tables_to_export --server redwood.yandex.ru --force
+./export_to_mr.py --tables-queue //home/ignat/tables_to_export --mr-server redwood.yandex.ru --force

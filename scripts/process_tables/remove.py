@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from atomic import process_tasks_from_list
+from yt.tools.atomic import process_tasks_from_list
 
 import yt.wrapper as yt
 

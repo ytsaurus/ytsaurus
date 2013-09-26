@@ -1,4 +1,4 @@
-from yt.common import require, flatten, update, which, YtError
+from yt.common import require, flatten, update, which, YtError, update_from_env
 import yt.yson as yson
 
 import os
@@ -116,32 +116,6 @@ def die(message=None, return_code=1):
     if message is not None:
         print >>sys.stderr, message
     sys.exit(return_code)
-
-def update_from_env(variables):
-    """
-    Updates variables dict from environment.
-    """
-    for key, value in os.environ.iteritems():
-        prefix = "YT_"
-        if not key.startswith(prefix):
-            continue
-
-        key = key[len(prefix):]
-        if key not in variables:
-            continue
-
-        var_type = type(variables[key])
-        # Using int we treat "0" as false, "1" as "true"
-        if var_type == bool:
-            try:
-                value = int(value)
-            except:
-                pass
-        # None type is treated as str
-        if isinstance(None, var_type):
-            var_type = str
-
-        variables[key] = var_type(value)
 
 def generate_uuid():
     def get_int():

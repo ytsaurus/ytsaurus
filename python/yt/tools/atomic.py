@@ -1,19 +1,10 @@
+import yt.logger as logger
 import yt.wrapper as yt
 
 import __builtin__
 
-import sys
 import random
-import logging
-import traceback
 from time import sleep
-
-logger = logging.getLogger("Cron")
-logger.setLevel(level="INFO")
-
-formatter = logging.Formatter('%(asctime)-15s: %(message)s')
-logger.addHandler(logging.StreamHandler())
-logger.handlers[0].setFormatter(formatter)
 
 def atomic_pop(list, retries_count=10, delay=5.0):
     with yt.Transaction():
@@ -38,6 +29,7 @@ def atomic_pop(list, retries_count=10, delay=5.0):
 
 
 def atomic_push(list, value):
+    logger.warning("Put value '%s' to queue '%s'", str(value), list)
     yt.set(list + "/begin", value)
 
 def is_hashable(obj):
@@ -55,7 +47,7 @@ def process_tasks_from_list(list, action):
             value = atomic_pop(list)
 
             if value is None:
-                logger.info("List %s is empty, processing stopped", list)
+                logger.info("Queue '%s' is empty, processing stopped", list)
                 break
 
             hashable_value = value
@@ -66,8 +58,7 @@ def process_tasks_from_list(list, action):
 
             if hashable_value is not None and is_hashable(hashable_value):
                 if hashable_value in processed_values:
-                    logger.info("We have already prosessed value {0}, "
-                                "it put back to queue and processed is stopped".format(str(value)))
+                    logger.info("We have already prosessed value '%s', processing stopped", str(value))
                     atomic_push(list, value)
                     break
                 processed_values.add(hashable_value)
@@ -75,16 +66,11 @@ def process_tasks_from_list(list, action):
             logger.info("Processing value %s", str(value))
             result = action(value)
             if result == -1:
-                logger.warning("Action can not be done. "
-                               "Put value %s back to the queue", str(value))
                 atomic_push(list, value)
 
-        except (Exception, KeyboardInterrupt) as e:
-            logger.error("Crashed with error %s", str(e))
-            _, _, exc_traceback = sys.exc_info()
-            traceback.print_tb(exc_traceback, file=sys.stdout)
+        except (Exception, KeyboardInterrupt):
+            logger.exception("Process interrupted or error occured, processing stopped")
             if value is not None:
-                logger.info("Put value %s back to the queue", str(value))
                 atomic_push(list, value)
             break
 
