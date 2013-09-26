@@ -1,13 +1,15 @@
 import config
-import logger
 from common import require, prefix, execute_handling_sigint, get_value
 from errors import YtError, YtOperationFailedError, format_error
 from driver import make_request
 from tree_commands import get_attribute, exists, search
 from file_commands import download_file
+import yt.logger as logger
 
 import os
 import dateutil.parser
+import logging
+from datetime import datetime
 from time import sleep
 from cStringIO import StringIO
 from dateutil import tz
@@ -54,6 +56,29 @@ class Timeout(object):
         self.total_time += res
         sleep(res)
 
+class OperationProgressFormatter(logging.Formatter):
+    def __init__(self, format="%(asctime)-15s\t%(message)s", date_format=None, start_time=None):
+        logging.Formatter.__init__(self, format, date_format)
+        if start_time is None:
+            self._start_time = datetime.now()
+        else:
+            self._start_time = start_time
+
+    def formatTime(self, record, date_format=None):
+        created = datetime.fromtimestamp(record.created)
+        if date_format is not None:
+            return created.strftime(date_format)
+        else:
+            def total_minutes(time):
+                return time.seconds / 60 + 60 * 24 * time.days
+            elapsed = total_minutes(datetime.now() - self._start_time)
+            time = datetime.now()
+            if time.microsecond > 0:
+                time = time.isoformat(" ")[:-3]
+            else:
+                time = time.isoformat(" ")
+            return "{0} ({1:2} min)".format(time, elapsed)
+
 
 def get_operation_state(operation):
     old_retries_count = config.http.HTTP_RETRIES_COUNT
@@ -85,7 +110,7 @@ class PrintOperationInfo(object):
         creation_time = creation_time.replace(tzinfo=tz.tzutc())
         local_creation_time = creation_time.astimezone(tz.tzlocal()).replace(tzinfo=None)
 
-        self.formatter = logger.OperationProgressFormatter(start_time=local_creation_time)
+        self.formatter = OperationProgressFormatter(start_time=local_creation_time)
 
     def __call__(self, state):
         logger.set_formatter(self.formatter)

@@ -10,20 +10,13 @@ all:
 source:
 	$(PYTHON) setup.py sdist
 
-test: clean
+test: deb_clean
 	$(PYTHON) setup.py test
 
 VERSION=$(shell dpkg-parsechangelog | grep "Version:" | awk '{print $$2}')
 
 version:
 	echo "VERSION='$(VERSION)'" > yt/wrapper/version.py
-
-prepare: version
-	rm -f $(CURDIR)/yt/wrapper/mapreduce-yt
-	ln -s $(CURDIR)/yt/wrapper/mapreduce $(CURDIR)/yt/wrapper/mapreduce-yt
-	
-	rm -f $(CURDIR)/yt/wrapper/yt2
-	ln -s $(CURDIR)/yt/wrapper/yt $(CURDIR)/yt/wrapper/yt2
 
 html: version
 	rm -rf docs
@@ -33,28 +26,27 @@ html: version
 	#sudo cp -r docs/_build/* /usr/share/nginx/www/python_api
 
 
-
 deb:
 	$(MAKE) test
-	$(MAKE) clean
 	$(MAKE) deb_without_test
 
-egg: prepare
+egg: version
 	EGG=1 $(PYTHON) setup.py bdist_egg
 	cp dist/*.egg .
 
-deb_without_test: clean
-	$(MAKE) prepare
+deb_without_test: deb_clean
+	$(MAKE) version
 	# build the source package in the parent directory
 	# then rename it to project_version.orig.tar.gz
 	$(PYTHON) setup.py sdist --dist-dir=../
 	# build the package
 	dpkg-buildpackage -i -I -rfakeroot
 
-clean:
-	$(PYTHON) setup.py clean
+deb_clean:
 	find . -name '*.pyc' -delete
-	sudo rm -rf tests Yt.egg-info yt/wrapper/mapreduce-yt yt/wrapper/yt2 yt/wrapper/tests/sandbox/*
+	sudo rm -rf tests Yt.egg-info yt/wrapper/tests/sandbox/*
 	sudo rm -rf build/ dist/ docs/ MANIFEST *.spec *.egg
-	sudo $(MAKE) -f $(CURDIR)/debian/rules clean
+
+clean: deb_clean
+	rm -rf debian setup.py 
 

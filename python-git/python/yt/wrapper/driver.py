@@ -1,5 +1,5 @@
 import config
-import logger
+import yt.logger as logger
 from compression_wrapper import create_zlib_generator
 from common import require, generate_uuid
 from errors import YtError, YtResponseError

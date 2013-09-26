@@ -1,5 +1,5 @@
 import config
-import logger
+import yt.logger as logger
 from common import YtError
 from table import to_table
 from transaction import PingableTransaction

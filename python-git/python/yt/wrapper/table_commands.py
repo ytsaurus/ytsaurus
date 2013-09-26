@@ -15,7 +15,7 @@ from transaction_commands import _make_transactional_request, abort_transaction
 from transaction import PingableTransaction
 from format import Format
 from heavy_commands import make_heavy_request
-import logger
+import yt.logger as logger
 
 from yt.yson import yson_to_json
 

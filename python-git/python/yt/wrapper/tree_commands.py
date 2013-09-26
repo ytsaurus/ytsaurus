@@ -1,5 +1,5 @@
 import config
-import logger
+import yt.logger as logger
 from common import parse_bool, flatten, get_value, bool_to_string
 from transaction_commands import _make_transactional_request, \
                                  _make_formatted_transactional_request
