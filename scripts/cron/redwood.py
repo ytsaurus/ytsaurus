@@ -35,16 +35,22 @@ def process_logs(import_set, remove_set, log_path, log_name, subnames, days):
 
 def main():
     parser = argparse.ArgumentParser(description='Prepare tables to merge')
-    parser.add_argument('--path')
-    parser.add_argument('--import-queue')
-    parser.add_argument('--remove-queue')
+    parser.add_argument('--path', required=True)
+    parser.add_argument('--import-queue', required=True)
+    parser.add_argument('--remove-queue', required=True)
     args = parser.parse_args()
     
     tables_to_import = set(yt.get(args.import_queue))
     tables_to_remove = set(yt.get(args.remove_queue))
-    process_logs(tables_to_import, tables_to_remove, args.path, "user_sessions",      None,           90)
+    process_logs(tables_to_import, tables_to_remove, args.path, "user_sessions",      None,           60)
     process_logs(tables_to_import, tables_to_remove, args.path, "user_intents",       None,           None)
     process_logs(tables_to_import, tables_to_remove, args.path, "reqregscdata",       ["www", "xml"], None)
+
+    for i in xrange(9, 16):
+        date_str = date(2013, 9, i).strftime("%Y%m%d")
+        key = os.path.join(args.path, "user_sessions", date_str)
+        if key in tables_to_remove:
+            tables_to_remove.remove(key)
 
     yt.set(args.import_queue, list(tables_to_import))
     yt.set(args.remove_queue, list(tables_to_remove))
