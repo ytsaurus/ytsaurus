@@ -3,8 +3,6 @@ var connect = require("connect");
 
 exports.srv = function srv()
 {
-    ++HTTP_PORT; // Increment port to avoid EADDRINUSE failures.
-
     var app = connect()
         .use(function(req, rsp, next) {
             req.uuid = require("node-uuid").v4();
@@ -19,18 +17,17 @@ exports.srv = function srv()
 
     var server = http.createServer(app);
 
-    setTimeout(function() {
-        server.listen(HTTP_PORT, HTTP_HOST, function() {
-            setTimeout(done, HTTP_LAG);
-        });
-    }, 1);
+    server.listen(0, HTTP_HOST, function() {
+        HTTP_PORT = server.address().port;
+        done();
+    });
 
     return server;
 };
 
 exports.die = function die(server, done)
 {
-    server.close(function() { setTimeout(done, HTTP_LAG); });
+    server.close(done);
 };
 
 exports.ask = function ask(method, path, headers, verify, callback)

@@ -30,7 +30,7 @@ global.stubLogger = function(callback) {
     return stub;
 };
 
-global.HTTP_PORT = 40000;
+global.HTTP_PORT = 0;
 global.HTTP_HOST = "127.0.0.1";
 global.HTTP_LAG  = 5;
 
