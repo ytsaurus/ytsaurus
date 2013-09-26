@@ -12,7 +12,7 @@ import simplejson as json
 
 # We cannot use requests.HTTPError in module namespace because of conflict with python3 http library
 from yt.packages.requests import HTTPError, ConnectionError, Timeout
-NETWORK_ERRORS = (HTTPError, ConnectionError, Timeout, httplib.IncompleteRead, YtResponseError)
+NETWORK_ERRORS = (HTTPError, ConnectionError, Timeout, httplib.IncompleteRead)
 
 if http_config.FORCE_IPV4 or http_config.FORCE_IPV6:
     import socket

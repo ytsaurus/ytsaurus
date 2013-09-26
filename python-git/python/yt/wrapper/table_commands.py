@@ -14,7 +14,9 @@ from file_commands import smart_upload_file
 from transaction_commands import _make_transactional_request, abort_transaction
 from transaction import PingableTransaction
 from format import Format
+from lock import lock
 from heavy_commands import make_heavy_request
+from http import NETWORK_ERRORS
 import yt.logger as logger
 
 from yt.yson import yson_to_json
@@ -22,6 +24,8 @@ from yt.yson import yson_to_json
 import os
 import sys
 import types
+import exceptions
+import simplejson as json
 from cStringIO import StringIO
 
 """ Auxiliary methods """
@@ -117,10 +121,10 @@ def _prepare_destination_tables(tables, replication_factor, compression_codec):
     return tables
 
 def _remove_locks(table):
-    for lock in get_attribute(table, "locks", []):
-        if lock["mode"] != "snapshot":
-            if exists("//sys/transactions/" + lock["transaction_id"]):
-                abort_transaction(lock["transaction_id"])
+    for lock_obj in get_attribute(table, "locks", []):
+        if lock_obj["mode"] != "snapshot":
+            if exists("//sys/transactions/" + lock_obj["transaction_id"]):
+                abort_transaction(lock_obj["transaction_id"])
 
 def _remove_tables(tables):
     for table in tables:
@@ -148,7 +152,7 @@ def _add_user_command_spec(op_type, binary, input_format, output_format, files, 
             }
         },
         spec)
-   
+
     memory_limit = get_value(memory_limit, config.MEMORY_LIMIT)
     if memory_limit is not None:
         spec = update({op_type: {"memory_limit": int(memory_limit)}}, spec)
@@ -281,7 +285,7 @@ def write_table(table, input_stream, format=None, table_writer=None, replication
             can_split_input = False
     elif isinstance(input_stream, str):
         input_stream = split_rows(StringIO(input_stream))
-    
+
     if config.USE_RETRIES_DURING_WRITE and can_split_input:
         input_stream = chunk_iter_lines(input_stream, config.CHUNK_SIZE)
 
@@ -317,12 +321,90 @@ def read_table(table, format=None, table_reader=None, response_type=None):
     if table_reader is not None:
         params["table_reader"] = table_reader
 
-    response = _make_transactional_request(
-        "read",
-        params,
-        proxy=get_host_for_heavy_operation(),
-        return_raw_response=True)
-    return read_content(response, get_value(response_type, "iter_lines"))
+    if not config.RETRY_READ:
+        response = _make_transactional_request(
+            "read",
+            params,
+            proxy=get_host_for_heavy_operation(),
+            return_raw_response=True)
+
+        return read_content(response, get_value(response_type, "iter_lines"))
+    else:
+        title = "Python wrapper: read {0}".format(to_name(table))
+        tx = PingableTransaction(timeout=config.HEAVY_COMMAND_TRANSACTION_TIMEOUT,
+                                 attributes={"title": title})
+        tx.__enter__()
+
+        class Index(object):
+            def __init__(self, index):
+                self.index = index
+
+            def get(self):
+                return self.index
+
+            def increment(self):
+                self.index += 1
+
+        def run_with_retries(func):
+            for i in xrange(config.READ_RETRY_COUNT):
+                try:
+                    return func()
+                except tuple(list(NETWORK_ERRORS)) as err:
+                    logger.warning("Retry %d failed with message %s", i + 1, str(err))
+                    if i + 1 == config.READ_RETRY_COUNT:
+                        raise
+
+        def iter_with_retries(iter):
+            try:
+                for i in xrange(config.READ_RETRY_COUNT):
+                    try:
+                        for elem in iter:
+                            yield elem
+                    except tuple(list(NETWORK_ERRORS)) as err:
+                        logger.warning("Retry %d failed with message %s", i + 1, str(err))
+                        if i + 1 == config.READ_RETRY_COUNT:
+                            raise
+            except exceptions.GeneratorExit:
+                tx.__exit__(None, None, None)
+            except:
+                tx.__exit__(*sys.exc_info())
+                raise
+            else:
+                tx.__exit__(None, None, None)
+
+        def get_start_row_index():
+            response = _make_transactional_request(
+                "read",
+                params,
+                proxy=get_host_for_heavy_operation(),
+                return_raw_response=True)
+            rsp_params = json.loads(response.headers["X-YT-Response-Parameters"])
+            return rsp_params.get("start_row_index", None)
+
+
+        def read_iter(index):
+            table.name.attributes["lower_limit"] = {"row_index": index.get()}
+            params["path"] = table.get_json()
+            response = _make_transactional_request(
+                "read",
+                params,
+                proxy=get_host_for_heavy_operation(),
+                return_raw_response=True)
+            for record in read_content(response, get_value(response_type, "iter_lines")):
+                yield record
+                index.increment()
+
+        try:
+            lock(table, mode="snapshot")
+            index = Index(run_with_retries(get_start_row_index))
+            if index.get() is None:
+                tx.__exit__(None, None, None)
+                return (_ for _ in [])
+            return iter_with_retries(read_iter(index))
+        except:
+            tx.__exit__(*sys.exc_info())
+            raise
+
 
 def _are_nodes(source_tables, destination_table):
     return len(source_tables) == 1 and not source_tables[0].has_delimiters() and not destination_table.append
