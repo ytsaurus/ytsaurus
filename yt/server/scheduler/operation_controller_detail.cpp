@@ -957,11 +957,16 @@ void TOperationControllerBase::Initialize()
         THROW_ERROR_EXCEPTION("No online exec nodes to start operation");
     }
 
-    Operation->SetMaxStdErrCount(Spec->MaxStdErrCount.Get(Config->MaxStdErrCount));
+    Essentiate();
 
     DoInitialize();
 
     LOG_INFO("Operation initialized");
+}
+
+void TOperationControllerBase::Essentiate()
+{
+    Operation->SetMaxStdErrCount(Spec->MaxStdErrCount.Get(Config->MaxStdErrCount));
 }
 
 void TOperationControllerBase::DoInitialize()
@@ -1045,13 +1050,9 @@ TFuture<TError> TOperationControllerBase::Revive()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    try {
-        Initialize();
-    } catch (const std::exception& ex) {
-        return MakeFuture(TError(ex));
-    }
-
     if (Operation->Snapshot()) {
+        Essentiate();
+
         auto this_ = MakeStrong(this);
         return
             BIND(&TOperationControllerBase::DoReviveFromSnapshot, this_)
@@ -1064,6 +1065,12 @@ TFuture<TError> TOperationControllerBase::Revive()
                     return TError();
                 }).AsyncVia(CancelableControlInvoker));
     } else {
+        try {
+            Initialize();
+        } catch (const std::exception& ex) {
+            return MakeFuture(TError(ex));
+        }
+
         return Prepare();
     }
 }

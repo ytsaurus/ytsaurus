@@ -566,6 +566,7 @@ protected:
 
 
     // Initialization.
+    void Essentiate();
     virtual void DoInitialize();
 
 

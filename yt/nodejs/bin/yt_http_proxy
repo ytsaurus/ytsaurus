@@ -150,6 +150,10 @@ config = {
             retries: 5
         },
     },
+    api : {
+        rate_check_cache_size: 5000,
+        rate_check_cache_age: 60 * 1000,
+    },
     authentication : {
         enable: true,
         cache_max_size: 5000,
@@ -191,7 +195,9 @@ config = {
         fitness_dmp_coefficient: 0.3,
         afd_window_size: 24,
         afd_phi_threshold: 4,
-        death_age: 300000
+        death_age: 300000,
+        failure_threshold: 5,
+        failure_timeout: 60000,
     },
     static: [
     ],

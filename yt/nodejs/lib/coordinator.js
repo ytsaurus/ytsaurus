@@ -12,6 +12,11 @@ var utils = require("./utils");
 
 var __DBG = require("./debug").that("X", "Coordinator");
 
+function parseBoolean(x)
+{
+    return typeof(x) === "string" ? x === "true" : !!x;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 function YtCoordinatedHost(config, host)
@@ -21,7 +26,7 @@ function YtCoordinatedHost(config, host)
     var role = "data";
     var dead = true;
     var banned = false;
-    var liveness = { updated_at: new Date(0), load_average: 0.0 };
+    var liveness = { updated_at: new Date(0), load_average: 0.0, failing: false };
     var randomness = Math.random();
     var dampening = 0.0;
 
@@ -31,6 +36,8 @@ function YtCoordinatedHost(config, host)
         config.heartbeat_drift,
         config.heartbeat_interval + config.heartbeat_drift,
         config.heartbeat_interval);
+
+    var age = config.death_age;
 
     var self = this;
 
@@ -56,7 +63,7 @@ function YtCoordinatedHost(config, host)
         get: function() { return dead; },
         set: function(value) {
             var dead_before = dead;
-            dead = typeof(value) === "string" ? value === "true" : !!value;
+            dead = parseBoolean(value);
 
             if (!dead_before && dead) {
                 self.emit("dead");
@@ -71,7 +78,7 @@ function YtCoordinatedHost(config, host)
         get: function() { return banned; },
         set: function(value) {
             var banned_before = banned;
-            banned = typeof(value) === "string" ? value === "true" : !!value;
+            banned = parseBoolean(value);
 
             if (!banned_before && banned) {
                 self.emit("banned");
@@ -91,9 +98,14 @@ function YtCoordinatedHost(config, host)
 
             liveness.updated_at = new Date(value.updated_at);
             liveness.load_average = parseFloat(value.load_average);
+            liveness.failing = parseBoolean(value.failing);
+
             randomness = Math.random();
             dampening = 0.0;
+
             afd.heartbeatTS(liveness.updated_at);
+
+            this.dead = !liveness.failing && (new Date() - liveness.updated_at) > age;
         },
         enumerable: true
     });
@@ -170,11 +182,16 @@ function YtCoordinator(config, logger, driver, fqdn)
 
     this.fqdn = fqdn;
     this.host = new YtCoordinatedHost(this.config, this.fqdn);
+
     this.hosts = {};
     this.hosts[this.fqdn] = this.host;
 
     if (this.config.enable) {
+        this.failure_count = 0;
+        this.failure_at = new Date(0);
+
         this.initialized = false;
+
         this.timer = setInterval(this._refresh.bind(this), this.config.heartbeat_interval);
         this.timer.unref && this.timer.unref();
 
@@ -183,6 +200,55 @@ function YtCoordinator(config, logger, driver, fqdn)
 
     this.__DBG("New");
 }
+
+YtCoordinator.prototype._initialize = function()
+{
+    "use strict";
+
+    var self = this;
+    var fqdn = self.fqdn;
+    var path = "//sys/proxies/" + utils.escapeYPath(fqdn);
+
+    return Q
+    .when(self.driver.executeSimple("create", {
+        type: "map_node",
+        path: path
+    }))
+    .then(
+    function(create) {
+        var req1 = self.driver.executeSimple(
+            "set",
+            { path: path + "/@role" },
+            "data");
+        var req2 = self.driver.executeSimple(
+            "set",
+            { path: path + "/@banned" },
+            "false");
+        return Q.all([ req1, req2 ]);
+    },
+    function(error) {
+        if (error.code === 501) {
+            self.logger.debug("Presence resumed from " + path);
+            return;
+        } else {
+            return Q.reject(error);
+        }
+    })
+    .then(function() {
+        self.logger.debug("Presence initialized at " + path);
+        self.initialized = true;
+
+        return self._refresh();
+    })
+    .fail(function(err) {
+        var error = YtError.ensureWrapped(err);
+        self.logger.error(
+            "An error occured while initializing coordination",
+            // TODO(sandello): Embed.
+            { error: error.toJson() });
+    })
+    .done();
+};
 
 YtCoordinator.prototype._refresh = function()
 {
@@ -194,54 +260,36 @@ YtCoordinator.prototype._refresh = function()
 
     var sync = Q();
 
-    if (self.config.announce && !self.initialized) {
-        return Q
-        .when(self.driver.executeSimple("exists", { path: path }))
-        .then(function(exists) {
-            if (exists === "true") {
-                return;
-            }
-            return Q
-            .when(self.driver.executeSimple("create", {
-                type: "map_node",
-                path: path
-            }))
-            .then(function() {
-                var req1 = self.driver.executeSimple(
-                    "set",
-                    { path: path + "/@role" },
-                    "data");
-                var req2 = self.driver.executeSimple(
-                    "set",
-                    { path: path + "/@banned" },
-                    "false");
-                return Q.all([ req1, req2 ]);
-            });
-        })
-        .then(function() {
-            self.initialized = true;
-            self._refresh();
-        })
-        .fail(function(err) {
-            var error = YtError.ensureWrapped(err);
-            self.logger.error(
-                "An error occured while initializing coordination",
-                // TODO(sandello): Embed.
-                { error: error.toJson() });
-        })
-        .done();
-    }
-
     if (self.config.announce) {
+        if (!self.initialized) {
+            return self._initialize();
+        }
+
         self.__DBG("Updating coordination information");
+
+        var now = new Date();
+        var failing = false;
+
+        if (self.failure_count > self.config.failure_threshold) {
+            self.failure_at = now;
+        }
+
+        if (now - self.failure_at < self.config.failure_timeout) {
+            failing = true;
+        }
+
         sync = self.driver.executeSimple("set", { path: path + "/@liveness" }, {
             updated_at: (new Date()).toISOString(),
-            load_average: os.loadavg()[0]
+            load_average: os.loadavg()[0],
+            failing: failing,
         });
     }
 
     return Q.when(sync)
     .then(function() {
+        // We are dropping failure count as soon as we pushed it to Cypress.
+        self.failure_count = 0;
+
         return self.driver.executeSimple("list", {
             path: "//sys/proxies",
             attributes: [ "role", "banned", "liveness" ]
@@ -276,7 +324,6 @@ YtCoordinator.prototype._refresh = function()
             ref.role = utils.getYsonAttribute(entry, "role");
             ref.banned = utils.getYsonAttribute(entry, "banned");
             ref.liveness = utils.getYsonAttribute(entry, "liveness");
-            ref.dead = (new Date() - ref.liveness.updated_at) > self.config.death_age;
         });
     })
     .fail(function(err) {
@@ -317,6 +364,11 @@ YtCoordinator.prototype.getProxies = function(role, dead, banned)
 YtCoordinator.prototype.getSelf = function()
 {
     return this.host;
+};
+
+YtCoordinator.prototype.countFailure = function()
+{
+    ++this.failure_count;
 };
 
 YtCoordinator.prototype.allocateDataProxy = function()

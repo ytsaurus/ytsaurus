@@ -226,6 +226,11 @@ describe("YtAuthentication", function() {
         mock2
             .expects("executeSimple")
             .once()
+            .withExactArgs("get", sinon.match({ path: "//sys/tokens/some-token" }))
+            .returns(Q.reject(new YtError().withCode(500)));
+        mock2
+            .expects("executeSimple")
+            .once()
             .withExactArgs("create", sinon.match({
                 type: "user",
                 attributes: { name: "anakin" }
@@ -253,6 +258,11 @@ describe("YtAuthentication", function() {
         mock2
             .expects("executeSimple")
             .once()
+            .withExactArgs("get", sinon.match({ path: "//sys/tokens/some-token" }))
+            .returns(Q.reject(new YtError().withCode(500)));
+        mock2
+            .expects("executeSimple")
+            .once()
             .withExactArgs("create", sinon.match({
                 type: "user",
                 attributes: { name: "anakin" }
@@ -268,22 +278,16 @@ describe("YtAuthentication", function() {
         }, done).end();
     });
 
-    it("should query Cypress when Blackbox rejects the token", function(done) {
-        var mock1 = nock("http://localhost:9000")
-            .get("/blackbox?method=oauth&format=json&userip=127.0.0.1&oauth_token=unknown-token")
-            .reply(200, {
-                error: "bad_token",
-                status: { id: 5, value: "INVALID" }
-            });
-        var mock2 = sinon.mock(YtRegistry.get("driver"));
-        mock2
+    it("should query Cypress at first", function(done) {
+        var mock = sinon.mock(YtRegistry.get("driver"));
+        mock
             .expects("executeSimple")
             .once()
             .withExactArgs("get", sinon.match({
                 path: "//sys/tokens/unknown-token"
             }))
             .returns(Q.resolve("unknown-user"));
-        mock2
+        mock
             .expects("executeSimple")
             .once()
             .withExactArgs("create", sinon.match({
@@ -296,8 +300,7 @@ describe("YtAuthentication", function() {
         function(rsp) {
             rsp.should.be.http2xx;
             rsp.body.should.eql("unknown-user");
-            mock1.done();
-            mock2.verify();
+            mock.verify();
         }, done).end();
     });
 
