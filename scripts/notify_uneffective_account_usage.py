@@ -9,6 +9,8 @@ from email.mime.text import MIMEText
 import argparse
 from datetime import datetime
 
+yt.config.set_proxy("kant.yt.yandex.net")
+
 now = datetime.now()
 
 def get_age(obj):
@@ -23,14 +25,15 @@ def get_space(obj):
     return obj.attributes["resource_usage"]["disk_space"]
 
 def send(msg, recipients):
+    recipients = map(lambda user: user + "@yandex-team.ru", recipients)
     sender = "info@kant.yt.yandex.net"
     recipients.append("yt-dev-root@yandex-team.ru")
     email_msg = MIMEText(msg)
-    email_msg["Subject"] = "Blah"
+    email_msg["Subject"] = "Data usage on kant.yt.yandex.net"
     email_msg["From"] = sender
-    email_msg["To"] = recipients
+    email_msg["To"] = ", ".join(recipients)
     smtp = smtplib.SMTP('localhost')
-    smtp.sendmail(sender, [recipients], email_msg.as_string())
+    smtp.sendmail(sender, recipients, email_msg.as_string())
     smtp.quit()
 
 def main():
@@ -57,7 +60,7 @@ def main():
         account = table.attributes["account"]
         inefficiency[account] = inefficiency.get(account, []) + [table]
 
-    accounts = yt.get("//sys/accounts", attributes=["resource_limits"])
+    accounts = yt.get("//sys/accounts", attributes=["resource_limits", "responsibles"])
     accounts_size = dict((str(account), value.attributes["resource_limits"]["disk_space"]) for account, value in accounts.iteritems())
 
     for account, tables in inefficiency.iteritems():
@@ -66,7 +69,6 @@ def main():
         space = sum(map(get_space, tables)) / 2
         if space > args.min_size and space > args.min_ratio * accounts_size[account]:
             logger.info("Data in account '%s' stored inefficiently (limit: %d, bad data: %d)", account, accounts_size[account], space)
-            #print account, space / 1024 ** 3, accounts_size[account] / 1024 ** 3
             send("This is an automatic message, don't reply.\n"
                  "\n"
                  "You are responsible for account '{}' on kant.yt.yandex.net. "
