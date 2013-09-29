@@ -65,7 +65,7 @@ public:
     bool IsTerminating() const;
     bool IsCanceled() const;
 
-    void Run();
+    EFiberState Run();
     void Yield();
 
     void Reset();

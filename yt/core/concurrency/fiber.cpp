@@ -366,7 +366,7 @@ public:
     }
 
 
-    void Run()
+    EFiberState Run()
     {
         YCHECK(
             State_ == EFiberState::Initialized ||
@@ -398,12 +398,15 @@ public:
         TFuture<void> waitFor;
         WaitFor_.Swap(waitFor);
 
+        // Rescheduling the fiber may pass its ownership to another thread and
+        // eventually change its state. Hence we make a copy.
+        auto state = State_;
         YCHECK(
-            State_ == EFiberState::Terminated ||
-            State_ == EFiberState::Exception ||
-            State_ == EFiberState::Suspended);
+            state == EFiberState::Terminated ||
+            state == EFiberState::Exception ||
+            state == EFiberState::Suspended);
 
-        if (State_ == EFiberState::Exception) {
+        if (state == EFiberState::Exception) {
             // Rethrow the propagated exception.
 
             YCHECK(!Canceled_);
@@ -422,6 +425,8 @@ public:
             YCHECK(!Canceled_);
             switchTo->Invoke(BIND(&TImpl::Wakeup, MakeStrong(Owner_)));
         }
+
+        return state;
     }
 
     void Yield()
@@ -713,9 +718,9 @@ bool TFiber::IsCanceled() const
     return Impl->IsCanceled();
 }
 
-void TFiber::Run()
+EFiberState TFiber::Run()
 {
-    Impl->Run();
+    return Impl->Run();
 }
 
 void TFiber::Yield()

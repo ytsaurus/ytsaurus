@@ -185,9 +185,8 @@ void TExecutorThread::ThreadMain()
         while (Running) {
             // Spawn a new fiber to run the loop.
             auto fiber = NYT::New<TFiber>(BIND(&TExecutorThread::FiberMain, MakeStrong(this)));
-            fiber->Run();
+            auto state = fiber->Run();
 
-            auto state = fiber->GetState();
             YCHECK(state == EFiberState::Suspended || state == EFiberState::Terminated);
 
             // Check for fiber termination.
