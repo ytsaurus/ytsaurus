@@ -74,7 +74,7 @@ def list(path, max_size=1000, format=None, absolute=False, attributes=None):
     In case of map_node it returns keys of the node.
     """
     def join(elem):
-        return yson.convert_to_yson_type(
+        return yson.to_yson_type(
             yson.YsonString("{0}/{1}".format(path, elem)),
             elem.attributes)
 

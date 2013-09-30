@@ -10,9 +10,12 @@ from datetime import datetime, timedelta
 import argparse
 import logging
 
-Oper = namedtuple("Oper", ["time", "id", "state", "spec"]);
+Oper = namedtuple("Oper", ["time", "id", "user", "state", "spec"]);
 
 logger.set_formatter(logging.Formatter('%(asctime)-15s\t{}\t%(message)s'.format(yt.config.http.PROXY)))
+
+def is_casual(op):
+    return op.state in ["completed", "aborted"] and len(yt.get("//sys/operations/%s/jobs" % op.id)) == 0
 
 def clean_operations(count, total_count, failed_timeout, robots, log):
     """Clean all operations started no more than #days days ago,
@@ -20,9 +23,14 @@ def clean_operations(count, total_count, failed_timeout, robots, log):
     if robots is None:
         robots = []
 
-    operations = yt.get("//sys/operations", attributes=['state', 'start_time', 'spec'])
-    operations = [Oper(parse(v.attributes["start_time"]).replace(tzinfo=None), k, \
-        v.attributes["state"], v.attributes['spec']) for k, v in operations.iteritems()];
+    operations = yt.get("//sys/operations", attributes=['state', 'start_time', 'spec', 'authenticated_user'])
+    operations = [Oper(
+        parse(v.attributes["start_time"]).replace(tzinfo=None),
+        k,
+        v.attributes.get("authenticated_user", "unknown"),
+        v.attributes["state"],
+        v.attributes['spec'])
+            for k, v in operations.iteritems()];
     operations.sort(reverse=True)
 
     saved = 0
@@ -38,21 +46,17 @@ def clean_operations(count, total_count, failed_timeout, robots, log):
         if not is_final(op.state):
             continue
 
-        user = op.spec.get("authenticated_user", "unknown")
-
-        is_casual = (op.state in ["completed", "aborted"]) and (len(yt.get("//sys/operations/%s/jobs" % op.id)) == 0) and (user in users)
-
         time_since = datetime.utcnow() - op.time
         is_old = (time_since > failed_timeout)
 
-        is_regular = (user in robots)
+        is_regular = (op.user in robots)
 
-        if is_regular or (is_casual and saved >= count) or is_old or (saved >= total_count):
+        if is_regular or is_old or (saved >= total_count) or (saved >= count and op.user in users and is_casual(op)):
             to_remove.append(op.id)
         else:
             saved += 1
 
-        users.add(user)
+        users.add(op.user)
 
     if log is not None:
         log_output = open(log, "a")

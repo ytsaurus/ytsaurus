@@ -32,7 +32,7 @@ def get(path, trimmed_nodes = None):
             for key, value in object.iteritems():
                 new_path = join(path, key)
                 if new_path in trimmed_nodes:
-                    object[key] = yson.convert_to_yson_type({}, object[key].attributes)
+                    object[key] = yson.to_yson_type({}, object[key].attributes)
                     object[key].attributes["path"] = new_path
                 elif is_opaque(value):
                     object[key] = get(new_path)
@@ -50,7 +50,7 @@ def convert_to_tree(obj):
         subtree = convert_to_tree(value)
         result.append(subtree)
 
-    return yson.convert_to_yson_type(result, obj.attributes)
+    return yson.to_yson_type(result, obj.attributes)
 
 # Extract subtree with nodes that satisfy pred.
 # For each node calculates number of intermediate nodes in terms of initial tree.
@@ -67,7 +67,7 @@ def extract_subtree(root, pred):
             sum_size += get_size(node)
         
     root.attributes["size"] = sum_size
-    return yson.convert_to_yson_type(result, root.attributes)
+    return yson.to_yson_type(result, root.attributes)
 
 def apply(root, functor):
     for child in root:
@@ -97,7 +97,7 @@ def add_opaques(root, min_threshold, max_threshold):
         else:
             size += 1
         root.attributes["size"] = size
-        return yson.convert_to_yson_type(nodes, root.attributes)
+        return yson.to_yson_type(nodes, root.attributes)
     
     dfs(root)
     return result

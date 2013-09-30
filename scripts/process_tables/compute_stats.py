@@ -34,7 +34,7 @@ def get(path, trimmed_nodes = None):
             for key, value in object.iteritems():
                 new_path = join(path, key)
                 if new_path in trimmed_nodes:
-                    object[key] = yson.convert_to_yson_type({}, object[key].attributes)
+                    object[key] = yson.to_yson_type({}, object[key].attributes)
                     object[key].attributes["path"] = new_path
                 elif is_opaque(value):
                     object[key] = get(new_path)
@@ -52,7 +52,7 @@ def convert_to_tree(obj):
         subtree = convert_to_tree(value)
         result.append(subtree)
 
-    return yson.convert_to_yson_type(result, obj.attributes)
+    return yson.to_yson_type(result, obj.attributes)
 
 def sizeof_fmt(num):
     for x in ['bytes','KB','MB','GB','TB', "PB"]:
