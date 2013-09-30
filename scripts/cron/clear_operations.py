@@ -17,7 +17,7 @@ logger.set_formatter(logging.Formatter('%(asctime)-15s\t{}\t%(message)s'.format(
 def is_casual(op):
     return op.state in ["completed", "aborted"] and len(yt.get("//sys/operations/%s/jobs" % op.id)) == 0
 
-def clean_operations(count, total_count, failed_timeout, robots, log):
+def clean_operations(count, total_count, failed_timeout, max_operations_per_user, robots, log):
     """Clean all operations started no more than #days days ago,
        leaving no more than #count most recent operations."""
     if robots is None:
@@ -41,22 +41,27 @@ def clean_operations(count, total_count, failed_timeout, robots, log):
 
     operations.sort(key=lambda op: op.time, reverse=True)
 
-    users = set()
+    users = {}
     for op in operations:
         if not is_final(op.state):
             continue
+
+        if op.user not in users:
+            users[op.user] = 0
+        users[op.user] += 1
 
         time_since = datetime.utcnow() - op.time
         is_old = (time_since > failed_timeout)
 
         is_regular = (op.user in robots)
 
-        if is_regular or is_old or (saved >= total_count) or (saved >= count and op.user in users and is_casual(op)):
+        is_user_limit_exceeded = users[op.user] > max_operations_per_user
+
+        if is_regular or is_old or (saved >= total_count) or is_user_limit_exceeded or (saved >= count and op.user in users and is_casual(op)):
             to_remove.append(op.id)
         else:
             saved += 1
 
-        users.add(op.user)
 
     if log is not None:
         log_output = open(log, "a")
@@ -85,11 +90,13 @@ def main():
                        help='leave no more that N operations totally')
     parser.add_argument('--failed-timeout', metavar='N', type=int, default=2,
                        help='remove all failed operation older than N days')
+    parser.add_argument('--max-operations-per-user', metavar='N', type=int, default=200,
+                       help='remove old operations of user if limit exceeded')
     parser.add_argument('--robot', action="append",  help='robot users that run operations very often and can be ignored')
     parser.add_argument('--log', help='file to save operation specs')
 
     args = parser.parse_args()
-    clean_operations(args.count, args.total_count, timedelta(days=args.failed_timeout), args.robot, args.log)
+    clean_operations(args.count, args.total_count, timedelta(days=args.failed_timeout), args.max_operations_per_user, args.robot, args.log)
 
 if __name__ == "__main__":
     main()
