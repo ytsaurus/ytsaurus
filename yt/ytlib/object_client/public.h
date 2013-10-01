@@ -40,8 +40,6 @@ DECLARE_ENUM(EObjectType,
     ((Null)                       (0))
 
     // The following are non-versioned objects.
-    // These must be created by sending TTransactionYPathProxy::CreateObject to a transaction.
-    // Except for EObjectType::Transaction, the latter transaction cannot be null.
 
     // Transaction Manager stuff
     ((Transaction)                (1))

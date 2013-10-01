@@ -462,7 +462,7 @@ private:
         {
             auto batchReq = Owner->StartBatchRequest(false);
             {
-                auto req = TMasterYPathProxy::CreateObject();
+                auto req = TMasterYPathProxy::CreateObjects();
                 req->set_type(EObjectType::Transaction);
 
                 auto* reqExt = req->MutableExtension(TReqCreateTransactionExt::create_transaction_ext);
@@ -480,9 +480,9 @@ private:
             THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp);
 
             {
-                auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObject>("start_lock_tx");
+                auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObjects>("start_lock_tx");
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error starting lock transaction");
-                auto transactionId = FromProto<TTransactionId>(rsp->object_id());
+                auto transactionId = FromProto<TTransactionId>(rsp->object_ids(0));
 
                 TTransactionAttachOptions options(transactionId);
                 options.AutoAbort = true;
@@ -1267,8 +1267,7 @@ private:
 
         auto error = GetOperationNodeUpdateError(operation, batchRsp);
         if (!error.IsOK()) {
-            LOG_ERROR(error, "Error updating operation node (OperationId: %s)",
-                ~ToString(operation->GetOperationId()));
+            LOG_ERROR(error);
             Disconnect();
             return;
         }
@@ -1294,6 +1293,7 @@ private:
     {
         auto state = operation->GetState();
         auto operationPath = GetOperationPath(operation->GetOperationId());
+        auto controller = operation->GetController();
 
         // Set state.
         {
@@ -1310,21 +1310,21 @@ private:
         }
 
         // Set progress.
-        if (state == EOperationState::Running || IsOperationFinished(state)) {
+        if ((state == EOperationState::Running || IsOperationFinished(state)) && controller) {
             auto req = TYPathProxy::Set(operationPath + "/@progress");
             req->set_value(BuildYsonStringFluently()
                 .BeginMap()
-                    .Do(BIND(&IOperationController::BuildProgressYson, operation->GetController()))
+                    .Do(BIND(&IOperationController::BuildProgressYson, controller))
                 .EndMap().Data());
             batchReq->AddRequest(req, "update_op_node");
         }
 
         // Set result.
-        if (operation->IsFinishedState()) {
+        if (operation->IsFinishedState() && controller) {
             auto req = TYPathProxy::Set(operationPath + "/@result");
             req->set_value(ConvertToYsonString(BIND(
                 &IOperationController::BuildResultYson,
-                operation->GetController())).Data());
+                controller)).Data());
             batchReq->AddRequest(req, "update_op_node");
         }
 

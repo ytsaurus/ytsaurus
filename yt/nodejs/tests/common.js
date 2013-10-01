@@ -7,11 +7,12 @@ global.expect = chai.expect;
 if (process.env.NODE_DEBUG && /YTTEST/.test(process.env.NODE_DEBUG)) {
     global.__DBG = function(x) {
         "use strict";
-        console.error("\nYT Tests:", x);
+        process.stderr.write("__DBG : ");
+        console.error(x);
     };
     global.__LOG = function() {
         "use strict";
-        console.error("\nYT Logger:");
+        process.stderr.write("__LOG : ");
         console.error.apply(null, arguments);
     };
 } else {
@@ -30,7 +31,7 @@ global.stubLogger = function(callback) {
     return stub;
 };
 
-global.HTTP_PORT = 40000;
+global.HTTP_PORT = 0;
 global.HTTP_HOST = "127.0.0.1";
 global.HTTP_LAG  = 5;
 

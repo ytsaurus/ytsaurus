@@ -41,8 +41,7 @@
 
 #include <ytlib/meta_state/master_channel.h>
 
-// Defined in util/private/lf_alloc/lf_allocX64.cpp
-void SetLargeBlockLimit(i64 limit);
+#include <util/private/lfalloc/helpers.h>
 
 namespace NYT {
 namespace NJobProxy {

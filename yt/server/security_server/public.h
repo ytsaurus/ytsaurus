@@ -32,8 +32,14 @@ class TAccessControlDescriptor;
 
 struct TPermissionCheckResult;
 
+class TSecurityManagerConfig;
+typedef TIntrusivePtr<TSecurityManagerConfig> TSecurityManagerConfigPtr;
+
 class TSecurityManager;
 typedef TIntrusivePtr<TSecurityManager> TSecurityManagerPtr;
+
+class TRequestTracker;
+typedef TIntrusivePtr<TRequestTracker> TRequestTrackerPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 

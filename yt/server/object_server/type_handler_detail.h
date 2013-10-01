@@ -47,8 +47,8 @@ public:
         NTransactionServer::TTransaction* /*transaction*/,
         NSecurityServer::TAccount* /*account*/,
         NYTree::IAttributeDictionary* /*attributes*/,
-        TReqCreateObject* /*request*/,
-        TRspCreateObject* /*response*/) override
+        TReqCreateObjects* /*request*/,
+        TRspCreateObjects* /*response*/) override
     {
         YUNREACHABLE();
     }

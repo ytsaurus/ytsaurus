@@ -520,6 +520,25 @@ ENodeType TLinkNodeTypeHandler::GetNodeType()
     return ENodeType::Entity;
 }
 
+void TLinkNodeTypeHandler::SetDefaultAttributes(
+    IAttributeDictionary* attributes,
+    TTransaction* transaction)
+{
+    TBase::SetDefaultAttributes(attributes, transaction);
+
+    // Resolve target_path using the appropriate transaction.
+    auto targetPath = attributes->Find<Stroka>("target_path");
+    if (targetPath) {
+        attributes->Remove("target_path");
+
+        auto objectManager = Bootstrap->GetObjectManager();
+        auto* resolver = objectManager->GetObjectResolver();
+
+        auto targetProxy = resolver->ResolvePath(*targetPath, transaction);
+        attributes->Set("target_id", targetProxy->GetId());
+    }
+}
+
 ICypressNodeProxyPtr TLinkNodeTypeHandler::DoGetProxy(
     TLinkNode* trunkNode,
     TTransaction* transaction)

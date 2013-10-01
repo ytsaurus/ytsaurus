@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+#include <ytlib/object_client/master_ypath_proxy.h>
 #include <ytlib/object_client/object_service_proxy.h>
 
 #include <core/logging/tagged_logger.h>
@@ -46,8 +47,7 @@ private:
     void AllocateMore();
 
     void OnChunkListsCreated(
-        int count,
-        NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
+        NObjectClient::TMasterYPathProxy::TRspCreateObjectsPtr rsp);
 
     void OnChunkListsReleased(
         NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);

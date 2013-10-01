@@ -93,9 +93,9 @@ protected:
     void CreateNextSession();
     virtual void InitCurrentSession(TSession nextSession);
 
-    void OnChunkCreated(NObjectClient::TMasterYPathProxy::TRspCreateObjectPtr rsp);
+    void OnChunkCreated(NObjectClient::TMasterYPathProxy::TRspCreateObjectsPtr rsp);
 
-    void FinishCurrentSession();
+    TAsyncError FinishCurrentSession();
 
     void OnChunkClosed(
         int chunkIndex,

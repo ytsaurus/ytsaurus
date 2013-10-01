@@ -41,6 +41,7 @@ private:
 
     void EnqueueCpuUsage();
     void EnqueueMemoryUsage();
+    void EnqueueLfAllocCounters();
 
 };
 

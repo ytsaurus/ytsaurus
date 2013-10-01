@@ -724,7 +724,7 @@ TTableChunkReader::TTableChunkReader(
     NChunkClient::IAsyncReaderPtr chunkReader,
     const NChunkClient::NProto::TReadLimit& startLimit,
     const NChunkClient::NProto::TReadLimit& endLimit,
-    TNullable<int> tableIndex,
+    int tableIndex,
     i64 startTableRowIndex,
     int partitionTag,
     TChunkReaderOptionsPtr options)
@@ -969,7 +969,7 @@ i64 TTableChunkReader::GetSessionRowIndex() const
     return CurrentRowIndex - StartRowIndex;
 }
 
-const TNullable<int>& TTableChunkReader::GetTableIndex() const
+int TTableChunkReader::GetTableIndex() const
 {
     return TableIndex;
 }
@@ -1008,11 +1008,6 @@ TTableChunkReaderPtr TTableChunkReaderProvider::CreateReader(
     const NChunkClient::NProto::TChunkSpec& chunkSpec,
     const NChunkClient::IAsyncReaderPtr& chunkReader)
 {
-    TNullable<int> tableIndex = Null;
-    if (chunkSpec.has_table_index()) {
-        tableIndex = chunkSpec.table_index();
-    }
-
     return New<TTableChunkReader>(
         this,
         Config,
@@ -1020,7 +1015,7 @@ TTableChunkReaderPtr TTableChunkReaderProvider::CreateReader(
         chunkReader,
         chunkSpec.start_limit(),
         chunkSpec.end_limit(),
-        tableIndex,
+        chunkSpec.table_index(),
         chunkSpec.table_row_index(),
         chunkSpec.partition_tag(),
         Options);
@@ -1063,6 +1058,11 @@ NChunkClient::NProto::TDataStatistics TTableChunkReaderProvider::GetDataStatisti
         dataStatistics += reader->GetDataStatistics();
     }
     return dataStatistics;
+}
+
+int TTableChunkReaderFacade::GetTableIndex() const
+{
+    return Reader->GetTableIndex();
 }
 
 i64 TTableChunkReaderFacade::GetTableRowIndex() const

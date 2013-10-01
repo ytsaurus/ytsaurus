@@ -4,6 +4,7 @@
 #include "cluster_resources.h"
 
 #include <ytlib/meta_state/map.h>
+#include <ytlib/meta_state/mutation.h>
 
 #include <core/rpc/service.h>
 
@@ -14,6 +15,8 @@
 #include <server/transaction_server/public.h>
 
 #include <server/object_server/public.h>
+
+#include <server/security_server/security_manager.pb.h>
 
 namespace NYT {
 namespace NSecurityServer {
@@ -62,7 +65,9 @@ class TSecurityManager
     : public TRefCounted
 {
 public:
-    explicit TSecurityManager(NCellMaster::TBootstrap* bootstrap);
+    TSecurityManager(
+        TSecurityManagerConfigPtr config,
+        NCellMaster::TBootstrap* bootstrap);
     ~TSecurityManager();
 
     void Initialize();
@@ -70,6 +75,10 @@ public:
     DECLARE_METAMAP_ACCESSORS(Account, TAccount, TAccountId);
     DECLARE_METAMAP_ACCESSORS(User, TUser, TUserId);
     DECLARE_METAMAP_ACCESSORS(Group, TGroup, TGroupId);
+
+
+    NMetaState::TMutationPtr CreateUpdateRequestStatisticsMutation(
+        const NProto::TMetaReqUpdateRequestStatistics& request);
 
 
     //! Returns account with a given name (|nullptr| if none).
@@ -176,6 +185,22 @@ public:
     void ValidatePermission(
         NObjectServer::TObjectBase* object,
         EPermission permission);
+
+
+    //! Sets or resets banned flag for a given user.
+    void SetUserBanned(TUser* user, bool banned);
+
+    //! Checks if request handling is possible from a given user.
+    /*!
+     *  Enforces bans and rate limits.
+     *  If successful, charges the user for a given number of requests.
+     *  Throws on failure.
+     */
+    void ValidateUserAccess(TUser* user, int requestCount);
+
+    //! Returns the current request rate from the user.
+    double GetRequestRate(TUser* user);
+
 
 private:
     class TImpl;

@@ -30,7 +30,7 @@ struct ISyncReader
     virtual const NChunkClient::TNonOwningKey& GetKey() const = 0;
 
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const = 0;
-    virtual const TNullable<int>& GetTableIndex() const = 0;
+    virtual int GetTableIndex() const = 0;
     virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const = 0;
 
     virtual i64 GetSessionRowIndex() const = 0;
@@ -81,7 +81,7 @@ public:
     {
         return AsyncReader->GetProvider()->GetRowCount();
     }
-    
+
     virtual i64 GetTableRowIndex() const
     {
         return AsyncReader->GetFacade()->GetTableRowIndex();
@@ -92,7 +92,7 @@ public:
         return AsyncReader->GetFailedChunkIds();
     }
 
-    const TNullable<int>& GetTableIndex() const
+    virtual int GetTableIndex() const override
     {
         return AsyncReader->GetFacade()->GetTableIndex();
     }

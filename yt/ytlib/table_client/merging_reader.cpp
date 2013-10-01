@@ -27,7 +27,11 @@ inline bool CompareReaders(
     const TTableChunkSequenceReader* lhs,
     const TTableChunkSequenceReader* rhs)
 {
-    return CompareKeys(lhs->GetFacade()->GetKey(), rhs->GetFacade()->GetKey()) < 0;
+    int result = CompareKeys(lhs->GetFacade()->GetKey(), rhs->GetFacade()->GetKey());
+    if (result == 0) {
+        result = lhs->GetFacade()->GetTableIndex() - rhs->GetFacade()->GetTableIndex();
+    }
+    return result < 0;
 }
 
 } // namespace
@@ -45,7 +49,7 @@ public:
 
     virtual void Open() override
     {
-        // Open all readers in parallel and wait until of them are opened.
+        // Open all readers in parallel and wait until all of them are opened.
         auto awaiter = New<TParallelAwaiter>(
             TDispatcher::Get()->GetReaderInvoker());
         std::vector<TError> errors;
@@ -129,7 +133,7 @@ public:
         return dataStatistics;   
     }
 
-    virtual const TNullable<int>& GetTableIndex() const override
+    virtual int GetTableIndex() const override
     {
         return ReaderHeap.front()->GetFacade()->GetTableIndex();
     }
@@ -142,7 +146,7 @@ public:
         }
         return total;
     }
-    
+
     virtual i64 GetTableRowIndex() const override
     {
         YUNREACHABLE();

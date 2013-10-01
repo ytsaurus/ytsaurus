@@ -16,10 +16,11 @@ using namespace NYTree;
 
 TTableProducer::TTableProducer(
     ISyncReaderPtr reader,
-    IYsonConsumer* consumer)
+    IYsonConsumer* consumer,
+    int tableIndex)
     : Reader(reader)
     , Consumer(consumer)
-    , TableIndex(Null)
+    , TableIndex(tableIndex)
 { }
 
 bool TTableProducer::ProduceRow()
@@ -29,12 +30,11 @@ bool TTableProducer::ProduceRow()
         return false;
     }
 
-    const auto& tableIndex = Reader->GetTableIndex();
+    int tableIndex = Reader->GetTableIndex();
 
     if (tableIndex != TableIndex) {
         TableIndex = tableIndex;
-        YCHECK(tableIndex);
-        NTableClient::ProduceTableSwitch(Consumer, *TableIndex);
+        NTableClient::ProduceTableSwitch(Consumer, TableIndex);
     }
 
     NTableClient::ProduceRow(Consumer, *row);

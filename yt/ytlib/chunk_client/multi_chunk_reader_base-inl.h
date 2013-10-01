@@ -1,3 +1,4 @@
+
 #ifndef MULTI_CHUNK_READER_BASE_INL_H_
 #error "Direct inclusion of this file is not allowed, include multi_chunk_reader_base.h"
 #endif
@@ -47,20 +48,17 @@ TMultiChunkReaderBase<TChunkReader>::TMultiChunkReaderBase(
     , FetchingCompleteAwaiter(New<NConcurrency::TParallelAwaiter>(GetSyncInvoker()))
     , Logger(ChunkReaderLogger)
 {
-    std::vector<i64> chunkDataSizes;
-    chunkDataSizes.reserve(ChunkSpecs.size());
+    if (ChunkSpecs.empty()) {
+        return;
+    }
 
     FOREACH (const auto& chunkSpec, ChunkSpecs) {
-        i64 dataSize;
-        NChunkClient::GetStatistics(chunkSpec, &dataSize);
-        chunkDataSizes.push_back(dataSize);
-
         if (IsUnavailable(chunkSpec)) {
             auto chunkId = NYT::FromProto<TChunkId>(chunkSpec.chunk_id());
             FailedChunks.push_back(chunkId);
 
             auto error = TError(
-                "Chunk is unavailable (ChunkId: %s)",
+                "Chunk %s is unavailable",
                 ~ToString(chunkId));
             LOG_ERROR(error);
             State.Fail(error);
@@ -71,28 +69,54 @@ TMultiChunkReaderBase<TChunkReader>::TMultiChunkReaderBase(
     if (ReaderProvider->KeepInMemory()) {
         PrefetchWindow = MaxPrefetchWindow;
     } else {
-        std::sort(chunkDataSizes.begin(), chunkDataSizes.end(), std::greater<i64>());
+        auto sortedChunkSpecs = ChunkSpecs;
+        std::sort(sortedChunkSpecs.begin(), sortedChunkSpecs.end(), [] (
+            const NChunkClient::NProto::TChunkSpec& lhs,
+            const NChunkClient::NProto::TChunkSpec& rhs)
+        {
+            i64 lhsDataSize, rhsDataSize;
+            NChunkClient::GetStatistics(lhs, &lhsDataSize);
+            NChunkClient::GetStatistics(rhs, &rhsDataSize);
+
+            return lhsDataSize > rhsDataSize;
+        });
+
+        i64 smallestDataSize;
+        NChunkClient::GetStatistics(sortedChunkSpecs.back(), &smallestDataSize);
+
+        if (smallestDataSize < config->WindowSize + config->GroupSize) {
+            // Patch config to ensure that we don't eat too much memory.
+            Config->WindowSize = std::max(smallestDataSize / 2, (i64) 1);
+            Config->GroupSize = std::max(smallestDataSize / 2, (i64) 1);
+        }
 
         PrefetchWindow = 0;
         i64 bufferSize = 0;
-        while (PrefetchWindow < chunkDataSizes.size()) {
-            auto& currentSize = chunkDataSizes[PrefetchWindow];
-            if (currentSize < config->WindowSize + config->GroupSize) {
-                // Patch config to ensure that we don'w eat too much memory.
-                Config->WindowSize = std::max(currentSize / 2, (i64) 1);
-                Config->GroupSize = std::max(currentSize / 2, (i64) 1);
-            }
-            bufferSize += config->WindowSize + config->GroupSize + ChunkReaderMemorySize;
-            if (bufferSize > Config->MaxBufferSize) {
+        while (PrefetchWindow < sortedChunkSpecs.size()) {
+            auto& chunkSpec = sortedChunkSpecs[PrefetchWindow];
+            i64 currentSize;
+            NChunkClient::GetStatistics(chunkSpec, &currentSize);
+            auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunkSpec.extensions());
+
+            // block that possibly exceeds group size + block used by upper level chunk reader.
+            i64 chunkBufferSize = ChunkReaderMemorySize + 2 * miscExt.max_block_size();
+
+            if (currentSize > miscExt.max_block_size()) {
+                chunkBufferSize += config->WindowSize + config->GroupSize;
+            } 
+
+            if (bufferSize + chunkBufferSize > Config->MaxBufferSize) {
                 break;
             } else {
+                bufferSize += chunkBufferSize;
                 ++PrefetchWindow;
             }
         }
-
+        // Don't allow overcommit during prefetching, so exclude the last chunk.
+        PrefetchWindow = std::max(PrefetchWindow - 1, 0);
         PrefetchWindow = std::min(PrefetchWindow, MaxPrefetchWindow);
-        PrefetchWindow = std::max(PrefetchWindow, 1);
     }
+
     LOG_DEBUG("Preparing reader (PrefetchWindow: %d)", PrefetchWindow);
 }
 

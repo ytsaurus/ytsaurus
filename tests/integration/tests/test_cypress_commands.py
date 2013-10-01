@@ -494,6 +494,12 @@ class TestCypressCommands(YTEnvSetup):
         assert not exists("//tmp/b/x")
         assert not exists("//tmp/b&/@x")
         assert not exists("//tmp/b&/x")
+    
+    def test_link7(self):
+        tx = start_transaction()
+        set("//tmp/t1", 1, tx=tx)
+        link("//tmp/t1", "//tmp/l1", tx=tx)
+        assert get("//tmp/l1", tx=tx) == 1
 
     def test_link7(self):
         tx = start_transaction()
@@ -557,6 +563,15 @@ class TestCypressCommands(YTEnvSetup):
         time.sleep(2.0)
         c2 = get('//tmp/@access_counter')
         assert c2 == c1 + 1
+
+    def test_access_stat8(self):
+        create('table', '//tmp/t')
+        assert get('//tmp/t/@access_time') == get('//tmp/t/@creation_time')
+
+    def test_access_stat9(self):
+        create('table', '//tmp/t1')
+        copy('//tmp/t1', '//tmp/t2')
+        assert get('//tmp/t2/@access_time') == get('//tmp/t2/@creation_time')
 
     def test_access_stat_suppress1(self):
         time.sleep(1.0)

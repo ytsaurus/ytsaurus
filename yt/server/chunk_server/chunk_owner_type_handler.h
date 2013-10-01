@@ -32,9 +32,11 @@ public:
         , Logger(ChunkServerLogger)
     { }
 
-    virtual void SetDefaultAttributes(NYTree::IAttributeDictionary* attributes) override
+    virtual void SetDefaultAttributes(
+        NYTree::IAttributeDictionary* attributes,
+        NTransactionServer::TTransaction* transaction) override
     {
-        TBase::SetDefaultAttributes(attributes);
+        TBase::SetDefaultAttributes(attributes, transaction);
 
         if (!attributes->Contains("replication_factor")) {
             attributes->Set("replication_factor", 3);

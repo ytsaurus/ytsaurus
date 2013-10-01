@@ -115,10 +115,10 @@ public:
     TSequentialReaderConfig()
     {
         RegisterParameter("window_size", WindowSize)
-            .Default((i64) 32 * 1024 * 1024)
+            .Default((i64) 20 * 1024 * 1024)
             .GreaterThan(0);
         RegisterParameter("group_size", GroupSize)
-            .Default((i64) 32 * 1024 * 1024)
+            .Default((i64) 15 * 1024 * 1024)
             .GreaterThan(0);
 
         RegisterValidator([&] () {
@@ -183,7 +183,7 @@ public:
 
         RegisterValidator([&] () {
             if (SendWindowSize < GroupSize) {
-                THROW_ERROR_EXCEPTION("\"window_size\" cannot be less than \"group_size\"");
+                THROW_ERROR_EXCEPTION("\"send_window_size\" cannot be less than \"group_size\"");
             }
         });
     }
@@ -277,6 +277,8 @@ public:
 
     bool PreferLocalHost;
 
+    bool SyncChunkSwitch;
+
     NErasure::ECodec ErasureCodec;
 
     TMultiChunkWriterConfig()
@@ -295,6 +297,8 @@ public:
             .Default(true);
         RegisterParameter("prefer_local_host", PreferLocalHost)
             .Default(true);
+        RegisterParameter("sync_chunk_switch", SyncChunkSwitch)
+            .Default(false);
 
         RegisterValidator([&] () {
             if (MinUploadReplicationFactor > UploadReplicationFactor) {
@@ -342,7 +346,7 @@ struct TMultiChunkReaderConfig
         RegisterParameter("max_buffer_size", MaxBufferSize)
             .GreaterThan(0L)
             .LessThanOrEqual((i64) 10 * 1024 * 1024 * 1024)
-            .Default((i64) 128 * 1024 * 1024);
+            .Default((i64) 100 * 1024 * 1024);
 
         RegisterValidator([&] () {
             if (MaxBufferSize < 2 * WindowSize) {

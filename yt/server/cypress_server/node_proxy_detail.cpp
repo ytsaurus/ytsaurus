@@ -339,7 +339,7 @@ ICypressNodeProxyPtr TNodeFactory::CreateNode(
     RegisterCreatedNode(trunkNode);
 
     if (attributes) {
-        handler->SetDefaultAttributes(attributes);
+        handler->SetDefaultAttributes(attributes, Transaction);
 
         auto trunkProxy = cypressManager->GetNodeProxy(trunkNode, nullptr);
 
@@ -1663,10 +1663,10 @@ bool TLinkNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& va
     }
 
     if (key == "target_path") {
+        auto targetPath = ConvertTo<Stroka>(value);
         auto objectManager = Bootstrap->GetObjectManager();
         auto* resolver = objectManager->GetObjectResolver();
-        auto path = ConvertTo<Stroka>(value);
-        auto targetProxy = resolver->ResolvePath(path, Transaction);
+        auto targetProxy = resolver->ResolvePath(targetPath, Transaction);
         auto* impl = LockThisTypedImpl();
         impl->SetTargetId(targetProxy->GetId());
         return true;

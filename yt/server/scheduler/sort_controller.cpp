@@ -370,7 +370,7 @@ protected:
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
             jobSpec->CopyFrom(Controller->PartitionJobSpecTemplate);
-            AddSequentialInputSpec(jobSpec, joblet, Controller->IsTableIndexEnabled());
+            AddSequentialInputSpec(jobSpec, joblet);
             AddIntermediateOutputSpec(jobSpec, joblet);
         }
 
@@ -602,7 +602,7 @@ protected:
             auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             schedulerJobSpecExt->set_is_approximate(joblet->InputStripeList->IsApproximate);
 
-            AddSequentialInputSpec(jobSpec, joblet, Controller->IsTableIndexEnabled());
+            AddSequentialInputSpec(jobSpec, joblet);
         }
 
         virtual void OnJobStarted(TJobletPtr joblet) override
@@ -936,7 +936,7 @@ protected:
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
             jobSpec->CopyFrom(Controller->SortedMergeJobSpecTemplate);
-            AddParallelInputSpec(jobSpec, joblet, Controller->IsTableIndexEnabled());
+            AddParallelInputSpec(jobSpec, joblet);
             AddFinalOutputSpecs(jobSpec, joblet);
         }
 
@@ -1061,7 +1061,7 @@ protected:
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
             jobSpec->CopyFrom(Controller->UnorderedMergeJobSpecTemplate);
-            AddSequentialInputSpec(jobSpec, joblet, Controller->IsTableIndexEnabled());
+            AddSequentialInputSpec(jobSpec, joblet);
             AddFinalOutputSpecs(jobSpec, joblet);
 
             if (!Controller->SimpleSort) {
@@ -1345,12 +1345,6 @@ protected:
             AddTaskPendingHint(taskToKick);
         }
     }
-
-    virtual bool IsTableIndexEnabled() const
-    {
-        return false;
-    }
-
 
     // Resource management.
 
@@ -1977,7 +1971,7 @@ private:
         result.set_user_slots(1);
         result.set_cpu(1);
         result.set_memory(
-            GetSortInputIOMemorySize(FinalSortJobIOConfig, stat) +
+            GetSortInputIOMemorySize(stat) +
             GetFinalOutputIOMemorySize(FinalSortJobIOConfig) +
             GetSortBuffersMemorySize(stat) +
             // TODO(babenko): *2 are due to lack of reserve, remove this once simple sort
@@ -1994,10 +1988,10 @@ private:
         i64 memory = GetSortBuffersMemorySize(stat) + GetFootprintMemorySize();
 
         if (IsSortedMergeNeeded(partition)) {
-            memory += GetSortInputIOMemorySize(IntermediateSortJobIOConfig, stat);
+            memory += GetSortInputIOMemorySize(stat);
             memory += GetIntermediateOutputIOMemorySize(IntermediateSortJobIOConfig);
         } else {
-            memory += GetSortInputIOMemorySize(FinalSortJobIOConfig, stat);
+            memory += GetSortInputIOMemorySize(stat);
             memory += GetFinalOutputIOMemorySize(FinalSortJobIOConfig);
         }
 
@@ -2390,14 +2384,6 @@ private:
         }
     }
 
-    virtual bool IsTableIndexEnabled() const override
-    {
-        if (Spec->Mapper)
-            return Spec->Mapper->EnableTableIndex;
-
-        return false;
-    }
-
     virtual bool IsOutputLivePreviewSupported() const override
     {
         return true;
@@ -2462,14 +2448,14 @@ private:
         if (IsSortedMergeNeeded(partition)) {
             result.set_cpu(1);
             result.set_memory(
-                GetSortInputIOMemorySize(IntermediateSortJobIOConfig, stat) +
+                GetSortInputIOMemorySize(stat) +
                 GetIntermediateOutputIOMemorySize(IntermediateSortJobIOConfig) +
                 GetSortBuffersMemorySize(stat) +
                 GetFootprintMemorySize());
         } else {
             result.set_cpu(Spec->Reducer->CpuLimit);
             result.set_memory(
-                GetSortInputIOMemorySize(FinalSortJobIOConfig, stat) +
+                GetSortInputIOMemorySize(stat) +
                 GetFinalOutputIOMemorySize(FinalSortJobIOConfig) +
                 GetSortBuffersMemorySize(stat) +
                 // Sorting reader extra memory compared to partition_sort job, because it uses

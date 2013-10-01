@@ -121,7 +121,7 @@ class TestVirtualMaps(YTEnvSetup):
 
 ###################################################################################
 
-class TestAsyncAttributes(YTEnvSetup):
+class TestAttributes(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -154,6 +154,9 @@ class TestAsyncAttributes(YTEnvSetup):
 
         codec_info = get(tableB + '/@compression_statistics')
         assert codec_info.keys() == ['snappy']
+
+    def test3(self): #regression
+        ls_str('//sys/nodes', attr=['statistics'])
 
 ###################################################################################
 

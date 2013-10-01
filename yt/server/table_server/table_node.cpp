@@ -52,9 +52,11 @@ public:
         : TBase(bootstrap)
     { }
 
-    virtual void SetDefaultAttributes(IAttributeDictionary* attributes) override
+    virtual void SetDefaultAttributes(
+        IAttributeDictionary* attributes,
+        TTransaction* transaction) override
     {
-        TBase::SetDefaultAttributes(attributes);
+        TBase::SetDefaultAttributes(attributes, transaction);
 
         if (!attributes->Contains("channels")) {
             attributes->SetYson("channels", TYsonString("[]"));

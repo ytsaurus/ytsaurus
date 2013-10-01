@@ -31,11 +31,11 @@ public:
     void StopFlush();
 
 
-    void SetModified(
+    void OnModify(
         TCypressNodeBase* trunkNode,
         NTransactionServer::TTransaction* transaction);
 
-    void SetAccessed(
+    void OnAccess(
         TCypressNodeBase* trunkNode);
 
 

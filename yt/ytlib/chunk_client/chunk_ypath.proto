@@ -18,11 +18,11 @@ message TRspConfirm
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// CreateObject extension.
+// CreateObjects extension.
 
 message TReqCreateChunkExt
 {
-    extend NObjectClient.NProto.TReqCreateObject
+    extend NObjectClient.NProto.TReqCreateObjects
     {
         optional TReqCreateChunkExt create_chunk_ext = 100;
     }
@@ -49,7 +49,7 @@ message TReqCreateChunkExt
 
 message TRspCreateChunkExt
 {
-    extend NObjectClient.NProto.TRspCreateObject
+    extend NObjectClient.NProto.TRspCreateObjects
     {
         optional TRspCreateChunkExt create_chunk_ext = 100;
     }

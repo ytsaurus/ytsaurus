@@ -119,7 +119,7 @@ var _PREDEFINED_YSON_FORMAT = new binding.TNodeWrap({ $value: "yson" });
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function YtCommand(logger, driver, coordinator, watcher, pause) {
+function YtCommand(logger, driver, coordinator, watcher, rate_check_cache, pause) {
     "use strict";
     this.__DBG = __DBG.Tagged();
 
@@ -127,6 +127,7 @@ function YtCommand(logger, driver, coordinator, watcher, pause) {
     this.driver = driver;
     this.coordinator = coordinator;
     this.watcher = watcher;
+    this.rate_check_cache = rate_check_cache;
     this.pause = pause;
 
     // This is a total list of class fields; keep this up to date to improve V8
@@ -232,6 +233,10 @@ YtCommand.prototype._epilogue = function(result) {
             this.rsp.statusCode = 200;
         }
     } else {
+        if (result.isUserBanned() || result.isRequestRateLimitExceeded()) {
+            this.rate_check_cache.set(this.user, result.toJson());
+        }
+
         if (!sent_headers) {
             if (!this.rsp.statusCode ||
                 (this.rsp.statusCode >= 200 && this.rsp.statusCode < 300))
@@ -313,6 +318,12 @@ YtCommand.prototype._getUser = function() {
         this.user = this.req.authenticated_user;
     } else {
         throw new YtError("Failed to identify user credentials.");
+    }
+
+    var rate_check_result = this.rate_check_cache.get(this.user);
+    if (typeof(rate_check_result) !== "undefined") {
+        this.rsp.statusCode = 429;
+        utils.dispatchAs(this.rsp, rate_check_result, "application/json");
     }
 };
 

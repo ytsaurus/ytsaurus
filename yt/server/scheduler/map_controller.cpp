@@ -65,6 +65,7 @@ public:
         using NYT::Persist;
         Persist(context, StartRowIndex);
         Persist(context, MapTask);
+        Persist(context, MapTaskGroup);
         Persist(context, JobIOConfig);
         Persist(context, JobSpecTemplate);
     }
@@ -153,8 +154,8 @@ private:
             result.set_cpu(Controller->Spec->Mapper->CpuLimit);
             result.set_memory(
                 Controller->GetFinalIOMemorySize(
-                Controller->Spec->JobIO,
-                AggregateStatistics(statistics)) +
+                    Controller->Spec->JobIO,
+                    AggregateStatistics(statistics)) +
                 GetFootprintMemorySize() +
                 Controller->Spec->Mapper->MemoryLimit);
             return result;
@@ -173,7 +174,7 @@ private:
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
             jobSpec->CopyFrom(Controller->JobSpecTemplate);
-            AddSequentialInputSpec(jobSpec, joblet, Controller->Spec->Mapper->EnableTableIndex);
+            AddSequentialInputSpec(jobSpec, joblet);
             AddFinalOutputSpecs(jobSpec, joblet);
 
             auto* jobSpecExt = jobSpec->MutableExtension(TMapJobSpecExt::map_job_spec_ext);

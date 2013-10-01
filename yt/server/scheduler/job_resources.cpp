@@ -62,9 +62,13 @@ i64 GetOutputWindowMemorySize(TJobIOConfigPtr ioConfig)
 
 i64 GetIntermediateOutputIOMemorySize(TJobIOConfigPtr ioConfig)
 {
-    return
-        (GetOutputWindowMemorySize(ioConfig) +
-        ioConfig->TableWriter->MaxBufferSize) * 2; // possibly writing two (or even more) chunks at the time of chunk change
+    auto result = GetOutputWindowMemorySize(ioConfig) +
+        ioConfig->TableWriter->MaxBufferSize;
+    if (!ioConfig->TableWriter->SyncChunkSwitch) {
+        // possibly writing two (or even more) chunks at the time of chunk switch.
+        result *= 2;
+    }
+    return result;
 }
 
 i64 GetInputIOMemorySize(
@@ -76,19 +80,19 @@ i64 GetInputIOMemorySize(
 
     int concurrentReaders = std::min(stat.ChunkCount, MaxPrefetchWindow);
 
-    i64 groupSize = std::max(stat.MaxBlockSize, ioConfig->TableReader->GroupSize);
+    // Group can be overcommited by one block.
+    i64 groupSize = stat.MaxBlockSize + ioConfig->TableReader->GroupSize;
     i64 windowSize = std::max(stat.MaxBlockSize, ioConfig->TableReader->WindowSize);
     i64 bufferSize = std::min(stat.DataSize, concurrentReaders * (windowSize + groupSize));
-    bufferSize += concurrentReaders * ChunkReaderMemorySize;
+    // One block for table chunk reader.
+    bufferSize += concurrentReaders * (ChunkReaderMemorySize + stat.MaxBlockSize);
 
     i64 maxBufferSize = std::max(ioConfig->TableReader->MaxBufferSize, 2 * stat.MaxBlockSize);
 
     return std::min(bufferSize, maxBufferSize);
 }
 
-i64 GetSortInputIOMemorySize(
-    TJobIOConfigPtr ioConfig,
-    const TChunkStripeStatistics& stat)
+i64 GetSortInputIOMemorySize(const TChunkStripeStatistics& stat)
 {
     if (stat.ChunkCount == 0)
         return 0;

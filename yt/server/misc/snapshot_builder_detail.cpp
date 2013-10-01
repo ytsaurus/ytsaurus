@@ -2,6 +2,7 @@
 #include "snapshot_builder_detail.h"
 
 #include <core/concurrency/periodic_executor.h>
+#include <ytlib/misc/proc.h>
 
 #include <core/actions/invoker_util.h>
 
@@ -72,7 +73,7 @@ void TSnapshotBuilderBase::RunChild()
 
 void TSnapshotBuilderBase::RunParent()
 {
-    LOG_INFO("Fork success");
+    LOG_INFO("Fork success (ChildPid: %d)", ChildPid);
 
     Deadline = TInstant::Now() + GetTimeout();
 
@@ -94,19 +95,17 @@ void TSnapshotBuilderBase::OnWatchdogCheck()
         return;
     }
 
-    int result;
-    if (waitpid(ChildPid, &result, WNOHANG) == 0)
+    int status;
+    if (waitpid(ChildPid, &status, WNOHANG) == 0)
         return;
 
-    if (WIFEXITED(result)) {
-        LOG_INFO("Snapshot child process finished");
-        Result.Set(TError());
+    auto error = StatusToError(status);
+    if (error.IsOK()) {
+        LOG_INFO("Snapshot child process finished (ChildPid: %d)", ChildPid);
     } else {
-        TError error("Snapshot child process exited with code %d",
-            WEXITSTATUS(result));
-        LOG_ERROR(error);
-        Result.Set(error);
+        LOG_ERROR(error, "Snapshot child process failed (ChildPid: %d)", ChildPid);
     }
+    Result.Set(error);
 
     Cleanup();
 #endif

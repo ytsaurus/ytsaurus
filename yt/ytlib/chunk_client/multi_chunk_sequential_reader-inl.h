@@ -40,13 +40,14 @@ TAsyncError TMultiChunkSequentialReader<TChunkReader>::AsyncOpen()
     YCHECK(CurrentReaderIndex == -1);
     YCHECK(!State.HasRunningOperation());
 
-    for (int i = 0; i < PrefetchWindow; ++i) {
+    if (ChunkSpecs.size() > 0) {
         TBase::PrepareNextChunk();
-    }
+        for (int i = 0; i < PrefetchWindow; ++i) {
+            TBase::PrepareNextChunk();
+        }
 
-    ++CurrentReaderIndex;
+        ++CurrentReaderIndex;
 
-    if (CurrentReaderIndex < ChunkSpecs.size()) {
         State.StartOperation();
         Sessions[CurrentReaderIndex].Subscribe(
             BIND(&TMultiChunkSequentialReader<TChunkReader>::SwitchCurrentChunk, MakeWeak(this))
@@ -84,7 +85,6 @@ void TMultiChunkSequentialReader<TChunkReader>::SwitchCurrentChunk(
 
     if (nextSession.Reader) {
         CurrentSession = nextSession;
-        TBase::PrepareNextChunk();
 
         if (!ValidateReader())
             return;
@@ -100,6 +100,8 @@ bool TMultiChunkSequentialReader<TChunkReader>::ValidateReader()
     if (!CurrentSession.Reader->GetFacade()) {
         TBase::ProcessFinishedReader(CurrentSession);
         CurrentSession = typename TBase::TSession();
+
+        TBase::PrepareNextChunk();
 
         ++CurrentReaderIndex;
         if (CurrentReaderIndex < ChunkSpecs.size()) {

@@ -40,7 +40,7 @@ void TAccessTracker::StartFlush()
     FlushExecutor = New<TPeriodicExecutor>(
         Bootstrap->GetMetaStateFacade()->GetEpochInvoker(),
         BIND(&TAccessTracker::OnFlush, MakeWeak(this)),
-        Config->AccessStatisticsFlushPeriod,
+        Config->StatisticsFlushPeriod,
         EPeriodicInvokerMode::Manual);
     FlushExecutor->Start();
 }
@@ -57,7 +57,7 @@ void TAccessTracker::StopFlush()
     Reset();
 }
 
-void TAccessTracker::SetModified(
+void TAccessTracker::OnModify(
     TCypressNodeBase* trunkNode,
     TTransaction* transaction)
 {
@@ -71,7 +71,6 @@ void TAccessTracker::SetModified(
     auto cypressManager = Bootstrap->GetCypressManager();
     auto* node = cypressManager->GetNode(versionedId);
 
-    auto objectManager = Bootstrap->GetObjectManager();
     auto* mutationContext = Bootstrap
         ->GetMetaStateFacade()
         ->GetManager()
@@ -81,7 +80,7 @@ void TAccessTracker::SetModified(
     node->SetRevision(mutationContext->GetVersion().ToRevision());
 }
 
-void TAccessTracker::SetAccessed(TCypressNodeBase* trunkNode)
+void TAccessTracker::OnAccess(TCypressNodeBase* trunkNode)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
     YCHECK(trunkNode->IsTrunk());

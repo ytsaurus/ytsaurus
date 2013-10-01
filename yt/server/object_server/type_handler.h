@@ -77,8 +77,8 @@ struct IObjectTypeHandler
     //! In the latter case #Create is never called.
     virtual TNullable<TTypeCreationOptions> GetCreationOptions() const = 0;
 
-    typedef NRpc::TTypedServiceRequest<NObjectClient::NProto::TReqCreateObject> TReqCreateObject;
-    typedef NRpc::TTypedServiceResponse<NObjectClient::NProto::TRspCreateObject> TRspCreateObject;
+    typedef NRpc::TTypedServiceRequest<NObjectClient::NProto::TReqCreateObjects> TReqCreateObjects;
+    typedef NRpc::TTypedServiceResponse<NObjectClient::NProto::TRspCreateObjects> TRspCreateObjects;
     //! Creates a new object instance.
     /*!
      *  \param transaction Transaction that becomes the owner of the newly created object.
@@ -94,8 +94,8 @@ struct IObjectTypeHandler
         NTransactionServer::TTransaction* transaction,
         NSecurityServer::TAccount* account,
         NYTree::IAttributeDictionary* attributes,
-        TReqCreateObject* request,
-        TRspCreateObject* response) = 0;
+        TReqCreateObjects* request,
+        TRspCreateObjects* response) = 0;
 
     //! Performs the necessary cleanup.
     virtual void Destroy(TObjectBase* object) = 0;

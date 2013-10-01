@@ -122,7 +122,6 @@ public:
             LOG_INFO("Initializing");
             {
                 Sync(~Reader, &TReader::AsyncOpen);
-                Writer->Open();
             }
             PROFILE_TIMING_CHECKPOINT("init");
 

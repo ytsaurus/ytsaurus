@@ -77,8 +77,8 @@ YtAuthority.prototype.authenticate = function(logger, party, token)
 
     // Perform proper authentication here and cache the result.
     return Q
-    .when(this._asyncQueryBlackbox(context, result))
-    .then(this._asyncQueryCypress.bind(this, context, result))
+    .when(this._asyncQueryCypress(context, result))
+    .then(this._asyncQueryBlackbox.bind(this, context, result))
     .then(this._ensureUserExists.bind(this, context, result))
     .then(function() {
         var dt = (new Date()) - context.ts;

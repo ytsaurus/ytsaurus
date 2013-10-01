@@ -1,0 +1,19 @@
+package NYT.NSecurityServer.NProto;
+
+import "yt/ytlib/misc/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TRequestStatisticsUpdate
+{
+    required NYT.NProto.TGuid user_id = 1;
+    required int64 access_time = 2;
+    required int64 request_counter_delta = 3;    
+}
+
+message TMetaReqUpdateRequestStatistics
+{
+    repeated TRequestStatisticsUpdate updates = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

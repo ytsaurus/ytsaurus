@@ -486,7 +486,7 @@ private:
     TTransactionId StartTransaction()
     {
         auto service = Bootstrap->GetObjectManager()->GetRootService();
-        auto req = TMasterYPathProxy::CreateObject();
+        auto req = TMasterYPathProxy::CreateObjects();
         req->set_type(EObjectType::Transaction);
 
         req->MutableExtension(TReqCreateTransactionExt::create_transaction_ext);
@@ -496,7 +496,7 @@ private:
         ToProto(req->mutable_object_attributes(), *attributes);
 
         auto rsp = SyncExecuteVerb(service, req);
-        return FromProto<TTransactionId>(rsp->object_id());
+        return FromProto<TTransactionId>(rsp->object_ids(0));
     }
 
     void CommitTransaction(const TTransactionId& transactionId)

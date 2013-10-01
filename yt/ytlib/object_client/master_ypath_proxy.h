@@ -12,7 +12,7 @@ namespace NObjectClient {
 struct TMasterYPathProxy
     : public NYTree::TYPathProxy
 {
-    DEFINE_YPATH_PROXY_METHOD(NProto, CreateObject);
+    DEFINE_YPATH_PROXY_METHOD(NProto, CreateObjects);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

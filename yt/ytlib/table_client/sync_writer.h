@@ -20,7 +20,6 @@ namespace NTableClient {
 struct ISyncWriter
     : public IWriterBase
 {
-    virtual void Open() = 0;
     virtual void Close() = 0;
 };
 
@@ -51,25 +50,32 @@ public:
 
     TSyncWriterAdapter(TAsyncWriterPtr writer)
         : Writer(writer)
+        , IsOpen(false)
     { }
 
-    virtual void Open() override
+    inline void EnsureOpen()
     {
-        Sync(~Writer, &TAsyncWriter::AsyncOpen);
+        if (!IsOpen) {
+            Sync(~Writer, &TAsyncWriter::AsyncOpen);
+            IsOpen = true;
+        }
     }
 
     virtual void WriteRow(const TRow& row) override
     {
+        EnsureOpen();
         GetCurrentWriter()->WriteRow(row);
     }
 
     virtual void WriteRowUnsafe(const TRow& row) override
     {
+        EnsureOpen();
         GetCurrentWriter()->WriteRowUnsafe(row);
     }
 
     virtual void WriteRowUnsafe(const TRow& row, const NChunkClient::TNonOwningKey& key) override
     {
+        EnsureOpen();
         GetCurrentWriter()->WriteRowUnsafe(row, key);
     }
 
@@ -120,6 +126,7 @@ private:
     }
 
     TAsyncWriterPtr Writer;
+    bool IsOpen;
 
 };
 

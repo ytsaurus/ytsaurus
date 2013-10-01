@@ -44,6 +44,9 @@ public:
     //  * '\t' ---> "\t"
     //  * 'X'  ---> "\X" if X not in ['\0', '\n', '\t']
 
+    bool EnableTableIndex;
+    Stroka TableIndexColumn;
+
     TDsvFormatConfig()
     {
         RegisterParameter("record_separator", RecordSeparator)
@@ -58,6 +61,11 @@ public:
             .Default(true);
         RegisterParameter("escaping_symbol", EscapingSymbol)
             .Default('\\');
+        RegisterParameter("enable_table_index", EnableTableIndex)
+            .Default(false);
+        RegisterParameter("table_index_column", TableIndexColumn)
+            .Default("@table_index")
+            .NonEmpty();
     }
 };
 
@@ -150,9 +158,6 @@ public:
     bool Lenval;
     char YamrKeysSeparator;
 
-    // Only make sense for writer.
-    bool EnableTableIndex;
-
     std::vector<Stroka> KeyColumnNames;
     std::vector<Stroka> SubkeyColumnNames;
 
@@ -167,8 +172,6 @@ public:
             .Default();
         RegisterParameter("yamr_keys_separator", YamrKeysSeparator)
             .Default(' ');
-        RegisterParameter("enable_table_index", EnableTableIndex)
-            .Default(false);
 
         RegisterValidator([&] () {
             yhash_set<Stroka> names;

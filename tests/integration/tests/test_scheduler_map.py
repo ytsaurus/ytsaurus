@@ -380,10 +380,10 @@ print '{hello=world}'
 """
 import sys
 input = sys.stdin.readline().strip('\\n')
-print >>sys.stderr, input
+assert input == '<"table_index"=0>#;'
+input = sys.stdin.readline().strip('\\n')
 assert input == '{"foo"="bar"};'
 print "tskv" + "\\t" + "hello=world"
-
 """
         create('file', '//tmp/mapper.sh')
         upload('//tmp/mapper.sh', mapper)
@@ -406,6 +406,8 @@ print "tskv" + "\\t" + "hello=world"
         mapper = \
 """
 import sys
+input = sys.stdin.readline().strip('\\n')
+assert input == '<"table_index"=0>#;'
 input = sys.stdin.readline().strip('\\n')
 assert input == '{"foo"="bar"};'
 print "key\\tsubkey\\tvalue"
@@ -517,9 +519,7 @@ print row + table_index
             out='//tmp/out',
             command="python mapper.py",
             file='//tmp/mapper.py',
-            opt=[ \
-                '/spec/mapper/format=<enable_table_index=true>yamr', \
-                '/spec/mapper/enable_table_index=true'])
+            opt=['/spec/mapper/format=<enable_table_index=true>yamr'])
 
         expected = [{'key': 'a', 'value': 'value0'},
                     {'key': 'b', 'value': 'value1'}]

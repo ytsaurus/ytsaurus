@@ -73,6 +73,11 @@ public:
 
         Context->SetRequestInfo("RequestCount: %d", requestCount);
 
+        auto* user = GetAuthenticatedUser();
+
+        auto securityManager = Bootstrap->GetSecurityManager();
+        securityManager->ValidateUserAccess(user, requestCount);
+
         ResponseMessages.resize(requestCount);
         Continue();
     }
@@ -205,11 +210,8 @@ private:
             ~ToString(error),
             ~ToString(Context->GetRequestId()));
 
-        if (error.GetCode() == NMetaState::EErrorCode::MaybeCommitted ||
-            error.GetCode() == NMetaState::EErrorCode::NoQuorum ||
-            error.GetCode() == NMetaState::EErrorCode::NoLeader ||
-            error.GetCode() == NMetaState::EErrorCode::ReadOnly)
-        {
+        if (error.GetCode() == NRpc::EErrorCode::Unavailable) {
+            // Commit failed -- stop further handling.
             Reply(error);
         } else {
             // No sync is needed, requestIndexes are distinct.

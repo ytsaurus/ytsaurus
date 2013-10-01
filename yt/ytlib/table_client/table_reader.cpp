@@ -151,7 +151,7 @@ std::vector<NChunkClient::TChunkId> TAsyncTableReader::GetFailedChunkIds() const
     return Reader->GetFailedChunkIds();
 }
 
-const TNullable<int>& TAsyncTableReader::GetTableIndex() const
+int TAsyncTableReader::GetTableIndex() const
 {
     return Reader->GetFacade()->GetTableIndex();
 }

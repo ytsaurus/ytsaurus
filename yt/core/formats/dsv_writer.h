@@ -5,6 +5,8 @@
 #include "helpers.h"
 #include "dsv_table.h"
 
+#include <ytlib/table_client/public.h>
+
 #include <core/misc/enum.h>
 
 namespace NYT {
@@ -58,14 +60,18 @@ public:
 private:
     DECLARE_ENUM(EState,
         (None)
-        (InsideAttributes)
+        (ExpectAttributeName)
+        (ExpectAttributeValue)
         (ExpectEntity)
         (ExpectColumnName)
         (ExpectFirstColumnName)
         (ExpectColumnValue)
     );
 
+    NTableClient::EControlAttribute ControlAttribute;
+
     EState State;
+    int TableIndex;
 
 };
 
