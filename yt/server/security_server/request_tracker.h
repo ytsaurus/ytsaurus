@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <ytlib/misc/periodic_invoker.h>
-#include <ytlib/misc/thread_affinity.h>
-#include <ytlib/misc/error.h>
+#include <core/concurrency/periodic_executor.h>
+#include <core/concurrency/thread_affinity.h>
+#include <core/misc/error.h>
 
 #include <server/cell_master/public.h>
 
@@ -35,7 +35,7 @@ private:
     NProto::TMetaReqUpdateRequestStatistics UpdateRequestStatisticsRequest;
     std::vector<TUser*> UsersWithRequestStatisticsUpdate;
 
-    TPeriodicInvokerPtr FlushInvoker;
+    NConcurrency::TPeriodicExecutorPtr FlushInvoker;
 
 
     void Reset();

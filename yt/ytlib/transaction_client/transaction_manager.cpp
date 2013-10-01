@@ -115,7 +115,7 @@ public:
 
         auto this_ = MakeStrong(this);
         return Proxy_.Execute(req).Apply(
-            BIND([this, this_] (TMasterYPathProxy::TRspCreateObjectPtr rsp) -> TError {
+            BIND([this, this_] (TMasterYPathProxy::TRspCreateObjectsPtr rsp) -> TError {
                 if (!rsp->IsOK()) {
                     State_ = EState::Aborted;
                     return *rsp;

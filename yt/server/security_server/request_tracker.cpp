@@ -5,7 +5,7 @@
 #include "security_manager.h"
 #include "private.h"
 
-#include <ytlib/profiling/timing.h>
+#include <core/profiling/timing.h>
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/meta_state_facade.h>
@@ -14,6 +14,8 @@
 
 namespace NYT {
 namespace NSecurityServer {
+
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,7 +35,7 @@ void TRequestTracker::StartFlush()
     VERIFY_THREAD_AFFINITY(StateThread);
 
     YCHECK(!FlushInvoker);
-    FlushInvoker = New<TPeriodicInvoker>(
+    FlushInvoker = New<TPeriodicExecutor>(
         Bootstrap->GetMetaStateFacade()->GetEpochInvoker(),
         BIND(&TRequestTracker::OnFlush, MakeWeak(this)),
         Config->StatisticsFlushPeriod,

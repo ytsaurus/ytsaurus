@@ -2,7 +2,7 @@
 #include "snapshot_builder_detail.h"
 
 #include <core/concurrency/periodic_executor.h>
-#include <ytlib/misc/proc.h>
+#include <core/misc/proc.h>
 
 #include <core/actions/invoker_util.h>
 

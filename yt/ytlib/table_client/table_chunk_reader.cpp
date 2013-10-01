@@ -54,9 +54,14 @@ const NChunkClient::TNonOwningKey& TTableChunkReaderFacade::GetKey() const
     return Reader->GetKey();
 }
 
-const TNullable<int>& TTableChunkReaderFacade::GetTableIndex() const
+int TTableChunkReaderFacade::GetTableIndex() const
 {
     return Reader->GetTableIndex();
+}
+
+i64 TTableChunkReaderFacade::GetTableRowIndex() const
+{
+    return Reader->GetTableRowIndex();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1058,16 +1063,6 @@ NChunkClient::NProto::TDataStatistics TTableChunkReaderProvider::GetDataStatisti
         dataStatistics += reader->GetDataStatistics();
     }
     return dataStatistics;
-}
-
-int TTableChunkReaderFacade::GetTableIndex() const
-{
-    return Reader->GetTableIndex();
-}
-
-i64 TTableChunkReaderFacade::GetTableRowIndex() const
-{
-    return Reader->GetTableRowIndex();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
