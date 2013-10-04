@@ -1,6 +1,6 @@
 #pragma once
 
-#include <core/misc/intrusive_ptr.h>
+#include <ytlib/misc/intrusive_ptr.h>
 
 namespace NYT {
 namespace NPython {

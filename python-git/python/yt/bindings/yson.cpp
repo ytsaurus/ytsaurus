@@ -4,7 +4,7 @@
 #include "serialize.h"
 #include "shutdown.h"
 
-#include <core/ytree/convert.h>
+#include <ytlib/ytree/convert.h>
 
 #include <contrib/libs/pycxx/Objects.hxx>
 #include <contrib/libs/pycxx/Extensions.hxx>
