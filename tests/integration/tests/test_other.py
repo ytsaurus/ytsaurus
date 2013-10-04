@@ -156,7 +156,7 @@ class TestAttributes(YTEnvSetup):
         assert codec_info.keys() == ['snappy']
 
     def test3(self): #regression
-        ls_str('//sys/nodes', attr=['statistics'])
+        ls('//sys/nodes', attr=['statistics'])
 
 ###################################################################################
 

@@ -23,7 +23,7 @@ class TestUsers(YTEnvSetup):
 
         set('//sys/users/u/@banned', 'true')
         assert get('//sys/users/u/@banned') == 'true'
-        with pytest.raises(YTError): get('//tmp', user='u')
+        with pytest.raises(YtError): get('//tmp', user='u')
 
         set('//sys/users/u/@banned', 'false')
         assert get('//sys/users/u/@banned') == 'false'
@@ -31,11 +31,11 @@ class TestUsers(YTEnvSetup):
         get('//tmp', user='u')
 
     def test_user_ban2(self):
-        with pytest.raises(YTError): set('//sys/users/root/@banned', 'true')
+        with pytest.raises(YtError): set('//sys/users/root/@banned', 'true')
 
     def test_request_rate1(self):
         create_user('u')
-        with pytest.raises(YTError): set('//sys/users/u/@request_rate_limit', -1.0)
+        with pytest.raises(YtError): set('//sys/users/u/@request_rate_limit', -1.0)
 
     def test_request_rate2(self):
         create_user('u')
@@ -67,8 +67,8 @@ class TestUsers(YTEnvSetup):
 
     def test_create_user2(self):
         create_user('max')
-        with pytest.raises(YTError): create_user('max')
-        with pytest.raises(YTError): create_group('max')
+        with pytest.raises(YtError): create_user('max')
+        with pytest.raises(YtError): create_group('max')
 
     def test_create_group1(self):
         create_group('devs')
@@ -76,16 +76,16 @@ class TestUsers(YTEnvSetup):
 
     def test_create_group2(self):
         create_group('devs')
-        with pytest.raises(YTError): create_user('devs')
-        with pytest.raises(YTError): create_group('devs')
+        with pytest.raises(YtError): create_user('devs')
+        with pytest.raises(YtError): create_group('devs')
 
     def test_user_remove_builtin(self):
-        with pytest.raises(YTError): remove_user('root')
-        with pytest.raises(YTError): remove_user('guest')
+        with pytest.raises(YtError): remove_user('root')
+        with pytest.raises(YtError): remove_user('guest')
 
     def test_group_remove_builtin(self):
-        with pytest.raises(YTError): remove_group('everyone')
-        with pytest.raises(YTError): remove_group('users')
+        with pytest.raises(YtError): remove_group('everyone')
+        with pytest.raises(YtError): remove_group('users')
 
     def test_membership1(self):
         create_user('max')
@@ -131,7 +131,7 @@ class TestUsers(YTEnvSetup):
 
         add_member('g2', 'g1')
         add_member('g3', 'g2')
-        with pytest.raises(YTError): add_member('g1', 'g3')
+        with pytest.raises(YtError): add_member('g1', 'g3')
 
     def test_membership4(self):
         create_user('u')
@@ -152,15 +152,15 @@ class TestUsers(YTEnvSetup):
         create_user('u')
         create_group('g')
         
-        with pytest.raises(YTError): remove_member('u', 'g')
+        with pytest.raises(YtError): remove_member('u', 'g')
 
         add_member('u', 'g')
-        with pytest.raises(YTError): add_member('u', 'g')
+        with pytest.raises(YtError): add_member('u', 'g')
 
     def test_modify_builtin(self):
         create_user('u')
-        with pytest.raises(YTError): remove_member('u', 'everyone')
-        with pytest.raises(YTError): remove_member('u', 'users')
-        with pytest.raises(YTError): add_member('u', 'everyone')
-        with pytest.raises(YTError): add_member('u', 'users')
+        with pytest.raises(YtError): remove_member('u', 'everyone')
+        with pytest.raises(YtError): remove_member('u', 'users')
+        with pytest.raises(YtError): add_member('u', 'everyone')
+        with pytest.raises(YtError): add_member('u', 'users')
 
