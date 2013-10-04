@@ -3,7 +3,7 @@
 #include "common.h"
 #include "serialize.h"
 
-#include <core/ytree/convert.h>
+#include <ytlib/ytree/convert.h>
 
 namespace NYT {
 namespace NPython {

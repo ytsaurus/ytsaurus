@@ -1,7 +1,7 @@
 #include "common.h"
 #include "serialize.h"
 
-#include <core/ytree/node.h>
+#include <ytlib/ytree/node.h>
 
 namespace NYT {
 

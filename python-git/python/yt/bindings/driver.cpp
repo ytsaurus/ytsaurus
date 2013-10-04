@@ -52,7 +52,6 @@ using namespace NFormats;
 using namespace NDriver;
 using namespace NYson;
 using namespace NYTree;
-using namespace NConcurrency;
 
 ///////////////////////////////////////////////////////////////////////////////
 

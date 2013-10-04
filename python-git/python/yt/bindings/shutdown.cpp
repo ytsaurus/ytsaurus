@@ -1,9 +1,9 @@
 #include "shutdown.h"
 
-#include <core/profiling/profiling_manager.h>
-#include <core/rpc/dispatcher.h>
-#include <core/bus/tcp_dispatcher.h>
-#include <core/logging/log_manager.h>
+#include <ytlib/profiling/profiling_manager.h>
+#include <ytlib/rpc/dispatcher.h>
+#include <ytlib/bus/tcp_dispatcher.h>
+#include <ytlib/logging/log_manager.h>
 
 #include <ytlib/chunk_client/dispatcher.h>
 
@@ -32,7 +32,7 @@ void Shutdown()
     NRpc::TDispatcher::Get()->Shutdown();
     NChunkClient::TDispatcher::Get()->Shutdown();
     NProfiling::TProfilingManager::Get()->Shutdown();
-    NConcurrency::TDelayedExecutor::Shutdown();
+    TDelayedInvoker::Shutdown();
     NLog::TLogManager::Get()->Shutdown();
 }
 
