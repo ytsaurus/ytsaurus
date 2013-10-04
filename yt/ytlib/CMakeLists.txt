@@ -65,9 +65,9 @@ else()
 endif()
 
 target_link_libraries ( ytlib
-  ytcore
   ytext-lfalloc
   ytext-arcadia-util
+  ytext-coro
   ytext-ev
   ytext-jerasure
   ytext-json
@@ -75,7 +75,6 @@ target_link_libraries ( ytlib
 )
 
 target_link_libraries ( ytlib-without-lfalloc
-  ytcore
   ytext-lfalloc-fake
   ytext-arcadia-util
   ytext-coro

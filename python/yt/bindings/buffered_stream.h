@@ -1,6 +1,6 @@
 #include "public.h"
 
-#include <core/concurrency/async_stream.h>
+#include <ytlib/misc/async_stream.h>
 
 #include <ytlib/driver/driver.h>
 
@@ -12,7 +12,7 @@ namespace NPython {
 ///////////////////////////////////////////////////////////////////////////////
 
 class TBufferedStream
-    : public NConcurrency::IAsyncOutputStream
+    : public IAsyncOutputStream
 {
 public:
     explicit TBufferedStream(i64 bufferSize);
