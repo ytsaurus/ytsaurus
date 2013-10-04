@@ -249,6 +249,11 @@ protected:
             }
         }
 
+        virtual bool HasInputLocality() const override
+        {
+            return false;
+        }
+
         virtual EJobType GetJobType() const override
         {
             return EJobType(Controller->JobSpecTemplate.type());

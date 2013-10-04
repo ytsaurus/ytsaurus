@@ -43,6 +43,7 @@
 #include <server/chunk_holder/block_store.h>
 
 #include <server/job_proxy/config.h>
+#include <server/job_proxy/public.h>
 
 #include <server/job_agent/job.h>
 
@@ -737,6 +738,7 @@ private:
     {
         return
             error.FindMatching(NTableClient::EErrorCode::SortOrderViolation) ||
+            error.FindMatching(NJobProxy::EErrorCode::MemoryLimitExceeded) ||
             error.FindMatching(NSecurityClient::EErrorCode::AuthenticationError) ||
             error.FindMatching(NSecurityClient::EErrorCode::AuthorizationError) ||
             error.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded);

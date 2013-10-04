@@ -561,7 +561,7 @@ private:
                 memoryLimit);
 
             if (rss > memoryLimit) {
-                SetError(TError("Memory limit exceeded")
+                SetError(TError(EErrorCode::MemoryLimitExceeded, "Memory limit exceeded")
                     << TErrorAttribute("rss", rss)
                     << TErrorAttribute("limit", memoryLimit)
                     << TErrorAttribute("time_since_start", (TInstant::Now() - ProcessStartTime).MilliSeconds()));

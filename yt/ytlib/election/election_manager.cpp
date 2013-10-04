@@ -713,7 +713,7 @@ void TElectionManager::TImpl::StartVoteFor(TPeerId voteId, const TEpochId& voteE
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    State = EPeerState::Voting;
+    SetState(EPeerState::Voting);
     VoteId = voteId;
     VoteEpochId = voteEpoch;
 
@@ -727,7 +727,7 @@ void TElectionManager::TImpl::StartVoting()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    State = EPeerState::Voting;
+    SetState(EPeerState::Voting);
     VoteId = CellManager->GetSelfId();
     VoteEpochId = TGuid::Create();
 
