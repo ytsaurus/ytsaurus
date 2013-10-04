@@ -59,7 +59,7 @@ def get_structure_writer(env):
         raise yt.YtError("Incorrect structured format " + option_format)
 
 def exists(args):
-    sys.stdout.write("true" if yt.exists(args.path) else "false")
+    print "true" if yt.exists(args.path) else "false"
 
 def add_exists_parser(add_parser):
     parser = add_parser("exists", help="check path exists")
@@ -212,9 +212,9 @@ def add_create_parser(add_parser):
 def get(args):
     result = yt.get(args.path, spec=args.spec, attributes=args.attribute, format=args.format)
     if args.format is None:
-        sys.stdout.write(get_structure_writer("YT_STRUCTURED_DATA_FORMAT")(result))
+        print get_structure_writer("YT_STRUCTURED_DATA_FORMAT")(result)
     else:
-        sys.stdout.write(result)
+        print result
 
 def add_get_parser(add_parser):
     parser = add_parser("get", help="get subtree of object in the given path")
