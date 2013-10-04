@@ -57,11 +57,11 @@ class TDriver
     : public Py::PythonClass<TDriver>
 {
 public:
-    TDriver(Py::PythonClassInstance *self, Py::Tuple &args, Py::Dict &kwds)
-        : Py::PythonClass<TDriver>::PythonClass(self, args, kwds)
+    TDriver(Py::PythonClassInstance *self, Py::Tuple& args, Py::Dict& kwargs)
+        : Py::PythonClass<TDriver>::PythonClass(self, args, kwargs)
     {
-        Py::Object configDict = ExtractArgument(args, kwds, "config");
-        if (args.length() > 0 || kwds.length() > 0) {
+        Py::Object configDict = ExtractArgument(args, kwargs, "config");
+        if (args.length() > 0 || kwargs.length() > 0) {
             throw Py::RuntimeError("Incorrect arguments");
         }
         auto config = New<TDriverConfig>();
@@ -93,10 +93,10 @@ public:
         behaviors().readyType();
     }
 
-    Py::Object Execute(Py::Tuple& args, Py::Dict &kwds)
+    Py::Object Execute(Py::Tuple& args, Py::Dict& kwargs)
     {
-        auto pyRequest = ExtractArgument(args, kwds, "request");
-        if (args.length() > 0 || kwds.length() > 0) {
+        auto pyRequest = ExtractArgument(args, kwargs, "request");
+        if (args.length() > 0 || kwargs.length() > 0) {
             throw Py::RuntimeError("Incorrect arguments");
         }
 
@@ -107,7 +107,7 @@ public:
         TDriverRequest request;
         request.CommandName = ConvertToStroka(Py::String(GetAttr(pyRequest, "command_name")));
         request.Arguments = ConvertToNode(GetAttr(pyRequest, "arguments"))->AsMap();
-        
+
         auto user = GetAttr(pyRequest, "user");
         if (!user.isNone()) {
             request.AuthenticatedUser = ConvertToStroka(Py::String(user));
@@ -138,23 +138,23 @@ public:
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, Execute)
 
-    Py::Object GetCommandDescriptor(Py::Tuple& args, Py::Dict &kwds)
+    Py::Object GetCommandDescriptor(Py::Tuple& args, Py::Dict& kwargs)
     {
-        auto commandName = ConvertToStroka(ConvertToString(ExtractArgument(args, kwds, "command_name")));
-        if (args.length() > 0 || kwds.length() > 0) {
+        auto commandName = ConvertToStroka(ConvertToString(ExtractArgument(args, kwargs, "command_name")));
+        if (args.length() > 0 || kwargs.length() > 0) {
             throw Py::RuntimeError("Incorrect arguments");
         }
-        
+
         Py::Callable class_type(TCommandDescriptor::type());
         Py::PythonClassObject<TCommandDescriptor> descriptor(class_type.apply(Py::Tuple(), Py::Dict()));
         descriptor.getCxxObject()->SetDescriptor(DriverInstance_->GetCommandDescriptor(commandName));
         return descriptor;
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, GetCommandDescriptor)
-    
-    Py::Object GetCommandDescriptors(Py::Tuple& args, Py::Dict &kwds)
+
+    Py::Object GetCommandDescriptors(Py::Tuple& args, Py::Dict& kwargs)
     {
-        if (args.length() > 0 || kwds.length() > 0) {
+        if (args.length() > 0 || kwargs.length() > 0) {
             throw Py::RuntimeError("Incorrect arguments");
         }
 
@@ -168,11 +168,11 @@ public:
         return descriptors;
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, GetCommandDescriptors)
-    
-    Py::Object ConfigureDispatcher(Py::Tuple& args, Py::Dict &kwds)
+
+    Py::Object ConfigureDispatcher(Py::Tuple& args, Py::Dict& kwargs)
     {
-        auto heavyPoolSize = Py::Int(ExtractArgument(args, kwds, "command_name")).asLongLong();
-        if (args.length() > 0 || kwds.length() > 0) {
+        auto heavyPoolSize = Py::Int(ExtractArgument(args, kwargs, "command_name")).asLongLong();
+        if (args.length() > 0 || kwargs.length() > 0) {
             throw Py::RuntimeError("Incorrect arguments");
         }
 
@@ -182,7 +182,7 @@ public:
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, ConfigureDispatcher)
 
-    Py::Object GcCollect(Py::Tuple& args, Py::Dict &kwds)
+    Py::Object GcCollect(Py::Tuple& args, Py::Dict& kwargs)
     {
         NObjectClient::TObjectServiceProxy proxy(DriverInstance_->GetMasterChannel());
         proxy.SetDefaultTimeout(Null); // infinity
@@ -195,13 +195,13 @@ public:
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, GcCollect)
 
-    Py::Object BuildSnapshot(Py::Tuple& args, Py::Dict &kwds)
+    Py::Object BuildSnapshot(Py::Tuple& args, Py::Dict& kwargs)
     {
         bool setReadOnly = false;
-        if (args.length() > 0 || kwds.length() > 0) {
-            setReadOnly = static_cast<bool>(Py::Boolean(ExtractArgument(args, kwds, "set_read_only")));
+        if (args.length() > 0 || kwargs.length() > 0) {
+            setReadOnly = static_cast<bool>(Py::Boolean(ExtractArgument(args, kwargs, "set_read_only")));
         }
-        if (args.length() > 0 || kwds.length() > 0) {
+        if (args.length() > 0 || kwargs.length() > 0) {
             throw Py::RuntimeError("Incorrect arguments");
         }
 

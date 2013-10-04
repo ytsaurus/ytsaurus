@@ -3,12 +3,12 @@
 namespace NYT {
 namespace NPython {
 
-Py::Object ExtractArgument(Py::Tuple& args, Py::Dict& kwds, const std::string& name)
+Py::Object ExtractArgument(Py::Tuple& args, Py::Dict& kwargs, const std::string& name)
 {
     Py::Object result;
-    if (kwds.hasKey(name)) {
-        result = kwds[name];
-        kwds.delItem(name);
+    if (kwargs.hasKey(name)) {
+        result = kwargs[name];
+        kwargs.delItem(name);
     } else {
         if (args.length() == 0) {
             throw Py::RuntimeError("Missing argument '" + name + "'");
@@ -19,9 +19,9 @@ Py::Object ExtractArgument(Py::Tuple& args, Py::Dict& kwds, const std::string& n
     return result;
 }
 
-bool HasArgument(Py::Tuple& args, Py::Dict& kwds, const std::string& name)
+bool HasArgument(Py::Tuple& args, Py::Dict& kwargs, const std::string& name)
 {
-    if (kwds.hasKey(name)) {
+    if (kwargs.hasKey(name)) {
         return true;
     } else {
         return args.length() > 0;

@@ -38,10 +38,10 @@ class PrintBashTest(unittest.TestCase):
 class TestYsonParser(unittest.TestCase):
     def assert_equal(self, parsed, expected, attributes):
         if expected is None:
-            assert(isinstance(parsed, yson_types.YsonEntity))
+            assert isinstance(parsed, yson_types.YsonEntity)
+            self.assertEqual(parsed.attributes, attributes)
         else:
-            self.assertEqual(parsed, expected)
-        self.assertEqual(parsed.attributes, attributes)
+            self.assertEqual(parsed, convert.to_yson_type(expected, attributes))
 
     def assert_parse(self, string, expected, attributes = {}):
         self.assert_equal(parser.loads(string), expected, attributes)
@@ -127,7 +127,7 @@ class TestYsonParser(unittest.TestCase):
         })
 
         z = str(bytearray(u"Брюссельская капуста", "utf-8"))
-        self.assertEqual(x, {"x": 10, "y": 11, "z": z})
+        self.assertEqual(dict(x), {"x": 10, "y": 11, "z": z})
         self.assertEqual(x.attributes, "abc")
 
         self.assertEqual(convert.json_to_yson("abc"), "abc")
