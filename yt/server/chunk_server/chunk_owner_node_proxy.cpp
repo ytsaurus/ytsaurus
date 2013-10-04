@@ -335,6 +335,7 @@ TAsyncError GetChunkIdsAttribute(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template<class TCodecExtractor>
 class TCodecStatisticsAttributeVisitor
     : public TChunkVisitorBase
 {
@@ -344,6 +345,7 @@ public:
         TChunkList* chunkList,
         IYsonConsumer* consumer)
         : TChunkVisitorBase(bootstrap, chunkList, consumer)
+        , CodecExtractor_()
     { }
 
     virtual bool OnChunk(
@@ -357,10 +359,7 @@ public:
         UNUSED(startLimit);
         UNUSED(endLimit);
 
-        const auto& chunkMeta = chunk->ChunkMeta();
-        auto miscExt = GetProtoExtension<TMiscExt>(chunkMeta.extensions());
-
-        CodecInfo[NCompression::ECodec(miscExt.compression_codec())].Accumulate(chunk->GetStatistics());
+        CodecInfo[CodecExtractor_(chunk)].Accumulate(chunk->GetStatistics());
         return true;
     }
 
@@ -369,7 +368,7 @@ public:
         VERIFY_THREAD_AFFINITY(StateThread);
 
         BuildYsonFluently(Consumer)
-            .DoMapFor(CodecInfo, [=] (TFluentMap fluent, const TCodecInfoMap::value_type& pair) {
+            .DoMapFor(CodecInfo, [=] (TFluentMap fluent, const typename TCodecInfoMap::value_type& pair) {
                 const auto& statistics = pair.second;
                 // TODO(panin): maybe use here the same method as in attributes
                 fluent
@@ -383,17 +382,19 @@ public:
     }
 
 private:
-    typedef yhash_map<NCompression::ECodec, TChunkTreeStatistics> TCodecInfoMap;
+    typedef yhash_map<typename TCodecExtractor::TValue, TChunkTreeStatistics> TCodecInfoMap;
     TCodecInfoMap CodecInfo;
 
+    TCodecExtractor CodecExtractor_;
 };
 
+template<class TVisitor>
 TAsyncError GetCodecStatisticsAttribute(
     NCellMaster::TBootstrap* bootstrap,
     TChunkList* chunkList,
     IYsonConsumer* consumer)
 {
-    auto visitor = New<TCodecStatisticsAttributeVisitor>(
+    auto visitor = New<TVisitor>(
         bootstrap,
         const_cast<TChunkList*>(chunkList),
         consumer);
@@ -441,6 +442,7 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<NYTree::ISystemAttri
     attributes->push_back("chunk_list_id");
     attributes->push_back(NYTree::ISystemAttributeProvider::TAttributeInfo("chunk_ids", true, true));
     attributes->push_back(NYTree::ISystemAttributeProvider::TAttributeInfo("compression_statistics", true, true));
+    attributes->push_back(NYTree::ISystemAttributeProvider::TAttributeInfo("erasure_statistics", true, true));
     attributes->push_back("chunk_count");
     attributes->push_back("uncompressed_data_size");
     attributes->push_back("compressed_data_size");
@@ -529,7 +531,32 @@ TAsyncError TChunkOwnerNodeProxy::GetSystemAttributeAsync(
     }
 
     if (key == "compression_statistics") {
-        return GetCodecStatisticsAttribute(
+        struct TExtractCompressionCodec {
+            typedef NCompression::ECodec TValue;
+            TValue operator() (const TChunk* chunk) {
+                const auto& chunkMeta = chunk->ChunkMeta();
+                auto miscExt = GetProtoExtension<TMiscExt>(chunkMeta.extensions());
+                return TValue(miscExt.compression_codec());
+            }
+        };
+        typedef TCodecStatisticsAttributeVisitor<TExtractCompressionCodec> TCompressionStatisticsVisitor;
+
+        return GetCodecStatisticsAttribute<TCompressionStatisticsVisitor>(
+            Bootstrap,
+            const_cast<TChunkList*>(chunkList),
+            consumer);
+    }
+    
+    if (key == "erasure_statistics") {
+        struct TExtractErasureCodec {
+            typedef NErasure::ECodec TValue;
+            TValue operator() (const TChunk* chunk) {
+                return chunk->GetErasureCodec();
+            }
+        };
+        typedef TCodecStatisticsAttributeVisitor<TExtractErasureCodec> TErasureStatisticsVisitor;
+
+        return GetCodecStatisticsAttribute<TErasureStatisticsVisitor>(
             Bootstrap,
             const_cast<TChunkList*>(chunkList),
             consumer);
