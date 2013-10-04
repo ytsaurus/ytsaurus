@@ -28,7 +28,7 @@ class Mr(object):
         return "{}:{}".format(address, port)
 
 
-    def get_get_field_from_page(self, table, field):
+    def get_field_from_page(self, table, field):
         """ Extract value of given field from http page of the table """
         http_content = sh.curl("{}/debug?info=table&table={}".format(self.http_server, table)).stdout
         records_line = filter(lambda line: line.find(field) != -1,  http_content.split("\n"))[0]
