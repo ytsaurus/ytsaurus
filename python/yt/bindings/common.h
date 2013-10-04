@@ -48,9 +48,9 @@ inline Py::String ConvertToPythonString(const Stroka& string)
 
 namespace NPython {
 
-Py::Object ExtractArgument(Py::Tuple& args, Py::Dict& kwds, const std::string& name);
+Py::Object ExtractArgument(Py::Tuple& args, Py::Dict& kwargs, const std::string& name);
 
-bool HasArgument(Py::Tuple& args, Py::Dict& kwds, const std::string& name);
+bool HasArgument(Py::Tuple& args, Py::Dict& kwargs, const std::string& name);
 
 } // namespace NPython
 

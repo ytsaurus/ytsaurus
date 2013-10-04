@@ -11,6 +11,8 @@
 namespace NYT {
 namespace NPython {
 
+///////////////////////////////////////////////////////////////////////////////
+
 TInputStreamWrap::TInputStreamWrap(const Py::Object& inputStream)
     : InputStream_(inputStream)
 { }
@@ -34,15 +36,17 @@ size_t TInputStreamWrap::DoRead(void* buf, size_t len)
 
 TOutputStreamWrap::TOutputStreamWrap(const Py::Object& outputStream)
     : OutputStream_(outputStream)
+    , WriteFunction_(OutputStream_.getAttr("write"))
 { }
 
 TOutputStreamWrap::~TOutputStreamWrap() throw()
 { }
 
 void TOutputStreamWrap::DoWrite(const void* buf, size_t len) {
-    //std::string str((const char*)buf, len);
-    OutputStream_.callMemberFunction("write", Py::TupleN(Py::String((const char*)buf, len)));
+    WriteFunction_.apply(Py::TupleN(Py::String((const char*)buf, len)));
 }
+
+///////////////////////////////////////////////////////////////////////////////
 
 } // namespace NPython
 } // namespace NYT

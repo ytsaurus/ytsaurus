@@ -16,7 +16,81 @@ namespace NPython {
 
 using namespace NYTree;
 
-////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+class TYsonIter
+    : public Py::PythonClass<TYsonIter>
+{
+public:
+    TYsonIter(Py::PythonClassInstance *self, Py::Tuple& args, Py::Dict& kwargs)
+        : Py::PythonClass<TYsonIter>::PythonClass(self, args, kwargs)
+    { }
+
+    void Init(NYson::EYsonType ysonType, TInputStream* inputStream, std::unique_ptr<TInputStreamWrap> inputStreamWrap)
+    {
+        InputStream_ = inputStream;
+        InputStreamWrap_ = std::move(inputStreamWrap);
+        Parser_.reset(new NYson::TYsonParser(&Consumer_, ysonType));
+        IsStreamRead_ = false;
+    }
+
+    Py::Object iter()
+    {
+        return self();
+    }
+
+    PyObject* iternext()
+    {
+        // Read unless we have whole row
+        while (!Consumer_.HasObject() && !IsStreamRead_) {
+            int length = InputStream_->Read(Buffer_, BufferSize_);
+            Parser_->Read(TStringBuf(Buffer_, length));
+            if (BufferSize_ != length) {
+                IsStreamRead_ = true;
+                Parser_->Finish();
+            }
+        }
+
+        // Stop iteration if we done
+        if (!Consumer_.HasObject()) {
+            PyErr_SetNone(PyExc_StopIteration);
+            return 0;
+        }
+
+        auto result = Consumer_.ExtractObject();
+        // We should return pointer to alive object
+        result.increment_reference_count();
+        return result.ptr();
+    }
+
+    virtual ~TYsonIter()
+    { }
+
+    static void InitType()
+    {
+        behaviors().name("Yson iterator");
+        behaviors().doc("Iterates over stream with yson records");
+        behaviors().supportGetattro();
+        behaviors().supportSetattro();
+        behaviors().supportIter();
+
+        behaviors().readyType();
+    }
+
+private:
+    TInputStream* InputStream_;
+    std::unique_ptr<TInputStreamWrap> InputStreamWrap_;
+
+    bool IsStreamRead_;
+
+    NYTree::TPythonObjectConsumer Consumer_;
+    std::unique_ptr<NYson::TYsonParser> Parser_;
+
+    static const int BufferSize_ = 1024 * 1024;
+    char Buffer_[BufferSize_];
+};
+
+///////////////////////////////////////////////////////////////////////////////
 
 class yson_module
     : public Py::ExtensionModule<yson_module>
@@ -27,89 +101,152 @@ public:
     {
         RegisterShutdown();
 
+        TYsonIter::InitType();
+
         add_keyword_method("load", &yson_module::Load, "load yson from stream");
         add_keyword_method("loads", &yson_module::Loads, "load yson from string");
-        
+
         add_keyword_method("dump", &yson_module::Dump, "dump yson to stream");
         add_keyword_method("dumps", &yson_module::Dumps, "dump yson to string");
-        
+
         initialize("Yson python bindings");
     }
 
     Py::Object Load(const Py::Tuple& args_, const Py::Dict& kwargs_)
     {
-        auto args = args_;
-        auto kwargs = kwargs_;
-        
-        auto inputStream = TInputStreamWrap(ExtractArgument(args, kwargs, "stream"));
-        
-        auto ysonType = NYson::EYsonType::Node;
-        if (HasArgument(args, kwargs, "yson_type")) {
-            auto arg = ExtractArgument(args, kwargs, "yson_type");
-            ysonType = ParseEnum<NYson::EYsonType>(ConvertToStroka(ConvertToString(arg)));
-        }
-        
-        if (args.length() > 0 || kwargs.length() > 0) {
-            throw Py::RuntimeError("Incorrect arguments");
-        }
-
-        return ConvertTo<Py::Object>(NYTree::TYsonInput(&inputStream, ysonType));
+        return LoadImpl(args_, kwargs_, 0);
     }
-    
+
     Py::Object Loads(const Py::Tuple& args_, const Py::Dict& kwargs_)
     {
         auto args = args_;
         auto kwargs = kwargs_;
-        
+
         auto string = ConvertToStroka(ConvertToString(ExtractArgument(args, kwargs, "string")));
-        
+
+        TStringInput stringInput(string);
+        return LoadImpl(args, kwargs, &stringInput);
+    }
+
+    Py::Object Dump(const Py::Tuple& args_, const Py::Dict& kwargs_)
+    {
+        DumpImpl(args_, kwargs_, nullptr);
+
+        return Py::None();
+    }
+
+    Py::Object Dumps(const Py::Tuple& args_, const Py::Dict& kwargs_)
+    {
+        Stroka result;
+        TStringOutput stringOutput(result);
+
+        DumpImpl(args_, kwargs_, &stringOutput);
+        return Py::String(~result);
+    }
+
+    virtual ~yson_module()
+    { }
+
+private:
+    Py::Object LoadImpl(const Py::Tuple& args_, const Py::Dict& kwargs_, TInputStream* inputStream)
+    {
+        auto args = args_;
+        auto kwargs = kwargs_;
+
+        // Holds inputStreamWrap if passed non-trivial stream argument
+        std::unique_ptr<TInputStreamWrap> inputStreamWrap;
+        if (!inputStream) {
+            auto streamArg = ExtractArgument(args, kwargs, "stream");
+
+            // In case of sys.stdin we write directly to stream
+            // without any wrappers by optimization reasons.
+            Py::Object pyStdin(PySys_GetObject(const_cast<char*>("__stdin__")));
+            if (*pyStdin == *streamArg) {
+                inputStream = &Cin;
+            } else {
+                inputStreamWrap.reset(new TInputStreamWrap(streamArg));
+                inputStream = inputStreamWrap.get();
+            }
+        }
+
         auto ysonType = NYson::EYsonType::Node;
         if (HasArgument(args, kwargs, "yson_type")) {
             auto arg = ExtractArgument(args, kwargs, "yson_type");
             ysonType = ParseEnum<NYson::EYsonType>(ConvertToStroka(ConvertToString(arg)));
         }
-        
+
         if (args.length() > 0 || kwargs.length() > 0) {
             throw Py::RuntimeError("Incorrect arguments");
         }
 
-        return ConvertTo<Py::Object>(NYTree::TYsonString(string, ysonType));
+        if (ysonType == NYson::EYsonType::MapFragment) {
+            throw Py::RuntimeError("Map fragment is not supported");
+        }
+
+
+        if (ysonType == NYson::EYsonType::ListFragment) {
+            Py::Callable class_type(TYsonIter::type());
+            Py::PythonClassObject<TYsonIter> pythonIter(class_type.apply(Py::Tuple(), Py::Dict()));
+
+            auto* iter = pythonIter.getCxxObject();
+            iter->Init(ysonType, inputStream, std::move(inputStreamWrap));
+            return pythonIter;
+        } else {
+            NYTree::TPythonObjectConsumer consumer;
+            NYson::TYsonParser parser(&consumer, ysonType);
+
+            const int BufferSize = 1024 * 1024;
+            char buffer[BufferSize];
+            while (int length = inputStream->Read(buffer, BufferSize))
+            {
+                parser.Read(TStringBuf(buffer, length));
+                if (BufferSize != length) {
+                    break;
+                }
+            }
+            parser.Finish();
+
+            return consumer.ExtractObject();
+        }
     }
 
-    Py::Object Dump(const Py::Tuple& args_, const Py::Dict& kwargs_)
+    void DumpImpl(const Py::Tuple& args_, const Py::Dict& kwargs_, TOutputStream* outputStream)
     {
         auto args = args_;
         auto kwargs = kwargs_;
-        
-        auto obj = ExtractArgument(args, kwargs, "object");
-        auto outputStream = TOutputStreamWrap(ExtractArgument(args, kwargs, "stream"));
 
-        auto ysonFormat = NYson::EYsonFormat::Text;
+        auto obj = ExtractArgument(args, kwargs, "object");
+
+        // Holds outputStreamWrap if passed non-trivial stream argument
+        std::unique_ptr<TOutputStreamWrap> outputStreamWrap;
+
+        if (!outputStream) {
+            auto streamArg = ExtractArgument(args, kwargs, "stream");
+
+            // In case of sys.stdout and sys.stderr we write directly to stream
+            // without any wrappers by optimization reasons.
+            Py::Object pyStdout(PySys_GetObject(const_cast<char*>("__stdout__")));
+            Py::Object pyStderr(PySys_GetObject(const_cast<char*>("__stderr__")));
+            if (*pyStdout == *streamArg) {
+                outputStream = &Cout;
+            } else if (*pyStderr == *streamArg) {
+                outputStream = &Cerr;
+            } else {
+                outputStreamWrap.reset(new TOutputStreamWrap(streamArg));
+                outputStream = outputStreamWrap.get();
+            }
+        }
+
+        NYson::EYsonFormat ysonFormat = NYson::EYsonFormat::Text;
         if (HasArgument(args, kwargs, "yson_format")) {
             auto arg = ExtractArgument(args, kwargs, "yson_format");
             ysonFormat = ParseEnum<NYson::EYsonFormat>(ConvertToStroka(ConvertToString(arg)));
         }
-        
-        if (args.length() > 0 || kwargs.length() > 0) {
-            throw Py::RuntimeError("Incorrect arguments");
-        }
 
-        WriteYson(NYTree::TYsonOutput(&outputStream), obj, ysonFormat);
-
-        return Py::None();
-    }
-    
-    Py::Object Dumps(const Py::Tuple& args_, const Py::Dict& kwargs_)
-    {
-        auto args = args_;
-        auto kwargs = kwargs_;
-        
-        auto obj = ExtractArgument(args, kwargs, "object");
-
-        auto ysonFormat = NYson::EYsonFormat::Text;
-        if (HasArgument(args, kwargs, "yson_format")) {
-            auto arg = ExtractArgument(args, kwargs, "yson_format");
-            ysonFormat = ParseEnum<NYson::EYsonFormat>(ConvertToStroka(ConvertToString(arg)));
+        NYson::EYsonType ysonType = NYson::EYsonType::Node;
+        if (HasArgument(args, kwargs, "yson_type")) {
+            auto arg = ExtractArgument(args, kwargs, "yson_type");
+            ysonType = ParseEnum<NYson::EYsonType>(ConvertToStroka(ConvertToString(arg)));
         }
 
         int indent = 4;
@@ -117,17 +254,25 @@ public:
             auto arg = ExtractArgument(args, kwargs, "indent");
             indent = Py::Int(arg).asLongLong();
         }
-        
+
         if (args.length() > 0 || kwargs.length() > 0) {
             throw Py::RuntimeError("Incorrect arguments");
         }
 
-        auto ysonString = ConvertToYsonString(obj, ysonFormat, indent);
-        return Py::String(~ysonString.Data());
-    }
+        NYson::TYsonWriter writer(outputStream, ysonFormat, ysonType, false, indent);
+        if (ysonType == NYson::EYsonType::Node) {
+            NYTree::Consume(obj, &writer);
+        } else if (ysonType == NYson::EYsonType::ListFragment) {
+            auto iterator = Py::Object(PyObject_GetIter(obj.ptr()));
 
-    virtual ~yson_module()
-    { }
+            PyObject *item;
+            while (item = PyIter_Next(*iterator)) {
+                NYTree::Consume(Py::Object(item, true), &writer);
+            }
+        } else {
+            throw Py::RuntimeError(ysonType.ToString() + " is not supported");
+        }
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -135,6 +280,7 @@ public:
 } // namespace NPython
 } // namespace NYT
 
+///////////////////////////////////////////////////////////////////////////////
 
 #if defined( _WIN32 )
 #define EXPORT_SYMBOL __declspec( dllexport )
@@ -142,15 +288,14 @@ public:
 #define EXPORT_SYMBOL
 #endif
 
-extern "C" EXPORT_SYMBOL void inityson()
+extern "C" EXPORT_SYMBOL void inityson_lib()
 {
     static NYT::NPython::yson_module* yson = new NYT::NPython::yson_module;
     UNUSED(yson);
 }
 
-// symbol required for the debug version
-extern "C" EXPORT_SYMBOL void inityson_d()
+extern "C" EXPORT_SYMBOL void inityson_lib_d()
 {
-	inityson();
+    inityson_lib();
 }
 
