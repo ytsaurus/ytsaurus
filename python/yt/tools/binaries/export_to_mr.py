@@ -56,10 +56,9 @@ def export_table(object, args):
         limit = params.speed_limit / yt.get(user_slots_path)
 
     command = "pv -q -L {} | "\
-        "USER=tmp MR_USER={} {} -server {} -append -lenval -subkey -write {}"\
+        "USER=tmp MR_USER={} ./mapreduce -server {} -append -lenval -subkey -write {}"\
             .format(limit,
                     params.mr_user,
-                    mr.binary,
                     mr.server,
                     dst)
     logger.info("Running map '%s'", command)
