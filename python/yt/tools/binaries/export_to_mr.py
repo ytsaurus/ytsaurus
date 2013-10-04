@@ -56,8 +56,9 @@ def export_table(object, args):
         limit = params.speed_limit / yt.get(user_slots_path)
 
     command = "pv -q -L {} | "\
-        "USER=tmp MR_USER={} ./mapreduce -server {} -append -lenval -subkey -write {}"\
+        "{} USER=tmp MR_USER={} ./mapreduce -server {} -append -lenval -subkey -write {}"\
             .format(limit,
+                    args.opts,
                     params.mr_user,
                     mr.server,
                     dst)
