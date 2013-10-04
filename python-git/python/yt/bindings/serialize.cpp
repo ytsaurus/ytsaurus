@@ -26,82 +26,10 @@ Py::Callable GetYsonType(const std::string& name)
 
 Py::Object CreateYsonObject(const std::string& className, const Py::Object& object, const Py::Object& attributes)
 {
-    auto result = GetYsonType(className).apply(Py::TupleN(object), Py::Dict());
+    auto result = GetYsonType(className).apply(Py::TupleN(object));
     result.setAttr("attributes", attributes);
     return result;
 }
-
-///////////////////////////////////////////////////////////////////////////////
-
-class TYTreeProducer {
-public:
-    explicit TYTreeProducer(IYsonConsumer* consumer)
-        : Consumer_(consumer)
-    { }
-
-    void Process(const Py::Object& obj)
-    {
-        if (obj.hasAttr("attributes")) {
-            auto map = Py::Mapping(GetAttr(obj, "attributes"));
-            if (map.length() > 0) {
-                Consumer_->OnBeginAttributes();
-                ProcessItems(map.items());
-                Consumer_->OnEndAttributes();
-            }
-        }
-        // TODO(ignat): maybe use IsInstance in all cases?
-        if (obj.isBoolean()) {
-            Consumer_->OnStringScalar(Py::Boolean(obj) ? "true" : "false");
-        } else if (obj.isInteger()) {
-            Consumer_->OnIntegerScalar(Py::Int(obj).asLongLong());
-        } else if (obj.isFloat()) {
-            Consumer_->OnDoubleScalar(Py::Float(obj));
-        } else if (IsStringLike(obj)) {
-            Consumer_->OnStringScalar(ConvertToStroka(ConvertToString(obj)));
-        } else if (IsInstance(obj, GetYsonType("YsonEntity"))) {
-            Consumer_->OnEntity();
-        } else if (obj.isSequence()) {
-            const auto& objList = Py::Sequence(obj);
-            Consumer_->OnBeginList();
-            for (auto it = objList.begin(); it != objList.end(); ++it) {
-                Consumer_->OnListItem();
-                Process(*it);
-            }
-            Consumer_->OnEndList();
-        } else if (obj.isMapping()) {
-            Consumer_->OnBeginMap();
-            ProcessItems(Py::Mapping(obj).items());
-            Consumer_->OnEndMap();
-        } else {
-            throw Py::RuntimeError(
-                "Unsupported python object in tree builder: " +
-                std::string(obj.repr()));
-        }
-    }
-
-    void ProcessItems(const Py::List& items)
-    {
-        // Unfortunately const_iterator doesn't work for mapping,
-        // so we use iterator over items
-        for (auto it = items.begin(); it != items.end(); ++it) {
-            const Py::Tuple& item(*it);
-            const auto& key = item.getItem(0);
-            const auto& value = item.getItem(1);
-            if (!IsStringLike(key)) {
-                throw Py::RuntimeError(
-                    Sprintf(
-                        "Unsupported type (%s) of the key (%s)",
-                        std::string(key.type().repr()).c_str(),
-                        std::string(key.repr()).c_str()));
-            }
-            Consumer_->OnKeyedItem(ConvertToStroka(ConvertToString(key)));
-            Process(value);
-        }
-    }
-
-private:
-    IYsonConsumer* Consumer_;
-};
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -111,10 +39,199 @@ namespace NYTree {
 
 ///////////////////////////////////////////////////////////////////////////////
 
+void SerializeMapFragment(const Py::Mapping& map, IYsonConsumer* consumer)
+{
+    auto iterator = PyObject_GetIter(*map);
+    if (!iterator) {
+        throw Py::RuntimeError("Object is not iterable");
+    }
+
+    while (auto key = PyIter_Next(iterator)) {
+        char* keyStr = PyString_AsString(PyObject_Str(key));
+        auto value = PyMapping_GetItemString(*map, keyStr);
+        consumer->OnKeyedItem(TStringBuf(keyStr));
+        Serialize(Py::Object(value), consumer);
+    }
+}
+
+
 void Serialize(const Py::Object& obj, IYsonConsumer* consumer)
 {
-    TYTreeProducer(consumer).Process(obj);
+    static Py::String attributesStr("attributes");
+    if (PyObject_HasAttr(*obj, *attributesStr)) {
+        auto attributes = PyObject_GetAttr(*obj, *attributesStr);
+        auto map = Py::Mapping(attributes);
+        if (map.length() > 0) {
+            consumer->OnBeginAttributes();
+            SerializeMapFragment(map, consumer);
+            consumer->OnEndAttributes();
+        }
+    }
+
+    if (IsStringLike(obj)) {
+        consumer->OnStringScalar(TStringBuf(PyString_AsString(PyObject_Str(*obj))));
+    }
+    else if (obj.isMapping()) {
+        consumer->OnBeginMap();
+        SerializeMapFragment(Py::Mapping(obj), consumer);
+        consumer->OnEndMap();
+    } else if (obj.isSequence()) {
+        const auto& objList = Py::Sequence(obj);
+        consumer->OnBeginList();
+        for (auto it = objList.begin(); it != objList.end(); ++it) {
+            consumer->OnListItem();
+            Serialize(*it, consumer);
+        }
+        consumer->OnEndList();
+    } else if (obj.isBoolean()) {
+        consumer->OnStringScalar(Py::Boolean(obj) ? "true" : "false");
+    } else if (obj.isInteger()) {
+        consumer->OnIntegerScalar(Py::Int(obj).asLongLong());
+    } else if (obj.isFloat()) {
+        consumer->OnDoubleScalar(Py::Float(obj));
+    } else if (IsInstance(obj, GetYsonType("YsonEntity"))) {
+        consumer->OnEntity();
+    } else {
+        throw Py::RuntimeError(
+            "Unsupported python object in tree builder: " +
+            std::string(obj.repr()));
+    }
 }
+
+///////////////////////////////////////////////////////////////////////////////
+
+TPythonObjectConsumer::TPythonObjectConsumer()
+    : YsonMap(GetYsonType("YsonMap"))
+    , YsonList(GetYsonType("YsonList"))
+    , YsonString(GetYsonType("YsonString"))
+    , YsonInteger(GetYsonType("YsonInteger"))
+    , YsonDouble(GetYsonType("YsonDouble"))
+    , YsonEntity(GetYsonType("YsonEntity"))
+{ }
+
+void TPythonObjectConsumer::OnStringScalar(const TStringBuf& value)
+{
+    AddObject(Py::String(value), YsonString);
+}
+
+void TPythonObjectConsumer::OnIntegerScalar(i64 value)
+{
+    AddObject(Py::Int(value), YsonInteger);
+}
+
+void TPythonObjectConsumer::OnDoubleScalar(double value)
+{
+    AddObject(Py::Float(value), YsonDouble);
+}
+
+void TPythonObjectConsumer::OnEntity()
+{
+    AddObject(YsonEntity);
+}
+
+void TPythonObjectConsumer::OnBeginList()
+{
+    auto obj = AddObject(Py::List(), YsonList);
+    Push(obj, EObjectType::List);
+}
+
+void TPythonObjectConsumer::OnListItem()
+{
+}
+
+void TPythonObjectConsumer::OnEndList()
+{
+    Pop();
+}
+
+void TPythonObjectConsumer::OnBeginMap()
+{
+    auto obj = AddObject(Py::Dict(), YsonMap);
+    Push(obj, EObjectType::Map);
+}
+
+void TPythonObjectConsumer::OnKeyedItem(const TStringBuf& key)
+{
+    Key_ = key;
+}
+
+void TPythonObjectConsumer::OnEndMap()
+{
+    Pop();
+    if (ObjectStack_.empty()) {
+        Finished_ = true;
+    }
+}
+
+void TPythonObjectConsumer::OnBeginAttributes()
+{
+    auto obj = YsonMap.apply(Py::Tuple());
+    Push(obj, EObjectType::Attributes);
+}
+
+void TPythonObjectConsumer::OnEndAttributes()
+{
+    Attributes_ = Pop();
+}
+
+Py::Object TPythonObjectConsumer::AddObject(const Py::Object& obj, const Py::Callable& type)
+{
+    if (ObjectStack_.empty() && !Attributes_) {
+        Attributes_ = Py::Dict();
+    }
+    if (Attributes_) {
+        auto result = AddObject(type.apply(Py::TupleN(obj), *Attributes_));
+        Attributes_ = Null;
+        return result;
+    } else {
+        return AddObject(obj);
+    }
+}
+
+Py::Object TPythonObjectConsumer::AddObject(const Py::Callable& type)
+{
+    return AddObject(type.apply(Py::Tuple()));
+}
+
+Py::Object TPythonObjectConsumer::AddObject(const Py::Object& obj)
+{
+    if (ObjectStack_.empty()) {
+        Objects_.push(obj);
+        Finished_ = false;
+    } else if (ObjectStack_.top().second == EObjectType::List) {
+        PyList_Append(ObjectStack_.top().first.ptr(), *obj);
+    } else {
+        PyMapping_SetItemString(*ObjectStack_.top().first, const_cast<char*>(~Key_), *obj);
+    }
+    return obj;
+}
+
+void TPythonObjectConsumer::Push(const Py::Object& obj, EObjectType objectType)
+{
+    ObjectStack_.push(std::make_pair(obj, objectType));
+}
+
+Py::Object TPythonObjectConsumer::Pop()
+{
+    auto obj = ObjectStack_.top().first;
+    ObjectStack_.pop();
+    return obj;
+}
+
+
+Py::Object TPythonObjectConsumer::ExtractObject()
+{
+    auto obj = Objects_.front();
+    Objects_.pop();
+    return obj;
+}
+
+bool TPythonObjectConsumer::HasObject() const
+{
+    return !Objects_.empty();
+}
+
+///////////////////////////////////////////////////////////////////////////////
 
 void Deserialize(Py::Object& obj, INodePtr node)
 {

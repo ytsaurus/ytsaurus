@@ -60,12 +60,12 @@ class TBufferedStreamWrap
     : public Py::PythonClass<TBufferedStreamWrap>
 {
 public:
-    TBufferedStreamWrap(Py::PythonClassInstance* self, Py::Tuple& args, Py::Dict& kwds);
+    TBufferedStreamWrap(Py::PythonClassInstance* self, Py::Tuple& args, Py::Dict& kwargs);
 
-    Py::Object Read(Py::Tuple& args, Py::Dict &kwds);
+    Py::Object Read(Py::Tuple& args, Py::Dict& kwargs);
     PYCXX_KEYWORDS_METHOD_DECL(TBufferedStreamWrap, Read);
 
-    Py::Object Empty(Py::Tuple& args, Py::Dict &kwds);
+    Py::Object Empty(Py::Tuple& args, Py::Dict& kwargs);
     PYCXX_KEYWORDS_METHOD_DECL(TBufferedStreamWrap, Empty);
 
     TBufferedStreamPtr GetStream();
