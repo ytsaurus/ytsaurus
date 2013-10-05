@@ -14,7 +14,7 @@ import subprocess
 from argparse import ArgumentParser
 from urllib import quote_plus
 
-def pull_table(source, destination, record_count, mr, fastbone, portion_size, job_count, pool, opts):
+def pull_table(source, destination, record_count, mr, fastbone, portion_size, job_count, pool):
     proxies = mr.proxies
     if not proxies:
         proxies = [mr.server]
@@ -46,7 +46,7 @@ def pull_table(source, destination, record_count, mr, fastbone, portion_size, jo
         command = 'curl "http://${{server}}/table/{}?subkey=1&lenval=1&startindex=${{start}}&endindex=${{end}}"'.format(quote_plus(source))
     else:
         use_fastbone = "-opt net_table=fastbone" if fastbone else ""
-        command = '{} USER=yt MR_USER=tmp ./mapreduce -server $server {} -read {}:[$start,$end] -lenval -subkey'.format(opts, use_fastbone, source)
+        command = 'USER=yt MR_USER=tmp ./mapreduce -server $server {} -read {}:[$start,$end] -lenval -subkey'.format(use_fastbone, source)
 
     debug_str = 'echo "{}" 1>&2; '.format(command.replace('"', "'"))
     command = 'while true; do '\
@@ -71,7 +71,10 @@ def pull_table(source, destination, record_count, mr, fastbone, portion_size, jo
     finally:
         mr.drop(temp_yamr_table)
 
-def push_table(source, destination, record_count, mr, yt_binary, token, fastbone, job_size, job_count, speed_limit, opts, use_default_mapreduce_yt):
+def push_table(source, destination, record_count, mr, yt_binary, token, fastbone, job_size, job_count, speed_limit, push_mapper_opts, push_mapper_spec, use_default_mapreduce_yt):
+    if "'" in push_mapper_spec:
+        raise yt.YtError("push_mapper_spec can't contain single quote symbol")
+
     record_threshold = max(1, record_count * job_size / mr.data_size(source))
     new_job_count = (record_count - 1) / record_threshold + 1
     if job_count is None or new_job_count < job_count:
@@ -106,8 +109,8 @@ def push_table(source, destination, record_count, mr, yt_binary, token, fastbone
         binary = os.path.basename(yt_binary)
 
     command = \
-        "{} {} -server {} "\
-            "-map '{} YT_TOKEN={} YT_HOSTS={} {} -server {} -append -lenval -subkey -write {}' "\
+        "{} -server {} "\
+            "-map '{} {} YT_TOKEN={} YT_HOSTS={} {} -server {} -ytspec '\"'\"'{}'\"'\"' -append -lenval -subkey -write {}' "\
             "-src {} "\
             "-dst {} "\
             "-jobcount {} "\
@@ -115,14 +118,15 @@ def push_table(source, destination, record_count, mr, yt_binary, token, fastbone
             "-subkey "\
             "{} "\
                 .format(
-                    opts,
                     mr.binary,
                     mr.server,
                     speed_limit,
+                    push_mapper_opts,
                     token,
                     hosts,
                     binary,
                     yt.config.http.PROXY,
+                    push_mapper_spec,
                     destination,
                     source,
                     os.path.join("tmp", os.path.basename(source)),
@@ -180,8 +184,7 @@ def import_table(object, args):
                        fastbone=params.fastbone,
                        portion_size=params.portion_size,
                        job_count=params.job_count,
-                       pool=params.yt_pool,
-                       opts=params.opts)
+                       pool=params.yt_pool)
         elif params.import_type == "push":
             push_table(src, dst, record_count, mr,
                        yt_binary=params.yt_binary,
@@ -190,7 +193,8 @@ def import_table(object, args):
                        job_size=params.job_size,
                        job_count=params.job_count,
                        speed_limit=params.speed_limit,
-                       opts=params.opts,
+                       push_mapper_opts=params.push_mapper_opts,
+                       push_mapper_spec=params.push_mapper_spec,
                        use_default_mapreduce_yt=params.use_default_mapreduce_yt)
         else:
             raise RuntimeError("Incorrect import type: " + params.import_type)
@@ -265,7 +269,8 @@ def main():
     parser.add_argument("--yt-token")
     parser.add_argument("--yt-pool")
 
-    parser.add_argument("--opts", default="")
+    parser.add_argument("--push-mapper-opts", default="")
+    parser.add_argument("--push-mapper-spec", default="{}")
     parser.add_argument("--use-default-mapreduce-yt", action="store_true", default=False)
 
     args = parser.parse_args()
