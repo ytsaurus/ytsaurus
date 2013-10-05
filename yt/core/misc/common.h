@@ -116,6 +116,7 @@ namespace std {
 #include "arcadia_helper.h"
 #include "hash.h"
 #include "override.h"
+#include "foreach.h"
 
 namespace NYT {
 

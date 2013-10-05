@@ -6,7 +6,6 @@
 #include "chunk_meta_extensions.h"
 
 #include <core/misc/string.h>
-#include <core/misc/foreach.h>
 #include <core/misc/sync.h>
 #include <core/misc/protobuf_helpers.h>
 

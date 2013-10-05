@@ -2,8 +2,6 @@
 #include "helpers.h"
 #include "jerasure.h"
 
-#include <core/misc/foreach.h>
-
 #include <contrib/libs/jerasure/cauchy.h>
 #include <contrib/libs/jerasure/jerasure.h>
 

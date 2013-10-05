@@ -1,6 +1,5 @@
 #include "stdafx.h"
 #include "ref_counted_tracker.h"
-#include "foreach.h"
 #include "demangle.h"
 
 #include <core/ytree/fluent.h>

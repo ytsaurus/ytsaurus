@@ -9,7 +9,6 @@
 #include "data_node_service_proxy.h"
 #include "dispatcher.h"
 
-#include <core/misc/foreach.h>
 #include <core/misc/string.h>
 #include <core/misc/protobuf_helpers.h>
 

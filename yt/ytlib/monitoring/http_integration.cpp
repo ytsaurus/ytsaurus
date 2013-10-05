@@ -1,12 +1,15 @@
 #include "stdafx.h"
 #include "http_integration.h"
 
-#include <core/misc/foreach.h>
 #include <core/misc/url.h>
+
 #include <core/formats/json_writer.h>
 #include <core/formats/config.h>
+
 #include <core/ytree/ypath_proxy.h>
+
 #include <core/yson/parser.h>
+
 #include <core/ytree/ypath_detail.h>
 #include <core/ytree/virtual.h>
 

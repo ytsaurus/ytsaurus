@@ -1,7 +1,6 @@
 #pragma once
 
 #include "guid.h"
-#include "foreach.h"
 #include "ref.h"
 #include "assert.h"
 #include "mpl.h"

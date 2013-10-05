@@ -10,7 +10,6 @@
 
 #include <core/actions/callback.h>
 
-#include <core/misc/foreach.h>
 #include <core/misc/string.h>
 
 #include <core/ytree/attribute_helpers.h>

@@ -7,7 +7,6 @@
 #include "chunk_tree_traversing.h"
 #include "private.h"
 
-#include <core/misc/foreach.h>
 #include <core/misc/serialize.h>
 #include <core/misc/string.h>
 #include <core/misc/small_vector.h>

@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "permission.h"
 
-#include <core/misc/foreach.h>
 #include <core/misc/string.h>
 #include <core/misc/error.h>
 

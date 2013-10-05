@@ -10,7 +10,6 @@
 #include "follower_tracker.h"
 
 #include <core/misc/serialize.h>
-#include <core/misc/foreach.h>
 
 #include <core/concurrency/parallel_awaiter.h>
 

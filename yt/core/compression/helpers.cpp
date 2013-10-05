@@ -1,8 +1,6 @@
 #include "stdafx.h"
 #include "helpers.h"
 
-#include <core/misc/foreach.h>
-
 namespace NYT {
 namespace NCompression {
 

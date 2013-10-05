@@ -4,7 +4,6 @@
 #include "change_log.h"
 #include "private.h"
 
-#include <core/misc/foreach.h>
 #include <core/misc/singleton.h>
 
 #include <core/concurrency/thread_affinity.h>

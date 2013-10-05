@@ -6,7 +6,6 @@
  */
 
 #include "preprocessor.h"
-#include "foreach.h"
 
 #include <stdexcept>
 

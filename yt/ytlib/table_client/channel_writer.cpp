@@ -2,8 +2,8 @@
 #include "channel_writer.h"
 #include "value.h"
 
-#include <core/misc/foreach.h>
 #include <core/misc/blob_output.h>
+
 #include <core/yson/varint.h>
 
 namespace NYT {

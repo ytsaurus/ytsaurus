@@ -3,7 +3,6 @@
 #include "private.h"
 #include "meta_state_manager.h"
 
-#include <core/misc/foreach.h>
 #include <core/actions/bind.h>
 
 namespace NYT {

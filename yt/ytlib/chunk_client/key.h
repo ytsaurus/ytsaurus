@@ -4,7 +4,6 @@
 
 #include <core/misc/small_vector.h>
 #include <core/misc/property.h>
-#include <core/misc/foreach.h>
 #include <core/misc/string.h>
 #include <core/misc/nullable.h>
 #include <core/misc/blob_output.h>

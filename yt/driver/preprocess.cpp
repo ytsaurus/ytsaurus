@@ -1,7 +1,5 @@
 #include "preprocess.h"
 
-#include <core/misc/foreach.h>
-
 #include <core/ypath/tokenizer.h>
 
 namespace NYT {

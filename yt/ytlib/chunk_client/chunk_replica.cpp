@@ -5,8 +5,6 @@
 
 #include <core/erasure/public.h>
         
-#include <core/misc/foreach.h>
-
 namespace NYT {
 namespace NChunkClient {
 

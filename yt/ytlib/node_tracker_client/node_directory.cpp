@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "node_directory.h"
 
-#include <core/misc/foreach.h>
 #include <core/misc/address.h>
 #include <core/misc/protobuf_helpers.h>
 

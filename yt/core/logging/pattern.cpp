@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "pattern.h"
 
-#include <core/misc/foreach.h>
 #include <core/misc/fs.h>
 
 namespace NYT {

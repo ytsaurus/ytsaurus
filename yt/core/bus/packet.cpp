@@ -2,8 +2,6 @@
 #include "packet.h"
 #include "message.h"
 
-#include <core/misc/foreach.h>
-
 namespace NYT {
 namespace NBus {
 

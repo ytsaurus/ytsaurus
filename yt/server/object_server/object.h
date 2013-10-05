@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <core/misc/foreach.h>
-
 #include <server/cell_master/public.h>
 
 namespace NYT {

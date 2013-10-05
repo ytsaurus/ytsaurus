@@ -3,7 +3,6 @@
 #endif
 #undef PROTOBUF_HELPERS_INL_H_
 
-#include "foreach.h"
 #include "assert.h"
 
 namespace NYT {

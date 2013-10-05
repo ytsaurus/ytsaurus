@@ -3,7 +3,6 @@
 #endif
 #undef SERIALIZATION_CONTEXT_INL_H_
 
-#include <core/misc/foreach.h>
 #include <core/misc/serialize.h>
 #include <core/misc/small_vector.h>
 

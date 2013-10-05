@@ -7,7 +7,7 @@
 #include "callback.h"
 
 #include <core/concurrency/delayed_executor.h>
-#include <core/misc/foreach.h>
+
 #include <core/misc/small_vector.h>
 
 #include <util/system/event.h>

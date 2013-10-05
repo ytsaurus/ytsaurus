@@ -3,8 +3,6 @@
 
 #include <core/concurrency/thread_affinity.h>
 
-#include <core/misc/foreach.h>
-
 #include <core/rpc/bus_channel.h>
 
 #include <core/bus/config.h>

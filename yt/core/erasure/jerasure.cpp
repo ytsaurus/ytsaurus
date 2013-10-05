@@ -1,7 +1,5 @@
 #include "jerasure.h"
 
-#include <core/misc/foreach.h>
-
 #include <contrib/libs/jerasure/jerasure.h>
 
 namespace NYT {

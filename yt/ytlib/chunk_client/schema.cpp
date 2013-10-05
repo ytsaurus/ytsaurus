@@ -3,7 +3,6 @@
 #include "key.h"
 
 #include <core/misc/error.h>
-#include <core/misc/foreach.h>
 
 #include <core/ytree/node.h>
 #include <core/ytree/convert.h>
