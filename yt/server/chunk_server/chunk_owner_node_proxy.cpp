@@ -335,7 +335,7 @@ TAsyncError GetChunkIdsAttribute(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class TCodecExtractor>
+template <class TCodecExtractor>
 class TCodecStatisticsAttributeVisitor
     : public TChunkVisitorBase
 {
@@ -388,8 +388,8 @@ private:
     TCodecExtractor CodecExtractor_;
 };
 
-template<class TVisitor>
-TAsyncError GetCodecStatisticsAttribute(
+template <class TVisitor>
+TAsyncError ComputeCodecStatistics(
     NCellMaster::TBootstrap* bootstrap,
     TChunkList* chunkList,
     IYsonConsumer* consumer)
@@ -531,7 +531,8 @@ TAsyncError TChunkOwnerNodeProxy::GetSystemAttributeAsync(
     }
 
     if (key == "compression_statistics") {
-        struct TExtractCompressionCodec {
+        struct TExtractCompressionCodec
+        {
             typedef NCompression::ECodec TValue;
             TValue operator() (const TChunk* chunk) {
                 const auto& chunkMeta = chunk->ChunkMeta();
@@ -541,14 +542,15 @@ TAsyncError TChunkOwnerNodeProxy::GetSystemAttributeAsync(
         };
         typedef TCodecStatisticsAttributeVisitor<TExtractCompressionCodec> TCompressionStatisticsVisitor;
 
-        return GetCodecStatisticsAttribute<TCompressionStatisticsVisitor>(
+        return ComputeCodecStatistics<TCompressionStatisticsVisitor>(
             Bootstrap,
             const_cast<TChunkList*>(chunkList),
             consumer);
     }
     
     if (key == "erasure_statistics") {
-        struct TExtractErasureCodec {
+        struct TExtractErasureCodec
+        {
             typedef NErasure::ECodec TValue;
             TValue operator() (const TChunk* chunk) {
                 return chunk->GetErasureCodec();
@@ -556,7 +558,7 @@ TAsyncError TChunkOwnerNodeProxy::GetSystemAttributeAsync(
         };
         typedef TCodecStatisticsAttributeVisitor<TExtractErasureCodec> TErasureStatisticsVisitor;
 
-        return GetCodecStatisticsAttribute<TErasureStatisticsVisitor>(
+        return ComputeCodecStatistics<TErasureStatisticsVisitor>(
             Bootstrap,
             const_cast<TChunkList*>(chunkList),
             consumer);
