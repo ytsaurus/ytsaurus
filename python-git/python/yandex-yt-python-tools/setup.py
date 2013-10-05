@@ -34,7 +34,7 @@ def main():
 
         author = "Ignat Kolesnichenko",
         author_email = "ignat@yandex-team.ru",
-        description = "Python tools. Use these scripts at your own risk.",
+        description = "Experimental scripts to manage YT. Use these scripts at your own risk.",
         keywords = "yt python tools import export mapreduce",
     )
 

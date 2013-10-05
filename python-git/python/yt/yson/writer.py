@@ -55,7 +55,7 @@ def dump(object, stream, yson_format=None, indent=None, check_circular=True, enc
 def dumps(object, yson_format=None, indent=None, check_circular=True, encoding='utf-8'):
     '''Serialize ``object`` as a Yson formatted string'''
     if yson_format is not None and yson_format != "pretty":
-        raise YsonError("binary and text format are not supported")
+        raise YsonError("binary and text formats are not supported")
     if indent is None:
         indent = 4
     if isinstance(indent, int):
