@@ -1292,12 +1292,15 @@ private:
 
     void RegisterJob(TJobPtr job)
     {
+        auto operation = job->GetOperation();
+        auto node = job->GetNode();
+
         ++JobTypeCounters[job->GetType()];
 
         YCHECK(IdToJob.insert(std::make_pair(job->GetId(), job)).second);
-        YCHECK(job->GetOperation()->Jobs().insert(job).second);
-        YCHECK(job->GetNode()->Jobs().insert(job).second);
-
+        YCHECK(operation->Jobs().insert(job).second);
+        YCHECK(node->Jobs().insert(job).second);
+        
         job->GetNode()->ResourceUsage() += job->ResourceUsage();
 
         JobStarted_.Fire(job);
@@ -1305,22 +1308,25 @@ private:
         LOG_DEBUG("Job registered (JobId: %s, JobType: %s, OperationId: %s)",
             ~ToString(job->GetId()),
             ~job->GetType().ToString(),
-            ~ToString(job->GetOperation()->GetOperationId()));
+            ~ToString(operation->GetOperationId()));
     }
 
     void UnregisterJob(TJobPtr job)
     {
+        auto operation = job->GetOperation();
+        auto node = job->GetNode();
+
         --JobTypeCounters[job->GetType()];
 
         YCHECK(IdToJob.erase(job->GetId()) == 1);
-        YCHECK(job->GetOperation()->Jobs().erase(job) == 1);
-        YCHECK(job->GetNode()->Jobs().erase(job) == 1);
+        YCHECK(operation->Jobs().erase(job) == 1);
+        YCHECK(node->Jobs().erase(job) == 1);
 
         JobFinished_.Fire(job);
 
         LOG_DEBUG("Job unregistered (JobId: %s, OperationId: %s)",
             ~ToString(job->GetId()),
-            ~ToString(job->GetOperation()->GetOperationId()));
+            ~ToString(operation->GetOperationId()));
     }
 
     void AbortJob(TJobPtr job, const TError& error)
