@@ -983,11 +983,13 @@ DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
 {
     auto sourcePath = request->source_path();
     bool preserveAccount = request->preserve_account();
+    bool removeSource = request->remove_source();
     auto targetPath = context->GetPath();
 
-    context->SetRequestInfo("SourcePath: %s, PreserveAccount: %s",
+    context->SetRequestInfo("SourcePath: %s, PreserveAccount: %s, RemoveSource: %s",
         ~sourcePath,
-        ~FormatBool(preserveAccount));
+        ~FormatBool(preserveAccount),
+        ~FormatBool(removeSource));
 
     auto sourceProxy = ResolveSourcePath(sourcePath);
 
@@ -1000,16 +1002,30 @@ DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
     }
 
     auto* trunkSourceImpl = sourceProxy->GetTrunkNode();
-    auto* sourceImpl = const_cast<TCypressNodeBase*>(GetImpl(trunkSourceImpl));
+    auto* sourceImpl = removeSource
+        ? LockImpl(trunkSourceImpl, ELockMode::Exclusive, true)
+        : GetImpl(trunkSourceImpl);
+
+    if (IsParentOf(sourceImpl, GetThisImpl())) {
+        THROW_ERROR_EXCEPTION("Cannot copy or move a node to its descendant");
+    }
 
     ValidatePermission(
         trunkSourceImpl,
         EPermissionCheckScope(EPermissionCheckScope::This | EPermissionCheckScope::Descendants),
-        EPermission::Read);
+        removeSource ? EPermission(EPermission::Read) : EPermission(EPermission::Read | EPermission::Write));
 
-    auto* node = GetThisImpl();
-    auto* account = node->GetAccount();
-    ValidatePermission(account, EPermission::Use);
+    auto sourceParent = sourceProxy->GetParent();
+    if (removeSource) {
+        // Cf. TNodeBase::RemoveSelf
+        if (!sourceParent) {
+            ThrowCannotRemoveRoot();
+        }
+
+        ValidatePermission(sourceImpl, EPermissionCheckScope::This, EPermission::Write);
+        ValidatePermission(sourceImpl, EPermissionCheckScope::Descendants, EPermission::Write);
+        ValidatePermission(sourceImpl, EPermissionCheckScope::Parent, EPermission::Write);
+    }
 
     auto factory = CreateCypressFactory(preserveAccount);
 
@@ -1020,6 +1036,10 @@ DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
     SetChild(factory, targetPath, clonedProxy, false);
 
     factory->Commit();
+
+    if (removeSource) {
+        sourceParent->RemoveChild(sourceProxy);
+    }
 
     ToProto(response->mutable_object_id(), clonedTrunkImpl->GetId());
 

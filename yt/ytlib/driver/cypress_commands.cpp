@@ -182,25 +182,15 @@ void TCopyCommand::DoExecute()
 
 void TMoveCommand::DoExecute()
 {
-    {
-        auto req = TCypressYPathProxy::Copy(Request->DestinationPath.GetPath());
-        SetTransactionId(req, EAllowNullTransaction::Yes);
-        GenerateMutationId(req);
-        req->set_source_path(Request->SourcePath.GetPath());
+    auto req = TCypressYPathProxy::Copy(Request->DestinationPath.GetPath());
+    SetTransactionId(req, EAllowNullTransaction::Yes);
+    GenerateMutationId(req);
+    req->set_source_path(Request->SourcePath.GetPath());
+    req->set_preserve_account(true);
+    req->set_remove_source(true);
 
-        auto rsp = WaitFor(ObjectProxy->Execute(req));
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
-    }
-
-    {
-        auto req = TYPathProxy::Remove(Request->SourcePath.GetPath());
-        req->set_recursive(true);
-        this->SetTransactionId(req, EAllowNullTransaction::Yes);
-        GenerateMutationId(req);
-
-        auto rsp = WaitFor(ObjectProxy->Execute(req));
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
-    }
+    auto rsp = WaitFor(ObjectProxy->Execute(req));
+    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

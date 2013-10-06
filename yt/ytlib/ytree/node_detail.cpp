@@ -116,7 +116,7 @@ void TNodeBase::RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemove
 
     auto parent = GetParent();
     if (!parent) {
-        THROW_ERROR_EXCEPTION("Cannot remove the root");
+        ThrowCannotRemoveRoot();
     }
 
     ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
