@@ -261,6 +261,9 @@ class TestCypressCommands(YTEnvSetup):
         remove('//tmp/a')
         assert get('//tmp/c/b/@path') == '//tmp/c/b'
 
+    def test_copy_simple6(self):
+        with pytest.raises(YTError): copy('//tmp', '//tmp/a')
+
     def test_copy_tx1(self):
         tx = start_transaction()
 
@@ -291,7 +294,7 @@ class TestCypressCommands(YTEnvSetup):
         assert get('//tmp/a/@count') == 1
         assert get('//tmp/b/@count') == 1
 
-    def test_copy_account(self):
+    def test_copy_account1(self):
         create_account('a1')
         create_account('a2')
 
@@ -306,6 +309,22 @@ class TestCypressCommands(YTEnvSetup):
         assert get('//tmp/a2/@account') == 'a2'
         assert get('//tmp/a2/x/@account') == 'a2'
         assert get('//tmp/a2/x/y/@account') == 'a2'
+
+    def test_copy_account2(self):
+        create_account('a1')
+        create_account('a2')
+
+        set('//tmp/a1', {})
+        set('//tmp/a1/@account', 'a1')
+        set('//tmp/a2', {})
+        set('//tmp/a2/@account', 'a2')
+
+        set('//tmp/a1/x', {'y' : 'z'})
+        copy('//tmp/a1/x', '//tmp/a2/x', opt=['/preserve_account=true'])
+
+        assert get('//tmp/a2/@account') == 'a2'
+        assert get('//tmp/a2/x/@account') == 'a1'
+        assert get('//tmp/a2/x/y/@account') == 'a1'
 
     def test_copy_unexisting_path(self):
         with pytest.raises(YtError): copy('//tmp/x', '//tmp/y')
@@ -348,11 +367,23 @@ class TestCypressCommands(YTEnvSetup):
         copy('//tmp/t1', '//tmp/t2', opt=['/preserve_account=true']) # preserve is ON
         assert get('//tmp/t2/@account') == 'max'
 
-    def test_move_simple(self):
+    def test_move_simple1(self):
         set('//tmp/a', 1)
         move('//tmp/a', '//tmp/b')
         assert get('//tmp/b') == 1
         with pytest.raises(YtError): get('//tmp/a')
+
+    def test_move_simple2(self):
+        set('//tmp/a', 1)
+        
+        tx = start_transaction()
+        lock('//tmp/a', tx=tx)
+
+        with pytest.raises(YTError): move('//tmp/a', '//tmp/b')
+        assert not exists('//tmp/b')
+
+    def test_move_simple3(self):
+        with pytest.raises(YTError): move('//tmp', '//tmp/a')
 
     def test_embedded_attributes(self):
         set("//tmp/a", {})
