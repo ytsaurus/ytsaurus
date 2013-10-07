@@ -343,7 +343,7 @@ def copy_table(source_table, destination_table, replace=True):
         copy(source_tables[0].name, destination_table.name)
     else:
         source_names = [table.name for table in source_tables]
-        mode = "sorted" if all(map(is_sorted, source_names)) else "ordered"
+        mode = "sorted" if (all(map(is_sorted, source_names)) and not destination_table.append) else "ordered"
         run_merge(source_tables, destination_table, mode)
 
 def move_table(source_table, destination_table, replace=True):
