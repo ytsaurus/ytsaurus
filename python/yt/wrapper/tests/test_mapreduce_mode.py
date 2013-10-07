@@ -145,6 +145,11 @@ class TestMapreduceMode(YtTestBase, YTEnv):
         self.assertEqual(sorted(list(self.temp_records()) + list(self.temp_records())),
                          sorted(yt.read_table(other_table)))
 
+        yt.run_sort(table, table)
+        copy_table(table, TablePath(other_table, append=True))
+        self.assertEqual(sorted(list(self.temp_records()) * 3),
+                         sorted(yt.read_table(other_table)))
+
         move_table(table, other_table)
         self.assertFalse(yt.exists(table))
         self.assertEqual(list(yt.read_table(other_table)),
