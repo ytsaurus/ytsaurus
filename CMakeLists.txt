@@ -46,9 +46,14 @@ option(YT_BUILD_ENABLE_TESTS       "Build tests" TRUE)
 option(YT_BUILD_ENABLE_NODEJS      "Build NodeJS extensions" FALSE)
 option(YT_BUILD_ENABLE_PYTHON      "Build Python extensions" TRUE)
 option(YT_BUILD_YTCORE_SHARED      "Build ytcore as a shared lib" FALSE)
+option(YT_USE_FOLDERS              "Enable solution folders in Visual Studio. Disable for Express versions." TRUE)
 
 ################################################################################
 # Setup targets.
+
+if ( YT_USE_FOLDERS )
+  set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+endif()
 
 check_include_files(cxxabi.h       HAVE_CXXABI_H)
 check_include_files(dlfcn.h        HAVE_DLFCN_H)
@@ -95,6 +100,22 @@ add_subdirectory(cmake/deps-jerasure)
 
 add_subdirectory(contrib/yajl)
 add_subdirectory(library/json)
+
+set_target_properties(ytext-arcadia-util PROPERTIES FOLDER "Contrib")
+set_target_properties(protobuf PROPERTIES FOLDER "Contrib")
+set_target_properties(protoc PROPERTIES FOLDER "Contrib")
+set_target_properties(ytext-ev PROPERTIES FOLDER "Contrib")
+set_target_properties(ytext-fastlz PROPERTIES FOLDER "Contrib")
+set_target_properties(ytext-lz4 PROPERTIES FOLDER "Contrib")
+set_target_properties(ytext-minilzo PROPERTIES FOLDER "Contrib")
+set_target_properties(ytext-quicklz PROPERTIES FOLDER "Contrib")
+set_target_properties(ytext-snappy PROPERTIES FOLDER "Contrib")
+set_target_properties(ytext-zlib PROPERTIES FOLDER "Contrib")
+set_target_properties(ytext-jerasure PROPERTIES FOLDER "Contrib")
+ 
+set_target_properties(yajl PROPERTIES FOLDER "Contrib")
+set_target_properties(yajl_s PROPERTIES FOLDER "Contrib")
+set_target_properties(ytext-json PROPERTIES FOLDER "Contrib")
 
 add_subdirectory(yt)
 
