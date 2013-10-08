@@ -336,11 +336,11 @@ TAsyncError GetChunkIdsAttribute(
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TCodecExtractor>
-class TCodecStatisticsAttributeVisitor
+class TCodecStatisticsVisitor
     : public TChunkVisitorBase
 {
 public:
-    TCodecStatisticsAttributeVisitor(
+    TCodecStatisticsVisitor(
         NCellMaster::TBootstrap* bootstrap,
         TChunkList* chunkList,
         IYsonConsumer* consumer)
@@ -540,7 +540,7 @@ TAsyncError TChunkOwnerNodeProxy::GetSystemAttributeAsync(
                 return TValue(miscExt.compression_codec());
             }
         };
-        typedef TCodecStatisticsAttributeVisitor<TExtractCompressionCodec> TCompressionStatisticsVisitor;
+        typedef TCodecStatisticsVisitor<TExtractCompressionCodec> TCompressionStatisticsVisitor;
 
         return ComputeCodecStatistics<TCompressionStatisticsVisitor>(
             Bootstrap,
@@ -556,7 +556,7 @@ TAsyncError TChunkOwnerNodeProxy::GetSystemAttributeAsync(
                 return chunk->GetErasureCodec();
             }
         };
-        typedef TCodecStatisticsAttributeVisitor<TExtractErasureCodec> TErasureStatisticsVisitor;
+        typedef TCodecStatisticsVisitor<TExtractErasureCodec> TErasureStatisticsVisitor;
 
         return ComputeCodecStatistics<TErasureStatisticsVisitor>(
             Bootstrap,
