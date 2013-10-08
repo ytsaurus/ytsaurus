@@ -86,7 +86,7 @@ def push_table(source, destination, record_count, mr, yt_binary, token, fastbone
     else:
         speed_limit = ""
 
-    if yt_binary is None:
+    if yt_binary is None and not use_default_mapreduce_yt:
         with open("./mapreduce-yt", "w") as f:
             for block in yt.download_file("//home/files/mapreduce-yt", response_type="iter_content"):
                 f.write(block)
