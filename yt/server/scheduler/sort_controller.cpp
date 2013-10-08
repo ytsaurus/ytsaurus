@@ -762,7 +762,7 @@ protected:
         DECLARE_DYNAMIC_PHOENIX_TYPE(TPartitionSortTask, 0x4f9a6cd9);
 
 
-        virtual bool HasInputLocality() override
+        virtual bool HasInputLocality() const override
         {
             return false;
         }
@@ -1042,7 +1042,7 @@ protected:
                 Partition->ChunkPoolOutput->GetApproximateStripeStatistics());
         }
 
-        virtual bool HasInputLocality() override
+        virtual bool HasInputLocality() const override
         {
             return false;
         }

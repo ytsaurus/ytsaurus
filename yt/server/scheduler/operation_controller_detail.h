@@ -387,7 +387,7 @@ protected:
 
         virtual TDuration GetLocalityTimeout() const = 0;
         virtual i64 GetLocality(const Stroka& address) const;
-        virtual bool HasInputLocality();
+        virtual bool HasInputLocality() const;
 
         const NNodeTrackerClient::NProto::TNodeResources& GetMinNeededResources() const;
         virtual NNodeTrackerClient::NProto::TNodeResources GetNeededResources(TJobletPtr joblet) const;
