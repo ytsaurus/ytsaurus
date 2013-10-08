@@ -58,9 +58,9 @@ def get_structure_parser(env):
 def get_structure_writer(env):
     option_format = os.environ.get(env, "yson")
     if option_format == "json":
-        return lambda data: json.dumps(yson.convert_to_json_tree(data), indent=2)
+        return lambda data: json.dumps(yson.yson_to_json(data), indent=2)
     elif option_format == "yson":
-        return lambda data: yson.dumps(data, indent="  ")
+        return lambda data: yson.dumps(data, yson_format="pretty", indent=2)
     else:
         raise yt.YtError("Incorrect structured format " + option_format)
 
@@ -204,7 +204,7 @@ def add_create_parser(add_parser):
 def get(args):
     result = yt.get(args.path, spec=args.spec, attributes=args.attribute, format=args.format)
     if args.format is None:
-        print get_structure_writer("YT_STRUCTURED_DATA_FORMAT")(result)
+        sys.stdout.write(get_structure_writer("YT_STRUCTURED_DATA_FORMAT")(result))
     else:
         sys.stdout.write(result)
 

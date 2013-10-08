@@ -12,15 +12,14 @@ class YtTestBase(object):
 
         test_class.NUM_MASTERS = 1
         test_class.NUM_NODES = 5
-        test_class.START_SCHEDULER = True
+        test_class.NUM_SCHEDULERS = 1
         test_class.START_PROXY = True
 
         ports = {
             "master": 18001,
             "node": 17101,
             "scheduler": 18101,
-            "proxy": 18080,
-            "proxy_log": 18081}
+            "proxy": 18080}
         # (TODO): remake this strange stuff.
         cls.env = test_class()
         

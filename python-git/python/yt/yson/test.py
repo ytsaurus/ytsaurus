@@ -1,7 +1,8 @@
 #!/usr/bin/python
 #!-*-coding:utf-8-*-
 
-import yson_parser
+import parser
+import convert
 import yson_to_bash
 import yson_types
 
@@ -23,7 +24,7 @@ class PrintBashTest(unittest.TestCase):
                 self.map_end = ""
         yson_to_bash.options = Options()
         yson_to_bash.stdout = StringIO()
-        yson_to_bash.print_bash(yson_to_bash.go_by_path(yson_parser.parse_string(input), path), 3)
+        yson_to_bash.print_bash(yson_to_bash.go_by_path(parser.loads(input), path), 3)
         self.assertEqual(yson_to_bash.stdout.getvalue(), correct_output)
 
     def test_print_bash(self):
@@ -33,7 +34,7 @@ class PrintBashTest(unittest.TestCase):
         self.yson_to_bash_test("[{a=1; b=2}; {c=3; d=4}]", "a\t1\nb\t2\nc\t3\nd\t4")
         self.yson_to_bash_test("[{a=1; b=2}; {c=3; d=4}]", "c\t3\nd\t4", "1")
         self.yson_to_bash_test("[{a=1; b=2}; {c=3; d=4}]", "3", "1/c")
-    
+
 class TestYsonParser(unittest.TestCase):
     def assert_equal(self, parsed, expected, attributes):
         if expected is None:
@@ -43,9 +44,9 @@ class TestYsonParser(unittest.TestCase):
         self.assertEqual(parsed.attributes, attributes)
 
     def assert_parse(self, string, expected, attributes = {}):
-        self.assert_equal(yson_parser.parse_string(string), expected, attributes)
+        self.assert_equal(parser.loads(string), expected, attributes)
         stream = StringIO(string)
-        self.assert_equal(yson_parser.parse(stream), expected, attributes)
+        self.assert_equal(parser.load(stream), expected, attributes)
 
     def test_quoted_string(self):
         self.assert_parse('"abc\\"\\n"', 'abc"\n')
@@ -106,18 +107,8 @@ class TestYsonParser(unittest.TestCase):
             ''',
             {'path' : '/home/sandello', 'mode' : 755, 'read' : ['*.sh', '*.py']})
 
-    def test_fragments(self):
-        yson = '{a = b} {c = d}'
-        stream = StringIO(yson)
-        p = yson_parser.YsonFragmentedParser(stream)
-        self.assertTrue(p.has_next())
-        self.assertEqual(p.parse_next(), {'a' : 'b'})
-        self.assertTrue(p.has_next())
-        self.assertEqual(p.parse_next(), {'c' : 'd'})
-        self.assertFalse(p.has_next())
-
     def test_convert(self):
-        x = yson_types.convert_to_yson_tree({
+        x = convert.json_to_yson({
             "$value": {
                 "x": {
                     "$value": 10,
@@ -139,8 +130,8 @@ class TestYsonParser(unittest.TestCase):
         self.assertEqual(x, {"x": 10, "y": 11, "z": z})
         self.assertEqual(x.attributes, "abc")
 
-        self.assertEqual(yson_types.convert_to_yson_tree("abc"), "abc")
-                
+        self.assertEqual(convert.json_to_yson("abc"), "abc")
+
 
 if __name__ == "__main__":
     unittest.main()

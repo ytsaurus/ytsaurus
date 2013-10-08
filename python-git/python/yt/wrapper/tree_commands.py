@@ -1,16 +1,17 @@
 import config
+import logger
 from common import parse_bool, flatten, get_value, bool_to_string
+from errors import YtResponseError
 from transaction_commands import _make_transactional_request, \
                                  _make_formatted_transactional_request
 from table import prepare_path, to_name
 
-from yt.yson.yson_types import YsonString
+import yt.yson as yson
 
 import os
 import string
 import random
 from copy import deepcopy
-import yt.yson as yson
 
 def get(path, attributes=None, format=None, spec=None):
     """
@@ -74,9 +75,9 @@ def list(path, max_size=1000, format=None, absolute=False, attributes=None):
     In case of map_node it returns keys of the node.
     """
     def join(elem):
-        full_path = YsonString(os.path.join(path, elem))
-        full_path.attributes = elem.attributes
-        return full_path
+        return yson.convert_to_yson_type(
+            "{0}/{1}".format(path, elem),
+            elem.attributes)
 
     result = _make_formatted_transactional_request(
         "list",
@@ -162,16 +163,27 @@ def search(root="/", node_type=None, path_filter=None, object_filter=None, attri
     Searches all objects in root that have specified node_type,
     satisfy path and object filters. Returns list of the objects.
     Adds given attributes to objects.
-
-    It doesn't processed opaque nodes.
     """
-    attributes = deepcopy(flatten(get_value(attributes, [])))
-    attributes.append("type")
-    attributes.append("opaque")
+    attributes = get_value(attributes, [])
+
+    request_attributes = deepcopy(flatten(get_value(attributes, [])))
+    request_attributes.append("type")
+    request_attributes.append("opaque")
 
     exclude = deepcopy(flatten(get_value(exclude, [])))
-    exclude.append("//sys")
+    exclude.append("//sys/operations")
 
+    def safe_get(path):
+        try:
+            return get(path, attributes=request_attributes)
+        except YtResponseError as rsp:
+            if rsp.is_access_denied():
+                logger.warning("Cannot traverse %s, access denied" % path)
+            elif rsp.is_resolve_error():
+                logger.warning("Path %s is absent" % path)
+            else:
+                raise
+        return None
 
     result = []
     def walk(path, object, depth, ignore_opaque=False):
@@ -184,15 +196,15 @@ def search(root="/", node_type=None, path_filter=None, object_filter=None, attri
         if (node_type is None or object_type in flatten(node_type)) and \
            (object_filter is None or object_filter(object)) and \
            (path_filter is None or path_filter(path)):
-            yson_path = YsonString(path)
-            yson_path.attributes = object.attributes
+            yson_path = yson.YsonString(path)
+            yson_path.attributes = dict(filter(lambda item: item[0] in attributes, object.attributes.iteritems()))
             result.append(yson_path)
 
         if object_type == "map_node":
             for key, value in object.iteritems():
                 walk('%s/%s' % (path, key), value, depth + 1)
 
-    walk(root, get(root, attributes=attributes), 0, True)
+    walk(root, get(root, attributes=request_attributes), 0, True)
     return result
 
 def remove_with_empty_dirs(path):

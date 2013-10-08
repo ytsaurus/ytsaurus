@@ -6,7 +6,8 @@ from errors import YtError, YtResponseError
 from version import VERSION
 from http import make_get_request_with_retries, make_request_with_retries, Response, get_token, get_proxy
 
-from yt.yson.yson_types import convert_to_yson_tree
+import yt.yson as yson
+from yt.yson.convert import json_to_yson
 
 import requests
 
@@ -54,6 +55,7 @@ def get_host_for_heavy_operation():
         if hosts:
             return hosts[0]
     return config.http.PROXY
+
 
 def make_request(command_name, params,
                  data=None, proxy=None,
@@ -171,9 +173,7 @@ def make_request(command_name, params,
         else:
             return response.content()
     else:
-        message = "Response to request {0} with headers {1} contains error:\n{2}".\
-                  format(url, headers, response.error())
-        raise YtResponseError(message)
+        raise YtResponseError(url, headers, response.error())
 
 def make_formatted_request(command_name, params, format, **kwargs):
     # None format means that we want parsed output (as yson structure) instead of string.
@@ -186,6 +186,6 @@ def make_formatted_request(command_name, params, format, **kwargs):
     result = make_request(command_name, params)
 
     if format is None:
-        return convert_to_yson_tree(json.loads(result))
+        return json_to_yson(json.loads(result))
     else:
         return result
