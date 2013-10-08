@@ -75,7 +75,6 @@ set( HDRS
   ${BASE}/nullable.h
   ${BASE}/object_pool-inl.h
   ${BASE}/object_pool.h
-  ${BASE}/override.h
   ${BASE}/pattern_formatter.h
   ${BASE}/phoenix-inl.h
   ${BASE}/phoenix.h
