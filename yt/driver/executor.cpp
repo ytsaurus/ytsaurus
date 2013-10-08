@@ -14,6 +14,7 @@
 #include <server/job_proxy/config.h>
 
 #include <ytlib/driver/driver.h>
+#include <ytlib/driver/dispatcher.h>
 #include <ytlib/driver/command.h>
 
 #include <ytlib/logging/log_manager.h>
@@ -135,6 +136,7 @@ EExitCode TExecutor::Execute(const std::vector<std::string>& args)
     NLog::TLogManager::Get()->Configure(Config->Logging);
     TAddressResolver::Get()->Configure(Config->AddressResolver);
 
+    TDispatcher::Get()->Configure(Config->HeavyPoolSize);
     Driver = CreateDriver(Config);
 
     return DoExecute();

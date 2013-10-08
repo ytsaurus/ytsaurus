@@ -3,6 +3,7 @@ import pytest
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
+from yt.yson import to_yson_type
 
 ##################################################################
 
@@ -13,28 +14,28 @@ class TestLocks(YTEnvSetup):
     #TODO(panin): check error messages
     def test_invalid_cases(self):
         # outside of transaction
-        with pytest.raises(YTError): lock('/')
+        with pytest.raises(YtError): lock('/')
 
         # at non-existsing node
         tx = start_transaction()
-        with pytest.raises(YTError): lock('//tmp/non_existent', tx = tx)
+        with pytest.raises(YtError): lock('//tmp/non_existent', tx=tx)
 
         # error while parsing mode
-        with pytest.raises(YTError): lock('/', mode = 'invalid', tx = tx)
+        with pytest.raises(YtError): lock('/', mode='invalid', tx=tx)
 
         #taking None lock is forbidden
-        with pytest.raises(YTError): lock('/', mode = 'None', tx = tx)
+        with pytest.raises(YtError): lock('/', mode='None', tx=tx)
 
         # attributes do not have @lock_mode
-        set_str('//tmp/value', '<attr=some> 42', tx = tx)
-        with pytest.raises(YTError): lock('//tmp/value/@attr/@lock_mode', tx = tx)
+        set('//tmp/value', "<attr=some>42", is_raw=True, tx=tx)
+        with pytest.raises(YtError): lock('//tmp/value/@attr/@lock_mode', tx=tx)
        
         abort_transaction(tx)
 
     def test_display_locks(self):
         tx = start_transaction()
         
-        set_str('//tmp/map', '{list = <attr=some> [1; 2; 3]}', tx = tx)
+        set('//tmp/map', "{list=<attr=some>[1;2;3]}", is_raw=True, tx=tx)
 
         # check that lock is set on nested nodes
         assert get('//tmp/map/@lock_mode', tx = tx) == 'exclusive'
@@ -61,7 +62,7 @@ class TestLocks(YTEnvSetup):
         assert get('//tmp/node', tx = tx) == 42
 
         # can't change value under snapshot lock
-        with pytest.raises(YTError): set('//tmp/node', 200, tx = tx)
+        with pytest.raises(YtError): set('//tmp/node', 200, tx = tx)
         
         abort_transaction(tx)
 
@@ -69,13 +70,13 @@ class TestLocks(YTEnvSetup):
         set('//tmp/a', {'b' : 1})
         tx = start_transaction()
         lock('//tmp/a/b', mode = 'exclusive', tx = tx);
-        with pytest.raises(YTError): remove('//tmp/a')
+        with pytest.raises(YtError): remove('//tmp/a')
 
     def test_remove_list_subtree_lock(self):
         set('//tmp/a', [1])
         tx = start_transaction()
         lock('//tmp/a/0', mode = 'exclusive', tx = tx);
-        with pytest.raises(YTError): remove('//tmp/a')
+        with pytest.raises(YtError): remove('//tmp/a')
 
     def test_exclusive_vs_snapshot_locks1(self):
         create('table', '//tmp/t')
@@ -183,7 +184,7 @@ class TestLocks(YTEnvSetup):
         assert get('#' + lock_id2 + '/@state') == 'pending'
  
         tx3 = start_transaction()
-        with pytest.raises(YTError): lock('//tmp/a', tx=tx3, mode='shared')
+        with pytest.raises(YtError): lock('//tmp/a', tx=tx3, mode='shared')
 
     def test_waitable_lock5(self):
         set('//tmp/a', 1)
@@ -206,7 +207,7 @@ class TestLocks(YTEnvSetup):
         assert get('#' + lock_id4 + '/@state') == 'pending'
  
         commit_transaction(tx1)
-        with pytest.raises(YTError): get('#' + lock_id1 + '/@state')
+        with pytest.raises(YtError): get('#' + lock_id1 + '/@state')
         assert get('#' + lock_id2 + '/@state') == 'acquired'
         assert get('#' + lock_id3 + '/@state') == 'acquired'
         assert get('#' + lock_id4 + '/@state') == 'pending'
@@ -309,7 +310,7 @@ class TestLocks(YTEnvSetup):
         tx2 = start_transaction()
 
         set('//tmp/a/b', 2, tx = tx1)
-        with pytest.raises(YTError): remove('//tmp/a', tx = tx2)
+        with pytest.raises(YtError): remove('//tmp/a', tx = tx2)
 
     def test_map_locks1(self):
         tx = start_transaction()
@@ -350,7 +351,7 @@ class TestLocks(YTEnvSetup):
         set('//tmp/a', 1, tx = tx1)
 
         tx2 = start_transaction()
-        with pytest.raises(YTError): set('//tmp/a', 2, tx = tx2)
+        with pytest.raises(YtError): set('//tmp/a', 2, tx = tx2)
 
     def test_map_locks4(self):
         set('//tmp/a', 1)
@@ -374,7 +375,7 @@ class TestLocks(YTEnvSetup):
         remove('//tmp/a', tx = tx1)
 
         tx2 = start_transaction()
-        with pytest.raises(YTError): set('//tmp/a', 2, tx = tx2)
+        with pytest.raises(YtError): set('//tmp/a', 2, tx = tx2)
 
     def test_map_locks6(self):
         tx = start_transaction()
@@ -382,7 +383,7 @@ class TestLocks(YTEnvSetup):
         assert get('//tmp/a', tx = tx) == 1
         assert get('//tmp') == {}
 
-        with pytest.raises(YTError): remove('//tmp/a')
+        with pytest.raises(YtError): remove('//tmp/a')
         remove('//tmp/a', tx = tx)
         assert get('//tmp', tx = tx) == {}
 
@@ -425,8 +426,8 @@ class TestLocks(YTEnvSetup):
 
         assert get('//tmp/@a', tx = tx1) == 1
         assert get('//tmp/@b', tx = tx2) == 2
-        with pytest.raises(YTError): get('//tmp/@a')
-        with pytest.raises(YTError): get('//tmp/@b')
+        with pytest.raises(YtError): get('//tmp/@a')
+        with pytest.raises(YtError): get('//tmp/@b')
 
         commit_transaction(tx1)
         assert get('//tmp/@a') == 1
@@ -442,7 +443,7 @@ class TestLocks(YTEnvSetup):
         set('//tmp/@a', 1, tx = tx1)
 
         tx2 = start_transaction()
-        with pytest.raises(YTError): set('//tmp/@a', 2, tx = tx2)
+        with pytest.raises(YtError): set('//tmp/@a', 2, tx = tx2)
 
     def test_attr_locks4(self):
         set('//tmp/@a', 1)
@@ -466,20 +467,20 @@ class TestLocks(YTEnvSetup):
         remove('//tmp/@a', tx = tx1)
 
         tx2 = start_transaction()
-        with pytest.raises(YTError): set('//tmp/@a', 2, tx = tx2)
+        with pytest.raises(YtError): set('//tmp/@a', 2, tx = tx2)
 
     def test_attr_locks6(self):
         tx = start_transaction()
         set('//tmp/@a', 1, tx = tx)
         assert get('//tmp/@a', tx = tx) == 1
-        with pytest.raises(YTError): get('//tmp/@a')
+        with pytest.raises(YtError): get('//tmp/@a')
 
-        with pytest.raises(YTError): remove('//tmp/@a')
+        with pytest.raises(YtError): remove('//tmp/@a')
         remove('//tmp/@a', tx = tx)
-        with pytest.raises(YTError): get('//tmp/@a', tx = tx)
+        with pytest.raises(YtError): get('//tmp/@a', tx = tx)
 
         commit_transaction(tx)
-        with pytest.raises(YTError): get('//tmp/@a')
+        with pytest.raises(YtError): get('//tmp/@a')
  
     def test_nested_tx1(self):
         tx1 = start_transaction()

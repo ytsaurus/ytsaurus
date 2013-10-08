@@ -10,7 +10,7 @@ from yt_commands import *
 class TestSchedulerSortCommands(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
-    START_SCHEDULER = True
+    NUM_SCHEDULERS = 1
 
     def test_simple(self):
         v1 = {'key' : 'aaa'}
@@ -64,10 +64,10 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         write('//tmp/t_in', {'foo': 'bar'})
 
-        with pytest.raises(YTError):
+        with pytest.raises(YtError):
             sort(in_='//tmp/t_in',
                  out='//tmp/t_out',
-                 sort_by='')
+                 sort_by=[])
 
     def test_empty_in(self):
         create('table', '//tmp/t_in')
@@ -87,7 +87,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         write('//tmp/t_in', {'foo': 'bar'})
         write('//tmp/t_out', {'hello': 'world'})
 
-        with pytest.raises(YTError):
+        with pytest.raises(YtError):
             sort(in_='//tmp/t_in',
              out='<append=true>//tmp/t_out',
              sort_by='foo')
@@ -152,14 +152,14 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         sort(in_='//tmp/t_in',
              out='//tmp/t_out',
-             sort_by='key; subkey')
+             sort_by=['key', 'subkey'])
 
         assert read('//tmp/t_out') == [v1, v2, v3, v4, v5]
 
         create('table', '//tmp/t_another_out')
         sort(in_='//tmp/t_out',
              out='//tmp/t_another_out',
-             sort_by='subkey; key')
+             sort_by=['subkey', 'key'])
 
         assert read('//tmp/t_another_out') == [v3, v1, v2, v5, v4]
 

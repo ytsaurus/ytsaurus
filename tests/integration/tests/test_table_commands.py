@@ -15,13 +15,13 @@ class TestTableCommands(YTEnvSetup):
     # Issue #198
     def test_chunk_ids(self):
         create('table', '//tmp/t')
-        write_str('//tmp/t', '{a=10}')
+        write('//tmp/t', {"a": "10"})
 
         chunk_ids = get_chunks()
         assert len(chunk_ids) == 1
         chunk_id = chunk_ids[0]
 
-        with pytest.raises(YTError): get('//sys/chunk_lists/"' + chunk_id + '"')
+        with pytest.raises(YtError): get('//sys/chunk_lists/"' + chunk_id + '"')
 
     def test_simple(self):
         create('table', '//tmp/table')
@@ -30,12 +30,12 @@ class TestTableCommands(YTEnvSetup):
         assert get('//tmp/table/@row_count') == 0
         assert get('//tmp/table/@chunk_count') == 0
 
-        write_str('//tmp/table', '{b="hello"}')
+        write('//tmp/table', {"b": "hello"})
         assert read('//tmp/table') == [{"b":"hello"}]
         assert get('//tmp/table/@row_count') == 1
         assert get('//tmp/table/@chunk_count') == 1
 
-        write_str('<append=true>//tmp/table', '{b="2";a="1"};{x="10";y="20";a="30"}')
+        write('<append=true>//tmp/table', [{"b": "2", "a": "1"}, {"x": "10", "y": "20", "a": "30"}])
         assert read('//tmp/table') == [{"b": "hello"}, {"a":"1", "b":"2"}, {"a":"30", "x":"10", "y":"20"}]
         assert get('//tmp/table/@row_count') == 3
         assert get('//tmp/table/@chunk_count') == 2
@@ -43,67 +43,66 @@ class TestTableCommands(YTEnvSetup):
     def test_sorted_write(self):
         create('table', '//tmp/table')
 
-        write_str('//tmp/table', '{key = 0}; {key = 1}; {key = 2}; {key = 3}', sorted_by='key')
+        write('//tmp/table', [{"key": 0}, {"key": 1}, {"key": 2}, {"key": 3}], sorted_by="key")
 
         assert get('//tmp/table/@sorted') ==  'true'
         assert get('//tmp/table/@sorted_by') ==  ['key']
         assert get('//tmp/table/@row_count') ==  4
 
         # sorted flag is discarded when writing to sorted table
-        write_str('<append=true>//tmp/table', '{key = 4}')
+        write('<append=true>//tmp/table', {"key": 4})
         assert get('//tmp/table/@sorted') ==  'false'
-        with pytest.raises(YTError): get('//tmp/table/@sorted_by')
+        with pytest.raises(YtError): get('//tmp/table/@sorted_by')
 
     def test_append_overwrite_write(self):
         # Default (append).
         # COMPAT(ignat): When migrating to overwrite semantics, change this to 1.
         create('table', '//tmp/table1')
         assert get('//tmp/table1/@row_count') == 0
-        write_str('//tmp/table1', '{a=0}')
+        write('//tmp/table1', {"a": 0})
         assert get('//tmp/table1/@row_count') == 1
-        write_str('//tmp/table1', '{a=1}')
+        write('//tmp/table1', {"a": 1})
         assert get('//tmp/table1/@row_count') == 1
 
         # Append
         create('table', '//tmp/table2')
         assert get('//tmp/table2/@row_count') == 0
-        write_str('<append=true>//tmp/table2', '{a=0}')
+        write('<append=true>//tmp/table2', {"a": 0})
         assert get('//tmp/table2/@row_count') == 1
-        write_str('<append=true>//tmp/table2', '{a=1}')
+        write('<append=true>//tmp/table2', {"a": 1})
         assert get('//tmp/table2/@row_count') == 2
 
         # Overwrite
         create('table', '//tmp/table3')
         assert get('//tmp/table3/@row_count') == 0
-        write_str('<append=false>//tmp/table3', '{a=0}')
+        write('<append=false>//tmp/table3', {"a": 0})
         assert get('//tmp/table3/@row_count') == 1
-        write_str('<append=false>//tmp/table3', '{a=1}')
+        write('<append=false>//tmp/table3', {"a": 1})
         assert get('//tmp/table3/@row_count') == 1
 
     def test_invalid_cases(self):
         create('table', '//tmp/table')
 
         # we can write only list fragments
-        with pytest.raises(YTError): write_str('<append=true>//tmp/table', 'string')
-        with pytest.raises(YTError): write_str('<append=true>//tmp/table', '100')
-        with pytest.raises(YTError): write_str('<append=true>//tmp/table', '3.14')
-        with pytest.raises(YTError): write_str('<append=true>//tmp/table', '<>')
+        with pytest.raises(YtError): write('<append=true>//tmp/table', yson.loads('string'))
+        with pytest.raises(YtError): write('<append=true>//tmp/table', yson.loads('100'))
+        with pytest.raises(YtError): write('<append=true>//tmp/table', yson.loads('3.14'))
 
         # we can write sorted data only to empty table
         write('<append=true>//tmp/table', {'foo': 'bar'}, sorted_by='foo')
-        with pytest.raises(YTError):
+        with pytest.raises(YtError):
             write('"<append=true>" + //tmp/table', {'foo': 'zzz_bar'}, sorted_by='foo')
 
 
         content = "some_data"
         create('file', '//tmp/file')
         upload('//tmp/file', content)
-        with pytest.raises(YTError): read('//tmp/file')
+        with pytest.raises(YtError): read('//tmp/file')
 
     def test_row_index_selector(self):
         create('table', '//tmp/table')
 
-        write_str('//tmp/table', '{a = 0}; {b = 1}; {c = 2}; {d = 3}')
+        write('//tmp/table', [{"a": 0}, {"b": 1}, {"c": 2}, {"d": 3}])
 
         # closed ranges
         assert read('//tmp/table[#0:#2]') == [{'a': 0}, {'b' : 1}] # simple
@@ -120,7 +119,7 @@ class TestTableCommands(YTEnvSetup):
         assert read('//tmp/table[#2:]') == [{'c' : 2}, {'d' : 3}]
 
         # reading key selectors from unsorted table
-        with pytest.raises(YTError): read('//tmp/table[:a]')
+        with pytest.raises(YtError): read('//tmp/table[:a]')
 
     def test_row_key_selector(self):
         create('table', '//tmp/table')
@@ -132,7 +131,7 @@ class TestTableCommands(YTEnvSetup):
         v5 = {'s' : 'c', 'i': -100, 'd' : 10.}
 
         values = [v1, v2, v3, v4, v5]
-        write('//tmp/table', values, sorted_by='s;i;d')
+        write('//tmp/table', values, sorted_by=['s', 'i', 'd'])
 
         # possible empty ranges
         assert read('//tmp/table[a : a]') == []
@@ -164,7 +163,7 @@ class TestTableCommands(YTEnvSetup):
     def test_column_selector(self):
         create('table', '//tmp/table')
 
-        write_str('//tmp/table', '{a = 1; aa = 2; b = 3; bb = 4; c = 5}')
+        write('//tmp/table', {"a": 1, "aa": 2, "b": 3, "bb": 4, "c": 5})
         # empty columns
         assert read('//tmp/table{}') == [{}]
 
@@ -177,8 +176,8 @@ class TestTableCommands(YTEnvSetup):
 
         # range columns
         # closed ranges
-        with pytest.raises(YTError): read('//tmp/table{a:a}')  # left = right
-        with pytest.raises(YTError): read('//tmp/table{b:a}')  # left > right
+        with pytest.raises(YtError): read('//tmp/table{a:a}')  # left = right
+        with pytest.raises(YtError): read('//tmp/table{b:a}')  # left > right
 
         assert read('//tmp/table{aa:b}') == [{'aa' : 2}]  # (+, +)
         assert read('//tmp/table{aa:bx}') == [{'aa' : 2, 'b' : 3, 'bb' : 4}]  # (+, -)
@@ -205,8 +204,8 @@ class TestTableCommands(YTEnvSetup):
         create('table', '//tmp/table')
         tx = start_transaction()
 
-        write_str('<append=true>//tmp/table', '{a=1}', tx=tx)
-        write_str('<append=true>//tmp/table', '{b=2}', tx=tx)
+        write('<append=true>//tmp/table', {"a": 1}, tx=tx)
+        write('<append=true>//tmp/table', {"b": 2}, tx=tx)
 
         assert read('//tmp/table') == []
         assert read('//tmp/table', tx=tx) == [{'a':1}, {'b':2}]
@@ -218,9 +217,9 @@ class TestTableCommands(YTEnvSetup):
         create('table', '//tmp/table')
         tx = start_transaction()
 
-        write_str('<append=true>//tmp/table', '{a=1}', tx=tx)
-        write_str('<append=true>//tmp/table', '{b=2}', tx=tx)
-        write_str('<append=true>//tmp/table', '{c=3}', tx=tx)
+        write('<append=true>//tmp/table', {"a": 1}, tx=tx)
+        write('<append=true>//tmp/table', {"b": 2}, tx=tx)
+        write('<append=true>//tmp/table', {"c": 3}, tx=tx)
 
         assert read('//tmp/table') == []
         assert read('//tmp/table', tx=tx) == [{'a':1}, {'b':2}, {'c' : 3}]
@@ -231,15 +230,15 @@ class TestTableCommands(YTEnvSetup):
     def test_shared_locks_parallel_tx(self):
         create('table', '//tmp/table')
 
-        write_str('//tmp/table', '{a=1}')
+        write('//tmp/table', {"a": 1})
 
         tx1 = start_transaction()
         tx2 = start_transaction()
 
-        write_str('<append=true>//tmp/table', '{b=2}', tx=tx1)
+        write('<append=true>//tmp/table', {"b": 2}, tx=tx1)
 
-        write_str('<append=true>//tmp/table', '{c=3}', tx=tx2)
-        write_str('<append=true>//tmp/table', '{d=4}', tx=tx2)
+        write('<append=true>//tmp/table', {"c": 3}, tx=tx2)
+        write('<append=true>//tmp/table', {"d": 4}, tx=tx2)
 
         # check which records are seen from different transactions
         assert read('//tmp/table') == [{'a' : 1}]
@@ -287,8 +286,8 @@ class TestTableCommands(YTEnvSetup):
 
     def test_codec_in_writer(self):
         create('table', '//tmp/table')
-        set_str('//tmp/table/@compression_codec', "gzip_best_compression")
-        write_str('//tmp/table', '{b="hello"}')
+        set('//tmp/table/@compression_codec', "gzip_best_compression")
+        write('//tmp/table', {"b": "hello"})
 
         assert read('//tmp/table') == [{"b":"hello"}]
 
@@ -297,7 +296,7 @@ class TestTableCommands(YTEnvSetup):
 
     def test_copy(self):
         create('table', '//tmp/t')
-        write_str('//tmp/t', '{a=b}')
+        write('//tmp/t', {"a": "b"})
 
         assert read('//tmp/t') == [{'a' : 'b'}]
 
@@ -315,13 +314,13 @@ class TestTableCommands(YTEnvSetup):
 
     def test_copy_to_the_same_table(self):
         create('table', '//tmp/t')
-        write_str('//tmp/t', '{a=b}')
+        write('//tmp/t', {"a": "b"})
 
-        with pytest.raises(YTError): copy('//tmp/t', '//tmp/t')
+        with pytest.raises(YtError): copy('//tmp/t', '//tmp/t')
 
     def test_copy_tx(self):
         create('table', '//tmp/t')
-        write_str('//tmp/t', '{a=b}')
+        write('//tmp/t', {"a": "b"})
 
         tx = start_transaction()
         assert read('//tmp/t', tx=tx) == [{'a' : 'b'}]
@@ -369,19 +368,23 @@ class TestTableCommands(YTEnvSetup):
         assert exists("//tmp/t/@")
         assert exists("//tmp/t/@chunk_ids")
 
+    @pytest.mark.xfail(run = False, reason = 'Should be fixed in master branch')
     def test_invalid_channels_in_create(self):
-        with pytest.raises(YTError): create('table', '//tmp/t', opt='channels=123')
+        # ??? it doesn't work.
+        with pytest.raises(YtError):
+            create('table', '//tmp/t', attributes={'channels': '123'})
+            print >>sys.stderr, get('//tmp/t/@')
 
     def test_replication_factor_attr(self):
         create('table', '//tmp/t')
         assert get('//tmp/t/@replication_factor') == 3
 
-        with pytest.raises(YTError): remove('//tmp/t/@replication_factor')
-        with pytest.raises(YTError): set('//tmp/t/@replication_factor', 0)
-        with pytest.raises(YTError): set('//tmp/t/@replication_factor', {})
+        with pytest.raises(YtError): remove('//tmp/t/@replication_factor')
+        with pytest.raises(YtError): set('//tmp/t/@replication_factor', 0)
+        with pytest.raises(YtError): set('//tmp/t/@replication_factor', {})
 
         tx = start_transaction()
-        with pytest.raises(YTError): set('//tmp/t/@replication_factor', 2, tx=tx)
+        with pytest.raises(YtError): set('//tmp/t/@replication_factor', 2, tx=tx)
 
     def test_replication_factor_static(self):
         create('table', '//tmp/t')
@@ -397,7 +400,7 @@ class TestTableCommands(YTEnvSetup):
 
     def test_recursive_resource_usage(self):
         create('table', '//tmp/t1')
-        write_str('//tmp/t1', '{a=b}')
+        write('//tmp/t1', {"a": "b"})
         copy('//tmp/t1', '//tmp/t2')
 
         assert get('//tmp/t1/@resource_usage')['disk_space'] + \

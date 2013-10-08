@@ -7,6 +7,8 @@
 
 #include <ytlib/actions/future.h>
 
+#include <ytlib/misc/periodic_invoker.h>
+
 #ifdef _WIN32
     #include <ws2tcpip.h>
 #else
@@ -120,12 +122,14 @@ private:
     TSpinLock CacheLock;
     yhash_map<Stroka, TNetworkAddress> Cache;
 
-    TSpinLock LocalHostNameLock;
+    TSpinLock LocalHostLock;
+    TPeriodicInvokerPtr LocalHostChecker;
     bool GetLocalHostNameFailed;
     Stroka CachedLocalHostName;
 
     TErrorOr<TNetworkAddress> DoResolve(const Stroka& hostName);
     Stroka DoGetLocalHostName();
+    void CheckLocalHostResolution();
 
 };
 

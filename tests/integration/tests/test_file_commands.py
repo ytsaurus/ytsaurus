@@ -101,12 +101,12 @@ class TestFileCommands(YTEnvSetup):
 
         get('//tmp/f/@replication_factor')
 
-        with pytest.raises(YTError): remove('//tmp/f/@replication_factor')
-        with pytest.raises(YTError): set('//tmp/f/@replication_factor', 0)
-        with pytest.raises(YTError): set('//tmp/f/@replication_factor', {})
+        with pytest.raises(YtError): remove('//tmp/f/@replication_factor')
+        with pytest.raises(YtError): set('//tmp/f/@replication_factor', 0)
+        with pytest.raises(YtError): set('//tmp/f/@replication_factor', {})
 
         tx = start_transaction()
-        with pytest.raises(YTError): set('//tmp/f/@replication_factor', 2, tx=tx)
+        with pytest.raises(YtError): set('//tmp/f/@replication_factor', 2, tx=tx)
 
     def test_append(self):
         content = "some_data"

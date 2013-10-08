@@ -9,7 +9,7 @@ from yt_commands import *
 class TestSchedulerMergeCommands(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
-    START_SCHEDULER = True
+    NUM_SCHEDULERS = 1
 
     def _prepare_tables(self):
         t1 = '//tmp/t1'
@@ -46,7 +46,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     def test_unordered_combine(self):
         self._prepare_tables()
 
-        merge('--combine',
+        merge(combine_chunks=True,
               mode='unordered',
               in_=[self.t1, self.t2],
               out='//tmp/t_out')
@@ -67,7 +67,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     def test_ordered_combine(self):
         self._prepare_tables()
 
-        merge('--combine',
+        merge(combine_chunks=True,
               mode='ordered',
               in_=[self.t1, self.t2],
               out='//tmp/t_out')
@@ -79,8 +79,8 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
 
-        write_str('//tmp/t1', '{a = 1}; {a = 10}; {a = 100}', sorted_by='a')
-        write_str('//tmp/t2', '{a = 2}; {a = 3}; {a = 15}', sorted_by='a')
+        write('//tmp/t1', [{"a": 1}, {"a": 10}, {"a": 100}], sorted_by='a')
+        write('//tmp/t2', [{"a": 2}, {"a": 3}, {"a": 15}], sorted_by='a')
 
         create('table', '//tmp/t_out')
         merge(mode='sorted',
@@ -93,10 +93,10 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     def test_sorted_trivial(self):
         create('table', '//tmp/t1')
 
-        write_str('//tmp/t1', '{a = 1}; {a = 10}; {a = 100}', sorted_by='a')
+        write('//tmp/t1', [{"a": 1}, {"a": 10}, {"a": 100}], sorted_by='a')
 
         create('table', '//tmp/t_out')
-        merge('--combine',
+        merge(combine_chunks=True,
               mode='sorted',
               in_=['//tmp/t1'],
               out='//tmp/t_out')
@@ -126,11 +126,11 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
 
-        write_str('//tmp/t1', '{a = 1}; {a = 10}; {a = 100}', sorted_by='a')
-        write_str('//tmp/t2', '{a = 2}; {a = 3}; {a = 15}', sorted_by='a')
+        write('//tmp/t1', [{"a": 1}, {"a": 10}, {"a": 100}], sorted_by='a')
+        write('//tmp/t2', [{"a": 2}, {"a": 3}, {"a": 15}], sorted_by='a')
 
         create('table', '//tmp/t_out')
-        merge('--combine',
+        merge(combine_chunks=True,
               mode='sorted',
               in_=['//tmp/t1', '//tmp/t2'],
               out='//tmp/t_out')
@@ -143,9 +143,9 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         create('table', '//tmp/t2')
         create('table', '//tmp/t3')
 
-        write_str('//tmp/t1', '{k = a; s = 0}; {k = b; s = 1}', sorted_by='k; s')
-        write_str('//tmp/t2', '{k = b; s = 2}; {k = c; s = 0}', sorted_by='k; s')
-        write_str('//tmp/t3', '{k = b; s = 0}; {k = b; s = 3}', sorted_by='k; s')
+        write('//tmp/t1', [{"k": "a", "s": 0}, {"k": "b", "s": 1}], sorted_by=['k', 's'])
+        write('//tmp/t2', [{"k": "b", "s": 2}, {"k": "c", "s": 0}], sorted_by=['k', 's'])
+        write('//tmp/t3', [{"k": "b", "s": 0}, {"k": "b", "s": 3}], sorted_by=['k', 's'])
 
         create('table', '//tmp/t_out')
         merge(mode='sorted',
@@ -177,7 +177,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         merge(mode='sorted',
               in_=['//tmp/t1', '//tmp/t2', '//tmp/t3'],
               out='//tmp/t_out',
-              merge_by='k; s')
+              merge_by=['k', 's'])
 
         res = read('//tmp/t_out')
         expected = [
@@ -198,12 +198,12 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         create('table', '//tmp/t2')
         create('table', '//tmp/t3')
 
-        write_str('//tmp/t1', '{a = 3}; {a = 3};{a = 3}', sorted_by='a')
-        write_str('//tmp/t2', '{a = 2}; {a = 3}; {a = 15}', sorted_by='a')
-        write_str('//tmp/t3', '{a = 1}; {a = 3};', sorted_by='a')
+        write('//tmp/t1', [{"a": 3}, {"a": 3}, {"a": 3}], sorted_by='a')
+        write('//tmp/t2', [{"a": 2}, {"a": 3}, {"a": 15}], sorted_by='a')
+        write('//tmp/t3', [{"a": 1}, {"a": 3}], sorted_by='a')
 
         create('table', '//tmp/t_out')
-        merge('--combine',
+        merge(combine_chunks=True,
               mode='sorted',
               in_=['//tmp/t1', '//tmp/t2', '//tmp/t3'],
               out='//tmp/t_out',
@@ -224,13 +224,13 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         b2 = {'a': 10, 'c': 0}
         b3 = {'a': 15, 'c': 5}
 
-        write('//tmp/t1', [a1, a2, a3], sorted_by='a;b')
-        write('//tmp/t2', [b1, b2, b3], sorted_by='a;c')
+        write('//tmp/t1', [a1, a2, a3], sorted_by=['a', 'b'])
+        write('//tmp/t2', [b1, b2, b3], sorted_by=['a', 'c'])
 
         create('table', '//tmp/t_out')
 
         # error when sorted_by of input tables are different and merge_by is not set
-        with pytest.raises(YTError):
+        with pytest.raises(YtError):
             merge(mode='sorted',
                   in_=['//tmp/t1', '//tmp/t2'],
                   out='//tmp/t_out')
@@ -302,7 +302,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         write('<append=true>//tmp/t_in', v)
 
 
-        merge('--combine',
+        merge(combine_chunks=True,
                mode='ordered',
                in_='//tmp/t_in',
                out='<append=true>//tmp/t_in')

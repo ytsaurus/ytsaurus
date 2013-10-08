@@ -17,7 +17,7 @@ from format import Format
 from heavy_commands import make_heavy_request
 import logger
 
-from yt.yson import convert_to_json_tree
+from yt.yson import yson_to_json
 
 import os
 import types
@@ -131,7 +131,7 @@ def _add_user_command_spec(op_type, binary, input_format, output_format, files, 
                 "output_format": output_format.json(),
                 "command": binary,
                 "file_paths": map(
-                    convert_to_json_tree,
+                    yson_to_json,
                     flatten(files + additional_files + map(prepare_path, get_value(file_paths, [])))
                 ),
                 "memory_limit": memory_limit,

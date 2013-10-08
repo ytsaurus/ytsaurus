@@ -11,7 +11,7 @@ import time
 class TestErasure(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 20
-    START_SCHEDULER = True
+    NUM_SCHEDULERS = 1
 
     def _do_test_simple(self, erasure_codec):
         create('table', '//tmp/table')
@@ -21,12 +21,12 @@ class TestErasure(YTEnvSetup):
         assert get('//tmp/table/@row_count') == 0
         assert get('//tmp/table/@chunk_count') == 0
 
-        write_str('//tmp/table', '{b="hello"}')
+        write('//tmp/table', {"b": "hello"})
         assert read('//tmp/table') == [{"b":"hello"}]
         assert get('//tmp/table/@row_count') == 1
         assert get('//tmp/table/@chunk_count') == 1
 
-        write_str('<append=true>//tmp/table', '{b="2";a="1"};{x="10";y="20";a="30"}')
+        write('<append=true>//tmp/table', [{"b": "2", "a": "1"}, {"x": "10", "y": "20", "a": "30"}])
         assert read('//tmp/table') == [{"b": "hello"}, {"a":"1", "b":"2"}, {"a":"30", "x":"10", "y":"20"}]
         assert get('//tmp/table/@row_count') == 3
         assert get('//tmp/table/@chunk_count') == 2
@@ -49,10 +49,10 @@ class TestErasure(YTEnvSetup):
         return True
 
     def _test_repair(self, codec, replica_count, data_replica_count):
-        remove('//tmp/table', '--force')
+        remove('//tmp/table', force=True)
         create('table', '//tmp/table')
         set('//tmp/table/@erasure_codec', codec)
-        write_str('//tmp/table', '{b="hello"}')
+        write('//tmp/table', {"b": "hello"})
 
         chunk_ids = get("//tmp/table/@chunk_ids")
         assert len(chunk_ids) == 1
@@ -65,7 +65,8 @@ class TestErasure(YTEnvSetup):
 
         for r in replicas:
             replica_index = r.attributes["index"]
-            node_index = (int(r.rsplit(":", 1)[1]) - self.Env._ports["node"]) / 2
+            port = int(r.rsplit(":", 1)[1])
+            node_index = filter(lambda x: x == port, self.Env._ports["node"])[0]
             print "Banning node %d containing replica %d" % (node_index, replica_index)
             set("//sys/nodes/%s/@banned" % r, "true")
 
@@ -96,7 +97,7 @@ class TestErasure(YTEnvSetup):
         set('//tmp/t1/@erasure_codec', 'reed_solomon_6_3')
         create('table', '//tmp/t2')
         set('//tmp/t2/@erasure_codec', 'lrc_12_2_2')
-        write_str('//tmp/t1', '{a=b}')
+        write('//tmp/t1', {"a": "b"})
         map(in_='//tmp/t1', out='//tmp/t2', command='cat')
 
         assert read('//tmp/t2') == [{'a' : 'b'}]

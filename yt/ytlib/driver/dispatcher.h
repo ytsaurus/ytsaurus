@@ -18,7 +18,7 @@ public:
 
     static TDispatcher* Get();
 
-    void Configure(TDriverConfigPtr config);
+    void Configure(int heavyPoolSize);
 
     IInvokerPtr GetLightInvoker();
     IInvokerPtr GetHeavyInvoker();
@@ -37,7 +37,6 @@ private:
      * This thread pool is used by TDriver for heavy commands.
      */
     TLazyIntrusivePtr<TThreadPool> HeavyThreadPool;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

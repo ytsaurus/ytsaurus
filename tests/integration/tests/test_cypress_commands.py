@@ -3,6 +3,7 @@ import time
 
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
+from yt.yson import to_yson_type
 
 
 ##################################################################
@@ -17,47 +18,47 @@ class TestCypressCommands(YTEnvSetup):
 
     def test_invalid_cases(self):
         # path not starting with /
-        with pytest.raises(YTError): set('a', 20)
+        with pytest.raises(YtError): set('a', 20)
 
         # path starting with single /
-        with pytest.raises(YTError): set('/a', 20)
+        with pytest.raises(YtError): set('/a', 20)
 
         # empty path
-        with pytest.raises(YTError): set('', 20)
+        with pytest.raises(YtError): set('', 20)
 
         # empty token in path
-        with pytest.raises(YTError): set('//tmp/a//b', 20)
+        with pytest.raises(YtError): set('//tmp/a//b', 20)
 
         # change the type of root
-        with pytest.raises(YTError): set('/', [])
+        with pytest.raises(YtError): set('/', [])
 
         # set the root to the empty map
-        # with pytest.raises(YTError): set('/', {}))
+        # with pytest.raises(YtError): set('/', {}))
 
         # remove the root
-        with pytest.raises(YTError): remove('/')
+        with pytest.raises(YtError): remove('/')
         # get non existent child
-        with pytest.raises(YTError): get('//tmp/b')
+        with pytest.raises(YtError): get('//tmp/b')
 
         # remove non existent child
-        with pytest.raises(YTError): remove('//tmp/b')
+        with pytest.raises(YtError): remove('//tmp/b')
 
         # can't create entity node inside cypress
-        with pytest.raises(YTError): set_str('//tmp/entity', '#')
+        with pytest.raises(YtError): set('//tmp/entity', None)
 
     def test_remove(self):
-        with pytest.raises(YTError): remove('//tmp/x', '--non_recursive')
-        with pytest.raises(YTError): remove('//tmp/x')
-        remove('//tmp/x', '--force')
-        
-        with pytest.raises(YTError): remove('//tmp/1', '--non_recursive')
-        with pytest.raises(YTError): remove('//tmp/1')
-        remove('//tmp/1', '--force')
+        with pytest.raises(YtError): remove('//tmp/x', recursive=False)
+        with pytest.raises(YtError): remove('//tmp/x')
+        remove('//tmp/x', force=True)
 
-        create("map_node", "//tmp/x/1/y", "--recursive")
-        with pytest.raises(YTError): remove('//tmp/x', '--non_recursive')
-        with pytest.raises(YTError): remove('//tmp/x', '--non_recursive', '--force')
-        remove('//tmp/x/1/y', '--non_recursive')
+        with pytest.raises(YtError): remove('//tmp/1', recursive=False)
+        with pytest.raises(YtError): remove('//tmp/1')
+        remove('//tmp/1', force=True)
+
+        create("map_node", "//tmp/x/1/y", recursive=True)
+        with pytest.raises(YtError): remove('//tmp/x', recursive=False)
+        with pytest.raises(YtError): remove('//tmp/x', recursive=False, force=True)
+        remove('//tmp/x/1/y', recursive=False)
         remove('//tmp/x')
 
     def test_list(self):
@@ -128,16 +129,16 @@ class TestCypressCommands(YTEnvSetup):
         assert get('//tmp/map') == {}
 
     def test_attributes(self):
-        set_str('//tmp/t', '<attr=100;mode=rw> {nodes=[1; 2]}')
+        set('//tmp/t', '<attr=100;mode=rw> {nodes=[1; 2]}', is_raw=True)
         assert get('//tmp/t/@attr') == 100
         assert get('//tmp/t/@mode') == "rw"
 
         remove('//tmp/t/@*')
-        with pytest.raises(YTError): get('//tmp/t/@attr')
-        with pytest.raises(YTError): get('//tmp/t/@mode')
+        with pytest.raises(YtError): get('//tmp/t/@attr')
+        with pytest.raises(YtError): get('//tmp/t/@mode')
 
         # changing attributes
-        set_str('//tmp/t/a', '< author=ignat > []')
+        set('//tmp/t/a', '<author = ignat> []', is_raw=True)
         assert get('//tmp/t/a') == []
         assert get('//tmp/t/a/@author') == "ignat"
 
@@ -145,10 +146,10 @@ class TestCypressCommands(YTEnvSetup):
         assert get('//tmp/t/a/@author') == "not_ignat"
 
         # nested attributes (actually shows <>)
-        set_str('//tmp/t/b', '<dir = <file = <>-100> #> []')
-        assert get_str('//tmp/t/b/@dir/@') == '{"file"=<>-100}'
-        assert get_str('//tmp/t/b/@dir/@file') == '<>-100'
-        assert get_str('//tmp/t/b/@dir/@file/@') == '{}'
+        set('//tmp/t/b', '<dir = <file = <>-100> #> []', is_raw=True)
+        assert get('//tmp/t/b/@dir/@') == {"file": -100}
+        assert get('//tmp/t/b/@dir/@file') == -100
+        assert get('//tmp/t/b/@dir/@file/@') == {}
 
         # set attributes directly
         set('//tmp/t/@', {'key1': 'value1', 'key2': 'value2'})
@@ -157,15 +158,15 @@ class TestCypressCommands(YTEnvSetup):
 
         # error cases
         # typo (extra slash)
-        with pytest.raises(YTError): get('//tmp/t/@/key1')
+        with pytest.raises(YtError): get('//tmp/t/@/key1')
         # change type
-        with pytest.raises(YTError): set('//tmp/t/@', 1)
-        with pytest.raises(YTError): set('//tmp/t/@', 'a')
-        with pytest.raises(YTError): set_str('//tmp/t/@', '<>')
-        with pytest.raises(YTError): set('//tmp/t/@', [1, 2, 3])
+        with pytest.raises(YtError): set('//tmp/t/@', 1)
+        with pytest.raises(YtError): set('//tmp/t/@', 'a')
+        with pytest.raises(YtError): set('//tmp/t/@', [])
+        with pytest.raises(YtError): set('//tmp/t/@', [1, 2, 3])
 
     def test_attributes_tx_read(self):
-        set_str('//tmp/t', '<attr=100> 123')
+        set('//tmp/t', '<attr=100> 123', is_raw=True)
         assert get('//tmp/t') == 123
         assert get('//tmp/t/@attr') == 100
         assert 'attr' in get('//tmp/t/@')
@@ -176,12 +177,12 @@ class TestCypressCommands(YTEnvSetup):
 
     def test_format_json(self):
         # check input format for json
-        set_str('//tmp/json_in', '{"list": [1,2,{"string": "this"}]}', format="json")
+        set('//tmp/json_in', '{"list": [1,2,{"string": "this"}]}', is_raw=True, input_format="json")
         assert get('//tmp/json_in') == {"list": [1, 2, {"string": "this"}]}
 
         # check output format for json
         set('//tmp/json_out', {'list': [1, 2, {'string': 'this'}]})
-        assert get_str('//tmp/json_out', format="json") == '{"list":[1,2,{"string":"this"}]}'
+        assert get('//tmp/json_out', is_raw=True, output_format="json") == '{"list":[1,2,{"string":"this"}]}'
 
     def test_map_remove_all1(self):
         # remove items from map
@@ -212,21 +213,21 @@ class TestCypressCommands(YTEnvSetup):
 
     def test_attr_remove_all1(self):
         # remove items from attributes
-        set_str('//tmp/attr', '<_foo=bar;_key=value>42');
+        set('//tmp/attr', '<_foo=bar;_key=value>42', is_raw=True);
         remove('//tmp/attr/@*')
-        with pytest.raises(YTError): get('//tmp/attr/@_foo')
-        with pytest.raises(YTError): get('//tmp/attr/@_key')
+        with pytest.raises(YtError): get('//tmp/attr/@_foo')
+        with pytest.raises(YtError): get('//tmp/attr/@_key')
 
     def test_attr_remove_all2(self):
         set('//tmp/@a', 1)
         tx = start_transaction()
         set('//tmp/@b', 2, tx = tx)
         remove('//tmp/@*', tx = tx)
-        with pytest.raises(YTError): get('//tmp/@a', tx = tx)
-        with pytest.raises(YTError): get('//tmp/@b', tx = tx)
+        with pytest.raises(YtError): get('//tmp/@a', tx = tx)
+        with pytest.raises(YtError): get('//tmp/@b', tx = tx)
         commit_transaction(tx)
-        with pytest.raises(YTError): get('//tmp/@a')
-        with pytest.raises(YTError): get('//tmp/@b')
+        with pytest.raises(YtError): get('//tmp/@a')
+        with pytest.raises(YtError): get('//tmp/@b')
 
     def test_copy_simple1(self):
         set('//tmp/a', 1)
@@ -239,7 +240,7 @@ class TestCypressCommands(YTEnvSetup):
         assert get('//tmp/b') == [1, 2, 3]
 
     def test_copy_simple3(self):
-        set_str('//tmp/a', '<x=y> 1')
+        set('//tmp/a', '<x=y> 1', is_raw=True)
         copy('//tmp/a', '//tmp/b')
         assert get('//tmp/b/@x') == 'y'
 
@@ -307,12 +308,12 @@ class TestCypressCommands(YTEnvSetup):
         assert get('//tmp/a2/x/y/@account') == 'a2'
 
     def test_copy_unexisting_path(self):
-        with pytest.raises(YTError): copy('//tmp/x', '//tmp/y')
+        with pytest.raises(YtError): copy('//tmp/x', '//tmp/y')
 
     def test_copy_cannot_have_children(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
-        with pytest.raises(YTError): copy('//tmp/t2', '//tmp/t1/xxx')
+        with pytest.raises(YtError): copy('//tmp/t2', '//tmp/t1/xxx')
 
     def test_copy_table_compression_codec(self):
         create('table', '//tmp/t1')
@@ -351,28 +352,30 @@ class TestCypressCommands(YTEnvSetup):
         set('//tmp/a', 1)
         move('//tmp/a', '//tmp/b')
         assert get('//tmp/b') == 1
-        with pytest.raises(YTError): get('//tmp/a')
+        with pytest.raises(YtError): get('//tmp/a')
 
     def test_embedded_attributes(self):
         set("//tmp/a", {})
         set("//tmp/a/@attr", {"key": "value"})
         set("//tmp/a/@attr/key/@embedded_attr", "emb")
-        assert get_str("//tmp/a/@attr") == '{"key"=<"embedded_attr"="emb">"value"}'
-        assert get_str("//tmp/a/@attr/key") == '<"embedded_attr"="emb">"value"'
-        assert get_str("//tmp/a/@attr/key/@embedded_attr") == '"emb"'
+        assert get("//tmp/a/@attr") == {"key": to_yson_type("value", attributes={"embedded_attr": "emb"})}
+        assert get("//tmp/a/@attr/key") == to_yson_type("value", attributes={"embedded_attr": "emb"})
+        assert get("//tmp/a/@attr/key/@embedded_attr") == "emb"
 
     def test_get_with_attributes(self):
         set('//tmp/a', {})
-        assert get_str('//tmp', attr=['type']) == '<"type"="map_node">{"a"=<"type"="map_node">{}}'
+        assert get('//tmp', attr=['type']) == to_yson_type({"a": to_yson_type({}, {"type": "map_node"})}, {"type": "map_node"})
 
     def test_list_with_attributes(self):
         set('//tmp/a', {})
-        assert ls_str('//tmp', attr=['type']) == '[<"type"="map_node">"a"]'
+        assert ls('//tmp', attr=['type']) == [to_yson_type("a", attributes={"type": "map_node"})]
 
     def test_get_list_with_attributes_virtual_maps(self):
         tx = start_transaction()
-        assert get_str('//sys/transactions', attr=['state']) == '{"%s"=<"state"="active">#}' % tx
-        assert ls_str('//sys/transactions', attr=['state']) == '[<"state"="active">"%s"]' % tx
+
+        assert get('//sys/transactions', attr=['state']) == {tx: to_yson_type(None, attributes={"state": "active"})}
+        assert ls('//sys/transactions', attr=['state']) == [to_yson_type(tx, attributes={"state": "active"})]
+
         abort_transaction(tx)
 
     def test_exists(self):
@@ -416,16 +419,16 @@ class TestCypressCommands(YTEnvSetup):
         remove("//tmp/*")
         create("map_node", "//tmp/some_node")
 
-        with pytest.raises(YTError): create("map_node", "//tmp/a/b")
-        create("map_node", "//tmp/a/b", "--recursive")
+        with pytest.raises(YtError): create("map_node", "//tmp/a/b")
+        create("map_node", "//tmp/a/b", recursive=True)
 
-        with pytest.raises(YTError): create("map_node", "//tmp/a/b")
-        create("map_node", "//tmp/a/b", "--ignore_existing")
+        with pytest.raises(YtError): create("map_node", "//tmp/a/b")
+        create("map_node", "//tmp/a/b", ignore_existing=True)
 
-        with pytest.raises(YTError): create("table", "//tmp/a/b", "--ignore_existing")
+        with pytest.raises(YtError): create("table", "//tmp/a/b", ignore_existing=True)
 
     def test_link1(self):
-        with pytest.raises(YTError): link("//tmp/a", "//tmp/b")
+        with pytest.raises(YtError): link("//tmp/a", "//tmp/b")
 
     def test_link2(self):
         set("//tmp/t1", 1)
@@ -454,15 +457,15 @@ class TestCypressCommands(YTEnvSetup):
         lock("#%s" % id, mode = "snapshot", tx = tx)
 
         remove("//tmp/t1")
-        
+
         assert get("#%s" % id, tx = tx) == 1
         assert get("//tmp/t2&/@broken") == "true"
-        with pytest.raises(YTError): read("//tmp/t2")
+        with pytest.raises(YtError): read("//tmp/t2")
 
     def test_link5(self):
         set("//tmp/t1", 1)
         set("//tmp/t2", 2)
-        with pytest.raises(YTError): link("//tmp/t1", "//tmp/t2")
+        with pytest.raises(YtError): link("//tmp/t1", "//tmp/t2")
 
     def test_link6(self):
         create("table", "//tmp/a")
@@ -480,7 +483,7 @@ class TestCypressCommands(YTEnvSetup):
         assert not exists("//tmp/b&/x")
 
         remove("//tmp/a")
-        
+
         assert not exists("//tmp/a")
         assert not exists("//tmp/b")
         assert exists("//tmp/b&")
@@ -491,7 +494,7 @@ class TestCypressCommands(YTEnvSetup):
         assert not exists("//tmp/b/x")
         assert not exists("//tmp/b&/@x")
         assert not exists("//tmp/b&/x")
-    
+
     def test_link7(self):
         tx = start_transaction()
         set("//tmp/t1", 1, tx=tx)
@@ -499,12 +502,14 @@ class TestCypressCommands(YTEnvSetup):
         assert get("//tmp/l1", tx=tx) == 1
 
     def test_access_stat1(self):
+        time.sleep(1.0)
         c1 = get('//tmp/@access_counter')
         time.sleep(2.0)
         c2 = get('//tmp/@access_counter')
         assert c2 == c1
 
     def test_access_stat2(self):
+        time.sleep(1.0)
         c1 = get('//tmp/@access_counter')
         tx = start_transaction()
         lock('//tmp', mode = 'snapshot', tx = tx)
@@ -513,6 +518,7 @@ class TestCypressCommands(YTEnvSetup):
         assert c2 == c1 + 1
 
     def test_access_stat3(self):
+        time.sleep(1.0)
         c1 = get('//tmp/@access_counter')
         get('//tmp/@')
         time.sleep(2.0)
@@ -520,6 +526,7 @@ class TestCypressCommands(YTEnvSetup):
         assert c1 == c2
 
     def test_access_stat4(self):
+        time.sleep(1.0)
         c1 = get('//tmp/@access_counter')
         assert exists('//tmp')
         time.sleep(2.0)
@@ -527,6 +534,7 @@ class TestCypressCommands(YTEnvSetup):
         assert c1 == c2
 
     def test_access_stat5(self):
+        time.sleep(1.0)
         c1 = get('//tmp/@access_counter')
         assert exists('//tmp/@id')
         time.sleep(2.0)
@@ -534,6 +542,7 @@ class TestCypressCommands(YTEnvSetup):
         assert c1 == c2
 
     def test_access_stat6(self):
+        time.sleep(1.0)
         c1 = get('//tmp/@access_counter')
         ls('//tmp/@')
         time.sleep(2.0)
@@ -541,6 +550,7 @@ class TestCypressCommands(YTEnvSetup):
         assert c1 == c2
 
     def test_access_stat7(self):
+        time.sleep(1.0)
         c1 = get('//tmp/@access_counter')
         ls('//tmp')
         time.sleep(2.0)
@@ -557,6 +567,7 @@ class TestCypressCommands(YTEnvSetup):
         assert get('//tmp/t2/@access_time') == get('//tmp/t2/@creation_time')
 
     def test_access_stat_suppress1(self):
+        time.sleep(1.0)
         c1 = get('//tmp/@access_counter')
         get('//tmp', opt=['/suppress_access_tracking=true'])
         time.sleep(2.0)
@@ -564,6 +575,7 @@ class TestCypressCommands(YTEnvSetup):
         assert c1 == c2
 
     def test_access_stat_suppress2(self):
+        time.sleep(1.0)
         c1 = get('//tmp/@access_counter')
         ls('//tmp', opt=['/suppress_access_tracking=true'])
         time.sleep(2.0)
@@ -571,6 +583,7 @@ class TestCypressCommands(YTEnvSetup):
         assert c1 == c2
 
     def test_access_stat_suppress3(self):
+        time.sleep(1.0)
         create('table', '//tmp/t')
         c1 = get('//tmp/t/@access_counter')
         read('//tmp/t', opt=['/suppress_access_tracking=true'])
@@ -579,6 +592,7 @@ class TestCypressCommands(YTEnvSetup):
         assert c1 == c2
 
     def test_access_stat_suppress4(self):
+        time.sleep(1.0)
         create('file', '//tmp/f')
         c1 = get('//tmp/f/@access_counter')
         download('//tmp/f', opt=['/suppress_access_tracking=true'])

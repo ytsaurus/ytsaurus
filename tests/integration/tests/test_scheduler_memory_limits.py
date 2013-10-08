@@ -20,7 +20,7 @@ def check_memory_limit(op_id):
 class TestSchedulerMemoryLimits(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
-    START_SCHEDULER = True
+    NUM_SCHEDULERS = 1
 
     DELTA_NODE_CONFIG = \
         {'exec_agent' :
@@ -34,7 +34,7 @@ class TestSchedulerMemoryLimits(YTEnvSetup):
     @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
     def test_map(self):
         create('table', '//tmp/t_in')
-        write_str('//tmp/t_in', '{value=value;subkey=subkey;key=key;a=another}')
+        write('//tmp/t_in', {"value": "value", "subkey": "subkey", "key": "key", "a": "another"})
 
         mapper = \
 """
@@ -48,7 +48,7 @@ while True:
 
         create('table', '//tmp/t_out')
 
-        op_id = map('--dont_track',
+        op_id = map(dont_track=True,
              in_='//tmp/t_in',
              out='//tmp/t_out',
              command='python mapper.py',
@@ -56,14 +56,14 @@ while True:
              opt=['/spec/max_failed_job_count=5'])
 
         # if all jobs failed then operation is also failed
-        with pytest.raises(YTError): track_op(op_id)
+        with pytest.raises(YtError): track_op(op_id)
         # ToDo: check job error messages.
         check_memory_limit(op_id)
 
     @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
     def test_dirty_sandbox(self):
         create('table', '//tmp/t_in')
-        write_str('//tmp/t_in', '{value=value;subkey=subkey;key=key;a=another}')
+        write('//tmp/t_in', {"value": "value", "subkey": "subkey", "key": "key", "a": "another"})
 
         create('table', '//tmp/t_out')
 

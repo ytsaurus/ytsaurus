@@ -34,7 +34,8 @@ void WriteYson(
     TOutputStream* output,
     const T& value,
     NYson::EYsonType type,
-    NYson::EYsonFormat format = NYson::EYsonFormat::Binary);
+    NYson::EYsonFormat format = NYson::EYsonFormat::Binary,
+    int indent = 4);
 
 template <class T>
 void WriteYson(

@@ -10,7 +10,7 @@ import sys
 class TestSchedulerReduceCommands(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
-    START_SCHEDULER = True
+    NUM_SCHEDULERS = 1
 
     @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
     def test_tricky_chunk_boundaries(self):
@@ -21,7 +21,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
                 {'key': "0", 'value': 1},
                 {'key': "2", 'value': 2}
             ],
-            sorted_by = 'key;value')
+            sorted_by = ['key', 'value'])
 
         create('table', '//tmp/in2')
         write(
@@ -30,7 +30,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
                 {'key': "2", 'value': 6},
                 {'key': "5", 'value': 8}
             ],
-            sorted_by = 'key;value')
+            sorted_by = ['key', 'value'])
 
         create('table', '//tmp/out')
 
@@ -109,7 +109,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
                 {'key': 4, 'value': 3},
                 {'key': 7, 'value': 4}
             ],
-            sorted_by = 'key; value')
+            sorted_by = ['key', 'value'])
 
         create('table', '//tmp/in2')
         write(
@@ -118,19 +118,19 @@ class TestSchedulerReduceCommands(YTEnvSetup):
                 {'key': 8,'value': 5},
                 {'key': 9, 'value': 6},
             ],
-            sorted_by = 'key;value')
+            sorted_by = ['key', 'value'])
 
         create('table', '//tmp/in3')
         write(
             '//tmp/in3',
             [ {'key': 8,'value': 1}, ],
-            sorted_by = 'key;value')
+            sorted_by = ['key', 'value'])
 
         create('table', '//tmp/in4')
         write(
             '//tmp/in4',
             [ {'key': 9,'value': 7}, ],
-            sorted_by = 'key;value')
+            sorted_by = ['key', 'value'])
 
         create('table', '//tmp/out1')
         create('table', '//tmp/out2')
@@ -223,7 +223,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         create('table', '//tmp/out')
         write('//tmp/in', {'foo': 'bar'})
 
-        with pytest.raises(YTError):
+        with pytest.raises(YtError):
             reduce(
                 in_ = '//tmp/in',
                 out = '//tmp/out',
@@ -232,9 +232,9 @@ class TestSchedulerReduceCommands(YTEnvSetup):
     def test_non_prefix(self):
         create('table', '//tmp/in')
         create('table', '//tmp/out')
-        write('//tmp/in', {'key': '1', 'subkey': '2'}, sorted_by='key;subkey')
+        write('//tmp/in', {'key': '1', 'subkey': '2'}, sorted_by=['key', 'subkey'])
 
-        with pytest.raises(YTError):
+        with pytest.raises(YtError):
             reduce(
                 in_ = '//tmp/in',
                 out = '//tmp/out',
@@ -249,7 +249,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         for table_path in output_tables:
             create('table', table_path)
 
-        write_str('//tmp/t_in', '{k=10}', sorted_by='k')
+        write('//tmp/t_in', [{"k": 10}], sorted_by='k')
 
         reducer = \
 """

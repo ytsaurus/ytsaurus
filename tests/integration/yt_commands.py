@@ -1,241 +1,330 @@
-import yt.yson
+import yt.yson as yson
+from yt.bindings.driver import Driver, Request, make_request
+from yt.common import YtError, flatten, update
 
-import subprocess
-import threading
+import os
+import sys
+
+import time
+from datetime import datetime
+
+from cStringIO import StringIO
+
+def get_driver():
+    config_path = os.environ['YT_CONFIG']
+    if not hasattr(get_driver, "driver") or (hasattr(get_driver, "config_path") and config_path != get_driver.config_path):
+        get_driver.driver = Driver(config=yson.loads(open(config_path).read()))
+        get_driver.config_path = config_path
+    return get_driver.driver
+
+def set_branch(dict, path, value):
+    root = dict
+    for field in path[:-1]:
+        if field not in root:
+            root[field] = {}
+        root = root[field]
+    root[path[-1]] = value
+
+def change(dict, old, new):
+    if old in dict:
+        set_branch(dict, flatten(new), dict[old])
+        del dict[old]
+
+def flat(dict, key):
+    if key in dict:
+        dict[key] = flatten(dict[key])
+
+def prepare_path(path):
+    attributes = {}
+    if isinstance(path, yson.YsonString):
+        attributes = path.attributes
+    result = yson.loads(command("parse_ypath", arguments={"path": path}, verbose=False))
+    update(result.attributes, attributes)
+    return result
+
+def prepare_paths(paths):
+    return [prepare_path(path) for path in flatten(paths)]
+
+def prepare_args(arguments):
+    change(arguments, "tx", "transaction_id")
+    change(arguments, "attr", "attributes")
+    change(arguments, "ping_ancestor_txs", "ping_ancestor_transactions")
+    if "opt" in arguments:
+        for option in flatten(arguments["opt"]):
+            key, value = option.split("=", 1)
+            set_branch(arguments, key.strip("/").split("/"), yson.loads(value))
+        del arguments["opt"]
+
+    return arguments
+
+def command(command_name, arguments, input_stream=None, output_stream=None, verbose=None):
+    if "verbose" in arguments:
+        verbose = arguments["verbose"]
+        del arguments["verbose"]
+
+    user = None
+    if "user" in arguments:
+        user = arguments["user"]
+        del arguments["user"]
+
+    if "path" in arguments and command_name != "parse_ypath":
+        arguments["path"] = prepare_path(arguments["path"])
+
+    arguments = prepare_args(arguments)
+
+    if verbose is None or verbose:
+        print >>sys.stderr, str(datetime.now()), command_name, arguments
+
+    return make_request(
+        get_driver(),
+        Request(command_name=command_name,
+                arguments=arguments,
+                input_stream=input_stream,
+                output_stream=output_stream,
+                user=user))
 
 ###########################################################################
 
-class YTError(Exception):
-    def __init__(self, value):
-        self.value = value
-    def __str__(self):
-        return repr(self.value)
+def lock(path, waitable=False, **kwargs):
+    kwargs["path"] = path
+    kwargs["waitable"] = waitable
+    return command('lock', kwargs).replace('"', '').strip('\n')
 
-###########################################################################
+def remove(path, **kwargs):
+    kwargs["path"] = path
+    return command('remove', kwargs)
 
+def get(path, is_raw=False, **kwargs):
+    def has_arg(name):
+        return name in kwargs and kwargs[name] is not None
 
-debug_info = {}
-timeout = 60
-shared_output = None
+    kwargs["path"] = path
+    result = command('get', kwargs)
+    return result if is_raw else yson.loads(result)
 
-def communicate_with_process(process, data):
-    global shared_output
-    shared_output = process.communicate(data)
+def set(path, value, is_raw=False, **kwargs):
+    if not is_raw:
+        value = yson.dumps(value)
+    kwargs["path"] = path
+    return command('set', kwargs, input_stream=StringIO(value))
 
-def send_data(process, data=None):
-    t = threading.Thread(target = communicate_with_process, args=[process, data])
-    t.start()
-    t.join(timeout)
-    if t.is_alive():
-        message = 'FAIL: "{0}" --- did not finish after {1} seconds '.format(debug_info[process.pid], timeout)
-        print message
-        assert False, message
-
-    stdout, stderr = shared_output
-
-    if process.returncode != 0:
-        print '!process exited with returncode:', process.returncode
-        # add '!' before each line in stderr output
-        print '\n'.join('!' + s for s in stderr.strip('\n').split('\n'))
-        print 
-        raise YTError(stderr)
-    print stdout
-    return stdout.strip('\n')
-
-def command(name, *args, **kwargs):
-    process = run_command(name, *args, **kwargs)
-    return send_data(process)
-
-def convert_to_yt_args(*args, **kwargs):
-    all_args = list(args)
-    for k, v in kwargs.items():
-        # workaround to deal with 'in' as keyword
-        if k == 'in_': k = 'in'
-
-        if v is None:
-            all_args.append('--' + k)
-        elif isinstance(v, list):
-            for elem in v:
-                all_args.extend(['--' + k, elem])
-        else:
-            all_args.extend(['--' + k, v])
-           
-    return all_args
-
-def quote(s):
-    return "'" + s + "'"
-
-def run_command(name, *args, **kwargs):
-    all_args = [name] + convert_to_yt_args(*args, **kwargs)
-    debug_string =  'yt ' + ' '.join(quote(s) for s in all_args)
-    print debug_string
-
-    process = subprocess.Popen(['yt'] + all_args,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        stdin=subprocess.PIPE)
-
-    debug_info[process.pid] = debug_string
-    return process    
-
-###########################################################################
-
-def lock(path, waitable = False, **kwargs):
-    if waitable:
-        kwargs['waitable'] = None
-    out = command('lock', path, **kwargs)
-    return out.replace('"', '').strip('\n')
-
-def get_str(path, **kwargs):
-    return command('get', path, **kwargs)
-
-def remove(path, *args, **kwargs):
-    return command('remove', path, *args, **kwargs)
-
-def set_str(path, value, **kwargs):
-    return command('set', path, value, **kwargs)
-
-def ls_str(path, **kwargs):
-    return command('list', path, **kwargs)
-
-def create(object_type, path, *args, **kwargs):
-    return command('create', object_type, path, *args, **kwargs)
+def create(object_type, path, **kwargs):
+    kwargs["type"] = object_type
+    kwargs["path"] = path
+    return command('create', kwargs)
 
 def copy(source_path, destination_path, **kwargs):
-    return command('copy', source_path, destination_path, **kwargs)
+    kwargs["source_path"] = source_path
+    kwargs["destination_path"] = destination_path
+    return command('copy', kwargs)
 
 def move(source_path, destination_path, **kwargs):
-    return command('move', source_path, destination_path, **kwargs)
+    kwargs["source_path"] = source_path
+    kwargs["destination_path"] = destination_path
+    return command('move', kwargs)
 
-def link(source_path, link_path, **kwargs):
-    return command('link', source_path, link_path, **kwargs)
+def link(target_path, link_path, **kwargs):
+    kwargs["target_path"] = target_path
+    kwargs["link_path"] = link_path
+    return command('link', kwargs)
 
 def exists(path, **kwargs):
-    res = command('exists', path, **kwargs)
-    return yson2py(res) == 'true'
+    kwargs["path"] = path
+    res = command('exists', kwargs)
+    return yson.loads(res) == 'true'
 
-def read_str(path, **kwargs):
-    return command('read', path, **kwargs)
-
-def write_str(path, value, **kwargs):
-    return command('write', path, value, **kwargs)
+def read(path, **kwargs):
+    kwargs["path"] = path
+    if "output_format" not in kwargs:
+        kwargs["output_format"] = yson.loads("<format=text>yson")
+    output = StringIO()
+    command('read', kwargs, output_stream=output)
+    return yson.loads(output.getvalue(), yson_type="list_fragment")
 
 def start_transaction(**kwargs):
-    out = command('start_tx', **kwargs)
+    out = command('start_tx', kwargs)
     return out.replace('"', '').strip('\n')
 
 def commit_transaction(tx, **kwargs):
-    return command('commit_tx', tx, **kwargs)
+    kwargs["transaction_id"] = tx
+    return command('commit_tx', kwargs)
 
-def ping_transaction(tx, *args, **kwargs):
-    return command('ping_tx', tx, *args, **kwargs)
+def ping_transaction(tx, **kwargs):
+    kwargs["transaction_id"] = tx
+    return command('ping_tx', kwargs)
 
 def abort_transaction(tx, **kwargs):
-    return command('abort_tx', tx, **kwargs)
+    kwargs["transaction_id"] = tx
+    return command('abort_tx', kwargs)
 
-def upload(path, data, **kwargs): 
-    process =  run_command('upload', path, **kwargs)
-    return send_data(process, data)
+def upload(path, data, **kwargs):
+    kwargs["path"] = path
+    return command('upload', kwargs, input_stream=StringIO(data))
 
 def upload_file(path, file_name, **kwargs):
     with open(file_name, 'rt') as f:
         return upload(path, f.read(), **kwargs)
 
 def download(path, **kwargs):
-    return command('download', path, **kwargs)
+    kwargs["path"] = path
+    output = StringIO()
+    command('download', kwargs, output_stream=output)
+    return output.getvalue();
 
-def start_op(op_type, *args, **kwargs):
-    out = command(op_type, *args, **kwargs)
-    return out.replace('"', '').strip('\n')
+def track_op(op_id):
+    counter = 0
+    while True:
+        state = get("//sys/operations/%s/@state" % op_id, verbose=False)
+        message = "Operation %s %s" % (op_id, state)
+        if counter % 30 == 0 or state in ["failed", "aborted", "completed"]:
+            print >>sys.stderr, message
+        if state == "failed":
+            error = get("//sys/operations/%s/@result/error" % op_id, verbose=False, is_raw=True)
+            jobs = get("//sys/operations/%s/jobs" % op_id, verbose=False)
+            for job in jobs:
+                if exists("//sys/operations/%s/jobs/%s/@error" % (op_id, job), verbose=False):
+                    error = error + "\n\n" + get("//sys/operations/%s/jobs/%s/@error" % (op_id, job), verbose=False, is_raw=True)
+                    if "stderr" in jobs[job]:
+                        error = error + "\n" + download("//sys/operations/%s/jobs/%s/stderr" % (op_id, job), verbose=False)
+            raise YtError(error)
+        if state == "aborted":
+            raise YtError(message)
+        if state == "completed":
+            break
+        counter += 1
+        time.sleep(0.1)
 
-def map(*args, **kwargs):
-    return start_op('map', *args, **kwargs)
+def start_op(op_type, **kwargs):
+    op_name = None
+    if op_type == "map":
+        op_name = "mapper"
+    if op_type == "reduce":
+        op_name = "reducer"
 
-def merge(*args, **kwargs):
-    return start_op('merge', *args, **kwargs)
+    input_name = None
+    if op_type != "erase":
+        kwargs["in_"] = prepare_paths(kwargs["in_"])
+        input_name = "input_table_paths"
 
-def reduce(*args, **kwargs):
-    return start_op('reduce', *args, **kwargs)
+    output_name = None
+    if op_type in ["map", "reduce", "map_reduce"]:
+        kwargs["out"] = prepare_paths(kwargs["out"])
+        output_name = "output_table_paths"
+    elif "out" in kwargs:
+        kwargs["out"] = prepare_path(kwargs["out"])
+        output_name = "output_table_path"
 
-def map_reduce(*args, **kwargs):
-    return start_op('map_reduce', *args, **kwargs)
+    if "file" in kwargs:
+        kwargs["file"] = prepare_paths(kwargs["file"])
 
-def erase(path, *args, **kwargs):
-    return start_op('erase', path, *args, **kwargs)
+    for opt in ["sort_by", "reduce_by"]:
+        flat(kwargs, opt)
 
-def sort(*args, **kwargs):
-    return start_op('sort', *args, **kwargs)
+    change(kwargs, "table_path", ["spec", "table_path"])
+    change(kwargs, "in_", ["spec", input_name])
+    change(kwargs, "out", ["spec", output_name])
+    change(kwargs, "command", ["spec", op_name, "command"])
+    change(kwargs, "file", ["spec", op_name, "file_paths"])
+    change(kwargs, "sort_by", ["spec","sort_by"])
+    change(kwargs, "reduce_by", ["spec","reduce_by"])
+    change(kwargs, "mapper_file", ["spec", "mapper", "file_paths"])
+    change(kwargs, "reducer_file", ["spec", "reducer", "file_paths"])
+    change(kwargs, "mapper_command", ["spec", "mapper", "command"])
+    change(kwargs, "reducer_command", ["spec", "reducer", "command"])
 
-def track_op(op, **kwargs):
-    command('track_op', op, **kwargs)
+    track = not kwargs.get("dont_track", False)
+    if "dont_track" in kwargs:
+        del kwargs["dont_track"]
+
+    op_id = command(op_type, kwargs).strip().replace('"', '')
+
+    if track:
+        track_op(op_id)
+
+    return op_id
+
+def map(**kwargs):
+    return start_op('map', **kwargs)
+
+def merge(**kwargs):
+    flat(kwargs, "merge_by")
+    for opt in ["combine_chunks", "merge_by", "mode"]:
+        change(kwargs, opt, ["spec", opt])
+    return start_op('merge', **kwargs)
+
+def reduce(**kwargs):
+    return start_op('reduce', **kwargs)
+
+def map_reduce(**kwargs):
+    return start_op('map_reduce', **kwargs)
+
+def erase(path, **kwargs):
+    kwargs["table_path"] = path
+    change(kwargs, "combine_chunks", ["spec", "combine_chunks"])
+    return start_op('erase', **kwargs)
+
+def sort(**kwargs):
+    return start_op('sort', **kwargs)
 
 def abort_op(op, **kwargs):
-    command('abort_op', op, **kwargs)
+    kwargs["operation_id"] = op
+    command('abort_op', kwargs)
 
 def build_snapshot(*args, **kwargs):
-    command('build_snapshot', *args, **kwargs)
+    get_driver().build_snapshot(*args, **kwargs)
 
 def gc_collect():
-    command('gc_collect')
+    get_driver().gc_collect()
 
 def create_account(name):
-    command('create', 'account', opt=['/attributes/name=' + name])
+    command('create', {'type': 'account', 'attributes': {'name': name}})
 
 def remove_account(name):
     remove('//sys/accounts/' + name)
     gc_collect()
 
 def create_user(name):
-    command('create', 'user', opt=['/attributes/name=' + name])
+    command('create', {'type': 'user', 'attributes': {'name': name}})
 
 def remove_user(name):
     remove('//sys/users/' + name)
     gc_collect()
 
 def create_group(name):
-    command('create', 'group', opt=['/attributes/name=' + name])
+    command('create', {'type': 'group', 'attributes': {'name': name}})
 
 def remove_group(name):
     remove('//sys/groups/' + name)
     gc_collect()
 
 def add_member(member, group):
-    command('add_member', member, group)
+    command('add_member', {"member": member, "group": group})
 
 def remove_member(member, group):
-    command('remove_member', member, group)
+    command('remove_member', {"member": member, "group": group})
 
 #########################################
 
-def get(path, **kwargs):
-    return yson2py(get_str(path, **kwargs))
-
 def ls(path, **kwargs):
-    return yson2py(ls_str(path, **kwargs))
+    kwargs["path"] = path
+    return yson.loads(command('list', kwargs))
 
-def set(path, value, **kwargs):
-    return set_str(path, py2yson(value), **kwargs)
+def write(path, value, is_raw=False, **kwargs):
+    if not is_raw:
+        if not isinstance(value, list):
+            value = [value]
+        value = yson.dumps(value)
+        # remove surrounding [ ]
+        value = value[1:-1]
 
-def read(path, **kwargs):
-    return table2py(read_str(path, **kwargs))
-
-def write(path, value, **kwargs):
-    output = py2yson(value)
-    if isinstance(value, list):
-        output = output[1:-1] # remove surrounding [ ]
-    return write_str(path, output, **kwargs)
+    attributes = {}
+    if "sorted_by" in kwargs:
+        attributes={"sorted_by": flatten(kwargs["sorted_by"])}
+    kwargs["path"] = yson.to_yson_type(path, attributes=attributes)
+    return command('write', kwargs, input_stream=StringIO(value))
 
 #########################################
 # Helpers:
-
-def table2py(yson):
-    return yt.yson.yson_parser.parse_list_fragment(yson)
-
-def yson2py(yson):
-    return yt.yson.yson_parser.parse_string(yson)
-
-def py2yson(py):
-    return yt.yson.yson.dumps(py, indent='')
 
 def get_transactions():
     gc_collect()

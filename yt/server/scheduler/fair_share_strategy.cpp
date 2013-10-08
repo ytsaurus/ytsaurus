@@ -179,6 +179,7 @@ public:
         , Starving_(false)
         , ResourceUsage_(ZeroNodeResources())
         , ResourceUsageDiscount_(ZeroNodeResources())
+        , NonpreemptableResourceUsage_(ZeroNodeResources())
         , Config(config)
     { }
 
@@ -261,6 +262,11 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(bool, Starving);
     DEFINE_BYREF_RW_PROPERTY(TNodeResources, ResourceUsage);
     DEFINE_BYREF_RW_PROPERTY(TNodeResources, ResourceUsageDiscount);
+
+    DEFINE_BYREF_RW_PROPERTY(TNodeResources, NonpreemptableResourceUsage);
+    DEFINE_BYREF_RW_PROPERTY(TJobList, NonpreemptableJobs);
+
+    DEFINE_BYREF_RW_PROPERTY(TJobList, PreemptableJobs);
 
 private:
     TFairShareStrategyConfigPtr Config;
@@ -845,6 +851,7 @@ public:
             .Item("scheduling_status").Value(element->GetStatus())
             .Item("starving").Value(element->GetStarving())
             .Item("usage_ratio").Value(element->GetUsageRatio())
+            .Item("preemptable_running_jobs").Value(element->PreemptableJobs().size())
             .Do(BIND(&TFairShareStrategy::BuildElementYson, pool, element));
     }
 
@@ -854,7 +861,8 @@ public:
         const auto& attributes = element->Attributes();
         return Sprintf(
             "Scheduling = {Status: %s, Rank: %d+%d, DominantResource: %s, Demand: %.4lf, "
-            "Usage: %.4lf, FairShare: %.4lf, AdjustedMinShare: %.4lf, MaxShare: %.4lf, Starving: %s, Weight: %lf}",
+            "Usage: %.4lf, FairShare: %.4lf, AdjustedMinShare: %.4lf, MaxShare: %.4lf, Starving: %s, Weight: %lf, "
+            "PreemptableRunningJobs: %" PRISZT "}",
             ~element->GetStatus().ToString(),
             element->GetPool()->Attributes().Rank,
             attributes.Rank,
@@ -865,7 +873,8 @@ public:
             attributes.AdjustedMinShareRatio,
             attributes.MaxShareRatio,
             ~FormatBool(element->GetStarving()),
-            element->GetWeight());
+            element->GetWeight(),
+            element->PreemptableJobs().size());
     }
 
     virtual void BuildOrchidYson(IYsonConsumer* consumer) override
@@ -917,6 +926,10 @@ private:
 
         const auto& attributes = element->Attributes();
         if (usageRatio < attributes.FairShareRatio) {
+            return false;
+        }
+
+        if (!job->GetPreemptable()) {
             return false;
         }
 
@@ -1026,25 +1039,41 @@ private:
 
     void OnJobStarted(TJobPtr job)
     {
+        auto element = GetOperationElement(job->GetOperation());
+
         auto it = JobList.insert(JobList.begin(), job);
         YCHECK(JobToIterator.insert(std::make_pair(job, it)).second);
 
-        UpdateResourceUsage(job, job->ResourceUsage());
+        job->SetPreemptable(true);
+        element->PreemptableJobs().push_back(job);
+        job->SetJobListIterator(--element->PreemptableJobs().end());
+
+        OnJobResourceUsageUpdated(job, element, job->ResourceUsage());
     }
 
     void OnJobFinished(TJobPtr job)
     {
+        auto element = GetOperationElement(job->GetOperation());
+
         auto it = JobToIterator.find(job);
         YASSERT(it != JobToIterator.end());
+
         JobList.erase(it->second);
         JobToIterator.erase(it);
 
-        UpdateResourceUsage(job, -job->ResourceUsage());
+        if (job->GetPreemptable()) {
+            element->PreemptableJobs().erase(job->GetJobListIterator());
+        } else {
+            element->NonpreemptableJobs().erase(job->GetJobListIterator());
+        }
+
+        OnJobResourceUsageUpdated(job, element, -job->ResourceUsage());
     }
 
     void OnJobUpdated(TJobPtr job, const TNodeResources& resourcesDelta)
     {
-        UpdateResourceUsage(job, resourcesDelta);
+        auto element = GetOperationElement(job->GetOperation());
+        OnJobResourceUsageUpdated(job, element, resourcesDelta);
     }
 
 
@@ -1220,11 +1249,77 @@ private:
     }
 
 
-    void UpdateResourceUsage(TJobPtr job, const TNodeResources& resourcesDelta)
+    void OnJobResourceUsageUpdated(
+        TJobPtr job,
+        TOperationElementPtr element,
+        const TNodeResources& resourcesDelta)
     {
-        auto operationElement = GetOperationElement(job->GetOperation());
-        operationElement->ResourceUsage() += resourcesDelta;
-        operationElement->GetPool()->ResourceUsage() += resourcesDelta;
+        element->ResourceUsage() += resourcesDelta;
+        element->GetPool()->ResourceUsage() += resourcesDelta;
+        
+        const auto& attributes = element->Attributes();
+        auto limits = Host->GetTotalResourceLimits();
+
+        auto& preemptableJobs = element->PreemptableJobs();
+        auto& nonpreemptableJobs = element->NonpreemptableJobs();
+        auto& nonpreemptableResourceUsage = element->NonpreemptableResourceUsage();
+
+        if (!job->GetPreemptable()) {
+            nonpreemptableResourceUsage += resourcesDelta;
+        }
+
+        auto getNonpreemptableUsageRatio = [&] (const TNodeResources& extraResources) -> double {
+            i64 usage = GetResource(
+                nonpreemptableResourceUsage + extraResources,
+                attributes.DominantResource);
+            i64 limit = GetResource(limits, attributes.DominantResource);
+            return limit == 0 ? 1.0 : (double) usage / limit;
+        };
+
+        int oldNonpreemptableListSize = static_cast<int>(nonpreemptableJobs.size());
+
+        // Remove nonpreemptable jobs exceeding the fair share.
+        while (!nonpreemptableJobs.empty()) {
+            if (getNonpreemptableUsageRatio(ZeroNodeResources()) <= attributes.FairShareRatio)
+                break;
+            
+            auto job = nonpreemptableJobs.back();
+            YCHECK(!job->GetPreemptable());
+
+            nonpreemptableJobs.pop_back();
+            nonpreemptableResourceUsage -= job->ResourceUsage();
+            
+            preemptableJobs.push_front(job);
+
+            job->SetPreemptable(true);
+            job->SetJobListIterator(preemptableJobs.begin());
+        }
+
+        // Add more nonpreemptable jobs until filling up the fair share.
+        while (!preemptableJobs.empty()) {
+            auto job = preemptableJobs.front();
+            YCHECK(job->GetPreemptable());
+
+            if (getNonpreemptableUsageRatio(job->ResourceUsage()) > attributes.FairShareRatio)
+                break;
+
+            preemptableJobs.pop_front();
+
+            nonpreemptableJobs.push_back(job);
+            nonpreemptableResourceUsage += job->ResourceUsage();
+
+            job->SetPreemptable(false);
+            job->SetJobListIterator(--nonpreemptableJobs.end());
+        }
+
+        int newNonpreemptableListSize = static_cast<int>(nonpreemptableJobs.size());
+
+        LOG_DEBUG_IF(
+            oldNonpreemptableListSize != newNonpreemptableListSize,
+            "Nonpreemptable jobs changed: %d -> %d (OperationId: %s)",
+            oldNonpreemptableListSize,
+            newNonpreemptableListSize,
+            ~ToString(element->GetOperation()->GetOperationId()));
     }
 
 

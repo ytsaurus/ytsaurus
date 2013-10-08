@@ -28,7 +28,7 @@ class TestRunNode(YTEnvSetup):
 class TestRunScheduler(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 0
-    START_SCHEDULER = True
+    NUM_SCHEDULERS = 1
 
     def test(self):
         assert True
@@ -36,7 +36,7 @@ class TestRunScheduler(YTEnvSetup):
 class TestRunAll(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1
-    START_SCHEDULER = True
+    NUM_SCHEDULERS = 1
 
     def test(self):
         assert True

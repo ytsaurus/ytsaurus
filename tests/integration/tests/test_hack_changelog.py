@@ -64,13 +64,13 @@ class TestHackChangelog(YTEnvSetup):
         self.prepare_changelog_path()
         record_count = self.get_record_count()
 
-        set_str("//home/@test_attribute", "123")
-        assert get_str("//home/@").find("test_attribute") != -1
+        set("//home/@test_attribute", 123)
+        assert "test_attribute" in get("//home/@")
 
         self.stop_master()
         self.truncate_changelog(record_count)
 
         self.Env._run_masters(prepare_files=False)
-        assert get_str("//home/@").find("test_attribute") == -1
+        assert "test_attribute" not in get("//home/@")
 
 

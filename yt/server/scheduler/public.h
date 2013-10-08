@@ -29,6 +29,8 @@ typedef TIntrusivePtr<TOperation> TOperationPtr;
 class TJob;
 typedef TIntrusivePtr<TJob> TJobPtr;
 
+typedef std::list<TJobPtr> TJobList;
+
 class TExecNode;
 typedef TIntrusivePtr<TExecNode> TExecNodePtr;
 

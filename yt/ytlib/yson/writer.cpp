@@ -114,13 +114,15 @@ TYsonWriter::TYsonWriter(
     TOutputStream* stream,
     EYsonFormat format,
     EYsonType type,
-    bool enableRaw)
+    bool enableRaw,
+    int indent)
     : Stream(stream)
     , Format(format)
     , Type(type)
     , EnableRaw(enableRaw)
     , Depth(0)
     , BeforeFirstItem(true)
+    , IndentSize(indent)
 {
     YASSERT(stream);
 }

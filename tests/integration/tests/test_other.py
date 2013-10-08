@@ -5,14 +5,13 @@ from yt_commands import *
 
 import time
 import os
-import sys
 
 ##################################################################
 
 class TestOrchid(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
-    START_SCHEDULER = True
+    NUM_SCHEDULERS = 1
 
     def _check_service(self, path_to_orchid, service_name):
         path_to_value = path_to_orchid + '/value'
@@ -26,7 +25,7 @@ class TestOrchid(YTEnvSetup):
 
         self.assertItemsEqual(ls(path_to_value), ['a', 'b'])
         remove(path_to_value)
-        with pytest.raises(YTError): get(path_to_value)
+        with pytest.raises(YtError): get(path_to_value)
 
 
     def _check_orchid(self, path, num_services, service_name):
@@ -62,21 +61,26 @@ class TestResourceLeak(YTEnvSetup):
 
     # should be called on empty nodes
     def test_canceled_upload(self):
+        class InputStream(object):
+            def read(self):
+                time.sleep(1)
+                raise Exception("xxx")
+
         tx = start_transaction(opt = '/timeout=2000')
 
         # uploading from empty stream will fail
         create('file', '//tmp/file')
-        process = run_command('upload', '//tmp/file', tx = tx)
-        time.sleep(1)
-        process.kill()
-        time.sleep(1)
 
-        # now check that there are no temp files
-        for i in xrange(self.NUM_NODES):
-            # TODO(panin): refactor
-            node_config = self.Env.node_configs[i]
-            chunk_store_path = node_config['data_node']['store_locations'][0]['path']
-            self._check_no_temp_file(chunk_store_path)
+        try:
+            command("upload", arguments={"path": "//tmp/file", "tx": tx}, input_stream=InputStream())
+        except YtError:
+            time.sleep(1)
+            # now check that there are no temp files
+            for i in xrange(self.NUM_NODES):
+                # TODO(panin): refactor
+                node_config = self.Env.node_configs[i]
+                chunk_store_path = node_config['data_node']['store_locations'][0]['path']
+                self._check_no_temp_file(chunk_store_path)
 
 # TODO(panin): check chunks
 class TestResourceLeak2(YTEnvSetup):
@@ -120,31 +124,35 @@ class TestVirtualMaps(YTEnvSetup):
 class TestAttributes(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
-    START_SCHEDULER = True
+    NUM_SCHEDULERS = 1
 
     def test1(self):
         table = '//tmp/t'
         create('table', table)
-        set_str('//tmp/t/@compression_codec', 'snappy')
-        write_str(table, '{foo=bar}')
+        set('//tmp/t/@compression_codec', 'snappy')
+        write(table, {"foo": "bar"})
 
         for i in xrange(8):
             merge(in_=[table, table], out="<append=true>" + table)
 
         chunk_count = 3**8
         assert len(get('//tmp/t/@chunk_ids')) == chunk_count
+
         codec_info = get('//tmp/t/@compression_statistics')
         assert codec_info['snappy']['chunk_count'] == chunk_count
+
+        erasure_info = get('//tmp/t/@erasure_statistics')
+        assert erasure_info['none']['chunk_count'] == chunk_count
 
     @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
     def test2(self):
         tableA = '//tmp/a'
         create('table', tableA)
-        write_str(tableA, '{foo=bar}')
+        write(tableA, {"foo": "bar"})
 
         tableB = '//tmp/b'
         create('table', tableB)
-        set_str(tableB + '/@compression_codec', 'snappy')
+        set(tableB + '/@compression_codec', 'snappy')
 
         map(in_=[tableA], out=[tableB], command="cat")
 
@@ -152,7 +160,7 @@ class TestAttributes(YTEnvSetup):
         assert codec_info.keys() == ['snappy']
 
     def test3(self): #regression
-        ls_str('//sys/nodes', attr=['statistics'])
+        ls('//sys/nodes', attr=['statistics'])
 
 ###################################################################################
 
@@ -183,7 +191,7 @@ class TestChunkServer(YTEnvSetup):
         set('//tmp/t/@erasure_codec', erasure_codec)
         write('//tmp/t', {'a' : 'b'})
 
-        time.sleep(1) # wait for background replication
+        time.sleep(2) # wait for background replication
 
         chunk_ids = get('//tmp/t/@chunk_ids')
         assert len(chunk_ids) == 1
@@ -223,7 +231,7 @@ class TestNodeTracker(YTEnvSetup):
         assert get('//sys/nodes/%s/@state' % test_node) == 'online'
 
         set('//sys/nodes/%s/@banned' % test_node, 'true')
-        time.sleep(1)      
+        time.sleep(1)
         assert get('//sys/nodes/%s/@state' % test_node) == 'offline'
 
         set('//sys/nodes/%s/@banned' % test_node, 'false')

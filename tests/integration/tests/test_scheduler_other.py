@@ -11,7 +11,7 @@ import time
 class TestSchedulerOther(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 1
-    START_SCHEDULER = True
+    NUM_SCHEDULERS = 1
 
     DELTA_SCHEDULER_CONFIG = {'chunk_scratch_period' : 500}
 
@@ -36,7 +36,7 @@ class TestSchedulerOther(YTEnvSetup):
     def _prepare_tables(self):
         create('table', '//tmp/t_in')
         set('//tmp/t_in/@replication_factor', 1)
-        write_str('//tmp/t_in', '{foo=bar}')
+        write('//tmp/t_in', {"foo": "bar"})
 
         create('table', '//tmp/t_out')
         set('//tmp/t_out/@replication_factor', 1)
@@ -46,8 +46,8 @@ class TestSchedulerOther(YTEnvSetup):
         self._set_banned_flag(True)
 
         print 'Fail strategy'
-        with pytest.raises(YTError):
-            op_id = map('--dont_track', in_='//tmp/t_in', out='//tmp/t_out', command='cat', opt=['/spec/unavailable_chunk_strategy=fail'])
+        with pytest.raises(YtError):
+            op_id = map(dont_track=True, in_='//tmp/t_in', out='//tmp/t_out', command='cat', opt=['/spec/unavailable_chunk_strategy=fail'])
             track_op(op_id)
 
         print 'Skip strategy'
@@ -55,7 +55,7 @@ class TestSchedulerOther(YTEnvSetup):
         assert read('//tmp/t_out') == []
 
         print 'Wait strategy'
-        op_id = map('--dont_track', in_='//tmp/t_in', out='//tmp/t_out', command='cat',  opt=['/spec/unavailable_chunk_strategy=wait'])
+        op_id = map(dont_track=True, in_='//tmp/t_in', out='//tmp/t_out', command='cat',  opt=['/spec/unavailable_chunk_strategy=wait'])
 
         self._set_banned_flag(False)
         track_op(op_id)

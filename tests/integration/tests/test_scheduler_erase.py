@@ -10,7 +10,7 @@ from yt_commands import *
 class TestSchedulerEraseCommands(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
-    START_SCHEDULER = True
+    NUM_SCHEDULERS = 1
 
     def test_empty_in(self):
         create('table', '//tmp/table')
@@ -61,14 +61,14 @@ class TestSchedulerEraseCommands(YTEnvSetup):
     # test combine when actually no data is removed
     def test_combine_without_remove(self):
         self._prepare_table()
-        erase(self.table + '[#10:]', '--combine')
+        erase(self.table + '[#10:]', combine_chunks=True)
         assert read(self.table) == self.v
         assert get(self.table + '/@chunk_count') == 1
 
     # test combine when data is removed from the middle
     def test_combine_remove_from_middle(self):
         self._prepare_table()
-        erase(self.table + '[#2:#4]', '--combine')
+        erase(self.table + '[#2:#4]', combine_chunks=True)
         assert read(self.table) == self.v[:2] + self.v[4:]
         assert get(self.table + '/@chunk_count') == 1
 
@@ -78,7 +78,7 @@ class TestSchedulerEraseCommands(YTEnvSetup):
         create('table', '//tmp/table')
         write('//tmp/table', {'v' : 42})
 
-        with pytest.raises(YTError):
+        with pytest.raises(YtError):
             erase('//tmp/table[:42]')
 
 ###############################################################
@@ -88,13 +88,13 @@ class TestSchedulerEraseCommands(YTEnvSetup):
         create('table', '//tmp/table')
         write('//tmp/table', {'v' : 42})
         
-        with pytest.raises(YTError):
+        with pytest.raises(YtError):
             erase('//tmp/table{v}')
 
-        with pytest.raises(YTError):
+        with pytest.raises(YtError):
             erase('//tmp/table{non_v}')
 
-        with pytest.raises(YTError):
+        with pytest.raises(YtError):
             erase('//tmp/table{}')
 
 ###############################################################

@@ -101,7 +101,7 @@ add_subdirectory(yt)
 
 if (YT_BUILD_ENABLE_PYTHON)
   add_subdirectory(cmake/deps-pycxx)
-  add_subdirectory(python/yt/driver)
+  add_subdirectory(python/yt/bindings)
 endif()
 
 install(

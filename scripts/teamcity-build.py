@@ -161,24 +161,30 @@ def run_prepare(options):
 
 @yt_register_build_step
 def run_unit_tests(options):
-    run([
-        "gdb",
-        "--batch",
-        "--return-child-result",
-        "--command={0}/scripts/teamcity-gdb-script".format(options.checkout_directory),
-        "--args",
-        "./bin/unittester",
-        "--gtest_color=no",
-        "--gtest_output=xml:gtest_unittester.xml"],
-        cwd=options.working_directory)
+    try:
+        run([
+            "gdb",
+            "--batch",
+            "--return-child-result",
+            "--command={0}/scripts/teamcity-gdb-script".format(options.checkout_directory),
+            "--args",
+            "./bin/unittester",
+            "--gtest_color=no",
+            "--gtest_output=xml:gtest_unittester.xml"],
+            cwd=options.working_directory)
+    except ChildHasNonZeroExitCode as err:
+        raise StepFailedWithNonCriticalError(str(err))
 
 
 @yt_register_build_step
 def run_javascript_tests(options):
-    run(
-        ["./run_tests.sh", "-R", "xunit"],
-        cwd="{0}/yt/nodejs".format(options.working_directory),
-        env={"MOCHA_OUTPUT_FILE": "{0}/junit_nodejs_run_tests.xml".format(options.working_directory)})
+    try:
+        run(
+            ["./run_tests.sh", "-R", "xunit"],
+            cwd="{0}/yt/nodejs".format(options.working_directory),
+            env={"MOCHA_OUTPUT_FILE": "{0}/junit_nodejs_run_tests.xml".format(options.working_directory)})
+    except ChildHasNonZeroExitCode as err:
+        raise StepFailedWithNonCriticalError(str(err))
 
 
 def run_python_tests(options, suite_name, suite_path):
@@ -198,7 +204,6 @@ def run_python_tests(options, suite_name, suite_path):
                 "py.test",
                 "-r", "x",
                 "--verbose",
-                "--exitfirst",
                 "--capture=no",
                 "--tb=native",
                 "--timeout=300",
@@ -234,7 +239,7 @@ def run_python_tests(options, suite_name, suite_path):
                 sandbox_archive),
                 status="WARNING")
             shutil.copytree(sandbox_current, sandbox_archive)
-            raise RuntimeError("Tests '{0}' failed".format(suite_name))
+            raise StepFailedWithNonCriticalError("Tests '{0}' failed".format(suite_name))
     finally:
         shutil.rmtree(sandbox_current)
 
@@ -397,6 +402,9 @@ class ChildKeepsRunningInIsolation(Exception):
 
 
 class ChildHasNonZeroExitCode(Exception):
+    pass
+
+class StepFailedWithNonCriticalError(Exception):
     pass
 
 
@@ -608,11 +616,15 @@ def main():
 
     try:
         for step in _build_steps:
-            with teamcity_step("Build Step '{0}'".format(step.func_name), step.func_name):
-                step(options)
+            try:
+                with teamcity_step("Build Step '{0}'".format(step.func_name), step.func_name):
+                    step(options)
+            except StepFailedWithNonCriticalError as err:
+                teamcity_message(err)
+                status = 42
     except:
         teamcity_message("Terminating...", status="FAILURE")
-        status = 42
+        status = 43
     finally:
         for step in _cleanup_steps:
             try:
