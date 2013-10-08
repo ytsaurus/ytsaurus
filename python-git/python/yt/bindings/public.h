@@ -1,0 +1,16 @@
+#pragma once
+
+#include <ytlib/misc/intrusive_ptr.h>
+
+namespace NYT {
+namespace NPython {
+
+///////////////////////////////////////////////////////////////////////////////
+
+class TBufferedStream;
+typedef TIntrusivePtr<TBufferedStream> TBufferedStreamPtr;
+
+///////////////////////////////////////////////////////////////////////////////
+
+} // namespace NPython
+} // namespace NYT
