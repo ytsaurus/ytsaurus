@@ -390,7 +390,7 @@ i64 TOperationControllerBase::TTask::GetLocality(const Stroka& address) const
     return GetChunkPoolOutput()->GetLocality(address);
 }
 
-bool TOperationControllerBase::TTask::HasInputLocality()
+bool TOperationControllerBase::TTask::HasInputLocality() const
 {
     return true;
 }
