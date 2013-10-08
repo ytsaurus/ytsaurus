@@ -14,6 +14,14 @@ set( DIRS
   formats
 )
 
+set( LIBS
+  ytext-arcadia-util
+  ytext-ev
+  ytext-jerasure
+  ytext-json
+  protobuf
+)
+
 foreach( _d_ ${DIRS} )
   include( ${_d_}/CMakeLists.txt )
   source_group( ${_d_} REGULAR_EXPRESSION "${_d_}/.*\\.((cpp)|(h)|(proto))")
@@ -25,30 +33,28 @@ add_msvc_precompiled_header(
   YT_SOURCE_FILES
 )
 
-if (YT_BUILD_YTCORE_SHARED)
-  add_library( ytcore SHARED
-    ${YT_SOURCE_FILES}
-  )
-  install(
-    TARGETS ytcore
-    LIBRARY DESTINATION lib COMPONENT libraries
-  )
-else()
-  add_library( ytcore STATIC
-    ${YT_SOURCE_FILES}
-  )
-endif()
+add_library( ytcore STATIC
+  ${YT_SOURCE_FILES}
+)
 
 target_link_libraries ( ytcore
-  ytext-arcadia-util
-  ytext-ev
-  ytext-jerasure
-  ytext-json
-  protobuf
+  ytext-lfalloc
+  ${LIBS}
 )
 
 if (HAVE_LIBUNWIND)
   target_link_libraries( ytcore unwind )
+endif()
+
+
+if (YT_BUILD_ENABLE_PYTHON)
+    add_library( ytcore-without-lfalloc STATIC
+        ${YT_SOURCE_FILES}
+    )
+    target_link_libraries ( ytcore-without-lfalloc
+      ytext-lfalloc-fake
+      ${LIBS}
+    )
 endif()
 
 include_directories(

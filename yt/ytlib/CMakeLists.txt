@@ -17,6 +17,14 @@ set( DIRS
   monitoring
 )
 
+set( LIBS
+  ytext-arcadia-util
+  ytext-ev
+  ytext-jerasure
+  ytext-json
+  protobuf
+)
+
 foreach( _d_ ${DIRS} )
   include( ${_d_}/CMakeLists.txt )
   source_group( ${_d_} REGULAR_EXPRESSION "${_d_}/.*\\.((cpp)|(h)|(proto))")
@@ -28,52 +36,26 @@ add_msvc_precompiled_header(
   YT_SOURCE_FILES
 )
 
-if (YT_BUILD_YTLIB_SHARED)
-  add_library( ytlib SHARED
+add_library( ytlib STATIC
     ${YT_SOURCE_FILES}
-  )
-  add_library( ytlib-without-lfalloc SHARED
-    ${YT_SOURCE_FILES}
-  )
-  install(
-    TARGETS ytlib
-    LIBRARY DESTINATION lib COMPONENT libraries
-  )
-  install(
-    TARGETS ytlib-without-lfalloc
-    LIBRARY DESTINATION lib COMPONENT libraries
-  )
-else()
-  add_library( ytlib STATIC
-    ${YT_SOURCE_FILES}
-  )
-  add_library( ytlib-without-lfalloc STATIC
-    ${YT_SOURCE_FILES}
-  )
-endif()
-
+)
 target_link_libraries ( ytlib
   ytcore
-  ytext-lfalloc
-  ytext-arcadia-util
-  ytext-ev
-  ytext-jerasure
-  ytext-json
-  protobuf
-)
-
-target_link_libraries ( ytlib-without-lfalloc
-  ytcore
-  ytext-lfalloc-fake
-  ytext-arcadia-util
-  ytext-ev
-  ytext-jerasure
-  ytext-json
-  protobuf
+  ${LIBS}
 )
 
 if (HAVE_LIBUNWIND)
   target_link_libraries( ytlib unwind )
+endif()
+
+if (YT_BUILD_ENABLE_PYTHON)
+    add_library( ytlib-without-lfalloc STATIC
+        ${YT_SOURCE_FILES}
+    )
+    target_link_libraries ( ytlib-without-lfalloc
+      ytcore-without-lfalloc
+      ${LIBS}
+    )
 endif()
 
 include_directories(
