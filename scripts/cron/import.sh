@@ -11,5 +11,3 @@ import_from_mr.py \
     --compression-codec "gzip_best_compression" \
     --yt-pool "restricted" \
     --fastbone
-
-#--lock "$LOCK_PATH" \

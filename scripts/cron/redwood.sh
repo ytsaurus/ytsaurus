@@ -19,5 +19,3 @@ import_from_mr.py \
     --compression-codec "gzip_best_compression" --erasure-codec "lrc_12_2_2" \
     --yt-pool "redwood_restricted" \
     --fastbone
-    
-#--lock "$LOCK_PATH" \

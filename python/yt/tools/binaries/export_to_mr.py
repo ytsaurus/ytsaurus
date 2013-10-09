@@ -91,8 +91,6 @@ def main():
     parser.add_argument("--mapreduce-binary", default="./mapreduce")
     parser.add_argument("--fetch-info-from-http", action="store_true", default=False)
 
-    parser.add_argument("--lock")
-
     parser.add_argument("--speed-limit", type=int, default=500 * yt.config.MB)
     parser.add_argument("--force", action="store_true", default=False)
     parser.add_argument("--fastbone", action="store_true", default=False)
@@ -101,27 +99,9 @@ def main():
 
     args = parser.parse_args()
 
-    process = lambda: \
-        process_tasks_from_list(
-            args.tables_queue,
-            lambda obj: export_table(obj, args))
-
-    if args.lock is None:
-        process()
-    else:
-        # TODO(ignat): move it to separate function
-        with yt.Transaction():
-            ok = True
-            try:
-                yt.lock(args.lock)
-            except yt.YtResponseError as error:
-                if error.is_concurrent_transaction_lock_conflict():
-                    ok = False
-                    logger.info("Cannot take lock %s", args.lock)
-                else:
-                    raise
-            if ok:
-                process()
+    process_tasks_from_list(
+        args.tables_queue,
+        lambda obj: export_table(obj, args))
 
 if __name__ == "__main__":
     main()
