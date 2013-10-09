@@ -40,7 +40,7 @@ class Transaction(object):
         self.finished = False
 
     def __enter__(self):
-        pass
+        return self
 
     def __exit__(self, type, value, traceback):
         if self.finished:
@@ -88,6 +88,7 @@ class PingTransaction(Thread):
 
     def __enter__(self):
         self.start()
+        return self
 
     def __exit__(self, type, value, traceback):
         self.stop()
@@ -101,16 +102,13 @@ class PingTransaction(Thread):
             logger.warning("Ping request could not be completed within %.1lf seconds", timeout)
 
     def run(self):
-        try:
-            while self.is_running:
-                ping_transaction(self.transaction)
-                start_time = datetime.now()
-                while datetime.now() - start_time < timedelta(seconds=self.delay):
-                    sleep(self.step)
-                    if not self.is_running:
-                        return
-        except KeyboardInterrupt:
-            self.interrupt_main()
+        while self.is_running:
+            ping_transaction(self.transaction)
+            start_time = datetime.now()
+            while datetime.now() - start_time < timedelta(seconds=self.delay):
+                sleep(self.step)
+                if not self.is_running:
+                    return
 
 
 class PingableTransaction(object):
@@ -124,6 +122,7 @@ class PingableTransaction(object):
 
         self.ping = PingTransaction(config.TRANSACTION, delay=self.timeout / (1000 * 10))
         self.ping.start()
+        return self
 
     def __exit__(self, type, value, traceback):
         self.ping.stop()
