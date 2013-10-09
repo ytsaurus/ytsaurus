@@ -17,14 +17,6 @@ set( DIRS
   monitoring
 )
 
-set( LIBS
-  ytext-arcadia-util
-  ytext-ev
-  ytext-jerasure
-  ytext-json
-  protobuf
-)
-
 foreach( _d_ ${DIRS} )
   include( ${_d_}/CMakeLists.txt )
   source_group( ${_d_} REGULAR_EXPRESSION "${_d_}/.*\\.((cpp)|(h)|(proto))")
@@ -41,7 +33,6 @@ add_library( ytlib STATIC
 )
 target_link_libraries ( ytlib
   ytcore
-  ${LIBS}
 )
 
 if (HAVE_LIBUNWIND)
@@ -49,13 +40,12 @@ if (HAVE_LIBUNWIND)
 endif()
 
 if (YT_BUILD_ENABLE_PYTHON)
-    add_library( ytlib-without-lfalloc STATIC
-        ${YT_SOURCE_FILES}
-    )
-    target_link_libraries ( ytlib-without-lfalloc
-      ytcore-without-lfalloc
-      ${LIBS}
-    )
+  add_library( ytlib-without-lfalloc STATIC
+      ${YT_SOURCE_FILES}
+  )
+  target_link_libraries ( ytlib-without-lfalloc
+    ytcore-without-lfalloc
+  )
 endif()
 
 include_directories(

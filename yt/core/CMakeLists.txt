@@ -48,13 +48,13 @@ endif()
 
 
 if (YT_BUILD_ENABLE_PYTHON)
-    add_library( ytcore-without-lfalloc STATIC
-        ${YT_SOURCE_FILES}
-    )
-    target_link_libraries ( ytcore-without-lfalloc
-      ytext-lfalloc-fake
-      ${LIBS}
-    )
+  add_library( ytcore-without-lfalloc STATIC
+      ${YT_SOURCE_FILES}
+  )
+  target_link_libraries ( ytcore-without-lfalloc
+    ytext-lfalloc-fake
+    ${LIBS}
+  )
 endif()
 
 include_directories(
