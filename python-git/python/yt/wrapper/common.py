@@ -1,3 +1,4 @@
+import yt.logger as logger
 from yt.common import require, flatten, update, which, YtError, update_from_env
 import yt.yson as yson
 
@@ -115,6 +116,8 @@ def chunk_iter_lines(lines, chunk_size):
 def die(message=None, return_code=1):
     if message is not None:
         print >>sys.stderr, message
+    if "YT_LOG_EXIT_CODE" in os.environ:
+        logger.error("Exiting with code %d", return_code)
     sys.exit(return_code)
 
 def generate_uuid():
