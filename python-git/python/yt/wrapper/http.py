@@ -87,7 +87,7 @@ def make_request_with_retries(request, make_retries=False, retry_unavailable_pro
             return response
         except tuple(network_errors) as error:
             message =  "HTTP request (%s) has failed with error '%s'" % (description, str(error))
-            if make_retries:
+            if make_retries and attempt + 1 < http_config.HTTP_RETRIES_COUNT:
                 logger.warning("%s. Retrying...", message)
                 time.sleep(http_config.HTTP_RETRY_TIMEOUT)
             elif not isinstance(error, YtError):
