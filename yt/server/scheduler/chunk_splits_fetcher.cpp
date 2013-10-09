@@ -36,7 +36,6 @@ TChunkSplitsFetcher::TChunkSplitsFetcher(
     : Config(config)
     , Spec(spec)
     , KeyColumns(keyColumns)
-    , PartitionTag(0)
     , Logger(OperationLogger)
 {
     YCHECK(Config->MergeJobMaxSliceDataSize > 0);
@@ -88,8 +87,6 @@ bool TChunkSplitsFetcher::AddChunkToRequest(
         LOG_DEBUG("Chunk split added (ChunkId: %s, TableIndex: %d)",
             ~ToString(chunkId),
             chunk->table_index());
-        chunk->set_partition_tag(PartitionTag);
-        ++PartitionTag;
 
         ChunkSplits.push_back(chunk);
         return false;
@@ -132,11 +129,8 @@ TError TChunkSplitsFetcher::ProcessResponseItem(
         auto chunkIdWithIndex = DecodeChunkId(chunkId);
         ToProto(split->mutable_chunk_id(), chunkIdWithIndex.Id);
         split->set_table_index(chunkSpec->table_index());
-        split->set_partition_tag(PartitionTag);
         ChunkSplits.push_back(split);
     }
-
-    ++PartitionTag;
 
     return TError();
 }
