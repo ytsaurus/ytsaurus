@@ -259,8 +259,6 @@ def main():
     parser.add_argument("--compression-codec")
     parser.add_argument("--erasure-codec")
 
-    parser.add_argument("--lock")
-
     parser.add_argument("--force", action="store_true", default=False,
                         help="always drop destination table")
     parser.add_argument("--fastbone", action="store_true", default=False)
@@ -275,26 +273,9 @@ def main():
 
     args = parser.parse_args()
 
-    process = lambda: \
-        process_tasks_from_list(
-            args.tables_queue,
-            lambda obj: import_table(obj, args))
-
-    if args.lock is None:
-        process()
-    else:
-        with yt.Transaction():
-            ok = True
-            try:
-                yt.lock(args.lock)
-            except yt.YtResponseError as error:
-                if error.is_concurrent_transaction_lock_conflict():
-                    ok = False
-                    logger.info("Cannot take lock %s", args.lock)
-                else:
-                    raise
-            if ok:
-                process()
+    process_tasks_from_list(
+        args.tables_queue,
+        lambda obj: import_table(obj, args))
 
 if __name__ == "__main__":
     main()
