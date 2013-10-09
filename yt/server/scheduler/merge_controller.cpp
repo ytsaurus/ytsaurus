@@ -822,6 +822,7 @@ public:
         IOperationHost* host,
         TOperation* operation)
         : TMergeControllerBase(config, spec, host, operation)
+        , PartitionTag(0)
     { }
 
     // Persistence.
@@ -913,6 +914,10 @@ protected:
 
     TJobSpec ManiacJobSpecTemplate;
 
+    // PartitionTag is used in sorted merge to indicate relative position of a chunk in an input table.
+    // Also it helps to identify different splits of the same chunk.
+    int PartitionTag;
+
 
     virtual TNullable< std::vector<Stroka> > GetSpecKeyColumns() = 0;
 
@@ -970,7 +975,9 @@ protected:
 
     virtual void ProcessInputChunk(TRefCountedChunkSpecPtr chunkSpec) override
     {
+        chunkSpec->set_partition_tag(PartitionTag);
         ChunkSplitsCollector->AddChunk(chunkSpec);
+        ++PartitionTag;
     }
 
     virtual void SortEndpoints() = 0;
@@ -1397,7 +1404,11 @@ private:
                     return cmpResult < 0;
                 }
 
-                return lhs.Type < rhs.Type;
+                if (lhs.Type < rhs.Type) {
+                    return true;
+                } else {
+                    return (lhs.ChunkSpec->partition_tag() - rhs.ChunkSpec->partition_tag()) < 0;
+                }
             });
     }
 

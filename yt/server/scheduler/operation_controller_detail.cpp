@@ -2686,6 +2686,7 @@ void TOperationControllerBase::CollectTotals()
 void TOperationControllerBase::CustomPrepare()
 { }
 
+// NB: must preserve order of chunks in the input tables, no shuffling.
 std::vector<TRefCountedChunkSpecPtr> TOperationControllerBase::CollectInputChunks() const
 {
     std::vector<TRefCountedChunkSpecPtr> result;
