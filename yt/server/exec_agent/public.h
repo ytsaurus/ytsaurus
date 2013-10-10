@@ -16,6 +16,8 @@ using NJobTrackerClient::EJobPhase;
 
 DECLARE_ENUM(EErrorCode,
     ((ConfigCreationFailed)  (1100))
+    ((AbortByScheduler)      (1101))
+    ((ResourceOverdraft)     (1102))
 );
 
 class TJob;

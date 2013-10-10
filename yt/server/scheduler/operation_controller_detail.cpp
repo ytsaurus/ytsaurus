@@ -462,7 +462,7 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
         CheckResourceDemandSanity(node, neededResources);
         chunkPoolOutput->Aborted(joblet->OutputCookie);
         // Seems like cached min needed resources are too optimistic.
-        CachedMinNeededResources = GetMinNeededResourcesHeavy();
+        ResetCachedMinNeededResources();
         return nullptr;
     }
 
@@ -788,6 +788,11 @@ void TOperationControllerBase::TTask::AddIntermediateOutputSpec(
     options->CompressionCodec = Controller->Spec->IntermediateCompressionCodec;
     outputSpec->set_table_writer_options(ConvertToYsonString(options).Data());
     ToProto(outputSpec->mutable_chunk_list_id(), joblet->ChunkListIds[0]);
+}
+
+void TOperationControllerBase::TTask::ResetCachedMinNeededResources()
+{
+    CachedMinNeededResources.Reset();
 }
 
 const TNodeResources& TOperationControllerBase::TTask::GetMinNeededResources() const
@@ -1350,19 +1355,6 @@ void TOperationControllerBase::OnJobFailed(TJobPtr job)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    const auto& result = job->Result();
-    const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-
-    // If some input chunks have failed then the job is considered aborted rather than failed.
-    if (schedulerResultExt.failed_chunk_ids_size() > 0) {
-        job->SetState(EJobState::Aborted);
-        OnJobAborted(job);
-        FOREACH (const auto& chunkId, schedulerResultExt.failed_chunk_ids()) {
-            OnChunkFailed(FromProto<TChunkId>(chunkId));
-        }
-        return;
-    }
-
     JobCounter.Failed(1);
     FailedJobStatistics.Time += job->GetDuration();
 
@@ -1390,13 +1382,24 @@ void TOperationControllerBase::OnJobAborted(TJobPtr job)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    JobCounter.Aborted(1);
+    auto abortReason = GetAbortReason(job);
+
+    JobCounter.Aborted(1, abortReason);
     AbortedJobStatistics.Time += job->GetDuration();
 
     auto joblet = GetJoblet(job);
     joblet->Task->OnJobAborted(joblet);
 
     RemoveJoblet(job);
+
+    if (abortReason == EAbortReason::FailedChunks) {
+        const auto& result = job->Result();
+        const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+
+        FOREACH (const auto& chunkId, schedulerResultExt.failed_chunk_ids()) {
+            OnChunkFailed(FromProto<TChunkId>(chunkId));
+        }
+    }
 }
 
 void TOperationControllerBase::OnChunkFailed(const TChunkId& chunkId)
@@ -1619,6 +1622,14 @@ void TOperationControllerBase::OnTaskUpdated(TTaskPtr task)
         ~FormatResources(CachedNeededResources));
 
     task->CheckCompleted();
+}
+
+void TOperationControllerBase::UpdateAllTasks()
+{
+    FOREACH(auto& task, Tasks) {
+        task->ResetCachedMinNeededResources();
+        OnTaskUpdated(task);
+    }
 }
 
 void TOperationControllerBase::MoveTaskToCandidates(
@@ -2810,9 +2821,33 @@ bool TOperationControllerBase::CheckKeyColumnsCompatible(
     return true;
 }
 
+EAbortReason TOperationControllerBase::GetAbortReason(TJobPtr job)
+{
+    auto error = FromProto(job->Result().error());
+    return error.Attributes().Get<EAbortReason>("abort_reason", EAbortReason::Scheduler);
+}
+
 bool TOperationControllerBase::IsSortedOutputSupported() const
 {
     return false;
+}
+
+void TOperationControllerBase::UpdateAllTasksIfNeeded(const TProgressCounter& jobCounter)
+{
+    if (jobCounter.GetAborted(EAbortReason::ResourceOverdraft) == Config->MaxMemoryReserveAbortJobCount) {
+        UpdateAllTasks();
+    }
+}
+
+i64 TOperationControllerBase::GetMemoryReserve(const TProgressCounter& jobCounter, TUserJobSpecPtr userJobSpec) const
+{
+    bool reserveEnabled = jobCounter.GetAborted(EAbortReason::ResourceOverdraft) < Config->MaxMemoryReserveAbortJobCount;
+    if (reserveEnabled) {
+        return static_cast<i64>(userJobSpec->MemoryLimit * userJobSpec->MemoryReserveFactor);
+    } else {
+        return userJobSpec->MemoryLimit;
+    }
+
 }
 
 void TOperationControllerBase::RegisterOutput(
@@ -3042,8 +3077,6 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
 {
     jobSpec->set_shell_command(config->Command);
     jobSpec->set_memory_limit(config->MemoryLimit);
-    i64 memoryReserve = static_cast<i64>(config->MemoryLimit * config->MemoryReserveFactor);
-    jobSpec->set_memory_reserve(memoryReserve);
     jobSpec->set_use_yamr_descriptors(config->UseYamrDescriptors);
     jobSpec->set_max_stderr_size(config->MaxStderrSize);
     jobSpec->set_enable_core_dump(config->EnableCoreDump);
@@ -3102,12 +3135,15 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
 
 void TOperationControllerBase::InitUserJobSpec(
     NScheduler::NProto::TUserJobSpec* jobSpec,
-    TJobletPtr joblet)
+    TJobletPtr joblet,
+    i64 memoryReserve)
 {
     if (Operation->GetStdErrCount() < Operation->GetMaxStdErrCount()) {
         auto stdErrTransactionId = Operation->GetAsyncSchedulerTransaction()->GetId();
         ToProto(jobSpec->mutable_stderr_transaction_id(), stdErrTransactionId);
     }
+
+    jobSpec->set_memory_reserve(memoryReserve);
 
     jobSpec->add_environment(Sprintf("YT_JOB_INDEX=%d", joblet->JobIndex));
     jobSpec->add_environment(Sprintf("YT_JOB_ID=%s", ~ToString(joblet->Job->GetId())));

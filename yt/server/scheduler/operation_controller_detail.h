@@ -392,6 +392,8 @@ protected:
         const NNodeTrackerClient::NProto::TNodeResources& GetMinNeededResources() const;
         virtual NNodeTrackerClient::NProto::TNodeResources GetNeededResources(TJobletPtr joblet) const;
 
+        void ResetCachedMinNeededResources();
+
         DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, DelayedTime);
 
         void AddInput(TChunkStripePtr stripe);
@@ -535,6 +537,8 @@ protected:
     void RegisterTaskGroup(TTaskGroupPtr group);
 
     void OnTaskUpdated(TTaskPtr task);
+
+    void UpdateAllTasks();
 
     virtual void CustomizeJoblet(TJobletPtr joblet);
     virtual void CustomizeJobSpec(TJobletPtr joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec);
@@ -692,6 +696,11 @@ protected:
         const std::vector<Stroka>& fullColumns,
         const std::vector<Stroka>& prefixColumns);
 
+    static EAbortReason GetAbortReason(TJobPtr job);
+
+    void UpdateAllTasksIfNeeded(const TProgressCounter& jobCounter);
+    i64 GetMemoryReserve(const TProgressCounter& jobCounter, TUserJobSpecPtr userJobSpec) const;
+
     void RegisterInputStripe(TChunkStripePtr stripe, TTaskPtr task);
 
 
@@ -747,7 +756,8 @@ protected:
 
     void InitUserJobSpec(
         NScheduler::NProto::TUserJobSpec* proto,
-        TJobletPtr joblet);
+        TJobletPtr joblet,
+        i64 memoryReserve);
 
     // Amount of memory reserved for output table writers in job proxy.
     i64 GetFinalOutputIOMemorySize(TJobIOConfigPtr ioConfig) const;
