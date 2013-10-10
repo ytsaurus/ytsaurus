@@ -13,12 +13,7 @@ source:
 test: deb_clean
 	$(PYTHON) setup.py test
 
-VERSION=$(shell dpkg-parsechangelog | grep "Version:" | awk '{print $$2}')
-
-version:
-	echo "VERSION='$(VERSION)'" > yt/wrapper/version.py
-
-html: version
+html:
 	rm -rf docs
 	mkdir docs
 	sphinx-apidoc -F -o docs yt
@@ -30,12 +25,11 @@ deb:
 	$(MAKE) test
 	$(MAKE) deb_without_test
 
-egg: version
+egg:
 	EGG=1 $(PYTHON) setup.py bdist_egg
 	cp dist/*.egg .
 
 deb_without_test: deb_clean
-	$(MAKE) version
 	# build the source package in the parent directory
 	# then rename it to project_version.orig.tar.gz
 	$(PYTHON) setup.py sdist --dist-dir=../
