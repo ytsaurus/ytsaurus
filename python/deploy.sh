@@ -13,7 +13,7 @@ sudo make -f debian/rules clean
 YT="yt/wrapper/yt"
 VERSION=$(dpkg-parsechangelog | grep Version | awk '{print $2}')
 if [ "$PACKAGE" = "yandex-yt-python" ]; then
-    echo "VERSION='$VERSION'" > yt/wrapper/version.py
+    make version
 fi
 
 # Build and upload package

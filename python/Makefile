@@ -1,11 +1,15 @@
 PYTHON ?= `which python`
 PROJECT = `dpkg-parsechangelog | awk -F': ' '$1 == "Source" { print $2; }'`
 BUILDIR = $(CURDIR)/debian/$(PROJECT)
+VERSION=$(shell dpkg-parsechangelog | grep "Version:" | awk '{print $$2}')
 
 all:
 	@echo "make source - Create source package"
 	@echo "make deb - Generate a deb package"
 	@echo "make clean - Get rid of scratch and byte files"
+
+version:
+	echo "VERSION='$(VERSION)'" > yt/wrapper/version.py
 
 source:
 	$(PYTHON) setup.py sdist
@@ -19,7 +23,6 @@ html:
 	sphinx-apidoc -F -o docs yt
 	sphinx-build -b html docs docs/_build/ 
 	#sudo cp -r docs/_build/* /usr/share/nginx/www/python_api
-
 
 deb:
 	$(MAKE) test
