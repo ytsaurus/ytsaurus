@@ -6,10 +6,6 @@ namespace NLog {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTaggedLogger::TTaggedLogger()
-    : InnerLogger(nullptr)
-{ }
-
 TTaggedLogger::TTaggedLogger(TLogger& innerLogger)
     : InnerLogger(&innerLogger)
 { }

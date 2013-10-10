@@ -14,6 +14,9 @@ class TestAcls(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
+    def test_missing_user_name(self):
+        with pytest.raises(YtError): command('create', {'type': 'user'})
+
     def test_default_acl_sanity(self):
         create_user('u')
         with pytest.raises(YtError): set('/', {}, user='u')
