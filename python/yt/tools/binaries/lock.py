@@ -34,6 +34,8 @@ def main():
                 proc.signal(2)
                 time.sleep(args.step)
                 proc.terminate()
+                time.sleep(args.step)
+                proc.kill()
                 break
 
             if proc.poll() is not None:
