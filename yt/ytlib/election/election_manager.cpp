@@ -267,6 +267,7 @@ public:
         : Owner(owner)
         , ControlEpochInvoker(owner->ControlEpochInvoker)
         , Awaiter(New<TParallelAwaiter>(ControlEpochInvoker))
+        , Logger(ElectionLogger)
     {
         Logger.AddTag(Sprintf("RoundId: %s, VoteEpochId: %s",
             ~ToString(TGuid::Create()),
