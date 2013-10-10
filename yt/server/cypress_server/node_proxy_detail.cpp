@@ -338,28 +338,30 @@ ICypressNodeProxyPtr TNodeFactory::CreateNode(
 
     RegisterCreatedNode(trunkNode);
 
-    handler->SetDefaultAttributes(attributes, Transaction);
-    auto keys = attributes->List();
-    if (!keys.empty()) {
-        auto trunkProxy = cypressManager->GetNodeProxy(trunkNode, nullptr);
+    if (attributes) {
+        handler->SetDefaultAttributes(attributes, Transaction);
+        auto keys = attributes->List();
+        if (!keys.empty()) {
+            auto trunkProxy = cypressManager->GetNodeProxy(trunkNode, nullptr);
 
-        std::vector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
-        trunkProxy->ListSystemAttributes(&systemAttributes);
+            std::vector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
+            trunkProxy->ListSystemAttributes(&systemAttributes);
 
-        yhash_set<Stroka> systemAttributeKeys;
-        FOREACH (const auto& attribute, systemAttributes) {
-            YCHECK(systemAttributeKeys.insert(attribute.Key).second);
-        }
-
-        FOREACH (const auto& key, keys) {
-            auto value = attributes->GetYson(key);
-            if (systemAttributeKeys.find(key) == systemAttributeKeys.end()) {
-                trunkProxy->MutableAttributes()->SetYson(key, value);
-            } else {
-                if (!trunkProxy->SetSystemAttribute(key, value)) {
-                    ThrowCannotSetSystemAttribute(key);
-                }
+            yhash_set<Stroka> systemAttributeKeys;
+            FOREACH (const auto& attribute, systemAttributes) {
+                YCHECK(systemAttributeKeys.insert(attribute.Key).second);
             }
+
+            FOREACH (const auto& key, keys) {
+                auto value = attributes->GetYson(key);
+                if (systemAttributeKeys.find(key) == systemAttributeKeys.end()) {
+                    trunkProxy->MutableAttributes()->SetYson(key, value);
+                } else {
+                    if (!trunkProxy->SetSystemAttribute(key, value)) {
+                        ThrowCannotSetSystemAttribute(key);
+                    }
+                }
+            }        
         }        
     }
 
