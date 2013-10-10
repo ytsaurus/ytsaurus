@@ -104,7 +104,7 @@ private:
         auto attributes =
             request->has_object_attributes()
             ? FromProto(request->object_attributes())
-            : std::unique_ptr<IAttributeDictionary>();
+            : CreateEphemeralAttributes();
 
         auto objectManager = Bootstrap->GetObjectManager();
 

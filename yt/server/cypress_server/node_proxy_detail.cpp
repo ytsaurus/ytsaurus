@@ -338,12 +338,10 @@ ICypressNodeProxyPtr TNodeFactory::CreateNode(
 
     RegisterCreatedNode(trunkNode);
 
-    if (attributes) {
-        handler->SetDefaultAttributes(attributes, Transaction);
-
+    handler->SetDefaultAttributes(attributes, Transaction);
+    auto keys = attributes->List();
+    if (!keys.empty()) {
         auto trunkProxy = cypressManager->GetNodeProxy(trunkNode, nullptr);
-
-        auto keys = attributes->List();
 
         std::vector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
         trunkProxy->ListSystemAttributes(&systemAttributes);

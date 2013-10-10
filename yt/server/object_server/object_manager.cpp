@@ -1034,9 +1034,9 @@ TObjectBase* TObjectManager::CreateObject(
         response);
     const auto& objectId = object->GetId();
 
-    if (attributes) {
-        // Copy attributes. Quick and dirty.
-        auto attributeKeys = attributes->List();
+    // Copy attributes. Quick and dirty.
+    auto attributeKeys = attributes->List();
+    if (!attributeKeys.empty()) {
         auto* attributeSet = GetOrCreateAttributes(TVersionedObjectId(objectId));
 
         FOREACH (const auto& key, attributeKeys) {
