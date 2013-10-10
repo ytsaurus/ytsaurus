@@ -21,6 +21,10 @@ def merge(table):
         compression_ratio = yt.get_attribute(table, "compression_ratio")
         erasure_codec = yt.get_attribute(table, "erasure_codec")
 
+        if yt.check_permission("cron", "write", table)["action"] != "allow":
+            logger.warning("Have no permission to write table %s", table)
+            return
+
         desired_chunk_size = 512 * 1024 ** 2
         if erasure_codec != "none":
             desired_chunk_size = 2 * 1024 ** 3
