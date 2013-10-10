@@ -2,6 +2,7 @@
 
 from yt.tools.atomic import process_tasks_from_list
 
+import yt.logger as logger
 import yt.wrapper as yt
 
 import sys
@@ -18,7 +19,15 @@ def merge(table):
         revision = yt.get_attribute(table, "revision")
 
         compression_ratio = yt.get_attribute(table, "compression_ratio")
-        data_size_per_job = max(1,  int(512 * 1024 ** 2 / compression_ratio))
+        erasure_codec = yt.get_attribute(table, "erasure_codec")
+
+        desired_chunk_size = 512 * 1024 ** 2
+        if erasure_codec != "none":
+            desired_chunk_size = 2 * 1024 ** 3
+
+        data_size_per_job = max(1,  int(desired_chunk_size / compression_ratio))
+
+        logger.info("Merging table %s (erasure codec: %s, compression_ratio: %f)", table, erasure_codec, compression_ratio)
 
         temp_table = yt.create_temp_table(prefix="merge")
         try:
@@ -34,7 +43,12 @@ def merge(table):
                          spec={"combine_chunks":"true",
                                "data_size_per_job": data_size_per_job,
                                "unavailable_chunk_strategy": "fail",
-                               "unavailable_chunk_tactics": "fail"})
+                               "unavailable_chunk_tactics": "fail",
+                               "job_io": {
+                                   "table_writer": {
+                                       "desired_chunk_size": desired_chunk_size
+                                   }
+                               }})
 
             if yt.exists(table):
                 with yt.Transaction():
@@ -45,7 +59,7 @@ def merge(table):
             yt.remove(temp_table, force=True)
 
     except yt.YtError as e:
-        print "Failed to merge table %s with error %s" % (table, repr(e))
+        logger.error("Failed to merge table %s with error %s", table, repr(e))
 
 if __name__ == "__main__":
     process_tasks_from_list(sys.argv[1], merge)
