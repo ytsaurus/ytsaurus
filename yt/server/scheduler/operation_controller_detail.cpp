@@ -1344,7 +1344,7 @@ void TOperationControllerBase::OnJobCompleted(TJobPtr job)
 
     RemoveJoblet(job);
 
-    OnTaskUpdated(joblet->Task);
+    UpdateTask(joblet->Task);
 
     if (IsCompleted()) {
         OnOperationCompleted();
@@ -1599,7 +1599,7 @@ void TOperationControllerBase::RegisterTaskGroup(TTaskGroupPtr group)
     TaskGroups.push_back(std::move(group));
 }
 
-void TOperationControllerBase::OnTaskUpdated(TTaskPtr task)
+void TOperationControllerBase::UpdateTask(TTaskPtr task)
 {
     int oldPendingJobCount = CachedPendingJobCount;
     int newPendingJobCount = CachedPendingJobCount + task->GetPendingJobCountDelta();
@@ -1626,9 +1626,9 @@ void TOperationControllerBase::OnTaskUpdated(TTaskPtr task)
 
 void TOperationControllerBase::UpdateAllTasks()
 {
-    FOREACH(auto& task, Tasks) {
+    for (auto& task: Tasks) {
         task->ResetCachedMinNeededResources();
-        OnTaskUpdated(task);
+        UpdateTask(task);
     }
 }
 
@@ -1655,7 +1655,7 @@ void TOperationControllerBase::AddTaskPendingHint(TTaskPtr task)
             MoveTaskToCandidates(task, group->CandidateTasks);
         }
     }
-    OnTaskUpdated(task);
+    UpdateTask(task);
 }
 
 void TOperationControllerBase::AddAllTaskPendingHints()
@@ -1678,7 +1678,7 @@ void TOperationControllerBase::DoAddTaskLocalityHint(TTaskPtr task, const Stroka
 void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, const Stroka& address)
 {
     DoAddTaskLocalityHint(task, address);
-    OnTaskUpdated(task);
+    UpdateTask(task);
 }
 
 void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, TChunkStripePtr stripe)
@@ -1693,7 +1693,7 @@ void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, TChunkStripePt
             }
         }
     }
-    OnTaskUpdated(task);
+    UpdateTask(task);
 }
 
 void TOperationControllerBase::ResetTaskLocalityDelays()
@@ -1779,7 +1779,7 @@ TJobPtr TOperationControllerBase::DoScheduleLocalJob(
             }
 
             if (task->GetPendingJobCount() == 0) {
-                OnTaskUpdated(task);
+                UpdateTask(task);
                 continue;
             }
 
@@ -1808,7 +1808,7 @@ TJobPtr TOperationControllerBase::DoScheduleLocalJob(
             auto job = bestTask->ScheduleJob(context, jobLimits);
             if (job) {
                 bestTask->SetDelayedTime(Null);
-                OnTaskUpdated(bestTask);
+                UpdateTask(bestTask);
                 return job;
             }
         }
@@ -1846,7 +1846,7 @@ TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(
                 LOG_DEBUG("Task pending hint removed (Task: %s)",
                     ~task->GetId());
                 YCHECK(nonLocalTasks.erase(task) == 1);
-                OnTaskUpdated(task);
+                UpdateTask(task);
             } else {
                 LOG_DEBUG("Task delay deadline reached (Task: %s)", ~task->GetId());
                 MoveTaskToCandidates(task, candidateTasks);
@@ -1870,7 +1870,7 @@ TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(
                     LOG_DEBUG("Task pending hint removed (Task: %s)", ~task->GetId());
                     candidateTasks.erase(it++);
                     YCHECK(nonLocalTasks.erase(task) == 1);
-                    OnTaskUpdated(task);
+                    UpdateTask(task);
                     continue;
                 }
 
@@ -1908,7 +1908,7 @@ TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(
 
                 auto job = task->ScheduleJob(context, jobLimits);
                 if (job) {
-                    OnTaskUpdated(task);
+                    UpdateTask(task);
                     return job;
                 }
 
@@ -2847,7 +2847,6 @@ i64 TOperationControllerBase::GetMemoryReserve(const TProgressCounter& jobCounte
     } else {
         return userJobSpec->MemoryLimit;
     }
-
 }
 
 void TOperationControllerBase::RegisterOutput(

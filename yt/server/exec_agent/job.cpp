@@ -719,7 +719,6 @@ private:
     {
         auto resultError = FromProto(jobResult.error());
 
-
         if (resultError.FindMatching(NChunkClient::EErrorCode::AllTargetNodesFailed) || 
             resultError.FindMatching(NChunkClient::EErrorCode::MasterCommunicationFailed) ||
             resultError.FindMatching(EErrorCode::ConfigCreationFailed) || 

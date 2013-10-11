@@ -536,7 +536,7 @@ protected:
     void RegisterTask(TTaskPtr task);
     void RegisterTaskGroup(TTaskGroupPtr group);
 
-    void OnTaskUpdated(TTaskPtr task);
+    void UpdateTask(TTaskPtr task);
 
     void UpdateAllTasks();
 
