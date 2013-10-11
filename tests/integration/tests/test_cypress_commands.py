@@ -262,7 +262,7 @@ class TestCypressCommands(YTEnvSetup):
         assert get('//tmp/c/b/@path') == '//tmp/c/b'
 
     def test_copy_simple6(self):
-        with pytest.raises(YTError): copy('//tmp', '//tmp/a')
+        with pytest.raises(YtError): copy('//tmp', '//tmp/a')
 
     def test_copy_tx1(self):
         tx = start_transaction()
@@ -379,11 +379,11 @@ class TestCypressCommands(YTEnvSetup):
         tx = start_transaction()
         lock('//tmp/a', tx=tx)
 
-        with pytest.raises(YTError): move('//tmp/a', '//tmp/b')
+        with pytest.raises(YtError): move('//tmp/a', '//tmp/b')
         assert not exists('//tmp/b')
 
     def test_move_simple3(self):
-        with pytest.raises(YTError): move('//tmp', '//tmp/a')
+        with pytest.raises(YtError): move('//tmp', '//tmp/a')
 
     def test_embedded_attributes(self):
         set("//tmp/a", {})

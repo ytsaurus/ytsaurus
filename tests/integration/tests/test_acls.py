@@ -323,7 +323,7 @@ class TestAcls(YTEnvSetup):
         set('//tmp/x', {})
         set('//tmp/x/@account', 'a')
 
-        with pytest.raises(YTError): copy('//tmp/x', '//tmp/y', user='u', opt=['/preserve_account=true'])
+        with pytest.raises(YtError): copy('//tmp/x', '//tmp/y', user='u', opt=['/preserve_account=true'])
 
     def test_copy_account2(self):
         create_account('a')
@@ -343,4 +343,4 @@ class TestAcls(YTEnvSetup):
         set('//tmp/x', {'u' : 'v'})
         set('//tmp/x/u/@account', 'a')
 
-        with pytest.raises(YTError): copy('//tmp/x', '//tmp/y', user='u', opt=['/preserve_account=true'])
+        with pytest.raises(YtError): copy('//tmp/x', '//tmp/y', user='u', opt=['/preserve_account=true'])
