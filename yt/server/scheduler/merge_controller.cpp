@@ -272,6 +272,12 @@ protected:
             RegisterOutput(joblet, PartitionIndex);
         }
 
+        virtual void OnJobAborted(TJobletPtr joblet) override
+        {
+            TTask::OnJobAborted(joblet);
+            Controller->UpdateAllTasksIfNeeded(Controller->JobCounter);
+        }
+
     };
 
     typedef TIntrusivePtr<TMergeTask> TMergeTaskPtr;
@@ -1609,7 +1615,7 @@ private:
 
     virtual i64 GetAdditionalMemorySize() const override
     {
-        return Spec->Reducer->MemoryLimit;
+        return GetMemoryReserve(JobCounter, Spec->Reducer);
     }
 
     virtual TNullable< std::vector<Stroka> > GetSpecKeyColumns() override
@@ -1647,7 +1653,7 @@ private:
     virtual void CustomizeJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
     {
         auto* jobSpecExt = jobSpec->MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
-        InitUserJobSpec(jobSpecExt->mutable_reducer_spec(), joblet);
+        InitUserJobSpec(jobSpecExt->mutable_reducer_spec(), joblet, GetAdditionalMemorySize());
     }
 
     virtual bool IsOutputLivePreviewSupported() const override
