@@ -243,14 +243,26 @@ def run_python_tests(options, suite_name, suite_path):
     finally:
         shutil.rmtree(sandbox_current)
 
+def kill_by_name(name):
+    proc = subprocess.Popen(["pgrep", name], stdout=subprocess.PIPE)
+    for pid in proc.stdout:
+        os.kill(int(pid), signal.SIGTERM)
+        # Check if the process that we killed is alive.
+        try:
+           os.kill(int(pid), 0)
+        except OSError:
+           continue
+
 
 @yt_register_build_step
 def run_integration_tests(options):
+    kill_by_name("ytserver")
     run_python_tests(options, "integration", "{0}/tests/integration".format(options.checkout_directory))
 
 
 @yt_register_build_step
 def run_python_libraries_tests(options):
+    kill_by_name("ytserver")
     run_python_tests(options, "python_libraries", "{0}/python".format(options.checkout_directory))
 
 
