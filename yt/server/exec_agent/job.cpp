@@ -206,16 +206,22 @@ public:
             return;
         } 
 
+        if (IsFatalError(resultError)) {
+            resultError.Attributes().Set("fatal", IsFatalError(resultError));
+            ToProto(JobResult->mutable_error(), resultError);
+            FinalJobState = EJobState::Failed;
+            return;
+        }
+
         auto abortReason = GetAbortReason(jobResult);
         if (abortReason) {
             resultError.Attributes().Set("abort_reason", abortReason);
+            ToProto(JobResult->mutable_error(), resultError);
             FinalJobState = EJobState::Aborted;
-        } else {
-            resultError.Attributes().Set("fatal", IsFatalError(resultError));
-            FinalJobState = EJobState::Failed;
+            return;
         }
 
-        ToProto(JobResult->mutable_error(), resultError);
+        FinalJobState = EJobState::Failed;
     }
 
     virtual double GetProgress() const override
