@@ -4,6 +4,7 @@ import "yt/core/misc/guid.proto";
 import "yt/core/misc/error.proto";
 import "yt/ytlib/node_tracker_client/node.proto";
 import "yt/ytlib/chunk_client/chunk.proto";
+import "yt/ytlib/hydra/hydra_manager.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -53,6 +54,21 @@ message TRspFullHeartbeat
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TTabletSlotInfo
+{
+    // Null GUID indicates empty slot.
+    required NYT.NProto.TGuid cell_guid = 1;
+    required int32 peer_state = 2;
+    required int32 peer_id = 3;
+    required int32 config_version = 4;
+}
+
+message THiveCellInfo
+{
+    required NYT.NProto.TGuid cell_guid = 1;
+    required int32 config_version = 2;
+}
+
 message TReqIncrementalHeartbeat
 {
     required int32 node_id = 1;
@@ -61,9 +77,52 @@ message TReqIncrementalHeartbeat
     // Chunk Manager stuff.
     repeated TChunkAddInfo added_chunks = 3;
     repeated TChunkRemoveInfo removed_chunks = 4;
+
+    // Tablet Manager stuff.
+    repeated TTabletSlotInfo tablet_slots = 5;
+
+    // Hive Manager stuff.
+    repeated THiveCellInfo hive_cells = 6;
+}
+
+message TCreateTabletSlotInfo
+{
+    required NYT.NProto.TGuid cell_guid = 1;
+}
+
+message TConfigureTabletSlotInfo
+{
+    required NYT.NProto.TGuid cell_guid = 1;
+    required NYT.NHydra.NProto.TCellConfig config = 2;
+    required int32 peer_id = 3;
+}
+
+message TRemoveTabletSlotInfo
+{
+    required NYT.NProto.TGuid cell_guid = 1;
+}
+
+message TUnregisterHiveCellInfo
+{
+    required NYT.NProto.TGuid cell_guid = 1;
+}
+
+message TReconfigureHiveCellInfo
+{
+    required NYT.NProto.TGuid cell_guid = 1;
+    required NYT.NHydra.NProto.TCellConfig config = 2;
 }
 
 message TRspIncrementalHeartbeat
-{ }
+{
+    // Tablet Manager stuff.
+    repeated TCreateTabletSlotInfo tablet_slots_to_create = 1;
+    repeated TRemoveTabletSlotInfo tablet_slots_to_remove = 2;
+    repeated TConfigureTabletSlotInfo tablet_slots_configure = 3;
+
+    // Hive Manager stuff.
+    repeated TUnregisterHiveCellInfo hive_cells_to_unregister = 4;
+    repeated TReconfigureHiveCellInfo hive_cells_to_reconfigure = 5;
+}
 
 ////////////////////////////////////////////////////////////////////////////////

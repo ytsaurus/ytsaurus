@@ -96,7 +96,7 @@ Stroka TYPathServiceBase::GetLoggingCategory() const
     return Logger.GetCategory();
 }
 
-bool TYPathServiceBase::IsWriteRequest(IServiceContextPtr /*context*/) const
+bool TYPathServiceBase::IsMutatingRequest(IServiceContextPtr /*context*/) const
 {
     return false;
 }
@@ -112,7 +112,7 @@ void TYPathServiceBase::SerializeAttributes(
 #define IMPLEMENT_SUPPORTS_VERB_RESOLVE(verb, onPathError) \
     DEFINE_RPC_SERVICE_METHOD(TSupports##verb, verb) \
     { \
-        NYPath::TTokenizer tokenizer(context->GetPath()); \
+        NYPath::TTokenizer tokenizer(context->GetService()); \
         switch (tokenizer.Advance()) { \
             case NYPath::ETokenType::EndOfStream: \
                 verb##Self(request, response, context); \
@@ -960,7 +960,7 @@ protected:
         AppendInfo(str, RequestInfo);
         LOG_DEBUG("%s %s <- %s",
             ~GetVerb(),
-            ~GetPath(),
+            ~GetService(),
             ~str);
     }
 
@@ -971,7 +971,7 @@ protected:
         AppendInfo(str, ResponseInfo);
         LOG_DEBUG("%s %s -> %s",
             ~GetVerb(),
-            ~GetPath(),
+            ~GetService(),
             ~str);
     }
 
@@ -1025,7 +1025,7 @@ public:
         return UnderlyingService->GetLoggingCategory();
     }
 
-    virtual bool IsWriteRequest(IServiceContextPtr /*context*/) const override
+    virtual bool IsMutatingRequest(IServiceContextPtr /*context*/) const override
     {
         YUNREACHABLE();
     }

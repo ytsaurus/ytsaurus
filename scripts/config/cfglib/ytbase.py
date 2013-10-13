@@ -75,7 +75,7 @@ class Node(AggrBase):
         return os.path.join(cls.work_dir, cls.__name__ + '.debug.log')
 
     def makeConfig(cls, fd):
-        yson.dump(cls.config, fd, indent='  ')
+        yson.dump(cls.config, fd, indent=4)
 
     def defaultFile(cls, fd, descr):
         raise "No file creation method for node (%s) and file %s" % (cls.path, desrc.name)

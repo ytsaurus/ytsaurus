@@ -6,7 +6,7 @@
 
 #include <ytlib/node_tracker_client/node_tracker_service.pb.h>
 
-#include <server/cell_master/meta_state_service.h>
+#include <server/cell_master/hydra_service.h>
 
 namespace NYT {
 namespace NNodeTrackerServer {
@@ -14,7 +14,7 @@ namespace NNodeTrackerServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNodeTrackerService
-    : public NCellMaster::TMetaStateServiceBase
+    : public NCellMaster::THydraServiceBase
 {
 public:
     explicit TNodeTrackerService(

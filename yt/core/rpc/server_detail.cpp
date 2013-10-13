@@ -22,6 +22,9 @@ TServiceContextBase::TServiceContextBase(
     , RequestId(header.has_request_id()
         ? FromProto<TRequestId>(header.request_id())
         : NullRequestId)
+    , RealmId(header.has_realm_id()
+        ? FromProto<TRealmId>(header.realm_id())
+        : NullRealmId)
     , Replied(false)
     , ResponseAttributes_(CreateEphemeralAttributes())
 {
@@ -180,14 +183,19 @@ i64 TServiceContextBase::GetPriority() const
         : 0;
 }
 
-const Stroka& TServiceContextBase::GetPath() const
+const Stroka& TServiceContextBase::GetService() const
 {
-    return RequestHeader_.path();
+    return RequestHeader_.service();
 }
 
 const Stroka& TServiceContextBase::GetVerb() const
 {
     return RequestHeader_.verb();
+}
+
+const TRealmId& TServiceContextBase::GetRealmId() const
+{
+    return RealmId;
 }
 
 const TRequestHeader& TServiceContextBase::RequestHeader() const
@@ -265,14 +273,19 @@ i64 TServiceContextWrapper::GetPriority() const
     return UnderlyingContext->GetPriority();
 }
 
-const Stroka& TServiceContextWrapper::GetPath() const
+const Stroka& TServiceContextWrapper::GetService() const
 {
-    return UnderlyingContext->GetPath();
+    return UnderlyingContext->GetService();
 }
 
 const Stroka& TServiceContextWrapper::GetVerb() const
 {
     return UnderlyingContext->GetVerb();
+}
+
+const TRealmId& TServiceContextWrapper::GetRealmId() const 
+{
+    return UnderlyingContext->GetRealmId();
 }
 
 bool TServiceContextWrapper::IsOneWay() const

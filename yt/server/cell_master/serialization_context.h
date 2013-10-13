@@ -1,11 +1,12 @@
 #pragma once
 
 #include "public.h"
+#include "automaton.h"
 
 #include <core/misc/property.h>
 #include <core/misc/small_vector.h>
 
-#include <ytlib/meta_state/composite_meta_state.h>
+#include <server/hydra/composite_automaton.h>
 
 #include <server/node_tracker_server/public.h>
 
@@ -19,37 +20,19 @@
 
 #include <server/security_server/public.h>
 
+#include <server/table_server/public.h>
+
+#include <server/tablet_server/public.h>
+
 namespace NYT {
 namespace NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(ESerializationPriority,
-    (Keys)
-    (Values)
-);
-
 int GetCurrentSnapshotVersion();
-NMetaState::TVersionValidator SnapshotVersionValidator();
+bool ValidateSnapshotVersion(int version);
 
-class TSaveContext
-    : public NMetaState::TSaveContext
-{ };
-
-class TLoadContext
-    : public NMetaState::TLoadContext
-{
-    DEFINE_BYVAL_RW_PROPERTY(TBootstrap*, Bootstrap);
-public:
-    template <class T>
-    T* Get(const NObjectClient::TObjectId& id) const;
-
-    template <class T>
-    T* Get(const NObjectClient::TVersionedObjectId& id) const;
-
-    template <class T>
-    T* Get(NChunkServer::TNodeId id) const;
-};
+////////////////////////////////////////////////////////////////////////////////
 
 template <>
 NObjectServer::TObjectBase* TLoadContext::Get(const NObjectClient::TObjectId& id) const;
@@ -92,6 +75,15 @@ NSecurityServer::TUser* TLoadContext::Get(const NObjectClient::TObjectId& id) co
 
 template <>
 NSecurityServer::TGroup* TLoadContext::Get(const NObjectClient::TObjectId& id) const;
+
+template <>
+NTableServer::TTableNode* TLoadContext::Get(const NCypressClient::TVersionedNodeId& id) const;
+
+template <>
+NTabletServer::TTabletCell* TLoadContext::Get(const NTabletServer::TTabletCellId& id) const;
+
+template <>
+NTabletServer::TTablet* TLoadContext::Get(const NTabletServer::TTabletId& id) const;
 
 ////////////////////////////////////////////////////////////////////////////////
 

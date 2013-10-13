@@ -35,7 +35,7 @@ using namespace NCellMaster;
 using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NCypressServer;
-using namespace NMetaState;
+using namespace NHydra;
 using namespace NYTree;
 using namespace NYson;
 using namespace NCypressServer;
@@ -59,7 +59,7 @@ public:
         Logger = TransactionServerLogger;
     }
 
-    virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const
+    virtual bool IsMutatingRequest(NRpc::IServiceContextPtr context) const
     {
         DECLARE_YPATH_SERVICE_WRITE_METHOD(Commit);
         DECLARE_YPATH_SERVICE_WRITE_METHOD(Abort);
@@ -67,7 +67,7 @@ public:
         // NB: Ping is not logged and thus is not considered to be a write
         // request. It can only be served at leaders though, so its handler explicitly
         // checks the status.
-        return TBase::IsWriteRequest(context);
+        return TBase::IsMutatingRequest(context);
     }
 
 private:
@@ -360,50 +360,29 @@ private:
 TTransactionManager::TTransactionManager(
     TTransactionManagerConfigPtr config,
     TBootstrap* bootstrap)
-    : TMetaStatePart(
-        bootstrap->GetMetaStateFacade()->GetManager(),
-        bootstrap->GetMetaStateFacade()->GetState())
+    : TMasterAutomatonPart(bootstrap)
     , Config(config)
-    , Bootstrap(bootstrap)
 {
-    YCHECK(config);
-    YCHECK(bootstrap);
-    VERIFY_INVOKER_AFFINITY(bootstrap->GetMetaStateFacade()->GetInvoker(), StateThread);
+    VERIFY_INVOKER_AFFINITY(bootstrap->GetMetaStateFacade()->GetInvoker(), AutomatonThread);
 
-    {
-        NCellMaster::TLoadContext context;
-        context.SetBootstrap(Bootstrap);
+    RegisterLoader(
+        "TransactionManager.Keys",
+        BIND(&TTransactionManager::LoadKeys, Unretained(this)));
+    RegisterLoader(
+        "TransactionManager.Values",
+        BIND(&TTransactionManager::LoadValues, Unretained(this)));
 
-        RegisterLoader(
-            "TransactionManager.Keys",
-            SnapshotVersionValidator(),
-            BIND(&TTransactionManager::LoadKeys, MakeStrong(this)),
-            context);
-        RegisterLoader(
-            "TransactionManager.Values",
-            SnapshotVersionValidator(),
-            BIND(&TTransactionManager::LoadValues, MakeStrong(this)),
-            context);
-    }
-    {
-        NCellMaster::TSaveContext context;
-
-        RegisterSaver(
-            ESerializationPriority::Keys,
-            "TransactionManager.Keys",
-            GetCurrentSnapshotVersion(),
-            BIND(&TTransactionManager::SaveKeys, MakeStrong(this)),
-            context);
-        RegisterSaver(
-            ESerializationPriority::Values,
-            "TransactionManager.Values",
-            GetCurrentSnapshotVersion(),
-            BIND(&TTransactionManager::SaveValues, MakeStrong(this)),
-            context);
-    }
+    RegisterSaver(
+        ESerializationPriority::Keys,
+        "TransactionManager.Keys",
+        BIND(&TTransactionManager::SaveKeys, Unretained(this)));
+    RegisterSaver(
+        ESerializationPriority::Values,
+        "TransactionManager.Values",
+        BIND(&TTransactionManager::SaveValues, Unretained(this)));
 }
 
-void TTransactionManager::Inititialize()
+void TTransactionManager::Initialize()
 {
     auto objectManager = Bootstrap->GetObjectManager();
     objectManager->RegisterHandler(New<TTransactionTypeHandler>(this));
@@ -411,7 +390,7 @@ void TTransactionManager::Inititialize()
 
 TTransaction* TTransactionManager::StartTransaction(TTransaction* parent, TNullable<TDuration> timeout)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     auto objectManager = Bootstrap->GetObjectManager();
     auto id = objectManager->GenerateId(EObjectType::Transaction);
@@ -457,7 +436,7 @@ TTransaction* TTransactionManager::StartTransaction(TTransaction* parent, TNulla
 
 void TTransactionManager::CommitTransaction(TTransaction* transaction)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     YCHECK(transaction->IsActive());
 
@@ -484,7 +463,7 @@ void TTransactionManager::CommitTransaction(TTransaction* transaction)
 
 void TTransactionManager::AbortTransaction(TTransaction* transaction)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     YCHECK(transaction->IsActive());
 
@@ -539,7 +518,7 @@ void TTransactionManager::FinishTransaction(TTransaction* transaction)
 
 void TTransactionManager::PingTransaction(const TTransaction* transaction, bool pingAncestors)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
     DoPingTransaction(transaction);
 
     if (pingAncestors) {
@@ -553,7 +532,7 @@ void TTransactionManager::PingTransaction(const TTransaction* transaction, bool 
 
 void TTransactionManager::DoPingTransaction(const TTransaction* transaction)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
     YCHECK(transaction->IsActive());
 
     auto it = LeaseMap.find(transaction->GetId());
@@ -568,6 +547,18 @@ void TTransactionManager::DoPingTransaction(const TTransaction* transaction)
         timeout.MilliSeconds());
 }
 
+TTransaction* TTransactionManager::GetTransactionOrThrow(const TTransactionId& id)
+{
+    auto* transaction = FindTransaction(id);
+    if (!IsObjectAlive(transaction)) {
+        THROW_ERROR_EXCEPTION(
+            NYTree::EErrorCode::ResolveError,
+            "No such transaction %s",
+            ~ToString(id));
+    }
+    return transaction;
+}
+
 void TTransactionManager::SaveKeys(NCellMaster::TSaveContext& context)
 {
     TransactionMap.SaveKeys(context);
@@ -578,16 +569,16 @@ void TTransactionManager::SaveValues(NCellMaster::TSaveContext& context)
     TransactionMap.SaveValues(context);
 }
 
-void TTransactionManager::OnBeforeLoaded()
+void TTransactionManager::OnBeforeSnapshotLoaded()
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     DoClear();
 }
 
 void TTransactionManager::LoadKeys(NCellMaster::TLoadContext& context)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     TransactionMap.LoadKeys(context);
     // COMPAT(babenko)
@@ -598,14 +589,14 @@ void TTransactionManager::LoadKeys(NCellMaster::TLoadContext& context)
 
 void TTransactionManager::LoadValues(NCellMaster::TLoadContext& context)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     TransactionMap.LoadValues(context);
 }
 
-void TTransactionManager::OnAfterLoaded()
+void TTransactionManager::OnAfterSnapshotLoaded()
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     // Reconstruct TopmostTransactions.
     TopmostTransactions_.clear();
@@ -625,7 +616,7 @@ void TTransactionManager::DoClear()
 
 void TTransactionManager::Clear()
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     DoClear();
 }
@@ -637,7 +628,7 @@ TDuration TTransactionManager::GetActualTimeout(TNullable<TDuration> timeout)
         Config->MaxTransactionTimeout);
 }
 
-void TTransactionManager::OnActiveQuorumEstablished()
+void TTransactionManager::OnLeaderActive()
 {
     auto objectManager = Bootstrap->GetObjectManager();
     FOREACH (const auto& pair, TransactionMap) {
@@ -677,7 +668,7 @@ void TTransactionManager::CloseLease(const TTransaction* transaction)
 
 void TTransactionManager::OnTransactionExpired(const TTransactionId& id)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     auto* transaction = FindTransaction(id);
     if (!transaction || !transaction->IsActive())
@@ -746,7 +737,7 @@ void TTransactionManager::StageNode(TTransaction* transaction, TCypressNodeBase*
     objectManager->RefObject(node);
 }
 
-DEFINE_METAMAP_ACCESSORS(TTransactionManager, Transaction, TTransaction, TTransactionId, TransactionMap)
+DEFINE_ENTITY_MAP_ACCESSORS(TTransactionManager, Transaction, TTransaction, TTransactionId, TransactionMap)
 
 ////////////////////////////////////////////////////////////////////////////////
 

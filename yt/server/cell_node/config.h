@@ -8,6 +8,8 @@
 
 #include <server/exec_agent/config.h>
 
+#include <server/tablet_node/config.h>
+
 namespace NYT {
 namespace NCellNode {
 
@@ -24,13 +26,16 @@ public:
     int MonitoringPort;
 
     //! Cell masters.
-    NMetaState::TMasterDiscoveryConfigPtr Masters;
+    NHydra::TPeerDiscoveryConfigPtr Masters;
 
     //! Data node configuration part.
     NDataNode::TDataNodeConfigPtr DataNode;
 
     //! Exec node configuration part.
     NExecAgent::TExecAgentConfigPtr ExecAgent;
+
+    //! Tablet node configuration part.
+    NTabletNode::TTabletNodeConfigPtr TabletNode;
 
     //! Throttling configuration for jobs-to-master communication.
     NRpc::TThrottlingChannelConfigPtr JobsToMasterChannel;
@@ -41,12 +46,10 @@ public:
             .Default(9000);
         RegisterParameter("monitoring_port", MonitoringPort)
             .Default(10000);
-        RegisterParameter("masters", Masters)
-            .DefaultNew();
-        RegisterParameter("data_node", DataNode)
-            .DefaultNew();
-        RegisterParameter("exec_agent", ExecAgent)
-            .DefaultNew();
+        RegisterParameter("masters", Masters);
+        RegisterParameter("data_node", DataNode);
+        RegisterParameter("exec_agent", ExecAgent);
+        RegisterParameter("tablet_node", TabletNode);
         RegisterParameter("jobs_to_master_channel", JobsToMasterChannel)
             .DefaultNew();
 

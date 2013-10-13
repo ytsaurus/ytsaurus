@@ -18,7 +18,7 @@
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
-#include <ytlib/meta_state/rpc_helpers.h>
+#include <ytlib/hydra/rpc_helpers.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -220,7 +220,7 @@ TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> TAsyncTableWriter::FetchTableI
     {
         auto req = TTableYPathProxy::PrepareForUpdate(path);
         SetTransactionId(req, uploadTransactionId);
-        NMetaState::GenerateMutationId(req);
+        NHydra::GenerateMutationId(req);
         req->set_mode(clear ? EUpdateMode::Overwrite : EUpdateMode::Append);
         batchReq->AddRequest(req, "prepare_for_update");
     }
@@ -332,7 +332,7 @@ void TAsyncTableWriter::Close()
 
         auto req = TTableYPathProxy::SetSorted(path);
         SetTransactionId(req, UploadTransaction);
-        NMetaState::GenerateMutationId(req);
+        NHydra::GenerateMutationId(req);
         ToProto(req->mutable_key_columns(), keyColumns);
 
         auto rsp = WaitFor(ObjectProxy.Execute(req));

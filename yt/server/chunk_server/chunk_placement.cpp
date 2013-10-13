@@ -39,7 +39,7 @@ TChunkPlacement::TChunkPlacement(
 void TChunkPlacement::Initialize()
 {
     auto nodeTracker = Bootstrap->GetNodeTracker();
-    FOREACH (auto* node, nodeTracker->GetNodes()) {
+    FOREACH (auto* node, nodeTracker->Nodes().GetValues()) {
         OnNodeRegistered(node);
     }
 }
@@ -90,7 +90,7 @@ void TChunkPlacement::OnNodeUpdated(TNode* node)
 {
     OnNodeUnregistered(node);
     OnNodeRegistered(node);
-    node->ResetSessionHints();
+    node->ResetHints();
 }
 
 TNodeList TChunkPlacement::AllocateWriteTargets(

@@ -1,5 +1,8 @@
 set( DIRS
   misc
+  election
+  hydra
+  hive
   cell_master
   cell_node
   cell_scheduler
@@ -17,6 +20,8 @@ set( DIRS
   object_server
   security_server
   node_tracker_server
+  tablet_node
+  tablet_server
 )
 
 foreach( _d_ ${DIRS} )

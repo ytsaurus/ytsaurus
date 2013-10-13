@@ -15,7 +15,6 @@
 
 #include <ytlib/scheduler/config.h>
 
-#include <ytlib/meta_state/async_change_log.h>
 #include <ytlib/chunk_client/dispatcher.h>
 
 #include <core/ytree/yson_serializable.h>
@@ -35,6 +34,9 @@
 
 #include <server/job_proxy/config.h>
 #include <server/job_proxy/job_proxy.h>
+
+#include <server/hydra/changelog.h>
+#include <server/hydra/file_changelog.h>
 
 #include <yt/build.h>
 
@@ -320,7 +322,7 @@ int Main(int argc, const char* argv[])
     }
 
     // TODO: refactor system shutdown
-    NMetaState::TAsyncChangeLog::Shutdown();
+    NHydra::ShutdownChangelogs();
     NBus::TTcpDispatcher::Get()->Shutdown();
     NRpc::TDispatcher::Get()->Shutdown();
     NChunkClient::TDispatcher::Get()->Shutdown();

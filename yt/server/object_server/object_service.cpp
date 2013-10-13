@@ -16,7 +16,7 @@
 
 #include <ytlib/security_client/public.h>
 
-#include <ytlib/meta_state/rpc_helpers.h>
+#include <ytlib/hydra/rpc_helpers.h>
 
 #include <server/transaction_server/transaction.h>
 #include <server/transaction_server/transaction_manager.h>
@@ -32,7 +32,7 @@
 namespace NYT {
 namespace NObjectServer {
 
-using namespace NMetaState;
+using namespace NHydra;
 using namespace NRpc;
 using namespace NBus;
 using namespace NYTree;
@@ -104,7 +104,7 @@ private:
             auto objectManager = Bootstrap->GetObjectManager();
             auto rootService = objectManager->GetRootService();
 
-            auto metaStateManager = Bootstrap->GetMetaStateFacade()->GetManager();
+            auto hydraManager = Bootstrap->GetMetaStateFacade()->GetManager();
 
             auto awaiter = Awaiter;
             if (!awaiter)
@@ -138,7 +138,7 @@ private:
                     return;
                 }
 
-                const auto& path = requestHeader.path();
+                const auto& path = requestHeader.service();
                 const auto& verb = requestHeader.verb();
                 auto mutationId = GetMutationId(requestHeader);
 
@@ -154,7 +154,7 @@ private:
 
                 bool foundKeptResponse = false;
                 if (mutationId != NullMutationId) {
-                    auto keptResponse = metaStateManager->FindKeptResponse(mutationId);
+                    auto keptResponse = hydraManager->FindKeptResponse(mutationId);
                     if (keptResponse) {
                         auto responseMessage = UnpackMessage(keptResponse->Data);
                         OnResponse(CurrentRequestIndex, std::move(responseMessage));
@@ -356,7 +356,7 @@ private:
 TObjectService::TObjectService(
     TObjectManagerConfigPtr config,
     TBootstrap* bootstrap)
-    : TMetaStateServiceBase(
+    : THydraServiceBase(
         bootstrap,
         NObjectClient::TObjectServiceProxy::GetServiceName(),
         ObjectServerLogger.GetCategory())

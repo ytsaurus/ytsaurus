@@ -3,6 +3,8 @@
 #include "type_handler_detail.h"
 #include "private.h"
 
+#include <core/ytree/attribute_helpers.h>
+
 #include <ytlib/object_client/master_ypath.pb.h>
 
 #include <server/security_server/security_manager.h>
@@ -39,10 +41,10 @@ public:
         Logger = ObjectServerLogger;
     }
 
-    virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const override
+    virtual bool IsMutatingRequest(NRpc::IServiceContextPtr context) const override
     {
         DECLARE_YPATH_SERVICE_WRITE_METHOD(CreateObjects);
-        return TObjectProxyBase::IsWriteRequest(context);
+        return TObjectProxyBase::IsMutatingRequest(context);
     }
 
 private:

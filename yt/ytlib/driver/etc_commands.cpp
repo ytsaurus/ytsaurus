@@ -15,7 +15,7 @@
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
-#include <ytlib/meta_state/rpc_helpers.h>
+#include <ytlib/hydra/rpc_helpers.h>
 
 #include <core/ytree/fluent.h>
 

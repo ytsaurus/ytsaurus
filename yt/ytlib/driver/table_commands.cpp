@@ -153,5 +153,29 @@ void TWriteCommand::DoExecute()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TMountCommand::DoExecute()
+{
+    auto req = TTableYPathProxy::Mount(Request->Path.GetPath());
+
+    auto rsp = WaitFor(ObjectProxy->Execute(req));
+    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+
+    ReplySuccess();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TUnmountCommand::DoExecute()
+{
+    auto req = TTableYPathProxy::Unmount(Request->Path.GetPath());
+
+    auto rsp = WaitFor(ObjectProxy->Execute(req));
+    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+
+    ReplySuccess();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NDriver
 } // namespace NYT

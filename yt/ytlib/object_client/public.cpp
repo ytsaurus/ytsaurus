@@ -41,7 +41,9 @@ bool IsVersionedType(EObjectType type)
         type == EObjectType::GroupMap ||
         type == EObjectType::Link ||
         type == EObjectType::Document ||
-        type == EObjectType::LockMap;
+        type == EObjectType::LockMap ||
+        type == EObjectType::TabletCellMap ||
+        type == EObjectType::TabletMap;
 }
 
 bool IsUserType(EObjectType type)

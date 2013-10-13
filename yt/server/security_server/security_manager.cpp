@@ -11,8 +11,8 @@
 #include "request_tracker.h"
 #include "config.h"
 
-#include <ytlib/meta_state/map.h>
-#include <ytlib/meta_state/composite_meta_state.h>
+#include <server/hydra/entity_map.h>
+#include <server/hydra/composite_automaton.h>
 
 #include <core/ypath/token.h>
 
@@ -35,7 +35,7 @@
 namespace NYT {
 namespace NSecurityServer {
 
-using namespace NMetaState;
+using namespace NHydra;
 using namespace NCellMaster;
 using namespace NObjectClient;
 using namespace NObjectServer;
@@ -220,17 +220,14 @@ private:
 /////////////////////////////////////////////////////////////////////////// /////
 
 class TSecurityManager::TImpl
-    : public TMetaStatePart
+    : public TMasterAutomatonPart
 {
 public:
     TImpl(
         TSecurityManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap)
-        : TMetaStatePart(
-            bootstrap->GetMetaStateFacade()->GetManager(),
-            bootstrap->GetMetaStateFacade()->GetState())
+        : TMasterAutomatonPart(bootstrap)
         , Config(config)
-        , Bootstrap(bootstrap)
         , RecomputeResources(false)
         , SysAccount(nullptr)
         , TmpAccount(nullptr)
@@ -240,53 +237,32 @@ public:
         , UsersGroup(nullptr)
         , RequestTracker(New<TRequestTracker>(config, bootstrap))
     {
-        YCHECK(bootstrap);
+        RegisterLoader(
+            "SecurityManager.Keys",
+            BIND(&TImpl::LoadKeys, Unretained(this)));
+        RegisterLoader(
+            "SecurityManager.Values",
+            BIND(&TImpl::LoadValues, Unretained(this)));
 
-        {
-            NCellMaster::TLoadContext context;
-            context.SetBootstrap(bootstrap);
+        RegisterSaver(
+            ESerializationPriority::Keys,
+            "SecurityManager.Keys",
+            BIND(&TImpl::SaveKeys, Unretained(this)));
+        RegisterSaver(
+            ESerializationPriority::Values,
+            "SecurityManager.Values",
+            BIND(&TImpl::SaveValues, Unretained(this)));
 
-            RegisterLoader(
-                "SecurityManager.Keys",
-                SnapshotVersionValidator(),
-                BIND(&TImpl::LoadKeys, MakeStrong(this)),
-                context);
-            RegisterLoader(
-                "SecurityManager.Values",
-                SnapshotVersionValidator(),
-                BIND(&TImpl::LoadValues, MakeStrong(this)),
-                context);
-        }
+        auto cellId = Bootstrap->GetCellId();
 
-        {
-            NCellMaster::TSaveContext context;
+        SysAccountId = MakeWellKnownId(EObjectType::Account, cellId, 0xffffffffffffffff);
+        TmpAccountId = MakeWellKnownId(EObjectType::Account, cellId, 0xfffffffffffffffe);
 
-            RegisterSaver(
-                ESerializationPriority::Keys,
-                "SecurityManager.Keys",
-                GetCurrentSnapshotVersion(),
-                BIND(&TImpl::SaveKeys, MakeStrong(this)),
-                context);
-            RegisterSaver(
-                ESerializationPriority::Values,
-                "SecurityManager.Values",
-                GetCurrentSnapshotVersion(),
-                BIND(&TImpl::SaveValues, MakeStrong(this)),
-                context);
-        }
+        RootUserId = MakeWellKnownId(EObjectType::User, cellId, 0xffffffffffffffff);
+        GuestUserId = MakeWellKnownId(EObjectType::User, cellId, 0xfffffffffffffffe);
 
-        {
-            auto cellId = Bootstrap->GetObjectManager()->GetCellId();
-
-            SysAccountId = MakeWellKnownId(EObjectType::Account, cellId, 0xffffffffffffffff);
-            TmpAccountId = MakeWellKnownId(EObjectType::Account, cellId, 0xfffffffffffffffe);
-
-            RootUserId = MakeWellKnownId(EObjectType::User, cellId, 0xffffffffffffffff);
-            GuestUserId = MakeWellKnownId(EObjectType::User, cellId, 0xfffffffffffffffe);
-
-            EveryoneGroupId = MakeWellKnownId(EObjectType::Group, cellId, 0xffffffffffffffff);
-            UsersGroupId = MakeWellKnownId(EObjectType::Group, cellId, 0xfffffffffffffffe);
-        }
+        EveryoneGroupId = MakeWellKnownId(EObjectType::Group, cellId, 0xffffffffffffffff);
+        UsersGroupId = MakeWellKnownId(EObjectType::Group, cellId, 0xfffffffffffffffe);
 
         RegisterMethod(BIND(&TImpl::UpdateRequestStatistics, Unretained(this)));
     }
@@ -300,9 +276,9 @@ public:
     }
 
 
-    DECLARE_METAMAP_ACCESSORS(Account, TAccount, TAccountId);
-    DECLARE_METAMAP_ACCESSORS(User, TUser, TUserId);
-    DECLARE_METAMAP_ACCESSORS(Group, TGroup, TGroupId);
+    DECLARE_ENTITY_MAP_ACCESSORS(Account, TAccount, TAccountId);
+    DECLARE_ENTITY_MAP_ACCESSORS(User, TUser, TUserId);
+    DECLARE_ENTITY_MAP_ACCESSORS(Group, TGroup, TGroupId);
 
 
     TMutationPtr CreateUpdateRequestStatisticsMutation(
@@ -496,6 +472,18 @@ public:
         return it == UserNameMap.end() ? nullptr : it->second;
     }
 
+    TUser* GetUserOrThrow(const TUserId& id)
+    {
+        auto* user = FindUser(id);
+        if (!IsObjectAlive(user)) {
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::ResolveError,
+                "No such user %s",
+                ~ToString(id));
+        }
+
+        return user;
+    }
 
     TUser* GetRootUser()
     {
@@ -874,11 +862,10 @@ private:
 
 
     TSecurityManagerConfigPtr Config;
-    NCellMaster::TBootstrap* Bootstrap;
 
     bool RecomputeResources;
 
-    NMetaState::TMetaStateMap<TAccountId, TAccount> AccountMap;
+    NHydra::TEntityMap<TAccountId, TAccount> AccountMap;
     yhash_map<Stroka, TAccount*> AccountNameMap;
 
     TAccountId SysAccountId;
@@ -887,7 +874,7 @@ private:
     TAccountId TmpAccountId;
     TAccount* TmpAccount;
 
-    NMetaState::TMetaStateMap<TUserId, TUser> UserMap;
+    NHydra::TEntityMap<TUserId, TUser> UserMap;
     yhash_map<Stroka, TUser*> UserNameMap;
 
     TUserId RootUserId;
@@ -896,7 +883,7 @@ private:
     TUserId GuestUserId;
     TUser* GuestUser;
 
-    NMetaState::TMetaStateMap<TGroupId, TGroup> GroupMap;
+    NHydra::TEntityMap<TGroupId, TGroup> GroupMap;
     yhash_map<Stroka, TGroup*> GroupNameMap;
 
     TGroupId EveryoneGroupId;
@@ -1106,7 +1093,7 @@ private:
     }
 
 
-    virtual void OnBeforeLoaded() override
+    virtual void OnBeforeSnapshotLoaded() override
     {
         DoClear();
 
@@ -1132,7 +1119,7 @@ private:
         }
     }
 
-    virtual void OnAfterLoaded() override
+    virtual void OnAfterSnapshotLoaded() override
     {
         // Reconstruct account name map.
         AccountNameMap.clear();
@@ -1162,7 +1149,7 @@ private:
         if (RecomputeResources) {
             LOG_INFO("Recomputing resource usage");
 
-            YCHECK(Bootstrap->GetTransactionManager()->GetTransactionCount() == 0);
+            YCHECK(Bootstrap->GetTransactionManager()->Transactions().GetSize() == 0);
 
             FOREACH (const auto& pair, AccountMap) {
                 auto* account = pair.second;
@@ -1171,7 +1158,7 @@ private:
             }
 
             auto cypressManager = Bootstrap->GetCypressManager();
-            FOREACH (auto* node, cypressManager->GetNodes()) {
+            FOREACH (auto* node, cypressManager->Nodes().GetValues()) {
                 auto resourceUsage = node->GetResourceUsage();
                 auto* account = node->GetAccount();
                 if (account) {
@@ -1243,12 +1230,6 @@ private:
         }
     }
 
-
-    bool IsRecovery() const
-    {
-        return Bootstrap->GetMetaStateFacade()->GetManager()->IsRecovery();
-    }
-
     void InitBuiltin()
     {
         UsersGroup = FindGroup(UsersGroupId);
@@ -1301,7 +1282,7 @@ private:
     }
 
 
-    virtual void OnActiveQuorumEstablished() override
+    virtual void OnLeaderActive() override
     {
         RequestTracker->StartFlush();
 
@@ -1355,9 +1336,9 @@ private:
 
 };
 
-DEFINE_METAMAP_ACCESSORS(TSecurityManager::TImpl, Account, TAccount, TAccountId, AccountMap)
-DEFINE_METAMAP_ACCESSORS(TSecurityManager::TImpl, User, TUser, TUserId, UserMap)
-DEFINE_METAMAP_ACCESSORS(TSecurityManager::TImpl, Group, TGroup, TGroupId, GroupMap)
+DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager::TImpl, Account, TAccount, TAccountId, AccountMap)
+DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager::TImpl, User, TUser, TUserId, UserMap)
+DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager::TImpl, Group, TGroup, TGroupId, GroupMap)
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -1546,6 +1527,11 @@ TUser* TSecurityManager::FindUserByName(const Stroka& name)
     return Impl->FindUserByName(name);
 }
 
+TUser* TSecurityManager::GetUserOrThrow(const TUserId& id)
+{
+    return Impl->GetUserOrThrow(id);
+}
+
 TUser* TSecurityManager::GetRootUser()
 {
     return Impl->GetRootUser();
@@ -1672,9 +1658,9 @@ double TSecurityManager::GetRequestRate(TUser* user)
     return Impl->GetRequestRate(user);
 }
 
-DELEGATE_METAMAP_ACCESSORS(TSecurityManager, Account, TAccount, TAccountId, *Impl)
-DELEGATE_METAMAP_ACCESSORS(TSecurityManager, User, TUser, TUserId, *Impl)
-DELEGATE_METAMAP_ACCESSORS(TSecurityManager, Group, TGroup, TGroupId, *Impl)
+DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, Account, TAccount, TAccountId, *Impl)
+DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, User, TUser, TUserId, *Impl)
+DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, Group, TGroup, TGroupId, *Impl)
 
 ///////////////////////////////////////////////////////////////////////////////
 

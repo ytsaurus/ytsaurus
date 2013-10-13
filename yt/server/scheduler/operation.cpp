@@ -16,7 +16,7 @@ using namespace NTransactionClient;
 TOperation::TOperation(
     const TOperationId& operationId,
     EOperationType type,
-    const NMetaState::TMutationId& mutationId,
+    const NHydra::TMutationId& mutationId,
     ITransactionPtr userTransaction,
     NYTree::IMapNodePtr spec,
     const Stroka& authenticatedUser,

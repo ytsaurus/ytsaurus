@@ -12,7 +12,7 @@
 
 #include <ytlib/scheduler/scheduler_service.pb.h>
 
-#include <ytlib/meta_state/public.h>
+#include <ytlib/hydra/public.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -26,7 +26,7 @@ class TOperation
 
     DEFINE_BYVAL_RO_PROPERTY(EOperationType, Type);
 
-    DEFINE_BYVAL_RO_PROPERTY(NMetaState::TMutationId, MutationId);
+    DEFINE_BYVAL_RO_PROPERTY(NHydra::TMutationId, MutationId);
 
     DEFINE_BYVAL_RW_PROPERTY(EOperationState, State);
     DEFINE_BYVAL_RW_PROPERTY(bool, Suspended);
@@ -104,7 +104,7 @@ class TOperation
     TOperation(
         const TOperationId& operationId,
         EOperationType type,
-        const NMetaState::TMutationId& mutationId,
+        const NHydra::TMutationId& mutationId,
         NTransactionClient::ITransactionPtr userTransaction,
         NYTree::IMapNodePtr spec,
         const Stroka& authenticatedUser,

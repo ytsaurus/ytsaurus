@@ -32,7 +32,7 @@ TRequestTracker::TRequestTracker(
 
 void TRequestTracker::StartFlush()
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     YCHECK(!FlushInvoker);
     FlushInvoker = New<TPeriodicExecutor>(
@@ -45,7 +45,7 @@ void TRequestTracker::StartFlush()
 
 void TRequestTracker::StopFlush()
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     if (FlushInvoker) {
         FlushInvoker->Stop();
@@ -88,7 +88,7 @@ void TRequestTracker::Reset()
 
 void TRequestTracker::OnFlush()
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     if (UsersWithRequestStatisticsUpdate.empty()) {
         FlushInvoker->ScheduleNext();

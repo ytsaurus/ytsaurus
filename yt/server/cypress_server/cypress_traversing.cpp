@@ -87,57 +87,46 @@ private:
 
     void DoTraverse()
     {
-        auto transactionManager = Bootstrap->GetTransactionManager();
-        auto cypressManager = Bootstrap->GetCypressManager();
+        try {
+            auto transactionManager = Bootstrap->GetTransactionManager();
+            auto cypressManager = Bootstrap->GetCypressManager();
 
-        TTransaction* transaction = NULL;
+            auto* transaction =
+                TransactionId == NullTransactionId
+                ? nullptr
+                : transactionManager->GetTransactionOrThrow(TransactionId);
 
-        if (TransactionId != NullTransactionId) {
-            transaction = transactionManager->FindTransaction(TransactionId);
-            if (!IsObjectAlive(transaction)) {
-                Visitor->OnError(TError("No such transaction %s",
-                    ~ToString(TransactionId)));
-                return;
+            int currentNodeCount = 0;
+            while (currentNodeCount < MaxNodesPerAction) {
+                YASSERT(!Stack.empty());
+                auto& entry = Stack.back();
+                auto childIndex = entry.ChildIndex++;
+                if (childIndex >= entry.Children.size()) {
+                    Stack.pop_back();
+                    if (Stack.empty()) {
+                        Visitor->OnCompleted();
+                        return;
+                    }
+                } else {
+                    const auto& nodeId = entry.Children[childIndex];
+                    auto* trunkNode = cypressManager->GetNodeOrThrow(TVersionedNodeId(nodeId));
+                    auto nodeProxy = cypressManager->GetNodeProxy(trunkNode, transaction);
+                    VisitNode(nodeProxy);
+                    ++currentNodeCount;
+                }
             }
+
+            // Schedule continuation.
+            {
+                auto invoker = Bootstrap->GetMetaStateFacade()->GetGuardedInvoker();
+                auto result = invoker->Invoke(BIND(&TNodeTraverser::DoTraverse, MakeStrong(this)));
+                if (!result) {
+                    THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Yield error");
+                }
+            }
+        } catch (const std::exception& ex) {
+            Visitor->OnError(ex);
         }
-
-         int currentNodeCount = 0;
-         while (currentNodeCount < MaxNodesPerAction) {
-            YASSERT(!Stack.empty());
-            auto& entry = Stack.back();
-            auto childIndex = entry.ChildIndex++;
-
-            if (childIndex >= entry.Children.size()) {
-                Stack.pop_back();
-                if (Stack.empty()) {
-                    Visitor->OnCompleted();
-                    return;
-                }
-                continue;
-            } else {
-                const auto& nodeId = entry.Children[childIndex];
-                auto* trunkNode = cypressManager->FindNode(TVersionedNodeId(nodeId));
-                if (!IsObjectAlive(trunkNode)) {
-                    Visitor->OnError(TError("No such node %s",
-                        ~ToString(nodeId)));
-                    return;
-                }
-
-                auto nodeProxy = cypressManager->GetNodeProxy(trunkNode, transaction);
-                VisitNode(nodeProxy);
-
-                ++currentNodeCount;
-            }
-         }
-
-         // Schedule continuation.
-         {
-             auto invoker = Bootstrap->GetMetaStateFacade()->GetGuardedInvoker();
-             auto result = invoker->Invoke(BIND(&TNodeTraverser::DoTraverse, MakeStrong(this)));
-             if (!result) {
-                 Visitor->OnError(TError(NRpc::EErrorCode::Unavailable, "Yield error"));
-             }
-         }
     }
 
     TBootstrap* Bootstrap;

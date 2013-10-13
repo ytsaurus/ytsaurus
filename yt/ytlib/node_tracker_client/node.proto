@@ -28,6 +28,8 @@ message TNodeStatistics
     repeated TLocationStatistics locations = 6;
     optional int32 max_replication_session_count = 9;
     optional int32 max_repair_session_count = 10;
+    optional int32 available_tablet_slots = 11;
+    optional int32 used_tablet_slots = 12;
 }
 
 // Measures limits and utilization of various resources.

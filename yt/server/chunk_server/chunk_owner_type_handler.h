@@ -13,6 +13,8 @@
 #include <server/cypress_server/node_detail.h>
 #include <server/cypress_server/cypress_manager.h>
 
+#include <server/cell_master/meta_state_facade.h>
+
 namespace NYT {
 namespace NChunkServer {
 
@@ -146,7 +148,7 @@ protected:
 
     void MergeChunkLists(TChunkOwner* originatingNode, TChunkOwner* branchedNode)
     {
-        auto metaStateManager = TBase::Bootstrap->GetMetaStateFacade()->GetManager();
+        auto hydraManager = TBase::Bootstrap->GetMetaStateFacade()->GetManager();
         auto chunkManager = TBase::Bootstrap->GetChunkManager();
         auto objectManager = TBase::Bootstrap->GetObjectManager();
 
@@ -168,7 +170,7 @@ protected:
         bool hasPropertiesChanged =
             originatingNode->GetReplicationFactor() != branchedNode->GetReplicationFactor() ||
             originatingNode->GetVital() != branchedNode->GetVital();
-        bool isPropertiesUpdateNeeded = isTopmostCommit && hasPropertiesChanged && metaStateManager->IsLeader();
+        bool isPropertiesUpdateNeeded = isTopmostCommit && hasPropertiesChanged && hydraManager->IsLeader();
 
         if (branchedMode == NChunkClient::EUpdateMode::Overwrite) {
             YCHECK(originatingChunkList->OwningNodes().erase(originatingNode) == 1);

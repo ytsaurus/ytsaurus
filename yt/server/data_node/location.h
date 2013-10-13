@@ -40,13 +40,6 @@ public:
     //! Returns string id.
     const Stroka& GetId() const;
 
-    //! Returns the cell guid. If no tag file was found and #UpdateCellGuid was not called
-    //! then empty guid is returned.
-    const TGuid& GetCellGuid();
-
-    //! Sets the cell guid and overwrites the tag file.
-    void SetCellGuid(const TGuid& guid);
-
     //! Scan the location directory removing orphaned files and returning the list of found chunks.
     std::vector<TChunkDescriptor> Initialize();
 
@@ -138,8 +131,6 @@ private:
     NCellNode::TBootstrap* Bootstrap;
 
     TAtomic Enabled;
-
-    TGuid CellGuid;
 
     mutable i64 AvailableSpace;
     i64 UsedSpace;

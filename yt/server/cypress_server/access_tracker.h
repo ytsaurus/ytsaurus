@@ -56,7 +56,7 @@ private:
     void OnCommitFailed(const TError& error);
 
 
-    DECLARE_THREAD_AFFINITY_SLOT(StateThread);
+    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 };
 

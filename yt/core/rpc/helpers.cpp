@@ -87,5 +87,47 @@ IChannelPtr CreateAuthenticatedChannel(IChannelPtr underlyingChannel, const Stro
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TRealmChannel
+    : public IChannel
+{
+public:
+    TRealmChannel(IChannelPtr underlyingChannel, const TRealmId& realmId)
+        : UnderlyingChannel(underlyingChannel)
+        , RealmId(realmId)
+    { }
+
+    virtual TNullable<TDuration> GetDefaultTimeout() const override
+    {
+        return UnderlyingChannel->GetDefaultTimeout();
+    }
+
+    virtual void Send(
+        IClientRequestPtr request,
+        IClientResponseHandlerPtr responseHandler,
+        TNullable<TDuration> timeout) override
+    {
+        ToProto(request->Header().mutable_realm_id(), RealmId);
+        UnderlyingChannel->Send(request, responseHandler, timeout);
+    }
+
+    virtual TFuture<void> Terminate(const TError& error) override
+    {
+        return UnderlyingChannel->Terminate(error);
+    }
+
+private:
+    IChannelPtr UnderlyingChannel;
+    TRealmId RealmId;
+
+};
+
+IChannelPtr CreateRealmChannel(IChannelPtr underlyingChannel, const TRealmId& realmId)
+{
+    YCHECK(underlyingChannel);
+
+    return New<TRealmChannel>(underlyingChannel, realmId);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 } // namespace NRpc
 } // namespace NYT

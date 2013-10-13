@@ -31,7 +31,7 @@ public:
     virtual void Invoke(NRpc::IServiceContextPtr context) override;
     virtual TResolveResult Resolve(const TYPath& path, NRpc::IServiceContextPtr context) override;
     virtual Stroka GetLoggingCategory() const override;
-    virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const override;
+    virtual bool IsMutatingRequest(NRpc::IServiceContextPtr context) const override;
     virtual void SerializeAttributes(
         NYson::IYsonConsumer* consumer,
         const TAttributeFilter& filter,

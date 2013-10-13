@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "meta_state_facade.h"
+#include "automaton.h"
 #include "config.h"
 
 #include <core/ytree/ypath_proxy.h>
@@ -10,6 +11,10 @@
 #include <core/rpc/bus_channel.h>
 #include <core/rpc/server.h>
 
+#include <core/concurrency/fiber.h>
+
+#include <core/logging/log.h>
+
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
@@ -17,10 +22,16 @@
 
 #include <ytlib/transaction_client/transaction_ypath_proxy.h>
 
-#include <ytlib/meta_state/composite_meta_state.h>
-#include <ytlib/meta_state/persistent_state_manager.h>
+#include <ytlib/election/cell_manager.h>
 
-#include <core/logging/log.h>
+#include <server/election/election_manager.h>
+
+#include <server/hydra/composite_automaton.h>
+#include <server/hydra/changelog.h>
+#include <server/hydra/file_changelog.h>
+#include <server/hydra/snapshot.h>
+#include <server/hydra/file_snapshot.h>
+#include <server/hydra/distributed_hydra_manager.h>
 
 #include <server/cell_master/bootstrap.h>
 
@@ -34,8 +45,10 @@
 namespace NYT {
 namespace NCellMaster {
 
+using namespace NConcurrency;
 using namespace NRpc;
-using namespace NMetaState;
+using namespace NElection;
+using namespace NHydra;
 using namespace NYTree;
 using namespace NYPath;
 using namespace NCypressServer;
@@ -46,6 +59,7 @@ using namespace NObjectServer;
 using namespace NSecurityServer;
 using namespace NTransactionClient::NProto;
 using namespace NConcurrency;
+using NHydra::EPeerState;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -63,73 +77,70 @@ public:
         : Config(config)
         , Bootstrap(bootstrap)
     {
-        YCHECK(config);
-        YCHECK(bootstrap);
+        YCHECK(Config);
+        YCHECK(Bootstrap);
 
-        StateQueue = New<TFairShareActionQueue>("MetaState", EStateThreadQueue::GetDomainNames());
+        AutomatonQueue = New<TFairShareActionQueue>("Automaton", EAutomatonThreadQueue::GetDomainNames());
+        Automaton = New<TMasterAutomaton>(Bootstrap);
 
-        MetaState = New<TCompositeMetaState>();
-
-        MetaStateManager = CreatePersistentStateManager(
-            Config->MetaState,
+        HydraManager = CreateDistributedHydraManager(
+            Config->Hydra,
             Bootstrap->GetControlInvoker(),
-            StateQueue->GetInvoker(EStateThreadQueue::Default),
-            MetaState,
-            Bootstrap->GetRpcServer());
+            AutomatonQueue->GetInvoker(EAutomatonThreadQueue::Default),
+            Automaton,
+            Bootstrap->GetRpcServer(),
+            Bootstrap->GetCellManager(),
+            Bootstrap->GetChangelogStore(),
+            Bootstrap->GetSnapshotStore());
 
-        MetaStateManager->SubscribeStartLeading(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
-        MetaStateManager->SubscribeStartFollowing(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
+        HydraManager->SubscribeStartLeading(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
+        HydraManager->SubscribeStartFollowing(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
 
-        MetaStateManager->SubscribeStopLeading(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
-        MetaStateManager->SubscribeStopFollowing(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
+        HydraManager->SubscribeStopLeading(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
+        HydraManager->SubscribeStopFollowing(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
 
-        MetaStateManager->SubscribeActiveQuorumEstablished(BIND(&TImpl::OnActiveQuorumEstablished, MakeWeak(this)));
+        HydraManager->SubscribeLeaderActive(BIND(&TImpl::OnLeaderActive, MakeWeak(this)));
 
-        for (int index = 0; index < EStateThreadQueue::GetDomainSize(); ++index) {
-            GuardedInvokers.push_back(MetaStateManager->CreateGuardedStateInvoker(StateQueue->GetInvoker(index)));
+        for (int index = 0; index < EAutomatonThreadQueue::GetDomainSize(); ++index) {
+            auto unguardedInvoker = AutomatonQueue->GetInvoker(index);
+            GuardedInvokers.push_back(HydraManager->CreateGuardedAutomatonInvoker(unguardedInvoker));
         }
+
     }
 
     void Start()
     {
-        MetaStateManager->Start();
+        HydraManager->Start();
     }
 
-    TCompositeMetaStatePtr GetState() const
+    TMasterAutomatonPtr GetAutomaton() const
     {
-        return MetaState;
+        return Automaton;
     }
 
-    IMetaStateManagerPtr GetManager() const
+    IHydraManagerPtr GetManager() const
     {
-        return MetaStateManager;
+        return HydraManager;
     }
 
-    IInvokerPtr GetInvoker(EStateThreadQueue queue = EStateThreadQueue::Default) const
+    IInvokerPtr GetInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const
     {
-        return StateQueue->GetInvoker(queue);
+        return AutomatonQueue->GetInvoker(queue);
     }
 
-    IInvokerPtr GetEpochInvoker(EStateThreadQueue queue = EStateThreadQueue::Default) const
+    IInvokerPtr GetEpochInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const
     {
         return EpochInvokers[queue];
     }
 
-    IInvokerPtr GetGuardedInvoker(EStateThreadQueue queue = EStateThreadQueue::Default) const
+    IInvokerPtr GetGuardedInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const
     {
         return GuardedInvokers[queue];
     }
 
-    bool IsActiveLeader()
-    {
-        return
-            MetaStateManager->GetStateStatus() == EPeerStatus::Leading &&
-            MetaStateManager->HasActiveQuorum();
-    }
-
     void ValidateActiveLeader()
     {
-        if (!IsActiveLeader()) {
+        if (!HydraManager->IsActiveLeader()) {
             throw TNotALeaderException()
                 <<= ERROR_SOURCE_LOCATION()
                 >>= TError(NRpc::EErrorCode::Unavailable, "Not an active leader");
@@ -155,9 +166,9 @@ private:
     TCellMasterConfigPtr Config;
     TBootstrap* Bootstrap;
 
-    TFairShareActionQueuePtr StateQueue;
-    TCompositeMetaStatePtr MetaState;
-    IMetaStateManagerPtr MetaStateManager;
+    TFairShareActionQueuePtr AutomatonQueue;
+    TMasterAutomatonPtr Automaton;
+    IHydraManagerPtr HydraManager;
     std::vector<IInvokerPtr> GuardedInvokers;
     std::vector<IInvokerPtr> EpochInvokers;
 
@@ -165,9 +176,9 @@ private:
     {
         YCHECK(EpochInvokers.empty());
 
-        auto cancelableContext = MetaStateManager->GetEpochContext()->CancelableContext;
-        for (int index = 0; index < EStateThreadQueue::GetDomainSize(); ++index) {
-            EpochInvokers.push_back(cancelableContext->CreateInvoker(StateQueue->GetInvoker(index)));
+        auto cancelableContext = HydraManager->GetEpochContext()->CancelableContext;
+        for (int index = 0; index < EAutomatonThreadQueue::GetDomainSize(); ++index) {
+            EpochInvokers.push_back(cancelableContext->CreateInvoker(AutomatonQueue->GetInvoker(index)));
         }
     }
 
@@ -177,7 +188,7 @@ private:
     }
 
 
-    void OnActiveQuorumEstablished()
+    void OnLeaderActive()
     {
         // NB: Initialization cannot be carried out here since not all subsystems
         // are fully initialized yet.
@@ -204,9 +215,6 @@ private:
 
             auto rootService = objectManager->GetRootService();
 
-            auto cellId = objectManager->GetCellId();
-            auto cellGuid = TGuid::Create();
-
             // Abort all existing transactions to avoid collisions with previous (failed)
             // initialization attempts.
             AbortTransactions();
@@ -221,8 +229,8 @@ private:
                 EObjectType::MapNode,
                 BuildYsonStringFluently()
                     .BeginMap()
-                        .Item("cell_id").Value(cellId)
-                        .Item("cell_guid").Value(cellGuid)
+                        .Item("cell_id").Value(Bootstrap->GetCellId())
+                        .Item("cell_guid").Value(Bootstrap->GetCellGuid())
                     .EndMap());
 
             CreateNode(
@@ -331,7 +339,7 @@ private:
                         .Item("opaque").Value(true)
                     .EndMap());
 
-            FOREACH (const auto& address, Bootstrap->GetConfig()->MetaState->Cell->Addresses) {
+            FOREACH (const auto& address, Config->Masters->Addresses) {
                 auto addressPath = "/" + ToYPathLiteral(address);
 
                 CreateNode(
@@ -437,6 +445,18 @@ private:
 
             CreateNode(
                 rootService,
+                "//sys/tablet_cells",
+                transactionId,
+                EObjectType::TabletCellMap);
+
+            CreateNode(
+                rootService,
+                "//sys/tablets",
+                transactionId,
+                EObjectType::TabletMap);
+
+            CreateNode(
+                rootService,
                 "//tmp",
                 transactionId,
                 EObjectType::MapNode,
@@ -473,13 +493,14 @@ private:
     void AbortTransactions()
     {
         auto transactionManager = Bootstrap->GetTransactionManager();
-        auto transactionIds = ToObjectIds(transactionManager->GetTransactions());
+        auto transactionIds = ToObjectIds(transactionManager->Transactions().GetValues());
 
         auto objectManager = Bootstrap->GetObjectManager();
         auto service = objectManager->GetRootService();
         FOREACH (const auto& transactionId, transactionIds) {
             auto req = TTransactionYPathProxy::Abort(FromObjectId(transactionId));
-            SyncExecuteVerb(service, req);
+            auto rsp = WaitFor(ExecuteVerb(service, req));
+            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
         }
     }
 
@@ -495,7 +516,9 @@ private:
         attributes->Set("title", "World initialization");
         ToProto(req->mutable_object_attributes(), *attributes);
 
-        auto rsp = SyncExecuteVerb(service, req);
+        auto rsp = WaitFor(ExecuteVerb(service, req));
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+
         return FromProto<TTransactionId>(rsp->object_ids(0));
     }
 
@@ -503,7 +526,8 @@ private:
     {
         auto service = Bootstrap->GetObjectManager()->GetRootService();
         auto req = TTransactionYPathProxy::Commit(FromObjectId(transactionId));
-        SyncExecuteVerb(service, req);
+        auto rsp = WaitFor(ExecuteVerb(service, req));
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
     }
 
     static void CreateNode(
@@ -517,7 +541,8 @@ private:
         SetTransactionId(req, transactionId);
         req->set_type(type);
         ToProto(req->mutable_node_attributes(), *ConvertToAttributes(attributes));
-        SyncExecuteVerb(service, req);
+        auto rsp = WaitFor(ExecuteVerb(service, req));
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
     }
 
 };
@@ -533,32 +558,27 @@ TMetaStateFacade::TMetaStateFacade(
 TMetaStateFacade::~TMetaStateFacade()
 { }
 
-TCompositeMetaStatePtr TMetaStateFacade::GetState() const
+TMasterAutomatonPtr TMetaStateFacade::GetAutomaton() const
 {
-    return Impl->GetState();
+    return Impl->GetAutomaton();
 }
 
-IMetaStateManagerPtr TMetaStateFacade::GetManager() const
+IHydraManagerPtr TMetaStateFacade::GetManager() const
 {
     return Impl->GetManager();
 }
 
-bool TMetaStateFacade::IsInitialized() const
-{
-    return Impl->IsInitialized();
-}
-
-IInvokerPtr TMetaStateFacade::GetInvoker(EStateThreadQueue queue) const
+IInvokerPtr TMetaStateFacade::GetInvoker(EAutomatonThreadQueue queue) const
 {
     return Impl->GetInvoker(queue);
 }
 
-IInvokerPtr TMetaStateFacade::GetEpochInvoker(EStateThreadQueue queue) const
+IInvokerPtr TMetaStateFacade::GetEpochInvoker(EAutomatonThreadQueue queue) const
 {
     return Impl->GetEpochInvoker(queue);
 }
 
-IInvokerPtr TMetaStateFacade::GetGuardedInvoker(EStateThreadQueue queue) const
+IInvokerPtr TMetaStateFacade::GetGuardedInvoker(EAutomatonThreadQueue queue) const
 {
     return Impl->GetGuardedInvoker(queue);
 }
@@ -568,16 +588,11 @@ void TMetaStateFacade::Start()
     Impl->Start();
 }
 
-TMutationPtr TMetaStateFacade::CreateMutation(EStateThreadQueue queue)
+TMutationPtr TMetaStateFacade::CreateMutation(EAutomatonThreadQueue queue)
 {
     return New<TMutation>(
         GetManager(),
         GetGuardedInvoker(queue));
-}
-
-bool TMetaStateFacade::IsActiveLeader()
-{
-    return Impl->IsActiveLeader();
 }
 
 void TMetaStateFacade::ValidateActiveLeader()

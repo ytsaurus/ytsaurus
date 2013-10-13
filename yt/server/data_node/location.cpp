@@ -9,9 +9,11 @@
 
 #include <core/misc/fs.h>
 
+#include <core/ypath/token.h>
+
 #include <ytlib/chunk_client/format.h>
 
-#include <core/ypath/token.h>
+#include <ytlib/election/public.h>
 
 #include <server/cell_node/bootstrap.h>
 #include <server/cell_node/config.h>
@@ -26,11 +28,11 @@ using namespace NChunkClient;
 using namespace NYPath;
 using namespace NCellNode;
 using namespace NConcurrency;
+using namespace NElection;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static auto& Logger = DataNodeLogger;
-
 static const int Permissions = 0751;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -247,25 +249,6 @@ void TLocation::DoDisable()
     Disabled_.Fire();
 }
 
-const TGuid& TLocation::GetCellGuid()
-{
-    return CellGuid;
-}
-
-void TLocation::SetCellGuid(const TGuid& newCellGuid)
-{
-    CellGuid = newCellGuid;
-
-    {
-        auto cellGuidPath = NFS::CombinePaths(GetPath(), CellGuidFileName);
-        TFile file(cellGuidPath, CreateAlways | WrOnly | Seq | CloseOnExec);
-        TFileOutput cellGuidFile(file);
-        cellGuidFile.Write(ToString(CellGuid));
-    }
-
-    LOG_INFO("Cell guid updated: %s", ~ToString(CellGuid));
-}
-
 std::vector<TChunkDescriptor> TLocation::Initialize()
 {
     auto path = GetPath();
@@ -349,13 +332,22 @@ std::vector<TChunkDescriptor> TLocation::Initialize()
     if (isexist(~cellGuidPath)) {
         TFileInput cellGuidFile(cellGuidPath);
         auto cellGuidString = cellGuidFile.ReadAll();
-        if (TGuid::FromString(cellGuidString, &CellGuid)) {
-            LOG_INFO("Cell guid: %s", ~cellGuidString);
-        } else {
-            THROW_ERROR_EXCEPTION("Failed to parse cell guid: %s", ~cellGuidString);
+        TCellGuid cellGuid;
+        if (!TGuid::FromString(cellGuidString, &cellGuid)) {
+            THROW_ERROR_EXCEPTION("Failed to parse cell GUID %s",
+                ~cellGuidString.Quote());
+        }
+        if (cellGuid != Bootstrap->GetCellGuid()) {
+            THROW_ERROR_EXCEPTION("Wrong cell GUID found at location %s: expected %s, found %s",
+                ~Id,
+                ~ToString(Bootstrap->GetCellGuid()),
+                ~ToString(cellGuid));
         }
     } else {
-        LOG_INFO("Cell guid not found");
+        LOG_INFO("Cell GUID file is not found, creating");
+        TFile file(cellGuidPath, CreateAlways | WrOnly | Seq | CloseOnExec);
+        TFileOutput cellGuidFile(file);
+        cellGuidFile.Write(ToString(Bootstrap->GetCellGuid()));
     }
 
     // Force subdirectories.

@@ -10,7 +10,6 @@
 #include "chunk_tree_balancer.h"
 #include "chunk_proxy.h"
 #include "chunk_list_proxy.h"
-#include "node_directory_builder.h"
 #include "private.h"
 #include "helpers.h"
 
@@ -28,9 +27,8 @@
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 #include <ytlib/table_client/table_ypath.pb.h>
 
-#include <ytlib/meta_state/meta_state_manager.h>
-#include <ytlib/meta_state/composite_meta_state.h>
-#include <ytlib/meta_state/map.h>
+#include <server/hydra/composite_automaton.h>
+#include <server/hydra/entity_map.h>
 
 #include <core/logging/log.h>
 
@@ -51,6 +49,8 @@
 
 #include <server/object_server/type_handler_detail.h>
 
+#include <server/node_tracker_server/node_directory_builder.h>
+
 #include <server/security_server/security_manager.h>
 #include <server/security_server/account.h>
 #include <server/security_server/group.h>
@@ -59,7 +59,7 @@ namespace NYT {
 namespace NChunkServer {
 
 using namespace NRpc;
-using namespace NMetaState;
+using namespace NHydra;
 using namespace NNodeTrackerServer;
 using namespace NTransactionServer;
 using namespace NTransactionClient;
@@ -206,17 +206,14 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkManager::TImpl
-    : public TMetaStatePart
+    : public TMasterAutomatonPart
 {
 public:
     TImpl(
         TChunkManagerConfigPtr config,
         TBootstrap* bootstrap)
-        : TMetaStatePart(
-            bootstrap->GetMetaStateFacade()->GetManager(),
-            bootstrap->GetMetaStateFacade()->GetState())
+        : TMasterAutomatonPart(bootstrap)
         , Config(config)
-        , Bootstrap(bootstrap)
         , ChunkTreeBalancer(Bootstrap)
         , TotalReplicaCount(0)
         , NeedToRecomputeStatistics(false)
@@ -226,43 +223,23 @@ public:
         , AddChunkReplicaCounter("/add_chunk_replica_rate")
         , RemoveChunkReplicaCounter("/remove_chunk_replica_rate")
     {
-        YCHECK(config);
-        YCHECK(bootstrap);
-
         RegisterMethod(BIND(&TImpl::UpdateChunkProperties, Unretained(this)));
 
-        {
-            NCellMaster::TLoadContext context;
-            context.SetBootstrap(Bootstrap);
+        RegisterLoader(
+            "ChunkManager.Keys",
+            BIND(&TImpl::LoadKeys, Unretained(this)));
+        RegisterLoader(
+            "ChunkManager.Values",
+            BIND(&TImpl::LoadValues, Unretained(this)));
 
-            RegisterLoader(
-                "ChunkManager.Keys",
-                SnapshotVersionValidator(),
-                BIND(&TImpl::LoadKeys, MakeStrong(this)),
-                context);
-            RegisterLoader(
-                "ChunkManager.Values",
-                SnapshotVersionValidator(),
-                BIND(&TImpl::LoadValues, MakeStrong(this)),
-                context);
-        }
-
-        {
-            NCellMaster::TSaveContext context;
-
-            RegisterSaver(
-                ESerializationPriority::Keys,
-                "ChunkManager.Keys",
-                GetCurrentSnapshotVersion(),
-                BIND(&TImpl::SaveKeys, MakeStrong(this)),
-                context);
-            RegisterSaver(
-                ESerializationPriority::Values,
-                "ChunkManager.Values",
-                GetCurrentSnapshotVersion(),
-                BIND(&TImpl::SaveValues, MakeStrong(this)),
-                context);
-        }
+        RegisterSaver(
+            ESerializationPriority::Keys,
+            "ChunkManager.Keys",
+            BIND(&TImpl::SaveKeys, Unretained(this)));
+        RegisterSaver(
+            ESerializationPriority::Values,
+            "ChunkManager.Values",
+            BIND(&TImpl::SaveValues, Unretained(this)));
     }
 
     void Initialize()
@@ -296,8 +273,8 @@ public:
     }
 
 
-    DECLARE_METAMAP_ACCESSORS(Chunk, TChunk, TChunkId);
-    DECLARE_METAMAP_ACCESSORS(ChunkList, TChunkList, TChunkListId);
+    DECLARE_ENTITY_MAP_ACCESSORS(Chunk, TChunk, TChunkId);
+    DECLARE_ENTITY_MAP_ACCESSORS(ChunkList, TChunkList, TChunkListId);
 
     TNodeList AllocateWriteTargets(
         int replicaCount,
@@ -637,7 +614,6 @@ private:
     friend class TChunkListTypeHandler;
 
     TChunkManagerConfigPtr Config;
-    TBootstrap* Bootstrap;
 
     TChunkTreeBalancer ChunkTreeBalancer;
 
@@ -656,8 +632,8 @@ private:
     TChunkPlacementPtr ChunkPlacement;
     TChunkReplicatorPtr ChunkReplicator;
 
-    TMetaStateMap<TChunkId, TChunk> ChunkMap;
-    TMetaStateMap<TChunkListId, TChunkList> ChunkListMap;
+    NHydra::TEntityMap<TChunkId, TChunk> ChunkMap;
+    NHydra::TEntityMap<TChunkListId, TChunkList> ChunkListMap;
 
     void DestroyChunk(TChunk* chunk)
     {
@@ -796,7 +772,10 @@ private:
         }
     }
 
-    void OnIncrementalHeartbeat(TNode* node, const NNodeTrackerServer::NProto::TMetaReqIncrementalHeartbeat& request)
+    void OnIncrementalHeartbeat(
+        TNode* node,
+        const TReqIncrementalHeartbeat& request,
+        TRspIncrementalHeartbeat* /*response*/)
     {
         FOREACH (const auto& chunkInfo, request.added_chunks()) {
             ProcessAddedChunk(node, chunkInfo, true);
@@ -863,11 +842,6 @@ private:
     }
 
 
-    virtual void OnBeforeLoaded() override
-    {
-        DoClear();
-    }
-
     void LoadKeys(NCellMaster::TLoadContext& context)
     {
         ChunkMap.LoadKeys(context);
@@ -899,28 +873,23 @@ private:
         ChunkListMap.LoadValues(context);
     }
 
-    virtual void OnAfterLoaded() override
+    virtual void OnAfterSnapshotLoaded() override
     {
         // Compute chunk replica count.
         auto nodeTracker = Bootstrap->GetNodeTracker();
         TotalReplicaCount = 0;
-        FOREACH (auto* node, nodeTracker->GetNodes()) {
+        FOREACH (auto* node, nodeTracker->Nodes().GetValues()) {
             TotalReplicaCount += node->StoredReplicas().size();
             TotalReplicaCount += node->CachedReplicas().size();
         }
     }
 
 
-    void DoClear()
+    virtual void Clear() override
     {
         ChunkMap.Clear();
         ChunkListMap.Clear();
         TotalReplicaCount = 0;
-    }
-
-    virtual void Clear() override
-    {
-        DoClear();
     }
 
     void ScheduleRecomputeStatistics()
@@ -1289,8 +1258,8 @@ private:
 
 };
 
-DEFINE_METAMAP_ACCESSORS(TChunkManager::TImpl, Chunk, TChunk, TChunkId, ChunkMap)
-DEFINE_METAMAP_ACCESSORS(TChunkManager::TImpl, ChunkList, TChunkList, TChunkListId, ChunkListMap)
+DEFINE_ENTITY_MAP_ACCESSORS(TChunkManager::TImpl, Chunk, TChunk, TChunkId, ChunkMap)
+DEFINE_ENTITY_MAP_ACCESSORS(TChunkManager::TImpl, ChunkList, TChunkList, TChunkListId, ChunkListMap)
 
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, LostChunks, *ChunkReplicator);
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, LostVitalChunks, *ChunkReplicator);
@@ -1608,8 +1577,8 @@ EChunkStatus TChunkManager::ComputeChunkStatus(TChunk* chunk)
     return Impl->ComputeChunkStatus(chunk);
 }
 
-DELEGATE_METAMAP_ACCESSORS(TChunkManager, Chunk, TChunk, TChunkId, *Impl)
-DELEGATE_METAMAP_ACCESSORS(TChunkManager, ChunkList, TChunkList, TChunkListId, *Impl)
+DELEGATE_ENTITY_MAP_ACCESSORS(TChunkManager, Chunk, TChunk, TChunkId, *Impl)
+DELEGATE_ENTITY_MAP_ACCESSORS(TChunkManager, ChunkList, TChunkList, TChunkListId, *Impl)
 
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, LostChunks, *Impl);
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, LostVitalChunks, *Impl);

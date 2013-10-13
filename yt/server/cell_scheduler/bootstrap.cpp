@@ -14,9 +14,9 @@
 #include <core/rpc/server.h>
 #include <core/rpc/retrying_channel.h>
 
-#include <ytlib/meta_state/master_channel.h>
+#include <ytlib/hydra/peer_channel.h>
 
-#include <ytlib/meta_state/config.h>
+#include <ytlib/hydra/config.h>
 
 #include <ytlib/orchid/orchid_service.h>
 
@@ -48,6 +48,7 @@ namespace NCellScheduler {
 
 using namespace NBus;
 using namespace NElection;
+using namespace NHydra;
 using namespace NMonitoring;
 using namespace NObjectClient;
 using namespace NOrchid;
@@ -60,7 +61,7 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("SchedulerBootstrap");
+static NLog::TLogger Logger("Bootstrap");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -84,7 +85,7 @@ void TBootstrap::Run()
         ~LocalAddress,
         ~JoinToString(Config->Masters->Addresses));
 
-    MasterChannel = CreateLeaderChannel(Config->Masters);
+    MasterChannel = CreatePeerChannel(Config->Masters, EPeerRole::Leader);
 
     ControlQueue = New<TFairShareActionQueue>("Control", EControlQueue::GetDomainNames());
 
@@ -101,7 +102,7 @@ void TBootstrap::Run()
     auto monitoringManager = New<TMonitoringManager>();
     monitoringManager->Register(
         "/ref_counted",
-        BIND(&TRefCountedTracker::GetMonitoringInfo, TRefCountedTracker::Get()));
+        TRefCountedTracker::Get()->GetMonitoringProducer());
     monitoringManager->Start();
 
     auto orchidFactory = NYTree::GetEphemeralNodeFactory();

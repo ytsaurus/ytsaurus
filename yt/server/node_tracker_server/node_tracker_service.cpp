@@ -5,7 +5,7 @@
 #include "private.h"
 #include "config.h"
 
-#include <ytlib/meta_state/rpc_helpers.h>
+#include <ytlib/hydra/rpc_helpers.h>
 
 #include <ytlib/node_tracker_client/node_tracker_service_proxy.h>
 
@@ -19,7 +19,7 @@
 namespace NYT {
 namespace NNodeTrackerServer {
 
-using namespace NMetaState;
+using namespace NHydra;
 using namespace NCellMaster;
 using namespace NNodeTrackerClient;
 using namespace NChunkServer;
@@ -32,7 +32,7 @@ using NNodeTrackerClient::NProto::TChunkRemoveInfo;
 TNodeTrackerService::TNodeTrackerService(
     TNodeTrackerConfigPtr config,
     TBootstrap* bootstrap)
-    : TMetaStateServiceBase(
+    : THydraServiceBase(
         bootstrap,
         TNodeTrackerServiceProxy::GetServiceName(),
         NodeTrackerServerLogger.GetCategory())
@@ -42,7 +42,7 @@ TNodeTrackerService::TNodeTrackerService(
     FullHeartbeatMethodInfo = RegisterMethod(
         RPC_SERVICE_METHOD_DESC(FullHeartbeat)
             .SetRequestHeavy(true)
-            .SetInvoker(bootstrap->GetMetaStateFacade()->GetGuardedInvoker(EStateThreadQueue::Heartbeat)));
+            .SetInvoker(bootstrap->GetMetaStateFacade()->GetGuardedInvoker(EAutomatonThreadQueue::Heartbeat)));
     RegisterMethod(
         RPC_SERVICE_METHOD_DESC(IncrementalHeartbeat)
             .SetRequestHeavy(true));
@@ -54,9 +54,6 @@ DEFINE_RPC_SERVICE_METHOD(TNodeTrackerService, RegisterNode)
 
     ValidateActiveLeader();
 
-    auto nodeTracker = Bootstrap->GetNodeTracker();
-    auto objectManager = Bootstrap->GetObjectManager();
-
     auto descriptor = FromProto<TNodeDescriptor>(request->node_descriptor());
     auto requestCellGuid = FromProto<TGuid>(request->cell_guid());
     const auto& statistics = request->statistics();
@@ -67,16 +64,17 @@ DEFINE_RPC_SERVICE_METHOD(TNodeTrackerService, RegisterNode)
         ~ToString(requestCellGuid),
         ~ToString(statistics));
 
-    auto expectedCellGuid = objectManager->GetCellGuid();
+    auto expectedCellGuid = Bootstrap->GetCellGuid();
     if (!requestCellGuid.IsEmpty() && requestCellGuid != expectedCellGuid) {
         THROW_ERROR_EXCEPTION(
             NRpc::EErrorCode::PoisonPill,
-            "Wrong cell guid reported by node %s: expected %s, received %s",
+            "Wrong cell GUID reported by node %s: expected %s, received %s",
             ~address,
             ~ToString(expectedCellGuid),
             ~ToString(requestCellGuid));
     }
 
+    auto nodeTracker = Bootstrap->GetNodeTracker();
     int fullHeartbeatQueueSize = FullHeartbeatMethodInfo->QueueSizeCounter.Current;
     int registeredNodeCount = nodeTracker->GetRegisteredNodeCount();
     if (fullHeartbeatQueueSize + registeredNodeCount > Config->FullHeartbeatQueueSizeLimit) {
@@ -169,7 +167,7 @@ DEFINE_RPC_SERVICE_METHOD(TNodeTrackerService, IncrementalHeartbeat)
     heartbeatReq.mutable_removed_chunks()->MergeFrom(request->removed_chunks());
 
     nodeTracker
-        ->CreateIncrementalHeartbeatMutation(heartbeatReq)
+        ->CreateIncrementalHeartbeatMutation(context)
         ->OnSuccess(CreateRpcSuccessHandler(context))
         ->OnError(CreateRpcErrorHandler(context))
         ->Commit();

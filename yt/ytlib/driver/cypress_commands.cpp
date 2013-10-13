@@ -13,7 +13,7 @@
 #include <core/ytree/ypath_proxy.h>
 #include <core/ytree/attribute_helpers.h>
 
-#include <ytlib/meta_state/rpc_helpers.h>
+#include <ytlib/hydra/rpc_helpers.h>
 
 namespace NYT {
 namespace NDriver {

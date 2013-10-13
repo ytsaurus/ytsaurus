@@ -30,8 +30,9 @@ public:
     virtual NRpc::TRequestId GetRequestId() const override;
 
     virtual const Stroka& GetVerb() const override;
+    virtual const Stroka& GetService() const override;
 
-    virtual const Stroka& GetPath() const override;
+    const Stroka& GetPath() const;
     void SetPath(const Stroka& path);
 
     virtual TInstant GetStartTime() const override;

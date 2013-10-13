@@ -203,7 +203,7 @@ private:
 
             auto requestId = request->GetRequestId();
 
-            const auto& descriptor = GetMethodDescriptor(request->GetPath(), request->GetVerb());
+            const auto& descriptor = GetMethodDescriptor(request->GetService(), request->GetVerb());
 
             TActiveRequest activeRequest;
             activeRequest.ClientRequest = request;
@@ -223,7 +223,7 @@ private:
 
                     LOG_DEBUG("Request via terminated channel is dropped (RequestId: %s, Path: %s, Verb: %s)",
                         ~ToString(requestId),
-                        ~request->GetPath(),
+                        ~request->GetService(),
                         ~request->GetVerb());
 
                     responseHandler->OnError(error);
@@ -338,7 +338,7 @@ private:
 
             LOG_DEBUG("Request sent (RequestId: %s, Path: %s, Verb: %s, Timeout: %s)",
                 ~ToString(requestId),
-                ~request->GetPath(),
+                ~request->GetService(),
                 ~request->GetVerb(),
                 ~ToString(timeout));
         }

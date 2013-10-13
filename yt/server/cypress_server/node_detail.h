@@ -12,8 +12,6 @@
 #include <core/ytree/tree_builder.h>
 #include <core/ytree/ypath.pb.h>
 
-#include <ytlib/meta_state/meta_state_manager.h>
-
 #include <server/object_server/object_detail.h>
 #include <server/object_server/attribute_set.h>
 
@@ -22,7 +20,6 @@
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/serialization_context.h>
-#include <server/cell_master/meta_state_facade.h>
 
 namespace NYT {
 namespace NCypressServer {

@@ -28,6 +28,7 @@ set( HDRS
   ${BASE}/throughput_throttler.h
   ${BASE}/thread_affinity.h
   ${BASE}/event_count.h
+  ${BASE}/rw_spinlock.h
   ${BASE}/fiber-inl.h
   ${BASE}/fiber.h
   ${BASE}/public.h

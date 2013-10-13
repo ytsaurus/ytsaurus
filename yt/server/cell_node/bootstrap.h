@@ -26,6 +26,10 @@
 
 #include <server/job_proxy/public.h>
 
+#include <server/tablet_node/public.h>
+
+#include <server/hive/public.h>
+
 namespace NYT {
 namespace NCellNode {
 
@@ -43,9 +47,10 @@ public:
     IInvokerPtr GetControlInvoker() const;
     NRpc::IChannelPtr GetMasterChannel() const;
     NRpc::IChannelPtr GetSchedulerChannel() const;
-    NRpc::IServerPtr GetRpcServer() const;
+    NRpc::IRpcServerPtr GetRpcServer() const;
     NYTree::IMapNodePtr GetOrchidRoot() const;
     NJobAgent::TJobTrackerPtr GetJobController() const;
+    NTabletNode::TTabletCellControllerPtr GetTabletCellController() const;
     NExecAgent::TSlotManagerPtr GetSlotManager() const;
     NExecAgent::TEnvironmentManagerPtr GetEnvironmentManager() const;
     NJobProxy::TJobProxyConfigPtr GetJobProxyConfig() const;
@@ -58,6 +63,7 @@ public:
     NDataNode::TPeerBlockTablePtr GetPeerBlockTable() const;
     NDataNode::TReaderCachePtr GetReaderCache() const;
     NDataNode::TMasterConnectorPtr GetMasterConnector() const;
+    NHive::TCellRegistryPtr GetCellRegistry() const;
 
     NConcurrency::IThroughputThrottlerPtr GetReplicationInThrottler() const;
     NConcurrency::IThroughputThrottlerPtr GetReplicationOutThrottler() const;
@@ -71,7 +77,6 @@ public:
     const NNodeTrackerClient::TNodeDescriptor& GetLocalDescriptor() const;
 
     const TGuid& GetCellGuid() const;
-    void UpdateCellGuid(const TGuid& cellGuid);
 
     void Run();
 
@@ -83,7 +88,7 @@ private:
     NBus::IBusServerPtr BusServer;
     NRpc::IChannelPtr MasterChannel;
     NRpc::IChannelPtr SchedulerChannel;
-    NRpc::IServerPtr RpcServer;
+    NRpc::IRpcServerPtr RpcServer;
     NYTree::IMapNodePtr OrchidRoot;
     NJobAgent::TJobTrackerPtr JobController;
     NExecAgent::TSlotManagerPtr SlotManager;
@@ -100,10 +105,13 @@ private:
     NDataNode::TPeerBlockUpdaterPtr PeerBlockUpdater;
     NDataNode::TReaderCachePtr ReaderCache;
     NDataNode::TMasterConnectorPtr MasterConnector;
+    NHive::TCellRegistryPtr CellRegistry;
+
     NConcurrency::IThroughputThrottlerPtr ReplicationInThrottler;
     NConcurrency::IThroughputThrottlerPtr ReplicationOutThrottler;
     NConcurrency::IThroughputThrottlerPtr RepairInThrottler;
     NConcurrency::IThroughputThrottlerPtr RepairOutThrottler;
+    NTabletNode::TTabletCellControllerPtr TabletCellController;
 
     NNodeTrackerClient::TNodeDescriptor LocalDescriptor;
     TGuid CellGuid;

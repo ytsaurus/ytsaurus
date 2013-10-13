@@ -487,12 +487,12 @@ void TNontemplateCypressNodeProxyBase::SetParent(ICompositeNodePtr parent)
     impl->SetParent(parent ? ToProxy(INodePtr(parent))->GetTrunkNode() : nullptr);
 }
 
-bool TNontemplateCypressNodeProxyBase::IsWriteRequest(NRpc::IServiceContextPtr context) const
+bool TNontemplateCypressNodeProxyBase::IsMutatingRequest(NRpc::IServiceContextPtr context) const
 {
     DECLARE_YPATH_SERVICE_WRITE_METHOD(Lock);
     DECLARE_YPATH_SERVICE_WRITE_METHOD(Create);
     DECLARE_YPATH_SERVICE_WRITE_METHOD(Copy);
-    return TNodeBase::IsWriteRequest(context);
+    return TNodeBase::IsMutatingRequest(context);
 }
 
 const IAttributeDictionary& TNontemplateCypressNodeProxyBase::Attributes() const
@@ -932,7 +932,7 @@ DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
 DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
 {
     auto type = EObjectType(request->type());
-    auto path = context->GetPath();
+    const auto& path = context->GetService();
 
     context->SetRequestInfo("Type: %s, IgnoreExisting: %s, Recursive: %s",
         ~type.ToString(),
@@ -983,7 +983,7 @@ DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
 {
     auto sourcePath = request->source_path();
     bool preserveAccount = request->preserve_account();
-    auto targetPath = context->GetPath();
+    const auto& targetPath = context->GetService();
 
     context->SetRequestInfo("SourcePath: %s, PreserveAccount: %s",
         ~sourcePath,
@@ -1762,7 +1762,7 @@ void DelegateInvocation(
     typedef TTypedYPathRequest<TRequestMessage, TResponseMessage>  TClientRequest;
     typedef TTypedYPathResponse<TRequestMessage, TResponseMessage> TClientResponse;
 
-    auto clientRequest = New<TClientRequest>(context->GetVerb(), context->GetPath());
+    auto clientRequest = New<TClientRequest>(context->GetVerb(), context->GetService());
     clientRequest->MergeFrom(*serverRequest);
 
     auto clientResponse = ExecuteVerb(service, clientRequest).Get();

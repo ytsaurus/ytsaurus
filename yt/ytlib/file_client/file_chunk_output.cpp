@@ -23,7 +23,7 @@
 #include <ytlib/object_client/object_service_proxy.h>
 #include <ytlib/object_client/master_ypath_proxy.h>
 
-#include <ytlib/meta_state/rpc_helpers.h>
+#include <ytlib/hydra/rpc_helpers.h>
 
 namespace NYT {
 namespace NFileClient {
@@ -70,7 +70,7 @@ void TFileChunkOutput::Open()
         ToProto(req->mutable_transaction_id(), TransactionId);
         req->set_type(EObjectType::Chunk);
         req->set_account(Options->Account);
-        NMetaState::GenerateMutationId(req);
+        NHydra::GenerateMutationId(req);
 
         auto* reqExt = req->MutableExtension(TReqCreateChunkExt::create_chunk_ext);
         reqExt->set_preferred_host_name(TAddressResolver::Get()->GetLocalHostName());
@@ -155,7 +155,7 @@ void TFileChunkOutput::DoFinish()
             req->add_replicas(ToProto<ui32>(Replicas[index]));
         }
         *req->mutable_chunk_meta() = Writer->GetMasterMeta();
-        NMetaState::GenerateMutationId(req);
+        NHydra::GenerateMutationId(req);
 
         auto rsp = proxy.Execute(req).Get();
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error confirming chunk");

@@ -19,6 +19,9 @@
 #include <server/chunk_server/chunk_list.h>
 #include <server/chunk_server/chunk_owner_node_proxy.h>
 
+#include <server/tablet_server/tablet_manager.h>
+#include <server/tablet_server/tablet.h>
+
 #include <server/cell_master/bootstrap.h>
 
 namespace NYT {
@@ -48,7 +51,7 @@ public:
         TTransaction* transaction,
         TTableNode* trunkNode);
 
-    virtual bool IsWriteRequest(IServiceContextPtr context) const override;
+    virtual bool IsMutatingRequest(IServiceContextPtr context) const override;
 
 private:
     typedef TCypressNodeProxyBase<TChunkOwnerNodeProxy, IEntityNode, TTableNode> TBase;
@@ -69,6 +72,8 @@ private:
     virtual bool DoInvoke(IServiceContextPtr context) override;
 
     DECLARE_RPC_SERVICE_METHOD(NTableClient::NProto, SetSorted);
+    DECLARE_RPC_SERVICE_METHOD(NTableClient::NProto, Mount);
+    DECLARE_RPC_SERVICE_METHOD(NTableClient::NProto, Unmount);
 
 };
 
@@ -89,13 +94,17 @@ TTableNodeProxy::TTableNodeProxy(
 bool TTableNodeProxy::DoInvoke(IServiceContextPtr context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(SetSorted);
+    DISPATCH_YPATH_SERVICE_METHOD(Mount);
+    DISPATCH_YPATH_SERVICE_METHOD(Unmount);
     return TBase::DoInvoke(context);
 }
 
-bool TTableNodeProxy::IsWriteRequest(IServiceContextPtr context) const
+bool TTableNodeProxy::IsMutatingRequest(IServiceContextPtr context) const
 {
     DECLARE_YPATH_SERVICE_WRITE_METHOD(SetSorted);
-    return TBase::IsWriteRequest(context);
+    DECLARE_YPATH_SERVICE_WRITE_METHOD(Mount);
+    DECLARE_YPATH_SERVICE_WRITE_METHOD(Unmount);
+    return TBase::IsMutatingRequest(context);
 }
 
 void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attributes)
@@ -106,6 +115,8 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attribut
     attributes->push_back("row_count");
     attributes->push_back("sorted");
     attributes->push_back(TAttributeInfo("sorted_by", !chunkList->SortedBy().empty()));
+    attributes->push_back("mounted");
+    attributes->push_back(TAttributeInfo("tablet_id", node->IsMounted()));
     TBase::ListSystemAttributes(attributes);
 }
 
@@ -143,6 +154,20 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consu
         if (key == "sorted_by") {
             BuildYsonFluently(consumer)
                 .List(chunkList->SortedBy());
+            return true;
+        }
+    }
+
+    if (key == "mounted") {
+        BuildYsonFluently(consumer)
+            .Value(node->IsMounted());
+        return true;
+    }
+
+    if (node->IsMounted()) {
+        if (key == "tablet_id") {
+            BuildYsonFluently(consumer)
+                .Value(node->GetTablet()->GetId());
             return true;
         }
     }
@@ -191,6 +216,30 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, SetSorted)
     node->GetChunkList()->SortedBy() = keyColumns;
 
     SetModified();
+
+    context->Reply();
+}
+
+DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Mount)
+{
+    ValidateNoTransaction();
+    
+    auto* impl = LockThisTypedImpl();
+
+    auto tabletManager = Bootstrap->GetTabletManager();
+    tabletManager->MountTable(impl);
+
+    context->Reply();
+}
+
+DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Unmount)
+{
+    ValidateNoTransaction();
+
+    auto* impl = LockThisTypedImpl();
+
+    auto tabletManager = Bootstrap->GetTabletManager();
+    tabletManager->UnmountTable(impl);
 
     context->Reply();
 }

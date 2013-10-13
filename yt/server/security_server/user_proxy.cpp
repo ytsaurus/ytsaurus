@@ -4,6 +4,8 @@
 #include "security_manager.h"
 #include "subject_proxy_detail.h"
 
+#include <core/ytree/fluent.h>
+
 #include <ytlib/security_client/user_ypath.pb.h>
 
 namespace NYT {
@@ -35,7 +37,7 @@ private:
         }
     }
 
-    virtual void ListSystemAttributes(std::vector<NYTree::ISystemAttributeProvider::TAttributeInfo>* attributes) override
+    virtual void ListSystemAttributes(std::vector<ISystemAttributeProvider::TAttributeInfo>* attributes) override
     {
         attributes->push_back("banned");
         attributes->push_back("request_rate_limit");
@@ -83,7 +85,7 @@ private:
         return TBase::GetSystemAttribute(key, consumer);
     }
 
-    virtual bool SetSystemAttribute(const Stroka& key, const NYTree::TYsonString& value) override
+    virtual bool SetSystemAttribute(const Stroka& key, const TYsonString& value) override
     {
         auto* user = this->GetThisTypedImpl();
         auto securityManager = this->Bootstrap->GetSecurityManager();

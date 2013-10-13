@@ -23,7 +23,7 @@
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
-#include <ytlib/meta_state/rpc_helpers.h>
+#include <ytlib/hydra/rpc_helpers.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -148,7 +148,7 @@ void TMultiChunkSequentialWriter<TChunkWriter>::CreateNextSession()
         : NObjectClient::EObjectType::ErasureChunk);
 
     req->set_account(Options->Account);
-    NMetaState::GenerateMutationId(req);
+    NHydra::GenerateMutationId(req);
 
     auto* reqExt = req->MutableExtension(NProto::TReqCreateChunkExt::create_chunk_ext);
     if (Config->PreferLocalHost) {
@@ -361,7 +361,7 @@ void TMultiChunkSequentialWriter<TChunkWriter>::OnChunkClosed(
     {
         auto req = TChunkYPathProxy::Confirm(
             NCypressClient::FromObjectId(currentSession.ChunkId));
-        NMetaState::GenerateMutationId(req);
+        NHydra::GenerateMutationId(req);
         *req->mutable_chunk_info() = asyncWriter->GetChunkInfo();
         NYT::ToProto(req->mutable_replicas(), replicas);
         *req->mutable_chunk_meta() = chunkWriter->GetMasterMeta();
@@ -454,7 +454,7 @@ void TMultiChunkSequentialWriter<TChunkWriter>::AttachChunks()
         auto req = TChunkListYPathProxy::Attach(
             NCypressClient::FromObjectId(ParentChunkListId));
         *req->add_children_ids() = chunkSpec.chunk_id();
-        NMetaState::GenerateMutationId(req);
+        NHydra::GenerateMutationId(req);
         batchReq->AddRequest(req);
     }
 

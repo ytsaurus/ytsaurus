@@ -7,12 +7,10 @@
 
 #include <core/misc/property.h>
 
-#include <ytlib/meta_state/map.h>
+#include <server/hydra/entity_map.h>
 
 #include <core/ytree/ypath_detail.h>
-#include <core/ytree/fluent.h>
 #include <core/ytree/system_attribute_provider.h>
-#include <core/ytree/ypath.pb.h>
 
 #include <ytlib/object_client/object_ypath.pb.h>
 #include <ytlib/object_client/object_service_proxy.h>
@@ -73,7 +71,9 @@ class TObjectProxyBase
     , public virtual IObjectProxy
 {
 public:
-    TObjectProxyBase(NCellMaster::TBootstrap* bootstrap, TObjectBase* object);
+    TObjectProxyBase(
+        NCellMaster::TBootstrap* bootstrap,
+        TObjectBase* object);
     ~TObjectProxyBase();
 
     // IObjectProxy members
@@ -87,8 +87,11 @@ public:
         bool sortKeys) override;
 
 protected:
+    friend class TObjectManager;
+
     NCellMaster::TBootstrap* Bootstrap;
     TObjectBase* Object;
+
     std::unique_ptr<NYTree::IAttributeDictionary> UserAttributes;
 
     DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, GetId);
@@ -106,7 +109,7 @@ protected:
     virtual void BeforeInvoke(NRpc::IServiceContextPtr context);
     virtual void AfterInvoke(NRpc::IServiceContextPtr context);
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override;
-    virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const override;
+    virtual bool IsMutatingRequest(NRpc::IServiceContextPtr context) const override;
 
     // NYTree::TSupportsAttributes members
     virtual NYTree::IAttributeDictionary* GetUserAttributes() override;
@@ -154,7 +157,7 @@ public:
         NCellMaster::TBootstrap* bootstrap,
         TObjectBase* object);
 
-    virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const override;
+    virtual bool IsMutatingRequest(NRpc::IServiceContextPtr context) const override;
 
 protected:
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override;

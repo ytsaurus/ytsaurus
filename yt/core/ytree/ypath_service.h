@@ -83,7 +83,7 @@ struct IYPathService
      *  - Checking if the request modifies a mapped YSON file, so we need
      *    to write it back one the processing is finished.
      */
-    virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const = 0;
+    virtual bool IsMutatingRequest(NRpc::IServiceContextPtr context) const = 0;
 
 
     // Extension methods

@@ -434,12 +434,12 @@ protected:
      */
     TServiceBase(
         IPrioritizedInvokerPtr defaultInvoker,
-        const Stroka& serviceName,
+        const TServiceId& serviceId,
         const Stroka& loggingCategory);
 
     TServiceBase(
         IInvokerPtr defaultInvoker,
-        const Stroka& serviceName,
+        const TServiceId& serviceId,
         const Stroka& loggingCategory);
 
     //! Registers a method.
@@ -469,7 +469,7 @@ private:
     class TServiceContext;
 
     IPrioritizedInvokerPtr DefaultInvoker;
-    Stroka ServiceName;
+    TServiceId ServiceId;
     Stroka LoggingCategory;
 
     NProfiling::TTagId ServiceTagId;
@@ -482,10 +482,10 @@ private:
 
     void Init(
         IPrioritizedInvokerPtr defaultInvoker,
-        const Stroka& serviceName,
+        const TServiceId& serviceId,
         const Stroka& loggingCategory);
 
-    virtual Stroka GetServiceName() const override;
+    virtual TServiceId GetServiceId() const override;
 
     virtual void OnRequest(
         const NProto::TRequestHeader& header,

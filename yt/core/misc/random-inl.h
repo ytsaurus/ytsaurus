@@ -7,6 +7,10 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+inline TRandomGenerator::TRandomGenerator()
+    : X(0)
+{ }
+
 inline TRandomGenerator::TRandomGenerator(ui64 seed)
     : X(seed)
 { }

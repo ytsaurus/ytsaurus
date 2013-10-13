@@ -6,7 +6,7 @@
 
 #include <core/profiling/profiler.h>
 
-#include <ytlib/meta_state/map.h>
+#include <server/hydra/entity_map.h>
 
 namespace NYT {
 namespace NSecurityServer {

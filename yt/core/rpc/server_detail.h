@@ -24,8 +24,9 @@ public:
     
     virtual i64 GetPriority() const override;
     
-    virtual const Stroka& GetPath() const override;
+    virtual const Stroka& GetService() const override;
     virtual const Stroka& GetVerb() const override;
+    virtual const TRealmId& GetRealmId() const override;
 
     virtual bool IsReplied() const override;
     virtual bool IsOneWay() const override;
@@ -67,6 +68,7 @@ protected:
     NBus::IMessagePtr RequestMessage;
 
     TRequestId RequestId;
+    TRealmId RealmId;
 
     TSharedRef RequestBody;
     std::vector<TSharedRef> RequestAttachments_;
@@ -107,8 +109,9 @@ public:
     
     virtual i64 GetPriority() const override;
 
-    virtual const Stroka& GetPath() const override;
+    virtual const Stroka& GetService() const override;
     virtual const Stroka& GetVerb() const override;
+    virtual const TRealmId& GetRealmId() const override;
 
     virtual bool IsOneWay() const;
 

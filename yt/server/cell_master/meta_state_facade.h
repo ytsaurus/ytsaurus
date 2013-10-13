@@ -4,20 +4,20 @@
 
 #include <core/rpc/public.h>
 
-#include <ytlib/meta_state/mutation.h>
+#include <ytlib/election/public.h>
+
+#include <server/hydra/mutation.h>
 
 namespace NYT {
 namespace NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EStateThreadQueue,
+DECLARE_ENUM(EAutomatonThreadQueue,
     (Default)
     (ChunkMaintenance)
     (Heartbeat)
 );
-
-////////////////////////////////////////////////////////////////////////////////
 
 class TNotALeaderException
     : public TErrorException
@@ -41,26 +41,21 @@ public:
 
     void Start();
 
-    NMetaState::TCompositeMetaStatePtr GetState() const;
-    NMetaState::IMetaStateManagerPtr GetManager() const;
+    TMasterAutomatonPtr GetAutomaton() const;
+    NHydra::IHydraManagerPtr GetManager() const;
 
-    bool IsInitialized() const;
-
-    IInvokerPtr GetInvoker(EStateThreadQueue queue = EStateThreadQueue::Default) const;
-    IInvokerPtr GetEpochInvoker(EStateThreadQueue queue = EStateThreadQueue::Default) const;
-    IInvokerPtr GetGuardedInvoker(EStateThreadQueue queue = EStateThreadQueue::Default) const;
+    IInvokerPtr GetInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
+    IInvokerPtr GetEpochInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
+    IInvokerPtr GetGuardedInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
 
     template <class TTarget, class TRequest, class TResponse>
-    NMetaState::TMutationPtr CreateMutation(
+    NHydra::TMutationPtr CreateMutation(
         TTarget* target,
         const TRequest& request,
         TResponse (TTarget::* method)(const TRequest&),
-        EStateThreadQueue queue = EStateThreadQueue::Default);
+        EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default);
 
-    NMetaState::TMutationPtr CreateMutation(EStateThreadQueue queue = EStateThreadQueue::Default);
-
-    //! Checks if the current master is leading and has an active quorum of followers.
-    bool IsActiveLeader();
+    NHydra::TMutationPtr CreateMutation(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default);
 
     //! Same as #IsActiveLeader but throws on failure.
     void ValidateActiveLeader();

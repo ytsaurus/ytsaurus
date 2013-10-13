@@ -98,7 +98,7 @@ template <class OutputStream>
 size_t AppendPadded(OutputStream& output, const TRef& ref)
 {
     output.Append(ref.Begin(), ref.Size());
-    output.Append(&NDetail::Padding, GetPaddingSize(ref.Size()));
+    output.Append(&NYT::NDetail::Padding, GetPaddingSize(ref.Size()));
     return AlignUp(ref.Size());
 }
 
@@ -143,8 +143,11 @@ public:
 
 public:
     TStreamSaveContext();
+    explicit TStreamSaveContext(TOutputStream* output);
 
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TStreamLoadContext
 {
@@ -153,6 +156,7 @@ public:
 
 public:
     TStreamLoadContext();
+    explicit TStreamLoadContext(TInputStream* input);
 
 };
 
@@ -394,6 +398,26 @@ struct TRangeSerializer
     template <class C>
     static void Load(C& context, const TRef& value)
     {
+        auto* input = context.GetInput();
+        YCHECK(input->Load(value.Begin(), value.Size()) == value.Size());
+    }
+};
+
+struct TSharedRefSerializer
+{
+    template <class C>
+    static void Save(C& context, const TSharedRef& value)
+    {
+        TSizeSerializer::Save(context, value.Size());
+        auto* output = context.GetOutput();
+        output->Write(value.Begin(), value.Size());
+    }
+
+    template <class C>
+    static void Load(C& context, TSharedRef& value)
+    {
+        size_t size = TSizeSerializer::Load(context);
+        value = TSharedRef::Allocate(size, false);
         auto* input = context.GetInput();
         YCHECK(input->Load(value.Begin(), value.Size()) == value.Size());
     }
@@ -721,6 +745,12 @@ void Persist(C& context, T& value)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+template <class C>
+struct TSerializerTraits<TSharedRef, C, void>
+{
+    typedef TSharedRefSerializer TSerializer;
+};
 
 template <class T, class C>
 struct TSerializerTraits<

@@ -63,7 +63,7 @@ struct IClientRequest
 
     virtual TRequestId GetRequestId() const = 0;
 
-    virtual const Stroka& GetPath() const = 0;
+    virtual const Stroka& GetService() const = 0;
     virtual const Stroka& GetVerb() const = 0;
 
     virtual TInstant GetStartTime() const = 0;
@@ -88,7 +88,7 @@ public:
     
     virtual TRequestId GetRequestId() const override;
 
-    virtual const Stroka& GetPath() const override;
+    virtual const Stroka& GetService() const override;
     virtual const Stroka& GetVerb() const override;
 
     virtual TInstant GetStartTime() const override;
@@ -104,7 +104,7 @@ protected:
 
     TClientRequest(
         IChannelPtr channel,
-        const Stroka& path,
+        const Stroka& service,
         const Stroka& verb,
         bool oneWay);
 

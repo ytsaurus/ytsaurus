@@ -5,17 +5,18 @@
 #include "chunk_list.h"
 #include "chunk_manager.h"
 #include "chunk_tree_traversing.h"
-#include "node_directory_builder.h"
 
 #include <core/ytree/node.h>
 #include <core/ytree/fluent.h>
 #include <core/ytree/system_attribute_provider.h>
 #include <core/ytree/attribute_helpers.h>
 
+#include <core/erasure/codec.h>
+
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/chunk_spec.h>
 
-#include <core/erasure/codec.h>
+#include <server/node_tracker_server/node_directory_builder.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -26,6 +27,7 @@ using namespace NCypressServer;
 using namespace NTransactionServer;
 using namespace NYson;
 using namespace NYTree;
+using namespace NNodeTrackerServer;
 
 using NChunkClient::TChannel;
 
@@ -67,7 +69,7 @@ private:
     bool Completed;
     bool Finished;
 
-    DECLARE_THREAD_AFFINITY_SLOT(StateThread);
+    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     void Reply();
     void ReplyError(const TError& error);
@@ -112,7 +114,7 @@ void TFetchChunkVisitor::StartSession(
     const TReadLimit& lowerBound,
     const TReadLimit& upperBound)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     ++SessionCount;
 
@@ -126,7 +128,7 @@ void TFetchChunkVisitor::StartSession(
 
 void TFetchChunkVisitor::Complete()
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
     YCHECK(!Completed);
 
     Completed = true;
@@ -148,7 +150,7 @@ bool TFetchChunkVisitor::OnChunk(
     const TReadLimit& startLimit,
     const TReadLimit& endLimit)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     auto chunkManager = Bootstrap->GetChunkManager();
 
@@ -205,7 +207,7 @@ bool TFetchChunkVisitor::OnChunk(
 
 void TFetchChunkVisitor::OnError(const TError& error)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     --SessionCount;
     YCHECK(SessionCount >= 0);
@@ -215,7 +217,7 @@ void TFetchChunkVisitor::OnError(const TError& error)
 
 void TFetchChunkVisitor::OnFinish()
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     --SessionCount;
     YCHECK(SessionCount >= 0);
@@ -242,7 +244,7 @@ class TChunkVisitorBase
 public:
     TAsyncError Run()
     {
-        VERIFY_THREAD_AFFINITY(StateThread);
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         TraverseChunkTree(
             CreateTraverserCallbacks(Bootstrap),
@@ -258,7 +260,7 @@ protected:
     TChunkList* ChunkList;
     TPromise<TError> Promise;
 
-    DECLARE_THREAD_AFFINITY_SLOT(StateThread);
+    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     TChunkVisitorBase(
         NCellMaster::TBootstrap* bootstrap,
@@ -269,12 +271,12 @@ protected:
         , ChunkList(chunkList)
         , Promise(NewPromise<TError>())
     {
-        VERIFY_THREAD_AFFINITY(StateThread);
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
     }
 
     virtual void OnError(const TError& error) override
     {
-        VERIFY_THREAD_AFFINITY(StateThread);
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         Promise.Set(TError("Error traversing chunk tree") << error);
     }
@@ -301,7 +303,7 @@ public:
         const TReadLimit& startLimit,
         const TReadLimit& endLimit) override
     {
-        VERIFY_THREAD_AFFINITY(StateThread);
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
         UNUSED(rowIndex);
         UNUSED(startLimit);
         UNUSED(endLimit);
@@ -314,7 +316,7 @@ public:
 
     virtual void OnFinish() override
     {
-        VERIFY_THREAD_AFFINITY(StateThread);
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         Consumer->OnEndList();
         Promise.Set(TError());
@@ -352,7 +354,7 @@ public:
         const TReadLimit& startLimit,
         const TReadLimit& endLimit) override
     {
-        VERIFY_THREAD_AFFINITY(StateThread);
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
         UNUSED(rowIndex);
         UNUSED(startLimit);
         UNUSED(endLimit);
@@ -366,7 +368,7 @@ public:
 
     virtual void OnFinish() override
     {
-        VERIFY_THREAD_AFFINITY(StateThread);
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         BuildYsonFluently(Consumer)
             .DoMapFor(CodecInfo, [=] (TFluentMap fluent, const TCodecInfoMap::value_type& pair) {
@@ -421,10 +423,10 @@ bool TChunkOwnerNodeProxy::DoInvoke(NRpc::IServiceContextPtr context)
     return TNontemplateCypressNodeProxyBase::DoInvoke(context);
 }
 
-bool TChunkOwnerNodeProxy::IsWriteRequest(NRpc::IServiceContextPtr context) const
+bool TChunkOwnerNodeProxy::IsMutatingRequest(NRpc::IServiceContextPtr context) const
 {
     DECLARE_YPATH_SERVICE_WRITE_METHOD(PrepareForUpdate);
-    return TNontemplateCypressNodeProxyBase::IsWriteRequest(context);
+    return TNontemplateCypressNodeProxyBase::IsMutatingRequest(context);
 }
 
 NSecurityServer::TClusterResources TChunkOwnerNodeProxy::GetResourceUsage() const

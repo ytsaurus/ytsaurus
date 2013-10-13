@@ -8,6 +8,8 @@
 
 #include <server/cypress_server/node_detail.h>
 
+#include <server/tablet_server/public.h>
+
 #include <server/cell_master/public.h>
 
 namespace NYT {
@@ -18,11 +20,17 @@ namespace NTableServer {
 class TTableNode
     : public NChunkServer::TChunkOwnerBase
 {
+    DEFINE_BYVAL_RW_PROPERTY(NTabletServer::TTablet*, Tablet);
+
 public:
     explicit TTableNode(const NCypressServer::TVersionedNodeId& id);
 
     virtual NObjectClient::EObjectType GetObjectType() const;
     TTableNode* GetTrunkNode() const;
+    bool IsMounted() const;
+
+    virtual void Save(NCellMaster::TSaveContext& context) const;
+    virtual void Load(NCellMaster::TLoadContext& context);
 
 };
 

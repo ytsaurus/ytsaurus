@@ -19,7 +19,6 @@ set( SRCS
   ${BASE}/cypress_integration.cpp
   ${BASE}/job.cpp
   ${BASE}/job_tracker_service.cpp
-  ${BASE}/node_directory_builder.cpp
   ${BASE}/private.cpp
   ${BASE}/helpers.cpp
 )
@@ -46,7 +45,6 @@ set( HDRS
   ${BASE}/cypress_integration.h
   ${BASE}/job.h
   ${BASE}/job_tracker_service.h
-  ${BASE}/node_directory_builder.h
   ${BASE}/private.h
   ${BASE}/public.h
   ${BASE}/helpers.h

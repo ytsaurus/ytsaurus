@@ -47,7 +47,7 @@ DEFINE_RPC_SERVICE_METHOD(TOrchidService, Execute)
         THROW_ERROR_EXCEPTION("Error parsing request header");
     }
 
-    const auto& path = requestHeader.path();
+    const auto& path = requestHeader.service();
     const auto& verb = requestHeader.verb();
 
     context->SetRequestInfo("Path: %s, Verb: %s",

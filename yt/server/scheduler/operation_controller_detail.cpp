@@ -29,7 +29,7 @@
 #include <ytlib/scheduler/config.h>
 #include <ytlib/scheduler/helpers.h>
 
-#include <ytlib/meta_state/rpc_helpers.h>
+#include <ytlib/hydra/rpc_helpers.h>
 
 #include <core/concurrency/fiber.h>
 #include <core/rpc/helpers.h>
@@ -1235,7 +1235,7 @@ void TOperationControllerBase::CommitResults()
             auto addChunkTree = [&] (const TChunkTreeId chunkTreeId) {
                 if (!req) {
                     req = TChunkListYPathProxy::Attach(FromObjectId(table.OutputChunkListId));
-                    NMetaState::GenerateMutationId(req);
+                    NHydra::GenerateMutationId(req);
                 }
                 ToProto(req->add_children_ids(), chunkTreeId);
                 ++reqSize;
@@ -1297,7 +1297,7 @@ void TOperationControllerBase::CommitResults()
             auto req = TTableYPathProxy::SetSorted(path);
             ToProto(req->mutable_key_columns(), table.Options->KeyColumns.Get());
             SetTransactionId(req, Operation->GetOutputTransaction());
-            NMetaState::GenerateMutationId(req);
+            NHydra::GenerateMutationId(req);
             batchReq->AddRequest(req, "set_out_sorted");
         }
     }
@@ -2301,7 +2301,7 @@ void TOperationControllerBase::RequestInputs()
             auto req = TCypressYPathProxy::Lock(path);
             req->set_mode(ELockMode::Snapshot);
             SetTransactionId(req, Operation->GetInputTransaction());
-            NMetaState::GenerateMutationId(req);
+            NHydra::GenerateMutationId(req);
             batchReq->AddRequest(req, "lock_in");
         }
         {
@@ -2331,7 +2331,7 @@ void TOperationControllerBase::RequestInputs()
         {
             auto req = TCypressYPathProxy::Lock(path);
             req->set_mode(table.LockMode);
-            NMetaState::GenerateMutationId(req);
+            NHydra::GenerateMutationId(req);
             SetTransactionId(req, Operation->GetOutputTransaction());
             batchReq->AddRequest(req, "lock_out");
         }
@@ -2352,7 +2352,7 @@ void TOperationControllerBase::RequestInputs()
         {
             auto req = TTableYPathProxy::PrepareForUpdate(path);
             SetTransactionId(req, Operation->GetOutputTransaction());
-            NMetaState::GenerateMutationId(req);
+            NHydra::GenerateMutationId(req);
             req->set_mode(table.Clear ? NChunkClient::EUpdateMode::Overwrite : NChunkClient::EUpdateMode::Append);
             batchReq->AddRequest(req, "prepare_for_update");
         }
@@ -2363,7 +2363,7 @@ void TOperationControllerBase::RequestInputs()
         {
             auto req = TCypressYPathProxy::Lock(path);
             req->set_mode(ELockMode::Snapshot);
-            NMetaState::GenerateMutationId(req);
+            NHydra::GenerateMutationId(req);
             SetTransactionId(req, Operation->GetInputTransaction());
             batchReq->AddRequest(req, "lock_regular_file");
         }
@@ -2394,7 +2394,7 @@ void TOperationControllerBase::RequestInputs()
         {
             auto req = TCypressYPathProxy::Lock(path);
             req->set_mode(ELockMode::Snapshot);
-            NMetaState::GenerateMutationId(req);
+            NHydra::GenerateMutationId(req);
             SetTransactionId(req, Operation->GetInputTransaction());
             batchReq->AddRequest(req, "lock_table_file");
         }

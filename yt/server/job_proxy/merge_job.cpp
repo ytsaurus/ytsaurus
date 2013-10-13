@@ -4,7 +4,7 @@
 #include "job_detail.h"
 #include "config.h"
 
-#include <ytlib/meta_state/master_channel.h>
+#include <ytlib/hydra/peer_channel.h>
 
 #include <ytlib/table_client/table_chunk_reader.h>
 #include <ytlib/table_client/table_chunk_writer.h>

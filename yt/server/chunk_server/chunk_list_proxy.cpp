@@ -4,6 +4,8 @@
 #include "chunk_list.h"
 #include "chunk_manager.h"
 
+#include <core/ytree/fluent.h>
+
 #include <ytlib/chunk_client/chunk_list_ypath.pb.h>
 
 #include <server/cell_master/bootstrap.h>
@@ -28,10 +30,10 @@ public:
         Logger = ChunkServerLogger;
     }
 
-    virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const override
+    virtual bool IsMutatingRequest(NRpc::IServiceContextPtr context) const override
     {
         DECLARE_YPATH_SERVICE_WRITE_METHOD(Attach);
-        return TBase::IsWriteRequest(context);
+        return TBase::IsMutatingRequest(context);
     }
 
 private:

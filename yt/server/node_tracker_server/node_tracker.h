@@ -4,11 +4,12 @@
 
 #include <core/actions/signal.h>
 
-#include <ytlib/meta_state/public.h>
+#include <ytlib/hydra/public.h>
 
-#include <ytlib/meta_state/map.h>
+#include <server/hydra/entity_map.h>
 
 #include <ytlib/node_tracker_client/node_statistics.h>
+#include <ytlib/node_tracker_client/node_tracker_service.pb.h>
 
 #include <core/rpc/service_detail.h>
 
@@ -22,6 +23,7 @@ namespace NNodeTrackerServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NProto {
+    typedef NNodeTrackerClient::NProto::TReqIncrementalHeartbeat TMetaReqIncrementalHeartbeat;
     typedef NNodeTrackerClient::NProto::TReqFullHeartbeat TMetaReqFullHeartbeat;
 } // namespace NProto
 
@@ -38,10 +40,10 @@ public:
     ~TNodeTracker();
 
 
-    NMetaState::TMutationPtr CreateRegisterNodeMutation(
+    NHydra::TMutationPtr CreateRegisterNodeMutation(
         const NProto::TMetaReqRegisterNode& request);
 
-    NMetaState::TMutationPtr CreateUnregisterNodeMutation(
+    NHydra::TMutationPtr CreateUnregisterNodeMutation(
         const NProto::TMetaReqUnregisterNode& request);
 
     // Pass RPC service context to full heartbeat handler to avoid copying request message.
@@ -49,17 +51,21 @@ public:
         NNodeTrackerClient::NProto::TReqFullHeartbeat,
         NNodeTrackerClient::NProto::TRspFullHeartbeat> TCtxFullHeartbeat;
     typedef TIntrusivePtr<TCtxFullHeartbeat> TCtxFullHeartbeatPtr;
-    NMetaState::TMutationPtr CreateFullHeartbeatMutation(
+    NHydra::TMutationPtr CreateFullHeartbeatMutation(
         TCtxFullHeartbeatPtr context);
 
-    NMetaState::TMutationPtr CreateIncrementalHeartbeatMutation(
-        const NProto::TMetaReqIncrementalHeartbeat& request);
+    typedef NRpc::TTypedServiceContext<
+        NNodeTrackerClient::NProto::TReqIncrementalHeartbeat,
+        NNodeTrackerClient::NProto::TRspIncrementalHeartbeat> TCtxIncrementalHeartbeat;
+    typedef TIntrusivePtr<TCtxIncrementalHeartbeat> TCtxIncrementalHeartbeatPtr;
+    NHydra::TMutationPtr CreateIncrementalHeartbeatMutation(
+        TCtxIncrementalHeartbeatPtr context);
 
 
     void RefreshNodeConfig(TNode* node);
 
 
-    DECLARE_METAMAP_ACCESSORS(Node, TNode, TNodeId);
+    DECLARE_ENTITY_MAP_ACCESSORS(Node, TNode, TNodeId);
 
     //! Fired when a node gets registered.
     DECLARE_SIGNAL(void(TNode* node), NodeRegistered);
@@ -74,7 +80,11 @@ public:
     DECLARE_SIGNAL(void(TNode* node, const NProto::TMetaReqFullHeartbeat& request), FullHeartbeat);
 
     //! Fired when an incremental heartbeat is received from a node.
-    DECLARE_SIGNAL(void(TNode* node, const NProto::TMetaReqIncrementalHeartbeat& request), IncrementalHeartbeat);
+    DECLARE_SIGNAL(void(
+        TNode* node,
+        const NProto::TMetaReqIncrementalHeartbeat& request,
+        NNodeTrackerClient::NProto::TRspIncrementalHeartbeat* response),
+        IncrementalHeartbeat);
 
 
     //! Returns a node registered at the given address (|nullptr| if none).

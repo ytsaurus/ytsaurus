@@ -1,0 +1,36 @@
+package NYT.NTabletServer.NProto;
+
+import "yt/core/misc/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TMetaReqStartSlots
+{
+    required NYT.NProto.TGuid cell_id = 1;
+    repeated int32 node_ids = 2;
+}
+
+message TMetaReqSetCellState
+{
+    required NYT.NProto.TGuid cell_id = 1;
+    required int32 state = 2;
+}
+
+message TMetaReqRevokePeer
+{
+    required NYT.NProto.TGuid cell_id = 1;
+    required int32 peer_id = 2;
+}
+
+message TMetaReqOnTabletCreated
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+}
+
+message TMetaReqOnTabletRemoved
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+

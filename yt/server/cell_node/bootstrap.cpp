@@ -16,9 +16,9 @@
 #include <core/rpc/redirector_service.h>
 #include <core/rpc/throttling_channel.h>
 
-#include <ytlib/meta_state/master_channel.h>
+#include <ytlib/hydra/peer_channel.h>
 
-#include <ytlib/meta_state/config.h>
+#include <ytlib/hydra/config.h>
 
 #include <ytlib/orchid/orchid_service.h>
 
@@ -70,6 +70,10 @@
 #include <server/exec_agent/scheduler_connector.h>
 #include <server/exec_agent/job.h>
 
+#include <server/tablet_node/tablet_cell_controller.h>
+
+#include <server/hive/cell_registry.h>
+
 namespace NYT {
 namespace NCellNode {
 
@@ -77,17 +81,20 @@ using namespace NBus;
 using namespace NChunkClient;
 using namespace NChunkServer;
 using namespace NElection;
+using namespace NHydra;
 using namespace NMonitoring;
 using namespace NOrchid;
 using namespace NProfiling;
 using namespace NRpc;
+using namespace NYTree;
+using namespace NConcurrency;
 using namespace NScheduler;
 using namespace NJobAgent;
 using namespace NExecAgent;
 using namespace NJobProxy;
 using namespace NDataNode;
-using namespace NYTree;
-using namespace NConcurrency;
+using namespace NTabletNode;
+using namespace NHive;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -130,7 +137,7 @@ void TBootstrap::Run()
         }
     }
 
-    MasterChannel = CreateLeaderChannel(Config->Masters);
+    MasterChannel = CreatePeerChannel(Config->Masters, EPeerRole::Leader);
 
     SchedulerChannel = CreateSchedulerChannel(Config->ExecAgent->SchedulerConnector, MasterChannel);
 
@@ -143,7 +150,7 @@ void TBootstrap::Run()
     auto monitoringManager = New<TMonitoringManager>();
     monitoringManager->Register(
         "/ref_counted",
-        BIND(&TRefCountedTracker::GetMonitoringInfo, TRefCountedTracker::Get()));
+        TRefCountedTracker::Get()->GetMonitoringProducer());
 
     auto jobToMasterChannel = CreateThrottlingChannel(
         Config->JobsToMasterChannel,
@@ -175,25 +182,6 @@ void TBootstrap::Run()
 
     ChunkCache = New<TChunkCache>(Config->DataNode, this);
     ChunkCache->Initialize();
-
-    if (!ChunkStore->GetCellGuid().IsEmpty() && !ChunkCache->GetCellGuid().IsEmpty()) {
-        if (ChunkStore->GetCellGuid().IsEmpty() != ChunkCache->GetCellGuid().IsEmpty()) {
-            THROW_ERROR_EXCEPTION("Inconsistent cell GUID (ChunkStore: %s, ChunkCache: %s)",
-                ~ToString(ChunkStore->GetCellGuid()),
-                ~ToString(ChunkCache->GetCellGuid()));
-        }
-        CellGuid = ChunkCache->GetCellGuid();
-    }
-
-    if (!ChunkStore->GetCellGuid().IsEmpty() && ChunkCache->GetCellGuid().IsEmpty()) {
-        CellGuid = ChunkStore->GetCellGuid();
-        ChunkCache->UpdateCellGuid(CellGuid);
-    }
-
-    if (ChunkStore->GetCellGuid().IsEmpty() && !ChunkCache->GetCellGuid().IsEmpty()) {
-        CellGuid = ChunkCache->GetCellGuid();
-        ChunkStore->SetCellGuid(CellGuid);
-    }
 
     ReplicationInThrottler = CreateProfilingThrottlerWrapper(
         CreateLimitedThrottler(Config->DataNode->ReplicationInThrottler),
@@ -279,6 +267,22 @@ void TBootstrap::Run()
 
     SchedulerConnector = New<TSchedulerConnector>(Config->ExecAgent->SchedulerConnector, this);
 
+    CellRegistry = New<TCellRegistry>();
+    {
+        NHydra::NProto::TCellConfig config;
+        config.set_size(Config->Masters->Addresses.size());
+        config.set_version(1); // master cell never changes
+        for (const auto& address : Config->Masters->Addresses) {
+            auto* peer = config.add_peers();
+            peer->set_peer_id(config.peers_size() - 1);
+            peer->set_address(address);
+        }
+        CellRegistry->RegisterCell(GetCellGuid(), config);
+    }
+
+    TabletCellController = New<TTabletCellController>(Config, this);
+    TabletCellController->Initialize();
+
     OrchidRoot = GetEphemeralNodeFactory()->CreateMap();
     SetNodeByYPath(
         OrchidRoot,
@@ -348,7 +352,7 @@ IChannelPtr TBootstrap::GetSchedulerChannel() const
     return SchedulerChannel;
 }
 
-IServerPtr TBootstrap::GetRpcServer() const
+IRpcServerPtr TBootstrap::GetRpcServer() const
 {
     return RpcServer;
 }
@@ -361,6 +365,11 @@ IMapNodePtr TBootstrap::GetOrchidRoot() const
 TJobTrackerPtr TBootstrap::GetJobController() const
 {
     return JobController;
+}
+
+TTabletCellControllerPtr TBootstrap::GetTabletCellController() const
+{
+    return TabletCellController;
 }
 
 TSlotManagerPtr TBootstrap::GetSlotManager() const
@@ -423,6 +432,11 @@ TMasterConnectorPtr TBootstrap::GetMasterConnector() const
     return MasterConnector;
 }
 
+TCellRegistryPtr TBootstrap::GetCellRegistry() const
+{
+    return CellRegistry;
+}
+
 const NNodeTrackerClient::TNodeDescriptor& TBootstrap::GetLocalDescriptor() const
 {
     return LocalDescriptor;
@@ -430,14 +444,7 @@ const NNodeTrackerClient::TNodeDescriptor& TBootstrap::GetLocalDescriptor() cons
 
 const TGuid& TBootstrap::GetCellGuid() const
 {
-    return CellGuid;
-}
-
-void TBootstrap::UpdateCellGuid(const TGuid& cellGuid)
-{
-    CellGuid = cellGuid;
-    ChunkStore->SetCellGuid(CellGuid);
-    ChunkCache->UpdateCellGuid(CellGuid);
+    return Config->Masters->CellGuid;
 }
 
 IThroughputThrottlerPtr TBootstrap::GetReplicationInThrottler() const

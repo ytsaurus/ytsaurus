@@ -38,11 +38,14 @@ struct IServiceContext
     //! Returns request priority for reordering purposes.
     virtual i64 GetPriority() const = 0;
 
-    //! Returns the requested path.
-    virtual const Stroka& GetPath() const = 0;
+    //! Returns the requested service.
+    virtual const Stroka& GetService() const = 0;
 
     //! Returns the requested verb.
     virtual const Stroka& GetVerb() const = 0;
+
+    //! Returns the requested realm id.
+    virtual const TRealmId& GetRealmId() const = 0;
 
     //! Returns |true| if the request if one-way, i.e. replying to it is not possible.
     virtual bool IsOneWay() const = 0;
@@ -110,6 +113,21 @@ struct IServiceContext
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TServiceId
+{
+    TServiceId();
+    TServiceId(const Stroka& serviceName, const TRealmId& realmId = NullRealmId);
+
+    Stroka ServiceName;
+    TRealmId RealmId;
+
+};
+
+bool operator == (const TServiceId& lhs, const TServiceId& rhs);
+bool operator != (const TServiceId& lhs, const TServiceId& rhs);
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Represents an abstract service registered within TServer.
 /*!
  *  \note All methods be be implemented as thread-safe.
@@ -120,8 +138,8 @@ struct IService
     //! Applies a new configuration.
     virtual void Configure(NYTree::INodePtr config) = 0;
 
-    //! Returns the name of the service.
-    virtual Stroka GetServiceName() const = 0;
+    //! Returns the service id.
+    virtual TServiceId GetServiceId() const = 0;
 
     //! Handles incoming request.
     virtual void OnRequest(
@@ -134,3 +152,17 @@ struct IService
 
 } // namespace NRpc
 } // namespace NYT
+
+//! A hasher for TSericeId.
+template <>
+struct hash<NYT::NRpc::TServiceId>
+{
+    inline size_t operator()(const NYT::NRpc::TServiceId& id) const
+    {
+        return
+            THash<Stroka>()(id.ServiceName) * 497 +
+            THash<NYT::NRpc::TRealmId>()(id.RealmId);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////

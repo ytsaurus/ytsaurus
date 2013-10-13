@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "chunk_service.h"
 #include "chunk_manager.h"
-#include "node_directory_builder.h"
 #include "chunk.h"
 #include "private.h"
 
@@ -9,32 +8,34 @@
 
 #include <ytlib/chunk_client/chunk_service_proxy.h>
 
-#include <server/cell_master/meta_state_service.h>
-#include <server/cell_master/meta_state_facade.h>
+#include <server/node_tracker_server/node_directory_builder.h>
 
+#include <server/cell_master/hydra_service.h>
+#include <server/cell_master/meta_state_facade.h>
 #include <server/cell_master/bootstrap.h>
 
 namespace NYT {
 namespace NChunkServer {
 
 using namespace NChunkClient;
+using namespace NNodeTrackerServer;
 using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkService
-    : public NCellMaster::TMetaStateServiceBase
+    : public NCellMaster::THydraServiceBase
 {
 public:
     explicit TChunkService(TBootstrap* bootstrap)
-        : TMetaStateServiceBase(
+        : THydraServiceBase(
             bootstrap,
             TChunkServiceProxy::GetServiceName(),
             ChunkServerLogger.GetCategory())
     {
         RegisterMethod(
             RPC_SERVICE_METHOD_DESC(LocateChunks)
-                .SetInvoker(bootstrap->GetMetaStateFacade()->GetGuardedInvoker(EStateThreadQueue::ChunkMaintenance)));
+                .SetInvoker(bootstrap->GetMetaStateFacade()->GetGuardedInvoker(EAutomatonThreadQueue::ChunkMaintenance)));
     }
 
 private:

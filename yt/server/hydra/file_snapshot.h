@@ -1,0 +1,17 @@
+#pragma once
+
+#include "public.h"
+
+namespace NYT {
+namespace NHydra {
+
+////////////////////////////////////////////////////////////////////////////////
+
+ISnapshotStorePtr CreateFileSnapshotStore(
+    const TCellGuid& cellGuid,
+    TFileSnapshotStoreConfigPtr config);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NHydra
+} // namespace NYT

@@ -4,15 +4,15 @@
 
 #include <core/ytree/yson_serializable.h>
 
-#include <ytlib/meta_state/config.h>
+#include <core/rpc/retrying_channel.h>
+
+#include <ytlib/hydra/config.h>
 
 #include <ytlib/transaction_client/config.h>
 
 #include <ytlib/file_client/config.h>
 
 #include <ytlib/table_client/config.h>
-
-#include <core/rpc/retrying_channel.h>
 
 #include <ytlib/scheduler/config.h>
 
@@ -25,7 +25,7 @@ class TDriverConfig
     : public TYsonSerializable
 {
 public:
-    NMetaState::TMasterDiscoveryConfigPtr Masters;
+    NHydra::TPeerDiscoveryConfigPtr Masters;
     NScheduler::TSchedulerConnectionConfigPtr Scheduler;
     NTransactionClient::TTransactionManagerConfigPtr TransactionManager;
     NFileClient::TFileReaderConfigPtr FileReader;

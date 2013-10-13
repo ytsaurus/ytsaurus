@@ -10,6 +10,9 @@
 #include <server/chunk_server/chunk_owner_type_handler.h>
 #include <server/chunk_server/chunk_manager.h>
 
+#include <server/tablet_server/tablet_manager.h>
+#include <server/tablet_server/tablet.h>
+
 #include <server/cell_master/bootstrap.h>
 
 namespace NYT {
@@ -28,6 +31,7 @@ using namespace NSecurityServer;
 
 TTableNode::TTableNode(const TVersionedNodeId& id)
     : TChunkOwnerBase(id)
+    , Tablet_(nullptr)
 { }
 
 EObjectType TTableNode::GetObjectType() const
@@ -38,6 +42,28 @@ EObjectType TTableNode::GetObjectType() const
 TTableNode* TTableNode::GetTrunkNode() const
 {
     return static_cast<TTableNode*>(TrunkNode_);
+}
+
+bool TTableNode::IsMounted() const
+{
+    return Tablet_ != nullptr;
+}
+
+void TTableNode::Save(TSaveContext& context) const
+{
+    TChunkOwnerBase::Save(context);
+
+    SaveObjectRef(context, Tablet_);
+}
+
+void TTableNode::Load(TLoadContext& context)
+{
+    TChunkOwnerBase::Load(context);
+
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 100) {
+        LoadObjectRef(context, Tablet_);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -86,6 +112,15 @@ protected:
             trunkNode);
     }
 
+    virtual void DoDestroy(TTableNode* node) override
+    {
+        TBase::DoDestroy(node);
+
+        if (node->IsMounted()) {
+            auto tabletManager = Bootstrap->GetTabletManager();
+            tabletManager->UnmountTable(node);
+        }
+    }
 };
 
 INodeTypeHandlerPtr CreateTableTypeHandler(TBootstrap* bootstrap)

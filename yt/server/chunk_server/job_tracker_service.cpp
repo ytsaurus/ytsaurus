@@ -2,14 +2,13 @@
 #include "job_tracker_service.h"
 #include "chunk_manager.h"
 #include "job.h"
-#include "node_directory_builder.h"
 #include "chunk.h"
 #include "private.h"
 
 #include <core/misc/string.h>
 #include <core/misc/protobuf_helpers.h>
 
-#include <ytlib/meta_state/rpc_helpers.h>
+#include <ytlib/hydra/rpc_helpers.h>
 
 #include <ytlib/job_tracker_client/job_tracker_service_proxy.h>
 
@@ -17,10 +16,11 @@
 
 #include <ytlib/chunk_client/job.pb.h>
 
-#include <server/cell_master/meta_state_service.h>
+#include <server/cell_master/hydra_service.h>
 
 #include <server/node_tracker_server/node_tracker.h>
 #include <server/node_tracker_server/node.h>
+#include <server/node_tracker_server/node_directory_builder.h>
 
 #include <server/cell_master/bootstrap.h>
 
@@ -41,11 +41,11 @@ static auto& Logger = ChunkServerLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJobTrackerService
-    : public NCellMaster::TMetaStateServiceBase
+    : public NCellMaster::THydraServiceBase
 {
 public:
     explicit TJobTrackerService(TBootstrap* bootstrap)
-        : TMetaStateServiceBase(
+        : THydraServiceBase(
             bootstrap,
             TJobTrackerServiceProxy::GetServiceName(),
             ChunkServerLogger.GetCategory())
@@ -178,7 +178,7 @@ private:
                     repairJobSpecExt->set_erasure_codec(chunk->GetErasureCodec());
                     ToProto(repairJobSpecExt->mutable_erased_indexes(), job->ErasedIndexes());
 
-                    TNodeDirectoryBuilder builder(repairJobSpecExt->mutable_node_directory());
+                    NNodeTrackerServer::TNodeDirectoryBuilder builder(repairJobSpecExt->mutable_node_directory());
                     const auto& replicas = chunk->StoredReplicas();
                     builder.Add(replicas);
                     ToProto(repairJobSpecExt->mutable_replicas(), replicas);

@@ -8,11 +8,11 @@
 #include <core/misc/small_vector.h>
 #include <core/misc/ref_tracked.h>
 
+#include <core/erasure/public.h>
+
 #include <ytlib/chunk_client/chunk.pb.h>
 
 #include <ytlib/table_client/table_chunk_meta.pb.h>
-
-#include <core/erasure/public.h>
 
 #include <server/cell_master/public.h>
 

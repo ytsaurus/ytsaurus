@@ -9,19 +9,19 @@
 
 #include <core/misc/singleton.h>
 
+#include <core/ytree/ephemeral_node_factory.h>
+#include <core/ytree/ypath_detail.h>
+
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <ytlib/cypress_client/cypress_ypath.pb.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
 
-#include <core/ytree/ephemeral_node_factory.h>
-#include <core/ytree/ypath_detail.h>
-
-#include <server/cell_master/serialization_context.h>
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/meta_state_facade.h>
 
 #include <server/object_server/type_handler_detail.h>
+#include <server/object_server/object_detail.h>
 
 #include <server/security_server/account.h>
 #include <server/security_server/group.h>
@@ -36,7 +36,7 @@ using namespace NBus;
 using namespace NRpc;
 using namespace NYTree;
 using namespace NTransactionServer;
-using namespace NMetaState;
+using namespace NHydra;
 using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NSecurityClient;
@@ -221,24 +221,17 @@ std::unique_ptr<TCypressNodeBase> TCypressManager::TNodeMapTraits::Create(const 
 TCypressManager::TCypressManager(
     TCypressManagerConfigPtr config,
     TBootstrap* bootstrap)
-    : TMetaStatePart(
-        bootstrap->GetMetaStateFacade()->GetManager(),
-        bootstrap->GetMetaStateFacade()->GetState())
+    : TMasterAutomatonPart(bootstrap)
     , Config(config)
-    , Bootstrap(bootstrap)
     , NodeMap(TNodeMapTraits(this))
     , TypeToHandler(MaxObjectType + 1)
     , RootNode(nullptr)
     , AccessTracker(New<TAccessTracker>(config, bootstrap))
 {
-    YCHECK(config);
-    YCHECK(bootstrap);
-    VERIFY_INVOKER_AFFINITY(bootstrap->GetMetaStateFacade()->GetInvoker(), StateThread);
+    VERIFY_INVOKER_AFFINITY(bootstrap->GetMetaStateFacade()->GetInvoker(), AutomatonThread);
 
-    {
-        auto cellId = Bootstrap->GetObjectManager()->GetCellId();
-        RootNodeId = MakeWellKnownId(EObjectType::MapNode, cellId);
-    }
+    auto cellId = Bootstrap->GetCellId();
+    RootNodeId = MakeWellKnownId(EObjectType::MapNode, cellId);
 
     RegisterHandler(New<TStringNodeTypeHandler>(Bootstrap));
     RegisterHandler(New<TIntegerNodeTypeHandler>(Bootstrap));
@@ -248,38 +241,21 @@ TCypressManager::TCypressManager(
     RegisterHandler(New<TLinkNodeTypeHandler>(Bootstrap));
     RegisterHandler(New<TDocumentNodeTypeHandler>(Bootstrap));
 
-    {
-        NCellMaster::TLoadContext context;
-        context.SetBootstrap(Bootstrap);
+    RegisterLoader(
+        "Cypress.Keys",
+        BIND(&TCypressManager::LoadKeys, Unretained(this)));
+    RegisterLoader(
+        "Cypress.Values",
+        BIND(&TCypressManager::LoadValues, Unretained(this)));
 
-        RegisterLoader(
-            "Cypress.Keys",
-            SnapshotVersionValidator(),
-            BIND(&TCypressManager::LoadKeys, MakeStrong(this)),
-            context);
-        RegisterLoader(
-            "Cypress.Values",
-            SnapshotVersionValidator(),
-            BIND(&TCypressManager::LoadValues, MakeStrong(this)),
-            context);
-    }
-
-    {
-        NCellMaster::TSaveContext context;
-
-        RegisterSaver(
-            ESerializationPriority::Keys,
-            "Cypress.Keys",
-            GetCurrentSnapshotVersion(),
-            BIND(&TCypressManager::SaveKeys, MakeStrong(this)),
-            context);
-        RegisterSaver(
-            ESerializationPriority::Values,
-            "Cypress.Values",
-            GetCurrentSnapshotVersion(),
-            BIND(&TCypressManager::SaveValues, MakeStrong(this)),
-            context);
-    }
+    RegisterSaver(
+        ESerializationPriority::Keys,
+        "Cypress.Keys",
+        BIND(&TCypressManager::SaveKeys, Unretained(this)));
+    RegisterSaver(
+        ESerializationPriority::Values,
+        "Cypress.Values",
+        BIND(&TCypressManager::SaveValues, Unretained(this)));
 
     RegisterMethod(BIND(&TThis::UpdateAccessStatistics, Unretained(this)));
 }
@@ -340,7 +316,7 @@ INodeTypeHandlerPtr TCypressManager::GetHandler(const TCypressNodeBase* node)
     return GetHandler(node->GetType());
 }
 
-NMetaState::TMutationPtr TCypressManager::CreateUpdateAccessStatisticsMutation(
+NHydra::TMutationPtr TCypressManager::CreateUpdateAccessStatisticsMutation(
     const NProto::TMetaReqUpdateAccessStatistics& request)
 {
    return Bootstrap
@@ -414,9 +390,24 @@ TCypressNodeBase* TCypressManager::GetRootNode() const
     return RootNode;
 }
 
+TCypressNodeBase* TCypressManager::GetNodeOrThrow(const TVersionedNodeId& id)
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    auto* node = FindNode(id);
+    if (!IsObjectAlive(node)) {
+        THROW_ERROR_EXCEPTION(
+            NYTree::EErrorCode::ResolveError,
+            "No such node %s",
+            ~ToString(id));
+    }
+
+    return node;
+}
+
 INodeResolverPtr TCypressManager::CreateResolver(TTransaction* transaction)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     return New<TYPathResolver>(Bootstrap, transaction);
 }
@@ -425,7 +416,7 @@ TCypressNodeBase* TCypressManager::FindNode(
     TCypressNodeBase* trunkNode,
     NTransactionServer::TTransaction* transaction)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
     YCHECK(trunkNode->IsTrunk());
 
     // Fast path -- no transaction.
@@ -441,7 +432,7 @@ TCypressNodeBase* TCypressManager::GetVersionedNode(
     TCypressNodeBase* trunkNode,
     TTransaction* transaction)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
     YCHECK(trunkNode->IsTrunk());
 
     auto* currentTransaction = transaction;
@@ -458,7 +449,7 @@ ICypressNodeProxyPtr TCypressManager::GetNodeProxy(
     TCypressNodeBase* trunkNode,
     TTransaction* transaction)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
     YCHECK(trunkNode->IsTrunk());
 
     auto handler = GetHandler(trunkNode);
@@ -791,7 +782,7 @@ TCypressNodeBase* TCypressManager::LockNode(
     const TLockRequest& request,
     bool recursive)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
     YCHECK(trunkNode->IsTrunk());
     YCHECK(request.Mode != ELockMode::None);
 
@@ -856,7 +847,7 @@ TLock* TCypressManager::CreateLock(
     const TLockRequest& request,
     bool waitable)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
     YCHECK(trunkNode->IsTrunk());
     YCHECK(transaction);
     YCHECK(request.Mode != ELockMode::None);
@@ -930,14 +921,14 @@ void TCypressManager::SetModified(
     TCypressNodeBase* trunkNode,
     TTransaction* transaction)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     AccessTracker->OnModify(trunkNode, transaction);
 }
 
 void TCypressManager::SetAccessed(TCypressNodeBase* trunkNode)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     if (IsLeader()) {
         AccessTracker->OnAccess(trunkNode);
@@ -974,7 +965,7 @@ TCypressNodeBase* TCypressManager::BranchNode(
 {
     YCHECK(originatingNode);
     YCHECK(transaction);
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     auto objectManager = Bootstrap->GetObjectManager();
     auto securityManager = Bootstrap->GetSecurityManager();
@@ -1019,16 +1010,16 @@ void TCypressManager::SaveValues(NCellMaster::TSaveContext& context) const
     LockMap.SaveValues(context);
 }
 
-void TCypressManager::OnBeforeLoaded()
+void TCypressManager::OnBeforeSnapshotLoaded()
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     DoClear();
 }
 
 void TCypressManager::LoadKeys(NCellMaster::TLoadContext& context)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     NodeMap.LoadKeys(context);
     // COMPAT(babenko)
@@ -1043,7 +1034,7 @@ void TCypressManager::LoadKeys(NCellMaster::TLoadContext& context)
 
 void TCypressManager::LoadValues(NCellMaster::TLoadContext& context)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     NodeMap.LoadValues(context);
     // COMPAT(babenko)
@@ -1052,7 +1043,7 @@ void TCypressManager::LoadValues(NCellMaster::TLoadContext& context)
     }
 }
 
-void TCypressManager::OnAfterLoaded()
+void TCypressManager::OnAfterSnapshotLoaded()
 {
     // Reconstruct immediate ancestor sets.
     FOREACH (const auto& pair, NodeMap) {
@@ -1113,7 +1104,7 @@ void TCypressManager::DoClear()
 
 void TCypressManager::Clear()
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     DoClear();
     InitBuiltin();
@@ -1121,7 +1112,7 @@ void TCypressManager::Clear()
 
 void TCypressManager::OnRecoveryComplete()
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     FOREACH (const auto& pair, NodeMap) {
         auto* node = pair.second;
@@ -1131,7 +1122,7 @@ void TCypressManager::OnRecoveryComplete()
 
 void TCypressManager::RegisterNode(std::unique_ptr<TCypressNodeBase> node)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
     YCHECK(node->IsTrunk());
 
     const auto& nodeId = node->GetId();
@@ -1157,7 +1148,7 @@ void TCypressManager::RegisterNode(std::unique_ptr<TCypressNodeBase> node)
 
 void TCypressManager::DestroyNode(TCypressNodeBase* trunkNode)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
     YCHECK(trunkNode->IsTrunk());
 
     auto nodeHolder = NodeMap.Release(trunkNode->GetVersionedId());
@@ -1198,7 +1189,7 @@ void TCypressManager::DestroyNode(TCypressNodeBase* trunkNode)
 
 void TCypressManager::OnTransactionCommitted(TTransaction* transaction)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     MergeNodes(transaction);
     ReleaseLocks(transaction, true);
@@ -1206,7 +1197,7 @@ void TCypressManager::OnTransactionCommitted(TTransaction* transaction)
 
 void TCypressManager::OnTransactionAborted(TTransaction* transaction)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     RemoveBranchedNodes(transaction);
     ReleaseLocks(transaction, false);
@@ -1415,16 +1406,16 @@ TYPath TCypressManager::GetNodePath(
     return proxy->GetResolver()->GetPath(proxy);
 }
 
-void TCypressManager::OnActiveQuorumEstablished()
+void TCypressManager::OnLeaderActive()
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     AccessTracker->StartFlush();
 }
 
 void TCypressManager::OnStopLeading()
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     AccessTracker->StopFlush();
 }
@@ -1448,8 +1439,8 @@ void TCypressManager::UpdateAccessStatistics(const NProto::TMetaReqUpdateAccessS
     }
 }
 
-DEFINE_METAMAP_ACCESSORS(TCypressManager, Node, TCypressNodeBase, TVersionedNodeId, NodeMap);
-DEFINE_METAMAP_ACCESSORS(TCypressManager, Lock, TLock, TLockId, LockMap);
+DEFINE_ENTITY_MAP_ACCESSORS(TCypressManager, Node, TCypressNodeBase, TVersionedNodeId, NodeMap);
+DEFINE_ENTITY_MAP_ACCESSORS(TCypressManager, Lock, TLock, TLockId, LockMap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

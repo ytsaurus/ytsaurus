@@ -36,7 +36,7 @@
 
 #include <ytlib/scheduler/helpers.h>
 
-#include <ytlib/meta_state/rpc_helpers.h>
+#include <ytlib/hydra/rpc_helpers.h>
 
 #include <ytlib/security_client/public.h>
 
@@ -55,7 +55,7 @@ using namespace NCypressClient;
 using namespace NObjectClient;
 using namespace NChunkClient;
 using namespace NTransactionClient;
-using namespace NMetaState;
+using namespace NHydra;
 using namespace NRpc;
 using namespace NSecurityClient;
 using namespace NTransactionClient::NProto;

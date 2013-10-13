@@ -34,7 +34,7 @@ TAccessTracker::TAccessTracker(
 
 void TAccessTracker::StartFlush()
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     YCHECK(!FlushExecutor);
     FlushExecutor = New<TPeriodicExecutor>(
@@ -47,7 +47,7 @@ void TAccessTracker::StartFlush()
 
 void TAccessTracker::StopFlush()
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     if (FlushExecutor) {
         FlushExecutor->Stop();
@@ -61,7 +61,7 @@ void TAccessTracker::OnModify(
     TCypressNodeBase* trunkNode,
     TTransaction* transaction)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
     YCHECK(trunkNode->IsTrunk());
     YCHECK(trunkNode->IsAlive());
 
@@ -82,7 +82,7 @@ void TAccessTracker::OnModify(
 
 void TAccessTracker::OnAccess(TCypressNodeBase* trunkNode)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
     YCHECK(trunkNode->IsTrunk());
     YCHECK(trunkNode->IsAlive());
 
@@ -117,7 +117,7 @@ void TAccessTracker::Reset()
 
 void TAccessTracker::OnFlush()
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     if (NodesWithAccessStatisticsUpdate.empty()) {
         FlushExecutor->ScheduleNext();

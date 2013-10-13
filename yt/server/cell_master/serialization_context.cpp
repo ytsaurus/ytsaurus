@@ -20,6 +20,11 @@
 #include <server/security_server/user.h>
 #include <server/security_server/group.h>
 
+#include <server/table_server/table_node.h>
+
+#include <server/tablet_server/tablet_manager.h>
+#include <server/tablet_server/tablet_cell.h>
+
 namespace NYT {
 namespace NCellMaster {
 
@@ -30,28 +35,34 @@ using namespace NTransactionServer;
 using namespace NChunkServer;
 using namespace NCypressServer;
 using namespace NSecurityServer;
+using namespace NTabletServer;
+using namespace NTableServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 int GetCurrentSnapshotVersion()
 {
-    return 26;
+    return 100;
 }
 
-NMetaState::TVersionValidator SnapshotVersionValidator()
+bool ValidateSnapshotVersion(int version)
 {
-    static auto result = BIND([] (int version) {
-        YCHECK(version == 10 ||
-               version == 20 ||
-               version == 21 ||
-               version == 22 ||
-               version == 23 ||
-               version == 24 ||
-               version == 25 ||
-               version == 26);
-    });
-    return result;
+    return version == 10 ||
+           version == 20 ||
+           version == 21 ||
+           version == 22 ||
+           version == 23 ||
+           version == 24 ||
+           version == 25 ||
+           version == 26 ||
+           version == 100;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TLoadContext::TLoadContext(TBootstrap* bootstrap)
+    : Bootstrap_(bootstrap)
+{ }
 
 template <>
 TObjectBase* TLoadContext::Get(const TObjectId& id) const
@@ -139,6 +150,26 @@ template <>
 TGroup* TLoadContext::Get(const TObjectId& id) const
 {
     return Bootstrap_->GetSecurityManager()->GetGroup(id);
+}
+
+template <>
+TTableNode* TLoadContext::Get(const TVersionedNodeId& id) const
+{
+    auto* node = Bootstrap_->GetCypressManager()->GetNode(id);
+    YCHECK(node->GetType() == EObjectType::Table);
+    return static_cast<TTableNode*>(node);
+}
+
+template <>
+TTabletCell* TLoadContext::Get(const TTabletCellId& id) const
+{
+    return Bootstrap_->GetTabletManager()->GetTabletCell(id);
+}
+
+template <>
+TTablet* TLoadContext::Get(const TTabletId& id) const
+{
+    return Bootstrap_->GetTabletManager()->GetTablet(id);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

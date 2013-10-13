@@ -79,7 +79,7 @@ public:
         TOrchidServiceProxy proxy(channel);
         proxy.SetDefaultTimeout(manifest->Timeout);
 
-        auto path = GetRedirectPath(manifest, context->GetPath());
+        auto path = GetRedirectPath(manifest, context->GetService());
         auto verb = context->GetVerb();
 
         auto requestMessage = context->GetRequestMessage();
@@ -89,7 +89,7 @@ public:
             return;
         }
 
-        requestHeader.set_path(path);
+        requestHeader.set_service(path);
         auto innerRequestMessage = SetRequestHeader(requestMessage, requestHeader);
 
         auto outerRequest = proxy.Execute();
@@ -117,7 +117,7 @@ public:
         return OrchidLogger.GetCategory();
     }
 
-    bool IsWriteRequest(IServiceContextPtr context) const override
+    bool IsMutatingRequest(IServiceContextPtr context) const override
     {
         UNUSED(context);
         return false;

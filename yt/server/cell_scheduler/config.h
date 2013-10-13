@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/meta_state/public.h>
+#include <ytlib/hydra/public.h>
 
 #include <ytlib/transaction_client/config.h>
 
@@ -29,7 +29,7 @@ public:
     //! HTTP monitoring interface port number.
     int MonitoringPort;
 
-    NMetaState::TMasterDiscoveryConfigPtr Masters;
+    NHydra::TPeerDiscoveryConfigPtr Masters;
     NTransactionClient::TTransactionManagerConfigPtr TransactionManager;
     NScheduler::TSchedulerConfigPtr Scheduler;
 

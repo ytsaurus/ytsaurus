@@ -27,10 +27,10 @@
 #include <server/cell_master/meta_state_facade.h>
 
 #include <server/chunk_server/chunk_manager.h>
-#include <server/chunk_server/node_directory_builder.h>
 
 #include <server/node_tracker_server/node_tracker.h>
 #include <server/node_tracker_server/node.h>
+#include <server/node_tracker_server/node_directory_builder.h>
 
 #include <server/cypress_server/node.h>
 
@@ -93,25 +93,25 @@ TChunkReplicator::TChunkReplicator(
 void TChunkReplicator::Initialize()
 {
     RefreshExecutor = New<TPeriodicExecutor>(
-        Bootstrap->GetMetaStateFacade()->GetEpochInvoker(EStateThreadQueue::ChunkMaintenance),
+        Bootstrap->GetMetaStateFacade()->GetEpochInvoker(EAutomatonThreadQueue::ChunkMaintenance),
         BIND(&TChunkReplicator::OnRefresh, MakeWeak(this)),
         Config->ChunkRefreshPeriod);
     RefreshExecutor->Start();
 
     PropertiesUpdateExecutor = New<TPeriodicExecutor>(
-        Bootstrap->GetMetaStateFacade()->GetEpochInvoker(EStateThreadQueue::ChunkMaintenance),
+        Bootstrap->GetMetaStateFacade()->GetEpochInvoker(EAutomatonThreadQueue::ChunkMaintenance),
         BIND(&TChunkReplicator::OnPropertiesUpdate, MakeWeak(this)),
         Config->ChunkPropertiesUpdatePeriod,
         EPeriodicInvokerMode::Manual);
     PropertiesUpdateExecutor->Start();
 
     auto nodeTracker = Bootstrap->GetNodeTracker();
-    FOREACH (auto* node, nodeTracker->GetNodes()) {
+    FOREACH (auto* node, nodeTracker->Nodes().GetValues()) {
         OnNodeRegistered(node);
     }
 
     auto chunkManager = Bootstrap->GetChunkManager();
-    FOREACH (auto* chunk, chunkManager->GetChunks()) {
+    FOREACH (auto* chunk, chunkManager->Chunks().GetValues()) {
         ScheduleChunkRefresh(chunk);
         SchedulePropertiesUpdate(chunk);
     }
@@ -999,7 +999,7 @@ bool TChunkReplicator::IsEnabled()
         }
     }
 
-    int chunkCount = chunkManager->GetChunkCount();
+    int chunkCount = chunkManager->Chunks().GetSize();
     int lostChunkCount = chunkManager->LostChunks().size();
     if (Config->SafeLostChunkFraction && chunkCount > 0) {
         double needFraction = *Config->SafeLostChunkFraction;
@@ -1118,7 +1118,7 @@ void TChunkReplicator::SchedulePropertiesUpdate(TChunk* chunk)
 void TChunkReplicator::OnPropertiesUpdate()
 {
     if (PropertiesUpdateList.empty() ||
-        !Bootstrap->GetMetaStateFacade()->GetManager()->HasActiveQuorum())
+        !Bootstrap->GetMetaStateFacade()->GetManager()->IsActiveLeader())
     {
         PropertiesUpdateExecutor->ScheduleNext();
         return;

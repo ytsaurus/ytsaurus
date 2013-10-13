@@ -4,7 +4,7 @@
 
 #include <core/ytree/public.h>
 
-#include <ytlib/meta_state/public.h>
+#include <ytlib/hydra/public.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
 
@@ -22,7 +22,7 @@ struct TTransactionStartOptions
     TTransactionStartOptions();
 
     TNullable<TDuration> Timeout;
-    NMetaState::TMutationId MutationId;
+    NHydra::TMutationId MutationId;
     TTransactionId ParentId;
     bool AutoAbort;
     bool Ping;

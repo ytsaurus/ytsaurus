@@ -4,7 +4,6 @@ set( SRCS
   ${BASE}/public.cpp
   ${BASE}/private.cpp
   ${BASE}/cell_manager.cpp
-  ${BASE}/election_manager.cpp
   ${BASE}/election_service_proxy.cpp
 )
 set( HDRS
@@ -12,7 +11,6 @@ set( HDRS
   ${BASE}/private.h
   ${BASE}/cell_manager.h
   ${BASE}/config.h
-  ${BASE}/election_manager.h
   ${BASE}/election_service_proxy.h
 )
 

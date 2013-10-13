@@ -112,6 +112,10 @@ private:
             AppendInfo(str, Sprintf("RequestId: %s", ~ToString(RequestId)));
         }
 
+        if (RealmId != NullRealmId) {
+            AppendInfo(str, Sprintf("RealmId: %s", ~ToString(RealmId)));
+        }
+
         auto user = FindAuthenticatedUser(RequestHeader_);
         if (user) {
             AppendInfo(str, Sprintf("User: %s", ~*user));
@@ -148,38 +152,38 @@ private:
 
 TServiceBase::TServiceBase(
     IPrioritizedInvokerPtr defaultInvoker,
-    const Stroka& serviceName,
+    const TServiceId& serviceId,
     const Stroka& loggingCategory)
 {
     Init(
         defaultInvoker,
-        serviceName,
+        serviceId,
         loggingCategory);
 }
 
 TServiceBase::TServiceBase(
     IInvokerPtr defaultInvoker,
-    const Stroka& serviceName,
+    const TServiceId& serviceId,
     const Stroka& loggingCategory)
 {
     Init(
         CreateFakePrioritizedInvoker(defaultInvoker),
-        serviceName,
+        serviceId,
         loggingCategory);
 }
 
 void TServiceBase::Init(
     IPrioritizedInvokerPtr defaultInvoker,
-    const Stroka& serviceName,
+    const TServiceId& serviceId,
     const Stroka& loggingCategory)
 {
     YCHECK(defaultInvoker);
 
     DefaultInvoker = defaultInvoker;
-    ServiceName = serviceName;
+    ServiceId = serviceId;
     LoggingCategory = loggingCategory;
 
-    ServiceTagId = NProfiling::TProfilingManager::Get()->RegisterTag("service", ServiceName);
+    ServiceTagId = NProfiling::TProfilingManager::Get()->RegisterTag("service", ServiceId.ServiceName);
     
     {
         NProfiling::TTagIdList tagIds;
@@ -188,9 +192,9 @@ void TServiceBase::Init(
     }
 }
 
-Stroka TServiceBase::GetServiceName() const
+TServiceId TServiceBase::GetServiceId() const
 {
-    return ServiceName;
+    return ServiceId;
 }
 
 void TServiceBase::OnRequest(
@@ -213,7 +217,7 @@ void TServiceBase::OnRequest(
         auto error = TError(
             EErrorCode::NoSuchVerb,
             "Unknown verb %s:%s",
-            ~ServiceName,
+            ~ServiceId.ServiceName,
             ~verb)
             << TErrorAttribute("request_id", requestId);
         LOG_WARNING(error);
@@ -231,7 +235,7 @@ void TServiceBase::OnRequest(
         auto error = TError(
             EErrorCode::ProtocolError,
             "One-way flag mismatch for verb %s:%s: expected %s, actual %s",
-            ~ServiceName,
+            ~ServiceId.ServiceName,
             ~verb,
             ~FormatBool(runtimeInfo->Descriptor.OneWay),
             ~FormatBool(oneWay))
@@ -452,8 +456,9 @@ void TServiceBase::Configure(INodePtr configNode)
             const auto& methodConfig = pair.second;
             auto runtimeInfo = FindMethodInfo(methodName);
             if (!runtimeInfo) {
-                THROW_ERROR_EXCEPTION("Cannot find RPC method %s to configure",
-                    ~methodName.Quote());
+                THROW_ERROR_EXCEPTION("Cannot find RPC method %s in service %s to configure",
+                    ~methodName.Quote(),
+                    ~ServiceId.ServiceName.Quote());
             }
 
             auto& descriptor = runtimeInfo->Descriptor;
@@ -472,7 +477,7 @@ void TServiceBase::Configure(INodePtr configNode)
         }
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error configuring RPC service %s",
-            ~ServiceName.Quote())
+            ~ServiceId.ServiceName.Quote())
             << ex;
     }
 }

@@ -24,11 +24,11 @@ public:
         : TBase(bootstrap, group)
     { }
 
-    virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const override
+    virtual bool IsMutatingRequest(NRpc::IServiceContextPtr context) const override
     {
         DECLARE_YPATH_SERVICE_WRITE_METHOD(AddMember);
         DECLARE_YPATH_SERVICE_WRITE_METHOD(RemoveMember);
-        return TBase::IsWriteRequest(context);
+        return TBase::IsMutatingRequest(context);
     }
 
 private:

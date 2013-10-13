@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <core/actions/signal.h>
+
 #include <core/rpc/channel.h>
 
 #include <core/concurrency/thread_affinity.h>
@@ -97,7 +99,7 @@ private:
     //! Schedules a new node heartbeat via TDelayedExecutor.
     void ScheduleNodeHeartbeat();
 
-    //! Schedules a new node heartbeat via TDelayedExecutor.
+    //! Schedules a new job heartbeat via TDelayedExecutor.
     void ScheduleJobHeartbeat();
 
     //! Calls #Reset and schedules a new registration request via TDelayedExecutor.
@@ -131,10 +133,10 @@ private:
     void StartHeartbeats();
 
     //! Constructs a protobuf info for an added chunk.
-    static NNodeTrackerClient::NProto::TChunkAddInfo GetAddInfo(TChunkPtr chunk);
+    static NNodeTrackerClient::NProto::TChunkAddInfo BuildAddChunkInfo(TChunkPtr chunk);
 
     //! Constructs a protobuf info for a removed chunk.
-    static NNodeTrackerClient::NProto::TChunkRemoveInfo GetRemoveInfo(TChunkPtr chunk);
+    static NNodeTrackerClient::NProto::TChunkRemoveInfo BuildRemoveChunkInfo(TChunkPtr chunk);
 
     //! Handles full heartbeat response from Node Tracker.
     void OnFullNodeHeartbeatResponse(NNodeTrackerClient::TNodeTrackerServiceProxy::TRspFullHeartbeatPtr rsp);

@@ -8,7 +8,7 @@
 
 #include <ytlib/scheduler/scheduler_service_proxy.h>
 
-#include <ytlib/meta_state/rpc_helpers.h>
+#include <ytlib/hydra/rpc_helpers.h>
 
 #include <ytlib/security_client/public.h>
 
@@ -21,7 +21,7 @@ using namespace NRpc;
 using namespace NCellScheduler;
 using namespace NTransactionClient;
 using namespace NYTree;
-using namespace NMetaState;
+using namespace NHydra;
 using namespace NSecurityClient;
 
 ////////////////////////////////////////////////////////////////////

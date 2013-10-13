@@ -109,6 +109,13 @@ DECLARE_ENUM(EObjectType,
 
     // A mysterious creature representing master as a whole.
     ((Master)                     (600))
+
+    // Tablets
+    ((TabletCell)                 (700))
+    ((TabletCellMap)              (701))
+    ((Tablet)                     (702))
+    ((TabletMap)                  (703))
+
 );
 
 //! Types (both regular and schematic) are supposed to be in range [0, MaxObjectType].

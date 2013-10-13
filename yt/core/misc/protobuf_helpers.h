@@ -163,20 +163,20 @@ inline std::vector<TOriginal> FromProto(
 //! Serializes a protobuf message.
 //! Returns |true| iff everything went well.
 bool SerializeToProto(
-    const google::protobuf::Message& message,
+    const google::protobuf::MessageLite& message,
     TSharedRef* data);
 
 //! Deserializes a chunk of memory into a protobuf message.
 //! Returns |true| iff everything went well.
 bool DeserializeFromProto(
-    google::protobuf::Message* message,
+    google::protobuf::MessageLite* message,
     const TRef& data);
 
 //! Serializes a given protobuf message and wraps it with envelope.
 //! Optionally compresses the serialized message.
 //! Returns |true| iff everything went well.
 bool SerializeToProtoWithEnvelope(
-    const google::protobuf::Message& message,
+    const google::protobuf::MessageLite& message,
     TSharedRef* data,
     NCompression::ECodec codecId = NCompression::ECodec::None);
 
@@ -184,7 +184,7 @@ bool SerializeToProtoWithEnvelope(
 //! and deserializes it into a protobuf message.
 //! Returns |true| iff everything went well.
 bool DeserializeFromProtoWithEnvelope(
-    google::protobuf::Message* message,
+    google::protobuf::MessageLite* message,
     const TRef& data);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -193,18 +193,18 @@ struct TBinaryProtoSerializer
 {
     //! Serializes a given protobuf message into a given stream.
     //! Throws an exception in case of error.
-    static void Save(TStreamSaveContext& context, const ::google::protobuf::Message& message);
+    static void Save(TStreamSaveContext& context, const ::google::protobuf::MessageLite& message);
 
     //! Reads from a given stream protobuf message.
     //! Throws an exception in case of error.
-    static void Load(TStreamLoadContext& context, ::google::protobuf::Message& message);
+    static void Load(TStreamLoadContext& context, ::google::protobuf::MessageLite& message);
 };
 
 template <class T, class C>
 struct TSerializerTraits<
     T,
     C,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<T&, ::google::protobuf::Message&>>::TType>
+    typename NMpl::TEnableIf<NMpl::TIsConvertible<T&, ::google::protobuf::MessageLite&>>::TType>
 {
     typedef TBinaryProtoSerializer TSerializer;
 };

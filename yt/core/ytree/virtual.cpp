@@ -57,7 +57,7 @@ IYPathService::TResolveResult TVirtualMapBase::ResolveRecursive(
 
 void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
 {
-    YASSERT(!NYson::TTokenizer(context->GetPath()).ParseNext());
+    YASSERT(!NYson::TTokenizer(context->GetService()).ParseNext());
 
     auto attributeFilter =
         request->has_attribute_filter()

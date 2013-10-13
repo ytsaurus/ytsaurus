@@ -60,9 +60,9 @@ public:
         return RequestId;
     }
 
-    virtual const Stroka& GetPath() const override
+    virtual const Stroka& GetService() const override
     {
-        return Header_.path();
+        return Header_.service();
     }
 
     virtual const Stroka& GetVerb() const override
@@ -157,9 +157,9 @@ class TRedirectorService
 {
 public:
     TRedirectorService(
-        const Stroka& serviceName,
+        const TServiceId& serviceId,
         IChannelPtr sinkChannel)
-        : ServiceName(serviceName)
+        : ServiceId(serviceId)
         , SinkChannel(sinkChannel)
     { }
 
@@ -170,18 +170,18 @@ public:
     {
         auto request = New<TRedirectedRequest>(header, message);
 
-        LOG_DEBUG("Redirecting request (RequestId: %s, Path: %s, Verb: %s)",
+        LOG_DEBUG("Redirecting request (RequestId: %s, Service: %s, Verb: %s)",
             ~ToString(request->GetRequestId()),
-            ~request->GetPath(),
+            ~request->GetService(),
             ~request->GetVerb());
 
         auto responseHandler = New<TRedirectedResponseHandler>(request, replyBus);
         SinkChannel->Send(request, responseHandler, Null);
     }
 
-    virtual Stroka GetServiceName() const override
+    virtual TServiceId GetServiceId() const override
     {
-        return ServiceName;
+        return ServiceId;
     }
 
     virtual void Configure(NYTree::INodePtr config) override
@@ -190,19 +190,19 @@ public:
     }
 
 private:
-    Stroka ServiceName;
+    TServiceId ServiceId;
     Stroka LoggingCategory;
     IChannelPtr SinkChannel;
 
 };
 
 IServicePtr CreateRedirectorService(
-    const Stroka& serviceName,
+    const TServiceId& serviceId,
     IChannelPtr sinkChannel)
 {
     YCHECK(sinkChannel);
 
-    return New<TRedirectorService>(serviceName, sinkChannel);
+    return New<TRedirectorService>(serviceId, sinkChannel);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -12,10 +12,11 @@
 #include <core/rpc/client.h>
 
 #include <core/concurrency/delayed_executor.h>
+
 #include <core/misc/serialize.h>
 #include <core/misc/string.h>
 
-#include <ytlib/meta_state/master_channel.h>
+#include <ytlib/hydra/peer_channel.h>
 
 #include <core/logging/tagged_logger.h>
 
@@ -23,6 +24,11 @@
 #include <ytlib/node_tracker_client/helpers.h>
 
 #include <server/job_agent/job_controller.h>
+
+#include <server/tablet_node/tablet_cell_controller.h>
+#include <server/tablet_node/tablet_slot.h>
+
+#include <server/hive/cell_registry.h>
 
 #include <server/cell_node/bootstrap.h>
 
@@ -32,12 +38,14 @@ namespace NYT {
 namespace NDataNode {
 
 using namespace NRpc;
+using namespace NConcurrency;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NJobTrackerClient;
 using namespace NJobTrackerClient::NProto;
+using namespace NTabletNode;
+using namespace NHydra;
 using namespace NCellNode;
-using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -214,6 +222,10 @@ TNodeStatistics TMasterConnector::ComputeStatistics()
     result.set_max_replication_session_count(Config->MaxReplicationSessions);
     result.set_max_repair_session_count(Config->MaxRepairSessions);
 
+    auto tabletCellController = Bootstrap->GetTabletCellController();
+    result.set_available_tablet_slots(tabletCellController->GetAvailableTabletSlotCount());
+    result.set_used_tablet_slots(tabletCellController->GetUsedTableSlotCount());
+
     return result;
 }
 
@@ -228,11 +240,7 @@ void TMasterConnector::OnRegisterResponse(TNodeTrackerServiceProxy::TRspRegister
     }
 
     auto cellGuid = FromProto<TGuid>(rsp->cell_guid());
-    YCHECK(!cellGuid.IsEmpty());
-
-    if (Bootstrap->GetCellGuid().IsEmpty()) {
-        Bootstrap->UpdateCellGuid(cellGuid);
-    }
+    YCHECK(cellGuid == Bootstrap->GetCellGuid());
 
     NodeId = rsp->node_id();
     YCHECK(State == EState::Registering);
@@ -257,11 +265,11 @@ void TMasterConnector::SendFullNodeHeartbeat()
     *request->mutable_statistics() = ComputeStatistics();
 
     FOREACH (const auto& chunk, Bootstrap->GetChunkStore()->GetChunks()) {
-        *request->add_chunks() = GetAddInfo(chunk);
+        *request->add_chunks() = BuildAddChunkInfo(chunk);
     }
 
     FOREACH (const auto& chunk, Bootstrap->GetChunkCache()->GetChunks()) {
-        *request->add_chunks() = GetAddInfo(chunk);
+        *request->add_chunks() = BuildAddChunkInfo(chunk);
     }
 
     AddedSinceLastSuccess.clear();
@@ -289,11 +297,28 @@ void TMasterConnector::SendIncrementalNodeHeartbeat()
     ReportedRemoved = RemovedSinceLastSuccess;
 
     FOREACH (auto chunk, ReportedAdded) {
-        *request->add_added_chunks() = GetAddInfo(chunk);
+        *request->add_added_chunks() = BuildAddChunkInfo(chunk);
     }
 
     FOREACH (auto chunk, ReportedRemoved) {
-        *request->add_removed_chunks() = GetRemoveInfo(chunk);
+        *request->add_removed_chunks() = BuildRemoveChunkInfo(chunk);
+    }
+
+    auto tabletCellController = Bootstrap->GetTabletCellController();
+    for (auto slot : tabletCellController->GetSlots()) {
+        auto* info = request->add_tablet_slots();
+        ToProto(info->mutable_cell_guid(), slot->GetCellGuid());
+        info->set_peer_state(slot->GetState());
+        info->set_peer_id(slot->GetPeerId());
+        info->set_config_version(slot->GetCellConfig().version());
+    }
+
+    auto cellRegistry = Bootstrap->GetCellRegistry();
+    auto cellMap = cellRegistry->GetRegisteredCells();
+    for (const auto& pair : cellMap) {
+        auto* info = request->add_hive_cells();
+        ToProto(info->mutable_cell_guid(), pair.first);
+        info->set_config_version(pair.second.version());
     }
 
     request->Invoke().Subscribe(
@@ -306,7 +331,7 @@ void TMasterConnector::SendIncrementalNodeHeartbeat()
         static_cast<int>(request->removed_chunks_size()));
 }
 
-TChunkAddInfo TMasterConnector::GetAddInfo(TChunkPtr chunk)
+TChunkAddInfo TMasterConnector::BuildAddChunkInfo(TChunkPtr chunk)
 {
     TChunkAddInfo result;
     ToProto(result.mutable_chunk_id(), chunk->GetId());
@@ -315,7 +340,7 @@ TChunkAddInfo TMasterConnector::GetAddInfo(TChunkPtr chunk)
     return result;
 }
 
-TChunkRemoveInfo TMasterConnector::GetRemoveInfo(TChunkPtr chunk)
+TChunkRemoveInfo TMasterConnector::BuildRemoveChunkInfo(TChunkPtr chunk)
 {
     TChunkRemoveInfo result;
     ToProto(result.mutable_chunk_id(), chunk->GetId());
@@ -379,6 +404,73 @@ void TMasterConnector::OnIncrementalNodeHeartbeatResponse(TNodeTrackerServicePro
     }
     RemovedSinceLastSuccess.swap(newRemovedSinceLastSuccess);
 
+    auto tabletCellController = Bootstrap->GetTabletCellController();
+    
+    for (const auto& info : rsp->tablet_slots_to_remove()) {
+        auto cellGuid = FromProto<TCellGuid>(info.cell_guid());
+        YCHECK(cellGuid != NullCellGuid);
+        auto slot = tabletCellController->FindSlot(cellGuid);
+        if (!slot) {
+            LOG_WARNING("Requested to remove a non-existing slot %s, ignored",
+                ~ToString(cellGuid));
+            continue;
+        }
+        tabletCellController->RemoveSlot(slot);
+    }
+
+    for (const auto& info : rsp->tablet_slots_to_create()) {
+        auto cellGuid = FromProto<TCellGuid>(info.cell_guid());
+        YCHECK(cellGuid != NullCellGuid);
+        if (tabletCellController->GetAvailableTabletSlotCount() == 0) {
+            LOG_WARNING("Requested to start slot %s when all slots are used, ignored",
+                ~ToString(cellGuid));
+            continue;
+        }
+        if (tabletCellController->FindSlot(cellGuid)) {
+            LOG_WARNING("Requested to start slot %s when this cell is already being served by the node, ignored",
+                ~ToString(cellGuid));
+            continue;
+        }
+        tabletCellController->CreateSlot(info);
+    }
+
+    for (const auto& info : rsp->tablet_slots_configure()) {
+        auto cellGuid = FromProto<TCellGuid>(info.cell_guid());
+        YCHECK(cellGuid != NullCellGuid);
+        auto slot = tabletCellController->FindSlot(cellGuid);
+        if (!slot) {
+            LOG_WARNING("Requested to configure a non-existing slot %s, ignored",
+                ~ToString(cellGuid));
+            continue;
+        }
+        if (slot->GetState() == EPeerState::Initializing || slot->GetState() == EPeerState::Finalizing) {
+            LOG_WARNING("Requested to configure slot %s in invalid state %s, ignored",
+                ~ToString(cellGuid),
+                ~FormatEnum(slot->GetState()));
+            continue;
+        }
+        tabletCellController->ConfigureSlot(slot, info);
+    }
+
+    auto cellRegistry = Bootstrap->GetCellRegistry();
+
+    for (const auto& info : rsp->hive_cells_to_unregister()) {
+        auto cellGuid = FromProto<TCellGuid>(info.cell_guid());
+        if (cellRegistry->UnregisterCell(cellGuid)) {
+            LOG_DEBUG("Hive cell unregistered (CellGuid: %s)",
+                ~ToString(cellGuid));
+        }
+    }
+
+    for (const auto& info : rsp->hive_cells_to_reconfigure()) {
+        auto cellGuid = FromProto<TCellGuid>(info.cell_guid());
+        if (cellRegistry->RegisterCell(cellGuid, info.config())) {
+            LOG_DEBUG("Hive cell reconfigured (CellGuid: %s, ConfigVersion: %d)",
+                ~ToString(cellGuid),
+                info.config().version());
+        }
+    }
+
     ScheduleNodeHeartbeat();
 }
 
@@ -396,6 +488,7 @@ void TMasterConnector::SendJobHeartbeat()
 
     TJobTrackerServiceProxy proxy(Bootstrap->GetMasterChannel());
     auto req = proxy.Heartbeat();
+
     auto jobController = Bootstrap->GetJobController();
     jobController->PrepareHeartbeat(~req);
 

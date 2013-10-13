@@ -33,8 +33,10 @@ typedef TIntrusivePtr<TRetryingChannelConfig> TRetryingChannelConfigPtr;
 class TThrottlingChannelConfig;
 typedef TIntrusivePtr<TThrottlingChannelConfig> TThrottlingChannelConfigPtr;
 
-struct IServer;
-typedef TIntrusivePtr<IServer> IServerPtr;
+struct IRpcServer;
+typedef TIntrusivePtr<IRpcServer> IRpcServerPtr;
+
+struct TServiceId;
 
 struct IService;
 typedef TIntrusivePtr<IService> IServicePtr;
@@ -63,6 +65,9 @@ typedef TIntrusivePtr<TMethodConfig> TMethodConfigPtr;
 
 typedef TGuid TRequestId;
 extern const TRequestId NullRequestId;
+
+typedef TGuid TRealmId;
+extern const TRealmId NullRealmId;
 
 ////////////////////////////////////////////////////////////////////////////////
 

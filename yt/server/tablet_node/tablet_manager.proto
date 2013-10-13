@@ -1,0 +1,18 @@
+package NYT.NTabletNode.NProto;
+
+import "yt/core/misc/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TMetaReqCreateTablet
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+}
+
+message TMetaReqRemoveTablet
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+

@@ -7,9 +7,9 @@
 
 #include <core/actions/signal.h>
 
-#include <ytlib/meta_state/composite_meta_state.h>
-#include <ytlib/meta_state/mutation.h>
-#include <ytlib/meta_state/map.h>
+#include <server/hydra/composite_automaton.h>
+#include <server/hydra/mutation.h>
+#include <server/hydra/entity_map.h>
 
 #include <ytlib/chunk_client/chunk_replica.h>
 
@@ -36,13 +36,13 @@ public:
 
     void Initialize();
 
-    NMetaState::TMutationPtr CreateUpdateChunkPropertiesMutation(
+    NHydra::TMutationPtr CreateUpdateChunkPropertiesMutation(
         const NProto::TMetaReqUpdateChunkProperties& request);
 
-    DECLARE_METAMAP_ACCESSORS(Chunk, TChunk, TChunkId);
+    DECLARE_ENTITY_MAP_ACCESSORS(Chunk, TChunk, TChunkId);
     TChunk* GetChunkOrThrow(const TChunkId& id);
 
-    DECLARE_METAMAP_ACCESSORS(ChunkList, TChunkList, TChunkListId);
+    DECLARE_ENTITY_MAP_ACCESSORS(ChunkList, TChunkList, TChunkListId);
 
     TChunkTree* FindChunkTree(const TChunkTreeId& id);
     TChunkTree* GetChunkTree(const TChunkTreeId& id);

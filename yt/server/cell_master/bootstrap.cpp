@@ -11,12 +11,6 @@
 #include <core/ytree/ephemeral_node_factory.h>
 #include <core/ytree/virtual.h>
 
-#include <ytlib/monitoring/monitoring_manager.h>
-#include <ytlib/monitoring/http_server.h>
-#include <ytlib/monitoring/http_integration.h>
-
-#include <ytlib/orchid/orchid_service.h>
-
 #include <core/ytree/yson_file_service.h>
 #include <core/ytree/ypath_service.h>
 #include <core/ytree/ypath_client.h>
@@ -27,6 +21,22 @@
 #include <core/rpc/server.h>
 
 #include <core/profiling/profiling_manager.h>
+
+#include <ytlib/monitoring/monitoring_manager.h>
+#include <ytlib/monitoring/http_server.h>
+#include <ytlib/monitoring/http_integration.h>
+
+#include <ytlib/orchid/orchid_service.h>
+
+#include <ytlib/election/cell_manager.h>
+
+#include <server/hydra/changelog.h>
+#include <server/hydra/file_changelog.h>
+#include <server/hydra/snapshot.h>
+#include <server/hydra/file_snapshot.h>
+
+#include <server/hive/hive_manager.h>
+#include <server/hive/cell_registry.h>
 
 #include <server/node_tracker_server/node_tracker.h>
 
@@ -58,6 +68,9 @@
 
 #include <server/security_server/security_manager.h>
 
+#include <server/tablet_server/tablet_manager.h>
+#include <server/tablet_server/cypress_integration.h>
+
 #include <server/misc/build_attributes.h>
 
 namespace NYT {
@@ -66,7 +79,9 @@ namespace NCellMaster {
 using namespace NBus;
 using namespace NRpc;
 using namespace NYTree;
-using namespace NMetaState;
+using namespace NElection;
+using namespace NHydra;
+using namespace NHive;
 using namespace NNodeTrackerServer;
 using namespace NTransactionServer;
 using namespace NChunkServer;
@@ -74,15 +89,17 @@ using namespace NObjectServer;
 using namespace NCypressServer;
 using namespace NMonitoring;
 using namespace NOrchid;
+using namespace NProfiling;
+using namespace NConcurrency;
 using namespace NFileServer;
 using namespace NTableServer;
 using namespace NSecurityServer;
-using namespace NProfiling;
-using namespace NConcurrency;
+using namespace NTabletServer;
+using NElection::TCellGuid;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("MasterBootstrap");
+static NLog::TLogger Logger("Bootstrap");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -97,14 +114,39 @@ TBootstrap::TBootstrap(
 TBootstrap::~TBootstrap()
 { }
 
+const TCellGuid& TBootstrap::GetCellGuid() const
+{
+    return Config->Masters->CellGuid;
+}
+
+ui16 TBootstrap::GetCellId() const
+{
+    return Config->Masters->CellId;
+}
+
 TCellMasterConfigPtr TBootstrap::GetConfig() const
 {
     return Config;
 }
 
-IServerPtr TBootstrap::GetRpcServer() const
+IRpcServerPtr TBootstrap::GetRpcServer() const
 {
     return RpcServer;
+}
+
+TCellManagerPtr TBootstrap::GetCellManager() const
+{
+    return CellManager;
+}
+
+IChangelogStorePtr TBootstrap::GetChangelogStore() const
+{
+    return ChangelogStore;
+}
+
+ISnapshotStorePtr TBootstrap::GetSnapshotStore() const
+{
+    return SnapshotStore;
 }
 
 TNodeTrackerPtr TBootstrap::GetNodeTracker() const
@@ -142,6 +184,21 @@ TSecurityManagerPtr TBootstrap::GetSecurityManager() const
     return SecurityManager;
 }
 
+TTabletManagerPtr TBootstrap::GetTabletManager() const
+{
+    return TabletManager;
+}
+
+THiveManagerPtr TBootstrap::GetHiveManager() const
+{
+    return HiveManager;
+}
+
+TCellRegistryPtr TBootstrap::GetCellRegistry() const
+{
+    return CellRegistry;
+}
+
 IInvokerPtr TBootstrap::GetControlInvoker() const
 {
     return ControlQueue->GetInvoker();
@@ -149,16 +206,63 @@ IInvokerPtr TBootstrap::GetControlInvoker() const
 
 void TBootstrap::Run()
 {
-    LOG_INFO("Starting cell master");
+    LOG_INFO("Starting cell master (CellGuid: %s, CellId: %d)",
+        ~ToString(GetCellGuid()),
+        static_cast<int>(GetCellId()));
+
+    if (GetCellGuid() == TCellGuid()) {
+        LOG_ERROR("No custom cell GUID is set, cluster can only be used for testing purposes");
+    }
+    if (GetCellId() == 0) {
+        LOG_ERROR("No custom cell ID is set, cluster can only be used for testing purposes");
+    }
 
     ControlQueue = New<TActionQueue>("Control");
 
-    auto busServerConfig = New<TTcpBusServerConfig>(Config->MetaState->Cell->RpcPort);
+    auto busServerConfig = New<TTcpBusServerConfig>(Config->RpcPort);
     auto busServer = CreateTcpBusServer(busServerConfig);
 
     RpcServer = CreateRpcServer(busServer);
 
+    auto selfAddress = BuildServiceAddress(
+        TAddressResolver::Get()->GetLocalHostName(),
+        Config->RpcPort);
+
+    const auto& addresses = Config->Masters->Addresses;
+
+    auto selfId = std::distance(
+        addresses.begin(),
+        std::find(addresses.begin(), addresses.end(), selfAddress));
+
+    if (selfId == addresses.size()) {
+        THROW_ERROR_EXCEPTION("Missing self address %s is the peer list",
+            ~selfAddress.Quote());
+    }
+
+    CellManager = CreateCellManager(
+        Config->Masters,
+        selfId);
+
+    ChangelogStore = CreateFileChangelogStore(
+        GetCellGuid(),
+        Config->Changelogs);
+
+    SnapshotStore = CreateFileSnapshotStore(
+        GetCellGuid(),
+        Config->Snapshots);
+
     MetaStateFacade = New<TMetaStateFacade>(Config, this);
+    
+    CellRegistry = New<TCellRegistry>();
+
+    HiveManager = New<THiveManager>(
+        GetCellGuid(),
+        Config->Hive,
+        CellRegistry,
+        MetaStateFacade->GetInvoker(),
+        RpcServer,
+        MetaStateFacade->GetManager(),
+        MetaStateFacade->GetAutomaton());
 
     // NB: This is exactly the order in which parts get registered and there are some
     // dependencies in Clear methods.
@@ -168,21 +272,25 @@ void TBootstrap::Run()
     TransactionManager = New<TTransactionManager>(Config->TransactionManager, this);
     CypressManager = New<TCypressManager>(Config->CypressManager, this);
     ChunkManager = New<TChunkManager>(Config->ChunkManager, this);
+    TabletManager = New<TTabletManager>(Config->TabletManager, this);
+
+    HiveManager->Start();
 
     ObjectManager->Initialize();
     SecurityManager->Initialize();
     NodeTracker->Initialize();
-    TransactionManager->Inititialize();
+    TransactionManager->Initialize();
     CypressManager->Initialize();
     ChunkManager->Initialize();
+    TabletManager->Initialize();
 
     auto monitoringManager = New<TMonitoringManager>();
     monitoringManager->Register(
         "/ref_counted",
-        BIND(&TRefCountedTracker::GetMonitoringInfo, TRefCountedTracker::Get()));
+        TRefCountedTracker::Get()->GetMonitoringProducer());
     monitoringManager->Register(
-        "/meta_state",
-        BIND(&IMetaStateManager::GetMonitoringInfo, MetaStateFacade->GetManager()));
+        "/hydra",
+        MetaStateFacade->GetManager()->GetMonitoringProducer());
 
     auto orchidFactory = GetEphemeralNodeFactory();
     auto orchidRoot = orchidFactory->CreateMap();
@@ -215,8 +323,8 @@ void TBootstrap::Run()
     CypressManager->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::DataMissingChunkMap));
     CypressManager->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::ParityMissingChunkMap));
     CypressManager->RegisterHandler(CreateChunkListMapTypeHandler(this));
-    CypressManager->RegisterHandler(CreateTransactionMapTypeHandler(this, EObjectType::TransactionMap));
-    CypressManager->RegisterHandler(CreateTransactionMapTypeHandler(this, EObjectType::TopmostTransactionMap));
+    CypressManager->RegisterHandler(CreateTransactionMapTypeHandler(this));
+    CypressManager->RegisterHandler(CreateTopmostTransactionMapTypeHandler(this));
     CypressManager->RegisterHandler(CreateLockMapTypeHandler(this));
     CypressManager->RegisterHandler(CreateOrchidTypeHandler(this));
     CypressManager->RegisterHandler(CreateCellNodeTypeHandler(this));
@@ -226,6 +334,8 @@ void TBootstrap::Run()
     CypressManager->RegisterHandler(CreateAccountMapTypeHandler(this));
     CypressManager->RegisterHandler(CreateUserMapTypeHandler(this));
     CypressManager->RegisterHandler(CreateGroupMapTypeHandler(this));
+    CypressManager->RegisterHandler(CreateTabletCellMapTypeHandler(this));
+    CypressManager->RegisterHandler(CreateTabletMapTypeHandler(this));
 
     MetaStateFacade->Start();
 
@@ -239,7 +349,7 @@ void TBootstrap::Run()
     LOG_INFO("Listening for HTTP requests on port %d", Config->MonitoringPort);
     httpServer.Start();
 
-    LOG_INFO("Listening for RPC requests on port %d", Config->MetaState->Cell->RpcPort);
+    LOG_INFO("Listening for RPC requests on port %d", Config->RpcPort);
     RpcServer->Configure(Config->RpcServer);
     RpcServer->Start();
 

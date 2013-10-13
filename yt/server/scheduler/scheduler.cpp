@@ -47,8 +47,8 @@
 #include <core/ytree/ypath_proxy.h>
 #include <core/ytree/fluent.h>
 
-#include <ytlib/meta_state/public.h>
-#include <ytlib/meta_state/rpc_helpers.h>
+#include <ytlib/hydra/public.h>
+#include <ytlib/hydra/rpc_helpers.h>
 
 #include <server/cell_scheduler/config.h>
 #include <server/cell_scheduler/bootstrap.h>
@@ -62,7 +62,7 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NCellScheduler;
 using namespace NObjectClient;
-using namespace NMetaState;
+using namespace NHydra;
 using namespace NScheduler::NProto;
 using namespace NJobTrackerClient;
 using namespace NChunkClient;
@@ -966,7 +966,7 @@ private:
                 ~ToString(operation->GetOperationId())));
             ToProto(req->mutable_object_attributes(), *attributes);
 
-            NMetaState::GenerateMutationId(req);
+            NHydra::GenerateMutationId(req);
             batchReq->AddRequest(req, "start_in_tx");
         }
 
@@ -984,7 +984,7 @@ private:
                 ~ToString(operationId)));
             ToProto(req->mutable_object_attributes(), *attributes);
 
-            NMetaState::GenerateMutationId(req);
+            NHydra::GenerateMutationId(req);
             batchReq->AddRequest(req, "start_out_tx");
         }
 
@@ -1250,7 +1250,7 @@ private:
 
         auto scheduleCommit = [&] (ITransactionPtr transaction, const Stroka& key) {
             auto req = TTransactionYPathProxy::Commit(FromObjectId(transaction->GetId()));
-            NMetaState::GenerateMutationId(req);
+            NHydra::GenerateMutationId(req);
             batchReq->AddRequest(req, key);
             transaction->Detach();
         };

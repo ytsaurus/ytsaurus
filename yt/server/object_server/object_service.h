@@ -6,7 +6,7 @@
 
 #include <core/rpc/service.h>
 
-#include <server/cell_master/meta_state_service.h>
+#include <server/cell_master/hydra_service.h>
 
 namespace NYT {
 namespace NObjectServer {
@@ -14,7 +14,7 @@ namespace NObjectServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TObjectService
-    : public NCellMaster::TMetaStateServiceBase
+    : public NCellMaster::THydraServiceBase
 {
 public:
     explicit TObjectService(

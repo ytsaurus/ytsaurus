@@ -36,7 +36,7 @@ using namespace NYTree;
 using namespace NYPath;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
-using namespace NMetaState;
+using namespace NHydra;
 using namespace NCellMaster;
 using namespace NObjectClient;
 using namespace NCypressClient;
@@ -50,61 +50,39 @@ static auto& Logger = NodeTrackerServerLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNodeTracker::TImpl
-    : public TMetaStatePart
+    : public TMasterAutomatonPart
 {
 public:
     TImpl(
         TNodeTrackerConfigPtr config,
         TBootstrap* bootstrap)
-        : TMetaStatePart(
-            bootstrap->GetMetaStateFacade()->GetManager(),
-            bootstrap->GetMetaStateFacade()->GetState())
+        : TMasterAutomatonPart(bootstrap)
         , Config(config)
-        , Bootstrap(bootstrap)
         , OnlineNodeCount(0)
         , RegisteredNodeCount(0)
         , Profiler(NodeTrackerServerProfiler)
     {
-        YCHECK(config);
-        YCHECK(bootstrap);
-
         RegisterMethod(BIND(&TImpl::RegisterNode, Unretained(this)));
         RegisterMethod(BIND(&TImpl::UnregisterNode, Unretained(this)));
         RegisterMethod(BIND(&TImpl::FullHeartbeat, Unretained(this)));
         RegisterMethod(BIND(&TImpl::IncrementalHeartbeat, Unretained(this)));
 
-        {
-            NCellMaster::TLoadContext context;
-            context.SetBootstrap(Bootstrap);
 
-            RegisterLoader(
-                "NodeTracker.Keys",
-                SnapshotVersionValidator(),
-                BIND(&TImpl::LoadKeys, MakeStrong(this)),
-                context);
-            RegisterLoader(
-                "NodeTracker.Values",
-                SnapshotVersionValidator(),
-                BIND(&TImpl::LoadValues, MakeStrong(this)),
-                context);
-        }
+        RegisterLoader(
+            "NodeTracker.Keys",
+            BIND(&TImpl::LoadKeys, Unretained(this)));
+        RegisterLoader(
+            "NodeTracker.Values",
+            BIND(&TImpl::LoadValues, Unretained(this)));
 
-        {
-            NCellMaster::TSaveContext context;
-
-            RegisterSaver(
-                ESerializationPriority::Keys,
-                "NodeTracker.Keys",
-                GetCurrentSnapshotVersion(),
-                BIND(&TImpl::SaveKeys, MakeStrong(this)),
-                context);
-            RegisterSaver(
-                ESerializationPriority::Values,
-                "NodeTracker.Values",
-                GetCurrentSnapshotVersion(),
-                BIND(&TImpl::SaveValues, MakeStrong(this)),
-                context);
-        }
+        RegisterSaver(
+            ESerializationPriority::Keys,
+            "NodeTracker.Keys",
+            BIND(&TImpl::SaveKeys, Unretained(this)));
+        RegisterSaver(
+            ESerializationPriority::Values,
+            "NodeTracker.Values",
+            BIND(&TImpl::SaveValues, Unretained(this)));
 
         SubscribeNodeConfigUpdated(BIND(&TImpl::OnNodeConfigUpdated, Unretained(this)));
     }
@@ -138,18 +116,21 @@ public:
     {
         return Bootstrap
             ->GetMetaStateFacade()
-            ->CreateMutation(EStateThreadQueue::Heartbeat)
+            ->CreateMutation(EAutomatonThreadQueue::Heartbeat)
             ->SetRequestData(context->GetRequestBody())
             ->SetType(context->Request().GetTypeName())
             ->SetAction(BIND(&TThis::FullHeartbeatWithContext, MakeStrong(this), context));
     }
 
     TMutationPtr CreateIncrementalHeartbeatMutation(
-        const TMetaReqIncrementalHeartbeat& request)
+        TCtxIncrementalHeartbeatPtr context)
     {
         return Bootstrap
             ->GetMetaStateFacade()
-            ->CreateMutation(this, request, &TThis::IncrementalHeartbeat, EStateThreadQueue::Heartbeat);
+            ->CreateMutation()
+            ->SetRequestData(context->GetRequestBody())
+            ->SetType(context->Request().GetTypeName())
+            ->SetAction(BIND(&TThis::IncrementalHeartbeatWithContext, MakeStrong(this), context));
     }
 
 
@@ -168,13 +149,13 @@ public:
     }
 
 
-    DECLARE_METAMAP_ACCESSORS(Node, TNode, TNodeId);
+    DECLARE_ENTITY_MAP_ACCESSORS(Node, TNode, TNodeId);
 
     DEFINE_SIGNAL(void(TNode* node), NodeRegistered);
     DEFINE_SIGNAL(void(TNode* node), NodeUnregistered);
     DEFINE_SIGNAL(void(TNode* node), NodeConfigUpdated);
     DEFINE_SIGNAL(void(TNode* node, const TMetaReqFullHeartbeat& request), FullHeartbeat);
-    DEFINE_SIGNAL(void(TNode* node, const TMetaReqIncrementalHeartbeat& request), IncrementalHeartbeat);
+    DEFINE_SIGNAL(void(TNode* node, const TMetaReqIncrementalHeartbeat& request, TRspIncrementalHeartbeat* response), IncrementalHeartbeat);
 
 
     TNode* FindNodeByAddress(const Stroka& address)
@@ -259,7 +240,6 @@ private:
     typedef TImpl TThis;
 
     TNodeTrackerConfigPtr Config;
-    TBootstrap* Bootstrap;
 
     int OnlineNodeCount;
     int RegisteredNodeCount;
@@ -268,7 +248,7 @@ private:
 
     TIdGenerator NodeIdGenerator;
 
-    TMetaStateMap<TNodeId, TNode> NodeMap;
+    NHydra::TEntityMap<TNodeId, TNode> NodeMap;
     yhash_map<Stroka, TNode*> AddressToNodeMap;
     yhash_multimap<Stroka, TNode*> HostNameToNodeMap;
     yhash_map<TTransaction*, TNode*> TransactionToNodeMap;
@@ -359,7 +339,7 @@ private:
 
             auto* node = GetNode(nodeId);
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Full heartbeat received (NodeId: %d, Address: %s, State: %s, %s)",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Processing full heartbeat (NodeId: %d, Address: %s, State: %s, %s)",
                 nodeId,
                 ~node->GetAddress(),
                 ~node->GetState().ToString(),
@@ -383,7 +363,17 @@ private:
     }
 
 
+    void IncrementalHeartbeatWithContext(TCtxIncrementalHeartbeatPtr context)
+    {
+        DoIncrementalHeartbeat(context->Request(), &context->Response());
+    }
+
     void IncrementalHeartbeat(const TMetaReqIncrementalHeartbeat& request)
+    {
+        DoIncrementalHeartbeat(request, nullptr);
+    }
+
+    void DoIncrementalHeartbeat(const TMetaReqIncrementalHeartbeat& request, TRspIncrementalHeartbeat* response)
     {
         PROFILE_TIMING ("/incremental_heartbeat_time") {
             auto nodeId = request.node_id();
@@ -391,7 +381,7 @@ private:
 
             auto* node = GetNode(nodeId);
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Incremental heartbeat received (NodeId: %d, Address: %s, State: %s, %s)",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Processing incremental heartbeat (NodeId: %d, Address: %s, State: %s, %s)",
                 nodeId,
                 ~node->GetAddress(),
                 ~node->GetState().ToString(),
@@ -402,7 +392,7 @@ private:
 
             RenewNodeLease(node);
             
-            IncrementalHeartbeat_.Fire(node, request);
+            IncrementalHeartbeat_.Fire(node, request, response);
         }
     }
 
@@ -442,7 +432,7 @@ private:
         RegisteredNodeCount = 0;
     }
 
-    virtual void OnAfterLoaded() override
+    virtual void OnAfterSnapshotLoaded() override
     {
         AddressToNodeMap.clear();
         HostNameToNodeMap.clear();
@@ -471,7 +461,7 @@ private:
         FOREACH (const auto& pair, NodeMap) {
             auto* node = pair.second;
 
-            node->ResetSessionHints();
+            node->ResetHints();
             
             FOREACH (auto& queue, node->ChunkReplicationQueues()) {
                 queue.clear();
@@ -776,7 +766,7 @@ private:
 
 };
 
-DEFINE_METAMAP_ACCESSORS(TNodeTracker::TImpl, Node, TNode, TNodeId, NodeMap)
+DEFINE_ENTITY_MAP_ACCESSORS(TNodeTracker::TImpl, Node, TNode, TNodeId, NodeMap)
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -843,9 +833,9 @@ TMutationPtr TNodeTracker::CreateFullHeartbeatMutation(
 }
 
 TMutationPtr TNodeTracker::CreateIncrementalHeartbeatMutation(
-    const TMetaReqIncrementalHeartbeat& request)
+    TCtxIncrementalHeartbeatPtr context)
 {
-    return Impl->CreateIncrementalHeartbeatMutation(request);
+    return Impl->CreateIncrementalHeartbeatMutation(context);
 }
 
 void TNodeTracker::RefreshNodeConfig(TNode* node)
@@ -868,13 +858,13 @@ int TNodeTracker::GetOnlineNodeCount()
     return Impl->GetOnlineNodeCount();
 }
 
-DELEGATE_METAMAP_ACCESSORS(TNodeTracker, Node, TNode, TNodeId, *Impl)
+DELEGATE_ENTITY_MAP_ACCESSORS(TNodeTracker, Node, TNode, TNodeId, *Impl)
 
-DELEGATE_SIGNAL(TNodeTracker, void(TNode* node), NodeRegistered, *Impl);
-DELEGATE_SIGNAL(TNodeTracker, void(TNode* node), NodeUnregistered, *Impl);
-DELEGATE_SIGNAL(TNodeTracker, void(TNode* node), NodeConfigUpdated, *Impl);
-DELEGATE_SIGNAL(TNodeTracker, void(TNode* node, const TMetaReqFullHeartbeat& request), FullHeartbeat, *Impl);
-DELEGATE_SIGNAL(TNodeTracker, void(TNode* node, const TMetaReqIncrementalHeartbeat& request), IncrementalHeartbeat, *Impl);
+DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeRegistered, *Impl);
+DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeUnregistered, *Impl);
+DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeConfigUpdated, *Impl);
+DELEGATE_SIGNAL(TNodeTracker, void(TNode*, const TMetaReqFullHeartbeat&), FullHeartbeat, *Impl);
+DELEGATE_SIGNAL(TNodeTracker, void(TNode*, const TMetaReqIncrementalHeartbeat&, TRspIncrementalHeartbeat*), IncrementalHeartbeat, *Impl);
 
 ///////////////////////////////////////////////////////////////////////////////
 

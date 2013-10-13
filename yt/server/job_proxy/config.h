@@ -2,14 +2,20 @@
 
 #include "public.h"
 
-#include <ytlib/table_client/config.h>
-#include <ytlib/file_client/config.h>
-#include <ytlib/meta_state/config.h>
+#include <core/misc/address.h>
+
 #include <core/ytree/node.h>
 #include <core/ytree/yson_serializable.h>
+
 #include <core/bus/config.h>
+
+#include <ytlib/table_client/config.h>
+
+#include <ytlib/file_client/config.h>
+
+#include <ytlib/hydra/config.h>
+
 #include <ytlib/scheduler/config.h>
-#include <core/misc/address.h>
 
 namespace NYT {
 namespace NJobProxy {

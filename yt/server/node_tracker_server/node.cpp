@@ -6,6 +6,8 @@
 
 #include <server/transaction_server/transaction.h>
 
+#include <server/tablet_server/tablet_cell.h>
+
 #include <server/cell_master/serialization_context.h>
 
 namespace NYT {
@@ -13,6 +15,7 @@ namespace NNodeTrackerServer {
 
 using namespace NChunkClient;
 using namespace NChunkServer;
+using namespace NTabletServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,7 +45,7 @@ void TNode::Init()
     Transaction_ = nullptr;
     Decommissioned_ = Config_->Decommissioned;
     ChunkReplicationQueues_.resize(ReplicationPriorityCount);
-    ResetSessionHints();
+    ResetHints();
 }
 
 TNode::~TNode()
@@ -73,6 +76,7 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
     SaveObjectRefs(context, StoredReplicas_);
     SaveObjectRefs(context, CachedReplicas_);
     SaveObjectRefs(context, UnapprovedReplicas_);
+    // TODO(babenko): tablet
 }
 
 void TNode::Load(NCellMaster::TLoadContext& context)
@@ -85,6 +89,7 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     LoadObjectRefs(context, StoredReplicas_);
     LoadObjectRefs(context, CachedReplicas_);
     LoadObjectRefs(context, UnapprovedReplicas_);
+    // TODO(babenko): tablet
 }
 
 void TNode::AddReplica(TChunkPtrWithIndex replica, bool cached)
@@ -136,11 +141,12 @@ void TNode::ApproveReplica(TChunkPtrWithIndex replica)
     YCHECK(UnapprovedReplicas_.erase(replica) == 1);
 }
 
-void TNode::ResetSessionHints()
+void TNode::ResetHints()
 {
     HintedUserSessionCount_ = 0;
     HintedReplicationSessionCount_ = 0;
     HintedRepairSessionCount_ = 0;
+    HintedTabletSlots_ = 0;
 }
 
 void TNode::AddSessionHint(EWriteSessionType sessionType)
@@ -184,10 +190,50 @@ int TNode::GetTotalSessionCount() const
         Statistics_.total_repair_session_count() + HintedRepairSessionCount_;
 }
 
+TNode::TTabletSlot* TNode::FindTabletSlot(TTabletCell* cell)
+{
+    for (auto& slot : TabletSlots_) {
+        if (slot.Cell == cell) {
+            return &slot;
+        }
+    }
+    return nullptr;
+}
+
+TNode::TTabletSlot* TNode::GetTabletSlot(TTabletCell* cell)
+{
+    auto* slot = FindTabletSlot(cell);
+    YCHECK(slot);
+    return slot;
+}
+
+void TNode::DetachTabletCell(TTabletCell* cell)
+{
+    TabletCellCreateQueue_.erase(cell);
+
+    auto* slot = FindTabletSlot(cell);
+    if (slot) {
+        *slot = TTabletSlot();
+    }
+}
+
 TAtomic TNode::GenerateVisitMark()
 {
     static TAtomic result = 0;
     return AtomicIncrement(result);
+}
+
+int TNode::GetTotalUsedTabletSlots() const
+{
+    return
+        Statistics_.used_tablet_slots() +
+        TabletCellCreateQueue_.size() +
+        HintedTabletSlots_;
+}
+
+void TNode::AddTabletSlotHint()
+{
+    ++HintedTabletSlots_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

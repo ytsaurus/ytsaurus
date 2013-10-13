@@ -12,7 +12,7 @@ using namespace google::protobuf::io;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool SerializeToProto(const google::protobuf::Message& message, TSharedRef* data)
+bool SerializeToProto(const google::protobuf::MessageLite& message, TSharedRef* data)
 {
     size_t size = message.ByteSize();
     struct TSerializedMessageTag { };
@@ -20,7 +20,7 @@ bool SerializeToProto(const google::protobuf::Message& message, TSharedRef* data
     return message.SerializePartialToArray(data->Begin(), size);
 }
 
-bool DeserializeFromProto(google::protobuf::Message* message, const TRef& data)
+bool DeserializeFromProto(google::protobuf::MessageLite* message, const TRef& data)
 {
     return message->ParsePartialFromArray(data.Begin(), data.Size());
 }
@@ -38,7 +38,7 @@ struct TSerializedMessageFixedHeader
 #pragma pack(pop)
 
 bool SerializeToProtoWithEnvelope(
-    const google::protobuf::Message& message,
+    const google::protobuf::MessageLite& message,
     TSharedRef* data,
     NCompression::ECodec codecId)
 {
@@ -80,7 +80,7 @@ bool SerializeToProtoWithEnvelope(
 }
 
 bool DeserializeFromProtoWithEnvelope(
-    google::protobuf::Message* message,
+    google::protobuf::MessageLite* message,
     const TRef& data)
 {
     if (data.Size() < sizeof (TSerializedMessageFixedHeader)) {
@@ -126,7 +126,7 @@ bool DeserializeFromProtoWithEnvelope(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TBinaryProtoSerializer::Save(TStreamSaveContext& context, const ::google::protobuf::Message& message)
+void TBinaryProtoSerializer::Save(TStreamSaveContext& context, const ::google::protobuf::MessageLite& message)
 {
     TSharedRef data;
     YCHECK(SerializeToProtoWithEnvelope(message, &data));
@@ -134,7 +134,7 @@ void TBinaryProtoSerializer::Save(TStreamSaveContext& context, const ::google::p
     TRangeSerializer::Save(context, data);
 }
 
-void TBinaryProtoSerializer::Load(TStreamLoadContext& context, ::google::protobuf::Message& message)
+void TBinaryProtoSerializer::Load(TStreamLoadContext& context, ::google::protobuf::MessageLite& message)
 {
     size_t size = TSizeSerializer::Load(context);
     auto data = TSharedRef::Allocate(size, false);

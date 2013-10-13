@@ -26,8 +26,8 @@
 #include <core/rpc/retrying_channel.h>
 #include <core/rpc/helpers.h>
 
-#include <ytlib/meta_state/config.h>
-#include <ytlib/meta_state/master_channel.h>
+#include <ytlib/hydra/config.h>
+#include <ytlib/hydra/peer_channel.h>
 
 #include <ytlib/chunk_client/client_block_cache.h>
 
@@ -47,6 +47,7 @@ using namespace NScheduler;
 using namespace NFormats;
 using namespace NSecurityClient;
 using namespace NConcurrency;
+using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -80,8 +81,8 @@ public:
     {
         YCHECK(config);
 
-        LeaderChannel = CreateLeaderChannel(Config->Masters);
-        MasterChannel = CreateMasterChannel(Config->Masters);
+        LeaderChannel = CreatePeerChannel(Config->Masters, EPeerRole::Leader);
+        MasterChannel = CreatePeerChannel(Config->Masters, EPeerRole::Follower);
 
         SchedulerChannel = CreateSchedulerChannel(Config->Scheduler, LeaderChannel);
 
@@ -112,6 +113,8 @@ public:
 
         REGISTER(TWriteCommand,             "write",             Tabular,    Null,       true,  true );
         REGISTER(TReadCommand,              "read",              Null,       Tabular,    false, true );
+        REGISTER(TMountCommand,             "mount",             Null,       Null,       true,  false);
+        REGISTER(TUnmountCommand,           "unmount",           Null,       Null,       true,  false);
 
         REGISTER(TMergeCommand,             "merge",             Null,       Structured, true,  false);
         REGISTER(TEraseCommand,             "erase",             Null,       Structured, true,  false);

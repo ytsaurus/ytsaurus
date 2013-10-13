@@ -5,7 +5,7 @@
 
 #include <core/logging/log_manager.h>
 
-#include <ytlib/meta_state/meta_state_manager_proxy.h>
+#include <ytlib/hydra/hydra_service_proxy.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
 
@@ -15,7 +15,7 @@ namespace NDriver {
 using namespace NYTree;
 using namespace NYson;
 using namespace NYPath;
-using namespace NMetaState;
+using namespace NHydra;
 using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -28,9 +28,9 @@ TBuildSnapshotExecutor::TBuildSnapshotExecutor()
 
 EExitCode TBuildSnapshotExecutor::DoExecute()
 {
-    TMetaStateManagerProxy proxy(Driver->GetMasterChannel());
+    THydraServiceProxy proxy(Driver->GetMasterChannel());
     proxy.SetDefaultTimeout(Null); // infinity
-    auto req = proxy.BuildSnapshot();
+    auto req = proxy.BuildSnapshotDistributed();
     req->set_set_read_only(SetReadOnlyArg.getValue());
 
     auto rsp = req->Invoke().Get();

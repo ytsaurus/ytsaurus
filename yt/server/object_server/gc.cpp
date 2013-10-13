@@ -69,7 +69,7 @@ void TGarbageCollector::Save(NCellMaster::TSaveContext& context) const
 
 void TGarbageCollector::Load(NCellMaster::TLoadContext& context)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     LoadObjectRefs(context, Zombies);
     LockedZombies.clear();
@@ -82,7 +82,7 @@ void TGarbageCollector::Load(NCellMaster::TLoadContext& context)
 
 void TGarbageCollector::Clear()
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     Zombies.clear();
     LockedZombies.clear();
@@ -106,7 +106,7 @@ bool TGarbageCollector::IsEnqueued(TObjectBase* object) const
 
 void TGarbageCollector::Enqueue(TObjectBase* object)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
     YASSERT(!object->IsAlive());
 
     if (Zombies.empty() && LockedZombies.empty() && CollectPromise.IsSet()) {
@@ -126,7 +126,7 @@ void TGarbageCollector::Enqueue(TObjectBase* object)
 
 void TGarbageCollector::Unlock(TObjectBase* object)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
     YASSERT(!object->IsAlive());
     YASSERT(!object->IsLocked());
 
@@ -139,7 +139,7 @@ void TGarbageCollector::Unlock(TObjectBase* object)
 
 void TGarbageCollector::UnlockAll()
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     FOREACH (auto* object, LockedZombies) {
         YASSERT(object->IsLocked());
@@ -150,25 +150,25 @@ void TGarbageCollector::UnlockAll()
 
 void TGarbageCollector::Dequeue(TObjectBase* object)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     YCHECK(Zombies.erase(object) == 1);
 }
 
 void TGarbageCollector::CheckEmpty()
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     if (Zombies.empty() && LockedZombies.empty()) {
-        auto metaStateManager = Bootstrap->GetMetaStateFacade()->GetManager();
-        LOG_DEBUG_UNLESS(metaStateManager->IsRecovery(), "GC queue is empty");
+        auto hydraManager = Bootstrap->GetMetaStateFacade()->GetManager();
+        LOG_DEBUG_UNLESS(hydraManager->IsRecovery(), "GC queue is empty");
         CollectPromise.Set();
     }
 }
 
 void TGarbageCollector::OnSweep()
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     // Shrink zombies hashtable, if needed.
     if (Zombies.bucket_count() > 4 * Zombies.size() && Zombies.bucket_count() > 16) {
@@ -181,8 +181,8 @@ void TGarbageCollector::OnSweep()
     }
 
     auto metaStateFacade = Bootstrap->GetMetaStateFacade();
-    auto metaStateManager = metaStateFacade->GetManager();
-    if (Zombies.empty() || !metaStateManager->HasActiveQuorum()) {
+    auto hydraManager = metaStateFacade->GetManager();
+    if (Zombies.empty() || !hydraManager->IsActiveLeader()) {
         SweepExecutor->ScheduleNext();
         return;
     }

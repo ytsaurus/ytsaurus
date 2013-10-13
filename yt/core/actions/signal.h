@@ -99,7 +99,7 @@ public:
         if (this->Callbacks.empty())
             return;
 
-        std::vector< TCallback<void(A1)> > callbacks(this->Callbacks);
+        auto callbacks = this->Callbacks;
         guard.Release();
 
         FOREACH (const auto& callback, callbacks) {
@@ -121,7 +121,7 @@ public:
         if (this->Callbacks.empty())
             return;
 
-        std::vector< TCallback<void(A1, A2)> > callbacks(this->Callbacks);
+        auto callbacks = this->Callbacks;
         guard.Release();
 
         FOREACH (const auto& callback, callbacks) {
@@ -130,6 +130,28 @@ public:
     }
 };
 
+
+template <class A1, class A2, class A3>
+class TCallbackList<void(A1, A2, A3)>
+    : public TCallbackListBase<void(A1, A2, A3)>
+{
+public:
+    //! Calls Run for all callbacks in the list.
+    void Fire(const A1& a1, const A2& a2, const A3& a3) const
+    {
+        TGuard<TSpinLock> guard(this->SpinLock);
+
+        if (this->Callbacks.empty())
+            return;
+
+        auto callbacks = this->Callbacks;
+        guard.Release();
+
+        FOREACH (const auto& callback, callbacks) {
+            callback.Run(a1, a2, a3);
+        }
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

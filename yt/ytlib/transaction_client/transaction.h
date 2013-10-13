@@ -6,7 +6,7 @@
 
 #include <core/rpc/public.h>
 
-#include <ytlib/meta_state/public.h>
+#include <ytlib/hydra/public.h>
 
 namespace NYT {
 namespace NTransactionClient {
@@ -22,7 +22,7 @@ struct ITransaction
      *  \note Thread affinity: ClientThread
      */
     virtual TAsyncError AsyncCommit(
-        const NMetaState::TMutationId& mutationId = NMetaState::NullMutationId) = 0;
+        const NHydra::TMutationId& mutationId = NHydra::NullMutationId) = 0;
 
     //! Commits the transaction synchronously.
     /*!
@@ -33,12 +33,12 @@ struct ITransaction
      *  \note Thread affinity: ClientThread
      */
     virtual void Commit(
-        const NMetaState::TMutationId& mutationId = NMetaState::NullMutationId) = 0;
+        const NHydra::TMutationId& mutationId = NHydra::NullMutationId) = 0;
 
     //! Aborts the transaction asynchronously.
     virtual TAsyncError AsyncAbort(
         bool generateMutationId,
-        const NMetaState::TMutationId& mutationId = NMetaState::NullMutationId) = 0;
+        const NHydra::TMutationId& mutationId = NHydra::NullMutationId) = 0;
 
     //! Aborts the transaction synchronously.
     /*!
@@ -54,7 +54,7 @@ struct ITransaction
      */
     virtual void Abort(
         bool wait = false,
-        const NMetaState::TMutationId& mutationId = NMetaState::NullMutationId) = 0;
+        const NHydra::TMutationId& mutationId = NHydra::NullMutationId) = 0;
 
     //! Detaches the transaction, i.e. makes the manager forget about it.
     /*!

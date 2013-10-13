@@ -3,6 +3,10 @@
 #include "private.h"
 #include "type_handler.h"
 
+#include <core/misc/string.h>
+
+#include <core/ytree/fluent.h>
+
 #include <server/cell_master/bootstrap.h>
 
 #include <server/object_server/type_handler_detail.h>

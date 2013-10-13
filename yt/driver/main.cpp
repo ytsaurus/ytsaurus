@@ -71,6 +71,8 @@ public:
 
         RegisterExecutor(New<TReadExecutor>());
         RegisterExecutor(New<TWriteExecutor>());
+        RegisterExecutor(New<TMountExecutor>());
+        RegisterExecutor(New<TUnmountExecutor>());
 
         RegisterExecutor(New<TMapExecutor>());
         RegisterExecutor(New<TMergeExecutor>());

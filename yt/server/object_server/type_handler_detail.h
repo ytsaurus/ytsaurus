@@ -4,7 +4,7 @@
 #include "object_detail.h"
 #include "object_manager.h"
 
-#include <ytlib/meta_state/map.h>
+#include <server/hydra/entity_map.h>
 
 #include <server/cell_master/bootstrap.h>
 
@@ -118,7 +118,7 @@ class TObjectTypeHandlerWithMapBase
     : public TObjectTypeHandlerBase<TObject>
 {
 public:
-    typedef typename NMetaState::TMetaStateMap<TObjectId, TObject> TMap;
+    typedef typename NHydra::TEntityMap<TObjectId, TObject> TMap;
 
     TObjectTypeHandlerWithMapBase(NCellMaster::TBootstrap* bootstrap, TMap* map)
         : TObjectTypeHandlerBase<TObject>(bootstrap)

@@ -32,6 +32,11 @@ IChannelPtr CreateAuthenticatedChannel(
     IChannelPtr underlyingChannel,
     const Stroka& user);
 
+//! Returns a wrapper that sets realm id in every request.
+IChannelPtr CreateRealmChannel(
+    IChannelPtr underlyingChannel,
+    const TRealmId& realmId);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NRpc

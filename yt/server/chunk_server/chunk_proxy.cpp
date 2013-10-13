@@ -3,7 +3,8 @@
 #include "private.h"
 #include "chunk_manager.h"
 #include "chunk.h"
-#include "node_directory_builder.h"
+
+#include <core/ytree/fluent.h>
 
 #include <ytlib/chunk_client/chunk.pb.h>
 #include <ytlib/chunk_client/chunk_ypath.pb.h>
@@ -13,6 +14,7 @@
 #include <ytlib/chunk_client/chunk_owner_ypath.pb.h>
 
 #include <server/node_tracker_server/node.h>
+#include <server/node_tracker_server/node_directory_builder.h>
 
 #include <server/object_server/object_detail.h>
 
@@ -46,10 +48,10 @@ public:
         Logger = ChunkServerLogger;
     }
 
-    virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const override
+    virtual bool IsMutatingRequest(NRpc::IServiceContextPtr context) const override
     {
         DECLARE_YPATH_SERVICE_WRITE_METHOD(Confirm);
-        return TBase::IsWriteRequest(context);
+        return TBase::IsMutatingRequest(context);
     }
 
 private:

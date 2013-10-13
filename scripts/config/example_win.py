@@ -8,6 +8,7 @@ build_dir = os.environ['YT_BUILD_DIR']
 
 
 Logging = {
+    'flush_period' : 0,
     'writers' : {
         'raw' :
             {
@@ -58,36 +59,37 @@ class Master(WinNode, Server):
         params = Template('--master --config %(config_path)s')
 
         config = Template({
-                'meta_state' : {
-                        'cell' : {
-                                'addresses' : MasterAddresses,
-                                'rpc_port' : r'%(port)d'
-                        },
-                        'snapshots' : {
-                            'path' : r'%(work_dir)s\snapshots'
-                        },
-                        'changelogs' : {
-                            'path' : r'%(work_dir)s\changelogs'
-                        }
+                'masters' : {
+                    'addresses' : MasterAddresses
+                },
+                'snapshots' : {
+                    'path' : r'%(work_dir)s\snapshots'
+                },
+                'changelogs' : {
+                    'path' : r'%(work_dir)s\changelogs'
                 },
                 'node_tracker' : {
-                        'registered_node_timeout' : 5000,
-                        'online_node_timeout' : 10000
+                    'registered_node_timeout' : 5000,
+                    'online_node_timeout' : 10000
                 },
+                'tablet_manager' : {
+                    'peer_failover_timeout' : 15000
+                },
+                'rpc_port' : r'%(port)d',
                 'monitoring_port' : r'%(monport)d',
                 'logging' : Logging
         })
 
         def run(cls, fd):
-                print >>fd, 'mkdir %s' % cls.config['meta_state']['snapshots']['path']
-                print >>fd, 'mkdir %s' % cls.config['meta_state']['changelogs']['path']
+                print >>fd, 'mkdir %s' % cls.config['snapshots']['path']
+                print >>fd, 'mkdir %s' % cls.config['changelogs']['path']
                 print >>fd, cls.run_tmpl
 
         def clean(cls, fd):
                 print >>fd, 'del %s' % cls.log_path
                 print >>fd, 'del %s' % cls.debug_log_path
-                print >>fd, r'del /Q %s\*' % cls.config['meta_state']['snapshots']['path']
-                print >>fd, r'del /Q %s\*' % cls.config['meta_state']['changelogs']['path']
+                print >>fd, r'del /Q %s\*' % cls.config['snapshots']['path']
+                print >>fd, r'del /Q %s\*' % cls.config['changelogs']['path']
 
 
 class Holder(WinNode, Server):
@@ -124,6 +126,14 @@ class Holder(WinNode, Server):
                     }
                 }
             },
+            'tablet_node' : {
+                'changelogs' : {
+                    'path' : r'%(work_dir)s\changelogs'
+                },
+                'snapshots' : {
+                    'path' : r'%(work_dir)s\snapshots'
+                }
+            },
             'rpc_port' : r'%(port)d',
             'monitoring_port' : r'%(monport)d',
             'logging' : Logging
@@ -132,6 +142,8 @@ class Holder(WinNode, Server):
         def clean(cls, fd):
                 print >>fd, 'del %s' % cls.log_path
                 print >>fd, 'del %s' % cls.debug_log_path
+                print >>fd, 'rmdir /S /Q %s' % cls.config['tablet_node']['snapshots']['path']
+                print >>fd, 'rmdir /S /Q %s' % cls.config['tablet_node']['changelogs']['path']
                 for location in cls.config['data_node']['store_locations']:
                         print >>fd, 'rmdir /S /Q   %s' % location['path']
                 print >>fd, 'rmdir /S /Q   %s' % cls.config['data_node']['cache_location']['path']

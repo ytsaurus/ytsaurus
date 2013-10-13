@@ -40,8 +40,6 @@ class TCacheBase
     : public virtual TRefCounted
 {
 public:
-    typedef TIntrusivePtr< TCacheBase<TKey, TValue, THash> > TPtr;
-
     typedef TIntrusivePtr<TValue> TValuePtr;
     typedef TErrorOr<TValuePtr> TValuePtrOrError;
     typedef TFuture<TValuePtrOrError> TAsyncValuePtrOrErrorResult;
@@ -72,7 +70,7 @@ protected:
         friend class TCacheBase;
 
         TKey Key;
-        TPtr Cache;
+        TIntrusivePtr<TCacheBase> Cache;
         TAsyncValuePtrOrErrorResult ValueOrError;
         bool Active;
 

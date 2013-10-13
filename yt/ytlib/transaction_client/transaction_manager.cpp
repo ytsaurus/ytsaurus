@@ -10,7 +10,7 @@
 #include <core/concurrency/thread_affinity.h>
 #include <core/concurrency/delayed_executor.h>
 
-#include <ytlib/meta_state/rpc_helpers.h>
+#include <ytlib/hydra/rpc_helpers.h>
 
 #include <core/rpc/helpers.h>
 
@@ -26,7 +26,7 @@ namespace NTransactionClient {
 using namespace NCypressClient;
 using namespace NObjectClient;
 using namespace NYTree;
-using namespace NMetaState;
+using namespace NHydra;
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////

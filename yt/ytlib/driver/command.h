@@ -20,8 +20,7 @@
 
 #include <ytlib/chunk_client/public.h>
 
-#include <ytlib/meta_state/public.h>
-#include <ytlib/meta_state/rpc_helpers.h>
+#include <ytlib/hydra/rpc_helpers.h>
 
 #include <ytlib/transaction_client/transaction.h>
 #include <ytlib/transaction_client/transaction_manager.h>
@@ -74,12 +73,12 @@ typedef TIntrusivePtr<TTransactionalRequest> TTransactionalRequestPtr;
 struct TMutatingRequest
     : public virtual TRequest
 {
-    NMetaState::TMutationId MutationId;
+    NHydra::TMutationId MutationId;
 
     TMutatingRequest()
     {
         RegisterParameter("mutation_id", MutationId)
-            .Default(NMetaState::NullMutationId);
+            .Default(NHydra::NullMutationId);
     }
 };
 
@@ -275,28 +274,28 @@ class TMutatingCommandBase <
 protected:
     void GenerateMutationId(NRpc::IClientRequestPtr request)
     {
-        NMetaState::SetMutationId(request, this->GenerateMutationId());
+        NHydra::SetMutationId(request, this->GenerateMutationId());
     }
 
-    NMetaState::TMutationId GenerateMutationId()
+    NHydra::TMutationId GenerateMutationId()
     {
         auto result = this->CurrentMutationId;
-        if (this->CurrentMutationId != NMetaState::NullMutationId) {
+        if (this->CurrentMutationId != NHydra::NullMutationId) {
             ++(this->CurrentMutationId).Parts[0];
         }
         return result;
     }
 
 private:
-    NMetaState::TMutationId CurrentMutationId;
+    NHydra::TMutationId CurrentMutationId;
 
     virtual void Prepare() override
     {
         TTypedCommandBase<TRequest>::Prepare();
 
         this->CurrentMutationId =
-            this->Request->MutationId == NMetaState::NullMutationId
-            ? NMetaState::GenerateMutationId()
+            this->Request->MutationId == NHydra::NullMutationId
+            ? NHydra::GenerateMutationId()
             : this->Request->MutationId;
     }
 };

@@ -30,7 +30,7 @@ using namespace NYPath;
 TYPathRequest::TYPathRequest(const Stroka& verb, const TYPath& path)
 {
     Header_.set_verb(verb);
-    Header_.set_path(path);
+    Header_.set_service(path);
 }
 
 bool TYPathRequest::IsOneWay() const
@@ -58,14 +58,19 @@ const Stroka& TYPathRequest::GetVerb() const
     return Header_.verb();
 }
 
+const Stroka& TYPathRequest::GetService() const
+{
+    return Header_.service();
+}
+
 const Stroka& TYPathRequest::GetPath() const
 {
-    return Header_.path();
+    return Header_.service();
 }
 
 void TYPathRequest::SetPath(const Stroka& path)
 {
-    Header_.set_path(path);
+    Header_.set_service(path);
 }
 
 TInstant TYPathRequest::GetStartTime() const
@@ -182,7 +187,7 @@ void ResolveYPath(
     YASSERT(suffixService);
     YASSERT(suffixPath);
 
-    const auto& path = context->GetPath();
+    const auto& path = context->GetService();
     const auto& verb = context->GetVerb();
 
     auto currentService = rootService;
@@ -257,7 +262,7 @@ ExecuteVerb(
 
     NRpc::NProto::TRequestHeader requestHeader;
     YCHECK(ParseRequestHeader(requestMessage, &requestHeader));
-    requestHeader.set_path(suffixPath);
+    requestHeader.set_service(suffixPath);
     auto updatedRequestMessage = SetRequestHeader(requestMessage, requestHeader);
 
     auto asyncResponseMessage = NewPromise<IMessagePtr>();

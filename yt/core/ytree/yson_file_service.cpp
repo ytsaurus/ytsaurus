@@ -47,7 +47,7 @@ public:
     virtual void Invoke(IServiceContextPtr context) override
     {
         auto wrappedContext =
-            UnderlyingService->IsWriteRequest(context)
+            UnderlyingService->IsMutatingRequest(context)
             ? New<TReplyInterceptorContext>(
                 context,
                 BIND(&TWriteBackService::SaveFile, MakeStrong(this)))
@@ -60,9 +60,9 @@ public:
         return UnderlyingService->GetLoggingCategory();
     }
 
-    virtual bool IsWriteRequest(IServiceContextPtr context) const override
+    virtual bool IsMutatingRequest(IServiceContextPtr context) const override
     {
-        return UnderlyingService->IsWriteRequest(context);
+        return UnderlyingService->IsMutatingRequest(context);
     }
 
     // TODO(panin): remove this when getting rid of IAttributeProvider

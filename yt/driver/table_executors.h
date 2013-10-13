@@ -45,5 +45,35 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TMountExecutor
+    : public TRequestExecutor
+{
+public:
+    TMountExecutor();
+
+private:
+    TCLAP::UnlabeledValueArg<NYPath::TRichYPath> PathArg;
+
+    virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
+    virtual Stroka GetCommandName() const override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TUnmountExecutor
+    : public TRequestExecutor
+{
+public:
+    TUnmountExecutor();
+
+private:
+    TCLAP::UnlabeledValueArg<NYPath::TRichYPath> PathArg;
+
+    virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
+    virtual Stroka GetCommandName() const override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NDriver
 } // namespace NYT

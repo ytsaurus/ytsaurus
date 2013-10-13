@@ -16,7 +16,7 @@
 
 #include <core/logging/tagged_logger.h>
 
-#include <ytlib/meta_state/master_channel.h>
+#include <ytlib/hydra/peer_channel.h>
 
 #include <ytlib/chunk_client/block_cache.h>
 #include <ytlib/chunk_client/file_writer.h>
@@ -69,7 +69,8 @@ public:
         Location->SubscribeDisabled(BIND(&TImpl::OnLocationDisabled, Unretained(this)));
 
         try {
-            FOREACH (const auto& descriptor, Location->Initialize()) {
+            auto desciptors = Location->Initialize();
+            FOREACH (const auto& descriptor, desciptors) {
                 auto chunk = New<TCachedChunk>(
                     Location,
                     descriptor,
@@ -123,22 +124,6 @@ public:
         }
 
         return cookie->GetValue();
-    }
-
-    const TGuid& GetCellGuid()
-    {
-        return Location->GetCellGuid();
-    }
-
-    void UpdateCellGuid(const TGuid& cellGuid)
-    {
-        try {
-            Location->SetCellGuid(cellGuid);
-        } catch (const std::exception& ex) {
-            Location->Disable();
-            LOG_WARNING(ex, "Failed to set cell guid for chunk cache");
-            return;
-        }
     }
 
     bool IsEnabled() const
@@ -410,20 +395,6 @@ TChunkCache::TAsyncDownloadResult TChunkCache::DownloadChunk(const TChunkId& chu
     VERIFY_THREAD_AFFINITY_ANY();
 
     return Impl->Download(chunkId);
-}
-
-const TGuid& TChunkCache::GetCellGuid() const
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return Impl->GetCellGuid();
-}
-
-void TChunkCache::UpdateCellGuid(const TGuid& cellGuid)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return Impl->UpdateCellGuid(cellGuid);
 }
 
 bool TChunkCache::IsEnabled() const

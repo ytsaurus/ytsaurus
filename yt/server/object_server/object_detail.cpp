@@ -3,6 +3,7 @@
 #include "object_manager.h"
 #include "object_service.h"
 #include "attribute_set.h"
+#include "private.h"
 
 #include <core/misc/string.h>
 #include <core/misc/enum.h>
@@ -18,7 +19,9 @@
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
-#include <ytlib/meta_state/meta_state_manager.h>
+#include <ytlib/election/cell_manager.h>
+
+#include <server/election/election_manager.h>
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/meta_state_facade.h>
@@ -48,9 +51,13 @@ using namespace NYson;
 using namespace NCellMaster;
 using namespace NCypressClient;
 using namespace NObjectClient;
-using namespace NMetaState;
+using namespace NHydra;
 using namespace NSecurityClient;
 using namespace NSecurityServer;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static auto& Logger = ObjectServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -215,11 +222,9 @@ DEFINE_RPC_SERVICE_METHOD(TObjectProxyBase, CheckPermission)
 
 void TObjectProxyBase::Invoke(IServiceContextPtr context)
 {
-    Bootstrap->GetObjectManager()->ExecuteVerb(
-        GetVersionedId(),
-        IsWriteRequest(context),
-        context,
-        BIND(&TObjectProxyBase::GuardedInvoke, MakeStrong(this)));
+    Bootstrap
+        ->GetObjectManager()
+        ->InvokeVerb(this, std::move(context));
 }
 
 void TObjectProxyBase::SerializeAttributes(
@@ -528,11 +533,11 @@ bool TObjectProxyBase::DoInvoke(IServiceContextPtr context)
     return TYPathServiceBase::DoInvoke(context);
 }
 
-bool TObjectProxyBase::IsWriteRequest(IServiceContextPtr context) const
+bool TObjectProxyBase::IsMutatingRequest(IServiceContextPtr context) const
 {
     DECLARE_YPATH_SERVICE_WRITE_METHOD(Set);
     DECLARE_YPATH_SERVICE_WRITE_METHOD(Remove);
-    return TYPathServiceBase::IsWriteRequest(context);
+    return TYPathServiceBase::IsMutatingRequest(context);
 }
 
 IAttributeDictionary* TObjectProxyBase::GetUserAttributes()
@@ -754,20 +759,20 @@ void TObjectProxyBase::ValidateActiveLeader() const
 
 void TObjectProxyBase::ForwardToLeader(IServiceContextPtr context)
 {
-    auto metaStateManager = Bootstrap->GetMetaStateFacade()->GetManager();
-    auto epochContext = metaStateManager->GetEpochContext();
+    auto hydraManager = Bootstrap->GetMetaStateFacade()->GetManager();
+    auto epochContext = hydraManager->GetEpochContext();
 
     LOG_DEBUG("Forwarding request to leader");
 
-    auto cellManager = metaStateManager->GetCellManager();
-    auto channel = cellManager->GetMasterChannel(epochContext->LeaderId);
+    auto cellManager = Bootstrap->GetCellManager();
+    auto channel = cellManager->GetPeerChannel(epochContext->LeaderId);
 
     // Update request path to include the current object id and transaction id.
     auto requestMessage = context->GetRequestMessage();
     NRpc::NProto::TRequestHeader requestHeader;
     YCHECK(ParseRequestHeader(requestMessage, &requestHeader));
     auto versionedId = GetVersionedId();
-    requestHeader.set_path(FromObjectId(versionedId.ObjectId) + requestHeader.path());
+    requestHeader.set_service(FromObjectId(versionedId.ObjectId) + requestHeader.service());
     SetTransactionId(&requestHeader, versionedId.TransactionId);
     auto updatedRequestMessage = SetRequestHeader(requestMessage, requestHeader);
 
@@ -775,7 +780,7 @@ void TObjectProxyBase::ForwardToLeader(IServiceContextPtr context)
     // TODO(babenko): timeout?
     // TODO(babenko): prerequisite transactions?
     // TODO(babenko): authenticated user?
-    proxy.SetDefaultTimeout(Bootstrap->GetConfig()->MetaState->RpcTimeout);
+    proxy.SetDefaultTimeout(Bootstrap->GetConfig()->Hydra->RpcTimeout);
     auto batchReq = proxy.ExecuteBatch();
     batchReq->AddRequestMessage(updatedRequestMessage);
     batchReq->Invoke().Subscribe(
@@ -800,10 +805,10 @@ TNontemplateNonversionedObjectProxyBase::TNontemplateNonversionedObjectProxyBase
     : TObjectProxyBase(bootstrap, object)
 { }
 
-bool TNontemplateNonversionedObjectProxyBase::IsWriteRequest(IServiceContextPtr context) const
+bool TNontemplateNonversionedObjectProxyBase::IsMutatingRequest(IServiceContextPtr context) const
 {
     DECLARE_YPATH_SERVICE_WRITE_METHOD(Remove);
-    return TObjectProxyBase::IsWriteRequest(context);
+    return TObjectProxyBase::IsMutatingRequest(context);
 }
 
 bool TNontemplateNonversionedObjectProxyBase::DoInvoke(IServiceContextPtr context)

@@ -39,7 +39,7 @@
 #include <ytlib/node_tracker_client/node_directory.h>
 #include <ytlib/node_tracker_client/helpers.h>
 
-#include <ytlib/meta_state/master_channel.h>
+#include <ytlib/hydra/peer_channel.h>
 
 #include <util/private/lfalloc/helpers.h>
 

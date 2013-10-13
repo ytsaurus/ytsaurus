@@ -17,7 +17,7 @@
 #include <ytlib/transaction_client/transaction_manager.h>
 #include <ytlib/transaction_client/transaction.h>
 
-#include <ytlib/meta_state/rpc_helpers.h>
+#include <ytlib/hydra/rpc_helpers.h>
 
 namespace NYT {
 namespace NFileClient {
@@ -110,7 +110,7 @@ TAsyncError TAsyncWriter::OnUploadTransactionStarted(TErrorOr<ITransactionPtr> t
     {
         auto req = TFileYPathProxy::PrepareForUpdate(path);
         req->set_mode(overwrite ? EUpdateMode::Overwrite : EUpdateMode::Append);
-        NMetaState::GenerateMutationId(req);
+        NHydra::GenerateMutationId(req);
         SetTransactionId(req, UploadTransaction);
         batchReq->AddRequest(req, "prepare_for_update");
     }
@@ -205,7 +205,7 @@ void TAsyncWriter::Close()
     }
 
     {
-        auto error = WaitFor(UploadTransaction->AsyncCommit(NMetaState::NullMutationId));
+        auto error = WaitFor(UploadTransaction->AsyncCommit(NHydra::NullMutationId));
         THROW_ERROR_EXCEPTION_IF_FAILED(error, "Failed to commit upload transaction");
     }
 }

@@ -22,7 +22,6 @@ void TReadExecutor::BuildArgs(IYsonConsumer* consumer)
     auto path = PreprocessYPath(PathArg.getValue());
 
     BuildYsonMapFluently(consumer)
-        .Item("do").Value("read")
         .Item("path").Value(path);
 
     TTransactedExecutor::BuildArgs(consumer);
@@ -62,7 +61,6 @@ void TWriteExecutor::BuildArgs(IYsonConsumer* consumer)
     }
 
     BuildYsonMapFluently(consumer)
-        .Item("do").Value("write")
         .Item("path").Value(path);
 
     TTransactedExecutor::BuildArgs(consumer);
@@ -76,6 +74,48 @@ TInputStream* TWriteExecutor::GetInputStream()
 Stroka TWriteExecutor::GetCommandName() const
 {
     return "write";
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TMountExecutor::TMountExecutor()
+    : PathArg("path", "table path to mount", true, "", "YPATH")
+{
+    CmdLine.add(PathArg);
+}
+
+void TMountExecutor::BuildArgs(IYsonConsumer* consumer)
+{
+    auto path = PreprocessYPath(PathArg.getValue());
+
+    BuildYsonMapFluently(consumer)
+        .Item("path").Value(path);
+}
+
+Stroka TMountExecutor::GetCommandName() const 
+{
+    return "mount";
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TUnmountExecutor::TUnmountExecutor()
+    : PathArg("path", "table path to unmount", true, "", "YPATH")
+{
+    CmdLine.add(PathArg);
+}
+
+void TUnmountExecutor::BuildArgs(IYsonConsumer* consumer)
+{
+    auto path = PreprocessYPath(PathArg.getValue());
+
+    BuildYsonMapFluently(consumer)
+        .Item("path").Value(path);
+}
+
+Stroka TUnmountExecutor::GetCommandName() const 
+{
+    return "unmount";
 }
 
 ////////////////////////////////////////////////////////////////////////////////

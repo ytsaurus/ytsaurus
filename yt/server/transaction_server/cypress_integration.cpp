@@ -24,33 +24,37 @@ using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TVirtualTransactionMap
+INodeTypeHandlerPtr CreateTransactionMapTypeHandler(TBootstrap* bootstrap)
+{
+    YCHECK(bootstrap);
+
+    auto service = CreateVirtualObjectMap(
+        bootstrap,
+        bootstrap->GetTransactionManager()->Transactions());
+    return CreateVirtualTypeHandler(
+        bootstrap,
+        EObjectType::TransactionMap,
+        service,
+        EVirtualNodeOptions(EVirtualNodeOptions::RequireLeader | EVirtualNodeOptions::RedirectSelf));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TVirtualTopmostTransactionMap
     : public TVirtualMapBase
 {
 public:
-    TVirtualTransactionMap(TBootstrap* bootstrap, EObjectType type)
+    explicit TVirtualTopmostTransactionMap(TBootstrap* bootstrap)
         : Bootstrap(bootstrap)
-        , Type(type)
     { }
 
 private:
     TBootstrap* Bootstrap;
-    EObjectType Type;
 
     virtual std::vector<Stroka> GetKeys(size_t sizeLimit) const override
     {
         auto transactionManager = Bootstrap->GetTransactionManager();
-        std::vector<TObjectId> ids;
-        switch (Type) {
-            case EObjectType::TransactionMap:
-                ids = ToObjectIds(transactionManager->GetTransactions(sizeLimit));
-                break;
-            case EObjectType::TopmostTransactionMap:
-                ids = ToObjectIds(transactionManager->TopmostTransactions(), sizeLimit);
-                break;
-            default:
-                YUNREACHABLE();
-        }
+        auto ids = ToObjectIds(transactionManager->TopmostTransactions(), sizeLimit);
         // NB: No size limit is needed here.
         return ConvertToStrings(ids);
     }
@@ -58,14 +62,7 @@ private:
     virtual size_t GetSize() const override
     {
         auto transactionManager = Bootstrap->GetTransactionManager();
-        switch (Type) {
-            case EObjectType::TransactionMap:
-                return transactionManager->GetTransactionCount();
-            case EObjectType::TopmostTransactionMap:
-                return transactionManager->TopmostTransactions().size();
-            default:
-                YUNREACHABLE();
-        }
+        return transactionManager->TopmostTransactions().size();
     }
 
     virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
@@ -78,7 +75,7 @@ private:
             return nullptr;
         }
 
-        if (Type == EObjectType::TopmostTransactionMap && transaction->GetParent()) {
+        if (transaction->GetParent()) {
             return nullptr;
         }
 
@@ -87,14 +84,14 @@ private:
     }
 };
 
-INodeTypeHandlerPtr CreateTransactionMapTypeHandler(TBootstrap* bootstrap, EObjectType type)
+INodeTypeHandlerPtr CreateTopmostTransactionMapTypeHandler(TBootstrap* bootstrap)
 {
     YCHECK(bootstrap);
 
-    auto service = New<TVirtualTransactionMap>(bootstrap, type);
+    auto service = New<TVirtualTopmostTransactionMap>(bootstrap);
     return CreateVirtualTypeHandler(
         bootstrap,
-        type,
+        EObjectType::TopmostTransactionMap,
         service,
         EVirtualNodeOptions(EVirtualNodeOptions::RequireLeader | EVirtualNodeOptions::RedirectSelf));
 }

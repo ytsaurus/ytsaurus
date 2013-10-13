@@ -62,5 +62,47 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TMountRequest
+    : public TRequest
+{
+    NYPath::TRichYPath Path;
+
+    TMountRequest()
+    {
+        RegisterParameter("path", Path);
+    }
+};
+
+class TMountCommand
+    : public TTypedCommand<TMountRequest>
+{
+private:
+    virtual void DoExecute() override;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TUnmountRequest
+    : public TRequest
+{
+    NYPath::TRichYPath Path;
+
+    TUnmountRequest()
+    {
+        RegisterParameter("path", Path);
+    }
+};
+
+class TUnmountCommand
+    : public TTypedCommand<TUnmountRequest>
+{
+private:
+    virtual void DoExecute() override;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NDriver
 } // namespace NYT

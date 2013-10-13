@@ -1,7 +1,6 @@
 set( DIRS
   ypath
   election
-  meta_state
   orchid
   driver
   scheduler
@@ -15,6 +14,7 @@ set( DIRS
   job_tracker_client
   transaction_client
   monitoring
+  hydra
 )
 
 foreach( _d_ ${DIRS} )

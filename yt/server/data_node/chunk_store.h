@@ -59,10 +59,6 @@ public:
     //! Returns the number of registered chunks.
     int GetChunkCount() const;
 
-    const TGuid& GetCellGuid() const;
-
-    void SetCellGuid(const TGuid& cellGuid);
-
     //! Storage locations.
     DEFINE_BYREF_RO_PROPERTY(TLocations, Locations);
 
@@ -79,9 +75,6 @@ private:
     typedef yhash_map<TChunkId, TStoredChunkPtr> TChunkMap;
     TChunkMap ChunkMap;
 
-    TGuid CellGuid;
-
-    void DoSetCellGuid();
     void DoRegisterChunk(TStoredChunkPtr chunk);
     void OnLocationDisabled(TLocationPtr location);
 

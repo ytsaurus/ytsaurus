@@ -51,7 +51,8 @@ void TChunkStore::Initialize()
         try {
             descriptors = location->Initialize();
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Failed to initialize location %s", ~location->GetPath().Quote());
+            LOG_ERROR(ex, "Failed to initialize location %s",
+                ~location->GetPath().Quote());
             continue;
         }
 
@@ -65,24 +66,6 @@ void TChunkStore::Initialize()
 
         location->SubscribeDisabled(BIND(&TChunkStore::OnLocationDisabled, Unretained(this), location));
         Locations_.push_back(location);
-    }
-
-    FOREACH (const auto& location, Locations_) {
-        const auto& locationCellGuid = location->GetCellGuid();
-        if (locationCellGuid.IsEmpty())
-            continue;
-
-        if (CellGuid.IsEmpty()) {
-            CellGuid = locationCellGuid;
-        } else if (CellGuid != locationCellGuid) {
-            LOG_FATAL("Inconsistent cell guid across chunk store locations: %s vs %s",
-                ~ToString(CellGuid),
-                ~ToString(locationCellGuid));
-        }
-    }
-
-    if (!CellGuid.IsEmpty()) {
-        DoSetCellGuid();
     }
 
     LOG_INFO("Chunk store scan complete, %d chunks found", GetChunkCount());
@@ -217,29 +200,6 @@ TChunkStore::TChunks TChunkStore::GetChunks() const
 int TChunkStore::GetChunkCount() const
 {
     return static_cast<int>(ChunkMap.size());
-}
-
-void TChunkStore::SetCellGuid(const TGuid& cellGuid)
-{
-    CellGuid = cellGuid;
-    DoSetCellGuid();
-}
-
-void TChunkStore::DoSetCellGuid()
-{
-    FOREACH (const auto& location, Locations_) {
-        try {
-            location->SetCellGuid(CellGuid);
-        } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Failed to set cell guid for location %s", ~location->GetPath().Quote());
-            location->Disable();
-        }
-    }
-}
-
-const TGuid& TChunkStore::GetCellGuid() const
-{
-    return CellGuid;
 }
 
 void TChunkStore::OnLocationDisabled(TLocationPtr location)

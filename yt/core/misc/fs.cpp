@@ -106,48 +106,46 @@ Stroka GetFileNameWithoutExtension(const Stroka& path)
 
 void CleanTempFiles(const Stroka& path)
 {
-    LOG_INFO("Cleaning temp files in %s",
-        ~path.Quote());
+    LOG_INFO("Cleaning temp files in %s", ~path.Quote());
 
-    if (!isexist(~path))
-        return;
-
-    TFileList fileList;
-    fileList.Fill(path, TStringBuf(), TStringBuf(), Max<int>());
-    i32 size = fileList.Size();
-    for (i32 i = 0; i < size; ++i) {
-        Stroka fileName = NFS::CombinePaths(path, fileList.Next());
-        if (fileName.has_suffix(TempFileSuffix)) {
-            LOG_INFO("Removing temp file %s",
-                ~fileName.Quote());
+    auto entries = EnumerateFiles(path);
+    FOREACH (const auto& entry, entries) {
+        if (entry.has_suffix(TempFileSuffix)) {
+            Stroka fileName = NFS::CombinePaths(path, entry);
+            LOG_INFO("Removing file %s", ~fileName.Quote());
             if (!NFS::Remove(~fileName)) {
-                LOG_ERROR("Error removing temp file %s", 
-                    ~fileName.Quote());
+                LOG_ERROR("Error removing file %s", ~fileName.Quote());
             }
         }
     }
 }
 
-void CleanFiles(const Stroka& path)
+std::vector<Stroka> EnumerateFiles(const Stroka& path)
 {
-    LOG_INFO("Cleaning files in %s",
-        ~path.Quote());
-
-    if (!isexist(~path))
-        return;
-
-    TFileList fileList;
-    fileList.Fill(path, TStringBuf(), TStringBuf(), Max<int>());
-    i32 size = fileList.Size();
-    for (i32 i = 0; i < size; ++i) {
-        Stroka fileName = NFS::CombinePaths(path, fileList.Next());
-        LOG_INFO("Removing file %s",
-            ~fileName.Quote());
-        if (!NFS::Remove(~fileName)) {
-            LOG_ERROR("Error removing file %s",
-                ~fileName.Quote());
+    std::vector<Stroka> result;
+    if (isexist(~path)) {
+        TFileList list;
+        list.Fill(path, TStringBuf(), TStringBuf(), 1);
+        int size = list.Size();
+        for (int i = 0; i < size; ++i) {
+            result.push_back(list.Next());
         }
     }
+    return result;
+}
+
+std::vector<Stroka> EnumerateDirectories(const Stroka& path)
+{
+    std::vector<Stroka> result;
+    if (isexist(~path)) {
+        TDirsList list;
+        list.Fill(path, TStringBuf(), TStringBuf(), 1);
+        int size = list.Size();
+        for (int i = 0; i < size; ++i) {
+            result.push_back(list.Next());
+        }
+    }
+    return result;
 }
 
 TDiskSpaceStatistics GetDiskSpaceStatistics(const Stroka& path)

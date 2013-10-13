@@ -12,14 +12,14 @@
 
 #include <ytlib/scheduler/config.h>
 
-#include <ytlib/meta_state/rpc_helpers.h>
+#include <ytlib/hydra/rpc_helpers.h>
 
 namespace NYT {
 namespace NDriver {
 
 using namespace NScheduler;
 using namespace NYTree;
-using namespace NMetaState;
+using namespace NHydra;
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////

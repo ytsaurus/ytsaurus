@@ -5,10 +5,13 @@
 
 #include <core/ypath/tokenizer.h>
 
+#include <server/hydra/hydra_manager.h>
+
 #include <server/cypress_server/node_detail.h>
 #include <server/cypress_server/node_proxy_detail.h>
 
 #include <server/cell_master/bootstrap.h>
+#include <server/cell_master/meta_state_facade.h>
 
 namespace NYT {
 namespace NCypressServer {
@@ -62,7 +65,7 @@ public:
         return "";
     }
 
-    virtual bool IsWriteRequest(IServiceContextPtr context) const override
+    virtual bool IsMutatingRequest(IServiceContextPtr context) const override
     {
         UNUSED(context);
 
@@ -95,7 +98,8 @@ public:
 
     virtual TResolveResult Resolve(const TYPath& path, IServiceContextPtr context) override
     {
-        if (!Bootstrap->GetMetaStateFacade()->IsActiveLeader()) {
+        auto hydraManager = Bootstrap->GetMetaStateFacade()->GetManager();
+        if (!hydraManager->IsActiveLeader()) {
             return TResolveResult::There(
                 New<TFailedLeaderValidationWrapper>(Bootstrap),
                 path);
@@ -114,9 +118,9 @@ public:
         return UnderlyingService->GetLoggingCategory();
     }
 
-    virtual bool IsWriteRequest(IServiceContextPtr context) const override
+    virtual bool IsMutatingRequest(IServiceContextPtr context) const override
     {
-        return UnderlyingService->IsWriteRequest(context);
+        return UnderlyingService->IsMutatingRequest(context);
     }
 
     // TODO(panin): remove this when getting rid of IAttributeProvider
@@ -280,7 +284,6 @@ private:
             service,
             Options);
     }
-
 
 };
 

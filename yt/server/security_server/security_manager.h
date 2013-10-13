@@ -3,8 +3,8 @@
 #include "public.h"
 #include "cluster_resources.h"
 
-#include <ytlib/meta_state/map.h>
-#include <ytlib/meta_state/mutation.h>
+#include <server/hydra/mutation.h>
+#include <server/hydra/entity_map.h>
 
 #include <core/rpc/service.h>
 
@@ -72,12 +72,11 @@ public:
 
     void Initialize();
 
-    DECLARE_METAMAP_ACCESSORS(Account, TAccount, TAccountId);
-    DECLARE_METAMAP_ACCESSORS(User, TUser, TUserId);
-    DECLARE_METAMAP_ACCESSORS(Group, TGroup, TGroupId);
+    DECLARE_ENTITY_MAP_ACCESSORS(Account, TAccount, TAccountId);
+    DECLARE_ENTITY_MAP_ACCESSORS(User, TUser, TUserId);
+    DECLARE_ENTITY_MAP_ACCESSORS(Group, TGroup, TGroupId);
 
-
-    NMetaState::TMutationPtr CreateUpdateRequestStatisticsMutation(
+    NHydra::TMutationPtr CreateUpdateRequestStatisticsMutation(
         const NProto::TMetaReqUpdateRequestStatistics& request);
 
 
@@ -112,6 +111,9 @@ public:
 
     //! Returns user with a given name (|nullptr| if none).
     TUser* FindUserByName(const Stroka& name);
+
+    //! Finds user by id, throws if nothing is found.
+    TUser* GetUserOrThrow(const TUserId& id);
 
     //! Returns "root" built-in user.
     TUser* GetRootUser();

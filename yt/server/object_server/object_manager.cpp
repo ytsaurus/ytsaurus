@@ -15,15 +15,15 @@
 #include <core/rpc/message.h>
 #include <core/rpc/server_detail.h>
 
-#include <ytlib/meta_state/rpc_helpers.h>
-
 #include <core/erasure/public.h>
+
+#include <core/profiling/profiling_manager.h>
+
+#include <ytlib/hydra/rpc_helpers.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
-
-#include <core/profiling/profiling_manager.h>
 
 #include <server/cell_master/serialization_context.h>
 
@@ -48,7 +48,7 @@ namespace NObjectServer {
 
 using namespace NYTree;
 using namespace NYPath;
-using namespace NMetaState;
+using namespace NHydra;
 using namespace NRpc;
 using namespace NBus;
 using namespace NCypressServer;
@@ -57,7 +57,7 @@ using namespace NTransactionServer;
 using namespace NSecurityServer;
 using namespace NChunkServer;
 using namespace NObjectClient;
-using namespace NMetaState;
+using namespace NHydra;
 using namespace NCellMaster;
 using namespace NConcurrency;
 
@@ -140,12 +140,11 @@ public:
         TTransaction* transaction = nullptr;
         auto transactionId = GetTransactionId(context);
         if (transactionId != NullTransactionId) {
-            transaction = transactionManager->FindTransaction(transactionId);
-            if (!IsObjectAlive(transaction)) {
-                THROW_ERROR_EXCEPTION("No such transaction %s", ~ToString(transactionId));
-            }
+            transaction = transactionManager->GetTransactionOrThrow(transactionId);
             if (transaction->GetState() != ETransactionState::Active) {
-                THROW_ERROR_EXCEPTION("Transaction %s is not active", ~ToString(transactionId));
+                THROW_ERROR_EXCEPTION(
+                    "Transaction %s is not active",
+                    ~ToString(transactionId));
             }
         }
 
@@ -195,7 +194,7 @@ public:
         return ObjectServerLogger.GetCategory();
     }
 
-    virtual bool IsWriteRequest(IServiceContextPtr context) const override
+    virtual bool IsMutatingRequest(IServiceContextPtr context) const override
     {
         UNUSED(context);
         YUNREACHABLE();
@@ -311,11 +310,8 @@ private:
 TObjectManager::TObjectManager(
     TObjectManagerConfigPtr config,
     TBootstrap* bootstrap)
-    : TMetaStatePart(
-        bootstrap->GetMetaStateFacade()->GetManager(),
-        bootstrap->GetMetaStateFacade()->GetState())
+    : TMasterAutomatonPart(bootstrap)
     , Config(config)
-    , Bootstrap(bootstrap)
     , Profiler(ObjectServerProfiler)
     , RootService(New<TRootService>(bootstrap))
     , ObjectResolver(new TObjectResolver(bootstrap))
@@ -327,62 +323,39 @@ TObjectManager::TObjectManager(
     YCHECK(config);
     YCHECK(bootstrap);
 
-    {
-        NCellMaster::TLoadContext context;
-        context.SetBootstrap(Bootstrap);
+    RegisterLoader(
+        "ObjectManager.Keys",
+        BIND(&TObjectManager::LoadKeys, Unretained(this)));
+    RegisterLoader(
+        "ObjectManager.Values",
+        BIND(&TObjectManager::LoadValues, Unretained(this)));
+    RegisterLoader(
+        "ObjectManager.Schemas",
+        BIND(&TObjectManager::LoadSchemas, Unretained(this)));
 
-        RegisterLoader(
-            "ObjectManager.Keys",
-            SnapshotVersionValidator(),
-            BIND(&TObjectManager::LoadKeys, MakeStrong(this)),
-            context);
-        RegisterLoader(
-            "ObjectManager.Values",
-            SnapshotVersionValidator(),
-            BIND(&TObjectManager::LoadValues, MakeStrong(this)),
-            context);
-        RegisterLoader(
-            "ObjectManager.Schemas",
-            SnapshotVersionValidator(),
-            BIND(&TObjectManager::LoadSchemas, MakeStrong(this)),
-            context);
-    }
-    {
-        NCellMaster::TSaveContext context;
-
-        RegisterSaver(
-            ESerializationPriority::Keys,
-            "ObjectManager.Keys",
-            GetCurrentSnapshotVersion(),
-            BIND(&TObjectManager::SaveKeys, MakeStrong(this)),
-            context);
-        RegisterSaver(
-            ESerializationPriority::Values,
-            "ObjectManager.Values",
-            GetCurrentSnapshotVersion(),
-            BIND(&TObjectManager::SaveValues, MakeStrong(this)),
-            context);
-        RegisterSaver(
-            ESerializationPriority::Values,
-            "ObjectManager.Schemas",
-            GetCurrentSnapshotVersion(),
-            BIND(&TObjectManager::SaveSchemas, MakeStrong(this)),
-            context);
-    }
+    RegisterSaver(
+        ESerializationPriority::Keys,
+        "ObjectManager.Keys",
+        BIND(&TObjectManager::SaveKeys, Unretained(this)));
+    RegisterSaver(
+        ESerializationPriority::Values,
+        "ObjectManager.Values",
+        BIND(&TObjectManager::SaveValues, Unretained(this)));
+    RegisterSaver(
+        ESerializationPriority::Values,
+        "ObjectManager.Schemas",
+        BIND(&TObjectManager::SaveSchemas, Unretained(this)));
 
     RegisterHandler(CreateMasterTypeHandler(Bootstrap));
 
     RegisterMethod(BIND(&TObjectManager::ReplayVerb, Unretained(this)));
     RegisterMethod(BIND(&TObjectManager::DestroyObjects, Unretained(this)));
 
-    MasterObjectId = MakeWellKnownId(EObjectType::Master, Config->CellId);
+    MasterObjectId = MakeWellKnownId(EObjectType::Master, Bootstrap->GetCellId());
 }
 
 void TObjectManager::Initialize()
 {
-    LOG_INFO("CellId: %d", static_cast<int>(Config->CellId));
-    LOG_INFO("MasterObjectId: %s", ~ToString(MasterObjectId));
-
     ProfilingExecutor = New<TPeriodicExecutor>(
         Bootstrap->GetMetaStateFacade()->GetInvoker(),
         BIND(&TObjectManager::OnProfiling, MakeWeak(this)),
@@ -465,7 +438,7 @@ void TObjectManager::RegisterHandler(IObjectTypeHandlerPtr handler)
         schemaEntry.Handler = CreateSchemaTypeHandler(Bootstrap, type);
         LOG_INFO("Type registered (Type: %s, SchemaObjectId: %s)",
             ~type.ToString(),
-            ~ToString(MakeSchemaObjectId(type, GetCellId())));
+            ~ToString(MakeSchemaObjectId(type, Bootstrap->GetCellId())));
     } else {
         LOG_INFO("Type registered (Type: %s)",
             ~type.ToString());
@@ -503,28 +476,9 @@ const std::vector<EObjectType> TObjectManager::GetRegisteredTypes() const
     return RegisteredTypes;
 }
 
-TCellId TObjectManager::GetCellId() const
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return Config->CellId;
-}
-
-const TGuid& TObjectManager::GetCellGuid() const
-{
-    VERIFY_THREAD_AFFINITY(StateThread);
-
-    if (CachedCellGuild.IsEmpty()) {
-        auto rootService = const_cast<TObjectManager*>(this)->GetRootService();
-        CachedCellGuild = ConvertTo<TGuid>(SyncYPathGet(rootService, "//sys/@cell_guid"));
-    }
-
-    return CachedCellGuild;
-}
-
 TObjectId TObjectManager::GenerateId(EObjectType type)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     auto* mutationContext = Bootstrap
         ->GetMetaStateFacade()
@@ -538,12 +492,10 @@ TObjectId TObjectManager::GenerateId(EObjectType type)
     int typeValue = static_cast<int>(type);
     YASSERT(typeValue >= 0 && typeValue <= MaxObjectType);
 
-    auto cellId = GetCellId();
-
     TObjectId id(
         random,
-        (cellId << 16) + typeValue,
-        version.RecordCount,
+        (Bootstrap->GetCellId() << 16) + typeValue,
+        version.RecordId,
         version.SegmentId);
 
     ++CreatedObjectCount;
@@ -557,7 +509,7 @@ TObjectId TObjectManager::GenerateId(EObjectType type)
 
 void TObjectManager::RefObject(TObjectBase* object)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
     YASSERT(object->IsTrunk());
 
     int refCounter = object->RefObject();
@@ -569,7 +521,7 @@ void TObjectManager::RefObject(TObjectBase* object)
 
 void TObjectManager::UnrefObject(TObjectBase* object)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
     YASSERT(object->IsTrunk());
 
     int refCounter = object->UnrefObject();
@@ -585,7 +537,7 @@ void TObjectManager::UnrefObject(TObjectBase* object)
 
 void TObjectManager::WeakRefObject(TObjectBase* object)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     int weakRefCounter = object->WeakRefObject();
     if (weakRefCounter == 1) {
@@ -595,7 +547,7 @@ void TObjectManager::WeakRefObject(TObjectBase* object)
 
 void TObjectManager::WeakUnrefObject(TObjectBase* object)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     int weakRefCounter = object->WeakUnrefObject();
     if (weakRefCounter == 0) {
@@ -635,23 +587,23 @@ void TObjectManager::SaveSchemas(NCellMaster::TSaveContext& context) const
     Save(context, EObjectType(EObjectType::Null));
 }
 
-void TObjectManager::OnBeforeLoaded()
+void TObjectManager::OnBeforeSnapshotLoaded()
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     DoClear();
 }
 
 void TObjectManager::LoadKeys(NCellMaster::TLoadContext& context)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     Attributes.LoadKeys(context);
 }
 
 void TObjectManager::LoadValues(NCellMaster::TLoadContext& context)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     Attributes.LoadValues(context);
     GarbageCollector->Load(context);
@@ -673,7 +625,7 @@ void TObjectManager::LoadValues(NCellMaster::TLoadContext& context)
 
 void TObjectManager::LoadSchemas(NCellMaster::TLoadContext& context)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     while (true) {
         EObjectType type;
@@ -696,7 +648,7 @@ void TObjectManager::DoClear()
     FOREACH (auto type, RegisteredTypes)  {
         auto& entry = TypeToEntry[static_cast<int>(type)];
         if (HasSchema(type)) {
-            entry.SchemaObject.reset(new TSchemaObject(MakeSchemaObjectId(type, GetCellId())));
+            entry.SchemaObject.reset(new TSchemaObject(MakeSchemaObjectId(type, Bootstrap->GetCellId())));
             entry.SchemaObject->RefObject();
             entry.SchemaProxy = CreateSchemaProxy(Bootstrap, ~entry.SchemaObject);
         }
@@ -713,7 +665,7 @@ void TObjectManager::DoClear()
 
 void TObjectManager::Clear()
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     DoClear();
 }
@@ -731,23 +683,23 @@ void TObjectManager::OnRecoveryComplete()
     Profiler.SetEnabled(true);
 }
 
-void TObjectManager::OnActiveQuorumEstablished()
+void TObjectManager::OnLeaderActive()
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     GarbageCollector->StartSweep();
 }
 
 void TObjectManager::OnStopLeading()
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     GarbageCollector->StopSweep();
 }
 
 TObjectBase* TObjectManager::FindObject(const TObjectId& id)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     auto handler = FindHandler(TypeFromId(id));
     if (!handler) {
@@ -759,7 +711,7 @@ TObjectBase* TObjectManager::FindObject(const TObjectId& id)
 
 TObjectBase* TObjectManager::GetObject(const TObjectId& id)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     auto* object = FindObject(id);
     YCHECK(object);
@@ -768,7 +720,7 @@ TObjectBase* TObjectManager::GetObject(const TObjectId& id)
 
 TObjectBase* TObjectManager::GetObjectOrThrow(const TObjectId& id)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     auto* object = FindObject(id);
     if (!IsObjectAlive(object)) {
@@ -785,7 +737,7 @@ IObjectProxyPtr TObjectManager::GetProxy(
     TObjectBase* object,
     TTransaction* transaction)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
     YCHECK(IsObjectAlive(object));
 
     const auto& id = object->GetId();
@@ -799,7 +751,7 @@ IObjectProxyPtr TObjectManager::GetProxy(
 
 TAttributeSet* TObjectManager::GetOrCreateAttributes(const TVersionedObjectId& id)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     auto* userAttributes = FindAttributes(id);
     if (!userAttributes) {
@@ -811,7 +763,7 @@ TAttributeSet* TObjectManager::GetOrCreateAttributes(const TVersionedObjectId& i
 
 TAttributeSet* TObjectManager::CreateAttributes(const TVersionedObjectId& id)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     auto result = new TAttributeSet();
     Attributes.Insert(id, result);
@@ -820,14 +772,14 @@ TAttributeSet* TObjectManager::CreateAttributes(const TVersionedObjectId& id)
 
 void TObjectManager::RemoveAttributes(const TVersionedObjectId& id)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     Attributes.Remove(id);
 }
 
 bool TObjectManager::TryRemoveAttributes(const TVersionedObjectId& id)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     return Attributes.TryRemove(id);
 }
@@ -836,7 +788,7 @@ void TObjectManager::BranchAttributes(
     const TVersionedObjectId& originatingId,
     const TVersionedObjectId& branchedId)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
     UNUSED(originatingId);
     UNUSED(branchedId);
     // We don't store empty deltas at the moment
@@ -846,7 +798,7 @@ void TObjectManager::MergeAttributes(
     const TVersionedObjectId& originatingId,
     const TVersionedObjectId& branchedId)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     auto* originatingAttributes = FindAttributes(originatingId);
     const auto* branchedAttributes = FindAttributes(branchedId);
@@ -869,79 +821,6 @@ void TObjectManager::MergeAttributes(
     }
 }
 
-void TObjectManager::ExecuteVerb(
-    const TVersionedObjectId& id,
-    bool isWrite,
-    IServiceContextPtr context,
-    TCallback<void(IServiceContextPtr)> action)
-{
-    VERIFY_THREAD_AFFINITY(StateThread);
-
-    auto securityManager = Bootstrap->GetSecurityManager();
-    auto* user = securityManager->GetAuthenticatedUser();
-
-    LOG_INFO_UNLESS(IsRecovery(), "ExecuteVerb: %s %s (ObjectId: %s, IsWrite: %s, User: %s)",
-        ~context->GetVerb(),
-        ~context->GetPath(),
-        ~ToString(id),
-        ~FormatBool(isWrite),
-        ~user->GetName());
-
-    NProfiling::TTagIdList tagIds;
-    tagIds.push_back(GetTypeTagId(TypeFromId(id.ObjectId)));
-    tagIds.push_back(GetVerbTagId(context->GetVerb()));
-
-    if (IsRecovery() || !isWrite || MetaStateManager->GetMutationContext()) {
-        PROFILE_TIMING ("/request_time", tagIds) {
-            action.Run(context);
-        }
-    } else {
-        if (!Bootstrap->GetMetaStateFacade()->IsActiveLeader()) {
-            context->Reply(TError(
-                NRpc::EErrorCode::Unavailable,
-                "Not an active leader"));
-            return;
-        }
-
-        NProto::TMetaReqExecute executeReq;
-        ToProto(executeReq.mutable_object_id(), id.ObjectId);
-        ToProto(executeReq.mutable_transaction_id(),  id.TransactionId);
-        ToProto(executeReq.mutable_user_id(), user->GetId());
-
-        auto requestMessage = context->GetRequestMessage();
-        const auto& requestParts = requestMessage->GetParts();
-        FOREACH (const auto& part, requestParts) {
-            executeReq.add_request_parts(part.Begin(), part.Size());
-        }
-
-        // Capture everything needed in lambdas below.
-        auto wrappedContext = New<TServiceContextWrapper>(context);
-        auto mutationId = GetMutationId(context);
-        auto metaStateManager = MetaStateManager;
-
-        Bootstrap
-            ->GetMetaStateFacade()
-            ->CreateMutation()
-            ->SetRequestData(executeReq)
-            ->SetId(mutationId)
-            ->SetAction(BIND([=] () {
-                PROFILE_TIMING ("/request_time", tagIds) {
-                    action.Run(wrappedContext);
-                }
-                if (mutationId != NullMutationId) {
-                    auto responseMessage = wrappedContext->GetResponseMessage();
-                    auto responseData = PackMessage(responseMessage);
-                    metaStateManager->GetMutationContext()->SetResponseData(responseData);
-                }
-            }))
-            ->OnSuccess(BIND([=] (const TMutationResponse& response) {
-                context->Reply(wrappedContext->GetResponseMessage());
-            }))
-            ->OnError(CreateRpcErrorHandler(context))
-            ->Commit();
-    }
-}
-
 TMutationPtr TObjectManager::CreateDestroyObjectsMutation(const NProto::TMetaReqDestroyObjects& request)
 {
     return Bootstrap
@@ -951,7 +830,7 @@ TMutationPtr TObjectManager::CreateDestroyObjectsMutation(const NProto::TMetaReq
 
 TFuture<void> TObjectManager::GCCollect()
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     return GarbageCollector->Collect();
 }
@@ -1066,23 +945,113 @@ IObjectResolver* TObjectManager::GetObjectResolver()
     return ~ObjectResolver;
 }
 
-void TObjectManager::ReplayVerb(const NProto::TMetaReqExecute& request)
+void TObjectManager::InvokeVerb(TObjectProxyBase* proxy, IServiceContextPtr context)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
-
-    auto objectId = FromProto<TObjectId>(request.object_id());
-    auto transactionId = FromProto<TTransactionId>(request.transaction_id());
-    auto userId = FromProto<TUserId>(request.user_id());
-
-    auto transactionManager = Bootstrap->GetTransactionManager();
-    auto* transaction =
-        transactionId == NullTransactionId
-        ? nullptr
-        : transactionManager->GetTransaction(transactionId);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     auto securityManager = Bootstrap->GetSecurityManager();
-    auto* user = securityManager->GetUser(userId);
-    TAuthenticatedUserGuard userGuard(securityManager, user);
+    auto* user = securityManager->GetAuthenticatedUser();
+    auto userId = user->GetId();
+
+    auto objectId = proxy->GetVersionedId();
+
+    bool isMutating = proxy->IsMutatingRequest(context);
+
+    LOG_INFO_UNLESS(IsRecovery(), "Invoke: %s %s (ObjectId: %s, Mutating: %s, User: %s)",
+        ~context->GetVerb(),
+        ~context->GetService(),
+        ~ToString(objectId),
+        ~FormatBool(isMutating),
+        ~user->GetName());
+
+    NProfiling::TTagIdList tagIds;
+    tagIds.push_back(GetTypeTagId(TypeFromId(objectId.ObjectId)));
+    tagIds.push_back(GetVerbTagId(context->GetVerb()));
+
+    if (IsRecovery() || !isMutating || HydraManager->GetMutationContext()) {
+        PROFILE_TIMING ("/request_time", tagIds) {
+            proxy->GuardedInvoke(std::move(context));
+        }
+    } else {
+        NProto::TMetaReqExecute executeReq;
+        ToProto(executeReq.mutable_object_id(), objectId.ObjectId);
+        ToProto(executeReq.mutable_transaction_id(),  objectId.TransactionId);
+        ToProto(executeReq.mutable_user_id(), user->GetId());
+
+        auto requestMessage = context->GetRequestMessage();
+        const auto& requestParts = requestMessage->GetParts();
+        FOREACH (const auto& part, requestParts) {
+            executeReq.add_request_parts(part.Begin(), part.Size());
+        }
+
+        auto mutationId = GetMutationId(context);
+        auto wrappedContext = New<TServiceContextWrapper>(context);
+        auto this_ = MakeStrong(this);
+        Bootstrap
+            ->GetMetaStateFacade()
+            ->CreateMutation()
+            ->SetRequestData(executeReq)
+            ->SetId(mutationId)
+            ->SetAction(BIND([this, this_, objectId, userId, mutationId, tagIds, wrappedContext] () {
+                try {
+                    auto* object = GetObjectOrThrow(objectId.ObjectId);
+
+                    TTransaction* transaction = nullptr;
+                    if (objectId.TransactionId != NullTransactionId) {
+                        auto transactionManager = Bootstrap->GetTransactionManager();
+                        transaction = transactionManager->GetTransactionOrThrow(objectId.TransactionId);
+                    }
+
+                    auto securityManager = Bootstrap->GetSecurityManager();
+                    auto* user = securityManager->GetUserOrThrow(userId);
+
+                    auto proxy = GetProxy(object, transaction);
+
+                    TAuthenticatedUserGuard userGuard(securityManager, user);
+                    proxy->Invoke(std::move(wrappedContext));
+                } catch (const std::exception& ex) {
+                    wrappedContext->Reply(ex);
+                }
+
+                if (mutationId != NullMutationId) {
+                    auto responseMessage = wrappedContext->GetResponseMessage();
+                    auto responseData = PackMessage(responseMessage);
+                    HydraManager->GetMutationContext()->SetResponseData(std::move(responseData));
+                }
+            }))
+            ->OnSuccess(BIND([context, wrappedContext] (const TMutationResponse& response) {
+                context->Reply(wrappedContext->GetResponseMessage());
+            }))
+            ->OnError(CreateRpcErrorHandler(context))
+            ->Commit();
+    }
+}
+
+void TObjectManager::ReplayVerb(const NProto::TMetaReqExecute& request)
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    auto objectId = FromProto<TObjectId>(request.object_id());
+    auto* object = FindObject(objectId);
+    if (!IsObjectAlive(object))
+        return;
+
+    auto transactionManager = Bootstrap->GetTransactionManager();
+    auto transactionId = FromProto<TTransactionId>(request.transaction_id());
+    TTransaction* transaction = nullptr;
+    if (transactionId != NullTransactionId) {
+        transaction = transactionManager->FindTransaction(transactionId);
+        if (!IsObjectAlive(transaction))
+            return;
+    }
+
+    auto proxy = GetProxy(object, transaction);
+
+    auto securityManager = Bootstrap->GetSecurityManager();
+    auto userId = FromProto<TUserId>(request.user_id());
+    auto* user = securityManager->FindUser(userId);
+    if (!IsObjectAlive(user))
+        return;
 
     std::vector<TSharedRef> parts(request.request_parts_size());
     for (int partIndex = 0; partIndex < request.request_parts_size(); ++partIndex) {
@@ -1098,8 +1067,7 @@ void TObjectManager::ReplayVerb(const NProto::TMetaReqExecute& request)
         "",
         TYPathResponseHandler());
 
-    auto* object = GetObject(objectId);
-    auto proxy = GetProxy(object, transaction);
+    TAuthenticatedUserGuard userGuard(securityManager, user);
     proxy->Invoke(context);
 }
 
@@ -1145,7 +1113,7 @@ NProfiling::TTagId TObjectManager::GetVerbTagId(const Stroka& verb)
 
 void TObjectManager::OnProfiling()
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     Profiler.Enqueue("/gc_queue_size", GarbageCollector->GetGCQueueSize());
     Profiler.Enqueue("/gc_lock_queue_size", GarbageCollector->GetLockedGCQueueSize());
@@ -1154,7 +1122,7 @@ void TObjectManager::OnProfiling()
     Profiler.Enqueue("/locked_object_count", LockedObjectCount);
 }
 
-DEFINE_METAMAP_ACCESSORS(TObjectManager, Attributes, TAttributeSet, TVersionedObjectId, Attributes)
+DEFINE_ENTITY_MAP_ACCESSORS(TObjectManager, Attributes, TAttributeSet, TVersionedObjectId, Attributes)
 
 ////////////////////////////////////////////////////////////////////////////////
 

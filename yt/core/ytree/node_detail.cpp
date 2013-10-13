@@ -27,11 +27,11 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TNodeBase::IsWriteRequest(IServiceContextPtr context) const
+bool TNodeBase::IsMutatingRequest(IServiceContextPtr context) const
 {
     DECLARE_YPATH_SERVICE_WRITE_METHOD(Set);
     DECLARE_YPATH_SERVICE_WRITE_METHOD(Remove);
-    return TYPathServiceBase::IsWriteRequest(context);
+    return TYPathServiceBase::IsMutatingRequest(context);
 }
 
 bool TNodeBase::DoInvoke(IServiceContextPtr context)

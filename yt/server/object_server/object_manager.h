@@ -6,13 +6,12 @@
 #include <core/concurrency/thread_affinity.h>
 #include <core/concurrency/periodic_executor.h>
 
-#include <ytlib/meta_state/composite_meta_state.h>
-#include <ytlib/meta_state/map.h>
-#include <ytlib/meta_state/mutation.h>
-
 #include <core/profiling/profiler.h>
 
-#include <server/cell_master/public.h>
+#include <server/hydra/mutation.h>
+#include <server/hydra/entity_map.h>
+
+#include <server/cell_master/automaton.h>
 
 #include <server/transaction_server/public.h>
 
@@ -55,7 +54,7 @@ struct IObjectResolver
  *  Thread affinity: single-threaded
  */
 class TObjectManager
-    : public NMetaState::TMetaStatePart
+    : public NCellMaster::TMasterAutomatonPart
 {
 public:
     TObjectManager(
@@ -81,12 +80,6 @@ public:
 
     //! Returns the list of registered object types, excluding schemas.
     const std::vector<EObjectType> GetRegisteredTypes() const;
-
-    //! Returns the cell id.
-    TCellId GetCellId() const;
-
-    //! Returns the cell unique id.
-    const TGuid& GetCellGuid() const;
 
     //! Creates a new unique object id.
     TObjectId GenerateId(EObjectType type);
@@ -164,25 +157,7 @@ public:
      */
     IObjectProxyPtr GetSchemaProxy(EObjectType type);
 
-    //! Executes a YPath verb, logging the change if necessary.
-    /*!
-     *  \param id The id of the object that handles the verb.
-     *  If the change is logged, this id is written to the changelog and
-     *  used afterwards to replay the change.
-     *  \param isWrite True if the verb modifies the state and thus must be logged.
-     *  \param context The request context.
-     *  \param action An action to call that executes the actual verb logic.
-     *
-     *  Note that #action takes a context as a parameter. This is because the original #context
-     *  gets wrapped to intercept replies so #action gets the wrapped instance.
-     */
-    void ExecuteVerb(
-        const TVersionedObjectId& id,
-        bool isWrite,
-        NRpc::IServiceContextPtr context,
-        TCallback<void(NRpc::IServiceContextPtr)> action);
-
-    NMetaState::TMutationPtr CreateDestroyObjectsMutation(
+    NHydra::TMutationPtr CreateDestroyObjectsMutation(
         const NProto::TMetaReqDestroyObjects& request);
 
     //! Returns a future that gets set when the GC queues becomes empty.
@@ -198,9 +173,11 @@ public:
 
     IObjectResolver* GetObjectResolver();
 
-    DECLARE_METAMAP_ACCESSORS(Attributes, TAttributeSet, TVersionedObjectId);
+    DECLARE_ENTITY_MAP_ACCESSORS(Attributes, TAttributeSet, TVersionedObjectId);
 
 private:
+    friend class TObjectProxyBase;
+
     typedef TObjectManager TThis;
 
     class TServiceContextWrapper;
@@ -211,7 +188,6 @@ private:
     class TObjectResolver;
 
     TObjectManagerConfigPtr Config;
-    NCellMaster::TBootstrap* Bootstrap;
 
     NProfiling::TProfiler Profiler;
 
@@ -248,13 +224,13 @@ private:
     int LockedObjectCount;
 
     //! Stores deltas from parent transaction.
-    NMetaState::TMetaStateMap<TVersionedObjectId, TAttributeSet> Attributes;
+    NHydra::TEntityMap<TVersionedObjectId, TAttributeSet> Attributes;
 
     void SaveKeys(NCellMaster::TSaveContext& context) const;
     void SaveValues(NCellMaster::TSaveContext& context) const;
     void SaveSchemas(NCellMaster::TSaveContext& context) const;
 
-    virtual void OnBeforeLoaded() override;
+    virtual void OnBeforeSnapshotLoaded() override;
     void LoadKeys(NCellMaster::TLoadContext& context);
     void LoadValues(NCellMaster::TLoadContext& context);
     void LoadSchemas(NCellMaster::TLoadContext& context);
@@ -265,9 +241,10 @@ private:
     void DoClear();
     virtual void Clear() override;
 
-    virtual void OnActiveQuorumEstablished() override;
+    virtual void OnLeaderActive() override;
     virtual void OnStopLeading() override;
 
+    void InvokeVerb(TObjectProxyBase* proxy, NRpc::IServiceContextPtr context);
     void ReplayVerb(const NProto::TMetaReqExecute& request);
 
     void DestroyObjects(const NProto::TMetaReqDestroyObjects& request);
@@ -278,7 +255,7 @@ private:
     void OnProfiling();
 
 
-    DECLARE_THREAD_AFFINITY_SLOT(StateThread);
+    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

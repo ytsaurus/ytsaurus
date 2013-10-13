@@ -14,14 +14,13 @@
 #include <core/ytree/ypath_service.h>
 #include <core/ytree/tree_builder.h>
 
-#include <ytlib/meta_state/meta_state_manager.h>
-#include <ytlib/meta_state/composite_meta_state.h>
-#include <ytlib/meta_state/map.h>
-#include <ytlib/meta_state/mutation.h>
+#include <server/hydra/composite_automaton.h>
+#include <server/hydra/entity_map.h>
+#include <server/hydra/mutation.h>
 
 #include <server/object_server/object_manager.h>
 
-#include <server/cell_master/public.h>
+#include <server/cell_master/automaton.h>
 
 #include <server/transaction_server/transaction.h>
 #include <server/transaction_server/transaction_manager.h>
@@ -36,7 +35,7 @@ namespace NCypressServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCypressManager
-    : public NMetaState::TMetaStatePart
+    : public NCellMaster::TMasterAutomatonPart
 {
 public:
     explicit TCypressManager(
@@ -50,7 +49,7 @@ public:
     INodeTypeHandlerPtr GetHandler(NObjectClient::EObjectType type);
     INodeTypeHandlerPtr GetHandler(const TCypressNodeBase* node);
 
-    NMetaState::TMutationPtr CreateUpdateAccessStatisticsMutation(
+    NHydra::TMutationPtr CreateUpdateAccessStatisticsMutation(
         const NProto::TMetaReqUpdateAccessStatistics& request);
 
     typedef NRpc::TTypedServiceRequest<NCypressClient::NProto::TReqCreate> TReqCreate;
@@ -70,6 +69,9 @@ public:
 
     //! Returns the root node.
     TCypressNodeBase* GetRootNode() const;
+
+    //! Finds node by id, throws if nothing is found.
+    TCypressNodeBase* GetNodeOrThrow(const TVersionedNodeId& id);
 
     //! Creates a resolver that provides a view in the context of a given transaction.
     NYTree::INodeResolverPtr CreateResolver(NTransactionServer::TTransaction* transaction = nullptr);
@@ -114,8 +116,8 @@ public:
 
     bool IsOrphaned(TCypressNodeBase* trunkNode);
 
-    DECLARE_METAMAP_ACCESSORS(Node, TCypressNodeBase, TVersionedNodeId);
-    DECLARE_METAMAP_ACCESSORS(Lock, TLock, TLockId);
+    DECLARE_ENTITY_MAP_ACCESSORS(Node, TCypressNodeBase, TVersionedNodeId);
+    DECLARE_ENTITY_MAP_ACCESSORS(Lock, TLock, TLockId);
 
 private:
     typedef TCypressManager TThis;
@@ -138,10 +140,9 @@ private:
     };
 
     TCypressManagerConfigPtr Config;
-    NCellMaster::TBootstrap* Bootstrap;
 
-    NMetaState::TMetaStateMap<TVersionedNodeId, TCypressNodeBase, TNodeMapTraits> NodeMap;
-    NMetaState::TMetaStateMap<TLockId, TLock> LockMap;
+    NHydra::TEntityMap<TVersionedNodeId, TCypressNodeBase, TNodeMapTraits> NodeMap;
+    NHydra::TEntityMap<TLockId, TLock> LockMap;
 
     std::vector<INodeTypeHandlerPtr> TypeToHandler;
 
@@ -155,7 +156,7 @@ private:
 
     void DestroyNode(TCypressNodeBase* trunkNode);
 
-    // TMetaStatePart overrides.
+    // TAutomatonPart overrides.
     virtual void OnRecoveryComplete() override;
 
     void DoClear();
@@ -164,10 +165,10 @@ private:
     void SaveKeys(NCellMaster::TSaveContext& context) const;
     void SaveValues(NCellMaster::TSaveContext& context) const;
     
-    virtual void OnBeforeLoaded() override;
+    virtual void OnBeforeSnapshotLoaded() override;
     void LoadKeys(NCellMaster::TLoadContext& context);
     void LoadValues(NCellMaster::TLoadContext& context);
-    virtual void OnAfterLoaded() override;
+    virtual void OnAfterSnapshotLoaded() override;
 
     void InitBuiltin();
 
@@ -229,13 +230,13 @@ private:
        TCypressNodeBase* trunkNode,
        NTransactionServer::TTransaction* transaction);
 
-    virtual void OnActiveQuorumEstablished() override;
+    virtual void OnLeaderActive() override;
     virtual void OnStopLeading() override;
     
     void UpdateAccessStatistics(const NProto::TMetaReqUpdateAccessStatistics& request);
 
 
-    DECLARE_THREAD_AFFINITY_SLOT(StateThread);
+    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 };
 

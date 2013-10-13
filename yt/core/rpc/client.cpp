@@ -32,7 +32,7 @@ TProxyBase::TProxyBase(IChannelPtr channel, const Stroka& serviceName)
 
 TClientRequest::TClientRequest(
     IChannelPtr channel,
-    const Stroka& path,
+    const Stroka& service,
     const Stroka& verb,
     bool oneWay)
     : RequestHeavy_(false)
@@ -42,7 +42,7 @@ TClientRequest::TClientRequest(
 {
     YCHECK(channel);
 
-    Header_.set_path(path);
+    Header_.set_service(service);
     Header_.set_verb(verb);
     Header_.set_one_way(oneWay);
     Header_.set_request_start_time(TInstant::Now().MicroSeconds());
@@ -68,9 +68,9 @@ void TClientRequest::DoInvoke(IClientResponseHandlerPtr responseHandler)
     Channel->Send(this, responseHandler, Timeout_);
 }
 
-const Stroka& TClientRequest::GetPath() const
+const Stroka& TClientRequest::GetService() const
 {
-    return Header_.path();
+    return Header_.service();
 }
 
 const Stroka& TClientRequest::GetVerb() const

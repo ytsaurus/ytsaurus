@@ -1,0 +1,141 @@
+package NYT.NHydra.NProto;
+
+import "yt/core/misc/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqReadSnapshot
+{
+    required int32 snapshot_id = 1;
+    required int64 offset = 2;
+    required int64 length = 3;
+}
+
+message TRspReadSnapshot
+{
+    // Snapshot data is passed via attachment.
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqReadChangeLog
+{
+    required int32 changelog_id = 1;
+    required int32 start_record_id = 2;
+    required int32 record_count = 3;
+}
+
+message TRspReadChangeLog
+{
+    // Changelog records are passed in the attachment and are packed with PackRefs.
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqLookupSnapshot
+{
+    required int32 max_snapshot_id = 1;
+    required bool exact_id = 2;
+}
+
+message TRspLookupSnapshot
+{
+    required int32 snapshot_id = 1;
+    required int64 length = 2;
+    required uint64 checksum = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqLookupChangelog
+{
+    required int32 changelog_id = 1;
+}
+
+message TRspLookupChangelog
+{
+    optional int32 record_count = 2;
+}
+                                                                              
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqPingFollower
+{
+    required int32 committed_segment_id = 1;
+    required int32 committed_record_id = 2;
+    required NYT.NProto.TGuid epoch_id = 3;
+}
+
+message TRspPingFollower
+{
+    required int32 state = 1;
+}
+                                                                              
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqLogMutations
+{
+    required int32 start_segment_id = 1;
+    required int32 start_record_id = 2;
+    required int32 committed_segment_id = 3;
+    required int32 committed_record_id = 4;
+    required NYT.NProto.TGuid epoch_id = 5;
+    // Records data is passed via attachments.
+}
+
+message TRspLogMutations
+{
+    optional bool logged = 1;
+}
+                                                                              
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqBuildSnapshotLocal
+{
+    required int32 segment_id = 1;
+    required int32 record_id = 2;
+    required NYT.NProto.TGuid epoch_id = 3;
+}
+
+message TRspBuildSnapshotLocal
+{
+    required uint64 checksum = 1;
+}
+                                                                              
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqRotateChangelog
+{
+    required int32 segment_id = 1;
+    required int32 record_id = 2;
+    required NYT.NProto.TGuid epoch_id = 3;
+}
+
+message TRspRotateChangelog
+{ }
+                                                                              
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetQuorum
+{ }
+
+message TRspGetQuorum
+{
+    required bytes leader_address = 1;
+    repeated bytes follower_addresses = 2;
+    required NYT.NProto.TGuid epoch_id = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqBuildSnapshotDistributed
+{
+    optional bool set_read_only = 1 [default = false];
+}
+
+message TRspBuildSnapshotDistributed
+{
+    required int32 snapshot_id = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

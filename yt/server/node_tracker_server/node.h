@@ -7,9 +7,13 @@
 #include <ytlib/node_tracker_client/node_directory.h>
 #include <ytlib/node_tracker_client/node_tracker_service.pb.h>
 
+#include <ytlib/hydra/public.h>
+
 #include <server/chunk_server/chunk_replica.h>
 
 #include <server/transaction_server/public.h>
+
+#include <server/tablet_server/public.h>
 
 #include <server/cell_master/public.h>
 
@@ -65,6 +69,27 @@ class TNode
     typedef yhash_set<NChunkClient::TChunkIdWithIndex> TChunkRemovalQueue;
     DEFINE_BYREF_RW_PROPERTY(TChunkRemovalQueue, ChunkRemovalQueue);
 
+    // Tablet Manager stuff.
+    struct TTabletSlot
+    {
+        TTabletSlot()
+            : Cell(nullptr)
+            , PeerState(NHydra::EPeerState::None)
+            , PeerId(-1)
+        { }
+
+        NTabletServer::TTabletCell* Cell;
+        NHydra::EPeerState PeerState;
+        int PeerId;
+
+    };
+
+    typedef TSmallVector<TTabletSlot, NTabletServer::TypicalCellSize> TTabletSlotList;
+    DEFINE_BYREF_RW_PROPERTY(TTabletSlotList, TabletSlots);
+
+    typedef yhash_set<NTabletServer::TTabletCell*> TTabletCellSet;
+    DEFINE_BYREF_RW_PROPERTY(TTabletCellSet, TabletCellCreateQueue);
+
 public:
     TNode(
         TNodeId id,
@@ -91,10 +116,19 @@ public:
     bool HasUnapprovedReplica(TChunkPtrWithIndex replica) const;
     void ApproveReplica(TChunkPtrWithIndex replica);
 
-    void ResetSessionHints();
+    void ResetHints();
+    
     void AddSessionHint(NChunkClient::EWriteSessionType sessionType);
     bool HasSpareSession(NChunkClient::EWriteSessionType sessionType) const;
     int GetTotalSessionCount() const;
+
+    void AddTabletSlotHint();
+    int GetTotalUsedTabletSlots() const;
+
+    TTabletSlot* FindTabletSlot(NTabletServer::TTabletCell* cell);
+    TTabletSlot* GetTabletSlot(NTabletServer::TTabletCell* cell);
+
+    void DetachTabletCell(NTabletServer::TTabletCell* cell);
 
     static TAtomic GenerateVisitMark();
 
@@ -104,6 +138,7 @@ private:
     int HintedUserSessionCount_;
     int HintedReplicationSessionCount_;
     int HintedRepairSessionCount_;
+    int HintedTabletSlots_;
 
     void Init();
 

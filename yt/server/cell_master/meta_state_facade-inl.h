@@ -9,13 +9,13 @@ namespace NCellMaster {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TTarget, class TRequest, class TResponse>
-NMetaState::TMutationPtr TMetaStateFacade::CreateMutation(
+NHydra::TMutationPtr TMetaStateFacade::CreateMutation(
     TTarget* target,
     const TRequest& request,
     TResponse (TTarget::* method)(const TRequest&),
-    EStateThreadQueue queue)
+    EAutomatonThreadQueue queue)
 {
-    return NMetaState::CreateMutation<TTarget, TRequest, TResponse>(
+    return NHydra::CreateMutation<TTarget, TRequest, TResponse>(
         GetManager(),
         GetGuardedInvoker(queue),
         target,
