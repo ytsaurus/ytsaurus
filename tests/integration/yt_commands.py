@@ -62,6 +62,8 @@ def command(command_name, arguments, input_stream=None, output_stream=None, verb
         verbose = arguments["verbose"]
         del arguments["verbose"]
 
+    verbose = verbose is None or verbose
+
     user = None
     if "user" in arguments:
         user = arguments["user"]
@@ -72,16 +74,19 @@ def command(command_name, arguments, input_stream=None, output_stream=None, verb
 
     arguments = prepare_args(arguments)
 
-    if verbose is None or verbose:
+    if verbose:
         print >>sys.stderr, str(datetime.now()), command_name, arguments
-
-    return make_request(
+    result = make_request(
         get_driver(),
         Request(command_name=command_name,
                 arguments=arguments,
                 input_stream=input_stream,
                 output_stream=output_stream,
                 user=user))
+    if verbose and result:
+        print >>sys.stderr, result
+        print >>sys.stderr
+    return result
 
 ###########################################################################
 
