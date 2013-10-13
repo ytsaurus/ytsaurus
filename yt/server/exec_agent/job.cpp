@@ -418,14 +418,14 @@ private:
         auto asyncError = ProxyController->Run();
 
         auto exitResult = CheckedWaitFor(asyncError);
+        // NB: we should explicitly call Kill() to clean up possible child processes.
+        ProxyController->Kill(Slot->GetUserId(), TError());
+        
         THROW_ERROR_EXCEPTION_IF_FAILED(exitResult);
 
         if (!IsResultSet()) {
             THROW_ERROR_EXCEPTION("Job proxy exited successfully but job result has not been set");
         }
-
-        // NB: we should explicitly call Kill() to clean up possible child processes.
-        ProxyController->Kill(Slot->GetUserId(), TError());
 
         YCHECK(JobPhase == EJobPhase::Running);
         JobPhase = EJobPhase::Cleanup;
