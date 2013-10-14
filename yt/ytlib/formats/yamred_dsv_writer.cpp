@@ -86,7 +86,7 @@ void TYamredDsvWriter::OnStringScalar(const TStringBuf& value)
             it->second.Value = value;
             it->second.RowIndex = RowCount;
             ++KeyCount;
-            IncreaseLength(&KeyLength, value.size());
+            IncreaseLength(&KeyLength, CalculateLength(value, false));
             return;
         }
     }
@@ -97,14 +97,14 @@ void TYamredDsvWriter::OnStringScalar(const TStringBuf& value)
             it->second.Value = value;
             it->second.RowIndex = RowCount;
             ++SubkeyCount;
-            IncreaseLength(&SubkeyLength, value.size());
+            IncreaseLength(&SubkeyLength, CalculateLength(value, false));
             return;
         }
     }
 
     ValueFields.push_back(ColumnName);
     ValueFields.push_back(value);
-    IncreaseLength(&ValueLength, ColumnName.size() + value.size() + 1);
+    IncreaseLength(&ValueLength, CalculateLength(ColumnName, true) + CalculateLength(value, false) + 1);
 }
 
 void TYamredDsvWriter::OnEntity()
@@ -276,7 +276,7 @@ void TYamredDsvWriter::WriteYamrValue()
 
 void TYamredDsvWriter::EscapeAndWrite(const TStringBuf& string, bool inKey)
 {
-    if (Config->EnableEscaping && !Config->Lenval) {
+    if (Config->EnableEscaping) {
         WriteEscaped(
             Stream,
             string,
@@ -294,6 +294,17 @@ void TYamredDsvWriter::IncreaseLength(ui32* length, ui32 delta)
         *length  += 1;
     }
     *length += delta;
+}
+
+ui32 TYamredDsvWriter::CalculateLength(const TStringBuf& string, bool inKey)
+{
+    return Config->EnableEscaping 
+        ?  CalculateEscapedLength(
+            string,
+            inKey ? Table.KeyStops : Table.ValueStops,
+            Table.Escapes,
+            Config->EscapingSymbol)
+        : string.length();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
