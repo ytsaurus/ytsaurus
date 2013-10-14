@@ -99,6 +99,7 @@ private:
     void WriteYamrValue();
 
     void EscapeAndWrite(const TStringBuf& string, bool inKey);
+    ui32 CalculateLength(const TStringBuf& string, bool inKey);
     void IncreaseLength(ui32* length, ui32 delta);
 
 };
