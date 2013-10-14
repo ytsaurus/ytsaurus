@@ -738,7 +738,6 @@ private:
     {
         return
             error.FindMatching(NTableClient::EErrorCode::SortOrderViolation) ||
-            error.FindMatching(NJobProxy::EErrorCode::MemoryLimitExceeded) ||
             error.FindMatching(NSecurityClient::EErrorCode::AuthenticationError) ||
             error.FindMatching(NSecurityClient::EErrorCode::AuthorizationError) ||
             error.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded);
