@@ -391,25 +391,13 @@ private:
         if (!userJobSpec)
             return;
 
-        auto invoker = Slot->GetInvoker();
-
-        auto awaiter = New<TParallelAwaiter>(invoker);
-
         FOREACH (const auto& descriptor, userJobSpec->regular_files()) {
-            awaiter->Await(
-                BIND(&TJob::PrepareRegularFile, MakeStrong(this), descriptor)
-                    .AsyncVia(invoker)
-                    .Run());
+            PrepareRegularFile(descriptor);
         }
 
         FOREACH (const auto& descriptor, userJobSpec->table_files()) {
-            awaiter->Await(
-                BIND(&TJob::PrepareTableFile, MakeStrong(this), descriptor)
-                    .AsyncVia(invoker)
-                    .Run());
+            PrepareTableFile(descriptor);
         }
-
-        CheckedWaitFor(awaiter->Complete());
     }
 
 
