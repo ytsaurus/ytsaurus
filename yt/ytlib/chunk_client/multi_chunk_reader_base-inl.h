@@ -216,11 +216,17 @@ void TMultiChunkReaderBase<TChunkReader>::ProcessOpenedReader(const TSession& se
 
     FetchingCompleteAwaiter->Await(session.Reader->GetFetchingCompleteEvent());
     if (FetchingCompleteAwaiter->GetRequestCount() == ChunkSpecs.size()) {
-        auto this_ = MakeStrong(this);
-        FetchingCompleteAwaiter->Complete(BIND([=]() {
-            this_->IsFetchingComplete_ = true;
-        }));
+        auto weakThis = MakeWeak(this);
+        FetchingCompleteAwaiter->Complete(BIND(
+            &TMultiChunkReaderBase<TChunkReader>::OnFetchingComplete,
+            MakeWeak(this)));
     }
+}
+
+template <class TChunkReader>
+void TMultiChunkReaderBase<TChunkReader>::OnFetchingComplete()
+{
+    IsFetchingComplete_ = true;
 }
 
 template <class TChunkReader>
