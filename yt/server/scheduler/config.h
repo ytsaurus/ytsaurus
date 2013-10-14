@@ -101,6 +101,9 @@ public:
     //! Once this limit is reached the operation fails.
     int MaxFailedJobCount;
 
+    //! Once this limit is reached the memory reserve is disabled.
+    int MaxMemoryReserveAbortJobCount;
+
     //! Limits the number of stderrs the operation is allowed to produce.
     int MaxStdErrCount;
 
@@ -214,6 +217,9 @@ public:
             .Default(ESchedulerStrategy::Null);
 
         RegisterParameter("max_failed_job_count", MaxFailedJobCount)
+            .Default(100)
+            .GreaterThanOrEqual(0);
+        RegisterParameter("max_memory_reserve_abort_job_count", MaxMemoryReserveAbortJobCount)
             .Default(100)
             .GreaterThanOrEqual(0);
         RegisterParameter("max_stderr_count", MaxStdErrCount)

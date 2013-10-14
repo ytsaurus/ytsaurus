@@ -124,6 +124,7 @@ public:
 private:
     TCLAP::UnlabeledValueArg<NYPath::TRichYPath> SourcePathArg;
     TCLAP::UnlabeledValueArg<NYPath::TRichYPath> DestinationPathArg;
+    TCLAP::SwitchArg PreserveAccountArg;
 
     virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;

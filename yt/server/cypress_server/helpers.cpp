@@ -199,6 +199,20 @@ bool NodeHasKey(
     return handler->GetNodeType() == ENodeType::Map;
 }
 
+bool IsParentOf(
+    const TCypressNodeBase* parent,
+    const TCypressNodeBase* descendant)
+{
+    auto* current = descendant;
+    while (current) {
+        if (current == parent) {
+            return true;
+        }
+        current = current->GetParent();
+    }
+    return false;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NCypressServer

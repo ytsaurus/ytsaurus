@@ -572,21 +572,23 @@ protected:
     {
         double usageRatio = element->GetUsageRatio();
         double minShareRatio = element->Attributes().AdjustedMinShareRatio;
-        return minShareRatio > 1e-3 && usageRatio < minShareRatio;
+        return minShareRatio > RatioComparisonPrecision && usageRatio < minShareRatio;
     }
 
     double GetUsageToMinShareRatio(ISchedulableElementPtr element) const
     {
         double usageRatio = element->GetUsageRatio();
         double minShareRatio = element->Attributes().AdjustedMinShareRatio;
-        return usageRatio / minShareRatio;
+        // Avoid division by zero.
+        return usageRatio / std::max(minShareRatio, RatioComparisonPrecision);
     }
 
     static double GetUsageToWeightRatio(ISchedulableElementPtr element)
     {
         double usageRatio = element->GetUsageRatio();
         double weight = element->GetWeight();
-        return usageRatio / weight;
+        // Avoid division by zero.
+        return usageRatio / std::max(weight, RatioComparisonPrecision);
     }
 
 
