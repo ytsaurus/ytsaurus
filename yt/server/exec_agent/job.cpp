@@ -307,7 +307,6 @@ private:
         }
     }
 
-
     void PrepareConfig()
     {
         INodePtr ioConfigNode;
