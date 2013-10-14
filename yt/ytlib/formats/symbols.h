@@ -59,6 +59,12 @@ void WriteEscaped(
     const TEscapeTable& escapeTable,
     char escapingSymbol);
 
+ui32 CalculateEscapedLength(
+    const TStringBuf& string,
+    const TLookupTable& lookupTable,
+    const TEscapeTable& escapeTable,
+    char escapingSymbol);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NFormats
