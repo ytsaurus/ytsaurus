@@ -60,7 +60,7 @@ class TLeaderCommitter
 public:
     //! Creates an instance.
     TLeaderCommitter(
-        TLeaderCommitterConfigPtr config,
+        TDistributedHydraManagerConfigPtr config,
         NElection::TCellManagerPtr cellManager,
         TDecoratedAutomatonPtr decoratedAutomaton,
         IChangelogStorePtr changelogStore,
@@ -122,7 +122,7 @@ private:
         TFuture<void> localResult);
     void FlushCurrentBatch();
 
-    TLeaderCommitterConfigPtr Config;
+    TDistributedHydraManagerConfigPtr Config;
     IChangelogStorePtr ChangelogStore;
     TFollowerTrackerPtr FollowerTracker;
     TEpochId EpochId;

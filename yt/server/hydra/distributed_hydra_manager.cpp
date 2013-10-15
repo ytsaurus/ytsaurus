@@ -915,7 +915,7 @@ public:
             epochContext->EpochControlInvoker);
 
         epochContext->LeaderCommitter = New<TLeaderCommitter>(
-            Config_->LeaderCommitter,
+            Config_,
             CellManager_,
             DecoratedAutomaton_,
             ChangelogStore_,

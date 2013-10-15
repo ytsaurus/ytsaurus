@@ -207,7 +207,6 @@ class TLeaderCommitterConfig
     : public TYsonSerializable
 {
 public:
-    TDuration RpcTimeout;
     TDuration MaxBatchDelay;
     int MaxBatchSize;
 
@@ -225,9 +224,6 @@ public:
 
     TLeaderCommitterConfig()
     {
-        RegisterParameter("rpc_timeout", RpcTimeout)
-            .GreaterThan(TDuration())
-            .Default(TDuration::Seconds(3));
         RegisterParameter("max_batch_delay", MaxBatchDelay)
             .Default(TDuration::MilliSeconds(10));
         RegisterParameter("max_batch_size", MaxBatchSize)

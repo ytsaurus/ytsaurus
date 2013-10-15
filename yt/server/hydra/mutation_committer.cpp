@@ -249,7 +249,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TLeaderCommitter::TLeaderCommitter(
-    TLeaderCommitterConfigPtr config,
+    TDistributedHydraManagerConfigPtr config,
     TCellManagerPtr cellManager,
     TDecoratedAutomatonPtr decoratedAutomaton,
     IChangelogStorePtr changelogStore,
@@ -302,7 +302,7 @@ TFuture< TErrorOr<TMutationResponse> > TLeaderCommitter::Commit(const TMutationR
 
         AddToBatch(version, std::move(recordData), std::move(logResult));
 
-        auto period = Config->ChangelogRotationPeriod;
+        auto period = Config->LeaderCommitter->ChangelogRotationPeriod;
         if (period && (version.RecordId + 1) % *period == 0) {
             ChangelogLimitReached_.Fire();
         }
@@ -377,7 +377,7 @@ void TLeaderCommitter::AddToBatch(
     auto batch = GetOrCreateBatch(version);
     batch->AddMutation(recordData);
     batch->SetLocalFlushResult(localResult);
-    if (batch->GetMutationCount() >= Config->MaxBatchSize) {
+    if (batch->GetMutationCount() >= Config->LeaderCommitter->MaxBatchSize) {
         FlushCurrentBatch();
     }
 }
@@ -411,7 +411,7 @@ TLeaderCommitter::TBatchPtr TLeaderCommitter::GetOrCreateBatch(TVersion version)
         BatchTimeoutCookie = TDelayedExecutor::Submit(
             BIND(&TLeaderCommitter::OnBatchTimeout, MakeWeak(this), CurrentBatch)
                 .Via(EpochControlInvoker),
-            Config->MaxBatchDelay);
+            Config->LeaderCommitter->MaxBatchDelay);
     }
 
     return CurrentBatch;
