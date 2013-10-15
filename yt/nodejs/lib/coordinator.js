@@ -281,7 +281,7 @@ YtCoordinator.prototype._refresh = function()
         sync = self.driver.executeSimple("set", { path: path + "/@liveness" }, {
             updated_at: (new Date()).toISOString(),
             load_average: os.loadavg()[0],
-            failing: failing,
+            failing: failing ? "true" : "false",
         });
     }
 

@@ -853,7 +853,7 @@ public:
             .Item("scheduling_status").Value(element->GetStatus())
             .Item("starving").Value(element->GetStarving())
             .Item("usage_ratio").Value(element->GetUsageRatio())
-            .Item("preemptable_running_jobs").Value(element->PreemptableJobs().size())
+            .Item("preemptable_job_count").Value(element->PreemptableJobs().size())
             .Do(BIND(&TFairShareStrategy::BuildElementYson, pool, element));
     }
 
