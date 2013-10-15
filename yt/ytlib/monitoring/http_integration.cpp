@@ -10,8 +10,8 @@
 #include <core/ytree/ypath_detail.h>
 #include <core/ytree/virtual.h>
 
-#include <core/formats/json_writer.h>
-#include <core/formats/config.h>
+#include <ytlib/formats/json_writer.h>
+#include <ytlib/formats/config.h>
 
 #include <library/json/json_writer.h>
 
