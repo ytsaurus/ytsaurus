@@ -7,22 +7,25 @@ def get_master_config():
     return yson.loads(
 """
 {
-    meta_state = {
-        cell = {
-            addresses = [ ];
-        };
+    masters = {
+        addresses = [ ];
+    };
+
+    changelogs = {
+        path = "";
+    };
+    
+    snapshots = {
+        path = "";
+    };
+
+    hydra = {
         follower_tracker = {
             ping_interval = 3000;
         };
-        changelogs = {
-            path = "";
-        };
-        snapshots = {
-            path = "";
-        };
-        max_changes_between_snapshots = 1000000;
-        max_batch_delay = 0;
         leader_committer = {
+            changelog_rotation_period = 1000000;
+            max_batch_delay = 0;
             rpc_timeout = 10000;
         };
     };
