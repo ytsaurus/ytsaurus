@@ -63,7 +63,7 @@ public:
     NDataNode::TPeerBlockTablePtr GetPeerBlockTable() const;
     NDataNode::TReaderCachePtr GetReaderCache() const;
     NDataNode::TMasterConnectorPtr GetMasterConnector() const;
-    NHive::TCellRegistryPtr GetCellRegistry() const;
+    NHive::TCellDirectoryPtr GetCellRegistry() const;
 
     NConcurrency::IThroughputThrottlerPtr GetReplicationInThrottler() const;
     NConcurrency::IThroughputThrottlerPtr GetReplicationOutThrottler() const;
@@ -105,7 +105,7 @@ private:
     NDataNode::TPeerBlockUpdaterPtr PeerBlockUpdater;
     NDataNode::TReaderCachePtr ReaderCache;
     NDataNode::TMasterConnectorPtr MasterConnector;
-    NHive::TCellRegistryPtr CellRegistry;
+    NHive::TCellDirectoryPtr CellRegistry;
 
     NConcurrency::IThroughputThrottlerPtr ReplicationInThrottler;
     NConcurrency::IThroughputThrottlerPtr ReplicationOutThrottler;

@@ -25,7 +25,7 @@ public:
     THiveManager(
         const TCellGuid& selfCellGuid,
         THiveManagerConfigPtr config,
-        TCellRegistryPtr cellRegistry,
+        TCellDirectoryPtr cellRegistry,
         IInvokerPtr automatonInvoker,
         NRpc::IRpcServerPtr rpcServer,
         NHydra::IHydraManagerPtr hydraManager,

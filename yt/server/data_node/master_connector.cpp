@@ -28,7 +28,7 @@
 #include <server/tablet_node/tablet_cell_controller.h>
 #include <server/tablet_node/tablet_slot.h>
 
-#include <server/hive/cell_registry.h>
+#include <server/hive/cell_directory.h>
 
 #include <server/cell_node/bootstrap.h>
 

@@ -17,11 +17,11 @@ namespace NHive {
 /*!
  *  Thread affinity: thread-safe
  */
-class TCellRegistry
+class TCellDirectory
     : public TRefCounted
 {
 public:
-    TCellRegistry();
+    TCellDirectory();
 
     typedef NHydra::NProto::TCellConfig TCellConfig;
 

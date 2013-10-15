@@ -36,7 +36,7 @@
 #include <server/hydra/file_snapshot.h>
 
 #include <server/hive/hive_manager.h>
-#include <server/hive/cell_registry.h>
+#include <server/hive/cell_directory.h>
 
 #include <server/node_tracker_server/node_tracker.h>
 
@@ -194,7 +194,7 @@ THiveManagerPtr TBootstrap::GetHiveManager() const
     return HiveManager;
 }
 
-TCellRegistryPtr TBootstrap::GetCellRegistry() const
+TCellDirectoryPtr TBootstrap::GetCellRegistry() const
 {
     return CellRegistry;
 }
@@ -253,7 +253,7 @@ void TBootstrap::Run()
 
     MetaStateFacade = New<TMetaStateFacade>(Config, this);
     
-    CellRegistry = New<TCellRegistry>();
+    CellRegistry = New<TCellDirectory>();
 
     HiveManager = New<THiveManager>(
         GetCellGuid(),

@@ -25,7 +25,7 @@
 #include <server/tablet_node/tablet_manager.pb.h>
 
 #include <server/hive/hive_manager.h>
-#include <server/hive/cell_registry.h>
+#include <server/hive/cell_directory.h>
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/meta_state_facade.h>

@@ -72,7 +72,7 @@
 
 #include <server/tablet_node/tablet_cell_controller.h>
 
-#include <server/hive/cell_registry.h>
+#include <server/hive/cell_directory.h>
 
 namespace NYT {
 namespace NCellNode {
@@ -267,7 +267,7 @@ void TBootstrap::Run()
 
     SchedulerConnector = New<TSchedulerConnector>(Config->ExecAgent->SchedulerConnector, this);
 
-    CellRegistry = New<TCellRegistry>();
+    CellRegistry = New<TCellDirectory>();
     {
         NHydra::NProto::TCellConfig config;
         config.set_size(Config->Masters->Addresses.size());
@@ -432,7 +432,7 @@ TMasterConnectorPtr TBootstrap::GetMasterConnector() const
     return MasterConnector;
 }
 
-TCellRegistryPtr TBootstrap::GetCellRegistry() const
+TCellDirectoryPtr TBootstrap::GetCellRegistry() const
 {
     return CellRegistry;
 }

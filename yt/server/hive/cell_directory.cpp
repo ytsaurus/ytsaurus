@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "cell_registry.h"
+#include "cell_directory.h"
 #include "private.h"
 
 #include <core/rpc/channel.h>
@@ -19,7 +19,7 @@ static auto& Logger = HiveLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCellRegistry::TImpl
+class TCellDirectory::TImpl
 {
 public:
     IChannelPtr GetChannel(const TCellGuid& cellGuid)
@@ -109,31 +109,31 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 
-TCellRegistry::TCellRegistry()
+TCellDirectory::TCellDirectory()
     : Impl(new TImpl())
 { }
 
-IChannelPtr TCellRegistry::GetChannel(const TCellGuid& cellGuid)
+IChannelPtr TCellDirectory::GetChannel(const TCellGuid& cellGuid)
 {
     return Impl->GetChannel(cellGuid);
 }
 
-bool TCellRegistry::RegisterCell(const TCellGuid& cellGuid, const TCellConfig& config)
+bool TCellDirectory::RegisterCell(const TCellGuid& cellGuid, const TCellConfig& config)
 {
     return Impl->RegisterCell(cellGuid, config);
 }
 
-bool TCellRegistry::UnregisterCell(const TCellGuid& cellGuid)
+bool TCellDirectory::UnregisterCell(const TCellGuid& cellGuid)
 {
     return Impl->UnregisterCell(cellGuid);
 }
 
-void TCellRegistry::Clear()
+void TCellDirectory::Clear()
 {
     Impl->Clear();
 }
 
-std::vector<std::pair<TCellGuid, TCellRegistry::TCellConfig>> TCellRegistry::GetRegisteredCells()
+std::vector<std::pair<TCellGuid, TCellDirectory::TCellConfig>> TCellDirectory::GetRegisteredCells()
 {
     return Impl->GetRegisteredCells();
 }

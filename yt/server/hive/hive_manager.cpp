@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "hive_manager.h"
-#include "cell_registry.h"
+#include "cell_directory.h"
 #include "config.h"
 #include "hive_service_proxy.h"
 #include "mailbox.h"
@@ -47,7 +47,7 @@ public:
     TImpl(
         const TCellGuid& cellGuid,
         THiveManagerConfigPtr config,
-        TCellRegistryPtr cellRegistry,
+        TCellDirectoryPtr cellRegistry,
         IInvokerPtr automatonInvoker,
         NRpc::IRpcServerPtr rpcServer,
         IHydraManagerPtr hydraManager,
@@ -175,7 +175,7 @@ private:
 
     TCellGuid SelfCellGuid;
     THiveManagerConfigPtr Config;
-    TCellRegistryPtr CellRegistry;
+    TCellDirectoryPtr CellRegistry;
     IRpcServerPtr RpcServer;
     IInvokerPtr AutomatonInvoker;
 
@@ -595,7 +595,7 @@ DEFINE_ENTITY_MAP_ACCESSORS(THiveManager::TImpl, Mailbox, TMailbox, TCellGuid, M
 THiveManager::THiveManager(
     const TCellGuid& selfCellGuid,
     THiveManagerConfigPtr config,
-    TCellRegistryPtr cellRegistry,
+    TCellDirectoryPtr cellRegistry,
     IInvokerPtr automatonInvoker,
     IRpcServerPtr rpcServer,
     IHydraManagerPtr hydraManager,

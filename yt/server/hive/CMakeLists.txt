@@ -5,7 +5,7 @@ set( SRCS
   ${BASE}/public.cpp
   ${BASE}/hive_manager.cpp
   ${BASE}/mailbox.cpp
-  ${BASE}/cell_registry.cpp
+  ${BASE}/cell_directory.cpp
 )
 set( HDRS
   ${BASE}/private.h
@@ -14,7 +14,7 @@ set( HDRS
   ${BASE}/mailbox.h
   ${BASE}/hive_service_proxy.h
   ${BASE}/config.h
-  ${BASE}/cell_registry.h
+  ${BASE}/cell_directory.h
 )
 
 list(APPEND YT_SOURCE_FILES

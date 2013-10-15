@@ -12,8 +12,8 @@ namespace NHive {
 class THiveManager;
 typedef TIntrusivePtr<THiveManager> THiveManagerPtr;
 
-class TCellRegistry;
-typedef TIntrusivePtr<TCellRegistry> TCellRegistryPtr;
+class TCellDirectory;
+typedef TIntrusivePtr<TCellDirectory> TCellDirectoryPtr;
 
 struct TMessage;
 

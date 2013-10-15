@@ -24,7 +24,7 @@
 #include <server/hydra/hydra_manager.h>
 #include <server/hydra/distributed_hydra_manager.h>
 
-#include <server/hive/cell_registry.h>
+#include <server/hive/cell_directory.h>
 #include <server/hive/hive_manager.h>
 #include <server/hive/mailbox.h>
 
