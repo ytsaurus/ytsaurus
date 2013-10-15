@@ -11,6 +11,8 @@
 
 #include <core/ypath/token.h>
 
+#include <core/concurrency/fiber.h>
+
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
 #include <ytlib/object_client/public.h>
@@ -32,6 +34,7 @@
 namespace NYT {
 namespace NNodeTrackerServer {
 
+using namespace NConcurrency;
 using namespace NYTree;
 using namespace NYPath;
 using namespace NNodeTrackerClient;
@@ -591,54 +594,47 @@ private:
         auto nodePath = "//sys/nodes/" + ToYPathLiteral(address);
         auto orchidPath = nodePath + "/orchid";
 
-        bool nodeExists = SyncYPathExists(rootService, nodePath);
-        bool orchidExists = SyncYPathExists(rootService, orchidPath);
+        try {
+            {
+                auto req = TCypressYPathProxy::Create(nodePath);
+                req->set_type(EObjectType::CellNode);
+                req->set_ignore_existing(true);
 
-        if (!nodeExists) {
-            LOG_INFO("Registering node in Cypress (Address: %s)", ~address);
+                auto defaultAttributes = ConvertToAttributes(New<TNodeConfig>());
+                ToProto(req->mutable_node_attributes(), *defaultAttributes);
 
-            auto req = TCypressYPathProxy::Create(nodePath);
-            req->set_type(EObjectType::CellNode);
-            req->set_ignore_existing(true);
+                auto asyncResult = ExecuteVerb(rootService, req);
+                auto result = WaitFor(asyncResult);
+                THROW_ERROR_EXCEPTION_IF_FAILED(result);
+            }
 
-            auto defaultAttributes = ConvertToAttributes(New<TNodeConfig>());
-            ToProto(req->mutable_node_attributes(), *defaultAttributes);
+            {
+                auto req = TCypressYPathProxy::Create(orchidPath);
+                req->set_type(EObjectType::Orchid);
+                req->set_ignore_existing(true);
 
-            ExecuteVerb(rootService, req).Subscribe(
-                BIND(&TImpl::CheckCypressResponse<TCypressYPathProxy::TRspCreate>, MakeStrong(this)));
-        }
+                auto attributes = CreateEphemeralAttributes();
+                attributes->Set("remote_address", address);
+                ToProto(req->mutable_node_attributes(), *attributes);
 
-        if (!orchidExists) {
-            auto req = TCypressYPathProxy::Create(orchidPath);
-            req->set_type(EObjectType::Orchid);
-            req->set_ignore_existing(true);
+                auto asyncResult = ExecuteVerb(rootService, req);
+                auto result = WaitFor(asyncResult);
+                THROW_ERROR_EXCEPTION_IF_FAILED(result);
+            }
 
-            auto attributes = CreateEphemeralAttributes();
-            attributes->Set("remote_address", address);
-            ToProto(req->mutable_node_attributes(), *attributes);
+            {
+                auto req = TCypressYPathProxy::Lock(nodePath);
+                req->set_mode(ELockMode::Shared);
+                SetTransactionId(req, transaction->GetId());
 
-            ExecuteVerb(rootService, req).Subscribe(
-                BIND(&TImpl::CheckCypressResponse<TCypressYPathProxy::TRspCreate>, MakeStrong(this)));
-        }
-
-        {
-            auto req = TCypressYPathProxy::Lock(nodePath);
-            req->set_mode(ELockMode::Shared);
-            SetTransactionId(req, transaction->GetId());
-
-            ExecuteVerb(rootService, req).Subscribe(
-                BIND(&TImpl::CheckCypressResponse<TCypressYPathProxy::TRspLock>, MakeStrong(this)));
-        }
-    }
-
-    template <class TResponse>
-    void CheckCypressResponse(TIntrusivePtr<TResponse> rsp)
-    {
-        if (!rsp->IsOK()) {
-            LOG_ERROR(*rsp, "Error registering node in Cypress");
+                auto asyncResult = ExecuteVerb(rootService, req);
+                auto result = WaitFor(asyncResult);
+                THROW_ERROR_EXCEPTION_IF_FAILED(result);
+            }
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Error registering node in Cypress");
         }
     }
-
 
     TNode* DoRegisterNode(const TNodeDescriptor& descriptor, const TNodeStatistics& statistics)
     {
