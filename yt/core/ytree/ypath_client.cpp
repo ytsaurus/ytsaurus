@@ -327,10 +327,29 @@ TYsonString SyncYPathGet(
         .GetValueOrThrow();
 }
 
+TFuture< TErrorOr<bool> > AsyncYPathExists(
+    IYPathServicePtr service,
+    const TYPath& path)
+{
+    auto request = TYPathProxy::ExistsGet(path);
+    return
+        ExecuteVerb(service, request)
+            .Apply(BIND([] (TYPathProxy::TRspExistsPtr response) {
+                return
+                    response->IsOK()
+                    ? TErrorOr<bool>(response->value())
+                    : TErrorOr<bool>(response->GetError());
+            }));
+}
+
 bool SyncYPathExists(IYPathServicePtr service, const TYPath& path)
 {
-    auto request = TYPathProxy::Exists(path);
-    return ExecuteVerb(service, request).Get()->value();
+    return
+        AsyncYPathExists(
+            service,
+            path)
+        .Get()
+        .GetValueOrThrow();
 }
 
 void SyncYPathSet(IYPathServicePtr service, const TYPath& path, const TYsonString& value)

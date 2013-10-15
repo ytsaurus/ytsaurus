@@ -185,6 +185,11 @@ TYsonString SyncYPathGet(
     const TAttributeFilter& attributeFilter = TAttributeFilter::None,
     bool ignoreOpaque = false);
 
+//! Asynchronously executes |Exists| verb.
+TFuture< TErrorOr<bool> > AsyncYPathExists(
+    IYPathServicePtr service,
+    const TYPath& path);
+
 //! Synchronously executes |Exists| verb. Throws if an error has occurred.
 bool SyncYPathExists(
     IYPathServicePtr service,
