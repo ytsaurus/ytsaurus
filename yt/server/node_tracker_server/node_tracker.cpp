@@ -605,7 +605,7 @@ private:
 
                 auto asyncResult = ExecuteVerb(rootService, req);
                 auto result = WaitFor(asyncResult);
-                THROW_ERROR_EXCEPTION_IF_FAILED(result);
+                THROW_ERROR_EXCEPTION_IF_FAILED(*result);
             }
 
             {
@@ -619,7 +619,7 @@ private:
 
                 auto asyncResult = ExecuteVerb(rootService, req);
                 auto result = WaitFor(asyncResult);
-                THROW_ERROR_EXCEPTION_IF_FAILED(result);
+                THROW_ERROR_EXCEPTION_IF_FAILED(*result);
             }
 
             {
@@ -629,7 +629,7 @@ private:
 
                 auto asyncResult = ExecuteVerb(rootService, req);
                 auto result = WaitFor(asyncResult);
-                THROW_ERROR_EXCEPTION_IF_FAILED(result);
+                THROW_ERROR_EXCEPTION_IF_FAILED(*result);
             }
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error registering node in Cypress");
