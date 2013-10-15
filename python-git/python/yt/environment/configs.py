@@ -266,6 +266,15 @@ def get_node_config():
         };
     };
 
+    tablet_node = {
+        changelogs = {
+            path = "";
+        };
+        snapshots = {
+            path = "";
+        };
+    };
+
     masters = {
         addresses = [];
         rpc_timeout = 5000
