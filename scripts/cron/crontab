@@ -1,28 +1,31 @@
 # Clear operations
-0,10,20,30,40,50 * * * * YT_TOKEN=!!!INSERT_CRON_TOKEN!!! YT_PROXY=kant.yt.yandex.net /opt/cron/clear_operations.py --count 100 --robot crawler --robot odin --robot cron --robot statbox_push_daemon --failed-timeout 7 >>/opt/cron/clear_operations_log 2>&1
-0,10,20,30,40,50 * * * * YT_TOKEN=!!!INSERT_CRON_TOKEN!!! YT_PROXY=smith.yt.yandex.net /opt/cron/clear_operations.py --robot crawler --robot odin --robot cron --robot statbox_push_daemon --failed-timeout 7 >>/opt/cron/clear_operations_log 2>&1
+0,10,20,30,40,50 * * * * /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN=!!!INSERT_CRON_TOKEN!!! YT_PROXY=kant.yt.yandex.net /opt/cron/clear_operations.py --count 100 --robot crawler --robot odin --robot cron --robot statbox_push_daemon --failed-timeout 7 >>/opt/cron/clear_operations_log 2>&1
+0,10,20,30,40,50 * * * * /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN=!!!INSERT_CRON_TOKEN!!! YT_PROXY=smith.yt.yandex.net /opt/cron/clear_operations.py --robot crawler --robot odin --robot cron --robot statbox_push_daemon --failed-timeout 7 >>/opt/cron/clear_operations_log 2>&1
+0,10,20,30,40,50 * * * * /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN=!!!INSERT_CRON_TOKEN!!! YT_PROXY=marx.yt.yandex.net /opt/cron/clear_operations.py --robot cron --failed-timeout 7 >>/opt/cron/clear_operations_log 2>&1
 
 # Merge tables
-0 3 * * * YT_TOKEN=!!!INSERT_CRON_TOKEN!!! YT_PROXY=kant.yt.yandex.net  /opt/cron/run_merge.sh >>/opt/cron/run_merge_log 2>&1
-0 3 * * * YT_TOKEN=!!!INSERT_CRON_TOKEN!!! YT_PROXY=smith.yt.yandex.net /opt/cron/run_merge.sh >>/opt/cron/run_merge_log 2>&1
+0 3 * * * /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN=!!!INSERT_CRON_TOKEN!!! YT_PROXY=kant.yt.yandex.net  /opt/cron/run_merge.sh >>/opt/cron/run_merge_log 2>&1
+0 3 * * * /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN=!!!INSERT_CRON_TOKEN!!! YT_PROXY=smith.yt.yandex.net /opt/cron/run_merge.sh >>/opt/cron/run_merge_log 2>&1
 
 # Nightly tests
 0 5 * * * YT_PROXY=kant.yt.yandex.net  /opt/cron/nightly_tests/synth/cron.sh /opt/cron/nightly_tests/logs >>/opt/cron/nightly_tests_log 2>&1
-0 5 * * * YT_PROXY=smith.yt.yandex.net /opt/cron/nightly_tests/synth/cron.sh /opt/cron/nightly_tests/logs >>/opt/cron/nightly_tests_log 2>&1
+#0 5 * * * YT_PROXY=smith.yt.yandex.net /opt/cron/nightly_tests/synth/cron.sh /opt/cron/nightly_tests/logs >>/opt/cron/nightly_tests_log 2>&1
 
 # Check parent id
-0 2,14 * * * YT_TOKEN=!!!INSERT_CRON_TOKEN!!! YT_PROXY=kant.yt.yandex.net /opt/cron/detect_nodes_without_parent.py >>/opt/cron/detect_nodes_without_parent_log 2>&1
+0 2,14 * * * /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN=!!!INSERT_CRON_TOKEN!!! YT_PROXY=kant.yt.yandex.net /opt/cron/detect_nodes_without_parent.py >>/opt/cron/detect_nodes_without_parent_log 2>&1
 
 # Clear old objects in tmp
-0 4 * * * YT_TOKEN=!!!INSERT_CRON_TOKEN!!! YT_PROXY=kant.yt.yandex.net /opt/cron/clear_tmp.py >>/opt/cron/clear_tmp_log 2>&1
-0 4 * * * YT_TOKEN=!!!INSERT_CRON_TOKEN!!! YT_PROXY=smith.yt.yandex.net /opt/cron/clear_tmp.py >>/opt/cron/clear_tmp_log 2>&1
+0 4 * * * /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN=!!!INSERT_CRON_TOKEN!!! YT_PROXY=kant.yt.yandex.net /opt/cron/clear_tmp.py >>/opt/cron/clear_tmp_log 2>&1
+0 4 * * * /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN=!!!INSERT_CRON_TOKEN!!! YT_PROXY=smith.yt.yandex.net /opt/cron/clear_tmp.py >>/opt/cron/clear_tmp_log 2>&1
 
 # Import tables
-0 6 * * * YT_TOKEN=!!!INSERT_CRON_TOKEN!!! USER=cron /opt/cron/redwood.sh >>/opt/cron/redwood_log 2>&1
-0 * * * * YT_TOKEN=!!!INSERT_CRON_TOKEN!!! USER=cron /opt/cron/import.sh  >>/opt/cron/import_log  2>&1
+0 6 * * * YT_TOKEN=!!!INSERT_CRON_TOKEN!!! YT_PROXY=kant.yt.yandex.net yt_lock.py //sys/cron/redwood_lock /opt/cron/redwood.sh >>/opt/cron/redwood_log 2>&1
+0 * * * * YT_TOKEN=!!!INSERT_CRON_TOKEN!!! YT_PROXY=kant.yt.yandex.net yt_lock.py //sys/cron/import_lock /opt/cron/import.sh  >>/opt/cron/import_log  2>&1
 
 # Export tables
-0 * * * * YT_TOKEN=!!!INSERT_CRON_TOKEN!!! USER=cron /opt/cron/export.sh  >>/opt/cron/export_log  2>&1
+0 * * * * YT_TOKEN=!!!INSERT_CRON_TOKEN!!! YT_PROXY=kant.yt.yandex.net yt_lock.py //sys/cron/export_lock /opt/cron/export.sh  >>/opt/cron/export_log  2>&1
 
 # Setting opaques
-0 * * * * YT_TOKEN=!!!INSERT_CRON_TOKEN!!! YT_PROXY=kant.yt.yandex.net /opt/cron/set_opaque.py >>/opt/cron/set_opaque_log 2>&1
+0 * * * * /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN=!!!INSERT_CRON_TOKEN!!! YT_PROXY=kant.yt.yandex.net /opt/cron/set_opaque.py >>/opt/cron/set_opaque_log 2>&1
+0 * * * * /opt/cron/tools/mail_if_failed.sh yt-dev-root@yandex-team.ru YT_TOKEN=!!!INSERT_CRON_TOKEN!!! YT_PROXY=smith.yt.yandex.net /opt/cron/set_opaque.py >>/opt/cron/set_opaque_log 2>&1
+
