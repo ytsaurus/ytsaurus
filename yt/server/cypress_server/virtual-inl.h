@@ -10,6 +10,8 @@
 #include <server/object_server/object.h>
 #include <server/object_server/object_manager.h>
 
+#include <server/cell_master/bootstrap.h>
+
 namespace NYT {
 namespace NCypressServer {
 

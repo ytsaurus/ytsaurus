@@ -30,6 +30,8 @@ typedef TIntrusivePtr<TObjectManagerConfig> TObjectManagerConfigPtr;
 class TObjectBase;
 class TNonversionedObjectBase;
 
+class TObjectProxyBase;
+
 class TAttributeSet;
 
 class TObjectBase;

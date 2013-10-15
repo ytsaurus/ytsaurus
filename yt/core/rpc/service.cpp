@@ -36,6 +36,11 @@ TServiceId::TServiceId(const Stroka& serviceName, const TRealmId& realmId)
     , RealmId(realmId)
 { }
 
+TServiceId::TServiceId(const char* serviceName, const TRealmId& realmId)
+    : ServiceName(serviceName)
+    , RealmId(realmId)
+{ }
+
 bool operator == (const TServiceId& lhs, const TServiceId& rhs)
 {
     return lhs.ServiceName == rhs.ServiceName && lhs.RealmId == rhs.RealmId;

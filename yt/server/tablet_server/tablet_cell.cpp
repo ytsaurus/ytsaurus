@@ -145,6 +145,8 @@ ETabletCellHealth TTabletCell::GetHealth() const
                 case EPeerState::Following:
                     ++followerCount;
                     break;
+                default:
+                    break;
             }
         }
     }

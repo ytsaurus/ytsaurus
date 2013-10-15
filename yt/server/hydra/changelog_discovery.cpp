@@ -23,8 +23,8 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 TChangelogInfo::TChangelogInfo()
-    : ChangelogId(NonexistingSegmentId)
-    , PeerId(InvalidPeerId)
+    : PeerId(InvalidPeerId)
+    , ChangelogId(NonexistingSegmentId)
     , RecordCount(-1)
 { }
 

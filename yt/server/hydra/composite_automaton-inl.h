@@ -2,6 +2,8 @@
 #error "Direct inclusion of this file is not allowed, include composite_automaton.h"
 #endif
 
+#include "mutation_context.h"
+
 #include <core/misc/serialize.h>
 
 namespace NYT {

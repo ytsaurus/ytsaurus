@@ -1,13 +1,13 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/unittests )
 set( SRCS
-  ${BASE}/async_change_log_ut.cpp
+  #${BASE}/async_change_log_ut.cpp
   ${BASE}/async_result_ut.cpp
   ${BASE}/attributes_ut.cpp
   ${BASE}/bind_ut.cpp
   ${BASE}/bus_ut.cpp
   ${BASE}/callback_ut.cpp
-  ${BASE}/change_log_ut.cpp
+  #${BASE}/change_log_ut.cpp
   ${BASE}/chunk_tree_traversing_ut.cpp
   ${BASE}/compression_ut.cpp
   ${BASE}/coroutines_ut.cpp
@@ -24,7 +24,7 @@ set( SRCS
   ${BASE}/json_writer_ut.cpp
   ${BASE}/lexer_ut.cpp
   ${BASE}/logging_ut.cpp
-  ${BASE}/meta_state_map_ut.cpp
+  #${BASE}/meta_state_map_ut.cpp
   ${BASE}/metric_ut.cpp
   ${BASE}/mpl_ut.cpp
   ${BASE}/network_address_ut.cpp
@@ -39,7 +39,7 @@ set( SRCS
   ${BASE}/serialize_ut.cpp
   ${BASE}/small_string_ut.cpp
   ${BASE}/small_vector_ut.cpp
-  ${BASE}/snapshot_ut.cpp
+  #${BASE}/snapshot_ut.cpp
   ${BASE}/spawn_ut.cpp
   ${BASE}/string_ut.cpp
   ${BASE}/thread_affinity_ut.cpp

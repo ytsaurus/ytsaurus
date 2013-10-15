@@ -403,26 +403,6 @@ struct TRangeSerializer
     }
 };
 
-struct TSharedRefSerializer
-{
-    template <class C>
-    static void Save(C& context, const TSharedRef& value)
-    {
-        TSizeSerializer::Save(context, value.Size());
-        auto* output = context.GetOutput();
-        output->Write(value.Begin(), value.Size());
-    }
-
-    template <class C>
-    static void Load(C& context, TSharedRef& value)
-    {
-        size_t size = TSizeSerializer::Load(context);
-        value = TSharedRef::Allocate(size, false);
-        auto* input = context.GetInput();
-        YCHECK(input->Load(value.Begin(), value.Size()) == value.Size());
-    }
-};
-
 struct TPodSerializer
 {
     template <class T, class C>
@@ -461,6 +441,26 @@ struct TSizeSerializer
         size_t value;
         Load(context, value);
         return value;
+    }
+};
+
+struct TSharedRefSerializer
+{
+    template <class C>
+    static void Save(C& context, const TSharedRef& value)
+    {
+        TSizeSerializer::Save(context, value.Size());
+        auto* output = context.GetOutput();
+        output->Write(value.Begin(), value.Size());
+    }
+
+    template <class C>
+    static void Load(C& context, TSharedRef& value)
+    {
+        size_t size = TSizeSerializer::Load(context);
+        value = TSharedRef::Allocate(size, false);
+        auto* input = context.GetInput();
+        YCHECK(input->Load(value.Begin(), value.Size()) == value.Size());
     }
 };
 

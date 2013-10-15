@@ -23,8 +23,8 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 TSnapshotInfo::TSnapshotInfo()
-    : SnapshotId(NonexistingSegmentId)
-    , PeerId(InvalidPeerId)
+    : PeerId(InvalidPeerId)
+    , SnapshotId(NonexistingSegmentId)
     , Length(-1)
 { }
 

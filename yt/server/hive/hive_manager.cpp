@@ -171,8 +171,6 @@ public:
 private:
     typedef TImpl TThis;
     
-    typedef TTypedServiceContext<TReqSend, TRspSend> TCtxSend;
-    typedef TIntrusivePtr<TCtxSend> TCtxSendPtr;
     typedef NProto::TReqSend TMetaReqReceiveMessages;
 
     TCellGuid SelfCellGuid;
@@ -185,6 +183,111 @@ private:
 
     TEntityMap<TCellGuid, TMailbox> MailboxMap;
     
+
+    // RPC handlers.
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, Ping)
+    {
+        auto srcCellGuid = FromProto<TCellGuid>(request->src_cell_guid());
+
+        context->SetRequestInfo("SrcCellGuid: %s, DstCellGuid: %s",
+            ~ToString(srcCellGuid),
+            ~ToString(SelfCellGuid));
+
+        auto* mailbox = FindMailbox(srcCellGuid);
+        int lastReceivedMessageId = mailbox ? mailbox->GetLastReceivedMessageId() : -1;
+
+        response->set_last_received_message_id(lastReceivedMessageId);
+
+        context->SetResponseInfo("LastReceivedMessageId: %d",
+            lastReceivedMessageId);
+
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, Send)
+    {
+        auto srcCellGuid = FromProto<TCellGuid>(request->src_cell_guid());
+        int firstMessageId = request->first_message_id();
+
+        context->SetRequestInfo("SrcCellGuid: %s, DstCellGuid: %s, FirstMessageId: %d, MessageCount: %" PRISZT,
+            ~ToString(srcCellGuid),
+            ~ToString(SelfCellGuid),
+            firstMessageId,
+            request->Attachments().size());
+        
+        CreateReceiveMessagesMutation(context)
+            ->OnSuccess(CreateRpcSuccessHandler(context))
+            ->OnError(CreateRpcErrorHandler(context))
+            ->Commit();
+    }
+
+
+    // Hydra handlers.
+
+    void AcknowledgeMessages(const TMetaReqAcknowledgeMessages& request)
+    {
+        auto cellGuid = FromProto<TCellGuid>(request.cell_guid());
+        auto* mailbox = FindMailbox(cellGuid);
+        if (!mailbox)
+            return;
+
+        int lastReceivedMessageId = request.last_received_message_id();
+        int trimCount = lastReceivedMessageId - mailbox->GetFirstPendingMessageId() + 1;
+        YCHECK(trimCount >= 0);
+        if (trimCount == 0)
+            return;
+
+        auto& pendingMessages = mailbox->PendingMessages();
+        std::move(
+            pendingMessages.begin() + trimCount,
+            pendingMessages.end(),
+            pendingMessages.begin());
+        pendingMessages.resize(pendingMessages.size() - trimCount);
+
+        mailbox->SetFirstPendingMessageId(mailbox->GetFirstPendingMessageId() + trimCount);
+        LOG_DEBUG_UNLESS(IsRecovery(), "Messages acknowledged (SrcCellGuid: %s, DstCellGuid: %s, FirstPendingMessageId: %d)",
+            ~ToString(SelfCellGuid),
+            ~ToString(mailbox->GetCellGuid()),
+            mailbox->GetFirstPendingMessageId());
+
+        if (IsLeader()) {
+            YCHECK(mailbox->GetInFlightMessageCount() >= trimCount);
+            mailbox->SetInFlightMessageCount(mailbox->GetInFlightMessageCount() - trimCount);
+        }
+    }
+
+    void ReceiveMessagesWithContext(TCtxSendPtr context)
+    {
+        DoReceiveMessages(context->Request(), &context->Response(), context);
+    }
+
+    void ReceiveMessages(const TMetaReqReceiveMessages& request)
+    {
+        DoReceiveMessages(request, nullptr, nullptr);
+    }
+
+    void DoReceiveMessages(const NProto::TReqSend& request, TRspSend* response, TCtxSendPtr context)
+    {
+        try {
+            auto srcCellGuid = FromProto<TCellGuid>(request.src_cell_guid());
+            auto* mailbox = GetOrCreateMailbox(srcCellGuid);
+
+            HandleIncomingMessages(mailbox, request);
+
+            if (context) {
+                int lastReceivedMessageId = mailbox->GetLastReceivedMessageId();
+                response->set_last_received_message_id(lastReceivedMessageId);
+                context->SetResponseInfo("LastReceivedMessageId: %d",
+                    lastReceivedMessageId);
+            }
+        } catch (const std::exception& ex) {
+            if (context) {
+                context->Reply(ex);
+            }
+        }
+    }
+
 
     IChannelPtr GetMailboxChannel(TMailbox* mailbox)
     {
@@ -482,112 +585,6 @@ private:
     {
         MailboxMap.LoadValues(context);
     }
-
-
-    // RPC handlers.
-
-    DECLARE_RPC_SERVICE_METHOD(NProto, Ping)
-    {
-        auto srcCellGuid = FromProto<TCellGuid>(request->src_cell_guid());
-
-        context->SetRequestInfo("SrcCellGuid: %s, DstCellGuid: %s",
-            ~ToString(srcCellGuid),
-            ~ToString(SelfCellGuid));
-
-        auto* mailbox = FindMailbox(srcCellGuid);
-        int lastReceivedMessageId = mailbox ? mailbox->GetLastReceivedMessageId() : -1;
-
-        response->set_last_received_message_id(lastReceivedMessageId);
-
-        context->SetResponseInfo("LastReceivedMessageId: %d",
-            lastReceivedMessageId);
-
-        context->Reply();
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NProto, Send)
-    {
-        auto srcCellGuid = FromProto<TCellGuid>(request->src_cell_guid());
-        int firstMessageId = request->first_message_id();
-
-        context->SetRequestInfo("SrcCellGuid: %s, DstCellGuid: %s, FirstMessageId: %d, MessageCount: %" PRISZT,
-            ~ToString(srcCellGuid),
-            ~ToString(SelfCellGuid),
-            firstMessageId,
-            request->Attachments().size());
-        
-        CreateReceiveMessagesMutation(context)
-            ->OnSuccess(CreateRpcSuccessHandler(context))
-            ->OnError(CreateRpcErrorHandler(context))
-            ->Commit();
-    }
-
-
-    // Hydra handlers.
-
-    void AcknowledgeMessages(const TMetaReqAcknowledgeMessages& request)
-    {
-        auto cellGuid = FromProto<TCellGuid>(request.cell_guid());
-        auto* mailbox = FindMailbox(cellGuid);
-        if (!mailbox)
-            return;
-
-        int lastReceivedMessageId = request.last_received_message_id();
-        int trimCount = lastReceivedMessageId - mailbox->GetFirstPendingMessageId() + 1;
-        YCHECK(trimCount >= 0);
-        if (trimCount == 0)
-            return;
-
-        auto& pendingMessages = mailbox->PendingMessages();
-        std::move(
-            pendingMessages.begin() + trimCount,
-            pendingMessages.end(),
-            pendingMessages.begin());
-        pendingMessages.resize(pendingMessages.size() - trimCount);
-
-        mailbox->SetFirstPendingMessageId(mailbox->GetFirstPendingMessageId() + trimCount);
-        LOG_DEBUG_UNLESS(IsRecovery(), "Messages acknowledged (SrcCellGuid: %s, DstCellGuid: %s, FirstPendingMessageId: %d)",
-            ~ToString(SelfCellGuid),
-            ~ToString(mailbox->GetCellGuid()),
-            mailbox->GetFirstPendingMessageId());
-
-        if (IsLeader()) {
-            YCHECK(mailbox->GetInFlightMessageCount() >= trimCount);
-            mailbox->SetInFlightMessageCount(mailbox->GetInFlightMessageCount() - trimCount);
-        }
-    }
-
-    void ReceiveMessagesWithContext(TCtxSendPtr context)
-    {
-        DoReceiveMessages(context->Request(), &context->Response(), context);
-    }
-
-    void ReceiveMessages(const TMetaReqReceiveMessages& request)
-    {
-        DoReceiveMessages(request, nullptr, nullptr);
-    }
-
-    void DoReceiveMessages(const NProto::TReqSend& request, TRspSend* response, TCtxSendPtr context)
-    {
-        try {
-            auto srcCellGuid = FromProto<TCellGuid>(request.src_cell_guid());
-            auto* mailbox = GetOrCreateMailbox(srcCellGuid);
-
-            HandleIncomingMessages(mailbox, request);
-
-            if (context) {
-                int lastReceivedMessageId = mailbox->GetLastReceivedMessageId();
-                response->set_last_received_message_id(lastReceivedMessageId);
-                context->SetResponseInfo("LastReceivedMessageId: %d",
-                    lastReceivedMessageId);
-            }
-        } catch (const std::exception& ex) {
-            if (context) {
-                context->Reply(ex);
-            }
-        }
-    }
-
 
 };
 

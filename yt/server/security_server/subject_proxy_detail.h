@@ -6,6 +6,8 @@
 
 #include <core/ytree/convert.h>
 
+#include <core/ytree/fluent.h>
+
 #include <server/object_server/object_detail.h>
 
 #include <server/cell_master/public.h>

@@ -21,7 +21,8 @@
 #include <ytlib/driver/dispatcher.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
-#include <ytlib/meta_state/meta_state_manager_proxy.h>
+
+#include <ytlib/hydra/hydra_service_proxy.h>
 
 // For at_exit
 #include <core/profiling/profiling_manager.h>
@@ -205,9 +206,9 @@ public:
             throw Py::RuntimeError("Incorrect arguments");
         }
 
-        NMetaState::TMetaStateManagerProxy proxy(DriverInstance_->GetMasterChannel());
+        NHydra::THydraServiceProxy proxy(DriverInstance_->GetMasterChannel());
         proxy.SetDefaultTimeout(Null); // infinity
-        auto req = proxy.BuildSnapshot();
+        auto req = proxy.BuildSnapshotDistributed();
         req->set_set_read_only(setReadOnly);
 
         auto rsp = req->Invoke().Get();

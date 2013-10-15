@@ -226,7 +226,7 @@ private:
             FlushCount,
             Owner->CellManager->GetQuorumCount());
         Owner->EpochAutomatonInvoker->Invoke(
-            BIND(&TLeaderCommitter::OnBatchCommitted, Owner, this, error));
+            BIND(&TLeaderCommitter::OnBatchCommitted, Owner, MakeStrong(this), error));
     }
 
 

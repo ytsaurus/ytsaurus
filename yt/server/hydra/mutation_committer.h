@@ -40,8 +40,6 @@ protected:
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
-    NLog::TTaggedLogger Logger;
-
     NElection::TCellManagerPtr CellManager;
     TDecoratedAutomatonPtr DecoratedAutomaton;
     IInvokerPtr EpochControlInvoker;
@@ -49,7 +47,9 @@ protected:
     NProfiling::TRateCounter CommitCounter;
     NProfiling::TRateCounter BatchFlushCounter;
 
-};
+    NLog::TTaggedLogger Logger;
+
+ };
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -135,10 +135,10 @@ public:
             NRpc::TServiceId(THydraServiceProxy::GetServiceName(), cellManager->GetCellGuid()),
             HydraLogger.GetCategory())
         , Config_(config)
-        , ControlInvoker_(controlInvoker)
-        , AutomatonInvoker_(automatonInvoker)
         , RpcServer(rpcServer)
         , CellManager_(cellManager)
+        , ControlInvoker_(controlInvoker)
+        , AutomatonInvoker_(automatonInvoker)
         , ChangelogStore_(changelogStore)
         , SnapshotStore_(snapshotStore)
         , ReadOnly_(false)
