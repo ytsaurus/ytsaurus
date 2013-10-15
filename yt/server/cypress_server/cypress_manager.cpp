@@ -390,7 +390,6 @@ TCypressNodeBase* TCypressManager::CloneNode(
     // Validate account access _before_ creating the actual copy.
     auto securityManager = Bootstrap->GetSecurityManager();
     auto* account = factory->GetClonedNodeAccount(sourceNode);
-    printf("Account is %s!\n", ~account->GetName());
     securityManager->ValidatePermission(account, EPermission::Use);
 
     auto handler = GetHandler(sourceNode);
