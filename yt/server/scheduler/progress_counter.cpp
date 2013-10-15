@@ -87,11 +87,7 @@ i64 TProgressCounter::GetFailed() const
 
 i64 TProgressCounter::GetAborted() const
 {
-    i64 result;
-    for (int i = 0; i < EAbortReason::GetDomainSize(); ++i) {
-        result += Aborted_[i];
-    }
-    return result;
+    return std::accumulate(Aborted_.begin(), Aborted_.end(), 0);
 }
 
 i64 TProgressCounter::GetAborted(EAbortReason reason) const
