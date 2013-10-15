@@ -212,13 +212,13 @@ class YTEnv(object):
             if prepare_files:
                 os.mkdir(current)
 
-            config['meta_state']['cell']['rpc_port'] = self._ports["master"][2 * i]
+            config['rpc_port'] = self._ports["master"][2 * i]
             config['monitoring_port'] = self._ports["master"][2 * i + 1]
 
-            config['meta_state']['cell']['addresses'] = self._master_addresses
-            config['meta_state']['changelogs']['path'] = \
+            config['masters']['addresses'] = self._master_addresses
+            config['changelogs']['path'] = \
                 os.path.join(current, 'logs')
-            config['meta_state']['snapshots']['path'] = \
+            config['snapshots']['path'] = \
                     os.path.join(current, 'snapshots')
             init_logging(config['logging'], current, 'master-' + str(i))
 
