@@ -62,6 +62,8 @@ public:
     TNullable<int> MaxFailedJobCount;
     TNullable<int> MaxStdErrCount;
 
+    bool JobProxyMemoryControl;
+
     TOperationSpecBase()
     {
         RegisterParameter("intermediate_data_account", IntermediateDataAccount)
@@ -78,6 +80,10 @@ public:
             .Default(Null);
         RegisterParameter("max_stderr_count", MaxStdErrCount)
             .Default(Null);
+
+        RegisterParameter("job_proxy_memory_control", JobProxyMemoryControl)
+            .Default(true);
+
 
         SetKeepOptions(true);
 

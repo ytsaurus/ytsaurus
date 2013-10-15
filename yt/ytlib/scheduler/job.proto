@@ -62,6 +62,8 @@ message TSchedulerJobSpecExt
 
     // True if data_size and row_count are approximate (e.g. restarted sort jobs).
     optional bool is_approximate = 9 [default = false];
+
+    optional bool job_proxy_memory_control = 10 [default = true];
 }
 
 message TSchedulerJobResultExt

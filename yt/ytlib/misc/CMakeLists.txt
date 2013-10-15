@@ -22,6 +22,7 @@ set( SRCS
   ${BASE}/hr_timer.cpp
   ${BASE}/id_generator.cpp
   ${BASE}/lease_manager.cpp
+  ${BASE}/lfalloc_helpers.cpp
   ${BASE}/metric.cpp
   ${BASE}/new.cpp
   ${BASE}/pattern_formatter.cpp
@@ -79,6 +80,7 @@ set( HDRS
   ${BASE}/lazy_holder.h
   ${BASE}/lazy_ptr.h
   ${BASE}/lease_manager.h
+  ${BASE}/lfalloc_helpers.h
   ${BASE}/metric.h
   ${BASE}/mpl.h
   ${BASE}/nullable.h

@@ -17,6 +17,7 @@
 #include <ytlib/actions/parallel_awaiter.h>
 
 #include <ytlib/misc/proc.h>
+#include <ytlib/misc/lfalloc_helpers.h>
 #include <ytlib/misc/ref_counted_tracker.h>
 
 #include <ytlib/logging/log_manager.h>
@@ -179,10 +180,12 @@ TJobResult TJobProxy::DoRun()
         BIND(&TJobProxy::SendHeartbeat, MakeWeak(this)),
         Config->HeartbeatPeriod);
 
-    MemoryWatchdogInvoker = New<TPeriodicInvoker>(
-        GetSyncInvoker(),
-        BIND(&TJobProxy::CheckMemoryUsage, MakeWeak(this)),
-        Config->MemoryWatchdogPeriod);
+    if (schedulerJobSpecExt.job_proxy_memory_control()) {
+        MemoryWatchdogInvoker = New<TPeriodicInvoker>(
+            GetSyncInvoker(),
+            BIND(&TJobProxy::CheckMemoryUsage, MakeWeak(this)),
+            Config->MemoryWatchdogPeriod);
+    }
 
     try {
         switch (jobType) {
@@ -247,7 +250,10 @@ TJobResult TJobProxy::DoRun()
                 YUNREACHABLE();
         }
 
-        MemoryWatchdogInvoker->Start();
+        if (MemoryWatchdogInvoker) {
+            MemoryWatchdogInvoker->Start();
+        }
+
         HeartbeatInvoker->Start();
 
         return Job->Run();
@@ -340,6 +346,13 @@ void TJobProxy::CheckMemoryUsage()
         memoryUsage,
         JobProxyMemoryLimit);
     if (memoryUsage > JobProxyMemoryLimit) {
+        LOG_ERROR("lf_alloc counters (LargeBlocks: %" PRId64 ", SmallBlocks: %" PRId64 ", System: %" PRId64 ", Used: %" PRId64 ", MMaped: %" PRId64 ")",
+            NLfAlloc::GetCurrentLargeBlocks(),
+            NLfAlloc::GetCurrentSmallBlocks(),
+            NLfAlloc::GetCurrentSystem(),
+            NLfAlloc::GetCurrentUsed(),
+            NLfAlloc::GetCurrentMmaped());
+
         LOG_FATAL(
             "Job proxy memory limit exceeded (MemoryUsage: %" PRId64 ", MemoryLimit: %" PRId64 ", RefCountedTracker: %s)",
             memoryUsage,

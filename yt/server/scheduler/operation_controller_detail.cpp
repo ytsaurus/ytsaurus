@@ -475,9 +475,11 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
         BuildJobSpec(joblet, jobSpec);
         Controller->CustomizeJobSpec(joblet, jobSpec);
 
+        auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+        schedulerJobSpecExt->set_job_proxy_memory_control(Controller->Spec->JobProxyMemoryControl);
+
         // Adjust sizes if approximation flag is set.
         if (joblet->InputStripeList->IsApproximate) {
-            auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             schedulerJobSpecExt->set_input_uncompressed_data_size(static_cast<i64>(
                 schedulerJobSpecExt->input_uncompressed_data_size() *
                 ApproximateSizesBoostFactor));
