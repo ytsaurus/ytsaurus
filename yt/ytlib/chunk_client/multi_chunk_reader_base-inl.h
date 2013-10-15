@@ -216,7 +216,6 @@ void TMultiChunkReaderBase<TChunkReader>::ProcessOpenedReader(const TSession& se
 
     FetchingCompleteAwaiter->Await(session.Reader->GetFetchingCompleteEvent());
     if (FetchingCompleteAwaiter->GetRequestCount() == ChunkSpecs.size()) {
-        auto weakThis = MakeWeak(this);
         FetchingCompleteAwaiter->Complete(BIND(
             &TMultiChunkReaderBase<TChunkReader>::OnFetchingComplete,
             MakeWeak(this)));
