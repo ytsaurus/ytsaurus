@@ -3,7 +3,7 @@
 #include "public.h"
 #include "config.h"
 
-#include <core/formats/parser.h>
+#include <ytlib/formats/parser.h>
 #include <core/yson/consumer.h>
 
 #include <library/json/json_value.h>

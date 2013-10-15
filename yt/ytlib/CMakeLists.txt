@@ -15,6 +15,7 @@ set( DIRS
   transaction_client
   monitoring
   hydra
+  formats
 )
 
 foreach( _d_ ${DIRS} )

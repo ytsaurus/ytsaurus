@@ -6,7 +6,7 @@
 
 #include <core/concurrency/async_stream.h>
 
-#include <core/formats/format.h>
+#include <ytlib/formats/format.h>
 
 #include <core/ytree/public.h>
 #include <core/yson/consumer.h>

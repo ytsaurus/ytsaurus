@@ -1,5 +1,5 @@
 #:yt-updatable
-set( BASE ${CMAKE_SOURCE_DIR}/yt/core/formats )
+set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/formats )
 set( SRCS
   ${BASE}/dsv_parser.cpp
   ${BASE}/dsv_writer.cpp

@@ -8,8 +8,8 @@
 #include "table_output.h"
 #include "pipes.h"
 
-#include <core/formats/format.h>
-#include <core/formats/parser.h>
+#include <ytlib/formats/format.h>
+#include <ytlib/formats/parser.h>
 
 #include <core/yson/writer.h>
 

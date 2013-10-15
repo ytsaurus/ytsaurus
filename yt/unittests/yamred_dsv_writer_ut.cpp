@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-#include <core/formats/yamred_dsv_writer.h>
+#include <ytlib/formats/yamred_dsv_writer.h>
 
 #include <contrib/testing/framework.h>
 

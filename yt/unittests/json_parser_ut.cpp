@@ -1,6 +1,7 @@
 #include "stdafx.h"
 
-#include <core/formats/json_parser.h>
+#include <ytlib/formats/json_parser.h>
+
 #include <core/ytree/yson_consumer-mock.h>
 
 #include <util/string/base64.h>

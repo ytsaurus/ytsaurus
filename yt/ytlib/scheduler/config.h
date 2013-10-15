@@ -12,7 +12,7 @@
 #include <ytlib/table_client/config.h>
 #include <ytlib/file_client/config.h>
 
-#include <core/formats/format.h>
+#include <ytlib/formats/format.h>
 
 namespace NYT {
 namespace NScheduler {

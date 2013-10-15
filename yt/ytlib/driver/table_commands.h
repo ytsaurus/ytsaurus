@@ -6,7 +6,7 @@
 
 #include <ytlib/ypath/rich.h>
 
-#include <core/formats/format.h>
+#include <ytlib/formats/format.h>
 
 namespace NYT {
 namespace NDriver {

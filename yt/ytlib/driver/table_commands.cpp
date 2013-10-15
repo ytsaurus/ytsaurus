@@ -8,7 +8,7 @@
 #include <core/yson/parser.h>
 #include <core/yson/consumer.h>
 
-#include <core/formats/parser.h>
+#include <ytlib/formats/parser.h>
 #include <core/ytree/fluent.h>
 
 #include <ytlib/transaction_client/transaction_manager.h>

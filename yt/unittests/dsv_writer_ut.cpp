@@ -1,7 +1,7 @@
-    #include "stdafx.h"
+#include "stdafx.h"
 
-#include <core/formats/dsv_writer.h>
-#include <core/formats/dsv_parser.h>
+#include <ytlib/formats/dsv_writer.h>
+#include <ytlib/formats/dsv_parser.h>
 
 #include <contrib/testing/framework.h>
 

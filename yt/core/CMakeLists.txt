@@ -11,7 +11,6 @@ set( DIRS
   yson
   ypath
   profiling
-  formats
 )
 
 set( LIBS

@@ -1,6 +1,7 @@
 #include "stdafx.h"
 
-#include <core/formats/yamr_parser.h>
+#include <ytlib/formats/yamr_parser.h>
+
 #include <core/ytree/yson_consumer-mock.h>
 #include <core/ytree/null_yson_consumer.h>
 

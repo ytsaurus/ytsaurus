@@ -35,7 +35,7 @@
 #include <core/rpc/helpers.h>
 
 #include <core/erasure/codec.h>
-#include <core/formats/format.h>
+#include <ytlib/formats/format.h>
 
 #include <core/ytree/fluent.h>
 #include <core/ytree/convert.h>

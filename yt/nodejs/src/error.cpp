@@ -3,7 +3,7 @@
 
 #include <core/ytree/node.h>
 
-#include <core/formats/json_writer.h>
+#include <ytlib/formats/json_writer.h>
 
 namespace NYT {
 namespace NNodeJS {
