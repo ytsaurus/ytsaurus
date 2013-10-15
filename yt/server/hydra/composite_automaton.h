@@ -66,6 +66,9 @@ protected:
     bool IsFollower() const;
     bool IsRecovery() const;
 
+    virtual bool ValidateSnapshotVersion(int version);
+    virtual int GetCurrentSnapshotVersion();
+
     virtual void Clear();
 
     virtual void OnBeforeSnapshotLoaded();
@@ -114,9 +117,6 @@ protected:
     virtual TSaveContext& SaveContext() = 0;
     virtual TLoadContext& LoadContext() = 0;
 
-    virtual bool ValidateSnapshotVersion(int version);
-    virtual int GetCurrentSnapshotVersion();
-
 private:
     friend class TCompositeAutomatonPart;
 
@@ -125,16 +125,25 @@ private:
         int Priority;
         Stroka Name;
         TClosure Saver;
+        TCompositeAutomatonPartPtr Part;
 
-        TSaverInfo(int priority, const Stroka& name, TClosure saver);
+        TSaverInfo(
+            int priority,
+            const Stroka& name,
+            TClosure saver,
+            TCompositeAutomatonPartPtr part);
     };
 
     struct TLoaderInfo
     {
         Stroka Name;
         TClosure Loader;
+        TCompositeAutomatonPartPtr Part;
 
-        TLoaderInfo(const Stroka& name, TClosure loader);
+        TLoaderInfo(
+            const Stroka& name,
+            TClosure loader,
+            TCompositeAutomatonPartPtr part);
     };
 
     yhash_map<Stroka, TCallback<void(TMutationContext* context)>> Methods;

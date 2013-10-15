@@ -24,16 +24,6 @@ TLoadContext& TMasterAutomaton::LoadContext()
     return *LoadContext_;
 }
 
-bool TMasterAutomaton::ValidateSnapshotVersion(int version)
-{
-    return NCellMaster::ValidateSnapshotVersion(version);
-}
-
-int TMasterAutomaton::GetCurrentSnapshotVersion()
-{
-    return NCellMaster::GetCurrentSnapshotVersion();
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TMasterAutomatonPart::TMasterAutomatonPart(TBootstrap* bootstrap)
@@ -42,6 +32,16 @@ TMasterAutomatonPart::TMasterAutomatonPart(TBootstrap* bootstrap)
         bootstrap->GetMetaStateFacade()->GetAutomaton())
     , Bootstrap(bootstrap)
 { }
+
+bool TMasterAutomatonPart::ValidateSnapshotVersion(int version)
+{
+    return NCellMaster::ValidateSnapshotVersion(version);
+}
+
+int TMasterAutomatonPart::GetCurrentSnapshotVersion()
+{
+    return NCellMaster::GetCurrentSnapshotVersion();
+}
 
 void TMasterAutomatonPart::RegisterSaver(
     int priority,

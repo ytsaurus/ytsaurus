@@ -54,9 +54,6 @@ private:
     std::unique_ptr<TSaveContext> SaveContext_;
     std::unique_ptr<TLoadContext> LoadContext_;
 
-    virtual bool ValidateSnapshotVersion(int version) override;
-    virtual int GetCurrentSnapshotVersion() override;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -68,6 +65,9 @@ protected:
     TBootstrap* Bootstrap;
 
     explicit TMasterAutomatonPart(TBootstrap* bootstrap);
+
+    virtual bool ValidateSnapshotVersion(int version) override;
+    virtual int GetCurrentSnapshotVersion() override;
 
     void RegisterSaver(
         int priority,

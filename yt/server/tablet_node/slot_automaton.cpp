@@ -33,16 +33,6 @@ TLoadContext& TSlotAutomaton::LoadContext()
     return LoadContext_;
 }
 
-bool TSlotAutomaton::ValidateSnapshotVersion(int version)
-{
-    return NTabletNode::ValidateSnapshotVersion(version);
-}
-
-int TSlotAutomaton::GetCurrentSnapshotVersion()
-{
-    return NTabletNode::GetCurrentSnapshotVersion();
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

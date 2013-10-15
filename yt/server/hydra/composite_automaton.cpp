@@ -75,7 +75,7 @@ void TCompositeAutomatonPart::RegisterSaver(
     const Stroka& name,
     TClosure saver)
 {
-    TCompositeAutomaton::TSaverInfo info(priority, name, saver);
+    TCompositeAutomaton::TSaverInfo info(priority, name, saver, this);
     YCHECK(Automaton->Savers.insert(std::make_pair(name, info)).second);
 }
 
@@ -83,7 +83,7 @@ void TCompositeAutomatonPart::RegisterLoader(
     const Stroka& name,
     TClosure loader)
 {
-    TCompositeAutomaton::TLoaderInfo info(name, loader);
+    TCompositeAutomaton::TLoaderInfo info(name, loader, this);
     YCHECK(Automaton->Loaders.insert(std::make_pair(name, info)).second);
 }
 
@@ -111,6 +111,16 @@ void TCompositeAutomatonPart::RegisterLoader(
             auto& context = Automaton->LoadContext();
             loader.Run(context);
         }));
+}
+
+bool TCompositeAutomatonPart::ValidateSnapshotVersion(int /*version*/)
+{
+    return true;
+}
+
+int TCompositeAutomatonPart::GetCurrentSnapshotVersion()
+{
+    return 0;
 }
 
 void TCompositeAutomatonPart::Clear()
@@ -169,17 +179,21 @@ void TCompositeAutomatonPart::OnRecoveryComplete()
 TCompositeAutomaton::TSaverInfo::TSaverInfo(
     int priority,
     const Stroka& name,
-    TClosure saver)
+    TClosure saver,
+    TCompositeAutomatonPartPtr part)
     : Priority(priority)
     , Name(name)
     , Saver(saver)
+    , Part(part)
 { }
 
 TCompositeAutomaton::TLoaderInfo::TLoaderInfo(
     const Stroka& name,
-    TClosure loader)
+    TClosure loader,
+    TCompositeAutomatonPartPtr part)
     : Name(name)
     , Loader(loader)
+    , Part(part)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -216,11 +230,11 @@ void TCompositeAutomaton::SaveSnapshot(TOutputStream* output)
     auto& context = SaveContext();
     context.SetOutput(output);
 
-    Save(context, static_cast<i32>(GetCurrentSnapshotVersion()));
     Save(context, static_cast<i32>(infos.size()));
 
     FOREACH (const auto& info, infos) {
         Save(context, info.Name);
+        Save(context, static_cast<i32>(info.Part->GetCurrentSnapshotVersion()));
         info.Saver.Run();
     }
 }
@@ -232,10 +246,7 @@ void TCompositeAutomaton::LoadSnapshot(TInputStream* input)
     auto& context = LoadContext();
     context.SetInput(input);
 
-    int version = Load<i32>(context);
     int partCount = Load<i32>(context);
-
-    context.SetVersion(version);
 
     LOG_INFO("Started loading composite automaton with %d parts",
         partCount);
@@ -246,12 +257,17 @@ void TCompositeAutomaton::LoadSnapshot(TInputStream* input)
 
     for (int partIndex = 0; partIndex < partCount; ++partIndex) {
         auto name = Load<Stroka>(context);
+        int version = Load<i32>(context);
         
         auto it = Loaders.find(name);
         LOG_FATAL_IF(it == Loaders.end(), "Unknown snapshot part %s",
             ~name.Quote());
 
-        LOG_INFO("Loading automaton part %s", ~name.Quote());
+        LOG_INFO("Loading automaton part %s with version %d",
+            ~name.Quote(),
+            version);
+
+        context.SetVersion(version);
 
         const auto& info = it->second;
         info.Loader.Run();
@@ -280,16 +296,6 @@ void TCompositeAutomaton::Clear()
     FOREACH (auto part, Parts) {
         part->Clear();
     }
-}
-
-bool TCompositeAutomaton::ValidateSnapshotVersion(int /*version*/)
-{
-    return true;
-}
-
-int TCompositeAutomaton::GetCurrentSnapshotVersion()
-{
-    return 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

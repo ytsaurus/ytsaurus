@@ -30,9 +30,6 @@ private:
     TSaveContext SaveContext_;
     TLoadContext LoadContext_;
 
-    virtual bool ValidateSnapshotVersion(int version) override;
-    virtual int GetCurrentSnapshotVersion() override;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

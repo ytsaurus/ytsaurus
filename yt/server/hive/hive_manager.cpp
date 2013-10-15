@@ -561,6 +561,17 @@ private:
     }
 
 
+    virtual bool ValidateSnapshotVersion(int version) override
+    {
+        return version == 1;
+    }
+
+    virtual int GetCurrentSnapshotVersion() override
+    {
+        return 1;
+    }
+
+    
     virtual void Clear() override
     {
         MailboxMap.Clear();
