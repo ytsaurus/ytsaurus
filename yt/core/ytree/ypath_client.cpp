@@ -331,7 +331,7 @@ TFuture< TErrorOr<bool> > AsyncYPathExists(
     IYPathServicePtr service,
     const TYPath& path)
 {
-    auto request = TYPathProxy::ExistsGet(path);
+    auto request = TYPathProxy::Exists(path);
     return
         ExecuteVerb(service, request)
             .Apply(BIND([] (TYPathProxy::TRspExistsPtr response) {
