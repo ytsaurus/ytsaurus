@@ -1,4 +1,4 @@
-#include "stdafx.h"
+\#include "stdafx.h"
 #include "follower_tracker.h"
 #include "private.h"
 #include "config.h"
@@ -25,8 +25,8 @@ TFollowerTracker::TFollowerTracker(
     , DecoratedAutomaton(decoratedAutomaton)
     , EpochId(epoch)
     , EpochControlInvoker(epochControlInvoker)
-    , ActiveQuorumPromise(NewPromise())
     , ActivePeerCount(0)
+    , ActiveQuorumPromise(NewPromise())
     , Logger(HydraLogger)
 {
     YCHECK(Config);
