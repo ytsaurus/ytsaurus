@@ -11,14 +11,12 @@
 
 #include <iostream>
 
-
 namespace NYT {
-
-using NYTree::ConvertTo;
-using NYTree::ConvertToNode;
-using NYTree::ConvertToYsonString;
-
 namespace NPython {
+
+using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
 
 class yson_module
     : public Py::ExtensionModule<yson_module>
@@ -132,8 +130,9 @@ public:
     { }
 };
 
-} // namespace NPython
+////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NPython
 } // namespace NYT
 
 
@@ -151,6 +150,7 @@ extern "C" EXPORT_SYMBOL void inityson()
 
 // symbol required for the debug version
 extern "C" EXPORT_SYMBOL void inityson_d()
-{ inityson(); }
-
+{
+	inityson();
+}
 

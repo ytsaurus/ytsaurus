@@ -1,8 +1,11 @@
 #include "shutdown.h"
 
 #include <core/profiling/profiling_manager.h>
+
 #include <core/rpc/dispatcher.h>
+
 #include <core/bus/tcp_dispatcher.h>
+
 #include <core/logging/log_manager.h>
 
 #include <ytlib/chunk_client/dispatcher.h>
@@ -10,7 +13,6 @@
 #include <contrib/libs/pycxx/Objects.hxx>
 
 namespace NYT {
-
 namespace NPython {
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -39,6 +41,5 @@ void Shutdown()
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace NPython
-
 } // namespace NYT
 
