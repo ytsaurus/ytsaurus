@@ -104,5 +104,50 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TSelectRequest
+    : public TRequest
+{
+    NYPath::TRichYPath Path;
+    Stroka Query;
+
+    TSelectRequest()
+    {
+        RegisterParameter("path", Path);
+        RegisterParameter("query", Query);
+    }
+};
+
+class TSelectCommand
+    : public TTypedCommand<TSelectRequest>
+{
+private:
+    virtual void DoExecute() override;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TInsertRequest
+    : public TRequest
+{
+    NYPath::TRichYPath Path;
+    Stroka Query;
+
+    TInsertRequest()
+    {
+        RegisterParameter("path", Path);
+    }
+};
+
+class TInsertCommand
+    : public TTypedCommand<TInsertRequest>
+{
+private:
+    virtual void DoExecute() override;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NDriver
 } // namespace NYT

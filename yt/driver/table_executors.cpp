@@ -120,5 +120,50 @@ Stroka TUnmountExecutor::GetCommandName() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TSelectExecutor::TSelectExecutor()
+    : PathArg("path", "table path to select rows from", true, "", "YPATH")
+    , QueryArg("query", "query to execute", true, "", "QUERY")
+{
+    CmdLine.add(PathArg);
+    CmdLine.add(QueryArg);
+}
+
+void TSelectExecutor::BuildArgs(IYsonConsumer* consumer)
+{
+    auto path = PreprocessYPath(PathArg.getValue());
+
+    BuildYsonMapFluently(consumer)
+        .Item("path").Value(path)
+        .Item("query").Value(QueryArg.getValue());
+}
+
+Stroka TSelectExecutor::GetCommandName() const 
+{
+    return "select";
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TInsertExecutor::TInsertExecutor()
+    : PathArg("path", "table path to insert rows into", true, "", "YPATH")
+{
+    CmdLine.add(PathArg);
+}
+
+void TInsertExecutor::BuildArgs(IYsonConsumer* consumer)
+{
+    auto path = PreprocessYPath(PathArg.getValue());
+
+    BuildYsonMapFluently(consumer)
+        .Item("path").Value(path);
+}
+
+Stroka TInsertExecutor::GetCommandName() const 
+{
+    return "insert";
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NDriver
 } // namespace NYT

@@ -75,5 +75,36 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSelectExecutor
+    : public TRequestExecutor
+{
+public:
+    TSelectExecutor();
+
+private:
+    TCLAP::UnlabeledValueArg<NYPath::TRichYPath> PathArg;
+    TCLAP::UnlabeledValueArg<NYPath::TRichYPath> QueryArg;
+
+    virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
+    virtual Stroka GetCommandName() const override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TInsertExecutor
+    : public TRequestExecutor
+{
+public:
+    TInsertExecutor();
+
+private:
+    TCLAP::UnlabeledValueArg<NYPath::TRichYPath> PathArg;
+
+    virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
+    virtual Stroka GetCommandName() const override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NDriver
 } // namespace NYT

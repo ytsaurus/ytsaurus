@@ -115,6 +115,8 @@ public:
         REGISTER(TReadCommand,              "read",              Null,       Tabular,    false, true );
         REGISTER(TMountCommand,             "mount",             Null,       Null,       true,  false);
         REGISTER(TUnmountCommand,           "unmount",           Null,       Null,       true,  false);
+        REGISTER(TSelectCommand,            "select",            Null,       Tabular,    false, true );
+        REGISTER(TSelectCommand,            "insert",            Tabular,    Null,       true,  true );
 
         REGISTER(TMergeCommand,             "merge",             Null,       Structured, true,  false);
         REGISTER(TEraseCommand,             "erase",             Null,       Structured, true,  false);
