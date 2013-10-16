@@ -58,11 +58,6 @@ class TEphemeralNodeBase
     , public TEphemeralAttributeOwner
 {
 public:
-    TEphemeralNodeBase()
-        : Parent(nullptr)
-    { }
-
-
     virtual INodeFactoryPtr CreateFactory() const override
     {
         return GetEphemeralNodeFactory();
@@ -76,13 +71,13 @@ public:
 
     virtual ICompositeNodePtr GetParent() const override
     {
-        return Parent;
+        return Parent.Lock();
     }
 
     virtual void SetParent(ICompositeNodePtr parent) override
     {
-        YASSERT(!parent || !Parent);
-        Parent = ~parent;
+        YASSERT(!parent || Parent.IsExpired());
+        Parent = parent;
     }
 
 
@@ -129,7 +124,7 @@ protected:
     }
 
 private:
-    ICompositeNode* Parent;
+    TWeakPtr<ICompositeNode> Parent;
 
 };
 
