@@ -5,7 +5,7 @@ from copy import deepcopy
 
 def transaction_params(transaction=None, ping_ancestor_transactions=None):
     if transaction is None: transaction = config.TRANSACTION
-    if ping_ancestor_transactions is None: ping_ancestor_transactions = config.PING_ANSECTOR_TRANSACTIONS
+    if ping_ancestor_transactions is None: ping_ancestor_transactions = config.PING_ANCESTOR_TRANSACTIONS
     return {"ping_ancestor_transactions": bool_to_string(ping_ancestor_transactions),
             "transaction_id": transaction}
 
@@ -18,20 +18,20 @@ def _make_transactional_request(command_name, params, **kwargs):
 def _make_formatted_transactional_request(command_name, params, format, **kwargs):
     return make_formatted_request(command_name, _add_transaction_params(params), format, **kwargs)
 
-def start_transaction(parent_transaction=None, ping_ansector_transactions=None, timeout=None, attributes=None):
-    params = transaction_params(parent_transaction, ping_ansector_transactions)
+def start_transaction(parent_transaction=None, ping_ancestor_transactions=None, timeout=None, attributes=None):
+    params = transaction_params(parent_transaction, ping_ancestor_transactions)
     timeout = get_value(timeout, config.TRANSACTION_TIMEOUT)
     if timeout is not None:
         params["timeout"] = int(timeout)
     params["attributes"] = get_value(attributes, {})
     return make_formatted_request("start_tx", params, None)
 
-def abort_transaction(transaction, ping_ansector_transactions=None):
-    make_request("abort_tx", transaction_params(transaction, ping_ansector_transactions))
+def abort_transaction(transaction, ping_ancestor_transactions=None):
+    make_request("abort_tx", transaction_params(transaction, ping_ancestor_transactions))
 
-def commit_transaction(transaction, ping_ansector_transactions=None):
-    make_request("commit_tx", transaction_params(transaction, ping_ansector_transactions))
+def commit_transaction(transaction, ping_ancestor_transactions=None):
+    make_request("commit_tx", transaction_params(transaction, ping_ancestor_transactions))
 
-def ping_transaction(transaction, ping_ansector_transactions=None):
-    make_request("ping_tx", transaction_params(transaction, ping_ansector_transactions))
+def ping_transaction(transaction, ping_ancestor_transactions=None):
+    make_request("ping_tx", transaction_params(transaction, ping_ancestor_transactions))
 

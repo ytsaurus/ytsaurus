@@ -25,12 +25,12 @@ class Transaction(object):
     stack = []
 
     initial_transaction = "0-0-0-0"
-    initial_ping_ansector_transactions = False
+    initial_ping_ancestor_transactions = False
 
     def __init__(self, timeout=None, attributes=None):
         if not Transaction.stack:
             Transaction.initial_transaction = config.TRANSACTION
-            Transaction.initial_ping_ansector_transactions = config.PING_ANSECTOR_TRANSACTIONS
+            Transaction.initial_ping_ancestor_transactions = config.PING_ANCESTOR_TRANSACTIONS
 
         self.transaction_id = start_transaction(timeout=timeout, attributes=attributes)
         Transaction.stack.append(self.transaction_id)
@@ -72,10 +72,10 @@ class Transaction(object):
     def _update_global_config(self):
         if Transaction.stack:
             config.TRANSACTION = Transaction.stack[-1]
-            config.PING_ANSECTOR_TRANSACTIONS = True
+            config.PING_ANCESTOR_TRANSACTIONS = True
         else:
             config.TRANSACTION = Transaction.initial_transaction
-            config.PING_ANSECTOR_TRANSACTIONS = Transaction.initial_ping_ansector_transactions
+            config.PING_ANCESTOR_TRANSACTIONS = Transaction.initial_ping_ancestor_transactions
 
 class PingTransaction(Thread):
     # delay and step in seconds
