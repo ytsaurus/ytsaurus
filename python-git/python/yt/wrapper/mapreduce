@@ -423,7 +423,7 @@ Examples:
 
     if args.tx is not None:
         config.TRANSACTION = args.tx
-    config.PING_ANSECTOR_TRANSACTIONS = args.pingtx
+    config.PING_ANCESTOR_TRANSACTIONS = args.pingtx
 
     if args.memlimit is not None:
         config.MEMORY_LIMIT = int(args.memlimit) * config.MB
