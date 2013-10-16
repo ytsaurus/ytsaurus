@@ -212,7 +212,7 @@ def add_create_parser(add_parser):
 def get(args):
     result = yt.get(args.path, spec=args.spec, attributes=args.attribute, format=args.format)
     if args.format is None:
-        print get_structure_writer("YT_STRUCTURED_DATA_FORMAT")(result)
+        sys.stdout.write(get_structure_writer("YT_STRUCTURED_DATA_FORMAT")(result))
     else:
         print result
 
