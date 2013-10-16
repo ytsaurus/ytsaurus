@@ -438,7 +438,7 @@ protected:
         {
             TTask::OnJobAborted(joblet);
 
-            auto abortReason = Controller->GetAbortReason(joblet->Job);
+            auto abortReason = Controller->GetAbortReason(joblet);
             Controller->PartitionJobCounter.Aborted(1, abortReason);
 
             Controller->UpdateAllTasksIfNeeded(Controller->PartitionJobCounter);
@@ -672,7 +672,7 @@ protected:
         virtual void OnJobAborted(TJobletPtr joblet) override
         {
             Controller->SortDataSizeCounter.Aborted(joblet->InputStripeList->TotalDataSize);
-            auto abortReason = Controller->GetAbortReason(joblet->Job);
+            auto abortReason = Controller->GetAbortReason(joblet);
 
             if (Controller->IsSortedMergeNeeded(Partition)) {
                 Controller->IntermediateSortJobCounter.Aborted(1, abortReason);
@@ -970,7 +970,7 @@ protected:
 
         virtual void OnJobAborted(TJobletPtr joblet) override
         {
-            auto abortReason = Controller->GetAbortReason(joblet->Job);
+            auto abortReason = Controller->GetAbortReason(joblet);
             Controller->SortedMergeJobCounter.Aborted(1, abortReason);
 
             Controller->UpdateAllTasksIfNeeded(Controller->SortedMergeJobCounter);
