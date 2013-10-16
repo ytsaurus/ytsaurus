@@ -2825,6 +2825,9 @@ bool TOperationControllerBase::CheckKeyColumnsCompatible(
 
 EAbortReason TOperationControllerBase::GetAbortReason(TJobPtr job)
 {
+    if (!job) {
+        return EAbortReason::Other;
+    }
     auto error = FromProto(job->Result().error());
     return error.Attributes().Get<EAbortReason>("abort_reason", EAbortReason::Scheduler);
 }
@@ -3013,15 +3016,7 @@ void TOperationControllerBase::BuildProgressYson(IYsonConsumer* consumer)
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     BuildYsonMapFluently(consumer)
-        .Item("jobs").BeginMap()
-            .Item("total").Value(GetTotalJobCount())
-            .Item("pending").Value(GetPendingJobCount())
-            .Item("running").Value(JobCounter.GetRunning())
-            .Item("completed").Value(JobCounter.GetCompleted())
-            .Item("failed").Value(JobCounter.GetFailed())
-            .Item("aborted").Value(JobCounter.GetAborted())
-            .Item("lost").Value(JobCounter.GetLost())
-        .EndMap()
+        .Item("jobs").Value(JobCounter)
         .Item("job_statistics").BeginMap()
             .Item("completed").Value(CompletedJobStatistics)
             .Item("failed").Value(FailedJobStatistics)
