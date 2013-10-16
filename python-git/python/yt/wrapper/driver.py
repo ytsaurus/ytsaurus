@@ -185,7 +185,6 @@ def make_request(command_name, params,
             return response.content()
     else:
         raise YtResponseError(url, headers, response.error())
-    
 
 def make_formatted_request(command_name, params, format, **kwargs):
     # None format means that we want parsed output (as yson structure) instead of string.

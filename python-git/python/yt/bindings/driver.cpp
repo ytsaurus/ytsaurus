@@ -42,10 +42,8 @@
 ///////////////////////////////////////////////////////////////////////////////
 
 namespace NYT {
-
 namespace NPython {
 
-///////////////////////////////////////////////////////////////////////////////
 
 using namespace NFormats;
 using namespace NDriver;
@@ -277,5 +275,7 @@ extern "C" EXPORT_SYMBOL void initdriver_lib()
 
 // symbol required for the debug version
 extern "C" EXPORT_SYMBOL void initdriver_lib_d()
-{ initdriver_lib(); }
+{
+	initdriver_lib();
+}
 
