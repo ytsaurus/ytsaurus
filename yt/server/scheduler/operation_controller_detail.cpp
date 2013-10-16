@@ -1861,11 +1861,6 @@ TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(
             while (it != candidateTasks.end()) {
                 auto task = it->second;
 
-                // Check min memory demand for early exit.
-                if (task->GetMinNeededResources().memory() > jobLimits.memory()) {
-                    break;
-                }
-
                 // Make sure that the task is ready to launch jobs.
                 // Remove pending hint if not.
                 if (task->GetPendingJobCount() == 0) {
@@ -1874,6 +1869,11 @@ TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(
                     YCHECK(nonLocalTasks.erase(task) == 1);
                     UpdateTask(task);
                     continue;
+                }
+
+                // Check min memory demand for early exit.
+                if (task->GetMinNeededResources().memory() > jobLimits.memory()) {
+                    break;
                 }
 
                 if (!CheckJobLimits(node, task, jobLimits)) {
