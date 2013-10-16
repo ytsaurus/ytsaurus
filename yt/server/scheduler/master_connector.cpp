@@ -989,21 +989,21 @@ private:
             CancelableControlInvoker,
             BIND(&TImpl::RefreshTransactions, MakeWeak(this)),
             Config->TransactionsRefreshPeriod,
-            EPeriodicInvokerMode::Manual);
+            EPeriodicExecutorMode::Manual);
         TransactionRefreshExecutor->Start();
 
         OperationNodesUpdateExecutor = New<TPeriodicExecutor>(
             CancelableControlInvoker,
             BIND(&TImpl::UpdateOperationNodes, MakeWeak(this)),
             Config->OperationsUpdatePeriod,
-            EPeriodicInvokerMode::Manual);
+            EPeriodicExecutorMode::Manual);
         OperationNodesUpdateExecutor->Start();
 
         WatchersExecutor = New<TPeriodicExecutor>(
             CancelableControlInvoker,
             BIND(&TImpl::UpdateWatchers, MakeWeak(this)),
             Config->WatchersUpdatePeriod,
-            EPeriodicInvokerMode::Manual);
+            EPeriodicExecutorMode::Manual);
         WatchersExecutor->Start();
     }
 
@@ -1032,7 +1032,7 @@ private:
             CancelableControlInvoker,
             BIND(&TImpl::BuildSnapshot, MakeWeak(this)),
             Config->SnapshotPeriod,
-            EPeriodicInvokerMode::Manual);
+            EPeriodicExecutorMode::Manual);
         SnapshotExecutor->Start();
     }
 

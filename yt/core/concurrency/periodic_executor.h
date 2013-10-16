@@ -12,7 +12,7 @@ namespace NConcurrency {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Describes if manual calls to #TPeriodicExecutor::ScheduleNext are needed.
-DECLARE_ENUM(EPeriodicInvokerMode,
+DECLARE_ENUM(EPeriodicExecutorMode,
     (Automatic)
     (Manual)
 );
@@ -36,7 +36,7 @@ public:
         IInvokerPtr invoker,
         TClosure callback,
         TDuration period,
-        EPeriodicInvokerMode mode = EPeriodicInvokerMode::Automatic,
+        EPeriodicExecutorMode mode = EPeriodicExecutorMode::Automatic,
         TDuration splay = TDuration::Zero());
 
     //! Starts the instance.
@@ -56,7 +56,7 @@ private:
     IInvokerPtr Invoker;
     TClosure Callback;
     TDuration Period;
-    EPeriodicInvokerMode Mode;
+    EPeriodicExecutorMode Mode;
     TDuration Splay;
 
     TAtomic Started;

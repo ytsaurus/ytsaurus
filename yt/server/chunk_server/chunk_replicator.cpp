@@ -102,7 +102,7 @@ void TChunkReplicator::Initialize()
         Bootstrap->GetMetaStateFacade()->GetEpochInvoker(EStateThreadQueue::ChunkMaintenance),
         BIND(&TChunkReplicator::OnPropertiesUpdate, MakeWeak(this)),
         Config->ChunkPropertiesUpdatePeriod,
-        EPeriodicInvokerMode::Manual);
+        EPeriodicExecutorMode::Manual);
     PropertiesUpdateExecutor->Start();
 
     auto nodeTracker = Bootstrap->GetNodeTracker();

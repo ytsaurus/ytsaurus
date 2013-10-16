@@ -40,7 +40,7 @@ void TGarbageCollector::StartSweep()
         Bootstrap->GetMetaStateFacade()->GetEpochInvoker(),
         BIND(&TGarbageCollector::OnSweep, MakeWeak(this)),
         Config->GCSweepPeriod,
-        EPeriodicInvokerMode::Manual);
+        EPeriodicExecutorMode::Manual);
     SweepExecutor->Start();
 }
 

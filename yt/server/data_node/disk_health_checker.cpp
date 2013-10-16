@@ -31,7 +31,7 @@ TDiskHealthChecker::TDiskHealthChecker(
         invoker,
         BIND(&TDiskHealthChecker::OnCheck, Unretained(this)),
         Config->CheckPeriod,
-        EPeriodicInvokerMode::Manual))
+        EPeriodicExecutorMode::Manual))
     , FailedLock(0)
 { }
 

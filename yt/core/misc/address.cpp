@@ -403,7 +403,7 @@ Stroka TAddressResolver::GetLocalHostName()
                 AddressResolverQueue->GetInvoker(),
                 BIND(&TAddressResolver::CheckLocalHostResolution, this),
                 TDuration::Minutes(1),
-                EPeriodicInvokerMode::Automatic,
+                EPeriodicExecutorMode::Automatic,
                 TDuration::Minutes(1));
         }
     }
