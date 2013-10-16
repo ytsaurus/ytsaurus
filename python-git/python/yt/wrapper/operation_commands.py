@@ -95,7 +95,10 @@ def get_operation_state(operation):
 
 def get_operation_progress(operation):
     operation_path = os.path.join(OPERATIONS_PATH, operation)
-    return get_attribute(operation_path, "progress/jobs")
+    progress = get_attribute(operation_path, "progress/jobs")
+    if isinstance(progress["aborted"], dict):
+        progress["aborted"] = progress["aborted"]["total"]
+    return progress
 
 class PrintOperationInfo(object):
     """ Caches operation state and prints info by update"""
