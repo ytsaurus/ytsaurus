@@ -14,6 +14,9 @@ class TestAcls(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
+    def test_missing_user_name(self):
+        with pytest.raises(YtError): command('create', {'type': 'user'})
+
     def test_default_acl_sanity(self):
         create_user('u')
         with pytest.raises(YtError): set('/', {}, user='u')
@@ -312,3 +315,32 @@ class TestAcls(YTEnvSetup):
         assert exists('//tmp/d/foo', user='u')
         remove('//tmp/d/foo', user='u')
         remove('//tmp/d', user='u')
+
+    def test_copy_account1(self):
+        create_account('a')
+        create_user('u')
+
+        set('//tmp/x', {})
+        set('//tmp/x/@account', 'a')
+
+        with pytest.raises(YtError): copy('//tmp/x', '//tmp/y', user='u', opt=['/preserve_account=true'])
+
+    def test_copy_account2(self):
+        create_account('a')
+        create_user('u')
+        set('//sys/accounts/a/@acl/end', self._make_ace('allow', 'u', 'use'))
+
+        set('//tmp/x', {})
+        set('//tmp/x/@account', 'a')
+
+        copy('//tmp/x', '//tmp/y', user='u', opt=['/preserve_account=true'])
+        assert get('//tmp/y/@account') == 'a'
+
+    def test_copy_account3(self):
+        create_account('a')
+        create_user('u')
+
+        set('//tmp/x', {'u' : 'v'})
+        set('//tmp/x/u/@account', 'a')
+
+        with pytest.raises(YtError): copy('//tmp/x', '//tmp/y', user='u', opt=['/preserve_account=true'])

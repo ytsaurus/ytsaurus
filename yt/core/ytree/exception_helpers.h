@@ -20,6 +20,7 @@ void ThrowNoSuchUserAttribute(const Stroka& key);
 void ThrowVerbNotSuppored(const Stroka& verb, const TNullable<Stroka>& resolveType = Null);
 void ThrowCannotHaveChildren(IConstNodePtr node);
 void ThrowAlreadyExists(IConstNodePtr node);
+void ThrowCannotRemoveRoot();
 void ThrowCannotRemoveAttribute(const Stroka& key);
 void ThrowCannotSetSystemAttribute(const Stroka& key);
 void ThrowCannotSetOpaqueAttribute(const Stroka& key);

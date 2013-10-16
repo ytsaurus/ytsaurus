@@ -81,8 +81,9 @@ struct INode
 #undef DECLARE_AS_METHODS
 
     //! Returns the parent of the node.
-    //! NULL indicates that the current node is the root.
+    //! |nullptr| indicates that the current node is the root.
     virtual ICompositeNodePtr GetParent() const = 0;
+    
     //! Sets the parent of the node.
     /*!
      *  This method is called automatically when one subtree (possibly)

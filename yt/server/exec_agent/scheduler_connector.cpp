@@ -43,7 +43,7 @@ void TSchedulerConnector::Start()
         ControlInvoker,
         BIND(&TThis::SendHeartbeat, MakeWeak(this)),
         Config->HeartbeatPeriod,
-        EPeriodicInvokerMode::Manual,
+        EPeriodicExecutorMode::Manual,
         Config->HeartbeatSplay);
 
     // Schedule an out-of-order heartbeat whenever a job finishes

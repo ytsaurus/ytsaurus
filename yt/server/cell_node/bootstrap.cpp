@@ -211,7 +211,6 @@ void TBootstrap::Run()
     JobProxyConfig->SupervisorConnection = New<NBus::TTcpBusClientConfig>();
     JobProxyConfig->SupervisorConnection->Address = LocalDescriptor.Address;
     JobProxyConfig->SupervisorRpcTimeout = Config->ExecAgent->SupervisorRpcTimeout;
-    JobProxyConfig->MasterRpcTimeout = Config->Masters->RpcTimeout;
     // TODO(babenko): consider making this priority configurable
     JobProxyConfig->SupervisorConnection->Priority = 6;
 

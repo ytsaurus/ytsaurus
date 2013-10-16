@@ -41,7 +41,7 @@ void TAccessTracker::StartFlush()
         Bootstrap->GetMetaStateFacade()->GetEpochInvoker(),
         BIND(&TAccessTracker::OnFlush, MakeWeak(this)),
         Config->StatisticsFlushPeriod,
-        EPeriodicInvokerMode::Manual);
+        EPeriodicExecutorMode::Manual);
     FlushExecutor->Start();
 }
 

@@ -157,7 +157,7 @@ private:
                     Controller->Spec->JobIO,
                     AggregateStatistics(statistics)) +
                 GetFootprintMemorySize() +
-                Controller->Spec->Mapper->MemoryLimit);
+                Controller->GetMapMemoryReserve());
             return result;
         }
 
@@ -178,7 +178,7 @@ private:
             AddFinalOutputSpecs(jobSpec, joblet);
 
             auto* jobSpecExt = jobSpec->MutableExtension(TMapJobSpecExt::map_job_spec_ext);
-            Controller->InitUserJobSpec(jobSpecExt->mutable_mapper_spec(), joblet);
+            Controller->InitUserJobSpec(jobSpecExt->mutable_mapper_spec(), joblet, Controller->GetMapMemoryReserve());
         }
 
         virtual void OnJobCompleted(TJobletPtr joblet) override
@@ -186,6 +186,12 @@ private:
             TTask::OnJobCompleted(joblet);
 
             RegisterOutput(joblet, joblet->JobIndex);
+        }
+
+        virtual void OnJobAborted(TJobletPtr joblet) override
+        {
+            TTask::OnJobAborted(joblet);
+            Controller->UpdateAllTasksIfNeeded(Controller->JobCounter);
         }
 
     };
@@ -272,6 +278,11 @@ private:
     virtual bool IsCompleted() const override
     {
         return MapTask->IsCompleted();
+    }
+
+    i64 GetMapMemoryReserve() const
+    {
+        return GetMemoryReserve(JobCounter, Spec->Mapper);
     }
 
     // Progress reporting.

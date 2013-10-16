@@ -789,6 +789,13 @@ void TObjectProxyBase::ForwardToLeader(IServiceContextPtr context)
 
 void TObjectProxyBase::OnLeaderResponse(IServiceContextPtr context, TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
 {
+    if (!batchRsp->IsOK()) {
+        auto error = batchRsp->GetError();
+        LOG_DEBUG(error, "Error forwarding request to leader");
+        context->Reply(error);
+        return;
+    }
+
     auto responseMessage = batchRsp->GetResponseMessage(0);
     NRpc::NProto::TResponseHeader responseHeader;
     YCHECK(ParseResponseHeader(responseMessage, &responseHeader));

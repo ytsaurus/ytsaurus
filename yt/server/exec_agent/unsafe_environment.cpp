@@ -150,6 +150,9 @@ public:
             }
         }
 
+        // Wait until job proxy finishes.
+        OnExit.Get();
+
         if (uid > 0) {
             try {
                 KilallByUid(uid);

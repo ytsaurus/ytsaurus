@@ -15,7 +15,7 @@ TPeriodicExecutor::TPeriodicExecutor(
     IInvokerPtr invoker,
     TClosure callback,
     TDuration period,
-    EPeriodicInvokerMode mode,
+    EPeriodicExecutorMode mode,
     TDuration splay)
     : Invoker(invoker)
     , Callback(callback)
@@ -89,7 +89,7 @@ void TPeriodicExecutor::PostCallback()
             AtomicSet(Busy, true);
             TDelayedExecutor::CancelAndClear(Cookie);
             Callback.Run();
-            if (Mode == EPeriodicInvokerMode::Automatic) {
+            if (Mode == EPeriodicExecutorMode::Automatic) {
                 ScheduleNext();
             }
         }

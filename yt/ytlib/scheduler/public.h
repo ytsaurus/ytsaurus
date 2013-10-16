@@ -49,6 +49,13 @@ DECLARE_ENUM(EUnavailableChunkAction,
     (Wait)
 );
 
+DECLARE_ENUM(EAbortReason,
+    (Scheduler)
+    (FailedChunks)
+    (ResourceOverdraft)
+    (Other)
+);
+
 class TSchedulerServiceProxy;
 
 class TJobIOConfig;

@@ -39,7 +39,7 @@ void TRequestTracker::StartFlush()
         Bootstrap->GetMetaStateFacade()->GetEpochInvoker(),
         BIND(&TRequestTracker::OnFlush, MakeWeak(this)),
         Config->StatisticsFlushPeriod,
-        EPeriodicInvokerMode::Manual);
+        EPeriodicExecutorMode::Manual);
     FlushInvoker->Start();
 }
 

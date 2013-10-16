@@ -234,6 +234,27 @@ void WriteEscaped(
     }
 }
 
+ui32 CalculateEscapedLength(
+    const TStringBuf& string,
+    const TLookupTable& lookupTable,
+    const TEscapeTable& escapeTable,
+    char escapingSymbol)
+{
+    auto* begin = string.begin();
+    auto* end = string.end();
+    auto* next = begin;
+    int length = 0;
+    for (; begin != end; begin = next) {
+        next = lookupTable.FindNext(begin, end);
+        length += next - begin;
+        if (next != end) {
+            ++next;
+            length += 2;
+        }
+    }
+    return length;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NFormats

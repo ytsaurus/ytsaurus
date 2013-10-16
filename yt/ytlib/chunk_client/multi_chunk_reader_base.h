@@ -102,7 +102,9 @@ protected:
     void PrepareNextChunk();
     void ProcessOpenedReader(const TSession& session);
     void ProcessFinishedReader(const  TSession& reader);
+
     void AddFailedChunk(const TSession& session);
+    void OnFetchingComplete();
 
 };
 

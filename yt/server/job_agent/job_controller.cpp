@@ -11,6 +11,7 @@
 #include <server/data_node/master_connector.h>
 
 #include <server/exec_agent/slot_manager.h>
+#include <server/exec_agent/public.h>
 
 #include <server/cell_node/bootstrap.h>
 
@@ -194,7 +195,7 @@ void TJobController::AbortJob(IJobPtr job)
     LOG_INFO("Job abort requested (JobId: %s)",
         ~ToString(job->GetId()));
 
-    job->Abort(TError("Job aborted by scheduler"));
+    job->Abort(TError(NExecAgent::EErrorCode::AbortByScheduler, "Job aborted by scheduler"));
 }
 
 void TJobController::RemoveJob(IJobPtr job)
@@ -225,6 +226,7 @@ void TJobController::UpdateJobResourceUsage(IJobPtr job, const TNodeResources& u
 
     if (!Dominates(GetResourceLimits(), GetResourceUsage(false) + delta)) {
         job->Abort(TError(
+            NExecAgent::EErrorCode::ResourceOverdraft,
             "Failed to increase resource usage (OldUsage: {%s}, NewUsage: {%s})",
             ~FormatResources(oldUsage),
             ~FormatResources(usage)));
@@ -236,6 +238,7 @@ void TJobController::UpdateJobResourceUsage(IJobPtr job, const TNodeResources& u
         auto error = tracker.TryAcquire(EMemoryConsumer::Job, delta.memory());
         if (!error.IsOK()) {
             job->Abort(TError(
+                NExecAgent::EErrorCode::ResourceOverdraft,
                 "Failed to increase resource usage (OldUsage: {%s}, NewUsage: {%s})",
                 ~FormatResources(oldUsage),
                 ~FormatResources(usage))

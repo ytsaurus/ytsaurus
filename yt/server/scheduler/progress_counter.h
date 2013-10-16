@@ -30,12 +30,13 @@ public:
     i64 GetPending() const;
     i64 GetFailed() const;
     i64 GetAborted() const;
+    i64 GetAborted(EAbortReason reason) const;
     i64 GetLost() const;
 
     void Start(i64 count);
     void Completed(i64 count);
     void Failed(i64 count);
-    void Aborted(i64 count);
+    void Aborted(i64 count, EAbortReason reason = EAbortReason::Other);
     void Lost(i64 count);
 
     void Persist(TStreamPersistenceContext& context);
@@ -47,8 +48,9 @@ private:
     i64 Completed_;
     i64 Pending_;
     i64 Failed_;
-    i64 Aborted_;
     i64 Lost_;
+
+    std::vector<i64> Aborted_;
 
 };
 

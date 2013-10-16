@@ -27,6 +27,7 @@ TJob::TJob(
     , State_(EJobState::Waiting)
     , ResourceUsage_(resourceUsage)
     , SpecBuilder_(std::move(specBuilder))
+    , Preemptable_(false)
 { }
 
 TDuration TJob::GetDuration() const

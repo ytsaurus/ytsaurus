@@ -25,6 +25,8 @@
 
 namespace NYT {
 
+using namespace NConcurrency;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger Logger("Network");
@@ -376,12 +378,11 @@ TErrorOr<TNetworkAddress> TAddressResolver::DoResolve(const Stroka& hostName)
 
 Stroka TAddressResolver::GetLocalHostName()
 {
-    if (GetLocalHostNameFailed) {
-        return "<unknown>";
-    }
-
     {
-        TGuard<TSpinLock> guard(LocalHostNameLock);
+        TGuard<TSpinLock> guard(LocalHostLock);
+        if (GetLocalHostNameFailed) {
+            return "<unknown>";
+        }
         if (!CachedLocalHostName.empty()) {
             return CachedLocalHostName;
         }
@@ -390,9 +391,20 @@ Stroka TAddressResolver::GetLocalHostName()
     auto result = DoGetLocalHostName();
 
     {
-        TGuard<TSpinLock> guard(LocalHostNameLock);
+        TGuard<TSpinLock> guard(LocalHostLock);
         if (CachedLocalHostName.empty()) {
             CachedLocalHostName = result;
+        }
+        // Sometimes the local DNS resolver crashes when the program is still running.
+        // This can prevent our services from working properly (e.g. all spawned jobs will fail).
+        // To avoid this, we run periodic checks to see if localhost can still be resolved.
+        if (!LocalHostChecker) {
+            LocalHostChecker = New<TPeriodicExecutor>(
+                AddressResolverQueue->GetInvoker(),
+                BIND(&TAddressResolver::CheckLocalHostResolution, this),
+                TDuration::Minutes(1),
+                EPeriodicExecutorMode::Automatic,
+                TDuration::Minutes(1));
         }
     }
 
@@ -410,7 +422,7 @@ Stroka TAddressResolver::DoGetLocalHostName()
             << TError::FromSystem();
     }
 
-    LOG_INFO("LocalHost reported by gethostname: %s", hostName);
+    LOG_INFO("Localhost reported by gethostname: %s", hostName);
 
     addrinfo hints;
     memset(&hints, 0, sizeof(hints));
@@ -430,7 +442,7 @@ Stroka TAddressResolver::DoGetLocalHostName()
         GetLocalHostNameFailed = true;
         auto gaiError = TError(Stroka(gai_strerror(gaiResult)))
             << TErrorAttribute("errno", gaiResult);
-        THROW_ERROR_EXCEPTION("Unable to determinate localhost FQDN: getaddrinfo failed")
+        THROW_ERROR_EXCEPTION("Unable to determine localhost FQDN: getaddrinfo failed")
             << gaiError;
     }
 
@@ -443,15 +455,28 @@ Stroka TAddressResolver::DoGetLocalHostName()
         if ((currentInfo->ai_family == AF_INET && Config->EnableIPv4) ||
             (currentInfo->ai_family == AF_INET6 && Config->EnableIPv6))
         {
-            LOG_INFO("LocalHost FQDN reported by getaddrinfo: %s", canonname);
+            LOG_INFO("Localhost FQDN reported by getaddrinfo: %s", canonname);
             return Stroka(canonname);
         }
     }
 
     freeaddrinfo(addrInfo);
 
-    GetLocalHostNameFailed = true;
-    THROW_ERROR_EXCEPTION("Unable to determinate localhost FQDN: no matching addrinfo entry found");
+    {
+        TGuard<TSpinLock> guard(LocalHostLock);
+    	GetLocalHostNameFailed = true;
+    }
+
+    THROW_ERROR_EXCEPTION("Unable to determine localhost FQDN: no matching addrinfo entry found");
+}
+
+void TAddressResolver::CheckLocalHostResolution()
+{
+    try {
+        DoGetLocalHostName();
+    } catch (const std::exception& ex) {
+        LOG_FATAL(ex, "Localhost has failed to resolve");
+    }
 }
 
 void TAddressResolver::PurgeCache()
@@ -468,7 +493,7 @@ void TAddressResolver::Configure(TAddressResolverConfigPtr config)
     Config = config;
 
     if (config->LocalHostFqdn) {
-        TGuard<TSpinLock> guard(LocalHostNameLock);
+        TGuard<TSpinLock> guard(LocalHostLock);
         CachedLocalHostName = *config->LocalHostFqdn;
         LOG_INFO("LocalHost FQDN configured: %s", ~CachedLocalHostName);
     }

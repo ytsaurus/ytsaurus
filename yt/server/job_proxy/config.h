@@ -29,7 +29,6 @@ public:
     // Filled by exec agent.
     NBus::TTcpBusClientConfigPtr SupervisorConnection;
     TDuration SupervisorRpcTimeout;
-    TDuration MasterRpcTimeout;
 
     Stroka SandboxName;
 
@@ -51,8 +50,6 @@ public:
     {
         RegisterParameter("supervisor_connection", SupervisorConnection);
         RegisterParameter("supervisor_rpc_timeout", SupervisorRpcTimeout)
-            .Default(TDuration::Seconds(30));
-        RegisterParameter("master_rpc_timeout", MasterRpcTimeout)
             .Default(TDuration::Seconds(30));
 
         RegisterParameter("sandbox_name", SandboxName)
