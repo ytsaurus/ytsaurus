@@ -206,9 +206,11 @@ TCopyExecutor::TCopyExecutor()
     : TTransactedExecutor(false)
     , SourcePathArg("src_path", "source object path", true, TRichYPath(""), "YPATH")
     , DestinationPathArg("dst_path", "destination object path", true, TRichYPath(""), "YPATH")
+    , PreserveAccountArg("", "preserve_account", "keep the original account of copied nodes", false)
 {
     CmdLine.add(SourcePathArg);
     CmdLine.add(DestinationPathArg);
+    CmdLine.add(PreserveAccountArg);
 }
 
 void TCopyExecutor::BuildArgs(IYsonConsumer* consumer)
@@ -218,7 +220,8 @@ void TCopyExecutor::BuildArgs(IYsonConsumer* consumer)
 
     BuildYsonMapFluently(consumer)
         .Item("source_path").Value(sourcePath)
-        .Item("destination_path").Value(destinationPath);
+        .Item("destination_path").Value(destinationPath)
+        .Item("preserve_account").Value(PreserveAccountArg.getValue());
 
     TTransactedExecutor::BuildArgs(consumer);
 }

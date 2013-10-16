@@ -387,6 +387,11 @@ TCypressNodeBase* TCypressManager::CloneNode(
     YCHECK(sourceNode);
     YCHECK(factory);
 
+    // Validate account access _before_ creating the actual copy.
+    auto securityManager = Bootstrap->GetSecurityManager();
+    auto* account = factory->GetClonedNodeAccount(sourceNode);
+    securityManager->ValidatePermission(account, EPermission::Use);
+
     auto handler = GetHandler(sourceNode);
     auto clonedNode = handler->Clone(sourceNode, factory);
 
@@ -395,8 +400,6 @@ TCypressNodeBase* TCypressManager::CloneNode(
     RegisterNode(std::move(clonedNode));
 
     // Set account.
-    auto securityManager = Bootstrap->GetSecurityManager();
-    auto* account = factory->GetClonedNodeAccount(sourceNode);
     securityManager->SetAccount(clonedNode_, account);
 
     // Set owner.

@@ -1,0 +1,19 @@
+#pragma once
+
+#include "common.h"
+
+namespace NYT {
+namespace NLfAlloc {
+
+////////////////////////////////////////////////////////////////////////////////
+
+i64 GetCurrentUsed();
+i64 GetCurrentMmaped();
+i64 GetCurrentLargeBlocks();
+i64 GetCurrentSmallBlocks();
+i64 GetCurrentSystem();
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // NLfAlloc
+} // NYT

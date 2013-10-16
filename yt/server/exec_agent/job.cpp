@@ -45,6 +45,7 @@
 #include <server/data_node/block_store.h>
 
 #include <server/job_proxy/config.h>
+#include <server/job_proxy/public.h>
 
 #include <server/job_agent/job.h>
 
@@ -111,28 +112,6 @@ public:
 
         JobSpec.Swap(&jobSpec);
 
-        UserJobSpec = nullptr;
-        if (JobSpec.HasExtension(TMapJobSpecExt::map_job_spec_ext)) {
-            const auto& jobSpecExt = JobSpec.GetExtension(TMapJobSpecExt::map_job_spec_ext);
-            UserJobSpec = &jobSpecExt.mapper_spec();
-        } else if (JobSpec.HasExtension(TReduceJobSpecExt::reduce_job_spec_ext)) {
-            const auto& jobSpecExt = JobSpec.GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
-            UserJobSpec = &jobSpecExt.reducer_spec();
-        } else if (JobSpec.HasExtension(TPartitionJobSpecExt::partition_job_spec_ext)) {
-            const auto& jobSpecExt = JobSpec.GetExtension(TPartitionJobSpecExt::partition_job_spec_ext);
-            if (jobSpecExt.has_mapper_spec()) {
-                UserJobSpec = &jobSpecExt.mapper_spec();
-            }
-        }
-
-        if (UserJobSpec) {
-            // Adjust memory usage according to memory_reserve.
-            auto memoryUsage = ResourceUsage.memory();
-            memoryUsage -= UserJobSpec->memory_limit();
-            memoryUsage += UserJobSpec->memory_reserve();
-            ResourceUsage.set_memory(memoryUsage);
-        }
-
         NodeDirectory->AddDescriptor(InvalidNodeId, Bootstrap->GetLocalDescriptor());
 
         Logger.AddTag(Sprintf("JobId: %s", ~ToString(jobId)));
@@ -164,17 +143,11 @@ public:
 
         if (JobState == EJobState::Waiting) {
             YCHECK(!Slot);
-            SetResult(TError("Job aborted by scheduler"));
-            JobState = EJobState::Aborted;
+            SetResult(error);
             JobPhase = EJobPhase::Finished;
-            SetResourceUsage(ZeroNodeResources());
-            ResourcesReleased_.Fire();
+            FinalizeJob();
         } else {
-            Slot->GetInvoker()->Invoke(BIND(
-                &TJob::DoAbort,
-                MakeStrong(this),
-                error,
-                EJobState::Aborted));
+            Slot->GetInvoker()->Invoke(BIND(&TJob::DoAbort, MakeStrong(this), error));
         }
     }
 
@@ -228,24 +201,33 @@ public:
             return;
         }
 
-        if (JobResult.HasValue() && JobResult->error().code() != TError::OK) {
+        if (JobResult && JobResult->error().code() != TError::OK) {
             return;
         }
 
         JobResult = jobResult;
-
         auto resultError = FromProto(jobResult.error());
+
         if (resultError.IsOK()) {
             return;
-        } else if (IsFatalError(resultError)) {
-            resultError.Attributes().Set("fatal", true);
+        } 
+
+        if (IsFatalError(resultError)) {
+            resultError.Attributes().Set("fatal", IsFatalError(resultError));
             ToProto(JobResult->mutable_error(), resultError);
             FinalJobState = EJobState::Failed;
-        } else if (IsRetriableSystemError(resultError)) {
-            FinalJobState = EJobState::Aborted;
-        } else {
-            FinalJobState = EJobState::Failed;
+            return;
         }
+
+        auto abortReason = GetAbortReason(jobResult);
+        if (abortReason) {
+            resultError.Attributes().Set("abort_reason", abortReason);
+            ToProto(JobResult->mutable_error(), resultError);
+            FinalJobState = EJobState::Aborted;
+            return;
+        }
+
+        FinalJobState = EJobState::Failed;
     }
 
     virtual double GetProgress() const override
@@ -293,7 +275,7 @@ public:
 private:
     TJobId JobId;
     TJobSpec JobSpec;
-    const TUserJobSpec* UserJobSpec;
+
     TNodeResources ResourceLimits;
     NCellNode::TBootstrap* Bootstrap;
 
@@ -359,10 +341,9 @@ private:
             JobPhase = EJobPhase::Running;
             RunJobProxy();
         } catch (const std::exception& ex) {
-            DoAbort(ex, EJobState::Failed);
+            DoAbort(ex);
         }
     }
-
 
     void PrepareConfig()
     {
@@ -373,7 +354,7 @@ private:
         } catch (const std::exception& ex) {
             auto wrappedError = TError("Error deserializing job IO configuration")
                 << ex;
-            DoAbort(wrappedError, EJobState::Failed);
+            DoAbort(wrappedError);
             return;
         }
 
@@ -383,7 +364,7 @@ private:
         } catch (const std::exception& ex) {
             auto error = TError("Error validating job IO configuration")
                 << ex;
-            DoAbort(error, EJobState::Failed);
+            DoAbort(error);
             return;
         }
 
@@ -403,7 +384,7 @@ private:
         } catch (const std::exception& ex) {
             auto error = TError(EErrorCode::ConfigCreationFailed, "Error saving job proxy config")
                 << ex;
-            DoAbort(error, EJobState::Failed);
+            DoAbort(error);
             return;
         }
     }
@@ -430,28 +411,30 @@ private:
 
     void PrepareUserFiles()
     {
-        if (!UserJobSpec)
+        const TUserJobSpec* userJobSpec = nullptr;
+        if (JobSpec.HasExtension(TMapJobSpecExt::map_job_spec_ext)) {
+            const auto& jobSpecExt = JobSpec.GetExtension(TMapJobSpecExt::map_job_spec_ext);
+            userJobSpec = &jobSpecExt.mapper_spec();
+        } else if (JobSpec.HasExtension(TReduceJobSpecExt::reduce_job_spec_ext)) {
+            const auto& jobSpecExt = JobSpec.GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
+            userJobSpec = &jobSpecExt.reducer_spec();
+        } else if (JobSpec.HasExtension(TPartitionJobSpecExt::partition_job_spec_ext)) {
+            const auto& jobSpecExt = JobSpec.GetExtension(TPartitionJobSpecExt::partition_job_spec_ext);
+            if (jobSpecExt.has_mapper_spec()) {
+                userJobSpec = &jobSpecExt.mapper_spec();
+            }
+        }
+
+        if (!userJobSpec)
             return;
 
-        auto invoker = Slot->GetInvoker();
-
-        auto awaiter = New<TParallelAwaiter>(invoker);
-
-        FOREACH (const auto& descriptor, UserJobSpec->regular_files()) {
-            awaiter->Await(
-                BIND(&TJob::PrepareRegularFile, MakeStrong(this), descriptor)
-                    .AsyncVia(invoker)
-                    .Run());
+        FOREACH (const auto& descriptor, userJobSpec->regular_files()) {
+            PrepareRegularFile(descriptor);
         }
 
-        FOREACH (const auto& descriptor, UserJobSpec->table_files()) {
-            awaiter->Await(
-                BIND(&TJob::PrepareTableFile, MakeStrong(this), descriptor)
-                    .AsyncVia(invoker)
-                    .Run());
+        FOREACH (const auto& descriptor, userJobSpec->table_files()) {
+            PrepareTableFile(descriptor);
         }
-
-        CheckedWaitFor(awaiter->Complete());
     }
 
 
@@ -460,14 +443,14 @@ private:
         auto asyncError = ProxyController->Run();
 
         auto exitResult = CheckedWaitFor(asyncError);
+        // NB: we should explicitly call Kill() to clean up possible child processes.
+        ProxyController->Kill(Slot->GetUserId(), TError());
+        
         THROW_ERROR_EXCEPTION_IF_FAILED(exitResult);
 
         if (!IsResultSet()) {
             THROW_ERROR_EXCEPTION("Job proxy exited successfully but job result has not been set");
         }
-
-        // NB: we should explicitly call Kill() to clean up possible child processes.
-        ProxyController->Kill(Slot->GetUserId(), TError());
 
         YCHECK(JobPhase == EJobPhase::Running);
         JobPhase = EJobPhase::Cleanup;
@@ -477,29 +460,30 @@ private:
         YCHECK(JobPhase == EJobPhase::Cleanup);
         JobPhase = EJobPhase::Finished;
 
-        {
-            TGuard<TSpinLock> guard(ResultLock);
-            JobState = FinalJobState;
-        }
-
         FinalizeJob();
     }
 
 
     void FinalizeJob()
     {
-        Slot->Release();
+        if (Slot) {
+            Slot->Release();
+        }
+
+        {
+            TGuard<TSpinLock> guard(ResultLock);
+            JobState = FinalJobState;
+        }
+
         SetResourceUsage(ZeroNodeResources());
         ResourcesReleased_.Fire();
     }
 
-
-    void DoAbort(const TError& error, EJobState resultState)
+    void DoAbort(const TError& error)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
         if (JobPhase == EJobPhase::Finished) {
-            JobState = resultState;
             return;
         }
         JobState = EJobState::Aborting;
@@ -507,11 +491,7 @@ private:
         const auto jobPhase = JobPhase;
         JobPhase = EJobPhase::Cleanup;
 
-        if (resultState == EJobState::Failed) {
-            LOG_ERROR(error, "Job failed, aborting");
-        } else {
-            LOG_INFO(error, "Aborting job");
-        }
+        LOG_INFO(error, "Aborting job");
 
         if (jobPhase >= EJobPhase::Running) {
             // NB: Kill() never throws.
@@ -523,9 +503,8 @@ private:
             Slot->Clean();
         }
 
-        SetResult(error);
         JobPhase = EJobPhase::Finished;
-        JobState = resultState;
+        SetResult(error);
 
         LOG_INFO("Job aborted");
 
@@ -557,9 +536,7 @@ private:
             auto chunkId = FromProto<TChunkId>(chunk.chunk_id());
 
             if (IsErasureChunkId(chunkId)) {
-                DoAbort(
-                    TError("Cannot download erasure chunk %s", ~ToString(chunkId)),
-                    EJobState::Failed);
+                DoAbort(TError("Cannot download erasure chunk %s", ~ToString(chunkId)));
                 break;
             }
 
@@ -571,7 +548,7 @@ private:
                             "Failed to download chunk %s",
                             ~ToString(chunkId))
                             << result;
-                        this_->DoAbort(wrappedError, EJobState::Failed);
+                        this_->DoAbort(wrappedError);
                         return;
                     }
                     this_->CachedChunks.push_back(result.GetValue());
@@ -593,7 +570,6 @@ private:
         return chunks;
     }
 
-
     void PrepareRegularFile(const TRegularFileDescriptor& descriptor)
     {
         try {
@@ -603,7 +579,7 @@ private:
                 PrepareRegularFileViaDownload(descriptor);
             }
         } catch (const std::exception& ex) {
-            DoAbort(ex, EJobState::Failed);
+            DoAbort(ex);
         }
     }
 
@@ -768,6 +744,31 @@ private:
             ~fileName);
     }
 
+    static TNullable<EAbortReason> GetAbortReason(const TJobResult& jobResult)
+    {
+        auto resultError = FromProto(jobResult.error());
+
+        if (resultError.FindMatching(NChunkClient::EErrorCode::AllTargetNodesFailed) || 
+            resultError.FindMatching(NChunkClient::EErrorCode::MasterCommunicationFailed) ||
+            resultError.FindMatching(EErrorCode::ConfigCreationFailed) || 
+            resultError.FindMatching(EExitStatus::SigTerm))
+        {
+            return MakeNullable(EAbortReason::Other);
+        } else if (resultError.FindMatching(EErrorCode::ResourceOverdraft)) {
+            return MakeNullable(EAbortReason::ResourceOverdraft);
+        } else if (resultError.FindMatching(EErrorCode::AbortByScheduler)) {
+            return MakeNullable(EAbortReason::Scheduler);
+        }
+
+        if (jobResult.HasExtension(TSchedulerJobResultExt::scheduler_job_result_ext)) {
+            const auto& schedulerResultExt = jobResult.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+            if (schedulerResultExt.failed_chunk_ids_size() > 0) {
+                return MakeNullable(EAbortReason::FailedChunks);
+            }
+        }
+
+        return Null;
+    }
 
     static bool IsFatalError(const TError& error)
     {
@@ -776,15 +777,6 @@ private:
             error.FindMatching(NSecurityClient::EErrorCode::AuthenticationError) ||
             error.FindMatching(NSecurityClient::EErrorCode::AuthorizationError) ||
             error.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded);
-    }
-
-    static bool IsRetriableSystemError(const TError& error)
-    {
-        return
-            error.FindMatching(NChunkClient::EErrorCode::AllTargetNodesFailed) ||
-            error.FindMatching(NChunkClient::EErrorCode::MasterCommunicationFailed) ||
-            error.FindMatching(EErrorCode::ConfigCreationFailed) ||
-            error.FindMatching(EExitStatus::SigTerm);
     }
 
     void ThrowIfFinished()

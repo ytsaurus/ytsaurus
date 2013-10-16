@@ -388,7 +388,7 @@ i64 TOperationControllerBase::TTask::GetLocality(const Stroka& address) const
     return GetChunkPoolOutput()->GetLocality(address);
 }
 
-bool TOperationControllerBase::TTask::HasInputLocality()
+bool TOperationControllerBase::TTask::HasInputLocality() const
 {
     return true;
 }
@@ -460,7 +460,7 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
         CheckResourceDemandSanity(node, neededResources);
         chunkPoolOutput->Aborted(joblet->OutputCookie);
         // Seems like cached min needed resources are too optimistic.
-        CachedMinNeededResources = GetMinNeededResourcesHeavy();
+        ResetCachedMinNeededResources();
         return nullptr;
     }
 
@@ -473,9 +473,11 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
         BuildJobSpec(joblet, jobSpec);
         Controller->CustomizeJobSpec(joblet, jobSpec);
 
+        auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+        schedulerJobSpecExt->set_job_proxy_memory_control(Controller->Spec->JobProxyMemoryControl);
+
         // Adjust sizes if approximation flag is set.
         if (joblet->InputStripeList->IsApproximate) {
-            auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             schedulerJobSpecExt->set_input_uncompressed_data_size(static_cast<i64>(
                 schedulerJobSpecExt->input_uncompressed_data_size() *
                 ApproximateSizesBoostFactor));
@@ -786,6 +788,11 @@ void TOperationControllerBase::TTask::AddIntermediateOutputSpec(
     options->CompressionCodec = Controller->Spec->IntermediateCompressionCodec;
     outputSpec->set_table_writer_options(ConvertToYsonString(options).Data());
     ToProto(outputSpec->mutable_chunk_list_id(), joblet->ChunkListIds[0]);
+}
+
+void TOperationControllerBase::TTask::ResetCachedMinNeededResources()
+{
+    CachedMinNeededResources.Reset();
 }
 
 const TNodeResources& TOperationControllerBase::TTask::GetMinNeededResources() const
@@ -1327,7 +1334,7 @@ void TOperationControllerBase::OnJobCompleted(TJobPtr job)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    auto& result = job->Result();
+    const auto& result = job->Result();
 
     JobCounter.Completed(1);
     CompletedJobStatistics += result.statistics();
@@ -1342,7 +1349,7 @@ void TOperationControllerBase::OnJobCompleted(TJobPtr job)
 
     RemoveJoblet(job);
 
-    OnTaskUpdated(joblet->Task);
+    UpdateTask(joblet->Task);
 
     if (IsCompleted()) {
         OnOperationCompleted();
@@ -1354,17 +1361,6 @@ void TOperationControllerBase::OnJobFailed(TJobPtr job)
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     const auto& result = job->Result();
-    const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-
-    // If some input chunks have failed then the job is considered aborted rather than failed.
-    if (schedulerResultExt.failed_chunk_ids_size() > 0) {
-        job->SetState(EJobState::Aborted);
-        OnJobAborted(job);
-        FOREACH (const auto& chunkId, schedulerResultExt.failed_chunk_ids()) {
-            OnChunkFailed(FromProto<TChunkId>(chunkId));
-        }
-        return;
-    }
 
     JobCounter.Failed(1);
     FailedJobStatistics += result.statistics();
@@ -1393,15 +1389,25 @@ void TOperationControllerBase::OnJobAborted(TJobPtr job)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
+    auto abortReason = GetAbortReason(job);
     const auto& result = job->Result();
 
-    JobCounter.Aborted(1);
+    JobCounter.Aborted(1, abortReason);
     AbortedJobStatistics += result.statistics();
 
     auto joblet = GetJoblet(job);
     joblet->Task->OnJobAborted(joblet);
 
     RemoveJoblet(job);
+
+    if (abortReason == EAbortReason::FailedChunks) {
+        const auto& result = job->Result();
+        const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+
+        FOREACH (const auto& chunkId, schedulerResultExt.failed_chunk_ids()) {
+            OnChunkFailed(FromProto<TChunkId>(chunkId));
+        }
+    }
 }
 
 void TOperationControllerBase::OnChunkFailed(const TChunkId& chunkId)
@@ -1601,7 +1607,7 @@ void TOperationControllerBase::RegisterTaskGroup(TTaskGroupPtr group)
     TaskGroups.push_back(std::move(group));
 }
 
-void TOperationControllerBase::OnTaskUpdated(TTaskPtr task)
+void TOperationControllerBase::UpdateTask(TTaskPtr task)
 {
     int oldPendingJobCount = CachedPendingJobCount;
     int newPendingJobCount = CachedPendingJobCount + task->GetPendingJobCountDelta();
@@ -1624,6 +1630,14 @@ void TOperationControllerBase::OnTaskUpdated(TTaskPtr task)
         ~FormatResources(CachedNeededResources));
 
     task->CheckCompleted();
+}
+
+void TOperationControllerBase::UpdateAllTasks()
+{
+    for (auto& task: Tasks) {
+        task->ResetCachedMinNeededResources();
+        UpdateTask(task);
+    }
 }
 
 void TOperationControllerBase::MoveTaskToCandidates(
@@ -1649,7 +1663,7 @@ void TOperationControllerBase::AddTaskPendingHint(TTaskPtr task)
             MoveTaskToCandidates(task, group->CandidateTasks);
         }
     }
-    OnTaskUpdated(task);
+    UpdateTask(task);
 }
 
 void TOperationControllerBase::AddAllTaskPendingHints()
@@ -1672,7 +1686,7 @@ void TOperationControllerBase::DoAddTaskLocalityHint(TTaskPtr task, const Stroka
 void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, const Stroka& address)
 {
     DoAddTaskLocalityHint(task, address);
-    OnTaskUpdated(task);
+    UpdateTask(task);
 }
 
 void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, TChunkStripePtr stripe)
@@ -1687,7 +1701,7 @@ void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, TChunkStripePt
             }
         }
     }
-    OnTaskUpdated(task);
+    UpdateTask(task);
 }
 
 void TOperationControllerBase::ResetTaskLocalityDelays()
@@ -1773,7 +1787,7 @@ TJobPtr TOperationControllerBase::DoScheduleLocalJob(
             }
 
             if (task->GetPendingJobCount() == 0) {
-                OnTaskUpdated(task);
+                UpdateTask(task);
                 continue;
             }
 
@@ -1802,7 +1816,7 @@ TJobPtr TOperationControllerBase::DoScheduleLocalJob(
             auto job = bestTask->ScheduleJob(context, jobLimits);
             if (job) {
                 bestTask->SetDelayedTime(Null);
-                OnTaskUpdated(bestTask);
+                UpdateTask(bestTask);
                 return job;
             }
         }
@@ -1840,7 +1854,7 @@ TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(
                 LOG_DEBUG("Task pending hint removed (Task: %s)",
                     ~task->GetId());
                 YCHECK(nonLocalTasks.erase(task) == 1);
-                OnTaskUpdated(task);
+                UpdateTask(task);
             } else {
                 LOG_DEBUG("Task delay deadline reached (Task: %s)", ~task->GetId());
                 MoveTaskToCandidates(task, candidateTasks);
@@ -1853,19 +1867,19 @@ TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(
             while (it != candidateTasks.end()) {
                 auto task = it->second;
 
-                // Check min memory demand for early exit.
-                if (task->GetMinNeededResources().memory() > jobLimits.memory()) {
-                    break;
-                }
-
                 // Make sure that the task is ready to launch jobs.
                 // Remove pending hint if not.
                 if (task->GetPendingJobCount() == 0) {
                     LOG_DEBUG("Task pending hint removed (Task: %s)", ~task->GetId());
                     candidateTasks.erase(it++);
                     YCHECK(nonLocalTasks.erase(task) == 1);
-                    OnTaskUpdated(task);
+                    UpdateTask(task);
                     continue;
+                }
+
+                // Check min memory demand for early exit.
+                if (task->GetMinNeededResources().memory() > jobLimits.memory()) {
+                    break;
                 }
 
                 if (!CheckJobLimits(node, task, jobLimits)) {
@@ -1902,7 +1916,7 @@ TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(
 
                 auto job = task->ScheduleJob(context, jobLimits);
                 if (job) {
-                    OnTaskUpdated(task);
+                    UpdateTask(task);
                     return job;
                 }
 
@@ -2691,6 +2705,7 @@ void TOperationControllerBase::CollectTotals()
 void TOperationControllerBase::CustomPrepare()
 { }
 
+// NB: must preserve order of chunks in the input tables, no shuffling.
 std::vector<TRefCountedChunkSpecPtr> TOperationControllerBase::CollectInputChunks() const
 {
     std::vector<TRefCountedChunkSpecPtr> result;
@@ -2814,9 +2829,35 @@ bool TOperationControllerBase::CheckKeyColumnsCompatible(
     return true;
 }
 
+EAbortReason TOperationControllerBase::GetAbortReason(TJobPtr job)
+{
+    if (!job) {
+        return EAbortReason::Other;
+    }
+    auto error = FromProto(job->Result().error());
+    return error.Attributes().Get<EAbortReason>("abort_reason", EAbortReason::Scheduler);
+}
+
 bool TOperationControllerBase::IsSortedOutputSupported() const
 {
     return false;
+}
+
+void TOperationControllerBase::UpdateAllTasksIfNeeded(const TProgressCounter& jobCounter)
+{
+    if (jobCounter.GetAborted(EAbortReason::ResourceOverdraft) == Config->MaxMemoryReserveAbortJobCount) {
+        UpdateAllTasks();
+    }
+}
+
+i64 TOperationControllerBase::GetMemoryReserve(const TProgressCounter& jobCounter, TUserJobSpecPtr userJobSpec) const
+{
+    bool reserveEnabled = jobCounter.GetAborted(EAbortReason::ResourceOverdraft) < Config->MaxMemoryReserveAbortJobCount;
+    if (reserveEnabled) {
+        return static_cast<i64>(userJobSpec->MemoryLimit * userJobSpec->MemoryReserveFactor);
+    } else {
+        return userJobSpec->MemoryLimit;
+    }
 }
 
 void TOperationControllerBase::RegisterOutput(
@@ -2993,15 +3034,7 @@ void TOperationControllerBase::BuildProgressYson(IYsonConsumer* consumer)
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     BuildYsonMapFluently(consumer)
-        .Item("jobs").BeginMap()
-            .Item("total").Value(GetTotalJobCount())
-            .Item("pending").Value(GetPendingJobCount())
-            .Item("running").Value(JobCounter.GetRunning())
-            .Item("completed").Value(JobCounter.GetCompleted())
-            .Item("failed").Value(JobCounter.GetFailed())
-            .Item("aborted").Value(JobCounter.GetAborted())
-            .Item("lost").Value(JobCounter.GetLost())
-        .EndMap()
+        .Item("jobs").Value(JobCounter)
         .Item("job_statistics").BeginMap()
             .Item("completed").Value(CompletedJobStatistics)
             .Item("failed").Value(FailedJobStatistics)
@@ -3063,8 +3096,6 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
 {
     jobSpec->set_shell_command(config->Command);
     jobSpec->set_memory_limit(config->MemoryLimit);
-    i64 memoryReserve = static_cast<i64>(config->MemoryLimit * config->MemoryReserveFactor);
-    jobSpec->set_memory_reserve(memoryReserve);
     jobSpec->set_use_yamr_descriptors(config->UseYamrDescriptors);
     jobSpec->set_max_stderr_size(config->MaxStderrSize);
     jobSpec->set_enable_core_dump(config->EnableCoreDump);
@@ -3123,12 +3154,15 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
 
 void TOperationControllerBase::InitUserJobSpec(
     NScheduler::NProto::TUserJobSpec* jobSpec,
-    TJobletPtr joblet)
+    TJobletPtr joblet,
+    i64 memoryReserve)
 {
     if (Operation->GetStdErrCount() < Operation->GetMaxStdErrCount()) {
         auto stdErrTransactionId = Operation->GetAsyncSchedulerTransaction()->GetId();
         ToProto(jobSpec->mutable_stderr_transaction_id(), stdErrTransactionId);
     }
+
+    jobSpec->set_memory_reserve(memoryReserve);
 
     jobSpec->add_environment(Sprintf("YT_JOB_INDEX=%d", joblet->JobIndex));
     jobSpec->add_environment(Sprintf("YT_JOB_ID=%s", ~ToString(joblet->Job->GetId())));

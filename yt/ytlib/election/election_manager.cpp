@@ -268,6 +268,7 @@ public:
         : Owner(owner)
         , ControlEpochInvoker(owner->ControlEpochInvoker)
         , Awaiter(New<TParallelAwaiter>(ControlEpochInvoker))
+        , Logger(ElectionLogger)
     {
         Logger.AddTag(Sprintf("RoundId: %s, VoteEpochId: %s",
             ~ToString(TGuid::Create()),
@@ -714,7 +715,7 @@ void TElectionManager::TImpl::StartVoteFor(TPeerId voteId, const TEpochId& voteE
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    State = EPeerState::Voting;
+    SetState(EPeerState::Voting);
     VoteId = voteId;
     VoteEpochId = voteEpoch;
 
@@ -728,7 +729,7 @@ void TElectionManager::TImpl::StartVoting()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    State = EPeerState::Voting;
+    SetState(EPeerState::Voting);
     VoteId = CellManager->GetSelfId();
     VoteEpochId = TGuid::Create();
 

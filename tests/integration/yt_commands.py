@@ -241,7 +241,7 @@ def start_op(op_type, **kwargs):
     if "dont_track" in kwargs:
         del kwargs["dont_track"]
 
-    op_id = command(op_type, kwargs).replace('"', '')
+    op_id = command(op_type, kwargs).strip().replace('"', '')
 
     if track:
         track_op(op_id)

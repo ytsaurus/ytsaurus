@@ -137,8 +137,12 @@ class TestAttributes(YTEnvSetup):
 
         chunk_count = 3**8
         assert len(get('//tmp/t/@chunk_ids')) == chunk_count
+
         codec_info = get('//tmp/t/@compression_statistics')
         assert codec_info['snappy']['chunk_count'] == chunk_count
+
+        erasure_info = get('//tmp/t/@erasure_statistics')
+        assert erasure_info['none']['chunk_count'] == chunk_count
 
     @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
     def test2(self):
@@ -227,7 +231,7 @@ class TestNodeTracker(YTEnvSetup):
         assert get('//sys/nodes/%s/@state' % test_node) == 'online'
 
         set('//sys/nodes/%s/@banned' % test_node, 'true')
-        time.sleep(1)      
+        time.sleep(1)
         assert get('//sys/nodes/%s/@state' % test_node) == 'offline'
 
         set('//sys/nodes/%s/@banned' % test_node, 'false')

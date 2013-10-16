@@ -49,6 +49,10 @@ bool NodeHasKey(
     NCellMaster::TBootstrap* bootstrap,
     const TCypressNodeBase* node);
 
+bool IsParentOf(
+    const TCypressNodeBase* parent,
+    const TCypressNodeBase* descendant);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NCypressServer

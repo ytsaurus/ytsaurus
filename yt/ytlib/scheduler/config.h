@@ -63,6 +63,8 @@ public:
     TNullable<int> MaxFailedJobCount;
     TNullable<int> MaxStdErrCount;
 
+    bool JobProxyMemoryControl;
+
     TOperationSpecBase()
     {
         RegisterParameter("intermediate_data_account", IntermediateDataAccount)
@@ -79,6 +81,10 @@ public:
             .Default(Null);
         RegisterParameter("max_stderr_count", MaxStdErrCount)
             .Default(Null);
+
+        RegisterParameter("job_proxy_memory_control", JobProxyMemoryControl)
+            .Default(true);
+
 
         SetKeepOptions(true);
 
@@ -615,7 +621,7 @@ public:
     {
         RegisterParameter("weight", Weight)
             .Default(1.0)
-            .GreaterThanOrEqual(1.0);
+            .GreaterThanOrEqual(0.0);
         RegisterParameter("min_share_ratio", MinShareRatio)
             .Default(0.0)
             .InRange(0.0, 1.0);
@@ -651,7 +657,7 @@ public:
             .NonEmpty();
         RegisterParameter("weight", Weight)
             .Default(1.0)
-            .GreaterThanOrEqual(1.0);
+            .GreaterThanOrEqual(0.0);
 
         RegisterParameter("min_share_ratio", MinShareRatio)
             .Default(1.0)

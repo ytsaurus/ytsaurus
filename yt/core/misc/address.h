@@ -7,6 +7,8 @@
 
 #include <core/actions/future.h>
 
+#include <core/concurrency/periodic_executor.h>
+
 #ifdef _WIN32
     #include <ws2tcpip.h>
 #else
@@ -120,12 +122,14 @@ private:
     TSpinLock CacheLock;
     yhash_map<Stroka, TNetworkAddress> Cache;
 
-    TSpinLock LocalHostNameLock;
+    TSpinLock LocalHostLock;
+    NConcurrency::TPeriodicExecutorPtr LocalHostChecker;
     bool GetLocalHostNameFailed;
     Stroka CachedLocalHostName;
 
     TErrorOr<TNetworkAddress> DoResolve(const Stroka& hostName);
     Stroka DoGetLocalHostName();
+    void CheckLocalHostResolution();
 
 };
 

@@ -34,6 +34,10 @@ DECLARE_ENUM(EJobProxyExitCode,
     ((RetreiveJobSpecFailed) (26))
 );
 
+DECLARE_ENUM(EErrorCode,
+    ((MemoryLimitExceeded)  (1200))
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NJobProxy

@@ -4,6 +4,8 @@
 
 #include <core/ytree/fluent.h>
 
+#include <numeric>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -19,12 +21,14 @@ TProgressCounter::TProgressCounter()
     , Completed_(0)
     , Pending_(0)
     , Failed_(0)
-    , Aborted_(0)
     , Lost_(0)
+    , Aborted_(EAbortReason::GetDomainSize(), 0)
 { }
 
 TProgressCounter::TProgressCounter(i64 total)
+    : Aborted_(EAbortReason::GetDomainSize(), 0)
 {
+
     Set(total);
 }
 
@@ -37,8 +41,9 @@ void TProgressCounter::Set(i64 total)
     Completed_ = 0;
     Pending_ = total;
     Failed_ = 0;
-    Aborted_ = 0;
     Lost_ = 0;
+
+    std::fill(Aborted_.begin(), Aborted_.end(), 0);
 }
 
 bool TProgressCounter::IsTotalEnabled() const
@@ -84,7 +89,12 @@ i64 TProgressCounter::GetFailed() const
 
 i64 TProgressCounter::GetAborted() const
 {
-    return Aborted_;
+    return std::accumulate(Aborted_.begin(), Aborted_.end(), 0);
+}
+
+i64 TProgressCounter::GetAborted(EAbortReason reason) const
+{
+    return Aborted_[static_cast<int>(reason)];
 }
 
 i64 TProgressCounter::GetLost() const
@@ -118,11 +128,11 @@ void TProgressCounter::Failed(i64 count)
     }
 }
 
-void TProgressCounter::Aborted(i64 count)
+void TProgressCounter::Aborted(i64 count, EAbortReason reason)
 {
     YCHECK(Running_ >= count);
     Running_ -= count;
-    Aborted_ += count;
+    Aborted_[static_cast<int>(reason)] += count;
     if (TotalEnabled_) {
         Pending_ += count;
     }
@@ -193,7 +203,15 @@ void Serialize(const TProgressCounter& counter, IYsonConsumer* consumer)
             .Item("running").Value(counter.GetRunning())
             .Item("completed").Value(counter.GetCompleted())
             .Item("failed").Value(counter.GetFailed())
-            .Item("aborted").Value(counter.GetAborted())
+            .Item("aborted").BeginMap()
+                .Item("total").Value(counter.GetAborted())
+                .DoFor(EAbortReason::GetDomainValues(), [&] (TFluentMap fluent, int value) {
+                    auto abortReason = EAbortReason(value);
+                    fluent
+                        .Item(FormatEnum(abortReason))
+                        .Value(counter.GetAborted(abortReason));
+                })
+            .EndMap()
             .Item("lost").Value(counter.GetLost())
         .EndMap();
 }

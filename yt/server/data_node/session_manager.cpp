@@ -298,8 +298,8 @@ TError TSession::DoWriteBlock(const TSharedRef& block, int blockIndex)
     }
 
     LOG_DEBUG("Started writing block %d (BlockSize: %" PRISZT ")",
-    	blockIndex,
-    	block.Size());
+        blockIndex,
+        block.Size());
 
     TScopedTimer timer;
     try {
@@ -335,6 +335,10 @@ void TSession::OnBlockWritten(int blockIndex, TError error)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
     UNUSED(error);
+
+    if (!Error.IsOK()) {
+        return;
+    }
 
     auto& slot = GetSlot(blockIndex);
     YCHECK(slot.State == ESlotState::Received);

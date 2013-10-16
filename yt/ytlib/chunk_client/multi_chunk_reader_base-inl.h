@@ -94,7 +94,7 @@ TMultiChunkReaderBase<TChunkReader>::TMultiChunkReaderBase(
         i64 bufferSize = 0;
         while (PrefetchWindow < sortedChunkSpecs.size()) {
             auto& chunkSpec = sortedChunkSpecs[PrefetchWindow];
-            i64 currentSize;
+            i64 currentSize;   
             NChunkClient::GetStatistics(chunkSpec, &currentSize);
             auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunkSpec.extensions());
 
@@ -217,11 +217,16 @@ void TMultiChunkReaderBase<TChunkReader>::ProcessOpenedReader(const TSession& se
 
     FetchingCompleteAwaiter->Await(session.Reader->GetFetchingCompleteEvent());
     if (FetchingCompleteAwaiter->GetRequestCount() == ChunkSpecs.size()) {
-        auto this_ = MakeStrong(this);
-        FetchingCompleteAwaiter->Complete(BIND([=]() {
-            this_->IsFetchingComplete_ = true;
-        }));
+        FetchingCompleteAwaiter->Complete(BIND(
+            &TMultiChunkReaderBase<TChunkReader>::OnFetchingComplete,
+            MakeWeak(this)));
     }
+}
+
+template <class TChunkReader>
+void TMultiChunkReaderBase<TChunkReader>::OnFetchingComplete()
+{
+    IsFetchingComplete_ = true;
 }
 
 template <class TChunkReader>

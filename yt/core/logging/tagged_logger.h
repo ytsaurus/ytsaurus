@@ -12,7 +12,6 @@ namespace NLog {
 class TTaggedLogger
 {
 public:
-    TTaggedLogger();
     explicit TTaggedLogger(TLogger& innerLogger);
     TTaggedLogger(const TTaggedLogger& other);
 

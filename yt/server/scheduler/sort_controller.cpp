@@ -439,7 +439,10 @@ protected:
         {
             TTask::OnJobAborted(joblet);
 
-            Controller->PartitionJobCounter.Aborted(1);
+            auto abortReason = Controller->GetAbortReason(joblet->Job);
+            Controller->PartitionJobCounter.Aborted(1, abortReason);
+
+            Controller->UpdateAllTasksIfNeeded(Controller->PartitionJobCounter);
         }
 
         virtual void OnTaskCompleted() override
@@ -670,11 +673,13 @@ protected:
         virtual void OnJobAborted(TJobletPtr joblet) override
         {
             Controller->SortDataSizeCounter.Aborted(joblet->InputStripeList->TotalDataSize);
+            auto abortReason = Controller->GetAbortReason(joblet->Job);
 
             if (Controller->IsSortedMergeNeeded(Partition)) {
-                Controller->IntermediateSortJobCounter.Aborted(1);
+                Controller->IntermediateSortJobCounter.Aborted(1, abortReason);
             } else {
-                Controller->FinalSortJobCounter.Aborted(1);
+                Controller->FinalSortJobCounter.Aborted(1, abortReason);
+                Controller->UpdateAllTasksIfNeeded(Controller->FinalSortJobCounter);
             }
 
             TTask::OnJobAborted(joblet);
@@ -763,7 +768,7 @@ protected:
         DECLARE_DYNAMIC_PHOENIX_TYPE(TPartitionSortTask, 0x4f9a6cd9);
 
 
-        virtual bool HasInputLocality() override
+        virtual bool HasInputLocality() const override
         {
             return false;
         }
@@ -966,7 +971,10 @@ protected:
 
         virtual void OnJobAborted(TJobletPtr joblet) override
         {
-            Controller->SortedMergeJobCounter.Aborted(1);
+            auto abortReason = Controller->GetAbortReason(joblet->Job);
+            Controller->SortedMergeJobCounter.Aborted(1, abortReason);
+
+            Controller->UpdateAllTasksIfNeeded(Controller->SortedMergeJobCounter);
 
             TMergeTask::OnJobAborted(joblet);
         }
@@ -1043,7 +1051,7 @@ protected:
                 Partition->ChunkPoolOutput->GetApproximateStripeStatistics());
         }
 
-        virtual bool HasInputLocality() override
+        virtual bool HasInputLocality() const override
         {
             return false;
         }
@@ -1348,8 +1356,6 @@ protected:
 
     // Resource management.
 
-    virtual bool IsPartitionJobNonexpanding() const = 0;
-
     virtual TNodeResources GetPartitionResources(
         const TChunkStripeStatisticsVector& statistics) const = 0;
 
@@ -1366,7 +1372,6 @@ protected:
 
     virtual TNodeResources GetUnorderedMergeResources(
         const TChunkStripeStatisticsVector& statistics) const = 0;
-
 
     // Unsorted helpers.
 
@@ -1930,11 +1935,6 @@ private:
 
     // Resource management.
 
-    virtual bool IsPartitionJobNonexpanding() const
-    {
-        return true;
-    }
-
     virtual TNodeResources GetPartitionResources(
         const TChunkStripeStatisticsVector& statistics) const override
     {
@@ -2128,7 +2128,6 @@ private:
 
     i64 MapStartRowIndex;
     i64 ReduceStartRowIndex;
-
 
     // Custom bits of preparation pipeline.
 
@@ -2368,14 +2367,19 @@ private:
         switch (jobSpec->type()) {
             case EJobType::PartitionMap: {
                 auto* jobSpecExt = jobSpec->MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
-                InitUserJobSpec(jobSpecExt->mutable_mapper_spec(), joblet);
+                InitUserJobSpec(jobSpecExt->mutable_mapper_spec(), joblet, GetMapMemoryReserve());
                 break;
             }
 
-            case EJobType::PartitionReduce:
+            case EJobType::PartitionReduce: {
+                auto* jobSpecExt = jobSpec->MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
+                InitUserJobSpec(jobSpecExt->mutable_reducer_spec(), joblet, GetPartitionReduceMemoryReserve());
+                break;
+            }
+
             case EJobType::SortedReduce: {
                 auto* jobSpecExt = jobSpec->MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
-                InitUserJobSpec(jobSpecExt->mutable_reducer_spec(), joblet);
+                InitUserJobSpec(jobSpecExt->mutable_reducer_spec(), joblet, GetSortedReduceMemoryReserve());
                 break;
             }
 
@@ -2396,11 +2400,6 @@ private:
 
     // Resource management.
 
-    virtual bool IsPartitionJobNonexpanding() const
-    {
-        return false;
-    }
-
     virtual TNodeResources GetPartitionResources(const TChunkStripeStatisticsVector& statistics) const override
     {
         auto stat = AggregateStatistics(statistics).front();
@@ -2418,7 +2417,7 @@ private:
             result.set_memory(
                 GetInputIOMemorySize(PartitionJobIOConfig, stat) +
                 bufferSize +
-                Spec->Mapper->MemoryLimit +
+                GetMapMemoryReserve() +
                 GetFootprintMemorySize());
         } else {
             bufferSize = std::min(bufferSize, stat.DataSize + reserveSize);
@@ -2461,7 +2460,7 @@ private:
                 // Sorting reader extra memory compared to partition_sort job, because it uses
                 // separate buffer of i32 to write out sorted indexes.
                 4 * stat.RowCount +
-                Spec->Reducer->MemoryLimit +
+                GetPartitionReduceMemoryReserve() +
                 GetFootprintMemorySize());
         }
         result.set_network(Spec->ShuffleNetworkLimit);
@@ -2478,7 +2477,7 @@ private:
             GetFinalIOMemorySize(
                 SortedMergeJobIOConfig,
                 statistics) +
-            Spec->Reducer->MemoryLimit +
+            GetSortedReduceMemoryReserve() +
             GetFootprintMemorySize());
         return result;
     }
@@ -2487,6 +2486,21 @@ private:
         const TChunkStripeStatisticsVector& statistics) const override
     {
         YUNREACHABLE();
+    }
+
+    i64 GetMapMemoryReserve() const
+    {
+        return GetMemoryReserve(PartitionJobCounter, Spec->Mapper);
+    }
+
+    i64 GetPartitionReduceMemoryReserve() const
+    {
+        return GetMemoryReserve(FinalSortJobCounter, Spec->Reducer);
+    }
+
+    i64 GetSortedReduceMemoryReserve() const
+    {
+        return GetMemoryReserve(SortedMergeJobCounter, Spec->Reducer);
     }
 
     virtual bool IsSortedOutputSupported() const override

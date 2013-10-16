@@ -250,6 +250,11 @@ protected:
             }
         }
 
+        virtual bool HasInputLocality() const override
+        {
+            return false;
+        }
+
         virtual EJobType GetJobType() const override
         {
             return EJobType(Controller->JobSpecTemplate.type());
@@ -266,6 +271,12 @@ protected:
             TTask::OnJobCompleted(joblet);
 
             RegisterOutput(joblet, PartitionIndex);
+        }
+
+        virtual void OnJobAborted(TJobletPtr joblet) override
+        {
+            TTask::OnJobAborted(joblet);
+            Controller->UpdateAllTasksIfNeeded(Controller->JobCounter);
         }
 
     };
@@ -818,6 +829,7 @@ public:
         IOperationHost* host,
         TOperation* operation)
         : TMergeControllerBase(config, spec, host, operation)
+        , PartitionTag(0)
     { }
 
     // Persistence.
@@ -909,6 +921,10 @@ protected:
 
     TJobSpec ManiacJobSpecTemplate;
 
+    // PartitionTag is used in sorted merge to indicate relative position of a chunk in an input table.
+    // Also it helps to identify different splits of the same chunk.
+    int PartitionTag;
+
 
     virtual TNullable< std::vector<Stroka> > GetSpecKeyColumns() = 0;
 
@@ -966,7 +982,9 @@ protected:
 
     virtual void ProcessInputChunk(TRefCountedChunkSpecPtr chunkSpec) override
     {
+        chunkSpec->set_partition_tag(PartitionTag);
         ChunkSplitsCollector->AddChunk(chunkSpec);
+        ++PartitionTag;
     }
 
     virtual void SortEndpoints() = 0;
@@ -1393,7 +1411,11 @@ private:
                     return cmpResult < 0;
                 }
 
-                return lhs.Type < rhs.Type;
+                if (lhs.Type < rhs.Type) {
+                    return true;
+                } else {
+                    return (lhs.ChunkSpec->partition_tag() - rhs.ChunkSpec->partition_tag()) < 0;
+                }
             });
     }
 
@@ -1594,7 +1616,7 @@ private:
 
     virtual i64 GetAdditionalMemorySize() const override
     {
-        return Spec->Reducer->MemoryLimit;
+        return GetMemoryReserve(JobCounter, Spec->Reducer);
     }
 
     virtual TNullable< std::vector<Stroka> > GetSpecKeyColumns() override
@@ -1632,7 +1654,7 @@ private:
     virtual void CustomizeJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
     {
         auto* jobSpecExt = jobSpec->MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
-        InitUserJobSpec(jobSpecExt->mutable_reducer_spec(), joblet);
+        InitUserJobSpec(jobSpecExt->mutable_reducer_spec(), joblet, GetAdditionalMemorySize());
     }
 
     virtual bool IsOutputLivePreviewSupported() const override
