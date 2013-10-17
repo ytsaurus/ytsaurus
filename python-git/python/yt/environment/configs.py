@@ -33,10 +33,25 @@ def get_master_config():
 
     chunk_manager = {
         chunk_refresh_delay = 700;
+        chunk_refresh_period = 10;
+        chunk_properties_update_period = 10;
+    };
+
+    cypress_manager = {
+        statistics_flush_period = 10;
+    };
+
+    security_manager = {
+        statistics_flush_period = 10;
+        request_rate_smoothing_period = 60000;
     };
 
     node_tracker = {
         online_node_timeout = 1000;
+    };
+
+    object_manager = {
+        gc_sweep_period = 10;
     };
 
     logging = {
@@ -204,10 +219,14 @@ def get_node_config():
             path = "";
         };
         store_locations = [];
-        heartbeat_period = 200;
+        heartbeat_period = 10;
     };
 
     exec_agent = {
+        scheduler_connector = {
+            heartbeat_period = 10;
+        };
+
         environment_manager = {
             environments = {
                 default = {
