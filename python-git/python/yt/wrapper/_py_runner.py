@@ -1,3 +1,4 @@
+
 def main():
     # We should use local imports because of replacing __main__ module cause cleaning globals
     import sys
@@ -32,12 +33,38 @@ def main():
     for key, value in config_dict.iteritems():
         format_config.__dict__[key] = value
 
+    import yt.yson as yson
     import yt.wrapper as yt
     from yt.wrapper.record import extract_key
+
+    def process_input_table_index(records):
+        table_index = None
+        for rec in records:
+            if "table_index" in rec.attributes:
+                table_index = rec.attributes["table_index"]
+            else:
+                if table_index is not None:
+                    rec.attributes["input_table_index"] = table_index
+                yield rec
+
+    def process_output_table_index(records):
+        table_index = None
+        for rec in records:
+            new_table_index = rec.get("output_table_index", 0)
+            if new_table_index != table_index:
+                yield yson.to_yson_type(None, attributes={"table_index": new_table_index})
+            table_index = new_table_index
+            rec.attributes = {}
+            yield rec
+
     if __attributes.get("is_raw", False):
         __result = itertools.chain(*itertools.imap(__operation, sys.stdin.xreadlines()))
     else:
         __records = itertools.imap(lambda line: yt.line_to_record(line, __input_format), sys.stdin.xreadlines())
+
+        if isinstance(__input_format, yt.YsonFormat):
+            __records = process_input_table_index(__records)
+
         if __operation_type == "mapper":
             if __attributes.get("is_aggregator", False):
                 __result = __operation(__records)
@@ -45,7 +72,10 @@ def main():
                 __result = itertools.chain.from_iterable(itertools.imap(__operation, __records))
         else:
             __result = itertools.chain.from_iterable(itertools.starmap(__operation, itertools.groupby(__records, lambda rec: extract_key(rec, __keys, __input_format))))
+        if isinstance(__input_format, yt.YsonFormat):
+            __result = process_output_table_index(__result)
         __result = itertools.imap(lambda rec: yt.record_to_line(rec, __output_format), __result)
+
     sys.stdout.writelines(__result)
 
 if __name__ == "__main__":
