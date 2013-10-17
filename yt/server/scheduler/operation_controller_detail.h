@@ -697,6 +697,7 @@ protected:
         const std::vector<Stroka>& prefixColumns);
 
     static EAbortReason GetAbortReason(TJobPtr job);
+    static EAbortReason GetAbortReason(TJobletPtr joblet);
 
     void UpdateAllTasksIfNeeded(const TProgressCounter& jobCounter);
     i64 GetMemoryReserve(const TProgressCounter& jobCounter, TUserJobSpecPtr userJobSpec) const;

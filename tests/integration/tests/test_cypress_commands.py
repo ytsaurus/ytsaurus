@@ -535,7 +535,7 @@ class TestCypressCommands(YTEnvSetup):
     def test_access_stat1(self):
         time.sleep(1.0)
         c1 = get('//tmp/@access_counter')
-        time.sleep(2.0)
+        time.sleep(1.0)
         c2 = get('//tmp/@access_counter')
         assert c2 == c1
 
@@ -544,7 +544,7 @@ class TestCypressCommands(YTEnvSetup):
         c1 = get('//tmp/@access_counter')
         tx = start_transaction()
         lock('//tmp', mode = 'snapshot', tx = tx)
-        time.sleep(2.0)
+        time.sleep(1.0)
         c2 = get('//tmp/@access_counter', tx = tx)
         assert c2 == c1 + 1
 
@@ -552,7 +552,7 @@ class TestCypressCommands(YTEnvSetup):
         time.sleep(1.0)
         c1 = get('//tmp/@access_counter')
         get('//tmp/@')
-        time.sleep(2.0)
+        time.sleep(1.0)
         c2 = get('//tmp/@access_counter')
         assert c1 == c2
 
@@ -560,7 +560,7 @@ class TestCypressCommands(YTEnvSetup):
         time.sleep(1.0)
         c1 = get('//tmp/@access_counter')
         assert exists('//tmp')
-        time.sleep(2.0)
+        time.sleep(1.0)
         c2 = get('//tmp/@access_counter')
         assert c1 == c2
 
@@ -568,7 +568,7 @@ class TestCypressCommands(YTEnvSetup):
         time.sleep(1.0)
         c1 = get('//tmp/@access_counter')
         assert exists('//tmp/@id')
-        time.sleep(2.0)
+        time.sleep(1.0)
         c2 = get('//tmp/@access_counter')
         assert c1 == c2
 
@@ -576,7 +576,7 @@ class TestCypressCommands(YTEnvSetup):
         time.sleep(1.0)
         c1 = get('//tmp/@access_counter')
         ls('//tmp/@')
-        time.sleep(2.0)
+        time.sleep(1.0)
         c2 = get('//tmp/@access_counter')
         assert c1 == c2
 
@@ -584,7 +584,7 @@ class TestCypressCommands(YTEnvSetup):
         time.sleep(1.0)
         c1 = get('//tmp/@access_counter')
         ls('//tmp')
-        time.sleep(2.0)
+        time.sleep(1.0)
         c2 = get('//tmp/@access_counter')
         assert c2 == c1 + 1
 
@@ -601,7 +601,7 @@ class TestCypressCommands(YTEnvSetup):
         time.sleep(1.0)
         c1 = get('//tmp/@access_counter')
         get('//tmp', opt=['/suppress_access_tracking=true'])
-        time.sleep(2.0)
+        time.sleep(1.0)
         c2 = get('//tmp/@access_counter')
         assert c1 == c2
 
@@ -609,7 +609,7 @@ class TestCypressCommands(YTEnvSetup):
         time.sleep(1.0)
         c1 = get('//tmp/@access_counter')
         ls('//tmp', opt=['/suppress_access_tracking=true'])
-        time.sleep(2.0)
+        time.sleep(1.0)
         c2 = get('//tmp/@access_counter')
         assert c1 == c2
 
@@ -618,7 +618,7 @@ class TestCypressCommands(YTEnvSetup):
         create('table', '//tmp/t')
         c1 = get('//tmp/t/@access_counter')
         read('//tmp/t', opt=['/suppress_access_tracking=true'])
-        time.sleep(2.0)
+        time.sleep(1.0)
         c2 = get('//tmp/t/@access_counter')
         assert c1 == c2
 
@@ -627,6 +627,6 @@ class TestCypressCommands(YTEnvSetup):
         create('file', '//tmp/f')
         c1 = get('//tmp/f/@access_counter')
         download('//tmp/f', opt=['/suppress_access_tracking=true'])
-        time.sleep(2.0)
+        time.sleep(1.0)
         c2 = get('//tmp/f/@access_counter')
         assert c1 == c2

@@ -2832,6 +2832,15 @@ EAbortReason TOperationControllerBase::GetAbortReason(TJobPtr job)
     return error.Attributes().Get<EAbortReason>("abort_reason", EAbortReason::Scheduler);
 }
 
+EAbortReason TOperationControllerBase::GetAbortReason(TJobletPtr joblet)
+{
+    if (!joblet->Job) {
+        return EAbortReason::Other;
+    } else {
+        return GetAbortReason(joblet);
+    }
+}
+
 bool TOperationControllerBase::IsSortedOutputSupported() const
 {
     return false;
