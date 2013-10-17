@@ -63,6 +63,7 @@ public:
         , Config(config)
         , Bootstrap(bootstrap)
         , AutomatonQueue(New<TActionQueue>(Sprintf("TabletSlot:%d", SlotIndex)))
+        , Logger(TabletNodeLogger)
     {
         Reset();
     }
