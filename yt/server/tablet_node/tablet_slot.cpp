@@ -276,8 +276,6 @@ private:
     NCellNode::TCellNodeConfigPtr Config;
     NCellNode::TBootstrap* Bootstrap;
 
-    NLog::TTaggedLogger Logger;
-
     TCellGuid CellGuid;
     mutable EPeerState State;
     TPeerId PeerId;
@@ -295,6 +293,8 @@ private:
 
     TSlotAutomatonPtr Automaton;
     TActionQueuePtr AutomatonQueue;
+
+    NLog::TTaggedLogger Logger;
 
 
     void Reset()
