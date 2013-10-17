@@ -511,4 +511,14 @@ class TestLocks(YTEnvSetup):
         tx1 = start_transaction()
         tx2 = start_transaction(tx = tx1)
         lock('//tmp', tx = tx1)
-        with pytest.raises(YtError): lock('//tmp', tx = tx2)        
+        lock('//tmp', tx = tx2)
+        with pytest.raises(YtError): lock('//tmp', tx = tx1)
+    
+    def test_nested_tx5(self):
+        set('//tmp/x', 1)
+        tx1 = start_transaction()
+        tx2 = start_transaction(tx = tx1)
+        set('//tmp/x', 2, tx = tx1)
+        set('//tmp/x', 3, tx = tx2)
+        with pytest.raises(YtError): set('//tmp/x', 4, tx = tx1)
+
