@@ -244,14 +244,13 @@ def run_python_tests(options, suite_name, suite_path):
         shutil.rmtree(sandbox_current)
 
 def kill_by_name(name):
-    proc = subprocess.Popen(["pgrep", name], stdout=subprocess.PIPE)
-    for pid in proc.stdout:
+    # Cannot use check_output because of python2.6 on Lucid
+    proc = subprocess.Popen(["pgrep", "-f", name], stdout=subprocess.PIPE)
+    stdout, _ = proc.communicate()
+    for pid in stdout.strip().split("\n"):
+        if not pid:
+            continue
         os.kill(int(pid), signal.SIGTERM)
-        # Check if the process that we killed is alive.
-        try:
-           os.kill(int(pid), 0)
-        except OSError:
-           continue
 
 
 @yt_register_build_step
