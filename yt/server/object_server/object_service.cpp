@@ -379,6 +379,8 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, GCCollect)
     UNUSED(request);
     UNUSED(response);
 
+    context->SetRequestInfo("");
+
     Bootstrap->GetObjectManager()->GCCollect().Subscribe(BIND([=] () {
         context->Reply();
     }));
