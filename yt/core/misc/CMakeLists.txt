@@ -9,6 +9,7 @@ set( SRCS
   ${BASE}/blob_output.cpp
   ${BASE}/blob_range.cpp
   ${BASE}/checksum.cpp
+  ${BASE}/chunked_memory_pool.cpp
   ${BASE}/chunked_output_stream.cpp
   ${BASE}/crash_handler.cpp
   ${BASE}/demangle.cpp
@@ -51,6 +52,7 @@ set( HDRS
   ${BASE}/cache-inl.h
   ${BASE}/cache.h
   ${BASE}/checksum.h
+  ${BASE}/chunked_memory_pool.h
   ${BASE}/chunked_output_stream.h
   ${BASE}/common.h
   ${BASE}/crash_handler.h
