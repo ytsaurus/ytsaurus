@@ -507,3 +507,8 @@ class TestLocks(YTEnvSetup):
         commit_transaction(tx2)
         assert not exists('//sys/locks/' + lock_id)
 
+    def test_nested_tx4(self):
+        tx1 = start_transaction()
+        tx2 = start_transaction(tx = tx1)
+        lock('//tmp', tx = tx1)
+        with pytest.raises(YtError): lock('//tmp', tx = tx2)        
