@@ -14,54 +14,6 @@ namespace NQueryClient {
 using NYT::ToProto;
 using NYT::FromProto;
 
-TOperator::TOperator(TQueryContext* context)
-    : TTrackedObject(context)
-    , Parent_(nullptr)
-    , Children_()
-{ }
-
-TOperator::~TOperator()
-{ }
-
-const SmallVectorImpl<TOperator*>& TOperator::Children() const
-{
-    return Children_;
-}
-
-TOperator* const* TOperator::ChildBegin() const
-{
-    return Children_.begin();
-}
-
-TOperator* const* TOperator::ChildEnd() const
-{
-    return Children_.end();
-}
-
-TOperator* TOperator::Parent() const
-{
-    return Parent_;
-}
-
-void TOperator::AttachChild(TOperator* op)
-{
-    YCHECK(!op->Parent_);
-    Children_.push_back(op);
-    op->Parent_ = this;
-}
-
-const char* TOperator::GetDebugName() const
-{
-    return typeid(*this).name();
-}
-
-void TOperator::Check() const
-{
-    FOREACH (const auto& child, Children_) {
-        YCHECK(this == child->Parent_);
-    }
-}
-
 #define XX(nodeType) IMPLEMENT_AST_VISITOR_HOOK(nodeType)
 #include "list_of_operators.inc"
 #undef XX

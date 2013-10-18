@@ -118,6 +118,11 @@ void TQueryContext::BindToTableIndex(int tableIndex, const TStringBuf& path, voi
     descriptor.Opaque = opaque;
 }
 
+int TQueryContext::GetTableCount() const
+{
+    return TableDescriptors_.size();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NQueryClient

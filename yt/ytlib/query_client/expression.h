@@ -22,7 +22,7 @@ DECLARE_ENUM(EBinaryOp,
     (GreaterOrEqual)
 );
 
-static const int TypicalExpressionChildCount = 3;
+const int TypicalExpressionChildCount = 3;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,38 +33,33 @@ TExpression* FromProto(const NProto::TExpression& serialized, TQueryContext* con
 ////////////////////////////////////////////////////////////////////////////////
 
 class TExpression
-    : public TQueryContext::TTrackedObject
+    : public TAstNodeBase<TExpression, TypicalExpressionChildCount>
 {
 public:
-    explicit TExpression(TQueryContext* context, const TSourceLocation& sourceLocation);
-    ~TExpression();
-
-    const SmallVectorImpl<TExpression*>& Children() const;
-
-    TExpression* const* ChildBegin() const;
-    TExpression* const* ChildEnd() const;
-
-    TExpression* Parent() const;
-
-    void AttachChild(TExpression*);
+    explicit TExpression(TQueryContext* context, const TSourceLocation& sourceLocation)
+        : TAstNodeBase(context)
+        , SourceLocation_(sourceLocation)
+    { }
 
     Stroka GetSource() const;
 
     virtual bool Accept(IAstVisitor*) = 0;
 
-    virtual const char* GetDebugName() const;
+    virtual const char* GetDebugName() const
+    {
+        return typeid(*this).name();
+    }
 
-    virtual void Check() const;
+    virtual void Check() const
+    {
+        FOREACH (const auto& child, Children_) {
+            YCHECK(this == child->Parent_);
+        }
+    }
 
     virtual EColumnType Typecheck() const = 0;
 
     DEFINE_BYREF_RW_PROPERTY(TSourceLocation, SourceLocation);
-
-protected:
-    friend void ToProto(NProto::TExpression*, TExpression*);
-
-    TExpression* Parent_;
-    TSmallVector<TExpression*, TypicalExpressionChildCount> Children_;
 
 };
 
@@ -141,6 +136,8 @@ public:
         : TExpression(context, sourceLocation)
         , TableIndex_(tableIndex)
         , Name_(name)
+        , Type_(EColumnType::TheBottom)
+        , KeyIndex_(-1)
     { }
 
     virtual bool Accept(IAstVisitor*) override;
@@ -156,9 +153,9 @@ public:
     }
 
     DEFINE_BYVAL_RO_PROPERTY(int, TableIndex);
-    DEFINE_BYVAL_RO_PROPERTY(TStringBuf, Name);
-
+    DEFINE_BYVAL_RO_PROPERTY(Stroka, Name);
     DEFINE_BYVAL_RW_PROPERTY(EColumnType, Type);
+    DEFINE_BYVAL_RW_PROPERTY(int, KeyIndex);
 
 };
 
@@ -212,7 +209,7 @@ public:
         return Children_[i];
     }
 
-    DEFINE_BYVAL_RO_PROPERTY(TStringBuf, Name);
+    DEFINE_BYVAL_RO_PROPERTY(Stroka, Name);
 
 };
 

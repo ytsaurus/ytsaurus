@@ -52,6 +52,14 @@ public:
     protected:
         TQueryContext* Context_;
 
+    protected:
+        // Bound objects could not be instatiated without the context.
+        TTrackedObject();
+        TTrackedObject(const TTrackedObject&);
+        TTrackedObject(TTrackedObject&&);
+        TTrackedObject& operator=(const TTrackedObject&);
+        TTrackedObject& operator=(TTrackedObject&&);
+
         // Bound objects could not be allocated nor freed with regular operators.
         void* operator new(size_t);
         void operator delete(void*) throw();
@@ -70,6 +78,7 @@ public:
     int GetTableIndexByAlias(const TStringBuf& alias);
     TTableDescriptor& GetTableDescriptorByIndex(int tableIndex);
     void BindToTableIndex(int tableIndex, const TStringBuf& path, void* opaque);
+    int GetTableCount() const;
 
 private:
     TMemoryPool MemoryPool_;

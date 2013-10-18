@@ -3,8 +3,10 @@
 #include "ast.h"
 #include "ast_visitor.h"
 
-#include <ytlib/query_client/lexer.h>
-#include <ytlib/query_client/parser.hpp>
+#include "lexer.h"
+#include "parser.hpp"
+
+#include "private.h"
 
 #include <ytlib/table_client/chunk_meta_extensions.h>
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
@@ -16,10 +18,12 @@
 namespace NYT {
 namespace NQueryClient {
 
-////////////////////////////////////////////////////////////////////////////////
-
 using namespace NYT::NYPath;
 using namespace NYT::NConcurrency;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static auto& Logger = QueryClientLogger;
 
 namespace {
 
@@ -36,8 +40,8 @@ public:
     void Parse(const Stroka& source);
 
     void GetInitialSplit();
-    void CheckReferences();
-    void Typecheck();
+    void CheckAndPruneReferences();
+    void TypecheckExpressions();
 
     DEFINE_BYVAL_RO_PROPERTY(IPreparationHooks*, Hooks);
     DEFINE_BYVAL_RO_PROPERTY(TQueryFragment*, Fragment);
@@ -58,6 +62,8 @@ public:
         auto& descriptor = Controller_->GetContext()
             ->GetTableDescriptorByIndex(op->GetTableIndex());
 
+        LOG_DEBUG("Fetching initial split for %s", ~descriptor.Path);
+
         // XXX(sandello): We have just one table at the moment.
         // Will put TParallelAwaiter here in case of multiple tables.
         auto dataSplitOrError = WaitFor(Controller_->GetHooks()
@@ -77,13 +83,40 @@ private:
 
 };
 
-class TCheckReferences
+class TCheckAndPruneReferences
     : public TAstVisitor
 {
 public:
-    explicit TCheckReferences(TPrepareController* controller)
+    explicit TCheckAndPruneReferences(TPrepareController* controller)
         : Controller_(controller)
-    { }
+    {
+        LiveColumns_.resize(Controller_->GetContext()->GetTableCount());
+    }
+
+    virtual bool Visit(TScanOperator* op) override
+    {
+        // Scan operators are always visited in the end,
+        // because they are leaf nodes.
+        auto tableSchema = GetProtoExtension<NVersionedTableClient::NProto::TTableSchema>(op->DataSplit().extensions());
+        auto& liveColumns = LiveColumns_[op->GetTableIndex()];
+
+        {
+            NVersionedTableClient::NProto::TTableSchema filteredTableSchema;
+            for (const auto& columnSchema : tableSchema.columns()) {
+                if (liveColumns.find(columnSchema.name()) != liveColumns.end()) {
+                    LOG_DEBUG("Keeping column %s in the schema", ~columnSchema.name());
+                    filteredTableSchema.add_columns()->CopyFrom(columnSchema);
+                } else {
+                    LOG_DEBUG("Prunning column %s from the schema", ~columnSchema.name());
+                }
+            }
+            SetProtoExtension<NVersionedTableClient::NProto::TTableSchema>(
+                op->DataSplit().mutable_extensions(),
+                filteredTableSchema);
+        }
+
+        return true;
+    }
 
     virtual bool Visit(TFilterOperator* op) override
     {
@@ -107,21 +140,8 @@ public:
         TScanOperator* op = reinterpret_cast<TScanOperator*>(descriptor.Opaque);
         YCHECK(op);
 
-        auto keyColumns = GetProtoExtension<NTableClient::NProto::TKeyColumnsExt>(op->DataSplit().extensions());
-        auto tableSchema = GetProtoExtension<NVersionedTableClient::NProto::TTableSchema>(op->DataSplit().extensions());
-
-        {
-            auto it = std::find_if(
-                keyColumns.values().begin(),
-                keyColumns.values().end(),
-                [&expr] (const Stroka& name) {
-                    return expr->GetName() == name;
-                });
-
-            if (it != keyColumns.values().end()) {
-                // TODO(sandello): Mark as key column.
-            }
-        }
+        const auto keyColumns = GetProtoExtension<NTableClient::NProto::TKeyColumnsExt>(op->DataSplit().extensions());
+        const auto tableSchema = GetProtoExtension<NVersionedTableClient::NProto::TTableSchema>(op->DataSplit().extensions());
 
         {
             auto it = std::find_if(
@@ -148,19 +168,37 @@ public:
             expr->SetType(EColumnType(it->type()));
         }
 
+        {
+            auto it = std::find_if(
+                keyColumns.values().begin(),
+                keyColumns.values().end(),
+                [&expr] (const Stroka& name) {
+                    return expr->GetName() == name;
+                });
+
+            if (it != keyColumns.values().end()) {
+                expr->SetKeyIndex(std::distance(keyColumns.values().begin(), it));
+            } else {
+                expr->SetKeyIndex(-1);
+            }
+        }
+
+        LiveColumns_[expr->GetTableIndex()].insert(expr->GetName());
+
         return true;
     }
 
 private:
     TPrepareController* Controller_;
+    std::vector<std::set<Stroka>> LiveColumns_;
 
 };
 
-class TTypecheck
+class TTypecheckExpressions
     : public TAstVisitor
 {
 public:
-    explicit TTypecheck(TPrepareController* /*controller*/)
+    explicit TTypecheckExpressions(TPrepareController* /*controller*/)
     { }
 
     virtual bool Visit(TFilterOperator* op) override
@@ -177,7 +215,7 @@ public:
 
     virtual bool Visit(TProjectOperator* op) override
     {
-        for (auto& expression: op->Expressions()) {
+        for (auto& expression : op->Expressions()) {
             expression->Typecheck();
         }
         return true;
@@ -189,8 +227,8 @@ void TPrepareController::Run(const Stroka& source)
 {
     Parse(source);
     GetInitialSplit();
-    CheckReferences();
-    Typecheck();
+    CheckAndPruneReferences();
+    TypecheckExpressions();
 }
 
 void TPrepareController::Parse(const Stroka& source)
@@ -217,15 +255,15 @@ void TPrepareController::GetInitialSplit()
     Traverse(&visitor, Fragment_->GetHead());
 }
 
-void TPrepareController::CheckReferences()
+void TPrepareController::CheckAndPruneReferences()
 {
-    TCheckReferences visitor(this);
+    TCheckAndPruneReferences visitor(this);
     Traverse(&visitor, Fragment_->GetHead());
 }
 
-void TPrepareController::Typecheck()
+void TPrepareController::TypecheckExpressions()
 {
-    TTypecheck visitor(this);
+    TTypecheckExpressions visitor(this);
     Traverse(&visitor, Fragment_->GetHead());
 }
 

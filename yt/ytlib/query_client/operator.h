@@ -13,8 +13,8 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const int TypicalOperatorChildCount = 2;
-static const int TypicalProjectExpressionCount = 4;
+const int TypicalOperatorChildCount = 2;
+const int TypicalProjectExpressionCount = 4;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,30 +25,24 @@ TOperator* FromProto(const NProto::TOperator& serialized, TQueryContext* context
 ////////////////////////////////////////////////////////////////////////////////
 
 class TOperator
-    : public TQueryContext::TTrackedObject
+    : public TAstNodeBase<TOperator, TypicalOperatorChildCount>
 {
 public:
-    explicit TOperator(TQueryContext* context);
-    ~TOperator();
+    explicit TOperator(TQueryContext* context)
+        : TAstNodeBase(context)
+    { }
 
-    const SmallVectorImpl<TOperator*>& Children() const;
+    virtual const char* GetDebugName() const
+    {
+        return typeid(*this).name();
+    }
 
-    TOperator* const* ChildBegin() const;
-    TOperator* const* ChildEnd() const;
-
-    TOperator* Parent() const;
-
-    void AttachChild(TOperator*);
-
-    virtual const char* GetDebugName() const;
-
-    virtual void Check() const;
-
-    virtual bool Accept(IAstVisitor*) = 0;
-
-protected:
-    TOperator* Parent_;
-    TSmallVector<TOperator*, TypicalOperatorChildCount> Children_;
+    virtual void Check() const
+    {
+        FOREACH (const auto& child, Children_) {
+            YCHECK(this == child->Parent_);
+        }
+    }
 
 };
 
@@ -70,7 +64,7 @@ public:
         return "Scan";
     }
 
-    virtual void Check() const
+    virtual void Check() const override
     {
         YCHECK(Children_.empty());
     }
@@ -97,7 +91,7 @@ public:
         return "Filter";
     }
 
-    virtual void Check() const
+    virtual void Check() const override
     {
         Predicate_->Check();
 
@@ -130,7 +124,7 @@ public:
         return "Project";
     }
 
-    virtual void Check() const
+    virtual void Check() const override
     {
         FOREACH (const auto& expr, Expressions_) {
             expr->Check();

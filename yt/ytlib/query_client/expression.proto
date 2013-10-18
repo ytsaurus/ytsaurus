@@ -34,6 +34,7 @@ message TReferenceExpression
     required int32 table_index = 1;
     required string name = 2;
     required int32 type = 3; // EColumnType
+    required int32 key_index = 4;
 }
 
 message TFunctionExpression

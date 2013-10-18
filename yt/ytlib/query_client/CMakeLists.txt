@@ -7,6 +7,7 @@ set( SRCS
   ${BASE}/expression.cpp
   ${BASE}/query_context.cpp
   ${BASE}/query_fragment.cpp
+  ${BASE}/private.cpp
 )
 set( HDRS
 )

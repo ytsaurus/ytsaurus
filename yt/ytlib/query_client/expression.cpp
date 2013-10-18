@@ -14,43 +14,6 @@ namespace NQueryClient {
 using NYT::ToProto;
 using NYT::FromProto;
 
-TExpression::TExpression(TQueryContext* context, const TSourceLocation& sourceLocation)
-    : TTrackedObject(context)
-    , SourceLocation_(sourceLocation)
-    , Parent_(nullptr)
-    , Children_()
-{ }
-
-TExpression::~TExpression()
-{ }
-
-const SmallVectorImpl<TExpression*>& TExpression::Children() const
-{
-    return Children_;
-}
-
-TExpression* const* TExpression::ChildBegin() const
-{
-    return Children_.begin();
-}
-
-TExpression* const* TExpression::ChildEnd() const
-{
-    return Children_.end();
-}
-
-TExpression* TExpression::Parent() const
-{
-    return Parent_;
-}
-
-void TExpression::AttachChild(TExpression* expr)
-{
-    YCHECK(!expr->Parent_);
-    Children_.push_back(expr);
-    expr->Parent_ = this;
-}
-
 Stroka TExpression::GetSource() const
 {
     auto debugInformation = Context_->GetDebugInformation();
@@ -64,18 +27,6 @@ Stroka TExpression::GetSource() const
         return fullSource.substr(offset, length);
     } else {
         return Stroka();
-    }
-}
-
-const char* TExpression::GetDebugName() const
-{
-    return typeid(*this).name();
-}
-
-void TExpression::Check() const
-{
-    FOREACH (const auto& child, Children_) {
-        YCHECK(this == child->Parent_);
     }
 }
 
@@ -115,7 +66,7 @@ public:
         auto* derivedProto = BaseProto_->MutableExtension(
             NProto::TReferenceExpression::reference_expression);
         derivedProto->set_table_index(expr->GetTableIndex());
-        derivedProto->set_name(Stroka(expr->GetName()));
+        derivedProto->set_name(expr->GetName());
         derivedProto->set_type(expr->GetType());
         return true;
     }
@@ -147,7 +98,7 @@ void ToProto(NProto::TExpression* serialized, TExpression* original)
 {
     TToProtoVisitor visitor(serialized);
     original->Accept(&visitor);
-    ToProto(serialized->mutable_children(), original->Children_);
+    ToProto(serialized->mutable_children(), original->Children());
 }
 
 TExpression* FromProto(const NProto::TExpression& serialized, TQueryContext* context)
@@ -200,7 +151,6 @@ TExpression* FromProto(const NProto::TExpression& serialized, TQueryContext* con
     for (const auto& serializedChild : serialized.children()) {
         result->AttachChild(FromProto(serializedChild, context));
     }
-
 
     YCHECK(result);
     return result;
