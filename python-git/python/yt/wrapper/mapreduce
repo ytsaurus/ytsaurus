@@ -428,8 +428,7 @@ Examples:
     if args.memlimit is not None:
         config.MEMORY_LIMIT = int(args.memlimit) * config.MB
 
-    if args.detached is None or bool(args.detached):
-        config.DETACHED = True
+    config.DETACHED = (args.detached is None) or bool(args.detached)
 
     attributes = {}
 
