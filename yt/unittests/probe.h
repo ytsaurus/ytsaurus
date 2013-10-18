@@ -14,6 +14,7 @@ struct TProbeState
 {
     int Constructors;
     int Destructors;
+    int ShadowDestructors;
     int CopyConstructors;
     int CopyAssignments;
     int MoveConstructors;
@@ -52,10 +53,12 @@ class TCoercibleToProbe
 {
 public:
     TProbeState* State;
+    TProbeState* ShadowState;
 
 public:
     explicit TCoercibleToProbe(TProbeState* state)
         : State(state)
+        , ShadowState(state)
     { }
 
 private:
@@ -70,6 +73,7 @@ class TProbe
 {
 public:
     TProbeState* State;
+    TProbeState* ShadowState;
 
 public:
     static TProbe ExplicitlyCreateInvalidProbe()
@@ -79,6 +83,7 @@ public:
 
     explicit TProbe(TProbeState* state)
         : State(state)
+        , ShadowState(state)
     {
         YASSERT(State);
         ++State->Constructors;
@@ -89,10 +94,14 @@ public:
         if (State) {
             ++State->Destructors;
         }
+        if (ShadowState) {
+            ++ShadowState->ShadowDestructors;
+        }
     }
 
     TProbe(const TProbe& other)
         : State(other.State)
+        , ShadowState(other.ShadowState)
     {
         YASSERT(State);
         ++State->CopyConstructors;
@@ -100,14 +109,16 @@ public:
 
     TProbe(TProbe&& other)
         : State(other.State)
+        , ShadowState(other.ShadowState)
     {
         YASSERT(State);
-        other.State = NULL;
+        other.State = nullptr;
         ++State->MoveConstructors;
     }
 
     TProbe(const TCoercibleToProbe& other)
         : State(other.State)
+        , ShadowState(other.ShadowState)
     {
         YASSERT(State);
         ++State->CopyConstructors;
@@ -115,15 +126,17 @@ public:
 
     TProbe(TCoercibleToProbe&& other)
         : State(other.State)
+        , ShadowState(other.ShadowState)
     {
         YASSERT(State);
-        other.State = NULL;
+        other.State = nullptr;
         ++State->MoveConstructors;
     }
 
     TProbe& operator=(const TProbe& other)
     {
         State = other.State;
+        ShadowState = other.ShadowState;
         YASSERT(State);
         ++State->CopyAssignments;
         return *this;
@@ -132,8 +145,9 @@ public:
     TProbe& operator=(TProbe&& other)
     {
         State = other.State;
+        ShadowState = other.ShadowState;
         YASSERT(State);
-        other.State = NULL;
+        other.State = nullptr;
         ++State->MoveAssignments;
         return *this;
     }
@@ -145,12 +159,12 @@ public:
 
     bool IsValid() const
     {
-        return State != NULL;
+        return State != nullptr;
     }
 
 private:
     TProbe()
-        : State(NULL)
+        : State(nullptr)
     { }
 };
 
@@ -261,3 +275,4 @@ void PrintTo(const TCoercibleToProbe& arg, ::std::ostream* os)
 
 } // namespace <anonymous>
 } // namespace NYT
+

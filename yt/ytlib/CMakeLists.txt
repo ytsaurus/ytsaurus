@@ -3,6 +3,7 @@ set( DIRS
   election
   orchid
   driver
+  query_client
   scheduler
   chunk_client
   cypress_client

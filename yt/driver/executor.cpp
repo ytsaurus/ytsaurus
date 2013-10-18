@@ -1,7 +1,7 @@
 #include "executor.h"
 #include "preprocess.h"
 
-#include <yt/build.h>
+#include <core/build.h>
 
 #include <core/misc/home.h>
 #include <core/misc/fs.h>
@@ -43,7 +43,7 @@ static const i64 OutputBufferSize = (1 << 16);
 ////////////////////////////////////////////////////////////////////////////////
 
 TExecutor::TExecutor()
-    : CmdLine("Command line", ' ', YT_VERSION)
+    : CmdLine("Command line", ' ', GetVersion())
     , ConfigArg("", "config", "configuration file", false, "", "STRING")
     , ConfigOptArg("", "config_opt", "override configuration option", false, "YPATH=YSON")
 {

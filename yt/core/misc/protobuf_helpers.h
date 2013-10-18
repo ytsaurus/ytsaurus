@@ -89,6 +89,7 @@ inline void ToProto(
     if (clear) {
         serializedArray->Clear();
     }
+    serializedArray->Reserve(serializedArray->size() + originalArray.size());
     for (auto it = originalArray.begin(); it != originalArray.end(); ++it) {
         ToProto(serializedArray->Add(), *it);
     }
@@ -103,20 +104,37 @@ inline void ToProto(
     if (clear) {
         serializedArray->Clear();
     }
+    serializedArray->Reserve(serializedArray->size() + originalArray.size());
     for (auto it = originalArray.begin(); it != originalArray.end(); ++it) {
         ToProto(serializedArray->Add(), *it);
     }
 }
 
-template <class TSerialized, class TOriginal, unsigned N>
+template <class TSerialized, class TOriginal>
 inline void ToProto(
-    ::google::protobuf::RepeatedField<TSerialized>* serializedArray,
-    const TSmallVector<TOriginal, N>& originalArray,
+    ::google::protobuf::RepeatedPtrField<TSerialized>* serializedArray,
+    const SmallVectorImpl<TOriginal>& originalArray,
     bool clear = true)
 {
     if (clear) {
         serializedArray->Clear();
     }
+    serializedArray->Reserve(serializedArray->size() + originalArray.size());
+    for (auto it = originalArray.begin(); it != originalArray.end(); ++it) {
+        ToProto(serializedArray->Add(), *it);
+    }
+}
+
+template <class TSerialized, class TOriginal>
+inline void ToProto(
+    ::google::protobuf::RepeatedField<TSerialized>* serializedArray,
+    const SmallVectorImpl<TOriginal>& originalArray,
+    bool clear = true)
+{
+    if (clear) {
+        serializedArray->Clear();
+    }
+    serializedArray->Reserve(serializedArray->size() + originalArray.size());
     for (auto it = originalArray.begin(); it != originalArray.end(); ++it) {
         ToProto(serializedArray->Add(), *it);
     }

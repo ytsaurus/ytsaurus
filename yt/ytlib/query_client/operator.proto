@@ -1,0 +1,42 @@
+package NYT.NQueryClient.NProto;
+
+import "yt/ytlib/chunk_client/chunk_spec.proto";
+import "yt/ytlib/query_client/expression.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TOperator
+{
+    required int32 kind = 1; // TODO(sandello): Do I really need this?
+    repeated TOperator children = 2;
+
+    extensions 100 to max;
+}
+
+message TScanOperator
+{
+    extend TOperator {
+        optional TScanOperator scan_operator = 101;
+    }
+    required int32 table_index = 1;
+    optional NYT.NChunkClient.NProto.TChunkSpec data_split = 2;
+}
+
+message TFilterOperator
+{
+    extend TOperator {
+        optional TFilterOperator filter_operator = 102;
+    }
+    required TExpression predicate = 1;
+}
+
+message TProjectOperator
+{
+    extend TOperator {
+        optional TProjectOperator project_operator = 103;
+    }
+    repeated TExpression expressions = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+

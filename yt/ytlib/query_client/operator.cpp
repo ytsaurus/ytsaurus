@@ -1,0 +1,160 @@
+#include "ast.h"
+#include "ast_visitor.h"
+#include "query_context.h"
+
+#include <yt/ytlib/query_client/operator.pb.h>
+
+#include <core/misc/protobuf_helpers.h>
+
+namespace NYT {
+namespace NQueryClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+using NYT::ToProto;
+using NYT::FromProto;
+
+TOperator::TOperator(TQueryContext* context)
+    : TTrackedObject(context)
+    , Parent_(nullptr)
+    , Children_()
+{ }
+
+TOperator::~TOperator()
+{ }
+
+const SmallVectorImpl<TOperator*>& TOperator::Children() const
+{
+    return Children_;
+}
+
+TOperator* const* TOperator::ChildBegin() const
+{
+    return Children_.begin();
+}
+
+TOperator* const* TOperator::ChildEnd() const
+{
+    return Children_.end();
+}
+
+TOperator* TOperator::Parent() const
+{
+    return Parent_;
+}
+
+void TOperator::AttachChild(TOperator* op)
+{
+    YCHECK(!op->Parent_);
+    Children_.push_back(op);
+    op->Parent_ = this;
+}
+
+const char* TOperator::GetDebugName() const
+{
+    return typeid(*this).name();
+}
+
+void TOperator::Check() const
+{
+    FOREACH (const auto& child, Children_) {
+        YCHECK(this == child->Parent_);
+    }
+}
+
+#define XX(nodeType) IMPLEMENT_AST_VISITOR_HOOK(nodeType)
+#include "list_of_operators.inc"
+#undef XX
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+class TToProtoVisitor
+    : public IOperatorAstVisitor
+{
+public:
+    TToProtoVisitor(NProto::TOperator* baseProto)
+        : BaseProto_(baseProto)
+    { }
+
+    virtual bool Visit(TScanOperator* op) override
+    {
+        auto* derivedProto = BaseProto_->MutableExtension(NProto::TScanOperator::scan_operator);
+        derivedProto->set_table_index(op->GetTableIndex());
+        ToProto(derivedProto->mutable_data_split(), op->DataSplit());
+        return true;
+    }
+
+    virtual bool Visit(TFilterOperator* op) override
+    {
+        auto* derivedProto = BaseProto_->MutableExtension(NProto::TFilterOperator::filter_operator);
+        ToProto(derivedProto->mutable_predicate(), op->GetPredicate());
+        return true;
+    }
+
+    virtual bool Visit(TProjectOperator* op) override
+    {
+        auto* derivedProto = BaseProto_->MutableExtension(NProto::TProjectOperator::project_operator);
+        ToProto(derivedProto->mutable_expressions(), op->Expressions());
+        return true;
+    }
+
+private:
+    NProto::TOperator* BaseProto_;
+
+};
+}
+
+void ToProto(NProto::TOperator* serialized, TOperator* original)
+{
+    TToProtoVisitor visitor(serialized);
+    original->Accept(&visitor);
+    ToProto(serialized->mutable_children(), original->Children());
+}
+
+TOperator* FromProto(const NProto::TOperator& serialized, TQueryContext* context)
+{
+    TOperator* result = nullptr;
+
+    if (serialized.HasExtension(NProto::TScanOperator::scan_operator)) {
+        auto data = serialized.GetExtension(NProto::TScanOperator::scan_operator);
+        auto typedResult = new (context) TScanOperator(
+            context,
+            data.table_index());
+        FromProto(&typedResult->DataSplit(), data.data_split());
+        result = typedResult;
+    }
+
+    if (serialized.HasExtension(NProto::TFilterOperator::filter_operator)) {
+        auto data = serialized.GetExtension(NProto::TFilterOperator::filter_operator);
+        auto typedResult = new (context) TFilterOperator(
+            context,
+            FromProto(data.predicate(), context));
+        result = typedResult;
+    }
+
+    if (serialized.HasExtension(NProto::TProjectOperator::project_operator)) {
+        auto data = serialized.GetExtension(NProto::TProjectOperator::project_operator);
+        auto typedResult = new (context) TProjectOperator(context);
+
+        typedResult->Expressions().reserve(data.expressions_size());
+        for (int i = 0; i < data.expressions_size(); ++i) {
+            typedResult->Expressions().push_back(
+                FromProto(data.expressions(i), context));
+        }
+        result = typedResult;
+    }
+
+    for (const auto& serializedChild : serialized.children()) {
+        result->AttachChild(FromProto(serializedChild, context));
+    }
+
+    YCHECK(result);
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NQueryClient
+} // namespace NYT
+

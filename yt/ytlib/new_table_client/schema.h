@@ -22,3 +22,4 @@ struct TTableSchema
 
 } // namespace NVersionedTableClient
 } // namespace NYT
+

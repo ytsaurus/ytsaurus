@@ -1,6 +1,6 @@
 #include "name_table.h"
 
-#include <core/misc/ref.h>
+#include <yt/ytlib/new_table_client/chunk_meta.pb.h>
 
 namespace NYT {
 namespace NVersionedTableClient {
@@ -42,16 +42,7 @@ int TNameTable::RegisterName(const Stroka& name)
     return index;
 }
 
-TNameTablePtr FromProto(const NProto::TNameTable& protoNameTable)
-{
-    auto nameTable = New<TNameTable>();
-    for(const auto& name: protoNameTable.names()) {
-        nameTable->RegisterName(name);
-    }
-    return nameTable;
-}
-
-void ToProto(NProto::TNameTable* protoNameTable, TNameTablePtr nameTable)
+void ToProto(NProto::TNameTable* protoNameTable, const TNameTablePtr& nameTable)
 {
     protoNameTable->clear_names();
     for (int index = 0; index < nameTable->GetNameCount(); ++index) {
@@ -59,7 +50,17 @@ void ToProto(NProto::TNameTable* protoNameTable, TNameTablePtr nameTable)
     }
 }
 
+TNameTablePtr FromProto(const NProto::TNameTable& protoNameTable)
+{
+    auto nameTable = New<TNameTable>();
+    for (const auto& name: protoNameTable.names()) {
+        nameTable->RegisterName(name);
+    }
+    return nameTable;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NVersionedTableClient
 } // namespace NYT
+

@@ -1,0 +1,56 @@
+package NYT.NQueryClient.NProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TExpression
+{
+    required int32 kind = 1; // TODO(sandello): Do I really need this?
+    repeated TExpression children = 2;
+
+    extensions 100 to max;
+}
+
+message TIntegerLiteralExpression
+{
+    extend TExpression {
+        optional TIntegerLiteralExpression integer_literal_expression = 101;
+    }
+    required int64 value = 1;
+}
+
+message TDoubleLiteralExpression
+{
+    extend TExpression {
+        optional TDoubleLiteralExpression double_literal_expression = 102;
+    }
+    required double value = 1;
+}
+
+message TReferenceExpression
+{
+    extend TExpression {
+        optional TReferenceExpression reference_expression = 103;
+    }
+    required int32 table_index = 1;
+    required string name = 2;
+    required int32 type = 3; // EColumnType
+}
+
+message TFunctionExpression
+{
+    extend TExpression {
+        optional TFunctionExpression function_expression = 104;
+    }
+    // TODO(sandello): YUNIMPLEMENTED
+}
+
+message TBinaryOpExpression
+{
+    extend TExpression {
+        optional TBinaryOpExpression binary_op_expression = 105;
+    }
+    required int32 opcode = 1; // EBinaryOp
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
