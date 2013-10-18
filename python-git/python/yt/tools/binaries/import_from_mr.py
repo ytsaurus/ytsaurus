@@ -233,9 +233,11 @@ def import_table(object, args):
 
 def main():
     parser = ArgumentParser()
-    parser.add_argument("--tables-queue", required=True,
-                        help="YT path to list with tables")
+    parser.add_argument("--tables-queue", help="YT path to list with tables")
     parser.add_argument("--destination-dir")
+
+    parser.add_argument("--src")
+    parser.add_argument("--dst")
 
     parser.add_argument("--import-type", default="pull",
                         help="push (run operation in Yamr that writes to YT) or pull (run operation in YT that reads from Yamr)")
@@ -273,9 +275,15 @@ def main():
 
     args = parser.parse_args()
 
-    process_tasks_from_list(
-        args.tables_queue,
-        lambda obj: import_table(obj, args))
+    if args.tables_queue is not None:
+        assert args.src is None and args.dst is None
+        process_tasks_from_list(
+            args.tables_queue,
+            lambda obj: import_table(obj, args))
+    else:
+        assert args.src is not None and args.dst is not None
+        import_table({"src": args.src, "dst": args.dst}, args)
+
 
 if __name__ == "__main__":
     main()

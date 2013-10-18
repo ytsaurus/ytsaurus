@@ -82,6 +82,9 @@ def main():
     parser.add_argument("--tables-queue")
     parser.add_argument("--destination-dir")
 
+    parser.add_argument("--src")
+    parser.add_argument("--dst")
+
     parser.add_argument("--mr-server")
     parser.add_argument("--mr-server-port", default="8013")
     parser.add_argument("--mr-http-port", default="13013")
@@ -97,11 +100,18 @@ def main():
 
     parser.add_argument("--yt-pool", default="export_restricted")
 
+    parser.add_argument("--opts", default="")
+
     args = parser.parse_args()
 
-    process_tasks_from_list(
-        args.tables_queue,
-        lambda obj: export_table(obj, args))
+    if args.tables_queue is not None:
+        assert args.src is None and args.dst is None
+        process_tasks_from_list(
+            args.tables_queue,
+            lambda obj: export_table(obj, args))
+    else:
+        assert args.src is not None and args.dst is not None
+        export_table({"src": args.src, "dst": args.dst}, args)
 
 if __name__ == "__main__":
     main()
