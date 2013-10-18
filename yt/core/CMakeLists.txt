@@ -37,26 +37,29 @@ configure_file(
   ${CMAKE_CURRENT_BINARY_DIR}/build.cpp
 )
 
-add_library( ytcore STATIC
-  ${YT_SOURCE_FILES}
+list(APPEND YT_SOURCE_FILES
   ${CMAKE_CURRENT_SOURCE_DIR}/build.h
   ${CMAKE_CURRENT_BINARY_DIR}/build.cpp
 )
 
-target_link_libraries ( ytcore
+add_library(ytcore STATIC
+  ${YT_SOURCE_FILES}
+)
+
+target_link_libraries(ytcore
   ytext-lfalloc
   ${LIBS}
 )
 
 if (HAVE_LIBUNWIND)
-  target_link_libraries( ytcore unwind )
+  target_link_libraries(ytcore unwind)
 endif()
 
 if (YT_BUILD_ENABLE_PYTHON)
-  add_library( ytcore-without-lfalloc STATIC
-      ${YT_SOURCE_FILES}
+  add_library(ytcore-without-lfalloc STATIC
+    ${YT_SOURCE_FILES}
   )
-  target_link_libraries ( ytcore-without-lfalloc
+  target_link_libraries(ytcore-without-lfalloc
     ytext-lfalloc-fake
     ${LIBS}
   )
