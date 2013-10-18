@@ -21,24 +21,6 @@ TError::TErrorOr()
     : Code_(OK)
 { }
 
-TError::TErrorOr(const Stroka& message)
-    : Code_(GenericFailure)
-    , Message_(message)
-{
-    CaptureOriginAttributes();
-}
-
-TError::TErrorOr(const char* format, ...)
-    : Code_(GenericFailure)
-{
-    va_list params;
-    va_start(params, format);
-    vsprintf(Message_, format, params);
-    va_end(params);
-
-    CaptureOriginAttributes();
-}
-
 TError::TErrorOr(const TError& other)
     : Code_(other.Code_)
     , Message_(other.Message_)
@@ -62,6 +44,24 @@ TError::TErrorOr(const std::exception& ex)
         Code_ = GenericFailure;
         Message_ = ex.what();
     }
+}
+
+TError::TErrorOr(const Stroka& message)
+    : Code_(GenericFailure)
+    , Message_(message)
+{
+    CaptureOriginAttributes();
+}
+
+TError::TErrorOr(const char* format, ...)
+    : Code_(GenericFailure)
+{
+    va_list params;
+    va_start(params, format);
+    vsprintf(Message_, format, params);
+    va_end(params);
+
+    CaptureOriginAttributes();
 }
 
 TError::TErrorOr(int code, const Stroka& message)
