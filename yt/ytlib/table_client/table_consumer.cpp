@@ -14,12 +14,12 @@ using namespace NYson;
 
 void TTableConsumer::OnStringScalar(const TStringBuf& value)
 {
-    if (ControlState == EControlState::ExpectValue) {
-        YASSERT(Depth == 1);
+    if (ControlState == EControlState::ExpectControlAttributeValue) {
+        YCHECK(Depth == 1);
         ThrowInvalidControlAttribute("be a string value");
     }
 
-    YASSERT(ControlState == EControlState::None);
+    YCHECK(ControlState == EControlState::None);
 
     if (Depth == 0) {
         ThrowMapExpected();
@@ -30,8 +30,8 @@ void TTableConsumer::OnStringScalar(const TStringBuf& value)
 
 void TTableConsumer::OnIntegerScalar(i64 value)
 {
-    if (ControlState == EControlState::ExpectValue) {
-        YASSERT(Depth == 1);
+    if (ControlState == EControlState::ExpectControlAttributeValue) {
+        YCHECK(Depth == 1);
 
         switch (ControlAttribute) {
             case EControlAttribute::TableIndex: {
@@ -44,7 +44,7 @@ void TTableConsumer::OnIntegerScalar(i64 value)
                 }
                 CurrentTableIndex = value;
                 Writer = Writers[CurrentTableIndex];
-                ControlState = EControlState::ExpectEndAttributes;
+                ControlState = EControlState::ExpectEndControlAttributes;
                 break;
             }
 
@@ -55,7 +55,7 @@ void TTableConsumer::OnIntegerScalar(i64 value)
         return;
     }
 
-    YASSERT(ControlState == EControlState::None);
+    YCHECK(ControlState == EControlState::None);
 
     if (Depth == 0) {
         ThrowMapExpected();
@@ -66,12 +66,12 @@ void TTableConsumer::OnIntegerScalar(i64 value)
 
 void TTableConsumer::OnDoubleScalar(double value)
 {
-    if (ControlState == EControlState::ExpectValue) {
-        YASSERT(Depth == 1);
+    if (ControlState == EControlState::ExpectControlAttributeValue) {
+        YCHECK(Depth == 1);
         ThrowInvalidControlAttribute("be a double value");
     }
 
-    YASSERT(ControlState == EControlState::None);
+    YCHECK(ControlState == EControlState::None);
 
     if (Depth == 0) {
         ThrowMapExpected();
@@ -87,12 +87,12 @@ void TTableConsumer::OnEntity()
         break;
 
     case EControlState::ExpectEntity:
-        YASSERT(Depth == 0);
+        YCHECK(Depth == 0);
         // Successfully processed control statement.
         ControlState = EControlState::None;
         return;
 
-    case EControlState::ExpectValue:
+    case EControlState::ExpectControlAttributeValue:
         ThrowInvalidControlAttribute("be an entity");
         break;
 
@@ -110,12 +110,12 @@ void TTableConsumer::OnEntity()
 
 void TTableConsumer::OnBeginList()
 {
-    if (ControlState == EControlState::ExpectValue) {
-        YASSERT(Depth == 1);
+    if (ControlState == EControlState::ExpectControlAttributeValue) {
+        YCHECK(Depth == 1);
         ThrowInvalidControlAttribute("be a list");
     }
 
-    YASSERT(ControlState == EControlState::None);
+    YCHECK(ControlState == EControlState::None);
 
     if (Depth == 0) {
         ThrowMapExpected();
@@ -127,15 +127,15 @@ void TTableConsumer::OnBeginList()
 
 void TTableConsumer::OnBeginAttributes()
 {
-    if (ControlState == EControlState::ExpectValue) {
-        YASSERT(Depth == 1);
+    if (ControlState == EControlState::ExpectControlAttributeValue) {
+        YCHECK(Depth == 1);
         ThrowInvalidControlAttribute("have attributes");
     }
 
-    YASSERT(ControlState == EControlState::None);
+    YCHECK(ControlState == EControlState::None);
 
     if (Depth == 0) {
-        ControlState = EControlState::ExpectName;
+        ControlState = EControlState::ExpectControlAttributeName;
     } else {
         ValueWriter.OnBeginAttributes();
     }
@@ -143,25 +143,9 @@ void TTableConsumer::OnBeginAttributes()
     ++Depth;
 }
 
-void TTableConsumer::ThrowMapExpected()
-{
-    THROW_ERROR_EXCEPTION("Invalid row format, map expected")
-        << TErrorAttribute("table_index", CurrentTableIndex)
-        << TErrorAttribute("row_index", Writer->GetRowCount());
-}
-
-void TTableConsumer::ThrowInvalidControlAttribute(const Stroka& whatsWrong)
-{
-    THROW_ERROR_EXCEPTION("Control attribute %s cannot %s",
-        ~FormatEnum(ControlAttribute).Quote(),
-        ~whatsWrong)
-        << TErrorAttribute("table_index", CurrentTableIndex)
-        << TErrorAttribute("row_index", Writer->GetRowCount());
-}
-
 void TTableConsumer::OnListItem()
 {
-    YASSERT(ControlState == EControlState::None);
+    YCHECK(ControlState == EControlState::None);
 
     if (Depth == 0) {
         // Row separator, do nothing.
@@ -172,12 +156,16 @@ void TTableConsumer::OnListItem()
 
 void TTableConsumer::OnBeginMap()
 {
-    if (ControlState == EControlState::ExpectValue) {
-        YASSERT(Depth == 1);
+    if (ControlState == EControlState::ExpectControlAttributeValue) {
+        YCHECK(Depth == 1);
         ThrowInvalidControlAttribute("be a map");
     }
 
-    YASSERT(ControlState == EControlState::None);
+    if (ControlState == EControlState::ExpectEntity) {
+        ThrowEntityExpected();
+    }
+
+    YCHECK(ControlState == EControlState::None);
 
     if (Depth > 0) {
         ValueWriter.OnBeginMap();
@@ -192,8 +180,8 @@ void TTableConsumer::OnKeyedItem(const TStringBuf& name)
     case EControlState::None:
         break;
 
-    case EControlState::ExpectName:
-        YASSERT(Depth == 1);
+    case EControlState::ExpectControlAttributeName:
+        YCHECK(Depth == 1);
         try {
             ControlAttribute = ParseEnum<EControlAttribute>(ToString(name));
         } catch (const std::exception&) {
@@ -201,20 +189,19 @@ void TTableConsumer::OnKeyedItem(const TStringBuf& name)
             THROW_ERROR_EXCEPTION("Failed to parse control attribute name %s",
                 ~Stroka(name).Quote());
         }
-        ControlState = EControlState::ExpectValue;
+        ControlState = EControlState::ExpectControlAttributeValue;
         return;
 
-    case EControlState::ExpectEndAttributes:
-        YASSERT(Depth == 1);
+    case EControlState::ExpectEndControlAttributes:
+        YCHECK(Depth == 1);
         THROW_ERROR_EXCEPTION("Too many control attributes per record: at most one attribute is allowed");
         break;
 
     default:
         YUNREACHABLE();
-
     };
 
-    YASSERT(Depth > 0);
+    YCHECK(Depth > 0);
     if (Depth == 1) {
         Offsets.push_back(RowBuffer.Size());
         RowBuffer.Write(name);
@@ -227,9 +214,9 @@ void TTableConsumer::OnKeyedItem(const TStringBuf& name)
 
 void TTableConsumer::OnEndMap()
 {
-    YASSERT(Depth > 0);
+    YCHECK(Depth > 0);
     // No control attribute allows map or composite values.
-    YASSERT(ControlState == EControlState::None);
+    YCHECK(ControlState == EControlState::None);
 
     --Depth;
 
@@ -238,7 +225,7 @@ void TTableConsumer::OnEndMap()
         return;
     }
 
-    YASSERT(Offsets.size() % 2 == 0);
+    YCHECK(Offsets.size() % 2 == 0);
 
     TRow row;
     row.reserve(Offsets.size() / 2);
@@ -266,10 +253,10 @@ void TTableConsumer::OnEndMap()
 void TTableConsumer::OnEndList()
 {
    // No control attribute allow list or composite values.
-    YASSERT(ControlState == EControlState::None);
+    YCHECK(ControlState == EControlState::None);
 
     --Depth;
-    YASSERT(Depth > 0);
+    YCHECK(Depth > 0);
     ValueWriter.OnEndList();
 }
 
@@ -278,17 +265,17 @@ void TTableConsumer::OnEndAttributes()
     --Depth;
 
     switch (ControlState) {
-        case EControlState::ExpectName:
+        case EControlState::ExpectControlAttributeName:
             THROW_ERROR_EXCEPTION("Too few control attributes per record: at least one attribute is required");
             break;
 
-        case EControlState::ExpectEndAttributes:
-            YASSERT(Depth == 0);
+        case EControlState::ExpectEndControlAttributes:
+            YCHECK(Depth == 0);
             ControlState = EControlState::ExpectEntity;
             break;
 
         case EControlState::None:
-            YASSERT(Depth > 0);
+            YCHECK(Depth > 0);
             ValueWriter.OnEndAttributes();
             break;
 
@@ -300,6 +287,31 @@ void TTableConsumer::OnEndAttributes()
 void TTableConsumer::OnRaw(const TStringBuf& yson, EYsonType type)
 {
     YUNREACHABLE();
+}
+
+void TTableConsumer::ThrowMapExpected() const
+{
+    ThrowError("Invalid row format, map expected");
+}
+
+void TTableConsumer::ThrowEntityExpected() const
+{
+    ThrowError("Invalid row format, there is control attributes, entity expected");
+}
+
+void TTableConsumer::ThrowInvalidControlAttribute(const Stroka& whatsWrong) const
+{
+    ThrowError(
+        Sprintf("Control attribute %s cannot %s",
+            ~FormatEnum(ControlAttribute).Quote(),
+            ~whatsWrong));
+}
+
+void TTableConsumer::ThrowError(const Stroka& message) const
+{
+    THROW_ERROR_EXCEPTION(message)
+        << TErrorAttribute("table_index", CurrentTableIndex)
+        << TErrorAttribute("row_index", Writer->GetRowCount());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
