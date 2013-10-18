@@ -8,8 +8,8 @@ namespace NVersionedTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_ENUM(ERowsetType,
-    (Versioned)   // With timestamps and tombstones
     (Simple)
+    (Versioned)
 );
 
 DECLARE_ENUM(EColumnType,
@@ -24,8 +24,6 @@ DECLARE_ENUM(EColumnType,
 typedef i64 TTimestamp;
 const TTimestamp NullTimestamp = 0;
 
-typedef std::vector<Stroka> TKeyColumns;
-
 struct TRowValue
 {
     typedef union {
@@ -39,7 +37,7 @@ struct TRowValue
     ui32 Length; // For variable-sized values.
     ui16 Type; // EColumnType
     ui16 Index; // TNameTable
-};
+} __attribute__((aligned(16), packed));
 
 static_assert(sizeof(TRowValue) == 16, "TRowValue has to be exactly 16 bytes");
 
@@ -50,3 +48,4 @@ typedef TIntrusivePtr<TNameTable> TNameTablePtr;
 
 } // namespace NVersionedTableClient
 } // namespace NYT
+

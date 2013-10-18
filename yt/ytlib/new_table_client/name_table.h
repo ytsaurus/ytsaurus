@@ -4,15 +4,13 @@
 
 #include <core/misc/nullable.h>
 
-#include <ytlib/new_table_client/chunk_meta.pb.h>
-
 namespace NYT {
 namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNameTable
-    : public virtual TRefCounted
+    : public TRefCounted
 {
 public:
     int RegisterName(const Stroka& name);
@@ -30,8 +28,11 @@ private:
 
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NProto { class TNameTable; }
+void ToProto(NProto::TNameTable* protoNameTable, const TNameTablePtr& nameTable);
 TNameTablePtr FromProto(const NProto::TNameTable& protoNameTable);
-void ToProto(NProto::TNameTable* protoNameTable, TNameTablePtr nameTable);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1,9 +1,17 @@
 package NYT.NVersionedTableClient.NProto;
 
-//import "yt/ytlib/chunk_client/chunk_spec.proto";
-//import "yt/ytlib/chunk_client/chunk.proto";
-
 ////////////////////////////////////////////////////////////////////////////////
+
+message TColumnSchema
+{
+    required string name = 1;
+    required int32 type = 2;
+}
+
+message TTableSchema
+{
+    repeated TColumnSchema columns = 1;
+}
 
 message TNameTable
 {
@@ -11,3 +19,4 @@ message TNameTable
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
