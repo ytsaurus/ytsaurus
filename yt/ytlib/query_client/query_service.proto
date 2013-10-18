@@ -1,0 +1,18 @@
+package NYT.NQueryClient.NProto;
+
+import "yt/ytlib/query_client/operator.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqExecute
+{
+    required TOperator fragment_head = 1;
+}
+
+message TRspExecute
+{
+    // TODO(sandello): Send data.
+}
+
+////////////////////////////////////////////////////////////////////////////////
+

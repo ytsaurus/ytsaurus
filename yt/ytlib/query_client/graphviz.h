@@ -1,0 +1,27 @@
+#pragma once
+
+#include <util/generic/stroka.h>
+
+namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NDot {
+    Stroka EscapeString(const Stroka& s);
+    Stroka EscapeHtml(const Stroka& s);
+    void ViewGraph(const Stroka& file);
+} // namespace NDot
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NQueryClient {
+
+class TQueryFragment;
+void ViewFragment(TQueryFragment* fragment);
+
+} // namespace NQueryClient
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT
+

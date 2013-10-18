@@ -22,6 +22,7 @@ set( DIRS
   node_tracker_server
   tablet_node
   tablet_server
+  query_agent
 )
 
 foreach( _d_ ${DIRS} )

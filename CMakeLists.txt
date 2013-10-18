@@ -1,10 +1,23 @@
 cmake_minimum_required(VERSION 2.6.4 FATAL_ERROR)
 project(YT)
 
+#################################################################################
+# Specify available build options.
+
+option(YT_BUILD_ENABLE_BENCHMARKS  "Build benchmarks" TRUE)
+option(YT_BUILD_ENABLE_DRIVER      "Build driver" TRUE)
+option(YT_BUILD_ENABLE_EXPERIMENTS "Build experiments" TRUE)
+option(YT_BUILD_ENABLE_TESTS       "Build tests" TRUE)
+option(YT_BUILD_ENABLE_NODEJS      "Build NodeJS extensions" FALSE)
+option(YT_BUILD_ENABLE_PYTHON      "Build Python extensions" TRUE)
+option(YT_BUILD_HAVE_RAGEL         "Do you have Ragel 6.8?" TRUE)
+option(YT_BUILD_HAVE_BISON         "Do you have Bison 3.0?" FALSE)
+option(YT_BUILD_YTCORE_SHARED      "Build ytcore as a shared lib" FALSE)
+option(YT_USE_FOLDERS              "Enable solution folders in Visual Studio. Disable for Express versions." TRUE)
+
 ################################################################################
 # Include various CMake modules.
 
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
 include(CMakeDependentOption)
@@ -28,25 +41,15 @@ include(LocalXCode)
 include(Version)
 include(PCH)
 
-# TODO(sandello): We all have to migrate to a newer CMake aforehead.
-# include(cotire)
+################################################################################
+# Create CompilationDatabase (build/compile_commands.json).
+
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 ################################################################################
 # Configure all the things!
 
 message(STATUS "Configuring YT ${YT_VERSION}")
-
-#################################################################################
-# Specify available build options.
-
-option(YT_BUILD_ENABLE_BENCHMARKS  "Build benchmarks" TRUE)
-option(YT_BUILD_ENABLE_DRIVER      "Build driver" TRUE)
-option(YT_BUILD_ENABLE_EXPERIMENTS "Build experiments" TRUE)
-option(YT_BUILD_ENABLE_TESTS       "Build tests" TRUE)
-option(YT_BUILD_ENABLE_NODEJS      "Build NodeJS extensions" FALSE)
-option(YT_BUILD_ENABLE_PYTHON      "Build Python extensions" TRUE)
-option(YT_BUILD_YTCORE_SHARED      "Build ytcore as a shared lib" FALSE)
-option(YT_USE_FOLDERS              "Enable solution folders in Visual Studio. Disable for Express versions." TRUE)
 
 ################################################################################
 # Setup targets.
