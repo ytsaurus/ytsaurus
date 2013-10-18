@@ -187,10 +187,6 @@ class TErrorOr
     : public TError
 {
 public:
-    TErrorOr()
-        : Value_()
-    { }
-
     TErrorOr(const T& value)
         : Value_(value)
     { }
@@ -199,30 +195,22 @@ public:
         : Value_(std::move(value))
     { }
 
-    TErrorOr(const TErrorOr<T>& other)
-        : TError(other)
-        , Value_(other.Value_)
-    { }
-
     TErrorOr(const TError& other)
         : TError(other)
-        , Value_()
+    { }
+
+    TErrorOr(TError&& other)
+        : TError(std::move(other))
     { }
 
     TErrorOr(const std::exception& ex)
         : TError(ex)
     { }
 
-    template <class TOther>
-    TErrorOr(const TErrorOr<TOther>& other)
-        : TError(other)
-        , Value_(other.GetValue())
-    { }
-
     const T& GetValue() const
     {
-        YCHECK(IsOK());
-        return Value_;
+        YCHECK(IsOK() && Value_.HasValue());
+        return Value_.Get();
     }
 
     const T& GetValueOrThrow() const
@@ -230,11 +218,12 @@ public:
         if (!IsOK()) {
             THROW_ERROR *this;
         }
-        return Value_;
+        YCHECK(Value_.HasValue());
+        return Value_.Get();
     }
 
 private:
-    T Value_;
+    TNullable<T> Value_;
 
 };
 
