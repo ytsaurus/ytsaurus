@@ -186,9 +186,9 @@ def _make_operation_request(command_name, spec, strategy, finalizer=None, verbos
             config.OPERATION_TRANSACTION_TIMEOUT,
             attributes={"title": "Python wrapper: envelope transaction of operation"})
         def run_in_transaction():
-            def envelope_finalizer():
+            def envelope_finalizer(state):
                 if finalizer is not None:
-                    finalizer()
+                    finalizer(state)
                 transaction.__exit__(None, None, None)
             transaction.__enter__()
             run_operation(envelope_finalizer)
