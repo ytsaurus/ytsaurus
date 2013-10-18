@@ -296,7 +296,7 @@ void TTableConsumer::ThrowMapExpected() const
 
 void TTableConsumer::ThrowEntityExpected() const
 {
-    ThrowError("Invalid row format, there is control attributes, entity expected");
+    ThrowError("Invalid row format, there are control attributes, entity expected");
 }
 
 void TTableConsumer::ThrowInvalidControlAttribute(const Stroka& whatsWrong) const

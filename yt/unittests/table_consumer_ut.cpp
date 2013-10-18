@@ -45,7 +45,7 @@ TOwnedRow ToRow(const Stroka& key, const Stroka& value)
 }
 
 
-class DummyTableWriter
+class TDummyTableWriter
     : public IWriterBase
 {
 public:
@@ -75,7 +75,7 @@ private:
 
 TEST(TTableConsumerTest, Simple)
 {
-    auto writer = New<DummyTableWriter>();
+    auto writer = New<TDummyTableWriter>();
     TTableConsumer consumer(writer);
 
     consumer.OnListItem();
@@ -98,7 +98,7 @@ TEST(TTableConsumerTest, Simple)
 
 TEST(TTableConsumerTest, TableIndex)
 {
-    auto writer = New<DummyTableWriter>();
+    auto writer = New<TDummyTableWriter>();
     TTableConsumer consumer(writer);
 
     consumer.OnListItem();
@@ -122,7 +122,7 @@ TEST(TTableConsumerTest, TableIndex)
 
 TEST(TTableConsumerTest, InvalidControlAttribute)
 {
-    auto writer = New<DummyTableWriter>();
+    auto writer = New<TDummyTableWriter>();
     TTableConsumer consumer(writer);
 
     consumer.OnListItem();
@@ -132,7 +132,7 @@ TEST(TTableConsumerTest, InvalidControlAttribute)
 
 TEST(TTableConsumerTest, InvalidControlAttributeValue)
 {
-    auto writer = New<DummyTableWriter>();
+    auto writer = New<TDummyTableWriter>();
     TTableConsumer consumer(writer);
 
     consumer.OnListItem();
@@ -143,7 +143,7 @@ TEST(TTableConsumerTest, InvalidControlAttributeValue)
 
 TEST(TTableConsumerTest, EmptyAttribute)
 {
-    auto writer = New<DummyTableWriter>();
+    auto writer = New<TDummyTableWriter>();
     TTableConsumer consumer(writer);
 
     consumer.OnListItem();
@@ -153,7 +153,7 @@ TEST(TTableConsumerTest, EmptyAttribute)
 
 TEST(TTableConsumerTest, RowWithAttributes)
 {
-    auto writer = New<DummyTableWriter>();
+    auto writer = New<TDummyTableWriter>();
     TTableConsumer consumer(writer);
 
     consumer.OnListItem();
@@ -166,7 +166,7 @@ TEST(TTableConsumerTest, RowWithAttributes)
 
 TEST(TTableConsumerTest, IntegerRow)
 {
-    auto writer = New<DummyTableWriter>();
+    auto writer = New<TDummyTableWriter>();
     TTableConsumer consumer(writer);
 
     consumer.OnListItem();
@@ -175,7 +175,7 @@ TEST(TTableConsumerTest, IntegerRow)
 
 TEST(TTableConsumerTest, EntityRow)
 {
-    auto writer = New<DummyTableWriter>();
+    auto writer = New<TDummyTableWriter>();
     TTableConsumer consumer(writer);
 
     consumer.OnListItem();
