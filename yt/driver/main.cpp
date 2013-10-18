@@ -30,7 +30,7 @@
 #include <util/stream/pipe.h>
 #include <util/system/sigset.h>
 
-#include <yt/build.h>
+#include <core/build.h>
 
 namespace NYT {
 
@@ -201,7 +201,7 @@ private:
 
     void PrintVersion()
     {
-        printf("%s\n", YT_VERSION);
+        printf("%s\n", GetVersion());
     }
 
     void RegisterExecutor(TExecutorPtr executor)

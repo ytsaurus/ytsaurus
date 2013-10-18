@@ -4,7 +4,7 @@
 
 #include <core/misc/fs.h>
 
-#include <yt/build.h>
+#include <core/build.h>
 
 namespace NYT {
 namespace NLog {
@@ -24,9 +24,9 @@ TLogEvent GetBannerEvent()
         SystemLoggingCategory,
         ELogLevel::Info,
         Sprintf("Logging started (Version: %s, BuildHost: %s, BuildTime: %s)",
-            YT_VERSION,
-            YT_BUILD_HOST,
-            YT_BUILD_TIME));
+            GetVersion(),
+            GetBuildHost(),
+            GetBuildTime()));
 }
 
 } // namespace

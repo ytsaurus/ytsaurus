@@ -1,0 +1,20 @@
+#pragma once
+
+namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+int GetVersionMajor();
+int GetVersionMinor();
+int GetVersionPatch();
+
+const char* GetVersion();
+
+const char* GetBuildHost();
+const char* GetBuildMachine();
+const char* GetBuildTime();
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT
+

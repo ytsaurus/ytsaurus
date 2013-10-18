@@ -38,7 +38,7 @@
 #include <server/hydra/changelog.h>
 #include <server/hydra/file_changelog.h>
 
-#include <yt/build.h>
+#include <core/build.h>
 
 #include <util/system/sigset.h>
 #include <util/system/execpath.h>
@@ -70,7 +70,7 @@ struct TArgsParser
 {
 public:
     TArgsParser()
-        : CmdLine("Command line", ' ', YT_VERSION)
+        : CmdLine("Command line", ' ', GetVersion())
         , CellNode("", "node", "start cell node")
         , CellMaster("", "master", "start cell master")
         , Scheduler("", "scheduler", "start scheduler")

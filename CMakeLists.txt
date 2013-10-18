@@ -76,11 +76,6 @@ if (CMAKE_COMPILER_IS_GNUCXX)
 endif()
 
 configure_file(
-  ${CMAKE_SOURCE_DIR}/yt/build.h.in
-  ${CMAKE_BINARY_DIR}/yt/build.h
-)
-
-configure_file(
   ${CMAKE_SOURCE_DIR}/yt/config.h.in
   ${CMAKE_BINARY_DIR}/yt/config.h
 )

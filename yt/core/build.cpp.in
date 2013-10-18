@@ -1,0 +1,45 @@
+#include "build.h"
+
+namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+int GetVersionMajor()
+{
+    return @YT_VERSION_MAJOR@;
+}
+
+int GetVersionMinor()
+{
+    return @YT_VERSION_MINOR@;
+}
+
+int GetVersionPatch()
+{
+    return @YT_VERSION_PATCH@;
+}
+
+const char* GetVersion()
+{
+    return "@YT_VERSION@";
+}
+
+const char* GetBuildHost()
+{
+    return "@YT_BUILD_HOST@";
+}
+
+const char* GetBuildMachine()
+{
+    return "@YT_BUILD_MACHINE@";
+}
+
+const char* GetBuildTime()
+{
+    return "@YT_BUILD_TIME@";
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT
+

@@ -32,8 +32,15 @@ add_msvc_precompiled_header(
   YT_SOURCE_FILES
 )
 
+configure_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/build.cpp.in
+  ${CMAKE_CURRENT_BINARY_DIR}/build.cpp
+)
+
 add_library( ytcore STATIC
   ${YT_SOURCE_FILES}
+  ${CMAKE_CURRENT_SOURCE_DIR}/build.h
+  ${CMAKE_CURRENT_BINARY_DIR}/build.cpp
 )
 
 target_link_libraries ( ytcore
@@ -44,7 +51,6 @@ target_link_libraries ( ytcore
 if (HAVE_LIBUNWIND)
   target_link_libraries( ytcore unwind )
 endif()
-
 
 if (YT_BUILD_ENABLE_PYTHON)
   add_library( ytcore-without-lfalloc STATIC
