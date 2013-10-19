@@ -84,6 +84,11 @@
     #pragma warning (disable: 4250)
 #endif
 
+#if defined(_MSC_VER)
+    // VS does not support alignof natively yet.
+    #define alignof __alignof
+#endif
+
 // Used to mark Logger and Profiler static variables as probably unused
 // to silent static analyzer.
 #if defined(__GNUC__) || defined(__clang__)
