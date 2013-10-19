@@ -22,7 +22,6 @@
 
 #include <ytlib/query_client/query_context.h>
 #include <ytlib/query_client/query_fragment.h>
-#include <ytlib/query_client/prepare_facade.h>
 #include <ytlib/query_client/graphviz.h>
 
 namespace NYT {
@@ -185,8 +184,9 @@ void TUnmountCommand::DoExecute()
 
 void TSelectCommand::DoExecute()
 {
-    auto facade = New<TPrepareFacade>(Context->GetMasterChannel());
-    auto fragment = PrepareQueryFragment(facade.Get(), Request->Query);
+    auto fragment = PrepareQueryFragment(
+        Context->GetQueryCallbacksProvider()->GetPrepareCallbacks(),
+        Request->Query);
 
     ViewFragment(fragment);
 

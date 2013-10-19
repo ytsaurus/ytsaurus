@@ -1,4 +1,4 @@
-#include "prepare_facade.h"
+#include "query_callbacks_provider.h"
 #include "private.h"
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
@@ -11,46 +11,49 @@
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
 #include <ytlib/new_table_client/chunk_meta.pb.h>
 
+#include <ytlib/query_client/stubs.h>
+
 #include <core/ytree/ypath_proxy.h>
 #include <core/ytree/attribute_helpers.h>
 
 #include <core/concurrency/fiber.h>
 
 namespace NYT {
-namespace NQueryClient {
+namespace NDriver {
 
 using namespace NRpc;
-using namespace NCypressClient;
-using namespace NObjectClient;
 using namespace NYPath;
 using namespace NYTree;
 using namespace NConcurrency;
+using namespace NCypressClient;
+using namespace NObjectClient;
+using namespace NQueryClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static auto& Logger = QueryClientLogger;
+static auto& Logger = DriverLogger;
 
-class TPrepareFacade::TImpl
+class TQueryCallbacksProvider::TImpl
+    : public TRefCounted
+    , public IPrepareCallbacks
 {
 public:
-    TImpl(TIntrusivePtr<TPrepareFacade> self, IChannelPtr masterChannel)
-        : Self_(std::move(self))
-        , MasterChannel_(std::move(masterChannel))
-        // TODO(sandello@): Configure proxy timeout.
-        , ObjectProxy_(MasterChannel_)
+    TImpl(IChannelPtr masterChannel)
+        : MasterChannel_(masterChannel)
+        , ObjectProxy_(masterChannel) // TODO(sandello@): Configure proxy timeout.
     { }
 
     ~TImpl()
     { }
 
-    TFuture<TErrorOr<TDataSplit>> GetInitialSplit(const TYPath& path)
+    virtual TFuture<TErrorOr<TDataSplit>> GetInitialSplit(const TYPath& path) override
     {
-        auto self = Self_;
-        return BIND([self, path, this] { return DoGetInitialSplit(path); })
+        return BIND(&TImpl::DoGetInitialSplit, MakeStrong(this), path)
             .AsyncVia(GetCurrentInvoker())
             .Run();
     }
 
+private:
     TErrorOr<TDataSplit> DoGetInitialSplit(const Stroka& path)
     {
         LOG_DEBUG("Getting attributes for table %s", ~path);
@@ -104,28 +107,25 @@ public:
     }
 
 private:
-    TIntrusivePtr<TPrepareFacade> Self_;
-
     IChannelPtr MasterChannel_;
     TObjectServiceProxy ObjectProxy_;
+
 };
 
-TPrepareFacade::TPrepareFacade(IChannelPtr masterChannel)
-    : Impl_(new TImpl(this, std::move(masterChannel)))
+TQueryCallbacksProvider::TQueryCallbacksProvider(IChannelPtr masterChannel)
+    : Impl_(New<TImpl>(std::move(masterChannel)))
 { }
 
-TPrepareFacade::~TPrepareFacade()
+TQueryCallbacksProvider::~TQueryCallbacksProvider()
 { }
 
-TFuture<TErrorOr<TDataSplit>> TPrepareFacade::GetInitialSplit(
-    const NYT::NYPath::TYPath& path
-)
+NQueryClient::IPrepareCallbacks* TQueryCallbacksProvider::GetPrepareCallbacks()
 {
-    return Impl_->GetInitialSplit(path);
+    return Impl_.Get();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NQueryClient
+} // namespace NDriver
 } // namespace NYT
 

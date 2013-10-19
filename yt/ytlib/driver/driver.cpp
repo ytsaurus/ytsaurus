@@ -9,6 +9,7 @@
 #include "file_commands.h"
 #include "table_commands.h"
 #include "scheduler_commands.h"
+#include "query_callbacks_provider.h"
 
 #include <core/actions/invoker_util.h>
 
@@ -81,10 +82,9 @@ public:
     {
         YCHECK(config);
 
-        LeaderChannel = CreatePeerChannel(Config->Masters, EPeerRole::Leader);
-        MasterChannel = CreatePeerChannel(Config->Masters, EPeerRole::Follower);
+        MasterChannel = CreatePeerChannel(Config->Masters, EPeerRole::Leader);
 
-        SchedulerChannel = CreateSchedulerChannel(Config->Scheduler, LeaderChannel);
+        SchedulerChannel = CreateSchedulerChannel(Config->Scheduler, MasterChannel);
 
         BlockCache = CreateClientBlockCache(Config->BlockCache);
 
@@ -154,7 +154,7 @@ public:
         YCHECK(entry.Descriptor.InputType == EDataType::Null || request.InputStream);
         YCHECK(entry.Descriptor.OutputType == EDataType::Null || request.OutputStream);
 
-        auto masterChannel = LeaderChannel;
+        auto masterChannel = MasterChannel;
         if (request.AuthenticatedUser) {
             masterChannel = CreateAuthenticatedChannel(
                 masterChannel,
@@ -174,14 +174,18 @@ public:
             Config->TransactionManager,
             masterChannel);
 
+        auto queryCallbacksProvider = New<TQueryCallbacksProvider>(
+            masterChannel);
+
         // TODO(babenko): ReadFromFollowers is switched off
         auto context = New<TCommandContext>(
             this,
             entry.Descriptor,
             request,
-            masterChannel,
-            schedulerChannel,
-            transactionManager);
+            std::move(masterChannel),
+            std::move(schedulerChannel),
+            std::move(transactionManager),
+            std::move(queryCallbacksProvider));
 
         auto command = entry.Factory.Run();
 
@@ -201,7 +205,7 @@ public:
                 LOG_INFO(response.Error, "Command failed (Command: %s)", ~request.CommandName);
             }
 
-            transactionManager->AsyncAbortAll();
+            context->GetTransactionManager()->AsyncAbortAll();
 
             WaitFor(context->TerminateChannels());
 
@@ -230,7 +234,7 @@ public:
 
     virtual IChannelPtr GetMasterChannel() override
     {
-        return LeaderChannel;
+        return MasterChannel;
     }
 
     virtual IChannelPtr GetSchedulerChannel() override
@@ -246,7 +250,6 @@ private:
 
     TDriverConfigPtr Config;
 
-    IChannelPtr LeaderChannel;
     IChannelPtr MasterChannel;
     IChannelPtr SchedulerChannel;
     IBlockCachePtr BlockCache;
@@ -280,13 +283,15 @@ private:
             const TDriverRequest& request,
             IChannelPtr masterChannel,
             IChannelPtr schedulerChannel,
-            TTransactionManagerPtr transactionManager)
+            TTransactionManagerPtr transactionManager,
+            TQueryCallbacksProviderPtr queryCallbacksProvider)
             : Driver(driver)
             , Descriptor(descriptor)
             , Request_(request)
             , MasterChannel(std::move(masterChannel))
             , SchedulerChannel(std::move(schedulerChannel))
             , TransactionManager(std::move(transactionManager))
+            , QueryCallbacksProvider(std::move(queryCallbacksProvider))
             , SyncInputStream(CreateSyncInputStream(request.InputStream))
             , SyncOutputStream(CreateSyncOutputStream(request.OutputStream))
         { }
@@ -325,6 +330,11 @@ private:
         virtual TTransactionManagerPtr GetTransactionManager() override
         {
             return TransactionManager;
+        }
+
+        virtual TQueryCallbacksProviderPtr GetQueryCallbacksProvider() override
+        {
+            return QueryCallbacksProvider;
         }
 
         virtual const TDriverRequest& Request() const override
@@ -384,6 +394,7 @@ private:
         IChannelPtr MasterChannel;
         IChannelPtr SchedulerChannel;
         TTransactionManagerPtr TransactionManager;
+        TQueryCallbacksProviderPtr QueryCallbacksProvider;
 
         TNullable<TFormat> InputFormat;
         TNullable<TFormat> OutputFormat;

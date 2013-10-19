@@ -8,7 +8,6 @@ set( SRCS
   ${BASE}/query_context.cpp
   ${BASE}/query_fragment.cpp
   ${BASE}/private.cpp
-  ${BASE}/prepare_facade.cpp
 )
 set( HDRS
 )
