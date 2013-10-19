@@ -16,6 +16,10 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
+// Required in printing visitor.
+#include <core/misc/guid.h>
+#include <core/misc/protobuf_helpers.h>
+
 namespace NYT {
 namespace NDot {
 
@@ -244,13 +248,17 @@ public:
 
     virtual bool Visit(TScanOperator* op) override
     {
+        using NObjectClient::TObjectId;
+        using NObjectClient::TypeFromId;
+        auto objectId = NYT::FromProto<TObjectId>(op->DataSplit().chunk_id());
         WriteNode(
             op,
             TLabel("Scan")
                 .WithRow(
                     "TableIndex: " + ToString(op->GetTableIndex()) +
-                    "<BR/>Split: {<BR/>" +
-                    NDot::EscapeHtml(op->DataSplit().DebugString()) +
+                    "<BR/>Split: {" +
+                    "<BR/>Id: " + ToString(objectId) +
+                    "<BR/>Type: " + TypeFromId(objectId).ToString() +
                     "<BR/>}")
                 .Build());
         return true;
