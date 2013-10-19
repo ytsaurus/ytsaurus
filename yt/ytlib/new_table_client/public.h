@@ -24,6 +24,12 @@ DECLARE_ENUM(EColumnType,
 typedef i64 TTimestamp;
 const TTimestamp NullTimestamp = 0;
 
+#ifdef _MSC_VER
+    #define PACK
+#else
+    #define PACK __attribute__((aligned(16), packed))
+#endif
+
 struct TRowValue
 {
     typedef union {
@@ -37,7 +43,9 @@ struct TRowValue
     ui32 Length; // For variable-sized values.
     ui16 Type; // EColumnType
     ui16 Index; // TNameTable
-} __attribute__((aligned(16), packed));
+} PACK;
+
+#undef PACK
 
 static_assert(sizeof(TRowValue) == 16, "TRowValue has to be exactly 16 bytes");
 
