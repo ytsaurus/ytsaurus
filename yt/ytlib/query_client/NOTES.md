@@ -1,7 +1,6 @@
   * TDataSplit should expose KeyColumns and Schema, so TDataSplit wraps TChunkSpec.
   * Get rid of memory pool, leave GC root.
   * Introduce kinds to ast nodes.
-  * Graphviz: somehow eliminate copy-paste.
   * Cache expression type in expr nodes.
 
         //

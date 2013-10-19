@@ -208,34 +208,62 @@ public:
         Output_ << ";\n";
     }
 
+    struct TLabel
+    {
+        Stroka Value_;
+
+        TLabel(const Stroka& title, int bgColor = 1)
+        {
+            Value_ += "<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\">";
+            Value_ += "<TR><TD BGCOLOR=\"//" + ToString(bgColor) + "\">" + title + "</TD></TR>";
+        }
+
+        TLabel& WithRow(const Stroka& row)
+        {
+            Value_ += "<TR><TD ALIGN=\"LEFT\" BALIGN=\"LEFT\">";
+            Value_ += row;
+            Value_ += "</TD></TR>";
+            return *this;
+        }
+
+        TLabel& WithPortAndRow(const Stroka& port, const Stroka& row)
+        {
+            Value_ += "<TR><TD ALIGN=\"LEFT\" BALIGN=\"LEFT\" ";
+            Value_ += "PORT=\"" + NDot::EscapeHtml(port) + "\">";
+            Value_ += row;
+            Value_ += "</TD></TR>";
+            return *this;
+        }
+
+        Stroka Build()
+        {
+            Value_ += "</TABLE>";
+            return Value_;
+        }
+    };
+
     virtual bool Visit(TScanOperator* op) override
     {
-        Stroka label;
-        label += "<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\">";
-        label += "<TR><TD BGCOLOR=\"//1\">Scan</TD></TR>";
-        label += "<TR><TD ALIGN=\"LEFT\" BALIGN=\"LEFT\">";
-        label += "TableIndex: " + ToString(op->GetTableIndex());
-        label += "<BR/>Split: {<BR/>";
-        label += NDot::EscapeHtml(op->DataSplit().DebugString());
-        label += "<BR/>}";
-        label += "</TD></TR>";
-        label += "</TABLE>";
-
-        WriteNode(op, label);
+        WriteNode(
+            op,
+            TLabel("Scan")
+                .WithRow(
+                    "TableIndex: " + ToString(op->GetTableIndex()) +
+                    "<BR/>Split: {<BR/>" +
+                    NDot::EscapeHtml(op->DataSplit().DebugString()) +
+                    "<BR/>}")
+                .Build());
         return true;
     }
 
     virtual bool Visit(TFilterOperator* op) override
     {
-        Stroka label;
-        label += "<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\">";
-        label += "<TR><TD BGCOLOR=\"//1\">Filter</TD></TR>";
-        label += "<TR><TD PORT=\"p\" ALIGN=\"LEFT\" BALIGN=\"LEFT\">";
-        label += "[P]: " + NDot::EscapeHtml(op->GetPredicate()->GetSource());
-        label += "</TD></TR>";
-        label += "</TABLE>";
-
-        WriteNode(op, label);
+        WriteNode(
+            op,
+            TLabel("Filter")
+                .WithPortAndRow("p",
+                    "[P]: " + NDot::EscapeHtml(op->GetPredicate()->GetSource()))
+                .Build());
         WriteEdge(op, op->GetPredicate(), "p");
         Traverse(this, op->GetPredicate());
         return true;
@@ -243,17 +271,13 @@ public:
 
     virtual bool Visit(TProjectOperator* op) override
     {
-        Stroka label;
-        label += "<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\">";
-        label += "<TR><TD BGCOLOR=\"//1\">Project</TD></TR>";
+        TLabel label("Project");
         for (int i = 0; i < op->Expressions().size(); ++i) {
-            label += "<TR><TD PORT=\"" + ToString(i) + "\" ALIGN=\"LEFT\" BALIGN=\"LEFT\">";
-            label += Sprintf("[%d]: ", i) + NDot::EscapeHtml(op->GetExpression(i)->GetSource());
-            label += "</TD></TR>";
+            label.WithPortAndRow(
+                ToString(i),
+                Sprintf("[%d]: ", i) + NDot::EscapeHtml(op->GetExpression(i)->GetSource()));
         }
-        label += "</TABLE>";
-
-        WriteNode(op, label);
+        WriteNode(op, label.Build());
         for (int i = 0; i < op->Expressions().size(); ++i) {
             WriteEdge(op, op->GetExpression(i), ToString(i));
             Traverse(this, op->GetExpression(i));
@@ -263,73 +287,46 @@ public:
 
     virtual bool Visit(TIntegerLiteralExpression* expr) override
     {
-        Stroka label;
-        label += "<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\">";
-        label += "<TR><TD BGCOLOR=\"//2\">IntegerLiteral</TD></TR>";
-        label += "<TR><TD ALIGN=\"LEFT\" BALIGN=\"LEFT\">";
-        label += ToString(expr->GetValue());
-        label += "</TD></TR>";
-        label += "</TABLE>";
-
-        WriteNode(expr, label);
+        WriteNode(
+            expr,
+            TLabel("IntegerLiteral", 2).WithRow(ToString(expr->GetValue())).Build());
         return true;
     }
 
     virtual bool Visit(TDoubleLiteralExpression* expr) override
     {
-        Stroka label;
-        label += "<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\">";
-        label += "<TR><TD BGCOLOR=\"//2\">DoubleLiteral</TD></TR>";
-        label += "<TR><TD ALIGN=\"LEFT\" BALIGN=\"LEFT\">";
-        label += ToString(expr->GetValue());
-        label += "</TD></TR>";
-        label += "</TABLE>";
-
-        WriteNode(expr, label);
+        WriteNode(
+            expr,
+            TLabel("DoubleLiteral", 2).WithRow(ToString(expr->GetValue())).Build());
         return true;
     }
 
     virtual bool Visit(TReferenceExpression* expr) override
     {
-        Stroka label;
-        label += "<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\">";
-        label += "<TR><TD BGCOLOR=\"//2\">Reference</TD></TR>";
-        label += "<TR><TD ALIGN=\"LEFT\" BALIGN=\"LEFT\">";
-        label += "TableIndex: " + ToString(expr->GetTableIndex()) + "<BR/>";
-        label += "Name: " + ToString(expr->GetName()) + "<BR/>";
-        label += "Type: " + expr->GetType().ToString() + "<BR/>";
-        label += "</TD></TR>";
-        label += "</TABLE>";
-
-        WriteNode(expr, label);
+        WriteNode(
+            expr,
+            TLabel("Reference", 2)
+                .WithRow(
+                    "TableIndex: " + ToString(expr->GetTableIndex()) + "<BR/>" +
+                    "Name: " + ToString(expr->GetName()) + "<BR/>" +
+                    "Type: " + expr->GetType().ToString() + "<BR/>")
+                .Build());
         return true;
     }
 
     virtual bool Visit(TFunctionExpression* expr) override
     {
-        Stroka label;
-        label += "<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\">";
-        label += "<TR><TD BGCOLOR=\"//2\">Function</TD></TR>";
-        label += "<TR><TD ALIGN=\"LEFT\" BALIGN=\"LEFT\">";
-        label += ToString(expr->GetName());
-        label += "</TD></TR>";
-        label += "</TABLE>";
-
         YUNREACHABLE();
         return true;
     }
 
     virtual bool Visit(TBinaryOpExpression* expr) override
     {
-        Stroka label;
-        label += "<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\">";
-        label += "<TR><TD BGCOLOR=\"//2\">BinaryOp</TD></TR>";
-        label += "<TR><TD ALIGN=\"LEFT\" BALIGN=\"LEFT\">";
-        label += "OpCode: " + expr->GetOpcode().ToString();
-        label += "</TD></TR>";
-        label += "</TABLE>";
-
-        WriteNode(expr, label);
+        WriteNode(
+            expr,
+            TLabel("BinaryOp", 2)
+                .WithRow("OpCode: " + expr->GetOpcode().ToString())
+                .Build());
         return true;
     }
 
