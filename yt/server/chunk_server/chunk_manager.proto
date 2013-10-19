@@ -5,7 +5,7 @@ import "yt/ytlib/node_tracker_client/node_tracker_service.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TMetaReqUpdateChunkProperties
+message TReqUpdateChunkProperties
 {
     message TUpdate
     {

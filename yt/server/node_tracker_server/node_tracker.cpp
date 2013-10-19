@@ -67,8 +67,8 @@ public:
     {
         RegisterMethod(BIND(&TImpl::RegisterNode, Unretained(this)));
         RegisterMethod(BIND(&TImpl::UnregisterNode, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::FullHeartbeat, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::IncrementalHeartbeat, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraFullHeartbeat, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraIncrementalHeartbeat, Unretained(this)));
 
 
         RegisterLoader(
@@ -99,7 +99,7 @@ public:
 
 
     TMutationPtr CreateRegisterNodeMutation(
-        const TMetaReqRegisterNode& request)
+        const TReqRegisterNode& request)
     {
         return Bootstrap
             ->GetMetaStateFacade()
@@ -107,7 +107,7 @@ public:
     }
 
     TMutationPtr CreateUnregisterNodeMutation(
-        const TMetaReqUnregisterNode& request)
+        const TReqUnregisterNode& request)
     {
         return Bootstrap
             ->GetMetaStateFacade()
@@ -122,7 +122,7 @@ public:
             ->CreateMutation(EAutomatonThreadQueue::Heartbeat)
             ->SetRequestData(context->GetRequestBody())
             ->SetType(context->Request().GetTypeName())
-            ->SetAction(BIND(&TThis::FullHeartbeatWithContext, MakeStrong(this), context));
+            ->SetAction(BIND(&TThis::RpcFullHeartbeat, MakeStrong(this), context));
     }
 
     TMutationPtr CreateIncrementalHeartbeatMutation(
@@ -133,7 +133,7 @@ public:
             ->CreateMutation()
             ->SetRequestData(context->GetRequestBody())
             ->SetType(context->Request().GetTypeName())
-            ->SetAction(BIND(&TThis::IncrementalHeartbeatWithContext, MakeStrong(this), context));
+            ->SetAction(BIND(&TThis::RpcIncrementalHeartbeat, MakeStrong(this), context));
     }
 
 
@@ -157,8 +157,8 @@ public:
     DEFINE_SIGNAL(void(TNode* node), NodeRegistered);
     DEFINE_SIGNAL(void(TNode* node), NodeUnregistered);
     DEFINE_SIGNAL(void(TNode* node), NodeConfigUpdated);
-    DEFINE_SIGNAL(void(TNode* node, const TMetaReqFullHeartbeat& request), FullHeartbeat);
-    DEFINE_SIGNAL(void(TNode* node, const TMetaReqIncrementalHeartbeat& request, TRspIncrementalHeartbeat* response), IncrementalHeartbeat);
+    DEFINE_SIGNAL(void(TNode* node, const TReqFullHeartbeat& request), FullHeartbeat);
+    DEFINE_SIGNAL(void(TNode* node, const TReqIncrementalHeartbeat& request, TRspIncrementalHeartbeat* response), IncrementalHeartbeat);
 
 
     TNode* FindNodeByAddress(const Stroka& address)
@@ -292,7 +292,7 @@ private:
     }
 
 
-    TMetaRspRegisterNode RegisterNode(const TMetaReqRegisterNode& request)
+    TRspRegisterNode RegisterNode(const TReqRegisterNode& request)
     {
         auto descriptor = FromProto<NNodeTrackerClient::TNodeDescriptor>(request.node_descriptor());
         const auto& statistics = request.statistics();
@@ -311,12 +311,12 @@ private:
 
         auto* node = DoRegisterNode(descriptor, statistics);
 
-        TMetaRspRegisterNode response;
+        TRspRegisterNode response;
         response.set_node_id(node->GetId());
         return response;
     }
 
-    void UnregisterNode(const TMetaReqUnregisterNode& request)
+    void UnregisterNode(const TReqUnregisterNode& request)
     {
         auto nodeId = request.node_id();
 
@@ -329,12 +329,12 @@ private:
     }
 
 
-    void FullHeartbeatWithContext(TCtxFullHeartbeatPtr context)
+    void RpcFullHeartbeat(TCtxFullHeartbeatPtr context)
     {
-        return FullHeartbeat(context->Request());
+        return HydraFullHeartbeat(context->Request());
     }
 
-    void FullHeartbeat(const TMetaReqFullHeartbeat& request)
+    void HydraFullHeartbeat(const TReqFullHeartbeat& request)
     {
         PROFILE_TIMING ("/full_heartbeat_time") {
             auto nodeId = request.node_id();
@@ -366,17 +366,17 @@ private:
     }
 
 
-    void IncrementalHeartbeatWithContext(TCtxIncrementalHeartbeatPtr context)
+    void RpcIncrementalHeartbeat(TCtxIncrementalHeartbeatPtr context)
     {
         DoIncrementalHeartbeat(context->Request(), &context->Response());
     }
 
-    void IncrementalHeartbeat(const TMetaReqIncrementalHeartbeat& request)
+    void HydraIncrementalHeartbeat(const TReqIncrementalHeartbeat& request)
     {
         DoIncrementalHeartbeat(request, nullptr);
     }
 
-    void DoIncrementalHeartbeat(const TMetaReqIncrementalHeartbeat& request, TRspIncrementalHeartbeat* response)
+    void DoIncrementalHeartbeat(const TReqIncrementalHeartbeat& request, TRspIncrementalHeartbeat* response)
     {
         PROFILE_TIMING ("/incremental_heartbeat_time") {
             auto nodeId = request.node_id();
@@ -728,7 +728,7 @@ private:
 
         auto nodeId = node->GetId();
 
-        TMetaReqUnregisterNode message;
+        TReqUnregisterNode message;
         message.set_node_id(nodeId);
 
         auto invoker = Bootstrap->GetMetaStateFacade()->GetEpochInvoker();
@@ -813,13 +813,13 @@ TNodeConfigPtr TNodeTracker::GetNodeConfigByAddress(const Stroka& address)
 }
 
 TMutationPtr TNodeTracker::CreateRegisterNodeMutation(
-    const TMetaReqRegisterNode& request)
+    const TReqRegisterNode& request)
 {
     return Impl->CreateRegisterNodeMutation(request);
 }
 
 TMutationPtr TNodeTracker::CreateUnregisterNodeMutation(
-    const TMetaReqUnregisterNode& request)
+    const TReqUnregisterNode& request)
 {
     return Impl->CreateUnregisterNodeMutation(request);
 }
@@ -861,8 +861,8 @@ DELEGATE_ENTITY_MAP_ACCESSORS(TNodeTracker, Node, TNode, TNodeId, *Impl)
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeRegistered, *Impl);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeUnregistered, *Impl);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeConfigUpdated, *Impl);
-DELEGATE_SIGNAL(TNodeTracker, void(TNode*, const TMetaReqFullHeartbeat&), FullHeartbeat, *Impl);
-DELEGATE_SIGNAL(TNodeTracker, void(TNode*, const TMetaReqIncrementalHeartbeat&, TRspIncrementalHeartbeat*), IncrementalHeartbeat, *Impl);
+DELEGATE_SIGNAL(TNodeTracker, void(TNode*, const TReqFullHeartbeat&), FullHeartbeat, *Impl);
+DELEGATE_SIGNAL(TNodeTracker, void(TNode*, const TReqIncrementalHeartbeat&, TRspIncrementalHeartbeat*), IncrementalHeartbeat, *Impl);
 
 ///////////////////////////////////////////////////////////////////////////////
 

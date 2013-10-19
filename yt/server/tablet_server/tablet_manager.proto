@@ -4,30 +4,30 @@ import "yt/core/misc/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TMetaReqStartSlots
+message TReqStartSlots
 {
     required NYT.NProto.TGuid cell_id = 1;
     repeated int32 node_ids = 2;
 }
 
-message TMetaReqSetCellState
+message TReqSetCellState
 {
     required NYT.NProto.TGuid cell_id = 1;
     required int32 state = 2;
 }
 
-message TMetaReqRevokePeer
+message TReqRevokePeer
 {
     required NYT.NProto.TGuid cell_id = 1;
     required int32 peer_id = 2;
 }
 
-message TMetaReqOnTabletCreated
+message TReqOnTabletCreated
 {
     required NYT.NProto.TGuid tablet_id = 1;
 }
 
-message TMetaReqOnTabletRemoved
+message TReqOnTabletRemoved
 {
     required NYT.NProto.TGuid tablet_id = 1;
 }

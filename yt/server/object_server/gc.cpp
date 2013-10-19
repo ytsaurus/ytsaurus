@@ -188,7 +188,7 @@ void TGarbageCollector::OnSweep()
     }
 
     // Extract up to MaxObjectsPerGCSweep objects and post a mutation.
-    NProto::TMetaReqDestroyObjects request;
+    NProto::TReqDestroyObjects request;
     for (auto it = Zombies.begin();
          it != Zombies.end() && request.object_ids_size() < Config->MaxObjectsPerGCSweep;
          ++it)

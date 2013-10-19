@@ -34,7 +34,7 @@ public:
     void Start();
     void Stop();
 
-    DECLARE_ENTITY_MAP_ACCESSORS(Mailbox, TMailbox, TCellGuid);
+    const TCellGuid& GetSelfCellGuid() const;
 
     TMailbox* CreateMailbox(const TCellGuid& cellGuid);
     TMailbox* GetOrCreateMailbox(const TCellGuid& cellGuid);
@@ -43,6 +43,8 @@ public:
 
     void PostMessage(TMailbox* mailbox, const TMessage& message);
     void PostMessage(TMailbox* mailbox, const ::google::protobuf::MessageLite& message);
+
+    DECLARE_ENTITY_MAP_ACCESSORS(Mailbox, TMailbox, TCellGuid);
 
 private:
     class TImpl;

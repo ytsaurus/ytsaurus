@@ -265,7 +265,7 @@ public:
 
 
     TMutationPtr CreateUpdateChunkPropertiesMutation(
-        const NProto::TMetaReqUpdateChunkProperties& request)
+        const NProto::TReqUpdateChunkProperties& request)
     {
         return Bootstrap
             ->GetMetaStateFacade()
@@ -758,7 +758,7 @@ private:
         }
     }
 
-    void OnFullHeartbeat(TNode* node, const NNodeTrackerServer::NProto::TMetaReqFullHeartbeat& request)
+    void OnFullHeartbeat(TNode* node, const NNodeTrackerServer::NProto::TReqFullHeartbeat& request)
     {
         YCHECK(node->StoredReplicas().empty());
         YCHECK(node->CachedReplicas().empty());
@@ -797,7 +797,7 @@ private:
     }
 
 
-    void UpdateChunkProperties(const NProto::TMetaReqUpdateChunkProperties& request)
+    void UpdateChunkProperties(const NProto::TReqUpdateChunkProperties& request)
     {
         FOREACH (const auto& update, request.updates()) {
             auto chunkId = FromProto<TChunkId>(update.chunk_id());
@@ -1459,7 +1459,7 @@ TNodeList TChunkManager::AllocateWriteTargets(
 }
 
 TMutationPtr TChunkManager::CreateUpdateChunkPropertiesMutation(
-    const NProto::TMetaReqUpdateChunkProperties& request)
+    const NProto::TReqUpdateChunkProperties& request)
 {
     return Impl->CreateUpdateChunkPropertiesMutation(request);
 }

@@ -317,7 +317,7 @@ INodeTypeHandlerPtr TCypressManager::GetHandler(const TCypressNodeBase* node)
 }
 
 NHydra::TMutationPtr TCypressManager::CreateUpdateAccessStatisticsMutation(
-    const NProto::TMetaReqUpdateAccessStatistics& request)
+    const NProto::TReqUpdateAccessStatistics& request)
 {
    return Bootstrap
         ->GetMetaStateFacade()
@@ -1423,7 +1423,7 @@ void TCypressManager::OnStopLeading()
     AccessTracker->StopFlush();
 }
 
-void TCypressManager::UpdateAccessStatistics(const NProto::TMetaReqUpdateAccessStatistics& request)
+void TCypressManager::UpdateAccessStatistics(const NProto::TReqUpdateAccessStatistics& request)
 {
     FOREACH (const auto& update, request.updates()) {
         auto nodeId = FromProto<TNodeId>(update.node_id());

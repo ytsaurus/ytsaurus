@@ -77,7 +77,7 @@ public:
     DECLARE_ENTITY_MAP_ACCESSORS(Group, TGroup, TGroupId);
 
     NHydra::TMutationPtr CreateUpdateRequestStatisticsMutation(
-        const NProto::TMetaReqUpdateRequestStatistics& request);
+        const NProto::TReqUpdateRequestStatistics& request);
 
 
     //! Returns account with a given name (|nullptr| if none).

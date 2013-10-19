@@ -821,7 +821,7 @@ void TObjectManager::MergeAttributes(
     }
 }
 
-TMutationPtr TObjectManager::CreateDestroyObjectsMutation(const NProto::TMetaReqDestroyObjects& request)
+TMutationPtr TObjectManager::CreateDestroyObjectsMutation(const NProto::TReqDestroyObjects& request)
 {
     return Bootstrap
         ->GetMetaStateFacade()
@@ -973,7 +973,7 @@ void TObjectManager::InvokeVerb(TObjectProxyBase* proxy, IServiceContextPtr cont
             proxy->GuardedInvoke(std::move(context));
         }
     } else {
-        NProto::TMetaReqExecute executeReq;
+        NProto::TReqExecute executeReq;
         ToProto(executeReq.mutable_object_id(), objectId.ObjectId);
         ToProto(executeReq.mutable_transaction_id(),  objectId.TransactionId);
         ToProto(executeReq.mutable_user_id(), user->GetId());
@@ -1027,7 +1027,7 @@ void TObjectManager::InvokeVerb(TObjectProxyBase* proxy, IServiceContextPtr cont
     }
 }
 
-void TObjectManager::ReplayVerb(const NProto::TMetaReqExecute& request)
+void TObjectManager::ReplayVerb(const NProto::TReqExecute& request)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -1071,7 +1071,7 @@ void TObjectManager::ReplayVerb(const NProto::TMetaReqExecute& request)
     proxy->Invoke(context);
 }
 
-void TObjectManager::DestroyObjects(const NProto::TMetaReqDestroyObjects& request)
+void TObjectManager::DestroyObjects(const NProto::TReqDestroyObjects& request)
 {
     FOREACH (const auto& protoId, request.object_ids()) {
         auto id = FromProto<TObjectId>(protoId);

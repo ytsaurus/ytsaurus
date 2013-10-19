@@ -1,0 +1,38 @@
+package NYT.NHive.NProto;
+
+import "yt/core/misc/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqCommitTransactionSimple
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+}
+
+message TReqCommitTransactionDistributed
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    repeated NYT.NProto.TGuid participant_cell_guids = 2;
+    required int64 prepare_timestamp = 3;
+}
+
+message TReqPrepareTransactionCommit
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required int64 prepare_timestamp = 2;
+    required NYT.NProto.TGuid coordinator_cell_guid = 3;
+}
+
+message TReqOnTransactionCommitPrepared
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required NYT.NProto.TGuid participant_cell_guid = 3;
+}
+
+message TReqCommitPreparedTransaction
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required int64 commit_timestamp = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////

@@ -37,7 +37,7 @@ public:
     void Initialize();
 
     NHydra::TMutationPtr CreateUpdateChunkPropertiesMutation(
-        const NProto::TMetaReqUpdateChunkProperties& request);
+        const NProto::TReqUpdateChunkProperties& request);
 
     DECLARE_ENTITY_MAP_ACCESSORS(Chunk, TChunk, TChunkId);
     TChunk* GetChunkOrThrow(const TChunkId& id);

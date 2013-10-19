@@ -93,12 +93,12 @@ DEFINE_RPC_SERVICE_METHOD(TNodeTrackerService, RegisterNode)
         THROW_ERROR_EXCEPTION("Node %s is banned", ~address);
     }
 
-    NProto::TMetaReqRegisterNode registerReq;
+    NProto::TReqRegisterNode registerReq;
     ToProto(registerReq.mutable_node_descriptor(), descriptor);
     *registerReq.mutable_statistics() = statistics;
     nodeTracker
         ->CreateRegisterNodeMutation(registerReq)
-        ->OnSuccess(BIND([=] (const NProto::TMetaRspRegisterNode& registerRsp) {
+        ->OnSuccess(BIND([=] (const NProto::TRspRegisterNode& registerRsp) {
             auto nodeId = registerRsp.node_id();
             context->Response().set_node_id(nodeId);
             ToProto(response->mutable_cell_guid(), expectedCellGuid);
@@ -160,7 +160,7 @@ DEFINE_RPC_SERVICE_METHOD(TNodeTrackerService, IncrementalHeartbeat)
         return;
     }
 
-    NProto::TMetaReqIncrementalHeartbeat heartbeatReq;
+    NProto::TReqIncrementalHeartbeat heartbeatReq;
     heartbeatReq.set_node_id(nodeId);
     *heartbeatReq.mutable_statistics() = request->statistics();
     heartbeatReq.mutable_added_chunks()->MergeFrom(request->added_chunks());

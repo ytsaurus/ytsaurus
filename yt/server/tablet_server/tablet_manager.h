@@ -30,13 +30,13 @@ public:
     void Initialize();
 
     NHydra::TMutationPtr CreateStartSlotsMutation(
-        const NProto::TMetaReqStartSlots& request);
+        const NProto::TReqStartSlots& request);
 
     NHydra::TMutationPtr CreateSetCellStateMutation(
-        const NProto::TMetaReqSetCellState& request);
+        const NProto::TReqSetCellState& request);
 
     NHydra::TMutationPtr CreateRevokePeerMutation(
-        const NProto::TMetaReqRevokePeer& request);
+        const NProto::TReqRevokePeer& request);
 
     DECLARE_ENTITY_MAP_ACCESSORS(TabletCell, TTabletCell, TTabletCellId);
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet, TTabletId);

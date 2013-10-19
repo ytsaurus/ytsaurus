@@ -50,7 +50,7 @@ public:
     INodeTypeHandlerPtr GetHandler(const TCypressNodeBase* node);
 
     NHydra::TMutationPtr CreateUpdateAccessStatisticsMutation(
-        const NProto::TMetaReqUpdateAccessStatistics& request);
+        const NProto::TReqUpdateAccessStatistics& request);
 
     typedef NRpc::TTypedServiceRequest<NCypressClient::NProto::TReqCreate> TReqCreate;
     typedef NRpc::TTypedServiceResponse<NCypressClient::NProto::TRspCreate> TRspCreate;
@@ -233,7 +233,7 @@ private:
     virtual void OnLeaderActive() override;
     virtual void OnStopLeading() override;
     
-    void UpdateAccessStatistics(const NProto::TMetaReqUpdateAccessStatistics& request);
+    void UpdateAccessStatistics(const NProto::TReqUpdateAccessStatistics& request);
 
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);

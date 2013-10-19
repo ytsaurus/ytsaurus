@@ -1127,7 +1127,7 @@ void TChunkReplicator::OnPropertiesUpdate()
     // Extract up to MaxChunksPerPropertiesUpdate objects and post a mutation.
     auto chunkManager = Bootstrap->GetChunkManager();
     auto objectManager = Bootstrap->GetObjectManager();
-    TMetaReqUpdateChunkProperties request;
+    TReqUpdateChunkProperties request;
 
     PROFILE_TIMING ("/properties_update_time") {
         for (int i = 0; i < Config->MaxChunksPerPropertiesUpdate; ++i) {

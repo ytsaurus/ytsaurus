@@ -203,7 +203,7 @@ void TTabletTracker::ScheduleStateChange(TTabletCell* cell)
         return;
 
     // All peers online, change state to running.
-    TMetaReqSetCellState request;
+    TReqSetCellState request;
     ToProto(request.mutable_cell_id(), cell->GetId());
     request.set_state(ETabletCellState::Running);
 
@@ -215,7 +215,7 @@ void TTabletTracker::ScheduleStateChange(TTabletCell* cell)
 
 void TTabletTracker::SchedulePeerStart(TTabletCell* cell, TCandidatePool* pool)
 {   
-    TMetaReqStartSlots request;
+    TReqStartSlots request;
     ToProto(request.mutable_cell_id(), cell->GetId());
 
     const auto& peers = cell->Peers();
@@ -263,7 +263,7 @@ void TTabletTracker::SchedulePeerFailover(TTabletCell* cell)
     // Look for timed out peers.
     for (TPeerId peerId = 0; peerId < static_cast<int>(cell->Peers().size()); ++peerId) {
         if (IsFailoverNeeded(cell, peerId) && IsFailoverPossible(cell)) {
-            TMetaReqRevokePeer request;
+            TReqRevokePeer request;
             ToProto(request.mutable_cell_id(), cellId);
             request.set_peer_id(peerId);
 
@@ -445,21 +445,21 @@ public:
     }
 
 
-    TMutationPtr CreateStartSlotsMutation(const TMetaReqStartSlots& request)
+    TMutationPtr CreateStartSlotsMutation(const TReqStartSlots& request)
     {
         return Bootstrap
             ->GetMetaStateFacade()
             ->CreateMutation(this, request, &TImpl::StartSlots);
     }
 
-    TMutationPtr CreateSetCellStateMutation(const TMetaReqSetCellState& request)
+    TMutationPtr CreateSetCellStateMutation(const TReqSetCellState& request)
     {
         return Bootstrap
             ->GetMetaStateFacade()
             ->CreateMutation(this, request, &TImpl::SetCellState);
     }
 
-    TMutationPtr CreateRevokePeerMutation(const TMetaReqRevokePeer& request)
+    TMutationPtr CreateRevokePeerMutation(const TReqRevokePeer& request)
     {
         return Bootstrap
             ->GetMetaStateFacade()
@@ -546,7 +546,7 @@ public:
         YCHECK(cell->Tablets().insert(tablet).second);
 
         {
-            TMetaReqCreateTablet req;
+            TReqCreateTablet req;
             ToProto(req.mutable_tablet_id(), tablet->GetId());
             auto* mailbox = hiveManager->GetMailbox(cell->GetId());
             hiveManager->PostMessage(mailbox, req);
@@ -578,7 +578,7 @@ public:
         auto hiveManager = Bootstrap->GetHiveManager();
 
         {
-            TMetaReqRemoveTablet req;
+            TReqRemoveTablet req;
             ToProto(req.mutable_tablet_id(), tablet->GetId());
             auto* mailbox = hiveManager->GetMailbox(cell->GetId());
             hiveManager->PostMessage(mailbox, req);
@@ -685,7 +685,7 @@ private:
 
     void OnIncrementalHeartbeat(
         TNode* node,
-        const TMetaReqIncrementalHeartbeat& request,
+        const NNodeTrackerServer::NProto::TReqIncrementalHeartbeat& request,
         TRspIncrementalHeartbeat* response)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -876,7 +876,7 @@ private:
     }
 
 
-    void StartSlots(const TMetaReqStartSlots& request)
+    void StartSlots(const TReqStartSlots& request)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);       
 
@@ -918,7 +918,7 @@ private:
         }
     }
 
-    void SetCellState(const TMetaReqSetCellState& request)
+    void SetCellState(const TReqSetCellState& request)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);       
 
@@ -937,7 +937,7 @@ private:
             ~ToString(cellId));
     }
 
-    void RevokePeer(const TMetaReqRevokePeer& request)
+    void RevokePeer(const TReqRevokePeer& request)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);       
 
@@ -960,7 +960,7 @@ private:
         ReconfigureCell(cell);
     }
 
-    void OnTabletCreated(const TMetaReqOnTabletCreated& request)
+    void OnTabletCreated(const TReqOnTabletCreated& request)
     {
         auto id = FromProto<TTabletId>(request.tablet_id());
         auto* tablet = FindTablet(id);
@@ -978,7 +978,7 @@ private:
             ~ToString(cell->GetId()));
     }
 
-    void OnTabletRemoved(const TMetaReqOnTabletRemoved& request)
+    void OnTabletRemoved(const TReqOnTabletRemoved& request)
     {
         auto id = FromProto<TTabletId>(request.tablet_id());
         auto* tablet = FindTablet(id);
@@ -1132,17 +1132,17 @@ void TTabletManager::Initialize()
     return Impl->Initialize();
 }
 
-TMutationPtr TTabletManager::CreateStartSlotsMutation(const TMetaReqStartSlots& request)
+TMutationPtr TTabletManager::CreateStartSlotsMutation(const TReqStartSlots& request)
 {
     return Impl->CreateStartSlotsMutation(request);
 }
 
-TMutationPtr TTabletManager::CreateSetCellStateMutation(const TMetaReqSetCellState& request)
+TMutationPtr TTabletManager::CreateSetCellStateMutation(const TReqSetCellState& request)
 {
     return Impl->CreateSetCellStateMutation(request);
 }
 
-TMutationPtr TTabletManager::CreateRevokePeerMutation(const TMetaReqRevokePeer& request)
+TMutationPtr TTabletManager::CreateRevokePeerMutation(const TReqRevokePeer& request)
 {
     return Impl->CreateRevokePeerMutation(request);
 }

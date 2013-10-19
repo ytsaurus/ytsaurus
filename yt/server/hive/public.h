@@ -2,7 +2,7 @@
 
 #include <core/misc/common.h>
 
-#include <server/hydra/public.h>
+#include <ytlib/hive/public.h>
 
 namespace NYT {
 namespace NHive {
@@ -19,12 +19,14 @@ struct TMessage;
 
 class TMailbox;
 
+struct ITransactionManager;
+typedef TIntrusivePtr<ITransactionManager> ITransactionManagerPtr;
+
 class THiveManagerConfig;
 typedef TIntrusivePtr<THiveManagerConfig> THiveManagerConfigPtr;
 
-////////////////////////////////////////////////////////////////////////////////
-
-typedef NHydra::TCellGuid TCellGuid;
+class TTransactionSupervisorConfig;
+typedef TIntrusivePtr<TTransactionSupervisorConfig> TTransactionSupervisorConfigPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 

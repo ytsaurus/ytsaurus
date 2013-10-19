@@ -121,7 +121,7 @@ private:
     }
 
 
-    void CreateTablet(const TMetaReqCreateTablet& request)
+    void CreateTablet(const TReqCreateTablet& request)
     {
         auto id = FromProto<TTabletId>(request.tablet_id());
         auto* tablet = new TTablet(id);
@@ -130,7 +130,7 @@ private:
         auto hiveManager = Slot->GetHiveManager();
 
         {
-            TMetaReqOnTabletCreated req;
+            TReqOnTabletCreated req;
             ToProto(req.mutable_tablet_id(), id);
             hiveManager->PostMessage(Slot->GetMasterMailbox(), req);
         }
@@ -139,7 +139,7 @@ private:
             ~ToString(id));
     }
 
-    void RemoveTablet(const TMetaReqRemoveTablet& request)
+    void RemoveTablet(const TReqRemoveTablet& request)
     {
         auto id = FromProto<TTabletId>(request.tablet_id());
         auto* tablet = FindTablet(id);
@@ -153,7 +153,7 @@ private:
         auto hiveManager = Slot->GetHiveManager();
 
         {
-            TMetaReqOnTabletRemoved req;
+            TReqOnTabletRemoved req;
             ToProto(req.mutable_tablet_id(), id);
             hiveManager->PostMessage(Slot->GetMasterMailbox(), req);
         }

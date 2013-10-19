@@ -23,8 +23,8 @@ namespace NNodeTrackerServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NProto {
-    typedef NNodeTrackerClient::NProto::TReqIncrementalHeartbeat TMetaReqIncrementalHeartbeat;
-    typedef NNodeTrackerClient::NProto::TReqFullHeartbeat TMetaReqFullHeartbeat;
+    typedef NNodeTrackerClient::NProto::TReqIncrementalHeartbeat TReqIncrementalHeartbeat;
+    typedef NNodeTrackerClient::NProto::TReqFullHeartbeat TReqFullHeartbeat;
 } // namespace NProto
 
 class TNodeTracker
@@ -41,10 +41,10 @@ public:
 
 
     NHydra::TMutationPtr CreateRegisterNodeMutation(
-        const NProto::TMetaReqRegisterNode& request);
+        const NProto::TReqRegisterNode& request);
 
     NHydra::TMutationPtr CreateUnregisterNodeMutation(
-        const NProto::TMetaReqUnregisterNode& request);
+        const NProto::TReqUnregisterNode& request);
 
     // Pass RPC service context to full heartbeat handler to avoid copying request message.
     typedef NRpc::TTypedServiceContext<
@@ -77,12 +77,12 @@ public:
     DECLARE_SIGNAL(void(TNode* node), NodeConfigUpdated);
 
     //! Fired when a full heartbeat is received from a node.
-    DECLARE_SIGNAL(void(TNode* node, const NProto::TMetaReqFullHeartbeat& request), FullHeartbeat);
+    DECLARE_SIGNAL(void(TNode* node, const NProto::TReqFullHeartbeat& request), FullHeartbeat);
 
     //! Fired when an incremental heartbeat is received from a node.
     DECLARE_SIGNAL(void(
         TNode* node,
-        const NProto::TMetaReqIncrementalHeartbeat& request,
+        const NProto::TReqIncrementalHeartbeat& request,
         NNodeTrackerClient::NProto::TRspIncrementalHeartbeat* response),
         IncrementalHeartbeat);
 

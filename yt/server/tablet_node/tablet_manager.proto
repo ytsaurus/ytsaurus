@@ -4,12 +4,12 @@ import "yt/core/misc/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TMetaReqCreateTablet
+message TReqCreateTablet
 {
     required NYT.NProto.TGuid tablet_id = 1;
 }
 
-message TMetaReqRemoveTablet
+message TReqRemoveTablet
 {
     required NYT.NProto.TGuid tablet_id = 1;
 }

@@ -53,7 +53,7 @@ public:
         IHydraManagerPtr hydraManager,
         TCompositeAutomatonPtr automaton)
         : TServiceBase(
-            automatonInvoker,
+            hydraManager->CreateGuardedAutomatonInvoker(automatonInvoker),
             TServiceId(THiveServiceProxy::GetServiceName(), cellGuid),
             HiveLogger.GetCategory())
         , TCompositeAutomatonPart(
@@ -70,8 +70,8 @@ public:
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(Ping));
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(Send));
 
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::AcknowledgeMessages, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::ReceiveMessages, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraAcknowledgeMessages, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraReceiveMessages, Unretained(this), nullptr));
 
         RegisterLoader(
             "HiveManager.Keys",
@@ -101,7 +101,10 @@ public:
     }
 
 
-    DECLARE_ENTITY_MAP_ACCESSORS(Mailbox, TMailbox, TCellGuid);
+    const TCellGuid& GetSelfCellGuid() const
+    {
+        return SelfCellGuid;
+    }
 
 
     TMailbox* CreateMailbox(const TCellGuid& cellGuid)
@@ -168,11 +171,12 @@ public:
         PostMessage(mailbox, serializedMessage);
     }
 
+
+    DECLARE_ENTITY_MAP_ACCESSORS(Mailbox, TMailbox, TCellGuid);
+
 private:
     typedef TImpl TThis;
     
-    typedef NProto::TReqSend TMetaReqReceiveMessages;
-
     TCellGuid SelfCellGuid;
     THiveManagerConfigPtr Config;
     TCellDirectoryPtr CellRegistry;
@@ -225,7 +229,7 @@ private:
 
     // Hydra handlers.
 
-    void AcknowledgeMessages(const TMetaReqAcknowledgeMessages& request)
+    void HydraAcknowledgeMessages(const TReqAcknowledgeMessages& request)
     {
         auto cellGuid = FromProto<TCellGuid>(request.cell_guid());
         auto* mailbox = FindMailbox(cellGuid);
@@ -257,17 +261,7 @@ private:
         }
     }
 
-    void ReceiveMessagesWithContext(TCtxSendPtr context)
-    {
-        DoReceiveMessages(context->Request(), &context->Response(), context);
-    }
-
-    void ReceiveMessages(const TMetaReqReceiveMessages& request)
-    {
-        DoReceiveMessages(request, nullptr, nullptr);
-    }
-
-    void DoReceiveMessages(const NProto::TReqSend& request, TRspSend* response, TCtxSendPtr context)
+    void HydraReceiveMessages(TCtxSendPtr context, const TReqSend& request)
     {
         try {
             auto srcCellGuid = FromProto<TCellGuid>(request.src_cell_guid());
@@ -276,6 +270,7 @@ private:
             HandleIncomingMessages(mailbox, request);
 
             if (context) {
+                auto* response = &context->Response();
                 int lastReceivedMessageId = mailbox->GetLastReceivedMessageId();
                 response->set_last_received_message_id(lastReceivedMessageId);
                 context->SetResponseInfo("LastReceivedMessageId: %d",
@@ -458,14 +453,14 @@ private:
     }
 
 
-    TMutationPtr CreateAcknowledgeMessagesMutation(const TMetaReqAcknowledgeMessages& req)
+    TMutationPtr CreateAcknowledgeMessagesMutation(const TReqAcknowledgeMessages& req)
     {
         return CreateMutation(
             HydraManager,
             AutomatonInvoker,
             this,
             req,
-            &TImpl::AcknowledgeMessages);
+            &TImpl::HydraAcknowledgeMessages);
     }
 
     TMutationPtr CreateReceiveMessagesMutation(TCtxSendPtr context)
@@ -473,7 +468,7 @@ private:
         return CreateMutation(HydraManager, AutomatonInvoker)
             ->SetRequestData(context->GetRequestBody())
             ->SetType(context->Request().GetTypeName())
-            ->SetAction(BIND(&TImpl::ReceiveMessagesWithContext, MakeStrong(this), context));
+            ->SetAction(BIND(&TImpl::HydraReceiveMessages, MakeStrong(this), context, ConstRef(context->Request())));
     }
 
 
@@ -482,14 +477,14 @@ private:
         if (lastReceivedMessageId < mailbox->GetFirstPendingMessageId())
             return;
 
-        TMetaReqAcknowledgeMessages req;
+        TReqAcknowledgeMessages req;
         ToProto(req.mutable_cell_guid(), mailbox->GetCellGuid());
         req.set_last_received_message_id(lastReceivedMessageId);
         CreateAcknowledgeMessagesMutation(req)
             ->Commit();
     }
 
-    void HandleIncomingMessages(TMailbox* mailbox, const TMetaReqReceiveMessages& req)
+    void HandleIncomingMessages(TMailbox* mailbox, const TReqSend& req)
     {
         int firstMessageId = req.first_message_id();
         int skipCount = mailbox->GetLastReceivedMessageId() + 1 - firstMessageId;
@@ -629,6 +624,11 @@ void THiveManager::Start()
 void THiveManager::Stop()
 {
     Impl->Stop();
+}
+
+const TCellGuid& THiveManager::GetSelfCellGuid() const
+{
+    return Impl->GetSelfCellGuid();
 }
 
 TMailbox* THiveManager::CreateMailbox(const TCellGuid& cellGuid)

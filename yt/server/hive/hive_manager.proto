@@ -4,7 +4,7 @@ import "yt/core/misc/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TMetaReqAcknowledgeMessages
+message TReqAcknowledgeMessages
 {
     required NYT.NProto.TGuid cell_guid = 1;
     required int32 last_received_message_id = 2;

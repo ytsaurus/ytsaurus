@@ -32,7 +32,7 @@ private:
     TSecurityManagerConfigPtr Config;
     NCellMaster::TBootstrap* Bootstrap;
 
-    NProto::TMetaReqUpdateRequestStatistics UpdateRequestStatisticsRequest;
+    NProto::TReqUpdateRequestStatistics UpdateRequestStatisticsRequest;
     std::vector<TUser*> UsersWithRequestStatisticsUpdate;
 
     NConcurrency::TPeriodicExecutorPtr FlushInvoker;

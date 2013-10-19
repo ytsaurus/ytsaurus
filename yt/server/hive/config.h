@@ -28,6 +28,16 @@ public:
     }
 };
 
+class TTransactionSupervisorConfig
+    : public TYsonSerializable
+{
+public:
+
+    TTransactionSupervisorConfig()
+    {
+    }
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NHive

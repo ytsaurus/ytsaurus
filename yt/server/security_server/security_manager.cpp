@@ -282,7 +282,7 @@ public:
 
 
     TMutationPtr CreateUpdateRequestStatisticsMutation(
-        const NProto::TMetaReqUpdateRequestStatistics& request)
+        const NProto::TReqUpdateRequestStatistics& request)
     {
         return Bootstrap
             ->GetMetaStateFacade()
@@ -1298,7 +1298,7 @@ private:
     }
 
 
-    void UpdateRequestStatistics(const NProto::TMetaReqUpdateRequestStatistics& request)
+    void UpdateRequestStatistics(const NProto::TReqUpdateRequestStatistics& request)
     {
         auto now = TInstant::Now();
         FOREACH (const auto& update, request.updates()) {
@@ -1474,7 +1474,7 @@ void TSecurityManager::Initialize()
 }
 
 TMutationPtr TSecurityManager::CreateUpdateRequestStatisticsMutation(
-    const NProto::TMetaReqUpdateRequestStatistics& request)
+    const NProto::TReqUpdateRequestStatistics& request)
 {
     return Impl->CreateUpdateRequestStatisticsMutation(request);
 }

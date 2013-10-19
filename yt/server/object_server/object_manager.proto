@@ -4,7 +4,7 @@ import "yt/core/misc/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TMetaReqExecute
+message TReqExecute
 {
     required NYT.NProto.TGuid object_id = 1;
     required NYT.NProto.TGuid transaction_id = 2;
@@ -14,7 +14,7 @@ message TMetaReqExecute
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TMetaReqDestroyObjects
+message TReqDestroyObjects
 {
     repeated NYT.NProto.TGuid object_ids = 1;
 }

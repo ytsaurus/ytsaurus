@@ -17,6 +17,7 @@ set( DIRS
   transaction_client
   monitoring
   hydra
+  hive
   formats
 )
 

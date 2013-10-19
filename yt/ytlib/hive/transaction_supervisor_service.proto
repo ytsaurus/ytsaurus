@@ -1,0 +1,53 @@
+package NYT.NHive.NProto;
+
+import "yt/core/misc/guid.proto";
+import "yt/core/ytree/attributes.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqStartTransaction
+{
+    optional NYT.NProto.TGuid transaction_id = 1;
+    required int64 start_timestamp = 2;
+    optional NYT.NProto.TGuid parent_transaction_id = 3;
+    optional int32 timeout = 4;
+    optional NYT.NYTree.NProto.TAttributes attributes = 5;
+}
+
+message TRspStartTransaction
+{
+    optional NYT.NProto.TGuid transaction_id = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqCommitTransaction
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    repeated NYT.NProto.TGuid participant_cell_guids = 2;
+}
+
+message TRspCommitTransaction
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqAbortTransaction
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+}
+
+message TRspAbortTransaction
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqPingTransaction
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+}
+
+message TRspPingTransaction
+{ }
+
+////////////////////////////////////////////////////////////////////////////////

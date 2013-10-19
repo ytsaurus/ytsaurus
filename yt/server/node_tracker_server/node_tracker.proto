@@ -5,18 +5,18 @@ import "yt/ytlib/node_tracker_client/node_tracker_service.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TMetaReqRegisterNode
+message TReqRegisterNode
 {
     required NYT.NNodeTrackerClient.NProto.TNodeDescriptor node_descriptor = 1;
     required NYT.NNodeTrackerClient.NProto.TNodeStatistics statistics = 2;
 }
 
-message TMetaRspRegisterNode
+message TRspRegisterNode
 {
     required int32 node_id = 1;
 }
 
-message TMetaReqUnregisterNode
+message TReqUnregisterNode
 {
     required int32 node_id = 1;
 }

@@ -43,7 +43,7 @@ private:
     TCypressManagerConfigPtr Config;
     NCellMaster::TBootstrap* Bootstrap;
 
-    NProto::TMetaReqUpdateAccessStatistics UpdateAccessStatisticsRequest;
+    NProto::TReqUpdateAccessStatistics UpdateAccessStatisticsRequest;
     std::vector<TCypressNodeBase*> NodesWithAccessStatisticsUpdate;
 
     NConcurrency::TPeriodicExecutorPtr FlushExecutor;

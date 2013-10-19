@@ -158,7 +158,7 @@ public:
     IObjectProxyPtr GetSchemaProxy(EObjectType type);
 
     NHydra::TMutationPtr CreateDestroyObjectsMutation(
-        const NProto::TMetaReqDestroyObjects& request);
+        const NProto::TReqDestroyObjects& request);
 
     //! Returns a future that gets set when the GC queues becomes empty.
     TFuture<void> GCCollect();
@@ -245,9 +245,9 @@ private:
     virtual void OnStopLeading() override;
 
     void InvokeVerb(TObjectProxyBase* proxy, NRpc::IServiceContextPtr context);
-    void ReplayVerb(const NProto::TMetaReqExecute& request);
+    void ReplayVerb(const NProto::TReqExecute& request);
 
-    void DestroyObjects(const NProto::TMetaReqDestroyObjects& request);
+    void DestroyObjects(const NProto::TReqDestroyObjects& request);
 
     NProfiling::TTagId GetTypeTagId(EObjectType type);
     NProfiling::TTagId GetVerbTagId(const Stroka& verb);
