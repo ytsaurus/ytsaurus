@@ -84,15 +84,6 @@
     #pragma warning (disable: 4250)
 #endif
 
-// A temporary workaround until we switch to a fresh VS version.
-#if defined(_MSC_VER) && (_MSC_VER < 1700)
-namespace std {
-    using ::std::tr1::tuple;
-    using ::std::tr1::tie;
-    using ::std::tr1::get;
-} // namespace std
-#endif
-
 // Used to mark Logger and Profiler static variables as probably unused
 // to silent static analyzer.
 #if defined(__GNUC__) || defined(__clang__)
