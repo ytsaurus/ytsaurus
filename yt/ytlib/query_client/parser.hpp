@@ -288,23 +288,22 @@ namespace NYT { namespace NQueryClient {
       {
         End = 0,
         Failure = 256,
-        KwSelect = 259,
-        KwFrom = 260,
-        KwWhere = 261,
-        Identifier = 262,
-        IntegerLiteral = 263,
-        DoubleLiteral = 264,
-        YPathLiteral = 265,
+        KwFrom = 259,
+        KwWhere = 260,
+        Identifier = 261,
+        IntegerLiteral = 262,
+        DoubleLiteral = 263,
+        YPathLiteral = 264,
         LeftParenthesis = 40,
         RightParenthesis = 41,
         Asterisk = 42,
         Comma = 44,
         OpLess = 60,
-        OpLessOrEqual = 266,
+        OpLessOrEqual = 265,
         OpEqual = 61,
-        OpNotEqual = 267,
+        OpNotEqual = 266,
         OpGreater = 62,
-        OpGreaterOrEqual = 268
+        OpGreaterOrEqual = 267
       };
     };
 
@@ -424,10 +423,6 @@ namespace NYT { namespace NQueryClient {
     static inline
     symbol_type
     make_Failure (const location_type& l);
-
-    static inline
-    symbol_type
-    make_KwSelect (const location_type& l);
 
     static inline
     symbol_type
@@ -578,7 +573,7 @@ namespace NYT { namespace NQueryClient {
   // number is the opposite.  If YYTABLE_NINF, syntax error.
   static const unsigned char yytable_[];
 
-  static const unsigned char yycheck_[];
+  static const signed char yycheck_[];
 
   // YYSTOS[STATE-NUM] -- The (internal number of the) accessing
   // symbol of state STATE-NUM.
@@ -699,7 +694,7 @@ namespace NYT { namespace NQueryClient {
       yyfinal_ = 11, //< Termination state number.
       yyterror_ = 1,
       yyerrcode_ = 256,
-      yyntokens_ = 21    //< Number of tokens.
+      yyntokens_ = 20    //< Number of tokens.
     };
 
 
@@ -712,7 +707,7 @@ namespace NYT { namespace NQueryClient {
 
 #line 5 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:371
 } } // NYT::NQueryClient
-#line 716 "/home/sandello/yt/source/yt/ytlib/query_client/parser.hpp" // lalr1.cc:371
+#line 711 "/home/sandello/yt/source/yt/ytlib/query_client/parser.hpp" // lalr1.cc:371
 
 
 

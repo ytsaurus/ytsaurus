@@ -21,11 +21,10 @@ typedef TParser::token_type TToken;
     all = ^0;
     wss = space+;
 
-    kw_select = 'select'i;
     kw_from = 'from'i;
     kw_where = 'where'i;
 
-    keyword = kw_select | kw_from | kw_where;
+    keyword = kw_from | kw_where;
     identifier = [a-zA-Z_][a-zA-Z_0-9]* - keyword;
 
     fltexp = [Ee] [+\-]? digit+;
@@ -57,7 +56,6 @@ typedef TParser::token_type TToken;
 
     main := |*
 
-        kw_select => { type = TToken::KwSelect; fbreak; };
         kw_from   => { type = TToken::KwFrom;   fbreak; };
         kw_where  => { type = TToken::KwWhere;  fbreak; };
 

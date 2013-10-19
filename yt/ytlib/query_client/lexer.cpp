@@ -16,7 +16,7 @@ typedef TParser::token_type TToken;
 ////////////////////////////////////////////////////////////////////////////////
 
 
-#line 110 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.rl"
+#line 108 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.rl"
 
 
 namespace {
@@ -26,11 +26,11 @@ static const int Lexer_start = 5;
 static const int Lexer_first_final = 5;
 static const int Lexer_error = 0;
 
-static const int Lexer_en_ypath = 25;
+static const int Lexer_en_ypath = 20;
 static const int Lexer_en_main = 5;
 
 
-#line 114 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.rl"
+#line 112 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.rl"
 } // namespace anonymous
 
 TLexer::TLexer(TQueryContext* context, const Stroka& source)
@@ -63,7 +63,7 @@ void TLexer::Initialize(const char* begin, const char* end)
 	act = 0;
 	}
 
-#line 138 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.rl"
+#line 136 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.rl"
 }
 
 TParser::token_type TLexer::GetNextToken(
@@ -104,11 +104,6 @@ _again:
 		case 18: goto st18;
 		case 19: goto st19;
 		case 20: goto st20;
-		case 21: goto st21;
-		case 22: goto st22;
-		case 23: goto st23;
-		case 24: goto st24;
-		case 25: goto st25;
 	default: break;
 	}
 
@@ -118,11 +113,11 @@ _resume:
 	switch ( cs )
 	{
 tr0:
-#line 96 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.rl"
+#line 94 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.rl"
 	{te = p+1;{ type = TToken::OpNotEqual; {p++; cs = 5; goto _out;} }}
 	goto st5;
 tr3:
-#line 74 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.rl"
+#line 72 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.rl"
 	{{p = ((te))-1;}{
             type = TToken::DoubleLiteral;
             value->build(FromString<double>(ts, te - ts));
@@ -130,77 +125,74 @@ tr3:
         }}
 	goto st5;
 tr6:
-#line 104 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.rl"
+#line 102 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.rl"
 	{te = p+1;{ type = TToken::End; {p++; cs = 5; goto _out;} }}
 	goto st5;
 tr9:
-#line 99 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.rl"
+#line 97 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.rl"
 	{te = p+1;{
             type = static_cast<TToken>((*p));
             {p++; cs = 5; goto _out;}
         }}
 	goto st5;
-tr18:
-#line 86 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.rl"
+tr17:
+#line 84 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.rl"
 	{te = p+1;{
             p--;
-            {goto st25;}
+            {goto st20;}
         }}
 	goto st5;
-tr19:
-#line 90 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.rl"
+tr18:
+#line 88 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.rl"
 	{te = p+1;{
             YUNREACHABLE();
         }}
 	goto st5;
-tr20:
-#line 107 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.rl"
+tr19:
+#line 105 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.rl"
 	{te = p;p--;{ location->begin = te - s; }}
 	goto st5;
-tr21:
-#line 74 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.rl"
+tr20:
+#line 72 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.rl"
 	{te = p;p--;{
             type = TToken::DoubleLiteral;
             value->build(FromString<double>(ts, te - ts));
             {p++; cs = 5; goto _out;}
         }}
 	goto st5;
-tr23:
-#line 69 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.rl"
+tr22:
+#line 67 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.rl"
 	{te = p;p--;{
             type = TToken::IntegerLiteral;
             value->build(FromString<i64>(ts, te - ts));
             {p++; cs = 5; goto _out;}
         }}
 	goto st5;
-tr24:
-#line 99 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.rl"
+tr23:
+#line 97 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.rl"
 	{te = p;p--;{
             type = static_cast<TToken>((*p));
             {p++; cs = 5; goto _out;}
         }}
 	goto st5;
-tr25:
-#line 94 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.rl"
+tr24:
+#line 92 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.rl"
 	{te = p+1;{ type = TToken::OpLessOrEqual; {p++; cs = 5; goto _out;} }}
 	goto st5;
-tr26:
-#line 95 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.rl"
+tr25:
+#line 93 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.rl"
 	{te = p+1;{ type = TToken::OpGreaterOrEqual; {p++; cs = 5; goto _out;} }}
 	goto st5;
-tr27:
+tr26:
 #line 1 "NONE"
 	{	switch( act ) {
 	case 4:
-	{{p = ((te))-1;} type = TToken::KwSelect; {p++; cs = 5; goto _out;} }
-	break;
-	case 5:
 	{{p = ((te))-1;} type = TToken::KwFrom;   {p++; cs = 5; goto _out;} }
 	break;
-	case 6:
+	case 5:
 	{{p = ((te))-1;} type = TToken::KwWhere;  {p++; cs = 5; goto _out;} }
 	break;
-	case 7:
+	case 6:
 	{{p = ((te))-1;}
             type = TToken::Identifier;
             value->build(Context_->Capture(ts, te));
@@ -210,8 +202,8 @@ tr27:
 	}
 	}
 	goto st5;
-tr28:
-#line 64 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.rl"
+tr27:
+#line 62 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.rl"
 	{te = p;p--;{
             type = TToken::Identifier;
             value->build(Context_->Capture(ts, te));
@@ -226,7 +218,7 @@ st5:
 case 5:
 #line 1 "NONE"
 	{ts = p;}
-#line 230 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.cpp"
+#line 222 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.cpp"
 	switch( (*p) ) {
 		case 0: goto tr6;
 		case 32: goto st6;
@@ -237,14 +229,12 @@ case 5:
 		case 61: goto tr9;
 		case 62: goto st11;
 		case 70: goto st13;
-		case 83: goto st16;
-		case 87: goto st21;
-		case 91: goto tr18;
-		case 93: goto tr19;
+		case 87: goto st16;
+		case 91: goto tr17;
+		case 93: goto tr18;
 		case 95: goto tr14;
 		case 102: goto st13;
-		case 115: goto st16;
-		case 119: goto st21;
+		case 119: goto st16;
 	}
 	if ( (*p) < 48 ) {
 		if ( (*p) > 13 ) {
@@ -272,7 +262,7 @@ case 6:
 		goto st6;
 	if ( 9 <= (*p) && (*p) <= 13 )
 		goto st6;
-	goto tr20;
+	goto tr19;
 st1:
 	if ( ++p == pe )
 		goto _test_eof1;
@@ -295,14 +285,14 @@ st7:
 	if ( ++p == pe )
 		goto _test_eof7;
 case 7:
-#line 299 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.cpp"
+#line 289 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.cpp"
 	switch( (*p) ) {
 		case 69: goto st3;
 		case 101: goto st3;
 	}
 	if ( 48 <= (*p) && (*p) <= 57 )
 		goto tr2;
-	goto tr21;
+	goto tr20;
 st3:
 	if ( ++p == pe )
 		goto _test_eof3;
@@ -327,7 +317,7 @@ st8:
 case 8:
 	if ( 48 <= (*p) && (*p) <= 57 )
 		goto st8;
-	goto tr21;
+	goto tr20;
 st9:
 	if ( ++p == pe )
 		goto _test_eof9;
@@ -336,50 +326,44 @@ case 9:
 		goto tr2;
 	if ( 48 <= (*p) && (*p) <= 57 )
 		goto st9;
-	goto tr23;
+	goto tr22;
 st10:
 	if ( ++p == pe )
 		goto _test_eof10;
 case 10:
 	if ( (*p) == 61 )
-		goto tr25;
-	goto tr24;
+		goto tr24;
+	goto tr23;
 st11:
 	if ( ++p == pe )
 		goto _test_eof11;
 case 11:
 	if ( (*p) == 61 )
-		goto tr26;
-	goto tr24;
+		goto tr25;
+	goto tr23;
 tr14:
-#line 1 "NONE"
-	{te = p+1;}
-#line 64 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.rl"
-	{act = 7;}
-	goto st12;
-tr31:
-#line 1 "NONE"
-	{te = p+1;}
-#line 61 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.rl"
-	{act = 5;}
-	goto st12;
-tr36:
-#line 1 "NONE"
-	{te = p+1;}
-#line 60 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.rl"
-	{act = 4;}
-	goto st12;
-tr40:
 #line 1 "NONE"
 	{te = p+1;}
 #line 62 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.rl"
 	{act = 6;}
 	goto st12;
+tr30:
+#line 1 "NONE"
+	{te = p+1;}
+#line 59 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.rl"
+	{act = 4;}
+	goto st12;
+tr34:
+#line 1 "NONE"
+	{te = p+1;}
+#line 60 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.rl"
+	{act = 5;}
+	goto st12;
 st12:
 	if ( ++p == pe )
 		goto _test_eof12;
 case 12:
-#line 383 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.cpp"
+#line 367 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.cpp"
 	if ( (*p) == 95 )
 		goto tr14;
 	if ( (*p) < 65 ) {
@@ -390,7 +374,7 @@ case 12:
 			goto tr14;
 	} else
 		goto tr14;
-	goto tr27;
+	goto tr26;
 st13:
 	if ( ++p == pe )
 		goto _test_eof13;
@@ -408,7 +392,7 @@ case 13:
 			goto tr14;
 	} else
 		goto tr14;
-	goto tr28;
+	goto tr27;
 st14:
 	if ( ++p == pe )
 		goto _test_eof14;
@@ -426,15 +410,15 @@ case 14:
 			goto tr14;
 	} else
 		goto tr14;
-	goto tr28;
+	goto tr27;
 st15:
 	if ( ++p == pe )
 		goto _test_eof15;
 case 15:
 	switch( (*p) ) {
-		case 77: goto tr31;
+		case 77: goto tr30;
 		case 95: goto tr14;
-		case 109: goto tr31;
+		case 109: goto tr30;
 	}
 	if ( (*p) < 65 ) {
 		if ( 48 <= (*p) && (*p) <= 57 )
@@ -444,15 +428,15 @@ case 15:
 			goto tr14;
 	} else
 		goto tr14;
-	goto tr28;
+	goto tr27;
 st16:
 	if ( ++p == pe )
 		goto _test_eof16;
 case 16:
 	switch( (*p) ) {
-		case 69: goto st17;
+		case 72: goto st17;
 		case 95: goto tr14;
-		case 101: goto st17;
+		case 104: goto st17;
 	}
 	if ( (*p) < 65 ) {
 		if ( 48 <= (*p) && (*p) <= 57 )
@@ -462,15 +446,15 @@ case 16:
 			goto tr14;
 	} else
 		goto tr14;
-	goto tr28;
+	goto tr27;
 st17:
 	if ( ++p == pe )
 		goto _test_eof17;
 case 17:
 	switch( (*p) ) {
-		case 76: goto st18;
+		case 69: goto st18;
 		case 95: goto tr14;
-		case 108: goto st18;
+		case 101: goto st18;
 	}
 	if ( (*p) < 65 ) {
 		if ( 48 <= (*p) && (*p) <= 57 )
@@ -480,15 +464,15 @@ case 17:
 			goto tr14;
 	} else
 		goto tr14;
-	goto tr28;
+	goto tr27;
 st18:
 	if ( ++p == pe )
 		goto _test_eof18;
 case 18:
 	switch( (*p) ) {
-		case 69: goto st19;
+		case 82: goto st19;
 		case 95: goto tr14;
-		case 101: goto st19;
+		case 114: goto st19;
 	}
 	if ( (*p) < 65 ) {
 		if ( 48 <= (*p) && (*p) <= 57 )
@@ -498,15 +482,15 @@ case 18:
 			goto tr14;
 	} else
 		goto tr14;
-	goto tr28;
+	goto tr27;
 st19:
 	if ( ++p == pe )
 		goto _test_eof19;
 case 19:
 	switch( (*p) ) {
-		case 67: goto st20;
+		case 69: goto tr34;
 		case 95: goto tr14;
-		case 99: goto st20;
+		case 101: goto tr34;
 	}
 	if ( (*p) < 65 ) {
 		if ( 48 <= (*p) && (*p) <= 57 )
@@ -516,112 +500,22 @@ case 19:
 			goto tr14;
 	} else
 		goto tr14;
-	goto tr28;
-st20:
-	if ( ++p == pe )
-		goto _test_eof20;
-case 20:
-	switch( (*p) ) {
-		case 84: goto tr36;
-		case 95: goto tr14;
-		case 116: goto tr36;
-	}
-	if ( (*p) < 65 ) {
-		if ( 48 <= (*p) && (*p) <= 57 )
-			goto tr14;
-	} else if ( (*p) > 90 ) {
-		if ( 97 <= (*p) && (*p) <= 122 )
-			goto tr14;
-	} else
-		goto tr14;
-	goto tr28;
-st21:
-	if ( ++p == pe )
-		goto _test_eof21;
-case 21:
-	switch( (*p) ) {
-		case 72: goto st22;
-		case 95: goto tr14;
-		case 104: goto st22;
-	}
-	if ( (*p) < 65 ) {
-		if ( 48 <= (*p) && (*p) <= 57 )
-			goto tr14;
-	} else if ( (*p) > 90 ) {
-		if ( 97 <= (*p) && (*p) <= 122 )
-			goto tr14;
-	} else
-		goto tr14;
-	goto tr28;
-st22:
-	if ( ++p == pe )
-		goto _test_eof22;
-case 22:
-	switch( (*p) ) {
-		case 69: goto st23;
-		case 95: goto tr14;
-		case 101: goto st23;
-	}
-	if ( (*p) < 65 ) {
-		if ( 48 <= (*p) && (*p) <= 57 )
-			goto tr14;
-	} else if ( (*p) > 90 ) {
-		if ( 97 <= (*p) && (*p) <= 122 )
-			goto tr14;
-	} else
-		goto tr14;
-	goto tr28;
-st23:
-	if ( ++p == pe )
-		goto _test_eof23;
-case 23:
-	switch( (*p) ) {
-		case 82: goto st24;
-		case 95: goto tr14;
-		case 114: goto st24;
-	}
-	if ( (*p) < 65 ) {
-		if ( 48 <= (*p) && (*p) <= 57 )
-			goto tr14;
-	} else if ( (*p) > 90 ) {
-		if ( 97 <= (*p) && (*p) <= 122 )
-			goto tr14;
-	} else
-		goto tr14;
-	goto tr28;
-st24:
-	if ( ++p == pe )
-		goto _test_eof24;
-case 24:
-	switch( (*p) ) {
-		case 69: goto tr40;
-		case 95: goto tr14;
-		case 101: goto tr40;
-	}
-	if ( (*p) < 65 ) {
-		if ( 48 <= (*p) && (*p) <= 57 )
-			goto tr14;
-	} else if ( (*p) > 90 ) {
-		if ( 97 <= (*p) && (*p) <= 122 )
-			goto tr14;
-	} else
-		goto tr14;
-	goto tr28;
-tr41:
-#line 55 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.rl"
+	goto tr27;
+tr35:
+#line 54 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.rl"
 	{te = p+1;}
-	goto st25;
-tr42:
-#line 41 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.rl"
+	goto st20;
+tr36:
+#line 40 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.rl"
 	{te = p+1;{
             if (++rd == 1) {
                 rs = p + 1;
             }
         }}
-	goto st25;
-tr43:
-	cs = 25;
-#line 46 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.rl"
+	goto st20;
+tr37:
+	cs = 20;
+#line 45 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.rl"
 	{te = p+1;{
             if (--rd == 0) {
                 re = p;
@@ -632,21 +526,21 @@ tr43:
             }
         }}
 	goto _again;
-st25:
+st20:
 #line 1 "NONE"
 	{ts = 0;}
 	if ( ++p == pe )
-		goto _test_eof25;
-case 25:
+		goto _test_eof20;
+case 20:
 #line 1 "NONE"
 	{ts = p;}
-#line 644 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.cpp"
+#line 538 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.cpp"
 	switch( (*p) ) {
 		case 0: goto st0;
-		case 91: goto tr42;
-		case 93: goto tr43;
+		case 91: goto tr36;
+		case 93: goto tr37;
 	}
-	goto tr41;
+	goto tr35;
 	}
 	_test_eof5: cs = 5; goto _test_eof; 
 	_test_eof6: cs = 6; goto _test_eof; 
@@ -668,50 +562,40 @@ case 25:
 	_test_eof18: cs = 18; goto _test_eof; 
 	_test_eof19: cs = 19; goto _test_eof; 
 	_test_eof20: cs = 20; goto _test_eof; 
-	_test_eof21: cs = 21; goto _test_eof; 
-	_test_eof22: cs = 22; goto _test_eof; 
-	_test_eof23: cs = 23; goto _test_eof; 
-	_test_eof24: cs = 24; goto _test_eof; 
-	_test_eof25: cs = 25; goto _test_eof; 
 
 	_test_eof: {}
 	if ( p == eof )
 	{
 	switch ( cs ) {
-	case 6: goto tr20;
-	case 7: goto tr21;
+	case 6: goto tr19;
+	case 7: goto tr20;
 	case 3: goto tr3;
 	case 4: goto tr3;
-	case 8: goto tr21;
-	case 9: goto tr23;
-	case 10: goto tr24;
-	case 11: goto tr24;
-	case 12: goto tr27;
-	case 13: goto tr28;
-	case 14: goto tr28;
-	case 15: goto tr28;
-	case 16: goto tr28;
-	case 17: goto tr28;
-	case 18: goto tr28;
-	case 19: goto tr28;
-	case 20: goto tr28;
-	case 21: goto tr28;
-	case 22: goto tr28;
-	case 23: goto tr28;
-	case 24: goto tr28;
+	case 8: goto tr20;
+	case 9: goto tr22;
+	case 10: goto tr23;
+	case 11: goto tr23;
+	case 12: goto tr26;
+	case 13: goto tr27;
+	case 14: goto tr27;
+	case 15: goto tr27;
+	case 16: goto tr27;
+	case 17: goto tr27;
+	case 18: goto tr27;
+	case 19: goto tr27;
 	}
 	}
 
 	_out: {}
 	}
 
-#line 149 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.rl"
+#line 147 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.rl"
     location->end = p - s;
 
     if (cs == 
-#line 713 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.cpp"
+#line 597 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.cpp"
 0
-#line 151 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.rl"
+#line 149 "/home/sandello/yt/source/yt/ytlib/query_client/lexer.rl"
 ) {
         // TODO(sandello): Handle lexer failures.
         return TToken::Failure;

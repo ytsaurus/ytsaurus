@@ -38,7 +38,6 @@
 
 // NB: Keep one-character tokens consistent with ASCII codes to simplify lexing.
 
-%token KwSelect "keyword `SELECT`"
 %token KwFrom "keyword `FROM`"
 %token KwWhere "keyword `WHERE`"
 
@@ -91,7 +90,7 @@ query
 ;
 
 select-clause
-    : KwSelect select-exprs[exprs]
+    : select-exprs[exprs]
         {
             $$ = new(context) TProjectOperator(
                 context,
