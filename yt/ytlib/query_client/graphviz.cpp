@@ -1,5 +1,7 @@
 #include "graphviz.h"
 
+#ifndef _MSC_VER
+
 #include "ast.h"
 #include "ast_visitor.h"
 
@@ -389,8 +391,6 @@ void ViewFragment(const TQueryFragment& fragment, Stroka title)
         ::unlink(name);
         throw;
     }
-
-
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -398,3 +398,4 @@ void ViewFragment(const TQueryFragment& fragment, Stroka title)
 } // namespace NQueryClient
 } // namespace NYT
 
+#endif
