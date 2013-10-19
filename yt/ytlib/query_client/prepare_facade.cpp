@@ -33,8 +33,10 @@ static auto& Logger = QueryClientLogger;
 class TPrepareFacade::TImpl
 {
 public:
-    TImpl(IChannelPtr masterChannel)
-        : MasterChannel_(std::move(masterChannel))
+    TImpl(TIntrusivePtr<TPrepareFacade> self, IChannelPtr masterChannel)
+        : Self_(std::move(self))
+        , MasterChannel_(std::move(masterChannel))
+        // TODO(sandello@): Configure proxy timeout.
         , ObjectProxy_(MasterChannel_)
     { }
 
@@ -43,10 +45,18 @@ public:
 
     TFuture<TErrorOr<TDataSplit>> GetInitialSplit(const TYPath& path)
     {
-        LOG_DEBUG("Getting table attributes (Path: %s)", ~path);
+        auto self = Self_;
+        return BIND([self, path, this] { return DoGetInitialSplit(path); })
+            .AsyncVia(GetCurrentInvoker())
+            .Run();
+    }
+
+    TErrorOr<TDataSplit> DoGetInitialSplit(const Stroka& path)
+    {
+        LOG_DEBUG("Getting attributes for table %s", ~path);
 
         auto req = TYPathProxy::Get(path);
-        // TODO(sandello): Set transaction id (?)
+        // TODO(sandello): Wrap in transaction.
         TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly);
         attributeFilter.Keys.push_back("id");
         attributeFilter.Keys.push_back("sorted");
@@ -54,58 +64,62 @@ public:
         attributeFilter.Keys.push_back("schema");
         ToProto(req->mutable_attribute_filter(), attributeFilter);
 
-        return ObjectProxy_
-            .Execute(req)
-            .Apply(BIND([] (TYPathProxy::TRspGetPtr rsp) -> TErrorOr<TDataSplit> {
-                if (!rsp->IsOK()) {
-                    LOG_DEBUG(rsp->GetError(), "Error getting table attributes");
-                    return TError("Error getting table attributes") << rsp->GetError();
-                }
+        auto rsp = WaitFor(ObjectProxy_.Execute(req));
+        if (!rsp->IsOK()) {
+            auto error = TError("Error getting table attributes") << rsp->GetError();
+            LOG_DEBUG(error);
+            return error;
+        }
 
-                auto node = ConvertToNode(TYsonString(rsp->value()));
-                const auto& attributes = node->Attributes();
+        auto node = ConvertToNode(TYsonString(rsp->value()));
+        const auto& attributes = node->Attributes();
 
-                TDataSplit result;
+        TDataSplit result;
+        ToProto(
+            result.mutable_chunk_id(),
+            attributes.Get<TObjectId>("id"));
 
-                ToProto(
-                    result.mutable_chunk_id(),
-                    attributes.Get<TObjectId>("id"));
+        if (attributes.Get<bool>("sorted")) {
+            NTableClient::NProto::TKeyColumnsExt protoKeyColumns;
+            ToProto(
+                protoKeyColumns.mutable_values(),
+                attributes.Get<std::vector<Stroka>>("sorted_by"));
+            SetProtoExtension(result.mutable_extensions(), protoKeyColumns);
+        }
 
-                if (attributes.Get<bool>("sorted")) {
-                    NTableClient::NProto::TKeyColumnsExt protoKeyColumns;
-                    ToProto(
-                        protoKeyColumns.mutable_values(),
-                        attributes.Get<std::vector<Stroka>>("sorted_by"));
-                    SetProtoExtension(result.mutable_extensions(), protoKeyColumns);
-                }
+        auto maybeTableSchema = attributes.Find<TTableSchema>("schema");
+        if (!maybeTableSchema) {
+            auto error = TError("Table %s is missing schema", ~path);
+            LOG_DEBUG(error);
+            return error;
+        }
 
-                auto maybeTableSchema = attributes.Find<TTableSchema>("schema");
-                if (!maybeTableSchema) {
-                    return TError("Table is missing schema");
-                } else {
-                    NVersionedTableClient::NProto::TTableSchema protoTableSchema;
-                    ToProto(&protoTableSchema, *maybeTableSchema);
-                    SetProtoExtension(result.mutable_extensions(), protoTableSchema);
-                }
+        NVersionedTableClient::NProto::TTableSchema protoTableSchema;
+        ToProto(&protoTableSchema, *maybeTableSchema);
+        SetProtoExtension(result.mutable_extensions(), protoTableSchema);
 
-                LOG_DEBUG("Got table attributes");
-                return result;
-            }));
+        LOG_DEBUG("Got attributes for table %s", ~path);
+
+        return result;
     }
 
 private:
+    TIntrusivePtr<TPrepareFacade> Self_;
+
     IChannelPtr MasterChannel_;
     TObjectServiceProxy ObjectProxy_;
 };
 
 TPrepareFacade::TPrepareFacade(IChannelPtr masterChannel)
-    : Impl_(new TImpl(std::move(masterChannel)))
+    : Impl_(new TImpl(this, std::move(masterChannel)))
 { }
 
 TPrepareFacade::~TPrepareFacade()
 { }
 
-TFuture<TErrorOr<TDataSplit>> TPrepareFacade::GetInitialSplit(const NYT::NYPath::TYPath& path)
+TFuture<TErrorOr<TDataSplit>> TPrepareFacade::GetInitialSplit(
+    const NYT::NYPath::TYPath& path
+)
 {
     return Impl_->GetInitialSplit(path);
 }

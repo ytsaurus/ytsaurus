@@ -15,14 +15,15 @@ class TPrepareFacade
     , public IPrepareCallbacks
 {
 public:
-    TPrepareFacade(NRpc::IChannelPtr masterChannel);
+    explicit TPrepareFacade(NRpc::IChannelPtr masterChannel);
     ~TPrepareFacade();
 
-    virtual TFuture<TErrorOr<TDataSplit>> GetInitialSplit(const NYT::NYPath::TYPath& path);
+    virtual TFuture<TErrorOr<TDataSplit>> GetInitialSplit(const NYPath::TYPath& path) override;
 
 private:
     class TImpl;
     std::unique_ptr<TImpl> Impl_;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

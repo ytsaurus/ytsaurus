@@ -21,13 +21,13 @@ namespace NQueryClient {
 ////////////////////////////////////////////////////////////////////////////////
 // In use.
 
-typedef NYT::NChunkClient::NProto::TChunkSpec TDataSplit;
+typedef NChunkClient::NProto::TChunkSpec TDataSplit;
 
 static const int TypicalTableCount = 2;
 
-using NYT::NVersionedTableClient::EColumnType;
-using NYT::NVersionedTableClient::TColumnSchema;
-using NYT::NVersionedTableClient::TTableSchema;
+using NVersionedTableClient::EColumnType;
+using NVersionedTableClient::TColumnSchema;
+using NVersionedTableClient::TTableSchema;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Hooks for other means.
@@ -47,11 +47,17 @@ typedef TIntrusivePtr<IQueryNode> IQueryNodePtr;
 
 struct IPrepareCallbacks
 {
-    virtual TFuture<TErrorOr<TDataSplit>> GetInitialSplit(const NYT::NYPath::TYPath& path) = 0;
+    virtual ~IPrepareCallbacks()
+    { }
+
+    virtual TFuture<TErrorOr<TDataSplit>> GetInitialSplit(const NYPath::TYPath& path) = 0;
 };
 
 struct ICoordinateCallbacks
 {
+    virtual ~ICoordinateCallbacks()
+    { }
+
     virtual std::vector<TDataSplit> SplitFurther(const TDataSplit& split) = 0;
     virtual IQueryNodePtr GetCollocatedExecutor(const TDataSplit& split) = 0;
     virtual IQueryNodePtr GetLocalExecutor() = 0;
@@ -59,6 +65,9 @@ struct ICoordinateCallbacks
 
 struct IExecuteCallbacks
 {
+    virtual ~IExecuteCallbacks()
+    { }
+
     virtual IMegaReaderPtr GetReader(const TDataSplit& split) = 0;
     virtual IMegaWriterPtr GetWriter() = 0;
 };

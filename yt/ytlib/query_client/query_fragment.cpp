@@ -30,7 +30,7 @@ namespace {
 class TPrepareController
 {
 public:
-    explicit TPrepareController(IPrepareCallbacks* callbacks, TQueryFragment* fragment)
+    TPrepareController(IPrepareCallbacks* callbacks, TQueryFragment* fragment)
         : Callbacks_(callbacks)
         , Context_(fragment->GetContext().Get())
         , Fragment_(fragment)
