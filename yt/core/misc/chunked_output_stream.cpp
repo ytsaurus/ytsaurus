@@ -68,6 +68,27 @@ void TChunkedOutputStream::DoWrite(const void* buffer, size_t length)
     }
 }
 
+char* TChunkedOutputStream::Allocate(size_t length)
+{
+    const auto spaceAvailable = IncompleteChunk.Capacity() - IncompleteChunk.Size();
+
+    if (spaceAvailable < length) {
+        CompleteSize += IncompleteChunk.Size();
+        CompleteChunks.push_back(TSharedRef::FromBlob<TChunkedOutputStreamTag>(std::move(IncompleteChunk)));
+
+        CurrentReserveSize = std::min(2 * CurrentReserveSize, MaxReserveSize);
+
+        IncompleteChunk.Reserve(std::max(RoundUpToPage(length), CurrentReserveSize));
+    }
+    return IncompleteChunk.End();
+}
+
+void TChunkedOutputStream::Skip(size_t length)
+{
+    YASSERT(IncompleteChunk.Size() + length <= IncompleteChunk.Capacity());
+    IncompleteChunk.Resize(IncompleteChunk.Size() + length, false);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

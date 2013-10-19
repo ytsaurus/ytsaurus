@@ -1,6 +1,7 @@
 #pragma once
 
 #include <core/misc/common.h>
+#include <core/misc/enum.h>
 
 namespace NYT {
 namespace NVersionedTableClient {
@@ -9,7 +10,7 @@ namespace NVersionedTableClient {
 
 DECLARE_ENUM(ERowsetType,
     (Simple)
-    (Versioned)
+    (Versioned)   // With timestamps and tombstones
 );
 
 DECLARE_ENUM(EColumnType,
@@ -30,6 +31,8 @@ const TTimestamp LastCommittedTimestamp = -1;
 #else
     #define PACK __attribute__((aligned(16), packed))
 #endif
+
+typedef std::vector<Stroka> TKeyColumns;
 
 struct TRowValue
 {
@@ -53,8 +56,21 @@ static_assert(sizeof(TRowValue) == 16, "TRowValue has to be exactly 16 bytes");
 class TNameTable;
 typedef TIntrusivePtr<TNameTable> TNameTablePtr;
 
+class TBlockWriter;
+
+class TChunkWriter;
+typedef TIntrusivePtr<TChunkWriter> TChunkWriterPtr;
+
+struct IReader;
+typedef TIntrusivePtr<IReader> IReaderPtr;
+
+class TChunkWriterConfig;
+typedef TIntrusivePtr<TChunkWriterConfig> TChunkWriterConfigPtr;
+
+class TChunkReaderConfig;
+typedef TIntrusivePtr<TChunkReaderConfig> TChunkReaderConfigPtr;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NVersionedTableClient
 } // namespace NYT
-

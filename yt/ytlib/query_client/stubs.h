@@ -26,8 +26,8 @@ typedef NChunkClient::NProto::TChunkSpec TDataSplit;
 static const int TypicalTableCount = 2;
 
 using NVersionedTableClient::EColumnType;
-using NVersionedTableClient::TColumnSchema;
-using NVersionedTableClient::TTableSchema;
+using NVersionedTableClient::NProto::TColumnSchema;
+typedef NVersionedTableClient::NProto::TTableSchemaExt TTableSchema;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Hooks for other means.

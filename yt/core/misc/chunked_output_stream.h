@@ -23,9 +23,14 @@ public:
     size_t GetSize() const;
     size_t GetCapacity() const;
 
-private:
+    //! Returns a pointer to a continious memory chunk of given size in the stream buffer.
+    //! Do not forget to call Skip after use.
+    char* Allocate(size_t size);
+    void Skip(size_t size);
+
     virtual void DoWrite(const void* buf, size_t len) override;
 
+private:
     const size_t MaxReserveSize;
     size_t CurrentReserveSize;
 

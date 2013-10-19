@@ -138,6 +138,12 @@ typedef TIntrusivePtr<TFileReader> TFileReaderPtr;
 class TFileWriter;
 typedef TIntrusivePtr<TFileWriter> TFileWriterPtr;
 
+class TMemoryReader;
+typedef TIntrusivePtr<TMemoryReader> TMemoryReaderPtr;
+
+class TMemoryWriter;
+typedef TIntrusivePtr<TMemoryWriter> TMemoryWriterPtr;
+
 template <class TChunkWriter>
 class TMultiChunkSequentialWriter;
 

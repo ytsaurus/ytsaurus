@@ -14,6 +14,8 @@ set( SRCS
   ${BASE}/file_reader.cpp
   ${BASE}/file_writer.cpp
   ${BASE}/key.cpp
+  ${BASE}/memory_reader.cpp
+  ${BASE}/memory_writer.cpp
   ${BASE}/private.cpp
   ${BASE}/public.cpp
   ${BASE}/replication_reader.cpp
@@ -45,6 +47,8 @@ set( HDRS
   ${BASE}/file_writer.h
   ${BASE}/format.h
   ${BASE}/key.h
+  ${BASE}/memory_reader.h
+  ${BASE}/memory_writer.h
   ${BASE}/multi_chunk_parallel_reader-inl.h
   ${BASE}/multi_chunk_parallel_reader.h
   ${BASE}/multi_chunk_reader_base-inl.h

@@ -1,0 +1,306 @@
+#include "stdafx.h"
+#include "chunk_writer.h"
+
+#include "private.h"
+#include "name_table.h"
+#include "block_writer.h"
+
+#include "chunk_meta_extensions.h"
+
+#include <ytlib/table_client/chunk_meta_extensions.h>
+
+#include <ytlib/chunk_client/async_writer.h>
+#include <ytlib/chunk_client/encoding_writer.h>
+#include <ytlib/chunk_client/chunk_meta_extensions.h>
+#include <ytlib/chunk_client/dispatcher.h>
+
+#include <core/concurrency/fiber.h>
+
+
+namespace NYT {
+namespace NVersionedTableClient {
+
+using namespace NProto;
+using namespace NChunkClient;
+using namespace NChunkClient::NProto;
+using namespace NConcurrency;
+
+const int TimestampIndex = 0;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TChunkWriter::TChunkWriter(
+    TChunkWriterConfigPtr config,
+    TEncodingWriterOptionsPtr options,
+    IAsyncWriterPtr asyncWriter)
+    : Config(config)
+    , Options(options)
+    , UnderlyingWriter(asyncWriter)
+    , OutputNameTable(New<TNameTable>())
+    , EncodingWriter(New<TEncodingWriter>(config, options, asyncWriter))
+    , IsNewKey(false)
+    , RowIndex(0)
+    , LargestBlockSize(0)
+{ }
+
+void TChunkWriter::Open(
+    const TNameTablePtr& nameTable,
+    const TTableSchemaExt& schema,
+    const TKeyColumns& keyColumns,
+    ERowsetType rowsetType)
+{
+    Schema = schema;
+    RowsetType = rowsetType;
+    InputNameTable = nameTable;
+
+    if (RowsetType == ERowsetType::Versioned) {
+        // Block writer treats timestamps as integers.
+        ColumnSizes.push_back(EColumnType::Integer);
+    }
+
+    // Integers and Doubles align at 8 bytes (stores the whole value),
+    // while String and Any align at 4 bytes (stores just offset to value).
+    // To ensure proper alignment during reading, move all integer and
+    // double columns to the front.
+    std::sort(
+        Schema.mutable_columns()->begin(),
+        Schema.mutable_columns()->end(),
+        [] (const TColumnSchema& lhs, const TColumnSchema& rhs) {
+            return lhs.type() == EColumnType::Integer || lhs.type() == EColumnType::Double;
+        }
+    );
+
+    ColumnDescriptors.resize(InputNameTable->GetNameCount());
+
+    for (const auto& column: Schema.columns()) {
+        TColumnDescriptor descriptor;
+        descriptor.IndexInBlock = ColumnSizes.size();
+        descriptor.OutputIndex = OutputNameTable->RegisterName(column.name());
+        descriptor.Type = EColumnType(column.type());
+
+        if (column.type() == EColumnType::String || column.type() == EColumnType::Any) {
+            ColumnSizes.push_back(4);
+        } else {
+            ColumnSizes.push_back(8);
+        }
+
+        auto index = InputNameTable->FindIndex(column.name());
+        YCHECK(index);
+        ColumnDescriptors[*index] = descriptor;
+    }
+
+    for (const auto& column: keyColumns) {
+        auto index = InputNameTable->FindIndex(column);
+        YCHECK(index);
+        KeyIndexes.push_back(*index);
+        auto& descriptor = ColumnDescriptors[*index];
+        YCHECK(descriptor.IndexInBlock >= 0);
+        YCHECK(descriptor.Type != EColumnType::Any);
+        descriptor.IsKeyPart = true;
+    }
+
+    CurrentBlock.reset(new TBlockWriter(ColumnSizes));
+}
+
+void TChunkWriter::WriteValue(const TRowValue& value)
+{
+    auto& columnDescriptor = ColumnDescriptors[value.Index];
+
+    if (columnDescriptor.Type == EColumnType::Null) {
+        // Uninitialized column becomes varaible.
+        columnDescriptor.Type = EColumnType::TheBottom;
+        columnDescriptor.OutputIndex = OutputNameTable->RegisterName(
+            InputNameTable->GetName(value.Index));
+    }
+
+    switch (columnDescriptor.Type) {
+    case EColumnType::Integer:
+        YASSERT(value.Type == EColumnType::Integer || value.Type == EColumnType::Null);
+        CurrentBlock->WriteInteger(value, columnDescriptor.IndexInBlock);
+        if (columnDescriptor.IsKeyPart) {
+            if (value.Data.Integer != columnDescriptor.PreviousValue.Integer) {
+                IsNewKey = true;
+            }
+            columnDescriptor.PreviousValue.Integer = value.Data.Integer;
+        }
+        break;
+
+    case EColumnType::Double:
+        YASSERT(value.Type == EColumnType::Double || value.Type == EColumnType::Null);
+        CurrentBlock->WriteDouble(value, columnDescriptor.IndexInBlock);
+        if (columnDescriptor.IsKeyPart) {
+            if (value.Data.Double != columnDescriptor.PreviousValue.Double) {
+                IsNewKey = true;
+            }
+            columnDescriptor.PreviousValue.Double = value.Data.Double;
+        }
+        break;
+
+    case EColumnType::String:
+        YASSERT(value.Type == EColumnType::String || value.Type == EColumnType::Null);
+        if (columnDescriptor.IsKeyPart) {
+            auto newKey = CurrentBlock->WriteKeyString(value, columnDescriptor.IndexInBlock);
+            if (newKey != columnDescriptor.PreviousValue.String) {
+                IsNewKey = true;
+            }
+            columnDescriptor.PreviousValue.String = newKey;
+        } else {
+            CurrentBlock->WriteString(value, columnDescriptor.IndexInBlock);
+        }
+        break;
+
+    case EColumnType::Any:
+        CurrentBlock->WriteAny(value, columnDescriptor.IndexInBlock);
+        break;
+
+    // Variable column.
+    case EColumnType::TheBottom:
+        CurrentBlock->WriteVariable(value, columnDescriptor.OutputIndex);
+        break;
+
+    default:
+        YUNREACHABLE();
+    };
+}
+
+bool TChunkWriter::EndRow(TTimestamp timestamp, bool deleted)
+{
+    if (RowsetType == ERowsetType::Versioned && RowIndex > 0) {
+        if (PreviousBlock) {
+            PreviousBlock->PushEndOfKey(IsNewKey);
+        } else {
+            CurrentBlock->PushEndOfKey(IsNewKey);
+        }
+        CurrentBlock->WriteTimestamp(timestamp, deleted, TimestampIndex);
+        IsNewKey = false;
+    } else {
+        YASSERT(timestamp == NullTimestamp);
+    }
+
+    CurrentBlock->EndRow();
+
+    if (PreviousBlock) {
+        FlushPreviousBlock();
+
+        if (!KeyIndexes.empty()) {
+            auto* key = IndexExt.add_keys();
+            for (const auto& index: KeyIndexes) {
+                auto* part = key->add_parts();
+                const auto& column = ColumnDescriptors[index];
+                part->set_type(column.Type);
+                switch (column.Type) {
+                case EColumnType::Integer:
+                    part->set_int_value(column.PreviousValue.Integer);
+                    break;
+                case EColumnType::Double:
+                    part->set_double_value(column.PreviousValue.Double);
+                    break;
+                case EColumnType::String:
+                    part->set_str_value(
+                        column.PreviousValue.String.begin(),
+                        column.PreviousValue.String.size());
+                    break;
+                default:
+                    YUNREACHABLE();
+                }
+            }
+        }
+    }
+
+    if (CurrentBlock->GetSize() > Config->BlockSize) {
+        YCHECK(PreviousBlock.get() == nullptr);
+        PreviousBlock.swap(CurrentBlock);
+        CurrentBlock.reset(new TBlockWriter(ColumnSizes));
+    }
+
+    ++RowIndex;
+    return EncodingWriter->IsReady();
+}
+
+TAsyncError TChunkWriter::GetReadyEvent()
+{
+    return EncodingWriter->GetReadyEvent();
+}
+
+TAsyncError TChunkWriter::AsyncClose()
+{
+    auto result = NewPromise<TError>();
+
+    TDispatcher::Get()->GetWriterInvoker()->Invoke(BIND(
+        &TChunkWriter::DoClose,
+        MakeWeak(this),
+        result));
+
+    return result;
+}
+
+void TChunkWriter::DoClose(TAsyncErrorPromise result)
+{
+    if (CurrentBlock->GetSize() > 0) {
+        YCHECK(PreviousBlock == nullptr);
+        PreviousBlock.swap(CurrentBlock);
+    }
+
+    if (PreviousBlock) {
+        FlushPreviousBlock();
+    }
+
+    {
+        auto error = WaitFor(EncodingWriter->AsyncFlush());
+        if (!error.IsOK()) {
+            result.Set(error);
+            return;
+        }
+    }
+
+    Meta.set_type(EChunkType::Table);
+    Meta.set_version(FormatVersion);
+
+    SetProtoExtension(Meta.mutable_extensions(), BlockMetaExt);
+    SetProtoExtension(Meta.mutable_extensions(), Schema);
+
+    TNameTableExt nameTableExt;
+    ToProto(&nameTableExt, OutputNameTable);
+    SetProtoExtension(Meta.mutable_extensions(), nameTableExt);
+
+    TMiscExt miscExt;
+    if (KeyIndexes.empty()) {
+        miscExt.set_sorted(false);
+    } else {
+        miscExt.set_sorted(true);
+
+        SetProtoExtension(Meta.mutable_extensions(), IndexExt);
+        NTableClient::NProto::TKeyColumnsExt keyColumnsExt;
+        for (const auto& index: KeyIndexes) {
+            keyColumnsExt.add_values(InputNameTable->GetName(index));
+        }
+        SetProtoExtension(Meta.mutable_extensions(), keyColumnsExt);
+    }
+
+    miscExt.set_uncompressed_data_size(EncodingWriter->GetUncompressedSize());
+    miscExt.set_compressed_data_size(EncodingWriter->GetCompressedSize());
+    miscExt.set_meta_size(Meta.ByteSize());
+    miscExt.set_compression_codec(Options->CompressionCodec);
+    miscExt.set_row_count(RowIndex);
+    miscExt.set_max_block_size(LargestBlockSize);
+    SetProtoExtension(Meta.mutable_extensions(), miscExt);
+
+    auto error = WaitFor(UnderlyingWriter->AsyncClose(Meta));
+    result.Set(error);
+}
+
+void TChunkWriter::FlushPreviousBlock()
+{
+    auto block = PreviousBlock->FlushBlock();
+    EncodingWriter->WriteBlock(std::move(block.Data));
+    *BlockMetaExt.add_items() = block.Meta;
+    if (block.Meta.block_size() > LargestBlockSize) {
+        LargestBlockSize = block.Meta.block_size();
+    }
+    PreviousBlock.reset();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NVersionedTableClient
+} // namespace NYT

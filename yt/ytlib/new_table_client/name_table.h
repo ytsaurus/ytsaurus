@@ -10,10 +10,11 @@ namespace NVersionedTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNameTable
-    : public TRefCounted
+    : public virtual TRefCounted
 {
 public:
     int RegisterName(const Stroka& name);
+    int GetOrRegister(const Stroka& name);
 
     TNullable<int> FindIndex(const Stroka& name) const;
     const Stroka& GetName(int index) const;
@@ -30,9 +31,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NProto { class TNameTable; }
-void ToProto(NProto::TNameTable* protoNameTable, const TNameTablePtr& nameTable);
-TNameTablePtr FromProto(const NProto::TNameTable& protoNameTable);
+namespace NProto { class TNameTableExt; }
+void ToProto(NProto::TNameTableExt* protoNameTable, const TNameTablePtr& nameTable);
+TNameTablePtr FromProto(const NProto::TNameTableExt& protoNameTable);
 
 ////////////////////////////////////////////////////////////////////////////////
 

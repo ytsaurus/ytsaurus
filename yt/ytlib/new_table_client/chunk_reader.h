@@ -1,9 +1,10 @@
 #pragma once
 
 #include "public.h"
-#include "reader.h"
 
-#include <core/misc/ref.h>
+#include <ytlib/chunk_client/public.h>
+
+#include <ytlib/chunk_client/chunk_spec.pb.h>
 
 namespace NYT {
 namespace NVersionedTableClient {
@@ -11,30 +12,11 @@ namespace NVersionedTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 IReaderPtr CreateChunkReader(
-    const TReadLimit& startLimit,
-    const TReadLimit& endLimit,
+    TChunkReaderConfigPtr config,
+    NChunkClient::IAsyncReaderPtr asyncReader,
+    const NChunkClient::NProto::TReadLimit& startLimit = NChunkClient::NProto::TReadLimit(),
+    const NChunkClient::NProto::TReadLimit& endLimit = NChunkClient::NProto::TReadLimit(),
     TTimestamp timestamp = NullTimestamp);
-
-
-class TChunkReader
-    : public IReader
-{
-public:
-    TChunkReader(
-        const TReadLimit& startLimit,
-        const TReadLimit& endLimit,
-        const TNullable<TTimestamp>& timestamp);
-
-    virtual TAsyncError Open(
-        TNameTablePtr nameTable, 
-        const TSchema& schema, 
-        bool includeAllColumns,
-        ERowetType type = ERowsetType::Simple) override;
-
-    virtual bool Read(std::vector<TRow>* rows) override;
-    virtual TAsyncError GetReadyEvent() override;
-
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 

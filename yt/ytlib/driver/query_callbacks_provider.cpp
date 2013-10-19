@@ -81,6 +81,9 @@ public:
 private:
     TErrorOr<TDataSplit> DoGetInitialSplit(const Stroka& path)
     {
+        typedef NTableClient::NProto::TKeyColumnsExt TProtoKeyColumns;
+        typedef NVersionedTableClient::NProto::TTableSchemaExt TProtoTableSchema;
+
         LOG_DEBUG("Getting attributes for table %s", ~path);
 
         auto req = TYPathProxy::Get(path);
@@ -107,7 +110,7 @@ private:
             result.mutable_chunk_id(),
             attributes.Get<TObjectId>("id"));
 
-        NTableClient::NProto::TKeyColumnsExt protoKeyColumns;
+        TProtoKeyColumns protoKeyColumns;
         if (attributes.Get<bool>("sorted")) {
             ToProto(
                 protoKeyColumns.mutable_values(),
@@ -115,16 +118,14 @@ private:
         }
         SetProtoExtension(result.mutable_extensions(), protoKeyColumns);
 
-        auto maybeTableSchema = attributes.Find<TTableSchema>("schema");
+        auto maybeTableSchema = attributes.Find<TProtoTableSchema>("schema");
         if (!maybeTableSchema) {
             auto error = TError("Table %s is missing schema", ~path);
             LOG_DEBUG(error);
             return error;
         }
 
-        NVersionedTableClient::NProto::TTableSchema protoTableSchema;
-        ToProto(&protoTableSchema, *maybeTableSchema);
-        SetProtoExtension(result.mutable_extensions(), protoTableSchema);
+        SetProtoExtension(result.mutable_extensions(), *maybeTableSchema);
 
         LOG_DEBUG("Got attributes for table %s", ~path);
 
@@ -148,7 +149,7 @@ private:
         LOG_DEBUG("Splitting table further into chunks (ObjectId: %s)", ~ToString(objectId));
 
         typedef NTableClient::NProto::TKeyColumnsExt TProtoKeyColumns;
-        typedef NVersionedTableClient::NProto::TTableSchema TProtoTableSchema;
+        typedef NVersionedTableClient::NProto::TTableSchemaExt TProtoTableSchema;
 
         auto path = FromObjectId(objectId);
         auto req = TTableYPathProxy::Fetch(path);

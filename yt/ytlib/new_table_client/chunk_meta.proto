@@ -1,5 +1,8 @@
 package NYT.NVersionedTableClient.NProto;
 
+import "yt/ytlib/chunk_client/chunk_spec.proto";
+//import "yt/ytlib/chunk_client/chunk.proto";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TColumnSchema
@@ -8,15 +11,46 @@ message TColumnSchema
     required int32 type = 2;
 }
 
-message TTableSchema
+message TTableSchemaExt
 {
     repeated TColumnSchema columns = 1;
 }
 
-message TNameTable
+message TNameTableExt
 {
     repeated string names = 1;
 }
 
-////////////////////////////////////////////////////////////////////////////////
+message TBlockMeta
+{
+    required int32 row_count = 1;
+    required int32 block_size = 2;
+    repeated int32 fixed_column_sizes = 3;
+    optional int32 variable_buffer_offset = 4;
+    optional int32 end_of_key_flags_offset = 5;
+}
 
+message TBlockMetaExt
+{
+    repeated TBlockMeta items = 1;
+}
+
+// For each column in block, stores corresponding index in name table.
+message TBlockIndexesExt
+{
+    repeated int32 index_in_name_table = 1;
+}
+
+// Chunk meta extension.
+message TIndexExt
+{
+    repeated NChunkClient.NProto.TKey keys = 1;
+}
+
+// Chunk meta extension.
+message TKeyColumnsExt
+{
+    repeated bytes values = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

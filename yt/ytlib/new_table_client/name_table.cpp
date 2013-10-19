@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "name_table.h"
 
 #include <yt/ytlib/new_table_client/chunk_meta.pb.h>
@@ -42,7 +43,17 @@ int TNameTable::RegisterName(const Stroka& name)
     return index;
 }
 
-void ToProto(NProto::TNameTable* protoNameTable, const TNameTablePtr& nameTable)
+int TNameTable::GetOrRegister(const Stroka& name)
+{
+    auto index = FindIndex(name);
+    if (index) {
+        return *index;
+    } else {
+        return RegisterName(name);
+    }
+}
+
+void ToProto(NProto::TNameTableExt* protoNameTable, const TNameTablePtr& nameTable)
 {
     protoNameTable->clear_names();
     for (int index = 0; index < nameTable->GetNameCount(); ++index) {
@@ -50,7 +61,7 @@ void ToProto(NProto::TNameTable* protoNameTable, const TNameTablePtr& nameTable)
     }
 }
 
-TNameTablePtr FromProto(const NProto::TNameTable& protoNameTable)
+TNameTablePtr FromProto(const NProto::TNameTableExt& protoNameTable)
 {
     auto nameTable = New<TNameTable>();
     for (const auto& name: protoNameTable.names()) {
@@ -63,4 +74,3 @@ TNameTablePtr FromProto(const NProto::TNameTable& protoNameTable)
 
 } // namespace NVersionedTableClient
 } // namespace NYT
-

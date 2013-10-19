@@ -115,11 +115,11 @@ public:
     {
         // Scan operators are always visited in the end,
         // because they are leaf nodes.
-        auto tableSchema = GetProtoExtension<NVersionedTableClient::NProto::TTableSchema>(op->DataSplit().extensions());
+        auto tableSchema = GetProtoExtension<NVersionedTableClient::NProto::TTableSchemaExt>(op->DataSplit().extensions());
         auto& liveColumns = LiveColumns_[op->GetTableIndex()];
 
         {
-            NVersionedTableClient::NProto::TTableSchema filteredTableSchema;
+            NVersionedTableClient::NProto::TTableSchemaExt filteredTableSchema;
             for (const auto& columnSchema : tableSchema.columns()) {
                 if (liveColumns.find(columnSchema.name()) != liveColumns.end()) {
                     LOG_DEBUG("Keeping column %s in the schema", ~columnSchema.name().Quote());
@@ -128,7 +128,7 @@ public:
                     LOG_DEBUG("Prunning column %s from the schema", ~columnSchema.name().Quote());
                 }
             }
-            SetProtoExtension<NVersionedTableClient::NProto::TTableSchema>(
+            SetProtoExtension<NVersionedTableClient::NProto::TTableSchemaExt>(
                 op->DataSplit().mutable_extensions(),
                 filteredTableSchema);
         }
@@ -159,7 +159,7 @@ public:
         YCHECK(op);
 
         const auto keyColumns = GetProtoExtension<NTableClient::NProto::TKeyColumnsExt>(op->DataSplit().extensions());
-        const auto tableSchema = GetProtoExtension<NVersionedTableClient::NProto::TTableSchema>(op->DataSplit().extensions());
+        const auto tableSchema = GetProtoExtension<NVersionedTableClient::NProto::TTableSchemaExt>(op->DataSplit().extensions());
 
         {
             auto it = std::find_if(
