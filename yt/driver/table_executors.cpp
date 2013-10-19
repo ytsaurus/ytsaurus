@@ -121,19 +121,14 @@ Stroka TUnmountExecutor::GetCommandName() const
 ////////////////////////////////////////////////////////////////////////////////
 
 TSelectExecutor::TSelectExecutor()
-    : PathArg("path", "table path to select rows from", true, "", "YPATH")
-    , QueryArg("query", "query to execute", true, "", "QUERY")
+    : QueryArg("query", "query to execute", true, "", "QUERY")
 {
-    CmdLine.add(PathArg);
     CmdLine.add(QueryArg);
 }
 
 void TSelectExecutor::BuildArgs(IYsonConsumer* consumer)
 {
-    auto path = PreprocessYPath(PathArg.getValue());
-
     BuildYsonMapFluently(consumer)
-        .Item("path").Value(path)
         .Item("query").Value(QueryArg.getValue());
 }
 

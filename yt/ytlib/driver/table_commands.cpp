@@ -20,6 +20,11 @@
 
 #include <ytlib/chunk_client/block_cache.h>
 
+#include <ytlib/query_client/query_context.h>
+#include <ytlib/query_client/query_fragment.h>
+#include <ytlib/query_client/prepare_facade.h>
+#include <ytlib/query_client/graphviz.h>
+
 namespace NYT {
 namespace NDriver {
 
@@ -27,6 +32,7 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NFormats;
 using namespace NTableClient;
+using namespace NQueryClient;
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -179,6 +185,11 @@ void TUnmountCommand::DoExecute()
 
 void TSelectCommand::DoExecute()
 {
+    auto facade = New<TPrepareFacade>(Context->GetMasterChannel());
+    auto fragment = PrepareQueryFragment(facade.Get(), Request->Query);
+
+    ViewFragment(fragment);
+
     ReplySuccess();
 }
 

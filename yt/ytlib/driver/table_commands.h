@@ -107,12 +107,10 @@ private:
 struct TSelectRequest
     : public TRequest
 {
-    NYPath::TRichYPath Path;
     Stroka Query;
 
     TSelectRequest()
     {
-        RegisterParameter("path", Path);
         RegisterParameter("query", Query);
     }
 };
@@ -131,7 +129,6 @@ struct TInsertRequest
     : public TRequest
 {
     NYPath::TRichYPath Path;
-    Stroka Query;
 
     TInsertRequest()
     {

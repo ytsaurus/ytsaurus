@@ -340,15 +340,15 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ViewFragment(TQueryFragment* fragment)
+void ViewFragment(const TQueryFragment& fragment)
 {
     char name[] = "/tmp/graph.XXXXXX";
     int fd = mkstemp(name);
 
     YCHECK(fd > 0);
 
-    auto debugInformation = fragment->GetContext()->GetDebugInformation();
-    auto headOperator = fragment->GetHead();
+    auto debugInformation = fragment.GetContext()->GetDebugInformation();
+    auto headOperator = fragment.GetHead();
 
     try {
         TFile handle(fd);
@@ -363,6 +363,7 @@ void ViewFragment(TQueryFragment* fragment)
         NDot::ViewGraph(name);
         ::unlink(name);
     } catch (...) {
+        ::unlink(name);
         throw;
     }
 

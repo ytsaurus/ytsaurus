@@ -30,10 +30,10 @@ namespace {
 class TPrepareController
 {
 public:
-    explicit TPrepareController(IPreparationHooks* hooks, TQueryFragment* fragment)
-        : Hooks_(hooks)
-        , Fragment_(fragment)
+    explicit TPrepareController(IPrepareCallbacks* callbacks, TQueryFragment* fragment)
+        : Callbacks_(callbacks)
         , Context_(fragment->GetContext().Get())
+        , Fragment_(fragment)
     { }
 
     void Run(const Stroka& source);
@@ -43,9 +43,9 @@ public:
     void CheckAndPruneReferences();
     void TypecheckExpressions();
 
-    DEFINE_BYVAL_RO_PROPERTY(IPreparationHooks*, Hooks);
-    DEFINE_BYVAL_RO_PROPERTY(TQueryFragment*, Fragment);
+    DEFINE_BYVAL_RO_PROPERTY(IPrepareCallbacks*, Callbacks);
     DEFINE_BYVAL_RO_PROPERTY(TQueryContext*, Context);
+    DEFINE_BYVAL_RO_PROPERTY(TQueryFragment*, Fragment);
 
 };
 
@@ -66,7 +66,7 @@ public:
 
         // XXX(sandello): We have just one table at the moment.
         // Will put TParallelAwaiter here in case of multiple tables.
-        auto dataSplitOrError = WaitFor(Controller_->GetHooks()
+        auto dataSplitOrError = WaitFor(Controller_->GetCallbacks()
             ->GetInitialSplit(descriptor.Path));
         THROW_ERROR_EXCEPTION_IF_FAILED(
             dataSplitOrError,
@@ -280,11 +280,11 @@ TQueryFragment::~TQueryFragment()
 { }
 
 TQueryFragment PrepareQueryFragment(
-    IPreparationHooks* hooks,
+    IPrepareCallbacks* callbacks,
     const Stroka& source)
 {
     TQueryFragment fragment(New<TQueryContext>());
-    TPrepareController controller(hooks, &fragment);
+    TPrepareController controller(callbacks, &fragment);
 
     controller.Run(source);
 

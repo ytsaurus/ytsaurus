@@ -104,7 +104,7 @@ function(BISON input output)
       OUTPUT
         ${_result} ${_result_aux}
       COMMAND
-        ${BISON_BIN} -fcaret ${_real_path} -o ${_result}
+        ${BISON_BIN} --locations -fcaret ${_real_path} -o ${_result}
       MAIN_DEPENDENCY
         ${_real_path}
       WORKING_DIRECTORY

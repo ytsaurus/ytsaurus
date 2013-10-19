@@ -82,8 +82,7 @@ public:
     TSelectExecutor();
 
 private:
-    TCLAP::UnlabeledValueArg<NYPath::TRichYPath> PathArg;
-    TCLAP::UnlabeledValueArg<NYPath::TRichYPath> QueryArg;
+    TCLAP::UnlabeledValueArg<Stroka> QueryArg;
 
     virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;

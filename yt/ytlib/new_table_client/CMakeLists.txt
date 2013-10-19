@@ -2,6 +2,7 @@
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/new_table_client )
 set( SRCS
   ${BASE}/name_table.cpp
+  ${BASE}/schema.cpp
 )
 set( HDRS
   ${BASE}/public.h

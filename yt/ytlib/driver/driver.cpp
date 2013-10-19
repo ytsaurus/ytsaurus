@@ -239,7 +239,6 @@ public:
     }
 
 private:
-private:
     class TCommandContext;
     typedef TIntrusivePtr<TCommandContext> TCommandContextPtr;
 
@@ -406,3 +405,4 @@ IDriverPtr CreateDriver(TDriverConfigPtr config)
 
 } // namespace NDriver
 } // namespace NYT
+

@@ -17,7 +17,9 @@ class TQueryFragment;
 
 struct TDebugInformation;
 
-struct IPreparationHooks;
+struct IPrepareCallbacks;
+struct ICoordinateCallbacks;
+struct IExecuteCallbacks;
 
 ////////////////////////////////////////////////////////////////////////////////
 
