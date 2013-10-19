@@ -295,7 +295,11 @@ private:
     void Construct(As&&... as)
     {
         YASSERT(!HasValue_);
+#ifdef _MSC_VER
+        new (&Storage_) TValueType(as...);
+#else
         new (&Storage_) TValueType(std::forward<As>(as)...);
+#endif
         HasValue_ = true;
     }
 
