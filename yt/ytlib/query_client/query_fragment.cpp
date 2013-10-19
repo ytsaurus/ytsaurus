@@ -104,10 +104,10 @@ public:
             NVersionedTableClient::NProto::TTableSchema filteredTableSchema;
             for (const auto& columnSchema : tableSchema.columns()) {
                 if (liveColumns.find(columnSchema.name()) != liveColumns.end()) {
-                    LOG_DEBUG("Keeping column %s in the schema", ~columnSchema.name());
+                    LOG_DEBUG("Keeping column %s in the schema", ~columnSchema.name().Quote());
                     filteredTableSchema.add_columns()->CopyFrom(columnSchema);
                 } else {
-                    LOG_DEBUG("Prunning column %s from the schema", ~columnSchema.name());
+                    LOG_DEBUG("Prunning column %s from the schema", ~columnSchema.name().Quote());
                 }
             }
             SetProtoExtension<NVersionedTableClient::NProto::TTableSchema>(
@@ -160,8 +160,7 @@ public:
                 THROW_ERROR_EXCEPTION(
                     "Table %s does not have column %s in its schema",
                     ~descriptor.Path,
-                    ~EscapeC(expr->GetName().c_str(), expr->GetName().length()))
-                    << TErrorAttribute("expression", expr->GetSource())
+                    ~expr->GetName().Quote())
                     << TErrorAttribute("enclosing_expression", enclosingExpr->GetSource());
             }
 
