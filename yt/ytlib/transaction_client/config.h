@@ -23,6 +23,19 @@ public:
     }
 };
 
+class TRemoteTimestampProviderConfig
+    : public TYsonSerializable
+{
+public:
+    TDuration RpcTimeout;
+
+    TRemoteTimestampProviderConfig()
+    {
+        RegisterParameter("rpc_timeout", RpcTimeout)
+            .Default(TDuration::Seconds(5));
+    }
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTransactionClient
