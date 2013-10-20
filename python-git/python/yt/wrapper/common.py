@@ -17,7 +17,10 @@ def compose(*args):
     return reduce(compose_two, args)
 
 def unlist(l):
-    return l[0] if len(l) == 1 else l
+    try:
+        return l[0] if len(l) == 1 else l
+    except TypeError: # cannot calculate len
+        return l
 
 def parse_bool(word):
     word = word.lower()
