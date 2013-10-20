@@ -9,7 +9,7 @@ from yt.wrapper.table_commands import copy_table, _remove_locks
 from yt.wrapper.tree_commands import remove_with_empty_dirs
 from yt.wrapper.table import check_prefix
 
-from yt.wrapper.common import flatten, unlist, first_not_none, bool_to_string, get_value, die
+from yt.wrapper.common import flatten, first_not_none, bool_to_string, get_value, die
 from yt.wrapper.version import VERSION
 import yt.wrapper.config as config
 import yt.yson as yson
@@ -23,6 +23,14 @@ from argparse import ArgumentParser, RawTextHelpFormatter, REMAINDER, Action
 from operator import attrgetter
 from functools import partial
 from itertools import imap
+
+def unlist_destination_tables(tables):
+    if tables is None:
+        die("Destination table required")
+    elif len(tables) == 1:
+        return tables[0]
+    else:
+        die("Multiple desitnation tables are forbidden")
 
 def calculate_if_function(obj):
     if hasattr(obj, '__call__'):
@@ -509,17 +517,17 @@ Examples:
                 _remove_locks(args.drop)
             remove_with_empty_dirs(args.drop)
     if args.copy:
-        copy_table(args.src, unlist(dst))
+        copy_table(args.src, unlist_destination_tables(dst))
     if args.sort:
         if inputformat.name() == "yamred_dsv" and args.sortby is None:
             args.sortby = inputformat.attributes().get("key_column_names", []) + \
                           inputformat.attributes().get("subkey_column_names", [])
-        yt.run_sort(args.src, unlist(dst), sort_by=args.sortby,
+        yt.run_sort(args.src, unlist_destination_tables(dst), sort_by=args.sortby,
                       replication_factor=replication_factor,
                       compression_codec=args.codec,
                       spec=spec)
     if args.merge:
-        yt.run_merge(args.src, unlist(dst), mode=get_value(args.mode, "sorted"),
+        yt.run_merge(args.src, unlist_destination_tables(dst), mode=get_value(args.mode, "sorted"),
                      replication_factor=replication_factor,
                      compression_codec=args.codec,
                      job_count=args.jobcount,
