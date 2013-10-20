@@ -22,7 +22,7 @@
 
 #include <ytlib/query_client/query_context.h>
 #include <ytlib/query_client/query_fragment.h>
-#include <ytlib/query_client/graphviz.h>
+#include <ytlib/query_client/coordinator.h>
 
 namespace NYT {
 namespace NDriver {
@@ -188,7 +188,10 @@ void TSelectCommand::DoExecute()
         Context->GetQueryCallbacksProvider()->GetPrepareCallbacks(),
         Request->Query);
 
-    ViewFragment(fragment);
+    auto coordinator = CreateCoordinator(
+        Context->GetQueryCallbacksProvider()->GetCoordinateCallbacks());
+
+    coordinator->Execute(fragment);
 
     ReplySuccess();
 }

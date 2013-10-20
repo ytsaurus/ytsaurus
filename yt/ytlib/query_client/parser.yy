@@ -73,7 +73,7 @@
 %type <TSmallVector<TExpression*, TypicalExpressionChildCount>> function-arg-exprs
 %type <TExpression*> function-arg-expr
 
-%type <TExpression*> binary-rel-op-expr
+%type <TBinaryOpExpression*> binary-rel-op-expr
 %type <EBinaryOp> binary-rel-op
 
 %start query
@@ -83,8 +83,8 @@
 query
     : select-clause from-clause where-clause
         {
-            $[where-clause]->AttachChild($[from-clause]);
-            $[select-clause]->AttachChild($[where-clause]);
+            $[where-clause]->AddChild($[from-clause]);
+            $[select-clause]->AddChild($[where-clause]);
             *head = $[select-clause];
         }
 ;
@@ -191,9 +191,9 @@ binary-rel-op-expr
             $$ = new(context) TBinaryOpExpression(
                 context,
                 @$,
-                $opcode,
-                $lhs,
-                $rhs);
+                $opcode);
+            $$->SetLhs($lhs);
+            $$->SetRhs($rhs);
         }
 ;
 

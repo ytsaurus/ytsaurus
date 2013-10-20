@@ -17,9 +17,12 @@ class TQueryFragment;
 
 struct TDebugInformation;
 
+class IExecutor;
+typedef TIntrusivePtr<IExecutor> IExecutorPtr;
+
 struct IPrepareCallbacks;
 struct ICoordinateCallbacks;
-struct IExecuteCallbacks;
+struct IEvaluateCallbacks;
 
 ////////////////////////////////////////////////////////////////////////////////
 

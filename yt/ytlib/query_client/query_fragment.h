@@ -21,7 +21,7 @@ public:
 };
 
 TQueryFragment PrepareQueryFragment(
-    IPrepareCallbacks* context,
+    IPrepareCallbacks* callbacks,
     const Stroka& source);
 
 ////////////////////////////////////////////////////////////////////////////////

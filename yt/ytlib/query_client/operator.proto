@@ -22,10 +22,17 @@ message TScanOperator
     optional NYT.NChunkClient.NProto.TChunkSpec data_split = 2;
 }
 
+message TUnionOperator
+{
+    extend TOperator {
+        optional TUnionOperator union_operator = 102;
+    }
+}
+
 message TFilterOperator
 {
     extend TOperator {
-        optional TFilterOperator filter_operator = 102;
+        optional TFilterOperator filter_operator = 103;
     }
     required TExpression predicate = 1;
 }
@@ -33,7 +40,7 @@ message TFilterOperator
 message TProjectOperator
 {
     extend TOperator {
-        optional TProjectOperator project_operator = 103;
+        optional TProjectOperator project_operator = 104;
     }
     repeated TExpression expressions = 1;
 }

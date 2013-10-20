@@ -35,11 +35,8 @@ bool Traverse(IAstVisitor* visitor, TOperator* root)
             return false;
         }
 
-        auto it = item->ChildBegin();
-        auto jt = item->ChildEnd();
-
-        while (it != jt) {
-            queue.push_back(*it++);
+        for (const auto& child : item->Children()) {
+            queue.push_back(child);
         }
     }
 
@@ -58,11 +55,8 @@ bool Traverse(IAstVisitor* visitor, TExpression* root)
             return false;
         }
 
-        auto it = item->ChildBegin();
-        auto jt = item->ChildEnd();
-
-        while (it != jt) {
-            queue.push_back(*it++);
+        for (const auto& child : item->Children()) {
+            queue.push_back(child);
         }
     }
 

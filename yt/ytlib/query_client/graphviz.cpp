@@ -166,10 +166,10 @@ public:
         }
     }
 
-    void WriteHeader(const Stroka& query)
+    void WriteHeader(const Stroka& title)
     {
         Output_ << "digraph unnamed {\n";
-        Output_ << "\tlabel=\"" << NDot::EscapeString(query) << "\";\n";
+        Output_ << "\tlabel=\"" << NDot::EscapeString(title) << "\";\n";
         Output_ << "\tfontname=Courier;\n";
         Output_ << "\tnode [shape=none,colorscheme=pastel19,fontname=Courier];\n";
         Output_ << "\tedge [shape=solid,fontname=Courier];\n";
@@ -182,16 +182,22 @@ public:
     }
 
     template <class TNode>
-    void WriteNode(TNode* op, const Stroka& label, const Stroka& attributes = "")
+    void WriteNode(TNode* node, const Stroka& label, const Stroka& attributes = "")
     {
-        Output_ << "\t" << GetName(op) << " [";
+        if (VisitedNodes_.find(node) == VisitedNodes_.end()) {
+            VisitedNodes_.insert(node);
+        } else {
+            return;
+        }
+
+        Output_ << "\t" << GetName(node) << " [";
         if (!attributes.empty()) {
             Output_ << attributes << ",";
         }
         Output_ << "label=<" << label << ">];\n";
 
-        for (auto it = op->ChildBegin(); it != op->ChildEnd(); ++it) {
-            WriteEdge(op, *it);
+        for (auto child : node->Children()) {
+            WriteEdge(node, child);
         }
     }
 
@@ -261,6 +267,14 @@ public:
                     "<BR/>Type: " + TypeFromId(objectId).ToString() +
                     "<BR/>}")
                 .Build());
+        return true;
+    }
+
+    virtual bool Visit(TUnionOperator* op) override
+    {
+        WriteNode(
+            op,
+            TLabel("Union").Build());
         return true;
     }
 
@@ -340,12 +354,12 @@ public:
 
 private:
     TOutputStream& Output_;
-
+    std::unordered_set<void*> VisitedNodes_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ViewFragment(const TQueryFragment& fragment)
+void ViewFragment(const TQueryFragment& fragment, Stroka title)
 {
     char name[] = "/tmp/graph.XXXXXX";
     int fd = mkstemp(name);
@@ -361,7 +375,11 @@ void ViewFragment(const TQueryFragment& fragment)
 
         TGraphVizVisitor visitor(output);
 
-        visitor.WriteHeader(debugInformation ? debugInformation->Source : "");
+        if (title.empty()) {
+            title = debugInformation ? debugInformation->Source : "";
+        }
+
+        visitor.WriteHeader(title);
         Traverse(&visitor, headOperator);
         visitor.WriteFooter();
 

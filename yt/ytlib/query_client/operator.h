@@ -32,18 +32,6 @@ public:
         : TAstNodeBase(context)
     { }
 
-    virtual const char* GetDebugName() const
-    {
-        return typeid(*this).name();
-    }
-
-    virtual void Check() const
-    {
-        FOREACH (const auto& child, Children_) {
-            YCHECK(this == child->Parent_);
-        }
-    }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -59,19 +47,40 @@ public:
 
     virtual bool Accept(IAstVisitor*) override;
 
-    virtual const char* GetDebugName() const override
-    {
-        return "Scan";
-    }
-
     virtual void Check() const override
     {
         YCHECK(Children_.empty());
+        TOperator::Check();
+    }
+
+    TScanOperator* Clone()
+    {
+        auto clone = new (Context_) TScanOperator(Context_, TableIndex_);
+        clone->DataSplit().CopyFrom(DataSplit_);
+        return clone;
     }
 
     DEFINE_BYVAL_RO_PROPERTY(int, TableIndex);
 
     DEFINE_BYREF_RW_PROPERTY(TDataSplit, DataSplit);
+
+};
+
+class TUnionOperator
+    : public TOperator
+{
+public:
+    TUnionOperator(TQueryContext* context)
+        : TOperator(context)
+    { }
+
+    virtual bool Accept(IAstVisitor*) override;
+
+    TUnionOperator* Clone()
+    {
+        auto clone = new (Context_) TUnionOperator(Context_);
+        return clone;
+    }
 
 };
 
@@ -86,17 +95,17 @@ public:
 
     virtual bool Accept(IAstVisitor*) override;
 
-    virtual const char* GetDebugName() const override
-    {
-        return "Filter";
-    }
-
     virtual void Check() const override
     {
         Predicate_->Check();
-
         YCHECK(Children_.size() == 1);
         TOperator::Check();
+    }
+
+    TFilterOperator* Clone()
+    {
+        auto clone = new (Context_) TFilterOperator(Context_, Predicate_);
+        return clone;
     }
 
     DEFINE_BYVAL_RO_PROPERTY(TExpression*, Predicate);
@@ -119,19 +128,22 @@ public:
 
     virtual bool Accept(IAstVisitor*) override;
 
-    virtual const char* GetDebugName() const override
-    {
-        return "Project";
-    }
-
     virtual void Check() const override
     {
         FOREACH (const auto& expr, Expressions_) {
             expr->Check();
         }
-
         YCHECK(Children_.size() == 1);
         TOperator::Check();
+    }
+
+    TProjectOperator* Clone()
+    {
+        auto clone = new (Context_) TProjectOperator(
+            Context_,
+            Expressions_.begin(),
+            Expressions_.end());
+        return clone;
     }
 
     SmallVectorImpl<TExpression*>& Expressions()

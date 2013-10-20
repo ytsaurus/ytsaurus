@@ -233,37 +233,39 @@ namespace NYT { namespace NQueryClient {
       // binary-rel-op
       char dummy1[sizeof(EBinaryOp)];
 
+      // binary-rel-op-expr
+      char dummy2[sizeof(TBinaryOpExpression*)];
+
       // select-expr
       // atomic-expr
       // function-expr
       // function-arg-expr
-      // binary-rel-op-expr
-      char dummy2[sizeof(TExpression*)];
+      char dummy3[sizeof(TExpression*)];
 
       // where-clause
-      char dummy3[sizeof(TFilterOperator*)];
+      char dummy4[sizeof(TFilterOperator*)];
 
       // select-clause
-      char dummy4[sizeof(TProjectOperator*)];
+      char dummy5[sizeof(TProjectOperator*)];
 
       // from-clause
-      char dummy5[sizeof(TScanOperator*)];
+      char dummy6[sizeof(TScanOperator*)];
 
       // function-arg-exprs
-      char dummy6[sizeof(TSmallVector<TExpression*, TypicalExpressionChildCount>)];
+      char dummy7[sizeof(TSmallVector<TExpression*, TypicalExpressionChildCount>)];
 
       // select-exprs
-      char dummy7[sizeof(TSmallVector<TExpression*, TypicalProjectExpressionCount>)];
+      char dummy8[sizeof(TSmallVector<TExpression*, TypicalProjectExpressionCount>)];
 
       // "identifier"
       // "YPath literal"
-      char dummy8[sizeof(TStringBuf)];
+      char dummy9[sizeof(TStringBuf)];
 
       // "double literal"
-      char dummy9[sizeof(double)];
+      char dummy10[sizeof(double)];
 
       // "integer literal"
-      char dummy10[sizeof(i64)];
+      char dummy11[sizeof(i64)];
 };
 
     /// Symbol semantic values.
@@ -339,6 +341,8 @@ namespace NYT { namespace NQueryClient {
   basic_symbol (typename Base::kind_type t, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const EBinaryOp v, const location_type& l);
+
+  basic_symbol (typename Base::kind_type t, const TBinaryOpExpression* v, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const TExpression* v, const location_type& l);
 
@@ -707,7 +711,7 @@ namespace NYT { namespace NQueryClient {
 
 #line 5 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:371
 } } // NYT::NQueryClient
-#line 711 "/home/sandello/yt/source/yt/ytlib/query_client/parser.hpp" // lalr1.cc:371
+#line 715 "/home/sandello/yt/source/yt/ytlib/query_client/parser.hpp" // lalr1.cc:371
 
 
 

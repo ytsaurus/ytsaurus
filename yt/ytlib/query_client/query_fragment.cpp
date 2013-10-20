@@ -1,4 +1,5 @@
 #include "query_fragment.h"
+#include "query_context.h"
 
 #include "ast.h"
 #include "ast_visitor.h"
@@ -25,35 +26,52 @@ using namespace NYT::NConcurrency;
 
 static auto& Logger = QueryClientLogger;
 
-namespace {
-
 class TPrepareController
 {
 public:
-    TPrepareController(IPrepareCallbacks* callbacks, TQueryFragment* fragment)
+    TPrepareController(
+        IPrepareCallbacks* callbacks,
+        const Stroka& source)
         : Callbacks_(callbacks)
-        , Context_(fragment->GetContext().Get())
-        , Fragment_(fragment)
+        , Source_(source)
+        , Context_(New<TQueryContext>())
+        , Head_(nullptr)
     { }
 
-    void Run(const Stroka& source);
-    void Parse(const Stroka& source);
+    TQueryFragment Run();
 
-    void GetInitialSplit();
+    void ParseSource();
+    void GetInitialSplits();
     void CheckAndPruneReferences();
     void TypecheckExpressions();
 
-    DEFINE_BYVAL_RO_PROPERTY(IPrepareCallbacks*, Callbacks);
-    DEFINE_BYVAL_RO_PROPERTY(TQueryContext*, Context);
-    DEFINE_BYVAL_RO_PROPERTY(TQueryFragment*, Fragment);
+    IPrepareCallbacks* GetCallbacks()
+    {
+        return Callbacks_;
+    }
+
+    TQueryContext* GetContext()
+    {
+        return Context_.Get();
+    }
+
+private:
+    IPrepareCallbacks* Callbacks_;
+    const Stroka& Source_;
+    TQueryContextPtr Context_;
+    TOperator* Head_;
 
 };
 
-class TGetInitialSplit
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+class TGetInitialSplits
     : public TAstVisitor
 {
 public:
-    explicit TGetInitialSplit(TPrepareController* controller)
+    explicit TGetInitialSplits(TPrepareController* controller)
         : Controller_(controller)
     { }
 
@@ -62,7 +80,7 @@ public:
         auto& descriptor = Controller_->GetContext()
             ->GetTableDescriptorByIndex(op->GetTableIndex());
 
-        LOG_DEBUG("Fetching initial split for %s", ~descriptor.Path);
+        LOG_DEBUG("Getting initial data split for %s", ~descriptor.Path);
 
         // XXX(sandello): We have just one table at the moment.
         // Will put TParallelAwaiter here in case of multiple tables.
@@ -197,7 +215,7 @@ class TTypecheckExpressions
     : public TAstVisitor
 {
 public:
-    explicit TTypecheckExpressions(TPrepareController* /*controller*/)
+    explicit TTypecheckExpressions(TPrepareController* /* controller */)
     { }
 
     virtual bool Visit(TFilterOperator* op) override
@@ -222,51 +240,50 @@ public:
 
 };
 
-void TPrepareController::Run(const Stroka& source)
+} // anonymous namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+TQueryFragment TPrepareController::Run()
 {
-    Parse(source);
-    GetInitialSplit();
+    ParseSource();
+    GetInitialSplits();
     CheckAndPruneReferences();
     TypecheckExpressions();
+    return TQueryFragment(std::move(Context_), Head_);
 }
 
-void TPrepareController::Parse(const Stroka& source)
+void TPrepareController::ParseSource()
 {
     // Hook up with debug information for better error messages.
-    Context_->SetDebugInformation(TDebugInformation(source));
+    Context_->SetDebugInformation(TDebugInformation(Source_));
 
-    TOperator* head;
-
-    TLexer lexer(Context_, source);
-    TParser parser(lexer, Context_, &head);
+    TLexer lexer(Context_.Get(), Source_);
+    TParser parser(lexer, Context_.Get(), &Head_);
 
     int result = parser.parse();
     if (result != 0) {
         THROW_ERROR_EXCEPTION("Failed to parse query");
     }
-
-    Fragment_->SetHead(head);
 }
 
-void TPrepareController::GetInitialSplit()
+void TPrepareController::GetInitialSplits()
 {
-    TGetInitialSplit visitor(this);
-    Traverse(&visitor, Fragment_->GetHead());
+    TGetInitialSplits visitor(this);
+    Traverse(&visitor, Head_);
 }
 
 void TPrepareController::CheckAndPruneReferences()
 {
     TCheckAndPruneReferences visitor(this);
-    Traverse(&visitor, Fragment_->GetHead());
+    Traverse(&visitor, Head_);
 }
 
 void TPrepareController::TypecheckExpressions()
 {
     TTypecheckExpressions visitor(this);
-    Traverse(&visitor, Fragment_->GetHead());
+    Traverse(&visitor, Head_);
 }
-
-} // anonymous namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -282,12 +299,7 @@ TQueryFragment PrepareQueryFragment(
     IPrepareCallbacks* callbacks,
     const Stroka& source)
 {
-    TQueryFragment fragment(New<TQueryContext>());
-    TPrepareController controller(callbacks, &fragment);
-
-    controller.Run(source);
-
-    return fragment;
+    return TPrepareController(callbacks, source).Run();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

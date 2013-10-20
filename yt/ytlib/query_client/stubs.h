@@ -35,15 +35,12 @@ using NVersionedTableClient::TTableSchema;
 typedef void* IMegaReaderPtr;
 typedef void* IMegaWriterPtr;
 
-struct IQueryNode
+class IExecutor
+    : public TRefCounted
 {
-    virtual ~IQueryNode()
-    { }
-
+public:
     virtual IMegaReaderPtr Execute(const TQueryFragment& fragment) = 0;
 };
-
-typedef TIntrusivePtr<IQueryNode> IQueryNodePtr;
 
 struct IPrepareCallbacks
 {
@@ -58,14 +55,15 @@ struct ICoordinateCallbacks
     virtual ~ICoordinateCallbacks()
     { }
 
-    virtual std::vector<TDataSplit> SplitFurther(const TDataSplit& split) = 0;
-    virtual IQueryNodePtr GetCollocatedExecutor(const TDataSplit& split) = 0;
-    virtual IQueryNodePtr GetLocalExecutor() = 0;
+    virtual TFuture<TErrorOr<std::vector<TDataSplit>>> SplitFurther(const TDataSplit& split) = 0;
+    virtual IExecutorPtr GetColocatedExecutor(const TDataSplit& split) = 0;
+    virtual IExecutorPtr GetLocalExecutor() = 0;
+
 };
 
-struct IExecuteCallbacks
+struct IEvaluateCallbacks
 {
-    virtual ~IExecuteCallbacks()
+    virtual ~IEvaluateCallbacks()
     { }
 
     virtual IMegaReaderPtr GetReader(const TDataSplit& split) = 0;

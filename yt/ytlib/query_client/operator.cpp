@@ -37,6 +37,13 @@ public:
         return true;
     }
 
+    virtual bool Visit(TUnionOperator* op) override
+    {
+        auto* derivedProto = BaseProto_->MutableExtension(NProto::TUnionOperator::union_operator);
+        UNUSED(derivedProto);
+        return true;
+    }
+
     virtual bool Visit(TFilterOperator* op) override
     {
         auto* derivedProto = BaseProto_->MutableExtension(NProto::TFilterOperator::filter_operator);
@@ -77,6 +84,13 @@ TOperator* FromProto(const NProto::TOperator& serialized, TQueryContext* context
         result = typedResult;
     }
 
+    if (serialized.HasExtension(NProto::TUnionOperator::union_operator)) {
+        auto data = serialized.GetExtension(NProto::TUnionOperator::union_operator);
+        auto typedResult = new (context) TUnionOperator(context);
+        UNUSED(data);
+        result = typedResult;
+    }
+
     if (serialized.HasExtension(NProto::TFilterOperator::filter_operator)) {
         auto data = serialized.GetExtension(NProto::TFilterOperator::filter_operator);
         auto typedResult = new (context) TFilterOperator(
@@ -88,7 +102,6 @@ TOperator* FromProto(const NProto::TOperator& serialized, TQueryContext* context
     if (serialized.HasExtension(NProto::TProjectOperator::project_operator)) {
         auto data = serialized.GetExtension(NProto::TProjectOperator::project_operator);
         auto typedResult = new (context) TProjectOperator(context);
-
         typedResult->Expressions().reserve(data.expressions_size());
         for (int i = 0; i < data.expressions_size(); ++i) {
             typedResult->Expressions().push_back(
@@ -98,7 +111,7 @@ TOperator* FromProto(const NProto::TOperator& serialized, TQueryContext* context
     }
 
     for (const auto& serializedChild : serialized.children()) {
-        result->AttachChild(FromProto(serializedChild, context));
+        result->AddChild(FromProto(serializedChild, context));
     }
 
     YCHECK(result);

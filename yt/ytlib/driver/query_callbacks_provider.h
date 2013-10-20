@@ -17,6 +17,7 @@ public:
     ~TQueryCallbacksProvider();
 
     NQueryClient::IPrepareCallbacks* GetPrepareCallbacks();
+    NQueryClient::ICoordinateCallbacks* GetCoordinateCallbacks();
 
 private:
     class TImpl;

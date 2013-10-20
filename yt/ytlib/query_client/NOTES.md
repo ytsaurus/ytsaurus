@@ -1,4 +1,5 @@
   * TDataSplit should expose KeyColumns and Schema, so TDataSplit wraps TChunkSpec.
+  * Run AST structure consistency checks from time to time. :)
   * Get rid of memory pool, leave GC root.
   * Introduce kinds to ast nodes.
   * Cache expression type in expr nodes.

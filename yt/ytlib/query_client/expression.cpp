@@ -149,7 +149,7 @@ TExpression* FromProto(const NProto::TExpression& serialized, TQueryContext* con
     }
 
     for (const auto& serializedChild : serialized.children()) {
-        result->AttachChild(FromProto(serializedChild, context));
+        result->AddChild(FromProto(serializedChild, context));
     }
 
     YCHECK(result);

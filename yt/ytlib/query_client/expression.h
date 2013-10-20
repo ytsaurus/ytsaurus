@@ -184,7 +184,7 @@ public:
     {
         Children_.reserve(std::distance(begin, end));
         for (TIterator it = begin; it != end; ++it) {
-            AttachChild(*it);
+            AddChild(*it);
         }
     }
 
@@ -221,20 +221,13 @@ public:
     TBinaryOpExpression(
         TQueryContext* context,
         const TSourceLocation& sourceLocation,
-        EBinaryOp opcode,
-        TExpression* lhs = nullptr,
-        TExpression* rhs = nullptr)
+        EBinaryOp opcode)
         : TExpression(context, sourceLocation)
         , Opcode_(opcode)
     {
-        Children_.reserve(NumberOfSubexpressions_);
-        // TODO(sandello): Remove this.
-        if (lhs) {
-            AttachChild(lhs);
-        }
-        if (rhs) {
-            AttachChild(rhs);
-        }
+        Children_.resize(NumberOfSubexpressions_);
+        SetLhs(nullptr);
+        SetRhs(nullptr);
     }
 
     virtual bool Accept(IAstVisitor*) override;
@@ -268,9 +261,19 @@ public:
         return Children_[Lhs_];
     }
 
+    void SetLhs(TExpression* lhs)
+    {
+        Children_[Lhs_] = lhs;
+    }
+
     TExpression* GetRhs() const
     {
         return Children_[Rhs_];
+    }
+
+    void SetRhs(TExpression* rhs)
+    {
+        Children_[Rhs_] = rhs;
     }
 
     DEFINE_BYVAL_RO_PROPERTY(EBinaryOp, Opcode);
