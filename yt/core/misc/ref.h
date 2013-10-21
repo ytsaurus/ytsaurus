@@ -142,7 +142,7 @@ public:
         return Allocate<TDefaultSharedRefTag>(size, initializeStorage);
     }
 
-    //! Creates a non-owning reference from TPtr. Use it with caution!
+    //! Creates a non-owning reference from TRef. Use it with caution!
     static TSharedRef FromRefNonOwning(const TRef& ref)
     {
         return TSharedRef(nullptr, ref);
