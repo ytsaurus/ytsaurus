@@ -4,10 +4,10 @@
 
 #include <core/rpc/client.h>
 
-#include <ytlib/transaction_client/timestamp_service.pb.h>
+#include <ytlib/hive/timestamp_service.pb.h>
 
 namespace NYT {
-namespace NTransactionClient {
+namespace NHive {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,6 +30,6 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTransactionClient
+} // namespace NHive
 } // namespace NYT
 

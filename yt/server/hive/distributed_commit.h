@@ -15,14 +15,14 @@ namespace NHive {
 
 class TDistributedCommit
 {
-    DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::TTransactionId, TransactionId);
+    DEFINE_BYVAL_RO_PROPERTY(TTransactionId, TransactionId);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TCellGuid>, ParticipantCellGuids);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TCellGuid>, PreparedParticipantCellGuids);
 
 public:
-    explicit TDistributedCommit(const NTransactionClient::TTransactionId& transactionId);
+    explicit TDistributedCommit(const TTransactionId& transactionId);
     TDistributedCommit(
-        const NTransactionClient::TTransactionId& transactionId,
+        const TTransactionId& transactionId,
         const std::vector<TCellGuid>& participantCellGuids);
 
     void Save(NHydra::TSaveContext& context) const;

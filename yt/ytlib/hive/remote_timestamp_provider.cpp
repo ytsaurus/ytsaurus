@@ -5,7 +5,7 @@
 #include "config.h"
 
 namespace NYT {
-namespace NTransactionClient {
+namespace NHive {
 
 using namespace NRpc;
 
@@ -68,6 +68,6 @@ ITimestampProviderPtr CreateRemoteTimestampProvider(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTransactionClient
+} // namespace NHive
 } // namespace NYT
 

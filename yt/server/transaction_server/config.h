@@ -27,18 +27,6 @@ public:
     }
 };
 
-class TTimestampManagerConfig
-    : public TYsonSerializable
-{
-public:
-    // TODO(babenko)
-
-    TTimestampManagerConfig()
-    {
-        // TODO(babenko)
-    }
-};
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTransactionServer

@@ -29,7 +29,6 @@ using namespace NRpc;
 using namespace NHydra;
 using namespace NHive::NProto;
 using namespace NYTree;
-using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -230,7 +229,8 @@ private:
         }
         
         // TODO(babenko): error handling?
-        TransactionManager->CommitTransaction(transactionId, NullTimestamp);
+        // TODO(babenko): timestamp?
+        TransactionManager->CommitTransaction(transactionId, 0);
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Simple transaction committed (TransactionId: %s)",
             ~ToString(transactionId));

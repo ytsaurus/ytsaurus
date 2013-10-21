@@ -8,6 +8,7 @@ set( SRCS
   ${BASE}/cell_directory.cpp
   ${BASE}/transaction_supervisor.cpp
   ${BASE}/distributed_commit.cpp
+  ${BASE}/timestamp_manager.cpp
 )
 set( HDRS
   ${BASE}/private.h
@@ -20,6 +21,7 @@ set( HDRS
   ${BASE}/transaction_manager.h
   ${BASE}/transaction_supervisor.h
   ${BASE}/distributed_commit.h
+  ${BASE}/timestamp_manager.h
 )
 
 list(APPEND YT_SOURCE_FILES

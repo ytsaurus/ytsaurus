@@ -9,7 +9,6 @@ namespace NYT {
 namespace NHive {
 
 using namespace NHydra;
-using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -10,21 +10,16 @@
 #include <core/rpc/service_detail.h>
 #include <core/rpc/server.h>
 
-#include <ytlib/transaction_client/timestamp_service_proxy.h>
+#include <ytlib/hive/timestamp_service_proxy.h>
 
 #include <server/hydra/composite_automaton.h>
 #include <server/hydra/hydra_manager.h>
 
 namespace NYT {
-namespace NTransactionServer {
+namespace NHive {
 
 using namespace NRpc;
 using namespace NHydra;
-using namespace NTransactionClient;
-
-////////////////////////////////////////////////////////////////////////////////
-
-static auto& Logger = TransactionServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,7 +37,7 @@ public:
         : TServiceBase(
             GetSyncInvoker(),
             TTimestampServiceProxy::GetServiceName(),
-            TransactionServerLogger.GetCategory())
+            HiveLogger.GetCategory())
         , TCompositeAutomatonPart(
             hydraManager,
             automaton)
@@ -75,7 +70,7 @@ private:
 
     // RPC handlers.
 
-    DECLARE_RPC_SERVICE_METHOD(NTransactionClient::NProto, GetTimestamp)
+    DECLARE_RPC_SERVICE_METHOD(NProto, GetTimestamp)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -119,5 +114,5 @@ TTimestampManager::TTimestampManager(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTransactionServer
+} // namespace NHive
 } // namespace NYT

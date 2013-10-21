@@ -22,11 +22,17 @@ class TMailbox;
 struct ITransactionManager;
 typedef TIntrusivePtr<ITransactionManager> ITransactionManagerPtr;
 
+class TTimestampManager;
+typedef TIntrusivePtr<TTimestampManager> TTimestampManagerPtr;
+
 class THiveManagerConfig;
 typedef TIntrusivePtr<THiveManagerConfig> THiveManagerConfigPtr;
 
 class TTransactionSupervisorConfig;
 typedef TIntrusivePtr<TTransactionSupervisorConfig> TTransactionSupervisorConfigPtr;
+
+class TTimestampManagerConfig;
+typedef TIntrusivePtr<TTimestampManagerConfig> TTimestampManagerConfigPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 

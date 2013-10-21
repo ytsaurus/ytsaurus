@@ -7,7 +7,7 @@
 #include <core/actions/future.h>
 
 namespace NYT {
-namespace NTransactionClient {
+namespace NHive {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,6 +19,6 @@ struct ITimestampProvider
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTransactionClient
+} // namespace NHive
 } // namespace NYT
 

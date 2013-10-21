@@ -23,6 +23,7 @@ DECLARE_ENUM(EColumnType,
 
 typedef i64 TTimestamp;
 const TTimestamp NullTimestamp = 0;
+const TTimestamp LastCommittedTimestamp = -1;
 
 #ifdef _MSC_VER
     #define PACK

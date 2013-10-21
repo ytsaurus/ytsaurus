@@ -6,7 +6,6 @@ set( SRCS
   ${BASE}/transaction_listener.cpp
   ${BASE}/transaction_manager.cpp
   ${BASE}/transaction_ypath_proxy.cpp
-  ${BASE}/remote_timestamp_provider.cpp
 )
 set( HDRS
   ${BASE}/config.h
@@ -16,9 +15,6 @@ set( HDRS
   ${BASE}/transaction_listener.h
   ${BASE}/transaction_manager.h
   ${BASE}/transaction_ypath_proxy.h
-  ${BASE}/timestamp_provider.h
-  ${BASE}/timestamp_service_proxy.h
-  ${BASE}/remote_timestamp_provider.h
 )
 
 list(APPEND YT_SOURCE_FILES
@@ -27,4 +23,3 @@ list(APPEND YT_SOURCE_FILES
 )
 
 protoc( ${BASE}/transaction_ypath.proto YT_SOURCE_FILES )
-protoc( ${BASE}/timestamp_service.proto YT_SOURCE_FILES )

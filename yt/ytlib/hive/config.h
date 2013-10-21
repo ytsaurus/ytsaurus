@@ -5,25 +5,24 @@
 #include <core/ytree/yson_serializable.h>
 
 namespace NYT {
-namespace NTransactionClient {
+namespace NHive {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTransactionManagerConfig
+class TRemoteTimestampProviderConfig
     : public TYsonSerializable
 {
 public:
-    //! An internal between successive transaction pings.
-    TDuration PingPeriod;
+    TDuration RpcTimeout;
 
-    TTransactionManagerConfig()
+    TRemoteTimestampProviderConfig()
     {
-        RegisterParameter("ping_period", PingPeriod)
+        RegisterParameter("rpc_timeout", RpcTimeout)
             .Default(TDuration::Seconds(5));
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTransactionClient
+} // namespace NHive
 } // namespace NYT
