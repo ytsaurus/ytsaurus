@@ -9,9 +9,6 @@ namespace NTransactionClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using NObjectClient::TTransactionId;
-using NObjectClient::NullTransactionId;
-
 class TTransactionManager;
 typedef TIntrusivePtr<TTransactionManager> TTransactionManagerPtr;
 
@@ -28,6 +25,9 @@ class TRemoteTimestampProviderConfig;
 typedef TIntrusivePtr<TRemoteTimestampProviderConfig> TRemoteTimestampProviderConfigPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+using NObjectClient::TTransactionId;
+using NObjectClient::NullTransactionId;
 
 typedef i64 TTimestamp;
 const TTimestamp NullTimestamp = 0;
