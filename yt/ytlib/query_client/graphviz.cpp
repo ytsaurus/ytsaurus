@@ -361,7 +361,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ViewFragment(const TQueryFragment& fragment, Stroka title)
+void ViewFragment(const TQueryFragment& fragment, const Stroka& title)
 {
     char name[] = "/tmp/graph.XXXXXX";
     int fd = mkstemp(name);
@@ -391,6 +391,23 @@ void ViewFragment(const TQueryFragment& fragment, Stroka title)
         ::unlink(name);
         throw;
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NQueryClient
+} // namespace NYT
+
+#else
+
+namespace NYT {
+namespace NQueryClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ViewFragment(const TQueryFragment& /*fragment*/, const Stroka& /*title*/)
+{
+    YUNIMPLEMENTED();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
