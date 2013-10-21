@@ -361,7 +361,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ViewFragment(const TQueryFragment& fragment, const Stroka& title)
+void ViewFragment(const TQueryFragment& fragment, const Stroka& title_)
 {
     char name[] = "/tmp/graph.XXXXXX";
     int fd = mkstemp(name);
@@ -377,6 +377,7 @@ void ViewFragment(const TQueryFragment& fragment, const Stroka& title)
 
         TGraphVizVisitor visitor(output);
 
+        auto title = title_;
         if (title.empty()) {
             title = debugInformation ? debugInformation->Source : "";
         }
