@@ -41,7 +41,7 @@ static auto& Logger = HiveLogger;
 
 class THiveManager::TImpl
     : public TServiceBase
-    , public NHydra::TCompositeAutomatonPart
+    , public TCompositeAutomatonPart
 {
 public:
     TImpl(
