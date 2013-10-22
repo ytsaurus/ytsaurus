@@ -25,7 +25,7 @@ def main():
                 return
             raise
 
-        logger.info("Running command")
+        logger.info("Running command %s", args.command)
         proc = subprocess.Popen(args.command, stdout=sys.stdout, stderr=sys.stderr, shell=True, env=os.environ.copy())
 
         while True:
