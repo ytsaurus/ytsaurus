@@ -20,6 +20,7 @@ import yt.logger as logger
 from yt.yson import yson_to_json
 
 import os
+import sys
 import types
 from cStringIO import StringIO
 
@@ -189,13 +190,12 @@ def _make_operation_request(command_name, spec, strategy, finalizer=None, verbos
             def envelope_finalizer(state):
                 if finalizer is not None:
                     finalizer(state)
-                transaction.__exit__(None, None, None)
-            transaction.__enter__()
-            run_operation(envelope_finalizer)
-            transaction.__exit__(None, None, None)
+                transaction.__exit__(*sys.exc_info())
+            with transaction:
+                run_operation(envelope_finalizer)
 
         def finish_transaction():
-            transaction.__exit__(None, None, None)
+            transaction.__exit__(*sys.exc_info())
 
         execute_handling_sigint(run_in_transaction, finish_transaction)
     else:
