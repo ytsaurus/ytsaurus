@@ -688,21 +688,26 @@ public:
 
     virtual int GetTotalJobCount() const override
     {
-        return IsCompleted() ? JobCounter.GetCompleted() : JobCounter.GetTotal();
+        return JobCounter.GetTotal();
     }
 
     virtual int GetPendingJobCount() const override
     {
+        // TODO(babenko): refactor
         bool hasAvailableLostJobs = LostCookies.size() > UnavailableLostCookieCount;
         if (hasAvailableLostJobs) {
             return JobCounter.GetPending();
         }
 
-        int freePendingJobCount = JobCounter.GetPending() - LostCookies.size();
+        int freePendingJobCount = GetFreePendingJobCount();
         YCHECK(freePendingJobCount >= 0);
         YCHECK(!(FreePendingDataSize > 0 && freePendingJobCount == 0));
 
         if (freePendingJobCount == 0) {
+            return 0;
+        }
+
+        if (FreePendingDataSize == 0) {
             return 0;
         }
 
@@ -714,10 +719,6 @@ public:
             if (FreePendingDataSize < GetIdealDataSizePerJob()) {
                 return 0;
             }
-        }
-
-        if (FreePendingDataSize == 0) {
-            return 0;
         }
 
         return JobCounter.GetPending();
@@ -819,6 +820,11 @@ public:
         JobCounter.Start(1);
         DataSizeCounter.Start(list->TotalDataSize);
         RowCounter.Start(list->TotalRowCount);
+
+        int freePendingJobCount = GetFreePendingJobCount();
+        if (Finished && FreePendingDataSize == 0 && SuspendedDataSize == 0 && freePendingJobCount > 0) {
+            JobCounter.Increment(-freePendingJobCount);
+        }
 
         return cookie;
     }
@@ -971,10 +977,14 @@ private:
     yhash_set<IChunkPoolOutput::TCookie> LostCookies;
     yhash_set<IChunkPoolOutput::TCookie> ReplayCookies;
 
+    int GetFreePendingJobCount() const
+    {
+        return JobCounter.GetPending() - LostCookies.size();
+    }
 
     i64 GetIdealDataSizePerJob() const
     {
-        int freePendingJobCount = JobCounter.GetPending() - LostCookies.size();
+        int freePendingJobCount = GetFreePendingJobCount();
         YCHECK(freePendingJobCount > 0);
         return std::max(
             static_cast<i64>(1),
