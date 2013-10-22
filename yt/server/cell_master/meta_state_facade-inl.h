@@ -18,8 +18,8 @@ NHydra::TMutationPtr TMetaStateFacade::CreateMutation(
     return NHydra::CreateMutation<TTarget, TRequest, TResponse>(
         GetManager(),
         GetGuardedInvoker(queue),
-        target,
         request,
+        target,
         method);
 }
 

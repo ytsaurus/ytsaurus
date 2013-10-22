@@ -23,13 +23,15 @@ struct ITransactionManager
         NYTree::IAttributeDictionary* attributes,
         const TNullable<TDuration>& timeout) = 0;
 
+    virtual void PrepareTransactionCommit(
+        const TTransactionId& transactionId,
+        bool persistent,
+        TTimestamp prepareTimestamp) = 0;
+
+    //! Once #PrepareTransactionCommit succeeded, #CommitTransaction cannot throw.
     virtual void CommitTransaction(
         const TTransactionId& transactionId,
         TTimestamp commitTimestamp) = 0;
-
-    virtual void PrepareTransactionCommit(
-        const TTransactionId& transactionId,
-        TTimestamp prepareTimestamp) = 0;
 
     virtual void AbortTransaction(const TTransactionId& transactionId) = 0;
 

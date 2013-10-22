@@ -57,12 +57,18 @@ TMutationPtr CreateMutation(
     IHydraManagerPtr hydraManager,
     IInvokerPtr automatonInvoker);
 
+template <class TRequest>
+TMutationPtr CreateMutation(
+    IHydraManagerPtr hydraManager,
+    IInvokerPtr automatonInvoker,
+    const TRequest& request);
+
 template <class TTarget, class TRequest, class TResponse>
 TMutationPtr CreateMutation(
     IHydraManagerPtr hydraManager,
     IInvokerPtr automatonInvoker,
-    TTarget* target,
     const TRequest& request,
+    TTarget* target,
     TResponse (TTarget::* method)(const TRequest& request));
 
 ////////////////////////////////////////////////////////////////////////////////

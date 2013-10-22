@@ -11,10 +11,18 @@ namespace NHive {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/*!
+ *  Thread affinity: any
+ */
 struct ITimestampProvider
     : public virtual TRefCounted
 {
-    virtual TFuture<TErrorOr<TTimestamp>> GetTimestamp() = 0;
+    //! Generates a new timestamp that is guaranteed to be larger
+    //! than all timestamps previously obtained via this instance.
+    virtual TFuture<TErrorOr<TTimestamp>> GenerateNewTimestamp() = 0;
+
+    //! Returns the latest timestamp returned from #GenerateNewTimestamp.
+    virtual TTimestamp GetLatestTimestamp() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

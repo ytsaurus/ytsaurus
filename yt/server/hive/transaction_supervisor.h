@@ -24,7 +24,8 @@ public:
         NHydra::IHydraManagerPtr hydraManager,
         NHydra::TCompositeAutomatonPtr automaton,
         THiveManagerPtr hiveManager,
-        ITransactionManagerPtr transactionManager);
+        ITransactionManagerPtr transactionManager,
+        NHive::ITimestampProviderPtr timestampProvider);
 
 private:
     class TImpl;

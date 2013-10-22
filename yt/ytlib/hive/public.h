@@ -24,6 +24,7 @@ typedef TIntrusivePtr<TRemoteTimestampProviderConfig> TRemoteTimestampProviderCo
 using NHydra::TCellGuid;
 
 using NVersionedTableClient::TTimestamp;
+using NVersionedTableClient::NullTimestamp;
 
 using NTransactionClient::TTransactionId;
 using NTransactionClient::NullTransactionId;

@@ -28,7 +28,9 @@ message TReqCommitTransaction
 }
 
 message TRspCommitTransaction
-{ }
+{
+    required int64 commit_timestamp = 1;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

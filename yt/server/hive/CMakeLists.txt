@@ -7,7 +7,7 @@ set( SRCS
   ${BASE}/mailbox.cpp
   ${BASE}/cell_directory.cpp
   ${BASE}/transaction_supervisor.cpp
-  ${BASE}/distributed_commit.cpp
+  ${BASE}/commit.cpp
   ${BASE}/timestamp_manager.cpp
 )
 set( HDRS
@@ -20,7 +20,7 @@ set( HDRS
   ${BASE}/cell_directory.h
   ${BASE}/transaction_manager.h
   ${BASE}/transaction_supervisor.h
-  ${BASE}/distributed_commit.h
+  ${BASE}/commit.h
   ${BASE}/timestamp_manager.h
 )
 

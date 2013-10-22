@@ -4,6 +4,8 @@
 #include "timestamp_service_proxy.h"
 #include "config.h"
 
+#include <core/concurrency/thread_affinity.h>
+
 namespace NYT {
 namespace NHive {
 
@@ -20,13 +22,16 @@ public:
         IChannelPtr channel)
         : Config(config)
         , Channel(channel)
+        , LatestTimestamp(NullTimestamp)
     { }
 
-    virtual TFuture<TErrorOr<TTimestamp>> GetTimestamp() override
+    virtual TFuture<TErrorOr<TTimestamp>> GenerateNewTimestamp() override
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         TGuard<TSpinLock> guard(Spinlock);
-        if (!Promise) {
-            Promise = NewPromise<TErrorOr<TTimestamp>>();
+        if (!NewTimestamp) {
+            NewTimestamp = NewPromise<TErrorOr<TTimestamp>>();
 
             TTimestampServiceProxy proxy(Channel);
             proxy.SetDefaultTimeout(Config->RpcTimeout);
@@ -35,7 +40,14 @@ public:
             req->Invoke().Subscribe(
                 BIND(&TRemoteTimestampProvider::OnGetTimestampResponse, MakeStrong(this)));
         }
-        return Promise;
+        return NewTimestamp;
+    }
+
+    virtual TTimestamp GetLatestTimestamp() override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return LatestTimestamp;
     }
 
 
@@ -44,16 +56,17 @@ private:
     IChannelPtr Channel;
 
     TSpinLock Spinlock;
-    TPromise<TErrorOr<TTimestamp>> Promise;
+    TTimestamp LatestTimestamp;
+    TPromise<TErrorOr<TTimestamp>> NewTimestamp;
 
 
     void OnGetTimestampResponse(TTimestampServiceProxy::TRspGetTimestampPtr rsp)
     {
         TGuard<TSpinLock> guard(Spinlock);
         if (rsp->IsOK()) {
-            Promise.Set(rsp->timestamp());
+            NewTimestamp.Set(rsp->timestamp());
         } else {
-            Promise.Set(rsp->GetError());
+            NewTimestamp.Set(rsp->GetError());
         }
     }
 

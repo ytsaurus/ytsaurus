@@ -1,12 +1,14 @@
 package NYT.NHive.NProto;
 
 import "yt/core/misc/guid.proto";
+import "yt/core/misc/error.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqCommitTransactionSimple
 {
     required NYT.NProto.TGuid transaction_id = 1;
+    required int64 commit_timestamp = 2;
 }
 
 message TReqCommitTransactionDistributed
@@ -26,13 +28,19 @@ message TReqPrepareTransactionCommit
 message TReqOnTransactionCommitPrepared
 {
     required NYT.NProto.TGuid transaction_id = 1;
-    required NYT.NProto.TGuid participant_cell_guid = 3;
+    required NYT.NProto.TGuid participant_cell_guid = 2;
+    optional NYT.NProto.TError error = 3;
 }
 
 message TReqCommitPreparedTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;
     required int64 commit_timestamp = 2;
+}
+
+message TReqAbortFailedTransaction
+{
+    required NYT.NProto.TGuid transaction_id = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

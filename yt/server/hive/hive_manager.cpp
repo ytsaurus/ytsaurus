@@ -458,8 +458,8 @@ private:
         return CreateMutation(
             HydraManager,
             AutomatonInvoker,
-            this,
             req,
+            this,
             &TImpl::HydraAcknowledgeMessages);
     }
 
