@@ -218,7 +218,7 @@ def remove_with_empty_dirs(path, force=True):
     path = to_name(path)
     while True:
         try:
-            remove(path, recursive=True)
+            remove(path, recursive=True, force=True)
         except YtResponseError as error:
             if error.is_access_denied():
                 logger.warning("Cannot remove %s, access denied", path)
@@ -226,6 +226,6 @@ def remove_with_empty_dirs(path, force=True):
             else:
                 raise
         path = os.path.dirname(path)
-        if path == "//" or list(path) or get(path + "/@acl"):
+        if path == "//" or not exists(path) or list(path) or get(path + "/@acl"):
             break
 
