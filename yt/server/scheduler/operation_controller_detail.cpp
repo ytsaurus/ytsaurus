@@ -2831,7 +2831,7 @@ EAbortReason TOperationControllerBase::GetAbortReason(TJobPtr job)
 
 EAbortReason TOperationControllerBase::GetAbortReason(TJobletPtr joblet)
 {
-    return joblet->Job ? GetAbortReason(joblet->Job) : EAbortReason::Other;
+    return joblet->Job ? GetAbortReason(joblet->Job) : EAbortReason(EAbortReason::Other);
 }
 
 bool TOperationControllerBase::IsSortedOutputSupported() const
