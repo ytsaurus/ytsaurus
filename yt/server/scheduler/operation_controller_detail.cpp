@@ -2825,20 +2825,13 @@ bool TOperationControllerBase::CheckKeyColumnsCompatible(
 
 EAbortReason TOperationControllerBase::GetAbortReason(TJobPtr job)
 {
-    if (!job) {
-        return EAbortReason::Other;
-    }
     auto error = FromProto(job->Result().error());
     return error.Attributes().Get<EAbortReason>("abort_reason", EAbortReason::Scheduler);
 }
 
 EAbortReason TOperationControllerBase::GetAbortReason(TJobletPtr joblet)
 {
-    if (!joblet->Job) {
-        return EAbortReason::Other;
-    } else {
-        return GetAbortReason(joblet);
-    }
+    return joblet->Job ? GetAbortReason(joblet->Job) : EAbortReason::Other;
 }
 
 bool TOperationControllerBase::IsSortedOutputSupported() const
