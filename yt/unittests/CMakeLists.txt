@@ -42,6 +42,7 @@ set( SRCS
   ${BASE}/snapshot_ut.cpp
   ${BASE}/spawn_ut.cpp
   ${BASE}/string_ut.cpp
+  ${BASE}/table_consumer_ut.cpp
   ${BASE}/thread_affinity_ut.cpp
   ${BASE}/tree_builder_ut.cpp
   ${BASE}/url_ut.cpp

@@ -3026,6 +3026,7 @@ void TOperationControllerBase::BuildProgressYson(IYsonConsumer* consumer)
 
     BuildYsonMapFluently(consumer)
         .Item("jobs").Value(JobCounter)
+        .Item("ready_job_count").Value(GetPendingJobCount())
         .Item("job_statistics").BeginMap()
             .Item("completed").Value(CompletedJobStatistics)
             .Item("failed").Value(FailedJobStatistics)
