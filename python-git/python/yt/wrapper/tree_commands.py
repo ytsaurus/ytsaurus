@@ -5,7 +5,6 @@ from errors import YtResponseError
 from transaction_commands import _make_transactional_request, \
                                  _make_formatted_transactional_request
 from table import prepare_path, to_name
-from errors import YtResponseError
 
 import yt.yson as yson
 
@@ -95,8 +94,8 @@ def exists(path):
     return parse_bool(
         _make_formatted_transactional_request(
             "exists",
-             {"path": prepare_path(path)},
-             format=None))
+            {"path": prepare_path(path)},
+            format=None))
 
 def remove(path, recursive=False, force=False):
     _make_transactional_request(
