@@ -36,7 +36,7 @@ public:
         int valueCount, 
         TTimestamp timestamp = NullTimestamp, 
         bool isDeleted = false)
-        : Opaque(static_cast<char*>(pool->AllocateAligned(sizeof(TRowHeader) + valueCount * sizeof(TRowValue))))
+        : Opaque(static_cast<char*>(pool->Allocate(sizeof(TRowHeader) + valueCount * sizeof(TRowValue))))
     {
         *reinterpret_cast<TRowHeader*>(Opaque) = TRowHeader(timestamp, valueCount, isDeleted);
     }

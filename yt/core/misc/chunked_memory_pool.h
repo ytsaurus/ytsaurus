@@ -14,7 +14,18 @@ public:
         size_t chunkSize = 64 * 1024, 
         size_t maxSmallBlockSize = 16 * 1024);
 
-    void* AllocateAligned(size_t size);
+    char* Allocate(size_t size);
+
+    template <class T>
+    T* Allocate()
+    {
+        char* buffer = Allocate(sizeof (T));
+        new (buffer) T();
+        return reinterpret_cast<T*>(buffer);
+    }
+
+    // TODO(babenko): AllocateUnaligned
+
     void Clear();
 
 private:

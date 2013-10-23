@@ -13,32 +13,31 @@ TChunkedMemoryPool::TChunkedMemoryPool(size_t chunkSize, size_t maxSmallBlockSiz
     AllocateNewChunk();
 }
 
-void* TChunkedMemoryPool::AllocateAligned(size_t size)
+char* TChunkedMemoryPool::Allocate(size_t size)
 {
     // Round to nearest multiplier of 8
-    Offset = (((Offset - 1) >> 3) + 1) << 3;
+    Offset = (Offset + 7) & ~7;
 
-    auto& currentChunk = Chunks[ChunkIndex];
-    if (Offset + size < currentChunk.Size()) {
-        auto result = currentChunk.Begin() + Offset;
-        Offset += size;
-        return result;
-    } 
+    while (true) {
+        auto& currentChunk = Chunks[ChunkIndex];
+        if (Offset + size < currentChunk.Size()) {
+            auto* result = currentChunk.Begin() + Offset;
+            Offset += size;
+            return result;
+        } 
 
-    if (size > MaxSmallBlockSize) {
-        auto res = AllocateBlock(size);
-        LargeBlocks.push_back(res);
-        return res.Begin();
+        if (size > MaxSmallBlockSize) {
+            auto result = AllocateBlock(size);
+            LargeBlocks.push_back(result);
+            return result.Begin();
+        }
+
+        Offset = 0;
+        ++ChunkIndex;
+        if (ChunkIndex == Chunks.size()) {
+            AllocateNewChunk();
+        }
     }
-
-    Offset = 0;
-    ++ChunkIndex;
-
-    if (ChunkIndex == Chunks.size()) {
-        AllocateNewChunk();
-    }
-
-    return Chunks.back().Begin();
 }
 
 void TChunkedMemoryPool::Clear()
