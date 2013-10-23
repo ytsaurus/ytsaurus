@@ -19,14 +19,14 @@ bool TRef::AreBitwiseEqual(const TRef& lhs, const TRef& rhs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef::TSharedData::TSharedData(TBlob&& blob)
+TSharedRef::TBlobHolder::TBlobHolder(TBlob&& blob)
     : Blob(std::move(blob))
 #ifdef ENABLE_REF_COUNTED_TRACKING
     , Cookie(nullptr)
 #endif
 { }
 
-TSharedRef::TSharedData::~TSharedData()
+TSharedRef::TBlobHolder::~TBlobHolder()
 {
 #ifdef ENABLE_REF_COUNTED_TRACKING
     FinalizeTracking();
@@ -35,14 +35,14 @@ TSharedRef::TSharedData::~TSharedData()
 
 #ifdef ENABLE_REF_COUNTED_TRACKING
 
-void TSharedRef::TSharedData::InitializeTracking(void* cookie)
+void TSharedRef::TBlobHolder::InitializeTracking(void* cookie)
 {
     YASSERT(!Cookie);
     Cookie = cookie;
     TRefCountedTracker::Get()->Allocate(Cookie, Blob.Size());
 }
 
-void TSharedRef::TSharedData::FinalizeTracking()
+void TSharedRef::TBlobHolder::FinalizeTracking()
 {
     YASSERT(Cookie);
     TRefCountedTracker::Get()->Free(Cookie, Blob.Size());
@@ -52,25 +52,10 @@ void TSharedRef::TSharedData::FinalizeTracking()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef TSharedRef::AllocateImpl(size_t size, bool initializeStorage)
-{
-    TBlob blob(size, initializeStorage);
-    return FromBlobImpl(std::move(blob));
-}
-
-TSharedRef TSharedRef::FromBlobImpl(TBlob&& blob)
-{
-    auto ref = TRef::FromBlob(blob);
-    auto data = New<TSharedData>(std::move(blob));
-    return TSharedRef(data, ref);
-}
-
 Stroka ToString(const TRef& ref)
 {
     return Stroka(ref.Begin(), ref.End());
 }
-
-////////////////////////////////////////////////////////////////////////////////
 
 size_t GetPageSize()
 {
