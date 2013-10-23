@@ -489,7 +489,7 @@ private:
 
     virtual void OnRequest(
         const NProto::TRequestHeader& header,
-        NBus::IMessagePtr message,
+        TSharedRefArray message,
         NBus::IBusPtr replyBus) override;
 
     void OnInvocationPrepared(
@@ -497,7 +497,7 @@ private:
         IServiceContextPtr context,
         TClosure handler);
 
-    void OnResponse(TActiveRequestPtr activeRequest, NBus::IMessagePtr message);
+    void OnResponse(TActiveRequestPtr activeRequest, TSharedRefArray message);
 
 };
 

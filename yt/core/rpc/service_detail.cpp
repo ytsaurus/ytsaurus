@@ -78,7 +78,7 @@ public:
         TServiceBasePtr service,
         TActiveRequestPtr activeRequest,
         const NProto::TRequestHeader& header,
-        IMessagePtr requestMessage,
+        TSharedRefArray requestMessage,
         IBusPtr replyBus,
         const Stroka& loggingCategory)
         : TServiceContextBase(header, requestMessage)
@@ -98,7 +98,7 @@ private:
     IBusPtr ReplyBus;
     NLog::TLogger Logger;
 
-    virtual void DoReply(IMessagePtr responseMessage) override
+    virtual void DoReply(TSharedRefArray responseMessage) override
     {
         Service->OnResponse(ActiveRequest, std::move(responseMessage));
     }
@@ -195,7 +195,7 @@ Stroka TServiceBase::GetServiceName() const
 
 void TServiceBase::OnRequest(
     const TRequestHeader& header,
-    IMessagePtr message,
+    TSharedRefArray message,
     IBusPtr replyBus)
 {
     Profiler.Increment(RequestCounter);
@@ -388,7 +388,7 @@ TClosure TServiceBase::PrepareHandler(TClosure handler)
     return std::move(handler);
 }
 
-void TServiceBase::OnResponse(TActiveRequestPtr activeRequest, IMessagePtr message)
+void TServiceBase::OnResponse(TActiveRequestPtr activeRequest, TSharedRefArray message)
 {
     const auto& runtimeInfo = activeRequest->RuntimeInfo;
     

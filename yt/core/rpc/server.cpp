@@ -90,10 +90,9 @@ private:
         return it == Services.end() ? nullptr : it->second;
     }
 
-    virtual void OnMessage(IMessagePtr message, IBusPtr replyBus) override
+    virtual void OnMessage(TSharedRefArray message, IBusPtr replyBus) override
     {
-        const auto& parts = message->GetParts();
-        if (parts.size() < 2) {
+        if (message.Size() < 2) {
             LOG_WARNING("Too few message parts");
             return;
         }

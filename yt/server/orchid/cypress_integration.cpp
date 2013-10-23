@@ -14,8 +14,6 @@
 #include <core/rpc/message.h>
 #include <core/rpc/channel_cache.h>
 
-#include <core/bus/message.h>
-
 #include <server/cell_master/bootstrap.h>
 
 #include <server/object_server/object_manager.h>
@@ -93,7 +91,7 @@ public:
         auto innerRequestMessage = SetRequestHeader(requestMessage, requestHeader);
 
         auto outerRequest = proxy.Execute();
-        outerRequest->Attachments() = innerRequestMessage->GetParts();
+        outerRequest->Attachments() = innerRequestMessage.ToVector();
 
         LOG_INFO("Sending request to the remote Orchid (RemoteAddress: %s, Path: %s, Verb: %s, RequestId: %s)",
             ~manifest->RemoteAddress,
@@ -163,7 +161,7 @@ private:
             ~ToString(context->GetRequestId()));
 
         if (response->IsOK()) {
-            auto innerResponseMessage = CreateMessageFromParts(response->Attachments());
+            auto innerResponseMessage = TSharedRefArray(response->Attachments());
             context->Reply(innerResponseMessage);
         } else {
             context->Reply(TError("Error executing an Orchid operation (Path: %s, Verb: %s, RemoteAddress: %s, RemoteRoot: %s)",

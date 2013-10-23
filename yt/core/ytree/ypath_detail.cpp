@@ -10,8 +10,6 @@
 
 #include <core/ypath/tokenizer.h>
 
-#include <core/bus/message.h>
-
 #include <core/rpc/rpc.pb.h>
 #include <core/rpc/server_detail.h>
 #include <core/rpc/message.h>
@@ -935,7 +933,7 @@ class TYPathServiceContext
 public:
     TYPathServiceContext(
         const TRequestHeader& header,
-        IMessagePtr requestMessage,
+        TSharedRefArray requestMessage,
         TYPathResponseHandler responseHandler,
         const Stroka& loggingCategory)
         : TServiceContextBase(header, requestMessage)
@@ -947,7 +945,7 @@ protected:
     TYPathResponseHandler ResponseHandler;
     NLog::TLogger Logger;
 
-    virtual void DoReply(IMessagePtr responseMessage) override
+    virtual void DoReply(TSharedRefArray responseMessage) override
     {
         if (ResponseHandler) {
             ResponseHandler.Run(responseMessage);
@@ -978,7 +976,7 @@ protected:
 };
 
 IServiceContextPtr CreateYPathContext(
-    IMessagePtr requestMessage,
+    TSharedRefArray requestMessage,
     const Stroka& loggingCategory,
     TYPathResponseHandler responseHandler)
 {

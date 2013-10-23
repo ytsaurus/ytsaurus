@@ -34,13 +34,13 @@ TObjectServiceProxy::TReqExecuteBatch::AddRequest(
     const Stroka& key)
 {
     return AddRequestMessage(
-        innerRequest ? innerRequest->Serialize() : nullptr,
+        innerRequest ? innerRequest->Serialize() : TSharedRefArray(),
         key);
 }
 
 TObjectServiceProxy::TReqExecuteBatchPtr
 TObjectServiceProxy::TReqExecuteBatch::AddRequestMessage(
-    IMessagePtr innerRequestMessage,
+    TSharedRefArray innerRequestMessage,
     const Stroka& key)
 {
     if (!key.empty()) {
@@ -49,12 +49,11 @@ TObjectServiceProxy::TReqExecuteBatch::AddRequestMessage(
     }
 
     if (innerRequestMessage) {
-        const auto& innerParts = innerRequestMessage->GetParts();
-        PartCounts.push_back(static_cast<int>(innerParts.size()));
+        PartCounts.push_back(static_cast<int>(innerRequestMessage.Size()));
         Attachments_.insert(
             Attachments_.end(),
-            innerParts.begin(),
-            innerParts.end());
+            innerRequestMessage.Begin(),
+            innerRequestMessage.End());
     } else {
         PartCounts.push_back(0);
     }
@@ -174,20 +173,20 @@ std::vector<NYTree::TYPathResponsePtr> TObjectServiceProxy::TRspExecuteBatch::Ge
     return GetResponses<TYPathResponse>(key);
 }
 
-IMessagePtr TObjectServiceProxy::TRspExecuteBatch::GetResponseMessage(int index) const
+TSharedRefArray TObjectServiceProxy::TRspExecuteBatch::GetResponseMessage(int index) const
 {
     YCHECK(index >= 0 && index < GetSize());
     int beginIndex = BeginPartIndexes[index];
     int endIndex = beginIndex + Body.part_counts(index);
     if (beginIndex == endIndex) {
         // This is an empty response.
-        return nullptr;
+        return TSharedRefArray();
     }
 
     std::vector<TSharedRef> innerParts(
         Attachments_.begin() + beginIndex,
         Attachments_.begin() + endIndex);
-    return CreateMessageFromParts(std::move(innerParts));
+    return TSharedRefArray(std::move(innerParts));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

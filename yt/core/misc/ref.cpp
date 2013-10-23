@@ -114,10 +114,32 @@ public:
         return static_cast<int>(Parts.size());
     }
 
+    bool Empty() const
+    {
+        return Parts.empty();
+    }
+
     const TSharedRef& operator [] (int index) const
     {
         YASSERT(index >= 0 && index < Size());
         return Parts[index];
+    }
+
+
+    const TSharedRef* Begin() const
+    {
+        return Parts.data();
+    }
+
+    const TSharedRef* End() const
+    {
+        return Parts.data() + Parts.size();
+    }
+
+
+    std::vector<TSharedRef> ToVector() const
+    {
+        return std::vector<TSharedRef>(Parts.begin(), Parts.end());
     }
 
 
@@ -224,15 +246,40 @@ TSharedRefArray& TSharedRefArray::operator=(TSharedRefArray&& other)
     return *this;
 }
 
+void TSharedRefArray::Reset()
+{
+    Impl.Reset();
+}
+
+TSharedRefArray::operator bool() const
+{
+    return Impl != nullptr;
+}
+
 int TSharedRefArray::Size() const
 {
     return Impl ? Impl->Size() : 0;
+}
+
+bool TSharedRefArray::Empty() const
+{
+    return Impl ? Impl->Empty() : true;
 }
 
 const TSharedRef& TSharedRefArray::operator[](int index) const
 {
     YASSERT(Impl);
     return (*Impl)[index];
+}
+
+const TSharedRef* TSharedRefArray::Begin() const
+{
+    return Impl ? Impl->Begin() : nullptr;
+}
+
+const TSharedRef* TSharedRefArray::End() const
+{
+    return Impl ? Impl->End() : nullptr;
 }
 
 TSharedRef TSharedRefArray::Pack() const
@@ -243,6 +290,21 @@ TSharedRef TSharedRefArray::Pack() const
 TSharedRefArray TSharedRefArray::Unpack(const TSharedRef& packedRef)
 {
     return TSharedRefArray(TImpl::Unpack(packedRef));
+}
+
+std::vector<TSharedRef> TSharedRefArray::ToVector() const
+{
+    return Impl ? Impl->ToVector() : std::vector<TSharedRef>();
+}
+
+const TSharedRef* begin(const TSharedRefArray& array)
+{
+    return array.Begin();
+}
+
+const TSharedRef* end(const TSharedRefArray& array)
+{
+    return array.End();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

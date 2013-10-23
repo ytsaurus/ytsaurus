@@ -88,7 +88,7 @@ private:
     TCtxExecutePtr Context;
 
     TParallelAwaiterPtr Awaiter;
-    std::vector<IMessagePtr> ResponseMessages;
+    std::vector<TSharedRefArray> ResponseMessages;
     TAtomic ReplyLock;
     int CurrentRequestIndex;
     int CurrentRequestPartIndex;
@@ -128,7 +128,7 @@ private:
                 std::vector<TSharedRef> requestParts(
                     attachments.begin() + CurrentRequestPartIndex,
                     attachments.begin() + CurrentRequestPartIndex + partCount);
-                auto requestMessage = CreateMessageFromParts(std::move(requestParts));
+                auto requestMessage = TSharedRefArray(std::move(requestParts));
 
                 NRpc::NProto::TRequestHeader requestHeader;
                 if (!ParseRequestHeader(requestMessage, &requestHeader)) {
@@ -156,7 +156,7 @@ private:
                 if (mutationId != NullMutationId) {
                     auto keptResponse = metaStateManager->FindKeptResponse(mutationId);
                     if (keptResponse) {
-                        auto responseMessage = UnpackMessage(keptResponse->Data);
+                        auto responseMessage = TSharedRefArray::Unpack(keptResponse->Data);
                         OnResponse(CurrentRequestIndex, std::move(responseMessage));
                         foundKeptResponse = true;
                     }
@@ -198,7 +198,7 @@ private:
         }
     }
 
-    void OnResponse(int requestIndex, IMessagePtr responseMessage)
+    void OnResponse(int requestIndex, TSharedRefArray responseMessage)
     {
         NRpc::NProto::TResponseHeader responseHeader;
         YCHECK(ParseResponseHeader(responseMessage, &responseHeader));
@@ -231,12 +231,11 @@ private:
                 continue;
             }
 
-            const auto& responseParts = responseMessage->GetParts();
-            response.add_part_counts(static_cast<int>(responseParts.size()));
+            response.add_part_counts(responseMessage.Size());
             response.Attachments().insert(
                 response.Attachments().end(),
-                responseParts.begin(),
-                responseParts.end());
+                responseMessage.Begin(),
+                responseMessage.End());
         }
 
         Reply(TError());

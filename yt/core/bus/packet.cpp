@@ -1,6 +1,5 @@
 #include "stdafx.h"
 #include "packet.h"
-#include "message.h"
 
 namespace NYT {
 namespace NBus {
@@ -57,7 +56,7 @@ const TPacketId& TPacketDecoder::GetPacketId() const
     return Header.PacketId;
 }
 
-IMessagePtr TPacketDecoder::GetMessage() const
+TSharedRefArray TPacketDecoder::GetMessage() const
 {
     return Message;
 }
@@ -152,7 +151,7 @@ void TPacketDecoder::NextMessagePartPhase()
         Parts.push_back(TSharedRef());
     }
 
-    Message = CreateMessageFromParts(std::move(Parts));
+    Message = TSharedRefArray(std::move(Parts));
     SetFinished();
 }
 
@@ -183,7 +182,7 @@ TPacketEncoder::TPacketEncoder()
 
 i64 TPacketEncoder::GetPacketSize(
     EPacketType type,
-    IMessagePtr message)
+    TSharedRefArray message)
 {
     i64 size = sizeof (TPacketHeader);
     switch (type) {
@@ -192,7 +191,7 @@ i64 TPacketEncoder::GetPacketSize(
 
         case EPacketType::Message: {
             size += sizeof (i32); // PartCount
-            FOREACH (const auto& part, message->GetParts()) {
+            for (const auto& part : message) {
                 size += sizeof (i32); // PartSize
                 size += part.Size();
             }
@@ -208,7 +207,7 @@ i64 TPacketEncoder::GetPacketSize(
 bool TPacketEncoder::Start(
     EPacketType type,
     const TPacketId& packetId,
-    IMessagePtr message)
+    TSharedRefArray message)
 {
     Header.Type = type;
     Header.PacketId = packetId;
@@ -219,16 +218,15 @@ bool TPacketEncoder::Start(
     Message = message;
 
     if (type == EPacketType::Message) {
-        const auto& parts = message->GetParts();
-        PartCount = static_cast<i32>(parts.size());
+        PartCount = message.Size();
 
         if (PartCount > MaxPacketPartCount) {
             LOG_ERROR("Invalid part count %d", PartCount);
             return false;
         }
 
-        for (int index = 0; index < static_cast<int>(parts.size()); ++index) {
-            const auto& part = parts[index];
+        for (int index = 0; index < PartCount; ++index) {
+            const auto& part = message[index];
             int partSize = static_cast<int>(part.Size());
             if (partSize > MaxPacketPartSize) {
                 LOG_ERROR("Invalid size %d of part %d",
@@ -288,15 +286,13 @@ void TPacketEncoder::NextMessagePartPhase()
 {
     YASSERT(PartIndex < PartCount);
 
-    const auto& parts = Message->GetParts();
-
     while (true) {
         ++PartIndex;
         if (PartIndex == PartCount) {
             break;
         }
 
-        const auto& part = parts[PartIndex];
+        const auto& part = Message[PartIndex];
         if (part.Size() != 0) {
             BeginPhase(EPacketPhase::MessagePart, const_cast<char*>(part.Begin()), part.Size());
             return;

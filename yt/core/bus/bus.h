@@ -24,7 +24,7 @@ struct IBus
      *
      *  \note Thread affinity: any
      */
-    virtual TAsyncError Send(IMessagePtr message) = 0;
+    virtual TAsyncError Send(TSharedRefArray message) = 0;
 
     //! Terminates the bus.
     /*!
@@ -56,7 +56,7 @@ struct IMessageHandler
      *  and must return ASAP.
      *
      */
-    virtual void OnMessage(IMessagePtr message, IBusPtr replyBus) = 0;
+    virtual void OnMessage(TSharedRefArray message, IBusPtr replyBus) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

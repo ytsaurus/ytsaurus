@@ -299,8 +299,18 @@ public:
     TSharedRefArray& operator = (const TSharedRefArray& other);
     TSharedRefArray& operator = (TSharedRefArray&& other);
 
+    void Reset();
+
+    explicit operator bool() const;
+
     int Size() const;
+    bool Empty() const;
     const TSharedRef& operator [] (int index) const;
+
+    const TSharedRef* Begin() const;
+    const TSharedRef* End() const;
+
+    std::vector<TSharedRef> ToVector() const;
 
     TSharedRef Pack() const;
     static TSharedRefArray Unpack(const TSharedRef& packedRef);
@@ -312,6 +322,10 @@ private:
     explicit TSharedRefArray(TIntrusivePtr<TImpl> impl);
 
 };
+
+// Range-for interop.
+const TSharedRef* begin(const TSharedRefArray& array);
+const TSharedRef* end(const TSharedRefArray& array);
 
 ////////////////////////////////////////////////////////////////////////////////
 

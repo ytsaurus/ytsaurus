@@ -139,7 +139,7 @@ private:
             : Session(session)
         { }
 
-        virtual void OnMessage(IMessagePtr message, IBusPtr replyBus) override
+        virtual void OnMessage(TSharedRefArray message, IBusPtr replyBus) override
         {
             auto session_ = Session.Lock();
             if (session_) {
@@ -256,7 +256,7 @@ private:
             }
         }
 
-        void OnMessage(IMessagePtr message, IBusPtr replyBus)
+        void OnMessage(TSharedRefArray message, IBusPtr replyBus)
         {
             VERIFY_THREAD_AFFINITY_ANY();
             UNUSED(replyBus);
@@ -327,7 +327,7 @@ private:
             IBusPtr bus,
             IClientRequestPtr request,
             TNullable<TDuration> timeout,
-            IMessagePtr requestMessage)
+            TSharedRefArray requestMessage)
         {
             const auto& requestId = request->GetRequestId();
 
@@ -436,7 +436,7 @@ private:
             activeRequest.ResponseHandler->OnError(error);
         }
 
-        void NotifyResponse(const TActiveRequest& activeRequest, IMessagePtr message)
+        void NotifyResponse(const TActiveRequest& activeRequest, TSharedRefArray message)
         {
             LOG_DEBUG("Response received (RequestId: %s)",
                 ~ToString(activeRequest.ClientRequest->GetRequestId()));
