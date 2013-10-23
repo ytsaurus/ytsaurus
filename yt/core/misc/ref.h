@@ -4,6 +4,8 @@
 #include "blob.h"
 #include "new.h"
 
+
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -275,6 +277,39 @@ private:
 
     THolderPtr Holder;
     TRef Ref;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! A smart-pointer to a ref-counted immutable sequence of TSharedRef-s.
+class TSharedRefArray
+{
+public:
+    TSharedRefArray();
+    TSharedRefArray(const TSharedRefArray& other);
+    TSharedRefArray(TSharedRefArray&& other);
+    ~TSharedRefArray();
+
+    explicit TSharedRefArray(const TSharedRef& part);
+    explicit TSharedRefArray(TSharedRef&& part);
+    explicit TSharedRefArray(const std::vector<TSharedRef>& parts);
+    explicit TSharedRefArray(std::vector<TSharedRef>&& parts);
+
+    TSharedRefArray& operator = (const TSharedRefArray& other);
+    TSharedRefArray& operator = (TSharedRefArray&& other);
+
+    int Size() const;
+    const TSharedRef& operator [] (int index) const;
+
+    TSharedRef Pack() const;
+    static TSharedRefArray Unpack(const TSharedRef& packedRef);
+
+private:
+    class TImpl;
+    TIntrusivePtr<TImpl> Impl;
+
+    explicit TSharedRefArray(TIntrusivePtr<TImpl> impl);
 
 };
 
