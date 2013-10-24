@@ -180,7 +180,8 @@ Py::Object TPythonObjectConsumer::AddObject(const Py::Object& obj, const Py::Cal
         Attributes_ = Py::Dict();
     }
     if (Attributes_) {
-        auto result = AddObject(type.apply(Py::TupleN(obj), *Attributes_));
+        auto result = AddObject(type.apply(Py::TupleN(obj)));
+        result.setAttr("attributes", *Attributes_);
         Attributes_ = Null;
         return result;
     } else {
