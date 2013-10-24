@@ -89,7 +89,7 @@ void Serialize(const Py::Object& obj, IYsonConsumer* consumer)
         consumer->OnIntegerScalar(Py::Int(obj).asLongLong());
     } else if (obj.isFloat()) {
         consumer->OnDoubleScalar(Py::Float(obj));
-    } else if (IsInstance(obj, GetYsonType("YsonEntity"))) {
+    } else if (obj.isNone() || IsInstance(obj, GetYsonType("YsonEntity"))) {
         consumer->OnEntity();
     } else {
         throw Py::RuntimeError(

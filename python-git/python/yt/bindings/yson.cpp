@@ -26,10 +26,11 @@ public:
         : Py::PythonClass<TYsonIter>::PythonClass(self, args, kwargs)
     { }
 
-    void Init(NYson::EYsonType ysonType, TInputStream* inputStream, std::unique_ptr<TInputStreamWrap> inputStreamWrap)
+    void Init(NYson::EYsonType ysonType, TInputStream* inputStream, std::unique_ptr<TInputStream> inputStreamOwner)
     {
+        YCHECK(!inputStreamOwner ||  inputStreamOwner.get() == inputStream);
         InputStream_ = inputStream;
-        InputStreamWrap_ = std::move(inputStreamWrap);
+        InputStreamOwner_ = std::move(inputStreamOwner);
         Parser_.reset(new NYson::TYsonParser(&Consumer_, ysonType));
         IsStreamRead_ = false;
     }
@@ -79,7 +80,7 @@ public:
 
 private:
     TInputStream* InputStream_;
-    std::unique_ptr<TInputStreamWrap> InputStreamWrap_;
+    std::unique_ptr<TInputStream> InputStreamOwner_;
 
     bool IsStreamRead_;
 
@@ -122,10 +123,12 @@ public:
         auto args = args_;
         auto kwargs = kwargs_;
 
-        auto string = ConvertToStroka(ConvertToString(ExtractArgument(args, kwargs, "string")));
+        auto string = ConvertToString(ExtractArgument(args, kwargs, "string"));
+        
+        char* rawStr = PyString_AsString(*string);
+        int len = string.size();
 
-        TStringInput stringInput(string);
-        return LoadImpl(args, kwargs, &stringInput);
+        return LoadImpl(args, kwargs, std::unique_ptr<TInputStream>(new TMemoryInput(static_cast<void*>(rawStr), len)));
     }
 
     Py::Object Dump(const Py::Tuple& args_, const Py::Dict& kwargs_)
@@ -148,13 +151,13 @@ public:
     { }
 
 private:
-    Py::Object LoadImpl(const Py::Tuple& args_, const Py::Dict& kwargs_, TInputStream* inputStream)
+    Py::Object LoadImpl(const Py::Tuple& args_, const Py::Dict& kwargs_, std::unique_ptr<TInputStream> inputStream)
     {
         auto args = args_;
         auto kwargs = kwargs_;
 
         // Holds inputStreamWrap if passed non-trivial stream argument
-        std::unique_ptr<TInputStreamWrap> inputStreamWrap;
+        TInputStream* inputStreamPtr;
         if (!inputStream) {
             auto streamArg = ExtractArgument(args, kwargs, "stream");
 
@@ -162,11 +165,13 @@ private:
             // without any wrappers by optimization reasons.
             Py::Object pyStdin(PySys_GetObject(const_cast<char*>("__stdin__")));
             if (*pyStdin == *streamArg) {
-                inputStream = &Cin;
+                inputStreamPtr = &Cin;
             } else {
-                inputStreamWrap.reset(new TInputStreamWrap(streamArg));
-                inputStream = inputStreamWrap.get();
+                inputStream.reset(new TInputStreamWrap(streamArg));
+                inputStreamPtr = inputStream.get();
             }
+        } else {
+            inputStreamPtr = inputStream.get();
         }
 
         auto ysonType = NYson::EYsonType::Node;
@@ -189,7 +194,7 @@ private:
             Py::PythonClassObject<TYsonIter> pythonIter(class_type.apply(Py::Tuple(), Py::Dict()));
 
             auto* iter = pythonIter.getCxxObject();
-            iter->Init(ysonType, inputStream, std::move(inputStreamWrap));
+            iter->Init(ysonType, inputStreamPtr, std::move(inputStream));
             return pythonIter;
         } else {
             NYTree::TPythonObjectConsumer consumer;
