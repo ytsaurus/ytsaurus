@@ -18,7 +18,7 @@ using namespace  NProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 TNullable<EColumnType> FindColumnType(
-    const Stroka& columnName,
+    const TStringBuf& columnName,
     const TTableSchemaExt& schema)
 {
     for (const auto& column: schema.columns()) {
@@ -30,7 +30,7 @@ TNullable<EColumnType> FindColumnType(
 }
 
 TNullable<int> FindColumnIndex(
-    const Stroka& columnName,
+    const TStringBuf& columnName,
     const TTableSchemaExt& schema)
 {
     for (int index = 0; index < schema.columns_size(); ++index) {
@@ -42,12 +42,12 @@ TNullable<int> FindColumnIndex(
 }
 
 int GetColumnIndex(
-    const Stroka& columnName,
+    const TStringBuf& columnName,
     const TTableSchemaExt& schema)
 {
     auto index = FindColumnIndex(columnName, schema);
     if (!index) {
-        THROW_ERROR_EXCEPTION("Column %s not found in schema", ~columnName.Quote());
+        THROW_ERROR_EXCEPTION("Column \"%s\" not found in schema", columnName);
     }
     return *index;
 }
@@ -79,5 +79,3 @@ void Deserialize(TTableSchemaExt& tableSchema, INodePtr node)
 
 } // namespace NVersionedTableClient
 } // namespace NYT
-
-

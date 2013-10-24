@@ -18,8 +18,8 @@ set( HDRS
   ${BASE}/chunk_writer.h
   ${BASE}/config.h
   ${BASE}/name_table.h
-  ${BASE}/public.h
   ${BASE}/private.h
+  ${BASE}/public.h
   ${BASE}/row.h
   ${BASE}/reader.h
   ${BASE}/schema.h

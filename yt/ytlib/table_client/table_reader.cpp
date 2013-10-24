@@ -116,7 +116,7 @@ bool TAsyncTableReader::FetchNextItem()
 TAsyncError TAsyncTableReader::GetReadyEvent()
 {
     if (IsAborted()) {
-        return MakePromise<TError>(TError("Transaction aborted"));
+        return MakeFuture(TError("Transaction aborted"));
     }
     return Reader->GetReadyEvent();
 }

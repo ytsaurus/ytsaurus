@@ -14,15 +14,15 @@ namespace NVersionedTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 TNullable<EColumnType> FindColumnType(
-    const Stroka& columnName,
+    const TStringBuf& columnName,
     const NProto::TTableSchemaExt& schema);
 
 TNullable<int> FindColumnIndex(
-    const Stroka& columnName,
+    const TStringBuf& columnName,
     const NProto::TTableSchemaExt& schema);
 
 int GetColumnIndex(
-    const Stroka& columnName,
+    const TStringBuf& columnName,
     const NProto::TTableSchemaExt& schema);
 
 ////////////////////////////////////////////////////////////////////////////////
