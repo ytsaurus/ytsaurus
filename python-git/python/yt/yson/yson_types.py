@@ -1,5 +1,5 @@
 # Do not inherit from object because of performance issues.
-class YsonType:
+class YsonType(object):
     def __init__(self, *kargs, **kwargs):
         self.attributes = {}
 
