@@ -43,7 +43,7 @@ TChunkWriter::TChunkWriter(
 { }
 
 void TChunkWriter::Open(
-    const TNameTablePtr& nameTable,
+    TNameTablePtr nameTable,
     const TTableSchemaExt& schema,
     const TKeyColumns& keyColumns,
     ERowsetType rowsetType)

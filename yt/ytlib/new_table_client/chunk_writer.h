@@ -25,7 +25,7 @@ public:
         NChunkClient::IAsyncWriterPtr asyncWriter);
 
     void Open(
-        const TNameTablePtr& nameTable,
+        TNameTablePtr nameTable,
         const NProto::TTableSchemaExt& schema,
         const TKeyColumns& keyColumns = TKeyColumns(),
         ERowsetType type = ERowsetType::Simple);
@@ -40,7 +40,8 @@ public:
     i64 GetRowIndex() const;
 
 private:
-    struct TColumnDescriptor {
+    struct TColumnDescriptor
+    {
         TColumnDescriptor()
             : IndexInBlock(-1)
             , OutputIndex(-1)
