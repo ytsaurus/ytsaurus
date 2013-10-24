@@ -4,24 +4,25 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkedMemoryPool::TChunkedMemoryPool(size_t chunkSize, size_t maxSmallBlockSize)
-    : ChunkSize(chunkSize)
+TChunkedMemoryPool::TChunkedMemoryPool(
+    size_t chunkSize,
+    size_t maxSmallBlockSize)
+    : ChunkSize((chunkSize + 7) & ~7) // must be aligned
     , MaxSmallBlockSize(maxSmallBlockSize)
     , ChunkIndex(0)
     , Offset(0)
-{ 
-    AllocateNewChunk();
-}
+{ }
 
-char* TChunkedMemoryPool::Allocate(size_t size)
+char* TChunkedMemoryPool::AllocateUnaligned(size_t size)
 {
-    // Round to nearest multiplier of 8
-    Offset = (Offset + 7) & ~7;
-
     while (true) {
-        auto& currentChunk = Chunks[ChunkIndex];
-        if (Offset + size < currentChunk.Size()) {
-            auto* result = currentChunk.Begin() + Offset;
+        if (ChunkIndex == Chunks.size()) {
+            AllocateNewChunk();
+        }
+
+        auto& chunk = Chunks[ChunkIndex];
+        if (Offset + size < chunk.Size()) {
+            auto* result = chunk.Begin() + Offset;
             Offset += size;
             return result;
         } 
@@ -34,10 +35,13 @@ char* TChunkedMemoryPool::Allocate(size_t size)
 
         Offset = 0;
         ++ChunkIndex;
-        if (ChunkIndex == Chunks.size()) {
-            AllocateNewChunk();
-        }
     }
+}
+
+char* TChunkedMemoryPool::Allocate(size_t size)
+{
+    Offset = (Offset + 7) & ~7;
+    return AllocateUnaligned(size);
 }
 
 void TChunkedMemoryPool::Clear()
@@ -55,7 +59,9 @@ void TChunkedMemoryPool::AllocateNewChunk()
 TSharedRef TChunkedMemoryPool::AllocateBlock(size_t size)
 {
     struct TChunkedMemoryPoolTag { };
-    return TSharedRef::Allocate<TChunkedMemoryPoolTag>(size);
+    auto block = TSharedRef::Allocate<TChunkedMemoryPoolTag>(size);
+    YCHECK(reinterpret_cast<intptr_t>(block.Begin()) & 7 == 0); // validate alignment
+    return block;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -14,8 +14,14 @@ public:
         size_t chunkSize = 64 * 1024, 
         size_t maxSmallBlockSize = 16 * 1024);
 
+    //! Allocates #sizes bytes without any alignment.
+    char* AllocateUnaligned(size_t size);
+
+    //! Allocates #sizes bytes aligned with 8-byte granularity.
+    // TODO(babenko): 16-aligned allocations?
     char* Allocate(size_t size);
 
+    //! Allocates and default-constructs an instance of |T|.
     template <class T>
     T* Allocate()
     {
@@ -24,8 +30,8 @@ public:
         return reinterpret_cast<T*>(buffer);
     }
 
-    // TODO(babenko): AllocateUnaligned
-
+    //! Marks all previously allocated chunks as free for subsequent allocations.
+    //! Does not deallocate them.
     void Clear();
 
 private:
