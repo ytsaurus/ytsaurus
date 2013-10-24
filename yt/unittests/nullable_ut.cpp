@@ -239,6 +239,42 @@ TEST(TNullableTest, ToString)
     EXPECT_EQ(ToString(TNullable<int>()), "<Null>");
 }
 
+TEST(TNullableTest, Destructor)
+{
+    int counter = 0;
+
+    class TestClass
+    {
+    public:
+        TestClass(int& counter)
+            : Counter_(counter)
+        {
+            Counter_++;
+        }
+
+        TestClass(const TestClass& other)
+            : Counter_(other.Counter_)
+        {
+            Counter_++;
+        }
+
+        ~TestClass()
+        {
+            Counter_--;
+        }
+
+    private:
+        int& Counter_;
+    };
+
+    EXPECT_EQ(0, counter);
+    {
+        TNullable<TestClass> obj(counter);
+        EXPECT_EQ(1, counter);
+    }
+    EXPECT_EQ(0, counter);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
