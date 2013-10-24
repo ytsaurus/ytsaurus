@@ -11,15 +11,15 @@ namespace NVersionedTableClient {
 
 struct TRowHeader
 {
-    TRowHeader(TTimestamp timestamp, int valueCount, bool isDeleted)
+    TRowHeader(TTimestamp timestamp, int valueCount, bool deleted)
         : Timestamp(timestamp)
         , ValueCount(valueCount)
-        , IsDeleted(isDeleted)
+        , Deleted(deleted)
     { }
 
     TTimestamp Timestamp;
     i32 ValueCount;
-    bool IsDeleted;
+    bool Deleted;
 };
 
 static_assert(sizeof(TRowHeader) == 16, "TRowHeader has to be exactly 16 bytes");
@@ -27,57 +27,59 @@ static_assert(sizeof(TRowHeader) == 16, "TRowHeader has to be exactly 16 bytes")
 struct TRow
 {
 public:
-    FORCED_INLINE explicit TRow(void* opaque)
-        : Opaque(static_cast<char*>(opaque))
+    FORCED_INLINE explicit TRow(TRowHeader* rowHeader)
+        : RowHeader(rowHeader)
     { }
 
     FORCED_INLINE TRow(
         TChunkedMemoryPool* pool, 
         int valueCount, 
         TTimestamp timestamp = NullTimestamp, 
-        bool isDeleted = false)
-        : Opaque(static_cast<char*>(pool->Allocate(sizeof(TRowHeader) + valueCount * sizeof(TRowValue))))
+        bool deleted = false)
+        : RowHeader(pool->AllocateAligned(sizeof(TRowHeader) + valueCount * sizeof(TRowValue)))
     {
-        *reinterpret_cast<TRowHeader*>(Opaque) = TRowHeader(timestamp, valueCount, isDeleted);
+        *RowHeader = TRowHeader(timestamp, valueCount, deleted);
     }
 
     FORCED_INLINE TRowValue& operator[](int index)
     {
-        return *reinterpret_cast<TRowValue*>(Opaque + sizeof(TRowHeader) + index * sizeof(TRowValue));
+        return *reinterpret_cast<TRowValue*>(reinterpret_cast<char*>(RowHeader) +
+            sizeof(TRowHeader) + index * sizeof(TRowValue));
     }
 
     FORCED_INLINE void SetTimestamp(TTimestamp timestamp)
     {
-        reinterpret_cast<TRowHeader*>(Opaque)->Timestamp = timestamp;
+        RowHeader->Timestamp = timestamp;
     }
 
-    FORCED_INLINE void SetDeletedFlag(bool isDeleted = true)
+    FORCED_INLINE void SetDeletedFlag(bool deleted = true)
     {
-        reinterpret_cast<TRowHeader*>(Opaque)->IsDeleted = isDeleted;
+        RowHeader->Deleted = deleted;
     }
 
     FORCED_INLINE const TRowValue& operator[](int index) const
     {
-        return *reinterpret_cast<TRowValue*>(Opaque + sizeof(TRowHeader) + index * sizeof(TRowValue));
+        return *reinterpret_cast<TRowValue*>(reinterpret_cast<char*>(RowHeader) +
+            sizeof(TRowHeader) + index * sizeof(TRowValue));
     }
 
     FORCED_INLINE TTimestamp GetTimestamp() const
     {
-        return reinterpret_cast<TRowHeader*>(Opaque)->Timestamp;
+        return RowHeader->Timestamp;
     }
 
     FORCED_INLINE int GetValueCount() const
     {
-        return reinterpret_cast<TRowHeader*>(Opaque)->ValueCount;
+        return RowHeader->ValueCount;
     }
 
-    FORCED_INLINE bool IsDeleted() const
+    FORCED_INLINE bool Deleted() const
     {
-        return reinterpret_cast<TRowHeader*>(Opaque)->IsDeleted;
+        return RowHeader->Deleted;
     }
 
 private:
-    char* Opaque;
+    TRowHeader* RowHeader;
 
 };
 
