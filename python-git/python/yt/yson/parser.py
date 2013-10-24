@@ -21,9 +21,9 @@ def _seems_integer(string):
     return True
 
 # Binary literals markers
-_INT64_MARKER = chr(1)
-_DOUBLE_MARKER = chr(2)
-_STRING_MARKER = chr(3)
+_STRING_MARKER = chr(1)
+_INT64_MARKER = chr(2)
+_DOUBLE_MARKER = chr(3)
 
 class YsonParserBase(object):
     def __init__(self, stream):
