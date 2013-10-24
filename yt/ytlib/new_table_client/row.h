@@ -9,9 +9,38 @@ namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#ifdef _MSC_VER
+    #define PACK
+#else
+    #define PACK __attribute__((aligned(16), packed))
+#endif
+
+struct TRowValue
+{
+    union
+    {
+        i64         Integer;
+        double      Double;
+        const char* String;
+        const char* Any;     // YSON-encoded value
+    } Data;      // Holds the value
+    ui32 Length; // For variable-sized values
+    ui16 Type;   // EColumnType
+    ui16 Index;  // Name Table index
+} PACK;
+
+#undef PACK
+
+static_assert(sizeof (TRowValue) == 16, "TRowValue has to be exactly 16 bytes.");
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TRowHeader
 {
-    TRowHeader(TTimestamp timestamp, int valueCount, bool deleted)
+    TRowHeader(
+        TTimestamp timestamp,
+        int valueCount,
+        bool deleted)
         : Timestamp(timestamp)
         , ValueCount(valueCount)
         , Deleted(deleted)
@@ -22,9 +51,11 @@ struct TRowHeader
     bool Deleted;
 };
 
-static_assert(sizeof(TRowHeader) == 16, "TRowHeader has to be exactly 16 bytes");
+static_assert(sizeof (TRowHeader) == 16, "TRowHeader has to be exactly 16 bytes.");
 
-struct TRow
+////////////////////////////////////////////////////////////////////////////////
+
+class TRow
 {
 public:
     FORCED_INLINE explicit TRow(TRowHeader* rowHeader)
@@ -43,8 +74,10 @@ public:
 
     FORCED_INLINE TRowValue& operator[](int index)
     {
-        return *reinterpret_cast<TRowValue*>(reinterpret_cast<char*>(RowHeader) +
-            sizeof(TRowHeader) + index * sizeof(TRowValue));
+        return *reinterpret_cast<TRowValue*>(
+            reinterpret_cast<char*>(RowHeader) +
+            sizeof(TRowHeader) +
+            index * sizeof(TRowValue));
     }
 
     FORCED_INLINE void SetTimestamp(TTimestamp timestamp)
@@ -59,8 +92,10 @@ public:
 
     FORCED_INLINE const TRowValue& operator[](int index) const
     {
-        return *reinterpret_cast<TRowValue*>(reinterpret_cast<char*>(RowHeader) +
-            sizeof(TRowHeader) + index * sizeof(TRowValue));
+        return *reinterpret_cast<TRowValue*>(
+            reinterpret_cast<char*>(RowHeader) +
+            sizeof(TRowHeader) +
+            index * sizeof(TRowValue));
     }
 
     FORCED_INLINE TTimestamp GetTimestamp() const
@@ -83,7 +118,7 @@ private:
 
 };
 
-static_assert(sizeof(TRow) == 8, "TRow has to be exactly 8 bytes");
+static_assert(sizeof (TRow) == sizeof (intptr_t), "TRow has to be exactly sizeof (intptr_t) bytes.");
 
 ////////////////////////////////////////////////////////////////////////////////
 

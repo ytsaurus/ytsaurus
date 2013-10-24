@@ -1,11 +1,10 @@
 #include "stdafx.h"
 #include "chunk_writer.h"
-
-#include "private.h"
+#include "row.h"
 #include "name_table.h"
 #include "block_writer.h"
-
 #include "chunk_meta_extensions.h"
+#include "private.h"
 
 #include <ytlib/table_client/chunk_meta_extensions.h>
 
@@ -25,7 +24,7 @@ using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NConcurrency;
 
-const int TimestampIndex = 0;
+static const int TimestampIndex = 0;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <ytlib/new_table_client/chunk_meta.pb.h>
-
 #include <core/misc/ref.h>
+
+#include <ytlib/new_table_client/chunk_meta.pb.h>
 
 namespace NYT {
 namespace NVersionedTableClient {
@@ -15,14 +15,17 @@ class TVariableIterator
 {
 public:
     TVariableIterator(const char* opaque, int count);
-    bool Next(TRowValue* value);
-    int GetLeftValueCount() const;
+
+    bool ParseNext(TRowValue* value);
+    int GetRemainingCount() const;
 
 private:
     const char* Opaque;
     int Count;
 
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TBlockReader 
 {

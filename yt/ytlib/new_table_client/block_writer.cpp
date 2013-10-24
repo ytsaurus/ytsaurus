@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "block_writer.h"
+#include "row.h"
 
 #include <core/yson/varint.h>
 #include <core/yson/writer.h>

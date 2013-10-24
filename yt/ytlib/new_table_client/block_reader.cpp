@@ -1,7 +1,9 @@
 #include "stdafx.h"
 #include "block_reader.h"
+#include "row.h"
 
 #include <core/yson/varint.h>
+
 #include <util/stream/mem.h>
 
 namespace NYT {
@@ -18,9 +20,9 @@ TVariableIterator::TVariableIterator(const char* opaque, int count)
     YASSERT(Count >= 0);
 }
 
-bool TVariableIterator::Next(TRowValue* rowValue)
+bool TVariableIterator::ParseNext(TRowValue* rowValue)
 {
-    if (!Count) {
+    if (Count == 0) {
         return false;
     }
 
@@ -29,14 +31,13 @@ bool TVariableIterator::Next(TRowValue* rowValue)
     rowValue->Index = static_cast<i16>(index);
 
     ui64 length;
-    if (length) {
-        Opaque += ReadVarUInt64(Opaque, &length);
+    Opaque += ReadVarUInt64(Opaque, &length);
+    if (length != 0) {
+        YASSERT(length <= std::numeric_limits<i32>::max());
         rowValue->Length = static_cast<i32>(length);
-
         rowValue->Data.Any = Opaque;
-        Opaque += length;
-
         rowValue->Type = EColumnType::Any;
+        Opaque += length;
     } else {
         rowValue->Type = EColumnType::Null;
     }
@@ -45,7 +46,7 @@ bool TVariableIterator::Next(TRowValue* rowValue)
     return true;
 }
 
-int TVariableIterator::GetLeftValueCount() const
+int TVariableIterator::GetRemainingCount() const
 {
     return Count;
 }
@@ -138,22 +139,22 @@ TRowValue TBlockReader::Read(int index) const
         value.Type = column.Type;
 
         switch (column.Type) {
-        case EColumnType::Integer:
-            value.Data.Integer = *reinterpret_cast<const i64*>(column.Begin + sizeof(i64) * RowIndex);
-            break;
-        case EColumnType::Double:
-            value.Data.Double = *reinterpret_cast<const double*>(column.Begin + sizeof(double) * RowIndex);
-            break;
-        case EColumnType::String:
-        case EColumnType::Any: {
-            ui32 offset = *reinterpret_cast<const ui32*>(column.Begin + sizeof(ui32) * RowIndex);
-            ui64 length;
-            value.Data.String = FixedBuffer + offset + ReadVarUInt64(FixedBuffer + offset, &length);
-            value.Length = static_cast<ui32>(length);
-            break;
-        }
-        default:
-            YUNREACHABLE();
+            case EColumnType::Integer:
+                value.Data.Integer = *reinterpret_cast<const i64*>(column.Begin + sizeof(i64) * RowIndex);
+                break;
+            case EColumnType::Double:
+                value.Data.Double = *reinterpret_cast<const double*>(column.Begin + sizeof(double) * RowIndex);
+                break;
+            case EColumnType::String:
+            case EColumnType::Any: {
+                ui32 offset = *reinterpret_cast<const ui32*>(column.Begin + sizeof(ui32) * RowIndex);
+                ui64 length;
+                value.Data.String = FixedBuffer + offset + ReadVarUInt64(FixedBuffer + offset, &length);
+                value.Length = static_cast<ui32>(length);
+                break;
+            }
+            default:
+                YUNREACHABLE();
         }
     } else {
         value.Type = EColumnType::Null;

@@ -275,8 +275,9 @@ bool TChunkReader::Read(std::vector<TRow> *rows)
         if (IncludeAllColumns) {
             auto variableIt = BlockReader->GetVariableIterator();
 
-            rows->push_back(TRow(&MemoryPool, FixedColumns.size() +
-                VariableColumns.size() + variableIt.GetLeftValueCount()));
+            rows->push_back(TRow(
+                &MemoryPool,
+                FixedColumns.size() + VariableColumns.size() + variableIt.GetRemainingCount()));
 
             auto& row = rows->back();
             for (const auto& column: VariableColumns) {
@@ -285,7 +286,7 @@ bool TChunkReader::Read(std::vector<TRow> *rows)
             }
 
             int index = FixedColumns.size() + VariableColumns.size();
-            while (variableIt.Next(&row[index])) {
+            while (variableIt.ParseNext(&row[index])) {
                 row[index].Index = ChunkIndexToOutputIndex[row[index].Index];
             }
         } else {

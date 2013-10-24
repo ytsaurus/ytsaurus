@@ -26,32 +26,11 @@ typedef i64 TTimestamp;
 const TTimestamp NullTimestamp = 0;
 const TTimestamp LastCommittedTimestamp = -1;
 
-#ifdef _MSC_VER
-    #define PACK
-#else
-    #define PACK __attribute__((aligned(16), packed))
-#endif
-
 typedef std::vector<Stroka> TKeyColumns;
 
-struct TRowValue
-{
-    typedef union {
-        i64 Integer;
-        double Double;
-        const char* String;
-        const char* Any;
-    } TUnionType;
-
-    TUnionType Data; // Holds the value.
-    ui32 Length; // For variable-sized values.
-    ui16 Type; // EColumnType
-    ui16 Index; // TNameTable
-} PACK;
-
-#undef PACK
-
-static_assert(sizeof(TRowValue) == 16, "TRowValue has to be exactly 16 bytes");
+struct TRowValue;
+struct TRowHeader;
+class TRow;
 
 class TNameTable;
 typedef TIntrusivePtr<TNameTable> TNameTablePtr;
