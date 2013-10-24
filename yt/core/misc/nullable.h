@@ -283,6 +283,11 @@ public:
     {
         return HasValue_ ? &TNullable::HasValue_ : nullptr;
     }
+    
+    ~TNullable()
+    {
+        Reset();
+    }
 
 private:
     template <class U>
