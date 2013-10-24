@@ -43,8 +43,9 @@ int TNameTable::RegisterName(const Stroka& name)
     return index;
 }
 
-int TNameTable::GetOrRegister(const Stroka& name)
+int TNameTable::GetOrRegisterName(const Stroka& name)
 {
+    // TODO(babenko): beware! not thread-safe!
     auto index = FindIndex(name);
     if (index) {
         return *index;

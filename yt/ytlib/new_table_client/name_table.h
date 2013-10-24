@@ -14,7 +14,7 @@ class TNameTable
 {
 public:
     int RegisterName(const Stroka& name);
-    int GetOrRegister(const Stroka& name);
+    int GetOrRegisterName(const Stroka& name);
 
     TNullable<int> FindIndex(const Stroka& name) const;
     const Stroka& GetName(int index) const;

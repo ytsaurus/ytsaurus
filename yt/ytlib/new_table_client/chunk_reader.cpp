@@ -197,7 +197,7 @@ void TChunkReader::DoOpen()
         TColumn fixedColumn;
         fixedColumn.IndexInBlock = schemaIndexBase + GetColumnIndex(column.name(), chunkSchema);
         fixedColumn.IndexInRow = FixedColumns.size();
-        fixedColumn.IndexInNameTable = NameTable->GetOrRegister(column.name());
+        fixedColumn.IndexInNameTable = NameTable->GetOrRegisterName(column.name());
         FixedColumns.push_back(fixedColumn);
     }
 
@@ -208,20 +208,20 @@ void TChunkReader::DoOpen()
                 TColumn variableColumn;
                 variableColumn.IndexInBlock = schemaIndexBase + i;
                 variableColumn.IndexInRow = FixedColumns.size() + VariableColumns.size();
-                variableColumn.IndexInNameTable = NameTable->GetOrRegister(chunkColumn.name());
+                variableColumn.IndexInNameTable = NameTable->GetOrRegisterName(chunkColumn.name());
                 VariableColumns.push_back(variableColumn);
             }
         }
 
         ChunkIndexToOutputIndex.reserve(chunkNameTable->GetNameCount());
         for (int i = 0; i < chunkNameTable->GetNameCount(); ++i) {
-            ChunkIndexToOutputIndex[i] = NameTable->GetOrRegister(chunkNameTable->GetName(i));
+            ChunkIndexToOutputIndex[i] = NameTable->GetOrRegisterName(chunkNameTable->GetName(i));
         }
     }
 
     std::vector<TSequentialReader::TBlockInfo> blockSequence;
     {
-        // ToDo: Choose proper blocks and rows using index.
+        // ToDo(psushin): Choose proper blocks and rows using index.
         for (int i = 0; i < BlockMeta.items_size(); ++i) {
             const auto& blockMeta = BlockMeta.items(i);
             blockSequence.push_back(TSequentialReader::TBlockInfo(i, blockMeta.block_size()));
@@ -388,7 +388,7 @@ TAsyncError TTableChunkReaderAdapter::Open(
 
     SchemaNameIndexes.reserve(Schema.columns_size());
     for (const auto& column: Schema.columns()) {
-        SchemaNameIndexes.push_back(NameTable->GetOrRegister(column.name()));
+        SchemaNameIndexes.push_back(NameTable->GetOrRegisterName(column.name()));
     }
 
     return UnderlyingReader->AsyncOpen();
@@ -475,7 +475,7 @@ bool TTableChunkReaderAdapter::Read(std::vector<TRow> *rows)
             auto& value = outputRow[schemaIndexes.size() + i];
             const auto& pair = chunkRow[variableIndexes[i]];
 
-            value.Index = NameTable->GetOrRegister(ToString(pair.first));
+            value.Index = NameTable->GetOrRegisterName(ToString(pair.first));
             value.Type = EColumnType::Any;
             value.Data.Any = pair.second.begin();
             value.Length = pair.second.size();
