@@ -55,12 +55,13 @@ class Response(object):
         if not str(self.http_response.status_code).startswith("2"):
             # 401 is case of incorrect token
             if self.http_response.status_code == 401:
+                url_base = "/".join(self.http_response.url.split("/")[:2])
                 raise YtTokenError(
                     "Your authentication token was rejected by the server (X-YT-Request-ID: {0}).\n"
                     "Please refer to {1}/auth/ for obtaining a valid token or contact us at yt@yandex-team.ru."\
                         .format(
                             self.http_response.headers.get("X-YT-Request-ID", "absent"),
-                            self.http_response.url))
+                            url_base))
             self._error = self.http_response.json()
         elif int(self.http_response.headers.get("x-yt-response-code", 0)) != 0:
             self._error = json.loads(self.http_response.headers["x-yt-error"])
