@@ -87,7 +87,7 @@ private:
         typedef NTableClient::NProto::TKeyColumnsExt TProtoKeyColumns;
         typedef NVersionedTableClient::NProto::TTableSchemaExt TProtoTableSchema;
 
-        auto asyncInfoOrError = TableMountCache_->Lookup(path);
+        auto asyncInfoOrError = TableMountCache_->LookupInfo(path);
         auto infoOrError = WaitFor(asyncInfoOrError);
         THROW_ERROR_EXCEPTION_IF_FAILED(infoOrError);
         const auto& info = infoOrError.GetValue();

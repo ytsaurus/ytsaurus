@@ -50,7 +50,7 @@ TTableMountCache::TTableMountCache(
         masterChannel))
 { }
 
-TFuture<TErrorOr<TTableMountInfoPtr>> TTableMountCache::Lookup(const TYPath& path)
+TFuture<TErrorOr<TTableMountInfoPtr>> TTableMountCache::LookupInfo(const TYPath& path)
 {
     return Impl->Lookup(path);
 }

@@ -36,7 +36,7 @@ public:
         TTableMountCacheConfigPtr config,
         NRpc::IChannelPtr masterChannel);
 
-    TFuture<TErrorOr<TTableMountInfoPtr>> Lookup(const NYPath::TYPath& path);
+    TFuture<TErrorOr<TTableMountInfoPtr>> LookupInfo(const NYPath::TYPath& path);
 
 private:
     class TImpl;
