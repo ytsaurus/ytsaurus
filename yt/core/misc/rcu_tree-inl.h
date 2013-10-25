@@ -111,9 +111,9 @@ void TRcuTree<TKey, TComparer>::Rebalance(TNode* x)
                 if (x == p->Left) {
                     /*
                             q                     p'
-                           / \                   / \ 
+                           / \                   / \
                           p   d       =>        x   q'
-                         / \                       / \ 
+                         / \                       / \
                         x   c                     c   d
                     */
                     auto* c = p->Right;
@@ -139,14 +139,15 @@ void TRcuTree<TKey, TComparer>::Rebalance(TNode* x)
                     FreeNode(q);
                     break;
                 } else {
-                    //        q                     q
-                    //       / \                   / \ 
-                    //      p   d       =>        x'  d
-                    //     / \                   / \ 
-                    //    a   x                 p'  c
-                    //       / \               / \ 
-                    //      b   c             a   b
-
+                    /*
+                            q                     q
+                           / \                   / \
+                          p   d       =>        x'  d
+                         / \                   / \
+                        a   x                 p'  c
+                           / \               / \
+                          b   c             a   b
+                    */
                     auto* a = p->Left;
                     auto* b = x->Left;
                     auto* c = x->Right;
@@ -181,12 +182,13 @@ void TRcuTree<TKey, TComparer>::Rebalance(TNode* x)
                 x = q;
             } else {
                 if (x == p->Right) {
-                    //     q                     p'
-                    //    / \                   / \
-                    //   c   p       =>        q'  x
-                    //      / \               / \     
-                    //     d   x             c   d
-
+                    /*
+                         q                     p'
+                        / \                   / \
+                       c   p       =>        q'  x
+                          / \               / \    
+                         d   x             c   d
+                    */
                     auto* c = q->Left;
                     auto* d = p->Left;
 
@@ -210,14 +212,15 @@ void TRcuTree<TKey, TComparer>::Rebalance(TNode* x)
                     FreeNode(q);
                     break;
                 } else {
-                    //        q                     q
-                    //       / \                   / \ 
-                    //      a   p       =>        a   x'
-                    //         / \                   / \ 
-                    //        x   d                 b   p'
-                    //       / \                       / \ 
-                    //      b   c                     c   d
-
+                    /*
+                            q                     q
+                           / \                   / \
+                          a   p       =>        a   x'
+                             / \                   / \
+                            x   d                 b   p'
+                           / \                       / \
+                          b   c                     c   d
+                    */
                     auto* b = x->Left;
                     auto* c = x->Right;
                     auto* d = p->Right;
