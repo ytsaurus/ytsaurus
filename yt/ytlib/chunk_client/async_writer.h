@@ -45,7 +45,7 @@ struct IAsyncWriter
     /*!
      * Can only be called when the writer is successfully closed.
      *
-     * This method used in replictaion writer and unimplemented in other cases.
+     * This method used in replication writer and unimplemented in other cases.
      */
     virtual const std::vector<int> GetWrittenIndexes() const = 0;
 };
