@@ -109,12 +109,13 @@ void TRcuTree<TKey, TComparer>::Rebalance(TNode* x)
                 x = q;
             } else {
                 if (x == p->Left) {
-                    //        q                     p'
-                    //       / \                   / \ 
-                    //      p   d       =>        x   q'
-                    //     / \                       / \ 
-                    //    x   c                     c   d
-
+                    /*
+                            q                     p'
+                           / \                   / \ 
+                          p   d       =>        x   q'
+                         / \                       / \ 
+                        x   c                     c   d
+                    */
                     auto* c = p->Right;
                     auto* d = q->Right;
 
