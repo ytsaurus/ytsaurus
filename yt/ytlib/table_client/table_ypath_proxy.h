@@ -17,6 +17,7 @@ struct TTableYPathProxy
     DEFINE_YPATH_PROXY_METHOD(NProto, SetSorted);
     DEFINE_YPATH_PROXY_METHOD(NProto, Mount);
     DEFINE_YPATH_PROXY_METHOD(NProto, Unmount);
+    DEFINE_YPATH_PROXY_METHOD(NProto, GetMountInfo);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

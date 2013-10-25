@@ -1,5 +1,9 @@
 package NYT.NTableClient.NProto;
 
+import "yt/core/misc/guid.proto";
+import "yt/ytlib/new_table_client/chunk_meta.proto";
+import "yt/ytlib/hydra/hydra_manager.proto";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // Raises "sorted" flag for the root chunk list of the table.
@@ -27,5 +31,24 @@ message TReqUnmount
 
 message TRspUnmount
 { }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetMountInfo
+{ }
+
+message TTabletInfo
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required NYT.NProto.TGuid cell_id = 2;
+    required NYT.NHydra.NProto.TCellConfig cell_config = 3;
+}
+
+message TRspGetMountInfo
+{
+    required NYT.NVersionedTableClient.NProto.TTableSchemaExt schema = 1;
+    required NYT.NVersionedTableClient.NProto.TKeyColumnsExt key_columns = 2;
+    repeated TTabletInfo tablets = 3;
+}
 
 ////////////////////////////////////////////////////////////////////////////////

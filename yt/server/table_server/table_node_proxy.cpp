@@ -21,6 +21,7 @@
 
 #include <server/tablet_server/tablet_manager.h>
 #include <server/tablet_server/tablet.h>
+#include <server/tablet_server/tablet_cell.h>
 
 #include <server/cell_master/bootstrap.h>
 
@@ -74,6 +75,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NTableClient::NProto, SetSorted);
     DECLARE_RPC_SERVICE_METHOD(NTableClient::NProto, Mount);
     DECLARE_RPC_SERVICE_METHOD(NTableClient::NProto, Unmount);
+    DECLARE_RPC_SERVICE_METHOD(NTableClient::NProto, GetMountInfo);
 
 };
 
@@ -96,6 +98,7 @@ bool TTableNodeProxy::DoInvoke(IServiceContextPtr context)
     DISPATCH_YPATH_SERVICE_METHOD(SetSorted);
     DISPATCH_YPATH_SERVICE_METHOD(Mount);
     DISPATCH_YPATH_SERVICE_METHOD(Unmount);
+    DISPATCH_YPATH_SERVICE_METHOD(GetMountInfo);
     return TBase::DoInvoke(context);
 }
 
@@ -240,6 +243,36 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Unmount)
 
     auto tabletManager = Bootstrap->GetTabletManager();
     tabletManager->UnmountTable(impl);
+
+    context->Reply();
+}
+
+DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
+{
+    ValidateNoTransaction();
+
+    auto* impl = GetThisTypedImpl();
+    auto proxy = GetProxy(impl);
+
+    if (impl->GetChunkList()->SortedBy().empty()) {
+        THROW_ERROR_EXCEPTION("Table is not sorted");
+    }
+
+    auto* protoSchema = response->mutable_schema();
+    // TODO(babenko)
+
+    auto keyColumns = proxy->Attributes().Get<std::vector<Stroka>>("sorted_by");
+    auto* protoKeyColumns = response->mutable_key_columns();
+    ToProto(protoKeyColumns->mutable_names(), keyColumns);
+
+    auto* tablet = impl->GetTablet();
+    if (tablet) {
+        auto* cell = tablet->GetCell();
+        auto* protoTablet = response->add_tablets();
+        ToProto(protoTablet->mutable_tablet_id(), tablet->GetId());
+        ToProto(protoTablet->mutable_cell_id(), cell->GetId());
+        protoTablet->mutable_cell_config()->CopyFrom(cell->Config());
+    }
 
     context->Reply();
 }
