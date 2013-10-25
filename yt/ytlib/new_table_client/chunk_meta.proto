@@ -50,7 +50,7 @@ message TIndexExt
 // Chunk meta extension.
 message TKeyColumnsExt
 {
-    repeated bytes values = 1;
+    repeated string names = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
