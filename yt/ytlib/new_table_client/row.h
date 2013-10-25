@@ -36,7 +36,7 @@ public:
         int valueCount, 
         TTimestamp timestamp = NullTimestamp, 
         bool deleted = false)
-        : RowHeader(pool->AllocateAligned(sizeof(TRowHeader) + valueCount * sizeof(TRowValue)))
+        : RowHeader(reinterpret_cast<TRowHeader*>(pool->Allocate(sizeof(TRowHeader) + valueCount * sizeof(TRowValue))))
     {
         *RowHeader = TRowHeader(timestamp, valueCount, deleted);
     }
