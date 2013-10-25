@@ -511,9 +511,11 @@ public:
     std::vector<Stroka> ReduceBy;
 
     TUserJobSpecPtr Mapper;
+    TUserJobSpecPtr Monster;
     TUserJobSpecPtr Reducer;
 
     TJobIOConfigPtr MapJobIO;
+    // Monster is also known as reduce-side combiner.
     TJobIOConfigPtr SortJobIO;
     TJobIOConfigPtr ReduceJobIO;
 
@@ -524,6 +526,9 @@ public:
             .Default();
         // Mapper can be absent -- leave it Null by default.
         RegisterParameter("mapper", Mapper)
+            .Default();
+        // Monster can be absent -- leave it Null by default.
+        RegisterParameter("monster", Monster)
             .Default();
         RegisterParameter("reducer", Reducer)
             .DefaultNew();

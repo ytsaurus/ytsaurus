@@ -370,7 +370,7 @@ protected:
         {
             jobSpec->CopyFrom(Controller->PartitionJobSpecTemplate);
             AddSequentialInputSpec(jobSpec, joblet);
-            AddIntermediateOutputSpec(jobSpec, joblet);
+            AddIntermediateOutputSpec(jobSpec, joblet, Null);
         }
 
         virtual void OnJobStarted(TJobletPtr joblet) override
@@ -595,7 +595,7 @@ protected:
         {
             if (Controller->IsSortedMergeNeeded(Partition)) {
                 jobSpec->CopyFrom(Controller->IntermediateSortJobSpecTemplate);
-                AddIntermediateOutputSpec(jobSpec, joblet);
+                AddIntermediateOutputSpec(jobSpec, joblet, Controller->Spec->SortBy);
             } else {
                 jobSpec->CopyFrom(Controller->FinalSortJobSpecTemplate);
                 AddFinalOutputSpecs(jobSpec, joblet);
@@ -2122,6 +2122,9 @@ private:
     std::vector<TRegularUserFile> MapperFiles;
     std::vector<TUserTableFile> MapperTableFiles;
 
+    std::vector<TRegularUserFile> MonsterFiles;
+    std::vector<TUserTableFile> MonsterTableFiles;
+
     std::vector<TRegularUserFile> ReducerFiles;
     std::vector<TUserTableFile> ReducerTableFiles;
 
@@ -2160,6 +2163,13 @@ private:
                 result.push_back(std::make_pair(path, EOperationStage::Map));
             }
         }
+
+        if (Spec->Monster) {
+            FOREACH (const auto& path, Spec->Monster->FilePaths) {
+                result.push_back(std::make_pair(path, EOperationStage::Monster));
+            }
+        }
+
         FOREACH (const auto& path, Spec->Reducer->FilePaths) {
             result.push_back(std::make_pair(path, EOperationStage::Reduce));
         }
@@ -2174,18 +2184,40 @@ private:
             return;
 
         FOREACH (const auto& file, RegularFiles) {
-            if (file.Stage == EOperationStage::Map) {
+            switch (file.Stage) {
+            case EOperationStage::Map:
                 MapperFiles.push_back(file);
-            } else {
+                break;
+
+            case EOperationStage::Monster:
+                MonsterFiles.push_back(file);
+                break;
+
+            case EOperationStage::Reduce:
                 ReducerFiles.push_back(file);
+                break;
+
+            default:
+                YUNREACHABLE();
             }
         }
 
         FOREACH (const auto& file, TableFiles) {
-            if (file.Stage == EOperationStage::Map) {
+            switch (file.Stage) {
+            case EOperationStage::Map:
                 MapperTableFiles.push_back(file);
-            } else {
+                break;
+
+            case EOperationStage::Monster:
+                MonsterTableFiles.push_back(file);
+                break;
+
+            case EOperationStage::Reduce:
                 ReducerTableFiles.push_back(file);
+                break;
+
+            default:
+                YUNREACHABLE();
             }
         }
 
@@ -2294,15 +2326,26 @@ private:
         }
 
         {
-            IntermediateSortJobSpecTemplate.set_type(EJobType::PartitionSort);
             auto* schedulerJobSpecExt = IntermediateSortJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-            auto* sortJobSpecExt = IntermediateSortJobSpecTemplate.MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
-
             schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
             ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(IntermediateSortJobIOConfig).Data());
 
-            ToProto(sortJobSpecExt->mutable_key_columns(), Spec->SortBy);
+            if (Spec->Monster) {
+                IntermediateSortJobSpecTemplate.set_type(EJobType::PartitionReduce);
+                auto* reduceJobSpecExt = IntermediateSortJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
+                ToProto(reduceJobSpecExt->mutable_key_columns(), Spec->SortBy);
+
+                InitUserJobSpecTemplate(
+                    reduceJobSpecExt->mutable_reducer_spec(),
+                    Spec->Monster,
+                    MonsterFiles,
+                    MonsterTableFiles);
+            } else {
+                IntermediateSortJobSpecTemplate.set_type(EJobType::PartitionSort);
+                auto* sortJobSpecExt = IntermediateSortJobSpecTemplate.MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
+                ToProto(sortJobSpecExt->mutable_key_columns(), Spec->SortBy);
+            }
         }
 
         {
@@ -2546,8 +2589,8 @@ private:
         TSortControllerBase::BuildProgressYson(consumer);
         BuildYsonMapFluently(consumer)
             .Do(BIND(&TMapReduceController::BuildPartitionsProgressYson, Unretained(this)))
-            .Item("map_jobs").Value(PartitionJobCounter)
-            .Item("sort_jobs").Value(IntermediateSortJobCounter)
+            .Item(Spec->Mapper ? "partition_jobs" : "map_jobs").Value(PartitionJobCounter)
+            .Item(Spec->Monster ? "monster_jobs" : "sort_jobs").Value(IntermediateSortJobCounter)
             .Item("partition_reduce_jobs").Value(FinalSortJobCounter)
             .Item("sorted_reduce_jobs").Value(SortedMergeJobCounter);
     }

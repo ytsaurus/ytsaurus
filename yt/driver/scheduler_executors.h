@@ -132,6 +132,8 @@ private:
     TCLAP::MultiArg<NYPath::TRichYPath> OutArg;
     TCLAP::ValueArg<Stroka> MapperCommandArg;
     TCLAP::MultiArg<NYPath::TRichYPath> MapperFileArg;
+    TCLAP::ValueArg<Stroka> MonsterCommandArg;
+    TCLAP::MultiArg<NYPath::TRichYPath> MonsterFileArg;
     TCLAP::ValueArg<Stroka> ReducerCommandArg;
     TCLAP::MultiArg<NYPath::TRichYPath> ReducerFileArg;
     TCLAP::ValueArg<Stroka> SortByArg;

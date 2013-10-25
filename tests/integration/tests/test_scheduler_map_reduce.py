@@ -85,9 +85,16 @@ Wish you were here.
                        sort_by='word',
                        mapper_command='python mapper.py',
                        mapper_file=['//tmp/mapper.py', '//tmp/yt_streaming.py'],
+                       monster_command='python reducer.py',
+                       monster_file=['//tmp/reducer.py', '//tmp/yt_streaming.py'],
                        reducer_command='python reducer.py',
                        reducer_file=['//tmp/reducer.py', '//tmp/yt_streaming.py'],
-                       opt=['/spec/partition_count=2', '/spec/mapper/format=dsv', '/spec/reducer/format=dsv'],
+                       opt=['/spec/partition_count=2', 
+                            '/spec/map_job_count=2', 
+                            '/spec/mapper/format=dsv', 
+                            '/spec/monster/format=dsv', 
+                            '/spec/reducer/format=dsv',
+                            '/spec/data_size_per_sort_job=10'],
                        tx=tx)
         elif method == 'map_reduce_1p':
             map_reduce(in_='//tmp/t_in',
@@ -99,6 +106,22 @@ Wish you were here.
                        reducer_file=['//tmp/reducer.py', '//tmp/yt_streaming.py'],
                        opt=['/spec/partition_count=1', '/spec/mapper/format=dsv', '/spec/reducer/format=dsv'],
                        tx=tx)
+        elif method == 'monster_dev_null':
+            map_reduce(in_='//tmp/t_in',
+                       out='//tmp/t_out',
+                       sort_by='word',
+                       mapper_command='python mapper.py',
+                       mapper_file=['//tmp/mapper.py', '//tmp/yt_streaming.py'],
+                       monster_command='cat >/dev/null',
+                       reducer_command='python reducer.py',
+                       reducer_file=['//tmp/reducer.py', '//tmp/yt_streaming.py'],
+                       opt=['/spec/partition_count=2', 
+                            '/spec/map_job_count=2', 
+                            '/spec/mapper/format=dsv', 
+                            '/spec/monster/format=dsv', 
+                            '/spec/reducer/format=dsv',
+                            '/spec/data_size_per_sort_job=10'],
+                       tx=tx)
 
         commit_transaction(tx)
 
@@ -108,10 +131,12 @@ Wish you were here.
             expected[word] += 1
 
         output = []
-        for word, count in expected.items():
-            output.append( {'word': word, 'count': str(count)} )
-
-        self.assertItemsEqual(read('//tmp/t_out'), output)
+        if method != "monster_dev_null":
+            for word, count in expected.items():
+                output.append( {'word': word, 'count': str(count)} )
+            self.assertItemsEqual(read('//tmp/t_out'), output)
+        else:
+            self.assertItemsEqual(read('//tmp/t_out'), output)
 
     @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
     def test_map_sort_reduce(self):
@@ -124,6 +149,10 @@ Wish you were here.
     @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
     def test_map_reduce_1partition(self):
         self.do_run_test('map_reduce_1p')
+
+    @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
+    def test_map_reduce_monster_dev_null(self):
+        self.do_run_test('monster_dev_null')
 
     @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
     def test_many_output_tables(self):

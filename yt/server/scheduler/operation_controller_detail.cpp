@@ -419,6 +419,7 @@ void TOperationControllerBase::TTask::FinishInput()
 
     GetChunkPoolInput()->Finish();
     AddPendingHint();
+    CheckCompleted();
 }
 
 void TOperationControllerBase::TTask::CheckCompleted()
@@ -778,7 +779,8 @@ void TOperationControllerBase::TTask::AddFinalOutputSpecs(
 
 void TOperationControllerBase::TTask::AddIntermediateOutputSpec(
     TJobSpec* jobSpec,
-    TJobletPtr joblet)
+    TJobletPtr joblet,
+    TNullable<TKeyColumns> keyColumns)
 {
     YCHECK(joblet->ChunkListIds.size() == 1);
     auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
@@ -788,6 +790,7 @@ void TOperationControllerBase::TTask::AddIntermediateOutputSpec(
     options->ChunksVital = false;
     options->ReplicationFactor = 1;
     options->CompressionCodec = Controller->Spec->IntermediateCompressionCodec;
+    options->KeyColumns = keyColumns;
     outputSpec->set_table_writer_options(ConvertToYsonString(options).Data());
     ToProto(outputSpec->mutable_chunk_list_id(), joblet->ChunkListIds[0]);
 }

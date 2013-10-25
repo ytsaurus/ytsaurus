@@ -244,6 +244,7 @@ protected:
     //! Values must be contiguous.
     DECLARE_ENUM(EOperationStage,
         (Map)
+        (Monster)
         (Reduce)
     );
 
@@ -483,7 +484,10 @@ protected:
             TNullable<int> partitionTag);
 
         void AddFinalOutputSpecs(NJobTrackerClient::NProto::TJobSpec* jobSpec, TJobletPtr joblet);
-        void AddIntermediateOutputSpec(NJobTrackerClient::NProto::TJobSpec* jobSpec, TJobletPtr joblet);
+        void AddIntermediateOutputSpec(
+            NJobTrackerClient::NProto::TJobSpec* jobSpec,
+            TJobletPtr joblet,
+            TNullable<NTableClient::TKeyColumns> keyColumns);
 
         static void UpdateInputSpecTotals(
             NJobTrackerClient::NProto::TJobSpec* jobSpec,
