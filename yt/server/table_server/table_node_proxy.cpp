@@ -258,6 +258,8 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
         THROW_ERROR_EXCEPTION("Table is not sorted");
     }
 
+    ToProto(response->mutable_table_id(), impl->GetId());
+
     auto* protoSchema = response->mutable_schema();
     // TODO(babenko)
 
