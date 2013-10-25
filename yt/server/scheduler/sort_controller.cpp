@@ -2415,7 +2415,12 @@ private:
 
             case EJobType::PartitionReduce: {
                 auto* jobSpecExt = jobSpec->MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
-                InitUserJobSpec(jobSpecExt->mutable_reducer_spec(), joblet, GetPartitionReduceMemoryReserve());
+                // ToDo(psushin): distinguish between monster and reducer for memory reserve.
+                auto memoryReserve = GetPartitionReduceMemoryReserve();
+                if (Spec->Monster) {
+                    memoryReserve = std::max(memoryReserve, GetMonsterMemoryReserve());
+                }
+                InitUserJobSpec(jobSpecExt->mutable_reducer_spec(), joblet, memoryReserve);
                 break;
             }
 
@@ -2487,11 +2492,12 @@ private:
         TNodeResources result;
         result.set_user_slots(1);
         if (IsSortedMergeNeeded(partition)) {
-            result.set_cpu(1);
+            result.set_cpu(Spec->Monster ? Spec->Monster->CpuLimit : 1);
             result.set_memory(
                 GetSortInputIOMemorySize(stat) +
                 GetIntermediateOutputIOMemorySize(IntermediateSortJobIOConfig) +
                 GetSortBuffersMemorySize(stat) +
+                (Spec->Monster ? GetMonsterMemoryReserve() : 0) +
                 GetFootprintMemorySize());
         } else {
             result.set_cpu(Spec->Reducer->CpuLimit);
@@ -2533,6 +2539,11 @@ private:
     i64 GetMapMemoryReserve() const
     {
         return GetMemoryReserve(PartitionJobCounter, Spec->Mapper);
+    }
+
+    i64 GetMonsterMemoryReserve() const
+    {
+        return GetMemoryReserve(IntermediateSortJobCounter, Spec->Monster);
     }
 
     i64 GetPartitionReduceMemoryReserve() const
