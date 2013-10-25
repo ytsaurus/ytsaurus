@@ -403,7 +403,7 @@ void TTableChunkWriter::OnFinalBlocksWritten(TError error)
         SetProtoExtension(Meta.mutable_extensions(), BoundaryKeysExt);
         {
             NProto::TKeyColumnsExt keyColumnsExt;
-            ToProto(keyColumnsExt.mutable_values(), Options->KeyColumns.Get());
+            ToProto(keyColumnsExt.mutable_names(), Options->KeyColumns.Get());
             SetProtoExtension(Meta.mutable_extensions(), keyColumnsExt);
         }
     }

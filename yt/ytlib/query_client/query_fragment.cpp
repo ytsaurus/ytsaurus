@@ -187,14 +187,14 @@ public:
 
         {
             auto it = std::find_if(
-                keyColumns.values().begin(),
-                keyColumns.values().end(),
+                keyColumns.names().begin(),
+                keyColumns.names().end(),
                 [&expr] (const Stroka& name) {
                     return expr->GetName() == name;
                 });
 
-            if (it != keyColumns.values().end()) {
-                expr->SetKeyIndex(std::distance(keyColumns.values().begin(), it));
+            if (it != keyColumns.names().end()) {
+                expr->SetKeyIndex(std::distance(keyColumns.names().begin(), it));
             } else {
                 expr->SetKeyIndex(-1);
             }

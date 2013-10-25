@@ -276,7 +276,7 @@ void TChunkWriter::DoClose(TAsyncErrorPromise result)
         SetProtoExtension(Meta.mutable_extensions(), IndexExt);
         NTableClient::NProto::TKeyColumnsExt keyColumnsExt;
         for (const auto& index: KeyIndexes) {
-            keyColumnsExt.add_values(InputNameTable->GetName(index));
+            keyColumnsExt.add_names(InputNameTable->GetName(index));
         }
         SetProtoExtension(Meta.mutable_extensions(), keyColumnsExt);
     }

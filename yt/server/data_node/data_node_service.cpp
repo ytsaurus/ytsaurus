@@ -687,7 +687,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetChunkSplits)
         auto chunk = Bootstrap->GetChunkStore()->FindChunk(chunkId);
 
         if (!chunk) {
-            auto error = TError("No such chunk: %s", ~ToString(chunkId));
+            auto error = TError("No such chunk %s", ~ToString(chunkId));
             LOG_ERROR(error);
             ToProto(splittedChunk->mutable_error(), error);
         } else {
@@ -718,7 +718,7 @@ void TDataNodeService::MakeChunkSplits(
     auto chunkId = FromProto<TChunkId>(chunkSpec->chunk_id());
 
     if (!result.IsOK()) {
-        auto error = TError("GetChunkSplits: Error getting meta of chunk %s", ~ToString(chunkId))
+        auto error = TError("Error getting meta of chunk %s", ~ToString(chunkId))
             << result;
         LOG_ERROR(error);
         ToProto(splittedChunk->mutable_error(), error);
@@ -726,7 +726,7 @@ void TDataNodeService::MakeChunkSplits(
     }
 
     if (result.GetValue().type() != EChunkType::Table) {
-        auto error =  TError("GetChunkSplits: Requested chunk splits for non-table chunk %s",
+        auto error =  TError("Requested chunk splits for non-table chunk %s",
             ~ToString(chunkId));
         LOG_ERROR(error);
         ToProto(splittedChunk->mutable_error(), error);
@@ -743,22 +743,22 @@ void TDataNodeService::MakeChunkSplits(
     }
 
     auto keyColumnsExt = GetProtoExtension<NTableClient::NProto::TKeyColumnsExt>(result.GetValue().extensions());
-    if (keyColumnsExt.values_size() < keyColumns.size()) {
+    if (keyColumnsExt.names_size() < keyColumns.size()) {
         auto error = TError("Not enough key columns in chunk %s: expected %d, actual %d",
             ~ToString(chunkId),
             static_cast<int>(keyColumns.size()),
-            static_cast<int>(keyColumnsExt.values_size()));
+            static_cast<int>(keyColumnsExt.names_size()));
         LOG_ERROR(error);
         ToProto(splittedChunk->mutable_error(), error);
         return;
     }
 
     for (int i = 0; i < keyColumns.size(); ++i) {
-        Stroka value = keyColumnsExt.values(i);
+        const auto& value = keyColumnsExt.names(i);
         if (keyColumns[i] != value) {
             auto error = TError("Invalid key columns: expected %s, actual %s",
-                ~keyColumns[i],
-                ~value);
+                ~keyColumns[i].Quote(),
+                ~value.Quote());
             LOG_ERROR(error);
             ToProto(splittedChunk->mutable_error(), error);
             return;

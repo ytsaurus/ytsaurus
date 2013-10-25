@@ -10,6 +10,7 @@
 #include "table_commands.h"
 #include "scheduler_commands.h"
 #include "query_callbacks_provider.h"
+#include "table_mount_cache.h"
 
 #include <core/actions/invoker_util.h>
 
@@ -87,6 +88,14 @@ public:
         SchedulerChannel = CreateSchedulerChannel(Config->Scheduler, MasterChannel);
 
         BlockCache = CreateClientBlockCache(Config->BlockCache);
+
+        TableMountCache = New<TTableMountCache>(
+            Config->TableMountCache,
+            MasterChannel);
+
+        QueryCallbacksProvider = New<TQueryCallbacksProvider>(
+            MasterChannel,
+            TableMountCache);
 
         // Register all commands.
 #define REGISTER(command, name, inDataType, outDataType, isVolatile, isHeavy) \
@@ -174,9 +183,6 @@ public:
             Config->TransactionManager,
             masterChannel);
 
-        auto queryCallbacksProvider = New<TQueryCallbacksProvider>(
-            masterChannel);
-
         // TODO(babenko): ReadFromFollowers is switched off
         auto context = New<TCommandContext>(
             this,
@@ -185,7 +191,8 @@ public:
             std::move(masterChannel),
             std::move(schedulerChannel),
             std::move(transactionManager),
-            std::move(queryCallbacksProvider));
+            TableMountCache,
+            QueryCallbacksProvider);
 
         auto command = entry.Factory.Run();
 
@@ -253,6 +260,8 @@ private:
     IChannelPtr MasterChannel;
     IChannelPtr SchedulerChannel;
     IBlockCachePtr BlockCache;
+    TTableMountCachePtr TableMountCache;
+    TQueryCallbacksProviderPtr QueryCallbacksProvider;
 
     struct TCommandEntry
     {
@@ -284,6 +293,7 @@ private:
             IChannelPtr masterChannel,
             IChannelPtr schedulerChannel,
             TTransactionManagerPtr transactionManager,
+            TTableMountCachePtr tableMountCache,
             TQueryCallbacksProviderPtr queryCallbacksProvider)
             : Driver(driver)
             , Descriptor(descriptor)
@@ -291,6 +301,7 @@ private:
             , MasterChannel(std::move(masterChannel))
             , SchedulerChannel(std::move(schedulerChannel))
             , TransactionManager(std::move(transactionManager))
+            , TableMountCache(std::move(tableMountCache))
             , QueryCallbacksProvider(std::move(queryCallbacksProvider))
             , SyncInputStream(CreateSyncInputStream(request.InputStream))
             , SyncOutputStream(CreateSyncOutputStream(request.OutputStream))
@@ -394,6 +405,7 @@ private:
         IChannelPtr MasterChannel;
         IChannelPtr SchedulerChannel;
         TTransactionManagerPtr TransactionManager;
+        TTableMountCachePtr TableMountCache;
         TQueryCallbacksProviderPtr QueryCallbacksProvider;
 
         TNullable<TFormat> InputFormat;

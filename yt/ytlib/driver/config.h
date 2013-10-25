@@ -21,6 +21,22 @@ namespace NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTableMountCacheConfig
+    : public TYsonSerializable
+{
+public:
+    TDuration SuccessExpirationTime;
+    TDuration FailureExpirationTime;
+
+    TTableMountCacheConfig()
+    {
+        RegisterParameter("success_expiration_time", SuccessExpirationTime)
+            .Default(TDuration::Seconds(60));
+        RegisterParameter("failure_expiration_time", FailureExpirationTime)
+            .Default(TDuration::Seconds(5));
+    }
+};
+
 class TDriverConfig
     : public TYsonSerializable
 {
@@ -33,6 +49,7 @@ public:
     NTableClient::TTableReaderConfigPtr TableReader;
     NTableClient::TTableWriterConfigPtr TableWriter;
     NChunkClient::TClientBlockCacheConfigPtr BlockCache;
+    TTableMountCacheConfigPtr TableMountCache;
     bool ReadFromFollowers;
     i64 ReadBufferSize;
     int HeavyPoolSize;
@@ -53,6 +70,8 @@ public:
         RegisterParameter("table_writer", TableWriter)
             .DefaultNew();
         RegisterParameter("block_cache", BlockCache)
+            .DefaultNew();
+        RegisterParameter("table_mount_cache", TableMountCache)
             .DefaultNew();
         RegisterParameter("read_from_followers", ReadFromFollowers)
             .Describe("Enable read-only requests to followers")

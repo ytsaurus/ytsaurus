@@ -1,5 +1,7 @@
 #pragma once
 
+#include "public.h"
+
 #include <yt/ytlib/query_client/public.h>
 
 #include <core/rpc/public.h>
@@ -13,7 +15,9 @@ class TQueryCallbacksProvider
     : public TRefCounted
 {
 public:
-    explicit TQueryCallbacksProvider(NRpc::IChannelPtr masterChannel);
+    TQueryCallbacksProvider(
+    	NRpc::IChannelPtr masterChannel,
+    	TTableMountCachePtr tableMountCache);
     ~TQueryCallbacksProvider();
 
     NQueryClient::IPrepareCallbacks* GetPrepareCallbacks();
@@ -24,8 +28,6 @@ private:
     TIntrusivePtr<TImpl> Impl_;
 
 };
-
-typedef TIntrusivePtr<TQueryCallbacksProvider> TQueryCallbacksProviderPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 

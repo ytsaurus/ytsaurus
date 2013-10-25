@@ -267,17 +267,18 @@ private:
             chunkReader->KeyColumnsExt = GetProtoExtension<NProto::TKeyColumnsExt>(
                 chunkMeta.extensions());
 
-            YCHECK(chunkReader->KeyColumnsExt.values_size() > 0);
-            for (int i = 0; i < chunkReader->KeyColumnsExt.values_size(); ++i) {
-                const auto& column = chunkReader->KeyColumnsExt.values(i);
+            YCHECK(chunkReader->KeyColumnsExt.names_size() > 0);
+            for (int i = 0; i < chunkReader->KeyColumnsExt.names_size(); ++i) {
+                const auto& column = chunkReader->KeyColumnsExt.names(i);
                 Channel.AddColumn(column);
                 auto& columnInfo = chunkReader->ColumnsMap[TStringBuf(column)];
                 columnInfo.KeyIndex = i;
-                if (chunkReader->Channel.Contains(column))
+                if (chunkReader->Channel.Contains(column)) {
                     columnInfo.InChannel = true;
+                }
             }
 
-            chunkReader->CurrentKey.ClearAndResize(chunkReader->KeyColumnsExt.values_size());
+            chunkReader->CurrentKey.ClearAndResize(chunkReader->KeyColumnsExt.names_size());
         }
 
         if (HasRangeRequest) {

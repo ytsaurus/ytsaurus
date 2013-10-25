@@ -1,4 +1,5 @@
 #include "query_callbacks_provider.h"
+#include "table_mount_cache.h"
 #include "private.h"
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
@@ -45,13 +46,15 @@ class TQueryCallbacksProvider::TImpl
     , public ICoordinateCallbacks
 {
 public:
-    TImpl(IChannelPtr masterChannel)
+    TImpl(
+    	IChannelPtr masterChannel,
+    	TTableMountCachePtr tableMountCache)
         : MasterChannel_(masterChannel)
-        , ObjectProxy_(masterChannel) // TODO(sandello@): Configure proxy timeout.
+        , ObjectProxy_(masterChannel)
+        // TODO(sandello@): Configure proxy timeout.
+        // TODO(babenko): no need, IChannel has the (proper!) default one
+        , TableMountCache_(std::move(tableMountCache))
         , NodeDirectory_(New<TNodeDirectory>())
-    { }
-
-    ~TImpl()
     { }
 
     virtual TFuture<TErrorOr<TDataSplit>> GetInitialSplit(const TYPath& path) override
@@ -79,55 +82,25 @@ public:
     }
 
 private:
-    TErrorOr<TDataSplit> DoGetInitialSplit(const Stroka& path)
+    TErrorOr<TDataSplit> DoGetInitialSplit(const TYPath& path)
     {
         typedef NTableClient::NProto::TKeyColumnsExt TProtoKeyColumns;
         typedef NVersionedTableClient::NProto::TTableSchemaExt TProtoTableSchema;
 
-        LOG_DEBUG("Getting attributes for table %s", ~path);
-
-        auto req = TYPathProxy::Get(path);
-        // TODO(sandello): Wrap in transaction.
-        TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly);
-        attributeFilter.Keys.push_back("id");
-        attributeFilter.Keys.push_back("sorted");
-        attributeFilter.Keys.push_back("sorted_by");
-        attributeFilter.Keys.push_back("schema");
-        ToProto(req->mutable_attribute_filter(), attributeFilter);
-
-        auto rsp = WaitFor(ObjectProxy_.Execute(req));
-        if (!rsp->IsOK()) {
-            auto error = TError("Error getting table attributes") << rsp->GetError();
-            LOG_DEBUG(error);
-            return error;
-        }
-
-        auto node = ConvertToNode(TYsonString(rsp->value()));
-        const auto& attributes = node->Attributes();
+        auto asyncInfoOrError = TableMountCache_->Lookup(path);
+        auto infoOrError = WaitFor(asyncInfoOrError);
+        THROW_ERROR_EXCEPTION_IF_FAILED(infoOrError);
+        const auto& info = infoOrError.GetValue();
 
         TDataSplit result;
-        ToProto(
-            result.mutable_chunk_id(),
-            attributes.Get<TObjectId>("id"));
+
+        ToProto(result.mutable_chunk_id(), info->TableId); /// TODO(babenko): WTF? table_id != chunk_id!
 
         TProtoKeyColumns protoKeyColumns;
-        if (attributes.Get<bool>("sorted")) {
-            ToProto(
-                protoKeyColumns.mutable_values(),
-                attributes.Get<std::vector<Stroka>>("sorted_by"));
-        }
+        ToProto(protoKeyColumns.mutable_names(), info->KeyColumns);
         SetProtoExtension(result.mutable_extensions(), protoKeyColumns);
 
-        auto maybeTableSchema = attributes.Find<TProtoTableSchema>("schema");
-        if (!maybeTableSchema) {
-            auto error = TError("Table %s is missing schema", ~path);
-            LOG_DEBUG(error);
-            return error;
-        }
-
-        SetProtoExtension(result.mutable_extensions(), *maybeTableSchema);
-
-        LOG_DEBUG("Got attributes for table %s", ~path);
+        SetProtoExtension(result.mutable_extensions(), info->Schema);
 
         return result;
     }
@@ -145,13 +118,16 @@ private:
 
     TErrorOr<std::vector<TDataSplit>> DoSplitTableFurther(const TDataSplit& split)
     {
-        auto objectId = FromProto<TObjectId>(split.chunk_id());
-        LOG_DEBUG("Splitting table further into chunks (ObjectId: %s)", ~ToString(objectId));
+        // TODO(babenko): caching?
+
+        auto tableId = FromProto<TObjectId>(split.chunk_id());
+        LOG_DEBUG("Splitting table further into chunks (TableId: %s)",
+            ~ToString(tableId));
 
         typedef NTableClient::NProto::TKeyColumnsExt TProtoKeyColumns;
         typedef NVersionedTableClient::NProto::TTableSchemaExt TProtoTableSchema;
 
-        auto path = FromObjectId(objectId);
+        auto path = FromObjectId(tableId);
         auto req = TTableYPathProxy::Fetch(path);
         auto rsp = WaitFor(ObjectProxy_.Execute(req));
 
@@ -168,6 +144,7 @@ private:
         auto originalTableSchema = GetProtoExtension<TProtoTableSchema>(split.extensions());
 
         for (auto& chunkSpec : chunkSpecs) {
+            // TODO(babenko): why not GetProtoExtension?
             auto keyColumns = FindProtoExtension<TProtoKeyColumns>(chunkSpec.extensions());
             auto tableSchema = FindProtoExtension<TProtoTableSchema>(chunkSpec.extensions());
             // TODO(sandello): One day we should validate consistency.
@@ -184,12 +161,17 @@ private:
 private:
     IChannelPtr MasterChannel_;
     TObjectServiceProxy ObjectProxy_;
+    TTableMountCachePtr TableMountCache_;
     TNodeDirectoryPtr NodeDirectory_;
 
 };
 
-TQueryCallbacksProvider::TQueryCallbacksProvider(IChannelPtr masterChannel)
-    : Impl_(New<TImpl>(std::move(masterChannel)))
+TQueryCallbacksProvider::TQueryCallbacksProvider(
+	IChannelPtr masterChannel,
+	TTableMountCachePtr tableMountCache)
+    : Impl_(New<TImpl>(
+    	std::move(masterChannel),
+    	std::move(tableMountCache)))
 { }
 
 TQueryCallbacksProvider::~TQueryCallbacksProvider()
