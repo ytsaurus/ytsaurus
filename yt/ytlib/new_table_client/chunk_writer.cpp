@@ -233,6 +233,11 @@ TAsyncError TChunkWriter::AsyncClose()
     return result;
 }
 
+i64 TChunkWriter::GetRowIndex() const 
+{
+    return RowIndex;
+}
+
 void TChunkWriter::DoClose(TAsyncErrorPromise result)
 {
     if (CurrentBlock->GetSize() > 0) {

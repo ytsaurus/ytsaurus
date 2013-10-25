@@ -22,6 +22,7 @@ set( HDRS
   ${BASE}/public.h
   ${BASE}/row.h
   ${BASE}/reader.h
+  ${BASE}/writer.h
   ${BASE}/schema.h
 )
 

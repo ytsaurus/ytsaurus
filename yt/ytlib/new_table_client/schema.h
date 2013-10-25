@@ -35,7 +35,7 @@ void Deserialize(TColumnSchema& columnSchema, NYTree::INodePtr node);
 void Serialize(const TTableSchemaExt& tableSchema, NYson::IYsonConsumer* consumer);
 void Deserialize(TTableSchemaExt& tableSchema, NYTree::INodePtr node);
 
-}
+} // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 

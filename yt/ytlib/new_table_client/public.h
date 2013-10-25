@@ -43,6 +43,9 @@ typedef TIntrusivePtr<TChunkWriter> TChunkWriterPtr;
 struct IReader;
 typedef TIntrusivePtr<IReader> IReaderPtr;
 
+struct IWriter;
+typedef TIntrusivePtr<IWriter> IWriterPtr;
+
 class TChunkWriterConfig;
 typedef TIntrusivePtr<TChunkWriterConfig> TChunkWriterConfigPtr;
 

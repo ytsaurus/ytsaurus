@@ -3,8 +3,10 @@
 #include "public.h"
 #include "schema.h"
 #include "config.h"
+#include "writer.h"
 
 #include <ytlib/new_table_client/chunk_meta.pb.h>
+
 #include <ytlib/chunk_client/chunk.pb.h>
 #include <ytlib/chunk_client/public.h>
 
@@ -15,8 +17,9 @@ namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(babenko): consider moving to cpp
 class TChunkWriter
-    : public virtual TRefCounted
+    : public IWriter
 {
 public:
     TChunkWriter(
@@ -24,20 +27,20 @@ public:
         NChunkClient::TEncodingWriterOptionsPtr options,
         NChunkClient::IAsyncWriterPtr asyncWriter);
 
-    void Open(
+    virtual void Open(
         TNameTablePtr nameTable,
         const NProto::TTableSchemaExt& schema,
         const TKeyColumns& keyColumns = TKeyColumns(),
-        ERowsetType type = ERowsetType::Simple);
+        ERowsetType type = ERowsetType::Simple) override;
 
-    void WriteValue(const TRowValue& value);
-    bool EndRow(TTimestamp timestamp = NullTimestamp, bool deleted = false);
+    virtual void WriteValue(const TRowValue& value) override;
+    virtual bool EndRow(TTimestamp timestamp = NullTimestamp, bool deleted = false) override;
 
-    TAsyncError GetReadyEvent();
+    virtual TAsyncError GetReadyEvent() override;
 
-    TAsyncError AsyncClose();
+    virtual TAsyncError AsyncClose() override;
 
-    i64 GetRowIndex() const;
+    virtual i64 GetRowIndex() const override;
 
 private:
     struct TColumnDescriptor

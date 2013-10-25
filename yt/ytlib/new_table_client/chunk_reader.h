@@ -15,8 +15,8 @@ namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Creates reader for new, versioned, chunk format on top of any
-// NChunkClient::IAsyncReader, e.g. TMemoryReader, TReplicationReader etc.
+//! Creates a reader for new, versioned, chunk format on top of any
+//! NChunkClient::IAsyncReader, e.g. TMemoryReader, TReplicationReader etc.
 IReaderPtr CreateChunkReader(
     TChunkReaderConfigPtr config,
     NChunkClient::IAsyncReaderPtr asyncReader,
@@ -26,8 +26,8 @@ IReaderPtr CreateChunkReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Creates universal reader for any chunk, of any format, no matter local or remote
-// it is. Should be particularly handy for reading old chunks.
+//! Creates a universal reader for any chunk, of any format, no matter local or remote
+//! it is. Should be particularly handy for reading old chunks.
 IReaderPtr CreateChunkReader(
     TChunkReaderConfigPtr config,
     const NChunkClient::NProto::TChunkSpec& chunkSpec,
