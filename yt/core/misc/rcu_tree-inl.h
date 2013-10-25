@@ -110,9 +110,9 @@ void TRcuTree<TKey, TComparer>::Rebalance(TNode* x)
             } else {
                 if (x == p->Left) {
                     //        q                     p'
-                    //       / \                   / \
+                    //       / \                   / \ 
                     //      p   d       =>        x   q'
-                    //     / \                       / \
+                    //     / \                       / \ 
                     //    x   c                     c   d
 
                     auto* c = p->Right;
@@ -139,11 +139,11 @@ void TRcuTree<TKey, TComparer>::Rebalance(TNode* x)
                     break;
                 } else {
                     //        q                     q
-                    //       / \                   / \
+                    //       / \                   / \ 
                     //      p   d       =>        x'  d
-                    //     / \                   / \
+                    //     / \                   / \ 
                     //    a   x                 p'  c
-                    //       / \               / \
+                    //       / \               / \ 
                     //      b   c             a   b
 
                     auto* a = p->Left;
@@ -210,11 +210,11 @@ void TRcuTree<TKey, TComparer>::Rebalance(TNode* x)
                     break;
                 } else {
                     //        q                     q
-                    //       / \                   / \
+                    //       / \                   / \ 
                     //      a   p       =>        a   x'
-                    //         / \                   / \
+                    //         / \                   / \ 
                     //        x   d                 b   p'
-                    //       / \                       / \
+                    //       / \                       / \ 
                     //      b   c                     c   d
 
                     auto* b = x->Left;
