@@ -43,7 +43,7 @@ struct IAsyncWriter
 
     //! Return indices of alive nodes.
     /*!
-     * Can only be called when the wrtier is successfully closed.
+     * Can only be called when the writer is successfully closed.
      *
      * This method used in replictaion writer and unimplemented in other cases.
      */
