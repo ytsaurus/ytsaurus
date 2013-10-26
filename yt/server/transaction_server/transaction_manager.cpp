@@ -677,7 +677,7 @@ void TTransactionManager::OnTransactionExpired(const TTransactionId& id)
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     auto* transaction = FindTransaction(id);
-    if (!transaction || !transaction->IsActive())
+    if (!IsObjectAlive(transaction) || !transaction->IsActive())
         return;
 
     LOG_INFO("Transaction lease expired (TransactionId: %s)", ~ToString(id));
