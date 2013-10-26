@@ -49,7 +49,7 @@ message TRspGetMountInfo
     required NYT.NProto.TGuid table_id = 1;
     required NYT.NVersionedTableClient.NProto.TTableSchemaExt schema = 2;
     required NYT.NVersionedTableClient.NProto.TKeyColumnsExt key_columns = 3;
-    repeated TTabletInfo tablets = 4;
+    optional TTabletInfo tablet = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -270,7 +270,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
     auto* tablet = impl->GetTablet();
     if (tablet) {
         auto* cell = tablet->GetCell();
-        auto* protoTablet = response->add_tablets();
+        auto* protoTablet = response->mutable_tablet();
         ToProto(protoTablet->mutable_tablet_id(), tablet->GetId());
         ToProto(protoTablet->mutable_cell_id(), cell->GetId());
         protoTablet->mutable_cell_config()->CopyFrom(cell->Config());
