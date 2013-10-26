@@ -50,6 +50,8 @@ struct TTransactionAttachOptions
 /*!
  *  Provides a factory for all client-side transactions.
  *  Keeps track of all active transactions and sends pings to master servers periodically.
+ *
+ * /note Thread affinity: any
  */
 class TTransactionManager
     : public virtual TRefCounted
@@ -75,11 +77,10 @@ public:
      *
      *  \note
      *  This call does not block.
-     *  Thread affinity: any.
      */
     TFuture<TErrorOr<ITransactionPtr>> AsyncStart(const TTransactionStartOptions& options);
     
-    //! Synchronous version of start transaction
+    //! Synchronous version of #AsyncStart.
     ITransactionPtr Start(const TTransactionStartOptions& options);
 
     //! Attaches to an existing transaction.
@@ -94,8 +95,7 @@ public:
      *  the leases of all ancestors of this transaction.
      *
      *  \note
-     *  This call may block.
-     *  Thread affinity: any.
+     *  This call does not block.
      */
     ITransactionPtr Attach(const TTransactionAttachOptions& options);
 
