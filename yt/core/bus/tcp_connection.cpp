@@ -612,7 +612,7 @@ bool TTcpConnection::CheckReadError(ssize_t result)
                 NRpc::EErrorCode::TransportError,
                 "Socket read error")
                 << TError::FromSystem(error);
-            LOG_WARNING(wrappedError);
+            LOG_DEBUG(wrappedError);
             SyncClose(wrappedError);
         }
         return false;
