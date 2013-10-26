@@ -30,6 +30,10 @@
 
 #include <ytlib/election/cell_manager.h>
 
+#include <ytlib/hive/config.h>
+#include <ytlib/hive/timestamp_provider.h>
+#include <ytlib/hive/remote_timestamp_provider.h>
+
 #include <server/hydra/changelog.h>
 #include <server/hydra/file_changelog.h>
 #include <server/hydra/snapshot.h>
@@ -38,6 +42,8 @@
 #include <server/hive/hive_manager.h>
 #include <server/hive/cell_directory.h>
 #include <server/hive/timestamp_manager.h>
+#include <server/hive/transaction_manager.h>
+#include <server/hive/transaction_supervisor.h>
 
 #include <server/node_tracker_server/node_tracker.h>
 
@@ -280,6 +286,17 @@ void TBootstrap::Run()
         RpcServer,
         MetaStateFacade->GetManager(),
         MetaStateFacade->GetAutomaton());
+    auto timestampProvider = CreateRemoteTimestampProvider(
+        Config->TimestampProvider);
+    auto transactionSupervisor = New<TTransactionSupervisor>(
+        Config->TransactionSupervisor,
+        MetaStateFacade->GetInvoker(),
+        RpcServer,
+        MetaStateFacade->GetManager(),
+        MetaStateFacade->GetAutomaton(),
+        HiveManager,
+        nullptr, //TODO(babenko)
+        timestampProvider);
 
     HiveManager->Start();
 

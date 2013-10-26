@@ -70,6 +70,10 @@ public:
 
     NHive::TTimestampManagerConfigPtr TimestampManager;
 
+    NHive::TRemoteTimestampProviderConfigPtr TimestampProvider;
+
+    NHive::TTransactionSupervisorConfigPtr TransactionSupervisor;
+
     //! RPC interface port number.
     int RpcPort;
 
@@ -100,6 +104,10 @@ public:
         RegisterParameter("tablet_manager", TabletManager)
             .DefaultNew();
         RegisterParameter("timestamp_manager", TimestampManager)
+            .DefaultNew();
+        RegisterParameter("timestamp_provider", TimestampProvider)
+            .DefaultNew();
+        RegisterParameter("transaction_supervisor", TransactionSupervisor)
             .DefaultNew();
         RegisterParameter("rpc_port", RpcPort)
             .Default(9000);

@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <core/ytree/yson_serializable.h>
+#include <ytlib/hydra/config.h>
 
 namespace NYT {
 namespace NHive {
@@ -10,17 +10,8 @@ namespace NHive {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRemoteTimestampProviderConfig
-    : public TYsonSerializable
-{
-public:
-    TDuration RpcTimeout;
-
-    TRemoteTimestampProviderConfig()
-    {
-        RegisterParameter("rpc_timeout", RpcTimeout)
-            .Default(TDuration::Seconds(5));
-    }
-};
+    : public NHydra::TPeerDiscoveryConfig
+{ };
 
 ////////////////////////////////////////////////////////////////////////////////
 

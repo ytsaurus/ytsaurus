@@ -9,9 +9,7 @@ namespace NHive {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ITimestampProviderPtr CreateRemoteTimestampProvider(
-    TRemoteTimestampProviderConfigPtr config,
-    NRpc::IChannelPtr channel);
+ITimestampProviderPtr CreateRemoteTimestampProvider(TRemoteTimestampProviderConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////
 

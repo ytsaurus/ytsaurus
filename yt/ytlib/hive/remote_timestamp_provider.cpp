@@ -6,10 +6,13 @@
 
 #include <core/concurrency/thread_affinity.h>
 
+#include <ytlib/hydra/peer_channel.h>
+
 namespace NYT {
 namespace NHive {
 
 using namespace NRpc;
+using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -17,11 +20,10 @@ class TRemoteTimestampProvider
     : public ITimestampProvider
 {
 public:
-    TRemoteTimestampProvider(
-        TRemoteTimestampProviderConfigPtr config,
-        IChannelPtr channel)
+    explicit TRemoteTimestampProvider(TRemoteTimestampProviderConfigPtr config)
         : Config(config)
-        , Channel(channel)
+        , Channel(CreatePeerChannel(config, EPeerRole::Leader))
+        , Proxy(Channel)
         , LatestTimestamp(NullTimestamp)
     { }
 
@@ -32,11 +34,7 @@ public:
         TGuard<TSpinLock> guard(Spinlock);
         if (!NewTimestamp) {
             NewTimestamp = NewPromise<TErrorOr<TTimestamp>>();
-
-            TTimestampServiceProxy proxy(Channel);
-            proxy.SetDefaultTimeout(Config->RpcTimeout);
-            
-            auto req = proxy.GetTimestamp();
+            auto req = Proxy.GetTimestamp();
             req->Invoke().Subscribe(
                 BIND(&TRemoteTimestampProvider::OnGetTimestampResponse, MakeStrong(this)));
         }
@@ -53,7 +51,9 @@ public:
 
 private:
     TRemoteTimestampProviderConfigPtr Config;
+
     IChannelPtr Channel;
+    TTimestampServiceProxy Proxy;
 
     TSpinLock Spinlock;
     TTimestamp LatestTimestamp;
@@ -72,11 +72,9 @@ private:
 
 };
 
-ITimestampProviderPtr CreateRemoteTimestampProvider(
-    TRemoteTimestampProviderConfigPtr config,
-    IChannelPtr channel)
+ITimestampProviderPtr CreateRemoteTimestampProvider(TRemoteTimestampProviderConfigPtr config)
 {
-    return New<TRemoteTimestampProvider>(config, channel);
+    return New<TRemoteTimestampProvider>(config);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

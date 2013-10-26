@@ -32,7 +32,6 @@ class TTransactionSupervisorConfig
     : public TYsonSerializable
 {
 public:
-
     TTransactionSupervisorConfig()
     {
     }
