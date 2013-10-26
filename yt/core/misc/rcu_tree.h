@@ -208,7 +208,7 @@ private:
 
 
     explicit TReader(TRcuTree* tree)
-        : Tree_(std::move(tree))
+        : Tree_(tree)
         , Comparer_(Tree_->Comparer_)
         , Timestamp_(InactiveReaderTimestamp)
         , StackTop_(Stack_.data() - 1)
