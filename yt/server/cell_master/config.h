@@ -68,6 +68,8 @@ public:
 
     NTabletServer::TTabletManagerConfigPtr TabletManager;
 
+    NHive::TTimestampManagerConfigPtr TimestampManager;
+
     //! RPC interface port number.
     int RpcPort;
 
@@ -96,6 +98,8 @@ public:
         RegisterParameter("security_manager", SecurityManager)
             .DefaultNew();
         RegisterParameter("tablet_manager", TabletManager)
+            .DefaultNew();
+        RegisterParameter("timestamp_manager", TimestampManager)
             .DefaultNew();
         RegisterParameter("rpc_port", RpcPort)
             .Default(9000);

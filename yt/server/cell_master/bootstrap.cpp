@@ -37,6 +37,7 @@
 
 #include <server/hive/hive_manager.h>
 #include <server/hive/cell_directory.h>
+#include <server/hive/timestamp_manager.h>
 
 #include <server/node_tracker_server/node_tracker.h>
 
@@ -273,6 +274,12 @@ void TBootstrap::Run()
     CypressManager = New<TCypressManager>(Config->CypressManager, this);
     ChunkManager = New<TChunkManager>(Config->ChunkManager, this);
     TabletManager = New<TTabletManager>(Config->TabletManager, this);
+    auto timestampManager = New<TTimestampManager>(
+        Config->TimestampManager,
+        MetaStateFacade->GetInvoker(),
+        RpcServer,
+        MetaStateFacade->GetManager(),
+        MetaStateFacade->GetAutomaton());
 
     HiveManager->Start();
 
