@@ -51,8 +51,6 @@ public:
         TTableMountCachePtr tableMountCache)
         : MasterChannel_(masterChannel)
         , ObjectProxy_(masterChannel)
-        // TODO(sandello@): Configure proxy timeout.
-        // TODO(babenko): no need, IChannel has the (proper!) default one
         , TableMountCache_(std::move(tableMountCache))
         , NodeDirectory_(New<TNodeDirectory>())
     { }
