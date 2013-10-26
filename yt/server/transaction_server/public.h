@@ -5,6 +5,8 @@
 
 #include <ytlib/object_client/public.h>
 
+#include <ytlib/new_table_client/public.h>
+
 namespace NYT {
 namespace NTransactionServer {
 
@@ -23,6 +25,9 @@ typedef TIntrusivePtr<TTransactionManagerConfig> TTransactionManagerConfigPtr;
 
 using NObjectClient::TTransactionId;
 using NObjectClient::NullTransactionId;
+
+using NVersionedTableClient::TTimestamp;
+using NVersionedTableClient::NullTimestamp;
 
 ////////////////////////////////////////////////////////////////////////////////
 

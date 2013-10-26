@@ -4,6 +4,8 @@
 
 #include <ytlib/election/config.h>
 
+#include <ytlib/hive/config.h>
+
 #include <server/hydra/config.h>
 
 #include <server/hive/config.h>

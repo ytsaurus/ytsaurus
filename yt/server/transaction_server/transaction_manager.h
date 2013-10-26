@@ -12,6 +12,8 @@
 #include <server/hydra/mutation.h>
 #include <server/hydra/entity_map.h>
 
+#include <server/hive/transaction_manager.h>
+
 #include <server/object_server/public.h>
 
 #include <server/cell_master/automaton.h>
@@ -27,6 +29,7 @@ namespace NTransactionServer {
 
 class TTransactionManager
     : public NCellMaster::TMasterAutomatonPart
+    , public NHive::ITransactionManager
 {
     //! Raised when a new transaction is started.
     DEFINE_SIGNAL(void(TTransaction*), TransactionStarted);
@@ -111,6 +114,23 @@ private:
     virtual void Clear() override;
 
     TDuration GetActualTimeout(TNullable<TDuration> timeout);
+
+    // ITransactionManager overrides
+    virtual TTransactionId StartTransaction(
+        const TTransactionId& transactionId,
+        TTimestamp startTimestamp,
+        const TTransactionId& parentTransactionId,
+        NYTree::IAttributeDictionary* attributes,
+        const TNullable<TDuration>& timeout) override;
+    virtual void PrepareTransactionCommit(
+        const TTransactionId& transactionId,
+        bool persistent,
+        TTimestamp prepareTimestamp) override;
+    virtual void CommitTransaction(
+        const TTransactionId& transactionId,
+        TTimestamp commitTimestamp) override;
+    virtual void AbortTransaction(const TTransactionId& transactionId) override;
+    virtual void PingTransaction(const TTransactionId& transactionId) override;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 

@@ -737,6 +737,57 @@ void TTransactionManager::StageNode(TTransaction* transaction, TCypressNodeBase*
     objectManager->RefObject(node);
 }
 
+TTransactionId TTransactionManager::StartTransaction(
+    const TTransactionId& transactionId,
+    TTimestamp startTimestamp,
+    const TTransactionId& parentTransactionId,
+    IAttributeDictionary* attributes,
+    const TNullable<TDuration>& timeout)
+{
+    if (transactionId != NullTransactionId) {
+        THROW_ERROR_EXCEPTION("Cannot start an external transaction at master");
+    }
+
+    auto* parent = parentTransactionId == NullTransactionId ? nullptr : GetTransactionOrThrow(parentTransactionId);
+    auto* transaction = StartTransaction(parent, timeout);
+    if (attributes) {
+        auto objectManager = Bootstrap->GetObjectManager();
+        auto* attributeSet = objectManager->GetOrCreateAttributes(TVersionedObjectId(transaction->GetId()));
+        for (const auto& key : attributes->List()) {
+            attributeSet->Attributes().insert(std::make_pair(key, attributes->GetYson(key)));
+        }
+    }
+    return transaction->GetId();
+}
+
+void TTransactionManager::PrepareTransactionCommit(
+    const TTransactionId& transactionId,
+    bool persistent,
+    TTimestamp prepareTimestamp)
+{
+    // TODO(babenko): implement!
+}
+
+void TTransactionManager::CommitTransaction(
+    const TTransactionId& transactionId,
+    TTimestamp /*commitTimestamp*/)
+{
+    auto* transaction = GetTransactionOrThrow(transactionId);
+    CommitTransaction(transaction);
+}
+
+void TTransactionManager::AbortTransaction(const TTransactionId& transactionId)
+{
+    auto* transaction = GetTransactionOrThrow(transactionId);
+    AbortTransaction(transaction);
+}
+
+void TTransactionManager::PingTransaction(const TTransactionId& transactionId)
+{
+    auto* transaction = GetTransactionOrThrow(transactionId);
+    PingTransaction(transaction);
+}
+
 DEFINE_ENTITY_MAP_ACCESSORS(TTransactionManager, Transaction, TTransaction, TTransactionId, TransactionMap)
 
 ////////////////////////////////////////////////////////////////////////////////

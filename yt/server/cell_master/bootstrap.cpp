@@ -30,7 +30,6 @@
 
 #include <ytlib/election/cell_manager.h>
 
-#include <ytlib/hive/config.h>
 #include <ytlib/hive/timestamp_provider.h>
 #include <ytlib/hive/remote_timestamp_provider.h>
 

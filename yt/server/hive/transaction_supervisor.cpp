@@ -657,8 +657,12 @@ private:
         const TTransactionId& transactionId,
         TTimestamp commitTimestamp)
     {
-        // Cannot throw since it has already prepared successfully.
-        TransactionManager->CommitTransaction(transactionId, commitTimestamp);
+        try {
+            // Cannot throw since it has already prepared successfully.
+            TransactionManager->CommitTransaction(transactionId, commitTimestamp);
+        } catch (const std::exception& ex) {
+            LOG_FATAL(ex, "Error committing prepared transaction");
+        }
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Distributed transaction committed (TransactionId: %s, CommitTimestamp: %" PRId64 ")",
             ~ToString(transactionId),
