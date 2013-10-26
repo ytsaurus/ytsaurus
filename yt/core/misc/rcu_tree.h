@@ -240,12 +240,16 @@ private:
 
     static intptr_t LeftChildToToken(TNode* node)
     {
-        return reinterpret_cast<intptr_t>(node) | 1;
+        auto token = reinterpret_cast<intptr_t>(node);
+        YASSERT(token & 1 == 0);
+        return token | 1;
     }
 
     static intptr_t RightChildToToken(TNode* node)
     {
-        return reinterpret_cast<intptr_t>(node);
+        auto token = reinterpret_cast<intptr_t>(node);
+        YASSERT(token & 1 == 0);
+        return token;
     }
 
     static bool IsLeftChild(intptr_t token)
