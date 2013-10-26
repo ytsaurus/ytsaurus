@@ -47,8 +47,8 @@ class TQueryCallbacksProvider::TImpl
 {
 public:
     TImpl(
-    	IChannelPtr masterChannel,
-    	TTableMountCachePtr tableMountCache)
+        IChannelPtr masterChannel,
+        TTableMountCachePtr tableMountCache)
         : MasterChannel_(masterChannel)
         , ObjectProxy_(masterChannel)
         // TODO(sandello@): Configure proxy timeout.
@@ -167,11 +167,11 @@ private:
 };
 
 TQueryCallbacksProvider::TQueryCallbacksProvider(
-	IChannelPtr masterChannel,
-	TTableMountCachePtr tableMountCache)
+    IChannelPtr masterChannel,
+    TTableMountCachePtr tableMountCache)
     : Impl_(New<TImpl>(
-    	std::move(masterChannel),
-    	std::move(tableMountCache)))
+        std::move(masterChannel),
+        std::move(tableMountCache)))
 { }
 
 TQueryCallbacksProvider::~TQueryCallbacksProvider()

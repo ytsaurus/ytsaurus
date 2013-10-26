@@ -16,8 +16,8 @@ class TQueryCallbacksProvider
 {
 public:
     TQueryCallbacksProvider(
-    	NRpc::IChannelPtr masterChannel,
-    	TTableMountCachePtr tableMountCache);
+        NRpc::IChannelPtr masterChannel,
+        TTableMountCachePtr tableMountCache);
     ~TQueryCallbacksProvider();
 
     NQueryClient::IPrepareCallbacks* GetPrepareCallbacks();
