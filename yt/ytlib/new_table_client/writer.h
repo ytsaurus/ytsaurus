@@ -16,7 +16,7 @@ struct IWriter
 {
     virtual void Open(
         TNameTablePtr nameTable,
-        const NProto::TTableSchemaExt& schema,
+        const TTableSchema& schema,
         const TKeyColumns& keyColumns = TKeyColumns(),
         ERowsetType type = ERowsetType::Simple) = 0;
 

@@ -4,6 +4,8 @@
 
 #include <core/misc/nullable.h>
 
+#include <yt/ytlib/new_table_client/chunk_meta.pb.h>
+
 namespace NYT {
 namespace NVersionedTableClient {
 
@@ -17,6 +19,8 @@ public:
     int GetOrRegisterName(const Stroka& name);
 
     TNullable<int> FindIndex(const Stroka& name) const;
+    int GetIndex(const Stroka& name) const;
+
     const Stroka& GetName(int index) const;
 
     int GetNameCount() const;
@@ -27,13 +31,12 @@ private:
     yhash_map<Stroka, int> IndexByName;
     std::vector<Stroka> NameByIndex;
 
+    int DoRegisterName(const Stroka& name);
+
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
-namespace NProto { class TNameTableExt; }
-void ToProto(NProto::TNameTableExt* protoNameTable, const TNameTablePtr& nameTable);
-TNameTablePtr FromProto(const NProto::TNameTableExt& protoNameTable);
+void ToProto(NProto::TNameTableExt* protoNameTable, TNameTablePtr nameTable);
+void FromProto(TNameTablePtr* nameTable, const NProto::TNameTableExt& protoNameTable);
 
 ////////////////////////////////////////////////////////////////////////////////
 

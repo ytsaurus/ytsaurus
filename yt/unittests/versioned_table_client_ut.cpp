@@ -18,8 +18,6 @@ namespace NYT {
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NVersionedTableClient;
-using namespace NVersionedTableClient::NProto;
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -96,20 +94,10 @@ protected:
 
     void PrepareSimple()
     {
-        TTableSchemaExt schema;
-        {
-            auto* column = schema.add_columns();
-            column->set_name("banner");
-            column->set_type(EColumnType::Integer);
-        } {
-            auto* column = schema.add_columns();
-            column->set_name("bid");
-            column->set_type(EColumnType::Double);
-        } {
-            auto* column = schema.add_columns();
-            column->set_name("body");
-            column->set_type(EColumnType::String);
-        }
+        TTableSchema schema;
+        schema.Columns().push_back({ "banner", EColumnType::Integer });
+        schema.Columns().push_back({ "bid", EColumnType::Double });
+        schema.Columns().push_back({ "body", EColumnType::String });
 
         auto nameTable = New<TNameTable>();
         EXPECT_EQ(nameTable->RegisterName("banner"), 0);
@@ -159,12 +147,8 @@ TEST_F(TVersionedTableClientTest, SimpleReadSchemed)
 {
     PrepareSimple();
 
-    TTableSchemaExt schema;
-    {
-        auto* column = schema.add_columns();
-        column->set_name("body");
-        column->set_type(EColumnType::String);
-    }
+    TTableSchema schema;
+    schema.Columns().push_back({ "body", EColumnType::String });
 
     auto nameTable = New<TNameTable>();
     EXPECT_TRUE(ChunkReader->Open(nameTable, schema).Get().IsOK());
@@ -197,16 +181,9 @@ TEST_F(TVersionedTableClientTest, SimpleReadAll)
 {
     PrepareSimple();
 
-    TTableSchemaExt schema;
-    {
-        auto* column = schema.add_columns();
-        column->set_name("body");
-        column->set_type(EColumnType::String);
-    } {
-        auto* column = schema.add_columns();
-        column->set_name("bid");
-        column->set_type(EColumnType::Double);
-    }
+    TTableSchema schema;
+    schema.Columns().push_back({ "body", EColumnType::String });
+    schema.Columns().push_back({ "bid", EColumnType::Double });
 
     auto nameTable = New<TNameTable>();
     EXPECT_TRUE(ChunkReader->Open(nameTable, schema, true).Get().IsOK());
@@ -232,12 +209,8 @@ TEST_F(TVersionedTableClientTest, SimpleReadBadSchema)
 {
     PrepareSimple();
 
-    TTableSchemaExt schema;
-    {
-        auto* column = schema.add_columns();
-        column->set_name("body");
-        column->set_type(EColumnType::Double);
-    }
+    TTableSchema schema;
+    schema.Columns().push_back({ "body", EColumnType::Double });
 
     auto nameTable = New<TNameTable>();
     EXPECT_FALSE(ChunkReader->Open(nameTable, schema).Get().IsOK());

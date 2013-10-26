@@ -19,9 +19,7 @@
 namespace NYT {
 namespace NVersionedTableClient {
 
-using namespace NProto;
 using namespace NChunkClient;
-using namespace NChunkClient::NProto;
 using namespace NConcurrency;
 
 static const int TimestampIndex = 0;
@@ -44,7 +42,7 @@ TChunkWriter::TChunkWriter(
 
 void TChunkWriter::Open(
     TNameTablePtr nameTable,
-    const TTableSchemaExt& schema,
+    const TTableSchema& schema,
     const TKeyColumns& keyColumns,
     ERowsetType rowsetType)
 {
@@ -62,30 +60,38 @@ void TChunkWriter::Open(
     // To ensure proper alignment during reading, move all integer and
     // double columns to the front.
     std::sort(
-        Schema.mutable_columns()->begin(),
-        Schema.mutable_columns()->end(),
+        Schema.Columns().begin(),
+        Schema.Columns().end(),
         [] (const TColumnSchema& lhs, const TColumnSchema& rhs) {
-            return lhs.type() == EColumnType::Integer || lhs.type() == EColumnType::Double;
+            auto isFront = [] (const TColumnSchema& schema) {
+                return schema.Type == EColumnType::Integer || schema.Type == EColumnType::Double;
+            };
+            if (isFront(lhs) && !isFront(rhs)) {
+                return true;
+            }
+            if (!isFront(lhs) && isFront(rhs)) {
+                return false;
+            }
+            return &lhs < &rhs;
         }
     );
 
     ColumnDescriptors.resize(InputNameTable->GetNameCount());
 
-    for (const auto& column: Schema.columns()) {
+    for (const auto& column: Schema.Columns()) {
         TColumnDescriptor descriptor;
         descriptor.IndexInBlock = ColumnSizes.size();
-        descriptor.OutputIndex = OutputNameTable->RegisterName(column.name());
-        descriptor.Type = EColumnType(column.type());
+        descriptor.OutputIndex = OutputNameTable->RegisterName(column.Name);
+        descriptor.Type = column.Type;
 
-        if (column.type() == EColumnType::String || column.type() == EColumnType::Any) {
+        if (column.Type == EColumnType::String || column.Type == EColumnType::Any) {
             ColumnSizes.push_back(4);
         } else {
             ColumnSizes.push_back(8);
         }
 
-        auto index = InputNameTable->FindIndex(column.name());
-        YCHECK(index);
-        ColumnDescriptors[*index] = descriptor;
+        int index = InputNameTable->GetIndex(column.Name);
+        ColumnDescriptors[index] = descriptor;
     }
 
     for (const auto& column: keyColumns) {
@@ -261,13 +267,13 @@ void TChunkWriter::DoClose(TAsyncErrorPromise result)
     Meta.set_version(FormatVersion);
 
     SetProtoExtension(Meta.mutable_extensions(), BlockMetaExt);
-    SetProtoExtension(Meta.mutable_extensions(), Schema);
+    SetProtoExtension(Meta.mutable_extensions(), NYT::ToProto<NProto::TTableSchemaExt>(Schema));
 
-    TNameTableExt nameTableExt;
+    NProto::TNameTableExt nameTableExt;
     ToProto(&nameTableExt, OutputNameTable);
     SetProtoExtension(Meta.mutable_extensions(), nameTableExt);
 
-    TMiscExt miscExt;
+    NChunkClient::NProto::TMiscExt miscExt;
     if (KeyIndexes.empty()) {
         miscExt.set_sorted(false);
     } else {

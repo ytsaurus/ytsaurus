@@ -1,10 +1,9 @@
 #include "stdafx.h"
 #include "schema.h"
 
-#include <ytlib/new_table_client/chunk_meta.pb.h>
+#include <core/ytree/serialize.h>
 
 #include <core/ytree/convert.h>
-#include <core/ytree/node.h>
 
 #include <core/misc/protobuf_helpers.h>
 
@@ -13,67 +12,108 @@ namespace NVersionedTableClient {
 
 using namespace NYTree;
 using namespace NYson;
-using namespace  NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNullable<EColumnType> FindColumnType(
-    const TStringBuf& columnName,
-    const TTableSchemaExt& schema)
+TColumnSchema::TColumnSchema()
+    : Type(EColumnType::Null)
+{ }
+
+TColumnSchema::TColumnSchema( const Stroka& name, EColumnType type )
+    : Name(name)
+    , Type(type)
+{ }
+
+struct TSerializableColumnSchema
+    : public TYsonSerializableLite
+    , public TColumnSchema
 {
-    for (const auto& column: schema.columns()) {
-        if (column.name() == columnName) {
-            return MakeNullable(EColumnType(column.type()));
-        }
+    TSerializableColumnSchema()
+    { }
+
+    explicit TSerializableColumnSchema(const TColumnSchema& other)
+        : TColumnSchema(other)
+    {
+        RegisterParameter("name", Name);
+        RegisterParameter("type", Type);
     }
-    return Null;
+};
+
+void Serialize(const TColumnSchema& schema, IYsonConsumer* consumer)
+{
+    TSerializableColumnSchema wrapper(schema);
+    Serialize(static_cast<const TYsonSerializableLite&>(wrapper), consumer);
 }
 
-TNullable<int> FindColumnIndex(
-    const TStringBuf& columnName,
-    const TTableSchemaExt& schema)
+void Deserialize(TColumnSchema& schema, INodePtr node)
 {
-    for (int index = 0; index < schema.columns_size(); ++index) {
-        if (schema.columns(index).name() == columnName) {
-            return MakeNullable(index);
-        }
-    }
-    return Null;
+    TSerializableColumnSchema wrapper;
+    Deserialize(static_cast<TYsonSerializableLite&>(wrapper), node);
+    // TODO(babenko): we shouldn't be concerned with manual validation here
+    wrapper.Validate();
+    schema = static_cast<TColumnSchema&>(wrapper);
 }
 
-int GetColumnIndex(
-    const TStringBuf& columnName,
-    const TTableSchemaExt& schema)
+void ToProto(NProto::TColumnSchema* protoSchema, const TColumnSchema& schema)
 {
-    auto index = FindColumnIndex(columnName, schema);
-    if (!index) {
-        THROW_ERROR_EXCEPTION("Column \"%s\" not found in schema", columnName);
-    }
-    return *index;
+    protoSchema->set_name(schema.Name);
+    protoSchema->set_type(schema.Type);
+}
+
+void FromProto(TColumnSchema* schema, const NProto::TColumnSchema& protoSchema)
+{
+    schema->Name = protoSchema.name();
+    schema->Type = EColumnType(protoSchema.type());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NProto {
-
-//void Serialize(const TColumnSchema& columnSchema, NYson::IYsonConsumer* consumer);
-
-void Deserialize(TColumnSchema& columnSchema, INodePtr node)
+TColumnSchema* TTableSchema::FindColumn(const TStringBuf& name)
 {
-    columnSchema.set_name(ConvertTo<Stroka>(node->AsMap()->GetChild("name")));
-    columnSchema.set_type(ConvertTo<EColumnType>(node->AsMap()->GetChild("type")));
-}
-
-//void Serialize(const TTableSchema& tableSchema, NYson::IYsonConsumer* consumer);
-
-void Deserialize(TTableSchemaExt& tableSchema, INodePtr node)
-{
-    for (const auto& column: ConvertTo<std::vector<TColumnSchema>>(node)) {
-        *tableSchema.add_columns() = column;
+    for (auto& column : Columns_) {
+        if (column.Name == name) {
+            return &column;
+        }
     }
+    return nullptr;
 }
 
-} // namespace NProto
+TColumnSchema& TTableSchema::GetColumnOrThrow(const TStringBuf& name)
+{
+    auto* column = FindColumn(name);
+    if (!column) {
+        THROW_ERROR_EXCEPTION("Missing schema column %s",
+            ~Stroka(name).Quote());
+    }
+    return *column;
+}
+
+int TTableSchema::GetColumnIndex(const TColumnSchema& column)
+{
+    return &column - Columns().data();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void Serialize(const TTableSchema& schema, IYsonConsumer* consumer)
+{
+    NYTree::Serialize(schema.Columns(), consumer);
+}
+
+void Deserialize(TTableSchema& schema, INodePtr node)
+{
+    NYTree::Deserialize(schema.Columns(), node);
+}
+
+void ToProto(NProto::TTableSchemaExt* protoSchema, const TTableSchema& schema)
+{
+    NYT::ToProto(protoSchema->mutable_columns(), schema.Columns());
+}
+
+void FromProto(TTableSchema* schema, const NProto::TTableSchemaExt& protoSchema)
+{
+    schema->Columns() = NYT::FromProto<TColumnSchema>(protoSchema.columns());
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

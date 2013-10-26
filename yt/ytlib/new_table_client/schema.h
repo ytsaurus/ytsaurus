@@ -2,40 +2,54 @@
 
 #include "public.h"
 
-#include <ytlib/new_table_client/chunk_meta.pb.h>
-
 #include <core/ytree/public.h>
+
 #include <core/yson/public.h>
+
 #include <core/misc/nullable.h>
+#include <core/misc/property.h>
+
+#include <ytlib/new_table_client/chunk_meta.pb.h>
 
 namespace NYT {
 namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNullable<EColumnType> FindColumnType(
-    const TStringBuf& columnName,
-    const NProto::TTableSchemaExt& schema);
+struct TColumnSchema
+{
+    TColumnSchema();
+    TColumnSchema(const Stroka& name, EColumnType type);
 
-TNullable<int> FindColumnIndex(
-    const TStringBuf& columnName,
-    const NProto::TTableSchemaExt& schema);
+    Stroka Name;
+    EColumnType Type;
+};
 
-int GetColumnIndex(
-    const TStringBuf& columnName,
-    const NProto::TTableSchemaExt& schema);
+void Serialize(const TColumnSchema& schema, NYson::IYsonConsumer* consumer);
+void Deserialize(TColumnSchema& schema, NYTree::INodePtr node);
+
+void ToProto(NProto::TColumnSchema* protoSchema, const TColumnSchema& schema);
+void FromProto(TColumnSchema* schema, const NProto::TColumnSchema& protoSchema);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NProto {
+class TTableSchema
+{
+public:
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TColumnSchema>, Columns);
 
-void Serialize(const TColumnSchema& columnSchema, NYson::IYsonConsumer* consumer);
-void Deserialize(TColumnSchema& columnSchema, NYTree::INodePtr node);
+public:
+    TColumnSchema* FindColumn(const TStringBuf& name);
+    TColumnSchema& GetColumnOrThrow(const TStringBuf& name);
+    int GetColumnIndex(const TColumnSchema& column);
 
-void Serialize(const TTableSchemaExt& tableSchema, NYson::IYsonConsumer* consumer);
-void Deserialize(TTableSchemaExt& tableSchema, NYTree::INodePtr node);
+};
 
-} // namespace NProto
+void Serialize(const TTableSchema& schema, NYson::IYsonConsumer* consumer);
+void Deserialize(TTableSchema& schema, NYTree::INodePtr node);
+
+void ToProto(NProto::TTableSchemaExt* protoSchema, const TTableSchema& schema);
+void FromProto(TTableSchema* schema, const NProto::TTableSchemaExt& protoSchema);
 
 ////////////////////////////////////////////////////////////////////////////////
 

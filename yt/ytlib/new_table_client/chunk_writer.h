@@ -29,7 +29,7 @@ public:
 
     virtual void Open(
         TNameTablePtr nameTable,
-        const NProto::TTableSchemaExt& schema,
+        const TTableSchema& schema,
         const TKeyColumns& keyColumns = TKeyColumns(),
         ERowsetType type = ERowsetType::Simple) override;
 
@@ -92,7 +92,7 @@ private:
 
     NChunkClient::NProto::TChunkMeta Meta;
     NProto::TBlockMetaExt BlockMetaExt;
-    NProto::TTableSchemaExt Schema;
+    TTableSchema Schema;
     NProto::TIndexExt IndexExt;
 
     void DoClose(TAsyncErrorPromise result);

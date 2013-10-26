@@ -1,8 +1,6 @@
 #include "stdafx.h"
 #include "name_table.h"
 
-#include <yt/ytlib/new_table_client/chunk_meta.pb.h>
-
 namespace NYT {
 namespace NVersionedTableClient {
 
@@ -10,6 +8,7 @@ namespace NVersionedTableClient {
 
 int TNameTable::GetNameCount() const
 {
+    TGuard<TSpinLock> guard(SpinLock);
     return NameByIndex.size();
 }
 
@@ -24,37 +23,46 @@ TNullable<int> TNameTable::FindIndex(const Stroka& name) const
     }
 }
 
+int TNameTable::GetIndex(const Stroka& name) const
+{
+    auto index = FindIndex(name);
+    YCHECK(index);
+    return *index;
+}
+
 const Stroka& TNameTable::GetName(int index) const
 {
     TGuard<TSpinLock> guard(SpinLock);
-
-    YCHECK(index < NameByIndex.size());
+    YCHECK(index >= 0 && index < NameByIndex.size());
     return NameByIndex[index];
 }
 
 int TNameTable::RegisterName(const Stroka& name)
 {
     TGuard<TSpinLock> guard(SpinLock);
+    return DoRegisterName(name);
+}
 
-    int index = GetNameCount();
+int TNameTable::DoRegisterName(const Stroka& name)
+{
+    int index = NameByIndex.size();
     NameByIndex.push_back(name);
     YCHECK(IndexByName.insert(std::make_pair(name, index)).second);
-
     return index;
 }
 
 int TNameTable::GetOrRegisterName(const Stroka& name)
 {
-    // TODO(babenko): beware! not thread-safe!
-    auto index = FindIndex(name);
-    if (index) {
-        return *index;
+    TGuard<TSpinLock> guard(SpinLock);
+    auto it = IndexByName.find(name);
+    if (it == IndexByName.end()) {
+        return DoRegisterName(name);
     } else {
-        return RegisterName(name);
+        return it->second;
     }
 }
 
-void ToProto(NProto::TNameTableExt* protoNameTable, const TNameTablePtr& nameTable)
+void ToProto(NProto::TNameTableExt* protoNameTable, TNameTablePtr nameTable)
 {
     protoNameTable->clear_names();
     for (int index = 0; index < nameTable->GetNameCount(); ++index) {
@@ -62,13 +70,12 @@ void ToProto(NProto::TNameTableExt* protoNameTable, const TNameTablePtr& nameTab
     }
 }
 
-TNameTablePtr FromProto(const NProto::TNameTableExt& protoNameTable)
+void FromProto(TNameTablePtr* nameTable, const NProto::TNameTableExt& protoNameTable)
 {
-    auto nameTable = New<TNameTable>();
+    *nameTable = New<TNameTable>();
     for (const auto& name: protoNameTable.names()) {
-        nameTable->RegisterName(name);
+        (*nameTable)->RegisterName(name);
     }
-    return nameTable;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

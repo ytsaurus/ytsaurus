@@ -6,6 +6,8 @@
 #include "block_reader.h"
 #include "name_table.h"
 #include "chunk_meta_extensions.h"
+#include "schema.h"
+#include "row.h"
 
 #include <ytlib/chunk_client/async_reader.h>
 #include <ytlib/chunk_client/chunk_spec.h>
@@ -16,6 +18,9 @@
 #include <core/compression/public.h>
 
 #include <core/misc/async_stream_state.h>
+#include <core/misc/protobuf_helpers.h>
+#include <core/misc/chunked_memory_pool.h>
+
 #include <core/concurrency/fiber.h>
 
 // TableChunkReaderAdapter stuff
@@ -31,11 +36,9 @@
 #include <core/rpc/channel.h>
 #include <core/yson/tokenizer.h>
 
-
 namespace NYT {
 namespace NVersionedTableClient {
 
-using namespace NProto;
 using namespace NConcurrency;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
@@ -59,7 +62,7 @@ public:
 
     TAsyncError Open(
         TNameTablePtr nameTable, 
-        const TTableSchemaExt& schema,
+        const TTableSchema& schema,
         bool includeAllColumns,
         ERowsetType type) override;
 
@@ -77,7 +80,7 @@ private:
     TChunkReaderConfigPtr Config;
     NChunkClient::IAsyncReaderPtr UnderlyingReader;
 
-    TTableSchemaExt Schema;
+    TTableSchema Schema;
     bool IncludeAllColumns;
     TNameTablePtr NameTable;
 
@@ -92,7 +95,7 @@ private:
     std::unique_ptr<TBlockReader> BlockReader;
     std::vector<EColumnType> BlockColumnTypes;
 
-    TBlockMetaExt BlockMeta;
+    NProto::TBlockMetaExt BlockMeta;
 
     TAsyncStreamState State;
 
@@ -122,7 +125,7 @@ TChunkReader::TChunkReader(
 
 TAsyncError TChunkReader::Open(
     TNameTablePtr nameTable,
-    const TTableSchemaExt& schema,
+    const TTableSchema& schema,
     bool includeAllColumns,
     ERowsetType type)
 {
@@ -145,9 +148,9 @@ TAsyncError TChunkReader::Open(
 void TChunkReader::DoOpen()
 {
     std::vector<int> tags;
-    tags.push_back(TProtoExtensionTag<TTableSchemaExt>::Value);
-    tags.push_back(TProtoExtensionTag<TBlockMetaExt>::Value);
-    tags.push_back(TProtoExtensionTag<TNameTableExt>::Value);
+    tags.push_back(TProtoExtensionTag<NProto::TTableSchemaExt>::Value);
+    tags.push_back(TProtoExtensionTag<NProto::TBlockMetaExt>::Value);
+    tags.push_back(TProtoExtensionTag<NProto::TNameTableExt>::Value);
     tags.push_back(TProtoExtensionTag<TMiscExt>::Value);
 
     LOG_INFO("Requesting chunk meta");
@@ -158,9 +161,9 @@ void TChunkReader::DoOpen()
     }
 
     const auto& meta = metaOrError.GetValue();
-    BlockMeta = GetProtoExtension<TBlockMetaExt>(meta.extensions());
-    auto chunkNameTable = FromProto(GetProtoExtension<TNameTableExt>(meta.extensions()));
-    auto chunkSchema = GetProtoExtension<TTableSchemaExt>(meta.extensions());
+    BlockMeta = GetProtoExtension<NProto::TBlockMetaExt>(meta.extensions());
+    auto chunkNameTable = NYT::FromProto<TNameTablePtr>(GetProtoExtension<NProto::TNameTableExt>(meta.extensions()));
+    auto chunkSchema = NYT::FromProto<TTableSchema>(GetProtoExtension<NProto::TTableSchemaExt>(meta.extensions()));
     auto misc = GetProtoExtension<TMiscExt>(meta.extensions());
 
     IsVersionedChunk = misc.versioned();
@@ -171,44 +174,45 @@ void TChunkReader::DoOpen()
         BlockColumnTypes.push_back(EColumnType::Integer);
     }
 
-    for (const auto& chunkColumn: chunkSchema.columns()) {
-        BlockColumnTypes.push_back(EColumnType(chunkColumn.type()));
+    for (const auto& chunkColumn: chunkSchema.Columns()) {
+        BlockColumnTypes.push_back(chunkColumn.Type);
     }
 
-    for (const auto& column: Schema.columns()) {
+    for (const auto& column: Schema.Columns()) {
         // Validate schema.
-        auto chunkType = FindColumnType(column.name(), chunkSchema);
-        auto schemaType = EColumnType(column.type());
-        if (!chunkType) {
+        auto* chunkColumn = chunkSchema.FindColumn(column.Name);
+        if (!chunkColumn) {
             State.Finish(TError(
                 "Chunk schema doesn't contain column %s",
-                ~column.name().Quote()));
+                ~column.Name.Quote()));
             return;
-        } else if (*chunkType != schemaType) {
+        }
+        
+        if (chunkColumn->Type != column.Type) {
             State.Finish(TError(
-                "Chunk schema column %s has incompatible type (ChunkColumnType: %s, ReadingColumnType: %s)",
-                ~column.name().Quote(),
-                ~FormatEnum(*chunkType),
-                ~FormatEnum(schemaType)));
+                "Chunk schema column %s has incompatible type: expected %s, actual %s",
+                ~column.Name.Quote(),
+                ~FormatEnum(column.Type),
+                ~FormatEnum(chunkColumn->Type)));
             return;
         }
 
         // Fill FixedColumns.
         TColumn fixedColumn;
-        fixedColumn.IndexInBlock = schemaIndexBase + GetColumnIndex(column.name(), chunkSchema);
+        fixedColumn.IndexInBlock = schemaIndexBase + chunkSchema.GetColumnIndex(*chunkColumn);
         fixedColumn.IndexInRow = FixedColumns.size();
-        fixedColumn.IndexInNameTable = NameTable->GetOrRegisterName(column.name());
+        fixedColumn.IndexInNameTable = NameTable->GetOrRegisterName(column.Name);
         FixedColumns.push_back(fixedColumn);
     }
 
     if (IncludeAllColumns) {
-        for (int i = 0; i < chunkSchema.columns_size(); ++i) {
-            const auto& chunkColumn = chunkSchema.columns(i);
-            if (!FindColumnIndex(chunkColumn.name(), Schema)) {
+        for (int i = 0; i < chunkSchema.Columns().size(); ++i) {
+            const auto& chunkColumn = chunkSchema.Columns()[i];
+            if (!Schema.FindColumn(chunkColumn.Name)) {
                 TColumn variableColumn;
                 variableColumn.IndexInBlock = schemaIndexBase + i;
                 variableColumn.IndexInRow = FixedColumns.size() + VariableColumns.size();
-                variableColumn.IndexInNameTable = NameTable->GetOrRegisterName(chunkColumn.name());
+                variableColumn.IndexInNameTable = NameTable->GetOrRegisterName(chunkColumn.Name);
                 VariableColumns.push_back(variableColumn);
             }
         }
@@ -349,7 +353,7 @@ public:
 
     TAsyncError Open(
         TNameTablePtr nameTable,
-        const TTableSchemaExt& schema,
+        const TTableSchema& schema,
         bool includeAllColumns,
         ERowsetType type) override;
 
@@ -360,13 +364,14 @@ private:
     TTableChunkSequenceReaderPtr UnderlyingReader;
 
     bool IncludeAllColumns;
-    TTableSchemaExt Schema;
+    TTableSchema Schema;
     TNameTablePtr NameTable;
     std::vector<int> SchemaNameIndexes;
 
     TChunkedMemoryPool MemoryPool;
 
-    void ThrowIncompatibleType(const Stroka& columnName);
+    void ThrowIncompatibleType(const TColumnSchema& schema);
+
 };
 
 TTableChunkReaderAdapter::TTableChunkReaderAdapter(
@@ -377,7 +382,7 @@ TTableChunkReaderAdapter::TTableChunkReaderAdapter(
 
 TAsyncError TTableChunkReaderAdapter::Open(
     TNameTablePtr nameTable,
-    const TTableSchemaExt &schema,
+    const TTableSchema& schema,
     bool includeAllColumns,
     ERowsetType type)
 {
@@ -386,9 +391,9 @@ TAsyncError TTableChunkReaderAdapter::Open(
     Schema = schema;
     NameTable = nameTable;
 
-    SchemaNameIndexes.reserve(Schema.columns_size());
-    for (const auto& column: Schema.columns()) {
-        SchemaNameIndexes.push_back(NameTable->GetOrRegisterName(column.name()));
+    SchemaNameIndexes.reserve(Schema.Columns().size());
+    for (const auto& column: Schema.Columns()) {
+        SchemaNameIndexes.push_back(NameTable->GetOrRegisterName(column.Name));
     }
 
     return UnderlyingReader->AsyncOpen();
@@ -407,27 +412,29 @@ bool TTableChunkReaderAdapter::Read(std::vector<TRow> *rows)
             return false;
         }
 
-        schemaIndexes.resize(Schema.columns_size(), -1);
+        schemaIndexes.resize(Schema.Columns().size(), -1);
         auto& chunkRow = facade->GetRow();
         for (int i = 0; i < chunkRow.size(); ++i) {
-            auto indexInSchema = FindColumnIndex(chunkRow[i].first, Schema);
-            if (indexInSchema) {
-                schemaIndexes[*indexInSchema] =  i;
+            auto* schemaColumn = Schema.FindColumn(chunkRow[i].first);
+            if (schemaColumn) {
+                int schemaIndex = Schema.GetColumnIndex(*schemaColumn);
+                schemaIndexes[schemaIndex] =  i;
             } else if (IncludeAllColumns) {
                 variableIndexes.push_back(i);
             }
         }
 
-        rows->push_back(TRow(&MemoryPool, Schema.columns_size() + variableIndexes.size()));
+        rows->push_back(TRow(&MemoryPool, Schema.Columns().size() + variableIndexes.size()));
         auto& outputRow = rows->back();
 
         for (int i = 0; i < schemaIndexes.size(); ++i) {
             if (schemaIndexes[i] < 0) {
                 outputRow[i] = TRowValue();
             } else {
+                const auto& schemaColumn = Schema.Columns()[i];
                 auto& value = outputRow[i];
                 value.Index = SchemaNameIndexes[i];
-                value.Type = Schema.columns(i).type();
+                value.Type = schemaColumn.Type;
 
                 const auto& pair = chunkRow[schemaIndexes[i]];
 
@@ -443,30 +450,30 @@ bool TTableChunkReaderAdapter::Read(std::vector<TRow> *rows)
                 YCHECK(!token.IsEmpty());
 
                 switch (value.Type) {
-                case EColumnType::Integer:
-                    if (token.GetType() != ETokenType::Integer) {
-                        ThrowIncompatibleType(Schema.columns(i).name());
-                    }
-                    value.Data.Integer = token.GetIntegerValue();
-                    break;
+                    case EColumnType::Integer:
+                        if (token.GetType() != ETokenType::Integer) {
+                            ThrowIncompatibleType(schemaColumn);
+                        }
+                        value.Data.Integer = token.GetIntegerValue();
+                        break;
 
-                case EColumnType::Double:
-                    if (token.GetType() != ETokenType::Double) {
-                        ThrowIncompatibleType(Schema.columns(i).name());
-                    }
-                    value.Data.Double = token.GetDoubleValue();
-                    break;
+                    case EColumnType::Double:
+                        if (token.GetType() != ETokenType::Double) {
+                            ThrowIncompatibleType(schemaColumn);
+                        }
+                        value.Data.Double = token.GetDoubleValue();
+                        break;
 
-                case EColumnType::String:
-                    if (token.GetType() != ETokenType::String) {
-                        ThrowIncompatibleType(Schema.columns(i).name());
-                    }
-                    value.Length = token.GetStringValue().size();
-                    value.Data.String = token.GetStringValue().begin();
-                    break;
+                    case EColumnType::String:
+                        if (token.GetType() != ETokenType::String) {
+                            ThrowIncompatibleType(schemaColumn);
+                        }
+                        value.Length = token.GetStringValue().size();
+                        value.Data.String = token.GetStringValue().begin();
+                        break;
 
-                default:
-                    YUNREACHABLE();
+                    default:
+                        YUNREACHABLE();
                 }
             }
         }
@@ -497,11 +504,11 @@ TAsyncError TTableChunkReaderAdapter::GetReadyEvent()
     return UnderlyingReader->GetReadyEvent();
 }
 
-void TTableChunkReaderAdapter::ThrowIncompatibleType(const Stroka& columnName)
+void TTableChunkReaderAdapter::ThrowIncompatibleType(const TColumnSchema& schema)
 {
     THROW_ERROR_EXCEPTION(
         "Chunk data in column %s is incompatible with schema",
-        ~columnName.Quote());
+        ~schema.Name.Quote());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

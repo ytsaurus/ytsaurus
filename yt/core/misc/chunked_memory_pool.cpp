@@ -60,7 +60,7 @@ TSharedRef TChunkedMemoryPool::AllocateBlock(size_t size)
 {
     struct TChunkedMemoryPoolTag { };
     auto block = TSharedRef::Allocate<TChunkedMemoryPoolTag>(size);
-    YCHECK(reinterpret_cast<intptr_t>(block.Begin()) & 7 == 0); // validate alignment
+    Offset = 8 - reinterpret_cast<intptr_t>(block.Begin()) & 7; // ensure proper alignment
     return block;
 }
 

@@ -32,6 +32,9 @@ struct TRowValue;
 struct TRowHeader;
 class TRow;
 
+struct TColumnSchema;
+class TTableSchema;
+
 class TNameTable;
 typedef TIntrusivePtr<TNameTable> TNameTablePtr;
 

@@ -1,8 +1,6 @@
 #pragma once
 
 #include "public.h"
-#include "row.h"
-#include "schema.h"
 
 #include <ytlib/new_table_client/chunk_meta.pb.h>
 
@@ -18,7 +16,7 @@ struct IReader
 {
     virtual TAsyncError Open(
         TNameTablePtr nameTable, 
-        const NProto::TTableSchemaExt& schema,
+        const TTableSchema& schema,
         bool includeAllColumns = false,
         ERowsetType type = ERowsetType::Simple) = 0;
 
