@@ -30,6 +30,7 @@ set( SRCS
   ${BASE}/changelog_rotation.cpp
   ${BASE}/composite_automaton.cpp
   ${BASE}/mutation.cpp
+  ${BASE}/hydra_service.cpp
 )
 set( HDRS
   ${BASE}/private.h
@@ -68,6 +69,7 @@ set( HDRS
   ${BASE}/mutation-inl.h
   ${BASE}/entity_map-inl.h
   ${BASE}/entity_map.h
+  ${BASE}/hydra_service.h
 )
 
 list(APPEND YT_SOURCE_FILES

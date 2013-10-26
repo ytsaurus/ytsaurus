@@ -22,6 +22,7 @@
 #include <server/hydra/hydra_manager.h>
 #include <server/hydra/mutation.h>
 #include <server/hydra/entity_map.h>
+#include <server/hydra/hydra_service.h>
 
 #include <server/election/election_manager.h>
 
@@ -41,92 +42,6 @@ using namespace NConcurrency;
 static auto& Logger = HiveLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-// TODO(babenko): extract
-
-class THydraServiceBase
-    : public TServiceBase
-{
-protected:
-    THydraServiceBase(
-        IHydraManagerPtr hydraManager,
-        IInvokerPtr automatonInvoker,
-        const TServiceId& serviceId,
-        const Stroka& loggingCategory);
-
-    IInvokerPtr AutomatonInvoker;
-    IInvokerPtr EpochAutomatonInvoker;
-
-    void ValidateActiveLeader();
-
-private:
-    // Avoid name clash when inheriting from both THydraServiceBase and TCompositeAutomatonPart.
-    IHydraManagerPtr ServiceHydraManager;
-
-    void OnLeaderActive();
-    void OnStopLeading();
-    void OnStopFollowing();
-
-    void OnStopEpoch();
-
-};
-
-THydraServiceBase::THydraServiceBase(
-    IHydraManagerPtr hydraManager,
-    IInvokerPtr automatonInvoker,
-    const TServiceId& serviceId,
-    const Stroka& loggingCategory)
-    : TServiceBase(
-        hydraManager->CreateGuardedAutomatonInvoker(automatonInvoker),
-        serviceId,
-        loggingCategory)
-    , ServiceHydraManager(hydraManager)
-    , AutomatonInvoker(automatonInvoker)
-{
-    ServiceHydraManager->SubscribeLeaderActive(BIND(&THydraServiceBase::OnLeaderActive, Unretained(this)));
-    ServiceHydraManager->SubscribeStopLeading(BIND(&THydraServiceBase::OnStopLeading, Unretained(this)));
-    ServiceHydraManager->SubscribeStopFollowing(BIND(&THydraServiceBase::OnStopFollowing, Unretained(this)));
-}
-
-void THydraServiceBase::OnLeaderActive()
-{
-    EpochAutomatonInvoker = ServiceHydraManager
-        ->GetEpochContext()
-        ->CancelableContext
-        ->CreateInvoker(AutomatonInvoker);
-}
-
-void THydraServiceBase::OnStopLeading()
-{
-    EpochAutomatonInvoker.Reset();
-    OnStopEpoch();
-}
-
-void THydraServiceBase::OnStopFollowing()
-{
-    OnStopEpoch();
-}
-
-void THydraServiceBase::OnStopEpoch()
-{
-    CancelActiveRequests(TError(
-        NRpc::EErrorCode::Unavailable,
-        "Service is restarting"));
-}
-
-void THydraServiceBase::ValidateActiveLeader()
-{
-    if (!ServiceHydraManager->IsActiveLeader()) {
-        THROW_ERROR_EXCEPTION(
-            NRpc::EErrorCode::Unavailable,
-            "Not an active leader");
-    }
-}
-
-
-////////////////////////////////////////////////////////////////////////////////
-
-
 
 class TTransactionSupervisor::TImpl
     : public THydraServiceBase
