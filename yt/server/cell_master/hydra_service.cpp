@@ -6,31 +6,20 @@
 namespace NYT {
 namespace NCellMaster {
 
-using namespace NHydra;
-using namespace NRpc;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 THydraServiceBase::THydraServiceBase(
     TBootstrap* bootstrap,
     const Stroka& serviceName,
     const Stroka& loggingCategory)
-    : NRpc::TServiceBase(
+    : NHydra::THydraServiceBase(
+        bootstrap->GetMetaStateFacade()->GetManager(),
         bootstrap->GetMetaStateFacade()->GetGuardedInvoker(),
         serviceName,
         loggingCategory)
     , Bootstrap(bootstrap)
 {
-    YCHECK(bootstrap);
-
-    auto hydraManager = Bootstrap->GetMetaStateFacade()->GetManager();
-    hydraManager->SubscribeStopLeading(BIND(&THydraServiceBase::OnStopEpoch, MakeWeak(this)));
-    hydraManager->SubscribeStopFollowing(BIND(&THydraServiceBase::OnStopEpoch, MakeWeak(this)));
-}
-
-void THydraServiceBase::ValidateActiveLeader()
-{
-    Bootstrap->GetMetaStateFacade()->ValidateActiveLeader();
+    YCHECK(Bootstrap);
 }
 
 TClosure THydraServiceBase::PrepareHandler(TClosure handler)
@@ -40,13 +29,6 @@ TClosure THydraServiceBase::PrepareHandler(TClosure handler)
         bootstrap->GetMetaStateFacade()->ValidateInitialized();
         handler.Run();
     }));
-}
-
-void THydraServiceBase::OnStopEpoch()
-{
-    CancelActiveRequests(TError(
-        NRpc::EErrorCode::Unavailable,
-        "Master is restarting"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

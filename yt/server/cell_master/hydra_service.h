@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <core/rpc/service_detail.h>
+#include <server/hydra/hydra_service.h>
 
 namespace NYT {
 namespace NCellMaster {
@@ -10,7 +10,7 @@ namespace NCellMaster {
 ////////////////////////////////////////////////////////////////////////////////
 
 class THydraServiceBase
-    : public NRpc::TServiceBase
+    : public NHydra::THydraServiceBase
 {
 protected:
     TBootstrap* Bootstrap;
@@ -20,12 +20,8 @@ protected:
         const Stroka& serviceName,
         const Stroka& loggingCategory);
 
-    void ValidateActiveLeader();
-
 private:
     virtual TClosure PrepareHandler(TClosure handler) override;
-
-    void OnStopEpoch();
 
 };
 
