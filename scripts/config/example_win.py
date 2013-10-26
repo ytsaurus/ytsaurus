@@ -62,6 +62,9 @@ class Master(WinNode, Server):
                 'masters' : {
                     'addresses' : MasterAddresses
                 },
+                'timestamp_provider' : {
+                    'addresses' : MasterAddresses
+                },
                 'snapshots' : {
                     'path' : r'%(work_dir)s\snapshots'
                 },

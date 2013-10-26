@@ -19,7 +19,9 @@ public:
         IHydraManagerPtr hydraManager,
         IInvokerPtr automatonInvoker);
 
-    void Commit();
+    TFuture<TErrorOr<TMutationResponse>> Commit();
+
+    // TODO(babenko): do we need this?
     bool PostCommit();
 
     TMutationPtr SetType(Stroka type);
@@ -47,7 +49,7 @@ private:
     TCallback<void(const TMutationResponse&)> OnSuccess_;
     TCallback<void(const TError&)> OnError_;
 
-    void OnCommitted(TErrorOr<TMutationResponse> response);
+    TErrorOr<TMutationResponse> OnCommitted(TErrorOr<TMutationResponse> response);
 
 };
 

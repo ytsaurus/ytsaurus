@@ -8,6 +8,8 @@
 
 #include <ytlib/transaction_client/public.h>
 
+#include <ytlib/hive/transaction_supervisor_service.pb.h>
+
 namespace NYT {
 namespace NHive {
 
@@ -17,11 +19,8 @@ struct ITransactionManager
     : public virtual TRefCounted
 {
     virtual TTransactionId StartTransaction(
-        const TTransactionId& transactionId,
         TTimestamp startTimestamp,
-        const TTransactionId& parentTransactionId,
-        NYTree::IAttributeDictionary* attributes,
-        const TNullable<TDuration>& timeout) = 0;
+        const NProto::TReqStartTransaction& request) = 0;
 
     virtual void PrepareTransactionCommit(
         const TTransactionId& transactionId,
@@ -35,7 +34,9 @@ struct ITransactionManager
 
     virtual void AbortTransaction(const TTransactionId& transactionId) = 0;
 
-    virtual void PingTransaction(const TTransactionId& transactionId) = 0;
+    virtual void PingTransaction(
+        const TTransactionId& transactionId,
+        const NProto::TReqPingTransaction& request) = 0;
 
 };
 

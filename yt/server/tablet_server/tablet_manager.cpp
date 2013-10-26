@@ -13,6 +13,8 @@
 
 #include <core/misc/address.h>
 
+#include <ytlib/hive/cell_directory.h>
+
 #include <server/object_server/type_handler_detail.h>
 
 #include <server/tablet_server/tablet_manager.pb.h>
@@ -25,7 +27,6 @@
 #include <server/tablet_node/tablet_manager.pb.h>
 
 #include <server/hive/hive_manager.h>
-#include <server/hive/cell_directory.h>
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/meta_state_facade.h>

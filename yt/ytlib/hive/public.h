@@ -13,6 +13,9 @@ namespace NHive {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TCellDirectory;
+typedef TIntrusivePtr<TCellDirectory> TCellDirectoryPtr;
+
 struct ITimestampProvider;
 typedef TIntrusivePtr<ITimestampProvider> ITimestampProviderPtr;
 

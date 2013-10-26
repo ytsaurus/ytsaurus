@@ -107,8 +107,7 @@ public:
             .DefaultNew();
         RegisterParameter("timestamp_manager", TimestampManager)
             .DefaultNew();
-        RegisterParameter("timestamp_provider", TimestampProvider)
-            .DefaultNew();
+        RegisterParameter("timestamp_provider", TimestampProvider);
         RegisterParameter("transaction_supervisor", TransactionSupervisor)
             .DefaultNew();
         RegisterParameter("rpc_port", RpcPort)

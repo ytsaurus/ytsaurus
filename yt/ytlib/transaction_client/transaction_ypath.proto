@@ -1,7 +1,9 @@
 package NYT.NTransactionClient.NProto;
 
 import "yt/core/misc/guid.proto";
+import "yt/core/ytree/attributes.proto";
 import "yt/ytlib/object_client/master_ypath.proto";
+import "yt/ytlib/hive/transaction_supervisor_service.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,13 +44,16 @@ message TRspUnstageObject
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// CreateObjects extension.
-
-message TReqCreateTransactionExt
+message TReqStartTransactionExt
 {
     extend NYT.NObjectClient.NProto.TReqCreateObjects
     {
-        optional TReqCreateTransactionExt create_transaction_ext = 101;
+        optional TReqStartTransactionExt create_transaction_ext = 101;
+    }
+
+    extend NYT.NHive.NProto.TReqStartTransaction
+    {
+        optional TReqStartTransactionExt start_transaction_ext = 100;
     }
 
     // Transaction timeout (in ms).
@@ -59,6 +64,20 @@ message TReqCreateTransactionExt
 
     // Enable including staged resources into account resource usage.
     optional bool enable_staged_accounting = 3 [default = true];
+
+    optional NYT.NProto.TGuid parent_transaction_id = 4;
+
+    optional NYT.NYTree.NProto.TAttributes attributes = 5;
+}
+
+message TReqPingTransactionExt
+{
+    extend NYT.NHive.NProto.TReqPingTransaction
+    {
+        optional TReqPingTransactionExt ping_transaction_ext = 100;
+    }
+
+    optional bool ping_ancestors = 1 [default = false];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

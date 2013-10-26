@@ -6,6 +6,8 @@
 
 #include <core/rpc/public.h>
 
+#include <ytlib/hive/transaction_supervisor_service.pb.h>
+
 #include <server/hydra/public.h>
 
 namespace NYT {
@@ -26,6 +28,10 @@ public:
         THiveManagerPtr hiveManager,
         ITransactionManagerPtr transactionManager,
         NHive::ITimestampProviderPtr timestampProvider);
+
+    NHydra::TMutationPtr CreateStartTransactionMutation(const NProto::TReqStartTransaction& request);
+    NHydra::TMutationPtr CreateCommitTransactionMutation(const NProto::TReqCommitTransaction& request);
+    NHydra::TMutationPtr CreateAbortTransactionMutation(const NProto::TReqAbortTransaction& request);
 
 private:
     class TImpl;

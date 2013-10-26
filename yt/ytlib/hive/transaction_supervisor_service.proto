@@ -7,11 +7,9 @@ import "yt/core/ytree/attributes.proto";
 
 message TReqStartTransaction
 {
-    optional NYT.NProto.TGuid transaction_id = 1;
-    required int64 start_timestamp = 2;
-    optional NYT.NProto.TGuid parent_transaction_id = 3;
-    optional int32 timeout = 4;
-    optional NYT.NYTree.NProto.TAttributes attributes = 5;
+    required int64 start_timestamp = 1;
+
+    extensions 100 to max;
 }
 
 message TRspStartTransaction
@@ -47,6 +45,8 @@ message TRspAbortTransaction
 message TReqPingTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;
+
+    extensions 100 to max;
 }
 
 message TRspPingTransaction

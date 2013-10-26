@@ -34,6 +34,10 @@
 
 #include <ytlib/transaction_client/transaction_manager.h>
 
+#include <ytlib/hive/timestamp_provider.h>
+#include <ytlib/hive/remote_timestamp_provider.h>
+#include <ytlib/hive/cell_directory.h>
+
 #include <server/misc/build_attributes.h>
 
 #include <server/job_proxy/config.h>
@@ -58,6 +62,7 @@ using namespace NScheduler;
 using namespace NTransactionClient;
 using namespace NYTree;
 using namespace NConcurrency;
+using namespace NHive;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -93,9 +98,15 @@ void TBootstrap::Run()
 
     auto rpcServer = CreateRpcServer(BusServer);
 
+    auto timestampProvider = CreateRemoteTimestampProvider(Config->TimestampProvider);
+
+    auto cellDirectory = New<TCellDirectory>();
+
     TransactionManager = New<TTransactionManager>(
         Config->TransactionManager,
-        MasterChannel);
+        MasterChannel,
+        timestampProvider,
+        cellDirectory);
 
     Scheduler = New<TScheduler>(Config->Scheduler, this);
 

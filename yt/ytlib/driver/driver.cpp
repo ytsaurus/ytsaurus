@@ -31,6 +31,10 @@
 #include <ytlib/hydra/config.h>
 #include <ytlib/hydra/peer_channel.h>
 
+#include <ytlib/hive/timestamp_provider.h>
+#include <ytlib/hive/remote_timestamp_provider.h>
+#include <ytlib/hive/cell_directory.h>
+
 #include <ytlib/chunk_client/client_block_cache.h>
 
 #include <ytlib/scheduler/config.h>
@@ -50,6 +54,7 @@ using namespace NFormats;
 using namespace NSecurityClient;
 using namespace NConcurrency;
 using namespace NHydra;
+using namespace NHive;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -96,6 +101,10 @@ public:
         QueryCallbacksProvider = New<TQueryCallbacksProvider>(
             MasterChannel,
             TableMountCache);
+
+        TimestampProvider = CreateRemoteTimestampProvider(Config->TimestampProvider);
+
+        CellDirectory = New<TCellDirectory>();
 
         // Register all commands.
 #define REGISTER(command, name, inDataType, outDataType, isVolatile, isHeavy) \
@@ -181,7 +190,9 @@ public:
 
         auto transactionManager = New<TTransactionManager>(
             Config->TransactionManager,
-            masterChannel);
+            masterChannel,
+            TimestampProvider,
+            CellDirectory);
 
         // TODO(babenko): ReadFromFollowers is switched off
         auto context = New<TCommandContext>(
@@ -262,6 +273,8 @@ private:
     IBlockCachePtr BlockCache;
     TTableMountCachePtr TableMountCache;
     TQueryCallbacksProviderPtr QueryCallbacksProvider;
+    ITimestampProviderPtr TimestampProvider;
+    TCellDirectoryPtr CellDirectory;
 
     struct TCommandEntry
     {

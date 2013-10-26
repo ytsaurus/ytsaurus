@@ -77,6 +77,13 @@ struct ITransaction
      */
     virtual TTransactionId GetId() const  = 0;
 
+    //! Called to mark a given cell as a transaction participant.
+    //! Starts the corresponding transaction in background.
+    /*!
+     *  \note Thread affinity: ClientThread
+     */
+    virtual void RegisterParticipant(const NElection::TCellGuid& cellGuid) = 0;
+
     //! Raised when the transaction is aborted.
     /*!
      *  \note Thread affinity: any

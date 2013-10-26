@@ -3,6 +3,7 @@ set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/hive )
 set( SRCS
   ${BASE}/public.cpp
   ${BASE}/remote_timestamp_provider.cpp
+  ${BASE}/cell_directory.cpp
 )
 set( HDRS
   ${BASE}/public.h
@@ -11,6 +12,7 @@ set( HDRS
   ${BASE}/timestamp_provider.h
   ${BASE}/timestamp_service_proxy.h
   ${BASE}/remote_timestamp_provider.h
+  ${BASE}/cell_directory.h
 )
 
 list(APPEND YT_SOURCE_FILES

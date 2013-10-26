@@ -8,16 +8,20 @@
 
 #include <ytlib/object_client/object_service_proxy.h>
 
-#include <ytlib/transaction_client//transaction_ypath_proxy.h>
+#include <ytlib/hive/public.h>
 
 namespace NYT {
 namespace NTransactionClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_ENUM(ETransactionType,
+    (Master) // accepted by both masters and tablets
+    (Tablet) // accepted by tablets only
+);
+
 //! Describes settings for a newly created transaction.
 struct TTransactionStartOptions
-    : private TNonCopyable
 {
     TTransactionStartOptions();
 
@@ -29,13 +33,12 @@ struct TTransactionStartOptions
     bool PingAncestors;
     bool EnableUncommittedAccounting;
     bool EnableStagedAccounting;
-    bool RegisterInManager;
-    std::unique_ptr<NYTree::IAttributeDictionary> Attributes;
+    std::shared_ptr<NYTree::IAttributeDictionary> Attributes; // to make the type copyable
+    ETransactionType Type;
 };
 
 //! Describes settings used for attaching to existing transactions.
 struct TTransactionAttachOptions
-    : private TNonCopyable
 {
     explicit TTransactionAttachOptions(const TTransactionId& id);
 
@@ -43,7 +46,6 @@ struct TTransactionAttachOptions
     bool AutoAbort;
     bool Ping;
     bool PingAncestors;
-    bool RegisterInManager;
 };
 
 //! Controls transactions at client-side.
@@ -64,7 +66,9 @@ public:
      */
     TTransactionManager(
         TTransactionManagerConfigPtr config,
-        NRpc::IChannelPtr channel);
+        NRpc::IChannelPtr channel,
+        NHive::ITimestampProviderPtr timestampProvider,
+        NHive::TCellDirectoryPtr cellDirectory);
 
     //! Starts a new transaction.
     /*!
@@ -110,7 +114,8 @@ private:
 
     TTransactionManagerConfigPtr Config;
     NRpc::IChannelPtr Channel;
-    NObjectClient::TObjectServiceProxy ObjectProxy;
+    NHive::ITimestampProviderPtr TimestampProvider;
+    NHive::TCellDirectoryPtr CellDirectory;
 
     TSpinLock SpinLock;
     yhash_set<TTransaction*> AliveTransactions;

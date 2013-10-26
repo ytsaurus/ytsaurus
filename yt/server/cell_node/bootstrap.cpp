@@ -39,6 +39,8 @@
 
 #include <ytlib/chunk_client/chunk_service_proxy.h>
 
+#include <ytlib/hive/cell_directory.h>
+
 #include <server/misc/build_attributes.h>
 
 #include <server/data_node/config.h>
@@ -71,8 +73,6 @@
 #include <server/exec_agent/job.h>
 
 #include <server/tablet_node/tablet_cell_controller.h>
-
-#include <server/hive/cell_directory.h>
 
 namespace NYT {
 namespace NCellNode {

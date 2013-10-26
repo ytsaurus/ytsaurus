@@ -1,6 +1,5 @@
 #include "stdafx.h"
 #include "cell_directory.h"
-#include "private.h"
 
 #include <core/rpc/channel.h>
 
@@ -12,10 +11,6 @@ namespace NHive {
 
 using namespace NRpc;
 using namespace NHydra;
-
-////////////////////////////////////////////////////////////////////////////////
-
-static auto& Logger = HiveLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

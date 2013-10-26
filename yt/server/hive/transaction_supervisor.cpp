@@ -156,7 +156,11 @@ public:
         , TransactionManager(transactionManager)
         , TimestampProvider(timestampProvider)
     {
-        Automaton->RegisterPart(this);
+        YCHECK(Config);
+        YCHECK(RpcServer);
+        YCHECK(HiveManager);
+        YCHECK(TransactionManager);
+        YCHECK(TimestampProvider);
 
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(StartTransaction));
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(CommitTransaction));
@@ -187,6 +191,24 @@ public:
             ESerializationPriority::Values,
             "TransactionSupervisor.Values",
             BIND(&TImpl::SaveValues, Unretained(this)));
+
+        Automaton->RegisterPart(this);
+        RpcServer->RegisterService(this);
+    }
+
+    TMutationPtr CreateStartTransactionMutation(const TReqStartTransaction& request)
+    {
+        return CreateMutation(HydraManager, AutomatonInvoker, request);
+    }
+
+    TMutationPtr CreateCommitTransactionMutation(const TReqCommitTransaction& request)
+    {
+        return CreateMutation(HydraManager, AutomatonInvoker, request);
+    }
+
+    TMutationPtr CreateAbortTransactionMutation(const TReqAbortTransaction& request)
+    {
+        return CreateMutation(HydraManager, AutomatonInvoker, request);
     }
 
 private:
@@ -209,7 +231,7 @@ private:
         ValidateActiveLeader();
 
         CreateMutation(HydraManager, AutomatonInvoker, *request)
-            ->SetAction(BIND(&TImpl::HydraStartTransaction, MakeStrong(this), context, ConstRef(*request)))
+            ->SetAction(BIND(IgnoreResult(&TImpl::HydraStartTransaction), MakeStrong(this), context, ConstRef(*request)))
             ->Commit();
     }
 
@@ -295,7 +317,7 @@ private:
             ~ToString(transactionId));
 
         // Any exception thrown here is replied to the client.
-        TransactionManager->PingTransaction(transactionId);
+        TransactionManager->PingTransaction(transactionId, *request);
 
         context->Reply();
     }
@@ -305,41 +327,17 @@ private:
 
     void HydraStartTransaction(TCtxStartTransactionPtr context, const TReqStartTransaction& request)
     {
-        auto transactionId =
-            request.has_transaction_id()
-            ? FromProto<TTransactionId>(request.transaction_id())
-            : NullTransactionId;
         auto startTimestamp = TTimestamp(request.start_timestamp());
-        auto parentTransactionId =
-            request.has_parent_transaction_id()
-            ? FromProto<TTransactionId>(request.parent_transaction_id())
-            : NullTransactionId;
-        auto timeout =
-            request.has_timeout()
-            ? MakeNullable(TDuration(request.timeout()))
-            : Null;
-        auto attributes =
-            request.has_attributes()
-            ? FromProto(request.attributes())
-            : CreateEphemeralAttributes();
 
         if (context) {
-            context->SetRequestInfo("TransactionId: %s, StartTimestamp: %" PRId64", ParentTransactionId: %s, Timeout: %s",
-                ~ToString(transactionId),
-                startTimestamp,
-                ~ToString(parentTransactionId),
-                ~ToString(timeout));
+            context->SetRequestInfo("StartTimestamp: %" PRId64,
+                startTimestamp);
         }
 
-        TTransactionId startedTransactionId;
+        TTransactionId transactionId;
         try {
             // Any exception thrown here is replied to the client.
-            startedTransactionId = TransactionManager->StartTransaction(
-                transactionId,
-                startTimestamp,
-                parentTransactionId,
-                ~attributes,
-                timeout);
+            transactionId = TransactionManager->StartTransaction(startTimestamp, request);
         } catch (const std::exception& ex) {
             if (context) {
                 context->Reply(ex);
@@ -349,9 +347,10 @@ private:
 
         if (context) {
             auto& response = context->Response();
-            ToProto(response.mutable_transaction_id(), startedTransactionId);
+            ToProto(response.mutable_transaction_id(), transactionId);
             context->SetResponseInfo("TransactionId: %s",
-                ~ToString(startedTransactionId));
+                ~ToString(transactionId));
+            context->Reply();
         }
     }
 
@@ -748,6 +747,21 @@ TTransactionSupervisor::TTransactionSupervisor(
         transactionManager,
         timestampProvider))
 { }
+
+TMutationPtr TTransactionSupervisor::CreateStartTransactionMutation(const TReqStartTransaction& request)
+{
+    return Impl->CreateStartTransactionMutation(request);
+}
+
+TMutationPtr TTransactionSupervisor::CreateCommitTransactionMutation(const TReqCommitTransaction& request)
+{
+    return Impl->CreateCommitTransactionMutation(request);
+}
+
+TMutationPtr TTransactionSupervisor::CreateAbortTransactionMutation(const TReqAbortTransaction& request)
+{
+    return Impl->CreateAbortTransactionMutation(request);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

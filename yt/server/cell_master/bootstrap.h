@@ -49,6 +49,7 @@ public:
     NHydra::ISnapshotStorePtr GetSnapshotStore() const;
     NNodeTrackerServer::TNodeTrackerPtr GetNodeTracker() const;
     NTransactionServer::TTransactionManagerPtr GetTransactionManager() const;
+    NHive::TTransactionSupervisorPtr GetTransactionSupervisor() const;
     NCypressServer::TCypressManagerPtr GetCypressManager() const;
     TMetaStateFacadePtr GetMetaStateFacade() const;
     NObjectServer::TObjectManagerPtr GetObjectManager() const;
@@ -71,6 +72,7 @@ private:
     NHydra::ISnapshotStorePtr SnapshotStore;
     NNodeTrackerServer::TNodeTrackerPtr NodeTracker;
     NTransactionServer::TTransactionManagerPtr TransactionManager;
+    NHive::TTransactionSupervisorPtr TransactionSupervisor;
     NCypressServer::TCypressManagerPtr CypressManager;
     TMetaStateFacadePtr MetaStateFacade;
     NObjectServer::TObjectManagerPtr ObjectManager;

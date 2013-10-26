@@ -5,7 +5,6 @@ set( SRCS
   ${BASE}/public.cpp
   ${BASE}/hive_manager.cpp
   ${BASE}/mailbox.cpp
-  ${BASE}/cell_directory.cpp
   ${BASE}/transaction_supervisor.cpp
   ${BASE}/commit.cpp
   ${BASE}/timestamp_manager.cpp
@@ -17,7 +16,6 @@ set( HDRS
   ${BASE}/mailbox.h
   ${BASE}/hive_service_proxy.h
   ${BASE}/config.h
-  ${BASE}/cell_directory.h
   ${BASE}/transaction_manager.h
   ${BASE}/transaction_supervisor.h
   ${BASE}/commit.h

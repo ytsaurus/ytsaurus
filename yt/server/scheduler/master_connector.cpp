@@ -465,12 +465,12 @@ private:
                 auto req = TMasterYPathProxy::CreateObjects();
                 req->set_type(EObjectType::Transaction);
 
-                auto* reqExt = req->MutableExtension(TReqCreateTransactionExt::create_transaction_ext);
+                auto* reqExt = req->MutableExtension(TReqStartTransactionExt::create_transaction_ext);
                 reqExt->set_timeout(Owner->Config->LockTransactionTimeout.MilliSeconds());
 
                 auto attributes = CreateEphemeralAttributes();
                 attributes->Set("title", Sprintf("Scheduler lock at %s", ~ServiceAddresss));
-                ToProto(req->mutable_object_attributes(), *attributes);
+                ToProto(reqExt->mutable_attributes(), *attributes);
 
                 GenerateMutationId(req);
                 batchReq->AddRequest(req, "start_lock_tx");

@@ -12,11 +12,7 @@ namespace NHive {
 class THiveManager;
 typedef TIntrusivePtr<THiveManager> THiveManagerPtr;
 
-class TCellDirectory;
-typedef TIntrusivePtr<TCellDirectory> TCellDirectoryPtr;
-
 struct TMessage;
-
 class TMailbox;
 
 struct ITransactionManager;
@@ -24,6 +20,9 @@ typedef TIntrusivePtr<ITransactionManager> ITransactionManagerPtr;
 
 class TTimestampManager;
 typedef TIntrusivePtr<TTimestampManager> TTimestampManagerPtr;
+
+class TTransactionSupervisor;
+typedef TIntrusivePtr<TTransactionSupervisor> TTransactionSupervisorPtr;
 
 class THiveManagerConfig;
 typedef TIntrusivePtr<THiveManagerConfig> THiveManagerConfigPtr;

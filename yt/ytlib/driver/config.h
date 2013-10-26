@@ -16,6 +16,8 @@
 
 #include <ytlib/scheduler/config.h>
 
+#include <ytlib/hive/config.h>
+
 namespace NYT {
 namespace NDriver {
 
@@ -50,6 +52,7 @@ public:
     NTableClient::TTableWriterConfigPtr TableWriter;
     NChunkClient::TClientBlockCacheConfigPtr BlockCache;
     TTableMountCacheConfigPtr TableMountCache;
+    NHive::TRemoteTimestampProviderConfigPtr TimestampProvider;
     bool ReadFromFollowers;
     i64 ReadBufferSize;
     int HeavyPoolSize;
@@ -73,6 +76,7 @@ public:
             .DefaultNew();
         RegisterParameter("table_mount_cache", TableMountCache)
             .DefaultNew();
+        RegisterParameter("timestamp_provider", TimestampProvider);
         RegisterParameter("read_from_followers", ReadFromFollowers)
             .Describe("Enable read-only requests to followers")
             .Default(false);

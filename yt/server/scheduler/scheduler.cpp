@@ -30,6 +30,7 @@
 
 #include <ytlib/transaction_client/transaction_manager.h>
 #include <ytlib/transaction_client/transaction.h>
+#include <ytlib/transaction_client/transaction_ypath_proxy.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
 
@@ -856,13 +857,13 @@ private:
             }
             req->set_type(EObjectType::Transaction);
 
-            auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction_ext);
+            auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqStartTransactionExt::create_transaction_ext);
             reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
 
             auto attributes = CreateEphemeralAttributes();
             attributes->Set("title", Sprintf("Scheduler sync for operation %s",
                 ~ToString(operation->GetOperationId())));
-            ToProto(req->mutable_object_attributes(), *attributes);
+            ToProto(reqExt->mutable_attributes(), *attributes);
 
             GenerateMutationId(req);
             batchReq->AddRequest(req, "start_sync_tx");
@@ -905,7 +906,7 @@ private:
             auto req = TMasterYPathProxy::CreateObjects();
             req->set_type(EObjectType::Transaction);
 
-            auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction_ext);
+            auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqStartTransactionExt::create_transaction_ext);
             reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
             reqExt->set_enable_uncommitted_accounting(false);
             reqExt->set_enable_staged_accounting(false);
@@ -913,7 +914,7 @@ private:
             auto attributes = CreateEphemeralAttributes();
             attributes->Set("title", Sprintf("Scheduler async for operation %s",
                 ~ToString(operationId)));
-            ToProto(req->mutable_object_attributes(), *attributes);
+            ToProto(reqExt->mutable_attributes(), *attributes);
 
             GenerateMutationId(req);
             batchReq->AddRequest(req, "start_async_tx");
@@ -958,13 +959,13 @@ private:
             ToProto(req->mutable_transaction_id(), parentTransactionId);
             req->set_type(EObjectType::Transaction);
 
-            auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction_ext);
+            auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqStartTransactionExt::create_transaction_ext);
             reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
 
             auto attributes = CreateEphemeralAttributes();
             attributes->Set("title", Sprintf("Scheduler input for operation %s",
                 ~ToString(operation->GetOperationId())));
-            ToProto(req->mutable_object_attributes(), *attributes);
+            ToProto(reqExt->mutable_attributes(), *attributes);
 
             NHydra::GenerateMutationId(req);
             batchReq->AddRequest(req, "start_in_tx");
@@ -975,14 +976,14 @@ private:
             ToProto(req->mutable_transaction_id(), parentTransactionId);
             req->set_type(EObjectType::Transaction);
 
-            auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction_ext);
+            auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqStartTransactionExt::create_transaction_ext);
             reqExt->set_enable_uncommitted_accounting(false);
             reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
 
             auto attributes = CreateEphemeralAttributes();
             attributes->Set("title", Sprintf("Scheduler output for operation %s",
                 ~ToString(operationId)));
-            ToProto(req->mutable_object_attributes(), *attributes);
+            ToProto(reqExt->mutable_attributes(), *attributes);
 
             NHydra::GenerateMutationId(req);
             batchReq->AddRequest(req, "start_out_tx");

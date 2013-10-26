@@ -113,15 +113,14 @@ private:
     void DoClear();
     virtual void Clear() override;
 
+    void ValidateTransactionActive(const TTransaction* transaction);
+
     TDuration GetActualTimeout(TNullable<TDuration> timeout);
 
     // ITransactionManager overrides
     virtual TTransactionId StartTransaction(
-        const TTransactionId& transactionId,
         TTimestamp startTimestamp,
-        const TTransactionId& parentTransactionId,
-        NYTree::IAttributeDictionary* attributes,
-        const TNullable<TDuration>& timeout) override;
+        const NHive::NProto::TReqStartTransaction& request) override;
     virtual void PrepareTransactionCommit(
         const TTransactionId& transactionId,
         bool persistent,
@@ -130,7 +129,9 @@ private:
         const TTransactionId& transactionId,
         TTimestamp commitTimestamp) override;
     virtual void AbortTransaction(const TTransactionId& transactionId) override;
-    virtual void PingTransaction(const TTransactionId& transactionId) override;
+    virtual void PingTransaction(
+        const TTransactionId& transactionId,
+        const NHive::NProto::TReqPingTransaction& request) override;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 

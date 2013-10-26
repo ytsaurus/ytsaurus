@@ -16,9 +16,11 @@
 #include <core/misc/serialize.h>
 #include <core/misc/string.h>
 
+#include <core/logging/tagged_logger.h>
+
 #include <ytlib/hydra/peer_channel.h>
 
-#include <core/logging/tagged_logger.h>
+#include <ytlib/hive/cell_directory.h>
 
 #include <ytlib/node_tracker_client/node_statistics.h>
 #include <ytlib/node_tracker_client/helpers.h>
@@ -27,8 +29,6 @@
 
 #include <server/tablet_node/tablet_cell_controller.h>
 #include <server/tablet_node/tablet_slot.h>
-
-#include <server/hive/cell_directory.h>
 
 #include <server/cell_node/bootstrap.h>
 

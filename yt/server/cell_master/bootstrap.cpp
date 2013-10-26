@@ -32,6 +32,7 @@
 
 #include <ytlib/hive/timestamp_provider.h>
 #include <ytlib/hive/remote_timestamp_provider.h>
+#include <ytlib/hive/cell_directory.h>
 
 #include <server/hydra/changelog.h>
 #include <server/hydra/file_changelog.h>
@@ -39,7 +40,6 @@
 #include <server/hydra/file_snapshot.h>
 
 #include <server/hive/hive_manager.h>
-#include <server/hive/cell_directory.h>
 #include <server/hive/timestamp_manager.h>
 #include <server/hive/transaction_manager.h>
 #include <server/hive/transaction_supervisor.h>
@@ -165,6 +165,11 @@ TTransactionManagerPtr TBootstrap::GetTransactionManager() const
     return TransactionManager;
 }
 
+TTransactionSupervisorPtr TBootstrap::GetTransactionSupervisor() const
+{
+    return TransactionSupervisor;
+}
+
 TCypressManagerPtr TBootstrap::GetCypressManager() const
 {
     return CypressManager;
@@ -273,28 +278,37 @@ void TBootstrap::Run()
     // NB: This is exactly the order in which parts get registered and there are some
     // dependencies in Clear methods.
     ObjectManager = New<TObjectManager>(Config->ObjectManager, this);
+
     SecurityManager = New<TSecurityManager>(Config->SecurityManager, this);
+    
     NodeTracker = New<TNodeTracker>(Config->NodeTracker, this);
+    
     TransactionManager = New<TTransactionManager>(Config->TransactionManager, this);
+    
     CypressManager = New<TCypressManager>(Config->CypressManager, this);
+    
     ChunkManager = New<TChunkManager>(Config->ChunkManager, this);
+    
     TabletManager = New<TTabletManager>(Config->TabletManager, this);
+    
     auto timestampManager = New<TTimestampManager>(
         Config->TimestampManager,
         MetaStateFacade->GetInvoker(),
         RpcServer,
         MetaStateFacade->GetManager(),
         MetaStateFacade->GetAutomaton());
+    
     auto timestampProvider = CreateRemoteTimestampProvider(
         Config->TimestampProvider);
-    auto transactionSupervisor = New<TTransactionSupervisor>(
+    
+    TransactionSupervisor = New<TTransactionSupervisor>(
         Config->TransactionSupervisor,
         MetaStateFacade->GetInvoker(),
         RpcServer,
         MetaStateFacade->GetManager(),
         MetaStateFacade->GetAutomaton(),
         HiveManager,
-        nullptr, //TODO(babenko)
+        TransactionManager,
         timestampProvider);
 
     HiveManager->Start();

@@ -43,6 +43,7 @@ DECLARE_ENUM(EObjectType,
 
     // Transaction Manager stuff
     ((Transaction)                (1))
+    ((TabletTransaction)          (2))
 
     // Chunk Manager stuff
     ((Chunk)                      (100))

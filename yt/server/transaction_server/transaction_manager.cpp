@@ -27,6 +27,9 @@
 #include <server/cell_master/meta_state_facade.h>
 
 #include <server/security_server/account.h>
+#include <server/security_server/security_manager.h>
+
+#include <server/hive/transaction_supervisor.h>
 
 namespace NYT {
 namespace NTransactionServer {
@@ -64,9 +67,6 @@ public:
         DECLARE_YPATH_SERVICE_WRITE_METHOD(Commit);
         DECLARE_YPATH_SERVICE_WRITE_METHOD(Abort);
         DECLARE_YPATH_SERVICE_WRITE_METHOD(UnstageObject);
-        // NB: Ping is not logged and thus is not considered to be a write
-        // request. It can only be served at leaders though, so its handler explicitly
-        // checks the status.
         return TBase::IsMutatingRequest(context);
     }
 
@@ -219,7 +219,6 @@ private:
         ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
 
         auto* transaction = GetThisTypedImpl();
-        ValidateTransactionIsActive(transaction);
 
         auto transactionManager = Bootstrap->GetTransactionManager();
         transactionManager->CommitTransaction(transaction);
@@ -237,7 +236,6 @@ private:
         ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
 
         auto* transaction = GetThisTypedImpl();
-        ValidateTransactionIsActive(transaction);
 
         auto transactionManager = Bootstrap->GetTransactionManager();
         transactionManager->AbortTransaction(transaction);
@@ -252,11 +250,9 @@ private:
         bool pingAncestors = request->ping_ancestors();
         context->SetRequestInfo("PingAncestors: %s", ~FormatBool(pingAncestors));
 
-        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
         ValidateActiveLeader();
 
         auto* transaction = GetThisTypedImpl();
-        ValidateTransactionIsActive(transaction);
 
         auto transactionManager = Bootstrap->GetTransactionManager();
         transactionManager->PingTransaction(transaction, pingAncestors);
@@ -277,7 +273,6 @@ private:
         ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
 
         auto* transaction = GetThisTypedImpl();
-        ValidateTransactionIsActive(transaction);
 
         auto objectManager = Bootstrap->GetObjectManager();
         auto* object = objectManager->GetObjectOrThrow(objectId);
@@ -323,7 +318,7 @@ public:
         UNUSED(account);
         UNUSED(response);
 
-        const auto* requestExt = &request->GetExtension(TReqCreateTransactionExt::create_transaction_ext);
+        const auto* requestExt = &request->GetExtension(TReqStartTransactionExt::create_transaction_ext);
         auto timeout =
             requestExt->has_timeout()
             ? TNullable<TDuration>(TDuration::MilliSeconds(requestExt->timeout()))
@@ -438,7 +433,7 @@ void TTransactionManager::CommitTransaction(TTransaction* transaction)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    YCHECK(transaction->IsActive());
+    ValidateTransactionActive(transaction);
 
     auto id = transaction->GetId();
 
@@ -458,14 +453,17 @@ void TTransactionManager::CommitTransaction(TTransaction* transaction)
 
     FinishTransaction(transaction);
 
-    LOG_INFO_UNLESS(IsRecovery(), "Transaction committed (TransactionId: %s)", ~ToString(id));
+    LOG_INFO_UNLESS(IsRecovery(), "Transaction committed (TransactionId: %s)",
+        ~ToString(id));
 }
 
 void TTransactionManager::AbortTransaction(TTransaction* transaction)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    YCHECK(transaction->IsActive());
+    ValidateTransactionActive(transaction);
+
+    auto id = transaction->GetId();
 
     auto nestedTransactions = transaction->NestedTransactions();
     FOREACH (auto* nestedTransaction, nestedTransactions) {
@@ -484,7 +482,7 @@ void TTransactionManager::AbortTransaction(TTransaction* transaction)
     FinishTransaction(transaction);
 
     LOG_INFO_UNLESS(IsRecovery(), "Transaction aborted (TransactionId: %s)",
-        ~ToString(transaction->GetId()));
+        ~ToString(id));
 }
 
 void TTransactionManager::FinishTransaction(TTransaction* transaction)
@@ -621,6 +619,14 @@ void TTransactionManager::Clear()
     DoClear();
 }
 
+void TTransactionManager::ValidateTransactionActive(const TTransaction* transaction)
+{
+    if (!transaction->IsActive()) {
+        THROW_ERROR_EXCEPTION("Transaction %s is not active",
+            ~ToString(transaction->GetId()));
+    }
+}
+
 TDuration TTransactionManager::GetActualTimeout(TNullable<TDuration> timeout)
 {
     return Min(
@@ -674,21 +680,16 @@ void TTransactionManager::OnTransactionExpired(const TTransactionId& id)
     if (!transaction || !transaction->IsActive())
         return;
 
-    auto objectManager = Bootstrap->GetObjectManager();
-    auto proxy = objectManager->GetProxy(transaction);
-
     LOG_INFO("Transaction lease expired (TransactionId: %s)", ~ToString(id));
 
-    auto req = TTransactionYPathProxy::Abort();
-    ExecuteVerb(proxy, req).Subscribe(BIND([=] (TTransactionYPathProxy::TRspAbortPtr rsp) {
-        if (rsp->IsOK()) {
-            LOG_INFO("Transaction expiration commit success (TransactionId: %s)",
-                ~ToString(id));
-        } else {
-            LOG_ERROR(*rsp, "Transaction expiration commit failed (TransactionId: %s)",
-                ~ToString(id));
-        }
-    }));
+    auto transactionSupervisor = Bootstrap->GetTransactionSupervisor();
+
+    NHive::NProto::TReqAbortTransaction req;
+    ToProto(req.mutable_transaction_id(), transaction->GetId());
+
+    transactionSupervisor
+        ->CreateAbortTransactionMutation(req)
+        ->PostCommit();
 }
 
 TTransactionPath TTransactionManager::GetTransactionPath(TTransaction* transaction) const
@@ -716,6 +717,8 @@ void TTransactionManager::UnstageObject(
     TObjectBase* object,
     bool recursive)
 {
+    ValidateTransactionActive(transaction);
+
     if (transaction->StagedObjects().erase(object) == 0) {
         THROW_ERROR_EXCEPTION("Object %s does not belong to transaction %s",
             ~ToString(object->GetId()),
@@ -738,25 +741,36 @@ void TTransactionManager::StageNode(TTransaction* transaction, TCypressNodeBase*
 }
 
 TTransactionId TTransactionManager::StartTransaction(
-    const TTransactionId& transactionId,
     TTimestamp startTimestamp,
-    const TTransactionId& parentTransactionId,
-    IAttributeDictionary* attributes,
-    const TNullable<TDuration>& timeout)
+    const NHive::NProto::TReqStartTransaction& request)
 {
-    if (transactionId != NullTransactionId) {
-        THROW_ERROR_EXCEPTION("Cannot start an external transaction at master");
-    }
+    const auto& requestExt = request.GetExtension(TReqStartTransactionExt::start_transaction_ext);
 
-    auto* parent = parentTransactionId == NullTransactionId ? nullptr : GetTransactionOrThrow(parentTransactionId);
+    auto parentId =
+        requestExt.has_parent_transaction_id()
+        ? FromProto<TTransactionId>(requestExt.parent_transaction_id())
+        : NullTransactionId;
+    auto* parent =
+        parentId == NullTransactionId
+        ? nullptr
+        : GetTransactionOrThrow(parentId);
+    auto timeout =
+        requestExt.has_timeout()
+        ? TNullable<TDuration>(TDuration::MilliSeconds(requestExt.timeout()))
+        : Null;
+
     auto* transaction = StartTransaction(parent, timeout);
-    if (attributes) {
+
+    if (requestExt.has_attributes()) {
         auto objectManager = Bootstrap->GetObjectManager();
         auto* attributeSet = objectManager->GetOrCreateAttributes(TVersionedObjectId(transaction->GetId()));
-        for (const auto& key : attributes->List()) {
-            attributeSet->Attributes().insert(std::make_pair(key, attributes->GetYson(key)));
+        for (const auto& attribute : requestExt.attributes().attributes()) {
+            attributeSet->Attributes().insert(std::make_pair(
+                attribute.key(),
+                TYsonString(attribute.value())));
         }
     }
+
     return transaction->GetId();
 }
 
@@ -773,19 +787,33 @@ void TTransactionManager::CommitTransaction(
     TTimestamp /*commitTimestamp*/)
 {
     auto* transaction = GetTransactionOrThrow(transactionId);
+
+    auto securityManager = Bootstrap->GetSecurityManager();
+    securityManager->ValidatePermission(transaction, EPermission::Write);
+
     CommitTransaction(transaction);
 }
 
 void TTransactionManager::AbortTransaction(const TTransactionId& transactionId)
 {
     auto* transaction = GetTransactionOrThrow(transactionId);
+
+    auto securityManager = Bootstrap->GetSecurityManager();
+    securityManager->ValidatePermission(transaction, EPermission::Write);
+
     AbortTransaction(transaction);
 }
 
-void TTransactionManager::PingTransaction(const TTransactionId& transactionId)
+void TTransactionManager::PingTransaction(
+    const TTransactionId& transactionId,
+    const NHive::NProto::TReqPingTransaction& request)
 {
+    const auto& requestExt = request.GetExtension(TReqPingTransactionExt::ping_transaction_ext);
     auto* transaction = GetTransactionOrThrow(transactionId);
-    PingTransaction(transaction);
+
+    // TODO(babenko): possibly validate permissions?
+
+    PingTransaction(transaction, requestExt.ping_ancestors());
 }
 
 DEFINE_ENTITY_MAP_ACCESSORS(TTransactionManager, Transaction, TTransaction, TTransactionId, TransactionMap)

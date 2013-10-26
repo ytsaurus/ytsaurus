@@ -510,11 +510,11 @@ private:
         auto req = TMasterYPathProxy::CreateObjects();
         req->set_type(EObjectType::Transaction);
 
-        req->MutableExtension(TReqCreateTransactionExt::create_transaction_ext);
+        auto* reqExt = req->MutableExtension(TReqStartTransactionExt::create_transaction_ext);
 
         auto attributes = CreateEphemeralAttributes();
         attributes->Set("title", "World initialization");
-        ToProto(req->mutable_object_attributes(), *attributes);
+        ToProto(reqExt->mutable_attributes(), *attributes);
 
         auto rsp = WaitFor(ExecuteVerb(service, req));
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);

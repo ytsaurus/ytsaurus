@@ -17,6 +17,8 @@
 #include <ytlib/election/config.h>
 #include <ytlib/election/cell_manager.h>
 
+#include <ytlib/hive/cell_directory.h>
+
 #include <server/hydra/changelog.h>
 #include <server/hydra/changelog_catalog.h>
 #include <server/hydra/snapshot.h>
@@ -24,7 +26,6 @@
 #include <server/hydra/hydra_manager.h>
 #include <server/hydra/distributed_hydra_manager.h>
 
-#include <server/hive/cell_directory.h>
 #include <server/hive/hive_manager.h>
 #include <server/hive/mailbox.h>
 

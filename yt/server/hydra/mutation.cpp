@@ -18,12 +18,12 @@ TMutation::TMutation(
 bool TMutation::PostCommit()
 {
     return AutomatonInvoker->Invoke(
-        BIND(&TMutation::Commit, MakeStrong(this)));
+        BIND(IgnoreResult(&TMutation::Commit), MakeStrong(this)));
 }
 
-void TMutation::Commit()
+TFuture<TErrorOr<TMutationResponse>>  TMutation::Commit()
 {
-    HydraManager->CommitMutation(Request).Subscribe(
+    return HydraManager->CommitMutation(Request).Apply(
         BIND(&TMutation::OnCommitted, MakeStrong(this)));
 }
 
@@ -74,7 +74,7 @@ TMutationPtr TMutation::OnError(TCallback<void(const TError&)> onError)
     return this;
 }
 
-void TMutation::OnCommitted(TErrorOr<TMutationResponse> result)
+TErrorOr<TMutationResponse> TMutation::OnCommitted(TErrorOr<TMutationResponse> result)
 {
     if (result.IsOK()) {
         if (OnSuccess_) {
@@ -85,6 +85,7 @@ void TMutation::OnCommitted(TErrorOr<TMutationResponse> result)
             OnError_.Run(result);
         }
     }
+    return std::move(result);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
