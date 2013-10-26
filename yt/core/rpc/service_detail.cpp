@@ -334,7 +334,6 @@ void TServiceBase::OnInvocationPrepared(
     if (!handler)
         return;
 
-    auto preparedHandler = PrepareHandler(std::move(handler));
     auto wrappedHandler = BIND([=] () {
         const auto& runtimeInfo = activeRequest->RuntimeInfo;
 
@@ -348,7 +347,8 @@ void TServiceBase::OnInvocationPrepared(
         }
 
         try {
-            preparedHandler.Run();
+            BeforeInvoke();
+            handler.Run();
         } catch (const std::exception& ex) {
             context->Reply(ex);
         }
@@ -385,11 +385,6 @@ void TServiceBase::OnInvocationPrepared(
     if (!result) {
         context->Reply(TError(EErrorCode::Unavailable, "Service unavailable"));
     }
-}
-
-TClosure TServiceBase::PrepareHandler(TClosure handler)
-{
-    return std::move(handler);
 }
 
 void TServiceBase::OnResponse(TActiveRequestPtr activeRequest, IMessagePtr message)
@@ -515,6 +510,9 @@ IPrioritizedInvokerPtr TServiceBase::GetDefaultInvoker()
 {
     return DefaultInvoker;
 }
+
+void TServiceBase::BeforeInvoke()
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

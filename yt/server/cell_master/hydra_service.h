@@ -21,7 +21,7 @@ protected:
         const Stroka& loggingCategory);
 
 private:
-    virtual TClosure PrepareHandler(TClosure handler) override;
+    virtual void BeforeInvoke() override;
 
 };
 

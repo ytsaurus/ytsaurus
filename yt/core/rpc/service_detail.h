@@ -448,9 +448,6 @@ protected:
     //! Configures the service.
     virtual void Configure(NYTree::INodePtr configNode) override;
 
-    //! Prepares the handler to invocation.
-    virtual TClosure PrepareHandler(TClosure handler);
-
     //! Replies #error to every request in #ActiveRequests, clears the latter one.
     void CancelActiveRequests(const TError& error);
 
@@ -464,6 +461,8 @@ protected:
     //! Returns the default invoker passed during construction.
     IPrioritizedInvokerPtr GetDefaultInvoker();
 
+    //! Called right before each method handler invocation.
+    virtual void BeforeInvoke();
 
 private:
     class TServiceContext;

@@ -22,13 +22,9 @@ THydraServiceBase::THydraServiceBase(
     YCHECK(Bootstrap);
 }
 
-TClosure THydraServiceBase::PrepareHandler(TClosure handler)
+void THydraServiceBase::BeforeInvoke()
 {
-    auto* bootstrap = Bootstrap;
-    return TServiceBase::PrepareHandler(BIND([=] () {
-        bootstrap->GetMetaStateFacade()->ValidateInitialized();
-        handler.Run();
-    }));
+    Bootstrap->GetMetaStateFacade()->ValidateInitialized();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
