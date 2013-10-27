@@ -281,6 +281,7 @@ public:
             req->set_start_timestamp(StartTimestamp_);
 
             auto* reqExt = req->MutableExtension(NTabletClient::NProto::TReqStartTransactionExt::start_transaction_ext);
+            reqExt->set_start_timestamp(StartTimestamp_);
             ToProto(reqExt->mutable_transaction_id(), Id_);
             if (Timeout_) {
                 reqExt->set_timeout(Timeout_->MilliSeconds());
