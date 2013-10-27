@@ -5,7 +5,7 @@
 
 #include <ytlib/hydra/public.h>
 
-#include <server/object_server/public.h>
+#include <ytlib/tablet_client/public.h>
 
 namespace NYT {
 namespace NTabletServer {
@@ -38,15 +38,15 @@ typedef TIntrusivePtr<TTabletManager> TTabletManagerPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef NHydra::TCellGuid TTabletCellId;
-extern const TTabletCellId NullTabletCellId;
-
-typedef NObjectServer::TObjectId TTabletId;
-extern const TTabletId NullTabletId;
-
 using NHydra::TPeerId;
 using NHydra::InvalidPeerId;
 using NHydra::EPeerState;
+
+using NTabletClient::TTabletCellId;
+using NTabletClient::NullTabletCellId;
+
+using NTabletClient::TTabletId;
+using NTabletClient::NullTabletId;
 
 ////////////////////////////////////////////////////////////////////////////////
 

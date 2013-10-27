@@ -15,6 +15,7 @@ set( DIRS
   node_tracker_client
   job_tracker_client
   transaction_client
+  tablet_client
   monitoring
   hydra
   hive

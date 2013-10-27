@@ -4,9 +4,9 @@
 
 #include <ytlib/election/public.h>
 
-#include <server/hydra/public.h>
+#include <ytlib/tablet_client/public.h>
 
-#include <server/tablet_server/public.h>
+#include <server/hydra/public.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -16,8 +16,8 @@ namespace NTabletNode {
 using NElection::TCellGuid;
 using NElection::NullCellGuid;
 
-using NTabletServer::TTabletCellId;
-using NTabletServer::TTabletId;
+using NTabletClient::TTabletCellId;
+using NTabletClient::TTabletId;
 
 typedef NHydra::TSaveContext TSaveContext;
 typedef NHydra::TLoadContext TLoadContext;

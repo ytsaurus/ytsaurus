@@ -60,7 +60,7 @@ struct ITransaction
     /*!
      *  \note Thread affinity: ClientThread
      */
-    virtual void RegisterParticipant(const NElection::TCellGuid& cellGuid) = 0;
+    virtual void AddParticipant(const NElection::TCellGuid& cellGuid) = 0;
 
     //! Raised when the transaction is aborted.
     /*!

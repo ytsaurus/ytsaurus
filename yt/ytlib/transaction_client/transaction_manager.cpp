@@ -19,6 +19,8 @@
 #include <ytlib/hive/timestamp_provider.h>
 #include <ytlib/hive/transaction_supervisor_service_proxy.h>
 
+#include <ytlib/tablet_client/tablet_service.pb.h>
+
 #include <atomic>
 
 namespace NYT {
@@ -30,6 +32,7 @@ using namespace NHive;
 using namespace NRpc;
 using namespace NConcurrency;
 using namespace NObjectClient;
+using namespace NTabletClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -130,6 +133,11 @@ public:
             return MakeFuture(TError(ex));
         }
 
+        AutoAbort_ = options.AutoAbort;
+        Ping_ = options.Ping;
+        PingAncestors_ = options.PingAncestors;
+        Timeout_ = options.Timeout;
+
         return Owner_->TimestampProvider->GenerateNewTimestamp()
             .Apply(BIND(&TTransaction::OnGotStartTimestamp, MakeStrong(this), options));
     }
@@ -140,7 +148,7 @@ public:
         AutoAbort_ = options.AutoAbort;
         Ping_ = options.Ping;
         PingAncestors_ = options.PingAncestors;
-        Initialize();
+        Register();
 
         LOG_INFO("Transaction attached (TransactionId: %s, AutoAbort: %s, Ping: %s, PingAncestors: %s)",
             ~ToString(Id_),
@@ -159,13 +167,16 @@ public:
 
         {
             TGuard<TSpinLock> guard(SpinLock_);
+            if (!BackgroundError_.IsOK()) {
+                return MakeFuture(BackgroundError_);
+            }
             switch (State_) {
                 case EState::Committed:
-                    THROW_ERROR_EXCEPTION("Transaction is already committed");
+                    return MakeFuture(TError("Transaction is already committed"));
                     break;
 
                 case EState::Aborted:
-                    THROW_ERROR_EXCEPTION("Transaction is already aborted");
+                    return MakeFuture(TError("Transaction is already aborted"));
                     break;
 
                 case EState::Active:
@@ -241,9 +252,43 @@ public:
     }
 
     
-    virtual void RegisterParticipant(const NElection::TCellGuid& cellGuid) override
+    virtual void AddParticipant(const NElection::TCellGuid& cellGuid) override
     {
-        // TODO(babenko): implement
+        YCHECK(TypeFromId(cellGuid) == EObjectType::TabletCell);
+
+        bool newParticipant;
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+            if (!BackgroundError_.IsOK()) {
+                THROW_ERROR BackgroundError_;
+            }
+            newParticipant =  ParticipantGuids_.insert(cellGuid).second;
+        }
+
+        if (newParticipant) {
+            auto channel = Owner_->CellDirectory->GetChannel(cellGuid);
+            if (!channel) {
+                THROW_ERROR_EXCEPTION("Unknown tablet cell %s",
+                    ~ToString(cellGuid));
+            }
+
+            LOG_DEBUG("Adding transaction participant (TransactionId: %s, CellGuid: %s)",
+                ~ToString(Id_),
+                ~ToString(cellGuid));
+
+            TTransactionSupervisorServiceProxy proxy(channel);
+            auto req = proxy.StartTransaction();
+            req->set_start_timestamp(StartTimestamp_);
+
+            auto* reqExt = req->MutableExtension(NTabletClient::NProto::TReqStartTransactionExt::start_transaction_ext);
+            ToProto(reqExt->mutable_transaction_id(), Id_);
+            if (Timeout_) {
+                reqExt->set_timeout(Timeout_->MilliSeconds());
+            }
+
+            req->Invoke().Subscribe(
+                BIND(&TTransaction::OnParticipantAdded, MakeStrong(this), cellGuid));
+        }
     }
 
 
@@ -272,6 +317,7 @@ private:
     bool AutoAbort_;
     bool Ping_;
     bool PingAncestors_;
+    TNullable<TDuration> Timeout_;
 
     TTransactionSupervisorServiceProxy Proxy_;
 
@@ -279,6 +325,8 @@ private:
     TSpinLock SpinLock_;
     EState State_;
     TPromise<void> Aborted_;
+    yhash_set<TCellGuid> ParticipantGuids_;
+    TError BackgroundError_;
 
     TTimestamp StartTimestamp_;
     TTransactionId Id_;
@@ -321,7 +369,7 @@ private:
     }
 
 
-    void Initialize()
+    void Register()
     {
         if (AutoAbort_) {
             TGuard<TSpinLock> guard(Owner_->SpinLock);
@@ -347,10 +395,7 @@ private:
             return MakeFuture(TError(timestampOrError));
         }
 
-        AutoAbort_ = options.AutoAbort;
-        Ping_ = options.Ping;
-        PingAncestors_ = options.PingAncestors;
-        Initialize();
+        Register();
 
         auto startTimestamp = timestampOrError.GetValue();
 
@@ -373,7 +418,7 @@ private:
         auto req = Proxy_.StartTransaction();
         req->set_start_timestamp(startTimestamp);
 
-        auto* reqExt = req->MutableExtension(NProto::TReqStartTransactionExt::start_transaction_ext);
+        auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqStartTransactionExt::start_transaction_ext);
         if (!options.Attributes->List().empty()) {
             ToProto(reqExt->mutable_attributes(), *options.Attributes);
         }
@@ -383,7 +428,7 @@ private:
         reqExt->set_enable_uncommitted_accounting(options.EnableUncommittedAccounting);
         reqExt->set_enable_staged_accounting(options.EnableStagedAccounting);
         if (options.Timeout) {
-            reqExt->set_timeout(options.Timeout.Get().MilliSeconds());
+            reqExt->set_timeout(options.Timeout->MilliSeconds());
         }
 
         if (options.ParentId != NullTransactionId) {
@@ -464,6 +509,24 @@ private:
     }
 
 
+    void OnParticipantAdded(const TCellGuid& cellGuid, TTransactionSupervisorServiceProxy::TRspStartTransactionPtr rsp)
+    {
+        if (rsp->IsOK()) {
+            LOG_DEBUG("Transaction participant added (TransactionId: %s, CellGuid: %s)",
+                ~ToString(Id_),
+                ~ToString(cellGuid));
+        } else {
+            LOG_DEBUG(*rsp, "Error adding transaction participant (TransactionId: %s, CellGuid: %s)",
+                ~ToString(Id_),
+                ~ToString(cellGuid));
+
+            SetBackgroundError(TError("Error adding participant cell %s",
+                ~ToString(cellGuid))
+                << *rsp);
+        }
+    }
+
+
     TAsyncError SendPing()
     {
         LOG_DEBUG("Pinging transaction (TransactionId: %s)", ~ToString(Id_));
@@ -530,6 +593,20 @@ private:
         }
 
         FireAbort();
+    }
+
+    void SetBackgroundError(const TError& error)
+    {
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+            if (State_ != EState::Active)
+                return;
+            if (!BackgroundError_.IsOK())
+                return;
+            BackgroundError_ = error;
+        }
+
+        HandleAbort();
     }
 
 };

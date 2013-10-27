@@ -80,10 +80,10 @@ template <>
 NTableServer::TTableNode* TLoadContext::Get(const NCypressClient::TVersionedNodeId& id) const;
 
 template <>
-NTabletServer::TTabletCell* TLoadContext::Get(const NTabletServer::TTabletCellId& id) const;
+NTabletServer::TTabletCell* TLoadContext::Get(const NTabletClient::TTabletCellId& id) const;
 
 template <>
-NTabletServer::TTablet* TLoadContext::Get(const NTabletServer::TTabletId& id) const;
+NTabletServer::TTablet* TLoadContext::Get(const NTabletClient::TTabletId& id) const;
 
 ////////////////////////////////////////////////////////////////////////////////
 
