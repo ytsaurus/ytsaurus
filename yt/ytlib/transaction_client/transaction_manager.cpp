@@ -797,12 +797,12 @@ private:
 TTransactionManager::TImpl::TImpl(
     TTransactionManagerConfigPtr config,
     const TCellGuid& masterCellGuid,
-    IChannelPtr channel,
+    IChannelPtr masterChannel,
     ITimestampProviderPtr timestampProvider,
     TCellDirectoryPtr cellDirectory)
     : Config_(config)
+    , MasterChannel_(masterChannel)
     , MasterCellGuid_(masterCellGuid)
-    , MasterChannel_(channel)
     , TimestampProvider_(timestampProvider)
     , CellDirectory_(cellDirectory)
 {
