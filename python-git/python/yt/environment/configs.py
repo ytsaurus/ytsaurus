@@ -11,6 +11,10 @@ def get_master_config():
         addresses = [ ];
     };
 
+    timestamp_provider = {
+        addresses = [ ];
+    };
+
     changelogs = {
         path = "";
     };
@@ -84,9 +88,11 @@ def get_scheduler_config():
 """
 {
     masters = {
-        addresses = [
-            "localhost:9000";
-        ];
+        addresses = [ ];
+    };
+
+    timestamp_provider = {
+        addresses = [ ];
     };
 
     scheduler = {
@@ -142,10 +148,12 @@ def get_driver_config():
 """
 {
     masters = {
-        addresses = [
-            "localhost";
-        ];
+        addresses = [ ];
         rpc_timeout = 30000;
+    };
+
+    timestamp_provider = {
+        addresses = [ ];
     };
 
     logging = {
