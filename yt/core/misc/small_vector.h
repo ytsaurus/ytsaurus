@@ -376,6 +376,16 @@ public:
     std::uninitialized_fill(this->begin(), this->end(), Elt);
   }
 
+  template <class other_iterator>
+  void assign(other_iterator begin, other_iterator end) {
+    unsigned NumElts = std::distance(begin, end);
+    clear();
+    if (this->capacity() < NumElts)
+      this->grow(NumElts);
+    this->setEnd(this->begin()+NumElts);
+    std::copy(begin, end, this->begin());
+  }
+
   iterator erase(iterator I) {
     iterator N = I;
     // Shift all elts down one.

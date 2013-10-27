@@ -425,6 +425,8 @@ bool operator!=(const T& rhs, const TNullable<T>& lhs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(sandello): Remove this from ADT header.
+
 struct TNullableSerializer
 {
     template <class T, class C>

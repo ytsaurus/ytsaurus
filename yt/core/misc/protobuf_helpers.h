@@ -7,6 +7,7 @@
 #include "nullable.h"
 #include "mpl.h"
 #include "serialize.h"
+#include "array_ref.h"
 
 #include <core/misc/protobuf_helpers.pb.h>
 #include <core/misc/guid.pb.h>
@@ -48,7 +49,10 @@ template <class T>
 inline void ToProto(
     T* serialized,
     const T& original,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<T*, ::google::protobuf::MessageLite*>, int>::TType = 0)
+    typename NMpl::TEnableIf<
+        NMpl::TIsConvertible<T*, ::google::protobuf::MessageLite*>,
+        int
+    >::TType = 0)
 {
     *serialized = original;
 }
@@ -57,7 +61,10 @@ template <class T>
 inline void FromProto(
     T* original,
     const T& serialized,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<T*, ::google::protobuf::MessageLite*>, int>::TType = 0)
+    typename NMpl::TEnableIf<
+        NMpl::TIsConvertible<T*, ::google::protobuf::MessageLite*>,
+        int
+    >::TType = 0)
 {
     *original = serialized;
 }
@@ -80,19 +87,28 @@ TOriginal FromProto(const TSerialized& serialized)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TSerialized, class TOriginal>
-inline void ToProto(
-    ::google::protobuf::RepeatedPtrField<TSerialized>* serializedArray,
-    const std::vector<TOriginal>& originalArray,
+template <class TSerializedArray, class TOriginalArray>
+inline void ToProtoArrayImpl(
+    TSerializedArray* serializedArray,
+    const TOriginalArray& originalArray,
     bool clear = true)
 {
     if (clear) {
         serializedArray->Clear();
     }
     serializedArray->Reserve(serializedArray->size() + originalArray.size());
-    for (auto it = originalArray.begin(); it != originalArray.end(); ++it) {
-        ToProto(serializedArray->Add(), *it);
+    for (const auto& item : originalArray) {
+        ToProto(serializedArray->Add(), item);
     }
+}
+
+template <class TSerialized, class TOriginal>
+inline void ToProto(
+    ::google::protobuf::RepeatedPtrField<TSerialized>* serializedArray,
+    const std::vector<TOriginal>& originalArray,
+    bool clear = true)
+{
+    ToProtoArrayImpl(serializedArray, originalArray);
 }
 
 template <class TSerialized, class TOriginal>
@@ -101,13 +117,7 @@ inline void ToProto(
     const std::vector<TOriginal>& originalArray,
     bool clear = true)
 {
-    if (clear) {
-        serializedArray->Clear();
-    }
-    serializedArray->Reserve(serializedArray->size() + originalArray.size());
-    for (auto it = originalArray.begin(); it != originalArray.end(); ++it) {
-        ToProto(serializedArray->Add(), *it);
-    }
+    ToProtoArrayImpl(serializedArray, originalArray);
 }
 
 template <class TSerialized, class TOriginal>
@@ -116,13 +126,7 @@ inline void ToProto(
     const SmallVectorImpl<TOriginal>& originalArray,
     bool clear = true)
 {
-    if (clear) {
-        serializedArray->Clear();
-    }
-    serializedArray->Reserve(serializedArray->size() + originalArray.size());
-    for (auto it = originalArray.begin(); it != originalArray.end(); ++it) {
-        ToProto(serializedArray->Add(), *it);
-    }
+    ToProtoArrayImpl(serializedArray, originalArray);
 }
 
 template <class TSerialized, class TOriginal>
@@ -131,13 +135,25 @@ inline void ToProto(
     const SmallVectorImpl<TOriginal>& originalArray,
     bool clear = true)
 {
-    if (clear) {
-        serializedArray->Clear();
-    }
-    serializedArray->Reserve(serializedArray->size() + originalArray.size());
-    for (auto it = originalArray.begin(); it != originalArray.end(); ++it) {
-        ToProto(serializedArray->Add(), *it);
-    }
+    ToProtoArrayImpl(serializedArray, originalArray);
+}
+
+template <class TSerialized, class TOriginal>
+inline void ToProto(
+    ::google::protobuf::RepeatedPtrField<TSerialized>* serializedArray,
+    const TArrayRef<TOriginal>& originalArray,
+    bool clear = true)
+{
+    ToProtoArrayImpl(serializedArray, originalArray);
+}
+
+template <class TSerialized, class TOriginal>
+inline void ToProto(
+    ::google::protobuf::RepeatedField<TSerialized>* serializedArray,
+    const TArrayRef<TOriginal>& originalArray,
+    bool clear = true)
+{
+    ToProtoArrayImpl(serializedArray, originalArray);
 }
 
 template <class TOriginal, class TOriginalArray, class TSerialized>
