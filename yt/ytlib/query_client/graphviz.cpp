@@ -1,6 +1,6 @@
 #include "graphviz.h"
 
-#ifndef _MSC_VER
+#ifndef _win_
 
 #include "ast.h"
 #include "ast_visitor.h"
@@ -136,8 +136,8 @@ struct TGraphVizTraits<
     T,
     typename std::enable_if<std::is_base_of<TOperator, T>::value>::type>
 {
-    static const int Id = 1;
-    static inline const char* GetKind() { return "Op"; }
+    static const int UniqueId = 1;
+    static inline const char* GetPrefix() { return "Op"; }
 };
 
 template <class T>
@@ -145,8 +145,8 @@ struct TGraphVizTraits<
     T,
     typename std::enable_if<std::is_base_of<TExpression, T>::value>::type>
 {
-    static const int Id = 2;
-    static inline const char* GetKind() { return "Expr"; }
+    static const int UniqueId = 2;
+    static inline const char* GetPrefix() { return "Expr"; }
 };
 
 class TGraphVizVisitor
@@ -160,11 +160,11 @@ public:
     template <class TNode>
     Stroka GetName(TNode* node, const Stroka& port = "")
     {
-        auto kind = TGraphVizTraits<TNode>::GetKind();
+        auto prefix = TGraphVizTraits<TNode>::GetPrefix();
         if (port.empty()) {
-            return Sprintf("%s%p", kind, node);
+            return Sprintf("%s%p", prefix, node);
         } else {
-            return Sprintf("%s%p:%s", kind, node, port.c_str());
+            return Sprintf("%s%p:%s", prefix, node, port.c_str());
         }
     }
 
@@ -197,10 +197,6 @@ public:
             Output_ << attributes << ",";
         }
         Output_ << "label=<" << label << ">];\n";
-
-        for (auto child : node->Children()) {
-            WriteEdge(node, child);
-        }
     }
 
     template <class TFrom, class TTo>
@@ -211,7 +207,7 @@ public:
         const Stroka& toPort = "")
     {
         static const bool constrained =
-            (TGraphVizTraits<TFrom>::Id == TGraphVizTraits<TTo>::Id);
+            (TGraphVizTraits<TFrom>::UniqueId == TGraphVizTraits<TTo>::UniqueId);
 
         Output_ << "\t" << GetName(from, fromPort) << " -> " << GetName(to, toPort);
         if (!constrained) {
@@ -224,10 +220,14 @@ public:
     {
         Stroka Value_;
 
-        TLabel(const Stroka& title, int bgColor = 1)
+        template <class TNode>
+        TLabel(const TNode* node)
         {
             Value_ += "<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\">";
-            Value_ += "<TR><TD BGCOLOR=\"//" + ToString(bgColor) + "\">" + title + "</TD></TR>";
+            Value_ += Sprintf(
+                "<TR><TD BGCOLOR=\"//%d\">%s</TD></TR>",
+                TGraphVizTraits<TNode>::UniqueId,
+                ~node->GetKind().ToString());
         }
 
         TLabel& WithRow(const Stroka& row)
@@ -254,14 +254,14 @@ public:
         }
     };
 
-    virtual bool Visit(TScanOperator* op) override
+    virtual bool Visit(const TScanOperator* op) override
     {
         using NObjectClient::TObjectId;
         using NObjectClient::TypeFromId;
         auto objectId = NYT::FromProto<TObjectId>(op->DataSplit().chunk_id());
         WriteNode(
             op,
-            TLabel("Scan")
+            TLabel(op)
                 .WithRow(
                     "TableIndex: " + ToString(op->GetTableIndex()) +
                     "<BR/>Split: {" +
@@ -272,91 +272,109 @@ public:
         return true;
     }
 
-    virtual bool Visit(TUnionOperator* op) override
+    virtual bool Visit(const TUnionOperator* op) override
     {
-        WriteNode(
-            op,
-            TLabel("Union").Build());
+        WriteNode(op, TLabel(op).Build());
+        for (const auto& source : op->Sources()) {
+            WriteEdge(op, source);
+        }
         return true;
     }
 
-    virtual bool Visit(TFilterOperator* op) override
+    virtual bool Visit(const TFilterOperator* op) override
     {
         WriteNode(
             op,
-            TLabel("Filter")
+            TLabel(op)
                 .WithPortAndRow("p",
                     "[P]: " + NDot::EscapeHtml(op->GetPredicate()->GetSource()))
                 .Build());
+        WriteEdge(op, op->GetSource());
         WriteEdge(op, op->GetPredicate(), "p");
         Traverse(this, op->GetPredicate());
         return true;
     }
 
-    virtual bool Visit(TProjectOperator* op) override
+    virtual bool Visit(const TProjectOperator* op) override
     {
-        TLabel label("Project");
-        for (int i = 0; i < op->Expressions().size(); ++i) {
+        TLabel label(op);
+        for (int i = 0; i < op->GetProjectionCount(); ++i) {
             label.WithPortAndRow(
                 ToString(i),
-                Sprintf("[%d]: ", i) + NDot::EscapeHtml(op->GetExpression(i)->GetSource()));
+                Sprintf("[%d]: ", i) + NDot::EscapeHtml(op->GetProjection(i)->GetSource()));
         }
         WriteNode(op, label.Build());
-        for (int i = 0; i < op->Expressions().size(); ++i) {
-            WriteEdge(op, op->GetExpression(i), ToString(i));
-            Traverse(this, op->GetExpression(i));
+        WriteEdge(op, op->GetSource());
+        for (int i = 0; i < op->GetProjectionCount(); ++i) {
+            WriteEdge(op, op->GetProjection(i), ToString(i));
+            Traverse(this, op->GetProjection(i));
         }
         return true;
     }
 
-    virtual bool Visit(TIntegerLiteralExpression* expr) override
+    virtual bool Visit(const TIntegerLiteralExpression* expr) override
     {
         WriteNode(
             expr,
-            TLabel("IntegerLiteral", 2).WithRow(ToString(expr->GetValue())).Build());
+            TLabel(expr).WithRow(ToString(expr->GetValue())).Build());
         return true;
     }
 
-    virtual bool Visit(TDoubleLiteralExpression* expr) override
+    virtual bool Visit(const TDoubleLiteralExpression* expr) override
     {
         WriteNode(
             expr,
-            TLabel("DoubleLiteral", 2).WithRow(ToString(expr->GetValue())).Build());
+            TLabel(expr).WithRow(ToString(expr->GetValue())).Build());
         return true;
     }
 
-    virtual bool Visit(TReferenceExpression* expr) override
+    virtual bool Visit(const TReferenceExpression* expr) override
     {
         WriteNode(
             expr,
-            TLabel("Reference", 2)
+            TLabel(expr)
                 .WithRow(
                     "TableIndex: " + ToString(expr->GetTableIndex()) + "<BR/>" +
-                    "Name: " + ToString(expr->GetName()) + "<BR/>" +
-                    "Type: " + expr->GetType().ToString() + "<BR/>")
+                    "Name: " + expr->GetName() + "<BR/>" +
+                    "Type: " + expr->GetCachedType().ToString() + "<BR/>" +
+                    "KeyIndex: " + ToString(expr->GetCachedKeyIndex()) + "<BR/>")
                 .Build());
         return true;
     }
 
-    virtual bool Visit(TFunctionExpression* expr) override
+    virtual bool Visit(const TFunctionExpression* expr) override
     {
-        YUNREACHABLE();
+        TLabel label(expr);
+        label.WithRow("Name: " + expr->GetName());
+        for (int i = 0; i < expr->GetArgumentCount(); ++i) {
+            label.WithPortAndRow(
+                ToString(i),
+                Sprintf("[%d]: ", i) + NDot::EscapeHtml(expr->GetArgument(i)->GetSource()));
+        }
+        WriteNode(expr, label.Build());
+        for (int i = 0; i < expr->GetArgumentCount(); ++i) {
+            WriteEdge(expr, expr->GetArgument(i), ToString(i));
+            Traverse(this, expr->GetArgument(i));
+        }
         return true;
     }
 
-    virtual bool Visit(TBinaryOpExpression* expr) override
+    virtual bool Visit(const TBinaryOpExpression* expr) override
     {
         WriteNode(
             expr,
-            TLabel("BinaryOp", 2)
+            TLabel(expr)
                 .WithRow("OpCode: " + expr->GetOpcode().ToString())
                 .Build());
+        WriteEdge(expr, expr->GetLhs());
+        WriteEdge(expr, expr->GetRhs());
         return true;
     }
 
 private:
     TOutputStream& Output_;
-    std::unordered_set<void*> VisitedNodes_;
+    std::unordered_set<const void*> VisitedNodes_;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -417,3 +435,4 @@ void ViewFragment(const TQueryFragment& /*fragment*/, const Stroka& /*title*/)
 } // namespace NYT
 
 #endif
+

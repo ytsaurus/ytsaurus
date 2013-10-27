@@ -12,11 +12,11 @@ namespace NQueryClient {
 class TQueryFragment
 {
 public:
-    explicit TQueryFragment(TQueryContextPtr context, TOperator* head = nullptr);
+    explicit TQueryFragment(TQueryContextPtr context, const TOperator* head = nullptr);
     ~TQueryFragment();
 
     DEFINE_BYVAL_RO_PROPERTY(TQueryContextPtr, Context);
-    DEFINE_BYVAL_RW_PROPERTY(TOperator*, Head);
+    DEFINE_BYVAL_RW_PROPERTY(const TOperator*, Head);
 
 };
 

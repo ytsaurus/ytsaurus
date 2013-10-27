@@ -5,6 +5,7 @@
 #include "query_context.h"
 #include "stubs.h"
 
+#include <core/misc/array_ref.h>
 #include <core/misc/property.h>
 #include <core/misc/small_vector.h>
 
@@ -37,107 +38,70 @@ extern const TSourceLocation NullSourceLocation;
 
 struct IAstVisitor;
 
-template <class TAstNode, int TypicalChildCount>
+const int TypicalUnionArity = 3;
+const int TypicalFunctionArity = 3;
+const int TypicalProjectionCount = 4;
+
+template <class TAstNode, class EKind>
 class TAstNodeBase
     : public TQueryContext::TTrackedObject
 {
+    EKind Kind_;
+
 public:
-    explicit TAstNodeBase(TQueryContext* context)
+    explicit TAstNodeBase(TQueryContext* context, EKind kind)
         : TTrackedObject(context)
-        , Children_()
-        , Parent_(nullptr)
+        , Kind_(kind)
     { }
 
-    inline const SmallVectorImpl<TAstNode*>& Children() const
+    virtual ~TAstNodeBase()
+    { }
+
+    inline EKind GetKind() const
     {
-        return Children_;
+        return Kind_;
+    }
+
+    template <class TDerivedAstNode>
+    inline bool IsA(
+        typename std::enable_if<
+            std::is_base_of<TAstNode, TDerivedAstNode>::value,
+            int
+        >::type = 0) const
+    {
+        return TDerivedAstNode::IsClassOf(static_cast<const TAstNode*>(this));
+    }
+
+    template <class TDerivedAstNode>
+    inline const TDerivedAstNode* As(
+        typename std::enable_if<
+            std::is_base_of<TAstNode, TDerivedAstNode>::value,
+            int
+        >::type = 0) const
+    {
+        if (IsA<TDerivedAstNode>()) {
+            return static_cast<const TDerivedAstNode*>(this);
+        } else {
+            return nullptr;
+        }
+    }
+
+    template <class TDerivedAstNode>
+    inline TDerivedAstNode* AsMutable(
+        typename std::enable_if<
+            std::is_base_of<TAstNode, TDerivedAstNode>::value,
+            int
+        >::type = 0) const
+    {
+        return const_cast<TDerivedAstNode*>(As<TDerivedAstNode>());
     }
 
     inline TAstNode* Parent() const
     {
-        return Parent_;
+        YUNREACHABLE();
     }
 
-    //! Adds a new child |node| to current node.
-    inline void AddChild(TAstNode* node)
-    {
-        YASSERT(!node->Parent_);
-        Children_.push_back(node);
-        node->Parent_ = TypedThis();
-    }
-
-    //! Adds a new child |node| to current node.
-    inline void AddChildNoCheck(TAstNode* node)
-    {
-        Children_.push_back(node);
-        node->Parent_ = TypedThis();
-    }
-
-    //! Removes a child |node| from current node.
-    inline void RemoveChild(TAstNode* node)
-    {
-        YASSERT(node->Parent_ == TypedThis());
-        auto it = std::find(Children_.begin(), Children_.end(), node);
-        YASSERT(it != Children_.end());
-        Children_.erase(it);
-        node->Parent_ = nullptr;
-    }
-
-    //! Swaps current node in-situ with |node| leaving current node dangling.
-    inline void SwapWith(TAstNode* node)
-    {
-        YASSERT(!node->Parent_);
-        YASSERT(node->Children_.empty());
-        for (auto child : Children_) {
-            child->Parent_ = nullptr;
-            node->AddChild(child);
-        }
-        Children_.clear();
-        if (Parent_) {
-            auto it = Parent_->Children_.begin();
-            auto jt = Parent_->Children_.end();
-            if ((it = std::find(it, jt, TypedThis())) != jt) {
-                *it = node;
-            }
-            node->Parent_ = Parent_;
-            Parent_ = nullptr;
-        }
-    }
-
-    //! Cuts the current node out from tree reattaching children to parent.
-    inline void Cut()
-    {
-        for (auto child : Children_) {
-            child->Parent_ = nullptr;
-            if (Parent_) {
-                Parent_->AddChild(child);
-            }
-        }
-        Children_.clear();
-        if (Parent_) {
-            Parent_->RemoveChild(TypedThis());
-            Parent_ = nullptr;
-        }
-    }
-
-    virtual bool Accept(IAstVisitor*) = 0;
-
-    virtual void Check() const
-    {
-        FOREACH (const auto& child, Children_) {
-            YCHECK(this == child->Parent_);
-        }
-    }
-
-protected:
-    TSmallVector<TAstNode*, TypicalChildCount> Children_;
-    TAstNode* Parent_;
-
-private:
-    TAstNode* TypedThis()
-    {
-        return static_cast<TAstNode*>(this);
-    }
+    virtual TArrayRef<const TAstNode*> Children() const = 0;
 
 };
 

@@ -13,6 +13,14 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_ENUM(EExpressionKind,
+    (IntegerLiteral)
+    (DoubleLiteral)
+    (Reference)
+    (Function)
+    (BinaryOp)
+);
+
 DECLARE_ENUM(EBinaryOp,
     (Less)
     (LessOrEqual)
@@ -22,44 +30,31 @@ DECLARE_ENUM(EBinaryOp,
     (GreaterOrEqual)
 );
 
-const int TypicalExpressionChildCount = 3;
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace NProto { class TExpression; }
-void ToProto(NProto::TExpression* serialized, TExpression* original);
-TExpression* FromProto(const NProto::TExpression& serialized, TQueryContext* context);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TExpression
-    : public TAstNodeBase<TExpression, TypicalExpressionChildCount>
+    : public TAstNodeBase<TExpression, EExpressionKind>
 {
 public:
-    explicit TExpression(TQueryContext* context, const TSourceLocation& sourceLocation)
-        : TAstNodeBase(context)
+    TExpression(
+        TQueryContext* context,
+        EExpressionKind kind,
+        const TSourceLocation& sourceLocation)
+        : TAstNodeBase(context, kind)
         , SourceLocation_(sourceLocation)
     { }
 
-    Stroka GetSource() const;
-
-    virtual bool Accept(IAstVisitor*) = 0;
-
-    virtual const char* GetDebugName() const
+    virtual TArrayRef<const TExpression*> Children() const override
     {
-        return typeid(*this).name();
-    }
-
-    virtual void Check() const
-    {
-        FOREACH (const auto& child, Children_) {
-            YCHECK(this == child->Parent_);
-        }
+        return Null;
     }
 
     virtual EColumnType Typecheck() const = 0;
 
-    DEFINE_BYREF_RW_PROPERTY(TSourceLocation, SourceLocation);
+    Stroka GetSource() const;
+
+private:
+    TSourceLocation SourceLocation_;
 
 };
 
@@ -74,15 +69,13 @@ public:
         TQueryContext* context,
         const TSourceLocation& sourceLocation,
         i64 value)
-        : TExpression(context, sourceLocation)
+        : TExpression(context, EExpressionKind::IntegerLiteral, sourceLocation)
         , Value_(value)
     { }
 
-    virtual bool Accept(IAstVisitor*) override;
-
-    virtual void Check() const override
+    static inline bool IsClassOf(const TExpression* expr)
     {
-        YCHECK(Children_.empty());
+        return expr->GetKind() == EExpressionKind::IntegerLiteral;
     }
 
     virtual EColumnType Typecheck() const override
@@ -103,15 +96,13 @@ public:
         TQueryContext* context,
         const TSourceLocation& sourceLocation,
         double value)
-        : TExpression(context, sourceLocation)
+        : TExpression(context, EExpressionKind::DoubleLiteral, sourceLocation)
         , Value_(value)
     { }
 
-    virtual bool Accept(IAstVisitor*) override;
-
-    virtual void Check() const override
+    static inline bool IsClassOf(const TExpression* expr)
     {
-        YCHECK(Children_.empty());
+        return expr->GetKind() == EExpressionKind::DoubleLiteral;
     }
 
     virtual EColumnType Typecheck() const override
@@ -133,29 +124,28 @@ public:
         const TSourceLocation& sourceLocation,
         int tableIndex,
         const TStringBuf& name)
-        : TExpression(context, sourceLocation)
+        : TExpression(context, EExpressionKind::Reference, sourceLocation)
         , TableIndex_(tableIndex)
         , Name_(name)
-        , Type_(EColumnType::TheBottom)
-        , KeyIndex_(-1)
+        , CachedType_(EColumnType::TheBottom)
+        , CachedKeyIndex_(-1)
     { }
 
-    virtual bool Accept(IAstVisitor*) override;
-
-    virtual void Check() const override
+    static inline bool IsClassOf(const TExpression* expr)
     {
-        YCHECK(Children_.empty());
+        return expr->GetKind() == EExpressionKind::Reference;
     }
 
     virtual EColumnType Typecheck() const override
     {
-        return Type_;
+        return CachedType_;
     }
 
     DEFINE_BYVAL_RO_PROPERTY(int, TableIndex);
     DEFINE_BYVAL_RO_PROPERTY(Stroka, Name);
-    DEFINE_BYVAL_RW_PROPERTY(EColumnType, Type);
-    DEFINE_BYVAL_RW_PROPERTY(int, KeyIndex);
+
+    DEFINE_BYVAL_RW_PROPERTY(EColumnType, CachedType);
+    DEFINE_BYVAL_RW_PROPERTY(int, CachedKeyIndex);
 
 };
 
@@ -164,52 +154,56 @@ class TFunctionExpression
     : public TExpression
 {
 public:
+    typedef TSmallVector<const TExpression*, TypicalFunctionArity> TArguments;
+
     TFunctionExpression(
         TQueryContext* context,
         const TSourceLocation& sourceLocation,
         const TStringBuf& name)
-        : TExpression(context, sourceLocation)
+        : TExpression(context, EExpressionKind::Function, sourceLocation)
         , Name_(name)
     { }
 
-    template <typename TIterator>
-    TFunctionExpression(
-        TQueryContext* context,
-        const TSourceLocation& sourceLocation,
-        const TStringBuf& name,
-        TIterator begin,
-        TIterator end)
-        : TExpression(context, sourceLocation)
-        , Name_(name)
+    static inline bool IsClassOf(const TExpression* expr)
     {
-        Children_.reserve(std::distance(begin, end));
-        for (TIterator it = begin; it != end; ++it) {
-            AddChild(*it);
-        }
+        return expr->GetKind() == EExpressionKind::Function;
     }
 
-    virtual bool Accept(IAstVisitor*) override;
+    virtual TArrayRef<const TExpression*> Children() const override
+    {
+        return Arguments_;
+    }
 
     virtual EColumnType Typecheck() const override
     {
-        THROW_ERROR_EXCEPTION("Function calls are not supported yet")
-            << TErrorAttribute("expression", GetSource());
-
         // TODO(sandello): We should register functions with their signatures.
-        return EColumnType::TheBottom;
+        YUNIMPLEMENTED();
     }
 
-    int GetArity() const
+    TArguments& Arguments()
     {
-        return Children_.size();
+        return Arguments_;
     }
 
-    TExpression* GetArgument(int i) const
+    const TArguments& Arguments() const
     {
-        return Children_[i];
+        return Arguments_;
+    }
+
+    int GetArgumentCount() const
+    {
+        return Arguments_.size();
+    }
+
+    const TExpression* GetArgument(int i) const
+    {
+        return Arguments_[i];
     }
 
     DEFINE_BYVAL_RO_PROPERTY(Stroka, Name);
+
+private:
+    TArguments Arguments_;
 
 };
 
@@ -221,21 +215,25 @@ public:
     TBinaryOpExpression(
         TQueryContext* context,
         const TSourceLocation& sourceLocation,
-        EBinaryOp opcode)
-        : TExpression(context, sourceLocation)
+        EBinaryOp opcode,
+        const TExpression* lhs,
+        const TExpression* rhs)
+        : TExpression(context, EExpressionKind::BinaryOp, sourceLocation)
         , Opcode_(opcode)
     {
-        Children_.resize(NumberOfSubexpressions_);
-        SetLhs(nullptr);
-        SetRhs(nullptr);
+        Subexpressions_[Lhs_] = lhs;
+        Subexpressions_[Rhs_] = rhs;
     }
 
-    virtual bool Accept(IAstVisitor*) override;
-
-    virtual void Check() const
+    static inline bool IsClassOf(const TExpression* expr)
     {
-        YCHECK(Children_.size() == 1);
-        TExpression::Check();
+        return expr->GetKind() == EExpressionKind::BinaryOp;
+    }
+
+    virtual TArrayRef<const TExpression*> Children() const override
+    {
+        // XXX(sandello): Construct explicitly to enable C-array overload.
+        return MakeArrayRef(Subexpressions_);
     }
 
     virtual EColumnType Typecheck() const override
@@ -256,32 +254,29 @@ public:
         return EColumnType::Integer;
     }
 
-    TExpression* GetLhs() const
+    const TExpression* GetLhs() const
     {
-        return Children_[Lhs_];
+        return Subexpressions_[Lhs_];
     }
 
-    void SetLhs(TExpression* lhs)
+    const TExpression* GetRhs() const
     {
-        Children_[Lhs_] = lhs;
-    }
-
-    TExpression* GetRhs() const
-    {
-        return Children_[Rhs_];
-    }
-
-    void SetRhs(TExpression* rhs)
-    {
-        Children_[Rhs_] = rhs;
+        return Subexpressions_[Rhs_];
     }
 
     DEFINE_BYVAL_RO_PROPERTY(EBinaryOp, Opcode);
 
 protected:
     enum { Lhs_, Rhs_, NumberOfSubexpressions_ };
+    const TExpression* Subexpressions_[NumberOfSubexpressions_];
 
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NProto { class TExpression; }
+void ToProto(NProto::TExpression* serialized, const TExpression* original);
+const TExpression* FromProto(const NProto::TExpression& serialized, TQueryContext* context);
 
 ////////////////////////////////////////////////////////////////////////////////
 

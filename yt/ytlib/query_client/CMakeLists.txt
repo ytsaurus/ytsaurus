@@ -9,6 +9,7 @@ set( SRCS
   ${BASE}/query_fragment.cpp
   ${BASE}/private.cpp
   ${BASE}/coordinator.cpp
+  ${BASE}/stubs.cpp
 )
 set( HDRS
   ${BASE}/ast.h

@@ -6,6 +6,9 @@
 
 #include <core/misc/protobuf_helpers.h>
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic error "-Wswitch-enum"
+
 namespace NYT {
 namespace NQueryClient {
 
@@ -14,112 +17,120 @@ namespace NQueryClient {
 using NYT::ToProto;
 using NYT::FromProto;
 
-#define XX(nodeType) IMPLEMENT_AST_VISITOR_HOOK(nodeType)
-#include "list_of_operators.inc"
-#undef XX
-
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-class TToProtoVisitor
-    : public IOperatorAstVisitor
+void ToProto(NProto::TOperator* serialized, const TOperator* original)
 {
-public:
-    TToProtoVisitor(NProto::TOperator* baseProto)
-        : BaseProto_(baseProto)
-    { }
+    serialized->set_kind(original->GetKind());
 
-    virtual bool Visit(TScanOperator* op) override
-    {
-        auto* derivedProto = BaseProto_->MutableExtension(NProto::TScanOperator::scan_operator);
-        derivedProto->set_table_index(op->GetTableIndex());
-        ToProto(derivedProto->mutable_data_split(), op->DataSplit());
-        return true;
+    switch (original->GetKind()) {
+
+    case EOperatorKind::Scan: {
+        auto* op = original->As<TScanOperator>();
+        auto* proto = serialized->MutableExtension(NProto::TScanOperator::scan_operator);
+        proto->set_table_index(op->GetTableIndex());
+        ToProto(proto->mutable_data_split(), op->DataSplit());
+        break;
     }
 
-    virtual bool Visit(TUnionOperator* op) override
-    {
-        auto* derivedProto = BaseProto_->MutableExtension(NProto::TUnionOperator::union_operator);
-        UNUSED(derivedProto);
-        return true;
+    case EOperatorKind::Union: {
+        auto* op = original->As<TUnionOperator>();
+        auto* proto = serialized->MutableExtension(NProto::TUnionOperator::union_operator);
+        ToProto(proto->mutable_sources(), op->Sources());
+        break;
     }
 
-    virtual bool Visit(TFilterOperator* op) override
-    {
-        auto* derivedProto = BaseProto_->MutableExtension(NProto::TFilterOperator::filter_operator);
-        ToProto(derivedProto->mutable_predicate(), op->GetPredicate());
-        return true;
+    case EOperatorKind::Filter: {
+        auto* op = original->As<TFilterOperator>();
+        auto* proto = serialized->MutableExtension(NProto::TFilterOperator::filter_operator);
+        ToProto(proto->mutable_source(), op->GetSource());
+        ToProto(proto->mutable_predicate(), op->GetPredicate());
+        break;
     }
 
-    virtual bool Visit(TProjectOperator* op) override
-    {
-        auto* derivedProto = BaseProto_->MutableExtension(NProto::TProjectOperator::project_operator);
-        ToProto(derivedProto->mutable_expressions(), op->Expressions());
-        return true;
+    case EOperatorKind::Project: {
+        auto* op = original->As<TProjectOperator>();
+        auto* proto = serialized->MutableExtension(NProto::TProjectOperator::project_operator);
+        ToProto(proto->mutable_source(), op->GetSource());
+        ToProto(proto->mutable_projections(), op->Projections());
+        break;
     }
 
-private:
-    NProto::TOperator* BaseProto_;
+    default:
+        YUNREACHABLE();
+    }
 
-};
 }
 
-void ToProto(NProto::TOperator* serialized, TOperator* original)
+const TOperator* FromProto(const NProto::TOperator& serialized, TQueryContext* context)
 {
-    TToProtoVisitor visitor(serialized);
-    original->Accept(&visitor);
-    ToProto(serialized->mutable_children(), original->Children());
-}
+    const TOperator* result = nullptr;
 
-TOperator* FromProto(const NProto::TOperator& serialized, TQueryContext* context)
-{
-    TOperator* result = nullptr;
+    switch (EOperatorKind(serialized.kind())) {
 
-    if (serialized.HasExtension(NProto::TScanOperator::scan_operator)) {
+    case EOperatorKind::Scan: {
         auto data = serialized.GetExtension(NProto::TScanOperator::scan_operator);
         auto typedResult = new (context) TScanOperator(
             context,
             data.table_index());
         FromProto(&typedResult->DataSplit(), data.data_split());
+        YASSERT(!result);
         result = typedResult;
+        break;
     }
 
-    if (serialized.HasExtension(NProto::TUnionOperator::union_operator)) {
+    case EOperatorKind::Union: {
         auto data = serialized.GetExtension(NProto::TUnionOperator::union_operator);
         auto typedResult = new (context) TUnionOperator(context);
-        UNUSED(data);
+        typedResult->Sources().reserve(data.sources_size());
+        for (int i = 0; i < data.sources_size(); ++i) {
+            typedResult->Sources().push_back(
+                FromProto(data.sources(i), context));
+        }
+        YASSERT(!result);
         result = typedResult;
+        break;
     }
 
-    if (serialized.HasExtension(NProto::TFilterOperator::filter_operator)) {
+    case EOperatorKind::Filter: {
         auto data = serialized.GetExtension(NProto::TFilterOperator::filter_operator);
         auto typedResult = new (context) TFilterOperator(
             context,
-            FromProto(data.predicate(), context));
+            FromProto(data.source(), context));
+        typedResult->SetPredicate(FromProto(data.predicate(), context));
+        YASSERT(!result);
         result = typedResult;
+        break;
     }
 
-    if (serialized.HasExtension(NProto::TProjectOperator::project_operator)) {
+    case EOperatorKind::Project: {
         auto data = serialized.GetExtension(NProto::TProjectOperator::project_operator);
-        auto typedResult = new (context) TProjectOperator(context);
-        typedResult->Expressions().reserve(data.expressions_size());
-        for (int i = 0; i < data.expressions_size(); ++i) {
-            typedResult->Expressions().push_back(
-                FromProto(data.expressions(i), context));
+        auto typedResult = new (context) TProjectOperator(
+            context,
+            FromProto(data.source(), context));
+        typedResult->Projections().reserve(data.projections_size());
+        for (int i = 0; i < data.projections_size(); ++i) {
+            typedResult->Projections().push_back(
+                FromProto(data.projections(i), context));
         }
+        YASSERT(!result);
         result = typedResult;
+        break;
     }
 
-    for (const auto& serializedChild : serialized.children()) {
-        result->AddChild(FromProto(serializedChild, context));
+    default:
+        YUNREACHABLE();
     }
 
     YCHECK(result);
     return result;
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NQueryClient
 } // namespace NYT
+
+#pragma GCC diagnostic pop
 

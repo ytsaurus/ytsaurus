@@ -13,23 +13,19 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const int TypicalOperatorChildCount = 2;
-const int TypicalProjectExpressionCount = 4;
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace NProto { class TOperator; }
-void ToProto(NProto::TOperator* serialized, TOperator* original);
-TOperator* FromProto(const NProto::TOperator& serialized, TQueryContext* context);
-
-////////////////////////////////////////////////////////////////////////////////
+DECLARE_ENUM(EOperatorKind,
+    (Scan)
+    (Union)
+    (Filter)
+    (Project)
+);
 
 class TOperator
-    : public TAstNodeBase<TOperator, TypicalOperatorChildCount>
+    : public TAstNodeBase<TOperator, EOperatorKind>
 {
 public:
-    explicit TOperator(TQueryContext* context)
-        : TAstNodeBase(context)
+    TOperator(TQueryContext* context, EOperatorKind kind)
+        : TAstNodeBase(context, kind)
     { }
 
 };
@@ -41,23 +37,18 @@ class TScanOperator
 {
 public:
     TScanOperator(TQueryContext* context, int tableIndex)
-        : TOperator(context)
+        : TOperator(context, EOperatorKind::Scan)
         , TableIndex_(tableIndex)
     { }
 
-    virtual bool Accept(IAstVisitor*) override;
-
-    virtual void Check() const override
+    static inline bool IsClassOf(const TOperator* op)
     {
-        YCHECK(Children_.empty());
-        TOperator::Check();
+        return op->GetKind() == EOperatorKind::Scan;
     }
 
-    TScanOperator* Clone()
+    virtual TArrayRef<const TOperator*> Children() const override
     {
-        auto clone = new (Context_) TScanOperator(Context_, TableIndex_);
-        clone->DataSplit().CopyFrom(DataSplit_);
-        return clone;
+        return Null;
     }
 
     DEFINE_BYVAL_RO_PROPERTY(int, TableIndex);
@@ -70,17 +61,39 @@ class TUnionOperator
     : public TOperator
 {
 public:
+    typedef TSmallVector<const TOperator*, TypicalUnionArity> TSources;
+
     TUnionOperator(TQueryContext* context)
-        : TOperator(context)
+        : TOperator(context, EOperatorKind::Union)
     { }
 
-    virtual bool Accept(IAstVisitor*) override;
-
-    TUnionOperator* Clone()
+    static inline bool IsClassOf(const TOperator* op)
     {
-        auto clone = new (Context_) TUnionOperator(Context_);
-        return clone;
+        return op->GetKind() == EOperatorKind::Union;
     }
+
+    virtual TArrayRef<const TOperator*> Children() const override
+    {
+        return Sources_;
+    }
+
+    TSources& Sources()
+    {
+        return Sources_;
+    }
+
+    const TSources& Sources() const
+    {
+        return Sources_;
+    }
+
+    const TOperator* GetSource(int i) const
+    {
+        return Sources_[i];
+    }
+
+private:
+    TSources Sources_;
 
 };
 
@@ -88,27 +101,24 @@ class TFilterOperator
     : public TOperator
 {
 public:
-    TFilterOperator(TQueryContext* context, TExpression* predicate)
-        : TOperator(context)
-        , Predicate_(predicate)
+    TFilterOperator(TQueryContext* context, const TOperator* source)
+        : TOperator(context, EOperatorKind::Filter)
+        , Source_(source)
     { }
 
-    virtual bool Accept(IAstVisitor*) override;
-
-    virtual void Check() const override
+    static inline bool IsClassOf(const TOperator* op)
     {
-        Predicate_->Check();
-        YCHECK(Children_.size() == 1);
-        TOperator::Check();
+        return op->GetKind() == EOperatorKind::Filter;
     }
 
-    TFilterOperator* Clone()
+    virtual TArrayRef<const TOperator*> Children() const override
     {
-        auto clone = new (Context_) TFilterOperator(Context_, Predicate_);
-        return clone;
+        return Source_;
     }
 
-    DEFINE_BYVAL_RO_PROPERTY(TExpression*, Predicate);
+    DEFINE_BYVAL_RW_PROPERTY(const TOperator*, Source);
+
+    DEFINE_BYVAL_RW_PROPERTY(const TExpression*, Predicate);
 
 };
 
@@ -116,60 +126,55 @@ class TProjectOperator
     : public TOperator
 {
 public:
-    explicit TProjectOperator(TQueryContext* context)
-        : TOperator(context)
+    typedef TSmallVector<const TExpression*, TypicalProjectionCount> TProjections;
+
+    TProjectOperator(TQueryContext* context, const TOperator* source)
+        : TOperator(context, EOperatorKind::Project)
+        , Source_(source)
     { }
 
-    template <typename TIterator>
-    TProjectOperator(TQueryContext* context, TIterator begin, TIterator end)
-        : TOperator(context)
-        , Expressions_(begin, end)
-    { }
-
-    virtual bool Accept(IAstVisitor*) override;
-
-    virtual void Check() const override
+    static inline bool IsClassOf(const TOperator* op)
     {
-        FOREACH (const auto& expr, Expressions_) {
-            expr->Check();
-        }
-        YCHECK(Children_.size() == 1);
-        TOperator::Check();
+        return op->GetKind() == EOperatorKind::Project;
     }
 
-    TProjectOperator* Clone()
+    virtual TArrayRef<const TOperator*> Children() const override
     {
-        auto clone = new (Context_) TProjectOperator(
-            Context_,
-            Expressions_.begin(),
-            Expressions_.end());
-        return clone;
+        return Source_;
     }
 
-    SmallVectorImpl<TExpression*>& Expressions()
+    TProjections& Projections()
     {
-        return Expressions_;
+        return Projections_;
     }
 
-    const SmallVectorImpl<TExpression*>& Expressions() const
+    const TProjections& Projections() const
     {
-        return Expressions_;
+        return Projections_;
     }
 
-    TExpression* GetExpression(int i)
+    int GetProjectionCount() const
     {
-        return Expressions_[i];
+        return Projections_.size();
     }
 
-    const TExpression* GetExpression(int i) const
+    const TExpression* GetProjection(int i) const
     {
-        return Expressions_[i];
+        return Projections_[i];
     }
 
-protected:
-    TSmallVector<TExpression*, TypicalProjectExpressionCount> Expressions_;
+    DEFINE_BYVAL_RW_PROPERTY(const TOperator*, Source);
+
+private:
+    TProjections Projections_;
 
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NProto { class TOperator; }
+void ToProto(NProto::TOperator* serialized, const TOperator* original);
+const TOperator* FromProto(const NProto::TOperator& serialized, TQueryContext* context);
 
 ////////////////////////////////////////////////////////////////////////////////
 

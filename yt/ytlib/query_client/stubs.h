@@ -23,6 +23,8 @@ namespace NQueryClient {
 
 typedef NChunkClient::NProto::TChunkSpec TDataSplit;
 
+Stroka GetObjectIdFromDataSplit(const TDataSplit& split);
+
 static const int TypicalTableCount = 2;
 
 using NVersionedTableClient::EColumnType;

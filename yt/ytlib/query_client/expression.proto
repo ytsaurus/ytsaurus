@@ -4,8 +4,7 @@ package NYT.NQueryClient.NProto;
 
 message TExpression
 {
-    required int32 kind = 1; // TODO(sandello): Do I really need this?
-    repeated TExpression children = 2;
+    required int32 kind = 1;
 
     extensions 100 to max;
 }
@@ -33,8 +32,8 @@ message TReferenceExpression
     }
     required int32 table_index = 1;
     required string name = 2;
-    required int32 type = 3; // EColumnType
-    required int32 key_index = 4;
+    required int32 cached_type = 3; // EColumnType
+    required int32 cached_key_index = 4;
 }
 
 message TFunctionExpression
@@ -42,7 +41,8 @@ message TFunctionExpression
     extend TExpression {
         optional TFunctionExpression function_expression = 104;
     }
-    // TODO(sandello): YUNIMPLEMENTED
+    required string name = 1;
+    repeated TExpression arguments = 2;
 }
 
 message TBinaryOpExpression
@@ -51,6 +51,8 @@ message TBinaryOpExpression
         optional TBinaryOpExpression binary_op_expression = 105;
     }
     required int32 opcode = 1; // EBinaryOp
+    required TExpression lhs = 2;
+    required TExpression rhs = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

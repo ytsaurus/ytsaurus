@@ -59,47 +59,13 @@ private:
     IPrepareCallbacks* Callbacks_;
     const Stroka& Source_;
     TQueryContextPtr Context_;
-    TOperator* Head_;
+    const TOperator* Head_;
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
-
-class TGetInitialSplits
-    : public TAstVisitor
-{
-public:
-    explicit TGetInitialSplits(TPrepareController* controller)
-        : Controller_(controller)
-    { }
-
-    virtual bool Visit(TScanOperator* op) override
-    {
-        auto& descriptor = Controller_->GetContext()
-            ->GetTableDescriptorByIndex(op->GetTableIndex());
-
-        LOG_DEBUG("Getting initial data split for %s", ~descriptor.Path);
-
-        // XXX(sandello): We have just one table at the moment.
-        // Will put TParallelAwaiter here in case of multiple tables.
-        auto dataSplitOrError = WaitFor(Controller_->GetCallbacks()
-            ->GetInitialSplit(descriptor.Path));
-        THROW_ERROR_EXCEPTION_IF_FAILED(
-            dataSplitOrError,
-            "Failed to get initial data split for table %s",
-            ~descriptor.Path);
-
-        op->DataSplit() = dataSplitOrError.GetValue();
-
-        return true;
-    }
-
-private:
-    TPrepareController* Controller_;
-
-};
 
 class TCheckAndPruneReferences
     : public TAstVisitor
@@ -111,7 +77,7 @@ public:
         LiveColumns_.resize(Controller_->GetContext()->GetTableCount());
     }
 
-    virtual bool Visit(TScanOperator* op) override
+    virtual bool Visit(const TScanOperator* op) override
     {
         // Scan operators are always visited in the end,
         // because they are leaf nodes.
@@ -129,34 +95,36 @@ public:
                 }
             }
             SetProtoExtension<NVersionedTableClient::NProto::TTableSchemaExt>(
-                op->DataSplit().mutable_extensions(),
+                op->AsMutable<TScanOperator>()->DataSplit().mutable_extensions(),
                 filteredTableSchema);
         }
 
         return true;
     }
 
-    virtual bool Visit(TFilterOperator* op) override
+    virtual bool Visit(const TFilterOperator* op) override
     {
         Traverse(this, op->GetPredicate());
         return true;
     }
 
-    virtual bool Visit(TProjectOperator* op) override
+    virtual bool Visit(const TProjectOperator* op) override
     {
-        for (auto& expression : op->Expressions()) {
-            Traverse(this, expression);
+        for (auto& projection : op->Projections()) {
+            Traverse(this, projection);
         }
         return true;
     }
 
-    virtual bool Visit(TReferenceExpression* expr) override
+    virtual bool Visit(const TReferenceExpression* expr) override
     {
         auto& descriptor = Controller_->GetContext()
             ->GetTableDescriptorByIndex(expr->GetTableIndex());
 
         TScanOperator* op = reinterpret_cast<TScanOperator*>(descriptor.Opaque);
         YCHECK(op);
+
+        auto* mutableExpr = expr->AsMutable<TReferenceExpression>();
 
         const auto keyColumns = GetProtoExtension<NTableClient::NProto::TKeyColumnsExt>(op->DataSplit().extensions());
         const auto tableSchema = GetProtoExtension<NVersionedTableClient::NProto::TTableSchemaExt>(op->DataSplit().extensions());
@@ -170,7 +138,7 @@ public:
                 });
 
             if (it == tableSchema.columns().end()) {
-                TExpression* enclosingExpr = expr;
+                const TExpression* enclosingExpr = expr;
                 while (enclosingExpr->Parent()) {
                     enclosingExpr = enclosingExpr->Parent();
                 }
@@ -182,7 +150,7 @@ public:
                     << TErrorAttribute("enclosing_expression", enclosingExpr->GetSource());
             }
 
-            expr->SetType(EColumnType(it->type()));
+            mutableExpr->SetCachedType(EColumnType(it->type()));
         }
 
         {
@@ -194,9 +162,9 @@ public:
                 });
 
             if (it != keyColumns.names().end()) {
-                expr->SetKeyIndex(std::distance(keyColumns.names().begin(), it));
+                mutableExpr->SetCachedKeyIndex(std::distance(keyColumns.names().begin(), it));
             } else {
-                expr->SetKeyIndex(-1);
+                mutableExpr->SetCachedKeyIndex(-1);
             }
         }
 
@@ -208,35 +176,6 @@ public:
 private:
     TPrepareController* Controller_;
     std::vector<std::set<Stroka>> LiveColumns_;
-
-};
-
-class TTypecheckExpressions
-    : public TAstVisitor
-{
-public:
-    explicit TTypecheckExpressions(TPrepareController* /* controller */)
-    { }
-
-    virtual bool Visit(TFilterOperator* op) override
-    {
-        auto actualType = op->GetPredicate()->Typecheck();
-        auto expectedType = EColumnType(EColumnType::Integer);
-        if (actualType != expectedType) {
-            THROW_ERROR_EXCEPTION("WHERE-clause is not of valid type")
-                << TErrorAttribute("actual_type", actualType)
-                << TErrorAttribute("expected_type", expectedType);
-        }
-        return true;
-    }
-
-    virtual bool Visit(TProjectOperator* op) override
-    {
-        for (auto& expression : op->Expressions()) {
-            expression->Typecheck();
-        }
-        return true;
-    }
 
 };
 
@@ -256,10 +195,10 @@ TQueryFragment TPrepareController::Run()
 void TPrepareController::ParseSource()
 {
     // Hook up with debug information for better error messages.
-    Context_->SetDebugInformation(TDebugInformation(Source_));
+    GetContext()->SetDebugInformation(TDebugInformation(Source_));
 
-    TLexer lexer(Context_.Get(), Source_);
-    TParser parser(lexer, Context_.Get(), &Head_);
+    TLexer lexer(GetContext(), Source_);
+    TParser parser(lexer, GetContext(), &Head_);
 
     int result = parser.parse();
     if (result != 0) {
@@ -269,8 +208,23 @@ void TPrepareController::ParseSource()
 
 void TPrepareController::GetInitialSplits()
 {
-    TGetInitialSplits visitor(this);
-    Traverse(&visitor, Head_);
+    Visit(Head_, [this] (const TOperator* op)
+    {
+        if (auto* scanOp = op->AsMutable<TScanOperator>()) {
+            auto tableIndex = scanOp->GetTableIndex();
+            auto& tableDescriptor = GetContext()->GetTableDescriptorByIndex(tableIndex);
+            LOG_DEBUG("Getting initial data split for %s", ~tableDescriptor.Path);
+            // XXX(sandello): We have just one table at the moment.
+            // Will put TParallelAwaiter here in case of multiple tables.
+            auto dataSplitOrError = WaitFor(
+                GetCallbacks()->GetInitialSplit(tableDescriptor.Path));
+            THROW_ERROR_EXCEPTION_IF_FAILED(
+                dataSplitOrError,
+                "Failed to get initial data split for table %s",
+                ~tableDescriptor.Path);
+            scanOp->DataSplit() = dataSplitOrError.GetValue();
+        }
+    });
 }
 
 void TPrepareController::CheckAndPruneReferences()
@@ -281,13 +235,28 @@ void TPrepareController::CheckAndPruneReferences()
 
 void TPrepareController::TypecheckExpressions()
 {
-    TTypecheckExpressions visitor(this);
-    Traverse(&visitor, Head_);
+    Visit(Head_, [this] (const TOperator* op)
+    {
+        if (auto* typedOp = op->As<TFilterOperator>()) {
+            auto actualType = typedOp->GetPredicate()->Typecheck();
+            auto expectedType = EColumnType(EColumnType::Integer);
+            if (actualType != expectedType) {
+                THROW_ERROR_EXCEPTION("WHERE-clause is not of valid type")
+                    << TErrorAttribute("actual_type", actualType)
+                    << TErrorAttribute("expected_type", expectedType);
+            }
+        }
+        if (auto* typedOp = op->As<TProjectOperator>()) {
+            for (auto& projection : typedOp->Projections()) {
+                projection->Typecheck();
+            }
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TQueryFragment::TQueryFragment(TQueryContextPtr context, TOperator* head)
+TQueryFragment::TQueryFragment(TQueryContextPtr context, const TOperator* head)
     : Context_(std::move(context))
     , Head_(head)
 { }

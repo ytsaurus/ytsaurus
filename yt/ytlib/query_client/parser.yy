@@ -14,7 +14,7 @@
 
 %parse-param {TLexer& lexer}
 %parse-param {TQueryContext* context}
-%parse-param {TOperator** head}
+%parse-param {const TOperator** head}
 
 %code requires {
     #include <ytlib/query_client/ast.h>
@@ -60,87 +60,95 @@
 %token OpGreater 62 "`>`"
 %token OpGreaterOrEqual "`>=`"
 
-%type <TProjectOperator*> select-clause
-%type <TScanOperator*> from-clause
-%type <TFilterOperator*> where-clause
+%type <TOperator*> select-clause
+%type <TOperator*> select-source
+%type <TOperator*> from-where-clause
+%type <TOperator*> from-clause
 
-%type <TSmallVector<TExpression*, TypicalProjectExpressionCount>> select-exprs
-%type <TExpression*> select-expr
+%type <TProjectOperator::TProjections> projections
+%type <TExpression*> projection
 
 %type <TExpression*> atomic-expr
 
-%type <TExpression*> function-expr
-%type <TSmallVector<TExpression*, TypicalExpressionChildCount>> function-arg-exprs
-%type <TExpression*> function-arg-expr
+%type <TFunctionExpression*> function-expr
+%type <TFunctionExpression::TArguments> function-expr-args
+%type <TExpression*> function-expr-arg
 
 %type <TBinaryOpExpression*> binary-rel-op-expr
 %type <EBinaryOp> binary-rel-op
 
-%start query
+%start head
 
 %%
 
-query
-    : select-clause from-clause where-clause
+head
+    : select-clause
         {
-            $[where-clause]->AddChild($[from-clause]);
-            $[select-clause]->AddChild($[where-clause]);
             *head = $[select-clause];
         }
 ;
 
 select-clause
-    : select-exprs[exprs]
+    : projections select-source[source]
         {
-            $$ = new(context) TProjectOperator(
-                context,
-                $exprs.begin(),
-                $exprs.end());
+            auto projectOp = new (context) TProjectOperator(context, $source);
+            projectOp->Projections().assign($projections.begin(), $projections.end());
+            $$ = projectOp;
         }
 ;
 
-select-exprs
-    : select-exprs[exprs] Comma select-expr[expr]
-        {
-            $$.swap($exprs);
-            $$.push_back($expr);
-        }
-    | select-expr[expr]
-        {
-            $$.push_back($expr);
-        }
+select-source
+    : from-where-clause
+        { $$ = $1; }
 ;
 
-select-expr
-    : atomic-expr
-        { $$ = $1; }
-    | function-expr
-        { $$ = $1; }
+from-where-clause
+    : from-clause[source]
+        {
+            $$ = $source;
+        }
+    | from-clause[source] KwWhere binary-rel-op-expr[predicate]
+        {
+            auto filterOp = new (context) TFilterOperator(context, $source);
+            filterOp->SetPredicate($predicate);
+            $$ = filterOp;
+        }
 ;
 
 from-clause
     : KwFrom YPathLiteral[path]
         {
             auto tableIndex = context->GetTableIndexByAlias("");
-            $$ = new(context) TScanOperator(context, tableIndex);
-            context->BindToTableIndex(tableIndex, $path, $$);
+            auto scanOp = new (context) TScanOperator(context, tableIndex);
+            context->BindToTableIndex(tableIndex, $path, scanOp);
+            $$ = scanOp;
         }
 ;
 
-where-clause
-    : KwWhere binary-rel-op-expr[predicate]
+projections
+    : projections[ps] Comma projection[p]
         {
-            $$ = new(context) TFilterOperator(
-                context,
-                $predicate);
+            $$.swap($ps);
+            $$.push_back($p);
         }
+    | projection[p]
+        {
+            $$.push_back($p);
+        }
+;
+
+projection
+    : atomic-expr
+        { $$ = $1; }
+    | function-expr
+        { $$ = $1; }
 ;
 
 atomic-expr
     : Identifier[name]
         {
             auto tableIndex = context->GetTableIndexByAlias("");
-            $$ = new(context) TReferenceExpression(
+            $$ = new (context) TReferenceExpression(
                 context,
                 @$,
                 tableIndex,
@@ -148,39 +156,38 @@ atomic-expr
         }
     | IntegerLiteral[value]
         {
-            $$ = new(context) TIntegerLiteralExpression(context, @$, $value);
+            $$ = new (context) TIntegerLiteralExpression(context, @$, $value);
         }
     | DoubleLiteral[value]
         {
-            $$ = new(context) TDoubleLiteralExpression(context, @$, $value);
+            $$ = new (context) TDoubleLiteralExpression(context, @$, $value);
         }
 ;
 
 function-expr
-    : Identifier[name] LeftParenthesis function-arg-exprs[exprs] RightParenthesis
+    : Identifier[name] LeftParenthesis function-expr-args[args] RightParenthesis
         {
-            $$ = new(context) TFunctionExpression(
+            $$ = new (context) TFunctionExpression(
                 context,
                 @$,
-                $name,
-                $exprs.begin(),
-                $exprs.end());
+                $name);
+            $$->Arguments().assign($args.begin(), $args.end());
         }
 ;
 
-function-arg-exprs
-    : function-arg-exprs[exprs] Comma function-arg-expr[expr]
+function-expr-args
+    : function-expr-args[as] Comma function-expr-arg[a]
         {
-            $$.swap($exprs);
-            $$.push_back($expr);
+            $$.swap($as);
+            $$.push_back($a);
         }
-    | function-arg-expr[expr]
+    | function-expr-arg[a]
         {
-            $$.push_back($expr);
+            $$.push_back($a);
         }
 ;
 
-function-arg-expr
+function-expr-arg
     : atomic-expr
         { $$ = $1; }
 ;
@@ -188,12 +195,12 @@ function-arg-expr
 binary-rel-op-expr
     : atomic-expr[lhs] binary-rel-op[opcode] atomic-expr[rhs]
         {
-            $$ = new(context) TBinaryOpExpression(
+            $$ = new (context) TBinaryOpExpression(
                 context,
                 @$,
-                $opcode);
-            $$->SetLhs($lhs);
-            $$->SetRhs($rhs);
+                $opcode,
+                $lhs,
+                $rhs);
         }
 ;
 

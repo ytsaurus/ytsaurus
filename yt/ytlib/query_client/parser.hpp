@@ -236,36 +236,35 @@ namespace NYT { namespace NQueryClient {
       // binary-rel-op-expr
       char dummy2[sizeof(TBinaryOpExpression*)];
 
-      // select-expr
+      // projection
       // atomic-expr
-      // function-expr
-      // function-arg-expr
+      // function-expr-arg
       char dummy3[sizeof(TExpression*)];
 
-      // where-clause
-      char dummy4[sizeof(TFilterOperator*)];
+      // function-expr
+      char dummy4[sizeof(TFunctionExpression*)];
+
+      // function-expr-args
+      char dummy5[sizeof(TFunctionExpression::TArguments)];
 
       // select-clause
-      char dummy5[sizeof(TProjectOperator*)];
-
+      // select-source
+      // from-where-clause
       // from-clause
-      char dummy6[sizeof(TScanOperator*)];
+      char dummy6[sizeof(TOperator*)];
 
-      // function-arg-exprs
-      char dummy7[sizeof(TSmallVector<TExpression*, TypicalExpressionChildCount>)];
-
-      // select-exprs
-      char dummy8[sizeof(TSmallVector<TExpression*, TypicalProjectExpressionCount>)];
+      // projections
+      char dummy7[sizeof(TProjectOperator::TProjections)];
 
       // "identifier"
       // "YPath literal"
-      char dummy9[sizeof(TStringBuf)];
+      char dummy8[sizeof(TStringBuf)];
 
       // "double literal"
-      char dummy10[sizeof(double)];
+      char dummy9[sizeof(double)];
 
       // "integer literal"
-      char dummy11[sizeof(i64)];
+      char dummy10[sizeof(i64)];
 };
 
     /// Symbol semantic values.
@@ -346,15 +345,13 @@ namespace NYT { namespace NQueryClient {
 
   basic_symbol (typename Base::kind_type t, const TExpression* v, const location_type& l);
 
-  basic_symbol (typename Base::kind_type t, const TFilterOperator* v, const location_type& l);
+  basic_symbol (typename Base::kind_type t, const TFunctionExpression* v, const location_type& l);
 
-  basic_symbol (typename Base::kind_type t, const TProjectOperator* v, const location_type& l);
+  basic_symbol (typename Base::kind_type t, const TFunctionExpression::TArguments v, const location_type& l);
 
-  basic_symbol (typename Base::kind_type t, const TScanOperator* v, const location_type& l);
+  basic_symbol (typename Base::kind_type t, const TOperator* v, const location_type& l);
 
-  basic_symbol (typename Base::kind_type t, const TSmallVector<TExpression*, TypicalExpressionChildCount> v, const location_type& l);
-
-  basic_symbol (typename Base::kind_type t, const TSmallVector<TExpression*, TypicalProjectExpressionCount> v, const location_type& l);
+  basic_symbol (typename Base::kind_type t, const TProjectOperator::TProjections v, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const TStringBuf v, const location_type& l);
 
@@ -494,7 +491,7 @@ namespace NYT { namespace NQueryClient {
 
 
     /// Build a parser object.
-    TParser (TLexer& lexer_yyarg, TQueryContext* context_yyarg, TOperator** head_yyarg);
+    TParser (TLexer& lexer_yyarg, TQueryContext* context_yyarg, const TOperator** head_yyarg);
     virtual ~TParser ();
 
     /// Parse.
@@ -693,7 +690,7 @@ namespace NYT { namespace NQueryClient {
     {
       yyeof_ = 0,
       yylast_ = 26,           //< Last index in yytable_.
-      yynnts_ = 13,  //< Number of nonterminal symbols.
+      yynnts_ = 14,  //< Number of nonterminal symbols.
       yyempty_ = -2,
       yyfinal_ = 11, //< Termination state number.
       yyterror_ = 1,
@@ -705,13 +702,13 @@ namespace NYT { namespace NQueryClient {
     // User arguments.
     TLexer& lexer;
     TQueryContext* context;
-    TOperator** head;
+    const TOperator** head;
   };
 
 
 #line 5 "/home/sandello/yt/source/yt/ytlib/query_client/parser.yy" // lalr1.cc:371
 } } // NYT::NQueryClient
-#line 715 "/home/sandello/yt/source/yt/ytlib/query_client/parser.hpp" // lalr1.cc:371
+#line 712 "/home/sandello/yt/source/yt/ytlib/query_client/parser.hpp" // lalr1.cc:371
 
 
 

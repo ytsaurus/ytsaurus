@@ -7,8 +7,7 @@ import "yt/ytlib/query_client/expression.proto";
 
 message TOperator
 {
-    required int32 kind = 1; // TODO(sandello): Do I really need this?
-    repeated TOperator children = 2;
+    required int32 kind = 1;
 
     extensions 100 to max;
 }
@@ -19,7 +18,7 @@ message TScanOperator
         optional TScanOperator scan_operator = 101;
     }
     required int32 table_index = 1;
-    optional NYT.NChunkClient.NProto.TChunkSpec data_split = 2;
+    required NYT.NChunkClient.NProto.TChunkSpec data_split = 2;
 }
 
 message TUnionOperator
@@ -27,6 +26,7 @@ message TUnionOperator
     extend TOperator {
         optional TUnionOperator union_operator = 102;
     }
+    repeated TOperator sources = 1;
 }
 
 message TFilterOperator
@@ -34,7 +34,8 @@ message TFilterOperator
     extend TOperator {
         optional TFilterOperator filter_operator = 103;
     }
-    required TExpression predicate = 1;
+    required TOperator source = 1;
+    required TExpression predicate = 2;
 }
 
 message TProjectOperator
@@ -42,7 +43,8 @@ message TProjectOperator
     extend TOperator {
         optional TProjectOperator project_operator = 104;
     }
-    repeated TExpression expressions = 1;
+    required TOperator source = 1;
+    repeated TExpression projections = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

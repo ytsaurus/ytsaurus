@@ -108,9 +108,15 @@ private:
     TErrorOr<std::vector<TDataSplit>> DoSplitFurther(const TDataSplit& split)
     {
         auto objectId = FromProto<TObjectId>(split.chunk_id());
+        LOG_DEBUG("Trying to split data (ObjectId: %s, ObjectType: %s)",
+            ~ToString(objectId),
+            ~TypeFromId(objectId).ToString());
+
         switch (TypeFromId(objectId)) {
             case NObjectClient::EObjectType::Table:
                 return DoSplitTableFurther(split);
+            case NObjectClient::EObjectType::Chunk:
+                return std::vector<TDataSplit>(1, split);
             default:
                 YUNIMPLEMENTED();
         }
