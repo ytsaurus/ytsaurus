@@ -20,6 +20,7 @@ extern const TMutationId NullMutationId;
 ////////////////////////////////////////////////////////////////////////////////
 
 using NElection::TCellGuid;
+using NElection::NullCellGuid;
 using NElection::TPeerId;
 using NElection::InvalidPeerId;
 using NElection::TPeerPriority;

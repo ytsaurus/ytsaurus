@@ -172,10 +172,14 @@ public:
 
         {
             TGuard<TSpinLock> guard(SpinLock_);
-            if (!BackgroundError_.IsOK()) {
-                return MakeFuture(BackgroundError_);
+            if (!Error_.IsOK()) {
+                return MakeFuture(Error_);
             }
             switch (State_) {
+                case EState::Committing:
+                    return MakeFuture(TError("Transaction is already being committed"));
+                    break;
+
                 case EState::Committed:
                     return MakeFuture(TError("Transaction is already committed"));
                     break;
@@ -185,7 +189,7 @@ public:
                     break;
 
                 case EState::Active:
-                    State_ = EState::Committed;
+                    State_ = EState::Committing;
                     break;
 
                 default:
@@ -194,6 +198,18 @@ public:
         }
 
         auto cellGuid = GetCoordinatorCellGuid();
+        if (cellGuid == NullCellGuid) {
+            {
+                TGuard<TSpinLock> guard(SpinLock_);
+                if (State_ != EState::Committing)
+                    return MakeFuture(Error_);
+                State_ = EState::Committed;
+            }
+
+            LOG_INFO("Trivial transaction committed (TransactionId: %s)",
+                ~ToString(Id_));
+            return MakeFuture(TError());
+        }
 
         LOG_INFO("Committing transaction (TransactionId: %s, CoordinatorCellGuid: %s)",
             ~ToString(Id_),
@@ -251,7 +267,8 @@ public:
             }
         }
 
-        LOG_INFO("Transaction detached (TransactionId: %s)", ~ToString(Id_));
+        LOG_INFO("Transaction detached (TransactionId: %s)",
+            ~ToString(Id_));
     }
 
 
@@ -274,10 +291,12 @@ public:
         bool newParticipant;
         {
             TGuard<TSpinLock> guard(SpinLock_);
-            if (!BackgroundError_.IsOK()) {
-                THROW_ERROR BackgroundError_;
+            if (State_ != EState::Active)
+                return;
+            if (!Error_.IsOK()) {
+                THROW_ERROR Error_;
             }
-            newParticipant =  ParticipantGuids_.insert(cellGuid).second;
+            newParticipant = ParticipantGuids_.insert(cellGuid).second;
         }
 
         if (newParticipant) {
@@ -324,6 +343,7 @@ private:
     DECLARE_ENUM(EState,
         (Active)
         (Aborted)
+        (Committing)
         (Committed)
         (Detached)
    );
@@ -342,7 +362,7 @@ private:
     EState State_;
     TPromise<void> Aborted_;
     yhash_set<TCellGuid> ParticipantGuids_;
-    TError BackgroundError_;
+    TError Error_;
 
     TTimestamp StartTimestamp_;
     TTransactionId Id_;
@@ -502,11 +522,18 @@ private:
     TError OnTransactionCommitted(const TCellGuid& cellGuid, TTransactionSupervisorServiceProxy::TRspCommitTransactionPtr rsp)
     {
         if (!rsp->IsOK()) {
-            // Let's pretend the transaction was aborted.
-            DoAbort();
-            return TError("Error committing transaction at cell %s",
+            auto error = TError("Error committing transaction at cell %s",
                 ~ToString(cellGuid))
                 << *rsp;
+            DoAbort(error);
+            return error;
+        }
+
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+            if (State_ != EState::Committing)
+                return Error_;
+            State_ = EState::Committed;
         }
 
         LOG_INFO("Transaction committed (TransactionId: %s)",
@@ -733,7 +760,7 @@ private:
 
             Reset();
 
-            Transaction_->DoAbort();
+            Transaction_->DoAbort(TError("Transaction aborted by user request"));
         }
 
         void Reset()
@@ -756,7 +783,7 @@ private:
         Aborted_.Set();
     }
 
-    void DoAbort(const TError& error = TError())
+    void DoAbort(const TError& error)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -765,7 +792,7 @@ private:
             if (State_ == EState::Aborted)
                 return;
             State_ = EState::Aborted;
-            BackgroundError_ = error;
+            Error_ = error;
         }
 
         FireAborted();
@@ -774,6 +801,10 @@ private:
 
     TCellGuid GetCoordinatorCellGuid() const
     {
+        if (ParticipantGuids_.empty()) {
+            return NullCellGuid;
+        }
+
         // Prefer master cell. Choose an arbitrary one if the master is not involved.
         if (ParticipantGuids_.find(Owner_->MasterCellGuid_) == ParticipantGuids_.end()) {
             return *ParticipantGuids_.begin();
