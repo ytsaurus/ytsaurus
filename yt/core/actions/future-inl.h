@@ -125,6 +125,40 @@ public:
         }
     }
 
+    template <class U>
+    bool TrySet(U&& value)
+    {
+        static_assert(
+            NMpl::TIsConvertible<U, T>::Value,
+            "U have to be convertible to T");
+
+        TResultHandlers handlers;
+        Event* event;
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+
+            if (Canceled_ || Value_)
+                return false;
+
+            Value_.Assign(std::forward<U>(value));
+
+            event = ~ReadyEvent_;
+
+            ResultHandlers_.swap(handlers);
+            CancelHandlers_.clear();
+        }
+
+        if (event) {
+            event->Signal();
+        }
+
+        FOREACH (const auto& handler, handlers) {
+            handler.Run(*Value_);
+        }
+
+        return true;
+    }
+
     void Subscribe(TResultHandler onResult)
     {
         TGuard<TSpinLock> guard(SpinLock_);
@@ -308,6 +342,34 @@ public:
         FOREACH (auto& handler, handlers) {
             handler.Run();
         }
+    }
+
+    bool TrySet()
+    {
+        TResultHandlers handlers;
+
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+
+            if (Canceled_ || HasValue_)
+                return false;
+
+            HasValue_= true;
+
+            auto* event = ~ReadyEvent_;
+            if (event) {
+                event->Signal();
+            }
+
+            ResultHandlers_.swap(handlers);
+            CancelHandlers_.clear();
+        }
+
+        FOREACH (auto& handler, handlers) {
+            handler.Run();
+        }
+
+        return true;
     }
 
     void Get() const
@@ -884,6 +946,20 @@ inline void TPromise<T>::Set(T&& value)
 }
 
 template <class T>
+inline bool TPromise<T>::TrySet(const T& value)
+{
+    YASSERT(Impl);
+    return Impl->TrySet(value);
+}
+
+template <class T>
+inline bool TPromise<T>::TrySet(T&& value)
+{
+    YASSERT(Impl);
+    return Impl->TrySet(std::move(value));
+}
+
+template <class T>
 inline const T& TPromise<T>::Get() const
 {
     YASSERT(Impl);
@@ -1002,6 +1078,12 @@ inline void TPromise<void>::Set()
 {
     YASSERT(Impl);
     Impl->Set();
+}
+
+inline bool TPromise<void>::TrySet()
+{
+    YASSERT(Impl);
+    return Impl->TrySet();
 }
 
 inline void TPromise<void>::Get() const

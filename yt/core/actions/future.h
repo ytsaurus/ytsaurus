@@ -367,6 +367,14 @@ public:
     void Set(const T& value);
     void Set(T&& value);
 
+    //! Atomically sets the promise, if not already set or canceled.
+    //! Returns |true| if succeeded, |false| is the promise was already set or canceled.
+    /*!
+     *  Calling this method also invokes all the subscribers.
+     */
+    bool TrySet(const T& value);
+    bool TrySet(T&& value);
+
     //! Gets the value.
     /*!
      *  This call will block until the value is set.
@@ -490,6 +498,13 @@ public:
      *  Calling this method also invokes all the subscribers.
      */
     void Set();
+
+    //! Atomically sets the promise, if not already set or canceled.
+    //! Returns |true| if succeeded, |false| is the promise was already set or canceled.
+    /*!
+     *  Calling this method also invokes all the subscribers.
+     */
+    bool TrySet();
 
     //! Gets the value.
     /*!
