@@ -21,12 +21,6 @@ namespace NQueryClient {
 ////////////////////////////////////////////////////////////////////////////////
 // In use.
 
-typedef NChunkClient::NProto::TChunkSpec TDataSplit;
-
-Stroka GetObjectIdFromDataSplit(const TDataSplit& split);
-
-static const int TypicalTableCount = 2;
-
 using NVersionedTableClient::EColumnType;
 using NVersionedTableClient::NProto::TColumnSchema;
 typedef NVersionedTableClient::NProto::TTableSchemaExt TTableSchema;
@@ -34,15 +28,6 @@ typedef NVersionedTableClient::NProto::TTableSchemaExt TTableSchema;
 ////////////////////////////////////////////////////////////////////////////////
 // Hooks for other means.
 
-typedef void* IMegaReaderPtr;
-typedef void* IMegaWriterPtr;
-
-class IExecutor
-    : public TRefCounted
-{
-public:
-    virtual IMegaReaderPtr Execute(const TQueryFragment& fragment) = 0;
-};
 
 struct IPrepareCallbacks
 {
@@ -50,26 +35,6 @@ struct IPrepareCallbacks
     { }
 
     virtual TFuture<TErrorOr<TDataSplit>> GetInitialSplit(const NYPath::TYPath& path) = 0;
-};
-
-struct ICoordinateCallbacks
-{
-    virtual ~ICoordinateCallbacks()
-    { }
-
-    virtual TFuture<TErrorOr<std::vector<TDataSplit>>> SplitFurther(const TDataSplit& split) = 0;
-    virtual IExecutorPtr GetColocatedExecutor(const TDataSplit& split) = 0;
-    virtual IExecutorPtr GetLocalExecutor() = 0;
-
-};
-
-struct IEvaluateCallbacks
-{
-    virtual ~IEvaluateCallbacks()
-    { }
-
-    virtual IMegaReaderPtr GetReader(const TDataSplit& split) = 0;
-    virtual IMegaWriterPtr GetWriter() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

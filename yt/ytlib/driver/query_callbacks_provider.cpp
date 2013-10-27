@@ -22,7 +22,17 @@
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
+#include <ytlib/query_client/executor.h>
 #include <ytlib/query_client/stubs.h>
+
+#include <core/ytree/ypath_proxy.h>
+#include <core/ytree/attribute_helpers.h>
+
+#include <core/rpc/channel_cache.h>
+
+#include <core/concurrency/fiber.h>
+
+#include <util/random/random.h>
 
 namespace NYT {
 namespace NDriver {
@@ -32,6 +42,7 @@ using namespace NYPath;
 using namespace NYTree;
 using namespace NConcurrency;
 using namespace NCypressClient;
+using namespace NChunkClient;
 using namespace NObjectClient;
 using namespace NTableClient;
 using namespace NVersionedTableClient;
@@ -57,6 +68,9 @@ public:
         , NodeDirectory_(New<TNodeDirectory>())
     { }
 
+    ~TImpl()
+    { }
+
     virtual TFuture<TErrorOr<TDataSplit>> GetInitialSplit(const TYPath& path) override
     {
         return BIND(&TImpl::DoGetInitialSplit, MakeStrong(this), path)
@@ -64,7 +78,8 @@ public:
             .Run();
     }
 
-    virtual TFuture<TErrorOr<std::vector<TDataSplit>>> SplitFurther(const TDataSplit& split) override
+    virtual TFuture<TErrorOr<std::vector<TDataSplit>>>
+    SplitFurther(const TDataSplit& split) override
     {
         return BIND(&TImpl::DoSplitFurther, MakeStrong(this), split)
             .AsyncVia(GetCurrentInvoker())
@@ -73,12 +88,32 @@ public:
 
     virtual IExecutorPtr GetColocatedExecutor(const TDataSplit& split) override
     {
-        return nullptr;
+        auto replicas = NYT::FromProto<TChunkReplica, TChunkReplicaList>(split.replicas());
+        auto replica = replicas[RandomNumber(replicas.size())];
+
+        auto& descriptor = NodeDirectory_->GetDescriptor(replica);
+        IChannelPtr channel;
+
+        try {
+            LOG_DEBUG("Opening a channel to %s", ~descriptor.Address);
+            channel = NodeChannelCache_.GetChannel(descriptor.Address);
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION(
+                "Failed to open a channel to %s",
+                ~descriptor.Address) << ex;
+        }
+
+        return CreateRemoteExecutor(std::move(channel));
     }
 
-    virtual IExecutorPtr GetLocalExecutor() override
+    virtual IReaderPtr GetReader(const TDataSplit& dataSplit) override
     {
-        return nullptr;
+        YUNREACHABLE();
+    }
+
+    virtual IMegaWriterPtr GetWriter() override
+    {
+        YUNREACHABLE();
     }
 
 private:
@@ -87,6 +122,8 @@ private:
         typedef NTableClient::NProto::TKeyColumnsExt TProtoKeyColumns;
         typedef NVersionedTableClient::NProto::TTableSchemaExt TProtoTableSchema;
 
+        LOG_DEBUG("Getting info for table %s", ~path);
+
         auto asyncInfoOrError = TableMountCache_->LookupInfo(path);
         auto infoOrError = WaitFor(asyncInfoOrError);
         THROW_ERROR_EXCEPTION_IF_FAILED(infoOrError);
@@ -94,13 +131,17 @@ private:
 
         TDataSplit result;
 
-        ToProto(result.mutable_chunk_id(), info->TableId); /// TODO(babenko): WTF? table_id != chunk_id!
+        ToProto(result.mutable_chunk_id(), info->TableId);
 
         TProtoKeyColumns protoKeyColumns;
-        ToProto(protoKeyColumns.mutable_names(), info->KeyColumns);
+        ToProto(protoKeyColumns.mutable_values(), info->KeyColumns);
         SetProtoExtension(result.mutable_extensions(), protoKeyColumns);
 
-        SetProtoExtension(result.mutable_extensions(), NYT::ToProto<NVersionedTableClient::NProto::TTableSchemaExt>(info->Schema));
+        TProtoTableSchema protoTableSchema;
+        ToProto(&protoTableSchema, info->Schema);
+        SetProtoExtension(result.mutable_extensions(), protoTableSchema);
+
+        LOG_DEBUG("Got info for table %s", ~path);
 
         return result;
     }
@@ -166,6 +207,7 @@ private:
 
 private:
     IChannelPtr MasterChannel_;
+    TChannelCache NodeChannelCache_;
     TObjectServiceProxy ObjectProxy_;
     TTableMountCachePtr TableMountCache_;
     TNodeDirectoryPtr NodeDirectory_;

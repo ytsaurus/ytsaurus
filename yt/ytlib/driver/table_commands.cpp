@@ -23,9 +23,11 @@
 #include <ytlib/chunk_client/block_cache.h>
 #include <ytlib/chunk_client/memory_writer.h>
 
-#include <ytlib/query_client/query_context.h>
+#include <ytlib/new_table_client/reader.h>
+#include <ytlib/new_table_client/name_table.h>
+
 #include <ytlib/query_client/query_fragment.h>
-#include <ytlib/query_client/coordinator.h>
+#include <ytlib/query_client/executor.h>
 
 #include <ytlib/tablet_client/public.h>
 
@@ -302,6 +304,8 @@ void TUnmountCommand::DoExecute()
 
 void TSelectCommand::DoExecute()
 {
+    using namespace NVersionedTableClient;
+
     auto fragment = PrepareQueryFragment(
         Context->GetQueryCallbacksProvider()->GetPrepareCallbacks(),
         Request->Query);
@@ -309,7 +313,57 @@ void TSelectCommand::DoExecute()
     auto coordinator = CreateCoordinator(
         Context->GetQueryCallbacksProvider()->GetCoordinateCallbacks());
 
-    coordinator->Execute(fragment);
+    auto nameTable = New<TNameTable>();
+    auto reader = coordinator->Execute(fragment);
+
+    {
+        auto result = WaitFor(reader->Open(
+            nameTable,
+            NVersionedTableClient::NProto::TTableSchemaExt(),
+            true));
+        THROW_ERROR_EXCEPTION_IF_FAILED(result);
+    }
+
+    auto output = Context->Request().OutputStream;
+    TBlobOutput buffer;
+    auto format = Context->GetOutputFormat();
+    auto consumer = CreateConsumerForFormat(format, EDataType::Tabular, &buffer);
+
+    std::vector<NVersionedTableClient::TRow> rows;
+    rows.reserve(10);
+    while (reader->Read(&rows)) {
+        for (auto row : rows) {
+            consumer->OnListItem();
+            consumer->OnBeginMap();
+            for (int i = 0; i < row.GetValueCount(); ++i) {
+                const auto& value = row[i];
+                consumer->OnKeyedItem(nameTable->GetName(value.Index));
+                switch (row[i].Type) {
+                case EColumnType::Integer:
+                    consumer->OnIntegerScalar(value.Data.Integer);
+                    break;
+                case EColumnType::Double:
+                    consumer->OnDoubleScalar(value.Data.Double);
+                    break;
+                case EColumnType::String:
+                    consumer->OnStringScalar(TStringBuf(value.Data.String, value.Length));
+                    break;
+                case EColumnType::Any:
+                    consumer->OnRaw(TStringBuf(value.Data.Any, value.Length), EYsonType::Node);
+                    break;
+                case EColumnType::Null:
+                    consumer->OnEntity();
+                    break;
+                }
+            }
+            consumer->OnEndMap();
+        }
+        if (rows.size() < rows.capacity()) {
+            auto result = WaitFor(reader->GetReadyEvent());
+            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        }
+        rows.clear();
+    }
 
     ReplySuccess();
 }

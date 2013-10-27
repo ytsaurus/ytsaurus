@@ -68,10 +68,25 @@ EObjectType TypeFromId(const TObjectId& id)
     return EObjectType(id.Parts[1] & 0xffff);
 }
 
+TCellId CellIdFromId(const TObjectId& id)
+{
+    return id.Parts[1] >> 16;
+}
+
+ui64 CounterFromId(const TObjectId& id)
+{
+    ui64 result;
+    result   = id.Parts[3];
+    result <<= 32;
+    result  |= id.Parts[2];
+    return result;
+}
+
 bool HasSchema(EObjectType type)
 {
     return (type & 0x8000) == 0 &&
-           type != EObjectType::Master;
+        type != EObjectType::Master &&
+        type != EObjectType::QueryFragment;
 }
 
 EObjectType SchemaTypeFromType(EObjectType type)

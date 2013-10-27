@@ -1,0 +1,15 @@
+package NYT.NQueryClient.NProto;
+
+import "yt/core/misc/guid.proto";
+import "yt/ytlib/query_client/operator.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TQueryFragment
+{
+    required TOperator head = 1;
+    required NYT.NProto.TGuid guid = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+

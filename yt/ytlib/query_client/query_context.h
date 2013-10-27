@@ -1,7 +1,6 @@
 #pragma once
 
 #include "public.h"
-#include "stubs.h"
 
 #include <core/misc/nullable.h>
 #include <core/misc/small_vector.h>
@@ -14,6 +13,8 @@ namespace NYT {
 namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+const int TypicalTableCount = 2;
 
 //! Holds useful debug information.
 //! Usually this structure is not preserved between (de)serializations.
@@ -76,6 +77,7 @@ public:
     const TDebugInformation* GetDebugInformation() const;
 
     int GetTableIndexByAlias(const TStringBuf& alias);
+    int GetFakeTableIndex();
     TTableDescriptor& GetTableDescriptorByIndex(int tableIndex);
     void BindToTableIndex(int tableIndex, const TStringBuf& path, void* opaque);
     int GetTableCount() const;
@@ -86,6 +88,7 @@ private:
 
     TNullable<TDebugInformation> DebugInformation_;
     TSmallVector<TTableDescriptor, TypicalTableCount> TableDescriptors_;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

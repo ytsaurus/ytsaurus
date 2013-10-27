@@ -6,6 +6,7 @@ namespace NQueryClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 static const size_t InitialMemoryPoolSize = 4096;
+static const int FakeTableIndex = 0xdeadbabe;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -103,8 +104,14 @@ int TQueryContext::GetTableIndexByAlias(const TStringBuf& alias)
     return std::distance(begin, it);
 }
 
+int TQueryContext::GetFakeTableIndex()
+{
+    return FakeTableIndex;
+}
+
 TTableDescriptor& TQueryContext::GetTableDescriptorByIndex(int tableIndex)
 {
+    YASSERT(tableIndex != FakeTableIndex);
     return TableDescriptors_[tableIndex];
 }
 

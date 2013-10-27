@@ -1,6 +1,10 @@
 #pragma once
 
-#include <core/misc/common.h>
+#include <ytlib/new_table_client/public.h>
+
+namespace NYT { namespace NChunkClient { namespace NProto {
+    class TChunkSpec;
+} } }
 
 namespace NYT {
 namespace NQueryClient {
@@ -15,14 +19,15 @@ typedef TIntrusivePtr<TQueryContext> TQueryContextPtr;
 
 class TQueryFragment;
 
-struct TDebugInformation;
+struct IPrepareCallbacks;
+struct ICoordinateCallbacks;
+struct IEvaluateCallbacks;
 
 class IExecutor;
 typedef TIntrusivePtr<IExecutor> IExecutorPtr;
 
-struct IPrepareCallbacks;
-struct ICoordinateCallbacks;
-struct IEvaluateCallbacks;
+typedef NChunkClient::NProto::TChunkSpec TDataSplit;
+typedef NVersionedTableClient::IReaderPtr IReaderPtr; 
 
 ////////////////////////////////////////////////////////////////////////////////
 

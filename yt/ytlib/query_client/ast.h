@@ -1,9 +1,9 @@
 #pragma once
 
 #include "public.h"
+#include "stubs.h"
 
 #include "query_context.h"
-#include "stubs.h"
 
 #include <core/misc/array_ref.h>
 #include <core/misc/property.h>

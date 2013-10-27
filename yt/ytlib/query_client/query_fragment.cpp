@@ -12,6 +12,8 @@
 #include <ytlib/table_client/chunk_meta_extensions.h>
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
 
+#include <ytlib/query_client/query_fragment.pb.h>
+
 #include <core/ytree/convert.h>
 
 #include <core/concurrency/fiber.h>
@@ -256,9 +258,25 @@ void TPrepareController::TypecheckExpressions()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TQueryFragment::TQueryFragment(TQueryContextPtr context, const TOperator* head)
+TQueryFragment::TQueryFragment(
+    TQueryContextPtr context,
+    const TOperator* head,
+    const TGuid& guid)
     : Context_(std::move(context))
     , Head_(head)
+    , Guid_(guid)
+{ }
+
+TQueryFragment::TQueryFragment(const TQueryFragment& other)
+    : Context_(other.Context_)
+    , Head_(other.Head_)
+    , Guid_(other.Guid_)
+{ }
+
+TQueryFragment::TQueryFragment(TQueryFragment&& other)
+    : Context_(std::move(other.Context_))
+    , Head_(std::move(other.Head_))
+    , Guid_(std::move(other.Guid_))
 { }
 
 TQueryFragment::~TQueryFragment()
@@ -269,6 +287,21 @@ TQueryFragment PrepareQueryFragment(
     const Stroka& source)
 {
     return TPrepareController(callbacks, source).Run();
+}
+
+void ToProto(NProto::TQueryFragment* serialized, const TQueryFragment& fragment)
+{
+    ToProto(serialized->mutable_head(), fragment.GetHead());
+    ToProto(serialized->mutable_guid(), fragment.Guid());
+}
+
+TQueryFragment FromProto(const NProto::TQueryFragment& serialized)
+{
+    auto context = New<TQueryContext>();
+    return TQueryFragment(
+        context,
+        FromProto(serialized.head(), context.Get()),
+        NYT::FromProto<TGuid>(serialized.guid()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

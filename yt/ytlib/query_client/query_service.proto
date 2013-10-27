@@ -1,17 +1,18 @@
 package NYT.NQueryClient.NProto;
 
-import "yt/ytlib/query_client/operator.proto";
+import "yt/ytlib/query_client/query_fragment.proto";
+import "yt/ytlib/chunk_client/chunk.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqExecute
 {
-    required TOperator fragment_head = 1;
+    required TQueryFragment fragment = 1;
 }
 
 message TRspExecute
 {
-    // TODO(sandello): Send data.
+    required NYT.NChunkClient.NProto.TChunkMeta chunk_meta = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

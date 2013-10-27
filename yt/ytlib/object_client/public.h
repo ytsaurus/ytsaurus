@@ -117,6 +117,9 @@ DECLARE_ENUM(EObjectType,
     ((Tablet)                     (702))
     ((TabletMap)                  (703))
 
+    // Special type reserved for marking data splits for delegated subfragments
+    // in query client.
+    ((QueryFragment)              (800))
 );
 
 //! Types (both regular and schematic) are supposed to be in range [0, MaxObjectType].
@@ -130,6 +133,12 @@ bool IsUserType(EObjectType type);
 
 //! Extracts the type component from an id.
 EObjectType TypeFromId(const TObjectId& id);
+
+//! Extracts the cell id component from an id.
+TCellId CellIdFromId(const TObjectId& id);
+
+//! Extracts the counter component from an id.
+ui64 CounterFromId(const TObjectId& id);
 
 //! Returns |true| iff a given regular type has an associated schema type.
 bool HasSchema(EObjectType type);

@@ -22,6 +22,16 @@
 #include <core/misc/guid.h>
 #include <core/misc/protobuf_helpers.h>
 
+// Required for std::unordered_set.
+namespace std {
+template <>
+struct hash<std::pair<const void*, const void*>> {
+    std::size_t operator () (const std::pair<const void*, const void*>& pair) const {
+        return (size_t)pair.first + (size_t)pair.second * 17;
+    }
+};
+} // namespace std
+
 namespace NYT {
 namespace NDot {
 
@@ -206,6 +216,13 @@ public:
         const Stroka& fromPort = "",
         const Stroka& toPort = "")
     {
+        auto pair = std::make_pair(from, to);
+        if (VisitedEdges_.find(pair) == VisitedEdges_.end()) {
+            VisitedEdges_.insert(pair);
+        } else {
+            return;
+        }
+
         static const bool constrained =
             (TGraphVizTraits<TFrom>::UniqueId == TGraphVizTraits<TTo>::UniqueId);
 
@@ -374,6 +391,7 @@ public:
 private:
     TOutputStream& Output_;
     std::unordered_set<const void*> VisitedNodes_;
+    std::unordered_set<std::pair<const void*, const void*>> VisitedEdges_;
 
 };
 
