@@ -105,6 +105,7 @@ public:
         TimestampProvider = CreateRemoteTimestampProvider(Config->TimestampProvider);
 
         CellDirectory = New<TCellDirectory>();
+        CellDirectory->RegisterCell(Config->Masters);
 
         // Register all commands.
 #define REGISTER(command, name, inDataType, outDataType, isVolatile, isHeavy) \
@@ -190,6 +191,7 @@ public:
 
         auto transactionManager = New<TTransactionManager>(
             Config->TransactionManager,
+            Config->Masters->CellGuid,
             masterChannel,
             TimestampProvider,
             CellDirectory);

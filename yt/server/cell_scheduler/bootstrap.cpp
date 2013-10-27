@@ -101,9 +101,11 @@ void TBootstrap::Run()
     auto timestampProvider = CreateRemoteTimestampProvider(Config->TimestampProvider);
 
     auto cellDirectory = New<TCellDirectory>();
+    cellDirectory->RegisterCell(Config->Masters);
 
     TransactionManager = New<TTransactionManager>(
         Config->TransactionManager,
+        Config->Masters->CellGuid,
         MasterChannel,
         timestampProvider,
         cellDirectory);

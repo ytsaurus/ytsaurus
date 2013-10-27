@@ -6,11 +6,14 @@
 #include <ytlib/hydra/peer_channel.h>
 #include <ytlib/hydra/config.h>
 
+#include <ytlib/election/config.h>
+
 namespace NYT {
 namespace NHive {
 
 using namespace NRpc;
 using namespace NHydra;
+using namespace NElection;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,6 +47,16 @@ public:
             result = true;
         }
         return result;
+    }
+
+    bool RegisterCell(TPeerDiscoveryConfigPtr config)
+    {
+        return RegisterCell(config->CellGuid, BuildProtoConfig(config->Addresses));
+    }
+
+    bool RegisterCell(TCellConfigPtr config)
+    {
+        return RegisterCell(config->CellGuid, BuildProtoConfig(config->Addresses));
     }
 
     bool UnregisterCell(const TCellGuid& cellGuid)
@@ -98,11 +111,23 @@ private:
             entry->Channel = CreatePeerChannel(config, EPeerRole::Leader);
         }
     }
+    
+    NHydra::NProto::TCellConfig BuildProtoConfig(const std::vector<Stroka>& addresses)
+    {
+        NHydra::NProto::TCellConfig protoConfig;
+        protoConfig.set_size(addresses.size());
+        protoConfig.set_version(1); // expect this to be a master cell whose config version never changes
+        for (const auto& address : addresses) {
+            auto* peer = protoConfig.add_peers();
+            peer->set_peer_id(protoConfig.peers_size() - 1);
+            peer->set_address(address);
+        }
+        return protoConfig;
+    }
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-
 
 TCellDirectory::TCellDirectory()
     : Impl(new TImpl())
@@ -116,6 +141,16 @@ IChannelPtr TCellDirectory::GetChannel(const TCellGuid& cellGuid)
 bool TCellDirectory::RegisterCell(const TCellGuid& cellGuid, const TCellConfig& config)
 {
     return Impl->RegisterCell(cellGuid, config);
+}
+
+bool TCellDirectory::RegisterCell(TPeerDiscoveryConfigPtr config)
+{
+    return Impl->RegisterCell(config);
+}
+
+bool TCellDirectory::RegisterCell(TCellConfigPtr config)
+{
+    return Impl->RegisterCell(config);
 }
 
 bool TCellDirectory::UnregisterCell(const TCellGuid& cellGuid)

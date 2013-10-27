@@ -265,6 +265,7 @@ void TBootstrap::Run()
     MetaStateFacade = New<TMetaStateFacade>(Config, this);
     
     CellRegistry = New<TCellDirectory>();
+    CellRegistry->RegisterCell(Config->Masters);
 
     HiveManager = New<THiveManager>(
         GetCellGuid(),

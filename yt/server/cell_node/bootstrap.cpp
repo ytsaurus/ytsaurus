@@ -267,17 +267,7 @@ void TBootstrap::Run()
     SchedulerConnector = New<TSchedulerConnector>(Config->ExecAgent->SchedulerConnector, this);
 
     CellRegistry = New<TCellDirectory>();
-    {
-        NHydra::NProto::TCellConfig config;
-        config.set_size(Config->Masters->Addresses.size());
-        config.set_version(1); // master cell never changes
-        for (const auto& address : Config->Masters->Addresses) {
-            auto* peer = config.add_peers();
-            peer->set_peer_id(config.peers_size() - 1);
-            peer->set_address(address);
-        }
-        CellRegistry->RegisterCell(GetCellGuid(), config);
-    }
+    CellRegistry->RegisterCell(Config->Masters);
 
     TabletCellController = New<TTabletCellController>(Config, this);
     TabletCellController->Initialize();

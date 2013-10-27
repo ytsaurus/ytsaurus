@@ -4,7 +4,10 @@
 
 #include <core/rpc/public.h>
 
+#include <ytlib/hydra/public.h>
 #include <ytlib/hydra/hydra_manager.pb.h>
+
+#include <ytlib/election/public.h>
 
 namespace NYT {
 namespace NHive {
@@ -33,6 +36,12 @@ public:
     //! (if new configuration has a higher version).
     //! Returns |true| if the cell was registered (or an update took place).
     bool RegisterCell(const TCellGuid& cellGuid, const TCellConfig& config);
+
+    //! Similar to the above but accepts discovery configuration.
+    bool RegisterCell(NHydra::TPeerDiscoveryConfigPtr config);
+
+    //! Similar to the above but accepts cell configuration.
+    bool RegisterCell(NElection::TCellConfigPtr config);
 
     //! Unregisters the cell. Returns |true| if the cell was found.
     bool UnregisterCell(const TCellGuid& cellGuid);

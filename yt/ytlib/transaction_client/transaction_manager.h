@@ -68,7 +68,8 @@ public:
      */
     TTransactionManager(
         TTransactionManagerConfigPtr config,
-        NRpc::IChannelPtr channel,
+        const NHive::TCellGuid& masterCellGuid,
+        NRpc::IChannelPtr masterChannel,
         NHive::ITimestampProviderPtr timestampProvider,
         NHive::TCellDirectoryPtr cellDirectory);
 
