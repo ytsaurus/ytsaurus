@@ -9,10 +9,18 @@
 #include <core/misc/nullable.h>
 #include <core/misc/property.h>
 
-#include <ytlib/new_table_client/chunk_meta.pb.h>
-
 namespace NYT {
 namespace NVersionedTableClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+// For serialization.
+namespace NProto {
+
+class TColumnSchema;
+class TTableSchemaExt;
+
+} // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 
