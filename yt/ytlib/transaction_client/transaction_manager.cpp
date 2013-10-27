@@ -107,7 +107,6 @@ public:
         , AutoAbort_(false)
         , Ping_(false)
         , PingAncestors_(false)
-        , MasterProxy_(owner->MasterChannel_)
         , State_(EState::Active)
         , Aborted_(NewPromise())
         , StartTimestamp_(NullTimestamp)
@@ -361,8 +360,6 @@ private:
     bool PingAncestors_;
     TNullable<TDuration> Timeout_;
 
-    TTransactionSupervisorServiceProxy MasterProxy_;
-
     //! Protects state transitions.
     TSpinLock SpinLock_;
     EState State_;
@@ -454,7 +451,8 @@ private:
 
     TAsyncError StartMasterTransaction(const TTransactionStartOptions& options)
     {
-        auto req = MasterProxy_.StartTransaction();
+        TTransactionSupervisorServiceProxy proxy(Owner_->MasterChannel_);
+        auto req = proxy.StartTransaction();
         req->set_start_timestamp(StartTimestamp_);
 
         auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqStartTransactionExt::start_transaction_ext);
