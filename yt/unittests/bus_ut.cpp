@@ -2,7 +2,6 @@
 
 #include <core/bus/bus.h>
 #include <core/bus/config.h>
-#include <core/bus/message.h>
 #include <core/bus/server.h>
 #include <core/bus/client.h>
 #include <core/bus/tcp_server.h>
@@ -16,29 +15,27 @@ namespace NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IMessagePtr CreateMessage(int numParts)
+TSharedRefArray CreateMessage(int numParts)
 {
-    TBlob data(numParts);
+    auto data = TSharedRef::Allocate(numParts);
 
-    std::vector<TRef> parts;
+    std::vector<TSharedRef> parts;
     for (int i = 0; i < numParts; ++i) {
-        parts.push_back(TRef(data.Begin() + i, 1));
+        parts.push_back(data.Slice(TRef(data.Begin() + i, 1)));
     }
 
-    return CreateMessageFromParts(std::move(data), parts);
+    return TSharedRefArray(std::move(parts));
 }
 
-IMessagePtr Serialize(Stroka str)
+TSharedRefArray Serialize(Stroka str)
 {
-    auto data = TSharedRef::FromString(str);
-    return CreateMessageFromPart(data);
+    return TSharedRefArray(TSharedRef::FromString(str));
 }
 
-Stroka Deserialize(IMessagePtr message)
+Stroka Deserialize(TSharedRefArray message)
 {
-    const auto& parts = message->GetParts();
-    YASSERT(parts.size() == 1);
-    const auto& part = parts[0];
+    YASSERT(message.Size() == 1);
+    const auto& part = message[0];
     return Stroka(part.Begin(), part.Size());
 }
 
@@ -57,7 +54,7 @@ class TEmptyBusHandler
 {
 public:
     virtual void OnMessage(
-        IMessagePtr message,
+        TSharedRefArray message,
         IBusPtr replyBus)
     {
         UNUSED(message);
@@ -74,10 +71,10 @@ public:
     { }
 
     virtual void OnMessage(
-        IMessagePtr message,
+        TSharedRefArray message,
         IBusPtr replyBus)
     {
-        EXPECT_EQ(NumPartsExpecting, message->GetParts().size());
+        EXPECT_EQ(NumPartsExpecting, message.Size());
         auto replyMessage = Serialize("42");
         replyBus->Send(replyMessage);
     }
@@ -98,7 +95,7 @@ public:
     Event Event_;
 
     virtual void OnMessage(
-        IMessagePtr message,
+        TSharedRefArray message,
         IBusPtr replyBus)
     {
         UNUSED(replyBus);

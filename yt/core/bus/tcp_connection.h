@@ -4,7 +4,6 @@
 #include "tcp_dispatcher_impl.h"
 #include "bus.h"
 #include "packet.h"
-#include "message.h"
 
 #include <core/concurrency/thread_affinity.h>
 
@@ -54,7 +53,7 @@ public:
     virtual Stroka GetLoggingId() const override;
 
     // IBus implementation.
-    virtual TAsyncError Send(IMessagePtr message) override;
+    virtual TAsyncError Send(TSharedRefArray message) override;
     virtual void Terminate(const TError& error) override;
 
     void SyncProcessEvent(EConnectionEvent event);
@@ -67,20 +66,20 @@ private:
         TQueuedMessage()
         { }
 
-        explicit TQueuedMessage(IMessagePtr message)
+        explicit TQueuedMessage(TSharedRefArray message)
             : Promise(NewPromise<TError>())
             , Message(std::move(message))
             , PacketId(TPacketId::Create())
         { }
 
         TAsyncErrorPromise Promise;
-        IMessagePtr Message;
+        TSharedRefArray Message;
         TPacketId PacketId;
     };
 
     struct TQueuedPacket
     {
-        TQueuedPacket(EPacketType type, const TPacketId& packetId, IMessagePtr message, i64 size)
+        TQueuedPacket(EPacketType type, const TPacketId& packetId, TSharedRefArray message, i64 size)
             : Type(type)
             , PacketId(packetId)
             , Message(std::move(message))
@@ -89,7 +88,7 @@ private:
 
         EPacketType Type;
         TPacketId PacketId;
-        IMessagePtr Message;
+        TSharedRefArray Message;
         i64 Size;
     };
 
@@ -199,7 +198,7 @@ private:
     bool OnAckPacketReceived();
     bool OnMessagePacketReceived();
 
-    void EnqueuePacket(EPacketType type, const TPacketId& packetId, IMessagePtr message = nullptr);
+    void EnqueuePacket(EPacketType type, const TPacketId& packetId, TSharedRefArray message = TSharedRefArray());
     void OnSocketWrite();
     bool HasUnsentData() const;
     bool WriteFragments(size_t* bytesWritten);

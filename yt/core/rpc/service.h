@@ -18,7 +18,7 @@ struct IServiceContext
     : public virtual TRefCounted
 {
     //! Returns the message that contains the request being handled.
-    virtual NBus::IMessagePtr GetRequestMessage() const = 0;
+    virtual TSharedRefArray GetRequestMessage() const = 0;
 
     //! Returns the id of the request.
     /*!
@@ -57,7 +57,7 @@ struct IServiceContext
     virtual void Reply(const TError& error) = 0;
 
     //! Parses the message and forwards to the client.
-    virtual void Reply(NBus::IMessagePtr message) = 0;
+    virtual void Reply(TSharedRefArray message) = 0;
 
     //! Returns the error that was previously set by #Reply.
     /*!
@@ -145,7 +145,7 @@ struct IService
     //! Handles incoming request.
     virtual void OnRequest(
         const NProto::TRequestHeader& header,
-        NBus::IMessagePtr message,
+        TSharedRefArray message,
         NBus::IBusPtr replyBus) = 0;
 };
 

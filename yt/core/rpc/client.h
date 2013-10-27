@@ -11,7 +11,6 @@
 #include <core/compression/public.h>
 
 #include <core/bus/client.h>
-#include <core/bus/message.h>
 
 #include <core/rpc/rpc.pb.h>
 
@@ -52,7 +51,7 @@ struct IClientRequest
     : public virtual TRefCounted
     , public NYTree::IAttributeOwner
 {
-    virtual NBus::IMessagePtr Serialize() const = 0;
+    virtual TSharedRefArray Serialize() const = 0;
 
     virtual const NProto::TRequestHeader& Header() const = 0;
     virtual NProto::TRequestHeader& Header() = 0;
@@ -82,7 +81,7 @@ class TClientRequest
     DEFINE_BYVAL_RW_PROPERTY(bool, ResponseHeavy);
 
 public:
-    virtual NBus::IMessagePtr Serialize() const override;
+    virtual TSharedRefArray Serialize() const override;
 
     virtual bool IsOneWay() const override;
     
@@ -193,7 +192,7 @@ struct IClientResponseHandler
     /*!
      *  \param message A message containing the response.
      */
-    virtual void OnResponse(NBus::IMessagePtr message) = 0;
+    virtual void OnResponse(TSharedRefArray message) = 0;
 
     //! Called if the request fails.
     /*!
@@ -246,7 +245,7 @@ class TClientResponse
     DEFINE_BYREF_RW_PROPERTY(std::vector<TSharedRef>, Attachments);
 
 public:
-    NBus::IMessagePtr GetResponseMessage() const;
+    TSharedRefArray GetResponseMessage() const;
 
     NYTree::IAttributeDictionary& Attributes();
     const NYTree::IAttributeDictionary& Attributes() const;
@@ -258,14 +257,14 @@ protected:
 
 private:
     // Protected by #SpinLock.
-    NBus::IMessagePtr ResponseMessage;
+    TSharedRefArray ResponseMessage;
     std::unique_ptr<NYTree::IAttributeDictionary> Attributes_;
 
     // IClientResponseHandler implementation.
     virtual void OnAcknowledgement() override;
-    virtual void OnResponse(NBus::IMessagePtr message) override;
+    virtual void OnResponse(TSharedRefArray message) override;
 
-    void Deserialize(NBus::IMessagePtr responseMessage);
+    void Deserialize(TSharedRefArray responseMessage);
 
 };
 
@@ -322,7 +321,7 @@ private:
 
     // IClientResponseHandler implementation.
     virtual void OnAcknowledgement() override;
-    virtual void OnResponse(NBus::IMessagePtr message) override;
+    virtual void OnResponse(TSharedRefArray message) override;
 
     virtual void FireCompleted();
 

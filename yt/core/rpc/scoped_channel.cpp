@@ -57,7 +57,7 @@ public:
         UnderlyingHandler->OnAcknowledgement();
     }
 
-    virtual void OnResponse(NBus::IMessagePtr message) override
+    virtual void OnResponse(TSharedRefArray message) override
     {
         UnderlyingHandler->OnResponse(std::move(message));
         Channel->OnRequestCompleted();

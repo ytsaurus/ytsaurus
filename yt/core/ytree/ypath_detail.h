@@ -387,10 +387,10 @@ void SetNodeFromProducer(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef TCallback<void(NBus::IMessagePtr)> TYPathResponseHandler;
+typedef TCallback<void(TSharedRefArray)> TYPathResponseHandler;
 
 NRpc::IServiceContextPtr CreateYPathContext(
-    NBus::IMessagePtr requestMessage,
+    TSharedRefArray requestMessage,
     const Stroka& loggingCategory,
     TYPathResponseHandler responseHandler);
 

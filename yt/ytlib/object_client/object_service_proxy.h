@@ -112,7 +112,7 @@ public:
 
         //! Similar to #AddRequest, but works for already serialized messages representing requests.
         TReqExecuteBatchPtr AddRequestMessage(
-            NBus::IMessagePtr innerRequestMessage,
+            TSharedRefArray innerRequestMessage,
             const Stroka& key = "");
 
         //! Returns the current number of individual requests in the batch.
@@ -205,7 +205,7 @@ public:
         std::vector<NYTree::TYPathResponsePtr> GetResponses(const Stroka& key = "") const;
 
         //! Similar to #GetResponse, but returns the response message without deserializing it.
-        NBus::IMessagePtr GetResponseMessage(int index) const;
+        TSharedRefArray GetResponseMessage(int index) const;
 
     private:
         TKeyToIndexMultimap KeyToIndexes;

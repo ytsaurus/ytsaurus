@@ -4,50 +4,48 @@
 
 #include <core/rpc/rpc.pb.h>
 
-#include <core/bus/message.h>
-
 namespace NYT {
 namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NBus::IMessagePtr CreateRequestMessage(
+TSharedRefArray CreateRequestMessage(
     const NProto::TRequestHeader& header,
     const TSharedRef& body,
     const std::vector<TSharedRef>& attachments);
 
-NBus::IMessagePtr CreateResponseMessage(
+TSharedRefArray CreateResponseMessage(
     const NProto::TResponseHeader& header,
     const TSharedRef& body,
     const std::vector<TSharedRef>& attachments);
 
-NBus::IMessagePtr CreateResponseMessage(
+TSharedRefArray CreateResponseMessage(
     IServiceContextPtr context);
 
-NBus::IMessagePtr CreateErrorResponseMessage(
+TSharedRefArray CreateErrorResponseMessage(
     const NProto::TResponseHeader& header);
 
-NBus::IMessagePtr CreateErrorResponseMessage(
+TSharedRefArray CreateErrorResponseMessage(
     const TRequestId& requestId,
     const TError& error);
 
-NBus::IMessagePtr CreateErrorResponseMessage(
+TSharedRefArray CreateErrorResponseMessage(
     const TError& error);
 
 bool ParseRequestHeader(
-    NBus::IMessagePtr message,
+    TSharedRefArray message,
     NProto::TRequestHeader* header);
 
-NBus::IMessagePtr SetRequestHeader(
-    NBus::IMessagePtr message,
+TSharedRefArray SetRequestHeader(
+    TSharedRefArray message,
     const NProto::TRequestHeader& header);
 
 bool ParseResponseHeader(
-    NBus::IMessagePtr message,
+    TSharedRefArray message,
     NProto::TResponseHeader* header);
 
-NBus::IMessagePtr SetResponseHeader(
-    NBus::IMessagePtr message,
+TSharedRefArray SetResponseHeader(
+    TSharedRefArray message,
     const NProto::TResponseHeader& header);
 
 ////////////////////////////////////////////////////////////////////////////////

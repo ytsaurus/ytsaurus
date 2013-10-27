@@ -16,7 +16,7 @@ using namespace NBus;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IMessagePtr CreateRequestMessage(
+TSharedRefArray CreateRequestMessage(
     const NProto::TRequestHeader& header,
     const TSharedRef& body,
     const std::vector<TSharedRef>& attachments)
@@ -31,14 +31,14 @@ IMessagePtr CreateRequestMessage(
 
     parts.push_back(body);
 
-    FOREACH (const auto& attachment, attachments) {
+    for (const auto& attachment : attachments) {
         parts.push_back(attachment);
     }
 
-    return CreateMessageFromParts(std::move(parts));
+    return TSharedRefArray(std::move(parts));
 }
 
-IMessagePtr CreateResponseMessage(
+TSharedRefArray CreateResponseMessage(
     const NProto::TResponseHeader& header,
     const TSharedRef& body,
     const std::vector<TSharedRef>& attachments)
@@ -53,14 +53,14 @@ IMessagePtr CreateResponseMessage(
 
     parts.push_back(body);
 
-    FOREACH (const auto& attachment, attachments) {
+    for (const auto& attachment : attachments) {
         parts.push_back(attachment);
     }
 
-    return CreateMessageFromParts(std::move(parts));
+    return TSharedRefArray(std::move(parts));
 }
 
-IMessagePtr CreateResponseMessage(IServiceContextPtr context)
+TSharedRefArray CreateResponseMessage(IServiceContextPtr context)
 {
     NProto::TResponseHeader header;
     ToProto(header.mutable_request_id(), context->GetRequestId());
@@ -76,15 +76,15 @@ IMessagePtr CreateResponseMessage(IServiceContextPtr context)
         : CreateErrorResponseMessage(header);
 }
 
-IMessagePtr CreateErrorResponseMessage(
+TSharedRefArray CreateErrorResponseMessage(
     const NProto::TResponseHeader& header)
 {
     TSharedRef headerData;
     YCHECK(SerializeToProto(header, &headerData));
-    return CreateMessageFromPart(std::move(headerData));
+    return TSharedRefArray(std::move(headerData));
 }
 
-IMessagePtr CreateErrorResponseMessage(
+TSharedRefArray CreateErrorResponseMessage(
     const TRequestId& requestId,
     const TError& error)
 {
@@ -94,7 +94,7 @@ IMessagePtr CreateErrorResponseMessage(
     return CreateErrorResponseMessage(header);
 }
 
-IMessagePtr CreateErrorResponseMessage(
+TSharedRefArray CreateErrorResponseMessage(
     const TError& error)
 {
     NProto::TResponseHeader header;
@@ -103,49 +103,47 @@ IMessagePtr CreateErrorResponseMessage(
 }
 
 bool ParseRequestHeader(
-    IMessagePtr message,
+    TSharedRefArray message,
     NProto::TRequestHeader* header)
 {
-    const auto& parts = message->GetParts();
-    if (parts.empty()) {
+    if (message.Size() < 1) {
         return false;
     }
-    return DeserializeFromProto(header, parts[0]);
+    return DeserializeFromProto(header, message[0]);
 }
 
-IMessagePtr SetRequestHeader(IMessagePtr message, const NProto::TRequestHeader& header)
+TSharedRefArray SetRequestHeader(TSharedRefArray message, const NProto::TRequestHeader& header)
 {
     TSharedRef headerData;
     YCHECK(SerializeToProto(header, &headerData));
 
-    auto parts = message->GetParts();
-    YASSERT(!parts.empty());
+    auto parts = message.ToVector();
+    YASSERT(parts.size() >= 1);
     parts[0] = headerData;
 
-    return CreateMessageFromParts(parts);
+    return TSharedRefArray(parts);
 }
 
 bool ParseResponseHeader(
-    IMessagePtr message,
+    TSharedRefArray message,
     NProto::TResponseHeader* header)
 {
-    const auto& parts = message->GetParts();
-    if (parts.empty()) {
+    if (message.Size() < 1) {
         return false;
     }
-    return DeserializeFromProto(header, parts[0]);
+    return DeserializeFromProto(header, message[0]);
 }
 
-IMessagePtr SetResponseHeader(IMessagePtr message, const NProto::TResponseHeader& header)
+TSharedRefArray SetResponseHeader(TSharedRefArray message, const NProto::TResponseHeader& header)
 {
     TSharedRef headerData;
     YCHECK(SerializeToProto(header, &headerData));
 
-    auto parts = message->GetParts();
-    YASSERT(!parts.empty());
+    auto parts = message.ToVector();
+    YASSERT(parts.size() >= 1);
     parts[0] = headerData;
 
-    return CreateMessageFromParts(parts);
+    return TSharedRefArray(parts);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

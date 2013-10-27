@@ -8,9 +8,6 @@ namespace NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IMessage;
-typedef TIntrusivePtr<IMessage> IMessagePtr;
-
 struct IBus;
 typedef TIntrusivePtr<IBus> IBusPtr;
 
@@ -45,8 +42,8 @@ typedef TIntrusivePtr<TTcpBusClientConfig> TTcpBusClientConfigPtr;
  *  Values must be contiguous.
  */
 DECLARE_ENUM(ETcpInterfaceType,
-	(Local)
-	(Remote)
+    (Local)
+    (Remote)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

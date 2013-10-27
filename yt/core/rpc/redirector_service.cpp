@@ -6,7 +6,6 @@
 #include "private.h"
 
 #include <core/bus/bus.h>
-#include <core/bus/message.h>
 
 #include <core/ytree/node.h>
 
@@ -29,13 +28,13 @@ class TRedirectedRequest
 public:
     TRedirectedRequest(
         const NProto::TRequestHeader& header,
-        IMessagePtr message)
+        TSharedRefArray message)
         : Header_(header)
         , Message(message)
         , RequestId(FromProto<TRequestId>(Header_.request_id()))
     { }
 
-    virtual IMessagePtr Serialize() const override
+    virtual TSharedRefArray Serialize() const override
     {
         return Message;
     }
@@ -102,7 +101,7 @@ public:
 
 private:
     NProto::TRequestHeader Header_;
-    IMessagePtr Message;
+    TSharedRefArray Message;
 
     TRequestId RequestId;
 
@@ -125,7 +124,7 @@ public:
             ~ToString(Request->GetRequestId()));
     }
 
-    virtual void OnResponse(IMessagePtr message) override
+    virtual void OnResponse(TSharedRefArray message) override
     {
         LOG_DEBUG("Response for redirected request received (RequestId: %s)",
             ~ToString(Request->GetRequestId()));
@@ -165,7 +164,7 @@ public:
 
     virtual void OnRequest(
         const NProto::TRequestHeader& header,
-        NBus::IMessagePtr message,
+        TSharedRefArray message,
         NBus::IBusPtr replyBus) override
     {
         auto request = New<TRedirectedRequest>(header, message);

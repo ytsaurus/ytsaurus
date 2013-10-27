@@ -413,7 +413,7 @@ void TTcpConnection::ConnectSocket(const TNetworkAddress& netAddress)
     }
 }
 
-TAsyncError TTcpConnection::Send(IMessagePtr message)
+TAsyncError TTcpConnection::Send(TSharedRefArray message)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -699,7 +699,7 @@ bool TTcpConnection::OnMessagePacketReceived()
     return true;
 }
 
-void TTcpConnection::EnqueuePacket(EPacketType type, const TPacketId& packetId, IMessagePtr message)
+void TTcpConnection::EnqueuePacket(EPacketType type, const TPacketId& packetId, TSharedRefArray message)
 {
     i64 size = TPacketEncoder::GetPacketSize(type, message);
     QueuedPackets.push(new TQueuedPacket(type, packetId, message, size));

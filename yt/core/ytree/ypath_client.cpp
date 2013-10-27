@@ -103,7 +103,7 @@ NRpc::NProto::TRequestHeader& TYPathRequest::Header()
     return Header_;
 }
 
-IMessagePtr TYPathRequest::Serialize() const
+TSharedRefArray TYPathRequest::Serialize() const
 {
     auto bodyData = SerializeBody();
 
@@ -120,7 +120,7 @@ IMessagePtr TYPathRequest::Serialize() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TYPathResponse::Deserialize(IMessagePtr message)
+void TYPathResponse::Deserialize(TSharedRefArray message)
 {
     YASSERT(message);
 
@@ -137,12 +137,11 @@ void TYPathResponse::Deserialize(IMessagePtr message)
 
     if (Error_.IsOK()) {
         // Deserialize body.
-        const auto& parts = message->GetParts();
-        YASSERT(parts.size() >=1 );
-        DeserializeBody(parts[1]);
+        YASSERT(message.Size() >=1 );
+        DeserializeBody(message[1]);
 
         // Load attachments.
-        Attachments_ = std::vector<TSharedRef>(parts.begin() + 2, parts.end());
+        Attachments_ = std::vector<TSharedRef>(message.Begin() + 2, message.End());
     }
 }
 
@@ -219,8 +218,8 @@ void ResolveYPath(
 }
 
 void OnYPathResponse(
-    TPromise<IMessagePtr> asyncResponseMessage,
-    IMessagePtr responseMessage)
+    TPromise<TSharedRefArray> asyncResponseMessage,
+    TSharedRefArray responseMessage)
 {
     NRpc::NProto::TResponseHeader responseHeader;
     YCHECK(ParseResponseHeader(responseMessage, &responseHeader));
@@ -236,10 +235,10 @@ void OnYPathResponse(
     }
 }
 
-TFuture<IMessagePtr>
+TFuture<TSharedRefArray>
 ExecuteVerb(
     IYPathServicePtr service,
-    IMessagePtr requestMessage)
+    TSharedRefArray requestMessage)
 {
     NLog::TLogger Logger(service->GetLoggingCategory());
 
@@ -265,7 +264,7 @@ ExecuteVerb(
     requestHeader.set_service(suffixPath);
     auto updatedRequestMessage = SetRequestHeader(requestMessage, requestHeader);
 
-    auto asyncResponseMessage = NewPromise<IMessagePtr>();
+    auto asyncResponseMessage = NewPromise<TSharedRefArray>();
     auto updatedContext = CreateYPathContext(
         updatedRequestMessage,
         suffixService->GetLoggingCategory(),
@@ -281,7 +280,7 @@ void ExecuteVerb(IYPathServicePtr service, IServiceContextPtr context)
 {
     auto requestMessage = context->GetRequestMessage();
     ExecuteVerb(service, requestMessage)
-        .Subscribe(BIND([=] (IMessagePtr responseMessage) {
+        .Subscribe(BIND([=] (TSharedRefArray responseMessage) {
             context->Reply(responseMessage);
         }));
 }

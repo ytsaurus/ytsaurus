@@ -90,7 +90,7 @@ public:
         Error = error;
     }
 
-    virtual void Reply(IMessagePtr responseMessage) override
+    virtual void Reply(TSharedRefArray responseMessage) override
     {
         UNUSED(responseMessage);
         YUNREACHABLE();
@@ -101,7 +101,7 @@ public:
         return Error;
     }
 
-    IMessagePtr GetResponseMessage()
+    TSharedRefArray GetResponseMessage()
     {
         YCHECK(Replied);
         if (!ResponseMessage) {
@@ -113,7 +113,7 @@ public:
 private:
     bool Replied;
     TError Error;
-    IMessagePtr ResponseMessage;
+    TSharedRefArray ResponseMessage;
 
 };
 
@@ -575,7 +575,7 @@ void TObjectManager::SaveSchemas(NCellMaster::TSaveContext& context) const
     auto types = RegisteredTypes;
     std::sort(types.begin(), types.end());
 
-    FOREACH (auto type, types) {
+    for (auto type : types) {
         if (HasSchema(type)) {
             Save(context, type);
             const auto& entry = TypeToEntry[static_cast<int>(type)];
@@ -610,7 +610,7 @@ void TObjectManager::LoadValues(NCellMaster::TLoadContext& context)
 
        // COMPAT(psushin)
     if (context.GetVersion() < 21) {
-        FOREACH (const auto& pair, Attributes) {
+        for (const auto& pair : Attributes) {
             auto type = TypeFromId(pair.first.ObjectId);
             if ((type == EObjectType::Table || type == EObjectType::File) && pair.first.TransactionId == NullTransactionId) {
                 auto& attributes = pair.second->Attributes();
@@ -645,7 +645,7 @@ void TObjectManager::DoClear()
 
     MasterProxy = CreateMasterProxy(Bootstrap, ~MasterObject);
 
-    FOREACH (auto type, RegisteredTypes)  {
+    for (auto type : RegisteredTypes)  {
         auto& entry = TypeToEntry[static_cast<int>(type)];
         if (HasSchema(type)) {
             entry.SchemaObject.reset(new TSchemaObject(MakeSchemaObjectId(type, Bootstrap->GetCellId())));
@@ -810,7 +810,7 @@ void TObjectManager::MergeAttributes(
         auto attributeSet = Attributes.Release(branchedId);
         Attributes.Insert(originatingId, attributeSet.release());
     } else {
-        FOREACH (const auto& pair, branchedAttributes->Attributes()) {
+        for (const auto& pair : branchedAttributes->Attributes()) {
             if (!pair.second && !originatingId.IsBranched()) {
                 originatingAttributes->Attributes().erase(pair.first);
             } else {
@@ -920,7 +920,7 @@ TObjectBase* TObjectManager::CreateObject(
     if (!attributeKeys.empty()) {
         auto* attributeSet = GetOrCreateAttributes(TVersionedObjectId(objectId));
 
-        FOREACH (const auto& key, attributeKeys) {
+        for (const auto& key : attributeKeys) {
             YCHECK(attributeSet->Attributes().insert(std::make_pair(
                 key,
                 attributes->GetYson(key))).second);
@@ -979,8 +979,7 @@ void TObjectManager::InvokeVerb(TObjectProxyBase* proxy, IServiceContextPtr cont
         ToProto(executeReq.mutable_user_id(), user->GetId());
 
         auto requestMessage = context->GetRequestMessage();
-        const auto& requestParts = requestMessage->GetParts();
-        FOREACH (const auto& part, requestParts) {
+        for (const auto& part : requestMessage) {
             executeReq.add_request_parts(part.Begin(), part.Size());
         }
 
@@ -1015,7 +1014,7 @@ void TObjectManager::InvokeVerb(TObjectProxyBase* proxy, IServiceContextPtr cont
 
                 if (mutationId != NullMutationId) {
                     auto responseMessage = wrappedContext->GetResponseMessage();
-                    auto responseData = PackMessage(responseMessage);
+                    auto responseData = responseMessage.Pack();
                     HydraManager->GetMutationContext()->SetResponseData(std::move(responseData));
                 }
             }))
@@ -1061,7 +1060,7 @@ void TObjectManager::ReplayVerb(const NProto::TReqExecute& request)
         parts[partIndex] = TSharedRef::FromRefNonOwning(TRef(const_cast<char*>(part.begin()), part.size()));
     }
 
-    auto requestMessage = CreateMessageFromParts(std::move(parts));
+    auto requestMessage = TSharedRefArray(std::move(parts));
     auto context = CreateYPathContext(
         requestMessage,
         "",
@@ -1073,7 +1072,7 @@ void TObjectManager::ReplayVerb(const NProto::TReqExecute& request)
 
 void TObjectManager::DestroyObjects(const NProto::TReqDestroyObjects& request)
 {
-    FOREACH (const auto& protoId, request.object_ids()) {
+    for (const auto& protoId : request.object_ids()) {
         auto id = FromProto<TObjectId>(protoId);
         auto type = TypeFromId(id);
         auto handler = GetHandler(type);

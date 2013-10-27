@@ -59,7 +59,7 @@ protected:
     TSmallVector<i32, TypicalPacketPartCount> PartSizes;
     i32 PartCount;
     int PartIndex;
-    IMessagePtr Message;
+    TSharedRefArray Message;
 
     void BeginPhase(EPacketPhase phase, void* chunk, size_t size);
     bool EndPhase();
@@ -81,7 +81,7 @@ public:
 
     EPacketType GetPacketType() const;
     const TPacketId& GetPacketId() const;
-    IMessagePtr GetMessage() const;
+    TSharedRefArray GetMessage() const;
     size_t GetPacketSize() const;
 
 private:
@@ -112,9 +112,9 @@ class TPacketEncoder
 public:
     TPacketEncoder();
 
-    static i64 GetPacketSize(EPacketType type, IMessagePtr message);
+    static i64 GetPacketSize(EPacketType type, TSharedRefArray message);
 
-    bool Start(EPacketType type, const TPacketId& packetId, IMessagePtr message);
+    bool Start(EPacketType type, const TPacketId& packetId, TSharedRefArray message);
     void NextChunk();
 
 private:

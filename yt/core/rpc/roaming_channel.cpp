@@ -107,7 +107,7 @@ private:
             UnderlyingHandler->OnAcknowledgement();
         }
 
-        virtual void OnResponse(IMessagePtr message) override
+        virtual void OnResponse(TSharedRefArray message) override
         {
             UnderlyingHandler->OnResponse(message);
         }

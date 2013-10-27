@@ -8,8 +8,6 @@
 #include <core/misc/ref.h>
 #include <core/misc/property.h>
 
-#include <core/bus/message.h>
-
 #include <core/rpc/client.h>
 
 #include <ytlib/ypath/rich.h>
@@ -44,7 +42,7 @@ public:
     virtual const NRpc::NProto::TRequestHeader& Header() const override;
     virtual NRpc::NProto::TRequestHeader& Header() override;
 
-    virtual NBus::IMessagePtr Serialize() const override;
+    virtual TSharedRefArray Serialize() const override;
 
 protected:
     NRpc::NProto::TRequestHeader Header_;
@@ -90,7 +88,7 @@ class TYPathResponse
     DEFINE_BYREF_RW_PROPERTY(std::vector<TSharedRef>, Attachments);
 
 public:
-    void Deserialize(NBus::IMessagePtr message);
+    void Deserialize(TSharedRefArray message);
 
     bool IsOK() const;
     operator TError() const;
@@ -141,10 +139,10 @@ void ResolveYPath(
     TYPath* suffixPath);
 
 //! Asynchronously executes an untyped YPath verb against the given service.
-TFuture<NBus::IMessagePtr>
+TFuture<TSharedRefArray>
 ExecuteVerb(
     IYPathServicePtr service,
-    NBus::IMessagePtr requestMessage);
+    TSharedRefArray requestMessage);
 
 //! Asynchronously executes a request against the given service.
 void ExecuteVerb(

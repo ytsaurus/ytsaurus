@@ -49,7 +49,7 @@ TClientRequest::TClientRequest(
     ToProto(Header_.mutable_request_id(), TRequestId::Create());
 }
 
-IMessagePtr TClientRequest::Serialize() const
+TSharedRefArray TClientRequest::Serialize() const
 {
     auto header = Header_;
     header.set_retry_start_time(TInstant::Now().MicroSeconds());
@@ -159,29 +159,28 @@ TClientResponse::TClientResponse(const TRequestId& requestId)
     , Attributes_(CreateEphemeralAttributes())
 { }
 
-IMessagePtr TClientResponse::GetResponseMessage() const
+TSharedRefArray TClientResponse::GetResponseMessage() const
 {
     YASSERT(ResponseMessage);
     return ResponseMessage;
 }
 
-void TClientResponse::Deserialize(IMessagePtr responseMessage)
+void TClientResponse::Deserialize(TSharedRefArray responseMessage)
 {
     YASSERT(responseMessage);
     YASSERT(!ResponseMessage);
 
-    ResponseMessage = responseMessage;
+    ResponseMessage = std::move(responseMessage);
 
-    const auto& parts = responseMessage->GetParts();
-    YASSERT(parts.size() >= 2);
+    YASSERT(ResponseMessage.Size() >= 2);
 
-    DeserializeBody(parts[1]);
+    DeserializeBody(ResponseMessage[1]);
 
     Attachments_.clear();
     Attachments_.insert(
         Attachments_.begin(),
-        parts.begin() + 2,
-        parts.end());
+        ResponseMessage.Begin() + 2,
+        ResponseMessage.End());
 
     NProto::TResponseHeader responseHeader;
     YCHECK(ParseResponseHeader(responseMessage, &responseHeader));
@@ -199,7 +198,7 @@ void TClientResponse::OnAcknowledgement()
     }
 }
 
-void TClientResponse::OnResponse(IMessagePtr message)
+void TClientResponse::OnResponse(TSharedRefArray message)
 {
     {
         TGuard<TSpinLock> guard(SpinLock);
@@ -242,7 +241,7 @@ void TOneWayClientResponse::OnAcknowledgement()
     FireCompleted();
 }
 
-void TOneWayClientResponse::OnResponse(IMessagePtr /*message*/)
+void TOneWayClientResponse::OnResponse(TSharedRefArray /*message*/)
 {
     YUNREACHABLE();
 }

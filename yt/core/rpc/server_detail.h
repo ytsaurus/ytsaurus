@@ -4,8 +4,6 @@
 
 #include <core/rpc/rpc.pb.h>
 
-#include <core/bus/message.h>
-
 namespace NYT {
 namespace NRpc {
 
@@ -15,7 +13,7 @@ class TServiceContextBase
     : public IServiceContext
 {
 public:
-    virtual NBus::IMessagePtr GetRequestMessage() const override;
+    virtual TSharedRefArray GetRequestMessage() const override;
 
     virtual TRequestId GetRequestId() const override;
     
@@ -32,7 +30,7 @@ public:
     virtual bool IsOneWay() const override;
 
     virtual void Reply(const TError& error) override;
-    virtual void Reply(NBus::IMessagePtr responseMessage) override;
+    virtual void Reply(TSharedRefArray responseMessage) override;
 
     virtual const TError& GetError() const override;
 
@@ -59,13 +57,13 @@ public:
 protected:
     TServiceContextBase(
         const NProto::TRequestHeader& header,
-        NBus::IMessagePtr requestMessage);
+        TSharedRefArray requestMessage);
 
     explicit TServiceContextBase(
-        NBus::IMessagePtr requestMessage);
+        TSharedRefArray requestMessage);
 
     NProto::TRequestHeader RequestHeader_;
-    NBus::IMessagePtr RequestMessage;
+    TSharedRefArray RequestMessage;
 
     TRequestId RequestId;
     TRealmId RealmId;
@@ -83,7 +81,7 @@ protected:
     Stroka RequestInfo;
     Stroka ResponseInfo;
 
-    virtual void DoReply(NBus::IMessagePtr responseMessage) = 0;
+    virtual void DoReply(TSharedRefArray responseMessage) = 0;
 
     virtual void LogRequest() = 0;
     virtual void LogResponse(const TError& error) = 0;
@@ -100,7 +98,7 @@ class TServiceContextWrapper
 public:
     explicit TServiceContextWrapper(IServiceContextPtr underlyingContext);
 
-    virtual NBus::IMessagePtr GetRequestMessage() const override;
+    virtual TSharedRefArray GetRequestMessage() const override;
 
     virtual NRpc::TRequestId GetRequestId() const override;
     
@@ -117,7 +115,7 @@ public:
 
     virtual bool IsReplied() const override;
     virtual void Reply(const TError& error) override;
-    virtual void Reply(NBus::IMessagePtr responseMessage) override;
+    virtual void Reply(TSharedRefArray responseMessage) override;
 
     virtual const TError& GetError() const override;
 
@@ -161,7 +159,7 @@ public:
         TClosure onReply);
 
     virtual void Reply(const TError& error) override;
-    virtual void Reply(NBus::IMessagePtr responseMessage) override;
+    virtual void Reply(TSharedRefArray responseMessage) override;
 
 private:
     TClosure OnReply;

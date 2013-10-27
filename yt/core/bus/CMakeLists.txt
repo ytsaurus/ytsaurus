@@ -1,7 +1,6 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/core/bus )
 set( SRCS
-  ${BASE}/message.cpp
   ${BASE}/packet.cpp
   ${BASE}/private.cpp
   ${BASE}/tcp_client.cpp
@@ -14,7 +13,6 @@ set( HDRS
   ${BASE}/bus.h
   ${BASE}/client.h
   ${BASE}/config.h
-  ${BASE}/message.h
   ${BASE}/packet.h
   ${BASE}/private.h
   ${BASE}/public.h

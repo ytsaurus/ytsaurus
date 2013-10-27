@@ -140,7 +140,7 @@ private:
         Retry();
     }
 
-    virtual void OnResponse(IMessagePtr message) override
+    virtual void OnResponse(TSharedRefArray message) override
     {
         LOG_DEBUG("Request attempt succeeded (RequestId: %s)",
             ~ToString(Request->GetRequestId()));

@@ -16,7 +16,7 @@ using namespace NRpc::NProto;
 
 TServiceContextBase::TServiceContextBase(
     const TRequestHeader& header,
-    IMessagePtr requestMessage)
+    TSharedRefArray requestMessage)
     : RequestHeader_(header)
     , RequestMessage(requestMessage)
     , RequestId(header.has_request_id()
@@ -28,12 +28,9 @@ TServiceContextBase::TServiceContextBase(
     , Replied(false)
     , ResponseAttributes_(CreateEphemeralAttributes())
 {
-    YASSERT(requestMessage);
-
-    const auto& parts = requestMessage->GetParts();
-    YASSERT(parts.size() >= 2);
-    RequestBody = parts[1];
-    RequestAttachments_ = std::vector<TSharedRef>(parts.begin() + 2, parts.end());
+    YASSERT(requestMessage.Size() >= 2);
+    RequestBody = requestMessage[1];
+    RequestAttachments_ = std::vector<TSharedRef>(requestMessage.Begin() + 2, requestMessage.End());
     RequestAttributes_ =
         header.has_attributes()
         ? FromProto(header.attributes())
@@ -58,28 +55,27 @@ void TServiceContextBase::Reply(const TError& error)
     LogResponse(error);
 }
 
-void TServiceContextBase::Reply(IMessagePtr responseMessage)
+void TServiceContextBase::Reply(TSharedRefArray responseMessage)
 {
     YASSERT(!Replied);
     YASSERT(!IsOneWay());
 
-    auto parts = responseMessage->GetParts();
-    YASSERT(!parts.empty());
+    YASSERT(responseMessage.Size() >= 1);
 
     TResponseHeader header;
-    YCHECK(DeserializeFromProto(&header, parts[0]));
+    YCHECK(DeserializeFromProto(&header, responseMessage[0]));
 
     Error = FromProto(header.error());
     ResponseBody = TSharedRef();
     ResponseAttachments_.clear();
 
     if (Error.IsOK()) {
-        YASSERT(parts.size() >= 2);
-        ResponseBody = parts[1];
+        YASSERT(responseMessage.Size() >= 2);
+        ResponseBody = responseMessage[1];
         ResponseAttachments_.insert(
             ResponseAttachments_.end(),
-            parts.begin() + 2,
-            parts.end());
+            responseMessage.Begin() + 2,
+            responseMessage.End());
     } else {
         ResponseBody = TSharedRef();
         ResponseAttachments_.clear();
@@ -149,7 +145,7 @@ IAttributeDictionary& TServiceContextBase::ResponseAttributes()
     return *ResponseAttributes_;
 }
 
-IMessagePtr TServiceContextBase::GetRequestMessage() const
+TSharedRefArray TServiceContextBase::GetRequestMessage() const
 {
     return RequestMessage;
 }
@@ -248,7 +244,7 @@ TServiceContextWrapper::TServiceContextWrapper(IServiceContextPtr underlyingCont
     : UnderlyingContext(std::move(underlyingContext))
 { }
 
-IMessagePtr TServiceContextWrapper::GetRequestMessage() const
+TSharedRefArray TServiceContextWrapper::GetRequestMessage() const
 {
     return UnderlyingContext->GetRequestMessage();
 }
@@ -303,7 +299,7 @@ void TServiceContextWrapper::Reply(const TError& error)
     UnderlyingContext->Reply(error);
 }
 
-void TServiceContextWrapper::Reply(IMessagePtr responseMessage)
+void TServiceContextWrapper::Reply(TSharedRefArray responseMessage)
 {
     UnderlyingContext->Reply(responseMessage);
 }
@@ -393,7 +389,7 @@ void TReplyInterceptorContext::Reply(const TError& error)
     OnReply.Run();
 }
 
-void TReplyInterceptorContext::Reply(IMessagePtr responseMessage)
+void TReplyInterceptorContext::Reply(TSharedRefArray responseMessage)
 {
     TServiceContextWrapper::Reply(std::move(responseMessage));
     OnReply.Run();

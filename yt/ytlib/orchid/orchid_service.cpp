@@ -40,7 +40,7 @@ DEFINE_RPC_SERVICE_METHOD(TOrchidService, Execute)
     UNUSED(request);
     UNUSED(response);
 
-    auto requestMessage = CreateMessageFromParts(request->Attachments());
+    auto requestMessage = TSharedRefArray(request->Attachments());
 
     NRpc::NProto::TRequestHeader requestHeader;
     if (!ParseRequestHeader(requestMessage, &requestHeader)) {
@@ -55,7 +55,7 @@ DEFINE_RPC_SERVICE_METHOD(TOrchidService, Execute)
         ~verb);
 
     ExecuteVerb(RootService, requestMessage)
-        .Subscribe(BIND([=] (IMessagePtr responseMessage) {
+        .Subscribe(BIND([=] (TSharedRefArray responseMessage) {
             NRpc::NProto::TResponseHeader responseHeader;
             YCHECK(ParseResponseHeader(responseMessage, &responseHeader));
 
@@ -63,7 +63,7 @@ DEFINE_RPC_SERVICE_METHOD(TOrchidService, Execute)
 
             context->SetRequestInfo("Error: %s", ~ToString(error));
 
-            response->Attachments() = responseMessage->GetParts();
+            response->Attachments() = responseMessage.ToVector();
             context->Reply();
         }));
 }

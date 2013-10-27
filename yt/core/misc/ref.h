@@ -4,6 +4,8 @@
 #include "blob.h"
 #include "new.h"
 
+
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -108,38 +110,45 @@ private:
 
 //! Default tag type for memory blocks allocated via TSharedRef.
 /*!
- *  Each newly allocated TSharedRef is associated with a tag type that
+ *  Each newly allocated TSharedRef blob is associated with a tag type that
  *  appears in ref-counted statistics.
  */
-struct TDefaultSharedRefTag { };
+struct TDefaultSharedBlobTag { };
 
-//! A reference of a shared block of memory.
+//! A reference to a range of memory with shared ownership.
 /*!
- *  Internally it is represented a by a ref-counted structure with a TBlob holding the
- *  actual data and a TRef pointing inside the blob.
+ *  Internally it is represented by a pointer to a ref-counted polymorphic holder
+ *  (solely responsible for resource release) and a TRef pointing inside the blob.
+ *
+ *  If the holder is |nullptr| then no ownership is tracked and TSharedRef reduces to just TRef.
  */
 class TSharedRef
 {
 public:
+    typedef TIntrinsicRefCounted THolder;
+    typedef TIntrusivePtr<THolder> THolderPtr;
+
     //! Creates a null reference.
     TSharedRef()
+    { }
+
+    //! Creates a reference with a given holder.
+    TSharedRef(THolderPtr holder, const TRef& ref)
+        : Holder(std::move(holder))
+        , Ref(ref)
     { }
 
     //! Allocates a new shared block of memory.
     template <class TTag>
     static TSharedRef Allocate(size_t size, bool initializeStorage = true)
     {
-        auto result = AllocateImpl(size, initializeStorage);
-#ifdef ENABLE_REF_COUNTED_TRACKING
-        void* cookie = ::NYT::NDetail::GetRefCountedTrackerCookie<TTag>();
-        result.Data->InitializeTracking(cookie);
-#endif
-        return result;
+        TBlob blob(size, initializeStorage);
+        return FromBlob<TTag>(std::move(blob));
     }
 
     static TSharedRef Allocate(size_t size, bool initializeStorage = true)
     {
-        return Allocate<TDefaultSharedRefTag>(size, initializeStorage);
+        return Allocate<TDefaultSharedBlobTag>(size, initializeStorage);
     }
 
     //! Creates a non-owning reference from TRef. Use it with caution!
@@ -159,31 +168,32 @@ public:
 
     static TSharedRef FromString(const Stroka& str)
     {
-        return FromString<TDefaultSharedRefTag>(str);
+        return FromString<TDefaultSharedBlobTag>(str);
     }
 
     //! Creates a reference to the whole blob taking the ownership of its content.
     template <class TTag>
     static TSharedRef FromBlob(TBlob&& blob)
     {
-        auto result = FromBlobImpl(std::move(blob));
+        auto holder = New<TBlobHolder>(std::move(blob));
 #ifdef ENABLE_REF_COUNTED_TRACKING
         void* cookie = ::NYT::NDetail::GetRefCountedTrackerCookie<TTag>();
-        result.Data->InitializeTracking(cookie);
+        holder->InitializeTracking(cookie);
 #endif
-        return result;
+        auto ref = TRef::FromBlob(holder->Blob);
+        return TSharedRef(std::move(holder), ref);
     }
 
     static TSharedRef FromBlob(TBlob&& blob)
     {
-        return FromBlob<TDefaultSharedRefTag>(std::move(blob));
+        return FromBlob<TDefaultSharedBlobTag>(std::move(blob));
     }
 
     //! Creates a reference to a portion of currently held data.
     TSharedRef Slice(const TRef& sliceRef) const
     {
         YASSERT(sliceRef.Begin() >= Ref.Begin() && sliceRef.End() <= Ref.End());
-        return TSharedRef(Data, sliceRef);
+        return TSharedRef(Holder, sliceRef);
     }
 
     FORCED_INLINE operator const TRef&() const
@@ -229,7 +239,7 @@ public:
     //! Compares the pointer (not the content!) for equality.
     FORCED_INLINE bool operator == (const TSharedRef& other) const
     {
-        return Data == other.Data && Ref == other.Ref;
+        return Holder == other.Holder && Ref == other.Ref;
     }
 
     //! Compares the pointer (not the content!) for inequality.
@@ -246,41 +256,80 @@ public:
     }
 
 private:
-    struct TSharedData
-        : public TIntrinsicRefCounted
+    class TBlobHolder
+        : public THolder
     {
-        explicit TSharedData(TBlob&& blob);
-        ~TSharedData();
+    public:
+        explicit TBlobHolder(TBlob&& blob);
+        ~TBlobHolder();
+
+    private:
+        friend class TSharedRef;
 
         TBlob Blob;
 
 #ifdef ENABLE_REF_COUNTED_TRACKING
         void* Cookie;
-
         void InitializeTracking(void* cookie);
         void FinalizeTracking();
 #endif
     };
 
-    typedef TIntrusivePtr<TSharedData> TDataPtr;
-
-    TDataPtr Data;
+    THolderPtr Holder;
     TRef Ref;
-
-    TSharedRef(TDataPtr data, const TRef& ref)
-        : Data(std::move(data))
-        , Ref(ref)
-    { }
-
-    static TSharedRef AllocateImpl(size_t size, bool initializeStorage);
-    static TSharedRef FromBlobImpl(TBlob&& blob);
 
 };
 
-Stroka ToString(const TRef& ref);
+////////////////////////////////////////////////////////////////////////////////
+
+//! A smart-pointer to a ref-counted immutable sequence of TSharedRef-s.
+class TSharedRefArray
+{
+public:
+    TSharedRefArray();
+    TSharedRefArray(const TSharedRefArray& other);
+    TSharedRefArray(TSharedRefArray&& other);
+    ~TSharedRefArray();
+
+    explicit TSharedRefArray(const TSharedRef& part);
+    explicit TSharedRefArray(TSharedRef&& part);
+    explicit TSharedRefArray(const std::vector<TSharedRef>& parts);
+    explicit TSharedRefArray(std::vector<TSharedRef>&& parts);
+
+    TSharedRefArray& operator = (const TSharedRefArray& other);
+    TSharedRefArray& operator = (TSharedRefArray&& other);
+
+    void Reset();
+
+    explicit operator bool() const;
+
+    int Size() const;
+    bool Empty() const;
+    const TSharedRef& operator [] (int index) const;
+
+    const TSharedRef* Begin() const;
+    const TSharedRef* End() const;
+
+    std::vector<TSharedRef> ToVector() const;
+
+    TSharedRef Pack() const;
+    static TSharedRefArray Unpack(const TSharedRef& packedRef);
+
+private:
+    class TImpl;
+    TIntrusivePtr<TImpl> Impl;
+
+    explicit TSharedRefArray(TIntrusivePtr<TImpl> impl);
+
+};
+
+// Range-for interop.
+const TSharedRef* begin(const TSharedRefArray& array);
+const TSharedRef* end(const TSharedRefArray& array);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+Stroka ToString(const TRef& ref);
 size_t GetPageSize();
 size_t RoundUpToPage(size_t bytes);
 

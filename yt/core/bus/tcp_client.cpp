@@ -84,7 +84,7 @@ public:
         DispatcherThread->AsyncRegister(Connection);
     }
 
-    virtual TAsyncError Send(IMessagePtr message) override
+    virtual TAsyncError Send(TSharedRefArray message) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
         return Connection->Send(std::move(message));
