@@ -3,8 +3,15 @@
 #include <core/misc/common.h>
 #include <core/misc/enum.h>
 
+#include <ytlib/transaction_client/public.h>
+
 namespace NYT {
 namespace NVersionedTableClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+using NTransactionClient::TTimestamp;
+using NTransactionClient::NullTimestamp;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,10 +28,6 @@ DECLARE_ENUM(EColumnType,
     (Any)
     (Null)
 );
-
-typedef i64 TTimestamp;
-const TTimestamp NullTimestamp = 0;
-const TTimestamp LastCommittedTimestamp = -1;
 
 typedef std::vector<Stroka> TKeyColumns;
 

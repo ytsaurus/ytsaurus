@@ -23,6 +23,10 @@ typedef TIntrusivePtr<TTransactionManagerConfig> TTransactionManagerConfigPtr;
 using NObjectClient::TTransactionId;
 using NObjectClient::NullTransactionId;
 
+typedef i64 TTimestamp;
+const TTimestamp NullTimestamp = 0;
+const TTimestamp LastCommittedTimestamp = -1;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTransactionClient

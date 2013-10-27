@@ -71,11 +71,17 @@ struct ITransaction
      */
     virtual TAsyncError AsyncPing() = 0;
 
-    //! Returns the id of the transaction.
+    //! Returns the transaction id.
     /*!
      *  \note Thread affinity: any
      */
     virtual TTransactionId GetId() const  = 0;
+
+    //! Returns the transaction start timestamp.
+    /*!
+     *  \note Thread affinity: any
+     */
+    virtual TTimestamp GetStartTimestamp() const  = 0;
 
     //! Called to mark a given cell as a transaction participant.
     //! Starts the corresponding transaction in background.

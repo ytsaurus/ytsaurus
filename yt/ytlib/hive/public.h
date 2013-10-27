@@ -4,8 +4,6 @@
 
 #include <ytlib/hydra/public.h>
 
-#include <ytlib/new_table_client/public.h>
-
 #include <ytlib/transaction_client/public.h>
 
 namespace NYT {
@@ -26,11 +24,10 @@ typedef TIntrusivePtr<TRemoteTimestampProviderConfig> TRemoteTimestampProviderCo
 
 using NHydra::TCellGuid;
 
-using NVersionedTableClient::TTimestamp;
-using NVersionedTableClient::NullTimestamp;
-
 using NTransactionClient::TTransactionId;
 using NTransactionClient::NullTransactionId;
+using NTransactionClient::TTimestamp;
+using NTransactionClient::NullTimestamp;
 
 ////////////////////////////////////////////////////////////////////////////////
 

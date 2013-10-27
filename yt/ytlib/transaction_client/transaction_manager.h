@@ -2,11 +2,13 @@
 
 #include "public.h"
 
+#include <core/misc/nullable.h>
+
 #include <core/ytree/public.h>
 
-#include <ytlib/hydra/public.h>
+#include <core/rpc/public.h>
 
-#include <ytlib/object_client/object_service_proxy.h>
+#include <ytlib/hydra/public.h>
 
 #include <ytlib/hive/public.h>
 
@@ -110,15 +112,11 @@ private:
     class TTransaction;
     typedef TIntrusivePtr<TTransaction> TTransactionPtr;
 
-    typedef TTransactionManager TThis;
+    class TImpl;
+    typedef TIntrusivePtr<TImpl> TImplPtr;
 
-    TTransactionManagerConfigPtr Config;
-    NRpc::IChannelPtr Channel;
-    NHive::ITimestampProviderPtr TimestampProvider;
-    NHive::TCellDirectoryPtr CellDirectory;
+    TImplPtr Impl;
 
-    TSpinLock SpinLock;
-    yhash_set<TTransaction*> AliveTransactions;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
