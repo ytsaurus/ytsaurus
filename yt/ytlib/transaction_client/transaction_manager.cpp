@@ -111,7 +111,7 @@ public:
     {
         if (AutoAbort_) {
             if (State_ == EState::Active) {
-                InvokeAbort(false);
+                InvokeAbort();
             }
 
             {
@@ -134,7 +134,6 @@ public:
             .Apply(BIND(&TTransaction::OnGotStartTimestamp, MakeStrong(this), options));
     }
 
-    
     void Attach(const TTransactionAttachOptions& options)
     {
         Id_ = options.Id;
@@ -153,7 +152,6 @@ public:
             SendPing();
         }
     }
-
 
     virtual TAsyncError AsyncCommit(const TMutationId& mutationId) override
     {
@@ -189,37 +187,17 @@ public:
             BIND(&TTransaction::OnTransactionCommitted, MakeStrong(this)));
     }
 
-    virtual void Commit(const TMutationId& mutationId) override
+    virtual TAsyncError AsyncAbort(const TMutationId& mutationId) override
     {
-        AsyncCommit(mutationId).Get();
-    }
-
-
-    virtual void Abort(bool wait, const TMutationId& mutationId) override
-    {
-        bool generateMutationId = wait;
-        auto rspFuture = AsyncAbort(generateMutationId, mutationId);
-        if (wait) {
-            auto rsp = rspFuture.Get();
-            THROW_ERROR_EXCEPTION_IF_FAILED(rsp);
-        }
-    }
-
-    virtual TAsyncError AsyncAbort(
-        bool generateMutationId,
-        const TMutationId& mutationId) override
-    {
-        return InvokeAbort(generateMutationId, mutationId)
+        return InvokeAbort(mutationId)
             .Apply(BIND(&TTransaction::OnTransactionAborted, MakeStrong(this)));
     }
 
-    
     virtual TAsyncError AsyncPing() override
     {
         return SendPing();
     }
 
-    
     virtual void Detach() override
     {
         VERIFY_THREAD_AFFINITY(ClientThread);
@@ -524,13 +502,12 @@ private:
 
 
     TFuture<TTransactionSupervisorServiceProxy::TRspAbortTransactionPtr> InvokeAbort(
-        bool generateMutationId,
         const TMutationId& mutationId = NullMutationId)
     {
         auto req = Proxy_.AbortTransaction();
         ToProto(req->mutable_transaction_id(), Id_);
-        if (generateMutationId) {
-            SetOrGenerateMutationId(req, mutationId);
+        if (mutationId != NullMutationId) {
+            SetMutationId(req, mutationId);
         }
         return req->Invoke();
     }
@@ -623,7 +600,7 @@ void TTransactionManager::TImpl::AsyncAbortAll()
     }
 
     FOREACH (const auto& transaction, transactions) {
-        transaction->AsyncAbort(false);
+        transaction->AsyncAbort();
     }
 }
 

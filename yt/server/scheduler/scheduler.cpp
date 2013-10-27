@@ -1269,7 +1269,7 @@ private:
             ~ToString(operation->GetOperationId()));
 
         // NB: Never commit async transaction since it's used for writing Live Preview tables.
-        operation->GetAsyncSchedulerTransaction()->Abort();
+        operation->GetAsyncSchedulerTransaction()->AsyncAbort();
     }
 
     void AbortSchedulerTransactions(TOperationPtr operation)
@@ -1277,7 +1277,7 @@ private:
         auto abortTransaction = [&] (ITransactionPtr transaction) {
             if (transaction) {
                 // Fire-and-forget.
-                transaction->Abort();
+                transaction->AsyncAbort();
             }
         };
 

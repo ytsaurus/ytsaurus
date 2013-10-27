@@ -19,42 +19,14 @@ struct ITransaction
 {
     //! Commits the transaction asynchronously.
     /*!
-     *  \note Thread affinity: ClientThread
-     */
-    virtual TAsyncError AsyncCommit(
-        const NHydra::TMutationId& mutationId = NHydra::NullMutationId) = 0;
-
-    //! Commits the transaction synchronously.
-    /*!
-     *  This call may block.
-     *  Throws an exception if the commit fails.
      *  Should not be called more than once.
      *
      *  \note Thread affinity: ClientThread
      */
-    virtual void Commit(
-        const NHydra::TMutationId& mutationId = NHydra::NullMutationId) = 0;
+    virtual TAsyncError AsyncCommit(const NHydra::TMutationId& mutationId = NHydra::NullMutationId) = 0;
 
     //! Aborts the transaction asynchronously.
-    virtual TAsyncError AsyncAbort(
-        bool generateMutationId,
-        const NHydra::TMutationId& mutationId = NHydra::NullMutationId) = 0;
-
-    //! Aborts the transaction synchronously.
-    /*!
-     *
-     *  If #wait is False then then call does not block and does not throw.
-     *
-     *  If #wait is true then the call blocks until the master has confirmed
-     *  transaction abort. It may also throw an exception if something goes wrong.
-     *
-     *  Safe to call multiple times.
-     *
-     *  \note Thread affinity: any
-     */
-    virtual void Abort(
-        bool wait = false,
-        const NHydra::TMutationId& mutationId = NHydra::NullMutationId) = 0;
+    virtual TAsyncError AsyncAbort(const NHydra::TMutationId& mutationId = NHydra::NullMutationId) = 0;
 
     //! Detaches the transaction, i.e. makes the manager forget about it.
     /*!

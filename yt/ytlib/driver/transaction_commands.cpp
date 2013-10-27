@@ -73,7 +73,7 @@ void TCommitTransactionCommand::DoExecute()
 void TAbortTransactionCommand::DoExecute()
 {
     auto transaction = GetTransaction(EAllowNullTransaction::No, EPingTransaction::No);
-    auto result =WaitFor(transaction->AsyncAbort(true, GenerateMutationId()));
+    auto result = WaitFor(transaction->AsyncAbort(GenerateMutationId()));
     THROW_ERROR_EXCEPTION_IF_FAILED(result);
 }
 

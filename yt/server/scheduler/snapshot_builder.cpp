@@ -236,7 +236,8 @@ void TSnapshotBuilder::UploadSnapshot(const TJob& job)
 
         // Commit outer transaction.
         {
-            transaction->Commit();
+            auto result = WaitFor(transaction->AsyncCommit());
+            THROW_ERROR_EXCEPTION_IF_FAILED(result);
         }
     } catch (const std::exception& ex) {
         LOG_ERROR(ex, "Error uploading snapshot");
