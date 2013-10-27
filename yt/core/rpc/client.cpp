@@ -183,7 +183,7 @@ void TClientResponse::Deserialize(TSharedRefArray responseMessage)
         ResponseMessage.End());
 
     NProto::TResponseHeader responseHeader;
-    YCHECK(ParseResponseHeader(responseMessage, &responseHeader));
+    YCHECK(ParseResponseHeader(ResponseMessage, &responseHeader));
 
     if (responseHeader.has_attributes()) {
         Attributes_ = FromProto(responseHeader.attributes());
