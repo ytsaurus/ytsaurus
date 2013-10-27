@@ -197,8 +197,8 @@ public:
             }
         }
 
-        auto cellGuid = GetCoordinatorCellGuid();
-        if (!cellGuid) {
+        auto participantGuids = GetParticipantGuids();
+        if (participantGuids.empty()) {
             {
                 TGuard<TSpinLock> guard(SpinLock_);
                 if (State_ != EState::Committing)
@@ -211,23 +211,32 @@ public:
             return MakeFuture(TError());
         }
 
+        auto coordinatorCellGuid = Type_ == ETransactionType::Master
+            ? Owner_->MasterCellGuid_
+            : *participantGuids.begin();
+
         LOG_INFO("Committing transaction (TransactionId: %s, CoordinatorCellGuid: %s)",
             ~ToString(Id_),
-            ~ToString(*cellGuid));
+            ~ToString(coordinatorCellGuid));
 
-        auto channel = Owner_->CellDirectory_->GetChannel(*cellGuid);
+        auto channel = Owner_->CellDirectory_->GetChannel(coordinatorCellGuid);
         if (!channel) {
             return MakeFuture(TError("Unknown coordinator cell %s",
-                ~ToString(*cellGuid)));
+                ~ToString(coordinatorCellGuid)));
         }
 
         TTransactionSupervisorServiceProxy proxy(channel);
         auto req = proxy.CommitTransaction();
         ToProto(req->mutable_transaction_id(), Id_);
+        for (const auto& cellGuid : participantGuids) {
+            if (cellGuid != coordinatorCellGuid) {
+                ToProto(req->add_participant_cell_guids(), cellGuid);
+            }
+        }
         SetOrGenerateMutationId(req, mutationId);
 
         return req->Invoke().Apply(
-            BIND(&TTransaction::OnTransactionCommitted, MakeStrong(this), *cellGuid));
+            BIND(&TTransaction::OnTransactionCommitted, MakeStrong(this), coordinatorCellGuid));
     }
 
     virtual TAsyncError AsyncAbort(const TMutationId& mutationId) override
