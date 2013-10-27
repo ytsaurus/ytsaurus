@@ -390,8 +390,6 @@ private:
         if (AutoAbort_) {
             TGuard<TSpinLock> guard(Owner_->SpinLock_);
             YCHECK(Owner_->AliveTransactions_.insert(this).second);
-
-            LOG_DEBUG("Transaction registered");
         }        
     }
 
@@ -410,29 +408,28 @@ private:
         if (!timestampOrError.IsOK()) {
             return MakeFuture(TError(timestampOrError));
         }
+        StartTimestamp_ = timestampOrError.GetValue();
 
         Register();
 
-        auto startTimestamp = timestampOrError.GetValue();
-
         LOG_INFO("Starting transaction (StartTimestamp: %" PRId64 ", Type: %s)",
-            startTimestamp,
-            ~FormatEnum(options.Type));
+            StartTimestamp_,
+            ~Type_.ToString());
 
         switch (options.Type) {
             case ETransactionType::Master:
-                return StartMasterTransaction(options, startTimestamp);
+                return StartMasterTransaction(options);
             case ETransactionType::Tablet:
-                return StartTabletTransaction(options, startTimestamp);
+                return StartTabletTransaction(options);
             default:
                 YUNREACHABLE();
         }
     }
 
-    TAsyncError StartMasterTransaction(const TTransactionStartOptions& options, TTimestamp startTimestamp)
+    TAsyncError StartMasterTransaction(const TTransactionStartOptions& options)
     {
         auto req = MasterProxy_.StartTransaction();
-        req->set_start_timestamp(startTimestamp);
+        req->set_start_timestamp(StartTimestamp_);
 
         auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqStartTransactionExt::start_transaction_ext);
         if (!options.Attributes->List().empty()) {
@@ -480,12 +477,12 @@ private:
         return TError();
     }
 
-    TAsyncError StartTabletTransaction(const TTransactionStartOptions& options, TTimestamp startTimestamp)
+    TAsyncError StartTabletTransaction(const TTransactionStartOptions& options)
     {
         Id_ = MakeId(
             EObjectType::TabletTransaction,
             0, // TODO(babenko): cell id?
-            static_cast<ui64>(startTimestamp),
+            static_cast<ui64>(StartTimestamp_),
             TabletTransactionCounter++);
 
         LOG_INFO("Tablet transaction started (TransactionId: %s, StartTimestamp: %" PRId64 ", AutoAbort: %s)",
