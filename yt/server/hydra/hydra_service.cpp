@@ -20,8 +20,8 @@ THydraServiceBase::THydraServiceBase(
         hydraManager->CreateGuardedAutomatonInvoker(automatonInvoker),
         serviceId,
         loggingCategory)
-    , ServiceHydraManager(hydraManager)
     , AutomatonInvoker(automatonInvoker)
+    , ServiceHydraManager(hydraManager)
 {
     ServiceHydraManager->SubscribeLeaderActive(BIND(&THydraServiceBase::OnLeaderActive, Unretained(this)));
     ServiceHydraManager->SubscribeStopLeading(BIND(&THydraServiceBase::OnStopLeading, Unretained(this)));
