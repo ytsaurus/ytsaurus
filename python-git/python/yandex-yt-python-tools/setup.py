@@ -10,7 +10,7 @@ def main():
     data_files = []
     files = ["yt/tools/binaries/import_from_mr.py",
              "yt/tools/binaries/export_to_mr.py",
-             "yt/tools/binaries/export_to_mr.py",
+             "yt/tools/binaries/export_to_yt.py",
              "yt/tools/binaries/yt_add_user.py",
              "yt/tools/binaries/yt_set_account.py",
              "yt/tools/binaries/yt_convert_to_erasure.py",

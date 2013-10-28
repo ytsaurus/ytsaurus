@@ -3,6 +3,7 @@
 import yt.logger as logger
 import yt.wrapper as yt
 
+import sys
 from argparse import ArgumentParser
 
 def get_compression_ratio(table, codec):
@@ -13,6 +14,19 @@ def get_compression_ratio(table, codec):
     ratio = yt.get(table + "/@compression_ratio")
     yt.remove(tmp)
     return ratio
+
+def check_codec(table, codec_name, codec_value):
+    if codec_value is None:
+        return True
+    else:
+        try:
+            codecs = yt.list("{0}/@{1}_statistics".format(table, codec_name))
+            return codecs == [codec_value]
+        except yt.YtResponseError as error:
+            if error.is_resolve_error():
+                return False
+            else:
+                raise
 
 def main():
     parser = ArgumentParser()
@@ -33,6 +47,10 @@ def main():
         ratio = yt.get(args.src + "/@compression_ratio")
 
     yt.set(args.dst + "/@erasure_codec", args.erasure_codec)
+    if check_codec(args.dst, "compression", args.compression_codec) and \
+            check_codec(args.dst, "erasure", args.erasure_codec):
+        logger.info("Table already has proper codecs")
+        sys.exit(0)
 
     data_size_per_job = max(1, int(args.desired_chunk_size / ratio))
     mode = "sorted" if yt.is_sorted(args.src) else "unordered"
