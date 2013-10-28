@@ -2332,7 +2332,7 @@ private:
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(IntermediateSortJobIOConfig).Data());
 
             if (Spec->Monster) {
-                IntermediateSortJobSpecTemplate.set_type(EJobType::PartitionReduce);
+                IntermediateSortJobSpecTemplate.set_type(EJobType::MonsterReduce);
                 auto* reduceJobSpecExt = IntermediateSortJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
                 ToProto(reduceJobSpecExt->mutable_key_columns(), Spec->SortBy);
 
@@ -2415,12 +2415,13 @@ private:
 
             case EJobType::PartitionReduce: {
                 auto* jobSpecExt = jobSpec->MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
-                // ToDo(psushin): distinguish between monster and reducer for memory reserve.
-                auto memoryReserve = GetPartitionReduceMemoryReserve();
-                if (Spec->Monster) {
-                    memoryReserve = std::max(memoryReserve, GetMonsterMemoryReserve());
-                }
-                InitUserJobSpec(jobSpecExt->mutable_reducer_spec(), joblet, memoryReserve);
+                InitUserJobSpec(jobSpecExt->mutable_reducer_spec(), joblet, GetPartitionReduceMemoryReserve());
+                break;
+            }
+
+            case EJobType::MonsterReduce: {
+                auto* jobSpecExt = jobSpec->MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
+                InitUserJobSpec(jobSpecExt->mutable_reducer_spec(), joblet, GetMonsterMemoryReserve());
                 break;
             }
 
