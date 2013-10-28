@@ -18,17 +18,20 @@ def process_logs(import_list, remove_list, link_queue, log_path, log_name, subna
     for i in xrange(count):
         for subname in subnames:
             table_date = date.today() - timedelta(days=i)
+
             table_name = os.path.join(log_name, table_date.strftime("%Y%m%d"))
             link_table_name = os.path.join(log_name, table_date.strftime("%Y-%m-%d"))
             if subname is not None:
                 table_name = os.path.join(table_name, subname)
+                link_table_name = os.path.join(link_table_name, subname)
             table_path = os.path.join(log_path, table_name)
+            link_table_path = os.path.join(log_path, link_table_name)
             if days is not None and i >= days: # Remove case
                 if table_name in remove_list:
                     continue
                 elif yt.exists(table_path):
                     if make_link:
-                        remove_list.append(link_table_name)
+                        remove_list.append(link_table_path)
                     remove_list.append(table_path)
             else: # Import case
                 if table_name in import_list:
@@ -36,7 +39,7 @@ def process_logs(import_list, remove_list, link_queue, log_path, log_name, subna
                 elif not yt.exists(table_path):
                     import_list.append(table_name)
                     if make_link:
-                        link_queue.append({"src": table_name, "dst": link_table_name})
+                        link_queue.append({"src": table_path, "dst": link_table_path})
 
 def main():
     parser = argparse.ArgumentParser(description='Prepare tables to merge')
@@ -45,7 +48,7 @@ def main():
     parser.add_argument('--remove-queue', required=True)
     parser.add_argument('--link-queue', required=True)
     args = parser.parse_args()
-    
+
     tables_to_import = yt.get(args.import_queue)
     tables_to_remove = yt.get(args.remove_queue)
     link_queue = yt.get(args.link_queue)
