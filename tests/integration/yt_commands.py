@@ -144,7 +144,7 @@ def read(path, **kwargs):
         kwargs["output_format"] = yson.loads("<format=text>yson")
     output = StringIO()
     command('read', kwargs, output_stream=output)
-    return yson.loads(output.getvalue(), yson_type="list_fragment")
+    return list(yson.loads(output.getvalue(), yson_type="list_fragment"))
 
 def start_transaction(**kwargs):
     out = command('start_tx', kwargs)
