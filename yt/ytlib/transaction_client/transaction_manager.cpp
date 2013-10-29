@@ -641,8 +641,7 @@ private:
             if (!Promise_.TrySet(error))
                 return;
 
-            Reset();
-
+            Awaiter_->Cancel();
             Transaction_->DoAbort(error);
         }
 
@@ -651,20 +650,10 @@ private:
             if (!Promise_.TrySet(TError()))
                 return;
             
-            Reset();
-
             if (Transaction_->Ping_) {
                 Transaction_->SchedulePing();
             }
         }
-
-        void Reset()
-        {
-            Promise_.Reset();
-            Awaiter_->Cancel();
-            Awaiter_.Reset();
-        }
-
     };
 
     TAsyncError SendPing()
@@ -750,7 +739,7 @@ private:
             if (!Promise_.TrySet(error))
                 return;
 
-            Reset();
+            Awaiter_->Cancel();
         }
 
         void OnComplete()
@@ -758,18 +747,8 @@ private:
             if (!Promise_.TrySet(TError()))
                 return;
 
-            Reset();
-
             Transaction_->DoAbort(TError("Transaction aborted by user request"));
         }
-
-        void Reset()
-        {
-            Promise_.Reset();
-            Awaiter_->Cancel();
-            Awaiter_.Reset();
-        }
-
     };
 
     TAsyncError SendAbort(const TMutationId& mutationId = NullMutationId)
