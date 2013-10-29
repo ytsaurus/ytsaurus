@@ -784,6 +784,7 @@ private:
             case ETransactionType::Tablet: {
                 auto participantGuids = GetParticipantGuids();
                 if (participantGuids.empty()) {
+                    // NB: NullCellGuid is a valid cell guid.
                     return Null;
                 }
                 return participantGuids[0];
