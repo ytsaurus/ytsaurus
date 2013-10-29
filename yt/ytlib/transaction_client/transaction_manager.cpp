@@ -116,7 +116,7 @@ public:
     {
         if (AutoAbort_) {
             if (State_ == EState::Active) {
-                SendAbort();
+                SendAbort(true);
             }
 
             {
@@ -240,7 +240,7 @@ public:
 
     virtual TAsyncError AsyncAbort(const TMutationId& mutationId) override
     {
-        return SendAbort(mutationId);
+        return SendAbort(false, mutationId);
     }
 
     virtual TAsyncError AsyncPing() override
@@ -670,14 +670,16 @@ private:
         : public TRefCounted
     {
     public:
-        explicit TAbortSession(TTransactionPtr transaction, const TMutationId& mutationId)
+        // NB: Avoid passing TTransactionPtr here since its destruction may be in progress.
+        explicit TAbortSession(TTransaction* transaction, const TMutationId& mutationId)
             : Transaction_(transaction)
+            , TransactionId_(transaction->GetId())
             , MutationId_(mutationId)
             , Promise_(NewPromise<TError>())
             , Awaiter_(New<TParallelAwaiter>(GetSyncInvoker()))
         { }
 
-        TAsyncError Run()
+        TAsyncError Run(bool fireAndForget)
         {
             auto participantGuids = Transaction_->GetParticipantGuids();
             for (const auto& cellGuid : participantGuids) {
@@ -702,14 +704,20 @@ private:
                     BIND(&TAbortSession::OnResponse, MakeStrong(this), cellGuid));
             }
 
-            Awaiter_->Complete(
-                BIND(&TAbortSession::OnComplete, MakeStrong(this)));
+            Transaction_ = nullptr; // avoid producing dangling reference
 
-            return Promise_;
+            if (fireAndForget) {
+                return TAsyncError();
+            } else {
+                Awaiter_->Complete(
+                    BIND(&TAbortSession::OnComplete, MakeStrong(this)));
+                return Promise_;
+            }
         }
 
     private:
-        TTransactionPtr Transaction_;
+        TTransaction* Transaction_;
+        TTransactionId TransactionId_;
         TMutationId MutationId_;
         TAsyncErrorPromise Promise_;
         TParallelAwaiterPtr Awaiter_;
@@ -719,17 +727,17 @@ private:
         {
             if (rsp->IsOK()) {
                 LOG_DEBUG("Transaction aborted (TransactionId: %s, CellGuid: %s)",
-                    ~ToString(Transaction_->Id_),
+                    ~ToString(TransactionId_),
                     ~ToString(cellGuid));
 
             } else {
                 if (rsp->GetError().GetCode() == NYTree::EErrorCode::ResolveError) {
                     LOG_DEBUG("Transaction has expired or was already aborted, ignored (TransactionId: %s, CellGuid: %s)",
-                        ~ToString(Transaction_->Id_),
+                        ~ToString(TransactionId_),
                         ~ToString(cellGuid));
                 } else {
                     LOG_WARNING(*rsp, "Error aborting transaction (TransactionId: %s, CellGuid: %s)",
-                        ~ToString(Transaction_->Id_),
+                        ~ToString(TransactionId_),
                         ~ToString(cellGuid));
                     OnError(TError("Error aborting transaction at cell %s",
                         ~ToString(cellGuid))
@@ -755,9 +763,9 @@ private:
         }
     };
 
-    TAsyncError SendAbort(const TMutationId& mutationId = NullMutationId)
+    TAsyncError SendAbort(bool fireAndForget, const TMutationId& mutationId = NullMutationId)
     {
-        return New<TAbortSession>(this, mutationId)->Run();
+        return New<TAbortSession>(this, mutationId)->Run(fireAndForget);
     }
 
 
