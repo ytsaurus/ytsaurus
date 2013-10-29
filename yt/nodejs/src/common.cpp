@@ -2,6 +2,8 @@
 #include "config.h"
 #include "node.h"
 
+#include <core/misc/address.h>
+
 #include <core/logging/log_manager.h>
 
 #include <core/profiling/profiling_manager.h>
@@ -131,6 +133,7 @@ Handle<Value> ShutdownSingletons(const Arguments& args)
     NProfiling::TProfilingManager::Get()->Shutdown();
     TDelayedExecutor::Shutdown();
     NLog::TLogManager::Get()->Shutdown();
+    TAddressResolver::Get()->Shutdown();
 
     return Undefined();
 }

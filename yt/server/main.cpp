@@ -329,6 +329,7 @@ int Main(int argc, const char* argv[])
     NProfiling::TProfilingManager::Get()->Shutdown();
     NConcurrency::TDelayedExecutor::Shutdown();
     NLog::TLogManager::Get()->Shutdown();
+    TAddressResolver::Get()->Shutdown();
 
     return exitCode;
 }

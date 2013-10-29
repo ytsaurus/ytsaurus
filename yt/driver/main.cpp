@@ -6,19 +6,22 @@
 #include "scheduler_executors.h"
 #include "etc_executors.h"
 
+#include <core/misc/address.h>
+
 #include <core/logging/log_manager.h>
 
 #include <core/profiling/profiling_manager.h>
 
 #include <core/concurrency/delayed_executor.h>
 
+#include <core/bus/tcp_dispatcher.h>
+
+#include <core/rpc/dispatcher.h>
+
 #include <ytlib/driver/private.h>
 #include <ytlib/driver/driver.h>
 #include <ytlib/driver/config.h>
 
-#include <core/bus/tcp_dispatcher.h>
-
-#include <core/rpc/dispatcher.h>
 #include <ytlib/chunk_client/dispatcher.h>
 
 #include <core/yson/parser.h>
@@ -148,6 +151,7 @@ public:
         NProfiling::TProfilingManager::Get()->Shutdown();
         NConcurrency::TDelayedExecutor::Shutdown();
         NLog::TLogManager::Get()->Shutdown();
+        TAddressResolver::Get()->Shutdown();
 
         return ExitCode;
     }
@@ -187,6 +191,7 @@ private:
             NProfiling::TProfilingManager::Get()->Shutdown();
             NConcurrency::TDelayedExecutor::Shutdown();
             NLog::TLogManager::Get()->Shutdown();
+            TAddressResolver::Get()->Shutdown();
             exit(0);
         }
     }
