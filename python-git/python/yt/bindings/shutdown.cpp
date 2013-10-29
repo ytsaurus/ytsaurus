@@ -1,5 +1,7 @@
 #include "shutdown.h"
 
+#include <core/misc/address.h>
+
 #include <core/profiling/profiling_manager.h>
 
 #include <core/rpc/dispatcher.h>
@@ -36,6 +38,7 @@ void Shutdown()
     NProfiling::TProfilingManager::Get()->Shutdown();
     NConcurrency::TDelayedExecutor::Shutdown();
     NLog::TLogManager::Get()->Shutdown();
+    TAddressResolver::Get()->Shutdown();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
