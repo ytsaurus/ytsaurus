@@ -117,6 +117,8 @@ void FormatMessage(TMessageBuffer* out, const Stroka& message)
         char ch = *current;
         if (ch == '\n') {
             out->AppendString("\\n");
+        } else if (ch == '\t') {
+            out->AppendString("\\t");
         } else {
             out->AppendChar(ch);
         }
