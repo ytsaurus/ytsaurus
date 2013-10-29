@@ -116,7 +116,7 @@ public:
     {
         if (AutoAbort_) {
             if (State_ == EState::Active) {
-                SendAbort(true);
+                SendAbort();
             }
 
             {
@@ -240,7 +240,13 @@ public:
 
     virtual TAsyncError AsyncAbort(const TMutationId& mutationId) override
     {
-        return SendAbort(false, mutationId);
+        auto this_ = MakeStrong(this);
+        return SendAbort(mutationId).Apply(BIND([this, this_] (TError error) -> TError {
+            if (error.IsOK()) {
+                DoAbort(TError("Transaction aborted by user request"));
+            }
+            return error;
+        }));
     }
 
     virtual TAsyncError AsyncPing() override
@@ -679,7 +685,7 @@ private:
             , Awaiter_(New<TParallelAwaiter>(GetSyncInvoker()))
         { }
 
-        TAsyncError Run(bool fireAndForget)
+        TAsyncError Run()
         {
             auto participantGuids = Transaction_->GetParticipantGuids();
             for (const auto& cellGuid : participantGuids) {
@@ -706,13 +712,10 @@ private:
 
             Transaction_ = nullptr; // avoid producing dangling reference
 
-            if (fireAndForget) {
-                return TAsyncError();
-            } else {
-                Awaiter_->Complete(
-                    BIND(&TAbortSession::OnComplete, MakeStrong(this)));
-                return Promise_;
-            }
+            Awaiter_->Complete(
+                BIND(&TAbortSession::OnComplete, MakeStrong(this)));
+
+            return Promise_;
         }
 
     private:
@@ -756,16 +759,13 @@ private:
 
         void OnComplete()
         {
-            if (!Promise_.TrySet(TError()))
-                return;
-
-            Transaction_->DoAbort(TError("Transaction aborted by user request"));
+            Promise_.TrySet(TError());
         }
     };
 
-    TAsyncError SendAbort(bool fireAndForget, const TMutationId& mutationId = NullMutationId)
+    TAsyncError SendAbort(const TMutationId& mutationId = NullMutationId)
     {
-        return New<TAbortSession>(this, mutationId)->Run(fireAndForget);
+        return New<TAbortSession>(this, mutationId)->Run();
     }
 
 
