@@ -22,6 +22,7 @@
 #include <server/hydra/hydra_manager.h>
 #include <server/hydra/mutation_context.h>
 #include <server/hydra/mutation.h>
+#include <server/hydra/hydra_service.h>
 
 #include <server/hive/hive_manager.pb.h>
 
@@ -41,7 +42,7 @@ static auto& Logger = HiveLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 class THiveManager::TImpl
-    : public TServiceBase
+    : public THydraServiceBase
     , public TCompositeAutomatonPart
 {
 public:
@@ -53,8 +54,9 @@ public:
         NRpc::IRpcServerPtr rpcServer,
         IHydraManagerPtr hydraManager,
         TCompositeAutomatonPtr automaton)
-        : TServiceBase(
-            hydraManager->CreateGuardedAutomatonInvoker(automatonInvoker),
+        : THydraServiceBase(
+            hydraManager,
+            automatonInvoker,
             TServiceId(THiveServiceProxy::GetServiceName(), cellGuid),
             HiveLogger.GetCategory())
         , TCompositeAutomatonPart(
@@ -64,7 +66,6 @@ public:
         , Config(config)
         , CellRegistry(cellRegistry)
         , RpcServer(rpcServer)
-        , AutomatonInvoker(automatonInvoker)
     {
         Automaton->RegisterPart(this);
 
@@ -182,9 +183,6 @@ private:
     THiveManagerConfigPtr Config;
     TCellDirectoryPtr CellRegistry;
     IRpcServerPtr RpcServer;
-    IInvokerPtr AutomatonInvoker;
-
-    IInvokerPtr EpochAutomatonInvoker;
 
     TEntityMap<TCellGuid, TMailbox> MailboxMap;
     
@@ -533,11 +531,6 @@ private:
 
     virtual void OnLeaderActive() override
     {
-        EpochAutomatonInvoker = HydraManager
-            ->GetEpochContext()
-            ->CancelableContext
-            ->CreateInvoker(AutomatonInvoker);
-
         for (const auto& pair : MailboxMap) {
             auto* mailbox = pair.second;
             mailbox->SetInFlightMessageCount(0);
@@ -552,8 +545,6 @@ private:
             auto* mailbox = pair.second;
             mailbox->SetInFlightMessageCount(0);
         }
-
-        EpochAutomatonInvoker.Reset();
     }
 
 
