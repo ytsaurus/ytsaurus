@@ -567,7 +567,8 @@ class TLogManager::TImpl
 {
 public:
     TImpl()
-        : Queue(New<TInvokerQueue>(
+        : WasShutdown(false)
+        , Queue(New<TInvokerQueue>(
             &EventCount,
             nullptr,
             NProfiling::EmptyTagIds,
@@ -611,6 +612,7 @@ public:
 
     void Shutdown()
     {
+        WasShutdown = true;
         Queue->Shutdown();
         Thread->Shutdown();
         Config->FlushWriters();
@@ -642,7 +644,7 @@ public:
 
     void Enqueue(const TLogEvent& event)
     {
-        if (!Thread->IsRunning() || Suspended) {
+        if (WasShutdown || Suspended) {
             return;
         }
 
@@ -878,6 +880,7 @@ private:
 
 
     TEventCount EventCount;
+    volatile bool WasShutdown;
     TInvokerQueuePtr Queue;
     TIntrusivePtr<TThread> Thread;
     TEnqueuedAction CurrentAction;

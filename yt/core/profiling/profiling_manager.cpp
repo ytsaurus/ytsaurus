@@ -37,7 +37,8 @@ class TProfilingManager::TImpl
 {
 public:
     TImpl()
-        : Queue(New<TInvokerQueue>(&EventCount, nullptr, EmptyTagIds, true, false))
+        : WasShutdown(false)
+        , Queue(New<TInvokerQueue>(&EventCount, nullptr, EmptyTagIds, true, false))
         , Thread(New<TThread>(this))
         , Root(GetEphemeralNodeFactory()->CreateMap())
         , EnqueueCounter("/enqueue_rate")
@@ -58,6 +59,7 @@ public:
 
     void Shutdown()
     {
+        WasShutdown = true;
         Queue->Shutdown();
         Thread->Shutdown();
     }
@@ -65,7 +67,7 @@ public:
 
     void Enqueue(const TQueuedSample& sample, bool selfProfiling)
     {
-        if (!Thread->IsRunning())
+        if (WasShutdown)
             return;
 
         if (!selfProfiling) {
@@ -275,6 +277,7 @@ private:
 
 
     TEventCount EventCount;
+    volatile bool WasShutdown;
     TInvokerQueuePtr Queue;
     TIntrusivePtr<TThread> Thread;
     TEnqueuedAction CurrentAction;
