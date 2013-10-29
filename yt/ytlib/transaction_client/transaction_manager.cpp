@@ -147,11 +147,15 @@ public:
 
     void Attach(const TTransactionAttachOptions& options)
     {
+        YCHECK(TypeFromId(options.Id) == EObjectType::Transaction);
+
         Type_ = ETransactionType::Master;
         Id_ = options.Id;
         AutoAbort_ = options.AutoAbort;
         Ping_ = options.Ping;
         PingAncestors_ = options.PingAncestors;
+
+        YCHECK(ParticipantGuids_.insert(Owner_->MasterCellGuid_).second);
         Register();
 
         LOG_INFO("Master transaction attached (TransactionId: %s, AutoAbort: %s, Ping: %s, PingAncestors: %s)",
