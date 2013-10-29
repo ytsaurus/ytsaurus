@@ -684,7 +684,7 @@ private:
             auto participantGuids = Transaction_->GetParticipantGuids();
             for (const auto& cellGuid : participantGuids) {
                 LOG_DEBUG("Aborting transaction (TransactionId: %s, CellGuid: %s)",
-                    ~ToString(Transaction_->Id_),
+                    ~ToString(TransactionId_),
                     ~ToString(cellGuid));
 
                 auto channel = Transaction_->Owner_->CellDirectory_->GetChannel(cellGuid);
@@ -693,7 +693,7 @@ private:
 
                 TTransactionSupervisorServiceProxy proxy(channel);
                 auto req = proxy.AbortTransaction();
-                ToProto(req->mutable_transaction_id(), Transaction_->Id_);
+                ToProto(req->mutable_transaction_id(), TransactionId_);
 
                 if (MutationId_ != NullMutationId) {
                     SetMutationId(req, MutationId_);
