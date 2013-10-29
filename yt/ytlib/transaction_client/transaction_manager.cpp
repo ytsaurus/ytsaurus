@@ -288,42 +288,39 @@ public:
     {
         YCHECK(TypeFromId(cellGuid) == EObjectType::TabletCell);
 
-        bool newParticipant;
         {
             TGuard<TSpinLock> guard(SpinLock_);
             if (State_ != EState::Active)
                 return;
-            if (!Error_.IsOK()) {
+            if (!Error_.IsOK())
                 THROW_ERROR Error_;
-            }
-            newParticipant = ParticipantGuids_.insert(cellGuid).second;
+            if (!ParticipantGuids_.insert(cellGuid).second)
+                return;
         }
 
-        if (newParticipant) {
-            auto channel = Owner_->CellDirectory_->GetChannel(cellGuid);
-            if (!channel) {
-                THROW_ERROR_EXCEPTION("Unknown participant cell %s",
-                    ~ToString(cellGuid));
-            }
-
-            LOG_DEBUG("Adding transaction participant (TransactionId: %s, CellGuid: %s)",
-                ~ToString(Id_),
+        auto channel = Owner_->CellDirectory_->GetChannel(cellGuid);
+        if (!channel) {
+            THROW_ERROR_EXCEPTION("Unknown participant cell %s",
                 ~ToString(cellGuid));
-
-            TTransactionSupervisorServiceProxy proxy(channel);
-            auto req = proxy.StartTransaction();
-            req->set_start_timestamp(StartTimestamp_);
-
-            auto* reqExt = req->MutableExtension(NTabletClient::NProto::TReqStartTransactionExt::start_transaction_ext);
-            reqExt->set_start_timestamp(StartTimestamp_);
-            ToProto(reqExt->mutable_transaction_id(), Id_);
-            if (Timeout_) {
-                reqExt->set_timeout(Timeout_->MilliSeconds());
-            }
-
-            req->Invoke().Subscribe(
-                BIND(&TTransaction::OnParticipantAdded, MakeStrong(this), cellGuid));
         }
+
+        LOG_DEBUG("Adding transaction participant (TransactionId: %s, CellGuid: %s)",
+            ~ToString(Id_),
+            ~ToString(cellGuid));
+
+        TTransactionSupervisorServiceProxy proxy(channel);
+        auto req = proxy.StartTransaction();
+        req->set_start_timestamp(StartTimestamp_);
+
+        auto* reqExt = req->MutableExtension(NTabletClient::NProto::TReqStartTransactionExt::start_transaction_ext);
+        reqExt->set_start_timestamp(StartTimestamp_);
+        ToProto(reqExt->mutable_transaction_id(), Id_);
+        if (Timeout_) {
+            reqExt->set_timeout(Timeout_->MilliSeconds());
+        }
+
+        req->Invoke().Subscribe(
+            BIND(&TTransaction::OnParticipantAdded, MakeStrong(this), cellGuid));
     }
 
 
@@ -778,17 +775,22 @@ private:
     }
 
 
-    TCellGuid GetCoordinatorCellGuid() const
+    TCellGuid GetCoordinatorCellGuid()
     {
-        if (ParticipantGuids_.empty()) {
-            return NullCellGuid;
-        }
+        switch (Type_) {
+            case ETransactionType::Master:
+                return Owner_->MasterCellGuid_;
+            
+            case ETransactionType::Tablet: {
+                auto participantGuids = GetParticipantGuids();
+                if (participantGuids.empty()) {
+                    return NullCellGuid;
+                }
+                return participantGuids[0];
+            }
 
-        // Prefer master cell. Choose an arbitrary one if the master is not involved.
-        if (ParticipantGuids_.find(Owner_->MasterCellGuid_) == ParticipantGuids_.end()) {
-            return *ParticipantGuids_.begin();
-        } else {
-            return Owner_->MasterCellGuid_;
+            default:
+                YUNREACHABLE();
         }
     }
 
