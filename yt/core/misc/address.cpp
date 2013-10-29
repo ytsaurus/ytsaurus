@@ -274,6 +274,13 @@ TAddressResolver* TAddressResolver::Get()
     return Singleton<TAddressResolver>();
 }
 
+void TAddressResolver::Shutdown()
+{
+    if (AddressResolverQueue) {
+        AddressResolverQueue->Shutdown();        
+    }
+}
+
 TFuture< TErrorOr<TNetworkAddress> > TAddressResolver::Resolve(const Stroka& address)
 {
     // Check if |address| parses into a valid IPv4 or IPv6 address.
