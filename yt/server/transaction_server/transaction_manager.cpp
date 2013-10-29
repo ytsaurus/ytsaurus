@@ -752,6 +752,12 @@ TTransactionId TTransactionManager::StartTransaction(
     TTimestamp startTimestamp,
     const NHive::NProto::TReqStartTransaction& request)
 {
+    auto objectManager = Bootstrap->GetObjectManager();
+    auto* transactionSchema = objectManager->GetSchema(EObjectType::Transaction);
+
+    auto securityManager = Bootstrap->GetSecurityManager();
+    securityManager->ValidatePermission(transactionSchema, EPermission::Create);
+
     const auto& requestExt = request.GetExtension(TReqStartTransactionExt::start_transaction_ext);
 
     auto parentId =
