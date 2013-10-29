@@ -429,7 +429,7 @@ void TTableChunkWriter::EmitIndexEntry()
 
 i64 TTableChunkWriter::EmitSample(const TRow& row, NProto::TSample* sample)
 {
-    i64 size = 0;
+    i64 size = sizeof(NProto::TSample);
     std::map<TStringBuf, TStringBuf> sortedRow(row.begin(), row.end());
     FOREACH (const auto& pair, sortedRow) {
         auto* part = sample->add_parts();
