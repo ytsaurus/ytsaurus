@@ -12,8 +12,7 @@ class TestTxCommands(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 0
 
-    def test_simple(self):
-
+    def test_simple1(self):
         tx = start_transaction()
         
         #check that transaction is on the master (also within a tx)
@@ -23,13 +22,10 @@ class TestTxCommands(YTEnvSetup):
         #check that transaction no longer exists
         self.assertItemsEqual(get_transactions(), [])
 
-        #couldn't commit committed transaction
+        #cannot commit committed transaction
         with pytest.raises(YtError): commit_transaction(tx)
-        #couldn't abort commited transaction
-        with pytest.raises(YtError): abort_transaction(tx)
 
-        ##############################################################
-        #check the same for abort
+    def test_simple2(self):
         tx = start_transaction()
 
         self.assertItemsEqual(get_transactions(), [tx])
@@ -38,10 +34,8 @@ class TestTxCommands(YTEnvSetup):
         #check that transaction no longer exists
         self.assertItemsEqual(get_transactions(), [])
 
-        #couldn't commit aborted transaction
+        #cannot commit aborted transaction
         with pytest.raises(YtError): commit_transaction(tx)
-        #couldn't abort aborted transaction
-        with pytest.raises(YtError): abort_transaction(tx)
 
     def test_changes_inside_tx(self):
         set('//tmp/value', '42')
