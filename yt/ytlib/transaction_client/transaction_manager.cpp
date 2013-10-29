@@ -680,7 +680,7 @@ private:
         : public TRefCounted
     {
     public:
-        // NB: Avoid passing TTransactionPtr here since its destruction may be in progress.
+        // NB: Avoid passing TTransactionPtr here since destruction might be in progress.
         explicit TAbortSession(TTransaction* transaction, const TMutationId& mutationId)
             : Transaction_(transaction)
             , TransactionId_(transaction->GetId())
