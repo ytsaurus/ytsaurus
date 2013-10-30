@@ -131,7 +131,9 @@ private:
                 ~ToString(info->TabletId));
             entry.Promise.Set(TErrorOr<TTableMountInfoPtr>(info));
         } else {
-            entry.Promise.Set(TErrorOr<TTableMountInfoPtr>(*rsp));
+            entry.Promise.Set(TError("Error getting mount info for %s",
+                ~path)
+                << *rsp);
             LOG_DEBUG(*rsp, "Error getting table mount info (Path: %s)",
                 ~path);
         }
