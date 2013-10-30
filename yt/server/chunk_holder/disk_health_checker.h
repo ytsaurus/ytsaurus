@@ -33,14 +33,18 @@ private:
     TDiskHealthCheckerConfigPtr Config;
     Stroka Path;
 
+    IInvokerPtr CheckInvoker;
+
     TPeriodicInvokerPtr PeriodicInvoker;
     TAtomic FailedLock;
+
+    TCallback<TError (void)> CheckCallback;
 
     void OnCheck();
     void OnCheckCompleted(TError error);
     void OnCheckTimeout();
 
-    TAsyncError RunCheck();
+    TError RunCheck();
 
     void RaiseFailed();
 
