@@ -145,7 +145,6 @@ inline T ParseEnum(
     return T::FromString(UnderscoreCaseToCamelCase(value));
 }
 
-
 template <class T>
 Stroka FormatEnum(
     T value,
