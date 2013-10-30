@@ -9,8 +9,9 @@
 
 #include <ytlib/new_table_client/config.h>
 #include <ytlib/new_table_client/chunk_reader.h>
-#include <ytlib/new_table_client/name_table.h>
+#include <ytlib/new_table_client/chunk_writer.h>
 #include <ytlib/new_table_client/reader.h>
+#include <ytlib/new_table_client/writer.h>
 
 #include <ytlib/chunk_client/async_reader.h>
 
@@ -88,35 +89,16 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRemoteExecutor
-    : public IExecutor
+IReaderPtr DelegateToPeer(const TQueryFragment& fragment, IChannelPtr channel)
 {
-public:
-    TRemoteExecutor(TChunkReaderConfigPtr config, IChannelPtr channel)
-        : Config_(std::move(config))
-        , Channel_(std::move(channel))
-    { }
+    TQueryServiceProxy proxy(channel);
 
-    virtual IReaderPtr Execute(const TQueryFragment& fragment) override
-    {
-        TQueryServiceProxy proxy(Channel_);
-        auto req = proxy.Execute();
-        ToProto(req->mutable_fragment(), fragment);
+    auto req = proxy.Execute();
+    ToProto(req->mutable_fragment(), fragment);
 
-        return CreateChunkReader(Config_, New<TRemoteReader>(req->Invoke()));
-    }
-
-private:
-    TChunkReaderConfigPtr Config_;
-    IChannelPtr Channel_;
-
-};
-
-IExecutorPtr CreateRemoteExecutor(IChannelPtr channel)
-{
-    return New<TRemoteExecutor>(
+    return CreateChunkReader(
         New<TChunkReaderConfig>(),
-        std::move(channel));
+        New<TRemoteReader>(req->Invoke()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -129,9 +111,12 @@ public:
         : Callbacks_(callbacks)
     { }
 
-    virtual IReaderPtr Execute(const TQueryFragment& fragment) override
+    virtual TAsyncError Execute(
+        const TQueryFragment& fragment,
+        TWriterPtr writer) override
     {
-        return TEvaluateController(Callbacks_, fragment).GetReader();
+        return MakeFuture(
+            TEvaluateController(Callbacks_, fragment).Run(std::move(writer)));
     }
 
 private:
@@ -154,9 +139,12 @@ public:
         : Callbacks_(callbacks)
     { }
 
-    virtual IReaderPtr Execute(const TQueryFragment& fragment) override
+    virtual TAsyncError Execute(
+        const TQueryFragment& fragment,
+        TWriterPtr writer) override
     {
-        return TCoordinateController(Callbacks_, fragment).GetReader();
+        return MakeFuture(
+            TCoordinateController(Callbacks_, fragment).Run(std::move(writer)));
     }
 
 private:

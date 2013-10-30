@@ -19,6 +19,7 @@
 
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
 #include <ytlib/new_table_client/chunk_meta.pb.h>
+#include <ytlib/new_table_client/reader.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
@@ -78,17 +79,19 @@ public:
             .Run();
     }
 
-    virtual TFuture<TErrorOr<std::vector<TDataSplit>>>
-    SplitFurther(const TDataSplit& split) override
+    virtual TFuture<TErrorOr<std::vector<TDataSplit>>> SplitFurther(
+        const TDataSplit& split) override
     {
         return BIND(&TImpl::DoSplitFurther, MakeStrong(this), split)
             .AsyncVia(GetCurrentInvoker())
             .Run();
     }
 
-    virtual IExecutorPtr GetColocatedExecutor(const TDataSplit& split) override
+    virtual IReaderPtr Delegate(
+        const TQueryFragment& fragment,
+        const TDataSplit& colocatedDataSplit) override
     {
-        auto replicas = NYT::FromProto<TChunkReplica, TChunkReplicaList>(split.replicas());
+        auto replicas = NYT::FromProto<TChunkReplica, TChunkReplicaList>(colocatedDataSplit.replicas());
         auto replica = replicas[RandomNumber(replicas.size())];
 
         auto& descriptor = NodeDirectory_->GetDescriptor(replica);
@@ -103,15 +106,10 @@ public:
                 ~descriptor.Address) << ex;
         }
 
-        return CreateRemoteExecutor(std::move(channel));
+        return DelegateToPeer(fragment, channel);
     }
 
     virtual IReaderPtr GetReader(const TDataSplit& dataSplit) override
-    {
-        YUNREACHABLE();
-    }
-
-    virtual IMegaWriterPtr GetWriter() override
     {
         YUNREACHABLE();
     }

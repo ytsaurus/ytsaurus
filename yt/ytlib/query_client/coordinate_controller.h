@@ -20,8 +20,8 @@ public:
 
     ~TCoordinateController();
 
-    IReaderPtr GetReader();
-    IReaderPtr GetPeerReader(int i);
+    TError Run(TWriterPtr writer);
+    IReaderPtr GetPeer(int i);
 
     void SplitFurther();
     void PushdownFilters();

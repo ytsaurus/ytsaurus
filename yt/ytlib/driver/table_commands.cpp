@@ -15,16 +15,20 @@
 
 #include <ytlib/transaction_client/transaction_manager.h>
 
+#include <ytlib/chunk_client/block_cache.h>
+#include <ytlib/chunk_client/memory_reader.h>
+#include <ytlib/chunk_client/memory_writer.h>
+
 #include <ytlib/table_client/table_reader.h>
 #include <ytlib/table_client/table_writer.h>
 #include <ytlib/table_client/table_consumer.h>
 #include <ytlib/table_client/table_producer.h>
 
-#include <ytlib/chunk_client/block_cache.h>
-#include <ytlib/chunk_client/memory_writer.h>
-
-#include <ytlib/new_table_client/reader.h>
+#include <ytlib/new_table_client/chunk_reader.h>
+#include <ytlib/new_table_client/chunk_writer.h>
 #include <ytlib/new_table_client/name_table.h>
+#include <ytlib/new_table_client/reader.h>
+#include <ytlib/new_table_client/row.h>
 
 #include <ytlib/query_client/query_fragment.h>
 #include <ytlib/query_client/executor.h>
@@ -304,6 +308,7 @@ void TUnmountCommand::DoExecute()
 
 void TSelectCommand::DoExecute()
 {
+    using namespace NChunkClient;
     using namespace NVersionedTableClient;
 
     auto fragment = PrepareQueryFragment(
@@ -313,25 +318,41 @@ void TSelectCommand::DoExecute()
     auto coordinator = CreateCoordinator(
         Context->GetQueryCallbacksProvider()->GetCoordinateCallbacks());
 
-    auto nameTable = New<TNameTable>();
-    auto reader = coordinator->Execute(fragment);
+    auto memoryWriter = New<TMemoryWriter>();
+    auto chunkWriter = New<TChunkWriter>(
+        New<NVersionedTableClient::TChunkWriterConfig>(),
+        New<TEncodingWriterOptions>(),
+        memoryWriter);
 
     {
-        auto result = WaitFor(reader->Open(
-            nameTable,
-            NVersionedTableClient::NProto::TTableSchemaExt(),
-            true));
-        THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        auto error = WaitFor(coordinator->Execute(fragment, chunkWriter));
+        THROW_ERROR_EXCEPTION_IF_FAILED(error);
     }
+
+    auto memoryReader = New<TMemoryReader>(
+        std::move(memoryWriter->GetBlocks()),
+        std::move(memoryWriter->GetMeta()));
+    auto chunkReader = CreateChunkReader(
+        New<TChunkReaderConfig>(),
+        memoryReader);
 
     auto output = Context->Request().OutputStream;
     TBlobOutput buffer;
     auto format = Context->GetOutputFormat();
     auto consumer = CreateConsumerForFormat(format, EDataType::Tabular, &buffer);
 
+    auto nameTable = New<TNameTable>();
+    {
+        auto error = WaitFor(chunkReader->Open(
+            New<TNameTable>(),
+            NVersionedTableClient::NProto::TTableSchemaExt(),
+            true));
+        THROW_ERROR_EXCEPTION_IF_FAILED(error);
+    }
+
     std::vector<NVersionedTableClient::TRow> rows;
-    rows.reserve(10);
-    while (reader->Read(&rows)) {
+    rows.reserve(1000);
+    while (chunkReader->Read(&rows)) {
         for (auto row : rows) {
             consumer->OnListItem();
             consumer->OnBeginMap();
@@ -359,7 +380,7 @@ void TSelectCommand::DoExecute()
             consumer->OnEndMap();
         }
         if (rows.size() < rows.capacity()) {
-            auto result = WaitFor(reader->GetReadyEvent());
+            auto result = WaitFor(chunkReader->GetReadyEvent());
             THROW_ERROR_EXCEPTION_IF_FAILED(result);
         }
         rows.clear();

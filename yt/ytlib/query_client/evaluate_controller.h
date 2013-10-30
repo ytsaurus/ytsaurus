@@ -20,7 +20,7 @@ public:
 
     ~TEvaluateController();
 
-    IReaderPtr GetReader();
+    TError Run(TWriterPtr writer);
 
     IEvaluateCallbacks* GetCallbacks()
     {

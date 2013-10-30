@@ -13,6 +13,7 @@
 #include <ytlib/object_client/public.h>
 
 #include <ytlib/new_table_client/reader.h>
+#include <ytlib/new_table_client/chunk_writer.h>
 
 #include <core/misc/protobuf_helpers.h>
 
@@ -56,15 +57,10 @@ public:
         auto objectId = NYT::FromProto<TObjectId>(dataSplit.chunk_id());
         switch (TypeFromId(objectId)) {
         case EObjectType::QueryFragment:
-            return Controller_->GetPeerReader(CounterFromId(objectId));
+            return Controller_->GetPeer(CounterFromId(objectId));
         default:
             return Controller_->GetCallbacks()->GetReader(dataSplit);
         }
-    }
-
-    virtual IMegaWriterPtr GetWriter() override
-    {
-        return Controller_->GetCallbacks()->GetWriter();
     }
 
 private:
@@ -91,7 +87,7 @@ TCoordinateController::TCoordinateController(
 TCoordinateController::~TCoordinateController()
 { }
 
-IReaderPtr TCoordinateController::GetReader()
+TError TCoordinateController::Run(TWriterPtr writer)
 {
     ViewFragment(Fragment_, "Coordinator -> Before");
 
@@ -108,10 +104,10 @@ IReaderPtr TCoordinateController::GetReader()
     TCoordinatedEvaluateCallbacks evaluateCallbacks(this);
     TEvaluateController evaluateController(&evaluateCallbacks, Fragment_);
 
-    return evaluateController.GetReader();
+    return evaluateController.Run(std::move(writer));
 }
 
-IReaderPtr TCoordinateController::GetPeerReader(int i)
+IReaderPtr TCoordinateController::GetPeer(int i)
 {
     YCHECK(i < Peers_.size());
     return Peers_[i];
@@ -243,9 +239,9 @@ void TCoordinateController::DelegateToPeers()
 
     for (const auto& source : unionOp->Sources()) {
         auto fragment = TQueryFragment(GetContext(), source);
-        auto executor = GetCallbacks()->GetColocatedExecutor(GetHeaviestSplit(source));
+        auto peer = GetCallbacks()->Delegate(fragment, GetHeaviestSplit(source));
 
-        Peers_.emplace_back(executor->Execute(fragment));
+        Peers_.emplace_back(std::move(peer));
 
         LOG_DEBUG("Delegated subfragment %s", ~ToString(fragment.Guid()));
 
