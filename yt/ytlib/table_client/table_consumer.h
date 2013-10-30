@@ -7,6 +7,9 @@
 #include <core/misc/nullable.h>
 
 #include <core/yson/consumer.h>
+#include <core/yson/writer.h>
+
+#include <ytlib/new_table_client/writer.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -20,7 +23,7 @@ class TTableConsumer
     : public NYson::IYsonConsumer
 {
 public:
-    template<class TWriter>
+    template <class TWriter>
     explicit TTableConsumer(TWriter writer)
         : ControlState(EControlState::None)
         , CurrentTableIndex(0)
@@ -31,7 +34,7 @@ public:
         Writers.push_back(writer);
     }
 
-    template<class TWriter>
+    template <class TWriter>
     TTableConsumer(const std::vector<TWriter>& writers, int tableIndex)
         : ControlState(EControlState::None)
         , CurrentTableIndex(tableIndex)
@@ -85,6 +88,70 @@ private:
     std::vector<size_t> Offsets;
 
     NYson::TYsonWriter ValueWriter;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO(babenko): should eventually merge with the above
+/*!
+ *  For performance reasons we don't use TForwardingYsonConsumer.
+ */
+class TVersionedTableConsumer
+    : public NYson::IYsonConsumer
+{
+public:
+    TVersionedTableConsumer(
+        NVersionedTableClient::TNameTablePtr nameTable,
+        NVersionedTableClient::IWriterPtr writer);
+
+    TVersionedTableConsumer(
+        NVersionedTableClient::TNameTablePtr nameTable,
+        std::vector<NVersionedTableClient::IWriterPtr> writers,
+        int tableIndex);
+
+private:
+    void Initialize();
+
+    virtual void OnStringScalar(const TStringBuf& value) override;
+    virtual void OnIntegerScalar(i64 value) override;
+    virtual void OnDoubleScalar(double value) override;
+    virtual void OnEntity() override;
+    virtual void OnBeginList() override;
+    virtual void OnListItem() override;
+    virtual void OnBeginMap() override;
+    virtual void OnKeyedItem(const TStringBuf& name) override;
+    virtual void OnEndMap() override;
+
+    virtual void OnBeginAttributes() override;
+
+    void ThrowMapExpected();
+    void ThrowInvalidControlAttribute(const Stroka& whatsWrong);
+
+    virtual void OnEndList() override;
+    virtual void OnEndAttributes() override;
+    virtual void OnRaw(const TStringBuf& yson, NYson::EYsonType type) override;
+
+    DECLARE_ENUM(EControlState,
+        (None)
+        (ExpectName)
+        (ExpectValue)
+        (ExpectEndAttributes)
+        (ExpectEntity)
+    );
+
+    NVersionedTableClient::TNameTablePtr NameTable;
+
+    EControlState ControlState;
+    EControlAttribute ControlAttribute;
+
+    int CurrentTableIndex;
+    std::vector<NVersionedTableClient::IWriterPtr> Writers;
+    NVersionedTableClient::IWriterPtr CurrentWriter;
+
+    int Depth;
+    int ColumnIndex;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -139,26 +139,5 @@ Stroka TSelectExecutor::GetCommandName() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TInsertExecutor::TInsertExecutor()
-    : PathArg("path", "table path to insert rows into", true, "", "YPATH")
-{
-    CmdLine.add(PathArg);
-}
-
-void TInsertExecutor::BuildArgs(IYsonConsumer* consumer)
-{
-    auto path = PreprocessYPath(PathArg.getValue());
-
-    BuildYsonMapFluently(consumer)
-        .Item("path").Value(path);
-}
-
-Stroka TInsertExecutor::GetCommandName() const 
-{
-    return "insert";
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NDriver
 } // namespace NYT

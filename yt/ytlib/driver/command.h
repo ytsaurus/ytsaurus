@@ -114,6 +114,8 @@ struct ICommandContext
     virtual NRpc::IChannelPtr GetSchedulerChannel() = 0;
     virtual NChunkClient::IBlockCachePtr GetBlockCache() = 0;
     virtual NTransactionClient::TTransactionManagerPtr GetTransactionManager() = 0;
+    virtual TTableMountCachePtr GetTableMountCache() = 0;
+    virtual NHive::TCellDirectoryPtr GetCellDirectory() = 0;
     virtual TQueryCallbacksProviderPtr GetQueryCallbacksProvider() = 0;
 
     virtual const TDriverRequest& Request() const = 0;

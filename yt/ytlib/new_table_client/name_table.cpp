@@ -9,21 +9,21 @@ namespace NVersionedTableClient {
 int TNameTable::GetNameCount() const
 {
     TGuard<TSpinLock> guard(SpinLock);
-    return NameByIndex.size();
+    return IndexToName.size();
 }
 
-TNullable<int> TNameTable::FindIndex(const Stroka& name) const
+TNullable<int> TNameTable::FindIndex(const TStringBuf& name) const
 {
     TGuard<TSpinLock> guard(SpinLock);
-    auto it = IndexByName.find(name);
-    if (it == IndexByName.end()) {
+    auto it = NameToIndex.find(name);
+    if (it == NameToIndex.end()) {
         return Null;
     } else {
         return MakeNullable(it->second);
     }
 }
 
-int TNameTable::GetIndex(const Stroka& name) const
+int TNameTable::GetIndex(const TStringBuf& name) const
 {
     auto index = FindIndex(name);
     YCHECK(index);
@@ -33,29 +33,30 @@ int TNameTable::GetIndex(const Stroka& name) const
 const Stroka& TNameTable::GetName(int index) const
 {
     TGuard<TSpinLock> guard(SpinLock);
-    YCHECK(index >= 0 && index < NameByIndex.size());
-    return NameByIndex[index];
+    YCHECK(index >= 0 && index < IndexToName.size());
+    return IndexToName[index];
 }
 
-int TNameTable::RegisterName(const Stroka& name)
+int TNameTable::RegisterName(const TStringBuf& name)
 {
     TGuard<TSpinLock> guard(SpinLock);
     return DoRegisterName(name);
 }
 
-int TNameTable::DoRegisterName(const Stroka& name)
+int TNameTable::DoRegisterName(const TStringBuf& name)
 {
-    int index = NameByIndex.size();
-    NameByIndex.push_back(name);
-    YCHECK(IndexByName.insert(std::make_pair(name, index)).second);
+    int index = IndexToName.size();
+    Stroka stringName(name);
+    IndexToName.push_back(stringName);
+    YCHECK(NameToIndex.insert(std::make_pair(stringName, index)).second);
     return index;
 }
 
-int TNameTable::GetOrRegisterName(const Stroka& name)
+int TNameTable::GetOrRegisterName(const TStringBuf& name)
 {
     TGuard<TSpinLock> guard(SpinLock);
-    auto it = IndexByName.find(name);
-    if (it == IndexByName.end()) {
+    auto it = NameToIndex.find(name);
+    if (it == NameToIndex.end()) {
         return DoRegisterName(name);
     } else {
         return it->second;

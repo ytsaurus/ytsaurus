@@ -12,6 +12,12 @@
 
 #include <ytlib/object_client/public.h>
 
+#include <ytlib/hive/public.h>
+
+#include <ytlib/tablet_client/public.h>
+
+#include <ytlib/new_table_client/public.h>
+#include <ytlib/new_table_client/schema.h>
 #include <ytlib/new_table_client/chunk_meta.pb.h>
 
 namespace NYT {
@@ -24,8 +30,9 @@ struct TTableMountInfo
 {
     NObjectClient::TObjectId TableId;
     NObjectClient::TObjectId TabletId; // NullObjectId if not mounted
-    NVersionedTableClient::NProto::TTableSchemaExt Schema;
-    std::vector<Stroka> KeyColumns;
+    NTabletClient::TTabletCellId CellId; // NullObjectId if not mounted
+    NVersionedTableClient::TTableSchema Schema;
+    NVersionedTableClient::TKeyColumns KeyColumns;
 };
 
 class TTableMountCache
@@ -34,7 +41,8 @@ class TTableMountCache
 public:
     TTableMountCache(
         TTableMountCacheConfigPtr config,
-        NRpc::IChannelPtr masterChannel);
+        NRpc::IChannelPtr masterChannel,
+        NHive::TCellDirectoryPtr cellDirectory);
 
     TFuture<TErrorOr<TTableMountInfoPtr>> LookupInfo(const NYPath::TYPath& path);
 

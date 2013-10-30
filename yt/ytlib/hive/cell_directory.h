@@ -29,7 +29,10 @@ public:
     typedef NHydra::NProto::TCellConfig TCellConfig;
 
     //! Returns a leader channel for a given cell GUID (|nullptr| if none is known).
-    NRpc::IChannelPtr GetChannel(const TCellGuid& cellGuid);
+    NRpc::IChannelPtr FindChannel(const TCellGuid& cellGuid);
+
+    //! Similar to #FindChannel but throws an exception if no channel is known.
+    NRpc::IChannelPtr GetChannelOrThrow(const TCellGuid& cellGuid);
 
 
     //! Registers a new cell or updates the configuration of an existing cell

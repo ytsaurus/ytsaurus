@@ -2,6 +2,13 @@
 #include "table_mount_cache.h"
 #include "private.h"
 
+#include <core/misc/protobuf_helpers.h>
+
+#include <core/ytree/ypath_proxy.h>
+#include <core/ytree/attribute_helpers.h>
+
+#include <core/concurrency/fiber.h>
+
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
@@ -16,11 +23,6 @@
 #include <ytlib/node_tracker_client/node_directory.h>
 
 #include <ytlib/query_client/stubs.h>
-
-#include <core/ytree/ypath_proxy.h>
-#include <core/ytree/attribute_helpers.h>
-
-#include <core/concurrency/fiber.h>
 
 namespace NYT {
 namespace NDriver {
@@ -98,7 +100,7 @@ private:
         ToProto(protoKeyColumns.mutable_names(), info->KeyColumns);
         SetProtoExtension(result.mutable_extensions(), protoKeyColumns);
 
-        SetProtoExtension(result.mutable_extensions(), info->Schema);
+        SetProtoExtension(result.mutable_extensions(), NYT::ToProto<NVersionedTableClient::NProto::TTableSchemaExt>(info->Schema));
 
         return result;
     }

@@ -88,6 +88,10 @@ public:
             attributes->SetYson("channels", TYsonString("[]"));
         }
 
+        if (!attributes->Contains("schema")) {
+            attributes->SetYson("schema", TYsonString("[]"));
+        }
+
         if (!attributes->Contains("compression_codec")) {
             attributes->SetYson(
                 "compression_codec",

@@ -5,6 +5,8 @@
 
 #include <ytlib/transaction_client/public.h>
 
+#include <ytlib/table_client/public.h>
+
 namespace NYT {
 namespace NVersionedTableClient {
 
@@ -12,6 +14,8 @@ namespace NVersionedTableClient {
 
 using NTransactionClient::TTimestamp;
 using NTransactionClient::NullTimestamp;
+
+using NTableClient::TKeyColumns;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,8 +32,6 @@ DECLARE_ENUM(EColumnType,
     (Any)
     (Null)
 );
-
-typedef std::vector<Stroka> TKeyColumns;
 
 struct TRowValue;
 struct TRowHeader;

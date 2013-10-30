@@ -14,6 +14,8 @@
 
 #include <ytlib/table_client/config.h>
 
+#include <ytlib/new_table_client/config.h>
+
 #include <ytlib/scheduler/config.h>
 
 #include <ytlib/hive/config.h>
@@ -50,6 +52,7 @@ public:
     NFileClient::TFileWriterConfigPtr FileWriter;
     NTableClient::TTableReaderConfigPtr TableReader;
     NTableClient::TTableWriterConfigPtr TableWriter;
+    NVersionedTableClient::TChunkWriterConfigPtr NewTableWriter; // TODO(babenko): merge with the above
     NChunkClient::TClientBlockCacheConfigPtr BlockCache;
     TTableMountCacheConfigPtr TableMountCache;
     NHive::TRemoteTimestampProviderConfigPtr TimestampProvider;
@@ -71,6 +74,8 @@ public:
         RegisterParameter("table_reader", TableReader)
             .DefaultNew();
         RegisterParameter("table_writer", TableWriter)
+            .DefaultNew();
+        RegisterParameter("new_table_writer", NewTableWriter)
             .DefaultNew();
         RegisterParameter("block_cache", BlockCache)
             .DefaultNew();

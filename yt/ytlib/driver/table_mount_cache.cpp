@@ -7,6 +7,10 @@
 
 #include <ytlib/table_client/table_ypath_proxy.h>
 
+#include <ytlib/tablet_client/public.h>
+
+#include <ytlib/hive/cell_directory.h>
+
 namespace NYT {
 namespace NDriver {
 
@@ -14,6 +18,9 @@ using namespace NYPath;
 using namespace NRpc;
 using namespace NObjectClient;
 using namespace NTableClient;
+using namespace NTabletClient;
+using namespace NVersionedTableClient;
+using namespace NHive;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,12 +34,14 @@ class TTableMountCache::TImpl
 public:
     TImpl(
         TTableMountCacheConfigPtr config,
-        IChannelPtr masterChannel)
+        IChannelPtr masterChannel,
+        TCellDirectoryPtr cellDirectory)
         : Config(config)
         , ObjectProxy(masterChannel)
+        , CellDirectory(cellDirectory)
     { }
 
-    TFuture<TErrorOr<TTableMountInfoPtr>> Lookup(const TYPath& path)
+    TFuture<TErrorOr<TTableMountInfoPtr>> LookupInfo(const TYPath& path)
     {
         TGuard<TSpinLock> guard(Spinlock);
 
@@ -62,7 +71,7 @@ public:
                 // Evict and retry.
                 TableMountInfoCache.erase(it);
                 guard.Release();
-                return Lookup(path);
+                return LookupInfo(path);
             }
         }
 
@@ -71,8 +80,9 @@ public:
 
 private:
     TTableMountCacheConfigPtr Config;
-    
     TObjectServiceProxy ObjectProxy;
+    TCellDirectoryPtr CellDirectory;
+    
 
     struct TTableCacheEntry
     {
@@ -105,9 +115,16 @@ private:
         if (rsp->IsOK()) {
             auto info = New<TTableMountInfo>();
             info->TableId = FromProto<TObjectId>(rsp->table_id());
+            info->Schema = FromProto<TTableSchema>(rsp->schema());
+            info->KeyColumns = FromProto<Stroka>(rsp->key_columns().names());
+
             if (rsp->has_tablet()) {
-                info->TabletId = FromProto<TObjectId>(rsp->tablet().tablet_id());
+                const auto& tablet = rsp->tablet();
+                info->TabletId = FromProto<TObjectId>(tablet.tablet_id());
+                auto cellId = FromProto<TTabletCellId>(tablet.cell_id());
+                CellDirectory->RegisterCell(cellId, tablet.cell_config());
             }
+
             LOG_DEBUG("Table mount info received (Path: %s, TableId: %s, TabletId: %s)",
                 ~path,
                 ~ToString(info->TableId),
@@ -126,15 +143,17 @@ private:
 
 TTableMountCache::TTableMountCache(
     TTableMountCacheConfigPtr config,
-    IChannelPtr masterChannel)
+    IChannelPtr masterChannel,
+    TCellDirectoryPtr cellDirectory)
     : Impl(New<TImpl>(
         config,
-        masterChannel))
+        masterChannel,
+        cellDirectory))
 { }
 
 TFuture<TErrorOr<TTableMountInfoPtr>> TTableMountCache::LookupInfo(const TYPath& path)
 {
-    return Impl->Lookup(path);
+    return Impl->LookupInfo(path);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

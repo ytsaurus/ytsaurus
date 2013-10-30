@@ -94,18 +94,19 @@ public:
 
         BlockCache = CreateClientBlockCache(Config->BlockCache);
 
+        CellDirectory = New<TCellDirectory>();
+        CellDirectory->RegisterCell(Config->Masters);
+
         TableMountCache = New<TTableMountCache>(
             Config->TableMountCache,
-            MasterChannel);
+            MasterChannel,
+            CellDirectory);
 
         QueryCallbacksProvider = New<TQueryCallbacksProvider>(
             MasterChannel,
             TableMountCache);
 
         TimestampProvider = CreateRemoteTimestampProvider(Config->TimestampProvider);
-
-        CellDirectory = New<TCellDirectory>();
-        CellDirectory->RegisterCell(Config->Masters);
 
         // Register all commands.
 #define REGISTER(command, name, inDataType, outDataType, isVolatile, isHeavy) \
@@ -135,7 +136,6 @@ public:
         REGISTER(TMountCommand,             "mount",             Null,       Null,       true,  false);
         REGISTER(TUnmountCommand,           "unmount",           Null,       Null,       true,  false);
         REGISTER(TSelectCommand,            "select",            Null,       Tabular,    false, true );
-        REGISTER(TSelectCommand,            "insert",            Tabular,    Null,       true,  true );
 
         REGISTER(TMergeCommand,             "merge",             Null,       Structured, true,  false);
         REGISTER(TEraseCommand,             "erase",             Null,       Structured, true,  false);
@@ -205,6 +205,7 @@ public:
             std::move(schedulerChannel),
             std::move(transactionManager),
             TableMountCache,
+            CellDirectory,
             QueryCallbacksProvider);
 
         auto command = entry.Factory.Run();
@@ -309,6 +310,7 @@ private:
             IChannelPtr schedulerChannel,
             TTransactionManagerPtr transactionManager,
             TTableMountCachePtr tableMountCache,
+            TCellDirectoryPtr cellDirectory,
             TQueryCallbacksProviderPtr queryCallbacksProvider)
             : Driver(driver)
             , Descriptor(descriptor)
@@ -356,6 +358,16 @@ private:
         virtual TTransactionManagerPtr GetTransactionManager() override
         {
             return TransactionManager;
+        }
+
+        virtual TTableMountCachePtr GetTableMountCache() override
+        {
+            return TableMountCache;
+        }
+
+        virtual TCellDirectoryPtr GetCellDirectory() override
+        {
+            return CellDirectory;
         }
 
         virtual TQueryCallbacksProviderPtr GetQueryCallbacksProvider() override
@@ -421,6 +433,7 @@ private:
         IChannelPtr SchedulerChannel;
         TTransactionManagerPtr TransactionManager;
         TTableMountCachePtr TableMountCache;
+        TCellDirectoryPtr CellDirectory;
         TQueryCallbacksProviderPtr QueryCallbacksProvider;
 
         TNullable<TFormat> InputFormat;

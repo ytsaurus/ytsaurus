@@ -27,6 +27,44 @@ struct TRowValue
     ui32 Length; // For variable-sized values
     ui16 Type;   // EColumnType
     ui16 Index;  // Name Table index
+
+    static FORCED_INLINE TRowValue MakeInteger(int index, i64 value)
+    {
+        TRowValue result;
+        result.Index = index;
+        result.Type = NVersionedTableClient::EColumnType::Integer;
+        result.Data.Integer = value;
+        return result;
+    }
+
+    static FORCED_INLINE TRowValue MakeDouble(int index, double value)
+    {
+        TRowValue result;
+        result.Index = index;
+        result.Type = NVersionedTableClient::EColumnType::Double;
+        result.Data.Double = value;
+        return result;
+    }
+
+    static FORCED_INLINE TRowValue MakeString(int index, const TStringBuf& value)
+    {
+        TRowValue result;
+        result.Index = index;
+        result.Type = NVersionedTableClient::EColumnType::String;
+        result.Data.String = value.begin();
+        result.Length = value.length();
+        return result;
+    }
+
+    static FORCED_INLINE TRowValue MakeAny(int index, const TStringBuf& value)
+    {
+        TRowValue result;
+        result.Index = index;
+        result.Type = NVersionedTableClient::EColumnType::Any;
+        result.Data.Any = value.begin();
+        result.Length = value.length();
+        return result;
+    }
 } PACK;
 
 #undef PACK

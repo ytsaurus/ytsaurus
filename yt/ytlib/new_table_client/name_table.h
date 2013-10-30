@@ -15,11 +15,11 @@ class TNameTable
     : public virtual TRefCounted
 {
 public:
-    int RegisterName(const Stroka& name);
-    int GetOrRegisterName(const Stroka& name);
+    int RegisterName(const TStringBuf& name);
+    int GetOrRegisterName(const TStringBuf& name);
 
-    TNullable<int> FindIndex(const Stroka& name) const;
-    int GetIndex(const Stroka& name) const;
+    TNullable<int> FindIndex(const TStringBuf& name) const;
+    int GetIndex(const TStringBuf& name) const;
 
     const Stroka& GetName(int index) const;
 
@@ -28,10 +28,10 @@ public:
 private:
     TSpinLock SpinLock;
 
-    yhash_map<Stroka, int> IndexByName;
-    std::vector<Stroka> NameByIndex;
+    yhash_map<TStringBuf, int> NameToIndex; // names are owned by IndexToName
+    std::vector<Stroka> IndexToName;
 
-    int DoRegisterName(const Stroka& name);
+    int DoRegisterName(const TStringBuf& name);
 
 };
 

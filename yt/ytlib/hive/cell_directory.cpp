@@ -20,7 +20,7 @@ using namespace NElection;
 class TCellDirectory::TImpl
 {
 public:
-    IChannelPtr GetChannel(const TCellGuid& cellGuid)
+    IChannelPtr FindChannel(const TCellGuid& cellGuid)
     {
         TGuard<TSpinLock> guard(Spinlock);
         auto it = CellMap.find(cellGuid);
@@ -28,6 +28,16 @@ public:
             return nullptr;
         }
         return it->second.Channel;
+    }
+
+    IChannelPtr GetChannelOrThrow(const TCellGuid& cellGuid)
+    {
+        auto channel = FindChannel(cellGuid);
+        if (!channel) {
+            THROW_ERROR_EXCEPTION("Unknown cell %s",
+                ~ToString(cellGuid));
+        }
+        return channel;
     }
 
     bool RegisterCell(const TCellGuid& cellGuid, const TCellConfig& config)
@@ -133,9 +143,14 @@ TCellDirectory::TCellDirectory()
     : Impl(new TImpl())
 { }
 
-IChannelPtr TCellDirectory::GetChannel(const TCellGuid& cellGuid)
+IChannelPtr TCellDirectory::FindChannel(const TCellGuid& cellGuid)
 {
-    return Impl->GetChannel(cellGuid);
+    return Impl->FindChannel(cellGuid);
+}
+
+IChannelPtr TCellDirectory::GetChannelOrThrow(const TCellGuid& cellGuid)
+{
+    return Impl->GetChannelOrThrow(cellGuid);
 }
 
 bool TCellDirectory::RegisterCell(const TCellGuid& cellGuid, const TCellConfig& config)

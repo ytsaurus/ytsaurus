@@ -15,6 +15,8 @@
 
 #include <ytlib/table_client/table_ypath_proxy.h>
 
+#include <ytlib/new_table_client/schema.h>
+
 #include <server/chunk_server/chunk.h>
 #include <server/chunk_server/chunk_list.h>
 #include <server/chunk_server/chunk_owner_node_proxy.h>
@@ -36,6 +38,7 @@ using namespace NRpc;
 using namespace NYTree;
 using namespace NYson;
 using namespace NTableClient;
+using namespace NVersionedTableClient;
 using namespace NTransactionServer;
 
 using NChunkClient::TChannel;
@@ -193,6 +196,14 @@ void TTableNodeProxy::ValidateUserAttributeUpdate(
         return;
     }
 
+    if (key == "schema") {
+        if (!newValue) {
+            ThrowCannotRemoveAttribute(key);
+        }
+        ConvertTo<TTableSchema>(newValue.Get());
+        return;
+    }
+
     TBase::ValidateUserAttributeUpdate(key, oldValue, newValue);
 }
 
@@ -254,18 +265,14 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
     auto* impl = GetThisTypedImpl();
     auto proxy = GetProxy(impl);
 
-    if (impl->GetChunkList()->SortedBy().empty()) {
-        THROW_ERROR_EXCEPTION("Table is not sorted");
-    }
-
     ToProto(response->mutable_table_id(), impl->GetId());
 
-    auto* protoSchema = response->mutable_schema();
-    // TODO(babenko)
+    // COMPAT(babenko): schema must be mandatory
+    auto schema = proxy->Attributes().Get<TTableSchema>("schema", TTableSchema());
+    ToProto(response->mutable_schema(), schema);
 
-    auto keyColumns = proxy->Attributes().Get<std::vector<Stroka>>("sorted_by");
-    auto* protoKeyColumns = response->mutable_key_columns();
-    ToProto(protoKeyColumns->mutable_names(), keyColumns);
+    auto keyColumns = proxy->Attributes().Get<TKeyColumns>("sorted_by");
+    ToProto(response->mutable_key_columns()->mutable_names(), keyColumns);
 
     auto* tablet = impl->GetTablet();
     if (tablet) {

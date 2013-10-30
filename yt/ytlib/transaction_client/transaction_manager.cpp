@@ -222,12 +222,7 @@ public:
             ~ToString(Id_),
             ~ToString(coordinatorCellGuid));
 
-        auto channel = Owner_->CellDirectory_->GetChannel(coordinatorCellGuid);
-        if (!channel) {
-            return MakeFuture(TError("Unknown coordinator cell %s",
-                ~ToString(coordinatorCellGuid)));
-        }
-
+        auto channel = Owner_->CellDirectory_->GetChannelOrThrow(coordinatorCellGuid);
         TTransactionSupervisorServiceProxy proxy(channel);
         auto req = proxy.CommitTransaction();
         ToProto(req->mutable_transaction_id(), Id_);
@@ -316,16 +311,11 @@ public:
                 return;
         }
 
-        auto channel = Owner_->CellDirectory_->GetChannel(cellGuid);
-        if (!channel) {
-            THROW_ERROR_EXCEPTION("Unknown participant cell %s",
-                ~ToString(cellGuid));
-        }
-
         LOG_DEBUG("Adding transaction participant (TransactionId: %s, CellGuid: %s)",
             ~ToString(Id_),
             ~ToString(cellGuid));
 
+        auto channel = Owner_->CellDirectory_->GetChannelOrThrow(cellGuid);
         TTransactionSupervisorServiceProxy proxy(channel);
         auto req = proxy.StartTransaction();
         req->set_start_timestamp(StartTimestamp_);
@@ -592,14 +582,7 @@ private:
                     ~ToString(Transaction_->Id_),
                     ~ToString(cellGuid));
 
-                auto channel = Transaction_->Owner_->CellDirectory_->GetChannel(cellGuid);
-                if (!channel) {
-                    auto error = TError("Unknown participant cell %s",
-                        ~ToString(cellGuid));
-                    OnError(error);
-                    return MakeFuture(error);
-                }
-
+                auto channel = Transaction_->Owner_->CellDirectory_->GetChannelOrThrow(cellGuid);
                 TTransactionSupervisorServiceProxy proxy(channel);
                 auto req = proxy.PingTransaction();
                 ToProto(req->mutable_transaction_id(), Transaction_->Id_);
@@ -697,7 +680,7 @@ private:
                     ~ToString(TransactionId_),
                     ~ToString(cellGuid));
 
-                auto channel = Transaction_->Owner_->CellDirectory_->GetChannel(cellGuid);
+                auto channel = Transaction_->Owner_->CellDirectory_->FindChannel(cellGuid);
                 if (!channel)
                     continue; // better skip
 

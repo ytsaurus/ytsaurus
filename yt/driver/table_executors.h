@@ -90,20 +90,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TInsertExecutor
-    : public TRequestExecutor
-{
-public:
-    TInsertExecutor();
-
-private:
-    TCLAP::UnlabeledValueArg<NYPath::TRichYPath> PathArg;
-
-    virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
-    virtual Stroka GetCommandName() const override;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NDriver
 } // namespace NYT

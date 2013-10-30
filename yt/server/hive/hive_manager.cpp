@@ -285,7 +285,7 @@ private:
 
     IChannelPtr GetMailboxChannel(TMailbox* mailbox)
     {
-        return CellRegistry->GetChannel(mailbox->GetCellGuid());
+        return CellRegistry->FindChannel(mailbox->GetCellGuid());
     }
 
 

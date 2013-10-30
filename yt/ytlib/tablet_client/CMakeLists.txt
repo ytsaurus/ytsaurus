@@ -6,6 +6,7 @@ set( SRCS
 set( HDRS
   ${BASE}/public.h
   ${BASE}/config.h
+  ${BASE}/tablet_service_proxy.h
 )
 
 list(APPEND YT_SOURCE_FILES
