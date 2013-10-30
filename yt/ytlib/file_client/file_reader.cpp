@@ -95,7 +95,8 @@ TAsyncError TAsyncReader::AsyncOpen()
 TAsyncError TAsyncReader::OnInfoFetched(TFileYPathProxy::TRspFetchPtr fetchRsp)
 {
     if (!fetchRsp->IsOK()) {
-        return MakeFuture(TError("Error fetching file info"));
+        return MakeFuture(TError("Error fetching file info")
+            << *fetchRsp);
     }
 
     auto nodeDirectory = New<TNodeDirectory>();
