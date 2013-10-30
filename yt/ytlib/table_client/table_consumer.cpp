@@ -189,30 +189,29 @@ void TTableConsumer::OnBeginMap()
 void TTableConsumer::OnKeyedItem(const TStringBuf& name)
 {
     switch (ControlState) {
-    case EControlState::None:
-        break;
+        case EControlState::None:
+            break;
 
-    case EControlState::ExpectName:
-        YASSERT(Depth == 1);
-        try {
-            ControlAttribute = ParseEnum<EControlAttribute>(ToString(name));
-        } catch (const std::exception&) {
-            // Ignore ex, our custom message is more meaningful.
-            THROW_ERROR_EXCEPTION("Failed to parse control attribute name %s",
-                ~Stroka(name).Quote());
-        }
-        ControlState = EControlState::ExpectValue;
-        return;
+        case EControlState::ExpectName:
+            YASSERT(Depth == 1);
+            try {
+                ControlAttribute = ParseEnum<EControlAttribute>(ToString(name));
+            } catch (const std::exception&) {
+                // Ignore ex, our custom message is more meaningful.
+                THROW_ERROR_EXCEPTION("Failed to parse control attribute name %s",
+                    ~Stroka(name).Quote());
+            }
+            ControlState = EControlState::ExpectValue;
+            return;
 
-    case EControlState::ExpectEndAttributes:
-        YASSERT(Depth == 1);
-        THROW_ERROR_EXCEPTION("Too many control attributes per record: at most one attribute is allowed");
-        break;
+        case EControlState::ExpectEndAttributes:
+            YASSERT(Depth == 1);
+            THROW_ERROR_EXCEPTION("Too many control attributes per record: at most one attribute is allowed");
+            break;
 
-    default:
-        YUNREACHABLE();
-
-    };
+        default:
+            YUNREACHABLE();
+    }
 
     YASSERT(Depth > 0);
     if (Depth == 1) {
