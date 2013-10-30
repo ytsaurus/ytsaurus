@@ -459,7 +459,10 @@ private:
             HostNameToNodeMap.insert(std::make_pair(Stroka(GetServiceHostName(address)), node));
 
             UpdateNodeCounters(node, +1);
-            RegisterLeaseTransaction(node);
+
+            if (node->GetTransaction()) {
+                RegisterLeaseTransaction(node);
+            }
         }
     }
 
@@ -488,6 +491,19 @@ private:
         FOREACH (const auto& pair, NodeMap) {
             auto* node = pair.second;
             RefreshNodeConfig(node);
+        }
+    }
+
+    virtual void OnActiveQuorumEstablished() override
+    {
+        FOREACH (const auto& pair, NodeMap) {
+            auto* node = pair.second;
+            if (!node->GetTransaction()) {
+                LOG_INFO("Missing node transaction, retrying unregistration (NodeId: %d, Address: %s)",
+                    node->GetId(),
+                    ~node->GetAddress());
+                PostUnregisterCommit(node);
+            }
         }
     }
 

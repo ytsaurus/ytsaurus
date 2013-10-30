@@ -52,6 +52,7 @@ public:
     virtual void PopulateResult(NJobTrackerClient::NProto::TJobResult* result) = 0;
 
 protected:
+
     NScheduler::TJobIOConfigPtr IOConfig;
     IJobHost* Host;
 
@@ -59,7 +60,7 @@ protected:
     const NScheduler::NProto::TSchedulerJobSpecExt& SchedulerJobSpecExt;
 
     std::vector<NTableClient::ISyncReaderPtr> Inputs;
-    std::vector<NTableClient::TTableChunkWriterProviderPtr> Outputs;
+    std::vector<NTableClient::TTableChunkSequenceWriterPtr> Outputs;
 
     NLog::TLogger& Logger;
 
