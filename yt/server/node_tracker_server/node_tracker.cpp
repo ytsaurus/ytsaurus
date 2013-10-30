@@ -496,7 +496,7 @@ private:
 
     virtual void OnActiveQuorumEstablished() override
     {
-        for (const auto& pair : NodeMap) {
+        FOREACH (const auto& pair, NodeMap) {
             auto* node = pair.second;
             if (!node->GetTransaction()) {
                 LOG_INFO("Missing node transaction, retrying unregistration (NodeId: %d, Address: %s)",
