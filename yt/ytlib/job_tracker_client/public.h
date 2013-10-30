@@ -24,7 +24,7 @@ DECLARE_ENUM(EJobType,
     ((PartitionSort)    (  8))
     ((SortedReduce)     (  9))
     ((PartitionReduce)  ( 10))
-    ((ReduceCombiner)    ( 11))
+    ((ReduceCombiner)   ( 11))
     ((SchedulerLast)    ( 99)) // sentinel
 
     // Master jobs
