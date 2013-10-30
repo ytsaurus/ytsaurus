@@ -271,8 +271,8 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
     auto schema = proxy->Attributes().Get<TTableSchema>("schema", TTableSchema());
     ToProto(response->mutable_schema(), schema);
 
-    auto keyColumns = proxy->Attributes().Get<TKeyColumns>("sorted_by");
-    ToProto(response->mutable_key_columns()->mutable_names(), keyColumns);
+    const auto* chunkList = impl->GetChunkList();
+    ToProto(response->mutable_key_columns()->mutable_names(), chunkList->SortedBy());
 
     auto* tablet = impl->GetTablet();
     if (tablet) {
