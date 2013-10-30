@@ -214,7 +214,7 @@ TJobResult TJobProxy::DoRun()
                 break;
             }
 
-            case NScheduler::EJobType::MonsterReduce: 
+            case NScheduler::EJobType::ReduceCombiner: 
             case NScheduler::EJobType::PartitionReduce: {
                 const auto& reduceJobSpecExt = jobSpec.GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
                 auto userJobIO = CreatePartitionReduceJobIO(Config->JobIO, this);

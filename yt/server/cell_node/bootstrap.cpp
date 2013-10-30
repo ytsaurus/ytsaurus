@@ -252,7 +252,7 @@ void TBootstrap::Run()
     JobController->RegisterFactory(NJobAgent::EJobType::PartitionSort,   createExecJob);
     JobController->RegisterFactory(NJobAgent::EJobType::SortedReduce,    createExecJob);
     JobController->RegisterFactory(NJobAgent::EJobType::PartitionReduce, createExecJob);
-    JobController->RegisterFactory(NJobAgent::EJobType::MonsterReduce, createExecJob);
+    JobController->RegisterFactory(NJobAgent::EJobType::ReduceCombiner, createExecJob);
 
     auto createChunkJob = BIND([this] (
             const NJobAgent::TJobId& jobId,

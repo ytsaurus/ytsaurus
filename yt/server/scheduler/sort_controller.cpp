@@ -2122,8 +2122,8 @@ private:
     std::vector<TRegularUserFile> MapperFiles;
     std::vector<TUserTableFile> MapperTableFiles;
 
-    std::vector<TRegularUserFile> MonsterFiles;
-    std::vector<TUserTableFile> MonsterTableFiles;
+    std::vector<TRegularUserFile> ReduceCombinerFiles;
+    std::vector<TUserTableFile> ReduceCombinerTableFiles;
 
     std::vector<TRegularUserFile> ReducerFiles;
     std::vector<TUserTableFile> ReducerTableFiles;
@@ -2164,9 +2164,9 @@ private:
             }
         }
 
-        if (Spec->Monster) {
-            FOREACH (const auto& path, Spec->Monster->FilePaths) {
-                result.push_back(std::make_pair(path, EOperationStage::Monster));
+        if (Spec->ReduceCombiner) {
+            FOREACH (const auto& path, Spec->ReduceCombiner->FilePaths) {
+                result.push_back(std::make_pair(path, EOperationStage::ReduceCombiner));
             }
         }
 
@@ -2189,8 +2189,8 @@ private:
                 MapperFiles.push_back(file);
                 break;
 
-            case EOperationStage::Monster:
-                MonsterFiles.push_back(file);
+            case EOperationStage::ReduceCombiner:
+                ReduceCombinerFiles.push_back(file);
                 break;
 
             case EOperationStage::Reduce:
@@ -2208,8 +2208,8 @@ private:
                 MapperTableFiles.push_back(file);
                 break;
 
-            case EOperationStage::Monster:
-                MonsterTableFiles.push_back(file);
+            case EOperationStage::ReduceCombiner:
+                ReduceCombinerTableFiles.push_back(file);
                 break;
 
             case EOperationStage::Reduce:
@@ -2331,16 +2331,16 @@ private:
             ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(IntermediateSortJobIOConfig).Data());
 
-            if (Spec->Monster) {
-                IntermediateSortJobSpecTemplate.set_type(EJobType::MonsterReduce);
+            if (Spec->ReduceCombiner) {
+                IntermediateSortJobSpecTemplate.set_type(EJobType::ReduceCombiner);
                 auto* reduceJobSpecExt = IntermediateSortJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
                 ToProto(reduceJobSpecExt->mutable_key_columns(), Spec->SortBy);
 
                 InitUserJobSpecTemplate(
                     reduceJobSpecExt->mutable_reducer_spec(),
-                    Spec->Monster,
-                    MonsterFiles,
-                    MonsterTableFiles);
+                    Spec->ReduceCombiner,
+                    ReduceCombinerFiles,
+                    ReduceCombinerTableFiles);
             } else {
                 IntermediateSortJobSpecTemplate.set_type(EJobType::PartitionSort);
                 auto* sortJobSpecExt = IntermediateSortJobSpecTemplate.MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
@@ -2419,9 +2419,9 @@ private:
                 break;
             }
 
-            case EJobType::MonsterReduce: {
+            case EJobType::ReduceCombiner: {
                 auto* jobSpecExt = jobSpec->MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
-                InitUserJobSpec(jobSpecExt->mutable_reducer_spec(), joblet, GetMonsterMemoryReserve());
+                InitUserJobSpec(jobSpecExt->mutable_reducer_spec(), joblet, GetReduceCombinerMemoryReserve());
                 break;
             }
 
@@ -2493,12 +2493,12 @@ private:
         TNodeResources result;
         result.set_user_slots(1);
         if (IsSortedMergeNeeded(partition)) {
-            result.set_cpu(Spec->Monster ? Spec->Monster->CpuLimit : 1);
+            result.set_cpu(Spec->ReduceCombiner ? Spec->ReduceCombiner->CpuLimit : 1);
             result.set_memory(
                 GetSortInputIOMemorySize(stat) +
                 GetIntermediateOutputIOMemorySize(IntermediateSortJobIOConfig) +
                 GetSortBuffersMemorySize(stat) +
-                (Spec->Monster ? GetMonsterMemoryReserve() : 0) +
+                (Spec->ReduceCombiner ? GetReduceCombinerMemoryReserve() : 0) +
                 GetFootprintMemorySize());
         } else {
             result.set_cpu(Spec->Reducer->CpuLimit);
@@ -2542,9 +2542,9 @@ private:
         return GetMemoryReserve(PartitionJobCounter, Spec->Mapper);
     }
 
-    i64 GetMonsterMemoryReserve() const
+    i64 GetReduceCombinerMemoryReserve() const
     {
-        return GetMemoryReserve(IntermediateSortJobCounter, Spec->Monster);
+        return GetMemoryReserve(IntermediateSortJobCounter, Spec->ReduceCombiner);
     }
 
     i64 GetPartitionReduceMemoryReserve() const
@@ -2602,7 +2602,7 @@ private:
         BuildYsonMapFluently(consumer)
             .Do(BIND(&TMapReduceController::BuildPartitionsProgressYson, Unretained(this)))
             .Item(Spec->Mapper ? "partition_jobs" : "map_jobs").Value(PartitionJobCounter)
-            .Item(Spec->Monster ? "monster_jobs" : "sort_jobs").Value(IntermediateSortJobCounter)
+            .Item(Spec->ReduceCombiner ? "reduce_combiner_jobs" : "sort_jobs").Value(IntermediateSortJobCounter)
             .Item("partition_reduce_jobs").Value(FinalSortJobCounter)
             .Item("sorted_reduce_jobs").Value(SortedMergeJobCounter);
     }

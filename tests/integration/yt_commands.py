@@ -228,10 +228,10 @@ def start_op(op_type, **kwargs):
     change(kwargs, "sort_by", ["spec","sort_by"])
     change(kwargs, "reduce_by", ["spec","reduce_by"])
     change(kwargs, "mapper_file", ["spec", "mapper", "file_paths"])
-    change(kwargs, "monster_file", ["spec", "monster", "file_paths"])
+    change(kwargs, "reduce_combiner_file", ["spec", "reduce_combiner", "file_paths"])
     change(kwargs, "reducer_file", ["spec", "reducer", "file_paths"])
     change(kwargs, "mapper_command", ["spec", "mapper", "command"])
-    change(kwargs, "monster_command", ["spec", "monster", "command"])
+    change(kwargs, "reduce_combiner_command", ["spec", "reduce_combiner", "command"])
     change(kwargs, "reducer_command", ["spec", "reducer", "command"])
 
     track = not kwargs.get("dont_track", False)

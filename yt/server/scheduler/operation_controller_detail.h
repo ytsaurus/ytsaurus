@@ -244,7 +244,7 @@ protected:
     //! Values must be contiguous.
     DECLARE_ENUM(EOperationStage,
         (Map)
-        (Monster)
+        (ReduceCombiner)
         (Reduce)
     );
 
