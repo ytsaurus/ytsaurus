@@ -399,7 +399,6 @@ private:
         }
     }
 
-
     void RunJobProxy()
     {
         auto asyncError = ProxyController->Run();
@@ -424,7 +423,6 @@ private:
 
         FinalizeJob();
     }
-
 
     void FinalizeJob()
     {
