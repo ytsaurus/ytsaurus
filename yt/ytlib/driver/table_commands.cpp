@@ -221,7 +221,7 @@ void TWriteCommand::DoExecuteMounted(TTableMountInfoPtr mountInfo)
     auto writeReq = tabletProxy.Write();
     ToProto(writeReq->mutable_transaction_id(), transaction->GetId());
     ToProto(writeReq->mutable_tablet_id(), mountInfo->TabletId);
-    writeReq->mutable_chunk_meta()->Swap(&memoryWriter->GetMeta());
+    writeReq->mutable_chunk_meta()->Swap(&memoryWriter->GetChunkMeta());
     writeReq->Attachments() = std::move(memoryWriter->GetBlocks());
 
     auto writeRsp = WaitFor(writeReq->Invoke());
@@ -345,15 +345,16 @@ void TSelectCommand::DoExecute()
     auto nameTable = New<TNameTable>();
     {
         auto error = WaitFor(chunkReader->Open(
-            New<TNameTable>(),
-            NVersionedTableClient::NProto::TTableSchemaExt(),
+            nameTable,
+            NVersionedTableClient::TTableSchema(),
             true));
         THROW_ERROR_EXCEPTION_IF_FAILED(error);
     }
 
     std::vector<NVersionedTableClient::TRow> rows;
     rows.reserve(1000);
-    while (chunkReader->Read(&rows)) {
+    while (true) {
+        bool hasData = chunkReader->Read(&rows);
         for (auto row : rows) {
             consumer->OnListItem();
             consumer->OnBeginMap();
@@ -379,6 +380,9 @@ void TSelectCommand::DoExecute()
                 }
             }
             consumer->OnEndMap();
+        }
+        if (!hasData) {
+            break;
         }
         if (rows.size() < rows.capacity()) {
             auto result = WaitFor(chunkReader->GetReadyEvent());

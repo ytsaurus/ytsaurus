@@ -51,6 +51,8 @@ public:
 
     virtual EColumnType Typecheck() const = 0;
 
+    virtual Stroka InferName() const = 0;
+
     Stroka GetSource() const;
 
 private:
@@ -83,6 +85,11 @@ public:
         return EColumnType::Integer;
     }
 
+    virtual Stroka InferName() const override
+    {
+        return ToString(Value_);
+    }
+
     DEFINE_BYVAL_RO_PROPERTY(i64, Value);
 
 };
@@ -108,6 +115,11 @@ public:
     virtual EColumnType Typecheck() const override
     {
         return EColumnType::Double;
+    }
+
+    virtual Stroka InferName() const override
+    {
+        return ToString(Value_);
     }
 
     DEFINE_BYVAL_RO_PROPERTY(double, Value);
@@ -139,6 +151,11 @@ public:
     virtual EColumnType Typecheck() const override
     {
         return CachedType_;
+    }
+
+    virtual Stroka InferName() const override
+    {
+        return Name_;
     }
 
     DEFINE_BYVAL_RO_PROPERTY(int, TableIndex);
@@ -178,6 +195,21 @@ public:
     {
         // TODO(sandello): We should register functions with their signatures.
         YUNIMPLEMENTED();
+    }
+
+    virtual Stroka InferName() const override
+    {
+        Stroka result;
+        result += Name_;
+        result += "(";
+        for (const auto& argument : Arguments_) {
+            if (!result.empty()) {
+                result += ", ";
+            }
+            result += argument->InferName();
+        }
+        result += ")";
+        return result;
     }
 
     TArguments& Arguments()
@@ -252,6 +284,23 @@ public:
         // XXX(sandello): As we do not have boolean type, we cast cmps to int.
         // TODO(sandello): For arithmetic exprs we have to return different value.
         return EColumnType::Integer;
+    }
+
+    virtual Stroka InferName() const override
+    {
+        Stroka result;
+        result += GetLhs()->InferName();
+        switch (Opcode_) {
+        case EBinaryOp::Less:           result = " < "; break;
+        case EBinaryOp::LessOrEqual:    result = " <= "; break;
+        case EBinaryOp::Equal:          result = " = "; break;
+        case EBinaryOp::NotEqual:       result = " != "; break;
+        case EBinaryOp::Greater:        result = " > "; break;
+        case EBinaryOp::GreaterOrEqual: result = " >= "; break;
+        default: YUNREACHABLE();
+        }
+        result += GetRhs()->InferName();
+        return result;
     }
 
     const TExpression* GetLhs() const

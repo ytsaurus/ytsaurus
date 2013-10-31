@@ -75,6 +75,7 @@
 #include <server/tablet_node/tablet_cell_controller.h>
 
 #include <server/query_agent/query_manager.h>
+#include <server/query_agent/query_service.h>
 
 namespace NYT {
 namespace NCellNode {
@@ -276,6 +277,8 @@ void TBootstrap::Run()
     TabletCellController->Initialize();
 
     QueryManager = New<TQueryManager>(Config->QueryAgent, this);
+
+    RpcServer->RegisterService(New<TQueryService>(this));
 
     OrchidRoot = GetEphemeralNodeFactory()->CreateMap();
     SetNodeByYPath(

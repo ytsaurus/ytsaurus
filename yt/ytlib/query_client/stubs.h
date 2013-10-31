@@ -19,13 +19,6 @@ namespace NYT {
 namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
-// In use.
-
-using NVersionedTableClient::EColumnType;
-using NVersionedTableClient::NProto::TColumnSchema;
-typedef NVersionedTableClient::NProto::TTableSchemaExt TTableSchema;
-
-////////////////////////////////////////////////////////////////////////////////
 // Hooks for other means.
 
 

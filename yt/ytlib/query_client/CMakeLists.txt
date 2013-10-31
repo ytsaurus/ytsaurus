@@ -8,6 +8,7 @@ set( SRCS
   ${BASE}/query_context.cpp
   ${BASE}/query_fragment.cpp
   ${BASE}/private.cpp
+  ${BASE}/helpers.cpp
   ${BASE}/coordinate_controller.cpp
   ${BASE}/evaluate_controller.cpp
   ${BASE}/executor.cpp

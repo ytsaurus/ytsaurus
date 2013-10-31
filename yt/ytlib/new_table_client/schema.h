@@ -48,8 +48,12 @@ public:
 
 public:
     TColumnSchema* FindColumn(const TStringBuf& name);
+    const TColumnSchema* FindColumn(const TStringBuf& name) const;
+
     TColumnSchema& GetColumnOrThrow(const TStringBuf& name);
-    int GetColumnIndex(const TColumnSchema& column);
+    const TColumnSchema& GetColumnOrThrow(const TStringBuf& name) const;
+
+    int GetColumnIndex(const TColumnSchema& column) const;
 
 };
 
@@ -58,6 +62,9 @@ void Deserialize(TTableSchema& schema, NYTree::INodePtr node);
 
 void ToProto(NProto::TTableSchemaExt* protoSchema, const TTableSchema& schema);
 void FromProto(TTableSchema* schema, const NProto::TTableSchemaExt& protoSchema);
+
+bool operator==(const TColumnSchema& lhs, const TColumnSchema& rhs);
+bool operator==(const TTableSchema& lhs, const TTableSchema& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -21,7 +21,7 @@ TColumnSchema::TColumnSchema()
     : Type(EColumnType::Null)
 { }
 
-TColumnSchema::TColumnSchema( const Stroka& name, EColumnType type )
+TColumnSchema::TColumnSchema(const Stroka& name, EColumnType type)
     : Name(name)
     , Type(type)
 { }
@@ -31,10 +31,17 @@ struct TSerializableColumnSchema
     , public TColumnSchema
 {
     TSerializableColumnSchema()
-    { }
+    {
+        RegisterAll();
+    }
 
     explicit TSerializableColumnSchema(const TColumnSchema& other)
         : TColumnSchema(other)
+    {
+        RegisterAll();
+    }
+
+    void RegisterAll()
     {
         RegisterParameter("name", Name);
         RegisterParameter("type", Type);
@@ -80,6 +87,16 @@ TColumnSchema* TTableSchema::FindColumn(const TStringBuf& name)
     return nullptr;
 }
 
+const TColumnSchema* TTableSchema::FindColumn(const TStringBuf& name) const
+{
+    for (auto& column : Columns_) {
+        if (column.Name == name) {
+            return &column;
+        }
+    }
+    return nullptr;
+}
+
 TColumnSchema& TTableSchema::GetColumnOrThrow(const TStringBuf& name)
 {
     auto* column = FindColumn(name);
@@ -90,7 +107,17 @@ TColumnSchema& TTableSchema::GetColumnOrThrow(const TStringBuf& name)
     return *column;
 }
 
-int TTableSchema::GetColumnIndex(const TColumnSchema& column)
+const TColumnSchema& TTableSchema::GetColumnOrThrow(const TStringBuf& name) const
+{
+    auto* column = FindColumn(name);
+    if (!column) {
+        THROW_ERROR_EXCEPTION("Missing schema column %s",
+            ~Stroka(name).Quote());
+    }
+    return *column;
+}
+
+int TTableSchema::GetColumnIndex(const TColumnSchema& column) const
 {
     return &column - Columns().data();
 }
@@ -115,6 +142,18 @@ void ToProto(NProto::TTableSchemaExt* protoSchema, const TTableSchema& schema)
 void FromProto(TTableSchema* schema, const NProto::TTableSchemaExt& protoSchema)
 {
     schema->Columns() = NYT::FromProto<TColumnSchema>(protoSchema.columns());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool operator==(const TColumnSchema& lhs, const TColumnSchema& rhs)
+{
+    return lhs.Name == rhs.Name && lhs.Type == rhs.Type;
+}
+
+bool operator==(const TTableSchema& lhs, const TTableSchema& rhs)
+{
+    return lhs.Columns() == rhs.Columns();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

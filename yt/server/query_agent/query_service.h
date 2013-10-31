@@ -17,14 +17,14 @@ namespace NQueryAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueryAgentService
+class TQueryService
     : public NRpc::TServiceBase
 {
 public:
-    explicit TQueryAgentService(NCellNode::TBootstrap* bootstrap);
+    explicit TQueryService(NCellNode::TBootstrap* bootstrap);
 
 private:
-    typedef TQueryAgentService TThis;
+    typedef TQueryService TThis;
     typedef NQueryClient::TQueryServiceProxy TProxy;
 
     NVersionedTableClient::TChunkWriterConfigPtr ChunkWriterConfig_;

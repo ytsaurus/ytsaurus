@@ -5,6 +5,8 @@
 #include "ast.h"
 #include "ast_visitor.h"
 
+#include "helpers.h"
+
 #include "query_context.h"
 #include "query_fragment.h"
 
@@ -25,8 +27,10 @@
 // Required for std::unordered_set.
 namespace std {
 template <>
-struct hash<std::pair<const void*, const void*>> {
-    std::size_t operator () (const std::pair<const void*, const void*>& pair) const {
+struct hash<std::pair<const void*, const void*>>
+{
+    std::size_t operator () (const std::pair<const void*, const void*>& pair) const
+    {
         return (size_t)pair.first + (size_t)pair.second * 17;
     }
 };
@@ -275,7 +279,7 @@ public:
     {
         using NObjectClient::TObjectId;
         using NObjectClient::TypeFromId;
-        auto objectId = NYT::FromProto<TObjectId>(op->DataSplit().chunk_id());
+        auto objectId = GetObjectIdFromDataSplit(op->DataSplit());
         WriteNode(
             op,
             TLabel(op)

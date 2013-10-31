@@ -76,7 +76,7 @@ void TChunkWriter::Open(
         }
     );
 
-    ColumnDescriptors.resize(InputNameTable->GetNameCount());
+    ColumnDescriptors.resize(Schema.Columns().size());
 
     for (const auto& column: Schema.Columns()) {
         TColumnDescriptor descriptor;
@@ -90,15 +90,16 @@ void TChunkWriter::Open(
             ColumnSizes.push_back(8);
         }
 
-        int index = InputNameTable->GetIndex(column.Name);
+        // TODO(sandello): Actually, reader should fill name table after open.
+        auto index = InputNameTable->GetOrRegisterName(column.Name);
         ColumnDescriptors[index] = descriptor;
     }
 
     for (const auto& column: keyColumns) {
-        auto index = InputNameTable->FindIndex(column);
-        YCHECK(index);
-        KeyIndexes.push_back(*index);
-        auto& descriptor = ColumnDescriptors[*index];
+        auto index = InputNameTable->GetIndex(column);
+        KeyIndexes.push_back(index);
+
+        auto& descriptor = ColumnDescriptors[index];
         YCHECK(descriptor.IndexInBlock >= 0);
         YCHECK(descriptor.Type != EColumnType::Any);
         descriptor.IsKeyPart = true;

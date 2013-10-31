@@ -2,6 +2,7 @@
 #include "evaluate_controller.h"
 
 #include "private.h"
+#include "helpers.h"
 
 #include "ast.h"
 #include "ast_visitor.h"
@@ -42,6 +43,70 @@ const TDataSplit& GetHeaviestSplit(const TOperator* op)
     }
 }
 
+TTableSchema InferTableSchema(const TOperator* op)
+{
+    switch (op->GetKind()) {
+    case EOperatorKind::Scan:
+        return GetTableSchemaFromDataSplit(op->As<TScanOperator>()->DataSplit());
+    case EOperatorKind::Filter:
+        return InferTableSchema(op->As<TFilterOperator>()->GetSource());
+    case EOperatorKind::Project: {
+        TTableSchema result;
+        auto* typedOp = op->As<TProjectOperator>();
+        for (const auto& projection : typedOp->Projections()) {
+            result.Columns().emplace_back(
+                projection->InferName(),
+                projection->Typecheck());
+        }
+        return result;
+    }
+    case EOperatorKind::Union: {
+        TTableSchema result;
+        bool didChooseTableSchema;
+        auto* typedOp = op->As<TUnionOperator>();
+        for (const auto& source : typedOp->Sources()) {
+            if (!didChooseTableSchema) {
+                result = InferTableSchema(source);
+                didChooseTableSchema = true;
+            } else {
+                YCHECK(result == InferTableSchema(source));
+            }
+        }
+        return result;
+    }
+    default:
+        YUNREACHABLE();
+    }
+}
+
+TKeyColumns InferKeyColumns(const TOperator* op)
+{
+    switch (op->GetKind()) {
+    case EOperatorKind::Scan:
+        return GetKeyColumnsFromDataSplit(op->As<TScanOperator>()->DataSplit());
+    case EOperatorKind::Filter:
+        return InferKeyColumns(op->As<TFilterOperator>()->GetSource());
+    case EOperatorKind::Project:
+        return TKeyColumns();
+    case EOperatorKind::Union: {
+        TKeyColumns result;
+        bool didChooseKeyColumns;
+        auto* typedOp = op->As<TUnionOperator>();
+        for (const auto& source : typedOp->Sources()) {
+            if (!didChooseKeyColumns) {
+                result = InferKeyColumns(source);
+                didChooseKeyColumns = true;
+            } else {
+                YCHECK(result == InferKeyColumns(source));
+            }
+        }
+        return result;
+    }
+    default:
+        YUNREACHABLE();
+    }
+}
+
 } // namespace anonymous
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -65,7 +130,7 @@ TCoordinateController::~TCoordinateController()
 
 IReaderPtr TCoordinateController::GetReader(const TDataSplit& dataSplit)
 {
-    auto objectId = NYT::FromProto<TObjectId>(dataSplit.chunk_id());
+    auto objectId = GetObjectIdFromDataSplit(dataSplit);
     LOG_DEBUG("Creating reader for %s", ~ToString(objectId));
     switch (TypeFromId(objectId)) {
     case EObjectType::QueryFragment:
@@ -109,10 +174,9 @@ void TCoordinateController::SplitFurther()
     [this] (TQueryContext* context, const TOperator* op) -> const TOperator*
     {
         if (auto* scanOp = op->As<TScanOperator>()) {
-            auto objectId = NYT::FromProto<TObjectId>(scanOp->DataSplit().chunk_id());
-            LOG_DEBUG(
-                "Splitting input %s",
-                ~ToString(objectId));
+            auto objectId = GetObjectIdFromDataSplit(scanOp->DataSplit());
+            LOG_DEBUG("Splitting input %s", ~ToString(objectId));
+
             auto dataSplitsOrError = WaitFor(
                 GetCallbacks()->SplitFurther(scanOp->DataSplit()));
             auto dataSplits = dataSplitsOrError.GetValueOrThrow();
@@ -120,6 +184,7 @@ void TCoordinateController::SplitFurther()
                 "Got %" PRISZT " splits for input %s",
                 dataSplits.size(),
                 ~ToString(objectId));
+
             if (dataSplits.size() == 1) {
                 const auto& dataSplit = dataSplits[0];
                 auto* splittedScanOp = new (context) TScanOperator(
@@ -234,15 +299,15 @@ void TCoordinateController::DelegateToPeers()
             GetContext(),
             GetContext()->GetFakeTableIndex());
 
-        auto objectId = MakeId(
-            EObjectType::QueryFragment,
-            0, // XXX(sandello): Fix this cell guid?
-            Peers_.size() - 1,
-            0);
-
-        ToProto(facadeScanOp->DataSplit().mutable_chunk_id(), objectId);
-        // TODO(sandello): Fill schema for this scan operator.
-        // TODO(sandello): Fill key columns for this scan operator.
+        SetObjectId(
+            &facadeScanOp->DataSplit(),
+            MakeId(EObjectType::QueryFragment, 0xBABE, Peers_.size() - 1, 0));
+        SetTableSchema(
+            &facadeScanOp->DataSplit(),
+            InferTableSchema(source));
+        SetKeyColumns(
+            &facadeScanOp->DataSplit(),
+            InferKeyColumns(source));
 
         facadeUnionOp->Sources().push_back(facadeScanOp);
     }

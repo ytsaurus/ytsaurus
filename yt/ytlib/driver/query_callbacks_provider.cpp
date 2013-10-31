@@ -26,6 +26,7 @@
 #include <ytlib/query_client/callbacks.h>
 #include <ytlib/query_client/executor.h> // For DelegateToPeer
 #include <ytlib/query_client/stubs.h>
+#include <ytlib/query_client/helpers.h>
 
 #include <core/ytree/ypath_proxy.h>
 #include <core/ytree/attribute_helpers.h>
@@ -118,9 +119,6 @@ public:
 private:
     TErrorOr<TDataSplit> DoGetInitialSplit(const TYPath& path)
     {
-        typedef NTableClient::NProto::TKeyColumnsExt TProtoKeyColumns;
-        typedef NVersionedTableClient::NProto::TTableSchemaExt TProtoTableSchema;
-
         LOG_DEBUG("Getting info for table %s", ~path);
 
         auto asyncInfoOrError = TableMountCache_->LookupInfo(path);
@@ -130,15 +128,9 @@ private:
 
         TDataSplit result;
 
-        ToProto(result.mutable_chunk_id(), info->TableId);
-
-        TProtoKeyColumns protoKeyColumns;
-        ToProto(protoKeyColumns.mutable_values(), info->KeyColumns);
-        SetProtoExtension(result.mutable_extensions(), protoKeyColumns);
-
-        TProtoTableSchema protoTableSchema;
-        ToProto(&protoTableSchema, info->Schema);
-        SetProtoExtension(result.mutable_extensions(), protoTableSchema);
+        SetObjectId(&result, info->TableId);
+        SetTableSchema(&result, info->Schema); // info->TableSchema?
+        SetKeyColumns(&result, info->KeyColumns);
 
         LOG_DEBUG("Got info for table %s", ~path);
 
@@ -162,19 +154,15 @@ private:
         }
     }
 
-    TErrorOr<std::vector<TDataSplit>> DoSplitTableFurther(const TDataSplit& split)
+    TErrorOr<std::vector<TDataSplit>> DoSplitTableFurther(const TDataSplit& dataSplit)
     {
-        // TODO(babenko): caching?
-
-        auto tableId = FromProto<TObjectId>(split.chunk_id());
+        auto objectId = GetObjectIdFromDataSplit(dataSplit);
         LOG_DEBUG("Splitting table further into chunks (TableId: %s)",
-            ~ToString(tableId));
+            ~ToString(objectId));
 
-        typedef NTableClient::NProto::TKeyColumnsExt TProtoKeyColumns;
-        typedef NVersionedTableClient::NProto::TTableSchemaExt TProtoTableSchema;
-
-        auto path = FromObjectId(tableId);
+        auto path = FromObjectId(objectId);
         auto req = TTableYPathProxy::Fetch(path);
+        req->set_fetch_all_meta_extensions(true);
         auto rsp = WaitFor(ObjectProxy_.Execute(req));
 
         if (!rsp->IsOK()) {
@@ -186,14 +174,16 @@ private:
         NodeDirectory_->MergeFrom(rsp->node_directory());
         auto chunkSpecs = FromProto<NChunkClient::NProto::TChunkSpec>(rsp->chunks());
 
-        auto originalKeyColumns = GetProtoExtension<TProtoKeyColumns>(split.extensions());
-        auto originalTableSchema = GetProtoExtension<TProtoTableSchema>(split.extensions());
+        typedef NTableClient::NProto::TKeyColumnsExt TProtoKeyColumns;
+        typedef NVersionedTableClient::NProto::TTableSchemaExt TProtoTableSchema;
+        auto originalKeyColumns = GetProtoExtension<TProtoKeyColumns>(dataSplit.extensions());
+        auto originalTableSchema = GetProtoExtension<TProtoTableSchema>(dataSplit.extensions());
 
         for (auto& chunkSpec : chunkSpecs) {
-            // TODO(babenko): why not GetProtoExtension?
             auto keyColumns = FindProtoExtension<TProtoKeyColumns>(chunkSpec.extensions());
             auto tableSchema = FindProtoExtension<TProtoTableSchema>(chunkSpec.extensions());
             // TODO(sandello): One day we should validate consistency.
+            // Now we just check we do _not_ have any of these.
             YCHECK(!keyColumns);
             YCHECK(!tableSchema);
 

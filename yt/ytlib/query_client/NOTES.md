@@ -2,7 +2,8 @@
   * Run AST structure consistency checks from time to time. :)
   * Get rid of memory pool, leave GC root.
   * Introduce kinds to ast nodes.
-  * Cache expression type in expr nodes.
+  * Cache expression type and name in expr nodes; display them in graphviz;
+  * Cache inferred key columns and schemas in operator nodes; display them in graphviz.
 
         //
         // 1) Traverse operator tree and split "heavy" nodes

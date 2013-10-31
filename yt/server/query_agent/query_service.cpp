@@ -1,4 +1,4 @@
-#include "query_agent_service.h"
+#include "query_service.h"
 #include "private.h"
 
 #include <ytlib/chunk_client/config.h>
@@ -30,12 +30,10 @@ using namespace NVersionedTableClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 static auto& Logger = QueryAgentLogger;
-static auto& Profiler = QueryAgentProfiler;
-static auto ProfilingPeriod = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TQueryAgentService::TQueryAgentService(TBootstrap* bootstrap)
+TQueryService::TQueryService(TBootstrap* bootstrap)
     : NRpc::TServiceBase(
         CreatePrioritizedInvoker(bootstrap->GetControlInvoker()),
         TProxy::GetServiceName(),
@@ -55,7 +53,7 @@ TQueryAgentService::TQueryAgentService(TBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_RPC_SERVICE_METHOD(TQueryAgentService, Execute)
+DEFINE_RPC_SERVICE_METHOD(TQueryService, Execute)
 {
     auto fragment = NQueryClient::FromProto(request->fragment());
 

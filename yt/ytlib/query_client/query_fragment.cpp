@@ -1,5 +1,7 @@
 #include "query_fragment.h"
-#include "query_context.h"
+
+#include "private.h"
+#include "helpers.h"
 
 #include "ast.h"
 #include "ast_visitor.h"
@@ -7,10 +9,10 @@
 #include "lexer.h"
 #include "parser.hpp"
 
-#include "private.h"
-
 #include <ytlib/table_client/chunk_meta_extensions.h>
 #include <ytlib/new_table_client/chunk_meta_extensions.h>
+
+#include <ytlib/new_table_client/schema.h>
 
 #include <ytlib/query_client/query_fragment.pb.h>
 
@@ -128,43 +130,32 @@ public:
 
         auto* mutableExpr = expr->AsMutable<TReferenceExpression>();
 
-        const auto keyColumns = GetProtoExtension<NTableClient::NProto::TKeyColumnsExt>(op->DataSplit().extensions());
-        const auto tableSchema = GetProtoExtension<NVersionedTableClient::NProto::TTableSchemaExt>(op->DataSplit().extensions());
+        const auto keyColumns = GetKeyColumnsFromDataSplit(op->DataSplit());
+        const auto tableSchema = GetTableSchemaFromDataSplit(op->DataSplit());
 
         {
-            auto it = std::find_if(
-                tableSchema.columns().begin(),
-                tableSchema.columns().end(),
-                [&expr] (const NVersionedTableClient::NProto::TColumnSchema& columnSchema) {
-                    return expr->GetName() == columnSchema.name();
-                });
+            auto column = tableSchema.FindColumn(expr->GetName());
 
-            if (it == tableSchema.columns().end()) {
-                const TExpression* enclosingExpr = expr;
-                while (enclosingExpr->Parent()) {
-                    enclosingExpr = enclosingExpr->Parent();
-                }
-
+            if (!column) {
                 THROW_ERROR_EXCEPTION(
                     "Table %s does not have column %s in its schema",
                     ~descriptor.Path,
-                    ~expr->GetName().Quote())
-                    << TErrorAttribute("enclosing_expression", enclosingExpr->GetSource());
+                    ~expr->GetName().Quote());
             }
 
-            mutableExpr->SetCachedType(EColumnType(it->type()));
+            mutableExpr->SetCachedType(column->Type);
         }
 
         {
             auto it = std::find_if(
-                keyColumns.names().begin(),
-                keyColumns.names().end(),
+                keyColumns.begin(),
+                keyColumns.end(),
                 [&expr] (const Stroka& name) {
                     return expr->GetName() == name;
                 });
 
-            if (it != keyColumns.names().end()) {
-                mutableExpr->SetCachedKeyIndex(std::distance(keyColumns.names().begin(), it));
+            if (it != keyColumns.end()) {
+                mutableExpr->SetCachedKeyIndex(std::distance(keyColumns.begin(), it));
             } else {
                 mutableExpr->SetCachedKeyIndex(-1);
             }
