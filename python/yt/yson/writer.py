@@ -49,7 +49,7 @@ __all__ = ["dump", "dumps"]
 def dump(object, stream, yson_format=None, indent=None, check_circular=True, encoding='utf-8'):
     '''Serialize ``object`` as a Yson formatted stream to ``fp`` (a
     ``.write()``-supporting file-like object).'''
-    stream.write(dumps(object, yson_format, check_circular, encoding, indent))
+    stream.write(dumps(object, yson_format=yson_format, check_circular=check_circular, encoding=encoding, indent=indent))
 
 
 def dumps(object, yson_format=None, indent=None, check_circular=True, encoding='utf-8'):
